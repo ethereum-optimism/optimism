@@ -4,78 +4,110 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
-	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum/go-ethereum/common"
+
+	"github.com/ethereum-optimism/optimism/op-service/eth"
 )
 
 type replacementHistory interface {
-	DeniedBlocksAtHeight(uint64) ([]common.Hash, error)
+	DeniedBlocksInRange(uint64, uint64) ([]eth.BlockID, error)
 	PayloadByHash(context.Context, common.Hash) (*eth.ExecutionPayloadEnvelope, error)
 }
 
-// checkReplacement reconstructs partial invalidation after a follower restart
-// from the supernode's existing durable deny list. A denial at the same height
-// is insufficient: the denied block must extend the surviving canonical parent.
-func (m *Module) checkReplacement(ctx context.Context, src Rendering, payload *eth.ExecutionPayload, generation uint64) error {
-	n := uint64(payload.BlockNumber)
-	m.mu.RLock()
-	var covered bool
-	for _, c := range m.pending {
-		if c.carrier < n && n <= c.last && (c.replacementFrom == 0 || n < c.replacementFrom) {
-			covered = true
-			break
-		}
-	}
-	m.mu.RUnlock()
-	if !covered {
-		return nil
-	}
+// surviving resolves the claim's original branch against today's canonical
+// projection, then clips it at the first relevant denial. No revocation or
+// restoration flags survive a branch change. Denials are a sparse snapshot shared
+// by all claims, independent of the length of the following deposit-only outage.
+func (m *Module) surviving(ctx context.Context, src Rendering, c claim, frontier uint64, denied []eth.BlockID) (uint64, error) {
 	history, ok := src.(replacementHistory)
 	if !ok {
-		return fmt.Errorf("projection source does not expose replacement history")
+		return 0, fmt.Errorf("projection source does not expose replacement history")
 	}
-	denied, err := history.DeniedBlocksAtHeight(n)
-	if err != nil {
-		return err
-	}
-	for _, hash := range denied {
-		if hash == payload.BlockHash {
-			continue
-		}
-		old, err := history.PayloadByHash(ctx, hash)
-		if err != nil {
-			return fmt.Errorf("reading denied projection header %s: %w", hash, err)
-		}
-		if old == nil || old.ExecutionPayload == nil || old.ExecutionPayload.BlockHash != hash || uint64(old.ExecutionPayload.BlockNumber) != n {
-			return fmt.Errorf("denied projection header is unavailable or inconsistent")
-		}
-		if old.ExecutionPayload.ParentHash != payload.ParentHash {
-			continue
-		}
-		parent, err := src.PayloadByNumber(ctx, n-1)
-		if err != nil {
-			return err
-		}
-		if parent == nil || parent.ExecutionPayload == nil || parent.ExecutionPayload.BlockHash != payload.ParentHash {
-			return fmt.Errorf("canonical replacement parent changed")
-		}
-		prefix, err := derive.PayloadToBlockRef(m.rollupCfg, parent.ExecutionPayload)
-		if err != nil {
-			return err
-		}
-		m.mu.Lock()
-		if generation != m.generation {
-			m.mu.Unlock()
-			return fmt.Errorf("claim history changed during replacement lookup")
-		}
-		for _, c := range m.pending {
-			if c.carrier < n && n <= c.last && (c.replacementFrom == 0 || n < c.replacementFrom) {
-				c.invalidFrom, c.prefixRef, c.completed, c.replacementFrom, c.revokedTip = n, prefix, false, n, eth.BlockID{}
+	end := min(c.tip.Number, frontier)
+	old := c.tip
+	for {
+		if old.Number <= end {
+			canonical, err := projectionRef(ctx, src, m.rollupCfg, old.Number)
+			if err != nil {
+				return 0, err
+			}
+			if canonical.ID() == old {
+				end = old.Number
+				break
 			}
 		}
-		m.mu.Unlock()
-		return nil
+		if old.Number <= c.carrier {
+			return 0, fmt.Errorf("claim carrier changed during resolution")
+		}
+		env, err := history.PayloadByHash(ctx, old.Hash)
+		if err != nil {
+			return 0, err
+		}
+		if env == nil || env.ExecutionPayload == nil || env.ExecutionPayload.ID() != old {
+			return 0, fmt.Errorf("original projection header is unavailable or inconsistent")
+		}
+		old = eth.BlockID{Hash: env.ExecutionPayload.ParentHash, Number: old.Number - 1}
 	}
-	return nil
+	for _, id := range denied {
+		if id.Number <= c.carrier || id.Number > end {
+			continue
+		}
+		canonical, err := projectionRef(ctx, src, m.rollupCfg, id.Number)
+		if err != nil {
+			return 0, err
+		}
+		env, err := history.PayloadByHash(ctx, id.Hash)
+		if err != nil {
+			return 0, fmt.Errorf("reading denied projection header: %w", err)
+		}
+		if env == nil || env.ExecutionPayload == nil || env.ExecutionPayload.ID() != id {
+			return 0, fmt.Errorf("denied projection header is unavailable or inconsistent")
+		}
+		if env.ExecutionPayload.ParentHash == canonical.ParentHash {
+			end = id.Number - 1
+		}
+	}
+	return end, nil
+}
+
+// recoveryFrontier excludes a denied canonical block and all descendants, even
+// while the engine has not completed its rewind. The same sparse denial snapshot
+// also identifies replaced suffixes inside individual claims.
+func (m *Module) recoveryFrontier(ctx context.Context, src Rendering, status *eth.SyncStatus, finalized uint64) (*eth.SyncStatus, []eth.BlockID, error) {
+	history, ok := src.(replacementHistory)
+	if !ok {
+		return nil, nil, fmt.Errorf("projection source does not expose replacement history")
+	}
+	denied, err := history.DeniedBlocksInRange(finalized, status.LocalSafeL2.Number)
+	if err != nil {
+		return nil, nil, err
+	}
+	out := *status
+	for _, id := range denied {
+		if id.Number > out.LocalSafeL2.Number {
+			continue
+		}
+		ref, err := projectionRef(ctx, src, m.rollupCfg, id.Number)
+		if err != nil {
+			return nil, nil, err
+		}
+		if ref.ID() != id {
+			continue
+		}
+		if id.Number <= finalized {
+			return nil, nil, ErrInvariant
+		}
+		parent, err := projectionRef(ctx, src, m.rollupCfg, id.Number-1)
+		if err != nil {
+			return nil, nil, err
+		}
+		out.LocalSafeL2 = parent
+		if out.SafeL2.Number > parent.Number {
+			out.SafeL2 = parent
+		}
+		if out.FinalizedL2.Number > parent.Number {
+			out.FinalizedL2 = parent
+		}
+	}
+	return &out, denied, nil
 }

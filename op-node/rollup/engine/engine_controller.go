@@ -432,6 +432,10 @@ func (e *EngineController) PendingSafeL2Head() eth.L2BlockRef {
 	return e.pendingSafeHead
 }
 
+func (e *EngineController) LocalSafeHead() eth.L2BlockRef {
+	return e.localSafeHead
+}
+
 func (e *EngineController) Finalized() eth.L2BlockRef {
 	return e.FinalizedHead()
 }

@@ -19,8 +19,7 @@ type API struct {
 // NewAPI wraps a module as the "optimism" namespace service.
 func NewAPI(m *Module) *API { return &API{m: m} }
 
-// SyncStatus serves optimism_syncStatus. See Module.SyncStatus for the field population, and the
-// package comment for why an error before the first claim is the right answer rather than a gap.
+// SyncStatus serves the last fully checked snapshot through optimism_syncStatus.
 func (a *API) SyncStatus(_ context.Context) (*sources.FollowSyncStatus, error) {
 	a.m.mu.RLock()
 	defer a.m.mu.RUnlock()
@@ -28,19 +27,9 @@ func (a *API) SyncStatus(_ context.Context) (*sources.FollowSyncStatus, error) {
 	if err != nil {
 		return nil, err
 	}
-	out := &sources.FollowSyncStatus{SyncStatus: *status}
-	if a.m.recoveryTarget != (eth.L2BlockRef{}) && a.m.recoveryTarget.Number >= a.m.localSafe.Number {
-		out.Recovery = &sources.FollowRecoveryStatus{Anchor: a.m.localSafe, Target: a.m.recoveryTarget, Safe: a.m.recoverySafe, Finalized: a.m.recoveryFinalized}
-		for _, c := range a.m.pending {
-			if c.invalidFrom != 0 && c.prefixRef.Number > out.Recovery.Anchor.Number && c.prefixRef.Number <= out.Recovery.Target.Number &&
-				(out.Recovery.Prefix == nil || c.prefixRef.Number > out.Recovery.Prefix.Last.Number) {
-				out.Recovery.Prefix = &sources.FollowRecoveryPrefix{
-					Parent: eth.BlockID{Hash: c.parent, Number: c.last - 1}, Last: c.prefixRef,
-				}
-			}
-		}
-	}
-	return out, nil
+	out := a.m.view
+	out.SyncStatus = *status
+	return &out, nil
 }
 
 // RecoveryBlock supplies only canonical deposit-only projection inputs. It never
@@ -51,7 +40,12 @@ func (a *API) RecoveryBlock(ctx context.Context, number uint64, target eth.Block
 		return eth.L2BlockRef{}, err
 	}
 	a.m.mu.RLock()
-	anchor, frontier, generation := a.m.localSafe, a.m.recoveryTarget, a.m.generation
+	plan, generation := a.m.view.Recovery, a.m.generation
+	anchor := a.m.view.LocalSafeL2
+	var frontier eth.L2BlockRef
+	if plan != nil {
+		frontier = plan.Target
+	}
 	a.m.mu.RUnlock()
 	if number <= anchor.Number || number > target.Number || target.Number > frontier.Number {
 		return eth.L2BlockRef{}, fmt.Errorf("block %d is outside the available recovery suffix", number)
@@ -90,7 +84,7 @@ func (a *API) RecoveryBlock(ctx context.Context, number uint64, target eth.Block
 	}
 	a.m.mu.RLock()
 	defer a.m.mu.RUnlock()
-	if a.m.generation != generation || a.m.recoveryTarget.Number < target.Number || a.m.localSafe.Number >= number {
+	if a.m.generation != generation || a.m.view.Recovery == nil || a.m.view.Recovery.Target.Number < target.Number || a.m.view.LocalSafeL2.Number >= number {
 		return eth.L2BlockRef{}, fmt.Errorf("projection recovery snapshot was revoked")
 	}
 	return ref, nil

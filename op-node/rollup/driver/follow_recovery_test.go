@@ -40,7 +40,10 @@ func TestFollowRecoveryAttributes(t *testing.T) {
 			public := eth.L2BlockRef{Hash: common.Hash{3}, ParentHash: common.Hash{4}, Number: 9, Time: 102, L1Origin: parent.L1Origin, SequenceNumber: 4}
 			frontier := eth.L1BlockRef{Hash: common.Hash{5}, Number: 35}
 			emitter := &testutils.MockEmitter{}
-			f := &followRecovery{mapped: parent, emitter: emitter, status: &sources.FollowStatus{
+			ec := engine.NewEngineController(t.Context(), &testutils.MockEngine{}, testlog.Logger(t, 0), metrics.NoopMetrics,
+				&rollup.Config{}, &syncconfig.Config{}, &testutils.MockL1Source{}, emitter, nil)
+			ec.SetLocalSafeHead(parent)
+			f := &followRecovery{engine: ec, emitter: emitter, status: &sources.FollowStatus{
 				CurrentL1: frontier, Recovery: &sources.FollowRecoveryStatus{Anchor: parent, Target: public},
 			}}
 			f.source = recoverySourceFunc(func(_ context.Context, n uint64, target eth.BlockID) (eth.L2BlockRef, error) {
@@ -79,11 +82,12 @@ func TestFollowRecoveryAttributes(t *testing.T) {
 				require.NoError(t, f.next(t.Context(), parent))
 				require.NotNil(t, queuedCtx)
 				require.NoError(t, queuedCtx.Err(), "queued events must outlive the RPC deadline scope")
-				require.Equal(t, public, f.inflight)
+				require.NotNil(t, f.build)
+				require.Equal(t, public, f.build.public)
 				require.NoError(t, f.next(t.Context(), parent), "do not duplicate in-flight attributes")
 			} else {
 				require.Error(t, f.next(t.Context(), parent))
-				require.Zero(t, f.inflight)
+				require.Nil(t, f.build)
 			}
 			emitter.AssertExpectations(t)
 		})
@@ -230,16 +234,17 @@ func TestFollowRecoveryWaitsForWholeReplacementInterval(t *testing.T) {
 		Target: eth.L2BlockRef{Number: 6},
 		Prefix: &sources.FollowRecoveryPrefix{Parent: eth.BlockID{Number: 7}, Last: eth.L2BlockRef{Number: 3}},
 	}
-	f := &followRecovery{status: &sources.FollowStatus{Recovery: plan}, mapped: eth.L2BlockRef{Number: 6}}
-	require.False(t, f.canResume(), "a surviving claim still reserves block 8 while fallback has only reached 6")
-	plan.Target.Number, f.mapped.Number = 7, 7
-	require.False(t, f.canResume(), "the committed parent is still before the final replacement position")
-	plan.Target.Number, f.mapped.Number = 8, 8
-	require.True(t, f.canResume(), "resume after executing the whole reserved range")
+	f := &followRecovery{status: &sources.FollowStatus{Recovery: plan}}
+	number := uint64(6)
+	require.False(t, f.canResume(number), "a surviving claim still reserves block 8 while fallback has only reached 6")
+	plan.Target.Number, number = 7, 7
+	require.False(t, f.canResume(number), "the committed parent is still before the final replacement position")
+	plan.Target.Number, number = 8, 8
+	require.True(t, f.canResume(number), "resume after executing the whole reserved range")
 	plan.Target.Number = 9
-	require.False(t, f.canResume(), "also execute any later canonical fallback")
-	f.mapped.Number = 9
-	require.True(t, f.canResume())
+	require.False(t, f.canResume(number), "also execute any later canonical fallback")
+	number = 9
+	require.True(t, f.canResume(number))
 }
 
 func TestFollowRecoveryRejectsLegacyPrefixBeforeReset(t *testing.T) {
@@ -256,4 +261,32 @@ func TestFollowRecoveryRejectsLegacyPrefixBeforeReset(t *testing.T) {
 	f := &followRecovery{pause: func(value bool) { paused = value }}
 	require.ErrorContains(t, f.update(t.Context(), status), "invalid surviving prefix bounds")
 	require.True(t, paused)
+}
+
+func TestCanonicalRecoveryCheckpointDoesNotWalkToGenesis(t *testing.T) {
+	genesis := eth.L2BlockRef{Hash: common.Hash{1}}
+	anchor := eth.L2BlockRef{Hash: common.Hash{2}, ParentHash: common.Hash{3}, Number: 1_000_000}
+	l2 := &recoveryBranchL2{
+		prefixL2:  prefixL2{refs: map[common.Hash]eth.L2BlockRef{anchor.Hash: anchor}},
+		canonical: map[uint64]eth.L2BlockRef{0: genesis, anchor.Number: anchor},
+	}
+	el := &testutils.MockEngine{}
+	em := event.EmitterFunc(func(context.Context, event.Event) {})
+	ec := engine.NewEngineController(t.Context(), el, testlog.Logger(t, 0), metrics.NoopMetrics,
+		&rollup.Config{}, &syncconfig.Config{L2FollowSourceEndpoint: "http://localhost"}, &testutils.MockL1Source{}, em, nil)
+	ec.SetUnsafeHead(anchor)
+	ec.SetLocalSafeHead(genesis)
+	ec.SetPendingSafeL2Head(genesis)
+	ec.SetFinalizedHead(genesis)
+	//nolint:staticcheck // Follow mode stores external cross-safe here.
+	ec.SetDeprecatedSafeHead(genesis)
+	el.ExpectL2BlockRefByNumber(anchor.Number, anchor, nil)
+	el.On("ForkchoiceUpdate", mock.Anything, mock.Anything).Return(&eth.ForkchoiceUpdatedResult{PayloadStatus: eth.PayloadStatusV1{Status: eth.ExecutionValid}}, nil)
+	f := &followRecovery{l2: l2, engine: ec, pause: func(bool) {}}
+	status := &sources.FollowStatus{LocalSafeL2: anchor, SafeL2: anchor, FinalizedL2: genesis,
+		Recovery: &sources.FollowRecoveryStatus{Anchor: anchor, Target: anchor}}
+	require.NoError(t, f.adopt(t.Context(), t.Context(), status))
+	require.Equal(t, anchor, ec.LocalSafeHead())
+	require.Equal(t, anchor, ec.PendingSafeL2Head())
+	el.AssertExpectations(t)
 }

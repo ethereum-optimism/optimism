@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/ethereum/go-ethereum/common"
+
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/engine"
@@ -17,23 +19,26 @@ type recoverySource interface {
 	RecoveryBlock(context.Context, uint64, eth.BlockID) (eth.L2BlockRef, error)
 }
 
-// followRecovery supplies canonical deposit-only attributes to the ordinary
-// attributes handler. Only the operator executes them: projection block hashes
-// are never used as private engine forkchoice hashes.
-// All methods run on the driver's event loop. RPC deadlines must not escape
-// through emitted events: those events are consumed after the method returns.
+type recoveryBuild struct {
+	public eth.L2BlockRef
+	parent common.Hash
+}
+
+// followRecovery resolves an attested private parent, then feeds the canonical
+// replay interval into the ordinary attributes handler. EngineController owns
+// private execution progress; this adapter only tracks its public correspondence.
+// All methods run on the driver event loop. RPC deadlines never escape in events.
 type followRecovery struct {
-	source     recoverySource
-	l2         L2Chain
-	builder    derive.AttributesBuilder
-	engine     *engine.EngineController
-	pause      func(bool)
-	emitter    event.Emitter
-	status     *sources.FollowStatus
-	enabled    bool
-	mapped     eth.L2BlockRef
-	projection eth.L2BlockRef
-	inflight   eth.L2BlockRef
+	source  recoverySource
+	l2      L2Chain
+	builder derive.AttributesBuilder
+	engine  *engine.EngineController
+	pause   func(bool)
+	emitter event.Emitter
+	enabled bool
+	status  *sources.FollowStatus
+	applied eth.L2BlockRef
+	build   *recoveryBuild
 }
 
 func (f *followRecovery) AttachEmitter(em event.Emitter) { f.emitter = em }
@@ -44,141 +49,109 @@ func (f *followRecovery) update(ctx context.Context, status *sources.FollowStatu
 			f.pause(true)
 		}
 	}()
-	rpcCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
-	defer cancel()
 	plan := status.Recovery
 	if plan == nil {
-		// Ordinary follow endpoints have no replacement protocol.
-		if !f.enabled {
-			f.engine.FollowSource(status.SafeL2, status.LocalSafeL2, status.FinalizedL2)
-			return nil
+		if f.enabled {
+			return fmt.Errorf("recovery source omitted its snapshot")
 		}
-		f.pause(true)
-		return fmt.Errorf("recovery-capable follow source omitted its recovery snapshot")
+		f.engine.FollowSource(status.SafeL2, status.LocalSafeL2, status.FinalizedL2)
+		return nil
 	}
 	f.enabled = true
-	if plan.Anchor != status.LocalSafeL2 || plan.Target.Number < plan.Anchor.Number || plan.Safe.Number > plan.Target.Number || plan.Finalized.Number > plan.Safe.Number || status.CurrentL1 == (eth.L1BlockRef{}) {
-		f.pause(true)
+	if plan.Anchor != status.LocalSafeL2 || plan.Target.Number < plan.Anchor.Number ||
+		plan.Safe.Number > plan.Target.Number || plan.Finalized.Number > plan.Safe.Number ||
+		status.CurrentL1 == (eth.L1BlockRef{}) {
 		return fmt.Errorf("inconsistent private recovery snapshot")
 	}
 	if p := plan.Prefix; p != nil && (p.Last.Number <= plan.Anchor.Number || p.Last.Number > plan.Target.Number || p.Last.Number > p.Parent.Number) {
 		return fmt.Errorf("invalid surviving prefix bounds")
 	}
-	if f.projection.Number > plan.Target.Number || f.inflight.Number > plan.Target.Number {
-		f.pause(true)
-		f.status, f.inflight = nil, eth.L2BlockRef{}
-	}
-	prefixChanged := f.status != nil && !sameRecoveryPrefix(f.status.Recovery.Prefix, plan.Prefix)
-	if f.status == nil || f.status.Recovery.Anchor != plan.Anchor || prefixChanged {
-		anchor := plan.Anchor
-		// A locally finalized replacement remains an authenticated private anchor
-		// across restarts, even if no later operator claim has been published.
-		finalized := f.engine.FinalizedHead()
-		if finalized.Number > anchor.Number {
-			anchor = finalized
-		}
-		if plan.Prefix != nil && plan.Prefix.Last.Number > anchor.Number {
-			var err error
-			anchor, err = f.prefixAnchor(rpcCtx, anchor, plan.Prefix)
-			if err != nil {
-				f.pause(true)
-				return err
-			}
-		}
-		if anchor.Number > plan.Target.Number {
-			return fmt.Errorf("projection recovery frontier is behind private finality")
-		}
-		local, lookupErr := f.l2.L2BlockRefByNumber(rpcCtx, anchor.Number)
-		canonical := lookupErr == nil && local == anchor
-		if !canonical {
-			f.pause(true)
-			available, err := f.l2.L2BlockRefByHash(rpcCtx, anchor.Hash)
-			if err != nil {
-				return fmt.Errorf("reading private recovery anchor: %w", err)
-			}
-			if available != anchor {
-				return fmt.Errorf("private recovery anchor does not match its commitment")
-			}
-		}
-		// Authenticate the safety labels on the selected private branch before
-		// changing forkchoice. A known noncanonical commitment is recoverable.
-		privateAt := func(number uint64) (eth.L2BlockRef, error) {
-			if canonical {
-				return f.l2.L2BlockRefByNumber(rpcCtx, number)
-			}
-			return f.ancestorAt(rpcCtx, anchor, number)
-		}
-		retained, err := privateAt(finalized.Number)
+	rpcCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
+	defer cancel()
+	changed := f.status == nil || f.status.Recovery.Anchor != plan.Anchor || !sameRecoveryPrefix(f.status.Recovery.Prefix, plan.Prefix)
+	changed = changed || f.applied.Number > plan.Target.Number || f.build != nil && f.build.public.Number > plan.Target.Number
+	if !changed && f.applied != (eth.L2BlockRef{}) {
+		ref, err := f.source.RecoveryBlock(rpcCtx, f.applied.Number, plan.Target.ID())
 		if err != nil {
 			return err
 		}
-		if retained != finalized {
-			return fmt.Errorf("private recovery anchor contradicts finalized ancestry")
-		}
-		if status.FinalizedL2.Number > finalized.Number {
-			finalized = status.FinalizedL2
-		}
-		crossSafe := status.SafeL2
-		if crossSafe.Number < finalized.Number {
-			crossSafe = finalized
-		}
-		for _, expected := range []eth.L2BlockRef{finalized, crossSafe} {
-			actual, err := privateAt(expected.Number)
-			if err != nil {
-				return err
-			}
-			if actual != expected {
-				return fmt.Errorf("private recovery safety label is not on the authenticated branch")
-			}
-		}
-
-		reset := !canonical || f.status == nil ||
-			prefixChanged ||
-			plan.Prefix != nil ||
-			anchor.Number < f.mapped.Number ||
-			(anchor.Number == f.mapped.Number && anchor.Hash != f.mapped.Hash) ||
-			f.inflight != (eth.L2BlockRef{})
-		if reset {
-			f.pause(true)
-			unsafe := anchor
-			if canonical && f.mapped == (eth.L2BlockRef{}) && plan.Prefix == nil {
-				// Bootstrap the pending-safe cursor, retaining the existing unsafe
-				// chain for the normal attributes handler to consolidate or replace.
-				unsafe = f.engine.UnsafeL2Head()
-			}
-			f.engine.ForceReset(ctx, unsafe, anchor, crossSafe, finalized)
-		} else {
-			// A new claim usually confirms an existing private ancestor. Ordinary
-			// advancement must not interrupt an unrelated sequencer build.
-			f.engine.FollowSource(crossSafe, anchor, finalized)
-			f.engine.TryUpdatePendingSafe(ctx, anchor, true, status.CurrentL1)
-		}
-		f.mapped, f.projection, f.inflight = anchor, eth.L2BlockRef{}, eth.L2BlockRef{}
+		changed = ref != f.applied
 	}
-	// An already executed suffix must still belong to this canonical snapshot.
-	if f.projection != (eth.L2BlockRef{}) {
-		ref, err := f.source.RecoveryBlock(rpcCtx, f.projection.Number, plan.Target.ID())
-		if err != nil {
-			f.pause(true)
+	if changed {
+		if err := f.adopt(ctx, rpcCtx, status); err != nil {
 			return err
 		}
-		if ref != f.projection {
-			f.pause(true)
-			f.status, f.inflight = nil, eth.L2BlockRef{}
-			return fmt.Errorf("canonical projection replacement changed; re-anchoring")
-		}
+		f.applied, f.build = eth.L2BlockRef{}, nil
 	}
 	f.status = status
 	if err := f.followHeads(ctx); err != nil {
-		f.pause(true)
 		return err
 	}
-	if f.mapped.Number >= plan.Target.Number {
-		f.pause(!f.canResume())
-		return nil
-	}
-	f.pause(true)
+	f.pause(!f.canResume(f.engine.LocalSafeHead().Number))
 	f.engine.RequestPendingSafeUpdate(ctx)
+	return nil
+}
+
+// Adopt the surviving branch before producing any replacement. Normal accepted
+// checkpoint advancement uses FollowSource; only an actual rewind/branch change
+// (or an interrupted replay) requires the existing engine reset path.
+func (f *followRecovery) adopt(ctx, rpcCtx context.Context, status *sources.FollowStatus) error {
+	plan := status.Recovery
+	anchor, finalized := plan.Anchor, f.engine.FinalizedHead()
+	if finalized.Number > anchor.Number {
+		anchor = finalized
+	}
+	var err error
+	if plan.Prefix != nil && plan.Prefix.Last.Number > anchor.Number {
+		anchor, err = f.prefixAnchor(rpcCtx, anchor, plan.Prefix)
+	} else {
+		var found eth.L2BlockRef
+		found, err = f.l2.L2BlockRefByHash(rpcCtx, anchor.Hash)
+		if err == nil && found != anchor {
+			err = fmt.Errorf("private recovery anchor does not match its commitment")
+		}
+	}
+	if err != nil {
+		return err
+	}
+	if anchor.Number > plan.Target.Number {
+		return fmt.Errorf("projection recovery frontier is behind private finality")
+	}
+	if status.FinalizedL2.Number > finalized.Number {
+		finalized = status.FinalizedL2
+	}
+	safe := status.SafeL2
+	if safe.Number < finalized.Number {
+		safe = finalized
+	}
+	canonical, lookupErr := f.l2.L2BlockRefByNumber(rpcCtx, anchor.Number)
+	for _, expected := range []eth.L2BlockRef{f.engine.FinalizedHead(), finalized, safe} {
+		var actual eth.L2BlockRef
+		var err error
+		if lookupErr == nil && canonical == anchor {
+			actual, err = f.l2.L2BlockRefByNumber(rpcCtx, expected.Number)
+		} else {
+			actual, err = f.ancestorAt(rpcCtx, anchor, expected.Number)
+		}
+		if err != nil {
+			return err
+		}
+		if actual != expected {
+			return fmt.Errorf("private recovery branch contradicts finalized ancestry or safety labels")
+		}
+	}
+	reset := lookupErr != nil || canonical != anchor || anchor.Number < f.engine.LocalSafeHead().Number || plan.Prefix != nil || f.build != nil
+	if reset || f.engine.PendingSafeL2Head() == (eth.L2BlockRef{}) {
+		f.pause(true)
+		unsafe := anchor
+		if !reset {
+			unsafe = f.engine.UnsafeL2Head()
+		}
+		f.engine.ForceReset(ctx, unsafe, anchor, safe, finalized)
+	} else {
+		f.engine.FollowSource(safe, anchor, finalized)
+		f.engine.TryUpdatePendingSafe(ctx, anchor, true, status.CurrentL1)
+	}
 	return nil
 }
 
@@ -245,83 +218,76 @@ func (f *followRecovery) OnEvent(ctx context.Context, ev event.Event) bool {
 			f.emitter.Emit(ctx, rollup.EngineTemporaryErrorEvent{Err: err})
 		}
 	case engine.LocalSafeUpdateEvent:
-		if f.status == nil || f.inflight == (eth.L2BlockRef{}) || x.Ref.Number != f.inflight.Number || x.Ref.ParentHash != f.mapped.Hash ||
-			x.Ref.Number > f.status.Recovery.Target.Number || x.Ref.Time != f.inflight.Time ||
-			x.Ref.L1Origin != f.inflight.L1Origin || x.Ref.SequenceNumber != f.inflight.SequenceNumber {
+		if f.status == nil || f.build == nil {
 			return true
 		}
-		f.mapped, f.projection, f.inflight = x.Ref, f.inflight, eth.L2BlockRef{}
+		expected := f.build.public
+		if x.Ref.ParentHash != f.build.parent || x.Ref.Number != expected.Number ||
+			x.Ref.Time != expected.Time || x.Ref.L1Origin != expected.L1Origin ||
+			x.Ref.SequenceNumber != expected.SequenceNumber || x.Ref.Number > f.status.Recovery.Target.Number {
+			return true
+		}
+		f.applied, f.build = expected, nil
 		if err := f.followHeads(ctx); err != nil {
+			f.pause(true)
 			f.emitter.Emit(ctx, rollup.EngineTemporaryErrorEvent{Err: err})
 			return true
 		}
-		if f.mapped.Number == f.status.Recovery.Target.Number {
-			f.pause(!f.canResume())
-		}
-	case rollup.EngineTemporaryErrorEvent:
-		// The next follow poll requests pending-safe again, preserving any
-		// in-flight attributes for the ordinary handler's retry path.
+		f.pause(!f.canResume(f.engine.LocalSafeHead().Number))
 	case rollup.ResetEvent, engine.InvalidPayloadAttributesEvent, engine.PayloadSealInvalidEvent:
 		f.pause(true)
-		f.status, f.inflight = nil, eth.L2BlockRef{}
-	case derive.ConfirmReceivedAttributesEvent, derive.ConfirmPipelineResetEvent:
+		f.status, f.build = nil, nil
+	case rollup.EngineTemporaryErrorEvent, derive.ConfirmReceivedAttributesEvent, derive.ConfirmPipelineResetEvent:
 	default:
 		return false
 	}
 	return true
 }
 
-func (f *followRecovery) canResume() bool {
-	plan := f.status.Recovery
-	// The surviving carrier still reserves its old range in the registry. Wait
-	// for actual canonical replacements through that range before publishing a
-	// new claim; the reservation itself is never evidence of empty execution.
-	return f.mapped.Number >= plan.Target.Number &&
-		(plan.Prefix == nil || f.mapped.Number > plan.Prefix.Parent.Number)
+func (f *followRecovery) canResume(number uint64) bool {
+	p := f.status.Recovery
+	// A surviving carrier reserves the whole original range even if the rest
+	// only becomes deposit-only after sequencing-window expiry.
+	return number >= p.Target.Number && (p.Prefix == nil || number > p.Prefix.Parent.Number)
 }
 
-// Map each projection safety frontier through the privately executed ancestry.
-// Reading the private canonical chain is valid only up to the authenticated
-// checkpoint plus the suffix this adapter has actually reconciled.
 func (f *followRecovery) followHeads(ctx context.Context) error {
 	rpcCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
 	defer cancel()
-	plan := f.status.Recovery
-	cross, err := f.l2.L2BlockRefByNumber(rpcCtx, min(plan.Safe.Number, f.mapped.Number))
+	plan, local := f.status.Recovery, f.engine.LocalSafeHead()
+	safe, err := f.l2.L2BlockRefByNumber(rpcCtx, min(plan.Safe.Number, local.Number))
 	if err != nil {
 		return err
 	}
-	finalized, err := f.l2.L2BlockRefByNumber(rpcCtx, min(plan.Finalized.Number, cross.Number))
+	finalized, err := f.l2.L2BlockRefByNumber(rpcCtx, min(plan.Finalized.Number, safe.Number))
 	if err != nil {
 		return err
 	}
-	if finalized.Number < f.engine.FinalizedHead().Number ||
-		(finalized.Number == f.engine.FinalizedHead().Number && finalized.Hash != f.engine.FinalizedHead().Hash) {
-		return fmt.Errorf("projection safety snapshot contradicts private finality")
+	previous := f.engine.FinalizedHead()
+	if finalized.Number < previous.Number || finalized.Number == previous.Number && finalized.Hash != previous.Hash {
+		return fmt.Errorf("projection snapshot contradicts private finality")
 	}
-	f.engine.FollowSource(cross, f.mapped, finalized)
+	f.engine.FollowSource(safe, local, finalized)
 	f.engine.RequestForkchoiceUpdate(ctx)
 	return nil
 }
 
 func (f *followRecovery) next(ctx context.Context, parent eth.L2BlockRef) error {
+	if f.status == nil || f.build != nil {
+		return nil
+	}
+	if parent != f.engine.LocalSafeHead() {
+		return fmt.Errorf("private pending-safe does not match local-safe")
+	}
+	plan := f.status.Recovery
+	if parent.Number >= plan.Target.Number {
+		return nil
+	}
 	rpcCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
 	defer cancel()
-	if f.status == nil || f.inflight != (eth.L2BlockRef{}) {
-		return nil
-	}
-	if parent != f.mapped {
-		return fmt.Errorf("private pending-safe does not match the recovery cursor")
-	}
-	if parent.Number >= f.status.Recovery.Target.Number {
-		return nil
-	}
-	ref, err := f.source.RecoveryBlock(rpcCtx, parent.Number+1, f.status.Recovery.Target.ID())
+	ref, err := f.source.RecoveryBlock(rpcCtx, parent.Number+1, plan.Target.ID())
 	if err != nil {
 		return err
-	}
-	if ref.Number != parent.Number+1 {
-		return fmt.Errorf("recovery source returned an unexpected height")
 	}
 	attrs, err := f.builder.PreparePayloadAttributes(rpcCtx, parent, ref.L1Origin)
 	if err != nil {
@@ -331,14 +297,13 @@ func (f *followRecovery) next(ctx context.Context, parent eth.L2BlockRef) error 
 	if ref.L1Origin == parent.L1Origin {
 		seq = parent.SequenceNumber + 1
 	}
-	if uint64(attrs.Timestamp) != ref.Time || ref.SequenceNumber != seq || !attrs.NoTxPool || !attrs.IsDepositsOnly() {
-		return fmt.Errorf("private replacement attributes disagree with canonical projection schedule")
+	if ref.Number != parent.Number+1 || uint64(attrs.Timestamp) != ref.Time || ref.SequenceNumber != seq || !attrs.NoTxPool || !attrs.IsDepositsOnly() {
+		return fmt.Errorf("private replacement disagrees with canonical projection schedule")
 	}
-	f.inflight = ref
+	f.build = &recoveryBuild{public: ref, parent: parent.Hash}
 	f.emitter.Emit(ctx, derive.DerivedAttributesEvent{Attributes: &derive.AttributesWithParent{
 		Attributes: attrs, Parent: parent, Concluding: true,
-		// Use the later derivation frontier, never the block's old L1 origin:
-		// window-expiry fallback was not canonical at that origin yet.
+		// Window-expiry inputs became canonical at this frontier, not their L1 origin.
 		DerivedFrom: f.status.CurrentL1,
 	}})
 	return nil
