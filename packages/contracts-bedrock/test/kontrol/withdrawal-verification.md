@@ -149,3 +149,9 @@ Kontrol's hash/storage-separation assumptions still apply. Record artifact/compi
 with results; the production source classes alone do not identify any particular live deployment.
 Accept a result only when all selected proof graphs pass without pending, failing, or admitted
 obligations and the acceptance witness passes. Compilation and JUnit alone are insufficient.
+
+The current branch temporarily dispatches a copy-loop-only CI diagnostic with
+`KONTROL_COPY_ONLY=true` to publish its graph before the longer Solidity phase. This mode
+requires strict mode and preserves the helper's failure status. It is not full-suite evidence.
+Before PR readiness, restore the CI command to `test-kontrol-no-build` without that variable
+and verify the original suite, every withdrawal obligation, and the independent helper.

@@ -2216,7 +2216,10 @@ jobs:
       - setup_remote_docker
       - run:
           name: Run Kontrol Tests
-          command: timeout --signal=TERM --kill-after=60s 180m just build-go-ffi kontrol-summary-full test-kontrol-no-build
+          # Temporary diagnostic: restore test-kontrol-no-build before PR readiness.
+          command: |
+            echo "COPY-ONLY DIAGNOSTIC: this run does not validate the full proof suite"
+            KONTROL_COPY_ONLY=true timeout --signal=TERM --kill-after=60s 180m just build-go-ffi kontrol-summary-full test-withdrawal-authorization
           working_directory: ./packages/contracts-bedrock
           no_output_timeout: 185m
       - run:

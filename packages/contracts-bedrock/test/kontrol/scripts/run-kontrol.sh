@@ -6,6 +6,11 @@ export FOUNDRY_PROFILE=kprove
 SCRIPT_HOME="$(cd "$(dirname "${BASH_SOURCE[0]}")" > /dev/null 2>&1 && pwd)"
 # shellcheck source=/dev/null
 source "$SCRIPT_HOME/common.sh"
+case "${KONTROL_COPY_ONLY:-false}" in
+  false) ;;
+  true) [ "${KONTROL_STRICT:-false}" = true ] || { echo "KONTROL_COPY_ONLY requires strict mode" >&2; exit 1; } ;;
+  *) echo "KONTROL_COPY_ONLY must be true or false" >&2; exit 1 ;;
+esac
 if [ "${KONTROL_STRICT:-false}" = true ]; then
   # The previous suite's auto-removal can still hold its container name.
   export CONTAINER_NAME="${CONTAINER_NAME}-withdrawal-$$"
@@ -53,11 +58,15 @@ kontrol_prove() {
       kout-proofs/copy-loop/claim.k
     local foundry_include
     foundry_include=$(run python3 -c 'from importlib.resources import files; print(files("kontrol") / "kdist")')
-    run timeout --signal=INT --kill-after=30s 15m kevm prove kout-proofs/copy-loop/claim.k \
+    run timeout --signal=INT --kill-after=30s 15m kevm prove --verbose kout-proofs/copy-loop/claim.k \
       --definition kout-proofs/kompiled --save-directory kout-proofs/copy-loop \
       --spec-module WITHDRAWAL-COPY-LOOP -I "$foundry_include" --reinit --workers 1 \
       --max-depth 1000 --max-iterations 10000 --smt-timeout 16000 --smt-retry-limit 0 \
       --break-on-jump --break-on-jumpi --no-log-rewrites --kore-rpc-command "$rpc_command" || copy_status=$?
+    if [ "${KONTROL_COPY_ONLY:-false}" = true ]; then
+      notif "COPY-ONLY DIAGNOSTIC: exit=$copy_status; Solidity obligations were not run"
+      return "$copy_status"
+    fi
     # Bound proving inside the container so the host can still collect its saved graphs.
     prove_command=(timeout --signal=INT --kill-after=30s 60m kontrol prove --verbose)
   else
