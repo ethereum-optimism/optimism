@@ -96,7 +96,6 @@ kontrol_prove() {
     if [ "${KONTROL_CALLER_ONLY:-false}" = true ]; then
       proof_timeout=15m
       max_depth=1000
-      model_args+=(--break-on-jump --break-on-jumpi --break-on-basic-blocks)
     fi
     prove_command=(timeout --signal=INT --kill-after=30s "$proof_timeout" kontrol prove --verbose)
   else
