@@ -547,7 +547,7 @@ release TARGET VERSION MODE="dry" *ARGS="":
     # Subdirs this recipe deliberately does not release: op-reth releases on its
     # own cadence, and the others hold internal crates (build metadata, test
     # support, work in progress) that no workspace release covers.
-    SKIPPED_SUBDIRS="op-reth op-version revm-ee-tests op-reth-test-engine"
+    SKIPPED_SUBDIRS="op-reth op-version revm-ee-tests op-reth-test-engine lokahi"
 
     # Every subdir has to be classified, so a new one fails here rather than
     # being silently left out of a release. Only unclassified subdirs are an
