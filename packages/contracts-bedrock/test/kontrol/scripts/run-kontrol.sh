@@ -6,16 +6,11 @@ export FOUNDRY_PROFILE=kprove
 SCRIPT_HOME="$(cd "$(dirname "${BASH_SOURCE[0]}")" > /dev/null 2>&1 && pwd)"
 # shellcheck source=/dev/null
 source "$SCRIPT_HOME/common.sh"
-case "${KONTROL_COPY_ONLY:-false}" in
-  false) ;;
-  true) [ "${KONTROL_STRICT:-false}" = true ] || { echo "KONTROL_COPY_ONLY requires strict mode" >&2; exit 1; } ;;
-  *) echo "KONTROL_COPY_ONLY must be true or false" >&2; exit 1 ;;
-esac
 case "${KONTROL_CALLER_ONLY:-false}" in
   false) ;;
   true)
-    [ "${KONTROL_STRICT:-false}" = true ] && [ "${KONTROL_COPY_ONLY:-false}" = false ] || {
-      echo "KONTROL_CALLER_ONLY requires strict mode and excludes KONTROL_COPY_ONLY" >&2; exit 1;
+    [ "${KONTROL_STRICT:-false}" = true ] || {
+      echo "KONTROL_CALLER_ONLY requires strict mode" >&2; exit 1;
     } ;;
   *) echo "KONTROL_CALLER_ONLY must be true or false" >&2; exit 1 ;;
 esac
@@ -48,7 +43,7 @@ kontrol_prove() {
   notif "Kontrol Prove: workers=$workers selectors=${test_list[*]}"
   local model_args=(--init-node-from-diff "$state_diff" --assume-defined --no-stack-checks)
   local prove_command=(kontrol prove)
-  local copy_status=0 methods_status=0
+  local methods_status=0
   local maintenance_rate=16
   local rpc_command='kore-rpc-booster --equation-max-recursion 100 --equation-max-iterations 1000'
   # Withdrawal fixtures retain production deployment bytecode and stack checks.
@@ -59,43 +54,6 @@ kontrol_prove() {
     # Keep post-execution simplification to eliminate infeasible symbolic dispatch branches.
     # Booster checks branch coverage; retain legacy fallback for stuck or aborted execution.
     rpc_command+=' --fallback-on Stuck,Aborted'
-    if [ "${KONTROL_CALLER_ONLY:-false}" != true ]; then
-      # Prove the step, positive-prefix induction, then zero entry in dependency order.
-      run rm -rf kout-proofs/copy-loop
-      run mkdir -p kout-proofs/copy-loop
-      run python3 test/kontrol/scripts/generate-copy-claim.py \
-        kout-proofs/WithdrawalAuthorization.k.sol/WithdrawalAuthorizationKontrol.json \
-        kout-proofs/copy-loop/claim.k
-      local foundry_include
-      foundry_include=$(run python3 -c 'from importlib.resources import files; print(files("kontrol") / "kdist")')
-      local copy_command=(
-        timeout --signal=INT --kill-after=30s 15m kevm prove --verbose kout-proofs/copy-loop/claim.k
-        --definition kout-proofs/kompiled --save-directory kout-proofs/copy-loop
-        --spec-module WITHDRAWAL-COPY-LOOP -I "$foundry_include" --workers 1
-        --max-depth 1000 --max-iterations 10000 --smt-timeout 16000 --smt-retry-limit 0
-        --break-on-jump --break-on-jumpi --break-on-basic-blocks
-        --no-log-rewrites --kore-rpc-command "$rpc_command"
-      )
-      run "${copy_command[@]}" --reinit --fast-check-subsumption \
-        --claim WITHDRAWAL-COPY-LOOP.word-copy-append-step || copy_status=$?
-      local phase=1 suffix
-      for suffix in -positive ""; do
-        if [ "$copy_status" -ne 0 ]; then break; fi
-        run python3 test/kontrol/scripts/check-copy-steps.py kout-proofs/copy-loop "$phase" || copy_status=$?
-        if [ "$copy_status" -ne 0 ]; then break; fi
-        # Reuse only just-verified graphs; --reinit here would invalidate the gate.
-        run "${copy_command[@]}" --claim "WITHDRAWAL-COPY-LOOP.word-copy-append$suffix" \
-          --direct-subproof-rules || copy_status=$?
-        phase=$((phase + 1))
-      done
-      if [ "$copy_status" -eq 0 ]; then
-        run python3 test/kontrol/scripts/check-copy-steps.py kout-proofs/copy-loop 3 || copy_status=$?
-      fi
-      if [ "${KONTROL_COPY_ONLY:-false}" = true ]; then
-        notif "COPY-LOOP DIAGNOSTIC: exit=$copy_status; Solidity obligations were not run"
-        return "$copy_status"
-      fi
-    fi
     # Bound proving inside the container so the host can still collect its saved graphs.
     local proof_timeout=60m
     if [ "${KONTROL_CALLER_ONLY:-false}" = true ]; then
@@ -127,12 +85,9 @@ kontrol_prove() {
     --smt-retry-limit 0 \
     --remove-old-proofs || methods_status=$?
   if [ "${KONTROL_CALLER_ONLY:-false}" = true ]; then
-    notif "CALLER DIAGNOSTIC: exit=$methods_status; copy helpers and the full suite were not run"
+    notif "CALLER DIAGNOSTIC: exit=$methods_status; the full suite was not run"
     return "$methods_status"
   fi
-  # Collect evidence for both independent obligations, but require both to pass.
-  notif "Proof exit codes: copy-loop=$copy_status methods=$methods_status"
-  if [ "$copy_status" -ne 0 ]; then return "$copy_status"; fi
   return "$methods_status"
 }
 

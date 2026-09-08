@@ -1,15 +1,16 @@
 // SPDX-License-Identifier: MIT
-pragma solidity 0.8.15;
+pragma solidity 0.8.25;
 
 // Contracts
 import { DeploymentSummaryFaultProofs } from "./utils/DeploymentSummaryFaultProofs.sol";
-import { KontrolUtils } from "./utils/KontrolUtils.sol";
+import { KontrolCheats } from "kontrol-cheatcodes/KontrolCheats.sol";
 
 // Libraries
 import { Claim, GameStatus, GameType, Timestamp } from "src/dispute/lib/Types.sol";
 import { Types } from "src/libraries/Types.sol";
 
 // Interfaces
+import { Vm } from "forge-std/Vm.sol";
 import { IOptimismPortal2 } from "interfaces/L1/IOptimismPortal2.sol";
 import { IAnchorStateRegistry } from "interfaces/dispute/IAnchorStateRegistry.sol";
 import { IDisputeGameFactory } from "interfaces/dispute/IDisputeGameFactory.sol";
@@ -83,7 +84,10 @@ contract WithdrawalProofGame_Harness {
 
 /// @notice Authorization through production proxies, Portal, registry and factory lookup code.
 ///         Eligibility proofs seed records; the inclusion witness creates its record through the Portal.
-contract WithdrawalAuthorizationKontrol is DeploymentSummaryFaultProofs, KontrolUtils {
+contract WithdrawalAuthorizationKontrol is DeploymentSummaryFaultProofs, KontrolCheats {
+    // The harness uses Cancun MCOPY; production code comes from the deployment state diff.
+    Vm internal constant vm = Vm(address(uint160(uint256(keccak256("hevm cheat code")))));
+
     struct AuthorizationCase {
         bytes32 withdrawalHash;
         address submitter;
