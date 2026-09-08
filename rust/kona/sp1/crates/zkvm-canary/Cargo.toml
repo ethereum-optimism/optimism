@@ -23,6 +23,7 @@ kona-interop = { workspace = true, features = ["serde", "std"] }
 
 alloy-primitives.workspace = true
 anyhow.workspace = true
+bincode.workspace = true
 clap = { workspace = true, features = ["derive"] }
 flate2.workspace = true
 jsonrpsee-core.workspace = true

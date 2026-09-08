@@ -7809,6 +7809,7 @@ version = "0.1.0"
 dependencies = [
  "alloy-primitives",
  "anyhow",
+ "bincode 2.0.1",
  "clap",
  "flate2",
  "httpmock",

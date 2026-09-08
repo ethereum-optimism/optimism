@@ -2,18 +2,17 @@
 
 use std::{collections::BTreeMap, num::NonZeroU64};
 
-use anyhow::{Result, ensure};
+use anyhow::{Context, Result, bail, ensure};
 use kona_sp1_client_utils::super_root::{
-    SuperConsolidationInputs, SuperConsolidationOutputs, SuperRangeInputs, SuperRangeOutputs,
-    hash_super_root_proof,
+    SuperConsolidationInputs, SuperConsolidationOutputs, SuperInteropOutputs, SuperRangeInputs,
+    SuperRangeOutputs, hash_super_root_proof,
 };
 use kona_sp1_super_range_executor::{
     HostInputs, SynthesizedExecution, build_interop_host, build_super_consolidation_stdin,
     build_super_range_stdin, collect_consolidation_witness, collect_range_witness,
-    decode_super_consolidation_public_values, decode_super_range_public_values,
 };
 use sp1_core_executor::{ExecutionError, SP1CoreOpts};
-use sp1_sdk::{Elf, ExecutionReport, Prover, ProverClient};
+use sp1_sdk::{Elf, ExecutionReport, Prover, ProverClient, SP1PublicValues};
 use tokio::{sync::watch, time::Instant};
 
 use crate::artifact::ValidatedRangeArtifact;
@@ -330,10 +329,10 @@ pub(crate) async fn execute_snapshot(
                     .await
             };
             match execution {
-                Ok((mut public_values, report)) => {
+                Ok((public_values, report)) => {
                     let summary = ReportSummary::from_report(ExecutionMode::Range, &report);
                     let classified =
-                        decode_super_range_public_values(&mut public_values).and_then(|decoded| {
+                        decode_super_range_public_values(&public_values).and_then(|decoded| {
                             classify_range_outputs(
                                 &native_range,
                                 &decoded,
@@ -424,9 +423,9 @@ pub(crate) async fn execute_snapshot(
                     .await
             };
             match execution {
-                Ok((mut public_values, report)) => {
+                Ok((public_values, report)) => {
                     let summary = ReportSummary::from_report(ExecutionMode::Consolidation, &report);
-                    let classified = decode_super_consolidation_public_values(&mut public_values)
+                    let classified = decode_super_consolidation_public_values(&public_values)
                         .and_then(|decoded| {
                             classify_consolidation_outputs(
                                 &native_consolidation,
@@ -462,6 +461,36 @@ pub(crate) async fn execute_snapshot(
     };
 
     finish(range, consolidation)
+}
+
+fn decode_super_range_public_values(public_values: &SP1PublicValues) -> Result<SuperRangeOutputs> {
+    match decode_super_interop_public_values(public_values)? {
+        SuperInteropOutputs::Range(outputs) => Ok(outputs),
+        SuperInteropOutputs::Consolidation(_) => {
+            bail!("super-range guest committed consolidation output in range mode")
+        }
+    }
+}
+
+fn decode_super_consolidation_public_values(
+    public_values: &SP1PublicValues,
+) -> Result<SuperConsolidationOutputs> {
+    match decode_super_interop_public_values(public_values)? {
+        SuperInteropOutputs::Consolidation(outputs) => Ok(outputs),
+        SuperInteropOutputs::Range(_) => {
+            bail!("super-range guest committed range output in consolidation mode")
+        }
+    }
+}
+
+fn decode_super_interop_public_values(
+    public_values: &SP1PublicValues,
+) -> Result<SuperInteropOutputs> {
+    ensure!(!public_values.as_slice().is_empty(), "super-range guest committed no output");
+    let (outputs, _) =
+        bincode::serde::decode_from_slice(public_values.as_slice(), bincode::config::legacy())
+            .context("failed to decode super-range guest output")?;
+    Ok(outputs)
 }
 
 fn classify_range_outputs(
@@ -860,6 +889,15 @@ mod tests {
     }
 
     #[test]
+    fn fallible_decoder_accepts_sp1_public_value_encoding() {
+        let (_, outputs) = range_fixture();
+        let mut public_values = SP1PublicValues::new();
+        public_values.write(&SuperInteropOutputs::Range(outputs.clone()));
+
+        assert_eq!(decode_super_range_public_values(&public_values).unwrap(), outputs);
+    }
+
+    #[test]
     fn decoded_outputs_must_bind_to_synthesized_inputs() {
         let (mut inputs, native) = range_fixture();
         inputs.l1_head = B256::repeat_byte(8);
@@ -885,6 +923,36 @@ mod tests {
             }],
         };
         assert!(classify_consolidation_outputs(&native, &native, &consolidation_inputs).is_err());
+    }
+
+    #[test]
+    fn malformed_guest_outputs_are_output_mismatches() {
+        let summary = ReportSummary::from_report(ExecutionMode::Range, &report_with_stats(true));
+        let range_values = sp1_sdk::SP1PublicValues::from(&[0xff]);
+        let range = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            stage_from_classification(
+                ExecutionMode::Range,
+                decode_super_range_public_values(&range_values).map(|_| ()),
+                summary.clone(),
+                1.0,
+                2.0,
+            )
+        }))
+        .expect("malformed range output must not panic");
+        assert_eq!(range.outcome, StageOutcome::OutputMismatch);
+
+        let consolidation_values = sp1_sdk::SP1PublicValues::from(&[0xff]);
+        let consolidation = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            stage_from_classification(
+                ExecutionMode::Consolidation,
+                decode_super_consolidation_public_values(&consolidation_values).map(|_| ()),
+                summary,
+                1.0,
+                2.0,
+            )
+        }))
+        .expect("malformed consolidation output must not panic");
+        assert_eq!(consolidation.outcome, StageOutcome::OutputMismatch);
     }
 
     #[test]
