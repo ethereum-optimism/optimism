@@ -113,6 +113,8 @@ component proofs. Their logs, JUnit report and proof archive go into `test/kontr
 to preserve both suites' results. Separate selectors allow the witness to run alongside equivalence.
 Strict mode limits proving to 60 minutes inside the container so the host can collect saved graphs
 after a timeout. A timeout is incomplete, never a proof pass.
+Strict mode saves after each completed proof step and logs initialization stages. An interrupted
+initialization or unfinished first step may still leave no graph; absence is not evidence of a pass.
 
 Before these methods, strict mode separately attempts a word-copy loop claim for the exact fixture
 runtime, with a 15-minute timeout. The generator requires the complete opcode loop and its matching

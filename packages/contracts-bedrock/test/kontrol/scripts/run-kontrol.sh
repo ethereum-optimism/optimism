@@ -36,9 +36,12 @@ kontrol_prove() {
   local model_args=(--init-node-from-diff "$state_diff" --assume-defined --no-stack-checks)
   local prove_command=(kontrol prove)
   local copy_status=0 methods_status=0
+  local maintenance_rate=16
   local rpc_command='kore-rpc-booster --equation-max-recursion 100 --equation-max-iterations 1000'
   # Withdrawal fixtures retain production deployment bytecode and stack checks.
   if [ "${KONTROL_STRICT:-false}" = true ]; then
+    # An interrupt skips Kontrol's final save; retain every completed proof step.
+    maintenance_rate=1
     model_args=(--init-node-from-diff "$state_diff" --reinit --schedule CANCUN --use-gas)
     # Keep post-execution simplification to eliminate infeasible symbolic dispatch branches.
     # Booster checks branch coverage; retain legacy fallback for stuck or aborted execution.
@@ -74,7 +77,7 @@ kontrol_prove() {
     "${model_args[@]}" \
     --kore-rpc-command "$rpc_command" \
     --xml-test-report \
-    --maintenance-rate 16 \
+    --maintenance-rate "$maintenance_rate" \
     --symbolic-caller \
     --no-log-rewrites \
     --smt-timeout 16000 \
