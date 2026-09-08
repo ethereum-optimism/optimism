@@ -35,8 +35,47 @@ contract WithdrawalGame_Harness {
     }
 }
 
+/// @notice Normal game reports for an acceptance witness; game resolution itself remains upstream.
+contract WithdrawalProofGame_Harness {
+    Claim public immutable rootClaim;
+    GameType public immutable gameType;
+    Claim private immutable perChainRoot;
+    uint256 private immutable chainId;
+    Timestamp public resolvedAt;
+    GameStatus public status;
+    bool public constant wasRespectedGameTypeWhenCreated = true;
+
+    constructor(Claim _outputRoot, uint256 _chainId, bool _superGame) {
+        perChainRoot = _outputRoot;
+        chainId = _chainId;
+        gameType = GameType.wrap(_superGame ? 4 : 0);
+        // Single-chain Super Root v1: version, timestamp, chain ID, output root.
+        rootClaim = _superGame
+            ? Claim.wrap(keccak256(abi.encodePacked(bytes1(0x01), uint64(1), _chainId, Claim.unwrap(_outputRoot))))
+            : _outputRoot;
+    }
+
+    function createdAt() external pure returns (Timestamp) {
+        return Timestamp.wrap(uint64(1 days));
+    }
+
+    function rootClaimByChainId(uint256 _chainId) external view returns (Claim) {
+        require(_chainId == chainId);
+        return perChainRoot;
+    }
+
+    function gameData() external view returns (GameType, Claim, bytes memory) {
+        return (gameType, rootClaim, abi.encode(uint256(1)));
+    }
+
+    function resolve() external {
+        status = GameStatus.DEFENDER_WINS;
+        resolvedAt = Timestamp.wrap(uint64(block.timestamp));
+    }
+}
+
 /// @notice Authorization through production proxies, Portal, registry and factory lookup code.
-///         Records are seeded preconditions; inclusion and history preservation remain separate.
+///         Eligibility proofs seed records; the inclusion witness creates its record through the Portal.
 contract WithdrawalAuthorizationKontrol is DeploymentSummaryFaultProofs, KontrolUtils {
     struct AuthorizationCase {
         bytes32 withdrawalHash;
@@ -111,6 +150,7 @@ contract WithdrawalAuthorizationKontrol is DeploymentSummaryFaultProofs, Kontrol
 
     /// @notice Both entry points admit an eligible example, so an always-reverting fixture is insufficient.
     function prove_finalizeWithdrawal_eligible_succeeds(bool _externalProof) external {
+        kevm.setGas(30_000_000);
         AuthorizationCase memory example = _eligibleCase();
         Types.WithdrawalTransaction memory withdrawal;
         withdrawal.sender = address(0x1234);
@@ -119,7 +159,11 @@ contract WithdrawalAuthorizationKontrol is DeploymentSummaryFaultProofs, Kontrol
         example.submitter = address(0x9ABC);
         example.withdrawalHash = _withdrawalHash(withdrawal);
         assert(_check(example));
-        assert(_finalize(withdrawal, example.submitter, example.submitter, _externalProof));
+        assert(
+            _finalize(
+                withdrawal, example.submitter, _externalProof ? address(0xBEEF) : example.submitter, _externalProof
+            )
+        );
         assert(portal.finalizedWithdrawals(example.withdrawalHash));
     }
 
@@ -161,6 +205,64 @@ contract WithdrawalAuthorizationKontrol is DeploymentSummaryFaultProofs, Kontrol
         bytes32 recordSlot = _seed(example);
         portal.deleteProvenWithdrawal(example.withdrawalHash, example.submitter);
         assert(vm.load(address(portal), recordSlot) == bytes32(0));
+    }
+
+    /// @notice A concrete inclusion witness creates a record that either finalizer can consume.
+    ///         This acceptance sequence is not a universal inclusion or history theorem.
+    function prove_proveAndFinalize_eligible_succeeds(bool _externalProof, bool _superGame) external {
+        kevm.setGas(30_000_000);
+        Types.WithdrawalTransaction memory withdrawal;
+        withdrawal.sender = address(0x1234);
+        withdrawal.target = address(0x5678);
+        withdrawal.gasLimit = 100_000;
+        bytes32 withdrawalHash = _withdrawalHash(withdrawal);
+        address submitter = address(0x9ABC);
+        bytes32 recordSlot = keccak256(abi.encode(submitter, keccak256(abi.encode(withdrawalHash, uint256(57)))));
+        WithdrawalProofGame_Harness candidate;
+        {
+            bytes32 secureKey = keccak256(abi.encode(keccak256(abi.encode(withdrawalHash, uint256(0)))));
+            bytes[] memory witness = new bytes[](1);
+            // Canonical RLP leaf: [hex-prefix(complete 32-byte key, leaf), storage value 0x01].
+            witness[0] = abi.encodePacked(hex"e3a120", secureKey, hex"01");
+            Types.OutputRootProof memory outputRoot;
+            outputRoot.messagePasserStorageRoot = keccak256(witness[0]);
+            bytes32 commitment = keccak256(
+                abi.encode(
+                    outputRoot.version,
+                    outputRoot.stateRoot,
+                    outputRoot.messagePasserStorageRoot,
+                    outputRoot.latestBlockhash
+                )
+            );
+            vm.warp(1 days);
+            candidate =
+                new WithdrawalProofGame_Harness(Claim.wrap(commitment), portal.systemConfig().l2ChainId(), _superGame);
+            // A wrong root getter must not accidentally satisfy the acceptance witness.
+            assert(!_superGame || Claim.unwrap(candidate.rootClaim()) != commitment);
+            bytes32 uuid = keccak256(abi.encode(candidate.gameType(), candidate.rootClaim(), abi.encode(uint256(1))));
+            bytes32 registration = bytes32(
+                (uint256(GameType.unwrap(candidate.gameType())) << 224) | (uint256(1 days) << 160)
+                    | uint256(uint160(address(candidate)))
+            );
+            vm.store(address(factory), keccak256(abi.encode(uuid, uint256(103))), registration);
+            vm.store(address(factory), bytes32(uint256(104)), bytes32(uint256(1)));
+            vm.store(address(factory), keccak256(abi.encode(uint256(104))), registration);
+            vm.store(address(registry), bytes32(uint256(6)), bytes32(0));
+
+            assert(vm.load(address(portal), recordSlot) == bytes32(0));
+            vm.warp(2 days);
+            vm.prank(submitter);
+            portal.proveWithdrawalTransaction(withdrawal, 0, outputRoot, witness);
+        }
+        assert(
+            vm.load(address(portal), recordSlot)
+                == bytes32(uint256(uint160(address(candidate))) | (uint256(2 days) << 160))
+        );
+        vm.warp(3 days);
+        candidate.resolve();
+        vm.warp(3 days + proofDelay + gameDelay + 1);
+        assert(_finalize(withdrawal, submitter, _externalProof ? address(0xBEEF) : submitter, _externalProof));
+        assert(portal.finalizedWithdrawals(withdrawalHash));
     }
 
     function _finalize(

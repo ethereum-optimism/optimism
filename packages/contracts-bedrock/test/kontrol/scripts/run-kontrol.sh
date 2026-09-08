@@ -35,10 +35,11 @@ kontrol_prove() {
   notif "Kontrol Prove: workers=$workers selectors=${test_list[*]}"
   local model_args=(--init-node-from-diff "$state_diff" --assume-defined --no-stack-checks)
   local prove_command=(kontrol prove)
+  local copy_status=0 methods_status=0
   local rpc_command='kore-rpc-booster --equation-max-recursion 100 --equation-max-iterations 1000'
   # Withdrawal fixtures retain production deployment bytecode and stack checks.
   if [ "${KONTROL_STRICT:-false}" = true ]; then
-    model_args=(--init-node-from-diff "$state_diff" --reinit --schedule CANCUN --no-gas)
+    model_args=(--init-node-from-diff "$state_diff" --reinit --schedule CANCUN --use-gas)
     # Keep post-execution simplification to eliminate infeasible symbolic dispatch branches.
     # Booster checks branch coverage; retain legacy fallback for stuck or aborted execution.
     rpc_command+=' --fallback-on Stuck,Aborted'
@@ -53,7 +54,7 @@ kontrol_prove() {
       --definition kout-proofs/kompiled --save-directory kout-proofs/copy-loop \
       --spec-module WITHDRAWAL-COPY-LOOP -I "$foundry_include" --reinit --workers 1 \
       --max-depth 1000 --max-iterations 10000 --smt-timeout 16000 --smt-retry-limit 0 \
-      --break-on-jump --break-on-jumpi --no-log-rewrites --kore-rpc-command "$rpc_command"
+      --break-on-jump --break-on-jumpi --no-log-rewrites --kore-rpc-command "$rpc_command" || copy_status=$?
     # Bound proving inside the container so the host can still collect its saved graphs.
     prove_command=(timeout --signal=INT --kill-after=30s 60m kontrol prove)
   else
@@ -78,8 +79,11 @@ kontrol_prove() {
     --no-log-rewrites \
     --smt-timeout 16000 \
     --smt-retry-limit 0 \
-    --remove-old-proofs
-  return $?
+    --remove-old-proofs || methods_status=$?
+  # Collect evidence for both independent obligations, but require both to pass.
+  notif "Proof exit codes: copy-loop=$copy_status methods=$methods_status"
+  if [ "$copy_status" -ne 0 ]; then return "$copy_status"; fi
+  return "$methods_status"
 }
 
 get_log_results() {

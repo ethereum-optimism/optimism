@@ -46,7 +46,7 @@ The finalized and blacklisted inputs are integers constrained to 0 or 1, equival
 boolean domain, so seeding storage does not introduce conditional conversions. The independent
 eligibility expression is evaluated after the production call to reduce duplicated exploration.
 
-The game identity is fixed to type 0, root 0, and a 32-byte encoding of sequence number 1. The
+The eligibility/deletion fixture fixes game identity to type 0, root 0, and a 32-byte sequence number 1. The
 game fixture also supplies the independent pause input. It models normally returning getters;
 it does not establish real game behavior, arbitrary identity/extra-data handling, or pause access
 control. The factory mapping and Portal proof record are installed directly at documented slots.
@@ -69,6 +69,17 @@ withdrawal hash may equal the deleted record's hash when the submitters differ. 
 witness checks that deletion is possible. This covers deletion's local preservation obligation;
 the authenticity of newly proven or re-proven records remains separate and unfinished.
 
+`prove_proveAndFinalize_eligible_succeeds` is an acceptance witness that constructs a canonical
+single-leaf storage proof and calls the actual proving method, checks the record it creates, then
+advances the game reports and time and calls either finalizer. It includes legacy type 0 and super
+type 4; the latter checks the configured chain ID and uses a single-chain Super Root v1 commitment,
+asserted distinct from the per-chain output root so a wrong getter cannot satisfy the witness.
+Both acceptance witnesses use 30 million concrete gas and a different caller from the proof submitter
+for the external-proof entry point.
+Game reports and factory registration remain fixture preconditions. The single-node witness is a
+concrete acceptance example, not a bound on the required universal inclusion theorem or a proof
+of protocol-wide history safety. This obligation has no proof result yet.
+
 ## Reproduction
 
 Use pinned Foundry/Kontrol versions and a clean proof output directory. From `packages/contracts-bedrock`, run:
@@ -85,9 +96,15 @@ after a timeout. A timeout is incomplete, never a proof pass.
 
 Before these methods, strict mode separately attempts a word-copy loop claim for the exact fixture
 runtime, with a 15-minute timeout. The generator requires the complete opcode loop and its matching
-jump destinations. The claim covers a symbolic prefix copied into disjoint memory and stops before
-tail clearing. Its specification and native graph are archived under `kout-proofs/copy-loop`.
+jump destinations. The claim covers a symbolic prefix copied into disjoint memory, tracks memory
+expansion, and stops before tail clearing. It uses symbolic infinite gas and leaves the final gas
+formula unspecified, so it supplies no gas bound and cannot apply to the concrete-gas witnesses.
+Its specification and native graph are archived under `kout-proofs/copy-loop`.
+CI attempts both this claim and the Solidity methods; either failure fails the job.
 This claim is under development and is not imported as an execution summary. Any later composition
+must audit the native guarded circularity: the induction hypothesis becomes available only after
+execution progress, and the loop decreases the nonnegative remaining byte count by 32 per iteration.
+It is not a trusted claim. Composition
 must first verify its completed graph and establish all its memory, stack and arithmetic premises
 at the caller; those premises must not become restrictions on the parent theorem's inputs.
 
@@ -97,7 +114,12 @@ the simplifier establishes as impossible. This avoids an expensive legacy reconf
 branch. The pinned backend checks branch applicability, definedness and remainder coverage before
 returning branches.
 Strict fixture mode uses the fresh deployment-state diff and `setUp`, enables stack checks,
-uses CANCUN and abstracts gas. It omits `--assume-defined` and builds without the repository's
+uses CANCUN with gas tracking enabled. General methods retain Kontrol's symbolic infinite-gas model,
+which suppresses implicit out-of-gas halts while retaining explicit `GAS` observations; the acceptance
+witnesses set concrete gas. `--no-gas` is unsuitable for finalizer proofs because it initializes gas
+to zero while `SafeCall` still checks `gasleft()`, making rejection uninformative. The earlier
+gas-disabled eligibility results remain component evidence, not finalizer evidence.
+Strict mode omits `--assume-defined` and builds without the repository's
 pausability lemmas. The pinned compiler flattens contract-qualified imports into a shared main
 module, so each suite is rebuilt separately; only the existing suite imports those lemmas.
 Gas adequacy is not established by these obligations.

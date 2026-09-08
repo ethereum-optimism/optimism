@@ -195,7 +195,8 @@ test-withdrawal-authorization:
     WithdrawalAuthorizationKontrol.prove_finalizeWithdrawal_eligible_succeeds \
     WithdrawalAuthorizationKontrol.prove_finalizeWithdrawal_ineligible_reverts \
     WithdrawalAuthorizationKontrol.prove_deleteProvenWithdrawal_eligible_succeeds \
-    WithdrawalAuthorizationKontrol.prove_deleteProvenWithdrawal_equivalence
+    WithdrawalAuthorizationKontrol.prove_deleteProvenWithdrawal_equivalence \
+    WithdrawalAuthorizationKontrol.prove_proveAndFinalize_eligible_succeeds
 
 # Runs contract coverage.
 coverage: build-go-ffi
