@@ -50,7 +50,7 @@ kontrol_prove() {
   if [ "${KONTROL_STRICT:-false}" = true ]; then
     # An interrupt skips Kontrol's final save; retain every completed proof step.
     maintenance_rate=1
-    model_args=(--init-node-from-diff "$state_diff" --reinit --schedule CANCUN --use-gas)
+    model_args=(--init-node-from-diff "$state_diff" --reinit --schedule CANCUN --use-gas --no-counterexample-information)
     # Keep post-execution simplification to eliminate infeasible symbolic dispatch branches.
     # Booster checks branch coverage; retain legacy fallback for stuck or aborted execution.
     rpc_command+=' --fallback-on Stuck,Aborted'
@@ -59,6 +59,8 @@ kontrol_prove() {
     if [ "${KONTROL_CALLER_ONLY:-false}" = true ]; then
       proof_timeout=15m
       max_depth=1000
+      # Retain failures while collecting the remaining caller branches for diagnosis.
+      model_args+=(--no-fail-fast)
     fi
     prove_command=(timeout --signal=INT --kill-after=30s "$proof_timeout" kontrol prove --verbose)
   else

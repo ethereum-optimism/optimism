@@ -178,6 +178,9 @@ the record-transition caller's actual frontier and memory layout. `KONTROL_CALLE
 requires strict mode and bounds the selected
 Solidity proof plus setup to 15 minutes. It adds no lemma or input assumption. Expected native
 coverage is the record-transition method and its setup; this is not full-suite evidence.
+The diagnostic continues exploring after a failing branch while retaining that failure and its
+nonzero result. Strict mode disables counterexample model reporting; saved symbolic graphs remain
+available for inspection. Neither option changes the required postcondition or permits a failed proof to pass.
 
 The current branch temporarily dispatches `test-withdrawal-authorization-caller`, selecting the
 record-transition method and its setup. This is a diagnostic, not full-suite evidence.
