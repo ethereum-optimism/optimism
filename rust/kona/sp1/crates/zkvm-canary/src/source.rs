@@ -820,8 +820,8 @@ fn insert_reference(
     block: BlockId,
     label: &str,
 ) -> std::result::Result<(), BuildFailure> {
-    if let Some(existing) = references.insert(block.number, block)
-        && existing.hash != block.hash
+    if let Some(existing) = references.insert(block.number, block) &&
+        existing.hash != block.hash
     {
         return Err(BuildFailure::Invalid(anyhow!(
             "{label} conflicts at L1 block {}: {} != {}",
