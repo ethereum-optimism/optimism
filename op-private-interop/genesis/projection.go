@@ -11,7 +11,6 @@
 package genesis
 
 import (
-	"bytes"
 	"embed"
 	"encoding/hex"
 	"errors"
@@ -31,9 +30,8 @@ import (
 )
 
 var (
-	ErrExporterNotReserved = errors.New("projection event exporter address is not an inactive reserved proxy")
-	errNilGenesis          = errors.New("private-chain genesis is nil")
-	errMissingChainConfig  = errors.New("private-chain genesis has no chain config")
+	errNilGenesis         = errors.New("private-chain genesis is nil")
+	errMissingChainConfig = errors.New("private-chain genesis has no chain config")
 
 	// ErrInteropInactive rejects a genesis whose interop feature set is not active at genesis. The
 	// projection is only defined over a Lagoon-at-genesis source: an activation block on the
@@ -71,7 +69,6 @@ var StockL2ToL2CrossDomainMessengerCodeHash = common.HexToHash("0x6c9a755164bb4b
 var bytecodes embed.FS
 
 var publicProjectionCode = map[common.Address][]byte{
-	codeNamespace(predeploys.ProjectionEventExporterAddr):    mustBytecode("ProjectionEventExporter"),
 	codeNamespace(predeploys.L1BlockAddr):                    mustBytecode("L1Block"),
 	codeNamespace(predeploys.L2ToL1MessagePasserAddr):        mustBytecode("L2ToL1MessagePasser"),
 	codeNamespace(predeploys.L2toL2CrossDomainMessengerAddr): mustBytecode("L2ToL2CrossDomainMessengerReplay"),
@@ -93,7 +90,7 @@ var publicProjectionCode = map[common.Address][]byte{
 //     cleared; LiquidityController and NativeAssetLiquidity are deactivated. An ETH source already
 //     has ETH semantics and is left alone;
 //   - messaging: the stock L2ToL2CrossDomainMessenger implementation becomes the replay messenger,
-//     and ClaimRegistry, EventReplayer and ProjectionEventExporter are installed;
+//     and ClaimRegistry and EventReplayer are installed;
 //   - block parameters: the gas limit is the maximum and the base fee is zero, because the batcher
 //     is the projection's only sender and there is no fee market to observe.
 func ProjectGenesisFrom(privateChainGenesis *core.Genesis) (*core.Genesis, error) {
@@ -129,7 +126,6 @@ func ProjectGenesisFrom(privateChainGenesis *core.Genesis) (*core.Genesis, error
 	activateProxy(out.Alloc, predeploys.ClaimRegistryAddr, publicProjectionCode[codeNamespace(predeploys.ClaimRegistryAddr)])
 	activateProxy(out.Alloc, predeploys.EventReplayerAddr, publicProjectionCode[codeNamespace(predeploys.EventReplayerAddr)])
 
-	activateProxy(out.Alloc, predeploys.ProjectionEventExporterAddr, publicProjectionCode[codeNamespace(predeploys.ProjectionEventExporterAddr)])
 	return out, nil
 }
 
@@ -176,14 +172,10 @@ func validatePrivateChainGenesis(g *core.Genesis) error {
 	if messengerHash != StockL2ToL2CrossDomainMessengerCodeHash && messengerHash != PolicyMessengerCodeHash {
 		return ErrMessengerNotStock
 	}
-	for _, proxy := range []common.Address{predeploys.ClaimRegistryAddr, predeploys.EventReplayerAddr, predeploys.ProjectionEventExporterAddr} {
+	for _, proxy := range []common.Address{predeploys.ClaimRegistryAddr, predeploys.EventReplayerAddr} {
 		if g.Alloc[proxy].Storage[implementationSlot] != (common.Hash{}) {
 			return ErrAlreadyProjected
 		}
-	}
-	exporter := g.Alloc[predeploys.ProjectionEventExporterAddr]
-	if len(exporter.Code) == 0 || !bytes.Equal(exporter.Code, g.Alloc[predeploys.CrossL2InboxAddr].Code) {
-		return ErrExporterNotReserved
 	}
 	return nil
 }

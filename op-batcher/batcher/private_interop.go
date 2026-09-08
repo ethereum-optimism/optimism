@@ -17,7 +17,6 @@ import (
 	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
 	"github.com/ethereum-optimism/optimism/op-private-interop/builder"
 	"github.com/ethereum-optimism/optimism/op-private-interop/render"
-	"github.com/ethereum-optimism/optimism/op-private-interop/writes"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 )
 
@@ -26,7 +25,7 @@ import (
 // Private payload loading, channel encoding, and the standard L1 transport are reused.
 // The publication cursor skips positions already derived by the public projection,
 // including fallback blocks after an outage, without promoting private safety.
-// BlockEnricher fetches the receipts and net writes needed by the terminal encoder.
+// BlockEnricher fetches the receipts needed by the terminal encoder.
 // ChannelOutFactory renders those blocks into ordinary sequencer batches and frames.
 
 // BlockEnricher fetches, for each loaded L2 block, the side data an alternate terminal encoding
@@ -39,15 +38,8 @@ type BlockEnricher interface {
 	PrepareBlock(ctx context.Context, payload *eth.ExecutionPayload) error
 }
 
-// MaxClaimWriteBytes keeps the single claim transaction below its gas/data budget.
-// A larger private block requires a future chunked-publication protocol.
-const MaxClaimWriteBytes = 128 * 1024
-
-type PrivateWrites interface {
-	FetchWrites(context.Context, common.Hash) ([]writes.Record, error)
-}
-
-// PrivateReceipts reads the private execution receipts used by the renderer.
+// PrivateReceipts fetches a private block's receipts. *sources.EthClient satisfies it, which is
+// what the operator points at its own private EL.
 type PrivateReceipts interface {
 	FetchReceipts(ctx context.Context, blockHash common.Hash) (eth.BlockInfo, optypes.Receipts, error)
 }
@@ -105,7 +97,6 @@ type PrivateInteropConfig struct {
 	DepSetHash       common.Hash
 	// Receipts is the private EL's receipt source.
 	Receipts PrivateReceipts
-	Writes   PrivateWrites
 	// Ranges supplies the previous range's terminal state.
 	Ranges RangeSource
 	// Txs builds the standard batcher's signed replay and claim transactions.
@@ -132,9 +123,6 @@ func (c *PrivateInteropConfig) Check() error {
 	}
 	if c.DepSetHash == (common.Hash{}) {
 		return errors.New("private interop: no dependency set hash for the range claim")
-	}
-	if c.Writes == nil {
-		return errors.New("private interop: no write source")
 	}
 	if c.Receipts == nil {
 		return errors.New("private interop: no private receipt source")
@@ -172,12 +160,7 @@ type PrivateInteropEncoder struct {
 	cfg PrivateInteropConfig
 
 	mu       sync.Mutex
-	prepared map[common.Hash]preparedPrivateBlock
-}
-
-type preparedPrivateBlock struct {
-	receipts optypes.Receipts
-	writes   []writes.Record
+	prepared map[common.Hash]optypes.Receipts
 }
 
 var (
@@ -188,10 +171,10 @@ func NewPrivateInteropEncoder(cfg PrivateInteropConfig) (*PrivateInteropEncoder,
 	if err := cfg.Check(); err != nil {
 		return nil, err
 	}
-	return &PrivateInteropEncoder{cfg: cfg, prepared: make(map[common.Hash]preparedPrivateBlock)}, nil
+	return &PrivateInteropEncoder{cfg: cfg, prepared: make(map[common.Hash]optypes.Receipts)}, nil
 }
 
-// PrepareBlock fetches the private block's receipts and net writes.
+// PrepareBlock fetches the private block's receipts.
 //
 // It runs in the block-LOADING stage rather than in the ChannelOut, because the ChannelOut is
 // called under the channel-manager mutex and must not do network I/O; and because a receipt fetch
@@ -201,25 +184,13 @@ func (e *PrivateInteropEncoder) PrepareBlock(ctx context.Context, payload *eth.E
 	if err != nil {
 		return fmt.Errorf("fetching private receipts for %s: %w", payload.BlockHash, err)
 	}
-	records, err := e.cfg.Writes.FetchWrites(ctx, payload.BlockHash)
-	if err != nil {
-		return fmt.Errorf("fetching private writes for %s: %w", payload.BlockHash, err)
-	}
-	if _, err := writes.Encode(records); err != nil {
-		return err
-	}
-	for _, r := range records {
-		if r.BlockNumber != uint64(payload.BlockNumber) {
-			return fmt.Errorf("private write block mismatch: %d", r.BlockNumber)
-		}
-	}
 	e.mu.Lock()
 	defer e.mu.Unlock()
-	e.prepared[payload.BlockHash] = preparedPrivateBlock{receipts, records}
+	e.prepared[payload.BlockHash] = receipts
 	return nil
 }
 
-func (e *PrivateInteropEncoder) take(hash common.Hash) (preparedPrivateBlock, bool) {
+func (e *PrivateInteropEncoder) take(hash common.Hash) (optypes.Receipts, bool) {
 	e.mu.Lock()
 	defer e.mu.Unlock()
 	r, ok := e.prepared[hash]
@@ -278,7 +249,6 @@ type renderChannelOut struct {
 
 	blocks   []*render.RenderedBlock
 	hashes   []common.Hash
-	writes   writes.Accumulator
 	start    RangeStart
 	haveID   bool
 	id       derive.ChannelID
@@ -309,7 +279,6 @@ func (c *renderChannelOut) ID() derive.ChannelID { return c.id }
 
 func (c *renderChannelOut) Reset() error {
 	c.blocks, c.hashes = nil, nil
-	c.writes = make(writes.Accumulator)
 	c.privBatches, c.privSeqNums, c.privParent = nil, nil, common.Hash{}
 	c.privDataHashed, c.privDataHash = false, common.Hash{}
 	c.haveID, c.id = false, derive.ChannelID{}
@@ -354,27 +323,22 @@ func (c *renderChannelOut) AddBlock(rollupCfg *rollup.Config, payload *eth.Execu
 	}
 	rendered, err := render.RenderBlock(render.PrivateBlock{
 		Header:   &types.Header{Number: new(big.Int).SetUint64(uint64(payload.BlockNumber)), Time: uint64(payload.Timestamp)},
-		Receipts: receipts.receipts.Geth(),
+		Receipts: receipts.Geth(),
 		Ref:      ref,
 	}, c.enc.cfg.Emitters)
 	if err != nil {
 		return l1Info, fmt.Errorf("rendering private block %d: %w", payload.BlockNumber, err)
 	}
 
-	newKeys := 0
-	for _, r := range receipts.writes {
-		if _, ok := c.writes[r.Tag]; !ok {
-			newKeys++
-		}
-	}
-	nextWriteBytes := (len(c.writes) + newKeys) * writes.RecordSize
-	nextInput := c.inputLen + newKeys*writes.RecordSize + estimatedRenderedBlockBytes(rendered)
-	if nextWriteBytes > MaxClaimWriteBytes || uint64(nextInput) > c.enc.cfg.MaxRangeBytes {
+	// Leave an overflowing block queued for the next range. Consuming it first
+	// can leave Close unable to encode the range within its size limit.
+	nextInput := c.inputLen + estimatedRenderedBlockBytes(rendered)
+	if uint64(nextInput) > c.enc.cfg.MaxRangeBytes {
 		if len(c.blocks) > 0 {
 			c.full = derive.ErrCompressorFull
 			return l1Info, c.full
 		}
-		return l1Info, fmt.Errorf("private block %d cannot fit a claim: %d write bytes (limit %d), %d range bytes (limit %d)", payload.BlockNumber, nextWriteBytes, MaxClaimWriteBytes, nextInput, c.enc.cfg.MaxRangeBytes)
+		return l1Info, fmt.Errorf("private block %d cannot fit a claim: %d range bytes (limit %d)", payload.BlockNumber, nextInput, c.enc.cfg.MaxRangeBytes)
 	}
 
 	if !c.haveID {
@@ -392,14 +356,6 @@ func (c *renderChannelOut) AddBlock(rollupCfg *rollup.Config, payload *eth.Execu
 		c.haveID = true
 	}
 
-	if c.writes == nil {
-		c.writes = make(writes.Accumulator)
-	}
-	oldWriteBytes := len(c.writes) * writes.RecordSize
-	if err := c.writes.Apply(receipts.writes); err != nil {
-		return l1Info, err
-	}
-	c.inputLen += len(c.writes)*writes.RecordSize - oldWriteBytes
 	c.blocks = append(c.blocks, rendered)
 	c.hashes = append(c.hashes, payload.BlockHash)
 	c.privBatches = append(c.privBatches, privBatch)
@@ -482,8 +438,7 @@ func (c *renderChannelOut) Close() error {
 			RollupConfigHash: c.enc.cfg.RollupConfigHash,
 			DepSetHash:       c.enc.cfg.DepSetHash,
 			PrivateDataHash:  c.privDataHash,
-			Writes:           c.writes.Records(),
-			// Attested mode requires an empty proof slot.
+			// v1 is attested, never proven: the registry rejects a non-empty slot.
 			Proof: nil,
 		},
 		StartNonce: c.start.StartNonce,

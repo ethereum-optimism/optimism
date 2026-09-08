@@ -42,7 +42,7 @@ contract L1EventRegistry is ISemver {
     event EventRelayed(bytes32 indexed certificate, address indexed portal, bool executeMessage);
 
     /// @notice Shared ETHLockbox defining the set of source and destination portals.
-    IETHLockbox internal immutable ETH_LOCKBOX;
+    IETHLockbox internal _lockbox;
 
     /// @notice Registered event certificates.
     mapping(bytes32 => bool) public registeredEvents;
@@ -54,12 +54,12 @@ contract L1EventRegistry is ISemver {
     /// @param _ethLockbox Shared ETHLockbox for the interop cluster.
     constructor(IETHLockbox _ethLockbox) {
         if (address(_ethLockbox) == address(0)) revert L1EventRegistry_InvalidLockbox();
-        ETH_LOCKBOX = _ethLockbox;
+        _lockbox = _ethLockbox;
     }
 
     /// @notice Returns the shared lockbox defining this registry's portal cluster.
     function ethLockbox() public view returns (IETHLockbox) {
-        return ETH_LOCKBOX;
+        return _lockbox;
     }
 
     /// @notice Records an event delivered by the source chain's canonical L1 messenger. Using
@@ -129,7 +129,7 @@ contract L1EventRegistry is ISemver {
 
     /// @notice Returns whether a portal is a current member of this registry's ETHLockbox cluster.
     function _portalIsAuthorized(IOptimismPortal2 _portal) internal view returns (bool) {
-        return ETH_LOCKBOX.authorizedPortals(_portal) && _portal.ethLockbox() == ETH_LOCKBOX;
+        return _lockbox.authorizedPortals(_portal) && _portal.ethLockbox() == _lockbox;
     }
 
     /// @notice Verifies and returns the certificate for an event and payload hash.

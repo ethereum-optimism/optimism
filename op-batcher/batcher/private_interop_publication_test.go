@@ -6,6 +6,7 @@ import (
 	"testing"
 	"time"
 
+	optypes "github.com/ethereum-optimism/optimism/op-core/types"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/queue"
@@ -104,7 +105,7 @@ func TestPrivatePublicationCursor(t *testing.T) {
 func TestPrivatePublicationPrunesExpiredPrefix(t *testing.T) {
 	bs, _ := setup(t, nil)
 	bs.PublicProjection = &fakeFollower{}
-	encoder := &PrivateInteropEncoder{prepared: make(map[common.Hash]preparedPrivateBlock)}
+	encoder := &PrivateInteropEncoder{prepared: make(map[common.Hash]optypes.Receipts)}
 	bs.BlockEnricher = encoder
 	status := eth.SyncStatus{
 		HeadL1: eth.L1BlockRef{Number: 100}, CurrentL1: eth.L1BlockRef{Number: 100},
@@ -122,7 +123,7 @@ func TestPrivatePublicationPrunesExpiredPrefix(t *testing.T) {
 	bs.channelMgr.blocks = queue.Queue[SizedBlock]{block(144), block(145), block(146)}
 	bs.channelMgr.blockCursor = 0
 	for _, b := range bs.channelMgr.blocks {
-		encoder.prepared[b.Hash()] = preparedPrivateBlock{}
+		encoder.prepared[b.Hash()] = optypes.Receipts{}
 	}
 	load = bs.syncAndPrune(&status, cursor, projection, false)
 	require.Nil(t, load)
@@ -132,7 +133,7 @@ func TestPrivatePublicationPrunesExpiredPrefix(t *testing.T) {
 	load = bs.syncAndPrune(&status, cursor, PublicProjectionBlock{Number: 144, Hash: common.Hash{44}}, false)
 	require.Nil(t, load)
 	require.Len(t, bs.channelMgr.blocks, 2)
-	require.Len(t, encoder.prepared, 2, "prune unencoded private witnesses too")
+	require.Len(t, encoder.prepared, 2, "prune unencoded prepared receipts too")
 
 	cursor.Number, cursor.Hash = 140, common.Hash{140}
 	load = bs.syncAndPrune(&status, cursor, PublicProjectionBlock{Number: 140, Hash: common.Hash{40}}, true)

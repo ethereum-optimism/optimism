@@ -96,19 +96,6 @@
     "type": "function"
   },
   {
-    "inputs": [],
-    "name": "eventProofVerifier",
-    "outputs": [
-      {
-        "internalType": "address",
-        "name": "",
-        "type": "address"
-      }
-    ],
-    "stateMutability": "view",
-    "type": "function"
-  },
-  {
     "inputs": [
       {
         "components": [
@@ -149,56 +136,6 @@
       }
     ],
     "name": "exportEvent",
-    "outputs": [],
-    "stateMutability": "nonpayable",
-    "type": "function"
-  },
-  {
-    "inputs": [
-      {
-        "components": [
-          {
-            "internalType": "address",
-            "name": "origin",
-            "type": "address"
-          },
-          {
-            "internalType": "uint256",
-            "name": "blockNumber",
-            "type": "uint256"
-          },
-          {
-            "internalType": "uint256",
-            "name": "logIndex",
-            "type": "uint256"
-          },
-          {
-            "internalType": "uint256",
-            "name": "timestamp",
-            "type": "uint256"
-          },
-          {
-            "internalType": "uint256",
-            "name": "chainId",
-            "type": "uint256"
-          }
-        ],
-        "internalType": "struct Identifier",
-        "name": "_id",
-        "type": "tuple"
-      },
-      {
-        "internalType": "bytes32",
-        "name": "_payloadHash",
-        "type": "bytes32"
-      },
-      {
-        "internalType": "bytes",
-        "name": "_proof",
-        "type": "bytes"
-      }
-    ],
-    "name": "exportProvenEvent",
     "outputs": [],
     "stateMutability": "nonpayable",
     "type": "function"
@@ -307,25 +244,6 @@
     "type": "function"
   },
   {
-    "inputs": [
-      {
-        "internalType": "bytes32",
-        "name": "",
-        "type": "bytes32"
-      }
-    ],
-    "name": "provenEvents",
-    "outputs": [
-      {
-        "internalType": "bool",
-        "name": "",
-        "type": "bool"
-      }
-    ],
-    "stateMutability": "view",
-    "type": "function"
-  },
-  {
     "inputs": [],
     "name": "proxyAdmin",
     "outputs": [
@@ -349,19 +267,6 @@
       }
     ],
     "stateMutability": "view",
-    "type": "function"
-  },
-  {
-    "inputs": [
-      {
-        "internalType": "address",
-        "name": "_verifier",
-        "type": "address"
-      }
-    ],
-    "name": "setEventProofVerifier",
-    "outputs": [],
-    "stateMutability": "nonpayable",
     "type": "function"
   },
   {
@@ -544,25 +449,6 @@
     "inputs": [
       {
         "indexed": true,
-        "internalType": "address",
-        "name": "oldVerifier",
-        "type": "address"
-      },
-      {
-        "indexed": true,
-        "internalType": "address",
-        "name": "newVerifier",
-        "type": "address"
-      }
-    ],
-    "name": "EventProofVerifierUpdated",
-    "type": "event"
-  },
-  {
-    "anonymous": false,
-    "inputs": [
-      {
-        "indexed": true,
         "internalType": "bytes32",
         "name": "msgHash",
         "type": "bytes32"
@@ -676,11 +562,6 @@
   },
   {
     "inputs": [],
-    "name": "CrossL2Inbox_EventAlreadyExported",
-    "type": "error"
-  },
-  {
-    "inputs": [],
     "name": "CrossL2Inbox_EventFromAnotherChain",
     "type": "error"
   },
@@ -701,16 +582,6 @@
   },
   {
     "inputs": [],
-    "name": "CrossL2Inbox_InvalidEventProof",
-    "type": "error"
-  },
-  {
-    "inputs": [],
-    "name": "CrossL2Inbox_InvalidEventProofVerifier",
-    "type": "error"
-  },
-  {
-    "inputs": [],
     "name": "CrossL2Inbox_InvalidEventRegistry",
     "type": "error"
   },
@@ -722,11 +593,6 @@
   {
     "inputs": [],
     "name": "CrossL2Inbox_NotEventRegistry",
-    "type": "error"
-  },
-  {
-    "inputs": [],
-    "name": "CrossL2Inbox_NotProjectionEventExporter",
     "type": "error"
   },
   {

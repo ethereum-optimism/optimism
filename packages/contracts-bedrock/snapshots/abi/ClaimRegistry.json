@@ -27,19 +27,6 @@
   },
   {
     "inputs": [],
-    "name": "MAX_WRITES_LENGTH",
-    "outputs": [
-      {
-        "internalType": "uint256",
-        "name": "",
-        "type": "uint256"
-      }
-    ],
-    "stateMutability": "view",
-    "type": "function"
-  },
-  {
-    "inputs": [],
     "name": "lastClaimHash",
     "outputs": [
       {
@@ -117,11 +104,6 @@
             "internalType": "bytes",
             "name": "proof",
             "type": "bytes"
-          },
-          {
-            "internalType": "bytes",
-            "name": "writes",
-            "type": "bytes"
           }
         ],
         "internalType": "struct RangeClaim",
@@ -189,11 +171,6 @@
   {
     "inputs": [],
     "name": "ClaimRegistry_InvalidRange",
-    "type": "error"
-  },
-  {
-    "inputs": [],
-    "name": "ClaimRegistry_InvalidWrites",
     "type": "error"
   },
   {

@@ -14,8 +14,6 @@ struct Identifier {
 }
 
 interface ICrossL2Inbox is IProxyAdminOwnedBase {
-    error CrossL2Inbox_NotProjectionEventExporter();
-
     error CrossL2Inbox_NoExecutingDeposits();
     error CrossL2Inbox_InvalidEventRegistry();
     error CrossL2Inbox_NotEventRegistry();
@@ -23,9 +21,6 @@ interface ICrossL2Inbox is IProxyAdminOwnedBase {
     error CrossL2Inbox_EventTooOld();
     error CrossL2Inbox_EventFromAnotherChain();
     error CrossL2Inbox_EventNotInPreviousBlock();
-    error CrossL2Inbox_InvalidEventProofVerifier();
-    error CrossL2Inbox_InvalidEventProof();
-    error CrossL2Inbox_EventAlreadyExported();
     error NotInAccessList();
     error BlockNumberTooHigh();
     error TimestampTooHigh();
@@ -36,7 +31,6 @@ interface ICrossL2Inbox is IProxyAdminOwnedBase {
     event EventExported(bytes32 indexed checksum, bytes32 indexed payloadHash, Identifier id);
     event EventImported(bytes32 indexed checksum, bytes32 indexed payloadHash, Identifier id);
     event L1EventRegistryUpdated(address indexed oldRegistry, address indexed newRegistry);
-    event EventProofVerifierUpdated(address indexed oldVerifier, address indexed newVerifier);
 
     function version() external view returns (string memory);
 
@@ -47,10 +41,6 @@ interface ICrossL2Inbox is IProxyAdminOwnedBase {
     function validateMessage(Identifier calldata _id, bytes32 _msgHash) external;
 
     function exportEvent(Identifier calldata _id, bytes32 _payloadHash) external;
-    function exportProvenEvent(Identifier calldata _id, bytes32 _payloadHash, bytes calldata _proof) external;
-    function setEventProofVerifier(address _verifier) external;
-    function eventProofVerifier() external view returns (address);
-    function provenEvents(bytes32) external view returns (bool);
 
     function importEvent(Identifier calldata _id, bytes32 _payloadHash) external;
 
