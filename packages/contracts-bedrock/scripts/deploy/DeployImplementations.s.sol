@@ -602,11 +602,6 @@ contract DeployImplementations is Script {
         opcmImplementations.zkDisputeGameImpl = _implementations.zkDisputeGameImpl;
         opcmImplementations.sp1PlonkAdapterImpl = _implementations.sp1PlonkAdapterImpl;
 
-        // Unqualified names so DeployUtils.getCode resolves the default compiler profile's
-        // artifact. Both contracts are pulled into the validator profile's compilation graph by
-        // OPContractsManagerStandardValidator.sol, so a "File.sol:Contract" identifier can
-        // non-deterministically resolve to the 200-run build while VerifyOPCM compares against the
-        // default 999999-run artifact.
         IStandardValidatorUtils standardValidatorUtils = IStandardValidatorUtils(
             DeployUtils.createDeterministic({
                 _name: "StandardValidatorUtils",
