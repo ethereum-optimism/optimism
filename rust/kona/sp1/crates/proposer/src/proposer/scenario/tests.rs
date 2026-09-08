@@ -1326,6 +1326,49 @@ async fn scenario_world_confirmed_action_updates_l1_without_changing_old_blocks_
 }
 
 #[tokio::test]
+async fn created_game_resolution_credits_and_claims_initial_bond() {
+    let world = ScenarioWorld::new();
+    let actions = world.action_executor();
+    let init_bond = U256::from(7);
+    let root_claim = canonical_super_root(1);
+    let mut extra_data = u32::MAX.to_be_bytes().to_vec();
+    extra_data.push(0x01);
+
+    let receipt = actions.create_game(root_claim, extra_data, init_bond).await.unwrap();
+    let game = world.observation().games.into_iter().next().unwrap();
+    let target = game.target();
+    assert_eq!(game.bond.credit, U256::ZERO);
+    assert_eq!(
+        world
+            .action_record(
+                &ActionTarget::Create { sequence_number: 1, parent_game_index: u32::MAX },
+                1,
+            )
+            .unwrap()
+            .inputs,
+        ActionInputs::Create {
+            root_claim,
+            parent_game_index: u32::MAX,
+            sequence_number: 1,
+            init_bond,
+        }
+    );
+
+    actions.resolve_game(receipt.game_address).await.unwrap();
+    let resolved = world.observation().games.into_iter().next().unwrap();
+    assert_eq!(resolved.bond.credit, init_bond);
+
+    actions.claim_credit(receipt.game_address, ScenarioWorld::proposer_address()).await.unwrap();
+    assert_eq!(
+        world.action_record(&ActionTarget::ClaimCredit(target), 1).unwrap().effect,
+        CommittedEffect::ClaimUnlocked { game: receipt.game_address, amount: init_bond }
+    );
+    let claimed = world.observation().games.into_iter().next().unwrap();
+    assert_eq!(claimed.bond.credit, U256::ZERO);
+    assert_eq!(claimed.bond.withdrawal_amount, init_bond);
+}
+
+#[tokio::test]
 async fn scenario_world_clocks_move_independently() {
     let world = ScenarioWorld::new();
     let initial = world.observation();
@@ -1453,6 +1496,7 @@ async fn blocked_creation_stays_single_until_its_task_is_released() {
             root_claim: canonical_super_root(1),
             parent_game_index: u32::MAX,
             sequence_number: 1,
+            init_bond: U256::ONE,
         }
     );
     assert_eq!(submitted_record.lifecycle, ActionLifecycle::Submitted);
@@ -1574,18 +1618,32 @@ async fn one_submission_finishes_before_the_next_one_starts() {
         .await
         .unwrap();
     scenario.release_action_barrier(&resolve, 1, ActionBarrierPoint::BeforeSigner).unwrap();
+    world.wait_for_signer_attempt(&resolve, 1).await.unwrap();
     assert!(world.action_record(&resolve, 1).is_none());
 
     scenario.release_action_barrier(&create, 1, ActionBarrierPoint::AfterSubmission).unwrap();
-    scenario.settle(&[create_id]).await.unwrap();
-    scenario.settle(&[resolve_id]).await.unwrap();
+    assert_eq!(
+        scenario.settle(&[create_id]).await.unwrap()[0].outcome,
+        TaskCompletionOutcome::Success
+    );
+    assert_eq!(
+        scenario.settle(&[resolve_id]).await.unwrap()[0].outcome,
+        TaskCompletionOutcome::Success
+    );
     let remaining = result
         .scheduled
         .iter()
         .map(|scheduled| scheduled.task_id)
         .filter(|task_id| *task_id != create_id && *task_id != resolve_id)
         .collect::<Vec<_>>();
-    scenario.settle(&remaining).await.unwrap();
+    assert!(
+        scenario
+            .settle(&remaining)
+            .await
+            .unwrap()
+            .iter()
+            .all(|completion| completion.outcome == TaskCompletionOutcome::Success)
+    );
     assert_eq!(world.action_record(&resolve, 1).unwrap().lifecycle, ActionLifecycle::Confirmed);
 }
 
@@ -1662,6 +1720,8 @@ async fn reverted_create_consumes_a_nonce_without_creating_a_game() {
 #[tokio::test]
 async fn timed_out_create_that_lands_late_is_not_duplicated() {
     let world = ScenarioWorld::new();
+    world.mine_block();
+    world.mine_block();
     world.set_horizons(1, 1);
     let target = ActionTarget::Create { sequence_number: 1, parent_game_index: u32::MAX };
     world.script_action(target.clone(), 1, ActionOutcome::Timeout);
@@ -1670,6 +1730,8 @@ async fn timed_out_create_that_lands_late_is_not_duplicated() {
     let mut scenario = ScenarioHarness::new(world.clone(), config).await.unwrap();
 
     let timed_out = scenario.tick().await.unwrap();
+    assert_eq!(timed_out.snapshot.sync_disposition, SyncDisposition::Advanced);
+    assert_eq!(timed_out.snapshot.last_successful_pinned_l1.unwrap().number, 10);
     scenario.settle_scheduled(&timed_out).await.unwrap();
     assert_eq!(world.observation().nonce, NonceState { pending: 1, latest: 0 });
     assert!(world.observation().games.is_empty());
@@ -1680,23 +1742,26 @@ async fn timed_out_create_that_lands_late_is_not_duplicated() {
     assert_eq!(world.action_record(&target, 1).unwrap().lifecycle, ActionLifecycle::TimedOut);
 
     let held = scenario.tick().await.unwrap();
+    assert_eq!(held.snapshot.sync_disposition, SyncDisposition::UnchangedConfirmedHead);
+    assert_eq!(held.snapshot.last_successful_pinned_l1.unwrap().number, 10);
     assert!(held.snapshot.in_flight_creation.is_some());
     scenario.settle_scheduled(&held).await.unwrap();
-    let pinned_block = world.observation().latest_l1.number;
     scenario.include_transaction(&target, 1, InclusionDepth::LatestOnly).unwrap();
     assert_eq!(world.action_record(&target, 1).unwrap().lifecycle, ActionLifecycle::IncludedLate);
     let included = world.observation();
     assert_eq!(included.nonce, NonceState { pending: 1, latest: 1 });
     assert!(included.pending_transactions.is_empty());
     assert_eq!(included.games.len(), 1);
+    let adopted = scenario.tick().await.unwrap();
+    assert_eq!(adopted.snapshot.sync_disposition, SyncDisposition::Advanced);
+    let adopted_pin = adopted.snapshot.last_successful_pinned_l1.unwrap();
+    assert_eq!(adopted_pin.number, 11);
     let view = world.l1_view();
-    assert_eq!(view.latest_game_index(BlockId::number(pinned_block)).await.unwrap(), None);
+    assert_eq!(view.latest_game_index(BlockId::number(adopted_pin.number)).await.unwrap(), None);
     assert_eq!(
         view.latest_game_index(BlockId::number(included.latest_l1.number)).await.unwrap(),
         Some(U256::ZERO)
     );
-
-    let adopted = scenario.tick().await.unwrap();
     assert!(adopted.snapshot.in_flight_creation.is_some());
     assert!(
         !adopted
@@ -1762,6 +1827,7 @@ async fn dropped_create_does_not_block_a_later_create() {
             root_claim: canonical_super_root(1),
             parent_game_index: u32::MAX,
             sequence_number: 1,
+            init_bond: U256::ONE,
         }
     );
     assert!(matches!(

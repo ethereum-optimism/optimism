@@ -1,5 +1,5 @@
 use std::{
-    collections::{BTreeMap, HashMap, VecDeque},
+    collections::{BTreeMap, HashMap, HashSet, VecDeque},
     fs,
     hash::Hash,
     io::Write,
@@ -20,7 +20,7 @@ use kona_sp1_super_range_executor::{
     BlockId as SuperBlockId, SuperRootAtTimestampResponse, SuperRootResponseData, SuperV1,
 };
 use tempfile::TempDir;
-use tokio::sync::Mutex as AsyncMutex;
+use tokio::sync::{Mutex as AsyncMutex, Notify};
 
 use super::{NamedBarrier, ScenarioControl, ScenarioError};
 use crate::{
@@ -252,6 +252,7 @@ pub(super) struct ScenarioGame {
     pub(super) standing: GameStanding,
     pub(super) bond: BondState,
     pub(super) proof_inputs: ProofInputs,
+    creation_bond: U256,
 }
 
 impl ScenarioGame {
@@ -291,6 +292,7 @@ impl ScenarioGame {
                 root_claim: canonical_super_root(sequence_number),
                 sequence_number,
             },
+            creation_bond: U256::ZERO,
         }
     }
 
@@ -353,7 +355,7 @@ pub(super) enum CommittedEffect {
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(super) enum ActionInputs {
-    Create { root_claim: B256, parent_game_index: u32, sequence_number: u64 },
+    Create { root_claim: B256, parent_game_index: u32, sequence_number: u64, init_bond: U256 },
     Prove { game: Address },
     Resolve { game: Address },
     ClaimCredit { game: Address, recipient: Address },
@@ -446,7 +448,13 @@ impl L1State {
 
 #[derive(Clone)]
 enum PendingEffect {
-    Create { root_claim: B256, extra_data: Vec<u8>, sequence_number: u64, parent_game_index: u32 },
+    Create {
+        root_claim: B256,
+        extra_data: Vec<u8>,
+        sequence_number: u64,
+        parent_game_index: u32,
+        init_bond: U256,
+    },
     Prove(Address),
     Resolve(Address),
     Claim(Address),
@@ -472,12 +480,14 @@ struct WorldData {
     action_records: HashMap<AttemptKey<ActionTarget>, ActionRecord>,
     proof_records: HashMap<AttemptKey<GameTarget>, ProofRecord>,
     pending_transactions: HashMap<AttemptKey<ActionTarget>, PendingTransaction>,
+    signer_attempts: HashSet<AttemptKey<ActionTarget>>,
 }
 
 #[derive(Clone)]
 pub(super) struct ScenarioWorld {
     data: Arc<StdMutex<WorldData>>,
     signer_gate: Arc<AsyncMutex<()>>,
+    signer_attempt_notify: Arc<Notify>,
     artifacts: Arc<TempDir>,
 }
 
@@ -527,8 +537,10 @@ impl ScenarioWorld {
                 action_records: HashMap::new(),
                 proof_records: HashMap::new(),
                 pending_transactions: HashMap::new(),
+                signer_attempts: HashSet::new(),
             })),
             signer_gate: Arc::new(AsyncMutex::new(())),
+            signer_attempt_notify: Arc::new(Notify::new()),
             artifacts: Arc::new(artifacts),
         }
     }
@@ -694,6 +706,26 @@ impl ScenarioWorld {
 
     pub(super) fn proof_record(&self, target: &GameTarget, attempt: u64) -> Option<ProofRecord> {
         self.lock().proof_records.get(&AttemptKey::new(target.clone(), attempt)).cloned()
+    }
+
+    pub(super) async fn wait_for_signer_attempt(
+        &self,
+        target: &ActionTarget,
+        attempt: u64,
+    ) -> Result<(), ScenarioError> {
+        let key = AttemptKey::new(target.clone(), attempt);
+        let action = format!("{target:?} attempt {attempt}");
+        tokio::time::timeout(SCENARIO_WATCHDOG, async {
+            loop {
+                let attempted = self.signer_attempt_notify.notified();
+                if self.lock().signer_attempts.contains(&key) {
+                    return;
+                }
+                attempted.await;
+            }
+        })
+        .await
+        .map_err(|_| ScenarioError::SignerWatchdog { action })
     }
 
     pub(super) fn observation(&self) -> WorldObservation {
@@ -954,6 +986,7 @@ impl WorldData {
                     extra_data,
                     sequence_number,
                     parent_game_index,
+                    init_bond,
                 } => {
                     let index =
                         state.games.keys().next_back().map_or(0, |index| index.to::<u64>() + 1);
@@ -973,6 +1006,7 @@ impl WorldData {
                     game.anchor_state_registry = state.registered_args.anchor_state_registry;
                     game.deadline =
                         state.block.timestamp + state.registered_args.max_challenge_duration;
+                    game.creation_bond = init_bond;
                     game.bind_proof_inputs(state);
                     state.games.insert(index, game);
                     CommittedEffect::Created { factory_index: index, address }
@@ -1000,6 +1034,7 @@ impl WorldData {
                     game.status = GameStatus::DefenderWins;
                     game.proposal_status = ProposalStatus::Resolved;
                     game.finalized = true;
+                    game.bond.credit = game.creation_bond;
                     CommittedEffect::Resolved { game: address }
                 }
                 PendingEffect::Claim(address) => {
@@ -1393,6 +1428,11 @@ impl FakeActionExecutor {
             barrier.park_unassigned().await;
         }
 
+        {
+            let mut data = self.0.lock();
+            data.signer_attempts.insert(AttemptKey::new(target.clone(), attempt));
+        }
+        self.0.signer_attempt_notify.notify_waiters();
         let _signer = self.0.signer_gate.lock().await;
         if script.outcome == ActionOutcome::PreSubmitFailure {
             self.0.lock().action_records.insert(
@@ -1482,7 +1522,7 @@ impl ActionExecutor for FakeActionExecutor {
         &self,
         root_claim: B256,
         extra_data: Vec<u8>,
-        _init_bond: U256,
+        init_bond: U256,
     ) -> Result<GameCreationReceipt> {
         let sequence_number = super_root_timestamp(root_claim)?;
         let parent_game_index = u32::from_be_bytes(
@@ -1492,12 +1532,13 @@ impl ActionExecutor for FakeActionExecutor {
         let result = self
             .execute(
                 target,
-                ActionInputs::Create { root_claim, parent_game_index, sequence_number },
+                ActionInputs::Create { root_claim, parent_game_index, sequence_number, init_bond },
                 PendingEffect::Create {
                     root_claim,
                     extra_data,
                     sequence_number,
                     parent_game_index,
+                    init_bond,
                 },
             )
             .await?;

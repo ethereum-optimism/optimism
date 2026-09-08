@@ -22,6 +22,7 @@ pub(super) enum ScenarioError {
     BarrierTaskMismatch { task_id: TaskId, barrier: String, reached_by: TaskId },
     BarrierOperationMismatch { task_id: TaskId, barrier: String },
     BarrierWatchdog { barrier: String },
+    SignerWatchdog { action: String },
     UnknownBarrier { barrier: String },
     SettlementWatchdog { task_ids: Vec<TaskId>, completions: Vec<TaskCompletion> },
 }
