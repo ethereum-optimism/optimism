@@ -172,12 +172,7 @@ obligations and the acceptance witness passes. Compilation and JUnit alone are i
 The current branch temporarily dispatches a copy-loop-only CI diagnostic with
 `KONTROL_COPY_ONLY=true` to publish its graph before the longer Solidity phase. This mode
 requires strict mode and preserves the helper's failure status. It is not full-suite evidence.
-The current diagnostic stops after 12 proof iterations to retain the first exit, then asks the
-backend why that saved state does not imply the target. This query runs in CI, has a two-minute
-limit, and never changes the saved proof or its exit status. Its JSON report is diagnostic evidence,
-not a proof certificate. Restore the normal helper iteration limit before assessing loop completion;
-the normal integrated path retains 10,000 iterations.
-The temporary diagnostic also retains the backend's simplified implication and unification-failure
-log, because the higher-level failure report can be empty even when implication fails.
+The helper-only run uses the same 10,000-iteration budget and 15-minute timeout as the integrated
+helper attempt. A passed exit implication or a partially explored loop is not a completed helper.
 Before PR readiness, restore the CI command to `test-kontrol-no-build` without that variable
 and verify the original suite, every withdrawal obligation, and the independent helper.
