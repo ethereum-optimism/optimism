@@ -132,7 +132,7 @@ Reject a candidate when:
 - Another rule or explicit exception resolves the difference.
 - The path is test-only or outside the area boundary.
 - The difference changes only an internal name, and both implementations reject at the same stage.
-- The specification permits every observed outcome.
+- The specification permits every observed outcome, and there is no cross-client divergence or consensus/safety impact. Otherwise, retain the candidate and apply the divergence/specification-gap reporting rules below.
 - The evidence does not prove an observable effect.
 
 Use focused tests or small reproductions when practical.
