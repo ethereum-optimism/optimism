@@ -628,6 +628,244 @@ mod tests {
     use super::*;
     use crate::test_utils::{b256, dependency_set, rollup_config, save_header, save_output_root};
 
+    fn save_range_state(oracle: &mut PreimageStore, depositor_nonce: u64) -> B256 {
+        use alloy_primitives::{address, keccak256};
+        use alloy_trie::{Nibbles, TrieAccount};
+        use kona_mpt::{NoopTrieProvider, TrieNode};
+        use kona_protocol::Predeploys;
+
+        fn save_node(oracle: &mut PreimageStore, node: &TrieNode) {
+            oracle
+                .save_preimage(PreimageKey::new_keccak256(*node.blind()), alloy_rlp::encode(node))
+                .unwrap();
+            match node {
+                TrieNode::Extension { node, .. } => save_node(oracle, node),
+                TrieNode::Branch { stack } => {
+                    for child in stack {
+                        save_node(oracle, child);
+                    }
+                }
+                _ => {}
+            }
+        }
+
+        let mut root = TrieNode::Empty;
+        for (address, nonce) in [
+            (Predeploys::L2_TO_L1_MESSAGE_PASSER, 1),
+            (address!("deaddeaddeaddeaddeaddeaddeaddeaddead0001"), depositor_nonce),
+        ] {
+            if nonce == 0 {
+                continue;
+            }
+            root.insert(
+                &Nibbles::unpack(keccak256(address)),
+                alloy_rlp::encode(TrieAccount { nonce, ..Default::default() }).into(),
+                &NoopTrieProvider,
+            )
+            .unwrap();
+        }
+        save_node(oracle, &root);
+        root.blind()
+    }
+
+    fn save_range_transaction(oracle: &mut PreimageStore, tx: &[u8]) {
+        let mut trie = kona_mpt::ordered_trie_with_encoder(&[tx], |tx, out| out.put_slice(tx));
+        trie.root();
+        for node in trie.take_proof_nodes().into_inner().into_values() {
+            oracle
+                .save_preimage(
+                    PreimageKey::new_keccak256(*alloy_primitives::keccak256(&node)),
+                    node.to_vec(),
+                )
+                .unwrap();
+        }
+    }
+
+    /// A Bedrock chain with two deposit-only blocks and a no-op timestamp between them.
+    /// Expiring the sequencing window supplies empty batches without external DA fixtures.
+    fn progressing_range_fixture() -> (SuperRangeInputs, PreimageStore) {
+        use alloy_eips::Encodable2718;
+        use alloy_op_evm::{OpEvmFactory, block::OpAlloyReceiptBuilder};
+        use alloy_primitives::keccak256;
+        use alloy_trie::EMPTY_ROOT_HASH;
+        use kona_executor::StatelessL2Builder;
+        use kona_genesis::SystemConfig;
+        use kona_protocol::{L1BlockInfoTx, Predeploys};
+        use op_alloy_rpc_types_engine::OpPayloadAttributes;
+
+        let chain_id = u64::MAX;
+        let mut oracle = PreimageStore::default();
+        oracle.save_preimage(PreimageKey::new_keccak256(*EMPTY_ROOT_HASH), vec![0x80]).unwrap();
+        let l1_genesis = Header {
+            number: 1,
+            timestamp: 100,
+            transactions_root: EMPTY_ROOT_HASH,
+            receipts_root: EMPTY_ROOT_HASH,
+            base_fee_per_gas: Some(1),
+            ..Default::default()
+        };
+        let l1_genesis_hash = save_header(&mut oracle, &l1_genesis);
+        let l1_head = save_header(
+            &mut oracle,
+            &Header {
+                parent_hash: l1_genesis_hash,
+                number: 2,
+                timestamp: 112,
+                transactions_root: EMPTY_ROOT_HASH,
+                receipts_root: EMPTY_ROOT_HASH,
+                ..Default::default()
+            },
+        );
+        let genesis = Header {
+            number: 0,
+            timestamp: 100,
+            state_root: save_range_state(&mut oracle, 0),
+            transactions_root: EMPTY_ROOT_HASH,
+            receipts_root: EMPTY_ROOT_HASH,
+            gas_limit: 30_000_000,
+            base_fee_per_gas: Some(1),
+            ..Default::default()
+        };
+        let genesis_hash = save_header(&mut oracle, &genesis);
+        let mut config = rollup_config(chain_id, 1);
+        config.block_time = 2;
+        config.seq_window_size = 1;
+        config.genesis.l1 = alloy_eips::BlockNumHash { number: 1, hash: l1_genesis_hash };
+        config.genesis.l2 = alloy_eips::BlockNumHash { number: 0, hash: genesis_hash };
+        config.genesis.l2_time = 100;
+        config.genesis.system_config =
+            Some(SystemConfig { gas_limit: genesis.gas_limit, ..Default::default() });
+        oracle
+            .save_preimage(
+                PreimageKey::new_local(DEPENDENCY_SET_KEY.to()),
+                serde_json::to_vec(&dependency_set(&[chain_id], None)).unwrap(),
+            )
+            .unwrap();
+        oracle
+            .save_preimage(
+                PreimageKey::new_local(L2_ROLLUP_CONFIG_KEY.to()),
+                serde_json::to_vec(&BTreeMap::from([(chain_id, config.clone())])).unwrap(),
+            )
+            .unwrap();
+
+        let mut headers = vec![genesis];
+        for sequence in 1..=2 {
+            let (_, tx) = L1BlockInfoTx::try_new_with_deposit_tx(
+                &config,
+                L1_CONFIGS.get(&1).unwrap(),
+                &config.genesis.system_config.unwrap(),
+                sequence,
+                &l1_genesis,
+                100 + 2 * sequence,
+            )
+            .unwrap();
+            let tx = tx.encoded_2718();
+            let mut attrs = OpPayloadAttributes::default();
+            attrs.payload_attributes.timestamp = 100 + 2 * sequence;
+            attrs.payload_attributes.prev_randao = l1_genesis.mix_hash;
+            attrs.payload_attributes.suggested_fee_recipient = Predeploys::SEQUENCER_FEE_VAULT;
+            attrs.transactions = Some(vec![tx.clone().into()]);
+            attrs.no_tx_pool = Some(true);
+            attrs.gas_limit = Some(headers[0].gas_limit);
+            let provider = OracleL2ChainProvider::new(
+                headers.last().unwrap().hash_slow(),
+                Arc::new(config.clone()),
+                Arc::new(oracle.clone()),
+            );
+            let mut builder = StatelessL2Builder::new(
+                &config,
+                OpEvmFactory::<alloy_op_evm::OpTx>::default(),
+                OpAlloyReceiptBuilder::default(),
+                provider.clone(),
+                provider,
+                Sealed::new(headers.last().unwrap().clone()),
+            );
+            let header = builder.build_block(attrs).unwrap().header;
+            assert_eq!(header.state_root, save_range_state(&mut oracle, sequence));
+            save_range_transaction(&mut oracle, &tx);
+            save_header(&mut oracle, &header);
+            headers.push(header.into_inner());
+        }
+        let blocks = headers
+            .iter()
+            .map(|header| {
+                let mut preimage = vec![0; OUTPUT_ROOT_V0_BYTES];
+                preimage[32..64].copy_from_slice(header.state_root.as_slice());
+                preimage[64..96].copy_from_slice(EMPTY_ROOT_HASH.as_slice());
+                preimage[96..128].copy_from_slice(header.hash_slow().as_slice());
+                let output_root = keccak256(&preimage);
+                oracle.save_preimage(PreimageKey::new_keccak256(*output_root), preimage).unwrap();
+                SuperOptimisticBlock {
+                    chain_id: U256::from(chain_id),
+                    block_hash: header.hash_slow(),
+                    output_root,
+                }
+            })
+            .collect::<Vec<_>>();
+        let inputs = SuperRangeInputs {
+            span: TimestampSpan::new(102, 104).unwrap(),
+            l1_head,
+            chain_ids: vec![U256::from(chain_id)],
+            previous_super_root_proofs: [0, 1, 1]
+                .into_iter()
+                .enumerate()
+                .map(|(offset, block)| {
+                    SuperRootProof::new(
+                        101 + offset as u64,
+                        vec![SuperOutputRoot { chain_id, output_root: blocks[block].output_root }],
+                    )
+                })
+                .collect(),
+            claimed_transitions: [1, 1, 2]
+                .into_iter()
+                .enumerate()
+                .map(|(offset, block)| SuperRangeTransition {
+                    timestamp: 102 + offset as u64,
+                    optimistic_block: blocks[block],
+                })
+                .collect(),
+        };
+        (inputs, oracle)
+    }
+
+    #[test]
+    fn range_outputs_derive_multiple_blocks_across_noop() {
+        let (inputs, oracle) = progressing_range_fixture();
+        let expected = inputs.claimed_transitions.clone();
+        let actual = block_on(build_range_outputs(
+            inputs,
+            Arc::new(oracle),
+            kona_sp1_client_utils::BlobStore::default(),
+        ))
+        .unwrap();
+        assert_eq!(actual.transitions, expected);
+    }
+
+    #[test]
+    fn range_outputs_reject_invalid_later_claim_after_noop() {
+        let (mut inputs, mut oracle) = progressing_range_fixture();
+        let last_claim = inputs.claimed_transitions.last_mut().unwrap();
+        let mut preimage = block_on(
+            oracle.get(PreimageKey::new_keccak256(*last_claim.optimistic_block.output_root)),
+        )
+        .unwrap();
+        // Preserve the block hash and V0 structure: only execution can reject this state root.
+        preimage[32] ^= 1;
+        let invalid_root = alloy_primitives::keccak256(&preimage);
+        oracle.save_preimage(PreimageKey::new_keccak256(*invalid_root), preimage).unwrap();
+        last_claim.optimistic_block.output_root = invalid_root;
+        let err = block_on(build_range_outputs(
+            inputs,
+            Arc::new(oracle),
+            kona_sp1_client_utils::BlobStore::default(),
+        ))
+        .unwrap_err();
+        assert!(
+            err.to_string().contains("Failed to validate L2 block #2"),
+            "unexpected error: {err}"
+        );
+    }
+
     fn rollup_configs(chain_ids: &[u64]) -> BTreeMap<u64, RollupConfig> {
         chain_ids.iter().map(|chain_id| (*chain_id, rollup_config(*chain_id, 1))).collect()
     }
