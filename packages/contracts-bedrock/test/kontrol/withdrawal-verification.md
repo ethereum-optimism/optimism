@@ -174,5 +174,7 @@ backend why that saved state does not imply the target. This query runs in CI, h
 limit, and never changes the saved proof or its exit status. Its JSON report is diagnostic evidence,
 not a proof certificate. Restore the normal helper iteration limit before assessing loop completion;
 the normal integrated path retains 10,000 iterations.
+The temporary diagnostic also retains the backend's simplified implication and unification-failure
+log, because the higher-level failure report can be empty even when implication fails.
 Before PR readiness, restore the CI command to `test-kontrol-no-build` without that variable
 and verify the original suite, every withdrawal obligation, and the independent helper.

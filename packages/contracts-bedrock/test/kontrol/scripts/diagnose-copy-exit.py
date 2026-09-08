@@ -5,7 +5,8 @@ import json
 from pathlib import Path
 import shlex
 
-from pyk.kast.inner import KApply, KSequence
+from pyk.kast.inner import KApply, KLabel, KSequence, KVariable
+from pyk.kast.prelude.k import GENERATED_TOP_CELL, K_ITEM
 from pyk.proof.reachability import APRProof
 
 parser = argparse.ArgumentParser(description=__doc__)
@@ -52,13 +53,29 @@ if args.query:
                         llvm_definition_dir=args.definition / "llvm-library",
                         smt_timeout=16000, smt_retry_limit=0,
                         log_succ_rewrites=False, log_fail_rewrites=False) as explore:
-        result = explore.cterm_symbolic.implies(source.cterm, target, failure_reason=True, assume_defined=False)
-    report["implicationValid"] = result.csubst is not None
-    report["queryCompleted"] = True
-    report["substitution"] = str(result.csubst) if result.csubst is not None else None
-    report["failingCells"] = [{"cell": name, "difference": term.to_dict()} for name, term in result.failing_cells]
-    report["remainingImplication"] = (result.remaining_implication.to_dict()
-                                      if result.remaining_implication is not None else None)
+        symbolic = explore.cterm_symbolic
+        result = symbolic.implies(source.cterm, target, failure_reason=True, assume_defined=False)
+        report["implicationValid"] = result.csubst is not None
+        report["queryCompleted"] = True
+        report["substitution"] = str(result.csubst) if result.csubst is not None else None
+        report["failingCells"] = [{"cell": name, "difference": term.to_dict()} for name, term in result.failing_cells]
+        report["remainingImplication"] = (result.remaining_implication.to_dict()
+                                          if result.remaining_implication is not None else None)
+        args.output.write_text(json.dumps(report, indent=2) + "\n")
+        # Match CTermSymbolic.implies' existential binding; retain the response it discards.
+        consequent = target.kast
+        for name in target.free_vars:
+            if name not in source.cterm.free_vars:
+                consequent = KApply(KLabel("#Exists", [K_ITEM, GENERATED_TOP_CELL]), [KVariable(name), consequent])
+        raw = symbolic._kore_client.implies(
+            symbolic.kast_to_kore(source.cterm.kast), symbolic.kast_to_kore(consequent),
+            assume_defined=False, haskell_logging=("DebugUnifyBottom",),
+        )
+        report["rawResponse"] = {"valid": raw.valid,
+            "implication": symbolic.kore_to_kast(raw.implication).to_dict(),
+            "predicate": symbolic.kore_to_kast(raw.predicate).to_dict() if raw.predicate is not None else None,
+            "substitution": symbolic.kore_to_kast(raw.substitution).to_dict() if raw.substitution is not None else None,
+            "haskellLogEntries": raw.haskell_log_entries}
 args.output.write_text(json.dumps(report, indent=2) + "\n")
 print(json.dumps({key: report[key] for key in
                   ("source", "target", "nativeStatus", "queried", "queryCompleted", "implicationValid") if key in report}))
