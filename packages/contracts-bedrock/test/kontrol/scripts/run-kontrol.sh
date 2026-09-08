@@ -32,7 +32,7 @@ kontrol_build() {
     build_command+=(--require "$lemmas" --module-import "$module")
   else
     # Independent calldata definitions; no execution summaries or assumed results.
-    build_command+=(--require test/kontrol/specs/withdrawal-calldata.k
+    build_command+=(--verbose --require test/kontrol/specs/withdrawal-calldata.k
       --module-import WithdrawalAuthorizationKontrol:WITHDRAWAL-CALLDATA)
   fi
   # shellcheck disable=SC2086

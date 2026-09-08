@@ -197,6 +197,7 @@ test-withdrawal-authorization:
     WithdrawalAuthorizationKontrol.prove_deleteProvenWithdrawal_eligible_succeeds \
     WithdrawalAuthorizationKontrol.prove_deleteProvenWithdrawal_equivalence \
     WithdrawalAuthorizationKontrol.prove_proveAndFinalize_eligible_succeeds \
+    WithdrawalAuthorizationKontrol.prove_prepareRecord \
     WithdrawalAuthorizationKontrol.prove_record \
     WithdrawalFactorySelectionKontrol.prove_factorySelection_witness_succeeds \
     WithdrawalFactorySelectionKontrol.prove_factorySelection_equivalence

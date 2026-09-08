@@ -309,6 +309,25 @@ contract WithdrawalAuthorizationKontrol is DeploymentSummaryFaultProofs, Kontrol
         );
     }
 
+    /// @notice Native-call initializer candidate; this method does not prove withdrawal acceptance.
+    ///         A native claim must bind withdrawalHash to its exact calldata and retain every final state.
+    function prove_prepareRecord(ProvingCase memory _case, bytes32 _hash) external returns (address candidate_) {
+        vm.store(address(portal.systemConfig()), bytes32(uint256(107)), bytes32(_case.configuredChainId));
+        WithdrawalProofGame_Harness candidate =
+            _registerProofGame(_case.outputClaim, _case.gameType, _case.candidateChainId);
+        vm.assume(_case.otherHash != _hash || _case.otherSubmitter != _case.submitter);
+        bytes32 recordSlot = keccak256(abi.encode(_case.submitter, keccak256(abi.encode(_hash, uint256(57)))));
+        bytes32 otherSlot =
+            keccak256(abi.encode(_case.otherSubmitter, keccak256(abi.encode(_case.otherHash, uint256(57)))));
+        vm.store(address(portal), recordSlot, _case.previousRecord);
+        vm.store(address(portal), otherSlot, _case.otherRecord);
+        bytes32 finalizedSlot = keccak256(abi.encode(_case.otherHash, uint256(51)));
+        bytes32 beforeFinalized = bytes32(uint256(_case.otherFinalized ? 1 : 0));
+        vm.store(address(portal), finalizedSlot, beforeFinalized);
+        vm.warp(_case.now);
+        return address(candidate);
+    }
+
     function _proveRecord(
         ProvingCase memory _case,
         Types.WithdrawalTransaction memory _tx,

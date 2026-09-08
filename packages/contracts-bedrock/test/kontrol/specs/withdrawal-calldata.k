@@ -16,7 +16,7 @@ module WITHDRAWAL-CALLDATA
                    | #wProveEncoded(Bytes, Int, Bytes, List) [function]
 
     rule #wPaddedBytes(DATA)
-      => DATA +Bytes #buf(32 *Int ((lengthBytes(DATA) +Int 31) /Int 32) -Int lengthBytes(DATA), 0)
+      => padRightBytes(DATA, 32 *Int ((lengthBytes(DATA) +Int 31) /Int 32), 0)
     rule #wDynamicBytes(DATA) => #wordBytes(lengthBytes(DATA)) +Bytes #wPaddedBytes(DATA)
 
     // Tuple offsets start at the tuple, not at the outer call's argument head.

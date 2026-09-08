@@ -119,6 +119,15 @@ Strict builds compile these definitions, but no current theorem uses them to ini
 Portal call. ABI correspondence and state initialization remain unproved; these definitions do
 not resolve the current harness's input-allocation failures by themselves.
 
+`prove_prepareRecord` exposes the existing candidate registration and record seeding before
+dynamic input allocation, returning the candidate address. It accepts an independent withdrawal
+hash and retains the original distinct-record premise. This initializer is not an authorization
+or inclusion theorem. A future native call claim must bind that hash to its exact withdrawal
+calldata, audit every successful initializer state and input constraint, and execute the actual
+proxy call and rollback continuation. Call/transaction state correspondence remains unproved;
+neither initializer success nor a copied setup snapshot establishes it. The original record
+obligation remains selected until a replacement establishes its full scope.
+
 `WithdrawalFactorySelectionKontrol` checks the actual factory proxy's `gameAtIndex` over
 an arbitrary `uint256` index and symbolic application storage, with its deployed implementation
 pointer restored. It reads the array length and selected packed word from that same state,
