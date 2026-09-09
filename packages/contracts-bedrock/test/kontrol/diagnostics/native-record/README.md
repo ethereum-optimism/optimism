@@ -16,6 +16,8 @@ A passing diagnostic is not completion of withdrawal security verification.
 The compact archive transports generated source to CI without running a local
 prover. It does not contain a proof result or a fabricated frontend cache. Native
 source parsing and initialized-domain inspection remain required.
+Byte literals use hexadecimal escapes so bytecode cannot be mistaken for source
+comments by the outer reader; this changes no literal byte or claim condition.
 
 Remove this temporary snapshot bundle and runner, restore the full CI suite, and
 provide reproducible proof generation before PR readiness. This directory is

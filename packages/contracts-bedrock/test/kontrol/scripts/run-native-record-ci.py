@@ -26,7 +26,7 @@ def main():
         expected = {"manifest.json", *(f"receipt-{n}.k" for n in (49, 50, 51, 52, 57, 58, 59, 60))}
         if len(members) != len(expected) or {m.name for m in members} != expected:
             raise ValueError("Unexpected diagnostic bundle contents")
-        if any(not m.isfile() or m.size > 8_000_000 for m in members):
+        if any(not m.isfile() or m.size > 16 * 1024 * 1024 for m in members):
             raise ValueError("Unexpected source member type or size")
         sources = {m.name: archive.extractfile(m).read() for m in members}
     manifest = json.loads(sources.pop("manifest.json"))
