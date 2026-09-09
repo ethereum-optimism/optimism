@@ -39,7 +39,10 @@ use crate::{
         ProductionSuperRootSource, SystemQueryTime,
     },
     config::{PrestatePrograms, ProofProviderKind, ProposalSafety, ProposerConfig, load_prestate},
-    contract::{DisputeGameFactory::DisputeGameFactoryInstance, GameStatus, ProposalStatus},
+    contract::{
+        BondDistributionMode, DisputeGameFactory::DisputeGameFactoryInstance, GameStatus,
+        ProposalStatus,
+    },
     metrics::{ProposerGauge, record_deadline_passed, token_balance},
     ports::{
         ActionExecutor, BondState, ClaimPreflight, GameLifecycle, L1View, ProofEngine, ProofInputs,
@@ -388,11 +391,16 @@ impl ProposerState {
     }
 
     /// Marks a game and every cached descendant before the registered anchor
-    /// as terminally invalid, removes that rejected branch, and returns the
-    /// removed game addresses. An older rejected ancestor cannot cross the
-    /// current registry trust boundary.
+    /// as terminally invalid, removes that rejected branch, and returns every
+    /// affected game address. Proposer-created descendants survive until a
+    /// standing refresh determines whether they need refund recovery.
     #[must_use]
-    fn invalidate_subtree(&mut self, root_index: U256) -> Vec<Address> {
+    fn invalidate_subtree(
+        &mut self,
+        root_index: U256,
+        proposer: Address,
+        retain_root: bool,
+    ) -> Vec<Address> {
         let mut invalid_subtree = self.descendants_of(root_index);
         if let Some(anchor_index) = self.anchor_game.as_ref().map(|game| game.index) &&
             anchor_index != root_index &&
@@ -402,13 +410,20 @@ impl ProposerState {
             invalid_subtree.retain(|index| !trusted_subtree.contains(index));
         }
         self.invalid_games.extend(invalid_subtree.iter().copied());
-        invalid_subtree
-            .into_iter()
-            .filter_map(|index| {
+        let affected = invalid_subtree
+            .iter()
+            .filter_map(|index| self.games.get(index).map(|game| game.address))
+            .collect();
+        for index in invalid_subtree {
+            let retain = (retain_root && index == root_index) ||
+                (index != root_index &&
+                    self.games.get(&index).is_some_and(|game| game.creator == proposer));
+            if !retain {
                 tracing::info!(?index, "Removing invalid game from cache");
-                self.games.remove(&index).map(|game| game.address)
-            })
-            .collect()
+                self.games.remove(&index);
+            }
+        }
+        affected
     }
 
     /// Whether `game` and every cached ancestor up to the registered anchor are
@@ -648,11 +663,24 @@ enum ClaimPreflightDecision {
     AwaitMaturity { withdrawal_timestamp: U256 },
 }
 
-fn classify_claim_preflight(preflight: &ClaimPreflight) -> ClaimPreflightDecision {
-    let (Ok(credit), Ok(withdrawal)) = (&preflight.credit, &preflight.withdrawal) else {
+fn classify_claim_preflight(
+    preflight: &ClaimPreflight,
+    refundable: bool,
+) -> ClaimPreflightDecision {
+    let (Ok(mode), Ok(credit), Ok(refund_credit), Ok(withdrawal)) = (
+        &preflight.bond_distribution_mode,
+        &preflight.credit,
+        &preflight.refund_mode_credit,
+        &preflight.withdrawal,
+    ) else {
         return ClaimPreflightDecision::Submit;
     };
-    if *credit != U256::ZERO {
+    let credit = if refundable && *mode == BondDistributionMode::Undecided {
+        *refund_credit
+    } else {
+        *credit
+    };
+    if credit != U256::ZERO {
         return ClaimPreflightDecision::Submit;
     }
     if withdrawal.amount == U256::ZERO {
@@ -676,6 +704,8 @@ struct GameSyncTarget {
     absolute_prestate: B256,
     status: GameStatus,
     ancestry_blocked: bool,
+    creator: Address,
+    invalidated: bool,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -683,8 +713,10 @@ enum GameSyncFacts {
     InProgress {
         index: U256,
         lifecycle: GameLifecycle,
-        parent_resolved: bool,
+        parent_status: GameStatus,
         owned: bool,
+        proposer_created: bool,
+        invalidated: bool,
     },
     DefenderWins {
         index: U256,
@@ -692,10 +724,19 @@ enum GameSyncFacts {
         lifecycle: GameLifecycle,
         bond: BondState,
         canonical_head_index: Option<U256>,
+        proposer_created: bool,
     },
     ChallengerWins {
         index: U256,
+        lifecycle: GameLifecycle,
+        bond: Option<BondState>,
     },
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+struct RefundRetention {
+    lifecycle: GameLifecycle,
+    should_attempt_to_claim_bond: bool,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -717,26 +758,54 @@ enum GameSyncAction {
         index: U256,
         lifecycle: GameLifecycle,
     },
-    RemoveSubtree(U256),
+    RemoveSubtree {
+        index: U256,
+        refund: Option<RefundRetention>,
+    },
 }
 
 fn classify_game_sync(
     facts: GameSyncFacts,
     now_ts: u64,
     anchor_address: Address,
+    disallowed: bool,
 ) -> Result<GameSyncAction> {
     match facts {
-        GameSyncFacts::InProgress { index, lifecycle, parent_resolved, owned } => {
-            let is_game_over = match lifecycle.proposal_status {
-                ProposalStatus::Unchallenged => now_ts > lifecycle.deadline,
+        GameSyncFacts::InProgress {
+            index,
+            lifecycle,
+            parent_status,
+            owned,
+            proposer_created,
+            invalidated,
+        } => {
+            if invalidated && !disallowed {
+                return Ok(GameSyncAction::RemoveSubtree { index, refund: None });
+            }
+            let (clock_expired_or_proven, winning) = match lifecycle.proposal_status {
+                ProposalStatus::Unchallenged => {
+                    let expired = now_ts > lifecycle.deadline;
+                    (expired, expired)
+                }
+                ProposalStatus::Challenged => (now_ts > lifecycle.deadline, false),
                 ProposalStatus::UnchallengedAndValidProofProvided |
-                ProposalStatus::ChallengedAndValidProofProvided => true,
-                ProposalStatus::Challenged | ProposalStatus::Resolved => false,
+                ProposalStatus::ChallengedAndValidProofProvided => (true, true),
+                ProposalStatus::Resolved => (false, false),
             };
+            let refunding = proposer_created &&
+                disallowed &&
+                match parent_status {
+                    GameStatus::ChallengerWins => true,
+                    GameStatus::DefenderWins => clock_expired_or_proven,
+                    GameStatus::InProgress => false,
+                };
             Ok(GameSyncAction::Update {
                 index,
                 lifecycle,
-                should_attempt_to_resolve: parent_resolved && is_game_over && owned,
+                should_attempt_to_resolve: (parent_status == GameStatus::DefenderWins &&
+                    winning &&
+                    owned) ||
+                    refunding,
                 should_attempt_to_claim_bond: false,
                 retention: None,
             })
@@ -747,12 +816,13 @@ fn classify_game_sync(
             lifecycle,
             bond,
             canonical_head_index,
+            proposer_created,
         } => {
             let withdrawal_ts = bond.withdrawal_timestamp.try_into().unwrap_or(u64::MAX);
             let weth_delay = bond.delay.try_into().context("DelayedWETH delay exceeds u64")?;
             let bond_action = bond_claim_action(
                 lifecycle.is_finalized,
-                bond.credit,
+                bond.claimable_credit(proposer_created && disallowed),
                 bond.withdrawal_amount,
                 withdrawal_ts,
                 weth_delay,
@@ -779,7 +849,30 @@ fn classify_game_sync(
                 retention,
             })
         }
-        GameSyncFacts::ChallengerWins { index } => Ok(GameSyncAction::RemoveSubtree(index)),
+        GameSyncFacts::ChallengerWins { index, lifecycle, bond } => {
+            let Some(bond) = bond.filter(|_| disallowed) else {
+                return Ok(GameSyncAction::RemoveSubtree { index, refund: None });
+            };
+            let withdrawal_ts = bond.withdrawal_timestamp.try_into().unwrap_or(u64::MAX);
+            let weth_delay = bond.delay.try_into().context("DelayedWETH delay exceeds u64")?;
+            let refund = match bond_claim_action(
+                lifecycle.is_finalized,
+                bond.claimable_credit(disallowed),
+                bond.withdrawal_amount,
+                withdrawal_ts,
+                weth_delay,
+                now_ts,
+            ) {
+                BondClaimAction::Unlock | BondClaimAction::Payout => {
+                    Some(RefundRetention { lifecycle, should_attempt_to_claim_bond: true })
+                }
+                BondClaimAction::Wait => {
+                    Some(RefundRetention { lifecycle, should_attempt_to_claim_bond: false })
+                }
+                BondClaimAction::Done => None,
+            };
+            Ok(GameSyncAction::RemoveSubtree { index, refund })
+        }
     }
 }
 
@@ -1270,13 +1363,13 @@ impl Proposer {
     /// 3. Re-validate pending games (timestamps not yet safe from this node's view, unavailable
     ///    super-root data, or an untrusted root mismatch); entries still pending past the anchor's
     ///    deadline-lag cutoff are evicted unless their prestate is locally available.
-    /// 4. Synchronize cached game lifecycle and non-anchor own-registry standing, skipping
-    ///    in-progress games that are both ancestry-blocked and locally unprovable. Apply actions:
-    ///    mark own games for resolution (parent resolved in the defender's favor, game over), mark
-    ///    `DefenderWins` games for bond claiming (finalized with credit, or a matured withdrawal),
-    ///    remove finished games (keeping the anchor and canonical head), and remove the subtree of
-    ///    a `ChallengerWins` game (resetting the duplicate-creation guard when the tracked game is
-    ///    inside it). Per-game read failures skip only that game for the cycle.
+    /// 4. Synchronize cached game lifecycle and non-anchor own-registry standing, skipping foreign
+    ///    in-progress games that are ancestry-blocked and locally unprovable. Apply actions: mark
+    ///    owned winners and proposer-created disallowed games for resolution, mark terminal games
+    ///    for normal or refund-mode bond claiming, remove finished games (keeping the anchor and
+    ///    canonical head), and remove losing subtrees while retaining proposer-created disallowed
+    ///    games until their refunds finish. Per-game read failures skip only that game for the
+    ///    cycle.
     pub async fn sync_games(&self, pinned_block: BlockId, pinned_timestamp: u64) -> Result<()> {
         let pinned_latest_index = self.l1_view.latest_game_index(pinned_block).await?;
         ProposerGauge::FactoryLatestGameIndex
@@ -1333,6 +1426,7 @@ impl Proposer {
         let mut complete = true;
         for target in targets {
             if target.status == GameStatus::InProgress &&
+                target.creator != self.proposer_address &&
                 target.ancestry_blocked &&
                 !known_prestates.contains(&target.absolute_prestate)
             {
@@ -1355,8 +1449,11 @@ impl Proposer {
                 }
             };
             let (lifecycle, standing) = tokio::join!(lifecycle, standing);
-            match standing {
-                Ok(disallowed) => standings.push((index, disallowed)),
+            let disallowed = match standing {
+                Ok(disallowed) => {
+                    standings.push((index, disallowed));
+                    disallowed
+                }
                 Err(error) => {
                     complete = false;
                     tracing::warn!(
@@ -1367,10 +1464,10 @@ impl Proposer {
                     ProposerGauge::GameSyncError.increment(1.0);
                     continue;
                 }
-            }
-            match lifecycle
-                .and_then(|facts| classify_game_sync(facts, pinned_timestamp, anchor_address))
-            {
+            };
+            match lifecycle.and_then(|facts| {
+                classify_game_sync(facts, pinned_timestamp, anchor_address, disallowed)
+            }) {
                 Ok(action) => {
                     observed_indices.push(index);
                     actions.push(action);
@@ -1469,7 +1566,7 @@ impl Proposer {
                         break;
                     }
                 }
-                GameFetchResult::AlreadyExists => {}
+                GameFetchResult::LifecycleOnly { .. } | GameFetchResult::AlreadyExists => {}
                 GameFetchResult::InvalidGame { index } => {
                     invalid_game_ids.push(index);
                 }
@@ -1507,7 +1604,7 @@ impl Proposer {
                 game_index = %index,
                 "Removing invalid game and its subtree from cache"
             );
-            removed_addresses.extend(state.invalidate_subtree(index));
+            removed_addresses.extend(state.invalidate_subtree(index, self.proposer_address, false));
         }
         self.reset_creation_guard_for_removed_games(
             &removed_addresses,
@@ -1612,6 +1709,38 @@ impl Proposer {
         GameFetchResult::InvalidGame { index }
     }
 
+    async fn retain_refundable_game(&self, game: &Game, pinned_block: BlockId) -> Result<bool> {
+        if game.creator != self.proposer_address ||
+            !self
+                .l1_view
+                .game_standing(game.address, game.anchor_state_registry, pinned_block)
+                .await?
+                .disallowed()
+        {
+            return Ok(false);
+        }
+
+        let affected = {
+            let mut state = self.state.write().await;
+            state.games.insert(game.index, Game { disallowed: true, ..game.clone() });
+            state.invalidate_subtree(game.index, self.proposer_address, true)
+        };
+        self.reset_creation_guard_for_removed_games(
+            &affected,
+            "tracked game retained for refund recovery",
+        )
+        .await;
+        for address in affected {
+            self.proof_engine.clear(address);
+        }
+        tracing::info!(
+            game_index = %game.index,
+            game_address = ?game.address,
+            "Retaining proposer-created disallowed game for refund recovery"
+        );
+        Ok(true)
+    }
+
     /// Rechecks prior pending games; games first seen this cycle wait until the next sync.
     /// Loads each pending prestate before applying the eviction cutoff.
     async fn revalidate_pending_games(
@@ -1689,7 +1818,8 @@ impl Proposer {
                 Ok(GameFetchResult::InvalidGame { index }) => {
                     self.pending_games.write().await.remove(&index);
                     let mut state = self.state.write().await;
-                    let removed_addresses = state.invalidate_subtree(index);
+                    let removed_addresses =
+                        state.invalidate_subtree(index, self.proposer_address, false);
                     self.reset_creation_guard_for_removed_games(
                         &removed_addresses,
                         "tracked game was removed after pending revalidation",
@@ -1729,6 +1859,8 @@ impl Proposer {
                     absolute_prestate: game.absolute_prestate,
                     status: game.status,
                     ancestry_blocked: !game.disallowed && !state.ancestry_eligible(game),
+                    creator: game.creator,
+                    invalidated: state.invalid_games.contains(&game.index),
                 })
                 .collect::<Vec<_>>()
         };
@@ -1759,22 +1891,23 @@ impl Proposer {
             .await?;
         match lifecycle.status {
             GameStatus::InProgress => {
-                let parent_resolved = if lifecycle.parent_index == u32::MAX {
-                    true
+                let parent_status = if lifecycle.parent_index == u32::MAX {
+                    GameStatus::DefenderWins
                 } else {
                     GameStatus::try_from(
                         self.l1_view
                             .parent_game_status(lifecycle.parent_index, pinned_block)
                             .await?,
                     )
-                    .context("invalid parent game status")? ==
-                        GameStatus::DefenderWins
+                    .context("invalid parent game status")?
                 };
                 Ok(GameSyncFacts::InProgress {
                     index: target.index,
                     lifecycle,
-                    parent_resolved,
+                    parent_status,
                     owned: known_prestates.contains(&target.absolute_prestate),
+                    proposer_created: target.creator == self.proposer_address,
+                    invalidated: target.invalidated,
                 })
             }
             GameStatus::DefenderWins => {
@@ -1789,9 +1922,26 @@ impl Proposer {
                     lifecycle,
                     bond,
                     canonical_head_index,
+                    proposer_created: target.creator == self.proposer_address,
                 })
             }
-            GameStatus::ChallengerWins => Ok(GameSyncFacts::ChallengerWins { index: target.index }),
+            GameStatus::ChallengerWins => {
+                let bond = if target.creator == self.proposer_address {
+                    Some(
+                        self.l1_view
+                            .bond_state(
+                                target.address,
+                                target.weth,
+                                self.proposer_address,
+                                pinned_block,
+                            )
+                            .await?,
+                    )
+                } else {
+                    None
+                };
+                Ok(GameSyncFacts::ChallengerWins { index: target.index, lifecycle, bond })
+            }
         }
     }
 
@@ -1879,14 +2029,25 @@ impl Proposer {
                         tracing::debug!(game_index = %index, "Removed game from cache");
                     }
                 }
-                GameSyncAction::RemoveSubtree(index) => {
-                    let removed_addresses = state.invalidate_subtree(index);
+                GameSyncAction::RemoveSubtree { index, refund } => {
+                    let affected =
+                        state.invalidate_subtree(index, self.proposer_address, refund.is_some());
+                    if let Some(RefundRetention { lifecycle, should_attempt_to_claim_bond }) =
+                        refund &&
+                        let Some(game) = state.games.get_mut(&index)
+                    {
+                        game.status = lifecycle.status;
+                        game.proposal_status = lifecycle.proposal_status;
+                        game.deadline = lifecycle.deadline;
+                        game.should_attempt_to_resolve = false;
+                        game.should_attempt_to_claim_bond = should_attempt_to_claim_bond;
+                    }
                     self.reset_creation_guard_for_removed_games(
-                        &removed_addresses,
+                        &affected,
                         "tracked game removed by ChallengerWins",
                     )
                     .await;
-                    progress_addresses_to_clear.extend(removed_addresses);
+                    progress_addresses_to_clear.extend(affected);
                 }
             }
         }
@@ -2036,15 +2197,12 @@ impl Proposer {
     }
 
     async fn resolve_games(&self) -> Result<()> {
-        // Ownership is prestate-based: the resolve set equals the
-        // willing-to-prove set.
-        let known_prestates = self.prestates.known_prestates().await;
+        // Classification only sets this flag for games we own or created.
         let candidates = {
             let state = self.state.read().await;
             state
                 .games
                 .values()
-                .filter(|game| game.is_owned(&known_prestates))
                 .filter(|game| game.should_attempt_to_resolve)
                 .cloned()
                 .collect::<Vec<_>>()
@@ -2114,16 +2272,13 @@ impl Proposer {
 
     /// Attempt to claim proposer bonds for any games flagged for claiming
     async fn claim_bonds(&self) -> Result<()> {
-        // Same ownership set as proving and resolution. Claims are
-        // credit-driven: iterating a foreign game where the proposer holds
-        // no credit is a no-op (the pre-flight reads classify it as done).
-        let known_prestates = self.prestates.known_prestates().await;
+        // Claims are credit-driven: the preflight is authoritative even if a
+        // prestate rotation means this proposer would no longer defend the game.
         let candidates = {
             let state = self.state.read().await;
             state
                 .games
                 .values()
-                .filter(|game| game.is_owned(&known_prestates))
                 .filter(|game| game.should_attempt_to_claim_bond)
                 .cloned()
                 .collect::<Vec<_>>()
@@ -2137,7 +2292,7 @@ impl Proposer {
             // submit a phase-2 payout before the WETH delay matures.
             let preflight =
                 self.l1_view.claim_preflight(game.address, game.weth, proposer_address).await;
-            let is_payout = match classify_claim_preflight(&preflight) {
+            let is_payout = match classify_claim_preflight(&preflight, game.disallowed) {
                 ClaimPreflightDecision::Submit => false,
                 ClaimPreflightDecision::AlreadyClaimed => {
                     tracing::info!(
@@ -2245,12 +2400,12 @@ impl Proposer {
 
     /// Fetch game from the factory.
     ///
-    /// Terminal drops: unsupported game type, mismatched anchor state
-    /// registry, disrespected game type at creation, an `l2SequenceNumber`
-    /// exceeding `u64`, or a claim contradicting a trusted canonical super
-    /// root. A timestamp not yet safe from this node's view, or a mismatch
-    /// reported by an untrusted response, yields `Pending` instead: excluded
-    /// from the DAG but re-validated on later syncs.
+    /// Terminal drops: unsupported game type, disrespected game type at
+    /// creation, an `l2SequenceNumber` exceeding `u64`, a non-refundable
+    /// `ChallengerWins` result, or a claim contradicting a trusted canonical
+    /// super root. A timestamp not yet safe from this node's view, or a
+    /// mismatch reported by an untrusted response, yields `Pending` instead:
+    /// excluded from the DAG but re-validated on later syncs.
     pub async fn fetch_game(
         &self,
         index: U256,
@@ -2346,10 +2501,11 @@ impl Proposer {
             return Ok(GameFetchResult::ValidGame { game_address, deadline });
         }
 
-        // A CHALLENGER_WINS game is terminal: children can never
-        // initialize on it (InvalidParentGame), it can never anchor, and
-        // the proposer holds no claimable credit in it. It never enters
-        // the DAG or the pending set.
+        if (status == GameStatus::ChallengerWins || !was_respected) &&
+            self.retain_refundable_game(&game, pinned_block).await?
+        {
+            return Ok(GameFetchResult::LifecycleOnly { game_address, deadline });
+        }
         if status == GameStatus::ChallengerWins {
             tracing::info!(
                 game_index = %index,
@@ -2384,6 +2540,9 @@ impl Proposer {
             match self.superroot_source.super_root_at_timestamp(sequence_number).await {
                 Ok(super_root_at) => super_root_at,
                 Err(e) => {
+                    if self.retain_refundable_game(&game, pinned_block).await? {
+                        return Ok(GameFetchResult::LifecycleOnly { game_address, deadline });
+                    }
                     tracing::warn!(
                         game_index = %index,
                         ?game_address,
@@ -2404,6 +2563,9 @@ impl Proposer {
             };
         match super_root_at.root {
             None => {
+                if self.retain_refundable_game(&game, pinned_block).await? {
+                    return Ok(GameFetchResult::LifecycleOnly { game_address, deadline });
+                }
                 // Not yet safe from this node's view. Far-future timestamps beyond
                 // the validation horizon are terminal (bonded spam); anything
                 // nearer is pending and re-validated next sync.
@@ -2436,6 +2598,9 @@ impl Proposer {
                 });
             }
             Some(super_root) if super_root.super_root != claim => {
+                if self.retain_refundable_game(&game, pinned_block).await? {
+                    return Ok(GameFetchResult::LifecycleOnly { game_address, deadline });
+                }
                 if !response_trusted(&super_root_at.response) {
                     tracing::warn!(
                         game_index = %index,
@@ -3652,12 +3817,16 @@ impl Proposer {
                 );
                 ProposerGauge::GameUnprovable.increment(1.0);
                 let mut state = self.state.write().await;
+                let retain_root = state.games.get(&game_index).is_some_and(|game| {
+                    game.address == game_address && game.creator == self.proposer_address
+                });
                 let progress_addresses_to_clear = if state
                     .games
                     .get(&game_index)
                     .is_some_and(|game| game.address == game_address)
                 {
-                    let removed_addresses = state.invalidate_subtree(game_index);
+                    let removed_addresses =
+                        state.invalidate_subtree(game_index, self.proposer_address, retain_root);
                     self.reset_creation_guard_for_removed_games(
                         &removed_addresses,
                         "tracked game removed with unprovable subtree",
@@ -3873,6 +4042,14 @@ pub enum GameFetchResult {
     UnsupportedType {
         /// Address of the rejected game.
         game_address: Address,
+    },
+    /// A proposer-created game retained outside the eligible DAG only to
+    /// finish claiming its refunded creation bond.
+    LifecycleOnly {
+        /// Address of the retained game.
+        game_address: Address,
+        /// Claim deadline of the game (L1 timestamp, seconds).
+        deadline: u64,
     },
     /// Game is invalid
     InvalidGame {
@@ -4344,9 +4521,9 @@ mod tests {
         ClaimPreflightDecision, CompactGameSummary, Cursor, DEADLINE_WARNING_DIVISOR,
         DeadlineStatus, Game, GameFetchResult, GameSyncAction, GameSyncFacts, GameSyncRetention,
         MAX_GAME_DEADLINE_LAG, OperationSummary, PrestateCache, Proposer, ProposerState,
-        ProvingPurpose, SyncDisposition, TaskDeduplicationKey, TaskId, TaskSuccess, awaiting_proof,
-        check_deadline_status, classify_claim_preflight, classify_game_sync,
-        next_proposal_timestamp,
+        ProvingPurpose, RefundRetention, SyncDisposition, TaskDeduplicationKey, TaskId,
+        TaskSuccess, awaiting_proof, check_deadline_status, classify_claim_preflight,
+        classify_game_sync, next_proposal_timestamp,
     };
     use crate::{
         TxErrorExt, ZK_GAME_TYPE,
@@ -4355,7 +4532,9 @@ mod tests {
             PrestatePrograms, ProofProviderConfig, ProofProviderKind, ProposalSafety,
             ProposerConfig, RangeSplitCount,
         },
-        contract::{DisputeGameFactory, GameStatus, ProposalStatus, ZKGameArgs},
+        contract::{
+            BondDistributionMode, DisputeGameFactory, GameStatus, ProposalStatus, ZKGameArgs,
+        },
         ports::{
             ActionExecutor, AnchorRoot, BondState, ClaimPreflight, FactoryGame, GameClaim,
             GameCreationReceipt, GameIdentity, GameLifecycle, GameStanding, GameValidity,
@@ -4624,7 +4803,9 @@ mod tests {
                 game_status: GameStatus::InProgress as u8,
                 parent_status: GameStatus::DefenderWins as u8,
                 bond_state: BondState {
+                    bond_distribution_mode: BondDistributionMode::Normal,
                     credit: U256::from(1),
+                    refund_mode_credit: U256::ZERO,
                     withdrawal_amount: U256::ZERO,
                     withdrawal_timestamp: U256::ZERO,
                     delay: U256::ZERO,
@@ -4821,7 +5002,12 @@ mod tests {
             self.record("claim_preflight");
             let (credit, withdrawal) =
                 self.claim_preflight.expect("unexpected L1 call: claim_preflight");
-            ClaimPreflight { credit: Ok(credit), withdrawal: Ok(withdrawal) }
+            ClaimPreflight {
+                bond_distribution_mode: Ok(BondDistributionMode::Normal),
+                credit: Ok(credit),
+                refund_mode_credit: Ok(U256::ZERO),
+                withdrawal: Ok(withdrawal),
+            }
         }
 
         async fn weth_delay(&self, _weth: Address) -> anyhow::Result<U256> {
@@ -5739,7 +5925,9 @@ mod tests {
                 is_finalized: true,
             },
             bond_state: BondState {
+                bond_distribution_mode: BondDistributionMode::Normal,
                 credit: U256::ZERO,
+                refund_mode_credit: U256::ZERO,
                 withdrawal_amount: U256::ZERO,
                 withdrawal_timestamp: U256::ZERO,
                 delay: U256::ZERO,
@@ -5793,7 +5981,10 @@ mod tests {
         }
 
         proposer
-            .apply_game_sync_actions(Vec::new(), vec![GameSyncAction::RemoveSubtree(U256::from(7))])
+            .apply_game_sync_actions(
+                Vec::new(),
+                vec![GameSyncAction::RemoveSubtree { index: U256::from(7), refund: None }],
+            )
             .await;
 
         let state = proposer.state.read().await;
@@ -5816,18 +6007,39 @@ mod tests {
             }
         }
 
+        fn bond(credit: U256) -> BondState {
+            BondState {
+                bond_distribution_mode: BondDistributionMode::Normal,
+                credit,
+                refund_mode_credit: U256::ZERO,
+                withdrawal_amount: U256::ZERO,
+                withdrawal_timestamp: U256::ZERO,
+                delay: U256::ZERO,
+            }
+        }
+
         fn in_progress(
-            lifecycle: GameLifecycle,
-            parent_resolved: bool,
+            proposal_status: ProposalStatus,
+            parent_status: GameStatus,
             owned: bool,
+            proposer_created: bool,
+            invalidated: bool,
         ) -> GameSyncFacts {
-            GameSyncFacts::InProgress { index: U256::from(7), lifecycle, parent_resolved, owned }
+            GameSyncFacts::InProgress {
+                index: U256::from(7),
+                lifecycle: GameLifecycle { proposal_status, ..lifecycle(GameStatus::InProgress) },
+                parent_status,
+                owned,
+                proposer_created,
+                invalidated,
+            }
         }
 
         fn defender_wins(
             lifecycle: GameLifecycle,
             bond: BondState,
             canonical_head_index: Option<U256>,
+            proposer_created: bool,
         ) -> GameSyncFacts {
             GameSyncFacts::DefenderWins {
                 index: U256::from(7),
@@ -5835,44 +6047,57 @@ mod tests {
                 lifecycle,
                 bond,
                 canonical_head_index,
+                proposer_created,
             }
         }
 
         #[test]
-        fn classifies_in_progress_resolution_from_immutable_facts() {
-            let facts = in_progress(lifecycle(GameStatus::InProgress), true, true);
-            assert_eq!(
-                classify_game_sync(facts, 100, Address::ZERO).unwrap(),
-                GameSyncAction::Update {
-                    index: U256::from(7),
-                    lifecycle: lifecycle(GameStatus::InProgress),
-                    should_attempt_to_resolve: false,
-                    should_attempt_to_claim_bond: false,
-                    retention: None,
-                }
-            );
-            assert_eq!(
-                classify_game_sync(facts, 101, Address::ZERO).unwrap(),
-                GameSyncAction::Update {
-                    index: U256::from(7),
-                    lifecycle: lifecycle(GameStatus::InProgress),
-                    should_attempt_to_resolve: true,
-                    should_attempt_to_claim_bond: false,
-                    retention: None,
-                }
-            );
-
-            let proof_facts = in_progress(
-                GameLifecycle {
-                    proposal_status: ProposalStatus::ChallengedAndValidProofProvided,
-                    ..lifecycle(GameStatus::InProgress)
-                },
+        fn classifies_in_progress_resolution() {
+            let waiting = in_progress(
+                ProposalStatus::Unchallenged,
+                GameStatus::DefenderWins,
                 true,
-                true,
+                false,
+                false,
             );
             assert!(matches!(
-                classify_game_sync(proof_facts, 0, Address::ZERO).unwrap(),
+                classify_game_sync(waiting, 100, Address::ZERO, false).unwrap(),
+                GameSyncAction::Update { should_attempt_to_resolve: false, .. }
+            ));
+            assert!(matches!(
+                classify_game_sync(waiting, 101, Address::ZERO, false).unwrap(),
                 GameSyncAction::Update { should_attempt_to_resolve: true, .. }
+            ));
+
+            let proven = in_progress(
+                ProposalStatus::ChallengedAndValidProofProvided,
+                GameStatus::DefenderWins,
+                true,
+                false,
+                false,
+            );
+            assert!(matches!(
+                classify_game_sync(proven, 0, Address::ZERO, false).unwrap(),
+                GameSyncAction::Update { should_attempt_to_resolve: true, .. }
+            ));
+
+            let refundable = in_progress(
+                ProposalStatus::Challenged,
+                GameStatus::ChallengerWins,
+                false,
+                true,
+                false,
+            );
+            assert!(matches!(
+                classify_game_sync(refundable, 0, Address::ZERO, true).unwrap(),
+                GameSyncAction::Update { should_attempt_to_resolve: true, .. }
+            ));
+
+            let invalidated =
+                in_progress(ProposalStatus::Unchallenged, GameStatus::InProgress, true, true, true);
+            assert!(matches!(
+                classify_game_sync(invalidated, 0, Address::ZERO, false).unwrap(),
+                GameSyncAction::RemoveSubtree { refund: None, .. }
             ));
         }
 
@@ -5882,57 +6107,81 @@ mod tests {
             let address = Address::left_padding_from(&[0x77]);
             let finalized =
                 GameLifecycle { is_finalized: true, ..lifecycle(GameStatus::DefenderWins) };
-            let done = BondState {
-                credit: U256::ZERO,
-                withdrawal_amount: U256::ZERO,
-                withdrawal_timestamp: U256::ZERO,
-                delay: U256::ZERO,
-            };
+            let done = bond(U256::ZERO);
+
             assert!(matches!(
-                classify_game_sync(defender_wins(finalized, done, Some(index)), 100, address)
-                    .unwrap(),
+                classify_game_sync(
+                    defender_wins(finalized, done, Some(index), false),
+                    100,
+                    address,
+                    false,
+                )
+                .unwrap(),
                 GameSyncAction::Update { retention: Some(GameSyncRetention::CanonicalHead), .. }
             ));
             assert!(matches!(
-                classify_game_sync(defender_wins(finalized, done, None), 100, address).unwrap(),
+                classify_game_sync(
+                    defender_wins(finalized, done, None, false),
+                    100,
+                    address,
+                    false,
+                )
+                .unwrap(),
                 GameSyncAction::Update { retention: Some(GameSyncRetention::Anchor), .. }
             ));
             assert_eq!(
-                classify_game_sync(defender_wins(finalized, done, None), 100, Address::ZERO)
-                    .unwrap(),
+                classify_game_sync(
+                    defender_wins(finalized, done, None, false),
+                    100,
+                    Address::ZERO,
+                    false,
+                )
+                .unwrap(),
                 GameSyncAction::Remove { index, lifecycle: finalized }
             );
 
-            let unlock = BondState { credit: U256::ONE, ..done };
-            assert!(matches!(
-                classify_game_sync(defender_wins(finalized, unlock, None), 100, Address::ZERO)
-                    .unwrap(),
-                GameSyncAction::Update { should_attempt_to_claim_bond: true, retention: None, .. }
-            ));
+            let unlock = bond(U256::ONE);
             assert!(matches!(
                 classify_game_sync(
-                    defender_wins(lifecycle(GameStatus::DefenderWins), unlock, None,),
+                    defender_wins(finalized, unlock, None, false),
                     100,
-                    Address::ZERO
+                    Address::ZERO,
+                    false,
                 )
                 .unwrap(),
-                GameSyncAction::Update { should_attempt_to_claim_bond: false, retention: None, .. }
+                GameSyncAction::Update { should_attempt_to_claim_bond: true, .. }
+            ));
+
+            let refund = BondState {
+                bond_distribution_mode: BondDistributionMode::Undecided,
+                refund_mode_credit: U256::from(2),
+                ..done
+            };
+            assert!(matches!(
+                classify_game_sync(
+                    defender_wins(finalized, refund, None, true),
+                    100,
+                    Address::ZERO,
+                    true,
+                )
+                .unwrap(),
+                GameSyncAction::Update { should_attempt_to_claim_bond: true, .. }
             ));
         }
 
         #[test]
         fn preserves_bond_conversion_boundaries() {
             let bond = BondState {
-                credit: U256::ZERO,
                 withdrawal_amount: U256::ONE,
                 withdrawal_timestamp: U256::MAX,
-                delay: U256::ZERO,
+                ..bond(U256::ZERO)
             };
             assert!(matches!(
                 classify_game_sync(
-                    defender_wins(lifecycle(GameStatus::DefenderWins), bond, None),
+                    defender_wins(lifecycle(GameStatus::DefenderWins), bond, None, false,),
                     u64::MAX,
-                    Address::ZERO
+                    Address::ZERO,
+                    false,
                 )
                 .unwrap(),
                 GameSyncAction::Update { should_attempt_to_claim_bond: true, .. }
@@ -5943,25 +6192,50 @@ mod tests {
                     lifecycle(GameStatus::DefenderWins),
                     BondState { delay: U256::from(u64::MAX) + U256::ONE, ..bond },
                     None,
+                    false,
                 ),
                 u64::MAX,
                 Address::ZERO,
+                false,
             )
             .unwrap_err();
             assert!(error.to_string().contains("DelayedWETH delay exceeds u64"));
         }
 
         #[test]
-        fn challenger_wins_removes_the_subtree() {
+        fn challenger_wins_keeps_only_an_actionable_refund() {
+            let lifecycle =
+                GameLifecycle { is_finalized: true, ..lifecycle(GameStatus::ChallengerWins) };
+            let index = U256::from(7);
             assert_eq!(
                 classify_game_sync(
-                    GameSyncFacts::ChallengerWins { index: U256::from(7) },
+                    GameSyncFacts::ChallengerWins { index, lifecycle, bond: None },
                     100,
                     Address::ZERO,
+                    false,
                 )
                 .unwrap(),
-                GameSyncAction::RemoveSubtree(U256::from(7))
+                GameSyncAction::RemoveSubtree { index, refund: None }
             );
+
+            let refund_bond = BondState {
+                bond_distribution_mode: BondDistributionMode::Undecided,
+                refund_mode_credit: U256::from(2),
+                ..bond(U256::ZERO)
+            };
+            assert!(matches!(
+                classify_game_sync(
+                    GameSyncFacts::ChallengerWins { index, lifecycle, bond: Some(refund_bond) },
+                    100,
+                    Address::ZERO,
+                    true,
+                )
+                .unwrap(),
+                GameSyncAction::RemoveSubtree {
+                    refund: Some(RefundRetention { should_attempt_to_claim_bond: true, .. }),
+                    ..
+                }
+            ));
         }
     }
 
@@ -6664,20 +6938,36 @@ mod tests {
     fn claim_preflight_degradation_preserves_submit_and_skip_decisions() {
         let withdrawal = WithdrawalState { amount: U256::from(1), timestamp: U256::from(2) };
         let credit_error = ClaimPreflight {
+            bond_distribution_mode: Ok(BondDistributionMode::Normal),
             credit: Err(anyhow::anyhow!("credit unavailable")),
+            refund_mode_credit: Ok(U256::ZERO),
             withdrawal: Ok(withdrawal),
         };
-        assert_eq!(classify_claim_preflight(&credit_error), ClaimPreflightDecision::Submit);
+        assert_eq!(classify_claim_preflight(&credit_error, false), ClaimPreflightDecision::Submit);
         let done = ClaimPreflight {
+            bond_distribution_mode: Ok(BondDistributionMode::Normal),
             credit: Ok(U256::ZERO),
+            refund_mode_credit: Ok(U256::ZERO),
             withdrawal: Ok(WithdrawalState { amount: U256::ZERO, timestamp: U256::ZERO }),
         };
-        assert_eq!(classify_claim_preflight(&done), ClaimPreflightDecision::AlreadyClaimed);
-        let payout = ClaimPreflight { credit: Ok(U256::ZERO), withdrawal: Ok(withdrawal) };
+        assert_eq!(classify_claim_preflight(&done, false), ClaimPreflightDecision::AlreadyClaimed);
+        let payout = ClaimPreflight {
+            bond_distribution_mode: Ok(BondDistributionMode::Normal),
+            credit: Ok(U256::ZERO),
+            refund_mode_credit: Ok(U256::ZERO),
+            withdrawal: Ok(withdrawal),
+        };
         assert_eq!(
-            classify_claim_preflight(&payout),
+            classify_claim_preflight(&payout, false),
             ClaimPreflightDecision::AwaitMaturity { withdrawal_timestamp: U256::from(2) }
         );
+        let refund = ClaimPreflight {
+            bond_distribution_mode: Ok(BondDistributionMode::Undecided),
+            credit: Ok(U256::ZERO),
+            refund_mode_credit: Ok(U256::from(2)),
+            withdrawal: Ok(WithdrawalState { amount: U256::ZERO, timestamp: U256::ZERO }),
+        };
+        assert_eq!(classify_claim_preflight(&refund, true), ClaimPreflightDecision::Submit);
     }
 
     mod ownership {
@@ -7764,7 +8054,10 @@ mod tests {
             None,
         );
 
-        let removed = s.invalidate_subtree(U256::from(1)).into_iter().collect::<HashSet<_>>();
+        let removed = s
+            .invalidate_subtree(U256::from(1), Address::repeat_byte(0xff), false)
+            .into_iter()
+            .collect::<HashSet<_>>();
 
         assert_eq!(s.invalid_games, HashSet::from([U256::from(1), U256::from(2)]));
         assert!(s.games.contains_key(&U256::from(0)));
@@ -7794,7 +8087,10 @@ mod tests {
             Some(anchor.clone()),
         );
 
-        let removed = s.invalidate_subtree(root.index).into_iter().collect::<HashSet<_>>();
+        let removed = s
+            .invalidate_subtree(root.index, Address::repeat_byte(0xff), false)
+            .into_iter()
+            .collect::<HashSet<_>>();
 
         assert!(s.invalid_games.contains(&root.index));
         assert!(s.invalid_games.contains(&sibling.index));

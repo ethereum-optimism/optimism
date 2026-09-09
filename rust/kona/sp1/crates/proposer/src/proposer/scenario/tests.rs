@@ -23,7 +23,7 @@ use crate::{
         PrestatePrograms, ProofProviderConfig, ProofProviderKind, ProposalSafety, ProposerConfig,
         RangeSplitCount,
     },
-    contract::{GameStatus, ProposalStatus, ZKGameArgs},
+    contract::{BondDistributionMode, GameStatus, ProposalStatus, ZKGameArgs},
     ports::{
         ActionExecutor, AnchorRoot, BondState, ClaimPreflight, FactoryGame, GameClaim,
         GameCreationReceipt, GameIdentity, GameLifecycle, GameStanding, GameValidity, L1BlockRef,
@@ -153,7 +153,9 @@ impl L1View for ScenarioL1View {
         _block: BlockId,
     ) -> anyhow::Result<BondState> {
         Ok(BondState {
+            bond_distribution_mode: BondDistributionMode::Undecided,
             credit: U256::ZERO,
+            refund_mode_credit: U256::ZERO,
             withdrawal_amount: U256::ZERO,
             withdrawal_timestamp: U256::ZERO,
             delay: U256::ZERO,
@@ -175,7 +177,9 @@ impl L1View for ScenarioL1View {
         _proposer: Address,
     ) -> ClaimPreflight {
         ClaimPreflight {
+            bond_distribution_mode: Ok(BondDistributionMode::Undecided),
             credit: Ok(U256::ZERO),
+            refund_mode_credit: Ok(U256::ZERO),
             withdrawal: Ok(WithdrawalState { amount: U256::ZERO, timestamp: U256::ZERO }),
         }
     }
@@ -1346,6 +1350,7 @@ async fn created_game_resolution_credits_and_claims_initial_bond() {
     let target = game.target();
     let registry = game.anchor_state_registry;
     assert_eq!(game.bond.credit, U256::ZERO);
+    assert_eq!(game.bond.refund_mode_credit, init_bond);
     assert_eq!(
         world
             .action_record(
@@ -1366,6 +1371,7 @@ async fn created_game_resolution_credits_and_claims_initial_bond() {
     let resolved_observation = world.observation();
     let resolved = resolved_observation.games.into_iter().next().unwrap();
     assert_eq!(resolved.bond.credit, init_bond);
+    assert_eq!(resolved.bond.bond_distribution_mode, BondDistributionMode::Undecided);
     assert!(
         !world
             .l1_view()
@@ -1395,7 +1401,52 @@ async fn created_game_resolution_credits_and_claims_initial_bond() {
     );
     let claimed = world.observation().games.into_iter().next().unwrap();
     assert_eq!(claimed.bond.credit, U256::ZERO);
+    assert_eq!(claimed.bond.bond_distribution_mode, BondDistributionMode::Normal);
     assert_eq!(claimed.bond.withdrawal_amount, init_bond);
+}
+
+#[tokio::test]
+async fn blacklisted_created_game_closes_in_refund_mode_and_returns_initial_bond() {
+    let world = ScenarioWorld::new();
+    let mut game = ScenarioGame::new(0, u32::MAX, 1, ScenarioWorld::default_prestate())
+        .provable_for_resolution();
+    game.creator = ScenarioWorld::proposer_address();
+    game.standing = GameStanding { blacklisted: true, retired: false };
+    let target = game.target();
+    let address = game.address;
+    world.add_game(game);
+    world.set_horizons(1, 1);
+    let mut scenario = ScenarioHarness::new(world.clone(), scenario_config()).await.unwrap();
+
+    let resolution = scenario.tick().await.unwrap();
+    scenario.settle_scheduled(&resolution).await.unwrap();
+    let resolved = world.observation();
+    assert_eq!(resolved.games[0].status, GameStatus::DefenderWins);
+    assert_eq!(resolved.games[0].bond.bond_distribution_mode, BondDistributionMode::Undecided);
+    assert_eq!(resolved.games[0].bond.credit, U256::from(3));
+    assert_eq!(resolved.games[0].bond.refund_mode_credit, U256::from(2));
+
+    world.set_latest_l1_time(resolved.latest_l1.timestamp + SCENARIO_GAME_FINALITY_DELAY + 1);
+    let unlock = scenario.tick().await.unwrap();
+    scenario.settle_scheduled(&unlock).await.unwrap();
+    assert_eq!(
+        world.action_record(&ActionTarget::ClaimCredit(target.clone()), 1).unwrap().effect,
+        CommittedEffect::ClaimUnlocked { game: address, amount: U256::from(2) }
+    );
+    let unlocked = world.observation();
+    assert_eq!(unlocked.games[0].bond.bond_distribution_mode, BondDistributionMode::Refund);
+    assert_eq!(unlocked.games[0].bond.credit, U256::ZERO);
+    assert_eq!(unlocked.games[0].bond.withdrawal_amount, U256::from(2));
+
+    world.set_latest_l1_time(
+        unlocked.latest_l1.timestamp + unlocked.games[0].bond.delay.to::<u64>(),
+    );
+    let payout = scenario.tick().await.unwrap();
+    scenario.settle_scheduled(&payout).await.unwrap();
+    assert_eq!(
+        world.action_record(&ActionTarget::ClaimCredit(target), 2).unwrap().effect,
+        CommittedEffect::ClaimPaid { game: address, amount: U256::from(2) }
+    );
 }
 
 #[tokio::test]
@@ -3272,7 +3323,7 @@ async fn claim_flow_uses_owned_game_state_and_tolerates_degraded_preflights() {
     let degraded_withdrawal = games[2].target();
     let failed = games[3].target();
     let drained = games[4].target();
-    let unowned = games[5].target();
+    let unknown_prestate_credit = games[5].target();
     for game in games {
         world.add_game(game);
     }
@@ -3301,7 +3352,7 @@ async fn claim_flow_uses_owned_game_state_and_tolerates_degraded_preflights() {
     let first = scenario.tick().await.unwrap();
     scenario.settle_scheduled(&first).await.unwrap();
 
-    for target in [&unlock, &degraded_credit, &degraded_withdrawal] {
+    for target in [&unlock, &degraded_credit, &degraded_withdrawal, &unknown_prestate_credit] {
         assert!(matches!(
             world.action_record(&ActionTarget::ClaimCredit(target.clone()), 1)
                 .unwrap()
@@ -3314,7 +3365,6 @@ async fn claim_flow_uses_owned_game_state_and_tolerates_degraded_preflights() {
         ActionLifecycle::PreSubmitFailed
     );
     assert!(world.action_record(&ActionTarget::ClaimCredit(drained), 1).is_none());
-    assert!(world.action_record(&ActionTarget::ClaimCredit(unowned), 1).is_none());
     assert_eq!(
         world
             .l1_read_record(L1ReadBoundary::ClaimCredit, &L1ReadTarget::Game(degraded_credit), 1,)
@@ -4428,4 +4478,383 @@ async fn settled_intermediary_preserves_later_ancestry_change() {
         )
     }));
     scenario.settle_scheduled(&blocked).await.unwrap();
+}
+
+#[tokio::test]
+async fn challenger_wins_refund_recovers_the_creation_bond_for_an_inherited_own_game() {
+    let world = ScenarioWorld::new();
+    let parent = ScenarioGame::new(0, u32::MAX, 10, ScenarioWorld::default_prestate()).claimable(0);
+    let mut own = ScenarioGame::new(1, 0, 20, ScenarioWorld::default_prestate()).challenged();
+    own.creator = ScenarioWorld::proposer_address();
+    own.deadline = 1_500;
+    own.standing = GameStanding { blacklisted: true, retired: false };
+    let target = own.target();
+    let address = own.address;
+    for game in [parent, own] {
+        world.add_game(game);
+    }
+    world.set_horizons(20, 20);
+    world.set_latest_l1_time(2_000);
+    world.mine_block();
+    let mut config = scenario_config();
+    config.proposal_interval_seconds = 100;
+    let mut scenario = ScenarioHarness::new(world.clone(), config).await.unwrap();
+
+    let resolved = scenario.tick().await.unwrap();
+    scenario.settle_scheduled(&resolved).await.unwrap();
+    assert!(matches!(
+        world.action_record(&ActionTarget::Resolve(target.clone()), 1).unwrap().effect,
+        CommittedEffect::Resolved { game } if game == address
+    ));
+    let resolved = world.observation();
+    let game = resolved.games.iter().find(|game| game.address == address).unwrap();
+    assert_eq!(game.status, GameStatus::ChallengerWins);
+    assert_eq!(game.bond.credit, U256::ZERO);
+    assert_eq!(game.bond.refund_mode_credit, U256::from(2));
+
+    world.set_latest_l1_time(resolved.latest_l1.timestamp + SCENARIO_GAME_FINALITY_DELAY + 1);
+    let unlock = scenario.tick().await.unwrap();
+    scenario.settle_scheduled(&unlock).await.unwrap();
+    assert_eq!(
+        world.action_record(&ActionTarget::ClaimCredit(target.clone()), 1).unwrap().effect,
+        CommittedEffect::ClaimUnlocked { game: address, amount: U256::from(2) }
+    );
+    let unlocked = world.observation();
+    let game = unlocked.games.iter().find(|game| game.address == address).unwrap();
+    assert_eq!(game.bond.bond_distribution_mode, BondDistributionMode::Refund);
+    let delay = game.bond.delay.to::<u64>();
+
+    world.set_latest_l1_time(unlocked.latest_l1.timestamp + delay);
+    let payout = scenario.tick().await.unwrap();
+    scenario.settle_scheduled(&payout).await.unwrap();
+    assert_eq!(
+        world.action_record(&ActionTarget::ClaimCredit(target), 2).unwrap().effect,
+        CommittedEffect::ClaimPaid { game: address, amount: U256::from(2) }
+    );
+}
+
+#[tokio::test]
+async fn restart_rediscovers_an_own_blacklisted_loser_and_claims_its_refund() {
+    let world = ScenarioWorld::new();
+    let mut game = ScenarioGame::new(0, u32::MAX, 1, ScenarioWorld::default_prestate());
+    game.creator = ScenarioWorld::proposer_address();
+    let target = game.target();
+    let address = game.address;
+    world.add_game(game);
+    world.set_horizons(1, 1);
+    let mut config = scenario_config();
+    config.proposal_interval_seconds = 100;
+    let mut scenario = ScenarioHarness::new(world.clone(), config).await.unwrap();
+
+    let discovered = scenario.tick().await.unwrap();
+    scenario.settle_scheduled(&discovered).await.unwrap();
+    world.update_game(&target, |game| {
+        game.status = GameStatus::ChallengerWins;
+        game.proposal_status = ProposalStatus::Resolved;
+        game.finalized = true;
+        game.standing = GameStanding { blacklisted: true, retired: false };
+        game.bond.bond_distribution_mode = BondDistributionMode::Undecided;
+        game.bond.refund_mode_credit = U256::from(2);
+    });
+
+    scenario.restart().await.unwrap();
+    let restarted = scenario.tick().await.unwrap();
+    scenario.settle_scheduled(&restarted).await.unwrap();
+    assert_eq!(
+        world.action_record(&ActionTarget::ClaimCredit(target.clone()), 1).unwrap().effect,
+        CommittedEffect::ClaimUnlocked { game: address, amount: U256::from(2) }
+    );
+    let unlocked = world.observation();
+    let delay =
+        unlocked.games.iter().find(|game| game.address == address).unwrap().bond.delay.to::<u64>();
+    world.set_latest_l1_time(unlocked.latest_l1.timestamp + delay);
+    let payout = scenario.tick().await.unwrap();
+    scenario.settle_scheduled(&payout).await.unwrap();
+    assert_eq!(
+        world.action_record(&ActionTarget::ClaimCredit(target), 2).unwrap().effect,
+        CommittedEffect::ClaimPaid { game: address, amount: U256::from(2) }
+    );
+}
+
+#[tokio::test]
+async fn restart_rediscovers_an_own_blacklisted_invalid_claim_and_claims_its_refund() {
+    let world = ScenarioWorld::new();
+    let mut game = ScenarioGame::new(0, u32::MAX, 1, ScenarioWorld::default_prestate());
+    game.creator = ScenarioWorld::proposer_address();
+    let target = game.target();
+    let address = game.address;
+    world.add_game(game);
+    world.set_horizons(1, 1);
+    let mut config = scenario_config();
+    config.proposal_interval_seconds = 100;
+    let mut scenario = ScenarioHarness::new(world.clone(), config).await.unwrap();
+
+    let discovered = scenario.tick().await.unwrap();
+    scenario.settle_scheduled(&discovered).await.unwrap();
+    world.update_game(&target, |game| {
+        game.was_respected = false;
+        game.deadline = 0;
+        game.standing = GameStanding { blacklisted: true, retired: false };
+    });
+
+    scenario.restart().await.unwrap();
+    let resolution = scenario.tick().await.unwrap();
+    scenario.settle_scheduled(&resolution).await.unwrap();
+    assert_eq!(
+        world.action_record(&ActionTarget::Resolve(target.clone()), 1).unwrap().effect,
+        CommittedEffect::Resolved { game: address }
+    );
+
+    let resolved = world.observation();
+    world.set_latest_l1_time(resolved.latest_l1.timestamp + SCENARIO_GAME_FINALITY_DELAY + 1);
+    let unlock = scenario.tick().await.unwrap();
+    scenario.settle_scheduled(&unlock).await.unwrap();
+    assert_eq!(
+        world.action_record(&ActionTarget::ClaimCredit(target), 1).unwrap().effect,
+        CommittedEffect::ClaimUnlocked { game: address, amount: U256::from(2) }
+    );
+}
+
+#[tokio::test]
+async fn restart_recovers_a_blacklisted_game_despite_permanent_superroot_failure() {
+    let world = ScenarioWorld::new();
+    let mut game = ScenarioGame::new(0, u32::MAX, 1, ScenarioWorld::default_prestate());
+    game.creator = ScenarioWorld::proposer_address();
+    let target = game.target();
+    let address = game.address;
+    world.add_game(game);
+    world.set_horizons(1, 1);
+    let mut config = scenario_config();
+    config.proposal_interval_seconds = 100;
+    let mut scenario = ScenarioHarness::new(world.clone(), config).await.unwrap();
+
+    let discovered = scenario.tick().await.unwrap();
+    scenario.settle_scheduled(&discovered).await.unwrap();
+    world.update_game(&target, |game| {
+        game.deadline = 0;
+        game.standing = GameStanding { blacklisted: true, retired: false };
+    });
+    world.script_next_superroot(1, SuperRootOutcome::TransportFailure);
+
+    scenario.restart().await.unwrap();
+    let resolution = scenario.tick().await.unwrap();
+    scenario.settle_scheduled(&resolution).await.unwrap();
+    assert_eq!(
+        world.action_record(&ActionTarget::Resolve(target), 1).unwrap().effect,
+        CommittedEffect::Resolved { game: address }
+    );
+}
+
+#[tokio::test]
+async fn proposer_created_loser_without_blacklisting_is_dropped_without_a_claim() {
+    let world = ScenarioWorld::new();
+    let mut game = ScenarioGame::new(0, u32::MAX, 1, ScenarioWorld::default_prestate());
+    game.creator = ScenarioWorld::proposer_address();
+    game.status = GameStatus::ChallengerWins;
+    game.proposal_status = ProposalStatus::Resolved;
+    game.finalized = true;
+    game.bond.refund_mode_credit = U256::from(2);
+    let target = game.target();
+    world.add_game(game);
+    world.set_horizons(1, 1);
+    let mut config = scenario_config();
+    config.proposal_interval_seconds = 100;
+    let mut scenario = ScenarioHarness::new(world.clone(), config).await.unwrap();
+
+    let dropped = scenario.tick().await.unwrap();
+    scenario.settle_scheduled(&dropped).await.unwrap();
+    assert!(world.action_record(&ActionTarget::ClaimCredit(target.clone()), 1).is_none());
+    assert!(
+        world
+            .l1_read_record(L1ReadBoundary::GameLifecycle, &L1ReadTarget::Game(target.clone()), 1,)
+            .is_none()
+    );
+    world.mine_block();
+    let still_dropped = scenario.tick().await.unwrap();
+    scenario.settle_scheduled(&still_dropped).await.unwrap();
+    assert!(world.action_record(&ActionTarget::ClaimCredit(target.clone()), 1).is_none());
+    assert!(
+        world
+            .l1_read_record(L1ReadBoundary::GameLifecycle, &L1ReadTarget::Game(target), 1)
+            .is_none()
+    );
+}
+
+#[tokio::test]
+async fn unprovable_proof_retains_the_owned_refund_root_and_drops_its_descendants() {
+    let world = ScenarioWorld::new();
+    let mut root =
+        ScenarioGame::new(0, u32::MAX, 10, ScenarioWorld::default_prestate()).challenged();
+    root.creator = ScenarioWorld::proposer_address();
+    root.deadline = 5_000;
+    let root_target = root.target();
+    let descendant = ScenarioGame::new(1, 0, 20, B256::repeat_byte(0xf1));
+    let descendant_target = descendant.target();
+    for game in [root, descendant] {
+        world.add_game(game);
+    }
+    world.set_horizons(20, 20);
+    let mut config = scenario_config();
+    config.proposal_interval_seconds = 100;
+    config.sync_l1_confirmations = 1;
+    world.mine_block();
+    world.block_proof(root_target.clone(), 1, ProofOutcome::Unprovable, "unprovable parked");
+    let mut scenario = ScenarioHarness::new(world.clone(), config).await.unwrap();
+
+    let started = scenario.tick().await.unwrap();
+    let prove_id = started.task_id_for(|operation| {
+        matches!(
+            operation,
+            OperationSummary::ProveGame { address, .. } if *address == root_target.address
+        )
+    });
+    scenario.wait_for_proof_barrier(prove_id, &root_target, 1).await.unwrap();
+    scenario.settle(&started.task_ids_except(prove_id)).await.unwrap();
+
+    world.update_game(&root_target, |game| {
+        game.standing = GameStanding { blacklisted: true, retired: false };
+    });
+    scenario.release_proof_barrier(&root_target, 1).unwrap();
+    let completions = scenario.settle(&[prove_id]).await.unwrap();
+    assert_eq!(completions[0].outcome, TaskCompletionOutcome::TerminallyUnprovable);
+
+    world.mine_block();
+    let pruned = scenario.tick().await.unwrap();
+    scenario.settle_scheduled(&pruned).await.unwrap();
+    assert!(
+        world
+            .l1_read_record(
+                L1ReadBoundary::GameLifecycle,
+                &L1ReadTarget::Game(descendant_target),
+                2,
+            )
+            .is_none()
+    );
+    assert!(
+        world
+            .l1_read_record(
+                L1ReadBoundary::GameLifecycle,
+                &L1ReadTarget::Game(root_target.clone()),
+                2,
+            )
+            .is_some()
+    );
+
+    world.set_latest_l1_time(5_001);
+    world.mine_block();
+    let resolution = scenario.tick().await.unwrap();
+    scenario.settle_scheduled(&resolution).await.unwrap();
+    assert!(matches!(
+        world.action_record(&ActionTarget::Resolve(root_target.clone()), 1).unwrap().effect,
+        CommittedEffect::Resolved { game } if game == root_target.address
+    ));
+
+    let resolved = world.observation();
+    world.set_latest_l1_time(resolved.latest_l1.timestamp + SCENARIO_GAME_FINALITY_DELAY + 1);
+    world.mine_block();
+    let unlock = scenario.tick().await.unwrap();
+    scenario.settle_scheduled(&unlock).await.unwrap();
+    assert_eq!(
+        world.action_record(&ActionTarget::ClaimCredit(root_target.clone()), 1).unwrap().effect,
+        CommittedEffect::ClaimUnlocked { game: root_target.address, amount: U256::from(2) }
+    );
+
+    let unlocked = world.observation();
+    let game = unlocked.games.iter().find(|game| game.address == root_target.address).unwrap();
+    world.set_latest_l1_time(unlocked.latest_l1.timestamp + game.bond.delay.to::<u64>());
+    world.mine_block();
+    let payout = scenario.tick().await.unwrap();
+    scenario.settle_scheduled(&payout).await.unwrap();
+    assert_eq!(
+        world.action_record(&ActionTarget::ClaimCredit(root_target.clone()), 2).unwrap().effect,
+        CommittedEffect::ClaimPaid { game: root_target.address, amount: U256::from(2) }
+    );
+}
+
+#[tokio::test]
+async fn restart_preserves_a_blacklisted_owned_child_of_a_foreign_loser() {
+    let world = ScenarioWorld::new();
+    let parent = ScenarioGame::new(0, u32::MAX, 10, ScenarioWorld::default_prestate());
+    let parent_target = parent.target();
+    let mut child = ScenarioGame::new(1, 0, 20, ScenarioWorld::default_prestate());
+    child.creator = ScenarioWorld::proposer_address();
+    let child_target = child.target();
+    for game in [parent, child] {
+        world.add_game(game);
+    }
+    world.set_horizons(20, 20);
+    let mut config = scenario_config();
+    config.proposal_interval_seconds = 100;
+    let mut scenario = ScenarioHarness::new(world.clone(), config).await.unwrap();
+    let discovered = scenario.tick().await.unwrap();
+    scenario.settle_scheduled(&discovered).await.unwrap();
+
+    world.update_game(&parent_target, |game| {
+        game.status = GameStatus::ChallengerWins;
+        game.proposal_status = ProposalStatus::Resolved;
+        game.finalized = true;
+    });
+    world.update_game(&child_target, |game| {
+        game.standing = GameStanding { blacklisted: true, retired: false };
+    });
+    scenario.restart().await.unwrap();
+
+    let recovered = scenario.tick().await.unwrap();
+    scenario.settle_scheduled(&recovered).await.unwrap();
+    assert!(matches!(
+        world.action_record(&ActionTarget::Resolve(child_target.clone()), 1).unwrap().effect,
+        CommittedEffect::Resolved { game } if game == child_target.address
+    ));
+
+    let resolved = world.observation();
+    world.set_latest_l1_time(resolved.latest_l1.timestamp + SCENARIO_GAME_FINALITY_DELAY + 1);
+    let unlock = scenario.tick().await.unwrap();
+    scenario.settle_scheduled(&unlock).await.unwrap();
+    assert_eq!(
+        world.action_record(&ActionTarget::ClaimCredit(child_target.clone()), 1).unwrap().effect,
+        CommittedEffect::ClaimUnlocked { game: child_target.address, amount: U256::from(2) }
+    );
+}
+
+#[tokio::test]
+async fn standing_failure_defers_pruning_an_owned_refund_child() {
+    let world = ScenarioWorld::new();
+    let parent = ScenarioGame::new(0, u32::MAX, 10, ScenarioWorld::default_prestate());
+    let parent_target = parent.target();
+    let mut child = ScenarioGame::new(1, 0, 20, ScenarioWorld::default_prestate());
+    child.creator = ScenarioWorld::proposer_address();
+    let child_target = child.target();
+    for game in [parent, child] {
+        world.add_game(game);
+    }
+    world.set_horizons(20, 20);
+    let mut config = scenario_config();
+    config.proposal_interval_seconds = 100;
+    let mut scenario = ScenarioHarness::new(world.clone(), config).await.unwrap();
+    let discovered = scenario.tick().await.unwrap();
+    scenario.settle_scheduled(&discovered).await.unwrap();
+
+    world.update_game(&parent_target, |game| {
+        game.status = GameStatus::ChallengerWins;
+        game.proposal_status = ProposalStatus::Resolved;
+    });
+    world.update_game(&child_target, |game| {
+        game.standing = GameStanding { blacklisted: true, retired: false };
+    });
+    world.script_l1_fault(
+        L1ReadBoundary::GameStanding,
+        L1ReadTarget::Game(child_target.clone()),
+        2,
+    );
+    let faulted = scenario.tick().await.unwrap();
+    scenario.settle_scheduled(&faulted).await.unwrap();
+    assert!(world.action_record(&ActionTarget::Resolve(child_target.clone()), 1).is_none());
+
+    world.mine_block();
+    let retried = scenario.tick().await.unwrap();
+    scenario.settle_scheduled(&retried).await.unwrap();
+    assert!(matches!(
+        world.action_record(&ActionTarget::Resolve(child_target.clone()), 1).unwrap().effect,
+        CommittedEffect::Resolved { game } if game == child_target.address
+    ));
 }
