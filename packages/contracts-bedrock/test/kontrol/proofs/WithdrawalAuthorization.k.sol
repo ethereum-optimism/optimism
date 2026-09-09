@@ -60,7 +60,8 @@ contract WithdrawalProofGame_Harness {
         chainId = _chainId;
         gameType = GameType.wrap(_gameType);
         // Independent expected classification; do not call the production selector helper.
-        bool superGame = _gameType == 4 || _gameType == 5 || _gameType == 7 || _gameType == 9 || _gameType == 10;
+        // Bits 4, 5, 7, 9 and 10 classify the same types without five short-circuit branches.
+        bool superGame = (uint256(0x6b0) >> _gameType) & 1 == 1;
         // Single-chain Super Root v1: version, timestamp, chain ID, output root.
         rootClaim = superGame
             ? Claim.wrap(keccak256(abi.encodePacked(bytes1(0x01), uint64(1), _chainId, Claim.unwrap(_outputRoot))))
