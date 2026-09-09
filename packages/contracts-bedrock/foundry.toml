@@ -245,6 +245,8 @@ test = 'test/kontrol/proofs'
 script = 'test/kontrol/proofs'
 
 [profile.rlp_header]
+optimizer = false
+optimizer_runs = 0
 src = 'test/kontrol/rlp-header/generated'
 out = 'kout-proofs'
 test = 'test/kontrol/rlp-header/generated'

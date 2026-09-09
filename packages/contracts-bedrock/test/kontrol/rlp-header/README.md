@@ -22,6 +22,11 @@ recovers the production source exactly. This establishes source provenance,
 not equality with an optimized production call site's bytecode. Compiler
 correctness is a trust dependency.
 
+This isolated profile disables optimization. The optimized compiler's checked
+addition uses bitwise complement, which left infeasible overflow branches in
+the first two runs. Unoptimized compilation uses subtraction for that check.
+This changes proof bytecode, not production source or the quantified domain.
+
 An additional, currently unproved correspondence obligation must relate real
 memory spans to these observations: unread-payload independence, relocation,
 allocation/nonaliasing, address arithmetic and compiled access footprint.
