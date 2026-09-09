@@ -33,7 +33,7 @@ use crate::{
     prover::ProofKeys,
     proving::GameProofInputs,
     signer::NUM_CONFIRMATIONS,
-    superroot::SuperRootAt,
+    superroot::{SuperRootAt, zk_extra_data},
 };
 
 use crate::proposer::{
@@ -1296,8 +1296,7 @@ async fn scenario_world_confirmed_action_updates_l1_without_changing_old_blocks_
     world.set_host_time(7_000);
     world.set_horizons(6_000, 5_000);
     let before = world.observation();
-    let mut extra_data = u32::MAX.to_be_bytes().to_vec();
-    extra_data.push(0x01);
+    let extra_data = zk_extra_data(u32::MAX, &[0x01]);
 
     world
         .action_executor()
@@ -1331,8 +1330,7 @@ async fn created_game_resolution_credits_and_claims_initial_bond() {
     let actions = world.action_executor();
     let init_bond = U256::from(7);
     let root_claim = canonical_super_root(1);
-    let mut extra_data = u32::MAX.to_be_bytes().to_vec();
-    extra_data.push(0x01);
+    let extra_data = zk_extra_data(u32::MAX, &[0x01]);
 
     let receipt = actions.create_game(root_claim, extra_data, init_bond).await.unwrap();
     let game = world.observation().games.into_iter().next().unwrap();
@@ -1355,8 +1353,30 @@ async fn created_game_resolution_credits_and_claims_initial_bond() {
     );
 
     actions.resolve_game(receipt.game_address).await.unwrap();
-    let resolved = world.observation().games.into_iter().next().unwrap();
+    let resolved_observation = world.observation();
+    let resolved = resolved_observation.games.into_iter().next().unwrap();
     assert_eq!(resolved.bond.credit, init_bond);
+    assert!(
+        !world
+            .l1_view()
+            .game_lifecycle(receipt.game_address, Address::ZERO, BlockId::latest())
+            .await
+            .unwrap()
+            .is_finalized
+    );
+
+    world.set_latest_l1_time(
+        resolved_observation.latest_l1.timestamp + SCENARIO_GAME_FINALITY_DELAY + 1,
+    );
+    assert!(world.observation().games[0].finalized);
+    assert!(
+        world
+            .l1_view()
+            .game_lifecycle(receipt.game_address, Address::ZERO, BlockId::latest())
+            .await
+            .unwrap()
+            .is_finalized
+    );
 
     actions.claim_credit(receipt.game_address, ScenarioWorld::proposer_address()).await.unwrap();
     assert_eq!(
@@ -1399,8 +1419,7 @@ async fn confirming_a_later_nonce_first_includes_timed_out_lower_nonces() {
     let create_target = ActionTarget::Create { sequence_number: 2, parent_game_index: u32::MAX };
     world.script_action(create_target.clone(), 1, ActionOutcome::Timeout);
     let actions = world.action_executor();
-    let mut extra_data = u32::MAX.to_be_bytes().to_vec();
-    extra_data.push(0x01);
+    let extra_data = zk_extra_data(u32::MAX, &[0x01]);
 
     assert!(actions.create_game(canonical_super_root(2), extra_data, U256::ONE).await.is_err());
     assert_eq!(world.observation().nonce, NonceState { pending: 1, latest: 0 });
@@ -1430,8 +1449,7 @@ async fn replacing_a_dropped_nonce_assigns_create_indices_in_inclusion_order() {
     world.script_action(first_target.clone(), 1, ActionOutcome::Timeout);
     world.script_action(queued_target.clone(), 1, ActionOutcome::Timeout);
     let actions = world.action_executor();
-    let mut extra_data = u32::MAX.to_be_bytes().to_vec();
-    extra_data.push(0x01);
+    let extra_data = zk_extra_data(u32::MAX, &[0x01]);
 
     assert!(
         actions.create_game(canonical_super_root(1), extra_data.clone(), U256::ONE).await.is_err()
@@ -1524,6 +1542,89 @@ async fn blocked_creation_stays_single_until_its_task_is_released() {
         confirmed_record.effect,
         CommittedEffect::Created { factory_index, .. } if factory_index == U256::ZERO
     ));
+}
+
+#[tokio::test]
+async fn collision_advanced_creation_barrier_binds_to_its_original_task() {
+    let world = ScenarioWorld::new();
+    world.add_game(ScenarioGame::new(0, u32::MAX, 2, ScenarioWorld::default_prestate()));
+    world.set_horizons(3, 3);
+    let target = ActionTarget::Create { sequence_number: 3, parent_game_index: u32::MAX };
+    world.block_action(
+        target.clone(),
+        1,
+        ActionBarrierPoint::AfterSubmission,
+        ActionOutcome::Success,
+        "collision-advanced create",
+    );
+    let mut config = scenario_config();
+    config.proposal_interval_seconds = 2;
+    config.sync_l1_confirmations = 1;
+    let mut scenario = ScenarioHarness::new(world.clone(), config).await.unwrap();
+
+    let first = scenario.tick().await.unwrap();
+    let create_id = first.task_id_for(|operation| {
+        matches!(
+            operation,
+            OperationSummary::ProposeGame { sequence_number: 2, parent_game_index: u32::MAX }
+        )
+    });
+    scenario
+        .wait_for_action_barrier(create_id, &target, 1, ActionBarrierPoint::AfterSubmission)
+        .await
+        .unwrap();
+    scenario.settle(&first.task_ids_except(create_id)).await.unwrap();
+
+    let parked = scenario.tick().await.unwrap();
+    assert!(parked.snapshot.active_tasks.iter().any(|task| task.task_id == create_id));
+    scenario.settle_scheduled(&parked).await.unwrap();
+
+    scenario.release_action_barrier(&target, 1, ActionBarrierPoint::AfterSubmission).unwrap();
+    scenario.settle(&[create_id]).await.unwrap();
+    assert_eq!(world.action_record(&target, 1).unwrap().lifecycle, ActionLifecycle::Confirmed);
+}
+
+#[tokio::test]
+async fn manual_transaction_updates_reject_an_active_submission() {
+    let world = ScenarioWorld::new();
+    world.set_horizons(1, 1);
+    let target = ActionTarget::Create { sequence_number: 1, parent_game_index: u32::MAX };
+    world.block_action(
+        target.clone(),
+        1,
+        ActionBarrierPoint::AfterSubmission,
+        ActionOutcome::Revert,
+        "active reverted create",
+    );
+    let mut scenario = ScenarioHarness::new(world.clone(), scenario_config()).await.unwrap();
+
+    let result = scenario.tick().await.unwrap();
+    let create_id =
+        result.task_id_for(|operation| matches!(operation, OperationSummary::ProposeGame { .. }));
+    scenario
+        .wait_for_action_barrier(create_id, &target, 1, ActionBarrierPoint::AfterSubmission)
+        .await
+        .unwrap();
+    assert!(
+        scenario
+            .include_transaction(&target, 1, InclusionDepth::LatestOnly)
+            .unwrap_err()
+            .to_string()
+            .contains("is Submitted")
+    );
+    assert!(
+        scenario.drop_transaction(&target, 1).unwrap_err().to_string().contains("is Submitted")
+    );
+    assert_eq!(world.action_record(&target, 1).unwrap().lifecycle, ActionLifecycle::Submitted);
+    assert_eq!(world.observation().pending_transactions.len(), 1);
+    assert!(world.observation().games.is_empty());
+    scenario.settle(&result.task_ids_except(create_id)).await.unwrap();
+
+    scenario.release_action_barrier(&target, 1, ActionBarrierPoint::AfterSubmission).unwrap();
+    scenario.settle(&[create_id]).await.unwrap();
+    assert_eq!(world.action_record(&target, 1).unwrap().lifecycle, ActionLifecycle::Reverted);
+    assert!(world.observation().pending_transactions.is_empty());
+    assert!(world.observation().games.is_empty());
 }
 
 #[tokio::test]
@@ -1918,6 +2019,76 @@ async fn failed_resolution_does_not_stop_other_games() {
     assert_eq!(
         world.action_record(&succeeded, 1).unwrap().effect,
         CommittedEffect::Resolved { game: succeeded_address }
+    );
+}
+
+#[tokio::test]
+async fn third_party_defense_reward_waits_for_finality_then_pays_out() {
+    let world = ScenarioWorld::new();
+    let game = ScenarioGame::new(0, u32::MAX, 1, ScenarioWorld::default_prestate()).challenged();
+    let target = game.target();
+    let claim = ActionTarget::ClaimCredit(target.clone());
+    let address = game.address;
+    world.add_game(game);
+    world.set_horizons(1, 1);
+    let mut scenario = ScenarioHarness::new(world.clone(), scenario_config()).await.unwrap();
+
+    let proof = scenario.tick().await.unwrap();
+    assert!(proof.scheduled.iter().any(|scheduled| matches!(
+        scheduled.operation,
+        OperationSummary::ProveGame { address: scheduled_address, .. }
+            if scheduled_address == address
+    )));
+    scenario.settle_scheduled(&proof).await.unwrap();
+    assert_eq!(
+        world.action_record(&ActionTarget::Prove(target.clone()), 1).unwrap().effect,
+        CommittedEffect::Proven { game: address }
+    );
+
+    let resolution = scenario.tick().await.unwrap();
+    assert!(
+        resolution
+            .scheduled
+            .iter()
+            .any(|scheduled| matches!(scheduled.operation, OperationSummary::ResolutionSweep))
+    );
+    scenario.settle_scheduled(&resolution).await.unwrap();
+    assert_eq!(
+        world.action_record(&ActionTarget::Resolve(target.clone()), 1).unwrap().effect,
+        CommittedEffect::Resolved { game: address }
+    );
+    let resolved = world.observation();
+    assert_eq!(resolved.games[0].status, GameStatus::DefenderWins);
+    assert_eq!(resolved.games[0].bond.credit, U256::ONE);
+    assert!(!resolved.games[0].finalized);
+
+    let waiting = scenario.tick().await.unwrap();
+    scenario.settle_scheduled(&waiting).await.unwrap();
+    assert!(world.action_record(&claim, 1).is_none());
+
+    world.set_latest_l1_time(resolved.latest_l1.timestamp + SCENARIO_GAME_FINALITY_DELAY + 1);
+    let unlock = scenario.tick().await.unwrap();
+    assert!(
+        unlock
+            .scheduled
+            .iter()
+            .any(|scheduled| matches!(scheduled.operation, OperationSummary::ClaimSweep))
+    );
+    scenario.settle_scheduled(&unlock).await.unwrap();
+    assert_eq!(
+        world.action_record(&claim, 1).unwrap().effect,
+        CommittedEffect::ClaimUnlocked { game: address, amount: U256::ONE }
+    );
+
+    let unlocked = world.observation();
+    world.set_latest_l1_time(
+        unlocked.latest_l1.timestamp + unlocked.games[0].bond.delay.to::<u64>(),
+    );
+    let payout = scenario.tick().await.unwrap();
+    scenario.settle_scheduled(&payout).await.unwrap();
+    assert_eq!(
+        world.action_record(&claim, 2).unwrap().effect,
+        CommittedEffect::ClaimPaid { game: address, amount: U256::ONE }
     );
 }
 

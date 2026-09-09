@@ -40,7 +40,7 @@ use crate::{
     prover::ProofKeys,
     proving::GameProofInputs,
     signer::NUM_CONFIRMATIONS,
-    superroot::SuperRootAt,
+    superroot::{SuperRootAt, zk_extra_data},
 };
 
 const INITIAL_BLOCK: u64 = 10;
@@ -49,6 +49,7 @@ const INITIAL_L1_TIME: u64 = 1_000;
 const INITIAL_SUPER_ROOT_HORIZON: u64 = 4;
 const DEFAULT_PRESTATE_BYTE: u8 = 0x11;
 pub(super) const DEFAULT_MAX_DURATION: u64 = 3_600;
+pub(super) const SCENARIO_GAME_FINALITY_DELAY: u64 = 10;
 const SCENARIO_WATCHDOG: Duration = Duration::from_secs(10);
 
 #[derive(Clone, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
@@ -118,7 +119,7 @@ impl BarrierKey {
                     sequence_number: scheduled_sequence,
                     parent_game_index: scheduled_parent,
                 },
-            ) => sequence_number == scheduled_sequence && parent_game_index == scheduled_parent,
+            ) => sequence_number >= scheduled_sequence && parent_game_index == scheduled_parent,
             (
                 ScriptTarget::Action(ActionTarget::Prove(target)),
                 OperationSummary::ProveGame { factory_index, address, .. },
@@ -250,16 +251,19 @@ pub(super) struct ScenarioGame {
     pub(super) weth: Address,
     pub(super) anchor_state_registry: Address,
     pub(super) standing: GameStanding,
+    /// Bond state for the scenario proposer's address.
     pub(super) bond: BondState,
     pub(super) proof_inputs: ProofInputs,
+    resolved_at: Option<u64>,
+    prover: Option<Address>,
     creation_bond: U256,
+    challenger_bond: U256,
 }
 
 impl ScenarioGame {
     pub(super) fn new(index: u64, parent_index: u32, sequence_number: u64, prestate: B256) -> Self {
         let address = deterministic_address(0x40, index);
-        let mut extra_data = parent_index.to_be_bytes().to_vec();
-        extra_data.push(0x01);
+        let extra_data = zk_extra_data(parent_index, &[0x01]);
         Self {
             factory_index: U256::from(index),
             address,
@@ -292,7 +296,10 @@ impl ScenarioGame {
                 root_claim: canonical_super_root(sequence_number),
                 sequence_number,
             },
-            creation_bond: U256::ZERO,
+            resolved_at: None,
+            prover: None,
+            creation_bond: U256::from(2_u64),
+            challenger_bond: U256::ONE,
         }
     }
 
@@ -303,6 +310,7 @@ impl ScenarioGame {
 
     pub(super) fn provable_for_resolution(mut self) -> Self {
         self.proposal_status = ProposalStatus::ChallengedAndValidProofProvided;
+        self.prover = Some(ScenarioWorld::proposer_address());
         self
     }
 
@@ -324,6 +332,40 @@ impl ScenarioGame {
         } else if let Some(parent) = state.games.get(&U256::from(self.parent_index)) {
             self.proof_inputs.starting_root = parent.root_claim;
             self.proof_inputs.starting_sequence_number = parent.sequence_number;
+        }
+    }
+
+    fn is_finalized_at(&self, timestamp: u64) -> bool {
+        self.finalized ||
+            self.resolved_at.is_some_and(|resolved_at| {
+                timestamp.saturating_sub(resolved_at) > SCENARIO_GAME_FINALITY_DELAY
+            })
+    }
+
+    fn proposer_credit_on_resolution(&self) -> U256 {
+        let proposer = ScenarioWorld::proposer_address();
+        match self.proposal_status {
+            ProposalStatus::Unchallenged | ProposalStatus::UnchallengedAndValidProofProvided => {
+                if self.creator == proposer {
+                    self.creation_bond
+                } else {
+                    U256::ZERO
+                }
+            }
+            ProposalStatus::Challenged => U256::ZERO,
+            ProposalStatus::ChallengedAndValidProofProvided => {
+                let prover = self.prover.expect("proved scenario game must record its prover");
+                if prover == self.creator && prover == proposer {
+                    self.creation_bond + self.challenger_bond
+                } else if prover == proposer {
+                    self.challenger_bond
+                } else if self.creator == proposer {
+                    self.creation_bond
+                } else {
+                    U256::ZERO
+                }
+            }
+            ProposalStatus::Resolved => panic!("resolved scenario game cannot resolve again"),
         }
     }
 
@@ -731,7 +773,15 @@ impl ScenarioWorld {
     pub(super) fn observation(&self) -> WorldObservation {
         let data = self.lock();
         let latest = data.latest_state();
-        let mut games = latest.games.values().cloned().collect::<Vec<_>>();
+        let mut games = latest
+            .games
+            .values()
+            .cloned()
+            .map(|mut game| {
+                game.finalized = game.is_finalized_at(latest.block.timestamp);
+                game
+            })
+            .collect::<Vec<_>>();
         games.sort_unstable_by_key(|game| game.factory_index);
         let mut pending_transactions = data
             .pending_transactions
@@ -762,12 +812,32 @@ impl ScenarioWorld {
         attempt: u64,
         depth: InclusionDepth,
     ) -> Result<CommittedEffect> {
-        self.lock().include_transaction(target, attempt, depth, TransactionInclusion::Late)
+        let mut data = self.lock();
+        let key = AttemptKey::new(target.clone(), attempt);
+        let lifecycle = data
+            .action_records
+            .get(&key)
+            .with_context(|| format!("no action record for {target:?} attempt {attempt}"))?
+            .lifecycle;
+        ensure!(
+            lifecycle == ActionLifecycle::TimedOut,
+            "manual inclusion requires a timed-out action, but {target:?} attempt {attempt} is {lifecycle:?}"
+        );
+        data.include_transaction(target, attempt, depth, TransactionInclusion::Late)
     }
 
     fn drop_transaction(&self, target: &ActionTarget, attempt: u64) -> Result<()> {
         let mut data = self.lock();
         let key = AttemptKey::new(target.clone(), attempt);
+        let lifecycle = data
+            .action_records
+            .get(&key)
+            .with_context(|| format!("no action record for {target:?} attempt {attempt}"))?
+            .lifecycle;
+        ensure!(
+            lifecycle == ActionLifecycle::TimedOut,
+            "manual drop requires a timed-out action, but {target:?} attempt {attempt} is {lifecycle:?}"
+        );
         data.pending_transactions
             .remove(&key)
             .with_context(|| format!("no pending transaction for {target:?} attempt {attempt}"))?;
@@ -1007,6 +1077,7 @@ impl WorldData {
                     game.deadline =
                         state.block.timestamp + state.registered_args.max_challenge_duration;
                     game.creation_bond = init_bond;
+                    game.challenger_bond = state.registered_args.challenger_bond;
                     game.bind_proof_inputs(state);
                     state.games.insert(index, game);
                     CommittedEffect::Created { factory_index: index, address }
@@ -1023,18 +1094,27 @@ impl WorldData {
                         }
                         _ => ProposalStatus::ChallengedAndValidProofProvided,
                     };
+                    game.prover = Some(ScenarioWorld::proposer_address());
                     CommittedEffect::Proven { game: address }
                 }
                 PendingEffect::Resolve(address) => {
+                    let resolved_at = state.block.timestamp;
                     let game = state
                         .games
                         .values_mut()
                         .find(|game| game.address == address)
                         .expect("resolved scenario game must exist");
-                    game.status = GameStatus::DefenderWins;
+                    let proposal_status = game.proposal_status;
+                    let proposer_credit = game.proposer_credit_on_resolution();
+                    game.status = if proposal_status == ProposalStatus::Challenged {
+                        GameStatus::ChallengerWins
+                    } else {
+                        GameStatus::DefenderWins
+                    };
                     game.proposal_status = ProposalStatus::Resolved;
-                    game.finalized = true;
-                    game.bond.credit = game.creation_bond;
+                    game.finalized = false;
+                    game.resolved_at = Some(resolved_at);
+                    game.bond.credit = proposer_credit;
                     CommittedEffect::Resolved { game: address }
                 }
                 PendingEffect::Claim(address) => {
@@ -1184,7 +1264,7 @@ impl L1View for FakeL1View {
             deadline: game.deadline,
             parent_index: game.parent_index,
             status: game.status,
-            is_finalized: game.finalized,
+            is_finalized: game.is_finalized_at(state.block.timestamp),
         })
     }
 
@@ -1596,7 +1676,7 @@ impl ScenarioHarness {
         world: ScenarioWorld,
         config: ProposerConfig,
     ) -> Result<Self, ScenarioError> {
-        let proposer = build_proposer(&world, &config)
+        let proposer = Self::build_proposer(&world, &config)
             .await
             .map_err(|error| ScenarioError::Initialization(error.to_string()))?;
         proposer
@@ -1746,27 +1826,32 @@ impl ScenarioHarness {
         barrier.release();
         Ok(())
     }
-}
 
-async fn build_proposer(world: &ScenarioWorld, config: &ProposerConfig) -> Result<Arc<Proposer>> {
-    let mut config = config.clone();
-    config.prestates_url = world.prestates_url();
-    world.configure_sync_confirmations(config.sync_l1_confirmations)?;
-    let prestates =
-        Arc::new(PrestateCache::with_retry_window(config.prestates_url.clone(), Duration::ZERO));
-    Ok(Arc::new(
-        Proposer::new_with_dependencies(
-            config,
-            ScenarioWorld::proposer_address(),
-            world.l1_view(),
-            world.query_time(),
-            world.superroot_source(),
-            world.proof_engine(),
-            world.action_executor(),
-            prestates,
-        )
-        .await?,
-    ))
+    async fn build_proposer(
+        world: &ScenarioWorld,
+        config: &ProposerConfig,
+    ) -> Result<Arc<Proposer>> {
+        let mut config = config.clone();
+        config.prestates_url = world.prestates_url();
+        world.configure_sync_confirmations(config.sync_l1_confirmations)?;
+        let prestates = Arc::new(PrestateCache::with_retry_window(
+            config.prestates_url.clone(),
+            Duration::ZERO,
+        ));
+        Ok(Arc::new(
+            Proposer::new_with_dependencies(
+                config,
+                ScenarioWorld::proposer_address(),
+                world.l1_view(),
+                world.query_time(),
+                world.superroot_source(),
+                world.proof_engine(),
+                world.action_executor(),
+                prestates,
+            )
+            .await?,
+        ))
+    }
 }
 
 pub(super) fn scenario_config() -> ProposerConfig {
