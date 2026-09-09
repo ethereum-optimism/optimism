@@ -1336,6 +1336,7 @@ async fn created_game_resolution_credits_and_claims_initial_bond() {
     let receipt = actions.create_game(root_claim, extra_data, init_bond).await.unwrap();
     let game = world.observation().games.into_iter().next().unwrap();
     let target = game.target();
+    let registry = game.anchor_state_registry;
     assert_eq!(game.bond.credit, U256::ZERO);
     assert_eq!(
         world
@@ -1360,7 +1361,7 @@ async fn created_game_resolution_credits_and_claims_initial_bond() {
     assert!(
         !world
             .l1_view()
-            .game_lifecycle(receipt.game_address, Address::ZERO, BlockId::latest())
+            .game_lifecycle(receipt.game_address, registry, BlockId::latest())
             .await
             .unwrap()
             .is_finalized
@@ -1373,7 +1374,7 @@ async fn created_game_resolution_credits_and_claims_initial_bond() {
     assert!(
         world
             .l1_view()
-            .game_lifecycle(receipt.game_address, Address::ZERO, BlockId::latest())
+            .game_lifecycle(receipt.game_address, registry, BlockId::latest())
             .await
             .unwrap()
             .is_finalized
