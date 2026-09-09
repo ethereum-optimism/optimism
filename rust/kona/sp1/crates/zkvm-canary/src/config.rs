@@ -524,7 +524,7 @@ mod tests {
 
         for (name, value, needle) in [
             ("FINALIZED_SPAN", "0", "non-zero"),
-            ("FINALIZED_SPAN", "129", "1..=128"),
+            ("FINALIZED_SPAN", "1801", "1..=1800"),
             ("CADENCE_SECONDS", "0", "non-zero"),
             ("ATTEMPT_DEADLINE_SECONDS", "0", "non-zero"),
             ("RPC_REQUEST_TIMEOUT_SECONDS", "0", "non-zero"),
