@@ -23,6 +23,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/sources/batching"
 	"github.com/ethereum-optimism/optimism/op-service/sources/batching/rpcblock"
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/urfave/cli/v2"
 )
 
@@ -132,8 +133,11 @@ func listGames(ctx context.Context, caller *batching.MultiCaller, factory *contr
 			if fdg, ok := gameContract.(contracts.FaultDisputeGameContract); ok {
 				claimCount, err := fdg.GetClaimCount(ctx)
 				if err != nil {
-					infos[idx].err = fmt.Errorf("failed to retrieve claim count for game %v: %w", gameProxy, err)
-					return
+					_, reverted := ethclient.RevertErrorData(err)
+					if types.GameType(game.GameType) != types.SuperPermissionedGameType || !reverted {
+						infos[idx].err = fmt.Errorf("failed to retrieve claim count for game %v: %w", gameProxy, err)
+						return
+					}
 				}
 				infos[idx].claimCount = claimCount
 			}
