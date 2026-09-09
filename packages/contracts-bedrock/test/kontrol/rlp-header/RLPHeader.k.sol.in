@@ -30,7 +30,7 @@ contract RLPHeaderKontrol {
         uint256 base = tag >= 192 ? 192 : 128;
         uint256 code = tag - base;
         if (code <= 55) {
-            valid_ = _span >= 1 + code && (tag != 129 || uint8(_head[1]) >= 128);
+            valid_ = _span > code && (tag != 129 || uint8(_head[1]) >= 128);
             return (valid_, 1, code, kind_);
         }
         uint256 digits = code - 55;
