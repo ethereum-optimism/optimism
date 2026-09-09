@@ -1075,12 +1075,20 @@ impl Proposer {
             .set(pinned_latest_index.map_or(-1.0, |i| i.to::<u64>() as f64));
 
         let Some(latest_index) = pinned_latest_index else {
-            let removed_addresses = self.state.write().await.reset_factory_cache();
+            let (removed_addresses, had_confirmed_factory_history) = {
+                let mut state = self.state.write().await;
+                // A first created game can exist at latest while a lagged confirmed pin still has
+                // no entries. Only a concrete cursor proves confirmed history later disappeared.
+                let had_confirmed_factory_history = state.cursor.index().is_some();
+                (state.reset_factory_cache(), had_confirmed_factory_history)
+            };
             for address in removed_addresses {
                 self.proof_engine.clear(address);
             }
             self.pending_games.write().await.clear();
-            self.reset_creation_guard(None, "factory history became empty").await;
+            if had_confirmed_factory_history {
+                self.reset_creation_guard(None, "confirmed factory history became empty").await;
+            }
             ProposerGauge::SyncCursor.set(-1.0);
             return Ok(());
         };

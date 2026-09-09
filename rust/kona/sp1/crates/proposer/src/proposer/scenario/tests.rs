@@ -2662,8 +2662,8 @@ async fn untrusted_superroot_contradiction_retries_and_reaches_the_proof_engine(
 #[tokio::test]
 async fn own_creation_guard_survives_confirmation_lag_until_the_pin_catches_up() {
     let world = ScenarioWorld::new();
-    world.set_horizons(1, 1);
-    let create = ActionTarget::Create { sequence_number: 1, parent_game_index: u32::MAX };
+    world.set_horizons(2, 2);
+    let create = ActionTarget::Create { sequence_number: 2, parent_game_index: u32::MAX };
     world.script_action(create.clone(), 1, ActionOutcome::Timeout);
     let mut config = scenario_config();
     config.sync_l1_confirmations = 2;
@@ -2677,7 +2677,7 @@ async fn own_creation_guard_survives_confirmation_lag_until_the_pin_catches_up()
     assert_eq!(adopted.snapshot.sync_disposition, SyncDisposition::ConfirmedBlockUnavailable);
     assert!(adopted.scheduled.iter().any(|scheduled| matches!(
         scheduled.operation,
-        OperationSummary::ReconcileCreation { sequence_number: 1, .. }
+        OperationSummary::ReconcileCreation { sequence_number: 2, .. }
     )));
     scenario.settle_scheduled(&adopted).await.unwrap();
 
@@ -2690,11 +2690,30 @@ async fn own_creation_guard_survives_confirmation_lag_until_the_pin_catches_up()
     scenario.settle_scheduled(&guarded).await.unwrap();
     assert!(world.action_record(&create, 2).is_none());
 
+    world.set_horizons(1, 1);
     world.mine_block();
+    let lagged_empty = scenario.tick().await.unwrap();
+    assert_eq!(lagged_empty.snapshot.sync_disposition, SyncDisposition::Advanced);
+    assert_eq!(lagged_empty.snapshot.canonical_head_index, None);
+    assert!(!lagged_empty.scheduled.iter().any(|scheduled| matches!(
+        scheduled.operation,
+        OperationSummary::ProposeGame { .. } | OperationSummary::ReconcileCreation { .. }
+    )));
+    scenario.settle_scheduled(&lagged_empty).await.unwrap();
+    assert!(
+        world
+            .action_record(
+                &ActionTarget::Create { sequence_number: 1, parent_game_index: u32::MAX },
+                1,
+            )
+            .is_none()
+    );
+
+    world.set_horizons(2, 2);
     world.mine_block();
     let caught_up = scenario.tick().await.unwrap();
     assert_eq!(caught_up.snapshot.canonical_head_index, Some(U256::ZERO));
-    assert_eq!(caught_up.snapshot.canonical_head_sequence_number, Some(1));
+    assert_eq!(caught_up.snapshot.canonical_head_sequence_number, Some(2));
     scenario.settle_scheduled(&caught_up).await.unwrap();
 }
 
