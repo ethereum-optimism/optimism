@@ -44,7 +44,7 @@ kontrol_prove() {
     # Booster checks branch coverage; retain legacy fallback for stuck or aborted execution.
     rpc_command+=' --fallback-on Stuck,Aborted'
     # Bound proving inside the container so the host can still collect its saved graphs.
-    prove_command=(timeout --signal=INT --kill-after=30s 60m kontrol prove)
+    prove_command=(timeout --signal=INT --kill-after=30s 15m kontrol prove)
   else
     rpc_command+=' --no-post-exec-simplify'
   fi

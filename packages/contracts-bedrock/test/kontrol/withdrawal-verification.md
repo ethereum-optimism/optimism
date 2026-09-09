@@ -58,8 +58,9 @@ This candidate extends the historical fixture's current-time input from `uint64`
 at revision `28b5d0449945f1f23e01c0548c80772de4492b8b`, passed both component proofs and setup.
 Saved graphs contain no pending, failing or admitted obligations. The equivalence graph has
 192 nodes and 19 covers; its saved invocation constrains current time only to the `uint256` range.
-Equivalence took 48m 32s and the acceptance witness took 4m 57s. Proof source and model settings
-are unchanged from that run. Actual-finalizer linkage remains a separate pending milestone.
+Equivalence took 48m 32s and the acceptance witness took 4m 57s. Those results belong to the
+preserved eligibility baseline. The new lifecycle methods change fixture bytecode; integration
+must be reverified before merging this branch. Actual-finalizer linkage remains a separate pending milestone.
 This component neither executes either finalizer nor establishes proof-record provenance.
 
 ## Reproduction

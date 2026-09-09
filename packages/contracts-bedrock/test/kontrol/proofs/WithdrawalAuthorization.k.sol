@@ -55,6 +55,16 @@ contract WithdrawalAuthorizationKontrol is DeploymentSummaryFaultProofs, Kontrol
         bool paused;
     }
 
+    struct DeletionCase {
+        bytes32 withdrawalHash;
+        address submitter;
+        uint64 provenAt;
+        uint8 status;
+        uint8 blacklisted;
+        uint8 finalized;
+        bytes32 observerSlot;
+    }
+
     IOptimismPortal2 internal portal;
     IAnchorStateRegistry internal registry;
     IDisputeGameFactory internal factory;
@@ -101,6 +111,57 @@ contract WithdrawalAuthorizationKontrol is DeploymentSummaryFaultProofs, Kontrol
         example.registeredGame = address(game);
         example.respected = true;
         assert(_check(example));
+    }
+
+    /// @notice Deletion follows invalidation, preserves other Portal slots, and prevents eligibility.
+    function prove_deleteProvenWithdrawal_equivalence(DeletionCase memory _case) external {
+        vm.assume(_case.status <= uint8(GameStatus.DEFENDER_WINS));
+        vm.assume(_case.blacklisted <= 1);
+        vm.assume(_case.finalized <= 1);
+        _delete(_case);
+    }
+
+    /// @notice Both invalidation alternatives admit deletion of a nonempty record.
+    function prove_deleteProvenWithdrawal_invalidated_succeeds() external {
+        DeletionCase memory example;
+        example.provenAt = 1;
+        example.status = uint8(GameStatus.CHALLENGER_WINS);
+        assert(_delete(example));
+        example.status = uint8(GameStatus.DEFENDER_WINS);
+        example.blacklisted = 1;
+        assert(_delete(example));
+    }
+
+    function _delete(DeletionCase memory _case) internal returns (bool deleted_) {
+        game.configure(0, 0, GameStatus(_case.status), false, false);
+        vm.store(
+            address(registry), keccak256(abi.encode(address(game), uint256(5))), bytes32(uint256(_case.blacklisted))
+        );
+        bytes32 recordSlot =
+            keccak256(abi.encode(_case.submitter, keccak256(abi.encode(_case.withdrawalHash, uint256(57)))));
+        bytes32 record = bytes32(uint256(uint160(address(game))) | (uint256(_case.provenAt) << 160));
+        vm.store(address(portal), recordSlot, record);
+        bytes32 finalizedSlot = keccak256(abi.encode(_case.withdrawalHash, uint256(51)));
+        vm.store(address(portal), finalizedSlot, bytes32(uint256(_case.finalized)));
+        assert(vm.load(address(portal), recordSlot) == record);
+        // Observe after setup; writing an arbitrary slot could corrupt proxy configuration.
+        bytes32 observed = vm.load(address(portal), _case.observerSlot);
+
+        (deleted_,) = address(portal).call(
+            abi.encodeCall(portal.deleteProvenWithdrawal, (_case.withdrawalHash, _case.submitter))
+        );
+        bool invalidated = _case.status == uint8(GameStatus.CHALLENGER_WINS) || _case.blacklisted != 0;
+        assert(deleted_ == (_case.provenAt != 0 && invalidated));
+        assert(vm.load(address(portal), recordSlot) == (deleted_ ? bytes32(0) : record));
+        assert(vm.load(address(portal), finalizedSlot) == bytes32(uint256(_case.finalized)));
+        if (_case.observerSlot != recordSlot) {
+            assert(vm.load(address(portal), _case.observerSlot) == observed);
+        }
+        if (deleted_) {
+            (bool eligible,) =
+                address(portal).staticcall(abi.encodeCall(portal.checkWithdrawal, (_case.withdrawalHash, _case.submitter)));
+            assert(!eligible);
+        }
     }
 
     function _check(AuthorizationCase memory _case) internal returns (bool accepted_) {
