@@ -8,6 +8,7 @@ import (
 	"io"
 	"math/big"
 	"os"
+	"sync/atomic"
 	"testing"
 
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/contracts"
@@ -57,16 +58,14 @@ func TestRenderGamesJSON(t *testing.T) {
 	require.Equal(t, "Defender Won", got.Games[1].Status)
 }
 
-func TestListGamesSuperPermissioned(t *testing.T) {
+func TestListGamesSkipsClaimsForSuperPermissioned(t *testing.T) {
 	factoryAddr := common.Address{0xfa}
-	simplifiedGameAddr := common.Address{0xab}
-	legacyGameAddr := common.Address{0xbc}
+	gameAddr := common.Address{0xab}
 	blockHash := common.Hash{0xcd}
 	faultGameABI := snapshots.LoadSuperFaultDisputeGameABI()
 	stubRPC := batchingTest.NewAbiBasedRpc(t, factoryAddr, snapshots.LoadDisputeGameFactoryABI())
-	rpcClient := &claimCountRevertingRPC{
+	rpcClient := &claimCountTrackingRPC{
 		AbiBasedRpc:        stubRPC,
-		revertingAddr:      simplifiedGameAddr,
 		claimCountSelector: faultGameABI.Methods["claimDataLen"].ID,
 	}
 	caller := batching.NewMultiCaller(rpcClient, batching.DefaultBatchSize)
@@ -80,26 +79,17 @@ func TestListGamesSuperPermissioned(t *testing.T) {
 	require.NoError(t, err)
 
 	block := rpcblock.ByHash(blockHash)
-	stubRPC.SetResponse(factoryAddr, "gameCount", block, nil, []any{big.NewInt(2)})
+	stubRPC.SetResponse(factoryAddr, "gameCount", block, nil, []any{big.NewInt(1)})
 	stubRPC.SetResponse(
 		factoryAddr,
 		"gameAtIndex",
 		block,
 		[]any{big.NewInt(0)},
-		[]any{uint32(gameTypes.SuperPermissionedGameType), uint64(1234), simplifiedGameAddr},
+		[]any{uint32(gameTypes.SuperPermissionedGameType), uint64(1234), gameAddr},
 	)
-	stubRPC.SetResponse(
-		factoryAddr,
-		"gameAtIndex",
-		block,
-		[]any{big.NewInt(1)},
-		[]any{uint32(gameTypes.SuperPermissionedGameType), uint64(1235), legacyGameAddr},
-	)
-	stubRPC.AddContract(simplifiedGameAddr, faultGameABI)
-	stubRPC.AddContract(legacyGameAddr, faultGameABI)
-	setGameMetadataResponses(stubRPC, simplifiedGameAddr, block)
-	setGameMetadataResponses(stubRPC, legacyGameAddr, block)
-	stubRPC.SetResponse(legacyGameAddr, "claimDataLen", rpcblock.Latest, nil, []any{big.NewInt(7)})
+	stubRPC.AddContract(gameAddr, faultGameABI)
+	setGameMetadataResponses(stubRPC, gameAddr, block)
+	stubRPC.SetResponse(gameAddr, "claimDataLen", rpcblock.Latest, nil, []any{big.NewInt(9)})
 
 	output, err := captureStdout(t, func() error {
 		return listGames(
@@ -119,11 +109,10 @@ func TestListGamesSuperPermissioned(t *testing.T) {
 		Games []gameRecord `json:"games"`
 	}
 	require.NoError(t, json.Unmarshal(output, &got))
-	require.Len(t, got.Games, 2)
-	require.Equal(t, simplifiedGameAddr.Hex(), got.Games[0].Game)
+	require.Len(t, got.Games, 1)
+	require.Equal(t, gameAddr.Hex(), got.Games[0].Game)
 	require.Zero(t, got.Games[0].ClaimCount)
-	require.Equal(t, legacyGameAddr.Hex(), got.Games[1].Game)
-	require.Equal(t, uint64(7), got.Games[1].ClaimCount)
+	require.Zero(t, rpcClient.claimCountCalls.Load())
 }
 
 func setGameMetadataResponses(stubRPC *batchingTest.AbiBasedRpc, gameAddr common.Address, block rpcblock.Block) {
@@ -139,48 +128,32 @@ func setGameMetadataResponses(stubRPC *batchingTest.AbiBasedRpc, gameAddr common
 	)
 }
 
-type claimCountRevertingRPC struct {
+type claimCountTrackingRPC struct {
 	*batchingTest.AbiBasedRpc
-	revertingAddr      common.Address
 	claimCountSelector []byte
+	claimCountCalls    atomic.Uint64
 }
 
-func (r *claimCountRevertingRPC) CallContext(ctx context.Context, result any, method string, args ...any) error {
+func (r *claimCountTrackingRPC) CallContext(ctx context.Context, result any, method string, args ...any) error {
 	if method == "eth_call" && len(args) > 0 {
 		call, ok := args[0].(map[string]any)
 		if ok {
-			to, toOK := call["to"].(*common.Address)
 			input, inputOK := call["input"].(hexutil.Bytes)
-			if toOK && to != nil && *to == r.revertingAddr &&
-				inputOK && len(input) >= 4 && bytes.Equal(input[:4], r.claimCountSelector) {
-				return executionRevertedError{}
+			if inputOK && len(input) >= 4 && bytes.Equal(input[:4], r.claimCountSelector) {
+				r.claimCountCalls.Add(1)
 			}
 		}
 	}
 	return r.AbiBasedRpc.CallContext(ctx, result, method, args...)
 }
 
-func (r *claimCountRevertingRPC) BatchCallContext(ctx context.Context, batch []rpc.BatchElem) error {
+func (r *claimCountTrackingRPC) BatchCallContext(ctx context.Context, batch []rpc.BatchElem) error {
 	errs := make([]error, 0, len(batch))
 	for i := range batch {
 		batch[i].Error = r.CallContext(ctx, batch[i].Result, batch[i].Method, batch[i].Args...)
 		errs = append(errs, batch[i].Error)
 	}
 	return errors.Join(errs...)
-}
-
-type executionRevertedError struct{}
-
-func (executionRevertedError) Error() string {
-	return "execution reverted"
-}
-
-func (executionRevertedError) ErrorCode() int {
-	return 3
-}
-
-func (executionRevertedError) ErrorData() any {
-	return "0x"
 }
 
 func captureStdout(t *testing.T, fn func() error) ([]byte, error) {
