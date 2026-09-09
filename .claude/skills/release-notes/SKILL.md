@@ -84,7 +84,13 @@ Batch the lookups; if there are more than ~15, delegate the reading and ask for 
 "what an operator would notice" per PR.
 
 Keep the raw bullets for cut PRs as HTML comments at the bottom of the draft, each with a
-short reason, so a reviewer can reinstate one in a single edit.
+short reason, so a reviewer can reinstate one in a single edit:
+
+```markdown
+<!--* op-core/fees: add Jovian DA-footprint calculation (#22163) — doesn't affect the batcher-->
+```
+
+Delete them before publishing, unless the release manager prefers to keep them.
 
 ## 5. Curate the change list
 
@@ -168,10 +174,5 @@ published — that is normal, and `gh release view <tag>` still resolves it.
 
 Confirm with `gh release view <tag>` and report what changed.
 
-## Notes
-
-- A change under `op-service/` or `op-core/` can change a component's behaviour. Never prune
-  on directory name alone; that is what step 3 is for.
-- Check a judgment call against history by examining recent releases for the same component.
-- Never overwrite a draft a human has curated. If the body carries hand-written prose or
-  commented-out bullets, propose specific edits instead of replacing it.
+Never overwrite a draft a human has curated. If the body carries hand-written prose or
+commented-out bullets, propose specific edits instead of replacing it.

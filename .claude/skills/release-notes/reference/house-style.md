@@ -1,18 +1,14 @@
 # House style for OP Stack release notes
 
+This file is the source of truth. Changing the style means editing it, not inferring a new
+convention from one release.
+
 The target is a **curated change list**, as in
 [`op-challenger/v1.9.4`](https://github.com/ethereum-optimism/optimism/releases/tag/op-challenger%2Fv1.9.4)
 and
-[`op-contracts/v8.0.0-rc.2`](https://github.com/ethereum-optimism/optimism/releases/tag/op-contracts%2Fv8.0.0-rc.2).
-Read those two before drafting for how entries are written — but take the section layout
-from the Shape below, not from them. Every published release predates it.
-
-A curated note is not the git-cliff list with prose bolted on top: the PR list is *replaced*
-by grouped, self-contained entries. Because each entry explains itself, the stack of
-callouts older notes used to supply context is unnecessary.
-
-This file is the source of truth. Changing the style means editing it, not inferring a new
-convention from one release.
+[`op-contracts/v8.0.0-rc.2`](https://github.com/ethereum-optimism/optimism/releases/tag/op-contracts%2Fv8.0.0-rc.2)
+— read those two for how entries are written, but take the section layout from the Shape
+below. Every published release predates it.
 
 ## Shape
 
@@ -80,9 +76,9 @@ everyone else" — rather than pitching it at everyone on the strength of someth
 operators never see.
 
 **The callout type follows the recommendation**: `> [!NOTE]` for `optional`,
-`> [!IMPORTANT]` for either recommended level, `> [!CAUTION]` for `required`. Nothing else —
-`[!WARNING]` is not in the vocabulary, and reaching for it is how a routine recommended
-upgrade once ended up overstated.
+`> [!IMPORTANT]` for either recommended level, `> [!CAUTION]` for `required`. Those three and
+no others. This block is also the note's only callout — if you reach for a second, the
+content is an entry in the change list, or belongs in `## Breaking changes`.
 
 ## Impact, not implementation
 
@@ -136,36 +132,23 @@ grep -rl '<fork>_time' superchain-registry/superchain/configs/mainnet/
 grep -rl '<fork>_time' superchain-registry/superchain/configs/sepolia/
 ```
 
-For a `DevFeatures` bit, the default is the answer: anything behind a DevFeature that isn't
-forced to `true` should be considered disabled and not yet in production — we ship the
-defaults for feature toggles. `docs/ai/devfeatures.md` lists them; today only
-`SuperRootGamesMigration` is default-on, so everything else behind a bit is dormant unless a
-chain has explicitly set it.
+For a `DevFeatures` bit, the default is the answer: we ship the defaults for feature toggles,
+so anything behind a bit that is not forced to `true` is dormant unless a chain has
+explicitly set it. `docs/ai/devfeatures.md` lists which are default-on.
 
 For anything expressed neither as a hardfork nor a DevFeature — dispute game types, say —
 there is no equivalent lookup, so ask the release manager rather than guessing.
 
-**A change confined to an unreleased feature is cut entirely.** No `(not yet in production)`
-heading, no explanatory Note in the Overview — a reader upgrading today cannot act on it, and
-it competes for attention with the changes they can.
-
-The test is whether the change reaches a live path, not what motivated it. A fix written for
-an interop scenario that also alters pre-interop derivation stays in, described by its live
-effect; the same fix, if it only fires once the fork activates, does not. So read what the
-change does, not the feature name in its PR title.
+A change that turns out to be confined to an unreleased feature is cut — see "A change with
+no user-visible impact" below.
 
 **Do not narrate an attack the code path cannot currently suffer.** State what the fix aligns
 or corrects; leave the exploit narrative out until the path is live.
 
 ## Curating the change list
 
-**Group by domain or change type.** `### Features` / `### Bug fixes` / `### Miscellaneous`
-is the default spine under `## Other changes`; add domain headings where they carry more
-meaning. Drop any heading that would be empty, and use a flat list for a short release.
-
-**Derivation changes get `### Derivation`, listed first.** This holds for op-node and kona
-alike: derivation is the part of a release most likely to change what a node computes, so it
-is not left to fall into `### Bug fixes` among unrelated entries.
+**Add domain headings** beyond the Shape's spine where they carry more meaning. Drop any
+heading that would be empty, and use a flat list for a short release.
 
 **Group PRs that are one logical change** into one entry with all their numbers:
 `... are no longer required when only permissioned game types are configured (#21270, #21681)`.
@@ -175,16 +158,22 @@ the raw list is being replaced. Say what changed and why an operator cares:
 
 > - Tear down the whole VM process group when `--vm-timeout` is hit, preventing orphaned VM processes from lingering after a timeout (#21268)
 
-**A change with no user-visible impact does not appear at all.** Not under
-`### Miscellaneous`, not as a summarising line — a reader gains nothing from being told that
-something they cannot observe was rearranged. The one exception is a release that would
-otherwise have an empty change list, where one summarising line is more honest than
-publishing nothing.
+**A change with no user-visible impact does not appear at all** — not under
+`### Miscellaneous`, not as a summarising line. Three cases recur:
 
-Importability of the monorepo **as a Go module is not user impact**. We do not maintain
-releases of it as a Go module, so a change that only unblocks downstream importers — moving
-a symbol to a leaf package, shrinking a build closure — is cut like any other internal
-churn, however much work it was.
+- *Internal churn.* A reader gains nothing from being told that something they cannot
+  observe was rearranged.
+- *Go-module importability.* We do not maintain releases of the monorepo as a Go module, so
+  a change that only unblocks downstream importers — moving a symbol to a leaf package,
+  shrinking a build closure — is cut like any other churn, however much work it was.
+- *Anything confined to an unreleased feature.* No `(not yet in production)` heading, no
+  explanatory Note in the Overview. The test is whether the change reaches a live path, not
+  what motivated it: a fix written for an interop scenario that also alters pre-interop
+  derivation stays in, described by its live effect; the same fix, if it only fires once the
+  fork activates, does not.
+
+The one exception is a release that would otherwise have an empty change list, where one
+summarising line is more honest than publishing nothing.
 
 **Only mention a PR more than once** if it included multiple logical changes worth
 describing separately.
@@ -197,8 +186,8 @@ in the release.
 
 ## Breaking changes
 
-When a change requires operator action before upgrading, it gets its own section directly
-below `## Overview`, with a bold short name and the required action stated plainly:
+When a change requires operator action before upgrading, it gets its own section, with a bold
+short name and the required action stated plainly:
 
 ```markdown
 ## Breaking changes
@@ -214,12 +203,9 @@ anywhere else either — see "A change with no user-visible impact" above.
 
 ## Chain Configuration
 
-A release that moves a chain's embedded config gets its own `## Chain Configuration` section,
-after `## Breaking changes` when there is one and directly below `## Overview` when there is
-not — most often a new hardfork activation time arriving with a superchain-registry pin bump.
-It stands alone rather than nesting under breaking changes, because a registry bump
-frequently ships without one. Name the chains and the exact values, and say what happens to a
-node that upgrades late, since that is the whole reason the section exists:
+A release that moves a chain's embedded config gets its own section — most often a new
+hardfork activation time arriving with a superchain-registry pin bump. Name the chains and
+the exact values, and say what happens to a node that upgrades late:
 
 ```markdown
 ## Chain Configuration
@@ -235,16 +221,10 @@ node that upgrades late, since that is the whole reason the section exists:
 Saying which chains are *not* affected matters as much as which are: most readers of the
 note operate a different chain and should be able to stop reading at that sentence.
 
-## Callouts
-
-**Exactly one callout per note** — the Overview block. Nothing else. The curated list carries
-everything else, so if you find yourself reaching for a second, the content is an entry in
-the list or belongs in `## Breaking changes`.
-
 ## Tags, links and images
 
 For a finalized release the heading, the compare link's right side and the image tag all
-carry the plain version — never `-rc.N`. `scripts/retarget-tag.sh` does this.
+carry the plain version — never `-rc.N`.
 
 The compare link's **base** is the previous *finalized* tag, with three dots:
 
@@ -255,17 +235,5 @@ The compare link's **base** is the previous *finalized* tag, with three dots:
 git-cliff generates an RC base and older notes still carry one; the current convention is
 finalized-to-finalized.
 
-If a release carries recurring boilerplate from the previous release — the APKO migration
-block was one — do not copy it forward blindly. Its text was self-limiting, and it also
-implied a second image line. Ask before including it.
-
-## Working notes
-
-Keep the raw git-cliff bullets for cut PRs as HTML comments at the bottom of the draft while
-iterating, each with a short reason. A reviewer can then see what was considered and
-reinstate an entry in one edit. Delete them before publishing, or keep them if the release
-manager prefers.
-
-```markdown
-<!--* op-core/fees: add Jovian DA-footprint calculation (#22163) — doesn't affect the batcher-->
-```
+If a release carries recurring boilerplate from the previous release, do not copy it forward
+blindly — such blocks are often self-limiting, or imply a second image line. Ask first.

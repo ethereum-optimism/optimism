@@ -38,17 +38,15 @@ see the Drop list below.
 | `--` | Touched nothing the binary compiles | Drop |
 | `?` | Dependencies could not be resolved | Judge by hand |
 
-A `CONFIG` row carries no linkage evidence and never will: the embedded archive is generated
-at build time, so a registry pin bump is a submodule gitlink plus a checksum and no source
-file changes. It is also, routinely, the most consequential change in the release — read the
-PR body for which chains and which values moved. A new hardfork activation time is a
-`## Chain Configuration` entry and can make the release `required` for the chains it names.
+A `CONFIG` row carries no linkage evidence and never will, yet is routinely the most
+consequential change in the release: read the PR body for which chains and which values
+moved. A new hardfork activation time is a `## Chain Configuration` entry and can make the
+release `required` for the chains it names.
 
-A `DEPS` row that lists paths rather than "(manifest only)" changed something else too, and
-the something else was not compiled in. Check the lock diff against the component's
-dependency set before dropping it: `rust: remove vulnerable libp2p paths` (#22714) looked
-like kona work, but moved `hickory-resolver` — which op-reth links for DNS discovery — off a
-High advisory.
+A `DEPS` row listing paths rather than "(manifest only)" changed something else too, which
+was not compiled in. Check the lock diff against the component's dependency set before
+dropping it — #22714 looked like kona work but moved `hickory-resolver`, which op-reth links
+for DNS discovery, off a High advisory.
 
 ## The judgment pass on LINKED rows
 
@@ -98,10 +96,8 @@ grep -rn "<ChangedSymbol>" <component>/ --include='*.go' | grep -v _test.go
 virtual op-nodes, so op-node's follow-source reorg metrics belong in the supernode notes even
 though the PR touches no `op-supernode/` path.
 
-**A change confined to an unreleased feature is cut entirely**, whether it is a no-op here or
-would matter to this component once the feature activates. Keep it only if it also reaches a
-path that is live today — and then describe the live effect, not the feature. Check liveness
-against the registry — see `house-style.md`.
+**A change confined to an unreleased feature is cut entirely.** Keep it only if it also
+reaches a path that is live today. `house-style.md` has the liveness checks.
 
 ## Fixes for bugs that never shipped
 

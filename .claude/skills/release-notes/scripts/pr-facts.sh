@@ -146,11 +146,10 @@ for f in "$workdir"/pr-*; do
             for (d in pkgdir)
                 if (index(path, d "/") == 1 && length(d) > length(best)) best = d
             if (best == "") return ""
-            # Drop what the crate does not compile. A denylist rather than an allowlist of
-            # src/: crates here compile plenty from outside it -- kona embeds its registry
+            # Drop what the crate does not compile. A denylist, not an allowlist of src/:
+            # crates here compile plenty from outside it -- kona embeds its registry
             # snapshots from etc/, op-reth its dev genesis from res/, and the hardforks
-            # build script includes build_helpers.rs beside itself. Allowlisting src/ hid
-            # all three. What is left out cannot reach the binary.
+            # build script includes build_helpers.rs beside itself.
             rest = substr(path, length(best) + 2)
             if (rest ~ /^(tests|benches|examples|scripts|testdata|proof-bench)\//) return ""
             if (rest ~ /^(README|CHANGELOG)/) return ""
@@ -159,13 +158,11 @@ for f in "$workdir"/pr-*; do
         NR == 1 { num = $1; author = $2; count = $3; title = $4; next }
         {
             all[$0] = 1
-            # Every component embeds the registry, and for the Go and op-reth archives it
-            # is generated at build time -- a pin bump is a submodule gitlink plus a
-            # checksum, so no source file changes and nothing resolves as linked. Flagged
-            # explicitly because a new hardfork activation time is usually the most
-            # consequential change in the release. Matched by exact path rather than by
-            # substring, so an unrelated file whose name happens to contain
-            # "superchain-configs" cannot claim the tag.
+            # Every component embeds the registry, and the Go and op-reth archives are
+            # generated at build time -- a pin bump is a gitlink plus a checksum, so nothing
+            # resolves as linked, though a new activation time is usually the most
+            # consequential change in the release. Matched by exact path so an unrelated
+            # file whose name contains "superchain-configs" cannot claim the tag.
             if ($0 == "superchain-registry" || $0 ~ /^superchain-registry\// ||
                 $0 ~ /superchain-configs\.(zip|tar)/ ||
                 $0 ~ /^rust\/kona\/crates\/protocol\/registry\/etc\//) registry = 1
