@@ -1535,7 +1535,7 @@ jobs:
           enable-mise-cache: true
       - install-contracts-dependencies
       - check-changed:
-          patterns: contracts-bedrock
+          patterns: contracts-bedrock,op-test-sequencer/atomic
       # `just check-fast` runs `go run ./scripts/check-runner`, so it builds Go.
       - restore-go-mod-cache
       - run:

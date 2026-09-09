@@ -19,6 +19,8 @@ type IntraBlockTestCase struct {
 	Name              string
 	ExpectReplacement bool
 	BuildTxs          func(s *intraBlockSetup) (txsA, txsB []*txplan.PlannedTx)
+	Prepare           func(t devtest.T, sys *presets.SimpleInterop, alice, bob *dsl.EOA)
+	Check             func(t devtest.T, sys *presets.SimpleInterop)
 }
 
 // intraBlockSetup holds shared state for building same-timestamp transactions.
@@ -61,6 +63,9 @@ func RunIntraBlockConsolidationTest(t devtest.T, sys *presets.SimpleInterop, tc 
 
 	eventLoggerA := alice.DeployEventLogger()
 	eventLoggerB := bob.DeployEventLogger()
+	if tc.Prepare != nil {
+		tc.Prepare(t, sys, alice, bob)
+	}
 
 	// --- Sync chains and prepare for same-timestamp block building -----------
 	sys.L2ChainB.CatchUpTo(sys.L2ChainA)
@@ -159,6 +164,10 @@ func RunIntraBlockConsolidationTest(t devtest.T, sys *presets.SimpleInterop, tc 
 		eth.ChainIDAndOutput{ChainID: chains[1].ID, Output: secondOptimistic.OutputRoot},
 	)
 	optimisticIsCrossSafe := bytes.Equal(optimisticEnd.Marshal(), crossSafeEnd.Marshal())
+	t.Require().Equal(!tc.ExpectReplacement, optimisticIsCrossSafe, "candidate replacement must match the scenario")
+	if tc.Check != nil {
+		tc.Check(t, sys)
+	}
 
 	l1HeadCurrent := latestRequiredL1(sys.SuperRoots.SuperRootAtTimestamp(endTimestamp))
 
