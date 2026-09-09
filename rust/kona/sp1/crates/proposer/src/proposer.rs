@@ -312,6 +312,9 @@ pub struct Game {
     /// The game's own `AnchorStateRegistry` address, from its immutable
     /// args. Finality checks for this game bind this address.
     pub anchor_state_registry: Address,
+    /// Whether the game's own `AnchorStateRegistry` last reported it blacklisted
+    /// or retired. A disallowed game can never be extended from or proven.
+    pub disallowed: bool,
 }
 
 impl Game {
@@ -384,11 +387,20 @@ impl ProposerState {
         reachable
     }
 
-    /// Marks a game and every cached descendant as terminally invalid, removes
-    /// the subtree, and returns the removed game addresses.
+    /// Marks a game and every cached descendant before the registered anchor
+    /// as terminally invalid, removes that rejected branch, and returns the
+    /// removed game addresses. An older rejected ancestor cannot cross the
+    /// current registry trust boundary.
     #[must_use]
     fn invalidate_subtree(&mut self, root_index: U256) -> Vec<Address> {
-        let invalid_subtree = self.descendants_of(root_index);
+        let mut invalid_subtree = self.descendants_of(root_index);
+        if let Some(anchor_index) = self.anchor_game.as_ref().map(|game| game.index) &&
+            anchor_index != root_index &&
+            invalid_subtree.contains(&anchor_index)
+        {
+            let trusted_subtree = self.descendants_of(anchor_index);
+            invalid_subtree.retain(|index| !trusted_subtree.contains(index));
+        }
         self.invalid_games.extend(invalid_subtree.iter().copied());
         invalid_subtree
             .into_iter()
@@ -397,6 +409,74 @@ impl ProposerState {
                 self.games.remove(&index).map(|game| game.address)
             })
             .collect()
+    }
+
+    /// Whether `game` and every cached ancestor up to the registered anchor are
+    /// free of registry disallowance and terminal invalidity.
+    fn ancestry_eligible(&self, game: &Game) -> bool {
+        let anchor_index = self.anchor_game.as_ref().map(|anchor| anchor.index);
+        if Some(game.index) == anchor_index {
+            return true;
+        }
+        if game.disallowed || self.invalid_games.contains(&game.index) {
+            return false;
+        }
+        let mut parent_index = game.parent_index;
+        while parent_index != u32::MAX {
+            let index = U256::from(parent_index);
+            if Some(index) == anchor_index {
+                return true;
+            }
+            if self.invalid_games.contains(&index) {
+                return false;
+            }
+            let Some(ancestor) = self.games.get(&index) else {
+                return true;
+            };
+            if ancestor.disallowed {
+                return false;
+            }
+            if ancestor.parent_index != u32::MAX && ancestor.parent_index >= parent_index {
+                return false;
+            }
+            parent_index = ancestor.parent_index;
+        }
+        true
+    }
+
+    /// The games a latest-block recheck must clear before `index` may be
+    /// extended from or proven: the game itself and every cached ancestor up to
+    /// (excluding) the registered anchor, nearest first.
+    fn eligibility_chain(&self, index: U256) -> Vec<(U256, Address, Address)> {
+        let anchor_index = self.anchor_game.as_ref().map(|anchor| anchor.index);
+        let mut chain = Vec::new();
+        let mut current_index = index;
+        while Some(current_index) != anchor_index {
+            let Some(game) = self.games.get(&current_index) else {
+                break;
+            };
+            chain.push((game.index, game.address, game.anchor_state_registry));
+            if game.parent_index == u32::MAX {
+                break;
+            }
+            let parent_index = U256::from(game.parent_index);
+            if parent_index >= current_index {
+                break;
+            }
+            current_index = parent_index;
+        }
+        chain
+    }
+
+    /// Whether any tracked record still walks its ancestry through `index`: a
+    /// cached child below the registered anchor, or a pending game awaiting
+    /// validation under it.
+    fn has_ancestry_dependent(&self, index: U256, pending_parents: &HashSet<U256>) -> bool {
+        let anchor_index = self.anchor_game.as_ref().map(|anchor| anchor.index);
+        pending_parents.contains(&index) ||
+            self.games.values().any(|child| {
+                Some(child.index) != anchor_index && U256::from(child.parent_index) == index
+            })
     }
 
     /// Challenged, in-progress games as defense candidates, sorted by prove
@@ -408,6 +488,7 @@ impl ProposerState {
             .values()
             .filter(|game| game.status == GameStatus::InProgress)
             .filter(|game| matches!(game.proposal_status, ProposalStatus::Challenged))
+            .filter(|game| self.ancestry_eligible(game))
             .map(|game| {
                 (
                     game.index,
@@ -431,6 +512,7 @@ impl ProposerState {
             .values()
             .filter(|game| game.status == GameStatus::InProgress)
             .filter(|game| matches!(game.proposal_status, ProposalStatus::Unchallenged))
+            .filter(|game| self.ancestry_eligible(game))
             .map(|game| {
                 (
                     game.index,
@@ -466,7 +548,12 @@ impl ProposerState {
     /// then followed to its own tip.
     fn select_canonical_head(&self) -> Option<Game> {
         let Some(anchor_game) = self.anchor_game.as_ref() else {
-            return self.games.values().max_by_key(|g| g.l2_sequence_number).cloned();
+            return self
+                .games
+                .values()
+                .filter(|game| self.ancestry_eligible(game))
+                .max_by_key(|game| game.l2_sequence_number)
+                .cloned();
         };
 
         let reachable = self.descendants_of(anchor_game.index);
@@ -476,6 +563,7 @@ impl ProposerState {
             .games
             .values()
             .filter(|g| reachable.contains(&g.index))
+            .filter(|game| self.ancestry_eligible(game))
             .max_by_key(|g| g.l2_sequence_number)
             .cloned();
 
@@ -488,6 +576,7 @@ impl ProposerState {
             let roots: Vec<U256> = self
                 .games
                 .values()
+                .filter(|game| self.ancestry_eligible(game))
                 .filter(|g| {
                     !reachable.contains(&g.index) &&
                         g.l2_sequence_number > anchor.l2_sequence_number &&
@@ -500,6 +589,7 @@ impl ProposerState {
                 .into_iter()
                 .flat_map(|root| self.descendants_of(root))
                 .filter_map(|idx| self.games.get(&idx))
+                .filter(|game| self.ancestry_eligible(game))
                 .max_by_key(|g| g.l2_sequence_number)
                 .cloned()
         });
@@ -610,7 +700,10 @@ enum GameSyncAction {
         should_attempt_to_claim_bond: bool,
         retention: Option<GameSyncRetention>,
     },
-    Remove(U256),
+    Remove {
+        index: U256,
+        lifecycle: GameLifecycle,
+    },
     RemoveSubtree(U256),
 }
 
@@ -661,7 +754,9 @@ fn classify_game_sync(
                 BondClaimAction::Done if anchor_address == game_address => {
                     (false, Some(GameSyncRetention::Anchor))
                 }
-                BondClaimAction::Done => return Ok(GameSyncAction::Remove(index)),
+                BondClaimAction::Done => {
+                    return Ok(GameSyncAction::Remove { index, lifecycle });
+                }
             };
             Ok(GameSyncAction::Update {
                 index,
@@ -1062,9 +1157,9 @@ impl Proposer {
     /// Synchronizes the proposer's cached view of the dispute-game tree with the on-chain state.
     ///
     /// Steps run in order:
-    /// 1. `sync_games` pulls newly created games and refreshes cached metadata.
-    /// 2. `sync_anchor_game` aligns the cached anchor pointer with the registry contract.
-    /// 3. `compute_canonical_head` recomputes the head game used for proposal selection.
+    /// 1. `sync_games` discovers games, installs the registered anchor trust boundary, then prunes
+    ///    and refreshes cached metadata.
+    /// 2. `compute_canonical_head` recomputes the head game used for proposal selection.
     pub(crate) async fn sync_state(&self) -> Result<SyncDisposition> {
         // Pin one L1 block for the entire sync cycle so every state read sees a consistent
         // snapshot. Without this, load-balanced RPCs or a reorg can make related reads resolve
@@ -1120,13 +1215,10 @@ impl Proposer {
         let pinned_block = BlockId::hash(pinned_l1.hash);
         let pinned_timestamp = pinned_l1.timestamp;
 
-        // Pull new games and synchronize cached game statuses.
+        // Pull new games, install the registered anchor, and synchronize cached game statuses.
         self.sync_games(pinned_block, pinned_timestamp).await?;
 
-        // Align anchor information after the cached game statuses have been synchronized.
-        self.sync_anchor_game(pinned_block).await?;
-
-        // With the cached game statuses and anchor synchronized, recompute the canonical head.
+        // With the cached games and anchor synchronized, recompute the canonical head.
         self.compute_canonical_head().await;
 
         *self.last_successful_pinned_l1.write().await = Some(pinned_l1);
@@ -1144,18 +1236,18 @@ impl Proposer {
     /// 3. Re-validate pending games (timestamps not yet safe from this node's view, unavailable
     ///    super-root data, or an untrusted root mismatch); entries still pending past the anchor's
     ///    deadline-lag cutoff are evicted unless their prestate is locally available.
-    /// 4. Synchronize the status of all cached games and apply actions: mark own games for
-    ///    resolution (parent resolved in the defender's favor, game over), mark `DefenderWins`
-    ///    games for bond claiming (finalized with credit, or a matured withdrawal), remove finished
-    ///    games (keeping the anchor and the canonical head), and remove the entire subtree of a
-    ///    `ChallengerWins` game (resetting the duplicate-creation guard when the tracked game is
+    /// 4. Synchronize every cached game's lifecycle and own-registry standing, then apply actions:
+    ///    mark own games for resolution (parent resolved in the defender's favor, game over), mark
+    ///    `DefenderWins` games for bond claiming (finalized with credit, or a matured withdrawal),
+    ///    remove finished games (keeping the anchor and canonical head), and remove the subtree of
+    ///    a `ChallengerWins` game (resetting the duplicate-creation guard when the tracked game is
     ///    inside it). Per-game read failures skip only that game for the cycle.
     pub async fn sync_games(&self, pinned_block: BlockId, pinned_timestamp: u64) -> Result<()> {
         let pinned_latest_index = self.l1_view.latest_game_index(pinned_block).await?;
         ProposerGauge::FactoryLatestGameIndex
             .set(pinned_latest_index.map_or(-1.0, |i| i.to::<u64>() as f64));
 
-        let Some(latest_index) = pinned_latest_index else {
+        let Some(latest_factory_index) = pinned_latest_index else {
             let (removed_addresses, had_confirmed_factory_history) = {
                 let mut state = self.state.write().await;
                 // A first created game can exist at latest while a lagged confirmed pin still has
@@ -1173,12 +1265,14 @@ impl Proposer {
             ProposerGauge::SyncCursor.set(-1.0);
             return Ok(());
         };
-        let latest_index = Cursor::from(latest_index);
+        let latest_index = Cursor::from(latest_factory_index);
         let anchor_address = self.l1_view.registered_anchor_game(pinned_block).await?;
-
         let discovery =
             self.discover_new_games(latest_index.clone(), anchor_address, pinned_block).await?;
         ProposerGauge::SyncCursor.set(latest_index.index().map_or(-1.0, |i| i.to::<u64>() as f64));
+        // Install the trust boundary before pruning invalid ancestors. On a cold
+        // start, discovery has only just populated the registered anchor record.
+        self.sync_anchor_game(anchor_address).await;
 
         self.prune_invalid_games(discovery.invalid_game_ids).await;
         self.revalidate_pending_games(
@@ -1193,14 +1287,32 @@ impl Proposer {
             return Ok(());
         }
 
+        let mut standings = Vec::with_capacity(targets.len());
         let mut actions = Vec::with_capacity(targets.len());
         for target in targets {
             let index = target.index;
-            let action = self
-                .observe_game_sync(target, &known_prestates, pinned_block)
-                .await
-                .and_then(|facts| classify_game_sync(facts, pinned_timestamp, anchor_address));
-            match action {
+            let lifecycle = self.observe_game_sync(target, &known_prestates, pinned_block);
+            let standing = self.l1_view.game_standing(
+                target.address,
+                target.anchor_state_registry,
+                pinned_block,
+            );
+            let (lifecycle, standing) = tokio::join!(lifecycle, standing);
+            match standing {
+                Ok(standing) => standings.push((index, standing.disallowed())),
+                Err(error) => {
+                    tracing::warn!(
+                        game_index = %index,
+                        error = %error,
+                        "Game standing sync failed; skipping this game for this cycle"
+                    );
+                    ProposerGauge::GameSyncError.increment(1.0);
+                    continue;
+                }
+            }
+            match lifecycle
+                .and_then(|facts| classify_game_sync(facts, pinned_timestamp, anchor_address))
+            {
                 Ok(action) => actions.push(action),
                 Err(error) => {
                     tracing::warn!(
@@ -1212,7 +1324,7 @@ impl Proposer {
                 }
             }
         }
-        self.apply_game_sync_actions(actions).await;
+        self.apply_game_sync_actions(standings, actions).await;
 
         Ok(())
     }
@@ -1370,24 +1482,49 @@ impl Proposer {
         tracing::info!(?cleared_address, reason, "Reset creation guard");
     }
 
+    fn clear_creation_guard_if_blocked(
+        &self,
+        state: &ProposerState,
+        guarded_address: &mut Address,
+        reason: &'static str,
+    ) {
+        if *guarded_address == Address::ZERO {
+            return;
+        }
+        let blocked = state
+            .games
+            .values()
+            .find(|game| game.address == *guarded_address)
+            .is_some_and(|game| !state.ancestry_eligible(game));
+        if blocked {
+            self.clear_creation_guard_locked(guarded_address, reason);
+        }
+    }
+
     async fn arm_creation_guard(
         &self,
         sequence_number: u64,
         parent_game_index: u32,
         game_address: Address,
     ) {
-        // Serialize with subtree invalidation through the state lock. If the receipt returns after
-        // its parent was removed, arming this guard would leave a stale sequence number that can
-        // suppress fallback creation indefinitely at a frozen horizon.
+        // Serialize with ancestry updates through the state lock. If the receipt
+        // returns after its parent was invalidated or disallowed, re-arming this
+        // guard would suppress fallback creation indefinitely at a frozen horizon.
         let state = self.state.read().await;
-        if parent_game_index != u32::MAX &&
-            state.invalid_games.contains(&U256::from(parent_game_index))
-        {
+        let parent_became_blocked = if parent_game_index == u32::MAX {
+            false
+        } else {
+            state
+                .games
+                .get(&U256::from(parent_game_index))
+                .is_none_or(|parent| !state.ancestry_eligible(parent))
+        };
+        if parent_became_blocked {
             tracing::info!(
                 sequence_number,
                 parent_game_index,
                 ?game_address,
-                "Not arming creation guard: parent was invalidated while receipt was pending"
+                "Not arming creation guard: parent became blocked while receipt was pending"
             );
             return;
         }
@@ -1463,7 +1600,7 @@ impl Proposer {
                             "Keeping pending owned game re-checkable (eviction exempt)"
                         );
                     } else if let Some(anchor_deadline) = anchor_deadline &&
-                        pending_evictable(anchor_deadline, deadline)
+                        beyond_deadline_lag(anchor_deadline, deadline)
                     {
                         tracing::warn!(
                             game_index = %index,
@@ -1587,8 +1724,33 @@ impl Proposer {
     }
 
     /// Applies the completed action batch under one state write lock.
-    async fn apply_game_sync_actions(&self, actions: Vec<GameSyncAction>) {
+    async fn apply_game_sync_actions(
+        &self,
+        standings: Vec<(U256, bool)>,
+        actions: Vec<GameSyncAction>,
+    ) {
+        let pending_parent_indices = self
+            .pending_games
+            .read()
+            .await
+            .values()
+            .filter(|game| game.parent_index != u32::MAX)
+            .map(|game| U256::from(game.parent_index))
+            .collect::<HashSet<_>>();
         let mut state = self.state.write().await;
+        for (index, disallowed) in standings {
+            if let Some(game) = state.games.get_mut(&index) {
+                game.disallowed = disallowed;
+            }
+        }
+        {
+            let mut guarded_address = self.last_created_game_address.lock().await;
+            self.clear_creation_guard_if_blocked(
+                &state,
+                &mut guarded_address,
+                "tracked creation became ancestry-blocked",
+            );
+        }
         let mut progress_addresses_to_clear = Vec::new();
         for action in actions {
             match action {
@@ -1621,11 +1783,29 @@ impl Proposer {
                         }
                     }
                 }
-                GameSyncAction::Remove(index) => {
-                    if let Some(game) = state.games.remove(&index) {
-                        progress_addresses_to_clear.push(game.address);
+                GameSyncAction::Remove { index, lifecycle } => {
+                    // Preserve ancestry links while another game still references them; otherwise
+                    // a later standing change above an evicted intermediary becomes invisible.
+                    let retain = state.has_ancestry_dependent(index, &pending_parent_indices);
+                    if retain {
+                        if let Some(game) = state.games.get_mut(&index) {
+                            game.status = lifecycle.status;
+                            game.proposal_status = lifecycle.proposal_status;
+                            game.deadline = lifecycle.deadline;
+                            game.should_attempt_to_resolve = false;
+                            game.should_attempt_to_claim_bond = false;
+                            progress_addresses_to_clear.push(game.address);
+                        }
+                        tracing::debug!(
+                            game_index = %index,
+                            "Retaining ancestry link for its dependents"
+                        );
+                    } else {
+                        if let Some(game) = state.games.remove(&index) {
+                            progress_addresses_to_clear.push(game.address);
+                        }
+                        tracing::debug!(game_index = %index, "Removed game from cache");
                     }
-                    tracing::debug!(game_index = %index, "Removed game from cache");
                 }
                 GameSyncAction::RemoveSubtree(index) => {
                     let removed_addresses = state.invalidate_subtree(index);
@@ -1644,10 +1824,8 @@ impl Proposer {
         }
     }
 
-    /// Synchronizes the anchor game from the registry.
-    async fn sync_anchor_game(&self, pinned_block: BlockId) -> Result<()> {
-        let anchor_address = self.l1_view.registered_anchor_game(pinned_block).await?;
-
+    /// Aligns the cached anchor pointer with the address read from the registry.
+    async fn sync_anchor_game(&self, anchor_address: Address) {
         let mut state = self.state.write().await;
 
         if anchor_address == Address::ZERO {
@@ -1663,8 +1841,6 @@ impl Proposer {
             state.anchor_game = None;
             tracing::debug!(?anchor_address, "Anchor game not in cache, clearing");
         }
-
-        Ok(())
     }
 
     /// Computes and stores the canonical head used to schedule new proposals, logging on change.
@@ -1807,7 +1983,7 @@ impl Proposer {
             // is derived from the pinned (lagged) snapshot, so a recently confirmed `resolve()` tx
             // may not yet be reflected. Querying at `latest` avoids re-submitting a resolution
             // that would only revert on chain.
-            match self.l1_view.game_status(game.address).await {
+            match self.l1_view.game_status(game.address, BlockId::latest()).await {
                 Ok(status) => match GameStatus::try_from(status) {
                     Ok(status) if status != GameStatus::InProgress => {
                         tracing::info!(
@@ -2033,18 +2209,6 @@ impl Proposer {
         let claim_data = self.l1_view.game_claim(game_address, pinned_block).await?;
         let parent_index = claim_data.parent_index;
 
-        if parent_index != u32::MAX &&
-            self.state.read().await.invalid_games.contains(&U256::from(parent_index))
-        {
-            tracing::warn!(
-                game_index = %index,
-                ?game_address,
-                parent_index,
-                "Invalid game: parent belongs to a rejected game subtree"
-            );
-            return Ok(self.invalid_game_result(index, game_address).await);
-        }
-
         // Capture the game's own immutable args: bond claims bind its WETH
         // and finality checks bind its registry, which can differ from the
         // currently registered ones across upgrades. Games under an older
@@ -2208,7 +2372,6 @@ impl Proposer {
             deadline = %deadline,
             "Valid game: adding to cache"
         );
-
         let game = Game {
             index,
             address: game_address,
@@ -2223,6 +2386,7 @@ impl Proposer {
             creator,
             weth: game_weth,
             anchor_state_registry: game_asr,
+            disallowed: false,
         };
 
         if game.creator != self.proposer_address {
@@ -2690,6 +2854,105 @@ impl Proposer {
         }
     }
 
+    /// Rechecks a game's whole cached ancestry against one `latest` L1 block and
+    /// records what it finds. Returns false after updating the cache and the
+    /// canonical head when any link is blacklisted, retired, or lost its game.
+    async fn latest_ancestry_eligible(&self, index: U256, address: Address) -> Result<bool> {
+        let (anchor_index, chain) = {
+            let state = self.state.read().await;
+            if !state
+                .games
+                .get(&index)
+                .is_some_and(|game| game.address == address && state.ancestry_eligible(game))
+            {
+                return Ok(false);
+            }
+            (state.anchor_game.as_ref().map(|anchor| anchor.index), state.eligibility_chain(index))
+        };
+
+        let head =
+            self.l1_view.latest_head().await?.context("failed to fetch latest L1 ancestry head")?;
+        let latest_block = BlockId::hash(head.hash);
+
+        for (game_index, game_address, registry) in chain {
+            let (standing, status) = tokio::join!(
+                self.l1_view.game_standing(game_address, registry, latest_block),
+                self.l1_view.game_status(game_address, latest_block),
+            );
+            if standing?.disallowed() {
+                let mut state = self.state.write().await;
+                if let Some(game) = state.games.get_mut(&game_index) {
+                    game.disallowed = true;
+                }
+                let mut guarded_address = self.last_created_game_address.lock().await;
+                self.clear_creation_guard_if_blocked(
+                    &state,
+                    &mut guarded_address,
+                    "tracked creation became ancestry-blocked at latest",
+                );
+                drop(guarded_address);
+                drop(state);
+                self.compute_canonical_head().await;
+                return Ok(false);
+            }
+            if GameStatus::try_from(status?).context("invalid ancestry game status")? ==
+                GameStatus::ChallengerWins
+            {
+                let removed_addresses = self.state.write().await.invalidate_subtree(game_index);
+                self.reset_creation_guard_for_removed_games(
+                    &removed_addresses,
+                    "tracked game removed with a challenger-wins ancestor",
+                )
+                .await;
+                for removed_address in removed_addresses {
+                    self.proof_engine.clear(removed_address);
+                }
+                self.compute_canonical_head().await;
+                return Ok(false);
+            }
+        }
+
+        let state = self.state.read().await;
+        Ok(state.anchor_game.as_ref().map(|anchor| anchor.index) == anchor_index &&
+            state
+                .games
+                .get(&index)
+                .is_some_and(|game| game.address == address && state.ancestry_eligible(game)))
+    }
+
+    /// Resolves a chosen parent to the index creation should use. A current-registry
+    /// rejection falls back to the anchor root without changing the game's own-registry
+    /// standing; a missing or ancestry-blocked parent defers creation.
+    async fn admissible_parent_index(&self, parent_game_index: u32) -> Result<Option<u32>> {
+        let index = U256::from(parent_game_index);
+        let Some(parent_address) =
+            self.state.read().await.games.get(&index).map(|game| game.address)
+        else {
+            tracing::debug!(
+                parent_game_index,
+                "Chosen parent not in cache; deferring creation until the next sync"
+            );
+            return Ok(None);
+        };
+        if !self.latest_ancestry_eligible(index, parent_address).await? {
+            return Ok(None);
+        }
+
+        let registry =
+            self.l1_view.registered_game_args(BlockId::latest()).await?.anchor_state_registry;
+        if self.l1_view.parent_standing(parent_address, registry).await?.disallowed() {
+            tracing::info!(
+                parent_game_index,
+                ?parent_address,
+                ?registry,
+                "Chosen parent is disallowed by the registered registry; using the anchor root"
+            );
+            return Ok(Some(u32::MAX));
+        }
+
+        Ok(Some(parent_game_index))
+    }
+
     async fn plan_game_creation(
         &self,
         planned: &mut Vec<OperationSummary>,
@@ -2718,61 +2981,15 @@ impl Proposer {
             return Ok(false);
         }
 
-        // A retired or blacklisted parent reverts child creation forever
-        // (ZKDisputeGame.initialize consults the registered registry's
-        // isGameBlacklisted/isGameRetired at create time; nothing at resolve
-        // time ever prunes such a parent). Check the chosen parent against
-        // the registry a new child would bind - the currently registered
-        // one, not the parent's own (they differ across ASR swaps) - and
-        // drop its subtree so head selection falls back next sync. Bare
-        // isGameProper would be wrong here: its paused() clause is true for
-        // every game during a superchain pause and would mass-evict the
-        // cache.
-        if parent_game_index != u32::MAX {
-            let parent_address = {
-                let state = self.state.read().await;
-                state.games.get(&U256::from(parent_game_index)).map(|game| game.address)
-            };
-            let Some(parent_address) = parent_address else {
-                // A non-MAX parent index that is absent from the cache is a
-                // dangling head reference (e.g. right after this block removed
-                // its subtree, before the next full sync re-picks the head).
-                // Creating against it would be exactly the doomed creation
-                // this check exists to prevent, so defer instead.
-                tracing::debug!(
-                    parent_index = parent_game_index,
-                    "Chosen parent not in cache (dangling head after subtree removal); deferring creation until the next sync"
-                );
+        let parent_game_index = if parent_game_index == u32::MAX {
+            parent_game_index
+        } else {
+            let Some(parent_game_index) = self.admissible_parent_index(parent_game_index).await?
+            else {
                 return Ok(false);
             };
-            // Standing must be current, not pinned: retirement/blacklisting
-            // is retroactive and the child binds the registry at create time.
-            let registry =
-                self.l1_view.registered_game_args(BlockId::latest()).await?.anchor_state_registry;
-            let standing = self.l1_view.parent_standing(parent_address, registry).await?;
-            if standing.disallowed() {
-                tracing::warn!(
-                    parent_index = parent_game_index,
-                    ?parent_address,
-                    blacklisted = standing.blacklisted,
-                    retired = standing.retired,
-                    "Chosen parent can no longer be built on; dropping its subtree"
-                );
-                let root_index = U256::from(parent_game_index);
-                let mut state = self.state.write().await;
-                let removed_addresses = state.invalidate_subtree(root_index);
-                self.reset_creation_guard_for_removed_games(
-                    &removed_addresses,
-                    "tracked game removed with a retired/blacklisted ancestor",
-                )
-                .await;
-                drop(state);
-                for address in removed_addresses {
-                    self.proof_engine.clear(address);
-                }
-                return Ok(false);
-            }
-        }
+            parent_game_index
+        };
 
         planned.push(OperationSummary::ProposeGame {
             sequence_number: next_sequence_number,
@@ -2842,7 +3059,7 @@ impl Proposer {
                     }
                     if self
                         .l1_view
-                        .game_standing(game_address, registry_address)
+                        .game_standing(game_address, registry_address, BlockId::latest())
                         .await?
                         .disallowed()
                     {
@@ -3074,7 +3291,12 @@ impl Proposer {
                 continue;
             }
 
-            if self.l1_view.game_standing(game_address, registry_address).await?.disallowed() {
+            if self
+                .l1_view
+                .game_standing(game_address, registry_address, BlockId::latest())
+                .await?
+                .disallowed()
+            {
                 tracing::warn!(
                     game_index = %index,
                     ?game_address,
@@ -3230,12 +3452,15 @@ impl Proposer {
                 Ok(TaskSuccess::TerminallyUnprovable)
             }
             Err(err) => {
-                let can_retry =
-                    self.state.read().await.games.get(&game_index).is_some_and(|game| {
+                let can_retry = {
+                    let state = self.state.read().await;
+                    state.games.get(&game_index).is_some_and(|game| {
                         game.address == game_address &&
+                            state.ancestry_eligible(game) &&
                             game.status == GameStatus::InProgress &&
                             awaiting_proof(game.proposal_status)
-                    });
+                    })
+                };
                 if !can_retry {
                     self.proof_engine.clear(game_address);
                 }
@@ -3248,18 +3473,18 @@ impl Proposer {
     async fn prove_game(&self, game_address: Address) -> Result<()> {
         let start_time = Instant::now();
 
-        // The game's prestate selects the proving programs; a game that
-        // left the cache mid-flight (e.g. subtree removal) is not proven.
+        // Games with disallowed ancestry remain cached for lifecycle work but
+        // must not start or continue proof generation.
         let prestate = {
             let state = self.state.read().await;
             state
                 .games
                 .values()
-                .find(|game| game.address == game_address)
+                .find(|game| game.address == game_address && state.ancestry_eligible(game))
                 .map(|game| game.absolute_prestate)
         };
         let Some(prestate) = prestate else {
-            tracing::info!(?game_address, "Game no longer tracked; abandoning its proving");
+            tracing::info!(?game_address, "Game is not ancestry-eligible; abandoning its proving");
             return Ok(());
         };
 
@@ -3314,23 +3539,22 @@ impl Proposer {
         }
     }
 
-    /// Final checks before submitting a `prove()` transaction. Returns false
-    /// when submission should be skipped (all three legs log why):
-    /// 1. the game is still tracked (subtree removal on a lost parent evicts descendants, and
-    ///    `prove()` reverts `InvalidParentGame`; a residual on-chain-but-unsynced parent loss still
-    ///    reverts harmlessly and is caught by the tx status check);
-    /// 2. `claimData` at `latest` still awaits a proof (`Unchallenged` or `Challenged`; a challenge
-    ///    landing mid-proof does not invalidate the proof - the public values bind the signer, not
-    ///    the status - and the reverse reorg is equally fine);
-    /// 3. the game's deadline has not passed (the challenge deadline while `Unchallenged`, the
-    ///    prove deadline once challenged; `claimData` at `latest` reflects the rewrite).
+    /// Final checks before submitting a `prove()` transaction.
     async fn pre_submit_checks(&self, game_address: Address) -> Result<bool> {
-        let tracked = {
+        let game_index = {
             let state = self.state.read().await;
-            state.games.values().any(|game| game.address == game_address)
+            state
+                .games
+                .values()
+                .find(|game| game.address == game_address && state.ancestry_eligible(game))
+                .map(|game| game.index)
         };
-        if !tracked {
-            tracing::info!(?game_address, "Skipping prove(): game evicted mid-proving");
+        let Some(game_index) = game_index else {
+            tracing::info!(?game_address, "Skipping prove(): game is not ancestry-eligible");
+            return Ok(false);
+        };
+        if !self.latest_ancestry_eligible(game_index, game_address).await? {
+            tracing::info!(?game_address, "Skipping prove(): ancestry is no longer eligible");
             return Ok(false);
         }
 
@@ -3346,7 +3570,8 @@ impl Proposer {
         }
 
         let registry = self.l1_view.anchor_state_registry(game_address).await?;
-        if self.l1_view.game_standing(game_address, registry).await?.disallowed() {
+        if self.l1_view.game_standing(game_address, registry, BlockId::latest()).await?.disallowed()
+        {
             tracing::warn!(
                 ?game_address,
                 "Skipping prove(): game became blacklisted or retired while proving"
@@ -3584,17 +3809,9 @@ pub fn withdrawal_matured(withdrawal_ts: u64, weth_delay: u64, l1_now: u64) -> b
         withdrawal_ts.checked_add(weth_delay).is_some_and(|deadline| l1_now >= deadline)
 }
 
-/// Returns whether a game deadline is beyond the maximum allowed lag from
-/// the anchor deadline (the walk stop condition and the pending-eviction
-/// cutoff share this rule).
+/// Returns whether a game deadline is more than the maximum allowed lag
+/// behind the anchor deadline.
 pub const fn beyond_deadline_lag(anchor_deadline: u64, game_deadline: u64) -> bool {
-    anchor_deadline.abs_diff(game_deadline) > MAX_GAME_DEADLINE_LAG
-}
-
-/// Returns whether a pending game's deadline is more than the maximum lag
-/// behind the anchor deadline. This is one-sided: a game ahead of a stalled
-/// anchor may still have an open challenge window and remains re-checkable.
-pub const fn pending_evictable(anchor_deadline: u64, game_deadline: u64) -> bool {
     game_deadline.saturating_add(MAX_GAME_DEADLINE_LAG) < anchor_deadline
 }
 
@@ -4116,6 +4333,7 @@ mod tests {
         game_identity: GameIdentity,
         game_validity: GameValidity,
         lifecycle: GameLifecycle,
+        game_status: u8,
         parent_status: u8,
         bond_state: BondState,
         claim_preflight: Option<(U256, WithdrawalState)>,
@@ -4179,6 +4397,7 @@ mod tests {
                     status: GameStatus::InProgress,
                     is_finalized: false,
                 },
+                game_status: GameStatus::InProgress as u8,
                 parent_status: GameStatus::DefenderWins as u8,
                 bond_state: BondState {
                     credit: U256::from(1),
@@ -4353,8 +4572,10 @@ mod tests {
             Ok(self.init_bond)
         }
 
-        async fn game_status(&self, _game: Address) -> anyhow::Result<u8> {
-            panic!("unexpected L1 call: game_status")
+        async fn game_status(&self, _game: Address, block: BlockId) -> anyhow::Result<u8> {
+            self.record("game_status");
+            self.record_block("game_status", block);
+            Ok(self.game_status)
         }
 
         async fn claim_preflight(
@@ -4399,19 +4620,19 @@ mod tests {
             _game: Address,
             _registry: Address,
         ) -> anyhow::Result<GameStanding> {
-            panic!("unexpected L1 call: parent_standing")
+            self.record("parent_standing");
+            Ok(self.proof_standing)
         }
 
         async fn game_standing(
             &self,
             _game: Address,
             _registry: Address,
+            block: BlockId,
         ) -> anyhow::Result<GameStanding> {
             self.record("game_standing");
-            Ok(GameStanding {
-                blacklisted: self.proof_standing.blacklisted,
-                retired: self.proof_standing.retired,
-            })
+            self.record_block("game_standing", block);
+            Ok(self.proof_standing)
         }
 
         async fn proof_status(&self, _game: Address) -> anyhow::Result<u8> {
@@ -4515,6 +4736,7 @@ mod tests {
             creator: Address::ZERO,
             weth: Address::ZERO,
             anchor_state_registry: Address::ZERO,
+            disallowed: false,
         }
     }
 
@@ -4926,7 +5148,7 @@ mod tests {
         assert_eq!(cached, game);
         assert_eq!(
             lifecycle_failure.calls(),
-            vec!["latest_game_index", "registered_anchor_game", "game_lifecycle"]
+            vec!["latest_game_index", "registered_anchor_game", "game_lifecycle", "game_standing",]
         );
 
         let pending_failure = Arc::new(RecordingL1View {
@@ -4955,7 +5177,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn lifecycle_refresh_only_reads_the_active_status_branch() {
+    async fn lifecycle_refresh_reads_the_active_status_branch_and_standing() {
         for (status, parent_index, expected_branch) in [
             (GameStatus::InProgress, 0, Some("parent_game_status")),
             (GameStatus::InProgress, u32::MAX, None),
@@ -5012,6 +5234,7 @@ mod tests {
             if let Some(branch) = expected_branch {
                 expected.push(branch);
             }
+            expected.push("game_standing");
             assert_eq!(
                 view.block_calls(),
                 expected.iter().map(|call| (*call, BlockId::number(1))).collect::<Vec<_>>(),
@@ -5160,7 +5383,9 @@ mod tests {
             state.games.insert(sibling.index, sibling);
         }
 
-        proposer.apply_game_sync_actions(vec![GameSyncAction::RemoveSubtree(U256::from(7))]).await;
+        proposer
+            .apply_game_sync_actions(Vec::new(), vec![GameSyncAction::RemoveSubtree(U256::from(7))])
+            .await;
 
         let state = proposer.state.read().await;
         assert_eq!(state.games.len(), 1);
@@ -5266,7 +5491,7 @@ mod tests {
             assert_eq!(
                 classify_game_sync(defender_wins(finalized, done, None), 100, Address::ZERO)
                     .unwrap(),
-                GameSyncAction::Remove(index)
+                GameSyncAction::Remove { index, lifecycle: finalized }
             );
 
             let unlock = BondState { credit: U256::ONE, ..done };
@@ -5430,24 +5655,6 @@ mod tests {
             GameFetchResult::UnsupportedType { game_address: address } if address == game_address
         ));
         assert_eq!(unsupported.calls(), vec!["factory_game"]);
-
-        let invalid_parent = Arc::new(RecordingL1View {
-            factory_game: FactoryGame { address: game_address, game_type: ZK_GAME_TYPE },
-            game_claim: GameClaim {
-                status: ProposalStatus::Unchallenged as u8,
-                deadline: 2_000,
-                parent_index: 7,
-            },
-            ..Default::default()
-        });
-        let mut proposer = test_proposer().await;
-        proposer.l1_view = invalid_parent.clone();
-        proposer.state.write().await.invalid_games.insert(U256::from(7));
-        assert!(matches!(
-            proposer.fetch_game(U256::ZERO, BlockId::number(1)).await.unwrap(),
-            GameFetchResult::InvalidGame { .. }
-        ));
-        assert_eq!(invalid_parent.calls(), vec!["factory_game", "game_claim"]);
 
         let sequence_overflow = Arc::new(RecordingL1View {
             factory_game: FactoryGame { address: game_address, game_type: ZK_GAME_TYPE },
@@ -6006,15 +6213,14 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn proof_pre_submit_claim_failure_is_fatal_and_stops_later_reads() {
+    async fn proof_pre_submit_claim_failure_is_fatal() {
         let view = Arc::new(RecordingL1View { fail_on: Some("game_claim"), ..Default::default() });
         let mut proposer = test_proposer().await;
-        proposer.l1_view = view.clone();
+        proposer.l1_view = view;
         let game = game_with(1, u32::MAX, 100);
         proposer.state.write().await.games.insert(game.index, game.clone());
 
         assert!(proposer.pre_submit_checks(game.address).await.is_err());
-        assert_eq!(view.block_calls(), vec![("game_claim", BlockId::latest())]);
     }
 
     #[tokio::test]
@@ -6167,16 +6373,30 @@ mod tests {
             let game_address = Address::left_padding_from(&[0x11]);
             let registry_address = Address::left_padding_from(&[0x22]);
 
-            assert!(view.game_standing(game_address, registry_address).await.unwrap().disallowed());
+            assert!(
+                view.game_standing(game_address, registry_address, BlockId::latest())
+                    .await
+                    .unwrap()
+                    .disallowed()
+            );
 
             asserter.push_success(&no);
             asserter.push_success(&yes);
-            assert!(view.game_standing(game_address, registry_address).await.unwrap().disallowed());
+            assert!(
+                view.game_standing(game_address, registry_address, BlockId::latest())
+                    .await
+                    .unwrap()
+                    .disallowed()
+            );
 
             asserter.push_success(&no);
             asserter.push_success(&no);
             assert!(
-                !view.game_standing(game_address, registry_address).await.unwrap().disallowed()
+                !view
+                    .game_standing(game_address, registry_address, BlockId::latest())
+                    .await
+                    .unwrap()
+                    .disallowed()
             );
         }
 
@@ -7003,6 +7223,63 @@ mod tests {
     }
 
     #[test]
+    fn ancestry_eligibility_stops_at_the_registered_anchor() {
+        let disallowed_game = Game { disallowed: true, ..game_with(1, u32::MAX, 100) };
+
+        let disallowed_ancestor = Game { disallowed: true, ..game_with(10, u32::MAX, 100) };
+        let descendant = game_with(11, 10, 200);
+
+        let old_disallowed_ancestor = Game { disallowed: true, ..game_with(20, u32::MAX, 100) };
+        let anchor = game_with(21, 20, 200);
+        let restored_descendant = game_with(22, 21, 300);
+
+        let invalid_ancestor = game_with(30, u32::MAX, 100);
+        let invalid_descendant = game_with(31, 30, 200);
+        let mut invalid_state =
+            state(vec![invalid_ancestor.clone(), invalid_descendant.clone()], None);
+        invalid_state.invalid_games.insert(invalid_ancestor.index);
+
+        let missing_parent = game_with(40, 39, 200);
+        let rooted = game_with(50, u32::MAX, 100);
+        let cases = vec![
+            (
+                "disallowed game",
+                state(vec![disallowed_game.clone()], None),
+                disallowed_game.index,
+                false,
+            ),
+            (
+                "disallowed ancestor",
+                state(vec![disallowed_ancestor, descendant.clone()], None),
+                descendant.index,
+                false,
+            ),
+            (
+                "registered anchor boundary",
+                state(
+                    vec![old_disallowed_ancestor, anchor.clone(), restored_descendant.clone()],
+                    Some(anchor),
+                ),
+                restored_descendant.index,
+                true,
+            ),
+            ("terminally invalid ancestor", invalid_state, invalid_descendant.index, false),
+            (
+                "uncached parent",
+                state(vec![missing_parent.clone()], None),
+                missing_parent.index,
+                true,
+            ),
+            ("rooted chain", state(vec![rooted.clone()], None), rooted.index, true),
+        ];
+
+        for (name, state, index, expected) in cases {
+            let game = state.games.get(&index).expect("test game must be cached");
+            assert_eq!(state.ancestry_eligible(game), expected, "{name}");
+        }
+    }
+
+    #[test]
     fn invalidating_game_remembers_entire_cached_subtree() {
         let mut s = state(
             vec![
@@ -7025,6 +7302,34 @@ mod tests {
             removed,
             HashSet::from([Address::left_padding_from(&[1]), Address::left_padding_from(&[2]),])
         );
+    }
+
+    #[test]
+    fn invalidating_old_ancestor_preserves_registered_anchor_subtree() {
+        let root = game_with(1, 0, 200);
+        let anchor = game_with(2, 1, 300);
+        let child = game_with(3, 2, 400);
+        let sibling = game_with(4, 1, 350);
+        let mut s = state(
+            vec![
+                game_with(0, u32::MAX, 100),
+                root.clone(),
+                anchor.clone(),
+                child.clone(),
+                sibling.clone(),
+            ],
+            Some(anchor.clone()),
+        );
+
+        let removed = s.invalidate_subtree(root.index).into_iter().collect::<HashSet<_>>();
+
+        assert!(s.invalid_games.contains(&root.index));
+        assert!(s.invalid_games.contains(&sibling.index));
+        assert!(!s.invalid_games.contains(&anchor.index));
+        assert!(!s.invalid_games.contains(&child.index));
+        assert!(s.games.contains_key(&anchor.index));
+        assert!(s.games.contains_key(&child.index));
+        assert_eq!(removed, HashSet::from([root.address, sibling.address]));
     }
 
     #[test]
@@ -7258,30 +7563,17 @@ mod tests {
     }
 
     mod deadline_lag {
-        use super::super::{MAX_GAME_DEADLINE_LAG, beyond_deadline_lag, pending_evictable};
+        use super::super::{MAX_GAME_DEADLINE_LAG, beyond_deadline_lag};
 
-        /// The walk cutoff is exclusive at the boundary and symmetric: a game
-        /// exactly `MAX_GAME_DEADLINE_LAG` away is still in; one second
-        /// beyond, in either direction, is out.
+        /// The walk cutoff is one-sided and exclusive at the boundary.
         #[test]
-        fn cutoff_is_exclusive_at_the_boundary() {
-            assert!(!beyond_deadline_lag(1_000_000, 1_000_000));
-            assert!(!beyond_deadline_lag(1_000_000, 1_000_000 + MAX_GAME_DEADLINE_LAG));
-            assert!(beyond_deadline_lag(1_000_000, 1_000_000 + MAX_GAME_DEADLINE_LAG + 1));
-            assert!(beyond_deadline_lag(1_000_000 + MAX_GAME_DEADLINE_LAG + 1, 1_000_000));
-        }
-
-        /// Pending eviction is one-sided: a game behind the anchor beyond
-        /// the lag is evicted, one exactly at the lag is kept, and a game
-        /// ahead of a stalled anchor is never evicted no matter how far.
-        #[test]
-        fn eviction_only_fires_behind_the_anchor() {
+        fn cutoff_only_fires_behind_the_anchor() {
             let anchor = 1_000_000 + MAX_GAME_DEADLINE_LAG + 1;
-            assert!(pending_evictable(anchor, 1_000_000));
-            assert!(!pending_evictable(anchor - 1, 1_000_000));
-            assert!(!pending_evictable(1_000_000, 1_000_000));
-            assert!(!pending_evictable(1_000_000, 1_000_000 + MAX_GAME_DEADLINE_LAG + 1));
-            assert!(!pending_evictable(1_000_000, u64::MAX));
+            assert!(beyond_deadline_lag(anchor, 1_000_000));
+            assert!(!beyond_deadline_lag(anchor - 1, 1_000_000));
+            assert!(!beyond_deadline_lag(1_000_000, 1_000_000));
+            assert!(!beyond_deadline_lag(1_000_000, 1_000_000 + MAX_GAME_DEADLINE_LAG + 1));
+            assert!(!beyond_deadline_lag(1_000_000, u64::MAX));
         }
     }
 
@@ -7289,19 +7581,24 @@ mod tests {
         use super::*;
 
         /// `FlowGaps` #1 regression (state level): pending games are kept out
-        /// of `state.games`, and that exclusion is what makes them
-        /// parent-ineligible - inserted, the far-future game would win head
-        /// selection.
+        /// of `state.games`, so no eligibility consumer can select them.
         #[test]
-        fn pending_games_are_not_parent_eligible() {
+        fn pending_games_are_not_ancestry_eligible() {
             let validated = game_with(0, u32::MAX, 100);
             let far_future = game_with(1, u32::MAX, 10_000);
 
             let without_pending = state(vec![validated.clone()], None);
-            assert_eq!(without_pending.select_canonical_head().unwrap().l2_sequence_number, 100);
+            assert!(
+                !without_pending
+                    .games
+                    .get(&far_future.index)
+                    .is_some_and(|game| without_pending.ancestry_eligible(game))
+            );
 
-            let with_pending = state(vec![validated, far_future], None);
-            assert_eq!(with_pending.select_canonical_head().unwrap().l2_sequence_number, 10_000);
+            let with_pending = state(vec![validated, far_future.clone()], None);
+            assert!(
+                with_pending.ancestry_eligible(with_pending.games.get(&far_future.index).unwrap())
+            );
         }
     }
 }

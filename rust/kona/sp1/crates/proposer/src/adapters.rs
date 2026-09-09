@@ -204,8 +204,8 @@ where
         Ok(self.factory.initBonds(ZK_GAME_TYPE).call().await?)
     }
 
-    async fn game_status(&self, game: Address) -> Result<u8> {
-        Ok(ZKDisputeGame::new(game, self.provider.clone()).status().call().await?)
+    async fn game_status(&self, game: Address, block: BlockId) -> Result<u8> {
+        Ok(ZKDisputeGame::new(game, self.provider.clone()).status().block(block).call().await?)
     }
 
     async fn claim_preflight(
@@ -260,10 +260,15 @@ where
         Ok(GameStanding { blacklisted, retired })
     }
 
-    async fn game_standing(&self, game: Address, registry: Address) -> Result<GameStanding> {
+    async fn game_standing(
+        &self,
+        game: Address,
+        registry: Address,
+        block: BlockId,
+    ) -> Result<GameStanding> {
         let registry = AnchorStateRegistry::new(registry, self.provider.clone());
-        let blacklisted = registry.isGameBlacklisted(game);
-        let retired = registry.isGameRetired(game);
+        let blacklisted = registry.isGameBlacklisted(game).block(block);
+        let retired = registry.isGameRetired(game).block(block);
         let (blacklisted, retired) = tokio::try_join!(blacklisted.call(), retired.call())?;
         Ok(GameStanding { blacklisted, retired })
     }

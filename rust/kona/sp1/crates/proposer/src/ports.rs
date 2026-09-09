@@ -197,7 +197,7 @@ pub(crate) trait L1View: Send + Sync {
         block: BlockId,
     ) -> Result<BondState>;
     async fn init_bond(&self) -> Result<U256>;
-    async fn game_status(&self, game: Address) -> Result<u8>;
+    async fn game_status(&self, game: Address, block: BlockId) -> Result<u8>;
     async fn claim_preflight(
         &self,
         game: Address,
@@ -210,7 +210,12 @@ pub(crate) trait L1View: Send + Sync {
     async fn nonce_state(&self, proposer: Address) -> Result<NonceState>;
     async fn respected_game_type(&self, block: BlockId) -> Result<u32>;
     async fn parent_standing(&self, game: Address, registry: Address) -> Result<GameStanding>;
-    async fn game_standing(&self, game: Address, registry: Address) -> Result<GameStanding>;
+    async fn game_standing(
+        &self,
+        game: Address,
+        registry: Address,
+        block: BlockId,
+    ) -> Result<GameStanding>;
     async fn proof_status(&self, game: Address) -> Result<u8>;
     async fn proof_inputs(&self, game: Address) -> Result<ProofInputs>;
     async fn anchor_state_registry(&self, game: Address) -> Result<Address>;
