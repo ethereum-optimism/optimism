@@ -9,7 +9,7 @@ use async_trait::async_trait;
 use kona_sp1_super_range_executor::SuperRootAtTimestampResponse;
 
 use crate::{
-    contract::{GameStatus, ProposalStatus, ZKGameArgs},
+    contract::{BondDistributionMode, GameStatus, ProposalStatus, ZKGameArgs},
     prover::ProofKeys,
     superroot::SuperRootAt,
 };
@@ -72,10 +72,12 @@ pub(crate) struct GameLifecycle {
     pub(crate) is_finalized: bool,
 }
 
-/// Bond fields read only for a defender-wins game.
+/// Bond-distribution and withdrawal fields for terminal lifecycle recovery.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) struct BondState {
+    pub(crate) bond_distribution_mode: BondDistributionMode,
     pub(crate) credit: U256,
+    pub(crate) refund_mode_credit: U256,
     pub(crate) withdrawal_amount: U256,
     pub(crate) withdrawal_timestamp: U256,
     pub(crate) delay: U256,
@@ -91,7 +93,9 @@ pub(crate) struct WithdrawalState {
 /// Independently failing fields from the latest-state claim preflight.
 #[derive(Debug)]
 pub(crate) struct ClaimPreflight {
+    pub(crate) bond_distribution_mode: Result<BondDistributionMode>,
     pub(crate) credit: Result<U256>,
+    pub(crate) refund_mode_credit: Result<U256>,
     pub(crate) withdrawal: Result<WithdrawalState>,
 }
 
