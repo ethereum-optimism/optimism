@@ -2241,24 +2241,6 @@ jobs:
           mentions: "<!subteam^S07K486JEH4>"
           ignore_errors: false
 
-  finalizer-smt-experiment:
-    docker:
-      - image: <<pipeline.parameters.c-default_docker_image>>
-    resource_class: xlarge.gen2
-    steps:
-      - utils/checkout-with-mise:
-          checkout-method: blobless
-          enable-mise-cache: true
-      - install-contracts-dependencies
-      - setup_remote_docker
-      - run:
-          name: Finalizer SMT feasibility (30 minute budget)
-          command: timeout --signal=TERM --kill-after=60s 32m just test-finalizer-smt
-          working_directory: ./packages/contracts-bedrock
-          no_output_timeout: 33m
-      - store_artifacts:
-          path: packages/contracts-bedrock/test/kontrol/logs/finalizer-smt
-
   publish-contract-artifacts:
     docker:
       - image: <<pipeline.parameters.c-default_docker_image>>
@@ -2837,9 +2819,6 @@ workflows:
       - kontrol-tests:
           context:
             - slack
-            - circleci-repo-readonly-authenticated-github-token
-      - finalizer-smt-experiment:
-          context:
             - circleci-repo-readonly-authenticated-github-token
 
   scheduled-cannon-full-tests:

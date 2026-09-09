@@ -191,14 +191,6 @@ test-kontrol-no-build:
 test-withdrawal-authorization:
   KONTROL_STRICT=true KONTROL_LOG_DIR=test/kontrol/logs/withdrawal ./test/kontrol/scripts/run-kontrol.sh container WithdrawalAuthorizationKontrol.prove_checkWithdrawal_eligible_succeeds WithdrawalAuthorizationKontrol.prove_checkWithdrawal_equivalence
 
-# Compile verification instrumentation only; no SMT engine or EVM runs.
-check-finalizer-smt:
-  python3 test/kontrol/scripts/check-finalizer-smt.py --solc "$(svm which 0.8.15)" --compile-only
-
-# Bounded source-level feasibility experiment; the runner requires CI=true.
-test-finalizer-smt:
-  python3 test/kontrol/scripts/check-finalizer-smt.py --solc "$(svm which 0.8.15)" --image "runtimeverificationinc/kontrol:ubuntu-jammy-$(yq '.tools.kontrol' ../../mise.toml)"
-
 # Runs contract coverage.
 coverage: build-go-ffi
   forge coverage

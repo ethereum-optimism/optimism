@@ -54,9 +54,13 @@ control. The factory mapping and Portal proof record are installed directly at d
 component result must not be labeled proof of authentic withdrawals.
 
 This candidate extends the historical fixture's current-time input from `uint64` to `uint256`.
-Earlier passing artifacts therefore do not certify this candidate; fresh proof results and
-their initialized domains must be inspected. Actual-finalizer linkage is a separate pending
-milestone. This component neither executes either finalizer nor establishes proof-record provenance.
+[CI run 134100](https://app.circleci.com/pipelines/github/ethereum-optimism/optimism/134100),
+at revision `28b5d0449945f1f23e01c0548c80772de4492b8b`, passed both component proofs and setup.
+Saved graphs contain no pending, failing or admitted obligations. The equivalence graph has
+192 nodes and 19 covers; its saved invocation constrains current time only to the `uint256` range.
+Equivalence took 48m 32s and the acceptance witness took 4m 57s. Proof source and model settings
+are unchanged from that run. Actual-finalizer linkage remains a separate pending milestone.
+This component neither executes either finalizer nor establishes proof-record provenance.
 
 ## Reproduction
 
@@ -86,38 +90,3 @@ Kontrol's hash/storage-separation assumptions still apply. Record artifact/compi
 with results; the production source classes alone do not identify any particular live deployment.
 Accept a result only when all selected proof graphs pass without pending, failing, or admitted
 obligations and the acceptance witness passes. Compilation and JUnit alone are insufficient.
-
-## Bounded finalizer experiment (not a completed proof)
-
-`test-finalizer-smt` is a separate CI-only feasibility job using production Solc 0.8.15 and
-Z3 from the pinned Kontrol image. It instruments an ephemeral copy of `OptimismPortal2` with
-an assertion immediately before the actual finalization write: the selected hash is unconsumed
-and its record for the selected submitter has a nonzero timestamp. Both original finalizer
-bodies, hash computation and `checkWithdrawal` body remain. Reversing all instrumenting edits
-must restore the original source exactly. No production file is edited.
-
-An internal function with the compiler's documented `abstract-function-nondet` annotation
-introduces arbitrary starting storage before the finalizer guards. The unrelated proving
-method is also abstracted; no trie or record-provenance property follows from this experiment.
-The assertions concern source-level control flow under SMTChecker's abstraction of Solidity;
-compiler/encoder/solver correctness is assumed. They do not establish ABI correctness, gas
-adequacy, committed transfers, arbitrary-history authenticity or correctness of game resolution.
-
-Solc exports its actual SMT-LIB queries, Z3 executes them in CI, and the unmodified responses
-are fed back to Solc through its supported `auxiliaryInput.smtlib2responses` interface. The
-source-located target must first be reported unresolved and then close with no unanswered
-queries or unknown solver responses. Input, output, queries, responses and versions are artifacts.
-Large compiler outputs and queries are gzip compressed without changing their contents. Solc
-0.8.15 can reorder conjunctions between processes and request a different query hash. The runner
-solves each newly requested query verbatim, retaining the actual response for that exact hash.
-It permits at most eight response rounds within the same total budget; exhaustion is failure.
-An old response is never reassigned to a new hash, even for apparently equivalent queries.
-Solc's CHC SMT-LIB adapter uses `sat` for safety; the runner delegates interpretation to Solc.
-Controls omit the check or change the submitter. A third diagnostic asserts `false` at the
-authorization point to detect vacuity in the abstract model; it is **not** a concrete EVM success
-witness. A concrete admissible success case and complete guard/entry-point linkage are still
-required before advertising the finalizer milestone.
-
-Each experiment has a 30-minute total budget and two-minute solver queries. At most two focused
-CI attempts are planned before reassessment. `check-finalizer-smt` only compiles the four
-instrumented variants with the SMT engine disabled; its success is not proof evidence.
