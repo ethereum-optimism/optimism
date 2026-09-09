@@ -17,6 +17,13 @@ describe an allocated array of that size. No well-formed-header assumption is
 made. Invalid cases are caught and checked; a test-level revert is not success.
 An acceptance witness includes a declared payload beyond the buffer.
 
+Three conditional proofs divide the prefix space for concurrent execution:
+short forms (`0..183` or `192..247`), long data (`184..191`), and long lists
+(`248..255`). They call the same assertion checker within their class. These
+disjoint classes exhaust every prefix; all three must pass to establish the
+combined claim. Returning outside one class establishes nothing about that
+input without the other proofs. The witness includes an accepted case per class.
+
 The generator checks that removing the wrapper and reversing the library rename
 recovers the production source exactly. This establishes source provenance,
 not equality with an optimized production call site's bytecode. Compiler

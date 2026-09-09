@@ -42,7 +42,22 @@ contract RLPHeaderKontrol {
         valid_ = _head[1] != 0 && length_ >= 56 && _span >= offset_ + length_;
     }
 
-    function prove_header_observation_equivalence(bytes32 _head, bytes32 _tail, uint256 _span) public view {
+    // These three implications exhaust all 256 prefix values; each retains unrestricted span/tail.
+    function prove_header_short_equivalence(bytes32 _head, bytes32 _tail, uint256 _span) public view {
+        uint256 tag = uint8(_head[0]);
+        if (tag <= 183 || (tag >= 192 && tag <= 247)) checkObservation(_head, _tail, _span);
+    }
+
+    function prove_header_longData_equivalence(bytes32 _head, bytes32 _tail, uint256 _span) public view {
+        uint256 tag = uint8(_head[0]);
+        if (tag >= 184 && tag <= 191) checkObservation(_head, _tail, _span);
+    }
+
+    function prove_header_longList_equivalence(bytes32 _head, bytes32 _tail, uint256 _span) public view {
+        if (uint8(_head[0]) >= 248) checkObservation(_head, _tail, _span);
+    }
+
+    function checkObservation(bytes32 _head, bytes32 _tail, uint256 _span) internal view {
         (bool valid, uint256 offset, uint256 length, Reader.RLPItemType kind) = grammar(_head, _span);
         try this.decode(_head, _tail, _span) returns (
             uint256 actualOffset, uint256 actualLength, Reader.RLPItemType actualKind
@@ -60,5 +75,7 @@ contract RLPHeaderKontrol {
         // A long header with declared payload beyond the observation buffer is also admissible.
         (offset, length, kind) = this.decode(bytes32(uint256(0xb864) << 240), bytes32(0), 102);
         assert(offset == 2 && length == 100 && kind == Reader.RLPItemType.DATA_ITEM);
+        (offset, length, kind) = this.decode(bytes32(uint256(0xf864) << 240), bytes32(0), 102);
+        assert(offset == 2 && length == 100 && kind == Reader.RLPItemType.LIST_ITEM);
     }
 }
