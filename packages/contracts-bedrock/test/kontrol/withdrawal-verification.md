@@ -107,6 +107,11 @@ Solc exports its actual SMT-LIB queries, Z3 executes them in CI, and the unmodif
 are fed back to Solc through its supported `auxiliaryInput.smtlib2responses` interface. The
 source-located target must first be reported unresolved and then close with no unanswered
 queries or unknown solver responses. Input, output, queries, responses and versions are artifacts.
+Large compiler outputs and queries are gzip compressed without changing their contents. Solc
+0.8.15 can reorder conjunctions between processes and request a different query hash. The runner
+solves each newly requested query verbatim, retaining the actual response for that exact hash.
+It permits at most eight response rounds within the same total budget; exhaustion is failure.
+An old response is never reassigned to a new hash, even for apparently equivalent queries.
 Solc's CHC SMT-LIB adapter uses `sat` for safety; the runner delegates interpretation to Solc.
 Controls omit the check or change the submitter. A third diagnostic asserts `false` at the
 authorization point to detect vacuity in the abstract model; it is **not** a concrete EVM success

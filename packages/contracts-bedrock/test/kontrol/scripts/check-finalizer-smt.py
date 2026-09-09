@@ -3,6 +3,7 @@
 
 import argparse
 import ast
+import gzip
 import hashlib
 import json
 import os
@@ -119,11 +120,15 @@ def main():
         if args.compile_only:
             request["settings"]["modelChecker"] = {"engine": "none"}
 
+        def retain(name, text):
+            # Compress evidence, never normalize or rewrite the solver's input.
+            (directory / (name + ".gz")).write_bytes(gzip.compress(text.encode(), mtime=0))
+
         def compile_request(name):
             raw = json.dumps(request)
-            (directory / (name + ".input.json")).write_text(raw)
+            retain(name + ".input.json", raw)
             result = run([args.solc, "--standard-json"], raw)
-            (directory / (name + ".output.json")).write_text(result.stdout)
+            retain(name + ".output.json", result.stdout)
             (directory / (name + ".stderr.txt")).write_text(result.stderr)
             output = json.loads(result.stdout)
             errors = [e for e in output.get("errors", []) if e["severity"] == "error"]
@@ -144,27 +149,34 @@ def main():
         queries = first.get("auxiliaryInputRequested", {}).get("smtlib2queries", {})
         assert queries, "No actual solver queries exported"
         responses = {}
-        for key, query in queries.items():
-            assert re.fullmatch(r"0x[0-9a-fA-F]{64}", key)
-            (directory / (key + ".smt2")).write_text(query)
-            name = "withdrawal-smt-" + key[2:18]
-            print(variant + ": solving " + key, flush=True)
-            try:
-                solved = run(["docker", "run", "--rm", "--name", name, "-i", "--entrypoint", "z3", args.image, "-in"], query, 150)
-            finally:
-                subprocess.run(["docker", "rm", "-f", name], capture_output=True, timeout=30)
-            (directory / (key + ".response.txt")).write_text(solved.stdout)
-            (directory / (key + ".stderr.txt")).write_text(solved.stderr)
-            print(variant + ": solver returned " + solved.stdout.strip(), flush=True)
-            assert solved.stdout.strip() in ("sat", "unsat"), "Unknown or malformed solver response"
-            responses[key] = solved.stdout
-        request["auxiliaryInput"] = {"smtlib2responses": responses}
-        final = compile_request("checked")
-        assert not final.get("auxiliaryInputRequested"), "Unanswered solver query"
+        # Solc 0.8.15 can reorder conjunctions between compiler processes. A new
+        # query hash requires a new actual solve, never rekeying an old response.
+        for round_number in range(1, 9):
+            for key, query in queries.items():
+                assert re.fullmatch(r"0x[0-9a-fA-F]{64}", key)
+                assert key not in responses, "Compiler did not consume a supplied response"
+                retain(key + ".smt2", query)
+                name = "withdrawal-smt-" + key[2:18]
+                print(variant + ": solving " + key, flush=True)
+                try:
+                    solved = run(["docker", "run", "--rm", "--name", name, "-i", "--entrypoint", "z3", args.image, "-in"], query, 150)
+                finally:
+                    subprocess.run(["docker", "rm", "-f", name], capture_output=True, timeout=30)
+                (directory / (key + ".response.txt")).write_text(solved.stdout)
+                (directory / (key + ".stderr.txt")).write_text(solved.stderr)
+                print(variant + ": solver returned " + solved.stdout.strip(), flush=True)
+                assert solved.stdout.strip() in ("sat", "unsat"), "Unknown or malformed solver response"
+                responses[key] = solved.stdout
+            request["auxiliaryInput"] = {"smtlib2responses": responses}
+            final = compile_request("checked-" + str(round_number))
+            queries = final.get("auxiliaryInputRequested", {}).get("smtlib2queries", {})
+            if not queries:
+                break
+        assert not queries, "Unanswered solver query after eight response rounds"
         messages = target_messages(final)
         expected = [] if variant == "guards" else ["CHC: Assertion violation happens here."]
         verdict = {"variant": variant, "matchedExpected": messages == expected,
-                   "targetOffset": offset, "targetMessages": messages, "queryCount": len(queries),
+                   "targetOffset": offset, "targetMessages": messages, "queryCount": len(responses),
                    "sourceSHA256": source_hash, "seconds": time.monotonic() - start,
                    "fullSecurityMilestone": False}
         verdicts.append(verdict)
