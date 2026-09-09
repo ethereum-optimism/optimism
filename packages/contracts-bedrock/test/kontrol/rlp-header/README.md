@@ -24,6 +24,10 @@ disjoint classes exhaust every prefix; all three must pass to establish the
 combined claim. Returning outside one class establishes nothing about that
 input without the other proofs. The witness includes an accepted case per class.
 
+The grammar and partition predicates read bytes from their own observation
+buffers. This avoids asking the prover to relate arithmetic extraction from a `bytes32` value to memory-byte
+extraction while checking RLP rules; the actual helper reads an equal buffer.
+
 The generator checks that removing the wrapper and reversing the library rename
 recovers the production source exactly. This establishes source provenance,
 not equality with an optimized production call site's bytecode. Compiler
