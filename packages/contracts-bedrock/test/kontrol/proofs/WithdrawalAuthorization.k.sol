@@ -59,7 +59,6 @@ contract WithdrawalAuthorizationKontrol is DeploymentSummaryFaultProofs, Kontrol
         bytes32 withdrawalHash;
         address submitter;
         uint64 provenAt;
-        uint8 status;
         uint8 blacklisted;
         uint8 finalized;
         bytes32 observerSlot;
@@ -113,27 +112,32 @@ contract WithdrawalAuthorizationKontrol is DeploymentSummaryFaultProofs, Kontrol
         assert(_check(example));
     }
 
-    /// @notice Deletion follows invalidation, preserves other Portal slots, and prevents eligibility.
-    function prove_deleteProvenWithdrawal_equivalence(DeletionCase memory _case) external {
-        vm.assume(_case.status <= uint8(GameStatus.DEFENDER_WINS));
-        vm.assume(_case.blacklisted <= 1);
-        vm.assume(_case.finalized <= 1);
-        _delete(_case);
+    /// @notice These three cases exhaust every ABI-valid game status with the same assertions.
+    function prove_deleteProvenWithdrawal_inProgress(DeletionCase memory _case) external {
+        _delete(_case, GameStatus.IN_PROGRESS);
+    }
+
+    function prove_deleteProvenWithdrawal_challengerWins(DeletionCase memory _case) external {
+        _delete(_case, GameStatus.CHALLENGER_WINS);
+    }
+
+    function prove_deleteProvenWithdrawal_defenderWins(DeletionCase memory _case) external {
+        _delete(_case, GameStatus.DEFENDER_WINS);
     }
 
     /// @notice Both invalidation alternatives admit deletion of a nonempty record.
     function prove_deleteProvenWithdrawal_invalidated_succeeds() external {
         DeletionCase memory example;
         example.provenAt = 1;
-        example.status = uint8(GameStatus.CHALLENGER_WINS);
-        assert(_delete(example));
-        example.status = uint8(GameStatus.DEFENDER_WINS);
+        assert(_delete(example, GameStatus.CHALLENGER_WINS));
         example.blacklisted = 1;
-        assert(_delete(example));
+        assert(_delete(example, GameStatus.DEFENDER_WINS));
     }
 
-    function _delete(DeletionCase memory _case) internal returns (bool deleted_) {
-        game.configure(0, 0, GameStatus(_case.status), false, false);
+    function _delete(DeletionCase memory _case, GameStatus _status) internal returns (bool deleted_) {
+        vm.assume(_case.blacklisted <= 1);
+        vm.assume(_case.finalized <= 1);
+        game.configure(0, 0, _status, false, false);
         vm.store(
             address(registry), keccak256(abi.encode(address(game), uint256(5))), bytes32(uint256(_case.blacklisted))
         );
@@ -150,7 +154,7 @@ contract WithdrawalAuthorizationKontrol is DeploymentSummaryFaultProofs, Kontrol
         (deleted_,) = address(portal).call(
             abi.encodeCall(portal.deleteProvenWithdrawal, (_case.withdrawalHash, _case.submitter))
         );
-        bool invalidated = _case.status == uint8(GameStatus.CHALLENGER_WINS) || _case.blacklisted != 0;
+        bool invalidated = _status == GameStatus.CHALLENGER_WINS || _case.blacklisted != 0;
         assert(deleted_ == (_case.provenAt != 0 && invalidated));
         assert(vm.load(address(portal), recordSlot) == (deleted_ ? bytes32(0) : record));
         assert(vm.load(address(portal), finalizedSlot) == bytes32(uint256(_case.finalized)));

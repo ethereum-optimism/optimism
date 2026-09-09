@@ -194,7 +194,7 @@ test-withdrawal-authorization:
 # Isolated CI-only record-lifecycle feasibility check.
 test-withdrawal-deletion:
   test "${CI:-}" = true
-  KONTROL_STRICT=true KONTROL_LOG_DIR=test/kontrol/logs/withdrawal ./test/kontrol/scripts/run-kontrol.sh container WithdrawalAuthorizationKontrol.prove_deleteProvenWithdrawal_invalidated_succeeds WithdrawalAuthorizationKontrol.prove_deleteProvenWithdrawal_equivalence
+  KONTROL_STRICT=true KONTROL_LOG_DIR=test/kontrol/logs/withdrawal ./test/kontrol/scripts/run-kontrol.sh container WithdrawalAuthorizationKontrol.prove_deleteProvenWithdrawal_invalidated_succeeds WithdrawalAuthorizationKontrol.prove_deleteProvenWithdrawal_inProgress WithdrawalAuthorizationKontrol.prove_deleteProvenWithdrawal_challengerWins WithdrawalAuthorizationKontrol.prove_deleteProvenWithdrawal_defenderWins
 
 # Runs contract coverage.
 coverage: build-go-ffi

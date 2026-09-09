@@ -14,6 +14,11 @@ must remain unchanged unless it is the selected record slot. This frame property
 quantifies Portal storage locations within the seeded fixture, not every initial
 storage configuration. The unused four bytes in the record word start at zero.
 
+Three proofs instantiate the valid game statuses: in progress, challenger wins,
+and defender wins. Their union exhausts that enum domain; each retains all other
+symbolic inputs and the same assertion helper. All three must pass. This divides
+work across CI workers without removing the arbitrary observer-slot check.
+
 After successful deletion, the actual `checkWithdrawal` call must reject. Its
 first rejection may be `AlreadyFinalized` when that flag is true; otherwise the
 cleared timestamp makes the record unproven. This checks the eligibility method,
