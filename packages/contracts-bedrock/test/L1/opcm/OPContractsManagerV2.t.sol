@@ -544,8 +544,9 @@ contract OPContractsManagerV2_Upgrade_Test is OPContractsManagerV2_Upgrade_TestI
         runCurrentUpgradeV2(chainPAO);
     }
 
-    /// @notice Tests upgrading a chain without ETHLockbox enabled.
-    function test_upgrade_activatesLockboxWithoutActivatingInterop_succeeds() public {
+    /// @notice Tests lockbox state and balances after upgrading the forked chain.
+    ///         CI currently runs this test for OP, Ink, and Unichain, which already have a lockbox enabled.
+    function test_upgrade_lockbox_succeeds() public {
         bool interopEnabledBefore = systemConfig.isFeatureEnabled(Features.INTEROP);
         bool lockboxEnabledBefore = systemConfig.isFeatureEnabled(Features.ETH_LOCKBOX);
         uint256 portalBalanceBefore = 1 ether;
