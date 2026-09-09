@@ -8,16 +8,24 @@ SCRIPT_HOME="$(cd "$(dirname "${BASH_SOURCE[0]}")" > /dev/null 2>&1 && pwd)"
 source "$SCRIPT_HOME/common.sh"
 export RUN_KONTROL=true
 parse_args "$@"
+if [ "${KONTROL_STRICT:-false}" = true ]; then
+  export CONTAINER_NAME=kontrol-withdrawal-tests
+  # Do not reuse another suite's generated definition or proof results.
+  rm -rf "$WORKSPACE_DIR/kout-proofs"
+fi
 
 #############
 # Functions #
 #############
 kontrol_build() {
   notif "Kontrol Build"
+  local build_command=(kontrol build)
+  # Kontrol flattens contract-qualified imports into its shared main module.
+  if [ "${KONTROL_STRICT:-false}" != true ]; then
+    build_command+=(--require "$lemmas" --module-import "$module")
+  fi
   # shellcheck disable=SC2086
-  run kontrol build \
-    --require $lemmas \
-    --module-import $module \
+  run "${build_command[@]}" \
     --no-metadata \
     ${rekompile} \
     ${regen}
@@ -25,9 +33,23 @@ kontrol_build() {
 }
 
 kontrol_prove() {
-  notif "Kontrol Prove"
+  notif "Kontrol Prove: workers=$workers selectors=${test_list[*]}"
+  local model_args=(--init-node-from-diff "$state_diff" --assume-defined --no-stack-checks)
+  local prove_command=(kontrol prove)
+  local rpc_command='kore-rpc-booster --equation-max-recursion 100 --equation-max-iterations 1000'
+  # Withdrawal fixtures retain production deployment bytecode and stack checks.
+  if [ "${KONTROL_STRICT:-false}" = true ]; then
+    model_args=(--init-node-from-diff "$state_diff" --reinit --schedule CANCUN --no-gas)
+    # Keep post-execution simplification to eliminate infeasible symbolic dispatch branches.
+    # Booster checks branch coverage; retain legacy fallback for stuck or aborted execution.
+    rpc_command+=' --fallback-on Stuck,Aborted'
+    # Bound proving inside the container so the host can still collect its saved graphs.
+    prove_command=(timeout --signal=INT --kill-after=30s 60m kontrol prove)
+  else
+    rpc_command+=' --no-post-exec-simplify'
+  fi
   # shellcheck disable=SC2086
-  run kontrol prove \
+  run "${prove_command[@]}" \
     --max-depth $max_depth \
     --max-iterations $max_iterations \
     --smt-timeout $smt_timeout \
@@ -37,27 +59,25 @@ kontrol_prove() {
     $break_on_calls \
     $break_every_step \
     $tests \
-    --init-node-from-diff $state_diff \
-    --kore-rpc-command 'kore-rpc-booster --no-post-exec-simplify --equation-max-recursion 100 --equation-max-iterations 1000' \
+    "${model_args[@]}" \
+    --kore-rpc-command "$rpc_command" \
     --xml-test-report \
     --maintenance-rate 16 \
     --symbolic-caller \
-    --assume-defined \
     --no-log-rewrites \
     --smt-timeout 16000 \
     --smt-retry-limit 0 \
-    --no-stack-checks \
     --remove-old-proofs
   return $?
 }
 
 get_log_results() {
   RESULTS_FILE="results-$(date +'%Y-%m-%d-%H-%M-%S').tar.gz"
-  LOG_PATH="test/kontrol/logs"
+  LOG_PATH="${KONTROL_LOG_DIR:-test/kontrol/logs}"
   RESULTS_LOG="$LOG_PATH/$RESULTS_FILE"
 
   if [ ! -d $LOG_PATH ]; then
-    mkdir $LOG_PATH
+    mkdir -p "$LOG_PATH"
   fi
 
   notif "Generating Results Log: $RESULTS_LOG"
@@ -199,7 +219,13 @@ if [ "${results[0]}" -ne 0 ]; then
 fi
 
 # Run kontrol_prove and store the result
-kontrol_prove
+LOG_PATH="${KONTROL_LOG_DIR:-test/kontrol/logs}"
+mkdir -p "$LOG_PATH"
+# Only the parent collects artifacts and cleans up when the logging pipeline fails.
+(
+  trap - ERR INT TERM
+  kontrol_prove
+) 2>&1 | tee "$LOG_PATH/kontrol-prove.log"
 results[1]=$?
 if [ "${results[1]}" -ne 0 ]; then
   echo "Kontrol Prove Failed"
