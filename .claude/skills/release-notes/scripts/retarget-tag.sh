@@ -3,8 +3,9 @@
 #
 # git-cliff generates a draft against the RC tag, so the heading, the right-hand side of
 # the compare link and the image tag all read `vX.Y.Z-rc.N`. A finalized release publishes
-# those as `vX.Y.Z`. The compare link's LEFT side stays an RC — it is the previous
-# release's base, and published notes leave it alone.
+# those as `vX.Y.Z`. The compare link's LEFT side is the previous release's base; this
+# script cannot know which release preceded this one, so it leaves that alone and warns if
+# it is still an RC. A published note compares finalized tag to finalized tag.
 #
 # Refuses to rewrite unless the finalized tag exists and points at the same commit as the
 # RC: retagging a note whose binary came from a different commit is worse than leaving the
@@ -87,3 +88,15 @@ awk -v comp="$component" -v rc="$rc" -v final="$final" '
 ' "$notes" > "$tmp"
 
 cat "$tmp" > "$notes"
+
+# Whatever RC survives is the compare link's base, which this script deliberately does not
+# rewrite. Publishing it that way compares a finalized release against an RC.
+leftover=$(grep -oE "$component/v[0-9]+\.[0-9]+\.[0-9]+-rc\.[0-9]+" "$notes" |
+           sort -u | paste -sd' ' - || true)
+if [ -n "$leftover" ]; then
+    cat >&2 <<EOF
+WARNING: $notes still references $leftover — the compare link's base.
+  Set it to the previous finalized release of $component before publishing; a published
+  note compares finalized tag to finalized tag.
+EOF
+fi
