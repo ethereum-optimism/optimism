@@ -3628,7 +3628,8 @@
                 "group": "Operations",
                 "pages": [
                   "notices/specialized-node-topology",
-                  "notices/subblocks"
+                  "notices/subblocks",
+                  "notices/preconfirmation-architecture-transition"
                 ]
               },
               "notices/archive/index"
