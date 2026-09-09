@@ -2,6 +2,7 @@
 pragma solidity 0.8.15;
 
 // Testing
+import { console } from "forge-std/console.sol";
 import { VmSafe } from "forge-std/Vm.sol";
 import { stdStorage, StdStorage } from "forge-std/StdStorage.sol";
 import { CommonTest } from "test/setup/CommonTest.sol";
@@ -54,9 +55,30 @@ contract OPContractsManagerV2_TestInit is CommonTest {
     /// @notice Buffer percentage (relative to EIP-7825 gas limit) allowed for deployments.
     uint256 public constant DEPLOY_GAS_BUFFER_PERCENTAGE = 80; // 80%
 
+    /// @notice Maximum execution gas allowed for a deployment.
+    uint64 public constant BLOCK_GAS_LIMIT = 60_000_000;
+
     /// @notice Sets up the test suite.
     function setUp() public virtual override {
         super.setUp();
+    }
+
+    /// @notice Asserts that the most recent deployment remains within transaction gas limits.
+    function _assertDeployGasWithinLimits() internal view {
+        uint256 fusakaLimit = 2 ** 24;
+        VmSafe.Gas memory gas = vm.lastFrameGas();
+        console.log("Deploy execution gas:", gas.gasTotalUsed);
+        console.log("Deploy state gas:", gas.gasStateUsed);
+        assertLt(
+            gas.gasTotalUsed,
+            fusakaLimit * DEPLOY_GAS_BUFFER_PERCENTAGE / 100,
+            string.concat(
+                "Deploy exceeds gas target of ", vm.toString(DEPLOY_GAS_BUFFER_PERCENTAGE), "% of 2**24 (EIP-7825)"
+            )
+        );
+
+        assertLt(gas.gasTotalUsed, BLOCK_GAS_LIMIT, "Deploy execution gas exceeds block gas limit");
+        assertLt(gas.gasStateUsed, BLOCK_GAS_LIMIT, "Deploy state gas exceeds block gas limit");
     }
 
     /// @notice Helper function that runs an OPCM V2 deploy, asserts that the deploy was successful,
@@ -121,17 +143,7 @@ contract OPContractsManagerV2_TestInit is CommonTest {
             return cts_;
         }
 
-        // Less than the buffer percentage of the EIP-7825 gas limit to account for the gas used
-        // by using Safe.
-        uint256 fusakaLimit = 2 ** 24;
-        VmSafe.Gas memory gas = vm.lastCallGas();
-        assertLt(
-            gas.gasTotalUsed,
-            fusakaLimit * DEPLOY_GAS_BUFFER_PERCENTAGE / 100,
-            string.concat(
-                "Deploy exceeds gas target of ", vm.toString(DEPLOY_GAS_BUFFER_PERCENTAGE), "% of 2**24 (EIP-7825)"
-            )
-        );
+        _assertDeployGasWithinLimits();
 
         // Coverage changes bytecode, so we get various errors. We can safely ignore the result of
         // the standard validator in the coverage case.
@@ -2238,9 +2250,11 @@ contract OPContractsManagerV2_Deploy_Test is OPContractsManagerV2_TestInit {
 
         vm.prank(senderA);
         IOPContractsManagerV2.ChainContracts memory ctsA = opcmV2.deploy(deployConfig);
+        _assertDeployGasWithinLimits();
 
         vm.prank(senderB);
         IOPContractsManagerV2.ChainContracts memory ctsB = opcmV2.deploy(deployConfig);
+        _assertDeployGasWithinLimits();
 
         assertNotEq(
             address(ctsA.systemConfig), address(ctsB.systemConfig), "systemConfig addresses should differ by sender"
@@ -2343,6 +2357,7 @@ contract OPContractsManagerV2_Deploy_Test is OPContractsManagerV2_TestInit {
         deployConfig.startingRespectedGameType = GameTypes.CANNON_KONA;
 
         IOPContractsManagerV2.ChainContracts memory cts = opcmV2.deploy(deployConfig);
+        _assertDeployGasWithinLimits();
         assertEq(
             address(cts.disputeGameFactory.gameImpls(GameTypes.CANNON_KONA)),
             opcmV2.implementations().faultDisputeGameImpl,
@@ -2452,6 +2467,7 @@ contract OPContractsManagerV2_Deploy_Test is OPContractsManagerV2_TestInit {
         deployConfig.startingRespectedGameType = GameTypes.SUPER_CANNON_KONA;
 
         IOPContractsManagerV2.ChainContracts memory cts = opcmV2.deploy(deployConfig);
+        _assertDeployGasWithinLimits();
         assertEq(
             address(cts.disputeGameFactory.gameImpls(GameTypes.SUPER_CANNON_KONA)),
             opcmV2.implementations().superFaultDisputeGameImpl,
