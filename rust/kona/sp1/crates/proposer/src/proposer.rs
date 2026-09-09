@@ -968,14 +968,99 @@ impl Proposer {
         let _ = self.max_prove_duration.set(game_args.max_prove_duration);
         let _ = self.max_challenge_duration.set(game_args.max_challenge_duration);
 
-        // Fetch and validate the anchor root from the currently registered registry.
-        let anchor =
-            self.l1_view.anchor_root(game_args.anchor_state_registry, BlockId::latest()).await?;
-        anyhow::ensure!(
-            anchor.root != B256::ZERO,
-            "anchor state registry has no anchor root (game creation would revert)"
-        );
-        anchor.sequence_number.try_into().context("anchor sequence number exceeds u64")
+        self.validated_anchor_timestamp().await
+    }
+
+    /// Return the timestamp only when the registered anchor matches the supernode root.
+    /// Registry and anchor reads share one L1 block hash; the supernode lookup uses
+    /// the exact anchor timestamp. Failures log diagnostics and remain retryable.
+    async fn validated_anchor_timestamp(&self) -> Result<u64> {
+        let head = self
+            .l1_view
+            .latest_head()
+            .await
+            .and_then(|head| head.context("latest L1 block unavailable"))
+            .inspect_err(|error| {
+                tracing::warn!(%error, "cannot observe anchor L1 block");
+            })?;
+        let block = BlockId::hash(head.hash);
+        let args = self.l1_view.registered_game_args(block).await.inspect_err(|error| {
+            tracing::warn!(l1_block = ?head, %error, "cannot resolve anchor registry");
+        })?;
+        let registry = args.anchor_state_registry;
+        let anchor = self.l1_view.anchor_root(registry, block).await.inspect_err(|error| {
+            tracing::warn!(%registry, l1_block = ?head, %error, "cannot read anchor root");
+        })?;
+        if anchor.root == B256::ZERO {
+            tracing::error!(
+                %registry,
+                l1_block = ?head,
+                anchor_root = %anchor.root,
+                sequence_number = %anchor.sequence_number,
+                "anchor root is zero"
+            );
+            bail!("anchor validation: zero root");
+        }
+        let timestamp: u64 = anchor.sequence_number.try_into().map_err(|error| {
+            tracing::error!(
+                %registry,
+                l1_block = ?head,
+                anchor_root = %anchor.root,
+                sequence_number = %anchor.sequence_number,
+                %error,
+                "anchor sequence number exceeds u64"
+            );
+            anyhow::anyhow!("anchor validation: timestamp exceeds u64")
+        })?;
+        let canonical =
+            self.superroot_source.super_root_at_timestamp(timestamp).await.inspect_err(
+                |error| {
+                    tracing::warn!(
+                        %registry,
+                        l1_block = ?head,
+                        anchor_root = %anchor.root,
+                        timestamp,
+                        %error,
+                        "canonical anchor root unavailable"
+                    );
+                },
+            )?;
+        let Some(root) = canonical.root else {
+            tracing::warn!(
+                %registry,
+                l1_block = ?head,
+                anchor_root = %anchor.root,
+                timestamp,
+                "canonical anchor root missing"
+            );
+            bail!("anchor validation: canonical root missing");
+        };
+        if root.super_root != anchor.root {
+            let trusted = response_trusted(&canonical.response);
+            if trusted {
+                tracing::error!(
+                    %registry,
+                    l1_block = ?head,
+                    anchor_root = %anchor.root,
+                    expected_root = %root.super_root,
+                    timestamp,
+                    trusted,
+                    "anchor root disagrees with canonical super root"
+                );
+            } else {
+                tracing::warn!(
+                    %registry,
+                    l1_block = ?head,
+                    anchor_root = %anchor.root,
+                    expected_root = %root.super_root,
+                    timestamp,
+                    trusted,
+                    "anchor root disagrees with untrusted super root"
+                );
+            }
+            bail!("anchor validation: root mismatch");
+        }
+        Ok(timestamp)
     }
 
     /// Synchronizes the proposer's cached view of the dispute-game tree with the on-chain state.
@@ -1519,10 +1604,6 @@ impl Proposer {
                 );
             }
         } else {
-            // Preserve canonical_head_sequence_number as the anchor baseline for
-            // the first proposal. Clearing it would block creation on fresh
-            // deployments or pinned snapshots without games.
-            // canonical_head_index = -1 reports the no-head state.
             state.canonical_head_index = None;
 
             if previous_canonical_index.is_some() {
@@ -2091,6 +2172,18 @@ impl Proposer {
                 self.l1_view.game_by_uuid(super_root.super_root, extra_data.clone()).await?;
 
             if existing_game == Address::ZERO {
+                // The anchor can advance while UUID collisions are checked.
+                if parent_game_index == u32::MAX {
+                    let anchor_timestamp = self.validated_anchor_timestamp().await?;
+                    if sequence_number <= anchor_timestamp {
+                        tracing::info!(
+                            sequence_number,
+                            anchor_timestamp,
+                            "Skipping creation: claim does not follow current anchor"
+                        );
+                        return Ok(());
+                    }
+                }
                 tracing::info!(
                     sequence_number,
                     parent_game_index,
@@ -2737,11 +2830,6 @@ impl Proposer {
         let (canonical_head_sequence_number, parent_game_index) = {
             let state = self.state.read().await;
 
-            let Some(canonical_head_sequence_number) = state.canonical_head_sequence_number else {
-                tracing::info!("No canonical head; skipping game creation");
-                return Ok((false, 0, u32::MAX));
-            };
-
             // When the canonical head IS the anchor game, use u32::MAX (anchor path) instead of
             // referencing it by index. The contract requires parent.l2SeqNum > anchor.l2SeqNum,
             // so the anchor itself cannot be used as a parent via index.
@@ -2752,7 +2840,16 @@ impl Proposer {
                 .map(|index| index.to::<u32>())
                 .unwrap_or(u32::MAX);
 
-            (canonical_head_sequence_number, parent_game_index)
+            (state.canonical_head_sequence_number, parent_game_index)
+        };
+        let canonical_head_sequence_number = if parent_game_index == u32::MAX {
+            self.validated_anchor_timestamp().await?
+        } else {
+            let Some(timestamp) = canonical_head_sequence_number else {
+                tracing::info!("No canonical head; skipping game creation");
+                return Ok((false, 0, u32::MAX));
+            };
+            timestamp
         };
 
         let max_proposable = self.max_proposable_timestamp().await?;
@@ -3761,7 +3858,7 @@ mod tests {
         next_proposal_timestamp,
     };
     use crate::{
-        ZK_GAME_TYPE,
+        TxErrorExt, ZK_GAME_TYPE,
         adapters::ProductionL1View,
         config::{
             PrestatePrograms, ProofProviderConfig, ProofProviderKind, ProposalSafety,
@@ -3879,7 +3976,7 @@ mod tests {
     }
 
     #[derive(Clone, Debug, PartialEq, Eq)]
-    enum ActionCall {
+    pub(super) enum ActionCall {
         Create { root_claim: B256, extra_data: Vec<u8>, init_bond: U256 },
         Prove { game: Address, proof: Vec<u8> },
         Resolve(Address),
@@ -3893,8 +3990,8 @@ mod tests {
     }
 
     #[derive(Default)]
-    struct RecordingActionExecutor {
-        calls: StdMutex<Vec<ActionCall>>,
+    pub(super) struct RecordingActionExecutor {
+        pub(super) calls: parking_lot::Mutex<Vec<ActionCall>>,
         create_failure: Option<CreateFailure>,
         prove_failures: StdMutex<usize>,
     }
@@ -3916,11 +4013,7 @@ mod tests {
                 }
                 None => {}
             }
-            self.calls.lock().unwrap().push(ActionCall::Create {
-                root_claim,
-                extra_data,
-                init_bond,
-            });
+            self.calls.lock().push(ActionCall::Create { root_claim, extra_data, init_bond });
             Ok(GameCreationReceipt {
                 game_address: Address::left_padding_from(&[0xc1]),
                 transaction_hash: B256::left_padding_from(&[0xc2]),
@@ -3928,7 +4021,7 @@ mod tests {
         }
 
         async fn prove_game(&self, game: Address, proof: Vec<u8>) -> anyhow::Result<B256> {
-            self.calls.lock().unwrap().push(ActionCall::Prove { game, proof });
+            self.calls.lock().push(ActionCall::Prove { game, proof });
             let mut failures = self.prove_failures.lock().unwrap();
             if *failures > 0 {
                 *failures -= 1;
@@ -3938,12 +4031,12 @@ mod tests {
         }
 
         async fn resolve_game(&self, game: Address) -> anyhow::Result<B256> {
-            self.calls.lock().unwrap().push(ActionCall::Resolve(game));
+            self.calls.lock().push(ActionCall::Resolve(game));
             Ok(B256::left_padding_from(&[0xd1]))
         }
 
         async fn claim_credit(&self, game: Address, recipient: Address) -> anyhow::Result<B256> {
-            self.calls.lock().unwrap().push(ActionCall::ClaimCredit { game, recipient });
+            self.calls.lock().push(ActionCall::ClaimCredit { game, recipient });
             Ok(B256::left_padding_from(&[0xf1]))
         }
     }
@@ -3961,6 +4054,7 @@ mod tests {
         anchor_game: Address,
         registered_args: ZKGameArgs,
         anchor_root: AnchorRoot,
+        anchor_snapshot: Option<(B256, Address, AnchorRoot)>,
         factory_game: FactoryGame,
         game_claim: GameClaim,
         game_identity: GameIdentity,
@@ -4003,6 +4097,7 @@ mod tests {
                     root: B256::left_padding_from(&[1]),
                     sequence_number: U256::ZERO,
                 },
+                anchor_snapshot: None,
                 factory_game: FactoryGame { address: Address::ZERO, game_type: ZK_GAME_TYPE },
                 game_claim: GameClaim {
                     status: ProposalStatus::Unchallenged as u8,
@@ -4087,7 +4182,13 @@ mod tests {
         async fn registered_game_args(&self, block: BlockId) -> anyhow::Result<ZKGameArgs> {
             self.record("registered_game_args");
             self.record_block("registered_game_args", block);
-            Ok(self.registered_args.clone())
+            let mut args = self.registered_args.clone();
+            if let Some((hash, registry, _)) = self.anchor_snapshot &&
+                block == BlockId::hash(hash)
+            {
+                args.anchor_state_registry = registry;
+            }
+            Ok(args)
         }
 
         async fn anchor_root(
@@ -4098,6 +4199,12 @@ mod tests {
             self.record("anchor_root");
             self.record_block("anchor_root", block);
             self.anchor_targets.lock().unwrap().push((registry, block));
+            if let Some((hash, snapshot_registry, anchor)) = self.anchor_snapshot &&
+                block == BlockId::hash(hash) &&
+                registry == snapshot_registry
+            {
+                return Ok(anchor);
+            }
             Ok(self.anchor_root)
         }
 
@@ -4299,6 +4406,27 @@ mod tests {
                 super_root: root,
             }),
         }
+    }
+
+    pub(super) fn canonical_super_root_at_timestamp(timestamp: u64) -> SuperRootAtTimestamp {
+        use kona_sp1_super_range_executor::{ChainId, ChainIdAndOutput, proof_from_super_v1};
+
+        let mut canonical = super_root_at_timestamp(timestamp, B256::ZERO, 12, 11);
+        let data = canonical.response.data.as_mut().unwrap();
+        data.super_v1.chains = vec![ChainIdAndOutput {
+            chain_id: ChainId(U256::from(10)),
+            output: B256::repeat_byte(0xab),
+        }];
+        data.super_root = B256::from(
+            *kona_sp1_client_utils::super_root::hash_super_root_proof(
+                &proof_from_super_v1(&data.super_v1).unwrap(),
+            )
+            .unwrap(),
+        );
+        canonical.root =
+            crate::superroot::SuperrootClient::super_root_at(&canonical.response, timestamp)
+                .unwrap();
+        canonical
     }
 
     fn absent_super_root_at_timestamp(local_safe: u64) -> SuperRootAtTimestamp {
@@ -5384,6 +5512,116 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn anchor_validation_uses_one_l1_snapshot() {
+        let pinned = canonical_super_root_at_timestamp(100);
+        let latest = canonical_super_root_at_timestamp(200);
+        let head = L1BlockRef { hash: B256::repeat_byte(0x11), number: 1, timestamp: 1_000 };
+        let mut proposer = test_proposer().await;
+        proposer.l1_view = Arc::new(RecordingL1View {
+            latest_head: Some(head),
+            registered_args: ZKGameArgs {
+                anchor_state_registry: Address::repeat_byte(0xbb),
+                ..RecordingL1View::default().registered_args
+            },
+            anchor_root: AnchorRoot {
+                root: latest.root.as_ref().unwrap().super_root,
+                sequence_number: U256::from(200),
+            },
+            anchor_snapshot: Some((
+                head.hash,
+                Address::repeat_byte(0xaa),
+                AnchorRoot {
+                    root: pinned.root.as_ref().unwrap().super_root,
+                    sequence_number: U256::from(100),
+                },
+            )),
+            ..Default::default()
+        });
+        proposer.superroot_source = Arc::new(ScriptedSuperRootSource {
+            horizon: ProposalHorizon { safe_timestamp: 200, finalized_timestamp: 200 },
+            roots: vec![(100, pinned), (200, latest)],
+        });
+
+        proposer.validate_and_init().await.unwrap();
+
+        assert_eq!(proposer.state.read().await.canonical_head_sequence_number, Some(100));
+    }
+
+    #[tokio::test]
+    async fn anchor_validation_rejects_mismatched_starting_root() {
+        let canonical = canonical_super_root_at_timestamp(100);
+        let mut proposer = test_proposer().await;
+        proposer.l1_view = Arc::new(RecordingL1View {
+            anchor_root: AnchorRoot {
+                root: B256::repeat_byte(0xff),
+                sequence_number: U256::from(100),
+            },
+            ..Default::default()
+        });
+        proposer.superroot_source = Arc::new(ScriptedSuperRootSource {
+            horizon: ProposalHorizon { safe_timestamp: 200, finalized_timestamp: 200 },
+            roots: vec![(100, canonical)],
+        });
+
+        assert!(
+            proposer.validate_and_init().await.is_err(),
+            "initialization accepted a mismatched anchor root"
+        );
+        assert_eq!(proposer.state.read().await.canonical_head_sequence_number, None);
+    }
+
+    #[tokio::test]
+    async fn anchor_validation_rejects_zero_root_and_timestamp_overflow() {
+        for anchor in [
+            AnchorRoot { root: B256::ZERO, sequence_number: U256::ZERO },
+            AnchorRoot { root: B256::repeat_byte(0x11), sequence_number: U256::MAX },
+        ] {
+            let mut proposer = test_proposer().await;
+            proposer.l1_view =
+                Arc::new(RecordingL1View { anchor_root: anchor, ..Default::default() });
+            proposer.superroot_source = Arc::new(ScriptedSuperRootSource {
+                horizon: ProposalHorizon {
+                    safe_timestamp: u64::MAX,
+                    finalized_timestamp: u64::MAX,
+                },
+                roots: vec![
+                    (0, super_root_at_timestamp(0, anchor.root, 12, 11)),
+                    (u64::MAX, super_root_at_timestamp(u64::MAX, anchor.root, 12, 11)),
+                ],
+            });
+
+            assert!(proposer.validate_and_init().await.is_err());
+            assert_eq!(proposer.state.read().await.canonical_head_sequence_number, None);
+        }
+    }
+
+    #[tokio::test]
+    async fn anchor_validation_timestamp_zero_requires_matching_data() {
+        let canonical = canonical_super_root_at_timestamp(0);
+        for (response, expected) in [
+            (Some(canonical.clone()), Some(0)),
+            (Some(absent_super_root_at_timestamp(0)), None),
+            (None, None),
+        ] {
+            let mut proposer = test_proposer().await;
+            proposer.l1_view = Arc::new(RecordingL1View {
+                anchor_root: AnchorRoot {
+                    root: canonical.root.as_ref().unwrap().super_root,
+                    sequence_number: U256::ZERO,
+                },
+                ..Default::default()
+            });
+            proposer.superroot_source = Arc::new(ScriptedSuperRootSource {
+                horizon: ProposalHorizon { safe_timestamp: 100, finalized_timestamp: 100 },
+                roots: response.into_iter().map(|response| (0, response)).collect(),
+            });
+
+            assert_eq!(proposer.validate_and_init().await.is_ok(), expected.is_some());
+            assert_eq!(proposer.state.read().await.canonical_head_sequence_number, expected);
+        }
+    }
+
+    #[tokio::test]
     async fn initialization_snapshots_proving_durations_across_registry_rotation() {
         fn registered_view(
             prestate: B256,
@@ -5403,7 +5641,10 @@ mod tests {
                     weth,
                 },
                 anchor_root: AnchorRoot {
-                    root: B256::left_padding_from(&[sequence_number as u8]),
+                    root: canonical_super_root_at_timestamp(sequence_number)
+                        .root
+                        .unwrap()
+                        .super_root,
                     sequence_number: U256::from(sequence_number),
                 },
                 ..Default::default()
@@ -5438,26 +5679,21 @@ mod tests {
                 )
                 .await;
         }
+        proposer.superroot_source = Arc::new(ScriptedSuperRootSource {
+            horizon: ProposalHorizon { safe_timestamp: 200, finalized_timestamp: 200 },
+            roots: vec![
+                (100, canonical_super_root_at_timestamp(100)),
+                (200, canonical_super_root_at_timestamp(200)),
+            ],
+        });
 
-        proposer.l1_view = first.clone();
+        proposer.l1_view = first;
         assert_eq!(proposer.startup_validations().await.unwrap(), 100);
-        proposer.l1_view = second.clone();
+        proposer.l1_view = second;
         assert_eq!(proposer.startup_validations().await.unwrap(), 200);
 
         assert_eq!(proposer.max_challenge_duration.get(), Some(&10));
         assert_eq!(proposer.max_prove_duration.get(), Some(&20));
-        assert_eq!(
-            *first.anchor_targets.lock().unwrap(),
-            vec![(first_registry, BlockId::latest())]
-        );
-        assert_eq!(
-            *second.anchor_targets.lock().unwrap(),
-            vec![(second_registry, BlockId::latest())]
-        );
-        let expected_blocks =
-            vec![("registered_game_args", BlockId::latest()), ("anchor_root", BlockId::latest())];
-        assert_eq!(first.block_calls(), expected_blocks);
-        assert_eq!(second.block_calls(), expected_blocks);
     }
 
     #[tokio::test]
@@ -5519,7 +5755,7 @@ mod tests {
         proposer.claim_bonds().await.unwrap();
 
         assert_eq!(
-            *actions.calls.lock().unwrap(),
+            *actions.calls.lock(),
             vec![
                 ActionCall::Create { root_claim, extra_data, init_bond: U256::ZERO },
                 ActionCall::Resolve(game.address),
@@ -5589,7 +5825,7 @@ mod tests {
         drop(calls);
         assert_eq!(engine.generations.load(AtomicOrdering::SeqCst), 1);
         assert_eq!(
-            *actions.calls.lock().unwrap(),
+            *actions.calls.lock(),
             vec![
                 ActionCall::Prove { game: game.address, proof: proof.clone() },
                 ActionCall::Prove { game: game.address, proof },
@@ -5648,7 +5884,7 @@ mod tests {
 
             let result = proposer.prove_game(game.address).await;
             assert_eq!(result.is_err(), fail);
-            assert!(actions.calls.lock().unwrap().is_empty());
+            assert!(actions.calls.lock().is_empty());
             let expected_clears = if fail { Vec::new() } else { vec![game.address] };
             assert_eq!(*engine.cleared.lock().unwrap(), expected_clears);
         }
@@ -5661,17 +5897,25 @@ mod tests {
         {
             let root = B256::repeat_byte(0x11);
             let mut proposer = test_proposer().await;
-            proposer.l1_view = Arc::new(RecordingL1View::default());
+            let anchor = canonical_super_root_at_timestamp(0);
+            proposer.l1_view = Arc::new(RecordingL1View {
+                anchor_root: AnchorRoot {
+                    root: anchor.root.as_ref().unwrap().super_root,
+                    sequence_number: U256::ZERO,
+                },
+                ..Default::default()
+            });
             proposer.superroot_source = Arc::new(ScriptedSuperRootSource {
                 horizon: ProposalHorizon { safe_timestamp: 100, finalized_timestamp: 100 },
-                roots: vec![(100, super_root_at_timestamp(100, root, 12, 11))],
+                roots: vec![(0, anchor), (100, super_root_at_timestamp(100, root, 12, 11))],
             });
             proposer.action_executor = Arc::new(RecordingActionExecutor {
                 create_failure: Some(failure),
                 ..Default::default()
             });
 
-            assert!(proposer.handle_game_creation(100, u32::MAX).await.is_err());
+            let error = proposer.handle_game_creation(100, u32::MAX).await.unwrap_err();
+            assert_eq!(error.is_revert(), !should_retain);
             assert_eq!(proposer.in_flight_creation.lock().await.is_some(), should_retain);
         }
     }
