@@ -16,6 +16,7 @@ import { EIP1967Helper } from "test/mocks/EIP1967Helper.sol";
 import { Claim, Duration, Hash } from "src/dispute/lib/LibUDT.sol";
 import { GameType, GameTypes, Proposal } from "src/dispute/lib/Types.sol";
 import { LibGameArgs } from "src/dispute/lib/LibGameArgs.sol";
+import { SemverComp } from "src/libraries/SemverComp.sol";
 import { Constants } from "src/libraries/Constants.sol";
 import { DevFeatures } from "src/libraries/DevFeatures.sol";
 import { Features } from "src/libraries/Features.sol";
@@ -260,12 +261,14 @@ contract OPContractsManagerV2_Upgrade_TestInit is OPContractsManagerV2_TestInit 
         address initialChallengerForV2 = DisputeGames.permissionedGameChallenger(disputeGameFactory);
         address initialProposerForV2 = DisputeGames.permissionedGameProposer(disputeGameFactory);
         v2UpgradeInput.systemConfig = systemConfig;
-        v2UpgradeInput.extraInstructions.push(
-            IOPContractsManagerUtils.ExtraInstruction({
-                key: Constants.PERMITTED_PROXY_DEPLOYMENT_KEY,
-                data: bytes("ETHLockbox")
-            })
-        );
+        if (SemverComp.parse(opcmV2.version()).major == 9) {
+            v2UpgradeInput.extraInstructions.push(
+                IOPContractsManagerUtils.ExtraInstruction({
+                    key: Constants.PERMITTED_PROXY_DEPLOYMENT_KEY,
+                    data: bytes("ETHLockbox")
+                })
+            );
+        }
         v2UpgradeInput.disputeGameConfigs.push(
             IOPContractsManagerUtils.DisputeGameConfig({
                 enabled: false,
@@ -1968,12 +1971,64 @@ contract OPContractsManagerV2_Deploy_Test is OPContractsManagerV2_TestInit {
 
     /// @notice Tests lockbox deployment permission and first activation without requiring a fork.
     function test_upgrade_missingLockbox_succeeds() public {
+        vm.mockCall(address(opcmV2), abi.encodeCall(IOPContractsManagerV2.version, ()), abi.encode("9.0.0"));
         _testUpgradeMissingLockbox(false);
     }
 
     /// @notice Tests that a CGT chain without a lockbox can upgrade without migrating portal ETH.
     function test_upgrade_missingLockboxCGT_succeeds() public {
+        vm.mockCall(address(opcmV2), abi.encodeCall(IOPContractsManagerV2.version, ()), abi.encode("9.0.0"));
         _testUpgradeMissingLockbox(true);
+    }
+
+    /// @notice Tests first lockbox activation with a v9 development version.
+    function test_upgrade_missingLockboxV9Dev_succeeds() public {
+        vm.mockCall(address(opcmV2), abi.encodeCall(IOPContractsManagerV2.version, ()), abi.encode("9.0.0-dev"));
+        _testUpgradeMissingLockbox(false);
+    }
+
+    /// @notice Tests that v8 rejects the ETHLockbox deployment instruction.
+    function test_upgrade_lockboxInstructionV8_reverts() public {
+        _assertUpgradeInstructionRejected("8.0.4", Constants.PERMITTED_PROXY_DEPLOYMENT_KEY, bytes("ETHLockbox"));
+    }
+
+    /// @notice Tests that the ETHLockbox deployment allowance expires in v10.
+    function test_upgrade_lockboxInstructionV10_reverts() public {
+        _assertUpgradeInstructionRejected("10.0.0", Constants.PERMITTED_PROXY_DEPLOYMENT_KEY, bytes("ETHLockbox"));
+    }
+
+    /// @notice Tests that the anchor root override remains unavailable in v9.
+    function test_upgrade_anchorRootInstructionV9_reverts() public {
+        _assertUpgradeInstructionRejected(
+            "9.0.0", "overrides.cfg.startingAnchorRoot", abi.encode(deployConfig.startingAnchorRoot)
+        );
+    }
+
+    /// @notice Checks that an upgrade rejects an instruction at the specified OPCM version.
+    /// @param _version The OPCM version to simulate.
+    /// @param _key The instruction key.
+    /// @param _data The instruction data.
+    function _assertUpgradeInstructionRejected(
+        string memory _version,
+        string memory _key,
+        bytes memory _data
+    )
+        internal
+    {
+        vm.mockCall(address(opcmV2), abi.encodeCall(IOPContractsManagerV2.version, ()), abi.encode(_version));
+        IOPContractsManagerV2.UpgradeInput memory input;
+        input.systemConfig = systemConfig;
+        input.extraInstructions = new IOPContractsManagerUtils.ExtraInstruction[](1);
+        input.extraInstructions[0] = IOPContractsManagerUtils.ExtraInstruction({ key: _key, data: _data });
+        prankDelegateCall(proxyAdmin.owner());
+        (bool success, bytes memory reason) =
+            address(opcmV2).delegatecall(abi.encodeCall(IOPContractsManagerV2.upgrade, (input)));
+        assertFalse(success);
+        // nosemgrep: sol-style-use-abi-encodecall
+        assertEq(
+            reason,
+            abi.encodeWithSelector(IOPContractsManagerV2.OPContractsManagerV2_InvalidUpgradeInstruction.selector, _key)
+        );
     }
 
     /// @notice Tests first lockbox activation and repeat upgrades for ETH and CGT chains.
