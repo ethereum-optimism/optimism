@@ -206,7 +206,7 @@ contract L2VerifyBetanetForkUpgrade_Events_Test is L2VerifyBetanetForkUpgrade_Te
         _verifyEvents(predeploys, logs, expectedImpls, storageSetterImpl);
     }
 
-    function _getLogs(PredeployState[] memory predeploys) internal returns (Vm.Log[] memory logs_) {
+    function _getLogs(PredeployState[] memory predeploys) internal view returns (Vm.Log[] memory logs_) {
         bytes32[] memory topics = new bytes32[](1);
         uint256 activationBlockNumber = Config.l2ForkBlockNumber() + 1;
         topics[0] = UPGRADED_EVENT_TOPIC;

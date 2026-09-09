@@ -1169,6 +1169,11 @@ contract L2ContractsManager_Reverter_Harness {
     fallback() external payable {
         revert L2ContractsManager_Reverter_Harness_AlwaysReverts();
     }
+
+    /// @notice Reverts on a bare value transfer, matching the fallback.
+    receive() external payable {
+        revert L2ContractsManager_Reverter_Harness_AlwaysReverts();
+    }
 }
 
 /// @title L2ContractsManager_Upgrade_Atomicity_Test
