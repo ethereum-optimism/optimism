@@ -13,6 +13,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-devstack/sysgo"
 	"github.com/ethereum-optimism/optimism/op-private-interop/codec"
 	"github.com/ethereum-optimism/optimism/op-private-interop/render"
+	"github.com/ethereum-optimism/optimism/op-service/bigs"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/txintent"
 	"github.com/ethereum-optimism/optimism/op-service/txintent/bindings"
@@ -29,7 +30,6 @@ func TestPrivateOutageDoesNotBlockPublicProgress(gt *testing.T) {
 	)
 	require := t.Require()
 	alice := sys.FunderL1.NewFundedEOA(eth.OneEther)
-	resender := sys.FunderB.NewFundedEOA(eth.OneEther)
 	receiver := sys.FunderA.NewFundedEOA(eth.OneEther)
 	require.Eventually(func() bool {
 		status, err := sys.L2BSupernodeCL.Escape().RollupAPI().SyncStatus(t.Ctx())
@@ -103,7 +103,7 @@ func TestPrivateOutageDoesNotBlockPublicProgress(gt *testing.T) {
 	require.Len(privateReceipt.Logs, 1, "the forced send must exist in private state after recovery")
 	// Execution can reach the live head before the batcher drains its backlog.
 	// Require accepted private claims within eight blocks of the current head;
-	// otherwise even a freshly executed resend can expire behind old batches.
+	// otherwise even a freshly forced deposit can expire behind old batches.
 	require.Eventually(func() bool {
 		private, err := sys.L2BCL.Escape().RollupAPI().SyncStatus(t.Ctx())
 		if err != nil {
@@ -113,7 +113,20 @@ func TestPrivateOutageDoesNotBlockPublicProgress(gt *testing.T) {
 		return err == nil && private.UnsafeL2.Time >= counterparty.UnsafeL2.Time &&
 			private.LocalSafeL2.Number <= private.UnsafeL2.Number &&
 			private.UnsafeL2.Number-private.LocalSafeL2.Number <= maxCatchupLag
-	}, 3*time.Minute, time.Second, "private execution and accepted publication must catch up before resending")
-	resent := resendPrivateMessage(t, resender, privateReceipt)
-	relayPrivateMessage(t, receiver, sys.L2ELB, sys.L2ASupernodeCL, resent)
+	}, 3*time.Minute, time.Second, "private execution and accepted publication must catch up before forcing a new deposit")
+
+	// Repeat the L1 deposit now that publication is online. This is a new send,
+	// not a sequenced resend of the message whose publication window expired.
+	privateDepositor := alice.AsEL(sys.L2ELB).ViaDepositTx(alice, sys.L2ELB, sys.L2B)
+	forced := privateDepositor.DepositTx(predeploys.L2toL2CrossDomainMessengerAddr, calldata)
+	require.NotEqual(missed.TxHash, forced.TxHash, "force a fresh L1 inclusion")
+	require.Len(forced.Logs, 1)
+	require.Greater(bigs.Uint64Strict(forced.BlockNumber), bigs.Uint64Strict(privateReceipt.BlockNumber))
+	before, err := render.DecodeSentMessage(privateReceipt.Logs[0].Topics, privateReceipt.Logs[0].Data)
+	require.NoError(err)
+	after, err := render.DecodeSentMessage(forced.Logs[0].Topics, forced.Logs[0].Data)
+	require.NoError(err)
+	require.Equal(new(big.Int).Add(before.Nonce, big.NewInt(1)), after.Nonce,
+		"ordinary private deposit execution must retain the first send and allocate a fresh nonce")
+	relayPrivateMessage(t, receiver, sys.L2ELB, sys.L2ASupernodeCL, forced)
 }
