@@ -1,0 +1,33 @@
+// SPDX-License-Identifier: MIT
+pragma solidity 0.8.15;
+
+/// @notice Tool diagnostics only. These assertions do not execute or establish any RLP property.
+contract ByteWordKontrol {
+    function prove_memoryByte_forwardBound(bytes32 _head, bytes32 _tail) public pure {
+        uint256 value = uint8(abi.encode(_head, _tail)[1]);
+        assert(value <= 255);
+    }
+
+    function prove_memoryByte_reversedBound(bytes32 _head, bytes32 _tail) public pure {
+        uint256 value = uint8(abi.encode(_head, _tail)[1]);
+        assert(!(255 < value));
+    }
+
+    function prove_prefixByte_correspondence(bytes32 _head, bytes32 _tail) public pure {
+        bytes memory observation = abi.encode(_head, _tail);
+        uint256 loaded;
+        assembly {
+            loaded := byte(0, mload(add(observation, 32)))
+        }
+        assert(uint8(observation[0]) == loaded);
+    }
+
+    function prove_interiorByte_correspondence(bytes32 _head, bytes32 _tail) public pure {
+        bytes memory observation = abi.encode(_head, _tail);
+        bytes1 loaded;
+        assembly {
+            loaded := and(mload(add(observation, 33)), shl(248, 0xff))
+        }
+        assert(observation[1] == loaded);
+    }
+}

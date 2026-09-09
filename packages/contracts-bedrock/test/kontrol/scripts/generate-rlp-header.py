@@ -26,9 +26,12 @@ output.mkdir(parents=True, exist_ok=True)
 (output / "RLPReaderHeaderHarness.sol").write_text(generated)
 template = root / "test/kontrol/rlp-header/RLPHeader.k.sol.in"
 (output / "RLPHeader.k.sol").write_text(template.read_text())
+diagnostics = template.with_name("ByteWord.k.sol.in")
+(output / "ByteWord.k.sol").write_text(diagnostics.read_text())
 hashes = {"production": hashlib.sha256(original.encode()).hexdigest(),
           "generated": hashlib.sha256(generated.encode()).hexdigest(),
           "fixture": hashlib.sha256(template.read_bytes()).hexdigest(),
+          "diagnostics": hashlib.sha256(diagnostics.read_bytes()).hexdigest(),
           "inverse_source_matches": True}
 logs = root / "test/kontrol/logs/rlp-header"
 logs.mkdir(parents=True, exist_ok=True)

@@ -188,7 +188,7 @@ build-rlp-header:
 test-rlp-header:
   test "${CI:-}" = true
   python3 test/kontrol/scripts/generate-rlp-header.py
-  KONTROL_RLP_HEADER=true KONTROL_STRICT=true KONTROL_LOG_DIR=test/kontrol/logs/rlp-header ./test/kontrol/scripts/run-kontrol.sh container RLPHeaderKontrol.prove_header_accepted_succeeds RLPHeaderKontrol.prove_header_short_equivalence RLPHeaderKontrol.prove_header_longData_equivalence RLPHeaderKontrol.prove_header_longList_equivalence
+  KONTROL_RLP_HEADER=true KONTROL_STRICT=true KONTROL_LOG_DIR=test/kontrol/logs/rlp-header ./test/kontrol/scripts/run-kontrol.sh container ByteWordKontrol.prove_memoryByte_forwardBound ByteWordKontrol.prove_memoryByte_reversedBound ByteWordKontrol.prove_prefixByte_correspondence ByteWordKontrol.prove_interiorByte_correspondence
 
 # Run Kontrol tests and build all dependencies.
 test-kontrol: build-go-ffi build kontrol-summary-full test-kontrol-no-build

@@ -54,7 +54,8 @@ kontrol_prove() {
     prove_command=(timeout --signal=INT --kill-after=30s 60m kontrol prove)
     if [ "${KONTROL_RLP_HEADER:-false}" = true ]; then
       model_args=(--reinit --schedule CANCUN --no-gas)
-      prove_command=(timeout --signal=INT --kill-after=30s 15m kontrol prove)
+      prove_command=(timeout --signal=INT --kill-after=30s 5m kontrol prove)
+      rpc_command="bash test/kontrol/scripts/byte-word-rpc.sh --solver-transcript kout-proofs/diagnostics/byte-word ${rpc_command#kore-rpc-booster }"
     fi
   else
     rpc_command+=' --no-post-exec-simplify'
