@@ -813,6 +813,35 @@ func (n *OpNode) Stop(ctx context.Context) error {
 		}
 	}
 
+	// The driver closes before p2p and the block signer, because it owns the async
+	// gossiper whose publisher goroutine uses both, and that goroutine only stops
+	// as part of Driver.Close. Closing them first let a publish still in flight -
+	// or one of up to maxPublishQueue queued behind it - run against a closed topic
+	// and a closed signer.
+	if n.l2Driver != nil {
+		if err := n.l2Driver.Close(); err != nil {
+			result = errors.Join(result, fmt.Errorf("failed to close L2 engine driver cleanly: %w", err))
+		}
+	}
+
+	// Still ahead of resourcesClose, which cancels the context the pubsub instance
+	// was built on: closing a topic after that fails with the cancellation.
+	n.p2pMu.Lock()
+	if n.p2pNode != nil {
+		if err := n.p2pNode.Close(); err != nil {
+			result = errors.Join(result, fmt.Errorf("failed to close p2p node: %w", err))
+		}
+		// Prevent further use of p2p.
+		n.p2pNode = nil
+	}
+	n.p2pMu.Unlock()
+
+	if n.p2pSigner != nil {
+		if err := n.p2pSigner.Close(); err != nil {
+			result = errors.Join(result, fmt.Errorf("failed to close p2p signer: %w", err))
+		}
+	}
+
 	if n.resourcesClose != nil {
 		n.resourcesClose()
 	}
@@ -828,33 +857,6 @@ func (n *OpNode) Stop(ctx context.Context) error {
 	// stop polling for L1 finalized-head changes
 	if n.l1FinalizedSub != nil {
 		n.l1FinalizedSub.Unsubscribe()
-	}
-
-	// close L2 driver
-	if n.l2Driver != nil {
-		if err := n.l2Driver.Close(); err != nil {
-			result = errors.Join(result, fmt.Errorf("failed to close L2 engine driver cleanly: %w", err))
-		}
-	}
-
-	// p2p and the block signer are closed only now, after the driver. The driver
-	// owns the async gossiper, whose publisher goroutine uses both, and it only
-	// stops as part of Driver.Close. Closing them earlier let a publish still in
-	// flight - or a queued one - run against a closed topic and a closed signer.
-	n.p2pMu.Lock()
-	if n.p2pNode != nil {
-		if err := n.p2pNode.Close(); err != nil {
-			result = errors.Join(result, fmt.Errorf("failed to close p2p node: %w", err))
-		}
-		// Prevent further use of p2p.
-		n.p2pNode = nil
-	}
-	n.p2pMu.Unlock()
-
-	if n.p2pSigner != nil {
-		if err := n.p2pSigner.Close(); err != nil {
-			result = errors.Join(result, fmt.Errorf("failed to close p2p signer: %w", err))
-		}
 	}
 
 	if n.eventSys != nil {
