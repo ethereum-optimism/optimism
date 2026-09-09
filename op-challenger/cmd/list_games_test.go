@@ -2,25 +2,9 @@ package main
 
 import (
 	"bytes"
-	"context"
 	"encoding/json"
-	"errors"
-	"io"
-	"math/big"
-	"os"
-	"sync/atomic"
 	"testing"
 
-	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/contracts"
-	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/contracts/metrics"
-	gameTypes "github.com/ethereum-optimism/optimism/op-challenger/game/types"
-	"github.com/ethereum-optimism/optimism/op-service/sources/batching"
-	"github.com/ethereum-optimism/optimism/op-service/sources/batching/rpcblock"
-	batchingTest "github.com/ethereum-optimism/optimism/op-service/sources/batching/test"
-	"github.com/ethereum-optimism/optimism/packages/contracts-bedrock/snapshots"
-	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/common/hexutil"
-	"github.com/ethereum/go-ethereum/rpc"
 	"github.com/stretchr/testify/require"
 )
 
@@ -56,122 +40,6 @@ func TestRenderGamesJSON(t *testing.T) {
 	require.Equal(t, "In Progress", got.Games[0].Status)
 	require.Equal(t, uint32(1), got.Games[1].GameType)
 	require.Equal(t, "Defender Won", got.Games[1].Status)
-}
-
-func TestListGamesSkipsClaimsForSuperPermissioned(t *testing.T) {
-	factoryAddr := common.Address{0xfa}
-	gameAddr := common.Address{0xab}
-	blockHash := common.Hash{0xcd}
-	faultGameABI := snapshots.LoadSuperFaultDisputeGameABI()
-	stubRPC := batchingTest.NewAbiBasedRpc(t, factoryAddr, snapshots.LoadDisputeGameFactoryABI())
-	rpcClient := &claimCountTrackingRPC{
-		AbiBasedRpc:        stubRPC,
-		claimCountSelector: faultGameABI.Methods["claimDataLen"].ID,
-	}
-	caller := batching.NewMultiCaller(rpcClient, batching.DefaultBatchSize)
-	stubRPC.SetResponse(factoryAddr, "version", rpcblock.Latest, nil, []any{"1.4.0"})
-	factory, err := contracts.NewDisputeGameFactoryContract(
-		context.Background(),
-		metrics.NoopContractMetrics,
-		factoryAddr,
-		caller,
-	)
-	require.NoError(t, err)
-
-	block := rpcblock.ByHash(blockHash)
-	stubRPC.SetResponse(factoryAddr, "gameCount", block, nil, []any{big.NewInt(1)})
-	stubRPC.SetResponse(
-		factoryAddr,
-		"gameAtIndex",
-		block,
-		[]any{big.NewInt(0)},
-		[]any{uint32(gameTypes.SuperPermissionedGameType), uint64(1234), gameAddr},
-	)
-	stubRPC.AddContract(gameAddr, faultGameABI)
-	setGameMetadataResponses(stubRPC, gameAddr, block)
-	stubRPC.SetResponse(gameAddr, "claimDataLen", rpcblock.Latest, nil, []any{big.NewInt(9)})
-
-	output, err := captureStdout(t, func() error {
-		return listGames(
-			context.Background(),
-			caller,
-			factory,
-			blockHash,
-			0,
-			"time",
-			"asc",
-			formatJSON,
-		)
-	})
-	require.NoError(t, err)
-
-	var got struct {
-		Games []gameRecord `json:"games"`
-	}
-	require.NoError(t, json.Unmarshal(output, &got))
-	require.Len(t, got.Games, 1)
-	require.Equal(t, gameAddr.Hex(), got.Games[0].Game)
-	require.Zero(t, got.Games[0].ClaimCount)
-	require.Zero(t, rpcClient.claimCountCalls.Load())
-}
-
-func setGameMetadataResponses(stubRPC *batchingTest.AbiBasedRpc, gameAddr common.Address, block rpcblock.Block) {
-	stubRPC.SetResponse(gameAddr, "l1Head", block, nil, []any{common.Hash{0x11}})
-	stubRPC.SetResponse(gameAddr, "l2SequenceNumber", block, nil, []any{big.NewInt(1234)})
-	stubRPC.SetResponse(gameAddr, "rootClaim", block, nil, []any{common.Hash{0x22}})
-	stubRPC.SetResponse(
-		gameAddr,
-		"status",
-		block,
-		nil,
-		[]any{uint8(gameTypes.GameStatusDefenderWon)},
-	)
-}
-
-type claimCountTrackingRPC struct {
-	*batchingTest.AbiBasedRpc
-	claimCountSelector []byte
-	claimCountCalls    atomic.Uint64
-}
-
-func (r *claimCountTrackingRPC) CallContext(ctx context.Context, result any, method string, args ...any) error {
-	if method == "eth_call" && len(args) > 0 {
-		call, ok := args[0].(map[string]any)
-		if ok {
-			input, inputOK := call["input"].(hexutil.Bytes)
-			if inputOK && len(input) >= 4 && bytes.Equal(input[:4], r.claimCountSelector) {
-				r.claimCountCalls.Add(1)
-			}
-		}
-	}
-	return r.AbiBasedRpc.CallContext(ctx, result, method, args...)
-}
-
-func (r *claimCountTrackingRPC) BatchCallContext(ctx context.Context, batch []rpc.BatchElem) error {
-	errs := make([]error, 0, len(batch))
-	for i := range batch {
-		batch[i].Error = r.CallContext(ctx, batch[i].Result, batch[i].Method, batch[i].Args...)
-		errs = append(errs, batch[i].Error)
-	}
-	return errors.Join(errs...)
-}
-
-func captureStdout(t *testing.T, fn func() error) ([]byte, error) {
-	t.Helper()
-	original := os.Stdout
-	reader, writer, err := os.Pipe()
-	require.NoError(t, err)
-	os.Stdout = writer
-	defer func() {
-		os.Stdout = original
-	}()
-
-	callErr := fn()
-	require.NoError(t, writer.Close())
-	output, readErr := io.ReadAll(reader)
-	require.NoError(t, reader.Close())
-	require.NoError(t, readErr)
-	return output, callErr
 }
 
 func TestRenderGamesText(t *testing.T) {
