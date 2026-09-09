@@ -7,6 +7,35 @@ attributes handler to execute canonical deposit-only inputs against private stat
 checks the projection's timestamp, L1 origin and sequence number; projection hashes
 identify inputs and are never used as private forkchoice hashes.
 
+## Why a rewind works
+
+An execution block identifies its parent and the resulting state root. Selecting
+an older private block as the execution head selects that block's private state.
+It removes the later suffix from the canonical chain; it does not try to undo
+each application write individually. This requires the private execution client
+to retain the necessary block and state data.
+
+For example, suppose private block 40 is the surviving checkpoint and public
+blocks 41–46 have become deposit-only fallback blocks:
+
+1. Pause private sequencing and cancel any unfinished build.
+2. Authenticate private block 40 and its ancestry against the safety labels.
+3. Set private forkchoice to that checkpoint using the ordinary engine reset.
+4. For each public position 41–46, fetch its canonical L1 origin, timestamp and
+   sequence number. Build the corresponding private block from its **private**
+   parent with the ordinary L1 attributes and deposit builder, without txpool
+   transactions.
+5. Resume sequencing when the required interval is complete. If a surviving
+   prefix belongs to a larger rejected publication range, wait for that whole
+   reserved range before resuming.
+
+The same deposit can execute again on the replacement branch without being
+counted twice in canonical private state: execution starts from the selected
+parent's state. Ordinary private deposits remain enabled during recovery.
+Private and public replacement blocks need not have the same hash or state root.
+
+## Canonical recovery intervals
+
 Local-safe execution, cross-safety and finality remain separate. The adapter maps the
 projection's safety frontiers through the authenticated private ancestry. A projection
 reorg revokes affected private checkpoints; finalized private history cannot be revoked.
@@ -56,3 +85,63 @@ A reverted ClaimRegistry call alone does not invalidate its block or suppress se
 replay calls; adding a new proof verifier requires a consensus rule or atomic replay
 authorization that makes invalid proof handling effective. This adapter does not provide
 that rule.
+
+## The supernode contract
+
+The private follow route is `<chain route>/claimed`:
+
+- `optimism_syncStatus` carries normal private safety labels plus the
+  `private_recovery` plan: an authenticated private anchor, a public target,
+  public safe/finalized positions and, when needed, an attested surviving prefix.
+- `optimism_recoveryBlock(number, target)` returns the public block reference
+  for a recovery position. The target includes a hash, so requests are tied to a
+  canonical frontier. The server rejects revoked plans, changed targets and
+  intervals containing sequencer transactions.
+
+The recovery field is a plan, not a one-shot command. LightCL checks whether its
+current execution and previously applied public references still match it.
+An ordinary public follow source that never supplies this field continues using
+the normal follow path. Once private recovery has been enabled, silently losing
+the field pauses progress rather than changing synchronization modes.
+
+## Reorgs and safety
+
+LightCL checks follow snapshots against its own L1 connection. Its ordinary
+sequencer also detects orphaned L1 origins and requests an engine reset. The
+supernode is still needed to report public claim loss or interop invalidation:
+those cannot be inferred just from the private blocks' L1 origins.
+
+A lower accepted checkpoint can cause a conservative rewind even if the private
+suffix's L1 inputs have not changed. Keep this behavior: a temporarily lower
+public safety frontier and a pending claim-carrier invalidation can expose the
+same recovery plan. `target == anchor` with no prefix is not evidence that the
+unsafe suffix is valid.
+
+Recovery authenticates private ancestry, preserves finalized history, and stops
+on unavailable data or inconsistent inputs. An RPC failure is not permission to
+invent an origin schedule or continue sequencing. The stock sequencer's recovery
+flag alone is insufficient: its current L1-origin choice may differ from the
+canonical public schedule being recovered.
+
+## Regression coverage
+
+- `op-node/rollup/driver/follow_recovery*_test.go`: canonical attributes, branch
+  authentication, interval completion, checkpoint retreat and stale L1 snapshots.
+- `op-supernode/supernode/activity/claimfollow/`: claim revocation, canonical
+  recovery inputs, and the ambiguity between frontier retreat and invalidation.
+- `op-acceptance-tests/tests/interop/private-interop/recovery_test.go`: real
+  private execution and publication after an invalid interop message.
+- `op-acceptance-tests/tests/interop/private-interop/outage_test.go`: recovery
+  after sequencing-window expiry while the operator is stopped, followed by a
+  fresh forced deposit whose message is published and relayed.
+- `op-acceptance-tests/tests/interop/private-interop/l1_reorg_test.go`: canonical
+  private L1 origins and resumed publication after a real L1 reorg.
+
+The L1 reorg acceptance case removes a private origin. It does not isolate the
+case where only a claim's L1 publication disappears while every private origin
+stays canonical; the checkpoint-retreat unit test covers the adapter's behavior
+at that boundary.
+
+Projection deposit execution is a separate protocol rule. The current projection
+receipt builder suppresses deposit logs but still executes the transactions.
+That is not equivalent to deposits having no state effects.

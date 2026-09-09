@@ -140,6 +140,10 @@ func (f *followRecovery) adopt(ctx, rpcCtx context.Context, status *sources.Foll
 			return fmt.Errorf("private recovery branch contradicts finalized ancestry or safety labels")
 		}
 	}
+	// A lower checkpoint revokes the suffix even when this anchor is still on
+	// our canonical private branch. The plan alone cannot distinguish a temporary
+	// public safety retreat from a pending claim-carrier invalidation, so retaining
+	// unsafe execution here would require additional evidence from the source.
 	reset := lookupErr != nil || canonical != anchor || anchor.Number < f.engine.LocalSafeHead().Number || plan.Prefix != nil || f.build != nil
 	if reset || f.engine.PendingSafeL2Head() == (eth.L2BlockRef{}) {
 		f.pause(true)

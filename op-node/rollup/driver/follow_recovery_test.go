@@ -94,6 +94,57 @@ func TestFollowRecoveryAttributes(t *testing.T) {
 	}
 }
 
+func TestFollowRecoveryWithoutExtension(t *testing.T) {
+	for _, private := range []bool{false, true} {
+		t.Run(fmt.Sprintf("private_recovery_previously_enabled_%t", private), func(t *testing.T) {
+			genesis := eth.L2BlockRef{Hash: common.Hash{1}}
+			oldSafe := eth.L2BlockRef{Hash: common.Hash{3}, Number: 3}
+			newSafe := eth.L2BlockRef{Hash: common.Hash{4}, Number: 4}
+			unsafe := eth.L2BlockRef{Hash: common.Hash{5}, Number: 5}
+			el := &testutils.MockEngine{}
+			emitter := event.EmitterFunc(func(context.Context, event.Event) {})
+			ec := engine.NewEngineController(t.Context(), el, testlog.Logger(t, 0), metrics.NoopMetrics,
+				&rollup.Config{}, &syncconfig.Config{L2FollowSourceEndpoint: "http://localhost"}, &testutils.MockL1Source{}, emitter, nil)
+			ec.SetUnsafeHead(unsafe)
+			ec.SetLocalSafeHead(oldSafe)
+			//nolint:staticcheck // Follow mode stores externally supplied cross-safe in this field.
+			ec.SetDeprecatedSafeHead(oldSafe)
+			ec.SetFinalizedHead(genesis)
+			paused := false
+			f := &followRecovery{enabled: private, engine: ec,
+				pause: func(value bool) { paused = value },
+				source: recoverySourceFunc(func(context.Context, uint64, eth.BlockID) (eth.L2BlockRef, error) {
+					t.Fatal("a source without a recovery plan must not receive recoveryBlock calls")
+					return eth.L2BlockRef{}, nil
+				}),
+			}
+			if !private {
+				el.ExpectL2BlockRefByNumber(newSafe.Number, newSafe, nil)
+				el.ExpectForkchoiceUpdate(&eth.ForkchoiceState{
+					HeadBlockHash: unsafe.Hash, SafeBlockHash: newSafe.Hash, FinalizedBlockHash: genesis.Hash,
+				}, nil, &eth.ForkchoiceUpdatedResult{PayloadStatus: eth.PayloadStatusV1{Status: eth.ExecutionValid}}, nil)
+			}
+			err := f.update(t.Context(), &sources.FollowStatus{
+				LocalSafeL2: newSafe, SafeL2: newSafe, FinalizedL2: genesis,
+			})
+			if private {
+				require.ErrorContains(t, err, "omitted its snapshot")
+				require.True(t, paused, "loss of a private plan must pause sequencing")
+				require.Equal(t, oldSafe, ec.LocalSafeHead())
+			} else {
+				require.NoError(t, err)
+				require.False(t, paused, "ordinary public following must not activate private recovery")
+				require.False(t, f.enabled)
+				require.Equal(t, newSafe, ec.LocalSafeHead())
+				require.Equal(t, newSafe, ec.SafeL2Head())
+			}
+			require.Equal(t, unsafe, ec.UnsafeL2Head())
+			require.Equal(t, genesis, ec.FinalizedHead())
+			el.AssertExpectations(t)
+		})
+	}
+}
+
 type prefixL2 struct {
 	L2Chain
 	refs map[common.Hash]eth.L2BlockRef
