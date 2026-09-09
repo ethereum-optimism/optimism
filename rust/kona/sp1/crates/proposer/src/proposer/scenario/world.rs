@@ -1482,6 +1482,10 @@ impl ProofEngine for FakeProofEngine {
     }
 
     fn clear(&self, _game_address: Address) {}
+
+    fn retry_terminal_requests(&self, _game_address: Address) -> usize {
+        0
+    }
 }
 
 #[derive(Clone)]
