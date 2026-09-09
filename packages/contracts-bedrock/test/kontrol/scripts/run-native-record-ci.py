@@ -1,8 +1,8 @@
-"""CI-only single-receipt smoke diagnostic; never a full-suite readiness gate.
+"""CI-only single-receipt frontend diagnostic; never a security readiness gate.
 
 Temporary integration draft. The source manifest retains all eight receipts, but
-the first native execution probe selects receipt49 to inspect frontend/domain and
-CALL/return behavior before scheduling the remaining expensive proof searches.
+this probe compiles receipt49 and retains the real frontend output for comparison
+with the original claim before any native initialization or proof execution.
 """
 import argparse
 import hashlib
@@ -21,6 +21,7 @@ def main():
     args = parser.parse_args()
     if os.environ.get("CI") != "true":
         raise SystemExit("Native proof execution is authorized in CI only")
+    from kevm_pyk import config
     with tarfile.open(args.source_bundle, "r:xz") as archive:
         members = archive.getmembers()
         expected = {"manifest.json", *(f"receipt-{n}.k" for n in (49, 50, 51, 52, 57, 58, 59, 60))}
@@ -52,21 +53,28 @@ def main():
             raise ValueError("Source bundle checksum mismatch")
         (output / f"receipt-{row['node']}.k").write_bytes(source)
     selected = rows[0]
-    state = {"status": "STARTING_SINGLE_RECEIPT_DIAGNOSTIC", "selectedReceipt": selected["node"],
+    state = {"status": "STARTING_SINGLE_RECEIPT_FRONTEND", "selectedReceipt": selected["node"],
              "allEightSourceChecksumsVerified": True, "fullSecurityMilestone": False,
+             "proofExecutionEnabled": False,
              "remainingReceiptsNotExecuted": [row["node"] for row in rows[1:]],
              "limits": "Caller gas/memory/raw ABI correspondence and all accepted security obligations remain open."}
     (output / "diagnostic-status.json").write_text(json.dumps(state, indent=2) + "\n")
-    command = ["timeout", "--signal=INT", "--kill-after=30s", "60m", "kevm", "prove", "--verbose",
+    compiled_claim = output / "receipt-49.frontend.json"
+    command = ["timeout", "--signal=INT", "--kill-after=30s", "10m", "kprove",
         str(output / "receipt-49.k"), "--definition", str(args.definition),
-        "--spec-module", selected["module"], "--save-directory", str(output / "proofs"),
-        "--reinit", "--workers", "1", "--max-depth", "1000", "--max-iterations", "10000",
-        "--maintenance-rate", "1", "--smt-timeout", "16000", "--smt-retry-limit", "0",
-        "--no-counterexample-information", "--kore-rpc-command",
-        "kore-rpc-booster --equation-max-recursion 100 --equation-max-iterations 1000 --fallback-on Stuck,Aborted"]
-    print("NATIVE CALL DIAGNOSTIC ONLY: receipt49; no full-suite or security completion", flush=True)
+        "--spec-module", selected["module"], "--md-selector", "k", "--output", "json",
+        "--temp-dir", str(output), "--dry-run", "--emit-json-spec", str(compiled_claim.resolve()),
+        "--allow-rules"]
+    for directory in config.INCLUDE_DIRS:
+        command.extend(["-I", str(directory)])
+    print("FRONTEND ONLY: receipt49; compiled claim requires audit before proof execution", flush=True)
     result = subprocess.run(command, check=False)
-    state.update(status="DIAGNOSTIC_PROCESS_FINISHED", exitCode=result.returncode)
+    state.update(status="FRONTEND_PROCESS_FINISHED", exitCode=result.returncode)
+    if result.returncode == 0:
+        raw = compiled_claim.read_bytes()
+        json.loads(raw)
+        state.update(status="FRONTEND_OUTPUT_READY_REQUIRES_AUDIT",
+                     compiledClaimSha256=hashlib.sha256(raw).hexdigest(), compiledClaimBytes=len(raw))
     (output / "diagnostic-status.json").write_text(json.dumps(state, indent=2) + "\n")
     raise SystemExit(result.returncode)
 
