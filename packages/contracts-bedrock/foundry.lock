@@ -3,7 +3,7 @@
     "rev": "7715c7dc14049b9b2162b8e166fbf89b7ae5ab69"
   },
   "lib/forge-std": {
-    "rev": "6853b9ec7df5dc0c213b05ae67785ad4f4baa0ea"
+    "rev": "88c8a2886f6f64c846ae57533a36361acb81683a"
   },
   "lib/kontrol-cheatcodes": {
     "rev": "2c48ae1ab44228c199dca29414c0b4b18a3434e6"
