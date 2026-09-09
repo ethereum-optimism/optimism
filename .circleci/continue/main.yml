@@ -2218,8 +2218,8 @@ jobs:
           name: Run Kontrol Tests
           command: |
             # Temporary diagnostic: restore test-kontrol-no-build before PR readiness.
-            echo "INITIALIZER DIAGNOSTIC ONLY: full-suite verification remains required."
-            timeout --signal=TERM --kill-after=60s 90m just build-go-ffi kontrol-summary-full test-withdrawal-authorization-initializer
+            echo "NATIVE CALL DIAGNOSTIC ONLY: one receipt; full-suite verification remains required."
+            timeout --signal=TERM --kill-after=60s 90m just build-go-ffi kontrol-summary-full test-withdrawal-native-record-diagnostic
           working_directory: ./packages/contracts-bedrock
           no_output_timeout: 95m
       - run:

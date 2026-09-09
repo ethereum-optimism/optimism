@@ -212,6 +212,11 @@ test-withdrawal-authorization-initializer:
   KONTROL_STRICT=true KONTROL_LOG_DIR=test/kontrol/logs/withdrawal ./test/kontrol/scripts/run-kontrol.sh container \
     WithdrawalAuthorizationKontrol.prove_prepareRecord
 
+# Temporary CI-only native CALL diagnostic; neither the full suite nor a security milestone.
+test-withdrawal-native-record-diagnostic:
+  KONTROL_STRICT=true KONTROL_NATIVE_DIAGNOSTIC=true KONTROL_LOG_DIR=test/kontrol/logs/withdrawal ./test/kontrol/scripts/run-kontrol.sh container \
+    WithdrawalAuthorizationKontrol.prove_prepareRecord
+
 # Runs contract coverage.
 coverage: build-go-ffi
   forge coverage

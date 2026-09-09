@@ -6,6 +6,15 @@ export FOUNDRY_PROFILE=kprove
 SCRIPT_HOME="$(cd "$(dirname "${BASH_SOURCE[0]}")" > /dev/null 2>&1 && pwd)"
 # shellcheck source=/dev/null
 source "$SCRIPT_HOME/common.sh"
+case "${KONTROL_NATIVE_DIAGNOSTIC:-false}" in
+  false) ;;
+  true)
+    if [ "${CI:-false}" != true ] || [ "${KONTROL_STRICT:-false}" != true ]; then
+      echo "Native withdrawal diagnostics require CI and strict mode" >&2
+      exit 1
+    fi ;;
+  *) echo "KONTROL_NATIVE_DIAGNOSTIC must be true or false" >&2; exit 1 ;;
+esac
 case "${KONTROL_CALLER_ONLY:-false}" in
   false) ;;
   true)
@@ -44,6 +53,11 @@ kontrol_build() {
 }
 
 kontrol_prove() {
+  if [ "${KONTROL_NATIVE_DIAGNOSTIC:-false}" = true ]; then
+    run env CI=true python3 test/kontrol/scripts/run-native-record-ci.py \
+      test/kontrol/diagnostics/native-record/claims.tar.xz
+    return $?
+  fi
   notif "Kontrol Prove: workers=$workers selectors=${test_list[*]}"
   local model_args=(--init-node-from-diff "$state_diff" --assume-defined --no-stack-checks)
   local prove_command=(kontrol prove)
