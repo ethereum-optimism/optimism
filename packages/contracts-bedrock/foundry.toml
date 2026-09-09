@@ -243,3 +243,9 @@ src = 'test/kontrol/proofs'
 out = 'kout-proofs'
 test = 'test/kontrol/proofs'
 script = 'test/kontrol/proofs'
+
+[profile.rlp_header]
+src = 'test/kontrol/rlp-header/generated'
+out = 'kout-proofs'
+test = 'test/kontrol/rlp-header/generated'
+script = 'test/kontrol/rlp-header/generated'

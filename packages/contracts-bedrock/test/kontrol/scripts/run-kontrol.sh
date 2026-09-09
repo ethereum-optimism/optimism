@@ -2,6 +2,10 @@
 set -Eeuo pipefail
 
 export FOUNDRY_PROFILE=kprove
+if [ "${KONTROL_RLP_HEADER:-false}" = true ]; then
+  test "${CI:-}" = true
+  export FOUNDRY_PROFILE=rlp_header
+fi
 
 SCRIPT_HOME="$(cd "$(dirname "${BASH_SOURCE[0]}")" > /dev/null 2>&1 && pwd)"
 # shellcheck source=/dev/null
@@ -12,6 +16,9 @@ if [ "${KONTROL_STRICT:-false}" = true ]; then
   export CONTAINER_NAME=kontrol-withdrawal-tests
   # Do not reuse another suite's generated definition or proof results.
   rm -rf "$WORKSPACE_DIR/kout-proofs"
+  if [ "${KONTROL_RLP_HEADER:-false}" = true ]; then
+    export CONTAINER_NAME=kontrol-rlp-header-tests
+  fi
 fi
 
 #############
@@ -45,6 +52,10 @@ kontrol_prove() {
     rpc_command+=' --fallback-on Stuck,Aborted'
     # Bound proving inside the container so the host can still collect its saved graphs.
     prove_command=(timeout --signal=INT --kill-after=30s 60m kontrol prove)
+    if [ "${KONTROL_RLP_HEADER:-false}" = true ]; then
+      model_args=(--reinit --schedule CANCUN --no-gas)
+      prove_command=(timeout --signal=INT --kill-after=30s 15m kontrol prove)
+    fi
   else
     rpc_command+=' --no-post-exec-simplify'
   fi

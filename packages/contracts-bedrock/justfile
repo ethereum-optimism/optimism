@@ -179,6 +179,17 @@ test-dev-rerun: build-go-ffi
 build-kontrol *ARGS:
   FOUNDRY_PROFILE=kprove forge build {{ARGS}}
 
+# Generate the source-linked header fixture and compile without running proofs.
+build-rlp-header:
+  python3 test/kontrol/scripts/generate-rlp-header.py
+  FOUNDRY_PROFILE=rlp_header forge build
+
+# Isolated CI-only feasibility check; no deployment snapshot is necessary.
+test-rlp-header:
+  test "${CI:-}" = true
+  python3 test/kontrol/scripts/generate-rlp-header.py
+  KONTROL_RLP_HEADER=true KONTROL_STRICT=true KONTROL_LOG_DIR=test/kontrol/logs/rlp-header ./test/kontrol/scripts/run-kontrol.sh container RLPHeaderKontrol.prove_header_accepted_succeeds RLPHeaderKontrol.prove_header_observation_equivalence
+
 # Run Kontrol tests and build all dependencies.
 test-kontrol: build-go-ffi build kontrol-summary-full test-kontrol-no-build
 

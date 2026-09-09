@@ -1,0 +1,64 @@
+// SPDX-License-Identifier: MIT
+pragma solidity 0.8.15;
+
+import { RLPReaderHeaderHarness as Reader } from "./RLPReaderHeaderHarness.sol";
+
+/// @notice Header observations only; see README.md for the real-memory correspondence obligation.
+contract RLPHeaderKontrol {
+    function decode(bytes32 _head, bytes32 _tail, uint256 _span)
+        external
+        pure
+        returns (uint256 offset_, uint256 length_, Reader.RLPItemType kind_)
+    {
+        bytes memory observation = abi.encode(_head, _tail);
+        Reader.MemoryPointer ptr;
+        assembly {
+            ptr := add(observation, 32)
+        }
+        return Reader.decodeHeader(Reader.RLPItem({ length: _span, ptr: ptr }));
+    }
+
+    /// @notice Independent first-item grammar; it permits an uninterpreted trailing suffix.
+    function grammar(bytes32 _head, uint256 _span)
+        internal
+        pure
+        returns (bool valid_, uint256 offset_, uint256 length_, Reader.RLPItemType kind_)
+    {
+        uint256 tag = uint8(_head[0]);
+        kind_ = tag >= 192 ? Reader.RLPItemType.LIST_ITEM : Reader.RLPItemType.DATA_ITEM;
+        if (tag < 128) return (_span >= 1, 0, 1, kind_);
+        uint256 base = tag >= 192 ? 192 : 128;
+        uint256 code = tag - base;
+        if (code <= 55) {
+            valid_ = _span >= 1 + code && (tag != 129 || uint8(_head[1]) >= 128);
+            return (valid_, 1, code, kind_);
+        }
+        uint256 digits = code - 55;
+        // RLP's one-byte tag permits exactly one through eight length bytes.
+        for (uint256 i = 1; i <= digits; i++) {
+            length_ = 256 * length_ + uint8(_head[i]);
+        }
+        offset_ = 1 + digits;
+        valid_ = _head[1] != 0 && length_ >= 56 && _span >= offset_ + length_;
+    }
+
+    function prove_header_observation_equivalence(bytes32 _head, bytes32 _tail, uint256 _span) public view {
+        (bool valid, uint256 offset, uint256 length, Reader.RLPItemType kind) = grammar(_head, _span);
+        try this.decode(_head, _tail, _span) returns (
+            uint256 actualOffset, uint256 actualLength, Reader.RLPItemType actualKind
+        ) {
+            assert(valid);
+            assert(actualOffset == offset && actualLength == length && actualKind == kind);
+        } catch {
+            assert(!valid);
+        }
+    }
+
+    function prove_header_accepted_succeeds() public view {
+        (uint256 offset, uint256 length, Reader.RLPItemType kind) = this.decode(bytes32(0), bytes32(0), 1);
+        assert(offset == 0 && length == 1 && kind == Reader.RLPItemType.DATA_ITEM);
+        // A long header with declared payload beyond the observation buffer is also admissible.
+        (offset, length, kind) = this.decode(bytes32(uint256(0xb864) << 240), bytes32(0), 102);
+        assert(offset == 2 && length == 100 && kind == Reader.RLPItemType.DATA_ITEM);
+    }
+}

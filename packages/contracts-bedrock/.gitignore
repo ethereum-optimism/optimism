@@ -5,6 +5,7 @@ cache
 broadcast
 kout-proofs
 test/kontrol/logs
+test/kontrol/rlp-header/generated
 
 # Metrics
 coverage.out
