@@ -2127,10 +2127,10 @@ impl Proposer {
                 // node's view. Bail and retry on a later tick.
                 bail!("no canonical super root at timestamp {sequence_number} yet");
             };
-            if !response_trusted(&super_root_at.response) {
-                ProposerGauge::SuperRootUnavailable.increment(1.0);
-                bail!("canonical super root at timestamp {sequence_number} is not trusted yet");
-            }
+            // A root available at the selected safety horizon is sufficient for creation.
+            // `response_trusted` requires L1 to advance beyond the root's required block and is
+            // reserved for making contradictory existing claims terminal; applying it at the
+            // moving proposal horizon can prevent creation indefinitely.
             let extra_data = zk_extra_data(parent_game_index, &super_root.proof_bytes);
             let existing_game =
                 self.l1_view.game_by_uuid(super_root.super_root, extra_data.clone()).await?;

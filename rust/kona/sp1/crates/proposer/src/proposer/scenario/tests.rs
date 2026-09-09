@@ -1801,7 +1801,7 @@ async fn failed_create_before_submission_allows_a_later_create_without_consuming
 }
 
 #[tokio::test]
-async fn untrusted_creation_root_pauses_bonding_until_the_response_is_trusted() {
+async fn creation_uses_an_available_root_at_the_current_l1_frontier() {
     let world = ScenarioWorld::new();
     world.set_horizons(1, 1);
     world.script_superroot(
@@ -1812,22 +1812,12 @@ async fn untrusted_creation_root_pauses_bonding_until_the_response_is_trusted() 
     let target = ActionTarget::Create { sequence_number: 1, parent_game_index: u32::MAX };
     let mut scenario = ScenarioHarness::new(world.clone(), scenario_config()).await.unwrap();
 
-    let paused = scenario.tick().await.unwrap();
-    let completions = scenario.settle_scheduled(&paused).await.unwrap();
-    assert!(completions.iter().any(|completion| matches!(
-        &completion.outcome,
-        TaskCompletionOutcome::Failed(TaskFailureClass::ReturnedError(message))
-            if message.contains("is not trusted yet")
-    )));
-    assert!(world.action_record(&target, 1).is_none());
-    assert!(world.observation().games.is_empty());
-
-    let retried = scenario.tick().await.unwrap();
-    assert!(retried.scheduled.iter().any(|scheduled| matches!(
+    let result = scenario.tick().await.unwrap();
+    assert!(result.scheduled.iter().any(|scheduled| matches!(
         scheduled.operation,
         OperationSummary::ProposeGame { sequence_number: 1, parent_game_index: u32::MAX }
     )));
-    scenario.settle_scheduled(&retried).await.unwrap();
+    scenario.settle_scheduled(&result).await.unwrap();
     assert_eq!(world.action_record(&target, 1).unwrap().lifecycle, ActionLifecycle::Confirmed);
     assert_eq!(
         world
@@ -1838,10 +1828,7 @@ async fn untrusted_creation_root_pauses_bonding_until_the_response_is_trusted() 
             })
             .map(|record| record.outcome.clone())
             .collect::<Vec<_>>(),
-        vec![
-            SuperRootQueryOutcome::Untrusted(canonical_super_root(1)),
-            SuperRootQueryOutcome::Trusted(canonical_super_root(1)),
-        ]
+        vec![SuperRootQueryOutcome::Untrusted(canonical_super_root(1))]
     );
 }
 
