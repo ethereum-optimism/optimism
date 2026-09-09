@@ -38,9 +38,8 @@ git tag -l '<component>/v*' --sort=-v:refname | head -5
 Notes written against an RC carry `-rc.N` in the heading, compare link and image tag, and
 have to be retargeted later (step 8) — a retarget that refuses because the finalized tag
 sits on a different commit means regenerating from scratch. So ask the release manager
-whether they want to finalize with `just release` first. It is their call: this skill does
-not create or finalize tags, and `just release` is slow, so do not stall on it — write the
-RC notes if they say no.
+whether they want to finalize with `just release` first. It is their call, and it is slow,
+so do not stall on it — write the RC notes if they say no.
 
 ## 2. Get the draft
 
@@ -89,51 +88,38 @@ short reason, so a reviewer can reinstate one in a single edit.
 
 ## 5. Curate the change list
 
-The substance of the job. Replace PR titles with grouped, self-contained entries.
+The substance of the job. Replace PR titles with grouped, self-contained entries, written to
+`reference/house-style.md` — read it now if you have not. It is the source of truth for the
+section layout, the grouping spine, impact-over-implementation, and what does not belong in
+a note at all. Do not work from memory of it.
 
-First lift out the two entries that get their own top-level section: anything an operator
-must act on before upgrading (`## Breaking changes`) and anything that moved a chain's
-embedded config (`## Chain Configuration`) — see step 6. Everything else:
+What this step decides:
 
-- under `## Other changes`, group into `### Features` / `### Bug fixes` /
-  `### Miscellaneous`, or by domain; drop empty headings, and use a flat list for a short
-  release
-- derivation changes, in op-node or kona, get their own `### Derivation` heading, first
-- fold PRs that are one logical change into one entry carrying all their numbers
-- **write impact, never implementation** — the symptom that appears or disappears, the
-  flag/metric/config names, what the reader must do. Not goroutines, event loops, call
-  paths, internal type names, or which PR was stacked on which. This is the correction made
-  most often, and the PR descriptions you just read will pull you the wrong way
-- **a change with no user-visible impact does not appear at all** — not under
-  `### Miscellaneous`, not as a summarising line. Importability of the monorepo as a Go
-  module is not user impact: we do not maintain releases of it as a Go module, so a change
-  that only helps downstream importers is cut like any other internal churn
-- reference PRs as bare `(#NNNNN)`; no `by @author`
-- only mention a PR more than once if it included multiple logical changes which are worth describing separately
+- which entries get a top-level section of their own — anything an operator must act on
+  before upgrading (`## Breaking changes`), anything that moved a chain's embedded config
+  (`## Chain Configuration`) — and which fall under `## Other changes`
+- which PRs are one logical change, folded into a single entry carrying all their numbers
+- which surviving PRs turn out to have no user-visible impact after all, and are cut here
+  rather than written up
+
+Reference PRs as bare `(#NNNNN)`; no `by @author`. Only mention a PR more than once if it
+included multiple logical changes worth describing separately.
 
 ## 6. Write the Overview
 
-One callout at the top of `## Overview`: which of `optional` / `recommended` / `strongly
-recommended` / `required` the release is, scopable to a role, and what it contains. Never a
-semver release type — our tags are not strict semver, so "this is a minor release" says
-nothing. `> [!NOTE]` for `optional`, `> [!IMPORTANT]` for either recommended level,
-`> [!CAUTION]` for `required`.
+One callout at the top of `## Overview`, classifying the release and saying what it contains.
+Take the classification vocabulary and the callout block type from
+`reference/house-style.md`, verbatim — the wording is fixed so that readers can compare
+releases, and it is not a place to paraphrase.
 
 Then check proportionality:
 
-- **Is the feature live?** Verify with the registry check in `reference/house-style.md`
-  rather than assuming; ask the release manager for anything not expressed as a hardfork. A
-  change confined to an unreleased feature is cut entirely. It stays only if it also reaches
-  a live path, and is then described by that live effect — read what the change does, not
-  the feature name in its PR title. Either way, do not describe an attack the live system
-  cannot suffer.
+- **Is the feature live?** Verify with the registry and DevFeature checks in
+  `reference/house-style.md` rather than assuming; ask the release manager for anything
+  expressed as neither. A change confined to an unreleased feature is cut entirely, and do
+  not describe an attack the live system cannot suffer.
 - **Would a reader shrug?** New metrics, a wrong version string and rare corner cases are
   bullets, not callouts.
-
-Add `## Breaking changes` only when an operator must *do* something before upgrading;
-Go-API-only changes do not qualify. A release that moves a chain's embedded config — a new
-hardfork activation time, most often — gets a `## Chain Configuration` section of its own.
-The Overview block is the note's only callout.
 
 ## 7. Assemble
 

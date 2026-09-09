@@ -91,8 +91,8 @@ grep -rn "<ChangedSymbol>" <component>/ --include='*.go' | grep -v _test.go
 - comment, TODO, or docs cleanup
 - another component's work that merely brushed a shared package
 - a Go API change with no operator-facing effect, **including one that only unblocks
-  downstream importers** of the monorepo as a Go module — we do not maintain releases of it
-  as a Go module, so that is not a user-facing surface of any component
+  downstream importers** of the monorepo as a Go module — see house-style.md for why that is
+  not a user-facing surface
 
 **Keep a cross-component PR** when the component embeds the other one. op-supernode runs
 virtual op-nodes, so op-node's follow-source reorg metrics belong in the supernode notes even
