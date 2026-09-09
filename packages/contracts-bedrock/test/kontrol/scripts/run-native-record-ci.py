@@ -57,7 +57,7 @@ def main():
              "remainingReceiptsNotExecuted": [row["node"] for row in rows[1:]],
              "limits": "Caller gas/memory/raw ABI correspondence and all accepted security obligations remain open."}
     (output / "diagnostic-status.json").write_text(json.dumps(state, indent=2) + "\n")
-    command = ["timeout", "--signal=INT", "--kill-after=30s", "60m", "kevm", "prove",
+    command = ["timeout", "--signal=INT", "--kill-after=30s", "60m", "kevm", "prove", "--verbose",
         str(output / "receipt-49.k"), "--definition", str(args.definition),
         "--spec-module", selected["module"], "--save-directory", str(output / "proofs"),
         "--reinit", "--workers", "1", "--max-depth", "1000", "--max-iterations", "10000",
