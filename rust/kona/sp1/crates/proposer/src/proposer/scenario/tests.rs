@@ -301,6 +301,10 @@ impl ProofEngine for NoopProofEngine {
     }
 
     fn clear(&self, _game_address: Address) {}
+
+    fn retry_terminal_requests(&self, _game_address: Address) -> usize {
+        0
+    }
 }
 
 struct NoopActionExecutor;
@@ -502,6 +506,67 @@ async fn tick_does_not_wait_for_fetch_interval() {
             Some(&scheduled.operation)
         );
     }
+}
+
+#[cfg(unix)]
+#[tokio::test]
+async fn sigusr1_requests_terminal_retry() {
+    const CHILD_ENV: &str = "KONA_SP1_SIGNAL_TEST_CHILD";
+    const CHILD_COMPLETED: &str = "__KONA_SP1_SIGUSR1_TERMINAL_RETRY_CHILD_COMPLETED__";
+    if std::env::var_os(CHILD_ENV).is_none() {
+        let (_, test_name) =
+            concat!(module_path!(), "::", stringify!(sigusr1_requests_terminal_retry))
+                .split_once("::")
+                .unwrap();
+        let mut command = tokio::process::Command::new(std::env::current_exe().unwrap());
+        command.args(["--exact", test_name, "--nocapture"]).env(CHILD_ENV, "1").kill_on_drop(true);
+        let output =
+            tokio::time::timeout(Duration::from_secs(10), command.output()).await.unwrap().unwrap();
+        let stdout = String::from_utf8_lossy(&output.stdout);
+        assert!(
+            output.status.success() && stdout.contains(CHILD_COMPLETED),
+            "signal subprocess failed or did not complete:\n{}\n{}",
+            stdout,
+            String::from_utf8_lossy(&output.stderr),
+        );
+        return;
+    }
+
+    let mut proposer = proposer_with(test_config(30), Arc::new(ScenarioL1View::new())).await;
+    let engine = Arc::new(crate::proposer::tests::RecordingProofEngine::default());
+    Arc::get_mut(&mut proposer).unwrap().proof_engine = engine.clone();
+    proposer.sync_state().await.unwrap();
+    // An unchallenged game exercises recovery without scheduling proof work.
+    let mut game = challenged_game(1, 5_000);
+    game.proposal_status = ProposalStatus::Unchallenged;
+    let address = game.address;
+    proposer.state.write().await.games.insert(game.index, game);
+    proposer.install_proof_retry_signal().unwrap();
+    let status = tokio::process::Command::new("kill")
+        .args(["-USR1", &std::process::id().to_string()])
+        .status()
+        .await
+        .unwrap();
+    assert!(status.success());
+    tokio::time::timeout(Duration::from_secs(1), async {
+        while !proposer.proof_retry_requested.load(Ordering::Relaxed) {
+            tokio::task::yield_now().await;
+        }
+    })
+    .await
+    .unwrap();
+    let mut control = ScenarioControl::new(proposer.clone(), Duration::from_secs(1));
+    for _ in 0..2 {
+        let tick = control.tick().await.unwrap();
+        assert_eq!(
+            *engine.retried.lock(),
+            vec![address],
+            "one signal authorizes one recovery pass"
+        );
+        let tasks = tick.scheduled.iter().map(|scheduled| scheduled.task_id).collect::<Vec<_>>();
+        control.settle(&tasks).await.unwrap();
+    }
+    println!("{CHILD_COMPLETED}");
 }
 
 #[tokio::test(start_paused = true)]

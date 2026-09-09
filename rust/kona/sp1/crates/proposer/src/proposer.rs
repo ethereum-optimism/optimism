@@ -697,6 +697,7 @@ pub struct Proposer {
     pub prestates: Arc<PrestateCache>,
     tasks: Arc<tokio::sync::Mutex<TaskMap>>,
     next_task_id: Arc<AtomicU64>,
+    proof_retry_requested: Arc<AtomicBool>,
     state: Arc<RwLock<ProposerState>>,
     /// Proposer identity for foreign-game filtering and hardfork safety.
     pub identity: ProposerIdentity,
@@ -823,6 +824,7 @@ impl Proposer {
             prestates,
             tasks: Arc::new(tokio::sync::Mutex::new(HashMap::new())),
             next_task_id: Arc::new(AtomicU64::new(1)),
+            proof_retry_requested: Arc::new(AtomicBool::new(false)),
             state: Arc::new(RwLock::new(ProposerState::default())),
             identity,
             last_successful_pinned_l1: Arc::new(RwLock::new(None)),
@@ -834,6 +836,48 @@ impl Proposer {
             max_challenge_duration: Arc::new(OnceCell::new()),
             undefendable: Arc::new(Mutex::new(HashSet::new())),
         })
+    }
+
+    /// Registers process-wide SIGUSR1 recovery. Call before advertising readiness.
+    #[cfg(unix)]
+    pub fn install_proof_retry_signal(self: &Arc<Self>) -> Result<()> {
+        let mut signal =
+            tokio::signal::unix::signal(tokio::signal::unix::SignalKind::user_defined1())
+                .context("register SIGUSR1 proof retry handler")?;
+        let proposer = Arc::clone(self);
+        tokio::spawn(async move {
+            while signal.recv().await.is_some() {
+                proposer.proof_retry_requested.store(true, Ordering::Relaxed);
+            }
+        });
+        Ok(())
+    }
+
+    async fn retry_terminal_proofs(&self) {
+        let active_games: HashSet<_> = self
+            .tasks
+            .lock()
+            .await
+            .values()
+            .filter_map(|(_, operation)| match operation.deduplication_key() {
+                TaskDeduplicationKey::Proving(address) => Some(address),
+                _ => None,
+            })
+            .collect();
+        let mut reset_games = Vec::new();
+        let mut busy_games = Vec::new();
+        for game in self.state.read().await.games.values() {
+            if active_games.contains(&game.address) {
+                busy_games.push(game.address);
+                continue;
+            }
+            let requests = self.proof_engine.retry_terminal_requests(game.address);
+            if requests > 0 {
+                reset_games.push(game.address);
+                tracing::info!(game_address = %game.address, requests, "Reset terminal proof requests");
+            }
+        }
+        tracing::info!(?reset_games, ?busy_games, "Processed terminal proof retry");
     }
 
     /// Runs the proposer indefinitely.
@@ -859,6 +903,9 @@ impl Proposer {
     pub(crate) async fn cycle(&self) -> Result<CycleResult> {
         let sync_disposition = self.sync_state().await?;
         let completions = self.reap_completed_tasks().await;
+        if self.proof_retry_requested.swap(false, Ordering::Relaxed) {
+            self.retry_terminal_proofs().await;
+        }
         let planned = self.determine_pending_operations().await;
         let snapshot = self.cycle_snapshot(sync_disposition).await;
         let scheduled = self.spawn_planned_operations(planned).await;
@@ -3788,11 +3835,12 @@ mod tests {
     }
 
     #[derive(Default)]
-    struct RecordingProofEngine {
+    pub(super) struct RecordingProofEngine {
         calls: StdMutex<Vec<(GameProofInputs, Vec<SuperRootAtTimestampResponse>)>>,
         proof: Vec<u8>,
         fail: bool,
         cleared: StdMutex<Vec<Address>>,
+        pub(super) retried: parking_lot::Mutex<Vec<Address>>,
         cached: StdMutex<Option<Vec<u8>>>,
         generations: std::sync::atomic::AtomicUsize,
     }
@@ -3822,6 +3870,11 @@ mod tests {
         fn clear(&self, game_address: Address) {
             *self.cached.lock().unwrap() = None;
             self.cleared.lock().unwrap().push(game_address);
+        }
+
+        fn retry_terminal_requests(&self, game_address: Address) -> usize {
+            self.retried.lock().push(game_address);
+            0
         }
     }
 
@@ -4384,6 +4437,44 @@ mod tests {
         let task_id = TaskId::allocate(&proposer.next_task_id);
         let handle = tokio::spawn(async { Ok(TaskSuccess::Completed) });
         proposer.tasks.lock().await.insert(task_id, (handle, operation));
+    }
+
+    #[tokio::test]
+    async fn terminal_retry_skips_active_games() {
+        let mut proposer = test_proposer().await;
+        let engine = Arc::new(RecordingProofEngine::default());
+        proposer.proof_engine = engine.clone();
+        let defense = game_with(1, u32::MAX, 100);
+        let fast_finality = game_with(2, u32::MAX, 100);
+        let settled = game_with(3, u32::MAX, 100);
+        for (game, purpose) in
+            [(&defense, ProvingPurpose::Defense), (&fast_finality, ProvingPurpose::FastFinality)]
+        {
+            insert_task(
+                &proposer,
+                OperationSummary::ProveGame {
+                    factory_index: game.index,
+                    address: game.address,
+                    purpose,
+                },
+            )
+            .await;
+        }
+        for game in [&defense, &fast_finality, &settled] {
+            proposer.state.write().await.games.insert(game.index, game.clone());
+        }
+
+        proposer.retry_terminal_proofs().await;
+        assert_eq!(*engine.retried.lock(), vec![settled.address]);
+
+        let tasks = proposer.tasks.lock().await.keys().copied().collect::<Vec<_>>();
+        proposer.finalize_tasks(&tasks, None).await.unwrap();
+        engine.retried.lock().clear();
+        proposer.retry_terminal_proofs().await;
+        assert_eq!(
+            engine.retried.lock().iter().copied().collect::<HashSet<_>>(),
+            HashSet::from([defense.address, fast_finality.address, settled.address]),
+        );
     }
 
     #[test]
@@ -5462,6 +5553,7 @@ mod tests {
             proof: proof.clone(),
             fail: false,
             cleared: StdMutex::new(Vec::new()),
+            retried: parking_lot::Mutex::default(),
             cached: StdMutex::new(None),
             generations: std::sync::atomic::AtomicUsize::new(0),
         });
@@ -5536,6 +5628,7 @@ mod tests {
                 proof: vec![0xaa],
                 fail,
                 cleared: StdMutex::new(Vec::new()),
+                retried: parking_lot::Mutex::default(),
                 cached: StdMutex::new(None),
                 generations: std::sync::atomic::AtomicUsize::new(0),
             });
