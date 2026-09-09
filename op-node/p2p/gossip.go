@@ -21,6 +21,7 @@ import (
 	"github.com/ethereum/go-ethereum/log"
 
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
+	"github.com/ethereum-optimism/optimism/op-node/rollup/async"
 	"github.com/ethereum-optimism/optimism/op-service/clock"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/ptr"
@@ -627,11 +628,15 @@ func (p *publisher) SignAndPublishL2Payload(ctx context.Context, envelope *eth.E
 
 	if envelope.ParentBeaconBlockRoot != nil {
 		if _, err := envelope.MarshalSSZ(buf); err != nil {
-			return fmt.Errorf("failed to encoded execution payload envelope to publish: %w", err)
+			// A pure function of the envelope: encoding it again cannot succeed.
+			return fmt.Errorf("%w: failed to encoded execution payload envelope to publish: %w",
+				async.ErrPermanentPublish, err)
 		}
 	} else {
 		if _, err := envelope.ExecutionPayload.MarshalSSZ(buf); err != nil {
-			return fmt.Errorf("failed to encoded execution payload to publish: %w", err)
+			// A pure function of the envelope: encoding it again cannot succeed.
+			return fmt.Errorf("%w: failed to encoded execution payload to publish: %w",
+				async.ErrPermanentPublish, err)
 		}
 	}
 	data := buf.Bytes()
@@ -652,14 +657,38 @@ func (p *publisher) publishRawSignedPayload(ctx context.Context, timestamp uint6
 	out := snappy.Encode(nil, data)
 
 	if p.cfg.IsIsthmus(timestamp) {
-		return p.blocksV4.topic.Publish(ctx, out)
+		return classifyPublishError(p.blocksV4.topic.Publish(ctx, out))
 	} else if p.cfg.IsEcotone(timestamp) {
-		return p.blocksV3.topic.Publish(ctx, out)
+		return classifyPublishError(p.blocksV3.topic.Publish(ctx, out))
 	} else if p.cfg.IsCanyon(timestamp) {
-		return p.blocksV2.topic.Publish(ctx, out)
+		return classifyPublishError(p.blocksV2.topic.Publish(ctx, out))
 	} else {
-		return p.blocksV1.topic.Publish(ctx, out)
+		return classifyPublishError(p.blocksV1.topic.Publish(ctx, out))
 	}
+}
+
+// classifyPublishError marks the publish failures that cannot succeed on a
+// retry, so the caller drops the block instead of holding it at the head of a
+// queue. Publishing runs our own topic validator inline on this node - see
+// ValidateLocal - so a rejection here is this node judging its own block against
+// the envelope, the fork config and the clock, and it will judge it the same way
+// next time. That includes the timestamp threshold, which only moves further out
+// of reach: a retry can make a block older, never younger.
+//
+// Deliberately an allowlist. Topic.Publish also surfaces the caller's context
+// error, from its eval loop and from sendMsgBlocking, so a publish that merely
+// ran out of time arrives here looking like any other failure - and it must stay
+// retryable.
+func classifyPublishError(err error) error {
+	if err == nil {
+		return nil
+	}
+	// ValidationError is returned by value, so the target must be too.
+	var invalid pubsub.ValidationError
+	if errors.As(err, &invalid) || errors.Is(err, pubsub.ErrTopicClosed) {
+		return fmt.Errorf("%w: %w", async.ErrPermanentPublish, err)
+	}
+	return err
 }
 
 func (p *publisher) Close() error {

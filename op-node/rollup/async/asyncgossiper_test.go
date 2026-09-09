@@ -3,6 +3,7 @@ package async
 import (
 	"context"
 	"errors"
+	"fmt"
 	"sync"
 	"testing"
 	"time"
@@ -16,10 +17,13 @@ import (
 )
 
 type mockNetwork struct {
+	mu   sync.Mutex
 	reqs []*eth.ExecutionPayloadEnvelope
 }
 
 func (m *mockNetwork) SignAndPublishL2Payload(ctx context.Context, payload *eth.ExecutionPayloadEnvelope) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
 	m.reqs = append(m.reqs, payload)
 	return nil
 }
@@ -27,11 +31,22 @@ func (m *mockNetwork) SignAndPublishL2Payload(ctx context.Context, payload *eth.
 type mockMetrics struct {
 	mu       sync.Mutex
 	dropped  int
+	errors   int
 	queueLen int
 	maxLen   int
 }
 
-func (m *mockMetrics) RecordPublishingError() {}
+func (m *mockMetrics) RecordPublishingError() {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.errors++
+}
+
+func (m *mockMetrics) publishErrors() int {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	return m.errors
+}
 
 func (m *mockMetrics) RecordPublishQueueLen(length int) {
 	m.mu.Lock()
@@ -52,91 +67,56 @@ func (m *mockMetrics) counts() (dropped, queueLen, maxLen int) {
 	return m.dropped, m.queueLen, m.maxLen
 }
 
-// TestAsyncGossiper tests the AsyncGossiper component
-// because the component is small and simple, it is tested as a whole
-// this test starts, runs, clears and stops the AsyncGossiper
-// because the AsyncGossiper is run in an async component, it is tested with eventually
-func TestAsyncGossiper(t *testing.T) {
+// TestAsyncGossiperPublishes covers the lifecycle: the gossiper starts, hands a
+// payload to the network, and stops. The network is the observable - the gossiper
+// holds nothing for the sequencer to read back.
+func TestAsyncGossiperPublishes(t *testing.T) {
 	m := &mockNetwork{}
-	// Create a new instance of AsyncGossiper
-	p := NewAsyncGossiper(context.Background(), m, log.New(), &mockMetrics{})
-
-	// Start the AsyncGossiper
+	p := NewAsyncGossiper(context.Background(), m, testlog.Logger(t, log.LevelError), &mockMetrics{})
 	p.Start()
 
-	// Test that the AsyncGossiper is running within a short duration
 	require.Eventually(t, func() bool {
 		return p.running.Load()
 	}, 10*time.Second, 10*time.Millisecond)
 
-	// send a payload
-	payload := &eth.ExecutionPayload{
-		BlockNumber: hexutil.Uint64(1),
-	}
-	envelope := &eth.ExecutionPayloadEnvelope{
-		ExecutionPayload: payload,
-	}
+	envelope := testEnvelope(1)
 	p.Gossip(envelope)
 	require.Eventually(t, func() bool {
-		// Test that the gossiper has content at all
-		return p.Get() == envelope &&
-			// Test that the payload has been sent to the (mock) network
-			m.reqs[0] == envelope
-	}, 10*time.Second, 10*time.Millisecond)
+		m.mu.Lock()
+		defer m.mu.Unlock()
+		return len(m.reqs) == 1 && m.reqs[0] == envelope
+	}, 10*time.Second, 10*time.Millisecond, "the payload must reach the network")
 
-	p.Clear()
-	require.Eventually(t, func() bool {
-		// Test that the gossiper has no payload
-		return p.Get() == nil
-	}, 10*time.Second, 10*time.Millisecond)
-
-	// Stop the AsyncGossiper
 	p.Stop()
-
-	// Test that the AsyncGossiper stops within a short duration
 	require.Eventually(t, func() bool {
 		return !p.running.Load()
 	}, 10*time.Second, 10*time.Millisecond)
 }
 
-// TestAsyncGossiperLoop confirms that when called repeatedly, the AsyncGossiper holds the latest payload
-// and sends all payloads to the network
-func TestAsyncGossiperLoop(t *testing.T) {
+// TestAsyncGossiperPublishesEveryBlockInOrder confirms that repeated calls all
+// reach the network, in the order they were handed over. A peer cannot follow the
+// chain past a block it never received, so none may be skipped or reordered.
+func TestAsyncGossiperPublishesEveryBlockInOrder(t *testing.T) {
 	m := &mockNetwork{}
-	// Create a new instance of AsyncGossiper
-	p := NewAsyncGossiper(context.Background(), m, log.New(), &mockMetrics{})
-
-	// Start the AsyncGossiper
+	p := NewAsyncGossiper(context.Background(), m, testlog.Logger(t, log.LevelError), &mockMetrics{})
 	p.Start()
+	defer p.Stop()
 
-	// Test that the AsyncGossiper is running within a short duration
-	require.Eventually(t, func() bool {
-		return p.running.Load()
-	}, 10*time.Second, 10*time.Millisecond)
-
-	// send multiple payloads
-	for i := 0; i < 10; i++ {
-		payload := &eth.ExecutionPayload{
-			BlockNumber: hexutil.Uint64(i),
-		}
-		envelope := &eth.ExecutionPayloadEnvelope{
-			ExecutionPayload: payload,
-		}
-		p.Gossip(envelope)
-		require.Eventually(t, func() bool {
-			// Test that the gossiper has content at all
-			return p.Get() == envelope &&
-				// Test that the payload has been sent to the (mock) network
-				m.reqs[len(m.reqs)-1] == envelope
-		}, 10*time.Second, 10*time.Millisecond)
+	for i := 1; i <= 10; i++ {
+		p.Gossip(testEnvelope(uint64(i)))
 	}
-	require.Equal(t, 10, len(m.reqs))
-	// Stop the AsyncGossiper
-	p.Stop()
-	// Test that the AsyncGossiper stops within a short duration
+
 	require.Eventually(t, func() bool {
-		return !p.running.Load()
+		m.mu.Lock()
+		defer m.mu.Unlock()
+		return len(m.reqs) == 10
 	}, 10*time.Second, 10*time.Millisecond)
+
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	for i, req := range m.reqs {
+		require.Equal(t, hexutil.Uint64(i+1), req.ExecutionPayload.BlockNumber, "published out of seal order")
+	}
 }
 
 // failingNetwork is a mock network that always fails to publish
@@ -146,30 +126,21 @@ func (f *failingNetwork) SignAndPublishL2Payload(ctx context.Context, payload *e
 	return errors.New("failed to publish")
 }
 
-// TestAsyncGossiperFailToPublish tests that the AsyncGossiper clears the stored payload if the network fails
-func TestAsyncGossiperFailToPublish(t *testing.T) {
+// TestAsyncGossiperCountsPublishingErrors covers a network that never accepts a
+// block: the failure is counted rather than swallowed, and it does not wedge Stop.
+func TestAsyncGossiperCountsPublishingErrors(t *testing.T) {
 	m := &failingNetwork{}
-	// Create a new instance of AsyncGossiper
-	p := NewAsyncGossiper(context.Background(), m, log.New(), &mockMetrics{})
-
-	// Start the AsyncGossiper
+	metrics := &mockMetrics{}
+	p := NewAsyncGossiper(context.Background(), m, testlog.Logger(t, log.LevelCrit), metrics)
+	p.retryInterval = time.Millisecond
 	p.Start()
 
-	// send a payload
-	payload := &eth.ExecutionPayload{
-		BlockNumber: hexutil.Uint64(1),
-	}
-	envelope := &eth.ExecutionPayloadEnvelope{
-		ExecutionPayload: payload,
-	}
-	p.Gossip(envelope)
-	// Rather than expect the payload to become available, we should never see it, due to the publish failure
-	require.Never(t, func() bool {
-		return p.Get() == envelope
-	}, 10*time.Second, 10*time.Millisecond)
-	// Stop the AsyncGossiper
+	p.Gossip(testEnvelope(1))
+	require.Eventually(t, func() bool {
+		return metrics.publishErrors() > 0
+	}, 10*time.Second, 10*time.Millisecond, "a failed publish must be counted")
+
 	p.Stop()
-	// Test that the AsyncGossiper stops within a short duration
 	require.Eventually(t, func() bool {
 		return !p.running.Load()
 	}, 10*time.Second, 10*time.Millisecond)
@@ -246,10 +217,10 @@ func requirePayload(t *testing.T, c chan *eth.ExecutionPayloadEnvelope, msg stri
 }
 
 // TestAsyncGossiperDoesNotBlockOnPublish is the regression test for the
-// sequencer stall: the sequencer calls Clear() a millisecond or two after
-// Gossip(), i.e. while the publish is in flight, and computes the next block's
-// build window as a residual - so every millisecond spent waiting here comes
-// straight out of the next block's building time.
+// sequencer stall: the sequencer reaches the gossiper again a millisecond or two
+// after Gossip(), i.e. while the publish is in flight, and computes the next
+// block's build window as a residual - so every millisecond spent waiting here
+// comes straight out of the next block's building time.
 func TestAsyncGossiperDoesNotBlockOnPublish(t *testing.T) {
 	m := newBlockingNetwork()
 	p := NewAsyncGossiper(context.Background(), m, testlog.Logger(t, log.LevelError), &mockMetrics{})
@@ -262,29 +233,24 @@ func TestAsyncGossiperDoesNotBlockOnPublish(t *testing.T) {
 	p.Gossip(envelope)
 	require.Equal(t, envelope, requirePayload(t, m.started, "publish never started"))
 
-	// with the publish in flight, the sequencer's Get() and Clear() must not wait for it
-	cleared := make(chan struct{})
+	// with the publish in flight, the sequencer's calls must not wait for it
+	returned := make(chan struct{})
 	go func() {
-		defer close(cleared)
-		p.Get()
-		p.Clear()
+		defer close(returned)
+		p.Gossip(testEnvelope(2))
+		p.Discard(testEnvelope(2).ExecutionPayload.BlockHash)
 	}()
 	select {
-	case <-cleared:
+	case <-returned:
 	case <-time.After(2 * time.Second):
 		m.Release() // let the publisher finish, so Stop can complete
-		t.Fatal("Get/Clear blocked until the in-flight publish returned")
+		t.Fatal("the hot path blocked until the in-flight publish returned")
 	}
 
-	// clearing must not cancel the publish: peers still need the block
+	// discarding a later block must not cancel the publish already in flight:
+	// peers still need that one
 	m.Release()
 	require.Equal(t, envelope, requirePayload(t, m.finished, "publish never finished"))
-
-	// nor may the completing publish repopulate the buffer the sequencer just
-	// cleared: reusing it would rebuild the block that is already the head
-	require.Never(t, func() bool {
-		return p.Get() != nil
-	}, 200*time.Millisecond, 10*time.Millisecond)
 }
 
 // TestAsyncGossiperOverlappingPublishes covers a publish still being in flight
@@ -308,9 +274,7 @@ func TestAsyncGossiperOverlappingPublishes(t *testing.T) {
 	go func() {
 		defer close(handed)
 		p.Gossip(second)
-		p.Clear()
 		p.Gossip(third)
-		p.Clear()
 	}()
 	select {
 	case <-handed:
@@ -392,8 +356,6 @@ func TestAsyncGossiperConcurrentHandoff(t *testing.T) {
 			go func(i uint64) {
 				defer wg.Done()
 				p.Gossip(testEnvelope(i))
-				p.Get()
-				p.Clear()
 			}(uint64(i))
 		}
 		wg.Wait()
@@ -419,13 +381,11 @@ func (b *blockingNetwork) failNext(hash common.Hash, n int) {
 	b.failuresLeft[hash] = n
 }
 
-// TestAsyncGossiperDedupesResealedBlock covers the sequencer retrying a block
-// whose insertion failed temporarily. Get() does not wait for the in-flight
-// publish, so the sequencer re-seals the same build job and hands the identical
-// block over again, once per retry. Those duplicates must not queue up behind
-// the publish that is already sending that very block, and must not invalidate
-// it for reuse - that would leave the sequencer re-sealing indefinitely, and
-// fill the queue with copies of one block.
+// TestAsyncGossiperDedupesResealedBlock covers the same block being handed over
+// more than once. The sequencer no longer does this - it re-inserts the block it
+// retained rather than re-sealing - but the guard stays, because publishing one
+// block twice is wasted work and the duplicates would crowd out the blocks behind
+// it in a bounded queue.
 func TestAsyncGossiperDedupesResealedBlock(t *testing.T) {
 	m := newBlockingNetwork()
 	metrics := &mockMetrics{}
@@ -439,7 +399,6 @@ func TestAsyncGossiperDedupesResealedBlock(t *testing.T) {
 	require.Equal(t, envelope, requirePayload(t, m.started, "publish never started"))
 
 	for i := 0; i < 5; i++ {
-		require.Nil(t, p.Get(), "the publish is still in flight, so there is nothing to reuse yet")
 		// a re-seal of the same build job: an equal block, a distinct value
 		p.Gossip(testEnvelope(1))
 	}
@@ -449,11 +408,6 @@ func TestAsyncGossiperDedupesResealedBlock(t *testing.T) {
 
 	m.Release()
 	require.Equal(t, envelope, requirePayload(t, m.finished, "publish never finished"))
-
-	require.Eventually(t, func() bool {
-		return p.Get() != nil
-	}, 10*time.Second, 10*time.Millisecond,
-		"the published block must be offered for reuse: the duplicates must not have invalidated it")
 
 	require.Never(t, func() bool {
 		select {
@@ -494,11 +448,11 @@ func TestAsyncGossiperRetriesFailedPublish(t *testing.T) {
 	require.Equal(t, third, requirePayload(t, m.started, "third never started"))
 }
 
-// TestAsyncGossiperRetriesUntilQueueIsFull pins what bounds the retry. There is
-// no attempt count: a failed block is retried at the front for exactly as long as
-// production leaves room for it, because enqueue evicts the head on overflow. Once
-// the queue is full there is nowhere to put it back, so an unpublishable block
-// stops holding up the blocks behind it.
+// TestAsyncGossiperRetriesUntilQueueIsFull pins queue pressure as a bound on the
+// retry: a failed block is retried at the front while production leaves room for
+// it, and once the queue is full there is nowhere to put it back, so it stops
+// holding up the blocks behind it. maxPublishAttempts is a second, lower ceiling
+// - see TestAsyncGossiperStopsRetryingWhenIdle.
 func TestAsyncGossiperRetriesUntilQueueIsFull(t *testing.T) {
 	m := newBlockingNetwork()
 	metrics := &mockMetrics{}
@@ -531,7 +485,8 @@ func TestAsyncGossiperRetriesUntilQueueIsFull(t *testing.T) {
 		"with no room to requeue it, the retry stops and publishing resumes in order")
 
 	dropped, _, _ = metrics.counts()
-	require.Zero(t, dropped, "a block that failed to publish is a publishing error, not a queue-overflow drop")
+	require.Equal(t, 1, dropped,
+		"giving up on a block is a block that never reached peers, and must be counted as one")
 }
 
 // TestAsyncGossiperDiscardDropsQueuedBlock covers the sequencer rejecting a
@@ -564,30 +519,9 @@ func TestAsyncGossiperDiscardDropsQueuedBlock(t *testing.T) {
 	require.Equal(t, third, requirePayload(t, m.finished, "third never finished"))
 }
 
-// TestAsyncGossiperClearKeepsQueue is the other half: Clear means the block was
-// inserted, so the blocks queued behind it are good blocks that peers still need.
-func TestAsyncGossiperClearKeepsQueue(t *testing.T) {
-	m := newBlockingNetwork()
-	p := NewAsyncGossiper(context.Background(), m, testlog.Logger(t, log.LevelError), &mockMetrics{})
-	p.Start()
-	defer p.Stop()
-	defer m.Release()
-
-	first, second := testEnvelope(1), testEnvelope(2)
-	p.Gossip(first)
-	require.Equal(t, first, requirePayload(t, m.started, "first publish never started"))
-	p.Gossip(second)
-	p.Clear()
-
-	m.Release()
-	require.Equal(t, first, requirePayload(t, m.finished, "first publish never finished"))
-	require.Equal(t, second, requirePayload(t, m.started, "a queued block must survive Clear"))
-	require.Equal(t, second, requirePayload(t, m.finished, "second never finished"))
-}
-
 // TestAsyncGossiperDiscardInFlightBlock covers a block rejected while its publish
 // is already in flight. That send cannot be recalled, but it must not be retried
-// when it fails, and must not come back as a payload to reuse when it succeeds.
+// when it fails.
 func TestAsyncGossiperDiscardInFlightBlock(t *testing.T) {
 	m := newBlockingNetwork()
 	p := NewAsyncGossiper(context.Background(), m, testlog.Logger(t, log.LevelError), &mockMetrics{})
@@ -607,19 +541,12 @@ func TestAsyncGossiperDiscardInFlightBlock(t *testing.T) {
 	require.Equal(t, next, requirePayload(t, m.started,
 		"a discarded block must not be retried ahead of the blocks behind it"))
 	require.Equal(t, next, requirePayload(t, m.finished, "next never finished"))
-	require.Never(t, func() bool {
-		reusable := p.Get()
-		return reusable != nil &&
-			reusable.ExecutionPayload.BlockHash == envelope.ExecutionPayload.BlockHash
-	}, 200*time.Millisecond, 20*time.Millisecond,
-		"a discarded block must never be offered back for reuse")
 }
 
 // TestAsyncGossiperDiscardAll covers the sequencer abandoning the chain the
 // queued blocks extend - a derivation reset, or a start from an unknown
 // pre-state. Those blocks belong to a chain that has been rewound, so none of
-// them may still go out, and an in-flight publish must not come back as a
-// payload to reuse on the chain the sequencer moves to.
+// them may still go out.
 func TestAsyncGossiperDiscardAll(t *testing.T) {
 	m := newBlockingNetwork()
 	metrics := &mockMetrics{}
@@ -649,10 +576,10 @@ func TestAsyncGossiperDiscardAll(t *testing.T) {
 		case <-m.started:
 			return true
 		default:
-			return p.Get() != nil
+			return false
 		}
 	}, 300*time.Millisecond, 20*time.Millisecond,
-		"no queued block may be published after the chain was abandoned, nor offered for reuse")
+		"no queued block may be published after the chain was abandoned")
 }
 
 // instantFailNetwork fails every publish immediately, with no I/O at all. This
@@ -732,4 +659,75 @@ func TestAsyncGossiperStopsRetryingWhenIdle(t *testing.T) {
 		return m.count() > settled
 	}, 200*time.Millisecond, 20*time.Millisecond,
 		"with nothing arriving to evict it, the retry must stop rather than run until the process exits")
+}
+
+// classifyingNetwork fails every publish with the error it is given.
+type classifyingNetwork struct {
+	mu       sync.Mutex
+	err      error
+	attempts []common.Hash
+}
+
+func (c *classifyingNetwork) SignAndPublishL2Payload(ctx context.Context, e *eth.ExecutionPayloadEnvelope) error {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.attempts = append(c.attempts, e.ExecutionPayload.BlockHash)
+	return c.err
+}
+
+func (c *classifyingNetwork) count() int {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return len(c.attempts)
+}
+
+// TestAsyncGossiperDropsPermanentFailure covers a block the network will reject
+// the same way every time - op-node runs its own validator inline on the
+// publishing node, so a bad block, or one that has aged past the gossip
+// timestamp threshold, fails in about a millisecond and will keep failing.
+// Retrying it holds up every block behind it, so it is dropped on the spot.
+func TestAsyncGossiperDropsPermanentFailure(t *testing.T) {
+	m := &classifyingNetwork{err: fmt.Errorf("%w: validation failed", ErrPermanentPublish)}
+	metrics := &mockMetrics{}
+	p := NewAsyncGossiper(context.Background(), m, testlog.Logger(t, log.LevelCrit), metrics)
+	// Long enough that a single retry would be plainly visible as a delay.
+	p.retryInterval = 30 * time.Second
+	p.Start()
+	defer p.Stop()
+
+	p.Gossip(testEnvelope(1))
+
+	require.Eventually(t, func() bool {
+		return m.count() >= 1
+	}, 10*time.Second, 5*time.Millisecond)
+	require.Never(t, func() bool {
+		return m.count() > 1
+	}, 300*time.Millisecond, 20*time.Millisecond,
+		"a block that can never be published must not be retried")
+
+	// And the queue is free for the blocks behind it rather than blocked at the head.
+	p.Gossip(testEnvelope(2))
+	require.Eventually(t, func() bool {
+		_, queueLen, _ := metrics.counts()
+		return m.count() == 2 && queueLen == 0
+	}, 10*time.Second, 5*time.Millisecond,
+		"the next block must go out at once, not wait behind the dropped one")
+}
+
+// TestAsyncGossiperRetriesContextDeadline is the guard on the classification
+// being an allowlist. Topic.Publish surfaces the caller's context error from its
+// own internals, so a publish that merely ran out of time arrives looking like
+// any other failure. Treating that as permanent would silently disable retry.
+func TestAsyncGossiperRetriesContextDeadline(t *testing.T) {
+	m := &classifyingNetwork{err: context.DeadlineExceeded}
+	p := NewAsyncGossiper(context.Background(), m, testlog.Logger(t, log.LevelCrit), &mockMetrics{})
+	p.retryInterval = time.Millisecond
+	p.Start()
+	defer p.Stop()
+
+	p.Gossip(testEnvelope(1))
+	require.Eventually(t, func() bool {
+		return m.count() > 1
+	}, 10*time.Second, 5*time.Millisecond,
+		"a publish that timed out must still be retried")
 }

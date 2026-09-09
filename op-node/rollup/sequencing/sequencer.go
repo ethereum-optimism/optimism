@@ -48,8 +48,6 @@ type SequencerStateListener interface {
 
 type AsyncGossiper interface {
 	Gossip(payload *eth.ExecutionPayloadEnvelope)
-	Get() *eth.ExecutionPayloadEnvelope
-	Clear()
 	Discard(hash common.Hash)
 	DiscardAll()
 	Stop()
@@ -64,6 +62,13 @@ type BuildingState struct {
 
 	// Set once known
 	Ref eth.L2BlockRef
+	// Envelope is the sealed block, retained from the moment it is committed to
+	// the conductor and handed to gossip. Its presence means the block exists and
+	// has been committed, so a retry re-inserts exactly it rather than re-sealing
+	// the job - re-sealing depends on the engine still holding the payload, and
+	// losing it would discard a committed block and build a different one at the
+	// same height.
+	Envelope *eth.ExecutionPayloadEnvelope
 }
 
 // Sequencer implements the sequencing interface of the driver: it starts and completes block building jobs.
@@ -138,9 +143,6 @@ type Sequencer struct {
 	// wakeCh coalesces wake-up signals (cap 1) for the sequencer goroutine,
 	// so inbox appends and RPC start/stop interrupt its timer wait.
 	wakeCh chan struct{}
-
-	// toBlockRef converts a payload to a block-ref, and is only configurable for test-purposes
-	toBlockRef func(rollupCfg *rollup.Config, payload *eth.ExecutionPayload) (eth.L2BlockRef, error)
 }
 
 var _ SequencerIface = (*Sequencer)(nil)
@@ -173,7 +175,6 @@ func NewSequencer(driverCtx context.Context, log log.Logger, rollupCfg *rollup.C
 		eng:              eng,
 		timeNow:          time.Now,
 		wakeCh:           make(chan struct{}, 1),
-		toBlockRef:       derive.PayloadToBlockRef,
 	}
 }
 
@@ -338,11 +339,10 @@ func (s *Sequencer) onBuildStarted(x engine.BuildStartedEvent) {
 	s.log.Debug("Ignoring build-started event of sequencer-originated block", "payloadID", x.Info.ID)
 }
 
-// handleInvalid abandons the current attempt after the engine rejected it.
-// discard names the block that was already handed to the async gossiper, so it
-// is dropped from the publish queue rather than sent to peers later; it is the
-// zero hash when nothing had been gossiped yet.
-func (s *Sequencer) handleInvalid(discard common.Hash) {
+// handleInvalid abandons the current attempt after the engine rejected it. A
+// block already handed to the async gossiper is dropped from the publish queue
+// rather than sent to peers later.
+func (s *Sequencer) handleInvalid() {
 	s.metrics.RecordSequencingError()
 	// building.Ref is set only once the block has been sealed and handed to the
 	// async gossiper, so it names a block that may still be waiting to publish.
@@ -354,12 +354,8 @@ func (s *Sequencer) handleInvalid(discard common.Hash) {
 	// will then never become the head. Reconcile the sealed marker so Stop, which
 	// waits for the head to catch up to it, is not left waiting for a dead block.
 	s.lastSealed = s.unsafeHead
-	s.asyncGossip.Clear()
 	if gossiped != (common.Hash{}) {
 		s.asyncGossip.Discard(gossiped)
-	}
-	if discard != (common.Hash{}) && discard != gossiped {
-		s.asyncGossip.Discard(discard)
 	}
 	// upon error, retry after one block worth of time
 	blockTime := time.Duration(s.rollupCfg.BlockTime) * time.Second
@@ -376,7 +372,6 @@ func (s *Sequencer) onPayloadSuccess(x payloadSuccess) {
 		return // not relevant to us
 	}
 	s.building = BuildingState{}
-	s.asyncGossip.Clear()
 }
 
 // RunAction performs one sequencer action: it processes a payload left in the
@@ -413,54 +408,42 @@ func (s *Sequencer) RunAction() {
 		s.log.Debug("Ignoring sequencer action, no action scheduled after inbox replay")
 		return
 	}
-	payload := s.asyncGossip.Get()
-	if payload != nil {
-		if s.building.Info.ID == (eth.PayloadID{}) {
-			s.log.Warn("Found reusable payload from async gossiper, and no block was being built. Reusing payload.",
-				"hash", payload.ExecutionPayload.BlockHash,
-				"number", uint64(payload.ExecutionPayload.BlockNumber),
-				"parent", payload.ExecutionPayload.ParentHash)
-		}
-		ref, err := s.toBlockRef(s.rollupCfg, payload.ExecutionPayload)
-		if err != nil {
-			s.log.Error("Payload from async-gossip buffer could not be turned into block-ref", "err", err)
-			// Treat like an invalid payload: drop it and retry with a fresh
-			// build after a backoff. No event echo re-arms this failure.
-			s.handleInvalid(payload.ExecutionPayload.BlockHash)
-			return
-		}
-		s.log.Info("Resuming sequencing with previously async-gossip confirmed payload",
-			"payload", payload.ExecutionPayload.ID())
-		// The payload is known and was already gossiped: it must have been sealed
-		// before a temporary error. Retry processing to make it canonical.
+	if s.building.Envelope != nil {
+		// This block was sealed, committed to the conductor and handed to gossip;
+		// only the local insert failed, and temporarily. Retry that insert with the
+		// block we already hold. Re-sealing instead would stake recovery on the
+		// engine still holding the payload job, and losing it would discard a block
+		// the conductor has already committed and build a different one at the same
+		// height.
+		envelope, ref := s.building.Envelope, s.building.Ref
+		s.log.Info("Retrying insertion of an already-gossiped block", "block", ref)
 		// Park the schedule first: on a temporary error the engine's
 		// EngineTemporaryErrorEvent echoes back through the mailbox and re-arms
 		// the backoff; re-firing before that echo would spin on the engine.
 		s.nextActionArmed = false
-		if err := s.eng.ProcessPayload(s.ctx, payload, ref, time.Time{}); err != nil {
+		if err := s.eng.ProcessPayload(s.ctx, envelope, ref, time.Time{}); err != nil {
 			if errors.Is(err, engine.ErrStaleBuild) {
-				// The chain moved past the buffered payload; it is worthless now.
-				// Nothing of ours is outstanding anymore: don't leave Stop
-				// waiting for the dropped block to become the head.
+				// The chain moved past our block; it is worthless now. Nothing of
+				// ours is outstanding anymore: don't leave Stop waiting for the
+				// dropped block to become the head.
 				s.building = BuildingState{}
 				s.lastSealed = s.unsafeHead
-				s.asyncGossip.Discard(payload.ExecutionPayload.BlockHash)
+				s.asyncGossip.Discard(ref.Hash)
 				if ref.ParentHash != s.unsafeHead.Hash {
-					// The payload was already stale against the head we know, so
-					// the forkchoice update the engine just requested carries that
-					// same head and will not re-plan anything. Re-plan here, or the
+					// The block was already stale against the head we know, so the
+					// forkchoice update the engine just requested carries that same
+					// head and will not re-plan anything. Re-plan here, or the
 					// sequencer parks forever waiting for an echo it has had.
 					s.scheduleNextAction(s.unsafeHead)
 				}
 				// Otherwise the engine moved during the call: its forkchoice update
 				// names a head we have not seen yet and re-arms us on arrival.
 			} else if errors.Is(err, engine.ErrPayloadDenied) || errors.Is(err, engine.ErrPayloadInvalid) {
-				s.handleInvalid(payload.ExecutionPayload.BlockHash)
+				s.handleInvalid()
 			}
 			return
 		}
 		s.building = BuildingState{}
-		s.asyncGossip.Clear()
 		s.scheduleNextAction(ref)
 		return
 	}
@@ -473,25 +456,17 @@ func (s *Sequencer) RunAction() {
 				// A competing block landed while we were building; drop the job
 				// rather than committing the stale sibling. Parked until the
 				// engine-requested forkchoice update arrives.
+				// Nothing was committed for this job: a job that had already
+				// sealed a block would have been retried from the retained
+				// envelope above, never re-sealed. So there is nothing to keep
+				// out of the publish queue and no sealed marker to reconcile.
 				s.log.Warn("Dropping stale sealed block, chain moved past it", "payloadID", s.building.Info.ID)
-				// A previous action may already have sealed and gossiped a block
-				// for this job, and be re-sealing it after a temporary insert
-				// error. That block lost too: keep it out of the publish queue.
-				if gossiped := s.building.Ref.Hash; gossiped != (common.Hash{}) {
-					s.asyncGossip.Discard(gossiped)
-					// That block will now never become the head, so reconcile the
-					// sealed marker too: Stop waits for the head to catch up to
-					// it, and would otherwise wait for a block nobody is going to
-					// insert. On a first seal there is no such block and the
-					// marker is already zero.
-					s.lastSealed = s.unsafeHead
-				}
 				s.building = BuildingState{}
 				return
 			}
 			// Restart building on seal errors (expired or invalid), this way we get
 			// a block we should be able to seal (smaller, since we adapt build time).
-			s.handleInvalid(common.Hash{})
+			s.handleInvalid()
 			return
 		}
 		envelope := sealResult.Envelope
@@ -512,10 +487,9 @@ func (s *Sequencer) RunAction() {
 		}
 
 		// Begin gossiping as soon as possible.
-		// asyncGossip.Clear() is called once the payload is successfully inserted below,
-		// or when a later action hits a non-temporary error.
 		s.asyncGossip.Gossip(envelope)
 		s.building.Ref = sealResult.Ref
+		s.building.Envelope = envelope
 		s.lastSealed = sealResult.Ref
 		// Now after having gossiped the block, try to put it in our own canonical chain.
 		if err := s.eng.ProcessPayload(s.ctx, envelope, sealResult.Ref, s.building.Started); err != nil {
@@ -530,16 +504,13 @@ func (s *Sequencer) RunAction() {
 				s.lastSealed = s.unsafeHead
 				s.asyncGossip.Discard(sealResult.Ref.Hash)
 			} else if errors.Is(err, engine.ErrPayloadDenied) || errors.Is(err, engine.ErrPayloadInvalid) {
-				s.handleInvalid(sealResult.Ref.Hash)
+				s.handleInvalid()
 			}
 			return
 		}
 		s.log.Info("Sequencer inserted block",
 			"block", sealResult.Ref, "parent", envelope.ExecutionPayload.ParentID())
 		s.building = BuildingState{}
-		// The payload was already published upon sealing.
-		// Now that we have processed it ourselves we don't need it anymore.
-		s.asyncGossip.Clear()
 		s.scheduleNextAction(sealResult.Ref)
 	} else if s.building == (BuildingState{}) {
 		// If we have not started building anything, start building.
@@ -626,6 +597,17 @@ func (s *Sequencer) onForkchoiceUpdate(x engine.ForkchoiceUpdateEvent) {
 	if s.building != (BuildingState{}) && s.building.Onto.Hash != x.UnsafeL2Head.Hash {
 		s.log.Debug("Dropping stale/completed block-building job",
 			"state", s.building.Onto, "unsafe", x.UnsafeL2Head)
+		// The job may already have sealed a block that was committed and gossiped
+		// and is still waiting to publish. The chain has adopted a different
+		// branch, so that block lost: keep it out of the publish queue rather than
+		// offering peers a block we have abandoned, and reconcile the sealed
+		// marker, which Stop waits on.
+		if gossiped := s.building.Ref.Hash; gossiped != (common.Hash{}) {
+			s.log.Warn("Discarding gossiped block, the chain adopted a competing one",
+				"dropped", s.building.Ref, "unsafe", x.UnsafeL2Head)
+			s.asyncGossip.Discard(gossiped)
+			s.lastSealed = x.UnsafeL2Head
+		}
 		// The cleared state stops the next sequencer action from sealing the stale build job.
 		s.building = BuildingState{}
 	}
@@ -864,7 +846,7 @@ func (s *Sequencer) startBuildingBlock() {
 		if errors.Is(err, engine.ErrBuildInvalid) {
 			// No recovery event reaches us for invalid attributes of our own
 			// builds; back off locally and retry with a new job.
-			s.handleInvalid(common.Hash{})
+			s.handleInvalid()
 			return
 		}
 		// Temporary, reset, or critical error: the engine emitted the matching
@@ -879,7 +861,7 @@ func (s *Sequencer) startBuildingBlock() {
 			Info:  result.Info,
 			Force: true,
 		})
-		s.handleInvalid(common.Hash{})
+		s.handleInvalid()
 		return
 	}
 	s.log.Debug("Sequencer started building new block",
@@ -972,20 +954,21 @@ func (s *Sequencer) forceStart() error {
 		// This happens if sequencing is activated on op-node startup.
 		// The op-conductor check and choice of sequencing with this pre-state already happened before op-node startup.
 		s.log.Info("Starting sequencing, without known pre-state")
-		// Out of caution: with no known pre-state we cannot tell which, if any,
-		// of the blocks still waiting to publish belong to the chain we are about
-		// to sequence on, so none of them go out.
-		s.asyncGossip.DiscardAll()
 	} else {
 		// This happens when we start sequencing on an already-running node.
 		s.log.Info("Starting sequencing on top of known pre-state", "unsafe", s.unsafeHead)
-		if payload := s.asyncGossip.Get(); payload != nil &&
-			payload.ExecutionPayload.BlockHash != s.unsafeHead.Hash {
-			s.log.Warn("Cleared old block from async-gossip buffer, sequencing pre-state is different",
-				"buffered", payload.ExecutionPayload.ID(), "prestate", s.unsafeHead)
-			s.asyncGossip.Clear()
-		}
 	}
+	// Whatever is still waiting to publish was sealed before we stopped, and this
+	// start is not responsible for it: the chain may have moved to another branch
+	// while we were inactive, and blocks queued or already in flight are not
+	// individually inspectable from here. Dropping the backlog can lose a block
+	// that was in fact canonical, which costs gossip only - it still reaches peers
+	// by L1 and derivation - whereas publishing one from an abandoned branch does
+	// not. Same reasoning as the unknown pre-state above, so it is unconditional.
+	s.asyncGossip.DiscardAll()
+	// Nothing of ours is outstanding at the moment we start: whatever Stop would
+	// have waited for belongs to the period before this start.
+	s.lastSealed = s.unsafeHead
 
 	if err := s.listener.SequencerStarted(); err != nil {
 		return fmt.Errorf("failed to notify sequencer-state listener of start: %w", err)
@@ -1054,6 +1037,12 @@ func (s *Sequencer) Stop(ctx context.Context) (common.Hash, error) {
 
 	// Cancel any inflight block building. If we don't cancel this, we can resume sequencing an old block
 	// even if we've received new unsafe heads in the interim, causing us to introduce a re-org.
+	// A block we sealed and gossiped but never inserted goes with it: we are handing
+	// over, and whoever sequences next may extend a different branch, so that block
+	// must not still reach peers as a sibling of theirs.
+	if gossiped := s.building.Ref.Hash; gossiped != (common.Hash{}) {
+		s.asyncGossip.Discard(gossiped)
+	}
 	s.building = BuildingState{} // By wiping this state we cannot continue from it later.
 
 	s.nextActionArmed = false

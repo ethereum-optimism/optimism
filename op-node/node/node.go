@@ -26,6 +26,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-node/node/tracer"
 	"github.com/ethereum-optimism/optimism/op-node/p2p"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
+	"github.com/ethereum-optimism/optimism/op-node/rollup/async"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/conductor"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/driver"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/sequencing"
@@ -764,7 +765,9 @@ func (n *OpNode) SignAndPublishL2Payload(ctx context.Context, envelope *eth.Exec
 	// publish to p2p, if we are running p2p at all
 	if p2pNode := n.getP2PNodeIfEnabled(); p2pNode != nil {
 		if n.p2pSigner == nil {
-			return fmt.Errorf("node has no p2p signer, payload %s cannot be published", envelope.ID())
+			// Fixed at startup: no retry can make a signer appear.
+			return fmt.Errorf("%w: node has no p2p signer, payload %s cannot be published",
+				async.ErrPermanentPublish, envelope.ID())
 		}
 		n.log.Info("Publishing signed execution payload on p2p", "id", envelope.ID())
 		return p2pNode.GossipOut().SignAndPublishL2Payload(ctx, envelope, n.p2pSigner)
@@ -810,22 +813,6 @@ func (n *OpNode) Stop(ctx context.Context) error {
 		}
 	}
 
-	n.p2pMu.Lock()
-	if n.p2pNode != nil {
-		if err := n.p2pNode.Close(); err != nil {
-			result = errors.Join(result, fmt.Errorf("failed to close p2p node: %w", err))
-		}
-		// Prevent further use of p2p.
-		n.p2pNode = nil
-	}
-	n.p2pMu.Unlock()
-
-	if n.p2pSigner != nil {
-		if err := n.p2pSigner.Close(); err != nil {
-			result = errors.Join(result, fmt.Errorf("failed to close p2p signer: %w", err))
-		}
-	}
-
 	if n.resourcesClose != nil {
 		n.resourcesClose()
 	}
@@ -847,6 +834,26 @@ func (n *OpNode) Stop(ctx context.Context) error {
 	if n.l2Driver != nil {
 		if err := n.l2Driver.Close(); err != nil {
 			result = errors.Join(result, fmt.Errorf("failed to close L2 engine driver cleanly: %w", err))
+		}
+	}
+
+	// p2p and the block signer are closed only now, after the driver. The driver
+	// owns the async gossiper, whose publisher goroutine uses both, and it only
+	// stops as part of Driver.Close. Closing them earlier let a publish still in
+	// flight - or a queued one - run against a closed topic and a closed signer.
+	n.p2pMu.Lock()
+	if n.p2pNode != nil {
+		if err := n.p2pNode.Close(); err != nil {
+			result = errors.Join(result, fmt.Errorf("failed to close p2p node: %w", err))
+		}
+		// Prevent further use of p2p.
+		n.p2pNode = nil
+	}
+	n.p2pMu.Unlock()
+
+	if n.p2pSigner != nil {
+		if err := n.p2pSigner.Close(); err != nil {
+			result = errors.Join(result, fmt.Errorf("failed to close p2p signer: %w", err))
 		}
 	}
 

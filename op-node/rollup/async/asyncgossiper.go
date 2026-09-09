@@ -2,6 +2,7 @@ package async
 
 import (
 	"context"
+	"errors"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -41,10 +42,20 @@ const (
 	retryInterval = time.Second
 )
 
+// ErrPermanentPublish marks a publish failure that will recur identically on
+// every attempt: the block itself, or this node's configuration, is what was
+// rejected. op-node runs its own block validator inline on the publishing node,
+// so these are the common case rather than an exotic one - and a block that has
+// aged past the gossip timestamp threshold joins them, permanently.
+//
+// Retrying such a block is not merely wasted work. It sits at the head of the
+// queue holding up every block behind it, and a queue that spans more than the
+// timestamp threshold would never drain again: each head is already too old, so
+// each fails, and the blocks behind it age into the same state.
+var ErrPermanentPublish = errors.New("permanent publish failure")
+
 type AsyncGossiper interface {
 	Gossip(payload *eth.ExecutionPayloadEnvelope)
-	Get() *eth.ExecutionPayloadEnvelope
-	Clear()
 	Discard(hash common.Hash)
 	DiscardAll()
 	Stop()
@@ -52,13 +63,17 @@ type AsyncGossiper interface {
 }
 
 // SimpleAsyncGossiper publishes sealed blocks to p2p without holding up the
-// sequencer, and holds the last published block for the sequencer to reuse.
+// sequencer.
 //
 // Publishing runs on a dedicated goroutine, and the exposed functions only take
-// a mutex: none of them waits for the network. The sequencer calls Gossip, Get
-// and Clear on the hot path between sealing block N and opening the build window
-// for block N+1, and that window is computed as a residual - so any wait here is
-// subtracted 1:1 from the next block's building time.
+// a mutex: none of them waits for the network. The sequencer calls Gossip on the
+// hot path between sealing block N and opening the build window for block N+1,
+// and that window is computed as a residual - so any wait here is subtracted 1:1
+// from the next block's building time.
+//
+// It does not hold a block for the sequencer to reuse. The sequencer keeps the
+// block it sealed on its own building state, so a failed insert is retried from
+// there rather than from here.
 type SimpleAsyncGossiper struct {
 	running atomic.Bool
 	// wake signals the publisher goroutine that there is a payload to publish.
@@ -73,14 +88,6 @@ type SimpleAsyncGossiper struct {
 	// published in the order they were sealed, so a peer is not asked to accept a
 	// block before its parent.
 	queue []*queuedPayload
-	// currentPayload is the last successfully published payload that has not
-	// been cleared or discarded since: the payload the sequencer may reuse
-	currentPayload *eth.ExecutionPayloadEnvelope
-	// wanted is the block the sequencer is currently trying to make canonical.
-	// A publish that completes for any other block must not offer its payload
-	// for reuse: the sequencer has moved past it. Gossip sets it, Clear and
-	// Discard zero it.
-	wanted common.Hash
 	// publishing is the block the publisher goroutine currently has in flight,
 	// valid only while publishInFlight is set. It keeps a re-seal of that same
 	// block from being queued behind the publish that is already sending it.
@@ -165,13 +172,11 @@ func (p *SimpleAsyncGossiper) enqueue(payload *eth.ExecutionPayloadEnvelope) {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 
-	// This is the block the sequencer is now trying to make canonical.
-	p.wanted = hash
 	if p.isPending(hash) {
-		// A re-seal of a block already queued or in flight. The sequencer does
-		// this while an insert keeps failing temporarily, once per retry.
-		// Publishing the same block again is wasted work, and queueing it would
-		// crowd out the blocks behind it.
+		// The same block handed over twice. The sequencer no longer does this -
+		// it re-inserts the block it retained rather than re-sealing - but
+		// publishing one block twice is wasted work either way, and queueing it
+		// would crowd out the blocks behind it.
 		return
 	}
 
@@ -212,47 +217,16 @@ func (p *SimpleAsyncGossiper) signal() {
 	}
 }
 
-// Get returns the payload that was published and not cleared since, if any.
-//
-// It does not wait for a publish that is still in flight: a nil result means
-// there is nothing to reuse, and the sequencer seals (or re-seals) its building
-// job instead of paying for the wait out of the block's build window.
-func (p *SimpleAsyncGossiper) Get() *eth.ExecutionPayloadEnvelope {
-	p.mu.Lock()
-	defer p.mu.Unlock()
-	return p.currentPayload
-}
-
-// Clear drops the payload held for reuse, for when the sequencer no longer needs
-// it because the block was inserted. Queued blocks are left to publish: they are
-// good blocks, and peers still need them.
-//
-// A publish that is in flight still completes - peers need the block either way
-// - but its result no longer repopulates the buffer.
-func (p *SimpleAsyncGossiper) Clear() {
-	p.mu.Lock()
-	defer p.mu.Unlock()
-	p.currentPayload = nil
-	p.wanted = common.Hash{}
-}
-
 // Discard drops a block the sequencer has rejected - invalid, denied, or stale
-// against a chain that moved on - so it is neither published from the queue nor
-// offered back for reuse. This is the counterpart to Clear: Clear says the block
-// made it, Discard says it did not.
+// against a chain that moved on - so it is not published. A block that was
+// inserted successfully needs no call at all: it is already on its way, and
+// peers need it.
 //
-// A publish already in flight cannot be recalled, but it is not retried, and its
-// result is not stored.
+// A publish already in flight cannot be recalled, but it is not retried.
 func (p *SimpleAsyncGossiper) Discard(hash common.Hash) {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 
-	if p.currentPayload != nil && p.currentPayload.ExecutionPayload.BlockHash == hash {
-		p.currentPayload = nil
-	}
-	if p.wanted == hash {
-		p.wanted = common.Hash{}
-	}
 	if p.publishInFlight && p.publishing == hash {
 		p.publishDiscarded = true
 	}
@@ -273,21 +247,15 @@ func (p *SimpleAsyncGossiper) Discard(hash common.Hash) {
 	p.metrics.RecordPublishQueueLen(len(p.queue))
 }
 
-// DiscardAll drops everything: the payload held for reuse, and every block still
-// waiting to be published. It is for when the sequencer abandons the chain it was
-// building on - a derivation reset, or a start from an unknown pre-state - after
-// which the queued blocks belong to a chain that has been rewound. Publishing
-// them would offer peers blocks the sequencer itself no longer stands behind.
-//
-// This is the bulk counterpart to Discard. Clear is deliberately not this: it is
-// also what the sequencer calls when a block is successfully inserted, where the
-// blocks queued behind it are good blocks that peers still need.
+// DiscardAll drops every block still waiting to be published. It is for when the
+// sequencer abandons the chain it was building on - a derivation reset, or a
+// start from an unknown pre-state - after which the queued blocks belong to a
+// chain that has been rewound. Publishing them would offer peers blocks the
+// sequencer itself no longer stands behind.
 func (p *SimpleAsyncGossiper) DiscardAll() {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 
-	p.currentPayload = nil
-	p.wanted = common.Hash{}
 	if p.publishInFlight {
 		p.publishDiscarded = true
 	}
@@ -398,10 +366,9 @@ func (p *SimpleAsyncGossiper) signalIfPending() {
 	}
 }
 
-// finishPublish records the outcome of a publish attempt: on success the payload
-// becomes available for reuse if the sequencer still wants it, and on failure the
-// block is put back at the front of the queue if there is room for it. It reports
-// whether it requeued, so the caller can pace the retry.
+// finishPublish records the outcome of a publish attempt: on failure the block is
+// put back at the front of the queue if there is room for it. It reports whether
+// it requeued, so the caller can pace the retry.
 func (p *SimpleAsyncGossiper) finishPublish(next *queuedPayload, err error) (requeued bool) {
 	p.mu.Lock()
 	p.publishInFlight = false
@@ -409,15 +376,14 @@ func (p *SimpleAsyncGossiper) finishPublish(next *queuedPayload, err error) (req
 	p.publishDiscarded = false
 
 	if err == nil {
-		// A Clear (the block was inserted), a Discard (it was rejected), or a
-		// Gossip of a later block while we were publishing all make this payload
-		// unfit for reuse: the sequencer would rebuild a block it has moved past.
-		if !discarded && p.wanted == next.hash {
-			p.currentPayload = next.payload
-		}
 		p.mu.Unlock()
 		return false
 	}
+
+	// A block the network will reject the same way every time is dropped now: it
+	// cannot become publishable, and holding it at the head would stall the
+	// blocks behind it.
+	permanent := errors.Is(err, ErrPermanentPublish)
 
 	// Retrying at the front keeps the chain gap-free for peers. Queue pressure is
 	// what bounds it: the retried block sits at the head, and enqueue evicts the
@@ -425,13 +391,15 @@ func (p *SimpleAsyncGossiper) finishPublish(next *queuedPayload, err error) (req
 	// production leaves room for it. A block the sequencer has already rejected
 	// is not retried at all.
 	//
-	// The attempt bound is the same number, for the case where that eviction can
-	// never come: if block production has stopped, nothing is ever enqueued, so
-	// nothing evicts the head and an unpublishable block would be offered - and
-	// logged, and counted - once per retryInterval until the process exits. A
-	// block that has been tried more times than the queue could hold has already
-	// outlived every block that would have displaced it.
-	retry := !discarded && len(p.queue) < maxPublishQueue && next.attempts < maxPublishQueue
+	// maxPublishAttempts is a hard ceiling on top of that, for the case where
+	// eviction can never come: if block production has stopped, nothing is ever
+	// enqueued, so nothing evicts the head and a block that keeps failing would be
+	// offered - and logged, and counted - once per retryInterval until the process
+	// exits. At a 1s interval it is reached in about 32s, well before 32 blocks
+	// have been produced at any normal block time, so it is the ceiling that binds
+	// first in practice rather than a restatement of queue pressure.
+	retry := !discarded && !permanent &&
+		len(p.queue) < maxPublishQueue && next.attempts < maxPublishQueue
 	if retry {
 		p.queue = append([]*queuedPayload{next}, p.queue...)
 		p.metrics.RecordPublishQueueLen(len(p.queue))
@@ -439,7 +407,15 @@ func (p *SimpleAsyncGossiper) finishPublish(next *queuedPayload, err error) (req
 	p.mu.Unlock()
 
 	p.metrics.RecordPublishingError()
-	p.log.Warn("failed to publish newly created block",
+	if !retry {
+		// Nothing else will carry this block to peers.
+		p.metrics.RecordDroppedPublish()
+	}
+	msg := "failed to publish newly created block"
+	if permanent {
+		msg = "dropping block that can never be published"
+	}
+	p.log.Warn(msg,
 		"id", next.payload.ExecutionPayload.ID(),
 		"hash", next.payload.ExecutionPayload.BlockHash,
 		"attempts", next.attempts,
@@ -453,8 +429,6 @@ func (p *SimpleAsyncGossiper) finishPublish(next *queuedPayload, err error) (req
 type NoOpGossiper struct{}
 
 func (NoOpGossiper) Gossip(payload *eth.ExecutionPayloadEnvelope) {}
-func (NoOpGossiper) Get() *eth.ExecutionPayloadEnvelope           { return nil }
-func (NoOpGossiper) Clear()                                       {}
 func (NoOpGossiper) Discard(hash common.Hash)                     {}
 func (NoOpGossiper) DiscardAll()                                  {}
 func (NoOpGossiper) Stop()                                        {}
