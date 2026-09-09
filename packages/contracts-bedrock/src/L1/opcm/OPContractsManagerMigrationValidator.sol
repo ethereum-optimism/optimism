@@ -168,12 +168,12 @@ contract OPContractsManagerMigrationValidator {
         // Shared ETHLockbox invariants.
         if (_foundSharedContracts && address(_sharedContracts.lockbox) != address(0)) {
             _errors = assertValidSharedLockbox(
-                _errors, _sharedContracts.lockbox, _sharedContracts.proxyAdmin, firstCfg.superchainConfig(), _impls
+                _errors, _sharedContracts.lockbox, _sharedContracts.proxyAdmin, _cfg.superchainConfig, _impls
             );
         }
 
         // Per-chain invariants (portal points at shared ASR/lockbox, legacy game types cleared).
-        _errors = assertValidPerChainMigration(_errors, _input.chainSystemConfigs);
+        _errors = assertValidPerChainMigration(_errors, _input.chainSystemConfigs, _cfg.superchainConfig);
 
         if (bytes(_errors).length > 0 && !_allowFailure) {
             revert(string.concat("OPContractsManagerMigrationValidator: ", _errors));
@@ -420,7 +420,8 @@ contract OPContractsManagerMigrationValidator {
         });
     }
 
-    /// @notice Validates the shared ETHLockbox.
+    /// @notice Validates the shared ETHLockbox: version, proxy impl, ProxyAdmin, and that its pause
+    ///         authority is the expected SuperchainConfig.
     function assertValidSharedLockbox(
         string memory _errors,
         IETHLockbox _lockbox,
@@ -451,10 +452,12 @@ contract OPContractsManagerMigrationValidator {
         return _errors;
     }
 
-    /// @notice Validates per-chain migration state: portal ASR, per-chain DGF cleared, lockbox auth.
+    /// @notice Validates per-chain migration state: portal ASR, per-chain DGF cleared, lockbox auth,
+    ///         and that every chain's SystemConfig points at the expected SuperchainConfig.
     function assertValidPerChainMigration(
         string memory _errors,
-        ISystemConfig[] memory _chainSystemConfigs
+        ISystemConfig[] memory _chainSystemConfigs,
+        ISuperchainConfig _superchainConfig
     )
         internal
         view
@@ -470,7 +473,6 @@ contract OPContractsManagerMigrationValidator {
         IETHLockbox sharedLockbox = firstPortal.ethLockbox();
         IDisputeGameFactory sharedDGF = IDisputeGameFactory(_chainSystemConfigs[0].disputeGameFactory());
         address sharedWETH = _chainSystemConfigs[0].delayedWETH();
-        ISuperchainConfig sharedSuperchainConfig = _chainSystemConfigs[0].superchainConfig();
 
         // Guard against missing lockbox — would revert on authorizedPortals call.
         if (address(sharedLockbox) == address(0)) {
@@ -543,7 +545,7 @@ contract OPContractsManagerMigrationValidator {
                 _chainSystemConfigs[i].delayedWETH() == sharedWETH, string.concat("MIG-CHAIN-", idx, "-120"), _errors
             );
             _errors = internalRequire(
-                _chainSystemConfigs[i].superchainConfig() == sharedSuperchainConfig,
+                _chainSystemConfigs[i].superchainConfig() == _superchainConfig,
                 string.concat("MIG-CHAIN-", idx, "-130"),
                 _errors
             );

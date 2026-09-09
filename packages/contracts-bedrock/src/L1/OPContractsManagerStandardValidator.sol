@@ -857,7 +857,8 @@ contract OPContractsManagerStandardValidator is ISemver {
         return IOPContractsManagerMigrationValidator.SharedConfig({
             l1PAOMultisig: l1PAOMultisig,
             challenger: challenger,
-            withdrawalDelaySeconds: withdrawalDelaySeconds
+            withdrawalDelaySeconds: withdrawalDelaySeconds,
+            superchainConfig: superchainConfig
         });
     }
 
