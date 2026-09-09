@@ -227,12 +227,47 @@ func newTwoL2SupernodeRuntimeWithConfig(t devtest.T, enableInterop bool, delaySe
 }
 
 func newTwoL2SupernodeRuntimeWithConfigAndSequencerMode(t devtest.T, enableInterop bool, delaySeconds uint64, cfg PresetConfig, supernodeSequencerEnabled bool) (*MultiChainRuntime, uint64) {
+	return newMultiL2SupernodeRuntimeWithConfigAndSequencerMode(
+		t,
+		enableInterop,
+		delaySeconds,
+		cfg,
+		supernodeSequencerEnabled,
+		[]runtimeChainSpec{
+			{Name: "l2a", ID: DefaultL2AID},
+			{Name: "l2b", ID: DefaultL2BID},
+		},
+	)
+}
+
+type runtimeChainSpec struct {
+	Name string
+	ID   eth.ChainID
+}
+
+func newMultiL2SupernodeRuntimeWithConfigAndSequencerMode(
+	t devtest.T,
+	enableInterop bool,
+	delaySeconds uint64,
+	cfg PresetConfig,
+	supernodeSequencerEnabled bool,
+	chainSpecs []runtimeChainSpec,
+) (*MultiChainRuntime, uint64) {
 	require := t.Require()
+	require.NotEmpty(chainSpecs, "multi-chain runtime needs at least one L2 chain")
 
 	keys, err := devkeys.NewMnemonicDevKeys(devkeys.TestMnemonic)
 	require.NoError(err, "failed to derive dev keys from mnemonic")
 
-	wb, l1Net, l2ANet, l2BNet := buildTwoL2RuntimeWorld(t, keys, enableInterop, delaySeconds, cfg.LocalContractArtifactsPath, cfg.DeployerOptions...)
+	wb, l1Net, l2Nets := buildMultiL2RuntimeWorld(
+		t,
+		keys,
+		enableInterop,
+		delaySeconds,
+		cfg.LocalContractArtifactsPath,
+		chainSpecs,
+		cfg.DeployerOptions...,
+	)
 	migration := newInteropMigrationState(wb)
 	jwtPath, jwtSecret := writeJWTSecret(t)
 	l1Clock := clock.SystemClock
@@ -243,46 +278,36 @@ func newTwoL2SupernodeRuntimeWithConfigAndSequencerMode(t devtest.T, enableInter
 	}
 	l1EL, l1CL := startInProcessL1WithClockConfig(t, l1Net, jwtPath, l1Clock, cfg)
 	if cfg.PreGenesisSuperGame != nil {
-		preparePreGenesisSuperGame(t, keys, wb, l1Net, l1EL, migration, cfg.PreGenesisSuperGame, l2ANet, l2BNet)
+		preparePreGenesisSuperGame(t, keys, wb, l1Net, l1EL, migration, cfg.PreGenesisSuperGame, l2Nets...)
 	}
 
-	var l2AEL, l2BEL L2ELNode
+	l2ELs := make([]L2ELNode, len(l2Nets))
 	var interopFilter *InteropFilter
-
 	if cfg.UseInteropFilter {
-		// Proxy pattern: allocate stable address before ELs start
 		filterProxy := tcpproxy.New(t.Logger().New("proxy", "interop-filter"))
 		require.NoError(filterProxy.Start())
 		t.Cleanup(func() { filterProxy.Close() })
 		filterRPC := "http://" + filterProxy.Addr()
 
-		// Start ELs with filter proxy URL
-		l2AEL = startSupernodeELWithInteropURL(t, l2ANet, "sequencer", jwtPath, jwtSecret, filterRPC)
-		l2BEL = startSupernodeELWithInteropURL(t, l2BNet, "sequencer", jwtPath, jwtSecret, filterRPC)
-
-		// Build rollup config map from L2 networks (Go structs, no file I/O)
-		rollupConfigs := map[eth.ChainID]*rollup.Config{
-			eth.ChainIDFromBig(l2ANet.RollupConfig().L2ChainID): l2ANet.RollupConfig(),
-			eth.ChainIDFromBig(l2BNet.RollupConfig().L2ChainID): l2BNet.RollupConfig(),
+		rollupConfigs := make(map[eth.ChainID]*rollup.Config, len(l2Nets))
+		l2RPCs := make([]string, len(l2Nets))
+		for i, l2Net := range l2Nets {
+			l2ELs[i] = startSupernodeELWithInteropURL(t, l2Net, "sequencer", jwtPath, jwtSecret, filterRPC)
+			rollupConfigs[l2Net.ChainID()] = l2Net.RollupConfig()
+			l2RPCs[i] = l2ELs[i].UserRPC()
 		}
-
-		// Create and start interop filter in-process
-		interopFilter = startInteropFilter(t, "interop-filter",
-			[]string{l2AEL.UserRPC(), l2BEL.UserRPC()},
-			rollupConfigs)
-
-		// Connect proxy to the filter's actual RPC endpoint
+		interopFilter = startInteropFilter(t, "interop-filter", l2RPCs, rollupConfigs)
 		filterProxy.SetUpstream(ProxyAddr(require, interopFilter.HTTPEndpoint()))
 	} else {
-		// No interop filter — ELs start without an interop filter URL (existing behavior)
-		l2AEL = startSupernodeEL(t, l2ANet, jwtPath, jwtSecret)
-		l2BEL = startSupernodeEL(t, l2BNet, jwtPath, jwtSecret)
+		for i, l2Net := range l2Nets {
+			l2ELs[i] = startSupernodeEL(t, l2Net, jwtPath, jwtSecret)
+		}
 	}
 
 	var activationTime uint64
 	var interopActivationTimestamp *uint64
 	if enableInterop {
-		activationTime = l2ANet.rollupCfg.Genesis.L2Time + delaySeconds
+		activationTime = l2Nets[0].rollupCfg.Genesis.L2Time + delaySeconds
 		interopActivationTimestamp = &activationTime
 	}
 
@@ -292,9 +317,7 @@ func newTwoL2SupernodeRuntimeWithConfigAndSequencerMode(t devtest.T, enableInter
 		require.True(ok, "expected static dependency set")
 		depSet = cast
 	}
-
 	if cfg.MessageExpiryWindow != nil && depSet != nil {
-		var err error
 		depSet, err = depset.NewStaticConfigDependencySetWithMessageExpiryOverride(
 			depSet.Dependencies(), *cfg.MessageExpiryWindow)
 		require.NoError(err, "failed to override message expiry window")
@@ -307,15 +330,13 @@ func newTwoL2SupernodeRuntimeWithConfigAndSequencerMode(t devtest.T, enableInter
 		runtimeDepSet = wb.outFullCfgSet.DependencySet
 	}
 
-	supernode, supernodeL2ACL, supernodeL2BCL := startTwoL2SharedSupernode(
+	supernode, supernodeCLs := startSharedSupernode(
 		t,
 		l1Net,
 		l1EL,
 		l1CL,
-		l2ANet,
-		l2AEL,
-		l2BNet,
-		l2BEL,
+		l2Nets,
+		l2ELs,
 		depSet,
 		interopActivationTimestamp,
 		cfg.InteropLogBackfillDepth,
@@ -323,81 +344,56 @@ func newTwoL2SupernodeRuntimeWithConfigAndSequencerMode(t devtest.T, enableInter
 		supernodeSequencerEnabled || cfg.SupernodeVNSequencerForBootstrap,
 	)
 
-	var l2ACL L2CLNode = supernodeL2ACL
-	var l2BCL L2CLNode = supernodeL2BCL
-	// supernode VN ELs (always distinct identity from any follow-mode sequencer EL).
-	supernodeL2AEL, supernodeL2BEL := l2AEL, l2BEL
-	// sequencer ELs default to the supernode ELs in virtual-sequencer mode;
-	// in light-sequencer mode each follow-mode sequencer gets its own EL.
-	seqL2AEL, seqL2BEL := l2AEL, l2BEL
+	l2CLs := make([]L2CLNode, len(supernodeCLs))
+	for i, supernodeCL := range supernodeCLs {
+		l2CLs[i] = supernodeCL
+	}
+	supernodeELs := make([]L2ELNode, len(l2ELs))
+	copy(supernodeELs, l2ELs)
+	sequencerELs := make([]L2ELNode, len(l2ELs))
+	copy(sequencerELs, l2ELs)
+
 	if !supernodeSequencerEnabled {
-		// Production-faithful topology: each follow-mode sequencer runs its own
-		// EL, distinct from the supernode VN's EL, joined only by L1 and P2P.
 		sequencerELOpts := ResolveMixedL2ELOpts(t)
-		seqL2AEL = startSequencerEL(t, l2ANet, jwtPath, jwtSecret, NewELNodeIdentity(0), sequencerELOpts...)
-		seqL2BEL = startSequencerEL(t, l2BNet, jwtPath, jwtSecret, NewELNodeIdentity(0), sequencerELOpts...)
-
-		// Light sequencers follow the supernode's safe head (production:
-		// kind=sequencer, lightNode=true, deps on op-supernode). They sequence
-		// unsafe blocks but disable L1 derivation, importing safe/finalized state
-		// from the supernode route and reorging onto its invalid-message
-		// replacements.
-		//
-		// When the supernode VN bootstraps + sequences, the light sequencers start
-		// stopped; a test hands off sequencing to them once they leave willStartEL.
 		lightSeqStopped := cfg.SupernodeVNSequencerForBootstrap
-		l2ACL = startL2CLNode(t, keys, l1Net, l2ANet, l1EL, l1CL, seqL2AEL, jwtSecret, l2CLNodeStartConfig{
-			Key:              "sequencer",
-			IsSequencer:      true,
-			NoDiscovery:      true,
-			EnableReqResp:    true,
-			DependencySet:    runtimeDepSet,
-			L2FollowSource:   supernodeL2ACL.UserRPC(),
-			L2CLOptions:      cfg.GlobalL2CLOptions,
-			SequencerStopped: lightSeqStopped,
-			// Follow-mode sequencers reorg onto the supernode's invalid-message
-			// replacement via EL sync.
-			SyncMode: nodeSync.ELSync,
-		})
-		l2BCL = startL2CLNode(t, keys, l1Net, l2BNet, l1EL, l1CL, seqL2BEL, jwtSecret, l2CLNodeStartConfig{
-			Key:              "sequencer",
-			IsSequencer:      true,
-			NoDiscovery:      true,
-			EnableReqResp:    true,
-			DependencySet:    runtimeDepSet,
-			L2FollowSource:   supernodeL2BCL.UserRPC(),
-			L2CLOptions:      cfg.GlobalL2CLOptions,
-			SequencerStopped: lightSeqStopped,
-			SyncMode:         nodeSync.ELSync,
-		})
-		// CL gossip: unsafe blocks (incl. the supernode's deposits-only
-		// replacement) propagate between the sequencer CLs and the VN CLs.
-		connectL2CLPeers(t, t.Logger(), l2ACL, supernodeL2ACL)
-		connectL2CLPeers(t, t.Logger(), l2BCL, supernodeL2BCL)
-		// EL P2P: block bodies sync between each sequencer EL and its paired
-		// supernode EL (required for the ELSync follow path).
-		connectL2ELPeers(t, t.Logger(), supernodeL2AEL.UserRPC(), seqL2AEL.UserRPC())
-		connectL2ELPeers(t, t.Logger(), supernodeL2BEL.UserRPC(), seqL2BEL.UserRPC())
+		for i, l2Net := range l2Nets {
+			sequencerELs[i] = startSequencerEL(t, l2Net, jwtPath, jwtSecret, NewELNodeIdentity(0), sequencerELOpts...)
+			l2CLs[i] = startL2CLNode(t, keys, l1Net, l2Net, l1EL, l1CL, sequencerELs[i], jwtSecret, l2CLNodeStartConfig{
+				Key:              "sequencer",
+				IsSequencer:      true,
+				NoDiscovery:      true,
+				EnableReqResp:    true,
+				DependencySet:    runtimeDepSet,
+				L2FollowSource:   supernodeCLs[i].UserRPC(),
+				L2CLOptions:      cfg.GlobalL2CLOptions,
+				SequencerStopped: lightSeqStopped,
+				SyncMode:         nodeSync.ELSync,
+			})
+			connectL2CLPeers(t, t.Logger(), l2CLs[i], supernodeCLs[i])
+			connectL2ELPeers(t, t.Logger(), supernodeELs[i].UserRPC(), sequencerELs[i].UserRPC())
+		}
 	}
 
-	// Batchers follow the active sequencer's CL + EL so the L1-derived safe chain stays
-	// contiguous (interop verification depends on the safe head advancing). In a VN-sequencer
-	// bootstrap the light CL is stopped + EL-syncing, so batch from the VN: it produces during
-	// bootstrap and tracks the light sequencers via gossip after handoff, keeping a gap-free
-	// batch stream across the switch.
-	batchACL, batchAEL := l2ACL, seqL2AEL
-	batchBCL, batchBEL := l2BCL, seqL2BEL
-	if cfg.SupernodeVNSequencerForBootstrap {
-		batchACL, batchAEL = supernodeL2ACL, supernodeL2AEL
-		batchBCL, batchBEL = supernodeL2BCL, supernodeL2BEL
+	runtimeChains := make(map[string]*MultiChainNodeRuntime, len(chainSpecs))
+	for i, chainSpec := range chainSpecs {
+		batchCL, batchEL := l2CLs[i], sequencerELs[i]
+		if cfg.SupernodeVNSequencerForBootstrap {
+			batchCL, batchEL = supernodeCLs[i], supernodeELs[i]
+		}
+		batcher := startMinimalBatcher(t, keys, l2Nets[i], l1EL, batchCL, batchEL, cfg.BatcherOptions...)
+		proposer := startMinimalProposer(t, keys, l2Nets[i], l1EL, supernodeCLs[i])
+		runtimeChains[chainSpec.Name] = &MultiChainNodeRuntime{
+			Name:        chainSpec.Name,
+			Network:     l2Nets[i],
+			EL:          sequencerELs[i],
+			CL:          l2CLs[i],
+			SupernodeCL: supernodeCLs[i],
+			SupernodeEL: supernodeELs[i],
+			Batcher:     batcher,
+			Proposer:    proposer,
+		}
 	}
-	l2ABatcher := startMinimalBatcher(t, keys, l2ANet, l1EL, batchACL, batchAEL, cfg.BatcherOptions...)
-	l2AProposer := startMinimalProposer(t, keys, l2ANet, l1EL, supernodeL2ACL)
-	l2BBatcher := startMinimalBatcher(t, keys, l2BNet, l1EL, batchBCL, batchBEL, cfg.BatcherOptions...)
-	l2BProposer := startMinimalProposer(t, keys, l2BNet, l1EL, supernodeL2BCL)
 
-	// Wait for interop filter readiness now that the supernode and batchers are running.
-	// The filter needs blocks to be produced before its chain ingesters can backfill.
 	if interopFilter != nil {
 		interopFilter.WaitForReady(t, 120*time.Second)
 	}
@@ -409,35 +405,22 @@ func newTwoL2SupernodeRuntimeWithConfigAndSequencerMode(t devtest.T, enableInter
 		L1Network:     l1Net,
 		L1EL:          l1EL,
 		L1CL:          l1CL,
-		Chains: map[string]*MultiChainNodeRuntime{
-			"l2a": {
-				Name:        "l2a",
-				Network:     l2ANet,
-				EL:          seqL2AEL,
-				CL:          l2ACL,
-				SupernodeCL: supernodeL2ACL,
-				SupernodeEL: supernodeL2AEL,
-				Batcher:     l2ABatcher,
-				Proposer:    l2AProposer,
-			},
-			"l2b": {
-				Name:        "l2b",
-				Network:     l2BNet,
-				EL:          seqL2BEL,
-				CL:          l2BCL,
-				SupernodeCL: supernodeL2BCL,
-				SupernodeEL: supernodeL2BEL,
-				Batcher:     l2BBatcher,
-				Proposer:    l2BProposer,
-			},
-		},
+		Chains:        runtimeChains,
 		Supernode:     supernode,
 		TimeTravel:    timeTravelClock,
 		InteropFilter: interopFilter,
 	}, activationTime
 }
 
-func buildTwoL2RuntimeWorld(t devtest.T, keys devkeys.Keys, enableInterop bool, delaySeconds uint64, localContractArtifactsPath string, deployerOpts ...DeployerOption) (*worldBuilder, *L1Network, *L2Network, *L2Network) {
+func buildMultiL2RuntimeWorld(
+	t devtest.T,
+	keys devkeys.Keys,
+	enableInterop bool,
+	delaySeconds uint64,
+	localContractArtifactsPath string,
+	chainSpecs []runtimeChainSpec,
+	deployerOpts ...DeployerOption,
+) (*worldBuilder, *L1Network, []*L2Network) {
 	wb := &worldBuilder{
 		p:       t,
 		logger:  t.Logger(),
@@ -448,18 +431,15 @@ func buildTwoL2RuntimeWorld(t devtest.T, keys devkeys.Keys, enableInterop bool, 
 
 	applyConfigLocalContractSources(t, keys, wb.builder, localContractArtifactsPath)
 	applyConfigCommons(t, keys, DefaultL1ID, wb.builder)
-	applyConfigPrefundedL2(t, keys, DefaultL1ID, DefaultL2AID, wb.builder)
-	applyConfigPrefundedL2(t, keys, DefaultL1ID, DefaultL2BID, wb.builder)
+	for _, chainSpec := range chainSpecs {
+		applyConfigPrefundedL2(t, keys, DefaultL1ID, chainSpec.ID, wb.builder)
+	}
 	if enableInterop {
 		deployerOpts = append([]DeployerOption{
 			WithDevFeatureEnabled(devfeatures.OptimismPortalInteropFlag),
 		}, deployerOpts...)
 		for _, l2Cfg := range wb.builder.L2s() {
 			if delaySeconds > 0 {
-				// Set all forks up to but not including Interop at genesis,
-				// then set Interop at offset so the L2 chain starts in a
-				// pre-interop state. This matches the supernode's
-				// InteropActivationTimestamp and allows testing the fork transition.
 				l2Cfg.WithForkAtGenesis(opforks.Karst)
 				l2Cfg.WithForkAtOffset(opforks.Lagoon, &delaySeconds)
 			} else {
@@ -467,8 +447,6 @@ func buildTwoL2RuntimeWorld(t devtest.T, keys devkeys.Keys, enableInterop bool, 
 			}
 		}
 		if delaySeconds > 0 {
-			// The chain starts pre-Lagoon (at Karst) and activates Lagoon at
-			// runtime via its frozen NUT bundle.
 			preForkAllocs, err := nutsstate.PreForkState(opforks.Lagoon)
 			t.Require().NoError(err, "need frozen pre-Lagoon predeploy state")
 			wb.preForkPredeployAllocs = preForkAllocs
@@ -477,35 +455,34 @@ func buildTwoL2RuntimeWorld(t devtest.T, keys devkeys.Keys, enableInterop bool, 
 	applyConfigDeployerOptions(t, keys, wb.builder, deployerOpts)
 	wb.Build()
 
-	t.Require().Len(wb.l2Chains, 2, "expected exactly two L2 chains in TwoL2 world")
+	t.Require().Len(wb.l2Chains, len(chainSpecs), "unexpected L2 chain count")
 	l1ID := eth.ChainIDFromUInt64(wb.output.AppliedIntent.L1ChainID)
-
 	l1Net := &L1Network{
 		name:      "l1",
 		chainID:   l1ID,
 		genesis:   wb.outL1Genesis,
 		blockTime: 6,
 	}
-
-	l2ANet := l2NetworkFromWorldBuilder(t, wb, l1ID, DefaultL2AID, keys)
-	l2BNet := l2NetworkFromWorldBuilder(t, wb, l1ID, DefaultL2BID, keys)
-
-	return wb, l1Net, l2ANet, l2BNet
+	l2Nets := make([]*L2Network, len(chainSpecs))
+	for i, chainSpec := range chainSpecs {
+		l2Nets[i] = l2NetworkFromWorldBuilder(t, wb, l1ID, chainSpec, keys)
+	}
+	return wb, l1Net, l2Nets
 }
 
-func l2NetworkFromWorldBuilder(t devtest.T, wb *worldBuilder, l1ChainID, l2ChainID eth.ChainID, keys devkeys.Keys) *L2Network {
+func l2NetworkFromWorldBuilder(t devtest.T, wb *worldBuilder, l1ChainID eth.ChainID, chainSpec runtimeChainSpec, keys devkeys.Keys) *L2Network {
 	require := t.Require()
 
-	l2Genesis, ok := wb.outL2Genesis[l2ChainID]
-	require.Truef(ok, "missing L2 genesis for chain %s", l2ChainID)
-	l2RollupCfg, ok := wb.outL2RollupCfg[l2ChainID]
-	require.Truef(ok, "missing L2 rollup config for chain %s", l2ChainID)
-	l2Dep, ok := wb.outL2Deployment[l2ChainID]
-	require.Truef(ok, "missing L2 deployment for chain %s", l2ChainID)
+	l2Genesis, ok := wb.outL2Genesis[chainSpec.ID]
+	require.Truef(ok, "missing L2 genesis for chain %s", chainSpec.ID)
+	l2RollupCfg, ok := wb.outL2RollupCfg[chainSpec.ID]
+	require.Truef(ok, "missing L2 rollup config for chain %s", chainSpec.ID)
+	l2Dep, ok := wb.outL2Deployment[chainSpec.ID]
+	require.Truef(ok, "missing L2 deployment for chain %s", chainSpec.ID)
 
 	return &L2Network{
-		name:       map[eth.ChainID]string{DefaultL2AID: "l2a", DefaultL2BID: "l2b"}[l2ChainID],
-		chainID:    l2ChainID,
+		name:       chainSpec.Name,
+		chainID:    chainSpec.ID,
 		l1ChainID:  l1ChainID,
 		genesis:    l2Genesis,
 		rollupCfg:  l2RollupCfg,
@@ -551,22 +528,22 @@ func addMultiChainFollowL2Node(t devtest.T, runtime *MultiChainRuntime, chainKey
 	return node
 }
 
-func startTwoL2SharedSupernode(
+func startSharedSupernode(
 	t devtest.T,
 	l1Net *L1Network,
 	l1EL *L1Geth,
 	l1CL *L1CLNode,
-	l2ANet *L2Network,
-	l2AEL L2ELNode,
-	l2BNet *L2Network,
-	l2BEL L2ELNode,
+	l2Nets []*L2Network,
+	l2ELs []L2ELNode,
 	depSet *depset.StaticConfigDependencySet,
 	interopActivationTimestamp *uint64,
 	interopLogBackfillDepth time.Duration,
 	jwtSecret [32]byte,
 	sequencerEnabled bool,
-) (*SuperNode, *SuperNodeProxy, *SuperNodeProxy) {
+) (*SuperNode, []*SuperNodeProxy) {
 	require := t.Require()
+	require.NotEmpty(l2Nets, "supernode needs at least one L2 chain")
+	require.Len(l2ELs, len(l2Nets), "supernode needs one EL for each L2 chain")
 	logger := t.Logger().New("component", "supernode")
 	makeNodeCfg := func(l2Net *L2Network, l2EL L2ELNode) *opnodeconfig.Config {
 		var sequencerP2PKeyHex string
@@ -619,11 +596,15 @@ func startTwoL2SharedSupernode(
 		return cfg
 	}
 
-	vnCfgs := map[eth.ChainID]*opnodeconfig.Config{
-		l2ANet.ChainID(): makeNodeCfg(l2ANet, l2AEL),
-		l2BNet.ChainID(): makeNodeCfg(l2BNet, l2BEL),
+	vnCfgs := make(map[eth.ChainID]*opnodeconfig.Config, len(l2Nets))
+	chainIDs := make([]uint64, len(l2Nets))
+	supernodeChainIDs := make([]eth.ChainID, len(l2Nets))
+	for i, l2Net := range l2Nets {
+		chainID := l2Net.ChainID()
+		vnCfgs[chainID] = makeNodeCfg(l2Net, l2ELs[i])
+		chainIDs[i] = eth.EvilChainIDToUInt64(chainID)
+		supernodeChainIDs[i] = chainID
 	}
-	chainIDs := []uint64{eth.EvilChainIDToUInt64(l2ANet.ChainID()), eth.EvilChainIDToUInt64(l2BNet.ChainID())}
 
 	snCfg := &snconfig.CLIConfig{
 		Chains:                     chainIDs,
@@ -635,12 +616,10 @@ func startTwoL2SharedSupernode(
 		InteropActivationTimestamp: interopActivationTimestamp,
 		InteropLogBackfillDepth:    interopLogBackfillDepth,
 	}
-
 	supernode := &SuperNode{
-		userRPC:      "",
 		p:            t,
 		logger:       logger,
-		chains:       []eth.ChainID{l2ANet.ChainID(), l2BNet.ChainID()},
+		chains:       supernodeChainIDs,
 		l1UserRPC:    l1EL.UserRPC(),
 		l1BeaconAddr: l1CL.beaconHTTPAddr,
 		snCfg:        snCfg,
@@ -650,24 +629,17 @@ func startTwoL2SharedSupernode(
 	t.Cleanup(supernode.Stop)
 
 	base := supernode.UserRPC()
-	l2ARPC := base + "/" + strconv.FormatUint(eth.EvilChainIDToUInt64(l2ANet.ChainID()), 10)
-	l2BRPC := base + "/" + strconv.FormatUint(eth.EvilChainIDToUInt64(l2BNet.ChainID()), 10)
-
-	waitForSupernodeRoute(t, logger, l2ARPC)
-	waitForSupernodeRoute(t, logger, l2BRPC)
-
-	l2ACL := &SuperNodeProxy{
-		p:       t,
-		logger:  logger,
-		userRPC: l2ARPC,
+	proxies := make([]*SuperNodeProxy, len(l2Nets))
+	for i, l2Net := range l2Nets {
+		rpc := base + "/" + strconv.FormatUint(eth.EvilChainIDToUInt64(l2Net.ChainID()), 10)
+		waitForSupernodeRoute(t, logger, rpc)
+		proxies[i] = &SuperNodeProxy{
+			p:       t,
+			logger:  logger,
+			userRPC: rpc,
+		}
 	}
-	l2BCL := &SuperNodeProxy{
-		p:       t,
-		logger:  logger,
-		userRPC: l2BRPC,
-	}
-
-	return supernode, l2ACL, l2BCL
+	return supernode, proxies
 }
 
 func startSingleChainSharedSupernode(
