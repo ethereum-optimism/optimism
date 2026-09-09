@@ -172,53 +172,53 @@ contract SuperchainConfig_Paused_Test is SuperchainConfig_TestInit {
     }
 }
 
-/// @title SuperchainConfig_IsPaused_Test
-/// @notice Test contract for SuperchainConfig `isPaused` function.
-contract SuperchainConfig_IsPaused_Test is SuperchainConfig_TestInit {
-    /// @notice Tests that `isPaused` returns false when unpaused.
+/// @title SuperchainConfig_IsLocalOrGlobalPaused_Test
+/// @notice Test contract for SuperchainConfig `isLocalOrGlobalPaused` function.
+contract SuperchainConfig_IsLocalOrGlobalPaused_Test is SuperchainConfig_TestInit {
+    /// @notice Tests that `isLocalOrGlobalPaused` returns false when unpaused.
     /// @param _identifier The identifier to test.
-    function testFuzz_isPaused_notPaused_succeeds(address _identifier) external view {
-        assertFalse(superchainConfig.isPaused(_identifier));
+    function testFuzz_isLocalOrGlobalPaused_notPaused_succeeds(address _identifier) external view {
+        assertFalse(superchainConfig.isLocalOrGlobalPaused(_identifier));
     }
 
-    /// @notice Tests that `isPaused` includes the global pause.
+    /// @notice Tests that `isLocalOrGlobalPaused` includes the global pause.
     /// @param _identifier The identifier to test.
-    function testFuzz_isPaused_globalPause_succeeds(address _identifier) external {
+    function testFuzz_isLocalOrGlobalPaused_globalPause_succeeds(address _identifier) external {
         vm.prank(superchainConfig.guardian());
         superchainConfig.pause(address(0));
 
-        assertTrue(superchainConfig.isPaused(_identifier));
+        assertTrue(superchainConfig.isLocalOrGlobalPaused(_identifier));
     }
 
-    /// @notice Tests that `isPaused` includes scoped pauses.
+    /// @notice Tests that `isLocalOrGlobalPaused` includes scoped pauses.
     /// @param _identifier The identifier to test.
-    function testFuzz_isPaused_scopedPause_succeeds(address _identifier) external {
+    function testFuzz_isLocalOrGlobalPaused_scopedPause_succeeds(address _identifier) external {
         vm.assume(_identifier != address(0));
 
         vm.prank(superchainConfig.guardian());
         superchainConfig.pause(_identifier);
 
-        assertTrue(superchainConfig.isPaused(_identifier));
+        assertTrue(superchainConfig.isLocalOrGlobalPaused(_identifier));
 
         address other = vm.randomAddress();
         while (other == _identifier) {
             other = vm.randomAddress();
         }
 
-        assertFalse(superchainConfig.isPaused(other));
+        assertFalse(superchainConfig.isLocalOrGlobalPaused(other));
     }
 
-    /// @notice Tests that `isPaused` respects pause expiry.
+    /// @notice Tests that `isLocalOrGlobalPaused` respects pause expiry.
     /// @param _identifier The identifier to test.
-    function testFuzz_isPaused_expired_succeeds(address _identifier) external {
+    function testFuzz_isLocalOrGlobalPaused_expired_succeeds(address _identifier) external {
         vm.assume(_identifier != address(0));
 
         vm.prank(superchainConfig.guardian());
         superchainConfig.pause(_identifier);
-        assertTrue(superchainConfig.isPaused(_identifier));
+        assertTrue(superchainConfig.isLocalOrGlobalPaused(_identifier));
 
         vm.warp(block.timestamp + superchainConfig.pauseExpiry() + 1);
-        assertFalse(superchainConfig.isPaused(_identifier));
+        assertFalse(superchainConfig.isLocalOrGlobalPaused(_identifier));
     }
 }
 

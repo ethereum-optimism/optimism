@@ -110,7 +110,7 @@ contract ETHLockbox is ProxyAdminOwnedBase, Initializable, ReinitializableBase, 
 
     /// @notice Getter for the current paused status.
     function paused() public view returns (bool) {
-        return superchainConfig.isPaused(address(this));
+        return superchainConfig.isLocalOrGlobalPaused(address(this));
     }
 
     /// @notice Returns the guardian.
