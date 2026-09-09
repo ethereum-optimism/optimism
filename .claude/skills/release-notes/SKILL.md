@@ -146,7 +146,8 @@ It **refuses**, leaving the file untouched, if the finalized tag is missing or s
 different commit than the RC. Surface that warning rather than editing by hand — a note
 generated for a different commit needs regenerating, not retagging.
 
-Then set the compare link's base to the previous **finalized** tag.
+It leaves the compare link's base alone and warns that it is still an RC — set it to the
+previous **finalized** tag, since a published note compares finalized tag to finalized tag.
 
 ## 9. Review before applying
 
@@ -166,11 +167,12 @@ This changes only the body, leaving draft/published state alone. `edit` needs a 
 object to exist; when the tag has no draft, create one instead:
 
 ```bash
-gh release create <tag> --draft --title '<tag>' --notes-file /tmp/<component>-notes.md
+gh release create <tag> --draft --title '<component> <version>' --notes-file /tmp/<component>-notes.md
 ```
 
-Add `--prerelease` for an RC. A draft's URL is an `untagged-<hash>` link until it is
-published — that is normal, and `gh release view <tag>` still resolves it.
+The title takes a space, not the tag's slash — `op-node v1.19.6`. Add `--prerelease` for an
+RC. A draft's URL is an `untagged-<hash>` link until it is published — that is normal, and
+`gh release view <tag>` still resolves it.
 
 Confirm with `gh release view <tag>` and report what changed.
 

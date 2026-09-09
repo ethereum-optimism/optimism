@@ -4,11 +4,10 @@ This file is the source of truth. Changing the style means editing it, not infer
 convention from one release.
 
 The target is a **curated change list**, as in
-[`op-challenger/v1.9.4`](https://github.com/ethereum-optimism/optimism/releases/tag/op-challenger%2Fv1.9.4)
+[`op-node/v1.19.6`](https://github.com/ethereum-optimism/optimism/releases/tag/op-node%2Fv1.19.6)
 and
-[`op-contracts/v8.0.0-rc.2`](https://github.com/ethereum-optimism/optimism/releases/tag/op-contracts%2Fv8.0.0-rc.2)
-— read those two for how entries are written, but take the section layout from the Shape
-below. Every published release predates it.
+[`op-reth/v2.4.3`](https://github.com/ethereum-optimism/optimism/releases/tag/op-reth%2Fv2.4.3).
+Read those two before drafting.
 
 ## Shape
 
@@ -223,17 +222,19 @@ note operate a different chain and should be able to stop reading at that senten
 
 ## Tags, links and images
 
+The release **title** is `<component> <version>`, with a space — `op-node v1.19.6`, not the
+tag's slash form `op-node/v1.19.6`.
+
 For a finalized release the heading, the compare link's right side and the image tag all
 carry the plain version — never `-rc.N`.
 
-The compare link's **base** is the previous *finalized* tag, with three dots:
+A published note **must** compare finalized tag to finalized tag. git-cliff generates an RC
+base, and `scripts/retarget-tag.sh` does not touch it — set it to the previous finalized tag
+by hand, with three dots:
 
 ```markdown
-**Full Changelog**: https://github.com/ethereum-optimism/optimism/compare/op-node/v1.19.4...op-node/v1.19.5
+**Full Changelog**: https://github.com/ethereum-optimism/optimism/compare/op-node/v1.19.5...op-node/v1.19.6
 ```
-
-git-cliff generates an RC base and older notes still carry one; the current convention is
-finalized-to-finalized.
 
 If a release carries recurring boilerplate from the previous release, do not copy it forward
 blindly — such blocks are often self-limiting, or imply a second image line. Ask first.
