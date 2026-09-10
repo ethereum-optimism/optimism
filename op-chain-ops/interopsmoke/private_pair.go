@@ -11,34 +11,15 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/bigs"
 )
 
-// The private-pair profile: what this smoke means when chain B is the PRIVATE half of a
-// private-interop pair rather than an ordinary public chain.
-//
-// The pair is one chain ID standing for two chains: a private sequenced chain, which is what the
-// RPC in Config.L2BURL talks to, and its public rendering, which is what the supernode judges and
-// what every counterparty means by chain B (op-private-interop/docs/DESIGN.md). Three properties of
-// that arrangement change what a test here can honestly claim:
-//
-//   - MESSAGES INITIATED ON THE PRIVATE CHAIN ARE NAMED PUBLICLY. Their identifier is a position on
-//     the rendering, not the position in the receipt the private chain returned. The correction is
-//     made by a resolver the devstack registers process-globally when it builds the pair, which is
-//     why this profile is only honoured in-process (errPrivatePairOutOfProcess).
-//   - THE PRIVATE CHAIN HAS NO JUDGE. Nothing outside it can replace its blocks; a validity failure
-//     pins the operator's trust frontier instead of reorging. Every check that waits for a block to
-//     be replaced has to wait on the public counterparty.
-//   - NATIVE ETH INTEROP IS DISABLED. The private ETH profile has empty bridge route allowlists;
-//     ETH funding uses L1 deposits, independently of generic application messaging.
-//
-// Nothing here is a silent skip. A test that cannot mean what it says against a pair either says so
-// where its result would go and passes the run on (smokeSkip), or refuses outright when it was
-// asked for by name.
+// The private-pair profile resolves chain B's private receipts to public projection
+// positions. The devstack registers the resolver in-process; the standalone CLI
+// constructs the same resolver from explicit projection execution and rollup RPCs.
+// Private recovery is exercised by the dedicated acceptance suite. This smoke's
+// invalid-message checks currently cover replacement on the public counterparty.
+// Native ETH interop is disabled; funding uses L1 deposits.
 
-// privatePairWaitTimeout is the head/balance wait budget on both chains of a pair.
-//
-// A leg initiated on the private chain has no identifier until the rendering has derived the block
-// that carries it, which takes a claim cadence; the resolver absorbs that wait and bounds itself at
-// five minutes (op-devstack/presets/private_interop_resolver.go). The waits around it must outlast
-// that bound rather than cut it short and report a timeout about the wrong thing.
+// privatePairWaitTimeout outlasts the in-process resolver's five-minute bound.
+// Remote runs increase this budget to match their configured publication timeout.
 const privatePairWaitTimeout = 6 * time.Minute
 
 // smokeSkip is a test that cannot apply to the topology it was pointed at. The run reports it and
@@ -56,30 +37,9 @@ var errBridgeOnPrivatePair = &smokeSkip{
 	reason: "native ETH interop is disabled for private pairs; fund the private ETH chain through L1 deposits",
 }
 
-// errChainedInvalidOnPrivatePair refuses the transitive-invalidation test against a pair.
-//
-// The cascade it measures begins with chain B's block being replaced for containing an invalid
-// relay. A private chain's blocks are never replaced, so the first step of the test cannot happen;
-// running it would spend the whole reorg budget to report a timeout about the wrong thing.
+// Private-chain recovery and cascading invalidation require a dedicated scenario.
 var errChainedInvalidOnPrivatePair = errors.New(
-	"chained-invalid-message cannot run against a private-interop pair: it starts by having chain B's block replaced, " +
-		"and the private chain has no judge -- its blocks are never replaced, and a validity failure pins the " +
-		"operator's trust frontier instead")
-
-// errPrivatePairOutOfProcess refuses the private-pair profile on the command line.
-//
-// The identifiers of messages initiated on the private chain are corrected by a resolver registered
-// process-globally by the devstack code that builds the pair
-// (op-devstack/presets/private_interop.go, txintent.RegisterPositionResolver). A separate process
-// has no resolver registered, so it would quote raw private receipt positions: the executing
-// messages would name logs that do not exist publicly, and the legs that are supposed to prove the
-// naming works would fail or pass vacuously without ever exercising it.
-//
-// The in-process door is op-up: `op-up --private-interop --smoke`.
-var errPrivatePairOutOfProcess = errors.New(
-	"--" + privatePairBFlagName + " is not supported out of process: a message initiated on the private chain is named by " +
-		"its position on the rendering, and that correction lives in a resolver the devstack registers in the process " +
-		"that BUILT the pair. Run the smoke in that process instead: `op-up --private-interop --smoke`")
+	"chained-invalid-message is not implemented for private recovery; use the dedicated private-interop acceptance tests")
 
 // defaultDirection is the invalid-message direction a suite runs when none was named.
 func defaultDirection(privatePairB bool) string {
@@ -89,51 +49,25 @@ func defaultDirection(privatePairB bool) string {
 	return directionBoth
 }
 
-// usePrivatePairDirection restricts the invalid-message test to the one direction that means
-// anything against a pair.
-//
-// An invalid executing message landed ON the private chain would sit in a canonical block forever:
-// there is no judge to replace it. The other direction -- initiated on the private chain, executed
-// on the public counterparty -- is the real check.
-//
-// Read what it proves precisely. Its initiating message is an EventLogger log, which the export
-// policy does not publish, so against a pair the executing message is already naming something with
-// no public existence before its log index is bumped. What the leg establishes is that the
-// COUNTERPARTY rejects a message the private chain's public presence does not carry -- the
-// fabricated-import path -- rather than that a corrupted rendering position is caught. The
-// resolver's own correctness is what the valid-message mirror leg is for.
+// usePrivatePairDirection selects public-counterparty invalidation. Its private
+// EventLogger origin is not exported, so this tests rejection of a fabricated
+// import. The valid-message mirror leg separately verifies exported positions.
 func (env *smokeEnv) usePrivatePairDirection() error {
 	switch env.direction {
 	case directionBToA:
 		return nil
 	case "":
 		env.direction = directionBToA
-		fmt.Fprintf(env.stderr, "    Direction %q: the only one a private pair can be held to, see below\n", directionBToA)
+		fmt.Fprintf(env.stderr, "    Direction %q: public-counterparty invalidation\n", directionBToA)
 		return nil
 	default:
-		return fmt.Errorf("direction %q cannot run against a private-interop pair: it would land an invalid executing "+
-			"message on the private chain, whose blocks are never replaced -- it has no judge, and a validity failure "+
-			"pins the operator's trust frontier instead. Use %q, which executes on the public counterparty",
+		return fmt.Errorf("direction %q requires a private recovery scenario not implemented by this smoke; use %q for public-counterparty invalidation",
 			env.direction, directionBToA)
 	}
 }
 
-// privateMirrorLeg initiates a message on the PRIVATE chain and executes it on the public
-// counterparty. It is the reason the smoke runs in-process against a pair at all.
-//
-// The identifier the executing message quotes is a position on the RENDERING -- a different log
-// index from the private receipt's, and a different origin for a log the rendering republishes
-// through its generic replayer. That correction is the resolver's, and the resolver exists only in
-// the process that built the pair. Without this leg a pair passes valid-message without a private
-// message ever being named, which is exactly the vacuous pass an out-of-process run would give.
-//
-// It goes through the L2ToL2CrossDomainMessenger, not through an EventLogger like the leg above,
-// because the export policy is not a per-message choice: a private chain publishes its messenger's
-// SentMessage and its inbox's ExecutingMessage logs, and nothing else unless its genesis configures
-// extra emitters (op-private-interop/render, EmitterSet.Renders). A log the rendering does not
-// carry has no public position at all -- its identifier stays an honest private receipt position,
-// which a judge correctly rejects -- so an EventLogger here would be a fabricated-import test
-// wearing a valid-message name.
+// privateMirrorLeg exports a messenger event from the private chain, resolves its
+// public position, and verifies that execution on the counterparty survives.
 func (env *smokeEnv) privateMirrorLeg() error {
 	initUser, execUser := env.userB, env.userA
 	fmt.Fprintf(env.stderr, "    Mirror leg: initiated on %s (private), executed on %s\n", initUser.chain.name, execUser.chain.name)
@@ -184,6 +118,6 @@ func (env *smokeEnv) privateMirrorLeg() error {
 func printPrivatePairProfile(env *smokeEnv) {
 	fmt.Fprintf(env.stderr, "Chain B is the PRIVATE half of a private-interop pair.\n")
 	fmt.Fprintf(env.stderr, "  Its messages are named by their positions on its public rendering; this process resolves them.\n")
-	fmt.Fprintf(env.stderr, "  Its blocks are never replaced: it has no judge, so every reorg check runs on chain A.\n")
+	fmt.Fprintf(env.stderr, "  This smoke checks invalidation on chain A; private recovery has dedicated acceptance tests.\n")
 	fmt.Fprintf(env.stderr, "  Native ETH interop is disabled; the private ETH profile is funded through L1 deposits.\n\n")
 }

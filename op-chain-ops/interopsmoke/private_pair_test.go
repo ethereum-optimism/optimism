@@ -2,11 +2,13 @@ package interopsmoke
 
 import (
 	"bytes"
+	"context"
 	"errors"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/require"
+	"github.com/urfave/cli/v2"
 )
 
 func TestPlanSmoke(t *testing.T) {
@@ -143,7 +145,7 @@ func TestPrivatePairDispositions(t *testing.T) {
 	t.Run("the direction that executes on the private chain is refused", func(t *testing.T) {
 		for _, direction := range []string{directionAToB, directionBoth} {
 			env := &smokeEnv{stderr: &bytes.Buffer{}, privatePairB: true, direction: direction}
-			require.ErrorContains(t, env.usePrivatePairDirection(), "never replaced")
+			require.ErrorContains(t, env.usePrivatePairDirection(), "private recovery scenario")
 		}
 	})
 
@@ -163,4 +165,24 @@ func TestPrivatePairDispositions(t *testing.T) {
 func TestRemoteChainWaitBudget(t *testing.T) {
 	require.Equal(t, smokeWaitTimeout, (&remoteChain{}).waitBudget())
 	require.Equal(t, privatePairWaitTimeout, (&remoteChain{waitTimeout: privatePairWaitTimeout}).waitBudget())
+}
+
+func TestProjectionRPCConfiguration(t *testing.T) {
+	for _, cfg := range []Config{
+		{PrivatePairB: true, ProjectionBURL: "http://projection"},
+		{PrivatePairB: true, ProjectionBRollupURL: "http://rollup"},
+		{ProjectionBURL: "http://projection", ProjectionBRollupURL: "http://rollup"},
+		{PrivatePositionTimeout: -time.Second},
+	} {
+		require.Error(t, validateProjectionConfig(cfg))
+	}
+	require.NoError(t, validateProjectionConfig(Config{}))
+	require.NoError(t, validateProjectionConfig(Config{PrivatePairB: true})) // in-process resolver
+	require.NoError(t, validateProjectionConfig(Config{PrivatePairB: true, ProjectionBURL: "http://projection", ProjectionBRollupURL: "http://rollup"}))
+}
+
+func TestPrivatePairCLIRequiresProjectionRPCs(t *testing.T) {
+	app := &cli.App{Commands: Subcommands("TEST_PRIVATE_PAIR"), Writer: &bytes.Buffer{}, ErrWriter: &bytes.Buffer{}}
+	err := app.RunContext(context.Background(), []string{"interop-smoke", "valid-message", "--private-pair-b"})
+	require.ErrorContains(t, err, "requires --projection-b-rpc and --projection-b-rollup-rpc")
 }
