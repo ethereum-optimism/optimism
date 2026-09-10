@@ -90,6 +90,9 @@ phases:
   - name: dev
     build: just forge-build-dev
     checks:
+      - name: atomic-suspension
+        description: Exercise suspended router frames and signed ERC-4337 canonical replay
+        command: cd ../../rust && mise exec -- cargo nextest run -p op-atomic-builder --test router --run-ignored all
       - name: forge-test-names
         description: Validate forge test conventions
         command: go run ./scripts/checks/test-validation

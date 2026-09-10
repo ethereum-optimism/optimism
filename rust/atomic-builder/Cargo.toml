@@ -16,3 +16,11 @@ workspace = true
 op-revm = { workspace = true, features = ["std", "secp256k1"] }
 revm = { workspace = true, features = ["std"] }
 thiserror = { workspace = true, features = ["std"] }
+
+alloy-sol-types = { workspace = true, features = ["std"] }
+alloy-eips = { workspace = true, features = ["std"] }
+
+[dev-dependencies]
+serde_json = { workspace = true, features = ["std"] }
+alloy-signer-local = { workspace = true }
+alloy-signer = { workspace = true }

@@ -14,8 +14,8 @@ contract AtomicPaymaster is BasePaymaster {
     error AtomicPaymaster_InvalidConfiguration();
     error AtomicPaymaster_NotSponsored();
 
-    /// @custom:semver 0.1.0
-    string public constant version = "0.1.0";
+    /// @custom:semver 0.2.0
+    string public constant version = "0.2.0";
 
     event AccountAllowed(address indexed account, bool allowed);
 
@@ -64,6 +64,8 @@ contract AtomicPaymaster is BasePaymaster {
                 || (
                     bytes4(data) != IAtomicCallRouter.executeRoot.selector
                         && bytes4(data) != IAtomicCallRouter.executeRemote.selector
+                        && bytes4(data) != IAtomicCallRouter.executeRootWithGas.selector
+                        && bytes4(data) != IAtomicCallRouter.executeRemoteWithGas.selector
                 )
         ) revert AtomicPaymaster_NotSponsored();
         return (bytes(""), 0);

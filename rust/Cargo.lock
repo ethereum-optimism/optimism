@@ -9388,8 +9388,13 @@ dependencies = [
 name = "op-atomic-builder"
 version = "0.1.0"
 dependencies = [
+ "alloy-eips 2.1.1",
+ "alloy-signer 2.1.1",
+ "alloy-signer-local 2.1.1",
+ "alloy-sol-types",
  "op-revm",
  "revm",
+ "serde_json",
  "thiserror 2.0.18",
 ]
 

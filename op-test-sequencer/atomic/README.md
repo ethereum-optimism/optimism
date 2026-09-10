@@ -109,3 +109,9 @@ Checked against develop `7e167ae2e15b7bf7dfaf238e514155e4bc904ed6`:
 
 This is a draft prototype, not a deployed library or a production sequencer.
 The PR description tracks remaining validation and production-readiness work.
+
+The follow-up [`op-atomic-builder`](../../rust/atomic-builder/README.md) implements
+suspended discovery through the router's fixed-gas entry points and self-only tape
+getters. Its real-contract tests also exercise signed ERC-4337 operations. The Go
+RPC/devstack adapter in this directory continues to use its original discovery
+algorithm; the Rust coordinator is not yet connected to the node payload service.

@@ -1535,9 +1535,13 @@ jobs:
           enable-mise-cache: true
       - install-contracts-dependencies
       - check-changed:
-          patterns: contracts-bedrock,op-test-sequencer/atomic
+          patterns: contracts-bedrock,op-test-sequencer/atomic,rust/atomic-builder,rust/op-revm,rust/Cargo
       # `just check-fast` runs `go run ./scripts/check-runner`, so it builds Go.
       - restore-go-mod-cache
+      # Artifact-backed atomic tests execute the Rust coordinator as well.
+      - rust-setup-env
+      - rust-restore-build-cache:
+          directory: rust
       - run:
           name: Print forge version
           command: forge --version

@@ -19,3 +19,18 @@ struct AtomicRemoteCall {
     address target;
     bytes data;
 }
+
+/// @notice Describes a result lookup and the application call waiting for that result.
+struct AtomicWitnessRequest {
+    uint256 sequence;
+    uint256 chainId;
+    address target;
+    address sender;
+    bytes data;
+}
+
+/// @notice Describes a remote tape lookup and carries the preceding operation's return data.
+struct AtomicStreamCursor {
+    uint256 index;
+    bytes previousResult;
+}

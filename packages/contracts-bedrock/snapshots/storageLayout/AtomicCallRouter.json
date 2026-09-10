@@ -61,5 +61,19 @@
     "offset": 0,
     "slot": "8",
     "type": "struct AtomicResultWitness[]"
+  },
+  {
+    "bytes": "32",
+    "label": "remoteCalls",
+    "offset": 0,
+    "slot": "9",
+    "type": "struct AtomicRemoteCall[]"
+  },
+  {
+    "bytes": "160",
+    "label": "completion",
+    "offset": 0,
+    "slot": "10",
+    "type": "struct Identifier"
   }
 ]

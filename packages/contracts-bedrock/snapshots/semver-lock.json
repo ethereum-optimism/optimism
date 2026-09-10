@@ -208,12 +208,12 @@
     "sourceCodeHash": "0x7ed35d5a86cee5d732c80a028994a2592ea8105f3f813e98bb225f84fc314323"
   },
   "src/periphery/AtomicCallRouter.sol:AtomicCallRouter": {
-    "initCodeHash": "0x53daa5d81203db4a149cdc3baa46af231db9f00b6ce3ce284f2ef53b251dbe06",
-    "sourceCodeHash": "0x7f95c93536f303666e8bc3bd16f0190e921a6a5adfddcbcf909e913e58f7e20f"
+    "initCodeHash": "0xd4ceb1c7598e481ef4b6ae3e22ef2574ed4d0630f47a179102452882aa15d697",
+    "sourceCodeHash": "0x83788a031906366175ff7a9703c33e6a6e9e97594afbdf575c11507f0f581c0e"
   },
   "src/periphery/AtomicPaymaster.sol:AtomicPaymaster": {
-    "initCodeHash": "0x9bfdc0dda709e372e2d65b60585aac9ba55e941feb4fa9826db538e1a1f4e3cc",
-    "sourceCodeHash": "0xf219780e5b1db7a1808472facf43188ef33041d47a4ea883ab4fdaf8bdbea1ee"
+    "initCodeHash": "0x29dc57a5402cd0c4e5db091feafacf99c900e4d9e0a7540d56382ef1b2b553c5",
+    "sourceCodeHash": "0x18ac6a90ee4c072f289fbef0be32f42d3694ff0870a3d02f6514ece6f81a8b19"
   },
   "src/periphery/AtomicRemoteProxy.sol:AtomicRemoteProxy": {
     "initCodeHash": "0xbe444ff22c1296c6a8cd142d0ace8eab673a592e98c4eacb4a723e8c7733ea36",

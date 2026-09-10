@@ -121,6 +121,18 @@ run_scenario \
   main release contracts_feature_tests rust_ci_gate_short rust_e2e_gate_skip \
   --not contracts_feature_tests_short
 
+# A Rust-only suspension change must also run its real Solidity/4337 fixtures.
+atomic_rust_contracts_changed=false
+if printf '%s\n' 'rust/atomic-builder/src/router/mod.rs' | grep -Eq "${contracts_pattern}"; then
+  atomic_rust_contracts_changed=true
+fi
+run_scenario \
+  "PR (feature branch), atomic builder Rust-only change" \
+  "webhook" "atomic/suspension" "" "" \
+  "{\"c-contracts_changed\": ${atomic_rust_contracts_changed}, \"c-rust_changes_detected\": true, \"c-only_docs_changes\": false}" \
+  main release contracts_feature_tests rust_ci rust_e2e_ci \
+  --not contracts_feature_tests_short
+
 run_scenario \
   "PR (feature branch), docs only" \
   "webhook" "feat/my-thing" "" "" \

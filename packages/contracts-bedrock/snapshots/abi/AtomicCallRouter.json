@@ -1,5 +1,45 @@
 [
   {
+    "inputs": [],
+    "name": "completionIdentifier",
+    "outputs": [
+      {
+        "components": [
+          {
+            "internalType": "address",
+            "name": "origin",
+            "type": "address"
+          },
+          {
+            "internalType": "uint256",
+            "name": "blockNumber",
+            "type": "uint256"
+          },
+          {
+            "internalType": "uint256",
+            "name": "logIndex",
+            "type": "uint256"
+          },
+          {
+            "internalType": "uint256",
+            "name": "timestamp",
+            "type": "uint256"
+          },
+          {
+            "internalType": "uint256",
+            "name": "chainId",
+            "type": "uint256"
+          }
+        ],
+        "internalType": "struct Identifier",
+        "name": "identifier_",
+        "type": "tuple"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
     "inputs": [
       {
         "internalType": "address",
@@ -222,6 +262,175 @@
   {
     "inputs": [
       {
+        "internalType": "bytes32",
+        "name": "_bundleId",
+        "type": "bytes32"
+      },
+      {
+        "components": [
+          {
+            "components": [
+              {
+                "internalType": "address",
+                "name": "origin",
+                "type": "address"
+              },
+              {
+                "internalType": "uint256",
+                "name": "blockNumber",
+                "type": "uint256"
+              },
+              {
+                "internalType": "uint256",
+                "name": "logIndex",
+                "type": "uint256"
+              },
+              {
+                "internalType": "uint256",
+                "name": "timestamp",
+                "type": "uint256"
+              },
+              {
+                "internalType": "uint256",
+                "name": "chainId",
+                "type": "uint256"
+              }
+            ],
+            "internalType": "struct Identifier",
+            "name": "identifier",
+            "type": "tuple"
+          },
+          {
+            "internalType": "uint256",
+            "name": "sequence",
+            "type": "uint256"
+          },
+          {
+            "internalType": "address",
+            "name": "sender",
+            "type": "address"
+          },
+          {
+            "internalType": "address",
+            "name": "target",
+            "type": "address"
+          },
+          {
+            "internalType": "bytes",
+            "name": "data",
+            "type": "bytes"
+          }
+        ],
+        "internalType": "struct AtomicRemoteCall[]",
+        "name": "_calls",
+        "type": "tuple[]"
+      },
+      {
+        "components": [
+          {
+            "components": [
+              {
+                "internalType": "address",
+                "name": "origin",
+                "type": "address"
+              },
+              {
+                "internalType": "uint256",
+                "name": "blockNumber",
+                "type": "uint256"
+              },
+              {
+                "internalType": "uint256",
+                "name": "logIndex",
+                "type": "uint256"
+              },
+              {
+                "internalType": "uint256",
+                "name": "timestamp",
+                "type": "uint256"
+              },
+              {
+                "internalType": "uint256",
+                "name": "chainId",
+                "type": "uint256"
+              }
+            ],
+            "internalType": "struct Identifier",
+            "name": "identifier",
+            "type": "tuple"
+          },
+          {
+            "internalType": "bool",
+            "name": "success",
+            "type": "bool"
+          },
+          {
+            "internalType": "bytes",
+            "name": "returnData",
+            "type": "bytes"
+          }
+        ],
+        "internalType": "struct AtomicResultWitness[]",
+        "name": "_witnesses",
+        "type": "tuple[]"
+      },
+      {
+        "components": [
+          {
+            "internalType": "address",
+            "name": "origin",
+            "type": "address"
+          },
+          {
+            "internalType": "uint256",
+            "name": "blockNumber",
+            "type": "uint256"
+          },
+          {
+            "internalType": "uint256",
+            "name": "logIndex",
+            "type": "uint256"
+          },
+          {
+            "internalType": "uint256",
+            "name": "timestamp",
+            "type": "uint256"
+          },
+          {
+            "internalType": "uint256",
+            "name": "chainId",
+            "type": "uint256"
+          }
+        ],
+        "internalType": "struct Identifier",
+        "name": "_rootCompletion",
+        "type": "tuple"
+      },
+      {
+        "internalType": "uint64",
+        "name": "_applicationGas",
+        "type": "uint64"
+      },
+      {
+        "internalType": "uint16",
+        "name": "_maxCalls",
+        "type": "uint16"
+      }
+    ],
+    "name": "executeRemoteWithGas",
+    "outputs": [
+      {
+        "internalType": "bytes[]",
+        "name": "results_",
+        "type": "bytes[]"
+      }
+    ],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
         "internalType": "uint256",
         "name": "_nonce",
         "type": "uint256"
@@ -287,6 +496,89 @@
       }
     ],
     "name": "executeRoot",
+    "outputs": [
+      {
+        "internalType": "bytes",
+        "name": "result_",
+        "type": "bytes"
+      }
+    ],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "uint256",
+        "name": "_nonce",
+        "type": "uint256"
+      },
+      {
+        "internalType": "address",
+        "name": "_target",
+        "type": "address"
+      },
+      {
+        "internalType": "bytes",
+        "name": "_data",
+        "type": "bytes"
+      },
+      {
+        "components": [
+          {
+            "components": [
+              {
+                "internalType": "address",
+                "name": "origin",
+                "type": "address"
+              },
+              {
+                "internalType": "uint256",
+                "name": "blockNumber",
+                "type": "uint256"
+              },
+              {
+                "internalType": "uint256",
+                "name": "logIndex",
+                "type": "uint256"
+              },
+              {
+                "internalType": "uint256",
+                "name": "timestamp",
+                "type": "uint256"
+              },
+              {
+                "internalType": "uint256",
+                "name": "chainId",
+                "type": "uint256"
+              }
+            ],
+            "internalType": "struct Identifier",
+            "name": "identifier",
+            "type": "tuple"
+          },
+          {
+            "internalType": "bool",
+            "name": "success",
+            "type": "bool"
+          },
+          {
+            "internalType": "bytes",
+            "name": "returnData",
+            "type": "bytes"
+          }
+        ],
+        "internalType": "struct AtomicResultWitness[]",
+        "name": "_witnesses",
+        "type": "tuple[]"
+      },
+      {
+        "internalType": "uint64",
+        "name": "_applicationGas",
+        "type": "uint64"
+      }
+    ],
+    "name": "executeRootWithGas",
     "outputs": [
       {
         "internalType": "bytes",
@@ -418,6 +710,96 @@
     "type": "function"
   },
   {
+    "inputs": [
+      {
+        "components": [
+          {
+            "internalType": "uint256",
+            "name": "index",
+            "type": "uint256"
+          },
+          {
+            "internalType": "bytes",
+            "name": "previousResult",
+            "type": "bytes"
+          }
+        ],
+        "internalType": "struct AtomicStreamCursor",
+        "name": "_cursor",
+        "type": "tuple"
+      }
+    ],
+    "name": "remoteCallAt",
+    "outputs": [
+      {
+        "internalType": "bool",
+        "name": "found_",
+        "type": "bool"
+      },
+      {
+        "components": [
+          {
+            "components": [
+              {
+                "internalType": "address",
+                "name": "origin",
+                "type": "address"
+              },
+              {
+                "internalType": "uint256",
+                "name": "blockNumber",
+                "type": "uint256"
+              },
+              {
+                "internalType": "uint256",
+                "name": "logIndex",
+                "type": "uint256"
+              },
+              {
+                "internalType": "uint256",
+                "name": "timestamp",
+                "type": "uint256"
+              },
+              {
+                "internalType": "uint256",
+                "name": "chainId",
+                "type": "uint256"
+              }
+            ],
+            "internalType": "struct Identifier",
+            "name": "identifier",
+            "type": "tuple"
+          },
+          {
+            "internalType": "uint256",
+            "name": "sequence",
+            "type": "uint256"
+          },
+          {
+            "internalType": "address",
+            "name": "sender",
+            "type": "address"
+          },
+          {
+            "internalType": "address",
+            "name": "target",
+            "type": "address"
+          },
+          {
+            "internalType": "bytes",
+            "name": "data",
+            "type": "bytes"
+          }
+        ],
+        "internalType": "struct AtomicRemoteCall",
+        "name": "call_",
+        "type": "tuple"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
     "inputs": [],
     "name": "version",
     "outputs": [
@@ -425,6 +807,114 @@
         "internalType": "string",
         "name": "",
         "type": "string"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "components": [
+          {
+            "internalType": "uint256",
+            "name": "sequence",
+            "type": "uint256"
+          },
+          {
+            "internalType": "uint256",
+            "name": "chainId",
+            "type": "uint256"
+          },
+          {
+            "internalType": "address",
+            "name": "target",
+            "type": "address"
+          },
+          {
+            "internalType": "address",
+            "name": "sender",
+            "type": "address"
+          },
+          {
+            "internalType": "bytes",
+            "name": "data",
+            "type": "bytes"
+          }
+        ],
+        "internalType": "struct AtomicWitnessRequest",
+        "name": "_request",
+        "type": "tuple"
+      }
+    ],
+    "name": "witnessAt",
+    "outputs": [
+      {
+        "internalType": "bool",
+        "name": "found_",
+        "type": "bool"
+      },
+      {
+        "components": [
+          {
+            "components": [
+              {
+                "internalType": "address",
+                "name": "origin",
+                "type": "address"
+              },
+              {
+                "internalType": "uint256",
+                "name": "blockNumber",
+                "type": "uint256"
+              },
+              {
+                "internalType": "uint256",
+                "name": "logIndex",
+                "type": "uint256"
+              },
+              {
+                "internalType": "uint256",
+                "name": "timestamp",
+                "type": "uint256"
+              },
+              {
+                "internalType": "uint256",
+                "name": "chainId",
+                "type": "uint256"
+              }
+            ],
+            "internalType": "struct Identifier",
+            "name": "identifier",
+            "type": "tuple"
+          },
+          {
+            "internalType": "bool",
+            "name": "success",
+            "type": "bool"
+          },
+          {
+            "internalType": "bytes",
+            "name": "returnData",
+            "type": "bytes"
+          }
+        ],
+        "internalType": "struct AtomicResultWitness",
+        "name": "witness_",
+        "type": "tuple"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "witnessCount",
+    "outputs": [
+      {
+        "internalType": "uint256",
+        "name": "count_",
+        "type": "uint256"
       }
     ],
     "stateMutability": "view",
@@ -513,7 +1003,17 @@
   },
   {
     "inputs": [],
+    "name": "AtomicCallRouter_CallLimit",
+    "type": "error"
+  },
+  {
+    "inputs": [],
     "name": "AtomicCallRouter_EmptyBatch",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "AtomicCallRouter_InsufficientGas",
     "type": "error"
   },
   {
@@ -529,6 +1029,11 @@
   {
     "inputs": [],
     "name": "AtomicCallRouter_InvalidProxy",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "AtomicCallRouter_InvalidReader",
     "type": "error"
   },
   {

@@ -465,3 +465,38 @@ fn a_to_b_to_a_to_b_uses_live_frames_and_one_final_replay_per_chain() {
         }
     }
 }
+
+#[test]
+fn application_observation_distinguishes_empty_account_deletion() {
+    use op_atomic_builder::{Application, discover_with};
+    let mut code = Vec::new();
+    append_call(&mut code, 0);
+    code.push(0x00);
+    let run = |balance| {
+        let mut context = context(code.clone().into(), Bytes::new(), 901);
+        let endpoint = context.journaled_state.database.cache.accounts.get_mut(&ENDPOINT).unwrap();
+        endpoint.info.nonce = 0;
+        endpoint.info.balance = balance;
+        complete(
+            discover_with(
+                context,
+                Vec::new(),
+                Some(Application {
+                    router: CALLER,
+                    entry_caller: CALLER,
+                    infrastructure: Vec::new(),
+                }),
+                LIMITS,
+            )
+            .unwrap(),
+        )
+    };
+    let deleted = run(U256::ZERO);
+    let retained = run(U256::from(1));
+    assert_eq!(deleted.result(), retained.result(), "same receipt and gas");
+    assert_ne!(
+        deleted.observations(),
+        retained.observations(),
+        "EIP-161 account deletion is an application effect"
+    );
+}
