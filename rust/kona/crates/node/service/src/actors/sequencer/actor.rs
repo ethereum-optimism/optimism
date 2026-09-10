@@ -88,7 +88,7 @@ pub struct SequencerActor<
     /// Ticker that paces block-building attempts.
     build_ticker: Interval,
     /// The handle for the payload built on the previous tick that is waiting to be sealed.
-    next_payload_to_seal: Option<UnsealedPayloadHandle>,
+    pub(super) next_payload_to_seal: Option<UnsealedPayloadHandle>,
     /// Duration of the most recent seal operation, used to back-pressure the build ticker.
     last_seal_duration: Duration,
     /// Whether the one-shot startup work (metrics + initial engine reset) has run.
@@ -209,6 +209,59 @@ where
             .schedule_execution_payload_gossip(payload)
             .await
             .map_err(Into::into)
+    }
+
+    /// Handles a block-building tick.
+    pub(super) async fn handle_build_tick(&mut self) -> Result<(), SequencerActorError> {
+        // Move the pending payload out of self so the &mut self call below doesn't conflict with
+        // the &self read of self.next_payload_to_seal.
+        let pending = self.next_payload_to_seal.take();
+        match self.seal_last_and_start_next(pending.as_ref()).await {
+            Ok(res) => {
+                self.next_payload_to_seal = res.unsealed_payload_handle;
+                self.last_seal_duration = res.seal_duration;
+            }
+            Err(SequencerActorError::Conductor(err)) => {
+                // Match op-node's temporary-error behavior: retain the build so the same payload
+                // can be sealed and committed again after a short backoff.
+                error!(target: "sequencer", ?err, "Failed to commit unsafe payload to conductor; backing off sequencer");
+                self.next_payload_to_seal = pending;
+                self.build_ticker.reset_after(Duration::from_secs(1));
+                return Ok(());
+            }
+            Err(SequencerActorError::EngineError(EngineClientError::SealError(err))) => {
+                if is_seal_task_err_fatal(&err) {
+                    error!(target: "sequencer", err=?err, "Critical seal task error occurred");
+                    return Err(SequencerActorError::EngineError(EngineClientError::SealError(
+                        err,
+                    )));
+                }
+                self.next_payload_to_seal = None;
+            }
+            Err(other_err) => {
+                error!(target: "sequencer", err = ?other_err, "Unexpected error building or sealing payload");
+                return Err(other_err);
+            }
+        }
+
+        if let Some(payload) = self.next_payload_to_seal.as_ref() {
+            let next_block_seconds = payload
+                .attributes_with_parent
+                .parent()
+                .block_info
+                .timestamp
+                .saturating_add(self.rollup_config.block_time);
+            // Next block time is last + block_time - time it takes to seal.
+            let next_block_time =
+                UNIX_EPOCH + Duration::from_secs(next_block_seconds) - self.last_seal_duration;
+            match next_block_time.duration_since(SystemTime::now()) {
+                Ok(duration) => self.build_ticker.reset_after(duration),
+                Err(_) => self.build_ticker.reset_immediately(),
+            };
+        } else {
+            self.build_ticker.reset_immediately();
+        }
+        Ok(())
     }
 
     /// Starts building an L2 block by creating and populating payload attributes referencing the
@@ -471,41 +524,7 @@ where
                 Ok(())
             }
             // The sequencer must be active to build new blocks.
-            _ = self.build_ticker.tick(), if self.is_active => {
-                // Move the pending payload out of self so the &mut self call below doesn't conflict
-                // with the &self read of self.next_payload_to_seal.
-                let pending = self.next_payload_to_seal.take();
-                match self.seal_last_and_start_next(pending.as_ref()).await {
-                    Ok(res) => {
-                        self.next_payload_to_seal = res.unsealed_payload_handle;
-                        self.last_seal_duration = res.seal_duration;
-                    }
-                    Err(SequencerActorError::EngineError(EngineClientError::SealError(err))) => {
-                        if is_seal_task_err_fatal(&err) {
-                            error!(target: "sequencer", err=?err, "Critical seal task error occurred");
-                            return Err(SequencerActorError::EngineError(EngineClientError::SealError(err)));
-                        }
-                        self.next_payload_to_seal = None;
-                    }
-                    Err(other_err) => {
-                        error!(target: "sequencer", err = ?other_err, "Unexpected error building or sealing payload");
-                        return Err(other_err);
-                    }
-                }
-
-                if let Some(payload) = self.next_payload_to_seal.as_ref() {
-                    let next_block_seconds = payload.attributes_with_parent.parent().block_info.timestamp.saturating_add(self.rollup_config.block_time);
-                    // next block time is last + block_time - time it takes to seal.
-                    let next_block_time = UNIX_EPOCH + Duration::from_secs(next_block_seconds) - self.last_seal_duration;
-                    match next_block_time.duration_since(SystemTime::now()) {
-                        Ok(duration) => self.build_ticker.reset_after(duration),
-                        Err(_) => self.build_ticker.reset_immediately(),
-                    };
-                } else {
-                    self.build_ticker.reset_immediately();
-                }
-                Ok(())
-            }
+            _ = self.build_ticker.tick(), if self.is_active => self.handle_build_tick().await,
         }
     }
 }

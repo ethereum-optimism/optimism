@@ -1,6 +1,7 @@
 use alloy_rpc_client::ReqwestClient;
 use alloy_transport::{RpcError, TransportErrorKind};
 use async_trait::async_trait;
+use backon::{ConstantBuilder, Retryable};
 use op_alloy_rpc_types_engine::OpExecutionPayloadEnvelope;
 use std::{
     fmt::Debug,
@@ -11,6 +12,17 @@ use std::{
     time::Duration,
 };
 use url::Url;
+
+/// Number of conductor RPC attempts, matching op-node.
+const CONDUCTOR_RPC_MAX_ATTEMPTS: usize = 2;
+/// Delay between conductor RPC attempts, matching op-node.
+const CONDUCTOR_RPC_RETRY_DELAY: Duration = Duration::from_millis(50);
+
+fn conductor_rpc_backoff() -> ConstantBuilder {
+    ConstantBuilder::default()
+        .with_delay(CONDUCTOR_RPC_RETRY_DELAY)
+        .with_max_times(CONDUCTOR_RPC_MAX_ATTEMPTS)
+}
 
 /// Trait for interacting with the conductor service.
 ///
@@ -55,7 +67,8 @@ impl Conductor for ConductorClient {
         }
         tokio::time::timeout(
             self.rpc_timeout,
-            self.rpc.request("conductor_commitUnsafePayload", [payload]),
+            (|| self.rpc.request("conductor_commitUnsafePayload", [payload]))
+                .retry(conductor_rpc_backoff()),
         )
         .await
         .map_err(|_| ConductorError::Timeout(self.rpc_timeout))?
@@ -66,10 +79,13 @@ impl Conductor for ConductorClient {
         if self.override_leader.load(Ordering::Relaxed) {
             return Ok(true);
         }
-        tokio::time::timeout(self.rpc_timeout, self.rpc.request("conductor_leader", ()))
-            .await
-            .map_err(|_| ConductorError::Timeout(self.rpc_timeout))?
-            .map_err(Into::into)
+        tokio::time::timeout(
+            self.rpc_timeout,
+            (|| self.rpc.request("conductor_leader", ())).retry(conductor_rpc_backoff()),
+        )
+        .await
+        .map_err(|_| ConductorError::Timeout(self.rpc_timeout))?
+        .map_err(Into::into)
     }
 
     /// Override conductor interactions locally, matching op-node's disaster-recovery behavior.
@@ -98,10 +114,13 @@ impl ConductorClient {
 
     /// Check if the conductor is active.
     pub async fn conductor_active(&self) -> Result<bool, ConductorError> {
-        tokio::time::timeout(self.rpc_timeout, self.rpc.request("conductor_active", ()))
-            .await
-            .map_err(|_| ConductorError::Timeout(self.rpc_timeout))?
-            .map_err(Into::into)
+        tokio::time::timeout(
+            self.rpc_timeout,
+            (|| self.rpc.request("conductor_active", ())).retry(conductor_rpc_backoff()),
+        )
+        .await
+        .map_err(|_| ConductorError::Timeout(self.rpc_timeout))?
+        .map_err(Into::into)
     }
 }
 
@@ -119,7 +138,35 @@ pub enum ConductorError {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::{io::Read, net::TcpListener, thread};
+    use jsonrpsee::{RpcModule, server::ServerBuilder, types::ErrorObjectOwned};
+    use std::{io::Read, net::TcpListener, sync::atomic::AtomicUsize, thread};
+
+    #[tokio::test]
+    async fn conductor_request_retries_once() {
+        let attempts = Arc::new(AtomicUsize::new(0));
+        let server = ServerBuilder::default().build("127.0.0.1:0").await.unwrap();
+        let addr = server.local_addr().unwrap();
+        let mut module = RpcModule::new(attempts.clone());
+        module
+            .register_async_method("conductor_leader", |_, attempts, _| async move {
+                if attempts.fetch_add(1, Ordering::Relaxed) == 0 {
+                    Err(ErrorObjectOwned::owned(-32000, "temporary failure", None::<()>))
+                } else {
+                    Ok(true)
+                }
+            })
+            .unwrap();
+        let handle = server.start(module);
+
+        let client = ConductorClient::new_http_with_timeout(
+            Url::parse(&format!("http://{addr}")).unwrap(),
+            Duration::from_secs(1),
+        );
+        assert!(client.leader().await.unwrap());
+        assert_eq!(attempts.load(Ordering::Relaxed), 2);
+
+        handle.stop().unwrap();
+    }
 
     #[tokio::test]
     async fn conductor_request_honors_timeout() {
