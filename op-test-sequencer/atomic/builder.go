@@ -44,6 +44,19 @@ type Transaction struct {
 	Data       []byte
 	AccessList types.AccessList
 	Gas        uint64
+	// Optional outer EIP-1559 fees. Both must be set together; nil preserves
+	// the raw prototype adapter's base-fee-plus-one default.
+	GasFeeCap, GasTipCap *big.Int
+}
+
+func (tx Transaction) validateFees() error {
+	if tx.GasFeeCap == nil && tx.GasTipCap == nil {
+		return nil
+	}
+	if tx.GasFeeCap == nil || tx.GasTipCap == nil || tx.GasFeeCap.Sign() < 0 || tx.GasTipCap.Sign() < 0 || tx.GasFeeCap.BitLen() > 256 || tx.GasTipCap.BitLen() > 256 || tx.GasTipCap.Cmp(tx.GasFeeCap) > 0 {
+		return fmt.Errorf("invalid outer transaction fee cap or tip")
+	}
+	return nil
 }
 
 type Execution struct {

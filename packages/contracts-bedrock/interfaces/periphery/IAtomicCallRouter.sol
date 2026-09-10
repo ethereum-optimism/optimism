@@ -27,6 +27,7 @@ interface IAtomicCallRouter {
     function consumedCalls(bytes32) external view returns (bool);
     function proxies(address) external view returns (bool);
     function proxyFor(uint256 _chainId, address _target) external returns (address proxy_);
+    function predictProxy(uint256 _chainId, address _target) external view returns (address proxy_);
     function computeBundleId(address _sender, uint256 _nonce) external view returns (bytes32);
     function crossChainContext() external view returns (uint256 sourceChainId_, address sender_);
     function executeRoot(

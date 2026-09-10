@@ -28,13 +28,16 @@ type RPCExecutor struct {
 }
 
 type callFrame struct {
-	Type   string         `json:"type"`
-	To     common.Address `json:"to"`
-	Input  hexutil.Bytes  `json:"input"`
-	Output hexutil.Bytes  `json:"output"`
-	Error  string         `json:"error"`
-	Calls  []callFrame    `json:"calls"`
-	Logs   []callLog      `json:"logs"`
+	Type    string         `json:"type"`
+	From    common.Address `json:"from"`
+	To      common.Address `json:"to"`
+	Input   hexutil.Bytes  `json:"input"`
+	Output  hexutil.Bytes  `json:"output"`
+	Error   string         `json:"error"`
+	Gas     hexutil.Uint64 `json:"gas"`
+	GasUsed hexutil.Uint64 `json:"gasUsed"`
+	Calls   []callFrame    `json:"calls"`
+	Logs    []callLog      `json:"logs"`
 }
 
 type callLog struct {
@@ -46,6 +49,9 @@ type callLog struct {
 
 func (e *RPCExecutor) trace(ctx context.Context, tx Transaction) (callFrame, error) {
 	var frame callFrame
+	if err := tx.validateFees(); err != nil {
+		return frame, err
+	}
 	var header *types.Header
 	if err := e.RPC.CallContext(ctx, &header, "eth_getBlockByHash", e.Parent, false); err != nil {
 		return frame, err
@@ -54,9 +60,15 @@ func (e *RPCExecutor) trace(ctx context.Context, tx Transaction) (callFrame, err
 		return frame, fmt.Errorf("missing pinned parent/base fee")
 	}
 	price := new(big.Int).Add(header.BaseFee, big.NewInt(1))
-	err := e.RPC.CallContext(ctx, &frame, "debug_traceCall", map[string]any{
+	args := map[string]any{
 		"from": tx.From, "to": tx.To, "data": hexutil.Bytes(tx.Data), "gas": hexutil.Uint64(tx.Gas), "accessList": tx.AccessList, "gasPrice": (*hexutil.Big)(price),
-	}, rpc.BlockNumberOrHashWithHash(e.Parent, true), map[string]any{
+	}
+	if tx.GasFeeCap != nil {
+		delete(args, "gasPrice")
+		args["maxFeePerGas"] = (*hexutil.Big)(tx.GasFeeCap)
+		args["maxPriorityFeePerGas"] = (*hexutil.Big)(tx.GasTipCap)
+	}
+	err := e.RPC.CallContext(ctx, &frame, "debug_traceCall", args, rpc.BlockNumberOrHashWithHash(e.Parent, true), map[string]any{
 		"tracer": "callTracer", "tracerConfig": map[string]any{"withLog": true},
 		"blockOverrides": map[string]any{"number": hexutil.Uint64(e.Number), "time": hexutil.Uint64(e.Timestamp)},
 	})
@@ -64,6 +76,18 @@ func (e *RPCExecutor) trace(ctx context.Context, tx Transaction) (callFrame, err
 }
 
 func (e *RPCExecutor) Discover(ctx context.Context, tx Transaction) (Execution, error) {
+	frame, err := e.Trace(ctx, tx, true)
+	if err != nil {
+		return Execution{}, err
+	}
+	return executionFromFrame(frame)
+}
+
+// Trace preserves the outer envelope and nested operation frames for ERC-4337.
+func (e *RPCExecutor) Trace(ctx context.Context, tx Transaction, discovery bool) (callFrame, error) {
+	if !discovery {
+		return e.trace(ctx, tx)
+	}
 	// Each cold checksum causes a normal inbox revert. Add the requested key
 	// only to the next speculative attempt. No bytecode override is necessary,
 	// and the final builder-produced transaction has its own complete access list.
@@ -79,7 +103,7 @@ func (e *RPCExecutor) Discover(ctx context.Context, tx Transaction) (Execution, 
 	for range e.MaxDiscoveryPasses {
 		frame, err := e.trace(ctx, tx)
 		if err != nil {
-			return Execution{}, err
+			return callFrame{}, err
 		}
 		var added []common.Hash
 		var visit func(callFrame)
@@ -96,11 +120,11 @@ func (e *RPCExecutor) Discover(ctx context.Context, tx Transaction) (Execution, 
 		}
 		visit(frame)
 		if len(added) == 0 {
-			return executionFromFrame(frame)
+			return frame, nil
 		}
 		tx.AccessList = append(tx.AccessList, types.AccessTuple{Address: predeploys.CrossL2InboxAddr, StorageKeys: added})
 	}
-	return Execution{}, fmt.Errorf("exceeded %d RPC discovery passes", e.MaxDiscoveryPasses)
+	return callFrame{}, fmt.Errorf("exceeded %d RPC discovery passes", e.MaxDiscoveryPasses)
 }
 
 func (e *RPCExecutor) Replay(ctx context.Context, tx Transaction) (Execution, error) {

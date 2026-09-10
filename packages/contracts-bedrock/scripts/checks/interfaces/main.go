@@ -20,6 +20,9 @@ var excludeContracts = []string{
 	"IERC165", "IERC165Upgradeable", "ERC721TokenReceiver", "ERC1155TokenReceiver",
 	"ERC777TokensRecipient", "Guard", "IProxy", "Vm", "VmSafe", "IMulticall3",
 	"IERC721TokenReceiver", "IProxyCreationCallback", "IBeacon", "IEIP712",
+	// ERC-4337 v0.7 and its OpenZeppelin interfaces retain upstream pragmas.
+	"IAccount", "IAggregator", "IEntryPoint", "INonceManager", "IPaymaster", "IStakeManager",
+	"IERC1822Proxiable", "IERC1155Receiver", "IERC721Receiver",
 
 	// EAS
 	"IEAS", "ISchemaResolver", "ISchemaRegistry",

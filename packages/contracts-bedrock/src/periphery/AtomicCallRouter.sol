@@ -46,17 +46,24 @@ contract AtomicCallRouter {
 
     /// @notice Creates or returns a deterministic local proxy for a remote contract.
     function proxyFor(uint256 _chainId, address _target) external returns (address proxy_) {
+        proxy_ = predictProxy(_chainId, _target);
+        if (proxy_.code.length == 0) {
+            bytes32 salt = keccak256(abi.encode(_chainId, _target));
+            proxy_ = address(new AtomicRemoteProxy{ salt: salt }(address(this), _chainId, _target));
+            proxies[proxy_] = true;
+            emit ProxyCreated(_chainId, _target, proxy_);
+        }
+    }
+
+    /// @notice Predicts the ordinary local address accepting the remote contract's ABI.
+    ///         Deploy it with proxyFor before submitting an operation that calls it.
+    function predictProxy(uint256 _chainId, address _target) public view returns (address proxy_) {
         if (_chainId == block.chainid || _target == address(0)) revert AtomicCallRouter_InvalidPeer();
         bytes32 salt = keccak256(abi.encode(_chainId, _target));
         bytes memory init =
             abi.encodePacked(type(AtomicRemoteProxy).creationCode, abi.encode(address(this), _chainId, _target));
         proxy_ =
             address(uint160(uint256(keccak256(abi.encodePacked(bytes1(0xff), address(this), salt, keccak256(init))))));
-        if (proxy_.code.length == 0) {
-            proxy_ = address(new AtomicRemoteProxy{ salt: salt }(address(this), _chainId, _target));
-            proxies[proxy_] = true;
-            emit ProxyCreated(_chainId, _target, proxy_);
-        }
     }
 
     /// @notice Computes the root intent's identity without committing to discovered result witnesses.

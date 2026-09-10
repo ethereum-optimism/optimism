@@ -25,10 +25,20 @@ import (
 type AtomicCallScenario string
 
 const (
-	AtomicCallsSucceed   AtomicCallScenario = "TwoRoundTrips"
-	AtomicRemoteReverts  AtomicCallScenario = "RemoteReverts"
-	AtomicOrphanedRemote AtomicCallScenario = "OrphanedRemote"
+	AtomicCallsSucceed     AtomicCallScenario = "TwoRoundTrips"
+	AtomicRemoteReverts    AtomicCallScenario = "RemoteReverts"
+	AtomicOrphanedRemote   AtomicCallScenario = "OrphanedRemote"
+	AtomicSponsoredSuccess AtomicCallScenario = "SponsoredSuccess"
+	AtomicSponsoredRevert  AtomicCallScenario = "SponsoredRemoteReverts"
 )
+
+func (s AtomicCallScenario) sponsored() bool {
+	return s == AtomicSponsoredSuccess || s == AtomicSponsoredRevert
+}
+
+func (s AtomicCallScenario) remoteReverts() bool {
+	return s == AtomicRemoteReverts || s == AtomicSponsoredRevert
+}
 
 // RunAtomicCallConsolidationTest deploys the opt-in facade and constructs two
 // actual transactions with the shared builder. The application makes two typed
@@ -92,6 +102,8 @@ func atomicCallCase(t devtest.T, sys *presets.SimpleInterop, scenario AtomicCall
 	counter := read("AtomicCounter", "AtomicCounter")
 	var routerAddr, appAddr, counterAddr, proxy common.Address
 	blockNumbers := make(map[eth.ChainID]uint64)
+	sponsors := make(map[eth.ChainID]*sponsoredAccount)
+	plannedTransactions := make(map[eth.ChainID]*txplan.PlannedTx)
 	deploy := func(eoa *dsl.EOA, artifact *foundry.Artifact) common.Address {
 		tx := txplan.NewPlannedTx(eoa.Plan(), txplan.WithData(artifact.Bytecode.Object))
 		receipt, err := tx.Included.Eval(t.Ctx())
@@ -110,7 +122,7 @@ func atomicCallCase(t devtest.T, sys *presets.SimpleInterop, scenario AtomicCall
 			t.Require().Equal(routerAddr, deploy(deployerB, router))
 			appAddr = deploy(alice, app)
 			counterAddr = deploy(bob, counter)
-			if scenario == AtomicRemoteReverts {
+			if scenario.remoteReverts() {
 				data, err := counter.ABI.Pack("setLimit", big.NewInt(5))
 				t.Require().NoError(err)
 				bob.Transact(bob.Plan(), txplan.WithTo(&counterAddr), txplan.WithData(data))
@@ -128,6 +140,10 @@ func atomicCallCase(t devtest.T, sys *presets.SimpleInterop, scenario AtomicCall
 				}
 			}
 			t.Require().NotEqual(common.Address{}, proxy)
+			if scenario.sponsored() {
+				sponsors[alice.ChainID()] = prepareSponsoredAccount(t, alice, sys.L2ELA, routerAddr, read, deploy)
+				sponsors[bob.ChainID()] = prepareSponsoredAccount(t, bob, sys.L2ELB, routerAddr, read, deploy)
+			}
 		},
 		BuildTxs: func(s *intraBlockSetup) ([]*txplan.PlannedTx, []*txplan.PlannedTx) {
 			builder := &atomic.Builder{Router: routerAddr, ABI: router.ABI, MaxCalls: 8, Gas: 8_000_000, Chains: make(map[eth.ChainID]atomic.Chain)}
@@ -140,18 +156,34 @@ func atomicCallCase(t devtest.T, sys *presets.SimpleInterop, scenario AtomicCall
 			} {
 				id := item.eoa.ChainID()
 				blockNumbers[id] = item.number
-				builder.Chains[id] = atomic.Chain{ID: id, BlockNumber: item.number, Timestamp: s.nextTimestamp, Sender: item.eoa.Address(), Executor: &atomic.RPCExecutor{RPC: item.el.EthClient().RPC(), Parent: item.el.BlockRefByLabel(eth.Unsafe).Hash, Number: item.number, Timestamp: s.nextTimestamp, MaxDiscoveryPasses: 16}}
+				backend := &atomic.RPCExecutor{RPC: item.el.EthClient().RPC(), Parent: item.el.BlockRefByLabel(eth.Unsafe).Hash, Number: item.number, Timestamp: s.nextTimestamp, MaxDiscoveryPasses: 16}
+				chain := atomic.Chain{ID: id, BlockNumber: item.number, Timestamp: s.nextTimestamp, Sender: item.eoa.Address(), Executor: backend}
+				if scenario.sponsored() {
+					chain.Executor = sponsors[id].executor(backend, item.eoa)
+					chain.Sender = sponsors[id].account
+					chain.FirstLogIndex = 1 // EntryPoint.BeforeExecution
+				}
+				builder.Chains[id] = chain
 			}
 			data, err := app.ABI.Pack("run", proxy, big.NewInt(3), big.NewInt(6))
 			t.Require().NoError(err)
-			plan, err := builder.Build(t.Ctx(), s.alice.ChainID(), 0, appAddr, data)
-			t.Require().NoError(err)
-			t.Require().Equal(scenario == AtomicRemoteReverts, plan.Reverted)
-			if scenario == AtomicRemoteReverts {
+			var plan *atomic.Plan
+			var transactions map[eth.ChainID]atomic.Transaction
+			if scenario.sponsored() {
+				sponsored, buildErr := atomic.BuildSponsored(t.Ctx(), builder, s.alice.ChainID(), 0, appAddr, data)
+				t.Require().NoError(buildErr)
+				plan, transactions = sponsored.Atomic, sponsored.Transactions
+			} else {
+				plan, err = builder.Build(t.Ctx(), s.alice.ChainID(), 0, appAddr, data)
+				t.Require().NoError(err)
+				transactions = plan.Transactions
+			}
+			t.Require().Equal(scenario.remoteReverts(), plan.Reverted)
+			if scenario.remoteReverts() {
 				t.Require().False(plan.Witnesses[len(plan.Witnesses)-1].Success)
 				t.Require().Equal(plan.Witnesses[len(plan.Witnesses)-1].ReturnData, plan.Executions[s.alice.ChainID()].Output)
 			}
-			rootTx := plan.Transactions[s.alice.ChainID()]
+			rootTx := transactions[s.alice.ChainID()]
 			if scenario == AtomicOrphanedRemote {
 				// Deliberately submit the speculative remote leg alongside a root
 				// transaction whose final application check reverts.
@@ -161,13 +193,20 @@ func atomicCallCase(t devtest.T, sys *presets.SimpleInterop, scenario AtomicCall
 				t.Require().NoError(err)
 			}
 			planned := func(eoa *dsl.EOA, tx atomic.Transaction) *txplan.PlannedTx {
-				return txplan.NewPlannedTx(eoa.Plan(), txintent.WithoutInteropDependencyWait(), txplan.WithTo(&tx.To), txplan.WithData(tx.Data), txplan.WithGasLimit(tx.Gas), txplan.WithAccessList(tx.AccessList))
+				planned := txplan.NewPlannedTx(eoa.Plan(), txintent.WithoutInteropDependencyWait(), txplan.WithTo(&tx.To), txplan.WithData(tx.Data), txplan.WithGasLimit(tx.Gas), txplan.WithAccessList(tx.AccessList))
+				if tx.GasFeeCap != nil {
+					txplan.WithGasFeeCap(tx.GasFeeCap)(planned)
+					txplan.WithGasTipCap(tx.GasTipCap)(planned)
+				}
+				return planned
 			}
-			return []*txplan.PlannedTx{planned(s.alice, rootTx)}, []*txplan.PlannedTx{planned(s.bob, plan.Transactions[s.bob.ChainID()])}
+			plannedTransactions[s.alice.ChainID()] = planned(s.alice, rootTx)
+			plannedTransactions[s.bob.ChainID()] = planned(s.bob, transactions[s.bob.ChainID()])
+			return []*txplan.PlannedTx{plannedTransactions[s.alice.ChainID()]}, []*txplan.PlannedTx{plannedTransactions[s.bob.ChainID()]}
 		},
 		Check: func(t devtest.T, sys *presets.SimpleInterop) {
 			want := common.BigToHash(big.NewInt(6))
-			if scenario != AtomicCallsSucceed {
+			if scenario != AtomicCallsSucceed && scenario != AtomicSponsoredSuccess {
 				want = common.Hash{}
 			}
 			for _, item := range []struct {
@@ -180,6 +219,10 @@ func atomicCallCase(t devtest.T, sys *presets.SimpleInterop, scenario AtomicCall
 				got, err := item.el.EthClient().GetStorageAt(t.Ctx(), item.addr, common.Hash{}, hexutil.EncodeUint64(number))
 				t.Require().NoError(err)
 				t.Require().Equal(want, got, "application state after cross-chain validation")
+				if scenario.sponsored() {
+					id := item.el.ChainID()
+					sponsors[id].check(t, item.el, plannedTransactions[id], number, !scenario.remoteReverts())
+				}
 			}
 		},
 	}
