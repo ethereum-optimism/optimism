@@ -39,8 +39,16 @@ func TestPrivateETHDepositCanSendAndResendInterop(gt *testing.T) {
 	depositor := privateAlice.ViaDepositTx(alice, sys.L2ELB, sys.L2B)
 	receipt := depositor.DepositTx(predeploys.L2toL2CrossDomainMessengerAddr, calldata)
 	t.Require().Len(receipt.Logs, 1)
-	var published txintent.InteropOutput
+	// The same forced transaction is inert on the online public projection. The
+	// earlier ETH funding deposit also leaves Alice's public balance untouched.
 	ref := sys.L2ELB.BlockRefByNumber(bigs.Uint64Strict(receipt.BlockNumber))
+	sys.L2BSupernodeEL.WaitL1OriginReached(eth.Unsafe, ref.L1Origin.Number, 120)
+	projected := sys.L2BSupernodeEL.WaitForReceipt(receipt.TxHash)
+	t.Require().Equal(types.ReceiptStatusSuccessful, projected.Status)
+	t.Require().Zero(projected.GasUsed)
+	t.Require().Empty(projected.Logs)
+	alice.AsEL(sys.L2BSupernodeEL).VerifyBalanceExact(eth.ZeroWei)
+	var published txintent.InteropOutput
 	t.Require().NoError(published.FromReceipt(t.Ctx(), receipt, ref.BlockRef(), sys.L2B.ChainID()))
 	t.Require().Len(published.Entries, 1, "the online publisher includes forced initiating messages")
 

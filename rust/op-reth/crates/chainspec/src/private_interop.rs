@@ -308,7 +308,7 @@ mod tests {
     }
 
     #[test]
-    fn only_projection_genesis_enables_deposit_log_suppression() {
+    fn only_projection_genesis_enables_deposit_noops() {
         let private = private_chain_genesis();
         assert!(!is_public_projection_genesis(&private));
         assert!(!is_public_projection_genesis(&Genesis::default()));

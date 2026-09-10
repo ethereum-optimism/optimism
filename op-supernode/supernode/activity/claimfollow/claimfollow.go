@@ -395,6 +395,11 @@ func (m *Module) readClaims(ctx context.Context, src Rendering, payload *eth.Exe
 		if tx.UnmarshalBinary(raw) != nil || tx.To() == nil || *tx.To() != m.cfg.Registry {
 			continue
 		}
+		// Projection deposits are successful no-ops. Their calldata never ran
+		// through the registry's batcher authorization and cannot attest a claim.
+		if optypes.IsDepositTx(&tx) {
+			continue
+		}
 		if c, ok := m.decodeClaim(&tx); ok {
 			candidates[tx.Hash()] = c
 			order = append(order, tx.Hash())

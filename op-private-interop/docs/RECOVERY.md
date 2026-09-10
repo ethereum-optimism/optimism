@@ -142,6 +142,8 @@ case where only a claim's L1 publication disappears while every private origin
 stays canonical; the checkpoint-retreat unit test covers the adapter's behavior
 at that boundary.
 
-Projection deposit execution is a separate protocol rule. The current projection
-receipt builder suppresses deposit logs but still executes the transactions.
-That is not equivalent to deposits having no state effects.
+User deposits are zero-effect no-ops on the public projection, including recovery
+positions. They execute normally on the private chain through the ordinary L1
+attributes builder. See [the ETH profile](ETH-PROFILE.md) for execution and receipt
+semantics; recovery obtains the schedule from the supernode and deposit contents
+from its own L1 connection.

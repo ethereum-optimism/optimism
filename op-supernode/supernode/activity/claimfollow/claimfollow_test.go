@@ -601,6 +601,34 @@ func TestAReorgThatErasesAClaimRevokesItsHead(t *testing.T) {
 	require.Positive(t, h.m.reorgs)
 }
 
+func TestSuccessfulDepositCannotSupplyAClaim(t *testing.T) {
+	h := newHarness(t)
+	data, err := render.EncodePostClaim(&codec.RangeClaim{LastBlock: ^uint64(0)})
+	require.NoError(t, err)
+	deposit := &optypes.DepositTx{To: &registryAddr, Value: new(big.Int), Gas: 1_000_000, Data: data}
+	raw, err := deposit.MarshalBinary()
+	require.NoError(t, err)
+	var tx types.Transaction
+	require.NoError(t, tx.UnmarshalBinary(raw))
+	// Projection no-ops have successful receipts, but never execute postClaim.
+	h.r.set(1, "a", 0, &tx)
+	h.r.fill(2, 8, "a", 0)
+	h.r.safe, h.r.finalized = 8, 0
+	require.NoError(t, h.step())
+	st, err := NewAPI(h.f).SyncStatus(t.Context())
+	require.NoError(t, err)
+	require.Equal(t, wantGenesisRef(), st.LocalSafeL2)
+	require.Nil(t, st.Recovery.Prefix, "a forced claim must not manufacture a private recovery anchor")
+	require.Zero(t, h.m.claims)
+
+	h.r.set(9, "a", 0, claimTx(t, 1, 9, 16))
+	h.r.fill(10, 16, "a", 0)
+	h.r.safe, h.r.finalized = 16, 16
+	require.NoError(t, h.step())
+	require.Equal(t, wantRef(16), h.status().FinalizedL2)
+	require.Equal(t, 1, h.m.claims, "only the sequenced claim is accepted")
+}
+
 // A REVERTED postClaim never entered the registry's record, so there is nothing to follow. Under
 // snap-to-commitment that is a skip with a metric, NOT the sidecar's fail-stop latch: the scan
 // keeps going and a later, accepted claim is served normally.
