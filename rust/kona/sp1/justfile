@@ -1,7 +1,7 @@
 default:
   @just --list
 
-SP1_TAG := "v6.4.0"
+SP1_TAG := "v6.7.0"
 
 # Build the super-range-executor host binary, used by acceptance smoke tests to run the
 # super-range guest in SP1 execute mode. The binary loads the guest ELF at runtime, so build the
