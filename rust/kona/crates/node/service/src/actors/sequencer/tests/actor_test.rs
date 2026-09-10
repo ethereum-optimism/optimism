@@ -1,6 +1,7 @@
+use super::{CanonicalizationErrorAction, PendingPayload, canonicalization_error_action};
 #[cfg(test)]
 use crate::{
-    ConductorError, SequencerActorError,
+    ConductorError, L1OriginSelectorError, SequencerActorError,
     actors::{
         MockConductor, MockOriginSelector, MockSequencerEngineClient,
         sequencer::{actor::UnsealedPayloadHandle, tests::test_util::test_actor},
@@ -10,6 +11,7 @@ use alloy_primitives::{Address, B256, Bloom, Bytes, U256};
 use alloy_rpc_types_engine::{ExecutionPayloadV1, PayloadId};
 use alloy_transport::RpcError;
 use kona_derive::{BuilderError, PipelineErrorKind, test_utils::TestAttributesBuilder};
+use kona_engine::{InsertTaskError, SynchronizeTaskError};
 use kona_protocol::{BlockInfo, L2BlockInfo, OpAttributesWithParent};
 use mockall::Sequence;
 use op_alloy_rpc_types_engine::{OpExecutionPayloadEnvelope, OpPayloadAttributes};
@@ -111,7 +113,7 @@ async fn test_rejected_conductor_commit_is_not_canonicalized_or_gossiped() {
     actor.conductor = Some(conductor);
     actor.unsafe_payload_gossip_client.expect_schedule_execution_payload_gossip().times(0);
 
-    assert!(actor.seal_and_commit_payload_if_applicable(&test_unsealed_payload()).await.is_err());
+    assert!(actor.seal_and_commit_payload(&test_unsealed_payload()).await.is_err());
 }
 
 #[tokio::test]
@@ -130,10 +132,107 @@ async fn test_rejected_conductor_commit_backs_off_without_stopping_actor() {
     actor.engine_client = engine;
     actor.conductor = Some(conductor);
     actor.unsafe_payload_gossip_client.expect_schedule_execution_payload_gossip().times(0);
-    actor.next_payload_to_seal = Some(test_unsealed_payload());
+    actor.pending_payload = Some(PendingPayload::Unsealed(Box::new(test_unsealed_payload())));
 
     assert!(actor.handle_build_tick().await.is_ok());
-    assert!(actor.next_payload_to_seal.is_some(), "pending build must be retained for retry");
+    assert!(
+        matches!(actor.pending_payload, Some(PendingPayload::Unsealed(_))),
+        "pending build must be retained for retry"
+    );
+}
+
+#[tokio::test]
+async fn test_temporary_canonicalization_failure_retries_exact_committed_payload() {
+    let payload = test_payload();
+    let mut sequence = Sequence::new();
+    let mut engine = MockSequencerEngineClient::new();
+    engine.expect_seal_block().times(1).return_once({
+        let payload = payload.clone();
+        move |_, _| Ok(payload)
+    });
+    engine.expect_canonicalize_block().times(1).in_sequence(&mut sequence).return_once(|_| {
+        Err(crate::EngineClientError::CanonicalizeError(InsertTaskError::InsertFailed(
+            RpcError::local_usage_str("temporary engine failure"),
+        )))
+    });
+    engine
+        .expect_canonicalize_block()
+        .withf({
+            let payload = payload.clone();
+            move |actual| actual == &payload
+        })
+        .times(1)
+        .in_sequence(&mut sequence)
+        .return_once(|_| Ok(()));
+    engine.expect_get_unsafe_head().times(1).return_once(|| Ok(L2BlockInfo::default()));
+    engine.expect_reset_engine_forkchoice().times(1).return_once(|| Ok(()));
+
+    let mut conductor = MockConductor::new();
+    conductor.expect_commit_unsafe_payload().times(1).return_once(|_| Ok(()));
+
+    let mut origin_selector = MockOriginSelector::new();
+    origin_selector
+        .expect_next_l1_origin()
+        .times(1)
+        .return_once(|head, _| Err(L1OriginSelectorError::OriginNotFound(head.l1_origin.hash)));
+
+    let mut actor = test_actor();
+    actor.engine_client = engine;
+    actor.conductor = Some(conductor);
+    actor.origin_selector = origin_selector;
+    actor
+        .unsafe_payload_gossip_client
+        .expect_schedule_execution_payload_gossip()
+        .withf({
+            let payload = payload.clone();
+            move |actual| actual == &payload
+        })
+        .times(1)
+        .return_once(|_| Ok(()));
+    actor.pending_payload = Some(PendingPayload::Unsealed(Box::new(test_unsealed_payload())));
+
+    assert!(actor.handle_build_tick().await.is_ok());
+    match actor.pending_payload.as_ref() {
+        Some(PendingPayload::Committed(retained)) => assert_eq!(retained.as_ref(), &payload),
+        other => panic!("expected exact committed payload to be retained, got {other:?}"),
+    }
+
+    assert!(actor.handle_build_tick().await.is_ok());
+    assert!(actor.pending_payload.is_none());
+}
+
+#[test]
+fn transient_new_payload_and_forkchoice_errors_retry_committed_payload() {
+    let errors = [
+        InsertTaskError::InsertFailed(RpcError::local_usage_str("new payload unavailable")),
+        InsertTaskError::ForkchoiceUpdateFailed(SynchronizeTaskError::ForkchoiceUpdateFailed(
+            RpcError::local_usage_str("forkchoice unavailable"),
+        )),
+    ];
+
+    for err in errors {
+        assert_eq!(canonicalization_error_action(&err), CanonicalizationErrorAction::Retry);
+    }
+}
+
+#[tokio::test]
+async fn test_stale_committed_payload_is_dropped_without_gossip() {
+    let payload = test_payload();
+    let mut engine = MockSequencerEngineClient::new();
+    engine.expect_canonicalize_block().times(1).return_once(|_| {
+        Err(crate::EngineClientError::CanonicalizeError(InsertTaskError::StalePayload {
+            parent: B256::ZERO,
+            unsafe_head: B256::repeat_byte(1),
+        }))
+    });
+
+    let mut actor = test_actor();
+    actor.engine_client = engine;
+    actor.unsafe_payload_gossip_client.expect_schedule_execution_payload_gossip().times(0);
+    actor.pending_payload = Some(PendingPayload::Committed(Box::new(payload)));
+
+    assert!(actor.handle_build_tick().await.is_ok());
+    assert!(actor.pending_payload.is_none());
 }
 
 #[tokio::test]
@@ -165,5 +264,6 @@ async fn test_accepted_conductor_commit_is_canonicalized_before_gossip() {
         .in_sequence(&mut sequence)
         .return_once(|_| Ok(()));
 
-    assert!(actor.seal_and_commit_payload_if_applicable(&test_unsealed_payload()).await.is_ok());
+    let payload = actor.seal_and_commit_payload(&test_unsealed_payload()).await.unwrap();
+    assert!(actor.canonicalize_and_gossip_payload(&payload).await.is_ok());
 }

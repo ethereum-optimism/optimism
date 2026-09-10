@@ -29,6 +29,8 @@ pub struct InsertTask<EngineClient_: EngineClient> {
     block_sink: Arc<dyn ImportedBlockSink>,
     /// Optional sender for callers that need to await canonicalization.
     result_tx: Option<mpsc::Sender<Result<L2BlockInfo, InsertTaskError>>>,
+    /// Whether the payload must still extend the current unsafe head when this task executes.
+    require_current_unsafe_parent: bool,
 }
 
 impl<EngineClient_: EngineClient> InsertTask<EngineClient_> {
@@ -47,6 +49,7 @@ impl<EngineClient_: EngineClient> InsertTask<EngineClient_> {
             is_payload_safe: is_attributes_derived,
             block_sink,
             result_tx: None,
+            require_current_unsafe_parent: false,
         }
     }
 
@@ -56,6 +59,12 @@ impl<EngineClient_: EngineClient> InsertTask<EngineClient_> {
         result_tx: mpsc::Sender<Result<L2BlockInfo, InsertTaskError>>,
     ) -> Self {
         self.result_tx = Some(result_tx);
+        self
+    }
+
+    /// Requires the payload parent to match the current unsafe head when this task executes.
+    pub const fn require_current_unsafe_parent(mut self) -> Self {
+        self.require_current_unsafe_parent = true;
         self
     }
 
@@ -93,6 +102,20 @@ impl<EngineClient_: EngineClient> EngineTaskExt for InsertTask<EngineClient_> {
         // Insert the new payload.
         // Form the new unsafe block ref from the execution payload.
         let payload = self.payload.clone();
+        if self.require_current_unsafe_parent {
+            let parent = payload.clone().into_parts().0.parent_hash();
+            let unsafe_head = state.sync_state.unsafe_head().block_info.hash;
+            if parent != unsafe_head {
+                info!(
+                    target: "engine",
+                    %parent,
+                    %unsafe_head,
+                    "Dropping stale sequencer payload before insertion"
+                );
+                return Err(InsertTaskError::StalePayload { parent, unsafe_head });
+            }
+        }
+
         let insert_time_start = Instant::now();
         let response = match payload.clone() {
             OpExecutionPayloadEnvelope::V1(payload) => self.client.new_payload_v1(payload).await,
@@ -158,5 +181,58 @@ impl<EngineClient_: EngineClient> EngineTaskExt for InsertTask<EngineClient_> {
         );
 
         Ok(new_unsafe_ref)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::{
+        EngineTaskExt, NoopBlockSink,
+        test_utils::{TestEngineStateBuilder, test_block_info, test_engine_client_builder},
+    };
+    use alloy_primitives::{Address, B256, Bloom, Bytes, U256};
+    use alloy_rpc_types_engine::ExecutionPayloadV1;
+
+    fn test_payload(parent_hash: B256) -> OpExecutionPayloadEnvelope {
+        OpExecutionPayloadEnvelope::V1(ExecutionPayloadV1 {
+            parent_hash,
+            fee_recipient: Address::ZERO,
+            state_root: B256::ZERO,
+            receipts_root: B256::ZERO,
+            logs_bloom: Bloom::ZERO,
+            prev_randao: B256::ZERO,
+            block_number: 1,
+            gas_limit: 30_000_000,
+            gas_used: 0,
+            timestamp: 2,
+            extra_data: Bytes::new(),
+            base_fee_per_gas: U256::from(1),
+            block_hash: B256::ZERO,
+            transactions: Vec::new(),
+        })
+    }
+
+    #[tokio::test]
+    async fn checked_insert_rejects_payload_that_no_longer_extends_unsafe_head() {
+        let unsafe_head = test_block_info(10);
+        let stale_parent = B256::ZERO;
+        assert_ne!(stale_parent, unsafe_head.hash());
+        let mut state = TestEngineStateBuilder::new().with_unsafe_head(unsafe_head).build();
+        let task = InsertTask::new(
+            Arc::new(test_engine_client_builder().build()),
+            Arc::new(RollupConfig::default()),
+            test_payload(stale_parent),
+            false,
+            Arc::new(NoopBlockSink),
+        )
+        .require_current_unsafe_parent();
+
+        let err = task.execute(&mut state).await.unwrap_err();
+        assert!(matches!(
+            err,
+            InsertTaskError::StalePayload { parent, unsafe_head: actual }
+                if parent == stale_parent && actual == unsafe_head.hash()
+        ));
     }
 }

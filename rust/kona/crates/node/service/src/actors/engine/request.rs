@@ -28,6 +28,10 @@ pub enum EngineClientError {
     #[error(transparent)]
     SealError(#[from] SealTaskError),
 
+    /// An error occurred canonicalizing a sealed payload.
+    #[error(transparent)]
+    CanonicalizeError(InsertTaskError),
+
     /// An error occurred performing the reset.
     #[error("An error occurred performing the reset: {0}.")]
     ResetForkchoiceError(String),
