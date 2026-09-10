@@ -66,7 +66,7 @@ Both guests embed the commit they were built from, so a guest ELF identifies its
 without a manifest, a lookup table, or executing it:
 
 ```bash
-grep -aoE 'KONA_SP1_BUILD\{git_sha=[^}]*\}' elf/super-aggregation-elf
+grep -aoE 'KONA_SP1_BUILD\{git_sha=[0-9A-Za-z._-]*\}' elf/super-aggregation-elf | sort -u
 ```
 
 The guests also print the marker at startup, which surfaces wherever the executor runs it —
@@ -84,7 +84,7 @@ artifact.
 `just build-elfs` takes the commit from `git rev-parse HEAD`, resolved once per build so both
 guests agree. It appends `-dirty` when tracked files are modified and `-custom` for a
 `KONA_CUSTOM_CONFIGS_DIR` build, whose guest is compiled from configs the commit does not
-describe. Set `KONA_SP1_GIT_SHA` to override it. Builds outside the justfile record `unknown`.
+describe. Builds outside the justfile record `unknown`.
 Each build recipe checks its own ELF; CI (`kona-build-sp1-elfs`) additionally pins the natively
 built ELFs to the commit under test.
 

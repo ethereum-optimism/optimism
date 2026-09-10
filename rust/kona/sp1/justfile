@@ -15,7 +15,7 @@ build-super-range-executor:
 build-elfs:
     #!/usr/bin/env bash
     set -euo pipefail
-    export KONA_SP1_GIT_SHA="${KONA_SP1_GIT_SHA:-$(just _git-sha)}"
+    export KONA_SP1_GIT_SHA="$(just _git-sha)"
     m=elf/vkeys.toml
     just _vkeys-header > "$m"
     just build-super-range-elf
@@ -105,12 +105,13 @@ _build-elf NAME MODE:
 
     # Nothing fails at compile time if the marker literal is dropped or an injection channel
     # stops working, so check the artifact on every build path rather than only the one CI runs.
+    # Every distinct marker, so a second conflicting one fails rather than hiding behind the
+    # first. The character class excludes control bytes, which would otherwise reach a terminal.
     elf="{{justfile_directory()}}/elf/{{NAME}}-elf"
-    found=$(grep -m1 -aoE 'KONA_SP1_BUILD\{git_sha=[^}]*\}' "$elf" || true)
-    found=${found%%$'\n'*}
-    if [[ "$found" != "KONA_SP1_BUILD{git_sha=${KONA_SP1_GIT_SHA}}" ]]; then
-      echo "ERROR: {{NAME}}-elf carries build marker '${found}'" >&2
-      echo "       expected KONA_SP1_BUILD{git_sha=${KONA_SP1_GIT_SHA}}" >&2
+    markers=$(grep -aoE 'KONA_SP1_BUILD\{git_sha=[0-9A-Za-z._-]*\}' "$elf" | sort -u || true)
+    if [[ "$markers" != "KONA_SP1_BUILD{git_sha=${KONA_SP1_GIT_SHA}}" ]]; then
+      echo "ERROR: {{NAME}}-elf build markers: ${markers:-<none>}" >&2
+      echo "       expected exactly KONA_SP1_BUILD{git_sha=${KONA_SP1_GIT_SHA}}" >&2
       exit 1
     fi
 
@@ -149,7 +150,7 @@ _append-vkey NAME MANIFEST:
 build-elfs-native:
     #!/usr/bin/env bash
     set -euo pipefail
-    export KONA_SP1_GIT_SHA="${KONA_SP1_GIT_SHA:-$(just _git-sha)}"
+    export KONA_SP1_GIT_SHA="$(just _git-sha)"
     m=elf/vkeys.toml
     just _vkeys-header > "$m"
     for name in super-range super-aggregation; do

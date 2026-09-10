@@ -312,13 +312,13 @@ jobs:
             for ELF in super-range-elf super-aggregation-elf; do
               PATH_TO_ELF="rust/kona/sp1/elf/${ELF}"
               set +e
-              FOUND=$(grep -m1 -aoE 'KONA_SP1_BUILD\{git_sha=[^}]*\}' "${PATH_TO_ELF}")
+              FOUND=$(grep -aoE 'KONA_SP1_BUILD\{git_sha=[0-9A-Za-z._-]*\}' "${PATH_TO_ELF}" | sort -u)
               RC=$?
               set -e
               [ "${RC}" -le 1 ] || { echo "ERROR: grep failed on ${PATH_TO_ELF} (exit ${RC})" >&2; exit 1; }
-              FOUND=${FOUND%%$'\n'*}
               if [ "${FOUND}" != "KONA_SP1_BUILD{git_sha=${EXPECTED}}" ]; then
-                echo "ERROR: ${ELF} build marker is '${FOUND}'; expected KONA_SP1_BUILD{git_sha=${EXPECTED}}" >&2
+                echo "ERROR: ${ELF} build markers: ${FOUND:-<none>}" >&2
+                echo "       expected exactly KONA_SP1_BUILD{git_sha=${EXPECTED}}" >&2
                 exit 1
               fi
               echo "${ELF}: ${FOUND}"
