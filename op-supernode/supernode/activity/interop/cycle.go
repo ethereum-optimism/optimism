@@ -42,89 +42,95 @@ func (g *dependencyGraph) addEdge(from, to *dependencyNode) {
 
 // checkCycle finds strongly connected components and marks only cycle nodes unresolved.
 // It returns ErrCycle when the graph contains a directed cycle.
+//
+// The search uses Kosaraju's algorithm. It records a depth-first finish order over
+// dependsOn edges, then collects strongly connected components over dependedOnBy edges
+// in decreasing finish order. Every node lands in exactly one component, so every node
+// gets a fresh resolved value.
 func checkCycle(g *dependencyGraph) error {
-	graphNodes := make(map[*dependencyNode]struct{}, len(*g))
-	for _, node := range *g {
-		node.resolved = false
-		graphNodes[node] = struct{}{}
-	}
+	finishOrder := dependencyFinishOrder(g)
 
-	type dfsFrame struct {
-		node     *dependencyNode
-		nextEdge int
-	}
-
-	// The first pass records finish order in the dependency graph.
-	visited := make(map[*dependencyNode]bool, len(*g))
-	finishOrder := make([]*dependencyNode, 0, len(*g))
-	for _, start := range *g {
-		if visited[start] {
-			continue
-		}
-		visited[start] = true
-		stack := []dfsFrame{{node: start}}
-		for len(stack) > 0 {
-			frame := &stack[len(stack)-1]
-			if frame.nextEdge < len(frame.node.dependsOn) {
-				next := frame.node.dependsOn[frame.nextEdge]
-				frame.nextEdge++
-				if _, ok := graphNodes[next]; !ok || visited[next] {
-					continue
-				}
-				visited[next] = true
-				stack = append(stack, dfsFrame{node: next})
-				continue
-			}
-			finishOrder = append(finishOrder, frame.node)
-			stack = stack[:len(stack)-1]
-		}
-	}
-
-	// The second pass collects components in the reversed graph.
-	visited = make(map[*dependencyNode]bool, len(*g))
+	assigned := make(map[*dependencyNode]bool, len(*g))
 	hasCycle := false
 	for i := len(finishOrder) - 1; i >= 0; i-- {
 		start := finishOrder[i]
-		if visited[start] {
+		if assigned[start] {
 			continue
 		}
 
-		visited[start] = true
-		stack := []*dependencyNode{start}
-		component := make([]*dependencyNode, 0, 1)
-		for len(stack) > 0 {
-			node := stack[len(stack)-1]
-			stack = stack[:len(stack)-1]
-			component = append(component, node)
-			for _, next := range node.dependedOnBy {
-				if _, ok := graphNodes[next]; !ok || visited[next] {
+		// The component doubles as the queue: every appended node is still unvisited.
+		assigned[start] = true
+		component := []*dependencyNode{start}
+		for next := 0; next < len(component); next++ {
+			for _, dependent := range component[next].dependedOnBy {
+				if assigned[dependent] {
 					continue
 				}
-				visited[next] = true
-				stack = append(stack, next)
+				assigned[dependent] = true
+				component = append(component, dependent)
 			}
 		}
 
-		// A multi-node component always contains a directed cycle.
-		componentHasCycle := len(component) > 1
-		if len(component) == 1 {
-			for _, dependency := range component[0].dependsOn {
-				if dependency == component[0] {
-					componentHasCycle = true
-					break
-				}
-			}
-		}
+		inCycle := componentHasCycle(component)
 		for _, node := range component {
-			node.resolved = !componentHasCycle
+			node.resolved = !inCycle
 		}
-		hasCycle = hasCycle || componentHasCycle
+		hasCycle = hasCycle || inCycle
 	}
 
 	if hasCycle {
 		return ErrCycle
 	}
 	return nil
+}
+
+// componentHasCycle reports whether a strongly connected component holds a directed cycle.
+// A component of more than one node always does. A single node does only through a self-edge.
+// The component always holds at least its start node.
+func componentHasCycle(component []*dependencyNode) bool {
+	if len(component) > 1 {
+		return true
+	}
+	return slices.Contains(component[0].dependsOn, component[0])
+}
+
+// dependencyFinishOrder returns the graph nodes in depth-first finish order over dependsOn
+// edges. The traversal is iterative so that adversarial dependency depth cannot exhaust the
+// call stack.
+func dependencyFinishOrder(g *dependencyGraph) []*dependencyNode {
+	type dfsFrame struct {
+		node     *dependencyNode
+		nextEdge int
+	}
+
+	visited := make(map[*dependencyNode]bool, len(*g))
+	finishOrder := make([]*dependencyNode, 0, len(*g))
+	for _, start := range *g {
+		if visited[start] {
+			continue
+		}
+
+		visited[start] = true
+		stack := []dfsFrame{{node: start}}
+		for len(stack) > 0 {
+			top := len(stack) - 1
+			node := stack[top].node
+			if stack[top].nextEdge == len(node.dependsOn) {
+				finishOrder = append(finishOrder, node)
+				stack = stack[:top]
+				continue
+			}
+
+			next := node.dependsOn[stack[top].nextEdge]
+			stack[top].nextEdge++
+			if visited[next] {
+				continue
+			}
+			visited[next] = true
+			stack = append(stack, dfsFrame{node: next})
+		}
+	}
+	return finishOrder
 }
 
 // executingMessageBefore finds the latest EM in the slice with logIndex <= targetLogIdx.
@@ -196,7 +202,7 @@ func buildCycleGraph(ts uint64, chainEMs map[eth.ChainID]map[uint32]*messages.Ex
 // verifyCycleMessages is the cycle verification function for same-timestamp interop.
 // It verifies that same-timestamp executing messages form valid dependency relationships
 // with strongly connected component detection.
-
+//
 // Returns a Result with InvalidHeads populated for chains participating in cycles.
 func (i *Interop) verifyCycleMessages(ts uint64, blocksAtTimestamp map[eth.ChainID]eth.BlockID, view *frontierVerificationView) (Result, error) {
 	result := Result{

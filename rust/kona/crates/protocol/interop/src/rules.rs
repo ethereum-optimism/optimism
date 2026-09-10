@@ -176,78 +176,111 @@ fn executing_message_before(
     (pp > 0).then(|| chain_node_indices[pp - 1])
 }
 
-/// Finds strongly connected components with Kosaraju's algorithm.
+/// The cycle-detection dependency graph, held as one adjacency list per direction.
 ///
-/// Uses separate traversal state and leaves both adjacency lists unchanged.
-/// Returns the indices of nodes participating in cycles, or an empty vec if acyclic.
-fn check_cycles(depends_on: &[Vec<usize>], depended_on_by: &[Vec<usize>]) -> Vec<usize> {
-    let n = depends_on.len();
-    if n == 0 {
-        return vec![];
+/// `depends_on` holds the forward edges, from an executing message to the node it depends on.
+/// `depended_on_by` holds the same edges reversed. Kosaraju's algorithm needs both directions,
+/// and building them together keeps their lengths equal by construction.
+#[derive(Debug)]
+struct DependencyGraph {
+    /// Forward edges: `depends_on[from]` lists the nodes `from` depends on.
+    depends_on: Vec<Vec<usize>>,
+    /// Reverse edges: `depended_on_by[to]` lists the nodes that depend on `to`.
+    depended_on_by: Vec<Vec<usize>>,
+}
+
+impl DependencyGraph {
+    /// Creates an edgeless graph over `node_count` nodes.
+    fn new(node_count: usize) -> Self {
+        Self {
+            depends_on: vec![Vec::new(); node_count],
+            depended_on_by: vec![Vec::new(); node_count],
+        }
     }
 
-    debug_assert_eq!(depended_on_by.len(), n);
+    /// Records that `from` depends on `to`.
+    fn add_edge(&mut self, from: usize, to: usize) {
+        self.depends_on[from].push(to);
+        self.depended_on_by[to].push(from);
+    }
 
-    // Record nodes after all outgoing edges finish.
-    let mut visited = vec![false; n];
-    let mut finish_order = Vec::with_capacity(n);
-    let mut stack = Vec::with_capacity(n);
+    /// Returns the indices of the nodes that lie on a directed cycle, or an empty vec if the
+    /// graph is acyclic.
+    ///
+    /// Finds strongly connected components with Kosaraju's algorithm: collect the components
+    /// over the reverse edges, in decreasing finish order over the forward edges.
+    fn cycle_nodes(&self) -> Vec<usize> {
+        let finish_order = self.finish_order();
 
-    for start in 0..n {
-        if visited[start] {
-            continue;
-        }
-
-        visited[start] = true;
-        stack.push((start, 0));
-
-        while let Some((node, next_edge)) = stack.pop() {
-            if next_edge == depends_on[node].len() {
-                finish_order.push(node);
+        let mut assigned = vec![false; self.depends_on.len()];
+        let mut on_cycle = Vec::new();
+        for &start in finish_order.iter().rev() {
+            if assigned[start] {
                 continue;
             }
 
-            stack.push((node, next_edge + 1));
-            let adjacent = depends_on[node][next_edge];
-            if !visited[adjacent] {
-                visited[adjacent] = true;
-                stack.push((adjacent, 0));
+            // The component doubles as the queue: every appended node is still unvisited.
+            assigned[start] = true;
+            let mut component = vec![start];
+            let mut next = 0;
+            while next < component.len() {
+                for &dependent in &self.depended_on_by[component[next]] {
+                    if !assigned[dependent] {
+                        assigned[dependent] = true;
+                        component.push(dependent);
+                    }
+                }
+                next += 1;
+            }
+
+            if self.component_has_cycle(&component) {
+                on_cycle.extend_from_slice(&component);
             }
         }
+
+        on_cycle
     }
 
-    // Traverse reverse edges in decreasing finish order.
-    let mut assigned = vec![false; n];
-    let mut component = Vec::new();
-    let mut traversal = Vec::with_capacity(n);
-    let mut cycle_nodes = Vec::new();
+    /// Reports whether a strongly connected component holds a directed cycle. A component of
+    /// more than one node always does. A single node holds one only through a self-edge.
+    fn component_has_cycle(&self, component: &[usize]) -> bool {
+        component.len() > 1 || self.depends_on[component[0]].contains(&component[0])
+    }
 
-    for &start in finish_order.iter().rev() {
-        if assigned[start] {
-            continue;
-        }
+    /// Returns the nodes in depth-first finish order over the forward edges. The traversal is
+    /// iterative, so an adversarial dependency depth cannot exhaust the call stack.
+    fn finish_order(&self) -> Vec<usize> {
+        let node_count = self.depends_on.len();
 
-        component.clear();
-        assigned[start] = true;
-        traversal.push(start);
+        let mut visited = vec![false; node_count];
+        let mut finish_order = Vec::with_capacity(node_count);
+        let mut stack = Vec::with_capacity(node_count);
 
-        while let Some(node) = traversal.pop() {
-            component.push(node);
-            for &adjacent in &depended_on_by[node] {
-                if !assigned[adjacent] {
-                    assigned[adjacent] = true;
-                    traversal.push(adjacent);
+        for start in 0..node_count {
+            if visited[start] {
+                continue;
+            }
+
+            visited[start] = true;
+            stack.push((start, 0));
+
+            while let Some((node, next_edge)) = stack.pop() {
+                if next_edge == self.depends_on[node].len() {
+                    finish_order.push(node);
+                    continue;
+                }
+
+                stack.push((node, next_edge + 1));
+                let adjacent = self.depends_on[node][next_edge];
+                if !visited[adjacent] {
+                    visited[adjacent] = true;
+                    stack.push((adjacent, 0));
                 }
             }
         }
 
-        let is_cycle = component.len() > 1 || depends_on[component[0]].contains(&component[0]);
-        if is_cycle {
-            cycle_nodes.extend_from_slice(&component);
-        }
+        finish_order
     }
-
-    cycle_nodes
 }
 
 /// Builds a dependency graph from executing messages and checks for cycles.
@@ -300,18 +333,12 @@ pub(crate) fn detect_cycles(messages: &[EnrichedExecutingMessage], timestamp: u6
         indices.sort_by_key(|&idx| nodes[idx].log_index);
     }
 
-    // Build algorithm state: parallel vecs for depends_on / depended_on_by.
-    let mut depends_on: Vec<Vec<usize>> = vec![Vec::new(); nodes.len()];
-    let mut depended_on_by: Vec<Vec<usize>> = vec![Vec::new(); nodes.len()];
-
-    // Add edges.
+    let mut graph = DependencyGraph::new(nodes.len());
     for chain_indices in chain_nodes.values() {
         for (i, &node_idx) in chain_indices.iter().enumerate() {
             // Intra-chain: depends on previous EM on the same chain.
             if i > 0 {
-                let prev_idx = chain_indices[i - 1];
-                depends_on[node_idx].push(prev_idx);
-                depended_on_by[prev_idx].push(node_idx);
+                graph.add_edge(node_idx, chain_indices[i - 1]);
             }
 
             // Cross-chain: depends on executingMessageBefore(targetChain, targetLogIdx).
@@ -321,20 +348,14 @@ pub(crate) fn detect_cycles(messages: &[EnrichedExecutingMessage], timestamp: u6
                 let Some(dep_idx) =
                     executing_message_before(&nodes, target_indices, target_log_idx)
             {
-                depends_on[node_idx].push(dep_idx);
-                depended_on_by[dep_idx].push(node_idx);
+                graph.add_edge(node_idx, dep_idx);
             }
         }
     }
 
-    // Find exact cycle participants.
-    let cycle_indices = check_cycles(&depends_on, &depended_on_by);
-    if cycle_indices.is_empty() {
-        return vec![];
-    }
-
-    // Collect unique chain IDs of cycle participants.
-    let mut cycle_chains: Vec<u64> = cycle_indices.iter().map(|&i| nodes[i].chain_id).collect();
+    // Collect the unique chain IDs of the nodes on a cycle.
+    let mut cycle_chains: Vec<u64> =
+        graph.cycle_nodes().into_iter().map(|i| nodes[i].chain_id).collect();
     cycle_chains.sort();
     cycle_chains.dedup();
     cycle_chains

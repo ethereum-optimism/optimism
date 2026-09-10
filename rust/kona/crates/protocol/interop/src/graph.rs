@@ -1331,6 +1331,70 @@ mod test {
         assert_eq!(detect_cycles(&messages, ts), vec![CHAIN_A_ID, CHAIN_B_ID]);
     }
 
+    /// An EM that names a log at or after its own index in its own block resolves to itself.
+    /// Mirrors op-supernode's "self-loop detected" test case.
+    #[test]
+    fn test_detect_cycles_self_loop() {
+        let ts = 1000;
+        let messages = vec![make_em(CHAIN_A_ID, 0, ts, CHAIN_A_ID, 0, ts)];
+
+        assert_eq!(detect_cycles(&messages, ts), vec![CHAIN_A_ID]);
+    }
+
+    /// Every disjoint cycle is reported, not just the first one found.
+    /// Mirrors op-supernode's "two disjoint cycles both detected" test case.
+    #[test]
+    fn test_detect_cycles_two_disjoint_cycles() {
+        const CHAIN_D_ID: u64 = 4;
+        let ts = 1000;
+        let messages = vec![
+            make_em(CHAIN_A_ID, 0, ts, CHAIN_B_ID, 0, ts),
+            make_em(CHAIN_B_ID, 0, ts, CHAIN_A_ID, 0, ts),
+            make_em(CHAIN_C_ID, 0, ts, CHAIN_D_ID, 0, ts),
+            make_em(CHAIN_D_ID, 0, ts, CHAIN_C_ID, 0, ts),
+        ];
+
+        assert_eq!(
+            detect_cycles(&messages, ts),
+            vec![CHAIN_A_ID, CHAIN_B_ID, CHAIN_C_ID, CHAIN_D_ID]
+        );
+    }
+
+    /// A chain that reads a log inside the cycle is not itself on the cycle. The replacement of
+    /// that block invalidates the dependent on a later pass, through the per-message check.
+    /// Mirrors op-supernode's "cycle spares a chain that depends on it" test case.
+    #[test]
+    fn test_detect_cycles_excludes_dependent_chain() {
+        let ts = 1000;
+        let messages = vec![
+            make_em(CHAIN_A_ID, 0, ts, CHAIN_B_ID, 0, ts),
+            make_em(CHAIN_B_ID, 0, ts, CHAIN_A_ID, 0, ts),
+            make_em(CHAIN_C_ID, 0, ts, CHAIN_A_ID, 0, ts),
+        ];
+
+        assert_eq!(detect_cycles(&messages, ts), vec![CHAIN_A_ID, CHAIN_B_ID]);
+    }
+
+    /// Mirrors op-supernode's "empty graph has no cycle" test case.
+    #[test]
+    fn test_detect_cycles_empty_message_set() {
+        assert!(detect_cycles(&[], 1000).is_empty());
+    }
+
+    /// A long dependency path must not exhaust the call stack. Both traversals are iterative,
+    /// so depth costs heap, not stack.
+    #[test]
+    fn test_detect_cycles_deep_dependency_chain() {
+        const DEPTH: u32 = 50_000;
+        let ts = 1000;
+        // Consecutive EMs on one chain form a path through the intra-chain edges. Chain B has
+        // no EMs, so no cross-chain edge shortens the path.
+        let messages: Vec<_> =
+            (0..DEPTH).map(|i| make_em(CHAIN_A_ID, i, ts, CHAIN_B_ID, 0, ts)).collect();
+
+        assert!(detect_cycles(&messages, ts).is_empty());
+    }
+
     /// An executing message with a past timestamp is filtered out of the cycle graph.
     /// Mirrors op-supernode's "past timestamp filtered out" test case.
     #[test]
