@@ -432,7 +432,10 @@ func NewTwoL2PrivateInteropRuntimeWithConfig(t devtest.T, delaySeconds uint64, c
 		EnableReqResp:  true,
 		DependencySet:  runtimeDepSet,
 		L2FollowSource: followSource,
-		L2CLOptions:    cfg.GlobalL2CLOptions,
+		L2CLOptions: append(append([]L2CLOption{}, cfg.GlobalL2CLOptions...),
+			L2CLOptionFn(func(_ devtest.T, _ ComponentTarget, cl *L2CLConfig) {
+				cl.FollowRecoveryPath = filepath.Join(filepath.Dir(privateGenesisPath), "private-recovery.db")
+			})),
 	})
 	// No connectL2CLPeers and no connectL2ELPeers across the pair. This absence is the severance.
 

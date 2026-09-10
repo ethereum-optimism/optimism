@@ -39,6 +39,7 @@ type followRecovery struct {
 	status  *sources.FollowStatus
 	applied eth.L2BlockRef
 	build   *recoveryBuild
+	journal *recoveryJournal
 }
 
 func (f *followRecovery) AttachEmitter(em event.Emitter) { f.emitter = em }
@@ -140,6 +141,11 @@ func (f *followRecovery) adopt(ctx, rpcCtx context.Context, status *sources.Foll
 			return fmt.Errorf("private recovery branch contradicts finalized ancestry or safety labels")
 		}
 	}
+	if plan.Prefix != nil {
+		if err := f.journal.commit(finalized.Number); err != nil {
+			return fmt.Errorf("persisting private recovery ancestry: %w", err)
+		}
+	}
 	// A lower checkpoint revokes the suffix even when this anchor is still on
 	// our canonical private branch. The plan alone cannot distinguish a temporary
 	// public safety retreat from a pending claim-carrier invalidation, so retaining
@@ -172,7 +178,7 @@ func (f *followRecovery) ancestorAt(ctx context.Context, ref eth.L2BlockRef, num
 		return eth.L2BlockRef{}, fmt.Errorf("private safety label is ahead of the recovery anchor")
 	}
 	for ref.Number > number {
-		parent, err := f.l2.L2BlockRefByHash(ctx, ref.ParentHash)
+		parent, err := f.privateHeader(ctx, ref.ParentHash)
 		if err != nil {
 			return eth.L2BlockRef{}, err
 		}
@@ -188,7 +194,7 @@ func (f *followRecovery) prefixAnchor(ctx context.Context, base eth.L2BlockRef, 
 	if prefix.Last.Number < base.Number || prefix.Last.Number > prefix.Parent.Number {
 		return eth.L2BlockRef{}, fmt.Errorf("invalid surviving prefix bounds")
 	}
-	ref, err := f.l2.L2BlockRefByHash(ctx, prefix.Parent.Hash)
+	ref, err := f.privateHeader(ctx, prefix.Parent.Hash)
 	if err != nil {
 		return eth.L2BlockRef{}, err
 	}

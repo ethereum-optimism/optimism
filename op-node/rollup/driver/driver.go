@@ -130,6 +130,7 @@ func NewDriver(
 			pause = seq.SetRecoveryPaused
 		}
 		recovery = &followRecovery{source: source, l2: l2, engine: ec, pause: pause,
+			journal: &recoveryJournal{path: driverCfg.FollowRecoveryPath, genesis: cfg.Genesis.L2.Hash},
 			builder: derive.NewFetchingAttributesBuilder(cfg, l1ChainConfig, depSet, l1, l2)}
 		sys.Register("follow-recovery", recovery)
 	}

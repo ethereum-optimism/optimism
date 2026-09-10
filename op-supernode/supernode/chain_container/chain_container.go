@@ -721,6 +721,24 @@ func (c *simpleChainContainer) DeniedBlocksInRange(first, last uint64) ([]eth.Bl
 	return c.denyList.BlocksInRange(first, last)
 }
 
+// DeniedParentHash reads durable ancestry without depending on orphaned EL payloads.
+// Older records may lack a parent; callers must resolve it or fail closed.
+func (c *simpleChainContainer) DeniedParentHash(id eth.BlockID) (common.Hash, bool, error) {
+	if c.denyList == nil {
+		return common.Hash{}, false, nil
+	}
+	records, err := c.denyList.GetDeniedRecords(id.Number)
+	if err != nil {
+		return common.Hash{}, false, err
+	}
+	for _, record := range records {
+		if record.PayloadHash == id.Hash && record.ParentHash != nil {
+			return *record.ParentHash, true, nil
+		}
+	}
+	return common.Hash{}, false, nil
+}
+
 func (c *simpleChainContainer) FetchReceipts(ctx context.Context, blockID eth.BlockID) (eth.BlockInfo, optypes.Receipts, error) {
 	if c.engine == nil {
 		return nil, nil, engine_controller.ErrNoEngineClient

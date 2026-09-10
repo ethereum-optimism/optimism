@@ -64,6 +64,11 @@ func TestPartialClaimRecoverySurvivesRestart(t *testing.T) {
 			check(h.f)
 			// All volatile scan state is lost. The retained canonical carrier and
 			// persisted denial identities must reconstruct the same recovery plan.
+			h.r.deniedParents = map[eth.BlockID]common.Hash{
+				{Hash: denied, Number: invalidated}: h.r.byHash[denied].ExecutionPayload.ParentHash,
+			}
+			// Restart also loses the EL client's cached noncanonical headers.
+			clear(h.r.byHash)
 			restarted := New(h.f.cfg, testRollupCfg(), h.f.log, nil)
 			restarted.Attach(h.r)
 			require.NoError(t, restarted.Step(t.Context()))

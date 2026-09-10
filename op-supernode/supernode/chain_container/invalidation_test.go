@@ -1143,3 +1143,37 @@ func TestDenyListBlocksInRange(t *testing.T) {
 	require.NoError(t, err)
 	require.Empty(t, ids)
 }
+
+func TestDenyListParentSurvivesRestart(t *testing.T) {
+	dir := t.TempDir()
+	dl, err := OpenDenyList(dir)
+	require.NoError(t, err)
+	id := eth.BlockID{Hash: common.Hash{1}, Number: 10}
+	parent := common.Hash{2}
+	legacy := common.Hash{3}
+	require.NoError(t, dl.AddWithParent(id.Number, id.Hash, 100, eth.Bytes32{4}, eth.Bytes32{5}, parent))
+	require.NoError(t, dl.Add(id.Number, legacy, 101, eth.Bytes32{}, eth.Bytes32{}))
+	require.NoError(t, dl.Close())
+	dl, err = OpenDenyList(dir)
+	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, dl.Close()) })
+	c := &simpleChainContainer{denyList: dl}
+	got, known, err := c.DeniedParentHash(id)
+	require.NoError(t, err)
+	require.True(t, known)
+	require.Equal(t, parent, got)
+	_, known, err = c.DeniedParentHash(eth.BlockID{Hash: legacy, Number: id.Number})
+	require.NoError(t, err)
+	require.False(t, known, "legacy denials must not invent a parent")
+	require.NoError(t, dl.AddWithParent(id.Number, legacy, 101, eth.Bytes32{}, eth.Bytes32{}, parent))
+	require.NoError(t, dl.AddWithParent(id.Number, id.Hash, 100, eth.Bytes32{4}, eth.Bytes32{5}, parent))
+	require.ErrorContains(t, dl.AddWithParent(id.Number, id.Hash, 100, eth.Bytes32{}, eth.Bytes32{}, common.Hash{9}), "conflicting parent")
+	records, err := dl.GetDeniedRecords(id.Number)
+	require.NoError(t, err)
+	require.Len(t, records, 2)
+	for _, record := range records {
+		require.NotNil(t, record.ParentHash)
+		require.Equal(t, parent, *record.ParentHash)
+	}
+	require.Equal(t, eth.Bytes32{4}, records[0].StateRoot, "conflicting replay must not modify the record")
+}
