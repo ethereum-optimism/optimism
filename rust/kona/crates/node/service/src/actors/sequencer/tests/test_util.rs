@@ -10,7 +10,7 @@ use std::sync::Arc;
 use tokio::sync::mpsc;
 
 // Returns a test SequencerActor with mocks that can be used or overridden.
-pub(crate) fn test_actor() -> SequencerActor<
+pub(in crate::actors::sequencer) fn test_actor() -> SequencerActor<
     TestAttributesBuilder,
     MockConductor,
     MockOriginSelector,
