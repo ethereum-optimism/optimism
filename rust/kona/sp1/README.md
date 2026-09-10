@@ -167,6 +167,21 @@ super-root `ZKDisputeGame` (game type 10) end to end:
 3. **Resolve and claim**: resolves finished games and claims bonds (including the
    challenger bond earned by proving).
 
+### Anchor validation
+
+At startup, the proposer waits until the registered anchor root matches a trusted
+supernode response at the exact anchor timestamp. Registry and anchor reads use
+one L1 block hash.
+
+A zero root, a timestamp exceeding `u64`, or a trusted mismatch produces an ERROR
+log. Missing data, RPC errors, and untrusted responses produce WARN logs. Startup
+also logs its first validation failure at ERROR, then retries.
+
+Correct the registry or restore access to trusted, matching history; startup
+resumes without a restart. Timestamp zero has no fallback if the RPC rejects it.
+Normal proposal scheduling and submission retain their existing retry behavior;
+anchor validation is not repeated after startup.
+
 ### Ownership (which games it defends)
 
 Defense, resolution, and bond claims use prestate-based ownership. The proposer

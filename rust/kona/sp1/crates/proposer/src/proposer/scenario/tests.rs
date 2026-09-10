@@ -101,7 +101,7 @@ impl L1View for ScenarioL1View {
     }
 
     async fn anchor_root(&self, _registry: Address, _block: BlockId) -> anyhow::Result<AnchorRoot> {
-        Ok(AnchorRoot { root: B256::left_padding_from(&[1]), sequence_number: U256::ZERO })
+        Ok(AnchorRoot { root: canonical_super_root(0), sequence_number: U256::ZERO })
     }
 
     async fn latest_game_index(&self, _block: BlockId) -> anyhow::Result<Option<U256>> {
@@ -268,7 +268,7 @@ impl SuperRootSource for FixedSuperRootSource {
         &self,
         timestamp: u64,
     ) -> anyhow::Result<SuperRootAtTimestamp> {
-        let root = B256::left_padding_from(&timestamp.to_be_bytes());
+        let root = canonical_super_root(timestamp);
         Ok(SuperRootAtTimestamp {
             response: SuperRootAtTimestampResponse {
                 current_l1: SuperBlockId { number: 1, ..Default::default() },
@@ -575,14 +575,16 @@ async fn sigusr1_requests_terminal_retry() {
 async fn run_starts_immediately_then_waits_for_fetch_interval() {
     let view = Arc::new(ScenarioL1View::new());
     let proposer = proposer_with(test_config(600), view.clone()).await;
+    let initial_calls = view.latest_head_calls.load(Ordering::Relaxed);
+    let started = tokio::time::Instant::now();
     let runner = tokio::spawn(proposer.run());
 
-    view.wait_for_cycles(1).await;
-    assert_eq!(view.latest_head_calls.load(Ordering::Relaxed), 1);
+    // run() reads the head once during startup, then once per cycle.
+    view.wait_for_cycles(initial_calls + 2).await;
+    assert_eq!(tokio::time::Instant::now(), started);
 
     tokio::time::advance(Duration::from_secs(600)).await;
-    view.wait_for_cycles(2).await;
-    assert_eq!(view.latest_head_calls.load(Ordering::Relaxed), 2);
+    view.wait_for_cycles(initial_calls + 3).await;
 
     runner.abort();
     assert!(runner.await.unwrap_err().is_cancelled());
@@ -631,8 +633,8 @@ async fn finished_tasks_are_replaced_in_the_same_tick() {
 #[tokio::test]
 async fn failed_sync_leaves_existing_tasks_untouched() {
     let view = Arc::new(ScenarioL1View::new());
+    let proposer = proposer_with(test_config(30), view.clone()).await;
     view.fail_latest_head.store(true, Ordering::Relaxed);
-    let proposer = proposer_with(test_config(30), view).await;
     let mut control = ScenarioControl::new(proposer.clone(), Duration::from_secs(1));
     let (done_tx, done_rx) = oneshot::channel();
     let completed = insert_task(
@@ -2201,16 +2203,10 @@ async fn initialization_sets_proving_duration_and_returns_failures_immediately()
     let failing_world = ScenarioWorld::new();
     failing_world.clear_anchor_root();
     let before_failure = tokio::time::Instant::now();
-    let error = match ScenarioHarness::new(failing_world.clone(), scenario_config()).await {
-        Ok(_) => panic!("initialization should fail"),
-        Err(error) => error,
-    };
-    assert_eq!(
-        error,
-        ScenarioError::Initialization(
-            "anchor state registry has no anchor root (game creation would revert)".into()
-        )
-    );
+    assert!(matches!(
+        ScenarioHarness::new(failing_world, scenario_config()).await,
+        Err(ScenarioError::Initialization(_))
+    ));
     assert_eq!(tokio::time::Instant::now(), before_failure);
 }
 
