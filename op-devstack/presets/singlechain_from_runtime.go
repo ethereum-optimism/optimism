@@ -85,7 +85,7 @@ func singleChainMultiNodeFromRuntime(t devtest.T, runtime *sysgo.SingleChainRunt
 		L2ELB:   dsl.NewL2ELNode(l2ELB),
 		L2CLB:   dsl.NewL2CLNode(l2CLB),
 	}
-	if runtime.P2PEnabled {
+	if shouldManageSingleChainCLPeer(runtime, nodeB) {
 		preset.L2CLB.ManagePeer(preset.L2CL)
 	}
 	if runSyncChecks {
@@ -117,6 +117,18 @@ func singleChainMultiNodeFromRuntime(t devtest.T, runtime *sysgo.SingleChainRunt
 		)
 	}
 	return preset
+}
+
+func shouldManageSingleChainCLPeer(runtime *sysgo.SingleChainRuntime, follower *sysgo.SingleChainNodeRuntime) bool {
+	if runtime == nil || follower == nil || !runtime.P2PEnabled {
+		return false
+	}
+	primary := runtime.Nodes["sequencer"]
+	return shouldManageSingleChainCLPeerEdge(primary, follower)
+}
+
+func shouldManageSingleChainCLPeerEdge(source, target *sysgo.SingleChainNodeRuntime) bool {
+	return source != nil && target != nil && !source.FactoryHandledCL && !target.FactoryHandledCL
 }
 
 // runInitialSyncChecks runs the initial-sync DSL checks. On failure in ELSync
@@ -155,6 +167,18 @@ func dumpVerifierELSyncing(t devtest.T, verifierEL *dsl.L2ELNode) {
 	t.Logger().Warn("Verifier EL eth_syncing snapshot at sync-check failure", "eth_syncing", string(raw))
 }
 
+// SingleChainMultiNodeFromRuntime projects a composed sysgo runtime into the
+// standard DSL surface.
+func SingleChainMultiNodeFromRuntime(t devtest.T, runtime *sysgo.SingleChainRuntime, runSyncChecks bool) *SingleChainMultiNode {
+	return singleChainMultiNodeFromRuntime(t, runtime, runSyncChecks)
+}
+
+// SingleChainMultiNodeWithTestSeqFromRuntime projects a composed runtime with
+// its test sequencer attached.
+func SingleChainMultiNodeWithTestSeqFromRuntime(t devtest.T, runtime *sysgo.SingleChainRuntime) *SingleChainMultiNodeWithTestSeq {
+	return singleChainMultiNodeWithTestSeqFromRuntime(t, runtime)
+}
+
 func singleChainMultiNodeWithTestSeqFromRuntime(t devtest.T, runtime *sysgo.SingleChainRuntime) *SingleChainMultiNodeWithTestSeq {
 	preset := singleChainMultiNodeFromRuntime(t, runtime, false)
 	testSequencer := newTestSequencerFrontend(
@@ -173,7 +197,9 @@ func singleChainMultiNodeWithTestSeqFromRuntime(t devtest.T, runtime *sysgo.Sing
 func singleChainTwoVerifiersFromRuntime(t devtest.T, runtime *sysgo.SingleChainRuntime) *SingleChainTwoVerifiers {
 	base := singleChainMultiNodeFromRuntime(t, runtime, false)
 	l2ChainID := runtime.L2Network.ChainID()
+	nodeB := runtime.Nodes["b"]
 	nodeC := runtime.Nodes["c"]
+	t.Require().NotNil(nodeB, "missing single-chain node b")
 	t.Require().NotNil(nodeC, "missing single-chain node c")
 
 	l2ELC := newL2ELFrontend(
@@ -211,8 +237,12 @@ func singleChainTwoVerifiersFromRuntime(t devtest.T, runtime *sysgo.SingleChainR
 		L2CLC:                dsl.NewL2CLNode(l2CLC),
 		TestSequencer:        dsl.NewTestSequencer(testSequencer),
 	}
-	preset.L2CLC.ManagePeer(preset.L2CL)
-	preset.L2CLC.ManagePeer(preset.L2CLB)
+	if shouldManageSingleChainCLPeerEdge(runtime.Nodes["sequencer"], nodeC) {
+		preset.L2CLC.ManagePeer(preset.L2CL)
+	}
+	if shouldManageSingleChainCLPeerEdge(nodeB, nodeC) {
+		preset.L2CLC.ManagePeer(preset.L2CLB)
+	}
 	return preset
 }
 

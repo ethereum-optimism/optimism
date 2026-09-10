@@ -16,6 +16,7 @@ const (
 	optionKindProposer
 	optionKindOpReth
 	optionKindGlobalL2CL
+	optionKindL2CLFactory
 	optionKindGlobalSyncTesterEL
 	optionKindL1EL
 	optionKindAddedGameType
@@ -44,6 +45,7 @@ const allOptionKinds = optionKindDeployer |
 	optionKindProposer |
 	optionKindOpReth |
 	optionKindGlobalL2CL |
+	optionKindL2CLFactory |
 	optionKindGlobalSyncTesterEL |
 	optionKindL1EL |
 	optionKindAddedGameType |
@@ -75,6 +77,7 @@ var optionKindLabels = []struct {
 	{kind: optionKindProposer, label: "proposer options"},
 	{kind: optionKindOpReth, label: "op-reth options"},
 	{kind: optionKindGlobalL2CL, label: "L2 CL options"},
+	{kind: optionKindL2CLFactory, label: "L2 CL factory"},
 	{kind: optionKindGlobalSyncTesterEL, label: "sync tester EL options"},
 	{kind: optionKindL1EL, label: "L1 EL options"},
 	{kind: optionKindAddedGameType, label: "added game types"},
@@ -147,6 +150,7 @@ const minimalPresetSupportedOptionKinds = optionKindDeployer |
 	optionKindProposer |
 	optionKindOpReth |
 	optionKindGlobalL2CL |
+	optionKindL2CLFactory |
 	optionKindL1EL |
 	optionKindAddedGameType |
 	optionKindRespectedGameType |
@@ -155,11 +159,11 @@ const minimalPresetSupportedOptionKinds = optionKindDeployer |
 	optionKindProofValidation |
 	optionKindSkipHonestProposer
 
-const minimalWithConductorsPresetSupportedOptionKinds = minimalPresetSupportedOptionKinds
+const minimalWithConductorsPresetSupportedOptionKinds = minimalPresetSupportedOptionKinds &^ optionKindL2CLFactory
 
 // Builds on the minimal set, op-reth options included: the added node is a sync-tester EL, not a
 // sequencing candidate, so the sequencer-builds / stock-verifies split holds.
-const simpleWithSyncTesterPresetSupportedOptionKinds = minimalPresetSupportedOptionKinds |
+const simpleWithSyncTesterPresetSupportedOptionKinds = (minimalPresetSupportedOptionKinds &^ optionKindL2CLFactory) |
 	optionKindGlobalSyncTesterEL
 
 // singleSupernodeWithSyncTesterPresetSupportedOptionKinds covers exactly what
@@ -211,3 +215,11 @@ const twoL2SupernodeInteropPresetSupportedOptionKinds = optionKindDeployer |
 // option is accepted here and nowhere else to avoid a silent no-op.
 const twoL2SupernodeLightSequencerPresetSupportedOptionKinds = twoL2SupernodeInteropPresetSupportedOptionKinds |
 	optionKindGlobalL2CL
+
+const twoL2ExternalCLInteropPresetSupportedOptionKinds = optionKindDeployer |
+	optionKindBatcher |
+	optionKindOpReth |
+	optionKindTimeTravel |
+	optionKindL1EL |
+	optionKindGlobalL2CL |
+	optionKindL2CLFactory

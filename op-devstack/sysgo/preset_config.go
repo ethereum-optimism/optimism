@@ -45,6 +45,7 @@ type PresetConfig struct {
 	ProposerOptions            []ProposerOption
 	OpRethOptions              []OpRethOption
 	GlobalL2CLOptions          []L2CLOption
+	L2CLFactory                L2CLFactory
 	GlobalSyncTesterELOptions  []SyncTesterELOption
 	L1ELKind                   string
 	L1GethExecPath             string

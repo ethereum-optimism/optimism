@@ -43,10 +43,11 @@ func newTestSequencerRuntime(ts *testSequencer, name string) *TestSequencerRunti
 }
 
 type SingleChainNodeRuntime struct {
-	Name        string
-	IsSequencer bool
-	EL          L2ELNode
-	CL          L2CLNode
+	Name             string
+	IsSequencer      bool
+	EL               L2ELNode
+	CL               L2CLNode
+	FactoryHandledCL bool
 }
 
 type SyncTesterRuntime struct {
@@ -67,6 +68,9 @@ type SingleChainInteropSupport struct {
 
 type SingleChainRuntime struct {
 	Keys devkeys.Keys
+	// L2CLFactory is retained so delayed and additional node slots use the
+	// same explicit client selection as the primary.
+	L2CLFactory L2CLFactory
 
 	L1Network *L1Network
 	L2Network *L2Network
@@ -90,6 +94,9 @@ type SingleChainRuntime struct {
 	SyncTester *SyncTesterRuntime
 	Conductors map[string]*Conductor
 	Interop    *SingleChainInteropSupport
+	// P2PEnabled records whether the stock primary/follower CL peer edge was
+	// established. EL peering may still be active when an external CL handles
+	// either slot and this is false.
 	P2PEnabled bool
 }
 

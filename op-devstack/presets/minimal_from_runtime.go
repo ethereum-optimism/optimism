@@ -29,10 +29,14 @@ func minimalFromRuntime(t devtest.T, runtime *sysgo.SingleChainRuntime) *Minimal
 	l2EL := newL2ELFrontend(t, "sequencer", l2ChainID, runtime.L2EL.UserRPC(), runtime.L2EL.EngineRPC(), runtime.L2EL.JWTPath(), runtime.L2Network.RollupConfig(), runtime.L2EL)
 	l2CL := newL2CLFrontend(t, "sequencer", l2ChainID, runtime.L2CL.UserRPC(), runtime.L2CL)
 	l2CL.attachEL(l2EL)
-	l2Batcher := newL2BatcherFrontend(t, "main", l2ChainID, runtime.L2Batcher.UserRPC())
 	l2Chain.AddL2ELNode(l2EL)
 	l2Chain.AddL2CLNode(l2CL)
-	l2Chain.AddL2Batcher(l2Batcher)
+	var l2BatcherDSL *dsl.L2Batcher
+	if runtime.L2Batcher != nil {
+		l2Batcher := newL2BatcherFrontend(t, "main", l2ChainID, runtime.L2Batcher.UserRPC())
+		l2Chain.AddL2Batcher(l2Batcher)
+		l2BatcherDSL = dsl.NewL2Batcher(l2Batcher)
+	}
 
 	var challengerCfg *challengerConfig.Config
 	if runtime.L2Challenger != nil {
@@ -55,7 +59,7 @@ func minimalFromRuntime(t devtest.T, runtime *sysgo.SingleChainRuntime) *Minimal
 		L1EL:             l1ELDSL,
 		L1CL:             l1CLDSL,
 		L2Chain:          dsl.NewL2Network(l2Chain, l2ELDSL, l2CLDSL, l1ELDSL, nil, nil),
-		L2Batcher:        dsl.NewL2Batcher(l2Batcher),
+		L2Batcher:        l2BatcherDSL,
 		L2EL:             l2ELDSL,
 		L2CL:             l2CLDSL,
 		Wallet:           dsl.NewRandomHDWallet(t, 30), // Random for test isolation
@@ -64,4 +68,10 @@ func minimalFromRuntime(t devtest.T, runtime *sysgo.SingleChainRuntime) *Minimal
 	out.FunderL1 = newFunderEOA(t, runtime.Keys, out.L1EL, out.Wallet)
 	out.FunderL2 = newFunderEOA(t, runtime.Keys, out.L2EL, out.Wallet)
 	return out
+}
+
+// MinimalFromRuntime projects a composable sysgo runtime into the standard
+// single-chain DSL before optional follower nodes are attached.
+func MinimalFromRuntime(t devtest.T, runtime *sysgo.SingleChainRuntime) *Minimal {
+	return minimalFromRuntime(t, runtime)
 }
