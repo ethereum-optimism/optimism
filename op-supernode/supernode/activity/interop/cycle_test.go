@@ -196,34 +196,52 @@ func TestExecutingMessageBefore(t *testing.T) {
 func TestCheckCycle(t *testing.T) {
 	t.Parallel()
 
+	chainA := eth.ChainIDFromUInt64(10)
+	chainB := eth.ChainIDFromUInt64(8453)
+	chainC := eth.ChainIDFromUInt64(420)
+	chainD := eth.ChainIDFromUInt64(999)
+
 	tests := []struct {
-		name        string
-		buildGraph  func() *dependencyGraph
-		expectCycle bool
+		name         string
+		buildGraph   func() *dependencyGraph
+		expectChains []eth.ChainID
 	}{
 		{
 			name: "empty graph has no cycle",
 			buildGraph: func() *dependencyGraph {
 				return &dependencyGraph{}
 			},
-			expectCycle: false,
 		},
 		{
 			name: "single node no deps resolves",
 			buildGraph: func() *dependencyGraph {
 				g := &dependencyGraph{}
-				g.addNode(&dependencyNode{chainID: eth.ChainIDFromUInt64(10), logIndex: 0})
+				g.addNode(&dependencyNode{chainID: chainA, logIndex: 0})
 				return g
 			},
-			expectCycle: false,
+		},
+		{
+			name: "self-loop detected",
+			buildGraph: func() *dependencyGraph {
+				// An EM that names a log at or after its own index in its own block
+				// resolves to itself, which is a cycle of one node.
+				g := &dependencyGraph{}
+				a := &dependencyNode{chainID: chainA, logIndex: 0, execMsg: &messages.ExecutingMessage{
+					ChainID: chainA, LogIdx: 0,
+				}}
+				g.addNode(a)
+				g.addEdge(a, a)
+				return g
+			},
+			expectChains: []eth.ChainID{chainA},
 		},
 		{
 			name: "linear chain A->B->C resolves (acyclic)",
 			buildGraph: func() *dependencyGraph {
 				g := &dependencyGraph{}
-				a := &dependencyNode{chainID: eth.ChainIDFromUInt64(10), logIndex: 0}
-				b := &dependencyNode{chainID: eth.ChainIDFromUInt64(10), logIndex: 1}
-				c := &dependencyNode{chainID: eth.ChainIDFromUInt64(10), logIndex: 2}
+				a := &dependencyNode{chainID: chainA, logIndex: 0}
+				b := &dependencyNode{chainID: chainA, logIndex: 1}
+				c := &dependencyNode{chainID: chainA, logIndex: 2}
 				g.addNode(a)
 				g.addNode(b)
 				g.addNode(c)
@@ -232,14 +250,13 @@ func TestCheckCycle(t *testing.T) {
 				g.addEdge(b, a)
 				return g
 			},
-			expectCycle: false,
 		},
 		{
 			name: "simple cycle A<->B detected",
 			buildGraph: func() *dependencyGraph {
 				g := &dependencyGraph{}
-				a := &dependencyNode{chainID: eth.ChainIDFromUInt64(10), logIndex: 0}
-				b := &dependencyNode{chainID: eth.ChainIDFromUInt64(8453), logIndex: 0}
+				a := &dependencyNode{chainID: chainA, logIndex: 0}
+				b := &dependencyNode{chainID: chainB, logIndex: 0}
 				g.addNode(a)
 				g.addNode(b)
 				// A depends on B, B depends on A (cycle!)
@@ -247,15 +264,15 @@ func TestCheckCycle(t *testing.T) {
 				g.addEdge(b, a)
 				return g
 			},
-			expectCycle: true,
+			expectChains: []eth.ChainID{chainA, chainB},
 		},
 		{
 			name: "triangle cycle A->B->C->A detected",
 			buildGraph: func() *dependencyGraph {
 				g := &dependencyGraph{}
-				a := &dependencyNode{chainID: eth.ChainIDFromUInt64(10), logIndex: 0}
-				b := &dependencyNode{chainID: eth.ChainIDFromUInt64(8453), logIndex: 0}
-				c := &dependencyNode{chainID: eth.ChainIDFromUInt64(420), logIndex: 0}
+				a := &dependencyNode{chainID: chainA, logIndex: 0}
+				b := &dependencyNode{chainID: chainB, logIndex: 0}
+				c := &dependencyNode{chainID: chainC, logIndex: 0}
 				g.addNode(a)
 				g.addNode(b)
 				g.addNode(c)
@@ -265,16 +282,73 @@ func TestCheckCycle(t *testing.T) {
 				g.addEdge(b, a)
 				return g
 			},
-			expectCycle: true,
+			expectChains: []eth.ChainID{chainA, chainB, chainC},
+		},
+		{
+			name: "two disjoint cycles both detected",
+			buildGraph: func() *dependencyGraph {
+				g := &dependencyGraph{}
+				a := &dependencyNode{chainID: chainA, logIndex: 0}
+				b := &dependencyNode{chainID: chainB, logIndex: 0}
+				c := &dependencyNode{chainID: chainC, logIndex: 0}
+				d := &dependencyNode{chainID: chainD, logIndex: 0}
+				g.addNode(a)
+				g.addNode(b)
+				g.addNode(c)
+				g.addNode(d)
+				g.addEdge(a, b)
+				g.addEdge(b, a)
+				g.addEdge(c, d)
+				g.addEdge(d, c)
+				return g
+			},
+			expectChains: []eth.ChainID{chainA, chainB, chainC, chainD},
+		},
+		{
+			name: "cycle spares its acyclic prerequisite",
+			buildGraph: func() *dependencyGraph {
+				g := &dependencyGraph{}
+				a := &dependencyNode{chainID: chainA, logIndex: 0}
+				b := &dependencyNode{chainID: chainB, logIndex: 0}
+				c := &dependencyNode{chainID: chainC, logIndex: 0}
+				g.addNode(a)
+				g.addNode(b)
+				g.addNode(c)
+				g.addEdge(a, b)
+				g.addEdge(b, a)
+				// The cycle depends on C, which depends on nothing.
+				g.addEdge(a, c)
+				return g
+			},
+			expectChains: []eth.ChainID{chainA, chainB},
+		},
+		{
+			name: "cycle spares a chain that depends on it",
+			buildGraph: func() *dependencyGraph {
+				// A dependent holds an EM that reads a log inside the cycle. A later
+				// round invalidates it, once the replacement removes that log.
+				g := &dependencyGraph{}
+				a := &dependencyNode{chainID: chainA, logIndex: 0}
+				b := &dependencyNode{chainID: chainB, logIndex: 0}
+				c := &dependencyNode{chainID: chainC, logIndex: 0}
+				g.addNode(a)
+				g.addNode(b)
+				g.addNode(c)
+				g.addEdge(a, b)
+				g.addEdge(b, a)
+				g.addEdge(c, a)
+				return g
+			},
+			expectChains: []eth.ChainID{chainA, chainB},
 		},
 		{
 			name: "diamond pattern A->B,C B,C->D resolves (acyclic)",
 			buildGraph: func() *dependencyGraph {
 				g := &dependencyGraph{}
-				a := &dependencyNode{chainID: eth.ChainIDFromUInt64(10), logIndex: 0}
-				b := &dependencyNode{chainID: eth.ChainIDFromUInt64(8453), logIndex: 0}
-				c := &dependencyNode{chainID: eth.ChainIDFromUInt64(420), logIndex: 0}
-				d := &dependencyNode{chainID: eth.ChainIDFromUInt64(999), logIndex: 0}
+				a := &dependencyNode{chainID: chainA, logIndex: 0}
+				b := &dependencyNode{chainID: chainB, logIndex: 0}
+				c := &dependencyNode{chainID: chainC, logIndex: 0}
+				d := &dependencyNode{chainID: chainD, logIndex: 0}
 				g.addNode(a)
 				g.addNode(b)
 				g.addNode(c)
@@ -286,17 +360,15 @@ func TestCheckCycle(t *testing.T) {
 				g.addEdge(c, a)
 				return g
 			},
-			expectCycle: false,
 		},
 		{
 			name: "intra-chain sequential logs resolve",
 			buildGraph: func() *dependencyGraph {
 				// Simulates a single chain with 3 logs where each depends on previous
 				g := &dependencyGraph{}
-				chain10 := eth.ChainIDFromUInt64(10)
-				l0 := &dependencyNode{chainID: chain10, logIndex: 0}
-				l1 := &dependencyNode{chainID: chain10, logIndex: 1}
-				l2 := &dependencyNode{chainID: chain10, logIndex: 2}
+				l0 := &dependencyNode{chainID: chainA, logIndex: 0}
+				l1 := &dependencyNode{chainID: chainA, logIndex: 1}
+				l2 := &dependencyNode{chainID: chainA, logIndex: 2}
 				g.addNode(l0)
 				g.addNode(l1)
 				g.addNode(l2)
@@ -305,7 +377,6 @@ func TestCheckCycle(t *testing.T) {
 				g.addEdge(l2, l1)
 				return g
 			},
-			expectCycle: false,
 		},
 		{
 			name: "cross-chain valid exec message resolves",
@@ -313,9 +384,6 @@ func TestCheckCycle(t *testing.T) {
 				// Chain A: [L0, L1(exec B:L0)]
 				// Chain B: [L0(init)]
 				g := &dependencyGraph{}
-				chainA := eth.ChainIDFromUInt64(10)
-				chainB := eth.ChainIDFromUInt64(8453)
-
 				aL0 := &dependencyNode{chainID: chainA, logIndex: 0}
 				aL1 := &dependencyNode{chainID: chainA, logIndex: 1, execMsg: &messages.ExecutingMessage{
 					ChainID: chainB, LogIdx: 0,
@@ -331,7 +399,6 @@ func TestCheckCycle(t *testing.T) {
 				g.addEdge(aL1, bL0)
 				return g
 			},
-			expectCycle: false,
 		},
 		{
 			name: "cross-chain mutual exec creates cycle",
@@ -339,9 +406,6 @@ func TestCheckCycle(t *testing.T) {
 				// Chain A: [L0(exec B:L0)]
 				// Chain B: [L0(exec A:L0)]
 				g := &dependencyGraph{}
-				chainA := eth.ChainIDFromUInt64(10)
-				chainB := eth.ChainIDFromUInt64(8453)
-
 				aL0 := &dependencyNode{chainID: chainA, logIndex: 0, execMsg: &messages.ExecutingMessage{
 					ChainID: chainB, LogIdx: 0,
 				}}
@@ -357,7 +421,7 @@ func TestCheckCycle(t *testing.T) {
 				g.addEdge(bL0, aL0)
 				return g
 			},
-			expectCycle: true,
+			expectChains: []eth.ChainID{chainA, chainB},
 		},
 	}
 
@@ -366,13 +430,40 @@ func TestCheckCycle(t *testing.T) {
 			t.Parallel()
 			g := tc.buildGraph()
 			err := checkCycle(g)
-			if tc.expectCycle {
-				require.Error(t, err, "expected cycle to be detected")
-			} else {
-				require.NoError(t, err, "expected no cycle")
+
+			expected := make(map[eth.ChainID]bool, len(tc.expectChains))
+			for _, chainID := range tc.expectChains {
+				expected[chainID] = true
 			}
+			if len(expected) > 0 {
+				require.ErrorIs(t, err, ErrCycle)
+			} else {
+				require.NoError(t, err)
+			}
+			require.Equal(t, expected, collectCycleParticipants(g))
 		})
 	}
+}
+
+// A long dependency path must not exhaust the call stack. Both traversals are iterative,
+// so depth costs heap, not stack.
+func TestCheckCycle_DeepDependencyChain(t *testing.T) {
+	t.Parallel()
+
+	const depth = 50_000
+	chainA := eth.ChainIDFromUInt64(10)
+	g := &dependencyGraph{}
+	var previous *dependencyNode
+	for i := range depth {
+		node := &dependencyNode{chainID: chainA, logIndex: uint32(i)}
+		g.addNode(node)
+		if previous != nil {
+			g.addEdge(node, previous)
+		}
+		previous = node
+	}
+
+	require.NoError(t, checkCycle(g))
 }
 
 // =============================================================================
@@ -476,7 +567,6 @@ func TestBuildCycleGraph(t *testing.T) {
 			expectCycle: false,
 		},
 	}
-
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
