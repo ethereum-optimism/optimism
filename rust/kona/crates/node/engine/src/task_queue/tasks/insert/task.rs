@@ -4,6 +4,7 @@ use crate::{
     EngineClient, EngineState, EngineTaskExt, ImportedBlockSink, InsertTaskError, SynchronizeTask,
     state::EngineSyncStateUpdate,
 };
+use alloy_eips::{BlockId, eip1898::RpcBlockHash};
 use alloy_rpc_types_engine::{ExecutionPayloadInputV2, PayloadStatusEnum};
 use async_trait::async_trait;
 use kona_genesis::RollupConfig;
@@ -29,8 +30,10 @@ pub struct InsertTask<EngineClient_: EngineClient> {
     block_sink: Arc<dyn ImportedBlockSink>,
     /// Optional sender for callers that need to await canonicalization.
     result_tx: Option<mpsc::Sender<Result<L2BlockInfo, InsertTaskError>>>,
-    /// Whether the payload must still extend the current unsafe head when this task executes.
+    /// Whether the payload must still extend or equal the current unsafe head when this executes.
     require_current_unsafe_parent: bool,
+    /// Whether insertion and forkchoice synchronization must both return `VALID`.
+    require_valid_payload_status: bool,
 }
 
 impl<EngineClient_: EngineClient> InsertTask<EngineClient_> {
@@ -50,6 +53,7 @@ impl<EngineClient_: EngineClient> InsertTask<EngineClient_> {
             block_sink,
             result_tx: None,
             require_current_unsafe_parent: false,
+            require_valid_payload_status: false,
         }
     }
 
@@ -62,9 +66,15 @@ impl<EngineClient_: EngineClient> InsertTask<EngineClient_> {
         self
     }
 
-    /// Requires the payload parent to match the current unsafe head when this task executes.
+    /// Requires the payload to extend or equal the current unsafe head when this task executes.
     pub const fn require_current_unsafe_parent(mut self) -> Self {
         self.require_current_unsafe_parent = true;
+        self
+    }
+
+    /// Requires both engine calls to return `VALID` before reporting successful insertion.
+    pub const fn require_valid_payload_status(mut self) -> Self {
+        self.require_valid_payload_status = true;
         self
     }
 
@@ -86,7 +96,8 @@ impl<EngineClient_: EngineClient> InsertTask<EngineClient_> {
 
     /// Checks the response of the `engine_newPayload` call.
     const fn check_new_payload_status(&self, status: &PayloadStatusEnum) -> bool {
-        matches!(status, PayloadStatusEnum::Valid | PayloadStatusEnum::Syncing)
+        matches!(status, PayloadStatusEnum::Valid) ||
+            (!self.require_valid_payload_status && matches!(status, PayloadStatusEnum::Syncing))
     }
 }
 
@@ -103,16 +114,64 @@ impl<EngineClient_: EngineClient> EngineTaskExt for InsertTask<EngineClient_> {
         // Form the new unsafe block ref from the execution payload.
         let payload = self.payload.clone();
         if self.require_current_unsafe_parent {
-            let parent = payload.clone().into_parts().0.parent_hash();
-            let unsafe_head = state.sync_state.unsafe_head().block_info.hash;
-            if parent != unsafe_head {
+            let execution_payload = payload.clone().into_parts().0;
+            let parent = execution_payload.parent_hash();
+            let payload_hash = execution_payload.block_hash();
+            let unsafe_head = state.sync_state.unsafe_head();
+            if parent != unsafe_head.block_info.hash && payload_hash != unsafe_head.block_info.hash
+            {
+                let payload_number = execution_payload.block_number();
+                if payload_number < unsafe_head.block_info.number {
+                    let mut ancestor_hash = unsafe_head.block_info.parent_hash;
+                    let mut ancestor_number = unsafe_head.block_info.number - 1;
+                    while ancestor_number > payload_number {
+                        let block = self
+                            .client
+                            .get_l2_block(BlockId::Hash(RpcBlockHash::from_hash(
+                                ancestor_hash,
+                                Some(false),
+                            )))
+                            .await
+                            .map_err(InsertTaskError::AncestryLookupFailed)?
+                            .ok_or(InsertTaskError::AncestorBlockNotFound {
+                                hash: ancestor_hash,
+                                number: ancestor_number,
+                            })?;
+                        ancestor_hash = block.header.inner.parent_hash;
+                        ancestor_number -= 1;
+                    }
+                    if ancestor_hash == payload_hash {
+                        if self.require_valid_payload_status {
+                            SynchronizeTask::new(
+                                Arc::clone(&self.client),
+                                self.rollup_config.clone(),
+                                EngineSyncStateUpdate::default(),
+                            )
+                            .require_valid_payload_status()
+                            .execute(state)
+                            .await?;
+                        }
+                        info!(
+                            target: "engine",
+                            %payload_hash,
+                            payload_number,
+                            unsafe_head = %unsafe_head.block_info.hash,
+                            "Retained sequencer payload is already an unsafe-chain ancestor"
+                        );
+                        return Ok(unsafe_head);
+                    }
+                }
+
                 info!(
                     target: "engine",
                     %parent,
-                    %unsafe_head,
+                    unsafe_head = %unsafe_head.block_info.hash,
                     "Dropping stale sequencer payload before insertion"
                 );
-                return Err(InsertTaskError::StalePayload { parent, unsafe_head });
+                return Err(InsertTaskError::StalePayload {
+                    parent,
+                    unsafe_head: unsafe_head.block_info.hash,
+                });
             }
         }
 
@@ -153,7 +212,7 @@ impl<EngineClient_: EngineClient> EngineTaskExt for InsertTask<EngineClient_> {
                 .map_err(InsertTaskError::L2BlockInfoConstruction)?;
 
         // Send a FCU to canonicalize the imported block.
-        SynchronizeTask::new(
+        let mut synchronize = SynchronizeTask::new(
             Arc::clone(&self.client),
             self.rollup_config.clone(),
             EngineSyncStateUpdate {
@@ -162,9 +221,11 @@ impl<EngineClient_: EngineClient> EngineTaskExt for InsertTask<EngineClient_> {
                 safe_head: self.is_payload_safe.then_some(new_unsafe_ref),
                 ..Default::default()
             },
-        )
-        .execute(state)
-        .await?;
+        );
+        if self.require_valid_payload_status {
+            synchronize = synchronize.require_valid_payload_status();
+        }
+        synchronize.execute(state).await?;
 
         // The block is now canonical, so anything reading the L2 chain locally can rely on it.
         self.block_sink.block_imported(block, new_unsafe_ref);
@@ -192,7 +253,10 @@ mod tests {
         test_utils::{TestEngineStateBuilder, test_block_info, test_engine_client_builder},
     };
     use alloy_primitives::{Address, B256, Bloom, Bytes, U256};
-    use alloy_rpc_types_engine::ExecutionPayloadV1;
+    use alloy_rpc_types_engine::{ExecutionPayloadV1, PayloadStatus, PayloadStatusEnum};
+    use alloy_rpc_types_eth::{Block as RpcBlock, BlockTransactions, Header as RpcHeader};
+    use op_alloy_rpc_types::Transaction;
+    use rstest::rstest;
 
     fn test_payload(parent_hash: B256) -> OpExecutionPayloadEnvelope {
         OpExecutionPayloadEnvelope::V1(ExecutionPayloadV1 {
@@ -214,8 +278,109 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn strict_insert_revalidates_syncing_payload_already_at_unsafe_head() {
+        let client = Arc::new(
+            test_engine_client_builder()
+                .with_new_payload_v1_response(PayloadStatus::from_status(
+                    PayloadStatusEnum::Syncing,
+                ))
+                .build(),
+        );
+        let task = InsertTask::new(
+            client,
+            Arc::new(RollupConfig::default()),
+            // The payload is already the default state's unsafe head even though its parent is
+            // not.
+            test_payload(B256::repeat_byte(1)),
+            false,
+            Arc::new(NoopBlockSink),
+        )
+        .require_valid_payload_status();
+
+        let err = task.execute(&mut EngineState::default()).await.unwrap_err();
+        assert!(matches!(
+            err,
+            InsertTaskError::UnexpectedPayloadStatus(PayloadStatusEnum::Syncing)
+        ));
+    }
+
+    #[derive(Debug)]
+    enum OlderPayloadOutcome {
+        Complete,
+        Conflict,
+        Retry,
+    }
+
+    #[rstest]
+    #[case::matching_ancestor(true, PayloadStatusEnum::Valid, OlderPayloadOutcome::Complete)]
+    #[case::conflicting_block(false, PayloadStatusEnum::Valid, OlderPayloadOutcome::Conflict)]
+    #[case::syncing_ancestor(true, PayloadStatusEnum::Syncing, OlderPayloadOutcome::Retry)]
+    #[tokio::test]
+    async fn checked_insert_classifies_older_payload_against_unsafe_chain(
+        #[case] is_ancestor: bool,
+        #[case] forkchoice_status: PayloadStatusEnum,
+        #[case] expected: OlderPayloadOutcome,
+    ) {
+        let payload_hash = B256::repeat_byte(2);
+        let intermediate_header = RpcHeader::new(alloy_consensus::Header {
+            parent_hash: if is_ancestor { payload_hash } else { B256::repeat_byte(3) },
+            number: 2,
+            ..Default::default()
+        });
+        let intermediate_hash = intermediate_header.hash;
+        let intermediate_block =
+            RpcBlock::new(intermediate_header, BlockTransactions::Full(Vec::<Transaction>::new()));
+        let payload = match test_payload(B256::repeat_byte(1)) {
+            OpExecutionPayloadEnvelope::V1(mut payload) => {
+                payload.block_hash = payload_hash;
+                OpExecutionPayloadEnvelope::V1(payload)
+            }
+            _ => unreachable!("test payload is V1"),
+        };
+        let mut unsafe_head = test_block_info(3);
+        unsafe_head.block_info.parent_hash = intermediate_hash;
+        let mut state = TestEngineStateBuilder::new().with_unsafe_head(unsafe_head).build();
+        let block_id = BlockId::Hash(RpcBlockHash::from_hash(intermediate_hash, Some(false)));
+        let client = Arc::new(
+            test_engine_client_builder()
+                .with_l2_block(block_id, intermediate_block)
+                .with_fork_choice_updated_v3_response(
+                    alloy_rpc_types_engine::ForkchoiceUpdated::new(PayloadStatus::from_status(
+                        forkchoice_status,
+                    )),
+                )
+                .build(),
+        );
+        let task = InsertTask::new(
+            client,
+            Arc::new(RollupConfig::default()),
+            payload,
+            false,
+            Arc::new(NoopBlockSink),
+        )
+        .require_current_unsafe_parent()
+        .require_valid_payload_status();
+
+        let result = task.execute(&mut state).await;
+        match expected {
+            OlderPayloadOutcome::Complete => assert_eq!(result.unwrap(), unsafe_head),
+            OlderPayloadOutcome::Conflict => {
+                assert!(matches!(result, Err(InsertTaskError::StalePayload { .. })));
+            }
+            OlderPayloadOutcome::Retry => assert!(matches!(
+                result,
+                Err(InsertTaskError::ForkchoiceUpdateFailed(
+                    crate::SynchronizeTaskError::UnexpectedPayloadStatus(
+                        PayloadStatusEnum::Syncing
+                    )
+                ))
+            )),
+        }
+    }
+
+    #[tokio::test]
     async fn checked_insert_rejects_payload_that_no_longer_extends_unsafe_head() {
-        let unsafe_head = test_block_info(10);
+        let unsafe_head = test_block_info(0);
         let stale_parent = B256::ZERO;
         assert_ne!(stale_parent, unsafe_head.hash());
         let mut state = TestEngineStateBuilder::new().with_unsafe_head(unsafe_head).build();

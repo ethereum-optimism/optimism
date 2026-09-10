@@ -5,7 +5,6 @@ use crate::{
 };
 use alloy_rpc_types_engine::{INVALID_FORK_CHOICE_STATE_ERROR, PayloadStatusEnum};
 use async_trait::async_trait;
-use derive_more::Constructor;
 use kona_genesis::RollupConfig;
 use std::sync::Arc;
 use tokio::time::Instant;
@@ -34,7 +33,7 @@ use tokio::time::Instant;
 /// [`ConsolidateTask`]: crate::ConsolidateTask  
 /// [`FinalizeTask`]: crate::FinalizeTask
 /// [`BuildTask`]: crate::BuildTask
-#[derive(Debug, Clone, Constructor)]
+#[derive(Debug, Clone)]
 pub struct SynchronizeTask<EngineClient_: EngineClient> {
     /// The engine client.
     pub client: Arc<EngineClient_>,
@@ -42,9 +41,26 @@ pub struct SynchronizeTask<EngineClient_: EngineClient> {
     pub rollup: Arc<RollupConfig>,
     /// The sync state update to apply to the engine state.
     pub state_update: EngineSyncStateUpdate,
+    /// Whether a `VALID` response is required instead of accepting `SYNCING`.
+    require_valid_payload_status: bool,
 }
 
 impl<EngineClient_: EngineClient> SynchronizeTask<EngineClient_> {
+    /// Creates a forkchoice synchronization task.
+    pub const fn new(
+        client: Arc<EngineClient_>,
+        rollup: Arc<RollupConfig>,
+        state_update: EngineSyncStateUpdate,
+    ) -> Self {
+        Self { client, rollup, state_update, require_valid_payload_status: false }
+    }
+
+    /// Requires the execution layer to return `VALID` before applying the state update.
+    pub const fn require_valid_payload_status(mut self) -> Self {
+        self.require_valid_payload_status = true;
+        self
+    }
+
     /// Checks the response of the `engine_forkchoiceUpdated` call, and updates the sync status if
     /// necessary.
     fn check_forkchoice_updated_status(
@@ -64,7 +80,7 @@ impl<EngineClient_: EngineClient> SynchronizeTask<EngineClient_> {
 
                 Ok(())
             }
-            PayloadStatusEnum::Syncing => {
+            PayloadStatusEnum::Syncing if !self.require_valid_payload_status => {
                 // If we're not building a new payload, we're driving EL sync.
                 debug!(target: "engine", "Attempting to update forkchoice state while EL syncing");
                 Ok(())
@@ -96,7 +112,10 @@ impl<EngineClient_: EngineClient> EngineTaskExt for SynchronizeTask<EngineClient
         // We shouldn't retry the synchronize task there. Since the `sync_state` is only updated
         // inside the `SynchronizeTask` (except inside the ConsolidateTask, when the block is not
         // the last in the batch) - the engine will get stuck retrying the `SynchronizeTask`
-        if state.sync_state != Default::default() && state.sync_state == new_sync_state {
+        if !self.require_valid_payload_status &&
+            state.sync_state != Default::default() &&
+            state.sync_state == new_sync_state
+        {
             debug!(target: "engine", ?new_sync_state, "No forkchoice update needed");
             return Ok(());
         }
@@ -152,5 +171,38 @@ impl<EngineClient_: EngineClient> EngineTaskExt for SynchronizeTask<EngineClient
         );
 
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::test_utils::{TestEngineStateBuilder, test_block_info, test_engine_client_builder};
+    use alloy_rpc_types_engine::{ForkchoiceUpdated, PayloadStatus};
+
+    #[tokio::test]
+    async fn strict_synchronization_revalidates_unchanged_syncing_head() {
+        let unsafe_head = test_block_info(1);
+        let mut state = TestEngineStateBuilder::new().with_unsafe_head(unsafe_head).build();
+        let client = Arc::new(
+            test_engine_client_builder()
+                .with_fork_choice_updated_v3_response(ForkchoiceUpdated::new(
+                    PayloadStatus::from_status(PayloadStatusEnum::Syncing),
+                ))
+                .build(),
+        );
+        let task = SynchronizeTask::new(
+            client,
+            Arc::new(RollupConfig::default()),
+            EngineSyncStateUpdate { unsafe_head: Some(unsafe_head), ..Default::default() },
+        )
+        .require_valid_payload_status();
+
+        let err = task.execute(&mut state).await.unwrap_err();
+        assert!(matches!(
+            err,
+            SynchronizeTaskError::UnexpectedPayloadStatus(PayloadStatusEnum::Syncing)
+        ));
+        assert_eq!(state.sync_state.unsafe_head(), unsafe_head);
     }
 }

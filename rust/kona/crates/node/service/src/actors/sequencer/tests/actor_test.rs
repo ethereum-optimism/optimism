@@ -8,7 +8,7 @@ use crate::{
     },
 };
 use alloy_primitives::{Address, B256, Bloom, Bytes, U256};
-use alloy_rpc_types_engine::{ExecutionPayloadV1, PayloadId};
+use alloy_rpc_types_engine::{ExecutionPayloadV1, PayloadId, PayloadStatusEnum};
 use alloy_transport::RpcError;
 use kona_derive::{BuilderError, PipelineErrorKind, test_utils::TestAttributesBuilder};
 use kona_engine::{InsertTaskError, SynchronizeTaskError};
@@ -92,13 +92,13 @@ fn test_unsealed_payload() -> UnsealedPayloadHandle {
 
 #[tokio::test]
 async fn test_rejected_conductor_commit_is_not_canonicalized_or_gossiped() {
+    let payload = test_payload();
     let mut sequence = Sequence::new();
     let mut engine = MockSequencerEngineClient::new();
-    engine
-        .expect_seal_block()
-        .times(1)
-        .in_sequence(&mut sequence)
-        .return_once(|_, _| Ok(test_payload()));
+    engine.expect_seal_block().times(1).in_sequence(&mut sequence).return_once({
+        let payload = payload.clone();
+        move |_, _| Ok(payload)
+    });
     engine.expect_canonicalize_block().times(0);
 
     let mut conductor = MockConductor::new();
@@ -106,26 +106,6 @@ async fn test_rejected_conductor_commit_is_not_canonicalized_or_gossiped() {
         .expect_commit_unsafe_payload()
         .times(1)
         .in_sequence(&mut sequence)
-        .return_once(|_| Err(ConductorError::Rpc(RpcError::local_usage_str("leadership lost"))));
-
-    let mut actor = test_actor();
-    actor.engine_client = engine;
-    actor.conductor = Some(conductor);
-    actor.unsafe_payload_gossip_client.expect_schedule_execution_payload_gossip().times(0);
-
-    assert!(actor.seal_and_commit_payload(&test_unsealed_payload()).await.is_err());
-}
-
-#[tokio::test]
-async fn test_rejected_conductor_commit_backs_off_without_stopping_actor() {
-    let mut engine = MockSequencerEngineClient::new();
-    engine.expect_seal_block().times(1).return_once(|_, _| Ok(test_payload()));
-    engine.expect_canonicalize_block().times(0);
-
-    let mut conductor = MockConductor::new();
-    conductor
-        .expect_commit_unsafe_payload()
-        .times(1)
         .return_once(|_| Err(ConductorError::Rpc(RpcError::local_usage_str("leadership lost"))));
 
     let mut actor = test_actor();
@@ -135,10 +115,82 @@ async fn test_rejected_conductor_commit_backs_off_without_stopping_actor() {
     actor.pending_payload = Some(PendingPayload::Unsealed(Box::new(test_unsealed_payload())));
 
     assert!(actor.handle_build_tick().await.is_ok());
-    assert!(
-        matches!(actor.pending_payload, Some(PendingPayload::Unsealed(_))),
-        "pending build must be retained for retry"
-    );
+    match actor.pending_payload.as_ref() {
+        Some(PendingPayload::Sealed(retained)) => assert_eq!(retained.as_ref(), &payload),
+        other => panic!("expected exact sealed payload to be retained, got {other:?}"),
+    }
+}
+
+#[tokio::test]
+async fn test_failed_conductor_commit_retries_exact_sealed_payload() {
+    let payload = test_payload();
+    let mut sequence = Sequence::new();
+    let mut engine = MockSequencerEngineClient::new();
+    engine.expect_seal_block().times(1).in_sequence(&mut sequence).return_once({
+        let payload = payload.clone();
+        move |_, _| Ok(payload)
+    });
+    engine
+        .expect_canonicalize_block()
+        .withf({
+            let payload = payload.clone();
+            move |actual| actual == &payload
+        })
+        .times(1)
+        .return_once(|_| Ok(()));
+    engine.expect_get_unsafe_head().times(1).return_once(|| Ok(L2BlockInfo::default()));
+    engine.expect_reset_engine_forkchoice().times(1).return_once(|| Ok(()));
+
+    let mut conductor = MockConductor::new();
+    conductor
+        .expect_commit_unsafe_payload()
+        .withf({
+            let payload = payload.clone();
+            move |actual| actual == &payload
+        })
+        .times(1)
+        .in_sequence(&mut sequence)
+        .return_once(|_| Err(ConductorError::Rpc(RpcError::local_usage_str("response lost"))));
+    conductor
+        .expect_commit_unsafe_payload()
+        .withf({
+            let payload = payload.clone();
+            move |actual| actual == &payload
+        })
+        .times(1)
+        .in_sequence(&mut sequence)
+        .return_once(|_| Ok(()));
+
+    let mut origin_selector = MockOriginSelector::new();
+    origin_selector
+        .expect_next_l1_origin()
+        .times(1)
+        .return_once(|head, _| Err(L1OriginSelectorError::OriginNotFound(head.l1_origin.hash)));
+
+    let mut actor = test_actor();
+    actor.engine_client = engine;
+    actor.conductor = Some(conductor);
+    actor.origin_selector = origin_selector;
+    actor
+        .unsafe_payload_gossip_client
+        .expect_schedule_execution_payload_gossip()
+        .withf({
+            let payload = payload.clone();
+            move |actual| actual == &payload
+        })
+        .times(1)
+        .in_sequence(&mut sequence)
+        .return_once(|_| Ok(()));
+    actor.pending_payload = Some(PendingPayload::Unsealed(Box::new(test_unsealed_payload())));
+
+    assert!(actor.handle_build_tick().await.is_ok());
+    match actor.pending_payload.as_ref() {
+        Some(PendingPayload::Sealed(retained)) => assert_eq!(retained.as_ref(), &payload),
+        other => panic!("expected exact sealed payload to be retained, got {other:?}"),
+    }
+
+    assert!(actor.handle_build_tick().await.is_ok());
+    assert!(actor.pending_payload.is_none());
 }
 
 #[tokio::test]
@@ -205,8 +257,12 @@ async fn test_temporary_canonicalization_failure_retries_exact_committed_payload
 fn transient_new_payload_and_forkchoice_errors_retry_committed_payload() {
     let errors = [
         InsertTaskError::InsertFailed(RpcError::local_usage_str("new payload unavailable")),
+        InsertTaskError::UnexpectedPayloadStatus(PayloadStatusEnum::Accepted),
         InsertTaskError::ForkchoiceUpdateFailed(SynchronizeTaskError::ForkchoiceUpdateFailed(
             RpcError::local_usage_str("forkchoice unavailable"),
+        )),
+        InsertTaskError::ForkchoiceUpdateFailed(SynchronizeTaskError::UnexpectedPayloadStatus(
+            PayloadStatusEnum::Accepted,
         )),
     ];
 
@@ -215,8 +271,48 @@ fn transient_new_payload_and_forkchoice_errors_retry_committed_payload() {
     }
 }
 
+#[test]
+fn permanently_invalid_new_payload_and_forkchoice_statuses_are_fatal() {
+    let errors = [
+        InsertTaskError::UnexpectedPayloadStatus(PayloadStatusEnum::Invalid {
+            validation_error: "invalid payload".to_string(),
+        }),
+        InsertTaskError::ForkchoiceUpdateFailed(SynchronizeTaskError::UnexpectedPayloadStatus(
+            PayloadStatusEnum::Invalid { validation_error: "invalid forkchoice".to_string() },
+        )),
+    ];
+
+    for err in errors {
+        assert_eq!(canonicalization_error_action(&err), CanonicalizationErrorAction::Fatal);
+    }
+}
+
 #[tokio::test]
-async fn test_stale_committed_payload_is_dropped_without_gossip() {
+async fn invalid_conductor_approved_payload_stops_instead_of_retrying() {
+    let payload = test_payload();
+    let mut engine = MockSequencerEngineClient::new();
+    engine.expect_canonicalize_block().times(1).return_once(|_| {
+        Err(crate::EngineClientError::CanonicalizeError(InsertTaskError::UnexpectedPayloadStatus(
+            PayloadStatusEnum::Invalid { validation_error: "invalid payload".to_string() },
+        )))
+    });
+
+    let mut actor = test_actor();
+    actor.engine_client = engine;
+    actor.unsafe_payload_gossip_client.expect_schedule_execution_payload_gossip().times(0);
+    actor.pending_payload = Some(PendingPayload::Committed(Box::new(payload)));
+
+    assert!(matches!(
+        actor.handle_build_tick().await,
+        Err(SequencerActorError::EngineError(crate::EngineClientError::CanonicalizeError(
+            InsertTaskError::UnexpectedPayloadStatus(PayloadStatusEnum::Invalid { .. })
+        )))
+    ));
+    assert!(actor.pending_payload.is_none(), "invalid payload must not be retained for retry");
+}
+
+#[tokio::test]
+async fn test_stale_payload_without_conductor_is_dropped_without_gossip() {
     let payload = test_payload();
     let mut engine = MockSequencerEngineClient::new();
     engine.expect_canonicalize_block().times(1).return_once(|_| {
@@ -232,6 +328,32 @@ async fn test_stale_committed_payload_is_dropped_without_gossip() {
     actor.pending_payload = Some(PendingPayload::Committed(Box::new(payload)));
 
     assert!(actor.handle_build_tick().await.is_ok());
+    assert!(actor.pending_payload.is_none());
+}
+
+#[tokio::test]
+async fn stale_conductor_approved_payload_stops_before_building_replacement() {
+    let payload = test_payload();
+    let mut engine = MockSequencerEngineClient::new();
+    engine.expect_canonicalize_block().times(1).return_once(|_| {
+        Err(crate::EngineClientError::CanonicalizeError(InsertTaskError::StalePayload {
+            parent: B256::ZERO,
+            unsafe_head: B256::repeat_byte(1),
+        }))
+    });
+
+    let mut actor = test_actor();
+    actor.engine_client = engine;
+    actor.conductor = Some(MockConductor::new());
+    actor.unsafe_payload_gossip_client.expect_schedule_execution_payload_gossip().times(0);
+    actor.pending_payload = Some(PendingPayload::Committed(Box::new(payload)));
+
+    assert!(matches!(
+        actor.handle_build_tick().await,
+        Err(SequencerActorError::EngineError(crate::EngineClientError::CanonicalizeError(
+            InsertTaskError::StalePayload { .. }
+        )))
+    ));
     assert!(actor.pending_payload.is_none());
 }
 
@@ -264,6 +386,7 @@ async fn test_accepted_conductor_commit_is_canonicalized_before_gossip() {
         .in_sequence(&mut sequence)
         .return_once(|_| Ok(()));
 
-    let payload = actor.seal_and_commit_payload(&test_unsealed_payload()).await.unwrap();
+    let payload = actor.seal_payload(&test_unsealed_payload()).await.unwrap();
+    let payload = actor.commit_payload_or_backoff(Box::new(payload)).await.unwrap();
     assert!(actor.canonicalize_and_gossip_payload(&payload).await.is_ok());
 }

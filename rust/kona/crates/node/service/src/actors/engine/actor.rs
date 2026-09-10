@@ -320,6 +320,7 @@ where
                     Arc::clone(&self.block_sink),
                 )
                 .require_current_unsafe_parent()
+                .require_valid_payload_status()
                 .with_result_sender(result_tx);
                 self.engine.enqueue(EngineTask::Insert(Box::new(task)));
             }
