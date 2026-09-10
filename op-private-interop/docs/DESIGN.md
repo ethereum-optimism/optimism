@@ -709,26 +709,19 @@ public projection, the private op-node's follow source, and the operator. `--smo
 `op-chain-ops/interopsmoke` IN THIS PROCESS against the nodes' own RPCs and exits with its result;
 without `--private-interop` the same command runs the public control on two ordinary chains.
 
-In-process is not a convenience. A message initiated on the private chain is named by its position
-on the public projection, and that correction is made by the resolver described above, which the devstack
-registers process-globally when it builds the pair. A smoke run from another process has no
-resolver: it would quote raw private receipt positions, and the legs meant to prove the naming
-works would fail or pass vacuously. The CLI therefore refuses the private-pair profile outright
-rather than offering it.
+The devstack registers the private message-position resolver in-process. Standalone smoke uses
+`--private-pair-b`, `--projection-b-rpc` and `--projection-b-rollup-rpc` to construct the same
+resolver from RPC endpoints. It checks the complete public log sequence against the deterministic
+private export sequence before returning message identifiers. The rollup endpoint is the ordinary
+projection route, not `/claimed`. See [DEVNET.md](DEVNET.md).
 
-What the profile does with each test, none of it silently: identity and transfer run unchanged
-(transfer says which unit it moved, chain B being CGT); bridge is SKIPPED with reason —
-SuperchainETHBridge is the closed path on a CGT chain, and NativeMintBridge, the sanctioned one,
-is not exercised here; valid-message runs A→B as before PLUS the mirror leg B→A — a messenger
-message sent on the private chain and executed on the counterparty, the one leg that makes the
-resolver load-bearing and the heart of this gate (it goes through the messenger because the export
-policy publishes the messenger's `SentMessage` and the inbox's `ExecutingMessage` and nothing
-else: an EventLogger log has no public position at all, so a leg built on one would be a
-fabricated-import test wearing a valid-message name); invalid-message is held to `b-to-a` — the
-other directions are refused, since they land the invalid message on a chain whose blocks are
-never replaced, and even `b-to-a` proves only that the counterparty rejects a message the
-public projection does not carry, its init being an EventLogger log with no public position;
-chained-invalid-message is refused: its cascade begins with chain B's block being replaced.
+Identity and transfers run on both chains. Native ETH bridging is explicitly skipped for the
+private ETH profile. Valid-message tests cover both directions, including a messenger event
+initiated privately and executed against its public projection position on the counterparty.
+Invalid-message smoke currently supports `b-to-a`, testing rejection of a fabricated import on
+the public counterparty. Private recovery and cascading invalidation need their dedicated
+acceptance scenarios; those restrictions are limits of this smoke implementation, not a claim
+that private blocks cannot be replaced.
 
 **Deliberately excluded, with reasons:**
 

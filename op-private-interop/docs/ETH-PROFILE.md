@@ -36,7 +36,11 @@ a no-op receipt does not mean the registry executed or authorized the supplied c
 
 Only the current batcher, read from the standard L1 attributes, can post projection range claims.
 This prevents a forced call from advancing the claim cursor and blocking recovery. Batcher rotation
-uses the existing L1 configuration; no additional key or genesis setting is needed.
+uses the existing L1 configuration; no additional key or genesis setting is needed. Before
+preparing a private block, the batcher checks that the block's copied L1 attributes authorize its
+signing key. A replacement key waits for old-key unpublished positions to expire instead of
+publishing claims that would revert. This supports recovery after rotation, not seamless handover;
+publication can pause for the remaining sequencing window.
 
 The projection is identified from its installed genesis messenger, claim registry and event
 replayer implementations. Both `--rollup.private` and a materialized projection genesis select the
@@ -57,6 +61,18 @@ The new event has a new block position and timestamp; consumers use that newly p
 The message hash and nonce are unchanged, so destination-side replay protection still applies.
 Publication requires the sequencer to return; forced creation alone does not guarantee outbound
 message delivery. Executing messages remain subject to the existing inbox/access-list validation.
+
+## Restart durability
+
+The supernode persists the rejected projection block's parent hash with its denial, before
+rewinding. Recovery does not require a noncanonical projection payload to remain in an RPC cache.
+The private LightCL likewise stores the private headers used to authenticate the surviving prefix
+before changing forkchoice. Its journal is bound to the private genesis and prunes headers below
+private finality. Preserve both databases and the private EL data when restarting.
+
+Older denial records without a parent can use their original EL header if it is still available.
+Missing ancestry fails closed. A journal created after the original private headers have already
+been discarded cannot reconstruct them retroactively; use a fresh devnet or retained private data.
 
 ## ETH backing and bridge permissions
 
@@ -79,7 +95,10 @@ and generic application messaging remain available.
 
 Use stock op-deployer `0.8.0-rc.2` with the matching custom contract-artifact bundle and interop
 active at genesis. NetChef generates the genesis and rollup artifacts normally. Private ELs, the
-projection EL, batcher and supernode use the same private-chain genesis source. The projection EL
+projection EL, batcher and supernode use the same private-chain genesis source. The private LightCL
+uses `--l2.follow.source=<supernode>/<chain-id>/claimed` and
+`--l2.follow.source.recovery-path=/data/private-recovery.db` on a persistent private volume.
+The projection EL
 retains `--rollup.private`; the supernode derives its projection internally. All component images
 must match the contract bundle and projection behavior. The no-op rule changes projection
 consensus from the earlier log-suppression and contract-guard prototypes; their databases require a
@@ -109,8 +128,9 @@ devnet's production setting.
 
 `RUST_JIT_BUILD=1 mise x -- go run ./op-up --private-interop --smoke` runs chain-ops `interopsmoke`
 in-process with the private message-position resolver. Native ETH bridging is skipped. Standalone
-remote private-pair smoke still requires a resolver. Local tests and genesis-target NetChef
-simulation do not establish that a live Sepolia deployment is healthy.
+remote private-pair smoke now constructs the same resolver from explicit projection execution and
+rollup endpoints. See [DEVNET.md](DEVNET.md) for commands and persistent-volume requirements.
+Local validation does not establish that a live Sepolia deployment is healthy.
 
 V1 remains operator-attested, with the existing proof-bytes extension reserved for later
 verification. Private-state proofs and private withdrawal settlement are outside this patch.
