@@ -2600,6 +2600,36 @@ contract OPContractsManagerStandardValidator_ValidateMigratedChain_Test is
         assertEq(errors, "");
     }
 
+    /// @notice Tests that a coherent but unexpected pause authority is rejected by both entrypoints:
+    ///         the lockbox and every chain are compared to the validator's SuperchainConfig, so a
+    ///         set that agrees with itself but not with the validator fails on each contract.
+    function test_validateMigratedChain_wrongSuperchainConfig_reverts() public {
+        address wrongConfig = makeAddr("wrongSuperchainConfig");
+        assertNotEq(address(standardValidator.superchainConfig()), wrongConfig);
+        vm.mockCall(address(sharedLockbox), abi.encodeCall(IETHLockbox.superchainConfig, ()), abi.encode(wrongConfig));
+        vm.mockCall(
+            address(chainContracts1.systemConfig),
+            abi.encodeCall(ISystemConfig.superchainConfig, ()),
+            abi.encode(wrongConfig)
+        );
+        vm.mockCall(
+            address(chainContracts2.systemConfig),
+            abi.encodeCall(ISystemConfig.superchainConfig, ()),
+            abi.encode(wrongConfig)
+        );
+
+        string memory expected = "MIG-SLOCKBOX-40,MIG-CHAIN-0-130,MIG-CHAIN-1-130";
+        IOPContractsManagerMigrationValidator.MigrationValidationInput memory input = _migrationInput();
+        IOPContractsManagerStandardValidator.ValidationOverrides memory overrides;
+        assertEq(standardValidator.validateMigratedChain(input, true), expected);
+        assertEq(standardValidator.validateMigratedChainWithOverrides(input, true, overrides), expected);
+
+        vm.expectRevert(bytes(string.concat("OPContractsManagerMigrationValidator: ", expected)));
+        standardValidator.validateMigratedChain(input, false);
+        vm.expectRevert(bytes(string.concat("OPContractsManagerMigrationValidator: ", expected)));
+        standardValidator.validateMigratedChainWithOverrides(input, false, overrides);
+    }
+
     /// @notice Helper to build migration input with 2 chains.
     function _migrationInput()
         internal

@@ -115,7 +115,7 @@ contract ETHLockbox_Paused_Test is ETHLockbox_TestInit {
         // Pause the lockbox.
         vm.mockCall(
             address(superchainConfig),
-            abi.encodeCall(ISuperchainConfig.isPaused, (address(ethLockbox))),
+            abi.encodeCall(ISuperchainConfig.isLocalOrGlobalPaused, (address(ethLockbox))),
             abi.encode(true)
         );
 
@@ -416,7 +416,7 @@ contract ETHLockbox_UnlockETH_Test is ETHLockbox_TestInit {
         // Pause the lockbox.
         vm.mockCall(
             address(superchainConfig),
-            abi.encodeCall(ISuperchainConfig.isPaused, (address(ethLockbox))),
+            abi.encodeCall(ISuperchainConfig.isLocalOrGlobalPaused, (address(ethLockbox))),
             abi.encode(true)
         );
 

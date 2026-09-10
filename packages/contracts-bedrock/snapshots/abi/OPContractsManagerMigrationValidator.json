@@ -189,6 +189,11 @@
             "internalType": "uint256",
             "name": "withdrawalDelaySeconds",
             "type": "uint256"
+          },
+          {
+            "internalType": "contract ISuperchainConfig",
+            "name": "superchainConfig",
+            "type": "address"
           }
         ],
         "internalType": "struct IOPContractsManagerMigrationValidator.SharedConfig",
@@ -414,6 +419,11 @@
             "internalType": "uint256",
             "name": "withdrawalDelaySeconds",
             "type": "uint256"
+          },
+          {
+            "internalType": "contract ISuperchainConfig",
+            "name": "superchainConfig",
+            "type": "address"
           }
         ],
         "internalType": "struct IOPContractsManagerMigrationValidator.SharedConfig",

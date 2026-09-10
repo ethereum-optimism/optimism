@@ -10,6 +10,7 @@ import { GameType, Proposal } from "src/dispute/lib/Types.sol";
 import { IOPContractsManagerStandardValidator } from "interfaces/L1/IOPContractsManagerStandardValidator.sol";
 import { IStandardValidatorUtils } from "interfaces/L1/opcm/IStandardValidatorUtils.sol";
 import { ISystemConfig } from "interfaces/L1/ISystemConfig.sol";
+import { ISuperchainConfig } from "interfaces/L1/ISuperchainConfig.sol";
 
 interface IOPContractsManagerMigrationValidator {
     error InvalidGameArgsLength();
@@ -67,6 +68,7 @@ interface IOPContractsManagerMigrationValidator {
         address l1PAOMultisig;
         address challenger;
         uint256 withdrawalDelaySeconds;
+        ISuperchainConfig superchainConfig;
     }
 
     function validateMigration(

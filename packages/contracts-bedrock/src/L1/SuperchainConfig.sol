@@ -130,13 +130,14 @@ contract SuperchainConfig is ProxyAdminOwnedBase, Initializable, Reinitializable
     /// @custom:legacy
     /// @notice Checks if the global superchain system is paused. NOTE that this is a legacy
     ///         function that provides support for systems that still rely on the older interface.
-    ///         Contracts should use paused(address) instead when possible.
+    ///         Use isLocalOrGlobalPaused(address) to include the identifier-specific pause.
     /// @return True if the global superchain system is paused.
     function paused() external view returns (bool) {
         return paused(address(0));
     }
 
     /// @notice Checks if the system is currently paused for a specific identifier.
+    ///         Does not include the global pause unless the identifier is address(0).
     /// @param _identifier The address identifier to check.
     /// @return True if the system is paused for this identifier and not expired.
     function paused(address _identifier) public view returns (bool) {
@@ -148,7 +149,7 @@ contract SuperchainConfig is ProxyAdminOwnedBase, Initializable, Reinitializable
     /// @notice Checks if the global or identifier-specific pause is active.
     /// @param _identifier The address identifier to check.
     /// @return True if the global pause or the identifier-scoped pause is active.
-    function isPaused(address _identifier) external view returns (bool) {
+    function isLocalOrGlobalPaused(address _identifier) external view returns (bool) {
         return paused(address(0)) || paused(_identifier);
     }
 

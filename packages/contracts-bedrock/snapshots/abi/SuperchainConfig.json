@@ -83,7 +83,7 @@
         "type": "address"
       }
     ],
-    "name": "isPaused",
+    "name": "isLocalOrGlobalPaused",
     "outputs": [
       {
         "internalType": "bool",

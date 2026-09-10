@@ -275,7 +275,8 @@ abstract contract OPContractsManagerMigrationValidator_TestInit is CommonTest {
         return IOPContractsManagerMigrationValidator.SharedConfig({
             l1PAOMultisig: standardValidator.l1PAOMultisig(),
             challenger: standardValidator.challenger(),
-            withdrawalDelaySeconds: standardValidator.withdrawalDelaySeconds()
+            withdrawalDelaySeconds: standardValidator.withdrawalDelaySeconds(),
+            superchainConfig: standardValidator.superchainConfig()
         });
     }
 
@@ -784,7 +785,19 @@ contract OPContractsManagerMigrationValidator_PerChain_Test is OPContractsManage
         assertEq("MIG-CHAIN-1-120", _validateMigration(true));
     }
 
-    /// @notice MIG-CHAIN-1-130: SuperchainConfig does not match the shared lockbox.
+    /// @notice MIG-CHAIN-0-130: First chain's SuperchainConfig does not match the expected one.
+    ///         Only the offending chain is flagged, even though the others are compared to the
+    ///         same expected value rather than to chain 0.
+    function test_validate_chain0130SuperchainConfigMismatch_succeeds() public {
+        vm.mockCall(
+            address(chainContracts1.systemConfig),
+            abi.encodeCall(ISystemConfig.superchainConfig, ()),
+            abi.encode(address(0xbad))
+        );
+        assertEq("MIG-CHAIN-0-130", _validateMigration(true));
+    }
+
+    /// @notice MIG-CHAIN-1-130: Second chain's SuperchainConfig does not match the expected one.
     function test_validate_chain1130SuperchainConfigMismatch_succeeds() public {
         vm.mockCall(
             address(chainContracts2.systemConfig),
@@ -911,7 +924,7 @@ contract OPContractsManagerMigrationValidator_SharedLockbox_Test is OPContractsM
         assertEq("MIG-SLOCKBOX-30", _validateMigration(true));
     }
 
-    /// @notice MIG-SLOCKBOX-40: Lockbox pause authority doesn't match the chains.
+    /// @notice MIG-SLOCKBOX-40: Lockbox pause authority doesn't match the expected SuperchainConfig.
     function test_validate_sharedLockbox40WrongSuperchainConfig_succeeds() public {
         vm.mockCall(
             address(sharedLockbox), abi.encodeCall(IETHLockbox.superchainConfig, ()), abi.encode(address(0xbad))
