@@ -37,6 +37,22 @@ func DefaultStartingAnchorProposal() Proposal {
 	}
 }
 
+// ResourceConfigOverride mirrors Types.ResourceConfigOverride in
+// packages/contracts-bedrock/scripts/libraries/Types.sol -- same field order, same names -- and is
+// the way a chain asks to be initialized with a non-default L1 resource config.
+//
+// A zero MaxResourceLimit (with ElasticityMultiplier 1) is the deposit gate: every
+// depositTransaction is metered against the limit with a gas limit of at least 21000, so every
+// deposit reverts on a completely stock portal. The config is written only by
+// SystemConfig.initialize, which has no owner-callable counterpart in this version, so it cannot be
+// undone without a governed upgrade-and-reinitialize.
+type ResourceConfigOverride struct {
+	Enabled              bool
+	MaxResourceLimit     uint32
+	ElasticityMultiplier uint8
+	SystemTxMaxGas       uint32
+}
+
 type DeployOPChainInput struct {
 	OpChainProxyAdminOwner common.Address
 	SystemConfigOwner      common.Address
@@ -70,6 +86,8 @@ type DeployOPChainInput struct {
 	SuperchainConfig    common.Address
 
 	UseCustomGasToken bool
+
+	ResourceConfigOverride ResourceConfigOverride
 }
 
 type DeployOPChainOutput struct {

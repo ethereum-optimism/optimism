@@ -97,6 +97,12 @@ type TwoL2SupernodeInterop struct {
 	// nil if not using interop filter (WithInteropFilter() not set).
 	InteropFilter *sysgo.InteropFilter
 
+	// PrivateInterop is non-nil when chain B is a private interop pair
+	// (WithPrivateInteropChain()). Every other field above keeps its ordinary meaning:
+	// L2ELB is the private chain's sequencer EL and L2BSupernodeCL/EL are its public
+	// rendering, which is the chain the supernode judges.
+	PrivateInterop *PrivateInterop
+
 	timeTravel *clock.AdvancingClock
 }
 
@@ -169,20 +175,40 @@ func (s *TwoL2SupernodeInterop) BootstrapLightSequencersViaVNHandoff() {
 //
 // When WithInteropFilter() is set the test is skipped on op-geth: the interop filter
 // is only supported with op-reth, since op-geth does not call the interop_ namespace.
+// With WithPrivateInteropChain -- or with the ambient DEVSTACK_PRIVATE_INTEROP, which is how the
+// stock suites that name this preset are run against a pair -- chain B becomes a private-interop
+// pair. The three surfaces a test holds are unchanged; what stands behind chain B's is a private
+// sequenced chain, its public rendering, and the batcher that turns the first into the second.
 func NewTwoL2SupernodeInterop(t devtest.T, delaySeconds uint64, opts ...Option) *TwoL2SupernodeInterop {
 	presetCfg, _ := collectSupportedPresetConfig(t, "NewTwoL2SupernodeInterop", opts, twoL2SupernodeInteropPresetSupportedOptionKinds)
 	if presetCfg.UseInteropFilter {
 		sysgo.SkipOnOpGeth(t, "interop filter is only supported with op-reth")
+	}
+	if presetCfg.PrivateInterop != nil {
+		sysgo.SkipOnOpGeth(t, "private interop is only supported with op-reth")
+		return twoL2PrivateInteropFromRuntime(t, sysgo.NewTwoL2PrivateInteropRuntimeWithConfig(t, delaySeconds, presetCfg))
 	}
 	return twoL2SupernodeInteropFromRuntime(t, sysgo.NewTwoL2SupernodeInteropRuntimeWithConfig(t, delaySeconds, presetCfg))
 }
 
 // NewTwoL2SupernodeLightSequencerInterop creates a two-L2 interop setup where
 // light op-node CLs sequence blocks and the shared supernode derives safe heads.
+//
+// With WithPrivateInteropChain, chain B becomes a private interop pair instead: the same three
+// surfaces a test already holds, pointed at a private sequenced chain, its public rendering, and the
+// batcher that turns the first into the second. Nothing else about the preset changes, which is the
+// whole thesis -- see op-private-interop/docs/DESIGN.md, "Testing".
 func NewTwoL2SupernodeLightSequencerInterop(t devtest.T, delaySeconds uint64, opts ...Option) *TwoL2SupernodeInterop {
 	presetCfg, _ := collectSupportedPresetConfig(t, "NewTwoL2SupernodeLightSequencerInterop", opts, twoL2SupernodeLightSequencerPresetSupportedOptionKinds)
 	if presetCfg.UseInteropFilter {
 		sysgo.SkipOnOpGeth(t, "interop filter is only supported with op-reth")
+	}
+	if presetCfg.PrivateInterop != nil {
+		// A private interop pair is two op-reths on one chain ID with different genesis states, and
+		// the rendering's genesis is produced by a contracts-bedrock dev feature that only the
+		// op-reth lane runs. op-geth is deprecated as of Karst besides.
+		sysgo.SkipOnOpGeth(t, "private interop is only supported with op-reth")
+		return twoL2PrivateInteropFromRuntime(t, sysgo.NewTwoL2PrivateInteropRuntimeWithConfig(t, delaySeconds, presetCfg))
 	}
 	return twoL2SupernodeInteropFromRuntime(t, sysgo.NewTwoL2SupernodeLightSequencerInteropRuntimeWithConfig(t, delaySeconds, presetCfg))
 }

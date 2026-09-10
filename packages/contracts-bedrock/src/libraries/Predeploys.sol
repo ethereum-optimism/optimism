@@ -114,6 +114,37 @@ library Predeploys {
     /// @notice Address of the L2DevFeatureFlags predeploy.
     address internal constant L2_DEV_FEATURE_FLAGS = 0x420000000000000000000000000000000000002d;
 
+    // ── Private interop predeploys ──────────────────────────────────────────────────────────
+    //
+    // These three exist ONLY on the two halves of a private interop pair -- a private chain and
+    // the public rendering that is its identity in the dependency set -- and never on a Superchain
+    // chain. They are deliberately NOT entries in `getAllRecords()` below, which is the one place
+    // this file departs from its own checklist, so the reason is worth stating.
+    //
+    // `getAllRecords()` is compiled INTO the L2ContractsManager: `L2ContractsManagerUtils` calls
+    // `Predeploys.isUpgradeable`, which walks the whole table. Adding a row -- even an inert row
+    // gated behind a dev feature nothing sets -- therefore changes L2CM's creation code, hence its
+    // CREATE2 address, hence two transactions in every Network Upgrade Transaction bundle. A
+    // bespoke, operator-run chain's contracts have no business moving the bytes of an upgrade that
+    // every chain in the Superchain executes.
+    //
+    // Keeping them out costs exactly what the registry would have given: `getName`,
+    // `isSupportedPredeploy` and `assertGates` do not know these addresses, so
+    // `setPredeployProxies` etches a bare Proxy at each (as it already does for every unclaimed
+    // slot, which is why an ordinary chain's genesis is byte-identical either way) and leaves the
+    // implementation slot empty. `scripts/L2Genesis.s.sol` fills that slot itself, under the
+    // PRIVATE_INTEROP_* dev features, and owns the gate checks the registry would otherwise have
+    // owned. Nothing else in the tree may assume these are registry members.
+
+    /// @notice Address of the ClaimRegistry predeploy. Public rendering half only.
+    address internal constant CLAIM_REGISTRY = 0x420000000000000000000000000000000000002E;
+
+    /// @notice Address of the EventReplayer predeploy. Public rendering half only.
+    address internal constant EVENT_REPLAYER = 0x420000000000000000000000000000000000002F;
+
+    /// @notice Address of the NativeMintBridge predeploy. Private half only.
+    address internal constant NATIVE_MINT_BRIDGE = 0x4200000000000000000000000000000000000030;
+
     /// @notice Implementation variant selector.
     /// @dev Values are array indexes into `PredeployRecord.variants`.
     enum VariantKind {

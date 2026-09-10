@@ -1,0 +1,21 @@
+{
+  "name": "single-block-range",
+  "spec": "op-private-interop/docs/DESIGN.md: the claim is an ordinary L2 transaction, and it leads the range it describes.",
+  "kind": "valid",
+  "description": "firstBlock == lastBlock. A legal, one-block range: the range bound is inclusive on both ends, so this covers one block and not zero. Pins the boundary that separates the valid degenerate case from the inverted-range refusal.",
+  "bin": "single-block-range.bin",
+  "bytes": 384,
+  "keccak": "0x4d1ae09352a2cae812af6172f5068704ec2c2a1f8e09a5a26a1b6dc5de6363ef",
+  "proofHex": "0x",
+  "body": {
+    "version": 1,
+    "firstBlock": 42,
+    "lastBlock": 42,
+    "privateTerminalBlockHash": "0x88617f306d991b8aeb3cde9b474abe47ff2df983b8d49ad698090d0574933912",
+    "privateTerminalParentHash": "0x6ef35a96dfd865b96f484dec25a9c8c9a113dfed358562650d6addc5b37c371f",
+    "l1Head": "0xa3b9f955b1801f9dbbf5efd45a4e99f3b36fc3915f42517e49f42b52985c518c",
+    "rollupConfigHash": "0xd45f51a9aa68586fc4aa8402ec1f5306cecac6a68f998b8d65734d45bab6120e",
+    "depSetHash": "0x44660c000f8fc3ddef464ddef9f280d6fc7fba0f6a2cf833f492ca7431e09844",
+    "privateDataHash": "0xe2d2b0b0f12ce0c821491e2626579945bb324f2f0fff0a41b7852b89d5630cf4"
+  }
+}

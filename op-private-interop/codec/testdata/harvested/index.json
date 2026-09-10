@@ -1,0 +1,29 @@
+{
+  "purpose": "Real bytes of this project's RETIRED proof-batch wire, kept as foreign-object refusal cases for the range-claim decoder. They are not a version gate: the range claim is pure ABI with no magic and no length prefix, so these are simply a different kind of object. The case is live rather than historical because the claim-follower decodes the calldata of every transaction addressed to the ClaimRegistry, and anyone can address one there. The only acceptable outcome is refusal — never a partial decode that yields plausible-looking hashes read out of an unrelated structure.",
+  "harvestedFrom": {
+    "repo": "ethereum-optimism/optimism",
+    "branch": "karl/silhouette-v1",
+    "commit": "92973bd060",
+    "worktree": "/home/main/op/optimism/silhouette-v1",
+    "codec": "op-supernode/proofbatch"
+  },
+  "wireFormat": "magic \"KCPB\" (4) | version (1) | pv_len uint32 BE (4) | abi.encode(ProofBatch) | proof_len uint32 BE (4) | proof",
+  "cases": [
+    {
+      "bin": "proof-batch-v3.bin",
+      "version": 3,
+      "bytes": 621,
+      "keccak": "0xe6402add6cc6fa19dd65cbc1cd5322c9297096e3dfde946debec8765df7f1106",
+      "provenance": "Byte-for-byte copy of op-supernode/proofbatch/testdata/proof-batch/single-block-no-logs.bin from karl/silhouette-v1 @ 92973bd060. Its keccak matches the envelopeKeccak that fixture's own JSON sidecar pins, which is what proves the copy is exact.",
+      "note": "A frozen corpus fixture, so these are the bytes a live v3 producer really emitted — not a valid encoding with the version byte poked."
+    },
+    {
+      "bin": "proof-batch-v4.bin",
+      "version": 4,
+      "bytes": 717,
+      "keccak": "0x2eacb07073561d240c0b494fa74136bcaac5ee1b1ebba9eb4aed83d69d2a88c0",
+      "provenance": "No stored v4 corpus exists on karl/silhouette-v1 (its testdata tree stops at v3), so these bytes were produced BY THAT BRANCH'S OWN CODEC at 92973bd060 — proofbatch.EncodeAs(batch, nil, proofbatch.Version) with proofbatch.Version == 4 — and round-tripped through proofbatch.DecodeAs before capture. The scratch generator was deleted afterwards and the harvest worktree left clean.",
+      "recipe": "ProofBatch{prevOutputRoot, newOutputRoot, l1Head, rollupConfigHash, depSetHash = keccak256(\"private-interop-harvest:v4:<field>\"), exportPolicyHash = proofbatch.ExportPolicyAllHashes, blocks = [one block: number 9000001, timestamp 1800200000, l1Origin {hash keccak256(\"private-interop-harvest:v4:l1OriginHash\"), number 7000001}, sequenceNumber 3, blockHash/stateRoot/messagePasserStorageRoot = keccak256(\"private-interop-harvest:v4:<field>\"), no logs, no execMsgs]}, empty proof slot."
+    }
+  ]
+}

@@ -191,6 +191,7 @@ var optionalFlags = []cli.Flag{
 
 func init() {
 	optionalFlags = append(optionalFlags, ThrottleFlags...)
+	optionalFlags = append(optionalFlags, PrivateInteropFlags...)
 	optionalFlags = append(optionalFlags, oprpc.CLIFlags(EnvVarPrefix)...)
 	optionalFlags = append(optionalFlags, oplog.CLIFlags(EnvVarPrefix)...)
 	optionalFlags = append(optionalFlags, opmetrics.CLIFlags(EnvVarPrefix)...)

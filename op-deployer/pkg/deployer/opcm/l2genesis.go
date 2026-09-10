@@ -37,6 +37,11 @@ type L2GenesisInput struct {
 	NativeAssetLiquidityAmount               *big.Int
 	LiquidityControllerOwner                 common.Address
 	DevFeatureBitmap                         common.Hash
+	// Private interop. Inert on every ordinary chain: which half (if any) a genesis renders is
+	// decided by the PRIVATE_INTEROP_* bits in DevFeatureBitmap, and with neither bit set the
+	// script never reads these.
+	PrivateInteropCounterpartyChainID *big.Int
+	PrivateInteropLockVault           common.Address
 }
 
 type L2GenesisScript script.DeployScriptWithoutOutput[L2GenesisInput]

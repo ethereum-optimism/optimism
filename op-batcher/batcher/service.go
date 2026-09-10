@@ -8,6 +8,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/ethereum/go-ethereum/log"
 
@@ -18,14 +19,18 @@ import (
 	"github.com/ethereum-optimism/optimism/op-batcher/rpc"
 	"github.com/ethereum-optimism/optimism/op-node/params"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
+	"github.com/ethereum-optimism/optimism/op-private-interop/render"
 	"github.com/ethereum-optimism/optimism/op-service/cliapp"
+	"github.com/ethereum-optimism/optimism/op-service/client"
 	"github.com/ethereum-optimism/optimism/op-service/dial"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/httputil"
+	"github.com/ethereum-optimism/optimism/op-service/jsonutil"
 	opmetrics "github.com/ethereum-optimism/optimism/op-service/metrics"
 	"github.com/ethereum-optimism/optimism/op-service/oppprof"
 	oprpc "github.com/ethereum-optimism/optimism/op-service/rpc"
 	"github.com/ethereum-optimism/optimism/op-service/slices"
+	"github.com/ethereum-optimism/optimism/op-service/sources"
 	"github.com/ethereum-optimism/optimism/op-service/txmgr"
 )
 
@@ -66,6 +71,9 @@ type BatcherService struct {
 
 	ChannelConfig ChannelConfigProvider
 	RollupConfig  *rollup.Config
+
+	// privateInterop is the terminal seam, non-nil only when --private-interop.enabled is set.
+	privateInterop *PrivateInteropEncoder
 
 	driver *BatchSubmitter
 
@@ -177,6 +185,11 @@ func (bs *BatcherService) initFromCLIConfig(ctx context.Context, closeApp contex
 	}
 	if err := bs.initChannelConfig(cfg); err != nil {
 		return fmt.Errorf("failed to init channel config: %w", err)
+	}
+	// After the rollup config (the seam needs the PRIVATE chain's) and before the driver, which is
+	// what the seam is installed on.
+	if err := bs.initPrivateInterop(ctx, cfg); err != nil {
+		return fmt.Errorf("failed to init Private Interop: %w", err)
 	}
 	bs.initBalanceMonitor(cfg)
 	if err := bs.initMetricsServer(cfg); err != nil {
@@ -407,10 +420,115 @@ func (bs *BatcherService) initDriver(opts ...DriverSetupOption) {
 		ChannelConfig:    bs.ChannelConfig,
 		AltDA:            bs.AltDA,
 	}
+	if bs.privateInterop != nil {
+		ds.BlockEnricher = bs.privateInterop
+		ds.ChannelOutFactory = bs.privateInterop.ChannelOut
+	}
 	for _, opt := range opts {
 		opt(&ds)
 	}
 	bs.driver = NewBatchSubmitter(ds)
+}
+
+// initPrivateInterop builds the terminal seam from the --private-interop.* group.
+//
+// Everything it constructs reads the ratified operator topology's component 3, the rendering node:
+// the follower client and the range source that waits on it. The batcher's OWN rollup config is the private
+// chain's — it came from --rollup-rpc, which points at the private node — and the rendering's comes
+// from a file, because no node in this process's reach serves it.
+func (bs *BatcherService) initPrivateInterop(ctx context.Context, cfg *CLIConfig) error {
+	if !cfg.PrivateInterop.Enabled {
+		return nil
+	}
+	settings, err := cfg.PrivateInterop.Resolve()
+	if err != nil {
+		return err
+	}
+
+	renderingRollup, err := jsonutil.LoadJSON[rollup.Config](settings.RenderingRollupConfigPath)
+	if err != nil {
+		return fmt.Errorf("reading the rendering's rollup config from %s: %w", settings.RenderingRollupConfigPath, err)
+	}
+	if err := renderingRollup.Check(); err != nil {
+		return fmt.Errorf("invalid rendering rollup config: %w", err)
+	}
+	if renderingRollup.PrivateInterop == nil {
+		return errors.New("rendering rollup config does not declare private_interop")
+	}
+	if renderingRollup.L2ChainID.Cmp(bs.RollupConfig.L2ChainID) != 0 {
+		// The ratified design gives the rendering the private chain's chain ID: it IS the private
+		// chain's identity in the dependency set. A mismatch means one of the two configs belongs to
+		// a different deployment, and every transaction the seam signs would be for the wrong chain.
+		return fmt.Errorf("the rendering's chain ID %s is not the private chain's %s",
+			renderingRollup.L2ChainID, bs.RollupConfig.L2ChainID)
+	}
+
+	follower, err := NewRPCRenderingFollower(ctx, bs.Log, settings.RenderingRPC, bs.NetworkTimeout)
+	if err != nil {
+		return err
+	}
+	batcherAddr := bs.TxManager.From()
+	ranges, err := NewPrivateInteropRangeSource(PrivateInteropRangeSourceConfig{
+		Log:             bs.Log,
+		RenderingRollup: renderingRollup,
+		Rendering:       follower,
+		Batcher:         batcherAddr,
+		NetworkTimeout:  bs.NetworkTimeout,
+	})
+	if err != nil {
+		return err
+	}
+
+	// The private EL's receipt source. It is a separate client from the batcher's payload source
+	// because a payload does not carry receipts, and the rendering transformation is defined over
+	// logs.
+	privateRPC, err := dial.DialRPCClientWithTimeout(ctx, bs.Log, cfg.L2EthRpc[0])
+	if err != nil {
+		return fmt.Errorf("dialling the private execution client: %w", err)
+	}
+	receipts, err := sources.NewEthClient(client.NewBaseRPCClient(privateRPC), bs.Log, nil,
+		sources.DefaultEthClientConfig(int(settings.MaxBlocksPerRange)))
+	if err != nil {
+		return fmt.Errorf("building the private receipt source: %w", err)
+	}
+
+	signerFactory, signerAddr, err := txmgr.SignerFactoryFromCLIConfig(bs.Log, cfg.TxMgrConfig)
+	if err != nil {
+		return fmt.Errorf("resolving the standard batcher signer for rendering transactions: %w", err)
+	}
+	if signerAddr != batcherAddr {
+		return fmt.Errorf("standard batcher signer address changed during startup: %s != %s", signerAddr, batcherAddr)
+	}
+	renderingSigner := signerFactory(renderingRollup.L2ChainID)
+	txs := render.NewBatcherTxBuilder(renderingRollup.L2ChainID, settings.Gas,
+		func(tx *types.Transaction) (*types.Transaction, error) {
+			return renderingSigner(ctx, batcherAddr, tx)
+		})
+	txs.SetRegistry(settings.ClaimRegistry)
+	txs.SetEventReplayer(settings.EventReplayer)
+	txs.SetReplayMessenger(settings.ReplayMessenger)
+
+	enc, err := NewPrivateInteropEncoder(PrivateInteropConfig{
+		Rollup:            renderingRollup,
+		PrivateRollup:     bs.RollupConfig,
+		Emitters:          render.NewEmitterSet(renderingRollup.PrivateInterop.ExtraEmitters...),
+		MaxBlocksPerRange: settings.MaxBlocksPerRange,
+		MaxRangeBytes:     settings.MaxRangeBytes,
+		RollupConfigHash:  settings.RollupConfigHash,
+		DepSetHash:        settings.DepSetHash,
+		Receipts:          receipts,
+		Ranges:            ranges,
+		Txs:               txs,
+	})
+	if err != nil {
+		return err
+	}
+	bs.privateInterop = enc
+	bs.Log.Warn("PRIVATE INTEROP MODE: this batcher loads private blocks and posts their public rendering",
+		"rendering_chain_id", renderingRollup.L2ChainID, "batcher", batcherAddr,
+		"cadence_blocks", settings.MaxBlocksPerRange, "max_range_bytes", settings.MaxRangeBytes,
+		"claim_registry", settings.ClaimRegistry)
+	return nil
 }
 
 func (bs *BatcherService) initRPCServer(cfg *CLIConfig) error {

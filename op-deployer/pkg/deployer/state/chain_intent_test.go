@@ -43,6 +43,36 @@ func TestFaultGameAbsolutePrestateOverrideKeyMatchesJSONTag(t *testing.T) {
 	require.Equal(t, FaultGameAbsolutePrestateOverrideKey, jsonName)
 }
 
+func TestPrivateInteropDerivesClosedDeposits(t *testing.T) {
+	c := validBaseChainIntent()
+	c.PrivateInterop = &PrivateInterop{Role: PrivateInteropRendering}
+
+	require.NoError(t, c.Check())
+	require.Equal(t, ClosedDepositsResourceConfig(), c.EffectiveResourceConfig())
+
+	c.ResourceConfig = &ResourceConfig{
+		MaxResourceLimit:     20_000_000,
+		ElasticityMultiplier: 10,
+		SystemTxMaxGas:       PrivateInteropSystemTxMaxGas,
+	}
+	err := c.Check()
+	require.ErrorIs(t, err, ErrIncompatibleValue)
+	require.ErrorContains(t, err, "conflicting resourceConfig override")
+}
+
+func TestOrdinaryChainKeepsOptionalResourceConfig(t *testing.T) {
+	c := validBaseChainIntent()
+	require.Nil(t, c.EffectiveResourceConfig())
+
+	want := &ResourceConfig{
+		MaxResourceLimit:     20_000_000,
+		ElasticityMultiplier: 10,
+		SystemTxMaxGas:       PrivateInteropSystemTxMaxGas,
+	}
+	c.ResourceConfig = want
+	require.Same(t, want, c.EffectiveResourceConfig())
+}
+
 func TestChainIntentCheck_ZKDisputeGame(t *testing.T) {
 	prestate := common.HexToHash("0xdef")
 

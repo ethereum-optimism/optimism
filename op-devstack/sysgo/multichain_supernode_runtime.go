@@ -12,6 +12,7 @@ import (
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/ethereum/go-ethereum/log"
+	"github.com/urfave/cli/v2"
 
 	"github.com/ethereum-optimism/optimism/op-chain-ops/devkeys"
 	"github.com/ethereum-optimism/optimism/op-core/devfeatures"
@@ -321,6 +322,7 @@ func newTwoL2SupernodeRuntimeWithConfigAndSequencerMode(t devtest.T, enableInter
 		cfg.InteropLogBackfillDepth,
 		jwtSecret,
 		supernodeSequencerEnabled || cfg.SupernodeVNSequencerForBootstrap,
+		nil, // no private interop pair here: the follow module stays dormant
 	)
 
 	var l2ACL L2CLNode = supernodeL2ACL
@@ -565,6 +567,14 @@ func startTwoL2SharedSupernode(
 	interopLogBackfillDepth time.Duration,
 	jwtSecret [32]byte,
 	sequencerEnabled bool,
+	// privateInteropFollow, when non-nil, is the parsed --private-interop.* flag group that turns on
+	// the supernode's claim follow module. Nil on every ordinary supernode, which is the dormant
+	// path: no module, no goroutine, and no sibling route.
+	//
+	// It arrives as a *cli.Context rather than a struct because that is the module's ONLY config
+	// door: supernode.initClaimFollow reads the group off config.CLIConfig.RawCtx. A devstack that
+	// invented a second door would be testing a wiring no deployment has.
+	privateInteropFollow *cli.Context,
 ) (*SuperNode, *SuperNodeProxy, *SuperNodeProxy) {
 	require := t.Require()
 	logger := t.Logger().New("component", "supernode")
@@ -634,6 +644,9 @@ func startTwoL2SharedSupernode(
 		RPCConfig:                  oprpc.CLIConfig{ListenAddr: "127.0.0.1", ListenPort: 0, EnableAdmin: true},
 		InteropActivationTimestamp: interopActivationTimestamp,
 		InteropLogBackfillDepth:    interopLogBackfillDepth,
+		// RawCtx is read by exactly one consumer, the Private Interop claim follow module. A nil
+		// context reads as a disabled group, which is what every other preset wants.
+		RawCtx: privateInteropFollow,
 	}
 
 	supernode := &SuperNode{

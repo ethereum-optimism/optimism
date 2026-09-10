@@ -79,6 +79,10 @@ type PresetConfig struct {
 	// sequencers stopped, so the VN can bootstrap the chain the light sequencers EL-sync
 	// from before a test hands off sequencing to them.
 	SupernodeVNSequencerForBootstrap bool
+	// PrivateInterop, when non-nil, makes the preset's SECOND L2 chain a private-interop pair:
+	// a private sequenced chain plus the public rendering that is its identity in the dependency
+	// set. Nil on every ordinary preset, which is what keeps an ordinary preset unchanged.
+	PrivateInterop *PrivateInteropConfig
 }
 
 func NewPresetConfig() PresetConfig {

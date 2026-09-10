@@ -1,0 +1,11 @@
+{
+  "name": "proof-too-large",
+  "spec": "op-private-interop/docs/DESIGN.md: the claim is an ordinary L2 transaction, and it leads the range it describes.",
+  "kind": "invalid",
+  "description": "A well-formed claim whose proof slot is MaxProofSize + 1 bytes — the smallest violation there is. Everything about it is canonical; the only thing wrong is that it is too big, which is why the case has to carry the real bytes rather than an over-declared length. The proof is all zeroes so the fixture compresses to nothing. Refused by Encode as well as Decode: a producer that can emit what its own decoder rejects will do it at the worst possible time.",
+  "bin": "proof-too-large.bin",
+  "bytes": 65952,
+  "keccak": "0x0a7a62f698476bc4c7f61640b71f89992138c74d9bd5dff85d0a862f5547932b",
+  "proofHex": "0x",
+  "refusal": "proof-too-large"
+}

@@ -5,11 +5,13 @@ pragma solidity 0.8.25;
 import { Encoding } from "src/libraries/Encoding.sol";
 import { Hashing } from "src/libraries/Hashing.sol";
 import { Predeploys } from "src/libraries/Predeploys.sol";
+import { DevFeatures } from "src/libraries/DevFeatures.sol";
 import { TransientReentrancyAware } from "src/libraries/TransientContext.sol";
 
 // Interfaces
 import { ISemver } from "interfaces/universal/ISemver.sol";
 import { ICrossL2Inbox, Identifier } from "interfaces/L2/ICrossL2Inbox.sol";
+import { IL2DevFeatureFlags } from "interfaces/L2/IL2DevFeatureFlags.sol";
 
 /// @notice Thrown when attempting to relay a message where payload origin is not L2ToL2CrossDomainMessenger.
 error IdOriginNotL2ToL2CrossDomainMessenger();
@@ -25,6 +27,12 @@ error MessageDestinationNotRelayChain();
 
 /// @notice Thrown when attempting to relay a message whose target is L2ToL2CrossDomainMessenger.
 error MessageTargetL2ToL2CrossDomainMessenger();
+
+/// @notice Thrown when a private interop message targets the unsupported SuperchainETHBridge path.
+error MessageTargetSuperchainETHBridge();
+
+/// @notice Thrown when a private interop message is too large to render safely.
+error MessageTooLarge();
 
 /// @notice Thrown when attempting to relay a message that has already been relayed.
 error MessageAlreadyRelayed();
@@ -57,9 +65,12 @@ contract L2ToL2CrossDomainMessenger is ISemver, TransientReentrancyAware {
     /// @notice Current message version identifier.
     uint16 public constant messageVersion = uint16(0);
 
+    /// @notice Maximum message payload accepted on a private interop chain.
+    uint256 public constant MAX_PRIVATE_INTEROP_MESSAGE_SIZE = 64 * 1024;
+
     /// @notice Semantic version.
-    /// @custom:semver 1.3.2
-    string public constant version = "1.3.2";
+    /// @custom:semver 1.4.0
+    string public constant version = "1.4.0";
 
     /// @notice Mapping of message hashes to boolean receipt values. Note that a message will only be present in this
     ///         mapping if it has successfully been relayed on this chain, and can therefore not be relayed again.
@@ -138,6 +149,10 @@ contract L2ToL2CrossDomainMessenger is ISemver, TransientReentrancyAware {
     {
         if (_destination == block.chainid) revert MessageDestinationSameChain();
         if (_target == Predeploys.L2_TO_L2_CROSS_DOMAIN_MESSENGER) revert MessageTargetL2ToL2CrossDomainMessenger();
+        if (_isPrivateInteropChain()) {
+            if (_target == Predeploys.SUPERCHAIN_ETH_BRIDGE) revert MessageTargetSuperchainETHBridge();
+            if (_message.length > MAX_PRIVATE_INTEROP_MESSAGE_SIZE) revert MessageTooLarge();
+        }
 
         uint256 nonce = messageNonce();
         messageHash_ = Hashing.hashL2toL2CrossDomainMessage({
@@ -153,6 +168,14 @@ contract L2ToL2CrossDomainMessenger is ISemver, TransientReentrancyAware {
         msgNonce++;
 
         emit SentMessage(_destination, _target, nonce, msg.sender, _message);
+    }
+
+    /// @notice Returns whether this messenger is installed on the private half of a private interop pair.
+    function _isPrivateInteropChain() internal view returns (bool) {
+        (bool success, bytes memory returndata) = Predeploys.L2_DEV_FEATURE_FLAGS.staticcall(
+            abi.encodeCall(IL2DevFeatureFlags.isDevFeatureEnabled, (DevFeatures.PRIVATE_INTEROP_PRIVATE_CHAIN))
+        );
+        return success && returndata.length == 32 && abi.decode(returndata, (bool));
     }
 
     /// @notice Re-emits a previously sent message event for old messages that haven't been

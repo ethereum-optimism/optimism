@@ -164,7 +164,14 @@ contract DeployOPChain_TestBase is Test, FeatureFlags {
             operatorFeeScalar: 0,
             operatorFeeConstant: 0,
             superchainConfig: superchainConfig,
-            useCustomGasToken: useCustomGasToken
+            useCustomGasToken: useCustomGasToken,
+            // No override: the gas-limit-derived default is what every ordinary chain gets.
+            resourceConfigOverride: DeployTypes.ResourceConfigOverride({
+                enabled: false,
+                maxResourceLimit: 0,
+                elasticityMultiplier: 0,
+                systemTxMaxGas: 0
+            })
         });
     }
 
