@@ -2485,6 +2485,149 @@ contract OPContractsManagerV2_Deploy_Test is OPContractsManagerV2_TestInit {
         );
     }
 
+    /// @notice Measures a cold deployment with both initial-deploy games and custom gas token enabled.
+    function test_deploy_maximumGas_succeeds() public {
+        _enableSuperPermissionedGame();
+        _enableSuperCannonKonaGame();
+        deployConfig.startingRespectedGameType = GameTypes.SUPER_CANNON_KONA;
+        deployConfig.useCustomGasToken = true;
+
+        IOPContractsManagerV2.FullConfig memory cfg = deployConfig;
+        IOPContractsManagerContainer.Implementations memory impls = opcmV2.implementations();
+        _coolDeployDependencies(impls);
+
+        IOPContractsManagerV2.ChainContracts memory cts = opcmV2.deploy(cfg);
+        (uint64 executionGas, int64 stateGas) = _assertDeployGasBounds();
+        emit log_named_uint("deploy execution gas", executionGas);
+        emit log_named_int("deploy state gas", stateGas);
+        assertLt(executionGas, 2 ** 24 * DEPLOY_GAS_BUFFER_PERCENTAGE / 100, "Deploy exceeds gas target");
+
+        assertTrue(cts.systemConfig.isCustomGasToken(), "CGT disabled");
+        assertEq(
+            address(cts.disputeGameFactory.gameImpls(GameTypes.SUPER_PERMISSIONED)),
+            impls.superPermissionedDisputeGameImpl,
+            "permissioned fallback missing"
+        );
+        assertEq(
+            address(cts.disputeGameFactory.gameImpls(GameTypes.SUPER_CANNON_KONA)),
+            impls.superFaultDisputeGameImpl,
+            "permissionless game missing"
+        );
+        assertEq(
+            cts.anchorStateRegistry.respectedGameType().raw(),
+            GameTypes.SUPER_CANNON_KONA.raw(),
+            "respected game type mismatch"
+        );
+        assertEq(cts.proxyAdmin.owner(), cfg.proxyAdminOwner, "proxy admin owner mismatch");
+    }
+
+    /// @notice Bounds both gas dimensions with valid initial game configs, including reverting deployments.
+    function testFuzz_deploy_gasBound_succeeds(
+        IOPContractsManagerV2.FullConfig memory _cfg,
+        uint8 _gameSelection,
+        IOPContractsManagerUtils.PermissionedDisputeGameConfig memory _permissioned,
+        IOPContractsManagerUtils.FaultDisputeGameConfig memory _permissionless,
+        uint256 _initBond
+    )
+        public
+    {
+        _cfg.superchainConfig = superchainConfig;
+        _cfg.proxyAdminOwner = address(uint160(bound(uint160(_cfg.proxyAdminOwner), 1, type(uint160).max)));
+        _cfg.systemConfigOwner = address(uint160(bound(uint160(_cfg.systemConfigOwner), 1, type(uint160).max)));
+        _cfg.gasLimit = uint64(bound(_cfg.gasLimit, 1, systemConfig.maximumGasLimit()));
+        _cfg.resourceConfig.baseFeeMaxChangeDenominator =
+            uint8(bound(_cfg.resourceConfig.baseFeeMaxChangeDenominator, 2, type(uint8).max));
+        _cfg.resourceConfig.elasticityMultiplier =
+            uint8(bound(_cfg.resourceConfig.elasticityMultiplier, 1, type(uint8).max));
+        _cfg.resourceConfig.maximumBaseFee =
+            uint128(bound(_cfg.resourceConfig.maximumBaseFee, _cfg.resourceConfig.minimumBaseFee, type(uint128).max));
+        _cfg.resourceConfig.maxResourceLimit = uint32(bound(_cfg.resourceConfig.maxResourceLimit, 0, _cfg.gasLimit));
+        _cfg.resourceConfig.maxResourceLimit -=
+            _cfg.resourceConfig.maxResourceLimit % _cfg.resourceConfig.elasticityMultiplier;
+        _cfg.resourceConfig.systemTxMaxGas =
+            uint32(bound(_cfg.resourceConfig.systemTxMaxGas, 0, _cfg.gasLimit - _cfg.resourceConfig.maxResourceLimit));
+
+        bool superRoot = isDevFeatureEnabled(DevFeatures.SUPER_ROOT_GAMES_MIGRATION);
+        uint256 permissionedIndex = superRoot ? 3 : 1;
+        uint256 permissionlessIndex = superRoot ? 4 : 2;
+        _gameSelection = uint8(bound(_gameSelection, 0, 3));
+
+        _cfg.disputeGameConfigs = deployConfig.disputeGameConfigs;
+        for (uint256 i; i < _cfg.disputeGameConfigs.length; i++) {
+            _cfg.disputeGameConfigs[i].enabled = false;
+            _cfg.disputeGameConfigs[i].initBond = 0;
+            _cfg.disputeGameConfigs[i].gameArgs = bytes("");
+        }
+
+        // Select either game alone, or both with either respected game.
+        _cfg.disputeGameConfigs[permissionedIndex].enabled = _gameSelection != 1;
+        _cfg.disputeGameConfigs[permissionlessIndex].enabled = _gameSelection != 0;
+        _cfg.startingRespectedGameType =
+            _cfg.disputeGameConfigs[_gameSelection % 2 == 0 ? permissionedIndex : permissionlessIndex].gameType;
+        if (_permissionless.absolutePrestate.raw() == bytes32(0)) {
+            _permissionless.absolutePrestate = Claim.wrap(bytes32(uint256(1)));
+        }
+        _cfg.disputeGameConfigs[permissionedIndex].gameArgs = superRoot
+            ? abi.encode(IOPContractsManagerUtils.SuperPermissionedDisputeGameConfig({ proposer: _permissioned.proposer }))
+            : abi.encode(_permissioned);
+        _cfg.disputeGameConfigs[permissionlessIndex].gameArgs = abi.encode(_permissionless);
+        if (_cfg.disputeGameConfigs[permissionedIndex].enabled && !superRoot) {
+            _cfg.disputeGameConfigs[permissionedIndex].initBond = bound(_initBond, 1, type(uint256).max);
+        }
+        if (_cfg.disputeGameConfigs[permissionlessIndex].enabled) {
+            _cfg.disputeGameConfigs[permissionlessIndex].initBond = bound(_initBond, 1, type(uint256).max);
+        }
+
+        _cfg.startingAnchorRoot.l2SequenceNumber =
+            bound(_cfg.startingAnchorRoot.l2SequenceNumber, 0, type(uint64).max - 1);
+        if (
+            _cfg.startingAnchorRoot.root.raw() == bytes32(0)
+                || (
+                    _cfg.disputeGameConfigs[permissionlessIndex].enabled
+                        && _cfg.startingAnchorRoot.root.raw() == Constants.PLACEHOLDER_STARTING_ANCHOR_ROOT
+                )
+        ) {
+            _cfg.startingAnchorRoot.root = Hash.wrap(bytes32(uint256(1)));
+        }
+
+        _coolDeployDependencies(opcmV2.implementations());
+
+        try opcmV2.deploy(_cfg) { } catch { }
+
+        _assertDeployGasBounds();
+    }
+
+    /// @notice Checks net call gas; reverted state creation is rolled back.
+    function _assertDeployGasBounds() internal view returns (uint64 executionGas_, int64 stateGas_) {
+        // Amsterdam Forge returns state gas after the five fields in the pinned Vm.Gas struct.
+        (bool success, bytes memory result) = address(vm).staticcall(abi.encodeCall(vm.lastCallGas, ()));
+        require(success, "lastCallGas failed");
+        (, executionGas_,,,, stateGas_) = abi.decode(result, (uint64, uint64, uint64, int64, uint64, int64));
+        assertLe(uint256(executionGas_), 60_000_000, "Deploy execution gas exceeds 60M");
+        assertLe(int256(stateGas_), 60_000_000, "Deploy state gas exceeds 60M");
+    }
+
+    /// @notice Clears setup warmth from the shared deployment dependencies.
+    function _coolDeployDependencies(IOPContractsManagerContainer.Implementations memory _impls) internal {
+        // All encoded fields are addresses; cool their storage as well as their code.
+        bytes memory dependencies = abi.encode(
+            _impls,
+            opcmV2.blueprints(),
+            opcmV2.opcmUtils(),
+            opcmV2.contractsContainer(),
+            superchainConfig,
+            EIP1967Helper.getImplementation(address(superchainConfig)),
+            opcmV2
+        );
+        for (uint256 i; i < dependencies.length; i += 32) {
+            address dependency;
+            assembly {
+                dependency := mload(add(add(dependencies, 32), i))
+            }
+            vm.cool(dependency);
+        }
+    }
+
     /// @notice The 0xdead placeholder anchor remains allowed for initial permissioned deployments.
     function test_deploy_permissionedPlaceholderStartingAnchorRoot_succeeds() public {
         deployConfig.startingAnchorRoot =
