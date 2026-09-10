@@ -14,6 +14,7 @@ use alloy_primitives::{Address, B256, Bytes, U256, address, b256, keccak256};
 use core::{fmt, str::FromStr};
 
 const L1_BLOCK: Address = address!("4200000000000000000000000000000000000015");
+const CROSS_L2_INBOX: Address = address!("4200000000000000000000000000000000000022");
 const L2_TO_L1_MESSAGE_PASSER: Address = address!("4200000000000000000000000000000000000016");
 const L2_TO_L2_MESSENGER: Address = address!("4200000000000000000000000000000000000023");
 const NATIVE_ASSET_LIQUIDITY: Address = address!("4200000000000000000000000000000000000029");
@@ -55,6 +56,8 @@ const CLAIM_REGISTRY_CODE: &str =
     include_str!("../../../../../op-private-interop/genesis/bytecode/ClaimRegistry.hex");
 const EVENT_REPLAYER_CODE: &str =
     include_str!("../../../../../op-private-interop/genesis/bytecode/EventReplayer.hex");
+const CROSS_L2_INBOX_CODE: &str =
+    include_str!("../../../../../op-private-interop/genesis/bytecode/CrossL2Inbox.hex");
 const POLICY_MESSENGER_CODE: &str = include_str!(
     "../../../../../op-private-interop/genesis/bytecode/L2ToL2CrossDomainMessenger.hex"
 );
@@ -100,8 +103,9 @@ impl std::error::Error for GenesisProjectionError {}
 /// exactly what makes the private chain private or custom-gas-token: the CGT implementations of
 /// `L1Block` and `L2ToL1MessagePasser` become the ETH ones and the CGT marker is cleared;
 /// `LiquidityController` and `NativeAssetLiquidity` are deactivated; the stock messenger becomes
-/// the replay messenger; `ClaimRegistry` and `EventReplayer` are installed; the gas limit is the
-/// maximum and the base fee is zero.
+/// the replay messenger; `ClaimRegistry`, `EventReplayer` and the guarded `CrossL2Inbox` are
+/// installed. The `PRIVATE_PROJECTION` contract feature is enabled in `L1Block`; the gas limit
+/// is the maximum and the base fee is zero. Deposit execution retains ordinary OP semantics.
 pub fn project_genesis_from(
     private_chain_genesis: &Genesis,
 ) -> Result<Genesis, GenesisProjectionError> {
@@ -129,6 +133,11 @@ pub fn project_genesis_from(
     activate_proxy(&mut projected, L2_TO_L2_MESSENGER, bytecode(L2_TO_L2_MESSENGER_CODE));
     activate_proxy(&mut projected, CLAIM_REGISTRY, bytecode(CLAIM_REGISTRY_CODE));
     activate_proxy(&mut projected, EVENT_REPLAYER, bytecode(EVENT_REPLAYER_CODE));
+    activate_proxy(&mut projected, CROSS_L2_INBOX, bytecode(CROSS_L2_INBOX_CODE));
+    account_at(&mut projected, L1_BLOCK)
+        .storage
+        .get_or_insert_default()
+        .insert(projection_feature_slot(), TRUE_WORD);
 
     Ok(projected)
 }
@@ -221,6 +230,13 @@ fn delete_storage(genesis: &mut Genesis, address: Address, slot: B256) {
     }
 }
 
+fn projection_feature_slot() -> B256 {
+    let mut encoded = [0u8; 64];
+    encoded[..18].copy_from_slice(b"PRIVATE_PROJECTION");
+    encoded[63] = 9; // L1Block.isFeatureEnabled mapping slot.
+    keccak256(encoded)
+}
+
 fn contains_flag(value: B256, flag: B256) -> bool {
     value
         .as_slice()
@@ -273,13 +289,12 @@ mod tests {
         "../../../../../op-private-interop/genesis/testdata/private-chain-genesis.json"
     );
     const PUBLIC_PROJECTION_STATE_ROOT: B256 =
-        b256!("88e65cf29ff2b1143db9167bf9ffcb52002722154f500a048855f4f2beacf1a0");
+        b256!("f387d3f8d4cb80606e9ca2ddeb071bfaaef5f666c0c0a83cc0a8b1e09fd149db");
     const PUBLIC_PROJECTION_BLOCK_HASH: B256 =
-        b256!("c581fb8dd0b9faf6bdc2352a57aa1b36a34f3e81863449118d9a85d107b04cbc");
+        b256!("cf3850fd943bfc212e57f6493e3e5f02b6985f32bc0b75c10138ac0a3d29dc53");
 
     const SUPERCHAIN_ETH_BRIDGE: Address = address!("4200000000000000000000000000000000000024");
     const ETH_LIQUIDITY: Address = address!("4200000000000000000000000000000000000025");
-    const CROSS_L2_INBOX: Address = address!("4200000000000000000000000000000000000022");
 
     fn private_chain_genesis() -> Genesis {
         serde_json::from_str(PRIVATE_CHAIN_GENESIS_FIXTURE).unwrap()
@@ -308,11 +323,13 @@ mod tests {
     }
 
     #[test]
-    fn only_projection_genesis_enables_deposit_noops() {
+    fn only_projection_genesis_enables_contract_guards() {
         let private = private_chain_genesis();
         assert!(!is_public_projection_genesis(&private));
         assert!(!is_public_projection_genesis(&Genesis::default()));
         let mut projected = project_genesis_from(&private).unwrap();
+        assert_eq!(storage_at(&private, L1_BLOCK, projection_feature_slot()), B256::ZERO);
+        assert_eq!(storage_at(&projected, L1_BLOCK, projection_feature_slot()), TRUE_WORD);
         assert!(is_public_projection_genesis(&projected));
         deactivate_proxy(&mut projected, CLAIM_REGISTRY);
         assert!(!is_public_projection_genesis(&projected));
@@ -345,11 +362,11 @@ mod tests {
         let spec = OpChainSpec::from_genesis(project_genesis_from(&private).unwrap());
         assert_eq!(
             spec.genesis_hash(),
-            b256!("f460f40066130af21bdaf2fcc3d732572c7e5cf225bc9a306342d75773986e04")
+            b256!("b345b277611bbb2d30444284156c09a849d01a18d204a29bcbb5d751912a49bd")
         );
         assert_eq!(
             spec.genesis_header().state_root,
-            b256!("d69dd9061d84611d2868393b68813314b2b01027cf6924ceb85ce872530cf9cc")
+            b256!("6f9674aa5b6c15a91e9c2756f4046f984b8833ed1a68e8bdecb790ceed4f10bb")
         );
     }
 
@@ -370,9 +387,14 @@ mod tests {
         let private = private_chain_genesis();
         let projected = project_genesis_from(&private).unwrap();
 
-        for proxy in
-            [L1_BLOCK, L2_TO_L1_MESSAGE_PASSER, L2_TO_L2_MESSENGER, CLAIM_REGISTRY, EVENT_REPLAYER]
-        {
+        for proxy in [
+            L1_BLOCK,
+            L2_TO_L1_MESSAGE_PASSER,
+            L2_TO_L2_MESSENGER,
+            CLAIM_REGISTRY,
+            EVENT_REPLAYER,
+            CROSS_L2_INBOX,
+        ] {
             assert_eq!(
                 storage_at(&projected, proxy, IMPLEMENTATION_SLOT),
                 address_word(code_namespace(proxy))
@@ -400,7 +422,7 @@ mod tests {
             storage_at(&projected, L2_DEV_FEATURE_FLAGS, DEV_FEATURE_BITMAP_SLOT),
             OPTIMISM_PORTAL_INTEROP_FLAG
         ));
-        for proxy in [CROSS_L2_INBOX, SUPERCHAIN_ETH_BRIDGE, ETH_LIQUIDITY] {
+        for proxy in [SUPERCHAIN_ETH_BRIDGE, ETH_LIQUIDITY] {
             assert_eq!(private.alloc[&proxy], projected.alloc[&proxy]);
             assert_eq!(
                 private.alloc[&code_namespace(proxy)],

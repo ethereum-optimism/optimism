@@ -142,8 +142,8 @@ case where only a claim's L1 publication disappears while every private origin
 stays canonical; the checkpoint-retreat unit test covers the adapter's behavior
 at that boundary.
 
-User deposits are zero-effect no-ops on the public projection, including recovery
-positions. They execute normally on the private chain through the ordinary L1
-attributes builder. See [the ETH profile](ETH-PROFILE.md) for execution and receipt
-semantics; recovery obtains the schedule from the supernode and deposit contents
-from its own L1 connection.
+User deposits execute normally on both chains, including recovery positions. A
+projection-only contract feature restricts protocol calls to the current batcher;
+the execution client has no custom deposit no-op or receipt-log suppression rule.
+See [the ETH profile](ETH-PROFILE.md) for the scope of those guards. Recovery obtains
+the schedule from the supernode and deposit contents from its own L1 connection.

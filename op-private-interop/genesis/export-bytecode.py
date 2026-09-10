@@ -1,11 +1,14 @@
 #!/usr/bin/env python3
-"""Export the private profile's optimized deployed bytecode after `mise x -- just build-source`."""
+"""Export optimized private/profile and projection bytecode after `mise x -- just build-source`."""
 
 import json
 from pathlib import Path
 
 root = Path(__file__).resolve().parents[2]
-for name in ("L2ToL2CrossDomainMessenger", "SuperchainETHBridge"):
+for name in (
+    "L1Block", "L2ToL1MessagePasser", "L2ToL2CrossDomainMessenger", "SuperchainETHBridge",
+    "L2ToL2CrossDomainMessengerReplay", "ClaimRegistry", "EventReplayer", "CrossL2Inbox",
+):
     artifact_path = root / "packages/contracts-bedrock/forge-artifacts" / f"{name}.sol" / f"{name}.json"
     artifact = json.loads(artifact_path.read_text())
     metadata = artifact["metadata"]
