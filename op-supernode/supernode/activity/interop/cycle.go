@@ -40,62 +40,91 @@ func (g *dependencyGraph) addEdge(from, to *dependencyNode) {
 	to.dependedOnBy = append(to.dependedOnBy, from)
 }
 
-// checkCycle runs Kahn's topological sort algorithm to detect cycles.
-// Returns nil if the graph is acyclic (valid), ErrCycle if a cycle is detected.
-//
-// Algorithm:
-// 1. Find nodes with no dependedOnBy (nothing depends on them) → add to removeSet, mark resolved
-// 2. Remove items in removeSet from dependedOnBy of all nodes
-// 3. Repeat until either:
-//   - All nodes resolved → acyclic (valid)
-//   - No progress (removeSet empty but unresolved nodes remain) → cycle detected
+// checkCycle finds strongly connected components and marks only cycle nodes unresolved.
+// It returns ErrCycle when the graph contains a directed cycle.
 func checkCycle(g *dependencyGraph) error {
-	if len(*g) == 0 {
-		return nil
+	graphNodes := make(map[*dependencyNode]struct{}, len(*g))
+	for _, node := range *g {
+		node.resolved = false
+		graphNodes[node] = struct{}{}
 	}
 
-	for {
-		// Part 1: Find nodes with no dependedOnBy and mark them resolved
-		var removeSet []*dependencyNode
-		for _, node := range *g {
-			if !node.resolved && len(node.dependedOnBy) == 0 {
-				node.resolved = true
-				removeSet = append(removeSet, node)
+	type dfsFrame struct {
+		node     *dependencyNode
+		nextEdge int
+	}
+
+	// The first pass records finish order in the dependency graph.
+	visited := make(map[*dependencyNode]bool, len(*g))
+	finishOrder := make([]*dependencyNode, 0, len(*g))
+	for _, start := range *g {
+		if visited[start] {
+			continue
+		}
+		visited[start] = true
+		stack := []dfsFrame{{node: start}}
+		for len(stack) > 0 {
+			frame := &stack[len(stack)-1]
+			if frame.nextEdge < len(frame.node.dependsOn) {
+				next := frame.node.dependsOn[frame.nextEdge]
+				frame.nextEdge++
+				if _, ok := graphNodes[next]; !ok || visited[next] {
+					continue
+				}
+				visited[next] = true
+				stack = append(stack, dfsFrame{node: next})
+				continue
+			}
+			finishOrder = append(finishOrder, frame.node)
+			stack = stack[:len(stack)-1]
+		}
+	}
+
+	// The second pass collects components in the reversed graph.
+	visited = make(map[*dependencyNode]bool, len(*g))
+	hasCycle := false
+	for i := len(finishOrder) - 1; i >= 0; i-- {
+		start := finishOrder[i]
+		if visited[start] {
+			continue
+		}
+
+		visited[start] = true
+		stack := []*dependencyNode{start}
+		component := make([]*dependencyNode, 0, 1)
+		for len(stack) > 0 {
+			node := stack[len(stack)-1]
+			stack = stack[:len(stack)-1]
+			component = append(component, node)
+			for _, next := range node.dependedOnBy {
+				if _, ok := graphNodes[next]; !ok || visited[next] {
+					continue
+				}
+				visited[next] = true
+				stack = append(stack, next)
 			}
 		}
 
-		// If no nodes can be removed, check termination
-		if len(removeSet) == 0 {
-			// Check if all nodes are resolved
-			for _, node := range *g {
-				if !node.resolved {
-					// Unresolved nodes remain but no progress → cycle detected
-					return ErrCycle
+		// A multi-node component always contains a directed cycle.
+		componentHasCycle := len(component) > 1
+		if len(component) == 1 {
+			for _, dependency := range component[0].dependsOn {
+				if dependency == component[0] {
+					componentHasCycle = true
+					break
 				}
 			}
-			// All nodes resolved → acyclic
-			return nil
 		}
-
-		// Part 2: Remove items in removeSet from dependedOnBy of all nodes
-		for _, removed := range removeSet {
-			// Remove this node from dependedOnBy of nodes it depends on
-			for _, dependency := range removed.dependsOn {
-				dependency.dependedOnBy = removeFromSlice(dependency.dependedOnBy, removed)
-			}
+		for _, node := range component {
+			node.resolved = !componentHasCycle
 		}
+		hasCycle = hasCycle || componentHasCycle
 	}
-}
 
-// removeFromSlice removes a node from a slice of nodes.
-func removeFromSlice(slice []*dependencyNode, toRemove *dependencyNode) []*dependencyNode {
-	result := make([]*dependencyNode, 0, len(slice))
-	for _, n := range slice {
-		if n != toRemove {
-			result = append(result, n)
-		}
+	if hasCycle {
+		return ErrCycle
 	}
-	return result
+	return nil
 }
 
 // executingMessageBefore finds the latest EM in the slice with logIndex <= targetLogIdx.
@@ -166,8 +195,8 @@ func buildCycleGraph(ts uint64, chainEMs map[eth.ChainID]map[uint32]*messages.Ex
 
 // verifyCycleMessages is the cycle verification function for same-timestamp interop.
 // It verifies that same-timestamp executing messages form valid dependency relationships
-// using Kahn's topological sort algorithm.
-//
+// with strongly connected component detection.
+
 // Returns a Result with InvalidHeads populated for chains participating in cycles.
 func (i *Interop) verifyCycleMessages(ts uint64, blocksAtTimestamp map[eth.ChainID]eth.BlockID, view *frontierVerificationView) (Result, error) {
 	result := Result{
@@ -209,11 +238,10 @@ func (i *Interop) verifyCycleMessages(ts uint64, blocksAtTimestamp map[eth.Chain
 		chainEMs[chainID] = execMsgs
 	}
 
-	// Build dependency graph and check for cycles
+	// Build the dependency graph and check for cycles.
 	graph := buildCycleGraph(ts, chainEMs)
 	if err := checkCycle(graph); err != nil {
-		// Cycle detected - mark only chains with unresolved nodes as invalid
-		// (bystander chains that have same-ts EMs but aren't part of the cycle are spared)
+		// Mark only chains with cycle nodes as invalid.
 		cycleChains := collectCycleParticipants(graph)
 		if len(cycleChains) > 0 {
 			result.InvalidHeads = make(map[eth.ChainID]InvalidHead)
@@ -230,8 +258,8 @@ func (i *Interop) verifyCycleMessages(ts uint64, blocksAtTimestamp map[eth.Chain
 	return result, nil
 }
 
-// collectCycleParticipants returns the set of chains that have unresolved nodes
-// after running checkCycle. These are the chains actually participating in a cycle.
+// collectCycleParticipants returns chains with directed-cycle nodes.
+// checkCycle marks only those nodes unresolved.
 func collectCycleParticipants(graph *dependencyGraph) map[eth.ChainID]bool {
 	cycleChains := make(map[eth.ChainID]bool)
 	for _, node := range *graph {

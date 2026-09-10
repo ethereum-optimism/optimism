@@ -190,7 +190,7 @@ func TestExecutingMessageBefore(t *testing.T) {
 }
 
 // =============================================================================
-// Kahn's Algorithm Tests
+// Cycle Detection Tests
 // =============================================================================
 
 func TestCheckCycle(t *testing.T) {
@@ -429,6 +429,18 @@ func TestBuildCycleGraph(t *testing.T) {
 			expectNotInCycle: []eth.ChainID{testChainB},
 		},
 		{
+			name: "cycle with acyclic prerequisite",
+			chainEMs: mergeEMs(
+				oneWayRef(testChainA, testChainB, 0, 0),
+				oneWayRef(testChainB, testChainA, 0, 1),
+				oneWayRef(testChainA, testChainC, 1, 0),
+				oneWayRef(testChainC, testChainD, 0, 0),
+			),
+			expectCycle:      true,
+			expectInCycle:    []eth.ChainID{testChainA, testChainB},
+			expectNotInCycle: []eth.ChainID{testChainC},
+		},
+		{
 			name: "one-way dependency - no cycle",
 			chainEMs: map[eth.ChainID]map[uint32]*messages.ExecutingMessage{
 				testChainA: {0: {ChainID: testChainB, LogIdx: 5, Timestamp: testTS}},
@@ -475,12 +487,7 @@ func TestBuildCycleGraph(t *testing.T) {
 				require.Error(t, err, "expected cycle")
 
 				// Verify cycle participants
-				cycleChains := make(map[eth.ChainID]bool)
-				for _, node := range *graph {
-					if !node.resolved {
-						cycleChains[node.chainID] = true
-					}
-				}
+				cycleChains := collectCycleParticipants(graph)
 				for _, c := range tc.expectInCycle {
 					require.True(t, cycleChains[c], "chain %v should be in cycle", c)
 				}

@@ -101,8 +101,8 @@ where
 
     /// Checks the validity of all messages within the graph.
     ///
-    /// First, detects cyclic dependencies among same-timestamp executing messages using Kahn's
-    /// topological sort. If a cycle is found, returns [`MessageGraphError::CyclicDependency`]
+    /// First, detects cyclic dependencies among same-timestamp executing messages through strongly
+    /// connected components. If a cycle exists, returns [`MessageGraphError::CyclicDependency`]
     /// with the chain IDs of cycle participants. Then, validates each message independently.
     ///
     /// _Note_: This function does not account for cascading dependency failures. When
@@ -1315,6 +1315,20 @@ mod test {
             executing_timestamp,
             executing_log_index,
         )
+    }
+
+    #[test]
+    fn test_detect_cycles_excludes_acyclic_prerequisite() {
+        const CHAIN_D_ID: u64 = 4;
+        let ts = 1000;
+        let messages = vec![
+            make_em(CHAIN_A_ID, 0, ts, CHAIN_B_ID, 0, ts),
+            make_em(CHAIN_B_ID, 0, ts, CHAIN_A_ID, 1, ts),
+            make_em(CHAIN_A_ID, 1, ts, CHAIN_C_ID, 0, ts),
+            make_em(CHAIN_C_ID, 0, ts, CHAIN_D_ID, 0, ts),
+        ];
+
+        assert_eq!(detect_cycles(&messages, ts), vec![CHAIN_A_ID, CHAIN_B_ID]);
     }
 
     /// An executing message with a past timestamp is filtered out of the cycle graph.

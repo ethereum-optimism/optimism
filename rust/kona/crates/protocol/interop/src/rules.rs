@@ -176,40 +176,78 @@ fn executing_message_before(
     (pp > 0).then(|| chain_node_indices[pp - 1])
 }
 
-/// Runs Kahn's topological sort algorithm to detect cycles.
+/// Finds strongly connected components with Kosaraju's algorithm.
 ///
-/// Operates on algorithm state (parallel vecs) separately from the immutable graph nodes.
+/// Uses separate traversal state and leaves both adjacency lists unchanged.
 /// Returns the indices of nodes participating in cycles, or an empty vec if acyclic.
-fn check_cycles(depends_on: &[Vec<usize>], depended_on_by: &mut [Vec<usize>]) -> Vec<usize> {
+fn check_cycles(depends_on: &[Vec<usize>], depended_on_by: &[Vec<usize>]) -> Vec<usize> {
     let n = depends_on.len();
     if n == 0 {
         return vec![];
     }
 
-    let mut resolved = vec![false; n];
+    debug_assert_eq!(depended_on_by.len(), n);
 
-    loop {
-        // Find nodes with no depended_on_by and mark them resolved.
-        let mut remove_set = Vec::new();
-        for (i, deps) in depended_on_by.iter().enumerate() {
-            if !resolved[i] && deps.is_empty() {
-                resolved[i] = true;
-                remove_set.push(i);
+    // Record nodes after all outgoing edges finish.
+    let mut visited = vec![false; n];
+    let mut finish_order = Vec::with_capacity(n);
+    let mut stack = Vec::with_capacity(n);
+
+    for start in 0..n {
+        if visited[start] {
+            continue;
+        }
+
+        visited[start] = true;
+        stack.push((start, 0));
+
+        while let Some((node, next_edge)) = stack.pop() {
+            if next_edge == depends_on[node].len() {
+                finish_order.push(node);
+                continue;
             }
-        }
 
-        if remove_set.is_empty() {
-            // No progress, so we collect unresolved nodes (cycle participants).
-            return (0..n).filter(|&i| !resolved[i]).collect();
-        }
-
-        // Remove resolved nodes from depended_on_by of their dependencies.
-        for &removed_idx in &remove_set {
-            for &dep_idx in &depends_on[removed_idx] {
-                depended_on_by[dep_idx].retain(|&x| x != removed_idx);
+            stack.push((node, next_edge + 1));
+            let adjacent = depends_on[node][next_edge];
+            if !visited[adjacent] {
+                visited[adjacent] = true;
+                stack.push((adjacent, 0));
             }
         }
     }
+
+    // Traverse reverse edges in decreasing finish order.
+    let mut assigned = vec![false; n];
+    let mut component = Vec::new();
+    let mut traversal = Vec::with_capacity(n);
+    let mut cycle_nodes = Vec::new();
+
+    for &start in finish_order.iter().rev() {
+        if assigned[start] {
+            continue;
+        }
+
+        component.clear();
+        assigned[start] = true;
+        traversal.push(start);
+
+        while let Some(node) = traversal.pop() {
+            component.push(node);
+            for &adjacent in &depended_on_by[node] {
+                if !assigned[adjacent] {
+                    assigned[adjacent] = true;
+                    traversal.push(adjacent);
+                }
+            }
+        }
+
+        let is_cycle = component.len() > 1 || depends_on[component[0]].contains(&component[0]);
+        if is_cycle {
+            cycle_nodes.extend_from_slice(&component);
+        }
+    }
+
+    cycle_nodes
 }
 
 /// Builds a dependency graph from executing messages and checks for cycles.
@@ -289,8 +327,8 @@ pub(crate) fn detect_cycles(messages: &[EnrichedExecutingMessage], timestamp: u6
         }
     }
 
-    // Run Kahn's algorithm.
-    let cycle_indices = check_cycles(&depends_on, &mut depended_on_by);
+    // Find exact cycle participants.
+    let cycle_indices = check_cycles(&depends_on, &depended_on_by);
     if cycle_indices.is_empty() {
         return vec![];
     }
