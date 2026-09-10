@@ -8,8 +8,9 @@ Applications opt into the new `AtomicCallRouter` / `AtomicRemoteProxy` helpers
 in `packages/contracts-bedrock`. The root can call B, use the returned value in
 another call to B or C, and reject the operation after seeing the results. A remote revert propagates
 through the proxy into A without application-specific error handling.
-Nested callbacks, ETH forwarding, view-call facades, and committing after a
-caught remote failure are outside this prototype. Targets must route cross-chain dependencies through
+The original Go discovery adapter supports only root-driven calls. The suspended
+bridge described below also supports nested callbacks. ETH forwarding, view-call
+facades and committing after a caught remote failure remain unsupported. Targets must route cross-chain dependencies through
 the facade. See [the design](DESIGN.md) for the execution,
 caller-identity, signing, and block-prefix constraints.
 
@@ -114,7 +115,7 @@ The follow-up [`op-atomic-builder`](../../rust/atomic-builder/README.md) impleme
 suspended discovery through the router's fixed-gas entry points and self-only tape
 getters. `BuildSuspended` connects that coordinator to Go over a private stdio
 worker, keeping signing keys in Go and returning the exact signed envelopes used
-in final replay. The devstack's `TestSuspendedAtomicCalls` exercises this path;
+in final replay. The devstack's `TestSuspendedAtomicCalls` and `TestNestedAtomicCalls` exercise this path;
 `BuildSponsored` retains the original restart-based discovery algorithm.
 
 The suspended bridge requires a retained candidate-prefix snapshot, exact block
@@ -123,3 +124,10 @@ block by hash; a parent block alone is insufficient. The system-only preview blo
 used in devstack must remain canonical until the worker finishes because op-reth
 may discard state on unwind. Node inclusion still runs full block execution and
 the normal interop verifier. A production op-reth payload service is not included.
+
+Nested calls run inside each chain's original transaction. In the node fixture, A on
+chain A calls B on chain B, B calls a distinct C on chain A, and C makes ordinary
+local calls that observe and modify A's pending writes before calling B again.
+The same facade/router mechanism handles every cross-chain hop. The original A and
+B transactions each retain their own journal and gas; callback results unwind back
+through the callers. Remote failures still abort the whole application bundle.

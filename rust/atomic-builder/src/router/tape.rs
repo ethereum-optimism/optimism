@@ -43,6 +43,33 @@ where
         slots.push((base + U256::from(7), U256::from_be_slice(call.target.as_slice())));
         bytes(&mut slots, base + U256::from(8), &call.data);
     }
+    let mut callbacks = std::collections::BTreeMap::<U256, Vec<_>>::new();
+    for item in &tape.callbacks {
+        callbacks.entry(item.waitingSequence).or_default().push(&item.call);
+    }
+    for (sequence, calls) in callbacks {
+        let root = U256::from_be_bytes(
+            keccak256([sequence.to_be_bytes::<32>(), U256::from(15).to_be_bytes::<32>()].concat())
+                .0,
+        );
+        slots.push((root, U256::from(calls.len())));
+        let start = U256::from_be_bytes(keccak256(root.to_be_bytes::<32>()).0);
+        for (i, call) in calls.iter().enumerate() {
+            let base = start.wrapping_add(U256::from(i * 9));
+            identifier(&mut slots, base, &call.identifier);
+            slots.push((base + U256::from(5), call.sequence));
+            slots.push((base + U256::from(6), U256::from_be_slice(call.sender.as_slice())));
+            slots.push((base + U256::from(7), U256::from_be_slice(call.target.as_slice())));
+            bytes(&mut slots, base + U256::from(8), &call.data);
+        }
+    }
+    // callbackFailure and nested are packed in slot 16. Scratch getters observe the
+    // preloaded callback status, never the application's pending state.
+    slots.push((
+        U256::from(16),
+        U256::from(256 + u16::from(tape.callbacks.iter().any(|c| !c.success))),
+    ));
+    slots.push((U256::from(18), U256::from(tape.callbacks.len())));
     identifier(&mut slots, U256::from(10), &tape.completion);
     for (key, value) in slots {
         context

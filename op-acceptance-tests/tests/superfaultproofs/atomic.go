@@ -38,8 +38,17 @@ const (
 	AtomicSuspendedRevert  AtomicCallScenario = "SuspendedSponsoredRemoteReverts"
 )
 
+const (
+	AtomicNestedSuccess AtomicCallScenario = "NestedSponsoredSuccess"
+	AtomicNestedRevert  AtomicCallScenario = "NestedSponsoredCaughtRevert"
+)
+
+func (s AtomicCallScenario) nested() bool {
+	return s == AtomicNestedSuccess || s == AtomicNestedRevert
+}
+
 func (s AtomicCallScenario) suspended() bool {
-	return s == AtomicSuspendedSuccess || s == AtomicSuspendedRevert
+	return s == AtomicSuspendedSuccess || s == AtomicSuspendedRevert || s.nested()
 }
 
 func (s AtomicCallScenario) sponsored() bool {
@@ -47,7 +56,7 @@ func (s AtomicCallScenario) sponsored() bool {
 }
 
 func (s AtomicCallScenario) remoteReverts() bool {
-	return s == AtomicRemoteReverts || s == AtomicSponsoredRevert || s == AtomicSuspendedRevert
+	return s == AtomicRemoteReverts || s == AtomicSponsoredRevert || s == AtomicSuspendedRevert || s == AtomicNestedRevert
 }
 
 // RunAtomicCallConsolidationTest deploys the opt-in facade and constructs two
@@ -125,7 +134,11 @@ func atomicCallCase(t devtest.T, sys *presets.SimpleInterop, scenario AtomicCall
 	router := read("AtomicCallRouter", "AtomicCallRouter")
 	app := read("AtomicCallExample", "AtomicCallExample")
 	counter := read("AtomicCounter", "AtomicCounter")
-	var routerAddr, appAddr, counterAddr, proxy common.Address
+	if scenario.nested() {
+		app = read("AtomicNestedFixture.s", "AtomicCallRouter_Nested_Harness")
+		counter = app
+	}
+	var routerAddr, appAddr, counterAddr, proxy, callback, callbackTarget common.Address
 	blockNumbers := make(map[eth.ChainID]uint64)
 	sponsors := make(map[eth.ChainID]*sponsoredAccount)
 	plannedTransactions := make(map[eth.ChainID]*txplan.PlannedTx)
@@ -148,7 +161,7 @@ func atomicCallCase(t devtest.T, sys *presets.SimpleInterop, scenario AtomicCall
 			t.Require().Equal(routerAddr, deploy(deployerB, router))
 			appAddr = deploy(alice, app)
 			counterAddr = deploy(bob, counter)
-			if scenario.remoteReverts() {
+			if scenario.remoteReverts() && !scenario.nested() {
 				data, err := counter.ABI.Pack("setLimit", big.NewInt(5))
 				t.Require().NoError(err)
 				bob.Transact(bob.Plan(), txplan.WithTo(&counterAddr), txplan.WithData(data))
@@ -166,6 +179,26 @@ func atomicCallCase(t devtest.T, sys *presets.SimpleInterop, scenario AtomicCall
 				}
 			}
 			t.Require().NotEqual(common.Address{}, proxy)
+			if scenario.nested() {
+				artifact := read("AtomicNestedFixture.s", "AtomicCallRouter_NestedCallback_Harness")
+				callbackTarget = deploy(alice, artifact)
+				configure, err := artifact.ABI.Pack("configure", appAddr)
+				t.Require().NoError(err)
+				alice.Transact(alice.Plan(), txplan.WithTo(&callbackTarget), txplan.WithData(configure))
+				input, err := router.ABI.Pack("proxyFor", alice.ChainID().ToBig(), callbackTarget)
+				t.Require().NoError(err)
+				tx := bob.Transact(bob.Plan(), txplan.WithTo(&routerAddr), txplan.WithData(input))
+				receipt, err := tx.Included.Eval(t.Ctx())
+				t.Require().NoError(err)
+				for _, log := range receipt.Logs {
+					if log.Address == routerAddr && len(log.Topics) > 0 && log.Topics[0] == router.ABI.Events["ProxyCreated"].ID {
+						values, err := router.ABI.Events["ProxyCreated"].Inputs.NonIndexed().Unpack(log.Data)
+						t.Require().NoError(err)
+						callback = values[0].(common.Address)
+					}
+				}
+				t.Require().NotEqual(common.Address{}, callback)
+			}
 			if scenario.sponsored() {
 				sponsors[alice.ChainID()] = prepareSponsoredAccount(t, alice, sys.L2ELA, routerAddr, read, deploy)
 				sponsors[bob.ChainID()] = prepareSponsoredAccount(t, bob, sys.L2ELB, routerAddr, read, deploy)
@@ -173,7 +206,19 @@ func atomicCallCase(t devtest.T, sys *presets.SimpleInterop, scenario AtomicCall
 		},
 		BuildTxs: func(s *intraBlockSetup) ([]*txplan.PlannedTx, []*txplan.PlannedTx) {
 			if scenario.suspended() {
-				txs, result := buildSuspendedAtomic(t, sys, s, routerAddr, appAddr, proxy, app, sponsors)
+				var data []byte
+				var err error
+				if scenario.nested() {
+					failure := int64(0)
+					if scenario.remoteReverts() {
+						failure = 4
+					}
+					data, err = app.ABI.Pack("run", proxy, callback, big.NewInt(failure))
+				} else {
+					data, err = app.ABI.Pack("run", proxy, big.NewInt(3), big.NewInt(6))
+				}
+				t.Require().NoError(err)
+				txs, result := buildSuspendedAtomic(t, sys, s, routerAddr, appAddr, data, sponsors)
 				suspendedResult = result
 				for id, tx := range txs {
 					plannedTransactions[id] = tx
@@ -246,6 +291,15 @@ func atomicCallCase(t devtest.T, sys *presets.SimpleInterop, scenario AtomicCall
 			if scenario.remoteReverts() || scenario == AtomicOrphanedRemote {
 				want = common.Hash{}
 			}
+			if scenario.nested() {
+				count, err := sys.L2ELA.EthClient().GetStorageAt(t.Ctx(), callbackTarget, common.BigToHash(big.NewInt(1)), hexutil.EncodeUint64(blockNumbers[sys.L2ELA.ChainID()]))
+				t.Require().NoError(err)
+				expected := common.BigToHash(big.NewInt(1))
+				if scenario.remoteReverts() {
+					expected = common.Hash{}
+				}
+				t.Require().Equal(expected, count, "distinct contract C executes inside A's original transaction")
+			}
 			for _, item := range []struct {
 				el   *dsl.L2ELNode
 				addr common.Address
@@ -255,7 +309,15 @@ func atomicCallCase(t devtest.T, sys *presets.SimpleInterop, scenario AtomicCall
 				number := blockNumbers[item.el.ChainID()]
 				got, err := item.el.EthClient().GetStorageAt(t.Ctx(), item.addr, common.Hash{}, hexutil.EncodeUint64(number))
 				t.Require().NoError(err)
-				t.Require().Equal(want, got, "application state after cross-chain validation")
+				expectedValue := want
+				if scenario.nested() && !scenario.remoteReverts() {
+					n := int64(10)
+					if item.el.ChainID() == sys.L2ELA.ChainID() {
+						n = 34
+					}
+					expectedValue = common.BigToHash(big.NewInt(n))
+				}
+				t.Require().Equal(expectedValue, got, "application state after cross-chain validation")
 				if scenario.sponsored() {
 					id := item.el.ChainID()
 					sponsors[id].check(t, item.el, plannedTransactions[id], number, !scenario.remoteReverts())

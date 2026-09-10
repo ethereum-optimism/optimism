@@ -1,5 +1,10 @@
 # Atomic demo design
 
+This document describes the original Go discovery adapter. The
+[suspended builder](../../rust/atomic-builder/README.md) additionally implements
+nested callbacks inside each chain's original transaction using callback tapes and
+the same message-order verifier. Its Go entry point is `BuildSuspended`.
+
 The selected design keeps the existing CrossL2Inbox, access lists, EVM rules,
 and log-order cycle verifier. New opt-in application helpers live in
 `packages/contracts-bedrock`; no existing protocol contract is changed.

@@ -1405,6 +1405,25 @@ mod test {
         assert!(!detect_cycles(&messages, ts).is_empty());
     }
 
+    /// A→B→A→B nested calls share one transaction per chain. Mirrors Go's
+    /// `TestAtomicDemoNestedCallbacks`, including rejection of a genuine event cycle.
+    #[test]
+    fn test_detect_cycles_atomic_nested_callbacks() {
+        let ts = 1000;
+        let mut messages = vec![
+            make_em(CHAIN_A_ID, 1, ts, CHAIN_B_ID, 1, ts),
+            make_em(CHAIN_A_ID, 3, ts, CHAIN_B_ID, 3, ts),
+            make_em(CHAIN_A_ID, 5, ts, CHAIN_B_ID, 5, ts),
+            make_em(CHAIN_B_ID, 0, ts, CHAIN_A_ID, 0, ts),
+            make_em(CHAIN_B_ID, 2, ts, CHAIN_A_ID, 2, ts),
+            make_em(CHAIN_B_ID, 4, ts, CHAIN_A_ID, 4, ts),
+            make_em(CHAIN_B_ID, 6, ts, CHAIN_A_ID, 6, ts),
+        ];
+        assert!(detect_cycles(&messages, ts).is_empty());
+        messages[4] = make_em(CHAIN_B_ID, 2, ts, CHAIN_A_ID, 6, ts);
+        assert!(!detect_cycles(&messages, ts).is_empty());
+    }
+
     /// Multiple EMs on the same chain with no cross-chain cycle — intra-chain sequential.
     /// Mirrors op-supernode's "intra-chain sequential EMs - no cycle" test case.
     #[test]

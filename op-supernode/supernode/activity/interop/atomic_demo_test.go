@@ -106,3 +106,28 @@ func TestAtomicDemoConstructMutualSignedReferences(t *testing.T) {
 	logA.Index++
 	require.NotEqual(t, mA.Checksum(), messageFor(logA, testChainA).Checksum())
 }
+
+// A's request stays pending while B calls A, and that callback calls the still-active B.
+func TestAtomicDemoNestedCallbacks(t *testing.T) {
+	// A: request B(0), validate callback(1), request B again(2), validate inner result(3),
+	// callback result(4), validate outer B result(5), completed(6).
+	// B: validate outer request(0), request A callback(1), validate inner request(2),
+	// inner result(3), validate A callback result(4), outer result(5), validate completed(6).
+	messagesByChain := map[eth.ChainID]map[uint32]*messages.ExecutingMessage{
+		testChainA: {
+			1: {ChainID: testChainB, LogIdx: 1, Timestamp: testTS},
+			3: {ChainID: testChainB, LogIdx: 3, Timestamp: testTS},
+			5: {ChainID: testChainB, LogIdx: 5, Timestamp: testTS},
+		},
+		testChainB: {
+			0: {ChainID: testChainA, LogIdx: 0, Timestamp: testTS},
+			2: {ChainID: testChainA, LogIdx: 2, Timestamp: testTS},
+			4: {ChainID: testChainA, LogIdx: 4, Timestamp: testTS},
+			6: {ChainID: testChainA, LogIdx: 6, Timestamp: testTS},
+		},
+	}
+	require.NoError(t, checkCycle(buildCycleGraph(testTS, messagesByChain)))
+	// Waiting for A's completion before performing the inner B call is a real cycle.
+	messagesByChain[testChainB][2].LogIdx = 6
+	require.ErrorIs(t, checkCycle(buildCycleGraph(testTS, messagesByChain)), ErrCycle)
+}

@@ -2,10 +2,8 @@ package superfaultproofs
 
 import (
 	"context"
-	"math/big"
 	"time"
 
-	"github.com/ethereum-optimism/optimism/op-chain-ops/foundry"
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
 	"github.com/ethereum-optimism/optimism/op-devstack/dsl"
 	"github.com/ethereum-optimism/optimism/op-devstack/presets"
@@ -23,7 +21,7 @@ import (
 // state includes the exact system updates. Replacing it with a sibling that adds
 // the returned envelopes exercises full op-reth execution and normal interop
 // verification. This fixture does not expose a production payload-building API.
-func buildSuspendedAtomic(t devtest.T, sys *presets.SimpleInterop, setup *intraBlockSetup, router, appAddr, proxy common.Address, app *foundry.Artifact, sponsors map[eth.ChainID]*sponsoredAccount) (map[eth.ChainID]*txplan.PlannedTx, *atomic.SuspendedResult) {
+func buildSuspendedAtomic(t devtest.T, sys *presets.SimpleInterop, setup *intraBlockSetup, router, appAddr common.Address, data []byte, sponsors map[eth.ChainID]*sponsoredAccount) (map[eth.ChainID]*txplan.PlannedTx, *atomic.SuspendedResult) {
 	binary, err := (rustbin.Spec{SrcDir: "rust", Package: "op-atomic-builder", Binary: "op-atomic-builder"}).EnsureExists(t.Ctx(), t.Logger())
 	t.Require().NoError(err)
 	var chains []atomic.SuspendedChain
@@ -74,7 +72,7 @@ func buildSuspendedAtomic(t devtest.T, sys *presets.SimpleInterop, setup *intraB
 			return err == nil
 		}, 30*time.Second, 200*time.Millisecond, "candidate prefix proof must be available")
 		executor := sponsors[id].executor(&atomic.RPCExecutor{RPC: item.el.EthClient().RPC(), Parent: parent.Hash}, item.eoa)
-		chains = append(chains, atomic.SuspendedChain{Chain: n, Router: router, Sender: executor.Account, ApplicationGas: 1_000_000,
+		chains = append(chains, atomic.SuspendedChain{Chain: n, Router: router, Sender: executor.Account, ApplicationGas: 2_000_000,
 			Spec: "LAGOON", Number: prefix.Number, Timestamp: prefix.Time, GasLimit: header.GasLimit, PrefixGas: header.GasUsed,
 			BaseFee: bigs.Uint64Strict(header.BaseFee), Coinbase: header.Coinbase, PrevRandao: header.MixDigest, Snapshot: snapshot,
 			Prepare: func(ctx context.Context, data []byte, accesses types.AccessList) (*types.Transaction, error) {
@@ -85,8 +83,6 @@ func buildSuspendedAtomic(t devtest.T, sys *presets.SimpleInterop, setup *intraB
 				return types.SignNewTx(item.eoa.Key().Priv(), types.LatestSignerForChainID(id.ToBig()), &types.DynamicFeeTx{ChainID: id.ToBig(), Nonce: nonce, To: &tx.To, Data: tx.Data, Gas: tx.Gas, GasFeeCap: tx.GasFeeCap, GasTipCap: tx.GasTipCap, AccessList: tx.AccessList})
 			}})
 	}
-	data, err := app.ABI.Pack("run", proxy, big.NewInt(3), big.NewInt(6))
-	t.Require().NoError(err)
 	result, err := atomic.BuildSuspended(t.Ctx(), binary, chains, bigs.Uint64Strict(setup.alice.ChainID().ToBig()), 0, appAddr, data, 8)
 	t.Require().NoError(err)
 	planned := make(map[eth.ChainID]*txplan.PlannedTx)

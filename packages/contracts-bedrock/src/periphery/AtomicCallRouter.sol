@@ -8,7 +8,8 @@ import {
     AtomicResultWitness,
     AtomicRemoteCall,
     AtomicWitnessRequest,
-    AtomicStreamCursor
+    AtomicStreamCursor,
+    AtomicCallback
 } from "src/libraries/AtomicCallTypes.sol";
 import { ICrossL2Inbox, Identifier } from "interfaces/L2/ICrossL2Inbox.sol";
 
@@ -17,7 +18,7 @@ import { ICrossL2Inbox, Identifier } from "interfaces/L2/ICrossL2Inbox.sol";
 ///         Deploy the same router at the same address on every participating chain. Remote peers
 ///         must have this implementation; the deploying application chooses that trust domain.
 ///         Result witnesses are authenticated during cross-chain verification, not by this EVM.
-///         Native ETH forwarding, STATICCALL, nested callbacks into an active chain, and distributed
+///         Native ETH forwarding, STATICCALL, and distributed
 ///         caught-revert semantics are not supported by this initial facade.
 contract AtomicCallRouter {
     error AtomicCallRouter_AlreadyEntered();
@@ -33,6 +34,7 @@ contract AtomicCallRouter {
     error AtomicCallRouter_InvalidReader();
     error AtomicCallRouter_InsufficientGas();
     error AtomicCallRouter_CallLimit();
+    error AtomicCallRouter_CallbackFailed();
 
     /// @notice Prototype version; this contract is not a protocol predeploy.
     /// @custom:semver 0.2.0
@@ -55,6 +57,11 @@ contract AtomicCallRouter {
     AtomicResultWitness[] internal witnesses;
     AtomicRemoteCall[] internal remoteCalls;
     Identifier internal completion;
+    mapping(uint256 => AtomicRemoteCall[]) internal callbacks;
+    bool internal callbackFailure;
+    bool internal nested;
+    uint256 internal callbacksUsed;
+    uint256 internal callbacksTotal;
 
     /// @notice Creates or returns a deterministic local proxy for a remote contract.
     function proxyFor(uint256 _chainId, address _target) external returns (address proxy_) {
@@ -114,6 +121,54 @@ contract AtomicCallRouter {
     {
         if (_applicationGas == 0) revert AtomicCallRouter_InsufficientGas();
         return _executeRoot(_nonce, _target, _data, _witnesses, _applicationGas);
+    }
+
+    /// @notice Executes a root with callbacks inside its pending outbound calls.
+    function executeRootNested(
+        uint256 _nonce,
+        address _target,
+        bytes calldata _data,
+        AtomicResultWitness[] calldata _witnesses,
+        AtomicCallback[] calldata _callbacks,
+        uint64 _applicationGas
+    )
+        external
+        returns (bytes memory result_)
+    {
+        if (_applicationGas == 0) revert AtomicCallRouter_InsufficientGas();
+        _loadCallbacks(_callbacks);
+        return _executeRoot(_nonce, _target, _data, _witnesses, _applicationGas);
+    }
+
+    /// @notice Executes a destination batch with callbacks inside its pending outbound calls.
+    function executeRemoteNested(
+        bytes32 _bundleId,
+        AtomicRemoteCall[] calldata _calls,
+        AtomicResultWitness[] calldata _witnesses,
+        AtomicCallback[] calldata _callbacks,
+        Identifier calldata _rootCompletion,
+        uint64 _applicationGas,
+        uint16 _maxCalls
+    )
+        external
+        returns (bytes[] memory results_)
+    {
+        if (_applicationGas == 0) revert AtomicCallRouter_InsufficientGas();
+        _loadCallbacks(_callbacks);
+        return _executeRemote(_bundleId, _calls, _witnesses, _rootCompletion, _applicationGas, _maxCalls);
+    }
+
+    function _loadCallbacks(AtomicCallback[] calldata _callbacks) internal {
+        if (entered) revert AtomicCallRouter_AlreadyEntered();
+        nested = true;
+        callbacksTotal = _callbacks.length;
+        callbacksUsed = 0;
+        callbackFailure = false;
+        for (uint256 i; i < _callbacks.length; i++) {
+            AtomicCallback calldata item = _callbacks[i];
+            callbacks[item.waitingSequence].push(item.call);
+            if (!item.success) callbackFailure = true;
+        }
     }
 
     function _executeRoot(
@@ -194,19 +249,9 @@ contract AtomicCallRouter {
             (bool found, AtomicRemoteCall memory item) = this.remoteCallAt(AtomicStreamCursor(count, previous));
             if (!found) break;
             if (count == _maxCalls) revert AtomicCallRouter_CallLimit();
-            _checkPeer(item.identifier, item.identifier.chainId);
-            bytes32 callId = keccak256(abi.encode(_bundleId, item.identifier.chainId, item.sequence));
-            if (consumedCalls[callId]) revert AtomicCallRouter_ReplayedCall();
-            bytes32 requestHash = keccak256(abi.encode(block.chainid, item.target, item.sender, keccak256(item.data)));
-            _validate(item.identifier, keccak256(abi.encodePacked(CallRequested.selector, callId, requestHash)));
-            consumedCalls[callId] = true;
-            sourceChain = item.identifier.chainId;
-            sourceSender = item.sender;
-            (bool success, bytes memory result) = _tryCall(item.target, item.data, _applicationGas);
-            if (!success) revert AtomicCallRouter_RemoteReverted(item.sequence, result);
+            bytes memory result = _executeIncoming(item, _applicationGas);
             results_[count++] = result;
             previous = result;
-            emit CallResult(callId, keccak256(result));
         }
         if (count == 0) revert AtomicCallRouter_EmptyBatch();
         assembly {
@@ -216,6 +261,52 @@ contract AtomicCallRouter {
         _checkPeer(root, root.chainId);
         _validate(root, keccak256(abi.encodePacked(BundleCompleted.selector, _bundleId)));
         _finish();
+    }
+
+    function _executeIncoming(AtomicRemoteCall memory _item, uint64 _gas) internal returns (bytes memory result_) {
+        _checkPeer(_item.identifier, _item.identifier.chainId);
+        bytes32 callId = keccak256(abi.encode(bundle, _item.identifier.chainId, _item.sequence));
+        if (consumedCalls[callId]) revert AtomicCallRouter_ReplayedCall();
+        bytes32 requestHash = keccak256(abi.encode(block.chainid, _item.target, _item.sender, keccak256(_item.data)));
+        _validate(_item.identifier, keccak256(abi.encodePacked(CallRequested.selector, callId, requestHash)));
+        consumedCalls[callId] = true;
+        uint256 previousChain = sourceChain;
+        address previousSender = sourceSender;
+        sourceChain = _item.identifier.chainId;
+        sourceSender = _item.sender;
+        bool success;
+        (success, result_) = _tryCall(_item.target, _item.data, _gas);
+        sourceChain = previousChain;
+        sourceSender = previousSender;
+        if (success) emit CallResult(callId, keccak256(result_));
+        // Discovery can observe a nested result before either local parent unwinds.
+        // Canonical execution traverses this exact read-only acknowledgement too.
+        if (nested) this.callFinished(_item.identifier.chainId, _item.sequence, success, result_);
+        if (!success) revert AtomicCallRouter_RemoteReverted(_item.sequence, result_);
+    }
+
+    /// @notice Reads callback work associated with the currently waiting outbound call.
+    function callbackAt(
+        AtomicWitnessRequest calldata _request,
+        uint256 _index
+    )
+        external
+        view
+        returns (bool found_, AtomicRemoteCall memory call_)
+    {
+        _checkReader();
+        if (_index < callbacks[_request.sequence].length) return (true, callbacks[_request.sequence][_index]);
+    }
+
+    /// @notice Reports an incoming call's result to a suspending adapter without changing state.
+    function callFinished(uint256, uint256, bool, bytes calldata) external view {
+        _checkReader();
+    }
+
+    /// @notice Reads callback completion requirements outside application rollback scopes.
+    function callbackStatus() external view returns (bool failed_, uint256 total_) {
+        _checkReader();
+        return (callbackFailure, callbacksTotal);
     }
 
     /// @notice Reads a preloaded result. Only router self-calls may inspect the witness tape.
@@ -270,8 +361,22 @@ contract AtomicCallRouter {
         bytes32 callId = keccak256(abi.encode(bundle, block.chainid, current));
         bytes32 requestHash = keccak256(abi.encode(_chainId, _target, _sender, keccak256(_data)));
         emit CallRequested(callId, requestHash);
-        (bool found, AtomicResultWitness memory witness) =
-            this.witnessAt(AtomicWitnessRequest(current, _chainId, _target, _sender, _data));
+        AtomicWitnessRequest memory request = AtomicWitnessRequest(current, _chainId, _target, _sender, _data);
+        if (nested) {
+            uint256 index;
+            while (true) {
+                (bool hasCallback, AtomicRemoteCall memory item) = this.callbackAt(request, index);
+                if (!hasCallback) break;
+                index++;
+                callbacksUsed++;
+                // A callback spends gas in this existing call tree. Reserve half for unwinding
+                // and result verification; never manufacture a fresh application-sized budget.
+                uint64 budget = uint64(gasleft() / 2);
+                if (budget == 0) revert AtomicCallRouter_InsufficientGas();
+                _executeIncoming(item, budget);
+            }
+        }
+        (bool found, AtomicResultWitness memory witness) = this.witnessAt(request);
         if (!found) revert AtomicCallRouter_MissingWitness(_chainId, _target, _sender, _data, current);
         if (!witness.success) _revert(witness.returnData);
         Identifier memory id = witness.identifier;
@@ -292,12 +397,16 @@ contract AtomicCallRouter {
     function _finish() internal {
         // Scan in the root frame: a failure flag set inside remoteCall would be
         // rolled back when the application catches that call's revert.
+        (bool failedCallbacks, uint256 totalCallbacks) = this.callbackStatus();
+        if (failedCallbacks) revert AtomicCallRouter_CallbackFailed();
+        if (callbacksUsed != totalCallbacks) revert AtomicCallRouter_UnusedWitnesses();
         uint256 count = this.witnessCount();
         for (uint256 i; i < count; i++) {
             (bool found, AtomicResultWitness memory witness) =
                 this.witnessAt(AtomicWitnessRequest(i, 0, address(0), address(0), ""));
             if (!found) revert AtomicCallRouter_UnusedWitnesses();
             if (!witness.success) _revert(witness.returnData);
+            delete callbacks[i];
         }
         if (sequence != count) revert AtomicCallRouter_UnusedWitnesses();
         delete witnesses;
@@ -307,6 +416,10 @@ contract AtomicCallRouter {
         delete sequence;
         delete sourceChain;
         delete sourceSender;
+        delete callbackFailure;
+        delete callbacksUsed;
+        delete callbacksTotal;
+        nested = false;
         entered = false;
     }
 

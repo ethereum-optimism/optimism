@@ -3,7 +3,7 @@ pragma solidity ^0.8.0;
 
 import { Identifier } from "interfaces/L2/ICrossL2Inbox.sol";
 
-import { AtomicResultWitness, AtomicRemoteCall, AtomicWitnessRequest, AtomicStreamCursor } from "src/libraries/AtomicCallTypes.sol";
+import { AtomicResultWitness, AtomicRemoteCall, AtomicWitnessRequest, AtomicStreamCursor, AtomicCallback } from "src/libraries/AtomicCallTypes.sol";
 
 interface IAtomicCallRouter {
     error AtomicCallRouter_AlreadyEntered();
@@ -19,6 +19,7 @@ interface IAtomicCallRouter {
     error AtomicCallRouter_InvalidReader();
     error AtomicCallRouter_InsufficientGas();
     error AtomicCallRouter_CallLimit();
+    error AtomicCallRouter_CallbackFailed();
 
     event CallRequested(bytes32 indexed callId, bytes32 requestHash);
     event CallResult(bytes32 indexed callId, bytes32 resultHash);
@@ -70,4 +71,15 @@ interface IAtomicCallRouter {
         external view returns (bool found_, AtomicRemoteCall memory call_);
     function witnessCount() external view returns (uint256 count_);
     function completionIdentifier() external view returns (Identifier memory identifier_);
+    function executeRootNested(uint256 _nonce, address _target, bytes calldata _data,
+        AtomicResultWitness[] calldata _witnesses, AtomicCallback[] calldata _callbacks,
+        uint64 _applicationGas) external returns (bytes memory result_);
+    function executeRemoteNested(bytes32 _bundleId, AtomicRemoteCall[] calldata _calls,
+        AtomicResultWitness[] calldata _witnesses, AtomicCallback[] calldata _callbacks,
+        Identifier calldata _rootCompletion, uint64 _applicationGas, uint16 _maxCalls)
+        external returns (bytes[] memory results_);
+    function callbackAt(AtomicWitnessRequest calldata _request, uint256 _index)
+        external view returns (bool found_, AtomicRemoteCall memory call_);
+    function callFinished(uint256, uint256, bool, bytes calldata) external view;
+    function callbackStatus() external view returns (bool failed_, uint256 total_);
 }

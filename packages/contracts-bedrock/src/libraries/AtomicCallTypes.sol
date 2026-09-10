@@ -11,7 +11,7 @@ struct AtomicResultWitness {
     bytes returnData;
 }
 
-/// @notice One operation authenticated by the root chain's request log.
+/// @notice One operation authenticated by the calling chain's request log.
 struct AtomicRemoteCall {
     Identifier identifier;
     uint256 sequence;
@@ -33,4 +33,12 @@ struct AtomicWitnessRequest {
 struct AtomicStreamCursor {
     uint256 index;
     bytes previousResult;
+}
+
+/// @notice A callback dispatched inside a particular pending outbound call. A failed callback hint
+///         forces bundle rollback even when application code catches the callback's revert.
+struct AtomicCallback {
+    uint256 waitingSequence;
+    AtomicRemoteCall call;
+    bool success;
 }

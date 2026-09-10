@@ -1,4 +1,4 @@
-//! Serial, root-driven discovery through the real atomic router and inbox.
+//! Serial discovery with nested callbacks through the real atomic router and inbox.
 //!
 //! The envelope callback can wrap router calldata in a signed ERC-4337 operation.
 //! Every chain retains one live transaction and receives one final canonical run.
@@ -31,7 +31,7 @@ pub struct Chain<DB: Database> {
     pub sender: Address,
     /// Logs in earlier transactions, excluding logs of this transaction's envelope.
     pub prefix_logs: u32,
-    /// Fixed gas forwarded to each application call.
+    /// Fixed gas forwarded to top-level application calls; nested callbacks share local gas.
     pub application_gas: u64,
 }
 /// Discovery/canonical validation failure; candidates must be discarded, never retried in a loop.
@@ -70,6 +70,7 @@ pub struct Bundle {
 struct Tape {
     witnesses: Vec<AtomicResultWitness>,
     calls: Vec<AtomicRemoteCall>,
+    callbacks: Vec<AtomicCallback>,
     completion: Identifier,
 }
 struct Live<DB: Database> {
@@ -103,8 +104,8 @@ where
         self(chain, data, accesses)
     }
 }
-/// Builds root-driven A→B→A→B or A→B→A→C bundles with suspended application frames.
-/// Nested callbacks into an active chain and static/ETH-forwarding facades remain unsupported.
+/// Builds repeated, multi-destination and nested callback bundles with suspended frames.
+/// Each callback executes inside the destination chain's original transaction.
 #[derive(Debug)]
 pub struct Builder<DB: Database, E> {
     /// Pinned chain snapshots, keyed by chain ID.
@@ -145,21 +146,23 @@ where
         let mut live = BTreeMap::new();
         let root_tape = Tape::default();
         let root_data = |t: &Tape, gas| {
-            executeRootWithGasCall {
+            executeRootNestedCall {
                 nonce,
                 target,
                 data: data.clone(),
                 witnesses: t.witnesses.clone(),
+                callbacks: t.callbacks.clone(),
                 applicationGas: gas,
             }
             .abi_encode()
             .into()
         };
         let remote_data = |t: &Tape, gas, max| {
-            executeRemoteWithGasCall {
+            executeRemoteNestedCall {
                 bundleId: bundle,
                 calls: t.calls.clone(),
                 witnesses: t.witnesses.clone(),
+                callbacks: t.callbacks.clone(),
                 rootCompletion: t.completion.clone(),
                 applicationGas: gas,
                 maxCalls: max,
@@ -179,105 +182,7 @@ where
             },
         );
         let mut calls = 0usize;
-        let mut failed = None;
-        loop {
-            self.advance(root, &mut live)?;
-            let progress = live.get_mut(&root).unwrap().progress.take().unwrap();
-            let Progress::Paused(paused) = progress else {
-                live.get_mut(&root).unwrap().progress = Some(progress);
-                break;
-            };
-            if paused.request().endpoint != self.chains[&root].router ||
-                !paused.request().input.starts_with(&witnessAtCall::SELECTOR)
-            {
-                return Err(Error::Invalid("unexpected root yield"));
-            }
-            let request = witnessAtCall::abi_decode(&paused.request().input)?.request;
-            let index: usize =
-                request.sequence.try_into().map_err(|_| Error::Invalid("sequence overflow"))?;
-            if index < live[&root].tape.witnesses.len() {
-                let reply = tape::quote(&paused, &self.chains[&root], &live[&root].tape)?;
-                live.get_mut(&root).unwrap().progress = Some(paused.resolve(reply)?);
-                continue;
-            }
-            if index != live[&root].tape.witnesses.len() || calls >= usize::from(self.max_calls) {
-                return Err(Error::Invalid("remote call limit or sequence mismatch"));
-            }
-            calls += 1;
-            let destination: u64 =
-                request.chainId.try_into().map_err(|_| Error::Invalid("chain ID overflow"))?;
-            if destination == root || !self.chains.contains_key(&destination) || failed.is_some() {
-                return Err(Error::Invalid("unsupported remote destination"));
-            }
-            let request_id =
-                self.last_identifier(root, paused.logs(), CallRequested::SIGNATURE_HASH)?;
-            if let std::collections::btree_map::Entry::Vacant(entry) = live.entry(destination) {
-                let tape = Tape::default();
-                let discovery_data: Bytes =
-                    remote_data(&tape, self.chains[&destination].application_gas, self.max_calls);
-                let progress = self.start(destination, discovery_data.clone())?;
-                entry.insert(Live {
-                    progress: Some(progress),
-                    tape,
-                    accesses: Vec::new(),
-                    discovery_data,
-                });
-                self.advance(destination, &mut live)?;
-            }
-            let dest = live.get_mut(&destination).unwrap();
-            let Progress::Paused(waiting) = dest.progress.take().unwrap() else {
-                return Err(Error::Invalid("destination already completed"));
-            };
-            let cursor = remoteCallAtCall::abi_decode(&waiting.request().input)?.cursor;
-            if cursor.index != U256::from(dest.tape.calls.len()) {
-                return Err(Error::Invalid("destination cursor mismatch"));
-            }
-            dest.tape.calls.push(AtomicRemoteCall {
-                identifier: request_id,
-                sequence: request.sequence,
-                sender: request.sender,
-                target: request.target,
-                data: request.data,
-            });
-            let reply = tape::quote(&waiting, &self.chains[&destination], &dest.tape)?;
-            dest.progress = Some(waiting.resolve(reply)?);
-            self.advance(destination, &mut live)?;
-            let witness = match live[&destination].progress.as_ref().unwrap() {
-                Progress::Paused(next) => {
-                    let cursor = remoteCallAtCall::abi_decode(&next.request().input)?.cursor;
-                    if cursor.index != U256::from(live[&destination].tape.calls.len()) {
-                        return Err(Error::Invalid("destination did not advance"));
-                    }
-                    AtomicResultWitness {
-                        identifier: self.last_identifier(
-                            destination,
-                            next.logs(),
-                            CallResult::SIGNATURE_HASH,
-                        )?,
-                        success: true,
-                        returnData: cursor.previousResult,
-                    }
-                }
-                Progress::Complete(candidate) => {
-                    let observation = candidate
-                        .observations()
-                        .last()
-                        .ok_or(Error::Invalid("destination failed before application"))?;
-                    if observation.result.result.is_ok() {
-                        return Err(Error::Invalid("destination ended without a result"));
-                    }
-                    failed = Some(destination);
-                    AtomicResultWitness {
-                        identifier: Identifier::default(),
-                        success: false,
-                        returnData: observation.result.output.clone(),
-                    }
-                }
-            };
-            live.get_mut(&root).unwrap().tape.witnesses.push(witness);
-            let reply = tape::quote(&paused, &self.chains[&root], &live[&root].tape)?;
-            live.get_mut(&root).unwrap().progress = Some(paused.resolve(reply)?);
-        }
+        self.run_until_result(root, None, bundle, &mut live, &mut calls, 0)?;
         let root_candidate = candidate(live[&root].progress.as_ref().unwrap())?;
         validate_route(root_candidate, &live[&root].discovery_data)?;
         let completion = self
@@ -287,13 +192,17 @@ where
         if reverted == completion.is_some() {
             return Err(Error::Invalid("root outcome/completion mismatch"));
         }
-        if !reverted && failed.is_some() {
-            return Err(Error::Invalid("failed remote operation committed at root"));
-        }
         let destinations = live.keys().copied().filter(|id| *id != root).collect::<Vec<_>>();
         for id in destinations {
             if reverted {
-                if Some(id) != failed {
+                let aborted = match live[&id].progress.as_ref().unwrap() {
+                    Progress::Complete(candidate) => {
+                        validate_route(candidate, &live[&id].discovery_data)?;
+                        !candidate.routes()[0].result.is_ok()
+                    }
+                    Progress::Paused(_) => false,
+                };
+                if !aborted {
                     live.remove(&id);
                 }
             } else {
@@ -352,8 +261,188 @@ where
         self.verify_messages(&included, reverted)?;
         Ok(Bundle { chains: included, reverted })
     }
+    // Drive a chain until its transaction finishes or a particular incoming call reports
+    // its result. Other outbound calls encountered on the way recurse through this scheduler.
+    // Every local callback remains an ordinary CALL in the original machine's journal.
+    fn run_until_result(
+        &mut self,
+        id: u64,
+        expected: Option<(u64, U256)>,
+        bundle: B256,
+        live: &mut BTreeMap<u64, Live<DB>>,
+        calls: &mut usize,
+        depth: usize,
+    ) -> Result<Option<AtomicResultWitness>, Error<DB>> {
+        loop {
+            self.advance(id, live)?;
+            let Progress::Paused(paused) = live[&id].progress.as_ref().unwrap() else {
+                if expected.is_some() {
+                    return Err(Error::Invalid("incoming call ended before acknowledgement"));
+                }
+                return Ok(None);
+            };
+            if paused.request().input.starts_with(&callFinishedCall::SELECTOR) {
+                let result = callFinishedCall::abi_decode(&paused.request().input)?;
+                let source: u64 =
+                    result.sourceChain.try_into().map_err(|_| Error::Invalid("source overflow"))?;
+                if expected != Some((source, result.sequence)) {
+                    return Err(Error::Invalid("unexpected incoming call result"));
+                }
+                return Ok(Some(AtomicResultWitness {
+                    identifier: if result.success {
+                        self.last_identifier(id, paused.logs(), CallResult::SIGNATURE_HASH)?
+                    } else {
+                        Identifier::default()
+                    },
+                    success: result.success,
+                    returnData: result.result,
+                }));
+            }
+            if !paused.request().input.starts_with(&callbackAtCall::SELECTOR) {
+                return Err(Error::Invalid("unexpected application yield"));
+            }
+            let waiting = callbackAtCall::abi_decode(&paused.request().input)?;
+            let sequence: usize = waiting
+                .request
+                .sequence
+                .try_into()
+                .map_err(|_| Error::Invalid("sequence overflow"))?;
+            if waiting.index != U256::ZERO ||
+                sequence != live[&id].tape.witnesses.len() ||
+                *calls >= usize::from(self.max_calls) ||
+                depth >= 32
+            {
+                return Err(Error::Invalid("call depth, budget or sequence mismatch"));
+            }
+            let destination: u64 = waiting
+                .request
+                .chainId
+                .try_into()
+                .map_err(|_| Error::Invalid("chain ID overflow"))?;
+            if destination == id || !self.chains.contains_key(&destination) {
+                return Err(Error::Invalid("unsupported remote destination"));
+            }
+            let item = AtomicRemoteCall {
+                identifier: self.last_identifier(
+                    id,
+                    paused.logs(),
+                    CallRequested::SIGNATURE_HASH,
+                )?,
+                sequence: waiting.request.sequence,
+                sender: waiting.request.sender,
+                target: waiting.request.target,
+                data: waiting.request.data,
+            };
+            *calls += 1;
+            // Reserve the slot: a callback may issue sequence N+1 before N returns.
+            live.get_mut(&id).unwrap().tape.witnesses.push(AtomicResultWitness::default());
+            let witness =
+                self.execute_incoming(destination, item, bundle, live, calls, depth + 1)?;
+            live.get_mut(&id).unwrap().tape.witnesses[sequence] = witness;
+            let source = live.get_mut(&id).unwrap();
+            let progress = source.progress.take().unwrap();
+            if let Progress::Paused(paused) = &progress &&
+                paused.request().input.starts_with(&callbackAtCall::SELECTOR)
+            {
+                let cursor = callbackAtCall::abi_decode(&paused.request().input)?;
+                if cursor.request.sequence != U256::from(sequence) {
+                    return Err(Error::Invalid("outbound continuation changed"));
+                }
+                let reply = tape::quote(paused, &self.chains[&id], &source.tape)?;
+                let Progress::Paused(paused) = progress else { unreachable!() };
+                source.progress = Some(paused.resolve(reply)?);
+            } else {
+                // A failing callback can unwind this chain before its remote ancestor returns.
+                // Preserve its ancestor acknowledgement or completed transaction while the
+                // corresponding scheduler frame finishes resolving reserved witnesses.
+                source.progress = Some(progress);
+            }
+        }
+    }
+    fn execute_incoming(
+        &mut self,
+        id: u64,
+        item: AtomicRemoteCall,
+        bundle: B256,
+        live: &mut BTreeMap<u64, Live<DB>>,
+        calls: &mut usize,
+        depth: usize,
+    ) -> Result<AtomicResultWitness, Error<DB>> {
+        if let std::collections::btree_map::Entry::Vacant(entry) = live.entry(id) {
+            let data: Bytes = executeRemoteNestedCall {
+                bundleId: bundle,
+                calls: Vec::new(),
+                witnesses: Vec::new(),
+                callbacks: Vec::new(),
+                rootCompletion: Identifier::default(),
+                applicationGas: self.chains[&id].application_gas,
+                maxCalls: self.max_calls,
+            }
+            .abi_encode()
+            .into();
+            let progress = self.start(id, data.clone())?;
+            entry.insert(Live {
+                progress: Some(progress),
+                tape: Tape::default(),
+                accesses: Vec::new(),
+                discovery_data: data,
+            });
+            self.advance(id, live)?;
+        }
+        let transaction = live.get_mut(&id).unwrap();
+        let Progress::Paused(waiting) = transaction.progress.take().unwrap() else {
+            return Err(Error::Invalid("destination already completed"));
+        };
+        let expected = (
+            item.identifier.chainId.try_into().map_err(|_| Error::Invalid("source overflow"))?,
+            item.sequence,
+        );
+        let callback_index = if waiting.request().input.starts_with(&remoteCallAtCall::SELECTOR) {
+            let cursor = remoteCallAtCall::abi_decode(&waiting.request().input)?.cursor;
+            if cursor.index != U256::from(transaction.tape.calls.len()) {
+                return Err(Error::Invalid("destination cursor mismatch"));
+            }
+            transaction.tape.calls.push(item);
+            None
+        } else if waiting.request().input.starts_with(&callbackAtCall::SELECTOR) {
+            let cursor = callbackAtCall::abi_decode(&waiting.request().input)?;
+            let count = transaction
+                .tape
+                .callbacks
+                .iter()
+                .filter(|c| c.waitingSequence == cursor.request.sequence)
+                .count();
+            if cursor.index != U256::from(count) {
+                return Err(Error::Invalid("callback cursor mismatch"));
+            }
+            let index = transaction.tape.callbacks.len();
+            transaction.tape.callbacks.push(AtomicCallback {
+                waitingSequence: cursor.request.sequence,
+                call: item,
+                success: false,
+            });
+            Some(index)
+        } else {
+            return Err(Error::Invalid("destination is not awaiting work"));
+        };
+        let reply = tape::quote(&waiting, &self.chains[&id], &transaction.tape)?;
+        transaction.progress = Some(waiting.resolve(reply)?);
+        let result = self
+            .run_until_result(id, Some(expected), bundle, live, calls, depth)?
+            .ok_or(Error::Invalid("missing incoming result"))?;
+        let transaction = live.get_mut(&id).unwrap();
+        if let Some(index) = callback_index {
+            transaction.tape.callbacks[index].success = result.success;
+        }
+        let Progress::Paused(ack) = transaction.progress.take().unwrap() else {
+            unreachable!("result acknowledgement")
+        };
+        transaction.progress = Some(ack.resume()?);
+        self.advance(id, live)?;
+        Ok(result)
+    }
     fn limits(&self) -> Limits {
-        Limits { calls: usize::from(self.max_calls) * 8 + 16, bytes_per_call: self.max_bytes }
+        Limits { calls: usize::from(self.max_calls) * 16 + 16, bytes_per_call: self.max_bytes }
     }
     fn start(&mut self, id: u64, data: Bytes) -> Result<Progress<DB>, Error<DB>> {
         let tx =
@@ -362,6 +451,9 @@ where
         let endpoints = [
             witnessAtCall::SELECTOR,
             remoteCallAtCall::SELECTOR,
+            callbackAtCall::SELECTOR,
+            callFinishedCall::SELECTOR,
+            callbackStatusCall::SELECTOR,
             witnessCountCall::SELECTOR,
             completionIdentifierCall::SELECTOR,
         ]
@@ -395,10 +487,10 @@ where
                 paused.warm_slot(INBOX, messages::word(accesses[1]));
                 transaction.accesses.extend(accesses);
                 transaction.progress = Some(paused.resume()?);
-            } else if input.starts_with(&witnessCountCall::SELECTOR) ||
+            } else if input.starts_with(&callbackStatusCall::SELECTOR) ||
+                input.starts_with(&witnessCountCall::SELECTOR) ||
                 input.starts_with(&completionIdentifierCall::SELECTOR) ||
-                (input.starts_with(&witnessAtCall::SELECTOR) &&
-                    witnessAtCall::abi_decode(&input)?.request.target == Address::ZERO)
+                input.starts_with(&witnessAtCall::SELECTOR)
             {
                 let reply = tape::quote(&paused, chain, &transaction.tape)?;
                 transaction.progress = Some(paused.resolve(reply)?);

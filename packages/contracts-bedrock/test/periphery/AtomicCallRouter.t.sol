@@ -11,9 +11,11 @@ import {
     AtomicResultWitness,
     AtomicRemoteCall,
     AtomicWitnessRequest,
-    AtomicStreamCursor
+    AtomicStreamCursor,
+    AtomicCallback
 } from "src/libraries/AtomicCallTypes.sol";
-import { Identifier } from "interfaces/L2/ICrossL2Inbox.sol";
+import { ICrossL2Inbox, Identifier } from "interfaces/L2/ICrossL2Inbox.sol";
+import { Predeploys } from "src/libraries/Predeploys.sol";
 import { IAtomicCounter } from "interfaces/integration/IAtomicCounter.sol";
 
 abstract contract AtomicCallRouter_TestInit is Test {
@@ -21,7 +23,7 @@ abstract contract AtomicCallRouter_TestInit is Test {
     uint256 internal constant REMOTE_CHAIN = 902;
     address internal constant TARGET = address(128);
 
-    function setUp() public {
+    function setUp() public virtual {
         vm.chainId(901);
         router = new AtomicCallRouter();
     }
@@ -181,5 +183,108 @@ contract AtomicCallRouter_Uncategorized_Test is Test {
     function test_completionIdentifier_externalReader_reverts() external {
         vm.expectRevert(AtomicCallRouter.AtomicCallRouter_InvalidReader.selector);
         router.completionIdentifier();
+    }
+}
+
+contract AtomicCallRouter_Dispatch_Harness {
+    uint256 public count;
+
+    function run(address _proxy) external returns (uint256) {
+        return IAtomicCounter(_proxy).add(1);
+    }
+
+    function bump() external returns (uint256) {
+        return ++count;
+    }
+}
+
+contract AtomicCallRouter_ExecuteRootNested_Test is AtomicCallRouter_TestInit {
+    AtomicCallRouter_Dispatch_Harness internal target;
+    address internal proxy;
+
+    function setUp() public override {
+        super.setUp();
+        target = new AtomicCallRouter_Dispatch_Harness();
+        proxy = router.proxyFor(REMOTE_CHAIN, TARGET);
+        // These unit tests isolate tape enforcement; Rust/devstack tests use the actual inbox.
+        vm.etch(Predeploys.CROSS_L2_INBOX, hex"00");
+        vm.mockCall(Predeploys.CROSS_L2_INBOX, abi.encodePacked(ICrossL2Inbox.validateMessage.selector), bytes(""));
+    }
+
+    function _callbacks(
+        uint256 _count,
+        uint256 _waiting,
+        bool _success
+    )
+        internal
+        view
+        returns (AtomicCallback[] memory items_)
+    {
+        items_ = new AtomicCallback[](_count);
+        for (uint256 i; i < _count; i++) {
+            items_[i] = AtomicCallback(
+                _waiting,
+                AtomicRemoteCall(
+                    Identifier(address(router), 1, 0, block.timestamp, REMOTE_CHAIN),
+                    0,
+                    address(123),
+                    address(target),
+                    abi.encodeCall(target.bump, ())
+                ),
+                _success
+            );
+        }
+    }
+
+    function _run(AtomicCallback[] memory _callbacks, uint256 _nonce) internal {
+        AtomicResultWitness[] memory witnesses = new AtomicResultWitness[](1);
+        witnesses[0] = AtomicResultWitness(
+            Identifier(address(router), 1, 1, block.timestamp, REMOTE_CHAIN), true, abi.encode(uint256(9))
+        );
+        router.executeRootNested(
+            _nonce, address(target), abi.encodeCall(target.run, (proxy)), witnesses, _callbacks, 1_000_000
+        );
+    }
+
+    function test_executeRootNested_unusedCallback_reverts() external {
+        AtomicCallback[] memory items = _callbacks(1, 99, true);
+        vm.expectRevert(AtomicCallRouter.AtomicCallRouter_UnusedWitnesses.selector);
+        _run(items, 0);
+        assertEq(target.count(), 0);
+        _run(_callbacks(1, 0, true), 0);
+        assertEq(target.count(), 1);
+    }
+
+    function test_executeRootNested_duplicateCallback_reverts() external {
+        AtomicCallback[] memory items = _callbacks(2, 0, true);
+        vm.expectRevert(AtomicCallRouter.AtomicCallRouter_ReplayedCall.selector);
+        _run(items, 0);
+        assertEq(target.count(), 0);
+    }
+
+    function test_executeRootNested_falseCallbackHint_reverts() external {
+        AtomicCallback[] memory items = _callbacks(1, 0, false);
+        vm.expectRevert(AtomicCallRouter.AtomicCallRouter_CallbackFailed.selector);
+        _run(items, 0);
+        assertEq(target.count(), 0);
+        _run(_callbacks(1, 0, true), 0);
+        _run(_callbacks(1, 0, true), 1);
+        assertEq(target.count(), 2);
+        assertEq(router.nonces(address(this)), 2);
+    }
+
+    function test_callbackAt_externalReader_reverts() external {
+        vm.expectRevert(AtomicCallRouter.AtomicCallRouter_InvalidReader.selector);
+        router.callbackAt(AtomicWitnessRequest(0, 0, address(0), address(0), ""), 0);
+    }
+
+    function test_callFinished_externalReader_reverts() external {
+        vm.expectRevert(AtomicCallRouter.AtomicCallRouter_InvalidReader.selector);
+        router.callFinished(0, 0, true, "");
+    }
+
+    function test_callbackStatus_externalReader_reverts() external {
+        vm.expectRevert(AtomicCallRouter.AtomicCallRouter_InvalidReader.selector);
+        router.callbackStatus();
     }
 }

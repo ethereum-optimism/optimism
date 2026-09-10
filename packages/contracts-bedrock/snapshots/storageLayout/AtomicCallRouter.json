@@ -75,5 +75,40 @@
     "offset": 0,
     "slot": "10",
     "type": "struct Identifier"
+  },
+  {
+    "bytes": "32",
+    "label": "callbacks",
+    "offset": 0,
+    "slot": "15",
+    "type": "mapping(uint256 => struct AtomicRemoteCall[])"
+  },
+  {
+    "bytes": "1",
+    "label": "callbackFailure",
+    "offset": 0,
+    "slot": "16",
+    "type": "bool"
+  },
+  {
+    "bytes": "1",
+    "label": "nested",
+    "offset": 1,
+    "slot": "16",
+    "type": "bool"
+  },
+  {
+    "bytes": "32",
+    "label": "callbacksUsed",
+    "offset": 0,
+    "slot": "17",
+    "type": "uint256"
+  },
+  {
+    "bytes": "32",
+    "label": "callbacksTotal",
+    "offset": 0,
+    "slot": "18",
+    "type": "uint256"
   }
 ]

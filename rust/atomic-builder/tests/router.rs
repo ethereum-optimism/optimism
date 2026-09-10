@@ -25,7 +25,13 @@ fn artifact(name: &str) -> serde_json::Value {
         .join("../../packages/contracts-bedrock/forge-artifacts")
         .join(format!(
             "{}.sol/{name}.json",
-            if name == "AtomicCallRouter_GasProbe_Harness" { "AtomicCallRouter.t" } else { name }
+            if name.starts_with("AtomicCallRouter_Nested") {
+                "AtomicNestedFixture.s"
+            } else if name.starts_with("AtomicCallRouter_") {
+                "AtomicCallRouter.t"
+            } else {
+                name
+            }
         ));
     serde_json::from_str(
         &std::fs::read_to_string(path)
@@ -108,8 +114,19 @@ fn proxy(context: &mut OpContext<InMemoryDB>, chain: u64, nonce: u64, destinatio
 fn build(fail: bool, three: bool, gas_probe: bool, tamper: u8) {
     let layout = artifact("AtomicCallRouter");
     let slots = layout["storageLayout"]["storage"].as_array().unwrap();
-    for (name, slot) in [("witnesses", "8"), ("remoteCalls", "9"), ("completion", "10")] {
-        assert_eq!(slots.iter().find(|s| s["label"] == name).unwrap()["slot"], slot);
+    for (name, slot, offset) in [
+        ("witnesses", "8", 0),
+        ("remoteCalls", "9", 0),
+        ("completion", "10", 0),
+        ("callbacks", "15", 0),
+        ("callbackFailure", "16", 0),
+        ("nested", "16", 1),
+        ("callbacksUsed", "17", 0),
+        ("callbacksTotal", "18", 0),
+    ] {
+        let item = slots.iter().find(|s| s["label"] == name).unwrap();
+        assert_eq!(item["slot"], slot);
+        assert_eq!(item["offset"], offset);
     }
     let mut a = context(901);
     let b = context(902);
@@ -141,8 +158,8 @@ fn build(fail: bool, three: bool, gas_probe: bool, tamper: u8) {
             let count = preparations.entry(chain).or_default();
             *count += 1;
             if chain == 901 && *count == 2 && tamper == 1 {
-                use op_atomic_builder::router::abi::executeRootWithGasCall;
-                let mut call = executeRootWithGasCall::abi_decode(&data).unwrap();
+                use op_atomic_builder::router::abi::executeRootNestedCall;
+                let mut call = executeRootNestedCall::abi_decode(&data).unwrap();
                 call.applicationGas += 1;
                 data = call.abi_encode().into();
             }
@@ -497,4 +514,183 @@ fn unrelated_successful_envelope_cannot_masquerade_as_abort() {
 #[ignore = "requires compiled Solidity artifacts"]
 fn real_router_missing_final_access_list_is_rejected_once() {
     build(false, false, false, 3);
+}
+
+fn build_nested(failure: u64, limit: u16, distinct: bool) {
+    let mut a = context(901);
+    let mut b = context(902);
+    account(&mut a.journaled_state.database, APP, code("AtomicCallRouter_Nested_Harness"));
+    account(&mut b.journaled_state.database, COUNTER, code("AtomicCallRouter_Nested_Harness"));
+    let callback_contract = if distinct {
+        let address = address!("5000000000000000000000000000000000000000");
+        account(
+            &mut a.journaled_state.database,
+            address,
+            code("AtomicCallRouter_NestedCallback_Harness"),
+        );
+        a.journaled_state
+            .database
+            .insert_account_storage(address, U256::ZERO, U256::from_be_slice(APP.as_slice()))
+            .unwrap();
+        address
+    } else {
+        APP
+    };
+    let peer = proxy(&mut a, 901, 0, 902);
+    let tx = transaction(
+        902,
+        0,
+        ROUTER,
+        proxyForCall { chainId: U256::from(901), target: callback_contract }.abi_encode().into(),
+        AccessList::default(),
+    );
+    let deployed = b.clone().with_tx(tx).build_op().replay().unwrap();
+    assert!(deployed.result.is_success());
+    let callback = Address::abi_decode(deployed.result.output().unwrap()).unwrap();
+    b.journaled_state.database.commit(deployed.state);
+    let chains = [(901, a), (902, b)]
+        .into_iter()
+        .map(|(id, context)| {
+            (
+                id,
+                Chain {
+                    context,
+                    router: ROUTER,
+                    sender: USER,
+                    prefix_logs: 7,
+                    application_gas: 2_000_000,
+                },
+            )
+        })
+        .collect();
+    let mut preparations = BTreeMap::<u64, usize>::new();
+    let mut builder = Builder {
+        chains,
+        max_calls: limit,
+        max_bytes: 65536,
+        envelope: |chain, data, accesses| {
+            *preparations.entry(chain).or_default() += 1;
+            Ok(transaction(chain, 1, ROUTER, data, accesses))
+        },
+    };
+    sol! { function run(address peer, address callback, uint256 failure) returns(uint256); }
+    let built = builder.build(
+        901,
+        U256::ZERO,
+        APP,
+        runCall { peer, callback, failure: U256::from(failure) }.abi_encode().into(),
+    );
+    if limit < 3 {
+        assert!(built.is_err());
+        assert!(preparations.values().all(|count| *count == 1));
+        return;
+    }
+    let bundle = built.unwrap();
+    let reverted = (1..=4).contains(&failure) || failure == 6;
+    assert_eq!(bundle.reverted, reverted);
+    assert_eq!(bundle.chains.len(), if failure == 3 { 1 } else { 2 });
+    for (id, tx) in &bundle.chains {
+        if !reverted && failure != 5 {
+            use alloy_sol_types::SolEvent;
+            use op_atomic_builder::router::abi::ExecutingMessage;
+            let references: Vec<_> = tx
+                .execution
+                .result
+                .logs()
+                .iter()
+                .enumerate()
+                .filter_map(|(index, log)| {
+                    ExecutingMessage::decode_log(log)
+                        .ok()
+                        .map(|event| (index, event.data.id.logIndex))
+                })
+                .collect();
+            let positions = if *id == 901 { vec![1, 3, 5] } else { vec![0, 2, 4, 6] };
+            assert_eq!(
+                references,
+                positions.into_iter().map(|i| (i, U256::from(7 + i))).collect::<Vec<_>>(),
+                "actual nested logs match the Go/Kona cycle-regression fixture plus prefix"
+            );
+        }
+        assert_eq!(preparations[id], 2, "one original transaction and one canonical replay");
+        assert_eq!(tx.execution.result.is_success(), !reverted);
+        if distinct && *id == 901 {
+            let writes = &tx.execution.state[&callback_contract].storage;
+            if reverted {
+                assert!(writes.values().all(|slot| !slot.is_changed()));
+            } else {
+                assert_eq!(
+                    writes[&U256::from(1)].present_value(),
+                    U256::from(if failure == 5 { 2 } else { 1 })
+                );
+            }
+        }
+        let address = if *id == 901 { APP } else { COUNTER };
+        if reverted {
+            assert!(tx.execution.state[&address].storage.values().all(|slot| !slot.is_changed()));
+        } else {
+            assert_eq!(
+                tx.execution.state[&address].storage[&U256::ZERO].present_value(),
+                U256::from(if *id == 901 {
+                    if failure == 5 { 51 } else { 34 }
+                } else if failure == 5 {
+                    17
+                } else {
+                    10
+                })
+            );
+        }
+    }
+}
+#[test]
+#[ignore = "requires compiled Solidity artifacts"]
+fn nested_callbacks_share_pending_storage_transient_storage_and_origin() {
+    build_nested(0, 8, false);
+}
+#[test]
+#[ignore = "requires compiled Solidity artifacts"]
+fn nested_inner_callback_failure_rolls_back_both_chains() {
+    build_nested(1, 8, false);
+}
+#[test]
+#[ignore = "requires compiled Solidity artifacts"]
+fn nested_outer_callback_failure_rolls_back_both_chains() {
+    build_nested(2, 8, false);
+}
+#[test]
+#[ignore = "requires compiled Solidity artifacts"]
+fn nested_root_failure_discards_successful_destination() {
+    build_nested(3, 8, false);
+}
+#[test]
+#[ignore = "requires compiled Solidity artifacts"]
+fn nested_caught_callback_failure_still_aborts() {
+    build_nested(4, 8, false);
+}
+#[test]
+#[ignore = "requires compiled Solidity artifacts"]
+fn nested_calls_obey_the_global_discovery_limit() {
+    build_nested(0, 2, false);
+}
+
+#[test]
+#[ignore = "requires compiled Solidity artifacts"]
+fn nested_distinct_contract_c_reads_pending_a_state() {
+    build_nested(0, 8, true);
+}
+#[test]
+#[ignore = "requires compiled Solidity artifacts"]
+fn nested_distinct_contract_c_caught_failure_rolls_back() {
+    build_nested(4, 8, true);
+}
+#[test]
+#[ignore = "requires compiled Solidity artifacts"]
+fn nested_multiple_callbacks_during_one_outbound_call() {
+    build_nested(5, 8, true);
+}
+
+#[test]
+#[ignore = "requires compiled Solidity artifacts"]
+fn nested_later_callback_failure_rolls_back_earlier_callbacks() {
+    build_nested(6, 8, true);
 }

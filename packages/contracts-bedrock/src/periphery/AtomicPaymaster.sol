@@ -66,6 +66,8 @@ contract AtomicPaymaster is BasePaymaster {
                         && bytes4(data) != IAtomicCallRouter.executeRemote.selector
                         && bytes4(data) != IAtomicCallRouter.executeRootWithGas.selector
                         && bytes4(data) != IAtomicCallRouter.executeRemoteWithGas.selector
+                        && bytes4(data) != IAtomicCallRouter.executeRootNested.selector
+                        && bytes4(data) != IAtomicCallRouter.executeRemoteNested.selector
                 )
         ) revert AtomicPaymaster_NotSponsored();
         return (bytes(""), 0);

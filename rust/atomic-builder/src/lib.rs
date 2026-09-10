@@ -273,7 +273,7 @@ struct Machine<DB: Database> {
     evm: Evm<DB>,
     endpoints: Vec<Endpoint>,
     application: Option<Application>,
-    active: Option<observation::Active>,
+    active: Vec<observation::Active>,
     observations: Vec<Observation>,
     route: Option<(usize, Request)>,
     routes: Vec<Route>,
@@ -335,7 +335,7 @@ pub fn discover_with<DB: Database>(
         evm,
         endpoints,
         application,
-        active: None,
+        active: Vec::new(),
         observations: Vec::new(),
         route: None,
         routes: Vec::new(),
@@ -443,10 +443,8 @@ impl<DB: Database> Machine<DB> {
 impl<DB: Database> Machine<DB> {
     fn observe_init(&mut self, init: &FrameInit) {
         if let FrameInput::Call(call) = &init.frame_input {
-            if self.active.is_none() &&
-                self.application.as_ref().is_some_and(|app| app.matches(call))
-            {
-                self.active = Some(observation::Active::new(init.depth, call, self.evm.ctx_ref()));
+            if self.application.as_ref().is_some_and(|app| app.matches(call)) {
+                self.active.push(observation::Active::new(init.depth, call, self.evm.ctx_ref()));
             }
             if self.route.is_none() &&
                 self.application.as_ref().is_some_and(|app| {
@@ -470,8 +468,8 @@ impl<DB: Database> Machine<DB> {
             let (_, request) = self.route.take().expect("checked");
             self.routes.push(Route { request, result: result.interpreter_result().clone() });
         }
-        if self.active.as_ref().is_some_and(|active| active.depth == depth) {
-            let active = self.active.take().expect("checked");
+        if self.active.last().is_some_and(|active| active.depth == depth) {
+            let active = self.active.pop().expect("checked");
             self.observations.push(active.finish(result, self.evm.ctx())?);
         }
         Ok(())

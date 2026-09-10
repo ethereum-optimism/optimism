@@ -1,9 +1,12 @@
 # Atomic demo: suspended execution
 
-This unpublished builder library discovers root-driven cross-chain calls using one
+This unpublished builder library discovers cross-chain calls and nested callbacks using one
 live OP EVM transaction per chain. A can call B, consume its result, and call B
 again; B retains the state, warm slots and transient storage from its first leg.
-It also supports root-driven calls to multiple destinations. Each included chain
+B can also call back into A, or into a different contract C on A's chain, while
+A's original call is waiting. Callbacks share that transaction's pending writes,
+transient storage, origin and rollback checkpoints. Multiple destinations and
+multiple callbacks during one waiting call are supported. Each included chain
 gets one final canonical execution after witnesses and access lists are known.
 There is no discovery restart or fixed-point loop, and no padding transaction.
 
@@ -41,9 +44,36 @@ storage layout is pinned by tests against the compiled Solidity artifact.
 The actual inbox code executes during discovery. The coordinator warms each newly
 known checksum immediately before its router-originated validation call. The inbox
 address is warm from the start. Final execution has no substitution/warming hooks
-and uses the real encoded access list. Direct application inbox probes and nested
-remote callbacks are rejected by this adapter. No new consensus restriction on
+and uses the real encoded access list. Direct application inbox probes are rejected
+by this adapter. No new consensus restriction on
 SLOAD or new EVM opcode is introduced.
+
+## Nested callback dispatch
+
+The `executeRootNested` and `executeRemoteNested` entry points preload callbacks
+keyed to their waiting outbound sequence. `remoteCall` dispatches those callbacks
+through ordinary CALLs before reading the final result witness. A callback can
+itself make remote calls; the coordinator switches between the same live machines
+instead of starting additional transactions. Reserved witness slots let sequence
+N+1 resolve before sequence N. `callFinished` is a self-only read-only acknowledgement
+that exposes each incoming result before its parent unwinds, including failure.
+
+Incoming calls save and restore the authenticated caller context. A callback gets
+half the gas remaining at its dispatch point, leaving gas for unwinding and result
+verification. It spends gas from the existing local call tree. Top-level application
+calls retain their explicit fixed budget. Discovery and canonical replay compare
+nested application calls as well as their enclosing calls. Global call limits and
+a maximum scheduling depth of 32 bound recursion; EVM gas/depth limits still apply.
+
+Callback failure hints live in the preloaded tape above application rollback scopes.
+A false hint forces the entire router operation to revert even if application code
+catches the actual callback failure. Unused callback entries are rejected, and consumed
+call identities prevent duplication. Successful tape cleanup permits later bundles.
+These hints authorize rollback; they are not proof that the builder honestly tried
+success or grounds for automatic user billing.
+
+The existing Go and Kona message-order cycle verifiers accept the nested call order.
+Regression tests also preserve rejection of a true cycle; no verifier algorithm changes.
 
 ## Final acceptance and rollback
 
@@ -100,7 +130,8 @@ parent snapshot into a correct next-block prefix by changing the timestamp.
 The devstack scenarios pause sequencers and batchers, execute a system-only prefix
 block on each chain, wait for its proof index, retain it through discovery and
 replay, then replace it with a sibling containing the exact signed envelopes.
-Batchers resume only after both final siblings are canonical. The fixture checks for protocol-only transactions and
+Batchers resume only after both final siblings are canonical. The fixture checks
+for protocol-only transactions and
 no prefix logs, and uses the prefix's base fee, gas limit, coinbase and randomness.
 It then runs ordinary op-reth block execution and supernode interop verification,
 checking application rollback, sponsored settlement, receipt gas and message logs.
@@ -118,9 +149,10 @@ log counts still matter, and earlier transactions/system calls must be reflected
 in the pinned snapshot. Gas-sensitive transactions that diverge after envelope
 materialization are rejected, not repaired or retried.
 
-This adapter supports uint64 chain IDs, root-driven calls, ordinary user envelopes,
-and zero-value facade calls. It does not implement nested callbacks into active
-chains, STATICCALL facades, ETH forwarding or distributed caught-revert semantics.
+This adapter supports uint64 chain IDs, ordinary user envelopes and zero-value facade
+calls. It does not implement STATICCALL facades, ETH forwarding or distributed
+caught-revert semantics. The legacy Go discovery adapter still supports only
+root-driven calls; nested dispatch is connected to `BuildSuspended`.
 
 ## Validation
 
@@ -146,7 +178,7 @@ repository root (with the normal acceptance-test prerequisites built):
 
 ```sh
 RUST_JIT_BUILD=1 mise exec -- go test ./op-acceptance-tests/tests/interop/atomic \
-  -run TestSuspendedAtomicCalls -count=1 -timeout=15m
+  -run 'Test(Suspended|Nested)AtomicCalls' -count=1 -timeout=15m
 ```
 
 The contracts `atomic-suspension` check also builds the worker and runs the Go bridge
