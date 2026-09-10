@@ -992,7 +992,7 @@ jobs:
             - "packages/contracts-bedrock/forge-artifacts"
             - "op-deployer/pkg/deployer/artifacts/forge-artifacts"
       - notify-failures-on-develop:
-          mentions: "@security-oncall"
+          mentions: "<!subteam^S07K486JEH4>"
 
   check-kontrol-build:
     docker:
@@ -1017,7 +1017,7 @@ jobs:
           command: just forge-build ./test/kontrol/proofs
           working_directory: packages/contracts-bedrock
       - notify-failures-on-develop:
-          mentions: "@security-oncall"
+          mentions: "<!subteam^S07K486JEH4>"
 
   contracts-bedrock-tests:
     docker:
@@ -1106,7 +1106,7 @@ jobs:
           command: just lint-forge-tests-check-no-build
           working_directory: packages/contracts-bedrock
       - notify-failures-on-develop:
-          mentions: "@security-oncall"
+          mentions: "<!subteam^S07K486JEH4>"
 
   contracts-bedrock-heavy-fuzz-nightly:
     docker:
@@ -1160,7 +1160,7 @@ jobs:
           path: packages/contracts-bedrock/results
           when: always
       - notify-failures-on-develop:
-          mentions: "@security-oncall"
+          mentions: "<!subteam^S07K486JEH4>"
 
   contracts-bedrock-coverage:
     docker:
@@ -1253,7 +1253,7 @@ jobs:
           path: packages/contracts-bedrock/failed-test-traces.log
           when: on_fail
       - notify-failures-on-develop:
-          mentions: "@security-oncall"
+          mentions: "<!subteam^S07K486JEH4>"
 
   contracts-bedrock-tests-upgrade:
     parameters:
@@ -1363,7 +1363,7 @@ jobs:
           path: packages/contracts-bedrock/results
           when: always
       - notify-failures-on-develop:
-          mentions: "@security-oncall"
+          mentions: "<!subteam^S07K486JEH4>"
   contracts-bedrock-tests-l2-fork:
     parameters:
       fork_op_chain:
@@ -1495,7 +1495,7 @@ jobs:
           path: packages/contracts-bedrock/results
           when: always
       - notify-failures-on-develop:
-          mentions: "@security-oncall"
+          mentions: "<!subteam^S07K486JEH4>"
 
   contracts-bedrock-upload:
     machine: true
@@ -1546,7 +1546,7 @@ jobs:
           command: just check-fast
           working_directory: packages/contracts-bedrock
       - notify-failures-on-develop:
-          mentions: "@security-oncall"
+          mentions: "<!subteam^S07K486JEH4>"
 
   l2-chains-sync-check:
     docker:
