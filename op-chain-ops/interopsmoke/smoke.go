@@ -32,6 +32,8 @@ import (
 	"github.com/ethereum-optimism/optimism/op-chain-ops/interopbridge"
 	messages "github.com/ethereum-optimism/optimism/op-core/interop/messages"
 	"github.com/ethereum-optimism/optimism/op-core/predeploys"
+	"github.com/ethereum-optimism/optimism/op-private-interop/positions"
+	"github.com/ethereum-optimism/optimism/op-private-interop/render"
 	opservice "github.com/ethereum-optimism/optimism/op-service"
 	"github.com/ethereum-optimism/optimism/op-service/apis"
 	"github.com/ethereum-optimism/optimism/op-service/bigs"
@@ -61,6 +63,9 @@ const (
 	reorgTimeoutFlagName      = "reorg-timeout"
 	requireCascadeFlagName    = "require-cascade"
 	privatePairBFlagName      = "private-pair-b"
+	projectionBURLFlagName    = "projection-b-rpc"
+	projectionBRollupFlagName = "projection-b-rollup-rpc"
+	positionTimeoutFlagName   = "private-position-timeout"
 )
 
 const (
@@ -98,20 +103,26 @@ func smokeFlags(envPrefix string) []cli.Flag {
 			EnvVars: opservice.PrefixEnvVar(envPrefix, "SMOKE_PRIVATE_KEY"),
 		},
 		&cli.BoolFlag{
-			Name: privatePairBFlagName,
-			Usage: "Declare chain B the private half of a private-interop pair. Rejected here: the profile needs " +
-				"the identifier resolver, which exists only in the process that built the pair.",
+			Name:    privatePairBFlagName,
+			Usage:   "Declare chain B the private half of a private-interop pair; requires both projection RPC flags.",
 			EnvVars: opservice.PrefixEnvVar(envPrefix, "SMOKE_PRIVATE_PAIR_B"),
 		},
+		&cli.StringFlag{Name: projectionBURLFlagName, Usage: "Execution RPC for chain B's public projection.",
+			EnvVars: opservice.PrefixEnvVar(envPrefix, "SMOKE_PROJECTION_B_RPC")},
+		&cli.StringFlag{Name: projectionBRollupFlagName, Usage: "Ordinary rollup RPC for chain B's public projection (not /claimed).",
+			EnvVars: opservice.PrefixEnvVar(envPrefix, "SMOKE_PROJECTION_B_ROLLUP_RPC")},
+		&cli.DurationFlag{Name: positionTimeoutFlagName, Usage: "Maximum wait for a private message to be published.", Value: 15 * time.Minute,
+			EnvVars: opservice.PrefixEnvVar(envPrefix, "SMOKE_PRIVATE_POSITION_TIMEOUT")},
 	})
 }
 
 type remoteChain struct {
-	name      string
-	url       string
-	rpc       opclient.RPC
-	ethClient apis.EthClient
-	chainID   eth.ChainID
+	name           string
+	url            string
+	rpc            opclient.RPC
+	ethClient      apis.EthClient
+	positionSource positions.ExecutionSource
+	chainID        eth.ChainID
 	// waitTimeout bounds each wait on this chain's head or on a balance. Zero means the package
 	// default; a private-interop pair raises it, see privatePairWaitTimeout.
 	waitTimeout time.Duration
@@ -203,8 +214,12 @@ type Config struct {
 	RequireCascade bool
 
 	// PrivatePairB says chain B is the PRIVATE half of a private-interop pair, and selects the
-	// profile in private_pair.go. It is only honoured in-process: see errPrivatePairOutOfProcess.
-	PrivatePairB bool
+	// profile in private_pair.go. A remote pair also supplies both projection URLs;
+	// an in-process devstack may instead register the shared position resolver.
+	PrivatePairB           bool
+	ProjectionBURL         string
+	ProjectionBRollupURL   string
+	PrivatePositionTimeout time.Duration
 }
 
 func (m *initMessage) BlockNumber() uint64 {
@@ -488,6 +503,53 @@ func newSmokeEnv(ctx context.Context, stderr io.Writer, cfg Config) (*smokeEnv, 
 		chainA.ethClient.Close()
 		chainB.ethClient.Close()
 	}
+	if cfg.PrivatePairB && cfg.ProjectionBURL != "" {
+		projection, err := connectRemoteChain(ctx, logger, "ProjectionB", cfg.ProjectionBURL)
+		if err != nil {
+			cleanup()
+			return nil, nil, err
+		}
+		rollupRPC, err := opclient.NewRPC(ctx, logger, cfg.ProjectionBRollupURL)
+		if err != nil {
+			projection.ethClient.Close()
+			cleanup()
+			return nil, nil, err
+		}
+		rollup := sources.NewRollupClient(rollupRPC)
+		closeChains := cleanup
+		cleanup = func() { rollupRPC.Close(); projection.ethClient.Close(); closeChains() }
+		privateGenesis, err := chainB.ethClient.BlockRefByNumber(ctx, 0)
+		if err != nil {
+			cleanup()
+			return nil, nil, err
+		}
+		publicGenesis, err := projection.ethClient.BlockRefByNumber(ctx, 0)
+		if err != nil {
+			cleanup()
+			return nil, nil, err
+		}
+		rollupCfg, err := rollup.RollupConfig(ctx)
+		if err != nil {
+			cleanup()
+			return nil, nil, err
+		}
+		if rollupCfg == nil || rollupCfg.L2ChainID == nil || projection.chainID != chainB.chainID || privateGenesis.Hash == publicGenesis.Hash ||
+			privateGenesis.Time != publicGenesis.Time || rollupCfg.Genesis.L2.Hash != publicGenesis.Hash ||
+			eth.ChainIDFromBig(rollupCfg.L2ChainID) != chainB.chainID {
+			cleanup()
+			return nil, nil, fmt.Errorf("private/projection RPCs do not describe a matching chain pair")
+		}
+		timeout := cfg.PrivatePositionTimeout
+		if timeout == 0 {
+			timeout = 15 * time.Minute
+		}
+		chainA.waitTimeout = max(chainA.waitTimeout, timeout+time.Minute)
+		chainB.waitTimeout = max(chainB.waitTimeout, timeout+time.Minute)
+		resolver := positions.New(chainB.positionSource, projection.positionSource, rollup, render.NewEmitterSet(), timeout)
+		unregister := txintent.RegisterPositionResolver(chainB.chainID, resolver)
+		closeRPCs := cleanup
+		cleanup = func() { unregister(); closeRPCs() }
+	}
 	return env, cleanup, nil
 }
 
@@ -514,11 +576,12 @@ func connectRemoteChain(ctx context.Context, logger log.Logger, name, url string
 		return nil, fmt.Errorf("fetch %s chain ID: %w", name, err)
 	}
 	return &remoteChain{
-		name:      name,
-		url:       url,
-		rpc:       rpcCl,
-		ethClient: ethCl,
-		chainID:   eth.ChainIDFromBig(chainIDBig),
+		name:           name,
+		url:            url,
+		rpc:            rpcCl,
+		ethClient:      ethCl,
+		positionSource: ethCl,
+		chainID:        eth.ChainIDFromBig(chainIDBig),
 	}, nil
 }
 
@@ -683,6 +746,9 @@ func planSmoke(cfg Config) (smokePlan, error) {
 // matters for more than convenience where a chain's message identifiers are resolved by the host
 // process (see PrivatePairB).
 func Run(ctx context.Context, stderr io.Writer, cfg Config) error {
+	if err := validateProjectionConfig(cfg); err != nil {
+		return err
+	}
 	plan, err := planSmoke(cfg)
 	if err != nil {
 		return err
@@ -753,19 +819,36 @@ func (p smokePlan) run(env *smokeEnv) error {
 // runSmokeTest is the CLI adapter: it reads the common flags, lets the subcommand add its own, and
 // hands the result to Run.
 func runSmokeTest(cliCtx *cli.Context, test string, withFlags func(cfg *Config)) error {
-	if cliCtx.Bool(privatePairBFlagName) {
-		return errPrivatePairOutOfProcess
-	}
 	cfg := Config{
-		L2AURL:     cliCtx.String(l2AURLFlagName),
-		L2BURL:     cliCtx.String(l2BURLFlagName),
-		PrivateKey: cliCtx.String(privateKeyFlagName),
-		Tests:      []string{test},
+		L2AURL:                 cliCtx.String(l2AURLFlagName),
+		L2BURL:                 cliCtx.String(l2BURLFlagName),
+		PrivateKey:             cliCtx.String(privateKeyFlagName),
+		Tests:                  []string{test},
+		PrivatePairB:           cliCtx.Bool(privatePairBFlagName),
+		ProjectionBURL:         cliCtx.String(projectionBURLFlagName),
+		ProjectionBRollupURL:   cliCtx.String(projectionBRollupFlagName),
+		PrivatePositionTimeout: cliCtx.Duration(positionTimeoutFlagName),
+	}
+	if cfg.PrivatePairB && (cfg.ProjectionBURL == "" || cfg.ProjectionBRollupURL == "") {
+		return fmt.Errorf("--%s requires --%s and --%s", privatePairBFlagName, projectionBURLFlagName, projectionBRollupFlagName)
 	}
 	if withFlags != nil {
 		withFlags(&cfg)
 	}
 	return Run(cliCtx.Context, cliCtx.App.ErrWriter, cfg)
+}
+
+func validateProjectionConfig(cfg Config) error {
+	if cfg.PrivatePositionTimeout < 0 {
+		return fmt.Errorf("private position timeout must be positive")
+	}
+	if (cfg.ProjectionBURL == "") != (cfg.ProjectionBRollupURL == "") {
+		return fmt.Errorf("both projection execution and rollup RPC URLs are required")
+	}
+	if !cfg.PrivatePairB && cfg.ProjectionBURL != "" {
+		return fmt.Errorf("projection RPCs require the private-pair-b profile")
+	}
+	return nil
 }
 
 // Command returns the `smoke-interop` command tree for embedding in a host

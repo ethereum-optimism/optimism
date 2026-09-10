@@ -5,8 +5,10 @@ import (
 	"github.com/ethereum-optimism/optimism/op-devstack/dsl/poller"
 	"github.com/ethereum-optimism/optimism/op-devstack/sysgo"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
+	"github.com/ethereum-optimism/optimism/op-private-interop/positions"
 	"github.com/ethereum-optimism/optimism/op-private-interop/render"
 	"github.com/ethereum-optimism/optimism/op-service/txintent"
+	"time"
 )
 
 // PrivateInterop is what a test holds ON TOP of the ordinary two-L2 interop surfaces when chain B is
@@ -70,14 +72,10 @@ func twoL2PrivateInteropFromRuntime(t devtest.T, runtime *sysgo.MultiChainRuntim
 	// The identifier resolver. It is registered here, at the one place that holds both halves of
 	// the pair, and torn down with the test -- so a suite that never builds a pair has no resolver
 	// registered and every stock chain's identifiers are minted exactly as they were before this
-	// existed. See private_interop_resolver.go.
-	resolver := &privateInteropResolver{
-		privateEL:   preset.L2ELB,
-		renderingEL: preset.L2BSupernodeEL,
-		renderingCL: preset.L2BSupernodeCL,
-		emitters:    render.NewEmitterSet(),
-		timeout:     privateInteropPositionTimeout,
-	}
+	// existed. See op-private-interop/positions.
+	resolver := positions.New(preset.L2ELB.Escape().L2EthClient(),
+		preset.L2BSupernodeEL.Escape().L2EthClient(), preset.L2BSupernodeCL.Escape().RollupAPI(),
+		render.NewEmitterSet(), 5*time.Minute)
 	t.Cleanup(txintent.RegisterPositionResolver(preset.L2ELB.ChainID(), resolver))
 
 	preset.PrivateInterop = pi

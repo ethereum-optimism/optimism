@@ -39,7 +39,7 @@ import (
 //
 // # And why it costs nothing when nobody registers
 //
-// With no resolver registered -- every stock preset, every production use -- resolution is one
+// With no resolver registered -- ordinary public-chain callers -- resolution is one
 // atomic load and a return. The entries FromReceipt produces are then byte-identical to what it
 // produced before this file existed.
 

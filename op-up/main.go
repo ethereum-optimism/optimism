@@ -365,11 +365,9 @@ func runSupernodeSystem(ctx context.Context, stderr io.Writer, sys *presets.TwoL
 
 // runSmoke runs the interop smoke tests in THIS process, against the nodes' own RPCs.
 //
-// Both details are load-bearing. The URLs are the ELs' own, not op-up's 8545/8546 proxy, which
-// speaks one JSON-RPC object per request and cannot serve a batching client. And in-process is the
-// only place a private-interop pair can be smoked at all: a message initiated on the private chain
-// is named by its position on the rendering, and that correction lives in a resolver the devstack
-// registers in the process that built the pair.
+// Use the nodes' batch-capable RPCs rather than the logging proxies. Private
+// pairs reuse the resolver already registered by the preset; standalone smoke
+// callers instead supply explicit projection execution and rollup endpoints.
 func runSmoke(ctx context.Context, stderr io.Writer, sys *presets.TwoL2SupernodeInterop) error {
 	privKeyHex, _, err := funderAccount()
 	if err != nil {
