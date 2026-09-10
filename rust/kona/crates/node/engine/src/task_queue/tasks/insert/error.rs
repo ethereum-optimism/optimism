@@ -24,6 +24,17 @@ pub enum InsertTaskError {
         /// The current unsafe head hash.
         unsafe_head: B256,
     },
+    /// Failed to walk the current unsafe chain while classifying an older payload.
+    #[error("Failed to walk unsafe chain ancestry: {0}")]
+    AncestryLookupFailed(RpcError<TransportErrorKind>),
+    /// A block needed to walk the current unsafe chain was unavailable.
+    #[error("Unsafe chain block {hash} at height {number} is unavailable")]
+    AncestorBlockNotFound {
+        /// Expected block hash.
+        hash: B256,
+        /// Expected block number.
+        number: u64,
+    },
     /// Failed to insert new payload.
     #[error("Failed to insert new payload: {0}")]
     InsertFailed(RpcError<TransportErrorKind>),
@@ -48,6 +59,8 @@ impl EngineTaskError for InsertTaskError {
                 EngineTaskErrorSeverity::Critical
             }
             Self::StalePayload { .. } |
+            Self::AncestryLookupFailed(_) |
+            Self::AncestorBlockNotFound { .. } |
             Self::InsertFailed(_) |
             Self::UnexpectedPayloadStatus(_) => EngineTaskErrorSeverity::Temporary,
             Self::ForkchoiceUpdateFailed(inner) => inner.severity(),

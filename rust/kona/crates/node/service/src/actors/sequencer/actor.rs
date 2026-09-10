@@ -17,7 +17,7 @@ use crate::{
         },
     },
 };
-use alloy_rpc_types_engine::PayloadId;
+use alloy_rpc_types_engine::{PayloadId, PayloadStatusEnum};
 use async_trait::async_trait;
 use kona_derive::{AttributesBuilder, PipelineErrorKind};
 use kona_engine::{InsertTaskError, SealTaskError, SynchronizeTaskError};
@@ -42,8 +42,10 @@ struct UnsealedPayloadHandle {
 /// Work retained between block-building ticks.
 #[derive(Debug)]
 enum PendingPayload {
-    /// An engine build that has not yet been accepted by the conductor.
+    /// An engine build that has not yet been sealed.
     Unsealed(Box<UnsealedPayloadHandle>),
+    /// The exact sealed payload whose conductor commitment is not yet acknowledged.
+    Sealed(Box<OpExecutionPayloadEnvelope>),
     /// The exact payload accepted by the conductor but not yet canonicalized locally.
     Committed(Box<OpExecutionPayloadEnvelope>),
 }
@@ -146,8 +148,8 @@ where
         }
     }
 
-    /// Seals an engine build and commits the exact payload to the conductor.
-    async fn seal_and_commit_payload(
+    /// Seals an engine build without making it canonical.
+    async fn seal_payload(
         &self,
         unsealed_payload_handle: &UnsealedPayloadHandle,
     ) -> Result<OpExecutionPayloadEnvelope, SequencerActorError> {
@@ -164,16 +166,31 @@ where
         update_total_transactions_sequenced(
             unsealed_payload_handle.attributes_with_parent.count_transactions(),
         );
-
-        if let Some(conductor) = &self.conductor {
-            let conductor_commitment_start = Instant::now();
-            conductor.commit_unsafe_payload(&payload).await.inspect_err(|err| {
-                error!(target: "sequencer", ?err, "Failed to commit unsafe payload to conductor");
-            })?;
-            update_conductor_commitment_duration_metrics(conductor_commitment_start.elapsed());
-        }
-
         Ok(payload)
+    }
+
+    /// Commits a sealed payload, retaining the exact envelope if acknowledgement fails.
+    async fn commit_payload_or_backoff(
+        &mut self,
+        payload: Box<OpExecutionPayloadEnvelope>,
+    ) -> Option<Box<OpExecutionPayloadEnvelope>> {
+        let Some(conductor) = &self.conductor else {
+            return Some(payload);
+        };
+
+        let conductor_commitment_start = Instant::now();
+        match conductor.commit_unsafe_payload(&payload).await {
+            Ok(()) => {
+                update_conductor_commitment_duration_metrics(conductor_commitment_start.elapsed());
+                Some(payload)
+            }
+            Err(err) => {
+                error!(target: "sequencer", ?err, "Failed to commit unsafe payload to conductor; backing off sequencer");
+                self.pending_payload = Some(PendingPayload::Sealed(payload));
+                self.build_ticker.reset_after(Duration::from_secs(1));
+                None
+            }
+        }
     }
 
     /// Canonicalizes a conductor-approved payload and then publishes it to peers.
@@ -194,19 +211,8 @@ where
         let committed_payload = match pending {
             Some(PendingPayload::Unsealed(unsealed)) => {
                 let seal_start = Instant::now();
-                match self.seal_and_commit_payload(&unsealed).await {
-                    Ok(payload) => {
-                        self.last_seal_duration = seal_start.elapsed();
-                        Some(Box::new(payload))
-                    }
-                    Err(SequencerActorError::Conductor(err)) => {
-                        // Match op-node's temporary-error behavior: retain the build so the same
-                        // payload can be sealed and committed again after a short backoff.
-                        error!(target: "sequencer", ?err, "Failed to commit unsafe payload to conductor; backing off sequencer");
-                        self.pending_payload = Some(PendingPayload::Unsealed(unsealed));
-                        self.build_ticker.reset_after(Duration::from_secs(1));
-                        return Ok(());
-                    }
+                let payload = match self.seal_payload(&unsealed).await {
+                    Ok(payload) => Box::new(payload),
                     Err(SequencerActorError::EngineError(EngineClientError::SealError(err))) => {
                         if is_seal_task_err_fatal(&err) {
                             error!(target: "sequencer", ?err, "Critical seal task error occurred");
@@ -219,7 +225,18 @@ where
                         error!(target: "sequencer", err = ?other_err, "Unexpected error sealing payload");
                         return Err(other_err);
                     }
-                }
+                };
+                self.last_seal_duration = seal_start.elapsed();
+                let Some(payload) = self.commit_payload_or_backoff(payload).await else {
+                    return Ok(());
+                };
+                Some(payload)
+            }
+            Some(PendingPayload::Sealed(payload)) => {
+                let Some(payload) = self.commit_payload_or_backoff(payload).await else {
+                    return Ok(());
+                };
+                Some(payload)
             }
             Some(PendingPayload::Committed(payload)) => Some(payload),
             None => None,
@@ -238,7 +255,11 @@ where
                         return Ok(());
                     }
                     CanonicalizationErrorAction::DropStale => {
-                        warn!(target: "sequencer", ?err, "Dropping stale conductor-approved payload");
+                        if self.conductor.is_some() {
+                            error!(target: "sequencer", ?err, "Conductor-approved payload became stale; stopping to prevent a conflicting same-height replacement");
+                            return Err(EngineClientError::CanonicalizeError(err).into());
+                        }
+                        warn!(target: "sequencer", ?err, "Dropping stale payload");
                         self.build_ticker.reset_immediately();
                         return Ok(());
                     }
@@ -554,13 +575,18 @@ enum CanonicalizationErrorAction {
 const fn canonicalization_error_action(err: &InsertTaskError) -> CanonicalizationErrorAction {
     match err {
         InsertTaskError::StalePayload { .. } => CanonicalizationErrorAction::DropStale,
-        InsertTaskError::InsertFailed(_) | InsertTaskError::UnexpectedPayloadStatus(_) => {
-            CanonicalizationErrorAction::Retry
+        InsertTaskError::UnexpectedPayloadStatus(PayloadStatusEnum::Invalid { .. }) => {
+            CanonicalizationErrorAction::Fatal
         }
+        InsertTaskError::AncestryLookupFailed(_) |
+        InsertTaskError::AncestorBlockNotFound { .. } |
+        InsertTaskError::InsertFailed(_) |
+        InsertTaskError::UnexpectedPayloadStatus(_) => CanonicalizationErrorAction::Retry,
         InsertTaskError::ForkchoiceUpdateFailed(err) => match err {
-            SynchronizeTaskError::FinalizedAheadOfUnsafe(_, _) => {
-                CanonicalizationErrorAction::Fatal
-            }
+            SynchronizeTaskError::FinalizedAheadOfUnsafe(_, _) |
+            SynchronizeTaskError::UnexpectedPayloadStatus(PayloadStatusEnum::Invalid {
+                ..
+            }) => CanonicalizationErrorAction::Fatal,
             SynchronizeTaskError::ForkchoiceUpdateFailed(_) |
             SynchronizeTaskError::InvalidForkchoiceState |
             SynchronizeTaskError::UnexpectedPayloadStatus(_) => CanonicalizationErrorAction::Retry,
@@ -590,6 +616,8 @@ fn is_seal_task_err_fatal(err: &SealTaskError) -> bool {
             InsertTaskError::L2BlockInfoConstruction(_) |
             InsertTaskError::MpscSend(_) => true,
             InsertTaskError::StalePayload { .. } |
+            InsertTaskError::AncestryLookupFailed(_) |
+            InsertTaskError::AncestorBlockNotFound { .. } |
             InsertTaskError::InsertFailed(_) |
             InsertTaskError::UnexpectedPayloadStatus(_) => false,
         },
