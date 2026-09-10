@@ -147,6 +147,10 @@ type EthClient struct {
 	// cache BlockRef by hash
 	// common.Hash -> eth.BlockRef
 	blockRefsCache *caching.LRUCache[common.Hash, eth.BlockRef]
+
+	// Deduplicates the complete block-body and receipt fetch, and permits L1
+	// heads to warm the caches before derivation or sequencing needs them.
+	receiptsFetcher *asyncReceiptsFetcher
 }
 
 var _ apis.EthClient = (*EthClient)(nil)
@@ -163,7 +167,7 @@ func NewEthClient(client client.RPC, log log.Logger, metrics caching.Metrics, co
 	if recProvider.isInnerNil() {
 		return nil, errors.New("failed to establish receipts provider")
 	}
-	return &EthClient{
+	ethClient := &EthClient{
 		client:            client,
 		recProvider:       recProvider,
 		trustRPC:          config.TrustRPC,
@@ -173,7 +177,9 @@ func NewEthClient(client client.RPC, log log.Logger, metrics caching.Metrics, co
 		headersCache:      caching.NewLRUCache[common.Hash, *types.Header](metrics, "headers", config.HeadersCacheSize),
 		payloadsCache:     caching.NewLRUCache[common.Hash, *eth.ExecutionPayloadEnvelope](metrics, "payloads", config.PayloadsCacheSize),
 		blockRefsCache:    caching.NewLRUCache[common.Hash, eth.L1BlockRef](metrics, "blockrefs", config.BlockRefsCacheSize),
-	}, nil
+	}
+	ethClient.receiptsFetcher = newAsyncReceiptsFetcher(ethClient.fetchReceipts)
+	return ethClient, nil
 }
 
 // SubscribeNewHead subscribes to notifications about the current blockchain head on the given channel.
@@ -527,6 +533,25 @@ func (s *EthClient) FetchReceiptsByNumber(ctx context.Context, number uint64) (e
 // It verifies the receipt hash in the block header against the receipt hash of the fetched receipts
 // to ensure that the execution engine did not fail to return any receipts.
 func (s *EthClient) FetchReceipts(ctx context.Context, blockHash common.Hash) (eth.BlockInfo, optypes.Receipts, error) {
+	// Tests and specialized users may construct an EthClient directly instead
+	// of using NewEthClient. Keep that unsupported construction pattern working
+	// without an asynchronous fetcher.
+	if s.receiptsFetcher == nil {
+		return s.fetchReceipts(ctx, blockHash)
+	}
+	return s.receiptsFetcher.Fetch(ctx, blockHash)
+}
+
+// PrefetchReceipts starts fetching and validating a block body and its receipts
+// without waiting. A later FetchReceipts call joins the same in-flight request
+// or reads the caches populated by it.
+func (s *EthClient) PrefetchReceipts(blockHash common.Hash) {
+	if s.receiptsFetcher != nil {
+		s.receiptsFetcher.Prefetch(blockHash)
+	}
+}
+
+func (s *EthClient) fetchReceipts(ctx context.Context, blockHash common.Hash) (eth.BlockInfo, optypes.Receipts, error) {
 	// Tx hashes are computed from the raw encodings: decoding the txs into
 	// go-ethereum types would fail on the OP Stack synthetic tx classes of L2
 	// blocks under upstream go-ethereum.
@@ -627,6 +652,9 @@ func (s *EthClient) ReadStorageAt(ctx context.Context, address common.Address, s
 }
 
 func (s *EthClient) Close() {
+	if s.receiptsFetcher != nil {
+		s.receiptsFetcher.Close()
+	}
 	s.client.Close()
 }
 

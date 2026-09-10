@@ -73,6 +73,10 @@ type closableSafeDB interface {
 }
 
 // L1Source provides the necessary L1 blockchain data for the node.
+type l1ReceiptsPrefetcher interface {
+	PrefetchReceipts(blockHash common.Hash)
+}
+
 type L1Source interface {
 	L1BlockRefByLabel(ctx context.Context, label eth.BlockLabel) (eth.L1BlockRef, error)
 	L1BlockRefByNumber(ctx context.Context, num uint64) (eth.L1BlockRef, error)
@@ -338,6 +342,12 @@ func initL1Handlers(cfg *config.Config, node *OpNode) (ethereum.Subscription, et
 	onL1Head := func(ctx context.Context, sig eth.L1BlockRef) {
 		if node.cfg.Tracer != nil {
 			node.cfg.Tracer.OnNewL1Head(ctx, sig)
+		}
+		// Fetch the complete L1 origin data as soon as the head is observed.
+		// Derivation and sequencing share this source, so either consumer will
+		// join the in-flight request or hit the warmed caches.
+		if prefetcher, ok := node.l1Source.(l1ReceiptsPrefetcher); ok {
+			prefetcher.PrefetchReceipts(sig.Hash)
 		}
 		node.l2Driver.SyncDeriver.L1Tracker.OnL1Unsafe(sig)
 		node.l2Driver.StatusTracker.OnL1Unsafe(sig)
