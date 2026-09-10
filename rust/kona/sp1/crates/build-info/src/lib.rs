@@ -26,7 +26,7 @@ mod tests {
 
     #[test]
     fn accepts_every_shape_the_build_can_produce() {
-        let hex = "0".repeat(40);
+        let hex = "0af3".repeat(10);
         assert!(sha::is_valid("unknown"));
         assert!(sha::is_valid(&hex));
         assert!(sha::is_valid(&format!("{hex}-dirty")));
