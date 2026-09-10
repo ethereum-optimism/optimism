@@ -11,6 +11,7 @@ import (
 
 type replacementHistory interface {
 	DeniedBlocksInRange(uint64, uint64) ([]eth.BlockID, error)
+	DeniedParentHash(eth.BlockID) (common.Hash, bool, error)
 	PayloadByHash(context.Context, common.Hash) (*eth.ExecutionPayloadEnvelope, error)
 }
 
@@ -56,14 +57,23 @@ func (m *Module) surviving(ctx context.Context, src Rendering, c claim, frontier
 		if err != nil {
 			return 0, err
 		}
-		env, err := history.PayloadByHash(ctx, id.Hash)
+		parent, known, err := history.DeniedParentHash(id)
 		if err != nil {
-			return 0, fmt.Errorf("reading denied projection header: %w", err)
+			return 0, fmt.Errorf("reading denied projection parent: %w", err)
 		}
-		if env == nil || env.ExecutionPayload == nil || env.ExecutionPayload.ID() != id {
-			return 0, fmt.Errorf("denied projection header is unavailable or inconsistent")
+		if !known {
+			// Compatibility with denials persisted before parent hashes were stored.
+			// Never guess ancestry if the old payload has also disappeared.
+			env, err := history.PayloadByHash(ctx, id.Hash)
+			if err != nil {
+				return 0, fmt.Errorf("reading denied projection header: %w", err)
+			}
+			if env == nil || env.ExecutionPayload == nil || env.ExecutionPayload.ID() != id {
+				return 0, fmt.Errorf("denied projection header is unavailable or inconsistent")
+			}
+			parent = env.ExecutionPayload.ParentHash
 		}
-		if env.ExecutionPayload.ParentHash == canonical.ParentHash {
+		if parent == canonical.ParentHash {
 			end = id.Number - 1
 		}
 	}

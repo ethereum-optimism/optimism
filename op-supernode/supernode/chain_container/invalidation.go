@@ -34,10 +34,12 @@ type DenyList struct {
 // DenyRecord stores a denied payload hash along with decision provenance
 // and the output preimage fields for optimistic root computation.
 type DenyRecord struct {
-	PayloadHash              common.Hash `json:"payloadHash"`
-	DecisionTimestamp        uint64      `json:"decisionTimestamp"`
-	StateRoot                eth.Bytes32 `json:"stateRoot"`
-	MessagePasserStorageRoot eth.Bytes32 `json:"messagePasserStorageRoot"`
+	PayloadHash common.Hash `json:"payloadHash"`
+	// ParentHash is captured before rewind; noncanonical headers may disappear from the EL.
+	ParentHash               *common.Hash `json:"parentHash,omitempty"`
+	DecisionTimestamp        uint64       `json:"decisionTimestamp"`
+	StateRoot                eth.Bytes32  `json:"stateRoot"`
+	MessagePasserStorageRoot eth.Bytes32  `json:"messagePasserStorageRoot"`
 }
 
 func encodeDenyRecords(records []DenyRecord) ([]byte, error) {
@@ -111,6 +113,15 @@ func heightToKey(height uint64) []byte {
 // stateRoot and messagePasserStorageRoot are the output preimage fields for optimistic root computation.
 // Multiple hashes can be denied at the same height.
 func (d *DenyList) Add(height uint64, payloadHash common.Hash, decisionTimestamp uint64, stateRoot, messagePasserStorageRoot eth.Bytes32) error {
+	return d.add(height, payloadHash, decisionTimestamp, stateRoot, messagePasserStorageRoot, nil)
+}
+
+// AddWithParent atomically persists the denial and its WAL-captured ancestry.
+func (d *DenyList) AddWithParent(height uint64, payloadHash common.Hash, decisionTimestamp uint64, stateRoot, messagePasserStorageRoot eth.Bytes32, parentHash common.Hash) error {
+	return d.add(height, payloadHash, decisionTimestamp, stateRoot, messagePasserStorageRoot, &parentHash)
+}
+
+func (d *DenyList) add(height uint64, payloadHash common.Hash, decisionTimestamp uint64, stateRoot, messagePasserStorageRoot eth.Bytes32, parentHash *common.Hash) error {
 	d.mu.Lock()
 	defer d.mu.Unlock()
 
@@ -125,14 +136,28 @@ func (d *DenyList) Add(height uint64, payloadHash common.Hash, decisionTimestamp
 			return err
 		}
 
-		for _, r := range records {
-			if r.PayloadHash == payloadHash {
+		for i, r := range records {
+			if r.PayloadHash != payloadHash {
+				continue
+			}
+			if parentHash == nil {
 				return nil
 			}
+			if r.ParentHash != nil && *r.ParentHash != *parentHash {
+				return fmt.Errorf("conflicting parent for denied block %s:%d", payloadHash, height)
+			}
+			// WAL replay can enrich a record written by an older version.
+			records[i].ParentHash = parentHash
+			encoded, err := encodeDenyRecords(records)
+			if err != nil {
+				return err
+			}
+			return b.Put(key, encoded)
 		}
 
 		records = append(records, DenyRecord{
 			PayloadHash:              payloadHash,
+			ParentHash:               parentHash,
 			DecisionTimestamp:        decisionTimestamp,
 			StateRoot:                stateRoot,
 			MessagePasserStorageRoot: messagePasserStorageRoot,
@@ -433,7 +458,7 @@ func (c *simpleChainContainer) InvalidateBlock(ctx context.Context, height uint6
 	}
 
 	// Add to deny list with the output preimage fields
-	if err := c.denyList.Add(height, payloadHash, decisionTimestamp, stateRoot, messagePasserStorageRoot); err != nil {
+	if err := c.denyList.AddWithParent(height, payloadHash, decisionTimestamp, stateRoot, messagePasserStorageRoot, parentPayload.ExecutionPayload.BlockHash); err != nil {
 		return false, fmt.Errorf("failed to add block to deny list: %w", err)
 	}
 

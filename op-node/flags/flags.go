@@ -242,6 +242,12 @@ var (
 		Category: RollupCategory,
 		Required: false,
 	}
+	L2FollowRecoveryPath = &cli.PathFlag{
+		Name:     "l2.follow.source.recovery-path",
+		Usage:    "Durable private prefix recovery journal; required for private-chain rewind, unused for ordinary public following",
+		EnvVars:  prefixEnvVars("L2_FOLLOW_SOURCE_RECOVERY_PATH"),
+		Category: RollupCategory,
+	}
 	L2FollowSourceRpcTimeout = &cli.DurationFlag{
 		Name:     "l2.follow.source.rpc-timeout",
 		Usage:    "L2 follow source client rpc timeout",
@@ -490,6 +496,7 @@ var optionalFlags = []cli.Flag{
 	L2EngineRpcTimeout,
 	L2FollowSource,
 	L2FollowSourceRpcTimeout,
+	L2FollowRecoveryPath,
 	InteropDependencySet,
 	IgnoreMissingPectraBlobSchedule,
 	ExperimentalOPStackAPI,

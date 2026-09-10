@@ -106,10 +106,11 @@ type fakeRendering struct {
 	currentL1 eth.L1BlockRef
 	statusErr error
 
-	blocks     map[uint64]*fakeBlock
-	payloadErr map[uint64]error
-	denied     map[uint64][]common.Hash
-	byHash     map[common.Hash]*eth.ExecutionPayloadEnvelope
+	blocks        map[uint64]*fakeBlock
+	payloadErr    map[uint64]error
+	denied        map[uint64][]common.Hash
+	deniedParents map[eth.BlockID]common.Hash
+	byHash        map[common.Hash]*eth.ExecutionPayloadEnvelope
 }
 
 var _ Rendering = (*fakeRendering)(nil)
@@ -177,6 +178,11 @@ func (f *fakeRendering) DeniedBlocksInRange(first, last uint64) ([]eth.BlockID, 
 	}
 	return out, nil
 }
+func (f *fakeRendering) DeniedParentHash(id eth.BlockID) (common.Hash, bool, error) {
+	parent, ok := f.deniedParents[id]
+	return parent, ok, nil
+}
+
 func (f *fakeRendering) PayloadByHash(_ context.Context, hash common.Hash) (*eth.ExecutionPayloadEnvelope, error) {
 	if env, ok := f.byHash[hash]; ok {
 		return env, nil

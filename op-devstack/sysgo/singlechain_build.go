@@ -387,6 +387,7 @@ func startL2CLNode(
 			SequencerStopped:    startCfg.SequencerStopped,
 			SequencerConfDepth:  2,
 			SequencerMaxSafeLag: cfg.SequencerMaxSafeLag,
+			FollowRecoveryPath:  cfg.FollowRecoveryPath,
 		},
 		Rollup:        *l2Net.rollupCfg,
 		DependencySet: startCfg.DependencySet,

@@ -30,7 +30,8 @@ type L2CLConfig struct {
 	// NoDiscovery is the flag to enable/disable discovery
 	NoDiscovery bool
 
-	FollowSource string
+	FollowSource       string
+	FollowRecoveryPath string
 
 	// OffsetELSafe retracts safe and finalized from the EL-sync tip by floor(OffsetELSafe / L2BlockTime) blocks.
 	OffsetELSafe time.Duration

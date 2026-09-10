@@ -195,6 +195,7 @@ func NewConfigPersistence(ctx cliiface.Context) config.ConfigPersistence {
 func NewDriverConfig(ctx cliiface.Context) *driver.Config {
 	cfg := &driver.Config{
 		VerifierConfDepth:        ctx.Uint64(flags.VerifierL1Confs.Name),
+		FollowRecoveryPath:       ctx.String(flags.L2FollowRecoveryPath.Name),
 		SequencerConfDepth:       ctx.Uint64(flags.SequencerL1Confs.Name),
 		SequencerEnabled:         ctx.Bool(flags.SequencerEnabledFlag.Name),
 		SequencerStopped:         ctx.Bool(flags.SequencerStoppedFlag.Name),
