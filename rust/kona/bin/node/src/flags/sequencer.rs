@@ -72,7 +72,21 @@ impl SequencerArgs {
             sequencer_stopped: self.stopped,
             sequencer_recovery_mode: self.recover,
             conductor_rpc_url: self.conductor_rpc.clone(),
+            conductor_rpc_timeout: self.conductor_rpc_timeout,
             l1_conf_delay: self.l1_confs,
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn conductor_rpc_timeout_is_included_in_service_config() {
+        let args =
+            SequencerArgs { conductor_rpc_timeout: Duration::from_secs(42), ..Default::default() };
+
+        assert_eq!(args.config().conductor_rpc_timeout, Duration::from_secs(42));
     }
 }

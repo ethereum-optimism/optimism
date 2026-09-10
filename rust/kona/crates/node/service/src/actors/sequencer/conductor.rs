@@ -8,6 +8,7 @@ use std::{
         Arc,
         atomic::{AtomicBool, Ordering},
     },
+    time::Duration,
 };
 use url::Url;
 
@@ -38,6 +39,8 @@ pub struct ConductorClient {
     rpc: ReqwestClient,
     /// Local disaster-recovery override. When set, conductor interactions are bypassed.
     override_leader: Arc<AtomicBool>,
+    /// Maximum duration of an RPC request to the conductor.
+    rpc_timeout: Duration,
 }
 
 #[async_trait]
@@ -50,14 +53,23 @@ impl Conductor for ConductorClient {
         if self.override_leader.load(Ordering::Relaxed) {
             return Ok(());
         }
-        self.rpc.request("conductor_commitUnsafePayload", [payload]).await.map_err(Into::into)
+        tokio::time::timeout(
+            self.rpc_timeout,
+            self.rpc.request("conductor_commitUnsafePayload", [payload]),
+        )
+        .await
+        .map_err(|_| ConductorError::Timeout(self.rpc_timeout))?
+        .map_err(Into::into)
     }
 
     async fn leader(&self) -> Result<bool, ConductorError> {
         if self.override_leader.load(Ordering::Relaxed) {
             return Ok(true);
         }
-        self.rpc.request("conductor_leader", ()).await.map_err(Into::into)
+        tokio::time::timeout(self.rpc_timeout, self.rpc.request("conductor_leader", ()))
+            .await
+            .map_err(|_| ConductorError::Timeout(self.rpc_timeout))?
+            .map_err(Into::into)
     }
 
     /// Override conductor interactions locally, matching op-node's disaster-recovery behavior.
@@ -68,10 +80,15 @@ impl Conductor for ConductorClient {
 }
 
 impl ConductorClient {
-    /// Creates a new conductor client using HTTP transport
+    /// Creates a new conductor client using HTTP transport and the default timeout.
     pub fn new_http(url: Url) -> Self {
+        Self::new_http_with_timeout(url, Duration::from_secs(1))
+    }
+
+    /// Creates a new conductor client using HTTP transport and the provided timeout.
+    pub fn new_http_with_timeout(url: Url, rpc_timeout: Duration) -> Self {
         let rpc = ReqwestClient::new_http(url);
-        Self { rpc, override_leader: Arc::new(AtomicBool::new(false)) }
+        Self { rpc, override_leader: Arc::new(AtomicBool::new(false)), rpc_timeout }
     }
 
     /// Check if the node is a leader of the conductor.
@@ -81,7 +98,10 @@ impl ConductorClient {
 
     /// Check if the conductor is active.
     pub async fn conductor_active(&self) -> Result<bool, ConductorError> {
-        self.rpc.request("conductor_active", ()).await.map_err(Into::into)
+        tokio::time::timeout(self.rpc_timeout, self.rpc.request("conductor_active", ()))
+            .await
+            .map_err(|_| ConductorError::Timeout(self.rpc_timeout))?
+            .map_err(Into::into)
     }
 }
 
@@ -91,4 +111,34 @@ pub enum ConductorError {
     /// An error occurred while making an RPC call to the conductor.
     #[error("RPC error: {0}")]
     Rpc(#[from] RpcError<TransportErrorKind>),
+    /// A conductor RPC request exceeded its configured timeout.
+    #[error("conductor RPC request timed out after {0:?}")]
+    Timeout(Duration),
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::{io::Read, net::TcpListener, thread};
+
+    #[tokio::test]
+    async fn conductor_request_honors_timeout() {
+        let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+        let addr = listener.local_addr().unwrap();
+        thread::spawn(move || {
+            let (mut stream, _) = listener.accept().unwrap();
+            let mut request = [0_u8; 1024];
+            let _ = stream.read(&mut request);
+            thread::park_timeout(Duration::from_secs(1));
+        });
+
+        let client = ConductorClient::new_http_with_timeout(
+            Url::parse(&format!("http://{addr}")).unwrap(),
+            Duration::from_millis(20),
+        );
+        let err = client.leader().await.unwrap_err();
+        assert!(
+            matches!(err, ConductorError::Timeout(duration) if duration == Duration::from_millis(20))
+        );
+    }
 }

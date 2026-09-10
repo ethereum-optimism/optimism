@@ -1,6 +1,6 @@
 use crate::{
     BuildRequest, EngineClientError, EngineDerivationClient, EngineError, NodeActor, ResetRequest,
-    SealRequest,
+    SealRequest, actors::engine::CanonicalizeRequest,
 };
 use async_trait::async_trait;
 use kona_derive::{ResetSignal, Signal};
@@ -28,8 +28,10 @@ pub enum EngineActorRequest {
     ProcessUnsafeL2Block(Box<OpExecutionPayloadEnvelope>),
     /// Request to reset the forkchoice.
     Reset(Box<ResetRequest>),
-    /// Request to seal a block.
+    /// Request to seal a block without canonicalizing it.
     Seal(Box<SealRequest>),
+    /// Request to canonicalize a sealed block.
+    Canonicalize(Box<CanonicalizeRequest>),
 }
 
 /// Responsible for managing the operations sent to the execution layer's Engine API. To accomplish
@@ -302,10 +304,23 @@ where
                     // The payload is not derived in this case.
                     false,
                     BuildSealCoupling::Detached,
+                    false,
                     Some(result_tx),
                     Arc::clone(&self.block_sink),
                 )));
                 self.engine.enqueue(task);
+            }
+            EngineActorRequest::Canonicalize(request) => {
+                let CanonicalizeRequest { payload, result_tx } = *request;
+                let task = InsertTask::new(
+                    self.client.clone(),
+                    self.rollup.clone(),
+                    payload,
+                    false,
+                    Arc::clone(&self.block_sink),
+                )
+                .with_result_sender(result_tx);
+                self.engine.enqueue(EngineTask::Insert(Box::new(task)));
             }
         }
 

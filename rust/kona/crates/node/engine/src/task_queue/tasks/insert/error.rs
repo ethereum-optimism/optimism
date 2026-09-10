@@ -5,8 +5,9 @@ use crate::{
 };
 use alloy_rpc_types_engine::PayloadStatusEnum;
 use alloy_transport::{RpcError, TransportErrorKind};
-use kona_protocol::FromBlockError;
+use kona_protocol::{FromBlockError, L2BlockInfo};
 use op_alloy_rpc_types_engine::OpPayloadError;
+use tokio::sync::mpsc;
 
 /// An error that occurs when running the [`InsertTask`](crate::InsertTask).
 #[derive(Debug, thiserror::Error)]
@@ -26,6 +27,9 @@ pub enum InsertTaskError {
     /// The forkchoice update call to consolidate the block into the engine state failed.
     #[error(transparent)]
     ForkchoiceUpdateFailed(#[from] SynchronizeTaskError),
+    /// Failed to send the insertion result to the waiting caller.
+    #[error("Failed to send insertion result")]
+    MpscSend(#[from] Box<mpsc::error::SendError<Result<L2BlockInfo, Self>>>),
 }
 
 impl EngineTaskError for InsertTaskError {
@@ -38,6 +42,7 @@ impl EngineTaskError for InsertTaskError {
                 EngineTaskErrorSeverity::Temporary
             }
             Self::ForkchoiceUpdateFailed(inner) => inner.severity(),
+            Self::MpscSend(_) => EngineTaskErrorSeverity::Critical,
         }
     }
 }

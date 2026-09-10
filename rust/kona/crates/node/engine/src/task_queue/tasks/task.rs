@@ -111,6 +111,9 @@ impl<EngineClient_: EngineClient> EngineTask<EngineClient_> {
     /// Executes the task without consuming it.
     async fn execute_inner(&self, state: &mut EngineState) -> Result<(), EngineTaskErrors> {
         match self {
+            Self::Insert(task) if task.has_result_sender() => {
+                task.execute_and_send(state).await?;
+            }
             Self::Insert(task) => match task.execute(state).await {
                 // INVALID is terminal for an externally sourced unsafe payload. Drop it so the
                 // queue can process competing or subsequent payloads instead of retrying forever.
