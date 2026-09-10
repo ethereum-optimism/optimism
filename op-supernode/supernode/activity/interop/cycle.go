@@ -40,62 +40,97 @@ func (g *dependencyGraph) addEdge(from, to *dependencyNode) {
 	to.dependedOnBy = append(to.dependedOnBy, from)
 }
 
-// checkCycle runs Kahn's topological sort algorithm to detect cycles.
-// Returns nil if the graph is acyclic (valid), ErrCycle if a cycle is detected.
+// checkCycle finds strongly connected components and marks only cycle nodes unresolved.
+// It returns ErrCycle when the graph contains a directed cycle.
 //
-// Algorithm:
-// 1. Find nodes with no dependedOnBy (nothing depends on them) → add to removeSet, mark resolved
-// 2. Remove items in removeSet from dependedOnBy of all nodes
-// 3. Repeat until either:
-//   - All nodes resolved → acyclic (valid)
-//   - No progress (removeSet empty but unresolved nodes remain) → cycle detected
+// The search uses Kosaraju's algorithm. It records a depth-first finish order over
+// dependsOn edges, then collects strongly connected components over dependedOnBy edges
+// in decreasing finish order. Every node lands in exactly one component, so every node
+// gets a fresh resolved value.
 func checkCycle(g *dependencyGraph) error {
-	if len(*g) == 0 {
-		return nil
-	}
+	finishOrder := dependencyFinishOrder(g)
 
-	for {
-		// Part 1: Find nodes with no dependedOnBy and mark them resolved
-		var removeSet []*dependencyNode
-		for _, node := range *g {
-			if !node.resolved && len(node.dependedOnBy) == 0 {
-				node.resolved = true
-				removeSet = append(removeSet, node)
-			}
+	assigned := make(map[*dependencyNode]bool, len(*g))
+	hasCycle := false
+	for i := len(finishOrder) - 1; i >= 0; i-- {
+		start := finishOrder[i]
+		if assigned[start] {
+			continue
 		}
 
-		// If no nodes can be removed, check termination
-		if len(removeSet) == 0 {
-			// Check if all nodes are resolved
-			for _, node := range *g {
-				if !node.resolved {
-					// Unresolved nodes remain but no progress → cycle detected
-					return ErrCycle
+		// The component doubles as the queue: every appended node is still unvisited.
+		assigned[start] = true
+		component := []*dependencyNode{start}
+		for next := 0; next < len(component); next++ {
+			for _, dependent := range component[next].dependedOnBy {
+				if assigned[dependent] {
+					continue
 				}
+				assigned[dependent] = true
+				component = append(component, dependent)
 			}
-			// All nodes resolved → acyclic
-			return nil
 		}
 
-		// Part 2: Remove items in removeSet from dependedOnBy of all nodes
-		for _, removed := range removeSet {
-			// Remove this node from dependedOnBy of nodes it depends on
-			for _, dependency := range removed.dependsOn {
-				dependency.dependedOnBy = removeFromSlice(dependency.dependedOnBy, removed)
-			}
+		inCycle := componentHasCycle(component)
+		for _, node := range component {
+			node.resolved = !inCycle
 		}
+		hasCycle = hasCycle || inCycle
 	}
+
+	if hasCycle {
+		return ErrCycle
+	}
+	return nil
 }
 
-// removeFromSlice removes a node from a slice of nodes.
-func removeFromSlice(slice []*dependencyNode, toRemove *dependencyNode) []*dependencyNode {
-	result := make([]*dependencyNode, 0, len(slice))
-	for _, n := range slice {
-		if n != toRemove {
-			result = append(result, n)
+// componentHasCycle reports whether a strongly connected component holds a directed cycle.
+// A component of more than one node always does. A single node does only through a self-edge.
+// The component always holds at least its start node.
+func componentHasCycle(component []*dependencyNode) bool {
+	if len(component) > 1 {
+		return true
+	}
+	return slices.Contains(component[0].dependsOn, component[0])
+}
+
+// dependencyFinishOrder returns the graph nodes in depth-first finish order over dependsOn
+// edges. The traversal is iterative so that adversarial dependency depth cannot exhaust the
+// call stack.
+func dependencyFinishOrder(g *dependencyGraph) []*dependencyNode {
+	type dfsFrame struct {
+		node     *dependencyNode
+		nextEdge int
+	}
+
+	visited := make(map[*dependencyNode]bool, len(*g))
+	finishOrder := make([]*dependencyNode, 0, len(*g))
+	for _, start := range *g {
+		if visited[start] {
+			continue
+		}
+
+		visited[start] = true
+		stack := []dfsFrame{{node: start}}
+		for len(stack) > 0 {
+			top := len(stack) - 1
+			node := stack[top].node
+			if stack[top].nextEdge == len(node.dependsOn) {
+				finishOrder = append(finishOrder, node)
+				stack = stack[:top]
+				continue
+			}
+
+			next := node.dependsOn[stack[top].nextEdge]
+			stack[top].nextEdge++
+			if visited[next] {
+				continue
+			}
+			visited[next] = true
+			stack = append(stack, dfsFrame{node: next})
 		}
 	}
-	return result
+	return finishOrder
 }
 
 // executingMessageBefore finds the latest EM in the slice with logIndex <= targetLogIdx.
@@ -166,7 +201,7 @@ func buildCycleGraph(ts uint64, chainEMs map[eth.ChainID]map[uint32]*messages.Ex
 
 // verifyCycleMessages is the cycle verification function for same-timestamp interop.
 // It verifies that same-timestamp executing messages form valid dependency relationships
-// using Kahn's topological sort algorithm.
+// with strongly connected component detection.
 //
 // Returns a Result with InvalidHeads populated for chains participating in cycles.
 func (i *Interop) verifyCycleMessages(ts uint64, blocksAtTimestamp map[eth.ChainID]eth.BlockID, view *frontierVerificationView) (Result, error) {
@@ -209,11 +244,10 @@ func (i *Interop) verifyCycleMessages(ts uint64, blocksAtTimestamp map[eth.Chain
 		chainEMs[chainID] = execMsgs
 	}
 
-	// Build dependency graph and check for cycles
+	// Build the dependency graph and check for cycles.
 	graph := buildCycleGraph(ts, chainEMs)
 	if err := checkCycle(graph); err != nil {
-		// Cycle detected - mark only chains with unresolved nodes as invalid
-		// (bystander chains that have same-ts EMs but aren't part of the cycle are spared)
+		// Mark only chains with cycle nodes as invalid.
 		cycleChains := collectCycleParticipants(graph)
 		if len(cycleChains) > 0 {
 			result.InvalidHeads = make(map[eth.ChainID]InvalidHead)
@@ -230,8 +264,8 @@ func (i *Interop) verifyCycleMessages(ts uint64, blocksAtTimestamp map[eth.Chain
 	return result, nil
 }
 
-// collectCycleParticipants returns the set of chains that have unresolved nodes
-// after running checkCycle. These are the chains actually participating in a cycle.
+// collectCycleParticipants returns chains with directed-cycle nodes.
+// checkCycle marks only those nodes unresolved.
 func collectCycleParticipants(graph *dependencyGraph) map[eth.ChainID]bool {
 	cycleChains := make(map[eth.ChainID]bool)
 	for _, node := range *graph {
