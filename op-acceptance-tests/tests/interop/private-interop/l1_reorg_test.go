@@ -132,6 +132,10 @@ func TestPrivatePublicationReorgWithCanonicalOrigins(gt *testing.T) {
 	sys.L2BatcherA.Start()
 	sys.L2BCL.StartSequencer()
 	sys.L2BatcherB.Start()
+	// Recovery may still replace newly sequenced unsafe blocks while the
+	// replacement branch is being reconciled. Wait for publication beyond the
+	// discarded interval before asserting preservation of a fresh transaction.
+	sys.L2BCL.Reached(safety.CrossSafe, privateTip.Number+12, 180)
 	alice := sys.FunderB.NewFundedEOA(eth.OneEther)
 	transfer := alice.Transfer(common.Address{0xed}, eth.OneGWei)
 	included, err := transfer.Included.Eval(t.Ctx())
