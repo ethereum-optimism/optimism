@@ -31,11 +31,6 @@ ignore = [
   # bitmaps is unmaintained (repository archived, no patched release exists).
   # Transitive via imbl -> reth-transaction-pool. Pending upstream dropping imbl.
   "RUSTSEC-2026-0247",
-  # lru <0.18.2 LruCache::pop() is not panic-safe. Both resolved copies are
-  # transitive and neither can move until upstream does: 0.16.4 via
-  # alloy-provider, 0.12.5 via sp1-sdk. Bumping our own pin would only add a
-  # third version, so it stays until both bump.
-  "RUSTSEC-2026-0253",
 ]
 
 # This section is considered when running `cargo deny check bans`.
