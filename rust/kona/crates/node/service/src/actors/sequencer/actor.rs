@@ -32,7 +32,7 @@ use tokio::{select, sync::mpsc, time::Interval};
 
 /// The handle to a block that has been started but not sealed.
 #[derive(Debug)]
-pub(super) struct UnsealedPayloadHandle {
+struct UnsealedPayloadHandle {
     /// The [`PayloadId`] of the unsealed payload.
     pub payload_id: PayloadId,
     /// The [`OpAttributesWithParent`] used to start block building.
@@ -88,7 +88,7 @@ pub struct SequencerActor<
     /// Ticker that paces block-building attempts.
     build_ticker: Interval,
     /// The handle for the payload built on the previous tick that is waiting to be sealed.
-    pub(super) next_payload_to_seal: Option<UnsealedPayloadHandle>,
+    next_payload_to_seal: Option<UnsealedPayloadHandle>,
     /// Duration of the most recent seal operation, used to back-pressure the build ticker.
     last_seal_duration: Duration,
     /// Whether the one-shot startup work (metrics + initial engine reset) has run.
@@ -172,7 +172,7 @@ where
 
     /// Sends a seal request to seal the provided [`UnsealedPayloadHandle`], committing and
     /// gossiping the resulting block, if one is built.
-    pub(super) async fn seal_and_commit_payload_if_applicable(
+    async fn seal_and_commit_payload_if_applicable(
         &self,
         unsealed_payload_handle: &UnsealedPayloadHandle,
     ) -> Result<(), SequencerActorError> {
@@ -212,7 +212,7 @@ where
     }
 
     /// Handles a block-building tick.
-    pub(super) async fn handle_build_tick(&mut self) -> Result<(), SequencerActorError> {
+    async fn handle_build_tick(&mut self) -> Result<(), SequencerActorError> {
         // Move the pending payload out of self so the &mut self call below doesn't conflict with
         // the &self read of self.next_payload_to_seal.
         let pending = self.next_payload_to_seal.take();
@@ -266,7 +266,7 @@ where
 
     /// Starts building an L2 block by creating and populating payload attributes referencing the
     /// correct L1 origin block and sending them to the block engine.
-    pub(super) async fn build_unsealed_payload(
+    async fn build_unsealed_payload(
         &mut self,
     ) -> Result<Option<UnsealedPayloadHandle>, SequencerActorError> {
         let unsafe_head = self.engine_client.get_unsafe_head().await?;
@@ -558,3 +558,7 @@ fn is_seal_task_err_fatal(err: &SealTaskError) -> bool {
         SealTaskError::ClockWentBackwards => true,
     }
 }
+
+#[cfg(test)]
+#[path = "tests/actor_test.rs"]
+mod tests;
