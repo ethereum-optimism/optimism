@@ -123,11 +123,14 @@ lint: fmt-check lint-clippy lint-docs check-upstream-mirrors
 mirrors *ARGS:
   scripts/upstream-mirrors.py {{ if ARGS == "stale" { "--stale-only" } else { ARGS } }}
 
-# Fail on UPSTREAM-MIRROR tags that are malformed, name a crate we no longer depend on, or
-# claim a verified version newer than the pin. Deliberately does NOT fail on stale tags:
-# staleness is a review worklist, not a defect. See docs/ai/reth-upstream-mirrors.md.
-check-upstream-mirrors:
-  scripts/upstream-mirrors.py --check >/dev/null
+# Run the upstream-mirror checker's contract tests.
+test-upstream-mirrors:
+  python3 -m unittest scripts/test_upstream_mirrors.py
+
+# Fail on malformed tags, ambiguous dependency metadata, unknown crates, or versions ahead of
+# their pin. Staleness is a review worklist, not a defect.
+check-upstream-mirrors: test-upstream-mirrors
+  scripts/upstream-mirrors.py --check
 
 # Check formatting (requires nightly)
 fmt-check:

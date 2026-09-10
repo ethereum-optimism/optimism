@@ -102,8 +102,8 @@ impl<TX: Transaction + SystemCallTx> SystemCallTx for OpTransaction<TX> {
 /// default — currently `total_blob_gas`, `calc_max_data_fee`, `max_balance_spending`,
 /// `ensure_enough_balance`, `effective_balance_spending` and `gas_balance_spending`, all of
 /// which are built from the getters above and so stay consistent. On each bump check for
-/// newly defaulted methods: one that reads a concrete field instead of going through the
-/// trait's getters would silently read the wrapper's field rather than the inner tx's.
+/// newly defaulted methods. If the inner `T` overrides one, this wrapper must forward it;
+/// inheriting the generic default can silently diverge from `self.base`.
 impl<T: Transaction> Transaction for OpTransaction<T> {
     type AccessListItem<'a>
         = T::AccessListItem<'a>

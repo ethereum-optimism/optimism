@@ -19,7 +19,7 @@ use reth_storage_api::{BalProvider, BlockReader, HeaderProvider, StateProviderFa
 use reth_transaction_pool::TransactionPool;
 use tracing::{debug, trace};
 
-/// UPSTREAM-MIRROR(set): reth@rev:aef8d3e `reth_rpc_api::EngineApi`
+/// UPSTREAM-MIRROR(set): reth@rev:aef8d3e `reth_rpc_engine_api::capabilities::CAPABILITIES`
 ///
 /// Advertised capabilities must stay in step with the methods declared on [`OpEngineApi`].
 /// The list of all supported Engine capabilities available over the engine endpoint.
