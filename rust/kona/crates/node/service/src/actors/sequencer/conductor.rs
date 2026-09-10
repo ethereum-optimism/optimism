@@ -13,15 +13,15 @@ use std::{
 };
 use url::Url;
 
-/// Number of conductor RPC attempts, matching op-node.
-const CONDUCTOR_RPC_MAX_ATTEMPTS: usize = 2;
+/// Number of conductor RPC retries after the initial attempt, matching op-node's two attempts.
+const CONDUCTOR_RPC_MAX_RETRIES: usize = 1;
 /// Delay between conductor RPC attempts, matching op-node.
 const CONDUCTOR_RPC_RETRY_DELAY: Duration = Duration::from_millis(50);
 
 fn conductor_rpc_backoff() -> ConstantBuilder {
     ConstantBuilder::default()
         .with_delay(CONDUCTOR_RPC_RETRY_DELAY)
-        .with_max_times(CONDUCTOR_RPC_MAX_ATTEMPTS)
+        .with_max_times(CONDUCTOR_RPC_MAX_RETRIES)
 }
 
 /// Trait for interacting with the conductor service.
@@ -139,7 +139,12 @@ pub enum ConductorError {
 mod tests {
     use super::*;
     use jsonrpsee::{RpcModule, server::ServerBuilder, types::ErrorObjectOwned};
-    use std::{io::Read, net::TcpListener, sync::atomic::AtomicUsize, thread};
+    use std::{
+        io::Read,
+        net::TcpListener,
+        sync::{atomic::AtomicUsize, mpsc},
+        thread,
+    };
 
     #[tokio::test]
     async fn conductor_request_retries_once() {
@@ -169,14 +174,39 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn conductor_request_stops_after_two_attempts() {
+        let attempts = Arc::new(AtomicUsize::new(0));
+        let server = ServerBuilder::default().build("127.0.0.1:0").await.unwrap();
+        let addr = server.local_addr().unwrap();
+        let mut module = RpcModule::new(attempts.clone());
+        module
+            .register_async_method("conductor_leader", |_, attempts, _| async move {
+                attempts.fetch_add(1, Ordering::Relaxed);
+                Err::<bool, _>(ErrorObjectOwned::owned(-32000, "persistent failure", None::<()>))
+            })
+            .unwrap();
+        let handle = server.start(module);
+
+        let client = ConductorClient::new_http_with_timeout(
+            Url::parse(&format!("http://{addr}")).unwrap(),
+            Duration::from_secs(1),
+        );
+        assert!(client.leader().await.is_err());
+        assert_eq!(attempts.load(Ordering::Relaxed), 2);
+
+        handle.stop().unwrap();
+    }
+
+    #[tokio::test]
     async fn conductor_request_honors_timeout() {
         let listener = TcpListener::bind("127.0.0.1:0").unwrap();
         let addr = listener.local_addr().unwrap();
-        thread::spawn(move || {
+        let (release_tx, release_rx) = mpsc::channel::<()>();
+        let server = thread::spawn(move || {
             let (mut stream, _) = listener.accept().unwrap();
             let mut request = [0_u8; 1024];
             let _ = stream.read(&mut request);
-            thread::park_timeout(Duration::from_secs(1));
+            let _ = release_rx.recv();
         });
 
         let client = ConductorClient::new_http_with_timeout(
@@ -187,5 +217,7 @@ mod tests {
         assert!(
             matches!(err, ConductorError::Timeout(duration) if duration == Duration::from_millis(20))
         );
+        drop(release_tx);
+        server.join().unwrap();
     }
 }
