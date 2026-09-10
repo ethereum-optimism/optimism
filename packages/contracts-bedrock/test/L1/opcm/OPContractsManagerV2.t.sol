@@ -1973,19 +1973,31 @@ contract OPContractsManagerV2_Deploy_Test is OPContractsManagerV2_TestInit {
     /// @notice Tests lockbox deployment permission and first activation without requiring a fork.
     function test_upgrade_missingLockbox_succeeds() public {
         vm.mockCall(address(opcmV2), abi.encodeCall(IOPContractsManagerV2.version, ()), abi.encode("9.0.0"));
-        _testUpgradeMissingLockbox(false);
+        _testUpgradeMissingLockbox(false, false);
     }
 
     /// @notice Tests that a CGT chain without a lockbox can upgrade without migrating portal ETH.
     function test_upgrade_missingLockboxCGT_succeeds() public {
         vm.mockCall(address(opcmV2), abi.encodeCall(IOPContractsManagerV2.version, ()), abi.encode("9.0.0"));
-        _testUpgradeMissingLockbox(true);
+        _testUpgradeMissingLockbox(true, false);
     }
 
     /// @notice Tests first lockbox activation with a v9 development version.
     function test_upgrade_missingLockboxV9Dev_succeeds() public {
         vm.mockCall(address(opcmV2), abi.encodeCall(IOPContractsManagerV2.version, ()), abi.encode("9.0.0-dev"));
-        _testUpgradeMissingLockbox(false);
+        _testUpgradeMissingLockbox(false, false);
+    }
+
+    /// @notice Tests liquidity migration when the flag was enabled without configuring a lockbox.
+    function test_upgrade_missingLockboxFeatureEnabled_succeeds() public {
+        vm.mockCall(address(opcmV2), abi.encodeCall(IOPContractsManagerV2.version, ()), abi.encode("9.0.0"));
+        _testUpgradeMissingLockbox(false, true);
+    }
+
+    /// @notice Tests that an enabled flag without a lockbox does not migrate CGT portal ETH.
+    function test_upgrade_missingLockboxCGTFeatureEnabled_succeeds() public {
+        vm.mockCall(address(opcmV2), abi.encodeCall(IOPContractsManagerV2.version, ()), abi.encode("9.0.0"));
+        _testUpgradeMissingLockbox(true, true);
     }
 
     /// @notice Tests that v8 rejects the ETHLockbox deployment instruction.
@@ -2034,10 +2046,15 @@ contract OPContractsManagerV2_Deploy_Test is OPContractsManagerV2_TestInit {
 
     /// @notice Tests first lockbox activation and repeat upgrades for ETH and CGT chains.
     /// @param _useCustomGasToken Whether the chain uses a custom gas token.
-    function _testUpgradeMissingLockbox(bool _useCustomGasToken) internal {
+    /// @param _enableFeatureBeforeUpgrade Whether to enable the flag without configuring a lockbox.
+    function _testUpgradeMissingLockbox(bool _useCustomGasToken, bool _enableFeatureBeforeUpgrade) internal {
         deployConfig.useCustomGasToken = _useCustomGasToken;
         IOPContractsManagerV2.ChainContracts memory cts = opcmV2.deploy(deployConfig);
         _setLegacyLockboxState(cts.systemConfig, cts.optimismPortal);
+        if (_enableFeatureBeforeUpgrade) {
+            vm.prank(cts.proxyAdmin.owner());
+            cts.systemConfig.setFeature(Features.ETH_LOCKBOX, true);
+        }
         assertEq(cts.systemConfig.isCustomGasToken(), _useCustomGasToken);
         vm.deal(address(cts.optimismPortal), 1 ether);
 
@@ -2059,7 +2076,7 @@ contract OPContractsManagerV2_Deploy_Test is OPContractsManagerV2_TestInit {
             )
         );
         assertEq(address(cts.optimismPortal.ethLockbox()), address(0));
-        assertFalse(cts.systemConfig.isFeatureEnabled(Features.ETH_LOCKBOX));
+        assertEq(cts.systemConfig.isFeatureEnabled(Features.ETH_LOCKBOX), _enableFeatureBeforeUpgrade);
         assertEq(address(cts.optimismPortal).balance, 1 ether);
 
         input.extraInstructions = new IOPContractsManagerUtils.ExtraInstruction[](1);
