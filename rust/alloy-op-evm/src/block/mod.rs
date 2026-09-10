@@ -18,7 +18,7 @@ use alloy_primitives::{Address, B256, Bytes, U256};
 use canyon::ensure_create2_deployer;
 use op_alloy::consensus::{
     OpDepositReceipt, OpTransaction as OpConsensusTransaction, POST_EXEC_TX_TYPE_ID,
-    PostExecPayload, SDMGasEntry,
+    PostExecPayload, SDMGasEntry, TxDeposit,
 };
 use op_revm::{
     L1BlockInfo, OpTransaction,
@@ -347,6 +347,8 @@ pub struct OpBlockExecutor<Evm, R: OpReceiptBuilder, Spec> {
     pub spec: Spec,
     /// Receipt builder.
     pub receipt_builder: R,
+    /// Optional chain-specific rule making selected deposits successful zero-effect no-ops.
+    pub deposit_noop: Option<fn(&TxDeposit, usize) -> bool>,
     /// Context for block execution.
     pub ctx: OpBlockExecutionCtx,
     /// The EVM used by executor.
@@ -392,6 +394,7 @@ where
             system_caller: SystemCaller::new(spec.clone()),
             spec,
             receipt_builder,
+            deposit_noop: None,
             receipts: Vec::new(),
             gas_used: 0,
             evm_gas_used: 0,
@@ -879,6 +882,40 @@ where
             ));
         }
 
+        let noop_deposit = tx.tx().as_deposit().is_some_and(|deposit| {
+            self.deposit_noop.is_some_and(|noop| noop(deposit.inner(), tx_index as usize))
+        });
+        if noop_deposit {
+            // Do not enter the EVM: minting, nonce updates, value transfers, contract
+            // creation, storage writes, logs and fee/refund policy touches are all absent.
+            self.verifier_post_exec_refund_for_tx(tx_index, true, false, 0)?;
+            let depositor_nonce = if self.is_regolith {
+                Some(
+                    self.evm
+                        .db_mut()
+                        .basic(*tx.signer())
+                        .map_err(BlockExecutionError::other)?
+                        .unwrap_or_default()
+                        .nonce,
+                )
+            } else {
+                None
+            };
+            return Ok(OpTxResult {
+                inner: EthTxResult {
+                    result: noop_post_exec_result(),
+                    blob_gas_used: 0,
+                    tx_type: tx.tx().tx_type(),
+                },
+                is_deposit: true,
+                is_post_exec: false,
+                evm_gas_used: 0,
+                canonical_gas_used: 0,
+                post_exec: None,
+                depositor_nonce,
+            });
+        }
+
         let transaction_gas_limit = tx.tx().gas_limit();
 
         // Bound the block's *pre-refund* `evm_gas_used` (real compute) rather than canonical
@@ -1171,13 +1208,23 @@ pub struct OpBlockExecutorFactory<
     spec: Spec,
     /// EVM factory.
     evm_factory: EvmFactory,
+    /// Chain-specific deposit execution rule, shared by building and validation.
+    deposit_noop: Option<fn(&TxDeposit, usize) -> bool>,
 }
 
 impl<R, Spec, EvmFactory> OpBlockExecutorFactory<R, Spec, EvmFactory> {
     /// Creates a new [`OpBlockExecutorFactory`] with the given spec, [`EvmFactory`], and
     /// [`OpReceiptBuilder`].
     pub const fn new(receipt_builder: R, spec: Spec, evm_factory: EvmFactory) -> Self {
-        Self { receipt_builder, spec, evm_factory }
+        Self { receipt_builder, spec, evm_factory, deposit_noop: None }
+    }
+
+    /// Makes deposits selected by `noop` successful transactions with no state or gas effects.
+    /// The rule receives the deposit and its block transaction index and must be deterministic.
+    #[must_use]
+    pub const fn with_deposit_noop(mut self, noop: fn(&TxDeposit, usize) -> bool) -> Self {
+        self.deposit_noop = Some(noop);
+        self
     }
 
     /// Exposes the receipt builder.
@@ -1235,7 +1282,9 @@ where
         DB: StateDB,
         I: Inspector<<PostExecEvmFactoryAdapter<F> as EvmFactory>::Context<DB>>,
     {
-        OpBlockExecutor::new(evm, ctx, &self.spec, &self.receipt_builder)
+        let mut executor = OpBlockExecutor::new(evm, ctx, &self.spec, &self.receipt_builder);
+        executor.deposit_noop = self.deposit_noop;
+        executor
     }
 }
 
@@ -1290,7 +1339,9 @@ where
         DB: StateDB,
         I: Inspector<<OpEvmFactory<Tx, RefundPolicy> as EvmFactory>::Context<DB>>,
     {
-        OpBlockExecutor::new(evm, ctx, &self.spec, &self.receipt_builder)
+        let mut executor = OpBlockExecutor::new(evm, ctx, &self.spec, &self.receipt_builder);
+        executor.deposit_noop = self.deposit_noop;
+        executor
     }
 }
 

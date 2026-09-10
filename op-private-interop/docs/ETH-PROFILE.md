@@ -6,12 +6,22 @@ replay transactions put that message into the public projection's interop histor
 
 ## Publication and sequencer outages
 
-The batcher can publish private events from both sequenced and forced transactions. The projection
-EL executes its own L1 deposits, but clears their receipt logs before computing receipt roots and
-bloom filters. This prevents deposits from independently injecting public messages, including a
-direct call to the projection's replay messenger. Deposit status, gas accounting, balances and
-state changes retain their normal execution semantics. Private and ordinary public chains keep
-their deposit logs.
+The batcher can publish private events from both sequenced and forced transactions. On the
+public projection, user deposits are successful zero-effect no-ops in every block, including
+sequencing-window fallback blocks. They remain in the transaction list and have receipts, but
+consume zero execution gas and do not mint ETH, transfer value, increment sender nonces, create
+contracts, write storage or emit logs. The receipt's deposit nonce records the unchanged sender
+nonce. This prevents a forced call from mutating projection protocol state as well as injecting
+public messages. Ordinary private and public chains retain normal deposit execution.
+
+L1-attributes and network-upgrade deposits still execute. The projection checks the L1-info source
+hash and block position, and recognizes complete canonical upgrade transactions. It does not
+classify system deposits by destination or the legacy `is_system_transaction` gas flag. Copying
+system calldata into a portal deposit does not grant execution. New network upgrades must be
+included in the canonical upgrade catalogue used by this classification.
+
+The supernode's claim scanner ignores deposit transactions, even when their receipts say success:
+a no-op receipt does not mean the registry executed or authorized the supplied claim calldata.
 
 Only the current batcher, read from the standard L1 attributes, can post projection range claims.
 This prevents a forced call from advancing the claim cursor and blocking recovery. Batcher rotation
@@ -25,7 +35,12 @@ When the private sequencer is offline, normal sequencing-window expiry lets publ
 produce blocks without sequencer transactions or interop events. Those blocks still include
 required system/deposit transactions. The production sequencing window remains unchanged.
 
-Once the private chain resumes, anyone with the original message parameters can call the existing
+After private execution and publication have caught up, a user can force a new L1 deposit to
+create a new initiating message. Its private execution receives a new message nonce; the operator
+publishes the event and the recipient uses its new public identifier. An expired fallback position
+is not retroactively populated with that event.
+
+Separately, anyone with the original message parameters can call the existing
 `resendMessage`. It checks the private messenger's stored hash and emits the same message again.
 The new event has a new block position and timestamp; consumers use that newly published identifier.
 The message hash and nonce are unchanged, so destination-side replay protection still applies.
@@ -55,7 +70,9 @@ Use stock op-deployer `0.8.0-rc.2` with the matching custom contract-artifact bu
 active at genesis. NetChef generates the genesis and rollup artifacts normally. Private ELs, the
 projection EL, batcher and supernode use the same private-chain genesis source. The projection EL
 retains `--rollup.private`; the supernode derives its projection internally. All component images
-must match the contract bundle and projection behavior.
+must match the contract bundle and projection behavior. The no-op rule changes projection
+consensus from the earlier log-suppression prototype; existing prototype databases require a
+coordinated migration or a fresh devnet. It is not a rolling, backward-compatible client update.
 
 There is no manual genesis transformation or upload step in this deployment path. A changed
 genesis requires fresh chain databases; redownloading genesis cannot migrate an initialized DB.
@@ -70,9 +87,11 @@ do not project the genesis twice.
 
 The acceptance suite covers deposit funding, sequencer publication of forced sends, authenticated
 resend, bidirectional application messaging, and public progress through a private-node outage.
-The recovery test restarts the private nodes and batcher, resends an omitted forced message, and
-waits for the recipient's cross-safe frontier. The outage fixture shortens the sequencing window
-to ten L1 blocks; this does not change the devnet's production setting.
+The recovery test restarts the private nodes and batcher, forces a fresh deposit, checks the new
+message nonce and waits for the recipient's cross-safe frontier. Rust execution tests verify no-op
+balances, nonces, storage, contract creation, logs and gas, with and without post-exec accounting.
+The outage fixture shortens the sequencing window to ten L1 blocks; this does not change the
+devnet's production setting.
 
 `RUST_JIT_BUILD=1 mise x -- go run ./op-up --private-interop --smoke` runs chain-ops `interopsmoke`
 in-process with the private message-position resolver. Native ETH bridging is skipped. Standalone

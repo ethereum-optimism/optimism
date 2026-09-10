@@ -41,25 +41,29 @@ func TestPrivateOutageDoesNotBlockPublicProgress(gt *testing.T) {
 	lastPrivate := sys.L2ELB.BlockRefByLabel(eth.Unsafe)
 	sys.L2ELB.Stop()
 
-	// A failed forced inbox call must not create a dependency, even at projection base fee zero.
+	// Forced calls are no-ops, including calls to privileged projection contracts.
 	calldata, err := bindings.NewBindings[bindings.CrossL2Inbox]().ValidateMessage(
 		messages.Identifier{}, eth.Bytes32{}).EncodeInputLambda()
 	require.NoError(err)
 	depositor := alice.AsEL(sys.L2BSupernodeEL).ViaDepositTx(alice, sys.L2BSupernodeEL, sys.L2B)
-	receipt := depositor.DepositTxExpectRevert(predeploys.CrossL2InboxAddr, calldata, "NotInAccessList()")
+	receipt := depositor.DepositTx(predeploys.CrossL2InboxAddr, calldata)
+	require.Zero(receipt.GasUsed)
 	require.Empty(receipt.Logs)
 
 	// A forced claim must not poison the range cursor and prevent the batcher from recovering.
 	calldata, err = render.EncodePostClaim(&codec.RangeClaim{LastBlock: ^uint64(0)})
 	require.NoError(err)
-	depositor.DepositTxExpectRevert(predeploys.ClaimRegistryAddr, calldata, "ClaimRegistry_NotBatcher()")
+	forcedClaim := depositor.DepositTx(predeploys.ClaimRegistryAddr, calldata)
+	require.Zero(forcedClaim.GasUsed)
+	require.Empty(forcedClaim.Logs)
 
-	// Even a successful direct replay call cannot publish a message through a deposit.
+	// A direct replay call cannot execute or publish a message through a deposit.
 	calldata, err = w3.MustNewFunc("replaySentMessage(uint256,uint256,address,address,bytes)", "bytes32").EncodeArgs(
 		sys.L2A.ChainID().ToBig(), big.NewInt(9000), alice.Address(), receiver.Address(), []byte{})
 	require.NoError(err)
 	forcedReplay := depositor.DepositTx(predeploys.L2toL2CrossDomainMessengerAddr, calldata)
 	require.Empty(forcedReplay.Logs, "projection deposits cannot publish initiating events")
+	require.Zero(forcedReplay.GasUsed)
 
 	// The private messenger can create this message when it resumes, although the projection's
 	// messenger does not execute sendMessage and there is no sequencer batch to publish its event.
@@ -70,8 +74,8 @@ func TestPrivateOutageDoesNotBlockPublicProgress(gt *testing.T) {
 	}
 	calldata, err = send.EncodeInput()
 	require.NoError(err)
-	missed := depositor.DepositTxExpectRevert(predeploys.L2toL2CrossDomainMessengerAddr, calldata,
-		"L2ToL2CrossDomainMessengerReplay_Unsupported()")
+	missed := depositor.DepositTx(predeploys.L2toL2CrossDomainMessengerAddr, calldata)
+	require.Zero(missed.GasUsed)
 	require.Empty(missed.Logs)
 
 	// Crossing the last private timestamp proves these blocks did not come from queued batches.

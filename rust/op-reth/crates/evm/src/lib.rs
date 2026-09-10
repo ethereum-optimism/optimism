@@ -55,6 +55,7 @@ mod execute;
 pub use execute::*;
 pub mod l1;
 pub use l1::*;
+mod projection;
 mod receipts;
 pub use receipts::*;
 mod build;
@@ -110,12 +111,13 @@ impl<ChainSpec, N: NodePrimitives, R: Clone, EvmFactory: Clone> Clone
 impl<ChainSpec: EthChainSpec<Header = Header> + OpHardforks> OpEvmConfig<ChainSpec> {
     /// Creates a new [`OpEvmConfig`] with the given chain spec for OP chains.
     pub fn optimism(chain_spec: Arc<ChainSpec>) -> Self {
-        let receipts = if is_public_projection_genesis(chain_spec.genesis()) {
-            OpRethReceiptBuilder::for_public_projection()
-        } else {
-            OpRethReceiptBuilder::default()
-        };
-        Self::new(chain_spec, receipts)
+        let projection = is_public_projection_genesis(chain_spec.genesis());
+        let mut config = Self::new(chain_spec, OpRethReceiptBuilder::default());
+        if projection {
+            config.executor_factory =
+                config.executor_factory.with_deposit_noop(projection::is_user_deposit);
+        }
+        config
     }
 }
 
