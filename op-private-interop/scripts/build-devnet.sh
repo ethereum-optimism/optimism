@@ -31,7 +31,7 @@ mise exec -- go build -trimpath -o "$bundle_root/private-genesis" ./op-private-i
   mise exec -- cargo build --locked --profile "$rust_profile" -p op-reth --bin op-reth
   cp "${CARGO_TARGET_DIR:-target}/$rust_output/op-reth" "$bundle_root/op-reth"
 )
-FOUNDRY_PROFILE=default mise exec -- forge build --root packages/contracts-bedrock
+FOUNDRY_PROFILE=default mise exec -- forge build --root packages/contracts-bedrock --skip "/**/test/**"
 python3 - <<'CHECK_BYTECODE'
 import json
 from pathlib import Path
