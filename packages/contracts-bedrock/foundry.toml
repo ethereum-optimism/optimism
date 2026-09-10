@@ -75,11 +75,14 @@ fs_permissions = [
 ]
 
 # 5159 = selfdestruct deprecation
-# 6335 = future `at` keyword collision (triggered by solady)
+# 6335 = future `at` keyword collision (solc 0.8.36, triggered by solady)
 # 8429 = virtual modifiers deprecated (solc 0.8.31, triggered by solmate)
-# 9207 = send deprecation (triggered by safe-contracts)
+# 9207 = send deprecation (solc 0.8.36, triggered by safe-contracts)
 # 2424 = natspec memory-safe-assembly comment deprecated (solc 0.8.31, triggered by forge-std)
-ignored_error_codes = ["transient-storage", "code-size", "init-code-size", "too-many-warnings", 5159, 6335, 8429, 9207, 2424]
+ignored_error_codes = [
+  "transient-storage", "code-size", "init-code-size", "too-many-warnings",
+  5159, 6335, 8429, 9207, 2424,
+]
 deny = "warnings"
 ffi = true
 
@@ -121,7 +124,6 @@ depth = 32
 [profile.cicoverage]
 optimizer = false
 compilation_restrictions = []
-ignored_error_codes = ["transient-storage", "code-size", "init-code-size", "too-many-warnings", 5159, 6335, 8429, 9207, 2424]
 
 [profile.cicoverage.fuzz]
 runs = 1

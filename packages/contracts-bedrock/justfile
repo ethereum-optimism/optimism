@@ -351,7 +351,8 @@ coverage *ARGS: build-go-ffi
   }
 
   if [ -n "$AMSTERDAM_FILES" ]; then
-    FOUNDRY_EVM_VERSION=amsterdam run_coverage amsterdam "$AMSTERDAM_FILES"
+    # Solc requires experimental mode for Amsterdam codegen.
+    FOUNDRY_EVM_VERSION=amsterdam FOUNDRY_EXPERIMENTAL=true run_coverage amsterdam "$AMSTERDAM_FILES"
   fi
   if [ -n "$DEFAULT_EVM_FILES" ]; then
     run_coverage l2 "$DEFAULT_EVM_FILES"
@@ -371,7 +372,8 @@ coverage-lcov *ARGS:
 
 # Runs upgrade path variant of contract coverage tests.
 coverage-upgrade *ARGS:
-  FOUNDRY_EVM_VERSION=amsterdam just prepare-upgrade-env "forge coverage {{ARGS}}"
+  # Solc requires experimental mode for Amsterdam codegen.
+  FOUNDRY_EVM_VERSION=amsterdam FOUNDRY_EXPERIMENTAL=true just prepare-upgrade-env "forge coverage {{ARGS}}"
 
 # Runs contract coverage with lcov.
 coverage-lcov-upgrade *ARGS: build-go-ffi
