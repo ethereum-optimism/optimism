@@ -86,7 +86,6 @@ func TestInteropFaultProofs_IntraBlock(gt *testing.T) {
 }
 
 func TestInteropFaultProofs_CycleReplacementPreservesAcyclicPrerequisite(gt *testing.T) {
-	gt.Skip("requires exact cycle participant detection; see ethereum-optimism/optimism#22825")
 	t := devtest.SerialT(gt)
 	sys := presets.NewThreeChainInterop(t, presets.WithoutHonestProposer())
 	sfp.RunCycleReplacementPreservesAcyclicPrerequisiteTest(t, sys, proofRunners()...)
