@@ -8,13 +8,29 @@ _LDFLAGSSTRING := "'" + trim(
     "") + "'"
 
 BINARY := "./bin/op-supernode"
+INSPECT_BINARY := "./bin/proofbatch-inspect"
+SILHOUETTE_EL_BINARY := "./bin/op-silhouette-el"
+BINDINGS_BINARY := "./bin/silhouette-bindings"
 
 # Build op-supernode binary
 op-supernode: (go_build BINARY "./cmd" "-ldflags" _LDFLAGSSTRING)
 
+# Build the standalone persistent proof-backed EL.
+op-silhouette-el: (go_build SILHOUETTE_EL_BINARY "./cmd/op-silhouette-el" "-ldflags" _LDFLAGSSTRING)
+
+# Build the canonical artifact-binding hash tool.
+silhouette-bindings: (go_build BINDINGS_BINARY "./cmd/silhouette-bindings")
+
+# This one takes no ldflags, unlike every other recipe here: the tool declares no
+# version symbols, and -X against a symbol that does not exist is silently a
+# no-op -- which reads, in a diff, like a version stamp is being applied.
+
+# Build proofbatch-inspect binary
+proofbatch-inspect: (go_build INSPECT_BINARY "./cmd/proofbatch-inspect")
+
 # Clean build artifacts
 clean:
-    rm -f {{BINARY}}
+    rm -f {{BINARY}} {{INSPECT_BINARY}} {{SILHOUETTE_EL_BINARY}} {{BINDINGS_BINARY}}
 
 # Run tests
 test: (go_test "./...")
@@ -24,5 +40,3 @@ coverage:
     @go test ./... -coverprofile=coverage.out
     @go tool cover -func=coverage.out | grep '^total:'
     @go tool cover -func=coverage.out | grep -v '^total:'
-
-

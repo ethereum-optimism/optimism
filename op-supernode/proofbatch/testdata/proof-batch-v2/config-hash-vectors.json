@@ -1,0 +1,23 @@
+{
+  "note": "The two configuration commitments a proof batch carries. A verifier node holds them as opaque bytes32; this is how an operator derives them. Both preimages are the serialization of the PARSED config, never the operator's file verbatim, so whitespace, key order and omitted-but-defaulted fields cannot move the commitment. Neither moved in wire v2.",
+  "tool": "kona-sp1-cove-range-executor config-hash --rollup-config <file> --depset <file> [--write-preimages <dir>]",
+  "rollupConfigHash": {
+    "algorithm": "sha256(serde_json::to_string_pretty(&kona_genesis::RollupConfig))",
+    "why": "Not ours: this is kona's existing hash_rollup_config, already committed by every SP1 range proof in this tree via BootInfoStruct. Hence SHA-256, not keccak.",
+    "preimageFile": "p-rollup-config.canonical.json",
+    "preimageBytes": 1792,
+    "chain": "Keccak Cove chain P (424247)",
+    "hash": "0xfb0519dc2a9c704319281b51071363b8a86e6523c3c2002706fbe94a13bef9f1"
+  },
+  "depSetHash": {
+    "algorithm": "keccak256(serde_json::to_vec(&kona_genesis::DependencySet))",
+    "why": "New in this spec, never compared against a kona value, and consumed by Go code that has keccak everywhere.",
+    "shape": "{\"dependencies\":{\"<chainId>\":{},...},\"overrideMessageExpiryWindow\":<null|N>} — no spaces, chain IDs ascending as decimal strings",
+    "preimage": "{\"dependencies\":{\"424246\":{},\"424247\":{}},\"overrideMessageExpiryWindow\":null}",
+    "chains": [
+      424246,
+      424247
+    ],
+    "hash": "0x9c4e0fc42275e80f597d83ec057ff2c07649c7ba20e43cc1456b2f66e61d782c"
+  }
+}

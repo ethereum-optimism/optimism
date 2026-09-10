@@ -1,0 +1,16 @@
+{
+  "name": "exec-msgs-duplicate",
+  "spec": "SPEC-PROOF-BATCH.md, proof-batch wire format v2",
+  "kind": "invalid",
+  "description": "The same import twice — byte-identical keys. Caught by the same strictly-increasing rule as the unsorted case, and worth its own fixture because a `<=` check instead of `<` would let it through, silently admitting a multiplicity the dedup rule exists to erase. Contrast `exec-msgs-same-identifier-different-msghash`, which is VALID: same coordinate, different payload hash, hence a different key.",
+  "expectedError": "invalid proof batch: blocks[0].execMsgs[1] duplicates its predecessor; execMsgs is a deduplicated set, strictly increasing in the canonical key",
+  "envelope": {
+    "magicHex": "0x4b435042",
+    "magicAscii": "KCPB",
+    "version": 3,
+    "pvLen": 992,
+    "proofLen": 0,
+    "totalLen": 1005
+  },
+  "envelopeKeccak": "0x633a8f7bbe5cb5c057b5f296e016f6ac8af4fe515680837e5615c7179d303309"
+}

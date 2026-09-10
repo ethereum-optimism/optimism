@@ -158,6 +158,37 @@ var (
 		Value:   false,
 		EnvVars: prefixEnvVars("WAIT_NODE_SYNC"),
 	}
+	SilhouetteFlag = &cli.BoolFlag{
+		Name:    "silhouette",
+		Usage:   "Encode loaded L2 blocks as transaction-stripped silhouette proof batches while retaining the normal batcher lifecycle",
+		EnvVars: prefixEnvVars("SILHOUETTE"),
+	}
+	SilhouetteInboxFlag = &cli.StringFlag{
+		Name:    "silhouette.inbox",
+		Usage:   "L1 inbox address for silhouette proof batches",
+		EnvVars: prefixEnvVars("SILHOUETTE_INBOX"),
+	}
+	SilhouetteRollupConfigHashFlag = &cli.StringFlag{
+		Name:    "silhouette.rollup-config-hash",
+		Usage:   "Canonical rollup-config hash committed by each silhouette proof batch",
+		EnvVars: prefixEnvVars("SILHOUETTE_ROLLUP_CONFIG_HASH"),
+	}
+	SilhouetteDepSetHashFlag = &cli.StringFlag{
+		Name:    "silhouette.dependency-set-hash",
+		Usage:   "Canonical dependency-set hash committed by each silhouette proof batch",
+		EnvVars: prefixEnvVars("SILHOUETTE_DEPENDENCY_SET_HASH"),
+	}
+	SilhouetteWireVersionFlag = &cli.UintFlag{
+		Name:    "silhouette.wire-version",
+		Usage:   "Proof-batch wire version; must be explicitly configured to match the verifier",
+		EnvVars: prefixEnvVars("SILHOUETTE_WIRE_VERSION"),
+	}
+	SilhouetteMaxBlocksFlag = &cli.Uint64Flag{
+		Name:    "silhouette.max-blocks",
+		Usage:   "Maximum L2 blocks in one silhouette proof batch",
+		Value:   300,
+		EnvVars: prefixEnvVars("SILHOUETTE_MAX_BLOCKS"),
+	}
 
 	// Legacy Flags
 	SequencerHDPathFlag = txmgr.SequencerHDPathFlag
@@ -187,6 +218,12 @@ var optionalFlags = []cli.Flag{
 	DataAvailabilityTypeFlag,
 	ActiveSequencerCheckDurationFlag,
 	CompressionAlgoFlag,
+	SilhouetteFlag,
+	SilhouetteInboxFlag,
+	SilhouetteRollupConfigHashFlag,
+	SilhouetteDepSetHashFlag,
+	SilhouetteWireVersionFlag,
+	SilhouetteMaxBlocksFlag,
 }
 
 func init() {

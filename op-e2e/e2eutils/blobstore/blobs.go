@@ -31,6 +31,13 @@ func (store *Store) StoreBlob(blockTime uint64, indexedHash eth.IndexedBlobHash,
 	m[indexedHash] = blob
 }
 
+// ClearBlobsAtTime removes the sidecars associated with one beacon slot timestamp. A reorg may
+// replace the block at a slot; retaining both bundles would leave duplicate hashes at different
+// indices even though the beacon API has exactly one canonical block per slot.
+func (store *Store) ClearBlobsAtTime(blockTime uint64) {
+	delete(store.blobs, blockTime)
+}
+
 // GetBlobsByHash returns a slice of blobs in the slot at the given timestamp,
 // corresponding to the supplied versioned hashes.
 // If the provided hashes is empty, all blobs in the store at the supplied timestamp are returned.
@@ -67,7 +74,12 @@ func (store *Store) GetBlobsByHash(ctx context.Context, time uint64, hashes []co
 	}
 
 	if len(indexedBlobSlice) != len(hashes) {
-		return nil, fmt.Errorf("not all blobs found")
+		available := make([]common.Hash, 0, len(blobMap))
+		for indexed := range blobMap {
+			available = append(available, indexed.Hash)
+		}
+		slices.SortFunc(available, common.Hash.Cmp)
+		return nil, fmt.Errorf("not all blobs found: requested %v, available %v", hashes, available)
 	}
 
 	// sort by index

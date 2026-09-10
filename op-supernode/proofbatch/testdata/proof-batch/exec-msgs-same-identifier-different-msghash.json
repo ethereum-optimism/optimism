@@ -1,0 +1,60 @@
+{
+  "name": "exec-msgs-same-identifier-different-msghash",
+  "spec": "SPEC-PROOF-BATCH.md, proof-batch wire format v2",
+  "kind": "valid",
+  "description": "TWO entries at the SAME (chainId, blockNumber, logIndex) with DIFFERENT msgHash — two contradictory claims about one log, both retained. This is valid on the wire on purpose: both were assumed by the block, at most one can validate against the initiating chain, and a dedup on the coordinate triple instead of the full key would have silently dropped the assumption a consolidator exists to reject.",
+  "envelope": {
+    "magicHex": "0x4b435042",
+    "magicAscii": "KCPB",
+    "version": 3,
+    "pvLen": 992,
+    "proofLen": 0,
+    "totalLen": 1005
+  },
+  "publicValues": {
+    "prevOutputRoot": "0x18249169e93fe76971369a5c1e959ec421f45d95f0a88a7ec20a48f8c16c2be5",
+    "newOutputRoot": "0x4aa000fc80139700086cabf1b6107ae1760e4c9fdbbc2b7859f2ab20dd50c30d",
+    "l1Head": "0xba78128b2d2cf2528c78f6449e394c119240e2aa588c0142b13c92a8f86e5e5a",
+    "rollupConfigHash": "0xdf7a5ae679c1776a9ccbc5d99b1db9e8919e303173dbfdbb12b0e2e5c6be15b7",
+    "depSetHash": "0xdc2d0a7e0c50f59b50c7b46cd2fc41d7c275d3982d11046c477c3ed74febfc01",
+    "exportPolicyHash": "0xa6399dfbff2da483c5fcbe6f074297868700f9304ca957a4d61bcf84109430ef",
+    "blocks": [
+      {
+        "blockNumber": 1700001,
+        "timestamp": 1801600002,
+        "blockHash": "0x694afa0ce4acc0a5daafc3ccc2ad5bdc48f912b79e0d735b2a3322e41bd6d50f",
+        "stateRoot": "0xbbdbb8f848eb8b022ef57d90886afc506a48fa19718951e2b9cd20289b923907",
+        "messagePasserStorageRoot": "0x1759be0f968ccd9c18f7b68af9c730dd7131b13e6280d82cd0f54fb10ff64333",
+        "outputRoot": "0x4aa000fc80139700086cabf1b6107ae1760e4c9fdbbc2b7859f2ab20dd50c30d",
+        "logs": [],
+        "execMsgs": [
+          {
+            "origin": "0x10b6fa2f4c013d4a825ba2fc1cee37624bb06974",
+            "blockNumber": 900001,
+            "logIndex": 4,
+            "timestamp": 1801599000,
+            "chainId": "424246",
+            "msgHash": "0xd6e7120715190c35231543d8f574d22c6fd137b65b496f4754e2c26e30b7ee84",
+            "logHash": "0x90383a9c060b8a2303530797e563b98abe018b90fd7df4f81b091a7a13a4852f",
+            "checksum": "0x038b727d6a2d416c5afd4a02dcad1c426eb25835afe8bb6109b9cb071edffe0d",
+            "key": "0x00000000000000000000000010b6fa2f4c013d4a825ba2fc1cee37624bb0697400000000000000000000000000000000000000000000000000000000000dbba10000000000000000000000000000000000000000000000000000000000000004000000000000000000000000000000000000000000000000000000006b6238180000000000000000000000000000000000000000000000000000000000067936d6e7120715190c35231543d8f574d22c6fd137b65b496f4754e2c26e30b7ee84"
+          },
+          {
+            "origin": "0x10b6fa2f4c013d4a825ba2fc1cee37624bb06974",
+            "blockNumber": 900001,
+            "logIndex": 4,
+            "timestamp": 1801599000,
+            "chainId": "424246",
+            "msgHash": "0xd7c0948c981cbdbddda4a3dabea2273687047f36bc46b5b79e9a7b44ae473f01",
+            "logHash": "0xdda1b90771689772736caa9d760a3e4dcdb2b27cb413d56adfa249f7e678438c",
+            "checksum": "0x031351ff27de65261adb4d8274840d50fa51af64272a83ea387fd1ae85fb7e5f",
+            "key": "0x00000000000000000000000010b6fa2f4c013d4a825ba2fc1cee37624bb0697400000000000000000000000000000000000000000000000000000000000dbba10000000000000000000000000000000000000000000000000000000000000004000000000000000000000000000000000000000000000000000000006b6238180000000000000000000000000000000000000000000000000000000000067936d7c0948c981cbdbddda4a3dabea2273687047f36bc46b5b79e9a7b44ae473f01"
+          }
+        ]
+      }
+    ]
+  },
+  "publicValuesKeccak": "0x4dca4ed55084ef641c150d9281aa1243771342e3a22dee642e6cf531385ee1d4",
+  "proofHex": "0x",
+  "envelopeKeccak": "0x16af7f0a6aa2285379385f0c18236de5408b1c09be3cdb7d4599d3bf2dc4bf6a"
+}

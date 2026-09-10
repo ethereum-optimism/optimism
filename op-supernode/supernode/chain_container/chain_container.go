@@ -10,6 +10,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/ethereum-optimism/optimism/op-core/interop/messages"
 	optypes "github.com/ethereum-optimism/optimism/op-core/types"
 	opnodecfg "github.com/ethereum-optimism/optimism/op-node/config"
 	rollupNode "github.com/ethereum-optimism/optimism/op-node/node"
@@ -146,6 +147,83 @@ type InteropChain interface {
 	// traffic after a Pause/Resume cycle. Returns ctx.Err() on cancellation or timeout;
 	// returns nil as soon as readiness is observed.
 	WaitReady(ctx context.Context) error
+}
+
+// IngestionSource says where a chain's initiating messages come from. It is the ONE thing the rest
+// of the supernode needs to know about how a chain container is backed.
+type IngestionSource string
+
+const (
+	// IngestionExecuted is the default: the container fronts an execution client, so the verifier
+	// can fetch the chain's receipts and read its initiating messages out of them itself.
+	IngestionExecuted IngestionSource = "executed"
+	// IngestionProven means the chain's initiating messages are sealed into its message database by
+	// a validity-proof backend, and no receipts exist on this node to re-read them from.
+	IngestionProven IngestionSource = "proven"
+)
+
+// MessageIngestion is the optional capability a ChainContainer implements when its messages do not
+// come from its own execution client.
+//
+// It exists because the ChainContainer interface assumes execution: three of the interop verifier's
+// paths reach for receipts, and receipts are the one thing a proof-carried chain does not have.
+// Each of the three has a correct receipt-free alternative, so the leak is three skips rather than
+// three re-implementations — and a future upstream split of "where do this chain's messages come
+// from" out of "where does this chain's execution data come from" absorbs all three.
+type MessageIngestion interface {
+	IngestionSource() IngestionSource
+}
+
+// IngestionSourceOf reports how a chain container is backed, defaulting to IngestionExecuted for
+// containers that do not declare a source.
+//
+// Defaulting rather than requiring the method is what keeps this a pure addition: every existing
+// container, in production and in tests, keeps its present behaviour without being touched.
+func IngestionSourceOf(c ChainContainer) IngestionSource {
+	if src, ok := c.(MessageIngestion); ok {
+		return src.IngestionSource()
+	}
+	return IngestionExecuted
+}
+
+// ProvenMessageImports is the second half of the message-ingestion capability: where a
+// proof-carried chain's EXECUTING messages come from.
+//
+// IngestionSource answers "where do this chain's initiating messages come from" — the export half.
+// This answers the import half, and it needs its own method because the two have different shapes: a
+// driven chain's executing messages are decoded from the CrossL2Inbox logs of a block whose receipts
+// the verifier holds, and a proof-carried chain's arrive as a positionless set inside the object the
+// proof committed to.
+//
+// The tri-state return is the whole point and must not be collapsed:
+//
+//	onWire=true,  err=nil  — this is the block's import list. Empty means "consumed nothing".
+//	onWire=false, err=nil  — this chain's wire version carries no import list (pre-v3). The caller
+//	                         keeps the older posture, in which the chain's dependencies are trusted
+//	                         rather than checked, and should say so out loud.
+//	err != nil             — the chain DOES declare imports and this node cannot produce them for
+//	                         this block. Never read as "there are none": that would be a verifier
+//	                         validating nothing while reporting that it validates dependencies.
+type ProvenMessageImports interface {
+	ProvenExecMsgs(blockNum uint64) (msgs map[uint32]*messages.ExecutingMessage, onWire bool, err error)
+}
+
+// ProvenExecMsgsOf reads a proof-carried chain's declared executing messages for one block.
+//
+// A container that reports IngestionProven and does NOT implement the capability is an ERROR rather
+// than a chain with no imports. That is the fail-closed direction, and it is the direction that
+// matters: the alternative is a wiring mistake presenting as a chain whose dependencies nobody
+// checks, which is indistinguishable from correct operation from the outside.
+//
+// The keys are the wire's SET ORDINALS, not log positions — see the silhouette container. Nothing in
+// the verification path may read them as positions.
+func ProvenExecMsgsOf(c ChainContainer, blockNum uint64) (map[uint32]*messages.ExecutingMessage, bool, error) {
+	imports, ok := c.(ProvenMessageImports)
+	if !ok {
+		return nil, false, fmt.Errorf("chain container declares %s ingestion but cannot report the "+
+			"executing messages its proofs committed to", IngestionProven)
+	}
+	return imports.ProvenExecMsgs(blockNum)
 }
 
 type virtualNodeFactory func(cfg *opnodecfg.Config, log gethlog.Logger, initOverrides *rollupNode.InitializationOverrides, appVersion string, superAuthority rollup.SuperAuthority) virtual_node.VirtualNode

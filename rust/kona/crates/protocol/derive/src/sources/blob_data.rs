@@ -14,6 +14,19 @@ pub(crate) const BLOB_MAX_DATA_SIZE: usize = (4 * 31 + 3) * 1024 - 4; // 130044
 /// Blob Encoding/Decoding Rounds
 pub(crate) const BLOB_ENCODING_ROUNDS: usize = 1024;
 
+/// Decodes one EIP-4844 blob from the op-stack blob encoding into its payload bytes.
+///
+/// This is the Rust counterpart of `op-service/eth`'s `Blob.ToData`, and the unit a multi-blob
+/// payload is assembled from: a consumer that packs more than one blob per transaction decodes each
+/// blob with this function and concatenates the results in sidecar index order.
+///
+/// [`BlobSource`](crate::BlobSource) uses the same decoder internally, but only ever yields one
+/// payload per blob. Callers whose payload framing is *not* op-stack channel frames — a single
+/// object spanning a transaction's blobs, say — need the decoder without the data source around it.
+pub fn decode_blob(blob: &Blob) -> Result<Bytes, BlobDecodingError> {
+    BlobData { data: Some(Bytes::from(*blob)), calldata: None }.decode()
+}
+
 /// The Blob Data
 #[derive(Default, Clone, Debug)]
 pub struct BlobData {
@@ -287,5 +300,26 @@ mod tests {
         let mut output = vec![0u8; 31];
         assert_eq!(blob_data.decode_field_element(0, 0, &mut output), Ok((0, 32, 32)));
         assert_eq!(output, vec![1u8; 31]);
+    }
+
+    /// A short payload lives entirely in the first field element: version byte, 3-byte big-endian
+    /// length, then up to 27 payload bytes. Hand-encoding it is the cheapest way to pin that
+    /// `decode_blob` agrees with `BlobData::decode` on a whole blob rather than a field element.
+    #[test]
+    fn test_decode_blob_reads_a_short_payload() {
+        let payload = b"keccak-cove";
+        let mut raw = Blob::ZERO;
+        raw[1] = BLOB_ENCODING_VERSION;
+        raw[2..5].copy_from_slice(&(payload.len() as u32).to_be_bytes()[1..]);
+        raw[5..5 + payload.len()].copy_from_slice(payload);
+
+        assert_eq!(decode_blob(&raw), Ok(Bytes::from_static(payload)));
+    }
+
+    #[test]
+    fn test_decode_blob_rejects_a_bad_encoding_version() {
+        let mut raw = Blob::ZERO;
+        raw[1] = BLOB_ENCODING_VERSION + 1;
+        assert_eq!(decode_blob(&raw), Err(BlobDecodingError::InvalidEncodingVersion));
     }
 }

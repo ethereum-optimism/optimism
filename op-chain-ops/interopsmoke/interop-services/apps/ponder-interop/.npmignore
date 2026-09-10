@@ -1,0 +1,6 @@
+# Ignore everything
+*
+
+# ponder.schema.js is the only file we want to include in the npm package
+!dist/ponder.schema.js
+!dist/ponder.schema.d.ts

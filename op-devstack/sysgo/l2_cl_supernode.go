@@ -13,6 +13,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
 	"github.com/ethereum-optimism/optimism/op-node/config"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
+	"github.com/ethereum-optimism/optimism/op-service/sources"
 	"github.com/ethereum-optimism/optimism/op-service/testutils/tcpproxy"
 	snconfig "github.com/ethereum-optimism/optimism/op-supernode/config"
 	"github.com/ethereum-optimism/optimism/op-supernode/supernode"
@@ -42,6 +43,24 @@ var _ L2CLNode = (*SuperNode)(nil)
 
 func (n *SuperNode) UserRPC() string {
 	return n.userRPC
+}
+
+func (n *SuperNode) L1Client() *sources.L1Client {
+	n.mu.Lock()
+	defer n.mu.Unlock()
+	if n.sn == nil {
+		return nil
+	}
+	return n.sn.L1Client()
+}
+
+func (n *SuperNode) BeaconClient() *sources.L1BeaconClient {
+	n.mu.Lock()
+	defer n.mu.Unlock()
+	if n.sn == nil {
+		return nil
+	}
+	return n.sn.BeaconClient()
 }
 
 func (n *SuperNode) Start() {

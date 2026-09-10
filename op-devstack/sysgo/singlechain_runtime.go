@@ -299,6 +299,12 @@ func startMinimalBatcher(
 		l1RPC:   l1EL.UserRPC(),
 		l2CLRPC: l2CL.UserRPC(),
 		l2ELRPC: l2EL.UserRPC(),
+		proofBatchHooks: func() *bss.ProofBatchTestHooks {
+			if batcherCLIConfig.ProofBatch == nil {
+				return nil
+			}
+			return batcherCLIConfig.ProofBatch.TestHooks
+		}(),
 	}
 }
 

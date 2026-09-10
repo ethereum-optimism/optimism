@@ -1,0 +1,34 @@
+{
+  "name": "@eth-optimism/wagmi",
+  "description": "OP extensions for wagmi",
+  "type": "module",
+  "version": "0.1.9",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "files": [
+    "dist/*",
+    "src/*"
+  ],
+  "scripts": {
+    "clean": "rm -rf build types tsconfig.tsbuildinfo",
+    "build": "tsc && resolve-tspaths",
+    "lint": "eslint \"**/*.{ts,tsx}\" && pnpm prettier --check \"**/*.{ts,tsx}\" --ignore-path \"../../.prettierignore\"",
+    "lint:fix": "eslint \"**/*.{ts,tsx}\" --fix && pnpm prettier \"**/*.{ts,tsx}\" --write --loglevel=warn --ignore-path \"../../.prettierignore\"",
+    "test": "vitest --passWithNoTests --run",
+    "typecheck": "tsc --noEmit --emitDeclarationOnly false"
+  },
+  "devDependencies": {
+    "@eth-optimism/viem": "workspace:*",
+    "@tanstack/react-query": "^5",
+    "react": "^18",
+    "viem": "^2.17.9",
+    "wagmi": "^2.12"
+  },
+  "peerDependencies": {
+    "@eth-optimism/viem": "workspace:*",
+    "@tanstack/react-query": "^5",
+    "react": "^18",
+    "viem": "^2.17.9",
+    "wagmi": "^2.12"
+  }
+}

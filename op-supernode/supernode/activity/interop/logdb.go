@@ -13,6 +13,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-core/interop/messages"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-supernode/supernode/activity/interop/raftwallogdb"
+	cc "github.com/ethereum-optimism/optimism/op-supernode/supernode/chain_container"
 )
 
 // LogsDB is the interface for interacting with a chain's logs database.
@@ -43,6 +44,18 @@ type LogsDB interface {
 
 // Compile-time check that *raftwallogdb.DB implements LogsDB.
 var _ LogsDB = (*raftwallogdb.DB)(nil)
+
+// LogsDBForChain returns the interop log database of one chain.
+//
+// It exists for the one caller that must WRITE into a chain's log database from outside this
+// activity: a proof-carried chain seals its exported messages from the wire, inside batch
+// acceptance, rather than from receipts this activity fetched. The database is the same one every
+// reader here consults, which is the point — there is no second store and no synchronisation
+// between them.
+func (i *Interop) LogsDBForChain(chainID eth.ChainID) (LogsDB, bool) {
+	db, ok := i.logsDBs[chainID]
+	return db, ok
+}
 
 // openLogsDB opens a raft-wal-backed LogsDB for the given chain in the data directory.
 func openLogsDB(logger log.Logger, chainID eth.ChainID, dataDir string) (LogsDB, error) {
@@ -92,6 +105,13 @@ func (i *Interop) persistFrontierLogs(ts uint64, blocksAtTS map[eth.ChainID]eth.
 func (i *Interop) sealFetchedBlockIntoLogsDB(chainID eth.ChainID, blockID eth.BlockID, ts uint64) error {
 	chain, ok := i.chains[chainID]
 	if !ok {
+		return nil
+	}
+	if cc.IngestionSourceOf(chain) == cc.IngestionProven {
+		// A proof-carried chain's blocks are already in this database: its sink seals them
+		// synchronously with accepting the proof that established them, which is what makes them
+		// referenceable before the frontier reaches them at all. Fetching receipts to re-seal what
+		// is already sealed would be impossible (there are none) and pointless (it is there).
 		return nil
 	}
 	blockInfo, receipts, err := chain.FetchReceipts(i.ctx, blockID)

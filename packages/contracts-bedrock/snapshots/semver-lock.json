@@ -132,8 +132,12 @@
     "sourceCodeHash": "0x5e91f103e14750fdc05bbd3c6d121547a76dfed86b94431e1cee6fe229bdbfdd"
   },
   "src/L2/SuperchainETHBridge.sol:SuperchainETHBridge": {
-    "initCodeHash": "0xa43665ad0f2b4f092ff04b12e38f24aa8d2cb34ae7a06fc037970743547bdf98",
-    "sourceCodeHash": "0x862b8a2e5dd5cafcda55e35df7713b0d0b7a93d4d6ce29ea9ca53e045bf63cb4"
+    "initCodeHash": "0xd11dcb5ab1833fd91547f5c6242a329ec7f5afddd15cab76a22678f5e5cfcedf",
+    "sourceCodeHash": "0x6e68d5f798aa1db155ba8d6141176b5bd443ae385d68ef3450151704bdf52465"
+  },
+  "src/L2/SuperchainETHBridgePinned.sol:SuperchainETHBridgePinned": {
+    "initCodeHash": "0xadc4ac4a045b00330db04cf45f3d26984b5ed487fc9df72c1c4f135665b849f0",
+    "sourceCodeHash": "0x327bee261cb30df96542b1aaa079d87031c17e25e6176e6533889d3cc260923d"
   },
   "src/L2/WETH.sol:WETH": {
     "initCodeHash": "0xbc2cd025153720943e51b79822c2dc374d270a78b92cf47d49548c468e218e46",

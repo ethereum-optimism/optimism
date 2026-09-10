@@ -16,7 +16,7 @@ Packages:
 - `genesis`: OP Stack genesis-configs generation, pre OPCM.
 - `interopbridge`: shared cross-chain ETH bridge used by the interop test tools (check-lagoon, interop-smoke).
 - `interopgen`: interop test-chain genesis config generation.
-- `interopsmoke`: interop smoke tests against live chain RPCs (bridging, executing-message validation).
+- `interopsmoke`: interop smoke tests against live chain RPCs (bridging and executing-message validation).
 - `script`: foundry-like solidity scripting environment in Go.
 - `solc`: utils to read solidity compiler artifacts data.
 - `srcmap`: utils for solidity source-maps loaded from foundry-artifacts.

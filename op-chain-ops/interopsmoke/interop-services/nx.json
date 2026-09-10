@@ -1,0 +1,44 @@
+{
+  "$schema": "./node_modules/nx/schemas/nx-schema.json",
+  "neverConnectToCloud": true,
+  "targetDefaults": {
+    "dev": {
+      "cache": true,
+      "dependsOn": ["^build"]
+    },
+    "generate": {
+      "cache": true,
+      "dependsOn": ["ecosystem:fetch:artifacts"]
+    },
+    "build": {
+      "cache": true,
+      "dependsOn": ["^build", "^build:types"]
+    },
+    "build:types": {
+      "cache": true,
+      "dependsOn": ["^build:types", "^build"]
+    },
+    "typecheck": {
+      "dependsOn": ["^build:types"]
+    },
+    "lint": {
+      "cache": true
+    },
+    "e2e": {
+      "cache": true
+    }
+  },
+  "namedInputs": {
+    "default": ["{projectRoot}/**/*", "sharedGlobals"],
+    "sharedGlobals": [
+      "{workspaceRoot}/.prettierrc.js",
+      "{workspaceRoot}/.prettierignore",
+      "{workspaceRoot}/tsconfig.base.json",
+      "{workspaceRoot}/eslint.config.js",
+      "{workspaceRoot}/nx.json",
+      "{workspaceRoot}/mise.toml"
+    ],
+    "production": ["default"]
+  },
+  "useInferencePlugins": false
+}

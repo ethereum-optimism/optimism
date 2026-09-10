@@ -1,0 +1,90 @@
+{
+  "name": "curated-sparse-indices",
+  "spec": "SPEC-PROOF-BATCH.md, proof-batch wire format v2",
+  "kind": "valid",
+  "description": "THE CASE v1 COULD NOT EXPRESS: a curated subset, exported at block-level indices 0, 7 and 42. A decoder that assumes logs[i].logIndex == i is broken and this fixture says so. The exportPolicyHash is keccak256(\"cove-export-v2:fixture-curated\"), a label no shipped policy uses — the fixture is about the wire shape, not about a filter this build implements.",
+  "envelope": {
+    "magicHex": "0x4b435042",
+    "magicAscii": "KCPB",
+    "version": 3,
+    "pvLen": 1088,
+    "proofLen": 0,
+    "totalLen": 1101
+  },
+  "publicValues": {
+    "prevOutputRoot": "0x9029b2ef3ae46889560867c6fed2eab937eb25c8f24091b6f8ce35364dd54958",
+    "newOutputRoot": "0x964d37ab8c32f69273e95098f86d3792b74aff2652db76659e9dd90d1992d32e",
+    "l1Head": "0xf5f7728cd5357d07ccc553b696b19c4df62aba2728d22249d69881b1fa271833",
+    "rollupConfigHash": "0xec6e06dcd899cc56736d33d97c190d244e620498f11f841c7f10bafb3959431d",
+    "depSetHash": "0xe9ea92b164ea2d4e2158faebd9a8391820f312319e0c66fdf3a2775718d70237",
+    "exportPolicyHash": "0x6996c07589b967d6f5684c6b204f82dcf51e1b70069bd8279a2407b932e9b928",
+    "blocks": [
+      {
+        "blockNumber": 2000001,
+        "timestamp": 1800600002,
+        "blockHash": "0x67ab592087c8ebaa383fb1dc24216a2c6975b01c8e9f201615fd3cdfc6be2aaa",
+        "stateRoot": "0x3cfcedc01083663d2305d146919761efcb9b347caad1af0e7ab4193dfdb97da3",
+        "messagePasserStorageRoot": "0x931ddec6a13026a6dbbbfc63064d14fb9c4d7220bbff178ece17213a4db86044",
+        "outputRoot": "0x964d37ab8c32f69273e95098f86d3792b74aff2652db76659e9dd90d1992d32e",
+        "logs": [
+          {
+            "logIndex": 0,
+            "logHash": "0xfe6f2275606aa2b2367df97243d63afab91ca2b98584d079fe140eea832fe84c",
+            "preimage": "0x"
+          },
+          {
+            "logIndex": 7,
+            "logHash": "0x3b16fe6e81f402cc4a3fcc569a1e72d551c76e445909ecaf4335eb69d6eab2dc",
+            "preimage": "0x"
+          },
+          {
+            "logIndex": 42,
+            "logHash": "0x7c834cee4d007480548d4922a3b3b0898c499afcc893906192f702e0f7187ee0",
+            "preimage": "0x"
+          }
+        ],
+        "execMsgs": []
+      }
+    ]
+  },
+  "publicValuesKeccak": "0xdd29c0b41b57a56fd911114c4d4ef5addb9936a54306e83b880c678dcee9773d",
+  "proofHex": "0x",
+  "envelopeKeccak": "0x0a0480f642c5fb0c29105422badc1e8db823ad8de6c7d197a058e93c5c692a34",
+  "sourceLogs": [
+    {
+      "blockNumber": 2000001,
+      "logIndex": 0,
+      "address": "0xf03b8e663df7c707f38f6b76c488eea8985a7325",
+      "topics": [
+        "0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef",
+        "0x0000000000000000000000002ed98d33f6759f8518df4f83701c8042609aa73f",
+        "0x000000000000000000000000edcc204bb9f9bba5dd712e834af665c5f061e21e"
+      ],
+      "data": "0xd885e8bc674b3bf22acbec768d5aa707f5b6ba91dc6ae99e87f4e0022595639f",
+      "logHash": "0xfe6f2275606aa2b2367df97243d63afab91ca2b98584d079fe140eea832fe84c",
+      "preimage": "0xf03b8e663df7c707f38f6b76c488eea8985a7325ddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef0000000000000000000000002ed98d33f6759f8518df4f83701c8042609aa73f000000000000000000000000edcc204bb9f9bba5dd712e834af665c5f061e21ed885e8bc674b3bf22acbec768d5aa707f5b6ba91dc6ae99e87f4e0022595639f"
+    },
+    {
+      "blockNumber": 2000001,
+      "logIndex": 7,
+      "address": "0xcb8155d8c0fb332ac30163c0d3b5b793f5f8e216",
+      "topics": [],
+      "data": "0x5e79db3922ac64a2edf2ed60338ed49a03f0df813ed8d3e9cc69fdc62a0074e8",
+      "logHash": "0x3b16fe6e81f402cc4a3fcc569a1e72d551c76e445909ecaf4335eb69d6eab2dc",
+      "preimage": "0xcb8155d8c0fb332ac30163c0d3b5b793f5f8e2165e79db3922ac64a2edf2ed60338ed49a03f0df813ed8d3e9cc69fdc62a0074e8"
+    },
+    {
+      "blockNumber": 2000001,
+      "logIndex": 42,
+      "address": "0xe7584e8b1c4178d5224593b2415cd02af3384cfc",
+      "topics": [
+        "0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef",
+        "0x0000000000000000000000005f1460363898b4027bd2789f02d41c9936ab9747",
+        "0x0000000000000000000000007e58f3eba80929f8c63ec3531e5f7241c1743d27"
+      ],
+      "data": "0xf29b88944058c86232707863280d8464ebb1c81b42383407c8d351e40e43ecd2",
+      "logHash": "0x7c834cee4d007480548d4922a3b3b0898c499afcc893906192f702e0f7187ee0",
+      "preimage": "0xe7584e8b1c4178d5224593b2415cd02af3384cfcddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef0000000000000000000000005f1460363898b4027bd2789f02d41c9936ab97470000000000000000000000007e58f3eba80929f8c63ec3531e5f7241c1743d27f29b88944058c86232707863280d8464ebb1c81b42383407c8d351e40e43ecd2"
+    }
+  ]
+}

@@ -6,13 +6,14 @@ import (
 )
 
 type L2Batcher struct {
-	name    string
-	chainID eth.ChainID
-	service *bss.BatcherService
-	rpc     string
-	l1RPC   string
-	l2CLRPC string
-	l2ELRPC string
+	name            string
+	chainID         eth.ChainID
+	service         *bss.BatcherService
+	rpc             string
+	l1RPC           string
+	l2CLRPC         string
+	l2ELRPC         string
+	proofBatchHooks *bss.ProofBatchTestHooks
 }
 
 func (b *L2Batcher) UserRPC() string {

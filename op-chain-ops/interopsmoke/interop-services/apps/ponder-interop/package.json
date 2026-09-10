@@ -1,0 +1,73 @@
+{
+  "name": "@eth-optimism/ponder-interop",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/ethereum-optimism/ecosystem.git",
+    "directory": "apps/ponder-interop"
+  },
+  "homepage": "https://github.com/ethereum-optimism/ecosystem/tree/main/apps/ponder-interop#readme",
+  "bugs": {
+    "url": "https://github.com/ethereum-optimism/ecosystem/issues"
+  },
+  "version": "0.0.16",
+  "type": "module",
+  "main": "./dist/ponder.schema.js",
+  "types": "./dist/ponder.schema.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/ponder.schema.d.ts",
+      "import": "./dist/ponder.schema.js"
+    },
+    "./client": {
+      "types": "./dist/src/client/index.d.ts",
+      "import": "./dist/src/client/index.js"
+    }
+  },
+  "scripts": {
+    "build": "tsc && resolve-tspaths",
+    "clean": "rm -rf dist",
+    "dev": "ponder dev",
+    "dev:devnet": "pnpm dev --config ponder.config.devnet.ts",
+    "dev:alphanet": "pnpm dev --config ponder.config.alphanet.ts",
+    "dev:supersim": "pnpm dev --config ponder.config.supersim.ts",
+    "dev:v0": "pnpm dev --config ponder.config.v0.ts",
+    "dev:jnt.v3-1": "pnpm dev --config ponder.config.jnt.v3-1.ts",
+    "docker:services:up": "docker compose --profile dependencies up -d",
+    "docker:up": "docker compose --profile dependencies --profile app up -d",
+    "docker:down": "docker compose down",
+    "start": "ponder start",
+    "start:devnet": "ponder start --config ponder.config.devnet.ts",
+    "start:alphanet": "ponder start --config ponder.config.alphanet.ts",
+    "db": "ponder db",
+    "codegen": "ponder codegen",
+    "test": "vitest",
+    "test:run": "vitest run",
+    "test:coverage": "vitest run --coverage",
+    "test:watch": "vitest --watch",
+    "test:indexing": "vitest run __tests__/indexing",
+    "test:api": "vitest run __tests__/api",
+    "test:client": "vitest run __tests__/client",
+    "test:utils": "vitest run __tests__/utils",
+    "test:integration": "vitest run __tests__/integration",
+    "lint": "eslint \"**/*.{ts,tsx}\" && pnpm prettier --check \"**/*.{ts,tsx}\" --ignore-path \"../../.prettierignore\"",
+    "lint:fix": "eslint \"**/*.{ts,tsx}\" --fix && pnpm prettier \"**/*.{ts,tsx}\" --write --loglevel=warn --ignore-path \"../../.prettierignore\"",
+    "typecheck": "tsc --noEmit --emitDeclarationOnly false"
+  },
+  "dependencies": {
+    "@eth-optimism/viem": "workspace:*",
+    "dotenv": "16.5.0",
+    "drizzle-orm": "0.45.2",
+    "hono": "^4.12.34",
+    "ponder": "^0.16.6",
+    "viem": "^2.17.9",
+    "znv": "^0.4.0",
+    "zod": "^3.24.2",
+    "zod-validation-error": "^3.4.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "resolve-tspaths": "^0.8.0",
+    "typescript": "^5.0.0",
+    "vitest": "^3.0.0"
+  }
+}

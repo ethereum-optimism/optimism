@@ -1,0 +1,49 @@
+{
+  "name": "exec-msgs-max-widths",
+  "spec": "SPEC-PROOF-BATCH.md, proof-batch wire format v2",
+  "kind": "valid",
+  "description": "Every narrowed field at its maximum (blockNumber and timestamp at 2^64-1, logIndex at 2^32-1) and chainId at 2^256-1, which is the one field that is NOT narrowed. CrossL2Inbox.calculateChecksum reverts strictly ABOVE these bounds, so this is the largest message that could ever have been validated — the boundary a Go decoder using fixed-width types must accept rather than overflow.",
+  "envelope": {
+    "magicHex": "0x4b435042",
+    "magicAscii": "KCPB",
+    "version": 3,
+    "pvLen": 800,
+    "proofLen": 0,
+    "totalLen": 813
+  },
+  "publicValues": {
+    "prevOutputRoot": "0x47b6fbcf5cf53d8b8942a0f71658353721c451eb110319577948ae90a93c4efe",
+    "newOutputRoot": "0xe13b66b41149720d3783d400dcf911706b4741179623f37de396425e32290668",
+    "l1Head": "0x0b146d6b37dc9d51c6fd99d81d3890ee45482eccd8a74b9340f7442706e67e1b",
+    "rollupConfigHash": "0xa05e79605a7d631f30378ec48e499dabd1d04de957d81e1aad6155b62af328c8",
+    "depSetHash": "0xa9c34953b0148bad0655c3b2a2ef322fc61bb4a4f24296196c32ebd0aa21199f",
+    "exportPolicyHash": "0xa6399dfbff2da483c5fcbe6f074297868700f9304ca957a4d61bcf84109430ef",
+    "blocks": [
+      {
+        "blockNumber": 1600001,
+        "timestamp": 1801500002,
+        "blockHash": "0xfb676a6767fe0ba7b808fecdacc36c7c47eef25f3965a7bc5e0b2d3777ce95cf",
+        "stateRoot": "0xbfaf548aec51e08bec7b5a28e6f8ca86e4542a0bae30829a3ded4e0b42fb396c",
+        "messagePasserStorageRoot": "0x6b30a9bed5f3e29c33c9a8b4ada4347994c247acf94d63ddacebe654bf4b6a7c",
+        "outputRoot": "0xe13b66b41149720d3783d400dcf911706b4741179623f37de396425e32290668",
+        "logs": [],
+        "execMsgs": [
+          {
+            "origin": "0xffffffffffffffffffffffffffffffffffffffff",
+            "blockNumber": 18446744073709551615,
+            "logIndex": 4294967295,
+            "timestamp": 18446744073709551615,
+            "chainId": "115792089237316195423570985008687907853269984665640564039457584007913129639935",
+            "msgHash": "0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+            "logHash": "0x0b0b3ebf7e3206f70c99ace9bf40a2b2f0c6d182586ef36953cee332a42c9233",
+            "checksum": "0x03585e3b0d18eb2485454d04adc6397ef23765f84dba8a147b901095d7dcf1c8",
+            "key": "0x000000000000000000000000ffffffffffffffffffffffffffffffffffffffff000000000000000000000000000000000000000000000000ffffffffffffffff00000000000000000000000000000000000000000000000000000000ffffffff000000000000000000000000000000000000000000000000ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"
+          }
+        ]
+      }
+    ]
+  },
+  "publicValuesKeccak": "0x3080ef2bfaa0a97f5751a069d2d4e2dc912321c3c75d6f1746d523b27149ba0b",
+  "proofHex": "0x",
+  "envelopeKeccak": "0x7d45d1d1caa15c9759f3356b2e33372a05aa70a51b6b98433886533f603710d3"
+}

@@ -1,0 +1,51 @@
+{
+  "name": "empty-proof-slot",
+  "spec": "SPEC-PROOF-BATCH.md, proof-batch wire format v2",
+  "kind": "valid",
+  "description": "An empty proof slot: proof_len == 0 and no proof bytes -- the shape an attested batch has on the wire. Identical to `dummy-proof-nonempty` up to and including the public values — the pair exists so both implementations prove that the proof field is the only difference.",
+  "envelope": {
+    "magicHex": "0x4b435042",
+    "magicAscii": "KCPB",
+    "version": 2,
+    "pvLen": 960,
+    "proofLen": 0,
+    "totalLen": 973
+  },
+  "publicValues": {
+    "prevOutputRoot": "0x5296985abbeb92f416bd6f3aea4dd30026df6c7859ab92ae41eb25ce6ac64d57",
+    "newOutputRoot": "0xb64d4d22b86ef374475577e407f3a38a0455ad0f5f8b60171eba6e785f79b7ef",
+    "l1Head": "0xb40ef1e637e8bc9c5ca5cbaa2d5c178f1d9f0f1bd90d3eff29bdd2f7f62a4d1a",
+    "rollupConfigHash": "0xbf789f8e7e93f6e20b12930f60c0a2825729dd76effd2ff39c68d3a0dfce1450",
+    "depSetHash": "0xdd64dedf643aae37c5b6bc507cc5dd48328d344bf775a1371dbfebcebdb803bd",
+    "exportPolicyHash": "0xa6399dfbff2da483c5fcbe6f074297868700f9304ca957a4d61bcf84109430ef",
+    "blocks": [
+      {
+        "blockNumber": 7000001,
+        "timestamp": 1800300002,
+        "blockHash": "0x97f4eccb7900a4c534a3eb85bf60a9acfe5153c6480a65f39f6f700e5b0afac7",
+        "stateRoot": "0xec4c1ea891fcbef3bf2b495da88d9037adf9c0806aa994a90645e97cb1193467",
+        "messagePasserStorageRoot": "0xb9fc065a5d78c8b4656eab189be393a73ea89cd430b997c1250b1c101eb0520e",
+        "outputRoot": "0xbca8784c7d9e47c04542d2963f08a10be501d0da731d4e74caf2d60186fd9ae7",
+        "logs": [
+          {
+            "logIndex": 0,
+            "logHash": "0x6bd91c1d58a81d241930e4876a86e283432114445751e97d03dc062b223fca0b",
+            "preimage": "0x"
+          }
+        ]
+      },
+      {
+        "blockNumber": 7000002,
+        "timestamp": 1800300004,
+        "blockHash": "0x6ff7b4958206af0a22e71cad47a17870566b5dd58cfe3ee3214e67f334db9bd6",
+        "stateRoot": "0x3fed5fccafea01c005cb12588099f4726566010effdec64c57eaeca3f0c00005",
+        "messagePasserStorageRoot": "0xad3030dbe602fa955a69c2d61085a44551d3b10ebaac4084d9bd3148e32c5251",
+        "outputRoot": "0xb64d4d22b86ef374475577e407f3a38a0455ad0f5f8b60171eba6e785f79b7ef",
+        "logs": []
+      }
+    ]
+  },
+  "publicValuesKeccak": "0x55dd0fd89d9a0944299e0a4aa7f8ff190fa28cf0b876f4f605a0026d0383da17",
+  "proofHex": "0x",
+  "envelopeKeccak": "0xed187730c90ad594266c52980559e723a2e7e55a71eb6efa1d55d8bb27f200d7"
+}

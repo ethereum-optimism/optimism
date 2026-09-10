@@ -17,6 +17,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/httputil"
 	oprpc "github.com/ethereum-optimism/optimism/op-service/rpc"
 	"github.com/ethereum-optimism/optimism/op-service/sources"
+	"github.com/ethereum-optimism/optimism/op-supernode/silhouette"
 	"github.com/ethereum-optimism/optimism/op-supernode/supernode/activity"
 	"github.com/ethereum-optimism/optimism/op-supernode/supernode/activity/heartbeat"
 	"github.com/ethereum-optimism/optimism/op-supernode/supernode/activity/interop"
@@ -51,12 +52,16 @@ type Supernode struct {
 	metrics          *resources.MetricsService
 	metricsFanIn     *resources.MetricsFanIn
 	supernodeMetrics *resources.SupernodeMetrics
+	// silhouettes holds thin clients for standalone proof-rendering EL components.
+	silhouettes map[eth.ChainID]*silhouette.RemoteAssembly
 	// cached address when available
 	rpcAddr string
 }
 
 func New(ctx context.Context, log gethlog.Logger, version string, commit string, requestStop context.CancelCauseFunc, cfg *config.CLIConfig, vnCfgs map[eth.ChainID]*opnodecfg.Config) (*Supernode, error) {
-	s := &Supernode{log: log, version: version, requestStop: requestStop, cfg: cfg, chains: make(map[eth.ChainID]cc.InteropChain)}
+	s := &Supernode{log: log, version: version, requestStop: requestStop, cfg: cfg,
+		chains:      make(map[eth.ChainID]cc.InteropChain),
+		silhouettes: make(map[eth.ChainID]*silhouette.RemoteAssembly)}
 
 	// Initialize L1 client
 	if err := s.initL1Client(ctx, cfg); err != nil {
@@ -66,6 +71,22 @@ func New(ctx context.Context, log gethlog.Logger, version string, commit string,
 	// Initialize L1 Beacon client (optional)
 	if err := s.initBeaconClient(ctx, cfg); err != nil {
 		return nil, fmt.Errorf("failed to initialize L1 Beacon client: %w", err)
+	}
+
+	// Which of the configured chains, if any, are proof-carried. Loaded before any chain is built
+	// so an unparseable manifest or a missing verifier config stops the process rather than half of
+	// it. Nil manifest means no chain is a silhouette chain and every construction below is
+	// untouched.
+	var silhouettes *silhouette.Manifest
+	if cfg.SilhouetteManifestPath != "" {
+		m, err := silhouette.LoadManifest(cfg.SilhouetteManifestPath)
+		if err != nil {
+			return nil, err
+		}
+		silhouettes = m
+		if err := silhouettes.CheckChains(cfg.Chains); err != nil {
+			return nil, err
+		}
 	}
 
 	// Initialize chain containers for each configured chain ID
@@ -91,9 +112,26 @@ func New(ctx context.Context, log gethlog.Logger, version string, commit string,
 			log.Error("missing virtual node config for chain", "chain", id)
 			continue
 		}
+		// The silhouette switch leaves the stock virtual-node pipeline intact. Its L2 endpoint is the
+		// standalone Silhouette EL and its normal L1 input is the producer's empty-batch carrier. The
+		// supernode reads the EL's public interop facts over RPC; it owns no proof observer itself.
+		var assembly *silhouette.RemoteAssembly
+		if decl, ok := silhouettes.Lookup(chainID); ok {
+			a, err := s.assembleSilhouette(ctx, log, decl, vnCfgs[chainID])
+			if err != nil {
+				return nil, err
+			}
+			assembly = a
+			s.silhouettes[chainID] = a
+		}
+
 		container, err := cc.NewChainContainer(chainID, vnCfgs[chainID], log, *cfg, initOverrides, nil, s.rpcRouter, s.metricsFanIn.SetMetricsRegistry, s.supernodeMetrics, version)
 		if err != nil {
 			return nil, fmt.Errorf("failed to create chain container for chain %s: %w", chainID, err)
+		}
+		if assembly != nil {
+			s.chains[chainID] = wrapSilhouetteChain(log, container, assembly)
+			continue
 		}
 		s.chains[chainID] = container
 	}
@@ -127,6 +165,18 @@ func New(ctx context.Context, log gethlog.Logger, version string, commit string,
 		}
 		interopActivity = interop.New(log.New("activity", "interop"), *interopActivationTimestamp, msgExpiryWindow, s.chains, cfg.DataDir, s.l1Client, cfg.InteropLogBackfillDepth, s.supernodeMetrics)
 		verifiedReader = interopActivity
+		// Now that the log databases exist, close the loop: each silhouette chain's data source
+		// seals its exported logs into its own chain's database, straight from the wire.
+		if err := s.attachSilhouetteLogStores(log, interopActivity); err != nil {
+			return nil, err
+		}
+	} else if len(s.silhouettes) > 0 {
+		// A silhouette chain outside a dependency set is a chain nobody can reference. It still
+		// derives, so this is a warning rather than a refusal — a single-chain verifier is a real
+		// use — but it is worth saying, because "no cross-chain messages" would otherwise be
+		// indistinguishable from an export policy that excluded everything.
+		log.Warn("silhouette chains are configured but interop is not; their exported messages will not be referenceable",
+			"chains", len(s.silhouettes))
 	}
 
 	// Order in this slice governs Start/Stop ordering; interop is appended
@@ -279,6 +329,21 @@ func (s *Supernode) Start(ctx context.Context) error {
 			}
 		}(chainID, chain)
 	}
+	if len(s.silhouettes) > 0 {
+		for chainID, assembly := range s.silhouettes {
+			s.wg.Add(1)
+			go func(chainID eth.ChainID, assembly *silhouette.RemoteAssembly) {
+				defer s.wg.Done()
+				s.log.Info("starting silhouette interop-facts mirror", "chain_id", chainID.String())
+				assembly.Run(lifecycleCtx)
+			}(chainID, assembly)
+		}
+		s.wg.Add(1)
+		go func() {
+			defer s.wg.Done()
+			s.observeSilhouettes(lifecycleCtx)
+		}()
+	}
 	return nil
 }
 
@@ -342,6 +407,13 @@ func (s *Supernode) Stop(ctx context.Context) error {
 		} else {
 			s.log.Info("chain container stopped", "chain_id", chainID.String())
 		}
+	}
+
+	// The shim servers last: they are what the containers above were talking to, so stopping them
+	// first would turn an orderly shutdown into a burst of engine-call failures.
+	for chainID, assembly := range s.silhouettes {
+		assembly.Close()
+		s.log.Info("silhouette shim stopped", "chain_id", chainID.String())
 	}
 
 	s.log.Info("all chain containers stopped, waiting for goroutines to finish")
@@ -462,13 +534,16 @@ func (s *Supernode) initBeaconClient(ctx context.Context, cfg *config.CLIConfig)
 
 	// Create beacon client
 	basicClient := client.NewBasicHTTPClient(cfg.L1BeaconAddr, s.log)
-	beaconHTTPClient := sources.NewBeaconHTTPClient(basicClient)
+	beaconOpts := []sources.BeaconHTTPClientOption{
+		sources.WithSlotDurationOverride(cfg.L1BeaconSlotDurationOverride),
+	}
+	beaconHTTPClient := sources.NewBeaconHTTPClient(basicClient, beaconOpts...)
 
 	// Create fallback beacon clients (e.g. blob archiver)
 	var fallbacks []apis.BeaconClient
 	for _, addr := range cfg.L1BeaconFallbackAddrs {
 		fb := client.NewBasicHTTPClient(addr, s.log)
-		fallbacks = append(fallbacks, sources.NewBeaconHTTPClient(fb))
+		fallbacks = append(fallbacks, sources.NewBeaconHTTPClient(fb, beaconOpts...))
 	}
 
 	// Create L1 Beacon client with default config

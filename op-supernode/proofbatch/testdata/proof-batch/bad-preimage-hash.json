@@ -1,0 +1,16 @@
+{
+  "name": "bad-preimage-hash",
+  "spec": "SPEC-PROOF-BATCH.md, proof-batch wire format v2",
+  "kind": "invalid",
+  "description": "A preimage-bearing export whose preimage has one flipped bit, so it no longer hashes to its stated logHash (decision D9). Every other rule still passes — this isolates the re-hash check, which both the prover (before committing) and the verifier (before believing) must perform.",
+  "expectedError": "invalid proof batch: blocks[0].logs[0] preimage hashes to 0x61d6138b161ac0a94e345e1f3c4a2f908630b8eb12d91c58fe670193f90cbe99, but logHash is 0xe862844726e267ebf46bcaee3a541b771a6c821808e87a497136d94f3cc5b09f",
+  "envelope": {
+    "magicHex": "0x4b435042",
+    "magicAscii": "KCPB",
+    "version": 3,
+    "pvLen": 928,
+    "proofLen": 0,
+    "totalLen": 941
+  },
+  "envelopeKeccak": "0x1f6b01b02027ed59ec1fc980aa636f0425f0896c426dee1316919fe3386fac20"
+}

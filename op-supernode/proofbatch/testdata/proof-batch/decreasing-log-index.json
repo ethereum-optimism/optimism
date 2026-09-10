@@ -1,0 +1,16 @@
+{
+  "name": "decreasing-log-index",
+  "spec": "SPEC-PROOF-BATCH.md, proof-batch wire format v2",
+  "kind": "invalid",
+  "description": "Exported logs out of order within a block (decision D8). Gaps are legal under a curated policy; going backwards never is.",
+  "expectedError": "invalid proof batch: blocks[0].logs[1] logIndex 4, must exceed 5",
+  "envelope": {
+    "magicHex": "0x4b435042",
+    "magicAscii": "KCPB",
+    "version": 3,
+    "pvLen": 928,
+    "proofLen": 0,
+    "totalLen": 941
+  },
+  "envelopeKeccak": "0x1a0f1e9e8a87bc1326473bafd4d035a23c806b3af4cbe0c2fe3d981e30c795a5"
+}

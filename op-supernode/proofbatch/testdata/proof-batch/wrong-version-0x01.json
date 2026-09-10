@@ -1,0 +1,15 @@
+{
+  "name": "wrong-version-0x01",
+  "spec": "SPEC-PROOF-BATCH.md, proof-batch wire format v2",
+  "kind": "invalid",
+  "description": "Version byte 0x01 — the original, long retired. v1's BlockExport was (number, timestamp, bytes32[] logHashes), a different ABI type whose bytes would decode to nonsense or, worse, to something plausible.",
+  "expectedError": "bad version 1, want 3 (v1 is retired: refuse, do not adapt)",
+  "envelope": {
+    "magicHex": "0x4b435042",
+    "magicAscii": "KCPB",
+    "version": 1,
+    "pvLen": 1088,
+    "totalLen": 1101
+  },
+  "envelopeKeccak": "0x8b219b27446b6f6689ead97d327c736ac07644d35333bc3809b67557624fd722"
+}

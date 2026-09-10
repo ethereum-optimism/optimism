@@ -290,6 +290,34 @@ func WithMaxSequencingWindow(max uint64) Option {
 	}
 }
 
+// SilhouetteChainA / SilhouetteChainB name the two-L2 preset's chains for WithSilhouetteChain.
+//
+// They are the runtime's own chain keys rather than a second naming scheme, so that a test, a
+// runtime map and a log line all say the same word about the same chain.
+const (
+	SilhouetteChainA = "l2a"
+	SilhouetteChainB = "l2b"
+)
+
+// WithSilhouetteChain runs one of the preset's chains as a SILHOUETTE chain: it keeps its own
+// sequencer and execution client (that is the private side), its ordinary batcher posts
+// transaction-stripped proof batches to L1, and exposes the verifier-only supernode backed by a
+// standalone proof-backed Silhouette EL. The sysgo fixture retains its normal startup supernode to
+// bootstrap the LightCL topology, but the verifier is the one functional supernode role and the
+// preset routes its stock test surface there.
+//
+// Only supported on the two-L2 supernode interop preset, and only meaningful with interop enabled —
+// outside a dependency set nothing can reference the silhouette chain's messages, which is the
+// property the preset exists to exercise.
+func WithSilhouetteChain(chainKey string) Option {
+	return option{
+		kinds: optionKindSilhouetteChain,
+		applyFn: func(cfg *sysgo.PresetConfig) {
+			cfg.SilhouetteChain = chainKey
+		},
+	}
+}
+
 // WithInteropFilter enables the in-process op-interop-filter for EL transaction
 // validation. Only supported on supernode interop presets.
 func WithInteropFilter() Option {

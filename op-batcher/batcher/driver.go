@@ -95,6 +95,14 @@ type DriverSetup struct {
 	ChannelConfig     ChannelConfigProvider
 	AltDA             *altda.DAClient
 	ChannelOutFactory ChannelOutFactory
+	BlockEnricher     BlockEnricher
+	SubmissionInbox   *common.Address
+}
+
+// BlockEnricher prepares alternate terminal encodings from the same payload stream the normal
+// batcher loads. The default batcher leaves it nil.
+type BlockEnricher interface {
+	PrepareBlock(ctx context.Context, payloads dial.PayloadSource, rollup dial.RollupClientInterface, payload *eth.ExecutionPayload) error
 }
 
 // BatchSubmitter encapsulates a service responsible for submitting L2 tx
@@ -119,6 +127,9 @@ type BatchSubmitter struct {
 	throttleController *throttler.ThrottleController
 
 	publishSignal chan pubInfo
+
+	blockEnricher   BlockEnricher
+	submissionInbox common.Address
 }
 
 // NewBatchSubmitter initializes the BatchSubmitter driver from a preconfigured DriverSetup
@@ -129,8 +140,13 @@ func NewBatchSubmitter(setup DriverSetup) *BatchSubmitter {
 	}
 
 	batcher := &BatchSubmitter{
-		DriverSetup: setup,
-		channelMgr:  state,
+		DriverSetup:   setup,
+		channelMgr:    state,
+		blockEnricher: setup.BlockEnricher,
+	}
+	batcher.submissionInbox = setup.RollupConfig.BatchInboxAddress
+	if setup.SubmissionInbox != nil {
+		batcher.submissionInbox = *setup.SubmissionInbox
 	}
 
 	err := batcher.SetThrottleController(setup.Config.ThrottleParams.ControllerType, setup.Config.ThrottleParams.PIDConfig)
@@ -333,6 +349,15 @@ func (l *BatchSubmitter) loadBlockIntoState(ctx context.Context, blockNumber uin
 		return nil, fmt.Errorf("getting L2 block: %w", err)
 	}
 	payload := envelope.ExecutionPayload
+	if l.blockEnricher != nil {
+		rollupClient, err := l.EndpointProvider.RollupClient(ctx)
+		if err != nil {
+			return nil, fmt.Errorf("getting rollup client for alternate batch encoding: %w", err)
+		}
+		if err := l.blockEnricher.PrepareBlock(cCtx, l2Client, rollupClient, payload); err != nil {
+			return nil, fmt.Errorf("preparing alternate batch encoding: %w", err)
+		}
+	}
 
 	l.channelMgrMutex.Lock()
 	defer l.channelMgrMutex.Unlock()
@@ -460,7 +485,20 @@ func (l *BatchSubmitter) syncAndPrune(syncStatus *eth.SyncStatus) *inclusiveBloc
 	defer l.channelMgrMutex.Unlock()
 
 	// Decide appropriate actions
-	syncActions, outOfSync := computeSyncActions(*syncStatus, l.prevCurrentL1, l.channelMgr.blocks, l.channelMgr.channelQueue, l.Log)
+	previousL1 := l.prevCurrentL1
+	if syncStatus.CurrentL1.Number < previousL1.Number {
+		// A normal batcher waits for the CL derivation cursor to regain its old height before it
+		// changes channel state. A proof-carried chain cannot always do that: after a deep L1 reorg
+		// its verifier needs the batcher to republish the private unsafe suffix before derivation can
+		// advance. The proof encoder opts into breaking that circular wait. computeSyncActions still
+		// performs the ordinary safe-head comparison, clear and block reload below.
+		if recovery, ok := l.blockEnricher.(interface{ AllowsL1RewindRecovery() bool }); ok && recovery.AllowsL1RewindRecovery() {
+			l.Log.Warn("proof batcher observed an L1 rewind; reloading from local-safe without waiting for the proof cursor to catch up",
+				"previousL1", previousL1, "currentL1", syncStatus.CurrentL1)
+			previousL1 = syncStatus.CurrentL1
+		}
+	}
+	syncActions, outOfSync := computeSyncActions(*syncStatus, previousL1, l.channelMgr.blocks, l.channelMgr.channelQueue, l.Log)
 
 	if outOfSync {
 		// If the sequencer is out of sync
@@ -988,11 +1026,25 @@ func (l *BatchSubmitter) sendTransaction(txdata txData, queue *txmgr.Queue[txRef
 			return fmt.Errorf("could not create blob tx candidate: %w", err)
 		}
 	} else {
+		if txdata.hasRawFrames() {
+			return errors.New("raw proof-batch payloads require blob data availability")
+		}
 		// sanity check
 		if nf := len(txdata.frames); nf != 1 {
 			l.Log.Crit("Unexpected number of frames in calldata tx", "num_frames", nf)
 		}
 		candidate = l.calldataTxCandidate(txdata.CallData())
+	}
+	if observer, ok := l.blockEnricher.(interface {
+		RecordProofBatchSubmission([]derive.ChannelID)
+	}); ok {
+		ids := make([]derive.ChannelID, 0, len(txdata.frames))
+		for _, frame := range txdata.frames {
+			if len(ids) == 0 || ids[len(ids)-1] != frame.id.chID {
+				ids = append(ids, frame.id.chID)
+			}
+		}
+		observer.RecordProofBatchSubmission(ids)
 	}
 
 	l.sendTx(txdata, false, candidate, queue, receiptsCh)
@@ -1060,7 +1112,7 @@ func (l *BatchSubmitter) blobTxCandidate(data txData) (*txmgr.TxCandidate, error
 		"size", size, "last_size", lastSize, "num_blobs", len(blobs))
 	l.Metr.RecordBlobUsedBytes(lastSize)
 	return &txmgr.TxCandidate{
-		To:    &l.RollupConfig.BatchInboxAddress,
+		To:    &l.submissionInbox,
 		Blobs: blobs,
 	}, nil
 }
@@ -1068,7 +1120,7 @@ func (l *BatchSubmitter) blobTxCandidate(data txData) (*txmgr.TxCandidate, error
 func (l *BatchSubmitter) calldataTxCandidate(data []byte) *txmgr.TxCandidate {
 	l.Log.Info("Building Calldata transaction candidate", "size", len(data))
 	return &txmgr.TxCandidate{
-		To:     &l.RollupConfig.BatchInboxAddress,
+		To:     &l.submissionInbox,
 		TxData: data,
 	}
 }

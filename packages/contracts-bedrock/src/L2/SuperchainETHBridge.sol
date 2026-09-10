@@ -20,6 +20,10 @@ contract SuperchainETHBridge is ISemver {
     /// SuperchainETHBridge.
     error InvalidCrossDomainSender();
 
+    /// @notice Thrown when relaying ETH from a source chain that has not been sent at least that
+    /// much net ETH from this chain.
+    error InsufficientNetFlow();
+
     /// @notice Emitted when ETH is sent from one chain to another.
     /// @param from          Address of the sender.
     /// @param to            Address of the recipient.
@@ -35,15 +39,27 @@ contract SuperchainETHBridge is ISemver {
     event RelayETH(address indexed from, address indexed to, uint256 amount, uint256 source);
 
     /// @notice Semantic version.
-    /// @custom:semver 1.0.1
-    string public constant version = "1.0.1";
+    /// @custom:semver 1.1.0
+    function version() public pure virtual returns (string memory) {
+        return "1.1.0";
+    }
+
+    /// @notice Net ETH this chain has sent to each counterpart chain and that has not been relayed
+    ///         back yet. This is the per-counterparty solvency cap: a chain can never mint more ETH
+    ///         here than was voluntarily sent to it, so the worst case loss from a counterpart chain
+    ///         lying about its exported messages is exactly the ETH sent to that chain. A chain
+    ///         nobody has sent ETH to has a cap of zero and can extract nothing.
+    mapping(uint256 => uint256) public netSent;
 
     /// @notice Sends ETH to some target address on another chain.
     /// @param _to       Address to send ETH to.
     /// @param _chainId  Chain ID of the destination chain.
     /// @return msgHash_ Hash of the message sent.
-    function sendETH(address _to, uint256 _chainId) external payable returns (bytes32 msgHash_) {
+    function sendETH(address _to, uint256 _chainId) public payable virtual returns (bytes32 msgHash_) {
         if (_to == address(0)) revert ZeroAddress();
+
+        // Credit the destination chain: it may now relay back at most this much more ETH.
+        netSent[_chainId] += msg.value;
 
         // NOTE: 'burn' will soon change to 'deposit'.
         IETHLiquidity(Predeploys.ETH_LIQUIDITY).burn{ value: msg.value }();
@@ -61,13 +77,18 @@ contract SuperchainETHBridge is ISemver {
     /// @param _from       Address of the msg.sender of sendETH on the source chain.
     /// @param _to         Address to relay ETH to.
     /// @param _amount     Amount of ETH to relay.
-    function relayETH(address _from, address _to, uint256 _amount) external {
+    function relayETH(address _from, address _to, uint256 _amount) public virtual {
         if (msg.sender != Predeploys.L2_TO_L2_CROSS_DOMAIN_MESSENGER) revert Unauthorized();
 
         (address crossDomainMessageSender, uint256 source) =
             IL2ToL2CrossDomainMessenger(Predeploys.L2_TO_L2_CROSS_DOMAIN_MESSENGER).crossDomainMessageContext();
 
         if (crossDomainMessageSender != address(this)) revert InvalidCrossDomainSender();
+
+        // Debit the source chain's cap. Bounds the ETH any counterpart chain can ever mint here by
+        // the ETH this chain voluntarily sent to it.
+        if (netSent[source] < _amount) revert InsufficientNetFlow();
+        netSent[source] -= _amount;
 
         // NOTE: 'mint' will soon change to 'withdraw'.
         IETHLiquidity(Predeploys.ETH_LIQUIDITY).mint(_amount);

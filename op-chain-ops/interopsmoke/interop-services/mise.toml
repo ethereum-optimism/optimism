@@ -1,0 +1,10 @@
+[tools]
+node = "22.23.1"
+
+[hooks]
+# Enabling corepack will install the `pnpm` package manager specified in package.json
+postinstall = "npx corepack enable"
+
+[settings]
+# Needs to be enabled for hooks to work
+experimental = true

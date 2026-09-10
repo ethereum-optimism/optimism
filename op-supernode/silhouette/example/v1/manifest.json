@@ -1,0 +1,8 @@
+{
+  "chains": [
+    {
+      "chainID": 424247,
+      "verifierConfig": "verifier-p.json"
+    }
+  ]
+}

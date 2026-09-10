@@ -9,6 +9,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/blobstore"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum/go-ethereum/beacon/engine"
+	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/crypto/kzg4844"
 	"github.com/ethereum/go-ethereum/log"
@@ -153,4 +154,33 @@ func TestBlobsEndpoints(t *testing.T) {
 		}, "blobC not returned")
 
 	})
+}
+
+func TestStoreBlobsBundleReplacesReorgedSlot(t *testing.T) {
+	store := blobstore.New()
+	beacon := NewBeacon(testlog.Logger(t, log.LevelInfo), store, 0, 12)
+	var oldBlob, newBlob eth.Blob
+	oldBlob[0] = 0x11
+	newBlob[0] = 0x22
+	bundle := func(blob eth.Blob) (engine.BlobsBundle, common.Hash) {
+		commitment, err := kzg4844.BlobToCommitment((*kzg4844.Blob)(&blob))
+		require.NoError(t, err)
+		proof, err := kzg4844.ComputeBlobProof((*kzg4844.Blob)(&blob), commitment)
+		require.NoError(t, err)
+		return engine.BlobsBundle{
+			Commitments: []hexutil.Bytes{commitment[:]},
+			Proofs:      []hexutil.Bytes{proof[:]},
+			Blobs:       []hexutil.Bytes{blob[:]},
+		}, eth.KZGToVersionedHash(commitment)
+	}
+	oldBundle, oldHash := bundle(oldBlob)
+	newBundle, newHash := bundle(newBlob)
+	require.NoError(t, beacon.StoreBlobsBundle(7, &oldBundle))
+	require.NoError(t, beacon.StoreBlobsBundle(7, &newBundle))
+
+	_, err := beacon.LoadBlobsByHash(7, []common.Hash{oldHash})
+	require.Error(t, err, "the orphaned slot bundle must be gone")
+	got, err := beacon.LoadBlobsByHash(7, []common.Hash{newHash})
+	require.NoError(t, err)
+	require.Equal(t, []*eth.Blob{&newBlob}, got)
 }

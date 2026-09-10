@@ -390,10 +390,6 @@ func (d *DenyList) Close() error {
 // height-1. Returns true if a rewind was triggered. Genesis (height=0) cannot
 // be invalidated.
 func (c *simpleChainContainer) InvalidateBlock(ctx context.Context, height uint64, payloadHash common.Hash, decisionTimestamp uint64, stateRoot, messagePasserStorageRoot eth.Bytes32, parentPayload *eth.ExecutionPayloadEnvelope) (bool, error) {
-	if c.denyList == nil {
-		return false, fmt.Errorf("deny list not initialized")
-	}
-
 	// Cannot invalidate genesis block - there is no prior block to rewind to
 	if height == 0 {
 		return false, fmt.Errorf("cannot invalidate genesis block (height=0)")
@@ -407,9 +403,8 @@ func (c *simpleChainContainer) InvalidateBlock(ctx context.Context, height uint6
 			height, uint64(parentPayload.ExecutionPayload.BlockNumber), expectedParentNumber)
 	}
 
-	// Add to deny list with the output preimage fields
-	if err := c.denyList.Add(height, payloadHash, decisionTimestamp, stateRoot, messagePasserStorageRoot); err != nil {
-		return false, fmt.Errorf("failed to add block to deny list: %w", err)
+	if err := c.RecordDeniedBlock(height, payloadHash, decisionTimestamp, stateRoot, messagePasserStorageRoot); err != nil {
+		return false, err
 	}
 
 	// validParent is the canonical block the chain must sit on once the
@@ -421,10 +416,6 @@ func (c *simpleChainContainer) InvalidateBlock(ctx context.Context, height uint6
 		"lastValidParentBlock", validParent,
 		"decisionTimestamp", decisionTimestamp,
 	)
-
-	if c.metrics != nil {
-		c.metrics.DenyListEntries.WithLabelValues(c.chainID.String()).Inc()
-	}
 
 	// Errors here propagate so the caller preserves the pending transition for
 	// retry on restart; the deny list entry above is already durable.
@@ -485,6 +476,22 @@ func (c *simpleChainContainer) InvalidateBlock(ctx context.Context, height uint6
 	}
 
 	return true, nil
+}
+
+func (c *simpleChainContainer) RecordDeniedBlock(height uint64, payloadHash common.Hash, decisionTimestamp uint64, stateRoot, messagePasserStorageRoot eth.Bytes32) error {
+	if c.denyList == nil {
+		return fmt.Errorf("deny list not initialized")
+	}
+	if height == 0 {
+		return fmt.Errorf("cannot invalidate genesis block (height=0)")
+	}
+	if err := c.denyList.Add(height, payloadHash, decisionTimestamp, stateRoot, messagePasserStorageRoot); err != nil {
+		return fmt.Errorf("failed to add block to deny list: %w", err)
+	}
+	if c.metrics != nil {
+		c.metrics.DenyListEntries.WithLabelValues(c.chainID.String()).Inc()
+	}
+	return nil
 }
 
 func (c *simpleChainContainer) PruneDeniedAtOrAfterTimestamp(timestamp uint64) (map[uint64][]common.Hash, error) {

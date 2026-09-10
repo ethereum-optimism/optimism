@@ -409,6 +409,7 @@ func buildMixedOpRethNode(
 	}.EnsureExists(t.Ctx(), t.Logger())
 	t.Require().NoError(err, "%s binary not available (build with 'just build-rust-release', set RUST_JIT_BUILD=1, or set RUST_BINARY_PATH_<NAME> for a binary built from another repo)", elBinary)
 
+	rpcModules := opRethRPCModules(opRethCfg)
 	args := []string{
 		"node",
 		"--addr=127.0.0.1",
@@ -422,7 +423,7 @@ func buildMixedOpRethNode(
 		"--datadir=" + dataDirPath,
 		"--disable-discovery",
 		"--http",
-		"--http.api=admin,debug,eth,net,trace,txpool,web3,rpc,reth,miner",
+		"--http.api=" + rpcModules,
 		"--http.addr=127.0.0.1",
 		"--http.port=0",
 		"--ipcdisable",
@@ -435,7 +436,7 @@ func buildMixedOpRethNode(
 		"--txpool.nolocals",
 		"--with-unused-ports",
 		"--ws",
-		"--ws.api=admin,debug,eth,net,trace,txpool,web3,rpc,reth,miner",
+		"--ws.api=" + rpcModules,
 		"--ws.addr=127.0.0.1",
 		"--ws.port=0",
 		"-vvvv",
@@ -497,6 +498,14 @@ func buildMixedOpRethNode(
 		p:                  t,
 		l2MetricsRegistrar: metricsRegistrar,
 	}
+}
+
+func opRethRPCModules(cfg *OpRethConfig) string {
+	modules := "admin,debug,eth,net,trace,txpool,web3,rpc,reth,miner"
+	if cfg.EnableOtterscanAPI {
+		modules += ",ots"
+	}
+	return modules
 }
 
 func startMixedOpRethNode(

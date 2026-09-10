@@ -1,0 +1,15 @@
+{
+  "name": "wrong-version-0x01",
+  "spec": "SPEC-PROOF-BATCH.md, proof-batch wire format v2",
+  "kind": "invalid",
+  "description": "Version byte 0x01 — the RETIRED v1. A v2 verifier must refuse it outright, not best-effort decode: v1's BlockExport was (number, timestamp, bytes32[] logHashes), a different ABI type whose bytes would decode to nonsense or, worse, to something plausible. This is the case that matters at the rollout cutover.",
+  "expectedError": "bad version 1, want 2 (v1 is retired: refuse, do not adapt)",
+  "envelope": {
+    "magicHex": "0x4b435042",
+    "magicAscii": "KCPB",
+    "version": 1,
+    "pvLen": 960,
+    "totalLen": 973
+  },
+  "envelopeKeccak": "0x2174847013f172efd53539ccd55de2049bbf4581acc4019fee9de8a93b91d11e"
+}

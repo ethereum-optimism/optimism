@@ -57,6 +57,10 @@ variable "OP_SUPERNODE_VERSION" {
   default = "${GIT_VERSION}"
 }
 
+variable "OP_SILHOUETTE_EL_VERSION" {
+  default = "${GIT_VERSION}"
+}
+
 variable "OP_INTEROP_FILTER_VERSION" {
   default = "${GIT_VERSION}"
 }
@@ -191,6 +195,19 @@ target "op-supernode" {
   target = "op-supernode-target"
   platforms = split(",", PLATFORMS)
   tags = [for tag in split(",", IMAGE_TAGS) : "${REGISTRY}/${REPOSITORY}/op-supernode:${tag}"]
+}
+
+target "op-silhouette-el" {
+  dockerfile = "ops/docker/op-stack-go/Dockerfile"
+  context = "."
+  args = {
+    GIT_COMMIT = "${GIT_COMMIT}"
+    GIT_DATE = "${GIT_DATE}"
+    OP_SILHOUETTE_EL_VERSION = "${OP_SILHOUETTE_EL_VERSION}"
+  }
+  target = "op-silhouette-el-target"
+  platforms = split(",", PLATFORMS)
+  tags = [for tag in split(",", IMAGE_TAGS) : "${REGISTRY}/${REPOSITORY}/op-silhouette-el:${tag}"]
 }
 
 target "op-interop-filter" {

@@ -1,0 +1,49 @@
+{
+  "name": "exec-msgs-single",
+  "spec": "SPEC-PROOF-BATCH.md, proof-batch wire format v2",
+  "kind": "valid",
+  "description": "One block consuming one message from chain A. All five identifier fields are non-trivial, so a decoder that transposes logIndex and timestamp — the exact mistake the checksum's own packing invites — produces a different logHash and checksum and fails this fixture.",
+  "envelope": {
+    "magicHex": "0x4b435042",
+    "magicAscii": "KCPB",
+    "version": 3,
+    "pvLen": 800,
+    "proofLen": 0,
+    "totalLen": 813
+  },
+  "publicValues": {
+    "prevOutputRoot": "0x077a4e9c3cf6629ddb24d2c75f4a6162f29ec897882317e530f575aeda8dd14d",
+    "newOutputRoot": "0x56c21549276802225dfefe5e08edf3bf2bbe40203d4869c12a51dd7f65cd88d4",
+    "l1Head": "0x615690772a87a2ef3104ae12d417572757dc12a96b1fe0387fa9c7b3b558ea61",
+    "rollupConfigHash": "0xe436157de863b64711b12df142eeb07c4fa24af8eecdbc294409017c2b22ad30",
+    "depSetHash": "0xbe838fcad6299920ef3c093e4429f7e6b770be4f903f5f8c9a040fa500026b9d",
+    "exportPolicyHash": "0xa6399dfbff2da483c5fcbe6f074297868700f9304ca957a4d61bcf84109430ef",
+    "blocks": [
+      {
+        "blockNumber": 1200001,
+        "timestamp": 1801100002,
+        "blockHash": "0x967a4ff201d8eecba4ddd731b736db9c4d3700a8203ed4f1736ba01d821370e9",
+        "stateRoot": "0xcef3fe49d3fbfbb8f79540ddb77083b938869a4a92c7cc1900c5a4ab9e207c0d",
+        "messagePasserStorageRoot": "0x467dcd4a571bd3875d68e6a57dd9141aa92bd7d80bc5a3b66f41021adee3f9f6",
+        "outputRoot": "0x56c21549276802225dfefe5e08edf3bf2bbe40203d4869c12a51dd7f65cd88d4",
+        "logs": [],
+        "execMsgs": [
+          {
+            "origin": "0xd4ee0fc05b9b4bf2e1e9c6ce6e61a54ba1314f68",
+            "blockNumber": 201796,
+            "logIndex": 1,
+            "timestamp": 1801099000,
+            "chainId": "424246",
+            "msgHash": "0xe09be6c2a530157f214ee88e534ee11bc05e687ecd182b7922fc76346d8dda2c",
+            "logHash": "0xc3d13576e90c565af37f2b71c2bbcc5290cf51f6bb547c948bb0a7b4892f69aa",
+            "checksum": "0x0304d33358803782d9a297335b5bd2935803b2466b102740806ac7fc2cf141e4",
+            "key": "0x000000000000000000000000d4ee0fc05b9b4bf2e1e9c6ce6e61a54ba1314f6800000000000000000000000000000000000000000000000000000000000314440000000000000000000000000000000000000000000000000000000000000001000000000000000000000000000000000000000000000000000000006b5a96f80000000000000000000000000000000000000000000000000000000000067936e09be6c2a530157f214ee88e534ee11bc05e687ecd182b7922fc76346d8dda2c"
+          }
+        ]
+      }
+    ]
+  },
+  "publicValuesKeccak": "0xe97a96509a865bfa96aefe9460d527b03a784fb4df9eff4c8888275710b5b7b2",
+  "proofHex": "0x",
+  "envelopeKeccak": "0xdef4d0aaa2159c8264a0190a5386f94c0a14abcf260fdf779e11cb2b9eb0592f"
+}

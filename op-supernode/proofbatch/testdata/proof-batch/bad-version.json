@@ -1,0 +1,15 @@
+{
+  "name": "bad-version",
+  "spec": "SPEC-PROOF-BATCH.md, proof-batch wire format v2",
+  "kind": "invalid",
+  "description": "Version byte 0xff. Any field change bumps VERSION, so an unknown version means unknown semantics: reject, never adapt.",
+  "expectedError": "unknown version 255, want 3 (a higher version is refused, never best-effort decoded)",
+  "envelope": {
+    "magicHex": "0x4b435042",
+    "magicAscii": "KCPB",
+    "version": 255,
+    "pvLen": 1088,
+    "totalLen": 1101
+  },
+  "envelopeKeccak": "0x853aae703098d34ba1a43d10a585f0d2dbebe28f17f8849ae8d6a444658b67e4"
+}

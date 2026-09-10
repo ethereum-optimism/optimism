@@ -1,0 +1,90 @@
+export const superchainTokenBridgeAbi = [
+  {
+    type: 'function',
+    name: 'relayERC20',
+    inputs: [
+      { name: '_token', type: 'address', internalType: 'address' },
+      { name: '_from', type: 'address', internalType: 'address' },
+      { name: '_to', type: 'address', internalType: 'address' },
+      { name: '_amount', type: 'uint256', internalType: 'uint256' },
+    ],
+    outputs: [],
+    stateMutability: 'nonpayable',
+  },
+  {
+    type: 'function',
+    name: 'sendERC20',
+    inputs: [
+      { name: '_token', type: 'address', internalType: 'address' },
+      { name: '_to', type: 'address', internalType: 'address' },
+      { name: '_amount', type: 'uint256', internalType: 'uint256' },
+      { name: '_chainId', type: 'uint256', internalType: 'uint256' },
+    ],
+    outputs: [{ name: 'msgHash_', type: 'bytes32', internalType: 'bytes32' }],
+    stateMutability: 'nonpayable',
+  },
+  {
+    type: 'function',
+    name: 'version',
+    inputs: [],
+    outputs: [{ name: '', type: 'string', internalType: 'string' }],
+    stateMutability: 'view',
+  },
+  {
+    type: 'event',
+    name: 'RelayERC20',
+    inputs: [
+      {
+        name: 'token',
+        type: 'address',
+        indexed: true,
+        internalType: 'address',
+      },
+      { name: 'from', type: 'address', indexed: true, internalType: 'address' },
+      { name: 'to', type: 'address', indexed: true, internalType: 'address' },
+      {
+        name: 'amount',
+        type: 'uint256',
+        indexed: false,
+        internalType: 'uint256',
+      },
+      {
+        name: 'source',
+        type: 'uint256',
+        indexed: false,
+        internalType: 'uint256',
+      },
+    ],
+    anonymous: false,
+  },
+  {
+    type: 'event',
+    name: 'SendERC20',
+    inputs: [
+      {
+        name: 'token',
+        type: 'address',
+        indexed: true,
+        internalType: 'address',
+      },
+      { name: 'from', type: 'address', indexed: true, internalType: 'address' },
+      { name: 'to', type: 'address', indexed: true, internalType: 'address' },
+      {
+        name: 'amount',
+        type: 'uint256',
+        indexed: false,
+        internalType: 'uint256',
+      },
+      {
+        name: 'destination',
+        type: 'uint256',
+        indexed: false,
+        internalType: 'uint256',
+      },
+    ],
+    anonymous: false,
+  },
+  { type: 'error', name: 'InvalidCrossDomainSender', inputs: [] },
+  { type: 'error', name: 'Unauthorized', inputs: [] },
+  { type: 'error', name: 'ZeroAddress', inputs: [] },
+] as const

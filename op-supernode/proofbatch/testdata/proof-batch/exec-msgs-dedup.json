@@ -1,0 +1,60 @@
+{
+  "name": "exec-msgs-dedup",
+  "spec": "SPEC-PROOF-BATCH.md, proof-batch wire format v2",
+  "kind": "valid",
+  "description": "The OUTPUT of deduplicating an extraction that saw one message four times and another twice: exactly two entries. Multiplicity is destroyed on purpose — 'consumed once' and 'consumed four times' are the same wire bytes, which is what keeps the executing transactions' count out of the disclosure.",
+  "envelope": {
+    "magicHex": "0x4b435042",
+    "magicAscii": "KCPB",
+    "version": 3,
+    "pvLen": 992,
+    "proofLen": 0,
+    "totalLen": 1005
+  },
+  "publicValues": {
+    "prevOutputRoot": "0x9ddad0ffdde803e3fa5122d8d3f9eeb8a35851c9ecfe0b9dc8c0bf1cfaf2e736",
+    "newOutputRoot": "0xd5742f6bd7ed911fd6237fe668de311bd1b77558c780f7e165069ec73588aad6",
+    "l1Head": "0xb9423f299f24a4c993a236358934cca2b02786c1d280ffa0e3a6496f71381588",
+    "rollupConfigHash": "0x44912a55198c8b16bcc52602f97f9d570233f6c31a643baa893ee126ce494736",
+    "depSetHash": "0xd6c11b3ec3366828363c61b8cbef2bb79ccdadca8768b86e95f7fca843499ab3",
+    "exportPolicyHash": "0xa6399dfbff2da483c5fcbe6f074297868700f9304ca957a4d61bcf84109430ef",
+    "blocks": [
+      {
+        "blockNumber": 1400001,
+        "timestamp": 1801300002,
+        "blockHash": "0x88b08da2e92cef5d6b6ab7413be3422a69056f8571133473633cc39a231c18c3",
+        "stateRoot": "0x27f3e28a0f8775530a7be657fabcd83fda55b077f51be4bf197cb6a5ecd63667",
+        "messagePasserStorageRoot": "0xb4d26875d314acff030e2d5b42429175ab70f50c92f2881034906e34884573f7",
+        "outputRoot": "0xd5742f6bd7ed911fd6237fe668de311bd1b77558c780f7e165069ec73588aad6",
+        "logs": [],
+        "execMsgs": [
+          {
+            "origin": "0x468824339c0551afb6390311258804a8422b97f8",
+            "blockNumber": 700001,
+            "logIndex": 9,
+            "timestamp": 1801299000,
+            "chainId": "424246",
+            "msgHash": "0x2231636dab54c437fe8bf06b8b9afb0952724ab9ab43cf167f9c5c6ac90a115c",
+            "logHash": "0xabff7445ca005e102c7509977af03be3757de2cd1e17bf3a1d585bf72f43d6d4",
+            "checksum": "0x03ed9fa1131b8cfc8263fd5316f4a8c6e1fd366cd36993f07c41dd3aebad3917",
+            "key": "0x000000000000000000000000468824339c0551afb6390311258804a8422b97f800000000000000000000000000000000000000000000000000000000000aae610000000000000000000000000000000000000000000000000000000000000009000000000000000000000000000000000000000000000000000000006b5da43800000000000000000000000000000000000000000000000000000000000679362231636dab54c437fe8bf06b8b9afb0952724ab9ab43cf167f9c5c6ac90a115c"
+          },
+          {
+            "origin": "0xb272149cf56bd64ee70d25f6e917670cd517108f",
+            "blockNumber": 700001,
+            "logIndex": 2,
+            "timestamp": 1801299000,
+            "chainId": "424246",
+            "msgHash": "0xb652f557270ad594a2ccbb72957232f280ec83c4fe1ba2a50940a50a06db98a9",
+            "logHash": "0xd1d9632f95ed59335b93fd17397a3c141711226a3144d56198cf2a3a37f8ba70",
+            "checksum": "0x0387375354914137ad70bcd40dc7d60fd781ac4ddfffe79109e8f4b9aeacdabb",
+            "key": "0x000000000000000000000000b272149cf56bd64ee70d25f6e917670cd517108f00000000000000000000000000000000000000000000000000000000000aae610000000000000000000000000000000000000000000000000000000000000002000000000000000000000000000000000000000000000000000000006b5da4380000000000000000000000000000000000000000000000000000000000067936b652f557270ad594a2ccbb72957232f280ec83c4fe1ba2a50940a50a06db98a9"
+          }
+        ]
+      }
+    ]
+  },
+  "publicValuesKeccak": "0xd1c009341ae4143322ca2d47a41547518547acf1e696fae6f55dca20c2e86557",
+  "proofHex": "0x",
+  "envelopeKeccak": "0x91cbcced151142d30b26a62b45fa045ade2f8eb762f7217c94f423bd75746958"
+}

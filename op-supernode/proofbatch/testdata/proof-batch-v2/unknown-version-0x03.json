@@ -1,0 +1,15 @@
+{
+  "name": "unknown-version-0x03",
+  "spec": "SPEC-PROOF-BATCH.md, proof-batch wire format v2",
+  "kind": "invalid",
+  "description": "Version byte 0x03 — the NEXT version, which does not exist yet. A v2 decoder must refuse it as firmly as it refuses v1: forwards-leniency is how a future field change gets silently misread. Paired with `wrong-version-0x01` so the gate is symmetric in both directions.",
+  "expectedError": "bad version 3, want 2",
+  "envelope": {
+    "magicHex": "0x4b435042",
+    "magicAscii": "KCPB",
+    "version": 3,
+    "pvLen": 960,
+    "totalLen": 973
+  },
+  "envelopeKeccak": "0xf065f6a6a705072139ca1c591fcab98c8af2d57dfc031fb1240be2a75a3432e7"
+}

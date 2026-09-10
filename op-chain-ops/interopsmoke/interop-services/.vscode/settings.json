@@ -1,0 +1,25 @@
+{
+  "npm.packageManager": "pnpm",
+  "typescript.updateImportsOnFileMove.enabled": "always",
+  "javascript.updateImportsOnFileMove.enabled": "always",
+  "editor.formatOnSaveMode": "file",
+  "editor.tabCompletion": "on",
+  "editor.tabSize": 2,
+  "editor.formatOnSave": true,
+  "editor.inlineSuggest.enabled": true,
+  "editor.codeActionsOnSave": {
+    "source.fixAll": "explicit"
+  },
+  "files.eol": "\n",
+  "eslint.lintTask.enable": true,
+  "eslint.enable": true,
+  "eslint.debug": true,
+  "[typescript]": {
+    "editor.defaultFormatter": "esbenp.prettier-vscode"
+  },
+  "eslint.nodePath": "./node_modules/eslint/bin/",
+  "eslint.format.enable": true,
+  "eslint.workingDirectories": [{ "mode": "auto" }],
+  "editorconfig.generateAuto": false,
+  "files.trimTrailingWhitespace": true
+}

@@ -1,0 +1,89 @@
+{
+  "name": "single-block-multi-logs",
+  "spec": "SPEC-PROOF-BATCH.md, proof-batch wire format v2",
+  "kind": "valid",
+  "description": "One block with three exported logs at block-level indices 0,1,2, the third of them anonymous (zero topics). No preimages: this is the v2 DEFAULT policy cove-export-v2:all-hashes. `sourceLogs` carries the preimages so a Go test can recompute each hash with messages.LogToLogHash.",
+  "envelope": {
+    "magicHex": "0x4b435042",
+    "magicAscii": "KCPB",
+    "version": 2,
+    "pvLen": 1024,
+    "proofLen": 0,
+    "totalLen": 1037
+  },
+  "publicValues": {
+    "prevOutputRoot": "0x6f065444f6f81fcd47decede10b6283da1270db31f7af85a28944f92fab1d42a",
+    "newOutputRoot": "0xb057f0f6d30d6fd7aaa41696ab3ab48916b2f3a19d27113190ab2cea6fc2c053",
+    "l1Head": "0x6512c6a174eae843a7be1e02f0cd2954fdcf576f0367bc144ff9fc4c434433bc",
+    "rollupConfigHash": "0x2a18aeb7eaa11a569b9ab6f6a2984e7e189d07585af16dd9d8caec7ede24bed2",
+    "depSetHash": "0x3bb9355e0781c7f78b1ec68f4a30a8c866bbc02534c603fa7c0d1de2df189608",
+    "exportPolicyHash": "0xa6399dfbff2da483c5fcbe6f074297868700f9304ca957a4d61bcf84109430ef",
+    "blocks": [
+      {
+        "blockNumber": 1000001,
+        "timestamp": 1800000002,
+        "blockHash": "0x84822ba71aaa58bae4909cf467db79af87b2f169d26dede1ff994894e14a96f9",
+        "stateRoot": "0x3770a463acd5826b9b8c90cb5adfdef8b8c3cb35915b2000476acdea54f0476c",
+        "messagePasserStorageRoot": "0xd2423abd361176c635184e9d6b8a45c61e53c072cdbd4776b170a40a9bb204cc",
+        "outputRoot": "0xb057f0f6d30d6fd7aaa41696ab3ab48916b2f3a19d27113190ab2cea6fc2c053",
+        "logs": [
+          {
+            "logIndex": 0,
+            "logHash": "0x97a2ff26e3c89703027878fff771e1d80b6c30fd86194dd4d7c718c84ec2b917",
+            "preimage": "0x"
+          },
+          {
+            "logIndex": 1,
+            "logHash": "0xf1a9004b3afb87668465e7c9c28a27b420cf9e9e161e960233b8eb92eaea67d4",
+            "preimage": "0x"
+          },
+          {
+            "logIndex": 2,
+            "logHash": "0x686fa000ad34cbb83ee109981c63eafc2928055d8cbb79e842ecb7485fc60cc9",
+            "preimage": "0x"
+          }
+        ]
+      }
+    ]
+  },
+  "publicValuesKeccak": "0xa81a9d7e9fa8030c0b7f6e321b6616f5ec7ceb36cd4d4844b0ccef7d0074fa87",
+  "proofHex": "0x",
+  "envelopeKeccak": "0xd12e6c8e848c545288236fe530552487a337aa39cb123ef22380e7aca3b0f364",
+  "sourceLogs": [
+    {
+      "blockNumber": 1000001,
+      "logIndex": 0,
+      "address": "0x34ec93949cbbf74dc74000f23f00e2d8e831923a",
+      "topics": [
+        "0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef",
+        "0x0000000000000000000000003b52c14f97562d9960f97a4f4daa6b0b01c19feb",
+        "0x000000000000000000000000bce6c14fd4efca840354854c0345d2d18e64bbab"
+      ],
+      "data": "0x531b7704b0dd1c9285cd89819310e945f397abce645752665e0447910aaf084a",
+      "logHash": "0x97a2ff26e3c89703027878fff771e1d80b6c30fd86194dd4d7c718c84ec2b917",
+      "preimage": "0x34ec93949cbbf74dc74000f23f00e2d8e831923addf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef0000000000000000000000003b52c14f97562d9960f97a4f4daa6b0b01c19feb000000000000000000000000bce6c14fd4efca840354854c0345d2d18e64bbab531b7704b0dd1c9285cd89819310e945f397abce645752665e0447910aaf084a"
+    },
+    {
+      "blockNumber": 1000001,
+      "logIndex": 1,
+      "address": "0x8f3f87376d9adfa8f2900cc8f2cc25738b6634c9",
+      "topics": [
+        "0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef",
+        "0x000000000000000000000000632278f8e69c42fec21e859dd4c91b91633a8adb",
+        "0x000000000000000000000000ee860901255c04f807d1e88f69e0ab440a9587a9"
+      ],
+      "data": "0xf25ecf2b564f503284be6ceabe0825dc5f8b5c87cb665f1567317d1004c39e30",
+      "logHash": "0xf1a9004b3afb87668465e7c9c28a27b420cf9e9e161e960233b8eb92eaea67d4",
+      "preimage": "0x8f3f87376d9adfa8f2900cc8f2cc25738b6634c9ddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef000000000000000000000000632278f8e69c42fec21e859dd4c91b91633a8adb000000000000000000000000ee860901255c04f807d1e88f69e0ab440a9587a9f25ecf2b564f503284be6ceabe0825dc5f8b5c87cb665f1567317d1004c39e30"
+    },
+    {
+      "blockNumber": 1000001,
+      "logIndex": 2,
+      "address": "0x6167f8d9d2f8756cebe1f5d2da63a2270013b946",
+      "topics": [],
+      "data": "0xabfb1077177e3f8414a843a3c6753311a32b89aafe98b086959d35efecbfe9a0",
+      "logHash": "0x686fa000ad34cbb83ee109981c63eafc2928055d8cbb79e842ecb7485fc60cc9",
+      "preimage": "0x6167f8d9d2f8756cebe1f5d2da63a2270013b946abfb1077177e3f8414a843a3c6753311a32b89aafe98b086959d35efecbfe9a0"
+    }
+  ]
+}

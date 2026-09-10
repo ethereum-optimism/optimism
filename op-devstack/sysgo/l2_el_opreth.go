@@ -19,6 +19,8 @@ import (
 type OpRethConfig struct {
 	// ExtraArgs are appended to the generated CLI args.
 	ExtraArgs []string
+	// EnableOtterscanAPI exposes reth's read-only ots_* block-explorer namespace.
+	EnableOtterscanAPI bool
 	// Binary selects the EL binary to launch. Empty means "op-reth". A CLI-compatible superset
 	// (any binary that accepts every op-reth subcommand/flag, plus optionally its own additive
 	// flags) may be selected via OpRethWithBinary.
@@ -66,6 +68,13 @@ func (b OpRethOptionBundle) Apply(p devtest.T, target ComponentTarget, cfg *OpRe
 func OpRethWithExtraArgs(args ...string) OpRethOption {
 	return OpRethOptionFn(func(p devtest.T, _ ComponentTarget, cfg *OpRethConfig) {
 		cfg.ExtraArgs = append(cfg.ExtraArgs, args...)
+	})
+}
+
+// OpRethWithOtterscanAPI enables the read-only ots_* RPC namespace used by Otterscan.
+func OpRethWithOtterscanAPI() OpRethOption {
+	return OpRethOptionFn(func(p devtest.T, _ ComponentTarget, cfg *OpRethConfig) {
+		cfg.EnableOtterscanAPI = true
 	})
 }
 

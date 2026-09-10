@@ -1,0 +1,15 @@
+{
+  "name": "unknown-version-0x04",
+  "spec": "SPEC-PROOF-BATCH.md, proof-batch wire format v2",
+  "kind": "invalid",
+  "description": "Version byte 0x04 — the NEXT version, which does not exist yet. A v3 decoder must refuse it as firmly as it refuses v1 and v2: forwards-leniency is how a future field addition gets silently misread, and refusing an unrecognised successor is exactly what makes introducing a v4 safe. Paired with the two retired-version cases so the gate is symmetric in both directions.",
+  "expectedError": "unknown version 4, want 3 (a higher version is refused, never best-effort decoded)",
+  "envelope": {
+    "magicHex": "0x4b435042",
+    "magicAscii": "KCPB",
+    "version": 4,
+    "pvLen": 1088,
+    "totalLen": 1101
+  },
+  "envelopeKeccak": "0xd85dfe9f741262b49ee369a9b4282133a722961e9f84f684bd7af5261238d884"
+}

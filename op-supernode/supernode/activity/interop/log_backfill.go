@@ -130,6 +130,15 @@ func (i *Interop) runColdStartBackfill(verificationStart uint64) error {
 	for _, chain := range i.chains {
 		go func(chain cc.ChainContainer) {
 			defer wg.Done()
+			if cc.IngestionSourceOf(chain) == cc.IngestionProven {
+				// Backfill walks a chain's history block by block, reading receipts out of an
+				// execution client. A proof-carried chain has neither. Its history is rebuilt a
+				// different way and by a different owner: its source re-derives every proof batch
+				// from the configured L1 start block on every start, and seals — or re-checks —
+				// every block it finds. So there is nothing here to pre-ingest, and skipping is
+				// not a gap.
+				return
+			}
 			chainStart := commonStart
 			genesisTime, err := chain.BlockNumberToTimestamp(i.ctx, 0)
 			if err != nil {

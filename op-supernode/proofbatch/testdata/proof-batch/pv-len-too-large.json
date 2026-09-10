@@ -1,0 +1,15 @@
+{
+  "name": "pv-len-too-large",
+  "spec": "SPEC-PROOF-BATCH.md, proof-batch wire format v2",
+  "kind": "invalid",
+  "description": "pv_len is 32 bytes larger than the public values actually present, with everything else intact.",
+  "expectedError": "pv_len declares 1120 bytes, only 1092 available",
+  "envelope": {
+    "magicHex": "0x4b435042",
+    "magicAscii": "KCPB",
+    "version": 3,
+    "pvLen": 1120,
+    "totalLen": 1101
+  },
+  "envelopeKeccak": "0x9a97aa1d06bf1ce31465ab4876b36643cf69eb6bb61f59186758a41ecaca7178"
+}

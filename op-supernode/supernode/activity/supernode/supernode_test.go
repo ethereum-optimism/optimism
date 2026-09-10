@@ -22,6 +22,8 @@ type mockCC struct {
 	verifiedErr   error
 	outputErr     error
 	syncStatusErr error
+	denied        bool
+	deniedErr     error
 }
 
 func (m *mockCC) Start(ctx context.Context) error          { return nil }
@@ -108,7 +110,7 @@ func (m *mockCC) GetDeniedOutput(height uint64, payloadHash common.Hash) (*eth.O
 }
 
 func (m *mockCC) IsDenied(height uint64, payloadHash common.Hash) (bool, error) {
-	return false, nil
+	return m.denied, m.deniedErr
 }
 
 func (m *mockCC) PruneDeniedAtOrAfterTimestamp(timestamp uint64) (map[uint64][]common.Hash, error) {
@@ -274,6 +276,18 @@ func TestSupernode_SyncStatus_EmptyChains(t *testing.T) {
 	require.Equal(t, uint64(0), out.SafeTimestamp)
 	require.Equal(t, uint64(0), out.LocalSafeTimestamp)
 	require.Equal(t, uint64(0), out.FinalizedTimestamp)
+}
+
+func TestSupernode_IsDenied(t *testing.T) {
+	chainID := eth.ChainIDFromUInt64(10)
+	s := New(gethlog.New(), map[eth.ChainID]cc.ChainContainer{chainID: &mockCC{denied: true}})
+	api := &api{a: s}
+
+	denied, err := api.IsDenied(chainID, 12, common.HexToHash("0x1234"))
+	require.NoError(t, err)
+	require.True(t, denied)
+	_, err = api.IsDenied(eth.ChainIDFromUInt64(11), 12, common.Hash{})
+	require.ErrorContains(t, err, "unknown chain 11")
 }
 
 func assertErr() error { return fmt.Errorf("mock error") }

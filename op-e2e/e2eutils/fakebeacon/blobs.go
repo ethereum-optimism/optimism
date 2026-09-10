@@ -121,6 +121,10 @@ func (f *FakeBeacon) StoreBlobsBundle(slot uint64, bundle *engine.BlobsBundle) e
 	// slot = (timestamp - genesis) / slot_time
 	// timestamp = slot * slot_time + genesis
 	slotTimestamp := slot*f.blockTime + f.genesisTime
+	// A slot identifies one canonical beacon block. During an execution-layer reorg the test
+	// sequencer may publish a different bundle for the same slot, so replace the old sidecars rather
+	// than merging two forks into an impossible beacon response.
+	f.blobStore.ClearBlobsAtTime(slotTimestamp)
 
 	for i, b := range bundle.Blobs {
 		f.blobStore.StoreBlob(

@@ -1,0 +1,27 @@
+{
+  "name": "supersim",
+  "version": "0.1.0-alpha.53",
+  "description": "Supersim is a lightweight tool to simulate the Superchain locally",
+  "license": "UNLICENSED",
+  "author": "Optimism PBC",
+  "keywords": [
+    "optimism",
+    "ethereum",
+    "supersim",
+    "superchain"
+  ],
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "bin": {
+    "supersim": "./bin/supersim"
+  },
+  "scripts": {
+    "lint": "eslint install.js && pnpm prettier --check install.js --ignore-path \"../../.prettierignore\"",
+    "lint:fix": "eslint install.js --fix --quiet && pnpm prettier install.js --write --loglevel=warn --ignore-path \"../../.prettierignore\"",
+    "postinstall": "node install.js"
+  },
+  "dependencies": {
+    "follow-redirects": "^1.16.0"
+  }
+}

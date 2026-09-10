@@ -55,6 +55,11 @@ var (
 		Usage:   "Addresses of L1 Beacon-API compatible HTTP fallback endpoints. Used to fetch blob sidecars not available at the l1.beacon (e.g. expired blobs).",
 		EnvVars: append(prefixEnvVars("L1_BEACON_FALLBACKS"), prefixEnvVars("L1_BEACON_ARCHIVER")...),
 	}
+	L1BeaconSlotDurationOverride = &cli.Uint64Flag{
+		Name:    opnodeflags.BeaconSlotDurationOverride.Name,
+		Usage:   "Override the shared beacon clients' SECONDS_PER_SLOT and skip /eth/v1/config/spec (0 uses the endpoint)",
+		EnvVars: prefixEnvVars("L1_BEACON_SLOT_DURATION_OVERRIDE"),
+	}
 	L1HTTPPollInterval = &cli.DurationFlag{
 		Name:    "l1.http-poll-interval",
 		Usage:   "Polling interval for the shared L1 HTTP RPC subscription. This controls the supernode's own L1 client; virtual node l1.http-poll-interval flags are ignored.",
@@ -74,6 +79,12 @@ var (
 		EnvVars:   prefixEnvVars("DEPENDENCY_SET"),
 		TakesFile: true,
 	}
+	SilhouetteManifest = &cli.PathFlag{
+		Name:      "silhouette",
+		Usage:     "Silhouette manifest (JSON): declares which of the configured chains are proof-carried silhouette chains, and names each one's verifier config. Chains absent from it are ordinary driven chains.",
+		EnvVars:   prefixEnvVars("SILHOUETTE"),
+		TakesFile: true,
+	}
 )
 
 var requiredFlags = []cli.Flag{
@@ -85,6 +96,7 @@ var optionalFlags = []cli.Flag{
 	L1HTTPPollInterval,
 	DisableP2P,
 	DependencySet,
+	SilhouetteManifest,
 }
 
 // activityFlags holds flags registered by activity packages via RegisterActivityFlags.
@@ -100,6 +112,7 @@ func RegisterActivityFlags(flags ...cli.Flag) {
 func init() {
 	optionalFlags = append(optionalFlags, L1BeaconAddr)
 	optionalFlags = append(optionalFlags, L1BeaconFallbackAddrs)
+	optionalFlags = append(optionalFlags, L1BeaconSlotDurationOverride)
 	optionalFlags = append(optionalFlags, DataDirFlag)
 	optionalFlags = append(optionalFlags, oprpc.CLIFlags(EnvVarPrefix)...)
 	optionalFlags = append(optionalFlags, oplog.CLIFlags(EnvVarPrefix)...)
@@ -118,8 +131,9 @@ var Flags []cli.Flag
 //
 // Extend this list when new shared resources are added to the supernode.
 var SupernodeOwnedFlags = []string{
-	opnodeflags.L1HTTPPollInterval.Name,   // "l1.http-poll-interval"
-	opnodeflags.InteropDependencySet.Name, // "interop.dependency-set"
+	opnodeflags.L1HTTPPollInterval.Name,         // "l1.http-poll-interval"
+	opnodeflags.BeaconSlotDurationOverride.Name, // "l1.beacon.slot-duration-override"
+	opnodeflags.InteropDependencySet.Name,       // "interop.dependency-set"
 }
 
 func CheckRequired(ctx *cli.Context) error {

@@ -1,0 +1,43 @@
+# dependencies
+**/node_modules
+/.pnp
+packages/*/.env
+app/*/.env
+.npmrc
+
+# testing
+/coverage
+
+# build artifacts
+**/build/
+**/dist/
+**/tsconfig.tsbuildinfo
+.nx
+
+# misc
+.DS_Store
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+npm-debug.log*
+
+# ponder
+**/.ponder
+**/generated
+
+# cert files
+*.crt
+*.pem
+*.key.envrc
+
+
+.envrc
+apps/autorelayer-interop/.budget-checkpoint.json
+apps/autorelayer-interop/.relay-*.sqlite*
+# local observability stack (prometheus + grafana for ad-hoc metrics inspection)
+apps/autorelayer-interop/observability/
+
+.claude/worktrees
