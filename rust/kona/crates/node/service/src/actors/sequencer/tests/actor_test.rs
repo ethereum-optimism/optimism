@@ -115,6 +115,28 @@ async fn test_rejected_conductor_commit_is_not_canonicalized_or_gossiped() {
 }
 
 #[tokio::test]
+async fn test_rejected_conductor_commit_backs_off_without_stopping_actor() {
+    let mut engine = MockSequencerEngineClient::new();
+    engine.expect_seal_block().times(1).return_once(|_, _| Ok(test_payload()));
+    engine.expect_canonicalize_block().times(0);
+
+    let mut conductor = MockConductor::new();
+    conductor
+        .expect_commit_unsafe_payload()
+        .times(1)
+        .return_once(|_| Err(ConductorError::Rpc(RpcError::local_usage_str("leadership lost"))));
+
+    let mut actor = test_actor();
+    actor.engine_client = engine;
+    actor.conductor = Some(conductor);
+    actor.unsafe_payload_gossip_client.expect_schedule_execution_payload_gossip().times(0);
+    actor.next_payload_to_seal = Some(test_unsealed_payload());
+
+    assert!(actor.handle_build_tick().await.is_ok());
+    assert!(actor.next_payload_to_seal.is_some(), "pending build must be retained for retry");
+}
+
+#[tokio::test]
 async fn test_accepted_conductor_commit_is_canonicalized_before_gossip() {
     let mut sequence = Sequence::new();
     let mut engine = MockSequencerEngineClient::new();
