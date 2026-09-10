@@ -3,6 +3,7 @@
 use crate::{
     EngineTaskError, SynchronizeTaskError, task_queue::tasks::task::EngineTaskErrorSeverity,
 };
+use alloy_primitives::B256;
 use alloy_rpc_types_engine::PayloadStatusEnum;
 use alloy_transport::{RpcError, TransportErrorKind};
 use kona_protocol::{FromBlockError, L2BlockInfo};
@@ -15,6 +16,14 @@ pub enum InsertTaskError {
     /// Error converting a payload into a block.
     #[error(transparent)]
     FromBlockError(#[from] OpPayloadError),
+    /// A sequencer payload no longer extends the current unsafe head.
+    #[error("Payload parent {parent} does not match current unsafe head {unsafe_head}")]
+    StalePayload {
+        /// The parent hash of the payload being inserted.
+        parent: B256,
+        /// The current unsafe head hash.
+        unsafe_head: B256,
+    },
     /// Failed to insert new payload.
     #[error("Failed to insert new payload: {0}")]
     InsertFailed(RpcError<TransportErrorKind>),
@@ -38,9 +47,9 @@ impl EngineTaskError for InsertTaskError {
             Self::FromBlockError(_) | Self::L2BlockInfoConstruction(_) => {
                 EngineTaskErrorSeverity::Critical
             }
-            Self::InsertFailed(_) | Self::UnexpectedPayloadStatus(_) => {
-                EngineTaskErrorSeverity::Temporary
-            }
+            Self::StalePayload { .. } |
+            Self::InsertFailed(_) |
+            Self::UnexpectedPayloadStatus(_) => EngineTaskErrorSeverity::Temporary,
             Self::ForkchoiceUpdateFailed(inner) => inner.severity(),
             Self::MpscSend(_) => EngineTaskErrorSeverity::Critical,
         }

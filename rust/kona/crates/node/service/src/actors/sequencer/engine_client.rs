@@ -7,7 +7,6 @@ use crate::{
 use alloy_rpc_types_engine::PayloadId;
 use async_trait::async_trait;
 use derive_more::Constructor;
-use kona_engine::SealTaskError;
 use kona_protocol::{L2BlockInfo, OpAttributesWithParent};
 use op_alloy_rpc_types_engine::OpExecutionPayloadEnvelope;
 use std::fmt::Debug;
@@ -165,9 +164,7 @@ impl SequencerEngineClient for QueuedSequencerEngineClient {
                 error!(target: "block_engine", "Failed to receive canonicalization result");
                 EngineClientError::ResponseError("response channel closed.".to_string())
             })?
-            .map_err(|err| {
-                EngineClientError::SealError(SealTaskError::PayloadInsertionFailed(Box::new(err)))
-            })?;
+            .map_err(EngineClientError::CanonicalizeError)?;
         Ok(())
     }
 }
