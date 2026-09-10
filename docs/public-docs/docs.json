@@ -3627,9 +3627,9 @@
               {
                 "group": "Operations",
                 "pages": [
-                  "notices/specialized-node-topology",
+                  "notices/preconfirmation-architecture-transition",
                   "notices/subblocks",
-                  "notices/preconfirmation-architecture-transition"
+                  "notices/specialized-node-topology"
                 ]
               },
               "notices/archive/index"
