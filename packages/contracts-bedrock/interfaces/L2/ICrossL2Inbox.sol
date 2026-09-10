@@ -14,7 +14,6 @@ struct Identifier {
 }
 
 interface ICrossL2Inbox is IProxyAdminOwnedBase {
-    error PrivateProjection_NotBatcher();
     error CrossL2Inbox_NoExecutingDeposits();
     error CrossL2Inbox_InvalidEventRegistry();
     error CrossL2Inbox_NotEventRegistry();

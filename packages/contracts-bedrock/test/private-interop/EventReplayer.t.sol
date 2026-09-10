@@ -10,9 +10,6 @@ import { EventReplayer } from "src/private-interop/EventReplayer.sol";
 
 // Interfaces
 import { IEventReplayer } from "interfaces/private-interop/IEventReplayer.sol";
-import { IL1Block } from "interfaces/L2/IL1Block.sol";
-import { Predeploys } from "src/libraries/Predeploys.sol";
-import { Features } from "src/libraries/Features.sol";
 
 /// @title EventReplayer_TestInit
 /// @notice Reusable test initialization for `EventReplayer` tests.
@@ -22,11 +19,6 @@ abstract contract EventReplayer_TestInit is Test {
 
     /// @notice Test setup.
     function setUp() public virtual {
-        vm.mockCall(
-            Predeploys.L1_BLOCK_ATTRIBUTES,
-            abi.encodeCall(IL1Block.isFeatureEnabled, (Features.PRIVATE_PROJECTION)),
-            abi.encode(false)
-        );
         eventReplayer = new EventReplayer();
     }
 

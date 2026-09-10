@@ -1,8 +1,6 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.15;
 
-import { PrivateProjection } from "src/libraries/PrivateProjection.sol";
-
 // Libraries
 import { Hashing } from "src/libraries/Hashing.sol";
 import { Predeploys } from "src/libraries/Predeploys.sol";
@@ -66,8 +64,8 @@ contract L2ToL2CrossDomainMessengerReplay is ISemver {
     uint16 public constant messageVersion = uint16(0);
 
     /// @notice Semantic version.
-    /// @custom:semver 2.1.0
-    string public constant version = "2.1.0";
+    /// @custom:semver 2.0.0
+    string public constant version = "2.0.0";
 
     /// @notice Re-emits a `SentMessage` event on behalf of the private chain. The emitted log is
     ///         byte-identical to the log the private chain's stock messenger produced for the same
@@ -95,7 +93,6 @@ contract L2ToL2CrossDomainMessengerReplay is ISemver {
     /// @param _message     Message payload to call target with.
     ///
     /// @return messageHash_ Hash of the message that was replayed.
-    /// @dev Requires the current batcher when the PRIVATE_PROJECTION feature is enabled.
     function replaySentMessage(
         uint256 _destination,
         uint256 _nonce,
@@ -106,7 +103,6 @@ contract L2ToL2CrossDomainMessengerReplay is ISemver {
         external
         returns (bytes32 messageHash_)
     {
-        PrivateProjection.requireBatcher();
         if (_sender == Predeploys.SUPERCHAIN_ETH_BRIDGE) revert L2ToL2CrossDomainMessengerReplay_ETHBridgeSender();
         if (_target == Predeploys.SUPERCHAIN_ETH_BRIDGE) revert L2ToL2CrossDomainMessengerReplay_ETHBridgeTarget();
 

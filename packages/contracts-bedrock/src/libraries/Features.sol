@@ -42,8 +42,4 @@ library Features {
 
     /// @notice The INTEROP feature determines if the system is configured to use interop.
     bytes32 internal constant INTEROP = "INTEROP";
-
-    /// @notice Restricts projection protocol calls to the current batcher. Enabled only in
-    ///         the public-projection L1Block genesis storage; ordinary chains leave it disabled.
-    bytes32 internal constant PRIVATE_PROJECTION = "PRIVATE_PROJECTION";
 }

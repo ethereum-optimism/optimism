@@ -3,7 +3,6 @@ pragma solidity 0.8.15;
 
 // Interfaces
 import { ISemver } from "interfaces/universal/ISemver.sol";
-import { PrivateProjection } from "src/libraries/PrivateProjection.sol";
 
 /// @title EventReplayer
 /// @notice Generic batch-authenticated log emitter, deployed at a fixed address in the genesis of a
@@ -20,18 +19,16 @@ contract EventReplayer is ISemver {
     error EventReplayer_TooManyTopics();
 
     /// @notice Semantic version.
-    /// @custom:semver 2.1.0
-    string public constant version = "2.1.0";
+    /// @custom:semver 2.0.0
+    string public constant version = "2.0.0";
 
     /// @notice Emits an arbitrary log with zero to four topics. The log is emitted verbatim: no
     ///         topic is derived, added or reordered, so an operator can reproduce any log shape
     ///         the private chain produced.
-    /// @dev Requires the current batcher when the PRIVATE_PROJECTION feature is enabled.
     ///
     /// @param _topics Topics of the log, in order. At most four.
     /// @param _data   Data section of the log.
     function replayEvent(bytes32[] calldata _topics, bytes calldata _data) external {
-        PrivateProjection.requireBatcher();
         uint256 count = _topics.length;
         if (count > 4) revert EventReplayer_TooManyTopics();
 
