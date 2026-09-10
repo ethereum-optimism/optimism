@@ -140,31 +140,18 @@ super-root `ZKDisputeGame` (game type 10) end to end:
 
 ### Anchor validation
 
-At startup, the proposer compares the registered anchor root with the supernode's
-canonical super root at the anchor timestamp. It repeats this check when
-scheduling an anchor-based proposal and before submitting a new creation
-transaction. Each check reads the registry and anchor at one L1 block hash.
-Explicit-parent proposals use the parent's claim instead and keep their existing
-eligibility checks.
+At startup, the proposer waits until the registered anchor root matches a trusted
+supernode response at the exact anchor timestamp. Registry and anchor reads use
+one L1 block hash.
 
-A zero root, a timestamp exceeding `u64`, or a mismatch with trusted supernode
-data produces an ERROR log. Missing data, RPC errors, and mismatches with
-untrusted data produce WARN logs. Anchor diagnostics include the registry, L1
-block, root, timestamp, and comparison details when available. Startup also logs
-its first validation failure at ERROR, then retries.
+A zero root, a timestamp exceeding `u64`, or a trusted mismatch produces an ERROR
+log. Missing data, RPC errors, and untrusted responses produce WARN logs. Startup
+also logs its first validation failure at ERROR, then retries.
 
-Startup waits for a valid anchor. During normal operation, an invalid or
-unavailable anchor pauses anchor-based creation without blocking eligible
-defense, fast-finality proofs, resolution, bond claims, or reconciliation of a
-creation already submitted. All anchor failures remain retryable.
-
-Check the registry's root and timestamp and the supernode's canonical history.
-Correct the registry or restore access to matching history; the next eligible
-attempt can resume without a restart. Timestamp zero has no special fallback:
-the RPC rejects it if it predates L2 genesis.
-
-These checks cannot prevent the registry from changing after submission but
-before transaction inclusion.
+Correct the registry or restore access to trusted, matching history; startup
+resumes without a restart. Timestamp zero has no fallback if the RPC rejects it.
+Normal proposal scheduling and submission retain their existing retry behavior;
+anchor validation is not repeated after startup.
 
 ### Ownership (which games it defends)
 

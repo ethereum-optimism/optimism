@@ -1,8 +1,7 @@
 use std::{
-    collections::HashMap,
     num::{NonZeroU64, NonZeroUsize},
     sync::{
-        Arc,
+        Arc, Mutex as StdMutex,
         atomic::{AtomicBool, AtomicU64, Ordering},
     },
     time::Duration,
@@ -12,8 +11,9 @@ use alloy_eips::BlockId;
 use alloy_primitives::{Address, B256, U256};
 use async_trait::async_trait;
 use kona_sp1_host_utils::metrics::MetricsListen;
-use kona_sp1_super_range_executor::SuperRootAtTimestampResponse;
-use parking_lot::Mutex;
+use kona_sp1_super_range_executor::{
+    BlockId as SuperBlockId, SuperRootAtTimestampResponse, SuperRootResponseData, SuperV1,
+};
 use tokio::sync::{Notify, oneshot};
 
 use super::{NamedBarrier, ScenarioControl, ScenarioError, world::*};
@@ -33,13 +33,12 @@ use crate::{
     prover::ProofKeys,
     proving::GameProofInputs,
     signer::NUM_CONFIRMATIONS,
-    superroot::zk_extra_data,
+    superroot::{SuperRootAt, zk_extra_data},
 };
 
 use crate::proposer::{
     CompactGameSummary, InFlightCreation, OperationSummary, Proposer, ProvingPurpose,
     SyncDisposition, TaskClass, TaskCompletionOutcome, TaskFailureClass, TaskId, TaskSuccess,
-    tests::{ActionCall, RecordingActionExecutor, canonical_super_root_at_timestamp},
 };
 
 const HEAD_NUMBER: u64 = 1;
@@ -47,41 +46,25 @@ const HEAD_TIMESTAMP: u64 = 1_000;
 
 #[derive(Default)]
 struct ScenarioL1View {
-    creation_plan_calls: AtomicU64,
-    creation_plan_notify: Notify,
+    latest_head_calls: AtomicU64,
+    latest_head_notify: Notify,
     fail_latest_head: AtomicBool,
     fail_respected_game_type: AtomicBool,
     fail_latest_l1_timestamp_on: AtomicU64,
     latest_l1_timestamp_calls: AtomicU64,
-    release_barrier: Mutex<Option<NamedBarrier>>,
-    task_finished: Mutex<Option<oneshot::Receiver<()>>>,
-    head_number: AtomicU64,
-    registry: Mutex<Address>,
-    anchors: Mutex<HashMap<Address, AnchorRoot>>,
-    uuids: Mutex<HashMap<B256, Address>>,
-    creators: Mutex<HashMap<Address, Address>>,
-    uuid_barrier: Mutex<Option<(B256, oneshot::Receiver<TaskId>, NamedBarrier)>>,
+    release_barrier: StdMutex<Option<NamedBarrier>>,
+    task_finished: StdMutex<Option<oneshot::Receiver<()>>>,
 }
 
 impl ScenarioL1View {
     fn new() -> Self {
-        Self {
-            head_number: AtomicU64::new(HEAD_NUMBER),
-            anchors: Mutex::new(HashMap::from([(
-                Address::ZERO,
-                AnchorRoot {
-                    root: canonical_super_root_at_timestamp(0).root.unwrap().super_root,
-                    sequence_number: U256::ZERO,
-                },
-            )])),
-            ..Self::default()
-        }
+        Self::default()
     }
 
-    async fn wait_for_creation_plans(&self, expected: u64) {
+    async fn wait_for_cycles(&self, expected: u64) {
         loop {
-            let notified = self.creation_plan_notify.notified();
-            if self.creation_plan_calls.load(Ordering::Relaxed) >= expected {
+            let notified = self.latest_head_notify.notified();
+            if self.latest_head_calls.load(Ordering::Relaxed) >= expected {
                 return;
             }
             notified.await;
@@ -92,14 +75,12 @@ impl ScenarioL1View {
 #[async_trait]
 impl L1View for ScenarioL1View {
     async fn latest_head(&self) -> anyhow::Result<Option<L1BlockRef>> {
+        self.latest_head_calls.fetch_add(1, Ordering::Relaxed);
+        self.latest_head_notify.notify_waiters();
         if self.fail_latest_head.load(Ordering::Relaxed) {
             anyhow::bail!("latest head unavailable")
         }
-        Ok(Some(L1BlockRef {
-            hash: B256::ZERO,
-            number: self.head_number.load(Ordering::Relaxed),
-            timestamp: HEAD_TIMESTAMP,
-        }))
+        Ok(Some(L1BlockRef { hash: B256::ZERO, number: HEAD_NUMBER, timestamp: HEAD_TIMESTAMP }))
     }
 
     async fn block_ref(&self, number: u64) -> anyhow::Result<Option<L1BlockRef>> {
@@ -113,13 +94,13 @@ impl L1View for ScenarioL1View {
             max_challenge_duration: 3_600,
             max_prove_duration: 3_600,
             challenger_bond: U256::ZERO,
-            anchor_state_registry: *self.registry.lock(),
+            anchor_state_registry: Address::ZERO,
             weth: Address::ZERO,
         })
     }
 
-    async fn anchor_root(&self, registry: Address, _block: BlockId) -> anyhow::Result<AnchorRoot> {
-        Ok(*self.anchors.lock().get(&registry).expect("configured registry"))
+    async fn anchor_root(&self, _registry: Address, _block: BlockId) -> anyhow::Result<AnchorRoot> {
+        Ok(AnchorRoot { root: canonical_super_root(0), sequence_number: U256::ZERO })
     }
 
     async fn latest_game_index(&self, _block: BlockId) -> anyhow::Result<Option<U256>> {
@@ -200,26 +181,14 @@ impl L1View for ScenarioL1View {
 
     async fn game_by_uuid(
         &self,
-        root_claim: B256,
+        _root_claim: B256,
         _extra_data: Vec<u8>,
     ) -> anyhow::Result<Address> {
-        let existing = self.uuids.lock().get(&root_claim).copied().unwrap_or_default();
-        let pause = {
-            let mut barrier = self.uuid_barrier.lock();
-            if barrier.as_ref().is_some_and(|(root, _, _)| *root == root_claim) {
-                barrier.take()
-            } else {
-                None
-            }
-        };
-        if let Some((_, task_id, barrier)) = pause {
-            barrier.park(task_id.await?).await;
-        }
-        Ok(existing)
+        Ok(Address::ZERO)
     }
 
-    async fn game_creator(&self, game: Address) -> anyhow::Result<Address> {
-        Ok(self.creators.lock().get(&game).copied().unwrap_or_default())
+    async fn game_creator(&self, _game: Address) -> anyhow::Result<Address> {
+        Ok(Address::ZERO)
     }
 
     async fn nonce_state(&self, _proposer: Address) -> anyhow::Result<NonceState> {
@@ -227,10 +196,8 @@ impl L1View for ScenarioL1View {
     }
 
     async fn respected_game_type(&self, _block: BlockId) -> anyhow::Result<u32> {
-        self.creation_plan_calls.fetch_add(1, Ordering::Relaxed);
-        self.creation_plan_notify.notify_waiters();
-        let release_barrier = self.release_barrier.lock().take();
-        let task_finished = self.task_finished.lock().take();
+        let release_barrier = self.release_barrier.lock().unwrap().take();
+        let task_finished = self.task_finished.lock().unwrap().take();
         if let Some(release_barrier) = release_barrier {
             release_barrier.release();
         }
@@ -288,24 +255,35 @@ impl QueryTime for FixedQueryTime {
     }
 }
 
-struct FixedSuperRootSource {
-    horizon: u64,
-}
+struct FixedSuperRootSource;
 
 #[async_trait]
 impl SuperRootSource for FixedSuperRootSource {
     async fn proposal_horizon(&self, _timestamp: u64) -> anyhow::Result<ProposalHorizon> {
-        Ok(ProposalHorizon { safe_timestamp: self.horizon, finalized_timestamp: self.horizon })
+        Ok(ProposalHorizon { safe_timestamp: 3_600, finalized_timestamp: 3_600 })
     }
 
     async fn super_root_at_timestamp(
         &self,
         timestamp: u64,
     ) -> anyhow::Result<SuperRootAtTimestamp> {
-        let mut result = canonical_super_root_at_timestamp(timestamp);
-        result.response.current_l1.number = HEAD_NUMBER + 1;
-        result.response.data.as_mut().unwrap().verified_required_l1.number = HEAD_NUMBER;
-        Ok(result)
+        let root = canonical_super_root(timestamp);
+        Ok(SuperRootAtTimestamp {
+            response: SuperRootAtTimestampResponse {
+                current_l1: SuperBlockId { number: 1, ..Default::default() },
+                current_safe_timestamp: timestamp,
+                current_local_safe_timestamp: timestamp,
+                current_finalized_timestamp: timestamp,
+                optimistic_at_timestamp: Default::default(),
+                chain_ids: Vec::new(),
+                data: Some(SuperRootResponseData {
+                    verified_required_l1: SuperBlockId::default(),
+                    super_v1: SuperV1 { timestamp, chains: Vec::new() },
+                    super_root: root,
+                }),
+            },
+            root: Some(SuperRootAt { proof_bytes: vec![1], super_root: root }),
+        })
     }
 }
 
@@ -414,7 +392,7 @@ async fn proposer_with(config: ProposerConfig, l1_view: Arc<ScenarioL1View>) -> 
             Address::ZERO,
             l1_view,
             Arc::new(FixedQueryTime),
-            Arc::new(FixedSuperRootSource { horizon: 3_600 }),
+            Arc::new(FixedSuperRootSource),
             Arc::new(NoopProofEngine),
             Arc::new(NoopActionExecutor),
             prestates,
@@ -596,15 +574,16 @@ async fn sigusr1_requests_terminal_retry() {
 async fn run_starts_immediately_then_waits_for_fetch_interval() {
     let view = Arc::new(ScenarioL1View::new());
     let proposer = proposer_with(test_config(600), view.clone()).await;
+    let initial_calls = view.latest_head_calls.load(Ordering::Relaxed);
     let started = tokio::time::Instant::now();
     let runner = tokio::spawn(proposer.run());
 
-    view.wait_for_creation_plans(1).await;
+    // run() reads the head once during startup, then once per cycle.
+    view.wait_for_cycles(initial_calls + 2).await;
     assert_eq!(tokio::time::Instant::now(), started);
-    let first_cycle_plans = view.creation_plan_calls.load(Ordering::Relaxed);
 
     tokio::time::advance(Duration::from_secs(600)).await;
-    view.wait_for_creation_plans(first_cycle_plans + 1).await;
+    view.wait_for_cycles(initial_calls + 3).await;
 
     runner.abort();
     assert!(runner.await.unwrap_err().is_cancelled());
@@ -681,7 +660,7 @@ async fn failed_creation_planning_does_not_stop_other_work() {
     let proposer = proposer_with(test_config(30), view.clone()).await;
     proposer.sync_state().await.unwrap();
     proposer.state.write().await.games.insert(U256::ONE, challenged_game(1, 5_000));
-    view.anchors.lock().get_mut(&Address::ZERO).unwrap().root = B256::ZERO;
+    view.fail_respected_game_type.store(true, Ordering::Relaxed);
     let mut control = ScenarioControl::new(proposer, Duration::from_secs(1));
 
     let result = control.tick().await.unwrap();
@@ -836,7 +815,7 @@ async fn new_create_and_follow_up_check_have_distinct_task_summaries() {
         )
     }));
     let view = Arc::new(ScenarioL1View::new());
-    let proposer = proposer_with(test_config(30), view.clone()).await;
+    let proposer = proposer_with(test_config(30), view).await;
     proposer.sync_state().await.unwrap();
     *proposer.in_flight_creation.lock().await = Some(InFlightCreation {
         root_claim: B256::left_padding_from(&[9]),
@@ -844,7 +823,6 @@ async fn new_create_and_follow_up_check_have_distinct_task_summaries() {
         sequence_number: 7_200,
         parent_game_index: 4,
     });
-    view.anchors.lock().get_mut(&Address::ZERO).unwrap().root = B256::ZERO;
     let mut control = ScenarioControl::new(proposer.clone(), Duration::from_secs(1));
     let reconciled = control.tick().await.unwrap();
     assert_eq!(
@@ -978,8 +956,8 @@ async fn task_finishing_during_tick_remains_settleable() {
     let task_id = allocate_task_id(&proposer);
     let barrier = NamedBarrier::new("completion barrier");
     let (done_tx, done_rx) = oneshot::channel();
-    *view.release_barrier.lock() = Some(barrier.clone());
-    *view.task_finished.lock() = Some(done_rx);
+    *view.release_barrier.lock().unwrap() = Some(barrier.clone());
+    *view.task_finished.lock().unwrap() = Some(done_rx);
     let task_barrier = barrier.clone();
     insert_allocated_task(
         &proposer,
@@ -2226,156 +2204,4 @@ async fn publishing_a_rotated_prestate_enables_defense_on_the_next_tick() {
     )));
     scenario.settle_scheduled(&recovered).await.unwrap();
     assert_eq!(world.proof_record(&target, 1).unwrap().lifecycle, ProofLifecycle::Succeeded);
-}
-
-#[tokio::test]
-async fn anchor_validation_registry_rotation_uses_fresh_cadence() {
-    let view = Arc::new(ScenarioL1View::new());
-    let actions = Arc::new(RecordingActionExecutor::default());
-    let mut config = test_config(30);
-    config.proposal_interval_seconds = 1_000;
-    let mut proposer = proposer_with(config, view.clone()).await;
-    Arc::get_mut(&mut proposer).unwrap().action_executor = actions.clone();
-    proposer.sync_state().await.unwrap();
-    let registry = Address::repeat_byte(0x42);
-    *view.registry.lock() = registry;
-    view.anchors.lock().insert(
-        registry,
-        AnchorRoot { root: B256::repeat_byte(0xff), sequence_number: U256::from(2_000) },
-    );
-    view.head_number.store(HEAD_NUMBER + 1, Ordering::Relaxed);
-    proposer.sync_state().await.unwrap();
-    let mut control = ScenarioControl::new(proposer.clone(), Duration::from_secs(1));
-    let blocked = control.tick().await.unwrap();
-    assert_eq!(blocked.snapshot.sync_disposition, SyncDisposition::UnchangedConfirmedHead);
-    assert!(
-        !blocked.scheduled.iter().any(|scheduled| {
-            matches!(scheduled.operation, OperationSummary::ProposeGame { .. })
-        })
-    );
-    let task_ids = blocked.scheduled.iter().map(|task| task.task_id).collect::<Vec<_>>();
-    control.settle(&task_ids).await.unwrap();
-    assert!(actions.calls.lock().is_empty());
-    assert!(proposer.in_flight_creation.lock().await.is_none());
-
-    view.anchors.lock().get_mut(&registry).unwrap().root =
-        canonical_super_root_at_timestamp(2_000).root.unwrap().super_root;
-    let recovered = control.tick().await.unwrap();
-    assert_eq!(recovered.snapshot.sync_disposition, SyncDisposition::UnchangedConfirmedHead);
-    assert!(recovered.scheduled.iter().any(|scheduled| {
-        matches!(
-            scheduled.operation,
-            OperationSummary::ProposeGame { sequence_number: 3_000, parent_game_index: u32::MAX }
-        )
-    }));
-    let task_ids = recovered.scheduled.iter().map(|task| task.task_id).collect::<Vec<_>>();
-    control.settle(&task_ids).await.unwrap();
-    assert!(matches!(
-        actions.calls.lock().as_slice(),
-        [ActionCall::Create { root_claim, .. }]
-            if *root_claim == canonical_super_root_at_timestamp(3_000).root.unwrap().super_root
-    ));
-    assert_eq!(proposer.last_created_game_l2_sequence_number.load(Ordering::Relaxed), 3_000);
-}
-
-#[tokio::test]
-async fn anchor_validation_pre_submit_rejects_changed_anchor() {
-    for advanced_anchor in [false, true] {
-        let view = Arc::new(ScenarioL1View::new());
-        let actions = Arc::new(RecordingActionExecutor::default());
-        let mut config = test_config(30);
-        config.proposal_interval_seconds = 1_000;
-        let mut proposer = proposer_with(config, view.clone()).await;
-        let dependencies = Arc::get_mut(&mut proposer).unwrap();
-        dependencies.superroot_source = Arc::new(FixedSuperRootSource { horizon: 1_500 });
-        dependencies.action_executor = actions.clone();
-        let candidate = if advanced_anchor { 1_001 } else { 1_000 };
-        if advanced_anchor {
-            let foreign_game = Address::repeat_byte(0xcc);
-            view.uuids.lock().insert(
-                canonical_super_root_at_timestamp(1_000).root.unwrap().super_root,
-                foreign_game,
-            );
-            view.creators.lock().insert(foreign_game, Address::repeat_byte(0xdd));
-        }
-        let barrier = NamedBarrier::new("submission UUID lookup");
-        let (task_tx, task_rx) = oneshot::channel();
-        *view.uuid_barrier.lock() = Some((
-            canonical_super_root_at_timestamp(candidate).root.unwrap().super_root,
-            task_rx,
-            barrier.clone(),
-        ));
-        let mut control = ScenarioControl::new(proposer.clone(), Duration::from_secs(1));
-        let planned = control.tick().await.unwrap();
-        let creation = planned
-            .scheduled
-            .iter()
-            .find(|scheduled| {
-                matches!(
-                    scheduled.operation,
-                    OperationSummary::ProposeGame {
-                        sequence_number: 1_000,
-                        parent_game_index: u32::MAX
-                    }
-                )
-            })
-            .unwrap();
-        task_tx.send(creation.task_id).unwrap();
-        barrier.wait_until_reached().await;
-        control.record_parked(creation.task_id, &barrier).await.unwrap();
-        *view.anchors.lock().get_mut(&Address::ZERO).unwrap() = if advanced_anchor {
-            AnchorRoot {
-                root: canonical_super_root_at_timestamp(candidate).root.unwrap().super_root,
-                sequence_number: U256::from(candidate),
-            }
-        } else {
-            AnchorRoot { root: B256::repeat_byte(0xff), sequence_number: U256::ZERO }
-        };
-        barrier.release();
-        let task_ids = planned.scheduled.iter().map(|task| task.task_id).collect::<Vec<_>>();
-        control.settle(&task_ids).await.unwrap();
-        assert!(actions.calls.lock().is_empty());
-        assert!(proposer.in_flight_creation.lock().await.is_none());
-        assert_eq!(proposer.last_created_game_l2_sequence_number.load(Ordering::Relaxed), 0);
-    }
-}
-
-#[tokio::test]
-async fn anchor_validation_explicit_parent_uses_canonical_tip() {
-    let view = Arc::new(ScenarioL1View::new());
-    let actions = Arc::new(RecordingActionExecutor::default());
-    let mut config = test_config(30);
-    config.proposal_interval_seconds = 1_000;
-    let mut proposer = proposer_with(config, view.clone()).await;
-    let dependencies = Arc::get_mut(&mut proposer).unwrap();
-    dependencies.superroot_source = Arc::new(FixedSuperRootSource { horizon: 3_000 });
-    dependencies.action_executor = actions.clone();
-    proposer.sync_state().await.unwrap();
-    {
-        let mut parent = challenged_game(1, 5_000);
-        parent.l2_sequence_number = 1_500;
-        parent.proposal_status = ProposalStatus::Unchallenged;
-        let mut state = proposer.state.write().await;
-        state.canonical_head_index = Some(parent.index);
-        state.canonical_head_sequence_number = Some(parent.l2_sequence_number);
-        state.games.insert(parent.index, parent);
-    }
-    view.anchors.lock().get_mut(&Address::ZERO).unwrap().root = B256::ZERO;
-    let mut control = ScenarioControl::new(proposer.clone(), Duration::from_secs(1));
-    let tick = control.tick().await.unwrap();
-    assert!(tick.scheduled.iter().any(|scheduled| {
-        matches!(
-            scheduled.operation,
-            OperationSummary::ProposeGame { sequence_number: 2_500, parent_game_index: 1 }
-        )
-    }));
-    let task_ids = tick.scheduled.iter().map(|task| task.task_id).collect::<Vec<_>>();
-    control.settle(&task_ids).await.unwrap();
-    assert!(matches!(
-        actions.calls.lock().as_slice(),
-        [ActionCall::Create { root_claim, extra_data, .. }]
-            if *root_claim == canonical_super_root_at_timestamp(2_500).root.unwrap().super_root
-                && extra_data.starts_with(&1_u32.to_be_bytes())
-    ));
-    assert_eq!(proposer.last_created_game_l2_sequence_number.load(Ordering::Relaxed), 2_500);
 }

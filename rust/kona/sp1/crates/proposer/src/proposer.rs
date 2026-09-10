@@ -971,7 +971,7 @@ impl Proposer {
         self.validated_anchor_timestamp().await
     }
 
-    /// Return the timestamp only when the registered anchor matches the supernode root.
+    /// Return the timestamp only when the anchor matches a trusted supernode root.
     /// Registry and anchor reads share one L1 block hash; the supernode lookup uses
     /// the exact anchor timestamp. Failures log diagnostics and remain retryable.
     async fn validated_anchor_timestamp(&self) -> Result<u64> {
@@ -1035,29 +1035,25 @@ impl Proposer {
             );
             bail!("anchor validation: canonical root missing");
         };
+        if !response_trusted(&canonical.response) {
+            tracing::warn!(
+                %registry,
+                l1_block = ?head,
+                anchor_root = %anchor.root,
+                timestamp,
+                "canonical anchor root is not yet trusted"
+            );
+            bail!("anchor validation: canonical root untrusted");
+        }
         if root.super_root != anchor.root {
-            let trusted = response_trusted(&canonical.response);
-            if trusted {
-                tracing::error!(
-                    %registry,
-                    l1_block = ?head,
-                    anchor_root = %anchor.root,
-                    expected_root = %root.super_root,
-                    timestamp,
-                    trusted,
-                    "anchor root disagrees with canonical super root"
-                );
-            } else {
-                tracing::warn!(
-                    %registry,
-                    l1_block = ?head,
-                    anchor_root = %anchor.root,
-                    expected_root = %root.super_root,
-                    timestamp,
-                    trusted,
-                    "anchor root disagrees with untrusted super root"
-                );
-            }
+            tracing::error!(
+                %registry,
+                l1_block = ?head,
+                anchor_root = %anchor.root,
+                expected_root = %root.super_root,
+                timestamp,
+                "anchor root disagrees with canonical super root"
+            );
             bail!("anchor validation: root mismatch");
         }
         Ok(timestamp)
@@ -1604,6 +1600,10 @@ impl Proposer {
                 );
             }
         } else {
+            // Preserve canonical_head_sequence_number as the anchor baseline for
+            // the first proposal. Clearing it would block creation on fresh
+            // deployments or pinned snapshots without games.
+            // canonical_head_index = -1 reports the no-head state.
             state.canonical_head_index = None;
 
             if previous_canonical_index.is_some() {
@@ -2172,18 +2172,6 @@ impl Proposer {
                 self.l1_view.game_by_uuid(super_root.super_root, extra_data.clone()).await?;
 
             if existing_game == Address::ZERO {
-                // The anchor can advance while UUID collisions are checked.
-                if parent_game_index == u32::MAX {
-                    let anchor_timestamp = self.validated_anchor_timestamp().await?;
-                    if sequence_number <= anchor_timestamp {
-                        tracing::info!(
-                            sequence_number,
-                            anchor_timestamp,
-                            "Skipping creation: claim does not follow current anchor"
-                        );
-                        return Ok(());
-                    }
-                }
                 tracing::info!(
                     sequence_number,
                     parent_game_index,
@@ -2830,6 +2818,11 @@ impl Proposer {
         let (canonical_head_sequence_number, parent_game_index) = {
             let state = self.state.read().await;
 
+            let Some(canonical_head_sequence_number) = state.canonical_head_sequence_number else {
+                tracing::info!("No canonical head; skipping game creation");
+                return Ok((false, 0, u32::MAX));
+            };
+
             // When the canonical head IS the anchor game, use u32::MAX (anchor path) instead of
             // referencing it by index. The contract requires parent.l2SeqNum > anchor.l2SeqNum,
             // so the anchor itself cannot be used as a parent via index.
@@ -2840,16 +2833,7 @@ impl Proposer {
                 .map(|index| index.to::<u32>())
                 .unwrap_or(u32::MAX);
 
-            (state.canonical_head_sequence_number, parent_game_index)
-        };
-        let canonical_head_sequence_number = if parent_game_index == u32::MAX {
-            self.validated_anchor_timestamp().await?
-        } else {
-            let Some(timestamp) = canonical_head_sequence_number else {
-                tracing::info!("No canonical head; skipping game creation");
-                return Ok((false, 0, u32::MAX));
-            };
-            timestamp
+            (canonical_head_sequence_number, parent_game_index)
         };
 
         let max_proposable = self.max_proposable_timestamp().await?;
@@ -3976,7 +3960,7 @@ mod tests {
     }
 
     #[derive(Clone, Debug, PartialEq, Eq)]
-    pub(super) enum ActionCall {
+    enum ActionCall {
         Create { root_claim: B256, extra_data: Vec<u8>, init_bond: U256 },
         Prove { game: Address, proof: Vec<u8> },
         Resolve(Address),
@@ -3990,8 +3974,8 @@ mod tests {
     }
 
     #[derive(Default)]
-    pub(super) struct RecordingActionExecutor {
-        pub(super) calls: parking_lot::Mutex<Vec<ActionCall>>,
+    struct RecordingActionExecutor {
+        calls: parking_lot::Mutex<Vec<ActionCall>>,
         create_failure: Option<CreateFailure>,
         prove_failures: StdMutex<usize>,
     }
@@ -4408,7 +4392,7 @@ mod tests {
         }
     }
 
-    pub(super) fn canonical_super_root_at_timestamp(timestamp: u64) -> SuperRootAtTimestamp {
+    fn canonical_super_root_at_timestamp(timestamp: u64) -> SuperRootAtTimestamp {
         use kona_sp1_super_range_executor::{ChainId, ChainIdAndOutput, proof_from_super_v1};
 
         let mut canonical = super_root_at_timestamp(timestamp, B256::ZERO, 12, 11);
@@ -5596,10 +5580,14 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn anchor_validation_timestamp_zero_requires_matching_data() {
+    async fn anchor_validation_timestamp_zero_requires_trusted_matching_data() {
         let canonical = canonical_super_root_at_timestamp(0);
+        let mut untrusted = canonical.clone();
+        untrusted.response.current_l1.number =
+            untrusted.response.data.as_ref().unwrap().verified_required_l1.number;
         for (response, expected) in [
             (Some(canonical.clone()), Some(0)),
+            (Some(untrusted), None),
             (Some(absent_super_root_at_timestamp(0)), None),
             (None, None),
         ] {
@@ -5897,17 +5885,10 @@ mod tests {
         {
             let root = B256::repeat_byte(0x11);
             let mut proposer = test_proposer().await;
-            let anchor = canonical_super_root_at_timestamp(0);
-            proposer.l1_view = Arc::new(RecordingL1View {
-                anchor_root: AnchorRoot {
-                    root: anchor.root.as_ref().unwrap().super_root,
-                    sequence_number: U256::ZERO,
-                },
-                ..Default::default()
-            });
+            proposer.l1_view = Arc::new(RecordingL1View::default());
             proposer.superroot_source = Arc::new(ScriptedSuperRootSource {
                 horizon: ProposalHorizon { safe_timestamp: 100, finalized_timestamp: 100 },
-                roots: vec![(0, anchor), (100, super_root_at_timestamp(100, root, 12, 11))],
+                roots: vec![(100, super_root_at_timestamp(100, root, 12, 11))],
             });
             proposer.action_executor = Arc::new(RecordingActionExecutor {
                 create_failure: Some(failure),
