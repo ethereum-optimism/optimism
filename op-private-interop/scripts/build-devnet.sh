@@ -31,7 +31,19 @@ mise exec -- go build -trimpath -o "$bundle_root/private-genesis" ./op-private-i
   mise exec -- cargo build --locked --profile "$rust_profile" -p op-reth --bin op-reth
   cp "${CARGO_TARGET_DIR:-target}/$rust_output/op-reth" "$bundle_root/op-reth"
 )
-mise exec -- forge build --root packages/contracts-bedrock
+FOUNDRY_PROFILE=default mise exec -- forge build --root packages/contracts-bedrock
+python3 - <<'CHECK_BYTECODE'
+import json
+from pathlib import Path
+for embedded in Path('op-private-interop/genesis/bytecode').glob('*.hex'):
+    name = embedded.stem
+    artifact = Path('packages/contracts-bedrock/forge-artifacts') / (name + '.sol') / (name + '.json')
+    actual = json.loads(artifact.read_text())['deployedBytecode']['object'].removeprefix('0x')
+    expected = embedded.read_text().strip().removeprefix('0x')
+    if bytes.fromhex(actual) != bytes.fromhex(expected):
+        raise SystemExit('Embedded projection bytecode differs from compiled contracts: ' + name)
+print('Embedded projection runtimes match the contract bundle.')
+CHECK_BYTECODE
 # op-deployer expects forge-artifacts at the archive root.
 tar --sort=name --mtime="@$(git show -s --format=%ct HEAD)" --owner=0 --group=0 --numeric-owner \
   -czf "$bundle_root/contracts.tar.gz" -C packages/contracts-bedrock forge-artifacts
