@@ -6,6 +6,7 @@ import { ProxyAdminOwnedBase } from "src/universal/ProxyAdminOwnedBase.sol";
 
 // Libraries
 import { Predeploys } from "src/libraries/Predeploys.sol";
+import { PrivateProjection } from "src/libraries/PrivateProjection.sol";
 import { AddressAliasHelper } from "src/vendor/AddressAliasHelper.sol";
 
 // Interfaces
@@ -20,7 +21,8 @@ import { ILocalLogOracle } from "interfaces/L2/ILocalLogOracle.sol";
 /// @custom:predeploy 0x4200000000000000000000000000000000000022
 /// @title CrossL2Inbox
 /// @notice The CrossL2Inbox is responsible for executing a cross chain message on the destination
-///         chain. It is permissionless to execute a cross chain message on behalf of any user.
+///         chain. Execution is permissionless unless the PRIVATE_PROJECTION feature restricts
+///         protocol calls to the current batcher.
 /// @dev Processes cross-chain messages that are pre-declared in EIP-2930 access lists. Each message
 ///      requires three specific access-list entries to be valid. It will verify that the storage
 ///      slot containing the message checksum is "warm" (pre-accessed), which fails if not included
@@ -66,8 +68,8 @@ contract CrossL2Inbox is ProxyAdminOwnedBase, ISemver {
     error LogIndexTooHigh();
 
     /// @notice Semantic version.
-    /// @custom:semver 2.0.0
-    string public constant version = "2.0.0";
+    /// @custom:semver 2.1.0
+    string public constant version = "2.1.0";
 
     /// @notice Maximum age of an event accepted by the local log oracle.
     uint256 public constant EVENT_LOOKUP_WINDOW = 7 days;
@@ -125,6 +127,7 @@ contract CrossL2Inbox is ProxyAdminOwnedBase, ISemver {
     /// @dev The local log oracle is a consensus-critical execution-client precompile. The event
     ///      must be exported while its receipt remains inside the lookup window.
     function exportEvent(Identifier calldata _id, bytes32 _payloadHash) external {
+        PrivateProjection.requireBatcher();
         address registry = l1EventRegistry;
         if (registry == address(0)) revert CrossL2Inbox_InvalidEventRegistry();
         if (_id.chainId != block.chainid) revert CrossL2Inbox_EventFromAnotherChain();
@@ -172,6 +175,7 @@ contract CrossL2Inbox is ProxyAdminOwnedBase, ISemver {
     /// @param _id      Identifier of the message.
     /// @param _msgHash Hash of the message payload to call target with.
     function validateMessage(Identifier calldata _id, bytes32 _msgHash) external {
+        PrivateProjection.requireBatcher();
         bytes32 checksum = calculateChecksum(_id, _msgHash);
         if (certifiedMessages[checksum]) {
             emit ExecutingCertifiedMessage(_msgHash, _id);
@@ -189,6 +193,7 @@ contract CrossL2Inbox is ProxyAdminOwnedBase, ISemver {
 
     /// @notice Imports an event certificate after authenticating its L1 sender.
     function _importEvent(Identifier calldata _id, bytes32 _payloadHash) internal {
+        PrivateProjection.requireBatcher();
         address registry = l1EventRegistry;
         if (registry == address(0) || AddressAliasHelper.undoL1ToL2Alias(msg.sender) != registry) {
             revert CrossL2Inbox_NotEventRegistry();

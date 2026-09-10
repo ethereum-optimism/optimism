@@ -1,11 +1,8 @@
 use alloc::{sync::Arc, vec::Vec};
 use alloy_consensus::Header;
-use alloy_evm::{
-    FromRecoveredTx, FromTxWithEncoded,
-    block::{BlockExecutor, BlockExecutorFactory},
-};
+use alloy_evm::{FromRecoveredTx, FromTxWithEncoded, block::BlockExecutor};
 use alloy_op_evm::{
-    PreRefundGasUsed,
+    OpBlockExecutor, PreRefundGasUsed,
     block::{OpTxEnv, receipt_builder::OpReceiptBuilder},
     post_exec::{PostExecEvmFactoryAdapter, PostExecEvmFactoryHooks, PostExecExecutorExt},
 };
@@ -114,7 +111,12 @@ where
         let evm = self.evm_for_block(db, block.header())?;
         let ctx = self.context_for_block_with_post_exec_mode(block, Some(post_exec_mode));
 
-        Ok(self.executor_factory.create_executor(evm, ctx))
+        Ok(OpBlockExecutor::new(
+            evm,
+            ctx,
+            self.executor_factory.spec(),
+            self.executor_factory.receipt_builder(),
+        ))
     }
 
     fn post_exec_builder_for_next_block<'a, DB: Database + 'a>(
@@ -138,7 +140,12 @@ where
         let evm = self.evm_with_env(db, evm_env);
         let ctx =
             self.context_for_next_block_with_post_exec_mode(parent, attributes, post_exec_mode);
-        let executor = self.executor_factory.create_executor(evm, ctx.clone());
+        let executor = OpBlockExecutor::new(
+            evm,
+            ctx.clone(),
+            self.executor_factory.spec(),
+            self.executor_factory.receipt_builder(),
+        );
 
         Ok(BasicBlockBuilder::<
             'a,
@@ -210,7 +217,12 @@ where
         let evm = self.evm_for_block(db, block.header())?;
         let ctx = self.context_for_block_with_post_exec_mode(block, Some(post_exec_mode));
 
-        Ok(self.executor_factory.create_executor(evm, ctx))
+        Ok(OpBlockExecutor::new(
+            evm,
+            ctx,
+            self.executor_factory.spec(),
+            self.executor_factory.receipt_builder(),
+        ))
     }
 
     fn post_exec_builder_for_next_block<'a, DB: Database + 'a>(
@@ -234,7 +246,12 @@ where
         let evm = self.evm_with_env(db, evm_env);
         let ctx =
             self.context_for_next_block_with_post_exec_mode(parent, attributes, post_exec_mode);
-        let executor = self.executor_factory.create_executor(evm, ctx.clone());
+        let executor = OpBlockExecutor::new(
+            evm,
+            ctx.clone(),
+            self.executor_factory.spec(),
+            self.executor_factory.receipt_builder(),
+        );
 
         Ok(BasicBlockBuilder::<
             'a,

@@ -395,8 +395,8 @@ func (m *Module) readClaims(ctx context.Context, src Rendering, payload *eth.Exe
 		if tx.UnmarshalBinary(raw) != nil || tx.To() == nil || *tx.To() != m.cfg.Registry {
 			continue
 		}
-		// Projection deposits are successful no-ops. Their calldata never ran
-		// through the registry's batcher authorization and cannot attest a claim.
+		// Range attestations must come from sequenced batcher transactions,
+		// never from forced deposit calldata, regardless of receipt status.
 		if optypes.IsDepositTx(&tx) {
 			continue
 		}

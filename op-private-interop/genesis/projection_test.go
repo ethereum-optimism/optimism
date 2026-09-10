@@ -28,8 +28,8 @@ import (
 // was hand-written; regenerate it with a stock op-deployer when the contract release moves and
 // update StockL2ToL2CrossDomainMessengerCodeHash alongside it.
 const (
-	goldenPublicProjectionStateRoot = "0x88e65cf29ff2b1143db9167bf9ffcb52002722154f500a048855f4f2beacf1a0"
-	goldenPublicProjectionBlockHash = "0xc581fb8dd0b9faf6bdc2352a57aa1b36a34f3e81863449118d9a85d107b04cbc"
+	goldenPublicProjectionStateRoot = "0xf387d3f8d4cb80606e9ca2ddeb071bfaaef5f666c0c0a83cc0a8b1e09fd149db"
+	goldenPublicProjectionBlockHash = "0xcf3850fd943bfc212e57f6493e3e5f02b6985f32bc0b75c10138ac0a3d29dc53"
 )
 
 func TestProjectGenesisFromIsPureAndDeterministic(t *testing.T) {
@@ -81,6 +81,7 @@ func TestProjectGenesisFromRewritesOnlyThePublicProjectionState(t *testing.T) {
 		predeploys.L2toL2CrossDomainMessengerAddr,
 		predeploys.ClaimRegistryAddr,
 		predeploys.EventReplayerAddr,
+		predeploys.CrossL2InboxAddr,
 	} {
 		require.Equal(t, common.BytesToHash(codeNamespace(proxy).Bytes()), public.Alloc[proxy].Storage[implementationSlot])
 		require.Equal(t, publicProjectionCode[codeNamespace(proxy)], public.Alloc[codeNamespace(proxy)].Code)
@@ -97,13 +98,15 @@ func TestProjectGenesisFromRewritesOnlyThePublicProjectionState(t *testing.T) {
 	}
 	require.Zero(t, public.Alloc[predeploys.L1BlockAddr].Storage[customGasTokenSlot])
 
-	// Kept by the projection: the stock interop feature set is the source's.
+	// The existing interop feature remains enabled; the projection adds its contract guard flag.
 	require.Equal(t, trueWord, public.Alloc[predeploys.L1BlockAddr].Storage[l1BlockInteropFeatureSlot], "INTEROP feature survives the L1Block implementation swap")
 	require.True(t, devfeatures.IsDevFeatureEnabled(
 		public.Alloc[predeploys.L2DevFeatureFlagsAddr].Storage[devFeatureBitmapSlot],
 		devfeatures.OptimismPortalInteropFlag,
 	))
-	for _, proxy := range []common.Address{predeploys.CrossL2InboxAddr, predeploys.SuperchainETHBridgeAddr, predeploys.ETHLiquidityAddr} {
+	require.Equal(t, trueWord, public.Alloc[predeploys.L1BlockAddr].Storage[l1BlockProjectionFeatureSlot])
+	require.Zero(t, private.Alloc[predeploys.L1BlockAddr].Storage[l1BlockProjectionFeatureSlot])
+	for _, proxy := range []common.Address{predeploys.SuperchainETHBridgeAddr, predeploys.ETHLiquidityAddr} {
 		requireSameAccount(t, private.Alloc[proxy], public.Alloc[proxy], "%s untouched", proxy)
 		requireSameAccount(t, private.Alloc[codeNamespace(proxy)], public.Alloc[codeNamespace(proxy)], "%s implementation untouched", proxy)
 	}

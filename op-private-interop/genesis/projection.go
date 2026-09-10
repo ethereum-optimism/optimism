@@ -53,8 +53,9 @@ var (
 	// mapping(bytes32 => bool) at storage slot 9 in both L1Block and L1BlockCGT, so the slot is
 	// keccak256(abi.encode(bytes32("INTEROP"), uint256(9))). Swapping the implementation preserves
 	// it: the two contracts share the layout.
-	l1BlockInteropFeatureSlot = l1BlockFeatureSlot("INTEROP")
-	trueWord                  = common.BigToHash(big.NewInt(1))
+	l1BlockInteropFeatureSlot    = l1BlockFeatureSlot("INTEROP")
+	l1BlockProjectionFeatureSlot = l1BlockFeatureSlot("PRIVATE_PROJECTION")
+	trueWord                     = common.BigToHash(big.NewInt(1))
 )
 
 // StockL2ToL2CrossDomainMessengerCodeHash is the keccak256 of the stock L2ToL2CrossDomainMessenger
@@ -74,6 +75,7 @@ var publicProjectionCode = map[common.Address][]byte{
 	codeNamespace(predeploys.L2toL2CrossDomainMessengerAddr): mustBytecode("L2ToL2CrossDomainMessengerReplay"),
 	codeNamespace(predeploys.ClaimRegistryAddr):              mustBytecode("ClaimRegistry"),
 	codeNamespace(predeploys.EventReplayerAddr):              mustBytecode("EventReplayer"),
+	codeNamespace(predeploys.CrossL2InboxAddr):               mustBytecode("CrossL2Inbox"),
 }
 
 // ProjectGenesisFrom constructs the public-projection genesis from a private-chain genesis.
@@ -90,7 +92,8 @@ var publicProjectionCode = map[common.Address][]byte{
 //     cleared; LiquidityController and NativeAssetLiquidity are deactivated. An ETH source already
 //     has ETH semantics and is left alone;
 //   - messaging: the stock L2ToL2CrossDomainMessenger implementation becomes the replay messenger,
-//     and ClaimRegistry and EventReplayer are installed;
+//     and ClaimRegistry, EventReplayer and the guarded CrossL2Inbox are installed. The
+//     PRIVATE_PROJECTION feature is enabled only in the projection's L1Block storage;
 //   - block parameters: the gas limit is the maximum and the base fee is zero, because the batcher
 //     is the projection's only sender and there is no fee market to observe.
 func ProjectGenesisFrom(privateChainGenesis *core.Genesis) (*core.Genesis, error) {
@@ -125,6 +128,13 @@ func ProjectGenesisFrom(privateChainGenesis *core.Genesis) (*core.Genesis, error
 	activateProxy(out.Alloc, predeploys.L2toL2CrossDomainMessengerAddr, publicProjectionCode[codeNamespace(predeploys.L2toL2CrossDomainMessengerAddr)])
 	activateProxy(out.Alloc, predeploys.ClaimRegistryAddr, publicProjectionCode[codeNamespace(predeploys.ClaimRegistryAddr)])
 	activateProxy(out.Alloc, predeploys.EventReplayerAddr, publicProjectionCode[codeNamespace(predeploys.EventReplayerAddr)])
+	activateProxy(out.Alloc, predeploys.CrossL2InboxAddr, publicProjectionCode[codeNamespace(predeploys.CrossL2InboxAddr)])
+	attributes := out.Alloc[predeploys.L1BlockAddr]
+	if attributes.Storage == nil {
+		attributes.Storage = make(map[common.Hash]common.Hash)
+	}
+	attributes.Storage[l1BlockProjectionFeatureSlot] = trueWord
+	out.Alloc[predeploys.L1BlockAddr] = attributes
 
 	return out, nil
 }
