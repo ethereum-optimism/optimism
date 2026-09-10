@@ -13,8 +13,6 @@ import { L2ToL2CrossDomainMessengerReplay } from "src/private-interop/L2ToL2Cros
 // Libraries
 import { Hashing } from "src/libraries/Hashing.sol";
 import { Predeploys } from "src/libraries/Predeploys.sol";
-import { Features } from "src/libraries/Features.sol";
-import { IL1Block } from "interfaces/L2/IL1Block.sol";
 
 // Interfaces
 import { Identifier } from "interfaces/L2/ICrossL2Inbox.sol";
@@ -38,11 +36,6 @@ abstract contract L2ToL2CrossDomainMessengerReplay_TestInit is Test {
 
     /// @notice Test setup.
     function setUp() public virtual {
-        vm.mockCall(
-            Predeploys.L1_BLOCK_ATTRIBUTES,
-            abi.encodeCall(IL1Block.isFeatureEnabled, (Features.PRIVATE_PROJECTION)),
-            abi.encode(false)
-        );
         proxyAdmin = new ProxyAdmin(makeAddr("proxyAdminOwner"));
         Proxy proxy = new Proxy(address(proxyAdmin));
         L2ToL2CrossDomainMessengerReplay impl = new L2ToL2CrossDomainMessengerReplay();

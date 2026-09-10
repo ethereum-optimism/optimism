@@ -610,7 +610,7 @@ func TestSuccessfulDepositCannotSupplyAClaim(t *testing.T) {
 	require.NoError(t, err)
 	var tx types.Transaction
 	require.NoError(t, tx.UnmarshalBinary(raw))
-	// Even a successful forced call cannot stand in for a sequenced range claim.
+	// Projection no-ops have successful receipts, but never execute postClaim.
 	h.r.set(1, "a", 0, &tx)
 	h.r.fill(2, 8, "a", 0)
 	h.r.safe, h.r.finalized = 8, 0

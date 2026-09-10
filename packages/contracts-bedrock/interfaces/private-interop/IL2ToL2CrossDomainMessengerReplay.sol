@@ -7,7 +7,6 @@ import { Identifier } from "interfaces/L2/ICrossL2Inbox.sol";
 /// @title IL2ToL2CrossDomainMessengerReplay
 /// @notice Interface for the L2ToL2CrossDomainMessengerReplay contract.
 interface IL2ToL2CrossDomainMessengerReplay is ISemver {
-    error PrivateProjection_NotBatcher();
     error L2ToL2CrossDomainMessengerReplay_ETHBridgeSender();
     error L2ToL2CrossDomainMessengerReplay_ETHBridgeTarget();
     error L2ToL2CrossDomainMessengerReplay_Unsupported();
