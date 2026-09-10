@@ -172,7 +172,7 @@ where
 
     /// Sends a seal request to seal the provided [`UnsealedPayloadHandle`], committing and
     /// gossiping the resulting block, if one is built.
-    async fn seal_and_commit_payload_if_applicable(
+    pub(super) async fn seal_and_commit_payload_if_applicable(
         &self,
         unsealed_payload_handle: &UnsealedPayloadHandle,
     ) -> Result<(), SequencerActorError> {
@@ -181,7 +181,7 @@ where
         // Send the seal request to the engine to seal the unsealed block.
         let payload = self
             .engine_client
-            .seal_and_canonicalize_block(
+            .seal_block(
                 unsealed_payload_handle.payload_id,
                 unsealed_payload_handle.attributes_with_parent.clone(),
             )
@@ -196,12 +196,14 @@ where
         // If the conductor is available, commit the payload to it.
         if let Some(conductor) = &self.conductor {
             let _conductor_commitment_start = Instant::now();
-            if let Err(err) = conductor.commit_unsafe_payload(&payload).await {
+            conductor.commit_unsafe_payload(&payload).await.inspect_err(|err| {
                 error!(target: "sequencer", ?err, "Failed to commit unsafe payload to conductor");
-            }
+            })?;
 
             update_conductor_commitment_duration_metrics(_conductor_commitment_start.elapsed());
         }
+
+        self.engine_client.canonicalize_block(payload.clone()).await?;
 
         self.unsafe_payload_gossip_client
             .schedule_execution_payload_gossip(payload)
@@ -523,9 +525,9 @@ fn is_seal_task_err_fatal(err: &SealTaskError) -> bool {
                 SynchronizeTaskError::InvalidForkchoiceState |
                 SynchronizeTaskError::UnexpectedPayloadStatus(_) => false,
             },
-            InsertTaskError::FromBlockError(_) | InsertTaskError::L2BlockInfoConstruction(_) => {
-                true
-            }
+            InsertTaskError::FromBlockError(_) |
+            InsertTaskError::L2BlockInfoConstruction(_) |
+            InsertTaskError::MpscSend(_) => true,
             InsertTaskError::InsertFailed(_) | InsertTaskError::UnexpectedPayloadStatus(_) => false,
         },
         SealTaskError::GetPayloadFailed(_) |

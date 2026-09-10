@@ -11,6 +11,7 @@ use kona_protocol::L2BlockInfo;
 use op_alloy_consensus::OpBlock;
 use op_alloy_rpc_types_engine::OpExecutionPayloadEnvelope;
 use std::{sync::Arc, time::Instant};
+use tokio::sync::mpsc;
 
 /// The task to insert a payload into the execution engine.
 #[derive(Debug, Clone)]
@@ -26,6 +27,8 @@ pub struct InsertTask<EngineClient_: EngineClient> {
     is_payload_safe: bool,
     /// Where to hand the decoded block once the engine has canonicalized it.
     block_sink: Arc<dyn ImportedBlockSink>,
+    /// Optional sender for callers that need to await canonicalization.
+    result_tx: Option<mpsc::Sender<Result<L2BlockInfo, InsertTaskError>>>,
 }
 
 impl<EngineClient_: EngineClient> InsertTask<EngineClient_> {
@@ -37,7 +40,39 @@ impl<EngineClient_: EngineClient> InsertTask<EngineClient_> {
         is_attributes_derived: bool,
         block_sink: Arc<dyn ImportedBlockSink>,
     ) -> Self {
-        Self { client, rollup_config, payload, is_payload_safe: is_attributes_derived, block_sink }
+        Self {
+            client,
+            rollup_config,
+            payload,
+            is_payload_safe: is_attributes_derived,
+            block_sink,
+            result_tx: None,
+        }
+    }
+
+    /// Configures a response channel for callers that need to await canonicalization.
+    pub fn with_result_sender(
+        mut self,
+        result_tx: mpsc::Sender<Result<L2BlockInfo, InsertTaskError>>,
+    ) -> Self {
+        self.result_tx = Some(result_tx);
+        self
+    }
+
+    /// Returns whether this task reports its result to a caller.
+    pub const fn has_result_sender(&self) -> bool {
+        self.result_tx.is_some()
+    }
+
+    /// Executes the insertion and sends its result to the waiting caller.
+    pub async fn execute_and_send(&self, state: &mut EngineState) -> Result<(), InsertTaskError> {
+        let result = self.execute(state).await;
+        self.result_tx
+            .as_ref()
+            .expect("result sender must be configured")
+            .send(result)
+            .await
+            .map_err(|err| InsertTaskError::MpscSend(Box::new(err)))
     }
 
     /// Checks the response of the `engine_newPayload` call.

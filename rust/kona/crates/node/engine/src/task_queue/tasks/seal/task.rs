@@ -55,6 +55,8 @@ pub struct SealTask<EngineClient_: EngineClient> {
     pub is_attributes_derived: bool,
     /// How this seal is coupled to the build that produced `payload_id`.
     pub coupling: BuildSealCoupling,
+    /// Whether to canonicalize the payload as part of the seal operation.
+    pub canonicalize: bool,
     /// An optional sender to convey success/failure result of the built
     /// [`OpExecutionPayloadEnvelope`] after the block has been built, imported, and canonicalized
     /// or the [`SealTaskError`] that occurred during processing.
@@ -298,9 +300,13 @@ impl<EngineClient_: EngineClient> EngineTaskExt for SealTask<EngineClient_> {
                 "Seal attributes parent does not match unsafe head, returning rebuild error"
             );
             Err(SealTaskError::UnsafeHeadChangedSinceBuild)
-        } else {
-            // Seal the block and import it into the engine.
+        } else if self.canonicalize {
+            // Derived blocks and fallback payloads are safe to canonicalize atomically.
             self.seal_and_canonicalize_block(state).await
+        } else {
+            // Sequencer payloads must pass their external conductor check before canonicalization.
+            self.seal_payload(&self.cfg, &self.engine, self.payload_id, self.attributes.clone())
+                .await
         };
 
         self.send_channel_result_or_get_error(res).await?;

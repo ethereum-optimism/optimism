@@ -1,6 +1,6 @@
 use alloy_rpc_types_engine::PayloadId;
-use kona_engine::{BuildTaskError, EngineQueries, SealTaskError};
-use kona_protocol::OpAttributesWithParent;
+use kona_engine::{BuildTaskError, EngineQueries, InsertTaskError, SealTaskError};
+use kona_protocol::{L2BlockInfo, OpAttributesWithParent};
 use op_alloy_rpc_types_engine::OpExecutionPayloadEnvelope;
 use thiserror::Error;
 use tokio::sync::mpsc;
@@ -56,7 +56,7 @@ pub struct ResetRequest {
     pub result_tx: mpsc::Sender<EngineClientResult<()>>,
 }
 
-/// A request to seal and canonicalize a payload.
+/// A request to seal a payload without canonicalizing it.
 /// Contains the `PayloadId`, attributes, and a channel to send back the result.
 #[derive(Debug)]
 pub struct SealRequest {
@@ -66,4 +66,13 @@ pub struct SealRequest {
     pub attributes: OpAttributesWithParent,
     /// The channel on which the result, successful or not, will be sent.
     pub result_tx: mpsc::Sender<Result<OpExecutionPayloadEnvelope, SealTaskError>>,
+}
+
+/// A request to canonicalize a payload after an external safety check has completed.
+#[derive(Debug)]
+pub struct CanonicalizeRequest {
+    /// The sealed payload to canonicalize.
+    pub payload: OpExecutionPayloadEnvelope,
+    /// The channel on which the result will be sent.
+    pub result_tx: mpsc::Sender<Result<L2BlockInfo, InsertTaskError>>,
 }
