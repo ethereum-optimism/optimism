@@ -1,0 +1,18 @@
+[package]
+name = "op-atomic-builder"
+description = "Experimental suspended execution for an atomic shared builder"
+version = "0.1.0"
+publish = false
+authors.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+
+[lints]
+workspace = true
+
+[dependencies]
+op-revm = { workspace = true, features = ["std", "secp256k1"] }
+revm = { workspace = true, features = ["std"] }
+thiserror = { workspace = true, features = ["std"] }

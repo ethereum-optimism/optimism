@@ -9385,6 +9385,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "op-atomic-builder"
+version = "0.1.0"
+dependencies = [
+ "op-revm",
+ "revm",
+ "thiserror 2.0.18",
+]
+
+[[package]]
 name = "op-reth"
 version = "1.11.3"
 dependencies = [
