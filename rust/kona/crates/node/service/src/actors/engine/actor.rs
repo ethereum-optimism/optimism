@@ -5,9 +5,9 @@ use crate::{
 use async_trait::async_trait;
 use kona_derive::{ResetSignal, Signal};
 use kona_engine::{
-    BuildSealCoupling, BuildTask, ConsolidateInput, ConsolidateTask, Engine, EngineClient,
-    EngineTask, EngineTaskError, EngineTaskErrorSeverity, FinalizeBlockId, FinalizeTask,
-    ImportedBlockSink, InsertTask, SealTask,
+    BuildSealCoupling, BuildTask, CanonicalizeTask, ConsolidateInput, ConsolidateTask, Engine,
+    EngineClient, EngineTask, EngineTaskError, EngineTaskErrorSeverity, FinalizeBlockId,
+    FinalizeTask, ImportedBlockSink, InsertTask, SealTask,
 };
 use kona_genesis::RollupConfig;
 use kona_protocol::L2BlockInfo;
@@ -312,17 +312,14 @@ where
             }
             EngineActorRequest::Canonicalize(request) => {
                 let CanonicalizeRequest { payload, result_tx } = *request;
-                let task = InsertTask::new(
+                let task = CanonicalizeTask::new(
                     self.client.clone(),
                     self.rollup.clone(),
                     payload,
-                    false,
                     Arc::clone(&self.block_sink),
-                )
-                .require_current_unsafe_parent()
-                .require_valid_payload_status()
-                .with_result_sender(result_tx);
-                self.engine.enqueue(EngineTask::Insert(Box::new(task)));
+                    result_tx,
+                );
+                self.engine.enqueue(EngineTask::Canonicalize(Box::new(task)));
             }
         }
 

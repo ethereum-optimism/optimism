@@ -1,4 +1,5 @@
-//! Contains the error types for the [`InsertTask`](crate::InsertTask).
+//! Contains errors for the [`InsertTask`](crate::InsertTask) and
+//! [`CanonicalizeTask`](crate::CanonicalizeTask).
 
 use crate::{
     EngineTaskError, SynchronizeTaskError, task_queue::tasks::task::EngineTaskErrorSeverity,
@@ -10,7 +11,7 @@ use kona_protocol::{FromBlockError, L2BlockInfo};
 use op_alloy_rpc_types_engine::OpPayloadError;
 use tokio::sync::mpsc;
 
-/// An error that occurs when running the [`InsertTask`](crate::InsertTask).
+/// An error that occurs while inserting or canonicalizing a payload.
 #[derive(Debug, thiserror::Error)]
 pub enum InsertTaskError {
     /// Error converting a payload into a block.
@@ -47,8 +48,8 @@ pub enum InsertTaskError {
     /// The forkchoice update call to consolidate the block into the engine state failed.
     #[error(transparent)]
     ForkchoiceUpdateFailed(#[from] SynchronizeTaskError),
-    /// Failed to send the insertion result to the waiting caller.
-    #[error("Failed to send insertion result")]
+    /// Failed to send the canonicalization result to the waiting caller.
+    #[error("Failed to send canonicalization result")]
     MpscSend(#[from] Box<mpsc::error::SendError<Result<L2BlockInfo, Self>>>),
 }
 
