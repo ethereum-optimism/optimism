@@ -83,6 +83,8 @@ type PrivateInteropConfig struct {
 	// is needed for exactly one thing: encoding the range's private derivation input, which is a
 	// description of the private chain and must be encoded against the private chain.
 	PrivateRollup *rollup.Config
+	// Batcher is the account signing the projection transactions.
+	Batcher common.Address
 	// Emitters is the rendering's emitter set.
 	Emitters render.EmitterSet
 	// MaxBlocksPerRange is the cadence — ~300 blocks at 2 s is one span batch every ten minutes.
@@ -133,6 +135,9 @@ func (c *PrivateInteropConfig) Check() error {
 	if c.Txs == nil {
 		return errors.New("private interop: no replay transaction builder")
 	}
+	if c.Batcher == (common.Address{}) {
+		return errors.New("private interop: no batcher signer address")
+	}
 	if _, err := renderingBlockGasBudget(c.Rollup); err != nil {
 		return err
 	}
@@ -180,6 +185,17 @@ func NewPrivateInteropEncoder(cfg PrivateInteropConfig) (*PrivateInteropEncoder,
 // called under the channel-manager mutex and must not do network I/O; and because a receipt fetch
 // that fails should fail the load, which the batcher already knows how to retry.
 func (e *PrivateInteropEncoder) PrepareBlock(ctx context.Context, payload *eth.ExecutionPayload) error {
+	// A rotated key cannot sign claims/replays for old-key epochs. Publishing
+	// them would leave sequencer transactions without an accepted commitment,
+	// which cannot be replayed as deposit-only recovery. Wait for expiry instead.
+	_, info, err := derive.PayloadToSingularBatch(e.cfg.PrivateRollup, payload)
+	if err != nil {
+		return fmt.Errorf("reading private batcher authorization: %w", err)
+	}
+	if info.BatcherAddr != e.cfg.Batcher {
+		return fmt.Errorf("private block %d authorizes batcher %s, configured signer is %s; waiting for publication cursor recovery",
+			payload.BlockNumber, info.BatcherAddr, e.cfg.Batcher)
+	}
 	_, receipts, err := e.cfg.Receipts.FetchReceipts(ctx, payload.BlockHash)
 	if err != nil {
 		return fmt.Errorf("fetching private receipts for %s: %w", payload.BlockHash, err)

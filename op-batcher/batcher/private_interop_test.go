@@ -225,6 +225,7 @@ func piEncoderWithTxs(t *testing.T, txs render.ReplayTxBuilder) (*PrivateInterop
 	enc, err := NewPrivateInteropEncoder(PrivateInteropConfig{
 		Rollup:            piRollupCfg(),
 		PrivateRollup:     piRollupCfg(),
+		Batcher:           common.Address{0x42},
 		MaxBlocksPerRange: piCadence,
 		MaxRangeBytes:     512 * 1024,
 		RollupConfigHash:  common.Hash{0x1b},
@@ -576,4 +577,18 @@ func decodeRenderTx(t *testing.T, raw hexutil.Bytes) *types.Transaction {
 	var tx types.Transaction
 	require.NoError(t, tx.UnmarshalBinary(raw))
 	return &tx
+}
+
+func TestPrivateEncoderDoesNotPublishUnauthorizedEpoch(t *testing.T) {
+	enc, _, receipts := piEncoder(t)
+	payload := piPayload(t, 900)
+	enc.cfg.Batcher = common.Address{0x99}
+	require.ErrorContains(t, enc.PrepareBlock(t.Context(), payload), "authorizes batcher")
+	require.Zero(t, receipts.calls, "do not prepare a block whose projection claim would revert")
+	_, prepared := enc.take(payload.BlockHash)
+	require.False(t, prepared)
+	enc.cfg.Batcher = common.Address{0x42}
+	require.NoError(t, enc.PrepareBlock(t.Context(), payload))
+	_, prepared = enc.take(payload.BlockHash)
+	require.True(t, prepared)
 }

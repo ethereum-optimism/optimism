@@ -541,6 +541,7 @@ func (bs *BatcherService) initPrivateInterop(ctx context.Context, cfg *CLIConfig
 	enc, err := NewPrivateInteropEncoder(PrivateInteropConfig{
 		Rollup:            publicProjectionRollup,
 		PrivateRollup:     bs.RollupConfig,
+		Batcher:           batcherAddr,
 		Emitters:          render.NewEmitterSet(settings.ExtraEmitters...),
 		MaxBlocksPerRange: settings.MaxBlocksPerRange,
 		MaxRangeBytes:     settings.MaxRangeBytes,
