@@ -13,14 +13,17 @@ rust-version.workspace = true
 workspace = true
 
 [dependencies]
-op-revm = { workspace = true, features = ["std", "secp256k1"] }
+op-revm = { workspace = true, features = ["std", "secp256k1", "serde"] }
 revm = { workspace = true, features = ["std"] }
 thiserror = { workspace = true, features = ["std"] }
 
 alloy-sol-types = { workspace = true, features = ["std"] }
 alloy-eips = { workspace = true, features = ["std"] }
 
-[dev-dependencies]
+serde = { workspace = true, features = ["derive"] }
 serde_json = { workspace = true, features = ["std"] }
+alloy-consensus = { workspace = true, features = ["std", "secp256k1"] }
+
+[dev-dependencies]
 alloy-signer-local = { workspace = true }
 alloy-signer = { workspace = true }

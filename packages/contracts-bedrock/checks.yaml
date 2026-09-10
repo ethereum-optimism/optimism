@@ -92,7 +92,15 @@ phases:
     checks:
       - name: atomic-suspension
         description: Exercise suspended router frames and signed ERC-4337 canonical replay
-        command: cd ../../rust && mise exec -- cargo nextest run -p op-atomic-builder --test router --run-ignored all
+        command: |
+          set -eu
+          cd ../../rust
+          mise exec -- cargo nextest run -p op-atomic-builder --test router --run-ignored all
+          mise exec -- cargo build -p op-atomic-builder --bin op-atomic-builder
+          atomic_metadata=$(mise exec -- cargo metadata --no-deps --format-version 1)
+          atomic_target=$(printf '%s' "$atomic_metadata" | jq -er .target_directory)
+          cd ..
+          ATOMIC_BUILDER_BIN="$atomic_target/debug/op-atomic-builder" go test -tags 'atomic_integration atomic_suspension' ./op-test-sequencer/atomic -run TestSuspended
       - name: forge-test-names
         description: Validate forge test conventions
         command: go run ./scripts/checks/test-validation

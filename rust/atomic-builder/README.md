@@ -82,13 +82,35 @@ the sequencer's interop filter or authorize bypassing the protocol gate.
 
 ## Integration boundary
 
-The Rust router coordinator and real-contract tests are implemented here. The
-existing Go RPC/devstack builder still uses its original discovery algorithm;
-this crate is not yet wired into that subprocess/RPC adapter or the op-reth payload
-service. The original demo's node tests therefore do not validate this new suspension
-path. A service adapter must supply the exact candidate block-prefix snapshot,
-block environment and signed outer envelope, then submit the returned bundle through
-the existing whole-block gate. No speculative state is published by this crate.
+`op-atomic-builder` is a private, one-bundle stdio worker. The Go adapter
+`atomic.BuildSuspended` serves immutable account/storage/ancestor reads and signs
+both envelopes locally. Rust recovers the sender from the exact signed EIP-1559
+bytes, uses those bytes for OP fee accounting, and returns the identical bytes
+from final replay. Keys remain in Go. Cancellation terminates and reaps the worker;
+protocol messages, RPC requests and remote operations are bounded. No restart or
+fallback to the original Go discovery algorithm occurs.
+
+`SuspendedChain` requires the exact candidate environment and prefix snapshot.
+`PrefixGas` means cumulative gas **before SDM refunds**, as used for block admission.
+The current bridge accepts Lagoon EIP-1559 envelopes and OP's fixed blob base fee of
+one. `RPCPrefixSnapshot` pins all reads by hash and anchors BLOCKHASH to that block's
+ancestry; the host must retain its state throughout the build. It cannot turn a
+parent snapshot into a correct next-block prefix by changing the timestamp.
+
+The devstack scenarios pause sequencers and batchers, execute a system-only prefix
+block on each chain, wait for its proof index, retain it through discovery and
+replay, then replace it with a sibling containing the exact signed envelopes.
+Batchers resume only after both final siblings are canonical. The fixture checks for protocol-only transactions and
+no prefix logs, and uses the prefix's base fee, gas limit, coinbase and randomness.
+It then runs ordinary op-reth block execution and supernode interop verification,
+checking application rollback, sponsored settlement, receipt gas and message logs.
+The generic transaction plan detaches its signing dependencies to prevent later
+nonce assignment from replacing the replayed envelope.
+
+This is a **demo node integration**, not a production op-reth payload service.
+A production adapter still needs a retained candidate-prefix provider and whole-block
+admission/publication integration, including SDM accounting. The existing Go
+`BuildSponsored` path remains available with its original discovery algorithm.
 
 The EVM exposes current call gas (`GAS`) and the total block gas limit (`GASLIMIT`),
 not a decreasing block-gas-left counter. Padding is unnecessary. Prefix state and
@@ -118,3 +140,14 @@ three-chain destinations, root and remote reverts, caught failures, exact 4337
 settlement, gas/transient-storage parity and malformed final envelopes/access lists.
 
 This follow-up is stacked on the [atomic demo](https://github.com/ethereum-optimism/optimism/pull/22840).
+
+Run the suspended worker against the two-chain op-reth/supernode devstack from the
+repository root (with the normal acceptance-test prerequisites built):
+
+```sh
+RUST_JIT_BUILD=1 mise exec -- go test ./op-acceptance-tests/tests/interop/atomic \
+  -run TestSuspendedAtomicCalls -count=1 -timeout=15m
+```
+
+The contracts `atomic-suspension` check also builds the worker and runs the Go bridge
+suite, including rejected final access lists, exhausted prefix gas and cancellation.

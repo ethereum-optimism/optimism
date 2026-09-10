@@ -112,6 +112,14 @@ The PR description tracks remaining validation and production-readiness work.
 
 The follow-up [`op-atomic-builder`](../../rust/atomic-builder/README.md) implements
 suspended discovery through the router's fixed-gas entry points and self-only tape
-getters. Its real-contract tests also exercise signed ERC-4337 operations. The Go
-RPC/devstack adapter in this directory continues to use its original discovery
-algorithm; the Rust coordinator is not yet connected to the node payload service.
+getters. `BuildSuspended` connects that coordinator to Go over a private stdio
+worker, keeping signing keys in Go and returning the exact signed envelopes used
+in final replay. The devstack's `TestSuspendedAtomicCalls` exercises this path;
+`BuildSponsored` retains the original restart-based discovery algorithm.
+
+The suspended bridge requires a retained candidate-prefix snapshot, exact block
+environment and cumulative gas before SDM refunds. Its RPC snapshot reads a pinned
+block by hash; a parent block alone is insufficient. The system-only preview block
+used in devstack must remain canonical until the worker finishes because op-reth
+may discard state on unwind. Node inclusion still runs full block execution and
+the normal interop verifier. A production op-reth payload service is not included.

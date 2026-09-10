@@ -14,6 +14,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-devstack/dsl"
 	"github.com/ethereum-optimism/optimism/op-devstack/presets"
 	opservice "github.com/ethereum-optimism/optimism/op-service"
+	"github.com/ethereum-optimism/optimism/op-service/bigs"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/txintent"
 	"github.com/ethereum-optimism/optimism/op-service/txplan"
@@ -32,12 +33,21 @@ const (
 	AtomicSponsoredRevert  AtomicCallScenario = "SponsoredRemoteReverts"
 )
 
+const (
+	AtomicSuspendedSuccess AtomicCallScenario = "SuspendedSponsoredSuccess"
+	AtomicSuspendedRevert  AtomicCallScenario = "SuspendedSponsoredRemoteReverts"
+)
+
+func (s AtomicCallScenario) suspended() bool {
+	return s == AtomicSuspendedSuccess || s == AtomicSuspendedRevert
+}
+
 func (s AtomicCallScenario) sponsored() bool {
-	return s == AtomicSponsoredSuccess || s == AtomicSponsoredRevert
+	return s == AtomicSponsoredSuccess || s == AtomicSponsoredRevert || s.suspended()
 }
 
 func (s AtomicCallScenario) remoteReverts() bool {
-	return s == AtomicRemoteReverts || s == AtomicSponsoredRevert
+	return s == AtomicRemoteReverts || s == AtomicSponsoredRevert || s == AtomicSuspendedRevert
 }
 
 // RunAtomicCallConsolidationTest deploys the opt-in facade and constructs two
@@ -60,12 +70,27 @@ func RunAtomicCallVerificationTest(t devtest.T, sys *presets.TwoL2SupernodeInter
 	tc := atomicCallCase(t, view, scenario)
 	tc.Prepare(t, view, sys.FunderA.NewFundedEOA(eth.OneEther), sys.FunderB.NewFundedEOA(eth.OneEther))
 	s := sys.ForSameTimestampTesting(t)
+	if scenario.suspended() {
+		// Preview prefixes must never reach L1 while we retain them for discovery.
+		sys.L2BatcherA.Stop()
+		sys.L2BatcherB.Stop()
+	}
+	parentA := sys.L2ELA.BlockRefByLabel(eth.Unsafe)
+	parentB := sys.L2ELB.BlockRefByLabel(eth.Unsafe)
 	t.Logger().Info("discovering atomic bundle", "timestamp", s.NextTimestamp)
 	txsA, txsB := tc.BuildTxs(&intraBlockSetup{alice: s.Alice, bob: s.Bob, expectedBlockNumA: s.ExpectedBlockNumA, expectedBlockNumB: s.ExpectedBlockNumB, nextTimestamp: s.NextTimestamp})
 	t.Logger().Info("including atomic bundle", "timestamp", s.NextTimestamp)
 	// Propagated failure retains both reverted transactions. Only deliberate
 	// inclusion of an orphaned successful B requires block replacement.
-	s.IncludeAndValidate(txsA, txsB, false, scenario == AtomicOrphanedRemote)
+	if scenario.suspended() {
+		s.IncludeAndValidateOnParents(txsA, txsB, parentA, parentB, false, false, func() {
+			// Both final siblings are now canonical. Only these candidates may be batched.
+			sys.L2BatcherA.Start()
+			sys.L2BatcherB.Start()
+		})
+	} else {
+		s.IncludeAndValidate(txsA, txsB, false, scenario == AtomicOrphanedRemote)
+	}
 	if scenario != AtomicOrphanedRemote {
 		status := uint64(types.ReceiptStatusSuccessful)
 		if scenario == AtomicRemoteReverts {
@@ -104,6 +129,7 @@ func atomicCallCase(t devtest.T, sys *presets.SimpleInterop, scenario AtomicCall
 	blockNumbers := make(map[eth.ChainID]uint64)
 	sponsors := make(map[eth.ChainID]*sponsoredAccount)
 	plannedTransactions := make(map[eth.ChainID]*txplan.PlannedTx)
+	var suspendedResult *atomic.SuspendedResult
 	deploy := func(eoa *dsl.EOA, artifact *foundry.Artifact) common.Address {
 		tx := txplan.NewPlannedTx(eoa.Plan(), txplan.WithData(artifact.Bytecode.Object))
 		receipt, err := tx.Included.Eval(t.Ctx())
@@ -146,6 +172,17 @@ func atomicCallCase(t devtest.T, sys *presets.SimpleInterop, scenario AtomicCall
 			}
 		},
 		BuildTxs: func(s *intraBlockSetup) ([]*txplan.PlannedTx, []*txplan.PlannedTx) {
+			if scenario.suspended() {
+				txs, result := buildSuspendedAtomic(t, sys, s, routerAddr, appAddr, proxy, app, sponsors)
+				suspendedResult = result
+				for id, tx := range txs {
+					plannedTransactions[id] = tx
+				}
+				blockNumbers[s.alice.ChainID()] = s.expectedBlockNumA
+				blockNumbers[s.bob.ChainID()] = s.expectedBlockNumB
+				t.Require().Equal(scenario.remoteReverts(), result.Reverted)
+				return []*txplan.PlannedTx{txs[s.alice.ChainID()]}, []*txplan.PlannedTx{txs[s.bob.ChainID()]}
+			}
 			builder := &atomic.Builder{Router: routerAddr, ABI: router.ABI, MaxCalls: 8, Gas: 8_000_000, Chains: make(map[eth.ChainID]atomic.Chain)}
 			for _, item := range []struct {
 				eoa    *dsl.EOA
@@ -206,7 +243,7 @@ func atomicCallCase(t devtest.T, sys *presets.SimpleInterop, scenario AtomicCall
 		},
 		Check: func(t devtest.T, sys *presets.SimpleInterop) {
 			want := common.BigToHash(big.NewInt(6))
-			if scenario != AtomicCallsSucceed && scenario != AtomicSponsoredSuccess {
+			if scenario.remoteReverts() || scenario == AtomicOrphanedRemote {
 				want = common.Hash{}
 			}
 			for _, item := range []struct {
@@ -222,6 +259,18 @@ func atomicCallCase(t devtest.T, sys *presets.SimpleInterop, scenario AtomicCall
 				if scenario.sponsored() {
 					id := item.el.ChainID()
 					sponsors[id].check(t, item.el, plannedTransactions[id], number, !scenario.remoteReverts())
+					if suspendedResult != nil {
+						expected := suspendedResult.Included[bigs.Uint64Strict(id.ToBig())]
+						receipt, err := item.el.EthClient().TransactionReceipt(t.Ctx(), expected.Transaction.Hash())
+						t.Require().NoError(err)
+						t.Require().Equal(expected.GasUsed, receipt.GasUsed, "node gas matches the exact signed canonical replay")
+						t.Require().Len(receipt.Logs, len(expected.Logs))
+						for i, log := range receipt.Logs {
+							t.Require().Equal(expected.Logs[i].Address, log.Address)
+							t.Require().Equal(expected.Logs[i].Topics, log.Topics)
+							t.Require().Equal(expected.Logs[i].Data, log.Data)
+						}
+					}
 				}
 			}
 		},

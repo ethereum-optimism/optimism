@@ -1384,7 +1384,7 @@ mod test {
     }
 
     /// Two atomic round trips with a final dependency on root completion.
-    /// Mirrors op-supernode's TestAtomicDemoRepeatedRoundTrip.
+    /// Mirrors op-supernode's `TestAtomicDemoRepeatedRoundTrip`.
     #[test]
     fn test_detect_cycles_atomic_two_round_trips() {
         let ts = 1000;

@@ -27,3 +27,13 @@ func TestSponsoredAtomicCalls(gt *testing.T) {
 		})
 	}
 }
+
+func TestSuspendedAtomicCalls(gt *testing.T) {
+	for _, scenario := range []sfp.AtomicCallScenario{sfp.AtomicSuspendedSuccess, sfp.AtomicSuspendedRevert} {
+		gt.Run(string(scenario), func(gt *testing.T) {
+			t := devtest.SerialT(gt)
+			sys := presets.NewTwoL2SupernodeInterop(t, 0)
+			sfp.RunAtomicCallVerificationTest(t, sys, scenario)
+		})
+	}
+}
