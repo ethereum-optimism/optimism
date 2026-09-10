@@ -2371,7 +2371,9 @@ async fn rejected_foreign_topology_never_becomes_a_create_parent() {
     let mut invalid = ScenarioGame::new(0, u32::MAX, 1, ScenarioWorld::default_prestate());
     invalid.root_claim = B256::repeat_byte(0xa1);
     let invalid_target = invalid.target();
-    let child = ScenarioGame::new(1, 0, 2, ScenarioWorld::default_prestate());
+    // Keep the invalid descendant ahead of the healthy branch so it would become canonical if
+    // pruning failed to remove the whole rejected subtree.
+    let child = ScenarioGame::new(1, 0, 5, ScenarioWorld::default_prestate());
     let child_target = child.target();
     let valid_root = ScenarioGame::new(2, u32::MAX, 3, ScenarioWorld::default_prestate());
     let valid_tip = ScenarioGame::new(3, 2, 4, ScenarioWorld::default_prestate());
@@ -2379,7 +2381,7 @@ async fn rejected_foreign_topology_never_becomes_a_create_parent() {
     for game in [invalid, child, valid_root, valid_tip] {
         world.add_game(game);
     }
-    world.set_horizons(5, 5);
+    world.set_horizons(6, 6);
     let mut scenario = ScenarioHarness::new(world.clone(), scenario_config()).await.unwrap();
 
     let result = scenario.tick().await.unwrap();
@@ -2388,7 +2390,7 @@ async fn rejected_foreign_topology_never_becomes_a_create_parent() {
     assert!(result.snapshot.pending_games.is_empty());
     assert!(result.scheduled.iter().any(|scheduled| matches!(
         scheduled.operation,
-        OperationSummary::ProposeGame { sequence_number: 5, parent_game_index: 3 }
+        OperationSummary::ProposeGame { sequence_number: 6, parent_game_index: 3 }
     )));
     scenario.settle_scheduled(&result).await.unwrap();
     assert!(world.action_records().iter().all(|record| !matches!(
@@ -2758,12 +2760,16 @@ async fn pending_trusted_mismatch_releases_the_address_matched_creation_guard() 
 #[tokio::test]
 async fn challenger_wins_removal_resets_the_address_matched_creation_guard() {
     let world = ScenarioWorld::new();
-    world.set_horizons(1, 1);
-    let first_create = ActionTarget::Create { sequence_number: 1, parent_game_index: u32::MAX };
+    let root = ScenarioGame::new(0, u32::MAX, 1, ScenarioWorld::default_prestate());
+    let root_target = root.target();
+    world.add_game(root);
+    world.set_horizons(2, 2);
+    let first_create = ActionTarget::Create { sequence_number: 2, parent_game_index: 0 };
     let mut scenario = ScenarioHarness::new(world.clone(), scenario_config()).await.unwrap();
+
     let created = scenario.tick().await.unwrap();
     scenario.settle_scheduled(&created).await.unwrap();
-    let guarded_game = world.observation().games[0].target();
+    let guarded_game = world.observation().games.last().unwrap().target();
     assert!(matches!(
         world.action_record(&first_create, 1).unwrap().effect,
         CommittedEffect::Created { address, .. } if address == guarded_game.address
@@ -2773,21 +2779,66 @@ async fn challenger_wins_removal_resets_the_address_matched_creation_guard() {
     assert_eq!(learned.snapshot.canonical_head_index, Some(guarded_game.factory_index));
     scenario.settle_scheduled(&learned).await.unwrap();
 
+    // Park a descendant after it is confirmed on L1 but before its receipt task can replace the
+    // guard. The losing parent is then removed while that receipt remains live.
+    world.set_horizons(3, 3);
+    let descendant_create = ActionTarget::Create {
+        sequence_number: 3,
+        parent_game_index: guarded_game.factory_index.to::<u32>(),
+    };
+    world.block_action(
+        descendant_create.clone(),
+        1,
+        ActionBarrierPoint::AfterInclusion,
+        ActionOutcome::Success,
+        "descendant receipt after inclusion",
+    );
+    let descendant = scenario.tick().await.unwrap();
+    let descendant_id = descendant.task_id_for(|operation| {
+        matches!(
+            operation,
+            OperationSummary::ProposeGame { sequence_number: 3, parent_game_index }
+                if *parent_game_index == guarded_game.factory_index.to::<u32>()
+        )
+    });
+    scenario
+        .wait_for_action_barrier(
+            descendant_id,
+            &descendant_create,
+            1,
+            ActionBarrierPoint::AfterInclusion,
+        )
+        .await
+        .unwrap();
+
     world.update_game(&guarded_game, |game| game.status = GameStatus::ChallengerWins);
-    world.set_horizons(2, 2);
     let removed = scenario.tick().await.unwrap();
-    assert_eq!(removed.snapshot.canonical_head_index, None);
-    assert!(removed.scheduled.iter().any(|scheduled| matches!(
-        scheduled.operation,
-        OperationSummary::ProposeGame { sequence_number: 2, parent_game_index: u32::MAX }
-    )));
+    assert_eq!(removed.snapshot.canonical_head_index, Some(root_target.factory_index));
+    assert!(
+        !removed
+            .scheduled
+            .iter()
+            .any(|scheduled| matches!(scheduled.operation, OperationSummary::ProposeGame { .. }))
+    );
+
+    scenario
+        .release_action_barrier(&descendant_create, 1, ActionBarrierPoint::AfterInclusion)
+        .unwrap();
+    scenario.settle(&[descendant_id]).await.unwrap();
     scenario.settle_scheduled(&removed).await.unwrap();
+
+    // The fallback has the removed descendant's timestamp but a different parent/UUID. It is
+    // possible only if subtree removal cleared the old guard and the delayed receipt did not arm a
+    // stale replacement guard.
+    let fallback = scenario.tick().await.unwrap();
+    assert!(fallback.scheduled.iter().any(|scheduled| matches!(
+        scheduled.operation,
+        OperationSummary::ProposeGame { sequence_number: 3, parent_game_index: 0 }
+    )));
+    scenario.settle_scheduled(&fallback).await.unwrap();
     assert!(
         world
-            .action_record(
-                &ActionTarget::Create { sequence_number: 2, parent_game_index: u32::MAX },
-                1,
-            )
+            .action_record(&ActionTarget::Create { sequence_number: 3, parent_game_index: 0 }, 1,)
             .is_some()
     );
 }

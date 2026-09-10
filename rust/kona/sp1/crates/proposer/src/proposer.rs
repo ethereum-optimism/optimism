@@ -1247,6 +1247,11 @@ impl Proposer {
             );
             removed_addresses.extend(state.invalidate_subtree(index));
         }
+        self.reset_creation_guard_for_removed_games(
+            &removed_addresses,
+            "tracked game was removed with an invalid subtree",
+        )
+        .await;
         drop(state);
         for address in removed_addresses {
             self.proof_engine.clear(address);
@@ -1261,10 +1266,54 @@ impl Proposer {
             return;
         }
 
+        self.clear_creation_guard_locked(&mut guarded_address, reason);
+    }
+
+    async fn reset_creation_guard_for_removed_games(
+        &self,
+        removed_addresses: &[Address],
+        reason: &'static str,
+    ) {
+        let mut guarded_address = self.last_created_game_address.lock().await;
+        if *guarded_address == Address::ZERO || !removed_addresses.contains(&*guarded_address) {
+            return;
+        }
+
+        self.clear_creation_guard_locked(&mut guarded_address, reason);
+    }
+
+    fn clear_creation_guard_locked(&self, guarded_address: &mut Address, reason: &'static str) {
         let cleared_address = *guarded_address;
         self.last_created_game_l2_sequence_number.store(0, Ordering::Relaxed);
         *guarded_address = Address::ZERO;
         tracing::info!(?cleared_address, reason, "Reset creation guard");
+    }
+
+    async fn arm_creation_guard(
+        &self,
+        sequence_number: u64,
+        parent_game_index: u32,
+        game_address: Address,
+    ) {
+        // Serialize with subtree invalidation through the state lock. If the receipt returns after
+        // its parent was removed, arming this guard would leave a stale sequence number that can
+        // suppress fallback creation indefinitely at a frozen horizon.
+        let state = self.state.read().await;
+        if parent_game_index != u32::MAX &&
+            state.invalid_games.contains(&U256::from(parent_game_index))
+        {
+            tracing::info!(
+                sequence_number,
+                parent_game_index,
+                ?game_address,
+                "Not arming creation guard: parent was invalidated while receipt was pending"
+            );
+            return;
+        }
+
+        let mut guarded_address = self.last_created_game_address.lock().await;
+        self.last_created_game_l2_sequence_number.store(sequence_number, Ordering::Relaxed);
+        *guarded_address = game_address;
     }
 
     async fn invalid_game_result(&self, index: U256, game_address: Address) -> GameFetchResult {
@@ -1351,7 +1400,14 @@ impl Proposer {
                 }
                 Ok(GameFetchResult::InvalidGame { index }) => {
                     self.pending_games.write().await.remove(&index);
-                    let removed_addresses = self.state.write().await.invalidate_subtree(index);
+                    let mut state = self.state.write().await;
+                    let removed_addresses = state.invalidate_subtree(index);
+                    self.reset_creation_guard_for_removed_games(
+                        &removed_addresses,
+                        "tracked game was removed after pending revalidation",
+                    )
+                    .await;
+                    drop(state);
                     for address in removed_addresses {
                         self.proof_engine.clear(address);
                     }
@@ -1491,21 +1547,13 @@ impl Proposer {
                     tracing::debug!(game_index = %index, "Removed game from cache");
                 }
                 GameSyncAction::RemoveSubtree(index) => {
-                    let subtree = state.descendants_of(index);
-                    let guarded_addr = *self.last_created_game_address.lock().await;
-                    if guarded_addr != Address::ZERO {
-                        let guard_in_subtree = subtree.iter().any(|idx| {
-                            state.games.get(idx).is_some_and(|game| game.address == guarded_addr)
-                        });
-                        if guard_in_subtree {
-                            self.reset_creation_guard(
-                                Some(guarded_addr),
-                                "tracked game removed by ChallengerWins",
-                            )
-                            .await;
-                        }
-                    }
-                    progress_addresses_to_clear.extend(state.invalidate_subtree(index));
+                    let removed_addresses = state.invalidate_subtree(index);
+                    self.reset_creation_guard_for_removed_games(
+                        &removed_addresses,
+                        "tracked game removed by ChallengerWins",
+                    )
+                    .await;
+                    progress_addresses_to_clear.extend(removed_addresses);
                 }
             }
         }
@@ -2158,9 +2206,8 @@ impl Proposer {
 
                         // Record the sequence number and address so creation planning skips a
                         // duplicate while the pinned cache has not caught up to this game.
-                        self.last_created_game_l2_sequence_number
-                            .store(sequence_number, Ordering::Relaxed);
-                        *self.last_created_game_address.lock().await = game_address;
+                        self.arm_creation_guard(sequence_number, parent_game_index, game_address)
+                            .await;
                         ProposerGauge::GamesCreated.increment(1.0);
                         return Ok(());
                     }
@@ -2189,8 +2236,7 @@ impl Proposer {
                     game_address = ?existing_game,
                     "Adopting own existing game after create-tx uncertainty"
                 );
-                self.last_created_game_l2_sequence_number.store(sequence_number, Ordering::Relaxed);
-                *self.last_created_game_address.lock().await = existing_game;
+                self.arm_creation_guard(sequence_number, parent_game_index, existing_game).await;
                 return Ok(());
             }
             // Third-party collision: advance the timestamp - bounded by the
@@ -2288,9 +2334,12 @@ impl Proposer {
                 game_address = ?existing_game,
                 "Adopting in-flight game that landed after its confirmation timeout"
             );
-            self.last_created_game_l2_sequence_number
-                .store(record.sequence_number, Ordering::Relaxed);
-            *self.last_created_game_address.lock().await = existing_game;
+            self.arm_creation_guard(
+                record.sequence_number,
+                record.parent_game_index,
+                existing_game,
+            )
+            .await;
         } else {
             tracing::info!(
                 sequence_number = record.sequence_number,
@@ -2630,24 +2679,12 @@ impl Proposer {
                 );
                 let root_index = U256::from(parent_game_index);
                 let mut state = self.state.write().await;
-                // Mirror sync_games' RemoveSubtree handling: reset the
-                // duplicate-creation guard if the removed subtree contains
-                // the game it tracks (descendants_of includes the root).
-                let guarded_addr = *self.last_created_game_address.lock().await;
-                if guarded_addr != Address::ZERO {
-                    let guard_in_subtree = state
-                        .descendants_of(root_index)
-                        .iter()
-                        .any(|idx| state.games.get(idx).is_some_and(|g| g.address == guarded_addr));
-                    if guard_in_subtree {
-                        self.reset_creation_guard(
-                            Some(guarded_addr),
-                            "tracked game removed with a retired/blacklisted ancestor",
-                        )
-                        .await;
-                    }
-                }
                 let removed_addresses = state.invalidate_subtree(root_index);
+                self.reset_creation_guard_for_removed_games(
+                    &removed_addresses,
+                    "tracked game removed with a retired/blacklisted ancestor",
+                )
+                .await;
                 drop(state);
                 for address in removed_addresses {
                     self.proof_engine.clear(address);
@@ -3094,19 +3131,13 @@ impl Proposer {
                     .get(&game_index)
                     .is_some_and(|game| game.address == game_address)
                 {
-                    let guarded_addr = *self.last_created_game_address.lock().await;
-                    if guarded_addr != Address::ZERO &&
-                        state.descendants_of(game_index).iter().any(|index| {
-                            state.games.get(index).is_some_and(|game| game.address == guarded_addr)
-                        })
-                    {
-                        self.reset_creation_guard(
-                            Some(guarded_addr),
-                            "tracked game removed with unprovable subtree",
-                        )
-                        .await;
-                    }
-                    state.invalidate_subtree(game_index)
+                    let removed_addresses = state.invalidate_subtree(game_index);
+                    self.reset_creation_guard_for_removed_games(
+                        &removed_addresses,
+                        "tracked game removed with unprovable subtree",
+                    )
+                    .await;
+                    removed_addresses
                 } else {
                     vec![game_address]
                 };

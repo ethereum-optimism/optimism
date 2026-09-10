@@ -171,12 +171,14 @@ pub(super) enum ProofOutcome {
 pub(super) enum ActionBarrierPoint {
     BeforeSigner,
     AfterSubmission,
+    AfterInclusion,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 enum BarrierPoint {
     BeforeSigner,
     AfterSubmission,
+    AfterInclusion,
     Proof,
 }
 
@@ -185,6 +187,7 @@ impl From<ActionBarrierPoint> for BarrierPoint {
         match point {
             ActionBarrierPoint::BeforeSigner => Self::BeforeSigner,
             ActionBarrierPoint::AfterSubmission => Self::AfterSubmission,
+            ActionBarrierPoint::AfterInclusion => Self::AfterInclusion,
         }
     }
 }
@@ -246,11 +249,12 @@ struct ActionScript {
     outcome: ActionOutcome,
     before_signer: Option<NamedBarrier>,
     after_submission: Option<NamedBarrier>,
+    after_inclusion: Option<NamedBarrier>,
 }
 
 impl ActionScript {
     const fn immediate(outcome: ActionOutcome) -> Self {
-        Self { outcome, before_signer: None, after_submission: None }
+        Self { outcome, before_signer: None, after_submission: None, after_inclusion: None }
     }
 }
 
@@ -877,17 +881,29 @@ impl ScenarioWorld {
                 outcome != ActionOutcome::PreSubmitFailure,
             "a pre-submit failure cannot reach an after-submission barrier"
         );
+        assert!(
+            point != ActionBarrierPoint::AfterInclusion || outcome == ActionOutcome::Success,
+            "only a successful action can reach an after-inclusion barrier"
+        );
         let barrier = NamedBarrier::new(name);
         let script = match point {
             ActionBarrierPoint::BeforeSigner => ActionScript {
                 outcome,
                 before_signer: Some(barrier.clone()),
                 after_submission: None,
+                after_inclusion: None,
             },
             ActionBarrierPoint::AfterSubmission => ActionScript {
                 outcome,
                 before_signer: None,
                 after_submission: Some(barrier.clone()),
+                after_inclusion: None,
+            },
+            ActionBarrierPoint::AfterInclusion => ActionScript {
+                outcome,
+                before_signer: None,
+                after_submission: None,
+                after_inclusion: Some(barrier.clone()),
             },
         };
         let mut data = self.lock();
@@ -1404,6 +1420,11 @@ fn publish_prestate_at(directory: &Path, prestate: B256) {
 #[derive(Clone)]
 struct FakeL1View(ScenarioWorld);
 
+struct GameReadResult {
+    state: Arc<L1State>,
+    scripted_status: Option<u8>,
+}
+
 impl FakeL1View {
     fn state(&self, block: BlockId) -> Result<Arc<L1State>> {
         self.0.lock().state_at(block)
@@ -1418,24 +1439,20 @@ impl FakeL1View {
         boundary: L1ReadBoundary,
         game: Address,
         block: BlockId,
-    ) -> Result<(Arc<L1State>, Option<u8>)> {
+    ) -> Result<GameReadResult> {
         let mut data = self.0.lock();
         let state = data.state_at(block)?;
         let target = state.game(game)?.target();
-        let scripted = data.record_l1_read(boundary, L1ReadTarget::Game(target))?;
-        Ok((state, scripted))
+        let scripted_status = data.record_l1_read(boundary, L1ReadTarget::Game(target))?;
+        Ok(GameReadResult { state, scripted_status })
     }
 
     fn latest_state_for_game(
         &self,
         boundary: L1ReadBoundary,
         game: Address,
-    ) -> Result<(Arc<L1State>, Option<u8>)> {
-        let mut data = self.0.lock();
-        let state = data.latest_state();
-        let target = state.game(game)?.target();
-        let scripted = data.record_l1_read(boundary, L1ReadTarget::Game(target))?;
-        Ok((state, scripted))
+    ) -> Result<GameReadResult> {
+        self.state_for_game(boundary, game, BlockId::latest())
     }
 }
 
@@ -1478,7 +1495,8 @@ impl L1View for FakeL1View {
     }
 
     async fn game_claim(&self, game: Address, block: BlockId) -> Result<GameClaim> {
-        let (state, _) = self.state_for_game(L1ReadBoundary::GameClaim, game, block)?;
+        let GameReadResult { state, .. } =
+            self.state_for_game(L1ReadBoundary::GameClaim, game, block)?;
         let game = state.game(game)?;
         Ok(GameClaim {
             status: game.proposal_status as u8,
@@ -1488,7 +1506,8 @@ impl L1View for FakeL1View {
     }
 
     async fn game_identity(&self, game: Address, block: BlockId) -> Result<GameIdentity> {
-        let (state, _) = self.state_for_game(L1ReadBoundary::GameIdentity, game, block)?;
+        let GameReadResult { state, .. } =
+            self.state_for_game(L1ReadBoundary::GameIdentity, game, block)?;
         let game = state.game(game)?;
         Ok(GameIdentity {
             anchor_state_registry: game.anchor_state_registry,
@@ -1499,7 +1518,8 @@ impl L1View for FakeL1View {
     }
 
     async fn game_validity(&self, game: Address, block: BlockId) -> Result<GameValidity> {
-        let (state, _) = self.state_for_game(L1ReadBoundary::GameValidity, game, block)?;
+        let GameReadResult { state, .. } =
+            self.state_for_game(L1ReadBoundary::GameValidity, game, block)?;
         let game = state.game(game)?;
         Ok(GameValidity {
             root_claim: game.root_claim,
@@ -1515,7 +1535,8 @@ impl L1View for FakeL1View {
         registry: Address,
         block: BlockId,
     ) -> Result<GameLifecycle> {
-        let (state, _) = self.state_for_game(L1ReadBoundary::GameLifecycle, game, block)?;
+        let GameReadResult { state, .. } =
+            self.state_for_game(L1ReadBoundary::GameLifecycle, game, block)?;
         let game = state.game(game)?;
         ensure!(
             game.anchor_state_registry == registry,
@@ -1547,7 +1568,8 @@ impl L1View for FakeL1View {
         proposer: Address,
         block: BlockId,
     ) -> Result<BondState> {
-        let (state, _) = self.state_for_game(L1ReadBoundary::BondState, game, block)?;
+        let GameReadResult { state, .. } =
+            self.state_for_game(L1ReadBoundary::BondState, game, block)?;
         let game = state.game(game)?;
         ensure!(game.weth == weth, "bond state used WETH {weth}, expected {}", game.weth);
         ensure!(
@@ -1562,8 +1584,9 @@ impl L1View for FakeL1View {
     }
 
     async fn game_status(&self, game: Address) -> Result<u8> {
-        let (state, scripted) = self.latest_state_for_game(L1ReadBoundary::GameStatus, game)?;
-        Ok(scripted.unwrap_or(state.game(game)?.status as u8))
+        let GameReadResult { state, scripted_status } =
+            self.latest_state_for_game(L1ReadBoundary::GameStatus, game)?;
+        Ok(scripted_status.unwrap_or(state.game(game)?.status as u8))
     }
 
     async fn claim_preflight(
@@ -1640,7 +1663,8 @@ impl L1View for FakeL1View {
     }
 
     async fn parent_standing(&self, game: Address, registry: Address) -> Result<GameStanding> {
-        let (state, _) = self.latest_state_for_game(L1ReadBoundary::ParentStanding, game)?;
+        let GameReadResult { state, .. } =
+            self.latest_state_for_game(L1ReadBoundary::ParentStanding, game)?;
         let game = state.game(game)?;
         let registered = state.registered_args.anchor_state_registry;
         ensure!(
@@ -1651,7 +1675,8 @@ impl L1View for FakeL1View {
     }
 
     async fn game_standing(&self, game: Address, registry: Address) -> Result<GameStanding> {
-        let (state, _) = self.latest_state_for_game(L1ReadBoundary::GameStanding, game)?;
+        let GameReadResult { state, .. } =
+            self.latest_state_for_game(L1ReadBoundary::GameStanding, game)?;
         let game = state.game(game)?;
         ensure!(
             registry == game.anchor_state_registry,
@@ -1662,17 +1687,20 @@ impl L1View for FakeL1View {
     }
 
     async fn proof_status(&self, game: Address) -> Result<u8> {
-        let (state, _) = self.latest_state_for_game(L1ReadBoundary::ProofStatus, game)?;
+        let GameReadResult { state, .. } =
+            self.latest_state_for_game(L1ReadBoundary::ProofStatus, game)?;
         Ok(state.game(game)?.proposal_status as u8)
     }
 
     async fn proof_inputs(&self, game: Address) -> Result<ProofInputs> {
-        let (state, _) = self.latest_state_for_game(L1ReadBoundary::ProofInputs, game)?;
+        let GameReadResult { state, .. } =
+            self.latest_state_for_game(L1ReadBoundary::ProofInputs, game)?;
         Ok(state.game(game)?.proof_inputs)
     }
 
     async fn anchor_state_registry(&self, game: Address) -> Result<Address> {
-        let (state, _) = self.latest_state_for_game(L1ReadBoundary::AnchorStateRegistry, game)?;
+        let GameReadResult { state, .. } =
+            self.latest_state_for_game(L1ReadBoundary::AnchorStateRegistry, game)?;
         Ok(state.game(game)?.anchor_state_registry)
     }
 
@@ -1956,6 +1984,9 @@ impl FakeActionExecutor {
                     CommittedEffect::Created { address, .. } => Some(address),
                     _ => None,
                 };
+                if let Some(barrier) = script.after_inclusion {
+                    barrier.park_unassigned().await;
+                }
                 Ok(ActionResult { transaction_hash, created_address })
             }
             ActionOutcome::Revert => {
