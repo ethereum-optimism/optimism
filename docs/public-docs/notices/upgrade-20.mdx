@@ -81,8 +81,9 @@ The [OP Stack component changes](#prepare-op-stack-components), [`SystemConfig` 
 
 ### Node Operators
 
-Upgrade 20 has no L2 hardfork, and it does not require an `op-node` or `op-reth` configuration change.
-If the node also provides a Super Root RPC to Fault Proof services, keep that endpoint reachable during and after the cutover.
+Upgrade 20 has no L2 hardfork, and it does not require an `op-node` or `op-reth` configuration change to follow the chain.
+If the node also provides a Super Root RPC to Fault Proof services, keep that endpoint reachable during and after the cutover, and run `op-node` with `--safedb.path` enabled and populated through derivation.
+See the [`op-node` row](#prepare-op-stack-components) for details.
 
 ### App Developers and Infrastructure Integrators
 
@@ -110,17 +111,29 @@ Existing Output Root Dispute Games continue to resolve, and the `OptimismPortal`
 
 ## Prepare OP Stack components
 
-Use the following configuration changes when staging the Upgrade 20 component releases:
+Update the following components and apply the configuration changes when staging the Upgrade 20 releases.
+Each version below is the latest release of that component, and running the latest release of every component is recommended regardless of whether Upgrade 20 requires a change to it.
+Treat the listed version as a minimum for every component except `kona-client`, where the absolute prestate hash is specific to the exact release tag:
 
-| Component | Required change |
-| --- | --- |
-| `op-challenger` | Add `--superroot-rpc` (`OP_CHALLENGER_SUPERROOT_RPC`) and keep the existing game types so the challenger can finish games already in progress. On a permissionless chain, append `super-cannon-kona` to `--game-types` (`OP_CHALLENGER_GAME_TYPES`) and configure the reviewed Kona Interop prestate. On a permissioned chain, do not add `super-permissioned`; the simplified game does not require a trace type, and `op-challenger` handles its lifecycle automatically. |
-| `op-dispute-mon` | Add `--superroot-rpc` (`OP_DISPUTE_MON_SUPERROOT_RPC`). Keep `--rollup-rpc` while Output Root Dispute Games remain in progress. |
-| `op-proposer` | Switch at the contract upgrade cutover. Replace `--rollup-rpc` with `--superroot-rpcs` (`OP_PROPOSER_SUPERROOT_RPCS`) and set `OP_PROPOSER_GAME_TYPE=5` for a permissioned chain or `OP_PROPOSER_GAME_TYPE=9` for a permissionless chain. |
-| `op-node`, `op-reth`, and `op-batcher` | No configuration change is required. Upgrade 20 has no hardfork activation. |
+| Component | Version | Required change |
+| --- | --- | --- |
+| `op-challenger` | [v1.9.5](https://github.com/ethereum-optimism/optimism/releases/tag/op-challenger%2Fv1.9.5) | Add `--superroot-rpc` (`OP_CHALLENGER_SUPERROOT_RPC`) and keep the existing game types so the challenger can finish games already in progress. On a permissionless chain, append `super-cannon-kona` to `--game-types` (`OP_CHALLENGER_GAME_TYPES`) and configure the reviewed Kona Interop prestate. On a permissioned chain, do not add `super-permissioned`; the simplified game does not require a trace type, and `op-challenger` handles its lifecycle automatically. |
+| `op-dispute-mon` | [v1.6.0](https://github.com/ethereum-optimism/optimism/releases/tag/op-dispute-mon%2Fv1.6.0) | Add `--superroot-rpc` (`OP_DISPUTE_MON_SUPERROOT_RPC`). Keep `--rollup-rpc` while Output Root Dispute Games remain in progress. |
+| `op-proposer` | [v1.16.4](https://github.com/ethereum-optimism/optimism/releases/tag/op-proposer%2Fv1.16.4) | Switch at the contract upgrade cutover, as described in [Update order](#update-order). Replace `--rollup-rpc` with `--superroot-rpcs` (`OP_PROPOSER_SUPERROOT_RPCS`) and set `OP_PROPOSER_GAME_TYPE=5` for a permissioned chain or `OP_PROPOSER_GAME_TYPE=9` for a permissionless chain. |
+| `kona-client` | [v1.7.0](https://github.com/ethereum-optimism/optimism/releases/tag/kona-client%2Fv1.7.0) exactly | Permissionless chains only. This release produces the `SUPER_CANNON_KONA` absolute prestate. Build or locate the Interop variant prestate from this exact tag and host it for `op-challenger`, as described in [Locate or build the absolute prestate](#locate-or-build-the-absolute-prestate). A later tag produces a different hash that does not match the reviewed Upgrade 20 value. |
+| `op-node` | [v1.19.6](https://github.com/ethereum-optimism/optimism/releases/tag/op-node%2Fv1.19.6) | No hardfork activation, so an `op-node` that only serves the chain needs no configuration change. An `op-node` that serves the Super Root RPC to Fault Proof services must run with `--safedb.path` enabled and populated through derivation; `superroot_atTimestamp` cannot serve a non-genesis timestamp without SafeDB. |
+| `op-reth` | [v2.5.2](https://github.com/paradigmxyz/reth/releases/tag/v2.5.2) | No Upgrade 20 configuration change is required, and there is no hardfork activation. |
+| `op-batcher` | [v1.16.13](https://github.com/ethereum-optimism/optimism/releases/tag/op-batcher%2Fv1.16.13) | No Upgrade 20 configuration change is required. |
 
 The Super Root RPC must return a root for the chain or dependency set that the Dispute Game covers.
 For a single-chain upgrade, use the chain's `op-node` RPC endpoint or the chain-specific endpoint exposed by an `op-supernode`.
+
+### Update order
+
+Sequence the service updates around the L1 contract cutover:
+
+* Update `op-challenger` and `op-dispute-mon` **before** the L1 contract cutover. Both services need the Super Root configuration in place when the first Super Root Dispute Game is created.
+* Switch `op-proposer` **at the cutover**, or immediately after it. The proposer cannot propose against the new game type until the contracts are upgraded, and it logs proposal errors from the cutover until it is switched, so do not leave a deliberate gap.
 
 ## Update `SystemConfig` integrations
 
@@ -177,9 +190,13 @@ Permissionless chains need the Upgrade 20 `kona-client` Interop variant absolute
 
 <Tabs>
   <Tab title="Standard chain configuration">
-    Use the `cannon64-kona-interop` hash published for the Upgrade 20 release in [`standard-prestates.toml`](https://github.com/ethereum-optimism/superchain-registry/blob/main/validation/standard/standard-prestates.toml).
+    Use the `cannon64-kona-interop` hash published for `1.7.0` in [`standard-prestates.toml`](https://github.com/ethereum-optimism/superchain-registry/blob/main/validation/standard/standard-prestates.toml):
 
-    Check out the Kona release tag associated with the published Upgrade 20 prestate hash, reproduce both Kona prestates, and read the interop hash:
+    ```
+    0x031ac6f15c19010da258f5cb633ef6ca9318c2d0f244bea6b2045ce6b790e1df
+    ```
+
+    Check out `kona-client/v1.7.0`, reproduce both Kona prestates, and read the interop hash:
 
     ```bash
     just reproducible-prestate-kona
@@ -192,7 +209,7 @@ Permissionless chains need the Upgrade 20 `kona-client` Interop variant absolute
 
   <Tab title="Custom chain configuration">
     First, stage the chain data described in [Generating a custom kona-client absolute prestate](/chain-operators/tutorials/kona-custom-prestate).
-    Check out the Kona release tag associated with the reviewed Upgrade 20 prestate and build the interop variant with the same custom configuration:
+    Check out `kona-client/v1.7.0` and build the interop variant with the same custom configuration:
 
     ```bash
     cd rust
@@ -210,8 +227,19 @@ Permissionless chains need the Upgrade 20 `kona-client` Interop variant absolute
 
 ## Upgrade timing
 
-Upgrade 20 is applied as an L1 contract upgrade and has no L2 hardfork activation timestamp.
-Pending governance approval, we expect the upgrade to be executed in September.
+Upgrade 20 is applied as an L1 contract upgrade: each network is upgraded by executing an onchain task, so there is no L2 hardfork activation timestamp to configure.
+
+| Milestone | Target date |
+| --- | --- |
+| Governance vote closes | **Wednesday, September 16, 2026** |
+| Sepolia execution | **Thursday, September 17, 2026** |
+| Mainnet execution | **Thursday, September 24, 2026** |
+
+Governed Sepolia OP Stack chains are upgraded first, followed by a seven-day soak period before mainnet execution.
+Mainnet execution depends on Optimism Governance approval and a healthy Sepolia soak, so these dates can move.
+
+Upgrade 20 is described in the [Upgrade 20 - Super Root Dispute Games & OPCM v8.0.0](https://gov.optimism.io/t/upgrade-20-super-root-dispute-games-opcm-v8-0-0/10856) governance proposal.
+The [onchain vote](https://vote.optimism.io/proposals/4301234447578476958698627660572767846172082315795452528680486495303632100182) records the approval status.
 
 The [Output Root to Super Root upgrade runbook](/chain-operators/tutorials/upgrade-chain-to-super-roots) describes the onchain upgrade and cutover checks.
 
