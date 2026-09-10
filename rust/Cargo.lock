@@ -7600,6 +7600,10 @@ dependencies = [
 ]
 
 [[package]]
+name = "kona-sp1-build-info"
+version = "0.0.1"
+
+[[package]]
 name = "kona-sp1-client-utils"
 version = "0.0.1"
 dependencies = [

@@ -20,6 +20,7 @@ members = [
   "kona/crates/providers/*",
   "kona/crates/utilities/*",
   "kona/examples/*",
+  "kona/sp1/crates/build-info",
   "kona/sp1/crates/client",
   "kona/sp1/crates/elfs",
   "kona/sp1/crates/ethereum/client",

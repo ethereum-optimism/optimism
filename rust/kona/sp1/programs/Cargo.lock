@@ -1815,6 +1815,10 @@ dependencies = [
 ]
 
 [[package]]
+name = "kona-sp1-build-info"
+version = "0.0.1"
+
+[[package]]
 name = "kona-sp1-client-utils"
 version = "0.0.1"
 dependencies = [
@@ -1883,6 +1887,7 @@ name = "kona-sp1-super-aggregation"
 version = "0.0.1"
 dependencies = [
  "bincode",
+ "kona-sp1-build-info",
  "kona-sp1-client-utils",
  "kona-sp1-range-vkeys",
  "sha2",
@@ -1896,6 +1901,7 @@ version = "0.0.1"
 dependencies = [
  "anyhow",
  "kona-proof",
+ "kona-sp1-build-info",
  "kona-sp1-client-utils",
  "kona-sp1-ethereum-client-utils",
  "revm",
