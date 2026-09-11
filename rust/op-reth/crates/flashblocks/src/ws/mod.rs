@@ -1,4 +1,4 @@
-pub use stream::{WsConnect, WsFlashBlockStream};
+pub use stream::{DEFAULT_IDLE_TIMEOUT, WsConnect, WsFlashBlockStream};
 
 mod decoding;
 pub use decoding::FlashBlockDecoder;

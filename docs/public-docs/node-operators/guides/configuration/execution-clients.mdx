@@ -73,6 +73,8 @@ The execution client is one of three pieces. Before configuring it, make sure yo
 
     The node then answers requests carrying the `pending` block tag from subblock state, executing each subblock's transactions against its own view of the chain. It does not need the stream's `state_root`, which subblocks leave zeroed. The flag keeps its `flashblocks` spelling; `--websocket-url` is an accepted alias.
 
+    A stream that stops sending without closing its connection is caught two ways. `--flashblocks-idle-timeout` (default 5s) reconnects a subscription that has gone silent, logging the reason and moving the `flashblock_service_stream_errors` counter; set it above your chain's subblock interval. Independently, the node stops answering `pending` from a subblock once the canonical chain has reached that height, so a stalled stream makes `pending` fall back to `latest` within a block rather than serving state arbitrarily far behind it.
+
     `--flashblocks-url` on its own is what an ordinary node wants. Leave `--flashblock-consensus` unset: it drives the chain forward from the stream by submitting completed sequences through `engine_newPayload`, which is a specialized topology, not an addition to a normal node following op-node. Enabling it also turns on local state-root computation for the last subblock in each sequence, which an ordinary node has no use for.
 
     ### Historical proofs
