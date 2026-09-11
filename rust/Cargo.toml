@@ -488,6 +488,7 @@ alloy-rpc-types-trace = { version = "2.3.0", default-features = false }
 alloy-rpc-types-txpool = { version = "2.3.0", default-features = false }
 alloy-serde = { version = "2.3.0", default-features = false }
 alloy-signer = { version = "2.3.0", default-features = false }
+sp1-alloy-signer = { package = "alloy-signer", version = "1.0", default-features = false }
 alloy-signer-local = { version = "2.3.0", default-features = false }
 alloy-transport = { version = "2.3.0" }
 alloy-transport-http = { version = "2.3.0", features = [

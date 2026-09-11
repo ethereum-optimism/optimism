@@ -27,6 +27,8 @@ kona-protocol.workspace = true
 alloy-consensus.workspace = true
 alloy-eips = { workspace = true, features = ["kzg"] }
 alloy-primitives.workspace = true
+alloy-rpc-client = { workspace = true, features = ["reqwest"] }
+sp1-alloy-signer.workspace = true
 alloy-transport-http = { workspace = true, features = ["reqwest", "reqwest-rustls-tls"] }
 
 # general
@@ -42,6 +44,7 @@ metrics.workspace = true
 metrics-exporter-prometheus.workspace = true
 metrics-process.workspace = true
 rustls = { workspace = true, features = ["aws_lc_rs"] }
+serde.workspace = true
 strum.workspace = true
 tokio = { workspace = true, features = ["net", "rt", "time"] }
 tracing.workspace = true
