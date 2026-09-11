@@ -3655,8 +3655,10 @@ contract OPContractsManagerV2_Migrate_Test is OPContractsManagerV2_TestInit {
 /// @notice Tests batch upgrade functionality with freshly deployed chains (non-forked).
 contract OPContractsManagerV2_FeatBatchUpgrade_Test is OPContractsManagerV2_TestInit {
     /// @notice Tests that multiple upgrade operations can be executed within a single transaction.
-    ///         This enforces the OPCMV2 invariant that approximately 15 upgrade operations should be
+
+    ///         This enforces the OPCMV2 invariant that approximately 14 upgrade operations should be
     ///         executable in one transaction.
+
     function test_batchUpgrade_multipleChains_succeeds() public {
         skipIfUnoptimized();
 
