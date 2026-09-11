@@ -143,6 +143,14 @@ contract OPContractsManagerV2 is ISemver, OPContractsManagerUtilsCaller {
     /// @notice Thrown when an enabled game type resolves to a zero implementation in the container.
     error OPContractsManagerV2_ZeroGameImplementation(GameType _gameType);
 
+    /// @notice Number of dispute game configs a full config must supply.
+    uint256 internal constant VALID_GAME_TYPE_COUNT = 6;
+
+    /// @notice The valid game types, packed low-to-high as six uint32s in the order the dispute
+    ///         game configs must be supplied: CANNON, PERMISSIONED_CANNON, CANNON_KONA,
+    ///         SUPER_PERMISSIONED, SUPER_CANNON_KONA, ZK_DISPUTE_GAME.
+    uint256 internal constant VALID_GAME_TYPES = 0x0000000a_00000009_00000005_00000008_00000001_00000000;
+
     /// @notice Address of the Standard Validator for this OPCM release.
     IOPContractsManagerStandardValidator public immutable opcmStandardValidator;
 
@@ -186,7 +194,7 @@ contract OPContractsManagerV2 is ISemver, OPContractsManagerUtilsCaller {
     ///         SuperchainConfig contract, but may eventually expand to include other
     ///         Superchain-wide contracts.
     /// @param _inp The input for the Superchain upgrade.
-    function upgradeSuperchain(SuperchainUpgradeInput memory _inp) external returns (SuperchainContracts memory) {
+    function upgradeSuperchain(SuperchainUpgradeInput calldata _inp) external returns (SuperchainContracts memory) {
         _onlyDelegateCall();
 
         // NOTE: Since this function is very minimal and only upgrades the SuperchainConfig
@@ -689,18 +697,8 @@ contract OPContractsManagerV2 is ISemver, OPContractsManagerUtilsCaller {
     /// @param _cfg The full config.
     /// @param _isInitialDeployment Whether or not this is an initial deployment.
     function _assertValidFullConfig(FullConfig memory _cfg, bool _isInitialDeployment) internal view {
-        // All valid game types. StandardValidator is responsible for rejecting game types that
-        // should not be used in a given mode (e.g., legacy types in super root mode).
-        GameType[] memory validGameTypes = new GameType[](6);
-        validGameTypes[0] = GameTypes.CANNON;
-        validGameTypes[1] = GameTypes.PERMISSIONED_CANNON;
-        validGameTypes[2] = GameTypes.CANNON_KONA;
-        validGameTypes[3] = GameTypes.SUPER_PERMISSIONED;
-        validGameTypes[4] = GameTypes.SUPER_CANNON_KONA;
-        validGameTypes[5] = GameTypes.ZK_DISPUTE_GAME;
-
         // We must have a config for each valid game type.
-        if (_cfg.disputeGameConfigs.length != validGameTypes.length) {
+        if (_cfg.disputeGameConfigs.length != VALID_GAME_TYPE_COUNT) {
             revert OPContractsManagerV2_InvalidGameConfigs();
         }
 
@@ -717,11 +715,11 @@ contract OPContractsManagerV2 is ISemver, OPContractsManagerUtilsCaller {
 
         bool superRootGamesMigrationEnabled = isDevFeatureEnabled(DevFeatures.SUPER_ROOT_GAMES_MIGRATION);
 
-        // Iterate over each provided config and confirm that it matches the game type array.
+        // Iterate over each provided config and confirm that it matches the expected game type.
         // This places a requirement on the user to order the configs properly but that's
         // probably a good thing, keeps the config consistent.
         for (uint256 i = 0; i < _cfg.disputeGameConfigs.length; i++) {
-            uint32 rawGameType = validGameTypes[i].raw();
+            uint32 rawGameType = uint32(VALID_GAME_TYPES >> (i * 32));
             bool isCannonGame = rawGameType == GameTypes.CANNON.raw();
             bool isPermissionedCannonGame = rawGameType == GameTypes.PERMISSIONED_CANNON.raw();
             bool isCannonKonaGame = rawGameType == GameTypes.CANNON_KONA.raw();
