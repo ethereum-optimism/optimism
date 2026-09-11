@@ -920,16 +920,6 @@ func TestBuildDeployOPChainInputCannonAbsolutePrestate(t *testing.T) {
 		want     common.Hash
 	}{
 		{
-			name:     "PERMISSIONED_CANNON mirrors selected prestate",
-			gameType: embedded.GameTypePermissionedCannon,
-			want:     selectedPrestate,
-		},
-		{
-			name:     "CANNON_KONA uses canonical fallback",
-			gameType: embedded.GameTypeCannonKona,
-			want:     opcm.PermissionedCannonFallbackPrestatePlaceholder,
-		},
-		{
 			name:     "SUPER_CANNON_KONA leaves unread field zero",
 			gameType: embedded.GameTypeSuperCannonKona,
 			want:     common.Hash{},
@@ -962,9 +952,6 @@ func TestBuildDeployOPChainInputCannonAbsolutePrestate(t *testing.T) {
 			require.Equal(t, uint32(tt.gameType), got.DisputeGameType)
 			require.Equal(t, selectedPrestate, got.DisputeAbsolutePrestate)
 			require.Equal(t, tt.want, got.CannonAbsolutePrestate)
-			if tt.gameType == embedded.GameTypeCannonKona {
-				require.NotEqual(t, got.DisputeAbsolutePrestate, got.CannonAbsolutePrestate)
-			}
 		})
 	}
 }

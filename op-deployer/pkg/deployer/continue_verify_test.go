@@ -178,9 +178,6 @@ func newContinuationVerificationFixture(
 			L2SequenceNumber: new(big.Int),
 		}
 	}
-	if gameType == embedded.GameTypeCannonKona {
-		dci.CannonAbsolutePrestate = opcm.PermissionedCannonFallbackPrestatePlaceholder
-	}
 
 	fixture := &continuationVerificationFixture{
 		backend:  newContinuationVerificationBackend(),
@@ -260,21 +257,6 @@ func (f *continuationVerificationFixture) seed(t *testing.T, gameType embedded.G
 	)
 
 	switch gameType {
-	case embedded.GameTypePermissionedCannon:
-		f.seedGameImplementation(
-			t,
-			uint32(gameType),
-			f.expected.PermissionedDisputeGameImpl,
-			permissionedContinuationGameArgs(
-				f.expected.Prestate,
-				f.vm,
-				f.expected.AnchorStateRegistryProxy,
-				f.expected.DelayedWethPermissionedGameProxy,
-				f.dci.L2ChainId,
-				f.dci.Proposer,
-				f.dci.Challenger,
-			),
-		)
 	case embedded.GameTypeSuperPermissioned:
 		f.seedGameImplementation(
 			t,
@@ -283,33 +265,6 @@ func (f *continuationVerificationFixture) seed(t *testing.T, gameType embedded.G
 			superPermissionedContinuationGameArgs(
 				f.expected.AnchorStateRegistryProxy,
 				f.dci.Proposer,
-			),
-		)
-	case embedded.GameTypeCannonKona:
-		f.seedGameImplementation(
-			t,
-			uint32(gameType),
-			f.expected.FaultDisputeGameImpl,
-			permissionlessContinuationGameArgs(
-				f.expected.Prestate,
-				f.vm,
-				f.expected.AnchorStateRegistryProxy,
-				f.expected.DelayedWethPermissionlessGameProxy,
-				f.dci.L2ChainId,
-			),
-		)
-		f.seedGameImplementation(
-			t,
-			uint32(embedded.GameTypePermissionedCannon),
-			f.expected.PermissionedDisputeGameImpl,
-			permissionedContinuationGameArgs(
-				opcm.PermissionedCannonFallbackPrestatePlaceholder,
-				f.vm,
-				f.expected.AnchorStateRegistryProxy,
-				f.expected.DelayedWethPermissionedGameProxy,
-				f.dci.L2ChainId,
-				f.dci.Proposer,
-				f.dci.Challenger,
 			),
 		)
 	case embedded.GameTypeSuperCannonKona:
@@ -455,20 +410,6 @@ func permissionlessContinuationGameArgs(
 	return append(args, common.LeftPadBytes(l2ChainID.Bytes(), common.HashLength)...)
 }
 
-func permissionedContinuationGameArgs(
-	prestate common.Hash,
-	vm common.Address,
-	anchorStateRegistry common.Address,
-	delayedWETH common.Address,
-	l2ChainID *big.Int,
-	proposer common.Address,
-	challenger common.Address,
-) []byte {
-	args := permissionlessContinuationGameArgs(prestate, vm, anchorStateRegistry, delayedWETH, l2ChainID)
-	args = append(args, proposer.Bytes()...)
-	return append(args, challenger.Bytes()...)
-}
-
 func superPermissionedContinuationGameArgs(anchorStateRegistry common.Address, proposer common.Address) []byte {
 	args := append([]byte{}, anchorStateRegistry.Bytes()...)
 	return append(args, proposer.Bytes()...)
@@ -501,42 +442,11 @@ func (f *continuationVerificationFixture) verify(t *testing.T) error {
 }
 
 func TestVerifyContinuationDeployment(t *testing.T) {
-	t.Run("legacy CANNON_KONA layout", func(t *testing.T) {
-		fixture := newContinuationVerificationFixture(t, embedded.GameTypeCannonKona)
-		require.NoError(t, fixture.verify(t))
-		require.Equal(t, 1, fixture.backend.callsTo(fixture.backend.validator))
-	})
-
 	t.Run("permissioned only skips StandardValidator", func(t *testing.T) {
 		fixture := newContinuationVerificationFixture(t, embedded.GameTypeSuperPermissioned)
 		require.NoError(t, fixture.verify(t))
 		require.Equal(t, 1, fixture.backend.callsTo(fixture.dci.Opcm))
 		require.Zero(t, fixture.backend.callsTo(fixture.backend.validator))
-	})
-
-	t.Run("legacy PERMISSIONED_CANNON layout", func(t *testing.T) {
-		fixture := newContinuationVerificationFixture(t, embedded.GameTypePermissionedCannon)
-		require.NoError(t, fixture.verify(t))
-		require.Equal(t, 1, fixture.backend.callsTo(fixture.dci.Opcm))
-		require.Zero(t, fixture.backend.callsTo(fixture.backend.validator))
-	})
-
-	t.Run("legacy PERMISSIONED_CANNON rejects a challenger mismatch", func(t *testing.T) {
-		fixture := newContinuationVerificationFixture(t, embedded.GameTypePermissionedCannon)
-		fixture.setGameArgs(
-			t,
-			embedded.GameTypePermissionedCannon,
-			permissionedContinuationGameArgs(
-				fixture.expected.Prestate,
-				fixture.vm,
-				fixture.expected.AnchorStateRegistryProxy,
-				fixture.expected.DelayedWethPermissionedGameProxy,
-				fixture.dci.L2ChainId,
-				fixture.dci.Proposer,
-				common.Address{0xff},
-			),
-		)
-		require.ErrorContains(t, fixture.verify(t), "selected game challenger")
 	})
 
 	t.Run("SUPER_CANNON_KONA has a no-prestate fallback", func(t *testing.T) {
@@ -660,30 +570,18 @@ func TestVerifyContinuationDeploymentPermissionedAddressParity(t *testing.T) {
 }
 
 func TestDecodeContinuationGameArgsRejectsInvalidLengths(t *testing.T) {
-	// Derived from the layout constants so that changing one cannot leave this test
-	// asserting against a length the decoder no longer expects.
-	tests := []struct {
-		layout continuationGameArgsLayout
-		length int
-	}{
-		{continuationPermissionedGameArgs, continuationPermissionedGameArgsLength - 1},
-		{continuationPermissionedGameArgs, continuationPermissionedGameArgsLength + 1},
-		{continuationSuperPermissionedGameArgs, continuationSuperPermissionedGameArgsLength - 1},
-		{continuationSuperPermissionedGameArgs, continuationSuperPermissionedGameArgsLength + 1},
-		// LibGameArgs also defines a 124-byte permissionless form; the permissioned layout
-		// must not accept it.
-		{continuationPermissionedGameArgs, 124},
-	}
-	for _, test := range tests {
-		_, err := decodeContinuationGameArgs(make([]byte, test.length), test.layout)
+	// Derived from the layout constant so that changing it cannot leave this test
+	// asserting against a length the decoder no longer expects. LibGameArgs also defines
+	// 124-byte permissionless and 164-byte permissioned forms; neither may decode.
+	for _, length := range []int{
+		continuationSuperPermissionedGameArgsLength - 1,
+		continuationSuperPermissionedGameArgsLength + 1,
+		124,
+		164,
+	} {
+		_, err := decodeContinuationGameArgs(make([]byte, length))
 		require.ErrorContains(t, err, "game arguments have length")
 	}
-
-	_, err := decodeContinuationGameArgs(
-		make([]byte, continuationPermissionedGameArgsLength),
-		continuationSuperPermissionedGameArgs+1,
-	)
-	require.ErrorContains(t, err, "unknown continuation game argument layout")
 }
 
 func TestVerifyContinuationDeploymentFailures(t *testing.T) {
@@ -716,7 +614,7 @@ func TestVerifyContinuationDeploymentFailures(t *testing.T) {
 					f.expected.OptimismPortalProxy,
 					continuationRespectedGameTypeMethod,
 					nil,
-					uint32(embedded.GameTypePermissionedCannon),
+					uint32(embedded.GameTypeSuperPermissioned),
 				)
 			},
 		},
