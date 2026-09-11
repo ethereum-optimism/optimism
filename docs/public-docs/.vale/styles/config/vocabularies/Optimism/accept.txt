@@ -350,6 +350,7 @@ cpu
 crosschain
 crypto
 cryptocurrencies
+cutover
 da_challenge_address
 da_challenge_window
 da_resolve_window
@@ -628,6 +629,7 @@ viem's
 vmdebug
 vmtrace
 vmodule
+wagmi
 websocket
 websockets
 wei
