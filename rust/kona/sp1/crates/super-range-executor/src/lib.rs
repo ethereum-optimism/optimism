@@ -652,7 +652,7 @@ where
         seeded_store.save_preimage(*key, value.clone())?;
     }
 
-    let preimage_witness_store = Arc::new(Mutex::new(seeded_store.clone()));
+    let preimage_witness_store = Arc::new(Mutex::new(PreimageStore::default()));
     let blob_data = Arc::new(Mutex::new(BlobData::default()));
     let host_oracle =
         CachingOracle::new(2048, OracleReader::new(preimage.client), HintWriter::new(hint.client));
@@ -1530,6 +1530,47 @@ mod tests {
         let got = kona_proof::block_on(oracle.get(key)).unwrap();
 
         assert_eq!(got, value);
+    }
+
+    #[tokio::test]
+    async fn collected_witness_keeps_only_accessed_seeded_preimages() {
+        let get_value = b"get".to_vec();
+        let get_key = PreimageKey::new_keccak256(*B256::from(keccak256(&get_value)));
+        let exact_value = b"exact".to_vec();
+        let exact_key = PreimageKey::new_keccak256(*B256::from(keccak256(&exact_value)));
+        let unread_value = b"unread".to_vec();
+        let unread_key = PreimageKey::new_keccak256(*B256::from(keccak256(&unread_value)));
+        let data_dir = std::env::temp_dir().join(format!(
+            "kona-sp1-witness-{}-{}",
+            std::process::id(),
+            std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_nanos(),
+        ));
+        let host =
+            InteropHost { data_dir: Some(data_dir.clone()), server: true, ..Default::default() };
+
+        let (witness, ()) = collect_witness(
+            &[
+                (get_key, get_value.clone()),
+                (exact_key, exact_value.clone()),
+                (unread_key, unread_value),
+            ],
+            host,
+            |oracle, _| async move {
+                assert_eq!(oracle.get(get_key).await?, get_value);
+                let mut exact = vec![0; exact_value.len()];
+                oracle.get_exact(exact_key, &mut exact).await?;
+                assert_eq!(exact, exact_value);
+                Ok(())
+            },
+        )
+        .await
+        .expect("witness collection succeeds");
+        std::fs::remove_dir_all(data_dir).expect("temporary host directory is removed");
+
+        let (preimages, _) = witness.into_parts();
+        assert_eq!(preimages.get(get_key).await.unwrap(), b"get");
+        assert_eq!(preimages.get(exact_key).await.unwrap(), b"exact");
+        assert!(preimages.get(unread_key).await.is_err());
     }
 
     #[derive(Clone, Debug)]
