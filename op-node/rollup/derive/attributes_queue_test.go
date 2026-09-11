@@ -78,7 +78,7 @@ func TestAttributesQueue(t *testing.T) {
 		NoTxPool:              true,
 		GasLimit:              (*eth.Uint64Quantity)(&expectedL1Cfg.GasLimit),
 	}
-	attrBuilder := NewFetchingAttributesBuilder(cfg, params.MergedTestChainConfig, nil, l1Fetcher, l2Fetcher)
+	attrBuilder := NewFetchingAttributesBuilder(testlog.Logger(t, log.LevelInfo), cfg, params.MergedTestChainConfig, nil, l1Fetcher, l2Fetcher)
 
 	aq := NewAttributesQueue(testlog.Logger(t, log.LevelError), cfg, attrBuilder, nil)
 

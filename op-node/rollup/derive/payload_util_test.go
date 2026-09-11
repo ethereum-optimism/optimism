@@ -10,6 +10,7 @@ import (
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/consensus/misc/eip1559"
 	"github.com/ethereum/go-ethereum/core/types"
+	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/params"
 	"github.com/stretchr/testify/require"
 
@@ -18,6 +19,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/ptr"
+	"github.com/ethereum-optimism/optimism/op-service/testlog"
 	"github.com/ethereum-optimism/optimism/op-service/testutils"
 )
 
@@ -167,7 +169,7 @@ func TestPayloadToSystemConfigUpgradeGas(t *testing.T) {
 		}}
 		l1Fetcher.ExpectFetchReceipts(epoch.Hash, l1Info, optypes.FromGethReceipts(receipts), nil)
 
-		attrBuilder := NewFetchingAttributesBuilder(cfg, params.MergedTestChainConfig, nil, l1Fetcher, l1CfgFetcher)
+		attrBuilder := NewFetchingAttributesBuilder(testlog.Logger(t, log.LevelInfo), cfg, params.MergedTestChainConfig, nil, l1Fetcher, l1CfgFetcher)
 		attrs, err := attrBuilder.PreparePayloadAttributes(context.Background(), l2Parent, epoch)
 		require.NoError(t, err)
 		require.NotNil(t, attrs.GasLimit)

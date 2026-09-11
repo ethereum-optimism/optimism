@@ -107,7 +107,7 @@ func NewDriver(
 	var sequencer sequencing.SequencerIface
 	if driverCfg.SequencerEnabled {
 		asyncGossiper := async.NewAsyncGossiper(driverCtx, network, log, metrics)
-		attrBuilder := derive.NewFetchingAttributesBuilder(cfg, l1ChainConfig, depSet, l1, l2)
+			attrBuilder := derive.NewFetchingAttributesBuilder(log, cfg, l1ChainConfig, depSet, l1, l2)
 		sequencerConfDepth := confdepth.NewConfDepth(driverCfg.SequencerConfDepth, statusTracker.L1Head, l1)
 		findL1Origin := sequencing.NewL1OriginSelector(driverCtx, log, cfg, sequencerConfDepth)
 		sys.Register("origin-selector", findL1Origin)

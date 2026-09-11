@@ -13,6 +13,8 @@ import (
 	"github.com/ethereum-optimism/optimism/op-core/predeploys"
 	optypes "github.com/ethereum-optimism/optimism/op-core/types"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
+	"github.com/ethereum/go-ethereum/log"
+
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 )
 
@@ -33,6 +35,7 @@ type SystemConfigL2Fetcher interface {
 
 // FetchingAttributesBuilder fetches inputs for the building of L2 payload attributes on the fly.
 type FetchingAttributesBuilder struct {
+	log           log.Logger
 	rollupCfg     *rollup.Config
 	l1ChainConfig *params.ChainConfig
 	depSet        DependencySet
@@ -42,11 +45,12 @@ type FetchingAttributesBuilder struct {
 	testSkipL1OriginCheck bool
 }
 
-func NewFetchingAttributesBuilder(rollupCfg *rollup.Config, l1ChainConfig *params.ChainConfig, depSet DependencySet, l1 L1ReceiptsFetcher, l2 SystemConfigL2Fetcher) *FetchingAttributesBuilder {
+func NewFetchingAttributesBuilder(log log.Logger, rollupCfg *rollup.Config, l1ChainConfig *params.ChainConfig, depSet DependencySet, l1 L1ReceiptsFetcher, l2 SystemConfigL2Fetcher) *FetchingAttributesBuilder {
 	if rollupCfg.LagoonTime != nil && depSet == nil {
 		panic("FetchingAttributesBuilder requires a dependency set when Lagoon fork is scheduled")
 	}
 	return &FetchingAttributesBuilder{
+		log:           log,
 		rollupCfg:     rollupCfg,
 		l1ChainConfig: l1ChainConfig,
 		depSet:        depSet,
@@ -96,9 +100,9 @@ func (ba *FetchingAttributesBuilder) PreparePayloadAttributes(ctx context.Contex
 			return nil, NewCriticalError(fmt.Errorf("failed to derive some deposits: %w", err))
 		}
 
-		// errors from UpdateSystemConfigWithL1Receipts are ignored as they represent malformed or invalid updates
-		// and there is no recovery mechanism for malformed updates, we must process past them.
-		_ = UpdateSystemConfigWithL1Receipts(&sysConfig, receipts.Geth(), ba.rollupCfg, info.Time())
+			// errors from UpdateSystemConfigWithL1Receipts are ignored as they represent malformed or invalid updates
+			// and there is no recovery mechanism for malformed updates, we must process past them.
+			_ = UpdateSystemConfigWithL1Receipts(ba.log, &sysConfig, receipts.Geth(), ba.rollupCfg, info.Time())
 
 		l1Info = info
 		depositTxs = deposits
