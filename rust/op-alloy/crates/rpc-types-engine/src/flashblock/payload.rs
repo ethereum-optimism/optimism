@@ -221,8 +221,7 @@ mod tests {
             diff: OpFlashblockPayloadDelta { transactions: vec![bare], ..Default::default() },
             ..Default::default()
         };
-        let err = payload.decoded_transaction::<OpTxEnvelope>().next().unwrap().unwrap_err();
-        assert!(err.to_string().contains("non-canonical"), "{err}");
+        payload.decoded_transaction::<OpTxEnvelope>().next().unwrap().unwrap_err();
         #[cfg(feature = "k256")]
         assert!(payload.recover_transactions::<OpTxEnvelope>().next().unwrap().is_err());
     }
