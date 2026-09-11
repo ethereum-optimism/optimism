@@ -18,6 +18,10 @@ use reth_optimism_forks::OpHardforks;
 use reth_optimism_primitives::DepositReceipt;
 use reth_primitives_traits::{BlockBody, GotExpected, receipt::gas_spent_by_transactions};
 
+/// UPSTREAM-MIRROR(copy): reth@rev:aef8d3e
+/// `reth_consensus_common::validation::validate_body_against_header`
+///
+/// Copies the generic body/header checks and replaces withdrawals-root handling after Isthmus.
 /// Ensures the block response data matches the header.
 ///
 /// This ensures the body response items match the header's hashes:
@@ -81,6 +85,10 @@ where
     Ok(())
 }
 
+/// UPSTREAM-MIRROR(copy): reth@rev:aef8d3e
+/// `reth_ethereum_consensus::validation::validate_block_post_execution`
+///
+/// Copies upstream post-execution validation with OP receipt roots and Jovian DA accounting.
 /// Validate a block with regard to execution results:
 ///
 /// - Compares the receipts root in the block header to the block body
@@ -155,6 +163,9 @@ pub fn validate_block_post_execution<R: DepositReceipt>(
     Ok(())
 }
 
+/// UPSTREAM-MIRROR(copy): reth@rev:aef8d3e `reth_ethereum_consensus::validation::verify_receipts`
+///
+/// Copies the private upstream helper and substitutes OP receipt-root calculation.
 /// Verify the calculated receipts root against the expected receipts root.
 fn verify_receipts_optimism<R: DepositReceipt>(
     expected_receipts_root: B256,
@@ -181,6 +192,10 @@ fn verify_receipts_optimism<R: DepositReceipt>(
     Ok(())
 }
 
+/// UPSTREAM-MIRROR(copy): reth@rev:aef8d3e
+/// `reth_ethereum_consensus::validation::compare_receipts_root_and_logs_bloom`
+///
+/// Kept identical to the private upstream comparison helper.
 /// Compare the calculated receipts root with the expected receipts root, also compare
 /// the calculated logs bloom with the expected logs bloom.
 fn compare_receipts_root_and_logs_bloom(

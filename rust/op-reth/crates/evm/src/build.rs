@@ -30,6 +30,10 @@ impl<ChainSpec> OpBlockAssembler<ChainSpec> {
 }
 
 impl<ChainSpec: OpHardforks> OpBlockAssembler<ChainSpec> {
+    /// UPSTREAM-MIRROR(copy): reth@rev:aef8d3e
+    /// `reth_evm_ethereum::EthBlockAssembler::assemble_block`
+    ///
+    /// Copies upstream block assembly with OP receipt roots, withdrawals, and DA fields.
     /// Builds a block for `input` without any bounds on header `H`.
     pub fn assemble_block<
         F: for<'a> BlockExecutorFactory<

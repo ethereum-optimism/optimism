@@ -120,7 +120,22 @@ test-sp1-guest:
 
 # Run all lints for the outer workspace. SP1 guests require generated vkeys and are linted by CI
 # after their ELFs are built.
-lint: fmt-check lint-clippy lint-docs
+lint: fmt-check lint-clippy lint-docs check-upstream-mirrors
+
+# List the UPSTREAM-MIRROR tags — OP code that reproduces upstream reth/revm/alloy logic —
+# with each one's last-verified version against what the workspace resolves to today.
+# `just mirrors stale` is the worklist for a pin bump.
+mirrors *ARGS:
+  scripts/upstream-mirrors.py {{ if ARGS == "stale" { "--stale-only" } else { ARGS } }}
+
+# Run the upstream-mirror checker's contract tests.
+test-upstream-mirrors:
+  python3 -m unittest scripts/test_upstream_mirrors.py
+
+# Fail on malformed tags, ambiguous dependency metadata, unknown crates, or versions ahead of
+# their pin. Staleness is a review worklist, not a defect.
+check-upstream-mirrors: test-upstream-mirrors
+  scripts/upstream-mirrors.py --check
 
 # Check formatting (requires nightly)
 fmt-check:
