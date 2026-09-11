@@ -180,6 +180,17 @@ Organised by **detection difficulty** — the point is catching what the compile
   `_`-prefixed to silence warnings (e.g. `_block_access_list_hash: Option<B256>`).
   That is correct _only if_ OP genuinely doesn't need the value — verify, don't assume.
 - **Changed constant / default value** that op- reads or duplicated.
+- **Upstream derive macros that expand to consensus-facing code.** `#[derive(TransactionEnvelope)]`
+  (alloy-consensus), `RlpEncodable`/`RlpDecodable` (alloy-rlp) and `Compact` (reth-codecs-derive)
+  expand to whatever the pinned macro version emits. There is no body in our tree, so a changed
+  expansion produces no diff, and what the generated code accepts is upstream's decision, not
+  ours: the envelope's untyped dispatch tries every variant's `fallback_decode`, so whether a
+  typed transaction without its type byte decodes depends on how each upstream variant
+  implements it at the pinned version. The guard is a test pinning the accepted input set —
+  `rust/op-alloy/crates/consensus/src/transaction/canonical.rs` for transaction decoding — written
+  against the outcome, not the error text, so it survives upstream tightening. On a bump that
+  moves a macro crate, run those tests and read the macro crate's changelog for
+  encoding/decoding changes.
 
 ### B. Sync-divergence risks (duplicated code drifts)
 
