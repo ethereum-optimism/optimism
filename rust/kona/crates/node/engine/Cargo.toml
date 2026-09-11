@@ -57,7 +57,7 @@ kona-registry.workspace = true
 rand = {workspace = true, features = ["thread_rng"]}
 arbitrary.workspace = true
 op-alloy-rpc-types = {workspace = true, features = ["arbitrary", "k256"]}
-metrics-exporter-prometheus.workspace = true
+metrics-util = { workspace = true, features = ["debugging"] }
 rstest.workspace = true
 
 [features]
