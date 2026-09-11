@@ -111,7 +111,7 @@ func attachSupernodeSuperProofs(t devtest.T, runtime *MultiChainRuntime, cfg Pre
 				)
 				runtime.L2ChallengerConfig = challenger.Config()
 			}
-			runtime.startZKProposerFn = func() string {
+			runtime.startZKProposerFn = func() *ZKProposerRuntime {
 				return startZKProposer(
 					t,
 					runtime.Keys,

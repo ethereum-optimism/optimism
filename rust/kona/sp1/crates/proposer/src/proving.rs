@@ -262,6 +262,41 @@ impl GameProgress {
         Self { identity, chunks, aggregation_request: Mutex::new(RequestState::Missing) }
     }
 
+    fn requests(
+        &self,
+    ) -> impl Iterator<Item = (Option<usize>, &'static str, &Mutex<RequestState>)> {
+        self.chunks
+            .iter()
+            .enumerate()
+            .flat_map(|(index, chunk)| {
+                [
+                    (Some(index), "range", &chunk.range_request),
+                    (Some(index), "consolidation", &chunk.consolidation_request),
+                ]
+            })
+            .chain(std::iter::once((None, "aggregation", &self.aggregation_request)))
+    }
+
+    fn check_terminal_requests(&self) -> Result<()> {
+        for (chunk_index, kind, request) in self.requests() {
+            match &*request.lock() {
+                RequestState::Terminal(outcome) => {
+                    if let Some(index) = chunk_index {
+                        bail!(
+                            "chunk {index} {kind} proof request reached terminal state: {outcome:?}"
+                        );
+                    }
+                    bail!("{kind} proof request reached terminal state: {outcome:?}");
+                }
+                RequestState::Missing |
+                RequestState::Submitting |
+                RequestState::Submitted(_) |
+                RequestState::Fulfilled(_) => {}
+            }
+        }
+        Ok(())
+    }
+
     fn request_summary(&self) -> RequestSummary {
         let mut summary = RequestSummary::default();
         let mut record = |state: &Mutex<RequestState>| match &*state.lock() {
@@ -270,11 +305,9 @@ impl GameProgress {
             RequestState::Fulfilled(_) => summary.fulfilled += 1,
             RequestState::Missing | RequestState::Terminal(_) => {}
         };
-        for chunk in &self.chunks {
-            record(&chunk.range_request);
-            record(&chunk.consolidation_request);
+        for (_, _, request) in self.requests() {
+            record(request);
         }
-        record(&self.aggregation_request);
         summary
     }
 }
@@ -322,6 +355,29 @@ impl InMemoryProofProgress {
 
     pub(crate) fn clear(&self, game_address: Address) {
         self.games.lock().remove(&game_address);
+    }
+
+    /// Resets only terminal request slots.
+    pub(crate) fn retry_terminal_requests(&self, game_address: Address) -> usize {
+        let games = self.games.lock();
+        let Some(progress) = games.get(&game_address) else {
+            return 0;
+        };
+        let mut reset = 0;
+        for (_, _, request) in progress.requests() {
+            let mut state = request.lock();
+            match &*state {
+                RequestState::Terminal(_) => {
+                    *state = RequestState::Missing;
+                    reset += 1;
+                }
+                RequestState::Missing |
+                RequestState::Submitting |
+                RequestState::Submitted(_) |
+                RequestState::Fulfilled(_) => {}
+            }
+        }
+        reset
     }
 }
 
@@ -423,6 +479,7 @@ async fn complete_request(
     Ok(proof)
 }
 
+/// Terminal requests are rejected by the preflight in `plan_game_attempt`.
 fn reuse_fulfilled_aggregation(
     state: &Mutex<RequestState>,
     game: &GameProofInputs,
@@ -430,9 +487,6 @@ fn reuse_fulfilled_aggregation(
 ) -> Result<Option<Vec<u8>>> {
     let proof = match &*state.lock() {
         RequestState::Fulfilled(proof) => Arc::clone(proof),
-        RequestState::Terminal(outcome) => {
-            bail!("aggregation proof request reached terminal state: {outcome:?}")
-        }
         _ => return Ok(None),
     };
     verify(&proof)?;
@@ -660,7 +714,6 @@ async fn prove_chunk_inner(
     let chunk_progress = &progress.chunks[index];
     let synthesized = &plan.synthesized;
     let span = synthesized.range_inputs.span;
-
     let range_host = build_interop_host(
         host_inputs,
         game.l1_head,
@@ -720,13 +773,13 @@ async fn prove_chunk_inner(
     Ok(ChunkResult { index, range_outputs, consolidation_outputs, proofs })
 }
 
+/// Selects cached progress and rejects terminal attempts before returning executable chunks.
 fn plan_game_attempt(
     provider: &ProofProvider,
     keys: Option<&ProofKeys>,
-    game: &GameProofInputs,
-    responses: &[SuperRootAtTimestampResponse],
-    split: RangeSplitCount,
-) -> Result<(Vec<ChunkPlan>, AttemptIdentity)> {
+    request: &ProveGameRequest<'_>,
+) -> Result<(Vec<ChunkPlan>, Arc<GameProgress>)> {
+    let ProveGameRequest { game_address, game, responses, split, proof_progress, .. } = *request;
     let chunks = split.split(game.starting_ts, game.claim_ts)?;
     let mut plans = Vec::with_capacity(chunks.len());
     let mut chunk_identities = Vec::with_capacity(chunks.len());
@@ -759,7 +812,9 @@ fn plan_game_attempt(
         provider: provider_identity(provider, keys)?,
         chunks: chunk_identities,
     };
-    Ok((plans, identity))
+    let progress = proof_progress.load_or_create(game_address, identity);
+    progress.check_terminal_requests()?;
+    Ok((plans, progress))
 }
 
 /// Inputs for one in-process game-proving attempt.
@@ -789,12 +844,11 @@ pub async fn prove_game_inner(
     host_inputs: &HostInputs,
     request: ProveGameRequest<'_>,
 ) -> Result<Vec<u8>> {
-    let ProveGameRequest { game_address, game, responses, split, max_concurrent, proof_progress } =
-        request;
     if !provider.is_mock() {
         ensure!(keys.is_some(), "network proving requires prestate proving keys");
     }
-    let (plans, identity) = plan_game_attempt(provider, keys, game, responses, split)?;
+    let (plans, progress) = plan_game_attempt(provider, keys, &request)?;
+    let ProveGameRequest { game, responses, max_concurrent, .. } = request;
     let chunk_count = plans.len();
     tracing::info!(
         starting_ts = game.starting_ts,
@@ -802,7 +856,6 @@ pub async fn prove_game_inner(
         chunks = chunk_count,
         "Proving game span"
     );
-    let progress = proof_progress.load_or_create(game_address, identity);
 
     if !provider.is_mock() &&
         let Some(proof) =
@@ -1172,7 +1225,7 @@ mod tests {
     }
 
     #[test]
-    fn synthesized_input_change_replaces_progress() {
+    fn terminal_attempt_retries_only_after_identity_change_or_reset() {
         let start = response_at(100, 0x01, 5);
         let middle = response_at(101, 0x02, 5);
         let end = response_at(102, 0x03, 5);
@@ -1180,27 +1233,150 @@ mod tests {
         let responses = vec![start.clone(), middle, end.clone()];
         let provider = ProofProvider::Mock(crate::prover::MockProofProvider);
         let cache = InMemoryProofProgress::default();
-        let game_address = Address::repeat_byte(0x45);
-
-        let (_, identity) =
-            plan_game_attempt(&provider, None, &game, &responses, RangeSplitCount::one()).unwrap();
-        let first = cache.load_or_create(game_address, identity);
-
-        let (_, identity) =
-            plan_game_attempt(&provider, None, &game, &responses, RangeSplitCount::one()).unwrap();
-        let unchanged = cache.load_or_create(game_address, identity);
-        assert!(Arc::ptr_eq(&first, &unchanged));
+        let request = ProveGameRequest {
+            game_address: Address::repeat_byte(0x45),
+            game: &game,
+            responses: &responses,
+            split: RangeSplitCount::one(),
+            max_concurrent: NonZeroUsize::MIN,
+            proof_progress: &cache,
+        };
+        let (_, progress) = plan_game_attempt(&provider, None, &request).unwrap();
+        *progress.chunks[0].range_request.lock() =
+            RequestState::Terminal(ProofTerminalState::Unexecutable);
+        assert!(plan_game_attempt(&provider, None, &request).is_err());
 
         let changed_responses = vec![start, response_at(101, 0x04, 5), end];
-        let (_, identity) =
-            plan_game_attempt(&provider, None, &game, &changed_responses, RangeSplitCount::one())
-                .unwrap();
-        let changed = cache.load_or_create(game_address, identity);
+        let request = ProveGameRequest { responses: &changed_responses, ..request };
+        let (_, progress) = plan_game_attempt(&provider, None, &request).unwrap();
+        *progress.chunks[0].range_request.lock() =
+            RequestState::Terminal(ProofTerminalState::ValidationFailed);
+        assert!(plan_game_attempt(&provider, None, &request).is_err());
 
-        assert!(!Arc::ptr_eq(&first, &changed));
-        assert_eq!(first.identity.game, changed.identity.game);
-        assert_eq!(first.identity.provider, changed.identity.provider);
-        assert_ne!(first.identity.chunks, changed.identity.chunks);
+        assert_eq!(cache.retry_terminal_requests(request.game_address), 1);
+        let (_, progress) = plan_game_attempt(&provider, None, &request).unwrap();
+        *progress.chunks[0].range_request.lock() =
+            RequestState::Terminal(ProofTerminalState::Unexecutable);
+        assert!(plan_game_attempt(&provider, None, &request).is_err());
+    }
+
+    #[test]
+    fn terminal_preflight_checks_later_children_and_aggregation() {
+        let responses =
+            vec![response_at(100, 1, 5), response_at(101, 2, 5), response_at(102, 3, 5)];
+        let game = game_for(&responses[0], &responses[2], 10);
+        let provider = ProofProvider::Mock(crate::prover::MockProofProvider);
+        for (slot, state) in [
+            (2, ProofTerminalState::Unexecutable),
+            (3, ProofTerminalState::ValidationFailed),
+            (4, ProofTerminalState::Unexecutable),
+        ] {
+            let cache = InMemoryProofProgress::default();
+            let request = ProveGameRequest {
+                game_address: Address::repeat_byte(0x45),
+                game: &game,
+                responses: &responses,
+                split: RangeSplitCount::new(2).unwrap(),
+                max_concurrent: NonZeroUsize::MIN,
+                proof_progress: &cache,
+            };
+            let (_, progress) = plan_game_attempt(&provider, None, &request).unwrap();
+            let (_, _, request_state) = progress.requests().nth(slot).unwrap();
+            *request_state.lock() = RequestState::Terminal(state);
+            let error = plan_game_attempt(&provider, None, &request)
+                .err()
+                .expect("terminal attempts must not return executable chunk plans");
+            assert!(!is_unprovable(&error), "{error}");
+        }
+    }
+
+    #[tokio::test]
+    async fn terminal_reset_preserves_reusable_work() {
+        let start = response_at(100, 1, 5);
+        let end = response_at(102, 3, 5);
+        let game = game_for(&start, &end, 10);
+        let address = Address::repeat_byte(0x45);
+        let cache = InMemoryProofProgress::default();
+        let identity = attempt_identity(game);
+        let progress = cache.load_or_create(address, identity.clone());
+        run_chunk_with_progress(&progress.chunks[0], async { Ok(chunk_result(0)) }).await.unwrap();
+        let mut proof = fulfilled_proof();
+        proof.public_values = SP1PublicValues::from(&[0x42]);
+        let proof = Arc::new(proof);
+        *progress.chunks[0].range_request.lock() = RequestState::Fulfilled(proof.clone());
+        *progress.chunks[0].consolidation_request.lock() = RequestState::Fulfilled(proof);
+        let pending_id = B256::repeat_byte(0x46);
+        *progress.chunks[1].range_request.lock() = RequestState::Submitted(pending_id);
+        *progress.chunks[1].consolidation_request.lock() =
+            RequestState::Terminal(ProofTerminalState::Unexecutable);
+        *progress.aggregation_request.lock() =
+            RequestState::Terminal(ProofTerminalState::ValidationFailed);
+
+        assert_eq!(cache.retry_terminal_requests(address), 2);
+        let progress = cache.load_or_create(address, identity);
+        run_chunk_with_progress(&progress.chunks[0], async { panic!("completed chunk was lost") })
+            .await
+            .unwrap();
+        let reused = complete_request(
+            &progress.chunks[0].range_request,
+            async || panic!("fulfilled request was resubmitted"),
+            async |_| panic!("fulfilled request was polled"),
+            |_| Ok(()),
+        )
+        .await
+        .unwrap();
+        assert_eq!(reused.public_values.as_slice(), &[0x42]);
+        complete_request(
+            &progress.chunks[1].range_request,
+            async || panic!("pending request was resubmitted"),
+            async |id| {
+                assert_eq!(id, pending_id);
+                Ok(fulfilled_proof())
+            },
+            |_| Ok(()),
+        )
+        .await
+        .unwrap();
+        let submissions = AtomicUsize::new(0);
+        for slot in [&progress.chunks[1].consolidation_request, &progress.aggregation_request] {
+            complete_request(
+                slot,
+                async || {
+                    submissions.fetch_add(1, Ordering::Relaxed);
+                    Ok(B256::repeat_byte(0x47))
+                },
+                async |_| Ok(fulfilled_proof()),
+                |_| Ok(()),
+            )
+            .await
+            .unwrap();
+        }
+        assert_eq!(submissions.load(Ordering::Relaxed), 2);
+    }
+
+    #[test]
+    fn terminal_reset_preserves_fulfilled_aggregation() {
+        let start = response_at(100, 1, 5);
+        let end = response_at(102, 3, 5);
+        let game = game_for(&start, &end, 10);
+        let address = Address::repeat_byte(0x48);
+        let cache = InMemoryProofProgress::default();
+        let identity = attempt_identity(game.clone());
+        let progress = cache.load_or_create(address, identity.clone());
+        let expected = expected_aggregation_public_values(&game);
+        let proof = SP1ProofWithPublicValues {
+            proof: SP1Proof::Plonk(Default::default()),
+            public_values: SP1PublicValues::from(&expected),
+            ..fulfilled_proof()
+        };
+        let bytes = proof.bytes();
+        *progress.aggregation_request.lock() = RequestState::Fulfilled(Arc::new(proof));
+        assert_eq!(cache.retry_terminal_requests(address), 0);
+        let progress = cache.load_or_create(address, identity);
+        assert_eq!(
+            reuse_fulfilled_aggregation(&progress.aggregation_request, &game, |_| Ok(())).unwrap(),
+            Some(bytes),
+        );
     }
 
     #[test]
@@ -1612,6 +1788,9 @@ mod tests {
         let release_admitted = Arc::new(tokio::sync::Notify::new());
         let admitted_completed = Arc::new(AtomicBool::new(false));
         let queued_started = Arc::new(AtomicBool::new(false));
+        let start = response_at(100, 1, 5);
+        let end = response_at(102, 3, 5);
+        let progress = Arc::new(GameProgress::new(attempt_identity(game_for(&start, &end, 10))));
 
         let tasks = (0..3).map(|index| {
             let admitted_started = Arc::clone(&admitted_started);
@@ -1619,18 +1798,33 @@ mod tests {
             let release_admitted = Arc::clone(&release_admitted);
             let admitted_completed = Arc::clone(&admitted_completed);
             let queued_started = Arc::clone(&queued_started);
+            let progress = Arc::clone(&progress);
             async move {
                 match index {
                     0 => {
                         admitted_started.notify_one();
                         release_admitted.notified().await;
+                        let result = complete_request(
+                            &progress.chunks[0].range_request,
+                            async || Ok(B256::repeat_byte(0x49)),
+                            async |proof_id| {
+                                Err(ProofWaitError::Terminal {
+                                    proof_id,
+                                    state: ProofTerminalState::Unexecutable,
+                                    fulfillment_status: 0,
+                                    execution_status: 0,
+                                })
+                            },
+                            |_| Ok(()),
+                        )
+                        .await;
                         admitted_completed.store(true, Ordering::SeqCst);
-                        Ok(index)
+                        result.map(|_| index)
                     }
                     1 => {
                         admitted_started.notified().await;
                         error_reported.notify_one();
-                        Err(anyhow::anyhow!("chunk B failed"))
+                        Err(std::io::Error::from(std::io::ErrorKind::TimedOut).into())
                     }
                     2 => {
                         queued_started.store(true, Ordering::SeqCst);
@@ -1652,7 +1846,8 @@ mod tests {
         let result = run_chunk_tasks_until_error(tasks, 2).await;
         controller.await.unwrap();
 
-        assert_eq!(result.unwrap_err().to_string(), "chunk B failed");
+        assert!(result.unwrap_err().downcast_ref::<std::io::Error>().is_some());
+        assert!(progress.check_terminal_requests().is_err());
         assert!(
             admitted_completed.load(Ordering::SeqCst),
             "admitted sibling was dropped before completion"

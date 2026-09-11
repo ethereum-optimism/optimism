@@ -105,6 +105,8 @@ More detailed guidance for AI agents can be found in:
 - [docs/ai/rust-dev.md](docs/ai/rust-dev.md) - Rust development (kona, op-reth, alloy crates)
 - [docs/ai/reth-update-review.md](docs/ai/reth-update-review.md) - Reviewing reth/revm/alloy dependency bumps: the risk guide for upstream changes that should force a change in our in-tree op- forks but produce no diff (silent overrides, new defaults/variants, sync drift, consensus-critical math). Pairs with the `reth-update-reviewer` agent
 - [docs/ai/derivation.md](docs/ai/derivation.md) - Derivation pipeline development (op-node, kona-node)
+- [docs/ai/spec-driven-review.md](docs/ai/spec-driven-review.md) - Shared method and evidence contract for specification-driven reviewer agents
+- [docs/ai/derivation-batch-review.md](docs/ai/derivation-batch-review.md) - Reviewing batch decoding and validation against protocol specifications. Pairs with the `derivation-batch-reviewer` agent
 - [docs/ai/execution-layer.md](docs/ai/execution-layer.md) - Execution layer development (op-reth / EVM, fees, deposits)
 - [docs/ai/fault-proofs.md](docs/ai/fault-proofs.md) - Fault proof system (Cannon, kona-client, dispute games)
 - [docs/ai/devfeatures.md](docs/ai/devfeatures.md) - The `DevFeatures` bitmap system gating in-development smart contract features: where the bitmap is supplied, composed, propagated, and read. Only relevant for contract development and op-deployer — not needed for client (op-node / op-reth / kona) work

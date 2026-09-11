@@ -399,6 +399,10 @@ impl ProofEngine for ProductionProofEngine {
     fn clear(&self, game_address: Address) {
         self.proof_progress.clear(game_address);
     }
+
+    fn retry_terminal_requests(&self, game_address: Address) -> usize {
+        self.proof_progress.retry_terminal_requests(game_address)
+    }
 }
 
 /// Production transaction construction, serialized submission, and receipt decoding.
