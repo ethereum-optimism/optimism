@@ -112,11 +112,11 @@ Supported chain names include all those recognized by `alloy_chains` (e.g., `opt
 | Flag | Env | Description | Default |
 |------|-----|-------------|---------|
 | `--sequencer.stopped` | `KONA_NODE_SEQUENCER_STOPPED` | Start sequencer in stopped state | `false` |
-| `--sequencer.max-safe-lag <N>` | `KONA_NODE_SEQUENCER_MAX_SAFE_LAG` | Max L2 safe/unsafe lag | `0` |
+| `--sequencer.max-safe-lag <N>` | `KONA_NODE_SEQUENCER_MAX_SAFE_LAG` | Reserved for op-node compatibility. Kona currently requires `0` and exits at startup if a nonzero value is configured. | `0` |
 | `--sequencer.l1-confs <N>` | `KONA_NODE_SEQUENCER_L1_CONFS` | L1 block confirmations for sequencer | `4` |
 | `--sequencer.recover` | `KONA_NODE_SEQUENCER_RECOVER` | Strictly prepare next L1 origin and create empty L2 blocks | `false` |
 | `--conductor.rpc <URL>` | `KONA_NODE_CONDUCTOR_RPC` | RPC endpoint URL of an external conductor service. Supplying it enables the conductor integration in sequencer mode; it has no effect in validator mode. | - |
-| `--conductor.rpc.timeout <SECONDS>` | `KONA_NODE_CONDUCTOR_RPC_TIMEOUT` | Conductor service RPC timeout | `1` |
+| `--conductor.rpc.timeout <SECONDS>` | `KONA_NODE_CONDUCTOR_RPC_TIMEOUT` | Timeout applied to each conductor RPC request | `1` |
 
 ## Interop Arguments
 
@@ -159,4 +159,3 @@ in the help menu by running `kona-node node --help`. The only
 overrides currently supported are hardfork timestamps in seconds.
 
 [scr]: https://github.com/ethereum-optimism/superchain-registry/tree/main
-

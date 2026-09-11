@@ -357,8 +357,9 @@ impl RollupNode {
         let delayed_origin_selector =
             L1OriginSelector::new(self.config.clone(), delayed_l1_provider);
 
-        let conductor =
-            self.sequencer_config.conductor_rpc_url.clone().map(ConductorClient::new_http);
+        let conductor = self.sequencer_config.conductor_rpc_url.clone().map(|url| {
+            ConductorClient::new_http_with_timeout(url, self.sequencer_config.conductor_rpc_timeout)
+        });
 
         let sequencer_engine_client =
             QueuedSequencerEngineClient { engine_actor_request_tx, unsafe_head_rx };
