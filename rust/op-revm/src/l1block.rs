@@ -172,6 +172,12 @@ impl L1BlockInfo {
     ///
     /// Introduced in isthmus. Prior to isthmus, the operator fee is always zero.
     pub fn operator_fee_charge(&self, input: &[u8], gas_limit: U256, spec_id: OpSpecId) -> U256 {
+        // Operator fees do not exist before Isthmus. Guard the fork before reading the
+        // Isthmus-only L1 block fields so callers replaying older blocks cannot panic.
+        if !spec_id.is_enabled_in(OpSpecId::ISTHMUS) {
+            return U256::ZERO;
+        }
+
         // If the input is a deposit transaction or empty, the default value is zero.
         if input.is_empty() || input.first() == Some(&0x7E) {
             return U256::ZERO;
@@ -641,6 +647,13 @@ mod tests {
         };
 
         let input = [0x01u8];
+
+        let pre_isthmus_fee = L1BlockInfo::default().operator_fee_charge(
+            &input,
+            U256::from(1_000u64),
+            OpSpecId::FJORD,
+        );
+        assert_eq!(pre_isthmus_fee, U256::ZERO);
 
         let isthmus_fee =
             l1_block_info.operator_fee_charge(&input, U256::from(1_000u64), OpSpecId::ISTHMUS);

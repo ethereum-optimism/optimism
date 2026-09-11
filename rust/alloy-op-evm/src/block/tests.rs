@@ -149,7 +149,8 @@ fn build_executor<'a>(
 ) -> JovianTestExecutor<'a> {
     let ctx = Context::mainnet()
         .with_tx(crate::OpTx(OpTransaction::builder().build_fill()))
-        .with_cfg(CfgEnv::new_with_spec(OpSpecId::BEDROCK))
+        // Initialize directly at Jovian so `GasParams` includes Prague's EIP-7623 floor.
+        .with_cfg(CfgEnv::new_with_spec(OpSpecId::JOVIAN))
         .with_chain(L1BlockInfo::default())
         .with_db(db)
         .with_chain(L1BlockInfo {
@@ -163,8 +164,7 @@ fn build_executor<'a>(
             basefee: base_fee,
             beneficiary,
             ..Default::default()
-        })
-        .modify_cfg_chained(|cfg| cfg.spec = OpSpecId::JOVIAN);
+        });
 
     let evm = OpEvm::new(
         ctx.build_op_with_inspector(NoOpInspector {}),
@@ -553,6 +553,7 @@ fn test_none_parent_timestamp_skips_check() {
 }
 
 const OBSERVER_TEST_CONTRACT: Address = Address::with_last_byte(0x42);
+const CALLDATA_FLOOR_TEST_CONTRACT: Address = Address::with_last_byte(0x43);
 
 /// Bytecode that executes CREATE, CALL, and SELFDESTRUCT. Every opcode also drives `step`.
 const OBSERVER_TEST_BYTECODE: &[u8] = &[
@@ -572,6 +573,30 @@ fn prepare_observer_db() -> State<InMemoryDB> {
             code: Some(Bytecode::new_raw(code)),
             ..Default::default()
         },
+    );
+    db
+}
+
+/// Builds a state whose test contract both earns a native EVM refund and executes enough work to
+/// remain above the EIP-7623 floor before SDM is applied.
+fn prepare_calldata_floor_db() -> State<InMemoryDB> {
+    let mut db = prepare_jovian_db(0);
+    let mut raw_code = Vec::with_capacity(304);
+    for _ in 0..100 {
+        // Repeatedly read slot zero: PUSH0; SLOAD; POP.
+        raw_code.extend_from_slice(&[0x5f, 0x54, 0x50]);
+    }
+    // Clear the originally non-zero slot to earn a native EVM storage refund, then stop.
+    raw_code.extend_from_slice(&[0x5f, 0x5f, 0x55, 0x00]);
+    let code = Bytes::from(raw_code);
+    db.insert_account_with_storage(
+        CALLDATA_FLOOR_TEST_CONTRACT,
+        AccountInfo {
+            code_hash: keccak256(&code),
+            code: Some(Bytecode::new_raw(code)),
+            ..Default::default()
+        },
+        HashMap::from_iter([(U256::ZERO, U256::from(1))]),
     );
     db
 }
@@ -614,7 +639,8 @@ where
 {
     let ctx = Context::mainnet()
         .with_tx(crate::OpTx(OpTransaction::builder().build_fill()))
-        .with_cfg(CfgEnv::new_with_spec(OpSpecId::BEDROCK))
+        // Initialize directly at Jovian so `GasParams` includes Prague's EIP-7623 floor.
+        .with_cfg(CfgEnv::new_with_spec(OpSpecId::JOVIAN))
         .with_chain(L1BlockInfo::default())
         .with_db(db)
         .with_block(BlockEnv {
@@ -623,8 +649,7 @@ where
             basefee: base_fee,
             beneficiary,
             ..Default::default()
-        })
-        .modify_cfg_chained(|cfg| cfg.spec = OpSpecId::JOVIAN);
+        });
 
     let evm: OpEvm<_, _, _, crate::OpTx, R> = OpEvm::new(
         ctx.build_op_with_inspector(NoOpInspector {}),
@@ -642,6 +667,16 @@ fn observer_test_tx() -> Recovered<OpTxEnvelope> {
     recovered_legacy(TxLegacy {
         to: TxKind::Call(OBSERVER_TEST_CONTRACT),
         gas_limit: 200_000,
+        ..Default::default()
+    })
+}
+
+/// An execution-heavy transaction with enough non-zero calldata for a meaningful EIP-7623 floor.
+fn calldata_floor_test_tx() -> Recovered<OpTxEnvelope> {
+    recovered_legacy(TxLegacy {
+        to: TxKind::Call(CALLDATA_FLOOR_TEST_CONTRACT),
+        gas_limit: 200_000,
+        input: Bytes::from(vec![0xff; 128]),
         ..Default::default()
     })
 }
