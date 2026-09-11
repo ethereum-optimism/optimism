@@ -173,11 +173,13 @@ func (i *Interop) verifyExecutingMessage(executingChain eth.ChainID, executingTi
 			executingChain, executingTimestamp, i.activationTimestamp, ErrExecutedTooEarly)
 	}
 
-	initChain, ok := i.chains[execMsg.ChainID]
+	// The initiating chain may be a driven chain or a remote (adapter-backed) source;
+	// both can originate initiating messages, so consult both for its block time.
+	initChainBlockTime, ok := i.initiatingBlockTime(execMsg.ChainID)
 	if !ok {
 		return fmt.Errorf("initiating chain %s not registered: %w", execMsg.ChainID, ErrUnknownChain)
 	}
-	if execMsg.Timestamp < i.activationTimestamp+initChain.BlockTime() {
+	if execMsg.Timestamp < i.activationTimestamp+initChainBlockTime {
 		return fmt.Errorf("initiating chain %s timestamp %d < activation %d + blockTime: %w",
 			execMsg.ChainID, execMsg.Timestamp, i.activationTimestamp, ErrInitiatedTooEarly)
 	}

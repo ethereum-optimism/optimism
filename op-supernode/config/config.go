@@ -32,6 +32,10 @@ type CLIConfig struct {
 	// DependencySetPath is the path to a JSON dependency-set file shared by every chain
 	// managed by the supernode. Empty means fall back to per-chain registry lookup.
 	DependencySetPath string
+	// RemoteNodes lists remote interop nodes as "<chainID>=<url>" specs. Each names a
+	// chain the supernode does not drive, whose finalized initiating messages are polled
+	// from the URL via the remote-node HTTP protocol. Parsed in supernode.New.
+	RemoteNodes []string
 }
 
 func (c *CLIConfig) Check() error {
@@ -77,6 +81,7 @@ func NewConfig(ctx *cli.Context) *CLIConfig {
 		RawCtx:                  ctx,
 		InteropLogBackfillDepth: ctx.Duration("interop.log-backfill-depth"),
 		DependencySetPath:       ctx.Path(flags.DependencySet.Name),
+		RemoteNodes:             ctx.StringSlice(flags.RemoteNodes.Name),
 	}
 	if ctx.IsSet("interop.activation-timestamp") {
 		ts := ctx.Uint64("interop.activation-timestamp")
