@@ -527,7 +527,7 @@ contract OPContractsManagerMigrationValidator {
                 _errors
             );
 
-            _errors = assertRetiredContractsClean(_errors, _input, i, sharedLockbox, idx);
+            _errors = assertRetiredContractsClean(_errors, _input, i, sharedLockbox, idx, _superchainConfig);
             _errors = assertLegacyPauseRouting(_errors, _input, i, sharedLockbox, idx);
         }
 
@@ -540,13 +540,15 @@ contract OPContractsManagerMigrationValidator {
     /// @param _i The chain's index.
     /// @param _sharedLockbox The shared lockbox, which is never treated as retired.
     /// @param _idx The chain's index as a string, used to build the error codes.
+    /// @param _superchainConfig The expected SuperchainConfig, which holds the pause authority.
     /// @return The accumulated error string.
     function assertRetiredContractsClean(
         string memory _errors,
         IOPContractsManagerMigrationValidator.MigrationValidationInput memory _input,
         uint256 _i,
         IETHLockbox _sharedLockbox,
-        string memory _idx
+        string memory _idx,
+        ISuperchainConfig _superchainConfig
     )
         internal
         view
@@ -554,9 +556,6 @@ contract OPContractsManagerMigrationValidator {
     {
         IOptimismPortal2 portal = IOptimismPortal2(payable(_input.chainSystemConfigs[_i].optimismPortal()));
         IETHLockbox legacyLockbox = _input.legacyChainContracts[_i].ethLockbox;
-
-        // Read the SuperchainConfig from chain 0, which is the one that governs the set.
-        ISuperchainConfig superchainConfig = _input.chainSystemConfigs[0].superchainConfig();
 
         _errors = internalRequire(address(portal).balance == 0, string.concat("MIG-CHAIN-", _idx, "-150"), _errors);
 
@@ -568,11 +567,11 @@ contract OPContractsManagerMigrationValidator {
                 internalRequire(address(legacyLockbox).balance == 0, string.concat("MIG-CHAIN-", _idx, "-160"), _errors);
         }
         _errors = internalRequire(
-            !superchainConfig.paused(address(portal)), string.concat("MIG-CHAIN-", _idx, "-170"), _errors
+            !_superchainConfig.paused(address(portal)), string.concat("MIG-CHAIN-", _idx, "-170"), _errors
         );
         if (hasRetiredLockbox) {
             _errors = internalRequire(
-                !superchainConfig.paused(address(legacyLockbox)), string.concat("MIG-CHAIN-", _idx, "-180"), _errors
+                !_superchainConfig.paused(address(legacyLockbox)), string.concat("MIG-CHAIN-", _idx, "-180"), _errors
             );
         }
         return _errors;
