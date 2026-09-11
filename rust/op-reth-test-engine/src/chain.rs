@@ -2,49 +2,217 @@
 
 use std::sync::Arc;
 
-use alloy_consensus::Header;
+use alloy_consensus::{Header, transaction::SignerRecoverable};
 use alloy_eips::BlockHashOrNumber;
 use alloy_genesis::Genesis;
 use alloy_primitives::B256;
+use op_revm::constants::L1_BLOCK_CONTRACT;
+use reth_chain_state::{ExecutedBlock, NewCanonicalChain};
 use reth_db::{DatabaseEnv, test_utils::TempDatabase};
 use reth_db_common::init::init_genesis;
+use reth_evm::{
+    ConfigureEvm,
+    execute::{BlockBuilder, BlockBuilderOutcome},
+};
 use reth_node_api::NodeTypesWithDBAdapter;
 use reth_optimism_chainspec::OpChainSpec;
+use reth_optimism_evm::{OpEvmConfig, OpNextBlockEnvAttributes, OpRethReceiptBuilder};
 use reth_optimism_node::OpNode;
-use reth_optimism_primitives::{OpBlock, OpReceipt};
+use reth_optimism_primitives::{OpBlock, OpPrimitives, OpReceipt, OpTransactionSigned};
+use reth_primitives_traits::{RecoveredBlock, SealedHeader};
 use reth_provider::{
-    providers::BlockchainProvider, test_utils::create_test_provider_factory_with_node_types,
+    ProviderError, providers::BlockchainProvider,
+    test_utils::create_test_provider_factory_with_node_types,
 };
-use reth_storage_api::{BlockReader, HeaderProvider, ReceiptProvider};
+use reth_revm::{database::StateProviderDatabase, db::State};
+use reth_storage_api::{
+    BlockReader, HeaderProvider, ReceiptProvider, StateProviderBox, StateProviderFactory,
+};
+
+use crate::Error;
+
+/// A block assembled from a parent state plus a set of transactions, with the total gas the
+/// stateful builder needs to track remaining block gas.
+pub(crate) struct BuiltBlock {
+    /// The sealed, recovered block.
+    pub block: RecoveredBlock<OpBlock>,
+    /// Total gas used by the block.
+    pub gas_used: u64,
+}
 
 type TestNodeTypes = NodeTypesWithDBAdapter<OpNode, Arc<TempDatabase<DatabaseEnv>>>;
 type Provider = BlockchainProvider<TestNodeTypes>;
 
 /// An ephemeral, genesis-initialized OP chain answering read-only block/header/receipt
-/// queries.
+/// queries and accepting executed blocks onto the canonical chain.
 ///
-/// State and indexing are provided by a reth provider, so trie state roots and receipt
-/// lookups are real rather than reimplemented here. The backing storage is ephemeral and
-/// discarded when the chain is dropped.
+/// State and indexing are provided by a reth provider, so trie state roots and receipt lookups are
+/// real rather than reimplemented here. Genesis lives in an ephemeral (tmpfs-backed) database;
+/// blocks built on top are held in the provider's in-memory canonical state and overlay it, so
+/// nothing past genesis is written to disk. The backing storage is discarded when the chain drops.
 #[derive(Debug)]
 pub struct EphemeralChain {
     provider: Provider,
+    chain_spec: Arc<OpChainSpec>,
     genesis_hash: B256,
 }
 
 impl EphemeralChain {
     /// Build an ephemeral chain from a genesis spec, initializing genesis state.
     pub fn new(genesis: Genesis) -> crate::Result<Self> {
-        let chain_spec: OpChainSpec = genesis.into();
-        let factory = create_test_provider_factory_with_node_types::<OpNode>(Arc::new(chain_spec));
+        Self::from_chain_spec(Arc::new(genesis.into()))
+    }
+
+    /// Build an ephemeral chain from an already-constructed chain spec.
+    ///
+    /// Tests use this to activate hardforks via [`OpChainSpecBuilder`][reth_optimism_chainspec]
+    /// (which encodes activations directly) rather than round-tripping them through genesis JSON.
+    pub(crate) fn from_chain_spec(chain_spec: Arc<OpChainSpec>) -> crate::Result<Self> {
+        let factory = create_test_provider_factory_with_node_types::<OpNode>(chain_spec.clone());
         let genesis_hash = init_genesis(&factory)?;
         let provider = BlockchainProvider::new(factory)?;
-        Ok(Self { provider, genesis_hash })
+        Ok(Self { provider, chain_spec, genesis_hash })
+    }
+
+    /// The chain spec this chain was initialized with.
+    pub(crate) fn chain_spec(&self) -> Arc<OpChainSpec> {
+        self.chain_spec.clone()
     }
 
     /// The hash of the genesis block.
     pub const fn genesis_hash(&self) -> B256 {
         self.genesis_hash
+    }
+
+    /// The sealed header of the current canonical head.
+    #[cfg(test)]
+    pub(crate) fn tip_header(&self) -> SealedHeader {
+        self.provider.canonical_in_memory_state().get_canonical_head()
+    }
+
+    /// A state provider for the chain tip (a memory overlay over the genesis DB state once
+    /// blocks have been built), used as the parent state for executing the next block.
+    #[cfg(test)]
+    pub(crate) fn latest_state(&self) -> crate::Result<StateProviderBox> {
+        Ok(self.provider.latest()?)
+    }
+
+    /// A state provider rooted at `hash`, or `None` if that block is unknown to the chain.
+    pub(crate) fn state_at(&self, hash: B256) -> crate::Result<Option<StateProviderBox>> {
+        match self.provider.state_by_block_hash(hash) {
+            Ok(state) => Ok(Some(state)),
+            Err(ProviderError::StateForHashNotFound(_)) => Ok(None),
+            Err(err) => Err(err.into()),
+        }
+    }
+
+    /// The sealed header of the block `hash`, or `None` if unknown. The hash is trusted rather than
+    /// recomputed, since it came from a header the provider already indexed.
+    pub(crate) fn sealed_header(&self, hash: B256) -> crate::Result<Option<SealedHeader>> {
+        Ok(self.provider.header(hash)?.map(|header| SealedHeader::new(header, hash)))
+    }
+
+    /// Assemble a block on top of `parent_hash` from `next_env` and `txs`, computing all roots.
+    ///
+    /// This drives reth's [`BlockBuilder`] end-to-end: it opens a fresh bundle state over the
+    /// parent, applies pre-execution system changes, executes each transaction in order, and seals
+    /// the block via the OP block assembler (which fills in Holocene `extraData`, the Isthmus
+    /// withdrawals root, and so on). Nothing is committed — the caller round-trips the result
+    /// through [`new_payload`](crate::TestEngine::new_payload). Executing the same `txs` twice is
+    /// deterministic, which is what lets the stateful builder re-run the accumulated list on each
+    /// `include_tx`/`get_payload` call rather than holding a live executor across RPC round-trips.
+    pub(crate) fn assemble_block(
+        &self,
+        parent_hash: B256,
+        next_env: OpNextBlockEnvAttributes,
+        txs: &[OpTransactionSigned],
+    ) -> crate::Result<BuiltBlock> {
+        let evm_config: OpEvmConfig =
+            OpEvmConfig::new(self.chain_spec(), OpRethReceiptBuilder::default());
+        let parent = self
+            .sealed_header(parent_hash)?
+            .ok_or_else(|| Error::Execution(format!("parent block {parent_hash} is unknown")))?;
+        let state = self
+            .state_at(parent_hash)?
+            .ok_or_else(|| Error::Execution(format!("no state for parent block {parent_hash}")))?;
+
+        let mut db = State::builder()
+            .with_database(StateProviderDatabase::new(&state))
+            .with_bundle_update()
+            .build();
+        // Assembling an OP block reads the DA-footprint scalar from the L1Block predeploy; a cold
+        // cache there panics, so preload it.
+        db.load_cache_account(L1_BLOCK_CONTRACT).map_err(exec_err)?;
+
+        let mut builder =
+            evm_config.builder_for_next_block(&mut db, &parent, next_env).map_err(exec_err)?;
+        builder.apply_pre_execution_changes().map_err(exec_err)?;
+        for tx in txs {
+            let recovered = tx.clone().try_into_recovered().map_err(|_| {
+                Error::Execution("failed to recover transaction sender".to_string())
+            })?;
+            builder.execute_transaction(recovered).map_err(exec_err)?;
+        }
+        let BlockBuilderOutcome { block, execution_result, .. } =
+            builder.finish(&state, None).map_err(exec_err)?;
+        Ok(BuiltBlock { block, gas_used: execution_result.gas_used })
+    }
+
+    /// Commit an executed block as the new canonical head.
+    ///
+    /// Both calls are required: `update_chain` inserts the block into the in-memory map (making it
+    /// queryable), while `set_canonical_head` advances the head pointer that `latest()` and
+    /// `best_block_number` read.
+    pub(crate) fn commit_block(&self, executed: ExecutedBlock<OpPrimitives>) {
+        let head = executed.recovered_block.clone_sealed_header();
+        let state = self.provider.canonical_in_memory_state();
+        state.update_chain(NewCanonicalChain::Commit { new: vec![executed] });
+        state.set_canonical_head(head);
+    }
+
+    /// Point the canonical/safe/finalized heads at the given hashes (attrs-less forkchoice).
+    ///
+    /// Returns `Ok(false)` without mutating anything if `head` is unknown to the chain, which the
+    /// engine maps to `SYNCING`. A zero `safe`/`finalized` hash is skipped; a non-zero one that is
+    /// unknown is an [`Error::UnknownForkchoiceBlock`]. All
+    /// three are resolved before any pointer is moved.
+    pub(crate) fn advance_forkchoice(
+        &self,
+        head: B256,
+        safe: B256,
+        finalized: B256,
+    ) -> crate::Result<bool> {
+        let Some(head_header) = self.provider.header(head)? else {
+            return Ok(false);
+        };
+        let safe_header = self.resolve_forkchoice_block("safe", safe)?;
+        let finalized_header = self.resolve_forkchoice_block("finalized", finalized)?;
+
+        let state = self.provider.canonical_in_memory_state();
+        state.set_canonical_head(SealedHeader::seal_slow(head_header));
+        if let Some(header) = safe_header {
+            state.set_safe(SealedHeader::seal_slow(header));
+        }
+        if let Some(header) = finalized_header {
+            state.set_finalized(SealedHeader::seal_slow(header));
+        }
+        Ok(true)
+    }
+
+    /// Look up a non-zero `safe`/`finalized` forkchoice block, erroring if it is unknown. A zero
+    /// hash means "unset" and resolves to `None`.
+    fn resolve_forkchoice_block(
+        &self,
+        which: &'static str,
+        hash: B256,
+    ) -> crate::Result<Option<Header>> {
+        if hash.is_zero() {
+            return Ok(None);
+        }
+        self.provider
+            .header(hash)?
+            .map(Some)
+            .ok_or(crate::Error::UnknownForkchoiceBlock { which, hash })
     }
 
     /// Fetch a block by number, or `None` if unknown.
@@ -66,6 +234,11 @@ impl EphemeralChain {
     pub fn receipts_by_block_hash(&self, hash: B256) -> crate::Result<Option<Vec<OpReceipt>>> {
         Ok(self.provider.receipts_by_block(BlockHashOrNumber::Hash(hash))?)
     }
+}
+
+/// Wrap a builder/EVM error as an internal execution error (distinct from an `INVALID` payload).
+fn exec_err(err: impl core::fmt::Display) -> Error {
+    Error::Execution(err.to_string())
 }
 
 #[cfg(test)]

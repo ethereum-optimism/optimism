@@ -14,6 +14,12 @@ workspace = true
 reth-optimism-chainspec.workspace = true
 reth-optimism-node.workspace = true
 reth-optimism-primitives.workspace = true
+reth-optimism-evm.workspace = true
+reth-optimism-payload-builder.workspace = true
+reth-optimism-forks.workspace = true
+
+# reth payload
+reth-payload-primitives.workspace = true
 
 # reth
 reth-provider = { workspace = true, features = ["test-utils"] }
@@ -21,12 +27,29 @@ reth-db = { workspace = true, features = ["test-utils"] }
 reth-db-common.workspace = true
 reth-node-api.workspace = true
 reth-storage-api.workspace = true
+reth-evm.workspace = true
+reth-revm.workspace = true
+reth-chain-state.workspace = true
+reth-execution-types.workspace = true
+reth-trie.workspace = true
+reth-primitives-traits.workspace = true
 
-# ethereum / alloy
+# ethereum / alloy / op-alloy
 alloy-genesis.workspace = true
 alloy-primitives.workspace = true
 alloy-consensus.workspace = true
 alloy-eips.workspace = true
+alloy-rpc-types-engine.workspace = true
+op-alloy-rpc-types-engine.workspace = true
+op-revm.workspace = true
 
 # errors
 thiserror.workspace = true
+
+[dev-dependencies]
+# The `optimism_mainnet` chain-spec constructor the tests build from lives behind this feature.
+reth-optimism-chainspec = { workspace = true, features = ["superchain-configs"] }
+op-alloy-consensus.workspace = true
+reth-chainspec.workspace = true
+alloy-network.workspace = true
+alloy-signer-local.workspace = true
