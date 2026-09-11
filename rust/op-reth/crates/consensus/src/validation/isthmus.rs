@@ -37,9 +37,10 @@ pub fn withdrawals_root<DB: StorageRootProvider>(
                 let mut hashed_storage = HashedStorage::from_plain_storage(
                     acc.storage.iter().map(|(slot, value)| (slot, &value.present_value)),
                 );
-                // `from_plain_storage` no longer derives `wiped` from the account status —
-                // reth moved that to `HashedPostStateProvider::hashed_post_state`, which this
-                // path does not go through. Keep propagating it: a wiped storage must not be
+                // `from_plain_storage` no longer derives `wiped` from the account status: reth
+                // now handles destroyed accounts in `HashedPostStateProvider::hashed_post_state`
+                // by materializing their parent slots as explicit zeroes, and this path does not
+                // go through it. Keep propagating `wiped` instead: a wiped storage must not be
                 // merged onto the pre-block trie.
                 hashed_storage.wiped = acc.status.was_destroyed();
                 hashed_storage
