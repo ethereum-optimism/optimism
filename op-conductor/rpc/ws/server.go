@@ -204,8 +204,18 @@ func (h *Handler) serveWs(w http.ResponseWriter, r *http.Request) {
 
 	client := newClient(conn, r.Context(), h.hub, h.log)
 
-	// Register the client with the hub
-	h.hub.register <- client
+	// Register the client with the hub, but do not wait forever if shutdown has
+	// already stopped the hub or the request has been cancelled.
+	select {
+	case h.hub.register <- client:
+		// registered
+	case <-h.hub.done:
+		client.Close()
+		return
+	case <-r.Context().Done():
+		client.Close()
+		return
+	}
 	h.log.Info("WebSocket client connected")
 
 	// Start client handling
