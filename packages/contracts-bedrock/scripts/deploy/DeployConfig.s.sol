@@ -6,6 +6,7 @@ import { console2 as console } from "forge-std/console2.sol";
 import { stdJson } from "forge-std/StdJson.sol";
 import { Process } from "scripts/libraries/Process.sol";
 import { Config, Fork, ForkUtils } from "scripts/libraries/Config.sol";
+import { GameTypes } from "src/dispute/lib/Types.sol";
 
 /// @title DeployConfig
 /// @notice Represents the configuration required to deploy the system. It is expected
@@ -172,7 +173,7 @@ contract DeployConfig is Script {
 
         proofMaturityDelaySeconds = _readOr(_json, "$.proofMaturityDelaySeconds", uint256(0));
         disputeGameFinalityDelaySeconds = _readOr(_json, "$.disputeGameFinalityDelaySeconds", uint256(0));
-        respectedGameType = _readOr(_json, "$.respectedGameType", uint256(5));
+        respectedGameType = _readOr(_json, "$.respectedGameType", uint256(GameTypes.SUPER_PERMISSIONED.raw()));
 
         faultGameAbsolutePrestate = stdJson.readUint(_json, "$.faultGameAbsolutePrestate");
         faultGameMaxDepth = stdJson.readUint(_json, "$.faultGameMaxDepth");
@@ -376,7 +377,7 @@ contract DeployConfig is Script {
         systemConfigStartBlock = 0;
         proofMaturityDelaySeconds = 604800;
         disputeGameFinalityDelaySeconds = 302400;
-        respectedGameType = 5;
+        respectedGameType = uint256(GameTypes.SUPER_PERMISSIONED.raw());
         useAltDA = false;
         daCommitmentType = "KeccakCommitment";
         daChallengeWindow = 100;
