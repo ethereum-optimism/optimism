@@ -1,17 +1,21 @@
 package follow_l2
 
 import (
+	"context"
 	"fmt"
 	"testing"
 	"time"
 
+	bss "github.com/ethereum-optimism/optimism/op-batcher/batcher"
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
 	"github.com/ethereum-optimism/optimism/op-devstack/dsl"
+	"github.com/ethereum-optimism/optimism/op-devstack/presets"
 	"github.com/ethereum-optimism/optimism/op-devstack/sysgo"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 
 	safety "github.com/ethereum-optimism/optimism/op-service/eth/safety"
 	"github.com/ethereum-optimism/optimism/op-test-sequencer/sequencer/seqtypes"
+	"github.com/ethereum/go-ethereum/common"
 )
 
 func TestFollowL2_Safe_Finalized_CurrentL1(gt *testing.T) {
@@ -82,58 +86,92 @@ func TestFollowL2_ReorgRecovery(gt *testing.T) {
 	// assertions.go:387:             	Test:       	TestFollowL2_ReorgRecovery
 	// assertions.go:387:             	Messages:   	single-chain test sequencer requires an op-node CL node
 	sysgo.SkipOnKonaNode(t, "not supported")
-	sys := newSingleChainTwoVerifiersFollowL2(t)
+	sys := newSingleChainTwoVerifiersFollowL2(t, presets.WithBatcherOption(func(_ sysgo.ComponentTarget, cfg *bss.CLIConfig) {
+		cfg.Stopped = true
+	}))
 	require := t.Require()
 	logger := t.Logger()
 	ctx := t.Ctx()
 
 	// L2CLB is the verifier without follow source, derivation enabled
 
+	// Keep L2 sequencing stopped while establishing a bounded L1 fork. Build
+	// the reorg target and its child through the test sequencer, then let the
+	// regular L1 producer add one block. That last block supplies the normal
+	// L1-head signal that makes the target eligible after two confirmations.
 	ts := sys.TestSequencer.Escape().ControlAPI(sys.L1Network.ChainID())
+	sys.L2CL.StopSequencer()
 	// Pass the L1 genesis
 	sys.L1Network.WaitForBlock()
 
 	// Stop auto advancing L1
 	sys.L1CL.Stop()
+	require.NoError(ts.Next(ctx))
+	l1BlockBeforeReorg := sys.L1EL.BlockRefByLabel(eth.Unsafe)
+	require.NoError(ts.Next(ctx))
+	secondNewL1Block := sys.L1EL.BlockRefByLabel(eth.Unsafe)
+	sys.L1CL.Start()
+	sys.L1EL.WaitForBlockNumber(secondNewL1Block.Number + 1)
+	sys.L1CL.Stop()
+	l1Head := sys.L1EL.BlockRefByLabel(eth.Unsafe)
 
-	startL1Block := sys.L1EL.BlockRefByLabel(eth.Unsafe)
-
+	// Sequence against the bounded fork, then freeze L2 after it adopts the
+	// first new L1 origin. Starting the batcher only now guarantees that its
+	// first pending transaction contains this range.
+	sys.L2CL.StartSequencer()
+	sys.L2EL.WaitL1OriginHash(eth.Unsafe, l1BlockBeforeReorg.ID(), 30)
+	sys.L2CL.StopSequencer()
+	sys.L2Batcher.Start()
+	batchInbox := sys.L2Chain.Escape().RollupConfig().BatchInboxAddress
+	// L1 remains stopped, so this transaction cannot be included until the
+	// explicit test-sequencer block below.
 	require.Eventually(func() bool {
-		// Advance a single L1 block. Sequencer.Next internally calls New with
-		// empty BuildOpts and tolerates ErrConflictingJob, so we do not call
-		// ts.New here — that would fail with ErrConflictingJob if a previous
-		// Next attempt timed out and left the job state wedged.
-		//
-		// We must not use require.NoError inside this polling callback: a
-		// single transient engine-API stall (CPU starvation under CI load)
-		// would otherwise mark the test failed on the first error. Instead we
-		// log and return false so Eventually retries until the L1 EL recovers.
-		if err := ts.Next(ctx); err != nil {
-			logger.Warn("ts.Next failed, will retry", "err", err)
+		lookupCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
+		defer cancel()
+		var content struct {
+			Pending map[string]map[string]struct {
+				To *common.Address `json:"to"`
+			} `json:"pending"`
+		}
+		if err := sys.L1EL.EthClient().RPC().CallContext(lookupCtx, &content, "txpool_content"); err != nil {
+			logger.Info("Waiting for pending batch transaction", "error", err)
 			return false
 		}
-		l1head := sys.L1EL.BlockRefByLabel(eth.Unsafe)
-		l2Safe := sys.L2ELB.BlockRefByLabel(eth.Safe)
+		for _, accountTxs := range content.Pending {
+			for _, tx := range accountTxs {
+				if tx.To != nil && *tx.To == batchInbox {
+					return true
+				}
+			}
+		}
+		return false
+	}, 60*time.Second, 200*time.Millisecond)
 
-		logger.Info("l1 info", "l1_head", l1head, "l1_origin", l2Safe.L1Origin, "l2Safe", l2Safe)
-		// Wait until safe L2 block has L1 origin point after the startL1Block
-		return l2Safe.Number > 0 && l2Safe.L1Origin.Number > startL1Block.Number
-	}, 120*time.Second, 2*time.Second)
+	// Include that transaction with one explicit build job, then leave L1
+	// frozen while the verifier derives the target safe block.
+	require.NoError(ts.New(ctx, seqtypes.BuildOpts{Parent: l1Head.Hash}))
+	require.NoError(ts.Next(ctx))
+	inclusionBlock := sys.L1EL.BlockRefByLabel(eth.Unsafe)
+	require.Equal(l1Head.Number+1, inclusionBlock.Number)
+	require.Equal(l1Head.Hash, inclusionBlock.ParentHash)
+	sys.L2ELB.WaitL1OriginHash(eth.Safe, l1BlockBeforeReorg.ID(), 60)
 
 	l2BlockBeforeReorg := sys.L2ELB.BlockRefByLabel(eth.Safe)
+	require.Equal(l1BlockBeforeReorg.ID(), l2BlockBeforeReorg.L1Origin)
 	logger.Info("Target L2 Block to reorg", "l2", l2BlockBeforeReorg, "l1_origin", l2BlockBeforeReorg.L1Origin)
 
 	// Make sure verifier safe head is also advanced from reorgL2Block or matched
 	sys.L2ELB.Reached(eth.Safe, l2BlockBeforeReorg.Number, 3)
 
 	// Reorg L1 block which safe block L1 Origin points to
-	l1BlockBeforeReorg := sys.L1EL.BlockRefByNumber(l2BlockBeforeReorg.L1Origin.Number)
+	require.Less(sys.L1EL.BlockRefByLabel(eth.Safe).Number, l1BlockBeforeReorg.Number, "reorg target must be above the L1 safe head")
 	logger.Info("Triggering L1 reorg", "l1", l1BlockBeforeReorg)
 	require.NoError(ts.New(ctx, seqtypes.BuildOpts{Parent: l1BlockBeforeReorg.ParentHash}))
 	require.NoError(ts.Next(ctx))
 
-	// Start advancing L1
+	// Start advancing L1 and L2
 	sys.L1CL.Start()
+	sys.L2CL.StartSequencer()
 
 	// Make sure L1 reorged
 	sys.L1EL.WaitForBlockNumber(l1BlockBeforeReorg.Number)

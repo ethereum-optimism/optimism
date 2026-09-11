@@ -19,6 +19,6 @@ func followL2Opts() []presets.Option {
 	}
 }
 
-func newSingleChainTwoVerifiersFollowL2(t devtest.T) *presets.SingleChainTwoVerifiers {
-	return presets.NewSingleChainTwoVerifiersWithoutCheck(t, followL2Opts()...)
+func newSingleChainTwoVerifiersFollowL2(t devtest.T, opts ...presets.Option) *presets.SingleChainTwoVerifiers {
+	return presets.NewSingleChainTwoVerifiersWithoutCheck(t, append(followL2Opts(), opts...)...)
 }
