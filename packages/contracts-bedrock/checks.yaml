@@ -24,20 +24,20 @@ phases:
     checks:
       - name: lint-fix
         description: Fix code formatting locally
-        command: '[ -n "${CI:-}" ] || forge fmt || true'
+        command: '[ -n "${CI:-}" ] || just lint-fix-no-fail'
 
   # Phase 2: Pre-build checks - no compilation needed
   - name: pre-build
     checks:
       - name: lint
         description: Check code formatting
-        command: forge fmt --check
+        command: just lint-check
       - name: semgrep
         description: Run semgrep security linter
         command: cd ../../ && semgrep scan --error --config .semgrep/rules/ ./packages/contracts-bedrock
       - name: semgrep-test-validity
         description: Check semgrep tests are valid
-        command: forge fmt ../../.semgrep/tests/sol-rules.t.sol --check
+        command: just semgrep-test-validity-check
       - name: kontrol-summaries
         description: Check kontrol summaries unchanged
         command: ./scripts/checks/check-kontrol-summaries-unchanged.sh

@@ -18,23 +18,25 @@ optimizer_runs = 999999
 # that builds will fully overwrite one another without needing to clean the
 # entire build directory.
 additional_compiler_profiles = [
-  { name = "dispute", optimizer_runs = 5000 },
-  { name = "validator", optimizer_runs = 200 },
+  { name = "pinned", evm_version = 'cancun' },
+  { name = "dispute", optimizer_runs = 5000, evm_version = 'cancun' },
+  { name = "validator", optimizer_runs = 200, evm_version = 'cancun' },
 ]
 compilation_restrictions = [
-  { paths = "src/dispute/FaultDisputeGame.sol", optimizer_runs = 5000 },
-  { paths = "src/dispute/PermissionedDisputeGame.sol", optimizer_runs = 5000 },
-  { paths = "src/dispute/SuperFaultDisputeGame.sol", optimizer_runs = 5000 },
-  { paths = "src/dispute/SuperPermissionedDisputeGame.sol", optimizer_runs = 5000 },
-  { paths = "src/L1/OPContractsManagerStandardValidator.sol", optimizer_runs = 200 },
-  { paths = "src/L1/opcm/OPContractsManagerV2.sol", optimizer_runs = 5000 },
-  { paths = "src/L1/opcm/OPContractsManagerContainer.sol", optimizer_runs = 5000 },
-  { paths = "src/L1/opcm/OPContractsManagerMigrator.sol", optimizer_runs = 5000 },
-  { paths = "src/L1/opcm/OPContractsManagerUtils.sol", optimizer_runs = 5000 },
-  { paths = "src/L1/opcm/OPContractsManagerUtilsCaller.sol", optimizer_runs = 5000 },
-  { paths = "src/L1/OptimismPortal2.sol", optimizer_runs = 5000 },
-  { paths = "src/universal/StorageSetter.sol", optimizer_runs = 5000 },
-  { paths = "src/L2/L2ContractsManager.sol", optimizer_runs = 5000 }
+  { paths = "{src,test,scripts,interfaces,lib}/**", evm_version = 'cancun' },
+  { paths = "src/dispute/FaultDisputeGame.sol", optimizer_runs = 5000, evm_version = 'cancun' },
+  { paths = "src/dispute/PermissionedDisputeGame.sol", optimizer_runs = 5000, evm_version = 'cancun' },
+  { paths = "src/dispute/SuperFaultDisputeGame.sol", optimizer_runs = 5000, evm_version = 'cancun' },
+  { paths = "src/dispute/SuperPermissionedDisputeGame.sol", optimizer_runs = 5000, evm_version = 'cancun' },
+  { paths = "src/L1/OPContractsManagerStandardValidator.sol", optimizer_runs = 200, evm_version = 'cancun' },
+  { paths = "src/L1/opcm/OPContractsManagerV2.sol", optimizer_runs = 5000, evm_version = 'cancun' },
+  { paths = "src/L1/opcm/OPContractsManagerContainer.sol", optimizer_runs = 5000, evm_version = 'cancun' },
+  { paths = "src/L1/opcm/OPContractsManagerMigrator.sol", optimizer_runs = 5000, evm_version = 'cancun' },
+  { paths = "src/L1/opcm/OPContractsManagerUtils.sol", optimizer_runs = 5000, evm_version = 'cancun' },
+  { paths = "src/L1/opcm/OPContractsManagerUtilsCaller.sol", optimizer_runs = 5000, evm_version = 'cancun' },
+  { paths = "src/L1/OptimismPortal2.sol", optimizer_runs = 5000, evm_version = 'cancun' },
+  { paths = "src/universal/StorageSetter.sol", optimizer_runs = 5000, evm_version = 'cancun' },
+  { paths = "src/L2/L2ContractsManager.sol", optimizer_runs = 5000, evm_version = 'cancun' }
 ]
 
 extra_output = ['devdoc', 'userdoc', 'metadata', 'storageLayout']
@@ -73,9 +75,14 @@ fs_permissions = [
 ]
 
 # 5159 = selfdestruct deprecation
+# 6335 = future `at` keyword collision (solc 0.8.36, triggered by solady)
 # 8429 = virtual modifiers deprecated (solc 0.8.31, triggered by solmate)
+# 9207 = send deprecation (solc 0.8.36, triggered by safe-contracts)
 # 2424 = natspec memory-safe-assembly comment deprecated (solc 0.8.31, triggered by forge-std)
-ignored_error_codes = ["transient-storage", "code-size", "init-code-size", "too-many-warnings", 5159, 8429, 2424]
+ignored_error_codes = [
+  "transient-storage", "code-size", "init-code-size", "too-many-warnings",
+  5159, 6335, 8429, 9207, 2424,
+]
 deny = "warnings"
 ffi = true
 
@@ -88,6 +95,10 @@ gas_limit = 9223372036854775807
 
 [fuzz]
 runs = 64
+
+# The built-in solidity linter is not part of our CI gate; `just lint` and semgrep are.
+[lint]
+lint_on_build = false
 
 [fmt]
 line_length=120
@@ -132,22 +143,24 @@ optimizer_runs = 0
 # IMPORTANT:
 # See the info in the "DEFAULT" profile to understand this section.
 additional_compiler_profiles = [
-  { name = "dispute", optimizer_runs = 0 },
+  { name = "pinned", evm_version = 'cancun' },
+  { name = "dispute", optimizer_runs = 0, evm_version = 'cancun' },
 ]
 compilation_restrictions = [
-  { paths = "src/dispute/FaultDisputeGame.sol", optimizer_runs = 0 },
-  { paths = "src/dispute/PermissionedDisputeGame.sol", optimizer_runs = 0 },
-  { paths = "src/dispute/SuperFaultDisputeGame.sol", optimizer_runs = 0 },
-  { paths = "src/dispute/SuperPermissionedDisputeGame.sol", optimizer_runs = 0 },
-  { paths = "src/L1/OPContractsManagerStandardValidator.sol", optimizer_runs = 0 },
-  { paths = "src/L1/opcm/OPContractsManagerV2.sol", optimizer_runs = 0 },
-  { paths = "src/L1/opcm/OPContractsManagerContainer.sol", optimizer_runs = 0 },
-  { paths = "src/L1/opcm/OPContractsManagerMigrator.sol", optimizer_runs = 0 },
-  { paths = "src/L1/opcm/OPContractsManagerUtils.sol", optimizer_runs = 0 },
-  { paths = "src/L1/opcm/OPContractsManagerUtilsCaller.sol", optimizer_runs = 0 },
-  { paths = "src/L1/OptimismPortal2.sol", optimizer_runs = 0 },
-  { paths = "src/universal/StorageSetter.sol", optimizer_runs = 0 },
-  { paths = "src/L2/L2ContractsManager.sol", optimizer_runs = 0 }
+  { paths = "{src,test,scripts,interfaces,lib}/**", evm_version = 'cancun' },
+  { paths = "src/dispute/FaultDisputeGame.sol", optimizer_runs = 0, evm_version = 'cancun' },
+  { paths = "src/dispute/PermissionedDisputeGame.sol", optimizer_runs = 0, evm_version = 'cancun' },
+  { paths = "src/dispute/SuperFaultDisputeGame.sol", optimizer_runs = 0, evm_version = 'cancun' },
+  { paths = "src/dispute/SuperPermissionedDisputeGame.sol", optimizer_runs = 0, evm_version = 'cancun' },
+  { paths = "src/L1/OPContractsManagerStandardValidator.sol", optimizer_runs = 0, evm_version = 'cancun' },
+  { paths = "src/L1/opcm/OPContractsManagerV2.sol", optimizer_runs = 0, evm_version = 'cancun' },
+  { paths = "src/L1/opcm/OPContractsManagerContainer.sol", optimizer_runs = 0, evm_version = 'cancun' },
+  { paths = "src/L1/opcm/OPContractsManagerMigrator.sol", optimizer_runs = 0, evm_version = 'cancun' },
+  { paths = "src/L1/opcm/OPContractsManagerUtils.sol", optimizer_runs = 0, evm_version = 'cancun' },
+  { paths = "src/L1/opcm/OPContractsManagerUtilsCaller.sol", optimizer_runs = 0, evm_version = 'cancun' },
+  { paths = "src/L1/OptimismPortal2.sol", optimizer_runs = 0, evm_version = 'cancun' },
+  { paths = "src/universal/StorageSetter.sol", optimizer_runs = 0, evm_version = 'cancun' },
+  { paths = "src/L2/L2ContractsManager.sol", optimizer_runs = 0, evm_version = 'cancun' }
 ]
 
 [profile.ciheavy.fuzz]
@@ -173,22 +186,24 @@ optimizer_runs = 0
 # IMPORTANT:
 # See the info in the "DEFAULT" profile to understand this section.
 additional_compiler_profiles = [
-  { name = "dispute", optimizer_runs = 0 },
+  { name = "pinned", evm_version = 'cancun' },
+  { name = "dispute", optimizer_runs = 0, evm_version = 'cancun' },
 ]
 compilation_restrictions = [
-  { paths = "src/dispute/FaultDisputeGame.sol", optimizer_runs = 0 },
-  { paths = "src/dispute/PermissionedDisputeGame.sol", optimizer_runs = 0 },
-  { paths = "src/dispute/SuperFaultDisputeGame.sol", optimizer_runs = 0 },
-  { paths = "src/dispute/SuperPermissionedDisputeGame.sol", optimizer_runs = 0 },
-  { paths = "src/L1/OPContractsManagerStandardValidator.sol", optimizer_runs = 0 },
-  { paths = "src/L1/opcm/OPContractsManagerV2.sol", optimizer_runs = 0 },
-  { paths = "src/L1/opcm/OPContractsManagerContainer.sol", optimizer_runs = 0 },
-  { paths = "src/L1/opcm/OPContractsManagerMigrator.sol", optimizer_runs = 0 },
-  { paths = "src/L1/opcm/OPContractsManagerUtils.sol", optimizer_runs = 0 },
-  { paths = "src/L1/opcm/OPContractsManagerUtilsCaller.sol", optimizer_runs = 0 },
-  { paths = "src/L1/OptimismPortal2.sol", optimizer_runs = 0 },
-  { paths = "src/universal/StorageSetter.sol", optimizer_runs = 0 },
-  { paths = "src/L2/L2ContractsManager.sol", optimizer_runs = 0 }
+  { paths = "{src,test,scripts,interfaces,lib}/**", evm_version = 'cancun' },
+  { paths = "src/dispute/FaultDisputeGame.sol", optimizer_runs = 0, evm_version = 'cancun' },
+  { paths = "src/dispute/PermissionedDisputeGame.sol", optimizer_runs = 0, evm_version = 'cancun' },
+  { paths = "src/dispute/SuperFaultDisputeGame.sol", optimizer_runs = 0, evm_version = 'cancun' },
+  { paths = "src/dispute/SuperPermissionedDisputeGame.sol", optimizer_runs = 0, evm_version = 'cancun' },
+  { paths = "src/L1/OPContractsManagerStandardValidator.sol", optimizer_runs = 0, evm_version = 'cancun' },
+  { paths = "src/L1/opcm/OPContractsManagerV2.sol", optimizer_runs = 0, evm_version = 'cancun' },
+  { paths = "src/L1/opcm/OPContractsManagerContainer.sol", optimizer_runs = 0, evm_version = 'cancun' },
+  { paths = "src/L1/opcm/OPContractsManagerMigrator.sol", optimizer_runs = 0, evm_version = 'cancun' },
+  { paths = "src/L1/opcm/OPContractsManagerUtils.sol", optimizer_runs = 0, evm_version = 'cancun' },
+  { paths = "src/L1/opcm/OPContractsManagerUtilsCaller.sol", optimizer_runs = 0, evm_version = 'cancun' },
+  { paths = "src/L1/OptimismPortal2.sol", optimizer_runs = 0, evm_version = 'cancun' },
+  { paths = "src/universal/StorageSetter.sol", optimizer_runs = 0, evm_version = 'cancun' },
+  { paths = "src/L2/L2ContractsManager.sol", optimizer_runs = 0, evm_version = 'cancun' }
 ]
 
 [profile.liteci.fuzz]
@@ -209,22 +224,24 @@ optimizer_runs = 0
 # IMPORTANT:
 # See the info in the "DEFAULT" profile to understand this section.
 additional_compiler_profiles = [
-  { name = "dispute", optimizer_runs = 0 },
+  { name = "pinned", evm_version = 'cancun' },
+  { name = "dispute", optimizer_runs = 0, evm_version = 'cancun' },
 ]
 compilation_restrictions = [
-  { paths = "src/dispute/FaultDisputeGame.sol", optimizer_runs = 0 },
-  { paths = "src/dispute/PermissionedDisputeGame.sol", optimizer_runs = 0 },
-  { paths = "src/dispute/SuperFaultDisputeGame.sol", optimizer_runs = 0 },
-  { paths = "src/dispute/SuperPermissionedDisputeGame.sol", optimizer_runs = 0 },
-  { paths = "src/L1/OPContractsManagerStandardValidator.sol", optimizer_runs = 0 },
-  { paths = "src/L1/opcm/OPContractsManagerV2.sol", optimizer_runs = 0 },
-  { paths = "src/L1/opcm/OPContractsManagerContainer.sol", optimizer_runs = 0 },
-  { paths = "src/L1/opcm/OPContractsManagerMigrator.sol", optimizer_runs = 0 },
-  { paths = "src/L1/opcm/OPContractsManagerUtils.sol", optimizer_runs = 0 },
-  { paths = "src/L1/opcm/OPContractsManagerUtilsCaller.sol", optimizer_runs = 0 },
-  { paths = "src/L1/OptimismPortal2.sol", optimizer_runs = 0 },
-  { paths = "src/universal/StorageSetter.sol", optimizer_runs = 0 },
-  { paths = "src/L2/L2ContractsManager.sol", optimizer_runs = 0 }
+  { paths = "{src,test,scripts,interfaces,lib}/**", evm_version = 'cancun' },
+  { paths = "src/dispute/FaultDisputeGame.sol", optimizer_runs = 0, evm_version = 'cancun' },
+  { paths = "src/dispute/PermissionedDisputeGame.sol", optimizer_runs = 0, evm_version = 'cancun' },
+  { paths = "src/dispute/SuperFaultDisputeGame.sol", optimizer_runs = 0, evm_version = 'cancun' },
+  { paths = "src/dispute/SuperPermissionedDisputeGame.sol", optimizer_runs = 0, evm_version = 'cancun' },
+  { paths = "src/L1/OPContractsManagerStandardValidator.sol", optimizer_runs = 0, evm_version = 'cancun' },
+  { paths = "src/L1/opcm/OPContractsManagerV2.sol", optimizer_runs = 0, evm_version = 'cancun' },
+  { paths = "src/L1/opcm/OPContractsManagerContainer.sol", optimizer_runs = 0, evm_version = 'cancun' },
+  { paths = "src/L1/opcm/OPContractsManagerMigrator.sol", optimizer_runs = 0, evm_version = 'cancun' },
+  { paths = "src/L1/opcm/OPContractsManagerUtils.sol", optimizer_runs = 0, evm_version = 'cancun' },
+  { paths = "src/L1/opcm/OPContractsManagerUtilsCaller.sol", optimizer_runs = 0, evm_version = 'cancun' },
+  { paths = "src/L1/OptimismPortal2.sol", optimizer_runs = 0, evm_version = 'cancun' },
+  { paths = "src/universal/StorageSetter.sol", optimizer_runs = 0, evm_version = 'cancun' },
+  { paths = "src/L2/L2ContractsManager.sol", optimizer_runs = 0, evm_version = 'cancun' }
 ]
 
 [profile.lite.fuzz]

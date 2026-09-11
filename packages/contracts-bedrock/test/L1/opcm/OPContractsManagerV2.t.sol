@@ -2,6 +2,7 @@
 pragma solidity 0.8.15;
 
 // Testing
+import { console } from "forge-std/console.sol";
 import { VmSafe } from "forge-std/Vm.sol";
 import { stdStorage, StdStorage } from "forge-std/StdStorage.sol";
 import { CommonTest } from "test/setup/CommonTest.sol";
@@ -54,9 +55,38 @@ contract OPContractsManagerV2_TestInit is CommonTest {
     /// @notice Buffer percentage (relative to EIP-7825 gas limit) allowed for deployments.
     uint256 public constant DEPLOY_GAS_BUFFER_PERCENTAGE = 80; // 80%
 
+    /// @notice Maximum gas allowed for an optimized deployment.
+    uint64 public constant OPTIMIZED_DEPLOY_GAS_LIMIT = 60_000_000;
+
+    /// @notice Maximum gas allowed for an unoptimized test deployment.
+    uint64 public constant UNOPTIMIZED_DEPLOY_GAS_LIMIT = 75_000_000;
+
     /// @notice Sets up the test suite.
     function setUp() public virtual override {
         super.setUp();
+    }
+
+    function _deployGasLimit() internal view returns (uint64) {
+        return Config.isUnoptimized() ? UNOPTIMIZED_DEPLOY_GAS_LIMIT : OPTIMIZED_DEPLOY_GAS_LIMIT;
+    }
+
+    /// @notice Asserts that the most recent deployment remains within transaction gas limits.
+    function _assertDeployGasWithinLimits() internal view {
+        uint256 fusakaLimit = 2 ** 24;
+        VmSafe.Gas memory gas = vm.lastFrameGas();
+        uint64 deployGasLimit = _deployGasLimit();
+        console.log("Deploy execution gas:", gas.gasTotalUsed);
+        console.log("Deploy state gas:", gas.gasStateUsed);
+        assertLt(
+            gas.gasTotalUsed,
+            fusakaLimit * DEPLOY_GAS_BUFFER_PERCENTAGE / 100,
+            string.concat(
+                "Deploy exceeds gas target of ", vm.toString(DEPLOY_GAS_BUFFER_PERCENTAGE), "% of 2**24 (EIP-7825)"
+            )
+        );
+
+        assertLt(gas.gasTotalUsed, deployGasLimit, "Deploy execution gas exceeds profile limit");
+        assertLt(gas.gasStateUsed, int64(deployGasLimit), "Deploy state gas exceeds profile limit");
     }
 
     /// @notice Helper function that runs an OPCM V2 deploy, asserts that the deploy was successful,
@@ -121,17 +151,7 @@ contract OPContractsManagerV2_TestInit is CommonTest {
             return cts_;
         }
 
-        // Less than the buffer percentage of the EIP-7825 gas limit to account for the gas used
-        // by using Safe.
-        uint256 fusakaLimit = 2 ** 24;
-        VmSafe.Gas memory gas = vm.lastCallGas();
-        assertLt(
-            gas.gasTotalUsed,
-            fusakaLimit * DEPLOY_GAS_BUFFER_PERCENTAGE / 100,
-            string.concat(
-                "Deploy exceeds gas target of ", vm.toString(DEPLOY_GAS_BUFFER_PERCENTAGE), "% of 2**24 (EIP-7825)"
-            )
-        );
+        _assertDeployGasWithinLimits();
 
         // Coverage changes bytecode, so we get various errors. We can safely ignore the result of
         // the standard validator in the coverage case.
@@ -2238,9 +2258,11 @@ contract OPContractsManagerV2_Deploy_Test is OPContractsManagerV2_TestInit {
 
         vm.prank(senderA);
         IOPContractsManagerV2.ChainContracts memory ctsA = opcmV2.deploy(deployConfig);
+        _assertDeployGasWithinLimits();
 
         vm.prank(senderB);
         IOPContractsManagerV2.ChainContracts memory ctsB = opcmV2.deploy(deployConfig);
+        _assertDeployGasWithinLimits();
 
         assertNotEq(
             address(ctsA.systemConfig), address(ctsB.systemConfig), "systemConfig addresses should differ by sender"
@@ -2343,6 +2365,7 @@ contract OPContractsManagerV2_Deploy_Test is OPContractsManagerV2_TestInit {
         deployConfig.startingRespectedGameType = GameTypes.CANNON_KONA;
 
         IOPContractsManagerV2.ChainContracts memory cts = opcmV2.deploy(deployConfig);
+        _assertDeployGasWithinLimits();
         assertEq(
             address(cts.disputeGameFactory.gameImpls(GameTypes.CANNON_KONA)),
             opcmV2.implementations().faultDisputeGameImpl,
@@ -2452,6 +2475,7 @@ contract OPContractsManagerV2_Deploy_Test is OPContractsManagerV2_TestInit {
         deployConfig.startingRespectedGameType = GameTypes.SUPER_CANNON_KONA;
 
         IOPContractsManagerV2.ChainContracts memory cts = opcmV2.deploy(deployConfig);
+        _assertDeployGasWithinLimits();
         assertEq(
             address(cts.disputeGameFactory.gameImpls(GameTypes.SUPER_CANNON_KONA)),
             opcmV2.implementations().superFaultDisputeGameImpl,
@@ -2467,6 +2491,149 @@ contract OPContractsManagerV2_Deploy_Test is OPContractsManagerV2_TestInit {
             address(0),
             "SUPER_PERMISSIONED should be absent"
         );
+    }
+
+    /// @notice Measures a cold deployment with both initial-deploy games and custom gas token enabled.
+    function test_deploy_maximumGas_succeeds() public {
+        _enableSuperPermissionedGame();
+        _enableSuperCannonKonaGame();
+        deployConfig.startingRespectedGameType = GameTypes.SUPER_CANNON_KONA;
+        deployConfig.useCustomGasToken = true;
+
+        IOPContractsManagerV2.FullConfig memory cfg = deployConfig;
+        IOPContractsManagerContainer.Implementations memory impls = opcmV2.implementations();
+        _coolDeployDependencies(impls);
+
+        IOPContractsManagerV2.ChainContracts memory cts = opcmV2.deploy(cfg);
+        (uint64 executionGas, int64 stateGas) = _assertDeployGasBounds();
+        emit log_named_uint("deploy execution gas", executionGas);
+        emit log_named_int("deploy state gas", stateGas);
+        assertLt(executionGas, 2 ** 24 * DEPLOY_GAS_BUFFER_PERCENTAGE / 100, "Deploy exceeds gas target");
+
+        assertTrue(cts.systemConfig.isCustomGasToken(), "CGT disabled");
+        assertEq(
+            address(cts.disputeGameFactory.gameImpls(GameTypes.SUPER_PERMISSIONED)),
+            impls.superPermissionedDisputeGameImpl,
+            "permissioned fallback missing"
+        );
+        assertEq(
+            address(cts.disputeGameFactory.gameImpls(GameTypes.SUPER_CANNON_KONA)),
+            impls.superFaultDisputeGameImpl,
+            "permissionless game missing"
+        );
+        assertEq(
+            cts.anchorStateRegistry.respectedGameType().raw(),
+            GameTypes.SUPER_CANNON_KONA.raw(),
+            "respected game type mismatch"
+        );
+        assertEq(cts.proxyAdmin.owner(), cfg.proxyAdminOwner, "proxy admin owner mismatch");
+    }
+
+    /// @notice Bounds both gas dimensions with valid initial game configs, including reverting deployments.
+    function testFuzz_deploy_gasBound_succeeds(
+        IOPContractsManagerV2.FullConfig memory _cfg,
+        uint8 _gameSelection,
+        IOPContractsManagerUtils.PermissionedDisputeGameConfig memory _permissioned,
+        IOPContractsManagerUtils.FaultDisputeGameConfig memory _permissionless,
+        uint256 _initBond
+    )
+        public
+    {
+        _cfg.superchainConfig = superchainConfig;
+        _cfg.proxyAdminOwner = address(uint160(bound(uint160(_cfg.proxyAdminOwner), 1, type(uint160).max)));
+        _cfg.systemConfigOwner = address(uint160(bound(uint160(_cfg.systemConfigOwner), 1, type(uint160).max)));
+        _cfg.gasLimit = uint64(bound(_cfg.gasLimit, 1, systemConfig.maximumGasLimit()));
+        _cfg.resourceConfig.baseFeeMaxChangeDenominator =
+            uint8(bound(_cfg.resourceConfig.baseFeeMaxChangeDenominator, 2, type(uint8).max));
+        _cfg.resourceConfig.elasticityMultiplier =
+            uint8(bound(_cfg.resourceConfig.elasticityMultiplier, 1, type(uint8).max));
+        _cfg.resourceConfig.maximumBaseFee =
+            uint128(bound(_cfg.resourceConfig.maximumBaseFee, _cfg.resourceConfig.minimumBaseFee, type(uint128).max));
+        _cfg.resourceConfig.maxResourceLimit = uint32(bound(_cfg.resourceConfig.maxResourceLimit, 0, _cfg.gasLimit));
+        _cfg.resourceConfig.maxResourceLimit -=
+            _cfg.resourceConfig.maxResourceLimit % _cfg.resourceConfig.elasticityMultiplier;
+        _cfg.resourceConfig.systemTxMaxGas =
+            uint32(bound(_cfg.resourceConfig.systemTxMaxGas, 0, _cfg.gasLimit - _cfg.resourceConfig.maxResourceLimit));
+
+        bool superRoot = isDevFeatureEnabled(DevFeatures.SUPER_ROOT_GAMES_MIGRATION);
+        uint256 permissionedIndex = superRoot ? 3 : 1;
+        uint256 permissionlessIndex = superRoot ? 4 : 2;
+        _gameSelection = uint8(bound(_gameSelection, 0, 3));
+
+        _cfg.disputeGameConfigs = deployConfig.disputeGameConfigs;
+        for (uint256 i; i < _cfg.disputeGameConfigs.length; i++) {
+            _cfg.disputeGameConfigs[i].enabled = false;
+            _cfg.disputeGameConfigs[i].initBond = 0;
+            _cfg.disputeGameConfigs[i].gameArgs = bytes("");
+        }
+
+        // Select either game alone, or both with either respected game.
+        _cfg.disputeGameConfigs[permissionedIndex].enabled = _gameSelection != 1;
+        _cfg.disputeGameConfigs[permissionlessIndex].enabled = _gameSelection != 0;
+        _cfg.startingRespectedGameType =
+            _cfg.disputeGameConfigs[_gameSelection % 2 == 0 ? permissionedIndex : permissionlessIndex].gameType;
+        if (_permissionless.absolutePrestate.raw() == bytes32(0)) {
+            _permissionless.absolutePrestate = Claim.wrap(bytes32(uint256(1)));
+        }
+        _cfg.disputeGameConfigs[permissionedIndex].gameArgs = superRoot
+            ? abi.encode(IOPContractsManagerUtils.SuperPermissionedDisputeGameConfig({ proposer: _permissioned.proposer }))
+            : abi.encode(_permissioned);
+        _cfg.disputeGameConfigs[permissionlessIndex].gameArgs = abi.encode(_permissionless);
+        if (_cfg.disputeGameConfigs[permissionedIndex].enabled && !superRoot) {
+            _cfg.disputeGameConfigs[permissionedIndex].initBond = bound(_initBond, 1, type(uint256).max);
+        }
+        if (_cfg.disputeGameConfigs[permissionlessIndex].enabled) {
+            _cfg.disputeGameConfigs[permissionlessIndex].initBond = bound(_initBond, 1, type(uint256).max);
+        }
+
+        _cfg.startingAnchorRoot.l2SequenceNumber =
+            bound(_cfg.startingAnchorRoot.l2SequenceNumber, 0, type(uint64).max - 1);
+        if (
+            _cfg.startingAnchorRoot.root.raw() == bytes32(0)
+                || (
+                    _cfg.disputeGameConfigs[permissionlessIndex].enabled
+                        && _cfg.startingAnchorRoot.root.raw() == Constants.PLACEHOLDER_STARTING_ANCHOR_ROOT
+                )
+        ) {
+            _cfg.startingAnchorRoot.root = Hash.wrap(bytes32(uint256(1)));
+        }
+
+        _coolDeployDependencies(opcmV2.implementations());
+
+        try opcmV2.deploy(_cfg) { } catch { }
+
+        _assertDeployGasBounds();
+    }
+
+    /// @notice Checks net call gas; reverted state creation is rolled back.
+    function _assertDeployGasBounds() internal view returns (uint64 executionGas_, int64 stateGas_) {
+        VmSafe.Gas memory gas = vm.lastFrameGas();
+        executionGas_ = gas.gasTotalUsed;
+        stateGas_ = gas.gasStateUsed;
+        uint64 deployGasLimit = _deployGasLimit();
+        assertLe(uint256(executionGas_), uint256(deployGasLimit), "Deploy execution gas exceeds profile limit");
+        assertLe(int256(stateGas_), int256(uint256(deployGasLimit)), "Deploy state gas exceeds profile limit");
+    }
+
+    /// @notice Clears setup warmth from the shared deployment dependencies.
+    function _coolDeployDependencies(IOPContractsManagerContainer.Implementations memory _impls) internal {
+        // All encoded fields are addresses; cool their storage as well as their code.
+        bytes memory dependencies = abi.encode(
+            _impls,
+            opcmV2.blueprints(),
+            opcmV2.opcmUtils(),
+            opcmV2.contractsContainer(),
+            superchainConfig,
+            EIP1967Helper.getImplementation(address(superchainConfig)),
+            opcmV2
+        );
+        for (uint256 i; i < dependencies.length; i += 32) {
+            address dependency;
+            assembly {
+                dependency := mload(add(add(dependencies, 32), i))
+            }
+            vm.cool(dependency);
+        }
     }
 
     /// @notice The 0xdead placeholder anchor remains allowed for initial permissioned deployments.
@@ -3655,11 +3822,14 @@ contract OPContractsManagerV2_Migrate_Test is OPContractsManagerV2_TestInit {
 /// @notice Tests batch upgrade functionality with freshly deployed chains (non-forked).
 contract OPContractsManagerV2_FeatBatchUpgrade_Test is OPContractsManagerV2_TestInit {
     /// @notice Tests that multiple upgrade operations can be executed within a single transaction.
-
     ///         This enforces the OPCMV2 invariant that multiple upgrade operations should be
     ///         executable in one transaction.
+    /// forge-config: default.enable_tx_gas_limit = true
     function test_batchUpgrade_multipleChains_succeeds() public {
         skipIfUnoptimized();
+
+        // Enforce the transaction gas limit only on batchUpgrade().
+        vm.pauseGasMetering();
 
         uint256 numberOfChains = 14;
 
@@ -3766,21 +3936,14 @@ contract OPContractsManagerV2_FeatBatchUpgrade_Test is OPContractsManagerV2_Test
             });
         }
 
+        vm.resumeGasMetering();
+
         // 5. Execute batch upgrade of all chains in a single transaction.
         batchUpgrader.batchUpgrade(upgradeInputs);
-        VmSafe.Gas memory gas = vm.lastCallGas();
 
-        // 6. Verify that the upgrade gas usage is less than the EIP-7825 gas limit.
-        // See https://eip.tools/eip/eip-7825.md for more details.
-        // The upgradeGasBuffer amount below is an approximation of the overhead that is required
-        // to execute a call to Safe.executeTransaction() prior to the call to IOPContractsManagerV2.upgrade().
-        // The approximate value of 65,000 gas, was taken from a previous upgrade transaction on OP Mainnet:
-        // https://dashboard.tenderly.co/oplabs/op-mainnet/tx/0x9b9aa2d8e857e1a28e55b124e931eac706b3ae04c1b33ba949f0366359860993/gas-usage?trace=0.1.7
-        uint256 fusakaLimit = 2 ** 24;
-        uint256 upgradeGasBuffer = 65_000;
-        assertLt(gas.gasTotalUsed, fusakaLimit - upgradeGasBuffer, "Upgrade exceeds gas target");
+        vm.pauseGasMetering();
 
-        // 7. Verify all chains upgraded successfully.
+        // 6. Verify all chains upgraded successfully.
         for (uint256 i = 0; i < numberOfChains; i++) {
             ISystemConfig systemConfig = chains[i].systemConfig;
 

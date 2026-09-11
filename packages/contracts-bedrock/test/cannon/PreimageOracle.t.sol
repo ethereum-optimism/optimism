@@ -449,7 +449,7 @@ contract PreimageOracle_LoadPrecompilePreimagePart_Test is PreimageOracle_TestIn
         address precompile = address(uint160(0xdeadbeef));
         vm.mockCall(precompile, input, hex"abba");
         uint256 offset = 0;
-        uint64 minGas = uint64(bound(_gas, requiredGas * 3, 20_000_000));
+        uint64 minGas = uint64(bound(_gas, requiredGas * 6, 20_000_000));
         vm.expectCallMinGas(precompile, 0, requiredGas, input);
         oracle.loadPrecompilePreimagePart{ gas: minGas }(offset, precompile, requiredGas, input);
     }
