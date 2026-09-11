@@ -74,7 +74,7 @@ just test-docs
 
 ### Running op-reth E2E Tests
 
-The op-reth E2E tests (`rust/op-reth/tests/proofs/`) run a full devnet with op-reth as both the sequencer and the validator EL. They require two build prerequisites:
+The op-reth E2E tests (`rust/op-reth/tests/proofs/`) run a full devnet with op-reth as both the sequencer and the validator EL by default; `OP_DEVSTACK_PROOF_SEQUENCER_EL` and `OP_DEVSTACK_PROOF_VALIDATOR_EL` override either role (`rust/op-reth/tests/proofs/utils/preset.go`). They require two build prerequisites:
 
 1. **Forge artifacts** — the devnet deploys contracts from compiled artifacts:
    ```bash

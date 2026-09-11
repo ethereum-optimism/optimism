@@ -43,7 +43,7 @@ subset target. Which clients the devstack starts is chosen by two environment va
 in `op-devstack/sysgo/mixed_runtime.go`:
 
 - `DEVSTACK_L2CL_KIND` — `op-node` (the default) or `kona-node`
-- `DEVSTACK_L2EL_KIND` — `op-reth` (the default) or `op-geth`
+- `DEVSTACK_L2EL_KIND` — `op-reth` (the default), `op-geth` or `op-reth-proof-v2`
 
 ```bash
 cd op-acceptance-tests && DEVSTACK_L2CL_KIND=kona-node RUST_JIT_BUILD=1 mise exec -- just acceptance-test

@@ -229,7 +229,7 @@ contract ContractName is Initializable, ProxyAdminOwnedBase, ReinitializableBase
   go-ffi, profiles, and the script cache for you.
 - `just build` builds the contracts; `just build-dev` is the faster variant
   (`FOUNDRY_PROFILE=lite`) for local iteration. Builds must produce zero warnings
-  (`deny_warnings = true` in `foundry.toml`).
+  (`deny = "warnings"` in `foundry.toml`).
 - `just test` runs the suite; `just test-dev` is the faster `lite`-profile variant for local
   iteration. Default 64 fuzz runs; CI uses 128.
 - `just lint` formats and checks (`forge fmt` under the hood: 120-char line length, bracket
