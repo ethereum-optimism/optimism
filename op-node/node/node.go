@@ -26,6 +26,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-node/node/tracer"
 	"github.com/ethereum-optimism/optimism/op-node/p2p"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
+	"github.com/ethereum-optimism/optimism/op-node/rollup/async"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/conductor"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/driver"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/sequencing"
@@ -764,7 +765,9 @@ func (n *OpNode) SignAndPublishL2Payload(ctx context.Context, envelope *eth.Exec
 	// publish to p2p, if we are running p2p at all
 	if p2pNode := n.getP2PNodeIfEnabled(); p2pNode != nil {
 		if n.p2pSigner == nil {
-			return fmt.Errorf("node has no p2p signer, payload %s cannot be published", envelope.ID())
+			// Fixed at startup: no retry can make a signer appear.
+			return fmt.Errorf("%w: node has no p2p signer, payload %s cannot be published",
+				async.ErrPermanentPublish, envelope.ID())
 		}
 		n.log.Info("Publishing signed execution payload on p2p", "id", envelope.ID())
 		return p2pNode.GossipOut().SignAndPublishL2Payload(ctx, envelope, n.p2pSigner)
@@ -844,6 +847,17 @@ func (n *OpNode) Stop(ctx context.Context) error {
 	}
 
 	// close L2 driver
+	//
+	// This is deliberately last, and in particular after p2p and the block signer,
+	// even though the driver owns the async gossiper whose publisher goroutine uses
+	// both - so a publish in flight, or one of up to maxPublishQueue queued behind
+	// it, can still run against a closed topic and a closed signer and log an error
+	// on the way out. Both alternatives are worse: closing p2p after the driver puts
+	// it after resourcesClose, which cancels the context the pubsub instance was
+	// built on, so the topic close itself then fails; and closing the driver early
+	// leaves the rest of the node running against a cancelled driver context, which
+	// spins the derivation system resetting. Stopping only the publisher, before
+	// either, needs a hook that does not exist yet - see the review thread on #22585.
 	if n.l2Driver != nil {
 		if err := n.l2Driver.Close(); err != nil {
 			result = errors.Join(result, fmt.Errorf("failed to close L2 engine driver cleanly: %w", err))

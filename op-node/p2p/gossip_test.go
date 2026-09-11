@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"crypto/ecdsa"
+	"errors"
 	"fmt"
 	"io"
 	"math/big"
@@ -13,6 +14,7 @@ import (
 	"github.com/golang/snappy"
 
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
+	"github.com/ethereum-optimism/optimism/op-node/rollup/async"
 	"github.com/ethereum-optimism/optimism/op-service/clock"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/ptr"
@@ -342,4 +344,75 @@ func (m *mockGossipSetupConfigurablesWithThreshold) ConfigureGossip(rollupCfg *r
 
 func (m *mockGossipSetupConfigurablesWithThreshold) GetGossipTimestampThreshold() time.Duration {
 	return m.threshold
+}
+
+// TestClassifyPublishError pins which publish failures the async gossiper is
+// allowed to give up on. Getting this wrong is silent in both directions: too
+// broad and a timed-out publish is never retried, too narrow and a block that
+// can never be published holds up every block behind it.
+func TestClassifyPublishError(t *testing.T) {
+	clk := clock.NewDeterministicClock(time.Unix(1_700_000_000, 0))
+	p := &publisher{clk: clk}
+	now := uint64(clk.Now().Unix())
+
+	for _, tc := range []struct {
+		name      string
+		err       error
+		timestamp uint64
+		permanent bool
+	}{
+		{
+			name: "nil is not an error at all",
+			err:  nil,
+		},
+		{
+			name:      "the local validator rejected the block",
+			err:       pubsub.ValidationError{Reason: pubsub.RejectValidationFailed},
+			timestamp: now,
+			permanent: true,
+		},
+		{
+			name:      "the local validator has already seen the block",
+			err:       pubsub.ValidationError{Reason: pubsub.RejectValidationIgnored},
+			timestamp: now,
+			permanent: true,
+		},
+		{
+			name:      "the topic is closed",
+			err:       pubsub.ErrTopicClosed,
+			timestamp: now,
+			permanent: true,
+		},
+		{
+			// The one rejection a retry fixes: the clock catches up to the block.
+			name:      "the block is still ahead of the local clock",
+			err:       pubsub.ValidationError{Reason: pubsub.RejectValidationFailed},
+			timestamp: now + maxFutureGossipDrift + 1,
+			permanent: false,
+		},
+		{
+			// Topic.Publish surfaces the caller's context error from its own
+			// internals, so this arrives looking like any other failure.
+			name:      "the publish ran out of time",
+			err:       context.DeadlineExceeded,
+			timestamp: now,
+			permanent: false,
+		},
+		{
+			name:      "the signer failed",
+			err:       errors.New("failed to sign execution payload with signer: connection refused"),
+			timestamp: now,
+			permanent: false,
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			got := p.classifyPublishError(tc.err, tc.timestamp)
+			if tc.err == nil {
+				require.NoError(t, got)
+				return
+			}
+			require.ErrorIs(t, got, tc.err, "the cause must survive classification")
+			require.Equal(t, tc.permanent, errors.Is(got, async.ErrPermanentPublish))
+		})
+	}
 }
