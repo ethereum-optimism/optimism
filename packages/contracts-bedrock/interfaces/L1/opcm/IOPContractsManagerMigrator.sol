@@ -40,6 +40,10 @@ interface IOPContractsManagerMigrator {
     /// @notice Thrown when a chain is paused before migration mutates its portal.
     error OPContractsManagerMigrator_SystemPaused();
 
+    error OPContractsManagerMigrator_ChainAlreadyMigrated();
+
+    error OPContractsManagerMigrator_SuperchainConfigNeedsUpgrade();
+
     /// @notice Thrown when a chain's SystemConfig reports an l2ChainId of zero.
     error OPContractsManagerMigrator_ZeroL2ChainId();
 
@@ -66,6 +70,10 @@ interface IOPContractsManagerMigrator {
     /// @notice Thrown when a dispute game config is not enabled. Migration registers every config
     ///         it is given, so a disabled config would be registered anyway.
     error OPContractsManagerMigrator_DisputeGameNotEnabled();
+
+    error OPContractsManagerMigrator_InvalidStartingAnchorRoot();
+
+    error SemverComp_InvalidSemverParts();
 
     /// @notice Returns the container of blueprint and implementation contract addresses.
     function contractsContainer() external view returns (IOPContractsManagerContainer);

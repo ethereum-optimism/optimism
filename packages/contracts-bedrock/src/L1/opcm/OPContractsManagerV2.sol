@@ -158,9 +158,9 @@ contract OPContractsManagerV2 is ISemver, OPContractsManagerUtilsCaller {
     ///         - Major bump: New required sequential upgrade
     ///         - Minor bump: Replacement OPCM for same upgrade
     ///         - Patch bump: Development changes (expected for normal dev work)
-    /// @custom:semver 8.0.5
+    /// @custom:semver 8.0.6
     function version() public pure returns (string memory) {
-        return "8.0.5";
+        return "8.0.6";
     }
 
     /// @param _standardValidator The standard validator for this OPCM release.
@@ -285,6 +285,15 @@ contract OPContractsManagerV2 is ISemver, OPContractsManagerUtilsCaller {
     /// @param _input The input parameters for the migration.
     function migrate(IOPContractsManagerMigrator.MigrateInput calldata _input) public {
         _onlyDelegateCall();
+
+        // Migration assumes every chain is already on this OPCM's release.
+        for (uint256 i = 0; i < _input.chainSystemConfigs.length; i++) {
+            if (!isPermittedMigrateSequence(_input.chainSystemConfigs[i])) {
+                revert OPContractsManagerV2_InvalidUpgradeSequence(
+                    _input.chainSystemConfigs[i].lastUsedOPCMVersion(), _version()
+                );
+            }
+        }
 
         // Delegatecall to the migrator contract.
         (bool success, bytes memory result) =
@@ -837,10 +846,32 @@ contract OPContractsManagerV2 is ISemver, OPContractsManagerUtilsCaller {
         }
 
         // Update the SystemConfig.
-        // SystemConfig initializer is the only one large enough to require a separate function to
-        // avoid stack-too-deep errors.
         _upgrade(
-            _cts.proxyAdmin, address(_cts.systemConfig), impls.systemConfigImpl, _makeSystemConfigInitArgs(_cfg, _cts)
+            _cts.proxyAdmin,
+            address(_cts.systemConfig),
+            impls.systemConfigImpl,
+            _encodeSystemConfigInit(
+                SystemConfigInitArgs({
+                    owner: _cfg.systemConfigOwner,
+                    basefeeScalar: _cfg.basefeeScalar,
+                    blobbasefeeScalar: _cfg.blobBasefeeScalar,
+                    batcherHash: bytes32(uint256(uint160(_cfg.batcher))),
+                    gasLimit: _cfg.gasLimit,
+                    unsafeBlockSigner: _cfg.unsafeBlockSigner,
+                    resourceConfig: _cfg.resourceConfig,
+                    addrs: ISystemConfig.Addresses({
+                        l1CrossDomainMessenger: address(_cts.l1CrossDomainMessenger),
+                        l1ERC721Bridge: address(_cts.l1ERC721Bridge),
+                        l1StandardBridge: address(_cts.l1StandardBridge),
+                        optimismPortal: address(_cts.optimismPortal),
+                        optimismMintableERC20Factory: address(_cts.optimismMintableERC20Factory),
+                        delayedWETH: address(_cts.delayedWETH),
+                        opcm: address(opcmV2)
+                    }),
+                    l2ChainId: _cfg.l2ChainId,
+                    superchainConfig: _cfg.superchainConfig
+                })
+            )
         );
 
         // Enable ETHLockbox before updating the portal.
@@ -1014,48 +1045,6 @@ contract OPContractsManagerV2 is ISemver, OPContractsManagerUtilsCaller {
         return _cts;
     }
 
-    /// @notice Helper for making the SystemConfig initializer arguments. This is the only
-    ///         initializer that needs a helper function because we get stack-too-deep.
-    /// @param _cfg The full config.
-    /// @param _cts The chain contracts.
-    /// @return The SystemConfig initializer arguments.
-    function _makeSystemConfigInitArgs(
-        FullConfig memory _cfg,
-        ChainContracts memory _cts
-    )
-        internal
-        view
-        returns (bytes memory)
-    {
-        // Generate the SystemConfig addresses input.
-        ISystemConfig.Addresses memory addrs = ISystemConfig.Addresses({
-            l1CrossDomainMessenger: address(_cts.l1CrossDomainMessenger),
-            l1ERC721Bridge: address(_cts.l1ERC721Bridge),
-            l1StandardBridge: address(_cts.l1StandardBridge),
-            optimismPortal: address(_cts.optimismPortal),
-            optimismMintableERC20Factory: address(_cts.optimismMintableERC20Factory),
-            delayedWETH: address(_cts.delayedWETH),
-            opcm: address(opcmV2)
-        });
-
-        // Generate the initializer arguments.
-        return abi.encodeCall(
-            ISystemConfig.initialize,
-            (
-                _cfg.systemConfigOwner,
-                _cfg.basefeeScalar,
-                _cfg.blobBasefeeScalar,
-                bytes32(uint256(uint160(_cfg.batcher))),
-                _cfg.gasLimit,
-                _cfg.unsafeBlockSigner,
-                _cfg.resourceConfig,
-                addrs,
-                _cfg.l2ChainId,
-                _cfg.superchainConfig
-            )
-        );
-    }
-
     ///////////////////////////////////////////////////////////////////////////
     //                        PUBLIC UTILITY FUNCTIONS                       //
     ///////////////////////////////////////////////////////////////////////////
@@ -1067,35 +1056,15 @@ contract OPContractsManagerV2 is ISemver, OPContractsManagerUtilsCaller {
     /// @param _systemConfig The SystemConfig contract to check the upgrade sequence for.
     /// @return True if the upgrade sequence is permitted, false otherwise.
     function isPermittedUpgradeSequence(ISystemConfig _systemConfig) public view returns (bool) {
-        // If the SystemConfig is not initialized, this is an initial deployment, which is always
-        // permitted. Initial deployments can use any OPCM version.
-        if (address(_systemConfig) == address(0)) {
-            return true;
-        }
+        return _isPermittedUpgradeSequence(_systemConfig, address(opcmV2));
+    }
 
-        // Chains prior to OPCMv2 (version 7.0.0) don't have a functional lastUsedOPCM function on
-        // the SystemConfig contract. The first deployment of OPCMv2 which makes this available is
-        // version 7.0.0. We need to skip the check for 7.x.x OPCM versions because they can't
-        // guarantee that the lastUsedOPCM function will be available on the incoming SystemConfig.
-        // 8.0.0 and later will always have this function available.
-        if (SemverComp.lt(_version(), "8.0.0")) {
-            return true;
-        }
-
-        ISemver lastUsedOPCM = ISemver(address(_systemConfig.lastUsedOPCM()));
-        SemverComp.Semver memory lastUsedSemver = SemverComp.parse(lastUsedOPCM.version());
-        SemverComp.Semver memory thisSemver = SemverComp.parse(_version());
-
-        // We have three permitted cases:
-        // 1. Address of the last used OPCM is identical to the address of this OPCM (re-running).
-        // 2. This OPCM version is the same major version but a greater minor version (patch).
-        // 3. This OPCM version is the next major version (sequential upgrade).
-        bool isSameOPCM = address(lastUsedOPCM) == address(opcmV2);
-        bool isNextMajor = thisSemver.major == lastUsedSemver.major + 1;
-        bool isSameMajorHigherMinor =
-            thisSemver.major == lastUsedSemver.major && thisSemver.minor > lastUsedSemver.minor;
-
-        return isSameOPCM || isSameMajorHigherMinor || isNextMajor;
+    /// @notice Returns whether a chain is on this OPCM's release and may be migrated.
+    ///         Unlike isPermittedUpgradeSequence this refuses the next major version case.
+    /// @param _systemConfig The SystemConfig of the chain to check.
+    /// @return True if the chain may be migrated by this OPCM.
+    function isPermittedMigrateSequence(ISystemConfig _systemConfig) public view returns (bool) {
+        return _isPermittedMigrateSequence(_systemConfig, address(opcmV2));
     }
 
     /// @notice Returns the blueprint contract addresses.

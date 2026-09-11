@@ -3,6 +3,10 @@ pragma solidity ^0.8.0;
 
 // Interfaces
 import { IDisputeGameFactory } from "interfaces/dispute/IDisputeGameFactory.sol";
+import { IAnchorStateRegistry } from "interfaces/dispute/IAnchorStateRegistry.sol";
+import { IETHLockbox } from "interfaces/L1/IETHLockbox.sol";
+import { IDelayedWETH } from "interfaces/dispute/IDelayedWETH.sol";
+import { GameType, Proposal } from "src/dispute/lib/Types.sol";
 import { IOPContractsManagerStandardValidator } from "interfaces/L1/IOPContractsManagerStandardValidator.sol";
 import { IStandardValidatorUtils } from "interfaces/L1/opcm/IStandardValidatorUtils.sol";
 import { ISystemConfig } from "interfaces/L1/ISystemConfig.sol";
@@ -11,9 +15,36 @@ import { ISuperchainConfig } from "interfaces/L1/ISuperchainConfig.sol";
 interface IOPContractsManagerMigrationValidator {
     error InvalidGameArgsLength();
 
+    /// @notice A chain's pre-migration contracts.
+    struct LegacyChainContracts {
+        IDisputeGameFactory disputeGameFactory;
+        IETHLockbox ethLockbox;
+        IDelayedWETH delayedWETH;
+        IAnchorStateRegistry anchorStateRegistry;
+    }
+
+    /// @notice Addresses of the shared contracts the migration was meant to produce.
+    struct ExpectedSharedContracts {
+        IAnchorStateRegistry anchorStateRegistry;
+        IETHLockbox ethLockbox;
+        address delayedWETH;
+    }
+
+    /// @notice A game type's intended init bond on the shared DisputeGameFactory.
+    struct ExpectedInitBond {
+        GameType gameType;
+        uint256 initBond;
+    }
+
     struct MigrationValidationInput {
         IDisputeGameFactory dgf;
         ISystemConfig[] chainSystemConfigs;
+        /// @notice Each chain's pre-migration contracts, must be in the same order as chainSystemConfigs.
+        LegacyChainContracts[] legacyChainContracts;
+        ExpectedSharedContracts expectedShared;
+        ExpectedInitBond[] expectedInitBonds;
+        Proposal startingAnchorRoot;
+        GameType startingRespectedGameType;
         bytes32 cannonPrestate;
         bytes32 cannonKonaPrestate;
         address proposer;
