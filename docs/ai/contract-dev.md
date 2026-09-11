@@ -419,8 +419,9 @@ function testTransferSucceeds() external { }          // No underscores
 | cicoverage | disabled | 1 | Coverage only |
 | kprove | default | — | Kontrol formal verification |
 
-Dispute games, OPCM, and OptimismPortal2 compile with 5,000 optimizer runs
-for bytecode size management.
+Dispute games, OPCM, OptimismPortal2, StorageSetter and L2ContractsManager compile with
+5,000 optimizer runs for bytecode size management (`compilation_restrictions` in
+`foundry.toml`; `OPContractsManagerStandardValidator` is the outlier at 200).
 
 ## Build and Test Commands
 
