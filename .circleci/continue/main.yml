@@ -1569,8 +1569,6 @@ jobs:
       - utils/checkout-with-mise:
           checkout-method: blobless
           enable-mise-cache: true
-      - apt-install:
-          packages: "ripgrep"
       - run:
           name: Check TODO issues
           command: ./ops/scripts/todo-checker.sh --verbose --strict
