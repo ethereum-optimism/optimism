@@ -302,10 +302,7 @@ where
             RangeTransitionBoot::NoOp { boot } => boot_infos.push(BootInfoStruct::from(boot)),
             RangeTransitionBoot::Progress { boot, safe_head_hash, safe_head } => {
                 if let Some((claims, _)) = &mut segment {
-                    claims.following.push(BlockClaim {
-                        block_number: boot.claimed_l2_block_number,
-                        output_root: boot.claimed_l2_output_root,
-                    });
+                    claims.following.push(BlockClaim::from(&boot));
                     boot_infos.push(BootInfoStruct::from(boot));
                 } else {
                     boot_infos.push(BootInfoStruct::from(boot.clone()));

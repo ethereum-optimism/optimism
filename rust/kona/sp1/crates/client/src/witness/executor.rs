@@ -66,6 +66,15 @@ pub struct BlockClaim {
     pub output_root: B256,
 }
 
+impl From<&BootInfo> for BlockClaim {
+    fn from(boot: &BootInfo) -> Self {
+        Self {
+            block_number: boot.claimed_l2_block_number,
+            output_root: boot.claimed_l2_output_root,
+        }
+    }
+}
+
 /// A nonempty sequence of claims sharing one derivation driver.
 #[derive(Debug)]
 pub struct SegmentClaims {
@@ -136,10 +145,7 @@ pub trait WitnessExecutor {
             None,
         );
         let mut driver = Driver::new(cursor, executor, pipeline);
-        let first_claim = BlockClaim {
-            block_number: boot.claimed_l2_block_number,
-            output_root: boot.claimed_l2_output_root,
-        };
+        let first_claim = BlockClaim::from(boot);
         for claim in std::iter::once(first_claim).chain(claims.following.iter().copied()) {
             #[cfg(target_os = "zkvm")]
             println!("cycle-tracker-report-start: block-execution-and-derivation");
