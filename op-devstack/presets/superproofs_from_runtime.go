@@ -25,11 +25,23 @@ func newL1ProposerEOA(t devtest.T, runtime *sysgo.MultiChainRuntime, l2ChainID e
 }
 
 func simpleInteropFromSupernodeProofsRuntime(t devtest.T, runtime *sysgo.MultiChainRuntime) *SimpleInterop {
+	components := multiL2FromRuntime(t, runtime, "l2a", "l2b")
+	return simpleInteropFromRuntimeComponents(t, runtime, components)
+}
+
+func simpleInteropFromRuntimeComponents(
+	t devtest.T,
+	runtime *sysgo.MultiChainRuntime,
+	components *multiL2RuntimePresetComponents,
+) *SimpleInterop {
 	chainA := runtime.Chains["l2a"]
 	chainB := runtime.Chains["l2b"]
 	t.Require().NotNil(chainA, "missing l2a superproofs chain")
 	t.Require().NotNil(chainB, "missing l2b superproofs chain")
-	twoL2, components := twoL2FromRuntime(t, runtime)
+	l2A := components.chains["l2a"]
+	l2B := components.chains["l2b"]
+	t.Require().NotNil(l2A, "missing l2a preset components")
+	t.Require().NotNil(l2B, "missing l2b preset components")
 
 	supernodeFrontend := newSupernodeFrontend(t, "supernode-two-l2-system", runtime.Supernode.UserRPC(), runtime.Supernode)
 	testSequencer := newTestSequencerFrontend(
@@ -47,21 +59,21 @@ func simpleInteropFromSupernodeProofsRuntime(t devtest.T, runtime *sysgo.MultiCh
 			timeTravel:       runtime.TimeTravel,
 			SuperRoots:       dsl.NewSupernodeWithTestControl(supernodeFrontend, runtime.Supernode),
 			TestSequencer:    dsl.NewTestSequencer(testSequencer),
-			L1Network:        twoL2.L1Network,
-			L1EL:             twoL2.L1EL,
-			L1CL:             twoL2.L1CL,
-			L2ChainA:         twoL2.L2A,
-			L2BatcherA:       dsl.NewL2Batcher(components.l2ABatcher),
-			L2ELA:            dsl.NewL2ELNode(components.l2AEL),
-			L2CLA:            twoL2.L2ACL,
+			L1Network:        components.l1Network,
+			L1EL:             components.l1EL,
+			L1CL:             components.l1CL,
+			L2ChainA:         l2A.network,
+			L2BatcherA:       l2A.batcher,
+			L2ELA:            l2A.el,
+			L2CLA:            l2A.cl,
 			Wallet:           dsl.NewRandomHDWallet(t, 30),
 			challengerConfig: runtime.L2ChallengerConfig,
 			sysgoRuntime:     runtime,
 		},
-		L2ChainB:   twoL2.L2B,
-		L2BatcherB: dsl.NewL2Batcher(components.l2BBatcher),
-		L2ELB:      dsl.NewL2ELNode(components.l2BEL),
-		L2CLB:      twoL2.L2BCL,
+		L2ChainB:   l2B.network,
+		L2BatcherB: l2B.batcher,
+		L2ELB:      l2B.el,
+		L2CLB:      l2B.cl,
 	}
 	out.l1Proposer = newL1ProposerEOA(t, runtime, chainA.Network.ChainID(), out.L1EL)
 	out.FunderL1 = newFunderEOA(t, runtime.Keys, out.L1EL, out.Wallet)
@@ -70,6 +82,26 @@ func simpleInteropFromSupernodeProofsRuntime(t devtest.T, runtime *sysgo.MultiCh
 
 	attachChallenger(t, out.L2ChainA, "main", chainA.Network.ChainID(), out.challengerConfig)
 	attachChallenger(t, out.L2ChainB, "main", chainB.Network.ChainID(), out.challengerConfig)
+	return out
+}
+
+func threeChainInteropFromSupernodeProofsRuntime(t devtest.T, runtime *sysgo.MultiChainRuntime) *ThreeChainInterop {
+	components := multiL2FromRuntime(t, runtime, "l2a", "l2b", "l2c")
+	base := simpleInteropFromRuntimeComponents(t, runtime, components)
+	chainC := runtime.Chains["l2c"]
+	t.Require().NotNil(chainC, "missing l2c superproofs chain")
+	l2C := components.chains["l2c"]
+	t.Require().NotNil(l2C, "missing l2c preset components")
+
+	out := &ThreeChainInterop{
+		SimpleInterop: base,
+		L2ChainC:      l2C.network,
+		L2BatcherC:    l2C.batcher,
+		L2ELC:         l2C.el,
+		L2CLC:         l2C.cl,
+	}
+	out.FunderC = newFunderEOA(t, runtime.Keys, out.L2ELC, out.Wallet)
+	attachChallenger(t, out.L2ChainC, "main", chainC.Network.ChainID(), out.challengerConfig)
 	return out
 }
 

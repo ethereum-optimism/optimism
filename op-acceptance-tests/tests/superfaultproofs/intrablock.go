@@ -65,7 +65,7 @@ func RunIntraBlockConsolidationTest(t devtest.T, sys *presets.SimpleInterop, tc 
 	// --- Sync chains and prepare for same-timestamp block building -----------
 	sys.L2ChainB.CatchUpTo(sys.L2ChainA)
 	sys.L2ChainA.CatchUpTo(sys.L2ChainB)
-	sys.Supernode().EnsureInteropPaused(sys.L2CLA, sys.L2CLB, 10)
+	sys.Supernode().EnsureInteropPaused(10, sys.L2CLA, sys.L2CLB)
 
 	sys.L2CLA.StopSequencer()
 	sys.L2CLB.StopSequencer()
@@ -108,35 +108,8 @@ func RunIntraBlockConsolidationTest(t devtest.T, sys *presets.SimpleInterop, tc 
 	// --- Build and include transactions in same-timestamp blocks -------------
 	txsA, txsB := tc.BuildTxs(setup)
 
-	// Assign deterministic nonces
-	baseNonceA := alice.PendingNonce()
-	for i, ptx := range txsA {
-		txplan.WithStaticNonce(baseNonceA + uint64(i))(ptx)
-	}
-	baseNonceB := bob.PendingNonce()
-	for i, ptx := range txsB {
-		txplan.WithStaticNonce(baseNonceB + uint64(i))(ptx)
-	}
-
-	ctx := t.Ctx()
-	var rawTxsA, rawTxsB [][]byte
-	for _, ptx := range txsA {
-		signedTx, err := ptx.Signed.Eval(ctx)
-		t.Require().NoError(err, "failed to sign tx for chain A")
-		rawBytes, err := signedTx.MarshalBinary()
-		t.Require().NoError(err, "failed to marshal tx for chain A")
-		rawTxsA = append(rawTxsA, rawBytes)
-	}
-	for _, ptx := range txsB {
-		signedTx, err := ptx.Signed.Eval(ctx)
-		t.Require().NoError(err, "failed to sign tx for chain B")
-		rawBytes, err := signedTx.MarshalBinary()
-		t.Require().NoError(err, "failed to marshal tx for chain B")
-		rawTxsB = append(rawTxsB, rawBytes)
-	}
-
-	sys.TestSequencer.SequenceBlockWithTxs(t, sys.L2ChainA.ChainID(), unsafeA.Hash, rawTxsA)
-	sys.TestSequencer.SequenceBlockWithTxs(t, sys.L2ChainB.ChainID(), unsafeB.Hash, rawTxsB)
+	sys.TestSequencer.SequenceBlockWithPlannedTxs(t, unsafeA.Hash, alice, txsA...)
+	sys.TestSequencer.SequenceBlockWithPlannedTxs(t, unsafeB.Hash, bob, txsB...)
 
 	// --- Resume interop and wait for validation ------------------------------
 	sys.Supernode().ResumeInterop()
