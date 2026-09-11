@@ -88,6 +88,8 @@ func (st *StatusTracker) OnEvent(ctx context.Context, ev event.Event) bool {
 	return true
 }
 
+// UpdateSyncStatus publishes the current data as the new SyncStatus snapshot.
+// Callers must hold st.mu: it reads st.data, which the event and L1 handlers mutate.
 func (st *StatusTracker) UpdateSyncStatus() {
 	// If anything changes, then copy the state to the published SyncStatus
 	// @dev: If this becomes a performance bottleneck during sync (because mem copies onto heap, and 1KB comparisons),
@@ -100,6 +102,9 @@ func (st *StatusTracker) UpdateSyncStatus() {
 }
 
 func (st *StatusTracker) OnL1Unsafe(x eth.L1BlockRef) {
+	st.mu.Lock()
+	defer st.mu.Unlock()
+
 	st.metrics.RecordL1Ref("l1_head", x)
 	// We don't need to do anything if the head hasn't changed.
 	if st.data.HeadL1 == (eth.L1BlockRef{}) {
@@ -124,6 +129,9 @@ func (st *StatusTracker) OnL1Unsafe(x eth.L1BlockRef) {
 }
 
 func (st *StatusTracker) OnL1Safe(x eth.L1BlockRef) {
+	st.mu.Lock()
+	defer st.mu.Unlock()
+
 	st.log.Info("New L1 safe block", "l1_safe", x)
 	st.metrics.RecordL1Ref("l1_safe", x)
 	st.data.SafeL1 = x
@@ -131,6 +139,9 @@ func (st *StatusTracker) OnL1Safe(x eth.L1BlockRef) {
 }
 
 func (st *StatusTracker) OnL1Finalized(x eth.L1BlockRef) {
+	st.mu.Lock()
+	defer st.mu.Unlock()
+
 	st.log.Info("New L1 finalized block", "l1_finalized", x)
 	st.metrics.RecordL1Ref("l1_finalized", x)
 	st.data.FinalizedL1 = x
