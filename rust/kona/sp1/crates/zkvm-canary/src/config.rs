@@ -5,7 +5,7 @@ use std::{
     env,
     ffi::OsStr,
     fs,
-    num::{NonZeroU8, NonZeroU32, NonZeroU64, NonZeroUsize},
+    num::{NonZeroU32, NonZeroU64, NonZeroUsize},
     path::{Path, PathBuf},
     str::FromStr,
     time::Duration,
@@ -139,13 +139,14 @@ impl CanaryConfig {
         let dependency_set_path = optional_path(values, "DEPENDENCY_SET_PATH");
         validate_dependency_set(dependency_set_path.as_deref(), &configured_chain_ids)?;
 
-        let span_length = parse_nonzero_or(values, "FINALIZED_SPAN", 1u64)?;
+        let span_length = parse_or(values, "FINALIZED_SPAN", NonZeroU64::MIN)?;
         ensure!(
             span_length.get() <= MAX_SPAN_LENGTH,
             "{} must be in 1..={MAX_SPAN_LENGTH}",
             env_name("FINALIZED_SPAN"),
         );
-        let cadence_seconds = parse_nonzero_or(values, "CADENCE_SECONDS", DEFAULT_CADENCE_SECONDS)?;
+        let cadence_seconds =
+            parse_or(values, "CADENCE_SECONDS", NonZeroU64::new(DEFAULT_CADENCE_SECONDS).unwrap())?;
         let max_jitter_seconds =
             parse_or(values, "JITTER_SECONDS", DEFAULT_JITTER_SECONDS.min(cadence_seconds.get()))?;
         ensure!(
@@ -154,17 +155,20 @@ impl CanaryConfig {
             env_name("JITTER_SECONDS"),
             env_name("CADENCE_SECONDS"),
         );
-        let attempt_deadline_seconds =
-            parse_nonzero_or(values, "ATTEMPT_DEADLINE_SECONDS", DEFAULT_ATTEMPT_DEADLINE_SECONDS)?;
-        let rpc_request_timeout_seconds = parse_nonzero_or(
+        let attempt_deadline_seconds = parse_or(
+            values,
+            "ATTEMPT_DEADLINE_SECONDS",
+            NonZeroU64::new(DEFAULT_ATTEMPT_DEADLINE_SECONDS).unwrap(),
+        )?;
+        let rpc_request_timeout_seconds = parse_or(
             values,
             "RPC_REQUEST_TIMEOUT_SECONDS",
-            DEFAULT_RPC_REQUEST_TIMEOUT_SECONDS,
+            NonZeroU64::new(DEFAULT_RPC_REQUEST_TIMEOUT_SECONDS).unwrap(),
         )?;
-        let artifact_request_timeout_seconds = parse_nonzero_or(
+        let artifact_request_timeout_seconds = parse_or(
             values,
             "ARTIFACT_REQUEST_TIMEOUT_SECONDS",
-            DEFAULT_ARTIFACT_REQUEST_TIMEOUT_SECONDS,
+            NonZeroU64::new(DEFAULT_ARTIFACT_REQUEST_TIMEOUT_SECONDS).unwrap(),
         )?;
 
         let artifact_url = parse_artifact_url(values, mode)?;
@@ -175,12 +179,15 @@ impl CanaryConfig {
         };
 
         let metrics_listen = parse_or(values, "METRICS_PORT", MetricsListen::default())?;
-        let max_parent_response_bytes =
-            parse_nonzero_or(values, "MAX_PARENT_RESPONSE_BYTES", DEFAULT_PARENT_RESPONSE_BYTES)?;
-        let max_parent_response_entries = parse_nonzero_or(
+        let max_parent_response_bytes = parse_or(
+            values,
+            "MAX_PARENT_RESPONSE_BYTES",
+            NonZeroU32::new(DEFAULT_PARENT_RESPONSE_BYTES).unwrap(),
+        )?;
+        let max_parent_response_entries = parse_or(
             values,
             "MAX_PARENT_RESPONSE_ENTRIES",
-            DEFAULT_PARENT_RESPONSE_ENTRIES,
+            NonZeroUsize::new(DEFAULT_PARENT_RESPONSE_ENTRIES).unwrap(),
         )?;
         ensure!(
             max_parent_response_entries.get() <= MAX_CONFIGURED_CHAINS,
@@ -192,8 +199,9 @@ impl CanaryConfig {
             "configured L2 chain count exceeds {}",
             env_name("MAX_PARENT_RESPONSE_ENTRIES"),
         );
-        let guest_cycle_limit = parse_nonzero_required::<u64>(values, "GUEST_CYCLE_LIMIT")?;
-        let memory_limit = parse_nonzero_or(values, "MEMORY_LIMIT", DEFAULT_MEMORY_LIMIT_BYTES)?;
+        let guest_cycle_limit = parse_required(values, "GUEST_CYCLE_LIMIT")?;
+        let memory_limit =
+            parse_or(values, "MEMORY_LIMIT", NonZeroU64::new(DEFAULT_MEMORY_LIMIT_BYTES).unwrap())?;
 
         Ok(Self {
             superroot_rpc,
@@ -258,51 +266,6 @@ where
         |value| value.parse().map_err(|error| anyhow!("invalid {}: {error}", env_name(suffix))),
     )
 }
-
-fn parse_nonzero_or<T>(
-    values: &BTreeMap<String, String>,
-    suffix: &str,
-    default: T,
-) -> Result<T::NonZero>
-where
-    T: NonZeroValue + FromStr,
-    T::Err: std::fmt::Display,
-{
-    let value = parse_or(values, suffix, default)?;
-    value.into_nonzero().ok_or_else(|| anyhow!("{} must be non-zero", env_name(suffix)))
-}
-
-fn parse_nonzero_required<T>(values: &BTreeMap<String, String>, suffix: &str) -> Result<T::NonZero>
-where
-    T: NonZeroValue + FromStr,
-    T::Err: std::fmt::Display,
-{
-    let value = parse_required::<T>(values, suffix)?;
-    value.into_nonzero().ok_or_else(|| anyhow!("{} must be non-zero", env_name(suffix)))
-}
-
-trait NonZeroValue: Sized {
-    type NonZero;
-
-    fn into_nonzero(self) -> Option<Self::NonZero>;
-}
-
-macro_rules! impl_nonzero_value {
-    ($primitive:ty, $nonzero:ty) => {
-        impl NonZeroValue for $primitive {
-            type NonZero = $nonzero;
-
-            fn into_nonzero(self) -> Option<Self::NonZero> {
-                <$nonzero>::new(self)
-            }
-        }
-    };
-}
-
-impl_nonzero_value!(u8, NonZeroU8);
-impl_nonzero_value!(u32, NonZeroU32);
-impl_nonzero_value!(u64, NonZeroU64);
-impl_nonzero_value!(usize, NonZeroUsize);
 
 fn parse_rpc_url(values: &BTreeMap<String, String>, suffix: &str) -> Result<Url> {
     let url = parse_url(required(values, suffix)?, suffix)?;

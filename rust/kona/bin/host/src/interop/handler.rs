@@ -38,6 +38,23 @@ use std::sync::Arc;
 use tokio::task;
 use tracing::{Instrument, debug, info, info_span};
 
+struct AbortOnDrop<T>(task::JoinHandle<T>);
+
+impl<T> Drop for AbortOnDrop<T> {
+    fn drop(&mut self) {
+        self.0.abort();
+    }
+}
+
+async fn join_reexecution_tasks<S, C>(
+    server_task: task::JoinHandle<S>,
+    client_task: task::JoinHandle<C>,
+) -> Result<(S, C), task::JoinError> {
+    let mut server_task = AbortOnDrop(server_task);
+    let mut client_task = AbortOnDrop(client_task);
+    tokio::try_join!(&mut server_task.0, &mut client_task.0)
+}
+
 /// Parses the binary framing of a [`HintType::L2PayloadWitness`] hint.
 ///
 /// Returns `(parent_block_hash, payload_attributes_bytes, chain_id)`.
@@ -618,7 +635,7 @@ impl HintHandler for InteropHintHandler {
                 });
 
                 // Wait on both the server and client tasks to complete.
-                let (_, client_result) = tokio::try_join!(server_task, client_task)?;
+                let (_, client_result) = join_reexecution_tasks(server_task, client_task).await?;
                 let (build_outcome, raw_transactions) = client_result?;
 
                 // Store optimistic block hash preimage.
@@ -693,7 +710,60 @@ impl HintHandler for InteropHintHandler {
 
 #[cfg(test)]
 mod tests {
+    use std::{
+        future::pending,
+        sync::{
+            Arc,
+            atomic::{AtomicUsize, Ordering},
+        },
+    };
+
+    use tokio::sync::Barrier;
+
     use super::*;
+
+    struct ActiveTask(Arc<AtomicUsize>);
+
+    impl ActiveTask {
+        fn enter(active: Arc<AtomicUsize>) -> Self {
+            active.fetch_add(1, Ordering::SeqCst);
+            Self(active)
+        }
+    }
+
+    impl Drop for ActiveTask {
+        fn drop(&mut self) {
+            self.0.fetch_sub(1, Ordering::SeqCst);
+        }
+    }
+
+    #[tokio::test]
+    async fn dropping_reexecution_join_aborts_both_tasks() {
+        let active = Arc::new(AtomicUsize::new(0));
+        let started = Arc::new(Barrier::new(3));
+        let spawn_pending = || {
+            let active = active.clone();
+            let started = started.clone();
+            task::spawn(async move {
+                let _active = ActiveTask::enter(active);
+                started.wait().await;
+                pending::<()>().await;
+            })
+        };
+        let join_task = task::spawn(join_reexecution_tasks(spawn_pending(), spawn_pending()));
+
+        started.wait().await;
+        assert_eq!(active.load(Ordering::SeqCst), 2);
+        join_task.abort();
+        assert!(join_task.await.unwrap_err().is_cancelled());
+        tokio::time::timeout(std::time::Duration::from_secs(1), async {
+            while active.load(Ordering::SeqCst) != 0 {
+                task::yield_now().await;
+            }
+        })
+        .await
+        .expect("nested tasks were not cancelled");
+    }
 
     fn make_hint(parent_hash: B256, json: &[u8], chain_id: u64) -> Vec<u8> {
         let mut data = Vec::new();

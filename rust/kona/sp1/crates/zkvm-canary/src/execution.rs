@@ -603,9 +603,9 @@ fn classify_execution_error(error: &ExecutionError, cycle_limit: NonZeroU64) -> 
         {
             StageOutcome::CycleLimitExceeded
         }
-        ExecutionError::KilledByMemoryMonitor(_) | ExecutionError::ChildKilled() => {
-            StageOutcome::InfrastructureFailure
-        }
+        ExecutionError::TooMuchMemory() |
+        ExecutionError::KilledByMemoryMonitor(_) |
+        ExecutionError::ChildKilled() => StageOutcome::InfrastructureFailure,
         _ => StageOutcome::GuestRejected,
     }
 }
@@ -784,6 +784,10 @@ mod tests {
 
     #[test]
     fn host_dependent_kills_are_retryable_infrastructure_failures() {
+        assert_eq!(
+            classify_execution_error(&ExecutionError::TooMuchMemory(), NonZeroU64::MIN),
+            StageOutcome::InfrastructureFailure,
+        );
         assert_eq!(
             classify_execution_error(
                 &ExecutionError::KilledByMemoryMonitor(24_576),

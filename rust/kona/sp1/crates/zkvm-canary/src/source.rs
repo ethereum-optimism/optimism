@@ -471,7 +471,7 @@ impl SnapshotSource {
             return Err(error);
         }
         insert_reference(references, response.current_l1, "CurrentL1")?;
-        insert_reference(references, data.verified_required_l1, "verified required L1")?;
+        insert_required_reference(references, data.verified_required_l1, "verified required L1")?;
 
         let optimistic_chain_ids = response
             .optimistic_at_timestamp
@@ -515,7 +515,7 @@ impl SnapshotSource {
                 );
                 return Err(error);
             }
-            insert_reference(references, output.required_l1, "optimistic required L1")?;
+            insert_required_reference(references, output.required_l1, "optimistic required L1")?;
         }
         Ok(())
     }
@@ -831,6 +831,17 @@ fn insert_reference(
         )));
     }
     Ok(())
+}
+
+fn insert_required_reference(
+    references: &mut BTreeMap<u64, BlockId>,
+    block: BlockId,
+    label: &str,
+) -> std::result::Result<(), BuildFailure> {
+    if block.number == 0 && block.hash == B256::ZERO {
+        return Ok(());
+    }
+    insert_reference(references, block, label)
 }
 
 fn optimistic_block_hash(
@@ -1369,6 +1380,25 @@ mod tests {
         let detail = format!("{error:#}");
         assert!(detail.contains("timestamp 10 chain 10 optimistic required L1 100"));
         assert!(detail.contains("exceeds pinned L1 99"));
+    }
+
+    #[tokio::test]
+    async fn genesis_required_l1_sentinel_is_not_canonicalized() {
+        let server = MockServer::start();
+        let sentinel = BlockId { number: 0, hash: B256::ZERO };
+        let mut responses = base_responses();
+        for response in &mut responses {
+            response.data.as_mut().unwrap().verified_required_l1 = sentinel;
+            for output in response.optimistic_at_timestamp.values_mut() {
+                output.required_l1 = sentinel;
+            }
+        }
+        let mut blocks = base_blocks();
+        blocks.insert(0, block_json(BlockId { number: 0, hash: B256::repeat_byte(0x42) }));
+        register_fixture(&server, &responses, &blocks);
+        let source = SnapshotSource::new(&config(&server)).unwrap();
+
+        source.select_finalized(NOW, artifact_identity()).await.unwrap();
     }
 
     #[tokio::test]

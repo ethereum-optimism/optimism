@@ -15,7 +15,7 @@ use alloy_eips::BlockNumberOrTag;
 use alloy_primitives::Address;
 use alloy_provider::RootProvider;
 use jsonrpsee::RpcModule;
-use kona_derive::StatefulAttributesBuilder;
+use kona_derive::{BlobProviderError, StatefulAttributesBuilder};
 use kona_engine::{Engine, EngineState, OpEngineClient};
 use kona_genesis::{L1ChainConfig, RollupConfig};
 use kona_gossip::P2pRpcRequest;
@@ -196,7 +196,7 @@ impl RollupNode {
         )
     }
 
-    async fn create_pipeline(&self) -> OnlinePipeline {
+    async fn create_pipeline(&self) -> Result<OnlinePipeline, BlobProviderError> {
         // Create the caching L1/L2 EL providers for derivation.
         let l1_derivation_provider = AlloyChainProvider::new_with_trust(
             self.l1_config.engine_provider.clone(),
@@ -213,14 +213,14 @@ impl RollupNode {
             ),
         );
 
-        OnlinePipeline::new_polled(
+        Ok(OnlinePipeline::new_polled(
             self.config.clone(),
             self.l1_config.chain_config.clone(),
-            OnlineBlobProvider::init(self.l1_config.beacon_client.clone()).await,
+            OnlineBlobProvider::init(self.l1_config.beacon_client.clone()).await?,
             l1_derivation_provider,
             l2_derivation_provider,
             self.dependency_set.clone(),
-        )
+        ))
     }
 
     /// Builds both engine actors. They share a single [`kona_engine::EngineClient`] and a watch
@@ -273,24 +273,30 @@ impl RollupNode {
         &self,
         engine_actor_request_tx: mpsc::Sender<EngineActorRequest>,
         derivation_actor_request_rx: mpsc::Receiver<DerivationActorRequest>,
-    ) -> ConfiguredDerivationActor {
+    ) -> Result<ConfiguredDerivationActor, String> {
         if let Some(provider) = self.derivation_delegate_provider.clone() {
             // L1 Provider for sanity checking Derivation Delegation
             let l1_provider = AlloyChainProvider::new(
                 self.l1_config.engine_provider.clone(),
                 DERIVATION_PROVIDER_CACHE_SIZE,
             );
-            ConfiguredDerivationActor::Delegate(Box::new(DelegateDerivationActor::new(
+            Ok(ConfiguredDerivationActor::Delegate(Box::new(DelegateDerivationActor::new(
                 QueuedDerivationEngineClient { engine_actor_request_tx },
                 derivation_actor_request_rx,
                 provider,
                 l1_provider,
-            )))
+            ))))
         } else {
-            ConfiguredDerivationActor::Normal(Box::new(DerivationActor::<_, OnlinePipeline>::new(
-                QueuedDerivationEngineClient { engine_actor_request_tx },
-                derivation_actor_request_rx,
-                self.create_pipeline().await,
+            let pipeline = self
+                .create_pipeline()
+                .await
+                .map_err(|error| format!("Failed to initialize L1 blob provider: {error}"))?;
+            Ok(ConfiguredDerivationActor::Normal(Box::new(
+                DerivationActor::<_, OnlinePipeline>::new(
+                    QueuedDerivationEngineClient { engine_actor_request_tx },
+                    derivation_actor_request_rx,
+                    pipeline,
+                ),
             )))
         }
     }
@@ -491,7 +497,7 @@ impl RollupNode {
 
         let derivation = self
             .build_derivation_actor(engine_actor_request_tx.clone(), derivation_actor_request_rx)
-            .await;
+            .await?;
 
         // Build and start the libp2p swarm upstream of `NetworkActor::new` so the constructor
         // stays sync.
