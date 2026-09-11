@@ -876,6 +876,10 @@ contract OPContractsManagerV2 is ISemver, OPContractsManagerUtilsCaller {
 
         // Enable ETHLockbox before updating the portal.
         bool wasEthLockboxEnabled = _cts.systemConfig.isFeatureEnabled(Features.ETH_LOCKBOX);
+        // The flag can be enabled without a configured lockbox. Check the old portal before
+        // reinitializing it, but skip the getter on initial deployments where it is not initialized.
+        bool wasUsingEthLockbox =
+            !_isInitialDeployment && wasEthLockboxEnabled && address(_cts.optimismPortal.ethLockbox()) != address(0);
         if (address(_cts.ethLockbox) == address(0)) {
             revert OPContractsManagerV2_InvalidEthLockbox();
         }
@@ -905,7 +909,7 @@ contract OPContractsManagerV2 is ISemver, OPContractsManagerUtilsCaller {
         );
 
         // Custom gas token chains keep custody in the portal and do not migrate ETH.
-        if (!wasEthLockboxEnabled && !_cfg.useCustomGasToken) {
+        if (!wasUsingEthLockbox && !_cfg.useCustomGasToken) {
             _cts.optimismPortal.migrateLiquidity();
         }
 

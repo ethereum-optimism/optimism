@@ -177,7 +177,7 @@ We commit the `DeploymentSummary.sol` and `DeploymentSummaryCode.sol` contracts 
 
 The `kontrol-tests` job runs proofs on our CircleCI runners after merges to `develop`.
 It builds Go FFI, regenerates both deployment summaries, and runs the configured proofs using the pinned Kontrol Docker image.
-Failures notify security-oncall on `develop`.
+Failures notify evm-security-oncall on `develop`.
 
 To run the same sequence locally from `packages/contracts-bedrock`:
 

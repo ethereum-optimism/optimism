@@ -59,7 +59,7 @@ just go-tests
 
 ### Generating Mocks
 
-Each service justfile has a `generate-mocks` target:
+Some service justfiles have a `generate-mocks` target:
 
 ```bash
 cd <service> && just generate-mocks
