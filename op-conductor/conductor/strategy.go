@@ -19,6 +19,15 @@ type TransferStrategy interface {
 	SelectTargets(ctx context.Context, self string, membership *consensus.ClusterMembership) ([]consensus.ServerInfo, error)
 }
 
+// LeadershipPolicy allows a healthy, actively sequencing leader to voluntarily
+// give up leadership, for deployments where some members are preferred leaders.
+//
+// It is consulted from the control loop, so implementations should bound the
+// time they spend doing I/O.
+type LeadershipPolicy interface {
+	ShouldYieldLeadership(ctx context.Context, self string, membership *consensus.ClusterMembership) (bool, error)
+}
+
 // RoundRobinTransferStrategy walks the voters in sorted ServerID order, starting
 // from the member after the current one. This guarantees every member gets a
 // turn, so a cluster where the most up-to-date members are unhealthy still
