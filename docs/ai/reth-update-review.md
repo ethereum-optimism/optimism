@@ -96,7 +96,7 @@ Each one encodes an assumption. Name the assumption, then check it against the l
 `DEPOSIT_TRANSACTION_TYPE` before reaching `validation::validate_env`, because deposits
 are pre-verified on L1 (
 [specs.optimism.io/protocol/deposits](https://specs.optimism.io/protocol/deposits.html)).
-Read the upstream body to keep this current; as of `revm` 41 it means a deposit is not
+Read the upstream body to keep this current; as of `revm` 42 it means a deposit is not
 checked for:
 
 - `prevrandao` present (Merge+) and `excess_blob_gas` present (Cancun+) on the block

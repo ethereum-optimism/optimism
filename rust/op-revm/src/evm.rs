@@ -64,7 +64,7 @@ impl<CTX, INSP, I, P> OpEvm<CTX, INSP, I, P> {
     }
 }
 
-/// UPSTREAM-MIRROR(delegate): revm-inspector@41.0.0 `revm_inspector::InspectorEvmTr`
+/// UPSTREAM-MIRROR(delegate): revm-inspector@42.0.1 `revm_inspector::InspectorEvmTr`
 ///
 /// Forwards inspector EVM access to the inner mainnet-shaped EVM.
 impl<CTX, INSP, I, P> InspectorEvmTr for OpEvm<CTX, INSP, I, P>
@@ -103,7 +103,7 @@ where
     }
 }
 
-/// UPSTREAM-MIRROR(delegate): revm-handler@41.0.0 `revm_handler::EvmTr`
+/// UPSTREAM-MIRROR(delegate): revm-handler@42.0.1 `revm_handler::EvmTr`
 ///
 /// Forwards selected EVM operations to the inner EVM. Re-check newly defaulted methods and
 /// upstream overrides that this wrapper would otherwise miss.
