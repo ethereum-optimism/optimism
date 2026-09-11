@@ -42,8 +42,8 @@ var (
 )
 
 // New creates a new OpConductor instance.
-func New(ctx context.Context, cfg *Config, log log.Logger, version string) (*OpConductor, error) {
-	return NewOpConductor(ctx, cfg, log, metrics.NewMetrics(), version, nil, nil, nil)
+func New(ctx context.Context, cfg *Config, log log.Logger, version string, opts ...Option) (*OpConductor, error) {
+	return NewOpConductor(ctx, cfg, log, metrics.NewMetrics(), version, nil, nil, nil, opts...)
 }
 
 // NewOpConductor creates a new OpConductor instance.
@@ -56,6 +56,7 @@ func NewOpConductor(
 	ctrl client.SequencerControl,
 	cons consensus.Consensus,
 	hmon health.HealthMonitor,
+	opts ...Option,
 ) (*OpConductor, error) {
 	if err := cfg.Check(); err != nil {
 		return nil, fmt.Errorf("invalid config: %w", err)
@@ -77,6 +78,10 @@ func NewOpConductor(
 		retryBackoff: func() time.Duration { return time.Duration(rand.Intn(2000)) * time.Millisecond },
 	}
 	oc.loopActionFn = oc.loopAction
+
+	for _, opt := range opts {
+		opt(oc)
+	}
 
 	// explicitly set all atomic.Bool values
 	oc.leader.Store(false)         // upon start, it should not be the leader unless specified otherwise by raft bootstrap, in that case, it'll receive a leadership update from consensus.
@@ -315,6 +320,10 @@ func (oc *OpConductor) initRPCServer(ctx context.Context) error {
 		})
 	}
 
+	for _, api := range oc.extraAPIs {
+		server.AddAPI(api)
+	}
+
 	oc.rpcServer = server
 	return nil
 }
@@ -372,6 +381,8 @@ type OpConductor struct {
 	healthUpdateCh <-chan error
 	leaderUpdateCh <-chan bool
 	loopActionFn   func() // loopActionFn defines the logic to be executed inside control loop.
+
+	extraAPIs []rpc.API
 
 	wg             sync.WaitGroup
 	pauseCh        chan struct{}
