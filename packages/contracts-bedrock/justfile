@@ -522,10 +522,13 @@ semver-diff-check-no-build:
 # Checks that any contracts with a modified semver lock also have a modified semver version.
 semver-diff-check: build semver-diff-check-no-build
 
+# Stable Forge remains the formatting authority while Amsterdam requires a nightly.
+_forge-fmt *ARGS:
+  forge --version | grep -q -- '-nightly' || forge fmt {{ARGS}}
+
 # Checks that the semgrep tests are valid.
 semgrep-test-validity-check:
-  # Stable Forge remains the formatting authority while Amsterdam requires a nightly.
-  forge --version | grep -q -- '-nightly' || forge fmt ../../.semgrep/tests/sol-rules.t.sol --check
+  just _forge-fmt ../../.semgrep/tests/sol-rules.t.sol --check
 
 # Validates forge test conventions and structure. Does not build contracts.
 lint-forge-tests-check-no-build:
@@ -536,8 +539,7 @@ lint-forge-tests-check: build lint-forge-tests-check-no-build
 
 # Checks that contracts are properly linted.
 lint-check:
-  # Stable Forge remains the formatting authority while Amsterdam requires a nightly.
-  forge --version | grep -q -- '-nightly' || forge fmt --check
+  just _forge-fmt --check
 
 # Updates the selectors for the contracts
 update-selectors:
@@ -636,13 +638,13 @@ twrap:
 
 # Fixes linting errors.
 lint-fix:
-  forge fmt
+  just _forge-fmt
 
 # Fixes linting errors but doesn't fail if there are syntax errors. Useful for build command
 # because the output of forge fmt can sometimes be difficult to understand but if there's a syntax
 # error the build will fail anyway and provide more context about what's wrong.
 lint-fix-no-fail:
-  forge fmt || true
+  just _forge-fmt || true
 
 # Fixes linting errors and checks that the code is correctly formatted.
 lint: lint-fix lint-check

@@ -24,7 +24,7 @@ phases:
     checks:
       - name: lint-fix
         description: Fix code formatting locally
-        command: '[ -n "${CI:-}" ] || forge fmt || true'
+        command: '[ -n "${CI:-}" ] || just lint-fix-no-fail'
 
   # Phase 2: Pre-build checks - no compilation needed
   - name: pre-build
