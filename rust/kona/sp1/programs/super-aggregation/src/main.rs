@@ -12,6 +12,8 @@ use sha2::{Digest, Sha256};
 
 /// Entrypoint to the super-aggregation program.
 pub fn main() {
+    println!("{}", kona_sp1_build_info::BUILD_MARKER);
+
     let inputs = sp1_zkvm::io::read::<SuperAggregationInputs>();
     let public_values = aggregate(&inputs, sp1_lib::verify::verify_sp1_proof)
         .expect("invalid super-aggregation inputs");

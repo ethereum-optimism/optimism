@@ -235,6 +235,9 @@ pub(crate) trait ProofEngine: Send + Sync {
         responses: Vec<SuperRootAtTimestampResponse>,
     ) -> Result<Vec<u8>>;
     fn clear(&self, game_address: Address);
+    /// Resets only terminal requests, returning the number reset.
+    /// Scheduler policy requires the caller to skip games with tracked proving tasks.
+    fn retry_terminal_requests(&self, game_address: Address) -> usize;
 }
 
 /// Confirmed proposer transaction effects.

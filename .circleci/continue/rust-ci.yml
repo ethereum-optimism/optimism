@@ -423,7 +423,8 @@ jobs:
         default: 1
     docker:
       - image: <<pipeline.parameters.c-rust_base_image>>
-    resource_class: xlarge.gen2
+    # Trial one tier down after current V3 telemetry peaked at 7.0 GiB across 141 runs.
+    resource_class: large.gen2
     parallelism: <<parameters.parallelism>>
     steps:
       - utils/checkout-with-mise:
