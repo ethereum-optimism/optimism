@@ -110,10 +110,10 @@ where
         self.mainnet.validate_env(evm)
     }
 
-    /// UPSTREAM-MIRROR(override): revm-handler@41.0.0
+    /// UPSTREAM-MIRROR(override): revm-handler@42.0.1
     /// `revm_handler::Handler::validate_against_state_and_deduct_caller`
     ///
-    /// UPSTREAM-MIRROR(copy): revm-handler@41.0.0
+    /// UPSTREAM-MIRROR(copy): revm-handler@42.0.1
     /// `revm_handler::pre_execution::validate_against_state_and_deduct_caller`
     ///
     /// The non-deposit arm copies the upstream helper with the L1-fee deduction inserted
@@ -232,6 +232,19 @@ where
             frame_result.gas_mut().tracker_mut(),
         );
 
+        // Refund the EIP-2780 refundable first-frame charge when no account
+        // leaf was created, exactly like `EthFrame::return_result` refunds
+        // the upfront CALL/CREATE state charges of inner frames.
+        if let Some(charge) = frame_result.refundable_state_gas(evm.ctx().cfg().gas_params()) {
+            parent_gas.refill_reservoir(charge);
+            // Unlike an inner frame's caller, the transaction ends here: an
+            // exceptional halt consumes all regular gas, including the
+            // spilled portion the refill just credited back to `remaining`.
+            if instruction_result.is_halt() {
+                parent_gas.spend_all();
+            }
+        }
+
         // On Optimism, deposit transactions report gas usage uniquely to other
         // transactions due to them being pre-paid on L1.
         //
@@ -244,8 +257,9 @@ where
         //   - Deposit transactions (all) report their gas used as normal. Refunds enabled.
         //   - Regular transactions report their gas used as normal.
         //
-        // The settle above already returned the frame's unused regular gas and its refund
-        // counter; a pre-Regolith deposit gets neither, so take both back.
+        // The settle and refund above already returned the frame's unused regular gas and its
+        // refund counter; a pre-Regolith deposit gets neither, so take both back. This runs last
+        // so that no upstream credit, present or future, can hand gas back to such a deposit.
         if is_deposit && !is_regolith {
             parent_gas.spend_all();
             parent_gas.set_refunded(0);
@@ -253,19 +267,6 @@ where
                 // System transactions were a special type of deposit transaction in
                 // the Bedrock hardfork that did not incur any gas costs.
                 parent_gas.erase_cost(tx_gas_limit);
-            }
-        }
-
-        // Refund the EIP-2780 refundable first-frame charge when no account
-        // leaf was created, exactly like `EthFrame::return_result` refunds
-        // the upfront CALL/CREATE state charges of inner frames.
-        if let Some(charge) = frame_result.refundable_state_gas(evm.ctx().cfg().gas_params()) {
-            parent_gas.refill_reservoir(charge);
-            // Unlike an inner frame's caller, the transaction ends here: an
-            // exceptional halt consumes all regular gas, including the
-            // spilled portion the refill just credited back to `remaining`.
-            if instruction_result.is_halt() {
-                parent_gas.spend_all();
             }
         }
 
