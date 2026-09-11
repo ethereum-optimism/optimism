@@ -2601,7 +2601,7 @@ contract OPContractsManagerV2_Deploy_Test is OPContractsManagerV2_TestInit {
     function _assertDeployGasBounds() internal view returns (uint64 executionGas_, int64 stateGas_) {
         // Amsterdam Forge returns state gas after the five fields in the pinned Vm.Gas struct.
         (bool success, bytes memory result) = address(vm).staticcall(abi.encodeCall(vm.lastCallGas, ()));
-        require(success, "lastCallGas failed");
+        require(success, "OPContractsManagerV2_Deploy_Test: lastCallGas failed");
         (, executionGas_,,,, stateGas_) = abi.decode(result, (uint64, uint64, uint64, int64, uint64, int64));
         assertLe(uint256(executionGas_), 60_000_000, "Deploy execution gas exceeds 60M");
         assertLe(int256(stateGas_), 60_000_000, "Deploy state gas exceeds 60M");
