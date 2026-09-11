@@ -25,7 +25,7 @@ use reth_evm::{
 use reth_execution_types::BlockExecutionOutput;
 use reth_metrics::{
     Metrics,
-    metrics::{self, Counter, Gauge},
+    metrics::{self, Counter, Gauge, Histogram},
 };
 use reth_optimism_evm::{
     ConfigurePostExecEvm, PostExecExecutorExt, PostExecMode, PreRefundGasUsed,
@@ -49,11 +49,19 @@ use reth_revm::{
 };
 use reth_storage_api::{StateProvider, StateProviderFactory, errors::ProviderError};
 use reth_transaction_pool::{BestTransactionsAttributes, PoolTransaction, TransactionPool};
+use reth_trie_parallel::{
+    error::StateRootTaskError,
+    state_root_task::{PayloadStateRootHandle, StateRootComputeOutcome},
+};
 use revm::context::{Block, BlockEnv};
-use std::{marker::PhantomData, sync::Arc};
+use std::{
+    marker::PhantomData,
+    sync::{Arc, mpsc::RecvTimeoutError},
+    time::{Duration, Instant},
+};
 use tracing::{debug, trace, warn};
 
-/// SDM/PostExec payload-builder metrics.
+/// Payload-builder metrics.
 #[derive(Metrics, Clone)]
 #[metrics(scope = "optimism_payload_builder")]
 struct OpPayloadBuilderMetrics {
@@ -61,12 +69,93 @@ struct OpPayloadBuilderMetrics {
     sdm_refund_gas_total: Counter,
     /// SDM gas refunded by the latest produced block.
     sdm_refund_gas_per_block: Gauge,
+    /// Builds whose state root came from the engine's shared sparse trie.
+    state_root_from_shared_trie_total: Counter,
+    /// Builds that fell back to the synchronous trie walk after the shared sparse trie failed to
+    /// produce a state root.
+    state_root_fallback_total: Counter,
 }
 
 impl OpPayloadBuilderMetrics {
     fn record_sdm_refund_gas(&self, gas_refund: u64) {
         self.sdm_refund_gas_total.increment(gas_refund);
         self.sdm_refund_gas_per_block.set(gas_refund as f64);
+    }
+}
+
+/// Metrics for waiting on the engine's shared sparse trie.
+#[derive(Metrics, Clone)]
+#[metrics(scope = "optimism_payload_builder")]
+struct StateRootWaitMetrics {
+    /// Time spent waiting for the shared sparse trie's state root, in seconds.
+    state_root_wait_duration_seconds: Histogram,
+}
+
+impl StateRootWaitMetrics {
+    fn record(outcome: &'static str, elapsed: Duration) {
+        Self::new_with_labels(&[("outcome", outcome)])
+            .state_root_wait_duration_seconds
+            .record(elapsed);
+    }
+}
+
+enum StateRootWaitResult {
+    Task(Result<StateRootComputeOutcome, StateRootTaskError>),
+    Timeout(Duration),
+    Disconnected(&'static str),
+}
+
+/// Waits for the engine's shared sparse trie to produce a state root, bounded by `wait`.
+///
+/// `None` waits indefinitely, which is what reth's `newPayload` path does when
+/// `--engine.state-root-task-timeout` is disabled. A timeout is reported as an error so the caller
+/// takes the same fallback it already takes when the pipeline fails.
+///
+/// Unlike the engine, the builder cannot race the fallback against the trie task:
+/// `BlockBuilder::finish` consumes the builder, so the synchronous walk can only start once we
+/// have given up on the task. A build that times out therefore pays both.
+fn await_sparse_trie_state_root(
+    handle: &mut PayloadStateRootHandle,
+    wait: Option<Duration>,
+) -> Result<StateRootComputeOutcome, StateRootTaskError> {
+    let receiver = handle.take_state_root_rx();
+    let started = Instant::now();
+    let result = wait.map_or_else(
+        || {
+            receiver.recv().map_or_else(
+                |_| StateRootWaitResult::Disconnected("state root task dropped"),
+                StateRootWaitResult::Task,
+            )
+        },
+        |wait| match receiver.recv_timeout(wait) {
+            Ok(result) => StateRootWaitResult::Task(result),
+            Err(RecvTimeoutError::Timeout) => StateRootWaitResult::Timeout(wait),
+            Err(RecvTimeoutError::Disconnected) => {
+                StateRootWaitResult::Disconnected("sparse trie task dropped")
+            }
+        },
+    );
+    let elapsed = started.elapsed();
+
+    match result {
+        StateRootWaitResult::Task(Ok(outcome)) => {
+            StateRootWaitMetrics::record("success", elapsed);
+            Ok(outcome)
+        }
+        StateRootWaitResult::Task(Err(err)) => {
+            StateRootWaitMetrics::record("task_error", elapsed);
+            Err(err)
+        }
+        StateRootWaitResult::Timeout(wait) => {
+            StateRootWaitMetrics::record("timeout", elapsed);
+            Err(StateRootTaskError::Other(format!(
+                "sparse trie task did not produce a state root within {wait:?}"
+            )))
+        }
+        StateRootWaitResult::Disconnected(message) => {
+            StateRootWaitMetrics::record("disconnected", elapsed);
+            Err(StateRootTaskError::Other(message.to_string()))
+        }
     }
 }
 
@@ -254,7 +343,14 @@ where
         Txs:
             PayloadTransactions<Transaction: PoolTransaction<Consensus = N::SignedTx> + OpPooledTx>,
     {
-        let BuildArguments { mut cached_reads, config, cancel, best_payload, .. } = args;
+        let BuildArguments {
+            mut cached_reads,
+            config,
+            cancel,
+            best_payload,
+            state_root_handle,
+            ..
+        } = args;
 
         let ctx = OpPayloadBuilderCtx {
             evm_config: self.evm_config.clone(),
@@ -265,7 +361,7 @@ where
             best_payload,
         };
 
-        let builder = OpBuilder::new(best);
+        let builder = OpBuilder::new(best).with_state_root_handle(state_root_handle);
 
         let state_provider = self.client.state_by_block_hash(ctx.parent().hash())?;
         let state = StateProviderDatabase::new(&state_provider);
@@ -433,12 +529,27 @@ pub struct OpBuilder<'a, Txs> {
     /// Yields the best transaction to include if transactions from the mempool are allowed.
     #[debug(skip)]
     best: Box<dyn FnOnce(BestTransactionsAttributes) -> Txs + 'a>,
+    /// Handle to the engine's sparse trie pipeline, if it shares one for this payload.
+    state_root_handle: Option<PayloadStateRootHandle>,
 }
 
 impl<'a, Txs> OpBuilder<'a, Txs> {
     /// Creates a new [`OpBuilder`].
     pub fn new(best: impl FnOnce(BestTransactionsAttributes) -> Txs + Send + Sync + 'a) -> Self {
-        Self { best: Box::new(best) }
+        Self { best: Box::new(best), state_root_handle: None }
+    }
+
+    /// Shares the engine's sparse trie pipeline with this build.
+    ///
+    /// When set, state diffs stream to the trie task as they commit during execution and the
+    /// final root is taken from it, instead of the blocking trie walk in
+    /// [`BlockBuilder::finish`].
+    pub fn with_state_root_handle(
+        mut self,
+        state_root_handle: Option<PayloadStateRootHandle>,
+    ) -> Self {
+        self.state_root_handle = state_root_handle;
+        self
     }
 }
 
@@ -462,7 +573,7 @@ impl<Txs> OpBuilder<'_, Txs> {
             PayloadTransactions<Transaction: PoolTransaction<Consensus = N::SignedTx> + OpPooledTx>,
         Attrs: OpAttributes<Transaction = N::SignedTx>,
     {
-        let Self { best } = self;
+        let Self { best, mut state_root_handle } = self;
         debug!(target: "payload_builder", id=%ctx.payload_id(), parent_header = ?ctx.parent().hash(), parent_number = ctx.parent().number(), "building new payload");
 
         let mut db = State::builder().with_database(db).with_bundle_update().build();
@@ -481,6 +592,12 @@ impl<Txs> OpBuilder<'_, Txs> {
         let produce_post_exec = matches!(post_exec_mode, PostExecMode::Produce);
 
         let mut builder = ctx.block_builder_with_mode(&mut db, post_exec_mode)?;
+
+        // If the engine shares its sparse trie for this payload, stream state diffs to it as they
+        // commit so the final root is already computed when execution ends.
+        if let Some(task) = state_root_handle.as_mut() {
+            builder.evm_mut().db_mut().set_state_hook(Some(Box::new(task.take_state_hook())));
+        }
 
         // 1. apply pre-execution changes
         builder.apply_pre_execution_changes().map_err(|err| {
@@ -529,15 +646,46 @@ impl<Txs> OpBuilder<'_, Txs> {
             0
         };
 
+        let metrics = OpPayloadBuilderMetrics::default();
+
         let BlockBuilderOutcome {
             execution_result,
             hashed_state,
             trie_updates,
             block,
             block_access_list: _,
-        } = builder.finish(state_provider, None)?;
+        } = if let Some(mut task) = state_root_handle {
+            // Drop the state hook, which finishes the update stream and signals the trie task to
+            // finalize.
+            builder.evm_mut().db_mut().set_state_hook(None);
 
-        OpPayloadBuilderMetrics::default().record_sdm_refund_gas(sdm_refund_gas);
+            // The sparse trie has been computing incrementally alongside tx execution, so the
+            // final root is usually immediate. Bound the wait anyway: a trie task that never
+            // answers would otherwise park this build forever, and with it the payload job, which
+            // never spawns another attempt and never resolves `getPayload`.
+            match await_sparse_trie_state_root(&mut task, ctx.builder_config.state_root_wait) {
+                Ok(outcome) => {
+                    metrics.state_root_from_shared_trie_total.increment(1);
+                    debug!(target: "payload_builder", id=%ctx.payload_id(), state_root=?outcome.state_root, job=task.name(), "received state root from sparse trie");
+                    builder.finish(
+                        state_provider,
+                        Some((outcome.state_root, Arc::unwrap_or_clone(outcome.trie_updates))),
+                    )?
+                }
+                Err(err) => {
+                    metrics.state_root_fallback_total.increment(1);
+                    warn!(target: "payload_builder", id=%ctx.payload_id(), %err, "sparse trie failed, falling back to sync state root");
+                    // Cancel the abandoned task rather than let it compete with the walk we are
+                    // about to pay for.
+                    drop(task);
+                    builder.finish(state_provider, None)?
+                }
+            }
+        } else {
+            builder.finish(state_provider, None)?
+        };
+
+        metrics.record_sdm_refund_gas(sdm_refund_gas);
 
         let sealed_block = Arc::new(block.sealed_block().clone());
         debug!(target: "payload_builder", id=%ctx.attributes().payload_id(), sealed_block_header = ?sealed_block.header(), "sealed built block");
@@ -959,7 +1107,14 @@ where
     ) -> Result<
         impl BlockBuilder<
             Primitives = Evm::Primitives,
-            Executor: PostExecExecutorExt + BlockExecutor<Result: PreRefundGasUsed>,
+            // The database bound is re-stated from `post_exec_builder_for_next_block` so callers
+            // can reach the underlying `State`, which owns the state hook the sparse trie
+            // pipeline streams through.
+            Executor: PostExecExecutorExt
+                          + BlockExecutor<
+                Evm: AlloyEvm<DB: core::ops::DerefMut<Target = State<DB>>>,
+                Result: PreRefundGasUsed,
+            >,
         > + 'a,
         PayloadBuilderError,
     > {
