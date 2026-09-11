@@ -774,7 +774,8 @@ contract OptimismPortal2_migrateToSharedDisputeGame_Test is OptimismPortal2_Test
 
     /// @notice Deploys a fresh AnchorStateRegistry proxy pointed at the same implementation as the
     ///         existing `anchorStateRegistry` and initializes it with a dummy anchor root.
-    function _deployAnchorStateRegistry() internal returns (IAnchorStateRegistry registry_) {
+    /// @param _ethLockbox The destination lockbox used to resolve the registry's pause state.
+    function _deployAnchorStateRegistry(IETHLockbox _ethLockbox) internal returns (IAnchorStateRegistry registry_) {
         address proxyAdminAddr = address(proxyAdmin);
 
         vm.prank(proxyAdminAddr);
@@ -789,7 +790,7 @@ contract OptimismPortal2_migrateToSharedDisputeGame_Test is OptimismPortal2_Test
             impl,
             abi.encodeCall(
                 IAnchorStateRegistry.initialize,
-                (ethLockbox, disputeGameFactory, startingAnchorRoot, GameTypes.SUPER_PERMISSIONED)
+                (_ethLockbox, disputeGameFactory, startingAnchorRoot, GameTypes.SUPER_PERMISSIONED)
             )
         );
 
@@ -828,7 +829,7 @@ contract OptimismPortal2_migrateToSharedDisputeGame_Test is OptimismPortal2_Test
     ///         address.
     function test_migrateToSharedDisputeGame_zeroLockbox_reverts() external {
         address caller = optimismPortal2.proxyAdminOwner();
-        IAnchorStateRegistry registry = _deployAnchorStateRegistry();
+        IAnchorStateRegistry registry = _deployAnchorStateRegistry(ethLockbox);
         vm.expectRevert(IOptimismPortal.OptimismPortal_ZeroAddress.selector);
         vm.prank(caller);
         optimismPortal2.migrateToSharedDisputeGame(IETHLockbox(address(0)), registry);
@@ -849,7 +850,7 @@ contract OptimismPortal2_migrateToSharedDisputeGame_Test is OptimismPortal2_Test
     function test_migrateToSharedDisputeGame_lockboxNotAuthorizingPortal_reverts() external {
         address caller = optimismPortal2.proxyAdminOwner();
         IETHLockbox lockbox = _deployLockbox({ _authorizePortal: false });
-        IAnchorStateRegistry registry = _deployAnchorStateRegistry();
+        IAnchorStateRegistry registry = _deployAnchorStateRegistry(lockbox);
 
         vm.expectRevert(IOptimismPortal.OptimismPortal_LockboxNotAuthorizedForPortal.selector);
         vm.prank(caller);
@@ -864,7 +865,7 @@ contract OptimismPortal2_migrateToSharedDisputeGame_Test is OptimismPortal2_Test
         address oldAnchorStateRegistry = address(optimismPortal2.anchorStateRegistry());
 
         IETHLockbox newLockbox = _deployLockbox({ _authorizePortal: true });
-        IAnchorStateRegistry newAnchorStateRegistry = _deployAnchorStateRegistry();
+        IAnchorStateRegistry newAnchorStateRegistry = _deployAnchorStateRegistry(newLockbox);
         assertTrue(
             newLockbox.authorizedPortals(IOptimismPortal(payable(address(optimismPortal2)))),
             "test setup: portal not authorized on new lockbox"
@@ -878,7 +879,18 @@ contract OptimismPortal2_migrateToSharedDisputeGame_Test is OptimismPortal2_Test
 
         assertEq(address(optimismPortal2.ethLockbox()), address(newLockbox));
         assertEq(address(optimismPortal2.anchorStateRegistry()), address(newAnchorStateRegistry));
+        assertEq(address(newAnchorStateRegistry.ethLockbox()), address(newLockbox));
         assertTrue(systemConfig.isFeatureEnabled(Features.INTEROP));
+
+        vm.prank(superchainConfig.guardian());
+        superchainConfig.pause(oldLockbox);
+        assertFalse(optimismPortal2.paused());
+        assertFalse(newAnchorStateRegistry.paused());
+
+        vm.prank(superchainConfig.guardian());
+        superchainConfig.pause(address(newLockbox));
+        assertTrue(optimismPortal2.paused());
+        assertTrue(newAnchorStateRegistry.paused());
     }
 
     /// @notice Tests that `migrateToSharedDisputeGame` reverts when the system is paused.
