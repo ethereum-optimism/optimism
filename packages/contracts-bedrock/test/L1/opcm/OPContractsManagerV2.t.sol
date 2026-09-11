@@ -3656,7 +3656,7 @@ contract OPContractsManagerV2_Migrate_Test is OPContractsManagerV2_TestInit {
 contract OPContractsManagerV2_FeatBatchUpgrade_Test is OPContractsManagerV2_TestInit {
     /// @notice Tests that multiple upgrade operations can be executed within a single transaction.
 
-    ///         This enforces the OPCMV2 invariant that approximately 14 upgrade operations should be
+    ///         This enforces the OPCMV2 invariant that multiple upgrade operations should be
     ///         executable in one transaction.
 
     function test_batchUpgrade_multipleChains_succeeds() public {
@@ -3746,7 +3746,7 @@ contract OPContractsManagerV2_FeatBatchUpgrade_Test is OPContractsManagerV2_Test
             )
         });
 
-        // 3. Deploy separate chains using opcmV2.deploy().
+        // 3. Deploy multiple separate chains using opcmV2.deploy().
         IOPContractsManagerV2.ChainContracts[] memory chains =
             new IOPContractsManagerV2.ChainContracts[](numberOfChains);
         for (uint256 i = 0; i < numberOfChains; i++) {
@@ -3767,7 +3767,7 @@ contract OPContractsManagerV2_FeatBatchUpgrade_Test is OPContractsManagerV2_Test
             });
         }
 
-        // 5. Execute batch upgrade in a single transaction.
+        // 5. Execute batch upgrade of all chains in a single transaction.
         batchUpgrader.batchUpgrade(upgradeInputs);
         VmSafe.Gas memory gas = vm.lastCallGas();
 
