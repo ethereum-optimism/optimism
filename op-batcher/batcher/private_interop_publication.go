@@ -9,6 +9,49 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 )
 
+// validatePrivatePublication checks the queued range against current execution,
+// including when no new blocks were loaded since it was encoded. A later reorg
+// can still race L1 submission; this rejects ranges already known to be stale.
+func (l *BatchSubmitter) validatePrivatePublication(ctx context.Context, data txData) error {
+	if l.PublicProjection == nil {
+		return nil
+	}
+	id := data.ID().String()
+	l.channelMgrMutex.Lock()
+	ch := l.channelMgr.txChannels[id]
+	if ch == nil {
+		l.channelMgrMutex.Unlock()
+		return fmt.Errorf("private publication channel is no longer queued")
+	}
+	terminal := ch.LatestL2()
+	l.channelMgrMutex.Unlock()
+
+	ctx, cancel := context.WithTimeout(ctx, l.Config.NetworkTimeout)
+	defer cancel()
+	source, err := l.EndpointProvider.PayloadSource(ctx)
+	var payload *eth.ExecutionPayloadEnvelope
+	if err == nil {
+		payload, err = source.PayloadByNumber(ctx, terminal.Number)
+	}
+	l.channelMgrMutex.Lock()
+	defer l.channelMgrMutex.Unlock()
+	if l.channelMgr.txChannels[id] != ch {
+		return fmt.Errorf("private publication channel changed during validation")
+	}
+	if err != nil || payload == nil || payload.ExecutionPayload == nil {
+		l.channelMgr.TxFailed(data.ID())
+		if err != nil {
+			return fmt.Errorf("checking private publication terminal: %w", err)
+		}
+		return fmt.Errorf("private publication terminal %d is unavailable", terminal.Number)
+	}
+	if payload.ExecutionPayload.ID() != terminal {
+		l.clearChannelState(ch.OldestL1Origin())
+		return fmt.Errorf("private publication terminal %s is no longer canonical: %w", terminal, ErrReorg)
+	}
+	return nil
+}
+
 // publicationCursor skips projection positions that have already been derived,
 // including deposit-only fallback blocks. It never changes private safety refs.
 // Read the head afresh on every poll: an L1 reorg can reopen skipped positions.

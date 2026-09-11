@@ -317,6 +317,7 @@ func TestFollowRecoveryRejectsLegacyPrefixBeforeReset(t *testing.T) {
 func TestCanonicalRecoveryCheckpointDoesNotWalkToGenesis(t *testing.T) {
 	genesis := eth.L2BlockRef{Hash: common.Hash{1}}
 	anchor := eth.L2BlockRef{Hash: common.Hash{2}, ParentHash: common.Hash{3}, Number: 1_000_000}
+	unsafe := eth.L2BlockRef{Hash: common.Hash{4}, Number: 1_000_300}
 	l2 := &recoveryBranchL2{
 		prefixL2:  prefixL2{refs: map[common.Hash]eth.L2BlockRef{anchor.Hash: anchor}},
 		canonical: map[uint64]eth.L2BlockRef{0: genesis, anchor.Number: anchor},
@@ -325,7 +326,7 @@ func TestCanonicalRecoveryCheckpointDoesNotWalkToGenesis(t *testing.T) {
 	em := event.EmitterFunc(func(context.Context, event.Event) {})
 	ec := engine.NewEngineController(t.Context(), el, testlog.Logger(t, 0), metrics.NoopMetrics,
 		&rollup.Config{}, &syncconfig.Config{L2FollowSourceEndpoint: "http://localhost"}, &testutils.MockL1Source{}, em, nil)
-	ec.SetUnsafeHead(anchor)
+	ec.SetUnsafeHead(unsafe)
 	ec.SetLocalSafeHead(genesis)
 	ec.SetPendingSafeL2Head(genesis)
 	ec.SetFinalizedHead(genesis)
@@ -339,5 +340,6 @@ func TestCanonicalRecoveryCheckpointDoesNotWalkToGenesis(t *testing.T) {
 	require.NoError(t, f.adopt(t.Context(), t.Context(), status))
 	require.Equal(t, anchor, ec.LocalSafeHead())
 	require.Equal(t, anchor, ec.PendingSafeL2Head())
+	require.Equal(t, unsafe, ec.UnsafeL2Head(), "a completed checkpoint must preserve the sequenced suffix")
 	el.AssertExpectations(t)
 }

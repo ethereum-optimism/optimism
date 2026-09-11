@@ -918,6 +918,9 @@ func (l *BatchSubmitter) publishTxToL1(ctx context.Context, queue *txmgr.Queue[t
 		return err
 	}
 
+	if err = l.validatePrivatePublication(ctx, txdata); err != nil {
+		return err
+	}
 	if err = l.sendTransaction(txdata, queue, receiptsCh, daGroup); err != nil {
 		return fmt.Errorf("BatchSubmitter.sendTransaction failed: %w", err)
 	}

@@ -1,6 +1,7 @@
 package batcher
 
 import (
+	"errors"
 	"math/big"
 	"math/rand"
 	"testing"
@@ -16,8 +17,75 @@ import (
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/params"
 	"github.com/ethereum/go-ethereum/rpc"
+	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 )
+
+func TestPrivatePublicationValidatesQueuedTerminal(t *testing.T) {
+	for _, scenario := range []string{"canonical", "replaced", "missing", "rpc error", "discarded", "discarded during lookup", "public"} {
+		t.Run(scenario, func(t *testing.T) {
+			bs, ep := setup(t, nil)
+			bs.Config.NetworkTimeout = time.Second
+			bs.PublicProjection = &fakeFollower{}
+			terminal := eth.BlockID{Hash: common.Hash{6}, Number: 600}
+			frame := frameData{id: frameID{chID: derive.ChannelID{1}}, data: []byte{1}}
+			data := singleFrameTxData(frame)
+			ch := &channel{
+				ChannelBuilder: &ChannelBuilder{latestL2: terminal, frames: queue.Queue[frameData]{frame}, frameCursor: 1},
+				log:            bs.Log, metr: bs.Metr, pendingTransactions: map[string]txData{data.ID().String(): data},
+			}
+			bs.channelMgr.txChannels[data.ID().String()] = ch
+			bs.channelMgr.channelQueue = []*channel{ch}
+			encoder := &PrivateInteropEncoder{prepared: map[common.Hash]optypes.Receipts{terminal.Hash: {}}}
+			bs.BlockEnricher = encoder
+			payload := &eth.ExecutionPayloadEnvelope{ExecutionPayload: &eth.ExecutionPayload{
+				BlockHash: terminal.Hash, BlockNumber: eth.Uint64Quantity(terminal.Number),
+			}}
+			var rpcErr error
+			switch scenario {
+			case "replaced":
+				payload.ExecutionPayload.BlockHash = common.Hash{9}
+			case "missing":
+				payload = nil
+			case "rpc error":
+				rpcErr = errors.New("unavailable")
+			case "discarded":
+				bs.clearChannelState(eth.BlockID{})
+			case "public":
+				bs.PublicProjection = nil
+			}
+			if scenario == "discarded during lookup" {
+				ep.ethClient.On("PayloadByNumber", uint64(600)).Once().Return(payload, &rpcErr).Run(func(mock.Arguments) {
+					bs.channelMgrMutex.Lock()
+					defer bs.channelMgrMutex.Unlock()
+					bs.clearChannelState(eth.BlockID{})
+				})
+			} else if scenario != "public" && scenario != "discarded" {
+				ep.ethClient.ExpectPayloadByNumber(600, payload, rpcErr)
+			}
+			err := bs.validatePrivatePublication(t.Context(), data)
+			switch scenario {
+			case "canonical", "public":
+				require.NoError(t, err)
+				require.Same(t, ch, bs.channelMgr.txChannels[data.ID().String()])
+			case "replaced":
+				require.ErrorIs(t, err, ErrReorg)
+				require.Empty(t, bs.channelMgr.channelQueue)
+				require.Empty(t, encoder.prepared)
+			case "missing", "rpc error":
+				require.Error(t, err)
+				require.Equal(t, 0, ch.frameCursor, "retry the frame after a transient lookup failure")
+				require.Len(t, bs.channelMgr.channelQueue, 1)
+			case "discarded":
+				require.ErrorContains(t, err, "no longer queued")
+			case "discarded during lookup":
+				require.ErrorContains(t, err, "changed during validation")
+				require.Empty(t, bs.channelMgr.txChannels)
+			}
+			ep.ethClient.AssertExpectations(t)
+		})
+	}
+}
 
 func TestPrivatePublicationCursor(t *testing.T) {
 	bs, ep := setup(t, nil)
