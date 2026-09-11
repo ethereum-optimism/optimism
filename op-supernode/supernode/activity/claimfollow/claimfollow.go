@@ -256,6 +256,7 @@ func (m *Module) Step(ctx context.Context) error {
 		out.CurrentL1 = previous.CurrentL1
 	}
 	plan := &sources.FollowRecoveryStatus{Target: frontier.LocalSafeL2, Safe: frontier.SafeL2, Finalized: frontier.FinalizedL2}
+	recoveryTarget := frontier.LocalSafeL2.Number
 	for _, c := range claims {
 		if c.carrier > frontier.LocalSafeL2.Number {
 			continue
@@ -263,6 +264,19 @@ func (m *Module) Step(ctx context.Context) error {
 		end, err := m.surviving(ctx, src, c, frontier.LocalSafeL2.Number, denied)
 		if err != nil {
 			return err
+		}
+		// A claim is carried by the first block of its range. While that range
+		// is still importing, its current tip is not evidence of a revoked
+		// suffix. Stop recovery before its carrier until the terminal is available.
+		// Earlier completed claims and their safety labels can still advance.
+		// A retreat from an already scanned tip, or a denied/replaced suffix,
+		// still takes the recovery path below.
+		if end < c.last && end == c.tip.Number && end == frontier.LocalSafeL2.Number && frontier.LocalSafeL2 == status.LocalSafeL2 {
+			if c.carrier == 0 {
+				return ErrInvariant
+			}
+			recoveryTarget = min(recoveryTarget, c.carrier-1)
+			continue
 		}
 		ref, err := projectionRef(ctx, src, m.rollupCfg, end)
 		if err != nil {
@@ -281,6 +295,20 @@ func (m *Module) Step(ctx context.Context) error {
 			}
 		} else if end > out.LocalSafeL2.Number && (plan.Prefix == nil || end > plan.Prefix.Last.Number) {
 			plan.Prefix = &sources.FollowRecoveryPrefix{Parent: eth.BlockID{Hash: c.parent, Number: c.last - 1}, Last: ref}
+		}
+	}
+	// A later complete checkpoint already authenticates any overlapping prefix.
+	recoveryTarget = max(recoveryTarget, out.LocalSafeL2.Number)
+	if recoveryTarget < plan.Target.Number {
+		plan.Target, err = projectionRef(ctx, src, m.rollupCfg, recoveryTarget)
+		if err != nil {
+			return err
+		}
+		if plan.Safe.Number > recoveryTarget {
+			plan.Safe = plan.Target
+		}
+		if plan.Finalized.Number > recoveryTarget {
+			plan.Finalized = plan.Target
 		}
 	}
 	plan.Anchor = out.LocalSafeL2

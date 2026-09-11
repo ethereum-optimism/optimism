@@ -11,6 +11,70 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+func TestClaimFollowWaitsForRangeImport(t *testing.T) {
+	h := newHarness(t)
+	require.NoError(t, h.step())
+	h.r.set(1, "a", 0, claimTx(t, 0, 1, 300))
+	h.r.fill(2, 300, "a", 0)
+	h.r.set(301, "a", 0, claimTx(t, 1, 301, 600))
+	h.r.fill(302, 600, "a", 0)
+	checkpoint := uint64(0)
+	for _, tip := range []uint64{1, 107, 263, 299, 300, 301, 450, 599, 600} {
+		t.Run(fmt.Sprint(tip), func(t *testing.T) {
+			h.r.localSafe, h.r.safe = tip, tip
+			require.NoError(t, h.step())
+			if tip%300 == 0 {
+				checkpoint = tip
+			}
+			status, err := NewAPI(h.f).SyncStatus(t.Context())
+			require.NoError(t, err)
+			require.Equal(t, checkpoint, status.LocalSafeL2.Number)
+			require.NotNil(t, status.Recovery)
+			require.Nil(t, status.Recovery.Prefix, "in-progress import must not revoke the private suffix")
+			require.Equal(t, checkpoint, status.Recovery.Target.Number, "do not replay an in-progress claim as fallback")
+		})
+	}
+}
+
+func TestClaimFollowWaitsForRangeImportAfterRestart(t *testing.T) {
+	h := newHarness(t)
+	h.r.set(1, "a", 0, claimTx(t, 0, 1, 8))
+	h.r.fill(2, 8, "a", 0)
+	h.r.localSafe, h.r.safe = 3, 3
+	require.NoError(t, h.step())
+	status, err := NewAPI(h.f).SyncStatus(t.Context())
+	require.NoError(t, err)
+	require.Equal(t, wantGenesisRef(), status.LocalSafeL2)
+	require.NotNil(t, status.Recovery)
+	require.Nil(t, status.Recovery.Prefix, "a fresh scan must not invent a recovery prefix")
+	require.Zero(t, status.Recovery.Target.Number)
+	h.r.localSafe, h.r.safe = 8, 8
+	require.NoError(t, h.step())
+	require.Equal(t, wantRef(8), h.status().LocalSafeL2)
+}
+
+func TestClaimFollowPartialImportKeepsEarlierSafetyUpdates(t *testing.T) {
+	h := newHarness(t)
+	h.r.set(1, "a", 0, claimTx(t, 0, 1, 8))
+	h.r.fill(2, 8, "a", 0)
+	h.r.set(9, "a", 0, claimTx(t, 1, 9, 16))
+	h.r.fill(10, 16, "a", 0)
+	// The first poll may already contain a completed range and part of the next.
+	h.r.localSafe, h.r.safe = 10, 8
+	require.NoError(t, h.step())
+	require.Equal(t, wantRef(8), h.status().LocalSafeL2)
+	require.Equal(t, wantRef(8), h.status().SafeL2)
+	h.r.safe = 3
+	require.NoError(t, h.step())
+	status, err := NewAPI(h.f).SyncStatus(t.Context())
+	require.NoError(t, err)
+	require.Equal(t, wantRef(8), status.LocalSafeL2)
+	require.Equal(t, wantGenesisRef(), status.SafeL2)
+	require.Equal(t, uint64(3), status.Recovery.Safe.Number)
+	require.Equal(t, uint64(8), status.Recovery.Target.Number)
+	require.Nil(t, status.Recovery.Prefix)
+}
+
 func TestRecoveryBlockRequiresCanonicalDepositOnlyInputs(t *testing.T) {
 	h := newHarness(t)
 	h.r.fill(1, 4, "a", 0)
