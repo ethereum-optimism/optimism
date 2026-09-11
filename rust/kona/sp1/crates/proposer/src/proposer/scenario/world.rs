@@ -1583,9 +1583,9 @@ impl L1View for FakeL1View {
         Ok(self.latest_state().init_bond)
     }
 
-    async fn game_status(&self, game: Address) -> Result<u8> {
+    async fn game_status(&self, game: Address, block: BlockId) -> Result<u8> {
         let GameReadResult { state, scripted_status } =
-            self.latest_state_for_game(L1ReadBoundary::GameStatus, game)?;
+            self.state_for_game(L1ReadBoundary::GameStatus, game, block)?;
         Ok(scripted_status.unwrap_or(state.game(game)?.status as u8))
     }
 
@@ -1674,9 +1674,14 @@ impl L1View for FakeL1View {
         Ok(game.standing)
     }
 
-    async fn game_standing(&self, game: Address, registry: Address) -> Result<GameStanding> {
+    async fn game_standing(
+        &self,
+        game: Address,
+        registry: Address,
+        block: BlockId,
+    ) -> Result<GameStanding> {
         let GameReadResult { state, .. } =
-            self.latest_state_for_game(L1ReadBoundary::GameStanding, game)?;
+            self.state_for_game(L1ReadBoundary::GameStanding, game, block)?;
         let game = state.game(game)?;
         ensure!(
             registry == game.anchor_state_registry,

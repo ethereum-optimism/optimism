@@ -37,9 +37,9 @@ use crate::{
 };
 
 use crate::proposer::{
-    CompactGameSummary, InFlightCreation, MAX_GAME_DEADLINE_LAG, OperationSummary, Proposer,
-    ProvingPurpose, SyncDisposition, TaskClass, TaskCompletionOutcome, TaskFailureClass, TaskId,
-    TaskSuccess,
+    CompactGameSummary, InFlightCreation, InFlightCreationSummary, MAX_GAME_DEADLINE_LAG,
+    OperationSummary, Proposer, ProvingPurpose, SyncDisposition, TaskClass, TaskCompletionOutcome,
+    TaskFailureClass, TaskId, TaskSuccess,
 };
 
 const HEAD_NUMBER: u64 = 1;
@@ -160,7 +160,7 @@ impl L1View for ScenarioL1View {
         Ok(U256::ZERO)
     }
 
-    async fn game_status(&self, _game: Address) -> anyhow::Result<u8> {
+    async fn game_status(&self, _game: Address, _block: BlockId) -> anyhow::Result<u8> {
         Ok(GameStatus::InProgress as u8)
     }
 
@@ -223,6 +223,7 @@ impl L1View for ScenarioL1View {
         &self,
         _game: Address,
         _registry: Address,
+        _block: BlockId,
     ) -> anyhow::Result<GameStanding> {
         let call = self.game_standing_calls.fetch_add(1, Ordering::Relaxed) + 1;
         if self.fail_game_standing_on.load(Ordering::Relaxed) == call {
@@ -3648,4 +3649,662 @@ async fn lifecycle_refresh_does_not_touch_unused_status_branches() {
             .l1_read_record(L1ReadBoundary::BondState, &L1ReadTarget::Game(defender_target), 1,)
             .is_some()
     );
+}
+
+#[tokio::test]
+async fn disallowed_ancestor_quarantines_the_branch_and_reparents_creation() {
+    for standing in [
+        GameStanding { blacklisted: true, retired: false },
+        GameStanding { blacklisted: false, retired: true },
+    ] {
+        let world = ScenarioWorld::new();
+        let anchor =
+            ScenarioGame::new(0, u32::MAX, 10, ScenarioWorld::default_prestate()).claimable(0);
+        let anchor_target = anchor.target();
+        let ancestor = ScenarioGame::new(1, 0, 20, ScenarioWorld::default_prestate());
+        let ancestor_target = ancestor.target();
+        let descendant = ScenarioGame::new(2, 1, 25, B256::repeat_byte(0xf1));
+        let descendant_target = descendant.target();
+        let alternate = ScenarioGame::new(3, 0, 15, ScenarioWorld::default_prestate());
+        for game in [anchor, ancestor, descendant, alternate] {
+            world.add_game(game);
+        }
+        world.set_anchor_game(&anchor_target);
+        world.set_horizons(120, 120);
+        let mut config = scenario_config();
+        config.proposal_interval_seconds = 100;
+        let mut scenario = ScenarioHarness::new(world.clone(), config).await.unwrap();
+
+        let settled = scenario.tick().await.unwrap();
+        assert_eq!(settled.snapshot.canonical_head_index, Some(U256::from(2)));
+        scenario.settle_scheduled(&settled).await.unwrap();
+
+        world.update_game(&ancestor_target, |game| game.standing = standing);
+        let quarantined = scenario.tick().await.unwrap();
+        assert_eq!(quarantined.snapshot.canonical_head_index, Some(U256::from(3)));
+        assert!(!quarantined.scheduled.iter().any(|scheduled| matches!(
+            scheduled.operation,
+            OperationSummary::ProposeGame { parent_game_index: 1, .. } |
+                OperationSummary::ProposeGame { parent_game_index: 2, .. }
+        )));
+        assert_eq!(
+            quarantined
+                .scheduled
+                .iter()
+                .filter(|scheduled| matches!(
+                    scheduled.operation,
+                    OperationSummary::ProposeGame { sequence_number: 115, parent_game_index: 3 }
+                ))
+                .count(),
+            1
+        );
+        scenario.settle_scheduled(&quarantined).await.unwrap();
+
+        world.mine_block();
+        let pruned = scenario.tick().await.unwrap();
+        assert!(
+            world
+                .l1_read_record(
+                    L1ReadBoundary::GameLifecycle,
+                    &L1ReadTarget::Game(descendant_target.clone()),
+                    3,
+                )
+                .is_none()
+        );
+        scenario.settle_scheduled(&pruned).await.unwrap();
+    }
+}
+
+#[tokio::test]
+async fn quarantine_keeps_owned_descendant_lifecycle_until_it_completes() {
+    let world = ScenarioWorld::new();
+    let anchor = ScenarioGame::new(0, u32::MAX, 10, ScenarioWorld::default_prestate()).claimable(0);
+    let anchor_target = anchor.target();
+    let root = ScenarioGame::new(1, 0, 20, ScenarioWorld::default_prestate());
+    let root_target = root.target();
+    let mut foreign_child = ScenarioGame::new(2, 1, 30, B256::repeat_byte(0xf1));
+    foreign_child.status = GameStatus::DefenderWins;
+    foreign_child.proposal_status = ProposalStatus::Resolved;
+    let mut own_child =
+        ScenarioGame::new(3, 2, 40, ScenarioWorld::default_prestate()).provable_for_resolution();
+    own_child.creator = ScenarioWorld::proposer_address();
+    let own_child_target = own_child.target();
+    let foreign_tail = ScenarioGame::new(4, 3, 50, B256::repeat_byte(0xf2));
+    let foreign_tail_target = foreign_tail.target();
+    for game in [anchor, root, foreign_child, own_child, foreign_tail] {
+        world.add_game(game);
+    }
+    world.set_anchor_game(&anchor_target);
+    world.set_horizons(50, 50);
+    let mut config = scenario_config();
+    config.proposal_interval_seconds = 100;
+    let mut scenario = ScenarioHarness::new(world.clone(), config).await.unwrap();
+
+    let initial = scenario.tick().await.unwrap();
+    scenario.settle_scheduled(&initial).await.unwrap();
+
+    world.update_game(&root_target, |game| {
+        game.standing = GameStanding { blacklisted: true, retired: false }
+    });
+    let quarantined = scenario.tick().await.unwrap();
+    assert!(!quarantined.scheduled.iter().any(|scheduled| matches!(
+        scheduled.operation,
+        OperationSummary::ProposeGame { .. } | OperationSummary::ProveGame { .. }
+    )));
+    scenario.settle_scheduled(&quarantined).await.unwrap();
+    assert!(matches!(
+        world.action_record(&ActionTarget::Resolve(own_child_target.clone()), 1).unwrap().effect,
+        CommittedEffect::Resolved { game } if game == own_child_target.address
+    ));
+    assert!(
+        world
+            .l1_read_record(
+                L1ReadBoundary::GameLifecycle,
+                &L1ReadTarget::Game(own_child_target.clone()),
+                2,
+            )
+            .is_some()
+    );
+
+    world.set_latest_l1_time(
+        world.observation().latest_l1.timestamp + SCENARIO_GAME_FINALITY_DELAY + 1,
+    );
+    let unlocked = scenario.tick().await.unwrap();
+    scenario.settle_scheduled(&unlocked).await.unwrap();
+    assert!(matches!(
+        world.action_record(&ActionTarget::ClaimCredit(own_child_target.clone()), 1).unwrap().effect,
+        CommittedEffect::ClaimUnlocked { game, .. } if game == own_child_target.address
+    ));
+    // The foreign, un-retained descendant was pruned after the quarantine
+    // cycle: no further lifecycle reads target it.
+    assert!(
+        world
+            .l1_read_record(
+                L1ReadBoundary::GameLifecycle,
+                &L1ReadTarget::Game(foreign_tail_target),
+                3,
+            )
+            .is_none()
+    );
+
+    world.set_latest_l1_time(world.observation().latest_l1.timestamp + 20);
+    let paid = scenario.tick().await.unwrap();
+    scenario.settle_scheduled(&paid).await.unwrap();
+    assert!(matches!(
+        world.action_record(&ActionTarget::ClaimCredit(own_child_target.clone()), 2).unwrap().effect,
+        CommittedEffect::ClaimPaid { game, .. } if game == own_child_target.address
+    ));
+
+    world.mine_block();
+    let settled = scenario.tick().await.unwrap();
+    scenario.settle_scheduled(&settled).await.unwrap();
+    world.mine_block();
+    let dropped = scenario.tick().await.unwrap();
+    scenario.settle_scheduled(&dropped).await.unwrap();
+    // The record is dropped only after its lifecycle completes.
+    assert!(
+        world
+            .l1_read_record(
+                L1ReadBoundary::GameLifecycle,
+                &L1ReadTarget::Game(own_child_target),
+                6,
+            )
+            .is_none()
+    );
+}
+
+#[tokio::test]
+async fn refresh_fault_defers_quarantine_pruning_without_losing_resolution() {
+    let world = ScenarioWorld::new();
+    let anchor = ScenarioGame::new(0, u32::MAX, 10, ScenarioWorld::default_prestate()).claimable(0);
+    let anchor_target = anchor.target();
+    let root = ScenarioGame::new(1, 0, 20, ScenarioWorld::default_prestate());
+    let root_target = root.target();
+    let mut own_child =
+        ScenarioGame::new(2, 1, 30, ScenarioWorld::default_prestate()).provable_for_resolution();
+    own_child.creator = ScenarioWorld::proposer_address();
+    let own_child_target = own_child.target();
+    for game in [anchor, root, own_child] {
+        world.add_game(game);
+    }
+    world.set_anchor_game(&anchor_target);
+    world.set_horizons(30, 30);
+    let mut config = scenario_config();
+    config.proposal_interval_seconds = 100;
+    let mut scenario = ScenarioHarness::new(world.clone(), config).await.unwrap();
+
+    let initial = scenario.tick().await.unwrap();
+    scenario.settle_scheduled(&initial).await.unwrap();
+
+    // Root resolves and is blacklisted in the same L1 update: this is the
+    // ancestry check that must still quarantine it despite the fault below.
+    world.update_game(&root_target, |game| {
+        game.status = GameStatus::DefenderWins;
+        game.proposal_status = ProposalStatus::Resolved;
+        game.standing = GameStanding { blacklisted: true, retired: false };
+    });
+    world.script_l1_fault(
+        L1ReadBoundary::GameLifecycle,
+        L1ReadTarget::Game(root_target.clone()),
+        2,
+    );
+    let faulted = scenario.tick().await.unwrap();
+    scenario.settle_scheduled(&faulted).await.unwrap();
+    assert_eq!(
+        world
+            .l1_read_record(L1ReadBoundary::GameLifecycle, &L1ReadTarget::Game(root_target), 2)
+            .unwrap()
+            .outcome,
+        L1ReadOutcome::Failure
+    );
+    assert!(matches!(
+        world.action_record(&ActionTarget::Resolve(own_child_target.clone()), 1).unwrap().effect,
+        CommittedEffect::Resolved { game } if game == own_child_target.address
+    ));
+
+    let recovered = scenario.tick().await.unwrap();
+    scenario.settle_scheduled(&recovered).await.unwrap();
+    assert!(
+        world
+            .l1_read_record(
+                L1ReadBoundary::GameLifecycle,
+                &L1ReadTarget::Game(own_child_target),
+                3,
+            )
+            .is_some()
+    );
+}
+
+#[tokio::test]
+async fn active_creation_retains_its_quarantined_parent_chain() {
+    let world = ScenarioWorld::new();
+    let root = ScenarioGame::new(0, u32::MAX, 10, ScenarioWorld::default_prestate());
+    let root_target = root.target();
+    let parent = ScenarioGame::new(1, 0, 20, ScenarioWorld::default_prestate());
+    let parent_target = parent.target();
+    for game in [root, parent] {
+        world.add_game(game);
+    }
+    world.set_horizons(120, 120);
+    let mut config = scenario_config();
+    config.proposal_interval_seconds = 100;
+    let create_target = ActionTarget::Create { sequence_number: 120, parent_game_index: 1 };
+    world.block_action(
+        create_target.clone(),
+        1,
+        ActionBarrierPoint::AfterSubmission,
+        ActionOutcome::Success,
+        "create parked",
+    );
+    let mut scenario = ScenarioHarness::new(world.clone(), config).await.unwrap();
+
+    let bounded = scenario.tick().await.unwrap();
+    assert!(bounded.scheduled.iter().any(|scheduled| matches!(
+        scheduled.operation,
+        OperationSummary::ProposeGame { sequence_number: 120, parent_game_index: 1 }
+    )));
+    let create_id = bounded.task_id_for(|operation| {
+        matches!(
+            operation,
+            OperationSummary::ProposeGame { sequence_number: 120, parent_game_index: 1 }
+        )
+    });
+    scenario
+        .wait_for_action_barrier(create_id, &create_target, 1, ActionBarrierPoint::AfterSubmission)
+        .await
+        .unwrap();
+
+    world.update_game(&root_target, |game| {
+        game.standing = GameStanding { blacklisted: true, retired: false }
+    });
+    let quarantined = scenario.tick().await.unwrap();
+    assert_eq!(
+        quarantined.snapshot.in_flight_creation,
+        Some(InFlightCreationSummary { sequence_number: 120, parent_game_index: 1 })
+    );
+    assert!(
+        world
+            .l1_read_record(
+                L1ReadBoundary::GameLifecycle,
+                &L1ReadTarget::Game(parent_target.clone()),
+                2,
+            )
+            .is_some()
+    );
+    scenario.settle_scheduled(&quarantined).await.unwrap();
+
+    scenario
+        .release_action_barrier(&create_target, 1, ActionBarrierPoint::AfterSubmission)
+        .unwrap();
+    scenario.settle(&[create_id]).await.unwrap();
+
+    world.mine_block();
+    let observed = scenario.tick().await.unwrap();
+    assert!(observed.snapshot.in_flight_creation.is_none());
+    scenario.settle_scheduled(&observed).await.unwrap();
+    // The created game is the proposer's own and its direct parent is still
+    // on the quarantined branch, so the chain remains retained rather than
+    // pruned: an owned descendant always keeps its ancestry cached.
+    assert!(
+        world
+            .l1_read_record(L1ReadBoundary::GameLifecycle, &L1ReadTarget::Game(parent_target), 3,)
+            .is_some()
+    );
+}
+
+#[tokio::test]
+async fn anchor_promotion_rehabilitates_inherited_quarantine_and_recovers_the_anchor() {
+    let world = ScenarioWorld::new();
+    let mut root = ScenarioGame::new(0, u32::MAX, 10, ScenarioWorld::default_prestate());
+    root.standing = GameStanding { blacklisted: true, retired: false };
+    let promoted = ScenarioGame::new(1, 0, 20, ScenarioWorld::default_prestate());
+    let promoted_target = promoted.target();
+    let mut trusted_child = ScenarioGame::new(2, 1, 30, ScenarioWorld::default_prestate());
+    trusted_child.creator = ScenarioWorld::proposer_address();
+    let mut invalid_sibling = ScenarioGame::new(3, 0, 12, ScenarioWorld::default_prestate());
+    invalid_sibling.root_claim = B256::repeat_byte(0xa1);
+    let invalid_sibling_target = invalid_sibling.target();
+    for game in [root, promoted, trusted_child, invalid_sibling] {
+        world.add_game(game);
+    }
+    world.set_horizons(30, 30);
+    let mut config = scenario_config();
+    config.proposal_interval_seconds = 100;
+    let mut scenario = ScenarioHarness::new(world.clone(), config).await.unwrap();
+
+    let unanchored = scenario.tick().await.unwrap();
+    assert!(!unanchored.scheduled.iter().any(|scheduled| {
+        matches!(
+            scheduled.operation,
+            OperationSummary::ProposeGame { parent_game_index: 0..=2, .. }
+        ) || matches!(
+            scheduled.operation,
+            OperationSummary::ProveGame { factory_index, .. } if factory_index <= U256::from(2)
+        )
+    }));
+    assert!(unanchored.snapshot.canonical_head_index.is_none());
+    scenario.settle_scheduled(&unanchored).await.unwrap();
+    world.set_anchor_game(&promoted_target);
+    world.set_horizons(130, 130);
+    let promoted_tick = scenario.tick().await.unwrap();
+    assert_eq!(
+        promoted_tick.snapshot.anchor.as_ref().map(|anchor| anchor.factory_index),
+        Some(U256::from(1))
+    );
+    assert_eq!(promoted_tick.snapshot.canonical_head_index, Some(U256::from(2)));
+    assert!(promoted_tick.scheduled.iter().any(|scheduled| matches!(
+        scheduled.operation,
+        OperationSummary::ProposeGame { parent_game_index: 2, .. }
+    )));
+    assert!(
+        world
+            .l1_read_record(
+                L1ReadBoundary::GameLifecycle,
+                &L1ReadTarget::Game(invalid_sibling_target),
+                2,
+            )
+            .is_none()
+    );
+    scenario.settle_scheduled(&promoted_tick).await.unwrap();
+}
+
+#[tokio::test]
+async fn unsupported_registered_anchor_falls_back_to_the_registry_root_once() {
+    let world = ScenarioWorld::new();
+    let valid = ScenarioGame::new(0, u32::MAX, 10, ScenarioWorld::default_prestate());
+    let mut unsupported = ScenarioGame::new(1, u32::MAX, 20, ScenarioWorld::default_prestate());
+    unsupported.game_type = ZK_GAME_TYPE + 1;
+    let unsupported_target = unsupported.target();
+    for game in [valid, unsupported] {
+        world.add_game(game);
+    }
+    world.set_horizons(10, 10);
+    let mut config = scenario_config();
+    config.proposal_interval_seconds = 100;
+    let mut scenario = ScenarioHarness::new(world.clone(), config).await.unwrap();
+
+    let initial = scenario.tick().await.unwrap();
+    scenario.settle_scheduled(&initial).await.unwrap();
+
+    world.set_anchor_game(&unsupported_target);
+    world.set_horizons(120, 120);
+    world.mine_block();
+    let fallback = scenario.tick().await.unwrap();
+    assert!(fallback.snapshot.anchor.is_none());
+    assert_eq!(fallback.snapshot.canonical_head_index, Some(U256::ZERO));
+    assert!(fallback.scheduled.iter().any(|scheduled| matches!(
+        scheduled.operation,
+        OperationSummary::ProposeGame { parent_game_index: 0, .. }
+    )));
+    scenario.settle_scheduled(&fallback).await.unwrap();
+
+    world.mine_block();
+    let recheck = scenario.tick().await.unwrap();
+    scenario.settle_scheduled(&recheck).await.unwrap();
+    // The unsupported anchor is prepared exactly once: later syncs recognize
+    // the cached "unsupported" verdict and never re-fetch it.
+    assert!(
+        world
+            .l1_read_record(
+                L1ReadBoundary::FactoryGame,
+                &L1ReadTarget::Game(unsupported_target),
+                3,
+            )
+            .is_none()
+    );
+}
+
+#[tokio::test]
+async fn anchor_deadline_cutoff_never_skips_games_newer_than_the_anchor() {
+    let world = ScenarioWorld::new();
+    let mut old = ScenarioGame::new(0, u32::MAX, 10, ScenarioWorld::default_prestate());
+    old.deadline = 1;
+    let old_target = old.target();
+    let mut anchor = ScenarioGame::new(1, u32::MAX, 20, ScenarioWorld::default_prestate());
+    anchor.deadline = 2_000_000;
+    let anchor_target = anchor.target();
+    let mut newer = ScenarioGame::new(2, 1, 30, ScenarioWorld::default_prestate());
+    newer.deadline = 2_000_000 + MAX_GAME_DEADLINE_LAG + 1;
+    let newer_target = newer.target();
+    for game in [old, anchor, newer] {
+        world.add_game(game);
+    }
+    world.set_anchor_game(&anchor_target);
+    world.set_horizons(30, 30);
+    let mut config = scenario_config();
+    config.proposal_interval_seconds = 100;
+    let mut scenario = ScenarioHarness::new(world.clone(), config).await.unwrap();
+
+    let bounded = scenario.tick().await.unwrap();
+    assert!(
+        world
+            .l1_read_record(L1ReadBoundary::FactoryGame, &L1ReadTarget::Game(newer_target), 1,)
+            .is_some()
+    );
+    assert_eq!(bounded.snapshot.canonical_head_index, Some(U256::from(2)));
+    // The cutoff arms only once the walk reaches the anchor, behind which
+    // old is permanently excluded: no later cycle ever re-reads it.
+    scenario.settle_scheduled(&bounded).await.unwrap();
+    world.mine_block();
+    let resumed = scenario.tick().await.unwrap();
+    scenario.settle_scheduled(&resumed).await.unwrap();
+    assert!(
+        world
+            .l1_read_record(L1ReadBoundary::FactoryGame, &L1ReadTarget::Game(old_target), 2)
+            .is_none()
+    );
+}
+
+#[tokio::test]
+async fn discovery_retains_an_owned_late_child_but_not_an_invalid_claim() {
+    let world = ScenarioWorld::new();
+    let mut parent = ScenarioGame::new(0, u32::MAX, 10, ScenarioWorld::default_prestate());
+    parent.standing = GameStanding { blacklisted: true, retired: false };
+    let mut own_late = ScenarioGame::new(1, 0, 20, ScenarioWorld::default_prestate()).challenged();
+    own_late.creator = ScenarioWorld::proposer_address();
+    own_late.deadline = 1_500;
+    let own_late_target = own_late.target();
+    let mut bad_claim = ScenarioGame::new(2, 0, 30, B256::repeat_byte(0xf1));
+    bad_claim.root_claim = B256::repeat_byte(0x52);
+    let bad_claim_target = bad_claim.target();
+    for game in [parent, own_late, bad_claim] {
+        world.add_game(game);
+    }
+    world.set_horizons(30, 30);
+    let mut config = scenario_config();
+    config.proposal_interval_seconds = 100;
+    let mut scenario = ScenarioHarness::new(world.clone(), config).await.unwrap();
+
+    let bounded = scenario.tick().await.unwrap();
+    assert!(
+        world
+            .l1_read_record(
+                L1ReadBoundary::GameLifecycle,
+                &L1ReadTarget::Game(own_late_target.clone()),
+                1,
+            )
+            .is_some()
+    );
+    assert!(bounded.snapshot.pending_games.is_empty());
+    assert!(!bounded.scheduled.iter().any(|scheduled| matches!(
+        scheduled.operation,
+        OperationSummary::ProposeGame { .. } | OperationSummary::ProveGame { .. }
+    )));
+    scenario.settle_scheduled(&bounded).await.unwrap();
+
+    world.mine_block();
+    let resumed = scenario.tick().await.unwrap();
+    assert!(
+        world
+            .l1_read_record(
+                L1ReadBoundary::GameLifecycle,
+                &L1ReadTarget::Game(bad_claim_target),
+                2,
+            )
+            .is_none()
+    );
+    assert!(resumed.snapshot.pending_games.is_empty());
+    scenario.settle_scheduled(&resumed).await.unwrap();
+}
+
+#[tokio::test]
+async fn creation_recheck_at_latest_block_rejects_a_freshly_disallowed_parent() {
+    let world = ScenarioWorld::new();
+    let ancestor = ScenarioGame::new(0, u32::MAX, 10, ScenarioWorld::default_prestate());
+    let ancestor_target = ancestor.target();
+    let parent = ScenarioGame::new(1, 0, 20, ScenarioWorld::default_prestate());
+    let alternate = ScenarioGame::new(2, u32::MAX, 15, ScenarioWorld::default_prestate());
+    for game in [ancestor, parent, alternate] {
+        world.add_game(game);
+    }
+    world.set_horizons(120, 120);
+    let mut config = scenario_config();
+    config.proposal_interval_seconds = 100;
+    config.sync_l1_confirmations = 1;
+    world.mine_block();
+    let mut scenario = ScenarioHarness::new(world.clone(), config).await.unwrap();
+
+    let created = scenario.tick().await.unwrap();
+    assert!(created.scheduled.iter().any(|scheduled| matches!(
+        scheduled.operation,
+        OperationSummary::ProposeGame { sequence_number: 120, parent_game_index: 1 }
+    )));
+    scenario.settle_scheduled(&created).await.unwrap();
+
+    world.set_horizons(220, 220);
+    world.update_game(&ancestor_target, |game| {
+        game.standing = GameStanding { blacklisted: true, retired: false };
+    });
+    let rechecked = scenario.tick().await.unwrap();
+    // The pinned sync (lagging one block behind the blacklist) still plans
+    // against the healthy parent, but the latest-block ancestry recheck
+    // inside plan_game_creation catches the fresh disallowance first,
+    // rejects the submission, and recomputes the canonical head itself.
+    assert_eq!(rechecked.snapshot.canonical_head_index, Some(U256::from(2)));
+    assert!(!rechecked.scheduled.iter().any(|scheduled| matches!(
+        scheduled.operation,
+        OperationSummary::ProposeGame { .. } | OperationSummary::ReconcileCreation { .. }
+    )));
+    assert!(
+        world
+            .action_record(&ActionTarget::Create { sequence_number: 220, parent_game_index: 1 }, 2,)
+            .is_none()
+    );
+    let completions = scenario.settle_scheduled(&rechecked).await.unwrap();
+    assert!(
+        completions.iter().all(|completion| completion.outcome == TaskCompletionOutcome::Success)
+    );
+
+    world.mine_block();
+    let resumed = scenario.tick().await.unwrap();
+    assert_eq!(resumed.snapshot.canonical_head_index, Some(U256::from(2)));
+    assert!(resumed.scheduled.iter().any(|scheduled| matches!(
+        scheduled.operation,
+        OperationSummary::ProposeGame { sequence_number: 220, parent_game_index: 2 }
+    )));
+    scenario.settle_scheduled(&resumed).await.unwrap();
+}
+
+#[tokio::test]
+async fn prove_recheck_at_latest_block_skips_submission_for_a_disallowed_ancestor() {
+    let world = ScenarioWorld::new();
+    let ancestor = ScenarioGame::new(0, u32::MAX, 10, ScenarioWorld::default_prestate());
+    let ancestor_target = ancestor.target();
+    let mut own_game = ScenarioGame::new(1, 0, 20, ScenarioWorld::default_prestate()).challenged();
+    own_game.creator = ScenarioWorld::proposer_address();
+    own_game.deadline = 5_000;
+    let own_target = own_game.target();
+    for game in [ancestor, own_game] {
+        world.add_game(game);
+    }
+    world.set_horizons(20, 20);
+    world.block_proof(own_target.clone(), 1, ProofOutcome::Success, "prove parked");
+    let mut config = scenario_config();
+    config.sync_l1_confirmations = 1;
+    world.mine_block();
+    let mut scenario = ScenarioHarness::new(world.clone(), config).await.unwrap();
+
+    let started = scenario.tick().await.unwrap();
+    let prove_id = started.task_id_for(|operation| {
+        matches!(
+            operation,
+            OperationSummary::ProveGame { address, .. } if *address == own_target.address
+        )
+    });
+    scenario.wait_for_proof_barrier(prove_id, &own_target, 1).await.unwrap();
+    scenario.settle(&started.task_ids_except(prove_id)).await.unwrap();
+
+    world.update_game(&ancestor_target, |game| {
+        game.standing = GameStanding { blacklisted: true, retired: false };
+    });
+    scenario.release_proof_barrier(&own_target, 1).unwrap();
+    let completions = scenario.settle(&[prove_id]).await.unwrap();
+    // The proof itself completes (it was already computing when the
+    // ancestor was freshly disallowed at latest), but the pre-submit
+    // recheck against the latest block skips the actual prove() call.
+    assert_eq!(completions[0].outcome, TaskCompletionOutcome::Success);
+    assert_eq!(world.proof_record(&own_target, 1).unwrap().lifecycle, ProofLifecycle::Succeeded);
+    assert!(world.action_record(&ActionTarget::Prove(own_target), 1).is_none());
+}
+
+#[tokio::test]
+async fn completed_ancestor_is_retained_while_a_descendant_still_needs_it() {
+    let world = ScenarioWorld::new();
+    let anchor =
+        ScenarioGame::new(0, u32::MAX, 100, ScenarioWorld::default_prestate()).claimable(0);
+    let anchor_target = anchor.target();
+    let retained_a =
+        ScenarioGame::new(1, u32::MAX, 10, ScenarioWorld::default_prestate()).claimable(0);
+    let retained_a_target = retained_a.target();
+    let cached_child = ScenarioGame::new(2, 1, 20, B256::repeat_byte(0xf1));
+    let retained_b =
+        ScenarioGame::new(3, u32::MAX, 12, ScenarioWorld::default_prestate()).claimable(0);
+    let retained_b_target = retained_b.target();
+    let pending_child = ScenarioGame::new(4, 3, 900, B256::repeat_byte(0xf2));
+    let predecessor =
+        ScenarioGame::new(5, u32::MAX, 5, ScenarioWorld::default_prestate()).claimable(0);
+    let predecessor_target = predecessor.target();
+    for game in [anchor, retained_a, cached_child, retained_b, pending_child, predecessor] {
+        world.add_game(game);
+    }
+    world.set_anchor_game(&anchor_target);
+    world.set_horizons(100, 100);
+    let mut config = scenario_config();
+    config.proposal_interval_seconds = 100;
+    let mut scenario = ScenarioHarness::new(world.clone(), config).await.unwrap();
+
+    let first = scenario.tick().await.unwrap();
+    scenario.settle_scheduled(&first).await.unwrap();
+
+    world.mine_block();
+    let second = scenario.tick().await.unwrap();
+    assert!(
+        world
+            .l1_read_record(
+                L1ReadBoundary::GameLifecycle,
+                &L1ReadTarget::Game(retained_a_target),
+                2,
+            )
+            .is_some()
+    );
+    assert!(
+        world
+            .l1_read_record(
+                L1ReadBoundary::GameLifecycle,
+                &L1ReadTarget::Game(retained_b_target),
+                2,
+            )
+            .is_some()
+    );
+    assert!(
+        world
+            .l1_read_record(
+                L1ReadBoundary::GameLifecycle,
+                &L1ReadTarget::Game(predecessor_target),
+                2,
+            )
+            .is_none()
+    );
+    assert!(second.snapshot.pending_games.iter().any(|game| game.factory_index == U256::from(4)));
+    scenario.settle_scheduled(&second).await.unwrap();
 }
