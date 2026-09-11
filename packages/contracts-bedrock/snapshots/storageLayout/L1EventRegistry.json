@@ -1,0 +1,9 @@
+[
+  {
+    "bytes": "32",
+    "label": "registeredEvents",
+    "offset": 0,
+    "slot": "0",
+    "type": "mapping(bytes32 => bool)"
+  }
+]
