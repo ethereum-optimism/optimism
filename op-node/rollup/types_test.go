@@ -706,6 +706,13 @@ func TestConfig_Check(t *testing.T) {
 			expectedErr: fmt.Errorf("fork ecotone set (to 1), but prior fork delta missing"),
 		},
 		{
+			name: "PriorForkMissingPastIsthmus",
+			modifier: func(cfg *Config) {
+				cfg.KarstTime = ptr.New(uint64(1))
+			},
+			expectedErr: fmt.Errorf("fork karst set (to 1), but prior fork jovian missing"),
+		},
+		{
 			name: "PriorForkHasHigherOffset",
 			modifier: func(cfg *Config) {
 				regolithTime := uint64(2)
@@ -753,6 +760,53 @@ func TestConfig_Check(t *testing.T) {
 			assert.Equal(t, err, test.expectedErr)
 		})
 	}
+}
+
+// TestConfigCheckSimultaneousForkActivation checks that two forks may only share an activation
+// time when they activate at or before genesis.
+func TestConfigCheckSimultaneousForkActivation(t *testing.T) {
+	scheduleAll := func(cfg *Config, activation uint64) {
+		for _, fork := range forks.From(forks.Regolith) {
+			cfg.SetActivationTime(fork, ptr.New(activation))
+		}
+	}
+
+	t.Run("AtGenesis", func(t *testing.T) {
+		cfg := randConfig()
+		scheduleAll(cfg, cfg.Genesis.L2Time)
+		require.NoError(t, cfg.Check())
+	})
+
+	t.Run("BeforeGenesis", func(t *testing.T) {
+		cfg := randConfig()
+		scheduleAll(cfg, 0)
+		require.NoError(t, cfg.Check())
+	})
+
+	t.Run("AfterGenesis", func(t *testing.T) {
+		cfg := randConfig()
+		scheduleAll(cfg, 0)
+		activation := cfg.Genesis.L2Time + cfg.BlockTime
+		cfg.SetActivationTime(forks.Karst, ptr.New(activation))
+		cfg.SetActivationTime(forks.Lagoon, ptr.New(activation))
+		require.EqualError(t, cfg.Check(), fmt.Sprintf(
+			"fork lagoon and prior fork karst both set to %d, but activating multiple forks at the same time after genesis is not supported",
+			activation))
+	})
+
+	// Chains that shared an activation timestamp before strictActivationOrderFrom must keep
+	// loading — Celo mainnet activated Holocene and Isthmus in the same block.
+	t.Run("AfterGenesisBeforeStrictFork", func(t *testing.T) {
+		cfg := randConfig()
+		scheduleAll(cfg, 0)
+		activation := cfg.Genesis.L2Time + cfg.BlockTime
+		cfg.SetActivationTime(forks.Holocene, ptr.New(activation))
+		cfg.SetActivationTime(forks.Isthmus, ptr.New(activation))
+		cfg.SetActivationTime(forks.Jovian, ptr.New(activation+cfg.BlockTime))
+		cfg.SetActivationTime(forks.Karst, ptr.New(activation+2*cfg.BlockTime))
+		cfg.SetActivationTime(forks.Lagoon, ptr.New(activation+3*cfg.BlockTime))
+		require.NoError(t, cfg.Check())
+	})
 }
 
 func TestTimestampForBlock(t *testing.T) {

@@ -42,6 +42,26 @@ All of the above build on **Bedrock**, the
 that the hardfork series starts from. Sepolia OP Stack chains launched on
 Bedrock directly.
 
+### One upgrade per activation timestamp
+
+Two network upgrades must never be configured to activate at the same L2 block
+timestamp after genesis. Every upgrade's activation-block behavior — the
+upgrade transactions it deposits, the state it changes, the block attributes it
+derives — is only defined against a chain on which every earlier upgrade is
+already active, so two upgrades sharing an activation block is an unsupported
+configuration whose combined behavior no specification covers. Activation
+timestamps must be strictly increasing in upgrade order, and `op-node` rejects
+a rollup config that schedules two upgrades to activate together. See the
+[activation rules](https://specs.optimism.io/protocol/superchain-upgrades.html?utm_source=op-docs&utm_medium=docs#activation-rules)
+in the superchain upgrades specification.
+
+Chains that launch after an upgrade already exists activate that upgrade in
+their genesis block instead, conventionally by setting its activation timestamp
+to `0` — so upgrades that are active from genesis do share a timestamp, and
+that is the one case the rule allows. This restriction covers OP Stack upgrades
+only: it does not constrain an OP Stack upgrade timestamp against an L1 fork
+timestamp on the same chain, which may coincide.
+
 ## Contract upgrades
 
 Not every governance-approved upgrade is a hardfork: hardforks activate by L2
