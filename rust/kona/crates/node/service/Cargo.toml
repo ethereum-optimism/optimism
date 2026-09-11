@@ -71,6 +71,7 @@ metrics = { workspace = true, optional = true }
 
 [dev-dependencies]
 rstest.workspace = true
+tokio = { workspace = true, features = ["test-util"] }
 arbitrary.workspace = true
 rand.workspace = true
 anyhow.workspace = true
