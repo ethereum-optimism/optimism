@@ -1,19 +1,22 @@
 //! Loads OP pending block for a RPC response.
 
-use crate::{OpEthApi, OpEthApiError};
+use crate::{OpEthApi, OpEthApiError, eth::OpRpcProvider};
 use alloy_eips::BlockNumberOrTag;
 use alloy_primitives::B256;
 use reth_chain_state::BlockState;
+use reth_errors::RethError;
+use reth_evm::ConfigureEvm;
+use reth_optimism_evm::ConfigurePostExecEvm;
 use reth_optimism_flashblocks::PendingFlashBlock;
 use reth_rpc_eth_api::{
     FromEvmError, RpcConvert, RpcNodeCore, RpcNodeCoreExt,
     helpers::{LoadPendingBlock, SpawnBlocking, pending_block::PendingEnvBuilder},
 };
 use reth_rpc_eth_types::{
-    EthApiError, PendingBlock, block::BlockAndReceipts, builder::config::PendingBlockKind,
-    error::FromEthApiError,
+    EthApiError, PendingBlock, PendingBlockEnv, PendingBlockEnvOrigin, block::BlockAndReceipts,
+    builder::config::PendingBlockKind, error::FromEthApiError,
 };
-use reth_storage_api::{BlockReaderIdExt, StateProviderBox, StateProviderFactory};
+use reth_storage_api::{BlockReader, BlockReaderIdExt, StateProviderBox, StateProviderFactory};
 
 #[inline]
 const fn pending_state_history_lookup_hash<N: reth_primitives_traits::NodePrimitives>(
@@ -25,9 +28,48 @@ const fn pending_state_history_lookup_hash<N: reth_primitives_traits::NodePrimit
 impl<N, Rpc> LoadPendingBlock for OpEthApi<N, Rpc>
 where
     N: RpcNodeCore,
+    N::Provider: OpRpcProvider,
+    N::Evm: ConfigurePostExecEvm,
     OpEthApiError: FromEvmError<N::Evm>,
     Rpc: RpcConvert<Primitives = N::Primitives, Error = OpEthApiError>,
 {
+    fn pending_block_env_and_cfg(&self) -> Result<PendingBlockEnv<Self::Evm>, Self::Error> {
+        if let Some((block, receipts)) =
+            self.provider().pending_block_and_receipts().map_err(Self::Error::from_eth_err)?
+        {
+            let evm_env = self
+                .evm_config()
+                .evm_env(block.header())
+                .map_err(RethError::other)
+                .map_err(Self::Error::from_eth_err)?;
+            return Ok(PendingBlockEnv::new(
+                evm_env,
+                PendingBlockEnvOrigin::ActualPending(
+                    std::sync::Arc::new(block),
+                    std::sync::Arc::new(receipts),
+                ),
+            ));
+        }
+
+        let latest = self
+            .provider()
+            .latest_header()
+            .map_err(Self::Error::from_eth_err)?
+            .ok_or(EthApiError::HeaderNotFound(BlockNumberOrTag::Latest.into()))?;
+        let attributes = self.next_env_attributes(&latest)?;
+        let evm_env = self
+            .evm_config()
+            .next_evm_env_with_base_fee(
+                latest.header(),
+                &attributes,
+                self.pending_base_fee_quote(latest.header())?,
+            )
+            .map_err(RethError::other)
+            .map_err(Self::Error::from_eth_err)?;
+
+        Ok(PendingBlockEnv::new(evm_env, PendingBlockEnvOrigin::DerivedFromLatest(latest)))
+    }
+
     #[inline]
     fn pending_block(&self) -> &tokio::sync::Mutex<Option<PendingBlock<N::Primitives>>> {
         self.inner.eth_api.pending_block()

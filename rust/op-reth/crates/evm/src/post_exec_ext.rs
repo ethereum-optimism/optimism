@@ -11,7 +11,7 @@ use op_alloy_consensus::OpTransaction as OpConsensusTransaction;
 use op_revm::OpSpecId;
 use reth_chainspec::EthChainSpec;
 use reth_evm::{
-    ConfigureEvm, Database,
+    ConfigureEvm, Database, EvmEnvFor,
     execute::{BasicBlockBuilder, BlockBuilder},
     precompiles::PrecompilesMap,
 };
@@ -28,6 +28,14 @@ pub trait ConfigurePostExecEvm: ConfigureEvm {
     /// Opaque block-scoped carry-forward state of the refund inspector the produced executors run.
     /// Matches [`PostExecExecutorExt::Snapshot`] of those executors.
     type Snapshot: Clone;
+
+    /// Derives the next-block EVM environment and overrides its base fee.
+    fn next_evm_env_with_base_fee(
+        &self,
+        parent: &<Self::Primitives as NodePrimitives>::BlockHeader,
+        attributes: &Self::NextBlockEnvCtx,
+        selected_base_fee_per_gas: u64,
+    ) -> Result<EvmEnvFor<Self>, Self::Error>;
 
     /// Returns a block executor for the given block with explicit post-exec entry access.
     ///
@@ -59,6 +67,7 @@ pub trait ConfigurePostExecEvm: ConfigureEvm {
         parent: &'a SealedHeader<<Self::Primitives as NodePrimitives>::BlockHeader>,
         attributes: Self::NextBlockEnvCtx,
         post_exec_mode: PostExecMode,
+        selected_base_fee_per_gas: u64,
     ) -> Result<
         impl BlockBuilder<
             Primitives = Self::Primitives,
@@ -95,6 +104,17 @@ where
 {
     type Snapshot = ();
 
+    fn next_evm_env_with_base_fee(
+        &self,
+        parent: &<Self::Primitives as NodePrimitives>::BlockHeader,
+        attributes: &Self::NextBlockEnvCtx,
+        selected_base_fee_per_gas: u64,
+    ) -> Result<EvmEnvFor<Self>, Self::Error> {
+        let mut evm_env = self.next_evm_env(parent, attributes)?;
+        evm_env.block_env.basefee = selected_base_fee_per_gas;
+        Ok(evm_env)
+    }
+
     fn post_exec_executor_for_block<'a, DB: Database>(
         &'a self,
         db: &'a mut State<DB>,
@@ -125,6 +145,7 @@ where
         parent: &'a SealedHeader<<Self::Primitives as NodePrimitives>::BlockHeader>,
         attributes: Self::NextBlockEnvCtx,
         post_exec_mode: PostExecMode,
+        selected_base_fee_per_gas: u64,
     ) -> Result<
         impl BlockBuilder<
             Primitives = Self::Primitives,
@@ -136,7 +157,8 @@ where
         > + 'a,
         Self::Error,
     > {
-        let evm_env = self.next_evm_env(parent, &attributes)?;
+        let evm_env =
+            self.next_evm_env_with_base_fee(parent, &attributes, selected_base_fee_per_gas)?;
         let evm = self.evm_with_env(db, evm_env);
         let ctx =
             self.context_for_next_block_with_post_exec_mode(parent, attributes, post_exec_mode);
@@ -201,6 +223,17 @@ where
 {
     type Snapshot = F::Snapshot;
 
+    fn next_evm_env_with_base_fee(
+        &self,
+        parent: &<Self::Primitives as NodePrimitives>::BlockHeader,
+        attributes: &Self::NextBlockEnvCtx,
+        selected_base_fee_per_gas: u64,
+    ) -> Result<EvmEnvFor<Self>, Self::Error> {
+        let mut evm_env = self.next_evm_env(parent, attributes)?;
+        evm_env.block_env.basefee = selected_base_fee_per_gas;
+        Ok(evm_env)
+    }
+
     fn post_exec_executor_for_block<'a, DB: Database>(
         &'a self,
         db: &'a mut State<DB>,
@@ -231,6 +264,7 @@ where
         parent: &'a SealedHeader<<Self::Primitives as NodePrimitives>::BlockHeader>,
         attributes: Self::NextBlockEnvCtx,
         post_exec_mode: PostExecMode,
+        selected_base_fee_per_gas: u64,
     ) -> Result<
         impl BlockBuilder<
             Primitives = Self::Primitives,
@@ -242,7 +276,8 @@ where
         > + 'a,
         Self::Error,
     > {
-        let evm_env = self.next_evm_env(parent, &attributes)?;
+        let evm_env =
+            self.next_evm_env_with_base_fee(parent, &attributes, selected_base_fee_per_gas)?;
         let evm = self.evm_with_env(db, evm_env);
         let ctx =
             self.context_for_next_block_with_post_exec_mode(parent, attributes, post_exec_mode);

@@ -1,9 +1,15 @@
 use super::*;
 use crate::post_exec::NullRefundPolicy;
 
-fn recovered_post_exec(block_number: u64, entries: Vec<SDMGasEntry>) -> Recovered<OpTxEnvelope> {
+fn recovered_post_exec(
+    block_number: u64,
+    selected_base_fee_per_gas: u64,
+    entries: Vec<SDMGasEntry>,
+) -> Recovered<OpTxEnvelope> {
     Recovered::new_unchecked(
-        OpTxEnvelope::PostExec(build_post_exec_tx(block_number, entries).seal_slow()),
+        OpTxEnvelope::PostExec(
+            build_post_exec_tx(block_number, selected_base_fee_per_gas, entries).seal_slow(),
+        ),
         Address::ZERO,
     )
 }
@@ -179,7 +185,7 @@ fn fixed_policy_producer_verifier_roundtrip() {
     producer.execute_transaction(&tx).expect("producer executes normal tx");
     let entries = producer.post_exec_entries().to_vec();
     assert_eq!(entries, vec![SDMGasEntry { index: 0, gas_refund: 1 }]);
-    let post_exec = recovered_post_exec(0, entries.clone());
+    let post_exec = recovered_post_exec(0, 0, entries.clone());
     producer.execute_transaction(&post_exec).expect("producer executes post-exec tx");
     let (_, produced) = producer.finish().expect("producer finishes block");
 
@@ -262,7 +268,7 @@ where
 
         let entries = producer.take_post_exec_entries();
         if !entries.is_empty() {
-            let post_exec = recovered_post_exec(0, entries.clone());
+            let post_exec = recovered_post_exec(0, BASE_FEE, entries.clone());
             producer.execute_transaction(&post_exec).expect("producer executes post-exec tx");
         }
         // Dropping the EVM releases its borrow of `db` so the audit can read balances.
@@ -699,7 +705,7 @@ fn test_verifier_accepts_payload_when_pre_refund_stays_below_limit() {
     verifier
         .execute_transaction(&tx2)
         .expect("tx declared within the remaining pre-refund budget is accepted");
-    let post_exec_recovered = recovered_post_exec(0, entries);
+    let post_exec_recovered = recovered_post_exec(0, 0, entries);
     verifier.execute_transaction(&post_exec_recovered).expect("post-exec tx verifies");
     verifier.finish().expect("verifier finishes accepted boundary block");
 }
@@ -840,7 +846,7 @@ fn test_disabled_mode_rejects_post_exec_tx() {
     let mut executor = fixture.executor();
     assert!(matches!(executor.post_exec, PostExecState::Disabled));
 
-    let tx = recovered_post_exec(0, vec![]);
+    let tx = recovered_post_exec(0, 0, vec![]);
     let err = executor.execute_transaction(&tx).expect_err("0x7D tx in Disabled mode must fail");
     assert_invalid_post_exec(
         err,
@@ -866,7 +872,7 @@ fn test_post_exec_tx_does_not_accrue_da_footprint() {
     let footprint_before = producer.da_footprint_used;
     assert!(footprint_before > 0, "the user tx must accrue a footprint for this test to bite");
 
-    let post_exec = recovered_post_exec(0, vec![SDMGasEntry { index: 0, gas_refund: 7 }]);
+    let post_exec = recovered_post_exec(0, 0, vec![SDMGasEntry { index: 0, gas_refund: 7 }]);
 
     // The minimum-size floor ensures a counted 0x7D would have a non-zero footprint, so the
     // assertion below is about the exclusion and not about a 0x7D that is simply too small to
@@ -1062,7 +1068,7 @@ mod warm_set_leak {
         producer.execute_transaction(&failing_a).expect_err(a_error_context);
         producer.execute_transaction(&probe_tx()).expect("probe tx B executes");
         let entries = producer.take_post_exec_entries();
-        let post_exec_tx = recovered_post_exec(0, entries.clone());
+        let post_exec_tx = recovered_post_exec(0, 0, entries.clone());
         producer.execute_transaction(&post_exec_tx).expect("producer appends 0x7D tx");
         let (_, produced) = producer.finish().expect("producer finishes block");
 
@@ -1079,6 +1085,7 @@ mod warm_set_leak {
         verifier.set_post_exec_mode(PostExecMode::Verify(PostExecPayload {
             version: 1,
             block_number: 0,
+            selected_base_fee_per_gas: 0,
             gas_refund_entries: entries,
         }));
         verifier.execute_transaction(&probe_tx()).expect("validator executes B");

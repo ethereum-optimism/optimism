@@ -21,9 +21,10 @@ type SDMGasEntry struct {
 // PostExecPayload is the payload RLP-encoded into the Data of a [PostExecTx].
 // Field order must match op-alloy's PostExecPayload.
 type PostExecPayload struct {
-	Version          uint64        `json:"version"`
-	BlockNumber      uint64        `json:"block_number,omitempty"`
-	GasRefundEntries []SDMGasEntry `json:"gas_refund_entries"`
+	Version               uint64        `json:"version"`
+	BlockNumber           uint64        `json:"block_number,omitempty"`
+	SelectedBaseFeePerGas uint64        `json:"selected_base_fee_per_gas"`
+	GasRefundEntries      []SDMGasEntry `json:"gas_refund_entries"`
 }
 
 // DecodePostExecPayload decodes the bytes that follow the [PostExecTxType] type byte,

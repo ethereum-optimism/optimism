@@ -303,7 +303,7 @@ mod tests {
 
     #[test]
     fn post_exec_tx_env_reflects_transaction_fields() {
-        let tx = build_post_exec_tx(42, vec![SDMGasEntry { index: 0, gas_refund: 7 }]);
+        let tx = build_post_exec_tx(42, 1, vec![SDMGasEntry { index: 0, gas_refund: 7 }]);
 
         let env = OpTx::from_recovered_tx(&tx, Address::from([0x11; 20]));
 
@@ -318,7 +318,7 @@ mod tests {
 
     #[test]
     fn post_exec_tx_env_mirrors_transaction() {
-        let tx = build_post_exec_tx(7, vec![SDMGasEntry { index: 0, gas_refund: 42 }]);
+        let tx = build_post_exec_tx(7, 1, vec![SDMGasEntry { index: 0, gas_refund: 42 }]);
         let env = OpTx::from_encoded_tx(&tx, Address::ZERO, tx.encoded_2718().into());
 
         let expected = TxEnv {

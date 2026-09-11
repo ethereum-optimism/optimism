@@ -246,6 +246,7 @@ impl JovianExecutorFixture {
         self.executor_with_post_exec_mode(PostExecMode::Verify(PostExecPayload {
             version: 1,
             block_number,
+            selected_base_fee_per_gas: self.base_fee,
             gas_refund_entries: entries,
         }))
     }

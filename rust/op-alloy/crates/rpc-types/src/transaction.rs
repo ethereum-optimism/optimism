@@ -398,7 +398,7 @@ mod tests {
 
     #[test]
     fn can_serialize_post_exec_rpc_transaction() {
-        let post_exec = build_post_exec_tx(42, vec![SDMGasEntry { index: 3, gas_refund: 7 }]);
+        let post_exec = build_post_exec_tx(42, 1, vec![SDMGasEntry { index: 3, gas_refund: 7 }]);
         let expected_input = serde_json::to_value(post_exec.input.clone()).unwrap();
         let expected_hash = serde_json::to_value(post_exec.tx_hash()).unwrap();
 

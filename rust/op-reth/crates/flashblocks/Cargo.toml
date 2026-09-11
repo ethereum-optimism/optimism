@@ -13,6 +13,7 @@ workspace = true
 [dependencies]
 # reth
 reth-optimism-primitives = { workspace = true, features = ["serde"] }
+reth-optimism-evm.workspace = true
 reth-chain-state = { workspace = true, features = ["serde"] }
 reth-primitives-traits = { workspace = true, features = ["serde"] }
 reth-engine-primitives = { workspace = true, features = ["std"] }
@@ -36,6 +37,7 @@ alloy-rpc-types.workspace = true
 alloy-consensus.workspace = true
 
 # op-alloy
+op-alloy-consensus.workspace = true
 op-alloy-rpc-types-engine = { workspace = true, features = ["k256"] }
 
 # io
@@ -65,5 +67,4 @@ alloy-signer-local.workspace = true
 op-alloy-consensus.workspace = true
 op-revm.workspace = true
 reth-optimism-chainspec = { workspace = true, features = ["superchain-configs"] }
-reth-optimism-evm.workspace = true
 reth-provider = { workspace = true, features = ["test-utils"] }

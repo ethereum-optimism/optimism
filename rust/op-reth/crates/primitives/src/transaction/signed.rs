@@ -571,6 +571,7 @@ mod tests {
                 *post_exec = TxPostExec::new(op_alloy_consensus::PostExecPayload {
                     version: 1,
                     block_number: 1,
+                    selected_base_fee_per_gas: 1,
                     gas_refund_entries: (0..16)
                         .map(|index| op_alloy_consensus::SDMGasEntry { index, gas_refund: 1 })
                         .collect(),

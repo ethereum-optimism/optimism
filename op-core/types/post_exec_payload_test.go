@@ -10,8 +10,9 @@ import (
 // Keep decoding behavior aligned with op-alloy.
 func TestDecodePostExecPayload(t *testing.T) {
 	valid := PostExecPayload{
-		Version:     PostExecPayloadVersion,
-		BlockNumber: 42,
+		Version:               PostExecPayloadVersion,
+		BlockNumber:           42,
+		SelectedBaseFeePerGas: 123,
 		GasRefundEntries: []SDMGasEntry{
 			{Index: 1, GasRefund: 2500},
 			{Index: 3, GasRefund: 2000},
@@ -28,15 +29,17 @@ func TestDecodePostExecPayload(t *testing.T) {
 
 	t.Run("accepts an empty entry set", func(t *testing.T) {
 		raw, err := rlp.EncodeToBytes(&PostExecPayload{
-			Version:          PostExecPayloadVersion,
-			BlockNumber:      1,
-			GasRefundEntries: []SDMGasEntry{},
+			Version:               PostExecPayloadVersion,
+			BlockNumber:           1,
+			SelectedBaseFeePerGas: 123,
+			GasRefundEntries:      []SDMGasEntry{},
 		})
 		require.NoError(t, err)
 		got, err := DecodePostExecPayload(raw)
 		require.NoError(t, err)
 		require.Empty(t, got.GasRefundEntries)
 		require.Equal(t, uint64(1), got.BlockNumber)
+		require.Equal(t, uint64(123), got.SelectedBaseFeePerGas)
 	})
 
 	t.Run("rejects empty input", func(t *testing.T) {
@@ -57,7 +60,7 @@ func TestDecodePostExecPayload(t *testing.T) {
 	})
 
 	t.Run("rejects a list with too few fields", func(t *testing.T) {
-		// [1, []] is the old fixture's invalid two-field shape.
+		// [1, []] is an invalid two-field shape.
 		_, err := DecodePostExecPayload([]byte{0xc2, 0x01, 0xc0})
 		require.ErrorContains(t, err, "decode post-exec payload")
 	})

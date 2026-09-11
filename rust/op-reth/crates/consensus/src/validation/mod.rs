@@ -8,11 +8,14 @@ use reth_execution_types::BlockExecutionResult;
 pub use reth_optimism_chainspec::decode_holocene_base_fee;
 
 use crate::proof::calculate_receipt_root_optimism;
-use alloc::vec::Vec;
+use alloc::{format, vec::Vec};
 use alloy_consensus::{BlockHeader, EMPTY_OMMER_ROOT_HASH, TxReceipt};
 use alloy_eips::Encodable2718;
 use alloy_primitives::{B256, Bloom, Bytes};
 use alloy_trie::EMPTY_ROOT_HASH;
+use op_alloy_consensus::{
+    OpTransaction as OpConsensusTransaction, parse_post_exec_payload_from_transactions,
+};
 use reth_consensus::ConsensusError;
 use reth_optimism_forks::OpHardforks;
 use reth_optimism_primitives::DepositReceipt;
@@ -30,7 +33,7 @@ pub fn validate_body_against_header_op<B, H>(
     header: &H,
 ) -> Result<(), ConsensusError>
 where
-    B: BlockBody,
+    B: BlockBody<Transaction: OpConsensusTransaction>,
     H: reth_primitives_traits::BlockHeader,
 {
     let ommers_hash = body.calculate_ommers_root();
@@ -49,6 +52,28 @@ where
         return Err(ConsensusError::BodyTransactionRootDiff(
             GotExpected { got: tx_root, expected: header.transactions_root() }.into(),
         ));
+    }
+
+    let lagoon_active = chain_spec.is_lagoon_active_at_timestamp(header.timestamp());
+    let post_exec = parse_post_exec_payload_from_transactions(
+        body.transactions(),
+        header.number(),
+        lagoon_active,
+    )
+    .map_err(|err| ConsensusError::msg(format!("invalid post-exec payload: {err}")))?;
+
+    if lagoon_active {
+        let post_exec = post_exec
+            .ok_or_else(|| ConsensusError::msg("missing post-exec transaction in Lagoon block"))?;
+        let header_base_fee = header
+            .base_fee_per_gas()
+            .ok_or_else(|| ConsensusError::msg("missing base fee in Lagoon block"))?;
+        if post_exec.payload.selected_base_fee_per_gas != header_base_fee {
+            return Err(ConsensusError::msg(format!(
+                "post-exec selected base fee {} does not match header base fee {header_base_fee}",
+                post_exec.payload.selected_base_fee_per_gas,
+            )));
+        }
     }
 
     match (header.withdrawals_root(), body.calculate_withdrawals_root()) {
@@ -207,12 +232,12 @@ fn compare_receipts_root_and_logs_bloom(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use alloy_consensus::Header;
+    use alloy_consensus::{BlockBody as AlloyBlockBody, Header, Sealable};
     use alloy_eips::eip7685::Requests;
     use alloy_primitives::{Bytes, U256, b256, hex};
-    use op_alloy_consensus::{OpTxEnvelope, encode_jovian_extra_data};
+    use op_alloy_consensus::{OpTxEnvelope, build_post_exec_tx, encode_jovian_extra_data};
     use reth_chainspec::{BaseFeeParams, ChainSpec, EthChainSpec, ForkCondition, Hardfork};
-    use reth_optimism_chainspec::{OP_SEPOLIA, OpChainSpec};
+    use reth_optimism_chainspec::{OP_SEPOLIA, OpChainSpec, OpChainSpecBuilder};
     use reth_optimism_forks::OpHardfork;
     use reth_optimism_primitives::OpReceipt;
     use std::sync::Arc;
@@ -238,6 +263,14 @@ mod tests {
                 ..Default::default()
             },
         })
+    }
+
+    fn lagoon_chainspec() -> OpChainSpec {
+        OpChainSpecBuilder::default()
+            .chain(OP_SEPOLIA.chain)
+            .genesis(OP_SEPOLIA.genesis.clone())
+            .lagoon_activated()
+            .build()
     }
 
     fn isthmus_chainspec() -> OpChainSpec {
@@ -515,6 +548,67 @@ mod tests {
                 .next_block_base_fee(&parent, JOVIAN_TIMESTAMP + BLOCK_TIME_SECONDS)
                 .unwrap()
         );
+    }
+
+    #[test]
+    fn body_against_header_lagoon_requires_matching_post_exec_fee() {
+        let chainspec = lagoon_chainspec();
+        let post_exec = OpTxEnvelope::PostExec(build_post_exec_tx(1, 777, vec![]).seal_slow());
+        let body = AlloyBlockBody::<OpTxEnvelope, Header> {
+            transactions: vec![post_exec],
+            ommers: vec![],
+            withdrawals: None,
+        };
+        let header = Header {
+            number: 1,
+            timestamp: 1,
+            base_fee_per_gas: Some(777),
+            transactions_root: body.calculate_tx_root(),
+            ..Default::default()
+        };
+
+        validate_body_against_header_op(&chainspec, &body, &header).unwrap();
+
+        let mismatched = Header { base_fee_per_gas: Some(778), ..header };
+        let err = validate_body_against_header_op(&chainspec, &body, &mismatched).unwrap_err();
+        assert!(err.to_string().contains("does not match header base fee"));
+    }
+
+    #[test]
+    fn body_against_header_lagoon_rejects_missing_post_exec() {
+        let chainspec = lagoon_chainspec();
+        let body = AlloyBlockBody::<OpTxEnvelope>::default();
+        let header = Header {
+            number: 1,
+            timestamp: 1,
+            base_fee_per_gas: Some(777),
+            transactions_root: body.calculate_tx_root(),
+            ..Default::default()
+        };
+
+        let err = validate_body_against_header_op(&chainspec, &body, &header).unwrap_err();
+        assert!(err.to_string().contains("missing post-exec transaction"));
+    }
+
+    #[test]
+    fn body_against_header_rejects_post_exec_before_lagoon() {
+        let chainspec = OP_SEPOLIA.as_ref().clone();
+        let post_exec = OpTxEnvelope::PostExec(build_post_exec_tx(1, 777, vec![]).seal_slow());
+        let body = AlloyBlockBody::<OpTxEnvelope, Header> {
+            transactions: vec![post_exec],
+            ommers: vec![],
+            withdrawals: None,
+        };
+        let header = Header {
+            number: 1,
+            timestamp: 1,
+            base_fee_per_gas: Some(777),
+            transactions_root: body.calculate_tx_root(),
+            ..Default::default()
+        };
+
+        let err = validate_body_against_header_op(&chainspec, &body, &header).unwrap_err();
+        assert!(err.to_string().contains("invalid post-exec payload"));
     }
 
     #[test]

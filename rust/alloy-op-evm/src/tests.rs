@@ -111,7 +111,7 @@ fn legacy_op_tx(nonce: u64, caller: Address, target: Address, gas_limit: u64) ->
 }
 
 fn post_exec_op_tx() -> OpTx {
-    let tx = op_alloy::consensus::post_exec::build_post_exec_tx(1, vec![]);
+    let tx = op_alloy::consensus::post_exec::build_post_exec_tx(1, 1, vec![]);
     OpTx::from_recovered_tx(&tx, Address::ZERO)
 }
 

@@ -600,6 +600,7 @@ mod tests {
         let tx: OpTxEnvelope = TxPostExec::new(PostExecPayload {
             version: POST_EXEC_PAYLOAD_VERSION,
             block_number: 42,
+            selected_base_fee_per_gas: 1,
             gas_refund_entries: vec![],
         })
         .into();

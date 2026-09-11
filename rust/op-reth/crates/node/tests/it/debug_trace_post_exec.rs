@@ -86,7 +86,7 @@ async fn test_debug_trace_block_with_post_exec_tx() -> eyre::Result<()> {
     };
     let transactions = vec![
         OpTxEnvelope::Deposit(deposit.seal_slow()),
-        OpTxEnvelope::PostExec(build_post_exec_tx(1, vec![]).seal_slow()),
+        OpTxEnvelope::PostExec(build_post_exec_tx(1, 1, vec![]).seal_slow()),
     ];
     let block = Block::new(header, BlockBody { transactions, ommers: vec![], withdrawals: None });
 

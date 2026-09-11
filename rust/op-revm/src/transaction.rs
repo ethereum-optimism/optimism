@@ -63,7 +63,7 @@ mod tests {
     #[test]
     fn post_exec_tx_da_footprint_is_zero() {
         const SCALAR: u64 = 100;
-        let tx = build_post_exec_tx(1, vec![SDMGasEntry { index: 1, gas_refund: 77 }]);
+        let tx = build_post_exec_tx(1, 1, vec![SDMGasEntry { index: 1, gas_refund: 77 }]);
         let encoded = tx.encoded_2718();
 
         let encoded_size_footprint =

@@ -12,6 +12,13 @@ For when and how to adjust these parameters, see the [fee tuning guide](/chain-o
 Only the [SystemConfig owner](/op-stack/protocol/privileged-roles) can call the setter methods listed below.
 </Info>
 
+<Warning>
+At Lagoon, the sequencer's configured base fee policy replaces the parent-derived EIP-1559 formula.
+`eip1559Denominator`, `eip1559Elasticity`, and `minBaseFee` continue to be transported as
+compatibility metadata and may be policy inputs, but they no longer constrain the block base fee by
+consensus. L1 data fee and operator fee parameters are unaffected.
+</Warning>
+
 ## Fee formulas
 
 On an OP Stack chain a transaction's **Total Fee** is made of three main components:

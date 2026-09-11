@@ -243,7 +243,7 @@ mod tests {
     /// inspects the env (and fail revm's chain-id validation outright on non-mainnet chains).
     #[test]
     fn post_exec_tx_env_reflects_transaction_fields() {
-        let tx = build_post_exec_tx(7, vec![]);
+        let tx = build_post_exec_tx(7, 1, vec![]);
 
         let FpvmOpTx(op_tx) = FpvmOpTx::from_recovered_tx(&tx, Address::ZERO);
 
@@ -256,7 +256,7 @@ mod tests {
 
     #[test]
     fn post_exec_tx_env_mirrors_transaction() {
-        let tx = build_post_exec_tx(7, vec![SDMGasEntry { index: 0, gas_refund: 42 }]);
+        let tx = build_post_exec_tx(7, 1, vec![SDMGasEntry { index: 0, gas_refund: 42 }]);
         let env = FpvmOpTx::from_encoded_tx(&tx, Address::ZERO, tx.encoded_2718().into());
 
         let expected = TxEnv {

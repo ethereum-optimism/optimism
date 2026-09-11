@@ -431,7 +431,7 @@ where
 ///
 /// The `R` type parameter fixes the post-exec refund inspector and its block-scoped snapshot.
 /// It defaults to [`NullRefundPolicy`](post_exec::NullRefundPolicy), so released public binaries
-/// cannot produce a non-empty post-exec payload.
+/// cannot produce a non-empty post-exec refund list.
 #[derive(Debug)]
 pub struct OpEvmFactory<Tx = OpTx, R = post_exec::NullRefundPolicy>(PhantomData<(Tx, R)>);
 

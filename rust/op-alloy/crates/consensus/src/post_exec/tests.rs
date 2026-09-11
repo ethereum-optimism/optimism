@@ -2,11 +2,14 @@
 
 use super::*;
 
+const TEST_BASE_FEE: u64 = 123;
+
 #[test]
 fn post_exec_payload_rlp_roundtrip_preserves_block_number() {
     let payload = PostExecPayload {
         version: 1,
         block_number: 42,
+        selected_base_fee_per_gas: TEST_BASE_FEE,
         gas_refund_entries: vec![SDMGasEntry { index: 3, gas_refund: 7 }],
     };
 
@@ -21,6 +24,7 @@ fn post_exec_payload_rlp_decode_rejects_unknown_version() {
     let payload = PostExecPayload {
         version: POST_EXEC_PAYLOAD_VERSION + 1,
         block_number: 42,
+        selected_base_fee_per_gas: TEST_BASE_FEE,
         gas_refund_entries: vec![SDMGasEntry { index: 3, gas_refund: 7 }],
     };
 
@@ -35,6 +39,7 @@ fn post_exec_payload_rlp_decode_rejects_trailing_bytes() {
     let payload = PostExecPayload {
         version: 1,
         block_number: 42,
+        selected_base_fee_per_gas: TEST_BASE_FEE,
         gas_refund_entries: vec![SDMGasEntry { index: 3, gas_refund: 7 }],
     };
 
@@ -48,8 +53,8 @@ fn post_exec_payload_rlp_decode_rejects_trailing_bytes() {
 #[test]
 fn post_exec_tx_hash_depends_on_block_number() {
     let entries = vec![SDMGasEntry { index: 3, gas_refund: 7 }];
-    let tx_a = build_post_exec_tx(42, entries.clone());
-    let tx_b = build_post_exec_tx(43, entries);
+    let tx_a = build_post_exec_tx(42, TEST_BASE_FEE, entries.clone());
+    let tx_b = build_post_exec_tx(43, TEST_BASE_FEE, entries);
 
     assert_ne!(tx_a.tx_hash(), tx_b.tx_hash());
 }
@@ -61,10 +66,10 @@ fn post_exec_tx_hash_depends_on_block_number() {
 fn post_exec_tx_hash_is_keccak_of_canonical_encoding() {
     use alloy_primitives::{b256, hex};
 
-    let tx = build_post_exec_tx(42, vec![SDMGasEntry { index: 3, gas_refund: 7 }]);
+    let tx = build_post_exec_tx(42, TEST_BASE_FEE, vec![SDMGasEntry { index: 3, gas_refund: 7 }]);
 
     // Canonical payload bytes (== op-geth PostExecTx.Data).
-    let data = hex!("c6012ac3c20307");
+    let data = hex!("c7012a7bc3c20307");
     assert_eq!(tx.input.as_ref(), data.as_slice(), "post-exec input bytes drifted");
 
     // keccak256(0x7D || Data), derived independently and pinned.
@@ -73,14 +78,14 @@ fn post_exec_tx_hash_is_keccak_of_canonical_encoding() {
     assert_eq!(tx.tx_hash(), keccak256(&canonical), "tx_hash must be keccak256 of encode_2718");
     assert_eq!(
         tx.tx_hash(),
-        b256!("0xcbc64a9665039744307b562634bf760d96f3bed235fecd9e09a1f1276a1823c7"),
+        b256!("0xdf031dde1c8c591f49866e7877be7e81c86aa4ea4a170f806d21a390c01583bb"),
         "post-exec tx hash must be keccak256(0x7D || Data), matching the TxDeposit rule",
     );
 
     // Guard against the pre-#805 `keccak256(0x7D || RLP([Data]))` value.
     assert_ne!(
         tx.tx_hash(),
-        b256!("0xf54f4d695af011e5639b49ec48a5090434fbad09fa56ff572e36c28f691cb126"),
+        b256!("0xe01604d51b32778b1b47dcecfc99b5758e1ae20eb3db2294bdd16775f0ae5ba2"),
         "must not regress to the pre-#805 keccak256(0x7D || RLP([Data])) hash",
     );
 }
@@ -89,6 +94,7 @@ fn post_exec_tx_hash_is_keccak_of_canonical_encoding() {
 fn post_exec_tx_eip2718_roundtrip() {
     let tx = build_post_exec_tx(
         99,
+        TEST_BASE_FEE,
         vec![SDMGasEntry { index: 0, gas_refund: 100 }, SDMGasEntry { index: 5, gas_refund: 200 }],
     );
 
@@ -105,6 +111,7 @@ fn post_exec_tx_eip2718_decode_rejects_unknown_version() {
     let payload = PostExecPayload {
         version: POST_EXEC_PAYLOAD_VERSION + 1,
         block_number: 42,
+        selected_base_fee_per_gas: TEST_BASE_FEE,
         gas_refund_entries: vec![SDMGasEntry { index: 3, gas_refund: 7 }],
     };
 
@@ -130,6 +137,7 @@ fn post_exec_tx_rlp_decode_rejects_unknown_version() {
     let payload = PostExecPayload {
         version: POST_EXEC_PAYLOAD_VERSION + 1,
         block_number: 42,
+        selected_base_fee_per_gas: TEST_BASE_FEE,
         gas_refund_entries: vec![SDMGasEntry { index: 3, gas_refund: 7 }],
     };
     let mut buf = Vec::new();
@@ -142,7 +150,7 @@ fn post_exec_tx_rlp_decode_rejects_unknown_version() {
 
 #[test]
 fn post_exec_tx_eip2718_roundtrip_empty_refunds() {
-    let tx = build_post_exec_tx(1, vec![]);
+    let tx = build_post_exec_tx(1, TEST_BASE_FEE, vec![]);
 
     let mut buf = Vec::new();
     tx.encode_2718(&mut buf);
@@ -154,7 +162,7 @@ fn post_exec_tx_eip2718_roundtrip_empty_refunds() {
 #[cfg(feature = "serde")]
 #[test]
 fn post_exec_tx_serde_serializes_as_payload() {
-    let tx = build_post_exec_tx(42, vec![SDMGasEntry { index: 3, gas_refund: 7 }]);
+    let tx = build_post_exec_tx(42, TEST_BASE_FEE, vec![SDMGasEntry { index: 3, gas_refund: 7 }]);
     let value = serde_json::to_value(&tx).expect("serialize tx");
 
     assert_eq!(value, serde_json::to_value(&tx.payload).expect("serialize payload"));
@@ -163,7 +171,7 @@ fn post_exec_tx_serde_serializes_as_payload() {
 #[cfg(feature = "serde")]
 #[test]
 fn post_exec_tx_serde_roundtrip_preserves_cached_input() {
-    let tx = build_post_exec_tx(42, vec![SDMGasEntry { index: 3, gas_refund: 7 }]);
+    let tx = build_post_exec_tx(42, TEST_BASE_FEE, vec![SDMGasEntry { index: 3, gas_refund: 7 }]);
     let value = serde_json::to_value(&tx).expect("serialize tx");
 
     let decoded: TxPostExec = serde_json::from_value(value).expect("deserialize tx");
@@ -176,7 +184,7 @@ fn post_exec_tx_serde_roundtrip_preserves_cached_input() {
 fn post_exec_envelope_rpc_serde_roundtrip() {
     use crate::OpTxEnvelope;
 
-    let tx = build_post_exec_tx(42, vec![SDMGasEntry { index: 3, gas_refund: 7 }]);
+    let tx = build_post_exec_tx(42, TEST_BASE_FEE, vec![SDMGasEntry { index: 3, gas_refund: 7 }]);
     let envelope = OpTxEnvelope::PostExec(tx.seal_slow());
 
     // Serializes via `serde_post_exec_tx_rpc` (the RPC `{hash,type,gas,value,input}` shape)
@@ -194,7 +202,7 @@ fn post_exec_envelope_rpc_deserialize_ignores_extra_fields() {
 
     // Mirrors the object op-geth emits in `eth_getBlockByHash` full-transaction responses:
     // the canonical data lives in `input`, with derived placeholder/metadata fields alongside.
-    let tx = build_post_exec_tx(27, vec![SDMGasEntry { index: 1, gas_refund: 9 }]);
+    let tx = build_post_exec_tx(27, TEST_BASE_FEE, vec![SDMGasEntry { index: 1, gas_refund: 9 }]);
     let sealed = tx.clone().seal_slow();
     let json = serde_json::json!({
         "type": "0x7d",
@@ -231,7 +239,12 @@ fn filler_tx() -> crate::OpTxEnvelope {
 
 fn post_exec_tx(block_number: u64) -> crate::OpTxEnvelope {
     crate::OpTxEnvelope::PostExec(
-        build_post_exec_tx(block_number, vec![SDMGasEntry { index: 1, gas_refund: 9 }]).seal_slow(),
+        build_post_exec_tx(
+            block_number,
+            TEST_BASE_FEE,
+            vec![SDMGasEntry { index: 1, gas_refund: 9 }],
+        )
+        .seal_slow(),
     )
 }
 
@@ -245,6 +258,7 @@ fn parse_accepts_trailing_post_exec_tx() {
 
     assert_eq!(parsed.tx_index, 2);
     assert_eq!(parsed.payload.block_number, PARSE_BLOCK);
+    assert_eq!(parsed.payload.selected_base_fee_per_gas, TEST_BASE_FEE);
     assert_eq!(parsed.payload.gas_refund_entries, vec![SDMGasEntry { index: 1, gas_refund: 9 }]);
 }
 
