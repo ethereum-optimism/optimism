@@ -133,6 +133,9 @@ pub enum InteropHostError {
     /// A RPC error.
     #[error("Rpc Error: {0}")]
     RpcError(#[from] alloy_transport::RpcError<alloy_transport::TransportErrorKind>),
+    /// A blob provider error.
+    #[error("Blob provider error: {0}")]
+    BlobProviderError(#[from] kona_derive::BlobProviderError),
     /// An error when no provider found for chain ID.
     #[error("No provider found for chain ID: {0}")]
     RootProviderError(u64),
@@ -319,7 +322,7 @@ impl InteropHost {
                 .clone()
                 .ok_or(InteropHostError::Other("Beacon API URL must be set"))?,
         ))
-        .await;
+        .await?;
 
         // Resolve all chain IDs to their corresponding providers.
         let l2_node_addresses = self

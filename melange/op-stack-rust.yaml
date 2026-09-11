@@ -118,6 +118,24 @@ subpackages:
         with:
           opts: -g --remove-section=.note.package
 
+  - name: kona-zkvm-canary
+    description: kona-zkvm-canary — OP Stack SP1 zkVM canary
+    pipeline:
+      # Keep the canary's SP1 profiling feature out of the combined build. On
+      # x86_64 Linux that feature selects SP1's portable in-process executor;
+      # unifying it with the proposer would change the proposer's production
+      # executor from the native child runner.
+      - uses: cargo/build
+        with:
+          install-dir: local/bin
+          modroot: rust/kona/sp1/crates/zkvm-canary
+          output: kona-zkvm-canary
+          profile: "${MELANGE_CARGO_PROFILE}"
+          opts: --locked --package kona-zkvm-canary
+      - uses: strip
+        with:
+          opts: -g --remove-section=.note.package
+
   - name: lokahi
     description: lokahi — OP Stack multi-chain consensus-layer host
     pipeline:
