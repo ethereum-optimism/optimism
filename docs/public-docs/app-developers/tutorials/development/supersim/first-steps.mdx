@@ -60,6 +60,16 @@ diataxis: tutorial
 
 ## Send an interoperable ERC20 token from chain 901 to 902 (L2 to L2 message passing)
 
+<Warning>
+**This walkthrough no longer works.**
+
+It moves tokens with the `SuperchainTokenBridge` predeploy at `0x4200000000000000000000000000000000000028`, which was removed from the OP Stack in [optimism#19999](https://github.com/ethereum-optimism/optimism/pull/19999). Nothing has replaced it, so SuperchainERC20 tokens cannot move between chains today.
+
+`0.1.0-alpha.59` is the last Supersim release that deploys the bridge. Newer releases do not.
+
+For L2 to L2 ETH transfers use [`SuperchainETHBridge`](https://github.com/ethereum-optimism/optimism/blob/develop/packages/contracts-bedrock/src/L2/SuperchainETHBridge.sol) at `0x4200000000000000000000000000000000000024`. For general message passing use `L2ToL2CrossDomainMessenger` at `0x4200000000000000000000000000000000000023`.
+</Warning>
+
 In a typical L2 to L2 cross-chain transfer, two transactions are required:
 
 1.  Send transaction on the source chain – This initiates the token transfer on Chain 901.
