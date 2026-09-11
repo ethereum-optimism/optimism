@@ -3,6 +3,7 @@
 pub mod logger;
 pub mod metrics;
 pub mod network;
+pub mod spn_signer;
 pub mod tls;
 pub mod witness_generation;
 pub use logger::setup_logger;
