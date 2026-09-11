@@ -45,6 +45,9 @@ pub enum NetworkDriverError {
 
 impl NetworkDriver {
     /// Starts the network.
+    ///
+    /// Note: `actors::network::test_utils` assembles a [`NetworkHandler`] with the same field list
+    /// without starting the swarm or discovery. Adding a step here needs a matching change there.
     pub async fn start(mut self) -> Result<NetworkHandler, NetworkDriverError> {
         // Start the libp2p Swarm
         let gossip_listen_addr = self.gossip.start().await?;

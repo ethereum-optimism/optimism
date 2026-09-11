@@ -27,4 +27,7 @@ mod handler;
 pub use handler::NetworkHandler;
 
 #[cfg(test)]
+pub(crate) mod test_utils;
+
+#[cfg(test)]
 pub use gossip::MockUnsafePayloadGossipClient;
