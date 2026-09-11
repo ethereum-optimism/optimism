@@ -78,8 +78,8 @@ Organised by **detection difficulty** — the point is catching what the compile
   often assumes L1 semantics that are wrong for OP.
 - **New struct field absorbed silently.** A struct we build with `..Default::default()`
   or `..rest` gains a field. It defaults silently where OP may need to set it.
-- **New trait-method parameter dropped via `_`-prefix.** UPDATING-RETH advises prefixing
-  added params with `_` to silence warnings (e.g. `_block_access_list_hash: Option<B256>`).
+- **New trait-method parameter dropped via `_`-prefix.** An added param is commonly
+  `_`-prefixed to silence warnings (e.g. `_block_access_list_hash: Option<B256>`).
   That is correct _only if_ OP genuinely doesn't need the value — verify, don't assume.
 - **Changed constant / default value** that op- reads or duplicated.
 
