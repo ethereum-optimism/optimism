@@ -386,6 +386,9 @@ Transaction signing requires one of these configurations:
 | `KONA_SP1_PROPOSER_PRIVATE_KEY` | local L1 transaction-signing key |
 | `KONA_SP1_PROPOSER_SIGNER_URL` | Web3Signer URL; requires `KONA_SP1_PROPOSER_SIGNER_ADDRESS` |
 | `KONA_SP1_PROPOSER_SIGNER_ADDRESS` | Web3Signer address; requires `KONA_SP1_PROPOSER_SIGNER_URL` |
+| `KONA_SP1_PROPOSER_SIGNER_TLS_CA` | server CA PEM path; all three signer TLS paths are required together and enable mTLS to op-signer |
+| `KONA_SP1_PROPOSER_SIGNER_TLS_CERT` | client certificate PEM path; all three signer TLS paths are required together and enable mTLS to op-signer |
+| `KONA_SP1_PROPOSER_SIGNER_TLS_KEY` | client private-key PEM path; all three signer TLS paths are required together and enable mTLS to op-signer |
 
 Logging and telemetry:
 
