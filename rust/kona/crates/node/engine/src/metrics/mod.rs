@@ -51,8 +51,6 @@ impl Metrics {
     pub const INSERT_TASK_LABEL: &str = "insert";
     /// Consolidate task label.
     pub const CONSOLIDATE_TASK_LABEL: &str = "consolidate";
-    /// Forkchoice task label.
-    pub const FORKCHOICE_TASK_LABEL: &str = "forkchoice-update";
     /// Build task label.
     pub const BUILD_TASK_LABEL: &str = "build";
     /// Seal task label.
@@ -110,18 +108,26 @@ impl Metrics {
 
     /// Initializes metrics to `0` so they can be queried immediately by consumers of prometheus
     /// metrics.
+    ///
+    /// The full task x severity product is pre-created: narrowing it to the reachable pairs
+    /// would drift as the error enums change.
     #[cfg(feature = "metrics")]
     pub fn zero() {
-        // Engine task counts
-        kona_macros::set!(counter, Self::ENGINE_TASK_SUCCESS, Self::INSERT_TASK_LABEL, 0);
-        kona_macros::set!(counter, Self::ENGINE_TASK_SUCCESS, Self::CONSOLIDATE_TASK_LABEL, 0);
-        kona_macros::set!(counter, Self::ENGINE_TASK_SUCCESS, Self::BUILD_TASK_LABEL, 0);
-        kona_macros::set!(counter, Self::ENGINE_TASK_SUCCESS, Self::FINALIZE_TASK_LABEL, 0);
+        use strum::IntoEnumIterator;
 
-        kona_macros::set!(counter, Self::ENGINE_TASK_FAILURE, Self::INSERT_TASK_LABEL, 0);
-        kona_macros::set!(counter, Self::ENGINE_TASK_FAILURE, Self::CONSOLIDATE_TASK_LABEL, 0);
-        kona_macros::set!(counter, Self::ENGINE_TASK_FAILURE, Self::BUILD_TASK_LABEL, 0);
-        kona_macros::set!(counter, Self::ENGINE_TASK_FAILURE, Self::FINALIZE_TASK_LABEL, 0);
+        for task in crate::EngineTaskKind::iter() {
+            kona_macros::set!(counter, Self::ENGINE_TASK_SUCCESS, task.label(), 0);
+
+            for severity in crate::EngineTaskErrorSeverity::iter() {
+                // `kona_macros::set!` has no two-label arm.
+                metrics::counter!(
+                    Self::ENGINE_TASK_FAILURE,
+                    "type" => task.label(),
+                    "severity" => severity.to_string()
+                )
+                .absolute(0);
+            }
+        }
 
         // Engine reset count
         kona_macros::set!(counter, Self::ENGINE_RESET_COUNT, 0);

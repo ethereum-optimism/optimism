@@ -18,7 +18,7 @@ use tokio::task::yield_now;
 /// The severity of an engine task error.
 ///
 /// This is used to determine how to handle the error when draining the engine task queue.
-#[derive(Debug, PartialEq, Eq, Display, Clone, Copy)]
+#[derive(Debug, PartialEq, Eq, Display, Clone, Copy, strum::EnumIter)]
 pub enum EngineTaskErrorSeverity {
     /// The error is temporary and the task is retried.
     #[display("temporary")]
@@ -32,6 +32,36 @@ pub enum EngineTaskErrorSeverity {
     /// The error indicates that the engine should be flushed.
     #[display("flush")]
     Flush,
+}
+
+/// The kind of an [`EngineTask`], and the `type` label its metrics carry.
+///
+/// Separate from [`EngineTask`] so the label set can be enumerated.
+#[derive(Debug, PartialEq, Eq, Clone, Copy, strum::EnumIter)]
+pub enum EngineTaskKind {
+    /// An [`EngineTask::Insert`].
+    Insert,
+    /// An [`EngineTask::Consolidate`].
+    Consolidate,
+    /// An [`EngineTask::Build`].
+    Build,
+    /// An [`EngineTask::Seal`].
+    Seal,
+    /// An [`EngineTask::Finalize`].
+    Finalize,
+}
+
+impl EngineTaskKind {
+    /// The `type` label value for this kind.
+    pub const fn label(&self) -> &'static str {
+        match self {
+            Self::Insert => crate::Metrics::INSERT_TASK_LABEL,
+            Self::Consolidate => crate::Metrics::CONSOLIDATE_TASK_LABEL,
+            Self::Build => crate::Metrics::BUILD_TASK_LABEL,
+            Self::Seal => crate::Metrics::SEAL_TASK_LABEL,
+            Self::Finalize => crate::Metrics::FINALIZE_TASK_LABEL,
+        }
+    }
 }
 
 /// The interface for an engine task error.
@@ -133,13 +163,13 @@ impl<EngineClient_: EngineClient> EngineTask<EngineClient_> {
         Ok(())
     }
 
-    const fn task_metrics_label(&self) -> &'static str {
+    const fn kind(&self) -> EngineTaskKind {
         match self {
-            Self::Insert(_) => crate::Metrics::INSERT_TASK_LABEL,
-            Self::Consolidate(_) => crate::Metrics::CONSOLIDATE_TASK_LABEL,
-            Self::Build(_) => crate::Metrics::BUILD_TASK_LABEL,
-            Self::Seal(_) => crate::Metrics::SEAL_TASK_LABEL,
-            Self::Finalize(_) => crate::Metrics::FINALIZE_TASK_LABEL,
+            Self::Insert(_) => EngineTaskKind::Insert,
+            Self::Consolidate(_) => EngineTaskKind::Consolidate,
+            Self::Build(_) => EngineTaskKind::Build,
+            Self::Seal(_) => EngineTaskKind::Seal,
+            Self::Finalize(_) => EngineTaskKind::Finalize,
         }
     }
 }
@@ -219,7 +249,8 @@ impl<EngineClient_: EngineClient> EngineTaskExt for EngineTask<EngineClient_> {
             kona_macros::inc!(
                 counter,
                 crate::Metrics::ENGINE_TASK_FAILURE,
-                self.task_metrics_label() => severity.to_string()
+                "type" => self.kind().label(),
+                "severity" => severity.to_string()
             );
 
             match severity {
@@ -244,7 +275,7 @@ impl<EngineClient_: EngineClient> EngineTaskExt for EngineTask<EngineClient_> {
             }
         }
 
-        kona_macros::inc!(counter, crate::Metrics::ENGINE_TASK_SUCCESS, self.task_metrics_label());
+        kona_macros::inc!(counter, crate::Metrics::ENGINE_TASK_SUCCESS, self.kind().label());
 
         Ok(())
     }
@@ -261,6 +292,8 @@ mod tests {
     use op_alloy_consensus::OpTxEnvelope;
     use op_alloy_rpc_types_engine::OpExecutionPayloadEnvelope;
     use std::{sync::Arc, time::Duration};
+    #[cfg(feature = "metrics")]
+    use strum::IntoEnumIterator;
 
     /// Records the blocks the engine hands over after a successful import.
     #[derive(Debug, Default)]
@@ -349,5 +382,69 @@ mod tests {
             .await
             .expect("invalid unsafe payload task should not retry")
             .unwrap();
+    }
+
+    /// A task whose first failure is `Critical`: the default `RollupConfig` does not pin
+    /// genesis, so the `L2BlockInfo` cannot be built.
+    #[cfg(feature = "metrics")]
+    fn critically_failing_insert_task() -> EngineTask<MockEngineClient> {
+        let config = Arc::new(RollupConfig::default());
+        let client = Arc::new(
+            MockEngineClient::builder()
+                .with_config(config.clone())
+                .with_new_payload_v1_response(PayloadStatus::from_status(PayloadStatusEnum::Valid))
+                .build(),
+        );
+        let payload = ExecutionPayloadV1::from_block_slow(&Block::<OpTxEnvelope>::default());
+
+        EngineTask::Insert(Box::new(InsertTask::new(
+            client,
+            config,
+            OpExecutionPayloadEnvelope::V1(payload),
+            false,
+            Arc::new(crate::NoopBlockSink),
+        )))
+    }
+
+    /// The task must be the `type` label's value, not the label key.
+    #[cfg(feature = "metrics")]
+    #[test]
+    fn task_failure_metric_carries_type_and_severity_labels() {
+        let recorder = metrics_exporter_prometheus::PrometheusBuilder::new().build_recorder();
+        let handle = recorder.handle();
+        let task = critically_failing_insert_task();
+
+        // Driven inside the closure so the task is polled on the thread holding the recorder.
+        let runtime = tokio::runtime::Builder::new_current_thread().enable_time().build().unwrap();
+        metrics::with_local_recorder(&recorder, || {
+            crate::Metrics::zero();
+            runtime
+                .block_on(async {
+                    tokio::time::timeout(
+                        Duration::from_secs(1),
+                        task.execute(&mut EngineState::default()),
+                    )
+                    .await
+                })
+                .expect("a critical insert failure must not retry")
+                .expect_err("a critical insert failure must propagate");
+        });
+
+        let rendered = handle.render();
+        assert!(
+            rendered
+                .contains("kona_node_engine_task_failure{type=\"insert\",severity=\"critical\"} 1"),
+            "expected a labelled failure series, got:\n{rendered}"
+        );
+
+        let series = rendered
+            .lines()
+            .filter(|line| line.starts_with("kona_node_engine_task_failure{"))
+            .count();
+        assert_eq!(
+            series,
+            EngineTaskKind::iter().count() * EngineTaskErrorSeverity::iter().count(),
+            "the emitted series must be one of the pre-created ones:\n{rendered}"
+        );
     }
 }

@@ -207,17 +207,22 @@ mod test {
         #[case] label_name: &str,
         #[case] number: u64,
     ) {
-        let handle = PrometheusBuilder::new().install_recorder().unwrap();
-        crate::Metrics::init();
+        // A local recorder: `install_recorder` sets the process global, which succeeds once.
+        let recorder = PrometheusBuilder::new().build_recorder();
+        let handle = recorder.handle();
 
-        let mut state = EngineState::default();
-        set_fn(
-            &mut state,
-            L2BlockInfo {
-                block_info: BlockInfo { number, ..Default::default() },
-                ..Default::default()
-            },
-        );
+        metrics::with_local_recorder(&recorder, || {
+            crate::Metrics::init();
+
+            let mut state = EngineState::default();
+            set_fn(
+                &mut state,
+                L2BlockInfo {
+                    block_info: BlockInfo { number, ..Default::default() },
+                    ..Default::default()
+                },
+            );
+        });
 
         assert!(handle.render().contains(
             format!("kona_node_block_labels{{label=\"{label_name}\"}} {number}").as_str()

@@ -48,6 +48,7 @@ tower.workspace = true
 http-body-util.workspace = true
 derive_more = { workspace = true, features = ["display", "deref", "from_str", "constructor"] }
 serde_json.workspace = true
+strum = { workspace = true, features = ["derive"] }
 
 # metrics
 metrics = { workspace = true, optional = true }
