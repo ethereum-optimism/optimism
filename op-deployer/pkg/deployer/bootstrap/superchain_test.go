@@ -39,6 +39,10 @@ func testSuperchain(t *testing.T, forkRPCURL string) {
 
 	lgr := testlog.Logger(t, slog.LevelDebug)
 
+	// Registered before the anvil cleanup so the watchdog stays armed while
+	// stopL1 runs.
+	testutil.StartWatchdog(t, 10*time.Minute)
+
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
 	defer cancel()
 
