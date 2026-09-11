@@ -2,16 +2,18 @@
 //!
 //! Specifies the available flags for prometheus metric configuration inside CLI
 
-use kona_cli::MetricsArgs;
+use super::GlobalArgs;
 use metrics::gauge;
 
 /// Initializes metrics for a Kona application, including Prometheus and node-specific metrics.
 /// Initialize the tracing stack and Prometheus metrics recorder.
 ///
 /// This function should be called at the beginning of the program.
-pub fn init_unified_metrics(args: &MetricsArgs) -> anyhow::Result<()> {
-    args.init_metrics()?;
-    if args.enabled {
+pub fn init_unified_metrics(args: &GlobalArgs, chain_id: u64) -> anyhow::Result<()> {
+    // One chain per process, so the recorder can label what no scope owns.
+    args.metrics.init_metrics(Some(chain_id))?;
+
+    if args.metrics.enabled {
         kona_gossip::Metrics::init();
         kona_disc::Metrics::init();
         kona_engine::Metrics::init();
@@ -37,8 +39,8 @@ pub fn init_unified_metrics(args: &MetricsArgs) -> anyhow::Result<()> {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use clap::Parser;
+    use kona_cli::MetricsArgs;
     use std::net::IpAddr;
 
     /// A mock command that uses the `MetricsArgs`.

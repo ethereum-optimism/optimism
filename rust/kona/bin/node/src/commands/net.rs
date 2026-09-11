@@ -92,14 +92,16 @@ impl NetCommand {
         );
 
         // Spawn the actor; the loop below polls the p2p RPC interface on an interval.
-        tokio::spawn(async move {
+        // `tokio::spawn` inherits no scope, so this loop needs its own.
+        let chain = kona_metrics::chain_label(rollup_config.l2_chain_id.id());
+        tokio::spawn(kona_metrics::scoped(chain.clone(), async move {
             loop {
                 if let Err(e) = network.step().await {
                     error!(target: "net", "Network actor error: {e:?}");
                     return;
                 }
             }
-        });
+        }));
 
         info!(target: "net", "Network started, receiving blocks.");
 
@@ -113,7 +115,14 @@ impl NetCommand {
             let mut launcher = RpcModule::new(());
             launcher.merge(P2pRpc::new(rpc.clone()).into_rpc())?;
 
-            let server = Server::builder().build(config.socket).await?;
+            // `P2pRpc`'s handlers emit metrics, and jsonrpsee runs them on its own tasks.
+            let server = Server::builder()
+                .set_rpc_middleware(
+                    jsonrpsee::server::middleware::rpc::RpcServiceBuilder::new()
+                        .layer_fn(kona_node_service::ChainScope::layer(chain)),
+                )
+                .build(config.socket)
+                .await?;
             Some(server.start(launcher))
         } else {
             info!(target: "net", "RPC server disabled");

@@ -19,6 +19,7 @@ workspace = true
 # Kona
 kona-peers.workspace = true
 kona-macros.workspace = true
+kona-metrics.workspace = true
 kona-genesis.workspace = true
 
 # Alloy

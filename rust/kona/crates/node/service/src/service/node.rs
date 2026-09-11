@@ -422,7 +422,10 @@ impl RollupNode {
         }
 
         let restarts_remaining = config.restart_count();
-        let launcher = JsonrpseeServerLauncher::new(config);
+        let launcher = JsonrpseeServerLauncher::new(
+            config,
+            kona_metrics::chain_label(self.config.l2_chain_id.id()),
+        );
         let handle = launcher
             .launch(modules.clone())
             .await
@@ -542,6 +545,7 @@ impl RollupNode {
 
         crate::service::spawn_and_wait!(
             cancellation,
+            chain = kona_metrics::chain_label(self.config.l2_chain_id.id()),
             actors = [
                 rpc,
                 sequencer_actor,
