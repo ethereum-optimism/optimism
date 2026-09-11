@@ -63,6 +63,8 @@ pub use build::OpBlockAssembler;
 mod error;
 pub use error::{L1BlockInfoError, OpBlockExecutionError};
 
+pub mod metrics;
+
 pub mod tx;
 pub use tx::OpTx;
 
@@ -163,7 +165,13 @@ where
     T: OpConsensusTransaction + 'a,
 {
     parse_post_exec_payload_from_transactions(transactions, block_number, sdm_active)
-        .map_err(|_| EIP1559ParamError::InvalidPostExecPayload)
+        .map_err(|error| {
+            #[cfg(feature = "std")]
+            metrics::record_post_exec_validation_failure((&error).into());
+            #[cfg(not(feature = "std"))]
+            let _ = error;
+            EIP1559ParamError::InvalidPostExecPayload
+        })
         .map(|parsed| {
             parsed.map_or_else(PostExecMode::default, |parsed| PostExecMode::Verify(parsed.payload))
         })

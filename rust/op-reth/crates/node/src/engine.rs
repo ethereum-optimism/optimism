@@ -1,6 +1,7 @@
 use alloy_consensus::BlockHeader;
-use alloy_primitives::B256;
+use alloy_primitives::{B256, Bytes};
 use alloy_rpc_types_engine::{ExecutionPayloadEnvelopeV2, ExecutionPayloadV1};
+use op_alloy_consensus::{POST_EXEC_TX_TYPE_ID, PostExecPayload};
 use op_alloy_rpc_types_engine::{
     OpExecutionData, OpExecutionPayloadEnvelope, OpExecutionPayloadEnvelopeV3,
     OpExecutionPayloadEnvelopeV4,
@@ -17,6 +18,9 @@ use reth_node_api::{
     validate_version_specific_fields,
 };
 use reth_optimism_consensus::isthmus;
+use reth_optimism_evm::metrics::{
+    PostExecValidationFailureReason, record_post_exec_validation_failure,
+};
 use reth_optimism_forks::OpHardforks;
 use reth_optimism_payload_builder::{
     OpExecData, OpExecutionPayloadValidator, OpPayloadAttrs, OpPayloadTypes,
@@ -123,6 +127,14 @@ where
     }
 }
 
+fn has_invalid_post_exec_encoding(transactions: &[Bytes]) -> bool {
+    transactions.iter().any(|encoded| {
+        let bytes = encoded.as_ref();
+        bytes.first() == Some(&POST_EXEC_TX_TYPE_ID) &&
+            PostExecPayload::from_rlp_bytes(&bytes[1..]).is_err()
+    })
+}
+
 impl<P, Tx, ChainSpec, Types> PayloadValidator<Types> for OpEngineValidator<P, Tx, ChainSpec>
 where
     P: StateProviderFactory + Unpin + 'static,
@@ -162,6 +174,11 @@ where
         &self,
         payload: OpExecData,
     ) -> Result<SealedBlock<Self::Block>, NewPayloadError> {
+        if has_invalid_post_exec_encoding(payload.0.payload.transactions()) {
+            record_post_exec_validation_failure(
+                PostExecValidationFailureReason::InvalidEncodingOrSchema,
+            );
+        }
         self.inner.ensure_well_formed_payload(payload.0).map_err(NewPayloadError::other)
     }
 }
@@ -333,6 +350,25 @@ mod test {
                 other => panic!("expected InvalidParams, got {other:?}"),
             }
         }};
+    }
+
+    #[test]
+    fn detects_invalid_post_exec_encoding_or_schema() {
+        let valid_payload = PostExecPayload {
+            version: op_alloy_consensus::POST_EXEC_PAYLOAD_VERSION,
+            block_number: 1,
+            gas_refund_entries: vec![],
+        };
+        let mut valid = vec![POST_EXEC_TX_TYPE_ID];
+        valid.extend_from_slice(&valid_payload.to_rlp_bytes());
+
+        let mut invalid_schema = vec![POST_EXEC_TX_TYPE_ID];
+        invalid_schema
+            .extend_from_slice(&PostExecPayload { version: 2, ..valid_payload }.to_rlp_bytes());
+
+        assert!(!has_invalid_post_exec_encoding(&[Bytes::from(valid)]));
+        assert!(has_invalid_post_exec_encoding(&[Bytes::from(invalid_schema)]));
+        assert!(!has_invalid_post_exec_encoding(&[Bytes::from_static(&[0x02, 0x01])]));
     }
 
     fn get_attributes(
