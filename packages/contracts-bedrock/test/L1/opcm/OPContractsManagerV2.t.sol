@@ -55,18 +55,26 @@ contract OPContractsManagerV2_TestInit is CommonTest {
     /// @notice Buffer percentage (relative to EIP-7825 gas limit) allowed for deployments.
     uint256 public constant DEPLOY_GAS_BUFFER_PERCENTAGE = 80; // 80%
 
-    /// @notice Maximum execution gas allowed for a deployment.
-    uint64 public constant BLOCK_GAS_LIMIT = 60_000_000;
+    /// @notice Maximum gas allowed for an optimized deployment.
+    uint64 public constant OPTIMIZED_DEPLOY_GAS_LIMIT = 60_000_000;
+
+    /// @notice Maximum gas allowed for an unoptimized test deployment.
+    uint64 public constant UNOPTIMIZED_DEPLOY_GAS_LIMIT = 75_000_000;
 
     /// @notice Sets up the test suite.
     function setUp() public virtual override {
         super.setUp();
     }
 
+    function _deployGasLimit() internal view returns (uint64) {
+        return Config.isUnoptimized() ? UNOPTIMIZED_DEPLOY_GAS_LIMIT : OPTIMIZED_DEPLOY_GAS_LIMIT;
+    }
+
     /// @notice Asserts that the most recent deployment remains within transaction gas limits.
     function _assertDeployGasWithinLimits() internal view {
         uint256 fusakaLimit = 2 ** 24;
         VmSafe.Gas memory gas = vm.lastFrameGas();
+        uint64 deployGasLimit = _deployGasLimit();
         console.log("Deploy execution gas:", gas.gasTotalUsed);
         console.log("Deploy state gas:", gas.gasStateUsed);
         assertLt(
@@ -77,8 +85,8 @@ contract OPContractsManagerV2_TestInit is CommonTest {
             )
         );
 
-        assertLt(gas.gasTotalUsed, BLOCK_GAS_LIMIT, "Deploy execution gas exceeds block gas limit");
-        assertLt(gas.gasStateUsed, BLOCK_GAS_LIMIT, "Deploy state gas exceeds block gas limit");
+        assertLt(gas.gasTotalUsed, deployGasLimit, "Deploy execution gas exceeds profile limit");
+        assertLt(gas.gasStateUsed, int64(deployGasLimit), "Deploy state gas exceeds profile limit");
     }
 
     /// @notice Helper function that runs an OPCM V2 deploy, asserts that the deploy was successful,
@@ -2599,12 +2607,12 @@ contract OPContractsManagerV2_Deploy_Test is OPContractsManagerV2_TestInit {
 
     /// @notice Checks net call gas; reverted state creation is rolled back.
     function _assertDeployGasBounds() internal view returns (uint64 executionGas_, int64 stateGas_) {
-        // Amsterdam Forge returns state gas after the five fields in the pinned Vm.Gas struct.
-        (bool success, bytes memory result) = address(vm).staticcall(abi.encodeCall(vm.lastCallGas, ()));
-        require(success, "OPContractsManagerV2_Deploy_Test: lastCallGas failed");
-        (, executionGas_,,,, stateGas_) = abi.decode(result, (uint64, uint64, uint64, int64, uint64, int64));
-        assertLe(uint256(executionGas_), 60_000_000, "Deploy execution gas exceeds 60M");
-        assertLe(int256(stateGas_), 60_000_000, "Deploy state gas exceeds 60M");
+        VmSafe.Gas memory gas = vm.lastFrameGas();
+        executionGas_ = gas.gasTotalUsed;
+        stateGas_ = gas.gasStateUsed;
+        uint64 deployGasLimit = _deployGasLimit();
+        assertLe(uint256(executionGas_), uint256(deployGasLimit), "Deploy execution gas exceeds profile limit");
+        assertLe(int256(stateGas_), int256(uint256(deployGasLimit)), "Deploy state gas exceeds profile limit");
     }
 
     /// @notice Clears setup warmth from the shared deployment dependencies.
