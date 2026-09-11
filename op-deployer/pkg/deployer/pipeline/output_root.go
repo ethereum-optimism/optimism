@@ -24,8 +24,8 @@ type genesisOutput struct {
 //
 // Every prepared chain receives the same SuperV1 root over the dependency set, because both
 // supported initial game types are super-root games. This is the only writer of
-// StartingAnchorRoot. A dependency-set member that is already deployed is rejected, not skipped:
-// its on-chain anchor cannot be replaced.
+// StartingAnchorRoot. An intent chain that is already deployed is rejected before any anchor is
+// computed, not skipped: its on-chain anchor cannot be replaced.
 func ComputeGenesisOutputRoots(pEnv *Env, intent *state.Intent, st *state.State) error {
 	lgr := pEnv.Logger.New("stage", "compute-genesis-output-root")
 
@@ -35,9 +35,12 @@ func ComputeGenesisOutputRoots(pEnv *Env, intent *state.Intent, st *state.State)
 		if st.IsChainDeployed(chain.ID) {
 			// A deployed chain's on-chain anchor is immutable, and chains deployed via plain apply
 			// never populate these fields, so writing them here would fabricate values unrelated
-			// to what is actually on L1. The super-root pass below rejects it as a member.
-			lgr.Info("chain already deployed; its on-chain anchor cannot be re-anchored to a new super root", "id", chain.ID.Hex())
-			continue
+			// to what is actually on L1.
+			return fmt.Errorf(
+				"cannot compute a super-root genesis anchor: chain %s is already deployed and its on-chain anchor cannot join a new super root; "+
+					"run op-deployer continue to finish a partial deployment, or add new chains in a fresh workdir",
+				chain.ID.Hex(),
+			)
 		}
 		out, err := computeGenesisOutput(lgr, intent, st, chain.ID)
 		if err != nil {
@@ -136,9 +139,7 @@ func setSuperRootAnchors(lgr log.Logger, intent *state.Intent, st *state.State, 
 		if !ok {
 			return fmt.Errorf(
 				"cannot compute a super-root genesis anchor: dependency set member %s has no genesis output root in this run; "+
-					"it is either already deployed, in which case its on-chain anchor cannot join a new super root "+
-					"(run op-deployer continue to finish a partial deployment, or add new chains in a fresh workdir), "+
-					"or missing from the intent",
+					"it is missing from the intent; rerun op-deployer prepare",
 				id.Hex(),
 			)
 		}

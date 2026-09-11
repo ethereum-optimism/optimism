@@ -339,8 +339,8 @@ func TestComputeGenesisOutputRoots_SuperAnchorRejectsDivergentGenesisTimes(t *te
 }
 
 // TestComputeGenesisOutputRoots_SuperAnchorRejectsDeployedMember checks that an already deployed chain
-// in the dependency set causes ComputeGenesisOutputRoots to fail, because it cannot be re-anchored to
-// a new super root.
+// in the dependency set causes ComputeGenesisOutputRoots to fail before the super-root pass runs,
+// because it cannot be re-anchored to a new super root, and that the other member is left untouched.
 func TestComputeGenesisOutputRoots_SuperAnchorRejectsDeployedMember(t *testing.T) {
 	pEnv, intent, st, ids := setupClusterWithGenesis(t, 2)
 
@@ -350,8 +350,11 @@ func TestComputeGenesisOutputRoots_SuperAnchorRejectsDeployedMember(t *testing.T
 	require.True(t, st.IsChainDeployed(ids[0]))
 
 	err = ComputeGenesisOutputRoots(pEnv, intent, st)
-	require.ErrorContains(t, err, "has no genesis output root in this run")
 	require.ErrorContains(t, err, "already deployed")
+
+	second, err := st.Chain(ids[1])
+	require.NoError(t, err)
+	require.Nil(t, second.StartingAnchorRoot, "must not write a partial anchor before failing on a deployed member")
 }
 
 // TestComputeGenesisOutputRoots_SuperAnchorRequiresDependencySet guards the case where a prepared
