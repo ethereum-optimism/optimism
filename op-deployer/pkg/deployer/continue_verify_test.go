@@ -9,7 +9,6 @@ import (
 	"testing"
 
 	"github.com/ethereum-optimism/optimism/op-chain-ops/addresses"
-	"github.com/ethereum-optimism/optimism/op-core/devfeatures"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/opcm"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/state"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/upgrade/embedded"
@@ -114,31 +113,18 @@ func continuationCallKey(contract common.Address, calldata []byte) string {
 }
 
 type continuationVerificationFixture struct {
-	backend   *continuationVerificationBackend
-	observed  addresses.OpChainContracts
-	expected  *state.ChainState
-	dci       opcm.DeployOPChainInput
-	guardian  common.Address
-	vm        common.Address
-	impls     continuationOPCMImplementations
-	superRoot bool
+	backend  *continuationVerificationBackend
+	observed addresses.OpChainContracts
+	expected *state.ChainState
+	dci      opcm.DeployOPChainInput
+	guardian common.Address
+	vm       common.Address
+	impls    continuationOPCMImplementations
 }
 
 func newContinuationVerificationFixture(
 	t *testing.T,
 	gameType embedded.GameType,
-) *continuationVerificationFixture {
-	// devfeatures.IsDevFeatureEnabled hardcodes SuperRootGamesMigrationFlag to true, so
-	// resolveGameMode always observes a super-root OPCM regardless of the bitmap the
-	// fixture serves. See TODO(#21662) for the eventual cleanup. Flip the super canon cases
-	// back to cannon to improve coverage.
-	return newContinuationVerificationFixtureWithMode(t, gameType, true)
-}
-
-func newContinuationVerificationFixtureWithMode(
-	t *testing.T,
-	gameType embedded.GameType,
-	superRoot bool,
 ) *continuationVerificationFixture {
 	t.Helper()
 	contracts := continuationVerificationAddresses(gameType)
@@ -192,18 +178,14 @@ func newContinuationVerificationFixtureWithMode(
 			L2SequenceNumber: new(big.Int),
 		}
 	}
-	if gameType == embedded.GameTypeCannonKona {
-		dci.CannonAbsolutePrestate = opcm.PermissionedCannonFallbackPrestatePlaceholder
-	}
 
 	fixture := &continuationVerificationFixture{
-		backend:   newContinuationVerificationBackend(),
-		observed:  contracts,
-		expected:  expected,
-		dci:       dci,
-		guardian:  common.Address{0xb3},
-		vm:        common.Address{0xc1},
-		superRoot: superRoot,
+		backend:  newContinuationVerificationBackend(),
+		observed: contracts,
+		expected: expected,
+		dci:      dci,
+		guardian: common.Address{0xb3},
+		vm:       common.Address{0xc1},
 	}
 	fixture.impls = continuationOPCMImplementations{
 		L1ERC721BridgeImpl:               common.Address{0xc2},
@@ -260,13 +242,6 @@ func (f *continuationVerificationFixture) seed(t *testing.T, gameType embedded.G
 	f.backend.set(
 		t,
 		f.dci.Opcm,
-		opcm.DevFeatureBitmapMethod,
-		nil,
-		f.devFeatureBitmap(),
-	)
-	f.backend.set(
-		t,
-		f.dci.Opcm,
 		opcm.ImplementationsMethod,
 		nil,
 		f.impls,
@@ -290,33 +265,6 @@ func (f *continuationVerificationFixture) seed(t *testing.T, gameType embedded.G
 			superPermissionedContinuationGameArgs(
 				f.expected.AnchorStateRegistryProxy,
 				f.dci.Proposer,
-			),
-		)
-	case embedded.GameTypeCannonKona:
-		f.seedGameImplementation(
-			t,
-			uint32(gameType),
-			f.expected.FaultDisputeGameImpl,
-			permissionlessContinuationGameArgs(
-				f.expected.Prestate,
-				f.vm,
-				f.expected.AnchorStateRegistryProxy,
-				f.expected.DelayedWethPermissionlessGameProxy,
-				f.dci.L2ChainId,
-			),
-		)
-		f.seedGameImplementation(
-			t,
-			uint32(embedded.GameTypePermissionedCannon),
-			f.expected.PermissionedDisputeGameImpl,
-			permissionedContinuationGameArgs(
-				opcm.PermissionedCannonFallbackPrestatePlaceholder,
-				f.vm,
-				f.expected.AnchorStateRegistryProxy,
-				f.expected.DelayedWethPermissionedGameProxy,
-				f.dci.L2ChainId,
-				f.dci.Proposer,
-				f.dci.Challenger,
 			),
 		)
 	case embedded.GameTypeSuperCannonKona:
@@ -425,13 +373,6 @@ func (f *continuationVerificationFixture) seed(t *testing.T, gameType embedded.G
 	}
 }
 
-func (f *continuationVerificationFixture) devFeatureBitmap() common.Hash {
-	if f.superRoot {
-		return devfeatures.SuperRootGamesMigrationFlag
-	}
-	return common.Hash{}
-}
-
 func (f *continuationVerificationFixture) seedGameImplementation(
 	t *testing.T,
 	gameType uint32,
@@ -469,20 +410,6 @@ func permissionlessContinuationGameArgs(
 	return append(args, common.LeftPadBytes(l2ChainID.Bytes(), common.HashLength)...)
 }
 
-func permissionedContinuationGameArgs(
-	prestate common.Hash,
-	vm common.Address,
-	anchorStateRegistry common.Address,
-	delayedWETH common.Address,
-	l2ChainID *big.Int,
-	proposer common.Address,
-	challenger common.Address,
-) []byte {
-	args := permissionlessContinuationGameArgs(prestate, vm, anchorStateRegistry, delayedWETH, l2ChainID)
-	args = append(args, proposer.Bytes()...)
-	return append(args, challenger.Bytes()...)
-}
-
 func superPermissionedContinuationGameArgs(anchorStateRegistry common.Address, proposer common.Address) []byte {
 	args := append([]byte{}, anchorStateRegistry.Bytes()...)
 	return append(args, proposer.Bytes()...)
@@ -515,23 +442,10 @@ func (f *continuationVerificationFixture) verify(t *testing.T) error {
 }
 
 func TestVerifyContinuationDeployment(t *testing.T) {
-	t.Run("CANNON_KONA", func(t *testing.T) {
-		fixture := newContinuationVerificationFixture(t, embedded.GameTypeSuperCannonKona)
-		require.NoError(t, fixture.verify(t))
-		require.Equal(t, 1, fixture.backend.callsTo(fixture.backend.validator))
-	})
-
 	t.Run("permissioned only skips StandardValidator", func(t *testing.T) {
 		fixture := newContinuationVerificationFixture(t, embedded.GameTypeSuperPermissioned)
 		require.NoError(t, fixture.verify(t))
-		require.Equal(t, 2, fixture.backend.callsTo(fixture.dci.Opcm))
-		require.Zero(t, fixture.backend.callsTo(fixture.backend.validator))
-	})
-
-	t.Run("permissioned selector uses SUPER_PERMISSIONED with a super-root OPCM", func(t *testing.T) {
-		fixture := newContinuationVerificationFixtureWithMode(t, embedded.GameTypeSuperPermissioned, true)
-		require.NoError(t, fixture.verify(t))
-		require.Equal(t, 2, fixture.backend.callsTo(fixture.dci.Opcm))
+		require.Equal(t, 1, fixture.backend.callsTo(fixture.dci.Opcm))
 		require.Zero(t, fixture.backend.callsTo(fixture.backend.validator))
 	})
 
@@ -561,27 +475,6 @@ func TestVerifyContinuationDeploymentRejectsHeadChange(t *testing.T) {
 		Extra:  []byte{0x02},
 	}
 	require.ErrorContains(t, fixture.verify(t), "changed during continuation reads")
-}
-
-func TestVerifyContinuationDeploymentRejectsOPCMGameModeMismatch(t *testing.T) {
-	// Only the CANNON_KONA direction is reachable: devfeatures.IsDevFeatureEnabled hardcodes
-	// SuperRootGamesMigrationFlag to true, so an OPCM without super-root cannot be observed and
-	// the SUPER_CANNON_KONA mismatch cannot be constructed. Restore that case with TODO(#21662).
-	t.Run("CANNON_KONA with super-root OPCM", func(t *testing.T) {
-		fixture := newContinuationVerificationFixture(t, embedded.GameTypeCannonKona)
-		fixture.backend.set(
-			t,
-			fixture.dci.Opcm,
-			opcm.DevFeatureBitmapMethod,
-			nil,
-			devfeatures.SuperRootGamesMigrationFlag,
-		)
-		require.ErrorContains(
-			t,
-			fixture.verify(t),
-			"initial dispute game type CANNON_KONA (8) is not deployable by the OPCM",
-		)
-	})
 }
 
 func TestVerifyContinuationDeploymentStartingAnchorRoot(t *testing.T) {
@@ -643,7 +536,7 @@ func TestVerifyContinuationDeploymentSuperPermissionedArguments(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			fixture := newContinuationVerificationFixtureWithMode(t, embedded.GameTypeSuperPermissioned, true)
+			fixture := newContinuationVerificationFixture(t, embedded.GameTypeSuperPermissioned)
 			fixture.setGameArgs(t, embedded.GameTypeSuperPermissioned, test.args(fixture))
 			require.ErrorContains(t, fixture.verify(t), test.wantErr)
 		})
@@ -677,30 +570,18 @@ func TestVerifyContinuationDeploymentPermissionedAddressParity(t *testing.T) {
 }
 
 func TestDecodeContinuationGameArgsRejectsInvalidLengths(t *testing.T) {
-	// Derived from the layout constants so that changing one cannot leave this test
-	// asserting against a length the decoder no longer expects.
-	tests := []struct {
-		layout continuationGameArgsLayout
-		length int
-	}{
-		{continuationPermissionedGameArgs, continuationPermissionedGameArgsLength - 1},
-		{continuationPermissionedGameArgs, continuationPermissionedGameArgsLength + 1},
-		{continuationSuperPermissionedGameArgs, continuationSuperPermissionedGameArgsLength - 1},
-		{continuationSuperPermissionedGameArgs, continuationSuperPermissionedGameArgsLength + 1},
-		// LibGameArgs also defines a 124-byte permissionless form; the permissioned layout
-		// must not accept it.
-		{continuationPermissionedGameArgs, 124},
-	}
-	for _, test := range tests {
-		_, err := decodeContinuationGameArgs(make([]byte, test.length), test.layout)
+	// Derived from the layout constant so that changing it cannot leave this test
+	// asserting against a length the decoder no longer expects. LibGameArgs also defines
+	// 124-byte permissionless and 164-byte permissioned forms; neither may decode.
+	for _, length := range []int{
+		continuationSuperPermissionedGameArgsLength - 1,
+		continuationSuperPermissionedGameArgsLength + 1,
+		124,
+		164,
+	} {
+		_, err := decodeContinuationGameArgs(make([]byte, length))
 		require.ErrorContains(t, err, "game arguments have length")
 	}
-
-	_, err := decodeContinuationGameArgs(
-		make([]byte, continuationPermissionedGameArgsLength),
-		continuationSuperPermissionedGameArgs+1,
-	)
-	require.ErrorContains(t, err, "unknown continuation game argument layout")
 }
 
 func TestVerifyContinuationDeploymentFailures(t *testing.T) {
@@ -733,7 +614,7 @@ func TestVerifyContinuationDeploymentFailures(t *testing.T) {
 					f.expected.OptimismPortalProxy,
 					continuationRespectedGameTypeMethod,
 					nil,
-					uint32(embedded.GameTypePermissionedCannon),
+					uint32(embedded.GameTypeSuperPermissioned),
 				)
 			},
 		},

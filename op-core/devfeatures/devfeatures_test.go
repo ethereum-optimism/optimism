@@ -11,6 +11,7 @@ var (
 	FEATURE_A            = common.HexToHash("0000000000000000000000000000000000000000000000000000000000000001")
 	FEATURE_B            = common.HexToHash("0000000000000000000000000000000000000000000000000000000000000100")
 	FEATURE_C            = common.HexToHash("1000000000000000000000000000000000000000000000000000000000000000")
+	RETIRED_FEATURE      = common.HexToHash("0000000000000000000000000000000000000000000000000000000010000000")
 	FEATURES_AB          = or(FEATURE_A, FEATURE_B)
 	FEATURES_ABC         = or(FEATURE_A, FEATURE_B, FEATURE_C)
 	FEATURES_AB_INVERTED = not(FEATURES_AB)
@@ -47,6 +48,10 @@ func TestIsDevFeatureEnabled(t *testing.T) {
 		require.False(t, IsDevFeatureEnabled(EMPTY_FEATURES, FEATURE_B))
 	})
 
+	t.Run("retired feature is not enabled by default", func(t *testing.T) {
+		require.False(t, IsDevFeatureEnabled(EMPTY_FEATURES, RETIRED_FEATURE))
+	})
+
 	t.Run("combined features exact match", func(t *testing.T) {
 		require.True(t, IsDevFeatureEnabled(FEATURES_AB, FEATURES_AB))
 	})
@@ -79,39 +84,22 @@ func TestIsDevFeatureEnabled(t *testing.T) {
 		require.False(t, IsDevFeatureEnabled(ALL_FEATURES, EMPTY_FEATURES))
 	})
 
-	// SuperRootGamesMigration is hardcoded on. TODO(#21662): remove with the broader DevFeatures cleanup.
-	hardcoded := []struct {
-		name string
-		flag common.Hash
-	}{
-		{"SuperRootGamesMigration", SuperRootGamesMigrationFlag},
-	}
-
 	t.Run("all against empty", func(t *testing.T) {
-		// Strip hardcoded-enabled flags.
-		require.False(t, IsDevFeatureEnabled(
-			EMPTY_FEATURES,
-			and(ALL_FEATURES, not(SuperRootGamesMigrationFlag)),
-		))
+		require.False(t, IsDevFeatureEnabled(EMPTY_FEATURES, ALL_FEATURES))
 	})
-
-	for _, c := range hardcoded {
-		t.Run(c.name+" always enabled regardless of bitmap", func(t *testing.T) {
-			require.True(t, IsDevFeatureEnabled(EMPTY_FEATURES, c.flag))
-			require.True(t, IsDevFeatureEnabled(FEATURE_A, c.flag))
-			require.True(t, IsDevFeatureEnabled(c.flag, c.flag))
-		})
-
-		t.Run(c.name+" always enabled when combined with other flags", func(t *testing.T) {
-			require.True(t, IsDevFeatureEnabled(EMPTY_FEATURES, or(FEATURE_A, c.flag)))
-			require.True(t, IsDevFeatureEnabled(EMPTY_FEATURES, or(FEATURE_B, c.flag)))
-		})
-	}
 }
 
 func TestEnableDevFeature(t *testing.T) {
 	result := EnableDevFeature(EMPTY_FEATURES, FEATURE_A)
 	require.Equal(t, FEATURE_A, result)
+}
+
+func not(a [32]byte) [32]byte {
+	var out [32]byte
+	for i := range 32 {
+		out[i] = ^a[i]
+	}
+	return out
 }
 
 func or(values ...[32]byte) [32]byte {
@@ -120,22 +108,6 @@ func or(values ...[32]byte) [32]byte {
 		for _, v := range values {
 			out[i] |= v[i]
 		}
-	}
-	return out
-}
-
-func not(a [32]byte) [32]byte {
-	var out [32]byte
-	for i := 0; i < 32; i++ {
-		out[i] = ^a[i]
-	}
-	return out
-}
-
-func and(a, b [32]byte) [32]byte {
-	var out [32]byte
-	for i := range 32 {
-		out[i] = a[i] & b[i]
 	}
 	return out
 }

@@ -18,10 +18,10 @@ Active flags:
 | `OptimismPortalInterop` | Interop migration functions on OptimismPortal2 |
 | `DeployV2DisputeGames` | Legacy, no longer used; constant kept for historical reasons |
 | `ZKDisputeGame` | ZK dispute game system |
-| `SuperRootGamesMigration` | Super-root games migration path in OPCM upgrade — **enabled by default** |
 
-
-The predicate is a bitwise AND (`(bitmap & flag) == flag && flag != 0`) — except that `IsDevFeatureEnabled` short-circuits to `true` for `SuperRootGamesMigration`, which is enabled by default on both the Go and Solidity sides. The bitmap no longer acts as a circuit breaker for it; removal is tracked in #21662.
+The predicate is a bitwise AND (`(bitmap & flag) == flag && flag != 0`). Retired bit values remain
+permanently reserved and must never be reused. In particular, `0x...10000000` may still be present
+in older devnet genesis bitmaps.
 
 **Adding a new dev feature**: the full checklist lives in the `DevFeatures.sol` natspec — both constant files, the env-var reader in `scripts/libraries/Config.sol`, the test assembler in `test/setup/FeatureFlags.sol`, and the CI `&features_matrix` anchor in `.circleci/continue/main.yml` all need updating; there is no compile-time link between them.
 
@@ -63,18 +63,17 @@ What it gates is **runtime activation timing** in op-node (when NUT bundle depos
 
 ### Test-only: per-feature controls
 
-A separate, **test-only** assembler exists for Foundry tests and fork scripts. It reads env vars for opt-in features and hardcodes default-on features. It is isolated from the production path — no `src/` contract and no production deploy script reads these controls.
+A separate, **test-only** assembler exists for Foundry tests and fork scripts. It reads env vars for opt-in features. It is isolated from the production path — no `src/` contract and no production deploy script reads these controls.
 
 - `DEV_FEATURE__OPTIMISM_PORTAL_INTEROP`
 - `DEV_FEATURE__ZK_DISPUTE_GAME`
 
-Interop and ZK are read via `vm.envOr(..., false)` in `packages/contracts-bedrock/scripts/libraries/Config.sol`; `devFeatureSuperRootGamesMigration()` returns `true` unconditionally. The only callers are under `test/`:
+Interop and ZK are read via `vm.envOr(..., false)` in `packages/contracts-bedrock/scripts/libraries/Config.sol`. Their callers are under `test/`:
 
 - `test/setup/FeatureFlags.sol` — `resolveFeaturesFromEnv()` OR-s each enabled flag into `devFeatureBitmap`
-- `test/setup/CommonTest.sol`, `test/setup/ForkL1Live.s.sol`, `test/setup/ForkL2Live.s.sol` — branch on individual `Config.devFeature*` returns
-- `test/L1/OPContractsManagerStandardValidator.t.sol` — `vm.skip()` based on flag state
+- `test/L1/OPContractsManagerStandardValidator.t.sol` — branches on the individual ZK control
 
-The env vars and default-on helper exist purely to set up local test fixtures and to skip or branch tests. They never reach a deployed chain. To exercise an opt-in feature in production you must set the bitmap via op-deployer.
+The env vars exist purely to set up local test fixtures and to skip or branch tests. They never reach a deployed chain. To exercise an opt-in feature in production you must set the bitmap via op-deployer.
 
 ## C. Composition — how those inputs become a single bitmap
 
@@ -120,12 +119,12 @@ It does **not** flow to op-node, op-program, or kona at runtime. They learn abou
 
 ## F. Hardfork interaction
 
-Interop and ZK use the bitmap as their per-chain provisioning switch and have no parallel hardfork timestamp. Super-root migration also has no parallel hardfork timestamp, but it is default-on in the predicate, so its bitmap bit no longer acts as a circuit breaker. Network-wide activation timing is a separate mechanism: the hardfork timestamps mapped by the developer toggles in `op-node/rollup/toggles.go` (see section B), e.g. `IsL2CM(time)` decides **when** L2ContractsManager upgrade transactions execute across the network.
+Interop and ZK use the bitmap as their per-chain provisioning switch and have no parallel hardfork timestamp. Network-wide activation timing is a separate mechanism: the hardfork timestamps mapped by the developer toggles in `op-node/rollup/toggles.go` (see section B), e.g. `IsL2CM(time)` decides **when** L2ContractsManager upgrade transactions execute across the network.
 
 ## G. Lifecycle direction
 
-- SuperRootGamesMigration is **default-on**: `IsDevFeatureEnabled` / `isDevFeatureEnabled` return `true` for it regardless of the bitmap.
-- **#21662** tracks removing the SuperRootGamesMigration flag and its remaining scaffolding.
+Retire a flag after its behavior becomes unconditional or is removed. Delete every consumer before
+removing its Go and Solidity constants, and keep its raw bit value reserved for older bitmaps.
 
 ## File index
 

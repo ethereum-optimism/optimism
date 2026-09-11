@@ -335,41 +335,8 @@ func TestContinuationExpectedStateUsesPreparedContracts(t *testing.T) {
 	require.Equal(t, recorded, chainState.OpChainContracts)
 }
 
-func TestValidateContinuationGameTypes(t *testing.T) {
-	chain := func(gameType embedded.GameType) continuationChain {
-		var dci opcm.DeployOPChainInput
-		dci.DisputeGameType = uint32(gameType)
-		return continuationChain{dci: dci}
-	}
-
-	opcmAddr := common.HexToAddress("0xaaaa000000000000000000000000000000000001")
-
-	require.NoError(t, validateContinuationGameTypes(nil, false, opcmAddr))
-	require.NoError(t, validateContinuationGameTypes([]continuationChain{
-		chain(embedded.GameTypePermissionedCannon),
-		chain(embedded.GameTypeCannonKona),
-	}, false, opcmAddr))
-	require.NoError(t, validateContinuationGameTypes([]continuationChain{
-		chain(embedded.GameTypeSuperPermissioned),
-		chain(embedded.GameTypeSuperCannonKona),
-	}, true, opcmAddr))
-
-	// The mix check runs first, so it wins over the per-chain family check.
-	require.ErrorContains(t, validateContinuationGameTypes([]continuationChain{
-		chain(embedded.GameTypeCannonKona),
-		chain(embedded.GameTypeSuperCannonKona),
-	}, true, opcmAddr), "cannot mix CANNON_KONA and SUPER_CANNON_KONA")
-
-	// A frozen selector the pinned OPCM cannot deploy fails before the fork simulation.
-	err := validateContinuationGameTypes([]continuationChain{
-		chain(embedded.GameTypeCannonKona),
-	}, true, opcmAddr)
-	require.ErrorContains(t, err, "CANNON_KONA (8) is not deployable by the OPCM")
-	require.ErrorContains(t, err, opcmAddr.Hex())
-}
-
 func TestClassifyContinuationAddresses(t *testing.T) {
-	contracts := continuationVerificationAddresses(embedded.GameTypeCannonKona)
+	contracts := continuationVerificationAddresses(embedded.GameTypeSuperCannonKona)
 	backend := newContinuationVerificationBackend()
 	blockNumber := big.NewInt(123)
 
@@ -480,7 +447,7 @@ func TestStandardValidatorInput(t *testing.T) {
 	selected := common.Hash{0x01}
 	fallback := common.Hash{0x02}
 	var dci opcm.DeployOPChainInput
-	dci.DisputeGameType = uint32(embedded.GameTypeCannonKona)
+	dci.DisputeGameType = uint32(embedded.GameTypeSuperCannonKona)
 	dci.DisputeAbsolutePrestate = selected
 	dci.CannonAbsolutePrestate = fallback
 	dci.OpChainProxyAdminOwner = common.Address{0x03}
@@ -493,9 +460,9 @@ func TestStandardValidatorInput(t *testing.T) {
 	require.Equal(t, dci.Challenger, input.Challenger)
 	require.True(t, input.UseDevFeaturesInput)
 
-	dci.DisputeGameType = uint32(embedded.GameTypeSuperCannonKona)
+	dci.DisputeGameType = uint32(embedded.GameTypeSuperPermissioned)
 	input = standardValidatorInput(dci, contracts)
-	require.True(t, input.UseDevFeaturesInput)
+	require.False(t, input.UseDevFeaturesInput)
 }
 
 func addressesForValidationTest() addresses.OpChainContracts {

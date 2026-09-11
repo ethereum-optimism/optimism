@@ -120,9 +120,7 @@ abstract contract OPContractsManagerMigrationValidator_TestInit is CommonTest {
         internal
         returns (IOPContractsManagerV2.ChainContracts memory cts_)
     {
-        // Get initial proposer/challenger from existing DGF.
-        bool superRoot = isDevFeatureEnabled(DevFeatures.SUPER_ROOT_GAMES_MIGRATION);
-        address initialChallenger = _initialPermissionedGameChallenger();
+        // Get initial proposer from existing DGF.
         address initialProposer = _initialPermissionedGameProposer();
 
         IOPContractsManagerUtils.DisputeGameConfig[] memory dgConfigs =
@@ -134,18 +132,10 @@ abstract contract OPContractsManagerMigrationValidator_TestInit is CommonTest {
             gameArgs: bytes("")
         });
         dgConfigs[1] = IOPContractsManagerUtils.DisputeGameConfig({
-            enabled: !superRoot,
-            initBond: superRoot ? 0 : 0.08 ether,
+            enabled: false,
+            initBond: 0,
             gameType: GameTypes.PERMISSIONED_CANNON,
-            gameArgs: superRoot
-                ? bytes("")
-                : abi.encode(
-                    IOPContractsManagerUtils.PermissionedDisputeGameConfig({
-                        absolutePrestate: cannonPrestate,
-                        proposer: initialProposer,
-                        challenger: initialChallenger
-                    })
-                )
+            gameArgs: bytes("")
         });
         dgConfigs[2] = IOPContractsManagerUtils.DisputeGameConfig({
             enabled: false,
@@ -154,12 +144,10 @@ abstract contract OPContractsManagerMigrationValidator_TestInit is CommonTest {
             gameArgs: bytes("")
         });
         dgConfigs[3] = IOPContractsManagerUtils.DisputeGameConfig({
-            enabled: superRoot,
+            enabled: true,
             initBond: 0,
             gameType: GameTypes.SUPER_PERMISSIONED,
-            gameArgs: superRoot
-                ? abi.encode(IOPContractsManagerUtils.SuperPermissionedDisputeGameConfig({ proposer: initialProposer }))
-                : bytes("")
+            gameArgs: abi.encode(IOPContractsManagerUtils.SuperPermissionedDisputeGameConfig({ proposer: initialProposer }))
         });
         dgConfigs[4] = IOPContractsManagerUtils.DisputeGameConfig({
             enabled: false,
@@ -182,7 +170,7 @@ abstract contract OPContractsManagerMigrationValidator_TestInit is CommonTest {
             unsafeBlockSigner: makeAddr("migrateUnsafeBlockSigner"),
             batcher: makeAddr("migrateBatcher"),
             startingAnchorRoot: Proposal({ root: Hash.wrap(bytes32(hex"1234")), l2SequenceNumber: 123 }),
-            startingRespectedGameType: superRoot ? GameTypes.SUPER_PERMISSIONED : GameTypes.PERMISSIONED_CANNON,
+            startingRespectedGameType: GameTypes.SUPER_PERMISSIONED,
             basefeeScalar: 1368,
             blobBasefeeScalar: 801949,
             gasLimit: 60_000_000,
@@ -200,10 +188,6 @@ abstract contract OPContractsManagerMigrationValidator_TestInit is CommonTest {
         });
 
         cts_ = opcmV2.deploy(deployConfig);
-    }
-
-    function _initialPermissionedGameChallenger() internal view returns (address challenger_) {
-        challenger_ = DisputeGames.permissionedGameChallenger(disputeGameFactory);
     }
 
     function _initialPermissionedGameProposer() internal view returns (address proposer_) {

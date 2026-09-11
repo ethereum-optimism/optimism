@@ -10,7 +10,6 @@ import (
 	"github.com/ethereum-optimism/optimism/op-chain-ops/addresses"
 	"github.com/ethereum-optimism/optimism/op-chain-ops/script"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/opcm"
-	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/pipeline"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/state"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/upgrade/embedded"
 	opeth "github.com/ethereum-optimism/optimism/op-service/eth"
@@ -137,24 +136,11 @@ type continuationGameMode struct {
 	fallbackGameType        *uint32
 	fallbackImplementation  common.Address
 	permissionless          bool
-	hasChallenger           bool
 }
 
-type continuationGameArgsLayout uint8
-
-const (
-	continuationPermissionedGameArgs continuationGameArgsLayout = iota
-	continuationSuperPermissionedGameArgs
-)
-
 type continuationGameArgs struct {
-	absolutePrestate    common.Hash
-	vm                  common.Address
 	anchorStateRegistry common.Address
-	delayedWETH         common.Address
-	l2ChainID           *big.Int
 	proposer            common.Address
-	challenger          common.Address
 }
 
 type continuationOPCMImplementations struct {
@@ -243,31 +229,12 @@ func verifyContinuationDeployment(
 func (v *continuationVerifier) resolveGameMode() (continuationGameMode, error) {
 	gameType := v.dci.DisputeGameType
 
-	superRoot, err := opcm.ReadSuperRootEnabled(v.ctx, v.backend, v.dci.Opcm)
-	if err != nil {
-		return continuationGameMode{}, fmt.Errorf("failed to read pinned OPCM dev feature bitmap: %w", err)
-	}
-	// The frozen selector must still match the family the pinned OPCM installs.
-	if err := pipeline.ValidateInitialGameTypeForOPCM(gameType, superRoot, v.dci.Opcm); err != nil {
-		return continuationGameMode{}, err
-	}
-
 	mode := continuationGameMode{
 		respectedGameType: gameType,
 	}
 	switch embedded.GameType(gameType) {
-	case embedded.GameTypePermissionedCannon:
-		mode.respectedImplementation = v.expected.PermissionedDisputeGameImpl
-		mode.hasChallenger = true
 	case embedded.GameTypeSuperPermissioned:
 		mode.respectedImplementation = v.expected.PermissionedDisputeGameImpl
-	case embedded.GameTypeCannonKona:
-		fallback := uint32(embedded.GameTypePermissionedCannon)
-		mode.respectedImplementation = v.expected.FaultDisputeGameImpl
-		mode.fallbackGameType = &fallback
-		mode.fallbackImplementation = v.expected.PermissionedDisputeGameImpl
-		mode.permissionless = true
-		mode.hasChallenger = true
 	case embedded.GameTypeSuperCannonKona:
 		fallback := uint32(embedded.GameTypeSuperPermissioned)
 		mode.respectedImplementation = v.expected.FaultDisputeGameImpl
@@ -370,14 +337,14 @@ func (v *continuationVerifier) verifyGameConfiguration(
 	if err != nil {
 		v.addReadError(
 			"respected game type",
-			"prepared selector and pinned OPCM dev feature bitmap",
+			"frozen DeployOPChainInput.DisputeGameType",
 			mode.respectedGameType,
 			err,
 		)
 	} else if respected != mode.respectedGameType {
 		v.addMismatch(
 			"respected game type",
-			"prepared selector and pinned OPCM dev feature bitmap",
+			"frozen DeployOPChainInput.DisputeGameType",
 			mode.respectedGameType,
 			respected,
 		)
@@ -435,11 +402,6 @@ func (v *continuationVerifier) verifyGameConfiguration(
 		return nil
 	}
 
-	initialLayout := continuationPermissionedGameArgs
-	if !mode.hasChallenger {
-		initialLayout = continuationSuperPermissionedGameArgs
-	}
-	var expectedVM *common.Address
 	var implementations *continuationOPCMImplementations
 	observed, err := readContinuationOPCMImplementations(v.ctx, v.backend, v.dci.Opcm)
 	if err != nil {
@@ -451,27 +413,15 @@ func (v *continuationVerifier) verifyGameConfiguration(
 		)
 	} else {
 		implementations = &observed
-		if initialLayout == continuationPermissionedGameArgs {
-			expectedVM = &observed.MipsImpl
-		}
 	}
-	v.verifyConfiguredGameArgs(
-		"selected",
-		mode.respectedGameType,
-		initialLayout,
-		v.dci.DisputeAbsolutePrestate,
-		expectedVM,
-	)
+	v.verifyConfiguredGameArgs("selected", mode.respectedGameType)
 	return implementations
 }
 
-func (v *continuationVerifier) verifyConfiguredGameArgs(
-	label string,
-	gameType uint32,
-	layout continuationGameArgsLayout,
-	expectedPrestate common.Hash,
-	expectedVM *common.Address,
-) {
+// verifyConfiguredGameArgs checks the super permissioned game arguments configured for gameType.
+// Super-root permissioned games are the only initial game type a continuation can respect, so
+// this is the only layout the verifier decodes.
+func (v *continuationVerifier) verifyConfiguredGameArgs(label string, gameType uint32) {
 	gameArgs, err := readContinuation[[]byte](
 		v.ctx,
 		v.backend,
@@ -488,7 +438,7 @@ func (v *continuationVerifier) verifyConfiguredGameArgs(
 		)
 		return
 	}
-	decoded, err := decodeContinuationGameArgs(gameArgs, layout)
+	decoded, err := decodeContinuationGameArgs(gameArgs)
 	if err != nil {
 		v.addReadError(
 			label+" game arguments",
@@ -508,65 +458,12 @@ func (v *continuationVerifier) verifyConfiguredGameArgs(
 		)
 	}
 
-	if layout == continuationSuperPermissionedGameArgs {
-		if decoded.proposer != v.dci.Proposer {
-			v.addMismatch(
-				label+" game proposer",
-				"frozen DeployOPChainInput.Proposer",
-				v.dci.Proposer,
-				decoded.proposer,
-			)
-		}
-		return
-	}
-
-	if decoded.absolutePrestate != expectedPrestate {
-		v.addMismatch(
-			label+" game prestate",
-			"frozen/committed game prestate",
-			expectedPrestate,
-			decoded.absolutePrestate,
-		)
-	}
-
-	if expectedVM != nil && decoded.vm != *expectedVM {
-		v.addMismatch(label+" game VM", "pinned OPCM implementations", *expectedVM, decoded.vm)
-	}
-
-	expectedWETH := v.expected.DelayedWethPermissionedGameProxy
-	if decoded.delayedWETH != expectedWETH {
-		v.addMismatch(
-			label+" game DelayedWETH",
-			"predicted ChainState.OpChainContracts",
-			expectedWETH,
-			decoded.delayedWETH,
-		)
-	}
-
-	expectedL2ChainID := v.dci.L2ChainId
-	if expectedL2ChainID == nil || decoded.l2ChainID.Cmp(expectedL2ChainID) != 0 {
-		v.addMismatch(
-			label+" game L2 chain ID",
-			"frozen DeployOPChainInput.L2ChainId and game-type rules",
-			expectedL2ChainID,
-			decoded.l2ChainID,
-		)
-	}
-
 	if decoded.proposer != v.dci.Proposer {
 		v.addMismatch(
 			label+" game proposer",
 			"frozen DeployOPChainInput.Proposer",
 			v.dci.Proposer,
 			decoded.proposer,
-		)
-	}
-	if decoded.challenger != v.dci.Challenger {
-		v.addMismatch(
-			label+" game challenger",
-			"frozen DeployOPChainInput.Challenger",
-			v.dci.Challenger,
-			decoded.challenger,
 		)
 	}
 }
@@ -839,7 +736,10 @@ func standardValidatorInput(
 	contracts addresses.OpChainContracts,
 ) opcm.StandardValidatorInput {
 	gameType := embedded.GameType(dci.DisputeGameType)
-	useDevInput := gameType == embedded.GameTypeCannonKona || gameType == embedded.GameTypeSuperCannonKona
+	// Only permissionless continuations reach the StandardValidator, and SUPER_CANNON_KONA is
+	// the only permissionless initial type; the check is kept so a future permissionless game
+	// type does not silently inherit the dev-features input.
+	useDevInput := gameType == embedded.GameTypeSuperCannonKona
 	return opcm.StandardValidatorInput{
 		SystemConfig:        contracts.SystemConfigProxy,
 		AbsolutePrestate:    dci.DisputeAbsolutePrestate,
@@ -954,50 +854,19 @@ func readContinuationOPCMImplementations(
 	)
 }
 
-// These lengths mirror LibGameArgs in packages/contracts-bedrock/src/dispute/lib/LibGameArgs.sol.
-const (
-	continuationPermissionedGameArgsLength      = 164 // LibGameArgs.PERMISSIONED_ARGS_LENGTH
-	continuationSuperPermissionedGameArgsLength = 40  // LibGameArgs.SUPER_PERMISSIONED_ARGS_LENGTH
-)
+// The length and offsets mirror LibGameArgs in packages/contracts-bedrock/src/dispute/lib/LibGameArgs.sol.
+const continuationSuperPermissionedGameArgsLength = 40 // LibGameArgs.SUPER_PERMISSIONED_ARGS_LENGTH
 
-// These offsets mirror packages/contracts-bedrock/src/dispute/lib/LibGameArgs.sol.
-func decodeContinuationGameArgs(
-	gameArgs []byte,
-	layout continuationGameArgsLayout,
-) (continuationGameArgs, error) {
-	if layout == continuationSuperPermissionedGameArgs {
-		if len(gameArgs) != continuationSuperPermissionedGameArgsLength {
-			return continuationGameArgs{}, fmt.Errorf(
-				"configured super permissioned game arguments have length %d, expected %d",
-				len(gameArgs),
-				continuationSuperPermissionedGameArgsLength,
-			)
-		}
-		return continuationGameArgs{
-			anchorStateRegistry: common.BytesToAddress(gameArgs[:20]),
-			proposer:            common.BytesToAddress(gameArgs[20:40]),
-		}, nil
-	}
-
-	if layout != continuationPermissionedGameArgs {
-		return continuationGameArgs{}, fmt.Errorf("unknown continuation game argument layout %d", layout)
-	}
-	if len(gameArgs) != continuationPermissionedGameArgsLength {
+func decodeContinuationGameArgs(gameArgs []byte) (continuationGameArgs, error) {
+	if len(gameArgs) != continuationSuperPermissionedGameArgsLength {
 		return continuationGameArgs{}, fmt.Errorf(
-			"configured game arguments have length %d, expected %d",
+			"configured super permissioned game arguments have length %d, expected %d",
 			len(gameArgs),
-			continuationPermissionedGameArgsLength,
+			continuationSuperPermissionedGameArgsLength,
 		)
 	}
-
-	decoded := continuationGameArgs{
-		absolutePrestate:    common.BytesToHash(gameArgs[:32]),
-		vm:                  common.BytesToAddress(gameArgs[32:52]),
-		anchorStateRegistry: common.BytesToAddress(gameArgs[52:72]),
-		delayedWETH:         common.BytesToAddress(gameArgs[72:92]),
-		l2ChainID:           new(big.Int).SetBytes(gameArgs[92:124]),
-	}
-	decoded.proposer = common.BytesToAddress(gameArgs[124:144])
-	decoded.challenger = common.BytesToAddress(gameArgs[144:164])
-	return decoded, nil
+	return continuationGameArgs{
+		anchorStateRegistry: common.BytesToAddress(gameArgs[:20]),
+		proposer:            common.BytesToAddress(gameArgs[20:40]),
+	}, nil
 }

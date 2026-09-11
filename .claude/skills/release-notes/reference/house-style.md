@@ -131,9 +131,10 @@ grep -rl '<fork>_time' superchain-registry/superchain/configs/mainnet/
 grep -rl '<fork>_time' superchain-registry/superchain/configs/sepolia/
 ```
 
-For a `DevFeatures` bit, the default is the answer: we ship the defaults for feature toggles,
-so anything behind a bit that is not forced to `true` is dormant unless a chain has
-explicitly set it. `docs/ai/devfeatures.md` lists which are default-on.
+For a `DevFeatures` bit, the bitmap is the answer: we ship the defaults for feature toggles,
+so anything behind a bit is dormant unless a chain has explicitly set it.
+`docs/ai/devfeatures.md` lists the active bits. Confirm whether a chain has explicitly set one
+before describing the feature as live.
 
 For anything expressed neither as a hardfork nor a DevFeature — dispute game types, say —
 there is no equivalent lookup, so ask the release manager rather than guessing.

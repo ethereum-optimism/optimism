@@ -135,6 +135,12 @@ contract OptimismPortal2_Invariant_Harness is DisputeGameFactory_TestInit {
 
         setupFaultDisputeGame(Claim.wrap(bytes32(0)));
 
+        // A fresh deployment respects SUPER_PERMISSIONED. Only the proposer can create that game, and it
+        // resolves on creation. These tests need a game that players can attack and resolve, so they
+        // respect the CANNON FaultDisputeGame that setupFaultDisputeGame installs.
+        vm.prank(superchainConfig.guardian());
+        anchorStateRegistry.setRespectedGameType(GameTypes.CANNON);
+
         // Create a dispute game with the output root we've proposed.
         _proposedBlockNumber = 0xFF;
         IFaultDisputeGame game = IFaultDisputeGame(

@@ -34,6 +34,7 @@ import { IProxy } from "interfaces/universal/IProxy.sol";
 import { Proxy } from "src/universal/Proxy.sol";
 import { IAnchorStateRegistry } from "interfaces/dispute/IAnchorStateRegistry.sol";
 import { IFaultDisputeGame } from "interfaces/dispute/IFaultDisputeGame.sol";
+import { ISuperFaultDisputeGame } from "interfaces/dispute/ISuperFaultDisputeGame.sol";
 import { IETHLockbox } from "interfaces/L1/IETHLockbox.sol";
 import { IProxyAdminOwnedBase } from "interfaces/universal/IProxyAdminOwnedBase.sol";
 
@@ -51,6 +52,7 @@ abstract contract OptimismPortal2_TestInit is DisputeGameFactory_TestInit {
     bytes[] _withdrawalProof;
     Types.OutputRootProof internal _outputRootProof;
     GameType internal respectedGameType;
+    GameType internal deployedRespectedGameType;
 
     // Use a constructor to set the storage vars above, so as to minimize the number of ffi calls.
     constructor() {
@@ -98,6 +100,13 @@ abstract contract OptimismPortal2_TestInit is DisputeGameFactory_TestInit {
         } else {
             // Set up the dummy game.
             _proposedBlockNumber = 0xFF;
+
+            // A fresh deployment respects SUPER_PERMISSIONED. Only the proposer can create that game, and it
+            // resolves on creation. These tests need a game that players can attack and resolve, so they
+            // respect the CANNON FaultDisputeGame that setupFaultDisputeGame installs.
+            deployedRespectedGameType = anchorStateRegistry.respectedGameType();
+            vm.prank(superchainConfig.guardian());
+            anchorStateRegistry.setRespectedGameType(GameTypes.CANNON);
         }
 
         depositor = makeAddr("depositor");
@@ -271,7 +280,8 @@ contract OptimismPortal2_Initialize_Test is OptimismPortal2_TestInit {
         assertEq(guardian, deploy.cfg().superchainConfigGuardian());
 
         // This check is not valid on forked tests as the respectedGameType varies between OP Chains.
-        assertEq(optimismPortal2.respectedGameType().raw(), deploy.cfg().respectedGameType());
+        assertEq(deployedRespectedGameType.raw(), GameTypes.SUPER_PERMISSIONED.raw());
+        assertEq(deployedRespectedGameType.raw(), deploy.cfg().respectedGameType());
     }
 
     /// @notice Tests that the initializer value is correct. Trivial test for normal
@@ -1420,6 +1430,43 @@ contract OptimismPortal2_FinalizeWithdrawalTransaction_Test is OptimismPortal2_T
         optimismPortal2.finalizeWithdrawalTransaction(_defaultTx);
 
         assert(address(bob).balance == bobBalanceBefore + _defaultTx.value);
+    }
+
+    /// @notice Tests that `finalizeWithdrawalTransaction` succeeds against a super-root fault dispute
+    ///         game.
+    function test_finalizeWithdrawalTransaction_superFaultDisputeGame_succeeds() external {
+        setupSuperFaultDisputeGame(Claim.wrap(_outputRoot), GameTypes.SUPER_CANNON_KONA);
+        vm.prank(superchainConfig.guardian());
+        anchorStateRegistry.setRespectedGameType(GameTypes.SUPER_CANNON_KONA);
+
+        // In fork mode setUp already created a game for this root at _proposedBlockNumber, so use the
+        // next block number to avoid a GameAlreadyExists collision.
+        ISuperFaultDisputeGame superGame = ISuperFaultDisputeGame(
+            address(_createDisputeGame(GameTypes.SUPER_CANNON_KONA, _outputRoot, _proposedBlockNumber + 1))
+        );
+        uint256 superGameIndex = disputeGameFactory.gameCount() - 1;
+        vm.warp(block.timestamp + superGame.maxClockDuration().raw() + 1 seconds);
+
+        uint256 bobBalanceBefore = address(bob).balance;
+
+        vm.expectEmit(address(optimismPortal2));
+        emit WithdrawalProven(_withdrawalHash, alice, bob);
+        optimismPortal2.proveWithdrawalTransaction({
+            _tx: _defaultTx,
+            _disputeGameIndex: superGameIndex,
+            _outputRootProof: _outputRootProof,
+            _withdrawalProof: _withdrawalProof
+        });
+
+        superGame.resolveClaim(0, 0);
+        superGame.resolve();
+        vm.warp(block.timestamp + optimismPortal2.proofMaturityDelaySeconds() + 1 seconds);
+
+        vm.expectEmit(true, true, false, true);
+        emit WithdrawalFinalized(_withdrawalHash, true);
+        optimismPortal2.finalizeWithdrawalTransaction(_defaultTx);
+
+        assertEq(address(bob).balance, bobBalanceBefore + _defaultTx.value);
     }
 
     /// @notice Tests that `finalizeWithdrawalTransaction` succeeds using a different proof than an
