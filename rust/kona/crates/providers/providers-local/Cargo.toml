@@ -39,6 +39,7 @@ thiserror.workspace = true
 metrics = { workspace = true, optional = true }
 
 [dev-dependencies]
+metrics-util = { workspace = true, features = ["debugging"] }
 tokio = { workspace = true, features = ["macros", "rt", "rt-multi-thread"] }
 rstest.workspace = true
 

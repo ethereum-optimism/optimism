@@ -63,6 +63,9 @@ metrics = { workspace = true, optional = true }
 
 [dev-dependencies]
 serde_json.workspace = true
+metrics-util = { workspace = true, features = ["debugging"] }
+alloy-primitives.workspace = true
+alloy-consensus.workspace = true
 
 [features]
 default = []

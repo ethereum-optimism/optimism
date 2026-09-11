@@ -17,9 +17,6 @@ impl Metrics {
     /// Identifier to track the amount of time it takes to advance the pipeline origin.
     pub const PIPELINE_ORIGIN_ADVANCE: &str = "kona_derive_pipeline_origin_advance";
 
-    /// Identifier for the histogram that tracks when the system config is updated.
-    pub const SYSTEM_CONFIG_UPDATE: &str = "kona_derive_system_config_update";
-
     /// Identifier for the number of frames in the frame queue pipeline stage.
     pub const PIPELINE_FRAME_QUEUE_BUFFER: &str = "kona_derive_frame_queue_buffer";
 
@@ -169,10 +166,6 @@ impl Metrics {
         metrics::describe_histogram!(
             Self::PIPELINE_ORIGIN_ADVANCE,
             "The amount of time it takes to advance the pipeline origin"
-        );
-        metrics::describe_histogram!(
-            Self::SYSTEM_CONFIG_UPDATE,
-            "The time it takes to update the system config"
         );
         metrics::describe_gauge!(
             Self::PIPELINE_FRAME_QUEUE_BUFFER,

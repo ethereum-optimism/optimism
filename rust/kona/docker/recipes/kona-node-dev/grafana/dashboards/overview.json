@@ -5533,17 +5533,17 @@
               },
               "disableTextWrap": false,
               "editorMode": "builder",
-              "expr": "kona_providers_blob_sidecar_fetches{instance=\"$instance\"}",
+              "expr": "kona_providers_blob_fetches{instance=\"$instance\"}",
               "fullMetaSearch": false,
               "includeNullMetadata": true,
               "instant": false,
-              "legendFormat": "{{method}}",
+              "legendFormat": "__auto",
               "range": true,
               "refId": "A",
               "useBackend": false
             }
           ],
-          "title": "Beacon Provider RPC Calls",
+          "title": "Blob Fetches",
           "transparent": true,
           "type": "timeseries"
         },
@@ -5634,17 +5634,17 @@
               },
               "disableTextWrap": false,
               "editorMode": "builder",
-              "expr": "kona_providers_blob_sidecar_errors{instance=\"$instance\"}",
+              "expr": "kona_providers_blob_fetch_errors{instance=\"$instance\"}",
               "fullMetaSearch": false,
               "includeNullMetadata": true,
               "instant": false,
-              "legendFormat": "{{method}}",
+              "legendFormat": "__auto",
               "range": true,
               "refId": "A",
               "useBackend": false
             }
           ],
-          "title": "Beacon Provider RPC Errors",
+          "title": "Blob Fetch Errors",
           "transparent": true,
           "type": "timeseries"
         },
@@ -5746,108 +5746,6 @@
             }
           ],
           "title": "Cache Entries",
-          "transparent": true,
-          "type": "timeseries"
-        },
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "${DS_PROMETHEUS}"
-          },
-          "description": "",
-          "fieldConfig": {
-            "defaults": {
-              "color": {
-                "mode": "palette-classic"
-              },
-              "custom": {
-                "axisBorderShow": false,
-                "axisCenteredZero": false,
-                "axisColorMode": "text",
-                "axisLabel": "",
-                "axisPlacement": "auto",
-                "barAlignment": 0,
-                "barWidthFactor": 0.6,
-                "drawStyle": "line",
-                "fillOpacity": 0,
-                "gradientMode": "none",
-                "hideFrom": {
-                  "legend": false,
-                  "tooltip": false,
-                  "viz": false
-                },
-                "insertNulls": false,
-                "lineInterpolation": "linear",
-                "lineWidth": 1,
-                "pointSize": 5,
-                "scaleDistribution": {
-                  "type": "linear"
-                },
-                "showPoints": "auto",
-                "spanNulls": false,
-                "stacking": {
-                  "group": "A",
-                  "mode": "none"
-                },
-                "thresholdsStyle": {
-                  "mode": "off"
-                }
-              },
-              "mappings": [],
-              "thresholds": {
-                "mode": "absolute",
-                "steps": [
-                  {
-                    "color": "green",
-                    "value": null
-                  },
-                  {
-                    "color": "red",
-                    "value": 80
-                  }
-                ]
-              }
-            },
-            "overrides": []
-          },
-          "gridPos": {
-            "h": 7,
-            "w": 12,
-            "x": 12,
-            "y": 40
-          },
-          "id": 113,
-          "options": {
-            "legend": {
-              "calcs": [],
-              "displayMode": "list",
-              "placement": "bottom",
-              "showLegend": true
-            },
-            "tooltip": {
-              "mode": "single",
-              "sort": "none"
-            }
-          },
-          "targets": [
-            {
-              "datasource": {
-                "type": "prometheus",
-                "uid": "${DS_PROMETHEUS}"
-              },
-              "disableTextWrap": false,
-              "editorMode": "builder",
-              "expr": "kona_providers_cache_memory_bytes{instance=\"$instance\"}",
-              "fullMetaSearch": false,
-              "includeNullMetadata": true,
-              "instant": false,
-              "legendFormat": "{{cache}}",
-              "range": true,
-              "refId": "A",
-              "useBackend": false
-            }
-          ],
-          "title": "Cache Memory Usage",
           "transparent": true,
           "type": "timeseries"
         }

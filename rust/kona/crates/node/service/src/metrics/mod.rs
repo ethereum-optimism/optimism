@@ -14,7 +14,7 @@ impl Metrics {
     /// Identifier for the counter of critical derivation errors (strictly for alerting.)
     pub const DERIVATION_CRITICAL_ERROR: &str = "kona_node_derivation_critical_errors";
 
-    /// Identifier for the counter that tracks sequencer state flags.
+    /// Identifier for the gauge that tracks sequencer state flags.
     pub const SEQUENCER_STATE: &str = "kona_node_sequencer_state";
 
     /// Gauge for the sequencer's attributes builder duration.
@@ -63,8 +63,8 @@ impl Metrics {
             "Critical errors in the derivation pipeline"
         );
 
-        // Sequencer state
-        metrics::describe_counter!(Self::SEQUENCER_STATE, "Tracks sequencer state flags");
+        // Emitted with `metrics::gauge!`.
+        metrics::describe_gauge!(Self::SEQUENCER_STATE, "Tracks sequencer state flags");
 
         // Sequencer attributes builder duration
         metrics::describe_gauge!(

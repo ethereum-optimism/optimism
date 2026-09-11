@@ -40,6 +40,7 @@ rand = { workspace = true, features = ["thread_rng"] }
 metrics = { workspace = true, optional = true }
 
 [dev-dependencies]
+metrics-util = { workspace = true, features = ["debugging"] }
 tempfile.workspace = true
 serde_json.workspace = true
 kona-cli.workspace = true
