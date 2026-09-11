@@ -9391,6 +9391,22 @@ dependencies = [
 ]
 
 [[package]]
+name = "op-atomic-builder"
+version = "0.1.0"
+dependencies = [
+ "alloy-consensus 2.1.1",
+ "alloy-eips 2.1.1",
+ "alloy-signer 2.1.1",
+ "alloy-signer-local 2.1.1",
+ "alloy-sol-types",
+ "op-revm",
+ "revm",
+ "serde",
+ "serde_json",
+ "thiserror 2.0.18",
+]
+
+[[package]]
 name = "op-reth"
 version = "1.11.3"
 dependencies = [

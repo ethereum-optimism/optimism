@@ -69,7 +69,7 @@ change_patterns:
   # "any": c-<name> is true iff AT LEAST ONE changed file matches.
   any:
     circleci_changed: "^\\.circleci/"
-    contracts_changed: "^(packages/contracts-bedrock|op-core/forks|op-core/nuts|\\.circleci|\\.github|ops/check-changed)/|^(package\\.json|mise\\.toml)$"
+    contracts_changed: "^(packages/contracts-bedrock|op-core/forks|op-core/nuts|op-test-sequencer/atomic|rust/atomic-builder|rust/op-revm|\\.circleci|\\.github|ops/check-changed)/|^(package\\.json|mise\\.toml|rust/Cargo\\.(toml|lock))$"
     docs_changes_detected: "^docs/public-docs/"
     rust_changes_detected: "^(rust|op-e2e|\\.circleci)/|^mise\\.toml$"
   # "all": c-<name> is true iff EVERY changed file matches (and there is at

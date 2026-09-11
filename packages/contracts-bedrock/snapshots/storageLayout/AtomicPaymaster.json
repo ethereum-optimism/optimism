@@ -1,0 +1,30 @@
+[
+  {
+    "bytes": "20",
+    "label": "_owner",
+    "offset": 0,
+    "slot": "0",
+    "type": "address"
+  },
+  {
+    "bytes": "32",
+    "label": "allowedAccounts",
+    "offset": 0,
+    "slot": "1",
+    "type": "mapping(address => bool)"
+  },
+  {
+    "bytes": "20",
+    "label": "router",
+    "offset": 0,
+    "slot": "2",
+    "type": "address"
+  },
+  {
+    "bytes": "32",
+    "label": "maxSponsoredCost",
+    "offset": 0,
+    "slot": "3",
+    "type": "uint256"
+  }
+]

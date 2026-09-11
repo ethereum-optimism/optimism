@@ -62,6 +62,9 @@ members = [
   # Op-Revm
   "op-revm/",
 
+  # Experimental atomic builder execution
+  "atomic-builder/",
+
   # Revm execution-environment integration tests
   "revm-ee-tests/",
 

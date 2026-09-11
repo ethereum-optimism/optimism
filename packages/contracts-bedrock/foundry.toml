@@ -43,6 +43,8 @@ ast = true
 evm_version = 'cancun'
 
 remappings = [
+  'lib/account-abstraction/:@openzeppelin/contracts/=lib/openzeppelin-contracts-v5/contracts/',
+  '@account-abstraction/=lib/account-abstraction/contracts/',
   '@openzeppelin/contracts-upgradeable/=lib/openzeppelin-contracts-upgradeable/contracts',
   '@openzeppelin/contracts/=lib/openzeppelin-contracts/contracts',
   '@openzeppelin/contracts-v5/=lib/openzeppelin-contracts-v5/contracts',
