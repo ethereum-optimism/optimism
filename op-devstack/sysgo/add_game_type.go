@@ -117,7 +117,7 @@ func addGameTypesForRuntime(
 	for _, gt := range enabledGameTypes {
 		enabled[gt] = true
 	}
-	initBond := eth.GWei(80_000_000).ToBig() // 0.08 ETH
+	initBond := new(big.Int).Set(defaultInitBond)
 
 	cannonKonaPrestate := PrestateForGameType(t, gameTypes.CannonKonaGameType)
 	superCannonKonaPrestate := PrestateForGameType(t, gameTypes.SuperCannonKonaGameType)
@@ -225,7 +225,7 @@ func ZKDisputeGameConfigForRuntime() *embedded.ZKDisputeGameConfig {
 		AbsolutePrestate:     common.Hash{0x01}, // dummy for devstack, not validated at claim time
 		MaxChallengeDuration: 604800,            // 7 days
 		MaxProveDuration:     259200,            // 3 days
-		ChallengerBond:       eth.GWei(80_000_000).ToBig(),
+		ChallengerBond:       new(big.Int).Set(defaultZKChallengerBond),
 	}
 }
 

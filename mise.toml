@@ -14,6 +14,10 @@ python = "3.12.13"
 uv = "0.5.5"
 jq = "1.7.1"
 yq = "4.44.5"
+# Used by ops/scripts/todo-checker.sh. Pinned here rather than apt-installed in
+# the todo-issues job so the check rides the mise cache instead of depending on
+# an Ubuntu mirror being reachable.
+ripgrep = "15.2.0"
 shellcheck = "0.10.0"
 shfmt = "3.11.0"
 direnv = "2.35.0"
@@ -35,7 +39,7 @@ protoc = "35.1"
 "github:crate-ci/cargo-release" = { version = "1.1.2" }
 
 "github:nextest-rs/nextest" = { version = "0.9.132", version_prefix = "cargo-nextest-", bin = "cargo-nextest" }
-"github:succinctlabs/sp1" = { version = "6.4.0", version_prefix = "v", bin = "cargo-prove" }
+"github:succinctlabs/sp1" = { version = "6.7.0", version_prefix = "v", bin = "cargo-prove" }
 "github:EmbarkStudios/cargo-deny" = "0.19.4"
 "github:ggwpez/zepter" = { version = "1.88.0", version_prefix = "v" }
 "github:crate-ci/typos" = { version = "1.45.1", version_prefix = "v" }
@@ -70,7 +74,7 @@ git-cliff = "2.12.0"
 # Put things here if you need to track versions of tools or projects that can't
 # actually be managed by mise (yet). Make sure that anything you put in here is
 # also found inside of disabled_tools or mise will try to install it.
-kontrol = "1.0.90"
+kontrol = "1.0.255"
 binary_signer = "1.0.4"
 
 [tool_alias]

@@ -141,10 +141,10 @@ src/
 Every new implementation contract must follow this pattern:
 
 1. Extend OpenZeppelin's `Initializable`.
-2. Include `initialize()` with the `initializer` modifier.
+2. Include `initialize()` with the `reinitializer(initVersion())` modifier.
 3. In the constructor: call `_disableInitializers()` and set immutables only.
 4. Extend `ReinitializableBase(N)` with the current init version.
-5. Never use `reinitializer(uint64 version)` — this codebase does not use it.
+5. Never pass a hardcoded literal version to `reinitializer(...)` — always `initVersion()`.
 
 ### Upgrade Process (Atomic 3-Step)
 
@@ -195,7 +195,7 @@ Reference implementations: `SystemConfig.sol` and `OptimismPortal2.sol`.
 pragma solidity 0.8.15;
 
 // Contracts
-import { ProxyAdminOwnedBase } from "src/L1/ProxyAdminOwnedBase.sol";
+import { ProxyAdminOwnedBase } from "src/universal/ProxyAdminOwnedBase.sol";
 import { Initializable } from "@openzeppelin/contracts/proxy/utils/Initializable.sol";
 
 // Libraries
@@ -229,7 +229,7 @@ contract ContractName is Initializable, ProxyAdminOwnedBase, ReinitializableBase
   go-ffi, profiles, and the script cache for you.
 - `just build` builds the contracts; `just build-dev` is the faster variant
   (`FOUNDRY_PROFILE=lite`) for local iteration. Builds must produce zero warnings
-  (`deny_warnings = true` in `foundry.toml`).
+  (`deny = "warnings"` in `foundry.toml`).
 - `just test` runs the suite; `just test-dev` is the faster `lite`-profile variant for local
   iteration. Default 64 fuzz runs; CI uses 128.
 - `just lint` formats and checks (`forge fmt` under the hood: 120-char line length, bracket
@@ -394,7 +394,7 @@ function testTransferSucceeds() external { }          // No underscores
 
 - `CommonTest` base class deploys the full OP Stack (L1 + L2).
 - Pre-configured actors: alice and bob with 10,000 ETH each.
-- Feature flags for testing variants: altDA, interop, revenue sharing, custom gas token.
+- Feature flags for testing variants: altDA, interop, custom gas token.
 - Fork test support: automatic detection via the `FORK_TEST` env var.
 - Invariant tests in `test/invariants/` with guided and unguided fuzz modes.
 - Kontrol formal verification in `test/kontrol/`.
@@ -415,12 +415,13 @@ function testTransferSucceeds() external { }          // No underscores
 | default | 999,999 runs | 64 | Production builds |
 | lite | disabled | 8 | Fast dev iteration |
 | ci | 999,999 runs | 128 | CI testing |
-| ciheavy | 999,999 runs | 20,000 | Stress testing |
+| ciheavy | disabled | 20,000 | Stress testing |
 | cicoverage | disabled | 1 | Coverage only |
 | kprove | default | — | Kontrol formal verification |
 
-Dispute games, OPCM, OptimismPortal2, and ProtocolVersions compile with 5,000 optimizer runs
-for bytecode size management.
+Dispute games, OPCM, OptimismPortal2, StorageSetter and L2ContractsManager compile with
+5,000 optimizer runs for bytecode size management (`compilation_restrictions` in
+`foundry.toml`; `OPContractsManagerStandardValidator` is the outlier at 200).
 
 ## Build and Test Commands
 
@@ -445,7 +446,7 @@ mise x -- just semver-lock-no-build  # Regenerate from existing artifacts (faste
 (e.g. `mise x -- just test-dev --match-contract OptimismPortal2_Test`) — much faster than the
 whole suite. Run the full `just test` before opening a PR, since that's what CI runs.
 
-`just test-upgrade` forks mainnet (or Sepolia) at a weekly-pinned block, applies the upgrade
+`just test-upgrade` forks mainnet (or Sepolia) at a daily-pinned block, applies the upgrade
 path, and runs tests in `test/{L1,dispute,cannon}/`. It verifies that upgrades work against
 real deployed state — the actual upgrade path, not just a clean deployment. Requires
 `ETH_RPC_URL`. Run it when modifying upgradeable contracts or the upgrade flow itself.

@@ -23,6 +23,7 @@ zkVM programs that execute inside the SP1 prover:
 
 Supporting libraries for the SP1 fault proof system:
 
+- **`build-info`**: Compile-time build marker embedding the monorepo commit into both guests
 - **`client`**: Client-side utilities and types for witness execution in the zkVM
 - **`elfs`**: Runtime loading of compiled ELF binaries
 - **`ethereum/client`**: Ethereum-specific client-side data availability utilities
@@ -60,6 +61,34 @@ artifacts at runtime from `KONA_SP1_ELF_DIR`; a missing or empty artifact fails 
 infrastructure error. Release automation will eventually pin per-version vkeys from the generated
 manifest into `superchain-registry/validation/standard/standard-prestates.toml` and verify
 reproducible builds.
+
+#### Build provenance
+
+Both guests embed the commit they were built from, so a guest ELF identifies its own source
+without a manifest, a lookup table, or executing it:
+
+```bash
+grep -aoE 'KONA_SP1_BUILD\{git_sha=[0-9A-Za-z._-]*\}' elf/super-aggregation-elf | sort -u
+```
+
+The guests also print the marker at startup, which surfaces wherever the executor runs it —
+`kona-sp1-super-range-executor` locally and in the acceptance smoke tests, where a bare
+`println!` arrives as a WARN `Invalid JSON` line carrying the marker. Proving on the Succinct
+network sends guest output to the remote prover, so the ELF scan is the reliable path there.
+
+The commit is part of the compiled image, so it is part of the vkey: two builds from different
+commits produce different vkeys even when the program logic is identical. Range proofs are
+verified against the `SUPER_RANGE_VKEY` embedded in `super-aggregation`, so a range prover and an
+aggregator must come from the same commit, not merely the same code. The marker is recoverable,
+not attested: it records what an honest build embedded and proves nothing against a rewritten
+artifact.
+
+`just build-elfs` takes the commit from `git rev-parse HEAD`, resolved once per build so both
+guests agree. It appends `-dirty` when tracked files are modified and `-custom` for a
+`KONA_CUSTOM_CONFIGS_DIR` build, whose guest is compiled from configs the commit does not
+describe. Builds outside the justfile record `unknown`.
+Each build recipe checks its own ELF; CI (`kona-build-sp1-elfs`) additionally pins the natively
+built ELFs to the commit under test.
 
 Custom chains and devnets can compile separate SP1 artifacts with custom kona
 registry inputs:
@@ -140,6 +169,21 @@ super-root `ZKDisputeGame` (game type 10) end to end:
 3. **Resolve and claim**: resolves finished games and claims bonds (including the
    challenger bond earned by proving).
 
+### Anchor validation
+
+At startup, the proposer waits until the registered anchor root matches a trusted
+supernode response at the exact anchor timestamp. Registry and anchor reads use
+one L1 block hash.
+
+A zero root, a timestamp exceeding `u64`, or a trusted mismatch produces an ERROR
+log. Missing data, RPC errors, and untrusted responses produce WARN logs. Startup
+also logs its first validation failure at ERROR, then retries.
+
+Correct the registry or restore access to trusted, matching history; startup
+resumes without a restart. Timestamp zero has no fallback if the RPC rejects it.
+Normal proposal scheduling and submission retain their existing retry behavior;
+anchor validation is not repeated after startup.
+
 ### Ownership (which games it defends)
 
 Defense, resolution, and bond claims use prestate-based ownership. The proposer
@@ -180,6 +224,44 @@ evicted, fails a definitive pre-submit check, or is proven successfully.
 A restart loses all progress and re-detects games that still need proofs. A
 pre-flight check prevents duplicate `prove()` submissions. Fast finality also
 re-detects unproven, signer-created games after restart.
+
+### Terminal proof retry
+
+`Unexecutable` and local `ValidationFailed` requests are sticky. For unchanged
+attempt inputs, the proposer rejects the attempt before collecting witnesses
+or submitting another SPN request. Scheduler tasks may still run and check
+inputs. A change to the full attempt identity permits a new attempt.
+
+SIGUSR1 is a Unix signal: a message you send to a running program. Send it to
+the proposer to retry terminal proof requests without restarting it. This
+applies to all tracked games. The proposer keeps pending requests, finished
+proofs, and completed chunks. Normal scheduling decides when retries run.
+
+Check that the running build supports SIGUSR1 and has logged `kona-sp1-proposer started`.
+Older builds may exit when they receive this signal.
+
+Find the proposer's process ID (PID):
+
+```bash
+pgrep -fl kona-sp1-proposer
+```
+
+Replace `12345` below with that PID. Check that it is the right process before
+running `kill`:
+
+```bash
+ps -p 12345 -o pid=,command=
+kill -USR1 12345
+```
+
+Look for `Processed terminal proof retry` in the proposer logs:
+
+- `reset_games`: games cleared for another try.
+- `busy_games`: games with active proving tasks. These games were not reset.
+  Wait for them to finish, then send another signal to retry them.
+
+If a retry fails terminally, send another signal to try again. Several signals
+sent together may count as one request.
 
 ### Operator alarms
 

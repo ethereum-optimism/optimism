@@ -20,6 +20,7 @@ abstract contract Events {
     event WithdrawalFinalized(bytes32 indexed withdrawalHash, bool success);
     event WithdrawalProven(bytes32 indexed withdrawalHash, address indexed from, address indexed to);
     event WithdrawalProvenExtension1(bytes32 indexed withdrawalHash, address indexed proofSubmitter);
+    event WithdrawalProofDeleted(bytes32 indexed withdrawalHash, address indexed proofSubmitter);
     event DisputeGameBlacklisted(IDisputeGame indexed disputeGame);
     event RespectedGameTypeSet(GameType indexed newGameType, Timestamp indexed updatedAt);
 

@@ -710,6 +710,12 @@ where
             ..
         } = self;
 
+        // Publish gas and fee metrics for the canonical head.
+        ctx.node.task_executor().spawn_critical_task(
+            "op chain head metrics",
+            crate::maintain_chain_head_metrics(ctx.node.provider().canonical_state_stream()),
+        );
+
         let eth_config =
             EthConfigHandler::new(ctx.node.provider().clone(), ctx.node.evm_config().clone());
 

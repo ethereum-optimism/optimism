@@ -29,10 +29,7 @@ pragma solidity ^0.8.0;
 ///      System features have no Go mirror. For the parallel DEV feature checklist, see
 ///      packages/contracts-bedrock/src/libraries/DevFeatures.sol.
 library Features {
-    /// @notice The ETH_LOCKBOX feature determines if the system is configured to use the
-    ///         ETHLockbox contract in the OptimismPortal. When the ETH_LOCKBOX feature is active
-    ///         and the ETHLockbox contract has been configured, the OptimismPortal will use the
-    ///         ETHLockbox to store ETH instead of storing ETH directly in the portal itself.
+    /// @notice The ETH_LOCKBOX feature determines whether the system uses an ETHLockbox.
     bytes32 internal constant ETH_LOCKBOX = "ETH_LOCKBOX";
 
     /// @notice The CUSTOM_GAS_TOKEN feature determines if the system is configured to use a custom

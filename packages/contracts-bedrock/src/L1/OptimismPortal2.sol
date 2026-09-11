@@ -172,6 +172,11 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ReinitializableBase
     /// @param success        Whether the withdrawal transaction was successful.
     event WithdrawalFinalized(bytes32 indexed withdrawalHash, bool success);
 
+    /// @notice Emitted when a proof for a withdrawal transaction is deleted.
+    /// @param withdrawalHash Hash of the withdrawal transaction.
+    /// @param proofSubmitter Address of the proof submitter.
+    event WithdrawalProofDeleted(bytes32 indexed withdrawalHash, address indexed proofSubmitter);
+
     /// @notice Thrown when a withdrawal has already been finalized.
     error OptimismPortal_AlreadyFinalized();
 
@@ -225,6 +230,9 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ReinitializableBase
     /// is enabled
     error OptimismPortal_NotUsingInterop();
 
+    /// @notice Thrown when calling a function that requires an active ETHLockbox.
+    error OptimismPortal_NotUsingLockbox();
+
     /// @notice Thrown when a withdrawal has not been proven for long enough.
     error OptimismPortal_ProofNotOldEnough();
 
@@ -240,10 +248,13 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ReinitializableBase
     /// @notice Thrown when the new lockbox has not authorized this portal.
     error OptimismPortal_LockboxNotAuthorizedForPortal();
 
+    /// @notice Thrown when a dispute game has not been permanently invalidated.
+    error OptimismPortal_DisputeGameNotInvalidated();
+
     /// @notice Semantic version.
-    /// @custom:semver 5.8.0
+    /// @custom:semver 5.10.0
     function version() public pure virtual returns (string memory) {
-        return "5.8.0";
+        return "5.10.0";
     }
 
     /// @param _proofMaturityDelaySeconds The proof maturity delay in seconds.
@@ -482,11 +493,14 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ReinitializableBase
         finalizeWithdrawalTransactionExternalProof(_tx, msg.sender);
     }
 
-    /// @notice Migrates the total ETH balance of this contract to the ETHLockbox.
+    /// @notice Migrates the total ETH balance of this contract to the ETHLockbox. Custom gas
+    ///         token chains keep custody in the portal and cannot migrate ETH.
     function migrateLiquidity() public {
-        if (!_isUsingInterop()) revert OptimismPortal_NotUsingInterop();
+        if (!_isUsingLockbox()) revert OptimismPortal_NotUsingLockbox();
         // Liquidity migration can only be triggered by the ProxyAdmin owner.
         _assertOnlyProxyAdminOwner();
+
+        if (_isUsingCustomGasToken()) revert OptimismPortal_NotAllowedOnCGTMode();
 
         // Migrate the liquidity.
         uint256 ethBalance = address(this).balance;
@@ -670,6 +684,29 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ReinitializableBase
         }
     }
 
+    /// @notice Deletes a withdrawal proof whose dispute game can never lead to finalization.
+    ///         Permissionless because both conditions checked here are permanent.
+    /// @param _withdrawalHash Hash of the withdrawal.
+    /// @param _proofSubmitter Address of the proof submitter.
+    function deleteProvenWithdrawal(bytes32 _withdrawalHash, address _proofSubmitter) external {
+        ProvenWithdrawal memory provenWithdrawal = provenWithdrawals[_withdrawalHash][_proofSubmitter];
+        if (provenWithdrawal.timestamp == 0) {
+            revert OptimismPortal_Unproven();
+        }
+
+        IDisputeGame disputeGameProxy = provenWithdrawal.disputeGameProxy;
+        if (
+            disputeGameProxy.status() != GameStatus.CHALLENGER_WINS
+                && !anchorStateRegistry.isGameBlacklisted(disputeGameProxy)
+        ) {
+            revert OptimismPortal_DisputeGameNotInvalidated();
+        }
+
+        delete provenWithdrawals[_withdrawalHash][_proofSubmitter];
+
+        emit WithdrawalProofDeleted(_withdrawalHash, _proofSubmitter);
+    }
+
     /// @notice Accepts deposits of ETH and data, and emits a TransactionDeposited event for use in
     ///         deriving deposit transactions. Note that if a deposit is made by a contract, its
     ///         address will be aliased when retrieved using `tx.origin` or `msg.sender`. Consider
@@ -778,12 +815,9 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ReinitializableBase
         }
     }
 
-    /// @notice Asserts that the ETHLockbox is set/unset correctly depending on the feature flag.
+    /// @notice Asserts that the ETHLockbox is configured.
     function _assertValidLockboxState() internal view {
-        if (
-            systemConfig.isFeatureEnabled(Features.ETH_LOCKBOX) && address(ethLockbox) == address(0)
-                || !systemConfig.isFeatureEnabled(Features.ETH_LOCKBOX) && address(ethLockbox) != address(0)
-        ) {
+        if (!systemConfig.isFeatureEnabled(Features.ETH_LOCKBOX) || address(ethLockbox) == address(0)) {
             revert OptimismPortal_InvalidLockboxState();
         }
     }

@@ -288,7 +288,7 @@ func TestUpdaterJobStatusUpdate(t *testing.T) {
 			}
 
 			// Update job status
-			updater.UpdateJobStatus(job)
+			updater.UpdateJobStatus(context.Background(), job)
 
 			// Verify status
 			require.Equal(t, tt.expectedStatus, job.status, "job status mismatch")
@@ -412,8 +412,44 @@ func TestUpdaterValidityInvariants(t *testing.T) {
 				executingTimestamp: tt.execTimestamp,
 			}
 
-			updater.UpdateJobStatus(job)
+			updater.UpdateJobStatus(context.Background(), job)
 			require.Equal(t, tt.expectedStatus, job.status)
 		})
 	}
+}
+
+// TestUpdaterPropagatesContext asserts the caller's context reaches the RPC.
+//
+// UpdateJobStatus previously fetched with context.Background(), so a cancelled
+// context could not stop an in-flight receipts fetch. processJobs runs inline in
+// Run's select loop, so a fetch that does not observe cancellation keeps Run from
+// reaching the <-t.closed case.
+func TestUpdaterPropagatesContext(t *testing.T) {
+	updater, client := setupTestUpdater(t)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	var gotErr error
+	var called bool
+	client.fetchReceiptsByNumber = func(ctx context.Context, number uint64) (eth.BlockInfo, optypes.Receipts, error) {
+		called = true
+		gotErr = ctx.Err()
+		return nil, nil, ctx.Err()
+	}
+
+	job := &Job{
+		initiating: &messages.Identifier{
+			BlockNumber: 100,
+			Timestamp:   1000,
+		},
+		executingBlock: eth.BlockID{Number: 100},
+		executingChain: eth.ChainIDFromUInt64(2),
+	}
+
+	updater.UpdateJobStatus(ctx, job)
+
+	require.True(t, called, "client was not called")
+	require.ErrorIs(t, gotErr, context.Canceled,
+		"the cancelled context did not reach the receipts fetch")
 }
