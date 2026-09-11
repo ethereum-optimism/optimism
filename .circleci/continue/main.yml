@@ -1797,7 +1797,9 @@ jobs:
         default: 1
     docker:
       - image: <<pipeline.parameters.c-default_docker_image>>
-    resource_class: 2xlarge.gen2
+    # Trial one tier down; nproc-based test parallelism falls from 16 to 8 while -p=4
+    # stays fixed. Monitor the 16 GiB limit after a 24.1 GiB cross-branch peak.
+    resource_class: xlarge.gen2
     parallelism: <<parameters.parallelism>>
     steps:
       - utils/checkout-with-mise:
@@ -1818,9 +1820,6 @@ jobs:
           command: |
             <<parameters.environment_overrides>>
             export TEST_TIMEOUT=<<parameters.test_timeout>>
-            # set to less than number CPUs (xlarge Docker is 16 CPU) so there's some buffer for things
-            # like Geth
-            export PARALLEL=12
             just <<parameters.rule>>
       - go-save-cache:
           namespace: go-tests
