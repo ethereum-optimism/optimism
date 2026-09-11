@@ -2,6 +2,7 @@
 
 use crate::{EngineClient, HyperAuthClient};
 use alloy_eips::{BlockId, eip1898::BlockNumberOrTag};
+use alloy_json_rpc::ErrorPayload;
 use alloy_network::{Ethereum, Network};
 use alloy_primitives::{Address, B256, BlockHash, StorageKey};
 use alloy_provider::{EthGetBlock, ProviderCall, RpcWithBlock};
@@ -11,7 +12,7 @@ use alloy_rpc_types_engine::{
     PayloadStatus,
 };
 use alloy_rpc_types_eth::{Block, EIP1186AccountProofResponse, Transaction as EthTransaction};
-use alloy_transport::{TransportError, TransportErrorKind, TransportResult};
+use alloy_transport::{RpcError, TransportError, TransportErrorKind, TransportResult};
 use alloy_transport_http::Http;
 use async_trait::async_trait;
 use kona_genesis::RollupConfig;
@@ -56,6 +57,9 @@ pub struct MockEngineStorage {
     pub fork_choice_updated_v2_response: Option<ForkchoiceUpdated>,
     /// Storage for `fork_choice_updated_v3` responses.
     pub fork_choice_updated_v3_response: Option<ForkchoiceUpdated>,
+    /// A JSON-RPC error payload that every `fork_choice_updated` call returns, taking precedence
+    /// over the version-specific responses above.
+    pub fork_choice_updated_error: Option<ErrorPayload>,
 
     // Version-specific get_payload responses
     /// Storage for execution payload envelope v2 responses.
@@ -169,6 +173,12 @@ impl MockEngineClientBuilder {
     /// Sets the `fork_choice_updated_v3` response.
     pub fn with_fork_choice_updated_v3_response(mut self, response: ForkchoiceUpdated) -> Self {
         self.storage.fork_choice_updated_v3_response = Some(response);
+        self
+    }
+
+    /// Makes every `fork_choice_updated` call fail with the provided JSON-RPC error payload.
+    pub fn with_fork_choice_updated_error(mut self, error: ErrorPayload) -> Self {
+        self.storage.fork_choice_updated_error = Some(error);
         self
     }
 
@@ -523,6 +533,9 @@ impl OpEngineApi<Optimism, Http<HyperAuthClient>> for MockEngineClient {
         _payload_attributes: Option<OpPayloadAttributes>,
     ) -> TransportResult<ForkchoiceUpdated> {
         let storage = self.storage.read().await;
+        if let Some(error) = storage.fork_choice_updated_error.clone() {
+            return Err(RpcError::ErrorResp(error));
+        }
         storage.fork_choice_updated_v2_response.clone().ok_or_else(|| {
             TransportError::from(TransportErrorKind::custom_str(
                 "fork_choice_updated_v2 was called but no v2 response configured. \
@@ -537,6 +550,9 @@ impl OpEngineApi<Optimism, Http<HyperAuthClient>> for MockEngineClient {
         _payload_attributes: Option<OpPayloadAttributes>,
     ) -> TransportResult<ForkchoiceUpdated> {
         let storage = self.storage.read().await;
+        if let Some(error) = storage.fork_choice_updated_error.clone() {
+            return Err(RpcError::ErrorResp(error));
+        }
         storage.fork_choice_updated_v3_response.clone().ok_or_else(|| {
             TransportError::from(TransportErrorKind::custom_str(
                 "fork_choice_updated_v3 was called but no v3 response configured. \

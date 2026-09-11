@@ -20,6 +20,7 @@ kona-protocol = {workspace = true, features = ["serde", "std"]}
 # alloy
 alloy-hardforks.workspace = true
 alloy-eips.workspace = true
+alloy-json-rpc.workspace = true
 alloy-consensus.workspace = true
 alloy-network.workspace = true
 alloy-transport.workspace = true
