@@ -1,0 +1,57 @@
+---
+title: Preconfirmation Architecture Transition
+description: OP Labs is ending its support for the Flashblocks preconfirmation architecture in favor of Subblocks, an in-house solution built and maintained by OP Labs.
+diataxis: reference
+lang: en-US
+content_type: notice
+topic: preconfirmation-architecture-transition
+personas:
+  - chain-operator
+  - node-operator
+  - app-developer
+  - partner
+categories:
+  - infrastructure
+  - protocol
+is_imported_content: 'false'
+---
+
+## Summary
+
+OP Labs is ending its support for the Flashblocks preconfirmation architecture in favor of [Subblocks](/notices/subblocks), an in-house solution built and maintained by OP Labs. Flashblocks is built and maintained by Flashbots. This notice covers what OP Labs runs, tests, and supports.
+
+Preconfirmations on OP Enterprise chains are delivered by Subblocks, which OP Labs builds and maintains. Subblocks has been running on OP Mainnet since August 31, 2026 and exposes the same consumer-facing interface as Flashblocks, so applications and infrastructure that consume preconfirmations do not need to change.
+
+## What is changing
+
+*   New OP Enterprise deployments use Subblocks to achieve sub-second blocktimes. Flashblocks is not offered for new deployments.
+*   Existing OP Enterprise chains running Flashblocks will migrate to Subblocks.
+*   After the last OP Enterprise chain migrates, OP Labs stops running and testing op-rbuilder in its infrastructure.
+*   For a transition window after that, OP Labs forwards critical Flashblocks issues to Flashbots on a best-effort basis. Flashbots remains responsible for fixes and releases.
+*   After the transition window closes, OP Labs provides no Flashblocks support.
+
+## What is not changing
+
+*   Flashbots continues to own, maintain, and release Flashblocks. Chains running Flashblocks outside OP Enterprise are unaffected by this notice and should continue to work with Flashbots directly.
+*   The consumer-facing preconfirmation interface is unchanged under Subblocks. Note that some payload values have been zeroed since the August subblocks migration — see [what this means](/notices/subblocks#what-this-means).
+
+## Timeline
+
+| Milestone | Target |
+| --- | --- |
+| Subblocks live on OP Sepolia | Completed: August 17, 2026 |
+| Subblocks live on OP Mainnet | Completed: August 31, 2026 |
+| Final OP Enterprise chain migrated to Subblocks | End of September 2026 — TBC |
+| OP Labs stops running and testing op-rbuilder; internal fork removed | After final migration |
+| Best-effort issue forwarding to Flashbots ends | October 31, 2026 — TBC |
+
+## What this means for you
+
+*   **OP Enterprise, Fully Managed, running Flashblocks today.** OP Labs schedules and runs the migration to Subblocks as part of your service. We will contact you to confirm scope and a window.
+*   **OP Enterprise, Self Managed.** Contact your Partnership Lead to discuss Subblocks availability for self-managed deployments. If you choose to keep running Flashblocks, you operate and support it yourself, and Flashbots is the support path.
+*   **New OP Enterprise deployments.** Subblocks by default. No action.
+*   **Non-OP Enterprise customers running Flashblocks independently.** This notice is informational. OP Labs does not carry a Flashblocks support commitment for your chain. Continue to work with your providers.
+
+## Questions
+
+Reach out to your OP Labs point of contact, or open a ticket through your support channel.
