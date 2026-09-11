@@ -12,5 +12,12 @@
     "offset": 0,
     "slot": "1",
     "type": "struct EnumerableSet.AddressSet"
+  },
+  {
+    "bytes": "64",
+    "label": "moduleOwnersBefore",
+    "offset": 0,
+    "slot": "3",
+    "type": "struct EnumerableSet.AddressSet"
   }
 ]
