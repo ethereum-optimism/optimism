@@ -11,6 +11,7 @@ import { LibGameArgs } from "src/dispute/lib/LibGameArgs.sol";
 import { IOPContractsManagerStandardValidator } from "interfaces/L1/IOPContractsManagerStandardValidator.sol";
 import { IDisputeGameFactory } from "interfaces/dispute/IDisputeGameFactory.sol";
 import { ISystemConfig } from "interfaces/L1/ISystemConfig.sol";
+import { ISuperchainConfig } from "interfaces/L1/ISuperchainConfig.sol";
 import { ISemver } from "interfaces/universal/ISemver.sol";
 import { IOptimismPortal2 } from "interfaces/L1/IOptimismPortal2.sol";
 import { IAnchorStateRegistry } from "interfaces/dispute/IAnchorStateRegistry.sol";
@@ -164,13 +165,15 @@ contract OPContractsManagerMigrationValidator {
             _cfg
         );
 
-        // Shared lockbox proxy/impl/admin (only if discovery surfaced one).
+        // Shared ETHLockbox invariants.
         if (_foundSharedContracts && address(_sharedContracts.lockbox) != address(0)) {
-            _errors = assertValidSharedLockbox(_errors, _sharedContracts.lockbox, _sharedContracts.proxyAdmin, _impls);
+            _errors = assertValidSharedLockbox(
+                _errors, _sharedContracts.lockbox, _sharedContracts.proxyAdmin, _cfg.superchainConfig, _impls
+            );
         }
 
         // Per-chain invariants (portal points at shared ASR/lockbox, legacy game types cleared).
-        _errors = assertValidPerChainMigration(_errors, _input.chainSystemConfigs);
+        _errors = assertValidPerChainMigration(_errors, _input.chainSystemConfigs, _cfg.superchainConfig);
 
         if (bytes(_errors).length > 0 && !_allowFailure) {
             revert(string.concat("OPContractsManagerMigrationValidator: ", _errors));
@@ -417,11 +420,13 @@ contract OPContractsManagerMigrationValidator {
         });
     }
 
-    /// @notice Validates the shared ETHLockbox: version, proxy impl, ProxyAdmin.
+    /// @notice Validates the shared ETHLockbox: version, proxy impl, ProxyAdmin, and that its pause
+    ///         authority is the expected SuperchainConfig.
     function assertValidSharedLockbox(
         string memory _errors,
         IETHLockbox _lockbox,
         IProxyAdmin _proxyAdmin,
+        ISuperchainConfig _superchainConfig,
         IOPContractsManagerMigrationValidator.SharedImplementations memory _impls
     )
         internal
@@ -441,13 +446,18 @@ contract OPContractsManagerMigrationValidator {
             "MIG-SLOCKBOX-30",
             _errors
         );
+        _errors = internalRequire(
+            address(_lockbox.superchainConfig()) == address(_superchainConfig), "MIG-SLOCKBOX-40", _errors
+        );
         return _errors;
     }
 
-    /// @notice Validates per-chain migration state: portal ASR, per-chain DGF cleared, lockbox auth.
+    /// @notice Validates per-chain migration state: portal ASR, per-chain DGF cleared, lockbox auth,
+    ///         and that every chain's SystemConfig points at the expected SuperchainConfig.
     function assertValidPerChainMigration(
         string memory _errors,
-        ISystemConfig[] memory _chainSystemConfigs
+        ISystemConfig[] memory _chainSystemConfigs,
+        ISuperchainConfig _superchainConfig
     )
         internal
         view
@@ -533,6 +543,11 @@ contract OPContractsManagerMigrationValidator {
 
             _errors = internalRequire(
                 _chainSystemConfigs[i].delayedWETH() == sharedWETH, string.concat("MIG-CHAIN-", idx, "-120"), _errors
+            );
+            _errors = internalRequire(
+                _chainSystemConfigs[i].superchainConfig() == _superchainConfig,
+                string.concat("MIG-CHAIN-", idx, "-130"),
+                _errors
             );
         }
 
