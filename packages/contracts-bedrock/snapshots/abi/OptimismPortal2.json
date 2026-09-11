@@ -973,6 +973,11 @@
   },
   {
     "inputs": [],
+    "name": "OptimismPortal_NotUsingLockbox",
+    "type": "error"
+  },
+  {
+    "inputs": [],
     "name": "OptimismPortal_ProofNotOldEnough",
     "type": "error"
   },

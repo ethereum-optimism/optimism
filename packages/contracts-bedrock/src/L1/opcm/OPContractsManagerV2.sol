@@ -158,9 +158,9 @@ contract OPContractsManagerV2 is ISemver, OPContractsManagerUtilsCaller {
     ///         - Major bump: New required sequential upgrade
     ///         - Minor bump: Replacement OPCM for same upgrade
     ///         - Patch bump: Development changes (expected for normal dev work)
-    /// @custom:semver 8.0.3
+    /// @custom:semver 8.0.4
     function version() public pure returns (string memory) {
-        return "8.0.3";
+        return "8.0.4";
     }
 
     /// @param _standardValidator The standard validator for this OPCM release.
@@ -341,6 +341,14 @@ contract OPContractsManagerV2 is ISemver, OPContractsManagerUtilsCaller {
         // developers start working on the next release this will automatically become false so
         // even if the code is somehow forgotten it will not actually apply to the deployment. Make
         // sure to REMOVE the allowance once the upgrade is complete.
+        // TODO(#22836): When OPCM bumps to v9, remove the anchor-root override here and from upgrade inputs.
+        if (SemverComp.parse(_version()).major == 9) {
+            // Allow deploying an ETHLockbox for existing chains only in the v9 release.
+            if (_isMatchingInstruction(_instruction, Constants.PERMITTED_PROXY_DEPLOYMENT_KEY, bytes("ETHLockbox"))) {
+                return true;
+            }
+        }
+
         if (SemverComp.lt(_version(), "9.0.0")) {
             // Super root games migration requires overriding anchor root.
             if (isDevFeatureEnabled(DevFeatures.SUPER_ROOT_GAMES_MIGRATION)) {
@@ -443,28 +451,16 @@ contract OPContractsManagerV2 is ISemver, OPContractsManagerUtilsCaller {
             )
         );
 
-        // ETHLockbox is a special case. It's only to be used or deployed if the ETH_LOCKBOX
-        // feature is enabled. If this is an initial deployment, we'll deploy a proxy for it
-        // largely because the legacy code expects this proxy to be deployed on initial deployment
-        // though this doesn't mean we actually have to set it up and initialize it. If this is an
-        // upgrade, we'll load/deploy the proxy only if the system feature is set.
-        // NOTE: It's important that we don't try to load the proxy here if we're upgrading a chain
-        // that doesn't have the feature enabled. Chains that don't have the feature enabled will
-        // return address(0) for optimismPortal.ethLockbox(). If we try to load the proxy here, we
-        // will revert because the contract returns the zero address (reverting is the safe thing
-        // to do, so we want to revert, but that would break the upgrade flow).
-        IETHLockbox ethLockbox;
-        if (isInitialDeployment || systemConfig.isFeatureEnabled(Features.ETH_LOCKBOX)) {
-            ethLockbox = IETHLockbox(
-                _loadOrDeployProxy(
-                    address(optimismPortal),
-                    optimismPortal.ethLockbox.selector,
-                    proxyDeployArgs,
-                    "ETHLockbox",
-                    _extraInstructions
-                )
-            );
-        }
+        // Load or deploy the ETHLockbox.
+        IETHLockbox ethLockbox = IETHLockbox(
+            _loadOrDeployProxy(
+                address(optimismPortal),
+                optimismPortal.ethLockbox.selector,
+                proxyDeployArgs,
+                "ETHLockbox",
+                _extraInstructions
+            )
+        );
 
         // For every other contract, we load-or-build the proxy. Each contract has a theoretical
         // source where the address would be found. If the address isn't found there, we assume the
@@ -847,36 +843,45 @@ contract OPContractsManagerV2 is ISemver, OPContractsManagerUtilsCaller {
             _cts.proxyAdmin, address(_cts.systemConfig), impls.systemConfigImpl, _makeSystemConfigInitArgs(_cfg, _cts)
         );
 
-        // Update the OptimismPortal. If a chain already uses ETHLockbox, preserve that lockbox
-        // during standard upgrades. New interop lockbox activation is performed by migrate().
-        bool isEthLockboxEnabled = _cts.systemConfig.isFeatureEnabled(Features.ETH_LOCKBOX);
-        if (isEthLockboxEnabled && address(_cts.ethLockbox) == address(0)) {
+        // Enable ETHLockbox before updating the portal.
+        bool wasEthLockboxEnabled = _cts.systemConfig.isFeatureEnabled(Features.ETH_LOCKBOX);
+        // The flag can be enabled without a configured lockbox. Check the old portal before
+        // reinitializing it, but skip the getter on initial deployments where it is not initialized.
+        bool wasUsingEthLockbox =
+            !_isInitialDeployment && wasEthLockboxEnabled && address(_cts.optimismPortal.ethLockbox()) != address(0);
+        if (address(_cts.ethLockbox) == address(0)) {
             revert OPContractsManagerV2_InvalidEthLockbox();
         }
-        IETHLockbox portalLockbox = isEthLockboxEnabled ? _cts.ethLockbox : IETHLockbox(address(0));
+        if (!wasEthLockboxEnabled) {
+            _cts.systemConfig.setFeature(Features.ETH_LOCKBOX, true);
+        }
+
+        // Update the OptimismPortal.
         _upgrade(
             _cts.proxyAdmin,
             address(_cts.optimismPortal),
             impls.optimismPortalImpl,
-            abi.encodeCall(IOptimismPortal.initialize, (_cts.systemConfig, _cts.anchorStateRegistry, portalLockbox))
+            abi.encodeCall(IOptimismPortal.initialize, (_cts.systemConfig, _cts.anchorStateRegistry, _cts.ethLockbox))
         );
 
         // NOTE: Same general pattern, we call _upgrade for each contract rather than
         // iterating over some sort of array because it's easier to implement and understand.
 
-        // We upgrade/initialize the ETHLockbox if this is an initial deployment or if it's an
-        // upgrade and the ETH_LOCKBOX feature is enabled.
-        if (_isInitialDeployment || _cts.systemConfig.isFeatureEnabled(Features.ETH_LOCKBOX)) {
-            IOptimismPortal[] memory portals = new IOptimismPortal[](1);
-            portals[0] = _cts.optimismPortal;
-            _upgrade(
-                _cts.proxyAdmin,
-                address(_cts.ethLockbox),
-                impls.ethLockboxImpl,
-                abi.encodeCall(
-                    IETHLockbox.initialize, (_systemConfigFor(_cts.systemConfig, address(_cts.ethLockbox)), portals)
-                )
-            );
+        // Update the ETHLockbox.
+        IOptimismPortal[] memory portals = new IOptimismPortal[](1);
+        portals[0] = _cts.optimismPortal;
+        _upgrade(
+            _cts.proxyAdmin,
+            address(_cts.ethLockbox),
+            impls.ethLockboxImpl,
+            abi.encodeCall(
+                IETHLockbox.initialize, (_systemConfigFor(_cts.systemConfig, address(_cts.ethLockbox)), portals)
+            )
+        );
+
+        // Custom gas token chains keep custody in the portal and do not migrate ETH.
+        if (!wasUsingEthLockbox && !_cfg.useCustomGasToken) {
+            _cts.optimismPortal.migrateLiquidity();
         }
 
         // Update the L1CrossDomainMessenger.

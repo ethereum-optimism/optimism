@@ -20,6 +20,8 @@ import { GameType, GameTypes, Claim, Proposal, Hash } from "src/dispute/lib/Type
 import { EIP1967Helper } from "test/mocks/EIP1967Helper.sol";
 import { LibString } from "@solady/utils/LibString.sol";
 import { LibGameArgs } from "src/dispute/lib/LibGameArgs.sol";
+import { SemverComp } from "src/libraries/SemverComp.sol";
+import { Constants } from "src/libraries/Constants.sol";
 
 // Interfaces
 import { ISuperchainConfig } from "interfaces/L1/ISuperchainConfig.sol";
@@ -280,6 +282,8 @@ contract ForkL1Live is Deployer, StdAssertions, FeatureFlags {
         IOPContractsManagerUtils.DisputeGameConfig[] memory disputeGameConfigs;
         IOPContractsManagerUtils.ExtraInstruction[] memory extraInstructions;
 
+        bool permitLockboxDeployment = SemverComp.parse(_opcm.version()).major == 9;
+
         if (Config.devFeatureSuperRootGamesMigration()) {
             // Read the current respected game type from the ASR.
             IAnchorStateRegistry asr = IAnchorStateRegistry(artifacts.mustGetAddress("AnchorStateRegistryProxy"));
@@ -346,8 +350,8 @@ contract ForkL1Live is Deployer, StdAssertions, FeatureFlags {
                 gameArgs: hex""
             });
 
-            // Migration needs 2 extra instructions: anchor root + game type overrides.
-            extraInstructions = new IOPContractsManagerUtils.ExtraInstruction[](2);
+            // Anchor root and game type overrides, plus lockbox deployment permission in v9.
+            extraInstructions = new IOPContractsManagerUtils.ExtraInstruction[](permitLockboxDeployment ? 3 : 2);
             extraInstructions[0] = IOPContractsManagerUtils.ExtraInstruction({
                 key: "overrides.cfg.startingAnchorRoot",
                 data: abi.encode(
@@ -415,8 +419,16 @@ contract ForkL1Live is Deployer, StdAssertions, FeatureFlags {
                 gameArgs: hex""
             });
 
-            // The standard upgrade path deploys no proxies, so it needs no extra instructions.
-            extraInstructions = new IOPContractsManagerUtils.ExtraInstruction[](0);
+            // The standard upgrade path only needs lockbox deployment permission in v9.
+            extraInstructions = new IOPContractsManagerUtils.ExtraInstruction[](permitLockboxDeployment ? 1 : 0);
+        }
+
+        // Chains without a lockbox need permission to deploy one. Existing lockboxes are reused.
+        if (permitLockboxDeployment) {
+            extraInstructions[extraInstructions.length - 1] = IOPContractsManagerUtils.ExtraInstruction({
+                key: Constants.PERMITTED_PROXY_DEPLOYMENT_KEY,
+                data: bytes("ETHLockbox")
+            });
         }
 
         vm.prank(_delegateCaller, true);

@@ -33,6 +33,7 @@ interface IOptimismPortal2 is IProxyAdminOwnedBase {
     error OptimismPortal_MigratingToSameRegistry();
     error OptimismPortal_NoReentrancy();
     error OptimismPortal_NotUsingInterop();
+    error OptimismPortal_NotUsingLockbox();
     error OptimismPortal_ProofNotOldEnough();
     error OptimismPortal_Unproven();
     error OptimismPortal_InvalidInteropState();
