@@ -73,6 +73,7 @@ To preserve the two-word `FEE_SCALARS` event payload without requiring a hardfor
 Chain operators must coordinate the L1 contract cutover with the services that propose, challenge, and monitor Fault Proofs.
 
 * Switch `op-proposer` to the new Super Root RPC and game type at the contract cutover.
+* Update `op-proposer` dashboards and alerts that use `op_proposer_default_refs_number{layer="l2"}` to `op_proposer_default_proposed_sequence_number`.
 * Configure `op-challenger` and `op-dispute-mon` to support Super Root Dispute Games while retaining the configuration needed to finish games already in progress.
 * For permissionless Fault Proofs, stage the reviewed `kona-client` Interop variant prestate before the cutover.
 * Update operational tooling that calls the removed `SystemConfig` functions.
