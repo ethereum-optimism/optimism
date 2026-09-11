@@ -65,9 +65,9 @@ arg: --discovery.v5.port.ipv6 <DISCOVERY_V5_PORT_IPV6> [action: Set] [num-args: 
 arg: --discovery.v5.lookup-interval <DISCOVERY_V5_LOOKUP_INTERVAL> [action: Set] [num-args: 1] [default: 20] help: The interval in seconds at which to carry out periodic lookup queries, for the whole run of the program
 arg: --discovery.v5.bootstrap.lookup-interval <DISCOVERY_V5_BOOTSTRAP_LOOKUP_INTERVAL> [action: Set] [num-args: 1] [default: 5] help: The interval in seconds at which to carry out boost lookup queries, for a fixed number of times, at bootstrap
 arg: --discovery.v5.bootstrap.lookup-countdown <DISCOVERY_V5_BOOTSTRAP_LOOKUP_COUNTDOWN> [action: Set] [num-args: 1] [default: 200] help: The number of times to carry out boost lookup queries at bootstrap
-arg: --trusted-peers <TRUSTED_PEERS> [action: Append] [num-args: 1] [value-delimiter: ','] help: Comma separated enode URLs of trusted peers for P2P connections
+arg: --trusted-peers <TRUSTED_PEERS> [action: Append] [num-args: 1] [value-delimiter: ','] help: Comma separated enode URLs or ENRs of trusted peers for P2P connections
 arg: --trusted-only [action: SetTrue] [num-args: 0] help: Connect to or accept from trusted peers only
-arg: --bootnodes <BOOTNODES> [action: Append] [num-args: 1] [value-delimiter: ','] help: Comma separated enode URLs for P2P discovery bootstrap
+arg: --bootnodes <BOOTNODES> [action: Append] [num-args: 1] [value-delimiter: ','] help: Comma separated enode URLs or ENRs for P2P discovery bootstrap
 arg: --dns-retries <DNS_RETRIES> [action: Set] [num-args: 1] [default: 0] help: Amount of DNS resolution requests retries to perform when peering
 arg: --peers-file <FILE> [action: Set] [num-args: 1] [conflicts: --no-persist-peers] help: The path to the known peers file. Connected peers are dumped to this file on nodes\nshutdown, and read on startup. Cannot be used with `--no-persist-peers`.
 arg: --identity <IDENTITY> [action: Set] [num-args: 1] [default: <MACHINE_SPECIFIC>] help: Custom node identity
@@ -142,7 +142,7 @@ arg: --builder.disallow <PATH> [action: Set] [num-args: 1] help: Path to file co
 arg: --rpc-cache.max-blocks <MAX_BLOCKS> [action: Set] [num-args: 1] [default: 5000] help: Max number of blocks in cache
 arg: --rpc-cache.max-receipts <MAX_RECEIPTS> [action: Set] [num-args: 1] [default: 2000] help: Max number receipts in cache
 arg: --rpc-cache.max-headers <MAX_HEADERS> [action: Set] [num-args: 1] [aliases: rpc-cache.max-envs] [default: 1000] help: Max number of headers in cache
-arg: --rpc-cache.max-bals <MAX_BALS> [action: Set] [num-args: 1] [default: 1000] help: Max number of revm block access lists in cache
+arg: --rpc-cache.max-bals <MAX_BALS> [action: Set] [num-args: 1] [default: 1000] help: Max number of block access lists in cache
 arg: --rpc-cache.max-concurrent-db-requests <MAX_CONCURRENT_DB_REQUESTS> [action: Set] [num-args: 1] [default: 512] help: Max number of concurrent database requests
 arg: --rpc-cache.max-cached-tx-hashes <MAX_CACHED_TX_HASHES> [action: Set] [num-args: 1] [default: 30000] help: Maximum number of transaction hashes to cache for transaction lookups
 arg: --gpo.blocks <BLOCKS> [action: Set] [num-args: 1] [default: 20] help: Number of recent blocks to check for gas price
@@ -151,7 +151,7 @@ arg: --gpo.maxprice <MAX_PRICE> [action: Set] [num-args: 1] [default: 5000000000
 arg: --gpo.percentile <PERCENTILE> [action: Set] [num-args: 1] [default: 60] help: The percentile of gas prices to use for the estimate
 arg: --gpo.default-suggested-fee <DEFAULT_SUGGESTED_FEE> [action: Set] [num-args: 1] help: The default gas price to use if there are no blocks to use
 arg: --rpc.send-raw-transaction-sync-timeout <SECONDS> [action: Set] [num-args: 1] [default: 30s] help: Timeout for `send_raw_transaction_sync` RPC method
-arg: --testing.skip-invalid-transactions [action: SetTrue] [num-args: 0] [default: true] help: Skip invalid transactions in `testing_buildBlockV1` instead of failing
+arg: --testing.skip-invalid-transactions [action: SetTrue] [num-args: 0] [default: false] help: Skip invalid transactions in `testing_buildBlockV1` instead of failing
 arg: --testing.gas-limit <GAS_LIMIT> [action: Set] [num-args: 1] [hidden] help: Override the gas limit used by `testing_buildBlockV1`
 arg: --rpc.force-blob-sidecar-upcasting [action: SetTrue] [num-args: 0] [default: false] help: Force upcasting EIP-4844 blob sidecars to EIP-7594 format when Osaka is active
 arg: --txpool.pending-max-count <PENDING_MAX_COUNT> [action: Set] [num-args: 1] [aliases: txpool.pending_max_count] [default: 10000] help: Max number of transactions in the pending sub-pool
@@ -217,9 +217,10 @@ arg: --db.sync-mode <SYNC_MODE> [action: Set] [num-args: 1] help: Controls how a
 arg: --db.rocksdb-block-cache-size <ROCKSDB_BLOCK_CACHE_SIZE> [action: Set] [num-args: 1] help: `RocksDB` block cache size (e.g., 512MB, 4GB)
 arg: --db.balstore-cache-size <BALSTORE_CACHE_SIZE> [action: Set] [num-args: 1] help: Number of recent blocks to keep in the in-memory BAL store cache
 arg: --db.disable-metrics [action: SetTrue] [num-args: 0] help: Disable built-in database metrics
-arg: --dev [action: SetTrue] [num-args: 0] [aliases: auto-mine] help: Start the node in dev mode
+arg: --dev [action: SetTrue] [num-args: 0] [aliases: auto-mine] [default: false] help: Start the node in dev mode
 arg: --dev.block-max-transactions <BLOCK_MAX_TRANSACTIONS> [action: Set] [num-args: 1] [conflicts: --dev.block-time] help: How many transactions to mine per block
 arg: --dev.block-time <BLOCK_TIME> [action: Set] [num-args: 1] [conflicts: --dev.block-max-transactions] help: Interval between blocks.
+arg: --dev.finality-depth <FINALITY_DEPTH> [action: Set] [num-args: 1] [default: 64] help: Number of confirmations required before a block is finalized.
 arg: --dev.payload-wait-time <PAYLOAD_WAIT_TIME> [action: Set] [num-args: 1] help: Time to wait after initiating payload building before resolving.
 arg: --dev.mnemonic <MNEMONIC> [action: Set] [num-args: 1] [default: test test test test test test test test test test test junk] [requires: [(IsPresent, "dev")]] help: Derive dev accounts from a fixed mnemonic instead of random ones.
 arg: --full [action: SetTrue] [num-args: 0] [default: false] [conflicts: --minimal] help: Run full node. Only the most recent [`MINIMUM_UNWIND_SAFE_DISTANCE`] block states are stored
@@ -246,14 +247,16 @@ arg: --prune.bodies.pre-merge [action: SetTrue] [num-args: 0] [conflicts: --prun
 arg: --prune.bodies.distance <BLOCKS> [action: Set] [num-args: 1] [conflicts: --prune.bodies.before, --prune.bodies.pre-merge] help: Prune bodies before the `head-N` block number. In other words, keep last N + 1 blocks
 arg: --prune.bodies.before <BLOCK_NUMBER> [action: Set] [num-args: 1] [conflicts: --prune.bodies.distance, --prune.bodies.pre-merge] help: Prune storage history before the specified block number. The specified block number is not pruned
 arg: --prune.minimum-distance <BLOCKS> [action: Set] [num-args: 1] help: Minimum pruning distance from the tip. This controls the safety margin for reorgs and manual unwinds
-arg: --engine.persistence-threshold <PERSISTENCE_THRESHOLD> [action: Set] [num-args: 1] [default: 2] help: Configure persistence threshold for the engine. This determines how many canonical blocks must be in-memory, ahead of the last persisted block, before flushing canonical blocks to disk again
-arg: --engine.persistence-backpressure-threshold <PERSISTENCE_BACKPRESSURE_THRESHOLD> [action: Set] [num-args: 1] help: Configure the maximum canonical-minus-persisted gap before engine API processing stalls
-arg: --engine.memory-block-buffer-target <MEMORY_BLOCK_BUFFER_TARGET> [action: Set] [num-args: 1] [default: 0] help: Configure the target number of blocks to keep in memory
+arg: --engine.persistence-threshold <PERSISTENCE_THRESHOLD> [action: Set] [num-args: 1] [default: 7] help: Configure persistence threshold for the engine. This determines how many canonical blocks must be in-memory, ahead of the last persisted block, before flushing canonical blocks to disk again
+arg: --engine.persistence-backpressure-threshold <PERSISTENCE_BACKPRESSURE_THRESHOLD> [action: Set] [num-args: 1] help: Configure the maximum number of blocks beyond the in-memory buffer target that may await persistence before engine API processing stalls
+arg: --engine.memory-block-buffer-target <MEMORY_BLOCK_BUFFER_TARGET> [action: Set] [num-args: 1] help: Configure the target number of blocks to keep in memory
 arg: --engine.invalid-header-cache-hit-eviction-threshold <INVALID_HEADER_HIT_EVICTION_THRESHOLD> [action: Set] [num-args: 1] [default: 128] help: Configure how many cache hits an invalid header can accumulate before it is evicted and reprocessed
 arg: --engine.legacy-state-root [action: SetTrue] [num-args: 0] [default: false] [hidden] help: CAUTION: This CLI flag has no effect anymore, use --engine.state-root-fallback if you want to force synchronous state root computation
 arg: --engine.caching-and-prewarming [action: SetTrue] [num-args: 0] [default: true] [hidden] help: CAUTION: This CLI flag has no effect anymore, use --engine.disable-caching-and-prewarming if you want to disable caching and prewarming
 arg: --engine.disable-state-cache [action: SetTrue] [num-args: 0] [default: false] help: Disable state cache
 arg: --engine.disable-prewarming [action: SetTrue] [num-args: 0] [aliases: engine.disable-caching-and-prewarming] [default: false] help: Disable parallel prewarming
+arg: --engine.txpool-prewarming [action: SetTrue] [num-args: 0] [env: RETH_ENGINE_TXPOOL_PREWARMING] [default: false] help: Enable best-effort txpool transaction prewarming between payloads
+arg: --engine.sender-recovery-cache [action: SetTrue] [num-args: 0] [env: RETH_ENGINE_SENDER_RECOVERY_CACHE] [default: false] help: Enable caching recovered transaction senders across transaction ingress and payload execution
 arg: --engine.parallel-sparse-trie [action: SetTrue] [num-args: 0] [default: true] [hidden] help: CAUTION: This CLI flag has no effect anymore. The parallel sparse trie is always enabled
 arg: --engine.disable-parallel-sparse-trie [action: SetTrue] [num-args: 0] [default: false] [hidden] help: CAUTION: This CLI flag has no effect anymore. The parallel sparse trie is always enabled
 arg: --engine.state-provider-metrics [action: SetTrue] [num-args: 0] [default: false] help: Enable state provider latency metrics. This allows the engine to collect and report stats about how long state provider calls took during execution, but this does introduce slight overhead to state provider calls
@@ -271,8 +274,6 @@ arg: --engine.storage-worker-count <STORAGE_WORKER_COUNT> [action: Set] [num-arg
 arg: --engine.account-worker-count <ACCOUNT_WORKER_COUNT> [action: Set] [num-args: 1] help: Configure the number of account proof workers in the Tokio blocking pool. If not specified, defaults to the same count as storage workers
 arg: --engine.prewarming-threads <PREWARMING_THREADS> [action: Set] [num-args: 1] help: Configure the number of prewarming threads. If not specified, defaults to available parallelism
 arg: --engine.disable-cache-metrics [action: SetTrue] [num-args: 0] [default: false] help: Disable cache metrics recording, which can take up to 50ms with large cached state
-arg: --engine.sparse-trie-max-hot-slots <SPARSE_TRIE_MAX_HOT_SLOTS> [action: Set] [num-args: 1] [aliases: engine.sparse-trie-max-storage-tries] [default: 1500] help: LFU hot-slot capacity: max storage slots retained across sparse trie prune cycles
-arg: --engine.sparse-trie-max-hot-accounts <SPARSE_TRIE_MAX_HOT_ACCOUNTS> [action: Set] [num-args: 1] [default: 1000] help: LFU hot-account capacity: max account addresses retained across sparse trie prune cycles
 arg: --engine.slow-block-threshold <DURATION> [action: Set] [num-args: 1] help: Configure the slow block logging threshold in milliseconds
 arg: --engine.disable-sparse-trie-cache-pruning [action: SetTrue] [num-args: 0] [default: false] help: Fully disable sparse trie cache pruning. When set, the cached sparse trie is preserved without any node pruning or storage trie eviction between blocks. Useful for benchmarking the effects of retaining the full trie cache
 arg: --engine.state-root-task-timeout <STATE_ROOT_TASK_TIMEOUT> [action: Set] [num-args: 1] [default: 4s] help: Configure the timeout for the state root task before spawning a sequential fallback. If the state root task takes longer than this, a sequential computation starts in parallel and whichever finishes first is used
@@ -664,9 +665,9 @@ arg: --discovery.v5.port.ipv6 <DISCOVERY_V5_PORT_IPV6> [action: Set] [num-args: 
 arg: --discovery.v5.lookup-interval <DISCOVERY_V5_LOOKUP_INTERVAL> [action: Set] [num-args: 1] [default: 20] help: The interval in seconds at which to carry out periodic lookup queries, for the whole run of the program
 arg: --discovery.v5.bootstrap.lookup-interval <DISCOVERY_V5_BOOTSTRAP_LOOKUP_INTERVAL> [action: Set] [num-args: 1] [default: 5] help: The interval in seconds at which to carry out boost lookup queries, for a fixed number of times, at bootstrap
 arg: --discovery.v5.bootstrap.lookup-countdown <DISCOVERY_V5_BOOTSTRAP_LOOKUP_COUNTDOWN> [action: Set] [num-args: 1] [default: 200] help: The number of times to carry out boost lookup queries at bootstrap
-arg: --trusted-peers <TRUSTED_PEERS> [action: Append] [num-args: 1] [value-delimiter: ','] help: Comma separated enode URLs of trusted peers for P2P connections
+arg: --trusted-peers <TRUSTED_PEERS> [action: Append] [num-args: 1] [value-delimiter: ','] help: Comma separated enode URLs or ENRs of trusted peers for P2P connections
 arg: --trusted-only [action: SetTrue] [num-args: 0] help: Connect to or accept from trusted peers only
-arg: --bootnodes <BOOTNODES> [action: Append] [num-args: 1] [value-delimiter: ','] help: Comma separated enode URLs for P2P discovery bootstrap
+arg: --bootnodes <BOOTNODES> [action: Append] [num-args: 1] [value-delimiter: ','] help: Comma separated enode URLs or ENRs for P2P discovery bootstrap
 arg: --dns-retries <DNS_RETRIES> [action: Set] [num-args: 1] [default: 0] help: Amount of DNS resolution requests retries to perform when peering
 arg: --peers-file <FILE> [action: Set] [num-args: 1] [conflicts: --no-persist-peers] help: The path to the known peers file. Connected peers are dumped to this file on nodes\nshutdown, and read on startup. Cannot be used with `--no-persist-peers`.
 arg: --identity <IDENTITY> [action: Set] [num-args: 1] [default: <MACHINE_SPECIFIC>] help: Custom node identity
@@ -841,9 +842,9 @@ arg: --discovery.v5.port.ipv6 <DISCOVERY_V5_PORT_IPV6> [action: Set] [num-args: 
 arg: --discovery.v5.lookup-interval <DISCOVERY_V5_LOOKUP_INTERVAL> [action: Set] [num-args: 1] [default: 20] help: The interval in seconds at which to carry out periodic lookup queries, for the whole run of the program
 arg: --discovery.v5.bootstrap.lookup-interval <DISCOVERY_V5_BOOTSTRAP_LOOKUP_INTERVAL> [action: Set] [num-args: 1] [default: 5] help: The interval in seconds at which to carry out boost lookup queries, for a fixed number of times, at bootstrap
 arg: --discovery.v5.bootstrap.lookup-countdown <DISCOVERY_V5_BOOTSTRAP_LOOKUP_COUNTDOWN> [action: Set] [num-args: 1] [default: 200] help: The number of times to carry out boost lookup queries at bootstrap
-arg: --trusted-peers <TRUSTED_PEERS> [action: Append] [num-args: 1] [value-delimiter: ','] help: Comma separated enode URLs of trusted peers for P2P connections
+arg: --trusted-peers <TRUSTED_PEERS> [action: Append] [num-args: 1] [value-delimiter: ','] help: Comma separated enode URLs or ENRs of trusted peers for P2P connections
 arg: --trusted-only [action: SetTrue] [num-args: 0] help: Connect to or accept from trusted peers only
-arg: --bootnodes <BOOTNODES> [action: Append] [num-args: 1] [value-delimiter: ','] help: Comma separated enode URLs for P2P discovery bootstrap
+arg: --bootnodes <BOOTNODES> [action: Append] [num-args: 1] [value-delimiter: ','] help: Comma separated enode URLs or ENRs for P2P discovery bootstrap
 arg: --dns-retries <DNS_RETRIES> [action: Set] [num-args: 1] [default: 0] help: Amount of DNS resolution requests retries to perform when peering
 arg: --peers-file <FILE> [action: Set] [num-args: 1] [conflicts: --no-persist-peers] help: The path to the known peers file. Connected peers are dumped to this file on nodes\nshutdown, and read on startup. Cannot be used with `--no-persist-peers`.
 arg: --identity <IDENTITY> [action: Set] [num-args: 1] [default: <MACHINE_SPECIFIC>] help: Custom node identity
@@ -900,9 +901,9 @@ arg: --discovery.v5.port.ipv6 <DISCOVERY_V5_PORT_IPV6> [action: Set] [num-args: 
 arg: --discovery.v5.lookup-interval <DISCOVERY_V5_LOOKUP_INTERVAL> [action: Set] [num-args: 1] [default: 20] help: The interval in seconds at which to carry out periodic lookup queries, for the whole run of the program
 arg: --discovery.v5.bootstrap.lookup-interval <DISCOVERY_V5_BOOTSTRAP_LOOKUP_INTERVAL> [action: Set] [num-args: 1] [default: 5] help: The interval in seconds at which to carry out boost lookup queries, for a fixed number of times, at bootstrap
 arg: --discovery.v5.bootstrap.lookup-countdown <DISCOVERY_V5_BOOTSTRAP_LOOKUP_COUNTDOWN> [action: Set] [num-args: 1] [default: 200] help: The number of times to carry out boost lookup queries at bootstrap
-arg: --trusted-peers <TRUSTED_PEERS> [action: Append] [num-args: 1] [value-delimiter: ','] help: Comma separated enode URLs of trusted peers for P2P connections
+arg: --trusted-peers <TRUSTED_PEERS> [action: Append] [num-args: 1] [value-delimiter: ','] help: Comma separated enode URLs or ENRs of trusted peers for P2P connections
 arg: --trusted-only [action: SetTrue] [num-args: 0] help: Connect to or accept from trusted peers only
-arg: --bootnodes <BOOTNODES> [action: Append] [num-args: 1] [value-delimiter: ','] help: Comma separated enode URLs for P2P discovery bootstrap
+arg: --bootnodes <BOOTNODES> [action: Append] [num-args: 1] [value-delimiter: ','] help: Comma separated enode URLs or ENRs for P2P discovery bootstrap
 arg: --dns-retries <DNS_RETRIES> [action: Set] [num-args: 1] [default: 0] help: Amount of DNS resolution requests retries to perform when peering
 arg: --peers-file <FILE> [action: Set] [num-args: 1] [conflicts: --no-persist-peers] help: The path to the known peers file. Connected peers are dumped to this file on nodes\nshutdown, and read on startup. Cannot be used with `--no-persist-peers`.
 arg: --identity <IDENTITY> [action: Set] [num-args: 1] [default: <MACHINE_SPECIFIC>] help: Custom node identity
