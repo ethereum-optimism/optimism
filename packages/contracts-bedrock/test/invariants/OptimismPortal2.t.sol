@@ -157,6 +157,16 @@ contract OptimismPortal2_Invariant_Harness is DisputeGameFactory_TestInit {
         vm.deal(address(ethLockbox), 0xFFFFFFFF);
         vm.deal(address(optimismPortal2), 0xFFFFFFFF);
     }
+
+    function _targetOptimismPortal2() internal {
+        targetContract(address(optimismPortal2));
+
+        string[] memory artifacts = new string[](1);
+        artifacts[0] = "OptimismPortal2";
+        targetInterface(FuzzInterface({ addr: address(optimismPortal2), artifacts: artifacts }));
+
+        excludeSender(EIP1967Helper.getAdmin(address(optimismPortal2)));
+    }
 }
 
 contract OptimismPortal2_Deposit_Invariant is CommonTest {
@@ -192,10 +202,7 @@ contract OptimismPortal2_CannotTimeTravel is OptimismPortal2_Invariant_Harness {
         // Prove the withdrawal transaction
         optimismPortal2.proveWithdrawalTransaction(_defaultTx, _proposedGameIndex, _outputRootProof, _withdrawalProof);
 
-        // Set the target contract to the portal proxy
-        targetContract(address(optimismPortal2));
-        // Exclude the proxy admin from the senders so that the proxy cannot be upgraded
-        excludeSender(EIP1967Helper.getAdmin(address(optimismPortal2)));
+        _targetOptimismPortal2();
     }
 
     /// @custom:invariant `finalizeWithdrawalTransaction` should revert if the proof maturity period has not elapsed.
@@ -221,10 +228,7 @@ contract OptimismPortal2_CannotFinalizeTwice is OptimismPortal2_Invariant_Harnes
         // Finalize the withdrawal transaction.
         optimismPortal2.finalizeWithdrawalTransaction(_defaultTx);
 
-        // Set the target contract to the portal proxy
-        targetContract(address(optimismPortal2));
-        // Exclude the proxy admin from the senders so that the proxy cannot be upgraded
-        excludeSender(EIP1967Helper.getAdmin(address(optimismPortal2)));
+        _targetOptimismPortal2();
     }
 
     /// @custom:invariant `finalizeWithdrawalTransaction` should revert if the withdrawal has already been finalized.
@@ -247,10 +251,7 @@ contract OptimismPortal_CanAlwaysFinalizeAfterWindow is OptimismPortal2_Invarian
         // Warp past the proof maturity period.
         vm.warp(block.timestamp + optimismPortal2.proofMaturityDelaySeconds() + 1);
 
-        // Set the target contract to the portal proxy
-        targetContract(address(optimismPortal2));
-        // Exclude the proxy admin from the senders so that the proxy cannot be upgraded
-        excludeSender(EIP1967Helper.getAdmin(address(optimismPortal2)));
+        _targetOptimismPortal2();
     }
 
     /// @custom:invariant A withdrawal should **always** be able to be finalized `PROOF_MATURITY_DELAY_SECONDS` after
