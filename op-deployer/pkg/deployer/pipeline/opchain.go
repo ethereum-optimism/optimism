@@ -455,16 +455,9 @@ func BuildDeployOPChainInput(
 		gasLimit = standard.GasLimit
 	}
 
-	var cannonAbsolutePrestate common.Hash
-	switch embedded.GameType(proofParams.DisputeGameType) {
-	case embedded.GameTypeCannonKona:
-		cannonAbsolutePrestate = opcm.PermissionedCannonFallbackPrestatePlaceholder
-	case embedded.GameTypeSuperCannonKona, embedded.GameTypeSuperPermissioned:
-		cannonAbsolutePrestate = common.Hash{}
-	case embedded.GameTypePermissionedCannon:
-		cannonAbsolutePrestate = proofParams.DisputeAbsolutePrestate
-	}
-
+	// CannonAbsolutePrestate stays zero: super-root games do not read it, and
+	// ResolveInitialDeployRequirements rejects every other initial game type before
+	// this builder runs.
 	return opcm.DeployOPChainInput{
 		OpChainProxyAdminOwner:       roles.L1ProxyAdminOwner,
 		SystemConfigOwner:            roles.SystemConfigOwner,
@@ -481,7 +474,7 @@ func BuildDeployOPChainInput(
 		DisputeGameType:              proofParams.DisputeGameType,
 		DisputeAbsolutePrestate:      proofParams.DisputeAbsolutePrestate,
 		StartingAnchorRoot:           startingAnchorRoot,
-		CannonAbsolutePrestate:       cannonAbsolutePrestate,
+		CannonAbsolutePrestate:       common.Hash{},
 		DisputeMaxGameDepth:          new(big.Int).SetUint64(proofParams.DisputeMaxGameDepth),
 		DisputeSplitDepth:            new(big.Int).SetUint64(proofParams.DisputeSplitDepth),
 		DisputeClockExtension:        proofParams.DisputeClockExtension,   // 3 hours (input in seconds)
