@@ -36,11 +36,14 @@ from pathlib import Path
 RUST_ROOT = Path(__file__).resolve().parent.parent
 
 RUST_PATH = r"[A-Za-z_][A-Za-z0-9_]*(?:::[A-Za-z_][A-Za-z0-9_]*)*"
-TAG_RE = re.compile(
-    r"^UPSTREAM-MIRROR\((?P<kind>[a-z]+)\):\s*"
+TAG_HEAD = (
+    r"UPSTREAM-MIRROR\((?P<kind>[a-z]+)\):\s*"
     r"(?P<crate>[A-Za-z0-9_-]+)@(?P<version>[A-Za-z0-9_.:+-]+)\s+"
-    rf"(?:`(?P<quoted_symbol>{RUST_PATH})`|(?P<bare_symbol>{RUST_PATH}))$"
 )
+TAG_RE = re.compile(
+    rf"^{TAG_HEAD}(?:`(?P<quoted_symbol>{RUST_PATH})`|(?P<bare_symbol>{RUST_PATH}))$"
+)
+TAG_PROSE_RE = re.compile(rf"^{TAG_HEAD}`{RUST_PATH}`\s*\S")
 DOC_RE = re.compile(r"^\s*(///|//!)\s?(.*)$")
 KINDS = {"override", "copy", "delegate", "set", "port"}
 
@@ -156,8 +159,20 @@ def find_tags(root: Path = RUST_ROOT) -> list[Mirror]:
         if "UPSTREAM-MIRROR" not in text:
             continue
         lines = text.splitlines()
+        in_fence = False
         for n, line in enumerate(lines, 1):
-            if "UPSTREAM-MIRROR" not in line:
+            # Only doc comments carry tags: a plain `//` note, a string literal or a
+            # `#[doc = "..."]` attribute naming the token is prose about tags, not one.
+            doc = DOC_RE.match(line)
+            if doc is None:
+                in_fence = False
+                continue
+            # A doc comment that shows the tag format inside a code fence documents the
+            # grammar; it does not declare a mirror. The fence ends with its comment block.
+            if doc.group(2).lstrip().startswith("```"):
+                in_fence = not in_fence
+                continue
+            if in_fence or "UPSTREAM-MIRROR" not in line:
                 continue
             # rustfmt may wrap a tag across doc-comment lines. Stop as soon as
             # the complete tag matches, before maintenance prose begins.
@@ -177,9 +192,15 @@ def find_tags(root: Path = RUST_ROOT) -> list[Mirror]:
                     line=n,
                 ))
             else:
+                # rustfmt reflows the prose onto the tag line when the blank `///` line
+                # that separates them is missing, which reads as a tag with a long symbol.
+                note = (
+                    "prose follows the symbol; separate a tag from its prose with a blank doc line"
+                    if TAG_PROSE_RE.match(" ".join(parts))
+                    else "does not match the tag grammar"
+                )
                 out.append(Mirror(kind="?", crate="?", verified="?", symbol="?",
-                                  file=rel, line=n, status=Status.MALFORMED,
-                                  note="does not match the tag grammar"))
+                                  file=rel, line=n, status=Status.MALFORMED, note=note))
     return out
 
 
@@ -237,6 +258,13 @@ def reth_pin(manifest_path: Path | None = None) -> tuple[str, str]:
     return token, repo
 
 
+def freeze_port(mirror: Mirror) -> None:
+    """A `port` is deliberately behind the pin, so report its staleness as frozen. An
+    overshot version stays an error: it cannot have been verified against the pin."""
+    if mirror.kind == "port" and mirror.status == Status.STALE:
+        mirror.status, mirror.note = Status.FROZEN, ""
+
+
 def classify(
     mirrors: list[Mirror],
     *,
@@ -261,9 +289,7 @@ def classify(
                 mirror.status, mirror.note = Status.MALFORMED, str(error)
                 continue
 
-            if mirror.kind == "port":
-                mirror.status = Status.FROZEN if mirror.verified != reth else Status.CURRENT
-            elif mirror.verified == reth:
+            if mirror.verified == reth:
                 mirror.status = Status.CURRENT
             elif verified_kind == pinned_kind == "tag":
                 if verified < pinned:
@@ -278,12 +304,23 @@ def classify(
                 # Git revisions and deleted pre-PR sources have no total ordering in the
                 # manifest. A differing valid token is review work, never silently current.
                 mirror.status = Status.STALE
+            freeze_port(mirror)
             continue
 
         try:
             verified = parse_semver(mirror.verified)
         except ValueError as error:
-            mirror.status, mirror.note = Status.MALFORMED, str(error)
+            # A `reth-*` name with a pin token means the git source, which the tag records
+            # as one family; the `reth-*` crates on crates.io take their resolved semver.
+            git_pinned = mirror.crate.startswith("reth-") and mirror.verified.startswith(
+                ("rev:", "v", "pre-")
+            )
+            mirror.status = Status.MALFORMED
+            mirror.note = (
+                "use `reth` for the git-pinned family, not a member crate name"
+                if git_pinned
+                else str(error)
+            )
             continue
 
         versions = locked.get(mirror.crate)
@@ -303,9 +340,7 @@ def classify(
         except ValueError as error:
             raise ConfigError(f"invalid Cargo.lock version for {mirror.crate}: {error}") from error
 
-        if mirror.kind == "port":
-            mirror.status = Status.FROZEN if mirror.verified != mirror.pinned else Status.CURRENT
-        elif mirror.verified == mirror.pinned:
+        if mirror.verified == mirror.pinned:
             mirror.status = Status.CURRENT
         elif verified < pinned:
             mirror.status = Status.STALE
@@ -315,6 +350,7 @@ def classify(
         else:
             mirror.status = Status.STALE
             mirror.note = "version differs only by build metadata"
+        freeze_port(mirror)
     return mirrors
 
 
@@ -398,6 +434,11 @@ def main(argv: list[str] | None = None) -> int:
         )
 
     if args.check:
+        if not mirrors:
+            # Renaming the token or moving the crates out of `rust/` would otherwise leave
+            # the check permanently, silently green.
+            print("error: no UPSTREAM-MIRROR tags found in the tree", file=sys.stderr)
+            return 1
         if bad:
             print(f"\nerror: {len(bad)} tag(s) need fixing (see above)", file=sys.stderr)
             return 1
