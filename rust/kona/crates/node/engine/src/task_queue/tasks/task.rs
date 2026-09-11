@@ -2,7 +2,7 @@
 //!
 //! [`Engine`]: crate::Engine
 
-use super::{BuildTask, ConsolidateTask, FinalizeTask, InsertTask};
+use super::{BuildTask, CanonicalizeTask, ConsolidateTask, FinalizeTask, InsertTask};
 use crate::{
     BuildTaskError, ConsolidateTaskError, EngineClient, EngineState, FinalizeTaskError,
     InsertTaskError,
@@ -93,6 +93,8 @@ impl EngineTaskError for EngineTaskErrors {
 /// [`Engine`]: crate::Engine
 #[derive(Debug, Clone)]
 pub enum EngineTask<EngineClient_: EngineClient> {
+    /// Canonicalizes a sealed, conductor-approved payload.
+    Canonicalize(Box<CanonicalizeTask<EngineClient_>>),
     /// Inserts an unsafe payload into the execution engine.
     Insert(Box<InsertTask<EngineClient_>>),
     /// Begins building a new block with the given attributes, producing a new payload ID.
@@ -111,6 +113,7 @@ impl<EngineClient_: EngineClient> EngineTask<EngineClient_> {
     /// Executes the task without consuming it.
     async fn execute_inner(&self, state: &mut EngineState) -> Result<(), EngineTaskErrors> {
         match self {
+            Self::Canonicalize(task) => task.execute_and_send(state).await?,
             Self::Insert(task) => match task.execute(state).await {
                 // INVALID is terminal for an externally sourced unsafe payload. Drop it so the
                 // queue can process competing or subsequent payloads instead of retrying forever.
@@ -135,7 +138,7 @@ impl<EngineClient_: EngineClient> EngineTask<EngineClient_> {
 
     const fn task_metrics_label(&self) -> &'static str {
         match self {
-            Self::Insert(_) => crate::Metrics::INSERT_TASK_LABEL,
+            Self::Canonicalize(_) | Self::Insert(_) => crate::Metrics::INSERT_TASK_LABEL,
             Self::Consolidate(_) => crate::Metrics::CONSOLIDATE_TASK_LABEL,
             Self::Build(_) => crate::Metrics::BUILD_TASK_LABEL,
             Self::Seal(_) => crate::Metrics::SEAL_TASK_LABEL,
@@ -148,7 +151,7 @@ impl<EngineClient_: EngineClient> PartialEq for EngineTask<EngineClient_> {
     fn eq(&self, other: &Self) -> bool {
         matches!(
             (self, other),
-            (Self::Insert(_), Self::Insert(_)) |
+            (Self::Canonicalize(_) | Self::Insert(_), Self::Canonicalize(_) | Self::Insert(_),) |
                 (Self::Build(_), Self::Build(_)) |
                 (Self::Seal(_), Self::Seal(_)) |
                 (Self::Consolidate(_), Self::Consolidate(_)) |
@@ -179,8 +182,8 @@ impl<EngineClient_: EngineClient> Ord for EngineTask<EngineClient_> {
         //   via derivation.
         // - Finalize tasks have the lowest priority, as they only update finalized status.
         match (self, other) {
-            // Same variant cases
-            (Self::Insert(_), Self::Insert(_)) |
+            // Tasks with the same priority
+            (Self::Canonicalize(_) | Self::Insert(_), Self::Canonicalize(_) | Self::Insert(_)) |
             (Self::Consolidate(_), Self::Consolidate(_)) |
             (Self::Build(_), Self::Build(_)) |
             (Self::Seal(_), Self::Seal(_)) |
@@ -194,9 +197,9 @@ impl<EngineClient_: EngineClient> Ord for EngineTask<EngineClient_> {
             (Self::Build(_), _) => Ordering::Greater,
             (_, Self::Build(_)) => Ordering::Less,
 
-            // InsertUnsafe tasks are prioritized over Consolidate and Finalize tasks
-            (Self::Insert(_), _) => Ordering::Greater,
-            (_, Self::Insert(_)) => Ordering::Less,
+            // Payload insertion tasks are prioritized over Consolidate and Finalize tasks.
+            (Self::Canonicalize(_) | Self::Insert(_), _) => Ordering::Greater,
+            (_, Self::Canonicalize(_) | Self::Insert(_)) => Ordering::Less,
 
             // Consolidate tasks are prioritized over Finalize tasks
             (Self::Consolidate(_), _) => Ordering::Greater,
@@ -322,6 +325,45 @@ mod tests {
             &[(imported_hash, 0)],
             "a successfully imported block must reach the sink"
         );
+    }
+
+    #[tokio::test]
+    async fn canonicalization_task_reports_validated_payload() {
+        let payload = ExecutionPayloadV1::from_block_slow(&Block::<OpTxEnvelope>::default());
+        let envelope = OpExecutionPayloadEnvelope::V1(payload);
+        let imported: op_alloy_consensus::OpBlock =
+            envelope.clone().try_into_block().expect("payload converts to a block");
+        let imported_hash = imported.header.hash_slow();
+        let config = Arc::new(RollupConfig {
+            genesis: kona_genesis::ChainGenesis {
+                l2: alloy_eips::BlockNumHash { hash: imported_hash, number: 0 },
+                ..Default::default()
+            },
+            ..Default::default()
+        });
+        let valid = || PayloadStatus::from_status(PayloadStatusEnum::Valid);
+        let client = Arc::new(
+            MockEngineClient::builder()
+                .with_config(config.clone())
+                .with_new_payload_v1_response(valid())
+                .with_fork_choice_updated_v3_response(
+                    alloy_rpc_types_engine::ForkchoiceUpdated::new(valid()),
+                )
+                .build(),
+        );
+        let (result_tx, mut result_rx) = tokio::sync::mpsc::channel(1);
+        let task = EngineTask::Canonicalize(Box::new(CanonicalizeTask::new(
+            client,
+            config,
+            envelope,
+            Arc::new(crate::NoopBlockSink),
+            result_tx,
+        )));
+
+        task.execute(&mut EngineState::default()).await.unwrap();
+
+        let result = result_rx.recv().await.expect("canonicalization result was sent").unwrap();
+        assert_eq!(result.block_info.hash, imported_hash);
     }
 
     #[tokio::test]

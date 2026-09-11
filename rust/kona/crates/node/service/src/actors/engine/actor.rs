@@ -1,13 +1,13 @@
 use crate::{
     BuildRequest, EngineClientError, EngineDerivationClient, EngineError, NodeActor, ResetRequest,
-    SealRequest,
+    SealRequest, actors::engine::CanonicalizeRequest,
 };
 use async_trait::async_trait;
 use kona_derive::{ResetSignal, Signal};
 use kona_engine::{
-    BuildSealCoupling, BuildTask, ConsolidateInput, ConsolidateTask, Engine, EngineClient,
-    EngineTask, EngineTaskError, EngineTaskErrorSeverity, FinalizeBlockId, FinalizeTask,
-    ImportedBlockSink, InsertTask, SealTask,
+    BuildSealCoupling, BuildTask, CanonicalizeTask, ConsolidateInput, ConsolidateTask, Engine,
+    EngineClient, EngineTask, EngineTaskError, EngineTaskErrorSeverity, FinalizeBlockId,
+    FinalizeTask, ImportedBlockSink, InsertTask, SealTask,
 };
 use kona_genesis::RollupConfig;
 use kona_protocol::L2BlockInfo;
@@ -28,8 +28,10 @@ pub enum EngineActorRequest {
     ProcessUnsafeL2Block(Box<OpExecutionPayloadEnvelope>),
     /// Request to reset the forkchoice.
     Reset(Box<ResetRequest>),
-    /// Request to seal a block.
+    /// Request to seal a block without canonicalizing it.
     Seal(Box<SealRequest>),
+    /// Request to canonicalize a sealed block.
+    Canonicalize(Box<CanonicalizeRequest>),
 }
 
 /// Responsible for managing the operations sent to the execution layer's Engine API. To accomplish
@@ -302,10 +304,22 @@ where
                     // The payload is not derived in this case.
                     false,
                     BuildSealCoupling::Detached,
+                    false,
                     Some(result_tx),
                     Arc::clone(&self.block_sink),
                 )));
                 self.engine.enqueue(task);
+            }
+            EngineActorRequest::Canonicalize(request) => {
+                let CanonicalizeRequest { payload, result_tx } = *request;
+                let task = CanonicalizeTask::new(
+                    self.client.clone(),
+                    self.rollup.clone(),
+                    payload,
+                    Arc::clone(&self.block_sink),
+                    result_tx,
+                );
+                self.engine.enqueue(EngineTask::Canonicalize(Box::new(task)));
             }
         }
 

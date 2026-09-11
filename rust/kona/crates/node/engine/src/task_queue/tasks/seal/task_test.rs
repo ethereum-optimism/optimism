@@ -54,6 +54,7 @@ async fn unsafe_head_check_variants(
         attributes,
         false,
         coupling,
+        true,
         with_channel.then_some(tx),
         Arc::new(crate::NoopBlockSink),
     );
