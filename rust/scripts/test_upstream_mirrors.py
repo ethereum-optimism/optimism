@@ -5,6 +5,8 @@ from __future__ import annotations
 
 import importlib.util
 import io
+import json
+import shutil
 import sys
 import subprocess
 import tempfile
@@ -21,6 +23,16 @@ assert SPEC and SPEC.loader
 mirrors = importlib.util.module_from_spec(SPEC)
 sys.modules[SPEC.name] = mirrors
 SPEC.loader.exec_module(mirrors)
+
+
+def tagged_tree(temp: str, sources: dict[str, str]) -> Path:
+    """A git repo holding `sources`, staged so `git ls-files` reports them."""
+    root = Path(temp)
+    subprocess.run(["git", "init", "-q"], cwd=root, check=True)
+    for name, text in sources.items():
+        (root / name).write_text(text)
+    subprocess.run(["git", "add", *sources], cwd=root, check=True)
+    return root
 
 
 class SemVerTests(unittest.TestCase):
@@ -179,6 +191,49 @@ class WorkspaceParsingTests(unittest.TestCase):
                 ],
             )
 
+    def test_find_tags_ignores_non_doc_mentions(self) -> None:
+        with tempfile.TemporaryDirectory() as temp:
+            root = tagged_tree(temp, {"other.rs":
+                "// UPSTREAM-MIRROR(copy): revm-handler@41.0.0 `revm_handler::Handler::refund`\n"
+                "const NOTE: &str = \"UPSTREAM-MIRROR(copy): revm-handler@41.0.0 `a::b`\";\n"
+                "#[doc = \"UPSTREAM-MIRROR(copy): revm-handler@41.0.0 `a::b`\"]\n"
+                "fn other() {}\n"})
+            self.assertEqual(mirrors.find_tags(root), [])
+
+    def test_find_tags_ignores_fenced_doc_examples(self) -> None:
+        with tempfile.TemporaryDirectory() as temp:
+            root = tagged_tree(temp, {"fenced.rs":
+                "//! Tag format:\n"
+                "//!\n"
+                "//! ```text\n"
+                "//! UPSTREAM-MIRROR(copy): revm-handler@41.0.0 `revm_handler::Handler::refund`\n"
+                "//! ```\n"
+                "//!\n"
+                "//! An unterminated fence ends with its comment block:\n"
+                "//!\n"
+                "//! ```text\n"
+                "//! UPSTREAM-MIRROR(set): revm-handler@41.0.0 `revm_handler::Handler::run`\n"
+                "\n"
+                "/// UPSTREAM-MIRROR(copy): revm-handler@41.0.0 `revm_handler::Handler::refund`\n"
+                "fn real() {}\n"})
+            self.assertEqual(
+                [(entry.file, entry.line, entry.status) for entry in mirrors.find_tags(root)],
+                [("fenced.rs", 12, None)],
+            )
+
+    def test_prose_wrapped_onto_the_tag_line_names_the_blank_doc_line(self) -> None:
+        with tempfile.TemporaryDirectory() as temp:
+            root = tagged_tree(temp, {"prose.rs":
+                "/// UPSTREAM-MIRROR(copy): revm-handler@41.0.0 "
+                "`revm_handler::Handler::refund` we drop\n"
+                "/// the legacy refund branch.\n"
+                "fn prose() {}\n"})
+            [entry] = mirrors.find_tags(root)
+            self.assertEqual(entry.status, "malformed")
+            self.assertIn("prose", entry.note)
+            self.assertIn("blank", entry.note)
+
+
 class ClassificationTests(unittest.TestCase):
     RETH_INFO = ("rev:aef8d3e", "op-rs/reth")
 
@@ -251,6 +306,14 @@ class ClassificationTests(unittest.TestCase):
         )
         self.assertEqual(mirrors.select_mirrors(entries, stale_only=True), [])
 
+    def test_port_ahead_of_the_pin_is_an_error(self) -> None:
+        crates_io = self.mirror("42.0.0", kind="port")
+        self.assertEqual(self.classify(crates_io).status, "ahead")
+
+        reth = self.mirror("v2.5.0", crate="reth", kind="port")
+        mirrors.classify([reth], locked={}, reth_info=("v2.4.0", "op-rs/reth"))
+        self.assertEqual(reth.status, "ahead")
+
     def test_stale_only_excludes_frozen_and_errors(self) -> None:
         entries = []
         for status in ("current", "stale", "frozen", "malformed", "ahead", "unknown-crate"):
@@ -261,6 +324,17 @@ class ClassificationTests(unittest.TestCase):
             [mirror.status for mirror in mirrors.select_mirrors(entries, stale_only=True)],
             ["stale"],
         )
+
+    def test_reth_member_crate_with_a_pin_token_names_the_family(self) -> None:
+        for version in ("rev:aef8d3e", "v2.4.0", "pre-24284"):
+            with self.subTest(version=version):
+                mirror = self.mirror(version, crate="reth-provider")
+                self.assertEqual(self.classify(mirror).status, "malformed")
+                self.assertIn("git-pinned family", mirror.note)
+
+    def test_reth_named_cratesio_crates_keep_their_semver(self) -> None:
+        mirror = self.mirror("1.7.0", crate="reth-codecs")
+        self.assertEqual(self.classify(mirror, {"reth-codecs": {"1.7.0"}}).status, "current")
 
     def test_check_output_names_bad_tag(self) -> None:
         bad = self.mirror("banana")
@@ -311,6 +385,26 @@ class ClassificationTests(unittest.TestCase):
             self.assertEqual(mirrors.main(["--stale-only", "--check"]), 1)
         self.assertIn("src/file.rs:10", stdout.getvalue())
 
+    def test_check_fails_when_the_tree_has_no_tags(self) -> None:
+        with (
+            mock.patch.object(mirrors, "find_tags", return_value=[]),
+            mock.patch.object(mirrors, "classify", return_value=[]),
+            redirect_stdout(io.StringIO()),
+            redirect_stderr(stderr := io.StringIO()),
+        ):
+            self.assertEqual(mirrors.main(["--check"]), 1)
+        self.assertIn("no UPSTREAM-MIRROR tags", stderr.getvalue())
+
+    def test_listing_no_tags_is_not_an_error(self) -> None:
+        with (
+            mock.patch.object(mirrors, "find_tags", return_value=[]),
+            mock.patch.object(mirrors, "classify", return_value=[]),
+            redirect_stdout(stdout := io.StringIO()),
+            redirect_stderr(io.StringIO()),
+        ):
+            self.assertEqual(mirrors.main([]), 0)
+        self.assertIn("0 mirrors", stdout.getvalue())
+
     def test_check_fails_closed_on_unknown_status(self) -> None:
         unknown = self.mirror("41.0.0")
         unknown.status = "future-status"
@@ -321,6 +415,40 @@ class ClassificationTests(unittest.TestCase):
             redirect_stderr(io.StringIO()),
         ):
             self.assertEqual(mirrors.main(["--check"]), 1)
+
+
+class RealTreeTests(unittest.TestCase):
+    """Discovery over the tree itself: a pathspec that stops matching, or a renamed token,
+    finds nothing and leaves every other assertion here vacuously true."""
+
+    def test_tree_tags_are_found_and_classify_without_errors(self) -> None:
+        found = mirrors.classify(mirrors.find_tags())
+        self.assertTrue(found, "no UPSTREAM-MIRROR tags found in the tree")
+        successful = {mirrors.Status.CURRENT, mirrors.Status.STALE, mirrors.Status.FROZEN}
+        self.assertEqual(
+            [
+                f"{entry.file}:{entry.line} {entry.status} -- {entry.note}"
+                for entry in found
+                if entry.status not in successful
+            ],
+            [],
+        )
+
+
+class JustRecipeTests(unittest.TestCase):
+    @unittest.skipUnless(shutil.which("just"), "just is not installed")
+    def test_mirrors_recipe_maps_stale_anywhere_in_the_arguments(self) -> None:
+        result = subprocess.run(
+            [
+                "just",
+                "--justfile", str(mirrors.RUST_ROOT / "justfile"),
+                "--working-directory", str(mirrors.RUST_ROOT),
+                "mirrors", "stale", "--json",
+            ],
+            stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True,
+        )
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIsInstance(json.loads(result.stdout), list)
 
 
 if __name__ == "__main__":

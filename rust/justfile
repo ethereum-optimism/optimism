@@ -126,7 +126,7 @@ lint: fmt-check lint-clippy lint-docs check-upstream-mirrors
 # with each one's last-verified version against what the workspace resolves to today.
 # `just mirrors stale` is the worklist for a pin bump.
 mirrors *ARGS:
-  scripts/upstream-mirrors.py {{ if ARGS == "stale" { "--stale-only" } else { ARGS } }}
+  scripts/upstream-mirrors.py {{ replace_regex(ARGS, '(^|\s)stale(\s|$)', '${1}--stale-only${2}') }}
 
 # Run the upstream-mirror checker's contract tests.
 test-upstream-mirrors:

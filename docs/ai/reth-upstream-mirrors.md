@@ -48,7 +48,7 @@ hand-manage the wrapping.
 | `copy` | We reproduce an upstream function body inline. | Diffing the two bodies. Then asking whether the copy can be deleted in favour of calling upstream. |
 | `delegate` | We wrap an upstream type and forward selected methods to it. | Checking newly defaulted methods and whether the inner type overrides them; inheriting the generic default can differ from forwarding to the inner implementation. |
 | `set` | We enumerate an upstream set (variants, addresses, RPC methods). | Diffing membership. Prefer a test driven by upstream's `VARIANTS` over a hand-written list. |
-| `port` | A one-time port pinned to an old upstream version, deliberately frozen. | Nothing on a routine bump. Reported as `frozen`, never as work. |
+| `port` | A one-time port pinned to an old upstream version, deliberately frozen. | Nothing on a routine bump. Reported as `frozen`, never as work — but a version ahead of the pin is still an `ahead` error. |
 
 ## Tooling
 
@@ -61,8 +61,9 @@ just mirrors --json     # machine-readable output
 
 `just check-upstream-mirrors` runs its contract tests and validates the tags in
 required Rust CI. It fails on malformed tags, unknown crates, ambiguous
-resolved versions, or versions newer than an ordered pin. It does not fail on
-stale tags.
+resolved versions, or versions newer than an ordered pin. It also fails when it
+finds no tags at all, so a renamed token or a move out of `rust/` cannot pass as
+a clean run. It does not fail on stale tags.
 
 Statuses: `current`, `stale` (review it), `frozen` (an intentionally old
 `port`), and the tag errors `ahead`, `unknown-crate`, `ambiguous-version`, and
