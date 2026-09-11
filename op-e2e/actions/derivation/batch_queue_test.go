@@ -44,14 +44,14 @@ func TestDeriveChainFromNearL1Genesis(gt *testing.T) {
 	miner.ActEmptyBlock(t)
 	require.EqualValues(gt, 1, bigs.Uint64Strict(miner.L1Chain().CurrentBlock().Number))
 
-	ref, err := derive.L2BlockToBlockRef(sequencer.RollupCfg, seqEngine.L2Chain().Genesis())
+	ref, err := derive.L2BlockToBlockRef(sequencer.RollupCfg, seqEngine.GenesisBlock(t))
 	require.NoError(gt, err)
 	require.EqualValues(gt, 0, ref.L1Origin.Number)
 
 	sequencer.ActL1HeadSignal(t)
 	sequencer.ActBuildToL1Head(t)
-	l2BlockNum := bigs.Uint64Strict(seqEngine.L2Chain().CurrentBlock().Number)
-	ref, err = derive.L2BlockToBlockRef(sequencer.RollupCfg, seqEngine.L2Chain().GetBlockByNumber(l2BlockNum))
+	l2BlockNum := bigs.Uint64Strict(seqEngine.LatestHeader(t).Number)
+	ref, err = derive.L2BlockToBlockRef(sequencer.RollupCfg, seqEngine.BlockByNumber(t, l2BlockNum))
 	require.NoError(gt, err)
 	require.EqualValues(gt, 1, ref.L1Origin.Number)
 
@@ -81,7 +81,7 @@ func TestDeriveChainFromNearL1Genesis(gt *testing.T) {
 	// Process batches so safe head updates
 	sequencer.ActL1HeadSignal(t)
 	sequencer.ActL2PipelineFull(t)
-	require.EqualValues(gt, l2BlockNum, bigs.Uint64Strict(seqEngine.L2Chain().CurrentSafeBlock().Number))
+	require.EqualValues(gt, l2BlockNum, bigs.Uint64Strict(seqEngine.SafeHeader(t).Number))
 
 	// Finalize L1 and process so L2 finalized updates
 	miner.ActL1Safe(t, bigs.Uint64Strict(miner.L1Chain().CurrentBlock().Number))
@@ -89,7 +89,7 @@ func TestDeriveChainFromNearL1Genesis(gt *testing.T) {
 	sequencer.ActL1SafeSignal(t)
 	sequencer.ActL1FinalizedSignal(t)
 	sequencer.ActL2PipelineFull(t)
-	require.EqualValues(gt, l2BlockNum, bigs.Uint64Strict(seqEngine.L2Chain().CurrentFinalBlock().Number))
+	require.EqualValues(gt, l2BlockNum, bigs.Uint64Strict(seqEngine.FinalizedHeader(t).Number))
 
 	// Create a new verifier using the existing engine so it already has the safe and finalized heads set.
 	// This is the same situation as if op-node restarted at this point.
@@ -98,8 +98,8 @@ func TestDeriveChainFromNearL1Genesis(gt *testing.T) {
 	verifier := helpers.NewL2Verifier(t, logger, miner.L1Client(t, sd.RollupCfg), miner.BlobStore(), altda.Disabled,
 		l2Cl, sd.RollupCfg, sd.L1Cfg.Config, sd.DependencySet, &sync.Config{}, safedb.Disabled)
 	verifier.ActL2PipelineFull(t) // Should not get stuck in a reset loop forever
-	require.EqualValues(gt, l2BlockNum, bigs.Uint64Strict(seqEngine.L2Chain().CurrentSafeBlock().Number))
-	require.EqualValues(gt, l2BlockNum, bigs.Uint64Strict(seqEngine.L2Chain().CurrentFinalBlock().Number))
+	require.EqualValues(gt, l2BlockNum, bigs.Uint64Strict(seqEngine.SafeHeader(t).Number))
+	require.EqualValues(gt, l2BlockNum, bigs.Uint64Strict(seqEngine.FinalizedHeader(t).Number))
 	syncStatus := verifier.SyncStatus()
 	require.EqualValues(gt, l2BlockNum, syncStatus.SafeL2.Number)
 	require.EqualValues(gt, l2BlockNum, syncStatus.FinalizedL2.Number)
