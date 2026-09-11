@@ -64,7 +64,8 @@ type L1BlockRefsSource interface {
 }
 
 // PollBlockChanges opens a polling loop to fetch the L1 block reference with the given label,
-// on provided interval and with request timeout. Results are returned with provided callback fn,
+// on provided interval and with request timeout. The first poll fires immediately on
+// subscription, then every interval. Results are returned with provided callback fn,
 // which may block to pause/back-pressure polling.
 func PollBlockChanges(log log.Logger, src L1BlockRefsSource, fn HeadSignalFn,
 	label BlockLabel, interval time.Duration, timeout time.Duration) ethereum.Subscription {
@@ -86,19 +87,25 @@ func PollBlockChanges(log log.Logger, src L1BlockRefsSource, fn HeadSignalFn,
 			}
 		}()
 
+		poll := func() {
+			reqCtx, reqCancel := context.WithTimeout(eventsCtx, timeout)
+			ref, err := src.L1BlockRefByLabel(reqCtx, label)
+			reqCancel()
+			if err != nil {
+				log.Warn("failed to poll L1 block", "label", label, "err", err)
+			} else {
+				fn(eventsCtx, ref)
+			}
+		}
 		ticker := time.NewTicker(interval)
 		defer ticker.Stop()
+		// Poll immediately: don't leave subscribers without a first signal for a
+		// full interval (384s with op-node's default L1EpochPollInterval).
+		poll()
 		for {
 			select {
 			case <-ticker.C:
-				reqCtx, reqCancel := context.WithTimeout(eventsCtx, timeout)
-				ref, err := src.L1BlockRefByLabel(reqCtx, label)
-				reqCancel()
-				if err != nil {
-					log.Warn("failed to poll L1 block", "label", label, "err", err)
-				} else {
-					fn(eventsCtx, ref)
-				}
+				poll()
 			case <-eventsCtx.Done():
 				return nil
 			}

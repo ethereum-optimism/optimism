@@ -56,12 +56,16 @@ type VerificationActivity interface {
 	// (block, ts, nil) — verified tip at ts.
 	// (empty, ts, nil) — no verified entry; ts is the pre-activation cap the
 	//   caller should resolve to a canonical L2 block. ts==0 means no cap.
-	// (empty, 0, err) — verifier is transiently unavailable.
+	// (empty, 0, err) — verifier is transiently unavailable, or it has no
+	//   verified entries outside a genuine activation bootstrap (the cap would
+	//   regress consumers already past it) — callers must hold their previous
+	//   value.
 	LatestVerifiedL2Block(chainID eth.ChainID) (eth.BlockID, uint64, error)
 
 	// VerifiedBlockAtL1 returns the latest verified L2 block whose data was
 	// derived from or before the supplied L1 block. Return shape matches
 	// LatestVerifiedL2Block: an empty BlockID with non-zero ts is a cap, not a
-	// failure.
+	// failure. A zero l1Block is an error ("L1 view unknown yet"), not a cap —
+	// callers must hold their previous value.
 	VerifiedBlockAtL1(chainID eth.ChainID, l1Block eth.L1BlockRef) (eth.BlockID, uint64, error)
 }
