@@ -72,8 +72,7 @@ func NewL2AltDA(t helpers.Testing, params ...AltDAParam) *L2AltDA {
 	miner := helpers.NewL1Miner(t, log, sd.L1Cfg)
 	l1Client := miner.EthClient()
 
-	jwtPath := e2eutils.WriteDefaultJWT(t)
-	engine := helpers.NewL2Engine(t, log, sd.L2Cfg, jwtPath)
+	engine := helpers.NewL2Engine(t, log, sd.L2Cfg)
 	engCl := engine.EngineClient(t, sd.RollupCfg)
 
 	storage := &altda.DAErrFaker{Client: altda.NewMockDAClient(log)}
@@ -136,8 +135,7 @@ func (a *L2AltDA) StorageClient() *altda.DAErrFaker {
 }
 
 func (a *L2AltDA) NewVerifier(t helpers.Testing) *helpers.L2Verifier {
-	jwtPath := e2eutils.WriteDefaultJWT(t)
-	engine := helpers.NewL2Engine(t, a.log, a.sd.L2Cfg, jwtPath)
+	engine := helpers.NewL2Engine(t, a.log, a.sd.L2Cfg)
 	engCl := engine.EngineClient(t, a.sd.RollupCfg)
 	l1F, err := sources.NewL1Client(a.miner.RPCClient(), a.log, nil, sources.L1ClientDefaultConfig(a.sd.RollupCfg, false, sources.RPCKindBasic))
 	require.NoError(t, err)
