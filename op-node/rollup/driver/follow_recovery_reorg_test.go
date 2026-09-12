@@ -73,11 +73,12 @@ func TestFollowUpstreamRejectsNonCanonicalL1Origin(t *testing.T) {
 	source := &blockingUpstreamFollowSource{
 		status: &sources.FollowStatus{
 			LocalSafeL2: eth.L2BlockRef{Number: 8, L1Origin: eth.BlockID{Number: 1, Hash: common.Hash{0xff}}},
+			CurrentL1:   eth.L1BlockRef{Number: 2, Hash: common.Hash{2}},
 		}, started: make(chan struct{}, 1), release: make(chan struct{}),
 	}
 	close(source.release)
 	m := &followMetricsStub{}
-	d := &Driver{driverCtx: t.Context(), upstreamFollowSource: source, metrics: m, log: testlog.Logger(t, log.LevelError)}
+	d := &Driver{StatusTracker: &followStatusTrackerStub{}, driverCtx: t.Context(), upstreamFollowSource: source, metrics: m, log: testlog.Logger(t, log.LevelError)}
 	status := d.followUpstream()
 	require.Nil(t, status)
 	require.Equal(t, []uint64{1}, source.calls)

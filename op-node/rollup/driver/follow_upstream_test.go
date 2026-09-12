@@ -20,6 +20,7 @@ type blockingUpstreamFollowSource struct {
 	started chan struct{}
 	release chan struct{}
 	calls   []uint64
+	refs    map[uint64]eth.L1BlockRef
 }
 
 func (s *blockingUpstreamFollowSource) GetFollowStatus(ctx context.Context) (*sources.FollowStatus, error) {
@@ -34,6 +35,9 @@ func (s *blockingUpstreamFollowSource) GetFollowStatus(ctx context.Context) (*so
 
 func (s *blockingUpstreamFollowSource) L1BlockRefByNumber(_ context.Context, number uint64) (eth.L1BlockRef, error) {
 	s.calls = append(s.calls, number)
+	if ref, ok := s.refs[number]; ok {
+		return ref, nil
+	}
 	return eth.L1BlockRef{Number: number, Hash: common.Hash{byte(number)}}, nil
 }
 
@@ -65,6 +69,7 @@ func TestStartFollowUpstreamFetchIsAsync(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	driver := &Driver{
+		StatusTracker:        &followStatusTrackerStub{},
 		driverCtx:            ctx,
 		upstreamFollowSource: source,
 		log:                  testlog.Logger(t, log.LevelError),
@@ -109,6 +114,7 @@ func TestStartFollowUpstreamFetchDeliversNilOnError(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	driver := &Driver{
+		StatusTracker:        &followStatusTrackerStub{},
 		driverCtx:            ctx,
 		upstreamFollowSource: source,
 		log:                  testlog.Logger(t, log.LevelError),
@@ -126,4 +132,82 @@ func TestStartFollowUpstreamFetchDeliversNilOnError(t *testing.T) {
 	driver.wg.Wait()
 	require.Equal(t, []string{"error_fetch_status"}, metrics.results)
 	require.Empty(t, source.calls)
+}
+
+// A restarting source can expose persisted finalized heads before derivation
+// initializes. Applying those heads rewinds a live sequencer to that checkpoint.
+// A real genesis reference, however, is a valid initialized source.
+func TestFollowUpstreamWaitsForInitializedL1(t *testing.T) {
+	genesis := eth.L1BlockRef{Hash: common.Hash{0xab}}
+	source := &blockingUpstreamFollowSource{
+		status: &sources.FollowStatus{
+			LocalSafeL2: eth.L2BlockRef{Number: 30, L1Origin: genesis.ID()},
+			SafeL2:      eth.L2BlockRef{Number: 30, L1Origin: genesis.ID()},
+			FinalizedL2: eth.L2BlockRef{Number: 30, L1Origin: genesis.ID()},
+		},
+		refs:    map[uint64]eth.L1BlockRef{0: genesis},
+		started: make(chan struct{}, 2),
+		release: make(chan struct{}),
+	}
+	close(source.release)
+	driver := &Driver{driverCtx: context.Background(), upstreamFollowSource: source,
+		StatusTracker: &followStatusTrackerStub{},
+		log:           testlog.Logger(t, log.LevelError), metrics: &followMetricsStub{}}
+	require.Nil(t, driver.followUpstream(), "uninitialized source must not rewind the engine to persisted finalized heads")
+	require.Empty(t, source.calls)
+	source.status.CurrentL1 = genesis
+	require.Same(t, source.status, driver.followUpstream(), "initialized L1 genesis must remain supported")
+	require.Equal(t, []uint64{0, 0, 0, 0}, source.calls)
+}
+
+type followStatusTrackerStub struct {
+	SyncStatusTracker
+	value eth.SyncStatus
+}
+
+func (s *followStatusTrackerStub) SyncStatus() *eth.SyncStatus { return &s.value }
+
+func TestFollowUpstreamDistinguishesReplayFromL1Reorg(t *testing.T) {
+	for _, tc := range []struct {
+		name      string
+		current   uint64
+		localSafe uint64
+		reorg     bool
+		private   bool
+		accept    bool
+	}{
+		{"restarting source still replaying canonical L1", 5, 30, false, false, false},
+		{"source reached previous L1 but not its L2 head", 10, 30, false, false, false},
+		{"source caught up to previous view", 10, 80, false, false, true},
+		{"source processed newer L1 and revoked L2 history", 11, 30, false, false, true},
+		{"previous L1 view was reorged out", 5, 30, true, false, true},
+		{"private recovery validates its lower claimed anchor separately", 10, 30, false, true, true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			previous := eth.L1BlockRef{Number: 10, Hash: common.Hash{10}}
+			source := &blockingUpstreamFollowSource{
+				status: &sources.FollowStatus{
+					LocalSafeL2: eth.L2BlockRef{Number: tc.localSafe, L1Origin: eth.BlockID{Number: 1, Hash: common.Hash{1}}},
+					CurrentL1:   eth.L1BlockRef{Number: tc.current, Hash: common.Hash{byte(tc.current)}},
+				},
+				started: make(chan struct{}, 1), release: make(chan struct{}),
+				refs: make(map[uint64]eth.L1BlockRef),
+			}
+			if tc.private {
+				source.status.Recovery = &sources.FollowRecoveryStatus{}
+			}
+			if tc.reorg {
+				source.refs[10] = eth.L1BlockRef{Number: 10, Hash: common.Hash{0xff}}
+			}
+			close(source.release)
+			driver := &Driver{driverCtx: t.Context(), upstreamFollowSource: source,
+				StatusTracker: &followStatusTrackerStub{value: eth.SyncStatus{CurrentL1: previous, LocalSafeL2: eth.L2BlockRef{Number: 80}}},
+				log:           testlog.Logger(t, log.LevelError), metrics: &followMetricsStub{}}
+			if tc.accept {
+				require.Same(t, source.status, driver.followUpstream())
+			} else {
+				require.Nil(t, driver.followUpstream(), "source replay must not revoke live history on unchanged L1")
+			}
+		})
+	}
 }

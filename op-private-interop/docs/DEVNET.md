@@ -108,3 +108,31 @@ run the standalone smoke, then exercise restart using the same persistent volume
 private unsafe/local-safe lag, projection local/cross-safe lag, recovery progress and batcher
 publication errors. Alert on sustained lack of progress relative to the configured publication
 cadence and sequencing window, rather than treating the intentional cadence lag as a failure.
+
+### Production-cadence recovery and reorg soak
+
+The opt-in recovery soak keeps two-second L2 blocks, 300-block private ranges,
+and the full 3,600-L1-block sequencing window. It first catches up two unpublished
+private ranges and establishes valid messaging in both directions. It then reorgs
+L1 during partial private recovery twice, including a LightCL restart with the
+same database and journal, followed by completed-recovery restart preservation,
+a separate supernode restart, and fresh cross-safe traffic. Allow 90–120 minutes:
+
+```sh
+PRIVATE_INTEROP_REORG_SOAK=1 mise exec -- go test \
+  ./op-acceptance-tests/tests/interop/private-interop \
+  -run '^TestPrivateRecoveryAcrossL1ReorgAtProductionCadence$' \
+  -count=1 -parallel=1 -timeout=150m -v
+```
+
+Use the matching native op-reth and default-profile contracts as above. Full hashes,
+receipts, heads, recovery snapshots, and phase timing are logged as JSON evidence.
+The L1 reorg revokes the rejected range before its window expires; this tests
+recovery across a reorg at production cadence, **not** recovery through full-window
+expiry. With this fixture's six-second L1 blocks, expiry alone takes about six
+hours. After revocation, a new plan may permit ordinary private sequencing; the
+interrupted recovery block itself is required to have deposit-only content.
+The post-recovery restart in this soak happens after the reorg has revoked the
+old range. The existing shortened-window
+`TestCompletedPrivateRecoveryRestartKeepsNewPrivateBlocks` separately covers
+restart while a completed prefix is still advertised by the source.
