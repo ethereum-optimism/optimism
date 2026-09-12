@@ -147,6 +147,9 @@ sequenceDiagram
 | 8 | op-proposer | Submits an output root to `DisputeGameFactory` on an interval, creating a dispute game | A claim withdrawals can be proven against |
 | 9 | op-challenger | Checks the proposal against its own synced node and counters it if wrong | Game resolves for or against the proposal |
 
+The sequencer's mempool is private, unlike L1 Ethereum's, which limits the
+MEV opportunities that a public pending-transaction pool creates.
+
 Ordering is decided by the execution client, not the rollup node. The rollup
 node's job at block-building time is to fix what the protocol requires, the L1
 origin and the deposits for that epoch, and to leave the rest to the execution

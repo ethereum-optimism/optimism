@@ -1413,7 +1413,7 @@
     },
     {
       "source": "/stack/rollup",
-      "destination": "/op-stack/protocol/overview"
+      "destination": "/op-stack/architecture"
     },
     {
       "source": "/stack/rollup/derivation-pipeline",
@@ -1433,7 +1433,7 @@
     },
     {
       "source": "/stack/rollup/overview",
-      "destination": "/op-stack/protocol/overview"
+      "destination": "/op-stack/architecture"
     },
     {
       "source": "/stack/security",
@@ -1721,11 +1721,11 @@
     },
     {
       "source": "/concepts/architecture/rollup/overview",
-      "destination": "/op-stack/protocol/overview"
+      "destination": "/op-stack/architecture"
     },
     {
       "source": "/concepts/architecture/rollups/overview",
-      "destination": "/op-stack/protocol/overview"
+      "destination": "/op-stack/architecture"
     },
     {
       "source": "/concepts/architecture/rollup/derivation-pipeline",
@@ -2690,6 +2690,10 @@
     {
       "source": "/node-operators/op-reth/cli/op-reth/db/settings/set/transaction_senders",
       "destination": "/node-operators/op-reth/cli/op-reth/db/settings/set"
+    },
+    {
+      "source": "/op-stack/protocol/overview",
+      "destination": "/op-stack/architecture"
     }
   ],
   "interaction": {
@@ -3397,7 +3401,6 @@
             "group": "How the protocol works",
             "pages": [
               "op-stack/protocol/index",
-              "op-stack/protocol/overview",
               "op-stack/protocol/design-principles",
               "op-stack/protocol/differences",
               "op-stack/protocol/components",
