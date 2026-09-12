@@ -9,6 +9,7 @@ import (
 	"os"
 	"path/filepath"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -637,9 +638,7 @@ func TestChainContainer_Lifecycle(t *testing.T) {
 
 		ctx, cancel := context.WithCancel(context.Background())
 
-		go func() {
-			_ = container.Start(ctx)
-		}()
+		startTestContainer(t, ctx, container)
 
 		<-mockVN.startSignal
 		cancel()
@@ -712,9 +711,7 @@ func TestChainContainer_Lifecycle(t *testing.T) {
 		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
 
-		go func() {
-			_ = container.Start(ctx)
-		}()
+		startTestContainer(t, ctx, container)
 
 		// Wait for at least one start
 		require.Eventually(t, func() bool {
@@ -804,13 +801,11 @@ func TestChainContainer_PauseResume(t *testing.T) {
 		ctx, cancel := context.WithTimeout(context.Background(), 500*time.Millisecond)
 		defer cancel()
 
-		go func() {
-			_ = container.Start(ctx)
-		}()
+		startTestContainer(t, ctx, container)
 
 		// Wait for VN to be created
 		require.Eventually(t, func() bool {
-			return impl.vn != nil
+			return impl.getVN() != nil
 		}, 1*time.Second, 10*time.Millisecond)
 
 		// VN should be created but not started
@@ -1348,9 +1343,7 @@ func TestChainContainer_VirtualNodeIntegration(t *testing.T) {
 		ctx, cancel := context.WithTimeout(context.Background(), 200*time.Millisecond)
 		defer cancel()
 
-		go func() {
-			_ = container.Start(ctx)
-		}()
+		startTestContainer(t, ctx, container)
 
 		select {
 		case <-mockVN.startSignal:
@@ -1369,14 +1362,13 @@ func TestChainContainer_VirtualNodeIntegration(t *testing.T) {
 		impl, ok := container.(*simpleChainContainer)
 		require.True(t, ok)
 
-		restartCount := 0
+		var restartCount atomic.Int32
 		mockVN := &mockVirtualNode{
 			startSignal: make(chan struct{}),
 		}
 
 		mockVN.startFunc = func(ctx context.Context) error {
-			restartCount++
-			if restartCount < 3 {
+			if restartCount.Add(1) < 3 {
 				return nil // Exit immediately to trigger restart
 			}
 			<-ctx.Done()
@@ -1390,12 +1382,10 @@ func TestChainContainer_VirtualNodeIntegration(t *testing.T) {
 		ctx, cancel := context.WithTimeout(context.Background(), 300*time.Millisecond)
 		defer cancel()
 
-		go func() {
-			_ = container.Start(ctx)
-		}()
+		startTestContainer(t, ctx, container)
 
 		require.Eventually(t, func() bool {
-			return restartCount >= 3
+			return restartCount.Load() >= 3
 		}, 1*time.Second, 10*time.Millisecond)
 	})
 
@@ -1407,11 +1397,10 @@ func TestChainContainer_VirtualNodeIntegration(t *testing.T) {
 		impl, ok := container.(*simpleChainContainer)
 		require.True(t, ok)
 
-		restartCount := 0
+		var restartCount atomic.Int32
 		mockVN := &mockVirtualNode{startSignal: make(chan struct{})}
 		mockVN.startFunc = func(ctx context.Context) error {
-			restartCount++
-			if restartCount < 3 {
+			if restartCount.Add(1) < 3 {
 				return nil
 			}
 			<-ctx.Done()
@@ -1423,9 +1412,9 @@ func TestChainContainer_VirtualNodeIntegration(t *testing.T) {
 
 		ctx, cancel := context.WithTimeout(context.Background(), 300*time.Millisecond)
 		defer cancel()
-		go func() { _ = container.Start(ctx) }()
+		startTestContainer(t, ctx, container)
 
-		require.Eventually(t, func() bool { return restartCount >= 3 }, 1*time.Second, 10*time.Millisecond)
+		require.Eventually(t, func() bool { return restartCount.Load() >= 3 }, 1*time.Second, 10*time.Millisecond)
 		// The first start is not a restart; restarts 2 and 3 should be counted.
 		var dto dto.Metric
 		require.NoError(t, metrics.VNRestarts.WithLabelValues(chainID.String()).Write(&dto))
@@ -1447,15 +1436,13 @@ func TestChainContainer_VirtualNodeIntegration(t *testing.T) {
 		}
 
 		ctx, cancel := context.WithCancel(context.Background())
-		go func() {
-			_ = container.Start(ctx)
-		}()
+		startTestContainer(t, ctx, container)
 
 		<-mockVN.startSignal
 
 		// Ensure VN is set in container
 		require.Eventually(t, func() bool {
-			return impl.vn != nil
+			return impl.getVN() != nil
 		}, 1*time.Second, 10*time.Millisecond)
 
 		stopCtx := context.Background()
@@ -2115,4 +2102,21 @@ func TestChainContainer_FirstSafeHeadTimestamp_SamplesSyncStatusFirst(t *testing
 	require.NotEqual(t, -1, firstIdx, "FirstSafeHeadEntry should have been called")
 	require.Less(t, syncIdx, firstIdx,
 		"SyncStatus must be sampled before FirstSafeHeadEntry — the reverse order admits a race; methodCalls=%v", mockVN.methodCalls)
+}
+
+// Join background lifecycle work before testing.T finishes: cancellation alone
+// allows the restart loop to keep logging into a completed test.
+func startTestContainer(t *testing.T, parent context.Context, container interface{ Start(context.Context) error }) {
+	t.Helper()
+	ctx, cancel := context.WithCancel(parent)
+	done := make(chan struct{})
+	go func() { defer close(done); _ = container.Start(ctx) }()
+	t.Cleanup(func() {
+		cancel()
+		select {
+		case <-done:
+		case <-time.After(10 * time.Second):
+			t.Error("container did not stop after cancellation")
+		}
+	})
 }
