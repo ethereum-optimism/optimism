@@ -135,6 +135,8 @@ contract CrossL2Inbox_ValidateMessage_Test is CrossL2Inbox_TestInit {
         public
         returns (bytes32 slot_)
     {
+        vm.txGasPrice(block.basefee);
+
         // Bound values types to ensure they are not too large
         _id.blockNumber = bound(_id.blockNumber, 0, type(uint64).max);
         _id.logIndex = bound(_id.logIndex, 0, type(uint32).max);
@@ -198,6 +200,8 @@ contract CrossL2Inbox_ValidateMessage_Test is CrossL2Inbox_TestInit {
     )
         external
     {
+        vm.txGasPrice(block.basefee);
+
         // Bound values types to ensure they are not too large
         _idOne.blockNumber = bound(_idOne.blockNumber, 0, type(uint64).max);
         _idOne.logIndex = bound(_idOne.logIndex, 0, type(uint32).max);
@@ -219,6 +223,7 @@ contract CrossL2Inbox_ValidateMessage_Test is CrossL2Inbox_TestInit {
         crossL2Inbox.validateMessage(_idOne, _messageHashOne);
 
         // Send the tx2 but without any access list and check that it reverts since the slot should not be warmed
+        vm.noAccessList();
         vm.expectRevert(ICrossL2Inbox.NotInAccessList.selector);
         crossL2Inbox.validateMessage(_idTwo, _messageHashTwo);
     }
@@ -227,6 +232,8 @@ contract CrossL2Inbox_ValidateMessage_Test is CrossL2Inbox_TestInit {
     ///         one.
     /// forge-config: default.isolate = true
     function test_validateMessage_validDoesntWarm_reverts(Identifier memory _id, bytes32 _messageHash) external {
+        vm.txGasPrice(block.basefee);
+
         // Bound values types to ensure they are not too large
         _id.blockNumber = bound(_id.blockNumber, 0, type(uint64).max);
         _id.logIndex = bound(_id.logIndex, 0, type(uint32).max);
@@ -249,6 +256,7 @@ contract CrossL2Inbox_ValidateMessage_Test is CrossL2Inbox_TestInit {
 
         // Send the same msg but without any access list and check that it reverts since the
         // slot should not be warmed
+        vm.noAccessList();
         vm.expectRevert(ICrossL2Inbox.NotInAccessList.selector);
         crossL2Inbox.validateMessage(_id, _messageHash);
     }
@@ -281,6 +289,8 @@ contract CrossL2Inbox_ValidateMessage_Test is CrossL2Inbox_TestInit {
     )
         public
     {
+        vm.txGasPrice(block.basefee);
+
         bytes32[] memory slots = new bytes32[](_ids.length);
         for (uint256 i; i < _ids.length; i++) {
             // Make sure the Identifier is valid
