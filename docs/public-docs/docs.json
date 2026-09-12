@@ -1413,7 +1413,7 @@
     },
     {
       "source": "/stack/rollup",
-      "destination": "/op-stack/protocol/overview"
+      "destination": "/op-stack/architecture"
     },
     {
       "source": "/stack/rollup/derivation-pipeline",
@@ -1433,7 +1433,7 @@
     },
     {
       "source": "/stack/rollup/overview",
-      "destination": "/op-stack/protocol/overview"
+      "destination": "/op-stack/architecture"
     },
     {
       "source": "/stack/security",
@@ -1721,11 +1721,11 @@
     },
     {
       "source": "/concepts/architecture/rollup/overview",
-      "destination": "/op-stack/protocol/overview"
+      "destination": "/op-stack/architecture"
     },
     {
       "source": "/concepts/architecture/rollups/overview",
-      "destination": "/op-stack/protocol/overview"
+      "destination": "/op-stack/architecture"
     },
     {
       "source": "/concepts/architecture/rollup/derivation-pipeline",
@@ -2690,6 +2690,10 @@
     {
       "source": "/node-operators/op-reth/cli/op-reth/db/settings/set/transaction_senders",
       "destination": "/node-operators/op-reth/cli/op-reth/db/settings/set"
+    },
+    {
+      "source": "/op-stack/protocol/overview",
+      "destination": "/op-stack/architecture"
     }
   ],
   "interaction": {
@@ -2706,8 +2710,7 @@
               "index",
               "ai-docs",
               "chain-operators/quickstart",
-              "chain-operators/launch-paths",
-              "op-stack/reference/glossary"
+              "chain-operators/launch-paths"
             ]
           },
           {
@@ -3389,61 +3392,39 @@
             "group": "Introduction",
             "pages": [
               "op-stack/introduction/op-stack",
+              "op-stack/architecture",
               "op-stack/introduction/fact-sheet",
               "op-stack/learn/index"
             ]
           },
           {
-            "group": "Features",
-            "pages": [
-              "op-stack/features/subblocks",
-              "op-stack/features/custom-gas-token",
-              "op-stack/features/bridged-usdc-standard",
-              "op-stack/features/span-batches",
-              "op-stack/features/send-raw-transaction-conditional",
-              "op-stack/features/l2-contract-manager",
-              "op-stack/features/osaka-on-l2",
-              "op-stack/features/preinstalls",
-              "op-stack/features/experimental/alt-da-mode"
-            ]
-          },
-          {
-            "group": "Protocol Information",
+            "group": "How the protocol works",
             "pages": [
               "op-stack/protocol/index",
-              "op-stack/protocol/overview",
               "op-stack/protocol/design-principles",
               "op-stack/protocol/differences",
               "op-stack/protocol/components",
               "op-stack/protocol/derivation-pipeline",
-              "op-stack/protocol/outages",
-              {
-                "group": "Network upgrade explainers",
-                "pages": [
-                  "op-stack/protocol/network-upgrades",
-                  "op-stack/protocol/hardforks/lagoon",
-                  "op-stack/protocol/hardforks/karst",
-                  "op-stack/protocol/hardforks/jovian",
-                  "op-stack/protocol/hardforks/isthmus",
-                  "op-stack/protocol/hardforks/holocene",
-                  "op-stack/protocol/hardforks/granite",
-                  "op-stack/protocol/hardforks/fjord",
-                  "op-stack/protocol/hardforks/ecotone",
-                  "op-stack/protocol/hardforks/delta",
-                  "op-stack/protocol/hardforks/canyon",
-                  "op-stack/protocol/hardforks/regolith"
-                ]
-              },
               "op-stack/protocol/blockspace-charter",
-              "op-stack/research/block-time-research",
-              {
-                "group": "Reference",
-                "pages": [
-                  "op-stack/protocol/smart-contracts",
-                  "op-stack/protocol/superchain-registry",
-                  "op-stack/protocol/privileged-roles"
-                ]
-              }
+              "op-stack/protocol/outages",
+              "op-stack/research/block-time-research"
+            ]
+          },
+          {
+            "group": "Network upgrades",
+            "pages": [
+              "op-stack/protocol/network-upgrades",
+              "op-stack/protocol/hardforks/lagoon",
+              "op-stack/protocol/hardforks/karst",
+              "op-stack/protocol/hardforks/jovian",
+              "op-stack/protocol/hardforks/isthmus",
+              "op-stack/protocol/hardforks/holocene",
+              "op-stack/protocol/hardforks/granite",
+              "op-stack/protocol/hardforks/fjord",
+              "op-stack/protocol/hardforks/ecotone",
+              "op-stack/protocol/hardforks/delta",
+              "op-stack/protocol/hardforks/canyon",
+              "op-stack/protocol/hardforks/regolith"
             ]
           },
           {
@@ -3543,16 +3524,6 @@
             ]
           },
           {
-            "group": "Security",
-            "pages": [
-              "op-stack/security/security-policy",
-              "op-stack/security/audit-reports",
-              "op-stack/security/faq-sec-model",
-              "op-stack/security/pause",
-              "op-stack/security/interop-security"
-            ]
-          },
-          {
             "group": "Interoperability",
             "pages": [
               "op-stack/interop/index",
@@ -3560,6 +3531,39 @@
               "op-stack/interop/supernode",
               "op-stack/interop/reorg",
               "op-stack/interop/superchain-eth-bridge"
+            ]
+          },
+          {
+            "group": "Security",
+            "pages": [
+              "op-stack/protocol/privileged-roles",
+              "op-stack/security/faq-sec-model",
+              "op-stack/security/security-policy",
+              "op-stack/security/audit-reports",
+              "op-stack/security/pause",
+              "op-stack/security/interop-security"
+            ]
+          },
+          {
+            "group": "Features",
+            "pages": [
+              "op-stack/features/subblocks",
+              "op-stack/features/custom-gas-token",
+              "op-stack/features/bridged-usdc-standard",
+              "op-stack/features/span-batches",
+              "op-stack/features/send-raw-transaction-conditional",
+              "op-stack/features/l2-contract-manager",
+              "op-stack/features/osaka-on-l2",
+              "op-stack/features/preinstalls",
+              "op-stack/features/experimental/alt-da-mode"
+            ]
+          },
+          {
+            "group": "Reference",
+            "pages": [
+              "op-stack/reference/glossary",
+              "op-stack/protocol/smart-contracts",
+              "op-stack/protocol/superchain-registry"
             ]
           }
         ]
