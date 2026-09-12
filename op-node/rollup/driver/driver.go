@@ -130,6 +130,7 @@ func NewDriver(
 			pause = seq.SetRecoveryPaused
 		}
 		recovery = &followRecovery{source: source, l2: l2, engine: ec, pause: pause,
+			enabled: driverCfg.FollowRecoveryPath != "",
 			journal: &recoveryJournal{path: driverCfg.FollowRecoveryPath, genesis: cfg.Genesis.L2.Hash},
 			builder: derive.NewFetchingAttributesBuilder(cfg, l1ChainConfig, depSet, l1, l2)}
 		sys.Register("follow-recovery", recovery)
@@ -209,6 +210,11 @@ func (s *Driver) Start() error {
 		}
 		if err := s.sequencer.Init(s.driverCtx, !s.driverConfig.SequencerStopped); err != nil {
 			return fmt.Errorf("persist initial sequencer state: %w", err)
+		}
+		// Init starts the async gossiper used by pause. Fence private sequencing
+		// before RunLoop can produce blocks in a still-reserved recovery range.
+		if s.followRecovery != nil && s.followRecovery.enabled {
+			s.followRecovery.pause(true)
 		}
 	}
 

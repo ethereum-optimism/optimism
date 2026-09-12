@@ -24,9 +24,11 @@ image. Build/deploy images from the same revision for the selected environment.
 | Private LightCL | Its own L1 RPC, private EL engine endpoint, `--l2.follow.source=<supernode>/<id>/claimed`, and `--l2.follow.source.recovery-path=/data/private-recovery.db`. |
 | Private batcher | Existing private-interop flag group, private EL/CL and public projection EL/ordinary CL endpoints. |
 
-The recovery journal contains private header metadata. Keep it on the private node's persistent
+The recovery journal contains private header metadata and durable public/private replay checkpoints. Keep it on the private node's persistent
 volume. Preserve it with the private EL database; recovery authenticates surviving prefixes using
-this history before rebuilding deposit-only blocks from L1. Normal public LightCLs do not need it.
+this history before rebuilding deposit-only blocks from L1. On restart, LightCL revalidates saved replay
+progress against both canonical chains before retaining newer valid private blocks. A changed recovery
+prefix or public schedule still triggers rewind. Normal public LightCLs do not need the journal.
 
 The `/claimed` endpoint reports private commitments and recovery schedules. The ordinary
 `/<chain-id>` supernode route reports projection safety. Do not interchange them.
