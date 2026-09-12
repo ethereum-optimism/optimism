@@ -29,17 +29,18 @@ type recoveryBuild struct {
 // private execution progress; this adapter only tracks its public correspondence.
 // All methods run on the driver event loop. RPC deadlines never escape in events.
 type followRecovery struct {
-	source  recoverySource
-	l2      L2Chain
-	builder derive.AttributesBuilder
-	engine  *engine.EngineController
-	pause   func(bool)
-	emitter event.Emitter
-	enabled bool
-	status  *sources.FollowStatus
-	applied eth.L2BlockRef
-	build   *recoveryBuild
-	journal *recoveryJournal
+	source         recoverySource
+	l2             L2Chain
+	builder        derive.AttributesBuilder
+	engine         *engine.EngineController
+	pause          func(bool)
+	emitter        event.Emitter
+	enabled        bool
+	status         *sources.FollowStatus
+	applied        eth.L2BlockRef
+	appliedPrivate eth.L2BlockRef
+	build          *recoveryBuild
+	journal        *recoveryJournal
 }
 
 func (f *followRecovery) AttachEmitter(em event.Emitter) { f.emitter = em }
@@ -82,9 +83,11 @@ func (f *followRecovery) update(ctx context.Context, status *sources.FollowStatu
 		if err := f.adopt(ctx, rpcCtx, status); err != nil {
 			return err
 		}
-		f.applied, f.build = eth.L2BlockRef{}, nil
 	}
 	f.status = status
+	if err := f.saveProgress(); err != nil {
+		return err
+	}
 	if err := f.followHeads(ctx); err != nil {
 		return err
 	}
@@ -118,6 +121,13 @@ func (f *followRecovery) adopt(ctx, rpcCtx context.Context, status *sources.Foll
 	if anchor.Number > plan.Target.Number {
 		return fmt.Errorf("projection recovery frontier is behind private finality")
 	}
+	progress, err := f.restoreProgress(rpcCtx, plan, anchor)
+	if err != nil {
+		return err
+	}
+	if progress != nil {
+		anchor = progress.Private
+	}
 	if status.FinalizedL2.Number > finalized.Number {
 		finalized = status.FinalizedL2
 	}
@@ -141,8 +151,10 @@ func (f *followRecovery) adopt(ctx, rpcCtx context.Context, status *sources.Foll
 			return fmt.Errorf("private recovery branch contradicts finalized ancestry or safety labels")
 		}
 	}
-	if plan.Prefix != nil {
-		if err := f.journal.commit(finalized.Number); err != nil {
+	if plan.Prefix != nil || f.journal != nil && f.journal.path != "" {
+		// Clear obsolete replay evidence before rewinding. A crash must not make
+		// the next startup reuse progress belonging to a revoked branch.
+		if err := f.journal.commitProgress(finalized.Number, progress); err != nil {
 			return fmt.Errorf("persisting private recovery ancestry: %w", err)
 		}
 	}
@@ -150,17 +162,82 @@ func (f *followRecovery) adopt(ctx, rpcCtx context.Context, status *sources.Foll
 	// our canonical private branch. The plan alone cannot distinguish a temporary
 	// public safety retreat from a pending claim-carrier invalidation, so retaining
 	// unsafe execution here would require additional evidence from the source.
-	reset := lookupErr != nil || canonical != anchor || anchor.Number < f.engine.LocalSafeHead().Number || plan.Prefix != nil || f.build != nil
-	if reset || f.engine.PendingSafeL2Head() == (eth.L2BlockRef{}) {
+	reset := progress == nil && (lookupErr != nil || canonical != anchor || anchor.Number < f.engine.LocalSafeHead().Number || plan.Prefix != nil || f.build != nil)
+	if reset || progress != nil || f.engine.PendingSafeL2Head() == (eth.L2BlockRef{}) {
 		f.pause(true)
 		unsafe := anchor
-		if !reset {
+		// A partially recovered prefix still reserves the original range. Any
+		// unsafe suffix above that partial checkpoint has not been reconciled;
+		// retaining it lets a batcher publish over the remaining replay interval.
+		partial := progress != nil && plan.Prefix != nil && anchor.Number <= plan.Prefix.Parent.Number
+		if !reset && !partial {
 			unsafe = f.engine.UnsafeL2Head()
 		}
 		f.engine.ForceReset(ctx, unsafe, anchor, safe, finalized)
 	} else {
 		f.engine.FollowSource(safe, anchor, finalized)
 		f.engine.TryUpdatePendingSafe(ctx, anchor, true, status.CurrentL1)
+	}
+	f.applied, f.appliedPrivate, f.build = eth.L2BlockRef{}, eth.L2BlockRef{}, nil
+	if progress != nil {
+		f.applied, f.appliedPrivate = progress.Public, progress.Private
+	}
+	return nil
+}
+
+// restoreProgress revalidates both sides of a durable replay checkpoint. A new
+// invalidation, a public reorg, or a different private canonical branch still
+// takes the normal rewind path; only previously executed recovery is retained.
+func (f *followRecovery) restoreProgress(ctx context.Context, plan *sources.FollowRecoveryStatus, anchor eth.L2BlockRef) (*recoveryProgress, error) {
+	if f.journal == nil || f.journal.path == "" {
+		return nil, nil
+	}
+	if err := f.journal.load(); err != nil {
+		return nil, err
+	}
+	p := f.journal.progress
+	if p == nil || p.Anchor != plan.Anchor || !sameRecoveryPrefix(p.Prefix, plan.Prefix) ||
+		p.Private.Number < anchor.Number || p.Public.Number > plan.Target.Number {
+		return nil, nil
+	}
+	public, err := f.source.RecoveryBlock(ctx, p.Public.Number, plan.Target.ID())
+	if err != nil {
+		return nil, err
+	}
+	if public != p.Public {
+		return nil, nil
+	}
+	private, err := f.l2.L2BlockRefByNumber(ctx, p.Private.Number)
+	if err != nil {
+		return nil, err
+	}
+	if private != p.Private || f.engine.UnsafeL2Head().Number < private.Number {
+		return nil, nil
+	}
+	unsafe, err := f.l2.L2BlockRefByNumber(ctx, f.engine.UnsafeL2Head().Number)
+	if err != nil {
+		return nil, err
+	}
+	if unsafe != f.engine.UnsafeL2Head() {
+		return nil, nil
+	}
+	return p, nil
+}
+
+func (f *followRecovery) saveProgress() error {
+	if f.applied == (eth.L2BlockRef{}) || f.journal == nil || f.journal.path == "" {
+		return nil
+	}
+	p := &recoveryProgress{Anchor: f.status.Recovery.Anchor, Public: f.applied, Private: f.appliedPrivate}
+	if prefix := f.status.Recovery.Prefix; prefix != nil {
+		copy := *prefix
+		p.Prefix = &copy
+	}
+	if f.journal.progress.equal(p) {
+		return nil
+	}
+	if err := f.journal.commitProgress(f.engine.FinalizedHead().Number, p); err != nil {
+		return fmt.Errorf("persisting private recovery progress: %w", err)
 	}
 	return nil
 }
@@ -237,7 +314,12 @@ func (f *followRecovery) OnEvent(ctx context.Context, ev event.Event) bool {
 			x.Ref.SequenceNumber != expected.SequenceNumber || x.Ref.Number > f.status.Recovery.Target.Number {
 			return true
 		}
-		f.applied, f.build = expected, nil
+		f.applied, f.appliedPrivate, f.build = expected, x.Ref, nil
+		if err := f.saveProgress(); err != nil {
+			f.pause(true)
+			f.emitter.Emit(ctx, rollup.EngineTemporaryErrorEvent{Err: err})
+			return true
+		}
 		if err := f.followHeads(ctx); err != nil {
 			f.pause(true)
 			f.emitter.Emit(ctx, rollup.EngineTemporaryErrorEvent{Err: err})

@@ -12,20 +12,27 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/bigs"
 	"github.com/ethereum-optimism/optimism/op-service/client"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
+	"github.com/ethereum-optimism/optimism/op-service/eth/safety"
 	"github.com/ethereum-optimism/optimism/op-service/sources"
 	"github.com/ethereum-optimism/optimism/op-service/txintent"
 	"github.com/ethereum/go-ethereum/common"
 )
 
 func TestPrivateChainRecoversFromInvalidExecutingMessage(gt *testing.T) {
-	testPrivateInvalidMessageRecovery(gt, false)
+	testPrivateInvalidMessageRecovery(gt, false, false)
 }
 
 func TestPrivateRecoverySurvivesSupernodeAndLightCLRestart(gt *testing.T) {
-	testPrivateInvalidMessageRecovery(gt, true)
+	testPrivateInvalidMessageRecovery(gt, true, false)
 }
 
-func testPrivateInvalidMessageRecovery(gt *testing.T, restart bool) {
+// Restart after replay has completed, while the supernode still advertises the
+// old prefix. Unpublished valid private history must survive with the same DBs.
+func TestCompletedPrivateRecoveryRestartKeepsNewPrivateBlocks(gt *testing.T) {
+	testPrivateInvalidMessageRecovery(gt, false, true)
+}
+
+func testPrivateInvalidMessageRecovery(gt *testing.T, restart, completedRestart bool) {
 	gt.Helper()
 	t := devtest.SerialT(gt)
 	sys := presets.NewTwoL2SupernodeLightSequencerInterop(t, 0,
@@ -71,6 +78,44 @@ func testPrivateInvalidMessageRecovery(gt *testing.T, restart bool) {
 		ref, err := sys.L2ELB.Escape().L2EthClient().L2BlockRefByNumber(t.Ctx(), invalid.Number)
 		return err == nil && ref.Hash != invalid.Hash && ref.ParentHash == invalid.ParentHash
 	}, 3*time.Minute, time.Second, "invalid private execution must be replaced")
+	if completedRestart {
+		sys.L2BatcherB.Stop()
+		rpc, err := client.NewRPC(t.Ctx(), t.Logger(), sys.PrivateInterop.FollowSource())
+		require.NoError(err)
+		t.Cleanup(rpc.Close)
+		follow, err := sources.NewFollowClient(rpc)
+		require.NoError(err)
+		var completed *sources.FollowStatus
+		require.Eventually(func() bool {
+			completed, err = follow.GetFollowStatus(t.Ctx())
+			if err != nil || completed.Recovery == nil || completed.Recovery.Prefix == nil {
+				return false
+			}
+			status, err := sys.L2BCL.Escape().RollupAPI().SyncStatus(t.Ctx())
+			return err == nil && status.LocalSafeL2.Number >= completed.Recovery.Target.Number &&
+				status.LocalSafeL2.Number > completed.Recovery.Prefix.Parent.Number
+		}, 3*time.Minute, time.Second, "complete prefix recovery before testing restart")
+		// Hold the recovery plan stable: the only event under test is restarting
+		// LightCL, not expiry of a second unpublished range.
+		sys.L1CL.Stop()
+		transfer := alice.Transfer(common.Address{0xed}, eth.OneGWei)
+		rec, err := transfer.Included.Eval(t.Ctx())
+		require.NoError(err)
+		newer := eth.BlockID{Hash: rec.BlockHash, Number: bigs.Uint64Strict(rec.BlockNumber)}
+		require.Greater(newer.Number, completed.Recovery.Target.Number)
+		head := sys.L2ELB.BlockRefByLabel(eth.Unsafe)
+		t.Logger().Info("Restarting after completed private recovery", "recovery", completed.Recovery,
+			"private_head", head, "new_transaction", rec.TxHash, "new_block", newer)
+		sys.L2BCL.Stop()
+		sys.L2BCL.Start()
+		sys.L2BCL.Reached(safety.LocalUnsafe, head.Number+2, 30)
+		require.True(sys.L2ELB.IsCanonical(head.ID()), "restart must retain the valid private unsafe suffix")
+		require.True(sys.L2ELB.IsCanonical(newer), "restart must preserve the post-recovery transaction")
+		sys.L1CL.Start()
+		sys.L2BatcherB.Start()
+		sys.L2BCL.Reached(safety.CrossSafe, newer.Number, 180)
+		require.True(sys.L2ELB.IsCanonical(newer), "retained transaction must become canonical cross-safe history")
+	}
 	if restart {
 		// Pause at the first replacement, before expiry completes the rejected
 		// publication range. Keep L1 stable while checking persisted recovery.
