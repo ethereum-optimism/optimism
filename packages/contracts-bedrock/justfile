@@ -524,7 +524,7 @@ semver-diff-check: build semver-diff-check-no-build
 
 # Stable Forge remains the formatting authority while Amsterdam requires a nightly.
 _forge-fmt *ARGS:
-  forge --version | grep -q -- '-nightly' || forge fmt {{ARGS}}
+  forge --version | grep -Eq -- '-(nightly|dev)' || forge fmt {{ARGS}}
 
 # Checks that the semgrep tests are valid.
 semgrep-test-validity-check:
