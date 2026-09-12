@@ -19,7 +19,7 @@ import (
 // Native ETH interop is disabled; funding uses L1 deposits.
 
 // privatePairWaitTimeout outlasts the in-process resolver's five-minute bound.
-// Remote runs increase this budget to match their configured publication timeout.
+// Remote runs increase this budget to match their configured position-resolution timeout.
 const privatePairWaitTimeout = 6 * time.Minute
 
 // smokeSkip is a test that cannot apply to the topology it was pointed at. The run reports it and
@@ -81,9 +81,8 @@ func (env *smokeEnv) privateMirrorLeg() error {
 	fmt.Fprintf(env.stderr, "    Message sent through the messenger on %s (block %d)\n",
 		initUser.chain.name, bigs.Uint64Strict(sent.Receipt.BlockNumber))
 
-	// Evaluating the result is where the identifier is resolved, and where this leg waits: a
-	// message has no public position until the rendering has derived the block that carries it,
-	// which takes a claim cadence.
+	// Resolve the identifier from the canonical private receipts using the same
+	// rendering as the filter, so execution can precede batch publication.
 	out, err := sent.Tx.Result.Eval(env.ctx)
 	if err != nil {
 		return fmt.Errorf("resolve the message's position on the rendering: %w", err)

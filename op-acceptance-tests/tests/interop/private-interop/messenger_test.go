@@ -113,6 +113,8 @@ func TestPrivateInteropMessengerBothDirections(gt *testing.T) {
 	// position the rendering does not carry -- and the judge would replace the block that executed
 	// it, which is exactly what this test's last assertion checks.
 	sentinelTopics, sentinelData := randomEvent(rng)
+	// Hold publication so this leg proves relay works from private receipts alone.
+	sys.L2BatcherB.Stop()
 	logger.Info("Sending a message OUT of the private chain", "target", eventLoggerA)
 	txOut := txintent.NewIntent[*txintent.MultiTrigger, *txintent.InteropOutput](bob.Plan())
 	txOut.Content.Set(&txintent.MultiTrigger{
@@ -140,9 +142,8 @@ func TestPrivateInteropMessengerBothDirections(gt *testing.T) {
 	sentLog := sendOut.Logs[outIdx]
 	privateBlock := bigs.Uint64Strict(sendOut.BlockNumber)
 
-	// Evaluating the result is what runs the resolver: it waits for the rendering to derive this
-	// height and rewrites the identifier to the position the rendering carries. Nothing in this
-	// test asks it to; it is what the stock helper does now.
+	// The resolver computes the eventual public position from private receipts,
+	// even though the batcher is stopped and the projection has not derived it.
 	out, err := txOut.Result.Eval(t.Ctx())
 	require.NoError(err, "the outbound message's public position did not resolve")
 	require.Len(out.Entries, 2, "one entry per log, so an index into the entries still means the log it always did")
@@ -155,20 +156,6 @@ func TestPrivateInteropMessengerBothDirections(gt *testing.T) {
 	require.Equal(privateBlock, resolved.BlockNumber, "block-for-block: the number does not move")
 	require.Equal(predeploys.L2toL2CrossDomainMessengerAddr, resolved.Origin,
 		"a messenger export is replayed at the standard messenger predeploy, which is what every stock consumer expects")
-
-	require.NotNil(sys.PrivateInterop.Invariant, "the standing invariant checker should be on")
-	renderedBlock := sys.L2BSupernodeEL.BlockRefByNumber(privateBlock)
-	privateAtSame := sys.L2ELB.BlockRefByNumber(privateBlock)
-	require.Equal(privateAtSame.Time, renderedBlock.Time, "block-for-block correspondence at the message's height")
-	require.NotEqual(privateAtSame.Hash, renderedBlock.Hash, "the two halves are different chains")
-	require.Equal(resolved.Timestamp, renderedBlock.Time, "the resolved identifier's timestamp is the rendering block's")
-
-	// The rendering's own copy of the message, at the position the resolver named.
-	renderedLog := renderedLogAt(t, sys, renderedBlock.Hash, int(resolved.LogIndex))
-	require.Equal(predeploys.L2toL2CrossDomainMessengerAddr, renderedLog.Address,
-		"the replay re-emits at the standard messenger predeploy, which is what every stock consumer expects")
-	require.Equal(sentLog.Topics, renderedLog.Topics, "the replayed SentMessage is byte-identical in its topics")
-	require.Equal(sentLog.Data, renderedLog.Data, "the replayed SentMessage is byte-identical in its payload")
 
 	// And the counterparty executes it -- through the same stock helper the inbound direction used,
 	// which is the whole claim of the resolver: a test does not know which side of it is private.
@@ -187,6 +174,9 @@ func TestPrivateInteropMessengerBothDirections(gt *testing.T) {
 		require.Equal(topicsOut[i][:], relayedEvent.Topics[i].Bytes())
 	}
 	require.Equal(dataOut, relayedEvent.Data, "the target saw the message's data")
+	require.Less(sys.L2BSupernodeEL.BlockRefByLabel(eth.Unsafe).Number, privateBlock,
+		"the outbound relay must execute before its private batch is published")
+	sys.L2BatcherB.Start()
 
 	logger.Info("A message left the private chain and executed on its counterparty",
 		"private_block", privateBlock, "public_log_index", resolved.LogIndex,
@@ -228,6 +218,22 @@ func TestPrivateInteropMessengerBothDirections(gt *testing.T) {
 	// frontier moves in jumps, and the thing that must never stall is block production.
 	dsl.CheckAll(t, sys.L2ASupernodeCL.ReachedWithProgressFn(
 		safety.CrossSafe, safety.LocalUnsafe, relayOutBlock.Number, 6*time.Minute, 90*time.Second))
+
+	// Cross-safe advancement above establishes publication; now check the
+	// derived projection against the identifier used by the earlier relay.
+	require.NotNil(sys.PrivateInterop.Invariant, "the standing invariant checker should be on")
+	renderedBlock := sys.L2BSupernodeEL.BlockRefByNumber(privateBlock)
+	privateAtSame := sys.L2ELB.BlockRefByNumber(privateBlock)
+	require.Equal(privateAtSame.Time, renderedBlock.Time, "block-for-block correspondence at the message's height")
+	require.NotEqual(privateAtSame.Hash, renderedBlock.Hash, "the two halves are different chains")
+	require.Equal(resolved.Timestamp, renderedBlock.Time, "the resolved identifier's timestamp is the rendering block's")
+
+	// The rendering's own copy of the message, at the position the resolver named.
+	renderedLog := renderedLogAt(t, sys, renderedBlock.Hash, int(resolved.LogIndex))
+	require.Equal(predeploys.L2toL2CrossDomainMessengerAddr, renderedLog.Address,
+		"the replay re-emits at the standard messenger predeploy, which is what every stock consumer expects")
+	require.Equal(sentLog.Topics, renderedLog.Topics, "the replayed SentMessage is byte-identical in its topics")
+	require.Equal(sentLog.Data, renderedLog.Data, "the replayed SentMessage is byte-identical in its payload")
 
 	status, err := sys.L2ASupernodeCL.Escape().RollupAPI().SyncStatus(t.Ctx())
 	require.NoError(err, "reading the counterparty's sync status")

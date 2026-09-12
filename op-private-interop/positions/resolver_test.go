@@ -97,7 +97,7 @@ func TestResolverRejectsInconsistentProjection(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			f := newFixture()
 			change(f)
-			_, err := f.resolver.ResolvePositions(t.Context(), f.receipt, f.block)
+			_, err := f.resolver.ResolvePublishedPositions(t.Context(), f.receipt, f.block)
 			require.Error(t, err)
 		})
 	}
@@ -112,12 +112,44 @@ func TestResolverExtraEmitterUsesReplayer(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, predeploys.EventReplayerAddr, out[0].Origin)
 }
-func TestResolverPublicationWaitIsBounded(t *testing.T) {
+func TestResolverPublishedPositionWaitIsBounded(t *testing.T) {
 	f := newFixture()
 	f.safety.number = 0
 	f.resolver.timeout = time.Millisecond
-	_, err := f.resolver.ResolvePositions(t.Context(), f.receipt, f.block)
+	_, err := f.resolver.ResolvePublishedPositions(t.Context(), f.receipt, f.block)
 	require.ErrorIs(t, err, context.DeadlineExceeded)
+}
+
+func TestResolverPositionsBeforePublication(t *testing.T) {
+	f := newFixture()
+	want, err := f.resolver.ResolvePublishedPositions(t.Context(), f.receipt, f.block)
+	require.NoError(t, err)
+	// Neither the projection nor its safety RPC is needed for immediate resolution.
+	f.resolver.projection = nil
+	f.resolver.safety = nil
+	got, err := f.resolver.ResolvePositions(t.Context(), f.receipt, f.block)
+	require.NoError(t, err)
+	require.Equal(t, want, got)
+}
+
+func TestResolverUnpublishedPositionsRejectPrivateReorg(t *testing.T) {
+	f := newFixture()
+	f.resolver.projection = nil
+	f.resolver.safety = nil
+	f.private.afterFetch = func() { f.private.ref.Hash = common.Hash{9} }
+	_, err := f.resolver.ResolvePositions(t.Context(), f.receipt, f.block)
+	require.ErrorContains(t, err, "private chain changed")
+}
+
+func TestResolverUnpublishedPositionsRejectMismatchedReceipt(t *testing.T) {
+	f := newFixture()
+	f.resolver.projection = nil
+	f.resolver.safety = nil
+	copyLog := *f.receipt.Logs[0]
+	copyLog.TxHash = common.Hash{9}
+	f.receipt.Logs = append([]*types.Log{&copyLog}, f.receipt.Logs[1:]...)
+	_, err := f.resolver.ResolvePositions(t.Context(), f.receipt, f.block)
+	require.ErrorContains(t, err, "does not match its private block")
 }
 func TestResolverPrivateOnlyReceiptDoesNotWait(t *testing.T) {
 	f := newFixture()
