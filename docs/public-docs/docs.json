@@ -3389,6 +3389,7 @@
             "group": "Introduction",
             "pages": [
               "op-stack/introduction/op-stack",
+              "op-stack/architecture",
               "op-stack/introduction/fact-sheet",
               "op-stack/learn/index"
             ]
