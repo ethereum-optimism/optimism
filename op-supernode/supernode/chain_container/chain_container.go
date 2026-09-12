@@ -188,6 +188,7 @@ type simpleChainContainer struct {
 	addMetricsRegistry func(key string, g prometheus.Gatherer) // Set the metrics registry on the global metrics server
 	appVersion         string
 	virtualNodeFactory virtualNodeFactory    // Factory function to create virtual node (for testing)
+	rollupClientMu     sync.Mutex            // Serializes replacement with Stop.
 	rollupClient       *sources.RollupClient // In-proc rollup RPC client bound to rpcHandler
 	metrics            *resources.SupernodeMetrics
 	// extraRPCRoutes are optional sibling routes mounted on this chain's own handler, at
@@ -433,9 +434,9 @@ func (c *simpleChainContainer) Start(ctx context.Context) error {
 		// start the virtual node
 		err := vn.Start(ctx)
 		if err != nil {
-			c.log.Warn("virtual node exited with error", "vn_id", vn, "error", err)
+			c.log.Warn("virtual node exited with error", "vn_id", fmt.Sprintf("%p", vn), "error", err)
 		} else {
-			c.log.Info("virtual node exited", "vn_id", vn)
+			c.log.Info("virtual node exited", "vn_id", fmt.Sprintf("%p", vn))
 		}
 
 		// always stop the virtual node after it exits
@@ -443,7 +444,7 @@ func (c *simpleChainContainer) Start(ctx context.Context) error {
 		if stopErr := vn.Stop(stopCtx); stopErr != nil {
 			c.log.Error("error stopping virtual node", "error", stopErr)
 		} else {
-			c.log.Info("virtual node stopped", "vn_id", vn)
+			c.log.Info("virtual node stopped", "vn_id", fmt.Sprintf("%p", vn))
 		}
 
 		cancel()
@@ -474,9 +475,12 @@ func (c *simpleChainContainer) Stop(ctx context.Context) error {
 	defer cancel()
 
 	// Close in-proc rollup RPC resources
+	c.rollupClientMu.Lock()
 	if c.rollupClient != nil {
 		c.rollupClient.Close()
+		c.rollupClient = nil
 	}
+	c.rollupClientMu.Unlock()
 
 	if vn := c.getVN(); vn != nil {
 		if err := vn.Stop(stopCtx); err != nil {
@@ -763,6 +767,12 @@ func (c *simpleChainContainer) attachInProcRollupClient() error {
 	inproc, err := c.rpcHandler.DialInProc()
 	if err != nil {
 		return err
+	}
+	c.rollupClientMu.Lock()
+	defer c.rollupClientMu.Unlock()
+	if c.stop.Load() {
+		inproc.Close()
+		return nil
 	}
 	// Close previous rollup client if present
 	if c.rollupClient != nil {
