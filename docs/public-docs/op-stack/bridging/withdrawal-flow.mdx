@@ -20,6 +20,27 @@ Withdrawals require the user to submit three transactions:
 2.  **Withdrawal proving transaction**, which the user submits on L1 to prove that the withdrawal is legitimate (based on a Merkle-Patricia trie root that commits to the state of the `L2ToL1MessagePasser`'s storage on L2)
 3.  **Withdrawal finalizing transaction**, which the user submits on L1 after the fault challenge period has passed, to actually run the transaction on L1.
 
+```mermaid
+sequenceDiagram
+    participant User
+    participant L2 as L2 (L2ToL1MessagePasser)
+    participant Prop as op-proposer
+    participant Portal as L1 (OptimismPortal)
+
+    User->>L2: 1. Initiate withdrawal
+    Note over L2: Message recorded in the<br/>message passer's storage
+    Prop->>Portal: Output root proposed,<br/>dispute game created
+    User->>Portal: 2. Prove withdrawal<br/>against that output root
+    Note over Portal: Fault challenge period<br/>game must resolve in the<br/>proposal's favor
+    User->>Portal: 3. Finalize withdrawal
+    Note over Portal: Transaction runs on L1
+```
+
+The three transactions are separated by waiting, not by work: step 2 cannot
+happen until a proposal covering the withdrawal's block reaches L1, and step 3
+cannot happen until that proposal's dispute game has resolved and the
+challenge period has elapsed.
+
 You can read the full [withdrawal specifications here](https://specs.optimism.io/protocol/withdrawals.html?utm_source=op-docs&utm_medium=docs).
 
 <Info>

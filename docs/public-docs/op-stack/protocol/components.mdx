@@ -30,6 +30,36 @@ Layers are generally more tightly defined towards the bottom of the stack (like 
   Please note that not all of the modules described on this page already exist in a production state — these are explicitly marked as either "**in development**" or "**proposed**."
 </Info>
 
+```mermaid
+graph TB
+  classDef chain fill:#FFE
+
+  subgraph stack[OP Stack layers]
+    direction TB
+    gov[Governance<br/>upgrades and parameters]
+    set[Settlement<br/>convinces L1 of L2 state]
+    exe[Execution<br/>state and the state transition]
+    der[Derivation<br/>compressed data to Engine API inputs]
+    seq[Sequencing<br/>collects and publishes transactions]
+    da[Data availability<br/>where the posted data lives]
+  end
+
+  seq -->|compresses and posts batches| da
+  da -->|compressed batches read by| der
+  der -->|block inputs via Engine API| exe
+  exe -->|state committed by| set
+  gov -.->|configures| set
+
+  class stack chain
+```
+
+Layers are drawn in the order data moves through them, from where the chain's
+data is posted at the bottom to the processes that govern the system at the
+top. Sequencing compresses L2 blocks into batches and posts them to the data
+availability layer; derivation reads those compressed batches back out and
+turns them into the inputs that rebuild the L2 chain. Each layer is a swap
+point: a chain picks one module per layer.
+
 ## Layers
 
 ### Data availability
