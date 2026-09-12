@@ -11,6 +11,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-core/predeploys"
 	"github.com/ethereum-optimism/optimism/op-private-interop/render"
 	"github.com/ethereum-optimism/optimism/op-service/apis"
+	"github.com/ethereum-optimism/optimism/op-service/bigs"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/txintent"
 	"github.com/ethereum/go-ethereum/common"
@@ -70,7 +71,7 @@ func (r *Resolver) ResolvePublishedPositions(ctx context.Context, rec *types.Rec
 func (r *Resolver) resolvePositions(ctx context.Context, rec *types.Receipt, block eth.BlockRef, published bool) ([]txintent.PublicPosition, error) {
 	ctx, cancel := context.WithTimeout(ctx, r.timeout)
 	defer cancel()
-	if rec.BlockHash != block.Hash || rec.BlockNumber == nil || rec.BlockNumber.Uint64() != block.Number || !r.Owns(ctx, block) {
+	if rec.BlockHash != block.Hash || rec.BlockNumber == nil || !rec.BlockNumber.IsUint64() || bigs.Uint64Strict(rec.BlockNumber) != block.Number || !r.Owns(ctx, block) {
 		return nil, fmt.Errorf("private receipt does not belong to canonical block %s", block)
 	}
 	privateLogs, err := blockLogs(ctx, r.private, block.Hash)

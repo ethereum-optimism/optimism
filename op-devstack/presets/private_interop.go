@@ -1,6 +1,8 @@
 package presets
 
 import (
+	"time"
+
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
 	"github.com/ethereum-optimism/optimism/op-devstack/dsl/poller"
 	"github.com/ethereum-optimism/optimism/op-devstack/sysgo"
@@ -8,7 +10,6 @@ import (
 	"github.com/ethereum-optimism/optimism/op-private-interop/positions"
 	"github.com/ethereum-optimism/optimism/op-private-interop/render"
 	"github.com/ethereum-optimism/optimism/op-service/txintent"
-	"time"
 )
 
 // PrivateInterop is what a test holds ON TOP of the ordinary two-L2 interop surfaces when chain B is
