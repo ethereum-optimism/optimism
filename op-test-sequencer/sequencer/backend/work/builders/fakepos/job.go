@@ -85,19 +85,32 @@ func (j *Job) setHeadSafeAndFinalized() {
 	}
 
 	if bigs.Uint64Strict(j.head.Number) > j.b.finalizedDistance { // progress finalized block, if we can
-		j.finalized, err = j.b.blockchain.HeaderByNumber(context.Background(), new(big.Int).SetUint64(bigs.Uint64Strict(j.head.Number)-j.b.finalizedDistance))
+		j.finalized, err = j.ancestor(j.b.finalizedDistance)
 		if err != nil {
 			panic("no block found finalizedDistance behind head")
 		}
 	}
 	if bigs.Uint64Strict(j.head.Number) > j.b.safeDistance { // progress safe block, if we can
-		j.safe, err = j.b.blockchain.HeaderByNumber(context.Background(), new(big.Int).SetUint64(bigs.Uint64Strict(j.head.Number)-j.b.safeDistance))
+		j.safe, err = j.ancestor(j.b.safeDistance)
 		if err != nil {
 			panic("no block found safeDistance behind head")
 		}
 	}
 
 	j.parentBeaconBlockRoot = fakeBeaconBlockRoot(j.head.Time) // parent beacon block root
+}
+
+// ancestor follows the selected parent, which may be on a non-canonical fork.
+func (j *Job) ancestor(distance uint64) (*types.Header, error) {
+	header := j.head
+	for range distance {
+		var err error
+		header, err = j.b.blockchain.HeaderByHash(context.Background(), header.ParentHash)
+		if err != nil {
+			return nil, err
+		}
+	}
+	return header, nil
 }
 
 func (j *Job) Open(ctx context.Context) error {

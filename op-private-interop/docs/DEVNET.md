@@ -29,6 +29,9 @@ volume. Preserve it with the private EL database; recovery authenticates survivi
 this history before rebuilding deposit-only blocks from L1. On restart, LightCL revalidates saved replay
 progress against both canonical chains before retaining newer valid private blocks. A changed recovery
 prefix or public schedule still triggers rewind. Normal public LightCLs do not need the journal.
+In-flight replacements are revalidated when a new recovery plan arrives and again when execution
+completes, before advancing safety or resuming sequencing. A stale completion does not authorize
+retaining its unsafe block, even when an earlier replay checkpoint remains canonical.
 
 The `/claimed` endpoint reports private commitments and recovery schedules. The ordinary
 `/<chain-id>` supernode route reports projection safety. Do not interchange them.
@@ -57,6 +60,13 @@ PRIVATE_INTEROP_SOAK=1 mise exec -- go test ./op-acceptance-tests/tests/interop/
 The shorter outage/recovery and batcher-rotation fixtures use a ten-L1-block sequencing window.
 They exercise expiry without waiting for the production window. Batcher rotation can expire
 unpublished old-key history; the rotation test does not establish uninterrupted handover.
+
+`TestPrivateRecoveryFollowsL1Reorg` removes the L1 origin of an already executed recovery block
+while the rejected range is still incomplete. `TestPrivateRecoveryRestartDiscardsReorgedProgress`
+repeats this with LightCL stopped across the reorg, reusing its execution database and journal.
+Both require revocation of the old recovery snapshot, replacement of abandoned private history,
+preservation of finalized ancestry, and fresh transactions/messages reaching canonical cross-safe
+history. These fixtures use the short test window, not production-window recovery timing.
 
 For an interactive temporary local devnet:
 

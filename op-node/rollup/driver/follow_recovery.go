@@ -79,6 +79,13 @@ func (f *followRecovery) update(ctx context.Context, status *sources.FollowStatu
 		}
 		changed = ref != f.applied
 	}
+	if !changed && f.build != nil {
+		ref, err := f.source.RecoveryBlock(rpcCtx, f.build.public.Number, plan.Target.ID())
+		if err != nil {
+			return err
+		}
+		changed = ref != f.build.public
+	}
 	if changed {
 		if err := f.adopt(ctx, rpcCtx, status); err != nil {
 			return err
@@ -169,7 +176,8 @@ func (f *followRecovery) adopt(ctx, rpcCtx context.Context, status *sources.Foll
 		// A partially recovered prefix still reserves the original range. Any
 		// unsafe suffix above that partial checkpoint has not been reconciled;
 		// retaining it lets a batcher publish over the remaining replay interval.
-		partial := progress != nil && plan.Prefix != nil && anchor.Number <= plan.Prefix.Parent.Number
+		// An in-flight build likewise cannot justify preserving an unsafe suffix.
+		partial := progress != nil && (f.build != nil || plan.Prefix != nil && anchor.Number <= plan.Prefix.Parent.Number)
 		if !reset && !partial {
 			unsafe = f.engine.UnsafeL2Head()
 		}
@@ -312,6 +320,23 @@ func (f *followRecovery) OnEvent(ctx context.Context, ev event.Event) bool {
 		if x.Ref.ParentHash != f.build.parent || x.Ref.Number != expected.Number ||
 			x.Ref.Time != expected.Time || x.Ref.L1Origin != expected.L1Origin ||
 			x.Ref.SequenceNumber != expected.SequenceNumber || x.Ref.Number > f.status.Recovery.Target.Number {
+			return true
+		}
+		// Execution may finish after the source changed branches, including
+		// before its next status poll. Validate again before persisting progress,
+		// promoting safety, or allowing the sequencer to resume.
+		rpcCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
+		canonical, err := f.source.RecoveryBlock(rpcCtx, expected.Number, f.status.Recovery.Target.ID())
+		cancel()
+		if err == nil && canonical != expected {
+			err = fmt.Errorf("completed recovery block is no longer canonical")
+		}
+		if err != nil {
+			f.pause(true)
+			// Retain build until adoption so a valid earlier checkpoint cannot
+			// preserve this obsolete unsafe block as an ordinary private suffix.
+			f.status = nil
+			f.emitter.Emit(ctx, rollup.EngineTemporaryErrorEvent{Err: err})
 			return true
 		}
 		f.applied, f.appliedPrivate, f.build = expected, x.Ref, nil
