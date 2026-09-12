@@ -39,7 +39,7 @@ route it through the "After the track" exits on the index instead.
 
 ## The syllabus
 
-Thirteen stops: three concept blocks punctuated by three hands-on projects,
+Fourteen stops: three concept blocks punctuated by three hands-on projects,
 so each block of ideas is consolidated by using it. Stops are existing
 pages; the track adds only a framing note per stop, per the
 [learning unit contract](/op-stack/contribute/learning-unit).
@@ -47,18 +47,19 @@ pages; the track adds only a framing note per stop, per the
 | Stop | Page | Kind | What it adds at this position |
 | ---- | ---- | ---- | ----------------------------- |
 | 1 | [The OP Stack](/op-stack/introduction/op-stack) | Concept | The mental model: what the stack is, what it powers, what you can build. |
-| 2 | [Design philosophy & principles](/op-stack/protocol/design-principles) | Concept | Why the stack is shaped the way it is; vocabulary the rest of the docs assume. |
-| 3 | [Differences from Ethereum](/op-stack/protocol/differences) | Concept | Grounds "EVM equivalent" before any hands-on work; prevents false transfer from Ethereum experience. |
-| 4 | [OP Stack components](/op-stack/protocol/components) | Concept | Names the layers and modules the learner is about to deploy in project 1. |
-| 5 | [Creating your own L2 rollup testnet](/chain-operators/tutorials/create-l2-rollup) | Project | Consolidates part 1: deploy a rollup testnet with op-deployer and start each component just named. |
-| 6 | [Transaction flow](/op-stack/transactions/transaction-flow) | Concept | Reinterprets the components the learner just ran as stages in one transaction's life. |
-| 7 | [Transaction fees on OP Mainnet](/op-stack/transactions/fees) | Concept | The fee components of a transaction; the economic consequence of the flow in stop 6. |
-| 8 | [Deposit flow](/op-stack/bridging/deposit-flow) | Concept | First direction of cross-layer movement: L1-triggered L2 transactions. |
-| 9 | [Withdrawal flow](/op-stack/bridging/withdrawal-flow) | Concept | Second direction: the initiate, prove, finalize sequence, and why it exists. |
-| 10 | [Submitting transactions from L1](/app-developers/tutorials/bridging/cross-dom-bridge-eth) | Project | Consolidates part 2: walk a deposit and a withdrawal from code with Viem. |
-| 11 | [Fault proofs explainer](/op-stack/fault-proofs/explainer) | Concept | Why the withdrawal the learner just proved can be trusted: permissionless proposals and challenges. |
-| 12 | [OP Stack interoperability explainer](/op-stack/interop/explainer) | Concept | Where the stack is going: a network of chains that feels like a single blockchain. |
-| 13 | [Running a node with Docker](/node-operators/tutorials/node-from-docker) | Capstone project | Ends the track operating real infrastructure: run a node on a live network with the official images. |
+| 2 | [OP Stack architecture](/op-stack/architecture) | Concept | The system view: the components, who runs each, how a transaction moves through them, and where trust sits. Gives the learner a whole-system model before any single part is examined. |
+| 3 | [Design philosophy & principles](/op-stack/protocol/design-principles) | Concept | Why the stack is shaped the way it is; vocabulary the rest of the docs assume. |
+| 4 | [Differences from Ethereum](/op-stack/protocol/differences) | Concept | Grounds "EVM equivalent" before any hands-on work; prevents false transfer from Ethereum experience. |
+| 5 | [OP Stack components](/op-stack/protocol/components) | Concept | Names the layers and modules the learner is about to deploy in project 1. |
+| 6 | [Creating your own L2 rollup testnet](/chain-operators/tutorials/create-l2-rollup) | Project | Consolidates part 1: deploy a rollup testnet with op-deployer and start each component just named. |
+| 7 | [Transaction flow](/op-stack/transactions/transaction-flow) | Concept | Reinterprets the components the learner just ran as stages in one transaction's life. |
+| 8 | [Transaction fees on OP Mainnet](/op-stack/transactions/fees) | Concept | The fee components of a transaction; the economic consequence of the flow in stop 6. |
+| 9 | [Deposit flow](/op-stack/bridging/deposit-flow) | Concept | First direction of cross-layer movement: L1-triggered L2 transactions. |
+| 10 | [Withdrawal flow](/op-stack/bridging/withdrawal-flow) | Concept | Second direction: the initiate, prove, finalize sequence, and why it exists. |
+| 11 | [Submitting transactions from L1](/app-developers/tutorials/bridging/cross-dom-bridge-eth) | Project | Consolidates part 2: walk a deposit and a withdrawal from code with Viem. |
+| 12 | [Fault proofs explainer](/op-stack/fault-proofs/explainer) | Concept | Why the withdrawal the learner just proved can be trusted: permissionless proposals and challenges. |
+| 13 | [OP Stack interoperability explainer](/op-stack/interop/explainer) | Concept | Where the stack is going: a network of chains that feels like a single blockchain. |
+| 14 | [Running a node with Docker](/node-operators/tutorials/node-from-docker) | Capstone project | Ends the track operating real infrastructure: run a node on a live network with the official images. |
 
 ## Design rules
 
@@ -91,6 +92,7 @@ pages; the track adds only a framing note per stop, per the
 | Date | Change |
 | ---- | ------ |
 | 2026-07-21 | Initial syllabus: 13 stops (three concept blocks, three projects: deploy a chain, bridge both directions, run a node). Curriculum owner: Matthew Cruz ([@sbvegan](https://github.com/sbvegan)). |
+| 2026-09-11 | Inserted [OP Stack architecture](/op-stack/architecture) as stop 2; 13 stops becomes 14. The track had no whole-system stop: stop 1 said what the stack is and stop 4 named the layers, but nothing between them showed how the parts interact or who runs each. Projects stay spaced at stops 6, 11 and 14 (design rule 4), and 14 is within the 15-stop cap (design rule 3). Needs the curriculum owner's review per design rule 5. |
 
 ## Next steps
 
