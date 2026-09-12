@@ -111,7 +111,7 @@ func smokeFlags(envPrefix string) []cli.Flag {
 			EnvVars: opservice.PrefixEnvVar(envPrefix, "SMOKE_PROJECTION_B_RPC")},
 		&cli.StringFlag{Name: projectionBRollupFlagName, Usage: "Ordinary rollup RPC for chain B's public projection (not /claimed).",
 			EnvVars: opservice.PrefixEnvVar(envPrefix, "SMOKE_PROJECTION_B_ROLLUP_RPC")},
-		&cli.DurationFlag{Name: positionTimeoutFlagName, Usage: "Maximum wait for a private message to be published.", Value: 15 * time.Minute,
+		&cli.DurationFlag{Name: positionTimeoutFlagName, Usage: "Timeout for resolving private message positions from canonical receipts; does not wait for publication.", Value: 15 * time.Minute,
 			EnvVars: opservice.PrefixEnvVar(envPrefix, "SMOKE_PRIVATE_POSITION_TIMEOUT")},
 	})
 }

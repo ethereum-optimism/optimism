@@ -62,9 +62,9 @@ type PublicPosition struct {
 
 // PositionResolver answers, for one chain, where that chain's logs appear publicly.
 //
-// Implementations live in the devstack (op-devstack/presets), which is where the handles on both
-// halves of a pair exist. Nothing in production registers one: a production relayer reads the
-// rendering directly, which is the same answer arrived at without a translation step.
+// Implementations may compute positions directly from canonical private receipts,
+// using the same rendering as the operator's interop filter. Reading the derived
+// public projection is another option, but adds publication latency.
 type PositionResolver interface {
 	// Owns reports whether the given block is one this resolver's chain produced.
 	//
@@ -75,9 +75,8 @@ type PositionResolver interface {
 
 	// ResolvePositions returns one entry per log of rec, in the receipt's own order.
 	//
-	// It may block: a log's public position does not exist until the chain's public presence has
-	// caught up with the block that emitted it. Implementations bound that wait themselves and
-	// return an error rather than hanging.
+	// Positions are deterministic before publication. Resolving them does not
+	// establish message safety; the destination's interop checks still apply.
 	ResolvePositions(ctx context.Context, rec *types.Receipt, includedIn eth.BlockRef) ([]PublicPosition, error)
 }
 

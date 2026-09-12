@@ -37,8 +37,9 @@ type Resolver struct {
 	timeout             time.Duration
 }
 
-// New constructs a resolver for a private/projection pair. Callers must supply
-// matching chains and the same emitter configuration used by the batcher.
+// New constructs a resolver using the batcher's emitter configuration. Projection
+// and safety are only needed by ResolvePublishedPositions; when supplied, they
+// must describe the matching public projection.
 func New(private, projection ExecutionSource, safety SafetySource, emitters render.EmitterSet, timeout time.Duration) *Resolver {
 	return &Resolver{private: private, projection: projection, safety: safety, emitters: emitters, timeout: timeout}
 }
@@ -50,9 +51,23 @@ func (r *Resolver) Owns(ctx context.Context, block eth.BlockRef) bool {
 	return err == nil && got == block
 }
 
-// ResolvePositions waits for publication and checks the complete projected log
-// sequence, including indices and emitters. A reorg or mismatch fails resolution.
+// ResolvePositions computes public positions from canonical private receipts using
+// the same rendering as the batcher and interop filter. Publication is not required:
+// the filter can admit messages at cross-unsafe before their batch reaches L1.
 func (r *Resolver) ResolvePositions(ctx context.Context, rec *types.Receipt, block eth.BlockRef) ([]txintent.PublicPosition, error) {
+	return r.resolvePositions(ctx, rec, block, false)
+}
+
+// ResolvePublishedPositions additionally waits for publication and checks the
+// complete derived log sequence. Use this to verify publication, not to gate relay.
+func (r *Resolver) ResolvePublishedPositions(ctx context.Context, rec *types.Receipt, block eth.BlockRef) ([]txintent.PublicPosition, error) {
+	if r.projection == nil || r.safety == nil {
+		return nil, fmt.Errorf("publication verification requires projection and safety sources")
+	}
+	return r.resolvePositions(ctx, rec, block, true)
+}
+
+func (r *Resolver) resolvePositions(ctx context.Context, rec *types.Receipt, block eth.BlockRef, published bool) ([]txintent.PublicPosition, error) {
 	ctx, cancel := context.WithTimeout(ctx, r.timeout)
 	defer cancel()
 	if rec.BlockHash != block.Hash || rec.BlockNumber == nil || rec.BlockNumber.Uint64() != block.Number || !r.Owns(ctx, block) {
@@ -76,7 +91,22 @@ func (r *Resolver) ResolvePositions(ctx context.Context, rec *types.Receipt, blo
 		_, included := byPrivateIndex[log.Index]
 		public = public || included
 	}
+	if !r.Owns(ctx, block) {
+		return nil, fmt.Errorf("private chain changed during message resolution")
+	}
 	if !public {
+		return out, nil
+	}
+	if !published {
+		for i, log := range rec.Logs {
+			if index, ok := byPrivateIndex[log.Index]; ok {
+				origin := log.Address
+				if origin != predeploys.L2toL2CrossDomainMessengerAddr && origin != predeploys.CrossL2InboxAddr {
+					origin = predeploys.EventReplayerAddr
+				}
+				out[i] = txintent.PublicPosition{Origin: origin, LogIndex: index, Public: true}
+			}
+		}
 		return out, nil
 	}
 	if err := r.awaitProjection(ctx, block.Number); err != nil {
