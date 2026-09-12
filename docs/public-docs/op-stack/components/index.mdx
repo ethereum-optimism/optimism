@@ -12,18 +12,27 @@ answer. Each hub follows the same
 is, who runs it, where to start, and where its guides, configuration
 reference, releases, source, and spec live.
 
-Components are grouped by their role in the protocol. For how these roles fit
-together conceptually — data availability, sequencing, derivation, execution,
-settlement — see the [OP Stack components](/op-stack/protocol/components)
-explanation. For release history across all components, see
-[Releases](/releases).
+Components are grouped by the protocol layer they implement. The layers
+themselves are defined in
+[OP Stack components](/op-stack/protocol/components), which is the canonical
+taxonomy; for how the components interact at runtime, see
+[OP Stack architecture](/op-stack/architecture). For release history across
+all components, see [Releases](/releases).
+
+| This group | Implements the layer |
+| --- | --- |
+| Sequencing | Sequencing, Data Availability |
+| Derivation & execution | Derivation, Execution |
+| Settlement & proofs | Settlement |
+| Deployment & infrastructure | Cuts across layers; Governance is a process layer with no component of its own |
 
 Hubs are shipping in reviewed batches. Components without a hub yet are
 listed with their release history; their hub pages follow.
 
 ## Sequencing
 
-Producing L2 blocks and making their data available.
+Producing L2 blocks and making their data available. Implements the
+**Sequencing** and **Data Availability** layers.
 
 | Component | What it does | Hub | Releases |
 | --- | --- | --- | --- |
@@ -33,7 +42,7 @@ Producing L2 blocks and making their data available.
 ## Derivation & execution
 
 Deriving the canonical L2 chain from the data availability layer and
-executing its blocks.
+executing its blocks. Implements the **Derivation** and **Execution** layers.
 
 | Component | What it does | Hub | Releases |
 | --- | --- | --- | --- |
@@ -43,7 +52,8 @@ executing its blocks.
 
 ## Settlement & proofs
 
-Proposing L2 state to L1 and proving its validity. 
+Proposing L2 state to L1 and proving its validity. Implements the
+**Settlement** layer. 
 
 | Component | What it does | Hub | Releases |
 | --- | --- | --- | --- |
