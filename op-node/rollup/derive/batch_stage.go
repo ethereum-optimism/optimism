@@ -22,6 +22,12 @@ import (
 // Upon Holocene activation, it replaces the [BatchQueue].
 type BatchStage struct {
 	baseBatchStage
+
+	// pendingSpan retains a span batch that was already consumed from the
+	// previous stage while its validity was BatchUndecided, so it is retried
+	// instead of being skipped when the missing L1 or L2 context becomes
+	// available.
+	pendingSpan *SpanBatch
 }
 
 var _ SingularBatchProvider = (*BatchStage)(nil)
@@ -32,11 +38,13 @@ func NewBatchStage(log log.Logger, cfg *rollup.Config, prev NextBatchProvider, l
 
 func (bs *BatchStage) Reset(_ context.Context, base eth.L1BlockRef, _ eth.SystemConfig) error {
 	bs.reset(base)
+	bs.pendingSpan = nil
 	return io.EOF
 }
 
 func (bs *BatchStage) FlushChannel() {
 	bs.nextSpan = bs.nextSpan[:0]
+	bs.pendingSpan = nil
 	bs.prev.FlushChannel()
 }
 
@@ -110,6 +118,12 @@ func (bs *BatchStage) NextBatch(ctx context.Context, parent eth.L2BlockRef) (*Si
 }
 
 func (bs *BatchStage) nextSingularBatchCandidate(ctx context.Context, parent eth.L2BlockRef) (*SingularBatch, error) {
+	// Retry a retained span batch whose validity was undecided before pulling
+	// new data from the previous stage.
+	if bs.pendingSpan != nil {
+		return bs.nextFromPendingSpan(ctx, parent)
+	}
+
 	// First check for next span-derived batch
 	nextBatch, _ := bs.nextFromSpanBatch(parent)
 
@@ -148,8 +162,9 @@ func (bs *BatchStage) nextSingularBatchCandidate(ctx context.Context, parent eth
 			spanBatch.LogContext(bs.Log()).Warn("Dropping invalid span batch, flushing channel (span batch checks)")
 			bs.FlushChannel()
 			return nil, NotEnoughData
-		case BatchUndecided: // l2 fetcher error; the span was already consumed and is skipped, not retried
-			spanBatch.LogContext(bs.Log()).Warn("Undecided span batch")
+		case BatchUndecided: // l2 fetcher error or missing L1 context, retain the span for retry
+			spanBatch.LogContext(bs.Log()).Warn("Undecided span batch, retaining for retry")
+			bs.pendingSpan = spanBatch
 			return nil, NotEnoughData
 		case BatchFuture: // can't happen with Holocene
 			return nil, NewCriticalError(errors.New("impossible future batch validity"))
@@ -170,4 +185,47 @@ func (bs *BatchStage) nextSingularBatchCandidate(ctx context.Context, parent eth
 	default:
 		return nil, NewCriticalError(fmt.Errorf("unrecognized batch type: %d", typ))
 	}
+}
+
+// nextFromPendingSpan re-checks a retained span batch whose validity was
+// previously BatchUndecided. The pending slot is only cleared on a terminal
+// outcome (accepted, dropped or past); an undecided result retains the span
+// for another attempt.
+func (bs *BatchStage) nextFromPendingSpan(ctx context.Context, parent eth.L2BlockRef) (*SingularBatch, error) {
+	spanBatch := bs.pendingSpan
+
+	validity := checkSpanBatchHolocene(ctx, bs.config, bs.Log(), bs.l1Blocks, parent, spanBatch, bs.origin, bs.l2)
+	switch validity {
+	case BatchAccept:
+		spanBatch.LogContext(bs.Log()).Info("Found next valid span batch")
+	case BatchPast:
+		spanBatch.LogContext(bs.Log()).Warn("Dropping past span batch")
+		bs.pendingSpan = nil
+		return nil, NotEnoughData
+	case BatchDrop: // drop, flush, move onto next channel
+		spanBatch.LogContext(bs.Log()).Warn("Dropping invalid span batch, flushing channel (pending span batch checks)")
+		bs.pendingSpan = nil
+		bs.FlushChannel()
+		return nil, NotEnoughData
+	case BatchUndecided: // still missing context, keep retaining
+		spanBatch.LogContext(bs.Log()).Warn("Still undecided span batch, retaining for retry")
+		return nil, NotEnoughData
+	case BatchFuture: // can't happen with Holocene
+		return nil, NewCriticalError(errors.New("impossible future batch validity"))
+	}
+
+	// If next batch is SpanBatch, convert it to SingularBatches.
+	singularBatches, err := spanBatch.GetSingularBatches(bs.l1Blocks, parent)
+	// Errors can happen here because the Holocene span batch checks are not exhaustive (unlike
+	// the full span batch checks) so an error must be handled like an invalid span batch (DROP).
+	if err != nil {
+		spanBatch.LogContext(bs.Log()).Warn("Dropping invalid span batch, flushing channel (singular batch extraction)", "error", err)
+		bs.pendingSpan = nil
+		bs.FlushChannel()
+		return nil, NotEnoughData
+	}
+	bs.pendingSpan = nil
+	bs.nextSpan = singularBatches
+	// span-batches are non-empty, so the below pop is safe.
+	return bs.popNextBatch(parent), nil
 }
