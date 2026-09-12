@@ -25,21 +25,26 @@ sequenceDiagram
     participant User
     participant L2 as L2 (L2ToL1MessagePasser)
     participant Prop as op-proposer
+    participant DGF as L1 (DisputeGameFactory)
     participant Portal as L1 (OptimismPortal)
 
     User->>L2: 1. Initiate withdrawal
     Note over L2: Message recorded in the<br/>message passer's storage
-    Prop->>Portal: Output root proposed,<br/>dispute game created
+    Prop->>DGF: Output root proposed,<br/>dispute game created
     User->>Portal: 2. Prove withdrawal<br/>against that output root
     Note over Portal: Fault challenge period<br/>game must resolve in the<br/>proposal's favor
     User->>Portal: 3. Finalize withdrawal
     Note over Portal: Transaction runs on L1
 ```
 
-The three transactions are separated by waiting, not by work: step 2 cannot
-happen until a proposal covering the withdrawal's block reaches L1, and step 3
-cannot happen until that proposal's dispute game has resolved and the
-challenge period has elapsed.
+The three transactions are separated by waiting, not by work. Step 2 cannot
+happen until a proposal covering the withdrawal's block reaches L1. Step 3 then
+waits on three independent conditions, not one: the proof must post-date the
+game's creation, the proof must itself have aged past the proof maturity delay
+measured from your own proving transaction, and the game must have resolved in
+the proposal's favor and cleared the dispute game finality delay. Proving late
+against an already-resolved game does not let you finalize immediately; the
+proof maturity delay still runs from your prove transaction.
 
 You can read the full [withdrawal specifications here](https://specs.optimism.io/protocol/withdrawals.html?utm_source=op-docs&utm_medium=docs).
 

@@ -53,9 +53,9 @@ graph TB
   class stack chain
 ```
 
-Layers are drawn in the order data moves through them, from where the chain's
-data is posted at the bottom to the processes that govern the system at the
-top. Sequencing compresses L2 blocks into batches and posts them to the data
+The diagram follows the data rather than stacking the layers, so it does not
+match the bottom-to-top ordering the section above describes. Sequencing
+compresses L2 blocks into batches and posts them to the data
 availability layer; derivation reads those compressed batches back out and
 turns them into the inputs that rebuild the L2 chain. Each layer is a swap
 point: a chain picks one module per layer.

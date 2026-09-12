@@ -8,8 +8,8 @@ import { NormativeSpec } from "/snippets/normative-spec.mdx"
 
 <NormativeSpec
   what="OP Stack protocol behavior"
-  title="OP Stack specifications"
-  href="https://specs.optimism.io/"
+  title="Optimism overview specification"
+  href="https://specs.optimism.io/protocol/overview.html"
   note="This page explains how the system fits together; it does not restate the spec."
 />
 
@@ -21,8 +21,11 @@ import { NormativeSpec } from "/snippets/normative-spec.mdx"
   [Design philosophy & principles](/op-stack/protocol/design-principles).
 </Info>
 
-An OP Stack chain is a *derived* chain: its canonical history is defined by
-data published to a parent chain, and every other part of the system exists to
+An OP Stack chain is an *optimistic rollup*: it executes transactions on its
+own network, publishes their data to a parent chain, and lets anyone challenge
+its claims about the resulting state rather than proving each one up front.
+That makes it a *derived* chain: its canonical history is defined by data
+published to a parent chain, and every other part of the system exists to
 produce that data, to turn it back into blocks, or to convince the parent chain
 of the result. That single property explains most of the architecture.
 
@@ -68,7 +71,7 @@ graph TB
   portal -->|forced inclusion| seq
   portal -->|forced inclusion| ver
   seq -->|op-proposer posts output roots| dgf
-  chal[op-challenger<br/>run by anyone] -->|disputes proposals| dgf
+  chal[op-challenger<br/>see game type below] -->|disputes proposals| dgf
 
   class l1c l1
   class l2c chain
@@ -93,7 +96,7 @@ The OP Stack is a set of separate services rather than one program.
 | [op-proposer](/op-stack/components/op-proposer) | Posts output roots (commitments to L2 state) to L1 | Operator, or anyone on a permissionless chain | No new withdrawals can be proven |
 | [op-challenger](/op-stack/components/op-challenger) | Disputes invalid proposals, defends valid ones | Operator, or anyone on a permissionless chain | Invalid proposals go unchallenged |
 | [op-conductor](/op-stack/components/op-conductor) | Leader election across a sequencer cluster | Operator (optional) | A sequencer failure stalls production until manual failover |
-| [op-deployer](/op-stack/components/op-deployer) | Deploys the chain's L1 contracts | Operator | No chain to deploy |
+| [op-deployer](/op-stack/components/op-deployer) | Deploys the chain's L1 contracts | Operator | No contracts on L1, so no chain |
 
 The consensus and execution clients run as a pair, one to one, connected over
 the Engine API. Two implementations of the consensus role exist, op-node in Go
@@ -147,19 +150,21 @@ sequenceDiagram
 | 8 | op-proposer | Submits an output root to `DisputeGameFactory` on an interval, creating a dispute game | A claim withdrawals can be proven against |
 | 9 | op-challenger | Checks the proposal against its own synced node and counters it if wrong | Game resolves for or against the proposal |
 
-The sequencer's mempool is private, unlike L1 Ethereum's, which limits the
-MEV opportunities that a public pending-transaction pool creates.
+The sequencer's mempool is private, unlike L1 Ethereum's public one, which
+limits the MEV opportunities a public pending-transaction pool creates.
 
 Ordering is decided by the execution client, not the rollup node. The rollup
 node's job at block-building time is to fix what the protocol requires, the L1
 origin and the deposits for that epoch, and to leave the rest to the execution
 client's mempool.
 
-Steps 1 through 4 depend on the sequencer behaving. Step 6 is where that
+Steps 1 through 5 are run by the chain operator, so they depend on the
+sequencer behaving. Step 6 is where that
 dependency ends: once the data is on the DA layer, the block's ordering is
 fixed by that layer rather than by the sequencer's goodwill. On chains
 streaming [Subblocks](/op-stack/features/subblocks), applications can act on a
-preconfirmation roughly 200 milliseconds after submission, well before step 4.
+preconfirmation within roughly 200 milliseconds of submission, well before
+step 4. The interval is a target rather than a guarantee.
 
 Steps 8 and 9 are a separate track on its own schedule. The proposer posts on a
 configured interval covering many blocks, not once per transaction, and by
@@ -213,21 +218,21 @@ does not roll the chain back. See the
 The layered design means several choices are a chain's to make. Some can be
 changed later; some are fixed at genesis.
 
-- **Standard chain.** Ethereum for data availability, ETH for gas, governed
-  upgrades. This is what the
-  [blockspace charter](/op-stack/protocol/blockspace-charter) defines and what
-  interoperability and shared tooling assume.
-- **Custom data availability.** An [Alt-DA](/op-stack/features/experimental/alt-da-mode)
-  layer instead of Ethereum blobs. Cheaper, and the chain's security becomes a
-  function of that layer's availability guarantees rather than Ethereum's. The
-  feature is experimental, and with it the claim that anyone can reconstruct
-  the chain from Ethereum no longer holds: only a commitment reaches L1.
-- **Custom gas token.** A [custom gas token](/op-stack/features/custom-gas-token)
-  as the native fee asset instead of ETH. Configured at genesis; enabling it on
-  a chain that is already running is strongly discouraged.
-- **Interoperable cluster.** Chains in a shared dependency set exchange
-  messages with low latency. In active development; see the
-  [interoperability explainer](/op-stack/interop/explainer).
+*   **Standard chain.** Ethereum for data availability, ETH for gas, governed
+    upgrades. This is what the
+    [blockspace charter](/op-stack/protocol/blockspace-charter) defines and what
+    interoperability and shared tooling assume.
+*   **Custom data availability.** An [Alt-DA](/op-stack/features/experimental/alt-da-mode)
+    layer instead of Ethereum blobs. Cheaper, and the chain's security becomes a
+    function of that layer's availability guarantees rather than Ethereum's. The
+    feature is experimental, and with it the claim that anyone can reconstruct
+    the chain from Ethereum no longer holds: only a commitment reaches L1.
+*   **Custom gas token.** A [custom gas token](/op-stack/features/custom-gas-token)
+    as the native fee asset instead of ETH. Configured at genesis, with no
+    migration path: an existing chain would have to coordinate a hard fork.
+*   **Interoperable cluster.** Chains in a shared dependency set exchange
+    messages with low latency. In active development; see the
+    [interoperability explainer](/op-stack/interop/explainer).
 
 The data availability choice is a security decision before it is a
 configuration change, because that layer determines whether the chain can be
@@ -255,7 +260,8 @@ Even where challenging is open, it is not free: playing a game requires a
 synced honest node, a bond to create or move in a game, gas for every move, and
 patience for delayed payouts.
 
-**Named roles** include the Proxy Admin (upgrades the system contracts), the
+**Named roles** include the L1 and L2 Proxy Admins (upgrade the system
+contracts), the
 System Config Owner (chain parameters such as the gas limit, and the unsafe
 block signer key), the Batcher, the Proposer and Challenger under a permissioned
 game, and the Guardian (pauses withdrawals, blacklists games, and sets the
@@ -264,7 +270,7 @@ live addresses are on [Privileged roles](/op-stack/protocol/privileged-roles).
 
 ## Next steps
 
-- Follow one transaction in mechanical detail in [Transaction flow](/op-stack/transactions/transaction-flow).
-- See the swappable layers and their modules in [OP Stack components](/op-stack/protocol/components).
-- Find the hub page for any component in [Stack Components](/op-stack/components/index).
-- Read the normative definitions in the [OP Stack specifications](https://specs.optimism.io/).
+*   Follow one transaction in mechanical detail in [Transaction flow](/op-stack/transactions/transaction-flow).
+*   See the swappable layers and their modules in [OP Stack components](/op-stack/protocol/components).
+*   Find the hub page for any component in [Stack Components](/op-stack/components/index).
+*   Read the normative definitions in the [OP Stack specifications](https://specs.optimism.io/).

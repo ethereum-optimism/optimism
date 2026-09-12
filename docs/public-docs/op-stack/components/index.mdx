@@ -1,7 +1,7 @@
 ---
 title: Stack Components
 sidebarTitle: Overview
-description: One canonical hub page per OP Stack component, grouped by protocol role.
+description: One canonical hub page per OP Stack component, grouped by the protocol layer it implements.
 diataxis: explanation
 ---
 
@@ -24,7 +24,7 @@ all components, see [Releases](/releases).
 | Sequencing | Sequencing, Data Availability |
 | Derivation & execution | Derivation, Execution |
 | Settlement & proofs | Settlement |
-| Deployment & infrastructure | Cuts across layers; Governance is a process layer with no component of its own |
+| Deployment & infrastructure | Cuts across layers; Governance is served by contracts and processes rather than OP Stack services, so it has no component hub |
 
 Hubs are shipping in reviewed batches. Components without a hub yet are
 listed with their release history; their hub pages follow.
@@ -48,7 +48,7 @@ executing its blocks. Implements the **Derivation** and **Execution** layers.
 | --- | --- | --- | --- |
 | op-node | OP Stack consensus-layer (rollup node) client, in Go | [Hub](/op-stack/components/op-node) | [Releases](/releases/op-node) |
 | kona-node | Rust implementation of the OP Stack rollup node | [Hub](/op-stack/components/kona-node) | [Releases](/releases/kona-node) |
-| op-reth | OP Stack execution-layer client built on Reth | [Hub](/op-stack/components/op-reth) | [Releases](/releases/op-reth) |
+| op-reth | OP Stack execution-layer client built on reth | [Hub](/op-stack/components/op-reth) | [Releases](/releases/op-reth) |
 
 ## Settlement & proofs
 
@@ -70,5 +70,5 @@ Deploying chains and operating the infrastructure around them.
 
 | Component | What it does | Hub | Releases |
 | --- | --- | --- | --- |
-| op-deployer | OP Stack chain deployment and upgrade tool | [Hub](/op-stack/components/op-deployer) | [Releases](/releases/op-deployer) |
+| op-deployer | OP Stack chain deployment tool | [Hub](/op-stack/components/op-deployer) | [Releases](/releases/op-deployer) |
 | proxyd | RPC request router and proxy | [Hub](/op-stack/components/proxyd) | [Releases](/releases/proxyd) |
