@@ -3010,14 +3010,14 @@ workflows:
             - circleci-repo-readonly-authenticated-github-token
             - circleci-repo-rpc-secrets
             - slack
-      # On PRs, run upgrade tests with lite profile for better build times.
+      # Upgrade setup must fit within the forked L1 block gas limit.
       - contracts-bedrock-tests-upgrade:
           name: contracts-bedrock-tests-upgrade op-mainnet <<matrix.features>>
           requires:
             - prep-go-modules
           fork_op_chain: op
           fork_base_chain: mainnet
-          test_profile: liteci
+          test_profile: ci
           features: <<matrix.features>>
           matrix:
             parameters:
@@ -3048,14 +3048,14 @@ workflows:
           filters:
             branches:
               only: develop
-      # On PRs, run chain-specific upgrade tests with lite profile for better build times.
+      # Upgrade setup must fit within the forked L1 block gas limit.
       - contracts-bedrock-tests-upgrade:
           name: contracts-bedrock-tests-upgrade <<matrix.fork_op_chain>>-mainnet
           requires:
             - prep-go-modules
           fork_op_chain: <<matrix.fork_op_chain>>
           fork_base_chain: mainnet
-          test_profile: liteci
+          test_profile: ci
           matrix:
             parameters:
               fork_op_chain: ["op", "ink", "unichain"]
