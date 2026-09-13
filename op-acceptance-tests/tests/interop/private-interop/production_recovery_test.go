@@ -2,6 +2,7 @@ package privateinterop
 
 import (
 	"encoding/json"
+	"fmt"
 	"os"
 	"testing"
 	"time"
@@ -376,7 +377,7 @@ func (s *privateReorgSoak) reorg(restart bool) {
 	sys.L1CL.Start()
 	sys.L2BatcherA.Start()
 	sys.L2BatcherB.Start()
-	sys.L2BCL.Reached(safety.CrossSafe, before.Recovery.Prefix.Parent.Number+s.cadence, s.attempts)
+	s.waitForReorgCrossSafety(before.Recovery.Prefix.Parent.Number + s.cadence)
 
 	require.False(sys.L2ELB.IsCanonical(invalid.ID()))
 	require.False(sys.L2ELB.IsCanonical(replayed.ID()))
@@ -396,4 +397,41 @@ func (s *privateReorgSoak) reorg(restart bool) {
 	// sequencing here. Deposit-only content was asserted at interruption above.
 	record("reorg_converged", map[string]any{"restart": restart, "replacement": replacement, "projection": projection})
 	s.heads("after_reorg_catchup")
+}
+
+// Check the public source throughout catch-up, not only after it converges.
+// A transient safe head below finalized would make ordinary LightCL correctly
+// reject sync status and can reveal stale verification being finalized.
+func (s *privateReorgSoak) waitForReorgCrossSafety(target uint64) {
+	t, sys := s.t, s.sys
+	var inconsistent error
+	var evidence any
+	t.Require().Eventually(func() bool {
+		reached := false
+		for _, node := range []struct {
+			name string
+			cl   *dsl.L2CLNode
+		}{
+			{"private_lightcl", sys.L2BCL}, {"public_lightcl", sys.L2ACL},
+			{"private_projection", sys.L2BSupernodeCL}, {"public_projection", sys.L2ASupernodeCL},
+		} {
+			status, err := node.cl.Escape().RollupAPI().SyncStatus(t.Ctx())
+			if err != nil {
+				return false
+			}
+			if status.FinalizedL2.Number > status.SafeL2.Number {
+				inconsistent = fmt.Errorf("%s finalized %s is ahead of safe %s", node.name, status.FinalizedL2, status.SafeL2)
+				evidence = map[string]any{"node": node.name, "status": status}
+				return true
+			}
+			if node.cl == sys.L2BCL {
+				reached = status.SafeL2.Number >= target
+			}
+		}
+		return reached
+	}, time.Duration(2*s.attempts)*time.Second, time.Second, "recover cross-safety through the next two private ranges")
+	if inconsistent != nil {
+		s.record("inconsistent_finality", evidence)
+	}
+	t.Require().NoError(inconsistent)
 }

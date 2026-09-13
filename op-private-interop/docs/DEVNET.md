@@ -116,7 +116,8 @@ and the full 3,600-L1-block sequencing window. It first catches up two unpublish
 private ranges and establishes valid messaging in both directions. It then reorgs
 L1 during partial private recovery twice, including a LightCL restart with the
 same database and journal, followed by completed-recovery restart preservation,
-a separate supernode restart, and fresh cross-safe traffic. Allow 90–120 minutes:
+a separate supernode restart, and fresh cross-safe traffic. During reorg catch-up,
+all four CL views must keep finalized at or below cross-safe. Allow 90–120 minutes:
 
 ```sh
 PRIVATE_INTEROP_REORG_SOAK=1 mise exec -- go test \
