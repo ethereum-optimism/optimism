@@ -5,6 +5,11 @@
         "internalType": "contract Safe",
         "name": "_safe",
         "type": "address"
+      },
+      {
+        "internalType": "contract IUnorderedExecutionModule",
+        "name": "_unorderedExecutionModule",
+        "type": "address"
       }
     ],
     "stateMutability": "nonpayable",
@@ -25,6 +30,63 @@
     ],
     "name": "checkAfterExecution",
     "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "bytes32",
+        "name": "",
+        "type": "bytes32"
+      },
+      {
+        "internalType": "bool",
+        "name": "",
+        "type": "bool"
+      }
+    ],
+    "name": "checkAfterModuleExecution",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "",
+        "type": "address"
+      },
+      {
+        "internalType": "uint256",
+        "name": "",
+        "type": "uint256"
+      },
+      {
+        "internalType": "bytes",
+        "name": "",
+        "type": "bytes"
+      },
+      {
+        "internalType": "enum Enum.Operation",
+        "name": "",
+        "type": "uint8"
+      },
+      {
+        "internalType": "address",
+        "name": "_module",
+        "type": "address"
+      }
+    ],
+    "name": "checkModuleTransaction",
+    "outputs": [
+      {
+        "internalType": "bytes32",
+        "name": "moduleTxHash_",
+        "type": "bytes32"
+      }
+    ],
     "stateMutability": "nonpayable",
     "type": "function"
   },
@@ -134,7 +196,7 @@
     "inputs": [
       {
         "internalType": "bytes4",
-        "name": "interfaceId",
+        "name": "_interfaceId",
         "type": "bytes4"
       }
     ],
@@ -144,6 +206,19 @@
         "internalType": "bool",
         "name": "",
         "type": "bool"
+      }
+    ],
+    "stateMutability": "pure",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "unorderedExecutionModule",
+    "outputs": [
+      {
+        "internalType": "contract IUnorderedExecutionModule",
+        "name": "module_",
+        "type": "address"
       }
     ],
     "stateMutability": "view",

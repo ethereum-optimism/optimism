@@ -204,8 +204,8 @@
     "sourceCodeHash": "0xd15f4bb43e81a10317902cd8e27394581a59df2656b130727eb67543c985c72e"
   },
   "src/safe/LivenessGuard.sol:LivenessGuard": {
-    "initCodeHash": "0x2c55a3800e8b4934c0e8eacd61e35c4210dcc659a9cf8e3e2792e1d822096656",
-    "sourceCodeHash": "0x62e1354f04f8de3edb58aa8517faf803cd69e6b5f1ce850ac83690bf6be0d25a"
+    "initCodeHash": "0x888addbede55c87b87f5b130071b63ed5c92ab121cbca149abd9a03a7212e252",
+    "sourceCodeHash": "0x60bbaecbb7da0a84c326d13b389c01687efa343d353121e8ea1e4d9947544e12"
   },
   "src/safe/LivenessModule.sol:LivenessModule": {
     "initCodeHash": "0xf55316e85e58b74934e6075b22c85c4b77d4505e2c9e750e42865c01707e50c1",

@@ -9,6 +9,7 @@ import "test/safe-tools/SafeTestTools.sol";
 import { Safe } from "safe-contracts/Safe.sol";
 import { LivenessModule } from "src/safe/LivenessModule.sol";
 import { LivenessGuard } from "src/safe/LivenessGuard.sol";
+import { IUnorderedExecutionModule } from "interfaces/safe/IUnorderedExecutionModule.sol";
 
 // Libraries
 import { OwnerManager } from "safe-contracts/base/OwnerManager.sol";
@@ -81,7 +82,7 @@ abstract contract LivenessModule_TestInit is Test, SafeTestTools {
         (, uint256[] memory keys) = SafeTestLib.makeAddrsAndKeys("moduleTest", 10);
         safeInstance = _setupSafe(keys, 8);
 
-        livenessGuard = new LivenessGuard(safeInstance.safe);
+        livenessGuard = new LivenessGuard(safeInstance.safe, IUnorderedExecutionModule(address(0)));
         fallbackOwner = makeAddr("fallbackOwner");
         livenessModule = new LivenessModule({
             _safe: safeInstance.safe,
@@ -287,7 +288,7 @@ contract LivenessModule_RemoveOwners_Test is LivenessModule_TestInit {
         (, uint256[] memory keys) = SafeTestLib.makeAddrsAndKeys("rmOwnersTest", numOwners_);
         uint256 threshold = _getRequiredThreshold(numOwners_, thresholdPercentage_);
         safeInstance = _setupSafe(keys, threshold);
-        livenessGuard = new LivenessGuard(safeInstance.safe);
+        livenessGuard = new LivenessGuard(safeInstance.safe, IUnorderedExecutionModule(address(0)));
         livenessModule = new LivenessModule({
             _safe: safeInstance.safe,
             _livenessGuard: livenessGuard,
@@ -460,7 +461,7 @@ contract LivenessModule_RemoveOwners_Test is LivenessModule_TestInit {
         address[] memory prevOwners = safeInstance.getPrevOwners(ownersToRemove);
 
         // Change the guard
-        livenessGuard = new LivenessGuard(safeInstance.safe);
+        livenessGuard = new LivenessGuard(safeInstance.safe, IUnorderedExecutionModule(address(0)));
         safeInstance.setGuard(address(livenessGuard));
 
         _warpPastLivenessInterval();
