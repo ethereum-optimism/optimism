@@ -38,7 +38,7 @@ use std::{
     },
     time::{Duration, Instant},
 };
-use tracing::{error, info, trace};
+use tracing::{error, info, trace, warn};
 
 /// The default request timeout to use
 pub const DEFAULT_REQUEST_TIMEOUT: Duration = Duration::from_secs(2);
@@ -298,37 +298,77 @@ impl InteropFilterClient {
     /// also fails the check closed, so the partial-information case never decided admission.
     ///
     /// If no endpoint replies, the cache is left unchanged and an error is returned (matching the
-    /// previous single-endpoint behavior).
+    /// previous single-endpoint behavior). That error preserves *why* the poll failed: a transport
+    /// or RPC failure (TLS, DNS, connection refused, HTTP error, filter-internal error) is
+    /// reported as such, and [`Timeout`](InteropTxValidatorError::Timeout) only when the deadline
+    /// really expired — the two warrant different operator responses, and a transport failure is
+    /// reported in preference to a timeout however the two arrived. Every per-endpoint failure is
+    /// also logged at warn, identified by endpoint index, because a failure that still leaves a
+    /// quorum returns `Ok` and would otherwise be invisible. The poll runs once a second, so a
+    /// persistently unreachable endpoint is a repeating warn by design — that visibility is the
+    /// point.
     pub async fn is_failsafe_enabled(&self) -> Result<bool, InteropTxValidatorError> {
         let endpoint_count = self.inner.endpoints.len();
         let mut futs: FuturesUnordered<_> = self
             .inner
             .endpoints
             .iter()
-            .map(|endpoint| {
-                tokio::time::timeout(
+            .enumerate()
+            .map(|(idx, endpoint)| async move {
+                let res = tokio::time::timeout(
                     self.inner.timeout,
                     endpoint.client.request::<_, bool>("admin_getFailsafeEnabled", ()),
                 )
+                .await;
+                (idx, res)
             })
             .collect();
 
         let mut replied = 0usize;
         let mut enabled = false;
-        while let Some(res) = futs.next().await {
-            if let Ok(Ok(v)) = res {
-                replied += 1;
-                // Any endpoint reporting failsafe is decisive: turn the gate on immediately.
-                if v {
-                    enabled = true;
-                    break;
+        // The first non-timeout failure, kept so the returned error names the real cause instead
+        // of claiming a timeout that never happened.
+        let mut failure: Option<InteropTxValidatorError> = None;
+        while let Some((idx, res)) = futs.next().await {
+            match res {
+                Ok(Ok(v)) => {
+                    replied += 1;
+                    // Any endpoint reporting failsafe is decisive: turn the gate on immediately.
+                    if v {
+                        enabled = true;
+                        break;
+                    }
+                }
+                Ok(Err(err)) => {
+                    // Identify the endpoint by index, never by URL: interop-http URLs can carry
+                    // basic-auth credentials (see the builder).
+                    warn!(
+                        target: "txpool::interop",
+                        endpoint = idx,
+                        %err,
+                        "failsafe query failed"
+                    );
+                    // Deliberately not `from_json_rpc`: that classifier assigns access-list
+                    // verdict meanings (failsafe, invalid entry, rejected) that a state query
+                    // cannot have. `other` keeps the transport/RPC reason verbatim.
+                    failure.get_or_insert_with(|| InteropTxValidatorError::other(err));
+                }
+                Err(_elapsed) => {
+                    warn!(
+                        target: "txpool::interop",
+                        endpoint = idx,
+                        timeout = ?self.inner.timeout,
+                        "failsafe query timed out"
+                    );
                 }
             }
         }
 
         if replied == 0 {
             // No endpoint answered: leave the cache unchanged (the single-endpoint behavior).
-            return Err(InteropTxValidatorError::Timeout(self.inner.timeout.as_secs()));
+            return Err(failure.unwrap_or_else(|| {
+                InteropTxValidatorError::Timeout(self.inner.timeout.as_secs())
+            }));
         }
         if !enabled && replied < endpoint_count {
             // Some endpoints did not answer and none reported failsafe. We cannot confirm failsafe
@@ -1038,10 +1078,64 @@ mod tests {
         let client = client_for(&[&a, &b], None).await;
         // Seed a known cached value, then confirm an all-error poll leaves it unchanged and errors.
         client.inner.failsafe.set(true);
-        assert!(client.is_failsafe_enabled().await.is_err());
+        let err = client.is_failsafe_enabled().await.unwrap_err();
+        // The endpoints answered with an RPC error, not silence: the reported reason must be that
+        // error, never a fabricated timeout.
+        assert!(
+            matches!(err, InteropTxValidatorError::Other(_)),
+            "an RPC failure must be reported as itself, got {err:?}"
+        );
         assert!(
             client.is_failsafe_enabled_cached(),
             "cache should be unchanged when no endpoint replies"
+        );
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn failsafe_transport_failure_is_not_reported_as_timeout() {
+        // Nothing is listening on the endpoint, so the request fails at connect in microseconds.
+        // Reporting that as "timed out after N secs" is what sent a real investigation after load
+        // and endpoint health instead of the connector error. Bind and drop a port rather than
+        // guessing one, so the connection is refused rather than dropped on a firewalled host.
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let addr = listener.local_addr().unwrap();
+        drop(listener);
+        let client = InteropFilterClient::builder(vec![format!("http://{addr}")], 10)
+            .timeout(Duration::from_secs(2))
+            .build()
+            .await;
+        let start = Instant::now();
+        let err = client.is_failsafe_enabled().await.unwrap_err();
+        assert!(start.elapsed() < Duration::from_secs(1), "the request did not fail fast");
+        assert!(
+            matches!(err, InteropTxValidatorError::Other(_)),
+            "a connect failure must be reported as itself, got {err:?}"
+        );
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn failsafe_endpoint_error_does_not_escape_partial_poll() {
+        // One endpoint errors, the other replies "not in failsafe". Partial information: the poll
+        // must report the unchanged cache, never surface the errored endpoint as the verdict.
+        let bad = MockEndpoint::start(Verdict::Valid, Failsafe::Error).await;
+        let healthy = MockEndpoint::start(Verdict::Valid, Failsafe::Reply(false)).await;
+        let client = client_for(&[&bad, &healthy], Some(1)).await;
+        client.apply_failsafe_state(true);
+        assert!(
+            client.is_failsafe_enabled().await.unwrap(),
+            "a partial poll must return the cached gate, not the endpoint error"
+        );
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn failsafe_all_silent_reports_timeout() {
+        // Every endpoint is reachable but never answers: here a timeout is the truth.
+        let a = MockEndpoint::start(Verdict::Valid, Failsafe::Slow).await;
+        let client = client_for(&[&a], None).await;
+        let err = client.is_failsafe_enabled().await.unwrap_err();
+        assert!(
+            matches!(err, InteropTxValidatorError::Timeout(_)),
+            "a genuine deadline expiry must report a timeout, got {err:?}"
         );
     }
 
