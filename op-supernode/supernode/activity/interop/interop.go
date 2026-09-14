@@ -178,6 +178,11 @@ type Interop struct {
 	verifiedDB *VerifiedDB
 	logsDBs    map[eth.ChainID]LogsDB
 
+	// remoteNodes holds the finalized-only, adapter-backed ingesters for chains the
+	// supernode does not drive. Their initiating messages land in logsDBs (keyed by
+	// chain ID) so driven chains can reference them as executing messages.
+	remoteNodes map[eth.ChainID]*remoteNode
+
 	mu      sync.RWMutex
 	ctx     context.Context
 	cancel  context.CancelFunc
@@ -302,6 +307,7 @@ func New(
 		chains:              chains,
 		verifiedDB:          verifiedDB,
 		logsDBs:             logsDBs,
+		remoteNodes:         make(map[eth.ChainID]*remoteNode),
 		dataDir:             dataDir,
 		activationTimestamp: activationTimestamp,
 		dependencySet:       dependencySet,
@@ -329,6 +335,8 @@ func (i *Interop) Start(ctx context.Context) error {
 	i.ctx, i.cancel = context.WithCancel(ctx)
 	i.started = true
 	i.mu.Unlock()
+
+	i.startRemoteNodes()
 
 	i.tryInitFromVerifiedDB()
 	return i.runLoop()
