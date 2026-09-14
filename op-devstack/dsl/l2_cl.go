@@ -215,6 +215,13 @@ func (cl *L2CLNode) SyncStatus() *eth.SyncStatus {
 	return syncStatus
 }
 
+// OutputAtBlock returns the output response for a block number.
+func (cl *L2CLNode) OutputAtBlock(blockNumber uint64) *eth.OutputResponse {
+	output, err := cl.inner.RollupAPI().OutputAtBlock(cl.ctx, blockNumber)
+	cl.require.NoError(err, "failed to fetch output at block %d", blockNumber)
+	return output
+}
+
 // headBlockRef is the error-returning variant of HeadBlockRef, for use inside
 // retry/eventually loops.
 func (cl *L2CLNode) headBlockRef(lvl safety.Level) (eth.L2BlockRef, error) {
