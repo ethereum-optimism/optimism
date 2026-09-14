@@ -15,7 +15,7 @@ use kona_proof_interop::{
     OracleInteropProvider, PreState, SuperchainConsolidator, TRANSITION_STATE_MAX_STEPS,
     TransitionState,
 };
-use kona_registry::HashMap as RegistryHashMap;
+use kona_registry::{HashMap as RegistryHashMap, ROLLUP_CONFIGS};
 use kona_sp1_client_utils::{
     precompiles::{CustomCrypto, ZkvmOpEvmFactory},
     super_root::{
@@ -79,6 +79,21 @@ where
         span: inputs.span,
         previous_super_root: inputs.previous_super_root,
         transitions,
+    })
+}
+
+/// Returns `true` when interop is active on any consolidation chain at `timestamp`.
+///
+/// Returns `true` if there is a missing embedded config.
+fn interop_active_for_consolidation(
+    rollup_configs: &RegistryHashMap<u64, RollupConfig>,
+    previous_super_root: &SuperRoot,
+    timestamp: u64,
+) -> bool {
+    previous_super_root.output_roots.iter().any(|output_root| {
+        rollup_configs
+            .get(&output_root.chain_id)
+            .is_none_or(|config| config.is_interop_active(timestamp))
     })
 }
 
@@ -148,20 +163,28 @@ where
         l1_config: l1_config.clone(),
     };
 
-    let ConsolidationProviders { headers, l2_providers } = build_providers(
-        oracle.clone(),
+    // CrossL2Inbox has no code before interop, so no executing messages can exist. Skip the
+    // provider and message-graph work while retaining the common transition finalization below.
+    if interop_active_for_consolidation(
+        &ROLLUP_CONFIGS,
         &previous_super_root,
-        &optimistic_blocks,
         claimed_super_root_proof.super_root.timestamp,
-        rollup_configs,
-    )
-    .await?;
-
-    let interop_provider = OracleInteropProvider::new(oracle, boot.clone(), headers);
-    let evm_factory = PostExecEvmFactoryAdapter::new(ZkvmOpEvmFactory);
-    SuperchainConsolidator::new(&mut boot, interop_provider, l2_providers, evm_factory)
-        .consolidate()
+    ) {
+        let ConsolidationProviders { headers, l2_providers } = build_providers(
+            oracle.clone(),
+            &previous_super_root,
+            &optimistic_blocks,
+            claimed_super_root_proof.super_root.timestamp,
+            rollup_configs,
+        )
         .await?;
+
+        let interop_provider = OracleInteropProvider::new(oracle, boot.clone(), headers);
+        let evm_factory = PostExecEvmFactoryAdapter::new(ZkvmOpEvmFactory);
+        SuperchainConsolidator::new(&mut boot, interop_provider, l2_providers, evm_factory)
+            .consolidate()
+            .await?;
+    }
 
     let post_state = boot
         .agreed_pre_state
@@ -368,6 +391,63 @@ mod tests {
     }
 
     #[test]
+    fn unresolved_consolidation_config_takes_full_path() {
+        let previous_super_root = SuperRoot::new(
+            99,
+            vec![SuperOutputRoot { chain_id: u64::MAX, output_root: B256::ZERO }],
+        );
+
+        assert!(interop_active_for_consolidation(&ROLLUP_CONFIGS, &previous_super_root, 100));
+    }
+
+    fn run_inactive_transition(
+        claimed_output_root: B256,
+    ) -> anyhow::Result<SuperConsolidationTransition> {
+        let chain_id = 10;
+        let previous_super_root =
+            SuperRoot::new(100, vec![SuperOutputRoot { chain_id, output_root: b256(0x44) }]);
+        let optimistic_output_root = b256(0x55);
+        let optimistic_blocks = vec![SuperOptimisticBlock {
+            chain_id: U256::from(chain_id),
+            block_hash: b256(0x22),
+            output_root: optimistic_output_root,
+        }];
+        let claimed_super_root_proof = SuperRootProof::new(
+            101,
+            vec![SuperOutputRoot { chain_id, output_root: claimed_output_root }],
+        );
+
+        block_on(run_transition(
+            Arc::new(PreimageStore::default()),
+            previous_super_root,
+            optimistic_blocks,
+            &claimed_super_root_proof,
+            dependency_set(&[chain_id], None),
+            &rollup_configs(&[chain_id]),
+            &Default::default(),
+        ))
+    }
+
+    #[test]
+    fn inactive_consolidation_finalizes_without_provider_preimages() {
+        let transition = run_inactive_transition(b256(0x55)).unwrap();
+        let expected = hash_super_root_proof(&SuperRootProof::new(
+            101,
+            vec![SuperOutputRoot { chain_id: 10, output_root: b256(0x55) }],
+        ))
+        .unwrap();
+
+        assert_eq!(transition.super_root, expected);
+    }
+
+    #[test]
+    fn inactive_consolidation_rejects_mismatched_claim() {
+        let err = run_inactive_transition(b256(0x66)).unwrap_err();
+
+        assert!(err.to_string().contains("does not match claim"), "unexpected error: {err}");
+    }
+
+    #[test]
     fn fetch_super_root_decodes_witness_preimage_bound_to_public_hash() {
         let super_root =
             SuperRoot::new(100, vec![SuperOutputRoot { chain_id: 10, output_root: b256(0x44) }]);
@@ -464,60 +544,6 @@ mod tests {
             err.to_string().contains("is after super-root timestamp"),
             "unexpected error: {err}"
         );
-    }
-
-    #[test]
-    fn consolidation_transition_finalizes_valid_no_message_blocks() {
-        let previous_head = Header {
-            number: 3,
-            timestamp: 100,
-            receipts_root: EMPTY_ROOT_HASH,
-            transactions_root: EMPTY_ROOT_HASH,
-            ..Default::default()
-        };
-        let mut oracle = PreimageStore::default();
-        save_empty_trie(&mut oracle);
-        let previous_head_hash = save_header(&mut oracle, &previous_head);
-        let optimistic_head = Header {
-            number: 4,
-            timestamp: 101,
-            parent_hash: previous_head_hash,
-            receipts_root: EMPTY_ROOT_HASH,
-            transactions_root: EMPTY_ROOT_HASH,
-            ..Default::default()
-        };
-        let optimistic_head_hash = save_header(&mut oracle, &optimistic_head);
-        let previous_output_root = save_output_root(&mut oracle, previous_head_hash);
-        let optimistic_output_root = save_output_root(&mut oracle, optimistic_head_hash);
-        let previous_super_root = SuperRoot::new(
-            100,
-            vec![SuperOutputRoot { chain_id: 10, output_root: previous_output_root }],
-        );
-        let optimistic_blocks = vec![SuperOptimisticBlock {
-            chain_id: U256::from(10),
-            block_hash: optimistic_head_hash,
-            output_root: optimistic_output_root,
-        }];
-        let claimed_super_root_proof = SuperRootProof::new(
-            101,
-            vec![SuperOutputRoot { chain_id: 10, output_root: optimistic_output_root }],
-        );
-        let expected_super_root = hash_super_root_proof(&claimed_super_root_proof).unwrap();
-
-        let transition = block_on(run_transition(
-            Arc::new(oracle),
-            previous_super_root,
-            optimistic_blocks.clone(),
-            &claimed_super_root_proof,
-            dependency_set(&[10], None),
-            &rollup_configs(&[10]),
-            &Default::default(),
-        ))
-        .unwrap();
-
-        assert_eq!(transition.timestamp, 101);
-        assert_eq!(transition.optimistic_blocks, optimistic_blocks);
-        assert_eq!(transition.super_root, expected_super_root);
     }
 
     #[test]
