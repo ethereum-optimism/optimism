@@ -824,8 +824,11 @@ func (c *LogsDBChainIngester) recordIngestionProgress(blockNum, head uint64) {
 func (c *LogsDBChainIngester) processBlockLogs(blockInfo eth.BlockInfo, blockID eth.BlockID,
 	receipts optypes.Receipts, blockNum uint64) (uint32, error) {
 
-	c.mu.Lock()
-	defer c.mu.Unlock()
+	// RLock: c.mu guards the logsDB handle, not DB state — the DB serializes
+	// its own writers. Holding only a read lock keeps verdict reads (Contains,
+	// LatestTimestamp) answerable while a block write is in flight (#21943).
+	c.mu.RLock()
+	defer c.mu.RUnlock()
 
 	var logIndex uint32
 

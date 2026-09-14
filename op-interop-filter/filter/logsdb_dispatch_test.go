@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"testing"
+	"time"
 
 	"github.com/ethereum/go-ethereum/common"
 	gethTypes "github.com/ethereum/go-ethereum/core/types"
@@ -30,6 +31,11 @@ type fakeLogsDB struct {
 
 	hasSealed bool
 	latest    eth.BlockID
+
+	// When set, SealBlock closes sealStarted on entry and blocks on sealGate,
+	// letting tests hold a block write in flight.
+	sealStarted chan struct{}
+	sealGate    chan struct{}
 }
 
 func (f *fakeLogsDB) Close() error { return nil }
@@ -51,6 +57,12 @@ func (f *fakeLogsDB) AddLog(common.Hash, eth.BlockID, uint32, *messages.Executin
 }
 
 func (f *fakeLogsDB) SealBlock(common.Hash, eth.BlockID, uint64) error {
+	if f.sealStarted != nil {
+		close(f.sealStarted)
+	}
+	if f.sealGate != nil {
+		<-f.sealGate
+	}
 	return f.sealBlockErr
 }
 
@@ -77,6 +89,40 @@ func fetchedBlock(num, ts uint64, parent common.Hash) blockFetch {
 		blockInfo: info,
 		receipts:  optypes.Receipts{{Receipt: gethTypes.Receipt{TxHash: common.Hash{byte(num)}, Logs: []*gethTypes.Log{plainLog(0, num)}}}},
 	}
+}
+
+// TestVerdictReadsNotBlockedByBlockWrite pins that verdict-path reads
+// (Contains, LatestTimestamp) are answered while a block write is in flight.
+func TestVerdictReadsNotBlockedByBlockWrite(t *testing.T) {
+	t.Parallel()
+
+	db := &fakeLogsDB{
+		sealStarted: make(chan struct{}),
+		sealGate:    make(chan struct{}),
+	}
+	ing := newIngesterWithFakeDB(t, db)
+
+	writeDone := make(chan error, 1)
+	go func() {
+		writeDone <- ing.writeFetchedBlock(fetchedBlock(100, 1200, common.Hash{}))
+	}()
+	<-db.sealStarted
+
+	reads := make(chan struct{})
+	go func() {
+		defer close(reads)
+		_, _ = ing.Contains(messages.ContainsQuery{BlockNum: 1, Timestamp: 1100})
+		_, _ = ing.LatestTimestamp()
+	}()
+
+	select {
+	case <-reads:
+	case <-time.After(10 * time.Second):
+		t.Error("verdict reads blocked behind in-flight block write")
+	}
+
+	close(db.sealGate)
+	require.NoError(t, <-writeDone)
 }
 
 // TestWriteFetchedBlock_WriteErrorDispatch pins the sentinel-dispatch contract

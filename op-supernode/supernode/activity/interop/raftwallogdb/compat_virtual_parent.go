@@ -7,7 +7,7 @@
 // indirection and seals the activation block directly. Databases written
 // before the change still carry the vestigial entry.
 //
-// hidePreVirtualParentLayout detects the entry on Open and bumps d.firstBlock
+// hidePreVirtualParentLayout detects the entry on Open and bumps firstBlock
 // past it. The raft-wal record stays on disk (one wasted entry) but is
 // unreachable through the public API. Internal write paths maintain
 // firstBlock from this point forward, so the detection only runs once per
@@ -26,18 +26,18 @@ import (
 )
 
 // hidePreVirtualParentLayout hides a pre-#20726 virtual-parent entry, if
-// present, by advancing d.firstBlock past it. Must be called with the cache
-// already populated (hasBlocks/firstBlock/latest set).
-func (d *DB) hidePreVirtualParentLayout() error {
+// present, by advancing s.firstBlock past it. Called from refreshCache on the
+// state being built before it is published.
+func (d *DB) hidePreVirtualParentLayout(s *sealedState) error {
 	// No data, genesis-anchored DB, or only the (possibly virtual) entry
 	// exists: nothing to hide. Requiring a second entry means we never bump
 	// firstBlock past latest, and avoids touching DBs that never wrote an
 	// activation block.
-	if !d.hasBlocks || d.firstBlock == 0 || d.firstBlock >= d.latest.Number {
+	if !s.hasBlocks || s.firstBlock == 0 || s.firstBlock >= s.latest.Number {
 		return nil
 	}
 
-	rec, err := d.readBlockAt(indexFor(d.firstBlock))
+	rec, err := d.readBlockAt(indexFor(s.firstBlock))
 	if err != nil {
 		return fmt.Errorf("read first entry for virtual-parent detection: %w", err)
 	}
@@ -50,6 +50,6 @@ func (d *DB) hidePreVirtualParentLayout() error {
 		return nil
 	}
 
-	d.firstBlock++
+	s.firstBlock++
 	return nil
 }

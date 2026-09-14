@@ -11,6 +11,7 @@ import (
 	"encoding/binary"
 	"fmt"
 	"sync"
+	"sync/atomic"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/hashicorp/raft"
@@ -48,15 +49,43 @@ const (
 	hashesOffset      = blockRecordSize
 )
 
+// walStore is the subset of *wal.WAL the DB uses. Tests substitute a gated
+// implementation to pin read/write concurrency.
+type walStore interface {
+	FirstIndex() (uint64, error)
+	LastIndex() (uint64, error)
+	GetLog(index uint64, log *raft.Log) error
+	StoreLog(log *raft.Log) error
+	DeleteRange(min, max uint64) error
+	Close() error
+}
+
+// DB is safe for concurrent use. Writers are serialized internally; reads are
+// answered from the last published seal and raft-wal's lock-free read path, so
+// they never wait on an in-flight SealBlock (see
+// ethereum-optimism/optimism#21943). Only Rewind, Clear, and Close exclude
+// readers.
 type DB struct {
-	mu      sync.RWMutex
-	w       *wal.WAL
+	// writeMu serializes all mutators: AddLog, SealBlock, Rewind, Clear, Close.
+	writeMu sync.Mutex
+	// truncMu excludes readers during Rewind, Clear, and Close only.
+	// Lock order: writeMu before truncMu.
+	truncMu sync.RWMutex
+
+	w       walStore
 	chainID eth.ChainID
 
+	// Pending (unsealed) block state; guarded by writeMu.
 	pendingParent eth.BlockID
 	pendingLogs   []pendingLog
 	hasPending    bool
 
+	// sealed is the atomically-published sealed-chain state. Writers replace it
+	// under writeMu after the WAL write commits.
+	sealed atomic.Pointer[sealedState]
+}
+
+type sealedState struct {
 	latest     eth.BlockID
 	latestTS   uint64
 	hasBlocks  bool
@@ -181,21 +210,27 @@ func (d *DB) refreshCache() error {
 		return fmt.Errorf("LastIndex: %w", err)
 	}
 	if first == 0 || last == 0 {
-		d.hasBlocks = false
+		d.sealed.Store(&sealedState{})
 		return nil
 	}
 	rec, err := d.readBlockAt(last)
 	if err != nil {
 		return fmt.Errorf("read latest: %w", err)
 	}
-	d.firstBlock = blockNumFor(first)
-	d.latest = eth.BlockID{Hash: rec.Hash, Number: blockNumFor(last)}
-	d.latestTS = rec.Timestamp
-	d.hasBlocks = true
+	s := &sealedState{
+		latest:     eth.BlockID{Hash: rec.Hash, Number: blockNumFor(last)},
+		latestTS:   rec.Timestamp,
+		hasBlocks:  true,
+		firstBlock: blockNumFor(first),
+	}
 	// COMPATIBILITY: hide a pre-#20726 virtual-parent head entry, if any.
 	// Safe to delete with compat_virtual_parent.go once no such databases
 	// remain in operation.
-	return d.hidePreVirtualParentLayout()
+	if err := d.hidePreVirtualParentLayout(s); err != nil {
+		return err
+	}
+	d.sealed.Store(s)
+	return nil
 }
 
 // readBlockAt fetches the block record at the given raft-wal index.
@@ -208,37 +243,38 @@ func (d *DB) readBlockAt(idx uint64) (blockRecord, error) {
 }
 
 func (d *DB) LatestSealedBlock() (eth.BlockID, bool) {
-	d.mu.RLock()
-	defer d.mu.RUnlock()
-	if !d.hasBlocks {
+	s := d.sealed.Load()
+	if !s.hasBlocks {
 		return eth.BlockID{}, false
 	}
-	return d.latest, true
+	return s.latest, true
 }
 
 func (d *DB) FirstSealedBlock() (messages.BlockSeal, error) {
-	d.mu.RLock()
-	defer d.mu.RUnlock()
-	if !d.hasBlocks {
+	d.truncMu.RLock()
+	defer d.truncMu.RUnlock()
+	s := d.sealed.Load()
+	if !s.hasBlocks {
 		return messages.BlockSeal{}, interop.ErrFuture
 	}
-	rec, err := d.readBlockAt(indexFor(d.firstBlock))
+	rec, err := d.readBlockAt(indexFor(s.firstBlock))
 	if err != nil {
 		return messages.BlockSeal{}, err
 	}
-	return messages.BlockSeal{Hash: rec.Hash, Number: d.firstBlock, Timestamp: rec.Timestamp}, nil
+	return messages.BlockSeal{Hash: rec.Hash, Number: s.firstBlock, Timestamp: rec.Timestamp}, nil
 }
 
 func (d *DB) FindSealedBlock(number uint64) (messages.BlockSeal, error) {
-	d.mu.RLock()
-	defer d.mu.RUnlock()
-	if !d.hasBlocks {
+	d.truncMu.RLock()
+	defer d.truncMu.RUnlock()
+	s := d.sealed.Load()
+	if !s.hasBlocks {
 		return messages.BlockSeal{}, interop.ErrFuture
 	}
-	if number > d.latest.Number {
+	if number > s.latest.Number {
 		return messages.BlockSeal{}, interop.ErrFuture
 	}
-	if number < d.firstBlock {
+	if number < s.firstBlock {
 		return messages.BlockSeal{}, interop.ErrSkipped
 	}
 	rec, err := d.readBlockAt(indexFor(number))
@@ -249,15 +285,16 @@ func (d *DB) FindSealedBlock(number uint64) (messages.BlockSeal, error) {
 }
 
 func (d *DB) OpenBlock(blockNum uint64) (eth.BlockRef, uint32, map[uint32]*messages.ExecutingMessage, error) {
-	d.mu.RLock()
-	defer d.mu.RUnlock()
-	if !d.hasBlocks {
+	d.truncMu.RLock()
+	defer d.truncMu.RUnlock()
+	s := d.sealed.Load()
+	if !s.hasBlocks {
 		return eth.BlockRef{}, 0, nil, interop.ErrFuture
 	}
-	if blockNum > d.latest.Number {
+	if blockNum > s.latest.Number {
 		return eth.BlockRef{}, 0, nil, interop.ErrFuture
 	}
-	if blockNum < d.firstBlock {
+	if blockNum < s.firstBlock {
 		return eth.BlockRef{}, 0, nil, interop.ErrSkipped
 	}
 	var log raft.Log
@@ -283,18 +320,19 @@ func (d *DB) OpenBlock(blockNum uint64) (eth.BlockRef, uint32, map[uint32]*messa
 }
 
 func (d *DB) Contains(query messages.ContainsQuery) (messages.BlockSeal, error) {
-	d.mu.RLock()
-	defer d.mu.RUnlock()
-	if !d.hasBlocks {
+	d.truncMu.RLock()
+	defer d.truncMu.RUnlock()
+	s := d.sealed.Load()
+	if !s.hasBlocks {
 		return messages.BlockSeal{}, interop.ErrFuture
 	}
-	if query.BlockNum > d.latest.Number {
-		if d.latestTS > query.Timestamp {
+	if query.BlockNum > s.latest.Number {
+		if s.latestTS > query.Timestamp {
 			return messages.BlockSeal{}, interop.ErrConflict
 		}
 		return messages.BlockSeal{}, interop.ErrFuture
 	}
-	if query.BlockNum < d.firstBlock {
+	if query.BlockNum < s.firstBlock {
 		return messages.BlockSeal{}, interop.ErrSkipped
 	}
 
@@ -328,8 +366,8 @@ func (d *DB) Contains(query messages.ContainsQuery) (messages.BlockSeal, error) 
 }
 
 func (d *DB) AddLog(logHash common.Hash, parentBlock eth.BlockID, logIdx uint32, execMsg *messages.ExecutingMessage) error {
-	d.mu.Lock()
-	defer d.mu.Unlock()
+	d.writeMu.Lock()
+	defer d.writeMu.Unlock()
 
 	// Genesis cannot carry logs: the EVM never executes the genesis block, so a
 	// log against the zero BlockID is invalid from any legitimate writer.
@@ -337,9 +375,9 @@ func (d *DB) AddLog(logHash common.Hash, parentBlock eth.BlockID, logIdx uint32,
 		return fmt.Errorf("%w: genesis does not have logs", interop.ErrOutOfOrder)
 	}
 
-	if d.hasBlocks {
-		if parentBlock != d.latest {
-			return fmt.Errorf("%w: AddLog parent %s does not match latest sealed %s", interop.ErrOutOfOrder, parentBlock, d.latest)
+	if s := d.sealed.Load(); s.hasBlocks {
+		if parentBlock != s.latest {
+			return fmt.Errorf("%w: AddLog parent %s does not match latest sealed %s", interop.ErrOutOfOrder, parentBlock, s.latest)
 		}
 	}
 	if d.hasPending {
@@ -361,18 +399,19 @@ func (d *DB) AddLog(logHash common.Hash, parentBlock eth.BlockID, logIdx uint32,
 }
 
 func (d *DB) SealBlock(parentHash common.Hash, block eth.BlockID, timestamp uint64) error {
-	d.mu.Lock()
-	defer d.mu.Unlock()
+	d.writeMu.Lock()
+	defer d.writeMu.Unlock()
 
-	if d.hasBlocks {
-		if block.Number != d.latest.Number+1 {
-			return fmt.Errorf("%w: SealBlock expected number %d, got %d", interop.ErrConflict, d.latest.Number+1, block.Number)
+	s := d.sealed.Load()
+	if s.hasBlocks {
+		if block.Number != s.latest.Number+1 {
+			return fmt.Errorf("%w: SealBlock expected number %d, got %d", interop.ErrConflict, s.latest.Number+1, block.Number)
 		}
-		if parentHash != d.latest.Hash {
-			return fmt.Errorf("%w: SealBlock parent %s does not match latest %s", interop.ErrConflict, parentHash, d.latest.Hash)
+		if parentHash != s.latest.Hash {
+			return fmt.Errorf("%w: SealBlock parent %s does not match latest %s", interop.ErrConflict, parentHash, s.latest.Hash)
 		}
-		if timestamp < d.latestTS {
-			return fmt.Errorf("%w: SealBlock timestamp %d before latest %d", interop.ErrConflict, timestamp, d.latestTS)
+		if timestamp < s.latestTS {
+			return fmt.Errorf("%w: SealBlock timestamp %d before latest %d", interop.ErrConflict, timestamp, s.latestTS)
 		}
 	}
 	if d.hasPending {
@@ -420,12 +459,16 @@ func (d *DB) SealBlock(parentHash common.Hash, block eth.BlockID, timestamp uint
 		return fmt.Errorf("failed to commit block seal: %w", err)
 	}
 
-	if !d.hasBlocks {
-		d.firstBlock = block.Number
+	next := &sealedState{
+		latest:     block,
+		latestTS:   timestamp,
+		hasBlocks:  true,
+		firstBlock: s.firstBlock,
 	}
-	d.latest = block
-	d.latestTS = timestamp
-	d.hasBlocks = true
+	if !s.hasBlocks {
+		next.firstBlock = block.Number
+	}
+	d.sealed.Store(next)
 	d.pendingLogs = d.pendingLogs[:0]
 	d.hasPending = false
 	d.pendingParent = eth.BlockID{}
@@ -433,14 +476,17 @@ func (d *DB) SealBlock(parentHash common.Hash, block eth.BlockID, timestamp uint
 }
 
 func (d *DB) Rewind(newHead eth.BlockID) error {
-	d.mu.Lock()
-	defer d.mu.Unlock()
+	d.writeMu.Lock()
+	defer d.writeMu.Unlock()
 
-	if !d.hasBlocks || newHead.Number < d.firstBlock {
-		return d.clearLocked()
+	s := d.sealed.Load()
+	if !s.hasBlocks || newHead.Number < s.firstBlock {
+		d.truncMu.Lock()
+		defer d.truncMu.Unlock()
+		return d.clearLocked(s)
 	}
-	if newHead.Number > d.latest.Number {
-		return fmt.Errorf("%w: cannot rewind to %s, latest is %s", interop.ErrFuture, newHead, d.latest)
+	if newHead.Number > s.latest.Number {
+		return fmt.Errorf("%w: cannot rewind to %s, latest is %s", interop.ErrFuture, newHead, s.latest)
 	}
 
 	rec, err := d.readBlockAt(indexFor(newHead.Number))
@@ -451,14 +497,20 @@ func (d *DB) Rewind(newHead eth.BlockID) error {
 		return fmt.Errorf("%w: rewind target %s does not match stored hash %s", interop.ErrConflict, newHead.Hash, rec.Hash)
 	}
 
-	if newHead.Number < d.latest.Number {
-		if err := d.w.DeleteRange(indexFor(newHead.Number+1), indexFor(d.latest.Number)); err != nil {
+	d.truncMu.Lock()
+	defer d.truncMu.Unlock()
+	if newHead.Number < s.latest.Number {
+		if err := d.w.DeleteRange(indexFor(newHead.Number+1), indexFor(s.latest.Number)); err != nil {
 			return fmt.Errorf("failed to truncate raft-wal: %w", err)
 		}
 	}
 
-	d.latest = newHead
-	d.latestTS = rec.Timestamp
+	d.sealed.Store(&sealedState{
+		latest:     newHead,
+		latestTS:   rec.Timestamp,
+		hasBlocks:  true,
+		firstBlock: s.firstBlock,
+	})
 	d.pendingLogs = d.pendingLogs[:0]
 	d.hasPending = false
 	d.pendingParent = eth.BlockID{}
@@ -466,21 +518,21 @@ func (d *DB) Rewind(newHead eth.BlockID) error {
 }
 
 func (d *DB) Clear() error {
-	d.mu.Lock()
-	defer d.mu.Unlock()
-	return d.clearLocked()
+	d.writeMu.Lock()
+	defer d.writeMu.Unlock()
+	d.truncMu.Lock()
+	defer d.truncMu.Unlock()
+	return d.clearLocked(d.sealed.Load())
 }
 
-func (d *DB) clearLocked() error {
-	if d.hasBlocks {
-		if err := d.w.DeleteRange(indexFor(d.firstBlock), indexFor(d.latest.Number)); err != nil {
+// clearLocked requires writeMu and truncMu to be held.
+func (d *DB) clearLocked(s *sealedState) error {
+	if s.hasBlocks {
+		if err := d.w.DeleteRange(indexFor(s.firstBlock), indexFor(s.latest.Number)); err != nil {
 			return fmt.Errorf("failed to clear raft-wal: %w", err)
 		}
 	}
-	d.hasBlocks = false
-	d.latest = eth.BlockID{}
-	d.latestTS = 0
-	d.firstBlock = 0
+	d.sealed.Store(&sealedState{})
 	d.pendingLogs = d.pendingLogs[:0]
 	d.hasPending = false
 	d.pendingParent = eth.BlockID{}
@@ -488,7 +540,9 @@ func (d *DB) clearLocked() error {
 }
 
 func (d *DB) Close() error {
-	d.mu.Lock()
-	defer d.mu.Unlock()
+	d.writeMu.Lock()
+	defer d.writeMu.Unlock()
+	d.truncMu.Lock()
+	defer d.truncMu.Unlock()
 	return d.w.Close()
 }
