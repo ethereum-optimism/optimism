@@ -918,7 +918,7 @@ pub struct OpAddOnsBuilder<NetworkT, RpcMiddleware = Identity> {
     flashblocks_url: Option<Url>,
     /// Enable flashblock consensus client to drive chain forward.
     flashblock_consensus: bool,
-    /// How long the flashblocks websocket may stay silent before it is reconnected.
+    /// How long the subblocks websocket may stay silent before it is reconnected.
     flashblocks_idle_timeout: Option<Duration>,
 }
 
@@ -1059,7 +1059,7 @@ impl<NetworkT, RpcMiddleware> OpAddOnsBuilder<NetworkT, RpcMiddleware> {
         self
     }
 
-    /// With how long the flashblocks websocket may stay silent before it is reconnected.
+    /// With how long the subblocks websocket may stay silent before it is reconnected.
     ///
     /// `None` disables the check.
     pub const fn with_flashblocks_idle_timeout(

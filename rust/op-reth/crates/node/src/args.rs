@@ -260,13 +260,13 @@ pub struct RollupArgs {
     )]
     pub flashblock_consensus: bool,
 
-    /// How long the flashblocks websocket subscription may stay silent - not even a websocket
+    /// How long the subblocks websocket subscription may stay silent - not even a websocket
     /// ping - before the connection is torn down and re-established.
     ///
     /// An upstream that stops sending without closing the connection otherwise parks the
     /// subscription indefinitely, freezing the `pending` block while the node keeps importing
-    /// canonical blocks. Must exceed the chain's flashblock interval, or a healthy connection is
-    /// reconnected on every gap between flashblocks; `0` disables the check.
+    /// canonical blocks. Must exceed the chain's subblock interval, or a healthy connection is
+    /// reconnected on every gap between subblocks; `0` disables the check.
     #[arg(
         long = "flashblocks-idle-timeout",
         alias = "subblocks-idle-timeout",
@@ -315,7 +315,7 @@ pub struct RollupArgs {
 }
 
 impl RollupArgs {
-    /// Returns the flashblocks websocket idle timeout these arguments ask for.
+    /// Returns the subblocks websocket idle timeout these arguments ask for.
     ///
     /// A zero timeout is taken as "no check", the only way to express that on the CLI.
     pub const fn flashblocks_idle_timeout(&self) -> Option<Duration> {
