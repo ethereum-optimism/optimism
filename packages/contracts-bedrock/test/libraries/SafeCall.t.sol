@@ -9,6 +9,7 @@ import { StdCheatsSafe } from "forge-std/StdCheats.sol";
 import { Config } from "scripts/libraries/Config.sol";
 
 // Libraries
+import { Preinstalls } from "src/libraries/Preinstalls.sol";
 import { SafeCall } from "src/libraries/SafeCall.sol";
 
 contract SimpleSafeCaller {
@@ -30,12 +31,39 @@ contract SimpleSafeCaller {
 /// @title SafeCall_TestInit
 /// @notice Reusable test initialization for `SafeCall` tests.
 abstract contract SafeCall_TestInit is Test {
+    uint64 internal constant MIN_CALL_GAS = 3_000;
+    uint64 internal constant MIN_VALUE_CALL_GAS = 200_000;
+
     /// @notice Helper function to deduplicate code. Makes all assumptions required for these
     ///         tests.
     function assumeNot(address _addr) internal {
-        vm.deal(_addr, 0);
         vm.assume(_addr != address(this));
         assumeAddressIsNot(_addr, StdCheatsSafe.AddressType.ForgeAddress, StdCheatsSafe.AddressType.Precompile);
+        vm.assume(_addr.code.length == 0);
+        assumeNotPreinstall(_addr);
+        vm.deal(_addr, 0);
+    }
+
+    /// @notice Excludes protocol-managed addresses from generic account fuzzing.
+    function assumeNotPreinstall(address _addr) internal pure {
+        vm.assume(_addr != Preinstalls.MultiCall3);
+        vm.assume(_addr != Preinstalls.Create2Deployer);
+        vm.assume(_addr != Preinstalls.Safe_v130);
+        vm.assume(_addr != Preinstalls.SafeL2_v130);
+        vm.assume(_addr != Preinstalls.MultiSendCallOnly_v130);
+        vm.assume(_addr != Preinstalls.SafeSingletonFactory);
+        vm.assume(_addr != Preinstalls.DeterministicDeploymentProxy);
+        vm.assume(_addr != Preinstalls.MultiSend_v130);
+        vm.assume(_addr != Preinstalls.Permit2);
+        vm.assume(_addr != Preinstalls.SenderCreator_v060);
+        vm.assume(_addr != Preinstalls.EntryPoint_v060);
+        vm.assume(_addr != Preinstalls.SenderCreator_v070);
+        vm.assume(_addr != Preinstalls.EntryPoint_v070);
+        vm.assume(_addr != Preinstalls.CreateX);
+        vm.assume(_addr != Preinstalls.BeaconBlockRoots);
+        vm.assume(_addr != Preinstalls.BeaconBlockRootsSender);
+        vm.assume(_addr != Preinstalls.HistoryStorage);
+        vm.assume(_addr != Preinstalls.HistoryStorageSender);
     }
 
     /// @notice Internal helper function for `send` tests
@@ -78,7 +106,8 @@ contract SafeCall_Send_Test is SafeCall_TestInit {
 
     /// @notice Tests that the `send` function with value succeeds.
     function testFuzz_send_withGas_succeeds(address _from, address _to, uint64 _gas, uint256 _value) external {
-        _gas = uint64(bound(_gas, 1, type(uint64).max));
+        uint64 minGas = _value == 0 ? MIN_CALL_GAS : MIN_VALUE_CALL_GAS;
+        _gas = uint64(bound(_gas, minGas, type(uint64).max));
         sendTest({ _from: _from, _to: _to, _gas: _gas, _value: _value });
     }
 }
@@ -90,6 +119,8 @@ contract SafeCall_Call_Test is SafeCall_TestInit {
     function testFuzz_call_succeeds(address from, address to, uint256 gas, uint64 value, bytes memory data) external {
         assumeNot(from);
         assumeNot(to);
+        uint256 minGas = value == 0 ? MIN_CALL_GAS : MIN_VALUE_CALL_GAS;
+        gas = bound(gas, minGas, type(uint256).max);
 
         assertEq(from.balance, 0, "from balance is 0");
         vm.deal(from, value);

@@ -530,7 +530,7 @@ contract DataAvailabilityChallenge_Resolve_Test is DataAvailabilityChallenge_Tes
         uint256 challengedBlockNumber,
         uint256 resolverRefundPercentage,
         uint64 bondSize,
-        uint128 txGasPrice
+        uint64 txGasPrice
     )
         public
     {
@@ -626,7 +626,7 @@ contract DataAvailabilityChallenge_Resolve_Test is DataAvailabilityChallenge_Tes
         bytes memory wrongPreImage,
         uint256 challengedBlockNumber,
         uint256 resolverRefundPercentage,
-        uint128 txGasPrice
+        uint64 txGasPrice
     )
         public
     {
