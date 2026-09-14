@@ -1284,7 +1284,7 @@ contract OPContractsManagerV2_Upgrade_Test is OPContractsManagerV2_Upgrade_TestI
             Proposal({ root: Hash.wrap(keccak256("superRootAnchorRoot")), l2SequenceNumber: currentSeqNum + 1 });
 
         // Rebuild dispute game configs: legacy (disabled) + super types.
-        // Order must match validGameTypes in OPContractsManagerV2._assertValidFullConfig().
+        // Order must match VALID_GAME_TYPES in OPContractsManagerV2._assertValidFullConfig().
         delete v2UpgradeInput.disputeGameConfigs;
 
         // Legacy types (all disabled).
@@ -3732,7 +3732,7 @@ contract OPContractsManagerV2_Migrate_Test is OPContractsManagerV2_TestInit {
     }
 
     /// @notice Builds the dispute game configs for upgrading a migrated super-permissioned
-    ///         interop chain. Order must match validGameTypes in
+    ///         interop chain. Order must match VALID_GAME_TYPES in
     ///         OPContractsManagerV2._assertValidFullConfig(): only SUPER_PERMISSIONED is enabled,
     ///         matching the respected game type the migration installs on the shared registry.
     /// @return configs_ The dispute game configs.
