@@ -34,7 +34,7 @@ use crate::{
         ActionExecutor, AnchorRoot, BondState, ClaimPreflight, FactoryGame, GameClaim,
         GameCreationReceipt, GameIdentity, GameLifecycle, GameStanding, GameValidity, L1BlockRef,
         L1View, NonceState, ProofEngine, ProofInputs, ProposalHorizon, QueryTime,
-        SettlementIdentity, SuperRootAtTimestamp, SuperRootSource, WithdrawalState,
+        SuperRootAtTimestamp, SuperRootSource, WithdrawalState,
     },
     proposer::{CycleResult, OperationSummary, PrestateCache, Proposer, TaskCompletion, TaskId},
     prover::ProofKeys,
@@ -1604,35 +1604,6 @@ impl L1View for FakeL1View {
             status: game.status,
             absolute_prestate: game.absolute_prestate,
         })
-    }
-
-    async fn settlement_identity(
-        &self,
-        game: Address,
-        block: BlockId,
-    ) -> Result<SettlementIdentity> {
-        let GameReadResult { state, .. } =
-            self.state_for_game(L1ReadBoundary::GameIdentity, game, block)?;
-        let game = state.game(game)?;
-        Ok(SettlementIdentity {
-            absolute_prestate: game.absolute_prestate,
-            status: game.status,
-            anchor_state_registry: game.anchor_state_registry,
-            weth: game.weth,
-        })
-    }
-
-    async fn game_finalized(
-        &self,
-        game: Address,
-        registry: Address,
-        block: BlockId,
-    ) -> Result<bool> {
-        let GameReadResult { state, .. } =
-            self.state_for_game(L1ReadBoundary::GameLifecycle, game, block)?;
-        let game = state.game(game)?;
-        ensure!(registry == game.anchor_state_registry, "unexpected settlement registry");
-        Ok(game.is_finalized_at(state.block.timestamp))
     }
 
     async fn game_lifecycle(

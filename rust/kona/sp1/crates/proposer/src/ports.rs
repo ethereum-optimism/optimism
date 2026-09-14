@@ -62,15 +62,6 @@ pub(crate) struct GameValidity {
     pub(crate) absolute_prestate: B256,
 }
 
-/// L1 settlement metadata, independent of proposal validity and sequence-number limits.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub(crate) struct SettlementIdentity {
-    pub(crate) absolute_prestate: B256,
-    pub(crate) anchor_state_registry: Address,
-    pub(crate) weth: Address,
-    pub(crate) status: GameStatus,
-}
-
 /// Base fields refreshed for every cached game before status-specific reads.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) struct GameLifecycle {
@@ -198,17 +189,6 @@ pub(crate) trait L1View: Send + Sync {
     async fn game_claim(&self, game: Address, block: BlockId) -> Result<GameClaim>;
     async fn game_identity(&self, game: Address, block: BlockId) -> Result<GameIdentity>;
     async fn game_validity(&self, game: Address, block: BlockId) -> Result<GameValidity>;
-    async fn settlement_identity(
-        &self,
-        game: Address,
-        block: BlockId,
-    ) -> Result<SettlementIdentity>;
-    async fn game_finalized(
-        &self,
-        game: Address,
-        registry: Address,
-        block: BlockId,
-    ) -> Result<bool>;
     async fn game_lifecycle(
         &self,
         game: Address,

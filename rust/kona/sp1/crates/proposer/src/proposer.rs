@@ -9,7 +9,7 @@
 //! they are still unchallenged, via [`crate::proving`].
 
 use std::{
-    collections::{HashMap, HashSet},
+    collections::{BTreeMap, HashMap, HashSet},
     num::NonZeroU64,
     sync::{
         Arc,
@@ -42,8 +42,8 @@ use crate::{
     contract::{DisputeGameFactory::DisputeGameFactoryInstance, GameStatus, ProposalStatus},
     metrics::ProposerGauge,
     ports::{
-        ActionExecutor, BondState, ClaimPreflight, GameLifecycle, L1BlockRef, L1View, ProofEngine,
-        ProofInputs, QueryTime, SuperRootSource,
+        ActionExecutor, BondState, ClaimPreflight, GameLifecycle, L1View, ProofEngine, ProofInputs,
+        QueryTime, SuperRootSource,
     },
     prover::{ProofKeys, ProofProvider, setup_proof_keys},
     proving::{GameProofInputs, fetch_span_responses, is_unprovable, response_trusted},
@@ -63,64 +63,25 @@ mod scenario;
 /// ensuring all actionable games are included under normal conditions.
 pub const MAX_GAME_DEADLINE_LAG: u64 = 60 * 60 * 24 * 14; // 14 days
 
-/// Maximum factory entries inspected for historical settlement per sync.
-const OLD_GAME_BATCH_SIZE: usize = 64;
-
 #[derive(Clone, Debug)]
-struct SettlementGame {
+struct ResolutionGame {
     index: U256,
     address: Address,
     parent_index: u32,
-    absolute_prestate: B256,
-    weth: Address,
-    anchor_state_registry: Address,
-    should_attempt_to_resolve: bool,
-    should_attempt_to_claim_bond: bool,
+    proposal_status: ProposalStatus,
+    deadline: u64,
 }
 
-impl From<&Game> for SettlementGame {
+impl From<&Game> for ResolutionGame {
     fn from(game: &Game) -> Self {
         Self {
             index: game.index,
             address: game.address,
             parent_index: game.parent_index,
-            absolute_prestate: game.absolute_prestate,
-            weth: game.weth,
-            anchor_state_registry: game.anchor_state_registry,
-            should_attempt_to_resolve: game.should_attempt_to_resolve,
-            should_attempt_to_claim_bond: game.should_attempt_to_claim_bond,
+            proposal_status: game.proposal_status,
+            deadline: game.deadline,
         }
     }
-}
-
-#[derive(Clone, Copy, Debug)]
-struct OldGameScan {
-    pin: L1BlockRef,
-    latest_index: U256,
-    anchor_deadline: u64,
-}
-
-#[derive(Debug, Default)]
-struct OldGames {
-    cursor: U256,
-    generation: u64,
-    scan: Option<OldGameScan>,
-    games: HashMap<U256, SettlementGame>,
-    done: HashSet<U256>,
-    unknown_prestates: HashMap<U256, B256>,
-}
-
-impl OldGames {
-    fn reset(&mut self) {
-        *self = Self { generation: self.generation + 1, ..Self::default() };
-    }
-}
-
-enum OldGameFetch {
-    UnknownPrestate(B256),
-    Candidate(SettlementGame),
-    Retry,
-    Done,
 }
 
 /// Nonzero identifier assigned to a proposer task.
@@ -791,8 +752,6 @@ pub struct Proposer {
     /// re-validated each sync - unlike terminal invalidity, pending games
     /// must not be dropped by the cursor (see `fetch_game`).
     pending_games: Arc<RwLock<HashMap<U256, CompactGameSummary>>>,
-    /// Settlement candidates outside the observable window, excluded from the proposal DAG.
-    old_games: Arc<RwLock<OldGames>>,
     /// The registered game args' `maxProveDuration`, read once during
     /// `try_init`. Used for the deadline-approaching warning tier only;
     /// per-game deadlines come from `claimData` each sync.
@@ -905,7 +864,6 @@ impl Proposer {
             last_created_game_address: Arc::new(tokio::sync::Mutex::new(Address::ZERO)),
             in_flight_creation: Arc::new(tokio::sync::Mutex::new(None)),
             pending_games: Arc::new(RwLock::new(HashMap::new())),
-            old_games: Arc::new(RwLock::new(OldGames::default())),
             max_prove_duration: Arc::new(OnceCell::new()),
             max_challenge_duration: Arc::new(OnceCell::new()),
             undefendable: Arc::new(Mutex::new(HashSet::new())),
@@ -1139,7 +1097,6 @@ impl Proposer {
     /// 1. `sync_games` pulls newly created games and refreshes cached metadata.
     /// 2. `sync_anchor_game` aligns the cached anchor pointer with the registry contract.
     /// 3. `compute_canonical_head` recomputes the head game used for proposal selection.
-    /// 4. Queue a pinned historical scan for the background resolution worker.
     pub(crate) async fn sync_state(&self) -> Result<SyncDisposition> {
         // Pin one L1 block for the entire sync cycle so every state read sees a consistent
         // snapshot. Without this, load-balanced RPCs or a reorg can make related reads resolve
@@ -1204,166 +1161,9 @@ impl Proposer {
         // With the cached game statuses and anchor synchronized, recompute the canonical head.
         self.compute_canonical_head().await;
 
-        let state = self.state.read().await;
-        self.old_games.write().await.scan = state.cursor.index().map(|latest_index| OldGameScan {
-            pin: pinned_l1,
-            latest_index,
-            anchor_deadline: state
-                .anchor_game
-                .as_ref()
-                .map_or(pinned_timestamp, |game| game.deadline),
-        });
-        drop(state);
-
         *self.last_successful_pinned_l1.write().await = Some(pinned_l1);
 
         Ok(SyncDisposition::Advanced)
-    }
-
-    /// Refreshes a bounded batch of historical settlement candidates using only L1 state.
-    async fn sync_old_games(&self) {
-        let (scan, mut cursor, generation) = {
-            let mut history = self.old_games.write().await;
-            let Some(scan) = history.scan.take() else { return };
-            (scan, history.cursor, history.generation)
-        };
-        if scan.anchor_deadline <= MAX_GAME_DEADLINE_LAG {
-            return;
-        }
-        if cursor > scan.latest_index {
-            cursor = U256::ZERO;
-        }
-        for _ in 0..OLD_GAME_BATCH_SIZE {
-            let (done, unknown_prestate) = {
-                let history = self.old_games.read().await;
-                if history.generation != generation {
-                    return;
-                }
-                (history.done.contains(&cursor), history.unknown_prestates.get(&cursor).copied())
-            };
-            let prestate_available = if let Some(prestate) = unknown_prestate {
-                let _ = self.prestates.ensure_loaded(prestate).await;
-                self.prestates.known_prestates().await.contains(&prestate)
-            } else {
-                true
-            };
-            if !done && prestate_available {
-                let result = self.fetch_old_game(cursor, scan).await;
-                let mut history = self.old_games.write().await;
-                if history.generation != generation {
-                    return;
-                }
-                if result.is_ok() {
-                    history.unknown_prestates.remove(&cursor);
-                }
-                match result {
-                    Ok(OldGameFetch::UnknownPrestate(prestate)) => {
-                        history.games.remove(&cursor);
-                        history.unknown_prestates.insert(cursor, prestate);
-                    }
-                    Ok(OldGameFetch::Candidate(game)) => {
-                        history.games.insert(cursor, game);
-                    }
-                    Ok(OldGameFetch::Retry) => {
-                        history.games.remove(&cursor);
-                    }
-                    Ok(OldGameFetch::Done) => {
-                        history.games.remove(&cursor);
-                        history.done.insert(cursor);
-                    }
-                    Err(error) => {
-                        // Advance past failures so a permanently reverting game cannot wedge
-                        // recovery.
-                        tracing::warn!(game_index = %cursor, %error, "Old game recovery failed; retrying on the next scan");
-                        ProposerGauge::GameSyncError.increment(1.0);
-                    }
-                }
-            }
-            if cursor == scan.latest_index {
-                cursor = U256::ZERO;
-                break;
-            }
-            cursor += U256::ONE;
-        }
-        let mut history = self.old_games.write().await;
-        if history.generation == generation {
-            history.cursor = cursor;
-        }
-    }
-
-    /// Classifies expired historical games for resolution or bond recovery without proving them.
-    async fn fetch_old_game(&self, index: U256, scan: OldGameScan) -> Result<OldGameFetch> {
-        let pinned_block = BlockId::hash(scan.pin.hash);
-        let pinned_timestamp = scan.pin.timestamp;
-        let factory_game = self.l1_view.factory_game(index, pinned_block).await?;
-        if factory_game.game_type != ZK_GAME_TYPE {
-            return Ok(OldGameFetch::Done);
-        }
-        let address = factory_game.address;
-        let claim = self.l1_view.game_claim(address, pinned_block).await?;
-        if !pending_evictable(scan.anchor_deadline, claim.deadline) ||
-            claim.deadline >= pinned_timestamp
-        {
-            return Ok(OldGameFetch::Retry);
-        }
-        let identity = self.l1_view.settlement_identity(address, pinned_block).await?;
-        let _ = self.prestates.ensure_loaded(identity.absolute_prestate).await;
-        if !self.prestates.known_prestates().await.contains(&identity.absolute_prestate) {
-            return Ok(OldGameFetch::UnknownPrestate(identity.absolute_prestate));
-        }
-        let mut should_attempt_to_resolve = false;
-        let mut should_attempt_to_claim_bond = false;
-        match identity.status {
-            GameStatus::InProgress => {
-                should_attempt_to_resolve = true;
-            }
-            GameStatus::DefenderWins | GameStatus::ChallengerWins => {
-                let bond = self
-                    .l1_view
-                    .bond_state(
-                        address,
-                        identity.weth,
-                        identity.anchor_state_registry,
-                        self.proposer_address,
-                        pinned_block,
-                    )
-                    .await?;
-                if (bond.distribution_closed || !bond.has_potential_credit) &&
-                    bond.credit == U256::ZERO &&
-                    bond.withdrawal_amount == U256::ZERO
-                {
-                    return Ok(OldGameFetch::Done);
-                }
-                let is_finalized = self
-                    .l1_view
-                    .game_finalized(address, identity.anchor_state_registry, pinned_block)
-                    .await?;
-                should_attempt_to_claim_bond = matches!(
-                    bond_claim_action(
-                        is_finalized,
-                        bond.credit,
-                        bond.withdrawal_amount,
-                        bond.withdrawal_timestamp.try_into().unwrap_or(u64::MAX),
-                        bond.delay.try_into().context("DelayedWETH delay exceeds u64")?,
-                        pinned_timestamp,
-                    ),
-                    BondClaimAction::Unlock | BondClaimAction::Payout
-                );
-            }
-        }
-        if !should_attempt_to_resolve && !should_attempt_to_claim_bond {
-            return Ok(OldGameFetch::Retry);
-        }
-        Ok(OldGameFetch::Candidate(SettlementGame {
-            index,
-            address,
-            parent_index: claim.parent_index,
-            should_attempt_to_resolve,
-            should_attempt_to_claim_bond,
-            absolute_prestate: identity.absolute_prestate,
-            weth: identity.weth,
-            anchor_state_registry: identity.anchor_state_registry,
-        }))
     }
 
     /// Synchronizes the game cache.
@@ -1399,7 +1199,6 @@ impl Proposer {
                 self.proof_engine.clear(address);
             }
             self.pending_games.write().await.clear();
-            self.old_games.write().await.reset();
             if had_confirmed_factory_history {
                 self.reset_creation_guard(None, "confirmed factory history became empty").await;
             }
@@ -1476,7 +1275,6 @@ impl Proposer {
                 self.proof_engine.clear(address);
             }
             self.pending_games.write().await.clear();
-            self.old_games.write().await.reset();
             self.reset_creation_guard(None, "factory history was replaced").await;
         }
 
@@ -2027,40 +1825,57 @@ impl Proposer {
     }
 
     async fn resolve_games(&self) -> Result<()> {
-        // Ownership is prestate-based: the resolve set equals the
-        // willing-to-prove set.
+        // Resolve only tracked games and their unresolved ancestors. Historical bond recovery
+        // is deliberately excluded: ancestors are never inserted into the proposal/claim cache.
         let known_prestates = self.prestates.known_prestates().await;
-        let mut candidates = {
+        let (mut candidates, mut parents, mut visited) = {
             let state = self.state.read().await;
-            state
-                .games
-                .values()
-                .filter(|game| game.is_owned(&known_prestates))
-                .filter(|game| game.should_attempt_to_resolve)
-                .map(SettlementGame::from)
-                .collect::<Vec<_>>()
-        };
-
-        candidates.extend(
-            self.old_games
-                .read()
-                .await
+            let live_games = state
                 .games
                 .values()
                 .filter(|game| {
-                    game.should_attempt_to_resolve &&
-                        known_prestates.contains(&game.absolute_prestate)
+                    game.is_owned(&known_prestates) && game.status == GameStatus::InProgress
                 })
-                .cloned(),
-        );
-        candidates.sort_by_key(|game| game.index);
-        candidates.dedup_by_key(|game| game.index);
+                .collect::<Vec<_>>();
+            let candidates = live_games
+                .iter()
+                .filter(|game| game.should_attempt_to_resolve)
+                .map(|game| (game.index, ResolutionGame::from(*game)))
+                .collect::<BTreeMap<_, _>>();
+            let parents = live_games
+                .iter()
+                .map(|game| game.parent_index)
+                .filter(|index| {
+                    *index != u32::MAX && !state.games.contains_key(&U256::from(*index))
+                })
+                .collect::<Vec<_>>();
+            (candidates, parents, state.games.keys().copied().collect::<HashSet<_>>())
+        };
+        if candidates.is_empty() && parents.is_empty() {
+            return Ok(());
+        }
+        let pin = (*self.last_successful_pinned_l1.read().await)
+            .context("resolution requires a successful pinned sync")?;
+        let block = BlockId::hash(pin.hash);
+        while let Some(parent_index) = parents.pop() {
+            if parent_index == u32::MAX || !visited.insert(U256::from(parent_index)) {
+                continue;
+            }
+            match self.fetch_resolution_ancestor(U256::from(parent_index), block).await {
+                Ok(Some(parent)) => {
+                    parents.push(parent.parent_index);
+                    candidates.insert(parent.index, parent);
+                }
+                Ok(None) => {}
+                Err(error) => {
+                    tracing::warn!(parent_index, %error, "Ancestor unavailable; deferring this dependency");
+                    ProposerGauge::GameSyncError.increment(1.0);
+                }
+            }
+        }
 
-        for game in candidates {
-            // Pre-flight on-chain status check at `latest`. The cached `should_attempt_to_resolve`
-            // is derived from the pinned (lagged) snapshot, so a recently confirmed `resolve()` tx
-            // may not yet be reflected. Querying at `latest` avoids re-submitting a resolution
-            // that would only revert on chain.
+        // Factory indices put ancestors before descendants, including shared dependencies.
+        for game in candidates.into_values() {
             match self.l1_view.game_status(game.address).await {
                 Ok(status) => match GameStatus::try_from(status) {
                     Ok(status) if status != GameStatus::InProgress => {
@@ -2090,22 +1905,36 @@ impl Proposer {
                 }
             }
 
-            // Earlier candidates may have resolved this parent since the pinned snapshot.
-            if game.parent_index != u32::MAX {
+            let parent_status = if game.parent_index == u32::MAX {
+                GameStatus::DefenderWins
+            } else {
                 match self.l1_view.parent_game_status(game.parent_index, BlockId::latest()).await {
-                    Ok(status)
-                        if matches!(
-                            GameStatus::try_from(status),
-                            Ok(GameStatus::DefenderWins | GameStatus::ChallengerWins)
-                        ) => {}
-                    Ok(_) => continue,
+                    Ok(status) => match GameStatus::try_from(status) {
+                        Ok(status) => status,
+                        Err(error) => {
+                            tracing::warn!(game_index = %game.index, %error, "Invalid parent status; deferring resolution");
+                            continue;
+                        }
+                    },
                     Err(error) => {
                         tracing::warn!(game_index = %game.index, %error, "Parent status unavailable; deferring resolution");
                         continue;
                     }
                 }
+            };
+            let is_game_over = match game.proposal_status {
+                ProposalStatus::Unchallenged | ProposalStatus::Challenged => {
+                    pin.timestamp > game.deadline
+                }
+                ProposalStatus::UnchallengedAndValidProofProvided |
+                ProposalStatus::ChallengedAndValidProofProvided |
+                ProposalStatus::Resolved => true,
+            };
+            if parent_status == GameStatus::InProgress ||
+                (parent_status == GameStatus::DefenderWins && !is_game_over)
+            {
+                continue;
             }
-
             if let Err(error) = self.submit_resolution_transaction(&game).await {
                 if error.is_revert() {
                     tracing::error!(
@@ -2128,8 +1957,38 @@ impl Proposer {
 
             ProposerGauge::GamesResolved.increment(1.0);
         }
-
         Ok(())
+    }
+
+    /// Reads an unresolved ancestor without requiring its historical super-root data.
+    async fn fetch_resolution_ancestor(
+        &self,
+        index: U256,
+        block: BlockId,
+    ) -> Result<Option<ResolutionGame>> {
+        let factory = self.l1_view.factory_game(index, block).await?;
+        if factory.game_type != ZK_GAME_TYPE {
+            return Ok(None);
+        }
+        let validity = self.l1_view.game_validity(factory.address, block).await?;
+        if validity.status != GameStatus::InProgress {
+            return Ok(None);
+        }
+        let _ = self.prestates.ensure_loaded(validity.absolute_prestate).await;
+        if !self.prestates.known_prestates().await.contains(&validity.absolute_prestate) {
+            return Ok(None);
+        }
+        let claim = self.l1_view.game_claim(factory.address, block).await?;
+        if claim.parent_index != u32::MAX && U256::from(claim.parent_index) >= index {
+            bail!("ancestor parent index must precede the game");
+        }
+        Ok(Some(ResolutionGame {
+            index,
+            address: factory.address,
+            parent_index: claim.parent_index,
+            proposal_status: ProposalStatus::try_from(claim.status)?,
+            deadline: claim.deadline,
+        }))
     }
 
     /// Attempt to claim proposer bonds for any games flagged for claiming
@@ -2145,22 +2004,10 @@ impl Proposer {
                 .values()
                 .filter(|game| game.is_owned(&known_prestates))
                 .filter(|game| game.should_attempt_to_claim_bond)
-                .map(SettlementGame::from)
+                .cloned()
                 .collect::<Vec<_>>()
         };
 
-        candidates.extend(
-            self.old_games
-                .read()
-                .await
-                .games
-                .values()
-                .filter(|game| {
-                    game.should_attempt_to_claim_bond &&
-                        known_prestates.contains(&game.absolute_prestate)
-                })
-                .cloned(),
-        );
         candidates.sort_by_key(|game| game.index);
         candidates.dedup_by_key(|game| game.index);
 
@@ -2270,7 +2117,7 @@ impl Proposer {
     }
 
     /// Submits a `resolve()` transaction for the game and bails if it reverted.
-    async fn submit_resolution_transaction(&self, game: &SettlementGame) -> Result<()> {
+    async fn submit_resolution_transaction(&self, game: &ResolutionGame) -> Result<()> {
         let transaction_hash = self.action_executor.resolve_game(game.address).await?;
 
         tracing::info!(
@@ -3270,7 +3117,6 @@ impl Proposer {
                         proposer.handle_game_proving_result(factory_index, address, result).await
                     }
                     OperationSummary::ResolutionSweep => {
-                        proposer.sync_old_games().await;
                         proposer.resolve_games().await?;
                         Ok(TaskSuccess::Completed)
                     }
@@ -4214,7 +4060,7 @@ mod tests {
             ActionExecutor, AnchorRoot, BondState, ClaimPreflight, FactoryGame, GameClaim,
             GameCreationReceipt, GameIdentity, GameLifecycle, GameStanding, GameValidity,
             L1BlockRef, L1View, NonceState, ProofEngine, ProofInputs, ProposalHorizon, QueryTime,
-            SettlementIdentity, SuperRootAtTimestamp, SuperRootSource, WithdrawalState,
+            SuperRootAtTimestamp, SuperRootSource, WithdrawalState,
         },
         prover::{MockProofProvider, ProofKeys, ProofProvider},
         proving::GameProofInputs,
@@ -4393,8 +4239,6 @@ mod tests {
         bond_targets: StdMutex<Vec<(Address, Address, Address, BlockId)>>,
         lifecycle_targets: StdMutex<Vec<(Address, Address, BlockId)>>,
         fail_on: Option<&'static str>,
-        settlement_gate: Option<Arc<tokio::sync::Notify>>,
-        settlement_entered: Option<Arc<tokio::sync::Notify>>,
         latest_head: Option<L1BlockRef>,
         block_ref: Option<L1BlockRef>,
         latest_game_index: Option<U256>,
@@ -4427,8 +4271,6 @@ mod tests {
                 bond_targets: StdMutex::new(Vec::new()),
                 lifecycle_targets: StdMutex::new(Vec::new()),
                 fail_on: None,
-                settlement_gate: None,
-                settlement_entered: None,
                 latest_head: Some(L1BlockRef { hash: B256::ZERO, number: 1, timestamp: 1_000 }),
                 block_ref: None,
                 latest_game_index: None,
@@ -4606,35 +4448,6 @@ mod tests {
             self.record("game_validity");
             self.record_block("game_validity", block);
             Ok(self.game_validity)
-        }
-
-        async fn settlement_identity(
-            &self,
-            _game: Address,
-            block: BlockId,
-        ) -> anyhow::Result<SettlementIdentity> {
-            self.record("settlement_identity");
-            if let Some(gate) = &self.settlement_gate {
-                self.settlement_entered.as_ref().unwrap().notify_one();
-                gate.notified().await;
-            }
-            self.record_block("settlement_identity", block);
-            self.fail_if_configured("settlement_identity")?;
-            Ok(SettlementIdentity {
-                absolute_prestate: self.game_validity.absolute_prestate,
-                status: self.lifecycle.status,
-                anchor_state_registry: self.game_identity.anchor_state_registry,
-                weth: self.game_identity.weth,
-            })
-        }
-
-        async fn game_finalized(
-            &self,
-            _game: Address,
-            _registry: Address,
-            _block: BlockId,
-        ) -> anyhow::Result<bool> {
-            Ok(self.lifecycle.is_finalized)
         }
 
         async fn game_lifecycle(
@@ -5121,141 +4934,52 @@ mod tests {
         assert_eq!(proposer.state.read().await.cursor, cursor);
         assert_eq!(view.calls(), vec!["latest_head", "latest_game_index"]);
     }
-    async fn queue_old_scan(proposer: &Proposer, number: u64, timestamp: u64) {
-        proposer.old_games.write().await.scan = Some(super::OldGameScan {
-            pin: L1BlockRef { hash: B256::from(U256::from(number)), number, timestamp },
-            latest_index: proposer.state.read().await.cursor.index().unwrap(),
-            anchor_deadline: timestamp,
-        });
-    }
-
     #[tokio::test]
-    async fn foreground_sync_does_not_read_historical_games() {
-        let mut proposer = test_proposer().await;
-        let view = Arc::new(RecordingL1View {
-            latest_head: Some(L1BlockRef { hash: B256::ZERO, number: 1, timestamp: 2_000_000 }),
-            latest_game_index: Some(U256::ZERO),
-            ..Default::default()
-        });
-        proposer.l1_view = view.clone();
-        proposer.state.write().await.cursor = Cursor::from(U256::ZERO);
-        assert_eq!(proposer.sync_state().await.unwrap(), SyncDisposition::Advanced);
-        assert!(!view.calls().contains(&"factory_game"));
-    }
-
-    #[tokio::test]
-    async fn blocked_historical_worker_does_not_block_sync_and_discards_reset_results() {
-        let mut proposer = test_proposer().await;
-        let entered = Arc::new(tokio::sync::Notify::new());
-        let gate = Arc::new(tokio::sync::Notify::new());
-        proposer.l1_view = Arc::new(RecordingL1View {
-            latest_head: Some(L1BlockRef { hash: B256::ZERO, number: 1, timestamp: 2_000_000 }),
-            latest_game_index: Some(U256::ZERO),
-            settlement_entered: Some(entered.clone()),
-            settlement_gate: Some(gate.clone()),
-            ..Default::default()
-        });
-        proposer
-            .prestates
-            .insert_for_tests(
-                B256::ZERO,
-                PrestatePrograms { aggregation_elf: vec![1], range_elf: vec![1] },
-            )
-            .await;
-        proposer.state.write().await.cursor = Cursor::from(U256::ZERO);
-        queue_old_scan(&proposer, 1, 2_000_000).await;
-        let scheduled =
-            proposer.spawn_planned_operations(vec![OperationSummary::ResolutionSweep]).await;
-        tokio::time::timeout(std::time::Duration::from_secs(5), entered.notified()).await.unwrap();
-        assert_eq!(
-            tokio::time::timeout(std::time::Duration::from_secs(5), proposer.sync_state())
+    async fn ancestor_reads_stop_at_resolved_unsupported_and_unknown_prestate_games() {
+        for (game_type, status, usable, expected_calls) in [
+            (ZK_GAME_TYPE + 1, GameStatus::InProgress, true, vec!["factory_game"]),
+            (ZK_GAME_TYPE, GameStatus::DefenderWins, true, vec!["factory_game", "game_validity"]),
+            (ZK_GAME_TYPE, GameStatus::ChallengerWins, true, vec!["factory_game", "game_validity"]),
+            (ZK_GAME_TYPE, GameStatus::InProgress, false, vec!["factory_game", "game_validity"]),
+            (
+                ZK_GAME_TYPE,
+                GameStatus::InProgress,
+                true,
+                vec!["factory_game", "game_validity", "game_claim"],
+            ),
+        ] {
+            let mut proposer = test_proposer().await;
+            proposer.prestates = Arc::new(PrestateCache::new(
+                "file:///nonexistent/ancestor-prestates/".parse().unwrap(),
+            ));
+            if usable {
+                proposer
+                    .prestates
+                    .insert_for_tests(
+                        B256::ZERO,
+                        PrestatePrograms { aggregation_elf: vec![1], range_elf: vec![1] },
+                    )
+                    .await;
+            }
+            let mut view = RecordingL1View::default();
+            view.factory_game.game_type = game_type;
+            view.game_validity.status = status;
+            let view = Arc::new(view);
+            proposer.l1_view = view.clone();
+            let ancestor = proposer
+                .fetch_resolution_ancestor(U256::from(7), BlockId::number(1))
                 .await
-                .unwrap()
-                .unwrap(),
-            SyncDisposition::Advanced
-        );
-        assert_eq!(proposer.tasks.lock().await.len(), 1);
-
-        proposer.old_games.write().await.reset();
-        gate.notify_one();
-        let (handle, _) = proposer.tasks.lock().await.remove(&scheduled[0].task_id).unwrap();
-        handle.await.unwrap().unwrap();
-        let history = proposer.old_games.read().await;
-        assert!(history.games.is_empty());
-        assert!(history.done.is_empty());
-        assert_eq!(history.cursor, U256::ZERO);
-    }
-
-    #[tokio::test]
-    async fn historical_claim_candidates_survive_batches_and_unknown_games_remain_retryable() {
-        let mut proposer = test_proposer().await;
-        proposer
-            .prestates
-            .insert_for_tests(
-                B256::ZERO,
-                PrestatePrograms { aggregation_elf: vec![1], range_elf: vec![1] },
-            )
-            .await;
-        let mut view = RecordingL1View::default();
-        view.lifecycle.status = GameStatus::DefenderWins;
-        view.lifecycle.is_finalized = true;
-        view.game_identity.sequence_number = U256::MAX;
-        proposer.l1_view = Arc::new(view);
-        proposer.state.write().await.cursor = Cursor::from(U256::from(super::OLD_GAME_BATCH_SIZE));
-        for number in [1, 2] {
-            queue_old_scan(&proposer, number, 2_000_000 + number).await;
-            proposer.sync_old_games().await;
+                .unwrap();
+            assert_eq!(
+                ancestor.is_some(),
+                game_type == ZK_GAME_TYPE && status == GameStatus::InProgress && usable
+            );
+            assert_eq!(view.calls(), expected_calls);
         }
-        let history = proposer.old_games.read().await;
-        assert_eq!(history.games.len(), super::OLD_GAME_BATCH_SIZE + 1);
-        assert!(history.games.values().all(|game| game.should_attempt_to_claim_bond));
-        drop(history);
-
-        proposer.old_games.write().await.reset();
-        let mut unsupported = RecordingL1View::default();
-        unsupported.factory_game.game_type = ZK_GAME_TYPE + 1;
-        let unsupported = Arc::new(unsupported);
-        proposer.l1_view = unsupported.clone();
-        proposer.state.write().await.cursor = Cursor::from(U256::ZERO);
-        queue_old_scan(&proposer, 3, 2_000_003).await;
-        proposer.sync_old_games().await;
-        assert_eq!(unsupported.calls(), vec!["factory_game"]);
-        assert!(proposer.old_games.read().await.done.contains(&U256::ZERO));
-
-        proposer.old_games.write().await.reset();
-        let mut unknown = RecordingL1View::default();
-        unknown.game_validity.absolute_prestate = B256::repeat_byte(0xff);
-        proposer.prestates = Arc::new(PrestateCache::new(
-            "file:///nonexistent/settlement-prestates/".parse().unwrap(),
-        ));
-        let unknown = Arc::new(unknown);
-        proposer.l1_view = unknown.clone();
-        queue_old_scan(&proposer, 4, 2_000_004).await;
-        proposer.sync_old_games().await;
-        assert!(proposer.old_games.read().await.games.is_empty());
-        assert!(proposer.old_games.read().await.done.is_empty());
-        let reads = unknown.calls().len();
-        queue_old_scan(&proposer, 5, 2_000_005).await;
-        proposer.sync_old_games().await;
-        assert_eq!(
-            unknown.calls().len(),
-            reads,
-            "unknown prestates must not repeat L1 metadata reads"
-        );
-        proposer
-            .prestates
-            .insert_for_tests(
-                B256::repeat_byte(0xff),
-                PrestatePrograms { aggregation_elf: vec![1], range_elf: vec![1] },
-            )
-            .await;
-        queue_old_scan(&proposer, 5, 2_000_005).await;
-        proposer.sync_old_games().await;
-        assert_eq!(proposer.old_games.read().await.games.len(), 1);
     }
 
     #[tokio::test]
-    async fn unclosed_game_without_either_credit_is_terminal_for_this_proposer() {
+    async fn ancestor_reads_reject_non_decreasing_parent_indices() {
         let mut proposer = test_proposer().await;
         proposer
             .prestates
@@ -5264,69 +4988,17 @@ mod tests {
                 PrestatePrograms { aggregation_elf: vec![1], range_elf: vec![1] },
             )
             .await;
-        let mut view = RecordingL1View::default();
-        view.lifecycle.status = GameStatus::DefenderWins;
-        view.lifecycle.is_finalized = true;
-        view.bond_state.credit = U256::ZERO;
-        view.bond_state.distribution_closed = false;
-        let view = Arc::new(view);
-        proposer.l1_view = view.clone();
-        proposer.state.write().await.cursor = Cursor::from(U256::ZERO);
-        queue_old_scan(&proposer, 1, 2_000_000).await;
-        proposer.sync_old_games().await;
-        let reads = view.calls().len();
-        queue_old_scan(&proposer, 2, 2_000_001).await;
-        proposer.sync_old_games().await;
-        assert_eq!(view.calls().len(), reads);
-    }
-
-    #[tokio::test]
-    async fn old_game_recovery_retains_candidates_until_they_are_rechecked() {
-        let mut proposer = test_proposer().await;
-        let view = Arc::new(RecordingL1View::default());
-        proposer.l1_view = view.clone();
-        proposer
-            .prestates
-            .insert_for_tests(
-                B256::ZERO,
-                PrestatePrograms { aggregation_elf: vec![1], range_elf: vec![1] },
-            )
-            .await;
-        proposer.state.write().await.cursor = Cursor::from(U256::from(super::OLD_GAME_BATCH_SIZE));
-        queue_old_scan(&proposer, 1, 2_000_000).await;
-        proposer.sync_old_games().await;
-        assert_eq!(proposer.old_games.read().await.games.len(), super::OLD_GAME_BATCH_SIZE);
-        assert_eq!(
-            view.calls().iter().filter(|call| **call == "factory_game").count(),
-            super::OLD_GAME_BATCH_SIZE
-        );
-
-        queue_old_scan(&proposer, 2, 2_000_001).await;
-        proposer.sync_old_games().await;
-        assert_eq!(proposer.old_games.read().await.games.len(), super::OLD_GAME_BATCH_SIZE + 1);
-        assert_eq!(proposer.old_games.read().await.cursor, U256::ZERO);
-
-        let mut settled_view = RecordingL1View::default();
-        settled_view.lifecycle.status = GameStatus::DefenderWins;
-        settled_view.lifecycle.is_finalized = true;
-        settled_view.bond_state.credit = U256::ZERO;
-        settled_view.bond_state.distribution_closed = true;
-        let settled_view = Arc::new(settled_view);
-        proposer.l1_view = settled_view.clone();
-        queue_old_scan(&proposer, 3, 2_000_002).await;
-        proposer.sync_old_games().await;
-        assert_eq!(proposer.old_games.read().await.games.len(), 1);
-        queue_old_scan(&proposer, 4, 2_000_003).await;
-        proposer.sync_old_games().await;
-        assert!(proposer.old_games.read().await.games.is_empty());
-        let reads = settled_view.calls().len();
-        queue_old_scan(&proposer, 5, 2_000_004).await;
-        proposer.sync_old_games().await;
-        assert_eq!(
-            settled_view.calls().len(),
-            reads,
-            "closed, drained games must not cause more RPCs"
-        );
+        for parent_index in [7, 8] {
+            let mut view = RecordingL1View::default();
+            view.game_claim.parent_index = parent_index;
+            proposer.l1_view = Arc::new(view);
+            assert!(
+                proposer
+                    .fetch_resolution_ancestor(U256::from(7), BlockId::number(1))
+                    .await
+                    .is_err()
+            );
+        }
     }
 
     #[tokio::test]
@@ -5349,14 +5021,6 @@ mod tests {
             proposer.proof_engine = proof_engine.clone();
             let cached = game_with(4, u32::MAX, 100);
             let cached_address = cached.address;
-            proposer
-                .old_games
-                .write()
-                .await
-                .games
-                .insert(cached.index, super::SettlementGame::from(&cached));
-            proposer.old_games.write().await.cursor = U256::from(8);
-            proposer.old_games.write().await.unknown_prestates.insert(U256::from(8), B256::ZERO);
             {
                 let mut state = proposer.state.write().await;
                 state.anchor_game = Some(cached.clone());
@@ -5389,9 +5053,6 @@ mod tests {
             assert!(state.invalid_games.is_empty());
             drop(state);
             assert!(proposer.pending_games.read().await.is_empty());
-            assert!(proposer.old_games.read().await.games.is_empty());
-            assert!(proposer.old_games.read().await.unknown_prestates.is_empty());
-            assert_eq!(proposer.old_games.read().await.cursor, U256::ZERO);
             assert_eq!(
                 proposer.last_created_game_l2_sequence_number.load(AtomicOrdering::Relaxed),
                 0
@@ -6423,7 +6084,7 @@ mod tests {
             proposer.create_game(root_claim, extra_data.clone()).await.unwrap(),
             Address::left_padding_from(&[0xc1])
         );
-        proposer.submit_resolution_transaction(&super::SettlementGame::from(&game)).await.unwrap();
+        proposer.submit_resolution_transaction(&super::ResolutionGame::from(&game)).await.unwrap();
         proposer.claim_bonds().await.unwrap();
 
         assert_eq!(

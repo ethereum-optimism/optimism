@@ -28,7 +28,7 @@ use crate::{
         ActionExecutor, AnchorRoot, BondState, ClaimPreflight, FactoryGame, GameClaim,
         GameCreationReceipt, GameIdentity, GameLifecycle, GameStanding, GameValidity, L1BlockRef,
         L1View, NonceState, ProofEngine, ProofInputs, ProposalHorizon, QueryTime,
-        SettlementIdentity, SuperRootAtTimestamp, SuperRootSource, WithdrawalState,
+        SuperRootAtTimestamp, SuperRootSource, WithdrawalState,
     },
     prover::{ProofKeys, ProofProvider},
     proving::{GameProofInputs, InMemoryProofProgress, ProveGameRequest, prove_game_inner},
@@ -193,32 +193,6 @@ where
         let status = GameStatus::try_from(contract.status().block(block).call().await?)?;
         let absolute_prestate = contract.absolutePrestate().block(block).call().await?;
         Ok(GameValidity { root_claim, was_respected, status, absolute_prestate })
-    }
-
-    async fn settlement_identity(
-        &self,
-        game: Address,
-        block: BlockId,
-    ) -> Result<SettlementIdentity> {
-        let contract = ZKDisputeGame::new(game, self.provider.clone());
-        let absolute_prestate = contract.absolutePrestate().block(block).call().await?;
-        let anchor_state_registry = contract.anchorStateRegistry().block(block).call().await?;
-        let weth = contract.weth().block(block).call().await?;
-        let status = GameStatus::try_from(contract.status().block(block).call().await?)?;
-        Ok(SettlementIdentity { absolute_prestate, anchor_state_registry, weth, status })
-    }
-
-    async fn game_finalized(
-        &self,
-        game: Address,
-        registry: Address,
-        block: BlockId,
-    ) -> Result<bool> {
-        Ok(AnchorStateRegistry::new(registry, self.provider.clone())
-            .isGameFinalized(game)
-            .block(block)
-            .call()
-            .await?)
     }
 
     async fn game_lifecycle(
