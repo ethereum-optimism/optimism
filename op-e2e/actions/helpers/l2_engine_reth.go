@@ -24,39 +24,6 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/engineipc"
 )
 
-// ELSelectorEnv chooses which execution layer backs an L2Engine in the action tests. It exists for
-// the op-geth-decoupling switch: the in-process op-geth EL (the historical default) is being
-// replaced by the out-of-process op-reth-test-engine binary, driven over a Unix socket.
-const ELSelectorEnv = "OP_E2E_ACTIONS_EL"
-
-const (
-	elGeth           = "geth"
-	elRethTestEngine = "reth-test-engine"
-)
-
-// rethBackendSelected reports whether OP_E2E_ACTIONS_EL selects the out-of-process reth engine.
-//
-// The default is still geth: the switch lands incrementally, so until every L2Chain()/EngineApi
-// site is migrated the suite runs unchanged on op-geth, and individual tests opt into the reth
-// backend. An unrecognized value fails loudly rather than silently falling back.
-func rethBackendSelected() bool {
-	switch v := os.Getenv(ELSelectorEnv); v {
-	case "", elGeth:
-		return false
-	case elRethTestEngine:
-		return true
-	default:
-		panic(fmt.Sprintf("unknown %s=%q (want %q or %q)", ELSelectorEnv, v, elGeth, elRethTestEngine))
-	}
-}
-
-// RethBackendSelected reports whether the out-of-process reth engine backs the L2 engine. Tests use
-// it to gate behavior that is specific to the in-process op-geth engine (e.g. persistent-DataDir
-// restart-and-recover) and cannot be reproduced against the ephemeral reth subprocess.
-func RethBackendSelected() bool {
-	return rethBackendSelected()
-}
-
 // rethBackend is the out-of-process op-reth-test-engine backing an L2Engine: the spawned subprocess
 // and its dialed IPC client. All engine/eth/optest RPC goes over the socket.
 type rethBackend struct {
