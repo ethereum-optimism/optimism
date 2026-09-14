@@ -273,6 +273,13 @@ func (s *SameTimestampTestSetup) PrepareInitB(rng *rand.Rand, logIdx uint32) *ds
 // Unlike the regular sequencer which uses wall-clock time, the TestSequencer builds blocks
 // at exactly parent.Time + blockTime, ensuring the blocks are at NextTimestamp.
 func (s *SameTimestampTestSetup) IncludeAndValidate(txsA, txsB []*txplan.PlannedTx, expectReplacedA, expectReplacedB bool) {
+	s.IncludeAndValidateOnParents(txsA, txsB, s.L2ELA.BlockRefByLabel(eth.Unsafe), s.L2ELB.BlockRefByLabel(eth.Unsafe), expectReplacedA, expectReplacedB, nil)
+}
+
+// IncludeAndValidateOnParents builds on explicit parents, allowing a test to replace
+// preview blocks. beforeValidation runs after both candidates are committed, so
+// paused batchers can resume without publishing the previews to L1.
+func (s *SameTimestampTestSetup) IncludeAndValidateOnParents(txsA, txsB []*txplan.PlannedTx, parentA, parentB eth.L2BlockRef, expectReplacedA, expectReplacedB bool, beforeValidation func()) {
 	ctx := s.t.Ctx()
 
 	require.NotNil(s.t, s.TestSequencer, "TestSequencer is required for deterministic timestamp tests")
@@ -289,9 +296,7 @@ func (s *SameTimestampTestSetup) IncludeAndValidate(txsA, txsB []*txplan.Planned
 		txplan.WithStaticNonce(baseNonceB + uint64(i))(ptx)
 	}
 
-	// Get parent blocks and chain IDs
-	parentA := s.L2ELA.BlockRefByLabel(eth.Unsafe)
-	parentB := s.L2ELB.BlockRefByLabel(eth.Unsafe)
+	// Get chain IDs
 	chainIDA := s.L2A.Escape().ChainID()
 	chainIDB := s.L2B.Escape().ChainID()
 
@@ -341,6 +346,10 @@ func (s *SameTimestampTestSetup) IncludeAndValidate(txsA, txsB []*txplan.Planned
 	require.Equal(s.t, s.NextTimestamp, blockB.Time,
 		"Chain B block must be at the precomputed NextTimestamp (exec references init at this timestamp)")
 	require.Equal(s.t, blockA.Time, blockB.Time, "blocks must be at same timestamp")
+
+	if beforeValidation != nil {
+		beforeValidation()
+	}
 
 	// Resume interop and wait for validation
 	s.Supernode.ResumeInterop()

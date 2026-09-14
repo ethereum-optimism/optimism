@@ -183,6 +183,14 @@
     "initCodeHash": "0x215801f4d42de7076f376c4cb67d0a19431c793635b42b18687ce53508fb9c9b",
     "sourceCodeHash": "0xfd830061ff6bddb8c3f8fe34bfd8714a4bb6785f44864e29b723ab56273533ea"
   },
+  "src/integration/AtomicCallExample.sol:AtomicCallExample": {
+    "initCodeHash": "0xb503349b73842f802338b2aed5fff18dea278bcb94a20b33f0a4dae85beb5e53",
+    "sourceCodeHash": "0xa9dfa885533954948609da09128a2e85a630feb30e86ee32ae366b2c15dfcf2e"
+  },
+  "src/integration/AtomicCounter.sol:AtomicCounter": {
+    "initCodeHash": "0x98c1e6327a61271418dbd67fd7e4e640e4f9156ced229ee7998f4923f5c423dd",
+    "sourceCodeHash": "0xf3b43cd44ff9e911e7a3cc35921e0c57c3e42d1e51817a1e11038f6a0128c5ee"
+  },
   "src/legacy/DeployerWhitelist.sol:DeployerWhitelist": {
     "initCodeHash": "0x2e0ef4c341367eb59cc6c25190c64eff441d3fe130189da91d4d126f6bdbc9b5",
     "sourceCodeHash": "0x99fb495ee1339f399d9e14cc56e4b3b128c67778ad9ca7bad1efbb49eda2ec4c"
@@ -194,6 +202,22 @@
   "src/legacy/LegacyMessagePasser.sol:LegacyMessagePasser": {
     "initCodeHash": "0x3a82e248129d19764bb975bb79b48a982f077f33bb508480bf8d2ec1c0c9810d",
     "sourceCodeHash": "0x955bd0c9b47e43219865e4e92abf28d916c96de20cbdf2f94c8ab14d02083759"
+  },
+  "src/periphery/AtomicAccountFactory.sol:AtomicAccountFactory": {
+    "initCodeHash": "0xa2896379906236ff1393ca5028adb5b60a6ac4affbf7a49dcd4bd387663f9e52",
+    "sourceCodeHash": "0x7ed35d5a86cee5d732c80a028994a2592ea8105f3f813e98bb225f84fc314323"
+  },
+  "src/periphery/AtomicCallRouter.sol:AtomicCallRouter": {
+    "initCodeHash": "0x5d2dfbd8b9c789b03412d03d18d42e2b915c5f924fe03c86603c740f6f6930c5",
+    "sourceCodeHash": "0x5a0aea1c7c6dda79ea6be68715d316818f20d6e019ab875de90fb5c1f3f4ccf7"
+  },
+  "src/periphery/AtomicPaymaster.sol:AtomicPaymaster": {
+    "initCodeHash": "0x1db0644626c99926068d65196229c3dd2c6f4ca83ac85905bd2a02e50bd3e07a",
+    "sourceCodeHash": "0xceff210f88b1845861a9c97db07297fe7f97699885045ef0c335f19595d6cddf"
+  },
+  "src/periphery/AtomicRemoteProxy.sol:AtomicRemoteProxy": {
+    "initCodeHash": "0xbe444ff22c1296c6a8cd142d0ace8eab673a592e98c4eacb4a723e8c7733ea36",
+    "sourceCodeHash": "0x65a5f9f1019944c99ce81c19719aed761f9df73a033f845b41e7e1783b166b29"
   },
   "src/periphery/staking/PolicyEngineStaking.sol:PolicyEngineStaking": {
     "initCodeHash": "0x0dd679c6e955a4bf4af7d98da8c42ac7fd48c5c28af4c61eaeddb782690d6223",
