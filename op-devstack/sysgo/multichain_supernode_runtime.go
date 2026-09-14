@@ -20,6 +20,7 @@ import (
 	nutsstate "github.com/ethereum-optimism/optimism/op-core/nuts/state"
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/intentbuilder"
+	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/wait"
 	opnodeconfig "github.com/ethereum-optimism/optimism/op-node/config"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/driver"
@@ -770,25 +771,27 @@ func startSingleChainSharedSupernode(
 	}
 }
 
+const supernodeRouteReadyTimeout = 2 * time.Minute
+
 func waitForSupernodeRoute(t devtest.T, logger log.Logger, rpcEndpoint string) {
-	deadline := time.Now().Add(15 * time.Second)
-	for {
-		if time.Now().After(deadline) {
-			t.Require().FailNowf("supernode route readiness", "timed out waiting for supernode route %s", rpcEndpoint)
-		}
+	t.Helper()
+	ctx, cancel := context.WithTimeout(t.Ctx(), supernodeRouteReadyTimeout)
+	defer cancel()
 
-		rpcCl, err := client.NewRPC(t.Ctx(), logger, rpcEndpoint, client.WithLazyDial())
-		if err == nil {
-			var out any
-			callErr := rpcCl.CallContext(t.Ctx(), &out, "optimism_rollupConfig")
-			rpcCl.Close()
-			if callErr == nil {
-				return
-			}
+	var lastErr error
+	err := wait.For(ctx, 200*time.Millisecond, func() (bool, error) {
+		rpcCl, err := client.NewRPC(ctx, logger, rpcEndpoint, client.WithLazyDial())
+		if err != nil {
+			lastErr = err
+			return false, nil
 		}
+		defer rpcCl.Close()
 
-		time.Sleep(200 * time.Millisecond)
-	}
+		var out any
+		lastErr = rpcCl.CallContext(ctx, &out, "optimism_rollupConfig")
+		return lastErr == nil, nil
+	})
+	t.Require().NoErrorf(err, "supernode route readiness: route %s did not become ready within %v (last error: %v)", rpcEndpoint, supernodeRouteReadyTimeout, lastErr)
 }
 
 type l2TestSequencerTarget struct {
