@@ -1,7 +1,7 @@
-//! Task to insert an unsafe payload into the execution engine.
+//! Tasks to insert payloads into the execution engine.
 
 mod task;
-pub use task::InsertTask;
+pub use task::{CanonicalizeTask, InsertTask};
 
 mod error;
 pub use error::InsertTaskError;
