@@ -200,6 +200,24 @@ but the restart scan does not fast-finalize them.
 under `KONA_SP1_PROPOSER_PRESTATES_URL` for as long as games created under them can be live, or the
 proposer loses the ability to defend, resolve, and claim those games.
 
+### Settlement scope
+
+Normal bond recovery covers prestate-owned games in `state.games`, including
+resolved entries. Only unresolved tracked games extend settlement to their
+parents, even when those parents fall outside the 14-day observation window.
+
+Each settlement sweep follows missing unresolved ancestors and includes the
+first resolved ancestor for its own credit recovery, then stops. A resolved
+game no longer depends on its parent; following that parent to search for bonds
+could walk the entire game history on a linear chain. Outstanding credit does
+not extend this traversal boundary.
+
+Ancestor candidates are rebuilt each sweep, not retained independently. If a
+tracked child or intermediate ancestor resolves, or the child leaves the tracked
+set, deeper ancestors may leave recovery scope before their withdrawals mature.
+Recovery is therefore best effort, including after restart: there is no
+factory-wide search for historical outstanding bonds. Defense policy is unchanged.
+
 ### Proof providers
 
 - `KONA_SP1_PROPOSER_PROOF_PROVIDER=network`: real SP1 proving via the Succinct Prover Network.

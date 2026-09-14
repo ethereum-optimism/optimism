@@ -72,9 +72,14 @@ pub(crate) struct GameLifecycle {
     pub(crate) is_finalized: bool,
 }
 
-/// Bond fields read only for a defender-wins game.
+/// Credit (including potential refunds) and withdrawal state used for settlement.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) struct BondState {
+    /// The registry pause prevents closing an undecided bond distribution.
+    pub(crate) paused: bool,
+    /// Credit may remain payable in either distribution mode, including after an unpause.
+    pub(crate) has_potential_credit: bool,
+    pub(crate) distribution_closed: bool,
     pub(crate) credit: U256,
     pub(crate) withdrawal_amount: U256,
     pub(crate) withdrawal_timestamp: U256,
@@ -91,6 +96,8 @@ pub(crate) struct WithdrawalState {
 /// Independently failing fields from the latest-state claim preflight.
 #[derive(Debug)]
 pub(crate) struct ClaimPreflight {
+    /// The registry pause prevents closing an undecided bond distribution.
+    pub(crate) paused: bool,
     pub(crate) credit: Result<U256>,
     pub(crate) withdrawal: Result<WithdrawalState>,
 }
@@ -193,6 +200,7 @@ pub(crate) trait L1View: Send + Sync {
         &self,
         game: Address,
         weth: Address,
+        registry: Address,
         proposer: Address,
         block: BlockId,
     ) -> Result<BondState>;
@@ -202,6 +210,7 @@ pub(crate) trait L1View: Send + Sync {
         &self,
         game: Address,
         weth: Address,
+        registry: Address,
         proposer: Address,
     ) -> ClaimPreflight;
     async fn weth_delay(&self, weth: Address) -> Result<U256>;
