@@ -2918,11 +2918,11 @@ impl Proposer {
         }
     }
 
-    /// Rechecks a game's whole cached ancestry against one `latest` L1 block and
-    /// records what it finds. Returns false after updating the cache and the
-    /// canonical head when any link is blacklisted, retired, or lost its game.
+    /// Rechecks a game's whole cached ancestry against one `latest` L1 block.
+    /// Returns false when the registered anchor changed or a link is blacklisted,
+    /// retired, or `ChallengerWins`; terminal invalidation waits for confirmed sync.
     async fn latest_ancestry_eligible(&self, index: U256, address: Address) -> Result<bool> {
-        let (anchor_index, chain) = {
+        let (anchor_index, cached_anchor_address, chain) = {
             let state = self.state.read().await;
             if !state
                 .games
@@ -2931,12 +2931,25 @@ impl Proposer {
             {
                 return Ok(false);
             }
-            (state.anchor_game.as_ref().map(|anchor| anchor.index), state.eligibility_chain(index))
+            (
+                state.anchor_game.as_ref().map(|anchor| anchor.index),
+                state.anchor_game.as_ref().map_or(Address::ZERO, |anchor| anchor.address),
+                state.eligibility_chain(index),
+            )
         };
 
         let head =
             self.l1_view.latest_head().await?.context("failed to fetch latest L1 ancestry head")?;
         let latest_block = BlockId::hash(head.hash);
+        let latest_anchor_address = self.l1_view.registered_anchor_game(latest_block).await?;
+        if anchor_index.is_some() && latest_anchor_address != cached_anchor_address {
+            tracing::info!(
+                ?cached_anchor_address,
+                ?latest_anchor_address,
+                "Registered anchor changed at latest; deferring ancestry-gated action"
+            );
+            return Ok(false);
+        }
 
         for (game_index, game_address, registry) in chain {
             let (standing, status) = tokio::join!(
@@ -2962,16 +2975,11 @@ impl Proposer {
             if GameStatus::try_from(status?).context("invalid ancestry game status")? ==
                 GameStatus::ChallengerWins
             {
-                let removed_addresses = self.state.write().await.invalidate_subtree(game_index);
-                self.reset_creation_guard_for_removed_games(
-                    &removed_addresses,
-                    "tracked game removed with a challenger-wins ancestor",
-                )
-                .await;
-                for removed_address in removed_addresses {
-                    self.proof_engine.clear(removed_address);
-                }
-                self.compute_canonical_head().await;
+                tracing::info!(
+                    game_index = %game_index,
+                    ?game_address,
+                    "Ancestry game is ChallengerWins at latest; waiting for confirmed sync"
+                );
                 return Ok(false);
             }
         }
@@ -7329,6 +7337,39 @@ mod tests {
             let game = state.games.get(&index).expect("test game must be cached");
             assert_eq!(state.ancestry_eligible(game), expected, "{name}");
         }
+    }
+
+    #[tokio::test]
+    async fn latest_ancestry_recheck_defers_when_registered_anchor_changes() {
+        let cached_anchor = game_with(1, u32::MAX, 100);
+        let candidate = game_with(2, 1, 200);
+        let mut proposer = test_proposer().await;
+        proposer.l1_view = Arc::new(RecordingL1View {
+            anchor_game: Address::repeat_byte(0xaa),
+            ..Default::default()
+        });
+        *proposer.state.write().await =
+            state(vec![cached_anchor.clone(), candidate.clone()], Some(cached_anchor));
+
+        assert!(
+            !proposer.latest_ancestry_eligible(candidate.index, candidate.address).await.unwrap()
+        );
+    }
+
+    #[tokio::test]
+    async fn latest_challenger_wins_does_not_permanently_invalidate_ancestry() {
+        let game = game_with(1, u32::MAX, 100);
+        let mut proposer = test_proposer().await;
+        *proposer.state.write().await = state(vec![game.clone()], None);
+        proposer.l1_view = Arc::new(RecordingL1View {
+            game_status: GameStatus::ChallengerWins as u8,
+            ..Default::default()
+        });
+
+        assert!(!proposer.latest_ancestry_eligible(game.index, game.address).await.unwrap());
+
+        proposer.l1_view = Arc::new(RecordingL1View::default());
+        assert!(proposer.latest_ancestry_eligible(game.index, game.address).await.unwrap());
     }
 
     #[test]
