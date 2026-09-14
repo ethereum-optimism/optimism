@@ -568,6 +568,25 @@ func startTwoL2SharedSupernode(
 ) (*SuperNode, *SuperNodeProxy, *SuperNodeProxy) {
 	require := t.Require()
 	logger := t.Logger().New("component", "supernode")
+
+	// Pick the supernode implementation before anything is started, so a run that asked for
+	// lokahi fails on its own terms instead of part-way through a Go supernode bring-up.
+	if ResolveSupernodeKind(t) == SupernodeLokahi {
+		startLokahiSupernode(t, lokahiSupernodeConfig{
+			l1Net:        l1Net,
+			l1ELRPC:      l1EL.UserRPC(),
+			l1BeaconAddr: l1CL.beaconHTTPAddr,
+			chains: []lokahiSupernodeChain{
+				{net: l2ANet, el: l2AEL},
+				{net: l2BNet, el: l2BEL},
+			},
+			jwtSecret:                  jwtSecret,
+			depSet:                     depSet,
+			interopActivationTimestamp: interopActivationTimestamp,
+			sequencerEnabled:           sequencerEnabled,
+		})
+	}
+
 	makeNodeCfg := func(l2Net *L2Network, l2EL L2ELNode) *opnodeconfig.Config {
 		var sequencerP2PKeyHex string
 		if sequencerEnabled {
@@ -685,6 +704,21 @@ func startSingleChainSharedSupernode(
 ) (*SuperNode, *SuperNodeProxy) {
 	require := t.Require()
 	logger := t.Logger().New("component", "supernode")
+
+	// Same early dispatch as startTwoL2SharedSupernode: one hosted chain rather than two.
+	if ResolveSupernodeKind(t) == SupernodeLokahi {
+		startLokahiSupernode(t, lokahiSupernodeConfig{
+			l1Net:                      l1Net,
+			l1ELRPC:                    l1EL.UserRPC(),
+			l1BeaconAddr:               l1CL.beaconHTTPAddr,
+			chains:                     []lokahiSupernodeChain{{net: l2Net, el: l2EL}},
+			jwtSecret:                  jwtSecret,
+			depSet:                     depSet,
+			interopActivationTimestamp: interopActivationTimestamp,
+			sequencerEnabled:           sequencerEnabled,
+		})
+	}
+
 	makeNodeCfg := func() *opnodeconfig.Config {
 		var sequencerP2PKeyHex string
 		if sequencerEnabled {
