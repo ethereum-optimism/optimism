@@ -17,6 +17,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-service/clock"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
+	"github.com/ethereum-optimism/optimism/op-service/ptr"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
 
 	"github.com/ethereum-optimism/optimism/op-core/interop"
@@ -343,6 +344,35 @@ func TestLogsDBChainIngester_Ready(t *testing.T) {
 	require.True(t, ingester.Ready())
 }
 
+func TestLogsDBChainIngester_IsValidInitiatingTimestamp(t *testing.T) {
+	tests := []struct {
+		name        string
+		lagoonTime  *uint64
+		timestamp   uint64
+		expectValid bool
+	}{
+		{name: "no activation", timestamp: 104},
+		{name: "before activation", lagoonTime: ptr.New(uint64(101)), timestamp: 100},
+		{name: "activation block", lagoonTime: ptr.New(uint64(101)), timestamp: 102},
+		{name: "after activation block", lagoonTime: ptr.New(uint64(101)), timestamp: 104, expectValid: true},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			cfg := testRollupConfig(901, 0, 100)
+			cfg.LagoonTime = test.lagoonTime
+			ingester := newTestLogsDBChainIngester(t, testIngesterConfig{
+				chainID:   eth.ChainIDFromUInt64(901),
+				dataDir:   t.TempDir(),
+				ethClient: NewMockEthClient(),
+				rollupCfg: cfg,
+			})
+
+			require.Equal(t, test.expectValid, ingester.IsValidInitiatingTimestamp(test.timestamp))
+		})
+	}
+}
+
 func TestLogsDBChainIngester_ErrorState(t *testing.T) {
 	chainID := eth.ChainIDFromUInt64(901)
 	tempDir := t.TempDir()
@@ -439,6 +469,46 @@ func TestLogsDBChainIngester_CalculateStartingBlock_BackfillUnderflow(t *testing
 
 	startingBlock := ingester.calculateStartingBlock()
 	require.Equal(t, l2StartBlock, startingBlock)
+}
+
+func TestLogsDBChainIngester_CalculateStartingBlock_ClampsToLagoonActivation(t *testing.T) {
+	cfg := testRollupConfig(901, 100, 1000)
+	cfg.LagoonTime = ptr.New(uint64(1101))
+
+	ingester := newTestLogsDBChainIngester(t, testIngesterConfig{
+		chainID:   eth.ChainIDFromUInt64(901),
+		dataDir:   t.TempDir(),
+		ethClient: NewMockEthClient(),
+		rollupCfg: cfg,
+	})
+	ingester.startTimestamp = 1200
+	ingester.backfillDuration = 200 * time.Second
+
+	require.Equal(t, uint64(151), ingester.calculateStartingBlock())
+}
+
+func TestLogsDBChainIngester_InitIngestion_WaitsForLagoonActivation(t *testing.T) {
+	mockClient := NewMockEthClient()
+	head := createTestBlock(50, 1100, common.Hash{})
+	mockClient.AddBlock(head, nil)
+	mockClient.SetHeadBlock(head)
+
+	cfg := testRollupConfig(901, 0, 1000)
+	cfg.LagoonTime = ptr.New(uint64(1200))
+	ingester := newTestLogsDBChainIngester(t, testIngesterConfig{
+		chainID:   eth.ChainIDFromUInt64(901),
+		dataDir:   t.TempDir(),
+		ethClient: mockClient,
+		rollupCfg: cfg,
+	})
+	ingester.startTimestamp = 1100
+	ingester.backfillDuration = 200 * time.Second
+	require.NoError(t, ingester.initLogsDB())
+	t.Cleanup(func() { require.NoError(t, ingester.logsDB.Close()) })
+
+	startingBlock, err := ingester.initIngestion()
+	require.NoError(t, err)
+	require.Equal(t, uint64(100), startingBlock)
 }
 
 func TestLogsDBChainIngester_InitIngestion_ErrorGettingHead(t *testing.T) {
