@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"math/rand"
 	"net/http"
-	"sort"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -81,6 +80,11 @@ func NewOpConductor(
 
 	for _, opt := range opts {
 		opt(oc)
+	}
+	// Fall back to the strategy implied by configuration if none was injected.
+	// Leaving it nil means deferring to the consensus layer's own selection.
+	if oc.transferStrategy == nil && cfg.RoundRobinLeaderTransfer {
+		oc.transferStrategy = RoundRobinTransferStrategy{}
 	}
 
 	// explicitly set all atomic.Bool values
@@ -382,7 +386,8 @@ type OpConductor struct {
 	leaderUpdateCh <-chan bool
 	loopActionFn   func() // loopActionFn defines the logic to be executed inside control loop.
 
-	extraAPIs []rpc.API
+	transferStrategy TransferStrategy
+	extraAPIs        []rpc.API
 
 	wg             sync.WaitGroup
 	pauseCh        chan struct{}
@@ -825,15 +830,8 @@ func (oc *OpConductor) action() {
 
 // transferLeader tries to transfer leadership to another server.
 func (oc *OpConductor) transferLeader() error {
-	// TransferLeader here will do round robin to try to transfer leadership to the next healthy node.
 	oc.log.Info("transferring leadership", "server", oc.cons.ServerID())
-	// Use round-robin if enabled, otherwise use default Raft leader transfer
-	var err error
-	if oc.cfg.RoundRobinLeaderTransfer {
-		err = oc.transferLeaderRoundRobin()
-	} else {
-		err = oc.cons.TransferLeader()
-	}
+	err := oc.executeTransfer()
 	oc.metrics.RecordLeaderTransfer(err == nil)
 	if err == nil {
 		oc.leader.Store(false)
@@ -851,97 +849,65 @@ func (oc *OpConductor) transferLeader() error {
 	}
 }
 
-// transferLeaderRoundRobin implements true round-robin leader transfer.
-// This ensures that each cluster member gets a chance to become leader,
-// by always transferring to the next node in sorted order.
-// For example, with nodes [seq1, seq2, seq3]:
-//   - seq1 transfers to seq2
-//   - seq2 transfers to seq3
-//   - seq3 transfers to seq1
+// executeTransfer asks the configured TransferStrategy for an ordered list of
+// candidates and attempts each in turn. Candidates can be rejected by raft for
+// reasons the strategy cannot see (unreachable, log too far behind), so a failed
+// attempt moves on to the next one rather than aborting.
 //
-// If a transfer fails (e.g., target node's log is behind), it will try the next node.
-func (oc *OpConductor) transferLeaderRoundRobin() error {
-	// Get cluster membership
-	membership, err := oc.cons.ClusterMembership()
+// If the strategy yields no candidates, or none of them accept, this falls back
+// to the consensus layer's own selection.
+func (oc *OpConductor) executeTransfer() error {
+	if oc.transferStrategy == nil {
+		return oc.cons.TransferLeader()
+	}
+
+	targets, err := oc.selectTransferTargets()
 	if err != nil {
-		return fmt.Errorf("failed to get cluster membership: %w", err)
+		oc.log.Warn("failed to select leadership transfer targets, falling back to default selection", "err", err)
+		return oc.cons.TransferLeader()
+	}
+	if len(targets) == 0 {
+		return oc.cons.TransferLeader()
 	}
 
-	myServerID := oc.cons.ServerID()
-
-	// Collect all voters (including self) for proper ordering
-	var allVoters []consensus.ServerInfo
-	for _, server := range membership.Servers {
-		if server.Suffrage == consensus.Voter {
-			allVoters = append(allVoters, server)
-		}
-	}
-
-	if len(allVoters) <= 1 {
-		oc.log.Warn("no other voters available for leader transfer, skipping")
-		return nil
-	}
-
-	// Sort all voters by ServerID to ensure consistent ordering across all nodes.
-	sort.Slice(allVoters, func(i, j int) bool {
-		return allVoters[i].ID < allVoters[j].ID
-	})
-
-	// Find my position in the sorted list
-	myIdx := -1
-	for i, server := range allVoters {
-		if server.ID == myServerID {
-			myIdx = i
-			break
-		}
-	}
-
-	if myIdx == -1 {
-		return errors.New("current server not found in voter list")
-	}
-
-	// Try to transfer to each voter in round-robin order, starting from the next one.
-	// This handles cases where a recently promoted voter may have stale logs.
-	numOtherVoters := len(allVoters) - 1
-	for attempt := 0; attempt < numOtherVoters; attempt++ {
-		targetIdx := (myIdx + 1 + attempt) % len(allVoters)
-		// Skip self
-		if targetIdx == myIdx {
-			continue
-		}
-		target := allVoters[targetIdx]
-
-		oc.log.Info("round-robin transferring leadership",
-			"from", myServerID,
+	self := oc.cons.ServerID()
+	for i, target := range targets {
+		oc.log.Info("transferring leadership to target",
+			"from", self,
 			"to", target.ID,
 			"targetAddr", target.Addr,
-			"attempt", attempt+1,
-			"totalVoters", len(allVoters),
+			"attempt", i+1,
+			"totalTargets", len(targets),
 		)
 
 		err := oc.cons.TransferLeaderTo(target.ID, target.Addr)
 		if err == nil {
-			return nil // Success
+			return nil
 		}
 
-		// ErrLeadershipTransferInProgress means a previous transfer is ongoing, just wait
+		// A transfer is already underway; let it finish rather than piling on.
 		if errors.Is(err, raft.ErrLeadershipTransferInProgress) {
 			oc.log.Debug("leadership transfer already in progress, waiting for completion")
 			return nil
 		}
 
-		// Log the failure and try next voter
-		oc.log.Warn("failed to transfer leadership to voter, trying next",
+		oc.log.Warn("failed to transfer leadership to target, trying next",
 			"target", target.ID,
 			"err", err,
-			"attempt", attempt+1,
+			"attempt", i+1,
 		)
 	}
 
-	// All round-robin attempts failed, fall back to Raft's default leader transfer
-	// which selects the candidate with the most up-to-date log.
-	oc.log.Warn("round-robin transfer failed for all voters, falling back to default leader transfer")
+	oc.log.Warn("all strategy targets failed, falling back to default leader transfer")
 	return oc.cons.TransferLeader()
+}
+
+func (oc *OpConductor) selectTransferTargets() ([]consensus.ServerInfo, error) {
+	membership, err := oc.cons.ClusterMembership()
+	if err != nil {
+		return nil, fmt.Errorf("failed to get cluster membership: %w", err)
+	}
+	return oc.transferStrategy.SelectTargets(oc.shutdownCtx, oc.cons.ServerID(), membership)
 }
 
 func (oc *OpConductor) stopSequencer() error {
