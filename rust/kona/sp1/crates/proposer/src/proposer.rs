@@ -64,15 +64,16 @@ mod scenario;
 pub const MAX_GAME_DEADLINE_LAG: u64 = 60 * 60 * 24 * 14; // 14 days
 
 #[derive(Clone, Debug)]
-struct ResolutionGame {
+struct SettlementGame {
     index: U256,
     address: Address,
     parent_index: u32,
     proposal_status: ProposalStatus,
     deadline: u64,
+    status: GameStatus,
 }
 
-impl From<&Game> for ResolutionGame {
+impl From<&Game> for SettlementGame {
     fn from(game: &Game) -> Self {
         Self {
             index: game.index,
@@ -80,6 +81,26 @@ impl From<&Game> for ResolutionGame {
             parent_index: game.parent_index,
             proposal_status: game.proposal_status,
             deadline: game.deadline,
+            status: game.status,
+        }
+    }
+}
+
+#[derive(Clone, Debug)]
+struct BondClaimTarget {
+    index: U256,
+    address: Address,
+    weth: Address,
+    anchor_state_registry: Address,
+}
+
+impl From<&Game> for BondClaimTarget {
+    fn from(game: &Game) -> Self {
+        Self {
+            index: game.index,
+            address: game.address,
+            weth: game.weth,
+            anchor_state_registry: game.anchor_state_registry,
         }
     }
 }
@@ -1825,54 +1846,27 @@ impl Proposer {
     }
 
     async fn resolve_games(&self) -> Result<()> {
-        // Resolve only tracked games and their unresolved ancestors. Historical bond recovery
-        // is deliberately excluded: ancestors are never inserted into the proposal/claim cache.
         let known_prestates = self.prestates.known_prestates().await;
-        let (mut candidates, mut parents, mut visited) = {
-            let state = self.state.read().await;
-            let live_games = state
-                .games
-                .values()
-                .filter(|game| {
-                    game.is_owned(&known_prestates) && game.status == GameStatus::InProgress
-                })
-                .collect::<Vec<_>>();
-            let candidates = live_games
-                .iter()
-                .filter(|game| game.should_attempt_to_resolve)
-                .map(|game| (game.index, ResolutionGame::from(*game)))
-                .collect::<BTreeMap<_, _>>();
-            let parents = live_games
-                .iter()
-                .map(|game| game.parent_index)
-                .filter(|index| {
-                    *index != u32::MAX && !state.games.contains_key(&U256::from(*index))
-                })
-                .collect::<Vec<_>>();
-            (candidates, parents, state.games.keys().copied().collect::<HashSet<_>>())
-        };
-        if candidates.is_empty() && parents.is_empty() {
-            return Ok(());
-        }
-        let pin = (*self.last_successful_pinned_l1.read().await)
-            .context("resolution requires a successful pinned sync")?;
-        let block = BlockId::hash(pin.hash);
-        while let Some(parent_index) = parents.pop() {
-            if parent_index == u32::MAX || !visited.insert(U256::from(parent_index)) {
-                continue;
-            }
-            match self.fetch_resolution_ancestor(U256::from(parent_index), block).await {
-                Ok(Some(parent)) => {
-                    parents.push(parent.parent_index);
-                    candidates.insert(parent.index, parent);
-                }
-                Ok(None) => {}
-                Err(error) => {
-                    tracing::warn!(parent_index, %error, "Ancestor unavailable; deferring this dependency");
-                    ProposerGauge::GameSyncError.increment(1.0);
-                }
-            }
-        }
+        let mut candidates = self
+            .state
+            .read()
+            .await
+            .games
+            .values()
+            .filter(|game| {
+                game.is_owned(&known_prestates) &&
+                    game.status == GameStatus::InProgress &&
+                    game.should_attempt_to_resolve
+            })
+            .map(|game| (game.index, SettlementGame::from(game)))
+            .collect::<BTreeMap<_, _>>();
+        let Some(pin) = *self.last_successful_pinned_l1.read().await else { return Ok(()) };
+        candidates.extend(
+            self.settlement_ancestors(BlockId::hash(pin.hash))
+                .await
+                .into_iter()
+                .filter(|(_, game)| game.status == GameStatus::InProgress),
+        );
 
         // Factory indices put ancestors before descendants, including shared dependencies.
         for game in candidates.into_values() {
@@ -1960,20 +1954,59 @@ impl Proposer {
         Ok(())
     }
 
-    /// Reads an unresolved ancestor without requiring its historical super-root data.
-    async fn fetch_resolution_ancestor(
+    /// Finds parents of unresolved tracked games, including but not following resolved parents.
+    ///
+    /// Results are sweep-local; see the README's settlement scope for the recovery boundary.
+    async fn settlement_ancestors(&self, block: BlockId) -> BTreeMap<U256, SettlementGame> {
+        let known_prestates = self.prestates.known_prestates().await;
+        let (mut parents, mut visited) = {
+            let state = self.state.read().await;
+            let parents = state
+                .games
+                .values()
+                .filter(|game| {
+                    game.is_owned(&known_prestates) && game.status == GameStatus::InProgress
+                })
+                .map(|game| game.parent_index)
+                .filter(|index| {
+                    *index != u32::MAX && !state.games.contains_key(&U256::from(*index))
+                })
+                .collect::<Vec<_>>();
+            (parents, state.games.keys().copied().collect::<HashSet<_>>())
+        };
+        let mut ancestors = BTreeMap::new();
+        while let Some(parent_index) = parents.pop() {
+            if parent_index == u32::MAX || !visited.insert(U256::from(parent_index)) {
+                continue;
+            }
+            match self.fetch_settlement_ancestor(U256::from(parent_index), block).await {
+                Ok(Some(parent)) => {
+                    if parent.status == GameStatus::InProgress {
+                        parents.push(parent.parent_index);
+                    }
+                    ancestors.insert(parent.index, parent);
+                }
+                Ok(None) => {}
+                Err(error) => {
+                    tracing::warn!(parent_index, %error, "Ancestor unavailable; deferring this dependency");
+                    ProposerGauge::GameSyncError.increment(1.0);
+                }
+            }
+        }
+        ancestors
+    }
+
+    /// Reads a settlement ancestor without requiring its historical super-root data.
+    async fn fetch_settlement_ancestor(
         &self,
         index: U256,
         block: BlockId,
-    ) -> Result<Option<ResolutionGame>> {
+    ) -> Result<Option<SettlementGame>> {
         let factory = self.l1_view.factory_game(index, block).await?;
         if factory.game_type != ZK_GAME_TYPE {
             return Ok(None);
         }
         let validity = self.l1_view.game_validity(factory.address, block).await?;
-        if validity.status != GameStatus::InProgress {
-            return Ok(None);
-        }
         let _ = self.prestates.ensure_loaded(validity.absolute_prestate).await;
         if !self.prestates.known_prestates().await.contains(&validity.absolute_prestate) {
             return Ok(None);
@@ -1982,16 +2015,35 @@ impl Proposer {
         if claim.parent_index != u32::MAX && U256::from(claim.parent_index) >= index {
             bail!("ancestor parent index must precede the game");
         }
-        Ok(Some(ResolutionGame {
+        Ok(Some(SettlementGame {
             index,
             address: factory.address,
             parent_index: claim.parent_index,
             proposal_status: ProposalStatus::try_from(claim.status)?,
             deadline: claim.deadline,
+            status: validity.status,
         }))
     }
 
-    /// Attempt to claim proposer bonds for any games flagged for claiming
+    async fn ancestor_claim_target(
+        &self,
+        game: &SettlementGame,
+        block: BlockId,
+    ) -> Result<Option<BondClaimTarget>> {
+        let identity = self.l1_view.game_identity(game.address, block).await?;
+        let lifecycle = self
+            .l1_view
+            .game_lifecycle(game.address, identity.anchor_state_registry, block)
+            .await?;
+        Ok(lifecycle.is_finalized.then_some(BondClaimTarget {
+            index: game.index,
+            address: game.address,
+            weth: identity.weth,
+            anchor_state_registry: identity.anchor_state_registry,
+        }))
+    }
+
+    /// Attempts claims for tracked games and the resolved ancestors linked to them.
     async fn claim_bonds(&self) -> Result<()> {
         // Same ownership set as proving and resolution. Claims are
         // credit-driven: iterating a foreign game where the proposer holds
@@ -2004,9 +2056,27 @@ impl Proposer {
                 .values()
                 .filter(|game| game.is_owned(&known_prestates))
                 .filter(|game| game.should_attempt_to_claim_bond)
-                .cloned()
+                .map(BondClaimTarget::from)
                 .collect::<Vec<_>>()
         };
+
+        let pin = *self.last_successful_pinned_l1.read().await;
+        if let Some(pin) = pin {
+            let block = BlockId::hash(pin.hash);
+            for ancestor in self.settlement_ancestors(block).await.into_values() {
+                if ancestor.status == GameStatus::InProgress {
+                    continue;
+                }
+                match self.ancestor_claim_target(&ancestor, block).await {
+                    Ok(Some(target)) => candidates.push(target),
+                    Ok(None) => {}
+                    Err(error) => {
+                        tracing::warn!(game_index = %ancestor.index, %error, "Ancestor claim state unavailable; deferring claim");
+                        ProposerGauge::BondClaimingError.increment(1.0);
+                    }
+                }
+            }
+        }
 
         candidates.sort_by_key(|game| game.index);
         candidates.dedup_by_key(|game| game.index);
@@ -2117,7 +2187,7 @@ impl Proposer {
     }
 
     /// Submits a `resolve()` transaction for the game and bails if it reverted.
-    async fn submit_resolution_transaction(&self, game: &ResolutionGame) -> Result<()> {
+    async fn submit_resolution_transaction(&self, game: &SettlementGame) -> Result<()> {
         let transaction_hash = self.action_executor.resolve_game(game.address).await?;
 
         tracing::info!(
@@ -4935,11 +5005,21 @@ mod tests {
         assert_eq!(view.calls(), vec!["latest_head", "latest_game_index"]);
     }
     #[tokio::test]
-    async fn ancestor_reads_stop_at_resolved_unsupported_and_unknown_prestate_games() {
+    async fn ancestor_reads_include_resolved_games_but_skip_unsupported_and_unknown_prestates() {
         for (game_type, status, usable, expected_calls) in [
             (ZK_GAME_TYPE + 1, GameStatus::InProgress, true, vec!["factory_game"]),
-            (ZK_GAME_TYPE, GameStatus::DefenderWins, true, vec!["factory_game", "game_validity"]),
-            (ZK_GAME_TYPE, GameStatus::ChallengerWins, true, vec!["factory_game", "game_validity"]),
+            (
+                ZK_GAME_TYPE,
+                GameStatus::DefenderWins,
+                true,
+                vec!["factory_game", "game_validity", "game_claim"],
+            ),
+            (
+                ZK_GAME_TYPE,
+                GameStatus::ChallengerWins,
+                true,
+                vec!["factory_game", "game_validity", "game_claim"],
+            ),
             (ZK_GAME_TYPE, GameStatus::InProgress, false, vec!["factory_game", "game_validity"]),
             (
                 ZK_GAME_TYPE,
@@ -4967,13 +5047,10 @@ mod tests {
             let view = Arc::new(view);
             proposer.l1_view = view.clone();
             let ancestor = proposer
-                .fetch_resolution_ancestor(U256::from(7), BlockId::number(1))
+                .fetch_settlement_ancestor(U256::from(7), BlockId::number(1))
                 .await
                 .unwrap();
-            assert_eq!(
-                ancestor.is_some(),
-                game_type == ZK_GAME_TYPE && status == GameStatus::InProgress && usable
-            );
+            assert_eq!(ancestor.is_some(), game_type == ZK_GAME_TYPE && usable);
             assert_eq!(view.calls(), expected_calls);
         }
     }
@@ -4994,7 +5071,7 @@ mod tests {
             proposer.l1_view = Arc::new(view);
             assert!(
                 proposer
-                    .fetch_resolution_ancestor(U256::from(7), BlockId::number(1))
+                    .fetch_settlement_ancestor(U256::from(7), BlockId::number(1))
                     .await
                     .is_err()
             );
@@ -6084,7 +6161,7 @@ mod tests {
             proposer.create_game(root_claim, extra_data.clone()).await.unwrap(),
             Address::left_padding_from(&[0xc1])
         );
-        proposer.submit_resolution_transaction(&super::ResolutionGame::from(&game)).await.unwrap();
+        proposer.submit_resolution_transaction(&super::SettlementGame::from(&game)).await.unwrap();
         proposer.claim_bonds().await.unwrap();
 
         assert_eq!(

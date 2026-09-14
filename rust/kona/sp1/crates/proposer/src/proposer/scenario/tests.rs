@@ -2999,11 +2999,13 @@ async fn live_game_resolves_old_ancestors_without_scanning_unrelated_history() {
             world.script_superroot(timestamp, 1, SuperRootOutcome::TransportFailure);
         }
         if fail_first_read {
-            world.script_l1_fault(
-                L1ReadBoundary::GameValidity,
-                L1ReadTarget::Game(parent_target.clone()),
-                1,
-            );
+            for attempt in 1..=2 {
+                world.script_l1_fault(
+                    L1ReadBoundary::GameValidity,
+                    L1ReadTarget::Game(parent_target.clone()),
+                    attempt,
+                );
+            }
         }
         let mut config = scenario_config();
         config.proposal_interval_seconds = 100;
@@ -3023,7 +3025,7 @@ async fn live_game_resolves_old_ancestors_without_scanning_unrelated_history() {
                 .l1_read_record(
                     L1ReadBoundary::FactoryGame,
                     &L1ReadTarget::Game(parent_target.clone()),
-                    if fail_first_read { 3 } else { 2 }
+                    if fail_first_read { 5 } else { 3 }
                 )
                 .is_none(),
             "siblings must share ancestor discovery within a sweep"
@@ -3069,7 +3071,7 @@ async fn live_game_resolves_old_ancestors_without_scanning_unrelated_history() {
         scenario.settle_scheduled(&later).await.unwrap();
         assert!(
             world.action_record(&ActionTarget::ClaimCredit(parent_target), 1).is_none(),
-            "old ancestor bond recovery is outside the scope"
+            "resolved children no longer extend recovery to their parents"
         );
     }
 }
@@ -3116,6 +3118,166 @@ async fn ancestor_resolution_propagates_a_parent_loss_to_its_recent_child() {
         let game = observation.games.iter().find(|game| game.address == target.address).unwrap();
         assert_eq!(game.status, GameStatus::ChallengerWins);
         assert_eq!(game.bond.credit, U256::ZERO);
+    }
+}
+
+#[tokio::test]
+async fn old_parent_resolves_then_recovers_credit_while_child_remains_unresolved() {
+    let world = ScenarioWorld::new();
+    let now = 2_000_000;
+    let old_deadline = now - MAX_GAME_DEADLINE_LAG - 1;
+    let mut parent = ScenarioGame::new(0, u32::MAX, 2, ScenarioWorld::default_prestate())
+        .provable_for_resolution();
+    parent.deadline = old_deadline;
+    let parent_target = parent.target();
+    let mut boundary =
+        ScenarioGame::new(1, u32::MAX, 1, ScenarioWorld::default_prestate()).claimable(0);
+    boundary.deadline = old_deadline;
+    let mut anchor =
+        ScenarioGame::new(2, u32::MAX, 1, ScenarioWorld::default_prestate()).claimable(0);
+    anchor.deadline = now;
+    let anchor_target = anchor.target();
+    let mut child = ScenarioGame::new(3, 0, 3, ScenarioWorld::default_prestate());
+    child.deadline = now + 1_000;
+    let child_target = child.target();
+    for game in [parent, boundary, anchor, child] {
+        world.add_game(game);
+    }
+    world.set_anchor_game(&anchor_target);
+    world.set_horizons(3, 3);
+    world.set_latest_l1_time(now);
+    let mut config = scenario_config();
+    config.proposal_interval_seconds = 100;
+    let mut scenario = ScenarioHarness::new(world.clone(), config).await.unwrap();
+
+    let cycle = scenario.tick().await.unwrap();
+    scenario.settle_scheduled(&cycle).await.unwrap();
+    assert_eq!(
+        world
+            .action_record(&ActionTarget::Resolve(parent_target.clone()), 1)
+            .map(|record| record.effect),
+        Some(CommittedEffect::Resolved { game: parent_target.address })
+    );
+    let claim = ActionTarget::ClaimCredit(parent_target.clone());
+    world.mine_block();
+    let unfinalized = scenario.tick().await.unwrap();
+    scenario.settle_scheduled(&unfinalized).await.unwrap();
+    assert!(world.action_record(&claim, 1).is_none());
+
+    world.set_latest_l1_time(
+        world.observation().latest_l1.timestamp + SCENARIO_GAME_FINALITY_DELAY + 1,
+    );
+    let finalized = scenario.tick().await.unwrap();
+    scenario.settle_scheduled(&finalized).await.unwrap();
+    assert_eq!(
+        world.action_record(&claim, 1).map(|record| record.effect),
+        Some(CommittedEffect::ClaimUnlocked { game: parent_target.address, amount: U256::ONE })
+    );
+
+    world.set_latest_l1_time(world.observation().latest_l1.timestamp + 10);
+    let matured = scenario.tick().await.unwrap();
+    scenario.settle_scheduled(&matured).await.unwrap();
+    assert_eq!(
+        world.action_record(&claim, 2).map(|record| record.effect),
+        Some(CommittedEffect::ClaimPaid { game: parent_target.address, amount: U256::ONE })
+    );
+    assert!(world.action_record(&ActionTarget::Resolve(child_target), 1).is_none());
+}
+
+#[tokio::test]
+async fn resolved_parent_credit_is_recovered_without_tracing_older_ancestors() {
+    for child_status in
+        [GameStatus::InProgress, GameStatus::DefenderWins, GameStatus::ChallengerWins]
+    {
+        let world = ScenarioWorld::new();
+        let now = 2_000_000;
+        let old_deadline = now - MAX_GAME_DEADLINE_LAG - 1;
+        let mut grandparent =
+            ScenarioGame::new(0, u32::MAX, 1, ScenarioWorld::default_prestate()).claimable(11);
+        grandparent.deadline = old_deadline;
+        let grandparent_target = grandparent.target();
+        let mut parent = ScenarioGame::new(1, 0, 2, ScenarioWorld::default_prestate()).claimable(7);
+        parent.deadline = old_deadline;
+        parent.weth = Address::repeat_byte(0x71);
+        parent.anchor_state_registry = Address::repeat_byte(0x72);
+        let parent_target = parent.target();
+        let mut boundary =
+            ScenarioGame::new(2, u32::MAX, 1, ScenarioWorld::default_prestate()).claimable(0);
+        boundary.deadline = old_deadline;
+        let mut anchor =
+            ScenarioGame::new(3, u32::MAX, 1, ScenarioWorld::default_prestate()).claimable(0);
+        anchor.deadline = now;
+        let anchor_target = anchor.target();
+        let mut child = ScenarioGame::new(4, 1, 3, ScenarioWorld::default_prestate());
+        child.deadline = now + 1_000;
+        let child_target = child.target();
+        for game in [grandparent, parent, boundary, anchor, child] {
+            world.add_game(game);
+        }
+        world.set_anchor_game(&anchor_target);
+        world.set_horizons(3, 3);
+        world.set_latest_l1_time(now);
+        let mut config = scenario_config();
+        config.proposal_interval_seconds = 100;
+        let mut scenario = ScenarioHarness::new(world.clone(), config).await.unwrap();
+        let cycle = scenario.tick().await.unwrap();
+        scenario.settle_scheduled(&cycle).await.unwrap();
+        let claim = ActionTarget::ClaimCredit(parent_target.clone());
+        assert_eq!(
+            world.action_record(&claim, 1).map(|record| record.effect),
+            Some(CommittedEffect::ClaimUnlocked {
+                game: parent_target.address,
+                amount: U256::from(7)
+            })
+        );
+        world.update_game(&child_target, |game| {
+            game.status = child_status;
+            if child_status == GameStatus::DefenderWins {
+                game.proposal_status = ProposalStatus::Resolved;
+                game.finalized = true;
+                game.bond.credit = U256::from(5);
+            }
+        });
+        if child_status == GameStatus::InProgress {
+            scenario.restart().await.unwrap();
+        }
+        world.set_latest_l1_time(world.observation().latest_l1.timestamp + 10);
+        let next = scenario.tick().await.unwrap();
+        scenario.settle_scheduled(&next).await.unwrap();
+        assert_eq!(
+            world.action_record(&claim, 2).map(|record| record.effect),
+            (child_status == GameStatus::InProgress).then_some(CommittedEffect::ClaimPaid {
+                game: parent_target.address,
+                amount: U256::from(7)
+            })
+        );
+        if child_status == GameStatus::DefenderWins {
+            assert_eq!(
+                next.snapshot.canonical_head_index,
+                Some(child_target.factory_index),
+                "a resolved tracked root must not extend ancestry recovery"
+            );
+            assert_eq!(
+                world
+                    .action_record(&ActionTarget::ClaimCredit(child_target.clone()), 1)
+                    .map(|record| record.effect),
+                Some(CommittedEffect::ClaimUnlocked {
+                    game: child_target.address,
+                    amount: U256::from(5)
+                })
+            );
+        }
+        assert!(
+            world
+                .l1_read_record(
+                    L1ReadBoundary::FactoryGame,
+                    &L1ReadTarget::Game(grandparent_target.clone()),
+                    1
+                )
+                .is_none(),
+            "a resolved parent terminates traversal even when older ancestors have credit"
+        );
+        assert!(world.action_record(&ActionTarget::ClaimCredit(grandparent_target), 1).is_none());
     }
 }
 
