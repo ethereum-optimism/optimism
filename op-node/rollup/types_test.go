@@ -217,6 +217,17 @@ func TestCheckL1BlockRefByNumber(t *testing.T) {
 	mockClient.err = errors.New("block not found")
 	err = config.CheckL1GenesisBlockHash(context.Background(), logger, &mockClient)
 	assert.NoError(t, err)
+
+	// A history-pruned execution engine can no longer serve the genesis block; the configured
+	// genesis hash is authoritative, so the check is skipped rather than failing.
+	mockClient.err = historyPrunedRPCError{}
+	err = config.CheckL1GenesisBlockHash(context.Background(), logger, &mockClient)
+	assert.NoError(t, err)
+
+	// Any other fetch error still fails the check.
+	mockClient.err = errors.New("connection refused")
+	err = config.CheckL1GenesisBlockHash(context.Background(), logger, &mockClient)
+	assert.Error(t, err)
 }
 
 // TestRandomConfigDescription tests that the description works for different variations of a random rollup config.
