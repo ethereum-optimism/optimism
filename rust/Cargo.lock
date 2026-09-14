@@ -7792,6 +7792,7 @@ dependencies = [
  "opentelemetry_sdk",
  "reqwest 0.13.2",
  "rustls",
+ "rustls-platform-verifier 0.6.2",
  "serde",
  "sp1-sdk",
  "strum",

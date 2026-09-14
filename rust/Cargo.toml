@@ -703,6 +703,7 @@ reqwest = { version = "0.13.2", default-features = false, features = ["query"] }
 ringbuffer = "0.16.0"
 rustc-hash = { version = "2.1", default-features = false }
 rustls = { version = "0.23", default-features = false }
+rustls-platform-verifier = { version = "0.6.2", default-features = false }
 rustls-pemfile = { version = "2.2", default-features = false }
 schnellru = "0.2"
 shellexpand = "3.1.1"
