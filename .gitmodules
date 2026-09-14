@@ -29,3 +29,6 @@
 [submodule "packages/contracts-bedrock/lib/superchain-registry"]
 	path = superchain-registry
 	url = https://github.com/ethereum-optimism/superchain-registry
+[submodule "packages/contracts-bedrock/lib/account-abstraction"]
+	path = packages/contracts-bedrock/lib/account-abstraction
+	url = https://github.com/eth-infinitism/account-abstraction.git

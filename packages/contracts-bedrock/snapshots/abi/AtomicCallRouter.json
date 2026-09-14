@@ -1,0 +1,591 @@
+[
+  {
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "_sender",
+        "type": "address"
+      },
+      {
+        "internalType": "uint256",
+        "name": "_nonce",
+        "type": "uint256"
+      }
+    ],
+    "name": "computeBundleId",
+    "outputs": [
+      {
+        "internalType": "bytes32",
+        "name": "",
+        "type": "bytes32"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "bytes32",
+        "name": "",
+        "type": "bytes32"
+      }
+    ],
+    "name": "consumedCalls",
+    "outputs": [
+      {
+        "internalType": "bool",
+        "name": "",
+        "type": "bool"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "crossChainContext",
+    "outputs": [
+      {
+        "internalType": "uint256",
+        "name": "sourceChainId_",
+        "type": "uint256"
+      },
+      {
+        "internalType": "address",
+        "name": "sender_",
+        "type": "address"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "bytes32",
+        "name": "_bundleId",
+        "type": "bytes32"
+      },
+      {
+        "components": [
+          {
+            "components": [
+              {
+                "internalType": "address",
+                "name": "origin",
+                "type": "address"
+              },
+              {
+                "internalType": "uint256",
+                "name": "blockNumber",
+                "type": "uint256"
+              },
+              {
+                "internalType": "uint256",
+                "name": "logIndex",
+                "type": "uint256"
+              },
+              {
+                "internalType": "uint256",
+                "name": "timestamp",
+                "type": "uint256"
+              },
+              {
+                "internalType": "uint256",
+                "name": "chainId",
+                "type": "uint256"
+              }
+            ],
+            "internalType": "struct Identifier",
+            "name": "identifier",
+            "type": "tuple"
+          },
+          {
+            "internalType": "uint256",
+            "name": "sequence",
+            "type": "uint256"
+          },
+          {
+            "internalType": "address",
+            "name": "sender",
+            "type": "address"
+          },
+          {
+            "internalType": "address",
+            "name": "target",
+            "type": "address"
+          },
+          {
+            "internalType": "bytes",
+            "name": "data",
+            "type": "bytes"
+          }
+        ],
+        "internalType": "struct AtomicRemoteCall[]",
+        "name": "_calls",
+        "type": "tuple[]"
+      },
+      {
+        "components": [
+          {
+            "components": [
+              {
+                "internalType": "address",
+                "name": "origin",
+                "type": "address"
+              },
+              {
+                "internalType": "uint256",
+                "name": "blockNumber",
+                "type": "uint256"
+              },
+              {
+                "internalType": "uint256",
+                "name": "logIndex",
+                "type": "uint256"
+              },
+              {
+                "internalType": "uint256",
+                "name": "timestamp",
+                "type": "uint256"
+              },
+              {
+                "internalType": "uint256",
+                "name": "chainId",
+                "type": "uint256"
+              }
+            ],
+            "internalType": "struct Identifier",
+            "name": "identifier",
+            "type": "tuple"
+          },
+          {
+            "internalType": "bool",
+            "name": "success",
+            "type": "bool"
+          },
+          {
+            "internalType": "bytes",
+            "name": "returnData",
+            "type": "bytes"
+          }
+        ],
+        "internalType": "struct AtomicResultWitness[]",
+        "name": "_witnesses",
+        "type": "tuple[]"
+      },
+      {
+        "components": [
+          {
+            "internalType": "address",
+            "name": "origin",
+            "type": "address"
+          },
+          {
+            "internalType": "uint256",
+            "name": "blockNumber",
+            "type": "uint256"
+          },
+          {
+            "internalType": "uint256",
+            "name": "logIndex",
+            "type": "uint256"
+          },
+          {
+            "internalType": "uint256",
+            "name": "timestamp",
+            "type": "uint256"
+          },
+          {
+            "internalType": "uint256",
+            "name": "chainId",
+            "type": "uint256"
+          }
+        ],
+        "internalType": "struct Identifier",
+        "name": "_rootCompletion",
+        "type": "tuple"
+      }
+    ],
+    "name": "executeRemote",
+    "outputs": [
+      {
+        "internalType": "bytes[]",
+        "name": "results_",
+        "type": "bytes[]"
+      }
+    ],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "uint256",
+        "name": "_nonce",
+        "type": "uint256"
+      },
+      {
+        "internalType": "address",
+        "name": "_target",
+        "type": "address"
+      },
+      {
+        "internalType": "bytes",
+        "name": "_data",
+        "type": "bytes"
+      },
+      {
+        "components": [
+          {
+            "components": [
+              {
+                "internalType": "address",
+                "name": "origin",
+                "type": "address"
+              },
+              {
+                "internalType": "uint256",
+                "name": "blockNumber",
+                "type": "uint256"
+              },
+              {
+                "internalType": "uint256",
+                "name": "logIndex",
+                "type": "uint256"
+              },
+              {
+                "internalType": "uint256",
+                "name": "timestamp",
+                "type": "uint256"
+              },
+              {
+                "internalType": "uint256",
+                "name": "chainId",
+                "type": "uint256"
+              }
+            ],
+            "internalType": "struct Identifier",
+            "name": "identifier",
+            "type": "tuple"
+          },
+          {
+            "internalType": "bool",
+            "name": "success",
+            "type": "bool"
+          },
+          {
+            "internalType": "bytes",
+            "name": "returnData",
+            "type": "bytes"
+          }
+        ],
+        "internalType": "struct AtomicResultWitness[]",
+        "name": "_witnesses",
+        "type": "tuple[]"
+      }
+    ],
+    "name": "executeRoot",
+    "outputs": [
+      {
+        "internalType": "bytes",
+        "name": "result_",
+        "type": "bytes"
+      }
+    ],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "",
+        "type": "address"
+      }
+    ],
+    "name": "nonces",
+    "outputs": [
+      {
+        "internalType": "uint256",
+        "name": "",
+        "type": "uint256"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "uint256",
+        "name": "_chainId",
+        "type": "uint256"
+      },
+      {
+        "internalType": "address",
+        "name": "_target",
+        "type": "address"
+      }
+    ],
+    "name": "predictProxy",
+    "outputs": [
+      {
+        "internalType": "address",
+        "name": "proxy_",
+        "type": "address"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "",
+        "type": "address"
+      }
+    ],
+    "name": "proxies",
+    "outputs": [
+      {
+        "internalType": "bool",
+        "name": "",
+        "type": "bool"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "uint256",
+        "name": "_chainId",
+        "type": "uint256"
+      },
+      {
+        "internalType": "address",
+        "name": "_target",
+        "type": "address"
+      }
+    ],
+    "name": "proxyFor",
+    "outputs": [
+      {
+        "internalType": "address",
+        "name": "proxy_",
+        "type": "address"
+      }
+    ],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "uint256",
+        "name": "_chainId",
+        "type": "uint256"
+      },
+      {
+        "internalType": "address",
+        "name": "_target",
+        "type": "address"
+      },
+      {
+        "internalType": "address",
+        "name": "_sender",
+        "type": "address"
+      },
+      {
+        "internalType": "bytes",
+        "name": "_data",
+        "type": "bytes"
+      }
+    ],
+    "name": "remoteCall",
+    "outputs": [
+      {
+        "internalType": "bytes",
+        "name": "result_",
+        "type": "bytes"
+      }
+    ],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "version",
+    "outputs": [
+      {
+        "internalType": "string",
+        "name": "",
+        "type": "string"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": true,
+        "internalType": "bytes32",
+        "name": "bundleId",
+        "type": "bytes32"
+      }
+    ],
+    "name": "BundleCompleted",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": true,
+        "internalType": "bytes32",
+        "name": "callId",
+        "type": "bytes32"
+      },
+      {
+        "indexed": false,
+        "internalType": "bytes32",
+        "name": "requestHash",
+        "type": "bytes32"
+      }
+    ],
+    "name": "CallRequested",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": true,
+        "internalType": "bytes32",
+        "name": "callId",
+        "type": "bytes32"
+      },
+      {
+        "indexed": false,
+        "internalType": "bytes32",
+        "name": "resultHash",
+        "type": "bytes32"
+      }
+    ],
+    "name": "CallResult",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": true,
+        "internalType": "uint256",
+        "name": "chainId",
+        "type": "uint256"
+      },
+      {
+        "indexed": true,
+        "internalType": "address",
+        "name": "target",
+        "type": "address"
+      },
+      {
+        "indexed": false,
+        "internalType": "address",
+        "name": "proxy",
+        "type": "address"
+      }
+    ],
+    "name": "ProxyCreated",
+    "type": "event"
+  },
+  {
+    "inputs": [],
+    "name": "AtomicCallRouter_AlreadyEntered",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "AtomicCallRouter_EmptyBatch",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "AtomicCallRouter_InvalidNonce",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "AtomicCallRouter_InvalidPeer",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "AtomicCallRouter_InvalidProxy",
+    "type": "error"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "uint256",
+        "name": "chainId",
+        "type": "uint256"
+      },
+      {
+        "internalType": "address",
+        "name": "target",
+        "type": "address"
+      },
+      {
+        "internalType": "address",
+        "name": "sender",
+        "type": "address"
+      },
+      {
+        "internalType": "bytes",
+        "name": "data",
+        "type": "bytes"
+      },
+      {
+        "internalType": "uint256",
+        "name": "sequence",
+        "type": "uint256"
+      }
+    ],
+    "name": "AtomicCallRouter_MissingWitness",
+    "type": "error"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "uint256",
+        "name": "sequence",
+        "type": "uint256"
+      },
+      {
+        "internalType": "bytes",
+        "name": "reason",
+        "type": "bytes"
+      }
+    ],
+    "name": "AtomicCallRouter_RemoteReverted",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "AtomicCallRouter_ReplayedCall",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "AtomicCallRouter_UnusedWitnesses",
+    "type": "error"
+  }
+]

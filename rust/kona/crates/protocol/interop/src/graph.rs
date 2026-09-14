@@ -1383,6 +1383,28 @@ mod test {
         assert!(result.is_empty(), "Ref before target EM should not create a dependency edge");
     }
 
+    /// Two atomic round trips with a final dependency on root completion.
+    /// Mirrors op-supernode's TestAtomicDemoRepeatedRoundTrip.
+    #[test]
+    fn test_detect_cycles_atomic_two_round_trips() {
+        let ts = 1000;
+        // A: request, validate result, request, validate result, completion.
+        // B: validate request, result, validate request, result, validate completion.
+        let mut messages = vec![
+            make_em(CHAIN_A_ID, 1, ts, CHAIN_B_ID, 1, ts),
+            make_em(CHAIN_A_ID, 3, ts, CHAIN_B_ID, 3, ts),
+            make_em(CHAIN_B_ID, 0, ts, CHAIN_A_ID, 0, ts),
+            make_em(CHAIN_B_ID, 2, ts, CHAIN_A_ID, 2, ts),
+            make_em(CHAIN_B_ID, 4, ts, CHAIN_A_ID, 4, ts),
+        ];
+        assert!(detect_cycles(&messages, ts).is_empty());
+
+        // Moving the first initiating request after A's result validation
+        // introduces a real execution dependency cycle and remains invalid.
+        messages[2] = make_em(CHAIN_B_ID, 0, ts, CHAIN_A_ID, 2, ts);
+        assert!(!detect_cycles(&messages, ts).is_empty());
+    }
+
     /// Multiple EMs on the same chain with no cross-chain cycle — intra-chain sequential.
     /// Mirrors op-supernode's "intra-chain sequential EMs - no cycle" test case.
     #[test]

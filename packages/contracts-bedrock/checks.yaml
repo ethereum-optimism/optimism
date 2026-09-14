@@ -79,6 +79,9 @@ phases:
       - name: size-check
         description: Check contract sizes
         command: forge build --sizes --skip "/**/test/**" --skip "/**/scripts/**"
+      - name: atomic-calls
+        description: Exercise atomic calls against the compiled contract bytecode
+        command: cd ../../ && just build-superchain-go && go test -tags atomic_integration ./op-test-sequencer/atomic
       - name: nut-bundle
         description: Check NUT bundle is up to date
         command: just nut-bundle-check-no-build
