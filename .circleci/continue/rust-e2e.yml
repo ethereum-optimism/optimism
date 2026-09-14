@@ -500,21 +500,24 @@ workflows:
             - contracts-bedrock-build
           context:
             - circleci-repo-readonly-authenticated-github-token
-      - kona-build-sp1-elfs:
-          context:
-            - circleci-repo-readonly-authenticated-github-token
-            - sccache-gcs-optimism
+      # No kona-build-sp1-elfs here on purpose: main runs the identical job
+      # (same template, no parameters, same contexts) and gates it through
+      # ci-gate, and main runs in every case rust-e2e-ci does, so a copy in
+      # this workflow is duplicated work.
       # -----------------------------------------------------------------------
       # Required gate — fans in on all E2E test jobs
       # -----------------------------------------------------------------------
       - required-rust-e2e:
           requires:
+            # Gated directly, not just through the e2e jobs below: a failed
+            # build leaves them unrun rather than failed, and this workflow is
+            # now the only place the release build happens.
+            - rust-workspace-release: terminal
             - rust-e2e-simple-kona: terminal
             - rust-e2e-simple-kona-sequencer: terminal
             - rust-e2e-restart: terminal
             - op-reth-e2e-sysgo-tests: terminal
             - kona-proof-action-single: terminal
-            - kona-build-sp1-elfs: terminal
           context:
             - circleci-api-token
   rust-e2e-gate-skip:
