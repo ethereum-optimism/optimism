@@ -28,7 +28,7 @@ use crate::{
         ActionExecutor, AnchorRoot, BondState, ClaimPreflight, FactoryGame, GameClaim,
         GameCreationReceipt, GameIdentity, GameLifecycle, GameStanding, GameValidity, L1BlockRef,
         L1View, NonceState, ProofEngine, ProofInputs, ProposalHorizon, QueryTime,
-        SuperRootAtTimestamp, SuperRootSource, WithdrawalState,
+        SettlementIdentity, SuperRootAtTimestamp, SuperRootSource, WithdrawalState,
     },
     prover::{ProofKeys, ProofProvider},
     proving::{GameProofInputs, InMemoryProofProgress, ProveGameRequest, prove_game_inner},
@@ -50,6 +50,58 @@ impl<P> ProductionL1View<P> {
         l1_rpc: Url,
     ) -> Self {
         Self { provider, factory, l1_rpc }
+    }
+}
+
+struct CreditState {
+    credit: U256,
+    distribution_closed: bool,
+    paused: bool,
+    has_potential_credit: bool,
+}
+
+impl<P: Provider + Clone> ProductionL1View<P> {
+    /// Predicts payable credit and whether an undecided distribution is blocked by a pause.
+    async fn unsettled_credit(
+        &self,
+        game: Address,
+        registry: Address,
+        recipient: Address,
+        block: BlockId,
+    ) -> Result<CreditState> {
+        let contract = ZKDisputeGame::new(game, self.provider.clone());
+        if contract.bondDistributionMode().block(block).call().await? != 0 {
+            let credit = contract.credit(recipient).block(block).call().await?;
+            return Ok(CreditState {
+                credit,
+                distribution_closed: true,
+                paused: false,
+                has_potential_credit: credit > U256::ZERO,
+            });
+        }
+        let registry = AnchorStateRegistry::new(registry, self.provider.clone());
+        if registry.paused().block(block).call().await? {
+            return Ok(CreditState {
+                credit: U256::ZERO,
+                distribution_closed: false,
+                paused: true,
+                has_potential_credit: true,
+            });
+        }
+        let proper = registry.isGameProper(game).block(block).call().await?;
+        let credit = if proper {
+            contract.credit(recipient).block(block).call().await?
+        } else {
+            contract.refundModeCredit(recipient).block(block).call().await?
+        };
+        let has_potential_credit = if credit > U256::ZERO {
+            true
+        } else if proper {
+            contract.refundModeCredit(recipient).block(block).call().await? > U256::ZERO
+        } else {
+            contract.normalModeCredit(recipient).block(block).call().await? > U256::ZERO
+        };
+        Ok(CreditState { credit, distribution_closed: false, paused: false, has_potential_credit })
     }
 }
 
@@ -143,6 +195,32 @@ where
         Ok(GameValidity { root_claim, was_respected, status, absolute_prestate })
     }
 
+    async fn settlement_identity(
+        &self,
+        game: Address,
+        block: BlockId,
+    ) -> Result<SettlementIdentity> {
+        let contract = ZKDisputeGame::new(game, self.provider.clone());
+        let absolute_prestate = contract.absolutePrestate().block(block).call().await?;
+        let anchor_state_registry = contract.anchorStateRegistry().block(block).call().await?;
+        let weth = contract.weth().block(block).call().await?;
+        let status = GameStatus::try_from(contract.status().block(block).call().await?)?;
+        Ok(SettlementIdentity { absolute_prestate, anchor_state_registry, weth, status })
+    }
+
+    async fn game_finalized(
+        &self,
+        game: Address,
+        registry: Address,
+        block: BlockId,
+    ) -> Result<bool> {
+        Ok(AnchorStateRegistry::new(registry, self.provider.clone())
+            .isGameFinalized(game)
+            .block(block)
+            .call()
+            .await?)
+    }
+
     async fn game_lifecycle(
         &self,
         game: Address,
@@ -181,18 +259,19 @@ where
         &self,
         game: Address,
         weth: Address,
+        registry: Address,
         proposer: Address,
         block: BlockId,
     ) -> Result<BondState> {
-        let credit = ZKDisputeGame::new(game, self.provider.clone())
-            .credit(proposer)
-            .block(block)
-            .call()
-            .await?;
+        let CreditState { credit, distribution_closed, paused, has_potential_credit } =
+            self.unsettled_credit(game, registry, proposer, block).await?;
         let weth = DelayedWETH::new(weth, self.provider.clone());
         let withdrawal = weth.withdrawals(game, proposer).block(block).call().await?;
         let delay = weth.delay().block(block).call().await?;
         Ok(BondState {
+            paused,
+            has_potential_credit,
+            distribution_closed,
             credit,
             withdrawal_amount: withdrawal.amount,
             withdrawal_timestamp: withdrawal.timestamp,
@@ -212,9 +291,12 @@ where
         &self,
         game: Address,
         weth: Address,
+        registry: Address,
         proposer: Address,
     ) -> ClaimPreflight {
-        let credit = ZKDisputeGame::new(game, self.provider.clone()).credit(proposer).call().await;
+        let credit = self.unsettled_credit(game, registry, proposer, BlockId::latest()).await;
+        let paused = credit.as_ref().is_ok_and(|state| state.paused);
+        let credit = credit.map(|state| state.credit);
         let withdrawal = DelayedWETH::new(weth, self.provider.clone())
             .withdrawals(game, proposer)
             .call()
@@ -224,7 +306,7 @@ where
                 timestamp: withdrawal.timestamp,
             })
             .map_err(Into::into);
-        ClaimPreflight { credit: credit.map_err(Into::into), withdrawal }
+        ClaimPreflight { paused, credit, withdrawal }
     }
 
     async fn weth_delay(&self, weth: Address) -> Result<U256> {
@@ -708,20 +790,126 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn claim_preflight_does_not_claim_a_hypothetical_refund() {
+        let asserter = Asserter::new();
+        push_abi(&asserter, U256::ZERO); // UNDECIDED
+        push_abi(&asserter, false); // not paused
+        push_abi(&asserter, true); // proper: only normal credit is payable
+        push_abi(&asserter, U256::ZERO);
+        push_abi(&asserter, U256::from(7)); // hypothetical refund must not be claimed
+        push_abi(&asserter, (U256::ZERO, U256::ZERO));
+        let result = view(asserter.clone())
+            .claim_preflight(Address::ZERO, Address::ZERO, Address::ZERO, Address::ZERO)
+            .await;
+        assert_eq!(result.credit.unwrap(), U256::ZERO);
+        assert_eq!(result.withdrawal.unwrap().amount, U256::ZERO);
+        assert!(asserter.read_q().is_empty());
+    }
+
+    #[tokio::test]
+    async fn settlement_credit_tracks_distribution_and_pause_state() {
+        for (mode, paused, proper, payable, other_credit) in [
+            (0, false, true, 0, 0),
+            (0, false, true, 0, 7),
+            (0, false, true, 7, 0),
+            (0, false, false, 7, 0),
+            (0, false, false, 0, 0),
+            (0, false, false, 0, 7),
+            (0, true, false, 0, 0),
+            (1, true, false, 0, 0),
+            (2, true, false, 7, 0),
+        ] {
+            for preflight in [false, true] {
+                let asserter = Asserter::new();
+                push_abi(&asserter, U256::from(mode));
+                if mode == 0 {
+                    push_abi(&asserter, paused);
+                    if !paused {
+                        push_abi(&asserter, proper);
+                        push_abi(&asserter, U256::from(payable));
+                        if payable == 0 {
+                            push_abi(&asserter, U256::from(other_credit));
+                        }
+                    }
+                } else {
+                    push_abi(&asserter, U256::from(payable));
+                }
+                push_abi(&asserter, (U256::ZERO, U256::ZERO));
+                let view = view(asserter.clone());
+                let credit = if preflight {
+                    let result = view
+                        .claim_preflight(
+                            Address::ZERO,
+                            Address::ZERO,
+                            Address::repeat_byte(3),
+                            Address::ZERO,
+                        )
+                        .await;
+                    assert_eq!(result.paused, mode == 0 && paused);
+                    result.credit.unwrap()
+                } else {
+                    push_abi(&asserter, U256::from(10));
+                    let bond = view
+                        .bond_state(
+                            Address::ZERO,
+                            Address::ZERO,
+                            Address::repeat_byte(3),
+                            Address::ZERO,
+                            BlockId::number(1),
+                        )
+                        .await
+                        .unwrap();
+                    assert_eq!(bond.distribution_closed, mode != 0);
+                    assert_eq!(bond.paused, mode == 0 && paused);
+                    assert_eq!(
+                        bond.has_potential_credit,
+                        payable > 0 || (mode == 0 && (paused || other_credit > 0)),
+                    );
+                    bond.credit
+                };
+                assert_eq!(
+                    credit,
+                    U256::from(payable),
+                    "mode={mode}, paused={paused}, proper={proper}"
+                );
+                assert!(asserter.read_q().is_empty());
+            }
+        }
+    }
+
+    #[tokio::test]
+    async fn claim_preflight_preserves_withdrawals_after_distribution_closes() {
+        for mode in [1, 2] {
+            let asserter = Asserter::new();
+            push_abi(&asserter, U256::from(mode));
+            push_abi(&asserter, U256::ZERO);
+            push_abi(&asserter, (U256::from(7), U256::from(100)));
+            let result = view(asserter)
+                .claim_preflight(Address::ZERO, Address::ZERO, Address::ZERO, Address::ZERO)
+                .await;
+            assert_eq!(result.credit.unwrap(), U256::ZERO);
+            assert_eq!(result.withdrawal.unwrap().amount, U256::from(7));
+        }
+    }
+
+    #[tokio::test]
     async fn claim_preflight_preserves_independent_read_failures() {
         let asserter = Asserter::new();
         asserter.push_failure_msg("credit unavailable");
         push_abi(&asserter, (U256::from(2), U256::from(3)));
-        let result =
-            view(asserter).claim_preflight(Address::ZERO, Address::ZERO, Address::ZERO).await;
+        let result = view(asserter)
+            .claim_preflight(Address::ZERO, Address::ZERO, Address::ZERO, Address::ZERO)
+            .await;
         assert!(result.credit.is_err());
         assert_eq!(result.withdrawal.unwrap().amount, U256::from(2));
 
         let asserter = Asserter::new();
         push_abi(&asserter, U256::from(1));
+        push_abi(&asserter, U256::from(1));
         asserter.push_failure_msg("withdrawal unavailable");
-        let result =
-            view(asserter).claim_preflight(Address::ZERO, Address::ZERO, Address::ZERO).await;
+        let result = view(asserter)
+            .claim_preflight(Address::ZERO, Address::ZERO, Address::ZERO, Address::ZERO)
+            .await;
         assert_eq!(result.credit.unwrap(), U256::from(1));
         assert!(result.withdrawal.is_err());
     }

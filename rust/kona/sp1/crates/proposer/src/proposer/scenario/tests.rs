@@ -28,7 +28,7 @@ use crate::{
         ActionExecutor, AnchorRoot, BondState, ClaimPreflight, FactoryGame, GameClaim,
         GameCreationReceipt, GameIdentity, GameLifecycle, GameStanding, GameValidity, L1BlockRef,
         L1View, NonceState, ProofEngine, ProofInputs, ProposalHorizon, QueryTime,
-        SuperRootAtTimestamp, SuperRootSource, WithdrawalState,
+        SettlementIdentity, SuperRootAtTimestamp, SuperRootSource, WithdrawalState,
     },
     prover::ProofKeys,
     proving::GameProofInputs,
@@ -128,6 +128,23 @@ impl L1View for ScenarioL1View {
         unreachable!("scenario fixture does not discover factory games")
     }
 
+    async fn settlement_identity(
+        &self,
+        _game: Address,
+        _block: BlockId,
+    ) -> anyhow::Result<SettlementIdentity> {
+        panic!("unexpected historical settlement read")
+    }
+
+    async fn game_finalized(
+        &self,
+        _game: Address,
+        _registry: Address,
+        _block: BlockId,
+    ) -> anyhow::Result<bool> {
+        panic!("unexpected historical finality read")
+    }
+
     async fn game_lifecycle(
         &self,
         _game: Address,
@@ -145,10 +162,14 @@ impl L1View for ScenarioL1View {
         &self,
         _game: Address,
         _weth: Address,
+        _registry: Address,
         _proposer: Address,
         _block: BlockId,
     ) -> anyhow::Result<BondState> {
         Ok(BondState {
+            paused: false,
+            has_potential_credit: false,
+            distribution_closed: false,
             credit: U256::ZERO,
             withdrawal_amount: U256::ZERO,
             withdrawal_timestamp: U256::ZERO,
@@ -168,9 +189,11 @@ impl L1View for ScenarioL1View {
         &self,
         _game: Address,
         _weth: Address,
+        _registry: Address,
         _proposer: Address,
     ) -> ClaimPreflight {
         ClaimPreflight {
+            paused: false,
             credit: Ok(U256::ZERO),
             withdrawal: Ok(WithdrawalState { amount: U256::ZERO, timestamp: U256::ZERO }),
         }
@@ -2879,7 +2902,7 @@ async fn stale_foreign_pending_game_is_evicted_but_owned_post_defense_game_is_re
 }
 
 #[tokio::test]
-async fn incremental_discovery_stops_before_old_history_and_resumes_for_new_entries() {
+async fn incremental_discovery_leaves_old_history_to_settlement_and_resumes_for_new_entries() {
     let world = ScenarioWorld::new();
     let mut oldest = ScenarioGame::new(0, u32::MAX, 1, ScenarioWorld::default_prestate());
     oldest.deadline = 1;
@@ -2914,21 +2937,25 @@ async fn incremental_discovery_stops_before_old_history_and_resumes_for_new_entr
             )
             .is_some()
     );
+    assert!(!world.superroot_journal().iter().any(|record| {
+        record.kind == SuperRootQueryKind::AtTimestamp &&
+            [1, 2].contains(&record.requested_timestamp)
+    }));
+    scenario.settle_scheduled(&bounded).await.unwrap();
     assert!(
         world
             .l1_read_record(L1ReadBoundary::FactoryGame, &L1ReadTarget::Game(skipped_target), 1,)
-            .is_none()
+            .is_some()
     );
     assert!(
         world
             .l1_read_record(L1ReadBoundary::FactoryGame, &L1ReadTarget::Game(oldest_target), 1,)
-            .is_none()
+            .is_some()
     );
     assert!(bounded.scheduled.iter().any(|scheduled| matches!(
         scheduled.operation,
         OperationSummary::ProveGame { address, .. } if address == boundary_target.address
     )));
-    scenario.settle_scheduled(&bounded).await.unwrap();
 
     world.update_game(&anchor_target, |game| game.deadline += 100);
     let next = ScenarioGame::new(4, 3, 5, ScenarioWorld::default_prestate());
@@ -2943,6 +2970,276 @@ async fn incremental_discovery_stops_before_old_history_and_resumes_for_new_entr
             .is_some()
     );
     scenario.settle_scheduled(&resumed).await.unwrap();
+}
+
+#[tokio::test]
+async fn old_game_recovery_resolves_foreign_ancestors_without_superroot_history() {
+    let world = ScenarioWorld::new();
+    let now = 2_000_000;
+    let old_deadline = now - MAX_GAME_DEADLINE_LAG - 1;
+    let mut grandparent = ScenarioGame::new(0, u32::MAX, 2, ScenarioWorld::default_prestate());
+    grandparent.deadline = old_deadline;
+    let grandparent_target = grandparent.target();
+    let mut parent =
+        ScenarioGame::new(1, 0, 3, ScenarioWorld::default_prestate()).provable_for_resolution();
+    parent.deadline = old_deadline;
+    let parent_target = parent.target();
+    let mut boundary =
+        ScenarioGame::new(2, u32::MAX, 1, ScenarioWorld::default_prestate()).claimable(0);
+    boundary.deadline = old_deadline;
+    let mut anchor =
+        ScenarioGame::new(3, u32::MAX, 1, ScenarioWorld::default_prestate()).claimable(0);
+    anchor.deadline = now;
+    let anchor_target = anchor.target();
+    let mut child = ScenarioGame::new(4, 1, 4, ScenarioWorld::default_prestate());
+    child.deadline = now - 1;
+    let child_target = child.target();
+    for game in [grandparent, parent, boundary, anchor, child] {
+        world.add_game(game);
+    }
+    world.set_anchor_game(&anchor_target);
+    world.set_horizons(4, 4);
+    world.set_latest_l1_time(now);
+    for timestamp in [2, 3] {
+        world.script_superroot(timestamp, 1, SuperRootOutcome::TransportFailure);
+    }
+    let mut config = scenario_config();
+    config.proposal_interval_seconds = 100;
+    let mut scenario = ScenarioHarness::new(world.clone(), config).await.unwrap();
+
+    for cycle_index in 0..4 {
+        let cycle = scenario.tick().await.unwrap();
+        assert!(
+            !cycle
+                .scheduled
+                .iter()
+                .any(|scheduled| matches!(scheduled.operation, OperationSummary::ProveGame { .. }))
+        );
+        scenario.settle_scheduled(&cycle).await.unwrap();
+        if cycle_index == 0 {
+            assert_eq!(
+                world
+                    .action_record(&ActionTarget::Resolve(parent_target.clone()), 1)
+                    .map(|r| r.effect),
+                Some(CommittedEffect::Resolved { game: parent_target.address }),
+                "discovered ancestors should resolve in order without another historical scan"
+            );
+        }
+        world.mine_block();
+    }
+    for target in [&grandparent_target, &parent_target, &child_target] {
+        assert_eq!(
+            world.action_record(&ActionTarget::Resolve(target.clone()), 1).map(|r| r.effect),
+            Some(CommittedEffect::Resolved { game: target.address }),
+            "unresolved dependency: {target:?}"
+        );
+    }
+    assert!(!world.superroot_journal().iter().any(|record| {
+        record.kind == SuperRootQueryKind::AtTimestamp &&
+            [2, 3].contains(&record.requested_timestamp)
+    }));
+
+    world.set_latest_l1_time(now + SCENARIO_GAME_FINALITY_DELAY + 100);
+    let unlock = scenario.tick().await.unwrap();
+    scenario.settle_scheduled(&unlock).await.unwrap();
+    let claim = ActionTarget::ClaimCredit(parent_target.clone());
+    assert_eq!(
+        world.action_record(&claim, 1).map(|r| r.effect),
+        Some(CommittedEffect::ClaimUnlocked { game: parent_target.address, amount: U256::ONE })
+    );
+}
+
+#[tokio::test]
+async fn old_game_recovery_resolves_a_losing_parent_and_its_recent_child() {
+    let world = ScenarioWorld::new();
+    let now = 2_000_000;
+    let old_deadline = now - MAX_GAME_DEADLINE_LAG - 1;
+    let mut parent =
+        ScenarioGame::new(0, u32::MAX, 2, ScenarioWorld::default_prestate()).challenged();
+    parent.deadline = old_deadline;
+    let parent_target = parent.target();
+    let mut boundary =
+        ScenarioGame::new(1, u32::MAX, 1, ScenarioWorld::default_prestate()).claimable(0);
+    boundary.deadline = old_deadline;
+    let mut anchor =
+        ScenarioGame::new(2, u32::MAX, 1, ScenarioWorld::default_prestate()).claimable(0);
+    anchor.deadline = now;
+    let anchor_target = anchor.target();
+    let mut child = ScenarioGame::new(3, 0, 3, ScenarioWorld::default_prestate());
+    child.deadline = now + 100;
+    let child_target = child.target();
+    for game in [parent, boundary, anchor, child] {
+        world.add_game(game);
+    }
+    world.set_anchor_game(&anchor_target);
+    world.set_horizons(3, 3);
+    world.set_latest_l1_time(now);
+    let mut config = scenario_config();
+    config.proposal_interval_seconds = 100;
+    let mut scenario = ScenarioHarness::new(world.clone(), config).await.unwrap();
+    for _ in 0..2 {
+        let cycle = scenario.tick().await.unwrap();
+        scenario.settle_scheduled(&cycle).await.unwrap();
+        world.mine_block();
+    }
+    for target in [parent_target, child_target] {
+        assert_eq!(
+            world.action_record(&ActionTarget::Resolve(target.clone()), 1).map(|r| r.effect),
+            Some(CommittedEffect::Resolved { game: target.address })
+        );
+        let observation = world.observation();
+        let game = observation.games.iter().find(|game| game.address == target.address).unwrap();
+        assert_eq!(game.status, GameStatus::ChallengerWins);
+        assert_eq!(game.bond.credit, U256::ZERO);
+    }
+}
+
+#[tokio::test]
+async fn paused_recent_game_is_retained_and_claimed_after_unpause() {
+    let world = ScenarioWorld::new();
+    let mut game =
+        ScenarioGame::new(0, u32::MAX, 1, ScenarioWorld::default_prestate()).claimable(7);
+    game.creator = ScenarioWorld::proposer_address();
+    game.registry_paused = true;
+    let target = game.target();
+    let anchor = ScenarioGame::new(1, u32::MAX, 2, ScenarioWorld::default_prestate()).claimable(0);
+    let anchor_target = anchor.target();
+    world.add_game(game);
+    world.add_game(anchor);
+    world.set_anchor_game(&anchor_target);
+    world.set_horizons(2, 2);
+    let mut config = scenario_config();
+    config.proposal_interval_seconds = 100;
+    let mut scenario = ScenarioHarness::new(world.clone(), config).await.unwrap();
+    let paused = scenario.tick().await.unwrap();
+    scenario.settle_scheduled(&paused).await.unwrap();
+    let claim = ActionTarget::ClaimCredit(target.clone());
+    assert!(world.action_record(&claim, 1).is_none());
+
+    world.update_game(&target, |game| game.registry_paused = false);
+    world.mine_block();
+    let unpaused = scenario.tick().await.unwrap();
+    scenario.settle_scheduled(&unpaused).await.unwrap();
+    assert_eq!(
+        world.action_record(&claim, 1).map(|record| record.effect),
+        Some(CommittedEffect::ClaimUnlocked { game: target.address, amount: U256::from(7) })
+    );
+}
+
+#[tokio::test]
+async fn old_losing_game_keeps_refund_available_until_invalidated() {
+    for retired in [false, true] {
+        let world = ScenarioWorld::new();
+        let now = 2_000_000;
+        let mut old =
+            ScenarioGame::new(0, u32::MAX, 1, ScenarioWorld::default_prestate()).claimable(0);
+        old.status = GameStatus::ChallengerWins;
+        old.deadline = now - MAX_GAME_DEADLINE_LAG - 1;
+        old.creator = ScenarioWorld::proposer_address();
+        old.refund_credit = U256::from(7);
+        let target = old.target();
+        let mut anchor =
+            ScenarioGame::new(1, u32::MAX, 2, ScenarioWorld::default_prestate()).claimable(0);
+        anchor.deadline = now;
+        let anchor_target = anchor.target();
+        world.add_game(old);
+        world.add_game(anchor);
+        world.set_anchor_game(&anchor_target);
+        world.set_horizons(2, 2);
+        world.set_latest_l1_time(now);
+        let mut config = scenario_config();
+        config.proposal_interval_seconds = 100;
+        let mut scenario = ScenarioHarness::new(world.clone(), config).await.unwrap();
+        for _ in 0..2 {
+            let cycle = scenario.tick().await.unwrap();
+            scenario.settle_scheduled(&cycle).await.unwrap();
+            world.mine_block();
+        }
+        let claim = ActionTarget::ClaimCredit(target.clone());
+        assert!(world.action_record(&claim, 1).is_none());
+        let observation = world.observation();
+        let old = observation.games.iter().find(|game| game.address == target.address).unwrap();
+        assert!(!old.bond.distribution_closed);
+        assert_eq!(old.refund_credit, U256::from(7));
+
+        world.update_game(&target, |game| {
+            game.standing = GameStanding { blacklisted: !retired, retired };
+        });
+        for _ in 0..2 {
+            let cycle = scenario.tick().await.unwrap();
+            scenario.settle_scheduled(&cycle).await.unwrap();
+            world.mine_block();
+        }
+        assert_eq!(
+            world.action_record(&claim, 1).map(|record| record.effect),
+            Some(CommittedEffect::ClaimUnlocked { game: target.address, amount: U256::from(7) })
+        );
+        world.update_game(&target, |game| {
+            game.standing = GameStanding { blacklisted: false, retired: false }
+        });
+        world.set_latest_l1_time(world.observation().latest_l1.timestamp + 10);
+        for _ in 0..2 {
+            let cycle = scenario.tick().await.unwrap();
+            scenario.settle_scheduled(&cycle).await.unwrap();
+            world.mine_block();
+        }
+        assert_eq!(
+            world.action_record(&claim, 2).map(|record| record.effect),
+            Some(CommittedEffect::ClaimPaid { game: target.address, amount: U256::from(7) })
+        );
+        assert!(world.action_record(&claim, 3).is_none());
+    }
+}
+
+#[tokio::test]
+async fn old_game_recovery_claims_standalone_bonds_across_restart() {
+    let world = ScenarioWorld::new();
+    let now = 2_000_000;
+    let old_deadline = now - MAX_GAME_DEADLINE_LAG - 1;
+    let mut old = ScenarioGame::new(0, u32::MAX, 1, ScenarioWorld::default_prestate()).claimable(7);
+    old.deadline = old_deadline;
+    let target = old.target();
+    let mut boundary =
+        ScenarioGame::new(1, u32::MAX, 2, ScenarioWorld::default_prestate()).claimable(0);
+    boundary.deadline = old_deadline;
+    let mut anchor =
+        ScenarioGame::new(2, u32::MAX, 3, ScenarioWorld::default_prestate()).claimable(0);
+    anchor.deadline = now;
+    let anchor_target = anchor.target();
+    for game in [old, boundary, anchor] {
+        world.add_game(game);
+    }
+    world.set_anchor_game(&anchor_target);
+    world.set_horizons(3, 3);
+    world.set_latest_l1_time(now);
+    let mut config = scenario_config();
+    config.proposal_interval_seconds = 100;
+    let mut scenario = ScenarioHarness::new(world.clone(), config).await.unwrap();
+
+    let unlock = scenario.tick().await.unwrap();
+    scenario.settle_scheduled(&unlock).await.unwrap();
+    let claim = ActionTarget::ClaimCredit(target.clone());
+    assert_eq!(
+        world.action_record(&claim, 1).map(|r| r.effect),
+        Some(CommittedEffect::ClaimUnlocked { game: target.address, amount: U256::from(7) })
+    );
+
+    scenario.restart().await.unwrap();
+    let immature = scenario.tick().await.unwrap();
+    scenario.settle_scheduled(&immature).await.unwrap();
+    assert!(world.action_record(&claim, 2).is_none());
+
+    world.set_latest_l1_time(world.observation().latest_l1.timestamp + 10);
+    let payout = scenario.tick().await.unwrap();
+    scenario.settle_scheduled(&payout).await.unwrap();
+    assert_eq!(
+        world.action_record(&claim, 2).map(|r| r.effect),
+        Some(CommittedEffect::ClaimPaid { game: target.address, amount: U256::from(7) })
+    );
+    world.mine_block();
+    let done = scenario.tick().await.unwrap();
+    scenario.settle_scheduled(&done).await.unwrap();
+    assert!(world.action_record(&claim, 3).is_none());
 }
 
 #[tokio::test]
@@ -3165,7 +3462,7 @@ async fn resolution_filters_candidates_and_isolates_preflight_and_transaction_fa
 }
 
 #[tokio::test]
-async fn claim_flow_uses_owned_game_state_and_tolerates_degraded_preflights() {
+async fn claim_flow_uses_owned_game_state_and_defers_degraded_preflights() {
     let world = ScenarioWorld::new();
     let games = (0..=5)
         .map(|index| {
@@ -3215,13 +3512,12 @@ async fn claim_flow_uses_owned_game_state_and_tolerates_degraded_preflights() {
     let first = scenario.tick().await.unwrap();
     scenario.settle_scheduled(&first).await.unwrap();
 
-    for target in [&unlock, &degraded_credit, &degraded_withdrawal] {
-        assert!(matches!(
-            world.action_record(&ActionTarget::ClaimCredit(target.clone()), 1)
-                .unwrap()
-                .effect,
-            CommittedEffect::ClaimUnlocked { game, .. } if game == target.address
-        ));
+    assert!(matches!(
+        world.action_record(&ActionTarget::ClaimCredit(unlock.clone()), 1).unwrap().effect,
+        CommittedEffect::ClaimUnlocked { game, .. } if game == unlock.address
+    ));
+    for target in [&degraded_credit, &degraded_withdrawal] {
+        assert!(world.action_record(&ActionTarget::ClaimCredit(target.clone()), 1).is_none());
     }
     assert_eq!(
         world.action_record(&ActionTarget::ClaimCredit(failed.clone()), 1).unwrap().lifecycle,
@@ -3231,7 +3527,11 @@ async fn claim_flow_uses_owned_game_state_and_tolerates_degraded_preflights() {
     assert!(world.action_record(&ActionTarget::ClaimCredit(unowned), 1).is_none());
     assert_eq!(
         world
-            .l1_read_record(L1ReadBoundary::ClaimCredit, &L1ReadTarget::Game(degraded_credit), 1,)
+            .l1_read_record(
+                L1ReadBoundary::ClaimCredit,
+                &L1ReadTarget::Game(degraded_credit.clone()),
+                1,
+            )
             .unwrap()
             .outcome,
         L1ReadOutcome::Failure
@@ -3240,7 +3540,7 @@ async fn claim_flow_uses_owned_game_state_and_tolerates_degraded_preflights() {
         world
             .l1_read_record(
                 L1ReadBoundary::ClaimWithdrawal,
-                &L1ReadTarget::Game(degraded_withdrawal),
+                &L1ReadTarget::Game(degraded_withdrawal.clone()),
                 1,
             )
             .unwrap()
@@ -3258,6 +3558,12 @@ async fn claim_flow_uses_owned_game_state_and_tolerates_degraded_preflights() {
     );
     assert_eq!(world.observation().latest_l1.timestamp, unlock_time + 20);
     scenario.settle_scheduled(&pinned_immature).await.unwrap();
+    for target in [&degraded_credit, &degraded_withdrawal] {
+        assert!(
+            matches!(world.action_record(&ActionTarget::ClaimCredit(target.clone()), 1).unwrap().effect,
+            CommittedEffect::ClaimUnlocked { game, .. } if game == target.address)
+        );
+    }
     assert!(world.action_record(&ActionTarget::ClaimCredit(unlock.clone()), 2).is_none());
 
     world.mine_block();

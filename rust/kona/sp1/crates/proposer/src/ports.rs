@@ -62,6 +62,15 @@ pub(crate) struct GameValidity {
     pub(crate) absolute_prestate: B256,
 }
 
+/// L1 settlement metadata, independent of proposal validity and sequence-number limits.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) struct SettlementIdentity {
+    pub(crate) absolute_prestate: B256,
+    pub(crate) anchor_state_registry: Address,
+    pub(crate) weth: Address,
+    pub(crate) status: GameStatus,
+}
+
 /// Base fields refreshed for every cached game before status-specific reads.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) struct GameLifecycle {
@@ -72,9 +81,14 @@ pub(crate) struct GameLifecycle {
     pub(crate) is_finalized: bool,
 }
 
-/// Bond fields read only for a defender-wins game.
+/// Credit (including potential refunds) and withdrawal state used for settlement.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) struct BondState {
+    /// The registry pause prevents closing an undecided bond distribution.
+    pub(crate) paused: bool,
+    /// Credit may remain payable in either distribution mode, including after an unpause.
+    pub(crate) has_potential_credit: bool,
+    pub(crate) distribution_closed: bool,
     pub(crate) credit: U256,
     pub(crate) withdrawal_amount: U256,
     pub(crate) withdrawal_timestamp: U256,
@@ -91,6 +105,8 @@ pub(crate) struct WithdrawalState {
 /// Independently failing fields from the latest-state claim preflight.
 #[derive(Debug)]
 pub(crate) struct ClaimPreflight {
+    /// The registry pause prevents closing an undecided bond distribution.
+    pub(crate) paused: bool,
     pub(crate) credit: Result<U256>,
     pub(crate) withdrawal: Result<WithdrawalState>,
 }
@@ -182,6 +198,17 @@ pub(crate) trait L1View: Send + Sync {
     async fn game_claim(&self, game: Address, block: BlockId) -> Result<GameClaim>;
     async fn game_identity(&self, game: Address, block: BlockId) -> Result<GameIdentity>;
     async fn game_validity(&self, game: Address, block: BlockId) -> Result<GameValidity>;
+    async fn settlement_identity(
+        &self,
+        game: Address,
+        block: BlockId,
+    ) -> Result<SettlementIdentity>;
+    async fn game_finalized(
+        &self,
+        game: Address,
+        registry: Address,
+        block: BlockId,
+    ) -> Result<bool>;
     async fn game_lifecycle(
         &self,
         game: Address,
@@ -193,6 +220,7 @@ pub(crate) trait L1View: Send + Sync {
         &self,
         game: Address,
         weth: Address,
+        registry: Address,
         proposer: Address,
         block: BlockId,
     ) -> Result<BondState>;
@@ -202,6 +230,7 @@ pub(crate) trait L1View: Send + Sync {
         &self,
         game: Address,
         weth: Address,
+        registry: Address,
         proposer: Address,
     ) -> ClaimPreflight;
     async fn weth_delay(&self, weth: Address) -> Result<U256>;
