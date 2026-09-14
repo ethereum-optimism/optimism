@@ -5,6 +5,7 @@ use alloy_eips::BlockId;
 use alloy_json_rpc::{RpcRecv, RpcSend};
 use alloy_primitives::{B256, BlockNumber};
 use alloy_rpc_client::RpcClient;
+use alloy_rpc_types_eth::{Filter, FilterBlockOption};
 use alloy_transport::TransportErrorKind;
 use jsonrpsee::BatchResponseBuilder;
 use jsonrpsee_core::{
@@ -506,7 +507,25 @@ fn extract_block_id_for_method(method: &str, params: &Params<'_>) -> Option<Bloc
         "eth_createAccessList" |
         "debug_traceCall" => parse_block_id_from_params(params, 1),
         "eth_getStorageAt" | "eth_getProof" => parse_block_id_from_params(params, 2),
+        "eth_getLogs" => parse_block_id_from_log_filter(params),
         _ => None,
+    }
+}
+
+/// Parses the block that decides forwarding for an `eth_getLogs` filter.
+///
+/// A `blockHash` filter targets that single block. A block range is represented by its upper
+/// bound, because a range lies entirely before bedrock exactly when its highest block does.
+/// Ranges reaching bedrock or beyond — including ones that cross it — yield a post-bedrock block
+/// and are served locally as before; an open-ended range (no `toBlock`) reaches the chain tip and
+/// is likewise not forwarded.
+fn parse_block_id_from_log_filter(params: &Params<'_>) -> Option<BlockId> {
+    let values: Vec<serde_json::Value> = params.parse().ok()?;
+    let filter = serde_json::from_value::<Filter>(values.into_iter().next()?).ok()?;
+
+    match filter.block_option {
+        FilterBlockOption::AtBlockHash(hash) => Some(BlockId::Hash(hash.into())),
+        FilterBlockOption::Range { to_block, .. } => to_block.map(BlockId::Number),
     }
 }
 
@@ -717,6 +736,68 @@ mod tests {
                 "{method}"
             );
         }
+    }
+
+    /// Tests that an `eth_getLogs` range filter extracts its upper bound, the block that decides
+    /// whether the whole range is pre-bedrock.
+    #[test]
+    fn extracts_block_id_for_log_filter_range() {
+        for params_str in [
+            r#"[{"fromBlock":"0x64","toBlock":"0x64"}]"#,
+            r#"[{"fromBlock":"0x0","toBlock":"0x64"}]"#,
+            r#"[{"toBlock":"0x64"}]"#,
+        ] {
+            let params = Params::new(Some(params_str));
+            assert_eq!(
+                extract_block_id_for_method("eth_getLogs", &params).unwrap(),
+                BlockId::Number(BlockNumberOrTag::Number(100)),
+                "{params_str}"
+            );
+        }
+    }
+
+    /// Tests that an `eth_getLogs` filter pinned to a block hash extracts that hash.
+    #[test]
+    fn extracts_block_id_for_log_filter_block_hash() {
+        let hash = "0xdbdfa0f88b2cf815fdc1621bd20c2bd2b0eed4f0c56c9be2602957b5a60ec702";
+        let params_str = format!(r#"[{{"blockHash":"{hash}"}}]"#);
+        let params = Params::new(Some(&params_str));
+        assert_eq!(
+            extract_block_id_for_method("eth_getLogs", &params).unwrap(),
+            BlockId::Hash(hash.parse::<B256>().unwrap().into())
+        );
+    }
+
+    /// Tests that an `eth_getLogs` filter without an upper bound extracts no block id, leaving it
+    /// to local handling.
+    #[test]
+    fn extracts_no_block_id_for_open_ended_log_filter() {
+        for params_str in [r#"[{"fromBlock":"0x0"}]"#, r#"[{}]"#, r#"[]"#] {
+            let params = Params::new(Some(params_str));
+            assert!(extract_block_id_for_method("eth_getLogs", &params).is_none(), "{params_str}");
+        }
+    }
+
+    /// Tests that `eth_getLogs` is forwarded when its filter is confined to pre-bedrock blocks,
+    /// using the OP Mainnet blocks from the bug report (bedrock is 105235063): pre-bedrock
+    /// 105235062 / `0x645c276` and post-bedrock 105239000 / `0x645d1d8`. A range crossing bedrock
+    /// stays local.
+    #[test]
+    fn forwards_pre_bedrock_log_filters() {
+        let historical = mocked_historical(Asserter::new());
+        let logs_request = |from: &str, to: &str| {
+            owned_request(
+                "eth_getLogs",
+                &format!(
+                    r#"[{{"fromBlock":"{from}","toBlock":"{to}","address":"0x5e61a079a178f0e5784107a4963baae0c5a680c6"}}]"#
+                ),
+            )
+        };
+
+        assert!(historical.should_forward_request(&logs_request("0x645c276", "0x645c276")));
+        assert!(historical.should_forward_request(&logs_request("0x0", "0x645c276")));
+        assert!(!historical.should_forward_request(&logs_request("0x645d1d8", "0x645d1d8")));
+        assert!(!historical.should_forward_request(&logs_request("0x645c276", "0x645d1d8")));
     }
 
     /// Tests that various valid id types can be parsed from the first parameter.
