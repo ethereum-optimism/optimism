@@ -9,8 +9,10 @@ import (
 	"github.com/ethereum/go-ethereum/accounts/abi"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
+	"github.com/ethereum/go-ethereum/log"
 
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
+	"github.com/ethereum-optimism/optimism/op-service/testlog"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 )
 
@@ -355,7 +357,7 @@ func TestProcessSystemConfigUpdateLogEvent(t *testing.T) {
 			config := eth.SystemConfig{}
 			rollupCfg := rollup.Config{EcotoneTime: test.ecotoneTime}
 
-			err := ProcessSystemConfigUpdateLogEvent(&config, test.hook(t, test.log), &rollupCfg, test.l1Time)
+				err := ProcessSystemConfigUpdateLogEvent(testlog.Logger(t, log.LevelInfo), &config, test.hook(t, test.log), &rollupCfg, test.l1Time)
 			if test.err {
 				require.Error(t, err)
 			} else {
@@ -413,7 +415,7 @@ func TestUpdateSystemConfigWithL1Receipts_Atomicity(t *testing.T) {
 				Logs:   []*types.Log{gasLog},
 			},
 		}
-		err = UpdateSystemConfigWithL1Receipts(&sysCfg, receipts, &cfg, 0)
+		err = UpdateSystemConfigWithL1Receipts(testlog.Logger(t, log.LevelInfo), &sysCfg, receipts, &cfg, 0)
 		require.NoError(t, err)
 		require.Equal(t, newBatcher, sysCfg.BatcherAddr)
 		require.Equal(t, uint64(0xbb), sysCfg.GasLimit)
@@ -492,7 +494,7 @@ func TestUpdateSystemConfigWithL1Receipts_Atomicity(t *testing.T) {
 				Logs:   []*types.Log{futureLogVersion},
 			},
 		}
-		err = UpdateSystemConfigWithL1Receipts(&sysCfg, receipts, &cfg, 0)
+		err = UpdateSystemConfigWithL1Receipts(testlog.Logger(t, log.LevelInfo), &sysCfg, receipts, &cfg, 0)
 		// Error should be returned due to malformed update, but valid updates should apply
 		require.Error(t, err)
 		// Confirm valid update applied
@@ -548,7 +550,7 @@ func TestUpdateSystemConfigWithL1Receipts_Atomicity(t *testing.T) {
 				Logs:   []*types.Log{batcherLog, gasLog},
 			},
 		}
-		err = UpdateSystemConfigWithL1Receipts(&sysCfg, receipts, &cfg, 0)
+		err = UpdateSystemConfigWithL1Receipts(testlog.Logger(t, log.LevelInfo), &sysCfg, receipts, &cfg, 0)
 		require.NoError(t, err)
 		require.Equal(t, newBatcher, sysCfg.BatcherAddr)
 		require.Equal(t, uint64(0xcc), sysCfg.GasLimit)
@@ -629,10 +631,33 @@ func TestUpdateSystemConfigWithL1Receipts_Atomicity(t *testing.T) {
 				Logs:             []*types.Log{minBaseFeeLog},
 			},
 		}
-		err = UpdateSystemConfigWithL1Receipts(&sysCfg, receipts, &cfg, 0)
+		err = UpdateSystemConfigWithL1Receipts(testlog.Logger(t, log.LevelInfo), &sysCfg, receipts, &cfg, 0)
 		require.NoError(t, err)
 		require.Equal(t, newBatcher, sysCfg.BatcherAddr)
 		require.Equal(t, uint64(0xdd), sysCfg.GasLimit)
 		require.Equal(t, minBaseFee, sysCfg.MinBaseFee)
 	})
+}
+
+func TestProcessSystemConfigUpdateLogEvent_Logging(t *testing.T) {
+	newBatcher := common.Address{0x01}
+	batcherLog := &types.Log{
+		Topics: []common.Hash{
+			ConfigUpdateEventABIHash,
+			ConfigUpdateEventVersion0,
+			SystemConfigUpdateBatcher,
+		},
+	}
+	data, err := bytesArgs.Pack(common.LeftPadBytes(newBatcher.Bytes(), 32))
+	require.NoError(t, err)
+	batcherLog.Data = data
+
+	logger, logs := testlog.CaptureLogger(t, log.LevelInfo)
+	sysCfg := eth.SystemConfig{}
+	rollupCfg := rollup.Config{}
+
+	err = ProcessSystemConfigUpdateLogEvent(logger, &sysCfg, batcherLog, &rollupCfg, 0)
+	require.NoError(t, err)
+
+	require.NotNil(t, logs.FindLog(testlog.NewMessageContainsFilter("SystemConfig update: batcher address")), "Should log batcher address update")
 }
