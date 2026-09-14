@@ -240,6 +240,10 @@ func (v *LockstepCrossValidator) ValidateAccessEntry(
 		return fmt.Errorf("source chain %s: %w", access.ChainID, interop.ErrUnknownChain)
 	}
 
+	if err := validateInitiatingMessageTimestamp(ingester, access.ChainID, access.Timestamp); err != nil {
+		return err
+	}
+
 	query := messages.ContainsQuery{
 		Timestamp: access.Timestamp,
 		BlockNum:  access.BlockNumber,
@@ -257,6 +261,10 @@ func (v *LockstepCrossValidator) validateExecutingMessage(
 	ingester, ok := v.chains[execMsg.ChainID]
 	if !ok {
 		return fmt.Errorf("source chain %s: %w", execMsg.ChainID, interop.ErrUnknownChain)
+	}
+
+	if err := validateInitiatingMessageTimestamp(ingester, execMsg.ChainID, execMsg.Timestamp); err != nil {
+		return err
 	}
 
 	// Validate timing constraints (no timeout for background validation)
@@ -277,6 +285,14 @@ func (v *LockstepCrossValidator) validateExecutingMessage(
 	}
 	_, err := ingester.Contains(query)
 	return err
+}
+
+func validateInitiatingMessageTimestamp(ingester ChainIngester, chainID eth.ChainID, timestamp uint64) error {
+	if !ingester.IsValidInitiatingTimestamp(timestamp) {
+		return fmt.Errorf("initiating message on chain %s at timestamp %d is not after the Lagoon activation block: %w",
+			chainID, timestamp, interop.ErrConflict)
+	}
+	return nil
 }
 
 func (v *LockstepCrossValidator) runValidationLoop() {

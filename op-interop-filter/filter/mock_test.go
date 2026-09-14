@@ -35,11 +35,12 @@ type mockChainIngester struct {
 	execMsgs []IncludedMessage
 
 	// State
-	ready                 bool
-	err                   *IngesterError
-	latestBlock           eth.BlockID
-	latestTimestamp       uint64
-	earliestIngestedBlock uint64
+	ready                      bool
+	err                        *IngesterError
+	latestBlock                eth.BlockID
+	latestTimestamp            uint64
+	earliestIngestedBlock      uint64
+	isValidInitiatingTimestamp func(uint64) bool
 
 	rewindToFinalizedErr   error
 	rewindToFinalizedCount int
@@ -145,6 +146,13 @@ func (m *mockChainIngester) Contains(query messages.ContainsQuery) (messages.Blo
 		return messages.BlockSeal{}, interop.ErrConflict
 	}
 	return seal, nil
+}
+
+func (m *mockChainIngester) IsValidInitiatingTimestamp(timestamp uint64) bool {
+	if m.isValidInitiatingTimestamp == nil {
+		return true
+	}
+	return m.isValidInitiatingTimestamp(timestamp)
 }
 
 // LatestBlock implements ChainIngester.

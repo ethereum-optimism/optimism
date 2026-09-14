@@ -252,6 +252,11 @@ func (c *LogsDBChainIngester) Contains(query messages.ContainsQuery) (messages.B
 	return c.logsDB.Contains(query)
 }
 
+// IsValidInitiatingTimestamp returns true if the timestamp can contain initiating messages.
+func (c *LogsDBChainIngester) IsValidInitiatingTimestamp(timestamp uint64) bool {
+	return c.rollupCfg.IsInterop(timestamp) && !c.rollupCfg.IsInteropActivationBlock(timestamp)
+}
+
 // LatestBlock returns the latest sealed block
 func (c *LogsDBChainIngester) LatestBlock() (eth.BlockID, bool) {
 	c.mu.RLock()
@@ -380,16 +385,22 @@ func (c *LogsDBChainIngester) findAndSetEarliestBlock() error {
 // calculated from startTimestamp and backfillDuration.
 func (c *LogsDBChainIngester) calculateStartingBlock() uint64 {
 	backfillSeconds := uint64(c.backfillDuration.Seconds())
-	if c.startTimestamp < backfillSeconds {
-		// Backfill reaches before epoch 0; start from genesis
-		return c.rollupCfg.Genesis.L2.Number
+	var backfillTimestamp uint64
+	if c.startTimestamp >= backfillSeconds {
+		backfillTimestamp = c.startTimestamp - backfillSeconds
 	}
-	backfillTimestamp := c.startTimestamp - backfillSeconds
+
+	if c.rollupCfg.LagoonTime != nil && backfillTimestamp < *c.rollupCfg.LagoonTime {
+		backfillTimestamp = *c.rollupCfg.LagoonTime
+	}
 
 	startingBlock, err := c.rollupCfg.TargetBlockNumber(backfillTimestamp)
 	if err != nil {
-		// Timestamp is before genesis, start from genesis block
 		return c.rollupCfg.Genesis.L2.Number
+	}
+	if c.rollupCfg.LagoonTime != nil &&
+		c.rollupCfg.TimestampForBlock(startingBlock) < *c.rollupCfg.LagoonTime {
+		startingBlock++
 	}
 	return startingBlock
 }
@@ -485,6 +496,10 @@ func (c *LogsDBChainIngester) runIngestion() {
 			}
 		}
 
+		if head.NumberU64() < nextBlock && !c.earliestIngestedBlockSet.Load() {
+			continue
+		}
+
 		// Reorg detection: if head moved behind our progress, check hash
 		if head.NumberU64() < nextBlock {
 			c.log.Info("Chain head is behind ingestion progress, waiting for node to catch up",
@@ -535,8 +550,8 @@ func (c *LogsDBChainIngester) initIngestion() (uint64, error) {
 
 	startingBlock := c.calculateStartingBlock()
 
-	// Clamp to head if needed
-	if startingBlock > head.NumberU64() {
+	if startingBlock > head.NumberU64() &&
+		(c.rollupCfg.LagoonTime == nil || c.rollupCfg.IsInterop(head.Time())) {
 		startingBlock = head.NumberU64()
 	}
 
@@ -565,6 +580,11 @@ func (c *LogsDBChainIngester) initIngestion() (uint64, error) {
 		}
 
 		return nextBlock, nil
+	}
+
+	if startingBlock > head.NumberU64() {
+		c.log.Info("Waiting for Lagoon activation", "head", head.NumberU64(), "start_block", startingBlock)
+		return startingBlock, nil
 	}
 
 	c.log.Info("Starting fresh ingestion",
