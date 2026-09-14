@@ -395,6 +395,28 @@ go-tests-short-ci:
 go-tests-ci:
   just _go-tests-ci-internal ""
 
+# Runs the op-e2e action tests against the out-of-process op-reth-test-engine
+# execution layer. Needs a prebuilt engine binary at
+# RUST_BINARY_PATH_OP_RETH_TEST_ENGINE; REQUIRE_RUST_ENGINE=1 turns a missing
+# binary into a hard error instead of a silent fallback to a local cargo build.
+[script('bash')]
+go-actions-tests-reth-ci: sync-superchain
+  set -euo pipefail
+  echo "Setting up test directories..."
+  mkdir -p ./tmp/test-results ./tmp/testlogs
+  echo "Running op-e2e action tests on op-reth-test-engine with gotestsum..."
+  export OP_E2E_ACTIONS_EL=reth-test-engine
+  export REQUIRE_RUST_ENGINE=1
+  export PARALLEL=$(nproc 2>/dev/null || sysctl -n hw.ncpu 2>/dev/null || echo 4)
+  export OP_TESTLOG_FILE_LOGGER_OUTDIR=$(realpath ./tmp/testlogs)
+  ./ops/scripts/gotestsum-split.sh --format=standard-verbose \
+      --junitfile=./tmp/test-results/results.xml \
+      --jsonfile=./tmp/testlogs/log.json \
+      --rerun-fails=3 \
+      --rerun-fails-max-failures=50 \
+      --packages="./op-e2e/actions/..." \
+      -- -p=4 -parallel="$PARALLEL" -timeout={{TEST_TIMEOUT}} -tags="ci"
+
 # Runs fraud proofs Go tests with gotestsum for CI.
 [script('bash')]
 go-tests-fraud-proofs-ci:
