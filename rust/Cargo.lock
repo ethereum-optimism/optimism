@@ -9527,7 +9527,10 @@ dependencies = [
  "alloy-network 2.1.1",
  "alloy-primitives",
  "alloy-rpc-types-engine",
+ "alloy-rpc-types-eth 2.1.1",
  "alloy-signer-local 2.1.1",
+ "clap",
+ "jsonrpsee",
  "op-alloy-consensus",
  "op-alloy-rpc-types-engine",
  "op-revm",
@@ -9537,6 +9540,7 @@ dependencies = [
  "reth-db-common",
  "reth-evm",
  "reth-execution-types",
+ "reth-ipc",
  "reth-node-api",
  "reth-optimism-chainspec",
  "reth-optimism-evm",
@@ -9550,7 +9554,12 @@ dependencies = [
  "reth-revm",
  "reth-storage-api",
  "reth-trie",
+ "serde",
+ "serde_json",
  "thiserror 2.0.18",
+ "tokio",
+ "tracing",
+ "tracing-subscriber 0.3.23",
 ]
 
 [[package]]
