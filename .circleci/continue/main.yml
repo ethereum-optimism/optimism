@@ -653,8 +653,9 @@ commands:
             # Leave one core idle so the build does not fill the executor's RAM.
             # The release profile's peak is the tail of the build, where the big
             # binaries (op-reth, kona-zkvm-canary, kona-sp1-proposer, the op-reth
-            # examples) link at once under `lto = "thin"`; rust-build-release has
-            # been OOM-killed there (`sccache: Compile terminated by signal 9`).
+            # examples) link at once under `lto = "thin"`; rust-workspace-release
+            # has been OOM-killed there (`sccache: Compile terminated by
+            # signal 9`).
             # nproc reflects the resource class on these executors, so this is 7
             # on xlarge.gen2. The spare core is headroom, not a throughput knob:
             # cargo's default is one unit per core, and dropping to n-1 costs far
