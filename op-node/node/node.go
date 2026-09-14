@@ -100,9 +100,10 @@ type OpNode struct {
 
 	superAuthority rollup.SuperAuthority // Supernode authority for payload validation (may be nil)
 
-	l1HeadsSub     ethereum.Subscription // Subscription to get L1 heads (automatically re-subscribes on error)
-	l1SafeSub      ethereum.Subscription // Subscription to get L1 safe blocks, a.k.a. justified data (polling)
-	l1FinalizedSub ethereum.Subscription // Subscription to get L1 safe blocks, a.k.a. justified data (polling)
+	l1HeadsSub              ethereum.Subscription // Subscription to get L1 heads (automatically re-subscribes on error)
+	l1SafeSub               ethereum.Subscription // Subscription to get L1 safe blocks, a.k.a. justified data (polling)
+	l1FinalizedSub          ethereum.Subscription // Subscription to get L1 safe blocks, a.k.a. justified data (polling)
+	l1ReceiptsPrefetchGroup gosync.WaitGroup
 
 	eventSys   event.System
 	eventDrain driver.Drain
@@ -338,6 +339,15 @@ func initL1Handlers(cfg *config.Config, node *OpNode) (ethereum.Subscription, et
 	onL1Head := func(ctx context.Context, sig eth.L1BlockRef) {
 		if node.cfg.Tracer != nil {
 			node.cfg.Tracer.OnNewL1Head(ctx, sig)
+		}
+		if cfg.Driver.SequencerEnabled {
+			node.l1ReceiptsPrefetchGroup.Add(1)
+			go func() {
+				defer node.l1ReceiptsPrefetchGroup.Done()
+				if _, _, err := node.l1Source.FetchReceipts(ctx, sig.Hash); err != nil {
+					node.log.Debug("Failed to prefetch L1 receipts", "hash", sig.Hash, "err", err)
+				}
+			}()
 		}
 		node.l2Driver.SyncDeriver.L1Tracker.OnL1Unsafe(sig)
 		node.l2Driver.StatusTracker.OnL1Unsafe(sig)
@@ -834,6 +844,7 @@ func (n *OpNode) Stop(ctx context.Context) error {
 	if n.l1HeadsSub != nil {
 		n.l1HeadsSub.Unsubscribe()
 	}
+	n.l1ReceiptsPrefetchGroup.Wait()
 	// stop polling for L1 safe-head changes
 	if n.l1SafeSub != nil {
 		n.l1SafeSub.Unsubscribe()
