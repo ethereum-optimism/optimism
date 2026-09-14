@@ -12,12 +12,16 @@ import (
 // defaultMessageExpiryWindow is the default maximum age of an initiating message
 // that can be executed. 7 days = 7 * 24 * 60 * 60 = 604800 seconds.
 // The actual value used is read from the dependency set at construction time.
-const defaultMessageExpiryWindow = 604800
+const defaultMessageExpiryWindow uint64 = 604800
 
 var (
 	// ErrUnknownChain is returned when an executing message references
 	// a chain that is not registered with the interop activity.
 	ErrUnknownChain = errors.New("unknown chain")
+
+	// ErrChainNotInDependencySet is returned when either side of an executing
+	// message references a chain outside the dependency set.
+	ErrChainNotInDependencySet = errors.New("chain not in dependency set")
 
 	// ErrTimestampViolation is returned when an executing message references
 	// an initiating message with a timestamp > the executing message's timestamp.
@@ -64,6 +68,7 @@ func (i *Interop) l1Inclusion(blocksAtTimestamp blockPerChain, l1Heads blockPerC
 // For each chain:
 // 1. Open the block from the logsDB and verify it matches blocksAtTimestamp
 // 2. For each executing message in the block:
+//   - Verify both chain IDs belong to the dependency set
 //   - Verify the initiating message exists in the source chain's logsDB
 //   - Verify the initiating message timestamp <= executing message timestamp
 //   - Verify the initiating message hasn't expired (within message expiry window)
@@ -150,12 +155,23 @@ func (i *Interop) verifyInteropMessages(ts uint64, blocksAtTimestamp blockPerCha
 }
 
 // verifyExecutingMessage verifies a single executing message by checking:
-//  1. The initiating message exists in the source chain's database
-//  2. The initiating message's timestamp is not greater than the executing block's timestamp
-//  3. The initiating message hasn't expired (executing timestamp - timestamp <= messageExpiryWindow)
-//  4. Neither the executing block nor the initiating block falls in its chain's interop
+//  1. Both chain IDs belong to the dependency set
+//  2. The initiating message exists in the source chain's database
+//  3. The initiating message's timestamp is not greater than the executing block's timestamp
+//  4. The initiating message hasn't expired (executing timestamp - timestamp <= messageExpiryWindow)
+//  5. Neither the executing block nor the initiating block falls in its chain's interop
 //     activation block (interop must be active for at least one full block on both sides)
 func (i *Interop) verifyExecutingMessage(executingChain eth.ChainID, executingTimestamp uint64, logIdx uint32, execMsg *messages.ExecutingMessage, view *frontierVerificationView) error {
+	if i.dependencySet == nil {
+		return fmt.Errorf("dependency set unavailable: %w", ErrChainNotInDependencySet)
+	}
+	if !i.dependencySet.HasChain(executingChain) {
+		return fmt.Errorf("executing chain %s: %w", executingChain, ErrChainNotInDependencySet)
+	}
+	if !i.dependencySet.HasChain(execMsg.ChainID) {
+		return fmt.Errorf("initiating chain %s: %w", execMsg.ChainID, ErrChainNotInDependencySet)
+	}
+
 	// Get the source chain's logsDB
 	sourceDB, ok := i.logsDBs[execMsg.ChainID]
 	if !ok {
