@@ -25,6 +25,7 @@ reth-payload-util.workspace = true
 reth-payload-primitives.workspace = true
 reth-basic-payload-builder.workspace = true
 reth-payload-validator.workspace = true
+reth-trie-parallel.workspace = true
 reth-metrics.workspace = true
 
 # op-reth
@@ -57,3 +58,4 @@ serde.workspace = true
 reth-optimism-chainspec = { workspace = true, features = ["superchain-configs"] }
 reth-revm = { workspace = true, features = ["test-utils"] }
 alloy-rpc-types-eth.workspace = true
+metrics-util = { workspace = true, features = ["debugging"] }
