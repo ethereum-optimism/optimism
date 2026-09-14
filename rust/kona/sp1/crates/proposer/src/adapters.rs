@@ -305,10 +305,6 @@ where
         })
     }
 
-    async fn anchor_state_registry(&self, game: Address) -> Result<Address> {
-        Ok(ZKDisputeGame::new(game, self.provider.clone()).anchorStateRegistry().call().await?)
-    }
-
     async fn latest_l1_timestamp(&self) -> Result<u64> {
         Ok(self
             .provider

@@ -218,7 +218,6 @@ pub(crate) trait L1View: Send + Sync {
     ) -> Result<GameStanding>;
     async fn proof_status(&self, game: Address) -> Result<u8>;
     async fn proof_inputs(&self, game: Address) -> Result<ProofInputs>;
-    async fn anchor_state_registry(&self, game: Address) -> Result<Address>;
     async fn latest_l1_timestamp(&self) -> Result<u64>;
 }
 

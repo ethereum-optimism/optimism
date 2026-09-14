@@ -75,7 +75,6 @@ pub(super) enum L1ReadBoundary {
     GameStanding,
     ProofStatus,
     ProofInputs,
-    AnchorStateRegistry,
     LatestL1Timestamp,
 }
 
@@ -1706,12 +1705,6 @@ impl L1View for FakeL1View {
         Ok(state.game(game)?.proof_inputs)
     }
 
-    async fn anchor_state_registry(&self, game: Address) -> Result<Address> {
-        let GameReadResult { state, .. } =
-            self.latest_state_for_game(L1ReadBoundary::AnchorStateRegistry, game)?;
-        Ok(state.game(game)?.anchor_state_registry)
-    }
-
     async fn latest_l1_timestamp(&self) -> Result<u64> {
         let mut data = self.0.lock();
         let state = data.latest_state();
@@ -2091,7 +2084,7 @@ impl ActionExecutor for FakeActionExecutor {
 
 pub(super) struct ScenarioHarness {
     world: ScenarioWorld,
-    proposer: Arc<Proposer>,
+    pub(super) proposer: Arc<Proposer>,
     control: ScenarioControl,
     config: ProposerConfig,
 }
