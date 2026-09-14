@@ -23,7 +23,7 @@ use url::Url;
 
 /// Default period of upstream silence after which the connection is considered dead.
 ///
-/// Flashblocks arrive every few hundred milliseconds, so several seconds without a single frame -
+/// Subblocks arrive every few hundred milliseconds, so several seconds without a single frame -
 /// not even a websocket ping - means the connection is no longer delivering.
 pub const DEFAULT_IDLE_TIMEOUT: Duration = Duration::from_secs(5);
 

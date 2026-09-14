@@ -526,7 +526,7 @@ struct FlashBlockServiceMetrics {
     current_block_height: Gauge,
     /// Current flashblock index.
     current_index: Gauge,
-    /// Number of errors received from the flashblock stream.
+    /// Number of errors received from the subblocks stream.
     ///
     /// This covers connection failures, decoding failures and idle-timeout reconnects, so a
     /// stalled subscription shows up here rather than passing silently.

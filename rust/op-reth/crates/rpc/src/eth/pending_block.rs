@@ -26,16 +26,16 @@ const fn pending_state_history_lookup_hash<N: reth_primitives_traits::NodePrimit
 
 /// Returns the pending flashblock only while the canonical chain has not caught up with it.
 ///
-/// A flashblocks upstream can stop delivering without closing its connection, which leaves the
-/// last flashblock in place indefinitely while the node keeps importing canonical blocks. Once
-/// the canonical tip reaches that height the flashblock only describes a block that is already
-/// sealed, and answering `pending` from its partial state reports *behind* `latest` - an
+/// A subblocks upstream can stop delivering without closing its connection, which leaves the
+/// last subblock in place indefinitely while the node keeps importing canonical blocks. Once the
+/// canonical tip reaches that height the subblock only describes a block that is already sealed,
+/// and answering `pending` from its partial state reports *behind* `latest` - an
 /// `eth_getTransactionCount(addr, "pending")` below the same call against `latest`, which is not
 /// a legal result and hands callers an already-consumed nonce. Dropping it makes those reads fall
 /// back to `latest`, which is complete and self-consistent.
 ///
-/// The test is against the canonical tip rather than against the flashblock's age on purpose: a
-/// flashblock that is merely old but still ahead of the tip is the best answer available, and
+/// The test is against the canonical tip rather than against the subblock's age on purpose: a
+/// subblock that is merely old but still ahead of the tip is the best answer available, and
 /// discarding it would *lower* the nonce that `pending` had already reported - the very failure
 /// this guards against.
 ///

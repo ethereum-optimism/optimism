@@ -480,7 +480,7 @@ pub struct OpEthApiBuilder<NetworkT = Optimism> {
     /// `newPayload` and `forkchoiceUpdated` calls, advancing the canonical chain state.
     /// Requires `flashblocks_url` to be set.
     flashblock_consensus: bool,
-    /// How long the flashblocks websocket may stay silent before it is reconnected.
+    /// How long the subblocks websocket may stay silent before it is reconnected.
     ///
     /// `None` disables the check.
     flashblocks_idle_timeout: Option<Duration>,
@@ -551,7 +551,7 @@ impl<NetworkT> OpEthApiBuilder<NetworkT> {
         self
     }
 
-    /// With how long the flashblocks websocket may stay silent before it is reconnected.
+    /// With how long the subblocks websocket may stay silent before it is reconnected.
     ///
     /// `None` disables the check.
     pub const fn with_flashblocks_idle_timeout(
