@@ -563,11 +563,13 @@ where
         Ok(refund)
     }
 
-    /// Applies the post-exec refund to `total_gas_spent` so `tx_gas_used()` reports canonical gas.
+    /// Applies the post-exec refund to the result gas so `tx_gas_used()` reports canonical gas.
     ///
-    /// The EVM refund counter stays unchanged to avoid subtracting the refund twice. If the
-    /// EIP-7623 floor binds, `tx_gas_used()` remains clamped and may exceed canonical gas; whether
-    /// SDM rebates can reduce gas below that floor remains an open spec question.
+    /// The EVM refund counter stays unchanged to avoid subtracting the refund twice. EIP-7623 is
+    /// part of `evm_gas_used`, so SDM applies after its floor and may reduce canonical gas below
+    /// that floor. Reducing both `total_gas_spent` and `floor_gas` preserves this ordering in the
+    /// generic [`revm::context::result::ResultGas`] view used by receipts, tracing, and execution
+    /// observers.
     const fn canonicalize_result_gas(
         result: &mut ExecutionResult<E::HaltReason>,
         post_exec_refund: u64,
@@ -581,7 +583,8 @@ where
             ExecutionResult::Revert { gas, .. } |
             ExecutionResult::Halt { gas, .. } => {
                 *gas = gas
-                    .with_total_gas_spent(gas.total_gas_spent().saturating_sub(post_exec_refund));
+                    .with_total_gas_spent(gas.total_gas_spent().saturating_sub(post_exec_refund))
+                    .with_floor_gas(gas.floor_gas().saturating_sub(post_exec_refund));
             }
         }
     }
