@@ -5,7 +5,7 @@ use std::{env, path::PathBuf, sync::Arc};
 use alloy_transport_http::reqwest;
 use anyhow::{Context, Result, bail, ensure};
 use rustls::{
-    ClientConfig, RootCertStore,
+    ClientConfig,
     pki_types::{CertificateDer, PrivateKeyDer, pem::PemObject},
 };
 
@@ -46,9 +46,8 @@ impl ClientTls {
         }
     }
 
-    /// Builds a rustls client configuration from the configured PEM files.
+    /// Builds a rustls client configuration that trusts platform roots and the configured CA.
     pub fn client_config(&self) -> Result<ClientConfig> {
-        let mut root_store = RootCertStore::empty();
         let ca_certs = CertificateDer::pem_file_iter(&self.ca)
             .with_context(|| format!("failed to read CA certificate from {}", self.ca.display()))?
             .collect::<Result<Vec<_>, _>>()
@@ -56,11 +55,13 @@ impl ClientTls {
                 format!("failed to parse CA certificate from {}", self.ca.display())
             })?;
         ensure!(!ca_certs.is_empty(), "no CA certificates found in {}", self.ca.display());
-        for cert in ca_certs {
-            root_store.add(cert).with_context(|| {
-                format!("failed to add CA certificate from {}", self.ca.display())
-            })?;
-        }
+
+        let provider = Arc::new(rustls::crypto::aws_lc_rs::default_provider());
+        let verifier = rustls_platform_verifier::Verifier::new_with_extra_roots(
+            ca_certs,
+            Arc::clone(&provider),
+        )
+        .context("failed to configure platform and custom CA certificates")?;
 
         let certs = CertificateDer::pem_file_iter(&self.cert)
             .with_context(|| {
@@ -74,10 +75,11 @@ impl ClientTls {
         let key = PrivateKeyDer::from_pem_file(&self.key)
             .with_context(|| format!("failed to read private key from {}", self.key.display()))?;
 
-        ClientConfig::builder_with_provider(Arc::new(rustls::crypto::aws_lc_rs::default_provider()))
+        ClientConfig::builder_with_provider(provider)
             .with_safe_default_protocol_versions()
             .context("failed to configure TLS protocol versions")?
-            .with_root_certificates(root_store)
+            .dangerous()
+            .with_custom_certificate_verifier(Arc::new(verifier))
             .with_client_auth_cert(certs, key)
             .context("failed to configure client certificate")
     }
