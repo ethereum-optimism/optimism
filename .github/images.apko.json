@@ -312,6 +312,19 @@
       ],
       "smoke_test": "kona-sp1-proposer --version"
     },
+    "kona-zkvm-canary": {
+      "type": "rust",
+      "needs_melange": [
+        "op-stack-rust"
+      ],
+      "paths": [
+        "rust/**"
+      ],
+      "nexus_paths": [
+        "apko/kona-zkvm-canary.yaml"
+      ],
+      "smoke_test": "kona-zkvm-canary --version"
+    },
     "lokahi": {
       "type": "rust",
       "verify_version": true,

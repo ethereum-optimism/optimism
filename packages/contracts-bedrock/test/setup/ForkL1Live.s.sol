@@ -19,6 +19,8 @@ import { Config } from "scripts/libraries/Config.sol";
 import { GameType, GameTypes, Claim, Proposal, Hash } from "src/dispute/lib/Types.sol";
 import { EIP1967Helper } from "test/mocks/EIP1967Helper.sol";
 import { LibString } from "@solady/utils/LibString.sol";
+import { SemverComp } from "src/libraries/SemverComp.sol";
+import { Constants } from "src/libraries/Constants.sol";
 
 // Interfaces
 import { ISuperchainConfig } from "interfaces/L1/ISuperchainConfig.sol";
@@ -280,6 +282,8 @@ contract ForkL1Live is Deployer, StdAssertions, FeatureFlags {
             IDisputeGameFactory disputeGameFactory =
                 IDisputeGameFactory(artifacts.mustGetAddress("DisputeGameFactoryProxy"));
 
+            bool permitLockboxDeployment = SemverComp.parse(_opcm.version()).major == 9;
+
             // Read the current respected game type from the ASR.
             IAnchorStateRegistry asr = IAnchorStateRegistry(artifacts.mustGetAddress("AnchorStateRegistryProxy"));
             GameType originalGameType = asr.respectedGameType();
@@ -345,8 +349,8 @@ contract ForkL1Live is Deployer, StdAssertions, FeatureFlags {
                 gameArgs: hex""
             });
 
-            // Migration needs 2 extra instructions: anchor root + game type overrides.
-            extraInstructions = new IOPContractsManagerUtils.ExtraInstruction[](2);
+            // Anchor root and game type overrides, plus lockbox deployment permission in v9.
+            extraInstructions = new IOPContractsManagerUtils.ExtraInstruction[](permitLockboxDeployment ? 3 : 2);
             extraInstructions[0] = IOPContractsManagerUtils.ExtraInstruction({
                 key: "overrides.cfg.startingAnchorRoot",
                 data: abi.encode(
@@ -357,6 +361,14 @@ contract ForkL1Live is Deployer, StdAssertions, FeatureFlags {
                 key: "overrides.cfg.startingRespectedGameType",
                 data: abi.encode(targetGameType)
             });
+
+            // Chains without a lockbox need permission to deploy one. Existing lockboxes are reused.
+            if (permitLockboxDeployment) {
+                extraInstructions[2] = IOPContractsManagerUtils.ExtraInstruction({
+                    key: Constants.PERMITTED_PROXY_DEPLOYMENT_KEY,
+                    data: bytes("ETHLockbox")
+                });
+            }
         }
 
         vm.prank(_delegateCaller, true);

@@ -46,26 +46,19 @@ pub struct OnlineBlobProvider<B: BeaconClient> {
 impl<B: BeaconClient> OnlineBlobProvider<B> {
     /// Creates a new instance of the [`OnlineBlobProvider`].
     ///
-    /// The `genesis_time` and `slot_interval` arguments are _optional_ and the
-    /// [`OnlineBlobProvider`] will attempt to load them dynamically at runtime if they are not
-    /// provided.
-    ///
-    /// ## Panics
-    /// Panics if the genesis time or slot interval cannot be loaded from the beacon client.
-    pub async fn init(beacon_client: B) -> Self {
+    /// Loads the beacon genesis time and slot interval from the client.
+    pub async fn init(beacon_client: B) -> Result<Self, BlobProviderError> {
         let genesis_time = beacon_client
             .genesis_time()
             .await
             .map(|r| r.data.genesis_time)
-            .map_err(|e| BlobProviderError::Backend(e.to_string()))
-            .expect("Failed to load genesis time from beacon client");
+            .map_err(|e| BlobProviderError::Backend(e.to_string()))?;
         let slot_interval = beacon_client
             .slot_interval()
             .await
             .map(|r| r.data.seconds_per_slot)
-            .map_err(|e| BlobProviderError::Backend(e.to_string()))
-            .expect("Failed to load slot interval from beacon client");
-        Self { beacon_client, genesis_time, slot_interval }
+            .map_err(|e| BlobProviderError::Backend(e.to_string()))?;
+        Ok(Self { beacon_client, genesis_time, slot_interval })
     }
 
     /// Computes the slot for the given timestamp.
@@ -206,5 +199,50 @@ where
 
         // Extract the blob data from BoxedBlob wrappers
         Ok(blobs.into_iter().map(|boxed_blob| boxed_blob.blob).collect())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::{APIConfigResponse, APIGenesisResponse};
+
+    use super::*;
+
+    struct FailingBeaconClient;
+
+    #[async_trait]
+    impl BeaconClient for FailingBeaconClient {
+        type Error = &'static str;
+
+        fn slot_not_found(_err: &Self::Error) -> Option<u64> {
+            None
+        }
+
+        async fn slot_interval(&self) -> Result<APIConfigResponse, Self::Error> {
+            Err("spec unavailable")
+        }
+
+        async fn genesis_time(&self) -> Result<APIGenesisResponse, Self::Error> {
+            Err("genesis unavailable")
+        }
+
+        async fn filtered_beacon_blobs(
+            &self,
+            _slot: u64,
+            _blob_hashes: &[B256],
+        ) -> Result<Vec<BoxedBlob>, Self::Error> {
+            unreachable!("initialization does not fetch blobs")
+        }
+    }
+
+    #[tokio::test]
+    async fn initialization_does_not_panic_when_beacon_metadata_is_unavailable() {
+        let task = tokio::spawn(OnlineBlobProvider::init(FailingBeaconClient));
+
+        let result = task.await.expect("beacon metadata failure panicked");
+        assert_eq!(
+            result.err(),
+            Some(BlobProviderError::Backend("genesis unavailable".to_string())),
+        );
     }
 }

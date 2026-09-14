@@ -599,7 +599,7 @@ contract DeployImplementations is Script {
 
         IStandardValidatorUtils standardValidatorUtils = IStandardValidatorUtils(
             DeployUtils.createDeterministic({
-                _name: "StandardValidatorUtils.sol:StandardValidatorUtils",
+                _name: "StandardValidatorUtils",
                 _args: DeployUtils.encodeConstructor(abi.encodeCall(IStandardValidatorUtils.__constructor__, ())),
                 _salt: _salt
             })
@@ -607,7 +607,7 @@ contract DeployImplementations is Script {
 
         IOPContractsManagerMigrationValidator migrationValidatorImpl = IOPContractsManagerMigrationValidator(
             DeployUtils.createDeterministic({
-                _name: "OPContractsManagerMigrationValidator.sol:OPContractsManagerMigrationValidator",
+                _name: "OPContractsManagerMigrationValidator",
                 _args: DeployUtils.encodeConstructor(
                     abi.encodeCall(IOPContractsManagerMigrationValidator.__constructor__, ())
                 ),

@@ -3,6 +3,7 @@
 use std::{fmt::Debug, sync::Arc};
 
 use alloy_op_evm::{block::OpAlloyReceiptBuilder, post_exec::PostExecEvmFactoryAdapter};
+use alloy_primitives::B256;
 use anyhow::{Result, anyhow};
 use async_trait::async_trait;
 use kona_derive::{
@@ -56,6 +57,33 @@ where
     }
 }
 
+/// The execution target and expected output of a block in a derivation segment.
+#[derive(Debug, Clone, Copy)]
+pub struct BlockClaim {
+    /// The L2 block number that execution must reach.
+    pub block_number: u64,
+    /// The expected output root at the target block.
+    pub output_root: B256,
+}
+
+impl From<&BootInfo> for BlockClaim {
+    fn from(boot: &BootInfo) -> Self {
+        Self {
+            block_number: boot.claimed_l2_block_number,
+            output_root: boot.claimed_l2_output_root,
+        }
+    }
+}
+
+/// A nonempty sequence of claims sharing one derivation driver.
+#[derive(Debug)]
+pub struct SegmentClaims {
+    /// Initializes the driver and supplies its first claim.
+    pub first: BootInfo,
+    /// Subsequent claims, in execution order, using the first boot's configuration.
+    pub following: Vec<BlockClaim>,
+}
+
 /// The [`WitnessExecutor`] trait defines an interface for constructing and running the derivation
 /// pipeline.
 #[async_trait]
@@ -91,7 +119,7 @@ pub trait WitnessExecutor {
     /// Validates ordered, contiguous claims for one chain using a single derivation driver.
     async fn run<O, DP, P>(
         &self,
-        boots: &[BootInfo],
+        claims: &SegmentClaims,
         pipeline: DP,
         cursor: Arc<RwLock<PipelineCursor>>,
         l2_provider: OracleL2ChainProvider<O>,
@@ -101,9 +129,7 @@ pub trait WitnessExecutor {
         DP: DriverPipeline<P> + Send + Sync + Debug,
         P: Pipeline + SignalReceiver + Send + Sync + Debug,
     {
-        let Some(boot) = boots.first() else {
-            return Ok(());
-        };
+        let boot = &claims.first;
         // Install custom crypto provider for KZG point evaluation precompile
         revm::precompile::install_crypto(CustomCrypto::default());
 
@@ -119,25 +145,26 @@ pub trait WitnessExecutor {
             None,
         );
         let mut driver = Driver::new(cursor, executor, pipeline);
-        for boot in boots {
+        let first_claim = BlockClaim::from(boot);
+        for claim in std::iter::once(first_claim).chain(claims.following.iter().copied()) {
             #[cfg(target_os = "zkvm")]
             println!("cycle-tracker-report-start: block-execution-and-derivation");
             let (safe_head, output_root) = driver
                 .advance_to_target_with_metrics(
                     rollup_config.as_ref(),
-                    Some(boot.claimed_l2_block_number),
+                    Some(claim.block_number),
                     &CycleTrackerDriverMetrics,
                 )
                 .await?;
             #[cfg(target_os = "zkvm")]
             println!("cycle-tracker-report-end: block-execution-and-derivation");
 
-            if output_root != boot.claimed_l2_output_root {
+            if output_root != claim.output_root {
                 return Err(anyhow!(
                     "Failed to validate L2 block #{number} with claimed output root {claimed_output_root}. Got {output_root} instead",
                     number = safe_head.block_info.number,
                     output_root = output_root,
-                    claimed_output_root = boot.claimed_l2_output_root,
+                    claimed_output_root = claim.output_root,
                 ));
             }
 
@@ -145,10 +172,7 @@ pub trait WitnessExecutor {
             // check, a non-interop EndOfSource that triggers the silent target downgrade in
             // advance_to_target can let an adversarial witness commit (l2PostRoot, l2BlockNumber)
             // pairs that refer to different L2 blocks. See GHSA-5jh4-3p33-85xc.
-            ensure_derived_block_matches_claim(
-                safe_head.block_info.number,
-                boot.claimed_l2_block_number,
-            )?;
+            ensure_derived_block_matches_claim(safe_head.block_info.number, claim.block_number)?;
 
             info!(
                 target: "client",
@@ -287,7 +311,7 @@ mod tests {
         }
     }
 
-    fn run_claims(boots: &[BootInfo]) -> Result<()> {
+    fn run_claims(claims: &SegmentClaims) -> Result<()> {
         let header = Header { number: 3, ..Default::default() };
         let head = L2BlockInfo {
             block_info: BlockInfo { number: 3, ..Default::default() },
@@ -301,31 +325,38 @@ mod tests {
             Arc::new(PreimageStore::default()),
         );
         block_on(TestWitnessExecutor.run(
-            boots,
+            claims,
             ExhaustedPipeline::default(),
             Arc::new(RwLock::new(cursor)),
             provider,
         ))
     }
 
-    fn claim(block_number: u64, output_root: B256) -> BootInfo {
-        BootInfo {
-            l1_head: B256::ZERO,
-            agreed_l2_output_root: b256(1),
-            claimed_l2_output_root: output_root,
-            claimed_l2_block_number: block_number,
-            chain_id: 10,
-            rollup_config: RollupConfig::default(),
-            l1_config: L1ChainConfig::default(),
+    fn matching_claims() -> SegmentClaims {
+        SegmentClaims {
+            first: BootInfo {
+                l1_head: B256::ZERO,
+                agreed_l2_output_root: b256(1),
+                claimed_l2_output_root: b256(1),
+                claimed_l2_block_number: 3,
+                chain_id: 10,
+                rollup_config: RollupConfig::default(),
+                l1_config: L1ChainConfig::default(),
+            },
+            following: vec![BlockClaim { block_number: 3, output_root: b256(1) }; 2],
         }
     }
 
     #[test]
     fn executor_rejects_incorrect_output_root() {
         for index in 0..3 {
-            let mut boots = vec![claim(3, b256(1)); 3];
-            boots[index].claimed_l2_output_root = b256(2);
-            let err = run_claims(&boots).unwrap_err();
+            let mut claims = matching_claims();
+            if index == 0 {
+                claims.first.claimed_l2_output_root = b256(2);
+            } else {
+                claims.following[index - 1].output_root = b256(2);
+            }
+            let err = run_claims(&claims).unwrap_err();
             assert!(err.to_string().contains("Failed to validate L2 block #3"), "{err}");
         }
     }
@@ -333,9 +364,13 @@ mod tests {
     #[test]
     fn executor_rejects_exhausted_pipeline_below_claimed_block() {
         for index in 0..3 {
-            let mut boots = vec![claim(3, b256(1)); 3];
-            boots[index].claimed_l2_block_number = 4;
-            let err = run_claims(&boots).unwrap_err();
+            let mut claims = matching_claims();
+            if index == 0 {
+                claims.first.claimed_l2_block_number = 4;
+            } else {
+                claims.following[index - 1].block_number = 4;
+            }
+            let err = run_claims(&claims).unwrap_err();
             assert!(
                 err.to_string().contains(
                     "Derived safe head L2 block #3 does not match claimed L2 block number #4"
@@ -347,7 +382,10 @@ mod tests {
 
     #[test]
     fn executor_accepts_matching_claims() {
-        run_claims(&vec![claim(3, b256(1)); 3]).unwrap();
+        let mut claims = matching_claims();
+        run_claims(&claims).unwrap();
+        claims.following.clear();
+        run_claims(&claims).unwrap();
     }
 
     #[test]

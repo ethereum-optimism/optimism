@@ -5,6 +5,7 @@ cache
 broadcast
 kout-proofs
 test/kontrol/logs
+foundry.lock
 
 # Metrics
 coverage.out

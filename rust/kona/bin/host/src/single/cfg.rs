@@ -131,6 +131,9 @@ pub enum SingleChainHostError {
     /// Task failed to execute to completion.
     #[error("Join error: {0}")]
     ExecutionError(#[from] tokio::task::JoinError),
+    /// A blob provider error.
+    #[error("Blob provider error: {0}")]
+    BlobProviderError(#[from] kona_derive::BlobProviderError),
     /// No rollup config found.
     #[error("No rollup config found")]
     NoRollupConfig,
@@ -274,7 +277,7 @@ impl SingleChainHost {
                 .clone()
                 .ok_or(SingleChainHostError::Other("Beacon API URL must be set"))?,
         ))
-        .await;
+        .await?;
         let l2_provider = rpc_provider::<Optimism>(
             self.l2_node_address
                 .as_ref()

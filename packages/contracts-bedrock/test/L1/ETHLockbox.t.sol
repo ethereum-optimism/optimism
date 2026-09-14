@@ -34,7 +34,7 @@ abstract contract ETHLockbox_TestInit is CommonTest {
         super.setUp();
 
         // If the ETHLockbox system feature is not enabled, skip these tests.
-        skipIfSysFeatureDisabled(Features.ETH_LOCKBOX);
+        assertTrue(systemConfig.isFeatureEnabled(Features.ETH_LOCKBOX), "ETH_LOCKBOX must be enabled");
     }
 }
 
