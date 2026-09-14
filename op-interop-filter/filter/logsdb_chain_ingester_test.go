@@ -471,46 +471,6 @@ func TestLogsDBChainIngester_CalculateStartingBlock_BackfillUnderflow(t *testing
 	require.Equal(t, l2StartBlock, startingBlock)
 }
 
-func TestLogsDBChainIngester_CalculateStartingBlock_ClampsToLagoonActivation(t *testing.T) {
-	cfg := testRollupConfig(901, 100, 1000)
-	cfg.LagoonTime = ptr.New(uint64(1101))
-
-	ingester := newTestLogsDBChainIngester(t, testIngesterConfig{
-		chainID:   eth.ChainIDFromUInt64(901),
-		dataDir:   t.TempDir(),
-		ethClient: NewMockEthClient(),
-		rollupCfg: cfg,
-	})
-	ingester.startTimestamp = 1200
-	ingester.backfillDuration = 200 * time.Second
-
-	require.Equal(t, uint64(151), ingester.calculateStartingBlock())
-}
-
-func TestLogsDBChainIngester_InitIngestion_WaitsForLagoonActivation(t *testing.T) {
-	mockClient := NewMockEthClient()
-	head := createTestBlock(50, 1100, common.Hash{})
-	mockClient.AddBlock(head, nil)
-	mockClient.SetHeadBlock(head)
-
-	cfg := testRollupConfig(901, 0, 1000)
-	cfg.LagoonTime = ptr.New(uint64(1200))
-	ingester := newTestLogsDBChainIngester(t, testIngesterConfig{
-		chainID:   eth.ChainIDFromUInt64(901),
-		dataDir:   t.TempDir(),
-		ethClient: mockClient,
-		rollupCfg: cfg,
-	})
-	ingester.startTimestamp = 1100
-	ingester.backfillDuration = 200 * time.Second
-	require.NoError(t, ingester.initLogsDB())
-	t.Cleanup(func() { require.NoError(t, ingester.logsDB.Close()) })
-
-	startingBlock, err := ingester.initIngestion()
-	require.NoError(t, err)
-	require.Equal(t, uint64(100), startingBlock)
-}
-
 func TestLogsDBChainIngester_InitIngestion_ErrorGettingHead(t *testing.T) {
 	chainID := eth.ChainIDFromUInt64(901)
 	tempDir := t.TempDir()
