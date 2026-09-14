@@ -21,6 +21,7 @@ import (
 	"github.com/ethereum/go-ethereum/log"
 
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
+	"github.com/ethereum-optimism/optimism/op-node/rollup/async"
 	"github.com/ethereum-optimism/optimism/op-service/clock"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/ptr"
@@ -28,6 +29,11 @@ import (
 )
 
 const (
+	// maxFutureGossipDrift is how far into the future, in seconds, a payload's
+	// timestamp may be before the block is rejected. Unlike the staleness
+	// threshold it is not configurable.
+	maxFutureGossipDrift = 5
+
 	// maxGossipSize limits the total size of gossip RPC containers as well as decompressed individual messages.
 	maxGossipSize = 10 * (1 << 20)
 	// minGossipSize is used to make sure that there is at least some data to validate the signature against.
@@ -346,11 +352,7 @@ func BuildBlocksValidator(log log.Logger, cfg *rollup.Config, runCfg GossipRunti
 
 		payload := envelope.ExecutionPayload
 
-		// rounding down to seconds is fine here.
-		now := uint64(time.Now().Unix())
-		if clk != nil {
-			now = uint64(clk.Now().Unix())
-		}
+		now := gossipNow(clk)
 
 		// [REJECT] if the `payload.timestamp` is older than the configured threshold
 		threshold := uint64(gossipConf.GetGossipTimestampThreshold().Seconds())
@@ -359,8 +361,8 @@ func BuildBlocksValidator(log log.Logger, cfg *rollup.Config, runCfg GossipRunti
 			return pubsub.ValidationReject
 		}
 
-		// [REJECT] if the `payload.timestamp` is more than 5 seconds into the future
-		if uint64(payload.Timestamp) > now+5 {
+		// [REJECT] if the `payload.timestamp` is too far into the future
+		if uint64(payload.Timestamp) > now+maxFutureGossipDrift {
 			log.Warn("payload is too new", "timestamp", uint64(payload.Timestamp))
 			return pubsub.ValidationReject
 		}
@@ -546,9 +548,22 @@ type publisher struct {
 	blocksV4 *blockTopic
 
 	runCfg GossipRuntimeConfig
+
+	// clk is the clock the validator judges timestamps against, so that
+	// classifyPublishError reasons about the same "now" it did. Nil outside tests.
+	clk clock.Clock
 }
 
 var _ GossipOut = (*publisher)(nil)
+
+// gossipNow is the clock the block validator judges payload timestamps against.
+// clk is nil outside tests. Rounding down to seconds is fine here.
+func gossipNow(clk clock.Clock) uint64 {
+	if clk != nil {
+		return uint64(clk.Now().Unix())
+	}
+	return uint64(time.Now().Unix())
+}
 
 func combinePeers(allPeers ...[]peer.ID) []peer.ID {
 	seen := make(map[peer.ID]bool)
@@ -627,11 +642,15 @@ func (p *publisher) SignAndPublishL2Payload(ctx context.Context, envelope *eth.E
 
 	if envelope.ParentBeaconBlockRoot != nil {
 		if _, err := envelope.MarshalSSZ(buf); err != nil {
-			return fmt.Errorf("failed to encoded execution payload envelope to publish: %w", err)
+			// A pure function of the envelope: encoding it again cannot succeed.
+			return fmt.Errorf("%w: failed to encoded execution payload envelope to publish: %w",
+				async.ErrPermanentPublish, err)
 		}
 	} else {
 		if _, err := envelope.ExecutionPayload.MarshalSSZ(buf); err != nil {
-			return fmt.Errorf("failed to encoded execution payload to publish: %w", err)
+			// A pure function of the envelope: encoding it again cannot succeed.
+			return fmt.Errorf("%w: failed to encoded execution payload to publish: %w",
+				async.ErrPermanentPublish, err)
 		}
 	}
 	data := buf.Bytes()
@@ -652,14 +671,47 @@ func (p *publisher) publishRawSignedPayload(ctx context.Context, timestamp uint6
 	out := snappy.Encode(nil, data)
 
 	if p.cfg.IsIsthmus(timestamp) {
-		return p.blocksV4.topic.Publish(ctx, out)
+		return p.classifyPublishError(p.blocksV4.topic.Publish(ctx, out), timestamp)
 	} else if p.cfg.IsEcotone(timestamp) {
-		return p.blocksV3.topic.Publish(ctx, out)
+		return p.classifyPublishError(p.blocksV3.topic.Publish(ctx, out), timestamp)
 	} else if p.cfg.IsCanyon(timestamp) {
-		return p.blocksV2.topic.Publish(ctx, out)
+		return p.classifyPublishError(p.blocksV2.topic.Publish(ctx, out), timestamp)
 	} else {
-		return p.blocksV1.topic.Publish(ctx, out)
+		return p.classifyPublishError(p.blocksV1.topic.Publish(ctx, out), timestamp)
 	}
+}
+
+// classifyPublishError marks the publish failures that cannot succeed on a
+// retry, so the caller drops the block instead of holding it at the head of a
+// queue. Publishing runs our own topic validator inline on this node - see
+// ValidateLocal - so a rejection here is this node judging its own block against
+// the envelope, the fork config and the clock, and it will judge it the same way
+// next time. The staleness threshold in particular only moves further out of
+// reach, because a retry makes a block older, never younger.
+//
+// The exception is a block that is still ahead of the local clock, which
+// validates once the clock catches up. That needs the clock to have stepped
+// backwards to reach at all - block timestamps are chain-derived, and the
+// sequencer waits rather than sealing early - but treating it as permanent would
+// turn a clock step into sustained gossip loss rather than a few seconds of it.
+//
+// Deliberately an allowlist otherwise. Topic.Publish also surfaces the caller's
+// context error, from its eval loop and from sendMsgBlocking, so a publish that
+// merely ran out of time arrives here looking like any other failure - and it
+// must stay retryable.
+func (p *publisher) classifyPublishError(err error, timestamp uint64) error {
+	if err == nil {
+		return nil
+	}
+	// ValidationError is returned by value, so the target must be too.
+	var invalid pubsub.ValidationError
+	if errors.As(err, &invalid) || errors.Is(err, pubsub.ErrTopicClosed) {
+		if timestamp > gossipNow(p.clk)+maxFutureGossipDrift {
+			return err
+		}
+		return fmt.Errorf("%w: %w", async.ErrPermanentPublish, err)
+	}
+	return err
 }
 
 func (p *publisher) Close() error {
@@ -713,6 +765,7 @@ func JoinGossip(self peer.ID, ps *pubsub.PubSub, log log.Logger, cfg *rollup.Con
 		blocksV3:  blocksV3,
 		blocksV4:  blocksV4,
 		runCfg:    runCfg,
+		clk:       clk,
 	}, nil
 }
 
