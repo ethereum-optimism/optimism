@@ -345,7 +345,8 @@ impl InteropFilterClient {
                     warn!(
                         target: "txpool::interop",
                         endpoint = idx,
-                        %err,
+                        // Reqwest's Display omits the underlying TLS/DNS/connect cause.
+                        ?err,
                         "failsafe query failed"
                     );
                     // Deliberately not `from_json_rpc`: that classifier assigns access-list
@@ -1091,8 +1092,42 @@ mod tests {
         );
     }
 
+    /// Captures the error field from failsafe warnings, including its chosen tracing format.
+    #[derive(Clone, Default)]
+    struct FailsafeErrorLog(Arc<parking_lot::Mutex<String>>);
+
+    impl tracing::Subscriber for FailsafeErrorLog {
+        fn enabled(&self, metadata: &tracing::Metadata<'_>) -> bool {
+            *metadata.level() <= tracing::Level::WARN
+        }
+
+        fn new_span(&self, _span: &tracing::span::Attributes<'_>) -> tracing::span::Id {
+            tracing::span::Id::from_u64(1)
+        }
+
+        fn record(&self, _span: &tracing::span::Id, _values: &tracing::span::Record<'_>) {}
+
+        fn record_follows_from(&self, _span: &tracing::span::Id, _follows: &tracing::span::Id) {}
+
+        fn event(&self, event: &tracing::Event<'_>) {
+            if event.metadata().target() == "txpool::interop" {
+                event.record(&mut |field: &tracing::field::Field, value: &dyn std::fmt::Debug| {
+                    if field.name() == "err" {
+                        *self.0.lock() = format!("{value:?}");
+                    }
+                });
+            }
+        }
+
+        fn enter(&self, _span: &tracing::span::Id) {}
+
+        fn exit(&self, _span: &tracing::span::Id) {}
+    }
+
     #[tokio::test(flavor = "multi_thread")]
     async fn failsafe_transport_failure_is_not_reported_as_timeout() {
+        use tracing::instrument::WithSubscriber;
+
         // Nothing is listening on the endpoint, so the request fails at connect in microseconds.
         // Reporting that as "timed out after N secs" is what sent a real investigation after load
         // and endpoint health instead of the connector error. Bind and drop a port rather than
@@ -1104,9 +1139,15 @@ mod tests {
             .timeout(Duration::from_secs(2))
             .build()
             .await;
+        let log = FailsafeErrorLog::default();
         let start = Instant::now();
-        let err = client.is_failsafe_enabled().await.unwrap_err();
+        let err = client.is_failsafe_enabled().with_subscriber(log.clone()).await.unwrap_err();
         assert!(start.elapsed() < Duration::from_secs(1), "the request did not fail fast");
+        let logged = log.0.lock();
+        assert!(
+            logged.contains("ConnectionRefused"),
+            "failsafe warning must include the underlying connect failure, got {logged}"
+        );
         assert!(
             matches!(err, InteropTxValidatorError::Other(_)),
             "a connect failure must be reported as itself, got {err:?}"
@@ -1125,6 +1166,32 @@ mod tests {
             client.is_failsafe_enabled().await.unwrap(),
             "a partial poll must return the cached gate, not the endpoint error"
         );
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn failsafe_rpc_error_takes_precedence_over_timeout() {
+        let bad = MockEndpoint::start(Verdict::Valid, Failsafe::Error).await;
+        let silent = MockEndpoint::start(Verdict::Valid, Failsafe::Slow).await;
+        for endpoints in [[&bad, &silent], [&silent, &bad]] {
+            for cached in [false, true] {
+                let client = client_for(&endpoints, None).await;
+                client.apply_failsafe_state(cached);
+                let err = client.is_failsafe_enabled().await.unwrap_err();
+                assert!(
+                    matches!(err, InteropTxValidatorError::Other(_)),
+                    "an RPC failure must take precedence over a timeout, got {err:?}"
+                );
+                assert!(
+                    err.to_string().contains("internal error"),
+                    "the RPC error message must be preserved, got {err}"
+                );
+                assert_eq!(
+                    client.is_failsafe_enabled_cached(),
+                    cached,
+                    "a mixed error/timeout poll must leave the cached gate unchanged"
+                );
+            }
+        }
     }
 
     #[tokio::test(flavor = "multi_thread")]
