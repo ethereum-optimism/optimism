@@ -17,6 +17,7 @@ import (
 	cc "github.com/ethereum-optimism/optimism/op-supernode/supernode/chain_container"
 
 	"github.com/ethereum-optimism/optimism/op-core/interop"
+	"github.com/ethereum-optimism/optimism/op-core/interop/depset"
 	messages "github.com/ethereum-optimism/optimism/op-core/interop/messages"
 )
 
@@ -49,6 +50,9 @@ type verifyInteropTestCase struct {
 func runVerifyInteropTest(t *testing.T, tc verifyInteropTestCase) {
 	t.Parallel()
 	interop, timestamp, blocks := tc.setup()
+	if interop.dependencySet == nil {
+		interop.dependencySet = dependencySetForChains(t, interop.chains, 0)
+	}
 	result, err := interop.verifyInteropMessages(timestamp, blocks, l1HeadsFromMocks(interop.chains, blocks), nil)
 
 	if tc.expectError {
@@ -358,6 +362,99 @@ func TestL1Inclusion_UsesSnapshotNotChainContainer(t *testing.T) {
 	l1, err := interop.l1Inclusion(blocks, snapshot)
 	require.NoError(t, err)
 	require.Equal(t, snapshot[chainID], l1)
+}
+
+func TestVerifyExecutingMessageRejectsMissingDependencySet(t *testing.T) {
+	t.Parallel()
+
+	sourceChainID := eth.ChainIDFromUInt64(10)
+	executingChainID := eth.ChainIDFromUInt64(8453)
+	execMsg := &messages.ExecutingMessage{
+		ChainID:   sourceChainID,
+		BlockNum:  50,
+		LogIdx:    0,
+		Timestamp: 500,
+		Checksum:  messages.MessageChecksum{0x01},
+	}
+	interop := &Interop{
+		activationTimestamp: 0,
+		messageExpiryWindow: defaultMessageExpiryWindow,
+		logsDBs: map[eth.ChainID]LogsDB{
+			sourceChainID: &algoMockLogsDB{},
+		},
+		chains: map[eth.ChainID]cc.InteropChain{
+			sourceChainID:    &algoMockChain{id: sourceChainID},
+			executingChainID: &algoMockChain{id: executingChainID},
+		},
+	}
+
+	err := interop.verifyExecutingMessage(executingChainID, 1000, 0, execMsg, nil)
+	require.ErrorIs(t, err, ErrChainNotInDependencySet)
+}
+
+func TestVerifyExecutingMessageChecksDependencySetMembership(t *testing.T) {
+	t.Parallel()
+
+	sourceChainID := eth.ChainIDFromUInt64(10)
+	executingChainID := eth.ChainIDFromUInt64(8453)
+	tests := []struct {
+		name     string
+		included []eth.ChainID
+		wantErr  bool
+	}{
+		{
+			name:     "executing chain excluded",
+			included: []eth.ChainID{sourceChainID},
+			wantErr:  true,
+		},
+		{
+			name:     "initiating chain excluded",
+			included: []eth.ChainID{executingChainID},
+			wantErr:  true,
+		},
+		{
+			name:     "both chains included",
+			included: []eth.ChainID{sourceChainID, executingChainID},
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			dependencies := make(map[eth.ChainID]*depset.StaticConfigDependency, len(test.included))
+			for _, chainID := range test.included {
+				dependencies[chainID] = &depset.StaticConfigDependency{}
+			}
+			dependencySet, err := depset.NewStaticConfigDependencySet(dependencies)
+			require.NoError(t, err)
+
+			execMsg := &messages.ExecutingMessage{
+				ChainID:   sourceChainID,
+				BlockNum:  50,
+				LogIdx:    0,
+				Timestamp: 500,
+				Checksum:  messages.MessageChecksum{0x01},
+			}
+			interop := &Interop{
+				activationTimestamp: 0,
+				dependencySet:       dependencySet,
+				messageExpiryWindow: defaultMessageExpiryWindow,
+				logsDBs: map[eth.ChainID]LogsDB{
+					sourceChainID: &algoMockLogsDB{},
+				},
+				chains: map[eth.ChainID]cc.InteropChain{
+					sourceChainID:    &algoMockChain{id: sourceChainID},
+					executingChainID: &algoMockChain{id: executingChainID},
+				},
+			}
+
+			err = interop.verifyExecutingMessage(executingChainID, 1000, 0, execMsg, nil)
+			if test.wantErr {
+				require.ErrorIs(t, err, ErrChainNotInDependencySet)
+			} else {
+				require.NoError(t, err)
+			}
+		})
+	}
 }
 
 func TestVerifyInteropMessages(t *testing.T) {

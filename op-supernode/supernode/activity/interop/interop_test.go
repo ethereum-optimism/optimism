@@ -9,6 +9,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/ethereum-optimism/optimism/op-core/interop/depset"
 	messages "github.com/ethereum-optimism/optimism/op-core/interop/messages"
 	optypes "github.com/ethereum-optimism/optimism/op-core/types"
 	"github.com/ethereum-optimism/optimism/op-service/bigs"
@@ -49,6 +50,22 @@ func newInteropTestHarness(t *testing.T) *interopTestHarness {
 		activationTime: 1000,
 		dataDir:        t.TempDir(),
 	}
+}
+
+func dependencySetForChains(t *testing.T, chains map[eth.ChainID]cc.InteropChain, expiry uint64) depset.DependencySet {
+	t.Helper()
+	dependencies := make(map[eth.ChainID]*depset.StaticConfigDependency, len(chains))
+	for chainID := range chains {
+		dependencies[chainID] = &depset.StaticConfigDependency{}
+	}
+	if expiry == 0 {
+		dependencySet, err := depset.NewStaticConfigDependencySet(dependencies)
+		require.NoError(t, err)
+		return dependencySet
+	}
+	dependencySet, err := depset.NewStaticConfigDependencySetWithMessageExpiryOverride(dependencies, expiry)
+	require.NoError(t, err)
+	return dependencySet
 }
 
 // WithActivation sets the interop activation timestamp.
@@ -100,7 +117,7 @@ func (h *interopTestHarness) Build() *interopTestHarness {
 		}
 		chains[id] = mock
 	}
-	h.interop = New(testLogger(), h.activationTime, 0, chains, h.dataDir, nil, h.logBackfillDepth, nil)
+	h.interop = New(testLogger(), h.activationTime, dependencySetForChains(h.t, chains, 0), chains, h.dataDir, nil, h.logBackfillDepth, nil)
 	if h.interop != nil {
 		h.interop.l1Checker = noopL1Checker{}
 		h.interop.ctx = context.Background()
@@ -183,12 +200,19 @@ func TestNew(t *testing.T) {
 				return h.WithChain(10, nil).WithChain(8453, nil).SkipBuild()
 			},
 			run: func(t *testing.T, h *interopTestHarness) {
-				interop := New(testLogger(), h.activationTime, 0, h.Chains(), h.dataDir, nil, 0, nil)
+				dependencySet := dependencySetForChains(t, h.Chains(), 1234)
+				interop := New(testLogger(), h.activationTime, dependencySet, h.Chains(), h.dataDir, nil, 0, nil)
 				require.NotNil(t, interop)
 				interop.l1Checker = noopL1Checker{}
 				t.Cleanup(func() { _ = interop.Stop(context.Background()) })
 
 				require.Equal(t, uint64(1000), interop.activationTimestamp)
+				execMsg := &messages.ExecutingMessage{
+					ChainID:   eth.ChainIDFromUInt64(10),
+					Timestamp: 2000,
+				}
+				err := interop.verifyExecutingMessage(eth.ChainIDFromUInt64(8453), 3235, 0, execMsg, nil)
+				require.ErrorIs(t, err, ErrMessageExpired)
 				require.NotNil(t, interop.verifiedDB)
 				require.Len(t, interop.chains, 2)
 				require.Len(t, interop.logsDBs, 2)
@@ -207,7 +231,7 @@ func TestNew(t *testing.T) {
 				return h.WithDataDir("/nonexistent/path").SkipBuild()
 			},
 			run: func(t *testing.T, h *interopTestHarness) {
-				interop := New(testLogger(), h.activationTime, 0, h.Chains(), h.dataDir, nil, 0, nil)
+				interop := New(testLogger(), h.activationTime, nil, h.Chains(), h.dataDir, nil, 0, nil)
 				require.Nil(t, interop)
 			},
 		},
@@ -1012,7 +1036,7 @@ func TestFirstVerifiableTimestampRestoresSafeHeadHandoffAfterRestart(t *testing.
 	}))
 	require.NoError(t, db.Close())
 
-	interop := New(testLogger(), 100, 0, nil, dataDir, nil, 0, nil)
+	interop := New(testLogger(), 100, nil, nil, dataDir, nil, 0, nil)
 	require.NotNil(t, interop)
 	defer func() { require.NoError(t, interop.Stop(context.Background())) }()
 
@@ -1437,7 +1461,7 @@ func TestInterop_FullCycle(t *testing.T) {
 	}
 
 	chains := map[eth.ChainID]cc.InteropChain{mock.id: mock}
-	interop := New(testLogger(), 100, 0, chains, dataDir, nil, 0, nil)
+	interop := New(testLogger(), 100, dependencySetForChains(t, chains, 0), chains, dataDir, nil, 0, nil)
 	require.NotNil(t, interop)
 	interop.l1Checker = noopL1Checker{}
 	interop.ctx = context.Background()
