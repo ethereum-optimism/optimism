@@ -387,6 +387,8 @@ type OpConductor struct {
 	loopActionFn   func() // loopActionFn defines the logic to be executed inside control loop.
 
 	transferStrategy TransferStrategy
+	leadershipPolicy LeadershipPolicy // optional, nil disables voluntary yielding.
+	policyInterval   time.Duration
 	extraAPIs        []rpc.API
 
 	wg             sync.WaitGroup
@@ -467,6 +469,11 @@ func (oc *OpConductor) Start(ctx context.Context) error {
 
 	oc.wg.Add(1)
 	go oc.loop()
+
+	if oc.leadershipPolicy != nil {
+		oc.wg.Add(1)
+		go oc.policyLoop()
+	}
 
 	oc.metrics.RecordInfo(oc.version)
 	oc.metrics.RecordUp()
@@ -807,7 +814,8 @@ func (oc *OpConductor) action() {
 		// start sequencer
 		err = oc.startSequencer()
 	case status.leader && status.healthy && status.active:
-		// normal leader, do nothing
+		// normal leader, but a policy may still prefer someone else to lead.
+		err = oc.maybeYieldLeadership()
 	}
 
 	oc.log.Debug("exiting action with status and error", "status", status, "err", err)
@@ -908,6 +916,50 @@ func (oc *OpConductor) selectTransferTargets() ([]consensus.ServerInfo, error) {
 		return nil, fmt.Errorf("failed to get cluster membership: %w", err)
 	}
 	return oc.transferStrategy.SelectTargets(oc.shutdownCtx, oc.cons.ServerID(), membership)
+}
+
+// maybeYieldLeadership consults the optional LeadershipPolicy and gives up
+// leadership if it asks us to. It is only reached while this conductor is a
+// healthy, actively sequencing leader.
+func (oc *OpConductor) maybeYieldLeadership() error {
+	if oc.leadershipPolicy == nil {
+		return nil
+	}
+
+	membership, err := oc.cons.ClusterMembership()
+	if err != nil {
+		return fmt.Errorf("failed to get cluster membership: %w", err)
+	}
+
+	yield, err := oc.leadershipPolicy.ShouldYieldLeadership(oc.shutdownCtx, oc.cons.ServerID(), membership)
+	if err != nil {
+		return fmt.Errorf("failed to evaluate leadership policy: %w", err)
+	}
+	if !yield {
+		return nil
+	}
+
+	oc.log.Info("leadership policy requested yielding leadership", "server", oc.cons.ServerID())
+	return oc.transferLeader()
+}
+
+// policyLoop periodically re-runs the control loop so that a leader notices
+// changes elsewhere in the cluster that no local event would surface. It only
+// enqueues work: every decision stays on the control loop.
+func (oc *OpConductor) policyLoop() {
+	defer oc.wg.Done()
+
+	ticker := time.NewTicker(oc.policyInterval)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-oc.shutdownCtx.Done():
+			return
+		case <-ticker.C:
+			oc.queueAction()
+		}
+	}
 }
 
 func (oc *OpConductor) stopSequencer() error {
