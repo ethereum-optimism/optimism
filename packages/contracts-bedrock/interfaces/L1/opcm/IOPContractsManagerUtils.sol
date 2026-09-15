@@ -163,6 +163,5 @@ interface IOPContractsManagerUtils {
         view
         returns (bytes memory);
 
-
     function __constructor__(IOPContractsManagerContainer _contractsContainer) external;
 }
