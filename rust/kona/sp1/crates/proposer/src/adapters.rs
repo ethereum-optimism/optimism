@@ -7,8 +7,10 @@ use std::{
 };
 
 use alloy_eips::{BlockId, BlockNumberOrTag};
-use alloy_primitives::{Address, B256, U256};
-use alloy_provider::Provider;
+use alloy_network::Ethereum;
+use alloy_primitives::{Address, B256, Bytes, U256};
+use alloy_provider::{EthCallParams, Provider};
+use alloy_rpc_client::{BatchRequest, Waiter};
 use alloy_rpc_types_eth::{TransactionReceipt, TransactionRequest};
 use alloy_sol_types::SolEvent;
 use alloy_transport_http::reqwest::Url;
@@ -41,6 +43,14 @@ pub(crate) struct ProductionL1View<P> {
     provider: P,
     factory: DisputeGameFactoryInstance<P>,
     l1_rpc: Url,
+}
+
+fn add_eth_call<'a>(
+    batch: &mut BatchRequest<'a>,
+    request: TransactionRequest,
+    block: BlockId,
+) -> Result<Waiter<Bytes>> {
+    Ok(batch.add_call("eth_call", &EthCallParams::<Ethereum>::new(request).with_block(block))?)
 }
 
 impl<P> ProductionL1View<P> {
@@ -127,19 +137,56 @@ where
 
     async fn game_identity(&self, game: Address, block: BlockId) -> Result<GameIdentity> {
         let contract = ZKDisputeGame::new(game, self.provider.clone());
-        let anchor_state_registry = contract.anchorStateRegistry().block(block).call().await?;
-        let weth = contract.weth().block(block).call().await?;
-        let creator = contract.gameCreator().block(block).call().await?;
-        let sequence_number = contract.l2SequenceNumber().block(block).call().await?;
+        let anchor_state_registry_call = contract.anchorStateRegistry();
+        let weth_call = contract.weth();
+        let creator_call = contract.gameCreator();
+        let sequence_number_call = contract.l2SequenceNumber();
+        let mut batch = BatchRequest::new(self.provider.client());
+        let anchor_state_registry = add_eth_call(
+            &mut batch,
+            anchor_state_registry_call.clone().into_transaction_request(),
+            block,
+        )?;
+        let weth = add_eth_call(&mut batch, weth_call.clone().into_transaction_request(), block)?;
+        let creator =
+            add_eth_call(&mut batch, creator_call.clone().into_transaction_request(), block)?;
+        let sequence_number = add_eth_call(
+            &mut batch,
+            sequence_number_call.clone().into_transaction_request(),
+            block,
+        )?;
+        batch.send().await?;
+        let anchor_state_registry =
+            anchor_state_registry_call.decode_output(anchor_state_registry.await?)?;
+        let weth = weth_call.decode_output(weth.await?)?;
+        let creator = creator_call.decode_output(creator.await?)?;
+        let sequence_number = sequence_number_call.decode_output(sequence_number.await?)?;
         Ok(GameIdentity { anchor_state_registry, weth, creator, sequence_number })
     }
 
     async fn game_validity(&self, game: Address, block: BlockId) -> Result<GameValidity> {
         let contract = ZKDisputeGame::new(game, self.provider.clone());
-        let root_claim = contract.rootClaim().block(block).call().await?;
-        let was_respected = contract.wasRespectedGameTypeWhenCreated().block(block).call().await?;
-        let status = GameStatus::try_from(contract.status().block(block).call().await?)?;
-        let absolute_prestate = contract.absolutePrestate().block(block).call().await?;
+        let root_claim_call = contract.rootClaim();
+        let was_respected_call = contract.wasRespectedGameTypeWhenCreated();
+        let status_call = contract.status();
+        let absolute_prestate_call = contract.absolutePrestate();
+        let mut batch = BatchRequest::new(self.provider.client());
+        let root_claim =
+            add_eth_call(&mut batch, root_claim_call.clone().into_transaction_request(), block)?;
+        let was_respected =
+            add_eth_call(&mut batch, was_respected_call.clone().into_transaction_request(), block)?;
+        let status =
+            add_eth_call(&mut batch, status_call.clone().into_transaction_request(), block)?;
+        let absolute_prestate = add_eth_call(
+            &mut batch,
+            absolute_prestate_call.clone().into_transaction_request(),
+            block,
+        )?;
+        batch.send().await?;
+        let root_claim = root_claim_call.decode_output(root_claim.await?)?;
+        let was_respected = was_respected_call.decode_output(was_respected.await?)?;
+        let status = GameStatus::try_from(status_call.decode_output(status.await?)?)?;
+        let absolute_prestate = absolute_prestate_call.decode_output(absolute_prestate.await?)?;
         Ok(GameValidity { root_claim, was_respected, status, absolute_prestate })
     }
 
@@ -149,16 +196,22 @@ where
         registry: Address,
         block: BlockId,
     ) -> Result<GameLifecycle> {
-        let claim = self.game_claim(game, block).await?;
+        let game_contract = ZKDisputeGame::new(game, self.provider.clone());
+        let registry_contract = AnchorStateRegistry::new(registry, self.provider.clone());
+        let claim_call = game_contract.claimData();
+        let status_call = game_contract.status();
+        let is_finalized_call = registry_contract.isGameFinalized(game);
+        let mut batch = BatchRequest::new(self.provider.client());
+        let claim = add_eth_call(&mut batch, claim_call.clone().into_transaction_request(), block)?;
+        let status =
+            add_eth_call(&mut batch, status_call.clone().into_transaction_request(), block)?;
+        let is_finalized =
+            add_eth_call(&mut batch, is_finalized_call.clone().into_transaction_request(), block)?;
+        batch.send().await?;
+        let claim = claim_call.decode_output(claim.await?)?;
         let proposal_status = ProposalStatus::try_from(claim.status)?;
-        let status = GameStatus::try_from(
-            ZKDisputeGame::new(game, self.provider.clone()).status().block(block).call().await?,
-        )?;
-        let is_finalized = AnchorStateRegistry::new(registry, self.provider.clone())
-            .isGameFinalized(game)
-            .block(block)
-            .call()
-            .await?;
+        let status = GameStatus::try_from(status_call.decode_output(status.await?)?)?;
+        let is_finalized = is_finalized_call.decode_output(is_finalized.await?)?;
         Ok(GameLifecycle {
             proposal_status,
             deadline: claim.deadline,
@@ -184,14 +237,21 @@ where
         proposer: Address,
         block: BlockId,
     ) -> Result<BondState> {
-        let credit = ZKDisputeGame::new(game, self.provider.clone())
-            .credit(proposer)
-            .block(block)
-            .call()
-            .await?;
-        let weth = DelayedWETH::new(weth, self.provider.clone());
-        let withdrawal = weth.withdrawals(game, proposer).block(block).call().await?;
-        let delay = weth.delay().block(block).call().await?;
+        let game_contract = ZKDisputeGame::new(game, self.provider.clone());
+        let weth_contract = DelayedWETH::new(weth, self.provider.clone());
+        let credit_call = game_contract.credit(proposer);
+        let withdrawal_call = weth_contract.withdrawals(game, proposer);
+        let delay_call = weth_contract.delay();
+        let mut batch = BatchRequest::new(self.provider.client());
+        let credit =
+            add_eth_call(&mut batch, credit_call.clone().into_transaction_request(), block)?;
+        let withdrawal =
+            add_eth_call(&mut batch, withdrawal_call.clone().into_transaction_request(), block)?;
+        let delay = add_eth_call(&mut batch, delay_call.clone().into_transaction_request(), block)?;
+        batch.send().await?;
+        let credit = credit_call.decode_output(credit.await?)?;
+        let withdrawal = withdrawal_call.decode_output(withdrawal.await?)?;
+        let delay = delay_call.decode_output(delay.await?)?;
         Ok(BondState {
             credit,
             withdrawal_amount: withdrawal.amount,
@@ -757,7 +817,20 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn lifecycle_stops_after_an_invalid_claim_status() {
+    async fn identity_batches_all_reads_before_decoding_output() {
+        let asserter = Asserter::new();
+        asserter.push_success(&Bytes::new());
+        push_abi(&asserter, U256::ZERO);
+        push_abi(&asserter, U256::ZERO);
+        push_abi(&asserter, U256::ZERO);
+        let view = view(asserter.clone());
+
+        assert!(view.game_identity(Address::ZERO, BlockId::latest()).await.is_err());
+        assert!(asserter.read_q().is_empty());
+    }
+
+    #[tokio::test]
+    async fn lifecycle_batches_all_reads_before_decoding_claim_status() {
         let asserter = Asserter::new();
         push_abi(
             &asserter,
@@ -770,11 +843,27 @@ mod tests {
         assert!(
             view.game_lifecycle(Address::ZERO, Address::ZERO, BlockId::latest()).await.is_err()
         );
-        assert_eq!(asserter.read_q().len(), 2);
+        assert!(asserter.read_q().is_empty());
     }
 
     #[tokio::test]
-    async fn validity_stops_after_an_invalid_game_status() {
+    async fn bond_state_batches_all_reads_before_decoding_output() {
+        let asserter = Asserter::new();
+        asserter.push_success(&Bytes::new());
+        push_abi(&asserter, U256::ZERO);
+        push_abi(&asserter, U256::ZERO);
+        let view = view(asserter.clone());
+
+        assert!(
+            view.bond_state(Address::ZERO, Address::ZERO, Address::ZERO, BlockId::latest())
+                .await
+                .is_err()
+        );
+        assert!(asserter.read_q().is_empty());
+    }
+
+    #[tokio::test]
+    async fn validity_batches_all_reads_before_decoding_game_status() {
         let asserter = Asserter::new();
         push_abi(&asserter, B256::ZERO);
         push_abi(&asserter, true);
@@ -783,6 +872,6 @@ mod tests {
         let view = view(asserter.clone());
 
         assert!(view.game_validity(Address::ZERO, BlockId::latest()).await.is_err());
-        assert_eq!(asserter.read_q().len(), 1);
+        assert!(asserter.read_q().is_empty());
     }
 }
