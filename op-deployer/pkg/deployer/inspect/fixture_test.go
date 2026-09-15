@@ -62,6 +62,9 @@ func buildPreparedWorkdir(t *testing.T) (string, common.Hash) {
 	pEnv := &pipeline.Env{Logger: lgr, Deployer: deployerAddr}
 	bundle := artifacts.Bundle{L1: afacts, L2: afacts}
 	require.NoError(t, pipeline.GenerateL2Genesis(pEnv, intent, bundle, st, chain.ID))
+	depSet, err := pipeline.BuildInteropDepSet(intent.Chains)
+	require.NoError(t, err)
+	st.InteropDepSet = depSet
 	require.NoError(t, pipeline.ComputeGenesisOutputRoots(pEnv, intent, st))
 
 	prepared, err := pipeline.NewPreparedDeployment(intent, st, deployerAddr, common.HexToAddress("0x1234"), bundle)

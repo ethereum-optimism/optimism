@@ -178,15 +178,6 @@ func Prepare(ctx context.Context, cfg PrepareConfig) error {
 		return err
 	}
 
-	// Reject early a game type the pinned OPCM cannot deploy.
-	superRoot, err := opcm.ReadSuperRootEnabled(ctx, l1Client, opcmAddr)
-	if err != nil {
-		return fmt.Errorf("failed to read the OPCM game mode at %s: %w", opcmAddr, err)
-	}
-	if err := validateInitialGameTypes(intent, st, superRoot, opcmAddr); err != nil {
-		return err
-	}
-
 	// Record the implementations the pinned OPCM installs.
 	impls, err := opcm.ReadImplementations(ctx, l1Client, opcmAddr)
 	if err != nil {
@@ -273,21 +264,6 @@ func prepareChains(
 		return err
 	}
 
-	initialGameTypes := make([]uint32, 0, len(intent.Chains))
-	for _, chain := range intent.Chains {
-		if st.IsChainDeployed(chain.ID) {
-			continue
-		}
-		proofParams, err := pipeline.ResolveChainProofParams(intent, chain)
-		if err != nil {
-			return fmt.Errorf("failed to resolve initial dispute game type for chain %s: %w", chain.ID.Hex(), err)
-		}
-		initialGameTypes = append(initialGameTypes, proofParams.DisputeGameType)
-	}
-	if err := pipeline.ValidateInitialGameTypeSet(initialGameTypes); err != nil {
-		return err
-	}
-
 	interopDepSet, err := pipeline.BuildInteropDepSet(intent.Chains)
 	if err != nil {
 		return fmt.Errorf("failed to create interop dependency set: %w", err)
@@ -318,24 +294,6 @@ func checkOPCMHasCode(ctx context.Context, l1Client *ethclient.Client, opcmAddr 
 	}
 	if len(code) == 0 {
 		return fmt.Errorf("no contract code at intent.opcmAddress %s", opcmAddr)
-	}
-	return nil
-}
-
-// validateInitialGameTypes rejects any chain whose resolved game type belongs to the family the
-// pinned OPCM does not install. Deployed chains are skipped, their games being fixed on L1.
-func validateInitialGameTypes(intent *state.Intent, st *state.State, superRoot bool, opcmAddr common.Address) error {
-	for _, chain := range intent.Chains {
-		if st.IsChainDeployed(chain.ID) {
-			continue
-		}
-		proofParams, err := pipeline.ResolveChainProofParams(intent, chain)
-		if err != nil {
-			return fmt.Errorf("failed to resolve initial dispute game type for chain %s: %w", chain.ID.Hex(), err)
-		}
-		if err := pipeline.ValidateInitialGameTypeForOPCM(proofParams.DisputeGameType, superRoot, opcmAddr); err != nil {
-			return fmt.Errorf("chain %s: %w", chain.ID.Hex(), err)
-		}
 	}
 	return nil
 }
@@ -553,9 +511,9 @@ func makePredictionInput(intent *state.Intent, st *state.State, chain *state.Cha
 		Challenger:        standard.PlaceholderAddress,
 	}
 
-	// Permissioned deploys use the placeholder anchor broadcast by apply. Permissionless
-	// deploys use a sentinel because their real anchor depends on the addresses predicted
-	// here, and the placeholder is rejected for them.
+	// The dry run only needs an anchor that OPCM accepts. The real SuperV1 anchor depends on the
+	// addresses predicted here, so prepare computes it after prediction. OPCM rejects the
+	// placeholder for permissionless game types, so those use a sentinel.
 	startingAnchorRoot := opcm.DefaultStartingAnchorProposal()
 
 	if requirements.Permissionless {

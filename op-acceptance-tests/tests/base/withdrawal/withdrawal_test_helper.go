@@ -33,7 +33,6 @@ func withdrawalOpts(gameType gameTypes.GameType, extra ...presets.Option) []pres
 	if gameType == gameTypes.SuperPermissionedGameType || gameType == gameTypes.SuperCannonKonaGameType {
 		opts = append(opts, presets.WithDeployerOptions(
 			sysgo.WithDevFeatureEnabled(devfeatures.OptimismPortalInteropFlag),
-			sysgo.WithDevFeatureEnabled(devfeatures.SuperRootGamesMigrationFlag),
 		))
 	}
 	if gameType != gameTypes.SuperPermissionedGameType {

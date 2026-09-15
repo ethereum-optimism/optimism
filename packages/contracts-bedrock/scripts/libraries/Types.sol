@@ -41,7 +41,6 @@ library Types {
         GameType disputeGameType;
         Claim disputeAbsolutePrestate;
         Proposal startingAnchorRoot;
-        Claim cannonAbsolutePrestate;
         uint256 disputeMaxGameDepth;
         uint256 disputeSplitDepth;
         Duration disputeClockExtension;

@@ -119,11 +119,11 @@ func writePreparedPrestateCLIWorkdir(t *testing.T) (string, common.Hash) {
 		Proposer:          role,
 		Challenger:        role,
 	}
-	chain.DeployOverrides = map[string]any{"respectedGameType": embedded.GameTypeCannonKona}
+	chain.DeployOverrides = map[string]any{"respectedGameType": embedded.GameTypeSuperCannonKona}
 
 	interopDepSet, err := pipeline.BuildInteropDepSet(intent.Chains)
 	require.NoError(t, err)
-	initialGameType := uint32(embedded.GameTypeCannonKona)
+	initialGameType := uint32(embedded.GameTypeSuperCannonKona)
 	deployed := false
 	superchainConfig := common.Address{0x02}
 	st := &state.State{
