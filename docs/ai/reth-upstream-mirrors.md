@@ -82,8 +82,10 @@ Statuses: `current`, `stale` (review it), `frozen` (an intentionally old
 4. Advance the tag only after that check. The reviewer separately inspects every
    tag change relative to the merge base, so a current head tag is not proof of
    re-verification.
-5. If you deleted a mirror by calling upstream instead, delete the tag. That is the best
-   outcome available and the number going down is the metric worth watching.
+5. If you deleted a mirror by calling upstream instead, delete the tag only when
+   the entire tagged item's duplicated behavior is gone. Delegating a helper does
+   not retire its caller's mirror: input preparation, dispatch, and error handling
+   may still reproduce upstream logic.
 
 ### Which repo you diff a `reth` mirror against
 
@@ -91,24 +93,26 @@ Statuses: `current`, `stale` (review it), `frozen` (an intentionally old
 and printed by `just mirrors`, so a move between remotes doesn't invalidate every tag —
 check the output for what we currently build against.
 
-That source is OP's own reth fork — read the current remote out of `just mirrors` rather
-than assuming the one written here. **It is not a drift source.** Its branch points at
-an upstream reth commit — preferably a release — and carries temporary cherry-picks of work
-that has not merged upstream yet. It does not accumulate divergence over time, so diffing a
-mirror against the pinned rev is very nearly diffing against upstream reth, and the delta is
-those cherry-picks.
+The source may be upstream reth or OP's maintenance fork — read the current remote
+out of `just mirrors` rather than assuming the one written here. A maintenance
+fork starts from an upstream commit, preferably a release, and carries temporary
+patches not yet present in that release, including backports already merged on
+upstream `main`. Audit those patches before moving the pin; do not assume a newer
+release contains them merely because they have merged upstream.
 
 Two practical consequences:
 
 - Diff against **what we build** — the pinned rev in the fork. That is the code our mirrors
   have to match.
-- If a mirrored symbol lives in a file a cherry-pick touches, say so in the review. That is
-  the one place fork and upstream disagree, and the disagreement is temporary: it
-  disappears when the patch merges upstream and the fork rebases onto it.
+- If a mirrored symbol lives in a file a cherry-pick touches, say so in the review.
+  Diff the pinned fork's behavior, not just its upstream base.
 
 Find a fork pin's upstream base with
 `git merge-base <pin> <upstream-remote>/main`; then
-`git log <base>..<pin>` lists its cherry-picks and their files.
+`git log <base>..<pin>` lists its cherry-picks. A backport has a different commit
+identity from its upstream original, so establish equivalence from the patch
+before dropping it. The fork delta disappears only when the selected release
+contains every required patch or an explicitly reviewed replacement.
 
 ## Should CI block a bump while a mirror is stale?
 
