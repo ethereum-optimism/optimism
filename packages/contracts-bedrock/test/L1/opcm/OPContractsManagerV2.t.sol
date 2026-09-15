@@ -530,42 +530,7 @@ contract OPContractsManagerV2_Upgrade_Test is OPContractsManagerV2_Upgrade_TestI
         // Run all past upgrades.
         runPastUpgrades(chainPAO);
 
-        string memory v8Artifact = Config.opcmV8Artifact();
-        if (bytes(v8Artifact).length > 0 && SemverComp.parse(systemConfig.lastUsedOPCMVersion()).major < 8) {
-            _stageV8(v8Artifact);
-        }
-    }
-
-    /// @notice Stages an unmodified v8 build on forks that have not received v8 yet.
-    /// @param _v8Artifact Path to the v8 Foundry artifact, supplied only for local fork tests.
-    function _stageV8(string memory _v8Artifact) internal {
-        IOPContractsManagerV2 v8 = IOPContractsManagerV2(
-            deployCode(
-                _v8Artifact, abi.encode(opcmV2.opcmStandardValidator(), opcmV2.opcmMigrator(), opcmV2.opcmUtils())
-            )
-        );
-        assertEq(SemverComp.parse(v8.version()).major, 8, "expected real v8 artifact");
-
-        prankDelegateCall(superchainPAO);
-        (bool scSuccess, bytes memory reason) = address(v8).delegatecall(
-            abi.encodeCall(
-                IOPContractsManagerV2.upgradeSuperchain,
-                (
-                    IOPContractsManagerV2.SuperchainUpgradeInput({
-                        superchainConfig: superchainConfig,
-                        extraInstructions: new IOPContractsManagerUtils.ExtraInstruction[](0)
-                    })
-                )
-            )
-        );
-        if (!scSuccess) {
-            assertEq(bytes4(reason), IOPContractsManagerUtils.OPContractsManagerUtils_DowngradeNotAllowed.selector);
-        }
-        IOPContractsManagerV2.UpgradeInput memory v8Input = v2UpgradeInput;
-        v8Input.extraInstructions = new IOPContractsManagerUtils.ExtraInstruction[](0);
-        prankDelegateCall(chainPAO);
-        (bool success,) = address(v8).delegatecall(abi.encodeCall(IOPContractsManagerV2.upgrade, (v8Input)));
-        assertTrue(success, "v8 staging upgrade failed");
+        PastUpgrades.stageV8(opcmV2, chainPAO, superchainConfig, v2UpgradeInput);
     }
 
     /// @notice Tests the v8 to v9 upgrade against forked state, preserving the existing anchor
@@ -2034,7 +1999,7 @@ contract OPContractsManagerV2_Deploy_Test is OPContractsManagerV2_TestInit {
         assertEq(address(_portal.ethLockbox()), address(0));
     }
 
-    /// @notice Tests that the released OPCM reports v9 without a version mock.
+    /// @notice Tests that the current OPCM reports v9 without a version mock.
     function test_version_succeeds() public view {
         assertEq(opcmV2.version(), "9.0.0");
     }

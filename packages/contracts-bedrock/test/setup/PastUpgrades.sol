@@ -7,6 +7,8 @@ import { console2 as console } from "forge-std/console2.sol";
 
 // Scripts
 import { Process } from "scripts/libraries/Process.sol";
+import { Config } from "scripts/libraries/Config.sol";
+import { DeployUtils } from "scripts/libraries/DeployUtils.sol";
 
 // Testing
 import { EIP1967Helper } from "test/mocks/EIP1967Helper.sol";
@@ -15,6 +17,7 @@ import { DisputeGames } from "test/setup/DisputeGames.sol";
 // Libraries
 import { Claim, GameTypes } from "src/dispute/lib/Types.sol";
 import { SemverComp } from "src/libraries/SemverComp.sol";
+import { Constants } from "src/libraries/Constants.sol";
 
 // Interfaces
 import { IOPContractsManagerV2 } from "interfaces/L1/opcm/IOPContractsManagerV2.sol";
@@ -150,6 +153,95 @@ library PastUpgrades {
 
             executeV2Upgrade(opcm.addr, _delegateCaller, _systemConfig, _superchainConfig, _disputeGameFactory);
         }
+    }
+
+    // TODO(#22906): Remove this helper, its callers, and Config.opcmV8Artifact once
+    // runPastUpgrades can apply released v8 on all supported forks. Keep the v8-to-v9 test.
+    /// @notice Applies v8 before v9 on forks still running v7.
+    ///         Uses a development v8 manager with the current contract implementations.
+    /// @param _currentOPCM The v9 OPCM whose implementations are used for the v8 upgrade.
+    /// @param _delegateCaller The chain proxy admin owner.
+    /// @param _superchainConfig The SuperchainConfig proxy.
+    /// @param _input The target upgrade input.
+    function stageV8(
+        IOPContractsManagerV2 _currentOPCM,
+        address _delegateCaller,
+        ISuperchainConfig _superchainConfig,
+        IOPContractsManagerV2.UpgradeInput memory _input
+    )
+        internal
+    {
+        if (
+            SemverComp.parse(_currentOPCM.version()).major != 9
+                || SemverComp.parse(_input.systemConfig.lastUsedOPCMVersion()).major >= 8
+        ) {
+            return;
+        }
+
+        string memory artifact = Config.opcmV8Artifact();
+        require(bytes(artifact).length > 0, "PastUpgrades: supply OPCM_V8_ARTIFACT or run just test-upgrade");
+        IOPContractsManagerV2 v8 = IOPContractsManagerV2(
+            DeployUtils.create1({
+                _name: artifact,
+                _args: DeployUtils.encodeConstructor(
+                    abi.encodeCall(
+                        IOPContractsManagerV2.__constructor__,
+                        (_currentOPCM.opcmStandardValidator(), _currentOPCM.opcmMigrator(), _currentOPCM.opcmUtils())
+                    )
+                )
+            })
+        );
+        require(SemverComp.parse(v8.version()).major == 8, "PastUpgrades: expected real v8 artifact");
+
+        address superchainPAO = IProxyAdmin(EIP1967Helper.getAdmin(address(_superchainConfig))).owner();
+        vm.prank(superchainPAO, true);
+        (bool scSuccess, bytes memory reason) = address(v8).delegatecall(
+            abi.encodeCall(
+                IOPContractsManagerV2.upgradeSuperchain,
+                (
+                    IOPContractsManagerV2.SuperchainUpgradeInput({
+                        superchainConfig: _superchainConfig,
+                        extraInstructions: new IOPContractsManagerUtils.ExtraInstruction[](0)
+                    })
+                )
+            )
+        );
+        require(
+            scSuccess || bytes4(reason) == IOPContractsManagerUtils.OPContractsManagerUtils_DowngradeNotAllowed.selector,
+            "PastUpgrades: v8 superchain upgrade failed"
+        );
+
+        // V8 rejects proxy deployment permission. Keep the other instructions, including
+        // the respected game type override needed for super-root migration.
+        uint256 count;
+        for (uint256 i; i < _input.extraInstructions.length; i++) {
+            if (
+                keccak256(bytes(_input.extraInstructions[i].key))
+                    != keccak256(bytes(Constants.PERMITTED_PROXY_DEPLOYMENT_KEY))
+            ) {
+                count++;
+            }
+        }
+        IOPContractsManagerUtils.ExtraInstruction[] memory instructions =
+            new IOPContractsManagerUtils.ExtraInstruction[](count);
+        uint256 next;
+        for (uint256 i; i < _input.extraInstructions.length; i++) {
+            if (
+                keccak256(bytes(_input.extraInstructions[i].key))
+                    != keccak256(bytes(Constants.PERMITTED_PROXY_DEPLOYMENT_KEY))
+            ) {
+                instructions[next++] = _input.extraInstructions[i];
+            }
+        }
+
+        IOPContractsManagerV2.UpgradeInput memory input = IOPContractsManagerV2.UpgradeInput({
+            systemConfig: _input.systemConfig,
+            disputeGameConfigs: _input.disputeGameConfigs,
+            extraInstructions: instructions
+        });
+        vm.prank(_delegateCaller, true);
+        (bool success,) = address(v8).delegatecall(abi.encodeCall(IOPContractsManagerV2.upgrade, (input)));
+        require(success, "PastUpgrades: v8 staging upgrade failed");
     }
 
     /// @notice Executes a single V2 OPCM upgrade.

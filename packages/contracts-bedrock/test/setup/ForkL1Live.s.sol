@@ -422,19 +422,16 @@ contract ForkL1Live is Deployer, StdAssertions, FeatureFlags {
             });
         }
 
+        IOPContractsManagerV2.UpgradeInput memory input = IOPContractsManagerV2.UpgradeInput({
+            systemConfig: systemConfig,
+            disputeGameConfigs: disputeGameConfigs,
+            extraInstructions: extraInstructions
+        });
+        // V9 requires v8 to be applied first.
+        PastUpgrades.stageV8(_opcm, _delegateCaller, superchainConfig, input);
+
         vm.prank(_delegateCaller, true);
-        (bool upgradeSuccess,) = address(_opcm).delegatecall(
-            abi.encodeCall(
-                IOPContractsManagerV2.upgrade,
-                (
-                    IOPContractsManagerV2.UpgradeInput({
-                        systemConfig: systemConfig,
-                        disputeGameConfigs: disputeGameConfigs,
-                        extraInstructions: extraInstructions
-                    })
-                )
-            )
-        );
+        (bool upgradeSuccess,) = address(_opcm).delegatecall(abi.encodeCall(IOPContractsManagerV2.upgrade, (input)));
         assertTrue(upgradeSuccess, "upgrade failed");
     }
 
