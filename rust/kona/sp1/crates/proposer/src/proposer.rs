@@ -354,7 +354,8 @@ impl From<&Game> for CompactGameSummary {
 ///   backward from the latest index to this value, then sets it to the new latest index.
 /// - `games`: cached metadata for every tracked game keyed by index
 /// - `pending_games`: games excluded from the DAG until they can be validated
-/// - `evicted_game_addresses`: stale pending branches that require rescan if later anchored
+/// - `invalidated_game_addresses`: invalidated game addresses that require a rescan if absent and
+///   later anchored
 /// - `invalid_games`: factory indices made permanently ineligible by invalid or untrusted ancestry
 #[derive(Default)]
 struct ProposerState {
@@ -366,7 +367,7 @@ struct ProposerState {
     /// Games whose super-root data is unavailable or untrusted. Kept across
     /// syncs so descendants remain ineligible until validation completes.
     pending_games: HashMap<U256, CompactGameSummary>,
-    evicted_game_addresses: HashSet<Address>,
+    invalidated_game_addresses: HashSet<Address>,
     invalid_games: HashSet<U256>,
 }
 
@@ -393,28 +394,34 @@ impl ProposerState {
         reachable
     }
 
-    /// Marks a game and every cached descendant before the registered anchor
-    /// as permanently ineligible, removes that rejected branch, and returns
-    /// the removed game addresses. An older rejected ancestor cannot cross the
-    /// current registry trust boundary.
-    #[must_use]
-    fn invalidate_subtree(&mut self, root_index: U256) -> Vec<Address> {
-        let mut invalid_subtree = self.descendants_of(root_index);
+    /// Returns the cached subtree that is not protected by the registered anchor.
+    fn ineligible_subtree(&self, root_index: U256) -> HashSet<U256> {
+        let mut subtree = self.descendants_of(root_index);
         if let Some(anchor_index) = self.anchor_game.as_ref().map(|game| game.index) &&
             anchor_index != root_index &&
-            invalid_subtree.contains(&anchor_index)
+            subtree.contains(&anchor_index)
         {
             let trusted_subtree = self.descendants_of(anchor_index);
-            invalid_subtree.retain(|index| !trusted_subtree.contains(index));
+            subtree.retain(|index| !trusted_subtree.contains(index));
         }
+        subtree
+    }
+
+    /// Marks a game and its untrusted cached subtree as permanently ineligible,
+    /// removes the cached records, and returns their addresses.
+    #[must_use]
+    fn invalidate_subtree(&mut self, root_index: U256) -> Vec<Address> {
+        let invalid_subtree = self.ineligible_subtree(root_index);
         self.invalid_games.extend(invalid_subtree.iter().copied());
-        invalid_subtree
+        let removed_addresses = invalid_subtree
             .into_iter()
             .filter_map(|index| {
                 tracing::info!(?index, "Removing ineligible game from cache");
                 self.games.remove(&index).map(|game| game.address)
             })
-            .collect()
+            .collect::<Vec<_>>();
+        self.invalidated_game_addresses.extend(removed_addresses.iter().copied());
+        removed_addresses
     }
 
     /// Whether `game` and every known ancestor up to the registered anchor are
@@ -563,7 +570,7 @@ impl ProposerState {
         self.cursor = Cursor::none();
         let removed_addresses = self.games.drain().map(|(_, game)| game.address).collect();
         self.pending_games.clear();
-        self.evicted_game_addresses.clear();
+        self.invalidated_game_addresses.clear();
         self.invalid_games.clear();
         removed_addresses
     }
@@ -1252,11 +1259,13 @@ impl Proposer {
     /// 1. Discover new games: walk the factory backwards from the latest game to the cursor,
     ///    classifying each as valid / unsupported / invalid / pending, and stopping early once past
     ///    the anchor's deadline-lag cutoff. A fetch failure aborts the sync cycle (the cursor is
-    ///    not advanced, so the range is re-walked next cycle).
+    ///    not advanced, so the range is re-walked next cycle). A previously invalidated anchor
+    ///    resets the cache before this walk and must be reinstalled by it.
     /// 2. Remove invalid games and their subtrees.
     /// 3. Re-validate pending games (timestamps not yet safe from this node's view, unavailable
     ///    super-root data, or an untrusted root mismatch); entries still pending past the anchor's
-    ///    deadline-lag cutoff are evicted unless their prestate is locally available.
+    ///    deadline-lag cutoff are tombstoned unless their prestate is locally available. Cached
+    ///    descendants remain available for lifecycle work but cannot be extended or proven.
     /// 4. Synchronize cached game lifecycle and non-anchor own-registry standing, skipping
     ///    in-progress games that are both ancestry-blocked and locally unprovable. Apply actions:
     ///    mark own games for resolution (parent resolved in the defender's favor, game over), mark
@@ -1288,16 +1297,45 @@ impl Proposer {
         };
         let latest_index = Cursor::from(latest_factory_index);
         let anchor_address = self.l1_view.registered_anchor_game(pinned_block).await?;
-        let mut discovery =
+        let (recovering_anchor, recovery_addresses) = {
+            let mut state = self.state.write().await;
+            let anchor_missing = !state.games.values().any(|game| game.address == anchor_address);
+            if anchor_address != Address::ZERO &&
+                anchor_missing &&
+                state.invalidated_game_addresses.contains(&anchor_address)
+            {
+                tracing::warn!(
+                    ?anchor_address,
+                    "Previously invalidated game became the registered anchor; resetting factory discovery"
+                );
+                let removed_addresses = state.reset_factory_cache();
+                state.invalidated_game_addresses.insert(anchor_address);
+                (true, removed_addresses)
+            } else {
+                (false, Vec::new())
+            }
+        };
+        if recovering_anchor {
+            self.reset_creation_guard(None, "registered anchor missing from cache").await;
+            for address in recovery_addresses {
+                self.proof_engine.clear(address);
+            }
+        }
+
+        let discovery =
             self.discover_new_games(latest_index.clone(), anchor_address, pinned_block).await?;
         ProposerGauge::SyncCursor.set(latest_index.index().map_or(-1.0, |i| i.to::<u64>() as f64));
         // Install the trust boundary before pruning invalid ancestors. On a cold
         // start, discovery has only just populated the registered anchor record.
-        if self.sync_anchor_game(anchor_address).await {
-            discovery = self.discover_new_games(latest_index, anchor_address, pinned_block).await?;
-            if self.sync_anchor_game(anchor_address).await {
+        self.sync_anchor_game(anchor_address).await;
+        if recovering_anchor {
+            let mut state = self.state.write().await;
+            if state.anchor_game.as_ref().map(|game| game.address) != Some(anchor_address) {
+                state.cursor = Cursor::none();
+                state.invalidated_game_addresses.insert(anchor_address);
                 bail!("registered anchor remained unavailable after factory rediscovery");
             }
+            state.invalidated_game_addresses.remove(&anchor_address);
         }
 
         self.prune_invalid_games(discovery.invalid_game_ids).await;
@@ -1577,6 +1615,7 @@ impl Proposer {
     }
 
     async fn invalid_game_result(&self, index: U256, game_address: Address) -> GameFetchResult {
+        self.state.write().await.invalidated_game_addresses.insert(game_address);
         self.reset_creation_guard(
             Some(game_address),
             "tracked game became terminal during discovery",
@@ -1650,26 +1689,33 @@ impl Proposer {
                             game_index = %index,
                             game_deadline = deadline,
                             anchor_deadline,
-                            "Evicting pending game and blocking its cached subtree after its deadline fell behind the anchor beyond the lag cutoff"
+                            "Tombstoning pending game after its deadline fell behind the anchor beyond the lag cutoff"
                         );
-                        let removed_addresses = {
+                        let blocked_addresses = {
                             let mut state = self.state.write().await;
                             state.pending_games.remove(&index);
-                            let mut removed_addresses = state.invalidate_subtree(index);
-                            for address in [pending_game.address, game_address] {
-                                if !removed_addresses.contains(&address) {
-                                    removed_addresses.push(address);
-                                }
-                            }
-                            state.evicted_game_addresses.extend(removed_addresses.iter().copied());
-                            removed_addresses
+                            state.invalid_games.insert(index);
+                            let blocked_subtree = state.ineligible_subtree(index);
+                            let mut blocked_addresses = blocked_subtree
+                                .into_iter()
+                                .filter_map(|index| {
+                                    state.games.get(&index).map(|game| game.address)
+                                })
+                                .collect::<Vec<_>>();
+                            // Record both addresses because the factory entry may have been
+                            // replaced at the same index since it became pending.
+                            blocked_addresses.extend([pending_game.address, game_address]);
+                            state
+                                .invalidated_game_addresses
+                                .extend(blocked_addresses.iter().copied());
+                            blocked_addresses
                         };
                         self.reset_creation_guard_for_removed_games(
-                            &removed_addresses,
-                            "pending tracked ancestry was evicted",
+                            &blocked_addresses,
+                            "pending tracked ancestry was tombstoned",
                         )
                         .await;
-                        for address in removed_addresses {
+                        for address in blocked_addresses {
                             self.proof_engine.clear(address);
                         }
                     }
@@ -1860,6 +1906,11 @@ impl Proposer {
                         );
                     } else {
                         if let Some(game) = state.games.remove(&index) {
+                            // A game may enter the cache after its ancestry became blocked.
+                            // Preserve recovery provenance when lifecycle cleanup removes it.
+                            if !state.ancestry_eligible(&game) {
+                                state.invalidated_game_addresses.insert(game.address);
+                            }
                             progress_addresses_to_clear.push(game.address);
                         }
                         tracing::debug!(game_index = %index, "Removed game from cache");
@@ -1883,45 +1934,23 @@ impl Proposer {
     }
 
     /// Aligns the cached anchor pointer with the address read from the registry.
-    /// A nonzero anchor missing from the cache resets discovery so a previously
-    /// evicted game can be recovered as the trusted boundary. Returns whether
-    /// the caller must rediscover the factory before completing the sync.
-    async fn sync_anchor_game(&self, anchor_address: Address) -> bool {
-        let reset_addresses = {
-            let mut state = self.state.write().await;
+    async fn sync_anchor_game(&self, anchor_address: Address) {
+        let mut state = self.state.write().await;
 
-            if anchor_address == Address::ZERO {
-                state.anchor_game = None;
-                None
-            } else if let Some((_, anchor_game)) =
-                state.games.iter().find(|(_, game)| game.address == anchor_address)
-            {
-                state.anchor_game = Some(anchor_game.clone());
-                tracing::debug!(?anchor_address, "Anchor game updated in cache");
-                None
-            } else if state.evicted_game_addresses.contains(&anchor_address) {
-                tracing::warn!(
-                    ?anchor_address,
-                    "Previously evicted game became the registered anchor; resetting factory discovery"
-                );
-                Some(state.reset_factory_cache())
-            } else {
-                // Anchor not in cache (unsupported, pruned, or not yet fetched); clear to prevent
-                // compute_canonical_head from following a stale subtree. A pending anchor can
-                // still be installed by revalidation later in this sync cycle.
-                state.anchor_game = None;
-                tracing::debug!(?anchor_address, "Anchor game not in cache, clearing");
-                None
-            }
-        };
-        let reset = reset_addresses.is_some();
-        if let Some(reset_addresses) = reset_addresses {
-            self.reset_creation_guard(None, "registered anchor missing from cache").await;
-            for address in reset_addresses {
-                self.proof_engine.clear(address);
-            }
+        if anchor_address == Address::ZERO {
+            state.anchor_game = None;
+        } else if let Some((_, anchor_game)) =
+            state.games.iter().find(|(_, game)| game.address == anchor_address)
+        {
+            state.anchor_game = Some(anchor_game.clone());
+            tracing::debug!(?anchor_address, "Anchor game updated in cache");
+        } else {
+            // Anchor not in cache (unsupported, pruned, or not yet fetched); clear to prevent
+            // compute_canonical_head from following a stale subtree. A pending anchor can
+            // still be installed by revalidation later in this sync cycle.
+            state.anchor_game = None;
+            tracing::debug!(?anchor_address, "Anchor game not in cache, clearing");
         }
-        reset
     }
 
     /// Computes and stores the canonical head used to schedule new proposals, logging on change.
@@ -4219,7 +4248,7 @@ impl PrestateCache {
 #[cfg(test)]
 mod tests {
     use std::{
-        collections::HashSet,
+        collections::{HashMap, HashSet},
         sync::{
             Arc, Mutex as StdMutex,
             atomic::{AtomicU64, Ordering as AtomicOrdering},
@@ -4444,6 +4473,7 @@ mod tests {
         anchor_root: AnchorRoot,
         anchor_snapshot: Option<(B256, Address, AnchorRoot)>,
         factory_game: FactoryGame,
+        factory_games: HashMap<U256, FactoryGame>,
         game_claim: GameClaim,
         game_identity: GameIdentity,
         game_validity: GameValidity,
@@ -4487,6 +4517,7 @@ mod tests {
                 },
                 anchor_snapshot: None,
                 factory_game: FactoryGame { address: Address::ZERO, game_type: ZK_GAME_TYPE },
+                factory_games: HashMap::new(),
                 game_claim: GameClaim {
                     status: ProposalStatus::Unchallenged as u8,
                     deadline: 2_000,
@@ -4610,11 +4641,11 @@ mod tests {
             Ok(self.anchor_game)
         }
 
-        async fn factory_game(&self, _index: U256, block: BlockId) -> anyhow::Result<FactoryGame> {
+        async fn factory_game(&self, index: U256, block: BlockId) -> anyhow::Result<FactoryGame> {
             self.record("factory_game");
             self.record_block("factory_game", block);
             self.fail_if_configured("factory_game")?;
-            Ok(self.factory_game)
+            Ok(self.factory_games.get(&index).copied().unwrap_or(self.factory_game))
         }
 
         async fn game_claim(&self, _game: Address, block: BlockId) -> anyhow::Result<GameClaim> {
@@ -5749,18 +5780,20 @@ mod tests {
         }
 
         #[tokio::test]
-        async fn evicted_pending_parent_blocks_cached_descendant() {
+        async fn tombstoned_pending_parent_blocks_and_recovers_descendants() {
             let prestate = B256::left_padding_from(&[0x44]);
             let reorged_parent_address = Address::left_padding_from(&[0x44]);
             let mut proposer = test_proposer().await;
             proposer.l1_view = Arc::new(pending_view(prestate));
             proposer.superroot_source = Arc::new(UnavailableSuperRootSource);
             let parent = game_with(0, u32::MAX, 100);
-            let descendant = game_with(1, 0, 200);
+            let cached_descendant =
+                Game { should_attempt_to_claim_bond: true, ..game_with(1, 0, 200) };
+            let late_descendant = game_with(2, 1, 300);
             {
                 let mut state = proposer.state.write().await;
-                state.cursor = Cursor::from(descendant.index);
-                state.games.insert(descendant.index, descendant.clone());
+                state.cursor = Cursor::from(cached_descendant.index);
+                state.games.insert(cached_descendant.index, cached_descendant.clone());
                 state.pending_games.insert(parent.index, CompactGameSummary::from(&parent));
             }
 
@@ -5776,31 +5809,219 @@ mod tests {
             let state = proposer.state.read().await;
             assert!(!state.pending_games.contains_key(&parent.index));
             assert!(state.invalid_games.contains(&parent.index));
-            assert!(state.invalid_games.contains(&descendant.index));
-            assert!(!state.games.contains_key(&descendant.index));
-            assert!(state.evicted_game_addresses.contains(&parent.address));
-            assert!(state.evicted_game_addresses.contains(&reorged_parent_address));
-            assert!(state.evicted_game_addresses.contains(&descendant.address));
+            let cached_game = state.games.get(&cached_descendant.index).unwrap();
+            assert!(cached_game.should_attempt_to_claim_bond);
+            assert!(!state.ancestry_eligible(cached_game));
+            assert!(state.invalidated_game_addresses.contains(&parent.address));
+            assert!(state.invalidated_game_addresses.contains(&reorged_parent_address));
+            assert!(state.invalidated_game_addresses.contains(&cached_descendant.address));
+            assert!(!state.invalidated_game_addresses.contains(&late_descendant.address));
             drop(state);
 
+            let prior_anchor = game_with(3, u32::MAX, 400);
             {
                 let mut state = proposer.state.write().await;
-                state.cursor = Cursor::from(parent.index);
-                state.canonical_head_index = Some(descendant.index);
-                state.canonical_head_sequence_number = Some(descendant.l2_sequence_number);
+                // Simulate a descendant that finishes validation after its parent was tombstoned.
+                state.games.insert(late_descendant.index, late_descendant.clone());
+                state.games.insert(prior_anchor.index, prior_anchor.clone());
+                state.anchor_game = Some(prior_anchor.clone());
             }
+            proposer
+                .apply_game_sync_actions(
+                    Vec::new(),
+                    vec![GameSyncAction::Remove {
+                        index: late_descendant.index,
+                        lifecycle: GameLifecycle {
+                            proposal_status: ProposalStatus::Resolved,
+                            deadline: 0,
+                            parent_index: late_descendant.parent_index,
+                            status: GameStatus::DefenderWins,
+                            is_finalized: true,
+                        },
+                    }],
+                )
+                .await;
+            let state = proposer.state.read().await;
+            assert!(!state.games.contains_key(&late_descendant.index));
+            assert!(state.invalidated_game_addresses.contains(&late_descendant.address));
+            drop(state);
+
+            let latest_game = game_with(4, u32::MAX, 500);
+            proposer.state.write().await.cursor = Cursor::from(late_descendant.index);
             let mut anchor_view = pending_view(prestate);
-            anchor_view.latest_game_index = Some(parent.index);
-            anchor_view.anchor_game = reorged_parent_address;
-            anchor_view.factory_game.address = reorged_parent_address;
-            proposer.l1_view = Arc::new(anchor_view);
+            anchor_view.latest_game_index = Some(latest_game.index);
+            anchor_view.anchor_game = late_descendant.address;
+            anchor_view.game_claim.parent_index = parent.index.to::<u32>();
+            anchor_view.game_identity.sequence_number =
+                U256::from(late_descendant.l2_sequence_number);
+            anchor_view.factory_games = HashMap::from([
+                (
+                    parent.index,
+                    FactoryGame { address: reorged_parent_address, game_type: ZK_GAME_TYPE },
+                ),
+                (
+                    cached_descendant.index,
+                    FactoryGame { address: cached_descendant.address, game_type: ZK_GAME_TYPE },
+                ),
+                (
+                    late_descendant.index,
+                    FactoryGame { address: late_descendant.address, game_type: ZK_GAME_TYPE },
+                ),
+                (
+                    prior_anchor.index,
+                    FactoryGame { address: prior_anchor.address, game_type: ZK_GAME_TYPE },
+                ),
+                (
+                    latest_game.index,
+                    FactoryGame { address: latest_game.address, game_type: ZK_GAME_TYPE },
+                ),
+            ]);
+            let anchor_view = Arc::new(anchor_view);
+            proposer.l1_view = anchor_view.clone();
 
             assert_eq!(proposer.sync_state().await.unwrap(), SyncDisposition::Advanced);
             let state = proposer.state.read().await;
-            assert_eq!(state.cursor, Cursor::from(parent.index));
-            assert_eq!(state.anchor_game.as_ref().map(|game| game.index), Some(parent.index));
-            assert_eq!(state.canonical_head_index, Some(parent.index));
-            assert_eq!(state.canonical_head_sequence_number, Some(parent.l2_sequence_number));
+            assert_eq!(
+                state.anchor_game.as_ref().map(|game| game.index),
+                Some(late_descendant.index)
+            );
+            assert_eq!(state.canonical_head_index, Some(late_descendant.index));
+            assert_eq!(
+                state.canonical_head_sequence_number,
+                Some(late_descendant.l2_sequence_number)
+            );
+            assert!(state.invalidated_game_addresses.is_empty());
+            assert!(!state.invalid_games.contains(&parent.index));
+            drop(state);
+            assert_eq!(
+                anchor_view.calls().into_iter().filter(|call| *call == "factory_game").count(),
+                5
+            );
+        }
+
+        #[tokio::test]
+        async fn tombstoned_pending_anchor_ancestor_retains_claimable_lifecycle() {
+            let prestate = B256::left_padding_from(&[0x55]);
+            let owned_prestate = B256::left_padding_from(&[0x56]);
+            let mut proposer = test_proposer().await;
+            let mut view = pending_view(prestate);
+            view.claim_preflight = Some((
+                U256::from(1),
+                WithdrawalState { amount: U256::ZERO, timestamp: U256::ZERO },
+            ));
+            proposer.l1_view = Arc::new(view);
+            proposer.superroot_source = Arc::new(UnavailableSuperRootSource);
+            let actions = Arc::new(RecordingActionExecutor::default());
+            proposer.action_executor = actions.clone();
+            let parent = game_with(0, u32::MAX, 100);
+            let middle = Game {
+                absolute_prestate: owned_prestate,
+                should_attempt_to_claim_bond: true,
+                ..game_with(1, 0, 200)
+            };
+            let anchor = game_with(2, 1, 300);
+            proposer
+                .prestates
+                .insert_for_tests(
+                    owned_prestate,
+                    PrestatePrograms { aggregation_elf: vec![1], range_elf: vec![1] },
+                )
+                .await;
+            {
+                let mut state = proposer.state.write().await;
+                state.games.insert(middle.index, middle.clone());
+                state.games.insert(anchor.index, anchor.clone());
+                state.anchor_game = Some(anchor.clone());
+                state.pending_games.insert(parent.index, CompactGameSummary::from(&parent));
+            }
+
+            proposer
+                .revalidate_pending_games(
+                    &[],
+                    Some(MAX_GAME_DEADLINE_LAG + 1),
+                    anchor.address,
+                    BlockId::number(1),
+                )
+                .await;
+
+            let state = proposer.state.read().await;
+            let cached_middle = state.games.get(&middle.index).unwrap();
+            assert!(cached_middle.should_attempt_to_claim_bond);
+            assert!(!state.ancestry_eligible(cached_middle));
+            assert!(state.invalid_games.contains(&parent.index));
+            assert!(!state.invalid_games.contains(&anchor.index));
+            assert_eq!(state.anchor_game.as_ref().map(|game| game.index), Some(anchor.index));
+            drop(state);
+
+            proposer.claim_bonds().await.unwrap();
+            assert_eq!(
+                *actions.calls.lock(),
+                vec![ActionCall::ClaimCredit {
+                    game: middle.address,
+                    recipient: proposer.proposer_address,
+                }]
+            );
+        }
+
+        #[tokio::test]
+        async fn invalidated_anchor_missing_after_rediscovery_fails_sync() {
+            let anchor_address = Address::left_padding_from(&[0x66]);
+            let mut proposer = test_proposer().await;
+            proposer.l1_view = Arc::new(RecordingL1View {
+                latest_game_index: Some(U256::ZERO),
+                anchor_game: anchor_address,
+                factory_game: FactoryGame { address: anchor_address, game_type: ZK_GAME_TYPE + 1 },
+                ..Default::default()
+            });
+            {
+                let mut state = proposer.state.write().await;
+                state.cursor = Cursor::from(U256::ZERO);
+                state.invalidated_game_addresses.insert(anchor_address);
+            }
+
+            assert!(proposer.sync_state().await.is_err());
+            let state = proposer.state.read().await;
+            assert_eq!(state.cursor, Cursor::none());
+            assert!(state.invalidated_game_addresses.contains(&anchor_address));
+        }
+
+        #[tokio::test]
+        async fn removed_game_can_be_recovered_as_the_registered_anchor() {
+            let prestate = B256::left_padding_from(&[0x77]);
+            let game = Game {
+                address: Address::left_padding_from(&[0x77]),
+                ..game_with(0, u32::MAX, 100)
+            };
+            let mut proposer = test_proposer().await;
+            proposer.superroot_source = Arc::new(UnavailableSuperRootSource);
+            proposer.l1_view = Arc::new(RecordingL1View {
+                latest_game_index: Some(game.index),
+                anchor_game: game.address,
+                factory_game: FactoryGame { address: game.address, game_type: ZK_GAME_TYPE },
+                game_identity: GameIdentity {
+                    sequence_number: U256::from(game.l2_sequence_number),
+                    ..Default::default()
+                },
+                game_validity: GameValidity {
+                    root_claim: B256::ZERO,
+                    was_respected: true,
+                    status: GameStatus::InProgress,
+                    absolute_prestate: prestate,
+                },
+                ..Default::default()
+            });
+            {
+                let mut state = proposer.state.write().await;
+                state.cursor = Cursor::from(game.index);
+                state.games.insert(game.index, game.clone());
+                let _ = state.invalidate_subtree(game.index);
+            }
+
+            assert_eq!(proposer.sync_state().await.unwrap(), SyncDisposition::Advanced);
+            let state = proposer.state.read().await;
+            assert_eq!(state.anchor_game.as_ref().map(|game| game.address), Some(game.address));
+            assert_eq!(state.canonical_head_index, Some(game.index));
+            assert!(state.invalidated_game_addresses.is_empty());
         }
     }
 
@@ -5830,6 +6051,10 @@ mod tests {
             proposer.fetch_game(U256::ZERO, Address::ZERO, BlockId::number(1)).await.unwrap(),
             GameFetchResult::InvalidGame { .. }
         ));
+        assert!(
+            proposer.state.read().await.invalidated_game_addresses.contains(&game_address),
+            "an uncached invalid game must remain recoverable if it later becomes the anchor"
+        );
         assert_eq!(
             sequence_overflow.block_calls(),
             vec![
@@ -7533,6 +7758,7 @@ mod tests {
             removed,
             HashSet::from([Address::left_padding_from(&[1]), Address::left_padding_from(&[2]),])
         );
+        assert_eq!(s.invalidated_game_addresses, removed);
     }
 
     #[test]
@@ -7570,14 +7796,14 @@ mod tests {
         s.cursor = Cursor::from(U256::from(1));
         s.canonical_head_index = Some(U256::from(1));
         s.canonical_head_sequence_number = Some(200);
-        s.evicted_game_addresses.insert(Address::left_padding_from(&[1]));
+        s.invalidated_game_addresses.insert(Address::left_padding_from(&[1]));
         s.invalid_games.insert(U256::from(1));
 
         let removed = s.reset_factory_cache().into_iter().collect::<HashSet<_>>();
 
         assert_eq!(s.cursor, Cursor::none());
         assert!(s.games.is_empty());
-        assert!(s.evicted_game_addresses.is_empty());
+        assert!(s.invalidated_game_addresses.is_empty());
         assert!(s.invalid_games.is_empty());
         assert!(s.anchor_game.is_none());
         assert!(s.canonical_head_index.is_none());
