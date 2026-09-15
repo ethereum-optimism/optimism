@@ -117,6 +117,28 @@ print-pinned-block-number:
   echo "All attempts to fetch pinned block number failed" >&2
   exit 1
 
+# Builds the v8 OPCM from git history with this checkout's dependencies.
+# TODO(#22906): Use the released v8 bundle, then remove this recipe and OPCM_V8_ARTIFACT
+# once PastUpgrades can apply v8 on all supported forks.
+prepare-opcm-v8-artifact:
+  #!/usr/bin/env bash
+  set -euo pipefail
+  # Baseline before our v9 bump, where OPContractsManagerV2 still reports 8.0.4.
+  baseline=bf8daaed3e850a06fde4fb301ba70927dee815fa
+  source_path=packages/contracts-bedrock/src/L1/opcm/OPContractsManagerV2.sol
+  if ! git cat-file -e "$baseline:$source_path"; then
+    echo "V8 fixture source unavailable. Fetch revision $baseline or supply OPCM_V8_ARTIFACT." >&2
+    exit 1
+  fi
+  mkdir -p .testdata/opcm-v8
+  git show "$baseline:$source_path" > .testdata/opcm-v8/OPContractsManagerV2.sol
+  FOUNDRY_PROFILE=default \
+    FOUNDRY_SRC=.testdata/opcm-v8 \
+    FOUNDRY_OUT=.testdata/opcm-v8-source-artifacts \
+    FOUNDRY_CACHE_PATH=.testdata/opcm-v8-source-cache \
+    FOUNDRY_OPTIMIZER_RUNS=5000 just build-source >&2
+  echo .testdata/opcm-v8-source-artifacts/OPContractsManagerV2.sol/OPContractsManagerV2.json
+
 # Prepares the environment for upgrade path variant of contract tests and coverage.
 # Env Vars:
 # - ETH_RPC_URL must be set to a production (Sepolia or Mainnet) RPC URL.
@@ -127,6 +149,10 @@ print-pinned-block-number:
 prepare-upgrade-env *ARGS : build-go-ffi
   #!/bin/bash
   set -euo pipefail
+  if [ -z "${OPCM_V8_ARTIFACT:-}" ]; then
+    OPCM_V8_ARTIFACT="$(just prepare-opcm-v8-artifact)"
+    export OPCM_V8_ARTIFACT
+  fi
   pinnedBlock=$(just print-pinned-block-number)
   export FORK_BLOCK_NUMBER="${FORK_BLOCK_NUMBER:-$pinnedBlock}"
   echo "Running upgrade tests at block $FORK_BLOCK_NUMBER"
@@ -159,6 +185,10 @@ anvil-fork:
 test-upgrade-against-anvil *ARGS: build-go-ffi
   #!/bin/bash
   set -euo pipefail
+  if [ -z "${OPCM_V8_ARTIFACT:-}" ]; then
+    OPCM_V8_ARTIFACT="$(just prepare-opcm-v8-artifact)"
+    export OPCM_V8_ARTIFACT
+  fi
   pinnedBlock=$(just print-pinned-block-number)
   echo "Running upgrade tests at block $pinnedBlock"
   export FORK_BLOCK_NUMBER="${FORK_BLOCK_NUMBER:-$pinnedBlock}"

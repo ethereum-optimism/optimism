@@ -257,6 +257,12 @@ library Config {
         return vm.envUint("FORK_BLOCK_NUMBER");
     }
 
+    /// @notice Returns the v8 OPCM artifact path used to stage local fork upgrades.
+    ///         If not set, an empty string is returned.
+    function opcmV8Artifact() internal view returns (string memory) {
+        return vm.envOr("OPCM_V8_ARTIFACT", string(""));
+    }
+
     /// @notice Returns the profile to use for the foundry commands.
     ///         If not set, "default" is returned.
     function foundryProfile() internal view returns (string memory) {

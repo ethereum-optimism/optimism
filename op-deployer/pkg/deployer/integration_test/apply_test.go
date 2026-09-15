@@ -1103,7 +1103,7 @@ func runEndToEndBootstrapAndApplyUpgradeTest(t *testing.T, afactsFS foundry.Stat
 				}
 			})
 
-			// Then test upgrade on the V2-deployed chain
+			// Upgrade the forked chain through v8 before applying v9.
 			t.Run("upgrade chain v2", func(t *testing.T) {
 				// FaultDisputeGameConfig just needs absolutePrestate (bytes32)
 				testPrestate := common.Hash{'P', 'R', 'E', 'S', 'T', 'A', 'T', 'E'}
@@ -1164,6 +1164,8 @@ func runEndToEndBootstrapAndApplyUpgradeTest(t *testing.T, afactsFS foundry.Stat
 					},
 				}
 
+				stageOPCMV8(t, host, impls, upgradeConfig)
+
 				upgradeConfigBytes, err := json.Marshal(upgradeConfig)
 				require.NoError(t, err, "UpgradeOPChainV2Input should marshal to JSON")
 
@@ -1174,6 +1176,8 @@ func runEndToEndBootstrapAndApplyUpgradeTest(t *testing.T, afactsFS foundry.Stat
 
 				err = embedded.DefaultUpgrader.Upgrade(host, upgradeConfigBytes)
 				require.NoError(t, err, "OPCM V2 chain upgrade should succeed")
+				require.Equal(t, readOPCMVersion(t, host, impls.OpcmV2, "version"),
+					readOPCMVersion(t, host, upgradeConfig.UpgradeInputV2.SystemConfig, "lastUsedOPCMVersion"))
 			})
 		})
 	})

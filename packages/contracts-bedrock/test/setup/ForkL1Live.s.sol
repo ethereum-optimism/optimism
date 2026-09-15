@@ -16,7 +16,7 @@ import { Deploy } from "scripts/deploy/Deploy.s.sol";
 import { Config } from "scripts/libraries/Config.sol";
 
 // Libraries
-import { GameType, GameTypes, Claim, Proposal, Hash } from "src/dispute/lib/Types.sol";
+import { GameType, GameTypes, Claim } from "src/dispute/lib/Types.sol";
 import { EIP1967Helper } from "test/mocks/EIP1967Helper.sol";
 import { LibString } from "@solady/utils/LibString.sol";
 import { LibGameArgs } from "src/dispute/lib/LibGameArgs.sol";
@@ -294,9 +294,6 @@ contract ForkL1Live is Deployer, StdAssertions, FeatureFlags {
             // Determine the target SUPER_* game type.
             GameType targetGameType = isPermissionless ? GameTypes.SUPER_CANNON_KONA : GameTypes.SUPER_PERMISSIONED;
 
-            // Read the current anchor root sequence number so we can set a higher one.
-            (, uint256 currentAnchorSeqNum) = asr.getAnchorRoot();
-
             // Migration upgrade: legacy types disabled, super types enabled.
             // Order must match validGameTypes in OPContractsManagerV2._assertValidFullConfig().
             disputeGameConfigs = new IOPContractsManagerUtils.DisputeGameConfig[](6);
@@ -350,15 +347,9 @@ contract ForkL1Live is Deployer, StdAssertions, FeatureFlags {
                 gameArgs: hex""
             });
 
-            // Anchor root and game type overrides, plus lockbox deployment permission in v9.
-            extraInstructions = new IOPContractsManagerUtils.ExtraInstruction[](permitLockboxDeployment ? 3 : 2);
+            // Preserve the anchor root; permit lockbox deployment only in v9.
+            extraInstructions = new IOPContractsManagerUtils.ExtraInstruction[](permitLockboxDeployment ? 2 : 1);
             extraInstructions[0] = IOPContractsManagerUtils.ExtraInstruction({
-                key: "overrides.cfg.startingAnchorRoot",
-                data: abi.encode(
-                    Proposal({ root: Hash.wrap(keccak256("migrationAnchorRoot")), l2SequenceNumber: currentAnchorSeqNum + 1 })
-                )
-            });
-            extraInstructions[1] = IOPContractsManagerUtils.ExtraInstruction({
                 key: "overrides.cfg.startingRespectedGameType",
                 data: abi.encode(targetGameType)
             });
@@ -431,19 +422,16 @@ contract ForkL1Live is Deployer, StdAssertions, FeatureFlags {
             });
         }
 
+        IOPContractsManagerV2.UpgradeInput memory input = IOPContractsManagerV2.UpgradeInput({
+            systemConfig: systemConfig,
+            disputeGameConfigs: disputeGameConfigs,
+            extraInstructions: extraInstructions
+        });
+        // V9 requires v8 to be applied first.
+        PastUpgrades.stageV8(_opcm, _delegateCaller, superchainConfig, input);
+
         vm.prank(_delegateCaller, true);
-        (bool upgradeSuccess,) = address(_opcm).delegatecall(
-            abi.encodeCall(
-                IOPContractsManagerV2.upgrade,
-                (
-                    IOPContractsManagerV2.UpgradeInput({
-                        systemConfig: systemConfig,
-                        disputeGameConfigs: disputeGameConfigs,
-                        extraInstructions: extraInstructions
-                    })
-                )
-            )
-        );
+        (bool upgradeSuccess,) = address(_opcm).delegatecall(abi.encodeCall(IOPContractsManagerV2.upgrade, (input)));
         assertTrue(upgradeSuccess, "upgrade failed");
     }
 

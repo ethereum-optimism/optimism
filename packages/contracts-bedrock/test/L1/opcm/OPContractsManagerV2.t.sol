@@ -529,6 +529,41 @@ contract OPContractsManagerV2_Upgrade_Test is OPContractsManagerV2_Upgrade_TestI
 
         // Run all past upgrades.
         runPastUpgrades(chainPAO);
+
+        PastUpgrades.stageV8(opcmV2, chainPAO, superchainConfig, v2UpgradeInput);
+    }
+
+    /// @notice Tests the v8 to v9 upgrade against forked state, preserving the existing anchor
+    ///         and lockbox. OPCM_V8_ARTIFACT stages v8 locally when the fork is still on v7.
+    function test_upgrade_v8ToV9_succeeds() public {
+        assertEq(
+            SemverComp.parse(systemConfig.lastUsedOPCMVersion()).major,
+            8,
+            "expected v8 starting state; provide OPCM_V8_ARTIFACT to stage v8"
+        );
+        assertEq(opcmV2.version(), "9.0.0", "expected v9 target");
+        Proposal memory startingAnchorBefore = anchorStateRegistry.getStartingAnchorRoot();
+        (Hash anchorRootBefore, uint256 anchorSeqBefore) = anchorStateRegistry.getAnchorRoot();
+        address anchorGameBefore = address(anchorStateRegistry.anchorGame());
+        address lockboxBefore = address(optimismPortal2.ethLockbox());
+
+        runCurrentUpgradeV2(chainPAO);
+
+        assertEq(systemConfig.lastUsedOPCMVersion(), "9.0.0", "OPCM version not recorded");
+        Proposal memory startingAnchorAfter = anchorStateRegistry.getStartingAnchorRoot();
+        assertEq(startingAnchorAfter.root.raw(), startingAnchorBefore.root.raw(), "starting anchor root changed");
+        assertEq(
+            startingAnchorAfter.l2SequenceNumber, startingAnchorBefore.l2SequenceNumber, "starting sequence changed"
+        );
+        (Hash anchorRootAfter, uint256 anchorSeqAfter) = anchorStateRegistry.getAnchorRoot();
+        assertEq(anchorRootAfter.raw(), anchorRootBefore.raw(), "anchor root changed");
+        assertEq(anchorSeqAfter, anchorSeqBefore, "anchor sequence changed");
+        assertEq(address(anchorStateRegistry.anchorGame()), anchorGameBefore, "anchor game changed");
+        assertTrue(systemConfig.isFeatureEnabled(Features.ETH_LOCKBOX), "lockbox feature not enabled");
+        assertNotEq(address(optimismPortal2.ethLockbox()), address(0), "lockbox not configured");
+        if (lockboxBefore != address(0)) {
+            assertEq(address(optimismPortal2.ethLockbox()), lockboxBefore, "existing lockbox replaced");
+        }
     }
 
     /// @notice Tests that the upgrade function succeeds when executed normally.
@@ -563,6 +598,7 @@ contract OPContractsManagerV2_Upgrade_Test is OPContractsManagerV2_Upgrade_TestI
         IETHLockbox lockboxAfter = optimismPortal2.ethLockbox();
         assertNotEq(address(lockboxAfter), address(0), "portal has no ETHLockbox");
         if (lockboxEnabledBefore) {
+            assertEq(address(lockboxAfter), address(lockboxBefore), "existing lockbox replaced");
             assertEq(address(optimismPortal2).balance, portalBalanceBefore, "existing lockbox remigrated liquidity");
             assertEq(address(lockboxAfter).balance, lockboxBalanceBefore, "existing lockbox balance changed");
         } else {
@@ -1240,13 +1276,9 @@ contract OPContractsManagerV2_Upgrade_Test is OPContractsManagerV2_Upgrade_TestI
         );
     }
 
-    /// @notice Tests that override instructions for the super root migration are blocked when
-    ///         the SUPER_ROOT_GAMES_MIGRATION feature flag is not enabled.
-    function test_upgrade_overrideBlockedWithoutMigrationFlag_reverts() public {
-        // This override is permitted when the migration flag is enabled, so skip.
-        skipIfDevFeatureEnabled(DevFeatures.SUPER_ROOT_GAMES_MIGRATION);
-
-        // Add an override instruction that should only be permitted with the migration flag.
+    /// @notice Tests that the anchor override is rejected regardless of the migration feature flag.
+    function test_upgrade_anchorRootOverride_reverts() public {
+        // The retired override must also be rejected when the migration flag is enabled.
         v2UpgradeInput.extraInstructions.push(
             IOPContractsManagerUtils.ExtraInstruction({
                 key: "overrides.cfg.startingAnchorRoot",
@@ -1254,7 +1286,7 @@ contract OPContractsManagerV2_Upgrade_Test is OPContractsManagerV2_Upgrade_TestI
             })
         );
 
-        // Expect revert because the override is not permitted without the migration flag.
+        // Expect revert because the anchor root override is no longer permitted.
         // nosemgrep: sol-style-use-abi-encodecall
         runCurrentUpgradeV2(
             chainPAO,
@@ -1277,11 +1309,6 @@ contract OPContractsManagerV2_Upgrade_Test is OPContractsManagerV2_Upgrade_TestI
         returns (GameType targetGameType_)
     {
         targetGameType_ = _isPermissionless ? GameTypes.SUPER_CANNON_KONA : GameTypes.SUPER_PERMISSIONED;
-
-        // Use a sequence number higher than the current anchor root so the ASR accepts it.
-        (, uint256 currentSeqNum) = anchorStateRegistry.getAnchorRoot();
-        Proposal memory newAnchorRoot =
-            Proposal({ root: Hash.wrap(keccak256("superRootAnchorRoot")), l2SequenceNumber: currentSeqNum + 1 });
 
         // Rebuild dispute game configs: legacy (disabled) + super types.
         // Order must match validGameTypes in OPContractsManagerV2._assertValidFullConfig().
@@ -1357,13 +1384,7 @@ contract OPContractsManagerV2_Upgrade_Test is OPContractsManagerV2_Upgrade_TestI
             })
         );
 
-        // Add override instructions.
-        v2UpgradeInput.extraInstructions.push(
-            IOPContractsManagerUtils.ExtraInstruction({
-                key: "overrides.cfg.startingAnchorRoot",
-                data: abi.encode(newAnchorRoot)
-            })
-        );
+        // Preserve the anchor root and override only the respected game type.
         v2UpgradeInput.extraInstructions.push(
             IOPContractsManagerUtils.ExtraInstruction({
                 key: "overrides.cfg.startingRespectedGameType",
@@ -1397,6 +1418,9 @@ contract OPContractsManagerV2_Upgrade_Test is OPContractsManagerV2_Upgrade_TestI
 
         // Build super root configs.
         GameType targetGameType = _setupSuperRootConfigs(isPermissionless, currentProposer);
+
+        (Hash anchorRootBefore, uint256 anchorSeqBefore) = anchorStateRegistry.getAnchorRoot();
+        address anchorGameBefore = address(anchorStateRegistry.anchorGame());
 
         // Run the upgrade. StandardValidator handles super mode — no legacy game errors.
         runCurrentUpgradeV2(chainPAO);
@@ -1438,8 +1462,11 @@ contract OPContractsManagerV2_Upgrade_Test is OPContractsManagerV2_Upgrade_TestI
             assertEq(disputeGameFactory.initBonds(GameTypes.SUPER_CANNON_KONA), 0, "SUPER_CANNON_KONA bond not cleared");
         }
 
-        // Verify ASR state: anchor game cleared, new anchor root and game type set.
-        assertEq(address(anchorStateRegistry.anchorGame()), address(0), "anchor game not cleared");
+        // Verify that the anchor state is preserved while the respected game type changes.
+        assertEq(address(anchorStateRegistry.anchorGame()), anchorGameBefore, "anchor game changed");
+        (Hash anchorRootAfter, uint256 anchorSeqAfter) = anchorStateRegistry.getAnchorRoot();
+        assertEq(anchorRootAfter.raw(), anchorRootBefore.raw(), "anchor root changed");
+        assertEq(anchorSeqAfter, anchorSeqBefore, "anchor sequence number changed");
         assertEq(anchorStateRegistry.respectedGameType().raw(), targetGameType.raw(), "respected game type not updated");
     }
 
@@ -1486,6 +1513,8 @@ contract OPContractsManagerV2_Upgrade_Test is OPContractsManagerV2_Upgrade_TestI
         );
         scSuccess; // Silence unused variable warning — may fail if already up to date.
 
+        address anchorGameBefore = address(anchorStateRegistry.anchorGame());
+
         // First chain upgrade.
         prankDelegateCall(chainPAO);
         (bool success1,) = address(opcmV2).delegatecall(abi.encodeCall(IOPContractsManagerV2.upgrade, (v2UpgradeInput)));
@@ -1501,7 +1530,7 @@ contract OPContractsManagerV2_Upgrade_Test is OPContractsManagerV2_Upgrade_TestI
 
         // Verify state is unchanged after second upgrade.
         assertEq(anchorStateRegistry.respectedGameType().raw(), targetGameType.raw(), "second upgrade: game type");
-        assertEq(address(anchorStateRegistry.anchorGame()), address(0), "second upgrade: anchor game");
+        assertEq(address(anchorStateRegistry.anchorGame()), anchorGameBefore, "second upgrade: anchor game");
         assertTrue(
             address(disputeGameFactory.gameImpls(GameTypes.SUPER_PERMISSIONED)) != address(0),
             "second upgrade: SUPER_PERMISSIONED"
@@ -1970,15 +1999,41 @@ contract OPContractsManagerV2_Deploy_Test is OPContractsManagerV2_TestInit {
         assertEq(address(_portal.ethLockbox()), address(0));
     }
 
+    /// @notice Tests that the current OPCM reports v9 without a version mock.
+    function test_version_succeeds() public view {
+        assertEq(opcmV2.version(), "9.0.0");
+    }
+
+    /// @notice Tests that an upgrade preserves the anchor and reuses an existing lockbox without
+    ///         requiring deployment permission or migrating portal liquidity again.
+    function test_upgrade_existingLockboxAndAnchor_succeeds() public {
+        IOPContractsManagerV2.ChainContracts memory cts = opcmV2.deploy(deployConfig);
+        vm.deal(address(cts.optimismPortal), 1 ether);
+        vm.deal(address(cts.ethLockbox), 2 ether);
+
+        IOPContractsManagerV2.UpgradeInput memory input;
+        input.systemConfig = cts.systemConfig;
+        input.disputeGameConfigs = deployConfig.disputeGameConfigs;
+        prankDelegateCall(cts.proxyAdmin.owner());
+        (bool success,) = address(opcmV2).delegatecall(abi.encodeCall(IOPContractsManagerV2.upgrade, (input)));
+        assertTrue(success, "upgrade failed");
+
+        Proposal memory anchor = cts.anchorStateRegistry.getStartingAnchorRoot();
+        assertEq(anchor.root.raw(), deployConfig.startingAnchorRoot.root.raw(), "starting anchor root changed");
+        assertEq(anchor.l2SequenceNumber, deployConfig.startingAnchorRoot.l2SequenceNumber, "anchor sequence changed");
+        assertEq(address(cts.optimismPortal.ethLockbox()), address(cts.ethLockbox), "existing lockbox replaced");
+        assertTrue(cts.ethLockbox.authorizedPortals(cts.optimismPortal), "portal authorization lost");
+        assertEq(address(cts.optimismPortal).balance, 1 ether, "portal liquidity remigrated");
+        assertEq(address(cts.ethLockbox).balance, 2 ether, "lockbox balance changed");
+    }
+
     /// @notice Tests lockbox deployment permission and first activation without requiring a fork.
     function test_upgrade_missingLockbox_succeeds() public {
-        vm.mockCall(address(opcmV2), abi.encodeCall(IOPContractsManagerV2.version, ()), abi.encode("9.0.0"));
         _testUpgradeMissingLockbox(false, false);
     }
 
     /// @notice Tests that a CGT chain without a lockbox can upgrade without migrating portal ETH.
     function test_upgrade_missingLockboxCGT_succeeds() public {
-        vm.mockCall(address(opcmV2), abi.encodeCall(IOPContractsManagerV2.version, ()), abi.encode("9.0.0"));
         _testUpgradeMissingLockbox(true, false);
     }
 
@@ -1990,13 +2045,11 @@ contract OPContractsManagerV2_Deploy_Test is OPContractsManagerV2_TestInit {
 
     /// @notice Tests liquidity migration when the flag was enabled without configuring a lockbox.
     function test_upgrade_missingLockboxFeatureEnabled_succeeds() public {
-        vm.mockCall(address(opcmV2), abi.encodeCall(IOPContractsManagerV2.version, ()), abi.encode("9.0.0"));
         _testUpgradeMissingLockbox(false, true);
     }
 
     /// @notice Tests that an enabled flag without a lockbox does not migrate CGT portal ETH.
     function test_upgrade_missingLockboxCGTFeatureEnabled_succeeds() public {
-        vm.mockCall(address(opcmV2), abi.encodeCall(IOPContractsManagerV2.version, ()), abi.encode("9.0.0"));
         _testUpgradeMissingLockbox(true, true);
     }
 
@@ -2008,6 +2061,13 @@ contract OPContractsManagerV2_Deploy_Test is OPContractsManagerV2_TestInit {
     /// @notice Tests that the ETHLockbox deployment allowance expires in v10.
     function test_upgrade_lockboxInstructionV10_reverts() public {
         _assertUpgradeInstructionRejected("10.0.0", Constants.PERMITTED_PROXY_DEPLOYMENT_KEY, bytes("ETHLockbox"));
+    }
+
+    /// @notice Tests that the retired anchor override cannot be re-enabled with an older version.
+    function test_upgrade_anchorRootInstructionV8_reverts() public {
+        _assertUpgradeInstructionRejected(
+            "8.0.4", "overrides.cfg.startingAnchorRoot", abi.encode(deployConfig.startingAnchorRoot)
+        );
     }
 
     /// @notice Tests that the anchor root override remains unavailable in v9.
