@@ -23,7 +23,7 @@ abstract contract AnchorStateRegistry_TestInit is BaseFaultDisputeGame_TestInit 
     /// @dev A valid l2BlockNumber that comes after the current anchor root block.
     uint256 validL2BlockNumber;
 
-    /// @dev The configured ETHLockbox.
+    /// @notice The configured ETHLockbox.
     IETHLockbox asrETHLockbox;
 
     event AnchorUpdated(IFaultDisputeGame indexed game);
