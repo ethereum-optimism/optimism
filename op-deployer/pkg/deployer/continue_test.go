@@ -445,17 +445,15 @@ func TestValidateContinuationReceiptCanonicality(t *testing.T) {
 func TestStandardValidatorInput(t *testing.T) {
 	contracts := addressesForValidationTest()
 	selected := common.Hash{0x01}
-	fallback := common.Hash{0x02}
 	var dci opcm.DeployOPChainInput
 	dci.DisputeGameType = uint32(embedded.GameTypeSuperCannonKona)
 	dci.DisputeAbsolutePrestate = selected
-	dci.CannonAbsolutePrestate = fallback
 	dci.OpChainProxyAdminOwner = common.Address{0x03}
 	dci.Challenger = common.Address{0x04}
 	input := standardValidatorInput(dci, contracts)
 	require.Equal(t, contracts.SystemConfigProxy, input.SystemConfig)
 	require.Equal(t, selected, input.CannonKonaPrestate)
-	require.Equal(t, fallback, input.CannonPrestate)
+	require.Zero(t, input.CannonPrestate)
 	require.Equal(t, dci.OpChainProxyAdminOwner, input.L1PAOMultisig)
 	require.Equal(t, dci.Challenger, input.Challenger)
 	require.True(t, input.UseDevFeaturesInput)

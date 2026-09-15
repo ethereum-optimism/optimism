@@ -741,9 +741,10 @@ func standardValidatorInput(
 	// type does not silently inherit the dev-features input.
 	useDevInput := gameType == embedded.GameTypeSuperCannonKona
 	return opcm.StandardValidatorInput{
-		SystemConfig:        contracts.SystemConfigProxy,
-		AbsolutePrestate:    dci.DisputeAbsolutePrestate,
-		CannonPrestate:      dci.CannonAbsolutePrestate,
+		SystemConfig:     contracts.SystemConfigProxy,
+		AbsolutePrestate: dci.DisputeAbsolutePrestate,
+		// SUPER_PERMISSIONED takes no prestate, so the validator ignores this in super mode.
+		CannonPrestate:      common.Hash{},
 		CannonKonaPrestate:  dci.DisputeAbsolutePrestate,
 		L2ChainID:           dci.L2ChainId,
 		Proposer:            dci.Proposer,

@@ -154,7 +154,6 @@ func newContinuationVerificationFixture(
 		GasLimit:                     30_000_000,
 		DisputeGameType:              uint32(gameType),
 		DisputeAbsolutePrestate:      selectedPrestate,
-		CannonAbsolutePrestate:       common.Hash{},
 		DisputeMaxGameDepth:          nil,
 		DisputeSplitDepth:            nil,
 		DisputeClockExtension:        0,
@@ -449,10 +448,9 @@ func TestVerifyContinuationDeployment(t *testing.T) {
 		require.Zero(t, fixture.backend.callsTo(fixture.backend.validator))
 	})
 
-	t.Run("SUPER_CANNON_KONA has a no-prestate fallback", func(t *testing.T) {
+	t.Run("SUPER_CANNON_KONA verifies", func(t *testing.T) {
 		fixture := newContinuationVerificationFixture(t, embedded.GameTypeSuperCannonKona)
 		require.NoError(t, fixture.verify(t))
-		require.Zero(t, fixture.dci.CannonAbsolutePrestate)
 	})
 }
 
