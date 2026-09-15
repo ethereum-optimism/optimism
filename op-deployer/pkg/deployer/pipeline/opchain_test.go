@@ -121,8 +121,6 @@ func Test_makeDCI_OpcmAddress(t *testing.T) {
 			if got.Opcm != tt.expectedOpcm {
 				t.Errorf("makeDCI() Opcm = %v, want %v", got.Opcm, tt.expectedOpcm)
 			}
-			// The standard deploy selects SUPER_PERMISSIONED, which installs no CANNON_KONA fallback.
-			require.Equal(t, common.Hash{}, got.CannonAbsolutePrestate)
 			require.Equal(t, opcm.DefaultStartingAnchorRoot.Root, got.StartingAnchorRoot.Root)
 			require.Equal(t, common.Big0, got.StartingAnchorRoot.L2SequenceNumber)
 		})
@@ -392,14 +390,12 @@ func TestBuildContinuationDCI_PermissionlessInputs(t *testing.T) {
 	chainID := common.HexToHash("0x0300")
 
 	tests := []struct {
-		name             string
-		gameType         embedded.GameType
-		expectedFallback common.Hash
+		name     string
+		gameType embedded.GameType
 	}{
 		{
-			name:             "SUPER_CANNON_KONA",
-			gameType:         embedded.GameTypeSuperCannonKona,
-			expectedFallback: common.Hash{},
+			name:     "SUPER_CANNON_KONA",
+			gameType: embedded.GameTypeSuperCannonKona,
 		},
 	}
 
@@ -413,7 +409,6 @@ func TestBuildContinuationDCI_PermissionlessInputs(t *testing.T) {
 			require.Equal(t, st.Chains[0].Prestate, got.DisputeAbsolutePrestate)
 			require.Equal(t, st.Chains[0].StartingAnchorRoot.Root, got.StartingAnchorRoot.Root)
 			require.Equal(t, big.NewInt(42), got.StartingAnchorRoot.L2SequenceNumber)
-			require.Equal(t, tt.expectedFallback, got.CannonAbsolutePrestate)
 			require.Equal(t, st.PreparedDeployment.OPCM, got.Opcm)
 			require.NotEqual(t, *intent.OPCMAddress, got.Opcm)
 			require.Equal(t, *intent.SuperchainConfigProxy, got.SuperchainConfig)
@@ -441,7 +436,6 @@ func TestBuildContinuationDCI_PermissionedInputs(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, uint32(embedded.GameTypeSuperPermissioned), got.DisputeGameType)
 	require.Equal(t, proofPrestate, got.DisputeAbsolutePrestate)
-	require.Zero(t, got.CannonAbsolutePrestate)
 	require.Equal(t, st.Chains[0].StartingAnchorRoot.Root, got.StartingAnchorRoot.Root)
 	require.Equal(t, big.NewInt(42), got.StartingAnchorRoot.L2SequenceNumber)
 	require.NotSame(t, got.StartingAnchorRoot.L2SequenceNumber, second.StartingAnchorRoot.L2SequenceNumber)
@@ -912,50 +906,6 @@ func TestResolveInitialDeployRequirements(t *testing.T) {
 	}
 }
 
-func TestBuildDeployOPChainInputCannonAbsolutePrestate(t *testing.T) {
-	selectedPrestate := common.HexToHash("0x1234")
-	tests := []struct {
-		name     string
-		gameType embedded.GameType
-		want     common.Hash
-	}{
-		{
-			name:     "SUPER_CANNON_KONA leaves unread field zero",
-			gameType: embedded.GameTypeSuperCannonKona,
-			want:     common.Hash{},
-		},
-		{
-			name:     "SUPER_PERMISSIONED leaves unread field zero",
-			gameType: embedded.GameTypeSuperPermissioned,
-			want:     common.Hash{},
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			proofParams := state.ChainProofParams{
-				DisputeGameType:         uint32(tt.gameType),
-				DisputeAbsolutePrestate: selectedPrestate,
-			}
-			got := BuildDeployOPChainInput(
-				proofParams,
-				state.ChainRoles{},
-				common.Address{},
-				common.Address{},
-				common.Hash{},
-				"",
-				0,
-				opcm.Proposal{},
-				&state.ChainIntent{},
-			)
-
-			require.Equal(t, uint32(tt.gameType), got.DisputeGameType)
-			require.Equal(t, selectedPrestate, got.DisputeAbsolutePrestate)
-			require.Equal(t, tt.want, got.CannonAbsolutePrestate)
-		})
-	}
-}
-
 func TestShouldDeployOPChain(t *testing.T) {
 	chainID := common.HexToHash("0x0a")
 	other := common.HexToHash("0x0b")
@@ -1128,7 +1078,6 @@ func TestDeployOPChain_WithForge(t *testing.T) {
 		DisputeGameType:              standard.DisputeGameType,
 		DisputeAbsolutePrestate:      standard.DisputeAbsolutePrestate,
 		StartingAnchorRoot:           startingAnchorRoot,
-		CannonAbsolutePrestate:       standard.DisputeAbsolutePrestate,
 		DisputeMaxGameDepth:          new(big.Int).SetUint64(standard.DisputeMaxGameDepth),
 		DisputeSplitDepth:            new(big.Int).SetUint64(standard.DisputeSplitDepth),
 		DisputeClockExtension:        standard.DisputeClockExtension,
