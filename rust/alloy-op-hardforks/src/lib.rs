@@ -175,6 +175,11 @@ impl OpHardfork {
         *self as usize
     }
 
+    /// UPSTREAM-MIRROR(set): alloy-hardforks@0.4.7 `alloy_hardforks::EthereumHardfork`
+    ///
+    /// A new upstream variant needs an explicit decision here. The `VARIANTS` loop below
+    /// only smoke-tests lookup; semantic mappings remain explicit assertions.
+    ///
     /// Returns the L1 ([`EthereumHardfork`]) hardfork whose L2-relevant changes this OP
     /// hardfork newly activates, if any.
     ///

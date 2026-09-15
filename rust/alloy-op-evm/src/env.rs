@@ -51,6 +51,9 @@ pub fn spec_by_timestamp_after_bedrock(chain_spec: impl OpHardforks, timestamp: 
     OpSpecId::BEDROCK
 }
 
+/// UPSTREAM-MIRROR(copy): alloy-evm@0.37.1 `alloy_evm::eth::env::EvmEnvInput`
+///
+/// Omits upstream `excess_blob_gas` and `slot_number`; OP uses synthetic blob values and zero slot.
 /// Internal helper for constructing EVM environment from block header fields.
 struct EvmEnvInput {
     timestamp: BlockTimestamp,
@@ -117,6 +120,9 @@ pub fn evm_env_for_op_next_block(
     )
 }
 
+/// UPSTREAM-MIRROR(copy): alloy-evm@0.37.1 `alloy_evm::eth::env::EvmEnv::for_eth`
+///
+/// Copies upstream environment construction with OP fork mapping and blob semantics.
 fn evm_env_for_op(
     input: EvmEnvInput,
     chain_spec: impl OpHardforks,
