@@ -73,8 +73,6 @@ contract DeployOPChain_TestBase is Test, FeatureFlags {
     Claim disputeAbsolutePrestate = Claim.wrap(0x038512e02c4c3f7bdaec27d00edf55b7155e0905301e1a88083e4e0a6764d54c);
     Proposal startingAnchorRoot =
         Proposal({ root: Hash.wrap(Constants.PLACEHOLDER_STARTING_ANCHOR_ROOT), l2SequenceNumber: 0 });
-    // cannon64 v1.6.1 (op-program).
-    Claim cannonAbsolutePrestate = Claim.wrap(0x03eb07101fbdeaf3f04d9fb76526362c1eea2824e4c6e970bdb19675b72e4fc8);
     // cannon64-kona-interop v1.2.13 (Kona).
     Claim cannonKonaAbsolutePrestate = Claim.wrap(0x035ef680a6fa34c50d8d8169075b5d133ecd7b38fe2b2a83cc76fc81ae5d7c52);
     // Arbitrary non-placeholder anchor root for the permissionless deploy tests.
@@ -155,7 +153,6 @@ contract DeployOPChain_TestBase is Test, FeatureFlags {
             disputeGameType: disputeGameType,
             disputeAbsolutePrestate: disputeAbsolutePrestate,
             startingAnchorRoot: startingAnchorRoot,
-            cannonAbsolutePrestate: cannonAbsolutePrestate,
             disputeMaxGameDepth: disputeMaxGameDepth,
             disputeSplitDepth: disputeSplitDepth,
             disputeClockExtension: disputeClockExtension,
@@ -345,7 +342,8 @@ contract DeployOPChain_Test is DeployOPChain_TestBase {
         validator.validateWithOverrides(
             IOPContractsManagerStandardValidator.ValidationInputDev({
                 sysCfg: doo.systemConfigProxy,
-                cannonPrestate: cannonAbsolutePrestate.raw(),
+                // Super-root mode: SUPER_PERMISSIONED takes no prestate, so this is unread.
+                cannonPrestate: bytes32(0),
                 cannonKonaPrestate: cannonKonaAbsolutePrestate.raw(),
                 l2ChainID: l2ChainId,
                 proposer: proposer

@@ -119,8 +119,6 @@ func TestMakePredictionInput(t *testing.T) {
 	require.Equal(t, standard.DisputeGameType, dci.DisputeGameType)
 	require.Equal(t, opcm.DefaultStartingAnchorRoot.Root, dci.StartingAnchorRoot.Root)
 	require.Equal(t, common.Big0, dci.StartingAnchorRoot.L2SequenceNumber)
-	// The standard deploy selects SUPER_PERMISSIONED, which installs no CANNON_KONA fallback.
-	require.Equal(t, common.Hash{}, dci.CannonAbsolutePrestate)
 }
 
 func TestMakePredictionInput_OwnsStartingAnchorSequenceNumber(t *testing.T) {
@@ -189,7 +187,6 @@ func TestMakePredictionInput_GameTypeInputs(t *testing.T) {
 				require.Equal(t, opcm.DefaultStartingAnchorRoot.Root, dci.StartingAnchorRoot.Root)
 			}
 
-			require.Zero(t, dci.CannonAbsolutePrestate)
 		})
 	}
 }
