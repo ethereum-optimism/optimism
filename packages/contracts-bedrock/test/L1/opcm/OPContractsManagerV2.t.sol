@@ -2094,6 +2094,7 @@ contract OPContractsManagerV2_Deploy_Test is OPContractsManagerV2_TestInit {
         assertFalse(cts.systemConfig.isFeatureEnabled(Features.INTEROP));
         assertEq(cts.systemConfig.isCustomGasToken(), _useCustomGasToken);
         assertTrue(lockbox.authorizedPortals(cts.optimismPortal));
+        assertEq(address(lockbox.superchainConfig()), address(cts.systemConfig.superchainConfig()));
         assertEq(address(cts.anchorStateRegistry.ethLockbox()), address(lockbox));
         assertEq(address(cts.delayedWETH.ethLockbox()), address(lockbox));
         assertEq(address(cts.optimismPortal).balance, _useCustomGasToken ? 1 ether : 0);
