@@ -3812,7 +3812,7 @@ async fn disallowed_ancestor_blocks_the_branch_and_reparents_creation() {
                     &L1ReadTarget::Game(descendant_target),
                     3,
                 )
-                .is_none()
+                .is_some()
         );
     }
 }
@@ -4049,7 +4049,7 @@ async fn pending_game_promoted_to_anchor_is_installed_in_the_same_cycle() {
 }
 
 #[tokio::test]
-async fn unsupported_registered_anchor_falls_back_to_the_registry_root() {
+async fn unsupported_registered_anchor_fails_after_one_rescan() {
     let world = ScenarioWorld::new();
     let valid = ScenarioGame::new(0, u32::MAX, 10, ScenarioWorld::default_prestate());
     let mut unsupported = ScenarioGame::new(1, u32::MAX, 20, ScenarioWorld::default_prestate());
@@ -4069,15 +4069,29 @@ async fn unsupported_registered_anchor_falls_back_to_the_registry_root() {
     world.set_anchor_game(&unsupported_target);
     world.set_horizons(120, 120);
     world.mine_block();
-    let fallback = scenario.tick().await.unwrap();
+    let error = scenario.tick().await.unwrap_err();
 
-    assert!(fallback.snapshot.anchor.is_none());
-    assert_eq!(fallback.snapshot.canonical_head_index, Some(U256::ZERO));
-    assert!(fallback.scheduled.iter().any(|scheduled| matches!(
-        scheduled.operation,
-        OperationSummary::ProposeGame { parent_game_index: 0, .. }
-    )));
-    scenario.settle_scheduled(&fallback).await.unwrap();
+    assert!(
+        matches!(error, ScenarioError::Cycle(message) if message.contains("registered anchor remained unavailable"))
+    );
+    assert!(
+        world
+            .l1_read_record(
+                L1ReadBoundary::FactoryGame,
+                &L1ReadTarget::Game(unsupported_target.clone()),
+                2,
+            )
+            .is_some()
+    );
+    assert!(
+        world
+            .l1_read_record(
+                L1ReadBoundary::FactoryGame,
+                &L1ReadTarget::Game(unsupported_target),
+                3,
+            )
+            .is_none()
+    );
 }
 
 #[tokio::test]
