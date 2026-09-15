@@ -89,6 +89,8 @@ alloy-genesis = { workspace = true, optional = true }
 serde_json = { workspace = true, optional = true }
 
 [dev-dependencies]
+reth-basic-payload-builder.workspace = true
+reth-node-metrics.workspace = true
 reth-optimism-node = { workspace = true, features = ["test-utils"] }
 reth-db = { workspace = true, features = ["test-utils"] }
 reth-db-common.workspace = true
