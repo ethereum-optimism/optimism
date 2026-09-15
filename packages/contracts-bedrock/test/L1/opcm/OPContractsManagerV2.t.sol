@@ -530,7 +530,7 @@ contract OPContractsManagerV2_Upgrade_Test is OPContractsManagerV2_Upgrade_TestI
         // Run all past upgrades.
         runPastUpgrades(chainPAO);
 
-        string memory v8Artifact = vm.envOr("OPCM_V8_ARTIFACT", string(""));
+        string memory v8Artifact = Config.opcmV8Artifact();
         if (bytes(v8Artifact).length > 0 && SemverComp.parse(systemConfig.lastUsedOPCMVersion()).major < 8) {
             _stageV8(v8Artifact);
         }
@@ -569,13 +569,13 @@ contract OPContractsManagerV2_Upgrade_Test is OPContractsManagerV2_Upgrade_TestI
     }
 
     /// @notice Tests the v8 to v9 upgrade against forked state, preserving the existing anchor
-    ///         and lockbox. OPCM_V8_ARTIFACT can stage v8 locally when the fork is still on v7.
+    ///         and lockbox. OPCM_V8_ARTIFACT stages v8 locally when the fork is still on v7.
     function test_upgrade_v8ToV9_succeeds() public {
-        vm.skip(
-            SemverComp.parse(systemConfig.lastUsedOPCMVersion()).major != 8,
-            "requires v8 fork state or OPCM_V8_ARTIFACT"
+        assertEq(
+            SemverComp.parse(systemConfig.lastUsedOPCMVersion()).major,
+            8,
+            "expected v8 starting state; provide OPCM_V8_ARTIFACT to stage v8"
         );
-        assertEq(SemverComp.parse(systemConfig.lastUsedOPCMVersion()).major, 8, "expected v8 starting state");
         assertEq(opcmV2.version(), "9.0.0", "expected v9 target");
         Proposal memory startingAnchorBefore = anchorStateRegistry.getStartingAnchorRoot();
         (Hash anchorRootBefore, uint256 anchorSeqBefore) = anchorStateRegistry.getAnchorRoot();
