@@ -22,7 +22,7 @@ const FILTER_DECISIONS: &str = "optimism_transaction_pool.interop.filter_decisio
 
 /// Fully-qualified name of the per-endpoint verdict counter, labeled by `endpoint` index and
 /// `verdict`. Answers *which* endpoint is returning invalids or going unavailable. Labeled by index
-/// (not the raw URL), since interop-http URLs can carry basic-auth credentials.
+/// (not the URL), which keeps the label cardinality tied to the configured endpoint count.
 const ENDPOINT_VERDICTS: &str = "optimism_transaction_pool.interop.endpoint.verdicts";
 
 /// Fully-qualified name of the per-endpoint query-latency histogram. Matches the metric the derived
