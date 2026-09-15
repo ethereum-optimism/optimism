@@ -109,8 +109,8 @@ registries = []
 [sources]
 allow-git = [
   "https://github.com/paradigmxyz/reth",
-  # Our fork of paradigmxyz/reth, used to carry changes before they land upstream.
-  "https://github.com/op-rs/reth",
+  # Maintenance fork carrying patches not yet included in the selected upstream release.
+  "https://github.com/ethereum-optimism/reth",
   "https://github.com/alloy-rs/alloy",
   "https://github.com/alloy-rs/hardforks",
   "https://github.com/alloy-rs/evm",

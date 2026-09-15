@@ -48,7 +48,7 @@ impl<T> OpContextTr for T where
 /// Type alias for the error type of the `OpEvm`.
 pub type OpError<CTX> = EVMError<<<CTX as ContextTr>::Db as Database>::Error, OpTransactionError>;
 
-/// UPSTREAM-MIRROR(copy): revm-handler@41.0.0 `revm_handler::api::ExecuteEvm`
+/// UPSTREAM-MIRROR(copy): revm-handler@42.0.1 `revm_handler::api::ExecuteEvm`
 ///
 /// Copies upstream's `ExecuteEvm` implementation with `OpHandler` substituted for
 /// `MainnetHandler`. Re-diff the bodies when the upstream implementation changes.
@@ -82,14 +82,20 @@ where
         &mut self,
     ) -> Result<ExecResultAndState<Self::ExecutionResult, Self::State>, Self::Error> {
         let mut h = OpHandler::<_, _, EthFrame<EthInterpreter>>::new();
-        h.run(self).map(|result| {
-            let state = self.finalize();
-            ExecResultAndState::new(result, state)
-        })
+        h.run(self)
+            // finalize (clear) the journal on error; on success the `map`
+            // branch below finalizes it.
+            .inspect_err(|_| {
+                let _ = self.finalize();
+            })
+            .map(|result| {
+                let state = self.finalize();
+                ExecResultAndState::new(result, state)
+            })
     }
 }
 
-/// UPSTREAM-MIRROR(copy): revm-handler@41.0.0 `revm_handler::api::ExecuteCommitEvm`
+/// UPSTREAM-MIRROR(copy): revm-handler@42.0.1 `revm_handler::api::ExecuteCommitEvm`
 ///
 /// Copies the upstream commit implementation for the OP EVM.
 impl<CTX, INSP, PRECOMPILE> ExecuteCommitEvm
@@ -103,7 +109,7 @@ where
     }
 }
 
-/// UPSTREAM-MIRROR(copy): revm-inspector@41.0.0 `revm_inspector::mainnet_inspect::InspectEvm`
+/// UPSTREAM-MIRROR(copy): revm-inspector@42.0.1 `revm_inspector::mainnet_inspect::InspectEvm`
 ///
 /// Copies the upstream inspector implementation with `OpHandler`.
 impl<CTX, INSP, PRECOMPILE> InspectEvm
@@ -126,7 +132,7 @@ where
     }
 }
 
-/// UPSTREAM-MIRROR(copy): revm-inspector@41.0.0 `revm_inspector::mainnet_inspect::InspectCommitEvm`
+/// UPSTREAM-MIRROR(copy): revm-inspector@42.0.1 `revm_inspector::mainnet_inspect::InspectCommitEvm`
 ///
 /// Mirrors the upstream marker implementation for inspector commits.
 impl<CTX, INSP, PRECOMPILE> InspectCommitEvm
@@ -138,7 +144,7 @@ where
 {
 }
 
-/// UPSTREAM-MIRROR(copy): revm-handler@41.0.0 `revm_handler::system_call::SystemCallEvm`
+/// UPSTREAM-MIRROR(copy): revm-handler@42.0.1 `revm_handler::system_call::SystemCallEvm`
 ///
 /// Copies upstream system-call setup with `OpHandler`.
 impl<CTX, INSP, PRECOMPILE> SystemCallEvm
@@ -163,7 +169,7 @@ where
     }
 }
 
-/// UPSTREAM-MIRROR(copy): revm-inspector@41.0.0
+/// UPSTREAM-MIRROR(copy): revm-inspector@42.0.1
 /// `revm_inspector::mainnet_inspect::InspectSystemCallEvm`
 ///
 /// Copies upstream inspected system-call setup with `OpHandler`.

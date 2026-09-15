@@ -47,7 +47,9 @@ use reth_revm::{
     cancelled::CancelOnDrop, database::StateProviderDatabase, db::State,
     witness::ExecutionWitnessRecord,
 };
-use reth_storage_api::{StateProvider, StateProviderFactory, errors::ProviderError};
+use reth_storage_api::{
+    HeaderProvider, StateProvider, StateProviderFactory, errors::ProviderError,
+};
 use reth_transaction_pool::{BestTransactionsAttributes, PoolTransaction, TransactionPool};
 use revm::context::{Block, BlockEnv};
 use std::{marker::PhantomData, sync::Arc};
@@ -284,7 +286,10 @@ where
         &self,
         parent: SealedHeader<N::BlockHeader>,
         attributes: Attrs::RpcPayloadAttributes,
-    ) -> Result<ExecutionWitness, PayloadBuilderError> {
+    ) -> Result<ExecutionWitness, PayloadBuilderError>
+    where
+        Client: HeaderProvider<Header: alloy_rlp::Encodable>,
+    {
         let attributes = Attrs::try_new(parent.hash(), attributes, 3)?;
         let payload_id = attributes.payload_id();
 
@@ -306,7 +311,7 @@ where
         let state_provider = self.client.state_by_block_hash(ctx.parent().hash())?;
 
         let builder = OpBuilder::new(|_| NoopPayloadTransactions::<Pool::Transaction>::default());
-        builder.witness(state_provider, &ctx)
+        builder.witness(state_provider, &self.client, &ctx)
     }
 }
 
@@ -551,7 +556,6 @@ impl<Txs> OpBuilder<'_, Txs> {
             execution_output: Arc::new(execution_outcome),
             hashed_state: Arc::new(hashed_state),
             trie_updates: Arc::new(trie_updates),
-            changed_paths: None,
         };
 
         let no_tx_pool = ctx.attributes().no_tx_pool();
@@ -570,12 +574,14 @@ impl<Txs> OpBuilder<'_, Txs> {
     }
 
     /// Builds the payload and returns its [`ExecutionWitness`] based on the state after execution.
-    pub fn witness<Evm, ChainSpec, N, Attrs>(
+    pub fn witness<Evm, ChainSpec, N, Attrs, HP>(
         self,
         state_provider: impl StateProvider,
+        headers_provider: &HP,
         ctx: &OpPayloadBuilderCtx<Evm, ChainSpec, Attrs>,
     ) -> Result<ExecutionWitness, PayloadBuilderError>
     where
+        HP: HeaderProvider<Header: alloy_rlp::Encodable> + ?Sized,
         Evm: ConfigurePostExecEvm<
                 Primitives = N,
                 NextBlockEnvCtx: BuildNextEnv<Attrs, N::BlockHeader, ChainSpec>,
@@ -602,15 +608,12 @@ impl<Txs> OpBuilder<'_, Txs> {
             _ = db.load_cache_account(L2_TO_L1_MESSAGE_PASSER_ADDRESS)?;
         }
 
-        let ExecutionWitnessRecord { hashed_state, codes, keys, lowest_block_number: _ } =
-            ExecutionWitnessRecord::from_executed_state(&db, Default::default());
-        let state = state_provider.witness(Default::default(), hashed_state, Default::default())?;
-        Ok(ExecutionWitness {
-            state: state.into_iter().collect(),
-            codes,
-            keys,
-            ..Default::default()
-        })
+        Ok(ExecutionWitnessRecord::new(&db).into_execution_witness(
+            &state_provider,
+            headers_provider,
+            ctx.parent().number() + 1,
+            Default::default(),
+        )?)
     }
 }
 

@@ -13,11 +13,12 @@ use crate::{
     OpEthApiError, SequencerClient,
     eth::{receipt::OpReceiptConverter, transaction::OpTxInfoMapper},
 };
-use alloy_eips::BlockNumHash;
+use alloy_consensus::Header;
 use alloy_primitives::U256;
-use alloy_rpc_types_eth::{Filter, Log};
+use alloy_rpc_types_eth::Filter;
 use eyre::WrapErr;
 use futures::StreamExt;
+use op_alloy_consensus::OpReceipt;
 use op_alloy_network::Optimism;
 use op_alloy_rpc_types_engine::OpFlashblockPayloadBase;
 pub use receipt::{OpReceiptBuilder, OpReceiptFieldsBuilder};
@@ -31,10 +32,10 @@ use reth_optimism_flashblocks::{
     FlashBlockConsensusClient, FlashBlockRx, FlashBlockService, FlashblockCachedReceipt,
     FlashblocksListeners, PendingBlockRx, PendingFlashBlock, WsFlashBlockStream,
 };
-use reth_primitives_traits::NodePrimitives;
+use reth_primitives_traits::{NodePrimitives, SealedHeader};
 use reth_rpc::eth::core::EthApiInner;
 use reth_rpc_eth_api::{
-    EthApiTypes, FromEvmError, FullEthApiServer, RpcConvert, RpcConverter, RpcNodeCore,
+    EthApiTypes, FromEvmError, FullEthApiServer, RpcConvert, RpcConverter, RpcLog, RpcNodeCore,
     RpcNodeCoreExt, RpcTypes,
     helpers::{
         EthApiSpec, EthFees, EthState, EthSubscriptions, LoadFee, LoadPendingBlock, LoadState,
@@ -57,7 +58,7 @@ use std::{
 };
 use tokio::{sync::watch, time};
 use tokio_stream::{Stream, wrappers::BroadcastStream};
-use tracing::info;
+use tracing::{info, warn};
 
 /// Maximum duration to wait for a fresh flashblock when one is being built.
 const MAX_FLASHBLOCK_WAIT_DURATION: Duration = Duration::from_millis(50);
@@ -140,7 +141,12 @@ impl<N: RpcNodeCore, Rpc: RpcConvert> OpEthApi<N, Rpc> {
     pub fn flashblock_receipts_stream(
         &self,
         filter: Filter,
-    ) -> Option<impl Stream<Item = Log> + Send + Unpin> {
+    ) -> Option<impl Stream<Item = RpcLog<Rpc::Network>> + Send + Unpin>
+    where
+        Rpc: RpcConvert<Primitives = N::Primitives, Error = OpEthApiError> + Clone,
+        N::Primitives: NodePrimitives<BlockHeader = Header, Receipt = OpReceipt>,
+    {
+        let converter = Rpc::clone(self.converter());
         self.subscribe_received_flashblocks().map(|rx| {
             BroadcastStream::new(rx)
                 .scan(
@@ -165,13 +171,28 @@ impl<N: RpcNodeCore, Rpc: RpcConvert> OpEthApi<N, Rpc> {
                         let receipts =
                             fb.metadata.receipts.iter().map(|(tx, receipt)| (*tx, receipt));
 
-                        let all_logs = matching_block_logs_with_tx_hashes(
+                        // A flashblock is a payload, not a sealed block: only the number,
+                        // hash and timestamp the log fields need are known here, so the header
+                        // handed to the converter carries exactly those. Everything else is
+                        // zeroed and must not be read.
+                        let header = SealedHeader::new(
+                            Header { number: block_number, timestamp, ..Default::default() },
+                            fb.diff.block_hash,
+                        );
+
+                        let all_logs = match matching_block_logs_with_tx_hashes(
+                            &converter,
                             &filter,
-                            BlockNumHash::new(block_number, fb.diff.block_hash),
-                            timestamp,
+                            &header,
                             receipts,
                             false,
-                        );
+                        ) {
+                            Ok(logs) => logs,
+                            Err(err) => {
+                                warn!(target: "rpc::eth", %err, "failed to convert flashblock logs");
+                                Vec::new()
+                            }
+                        };
 
                         futures::future::ready(Some(all_logs))
                     },
