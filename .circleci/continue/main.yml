@@ -650,6 +650,23 @@ commands:
             export CARGO_TARGET_DIR="$PWD/<< parameters.directory >>/target"
             echo "CARGO_TARGET_DIR: $CARGO_TARGET_DIR"
 
+            # Leave one core idle so the build does not fill the executor's RAM.
+            # The release profile's peak is the tail of the build, where the big
+            # binaries (op-reth, kona-zkvm-canary, kona-sp1-proposer, the op-reth
+            # examples) link at once under `lto = "thin"`; rust-workspace-release
+            # has been OOM-killed there (`sccache: Compile terminated by
+            # signal 9`).
+            # nproc reflects the resource class on these executors, so this is 7
+            # on xlarge.gen2. The spare core is headroom, not a throughput knob:
+            # cargo's default is one unit per core, and dropping to n-1 costs far
+            # less than a retry.
+            CARGO_BUILD_JOBS="$(nproc)"
+            if [ "$CARGO_BUILD_JOBS" -gt 1 ]; then
+              CARGO_BUILD_JOBS=$((CARGO_BUILD_JOBS - 1))
+            fi
+            export CARGO_BUILD_JOBS
+            echo "CARGO_BUILD_JOBS: $CARGO_BUILD_JOBS (nproc: $(nproc))"
+
             export PROFILE="--profile << parameters.profile >>"
 
             # Debug profile is specified as "debug" in the config/target, but cargo build expects "dev"

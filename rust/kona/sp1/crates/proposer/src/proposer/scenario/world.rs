@@ -72,11 +72,9 @@ pub(super) enum L1ReadBoundary {
     ClaimCredit,
     ClaimWithdrawal,
     WethDelay,
-    ParentStanding,
     GameStanding,
     ProofStatus,
     ProofInputs,
-    AnchorStateRegistry,
     LatestL1Timestamp,
 }
 
@@ -341,6 +339,9 @@ pub(super) struct ScenarioGame {
     pub(super) weth: Address,
     pub(super) anchor_state_registry: Address,
     pub(super) standing: GameStanding,
+    /// Optional standing returned by the currently registered registry when
+    /// it differs from the game's own registry.
+    pub(super) registered_parent_standing: Option<GameStanding>,
     /// Bond state for the scenario proposer's address.
     pub(super) bond: BondState,
     pub(super) proof_inputs: ProofInputs,
@@ -372,6 +373,7 @@ impl ScenarioGame {
             weth: deterministic_address(0x60, 1),
             anchor_state_registry: deterministic_address(0x70, 1),
             standing: GameStanding { blacklisted: false, retired: false },
+            registered_parent_standing: None,
             bond: BondState {
                 credit: U256::ZERO,
                 withdrawal_amount: U256::ZERO,
@@ -767,6 +769,10 @@ impl ScenarioWorld {
             state.registered_args.absolute_prestate = prestate;
             state.registered_args.max_prove_duration = max_prove_duration;
         })
+    }
+
+    pub(super) fn rotate_registered_registry(&self, registry: Address) -> L1BlockRef {
+        self.append_block(|state| state.registered_args.anchor_state_registry = registry)
     }
 
     pub(super) fn clear_anchor_root(&self) -> L1BlockRef {
@@ -1583,9 +1589,9 @@ impl L1View for FakeL1View {
         Ok(self.latest_state().init_bond)
     }
 
-    async fn game_status(&self, game: Address) -> Result<u8> {
+    async fn game_status(&self, game: Address, block: BlockId) -> Result<u8> {
         let GameReadResult { state, scripted_status } =
-            self.latest_state_for_game(L1ReadBoundary::GameStatus, game)?;
+            self.state_for_game(L1ReadBoundary::GameStatus, game, block)?;
         Ok(scripted_status.unwrap_or(state.game(game)?.status as u8))
     }
 
@@ -1663,27 +1669,28 @@ impl L1View for FakeL1View {
     }
 
     async fn parent_standing(&self, game: Address, registry: Address) -> Result<GameStanding> {
-        let GameReadResult { state, .. } =
-            self.latest_state_for_game(L1ReadBoundary::ParentStanding, game)?;
-        let game = state.game(game)?;
-        let registered = state.registered_args.anchor_state_registry;
-        ensure!(
-            registry == registered,
-            "parent standing used registry {registry}, expected {registered}"
-        );
-        Ok(game.standing)
+        self.game_standing(game, registry, BlockId::latest()).await
     }
 
-    async fn game_standing(&self, game: Address, registry: Address) -> Result<GameStanding> {
+    async fn game_standing(
+        &self,
+        game: Address,
+        registry: Address,
+        block: BlockId,
+    ) -> Result<GameStanding> {
         let GameReadResult { state, .. } =
-            self.latest_state_for_game(L1ReadBoundary::GameStanding, game)?;
+            self.state_for_game(L1ReadBoundary::GameStanding, game, block)?;
+        let registered = state.registered_args.anchor_state_registry;
         let game = state.game(game)?;
+        if registry == game.anchor_state_registry {
+            return Ok(game.standing);
+        }
         ensure!(
-            registry == game.anchor_state_registry,
-            "game standing used registry {registry}, expected {}",
+            registry == registered,
+            "game standing used registry {registry}, expected own {} or registered {registered}",
             game.anchor_state_registry
         );
-        Ok(game.standing)
+        Ok(game.registered_parent_standing.unwrap_or(game.standing))
     }
 
     async fn proof_status(&self, game: Address) -> Result<u8> {
@@ -1696,12 +1703,6 @@ impl L1View for FakeL1View {
         let GameReadResult { state, .. } =
             self.latest_state_for_game(L1ReadBoundary::ProofInputs, game)?;
         Ok(state.game(game)?.proof_inputs)
-    }
-
-    async fn anchor_state_registry(&self, game: Address) -> Result<Address> {
-        let GameReadResult { state, .. } =
-            self.latest_state_for_game(L1ReadBoundary::AnchorStateRegistry, game)?;
-        Ok(state.game(game)?.anchor_state_registry)
     }
 
     async fn latest_l1_timestamp(&self) -> Result<u64> {
@@ -2083,7 +2084,7 @@ impl ActionExecutor for FakeActionExecutor {
 
 pub(super) struct ScenarioHarness {
     world: ScenarioWorld,
-    proposer: Arc<Proposer>,
+    pub(super) proposer: Arc<Proposer>,
     control: ScenarioControl,
     config: ProposerConfig,
 }
