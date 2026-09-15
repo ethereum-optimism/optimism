@@ -96,6 +96,11 @@ where
         true
     }
 
+    /// UPSTREAM-MIRROR(copy): revm-handler@41.0.0 `revm_handler::EthPrecompiles::run`
+    ///
+    /// FPVM acceleration replaces dispatch, while output conversion delegates to revm. Re-check
+    /// input materialization, execution errors, and gas/reservoir propagation across both paths.
+    /// Unlike the RPC-facing provider, this provider does not record precompile error context.
     #[inline]
     fn run(
         &mut self,
