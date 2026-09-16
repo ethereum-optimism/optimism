@@ -1,5 +1,6 @@
 //! Prometheus metrics for the proposer.
 
+use alloy_primitives::U256;
 use kona_sp1_host_utils::metrics::MetricsGauge;
 use metrics::{counter, describe_counter};
 use strum::{EnumMessage, IntoEnumIterator};
@@ -265,4 +266,9 @@ pub fn register_metrics(network: bool) {
 pub(crate) fn record_deadline_passed(is_defense: bool) {
     let window = if is_defense { "defense" } else { "fast_finality" };
     counter!(DEADLINE_PASSED, "window" => window).increment(1);
+}
+
+/// Converts an 18-decimal ETH or PROVE balance to whole tokens.
+pub(crate) fn token_balance(balance: U256) -> f64 {
+    f64::from(balance) / 1e18
 }

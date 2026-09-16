@@ -40,7 +40,7 @@ use crate::{
     },
     config::{PrestatePrograms, ProofProviderKind, ProposalSafety, ProposerConfig, load_prestate},
     contract::{DisputeGameFactory::DisputeGameFactoryInstance, GameStatus, ProposalStatus},
-    metrics::{ProposerGauge, record_deadline_passed},
+    metrics::{ProposerGauge, record_deadline_passed, token_balance},
     ports::{
         ActionExecutor, BondState, ClaimPreflight, GameLifecycle, L1View, ProofEngine, ProofInputs,
         QueryTime, SuperRootSource,
@@ -782,6 +782,14 @@ fn classify_game_sync(
         GameSyncFacts::ChallengerWins { index } => Ok(GameSyncAction::RemoveSubtree(index)),
     }
 }
+
+#[derive(Debug, PartialEq, Eq, Hash)]
+struct MissedDeadline {
+    game_address: Address,
+    is_defense: bool,
+    deadline: u64,
+}
+
 /// Core proposer service: syncs the on-chain game DAG, creates and defends games,
 /// resolves finished ones, and claims bonds.
 #[derive(Clone)]
@@ -844,7 +852,7 @@ pub struct Proposer {
     undefendable: Arc<Mutex<HashSet<Address>>>,
     /// Process-local misses, retained until the game leaves the cache. A restart can count an
     /// expired window again; windows that open and close between observations are not counted.
-    missed_deadlines: Arc<Mutex<HashSet<(Address, bool, u64)>>>,
+    missed_deadlines: Arc<Mutex<HashSet<MissedDeadline>>>,
 }
 
 impl std::fmt::Debug for Proposer {
@@ -2719,7 +2727,7 @@ impl Proposer {
             }),
             self.collect_gauge(ProposerGauge::SignerBalanceEth, async {
                 let balance = self.l1_view.signer_balance(self.proposer_address).await?;
-                Ok(Some(f64::from(balance) / 1e18))
+                Ok(Some(token_balance(balance)))
             }),
             async {
                 if self.config.proof_provider == ProofProviderKind::Network {
@@ -2764,7 +2772,10 @@ impl Proposer {
     ) {
         let state = self.state.read().await;
         let addresses = state.games.values().map(|game| game.address).collect::<HashSet<_>>();
-        self.missed_deadlines.lock().await.retain(|(address, _, _)| addresses.contains(address));
+        self.missed_deadlines
+            .lock()
+            .await
+            .retain(|missed| addresses.contains(&missed.game_address));
         let mut remaining = f64::INFINITY;
         for game in
             observed_indices.iter().filter_map(|index| state.games.get(index)).filter(|game| {
@@ -2785,6 +2796,19 @@ impl Proposer {
         ProposerGauge::DefenseDeadlineRemainingSeconds.set(remaining);
     }
 
+    async fn record_deadline_for_address(
+        &self,
+        game_address: Address,
+        status: ProposalStatus,
+        deadline: u64,
+        now: u64,
+    ) {
+        let state = self.state.read().await;
+        if let Some(game) = state.games.values().find(|game| game.address == game_address) {
+            self.record_game_deadline(game, status, deadline, now).await;
+        }
+    }
+
     async fn record_game_deadline(
         &self,
         game: &Game,
@@ -2802,7 +2826,11 @@ impl Proposer {
             _ => return false,
         };
         if now > deadline &&
-            self.missed_deadlines.lock().await.insert((game.address, is_defense, deadline))
+            self.missed_deadlines.lock().await.insert(MissedDeadline {
+                game_address: game.address,
+                is_defense,
+                deadline,
+            })
         {
             record_deadline_passed(is_defense);
             return true;
@@ -3590,17 +3618,7 @@ impl Proposer {
                 if let Some(status) = observed_status &&
                     (status == ProposalStatus::Challenged) == is_defense
                 {
-                    let game = self
-                        .state
-                        .read()
-                        .await
-                        .games
-                        .values()
-                        .find(|game| game.address == game_address)
-                        .cloned();
-                    if let Some(game) = game {
-                        self.record_game_deadline(&game, status, deadline, now).await;
-                    }
+                    self.record_deadline_for_address(game_address, status, deadline, now).await;
                 }
                 self.proof_engine.clear(game_address);
                 return Ok(true);
@@ -3784,17 +3802,7 @@ impl Proposer {
             .await
             .context("failed to fetch latest L1 block for game deadline")?;
         if now > claim.deadline {
-            let game = self
-                .state
-                .read()
-                .await
-                .games
-                .get(&game_index)
-                .filter(|game| game.address == game_address)
-                .cloned();
-            if let Some(game) = game {
-                self.record_game_deadline(&game, status, claim.deadline, now).await;
-            }
+            self.record_deadline_for_address(game_address, status, claim.deadline, now).await;
             tracing::warn!(
                 ?game_address,
                 deadline = claim.deadline,

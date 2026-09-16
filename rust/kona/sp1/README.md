@@ -336,7 +336,8 @@ Optional core and operational configuration:
 | `KONA_SP1_PROPOSER_FAST_FINALITY_MODE` | prove signer-created owned games while unchallenged (default `false`) |
 | `KONA_SP1_PROPOSER_FAST_FINALITY_PROVING_LIMIT` | total in-flight proving tasks before creation pauses (default `1`) |
 
-SP1 network configuration applies when `KONA_SP1_PROPOSER_PROOF_PROVIDER=network`:
+SP1 network configuration applies when `KONA_SP1_PROPOSER_PROOF_PROVIDER=network`.
+`KONA_SP1_PROPOSER_NETWORK_CALLS_TIMEOUT` also bounds metric observations in mock mode.
 
 | Variable | Purpose |
 |---|---|
@@ -346,7 +347,7 @@ SP1 network configuration applies when `KONA_SP1_PROPOSER_PROOF_PROVIDER=network
 | `KONA_SP1_PROPOSER_RANGE_PROOF_STRATEGY` | range fulfillment strategy (default `auction`) |
 | `KONA_SP1_PROPOSER_AGG_PROOF_STRATEGY` | aggregation fulfillment strategy (default `auction`) |
 | `KONA_SP1_PROPOSER_SP1_TIMEOUT_SECONDS` | per-proof request deadline and client wait (default `7200`) |
-| `KONA_SP1_PROPOSER_NETWORK_CALLS_TIMEOUT` | individual network-call timeout (default `15`) |
+| `KONA_SP1_PROPOSER_NETWORK_CALLS_TIMEOUT` | SP1 API and metric observation timeout, including L1 balance and super-root queries (default `15` seconds) |
 | `KONA_SP1_PROPOSER_AUCTION_TIMEOUT` | unassigned mainnet request timeout (default `300`) |
 | `KONA_SP1_PROPOSER_RANGE_CYCLE_LIMIT` | range request cycle limit (default `1e12`) |
 | `KONA_SP1_PROPOSER_RANGE_GAS_LIMIT` | range request gas limit (default `200000000000`) |

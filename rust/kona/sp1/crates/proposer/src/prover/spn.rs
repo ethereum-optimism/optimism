@@ -1,11 +1,10 @@
 //! Succinct Prover Network request submission, polling, and verification.
 
-use std::{future::Future, num::NonZeroU64, panic::AssertUnwindSafe, sync::Arc, time::Duration};
+use std::{future::Future, num::NonZeroU64, sync::Arc, time::Duration};
 
 use alloy_primitives::U256;
 use anyhow::{Result, bail};
 use async_trait::async_trait;
-use futures::FutureExt;
 use kona_sp1_host_utils::metrics::MetricsGauge;
 use sp1_sdk::{
     NetworkProver, ProveRequest, Prover, SP1ProofMode, SP1ProofWithPublicValues, SP1ProvingKey,
@@ -22,7 +21,10 @@ use sp1_sdk::{
 use tokio::time::sleep;
 
 use super::{ProofId, ProofKeys, ProofTerminalState, ProofWaitError};
-use crate::{config::ProofProviderConfig, metrics::ProposerGauge};
+use crate::{
+    config::ProofProviderConfig,
+    metrics::{ProposerGauge, token_balance},
+};
 
 #[cfg(test)]
 use alloy_primitives::B256;
@@ -191,16 +193,11 @@ impl NetworkProofProvider {
     }
 
     pub(super) async fn balance(&self) -> Result<f64> {
-        // The SDK panics when a balance response is not a valid U256.
-        let balance = AssertUnwindSafe(self.network_call_with_timeout(
-            self.api.get_balance(),
-            "get_balance",
-            None,
-        ))
-        .catch_unwind()
-        .await
-        .map_err(|_| anyhow::anyhow!("SP1 balance query panicked"))??;
-        Ok(prove_tokens(balance))
+        // This trusts SP1's balance encoding. The SDK returns transport errors,
+        // but panics on a malformed successful response.
+        let balance =
+            self.network_call_with_timeout(self.api.get_balance(), "get_balance", None).await?;
+        Ok(token_balance(balance))
     }
 
     pub(super) async fn request_range_proof(
@@ -501,11 +498,6 @@ impl NetworkProofProvider {
     }
 }
 
-/// PROVE has 18 decimal places.
-fn prove_tokens(balance: U256) -> f64 {
-    f64::from(balance) / 1e18
-}
-
 /// Client-side proof request timeout status.
 #[derive(Debug, PartialEq, Eq)]
 enum ProvingTimeout {
@@ -640,7 +632,6 @@ mod tests {
     use super::*;
 
     struct ScriptedNetworkApi {
-        balance: Option<U256>,
         statuses:
             Mutex<VecDeque<(GetProofRequestStatusResponse, Option<SP1ProofWithPublicValues>)>>,
         details: Mutex<Option<ProofRequest>>,
@@ -655,7 +646,6 @@ mod tests {
             details: Option<ProofRequest>,
         ) -> Self {
             Self {
-                balance: None,
                 statuses: Mutex::new(statuses.into()),
                 details: Mutex::new(details),
                 status_ids: Mutex::new(Vec::new()),
@@ -668,7 +658,7 @@ mod tests {
     #[async_trait]
     impl NetworkProverApi for ScriptedNetworkApi {
         async fn get_balance(&self) -> Result<U256> {
-            Ok(self.balance.expect("unexpected balance request"))
+            bail!("unexpected balance request")
         }
 
         async fn request_range_proof(
@@ -718,15 +708,6 @@ mod tests {
         ) -> Result<()> {
             Ok(())
         }
-    }
-
-    #[tokio::test]
-    async fn balance_query_panic_returns_an_error() {
-        let provider = provider_with_api(
-            Arc::new(ScriptedNetworkApi::new(Vec::new(), None)),
-            NetworkMode::Mainnet,
-        );
-        assert!(provider.balance().await.is_err());
     }
 
     fn provider_with_api(
