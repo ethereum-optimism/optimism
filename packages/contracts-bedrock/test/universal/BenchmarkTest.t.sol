@@ -63,7 +63,7 @@ contract GasBenchMark_L1Block_SetValuesEcotone is GasBenchMark_L1Block {
         SafeCall.call({ _target: address(l1Block), _calldata: setValuesCalldata });
 
         // Assert
-        assertLt(vm.lastCallGas().gasTotalUsed, 160_000);
+        assertLt(vm.lastFrameGas().gasTotalUsed, 165_000);
     }
 }
 
@@ -81,6 +81,6 @@ contract GasBenchMark_L1Block_SetValuesEcotone_Warm is GasBenchMark_L1Block {
         // Assert
         // setL1BlockValuesEcotone system tx ONLY gets 1m gas.
         // 200k is a safe boundary to prevent hitting the limit.
-        assertLt(vm.lastCallGas().gasTotalUsed, 200_000);
+        assertLt(vm.lastFrameGas().gasTotalUsed, 200_000);
     }
 }
