@@ -345,7 +345,9 @@ func initL1Handlers(cfg *config.Config, node *OpNode) (ethereum.Subscription, et
 			go func() {
 				defer node.l1ReceiptsPrefetchGroup.Done()
 				if _, _, err := node.l1Source.FetchReceipts(ctx, sig.Hash); err != nil {
-					node.log.Debug("Failed to prefetch L1 receipts", "hash", sig.Hash, "err", err)
+					node.log.Warn("Failed to prefetch L1 receipts", "hash", sig.Hash, "err", err)
+				} else {
+					node.log.Debug("Successfully prefetched L1 receipts", "hash", sig.Hash)
 				}
 			}()
 		}
