@@ -38,6 +38,7 @@ alloy-contract.workspace = true
 anyhow.workspace = true
 bincode.workspace = true
 parking_lot.workspace = true
+metrics.workspace = true
 serde = { workspace = true, features = ["derive", "std"] }
 futures.workspace = true
 async-trait.workspace = true
@@ -52,6 +53,7 @@ jsonrpsee = { workspace = true, features = ["http-client"] }
 
 [dev-dependencies]
 kona-sp1-client-utils = { workspace = true, features = ["aggregation-test-utils"] }
+metrics-exporter-prometheus.workspace = true
 tempfile.workspace = true
 tokio = { workspace = true, features = ["test-util"] }
 

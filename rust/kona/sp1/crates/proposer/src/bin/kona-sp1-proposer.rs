@@ -17,7 +17,7 @@ use kona_sp1_proposer::{
     ENV_VAR_PREFIX,
     config::{ProofProviderKind, ProposerConfig, redacted_url},
     contract::DisputeGameFactory,
-    metrics::ProposerGauge,
+    metrics::{ProposerGauge, register_metrics},
     proposer::Proposer,
     prover::{MockProofProvider, NetworkProofProvider, ProofProvider},
     signer::{Signer, SignerLock},
@@ -103,12 +103,11 @@ async fn main() -> Result<()> {
     // own args for game-specific reads.
 
     // Bind before readiness so the advertised address is live. Install the
-    // recorder before register_all; describe_gauge! calls sent to the no-op
+    // recorder before registration; describe_gauge! calls sent to the no-op
     // recorder lose their HELP lines.
     let metrics_addr = init_metrics(config.metrics_listen).await?;
     if metrics_addr.is_some() {
-        ProposerGauge::register_all();
-        ProposerGauge::init_all();
+        register_metrics(!proof_provider.is_mock());
     }
 
     let proposer = Arc::new(Proposer::new(config, signer, factory, proof_provider).await?);
@@ -117,6 +116,7 @@ async fn main() -> Result<()> {
 
     // Devstack readiness matches this message. Emit it before chain-dependent
     // initialization so a deriving supernode does not stall process readiness.
+    ProposerGauge::Up.set(1.0);
     match metrics_addr {
         Some(addr) => tracing::info!(metrics_addr = %addr, "kona-sp1-proposer started"),
         None => tracing::info!("kona-sp1-proposer started"),

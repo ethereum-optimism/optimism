@@ -58,6 +58,10 @@ impl<P> L1View for ProductionL1View<P>
 where
     P: Provider + Clone + Send + Sync + 'static,
 {
+    async fn signer_balance(&self, address: Address) -> Result<U256> {
+        Ok(self.provider.get_balance(address).await?)
+    }
+
     async fn latest_head(&self) -> Result<Option<L1BlockRef>> {
         Ok(self.provider.get_block_by_number(BlockNumberOrTag::Latest).await?.map(|block| {
             L1BlockRef {
@@ -374,6 +378,10 @@ impl ProductionProofEngine {
 
 #[async_trait]
 impl ProofEngine for ProductionProofEngine {
+    async fn prove_balance(&self) -> Result<Option<f64>> {
+        self.provider.balance().await
+    }
+
     async fn prove(
         &self,
         game_address: Address,

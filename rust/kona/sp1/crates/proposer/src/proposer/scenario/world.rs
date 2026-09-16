@@ -1464,6 +1464,10 @@ impl FakeL1View {
 
 #[async_trait]
 impl L1View for FakeL1View {
+    async fn signer_balance(&self, _address: Address) -> Result<U256> {
+        Ok(U256::ZERO)
+    }
+
     async fn latest_head(&self) -> Result<Option<L1BlockRef>> {
         Ok(Some(self.0.lock().latest_state().block))
     }
@@ -1846,6 +1850,10 @@ struct FakeProofEngine(ScenarioWorld);
 
 #[async_trait]
 impl ProofEngine for FakeProofEngine {
+    async fn prove_balance(&self) -> Result<Option<f64>> {
+        Ok(None)
+    }
+
     async fn prove(
         &self,
         game_address: Address,
