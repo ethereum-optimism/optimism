@@ -7,112 +7,74 @@ diataxis: explanation
 import OpEnterpriseSoftCard from '/snippets/op-enterprise-soft-card.mdx';
 
 <Info>
-  **Learn the OP Stack — stop 1 of 13.**
+  **Learn the OP Stack — stop 1 of 14.**
   This is the start of the track; nothing is assumed beyond general
   familiarity with Ethereum. This page gives you the mental model: what
   the OP Stack is and what it powers. When you're done, continue to
-  [Design philosophy & principles](/op-stack/protocol/design-principles).
+  [OP Stack architecture](/op-stack/architecture).
 </Info>
 
-The OP Stack is the standardized, shared, and open-source development stack that powers Optimism and makes it easy to spin up your own production-ready Layer 2 blockchain. 
-Whether you're building applications or deploying your own chain, the OP Stack provides the foundation you need.
+The OP Stack is the standardized, shared, and open-source development stack
+that powers Optimism and makes it possible to run a production Layer 2
+blockchain. It is not a single program. It is a set of components that
+together produce a chain whose entire history is published to Ethereum, so
+that anyone can reconstruct and check it.
 
-## What is the OP Stack?
+## What the OP Stack gives you
 
-The OP Stack is a modular collection of software components that work together to create Layer 2 blockchains. It includes:
+An OP Stack chain is a *rollup*: it executes transactions on its own network
+and publishes the data for those transactions to a parent chain, usually
+Ethereum. Because the data is published, the chain can be rebuilt by anyone
+from the parent chain alone, and Ethereum can be convinced of the chain's
+state well enough to release funds back out of it.
 
-- **Execution Layer**: Processes transactions and manages state
-- **Consensus Layer**: Handles block production and validation
-- **Data Availability**: Ensures transaction data is available
-- **Settlement Layer**: Finalizes transactions on Ethereum
+That arrangement is what produces the properties chains are built on it for:
 
-## Choose Your Path
+*   **EVM equivalence.** Existing Ethereum contracts and tooling work without
+    modification. The small set of deliberate deviations is documented in
+    [Differences from Ethereum](/op-stack/protocol/differences).
+*   **Costs far below Ethereum's.** Transactions are executed on L2 and only
+    their compressed data reaches L1. See
+    [Transaction fees](/op-stack/transactions/fees).
+*   **Fast confirmations, backed by Ethereum finality.** Blocks arrive in
+    seconds; irreversibility follows once the data is finalized on Ethereum.
+    See [Transaction finality](/op-stack/transactions/transaction-finality).
+*   **Modularity.** Data availability, sequencing, and settlement are separate
+    layers, so a chain can change one without rebuilding the rest.
+
+## What it powers
+
+The OP Stack runs OP Mainnet and many other production chains, many of which
+adhere to a standard configuration, contracts, and upgrade process. This
+shared standard is what makes a common toolchain and native OP Stack
+cross-chain interoperability possible.
+
+## Where to go next
+
+If you are working through the learning track, continue in order. Otherwise,
+pick the path that matches what you are doing:
 
 <CardGroup cols={2}>
-  <Card title="Build Applications" icon="code" href="/app-developers/quickstarts/starter-kit">
-    Start building decentralized applications on existing OP Stack chains
+  <Card title="Understand how it works" icon="stars" href="/op-stack/architecture">
+    The system view: the components, who runs each, and how a transaction
+    moves through them
   </Card>
-  <Card title="Deploy a Chain" icon="server" href="/operators/chain-operators">
-    Launch your own OP Stack chain for your project or organization
+  <Card title="Build applications" icon="code" href="/app-developers/index">
+    Build on OP Mainnet or any other OP Stack chain
   </Card>
-  <Card title="Run a Node" icon="computer" href="/operators/node-operators">
+  <Card title="Deploy a chain" icon="server" href="/chain-operators/index">
+    Launch and operate your own OP Stack chain
+  </Card>
+  <Card title="Run a node" icon="computer" href="/node-operators/overview">
     Operate infrastructure by running your own OP Stack node
-  </Card>
-  <Card title="Contribute to Protocol" icon="github" href="https://github.com/ethereum-optimism/optimism/blob/develop/CONTRIBUTING.md">
-    Help build the future of the OP Stack protocol
-  </Card>
-</CardGroup>
-
-## Development Options
-
-<Tabs>
-  <Tab title="Mainnet">
-    Build on **OP Mainnet** for production applications with real users and value.
-
-    - Network: Production-ready Layer 2
-    - Security: Secured by Ethereum mainnet
-    - Ecosystem: Full ecosystem of tools and services
-  </Tab>
-  <Tab title="Testnet">
-    Use **OP Sepolia** for testing and development without real costs.
-
-    - Network: Test environment
-    - Faucets: Free test ETH available
-    - Perfect for: Development and testing
-  </Tab>
-  <Tab title="Local Development">
-    Run your own local OP Stack chain for rapid development and testing.
-
-    - Tools: Supersim, Anvil, Hardhat
-    - Speed: Instant transactions
-    - Control: Full control over chain behavior
-  </Tab>
-</Tabs>
-
-## Quick Start Guide
-
-<Steps>
-  <Step title="Set Up Your Environment">
-    Install Node.js, your preferred IDE, and essential development tools
-  </Step>
-  <Step title="Choose Your Framework">
-    Select from popular frameworks like Hardhat, Foundry, or Remix
-  </Step>
-  <Step title="Get Test Funds">
-    Use the [Superchain Faucet](https://console.optimism.io/faucet) to get test ETH
-  </Step>
-  <Step title="Deploy Your First Contract">
-    Deploy a simple smart contract to get familiar with the process
-  </Step>
-  <Step title="Explore Advanced Features">
-    Learn about cross-chain messaging, account abstraction, and more
-  </Step>
-</Steps>
-
-## Key Features
-
-- **EVM Compatibility**: Full compatibility with Ethereum tooling and smart contracts
-- **Low Fees**: Significantly lower transaction costs than Ethereum mainnet
-- **Fast Confirmations**: Near-instant transaction confirmation, with [full Ethereum finality](/op-stack/transactions/transaction-finality) typically under an hour
-- **Ethereum Security**: Inherits security from Ethereum's consensus
-- **Modular Design**: Customizable components for specific needs
-
-## Next Steps
-
-<CardGroup cols={3}>
-  <Card title="Architecture Overview" icon="stars" href="/op-stack/protocol/components">
-    Understand the technical architecture of the OP Stack
-  </Card>
-  <Card title="Development Tools" icon="wrench" href="/app-developers/tools">
-    Discover tools and services for building on OP Stack
-  </Card>
-  <Card title="Tutorials" icon="book" href="/app-developers/tutorials/deploy-a-contract">
-    Follow step-by-step tutorials for common use cases
   </Card>
 </CardGroup>
 
 <Info>
-  The OP Stack is continuously evolving. Check the [OP Stack specifications](https://specs.optimism.io) to stay current with new features and improvements, and stay up to date on the OP Stack by reading the [Optimism Blog](https://www.optimism.io/blog).
+  The OP Stack is continuously evolving. The
+  [OP Stack specifications](https://specs.optimism.io) are the normative
+  definition of protocol behavior, and the
+  [Optimism Blog](https://www.optimism.io/blog) covers new work as it ships.
 </Info>
 
 ## Ready to build your chain?

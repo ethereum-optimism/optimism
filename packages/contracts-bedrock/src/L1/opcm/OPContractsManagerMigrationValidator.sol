@@ -177,7 +177,7 @@ contract OPContractsManagerMigrationValidator {
         }
 
         // Per-chain invariants (portal points at shared ASR/lockbox, legacy game types cleared).
-        _errors = assertValidPerChainMigration(_errors, _input, _cfg.superchainConfig);
+        _errors = assertValidPerChainMigration(_errors, _input, _input.chainSystemConfigs, _cfg.superchainConfig);
 
         if (bytes(_errors).length > 0 && !_allowFailure) {
             revert(string.concat("OPContractsManagerMigrationValidator: ", _errors));
@@ -461,14 +461,13 @@ contract OPContractsManagerMigrationValidator {
     function assertValidPerChainMigration(
         string memory _errors,
         IOPContractsManagerMigrationValidator.MigrationValidationInput memory _input,
+        ISystemConfig[] memory _chainSystemConfigs,
         ISuperchainConfig _superchainConfig
     )
         internal
         view
         returns (string memory)
     {
-        ISystemConfig[] memory _chainSystemConfigs = _input.chainSystemConfigs;
-
         if (_chainSystemConfigs.length == 0) {
             return internalRequire(false, "MIG-CHAIN-EMPTY", _errors);
         }

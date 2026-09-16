@@ -90,6 +90,10 @@ Report the input class that a difference covers, not one example input.
 Name the first byte range, the field, or the failure mode that produces the same outcome.
 A single example hides the reach of the difference from the reader.
 
+## Known derivation issues
+
+When applying the [shared triage process](spec-driven-review.md#triage-known-issues), also check [ethereum-optimism/optimism#22854](https://github.com/ethereum-optimism/optimism/issues/22854) and its sub-issues.
+
 ## Sibling paths in derivation
 
 The shared guide requires a rule-list diff against sibling paths.

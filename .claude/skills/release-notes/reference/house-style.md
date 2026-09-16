@@ -77,7 +77,14 @@ operators never see.
 **The callout type follows the recommendation**: `> [!NOTE]` for `optional`,
 `> [!IMPORTANT]` for either recommended level, `> [!CAUTION]` for `required`. Those three and
 no others. This block is also the note's only callout — if you reach for a second, the
-content is an entry in the change list, or belongs in `## Breaking changes`.
+content is an entry in the change list, or belongs in `## Breaking changes`. The one exception
+is `kona-node`, whose callout should always be:
+
+```markdown
+> [!NOTE]
+>
+> `kona-node` is not production-ready. Production deployments should use `op-node`.
+```
 
 ## Impact, not implementation
 

@@ -155,6 +155,7 @@ type Interop struct {
 	log                 log.Logger
 	chains              map[eth.ChainID]cc.InteropChain
 	activationTimestamp uint64 // immutable protocol activation timestamp
+	dependencySet       depset.DependencySet
 
 	// verificationStartTimestamp is the first L2 timestamp the main loop
 	// attempts to verify. Set exactly once during tryInitFromVerifiedDB
@@ -247,7 +248,7 @@ func (i *Interop) firstVerifiableTimestamp() (uint64, error) {
 func New(
 	log log.Logger,
 	activationTimestamp uint64,
-	messageExpiryWindow uint64,
+	dependencySet depset.DependencySet,
 	chains map[eth.ChainID]cc.InteropChain,
 	dataDir string,
 	l1Source l1ByNumberSource,
@@ -276,8 +277,9 @@ func New(
 		logsDBs[chainID] = logsDB
 	}
 
-	if messageExpiryWindow == 0 {
-		messageExpiryWindow = defaultMessageExpiryWindow
+	messageExpiryWindow := defaultMessageExpiryWindow
+	if dependencySet != nil {
+		messageExpiryWindow = dependencySet.MessageExpiryWindow()
 	}
 	if metrics == nil {
 		metrics = resources.NewSupernodeMetrics()
@@ -302,6 +304,7 @@ func New(
 		logsDBs:             logsDBs,
 		dataDir:             dataDir,
 		activationTimestamp: activationTimestamp,
+		dependencySet:       dependencySet,
 		messageExpiryWindow: messageExpiryWindow,
 		logBackfillDepth:    logBackfillDepth,
 		metrics:             metrics,

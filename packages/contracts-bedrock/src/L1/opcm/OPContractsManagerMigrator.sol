@@ -275,7 +275,7 @@ contract OPContractsManagerMigrator is OPContractsManagerUtilsCaller {
                 _updateDelayedWETHLockbox(_input.chainSystemConfigs[i], ethLockbox, impls.delayedWETHImpl);
                 // Preserve the legacy pause resolver until the portal points at the shared lockbox.
                 // Upgrading SystemConfig first would query a missing lockbox or recurse through a legacy one.
-                _migratePortal(_input.chainSystemConfigs[i], ethLockbox, anchorStateRegistry);
+                _migratePortal(_input.chainSystemConfigs[i], ethLockbox, anchorStateRegistry, impls);
                 _updateSystemConfigDelayedWETH(_input.chainSystemConfigs[i], delayedWETH, impls.systemConfigImpl);
             }
         }
@@ -480,10 +480,12 @@ contract OPContractsManagerMigrator is OPContractsManagerUtilsCaller {
     /// @param _systemConfig The system config for the chain being migrated.
     /// @param _newLockbox The new ETHLockbox.
     /// @param _newASR The new AnchorStateRegistry.
+    /// @param _impls The implementations to use for the portal and old AnchorStateRegistry.
     function _migratePortal(
         ISystemConfig _systemConfig,
         IETHLockbox _newLockbox,
-        IAnchorStateRegistry _newASR
+        IAnchorStateRegistry _newASR,
+        IOPContractsManagerContainer.Implementations memory _impls
     )
         internal
     {
@@ -523,7 +525,7 @@ contract OPContractsManagerMigrator is OPContractsManagerUtilsCaller {
         _upgrade(
             _systemConfig.proxyAdmin(),
             address(portal),
-            contractsContainer().implementations().optimismPortalImpl,
+            _impls.optimismPortalImpl,
             abi.encodeCall(IOptimismPortal.initialize, (_systemConfig, oldASR, _newLockbox))
         );
 
@@ -554,7 +556,7 @@ contract OPContractsManagerMigrator is OPContractsManagerUtilsCaller {
         _upgrade(
             _systemConfig.proxyAdmin(),
             address(oldASR),
-            contractsContainer().implementations().anchorStateRegistryImpl,
+            _impls.anchorStateRegistryImpl,
             abi.encodeCall(
                 IAnchorStateRegistry.initialize,
                 (_newLockbox, oldASR.disputeGameFactory(), oldASR.getStartingAnchorRoot(), oldASR.respectedGameType())

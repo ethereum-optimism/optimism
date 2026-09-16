@@ -123,8 +123,13 @@ Treat the listed version as a minimum for every component except `kona-client`, 
 | `op-proposer` | [v1.16.4](https://github.com/ethereum-optimism/optimism/releases/tag/op-proposer%2Fv1.16.4) | Switch at the contract upgrade cutover, as described in [Update order](#update-order). Replace `--rollup-rpc` with `--superroot-rpcs` (`OP_PROPOSER_SUPERROOT_RPCS`) and set `OP_PROPOSER_GAME_TYPE=5` for a permissioned chain or `OP_PROPOSER_GAME_TYPE=9` for a permissionless chain. |
 | `kona-client` | [v1.7.0](https://github.com/ethereum-optimism/optimism/releases/tag/kona-client%2Fv1.7.0) exactly | Permissionless chains only. This release produces the `SUPER_CANNON_KONA` absolute prestate. Build or locate the Interop variant prestate from this exact tag and host it for `op-challenger`, as described in [Locate or build the absolute prestate](#locate-or-build-the-absolute-prestate). A later tag produces a different hash that does not match the reviewed Upgrade 20 value. |
 | `op-node` | [v1.19.6](https://github.com/ethereum-optimism/optimism/releases/tag/op-node%2Fv1.19.6) | No hardfork activation, so an `op-node` that only serves the chain needs no configuration change. An `op-node` that serves the Super Root RPC to Fault Proof services must run with `--safedb.path` enabled and populated through derivation; `superroot_atTimestamp` cannot serve a non-genesis timestamp without SafeDB. |
-| `op-reth` | [v2.5.2](https://github.com/paradigmxyz/reth/releases/tag/v2.5.2) | No Upgrade 20 configuration change is required, and there is no hardfork activation. |
+| `op-reth` | [2.4.4](https://github.com/ethereum-optimism/optimism/releases/tag/op-reth%2Fv2.4.4) | No Upgrade 20 configuration change is required, and there is no hardfork activation. |
 | `op-batcher` | [v1.16.13](https://github.com/ethereum-optimism/optimism/releases/tag/op-batcher%2Fv1.16.13) | No Upgrade 20 configuration change is required. |
+
+`op_proposer_default_proposed_sequence_number` replaces `op_proposer_default_refs_number` as the metric for the latest proposal sequence number.
+The replacement metric is already available before Upgrade 20, so operators can update dashboards before the contract cutover.
+Remove `layer` and `type` label filters when updating queries because the replacement metric does not define those labels.
+The metric reports an L2 block number for Output Root proposals and a Unix timestamp for Super Root proposals.
 
 The Super Root RPC must return a root for the chain or dependency set that the Dispute Game covers.
 For a single-chain upgrade, use the chain's `op-node` RPC endpoint or the chain-specific endpoint exposed by an `op-supernode`.

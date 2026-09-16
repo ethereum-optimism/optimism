@@ -9,6 +9,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/ethereum-optimism/optimism/op-core/interop/depset"
 	opnodecfg "github.com/ethereum-optimism/optimism/op-node/config"
 	rollupNode "github.com/ethereum-optimism/optimism/op-node/node"
 	"github.com/ethereum-optimism/optimism/op-service/apis"
@@ -118,14 +119,14 @@ func New(ctx context.Context, log gethlog.Logger, version string, commit string,
 	var verifiedReader interop.VerifiedResultReader = interop.NoopVerifiedResultReader{}
 	var interopActivity *interop.Interop
 	if interopActivationTimestamp != nil {
-		var msgExpiryWindow uint64
+		var dependencySet depset.DependencySet
 		for _, vnCfg := range vnCfgs {
-			if vnCfg.DependencySet != nil {
-				msgExpiryWindow = vnCfg.DependencySet.MessageExpiryWindow()
+			if vnCfg != nil && vnCfg.DependencySet != nil {
+				dependencySet = vnCfg.DependencySet
 				break
 			}
 		}
-		interopActivity = interop.New(log.New("activity", "interop"), *interopActivationTimestamp, msgExpiryWindow, s.chains, cfg.DataDir, s.l1Client, cfg.InteropLogBackfillDepth, s.supernodeMetrics)
+		interopActivity = interop.New(log.New("activity", "interop"), *interopActivationTimestamp, dependencySet, s.chains, cfg.DataDir, s.l1Client, cfg.InteropLogBackfillDepth, s.supernodeMetrics)
 		verifiedReader = interopActivity
 	}
 
