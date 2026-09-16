@@ -124,7 +124,7 @@ contract OPContractsManagerV2_TestInit is CommonTest {
         // Less than the buffer percentage of the EIP-7825 gas limit to account for the gas used
         // by using Safe.
         uint256 fusakaLimit = 2 ** 24;
-        VmSafe.Gas memory gas = vm.lastCallGas();
+        VmSafe.Gas memory gas = vm.lastFrameGas();
         assertLt(
             gas.gasTotalUsed,
             fusakaLimit * DEPLOY_GAS_BUFFER_PERCENTAGE / 100,
@@ -401,7 +401,7 @@ contract OPContractsManagerV2_Upgrade_TestInit is OPContractsManagerV2_TestInit 
         // Less than the buffer percentage of the EIP-7825 gas limit to account for the gas used
         // by using Safe.
         uint256 fusakaLimit = 2 ** 24;
-        VmSafe.Gas memory gas = vm.lastCallGas();
+        VmSafe.Gas memory gas = vm.lastFrameGas();
         assertLt(
             gas.gasTotalUsed,
             fusakaLimit * UPGRADE_GAS_BUFFER_PERCENTAGE / 100,
