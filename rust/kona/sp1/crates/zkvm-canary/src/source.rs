@@ -151,7 +151,7 @@ impl SnapshotSource {
                 .max_response_size(max_response_size)
                 .request_timeout(config.rpc_request_timeout)
                 .build(endpoint)
-                .map_err(|_| anyhow!("failed to build {label} client"))
+                .map_err(|error| anyhow!("failed to build {label} client: {}", rpc_detail(error)))
         };
         let mut l2_clients = BTreeMap::new();
         for rpc in &config.l2_rpcs {
@@ -234,8 +234,11 @@ impl SnapshotSource {
             .superroot_client
             .request("superroot_atTimestamp", rpc_params![format!("0x{timestamp:x}")])
             .await
-            .map_err(|_| {
-                FetchFailure(anyhow!("superroot_atTimestamp({timestamp}) request failed"))
+            .map_err(|error| {
+                FetchFailure(anyhow!(
+                    "superroot_atTimestamp({timestamp}) request failed: {}",
+                    rpc_detail(error),
+                ))
             })?;
         preflight_superroot_json(raw.get(), self.max_entries).map_err(FetchFailure)?;
         let value: Value = serde_json::from_str(raw.get()).map_err(|error| {
@@ -261,7 +264,12 @@ impl SnapshotSource {
             .l1_client
             .request("eth_getBlockByNumber", rpc_params![format!("0x{number:x}"), false])
             .await
-            .map_err(|_| FetchFailure(anyhow!("eth_getBlockByNumber({number}) request failed")))?;
+            .map_err(|error| {
+                FetchFailure(anyhow!(
+                    "eth_getBlockByNumber({number}) request failed: {}",
+                    rpc_detail(error),
+                ))
+            })?;
         let block: Option<RpcBlock> = serde_json::from_value(value).map_err(|error| {
             FetchFailure(anyhow!(
                 "eth_getBlockByNumber({number}) returned invalid JSON: {}",
@@ -283,7 +291,12 @@ impl SnapshotSource {
             .l1_client
             .request("eth_getBlockByNumber", rpc_params!["finalized", false])
             .await
-            .map_err(|_| FetchFailure(anyhow!("eth_getBlockByNumber(finalized) request failed")))?;
+            .map_err(|error| {
+                FetchFailure(anyhow!(
+                    "eth_getBlockByNumber(finalized) request failed: {}",
+                    rpc_detail(error),
+                ))
+            })?;
         let block: Option<RpcBlock> = serde_json::from_value(value).map_err(|error| {
             FetchFailure(anyhow!(
                 "eth_getBlockByNumber(finalized) returned invalid JSON: {}",
@@ -583,8 +596,11 @@ impl SnapshotSource {
         let value: Value = client
             .request("eth_getBlockByHash", rpc_params![format!("{hash}"), false])
             .await
-            .map_err(|_| {
-                FetchFailure(anyhow!("chain {chain_id} eth_getBlockByHash({hash}) request failed"))
+            .map_err(|error| {
+                FetchFailure(anyhow!(
+                    "chain {chain_id} eth_getBlockByHash({hash}) request failed: {}",
+                    rpc_detail(error),
+                ))
             })?;
         let block: Option<RpcL2Block> = serde_json::from_value(value).map_err(|error| {
             FetchFailure(anyhow!(
@@ -968,6 +984,12 @@ where
     }
 
     deserializer.deserialize_any(Visitor)
+}
+
+/// Renders an error and its source chain; jsonrpsee's transparent transport layers keep the
+/// actionable cause only in `source()`.
+fn rpc_detail(error: impl std::error::Error + Send + Sync + 'static) -> String {
+    bounded_detail(&format!("{:#}", anyhow::Error::new(error)))
 }
 
 fn bounded_detail(detail: &str) -> String {
@@ -1361,6 +1383,27 @@ mod tests {
         let snapshot = source.select_finalized(NOW, artifact_identity()).await.unwrap();
 
         assert_eq!(snapshot.pinned_l1().block_id(), block(100));
+    }
+
+    #[tokio::test]
+    async fn rpc_failures_report_the_underlying_cause() {
+        let server = MockServer::start();
+        server.mock(|when, then| {
+            when.method(POST);
+            then.delay(Duration::from_millis(100)).status(200).body("{}");
+        });
+        let mut config = config(&server);
+        config.rpc_request_timeout = Duration::from_millis(50);
+        let source = SnapshotSource::new(&config).unwrap();
+
+        let error = source.select_finalized(NOW, artifact_identity()).await.unwrap_err();
+
+        let detail = format!("{error:#}");
+        assert!(
+            detail.contains(&format!("superroot_atTimestamp({NOW}) request failed")),
+            "expected the method context in {detail}",
+        );
+        assert!(detail.contains("Request timeout"), "expected a timeout cause in {detail}");
     }
 
     #[tokio::test]
