@@ -571,7 +571,7 @@ contract DisputeGameFactory_Create_Test is DisputeGameFactory_TestInit {
         address addr1 = address(disputeGameFactory.create(GameTypes.CANNON, rootClaim1, abi.encode(uint256(100))));
 
         // Revert to the snapshot - this resets the factory's nonce to what it was before
-        vm.revertTo(snapshot);
+        vm.revertToState(snapshot);
 
         // Create game with different rootClaim at the "same nonce"
         address addr2 = address(disputeGameFactory.create(GameTypes.CANNON, rootClaim2, abi.encode(uint256(100))));
@@ -581,12 +581,12 @@ contract DisputeGameFactory_Create_Test is DisputeGameFactory_TestInit {
         assertTrue(addr1 != addr2, "Different rootClaim should produce different address");
 
         // Revert again and test with different extraData
-        vm.revertTo(snapshot);
+        vm.revertToState(snapshot);
         address addr3 = address(disputeGameFactory.create(GameTypes.CANNON, rootClaim1, abi.encode(uint256(200))));
         assertTrue(addr1 != addr3, "Different extraData should produce different address");
 
         // Revert again and test with different gameType
-        vm.revertTo(snapshot);
+        vm.revertToState(snapshot);
         disputeGameFactory.setImplementation(GameTypes.PERMISSIONED_CANNON, IDisputeGame(address(fakeClone)));
         disputeGameFactory.setInitBond(GameTypes.PERMISSIONED_CANNON, 0);
         address addr4 =
@@ -594,7 +594,7 @@ contract DisputeGameFactory_Create_Test is DisputeGameFactory_TestInit {
         assertTrue(addr1 != addr4, "Different gameType should produce different address");
 
         // Finally, verify that same inputs at the "same nonce" produce the same address (deterministic)
-        vm.revertTo(snapshot);
+        vm.revertToState(snapshot);
         address addr5 = address(disputeGameFactory.create(GameTypes.CANNON, rootClaim1, abi.encode(uint256(100))));
         assertEq(addr1, addr5, "Same inputs should produce same address (CREATE2 is deterministic)");
     }
