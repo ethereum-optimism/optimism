@@ -80,10 +80,7 @@ contract L2VerifyBetanetForkUpgrade_TestInit is L2ForkUpgrade_TestInit {
 
 /// @title L2VerifyBetanetForkUpgrade_Versions_Test
 /// @notice Tests that all predeploy versions were updated during the betanet activation.
-contract L2VerifyBetanetForkUpgrade_Versions_Test is
-    L2VerifyBetanetForkUpgrade_TestInit,
-    L2ForkUpgrade_Versions_Test
-{
+contract L2VerifyBetanetForkUpgrade_Versions_Test is L2VerifyBetanetForkUpgrade_TestInit, L2ForkUpgrade_Versions_Test {
     function setUp() public override(L2VerifyBetanetForkUpgrade_TestInit, L2ForkUpgrade_TestInit) {
         L2VerifyBetanetForkUpgrade_TestInit.setUp();
     }

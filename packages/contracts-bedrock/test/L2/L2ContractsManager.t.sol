@@ -485,9 +485,7 @@ contract L2ContractsManager_Upgrade_Test is CommonTest {
         config_.l1FeeVault = vault;
         config_.operatorFeeVault = vault;
         config_.liquidityController = L2ContractsManagerTypes.LiquidityControllerConfig({
-            owner: makeAddr("liquidityControllerOwner"),
-            gasPayingTokenName: "Custom",
-            gasPayingTokenSymbol: "CGT"
+            owner: makeAddr("liquidityControllerOwner"), gasPayingTokenName: "Custom", gasPayingTokenSymbol: "CGT"
         });
         config_.isCustomGasToken = _cgt;
         config_.isInterop = _interop;
@@ -935,7 +933,9 @@ contract L2ContractsManager_Upgrade_FeatureFlagMismatch_Test is L2ContractsManag
         skipIfDevFeatureDisabled(DevFeatures.OPTIMISM_PORTAL_INTEROP);
 
         // Clear the INTEROP system feature on L1Block while the dev feature remains enabled.
-        stdstore.target(Predeploys.L1_BLOCK_ATTRIBUTES).sig("isFeatureEnabled(bytes32)").with_key(Features.INTEROP)
+        stdstore.target(Predeploys.L1_BLOCK_ATTRIBUTES)
+            .sig("isFeatureEnabled(bytes32)")
+            .with_key(Features.INTEROP)
             .checked_write(false);
 
         _executeUpgrade();
@@ -946,7 +946,9 @@ contract L2ContractsManager_Upgrade_FeatureFlagMismatch_Test is L2ContractsManag
         skipIfDevFeatureEnabled(DevFeatures.OPTIMISM_PORTAL_INTEROP);
 
         // Set the INTEROP system feature on L1Block while the dev feature remains disabled.
-        stdstore.target(Predeploys.L1_BLOCK_ATTRIBUTES).sig("isFeatureEnabled(bytes32)").with_key(Features.INTEROP)
+        stdstore.target(Predeploys.L1_BLOCK_ATTRIBUTES)
+            .sig("isFeatureEnabled(bytes32)")
+            .with_key(Features.INTEROP)
             .checked_write(true);
 
         vm.expectRevert(L2ContractsManager.L2ContractsManager_FeatureFlagMismatch.selector);
@@ -1078,7 +1080,9 @@ contract L2ContractsManager_Upgrade_NullSafeFlagsImpl_Test is L2ContractsManager
 
         // Clear the INTEROP system feature on L1Block to stay consistent with the dev feature
         // being unavailable, otherwise _loadFullConfig will revert on the mismatch check.
-        stdstore.target(Predeploys.L1_BLOCK_ATTRIBUTES).sig("isFeatureEnabled(bytes32)").with_key(Features.INTEROP)
+        stdstore.target(Predeploys.L1_BLOCK_ATTRIBUTES)
+            .sig("isFeatureEnabled(bytes32)")
+            .with_key(Features.INTEROP)
             .checked_write(false);
     }
 

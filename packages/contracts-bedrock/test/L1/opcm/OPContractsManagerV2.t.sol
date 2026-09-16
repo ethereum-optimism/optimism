@@ -141,10 +141,9 @@ contract OPContractsManagerV2_TestInit is CommonTest {
 
         // Create validationOverrides for the newly deployed chain.
         IOPContractsManagerStandardValidator.ValidationOverrides memory validationOverrides =
-        IOPContractsManagerStandardValidator.ValidationOverrides({
-            l1PAOMultisig: _deployConfig.proxyAdminOwner,
-            challenger: deployChallenger
-        });
+            IOPContractsManagerStandardValidator.ValidationOverrides({
+                l1PAOMultisig: _deployConfig.proxyAdminOwner, challenger: deployChallenger
+            });
 
         // Grab the validator before we do the error assertion.
         IOPContractsManagerStandardValidator validator = _opcm.opcmStandardValidator();
@@ -261,74 +260,71 @@ contract OPContractsManagerV2_Upgrade_TestInit is OPContractsManagerV2_TestInit 
         address initialProposerForV2 = DisputeGames.permissionedGameProposer(disputeGameFactory);
         v2UpgradeInput.systemConfig = systemConfig;
         if (SemverComp.parse(opcmV2.version()).major == 9) {
-            v2UpgradeInput.extraInstructions.push(
-                IOPContractsManagerUtils.ExtraInstruction({
-                    key: Constants.PERMITTED_PROXY_DEPLOYMENT_KEY,
-                    data: bytes("ETHLockbox")
+            v2UpgradeInput.extraInstructions
+                .push(
+                    IOPContractsManagerUtils.ExtraInstruction({
+                        key: Constants.PERMITTED_PROXY_DEPLOYMENT_KEY, data: bytes("ETHLockbox")
+                    })
+                );
+        }
+        v2UpgradeInput.disputeGameConfigs
+            .push(
+                IOPContractsManagerUtils.DisputeGameConfig({
+                    enabled: false, initBond: 0, gameType: GameTypes.CANNON, gameArgs: bytes("")
                 })
             );
-        }
-        v2UpgradeInput.disputeGameConfigs.push(
-            IOPContractsManagerUtils.DisputeGameConfig({
-                enabled: false,
-                initBond: 0,
-                gameType: GameTypes.CANNON,
-                gameArgs: bytes("")
-            })
-        );
-        v2UpgradeInput.disputeGameConfigs.push(
-            IOPContractsManagerUtils.DisputeGameConfig({
-                enabled: false,
-                initBond: 0,
-                gameType: GameTypes.PERMISSIONED_CANNON,
-                gameArgs: bytes("")
-            })
-        );
-        v2UpgradeInput.disputeGameConfigs.push(
-            IOPContractsManagerUtils.DisputeGameConfig({
-                enabled: false,
-                initBond: 0,
-                gameType: GameTypes.CANNON_KONA,
-                gameArgs: bytes("")
-            })
-        );
-        v2UpgradeInput.disputeGameConfigs.push(
-            IOPContractsManagerUtils.DisputeGameConfig({
-                enabled: true,
-                initBond: 0,
-                gameType: GameTypes.SUPER_PERMISSIONED,
-                gameArgs: abi.encode(
-                    IOPContractsManagerUtils.SuperPermissionedDisputeGameConfig({ proposer: initialProposerForV2 })
-                )
-            })
-        );
-        v2UpgradeInput.disputeGameConfigs.push(
-            IOPContractsManagerUtils.DisputeGameConfig({
-                enabled: true,
-                initBond: DisputeGames.permissionlessGameInitBondForUpgrade(
-                    disputeGameFactory, GameTypes.SUPER_CANNON_KONA, DEFAULT_DISPUTE_GAME_INIT_BOND
-                ),
-                gameType: GameTypes.SUPER_CANNON_KONA,
-                gameArgs: abi.encode(
-                    IOPContractsManagerUtils.FaultDisputeGameConfig({ absolutePrestate: cannonKonaPrestate })
-                )
-            })
-        );
-        v2UpgradeInput.disputeGameConfigs.push(
-            IOPContractsManagerUtils.DisputeGameConfig({
-                enabled: false,
-                initBond: 0,
-                gameType: GameTypes.ZK_DISPUTE_GAME,
-                gameArgs: abi.encode(
-                    IOPContractsManagerUtils.ZKDisputeGameConfig({
-                        absolutePrestate: Claim.wrap(bytes32(0)),
-                        maxChallengeDuration: Duration.wrap(0),
-                        maxProveDuration: Duration.wrap(0),
-                        challengerBond: 0
-                    })
-                )
-            })
-        );
+        v2UpgradeInput.disputeGameConfigs
+            .push(
+                IOPContractsManagerUtils.DisputeGameConfig({
+                    enabled: false, initBond: 0, gameType: GameTypes.PERMISSIONED_CANNON, gameArgs: bytes("")
+                })
+            );
+        v2UpgradeInput.disputeGameConfigs
+            .push(
+                IOPContractsManagerUtils.DisputeGameConfig({
+                    enabled: false, initBond: 0, gameType: GameTypes.CANNON_KONA, gameArgs: bytes("")
+                })
+            );
+        v2UpgradeInput.disputeGameConfigs
+            .push(
+                IOPContractsManagerUtils.DisputeGameConfig({
+                    enabled: true,
+                    initBond: 0,
+                    gameType: GameTypes.SUPER_PERMISSIONED,
+                    gameArgs: abi.encode(
+                        IOPContractsManagerUtils.SuperPermissionedDisputeGameConfig({ proposer: initialProposerForV2 })
+                    )
+                })
+            );
+        v2UpgradeInput.disputeGameConfigs
+            .push(
+                IOPContractsManagerUtils.DisputeGameConfig({
+                    enabled: true,
+                    initBond: DisputeGames.permissionlessGameInitBondForUpgrade(
+                        disputeGameFactory, GameTypes.SUPER_CANNON_KONA, DEFAULT_DISPUTE_GAME_INIT_BOND
+                    ),
+                    gameType: GameTypes.SUPER_CANNON_KONA,
+                    gameArgs: abi.encode(
+                        IOPContractsManagerUtils.FaultDisputeGameConfig({ absolutePrestate: cannonKonaPrestate })
+                    )
+                })
+            );
+        v2UpgradeInput.disputeGameConfigs
+            .push(
+                IOPContractsManagerUtils.DisputeGameConfig({
+                    enabled: false,
+                    initBond: 0,
+                    gameType: GameTypes.ZK_DISPUTE_GAME,
+                    gameArgs: abi.encode(
+                        IOPContractsManagerUtils.ZKDisputeGameConfig({
+                            absolutePrestate: Claim.wrap(bytes32(0)),
+                            maxChallengeDuration: Duration.wrap(0),
+                            maxProveDuration: Duration.wrap(0),
+                            challengerBond: 0
+                        })
+                    )
+                })
+            );
     }
 
     /// @notice Helper function that runs an OPCM V2 upgrade, asserts that the upgrade was successful,
@@ -350,17 +346,16 @@ contract OPContractsManagerV2_Upgrade_TestInit is OPContractsManagerV2_TestInit 
 
         // Execute the SuperchainConfig upgrade.
         prankDelegateCall(superchainPAO);
-        (bool success, bytes memory reason) = address(opcmV2).delegatecall(
-            abi.encodeCall(
-                IOPContractsManagerV2.upgradeSuperchain,
-                (
-                    IOPContractsManagerV2.SuperchainUpgradeInput({
-                        superchainConfig: superchainConfig,
-                        extraInstructions: new IOPContractsManagerUtils.ExtraInstruction[](0)
-                    })
+        (bool success, bytes memory reason) = address(opcmV2)
+            .delegatecall(
+                abi.encodeCall(
+                    IOPContractsManagerV2.upgradeSuperchain,
+                    (IOPContractsManagerV2.SuperchainUpgradeInput({
+                            superchainConfig: superchainConfig,
+                            extraInstructions: new IOPContractsManagerUtils.ExtraInstruction[](0)
+                        }))
                 )
-            )
-        );
+            );
         if (success == false) {
             // Only acceptable revert reason is the SuperchainConfig already being up to date. This
             // try/catch is better than checking the version via the implementations struct because
@@ -415,10 +410,9 @@ contract OPContractsManagerV2_Upgrade_TestInit is OPContractsManagerV2_TestInit 
 
         // Create validationOverrides
         IOPContractsManagerStandardValidator.ValidationOverrides memory validationOverrides =
-        IOPContractsManagerStandardValidator.ValidationOverrides({
-            l1PAOMultisig: v2UpgradeInput.systemConfig.proxyAdminOwner(),
-            challenger: initialChallenger
-        });
+            IOPContractsManagerStandardValidator.ValidationOverrides({
+                l1PAOMultisig: v2UpgradeInput.systemConfig.proxyAdminOwner(), challenger: initialChallenger
+            });
 
         // Grab the validator before we do the error assertion because otherwise the assertion will
         // try to apply to this function call instead.
@@ -639,12 +633,12 @@ contract OPContractsManagerV2_Upgrade_Test is OPContractsManagerV2_Upgrade_TestI
 
     /// @notice Tests that the upgrade rejects a disabled permissioned game when it remains respected.
     function test_upgrade_disabledRespectedPermissionedGame_reverts() public {
-        v2UpgradeInput.extraInstructions.push(
-            IOPContractsManagerUtils.ExtraInstruction({
-                key: "overrides.cfg.startingRespectedGameType",
-                data: abi.encode(GameTypes.SUPER_PERMISSIONED)
-            })
-        );
+        v2UpgradeInput.extraInstructions
+            .push(
+                IOPContractsManagerUtils.ExtraInstruction({
+                    key: "overrides.cfg.startingRespectedGameType", data: abi.encode(GameTypes.SUPER_PERMISSIONED)
+                })
+            );
         runCurrentUpgradeV2(chainPAO);
         v2UpgradeInput.extraInstructions.pop();
         v2UpgradeInput.disputeGameConfigs[3].enabled = false;
@@ -677,9 +671,8 @@ contract OPContractsManagerV2_Upgrade_Test is OPContractsManagerV2_Upgrade_TestI
     ///         deployments.
     function test_upgrade_allPermittedProxyDeployments_reverts() public {
         delete v2UpgradeInput.extraInstructions;
-        v2UpgradeInput.extraInstructions.push(
-            IOPContractsManagerUtils.ExtraInstruction({ key: "PermitProxyDeployment", data: abi.encode("ALL") })
-        );
+        v2UpgradeInput.extraInstructions
+            .push(IOPContractsManagerUtils.ExtraInstruction({ key: "PermitProxyDeployment", data: abi.encode("ALL") }));
 
         // Expect upgrade to revert due to invalid upgrade input.
         // nosemgrep: sol-style-use-abi-encodecall
@@ -773,12 +766,12 @@ contract OPContractsManagerV2_Upgrade_Test is OPContractsManagerV2_Upgrade_TestI
         // The respected game must remain enabled.
         v2UpgradeInput.disputeGameConfigs[4].enabled = false;
         v2UpgradeInput.disputeGameConfigs[4].initBond = 0;
-        v2UpgradeInput.extraInstructions.push(
-            IOPContractsManagerUtils.ExtraInstruction({
-                key: "overrides.cfg.startingRespectedGameType",
-                data: abi.encode(GameTypes.SUPER_PERMISSIONED)
-            })
-        );
+        v2UpgradeInput.extraInstructions
+            .push(
+                IOPContractsManagerUtils.ExtraInstruction({
+                    key: "overrides.cfg.startingRespectedGameType", data: abi.encode(GameTypes.SUPER_PERMISSIONED)
+                })
+            );
         runCurrentUpgradeV2(chainPAO, hex"", "SCKDG-SHAPE,SCKDG-10");
         assertEq(
             address(disputeGameFactory.gameImpls(GameTypes.SUPER_CANNON_KONA)), address(0), "game impl not cleared"
@@ -848,12 +841,12 @@ contract OPContractsManagerV2_Upgrade_Test is OPContractsManagerV2_Upgrade_TestI
         // The respected game must remain enabled.
         v2UpgradeInput.disputeGameConfigs[4].enabled = false;
         v2UpgradeInput.disputeGameConfigs[4].initBond = 0;
-        v2UpgradeInput.extraInstructions.push(
-            IOPContractsManagerUtils.ExtraInstruction({
-                key: "overrides.cfg.startingRespectedGameType",
-                data: abi.encode(GameTypes.SUPER_PERMISSIONED)
-            })
-        );
+        v2UpgradeInput.extraInstructions
+            .push(
+                IOPContractsManagerUtils.ExtraInstruction({
+                    key: "overrides.cfg.startingRespectedGameType", data: abi.encode(GameTypes.SUPER_PERMISSIONED)
+                })
+            );
         runCurrentUpgradeV2(chainPAO, hex"", "SCKDG-SHAPE,SCKDG-10");
         assertEq(
             address(disputeGameFactory.gameImpls(GameTypes.SUPER_CANNON_KONA)), address(0), "game impl not cleared"
@@ -888,12 +881,10 @@ contract OPContractsManagerV2_Upgrade_Test is OPContractsManagerV2_Upgrade_TestI
     ///         instruction keys are provided.
     function test_upgrade_duplicateInstructionKeys_reverts() public {
         delete v2UpgradeInput.extraInstructions;
-        v2UpgradeInput.extraInstructions.push(
-            IOPContractsManagerUtils.ExtraInstruction({ key: "SomeCustomKey", data: bytes("Data1") })
-        );
-        v2UpgradeInput.extraInstructions.push(
-            IOPContractsManagerUtils.ExtraInstruction({ key: "SomeCustomKey", data: bytes("Data2") })
-        );
+        v2UpgradeInput.extraInstructions
+            .push(IOPContractsManagerUtils.ExtraInstruction({ key: "SomeCustomKey", data: bytes("Data1") }));
+        v2UpgradeInput.extraInstructions
+            .push(IOPContractsManagerUtils.ExtraInstruction({ key: "SomeCustomKey", data: bytes("Data2") }));
 
         // nosemgrep: sol-style-use-abi-encodecall
         runCurrentUpgradeV2(
@@ -908,18 +899,18 @@ contract OPContractsManagerV2_Upgrade_Test is OPContractsManagerV2_Upgrade_TestI
     ///         duplicate instruction check, so validation carries on to the permission check.
     function test_upgrade_duplicatePermittedProxyDeploymentKeys_reverts() public {
         delete v2UpgradeInput.extraInstructions;
-        v2UpgradeInput.extraInstructions.push(
-            IOPContractsManagerUtils.ExtraInstruction({
-                key: Constants.PERMITTED_PROXY_DEPLOYMENT_KEY,
-                data: bytes("DelayedWETH")
-            })
-        );
-        v2UpgradeInput.extraInstructions.push(
-            IOPContractsManagerUtils.ExtraInstruction({
-                key: Constants.PERMITTED_PROXY_DEPLOYMENT_KEY,
-                data: bytes("DelayedWETH")
-            })
-        );
+        v2UpgradeInput.extraInstructions
+            .push(
+                IOPContractsManagerUtils.ExtraInstruction({
+                    key: Constants.PERMITTED_PROXY_DEPLOYMENT_KEY, data: bytes("DelayedWETH")
+                })
+            );
+        v2UpgradeInput.extraInstructions
+            .push(
+                IOPContractsManagerUtils.ExtraInstruction({
+                    key: Constants.PERMITTED_PROXY_DEPLOYMENT_KEY, data: bytes("DelayedWETH")
+                })
+            );
 
         // This upgrade permits no proxy deployments, so the instructions are rejected by the
         // permission check. Without the duplicate exemption the revert would instead be
@@ -958,22 +949,22 @@ contract OPContractsManagerV2_Upgrade_Test is OPContractsManagerV2_Upgrade_TestI
 
     /// @notice Tests a respected game transition from super permissioned to super Cannon Kona.
     function test_upgrade_respectedGameTypePermissionedToKona_succeeds() public {
-        v2UpgradeInput.extraInstructions.push(
-            IOPContractsManagerUtils.ExtraInstruction({
-                key: "overrides.cfg.startingRespectedGameType",
-                data: abi.encode(GameTypes.SUPER_PERMISSIONED)
-            })
-        );
+        v2UpgradeInput.extraInstructions
+            .push(
+                IOPContractsManagerUtils.ExtraInstruction({
+                    key: "overrides.cfg.startingRespectedGameType", data: abi.encode(GameTypes.SUPER_PERMISSIONED)
+                })
+            );
         runCurrentUpgradeV2(chainPAO);
         assertEq(anchorStateRegistry.respectedGameType().raw(), GameTypes.SUPER_PERMISSIONED.raw());
 
         v2UpgradeInput.extraInstructions.pop();
-        v2UpgradeInput.extraInstructions.push(
-            IOPContractsManagerUtils.ExtraInstruction({
-                key: "overrides.cfg.startingRespectedGameType",
-                data: abi.encode(GameTypes.SUPER_CANNON_KONA)
-            })
-        );
+        v2UpgradeInput.extraInstructions
+            .push(
+                IOPContractsManagerUtils.ExtraInstruction({
+                    key: "overrides.cfg.startingRespectedGameType", data: abi.encode(GameTypes.SUPER_CANNON_KONA)
+                })
+            );
         runCurrentUpgradeV2(chainPAO);
         assertEq(
             anchorStateRegistry.respectedGameType().raw(),
@@ -984,12 +975,12 @@ contract OPContractsManagerV2_Upgrade_Test is OPContractsManagerV2_Upgrade_TestI
 
     /// @notice Tests that the same respected game override remains valid after an upgrade.
     function test_upgrade_respectedGameTypeAlreadyKona_succeeds() public {
-        v2UpgradeInput.extraInstructions.push(
-            IOPContractsManagerUtils.ExtraInstruction({
-                key: "overrides.cfg.startingRespectedGameType",
-                data: abi.encode(GameTypes.SUPER_CANNON_KONA)
-            })
-        );
+        v2UpgradeInput.extraInstructions
+            .push(
+                IOPContractsManagerUtils.ExtraInstruction({
+                    key: "overrides.cfg.startingRespectedGameType", data: abi.encode(GameTypes.SUPER_CANNON_KONA)
+                })
+            );
         runCurrentUpgradeV2(chainPAO);
         runCurrentUpgradeV2(chainPAO);
         assertEq(
@@ -1013,12 +1004,12 @@ contract OPContractsManagerV2_Upgrade_Test is OPContractsManagerV2_Upgrade_TestI
     function test_upgrade_respectedGameTypeOverrideToDisabled_reverts() public {
         v2UpgradeInput.disputeGameConfigs[4].enabled = false;
         v2UpgradeInput.disputeGameConfigs[4].initBond = 0;
-        v2UpgradeInput.extraInstructions.push(
-            IOPContractsManagerUtils.ExtraInstruction({
-                key: "overrides.cfg.startingRespectedGameType",
-                data: abi.encode(GameTypes.SUPER_CANNON_KONA)
-            })
-        );
+        v2UpgradeInput.extraInstructions
+            .push(
+                IOPContractsManagerUtils.ExtraInstruction({
+                    key: "overrides.cfg.startingRespectedGameType", data: abi.encode(GameTypes.SUPER_CANNON_KONA)
+                })
+            );
         // nosemgrep: sol-style-use-abi-encodecall
         runCurrentUpgradeV2(
             chainPAO, abi.encodeWithSelector(IOPContractsManagerV2.OPContractsManagerV2_InvalidGameConfigs.selector)
@@ -1218,12 +1209,13 @@ contract OPContractsManagerV2_Upgrade_Test is OPContractsManagerV2_Upgrade_TestI
 
     /// @notice Tests that v9 rejects anchor overrides with the migration feature enabled.
     function test_upgrade_anchorOverride_reverts() public {
-        v2UpgradeInput.extraInstructions.push(
-            IOPContractsManagerUtils.ExtraInstruction({
-                key: "overrides.cfg.startingAnchorRoot",
-                data: abi.encode(Proposal({ root: Hash.wrap(bytes32(uint256(0xDEADBEEF))), l2SequenceNumber: 999 }))
-            })
-        );
+        v2UpgradeInput.extraInstructions
+            .push(
+                IOPContractsManagerUtils.ExtraInstruction({
+                    key: "overrides.cfg.startingAnchorRoot",
+                    data: abi.encode(Proposal({ root: Hash.wrap(bytes32(uint256(0xDEADBEEF))), l2SequenceNumber: 999 }))
+                })
+            );
 
         // V9 must preserve the anchor established before this upgrade.
         // nosemgrep: sol-style-use-abi-encodecall
@@ -1507,9 +1499,8 @@ contract OPContractsManagerV2_UpgradeSuperchain_Test is OPContractsManagerV2_Upg
 
         // Do the upgrade.
         prankDelegateCall(superchainPAO);
-        (bool success,) = address(opcmV2).delegatecall(
-            abi.encodeCall(IOPContractsManagerV2.upgradeSuperchain, (superchainUpgradeInput))
-        );
+        (bool success,) = address(opcmV2)
+            .delegatecall(abi.encodeCall(IOPContractsManagerV2.upgradeSuperchain, (superchainUpgradeInput)));
         assertTrue(success, "upgradeSuperchain failed");
     }
 
@@ -1532,9 +1523,8 @@ contract OPContractsManagerV2_UpgradeSuperchain_Test is OPContractsManagerV2_Upg
         // Should revert.
         vm.expectRevert("Ownable: caller is not the owner");
         prankDelegateCall(delegateCaller);
-        (bool success,) = address(opcmV2).delegatecall(
-            abi.encodeCall(IOPContractsManagerV2.upgradeSuperchain, (superchainUpgradeInput))
-        );
+        (bool success,) = address(opcmV2)
+            .delegatecall(abi.encodeCall(IOPContractsManagerV2.upgradeSuperchain, (superchainUpgradeInput)));
         assertTrue(success, "upgradeSuperchain failed");
     }
 
@@ -1557,9 +1547,8 @@ contract OPContractsManagerV2_UpgradeSuperchain_Test is OPContractsManagerV2_Upg
             )
         );
         prankDelegateCall(superchainPAO);
-        (bool success,) = address(opcmV2).delegatecall(
-            abi.encodeCall(IOPContractsManagerV2.upgradeSuperchain, (superchainUpgradeInput))
-        );
+        (bool success,) = address(opcmV2)
+            .delegatecall(abi.encodeCall(IOPContractsManagerV2.upgradeSuperchain, (superchainUpgradeInput)));
         assertTrue(success, "upgradeSuperchain failed");
     }
 }
@@ -1604,70 +1593,65 @@ contract OPContractsManagerV2_Deploy_Test is OPContractsManagerV2_TestInit {
         // In super root mode, SUPER_PERMISSIONED is enabled; otherwise PERMISSIONED_CANNON.
         address initialChallenger = makeAddr("deployChallenger");
         address initialProposer = makeAddr("deployProposer");
-        IOPContractsManagerUtils.PermissionedDisputeGameConfig memory pdgConfig = IOPContractsManagerUtils
-            .PermissionedDisputeGameConfig({
-            absolutePrestate: cannonPrestate,
-            proposer: initialProposer,
-            challenger: initialChallenger
-        });
+        IOPContractsManagerUtils.PermissionedDisputeGameConfig memory pdgConfig =
+            IOPContractsManagerUtils.PermissionedDisputeGameConfig({
+                absolutePrestate: cannonPrestate, proposer: initialProposer, challenger: initialChallenger
+            });
         IOPContractsManagerUtils.SuperPermissionedDisputeGameConfig memory superPdgConfig =
             IOPContractsManagerUtils.SuperPermissionedDisputeGameConfig({ proposer: initialProposer });
 
-        deployConfig.disputeGameConfigs.push(
-            IOPContractsManagerUtils.DisputeGameConfig({
-                enabled: false,
-                initBond: 0,
-                gameType: GameTypes.CANNON,
-                gameArgs: bytes("")
-            })
-        );
-        deployConfig.disputeGameConfigs.push(
-            IOPContractsManagerUtils.DisputeGameConfig({
-                enabled: !superRoot,
-                initBond: superRoot ? 0 : DEFAULT_DISPUTE_GAME_INIT_BOND,
-                gameType: GameTypes.PERMISSIONED_CANNON,
-                gameArgs: superRoot ? bytes("") : abi.encode(pdgConfig)
-            })
-        );
-        deployConfig.disputeGameConfigs.push(
-            IOPContractsManagerUtils.DisputeGameConfig({
-                enabled: false,
-                initBond: 0,
-                gameType: GameTypes.CANNON_KONA,
-                gameArgs: bytes("")
-            })
-        );
-        deployConfig.disputeGameConfigs.push(
-            IOPContractsManagerUtils.DisputeGameConfig({
-                enabled: superRoot,
-                initBond: 0,
-                gameType: GameTypes.SUPER_PERMISSIONED,
-                gameArgs: superRoot ? abi.encode(superPdgConfig) : bytes("")
-            })
-        );
-        deployConfig.disputeGameConfigs.push(
-            IOPContractsManagerUtils.DisputeGameConfig({
-                enabled: false,
-                initBond: 0,
-                gameType: GameTypes.SUPER_CANNON_KONA,
-                gameArgs: bytes("")
-            })
-        );
-        deployConfig.disputeGameConfigs.push(
-            IOPContractsManagerUtils.DisputeGameConfig({
-                enabled: false,
-                initBond: 0,
-                gameType: GameTypes.ZK_DISPUTE_GAME,
-                gameArgs: abi.encode(
-                    IOPContractsManagerUtils.ZKDisputeGameConfig({
-                        absolutePrestate: Claim.wrap(bytes32(0)),
-                        maxChallengeDuration: Duration.wrap(0),
-                        maxProveDuration: Duration.wrap(0),
-                        challengerBond: 0
-                    })
-                )
-            })
-        );
+        deployConfig.disputeGameConfigs
+            .push(
+                IOPContractsManagerUtils.DisputeGameConfig({
+                    enabled: false, initBond: 0, gameType: GameTypes.CANNON, gameArgs: bytes("")
+                })
+            );
+        deployConfig.disputeGameConfigs
+            .push(
+                IOPContractsManagerUtils.DisputeGameConfig({
+                    enabled: !superRoot,
+                    initBond: superRoot ? 0 : DEFAULT_DISPUTE_GAME_INIT_BOND,
+                    gameType: GameTypes.PERMISSIONED_CANNON,
+                    gameArgs: superRoot ? bytes("") : abi.encode(pdgConfig)
+                })
+            );
+        deployConfig.disputeGameConfigs
+            .push(
+                IOPContractsManagerUtils.DisputeGameConfig({
+                    enabled: false, initBond: 0, gameType: GameTypes.CANNON_KONA, gameArgs: bytes("")
+                })
+            );
+        deployConfig.disputeGameConfigs
+            .push(
+                IOPContractsManagerUtils.DisputeGameConfig({
+                    enabled: superRoot,
+                    initBond: 0,
+                    gameType: GameTypes.SUPER_PERMISSIONED,
+                    gameArgs: superRoot ? abi.encode(superPdgConfig) : bytes("")
+                })
+            );
+        deployConfig.disputeGameConfigs
+            .push(
+                IOPContractsManagerUtils.DisputeGameConfig({
+                    enabled: false, initBond: 0, gameType: GameTypes.SUPER_CANNON_KONA, gameArgs: bytes("")
+                })
+            );
+        deployConfig.disputeGameConfigs
+            .push(
+                IOPContractsManagerUtils.DisputeGameConfig({
+                    enabled: false,
+                    initBond: 0,
+                    gameType: GameTypes.ZK_DISPUTE_GAME,
+                    gameArgs: abi.encode(
+                        IOPContractsManagerUtils.ZKDisputeGameConfig({
+                            absolutePrestate: Claim.wrap(bytes32(0)),
+                            maxChallengeDuration: Duration.wrap(0),
+                            maxProveDuration: Duration.wrap(0),
+                            challengerBond: 0
+                        })
+                    )
+                })
+            );
     }
 
     /// @notice Enables the PERMISSIONED_CANNON game config.
@@ -1699,7 +1683,9 @@ contract OPContractsManagerV2_Deploy_Test is OPContractsManagerV2_TestInit {
             enabled: true,
             initBond: DEFAULT_DISPUTE_GAME_INIT_BOND,
             gameType: GameTypes.CANNON_KONA,
-            gameArgs: abi.encode(IOPContractsManagerUtils.FaultDisputeGameConfig({ absolutePrestate: cannonKonaPrestate }))
+            gameArgs: abi.encode(
+                IOPContractsManagerUtils.FaultDisputeGameConfig({ absolutePrestate: cannonKonaPrestate })
+            )
         });
     }
 
@@ -1728,15 +1714,21 @@ contract OPContractsManagerV2_Deploy_Test is OPContractsManagerV2_TestInit {
             enabled: true,
             initBond: DEFAULT_DISPUTE_GAME_INIT_BOND,
             gameType: GameTypes.SUPER_CANNON_KONA,
-            gameArgs: abi.encode(IOPContractsManagerUtils.FaultDisputeGameConfig({ absolutePrestate: cannonKonaPrestate }))
+            gameArgs: abi.encode(
+                IOPContractsManagerUtils.FaultDisputeGameConfig({ absolutePrestate: cannonKonaPrestate })
+            )
         });
     }
 
     /// @notice Recreates the legacy disabled-lockbox storage state for upgrade tests.
     function _setLegacyLockboxState(ISystemConfig _systemConfig, IOptimismPortal2 _portal) internal {
-        stdstore.target(address(_systemConfig)).sig("isFeatureEnabled(bytes32)").with_key(Features.ETH_LOCKBOX)
+        stdstore.target(address(_systemConfig))
+            .sig("isFeatureEnabled(bytes32)")
+            .with_key(Features.ETH_LOCKBOX)
             .checked_write(false);
-        stdstore.target(address(_systemConfig)).sig("isFeatureEnabled(bytes32)").with_key(Features.INTEROP)
+        stdstore.target(address(_systemConfig))
+            .sig("isFeatureEnabled(bytes32)")
+            .with_key(Features.INTEROP)
             .checked_write(false);
         StorageSlot memory slot = ForgeArtifacts.getSlot("OptimismPortal2", "ethLockbox");
         vm.store(address(_portal), bytes32(slot.slot), bytes32(0));
@@ -1855,8 +1847,7 @@ contract OPContractsManagerV2_Deploy_Test is OPContractsManagerV2_TestInit {
 
         input.extraInstructions = new IOPContractsManagerUtils.ExtraInstruction[](1);
         input.extraInstructions[0] = IOPContractsManagerUtils.ExtraInstruction({
-            key: Constants.PERMITTED_PROXY_DEPLOYMENT_KEY,
-            data: bytes("ETHLockbox")
+            key: Constants.PERMITTED_PROXY_DEPLOYMENT_KEY, data: bytes("ETHLockbox")
         });
         prankDelegateCall(pao);
         (success,) = address(opcmV2).delegatecall(abi.encodeCall(IOPContractsManagerV2.upgrade, (input)));
@@ -2345,7 +2336,9 @@ contract OPContractsManagerV2_Deploy_Test is OPContractsManagerV2_TestInit {
             enabled: true,
             initBond: 0.08 ether,
             gameType: GameTypes.SUPER_CANNON_KONA,
-            gameArgs: abi.encode(IOPContractsManagerUtils.FaultDisputeGameConfig({ absolutePrestate: cannonKonaPrestate }))
+            gameArgs: abi.encode(
+                IOPContractsManagerUtils.FaultDisputeGameConfig({ absolutePrestate: cannonKonaPrestate })
+            )
         });
 
         // nosemgrep: sol-style-use-abi-encodecall
@@ -2402,10 +2395,7 @@ contract OPContractsManagerV2_Migrate_Test is OPContractsManagerV2_TestInit {
         IOPContractsManagerUtils.DisputeGameConfig[] memory dgConfigs =
             new IOPContractsManagerUtils.DisputeGameConfig[](6);
         dgConfigs[0] = IOPContractsManagerUtils.DisputeGameConfig({
-            enabled: false,
-            initBond: 0,
-            gameType: GameTypes.CANNON,
-            gameArgs: bytes("")
+            enabled: false, initBond: 0, gameType: GameTypes.CANNON, gameArgs: bytes("")
         });
         dgConfigs[1] = IOPContractsManagerUtils.DisputeGameConfig({
             enabled: !superRoot,
@@ -2415,17 +2405,12 @@ contract OPContractsManagerV2_Migrate_Test is OPContractsManagerV2_TestInit {
                 ? bytes("")
                 : abi.encode(
                     IOPContractsManagerUtils.PermissionedDisputeGameConfig({
-                        absolutePrestate: cannonPrestate,
-                        proposer: initialProposer,
-                        challenger: initialChallenger
+                        absolutePrestate: cannonPrestate, proposer: initialProposer, challenger: initialChallenger
                     })
                 )
         });
         dgConfigs[2] = IOPContractsManagerUtils.DisputeGameConfig({
-            enabled: false,
-            initBond: 0,
-            gameType: GameTypes.CANNON_KONA,
-            gameArgs: bytes("")
+            enabled: false, initBond: 0, gameType: GameTypes.CANNON_KONA, gameArgs: bytes("")
         });
         dgConfigs[3] = IOPContractsManagerUtils.DisputeGameConfig({
             enabled: superRoot,
@@ -2436,10 +2421,7 @@ contract OPContractsManagerV2_Migrate_Test is OPContractsManagerV2_TestInit {
                 : bytes("")
         });
         dgConfigs[4] = IOPContractsManagerUtils.DisputeGameConfig({
-            enabled: false,
-            initBond: 0,
-            gameType: GameTypes.SUPER_CANNON_KONA,
-            gameArgs: bytes("")
+            enabled: false, initBond: 0, gameType: GameTypes.SUPER_CANNON_KONA, gameArgs: bytes("")
         });
         dgConfigs[5] = IOPContractsManagerUtils.DisputeGameConfig({
             enabled: false,
@@ -2559,7 +2541,9 @@ contract OPContractsManagerV2_Migrate_Test is OPContractsManagerV2_TestInit {
             enabled: true,
             initBond: _initBond,
             gameType: GameTypes.SUPER_CANNON_KONA,
-            gameArgs: abi.encode(IOPContractsManagerUtils.FaultDisputeGameConfig({ absolutePrestate: _absolutePrestate }))
+            gameArgs: abi.encode(
+                IOPContractsManagerUtils.FaultDisputeGameConfig({ absolutePrestate: _absolutePrestate })
+            )
         });
     }
 
@@ -2751,22 +2735,13 @@ contract OPContractsManagerV2_Migrate_Test is OPContractsManagerV2_TestInit {
         IOPContractsManagerUtils.DisputeGameConfig[] memory dgConfigs =
             new IOPContractsManagerUtils.DisputeGameConfig[](6);
         dgConfigs[0] = IOPContractsManagerUtils.DisputeGameConfig({
-            enabled: false,
-            initBond: 0,
-            gameType: GameTypes.CANNON,
-            gameArgs: bytes("")
+            enabled: false, initBond: 0, gameType: GameTypes.CANNON, gameArgs: bytes("")
         });
         dgConfigs[1] = IOPContractsManagerUtils.DisputeGameConfig({
-            enabled: false,
-            initBond: 0,
-            gameType: GameTypes.PERMISSIONED_CANNON,
-            gameArgs: bytes("")
+            enabled: false, initBond: 0, gameType: GameTypes.PERMISSIONED_CANNON, gameArgs: bytes("")
         });
         dgConfigs[2] = IOPContractsManagerUtils.DisputeGameConfig({
-            enabled: false,
-            initBond: 0,
-            gameType: GameTypes.CANNON_KONA,
-            gameArgs: bytes("")
+            enabled: false, initBond: 0, gameType: GameTypes.CANNON_KONA, gameArgs: bytes("")
         });
         dgConfigs[3] = IOPContractsManagerUtils.DisputeGameConfig({
             enabled: true,
@@ -2775,10 +2750,7 @@ contract OPContractsManagerV2_Migrate_Test is OPContractsManagerV2_TestInit {
             gameArgs: abi.encode(IOPContractsManagerUtils.SuperPermissionedDisputeGameConfig({ proposer: newProposer }))
         });
         dgConfigs[4] = IOPContractsManagerUtils.DisputeGameConfig({
-            enabled: false,
-            initBond: 0,
-            gameType: GameTypes.SUPER_CANNON_KONA,
-            gameArgs: bytes("")
+            enabled: false, initBond: 0, gameType: GameTypes.SUPER_CANNON_KONA, gameArgs: bytes("")
         });
         dgConfigs[5] = IOPContractsManagerUtils.DisputeGameConfig({
             enabled: true,
@@ -2797,14 +2769,11 @@ contract OPContractsManagerV2_Migrate_Test is OPContractsManagerV2_TestInit {
         IOPContractsManagerUtils.ExtraInstruction[] memory instructions =
             new IOPContractsManagerUtils.ExtraInstruction[](1);
         instructions[0] = IOPContractsManagerUtils.ExtraInstruction({
-            key: "overrides.cfg.startingRespectedGameType",
-            data: abi.encode(GameTypes.ZK_DISPUTE_GAME)
+            key: "overrides.cfg.startingRespectedGameType", data: abi.encode(GameTypes.ZK_DISPUTE_GAME)
         });
 
         IOPContractsManagerV2.UpgradeInput memory upgradeInput = IOPContractsManagerV2.UpgradeInput({
-            systemConfig: chainContracts1.systemConfig,
-            disputeGameConfigs: dgConfigs,
-            extraInstructions: instructions
+            systemConfig: chainContracts1.systemConfig, disputeGameConfigs: dgConfigs, extraInstructions: instructions
         });
 
         prankDelegateCall(chainContracts1.proxyAdmin.owner());
@@ -3395,10 +3364,7 @@ contract OPContractsManagerV2_Migrate_Test is OPContractsManagerV2_TestInit {
         _appendDisputeGameConfig(
             input,
             IOPContractsManagerUtils.DisputeGameConfig({
-                enabled: true,
-                initBond: 0.08 ether,
-                gameType: GameTypes.ZK_DISPUTE_GAME,
-                gameArgs: hex""
+                enabled: true, initBond: 0.08 ether, gameType: GameTypes.ZK_DISPUTE_GAME, gameArgs: hex""
             })
         );
 
@@ -3421,7 +3387,9 @@ contract OPContractsManagerV2_Migrate_Test is OPContractsManagerV2_TestInit {
                 enabled: true,
                 initBond: 0.08 ether,
                 gameType: GameTypes.CANNON_KONA,
-                gameArgs: abi.encode(IOPContractsManagerUtils.FaultDisputeGameConfig({ absolutePrestate: superPrestate }))
+                gameArgs: abi.encode(
+                    IOPContractsManagerUtils.FaultDisputeGameConfig({ absolutePrestate: superPrestate })
+                )
             })
         );
 
@@ -3545,22 +3513,13 @@ contract OPContractsManagerV2_Migrate_Test is OPContractsManagerV2_TestInit {
         address proposer = makeAddr("superProposer");
         configs_ = new IOPContractsManagerUtils.DisputeGameConfig[](6);
         configs_[0] = IOPContractsManagerUtils.DisputeGameConfig({
-            enabled: false,
-            initBond: 0,
-            gameType: GameTypes.CANNON,
-            gameArgs: bytes("")
+            enabled: false, initBond: 0, gameType: GameTypes.CANNON, gameArgs: bytes("")
         });
         configs_[1] = IOPContractsManagerUtils.DisputeGameConfig({
-            enabled: false,
-            initBond: 0,
-            gameType: GameTypes.PERMISSIONED_CANNON,
-            gameArgs: bytes("")
+            enabled: false, initBond: 0, gameType: GameTypes.PERMISSIONED_CANNON, gameArgs: bytes("")
         });
         configs_[2] = IOPContractsManagerUtils.DisputeGameConfig({
-            enabled: false,
-            initBond: 0,
-            gameType: GameTypes.CANNON_KONA,
-            gameArgs: bytes("")
+            enabled: false, initBond: 0, gameType: GameTypes.CANNON_KONA, gameArgs: bytes("")
         });
         configs_[3] = IOPContractsManagerUtils.DisputeGameConfig({
             enabled: true,
@@ -3569,16 +3528,10 @@ contract OPContractsManagerV2_Migrate_Test is OPContractsManagerV2_TestInit {
             gameArgs: abi.encode(IOPContractsManagerUtils.SuperPermissionedDisputeGameConfig({ proposer: proposer }))
         });
         configs_[4] = IOPContractsManagerUtils.DisputeGameConfig({
-            enabled: false,
-            initBond: 0,
-            gameType: GameTypes.SUPER_CANNON_KONA,
-            gameArgs: bytes("")
+            enabled: false, initBond: 0, gameType: GameTypes.SUPER_CANNON_KONA, gameArgs: bytes("")
         });
         configs_[5] = IOPContractsManagerUtils.DisputeGameConfig({
-            enabled: false,
-            initBond: 0,
-            gameType: GameTypes.ZK_DISPUTE_GAME,
-            gameArgs: bytes("")
+            enabled: false, initBond: 0, gameType: GameTypes.ZK_DISPUTE_GAME, gameArgs: bytes("")
         });
     }
 
@@ -3734,20 +3687,15 @@ contract OPContractsManagerV2_FeatBatchUpgrade_Test is OPContractsManagerV2_Test
         // In super root mode, SUPER_PERMISSIONED is enabled; otherwise PERMISSIONED_CANNON.
         address initialChallenger = makeAddr("challenger");
         address initialProposer = makeAddr("proposer");
-        IOPContractsManagerUtils.PermissionedDisputeGameConfig memory pdgConfig = IOPContractsManagerUtils
-            .PermissionedDisputeGameConfig({
-            absolutePrestate: cannonPrestate,
-            proposer: initialProposer,
-            challenger: initialChallenger
-        });
+        IOPContractsManagerUtils.PermissionedDisputeGameConfig memory pdgConfig =
+            IOPContractsManagerUtils.PermissionedDisputeGameConfig({
+                absolutePrestate: cannonPrestate, proposer: initialProposer, challenger: initialChallenger
+            });
         IOPContractsManagerUtils.SuperPermissionedDisputeGameConfig memory superPdgConfig =
             IOPContractsManagerUtils.SuperPermissionedDisputeGameConfig({ proposer: initialProposer });
         baseConfig.disputeGameConfigs = new IOPContractsManagerUtils.DisputeGameConfig[](6);
         baseConfig.disputeGameConfigs[0] = IOPContractsManagerUtils.DisputeGameConfig({
-            enabled: false,
-            initBond: 0,
-            gameType: GameTypes.CANNON,
-            gameArgs: bytes("")
+            enabled: false, initBond: 0, gameType: GameTypes.CANNON, gameArgs: bytes("")
         });
         baseConfig.disputeGameConfigs[1] = IOPContractsManagerUtils.DisputeGameConfig({
             enabled: !superRoot,
@@ -3756,10 +3704,7 @@ contract OPContractsManagerV2_FeatBatchUpgrade_Test is OPContractsManagerV2_Test
             gameArgs: superRoot ? bytes("") : abi.encode(pdgConfig)
         });
         baseConfig.disputeGameConfigs[2] = IOPContractsManagerUtils.DisputeGameConfig({
-            enabled: false,
-            initBond: 0,
-            gameType: GameTypes.CANNON_KONA,
-            gameArgs: bytes("")
+            enabled: false, initBond: 0, gameType: GameTypes.CANNON_KONA, gameArgs: bytes("")
         });
         baseConfig.disputeGameConfigs[3] = IOPContractsManagerUtils.DisputeGameConfig({
             enabled: superRoot,
@@ -3768,10 +3713,7 @@ contract OPContractsManagerV2_FeatBatchUpgrade_Test is OPContractsManagerV2_Test
             gameArgs: superRoot ? abi.encode(superPdgConfig) : bytes("")
         });
         baseConfig.disputeGameConfigs[4] = IOPContractsManagerUtils.DisputeGameConfig({
-            enabled: false,
-            initBond: 0,
-            gameType: GameTypes.SUPER_CANNON_KONA,
-            gameArgs: bytes("")
+            enabled: false, initBond: 0, gameType: GameTypes.SUPER_CANNON_KONA, gameArgs: bytes("")
         });
         baseConfig.disputeGameConfigs[5] = IOPContractsManagerUtils.DisputeGameConfig({
             enabled: false,

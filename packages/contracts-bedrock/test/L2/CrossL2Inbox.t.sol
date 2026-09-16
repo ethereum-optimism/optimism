@@ -60,12 +60,7 @@ abstract contract CrossL2Inbox_TestInit is CommonTest {
 /// @notice Tests the `validateMessage` function of the `CrossL2Inbox` contract.
 contract CrossL2Inbox_ValidateMessage_Test is CrossL2Inbox_TestInit {
     /// @notice Test that `validateMessage` reverts when executed in a deposit transaction.
-    function testFuzz_validateMessage_depositTransaction_reverts(
-        Identifier memory _id,
-        bytes32 _messageHash
-    )
-        external
-    {
+    function testFuzz_validateMessage_depositTransaction_reverts(Identifier memory _id, bytes32 _messageHash) external {
         _id.blockNumber = bound(_id.blockNumber, 0, type(uint64).max);
         _id.logIndex = bound(_id.logIndex, 0, type(uint32).max);
         _id.timestamp = bound(_id.timestamp, 0, type(uint64).max);
