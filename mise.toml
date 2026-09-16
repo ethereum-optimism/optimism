@@ -60,9 +60,8 @@ protoc = "35.1"
 # Foundry dependencies
 # Foundry is a special case because it supplies multiple binaries at the same
 # GitHub release, so we need to use the aliasing trick to get mise to not error
-# The git ref here should be on the `stable` branch.
-# Updated to use the specific nightly build
-forge = "1.2.3"
+# TODO: Switch Forge to an Amsterdam-capable release ASAP.
+forge = "nightly-4306ec60f947ac20cf1c069366a1ff870b79fe82"
 cast = "1.2.3"
 anvil = "1.2.3"
 
@@ -78,7 +77,7 @@ kontrol = "1.0.255"
 binary_signer = "1.0.4"
 
 [tool_alias]
-forge = "github:foundry-rs/foundry[bin=forge,version_prefix=v]"
+forge = "github:foundry-rs/foundry[bin=forge]"
 cast = "github:foundry-rs/foundry[bin=cast,version_prefix=v]"
 anvil = "github:foundry-rs/foundry[bin=anvil,version_prefix=v]"
 just = "github:casey/just"

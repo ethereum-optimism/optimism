@@ -55,9 +55,13 @@ contract RelayActor is StdUtils {
         // will not reject value being sent to it.
         _value = _value % 2;
 
-        // If the message should succeed, supply it `baseGas`. If not, supply it an amount of
-        // gas that is too low to complete the call.
-        uint256 gas = doFail ? bound(minGasLimit, 90_000, 100_000) : xdm.baseGas(_message, minGasLimit);
+        // If the message should succeed, supply it `baseGas`.
+        uint256 gas = xdm.baseGas(_message, minGasLimit);
+        if (doFail) {
+            // Supply enough gas for bookkeeping while keeping the target minimum unreachable.
+            gas *= 2;
+            minGasLimit = type(uint32).max;
+        }
 
         // Compute the cross domain message hash and store it in `hashes`.
         // The `relayMessage` function will always encode the message as a version 1
