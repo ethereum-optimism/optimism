@@ -84,8 +84,8 @@ hardfork_min_versions_source: "[Upgrade 19 notice](/notices/archive/upgrade-19)"
 1.  Create `op-stack/protocol/hardforks/<fork>.mdx` with `hardfork_lifecycle: development`
     and the spec link; import its generated snippet
     (`/snippets/generated/hardforks/<fork>.mdx`).
-2.  Add the page to the `docs.json` nav (OP Stack → Protocol Information →
-    Network Upgrades group).
+2.  Add the page to the `docs.json` nav (Protocol tab → Network upgrades
+    group).
 3.  When the superchain-registry schedules activation times, update the
     frontmatter to `scheduled` (later `active`) with those timestamps.
 4.  Run `pnpm gen:hardforks` and commit the page and regenerated snippets
