@@ -12,5 +12,8 @@ type AnchorStateRegistry struct {
 		Root             common.Hash
 		L2SequenceNumber *big.Int
 	}] `sol:"getAnchorRoot"`
-	SetRespectedGameType func(gameType uint32) TypedCall[any] `sol:"setRespectedGameType"`
+	RespectedGameType    func() TypedCall[uint32]                  `sol:"respectedGameType"`
+	IsGameFinalized      func(game common.Address) TypedCall[bool] `sol:"isGameFinalized"`
+	SetAnchorState       func(game common.Address) TypedCall[any]  `sol:"setAnchorState"`
+	SetRespectedGameType func(gameType uint32) TypedCall[any]      `sol:"setRespectedGameType"`
 }

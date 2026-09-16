@@ -10,12 +10,10 @@ import (
 	"github.com/ethereum-optimism/optimism/op-chain-ops/devkeys"
 	gameTypes "github.com/ethereum-optimism/optimism/op-challenger/game/types"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/artifacts"
-	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/opcm"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/upgrade/embedded"
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
 	sharedchallenger "github.com/ethereum-optimism/optimism/op-devstack/shared/challenger"
 	op_service "github.com/ethereum-optimism/optimism/op-service"
-	"github.com/ethereum-optimism/optimism/op-service/bigs"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/ioutil"
 	"github.com/ethereum-optimism/optimism/op-service/retry"
@@ -117,28 +115,18 @@ func addGameTypesForRuntime(
 	for _, gt := range enabledGameTypes {
 		enabled[gt] = true
 	}
+	var assertAnchorPreserved func()
+	if enabled[gameTypes.SuperCannonKonaGameType] {
+		timestamp := awaitSuperrootTime(t, l2CL)
+		root := getSuperRootProof(t, l2CL.UserRPC(), timestamp)
+		assertAnchorPreserved = bootstrapSuperRootAnchor(t, keys, l1ELRPC, l2Net, root)
+	}
 	initBond := new(big.Int).Set(defaultInitBond)
 
 	cannonKonaPrestate := PrestateForGameType(t, gameTypes.CannonKonaGameType)
 	superCannonKonaPrestate := PrestateForGameType(t, gameTypes.SuperCannonKonaGameType)
 	dummyCannonPrestate := common.HexToHash(sharedchallenger.DummyPermissionedPrestate)
-	startingAnchorRoot := opcm.DefaultStartingAnchorRoot
-	if enabled[gameTypes.SuperCannonKonaGameType] {
-		superrootTime := awaitSuperrootTime(t, l2CL)
-		startingAnchorRoot = opcm.StartingAnchorRoot{
-			Root:          common.Hash(getSuperRoot(t, l2CL.UserRPC(), superrootTime)),
-			L2BlockNumber: new(big.Int).SetUint64(superrootTime),
-		}
-	}
 	extraInstructions := []embedded.ExtraInstruction{
-		{
-			Key: "overrides.cfg.startingAnchorRoot",
-			Data: encodeStartingAnchorRoot(
-				t,
-				eth.Bytes32(startingAnchorRoot.Root),
-				bigs.Uint64Strict(startingAnchorRoot.L2BlockNumber),
-			),
-		},
 		{
 			Key:  "overrides.cfg.startingRespectedGameType",
 			Data: encodeStartingRespectedGameType(t, superPermissionedGameType),
@@ -216,6 +204,9 @@ func addGameTypesForRuntime(
 			ExtraInstructions:  extraInstructions,
 		},
 	})
+	if assertAnchorPreserved != nil {
+		assertAnchorPreserved()
+	}
 }
 
 // ZKDisputeGameConfigForRuntime returns a ZKDisputeGameConfig for use in devstack/test environments.

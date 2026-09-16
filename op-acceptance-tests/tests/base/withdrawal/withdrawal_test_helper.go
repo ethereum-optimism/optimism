@@ -32,6 +32,8 @@ func withdrawalOpts(gameType gameTypes.GameType, extra ...presets.Option) []pres
 	}
 	if gameType == gameTypes.SuperPermissionedGameType || gameType == gameTypes.SuperCannonKonaGameType {
 		opts = append(opts, presets.WithDeployerOptions(
+			// The permissionless fixture establishes a finalized permissioned anchor during setup.
+			sysgo.WithDisputeGameFinalityDelaySeconds(2),
 			sysgo.WithDevFeatureEnabled(devfeatures.OptimismPortalInteropFlag),
 			sysgo.WithDevFeatureEnabled(devfeatures.SuperRootGamesMigrationFlag),
 		))
