@@ -76,11 +76,9 @@ abstract contract L2Genesis_TestInit is Test {
             assertEq(Predeploys.PROXY_ADMIN, EIP1967Helper.getAdmin(addr));
 
             // If it's not a supported predeploy, skip next checks.
-            if (
-                !Predeploys.isSupportedPredeploy(
+            if (!Predeploys.isSupportedPredeploy(
                     addr, uint256(LATEST_FORK), input.useCustomGasToken, input.useInterop, input.devFeatureBitmap
-                )
-            ) {
+                )) {
                 continue;
             }
 

@@ -112,11 +112,7 @@ contract EAS is IEAS, ISemver, EIP1271Verifier {
     }
 
     /// @inheritdoc IEAS
-    function multiAttest(MultiAttestationRequest[] calldata multiRequests)
-        external
-        payable
-        returns (bytes32[] memory)
-    {
+    function multiAttest(MultiAttestationRequest[] calldata multiRequests) external payable returns (bytes32[] memory) {
         // Since a multi-attest call is going to make multiple attestations for multiple schemas, we'd need to collect
         // all the returned UIDs into a single list.
         uint256 length = multiRequests.length;
@@ -317,8 +313,9 @@ contract EAS is IEAS, ISemver, EIP1271Verifier {
             }
 
             // Ensure to deduct the ETH that was forwarded to the resolver during the processing of this batch.
-            availableValue -=
-                _revoke(multiDelegatedRequest.schema, data, multiDelegatedRequest.revoker, availableValue, last);
+            availableValue -= _revoke(
+                multiDelegatedRequest.schema, data, multiDelegatedRequest.revoker, availableValue, last
+            );
         }
     }
 
