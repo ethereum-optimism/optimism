@@ -138,12 +138,11 @@ func (v *ForgeVerifier) VerifyContractWithConstructorArgs(ctx context.Context, a
 		args = append(args, "--guess-constructor-args")
 	}
 
-	// Need to add these settings forcefully, because forge doesn't parse them correctly (1.2.3)
+	// Supply artifact settings when the original Forge build cache is unavailable.
 	if metadata.Optimizer.Enabled {
 		args = append(args, "--num-of-optimizations", fmt.Sprintf("%d", metadata.Optimizer.Runs))
 	}
 
-	// Same here
 	if metadata.EVMVersion != "" {
 		args = append(args, "--evm-version", metadata.EVMVersion)
 	}
