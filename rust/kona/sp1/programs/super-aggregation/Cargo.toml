@@ -10,6 +10,7 @@ repository.workspace = true
 
 [dependencies]
 bincode.workspace = true
+kona-sp1-build-info.workspace = true
 kona-sp1-client-utils.workspace = true
 kona-sp1-range-vkeys.workspace = true
 sha2.workspace = true

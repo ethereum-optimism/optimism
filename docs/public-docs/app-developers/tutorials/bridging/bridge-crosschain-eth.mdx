@@ -90,7 +90,7 @@ The tutorial uses these primary tools:
             DST_URL=http://localhost:9546
             ```
   
-        <Expandable title="Sanity check">
+        <Accordion title="Sanity check">
   
           Get the ETH balances for your address on both the source and destination chains.
   
@@ -99,7 +99,7 @@ The tutorial uses these primary tools:
           cast balance --ether `cast wallet address $PRIVATE_KEY` --rpc-url $DST_URL
           ```
   
-        </Expandable>
+        </Accordion>
   
   
       </Tab>
@@ -127,7 +127,7 @@ The tutorial uses these primary tools:
             DST_URL=https://interop-alpha-1.optimism.io          
             ```      
   
-        <Expandable title="Sanity check">
+        <Accordion title="Sanity check">
   
           Get the ETH balances for your address on both the source and destination chains.
   
@@ -135,7 +135,7 @@ The tutorial uses these primary tools:
           cast balance --ether `cast wallet address $PRIVATE_KEY` --rpc-url $SRC_URL
           cast balance --ether `cast wallet address $PRIVATE_KEY` --rpc-url $DST_URL
           ```
-        </Expandable>
+        </Accordion>
       </Tab>
     </Tabs>
   </Step>
@@ -276,7 +276,7 @@ The tutorial uses these primary tools:
     </Step>
   </Steps>
     
-        <Expandable title="Explanation of `transfer-eth.mts`">
+        <Accordion title="Explanation of `transfer-eth.mts`">
   
         ```typescript
             import { 
@@ -331,7 +331,7 @@ The tutorial uses these primary tools:
         ```
   
   This is how you use `@eth-optimism/viem` to create an executing message.
-  </Expandable>
+  </Accordion>
   </Step>
 
   <Step title="Run the example">

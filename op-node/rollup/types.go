@@ -828,7 +828,8 @@ func (c *Config) SyncLookback() uint64 {
 }
 
 // Description outputs a banner describing the important parts of rollup configuration in a human-readable form.
-// Optionally provide a mapping of L2 chain IDs to network names to label the L2 chain with if not unknown.
+// Optionally provide a mapping of L2 chain IDs to network names to label the L2 chain with; unlike
+// LogDescription, the human-readable banner always prints a name, falling back to "unknown L2".
 // The config should be config.Check()-ed before creating a description.
 func (c *Config) Description(l2Chains map[string]string) string {
 	// Find and report the network the user is running
@@ -867,17 +868,10 @@ func (c *Config) Description(l2Chains map[string]string) string {
 }
 
 // LogDescription outputs a banner describing the important parts of rollup configuration in a log format.
-// Optionally provide a mapping of L2 chain IDs to network names to label the L2 chain with if not unknown.
+// Optionally provide a mapping of L2 chain IDs to network names to label the L2 chain; without a
+// name for the chain, the l2_network field is omitted (l2_chain_id identifies the chain either way).
 // The config should be config.Check()-ed before creating a description.
 func (c *Config) LogDescription(log log.Logger, l2Chains map[string]string) {
-	// Find and report the network the user is running
-	networkL2 := ""
-	if l2Chains != nil {
-		networkL2 = l2Chains[c.L2ChainID.String()]
-	}
-	if networkL2 == "" {
-		networkL2 = "unknown L2"
-	}
 	networkL1 := params.NetworkNames[c.L1ChainID.String()]
 	if networkL1 == "" {
 		networkL1 = "unknown L1"
@@ -885,7 +879,11 @@ func (c *Config) LogDescription(log log.Logger, l2Chains map[string]string) {
 
 	ctx := []any{
 		"l2_chain_id", c.L2ChainID,
-		"l2_network", networkL2,
+	}
+	if networkL2 := l2Chains[c.L2ChainID.String()]; networkL2 != "" {
+		ctx = append(ctx, "l2_network", networkL2)
+	}
+	ctx = append(ctx,
 		"l1_chain_id", c.L1ChainID,
 		"l1_network", networkL1,
 		"l2_start_time", c.Genesis.L2Time,
@@ -893,7 +891,7 @@ func (c *Config) LogDescription(log log.Logger, l2Chains map[string]string) {
 		"l2_block_number", c.Genesis.L2.Number,
 		"l1_block_hash", c.Genesis.L1.Hash.String(),
 		"l1_block_number", c.Genesis.L1.Number,
-	}
+	)
 	c.forEachFork(func(_ string, logName string, time *uint64) {
 		ctx = append(ctx, logName, fmtForkTimeOrUnset(time))
 	})

@@ -16,10 +16,15 @@
 #
 #   LINKED  changed a package compiled into the binary; <paths> lists just those
 #           packages — that is the reason the PR may belong in the notes
-#   DEPS    changed only the dependency manifests (go.mod/go.sum, Cargo.toml/Cargo.lock)
+#   CONFIG  moved the embedded superchain registry (submodule pin, generated archive
+#           checksum, or kona's registry snapshots); read it by hand, a new activation time
+#           can make the release required. Appears as LINKED+CONFIG when the same PR also
+#           changed a compiled package
+#   DEPS    changed the dependency manifests (go.mod/go.sum, Cargo.toml/Cargo.lock) without
+#           touching a compiled package
 #   --      touched nothing the binary compiles; <paths> shows what it did touch
-#   ?       no component given, or dependencies could not be resolved; <paths> shows
-#           everything touched and the call is yours
+#   ?       no component given, dependencies could not be resolved, or the PR could not be
+#           fetched; <paths> shows everything touched and the call is yours
 #
 # Resolving the Rust dependency set takes ~2 minutes, so it is cached per component under
 # $TMPDIR and reused until rust/Cargo.lock changes.
@@ -129,7 +134,7 @@ for f in "$workdir"/pr-*; do
         }
         # The compilation unit a changed file belongs to: its package directory for Go,
         # its owning workspace crate (longest matching member directory) for Rust.
-        function unit(path,   d, best, n, seg) {
+        function unit(path,   d, best, rest) {
             if (mode == "go") {
                 # Test files are not compiled into the binary, so a PR that only adds
                 # coverage to a linked package does not change what ships.
@@ -140,11 +145,27 @@ for f in "$workdir"/pr-*; do
             best = ""
             for (d in pkgdir)
                 if (index(path, d "/") == 1 && length(d) > length(best)) best = d
-            return best == "" ? "" : pkgdir[best]
+            if (best == "") return ""
+            # Drop what the crate does not compile. A denylist, not an allowlist of src/:
+            # crates here compile plenty from outside it -- kona embeds its registry
+            # snapshots from etc/, op-reth its dev genesis from res/, and the hardforks
+            # build script includes build_helpers.rs beside itself.
+            rest = substr(path, length(best) + 2)
+            if (rest ~ /^(tests|benches|examples|scripts|testdata|proof-bench)\//) return ""
+            if (rest ~ /^(README|CHANGELOG)/) return ""
+            return pkgdir[best]
         }
         NR == 1 { num = $1; author = $2; count = $3; title = $4; next }
         {
             all[$0] = 1
+            # Every component embeds the registry, and the Go and op-reth archives are
+            # generated at build time -- a pin bump is a gitlink plus a checksum, so nothing
+            # resolves as linked, though a new activation time is usually the most
+            # consequential change in the release. Matched by exact path so an unrelated
+            # file whose name contains "superchain-configs" cannot claim the tag.
+            if ($0 == "superchain-registry" || $0 ~ /^superchain-registry\// ||
+                $0 ~ /superchain-configs\.(zip|tar)/ ||
+                $0 ~ /^rust\/kona\/crates\/protocol\/registry\/etc\//) registry = 1
             if ($0 ~ /^(go\.(mod|sum)|rust\/Cargo\.(toml|lock))$/) { manifest = 1; next }
             other_files++
             if (mode == "none") next
@@ -159,8 +180,17 @@ for f in "$workdir"/pr-*; do
             }
             if (title ~ /^\(could not fetch/)   { tag = "?" }
             else if (mode == "none")            { tag = "?";      for (p in shorts) out = out " " p }
-            else if (length(hits))              { tag = "LINKED"; for (p in hits)   out = out " " p }
+            # CONFIG is additive, not an alternative to LINKED: a registry bump landing
+            # alongside compiled code is common, and the row must still say the chain
+            # configs moved.
+            else if (length(hits))              { tag = registry ? "LINKED+CONFIG" : "LINKED"
+                                                  for (p in hits)   out = out " " p }
+            else if (registry)                  { tag = "CONFIG"; out = " (embedded chain configs)" }
+            # DEPS, not "--", whenever a manifest moved. "--" claims the binary compiles
+            # nothing that changed, and a lockfile bump sitting next to one unrelated file
+            # (a deny.toml, or a source file from another package) is not that.
             else if (manifest && !other_files)  { tag = "DEPS";   out = " (manifest only)" }
+            else if (manifest)                  { tag = "DEPS";   for (p in shorts) out = out " " p }
             else                                { tag = "--";     for (p in shorts) out = out " " p }
             # gh returns at most 100 files, so a larger PR may hide its linked packages.
             if (count >= 100) count = count " (truncated, verify by hand)"

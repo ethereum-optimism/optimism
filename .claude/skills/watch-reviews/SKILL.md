@@ -12,7 +12,7 @@ everything else without reading it.
 
 The **operator** — the human who invoked this skill — asks you to watch a PR, wait for a
 review, or report back when one lands. Watching CI is separate and always-on: see
-[After Pushing to a PR](../../../AGENTS.md#after-pushing-to-a-pr) and
+[After Every Push](../../../docs/handbook/pr-guidelines.md#after-every-push) and
 [ci-ops.md](../../../docs/ai/ci-ops.md#watching-ci-after-a-push).
 
 Three roles, never conflated below: the **operator**, the **PR author** (who on a fork PR

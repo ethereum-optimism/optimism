@@ -111,7 +111,9 @@ async fn main() -> Result<()> {
         ProposerGauge::init_all();
     }
 
-    let proposer = Proposer::new(config, signer, factory, proof_provider).await?;
+    let proposer = Arc::new(Proposer::new(config, signer, factory, proof_provider).await?);
+    #[cfg(unix)]
+    proposer.install_proof_retry_signal()?;
 
     // Devstack readiness matches this message. Emit it before chain-dependent
     // initialization so a deriving supernode does not stall process readiness.
@@ -120,5 +122,5 @@ async fn main() -> Result<()> {
         None => tracing::info!("kona-sp1-proposer started"),
     }
 
-    Arc::new(proposer).run().await
+    proposer.run().await
 }

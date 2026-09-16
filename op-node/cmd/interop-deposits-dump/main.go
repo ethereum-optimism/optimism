@@ -12,7 +12,7 @@ import (
 
 func main() {
 	for _, activate := range []bool{false, true} {
-		txs, gas, err := derive.InteropActivationUpgradeTransactions(activate)
+		txs, gas, err := derive.LagoonActivationUpgradeTransactions(activate)
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "go: error for activate=%v: %v\n", activate, err)
 			os.Exit(1)

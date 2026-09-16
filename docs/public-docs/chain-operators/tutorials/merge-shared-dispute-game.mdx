@@ -74,7 +74,7 @@ The portal-derived lookups return the chain's current `DisputeGameFactory`, `Anc
 | Item | Source |
 | --- | --- |
 | `OPCM` address for the migrate-feature container | The same OPCM the chains ran for the prerequisite `OPCMv2.upgrade()`. The container has `OPTIMISM_PORTAL_INTEROP` set in `devFeatureBitmap`, which is what enables both `Features.INTEROP` and `Features.ETH_LOCKBOX` on each `SystemConfig`. |
-| `SUPER_CANNON_KONA` absolute prestate hash | `validation/standard/standard-prestates.toml` in `superchain-registry`. Use the entry with `type="interop"` for the OPCM release version. |
+| `SUPER_CANNON_KONA` absolute prestate hash | `validation/standard/standard-prestates.toml` in `superchain-registry`. Use the entry with `type="cannon64-kona-interop"` for the OPCM release version. |
 | Prestate artifact URL | The `cannon-kona-prestates-url` server, with the kona-interop prestate uploaded ahead of the migration. |
 | Shared `op-supernode` RPC URL | Your infrastructure team. The instance must derive **exactly `chainA` and `chainB`** (and no other chains). The shared `op-proposer`, `op-challenger`, and `op-dispute-mon` for the merged factory all point at this same instance. The per-chain services will be pointed to chain-specific endpoints under this URL. |
 | Privileged `proposer` for `SUPER_PERMISSIONED` | The address authorized to post proposals to the permissioned super game. `op-proposer` is configured to sign with this key. |

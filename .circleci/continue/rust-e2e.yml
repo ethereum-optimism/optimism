@@ -5,7 +5,7 @@ version: 2.1
 # It is merged with main.yml and rust-ci.yml when rust/** changes are detected.
 # Shared orbs, commands, and jobs come from main.yml and rust-ci.yml during merge.
 orbs:
-  utils: ethereum-optimism/circleci-utils@1.0.30
+  utils: ethereum-optimism/circleci-utils@1.0.31
 
 parameters:
   c-default_docker_image:
@@ -301,6 +301,28 @@ jobs:
           # acceptance tests with stub artifacts.
           name: Check vkeys manifest names expected by consumers
           command: grep -q '^super-aggregation = "0x' rust/kona/sp1/elf/vkeys.toml
+      - run:
+          # The build recipe checks each ELF against the commit it injected; this pins that
+          # commit to the one under test. Scans permissively so a marker reading `unknown`
+          # reports as `unknown` rather than as a dropped literal.
+          name: Check guest ELFs embed the build commit
+          command: |
+            set -euo pipefail
+            EXPECTED=$(git rev-parse HEAD)
+            for ELF in super-range-elf super-aggregation-elf; do
+              PATH_TO_ELF="rust/kona/sp1/elf/${ELF}"
+              set +e
+              FOUND=$(grep -aoE 'KONA_SP1_BUILD\{git_sha=[0-9A-Za-z._-]*\}' "${PATH_TO_ELF}" | sort -u)
+              RC=$?
+              set -e
+              [ "${RC}" -le 1 ] || { echo "ERROR: grep failed on ${PATH_TO_ELF} (exit ${RC})" >&2; exit 1; }
+              if [ "${FOUND}" != "KONA_SP1_BUILD{git_sha=${EXPECTED}}" ]; then
+                echo "ERROR: ${ELF} build markers: ${FOUND:-<none>}" >&2
+                echo "       expected exactly KONA_SP1_BUILD{git_sha=${EXPECTED}}" >&2
+                exit 1
+              fi
+              echo "${ELF}: ${FOUND}"
+            done
       - store_artifacts:
           path: rust/kona/sp1/elf
       - persist_to_workspace:
@@ -478,21 +500,24 @@ workflows:
             - contracts-bedrock-build
           context:
             - circleci-repo-readonly-authenticated-github-token
-      - kona-build-sp1-elfs:
-          context:
-            - circleci-repo-readonly-authenticated-github-token
-            - sccache-gcs-optimism
+      # No kona-build-sp1-elfs here on purpose: main runs the identical job
+      # (same template, no parameters, same contexts) and gates it through
+      # ci-gate, and main runs in every case rust-e2e-ci does, so a copy in
+      # this workflow is duplicated work.
       # -----------------------------------------------------------------------
       # Required gate — fans in on all E2E test jobs
       # -----------------------------------------------------------------------
       - required-rust-e2e:
           requires:
+            # Gated directly, not just through the e2e jobs below: a failed
+            # build leaves them unrun rather than failed, and this workflow is
+            # now the only place the release build happens.
+            - rust-workspace-release: terminal
             - rust-e2e-simple-kona: terminal
             - rust-e2e-simple-kona-sequencer: terminal
             - rust-e2e-restart: terminal
             - op-reth-e2e-sysgo-tests: terminal
             - kona-proof-action-single: terminal
-            - kona-build-sp1-elfs: terminal
           context:
             - circleci-api-token
   rust-e2e-gate-skip:

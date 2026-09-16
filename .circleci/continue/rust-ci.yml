@@ -4,7 +4,7 @@ version: 2.1
 # This file contains all Rust CI commands, parameterized jobs, crate-specific jobs, and workflows.
 
 orbs:
-  utils: ethereum-optimism/circleci-utils@1.0.30
+  utils: ethereum-optimism/circleci-utils@1.0.31
   gcp-cli: circleci/gcp-cli@3.0.1
 
 parameters:
@@ -423,7 +423,8 @@ jobs:
         default: 1
     docker:
       - image: <<pipeline.parameters.c-rust_base_image>>
-    resource_class: xlarge.gen2
+    # Trial one tier down after current V3 telemetry peaked at 7.0 GiB across 141 runs.
+    resource_class: large.gen2
     parallelism: <<parameters.parallelism>>
     steps:
       - utils/checkout-with-mise:
@@ -868,11 +869,11 @@ workflows:
           directory: rust
           context: *rust-ci-context
 
-      - rust-build-binary:
-          name: rust-build-release
-          directory: rust
-          profile: release
-          context: *rust-ci-context
+      # No release build here on purpose: rust-e2e-ci's rust-workspace-release
+      # is the same `rust-build-binary` invocation plus persist_to_workspace,
+      # and compute-workflow-conditions.sh only ever runs rust_ci and
+      # rust_e2e_ci as a pair, so a copy in this workflow is duplicated work.
+      # It is gated through required-rust-e2e.
 
       # -----------------------------------------------------------------------
       # Unified cross-compilation jobs
@@ -951,7 +952,6 @@ workflows:
             - rust-udeps: terminal
             - rust-cargo-hack: terminal
             - rust-build: terminal
-            - rust-build-release: terminal
             - rust-check-no-std: terminal
             - rust-wasm-unknown: terminal
             - rust-wasm-wasi: terminal

@@ -25,16 +25,28 @@ change under `op-service/` or `op-core/` can absolutely change how the component
 `op-service/txmgr`, `op-service/bgpo` and `op-core/fees` all reach op-batcher.
 
 The right question: **does this PR change code compiled into this binary, and does that
-change alter behaviour an operator or downstream importer would notice?**
+change alter behaviour an operator would notice?** Downstream Go importers do not count —
+see the Drop list below.
 
 `scripts/pr-facts.sh` answers the first half exactly and tags every PR:
 
 | Tag | Meaning | Default |
 | --- | --- | --- |
 | `LINKED` | Changed a package in the binary's transitive dependency set; the listed packages are the ones that reach it | Candidate — apply the judgment pass |
-| `DEPS` | Changed only the dependency manifests | Drop, unless it is a security bump |
+| `CONFIG` | Moved the embedded superchain registry — submodule pin, generated archive checksum, or kona's snapshots. `LINKED+CONFIG` when compiled code moved too | Always read by hand |
+| `DEPS` | Changed the dependency manifests without touching a compiled package | Drop, unless it is a security bump |
 | `--` | Touched nothing the binary compiles | Drop |
 | `?` | Dependencies could not be resolved | Judge by hand |
+
+A `CONFIG` row carries no linkage evidence and never will, yet is routinely the most
+consequential change in the release: read the PR body for which chains and which values
+moved. A new hardfork activation time is a `## Chain Configuration` entry and can make the
+release `required` for the chains it names.
+
+A `DEPS` row listing paths rather than "(manifest only)" changed something else too, which
+was not compiled in. Check the lock diff against the component's dependency set before
+dropping it — #22714 looked like kona work but moved `hickory-resolver`, which op-reth links
+for DNS discovery, off a High advisory.
 
 ## The judgment pass on LINKED rows
 
@@ -76,16 +88,16 @@ grep -rn "<ChangedSymbol>" <component>/ --include='*.go' | grep -v _test.go
 - a dev-feature toggle removal for a feature never on in production
 - comment, TODO, or docs cleanup
 - another component's work that merely brushed a shared package
-- a Go API change with no operator-facing effect — mention under `### Other` at most
+- a Go API change with no operator-facing effect, **including one that only unblocks
+  downstream importers** of the monorepo as a Go module — see house-style.md for why that is
+  not a user-facing surface
 
 **Keep a cross-component PR** when the component embeds the other one. op-supernode runs
 virtual op-nodes, so op-node's follow-source reorg metrics belong in the supernode notes even
 though the PR touches no `op-supernode/` path.
 
-**A change to a dormant feature** gets one line under a `### <Feature> (not yet in
-production)` heading if it affects this component once the feature activates, and is **cut
-entirely** if it is a no-op here and only matters to another consumer of the shared code.
-Check liveness against the registry — see `house-style.md`.
+**A change confined to an unreleased feature is cut entirely.** Keep it only if it also
+reaches a path that is live today. `house-style.md` has the liveness checks.
 
 ## Fixes for bugs that never shipped
 
@@ -125,7 +137,7 @@ Two published releases, checked against their regenerated raw drafts:
 Regenerate any published release's raw draft to check a call:
 
 ```bash
-GITHUB_TOKEN=$(gh auth token) just release-notes op-node v1.19.3 v1.19.4
+GITHUB_TOKEN=$(gh auth token) mise exec -- just release-notes op-node v1.19.3 v1.19.4
 ```
 
 The v1.19.5 train is the closest reference for current practice. Surviving PR counts:

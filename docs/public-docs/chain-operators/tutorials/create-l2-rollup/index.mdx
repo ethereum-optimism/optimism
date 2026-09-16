@@ -59,19 +59,19 @@ Set up the following before you pick a setup path below. Both the automated and 
   Expand each dependency below for details
 </Info>
 
-<Expandable title="node">
+<Accordion title="node">
 
   We recommend using the latest LTS version of Node.js (currently v20).\
   [`nvm`](https://github.com/nvm-sh/nvm) is a useful tool that can help you manage multiple versions of Node.js on your machine.\
   You may experience unexpected errors on older versions of Node.js.
-</Expandable>
+</Accordion>
 
-<Expandable title="foundry">
+<Accordion title="foundry">
 
   We will use cast to generate wallet addresses in this guide.
-</Expandable>
+</Accordion>
 
-<Expandable title="direnv">
+<Accordion title="direnv">
 
   Parts of this tutorial use [`direnv`](https://direnv.net) as a way of loading environment variables from `.envrc` files into your shell.\
   This means you won't have to manually export environment variables every time you want to use them.\
@@ -84,9 +84,9 @@ Set up the following before you pick a setup path below. Both the automated and 
     Make sure that you have correctly hooked `direnv` into your shell by modifying your shell configuration file (like `~/.bashrc` or `~/.zshrc`).\
     If you haven't edited a config file then you probably haven't configured `direnv` properly (and things might not work later).
   </Info>
-</Expandable>
+</Accordion>
 
-<Expandable title="Docker">
+<Accordion title="Docker">
 
   Docker is used extensively in this tutorial for running various OP Stack components.\
   Make sure you have both Docker and Docker Compose installed and running on your system.\
@@ -100,7 +100,7 @@ Set up the following before you pick a setup path below. Both the automated and 
     docker run hello-world
     ```
   </Info>
-</Expandable>
+</Accordion>
 
 ### Get access to a sepolia node
 

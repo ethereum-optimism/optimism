@@ -434,14 +434,14 @@ func TestPreparePayloadAttributes(t *testing.T) {
 			require.NoError(t, err)
 			attrs := prepareActivationAttributes(t, depSet)
 
-			setFeatureTx, err := interopSetFeatureTx()
+			setFeatureTx, err := interopSetFeatureDeposit().MarshalBinary()
 			require.NoError(t, err)
 			bundleTxs, _, err := UpgradeTransactions(forks.Lagoon)
 			require.NoError(t, err)
-			fundingTx, err := interopETHLiquidityFundingTx()
+			fundingTx, err := interopETHLiquidityFundingDeposit().MarshalBinary()
 			require.NoError(t, err)
 
-			expectedTx := append(append([]hexutil.Bytes{setFeatureTx}, bundleTxs...), fundingTx)
+			expectedTx := append(append([]hexutil.Bytes{setFeatureTx}, bundleTxs...), hexutil.Bytes(fundingTx))
 
 			require.Len(t, attrs.Transactions, len(expectedTx)+1) // +1 for L1Info tx
 			for i, tx := range expectedTx {

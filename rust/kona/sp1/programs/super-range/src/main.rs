@@ -19,6 +19,8 @@ use rkyv::rancor::Error as RkyvError;
 
 /// Entrypoint to the unified super-root range program.
 pub fn main() {
+    println!("{}", kona_sp1_build_info::BUILD_MARKER);
+
     let inputs = sp1_zkvm::io::read::<SuperInteropInputs>();
     let outputs = kona_proof::block_on(run(inputs)).expect("super interop failed");
     sp1_zkvm::io::commit(&outputs);

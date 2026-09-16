@@ -105,12 +105,6 @@ func runPrecompileTest(gt *testing.T, testCfg *helpers.TestCfg[PrecompileTestFix
 	// Ensure the block is marked as safe before we attempt to fault prove it.
 	require.Equal(t, uint64(2), bigs.Uint64Strict(l2SafeHead.Number))
 
-	defaultParam := helpers.WithPreInteropDefaults(t, bigs.Uint64Strict(l2SafeHead.Number), env.Sequencer.L2Verifier, env.Engine)
-	fixtureInputParams := []helpers.FixtureInputParam{defaultParam, helpers.WithL1Head(l1Head.Hash())}
-	var fixtureInputs helpers.FixtureInputs
-	for _, apply := range fixtureInputParams {
-		apply(&fixtureInputs)
-	}
-
-	env.RunFaultProofProgram(t, bigs.Uint64Strict(l2SafeHead.Number), helpers.ExpectNoError(), fixtureInputParams...)
+	// RunFaultProofProgram applies WithSuperDefaults itself; only the L1 head is overridden here.
+	env.RunFaultProofProgram(t, bigs.Uint64Strict(l2SafeHead.Number), helpers.ExpectNoError(), helpers.WithL1Head(l1Head.Hash()))
 }

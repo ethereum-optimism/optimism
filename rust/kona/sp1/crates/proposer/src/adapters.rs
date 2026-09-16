@@ -31,7 +31,7 @@ use crate::{
         SuperRootAtTimestamp, SuperRootSource, WithdrawalState,
     },
     prover::{ProofKeys, ProofProvider},
-    proving::{GameProofInputs, prove_game_inner},
+    proving::{GameProofInputs, InMemoryProofProgress, ProveGameRequest, prove_game_inner},
     signer::{FeeCaps, SignerLock},
     superroot::{ResponseSelection, SuperrootClient},
 };
@@ -204,8 +204,8 @@ where
         Ok(self.factory.initBonds(ZK_GAME_TYPE).call().await?)
     }
 
-    async fn game_status(&self, game: Address) -> Result<u8> {
-        Ok(ZKDisputeGame::new(game, self.provider.clone()).status().call().await?)
+    async fn game_status(&self, game: Address, block: BlockId) -> Result<u8> {
+        Ok(ZKDisputeGame::new(game, self.provider.clone()).status().block(block).call().await?)
     }
 
     async fn claim_preflight(
@@ -260,10 +260,15 @@ where
         Ok(GameStanding { blacklisted, retired })
     }
 
-    async fn game_standing(&self, game: Address, registry: Address) -> Result<GameStanding> {
+    async fn game_standing(
+        &self,
+        game: Address,
+        registry: Address,
+        block: BlockId,
+    ) -> Result<GameStanding> {
         let registry = AnchorStateRegistry::new(registry, self.provider.clone());
-        let blacklisted = registry.isGameBlacklisted(game);
-        let retired = registry.isGameRetired(game);
+        let blacklisted = registry.isGameBlacklisted(game).block(block);
+        let retired = registry.isGameRetired(game).block(block);
         let (blacklisted, retired) = tokio::try_join!(blacklisted.call(), retired.call())?;
         Ok(GameStanding { blacklisted, retired })
     }
@@ -298,10 +303,6 @@ where
             root_claim,
             sequence_number,
         })
-    }
-
-    async fn anchor_state_registry(&self, game: Address) -> Result<Address> {
-        Ok(ZKDisputeGame::new(game, self.provider.clone()).anchorStateRegistry().call().await?)
     }
 
     async fn latest_l1_timestamp(&self) -> Result<u64> {
@@ -351,16 +352,23 @@ pub(crate) struct ProductionProofEngine {
     host_inputs: Arc<HostInputs>,
     split: RangeSplitCount,
     max_concurrent: NonZeroUsize,
+    proof_progress: InMemoryProofProgress,
 }
 
 impl ProductionProofEngine {
-    pub(crate) const fn new(
+    pub(crate) fn new(
         provider: ProofProvider,
         host_inputs: Arc<HostInputs>,
         split: RangeSplitCount,
         max_concurrent: NonZeroUsize,
     ) -> Self {
-        Self { provider, host_inputs, split, max_concurrent }
+        Self {
+            provider,
+            host_inputs,
+            split,
+            max_concurrent,
+            proof_progress: InMemoryProofProgress::default(),
+        }
     }
 }
 
@@ -368,6 +376,7 @@ impl ProductionProofEngine {
 impl ProofEngine for ProductionProofEngine {
     async fn prove(
         &self,
+        game_address: Address,
         keys: Option<Arc<ProofKeys>>,
         game: GameProofInputs,
         responses: Vec<SuperRootAtTimestampResponse>,
@@ -376,12 +385,24 @@ impl ProofEngine for ProductionProofEngine {
             &self.provider,
             keys.as_deref(),
             &self.host_inputs,
-            &game,
-            &responses,
-            self.split,
-            self.max_concurrent,
+            ProveGameRequest {
+                game_address,
+                game: &game,
+                responses: &responses,
+                split: self.split,
+                max_concurrent: self.max_concurrent,
+                proof_progress: &self.proof_progress,
+            },
         )
         .await
+    }
+
+    fn clear(&self, game_address: Address) {
+        self.proof_progress.clear(game_address);
+    }
+
+    fn retry_terminal_requests(&self, game_address: Address) -> usize {
+        self.proof_progress.retry_terminal_requests(game_address)
     }
 }
 
@@ -682,7 +703,8 @@ mod tests {
             NonZeroUsize::MIN,
         );
 
-        let error = engine.prove(None, game, vec![previous, current]).await.unwrap_err();
+        let error =
+            engine.prove(Address::ZERO, None, game, vec![previous, current]).await.unwrap_err();
         assert!(!is_unprovable(&error));
     }
 

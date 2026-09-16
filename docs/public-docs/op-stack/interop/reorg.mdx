@@ -15,7 +15,7 @@ diataxis: explanation
 If not handled correctly, reorgs in a cross-chain context could result in a [double-spend problem](https://en.wikipedia.org/wiki/Double-spending).
 The most frequent solution to mitigate the double-spend problem is to wait for Ethereum finality; however, that solution results in high latency cross-chain communication and a poor user experience.
 
-<Expandable title="What is double-spending?">
+<Accordion title="What is double-spending?">
 
   ```mermaid
 
@@ -72,7 +72,7 @@ The most frequent solution to mitigate the double-spend problem is to wait for E
   The mechanism varies by asset.
   ETH is locked and unlocked in an on-chain liquidity contract; SuperchainERC20 tokens are burned and minted.
   The double-spend risk is the same either way.
-</Expandable>
+</Accordion>
 
 Most solutions to mitigate the double-spend problem rely on [L1 finality](https://ethereum.org/en/developers/docs/consensus-mechanisms/pos/#finality). However, that solution results in high latency and poor user experience.
 
@@ -176,13 +176,13 @@ A block in another chain can only depend on a specific block here if it referenc
 
 A block can also be canonically invalidated outright. If verifiers determine that an L2 block cannot be reproduced from L1 — for example because the batch claims an initiating message that does not exist on the source chain — the canonical chain replaces it with a *deposit-only block*: a block that contains only the deposit transactions forced through L1, with all sequencer transactions stripped out. For interop-specific failures like that example, [op-supernode](#how-the-dependency-check-is-enforced) is the verifier that makes the call.
 
-<Expandable title="What makes a block invalid?">
+<Accordion title="What makes a block invalid?">
 
   There are several potential reasons:
 
   *   The block posted to L1 includes incorrect information — for example, a batch claims an initiating message that the source chain never actually emitted, so any executing message that references it cannot be reproduced.
   *   The block was never posted at all. If the [sequencer window](https://specs.optimism.io/glossary.html#sequencing-window) elapses (3600 L1 blocks ≈ 12 hours on standard chains) without a batch covering an L1 epoch, verifiers fall back to a deposit-only block for that epoch.
-</Expandable>
+</Accordion>
 
 Functionally this is equivalent to equivocation, and the dependency rules above handle it the same way: only unsafe blocks (and any chain of blocks depending on them transitively) are reshaped, and any block that had already reached the safe label is untouched.
 

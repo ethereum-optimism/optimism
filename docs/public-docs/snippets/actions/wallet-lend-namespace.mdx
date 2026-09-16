@@ -18,12 +18,21 @@ Wallet Lend Namespace
 
 | Function | Description |
 |----------|-------------|
+| **[supportedChainIds()](#supportedchainids)** | Union of chain IDs supported by any configured provider. |
 | **[getMarkets()](#getmarkets)** | Get all markets across all configured providers |
 | **[getMarket()](#getmarket)** | Get a specific market by routing to the correct provider |
-| **[supportedChainIds()](#supportedchainids)** | Get supported chain IDs across all providers |
+| **[getPositions()](#getpositions)** |  |
 | **[openPosition()](#openposition)** | Open a lending position |
 | **[getPosition()](#getposition)** | Get position information for this wallet |
 | **[closePosition()](#closeposition)** | Close a lending position (withdraw from market) |
+
+#### `supportedChainIds()`
+
+Union of chain IDs supported by any configured provider.
+
+<sub>[<Icon icon="github" /> Source ↗](https://github.com/ethereum-optimism/actions/blob/@eth-optimism/actions-sdk@0.8.1/packages/sdk/src/actions/shared/BaseNamespace.ts#L29)</sub>
+
+---
 
 #### `getMarkets()`
 
@@ -35,7 +44,7 @@ Get all markets across all configured providers
 
 **Returns:** Promise resolving to array of markets from all providers
 
-<sub>[<Icon icon="github" /> Source ↗](https://github.com/ethereum-optimism/actions/blob/@eth-optimism/actions-sdk@0.4.0/packages/sdk/src/lend/namespaces/BaseLendNamespace.ts#L25)</sub>
+<sub>[<Icon icon="github" /> Source ↗](https://github.com/ethereum-optimism/actions/blob/@eth-optimism/actions-sdk@0.8.1/packages/sdk/src/actions/lend/namespaces/BaseLendNamespace.ts#L43)</sub>
 
 ---
 
@@ -49,17 +58,19 @@ Get a specific market by routing to the correct provider
 
 **Returns:** Promise resolving to market information
 
-<sub>[<Icon icon="github" /> Source ↗](https://github.com/ethereum-optimism/actions/blob/@eth-optimism/actions-sdk@0.4.0/packages/sdk/src/lend/namespaces/BaseLendNamespace.ts#L37)</sub>
+<sub>[<Icon icon="github" /> Source ↗](https://github.com/ethereum-optimism/actions/blob/@eth-optimism/actions-sdk@0.8.1/packages/sdk/src/actions/lend/namespaces/BaseLendNamespace.ts#L55)</sub>
 
 ---
 
-#### `supportedChainIds()`
+#### `getPositions()`
 
-Get supported chain IDs across all providers
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `params` | `GetPositionsParams` | Wallet address and optional position filters |
 
-**Returns:** Array of unique chain IDs supported by any provider
+**Returns:** Promise resolving to the wallet's positions across providers
 
-<sub>[<Icon icon="github" /> Source ↗](https://github.com/ethereum-optimism/actions/blob/@eth-optimism/actions-sdk@0.4.0/packages/sdk/src/lend/namespaces/BaseLendNamespace.ts#L46)</sub>
+<sub>[<Icon icon="github" /> Source ↗](https://github.com/ethereum-optimism/actions/blob/@eth-optimism/actions-sdk@0.8.1/packages/sdk/src/actions/lend/namespaces/BaseLendNamespace.ts#L68)</sub>
 
 ---
 
@@ -70,12 +81,10 @@ Open a lending position
 | Parameter | Type | Description |
 |-----------|------|-------------|
 | `params` | `LendOpenPositionParams` | Lending position parameters |
-| `params.marketId` |  | Market identifier to open position in |
-| `params.amount` | `number` | Amount to lend |
 
 **Returns:** Promise resolving to transaction receipt
 
-<sub>[<Icon icon="github" /> Source ↗](https://github.com/ethereum-optimism/actions/blob/@eth-optimism/actions-sdk@0.4.0/packages/sdk/src/lend/namespaces/WalletLendNamespace.ts#L34)</sub>
+<sub>[<Icon icon="github" /> Source ↗](https://github.com/ethereum-optimism/actions/blob/@eth-optimism/actions-sdk@0.8.1/packages/sdk/src/actions/lend/namespaces/WalletLendNamespace.ts#L35)</sub>
 
 ---
 
@@ -86,12 +95,10 @@ Get position information for this wallet
 | Parameter | Type | Description |
 |-----------|------|-------------|
 | `params` | `GetPositionParams` | Position query parameters |
-| `params.marketId` | `LendMarketId` | Market identifier (required) |
-| `params.asset` | `Asset` | Asset filter (not yet supported) |
 
 **Returns:** Promise resolving to position information
 
-<sub>[<Icon icon="github" /> Source ↗](https://github.com/ethereum-optimism/actions/blob/@eth-optimism/actions-sdk@0.4.0/packages/sdk/src/lend/namespaces/WalletLendNamespace.ts#L54)</sub>
+<sub>[<Icon icon="github" /> Source ↗](https://github.com/ethereum-optimism/actions/blob/@eth-optimism/actions-sdk@0.8.1/packages/sdk/src/actions/lend/namespaces/WalletLendNamespace.ts#L53)</sub>
 
 ---
 
@@ -102,11 +109,9 @@ Close a lending position (withdraw from market)
 | Parameter | Type | Description |
 |-----------|------|-------------|
 | `params` | `ClosePositionParams` | Position closing parameters |
-| `params.marketId` | `LendMarketId` | Market identifier to close position in |
-| `params.amount` | `number` | Amount to withdraw |
 
 **Returns:** Promise resolving to transaction receipt
 
-<sub>[<Icon icon="github" /> Source ↗](https://github.com/ethereum-optimism/actions/blob/@eth-optimism/actions-sdk@0.4.0/packages/sdk/src/lend/namespaces/WalletLendNamespace.ts#L75)</sub>
+<sub>[<Icon icon="github" /> Source ↗](https://github.com/ethereum-optimism/actions/blob/@eth-optimism/actions-sdk@0.8.1/packages/sdk/src/actions/lend/namespaces/WalletLendNamespace.ts#L72)</sub>
 
 ---

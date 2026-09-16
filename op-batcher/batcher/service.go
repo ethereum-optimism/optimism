@@ -16,7 +16,6 @@ import (
 	"github.com/ethereum-optimism/optimism/op-batcher/flags"
 	"github.com/ethereum-optimism/optimism/op-batcher/metrics"
 	"github.com/ethereum-optimism/optimism/op-batcher/rpc"
-	"github.com/ethereum-optimism/optimism/op-node/chaincfg"
 	"github.com/ethereum-optimism/optimism/op-node/params"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-service/cliapp"
@@ -250,7 +249,10 @@ func (bs *BatcherService) initRollupConfig(ctx context.Context) error {
 	if err := bs.RollupConfig.Check(); err != nil {
 		return fmt.Errorf("invalid rollup config: %w", err)
 	}
-	bs.RollupConfig.LogDescription(bs.Log, chaincfg.L2ChainIDToNetworkDisplayName)
+	// No chain-ID→name map: the batcher deliberately keeps op-node/chaincfg (and with it the
+	// superchain-configs bundle) out of its build closure — see TestBundleReachability.
+	// l2_chain_id identifies the chain in the banner.
+	bs.RollupConfig.LogDescription(bs.Log, nil)
 	return nil
 }
 

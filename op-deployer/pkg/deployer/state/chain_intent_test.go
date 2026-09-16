@@ -1,6 +1,7 @@
 package state
 
 import (
+	"math"
 	"math/big"
 	"reflect"
 	"strings"
@@ -106,6 +107,73 @@ func TestChainIntentCheck_ZKDisputeGame(t *testing.T) {
 				},
 			},
 			expectErr: ErrZKDisputeGameMissingParams,
+		},
+		{
+			// A duration above uint32 max overflows the game's uint64 deadline cast on chain,
+			// putting the deadline in the past so the game is over the instant it is created.
+			name: "MaxChallengeDuration at the bound passes",
+			game: AdditionalDisputeGame{
+				VMType: VMTypeZK,
+				ZKDisputeGame: &ZKDisputeGameParams{
+					AbsolutePrestate:     prestate,
+					MaxChallengeDuration: math.MaxUint32,
+					MaxProveDuration:     math.MaxUint32,
+					ChallengerBond:       (*hexutil.Big)(big.NewInt(1e18)),
+				},
+			},
+			expectErr: nil,
+		},
+		{
+			name: "MaxChallengeDuration above the bound fails",
+			game: AdditionalDisputeGame{
+				VMType: VMTypeZK,
+				ZKDisputeGame: &ZKDisputeGameParams{
+					AbsolutePrestate:     prestate,
+					MaxChallengeDuration: math.MaxUint32 + 1,
+					MaxProveDuration:     7200,
+					ChallengerBond:       (*hexutil.Big)(big.NewInt(1e18)),
+				},
+			},
+			expectErr: ErrZKDisputeGameParamOutOfRange,
+		},
+		{
+			name: "MaxChallengeDuration at uint64 max fails",
+			game: AdditionalDisputeGame{
+				VMType: VMTypeZK,
+				ZKDisputeGame: &ZKDisputeGameParams{
+					AbsolutePrestate:     prestate,
+					MaxChallengeDuration: math.MaxUint64,
+					MaxProveDuration:     7200,
+					ChallengerBond:       (*hexutil.Big)(big.NewInt(1e18)),
+				},
+			},
+			expectErr: ErrZKDisputeGameParamOutOfRange,
+		},
+		{
+			name: "MaxProveDuration above the bound fails",
+			game: AdditionalDisputeGame{
+				VMType: VMTypeZK,
+				ZKDisputeGame: &ZKDisputeGameParams{
+					AbsolutePrestate:     prestate,
+					MaxChallengeDuration: 3600,
+					MaxProveDuration:     math.MaxUint32 + 1,
+					ChallengerBond:       (*hexutil.Big)(big.NewInt(1e18)),
+				},
+			},
+			expectErr: ErrZKDisputeGameParamOutOfRange,
+		},
+		{
+			name: "MaxProveDuration at uint64 max fails",
+			game: AdditionalDisputeGame{
+				VMType: VMTypeZK,
+				ZKDisputeGame: &ZKDisputeGameParams{
+					AbsolutePrestate:     prestate,
+					MaxChallengeDuration: 3600,
+					MaxProveDuration:     math.MaxUint64,
+					ChallengerBond:       (*hexutil.Big)(big.NewInt(1e18)),
+				},
+			},
+			expectErr: ErrZKDisputeGameParamOutOfRange,
 		},
 		{
 			name: "nil ChallengerBond fails",

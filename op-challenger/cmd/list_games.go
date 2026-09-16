@@ -129,7 +129,8 @@ func listGames(ctx context.Context, caller *batching.MultiCaller, factory *contr
 			infos[idx].status = metadata.Status
 			infos[idx].l2BlockNum = metadata.L2SequenceNum
 			infos[idx].rootClaim = metadata.ProposedRoot
-			if fdg, ok := gameContract.(contracts.FaultDisputeGameContract); ok {
+			if fdg, ok := gameContract.(contracts.FaultDisputeGameContract); ok &&
+				types.GameType(game.GameType) != types.SuperPermissionedGameType {
 				claimCount, err := fdg.GetClaimCount(ctx)
 				if err != nil {
 					infos[idx].err = fmt.Errorf("failed to retrieve claim count for game %v: %w", gameProxy, err)

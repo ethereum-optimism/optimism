@@ -34,5 +34,12 @@ alloy-primitives.workspace = true
 alloy-rlp.workspace = true
 revm.workspace = true
 
+[dev-dependencies]
+alloy-eips.workspace = true
+alloy-trie.workspace = true
+kona-mpt.workspace = true
+kona-protocol.workspace = true
+op-alloy-rpc-types-engine.workspace = true
+
 [lints]
 workspace = true

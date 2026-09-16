@@ -48,9 +48,9 @@ var (
 	}
 	BackfillDurationFlag = &cli.DurationFlag{
 		Name:    "backfill-duration",
-		Usage:   "Duration to backfill on startup (e.g., 24h, 30m, 1h30m)",
+		Usage:   "Duration to backfill on startup (e.g., 168h, 30m, 1h30m)",
 		EnvVars: prefixEnvVars("BACKFILL_DURATION"),
-		Value:   24 * time.Hour,
+		Value:   168 * time.Hour,
 	}
 	MessageExpiryWindowFlag = &cli.DurationFlag{
 		Name:    "message-expiry-window",

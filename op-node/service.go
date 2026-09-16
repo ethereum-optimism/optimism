@@ -14,7 +14,7 @@ import (
 
 	altda "github.com/ethereum-optimism/optimism/op-alt-da"
 	"github.com/ethereum-optimism/optimism/op-core/interop/depset"
-	"github.com/ethereum-optimism/optimism/op-core/superchain"
+	registry "github.com/ethereum-optimism/optimism/op-core/superchain"
 	"github.com/ethereum-optimism/optimism/op-node/chaincfg"
 	"github.com/ethereum-optimism/optimism/op-node/config"
 	"github.com/ethereum-optimism/optimism/op-node/flags"
@@ -24,6 +24,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-node/rollup/engine"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/finality"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/sync"
+	"github.com/ethereum-optimism/optimism/op-node/superchain"
 	"github.com/ethereum-optimism/optimism/op-service/cliiface"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	opflags "github.com/ethereum-optimism/optimism/op-service/flags"
@@ -323,9 +324,9 @@ func NewDependencySetFromCLI(cli cliiface.Context, chainID eth.ChainID) (depset.
 		loader := &depset.JSONDependencySetLoader{Path: cli.Path(flags.InteropDependencySet.Name)}
 		return loader.LoadDependencySet()
 	}
-	ds, err := depset.FromRegistry(chainID)
+	ds, err := superchain.LoadDependencySet(chainID)
 	if err != nil {
-		if errors.Is(err, superchain.ErrUnknownChain) {
+		if errors.Is(err, registry.ErrUnknownChain) {
 			return nil, nil
 		}
 		return nil, fmt.Errorf("load dependency set from superchain-registry: %w", err)

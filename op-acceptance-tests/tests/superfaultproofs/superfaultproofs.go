@@ -202,11 +202,17 @@ func nextTimestampAfterSafeHeads(t devtest.T, chains []*chain) uint64 {
 	}
 	t.Require().NotZero(ts, "end timestamp must be non-zero")
 
-	// Advance ts until every chain produces a new block at ts compared to ts-1.
-	// With varied block times (e.g. 1s and 2s), the initial ts may land on a
-	// no-op boundary for the slower chain. The L1-head-constrained subtests
-	// assume every chain has a real transition to validate, so we need all
-	// chains to have TargetBlockNumber(ts) > TargetBlockNumber(ts-1).
+	return advanceToCommonBlockBoundary(t, chains, ts)
+}
+
+// advanceToCommonBlockBoundary returns the first timestamp at or after ts at which every chain
+// produces a new block relative to the preceding second, i.e. TargetBlockNumber(ts) >
+// TargetBlockNumber(ts-1) for all of them.
+//
+// With varied block times (e.g. 1s and 2s) an arbitrary timestamp can be a no-op boundary for the
+// slower chain, and the L1-head-constrained subtests assume every chain has a real transition to
+// validate.
+func advanceToCommonBlockBoundary(t devtest.T, chains []*chain, ts uint64) uint64 {
 	for {
 		allNew := true
 		for _, c := range chains {
@@ -220,11 +226,10 @@ func nextTimestampAfterSafeHeads(t devtest.T, chains []*chain) uint64 {
 			}
 		}
 		if allNew {
-			break
+			return ts
 		}
 		ts++
 	}
-	return ts
 }
 
 // superRootAtTimestamp constructs a SuperV1 from each chain's output at the given timestamp.

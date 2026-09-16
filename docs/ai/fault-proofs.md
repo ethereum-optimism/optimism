@@ -22,8 +22,8 @@ contracts.
 - **Dispute game**: an on-chain bisection game to resolve output root disputes.
 - **Preimage oracle**: the mechanism for the VM to load external data (L1 blocks, L2 state).
 - **Kona-SP1 acceptance boundary**: tests exercise the shipping super-root path through the
-  `super-range` and `super-aggregation` programs. A single chain is represented by a dependency
-  set of size one; the output-root-only programs are not acceptance targets.
+  `super-range` and `super-aggregation` programs. Single-chain coverage uses a dependency set of
+  size one.
 
 ## Invariants
 
@@ -80,7 +80,7 @@ from the normal `go test ./...` suite — they only run under kona-host.
 
 > [!NOTE]
 > These tests cover **op-node as well as kona-client**. The chain is built and derived by op-node
-> — the action-test `L2Sequencer`/`L2Verifier` drives `op-node/rollup/driver` through
+> — the action-test `L2Sequencer`/`L2Verifier` drives `op-node/rollup/derive` through
 > `PreparePayloadAttributes` → `PayloadToSystemConfig` — and the `RunFaultProofProgram` step then
 > has kona-client re-derive and prove that same chain. So a single test exercises both
 > consensus-layer implementations of the state transition.

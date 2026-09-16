@@ -20,6 +20,11 @@ struct Cli {
     /// SP1 guest ELF.
     #[arg(long)]
     native_core: bool,
+    /// Corrupt the claimed optimistic output root the guest sees, so it rejects the claim.
+    /// Witness collection still runs on the real claim; only the guest's view is tampered. Used
+    /// to exercise the invalid-claim (soundness) path.
+    #[arg(long)]
+    corrupt_claimed_root: bool,
     /// Supernode JSON-RPC endpoint.
     #[arg(long, env = "SUPER_NODE_ADDRESS")]
     supernode_address: String,
@@ -60,6 +65,7 @@ fn main() -> ExitCode {
 
     let config = RunConfig {
         native_core: cli.native_core,
+        corrupt_claimed_root: cli.corrupt_claimed_root,
         supernode_address: cli.supernode_address,
         l1_node_address: cli.l1_node_address,
         l1_beacon_address: cli.l1_beacon_address,

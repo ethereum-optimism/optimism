@@ -52,6 +52,9 @@ pub const EXIT_INFRA: u8 = 2;
 pub struct RunConfig {
     /// Replay collected witnesses through the shared native cores instead of executing the guest.
     pub native_core: bool,
+    /// Corrupt the claimed optimistic output root the guest sees, after collecting witnesses on
+    /// the honest one, so the guest rejects the claim.
+    pub corrupt_claimed_root: bool,
     /// Supernode JSON-RPC endpoint.
     pub supernode_address: String,
     /// L1 execution JSON-RPC endpoint.
@@ -171,9 +174,18 @@ pub async fn run(config: RunConfig) -> Result<Verdict> {
     )
     .await?;
 
+    // Witness collection above ran on the honest claim, so the witness stays valid; tampering only
+    // the replayed inputs leaves the guest re-deriving the real root and disagreeing with the
+    // claim.
+    let replay_range_inputs = if config.corrupt_claimed_root {
+        corrupt_range_claim(&synthesized.range_inputs)?
+    } else {
+        synthesized.range_inputs.clone()
+    };
+
     let replayed_range_outputs = match replay_range(
         config.native_core,
-        &synthesized.range_inputs,
+        &replay_range_inputs,
         range_witness,
         super_range_elf.clone(),
     )
@@ -194,6 +206,14 @@ pub async fn run(config: RunConfig) -> Result<Verdict> {
         );
         return Ok(Verdict::Invalid);
     }
+
+    // Reaching here under --corrupt-claimed-root means the guest ran the tampered claim to
+    // completion and still agreed with the honest outputs. That is a soundness failure, not a
+    // verdict, so surface it as an error rather than reporting the claim valid.
+    ensure!(
+        !config.corrupt_claimed_root,
+        "super-range guest accepted a corrupted claimed optimistic output root",
+    );
 
     ensure_range_outputs_match_inputs(&replayed_range_outputs, &synthesized.range_inputs)?;
 
@@ -512,6 +532,22 @@ async fn replay_consolidation(
     build_consolidation_outputs(inputs.clone(), oracle).await
 }
 
+/// Flips a bit in the first claimed transition's optimistic output root.
+///
+/// The guest's `validate_range_transition_output` compares the root it re-derives against the
+/// claimed one, so a tampered claim aborts the guest and the executor reports the claim invalid.
+/// Only the replayed inputs are corrupted — the collected witness still describes the honest
+/// transition — so this exercises the guest's claim check rather than a broken witness.
+fn corrupt_range_claim(inputs: &SuperRangeInputs) -> Result<SuperRangeInputs> {
+    let mut corrupted = inputs.clone();
+    let transition = corrupted
+        .claimed_transitions
+        .first_mut()
+        .ok_or_else(|| anyhow!("no claimed transition to corrupt"))?;
+    transition.optimistic_block.output_root.0[0] ^= 0x01;
+    Ok(corrupted)
+}
+
 fn ensure_range_outputs_match_inputs(
     outputs: &SuperRangeOutputs,
     inputs: &SuperRangeInputs,
@@ -592,6 +628,14 @@ pub async fn collect_consolidation_witness(
     .await
 }
 
+struct AbortOnDrop(tokio::task::AbortHandle);
+
+impl Drop for AbortOnDrop {
+    fn drop(&mut self) {
+        self.0.abort();
+    }
+}
+
 /// Collects a replayable witness by running `run_native` against a hint-serving host.
 ///
 /// Preloaded preimages seed the oracle before host hinting; the returned witness bundles
@@ -632,9 +676,17 @@ where
     };
 
     let server_task = host.start_server(hint.host, preimage.host).await?;
+    let _server_guard = AbortOnDrop(server_task.abort_handle());
     let native_outputs = run_native(oracle, beacon).await;
     server_task.abort();
+    let server_result = server_task.await;
     let native_outputs = native_outputs?;
+    match server_result {
+        Ok(Ok(())) => {}
+        Ok(Err(error)) => return Err(error.into()),
+        Err(error) if error.is_cancelled() => {}
+        Err(error) => return Err(error.into()),
+    }
 
     let witness = DefaultWitnessData::from_parts(
         preimage_witness_store
@@ -1481,6 +1533,21 @@ mod tests {
         public_values.write(&SuperInteropOutputs::Range(outputs.clone()));
 
         assert_eq!(decode_super_range_public_values(&mut public_values).unwrap(), outputs);
+    }
+
+    #[tokio::test]
+    async fn dropping_witness_collection_aborts_server_task() {
+        let (started_tx, started_rx) = tokio::sync::oneshot::channel();
+        let server_task = tokio::spawn(async move {
+            let _ = started_tx.send(());
+            std::future::pending::<()>().await;
+        });
+        let server_guard = AbortOnDrop(server_task.abort_handle());
+        started_rx.await.unwrap();
+
+        drop(server_guard);
+
+        assert!(server_task.await.unwrap_err().is_cancelled());
     }
 
     #[test]

@@ -220,6 +220,27 @@ func TestCheckL1BlockRefByNumber(t *testing.T) {
 }
 
 // TestRandomConfigDescription tests that the description works for different variations of a random rollup config.
+func TestLogDescription(t *testing.T) {
+	config := randConfig()
+
+	t.Run("named L2", func(t *testing.T) {
+		lgr, logs := testlog.CaptureLogger(t, log.LevelInfo)
+		config.LogDescription(lgr, map[string]string{config.L2ChainID.String(): "foobar chain"})
+		rec := logs.FindLog(testlog.NewMessageFilter("Rollup Config"))
+		require.NotNil(t, rec)
+		require.Equal(t, "foobar chain", rec.AttrValue("l2_network"))
+	})
+
+	t.Run("unnamed L2", func(t *testing.T) {
+		lgr, logs := testlog.CaptureLogger(t, log.LevelInfo)
+		config.LogDescription(lgr, nil)
+		rec := logs.FindLog(testlog.NewMessageFilter("Rollup Config"))
+		require.NotNil(t, rec)
+		require.Nil(t, rec.AttrValue("l2_network"), "l2_network is omitted when no name is known")
+		require.Equal(t, "unknown L1", rec.AttrValue("l1_network"))
+	})
+}
+
 func TestRandomConfigDescription(t *testing.T) {
 	t.Run("named L2", func(t *testing.T) {
 		config := randConfig()

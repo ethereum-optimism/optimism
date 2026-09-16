@@ -7,14 +7,10 @@ pub use oracle::BlobStore;
 
 pub mod precompiles;
 
-pub mod range;
-
 pub mod super_root;
 
 #[cfg(any(test, feature = "aggregation-test-utils"))]
 pub mod test_utils;
-
-pub mod types;
 
 extern crate alloc;
 

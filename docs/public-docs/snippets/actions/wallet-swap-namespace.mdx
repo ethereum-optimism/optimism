@@ -19,35 +19,43 @@ Provides getQuote() for pricing and execute() for swapping tokens.
 
 | Function | Description |
 |----------|-------------|
-| **[getQuote()](#getquote)** | Get a swap quote with the wallet address as recipient. Ensures calldata is encoded for the real wallet, not a placeholder. |
-| **[getQuotes()](#getquotes)** | Get quotes from all providers with the wallet address as recipient. |
+| **[supportedChainIds()](#supportedchainids)** | Union of chain IDs supported by any configured provider. |
+| **[getQuote()](#getquote)** | Get a swap quote bound to the wallet as executor. Defaults the output recipient to the wallet address when omitted. |
+| **[getQuotes()](#getquotes)** | Get quotes from all providers bound to the wallet as executor. |
 | **[getMarket()](#getmarket)** | Get a specific swap market by ID. |
 | **[getMarkets()](#getmarkets)** | Get available swap markets across all providers |
-| **[supportedChainIds()](#supportedchainids)** | Get all supported chain IDs across all providers |
-| **[execute()](#execute)** | Execute a token swap. Accepts either raw params (re-quotes internally) or a pre-built SwapQuote (skips re-quoting). |
+| **[execute()](#execute)** | Execute a token swap. Accepts either raw params (re-quotes internally) or a pre-built SwapQuote (skips re-quoting). When a pre-built quote is passed, its wallet address must equal this wallet's address so approvals are checked against the account that will execute the swap. Re-quote via `wallet.swap.getQuote(...)` to bind the quote to this wallet. |
+
+#### `supportedChainIds()`
+
+Union of chain IDs supported by any configured provider.
+
+<sub>[<Icon icon="github" /> Source ↗](https://github.com/ethereum-optimism/actions/blob/@eth-optimism/actions-sdk@0.8.1/packages/sdk/src/actions/shared/BaseNamespace.ts#L29)</sub>
+
+---
 
 #### `getQuote()`
 
-Get a swap quote with the wallet address as recipient.
-Ensures calldata is encoded for the real wallet, not a placeholder.
+Get a swap quote bound to the wallet as executor.
+Defaults the output recipient to the wallet address when omitted.
 
 | Parameter | Type | Description |
 |-----------|------|-------------|
 | `params` | `SwapQuoteParams` |  |
 
-<sub>[<Icon icon="github" /> Source ↗](https://github.com/ethereum-optimism/actions/blob/@eth-optimism/actions-sdk@0.4.0/packages/sdk/src/swap/namespaces/WalletSwapNamespace.ts#L32)</sub>
+<sub>[<Icon icon="github" /> Source ↗](https://github.com/ethereum-optimism/actions/blob/@eth-optimism/actions-sdk@0.8.1/packages/sdk/src/actions/swap/namespaces/WalletSwapNamespace.ts#L44)</sub>
 
 ---
 
 #### `getQuotes()`
 
-Get quotes from all providers with the wallet address as recipient.
+Get quotes from all providers bound to the wallet as executor.
 
 | Parameter | Type | Description |
 |-----------|------|-------------|
 | `params` | `SwapQuoteParams` |  |
 
-<sub>[<Icon icon="github" /> Source ↗](https://github.com/ethereum-optimism/actions/blob/@eth-optimism/actions-sdk@0.4.0/packages/sdk/src/swap/namespaces/WalletSwapNamespace.ts#L42)</sub>
+<sub>[<Icon icon="github" /> Source ↗](https://github.com/ethereum-optimism/actions/blob/@eth-optimism/actions-sdk@0.8.1/packages/sdk/src/actions/swap/namespaces/WalletSwapNamespace.ts#L59)</sub>
 
 ---
 
@@ -62,7 +70,7 @@ Get a specific swap market by ID.
 
 **Returns:** Market information
 
-<sub>[<Icon icon="github" /> Source ↗](https://github.com/ethereum-optimism/actions/blob/@eth-optimism/actions-sdk@0.4.0/packages/sdk/src/swap/namespaces/BaseSwapNamespace.ts#L145)</sub>
+<sub>[<Icon icon="github" /> Source ↗](https://github.com/ethereum-optimism/actions/blob/@eth-optimism/actions-sdk@0.8.1/packages/sdk/src/actions/swap/namespaces/BaseSwapNamespace.ts#L119)</sub>
 
 ---
 
@@ -76,22 +84,18 @@ Get available swap markets across all providers
 
 **Returns:** Promise resolving to array of markets from all providers
 
-<sub>[<Icon icon="github" /> Source ↗](https://github.com/ethereum-optimism/actions/blob/@eth-optimism/actions-sdk@0.4.0/packages/sdk/src/swap/namespaces/BaseSwapNamespace.ts#L174)</sub>
-
----
-
-#### `supportedChainIds()`
-
-Get all supported chain IDs across all providers
-
-<sub>[<Icon icon="github" /> Source ↗](https://github.com/ethereum-optimism/actions/blob/@eth-optimism/actions-sdk@0.4.0/packages/sdk/src/swap/namespaces/BaseSwapNamespace.ts#L184)</sub>
+<sub>[<Icon icon="github" /> Source ↗](https://github.com/ethereum-optimism/actions/blob/@eth-optimism/actions-sdk@0.8.1/packages/sdk/src/actions/swap/namespaces/BaseSwapNamespace.ts#L149)</sub>
 
 ---
 
 #### `execute()`
 
 Execute a token swap.
-Accepts either raw params (re-quotes internally) or a pre-built SwapQuote (skips re-quoting).
+Accepts either raw params (re-quotes internally) or a pre-built SwapQuote
+(skips re-quoting). When a pre-built quote is passed, its wallet address
+must equal this wallet's address so approvals are checked against the
+account that will execute the swap. Re-quote via
+`wallet.swap.getQuote(...)` to bind the quote to this wallet.
 
 | Parameter | Type | Description |
 |-----------|------|-------------|
@@ -99,6 +103,6 @@ Accepts either raw params (re-quotes internally) or a pre-built SwapQuote (skips
 
 **Returns:** Swap receipt with transaction details
 
-<sub>[<Icon icon="github" /> Source ↗](https://github.com/ethereum-optimism/actions/blob/@eth-optimism/actions-sdk@0.4.0/packages/sdk/src/swap/namespaces/WalletSwapNamespace.ts#L55)</sub>
+<sub>[<Icon icon="github" /> Source ↗](https://github.com/ethereum-optimism/actions/blob/@eth-optimism/actions-sdk@0.8.1/packages/sdk/src/actions/swap/namespaces/WalletSwapNamespace.ts#L85)</sub>
 
 ---

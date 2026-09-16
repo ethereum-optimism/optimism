@@ -142,7 +142,7 @@ pub(crate) struct SuperRootAtTimestamp {
 }
 
 /// The on-chain facts and proposer identity bound into a game proof.
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct GameProofInputs {
     /// The game's pinned L1 head.
     pub l1_head: B256,
@@ -197,7 +197,7 @@ pub(crate) trait L1View: Send + Sync {
         block: BlockId,
     ) -> Result<BondState>;
     async fn init_bond(&self) -> Result<U256>;
-    async fn game_status(&self, game: Address) -> Result<u8>;
+    async fn game_status(&self, game: Address, block: BlockId) -> Result<u8>;
     async fn claim_preflight(
         &self,
         game: Address,
@@ -210,10 +210,14 @@ pub(crate) trait L1View: Send + Sync {
     async fn nonce_state(&self, proposer: Address) -> Result<NonceState>;
     async fn respected_game_type(&self, block: BlockId) -> Result<u32>;
     async fn parent_standing(&self, game: Address, registry: Address) -> Result<GameStanding>;
-    async fn game_standing(&self, game: Address, registry: Address) -> Result<GameStanding>;
+    async fn game_standing(
+        &self,
+        game: Address,
+        registry: Address,
+        block: BlockId,
+    ) -> Result<GameStanding>;
     async fn proof_status(&self, game: Address) -> Result<u8>;
     async fn proof_inputs(&self, game: Address) -> Result<ProofInputs>;
-    async fn anchor_state_registry(&self, game: Address) -> Result<Address>;
     async fn latest_l1_timestamp(&self) -> Result<u64>;
 }
 
@@ -229,10 +233,15 @@ pub(crate) trait SuperRootSource: Send + Sync {
 pub(crate) trait ProofEngine: Send + Sync {
     async fn prove(
         &self,
+        game_address: Address,
         keys: Option<Arc<ProofKeys>>,
         game: GameProofInputs,
         responses: Vec<SuperRootAtTimestampResponse>,
     ) -> Result<Vec<u8>>;
+    fn clear(&self, game_address: Address);
+    /// Resets only terminal requests, returning the number reset.
+    /// Scheduler policy requires the caller to skip games with tracked proving tasks.
+    fn retry_terminal_requests(&self, game_address: Address) -> usize;
 }
 
 /// Confirmed proposer transaction effects.

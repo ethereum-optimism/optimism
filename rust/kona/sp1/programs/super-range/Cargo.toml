@@ -11,6 +11,7 @@ repository.workspace = true
 [dependencies]
 anyhow.workspace = true
 kona-proof.workspace = true
+kona-sp1-build-info.workspace = true
 kona-sp1-client-utils.workspace = true
 kona-sp1-ethereum-client-utils.workspace = true
 
