@@ -85,8 +85,7 @@ contract OPContractsManagerMigrationValidator {
             _input,
             _allowFailure,
             IOPContractsManagerStandardValidator.ValidationOverrides({
-                l1PAOMultisig: address(0),
-                challenger: address(0)
+                l1PAOMultisig: address(0), challenger: address(0)
             }),
             _impls,
             _cfg
@@ -225,8 +224,9 @@ contract OPContractsManagerMigrationValidator {
         _errors =
             internalRequire(address(_dgf.gameImpls(GameTypes.SUPER_CANNON_KONA)) != address(0), "MIG-DGF-20", _errors);
         _errors = internalRequire(address(_dgf.gameImpls(GameTypes.CANNON)) == address(0), "MIG-DGF-30", _errors);
-        _errors =
-            internalRequire(address(_dgf.gameImpls(GameTypes.PERMISSIONED_CANNON)) == address(0), "MIG-DGF-40", _errors);
+        _errors = internalRequire(
+            address(_dgf.gameImpls(GameTypes.PERMISSIONED_CANNON)) == address(0), "MIG-DGF-40", _errors
+        );
         _errors = internalRequire(address(_dgf.gameImpls(GameTypes.CANNON_KONA)) == address(0), "MIG-DGF-50", _errors);
         _errors = internalRequire(address(_dgf.gameImpls(GameTypes.SUPER_CANNON)) == address(0), "MIG-DGF-60", _errors);
         return _errors;
@@ -338,24 +338,24 @@ contract OPContractsManagerMigrationValidator {
         view
         returns (string memory)
     {
-        return _impls.standardValidatorUtils.assertValidSuperPermissionedDisputeGame(
-            SuperPermissionedDisputeGameValidationArgs({
-                errors: _errors,
-                sysCfg: _p.sysCfg,
-                game: SuperPermissionedDisputeGameImplementation({
-                    gameAddress: _gameImplAddr,
-                    asr: IAnchorStateRegistry(_gameArgs.anchorStateRegistry),
-                    proposer: _gameArgs.proposer
+        return _impls.standardValidatorUtils
+            .assertValidSuperPermissionedDisputeGame(
+                SuperPermissionedDisputeGameValidationArgs({
+                    errors: _errors,
+                    sysCfg: _p.sysCfg,
+                    game: SuperPermissionedDisputeGameImplementation({
+                        gameAddress: _gameImplAddr,
+                        asr: IAnchorStateRegistry(_gameArgs.anchorStateRegistry),
+                        proposer: _gameArgs.proposer
+                    }),
+                    admin: _p.proxyAdmin,
+                    expectedProposer: _p.proposer,
+                    errorPrefix: _p.prefix
                 }),
-                admin: _p.proxyAdmin,
-                expectedProposer: _p.proposer,
-                errorPrefix: _p.prefix
-            }),
-            SuperPermissionedDisputeGameImpls({
-                expectedGameImpl: _p.expectedGameImpl,
-                anchorStateRegistryImpl: _impls.anchorStateRegistryImpl
-            })
-        );
+                SuperPermissionedDisputeGameImpls({
+                    expectedGameImpl: _p.expectedGameImpl, anchorStateRegistryImpl: _impls.anchorStateRegistryImpl
+                })
+            );
     }
 
     /// @notice Builds the struct payloads and calls `standardValidatorUtils.assertValidDisputeGame`.
@@ -371,25 +371,28 @@ contract OPContractsManagerMigrationValidator {
         view
         returns (string memory)
     {
-        return _impls.standardValidatorUtils.assertValidDisputeGame(
-            DisputeGameValidationArgs({
-                errors: _errors,
-                sysCfg: _p.sysCfg,
-                game: _readSharedSuperGameImpl(GameTypes.SUPER_CANNON_KONA, _gameImplAddr, _gameArgs),
-                absolutePrestate: _p.expectedPrestate,
-                l2ChainID: 0,
-                admin: _p.proxyAdmin,
-                gameType: GameTypes.SUPER_CANNON_KONA,
-                errorPrefix: _p.prefix
-            }),
-            DisputeGameImpls({
-                expectedGameImpl: _p.expectedGameImpl,
-                mipsImpl: _impls.mipsImpl,
-                delayedWETHImpl: _impls.delayedWETHImpl,
-                anchorStateRegistryImpl: _impls.anchorStateRegistryImpl
-            }),
-            DisputeGameConfig({ l1PAOMultisig: _cfg.l1PAOMultisig, withdrawalDelaySeconds: _cfg.withdrawalDelaySeconds })
-        );
+        return _impls.standardValidatorUtils
+            .assertValidDisputeGame(
+                DisputeGameValidationArgs({
+                    errors: _errors,
+                    sysCfg: _p.sysCfg,
+                    game: _readSharedSuperGameImpl(GameTypes.SUPER_CANNON_KONA, _gameImplAddr, _gameArgs),
+                    absolutePrestate: _p.expectedPrestate,
+                    l2ChainID: 0,
+                    admin: _p.proxyAdmin,
+                    gameType: GameTypes.SUPER_CANNON_KONA,
+                    errorPrefix: _p.prefix
+                }),
+                DisputeGameImpls({
+                    expectedGameImpl: _p.expectedGameImpl,
+                    mipsImpl: _impls.mipsImpl,
+                    delayedWETHImpl: _impls.delayedWETHImpl,
+                    anchorStateRegistryImpl: _impls.anchorStateRegistryImpl
+                }),
+                DisputeGameConfig({
+                    l1PAOMultisig: _cfg.l1PAOMultisig, withdrawalDelaySeconds: _cfg.withdrawalDelaySeconds
+                })
+            );
     }
 
     /// @notice Reads the on-chain fields of a super game impl into a `DisputeGameImplementation`.

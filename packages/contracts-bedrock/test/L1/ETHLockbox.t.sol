@@ -222,9 +222,10 @@ contract ETHLockbox_AuthorizePortal_Test is ETHLockbox_TestInit {
         address newProxy = address(new Proxy(address(proxyAdmin)));
         IOptimismPortal2[] memory portals = new IOptimismPortal2[](0);
         vm.prank(address(proxyAdmin));
-        Proxy(payable(newProxy)).upgradeToAndCall(
-            impl, abi.encodeCall(IETHLockbox.initialize, (ISuperchainConfig(address(0xbad)), portals))
-        );
+        Proxy(payable(newProxy))
+            .upgradeToAndCall(
+                impl, abi.encodeCall(IETHLockbox.initialize, (ISuperchainConfig(address(0xbad)), portals))
+            );
         IETHLockbox badLockbox = IETHLockbox(payable(newProxy));
 
         // The real portal's SystemConfig reports the real SuperchainConfig, which differs.

@@ -445,15 +445,12 @@ contract L2ContractsManager is ISemver {
 
     /// @notice Returns the implementation addresses for each predeploy upgraded by the L2ContractsManager.
     /// @return implementations_ The implementation addresses for each predeploy upgraded by the L2ContractsManager.
-    function getImplementations()
-        external
-        view
-        returns (L2ContractsManagerTypes.ImplRecord[] memory implementations_)
-    {
+    function getImplementations() external view returns (L2ContractsManagerTypes.ImplRecord[] memory implementations_) {
         implementations_ = new L2ContractsManagerTypes.ImplRecord[](26);
         implementations_[0] = L2ContractsManagerTypes.ImplRecord({ name: "StorageSetter", impl: STORAGE_SETTER_IMPL });
-        implementations_[1] =
-            L2ContractsManagerTypes.ImplRecord({ name: "L2CrossDomainMessenger", impl: L2_CROSS_DOMAIN_MESSENGER_IMPL });
+        implementations_[1] = L2ContractsManagerTypes.ImplRecord({
+            name: "L2CrossDomainMessenger", impl: L2_CROSS_DOMAIN_MESSENGER_IMPL
+        });
         implementations_[2] =
             L2ContractsManagerTypes.ImplRecord({ name: "GasPriceOracle", impl: GAS_PRICE_ORACLE_IMPL });
         implementations_[3] =
@@ -461,8 +458,7 @@ contract L2ContractsManager is ISemver {
         implementations_[4] =
             L2ContractsManagerTypes.ImplRecord({ name: "SequencerFeeVault", impl: SEQUENCER_FEE_WALLET_IMPL });
         implementations_[5] = L2ContractsManagerTypes.ImplRecord({
-            name: "OptimismMintableERC20Factory",
-            impl: OPTIMISM_MINTABLE_ERC20_FACTORY_IMPL
+            name: "OptimismMintableERC20Factory", impl: OPTIMISM_MINTABLE_ERC20_FACTORY_IMPL
         });
         implementations_[6] =
             L2ContractsManagerTypes.ImplRecord({ name: "L2ERC721Bridge", impl: L2_ERC721_BRIDGE_IMPL });
@@ -471,12 +467,10 @@ contract L2ContractsManager is ISemver {
         implementations_[9] =
             L2ContractsManagerTypes.ImplRecord({ name: "L2ToL1MessagePasser", impl: L2_TO_L1_MESSAGE_PASSER_IMPL });
         implementations_[10] = L2ContractsManagerTypes.ImplRecord({
-            name: "L2ToL1MessagePasserCGT",
-            impl: L2_TO_L1_MESSAGE_PASSER_CGT_IMPL
+            name: "L2ToL1MessagePasserCGT", impl: L2_TO_L1_MESSAGE_PASSER_CGT_IMPL
         });
         implementations_[11] = L2ContractsManagerTypes.ImplRecord({
-            name: "OptimismMintableERC721Factory",
-            impl: OPTIMISM_MINTABLE_ERC721_FACTORY_IMPL
+            name: "OptimismMintableERC721Factory", impl: OPTIMISM_MINTABLE_ERC721_FACTORY_IMPL
         });
         implementations_[12] = L2ContractsManagerTypes.ImplRecord({ name: "L2ProxyAdmin", impl: PROXY_ADMIN_IMPL });
         implementations_[13] = L2ContractsManagerTypes.ImplRecord({ name: "BaseFeeVault", impl: BASE_FEE_VAULT_IMPL });
@@ -488,8 +482,7 @@ contract L2ContractsManager is ISemver {
         implementations_[17] = L2ContractsManagerTypes.ImplRecord({ name: "EAS", impl: EAS_IMPL });
         implementations_[18] = L2ContractsManagerTypes.ImplRecord({ name: "CrossL2Inbox", impl: CROSS_L2_INBOX_IMPL });
         implementations_[19] = L2ContractsManagerTypes.ImplRecord({
-            name: "L2ToL2CrossDomainMessenger",
-            impl: L2_TO_L2_CROSS_DOMAIN_MESSENGER_IMPL
+            name: "L2ToL2CrossDomainMessenger", impl: L2_TO_L2_CROSS_DOMAIN_MESSENGER_IMPL
         });
         implementations_[20] =
             L2ContractsManagerTypes.ImplRecord({ name: "SuperchainETHBridge", impl: SUPERCHAIN_ETH_BRIDGE_IMPL });

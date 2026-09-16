@@ -85,9 +85,8 @@ contract InteropMigration is Script {
         // Call into the DummyCaller. This will perform the delegatecall under the hood.
         // The DummyCaller uses a fallback that reverts on failure, so no need to check success.
         vm.startBroadcast(msg.sender);
-        IOPContractsManagerMigrator(prank).migrate(
-            abi.decode(_imi.migrateInput(), (IOPContractsManagerMigrator.MigrateInput))
-        );
+        IOPContractsManagerMigrator(prank)
+            .migrate(abi.decode(_imi.migrateInput(), (IOPContractsManagerMigrator.MigrateInput)));
         vm.stopBroadcast();
 
         // After migration all portals will have the same DGF
