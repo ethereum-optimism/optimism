@@ -80,7 +80,7 @@ contract ExecuteNUTBundle is Script {
     /// @notice Executes a single NUT bundle transaction with deposit-faithful body gas semantics.
     /// @dev Intrinsic gas is deducted from the forwarded amount before the call so the body runs
     ///      with the same budget op-geth gives it in production (gasLimit - intrinsic). Body gas
-    ///      is measured via vm.lastCallGas() (callee frame only, net of refunds), excluding CALL
+    ///      is measured via vm.lastFrameGas() (callee frame only, net of refunds), excluding CALL
     ///      opcode overhead. This is not the same as op-geth's receipt.gasUsed: op-geth applies
     ///      the EIP-7623 floor post-execution (receipt.gasUsed = max(intrinsic+body, floor)),
     ///      so for txs where execution lands below the floor, receipt.gasUsed will exceed
@@ -102,7 +102,7 @@ contract ExecuteNUTBundle is Script {
         vm.prank(_txn.from);
 
         (success_, returnData_) = _txn.to.call{ gas: _txn.gasLimit - intrinsicGas_ }(_txn.data);
-        VmSafe.Gas memory gasResult = vm.lastCallGas();
+        VmSafe.Gas memory gasResult = vm.lastFrameGas();
         bodyGasUsed_ = uint64(gasResult.gasTotalUsed);
     }
 

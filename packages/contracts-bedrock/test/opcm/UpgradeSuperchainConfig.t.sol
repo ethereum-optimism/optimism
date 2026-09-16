@@ -80,9 +80,7 @@ contract UpgradeSuperchainConfigV2_Run_Test is Test {
         UpgradeSuperchainConfig.Input memory input = _getInput(new IOPContractsManagerUtils.ExtraInstruction[](0));
 
         vm.mockCallRevert(
-            prank,
-            IOPContractsManagerV2.upgradeSuperchain.selector,
-            abi.encode("UpgradeSuperchainConfig: upgrade failed")
+            prank, IOPContractsManagerV2.upgradeSuperchain.selector, bytes("UpgradeSuperchainConfig: upgrade failed")
         );
 
         vm.expectRevert("UpgradeSuperchainConfig: upgrade failed");

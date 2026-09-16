@@ -215,7 +215,7 @@ contract UpgradeOPChain_TestV2 is Test {
         });
         uoci.set(uoci.upgradeInput.selector, upgradeInput);
 
-        vm.mockCallRevert(prank, OPContractsManagerV2.upgrade.selector, abi.encode("UpgradeOPChain: upgrade failed"));
+        vm.mockCallRevert(prank, OPContractsManagerV2.upgrade.selector, bytes("UpgradeOPChain: upgrade failed"));
 
         vm.expectRevert("UpgradeOPChain: upgrade failed");
         upgradeOPChain.run(uoci);

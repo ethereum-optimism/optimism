@@ -124,7 +124,7 @@ contract OPContractsManagerV2_TestInit is CommonTest {
         // Less than the buffer percentage of the EIP-7825 gas limit to account for the gas used
         // by using Safe.
         uint256 fusakaLimit = 2 ** 24;
-        VmSafe.Gas memory gas = vm.lastCallGas();
+        VmSafe.Gas memory gas = vm.lastFrameGas();
         assertLt(
             gas.gasTotalUsed,
             fusakaLimit * DEPLOY_GAS_BUFFER_PERCENTAGE / 100,
@@ -396,7 +396,7 @@ contract OPContractsManagerV2_Upgrade_TestInit is OPContractsManagerV2_TestInit 
         // Less than the buffer percentage of the EIP-7825 gas limit to account for the gas used
         // by using Safe.
         uint256 fusakaLimit = 2 ** 24;
-        VmSafe.Gas memory gas = vm.lastCallGas();
+        VmSafe.Gas memory gas = vm.lastFrameGas();
         assertLt(
             gas.gasTotalUsed,
             fusakaLimit * UPGRADE_GAS_BUFFER_PERCENTAGE / 100,
@@ -3698,7 +3698,6 @@ contract OPContractsManagerV2_Migrate_Test is OPContractsManagerV2_TestInit {
 /// @notice Tests batch upgrade functionality with freshly deployed chains (non-forked).
 contract OPContractsManagerV2_FeatBatchUpgrade_Test is OPContractsManagerV2_TestInit {
     /// @notice Tests that multiple upgrade operations can be executed within a single transaction.
-
     ///         This enforces the OPCMV2 invariant that multiple upgrade operations should be
     ///         executable in one transaction.
     function test_batchUpgrade_multipleChains_succeeds() public {
@@ -3811,7 +3810,7 @@ contract OPContractsManagerV2_FeatBatchUpgrade_Test is OPContractsManagerV2_Test
 
         // 5. Execute batch upgrade of all chains in a single transaction.
         batchUpgrader.batchUpgrade(upgradeInputs);
-        VmSafe.Gas memory gas = vm.lastCallGas();
+        VmSafe.Gas memory gas = vm.lastFrameGas();
 
         // 6. Verify that the upgrade gas usage is less than the EIP-7825 gas limit.
         // See https://eip.tools/eip/eip-7825.md for more details.
