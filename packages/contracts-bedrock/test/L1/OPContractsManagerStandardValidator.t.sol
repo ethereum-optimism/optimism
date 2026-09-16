@@ -258,10 +258,7 @@ abstract contract OPContractsManagerStandardValidator_TestInit is CommonTest {
             IOPContractsManagerUtils.DisputeGameConfig[] memory disputeGameConfigs =
                 new IOPContractsManagerUtils.DisputeGameConfig[](6);
             disputeGameConfigs[0] = IOPContractsManagerUtils.DisputeGameConfig({
-                enabled: false,
-                initBond: 0,
-                gameType: GameTypes.CANNON,
-                gameArgs: hex""
+                enabled: false, initBond: 0, gameType: GameTypes.CANNON, gameArgs: hex""
             });
             disputeGameConfigs[1] = IOPContractsManagerUtils.DisputeGameConfig({
                 enabled: true,
@@ -269,9 +266,7 @@ abstract contract OPContractsManagerStandardValidator_TestInit is CommonTest {
                 gameType: GameTypes.PERMISSIONED_CANNON,
                 gameArgs: abi.encode(
                     IOPContractsManagerUtils.PermissionedDisputeGameConfig({
-                        absolutePrestate: cannonPrestate,
-                        proposer: proposer,
-                        challenger: challenger
+                        absolutePrestate: cannonPrestate, proposer: proposer, challenger: challenger
                     })
                 )
             });
@@ -284,44 +279,33 @@ abstract contract OPContractsManagerStandardValidator_TestInit is CommonTest {
                 )
             });
             disputeGameConfigs[3] = IOPContractsManagerUtils.DisputeGameConfig({
-                enabled: false,
-                initBond: 0,
-                gameType: GameTypes.SUPER_PERMISSIONED,
-                gameArgs: hex""
+                enabled: false, initBond: 0, gameType: GameTypes.SUPER_PERMISSIONED, gameArgs: hex""
             });
             disputeGameConfigs[4] = IOPContractsManagerUtils.DisputeGameConfig({
-                enabled: false,
-                initBond: 0,
-                gameType: GameTypes.SUPER_CANNON_KONA,
-                gameArgs: hex""
+                enabled: false, initBond: 0, gameType: GameTypes.SUPER_CANNON_KONA, gameArgs: hex""
             });
             disputeGameConfigs[5] = IOPContractsManagerUtils.DisputeGameConfig({
-                enabled: false,
-                initBond: 0,
-                gameType: GameTypes.ZK_DISPUTE_GAME,
-                gameArgs: hex""
+                enabled: false, initBond: 0, gameType: GameTypes.ZK_DISPUTE_GAME, gameArgs: hex""
             });
             IOPContractsManagerUtils.ExtraInstruction[] memory extraInstructions =
                 new IOPContractsManagerUtils.ExtraInstruction[](1);
             extraInstructions[0] = IOPContractsManagerUtils.ExtraInstruction({
-                key: "overrides.cfg.startingRespectedGameType",
-                data: abi.encode(GameTypes.CANNON_KONA)
+                key: "overrides.cfg.startingRespectedGameType", data: abi.encode(GameTypes.CANNON_KONA)
             });
 
             // Call upgrade to all games to be enabled.
             prankDelegateCall(owner);
-            (bool success,) = address(opcmV2).delegatecall(
-                abi.encodeCall(
-                    IOPContractsManagerV2.upgrade,
-                    (
-                        IOPContractsManagerV2.UpgradeInput({
-                            systemConfig: systemConfig,
-                            disputeGameConfigs: disputeGameConfigs,
-                            extraInstructions: extraInstructions
-                        })
+            (bool success,) = address(opcmV2)
+                .delegatecall(
+                    abi.encodeCall(
+                        IOPContractsManagerV2.upgrade,
+                        (IOPContractsManagerV2.UpgradeInput({
+                                systemConfig: systemConfig,
+                                disputeGameConfigs: disputeGameConfigs,
+                                extraInstructions: extraInstructions
+                            }))
                     )
-                )
-            );
+                );
             assertTrue(success, "upgrade failed");
 
             // Grab the FaultDisputeGame implementation.
@@ -375,8 +359,7 @@ abstract contract OPContractsManagerStandardValidator_TestInit is CommonTest {
         returns (IOPContractsManagerStandardValidator.ValidationOverrides memory)
     {
         return IOPContractsManagerStandardValidator.ValidationOverrides({
-            l1PAOMultisig: address(0),
-            challenger: address(0)
+            l1PAOMultisig: address(0), challenger: address(0)
         });
     }
 }
@@ -418,8 +401,10 @@ contract OPContractsManagerStandardValidator_GeneralOverride_Test is OPContracts
     ///         successfully returns no error when there is none. That is, it never returns the
     ///         overridden strings alone.
     function test_validateOverrides_noErrors_succeeds() public {
-        IOPContractsManagerStandardValidator.ValidationOverrides memory overrides = IOPContractsManagerStandardValidator
-            .ValidationOverrides({ l1PAOMultisig: address(0xbad), challenger: address(0xc0ffee) });
+        IOPContractsManagerStandardValidator.ValidationOverrides memory overrides =
+            IOPContractsManagerStandardValidator.ValidationOverrides({
+                l1PAOMultisig: address(0xbad), challenger: address(0xc0ffee)
+            });
         vm.mockCall(
             address(delayedWeth),
             abi.encodeCall(IProxyAdminOwnedBase.proxyAdminOwner, ()),
@@ -439,8 +424,10 @@ contract OPContractsManagerStandardValidator_GeneralOverride_Test is OPContracts
     /// @notice Tests that the validate function (with overrides) and allow failure set to false,
     ///         returns the errors with the overrides prepended.
     function test_validateOverrides_notAllowFailurePrependsOverrides_succeeds() public {
-        IOPContractsManagerStandardValidator.ValidationOverrides memory overrides = IOPContractsManagerStandardValidator
-            .ValidationOverrides({ l1PAOMultisig: address(0xbad), challenger: address(0xc0ffee) });
+        IOPContractsManagerStandardValidator.ValidationOverrides memory overrides =
+            IOPContractsManagerStandardValidator.ValidationOverrides({
+                l1PAOMultisig: address(0xbad), challenger: address(0xc0ffee)
+            });
 
         vm.expectRevert(
             bytes(
@@ -1276,9 +1263,7 @@ contract OPContractsManagerStandardValidator_PermissionedDisputeGame_Test is
 
 /// @title OPContractsManagerStandardValidator_AnchorStateRegistry_Test
 /// @notice Tests validation of `AnchorStateRegistry` configuration
-contract OPContractsManagerStandardValidator_AnchorStateRegistry_Test is
-    OPContractsManagerStandardValidator_TestInit
-{
+contract OPContractsManagerStandardValidator_AnchorStateRegistry_Test is OPContractsManagerStandardValidator_TestInit {
     /// @notice Tests that the validate function successfully returns the right error when the
     ///         AnchorStateRegistry version is invalid.
     function test_validate_anchorStateRegistryInvalidVersion_succeeds() public {
@@ -1796,22 +1781,13 @@ abstract contract OPContractsManagerStandardValidator_SuperMode_TestInit is Supe
 
         // Legacy types (all disabled).
         disputeGameConfigs[0] = IOPContractsManagerUtils.DisputeGameConfig({
-            enabled: false,
-            initBond: 0,
-            gameType: GameTypes.CANNON,
-            gameArgs: hex""
+            enabled: false, initBond: 0, gameType: GameTypes.CANNON, gameArgs: hex""
         });
         disputeGameConfigs[1] = IOPContractsManagerUtils.DisputeGameConfig({
-            enabled: false,
-            initBond: 0,
-            gameType: GameTypes.PERMISSIONED_CANNON,
-            gameArgs: hex""
+            enabled: false, initBond: 0, gameType: GameTypes.PERMISSIONED_CANNON, gameArgs: hex""
         });
         disputeGameConfigs[2] = IOPContractsManagerUtils.DisputeGameConfig({
-            enabled: false,
-            initBond: 0,
-            gameType: GameTypes.CANNON_KONA,
-            gameArgs: hex""
+            enabled: false, initBond: 0, gameType: GameTypes.CANNON_KONA, gameArgs: hex""
         });
 
         // Super types (enabled).
@@ -1825,35 +1801,32 @@ abstract contract OPContractsManagerStandardValidator_SuperMode_TestInit is Supe
             enabled: true,
             initBond: DEFAULT_DISPUTE_GAME_INIT_BOND,
             gameType: GameTypes.SUPER_CANNON_KONA,
-            gameArgs: abi.encode(IOPContractsManagerUtils.FaultDisputeGameConfig({ absolutePrestate: cannonKonaPrestate }))
+            gameArgs: abi.encode(
+                IOPContractsManagerUtils.FaultDisputeGameConfig({ absolutePrestate: cannonKonaPrestate })
+            )
         });
         disputeGameConfigs[5] = IOPContractsManagerUtils.DisputeGameConfig({
-            enabled: false,
-            initBond: 0,
-            gameType: GameTypes.ZK_DISPUTE_GAME,
-            gameArgs: hex""
+            enabled: false, initBond: 0, gameType: GameTypes.ZK_DISPUTE_GAME, gameArgs: hex""
         });
 
         IOPContractsManagerUtils.ExtraInstruction[] memory extraInstructions =
             new IOPContractsManagerUtils.ExtraInstruction[](1);
         extraInstructions[0] = IOPContractsManagerUtils.ExtraInstruction({
-            key: "overrides.cfg.startingRespectedGameType",
-            data: abi.encode(GameTypes.SUPER_PERMISSIONED)
+            key: "overrides.cfg.startingRespectedGameType", data: abi.encode(GameTypes.SUPER_PERMISSIONED)
         });
 
         prankDelegateCall(owner);
-        (bool success,) = address(opcmV2).delegatecall(
-            abi.encodeCall(
-                IOPContractsManagerV2.upgrade,
-                (
-                    IOPContractsManagerV2.UpgradeInput({
-                        systemConfig: systemConfig,
-                        disputeGameConfigs: disputeGameConfigs,
-                        extraInstructions: extraInstructions
-                    })
+        (bool success,) = address(opcmV2)
+            .delegatecall(
+                abi.encodeCall(
+                    IOPContractsManagerV2.upgrade,
+                    (IOPContractsManagerV2.UpgradeInput({
+                            systemConfig: systemConfig,
+                            disputeGameConfigs: disputeGameConfigs,
+                            extraInstructions: extraInstructions
+                        }))
                 )
-            )
-        );
+            );
         assertTrue(success, "super mode upgrade failed");
     }
 
@@ -2329,28 +2302,21 @@ abstract contract OPContractsManagerStandardValidator_ZKMode_TestInit is CommonT
             IOPContractsManagerUtils.DisputeGameConfig[] memory configs =
                 new IOPContractsManagerUtils.DisputeGameConfig[](6);
             configs[0] = IOPContractsManagerUtils.DisputeGameConfig({
-                enabled: false,
-                initBond: 0,
-                gameType: GameTypes.CANNON,
-                gameArgs: hex""
+                enabled: false, initBond: 0, gameType: GameTypes.CANNON, gameArgs: hex""
             });
             configs[1] = IOPContractsManagerUtils.DisputeGameConfig({
-                enabled: false,
-                initBond: 0,
-                gameType: GameTypes.PERMISSIONED_CANNON,
-                gameArgs: hex""
+                enabled: false, initBond: 0, gameType: GameTypes.PERMISSIONED_CANNON, gameArgs: hex""
             });
             configs[2] = IOPContractsManagerUtils.DisputeGameConfig({
-                enabled: false,
-                initBond: 0,
-                gameType: GameTypes.CANNON_KONA,
-                gameArgs: hex""
+                enabled: false, initBond: 0, gameType: GameTypes.CANNON_KONA, gameArgs: hex""
             });
             configs[3] = IOPContractsManagerUtils.DisputeGameConfig({
                 enabled: true,
                 initBond: 0,
                 gameType: GameTypes.SUPER_PERMISSIONED,
-                gameArgs: abi.encode(IOPContractsManagerUtils.SuperPermissionedDisputeGameConfig({ proposer: proposer }))
+                gameArgs: abi.encode(
+                    IOPContractsManagerUtils.SuperPermissionedDisputeGameConfig({ proposer: proposer })
+                )
             });
             configs[4] = IOPContractsManagerUtils.DisputeGameConfig({
                 enabled: true,
@@ -2377,23 +2343,21 @@ abstract contract OPContractsManagerStandardValidator_ZKMode_TestInit is CommonT
             IOPContractsManagerUtils.ExtraInstruction[] memory extraInstructions =
                 new IOPContractsManagerUtils.ExtraInstruction[](1);
             extraInstructions[0] = IOPContractsManagerUtils.ExtraInstruction({
-                key: "overrides.cfg.startingRespectedGameType",
-                data: abi.encode(GameTypes.SUPER_CANNON_KONA)
+                key: "overrides.cfg.startingRespectedGameType", data: abi.encode(GameTypes.SUPER_CANNON_KONA)
             });
 
             prankDelegateCall(owner);
-            (bool success,) = address(opcmV2).delegatecall(
-                abi.encodeCall(
-                    IOPContractsManagerV2.upgrade,
-                    (
-                        IOPContractsManagerV2.UpgradeInput({
-                            systemConfig: systemConfig,
-                            disputeGameConfigs: configs,
-                            extraInstructions: extraInstructions
-                        })
+            (bool success,) = address(opcmV2)
+                .delegatecall(
+                    abi.encodeCall(
+                        IOPContractsManagerV2.upgrade,
+                        (IOPContractsManagerV2.UpgradeInput({
+                                systemConfig: systemConfig,
+                                disputeGameConfigs: configs,
+                                extraInstructions: extraInstructions
+                            }))
                     )
-                )
-            );
+                );
             assertTrue(success, "ZK upgrade failed");
         }
     }
@@ -2416,9 +2380,7 @@ abstract contract OPContractsManagerStandardValidator_ZKMode_TestInit is CommonT
 /// @title OPContractsManagerStandardValidator_ZKValidation_Test
 /// @notice Tests for the ZK dispute game validation path in the standard validator.
 ///         Only runs when ZK_DISPUTE_GAME and SUPER_ROOT_GAMES_MIGRATION are enabled.
-contract OPContractsManagerStandardValidator_ZKValidation_Test is
-    OPContractsManagerStandardValidator_ZKMode_TestInit
-{
+contract OPContractsManagerStandardValidator_ZKValidation_Test is OPContractsManagerStandardValidator_ZKMode_TestInit {
     /// @notice Tests that ZK validation succeeds after the super-root migration.
     function test_validate_zkDisputeGameAfterSuperRootMigration_succeeds() public view {
         IOptimismPortal2 portal = IOptimismPortal2(payable(systemConfig.optimismPortal()));
@@ -2670,8 +2632,10 @@ contract OPContractsManagerStandardValidator_ValidateMigratedChain_Test is
         // DelayedWETH proxyAdminOwner must also match overridden l1PAOMultisig.
         vm.mockCall(sharedWETH, abi.encodeCall(IProxyAdminOwnedBase.proxyAdminOwner, ()), abi.encode(overrideMultisig));
 
-        IOPContractsManagerStandardValidator.ValidationOverrides memory overrides = IOPContractsManagerStandardValidator
-            .ValidationOverrides({ l1PAOMultisig: overrideMultisig, challenger: address(0) });
+        IOPContractsManagerStandardValidator.ValidationOverrides memory overrides =
+            IOPContractsManagerStandardValidator.ValidationOverrides({
+                l1PAOMultisig: overrideMultisig, challenger: address(0)
+            });
         string memory errors = standardValidator.validateMigratedChainWithOverrides(_migrationInput(), true, overrides);
         assertEq(errors, "");
     }
@@ -2682,8 +2646,10 @@ contract OPContractsManagerStandardValidator_ValidateMigratedChain_Test is
         // Use a different address as override — DGF owner stays as the real l1PAOMultisig,
         // so the override causes a mismatch.
         address wrongMultisig = makeAddr("wrongMultisig");
-        IOPContractsManagerStandardValidator.ValidationOverrides memory overrides = IOPContractsManagerStandardValidator
-            .ValidationOverrides({ l1PAOMultisig: wrongMultisig, challenger: address(0) });
+        IOPContractsManagerStandardValidator.ValidationOverrides memory overrides =
+            IOPContractsManagerStandardValidator.ValidationOverrides({
+                l1PAOMultisig: wrongMultisig, challenger: address(0)
+            });
         string memory errors = standardValidator.validateMigratedChainWithOverrides(_migrationInput(), true, overrides);
         // l1PAOMultisig override causes DGF owner mismatch (MIG-SDGF-30) and surfaces the shared
         // DelayedWETH proxyAdminOwner mismatch through the bonded super-game drill-down.

@@ -401,8 +401,9 @@ contract OPContractsManagerStandardValidator is ISemver {
         _errors = internalRequire(
             LibString.eq(getVersion(address(_bridge)), getVersion(l1ERC721BridgeImpl)), "L721B-10", _errors
         );
-        _errors =
-            internalRequire(getProxyImplementation(_admin, address(_bridge)) == l1ERC721BridgeImpl, "L721B-20", _errors);
+        _errors = internalRequire(
+            getProxyImplementation(_admin, address(_bridge)) == l1ERC721BridgeImpl, "L721B-20", _errors
+        );
 
         IL1CrossDomainMessenger _l1XDM = IL1CrossDomainMessenger(_sysCfg.l1CrossDomainMessenger());
         _errors = internalRequire(address(_bridge.OTHER_BRIDGE()) == Predeploys.L2_ERC721_BRIDGE, "L721B-30", _errors);
@@ -759,8 +760,7 @@ contract OPContractsManagerStandardValidator is ISemver {
         returns (SuperPermissionedDisputeGameImpls memory)
     {
         return SuperPermissionedDisputeGameImpls({
-            expectedGameImpl: superPermissionedDisputeGameImpl,
-            anchorStateRegistryImpl: anchorStateRegistryImpl
+            expectedGameImpl: superPermissionedDisputeGameImpl, anchorStateRegistryImpl: anchorStateRegistryImpl
         });
     }
 
@@ -771,8 +771,7 @@ contract OPContractsManagerStandardValidator is ISemver {
         returns (DisputeGameConfig memory)
     {
         return DisputeGameConfig({
-            l1PAOMultisig: expectedL1PAOMultisig(_overrides),
-            withdrawalDelaySeconds: withdrawalDelaySeconds
+            l1PAOMultisig: expectedL1PAOMultisig(_overrides), withdrawalDelaySeconds: withdrawalDelaySeconds
         });
     }
 
@@ -826,8 +825,7 @@ contract OPContractsManagerStandardValidator is ISemver {
             _input,
             _allowFailure,
             IOPContractsManagerStandardValidator.ValidationOverrides({
-                l1PAOMultisig: _overrides.l1PAOMultisig,
-                challenger: _overrides.challenger
+                l1PAOMultisig: _overrides.l1PAOMultisig, challenger: _overrides.challenger
             }),
             _buildSharedImplementations(),
             _buildSharedConfig()

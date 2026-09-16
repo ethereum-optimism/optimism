@@ -176,12 +176,10 @@ library PastUpgrades {
         (bool scSuccess,) = _opcm.delegatecall(
             abi.encodeCall(
                 IOPContractsManagerV2.upgradeSuperchain,
-                (
-                    IOPContractsManagerV2.SuperchainUpgradeInput({
+                (IOPContractsManagerV2.SuperchainUpgradeInput({
                         superchainConfig: _superchainConfig,
                         extraInstructions: new IOPContractsManagerUtils.ExtraInstruction[](0)
-                    })
-                )
+                    }))
             )
         );
         // Acceptable to fail if already up to date
@@ -222,32 +220,25 @@ library PastUpgrades {
             initBond: _disputeGameFactory.initBonds(GameTypes.CANNON_KONA),
             gameType: GameTypes.CANNON_KONA,
             gameArgs: abi.encode(
-                IOPContractsManagerUtils.FaultDisputeGameConfig({ absolutePrestate: Claim.wrap(DUMMY_CANNON_KONA_PRESTATE) })
+                IOPContractsManagerUtils.FaultDisputeGameConfig({
+                    absolutePrestate: Claim.wrap(DUMMY_CANNON_KONA_PRESTATE)
+                })
             )
         });
 
         // SUPER_PERMISSIONED (disabled)
         disputeGameConfigs[3] = IOPContractsManagerUtils.DisputeGameConfig({
-            enabled: false,
-            initBond: 0,
-            gameType: GameTypes.SUPER_PERMISSIONED,
-            gameArgs: hex""
+            enabled: false, initBond: 0, gameType: GameTypes.SUPER_PERMISSIONED, gameArgs: hex""
         });
 
         // SUPER_CANNON_KONA (disabled)
         disputeGameConfigs[4] = IOPContractsManagerUtils.DisputeGameConfig({
-            enabled: false,
-            initBond: 0,
-            gameType: GameTypes.SUPER_CANNON_KONA,
-            gameArgs: hex""
+            enabled: false, initBond: 0, gameType: GameTypes.SUPER_CANNON_KONA, gameArgs: hex""
         });
 
         // ZK_DISPUTE_GAME — always disabled, registered separately via deployer pipeline
         disputeGameConfigs[5] = IOPContractsManagerUtils.DisputeGameConfig({
-            enabled: false,
-            initBond: 0,
-            gameType: GameTypes.ZK_DISPUTE_GAME,
-            gameArgs: hex""
+            enabled: false, initBond: 0, gameType: GameTypes.ZK_DISPUTE_GAME, gameArgs: hex""
         });
 
         _sortDisputeGameConfigs(disputeGameConfigs);
@@ -257,13 +248,11 @@ library PastUpgrades {
         (bool upgradeSuccess,) = _opcm.delegatecall(
             abi.encodeCall(
                 IOPContractsManagerV2.upgrade,
-                (
-                    IOPContractsManagerV2.UpgradeInput({
+                (IOPContractsManagerV2.UpgradeInput({
                         systemConfig: _systemConfig,
                         disputeGameConfigs: disputeGameConfigs,
                         extraInstructions: new IOPContractsManagerUtils.ExtraInstruction[](0)
-                    })
-                )
+                    }))
             )
         );
         require(upgradeSuccess, "PastUpgrades: OPCMv2 upgrade failed");

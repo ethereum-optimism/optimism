@@ -437,10 +437,7 @@ contract OPContractsManagerUtils_LoadOrDeployProxy_Test is OPContractsManagerUti
         proxyAdmin.setAddressManager(addressManager);
 
         deployArgs = OPContractsManagerUtils.ProxyDeployArgs({
-            proxyAdmin: proxyAdmin,
-            addressManager: addressManager,
-            l2ChainId: 42,
-            saltMixer: "testMixer"
+            proxyAdmin: proxyAdmin, addressManager: addressManager, l2ChainId: 42, saltMixer: "testMixer"
         });
     }
 
@@ -1021,10 +1018,7 @@ contract OPContractsManagerUtils_MakeGameArgs_Test is OPContractsManagerUtils_Te
     /// @notice Tests that makeGameArgs reverts for an unsupported game type.
     function test_makeGameArgs_unsupportedType_reverts() public {
         IOPContractsManagerUtils.DisputeGameConfig memory cfg = IOPContractsManagerUtils.DisputeGameConfig({
-            enabled: true,
-            initBond: 0,
-            gameType: GameTypes.KAILUA,
-            gameArgs: bytes("")
+            enabled: true, initBond: 0, gameType: GameTypes.KAILUA, gameArgs: bytes("")
         });
         vm.expectRevert(IOPContractsManagerUtils.OPContractsManagerUtils_UnsupportedGameType.selector);
         utils.makeGameArgs(1, IAnchorStateRegistry(address(0)), IDelayedWETH(payable(address(0))), cfg);

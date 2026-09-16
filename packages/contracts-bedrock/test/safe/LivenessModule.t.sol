@@ -119,14 +119,7 @@ contract LivenessModule_Constructor_Test is LivenessModule_TestInit {
 contract LivenessModule_GetRequiredThreshold_Test is LivenessModule_TestInit {
     /// @notice Tests if getRequiredThreshold work correctly by implementing the same logic in a
     ///         different manner.
-    function _getLeastIntegerValueAbovePercentage(
-        uint256 _total,
-        uint256 _percentage
-    )
-        internal
-        pure
-        returns (uint256)
-    {
+    function _getLeastIntegerValueAbovePercentage(uint256 _total, uint256 _percentage) internal pure returns (uint256) {
         require(_percentage > 0 && _percentage <= 100, "LivenessModule: _percentage must be between 1 and 100");
         uint256 toAdd;
 

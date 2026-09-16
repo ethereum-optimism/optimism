@@ -36,8 +36,7 @@ contract SuperchainConfig_Initialize_Test is SuperchainConfig_TestInit {
     function test_initialize_paused_succeeds() external {
         IProxy newProxy = IProxy(
             DeployUtils.create1({
-                _name: "Proxy",
-                _args: DeployUtils.encodeConstructor(abi.encodeCall(IProxy.__constructor__, (alice)))
+                _name: "Proxy", _args: DeployUtils.encodeConstructor(abi.encodeCall(IProxy.__constructor__, (alice)))
             })
         );
         ISuperchainConfig newImpl = ISuperchainConfig(

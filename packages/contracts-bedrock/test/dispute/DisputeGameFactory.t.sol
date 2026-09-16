@@ -936,13 +936,11 @@ abstract contract DisputeGameFactory_ZkDisputeGame_TestInit is DisputeGameFactor
         emit DisputeGameCreated(address(0), GameTypes.ZK_DISPUTE_GAME, rootClaim_);
         vm.prank(proposer);
         proxy_ = ZKDisputeGame(
-            payable(
-                address(
+            payable(address(
                     disputeGameFactory.create{ value: _params.challengerBond }(
                         GameTypes.ZK_DISPUTE_GAME, rootClaim_, extraData_
                     )
-                )
-            )
+                ))
         );
     }
 
