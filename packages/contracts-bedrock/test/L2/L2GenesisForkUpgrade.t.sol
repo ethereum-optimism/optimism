@@ -82,10 +82,7 @@ contract L2GenesisForkUpgrade_Versions_Test is L2GenesisForkUpgrade_TestInit, L2
 
 /// @title L2GenesisForkUpgrade_Initialization_Test
 /// @notice Tests that all initialization configurations are preserved after the upgrade from genesis.
-contract L2GenesisForkUpgrade_Initialization_Test is
-    L2GenesisForkUpgrade_TestInit,
-    L2ForkUpgrade_Initialization_Test
-{
+contract L2GenesisForkUpgrade_Initialization_Test is L2GenesisForkUpgrade_TestInit, L2ForkUpgrade_Initialization_Test {
     function setUp() public override(L2GenesisForkUpgrade_TestInit, L2ForkUpgrade_TestInit) {
         L2GenesisForkUpgrade_TestInit.setUp();
     }
@@ -198,10 +195,7 @@ contract L2GenesisForkUpgrade_Interop_Implementations_Test is
 }
 
 /// @title L2GenesisForkUpgrade_Interop_Events_Test
-contract L2GenesisForkUpgrade_Interop_Events_Test is
-    L2GenesisForkUpgrade_Interop_TestInit,
-    L2ForkUpgrade_Events_Test
-{
+contract L2GenesisForkUpgrade_Interop_Events_Test is L2GenesisForkUpgrade_Interop_TestInit, L2ForkUpgrade_Events_Test {
     function setUp() public override(L2GenesisForkUpgrade_Interop_TestInit, L2ForkUpgrade_TestInit) {
         L2GenesisForkUpgrade_Interop_TestInit.setUp();
     }
@@ -291,10 +285,7 @@ contract L2GenesisForkUpgrade_CGT_Events_Test is L2GenesisForkUpgrade_CGT_TestIn
 }
 
 /// @title L2GenesisForkUpgrade_CGT_GasProfile_Test
-contract L2GenesisForkUpgrade_CGT_GasProfile_Test is
-    L2GenesisForkUpgrade_CGT_TestInit,
-    L2ForkUpgrade_GasProfile_Test
-{
+contract L2GenesisForkUpgrade_CGT_GasProfile_Test is L2GenesisForkUpgrade_CGT_TestInit, L2ForkUpgrade_GasProfile_Test {
     function setUp() public override(L2GenesisForkUpgrade_CGT_TestInit, L2ForkUpgrade_TestInit) {
         L2GenesisForkUpgrade_CGT_TestInit.setUp();
     }

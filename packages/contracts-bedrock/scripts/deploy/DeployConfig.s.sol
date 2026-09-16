@@ -430,11 +430,7 @@ contract DeployConfig is Script {
         return _jsonInp.readBoolOr(_key, _defaultValue);
     }
 
-    function _readOr(
-        string memory _jsonInp,
-        string memory _key,
-        uint256 _defaultValue
-    )
+    function _readOr(string memory _jsonInp, string memory _key, uint256 _defaultValue)
         internal
         view
         returns (uint256)
@@ -442,11 +438,7 @@ contract DeployConfig is Script {
         return (vm.keyExistsJson(_jsonInp, _key) && !_isNull(_json, _key)) ? _jsonInp.readUint(_key) : _defaultValue;
     }
 
-    function _readOr(
-        string memory _jsonInp,
-        string memory _key,
-        address _defaultValue
-    )
+    function _readOr(string memory _jsonInp, string memory _key, address _defaultValue)
         internal
         view
         returns (address)
@@ -475,11 +467,7 @@ contract DeployConfig is Script {
         return (vm.keyExistsJson(_jsonInp, _key) && !_isNull(_json, _key)) ? _jsonInp.readInt(_key) : _defaultValue;
     }
 
-    function _readOr(
-        string memory _jsonInp,
-        string memory _key,
-        bytes32 _defaultValue
-    )
+    function _readOr(string memory _jsonInp, string memory _key, bytes32 _defaultValue)
         internal
         view
         returns (bytes32)

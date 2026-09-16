@@ -33,7 +33,9 @@ abstract contract MintManager_TestInit is CommonTest {
         manager = IMintManager(
             DeployUtils.create1({
                 _name: "MintManager",
-                _args: DeployUtils.encodeConstructor(abi.encodeCall(IMintManager.__constructor__, (owner, address(gov))))
+                _args: DeployUtils.encodeConstructor(
+                    abi.encodeCall(IMintManager.__constructor__, (owner, address(gov)))
+                )
             })
         );
 
