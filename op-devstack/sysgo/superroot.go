@@ -152,10 +152,16 @@ func getSupernodeSuperRoot(t devtest.T, supernode *SuperNode, timestamp uint64) 
 }
 
 func getSuperRoot(t devtest.T, endpoint string, timestamp uint64) eth.Bytes32 {
+	return eth.SuperRoot(getSuperRootProof(t, endpoint, timestamp))
+}
+
+func getSuperRootProof(t devtest.T, endpoint string, timestamp uint64) *eth.SuperV1 {
 	client, err := dial.DialSuperNodeClientWithTimeout(t.Ctx(), t.Logger(), endpoint)
 	t.Require().NoError(err)
 
-	var superRoot eth.Bytes32
+	defer client.Close()
+
+	var superRoot *eth.SuperV1
 	ctx, cancel := context.WithTimeout(t.Ctx(), 2*time.Minute)
 	err = wait.For(ctx, time.Second, func() (bool, error) {
 		resp, err := client.SuperRootAtTimestamp(ctx, timestamp)
@@ -166,7 +172,11 @@ func getSuperRoot(t devtest.T, endpoint string, timestamp uint64) eth.Bytes32 {
 		if resp.Data == nil {
 			return false, nil
 		}
-		superRoot = resp.Data.SuperRoot
+		var ok bool
+		superRoot, ok = resp.Data.Super.(*eth.SuperV1)
+		t.Require().True(ok, "expected a SuperV1 proof")
+		t.Require().Equal(timestamp, superRoot.Timestamp)
+		t.Require().Equal(resp.Data.SuperRoot, eth.SuperRoot(superRoot))
 		return true, nil
 	})
 	cancel()

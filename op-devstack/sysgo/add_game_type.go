@@ -90,6 +90,7 @@ func addGameTypesForRuntime(
 	l1ChainID eth.ChainID,
 	l1ELRPC string,
 	l2Net *L2Network,
+	l2CL L2CLNode,
 ) {
 	require := t.Require()
 	require.NotNil(l2Net, "l2 network must exist")
@@ -113,6 +114,12 @@ func addGameTypesForRuntime(
 	enabled := make(map[gameTypes.GameType]bool)
 	for _, gt := range enabledGameTypes {
 		enabled[gt] = true
+	}
+	var assertAnchorPreserved func()
+	if enabled[gameTypes.SuperCannonKonaGameType] {
+		timestamp := awaitSuperrootTime(t, l2CL)
+		root := getSuperRootProof(t, l2CL.UserRPC(), timestamp)
+		assertAnchorPreserved = bootstrapSuperRootAnchor(t, keys, l1ELRPC, l2Net, root)
 	}
 	initBond := new(big.Int).Set(defaultInitBond)
 
@@ -197,6 +204,9 @@ func addGameTypesForRuntime(
 			ExtraInstructions:  extraInstructions,
 		},
 	})
+	if assertAnchorPreserved != nil {
+		assertAnchorPreserved()
+	}
 }
 
 // ZKDisputeGameConfigForRuntime returns a ZKDisputeGameConfig for use in devstack/test environments.

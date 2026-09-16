@@ -23,10 +23,11 @@ func TestDisputeMonitorReportsHealthySuperPermissionedGame(gt *testing.T) {
 
 	mon := sys.StartDisputeMon()
 	mon.VerifyDisputeMonHealthy()
+	// The fixture also creates one valid permissioned game to establish the anchor.
 	mon.VerifyState(
-		disputemon.GameCount(gameTypes.SuperPermissionedGameType, 1),
+		disputemon.GameCount(gameTypes.SuperPermissionedGameType, 2),
 		disputemon.FailedGames(0),
-		disputemon.AgreedRoots(1),
+		disputemon.AgreedRoots(2),
 		disputemon.DisagreedRoots(0),
 	)
 }
@@ -58,8 +59,9 @@ func TestDisputeMonitorReportsIncorrectResolvedGame(gt *testing.T) {
 	game.WaitForGameStatus(gameTypes.GameStatusDefenderWon)
 
 	mon := sys.StartDisputeMon()
+	// The fixture also creates one valid permissioned game to establish the anchor.
 	mon.VerifyState(
-		disputemon.GameCount(gameTypes.SuperPermissionedGameType, 1),
+		disputemon.GameCount(gameTypes.SuperPermissionedGameType, 2),
 		disputemon.FailedGames(0),
 		disputemon.IncorrectDefenderWins(1),
 		disputemon.InvalidProposalObserved(game),
