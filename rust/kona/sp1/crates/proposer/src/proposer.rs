@@ -40,7 +40,7 @@ use crate::{
     },
     config::{PrestatePrograms, ProofProviderKind, ProposalSafety, ProposerConfig, load_prestate},
     contract::{DisputeGameFactory::DisputeGameFactoryInstance, GameStatus, ProposalStatus},
-    metrics::ProposerGauge,
+    metrics::{ProposerGauge, record_deadline_passed},
     ports::{
         ActionExecutor, BondState, ClaimPreflight, GameLifecycle, L1View, ProofEngine, ProofInputs,
         QueryTime, SuperRootSource,
@@ -842,6 +842,9 @@ pub struct Proposer {
     /// by the proving scans without re-fetching their spans. In-memory
     /// only: a restart re-evaluates (upstream-parity statelessness).
     undefendable: Arc<Mutex<HashSet<Address>>>,
+    /// Process-local misses, retained until the game leaves the cache. A restart can count an
+    /// expired window again; windows that open and close between observations are not counted.
+    missed_deadlines: Arc<Mutex<HashSet<(Address, bool, u64)>>>,
 }
 
 impl std::fmt::Debug for Proposer {
@@ -943,6 +946,7 @@ impl Proposer {
             max_prove_duration: Arc::new(OnceCell::new()),
             max_challenge_duration: Arc::new(OnceCell::new()),
             undefendable: Arc::new(Mutex::new(HashSet::new())),
+            missed_deadlines: Arc::new(Mutex::new(HashSet::new())),
         })
     }
 
@@ -1009,7 +1013,16 @@ impl Proposer {
 
     /// Runs one no-sleep proposer cycle.
     pub(crate) async fn cycle(&self) -> Result<CycleResult> {
-        let sync_disposition = self.sync_state().await?;
+        let sync_disposition = self.sync_state().await.inspect_err(|_| {
+            ProposerGauge::DefenseDeadlineRemainingSeconds.set(f64::NAN);
+        })?;
+        if matches!(
+            sync_disposition,
+            SyncDisposition::ConfirmedHeadRegressed { .. } |
+                SyncDisposition::ConfirmedBlockUnavailable
+        ) {
+            ProposerGauge::DefenseDeadlineRemainingSeconds.set(f64::NAN);
+        }
         let completions = self.reap_completed_tasks().await;
         if self.proof_retry_requested.swap(false, Ordering::Relaxed) {
             self.retry_terminal_proofs().await;
@@ -1277,6 +1290,8 @@ impl Proposer {
                 self.reset_creation_guard(None, "confirmed factory history became empty").await;
             }
             ProposerGauge::SyncCursor.set(-1.0);
+            self.missed_deadlines.lock().await.clear();
+            ProposerGauge::DefenseDeadlineRemainingSeconds.set(f64::INFINITY);
             return Ok(());
         };
         let latest_index = Cursor::from(latest_factory_index);
@@ -1299,12 +1314,15 @@ impl Proposer {
 
         let (targets, known_prestates) = self.game_sync_targets().await;
         if targets.is_empty() {
+            self.record_deadline_metrics(pinned_timestamp, &known_prestates, &[], true).await;
             return Ok(());
         }
         let anchor_index = self.state.read().await.anchor_game.as_ref().map(|game| game.index);
 
         let mut standings = Vec::with_capacity(targets.len());
         let mut actions = Vec::with_capacity(targets.len());
+        let mut observed_indices = Vec::with_capacity(targets.len());
+        let mut complete = true;
         for target in targets {
             if target.status == GameStatus::InProgress &&
                 target.ancestry_blocked &&
@@ -1332,6 +1350,7 @@ impl Proposer {
             match standing {
                 Ok(disallowed) => standings.push((index, disallowed)),
                 Err(error) => {
+                    complete = false;
                     tracing::warn!(
                         game_index = %index,
                         error = %error,
@@ -1344,8 +1363,12 @@ impl Proposer {
             match lifecycle
                 .and_then(|facts| classify_game_sync(facts, pinned_timestamp, anchor_address))
             {
-                Ok(action) => actions.push(action),
+                Ok(action) => {
+                    observed_indices.push(index);
+                    actions.push(action);
+                }
                 Err(error) => {
+                    complete = false;
                     tracing::warn!(
                         game_index = %index,
                         error = %error,
@@ -1356,6 +1379,13 @@ impl Proposer {
             }
         }
         self.apply_game_sync_actions(standings, actions).await;
+        self.record_deadline_metrics(
+            pinned_timestamp,
+            &known_prestates,
+            &observed_indices,
+            complete,
+        )
+        .await;
 
         Ok(())
     }
@@ -2660,8 +2690,7 @@ impl Proposer {
         Ok(true)
     }
 
-    /// Fetch the proposer metrics.
-    async fn fetch_proposer_metrics(&self) -> Result<()> {
+    async fn fetch_proposer_metrics(&self) {
         let (canonical_head_sequence_number, canonical_head_index, anchor_game) = {
             let state = self.state.read().await;
             (
@@ -2684,11 +2713,101 @@ impl Proposer {
             ProposerGauge::AnchorGameL2SequenceNumber.set(anchor_game.l2_sequence_number as f64);
         }
 
-        // Highest proposable super-root timestamp under the configured safety level.
-        let max_proposable = self.max_proposable_timestamp().await?;
-        ProposerGauge::MaxProposableSequenceNumber.set(max_proposable as f64);
+        tokio::join!(
+            self.collect_gauge(ProposerGauge::MaxProposableSequenceNumber, async {
+                self.max_proposable_timestamp().await.map(|value| Some(value as f64))
+            }),
+            self.collect_gauge(ProposerGauge::SignerBalanceEth, async {
+                let balance = self.l1_view.signer_balance(self.proposer_address).await?;
+                Ok(Some(f64::from(balance) / 1e18))
+            }),
+            async {
+                if self.config.proof_provider == ProofProviderKind::Network {
+                    self.collect_gauge(
+                        ProposerGauge::ProveBalance,
+                        self.proof_engine.prove_balance(),
+                    )
+                    .await;
+                }
+            },
+        );
+    }
 
-        Ok(())
+    async fn collect_gauge(
+        &self,
+        gauge: ProposerGauge,
+        sample: impl Future<Output = Result<Option<f64>>>,
+    ) {
+        let timeout = Duration::from_secs(self.config.proof_provider_config.network_calls_timeout);
+        match time::timeout(timeout, sample)
+            .await
+            .context("metric observation timed out")
+            .and_then(|result| result)
+        {
+            Ok(Some(value)) => gauge.set(value),
+            Ok(None) => {}
+            Err(error) => {
+                gauge.set(f64::NAN);
+                tracing::warn!(?gauge, %error, "Failed to fetch metric");
+                ProposerGauge::MetricsError.increment(1.0);
+            }
+        }
+    }
+
+    /// Counts fresh observations even when the full snapshot is incomplete.
+    async fn record_deadline_metrics(
+        &self,
+        now: u64,
+        known_prestates: &HashSet<B256>,
+        observed_indices: &[U256],
+        complete: bool,
+    ) {
+        let state = self.state.read().await;
+        let addresses = state.games.values().map(|game| game.address).collect::<HashSet<_>>();
+        self.missed_deadlines.lock().await.retain(|(address, _, _)| addresses.contains(address));
+        let mut remaining = f64::INFINITY;
+        for game in
+            observed_indices.iter().filter_map(|index| state.games.get(index)).filter(|game| {
+                (game.is_owned(known_prestates) || game.creator == self.proposer_address) &&
+                    state.ancestry_eligible(game) &&
+                    game.status == GameStatus::InProgress
+            })
+        {
+            self.record_game_deadline(game, game.proposal_status, game.deadline, now).await;
+            if game.proposal_status == ProposalStatus::Challenged {
+                let seconds = i128::from(game.deadline) - i128::from(now);
+                remaining = remaining.min(seconds as f64);
+            }
+        }
+        if !complete || !self.pending_games.read().await.is_empty() {
+            remaining = f64::NAN;
+        }
+        ProposerGauge::DefenseDeadlineRemainingSeconds.set(remaining);
+    }
+
+    async fn record_game_deadline(
+        &self,
+        game: &Game,
+        status: ProposalStatus,
+        deadline: u64,
+        now: u64,
+    ) -> bool {
+        let is_defense = match status {
+            ProposalStatus::Challenged => true,
+            ProposalStatus::Unchallenged
+                if self.config.fast_finality_mode && game.creator == self.proposer_address =>
+            {
+                false
+            }
+            _ => return false,
+        };
+        if now > deadline &&
+            self.missed_deadlines.lock().await.insert((game.address, is_defense, deadline))
+        {
+            record_deadline_passed(is_defense);
+            return true;
+        }
+        false
     }
 
     /// Spawn a dedicated metrics collection task
@@ -2698,10 +2817,7 @@ impl Proposer {
             let mut metrics_timer = time::interval(Duration::from_secs(15));
             loop {
                 metrics_timer.tick().await;
-                if let Err(e) = proposer_metrics.fetch_proposer_metrics().await {
-                    tracing::warn!("Failed to fetch metrics: {:?}", e);
-                    ProposerGauge::MetricsError.increment(1.0);
-                }
+                proposer_metrics.fetch_proposer_metrics().await;
             }
         });
     }
@@ -3416,7 +3532,7 @@ impl Proposer {
             return Ok(true);
         }
 
-        match self.l1_view.proof_status(game_address).await {
+        let observed_status = match self.l1_view.proof_status(game_address).await {
             Ok(status) => match ProposalStatus::try_from(status) {
                 Ok(
                     ProposalStatus::UnchallengedAndValidProofProvided |
@@ -3430,13 +3546,14 @@ impl Proposer {
                     self.proof_engine.clear(game_address);
                     return Ok(true);
                 }
-                Ok(_) => {}
+                Ok(status) => Some(status),
                 Err(e) => {
                     tracing::warn!(
                         ?game_address,
                         error = %e,
                         "Pre-flight proposal status decode failed, proceeding with proving"
                     );
+                    None
                 }
             },
             Err(e) => {
@@ -3445,8 +3562,9 @@ impl Proposer {
                     error = ?e,
                     "Pre-flight proposal status check failed, proceeding with proving"
                 );
+                None
             }
-        }
+        };
 
         let now = self
             .l1_view
@@ -3469,6 +3587,21 @@ impl Proposer {
                     now,
                     "Game proving deadline passed, cannot prove"
                 );
+                if let Some(status) = observed_status &&
+                    (status == ProposalStatus::Challenged) == is_defense
+                {
+                    let game = self
+                        .state
+                        .read()
+                        .await
+                        .games
+                        .values()
+                        .find(|game| game.address == game_address)
+                        .cloned();
+                    if let Some(game) = game {
+                        self.record_game_deadline(&game, status, deadline, now).await;
+                    }
+                }
                 self.proof_engine.clear(game_address);
                 return Ok(true);
             }
@@ -3651,6 +3784,17 @@ impl Proposer {
             .await
             .context("failed to fetch latest L1 block for game deadline")?;
         if now > claim.deadline {
+            let game = self
+                .state
+                .read()
+                .await
+                .games
+                .get(&game_index)
+                .filter(|game| game.address == game_address)
+                .cloned();
+            if let Some(game) = game {
+                self.record_game_deadline(&game, status, claim.deadline, now).await;
+            }
             tracing::warn!(
                 ?game_address,
                 deadline = claim.deadline,
@@ -4170,7 +4314,7 @@ impl PrestateCache {
 #[cfg(test)]
 mod tests {
     use std::{
-        collections::HashSet,
+        collections::{HashMap, HashSet},
         sync::{
             Arc, Mutex as StdMutex,
             atomic::{AtomicU64, Ordering as AtomicOrdering},
@@ -4283,6 +4427,10 @@ mod tests {
 
     #[async_trait]
     impl ProofEngine for RecordingProofEngine {
+        async fn prove_balance(&self) -> anyhow::Result<Option<f64>> {
+            Ok(None)
+        }
+
         async fn prove(
             &self,
             _game_address: Address,
@@ -4408,6 +4556,9 @@ mod tests {
         proof_inputs: ProofInputs,
         proof_standing: GameStanding,
         latest_l1_timestamp: u64,
+        signer_balance: U256,
+        lifecycles: HashMap<Address, GameLifecycle>,
+        failing_lifecycle_game: Option<Address>,
     }
 
     impl Default for RecordingL1View {
@@ -4476,6 +4627,9 @@ mod tests {
                 proof_inputs: ProofInputs::default(),
                 proof_standing: GameStanding { blacklisted: false, retired: false },
                 latest_l1_timestamp: 1_000,
+                signer_balance: U256::ZERO,
+                lifecycles: Default::default(),
+                failing_lifecycle_game: None,
             }
         }
     }
@@ -4507,6 +4661,12 @@ mod tests {
 
     #[async_trait]
     impl L1View for RecordingL1View {
+        async fn signer_balance(&self, _signer: Address) -> anyhow::Result<U256> {
+            self.record("signer_balance");
+            self.fail_if_configured("signer_balance")?;
+            Ok(self.signer_balance)
+        }
+
         async fn latest_head(&self) -> anyhow::Result<Option<L1BlockRef>> {
             self.record("latest_head");
             self.fail_if_configured("latest_head")?;
@@ -4604,8 +4764,10 @@ mod tests {
             self.record("game_lifecycle");
             self.record_block("game_lifecycle", block);
             self.lifecycle_targets.lock().unwrap().push((game, registry, block));
-            self.fail_if_configured("game_lifecycle")?;
-            Ok(self.lifecycle)
+            if self.failing_lifecycle_game.is_none_or(|address| address == game) {
+                self.fail_if_configured("game_lifecycle")?;
+            }
+            Ok(self.lifecycles.get(&game).copied().unwrap_or(self.lifecycle))
         }
 
         async fn parent_game_status(
@@ -4696,11 +4858,13 @@ mod tests {
         ) -> anyhow::Result<GameStanding> {
             self.record("game_standing");
             self.record_block("game_standing", block);
+            self.fail_if_configured("game_standing")?;
             Ok(self.proof_standing)
         }
 
         async fn proof_status(&self, _game: Address) -> anyhow::Result<u8> {
-            panic!("unexpected L1 call: proof_status")
+            self.fail_if_configured("proof_status")?;
+            Ok(self.game_claim.status)
         }
 
         async fn proof_inputs(&self, _game: Address) -> anyhow::Result<ProofInputs> {
@@ -4902,6 +5066,184 @@ mod tests {
         let task_id = TaskId::allocate(&proposer.next_task_id);
         let handle = tokio::spawn(async { Ok(TaskSuccess::Completed) });
         proposer.tasks.lock().await.insert(task_id, (handle, operation));
+    }
+
+    mod alert_metrics {
+        use super::*;
+        use metrics_exporter_prometheus::PrometheusBuilder;
+        use std::num::NonZeroU64;
+
+        async fn ready_proposer() -> Proposer {
+            let mut proposer = test_proposer().await;
+            proposer.l1_view = Arc::new(RecordingL1View::default());
+            proposer.proof_engine = Arc::new(RecordingProofEngine::default());
+            proposer.superroot_source = Arc::new(UnavailableSuperRootSource);
+            *proposer.last_successful_pinned_l1.write().await =
+                RecordingL1View::default().latest_head;
+            proposer
+                .prestates
+                .insert_for_tests(
+                    B256::ZERO,
+                    PrestatePrograms { aggregation_elf: vec![1], range_elf: vec![1] },
+                )
+                .await;
+            proposer
+        }
+
+        #[tokio::test]
+        async fn deadline_counter_tracks_windows_once_with_strict_expiry() {
+            let recorder = PrometheusBuilder::new().build_recorder();
+            let _guard = metrics::set_default_local_recorder(&recorder);
+            let mut proposer = ready_proposer().await;
+            proposer.config.fast_finality_mode = true;
+            let game = Game { creator: proposer.proposer_address, ..game_with(1, u32::MAX, 100) };
+            assert!(
+                !proposer.record_game_deadline(&game, ProposalStatus::Unchallenged, 100, 100).await
+            );
+            assert!(
+                proposer.record_game_deadline(&game, ProposalStatus::Unchallenged, 100, 101).await
+            );
+            assert!(
+                !proposer.record_game_deadline(&game, ProposalStatus::Unchallenged, 100, 102).await
+            );
+            assert!(
+                proposer.record_game_deadline(&game, ProposalStatus::Challenged, 100, 102).await
+            );
+            assert!(
+                !proposer.record_game_deadline(&game, ProposalStatus::Challenged, 100, 103).await
+            );
+            assert!(
+                proposer.record_game_deadline(&game, ProposalStatus::Challenged, 110, 111).await
+            );
+            let scrape = recorder.handle().render();
+            assert!(
+                scrape.contains(
+                    "kona_sp1_proposer_deadline_passed_total{window=\"fast_finality\"} 1"
+                )
+            );
+            assert!(
+                scrape.contains("kona_sp1_proposer_deadline_passed_total{window=\"defense\"} 2")
+            );
+        }
+
+        #[tokio::test]
+        async fn sync_reports_queued_and_active_deadlines_without_metric_rpc_polling() {
+            let recorder = PrometheusBuilder::new().build_recorder();
+            let _guard = metrics::set_default_local_recorder(&recorder);
+            let mut proposer = ready_proposer().await;
+            proposer.config.max_concurrent_defense_tasks = NonZeroU64::new(1).unwrap();
+            let active = game_with(1, u32::MAX, 100);
+            let queued = game_with(2, u32::MAX, 200);
+            let lifecycle = GameLifecycle {
+                proposal_status: ProposalStatus::Challenged,
+                deadline: 1_010,
+                ..RecordingL1View::default().lifecycle
+            };
+            let view = Arc::new(RecordingL1View {
+                latest_game_index: Some(queued.index),
+                lifecycle,
+                lifecycles: HashMap::from([(
+                    queued.address,
+                    GameLifecycle { deadline: 995, ..lifecycle },
+                )]),
+                ..Default::default()
+            });
+            proposer.l1_view = view.clone();
+            {
+                let mut state = proposer.state.write().await;
+                state.cursor = Cursor::from(queued.index);
+                state.games =
+                    HashMap::from([(active.index, active.clone()), (queued.index, queued)]);
+            }
+            insert_task(
+                &proposer,
+                OperationSummary::ProveGame {
+                    factory_index: active.index,
+                    address: active.address,
+                    purpose: ProvingPurpose::FastFinality,
+                },
+            )
+            .await;
+            for _ in 0..2 {
+                proposer.sync_games(BlockId::number(1), 1_000).await.unwrap();
+            }
+            let calls_before = view.calls().len();
+            proposer.fetch_proposer_metrics().await;
+            assert_eq!(&view.calls()[calls_before..], ["signer_balance"]);
+            let scrape = recorder.handle().render();
+            assert!(scrape.contains("kona_sp1_proposer_defense_deadline_remaining_seconds -5"));
+            assert!(
+                scrape.contains("kona_sp1_proposer_deadline_passed_total{window=\"defense\"} 1")
+            );
+            assert!(!scrape.contains("window=\"fast_finality\""));
+        }
+
+        #[tokio::test]
+        async fn failed_sync_keeps_deadlines_unknown_without_blocking_balances() {
+            let recorder = PrometheusBuilder::new().build_recorder();
+            let _guard = metrics::set_default_local_recorder(&recorder);
+            let mut proposer = ready_proposer().await;
+            let game = game_with(1, u32::MAX, 100);
+            let other = game_with(2, u32::MAX, 200);
+            {
+                let mut state = proposer.state.write().await;
+                state.cursor = Cursor::from(other.index);
+                state.games.insert(game.index, game);
+                state.games.insert(other.index, other.clone());
+            }
+            for (failure, now, expected, misses) in [
+                (None, 1_000, "100", 0),
+                (Some("game_lifecycle"), 1_101, "NaN", 1),
+                (Some("game_standing"), 1_101, "NaN", 1),
+                (None, 1_101, "-1", 2),
+            ] {
+                proposer.l1_view = Arc::new(RecordingL1View {
+                    latest_game_index: Some(other.index),
+                    fail_on: failure,
+                    failing_lifecycle_game: Some(other.address),
+                    signer_balance: U256::from(1_250_000_000_000_000_000u64),
+                    lifecycle: GameLifecycle {
+                        proposal_status: ProposalStatus::Challenged,
+                        deadline: 1_100,
+                        ..RecordingL1View::default().lifecycle
+                    },
+                    ..Default::default()
+                });
+                proposer.sync_games(BlockId::number(1), now).await.unwrap();
+                proposer.fetch_proposer_metrics().await;
+                let scrape = recorder.handle().render();
+                assert!(scrape.contains(&format!(
+                    "kona_sp1_proposer_defense_deadline_remaining_seconds {expected}"
+                )));
+                assert!(scrape.contains("kona_sp1_proposer_signer_balance_eth 1.25"));
+                if misses > 0 {
+                    assert!(scrape.contains(&format!(
+                        "kona_sp1_proposer_deadline_passed_total{{window=\"defense\"}} {misses}"
+                    )));
+                }
+            }
+            proposer.l1_view =
+                Arc::new(RecordingL1View { fail_on: Some("latest_head"), ..Default::default() });
+            assert!(proposer.cycle().await.is_err());
+            assert!(
+                recorder
+                    .handle()
+                    .render()
+                    .contains("kona_sp1_proposer_defense_deadline_remaining_seconds NaN")
+            );
+            proposer.l1_view = Arc::new(RecordingL1View::default());
+            proposer.sync_games(BlockId::number(1), 1_000).await.unwrap();
+            let remaining = recorder
+                .handle()
+                .render()
+                .lines()
+                .find_map(|line| {
+                    line.strip_prefix("kona_sp1_proposer_defense_deadline_remaining_seconds ")
+                        .map(|value| value.parse::<f64>().unwrap())
+                })
+                .unwrap();
+            assert_eq!(remaining, f64::INFINITY);
+        }
     }
 
     #[tokio::test]

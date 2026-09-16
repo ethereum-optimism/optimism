@@ -1,9 +1,11 @@
 //! Succinct Prover Network request submission, polling, and verification.
 
-use std::{future::Future, num::NonZeroU64, sync::Arc, time::Duration};
+use std::{future::Future, num::NonZeroU64, panic::AssertUnwindSafe, sync::Arc, time::Duration};
 
+use alloy_primitives::U256;
 use anyhow::{Result, bail};
 use async_trait::async_trait;
+use futures::FutureExt;
 use kona_sp1_host_utils::metrics::MetricsGauge;
 use sp1_sdk::{
     NetworkProver, ProveRequest, Prover, SP1ProofMode, SP1ProofWithPublicValues, SP1ProvingKey,
@@ -38,6 +40,8 @@ fn current_timestamp() -> u64 {
 }
 #[async_trait]
 trait NetworkProverApi: Send + Sync {
+    async fn get_balance(&self) -> Result<U256>;
+
     async fn request_range_proof(
         &self,
         proving_key: &SP1ProvingKey,
@@ -74,6 +78,10 @@ struct Sp1NetworkProverApi {
 
 #[async_trait]
 impl NetworkProverApi for Sp1NetworkProverApi {
+    async fn get_balance(&self) -> Result<U256> {
+        self.prover.get_balance().await
+    }
+
     async fn request_range_proof(
         &self,
         proving_key: &SP1ProvingKey,
@@ -180,6 +188,19 @@ impl NetworkProofProvider {
         network_mode: NetworkMode,
     ) -> Self {
         Self { api, config, network_mode }
+    }
+
+    pub(super) async fn balance(&self) -> Result<f64> {
+        // The SDK panics when a balance response is not a valid U256.
+        let balance = AssertUnwindSafe(self.network_call_with_timeout(
+            self.api.get_balance(),
+            "get_balance",
+            None,
+        ))
+        .catch_unwind()
+        .await
+        .map_err(|_| anyhow::anyhow!("SP1 balance query panicked"))??;
+        Ok(prove_tokens(balance))
     }
 
     pub(super) async fn request_range_proof(
@@ -315,7 +336,7 @@ impl NetworkProofProvider {
         self.network_call_with_timeout(
             self.api.get_proof_status(proof_id),
             "get_proof_status",
-            proof_id,
+            Some(proof_id),
         )
         .await
     }
@@ -324,7 +345,7 @@ impl NetworkProofProvider {
         self.network_call_with_timeout(
             self.api.get_proof_request(proof_id),
             "get_proof_request",
-            proof_id,
+            Some(proof_id),
         )
         .await
     }
@@ -383,7 +404,7 @@ impl NetworkProofProvider {
         self.network_call_with_timeout(
             self.api.cancel_request(proof_id),
             "cancel_request",
-            proof_id,
+            Some(proof_id),
         )
         .await
         .map_err(|err| {
@@ -454,7 +475,7 @@ impl NetworkProofProvider {
         &self,
         future: F,
         operation: &str,
-        proof_id: ProofId,
+        proof_id: Option<ProofId>,
     ) -> Result<T>
     where
         F: Future<Output = Result<T, anyhow::Error>>,
@@ -463,14 +484,14 @@ impl NetworkProofProvider {
         match tokio::time::timeout(Duration::from_secs(timeout_secs), future).await {
             Ok(Ok(result)) => Ok(result),
             Ok(Err(err)) => {
-                tracing::warn!(proof_id = %proof_id, operation, error = %err, "Network error");
+                tracing::warn!(?proof_id, operation, error = %err, "Network error");
                 Err(err)
             }
             Err(_) => {
-                tracing::warn!(proof_id = %proof_id, operation, timeout_secs, "Network call timed out");
+                tracing::warn!(?proof_id, operation, timeout_secs, "Network call timed out");
                 ProposerGauge::NetworkCallTimeout.increment(1.0);
                 bail!(
-                    "Network timeout after {}s for {} (proof_id={})",
+                    "Network timeout after {}s for {} (proof_id={:?})",
                     timeout_secs,
                     operation,
                     proof_id
@@ -479,6 +500,12 @@ impl NetworkProofProvider {
         }
     }
 }
+
+/// PROVE has 18 decimal places.
+fn prove_tokens(balance: U256) -> f64 {
+    f64::from(balance) / 1e18
+}
+
 /// Client-side proof request timeout status.
 #[derive(Debug, PartialEq, Eq)]
 enum ProvingTimeout {
@@ -613,6 +640,7 @@ mod tests {
     use super::*;
 
     struct ScriptedNetworkApi {
+        balance: Option<U256>,
         statuses:
             Mutex<VecDeque<(GetProofRequestStatusResponse, Option<SP1ProofWithPublicValues>)>>,
         details: Mutex<Option<ProofRequest>>,
@@ -627,6 +655,7 @@ mod tests {
             details: Option<ProofRequest>,
         ) -> Self {
             Self {
+                balance: None,
                 statuses: Mutex::new(statuses.into()),
                 details: Mutex::new(details),
                 status_ids: Mutex::new(Vec::new()),
@@ -638,6 +667,10 @@ mod tests {
 
     #[async_trait]
     impl NetworkProverApi for ScriptedNetworkApi {
+        async fn get_balance(&self) -> Result<U256> {
+            Ok(self.balance.expect("unexpected balance request"))
+        }
+
         async fn request_range_proof(
             &self,
             _proving_key: &SP1ProvingKey,
@@ -685,6 +718,15 @@ mod tests {
         ) -> Result<()> {
             Ok(())
         }
+    }
+
+    #[tokio::test]
+    async fn balance_query_panic_returns_an_error() {
+        let provider = provider_with_api(
+            Arc::new(ScriptedNetworkApi::new(Vec::new(), None)),
+            NetworkMode::Mainnet,
+        );
+        assert!(provider.balance().await.is_err());
     }
 
     fn provider_with_api(

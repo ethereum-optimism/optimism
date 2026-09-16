@@ -133,6 +133,14 @@ impl std::fmt::Debug for ProofProvider {
 }
 
 impl ProofProvider {
+    /// Returns spendable PROVE tokens, or `None` for mock proving.
+    pub async fn balance(&self) -> Result<Option<f64>> {
+        match self {
+            Self::Network(provider) => provider.balance().await.map(Some),
+            Self::Mock(_) => Ok(None),
+        }
+    }
+
     /// Submits a compressed super-range or consolidation proof request.
     pub async fn request_range_proof(&self, keys: &ProofKeys, stdin: SP1Stdin) -> Result<ProofId> {
         match self {

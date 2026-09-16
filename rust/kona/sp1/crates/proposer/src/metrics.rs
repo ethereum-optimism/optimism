@@ -1,12 +1,37 @@
-//! Prometheus gauges for the proposer.
+//! Prometheus metrics for the proposer.
 
 use kona_sp1_host_utils::metrics::MetricsGauge;
-use strum::EnumMessage;
+use metrics::{counter, describe_counter};
+use strum::{EnumMessage, IntoEnumIterator};
 use strum_macros::{Display, EnumIter};
 
 /// All proposer metrics gauges.
 #[derive(Debug, Clone, Copy, Display, EnumIter, EnumMessage)]
 pub enum ProposerGauge {
+    /// Whether the proposer process has started.
+    #[strum(
+        serialize = "kona_sp1_proposer_up",
+        message = "Whether the proposer process has started"
+    )]
+    Up,
+    /// Signer balance in ETH; `NaN` when the balance cannot be read.
+    #[strum(
+        serialize = "kona_sp1_proposer_signer_balance_eth",
+        message = "Signer balance in ETH; NaN when unavailable"
+    )]
+    SignerBalanceEth,
+    /// Spendable prover-network balance in PROVE; absent in mock mode.
+    #[strum(
+        serialize = "kona_sp1_proposer_prove_balance",
+        message = "Spendable prover-network balance in PROVE; NaN when unavailable"
+    )]
+    ProveBalance,
+    /// Minimum defense deadline minus L1 time; positive infinity with no outstanding defense.
+    #[strum(
+        serialize = "kona_sp1_proposer_defense_deadline_remaining_seconds",
+        message = "Minimum outstanding defense time in seconds; +Inf with no defense, NaN when unavailable"
+    )]
+    DefenseDeadlineRemainingSeconds,
     // Proposer metrics
     /// Highest super-root timestamp proposable under the configured safety level.
     #[strum(
@@ -212,3 +237,32 @@ pub enum ProposerGauge {
 }
 
 impl MetricsGauge for ProposerGauge {}
+
+const DEADLINE_PASSED: &str = "kona_sp1_proposer_deadline_passed_total";
+
+/// Registers metrics after installing the recorder, without treating unread balances as zero.
+pub fn register_metrics(network: bool) {
+    ProposerGauge::register_all();
+    for metric in ProposerGauge::iter() {
+        let initial = match metric {
+            ProposerGauge::ProveBalance if !network => continue,
+            ProposerGauge::SignerBalanceEth |
+            ProposerGauge::ProveBalance |
+            ProposerGauge::DefenseDeadlineRemainingSeconds => f64::NAN,
+            _ => 0.0,
+        };
+        metric.set(initial);
+    }
+    describe_counter!(
+        DEADLINE_PASSED,
+        "Missed game deadlines observed once per game window while tracked by this process"
+    );
+    for window in ["defense", "fast_finality"] {
+        counter!(DEADLINE_PASSED, "window" => window).increment(0);
+    }
+}
+
+pub(crate) fn record_deadline_passed(is_defense: bool) {
+    let window = if is_defense { "defense" } else { "fast_finality" };
+    counter!(DEADLINE_PASSED, "window" => window).increment(1);
+}
