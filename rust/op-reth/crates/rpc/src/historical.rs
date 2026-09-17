@@ -1,7 +1,7 @@
 //! Client support for optimism historical RPC requests.
 
 use crate::sequencer::Error;
-use alloy_eips::BlockId;
+use alloy_eips::{BlockId, BlockNumberOrTag};
 use alloy_json_rpc::{RpcRecv, RpcSend};
 use alloy_primitives::{B256, BlockNumber};
 use alloy_rpc_client::RpcClient;
@@ -93,8 +93,17 @@ pub struct HistoricalRpc<P> {
 impl<P> HistoricalRpc<P> {
     /// Constructs a new historical RPC layer with the given provider, client and bedrock block
     /// number.
-    pub fn new(provider: P, client: HistoricalRpcClient, bedrock_block: BlockNumber) -> Self {
-        let inner = Arc::new(HistoricalRpcInner { provider, client, bedrock_block });
+    ///
+    /// `max_blocks_per_filter` is the node's `--rpc.max-blocks-per-filter` setting, applied to
+    /// `eth_getLogs` filters before they are forwarded so that forwarding doesn't bypass it.
+    pub fn new(
+        provider: P,
+        client: HistoricalRpcClient,
+        bedrock_block: BlockNumber,
+        max_blocks_per_filter: Option<u64>,
+    ) -> Self {
+        let inner =
+            Arc::new(HistoricalRpcInner { provider, client, bedrock_block, max_blocks_per_filter });
 
         Self { inner }
     }
@@ -236,6 +245,8 @@ struct HistoricalRpcInner<P> {
     client: HistoricalRpcClient,
     /// Bedrock transition block number
     bedrock_block: BlockNumber,
+    /// The node's `--rpc.max-blocks-per-filter` limit, if any
+    max_blocks_per_filter: Option<u64>,
 }
 
 impl<P> HistoricalRpcInner<P>
@@ -249,6 +260,7 @@ where
             "eth_getTransactionByHash" |
             "eth_getTransactionReceipt" |
             "eth_getRawTransactionByHash" => self.should_forward_transaction(req),
+            "eth_getLogs" => self.should_forward_log_filter(req),
             method => self.should_forward_block_request(method, req),
         }
     }
@@ -295,6 +307,61 @@ where
                 }
             })
             .unwrap_or(false)
+    }
+
+    /// Determines if an `eth_getLogs` request should be forwarded.
+    ///
+    /// A `blockHash` filter targets a single block and is decided like every other hash-addressed
+    /// method. A range filter is forwarded only when every block it can match is pre-bedrock,
+    /// which needs a fixed upper bound: a `toBlock` that tracks the chain tip (`latest`, `safe`,
+    /// `finalized`, `pending`, or absent) keeps the filter local.
+    fn should_forward_log_filter(&self, req: &Request<'_>) -> bool {
+        let (from_block, to_block) = match parse_log_filter_block_option(&req.params()) {
+            Some(FilterBlockOption::AtBlockHash(hash)) => {
+                return self.is_pre_bedrock(BlockId::Hash(hash.into()));
+            }
+            Some(FilterBlockOption::Range { from_block, to_block }) => (from_block, to_block),
+            None => return false,
+        };
+
+        let Some(to_block) = to_block.and_then(|bound| self.resolve_filter_bound(bound)) else {
+            return false;
+        };
+        // Without a `fromBlock` the range is open below, so genesis is the widest block it can
+        // reach back to.
+        let from_block = from_block.and_then(|bound| self.resolve_filter_bound(bound)).unwrap_or(0);
+
+        if to_block >= self.bedrock_block {
+            if from_block < self.bedrock_block {
+                // Serving the range locally drops its pre-bedrock half. Splitting it across both
+                // backends would have to happen in `HistoricalRpcService`, which is the only
+                // place holding the inner service as well as the historical client.
+                warn!(
+                    target: "rpc::historical",
+                    from_block,
+                    to_block,
+                    bedrock = self.bedrock_block,
+                    "log filter spans the bedrock transition; serving it locally returns only its post-bedrock logs"
+                );
+            }
+            return false;
+        }
+
+        // Forwarding skips the local `eth_getLogs` handler, so honor its span limit here as well
+        // rather than letting a caller aim an unmetered scan at the historical endpoint. A wider
+        // range falls through to local handling, which rejects it with that same limit.
+        self.max_blocks_per_filter.is_none_or(|max| to_block.saturating_sub(from_block) <= max)
+    }
+
+    /// Resolves an `eth_getLogs` range bound to the block number it names, or `None` when the
+    /// bound tracks the chain tip and so has no fixed pre-bedrock answer.
+    fn resolve_filter_bound(&self, bound: BlockNumberOrTag) -> Option<BlockNumber> {
+        match bound {
+            BlockNumberOrTag::Number(_) | BlockNumberOrTag::Earliest => {
+                self.provider.block_number_for_id(BlockId::Number(bound)).ok().flatten()
+            }
+            _ => None,
+        }
     }
 
     /// Determines if a block-based request should be forwarded
@@ -364,6 +431,26 @@ where
                     "historical endpoint lacks eth_getBlockReceipts, stitching from per-transaction receipts"
                 );
                 return Some(self.stitch_block_receipts(req).await);
+            }
+            // Local handling answers a pre-bedrock log filter with an empty array, which a caller
+            // cannot tell apart from "no matching logs". Fail the request instead, as the receipt
+            // stitching path does.
+            Err(err) if req.method_name() == "eth_getLogs" => {
+                warn!(
+                    target: "rpc::historical",
+                    %err,
+                    "failed to fetch pre-bedrock logs from historical endpoint"
+                );
+                // Keep the client-facing message generic: the error Display may embed raw
+                // responses from the internal historical endpoint.
+                return Some(MethodResponse::error(
+                    req.id.clone(),
+                    jsonrpsee_types::ErrorObject::owned(
+                        jsonrpsee_types::error::INTERNAL_ERROR_CODE,
+                        "failed to fetch pre-bedrock logs from historical endpoint",
+                        None::<()>,
+                    ),
+                ));
             }
             Err(err) => {
                 warn!(
@@ -507,26 +594,16 @@ fn extract_block_id_for_method(method: &str, params: &Params<'_>) -> Option<Bloc
         "eth_createAccessList" |
         "debug_traceCall" => parse_block_id_from_params(params, 1),
         "eth_getStorageAt" | "eth_getProof" => parse_block_id_from_params(params, 2),
-        "eth_getLogs" => parse_block_id_from_log_filter(params),
         _ => None,
     }
 }
 
-/// Parses the block that decides forwarding for an `eth_getLogs` filter.
-///
-/// A `blockHash` filter targets that single block. A block range is represented by its upper
-/// bound, because a range lies entirely before bedrock exactly when its highest block does.
-/// Ranges reaching bedrock or beyond — including ones that cross it — yield a post-bedrock block
-/// and are served locally as before; an open-ended range (no `toBlock`) reaches the chain tip and
-/// is likewise not forwarded.
-fn parse_block_id_from_log_filter(params: &Params<'_>) -> Option<BlockId> {
+/// Parses the blocks an `eth_getLogs` filter is scoped to from the first parameter.
+fn parse_log_filter_block_option(params: &Params<'_>) -> Option<FilterBlockOption> {
     let values: Vec<serde_json::Value> = params.parse().ok()?;
     let filter = serde_json::from_value::<Filter>(values.into_iter().next()?).ok()?;
 
-    match filter.block_option {
-        FilterBlockOption::AtBlockHash(hash) => Some(BlockId::Hash(hash.into())),
-        FilterBlockOption::Range { to_block, .. } => to_block.map(BlockId::Number),
-    }
+    Some(filter.block_option)
 }
 
 /// Parses a `BlockId` from the given parameters at the specified position.
@@ -557,6 +634,7 @@ mod tests {
     use jsonrpsee_types::Id;
     use reth_node_builder::rpc::RethRpcMiddleware;
     use reth_storage_api::noop::NoopProvider;
+    use rstest::rstest;
     use serde_json::json;
     use std::sync::{
         Mutex,
@@ -577,7 +655,12 @@ mod tests {
             provider: NoopProvider::default(),
             client: HistoricalRpcClient::with_client(RpcClient::mocked(asserter)),
             bedrock_block: 105235063,
+            max_blocks_per_filter: None,
         }
+    }
+
+    fn logs_request(filter: &str) -> Request<'static> {
+        owned_request("eth_getLogs", &format!("[{filter}]"))
     }
 
     /// Shared log of outbound `(method, params)` pairs captured by [`RecordingTransport`].
@@ -623,6 +706,7 @@ mod tests {
             provider: NoopProvider::default(),
             client: HistoricalRpcClient::with_client(RpcClient::new(transport, true)),
             bedrock_block: 105235063,
+            max_blocks_per_filter: None,
         };
         (historical, requests)
     }
@@ -738,66 +822,56 @@ mod tests {
         }
     }
 
-    /// Tests that an `eth_getLogs` range filter extracts its upper bound, the block that decides
-    /// whether the whole range is pre-bedrock.
-    #[test]
-    fn extracts_block_id_for_log_filter_range() {
-        for params_str in [
-            r#"[{"fromBlock":"0x64","toBlock":"0x64"}]"#,
-            r#"[{"fromBlock":"0x0","toBlock":"0x64"}]"#,
-            r#"[{"toBlock":"0x64"}]"#,
-        ] {
-            let params = Params::new(Some(params_str));
-            assert_eq!(
-                extract_block_id_for_method("eth_getLogs", &params).unwrap(),
-                BlockId::Number(BlockNumberOrTag::Number(100)),
-                "{params_str}"
-            );
-        }
-    }
-
-    /// Tests that an `eth_getLogs` filter pinned to a block hash extracts that hash.
-    #[test]
-    fn extracts_block_id_for_log_filter_block_hash() {
-        let hash = "0xdbdfa0f88b2cf815fdc1621bd20c2bd2b0eed4f0c56c9be2602957b5a60ec702";
-        let params_str = format!(r#"[{{"blockHash":"{hash}"}}]"#);
-        let params = Params::new(Some(&params_str));
-        assert_eq!(
-            extract_block_id_for_method("eth_getLogs", &params).unwrap(),
-            BlockId::Hash(hash.parse::<B256>().unwrap().into())
-        );
-    }
-
-    /// Tests that an `eth_getLogs` filter without an upper bound extracts no block id, leaving it
-    /// to local handling.
-    #[test]
-    fn extracts_no_block_id_for_open_ended_log_filter() {
-        for params_str in [r#"[{"fromBlock":"0x0"}]"#, r#"[{}]"#, r#"[]"#] {
-            let params = Params::new(Some(params_str));
-            assert!(extract_block_id_for_method("eth_getLogs", &params).is_none(), "{params_str}");
-        }
-    }
-
-    /// Tests that `eth_getLogs` is forwarded when its filter is confined to pre-bedrock blocks,
-    /// using the OP Mainnet blocks from the bug report (bedrock is 105235063): pre-bedrock
-    /// 105235062 / `0x645c276` and post-bedrock 105239000 / `0x645d1d8`. A range crossing bedrock
-    /// stays local.
-    #[test]
-    fn forwards_pre_bedrock_log_filters() {
+    /// Tests which `eth_getLogs` filters are confined to pre-bedrock blocks and so forwarded,
+    /// using the OP Mainnet blocks from the bug report: bedrock is 105235063, so `0x645c276`
+    /// (105235062) is pre-bedrock and `0x645d1d8` (105239000) is post-bedrock.
+    #[rstest]
+    #[case::pre_bedrock_block(r#"{"fromBlock":"0x645c276","toBlock":"0x645c276"}"#, true)]
+    #[case::genesis_to_pre_bedrock(r#"{"fromBlock":"0x0","toBlock":"0x645c276"}"#, true)]
+    #[case::upper_bound_only(r#"{"toBlock":"0x645c276"}"#, true)]
+    #[case::to_earliest(r#"{"toBlock":"earliest"}"#, true)]
+    #[case::with_address(
+        r#"{"toBlock":"0x645c276","address":"0x5e61a079a178f0e5784107a4963baae0c5a680c6"}"#,
+        true
+    )]
+    // A block hash the provider doesn't know is assumed pre-bedrock, as for every other
+    // hash-addressed method.
+    #[case::unknown_block_hash(
+        r#"{"blockHash":"0xdbdfa0f88b2cf815fdc1621bd20c2bd2b0eed4f0c56c9be2602957b5a60ec702"}"#,
+        true
+    )]
+    #[case::post_bedrock_block(r#"{"fromBlock":"0x645d1d8","toBlock":"0x645d1d8"}"#, false)]
+    #[case::crossing_bedrock(r#"{"fromBlock":"0x645c276","toBlock":"0x645d1d8"}"#, false)]
+    #[case::genesis_to_latest(r#"{"fromBlock":"0x0","toBlock":"latest"}"#, false)]
+    #[case::open_ended(r#"{"fromBlock":"0x0"}"#, false)]
+    #[case::no_bounds(r#"{}"#, false)]
+    fn forwards_only_pre_bedrock_log_filters(#[case] filter: &str, #[case] forwarded: bool) {
         let historical = mocked_historical(Asserter::new());
-        let logs_request = |from: &str, to: &str| {
-            owned_request(
-                "eth_getLogs",
-                &format!(
-                    r#"[{{"fromBlock":"{from}","toBlock":"{to}","address":"0x5e61a079a178f0e5784107a4963baae0c5a680c6"}}]"#
-                ),
-            )
+        assert_eq!(historical.should_forward_request(&logs_request(filter)), forwarded);
+    }
+
+    /// Tests that a request without any filter parameter is left to local handling.
+    #[test]
+    fn does_not_forward_log_request_without_params() {
+        let historical = mocked_historical(Asserter::new());
+        assert!(!historical.should_forward_request(&owned_request("eth_getLogs", "[]")));
+    }
+
+    /// Tests that forwarding doesn't bypass `--rpc.max-blocks-per-filter`: a pre-bedrock range
+    /// wider than the limit stays local, where reth rejects it with that same limit.
+    #[test]
+    fn does_not_forward_log_filters_wider_than_the_span_limit() {
+        let historical = HistoricalRpcInner {
+            max_blocks_per_filter: Some(100_000),
+            ..mocked_historical(Asserter::new())
+        };
+        let range_ending_pre_bedrock = |span: u64| {
+            let to = 105_235_062u64;
+            logs_request(&format!(r#"{{"fromBlock":"{:#x}","toBlock":"{to:#x}"}}"#, to - span))
         };
 
-        assert!(historical.should_forward_request(&logs_request("0x645c276", "0x645c276")));
-        assert!(historical.should_forward_request(&logs_request("0x0", "0x645c276")));
-        assert!(!historical.should_forward_request(&logs_request("0x645d1d8", "0x645d1d8")));
-        assert!(!historical.should_forward_request(&logs_request("0x645c276", "0x645d1d8")));
+        assert!(historical.should_forward_request(&range_ending_pre_bedrock(100_000)));
+        assert!(!historical.should_forward_request(&range_ending_pre_bedrock(100_001)));
     }
 
     /// Tests that various valid id types can be parsed from the first parameter.
@@ -1080,5 +1154,40 @@ mod tests {
             assert!(historical.forward_to_historical(&req).await.is_none());
         });
         assert_eq!(warns, 1, "expected exactly one warning for a forwarding failure");
+    }
+
+    /// Tests that a log filter crossing bedrock warns about the pre-bedrock logs it drops, and
+    /// that a filter wholly above bedrock — which drops nothing — stays quiet.
+    #[test]
+    fn crossing_bedrock_log_filter_warns() {
+        let warns = warns_during(async {
+            let historical = mocked_historical(Asserter::new());
+            let post_bedrock = logs_request(r#"{"fromBlock":"0x645d1d8","toBlock":"0x645d1d9"}"#);
+            let crossing = logs_request(r#"{"fromBlock":"0x0","toBlock":"0x645d1d8"}"#);
+
+            assert!(!historical.should_forward_request(&post_bedrock));
+            assert!(!historical.should_forward_request(&crossing));
+        });
+        assert_eq!(warns, 1, "expected exactly one warning, for the filter crossing bedrock");
+    }
+
+    /// Tests that a failed `eth_getLogs` forward returns a JSON-RPC error rather than falling
+    /// through to local handling, which would answer a pre-bedrock filter with an empty array
+    /// that looks like "no matching logs".
+    #[tokio::test]
+    async fn log_forward_failure_returns_error() {
+        let asserter = Asserter::new();
+        asserter.push_failure_msg("historical endpoint unreachable");
+
+        let historical = mocked_historical(asserter);
+        let req = logs_request(r#"{"toBlock":"0x645c276"}"#);
+        let resp = historical.forward_to_historical(&req).await.unwrap();
+
+        assert!(!resp.is_success());
+        assert_eq!(resp.as_error_code(), Some(jsonrpsee_types::error::INTERNAL_ERROR_CODE));
+        assert_eq!(
+            error_message_of(&resp),
+            "failed to fetch pre-bedrock logs from historical endpoint"
+        );
     }
 }
