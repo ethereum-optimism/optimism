@@ -117,7 +117,7 @@ contract VerifyOPCM is Script {
 
     /// @notice VERIFIER_HASH() of Succinct's v6.1.0 SP1 PLONK verifier. Proofs from the sp1-sdk
     ///         circuit v6.1.0 carry the first four bytes of this value as their selector. Must
-    ///         match op-deployer/pkg/deployer/standard/sp1-verifier.json.
+    ///         match op-deployer's standard.SP1VerifierHash.
     bytes32 internal constant SP1_VERIFIER_HASH_V6_1_0 =
         0x5a093a2fcb46394f5cadfe55c44d4d572fad9cec7aeb38026b0278322ef07fac;
 

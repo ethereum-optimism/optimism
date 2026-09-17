@@ -110,16 +110,18 @@ const (
 	// Source: succinctlabs/sp1-contracts@2ac5ecbbe473421a963d67e55f182e9a36576f7c,
 	// contracts/deployments/11155111.json, V6_1_0_SP1_VERIFIER_PLONK.
 	sepoliaSP1VerifierV610 = "0xc3c6dDDAc8829b233Dc6536Ec024775a57b0AF2A"
+	// VERIFIER_HASH() of the verifier above: the PLONK circuit it accepts proofs for. Proofs
+	// carry the first four bytes of this value as their selector, so the linked sp1-sdk must
+	// prove for the same circuit (kona-sp1-proposer checks this against the chain at startup).
+	// Source: succinctlabs/sp1-contracts@2ac5ecbbe473421a963d67e55f182e9a36576f7c,
+	// contracts/src/v6.1.0/SP1VerifierPlonk.sol, VERIFIER_HASH().
+	sp1VerifierHashV610 = "0x5a093a2fcb46394f5cadfe55c44d4d572fad9cec7aeb38026b0278322ef07fac"
 )
 
 // SP1VerifierFor returns the raw SP1 verifier approved for the current OPCM release on the given L1
 // chain ID. Both `bootstrap implementations` and `apply` default to it when ZK dispute games are
-// enabled and the operator did not pin a verifier explicitly.
-//
-// The verifier must implement the circuit that the linked sp1-sdk proves for. That circuit is
-// pinned in sp1-verifier.json next to this file: kona-sp1-proposer's release-pin test checks the
-// JSON against the SDK, and TestApplyDefaultsSP1VerifierOnSepolia checks it against this address on
-// chain. Change the address and the JSON together.
+// enabled and the operator did not pin a verifier explicitly. Change it together with
+// SP1VerifierHash and the sp1-sdk pin in rust/Cargo.toml.
 // DO NOT MODIFY THIS METHOD WITHOUT CLEARING IT WITH THE EVM SAFETY TEAM.
 func SP1VerifierFor(chainID uint64) (common.Address, error) {
 	switch chainID {
@@ -130,6 +132,13 @@ func SP1VerifierFor(chainID uint64) (common.Address, error) {
 	default:
 		return common.Address{}, fmt.Errorf("unsupported chain ID: %d", chainID)
 	}
+}
+
+// SP1VerifierHash returns the VERIFIER_HASH() the verifier from SP1VerifierFor implements.
+// TestApplyDefaultsSP1VerifierOnSepolia holds it to the chain.
+// DO NOT MODIFY THIS METHOD WITHOUT CLEARING IT WITH THE EVM SAFETY TEAM.
+func SP1VerifierHash() common.Hash {
+	return common.HexToHash(sp1VerifierHashV610)
 }
 
 func SuperchainFor(chainID uint64) (superchain.Superchain, error) {

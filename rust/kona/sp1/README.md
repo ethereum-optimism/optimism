@@ -62,12 +62,6 @@ infrastructure error. Release automation will eventually pin per-version vkeys f
 manifest into `superchain-registry/validation/standard/standard-prestates.toml` and verify
 reproducible builds.
 
-The on-chain SP1 verifier is pinned separately: `op-deployer/pkg/deployer/standard/sp1-verifier.json`
-records the circuit version and PLONK `VERIFIER_HASH()` the release-approved verifier implements.
-`kona-sp1-proposer`'s `verifier::tests::sdk_plonk_vk_matches_release_pin` holds that file to the
-linked sp1-sdk, so bumping the SDK to a new circuit fails CI until the verifier address and the
-pin move together.
-
 #### Build provenance
 
 Both guests embed the commit they were built from, so a guest ELF identifies its own source

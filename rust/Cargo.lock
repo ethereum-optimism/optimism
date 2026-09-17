@@ -7758,7 +7758,6 @@ dependencies = [
  "metrics-exporter-prometheus",
  "parking_lot",
  "serde",
- "serde_json",
  "sha2 0.10.9",
  "sp1-sdk",
  "sp1-verifier",

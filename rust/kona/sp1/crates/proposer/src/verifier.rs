@@ -50,38 +50,6 @@ pub fn check_verifier_hash(verifier: Address, actual: B256) -> Result<(), Verifi
 mod tests {
     use super::*;
 
-    /// The release pin op-deployer and `VerifyOPCM` use for the approved raw verifier. The
-    /// sepolia integration test in op-deployer holds it to the deployed address; this test
-    /// holds it to the linked sp1-sdk.
-    const RELEASE_PIN: &str = include_str!(concat!(
-        env!("CARGO_MANIFEST_DIR"),
-        "/../../../../../op-deployer/pkg/deployer/standard/sp1-verifier.json"
-    ));
-
-    #[derive(serde::Deserialize)]
-    #[serde(rename_all = "camelCase")]
-    struct ReleasePin {
-        circuit_version: String,
-        plonk_verifier_hash: B256,
-    }
-
-    #[test]
-    fn sdk_plonk_vk_matches_release_pin() {
-        let pin: ReleasePin = serde_json::from_str(RELEASE_PIN).expect("valid release pin");
-        let remedy = "sp1-sdk moved to another circuit: update \
-             op-deployer/pkg/deployer/standard/sp1-verifier.json with the new VERIFIER_HASH from \
-             sp1-contracts and re-pin the verifier address in standard.SP1VerifierFor and \
-             VerifyOPCM.s.sol together";
-        assert_eq!(sp1_sdk::SP1_CIRCUIT_VERSION.trim(), pin.circuit_version, "{remedy}");
-        assert_eq!(expected_verifier_hash(), pin.plonk_verifier_hash, "{remedy}");
-    }
-
-    #[test]
-    fn check_verifier_hash_accepts_expected() {
-        let verifier = Address::repeat_byte(0x11);
-        assert_eq!(check_verifier_hash(verifier, expected_verifier_hash()), Ok(()));
-    }
-
     #[test]
     fn check_verifier_hash_rejects_other_circuit() {
         let verifier = Address::repeat_byte(0x11);

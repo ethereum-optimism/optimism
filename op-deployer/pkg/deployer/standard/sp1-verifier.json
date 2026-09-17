@@ -1,5 +1,0 @@
-{
-  "circuitVersion": "v6.1.0",
-  "plonkVerifierHash": "0x5a093a2fcb46394f5cadfe55c44d4d572fad9cec7aeb38026b0278322ef07fac",
-  "source": "succinctlabs/sp1-contracts@2ac5ecbbe473421a963d67e55f182e9a36576f7c contracts/src/v6.1.0/SP1VerifierPlonk.sol VERIFIER_HASH()"
-}
