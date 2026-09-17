@@ -125,6 +125,8 @@ pub(crate) struct ProofInputs {
     pub(crate) starting_sequence_number: u64,
     pub(crate) root_claim: B256,
     pub(crate) sequence_number: u64,
+    /// The game's immutable `verifier()` adapter; each game keeps the one it was created with.
+    pub(crate) verifier: Address,
 }
 
 /// Super-root safety horizons used by proposal policy.

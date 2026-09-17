@@ -112,7 +112,8 @@ const (
 	sepoliaSP1VerifierV610 = "0xc3c6dDDAc8829b233Dc6536Ec024775a57b0AF2A"
 	// VERIFIER_HASH() of the verifier above: the PLONK circuit it accepts proofs for. Proofs
 	// carry the first four bytes of this value as their selector, so the linked sp1-sdk must
-	// prove for the same circuit (kona-sp1-proposer checks this against the chain at startup).
+	// prove for the same circuit (kona-sp1-proposer derives that circuit's hash from the SDK it
+	// links and checks it against the chain before it creates or proves a game).
 	// Source: succinctlabs/sp1-contracts@2ac5ecbbe473421a963d67e55f182e9a36576f7c,
 	// contracts/src/v6.1.0/SP1VerifierPlonk.sol, VERIFIER_HASH().
 	sp1VerifierHashV610 = "0x5a093a2fcb46394f5cadfe55c44d4d572fad9cec7aeb38026b0278322ef07fac"

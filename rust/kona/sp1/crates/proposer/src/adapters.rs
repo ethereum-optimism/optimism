@@ -286,6 +286,7 @@ where
         let l1_head = contract.l1Head().call().await?;
         let starting = contract.startingProposal().call().await?;
         let root_claim = contract.rootClaim().call().await?;
+        let verifier = contract.verifier().call().await?;
         let sequence_number = contract
             .l2SequenceNumber()
             .call()
@@ -306,6 +307,7 @@ where
             starting_sequence_number,
             root_claim,
             sequence_number,
+            verifier,
         })
     }
 

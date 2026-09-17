@@ -387,6 +387,7 @@ impl ScenarioGame {
                 starting_sequence_number: sequence_number.saturating_sub(1),
                 root_claim: canonical_super_root(sequence_number),
                 sequence_number,
+                verifier: Address::ZERO,
             },
             resolved_at: None,
             prover: None,
