@@ -689,7 +689,7 @@ contract SemgrepTest__sol_style_enforce_require_msg {
 }
 
 contract SemgrepTest__sol_safety_try_catch_eip_150 {
-    function test() {
+    function test_multilineSafe() {
         // ok: sol-safety-trycatch-eip150
         // eip150-safe
         try someContract.someFunction() {
@@ -698,7 +698,9 @@ contract SemgrepTest__sol_safety_try_catch_eip_150 {
             catch {
             // ...
         }
+    }
 
+    function test_multilineUnsafe() {
         // ruleid: sol-safety-trycatch-eip150
         try someContract.someFunction() {
         // ...
@@ -706,6 +708,17 @@ contract SemgrepTest__sol_safety_try_catch_eip_150 {
             catch {
             // ...
         }
+    }
+
+    function test_emptyUnsafe() {
+        // ruleid: sol-safety-trycatch-eip150
+        try someContract.someFunction() { } catch { }
+    }
+
+    function test_emptySafe() {
+        // ok: sol-safety-trycatch-eip150
+        // eip150-safe
+        try someContract.someFunction() { } catch { }
     }
 }
 
