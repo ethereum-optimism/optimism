@@ -260,8 +260,15 @@ contract OPContractsManagerUtils_HasInstruction_Test is OPContractsManagerUtils_
         instructions[0] = OPContractsManagerUtils.ExtraInstruction({ key: _key, data: _data });
 
         assertTrue(utils.hasInstruction(instructions, _key, _data), "Should find matching instruction");
-        assertFalse(utils.hasInstruction(instructions, "nonexistent", _data), "Wrong key returns false");
-        assertFalse(utils.hasInstruction(instructions, _key, "nonexistent"), "Wrong data returns false");
+
+        vm.assume(keccak256(abi.encode(_key)) != keccak256(abi.encode("nonexistent")));
+        vm.assume(keccak256(abi.encode(_data)) != keccak256(abi.encode("nonexistent")));
+        assertFalse(
+            utils.hasInstruction(instructions, string.concat(_key, "nonexistent"), _data), "Wrong key returns false"
+        );
+        assertFalse(
+            utils.hasInstruction(instructions, _key, bytes.concat(_data, "nonexistent")), "Wrong data returns false"
+        );
     }
 
     /// @notice Tests hasInstruction finds correct instruction among multiple entries.
@@ -306,6 +313,7 @@ contract OPContractsManagerUtils_GetInstructionByKey_Test is OPContractsManagerU
         assertEq(found.data, _data, "Data should match");
 
         // Should not find a non-existent instruction.
+        vm.assume(keccak256(abi.encode(_key)) != keccak256(abi.encode("nonexistent")));
         OPContractsManagerUtils.ExtraInstruction memory notFound =
             utils.getInstructionByKey(instructions, "nonexistent");
         assertEq(notFound.key, "", "Key should be empty for not found");
