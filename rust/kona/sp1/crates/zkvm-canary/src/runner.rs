@@ -566,7 +566,7 @@ impl AttemptBase {
             execution,
             input_selection_seconds: self.input_selection_seconds,
             total_seconds: started.elapsed().as_secs_f64(),
-            detail: detail.map(|detail| bounded_detail(&detail.to_string())),
+            detail: detail.map(|detail| bounded_detail(&format!("{detail:#}"))),
         }
     }
 }
@@ -623,7 +623,7 @@ fn selection_failure_with_duration(
         execution: None,
         input_selection_seconds: selection_duration.as_secs_f64(),
         total_seconds: started.elapsed().as_secs_f64(),
-        detail: Some(bounded_detail(&detail.to_string())),
+        detail: Some(bounded_detail(&format!("{detail:#}"))),
     }
 }
 

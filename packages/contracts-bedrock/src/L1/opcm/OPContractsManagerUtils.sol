@@ -350,7 +350,8 @@ contract OPContractsManagerUtils {
         }
 
         // Upgrade to StorageSetter.
-        _proxyAdmin.upgrade(payable(_target), address(implementations().storageSetterImpl));
+        address storageSetter = implementations().storageSetterImpl;
+        _proxyAdmin.upgrade(payable(_target), storageSetter);
 
         // OpenZeppelin Contracts v5 Initializable uses an ERC-7201 namespaced slot instead of
         // the v4 one-byte `_initialized` field. OPCM does not support the v5 layout, so abort
@@ -375,7 +376,7 @@ contract OPContractsManagerUtils {
         // Re-point at StorageSetter to read what the initializer wrote and revert the whole upgrade
         // if v5 state is now present, which keeps an unsupported implementation from being installed.
         // TODO: This should be removed when the OPCM has proper support for upgrading a v5 Initializable contract.
-        _proxyAdmin.upgrade(payable(_target), address(implementations().storageSetterImpl));
+        _proxyAdmin.upgrade(payable(_target), storageSetter);
         if (IStorageSetter(_target).getBytes32(OZ_V5_INITIALIZABLE_SLOT) != bytes32(0)) {
             revert OPContractsManagerUtils_OZv5InitializableUnsupported();
         }

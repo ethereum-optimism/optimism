@@ -75,6 +75,10 @@ impl ScenarioL1View {
 
 #[async_trait]
 impl L1View for ScenarioL1View {
+    async fn signer_balance(&self, _address: Address) -> anyhow::Result<U256> {
+        Ok(U256::ZERO)
+    }
+
     async fn latest_head(&self) -> anyhow::Result<Option<L1BlockRef>> {
         self.latest_head_calls.fetch_add(1, Ordering::Relaxed);
         self.latest_head_notify.notify_waiters();
@@ -289,6 +293,10 @@ struct NoopProofEngine;
 
 #[async_trait]
 impl ProofEngine for NoopProofEngine {
+    async fn prove_balance(&self) -> anyhow::Result<Option<f64>> {
+        Ok(None)
+    }
+
     async fn prove(
         &self,
         _game_address: Address,

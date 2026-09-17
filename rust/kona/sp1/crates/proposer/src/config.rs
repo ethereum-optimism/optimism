@@ -331,8 +331,8 @@ pub struct ProofProviderConfig {
     /// Per-proof timeout in seconds: the server-side deadline for proof
     /// requests and the client-side maximum wait.
     pub timeout: u64,
-    /// Timeout in seconds for individual network API calls (calls exceeding
-    /// it are retried).
+    /// Timeout in seconds for SP1 API calls and metric observations, including
+    /// L1 balance and super-root queries.
     pub network_calls_timeout: u64,
     /// Cancel requests still unassigned past `created_at + auction_timeout`
     /// seconds (mainnet auctions only).

@@ -172,6 +172,7 @@ pub(crate) struct GameCreationReceipt {
 /// Read-only L1 observations consumed by proposer policy.
 #[async_trait]
 pub(crate) trait L1View: Send + Sync {
+    async fn signer_balance(&self, address: Address) -> Result<U256>;
     async fn latest_head(&self) -> Result<Option<L1BlockRef>>;
     async fn block_ref(&self, number: u64) -> Result<Option<L1BlockRef>>;
     async fn registered_game_args(&self, block: BlockId) -> Result<ZKGameArgs>;
@@ -231,6 +232,8 @@ pub(crate) trait SuperRootSource: Send + Sync {
 /// Expensive witness collection and SP1 proof execution.
 #[async_trait]
 pub(crate) trait ProofEngine: Send + Sync {
+    /// Spendable PROVE tokens, or None for mock proving.
+    async fn prove_balance(&self) -> Result<Option<f64>>;
     async fn prove(
         &self,
         game_address: Address,
