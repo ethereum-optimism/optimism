@@ -1105,7 +1105,8 @@ func runEndToEndBootstrapAndApplyUpgradeTest(t *testing.T, afactsFS foundry.Stat
 
 			// Then test upgrade on the V2-deployed chain
 			t.Run("upgrade chain v2", func(t *testing.T) {
-				t.Skip("Live Sepolia upgrade is broken; restore after ethereum-optimism/optimism#22928 or ethereum-optimism/optimism#22930")
+				// TODO(#22934): Re-enable once the test handles U20 already applied.
+				t.Skip("Test does not handle U20 already applied")
 
 				// FaultDisputeGameConfig just needs absolutePrestate (bytes32)
 				testPrestate := common.Hash{'P', 'R', 'E', 'S', 'T', 'A', 'T', 'E'}
