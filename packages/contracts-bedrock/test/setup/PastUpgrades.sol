@@ -37,6 +37,9 @@ library PastUpgrades {
     bytes32 internal constant DUMMY_CANNON_KONA_PRESTATE = keccak256("CANNON_KONA");
     bytes32 internal constant DUMMY_ZK_PRESTATE = keccak256("ZK");
 
+    /// @notice Bond used for a permissionless game the factory has no live bond for.
+    uint256 internal constant DEFAULT_PERMISSIONLESS_INIT_BOND = 0.08 ether;
+
     /// @notice Struct representing an OPCM from the registry (returned by FFI).
     ///         Note: releaseVersion is NOT the OPCM semver - query opcm.version() on-chain for that.
     struct OPCMInfo {
@@ -187,19 +190,19 @@ library PastUpgrades {
         // Acceptable to fail if already up to date
         scSuccess;
 
-        // Build dispute game configs with dummy prestates.
-        // Order must match validGameTypes in OPContractsManagerV2._assertValidFullConfig().
+        // Build dispute game configs with dummy prestates, in the order of validGameTypes in
+        // OPContractsManagerV2._assertValidFullConfig(). That order is not numeric: CANNON_KONA (8)
+        // comes before SUPER_PERMISSIONED (5), and the config at each index must match it.
         IOPContractsManagerUtils.DisputeGameConfig[] memory disputeGameConfigs =
             new IOPContractsManagerUtils.DisputeGameConfig[](6);
 
-        // CANNON (game type 0)
+        // CANNON (game type 0) — disabled. Chains that moved to CANNON_KONA have no CANNON
+        // implementation and a zero bond, and an enabled game with a zero bond fails validation.
         disputeGameConfigs[0] = IOPContractsManagerUtils.DisputeGameConfig({
-            enabled: true,
-            initBond: _disputeGameFactory.initBonds(GameTypes.CANNON),
+            enabled: false,
+            initBond: 0,
             gameType: GameTypes.CANNON,
-            gameArgs: abi.encode(
-                IOPContractsManagerUtils.FaultDisputeGameConfig({ absolutePrestate: Claim.wrap(DUMMY_CANNON_PRESTATE) })
-            )
+            gameArgs: hex""
         });
 
         // PERMISSIONED_CANNON (game type 1)
@@ -219,7 +222,9 @@ library PastUpgrades {
         // CANNON_KONA (game type 8)
         disputeGameConfigs[2] = IOPContractsManagerUtils.DisputeGameConfig({
             enabled: true,
-            initBond: _disputeGameFactory.initBonds(GameTypes.CANNON_KONA),
+            initBond: DisputeGames.permissionlessGameInitBondForUpgrade(
+                _disputeGameFactory, GameTypes.CANNON_KONA, DEFAULT_PERMISSIONLESS_INIT_BOND
+            ),
             gameType: GameTypes.CANNON_KONA,
             gameArgs: abi.encode(
                 IOPContractsManagerUtils.FaultDisputeGameConfig({ absolutePrestate: Claim.wrap(DUMMY_CANNON_KONA_PRESTATE) })
@@ -250,8 +255,6 @@ library PastUpgrades {
             gameArgs: hex""
         });
 
-        _sortDisputeGameConfigs(disputeGameConfigs);
-
         // Execute the V2 upgrade
         vm.prank(_delegateCaller, true);
         (bool upgradeSuccess,) = _opcm.delegatecall(
@@ -267,21 +270,6 @@ library PastUpgrades {
             )
         );
         require(upgradeSuccess, "PastUpgrades: OPCMv2 upgrade failed");
-    }
-
-    /// @notice Sorts dispute game configs by game type in ascending numerical order.
-    /// @param _configs The array to sort in-place.
-    function _sortDisputeGameConfigs(IOPContractsManagerUtils.DisputeGameConfig[] memory _configs) private pure {
-        uint256 n = _configs.length;
-        for (uint256 i = 0; i < n; i++) {
-            for (uint256 j = i + 1; j < n; j++) {
-                if (_configs[j].gameType.raw() < _configs[i].gameType.raw()) {
-                    IOPContractsManagerUtils.DisputeGameConfig memory temp = _configs[i];
-                    _configs[i] = _configs[j];
-                    _configs[j] = temp;
-                }
-            }
-        }
     }
 
     /// @notice Resolves on-chain versions for OPCMs and filters to >= 7.x.x (V2 OPCMs only).
