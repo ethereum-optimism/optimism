@@ -98,12 +98,7 @@ rules:
       succeed or (2) assert that a user-triggered OOG is acceptable.
     message: try/catch blocks must be marked as EIP-150 safe
     patterns:
-      - pattern: |
-          try ... {
-            ...
-          } catch ... {
-            ...
-          }
+      - pattern: try ... { ... } catch ... { ... }
       - pattern-not-inside: |
           // eip150-safe
           ...
