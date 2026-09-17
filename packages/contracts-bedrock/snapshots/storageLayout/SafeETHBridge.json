@@ -1,0 +1,30 @@
+[
+  {
+    "bytes": "32",
+    "label": "nonce",
+    "offset": 0,
+    "slot": "0",
+    "type": "uint256"
+  },
+  {
+    "bytes": "32",
+    "label": "reservedLiquidity",
+    "offset": 0,
+    "slot": "1",
+    "type": "uint256"
+  },
+  {
+    "bytes": "32",
+    "label": "_source",
+    "offset": 0,
+    "slot": "2",
+    "type": "mapping(bytes32 => struct SafeETHBridge.Record)"
+  },
+  {
+    "bytes": "32",
+    "label": "_destination",
+    "offset": 0,
+    "slot": "3",
+    "type": "mapping(bytes32 => struct SafeETHBridge.Record)"
+  }
+]
