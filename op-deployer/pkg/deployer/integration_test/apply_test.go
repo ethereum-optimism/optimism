@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"log/slog"
 	"math/big"
+	"os"
 	"strings"
 	"testing"
 	"time"
@@ -214,7 +215,9 @@ func TestEndToEndBootstrapApplyWithUpgrade(t *testing.T) {
 }
 
 // TestApplyDefaultsSP1VerifierOnSepolia pins that a ZK-enabled live apply with no sp1Verifier
-// override deploys an SP1PlonkAdapter wrapping the release-approved raw verifier.
+// override deploys an SP1PlonkAdapter wrapping the release-approved raw verifier, and that the
+// verifier implements the circuit pinned in standard/sp1-verifier.json (the circuit the linked
+// sp1-sdk proves for; see kona-sp1-proposer's release-pin test).
 func TestApplyDefaultsSP1VerifierOnSepolia(t *testing.T) {
 	op_e2e.InitParallel(t)
 
@@ -276,6 +279,23 @@ func TestApplyDefaultsSP1VerifierOnSepolia(t *testing.T) {
 	var wrapped common.Address
 	require.NoError(t, sp1VerifierFn.DecodeReturns(ret, &wrapped))
 	require.Equal(t, expected, wrapped, "adapter should wrap the release verifier")
+
+	var pin struct {
+		PlonkVerifierHash common.Hash `json:"plonkVerifierHash"`
+	}
+	pinJSON, err := os.ReadFile("../standard/sp1-verifier.json")
+	require.NoError(t, err)
+	require.NoError(t, json.Unmarshal(pinJSON, &pin))
+	require.NotEqual(t, common.Hash{}, pin.PlonkVerifierHash)
+
+	verifierHashFn := w3.MustNewFunc("VERIFIER_HASH()", "bytes32")
+	calldata, err = verifierHashFn.EncodeArgs()
+	require.NoError(t, err)
+	ret, err = client.CallContract(ctx, ethereum.CallMsg{To: &wrapped, Data: calldata}, nil)
+	require.NoError(t, err)
+	var verifierHash common.Hash
+	require.NoError(t, verifierHashFn.DecodeReturns(ret, &verifierHash))
+	require.Equal(t, pin.PlonkVerifierHash, verifierHash, "release verifier must implement the pinned circuit")
 }
 
 func TestEndToEndApply(t *testing.T) {

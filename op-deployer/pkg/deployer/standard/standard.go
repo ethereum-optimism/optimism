@@ -115,6 +115,11 @@ const (
 // SP1VerifierFor returns the raw SP1 verifier approved for the current OPCM release on the given L1
 // chain ID. Both `bootstrap implementations` and `apply` default to it when ZK dispute games are
 // enabled and the operator did not pin a verifier explicitly.
+//
+// The verifier must implement the circuit that the linked sp1-sdk proves for. That circuit is
+// pinned in sp1-verifier.json next to this file: kona-sp1-proposer's release-pin test checks the
+// JSON against the SDK, and TestApplyDefaultsSP1VerifierOnSepolia checks it against this address on
+// chain. Change the address and the JSON together.
 // DO NOT MODIFY THIS METHOD WITHOUT CLEARING IT WITH THE EVM SAFETY TEAM.
 func SP1VerifierFor(chainID uint64) (common.Address, error) {
 	switch chainID {
