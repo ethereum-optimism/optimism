@@ -353,6 +353,9 @@ func (b *RawSpanBatch) derive(blockTime, genesisTimestamp uint64, chainID *big.I
 		}
 	}
 
+	if err := b.txs.checkPostExecSlots(); err != nil {
+		return nil, err
+	}
 	if err := b.txs.recoverV(chainID); err != nil {
 		return nil, err
 	}

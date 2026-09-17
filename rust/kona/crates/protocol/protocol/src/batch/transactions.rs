@@ -379,6 +379,48 @@ impl SpanBatchTransactions {
         self.contract_creation_bits.as_ref().iter().map(|b| b.count_ones() as u64).sum()
     }
 
+    /// Enforces the span batch slot values the Lagoon spec fixes for a post-exec (`0x7D`)
+    /// transaction: the contract creation bit is set, so no `tx_tos` entry is consumed, and the
+    /// signature, nonce and gas slots are zero, because a post-exec transaction has no such
+    /// fields to transpose.
+    ///
+    /// This is a decode-side rule and it has to live here. The slots are discarded when the
+    /// transaction is reconstructed, so no later stage can notice a batcher that filled them with
+    /// something else, and a block that derives identically either way would have more than one
+    /// valid span batch encoding. Contrast the block-level structural rules (at most one post-exec
+    /// transaction, last in its block): those are checked when the derived block is validated, and
+    /// this decoder deliberately leaves them alone, because rejecting them here would skip the
+    /// deposit-only replacement and derive a different chain.
+    ///
+    /// A violation invalidates the whole span batch: these slots are positional across the span,
+    /// so it cannot be attributed to the one block whose transaction carries it.
+    pub fn check_post_exec_slots(&self) -> Result<(), SpanBatchError> {
+        const ERR: SpanBatchError =
+            SpanBatchError::Decoding(SpanDecodingError::InvalidPostExecSlots);
+
+        for (idx, tx_type) in self.tx_types.iter().enumerate() {
+            if *tx_type != OpTxType::PostExec {
+                continue;
+            }
+            if self.contract_creation_bits.get_bit(idx) != Some(1) {
+                return Err(ERR);
+            }
+            // kona folds the `y_parity_bits` bit into the signature at decode time, so the
+            // parity flag here is that bit.
+            let sig = self.tx_sigs.get(idx).ok_or(ERR)?;
+            if !sig.r().is_zero() || !sig.s().is_zero() || sig.v() {
+                return Err(ERR);
+            }
+            if *self.tx_nonces.get(idx).ok_or(ERR)? != 0 {
+                return Err(ERR);
+            }
+            if *self.tx_gases.get(idx).ok_or(ERR)? != 0 {
+                return Err(ERR);
+            }
+        }
+        Ok(())
+    }
+
     /// Retrieve all of the raw transactions from the [`SpanBatchTransactions`].
     pub fn full_txs(&self, chain_id: u64) -> Result<Vec<Vec<u8>>, SpanBatchError> {
         let mut txs = Vec::new();
@@ -616,6 +658,75 @@ mod tests {
 
         let full_txs = span_batch_txs.full_txs(1).unwrap();
         assert_eq!(full_txs, vec![buf]);
+    }
+
+    /// Builds the span batch transposition of a single post-exec transaction, as a batcher
+    /// would encode it.
+    fn post_exec_span_batch_txs() -> SpanBatchTransactions {
+        let tx: OpTxEnvelope = TxPostExec::new(PostExecPayload {
+            version: POST_EXEC_PAYLOAD_VERSION,
+            block_number: 42,
+            gas_refund_entries: vec![],
+        })
+        .into();
+        let mut buf = vec![];
+        tx.encode_2718(&mut buf);
+
+        let mut span_batch_txs = SpanBatchTransactions::default();
+        span_batch_txs.add_txs(vec![Bytes::from(buf)], 1).unwrap();
+        span_batch_txs
+    }
+
+    #[test]
+    fn test_check_post_exec_slots_accepts_honest_encoding() {
+        assert_eq!(post_exec_span_batch_txs().check_post_exec_slots(), Ok(()));
+    }
+
+    #[test]
+    fn test_check_post_exec_slots_rejects_tampered_slots() {
+        let err = || SpanBatchError::Decoding(SpanDecodingError::InvalidPostExecSlots);
+
+        // Clearing the contract creation bit would make the transaction consume a `tx_tos`
+        // entry it has no field for.
+        let mut txs = post_exec_span_batch_txs();
+        txs.contract_creation_bits.set_bit(0, false);
+        assert_eq!(txs.check_post_exec_slots(), Err(err()));
+
+        // A post-exec transaction is unsigned: r, s and the y parity bit are all zero.
+        let mut txs = post_exec_span_batch_txs();
+        txs.tx_sigs[0] = Signature::new(U256::from(1), U256::ZERO, false);
+        assert_eq!(txs.check_post_exec_slots(), Err(err()));
+
+        let mut txs = post_exec_span_batch_txs();
+        txs.tx_sigs[0] = Signature::new(U256::ZERO, U256::from(1), false);
+        assert_eq!(txs.check_post_exec_slots(), Err(err()));
+
+        let mut txs = post_exec_span_batch_txs();
+        txs.tx_sigs[0] = Signature::new(U256::ZERO, U256::ZERO, true);
+        assert_eq!(txs.check_post_exec_slots(), Err(err()));
+
+        let mut txs = post_exec_span_batch_txs();
+        txs.tx_nonces[0] = 1;
+        assert_eq!(txs.check_post_exec_slots(), Err(err()));
+
+        let mut txs = post_exec_span_batch_txs();
+        txs.tx_gases[0] = 1;
+        assert_eq!(txs.check_post_exec_slots(), Err(err()));
+    }
+
+    #[test]
+    fn test_check_post_exec_slots_ignores_other_tx_types() {
+        // An ordinary transaction carries a real signature, nonce and gas, and the rule must
+        // not reach it.
+        let sig = Signature::test_signature();
+        let tx = TxEip1559 { chain_id: 1, nonce: 7, gas_limit: 21_000, ..Default::default() };
+        let tx_envelope: OpTxEnvelope = Signed::new_unchecked(tx, sig, Default::default()).into();
+        let mut buf = vec![];
+        tx_envelope.encode_2718(&mut buf);
+
+        let mut txs = SpanBatchTransactions::default();
+        txs.add_txs(vec![Bytes::from(buf)], 1).unwrap();
+        assert_eq!(txs.check_post_exec_slots(), Ok(()));
     }
 
     #[test]

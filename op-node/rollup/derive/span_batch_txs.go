@@ -484,6 +484,48 @@ func (sbtx *spanBatchTxs) AddTxs(txs [][]byte, chainID *big.Int) error {
 	return nil
 }
 
+// checkPostExecSlots enforces the span batch slot values the Lagoon spec fixes for a
+// post-exec (0x7D) transaction: the contract creation bit is set, so no tx_tos entry is
+// consumed, and the signature, nonce and gas slots are zero, because a post-exec
+// transaction has no such fields to transpose.
+//
+// This is a decode-side rule and it has to live here. The slots are discarded when the
+// transaction is reconstructed, so no later stage can notice a batcher that filled them
+// with something else, and a block that derives identically either way would have more
+// than one valid span batch encoding. Contrast the block-level structural rules (at most
+// one post-exec transaction, last in its block): those are checked when the derived block
+// is validated, and this decoder deliberately leaves them alone, because rejecting them
+// here would skip the deposit-only replacement and derive a different chain.
+//
+// A violation invalidates the whole span batch: these slots are positional across the
+// span, so it cannot be attributed to the one block whose transaction carries it.
+func (btx *spanBatchTxs) checkPostExecSlots() error {
+	for idx, txType := range btx.txTypes {
+		if txType != optypes.PostExecTxType {
+			continue
+		}
+		if idx >= len(btx.txSigs) || idx >= len(btx.txNonces) || idx >= len(btx.txGases) {
+			return fmt.Errorf("post-exec tx at index %d: span batch slot arrays are short", idx)
+		}
+		if btx.contractCreationBits.Bit(idx) != 1 {
+			return fmt.Errorf("post-exec tx at index %d must set the contract creation bit", idx)
+		}
+		if btx.yParityBits.Bit(idx) != 0 {
+			return fmt.Errorf("post-exec tx at index %d must have a zero y parity bit", idx)
+		}
+		if !btx.txSigs[idx].r.IsZero() || !btx.txSigs[idx].s.IsZero() {
+			return fmt.Errorf("post-exec tx at index %d must have a zero signature", idx)
+		}
+		if btx.txNonces[idx] != 0 {
+			return fmt.Errorf("post-exec tx at index %d must have a zero nonce", idx)
+		}
+		if btx.txGases[idx] != 0 {
+			return fmt.Errorf("post-exec tx at index %d must have a zero gas limit", idx)
+		}
+	}
+	return nil
+}
+
 // addPostExecTx appends the span batch fields of a post-exec (0x7D) transaction
 // at position idx of the span. Post-exec transactions are synthetic and unsigned:
 // they carry no signature, nonce, gas or recipient, so every transposed envelope
