@@ -21,6 +21,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/env"
 
 	"github.com/ethereum/go-ethereum"
+	"github.com/ethereum/go-ethereum/accounts/abi"
 
 	"github.com/ethereum-optimism/optimism/op-chain-ops/script"
 	"github.com/ethereum-optimism/optimism/op-service/testutils"
@@ -1112,6 +1113,16 @@ func runEndToEndBootstrapAndApplyUpgradeTest(t *testing.T, afactsFS foundry.Stat
 				testProposer := common.Address{'P'}
 				testChallenger := common.Address{'C'}
 
+				// OPCM reads startingRespectedGameType off the chain's AnchorStateRegistry and
+				// requires it to name an enabled dispute game config. Pin it so live chain state
+				// cannot decide this test.
+				gameTypeTy, err := abi.NewType("uint32", "", nil)
+				require.NoError(t, err)
+				startingRespectedGameType, err := (abi.Arguments{{Type: gameTypeTy}}).Pack(
+					uint32(embedded.GameTypeCannon),
+				)
+				require.NoError(t, err)
+
 				upgradeConfig := embedded.UpgradeOPChainInput{
 					Prank: superchainProxyAdminOwner,
 					Opcm:  impls.OpcmV2,
@@ -1160,7 +1171,12 @@ func runEndToEndBootstrapAndApplyUpgradeTest(t *testing.T, afactsFS foundry.Stat
 								GameType: embedded.GameTypeZKDisputeGame,
 							},
 						},
-						ExtraInstructions: []embedded.ExtraInstruction{},
+						ExtraInstructions: []embedded.ExtraInstruction{
+							{
+								Key:  "overrides.cfg.startingRespectedGameType",
+								Data: startingRespectedGameType,
+							},
+						},
 					},
 				}
 
