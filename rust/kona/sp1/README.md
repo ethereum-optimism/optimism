@@ -62,6 +62,12 @@ infrastructure error. Release automation will eventually pin per-version vkeys f
 manifest into `superchain-registry/validation/standard/standard-prestates.toml` and verify
 reproducible builds.
 
+The on-chain SP1 verifier is pinned separately: `op-deployer/pkg/deployer/standard/sp1-verifier.json`
+records the circuit version and PLONK `VERIFIER_HASH()` the release-approved verifier implements.
+`kona-sp1-proposer`'s `verifier::tests::sdk_plonk_vk_matches_release_pin` holds that file to the
+linked sp1-sdk, so bumping the SDK to a new circuit fails CI until the verifier address and the
+pin move together.
+
 #### Build provenance
 
 Both guests embed the commit they were built from, so a guest ELF identifies its own source
@@ -208,6 +214,11 @@ proposer loses the ability to defend, resolve, and claim those games.
   prestate and remove its games from the owned set). The registered prestate's
   keys are verified BEFORE any game is created on it, so the proposer never
   bonds a game it has not proven it can defend.
+  At startup the proposer also reads the registered game verifier
+  (`SP1PlonkAdapter.sp1Verifier().VERIFIER_HASH()`) and refuses to start when it differs from
+  `sha256(sp1_verifier::PLONK_VK_BYTES)`, the selector the linked sp1-sdk puts on every proof.
+  The ERROR log names both hashes and the SDK circuit; the fix is a verifier re-pin or an SDK
+  change, so the startup retry loop keeps reporting it until then.
 - `KONA_SP1_PROPOSER_PROOF_PROVIDER=mock`: dev-only. Runs the full pipeline natively (witness
   collection computes the real range/consolidation outputs and the aggregation
   inputs are validated), then submits placeholder proof bytes. Only a deployment

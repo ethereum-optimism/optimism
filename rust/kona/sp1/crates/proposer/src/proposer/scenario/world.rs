@@ -1715,6 +1715,10 @@ impl L1View for FakeL1View {
         data.record_l1_read(L1ReadBoundary::LatestL1Timestamp, L1ReadTarget::Global)?;
         Ok(state.block.timestamp)
     }
+
+    async fn verifier_hash(&self, _verifier: Address) -> Result<B256> {
+        Ok(crate::verifier::expected_verifier_hash())
+    }
 }
 
 #[derive(Clone)]

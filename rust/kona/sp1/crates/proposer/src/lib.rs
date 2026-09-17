@@ -21,6 +21,7 @@ pub mod prover;
 pub mod proving;
 pub mod signer;
 pub mod superroot;
+pub mod verifier;
 
 mod adapters;
 mod ports;

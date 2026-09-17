@@ -22,7 +22,7 @@ use crate::{
     contract::{
         AnchorStateRegistry, DelayedWETH,
         DisputeGameFactory::{DisputeGameCreated, DisputeGameFactoryInstance},
-        GameStatus, ProposalStatus, ZKDisputeGame, ZKGameArgs,
+        GameStatus, ISP1Verifier, ProposalStatus, SP1PlonkAdapter, ZKDisputeGame, ZKGameArgs,
     },
     ports::{
         ActionExecutor, AnchorRoot, BondState, ClaimPreflight, FactoryGame, GameClaim,
@@ -318,6 +318,19 @@ where
             .header
             .timestamp)
     }
+
+    async fn verifier_hash(&self, verifier: Address) -> Result<B256> {
+        let raw_verifier = SP1PlonkAdapter::new(verifier, self.provider.clone())
+            .sp1Verifier()
+            .call()
+            .await
+            .with_context(|| format!("verifier {verifier} is not an SP1PlonkAdapter"))?;
+        ISP1Verifier::new(raw_verifier, self.provider.clone())
+            .VERIFIER_HASH()
+            .call()
+            .await
+            .with_context(|| format!("SP1 verifier {raw_verifier} does not expose VERIFIER_HASH()"))
+    }
 }
 
 /// Production super-root observations over the configured supernode clients.
@@ -553,6 +566,18 @@ mod tests {
     fn push_abi(asserter: &Asserter, value: impl SolValue) {
         let encoded: Bytes = value.abi_encode().into();
         asserter.push_success(&encoded);
+    }
+
+    #[tokio::test]
+    async fn verifier_hash_reads_adapter_then_raw_verifier() {
+        let asserter = Asserter::new();
+        let raw_verifier = Address::repeat_byte(0x42);
+        let hash = B256::repeat_byte(0x5a);
+        push_abi(&asserter, raw_verifier);
+        push_abi(&asserter, hash);
+
+        let actual = view(asserter).verifier_hash(Address::repeat_byte(0x71)).await.unwrap();
+        assert_eq!(actual, hash);
     }
 
     fn superroot_response(timestamp: u64) -> SuperRootAtTimestampResponse {

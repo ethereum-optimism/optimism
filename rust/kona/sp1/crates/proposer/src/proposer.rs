@@ -49,6 +49,7 @@ use crate::{
     proving::{GameProofInputs, fetch_span_responses, is_unprovable, response_trusted},
     signer::{FeeCaps, SignerLock},
     superroot::{SuperrootClient, zk_extra_data},
+    verifier::check_verifier_hash,
 };
 
 #[cfg(test)]
@@ -1081,6 +1082,7 @@ impl Proposer {
         // Validate the registered game args decode and load the registered
         // prestate's programs.
         let game_args = self.l1_view.registered_game_args(BlockId::latest()).await?;
+        self.check_verifier(game_args.verifier).await?;
         if !self.prestates.ensure_loaded(game_args.absolute_prestate).await {
             // Not fatal: creation stays paused until the artifacts appear
             // under KONA_SP1_PROPOSER_PRESTATES_URL (PrestateCache::ensure_loaded logged why).
@@ -1098,6 +1100,33 @@ impl Proposer {
         let _ = self.max_challenge_duration.set(game_args.max_challenge_duration);
 
         self.validated_anchor_timestamp().await
+    }
+
+    /// Reads the raw SP1 verifier hash behind the registered `verifier` adapter. Network
+    /// proofs carry the linked sp1-sdk circuit's selector, so a verifier for another circuit
+    /// would reject every proof after the proving spend; refuse to start instead. Mock mode
+    /// only logs the hash: `MockSP1Verifier` accepts any bytes, and the read still proves the
+    /// adapter wiring.
+    async fn check_verifier(&self, verifier: Address) -> Result<()> {
+        let actual = self.l1_view.verifier_hash(verifier).await?;
+        if self.config.proof_provider == ProofProviderKind::Mock {
+            tracing::info!(%verifier, verifier_hash = %actual, "skipping SP1 verifier hash check in mock mode");
+            return Ok(());
+        }
+        check_verifier_hash(verifier, actual)
+            .inspect(|()| {
+                tracing::info!(%verifier, verifier_hash = %actual, "SP1 verifier matches the linked sp1-sdk circuit");
+            })
+            .inspect_err(|mismatch| {
+                tracing::error!(
+                    %verifier,
+                    expected = %mismatch.expected,
+                    actual = %mismatch.actual,
+                    circuit = mismatch.circuit,
+                    "on-chain SP1 verifier rejects proofs from the linked sp1-sdk; re-pin the verifier or the SDK"
+                );
+            })
+            .map_err(Into::into)
     }
 
     /// Return the timestamp only when the anchor matches a trusted supernode root.
@@ -4365,6 +4394,7 @@ mod tests {
         prover::{MockProofProvider, ProofKeys, ProofProvider},
         proving::GameProofInputs,
         signer::{Signer, SignerLock},
+        verifier::{VerifierHashMismatch, expected_verifier_hash},
     };
 
     struct TestQueryTime(u64);
@@ -4567,6 +4597,7 @@ mod tests {
         signer_balance: U256,
         lifecycles: HashMap<Address, GameLifecycle>,
         failing_lifecycle_game: Option<Address>,
+        verifier_hash: B256,
     }
 
     impl Default for RecordingL1View {
@@ -4638,6 +4669,7 @@ mod tests {
                 signer_balance: U256::ZERO,
                 lifecycles: Default::default(),
                 failing_lifecycle_game: None,
+                verifier_hash: expected_verifier_hash(),
             }
         }
     }
@@ -4883,6 +4915,12 @@ mod tests {
         async fn latest_l1_timestamp(&self) -> anyhow::Result<u64> {
             self.record("latest_l1_timestamp");
             Ok(self.latest_l1_timestamp)
+        }
+
+        async fn verifier_hash(&self, _verifier: Address) -> anyhow::Result<B256> {
+            self.record("verifier_hash");
+            self.fail_if_configured("verifier_hash")?;
+            Ok(self.verifier_hash)
         }
     }
 
@@ -6250,6 +6288,51 @@ mod tests {
         proposer.validate_and_init().await.unwrap();
 
         assert_eq!(proposer.state.read().await.canonical_head_sequence_number, Some(100));
+    }
+
+    #[tokio::test]
+    async fn startup_rejects_verifier_hash_mismatch_in_network_mode() {
+        let config = ProposerConfig { proof_provider: ProofProviderKind::Network, ..test_config() };
+        let mut proposer = test_proposer_with(config).await;
+        let view = Arc::new(RecordingL1View {
+            verifier_hash: B256::repeat_byte(0xaa),
+            registered_args: ZKGameArgs {
+                verifier: Address::repeat_byte(0x71),
+                ..RecordingL1View::default().registered_args
+            },
+            ..Default::default()
+        });
+        proposer.l1_view = view.clone();
+
+        let err = proposer.validate_and_init().await.unwrap_err();
+        let mismatch =
+            err.downcast_ref::<VerifierHashMismatch>().expect("typed VerifierHashMismatch");
+        assert_eq!(mismatch.verifier, Address::repeat_byte(0x71));
+        assert_eq!(mismatch.actual, B256::repeat_byte(0xaa));
+        assert_eq!(mismatch.expected, expected_verifier_hash());
+        assert_eq!(proposer.state.read().await.canonical_head_sequence_number, None);
+    }
+
+    #[tokio::test]
+    async fn startup_logs_but_ignores_verifier_hash_in_mock_mode() {
+        let canonical = canonical_super_root_at_timestamp(100);
+        let mut proposer = test_proposer().await;
+        let view = Arc::new(RecordingL1View {
+            verifier_hash: B256::repeat_byte(0xaa),
+            anchor_root: AnchorRoot {
+                root: canonical.root.as_ref().unwrap().super_root,
+                sequence_number: U256::from(100),
+            },
+            ..Default::default()
+        });
+        proposer.l1_view = view.clone();
+        proposer.superroot_source = Arc::new(ScriptedSuperRootSource {
+            horizon: ProposalHorizon { safe_timestamp: 100, finalized_timestamp: 100 },
+            roots: vec![(100, canonical)],
+        });
+
+        proposer.validate_and_init().await.unwrap();
+        assert!(view.calls().contains(&"verifier_hash"));
     }
 
     #[tokio::test]

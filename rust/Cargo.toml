@@ -504,6 +504,7 @@ sp1-core-executor = { version = "6.8.0", default-features = false }
 sp1-sdk = { version = "6.8.0", default-features = false, features = [
   "network",
 ] }
+sp1-verifier = { version = "6.8.0", default-features = false }
 
 # ==================== ASYNC ====================
 async-channel = "2.5"
