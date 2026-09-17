@@ -313,10 +313,9 @@ where
     ///
     /// A `blockHash` filter targets a single block and is decided like every other hash-addressed
     /// method. A range filter is forwarded only when every block it can match is pre-bedrock,
-    /// which needs a fixed upper bound: a `toBlock` that tracks the chain tip (`latest`, `safe`,
-    /// `finalized`, `pending`, or absent) keeps the filter local.
+    /// which takes a `toBlock` naming a fixed pre-bedrock block.
     fn should_forward_log_filter(&self, req: &Request<'_>) -> bool {
-        let (from_block, to_block) = match parse_log_filter_block_option(&req.params()) {
+        let (from_bound, to_bound) = match parse_log_filter_block_option(&req.params()) {
             Some(FilterBlockOption::AtBlockHash(hash)) => {
                 return self.is_pre_bedrock(BlockId::Hash(hash.into()));
             }
@@ -324,37 +323,39 @@ where
             None => return false,
         };
 
-        let Some(to_block) = to_block.and_then(|bound| self.resolve_filter_bound(bound)) else {
-            return false;
-        };
-        // Without a `fromBlock` the range is open below, so genesis is the widest block it can
-        // reach back to.
-        let from_block = from_block.and_then(|bound| self.resolve_filter_bound(bound)).unwrap_or(0);
+        let from_block = from_bound.and_then(|bound| self.resolve_filter_bound(bound));
+        let to_block = to_bound.and_then(|bound| self.resolve_filter_bound(bound));
 
-        if to_block >= self.bedrock_block {
-            if from_block < self.bedrock_block {
+        let Some(to_block) = to_block.filter(|to_block| *to_block < self.bedrock_block) else {
+            if let Some(from_block) = from_block.filter(|from| *from < self.bedrock_block) {
                 // Serving the range locally drops its pre-bedrock half. Splitting it across both
                 // backends would have to happen in `HistoricalRpcService`, which is the only
                 // place holding the inner service as well as the historical client.
                 warn!(
                     target: "rpc::historical",
                     from_block,
-                    to_block,
+                    to_block = %to_bound.unwrap_or(BlockNumberOrTag::Latest),
                     bedrock = self.bedrock_block,
                     "log filter spans the bedrock transition; serving it locally returns only its post-bedrock logs"
                 );
             }
             return false;
-        }
+        };
+
+        // A range open below has no span to meter: the historical endpoint resolves the missing
+        // bound to its own tip, the last pre-bedrock block.
+        let Some(from_block) = from_block else { return true };
 
         // Forwarding skips the local `eth_getLogs` handler, so honor its span limit here as well
         // rather than letting a caller aim an unmetered scan at the historical endpoint. A wider
-        // range falls through to local handling, which rejects it with that same limit.
+        // range is left to local handling, which rejects it.
         self.max_blocks_per_filter.is_none_or(|max| to_block.saturating_sub(from_block) <= max)
     }
 
-    /// Resolves an `eth_getLogs` range bound to the block number it names, or `None` when the
-    /// bound tracks the chain tip and so has no fixed pre-bedrock answer.
+    /// Resolves an `eth_getLogs` range bound to the block number it names, or `None` when it
+    /// names the chain tip — which, on a chain that went through the transition, is post-bedrock.
+    ///
+    /// An absent bound is the tip too, for both reth and the historical endpoint.
     fn resolve_filter_bound(&self, bound: BlockNumberOrTag) -> Option<BlockNumber> {
         match bound {
             BlockNumberOrTag::Number(_) | BlockNumberOrTag::Earliest => {
@@ -636,10 +637,7 @@ mod tests {
     use reth_storage_api::noop::NoopProvider;
     use rstest::rstest;
     use serde_json::json;
-    use std::sync::{
-        Mutex,
-        atomic::{AtomicUsize, Ordering},
-    };
+    use std::sync::Mutex;
     use tower::layer::util::Identity;
 
     fn method_not_found_payload() -> ErrorPayload {
@@ -733,12 +731,25 @@ mod tests {
         json["error"]["message"].as_str().unwrap().to_string()
     }
 
-    /// A [`tracing::Subscriber`] that counts WARN-level events.
-    struct WarnCounter {
-        warns: Arc<AtomicUsize>,
+    /// A WARN-level event captured by [`WarnRecorder`]: its target and its field names.
+    type WarnEvent = (String, Vec<String>);
+
+    /// A [`tracing::Subscriber`] that records WARN-level events.
+    struct WarnRecorder {
+        warns: Arc<Mutex<Vec<WarnEvent>>>,
     }
 
-    impl tracing::Subscriber for WarnCounter {
+    /// Collects the field names of a `tracing` event.
+    #[derive(Default)]
+    struct FieldNames(Vec<String>);
+
+    impl tracing::field::Visit for FieldNames {
+        fn record_debug(&mut self, field: &tracing::field::Field, _value: &dyn std::fmt::Debug) {
+            self.0.push(field.name().to_string());
+        }
+    }
+
+    impl tracing::Subscriber for WarnRecorder {
         fn enabled(&self, metadata: &tracing::Metadata<'_>) -> bool {
             *metadata.level() <= tracing::Level::WARN
         }
@@ -753,7 +764,9 @@ mod tests {
 
         fn event(&self, event: &tracing::Event<'_>) {
             if *event.metadata().level() == tracing::Level::WARN {
-                self.warns.fetch_add(1, Ordering::SeqCst);
+                let mut fields = FieldNames::default();
+                event.record(&mut fields);
+                self.warns.lock().unwrap().push((event.metadata().target().to_string(), fields.0));
             }
         }
 
@@ -762,13 +775,19 @@ mod tests {
         fn exit(&self, _span: &tracing::span::Id) {}
     }
 
+    /// Runs `f` and returns the WARN events it emitted.
+    fn warn_events_while<T>(f: impl FnOnce() -> T) -> Vec<WarnEvent> {
+        let warns = Arc::new(Mutex::new(Vec::new()));
+        tracing::subscriber::with_default(WarnRecorder { warns: warns.clone() }, f);
+        warns.lock().unwrap().clone()
+    }
+
     /// Runs `fut` on a current-thread runtime and returns the number of WARN events emitted.
     fn warns_during<F: Future<Output = ()>>(fut: F) -> usize {
-        let warns = Arc::new(AtomicUsize::new(0));
-        tracing::subscriber::with_default(WarnCounter { warns: warns.clone() }, || {
+        warn_events_while(|| {
             tokio::runtime::Builder::new_current_thread().build().unwrap().block_on(fut)
-        });
-        warns.load(Ordering::SeqCst)
+        })
+        .len()
     }
 
     #[test]
@@ -858,7 +877,7 @@ mod tests {
     }
 
     /// Tests that forwarding doesn't bypass `--rpc.max-blocks-per-filter`: a pre-bedrock range
-    /// wider than the limit stays local, where reth rejects it with that same limit.
+    /// wider than the limit stays local, where reth rejects it.
     #[test]
     fn does_not_forward_log_filters_wider_than_the_span_limit() {
         let historical = HistoricalRpcInner {
@@ -872,6 +891,10 @@ mod tests {
 
         assert!(historical.should_forward_request(&range_ending_pre_bedrock(100_000)));
         assert!(!historical.should_forward_request(&range_ending_pre_bedrock(100_001)));
+
+        // A range open below has no span to meter: the historical endpoint resolves the missing
+        // bound to its own tip, so it scans a single block.
+        assert!(historical.should_forward_request(&logs_request(r#"{"toBlock":"0x645c276"}"#)));
     }
 
     /// Tests that various valid id types can be parsed from the first parameter.
@@ -1156,19 +1179,42 @@ mod tests {
         assert_eq!(warns, 1, "expected exactly one warning for a forwarding failure");
     }
 
-    /// Tests that a log filter crossing bedrock warns about the pre-bedrock logs it drops, and
-    /// that a filter wholly above bedrock — which drops nothing — stays quiet.
-    #[test]
-    fn crossing_bedrock_log_filter_warns() {
-        let warns = warns_during(async {
+    /// Tests that a log filter crossing bedrock warns about the pre-bedrock logs it drops. The
+    /// upper bound may be an explicit post-bedrock block or anything tracking the chain tip,
+    /// which is where the everyday "all logs for this contract" query lands.
+    #[rstest]
+    #[case::to_post_bedrock_block(r#"{"fromBlock":"0x645c276","toBlock":"0x645d1d8"}"#)]
+    #[case::to_latest(r#"{"fromBlock":"0x0","toBlock":"latest"}"#)]
+    #[case::to_finalized(r#"{"fromBlock":"earliest","toBlock":"finalized"}"#)]
+    #[case::open_ended(r#"{"fromBlock":"0x0"}"#)]
+    fn crossing_bedrock_log_filter_warns(#[case] filter: &str) {
+        let warns = warn_events_while(|| {
             let historical = mocked_historical(Asserter::new());
-            let post_bedrock = logs_request(r#"{"fromBlock":"0x645d1d8","toBlock":"0x645d1d9"}"#);
-            let crossing = logs_request(r#"{"fromBlock":"0x0","toBlock":"0x645d1d8"}"#);
-
-            assert!(!historical.should_forward_request(&post_bedrock));
-            assert!(!historical.should_forward_request(&crossing));
+            assert!(!historical.should_forward_request(&logs_request(filter)));
         });
-        assert_eq!(warns, 1, "expected exactly one warning, for the filter crossing bedrock");
+
+        let [(target, fields)] = warns.as_slice() else {
+            panic!("expected exactly one warning, got {warns:?}");
+        };
+        assert_eq!(target, "rpc::historical");
+        for field in ["from_block", "to_block", "bedrock"] {
+            assert!(fields.contains(&field.to_string()), "missing {field} in {fields:?}");
+        }
+    }
+
+    /// Tests that a filter losing nothing to the transition stays quiet: one wholly above
+    /// bedrock, and one whose lower bound tracks the chain tip and so is above it too.
+    #[rstest]
+    #[case::post_bedrock_range(r#"{"fromBlock":"0x645d1d8","toBlock":"0x645d1d9"}"#)]
+    #[case::from_latest(r#"{"fromBlock":"latest","toBlock":"0x645d1d8"}"#)]
+    #[case::no_bounds(r#"{}"#)]
+    fn post_bedrock_log_filter_does_not_warn(#[case] filter: &str) {
+        let warns = warn_events_while(|| {
+            let historical = mocked_historical(Asserter::new());
+            assert!(!historical.should_forward_request(&logs_request(filter)));
+        });
+
+        assert!(warns.is_empty(), "{warns:?}");
     }
 
     /// Tests that a failed `eth_getLogs` forward returns a JSON-RPC error rather than falling
