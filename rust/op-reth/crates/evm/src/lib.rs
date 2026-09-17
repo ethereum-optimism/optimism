@@ -79,6 +79,8 @@ pub use alloy_op_evm::{
 mod post_exec_ext;
 pub use post_exec_ext::*;
 
+mod sdm_metrics;
+
 /// Optimism-related EVM configuration.
 #[derive(Debug)]
 pub struct OpEvmConfig<
@@ -163,7 +165,10 @@ where
     T: OpConsensusTransaction + 'a,
 {
     parse_post_exec_payload_from_transactions(transactions, block_number, sdm_active)
-        .map_err(|_| EIP1559ParamError::InvalidPostExecPayload)
+        .map_err(|error| {
+            sdm_metrics::report_post_exec_validation_failure(block_number, &error);
+            EIP1559ParamError::InvalidPostExecPayload
+        })
         .map(|parsed| {
             parsed.map_or_else(PostExecMode::default, |parsed| PostExecMode::Verify(parsed.payload))
         })

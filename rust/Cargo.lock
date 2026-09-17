@@ -13283,6 +13283,7 @@ dependencies = [
  "alloy-op-evm",
  "alloy-primitives",
  "alloy-rpc-types-eth 2.1.1",
+ "metrics-exporter-prometheus",
  "op-alloy-consensus",
  "op-alloy-rpc-types",
  "op-alloy-rpc-types-engine",
@@ -13291,6 +13292,8 @@ dependencies = [
  "reth-evm",
  "reth-execution-errors",
  "reth-execution-types",
+ "reth-metrics",
+ "reth-node-metrics",
  "reth-optimism-chainspec",
  "reth-optimism-consensus",
  "reth-optimism-forks",
@@ -13300,8 +13303,10 @@ dependencies = [
  "reth-rpc-eth-api",
  "reth-storage-errors",
  "revm",
+ "rstest",
  "serde_json",
  "thiserror 2.0.18",
+ "tracing",
 ]
 
 [[package]]
