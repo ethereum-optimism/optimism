@@ -235,9 +235,8 @@ func NewTwoL2SupernodeProofsRuntimeWithConfig(t devtest.T, lagoonAtGenesis bool,
 	return attachSupernodeSuperProofs(t, runtime, cfg)
 }
 
-// NewSingleChainSupernodeProofsRuntimeWithConfig deploys a single chain with
-// SuperPermissioned at genesis, then uses opcm.upgrade to add the
-// permissionless super games and set the real starting anchor root.
+// NewSingleChainSupernodeProofsRuntimeWithConfig deploys a single chain with SuperPermissioned at genesis.
+// It initializes a real super-root anchor through migration, then configures permissionless games with opcm.upgrade.
 // lagoonAtGenesis controls whether Lagoon activates interop at genesis.
 func NewSingleChainSupernodeProofsRuntimeWithConfig(t devtest.T, lagoonAtGenesis bool, cfg PresetConfig) *MultiChainRuntime {
 	cfg = withSuperRootGamesAtGenesisDeployerFeatures(cfg)

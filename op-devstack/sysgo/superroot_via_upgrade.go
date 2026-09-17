@@ -9,10 +9,12 @@ import (
 	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/ethereum/go-ethereum/rpc"
 	"github.com/lmittmann/w3"
+	w3eth "github.com/lmittmann/w3/module/eth"
 
 	"github.com/ethereum-optimism/optimism/op-chain-ops/devkeys"
 	gameTypes "github.com/ethereum-optimism/optimism/op-challenger/game/types"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/artifacts"
+	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/opcm"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/upgrade/embedded"
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
@@ -26,8 +28,7 @@ var (
 	defaultZKChallengerBond = big.NewInt(5e17)
 )
 
-// upgradeToSuperRoots calls OPCMv2.upgrade on each chain in the migration state
-// to enable all three super-root game types with the supplied starting anchor.
+// upgradeToSuperRoots initializes a valid super-root anchor, then configures the super games with OPCMv2.upgrade.
 func upgradeToSuperRoots(
 	t devtest.T,
 	keys devkeys.Keys,
@@ -42,6 +43,7 @@ func upgradeToSuperRoots(
 	require.NotNil(migration, "interop migration state is required")
 	require.NotEmpty(migration.opcmImpl, "must have an OPCM implementation")
 	require.NotEmpty(migration.l2Deployments, "must have L2 deployments for interop upgrade")
+	initializeSuperRootAnchor(t, keys, migration, l1ChainID, l1EL, superRoot, superrootTime, primaryL2)
 
 	rpcClient, err := rpc.DialContext(t.Ctx(), l1EL.UserRPC())
 	require.NoError(err)
@@ -56,7 +58,6 @@ func upgradeToSuperRoots(
 
 	l1PAO, l1PAOKey := resolveL1ProxyAdminOwner(t, keys, l1ChainID)
 
-	anchorRootData := encodeStartingAnchorRoot(t, superRoot, superrootTime)
 	respectedGameTypeData := encodeStartingRespectedGameType(t, superCannonKonaGameType)
 
 	artifactsFS, err := artifacts.Download(t.Ctx(), LocalArtifacts(t), ioutil.NoopProgressor(), t.TempDir())
@@ -72,7 +73,6 @@ func upgradeToSuperRoots(
 					absoluteCannonKonaPrestate, proposer,
 				),
 				ExtraInstructions: []embedded.ExtraInstruction{
-					{Key: "overrides.cfg.startingAnchorRoot", Data: anchorRootData},
 					{Key: "overrides.cfg.startingRespectedGameType", Data: respectedGameTypeData},
 				},
 			},
@@ -186,24 +186,52 @@ func buildSuperRootUpgradeGameConfigs(
 	}
 }
 
-func encodeStartingAnchorRoot(t devtest.T, superRoot eth.Bytes32, superrootTime uint64) []byte {
+// initializeSuperRootAnchor replaces fresh permissioned placeholders through the interop migrator.
+// Existing super-root anchors stay unchanged.
+func initializeSuperRootAnchor(
+	t devtest.T,
+	keys devkeys.Keys,
+	migration *interopMigrationState,
+	l1ChainID eth.ChainID,
+	l1EL L1ELNode,
+	superRoot eth.Bytes32,
+	superrootTime uint64,
+	primaryL2 eth.ChainID,
+) {
 	require := t.Require()
-	proposalTy, err := abi.NewType("tuple", "", []abi.ArgumentMarshaling{
-		{Name: "root", Type: "bytes32"},
-		{Name: "l2SequenceNumber", Type: "uint256"},
-	})
-	require.NoError(err, "failed to build Proposal ABI type")
-	data, err := (abi.Arguments{{Type: proposalTy}}).Pack(
-		struct {
-			Root             common.Hash
-			L2SequenceNumber *big.Int
-		}{
+	require.NotNil(migration, "super-root setup requires interop migration state")
+	require.NotEqual(eth.Bytes32{}, superRoot, "super-root anchor must not be zero")
+	rpcClient, err := rpc.DialContext(t.Ctx(), l1EL.UserRPC())
+	require.NoError(err)
+	defer rpcClient.Close()
+	client := w3.NewClient(rpcClient)
+
+	for chainID, deployment := range migration.l2Deployments {
+		portal := getOptimismPortal(t, client, deployment.SystemConfigProxyAddr())
+		var registry common.Address
+		require.NoError(client.Call(
+			w3eth.CallFunc(portal, w3.MustNewFunc("anchorStateRegistry()", "address")).Returns(&registry),
+		))
+		var root common.Hash
+		var sequence *big.Int
+		require.NoError(client.Call(
+			w3eth.CallFunc(registry, w3.MustNewFunc("getAnchorRoot()", "bytes32,uint256")).Returns(&root, &sequence),
+		))
+		if root != opcm.DefaultStartingAnchorRoot.Root && root != (common.Hash{}) {
+			continue
+		}
+
+		// Keep each chain's factory separate, as the upgrade path does.
+		chainMigration := &interopMigrationState{
+			opcmImpl:             migration.opcmImpl,
+			superchainConfigAddr: migration.superchainConfigAddr,
+			l2Deployments:        map[eth.ChainID]*L2Deployment{chainID: deployment},
+		}
+		migrateSuperRootsWithProposal(t, keys, chainMigration, l1ChainID, l1EL, Proposal{
 			Root:             common.Hash(superRoot),
 			L2SequenceNumber: new(big.Int).SetUint64(superrootTime),
-		},
-	)
-	require.NoError(err, "failed to encode startingAnchorRoot override")
-	return data
+		}, primaryL2)
+	}
 }
 
 func encodeStartingRespectedGameType(t devtest.T, gameType uint32) []byte {

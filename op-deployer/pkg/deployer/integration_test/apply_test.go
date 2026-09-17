@@ -1145,14 +1145,20 @@ func runEndToEndBootstrapAndApplyUpgradeTest(t *testing.T, afactsFS foundry.Stat
 								},
 							},
 							{
-								Enabled:  false,
+								Enabled:  true,
 								InitBond: big.NewInt(0),
 								GameType: embedded.GameTypeSuperPermissioned,
+								SuperPermissionedDisputeGameConfig: &embedded.SuperPermissionedDisputeGameConfig{
+									Proposer: testProposer,
+								},
 							},
 							{
-								Enabled:  false,
-								InitBond: big.NewInt(0),
+								Enabled:  true,
+								InitBond: big.NewInt(1000000000000000000),
 								GameType: embedded.GameTypeSuperCannonKona,
+								FaultDisputeGameConfig: &embedded.FaultDisputeGameConfig{
+									AbsolutePrestate: testPrestate,
+								},
 							},
 							{
 								Enabled:  false,

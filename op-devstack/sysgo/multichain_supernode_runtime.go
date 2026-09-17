@@ -158,7 +158,7 @@ func newSingleChainSupernodeRuntimeWithConfig(t devtest.T, lagoonAtGenesis bool,
 	keys, err := devkeys.NewMnemonicDevKeys(devkeys.TestMnemonic)
 	require.NoError(err, "failed to derive dev keys from mnemonic")
 
-	migration, l1Net, l2Net, depSet, _ := buildSingleChainWorldWithInteropAndState(t, keys, lagoonAtGenesis, cfg.LocalContractArtifactsPath, cfg.DeployerOptions...)
+	migration, l1Net, l2Net, depSet, _ := buildSingleChainWorld(t, keys, lagoonAtGenesis, cfg.LocalContractArtifactsPath, cfg.DeployerOptions...)
 	validateSimpleInteropPresetConfig(t, cfg, l2Net)
 
 	jwtPath, jwtSecret := writeJWTSecret(t)

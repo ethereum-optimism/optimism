@@ -7,13 +7,16 @@ import { console2 as console } from "forge-std/console2.sol";
 
 // Scripts
 import { Process } from "scripts/libraries/Process.sol";
+import { Config } from "scripts/libraries/Config.sol";
 
 // Testing
 import { EIP1967Helper } from "test/mocks/EIP1967Helper.sol";
 import { DisputeGames } from "test/setup/DisputeGames.sol";
 
 // Libraries
-import { Claim, GameTypes } from "src/dispute/lib/Types.sol";
+import { Claim, GameType, GameTypes, Hash, Proposal } from "src/dispute/lib/Types.sol";
+import { Hashing } from "src/libraries/Hashing.sol";
+import { Types } from "src/libraries/Types.sol";
 import { SemverComp } from "src/libraries/SemverComp.sol";
 
 // Interfaces
@@ -24,6 +27,8 @@ import { ISuperchainConfig } from "interfaces/L1/ISuperchainConfig.sol";
 import { IProxyAdmin } from "interfaces/universal/IProxyAdmin.sol";
 import { IDisputeGameFactory } from "interfaces/dispute/IDisputeGameFactory.sol";
 import { ISemver } from "interfaces/universal/ISemver.sol";
+import { IOptimismPortal2 } from "interfaces/L1/IOptimismPortal2.sol";
+import { IAnchorStateRegistry } from "interfaces/dispute/IAnchorStateRegistry.sol";
 
 /// @title PastUpgrades
 /// @notice Library for loading and executing past upgrades by fetching OPCM data from the
@@ -250,7 +255,19 @@ library PastUpgrades {
             gameArgs: hex""
         });
 
-        _sortDisputeGameConfigs(disputeGameConfigs);
+        // Keep retired games disabled instead of reviving them with a cleared bond.
+        for (uint256 i = 0; i < disputeGameConfigs.length; i++) {
+            if (address(_disputeGameFactory.gameImpls(disputeGameConfigs[i].gameType)) == address(0)) {
+                disputeGameConfigs[i].enabled = false;
+                disputeGameConfigs[i].initBond = 0;
+                disputeGameConfigs[i].gameArgs = hex"";
+            }
+        }
+
+        // V8 uses the explicit game order above, not numerical order.
+        if (SemverComp.parse(ISemver(_opcm).version()).major < 8) {
+            _sortDisputeGameConfigs(disputeGameConfigs);
+        }
 
         // Execute the V2 upgrade
         vm.prank(_delegateCaller, true);
@@ -267,6 +284,112 @@ library PastUpgrades {
             )
         );
         require(upgradeSuccess, "PastUpgrades: OPCMv2 upgrade failed");
+    }
+
+    /// @notice Uses the deployed v8 OPCM to convert a live output-root anchor before a v9 upgrade.
+    function migrateToSuperRoots(
+        address _delegateCaller,
+        ISystemConfig _systemConfig,
+        IOPContractsManagerUtils.DisputeGameConfig[] memory _disputeGameConfigs,
+        GameType _targetGameType
+    )
+        internal
+    {
+        IAnchorStateRegistry asr = IOptimismPortal2(payable(_systemConfig.optimismPortal())).anchorStateRegistry();
+        uint32 respected = asr.respectedGameType().raw();
+        if (
+            respected == GameTypes.SUPER_PERMISSIONED.raw() || respected == GameTypes.SUPER_CANNON_KONA.raw()
+                || respected == GameTypes.ZK_DISPUTE_GAME.raw()
+        ) {
+            return;
+        }
+        require(
+            respected == GameTypes.CANNON.raw() || respected == GameTypes.PERMISSIONED_CANNON.raw()
+                || respected == GameTypes.CANNON_KONA.raw(),
+            "PastUpgrades: unsupported anchor game type"
+        );
+
+        ResolvedOPCM[] memory resolved = _resolveAndFilterOPCMs(fetchOPCMs(block.chainid));
+        _sortResolvedOPCMs(resolved);
+        address opcm;
+        for (uint256 i = 0; i < resolved.length; i++) {
+            if (resolved[i].semver.major == 8) {
+                opcm = resolved[i].addr;
+            }
+        }
+        require(opcm != address(0), "PastUpgrades: deployed v8 OPCM required");
+
+        IOPContractsManagerUtils.ExtraInstruction[] memory instructions =
+            new IOPContractsManagerUtils.ExtraInstruction[](2);
+        Proposal memory anchor = _superRootAnchor(_systemConfig, asr);
+        instructions[0] = IOPContractsManagerUtils.ExtraInstruction({
+            key: "overrides.cfg.startingAnchorRoot",
+            data: abi.encode(anchor)
+        });
+        instructions[1] = IOPContractsManagerUtils.ExtraInstruction({
+            key: "overrides.cfg.startingRespectedGameType",
+            data: abi.encode(_targetGameType)
+        });
+        vm.prank(_delegateCaller, true);
+        (bool success, bytes memory reason) = opcm.delegatecall(
+            abi.encodeCall(
+                IOPContractsManagerV2.upgrade,
+                (
+                    IOPContractsManagerV2.UpgradeInput({
+                        systemConfig: _systemConfig,
+                        disputeGameConfigs: _disputeGameConfigs,
+                        extraInstructions: instructions
+                    })
+                )
+            )
+        );
+        if (!success) {
+            assembly {
+                revert(add(reason, 0x20), mload(reason))
+            }
+        }
+        (Hash root, uint256 timestamp) = asr.getAnchorRoot();
+        require(
+            root.raw() == anchor.root.raw() && timestamp == anchor.l2SequenceNumber, "PastUpgrades: anchor mismatch"
+        );
+        require(asr.respectedGameType().raw() == _targetGameType.raw(), "PastUpgrades: migration incomplete");
+    }
+
+    /// @notice Commits the live anchor output root at its canonical L2 timestamp.
+    function _superRootAnchor(
+        ISystemConfig _systemConfig,
+        IAnchorStateRegistry _asr
+    )
+        private
+        view
+        returns (Proposal memory)
+    {
+        string memory chain = vm.readFile(
+            string.concat(
+                "../../superchain-registry/superchain/configs/",
+                Config.forkBaseChain(),
+                "/",
+                Config.forkOpChain(),
+                ".toml"
+            )
+        );
+        uint256 chainId = vm.parseTomlUint(chain, ".chain_id");
+        require(chainId == _systemConfig.l2ChainId(), "PastUpgrades: registry chain mismatch");
+        (Hash outputRoot, uint256 blockNumber) = _asr.getAnchorRoot();
+        require(outputRoot.raw() != bytes32(0), "PastUpgrades: empty output-root anchor");
+        uint256 timestamp = vm.parseTomlUint(chain, ".genesis.l2_time")
+            + (blockNumber - vm.parseTomlUint(chain, ".genesis.l2.number")) * vm.parseTomlUint(chain, ".block_time");
+        require(timestamp < type(uint64).max && timestamp <= block.timestamp, "PastUpgrades: invalid anchor timestamp");
+        Types.OutputRootWithChainId[] memory roots = new Types.OutputRootWithChainId[](1);
+        roots[0] = Types.OutputRootWithChainId({ chainId: chainId, root: outputRoot.raw() });
+        return Proposal({
+            root: Hash.wrap(
+                Hashing.hashSuperRootProof(
+                    Types.SuperRootProof({ version: 0x01, timestamp: uint64(timestamp), outputRoots: roots })
+                )
+            ),
+            l2SequenceNumber: timestamp
+        });
     }
 
     /// @notice Sorts dispute game configs by game type in ascending numerical order.
