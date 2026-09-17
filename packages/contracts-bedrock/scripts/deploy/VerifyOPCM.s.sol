@@ -22,6 +22,7 @@ import { IOptimismPortal2 } from "interfaces/L1/IOptimismPortal2.sol";
 import { IAnchorStateRegistry } from "interfaces/dispute/IAnchorStateRegistry.sol";
 import { IMIPS64 } from "interfaces/cannon/IMIPS64.sol";
 import { ISP1PlonkAdapter } from "interfaces/dispute/zk/ISP1PlonkAdapter.sol";
+import { ISP1Verifier } from "interfaces/vendor/ISP1Verifier.sol";
 
 /// @title VerifyOPCM
 /// @notice Verifies the bytecode of an OPContractsManager instance and all associated blueprints
@@ -113,6 +114,12 @@ contract VerifyOPCM is Script {
 
     /// @notice Succinct's v6.1.0 SP1 PLONK verifier on Ethereum Sepolia.
     address internal constant SEPOLIA_SP1_VERIFIER_V6_1_0 = 0xc3c6dDDAc8829b233Dc6536Ec024775a57b0AF2A;
+
+    /// @notice VERIFIER_HASH() of Succinct's v6.1.0 SP1 PLONK verifier. Proofs from the sp1-sdk
+    ///         circuit v6.1.0 carry the first four bytes of this value as their selector. Must
+    ///         match op-deployer/pkg/deployer/standard/sp1-verifier.json.
+    bytes32 internal constant SP1_VERIFIER_HASH_V6_1_0 =
+        0x5a093a2fcb46394f5cadfe55c44d4d572fad9cec7aeb38026b0278322ef07fac;
 
     /// @notice Represents a contract name and its corresponding address.
     /// @param field     Name of the field the address was extracted from.
@@ -1404,7 +1411,10 @@ contract VerifyOPCM is Script {
         }
     }
 
-    /// @notice Verifies the raw SP1 verifier referenced by the release adapter.
+    /// @notice Verifies the raw SP1 verifier referenced by the release adapter: its address
+    ///         (`EXPECTED_SP1_VERIFIER`, network default) and its `VERIFIER_HASH()`
+    ///         (`EXPECTED_SP1_VERIFIER_HASH`, default `SP1_VERIFIER_HASH_V6_1_0`). The hash is
+    ///         only read once the address matches, so an unexpected address never reverts here.
     function _verifySP1Verifier(ISP1PlonkAdapter _adapter) internal view returns (bool) {
         // nosemgrep: sol-style-vm-env-only-in-config-sol
         address expectedVerifier = vm.envOr("EXPECTED_SP1_VERIFIER", _defaultSP1Verifier());
@@ -1420,6 +1430,20 @@ contract VerifyOPCM is Script {
             return false;
         }
         console.log("    [OK] SP1 verifier verified");
+
+        // nosemgrep: sol-style-vm-env-only-in-config-sol
+        bytes32 expectedHash = vm.envOr("EXPECTED_SP1_VERIFIER_HASH", SP1_VERIFIER_HASH_V6_1_0);
+        bytes32 actualHash = ISP1Verifier(actualVerifier).VERIFIER_HASH();
+
+        console.log("  Verifying SP1 verifier hash...");
+        console.log(string.concat("    Expected: ", vm.toString(expectedHash)));
+        console.log(string.concat("    Actual: ", vm.toString(actualHash)));
+
+        if (actualHash != expectedHash) {
+            console.log("    [FAIL] SP1 verifier hash mismatch");
+            return false;
+        }
+        console.log("    [OK] SP1 verifier hash verified");
         return true;
     }
 

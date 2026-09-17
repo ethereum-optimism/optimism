@@ -19,6 +19,7 @@ import { IOptimismPortal2 } from "interfaces/L1/IOptimismPortal2.sol";
 import { IAnchorStateRegistry } from "interfaces/dispute/IAnchorStateRegistry.sol";
 import { IMIPS64 } from "interfaces/cannon/IMIPS64.sol";
 import { ISP1PlonkAdapter } from "interfaces/dispute/zk/ISP1PlonkAdapter.sol";
+import { ISP1Verifier } from "interfaces/vendor/ISP1Verifier.sol";
 
 contract VerifyOPCM_Harness is VerifyOPCM {
     bool private _skipSecurityChecks;
@@ -158,7 +159,9 @@ abstract contract VerifyOPCM_TestInit is CommonTest {
         );
         if (zkDisputeGameEnabled()) {
             ISP1PlonkAdapter adapter = ISP1PlonkAdapter(opcm.implementations().sp1PlonkAdapterImpl);
-            vm.setEnv("EXPECTED_SP1_VERIFIER", vm.toString(address(adapter.sp1Verifier())));
+            ISP1Verifier verifier = adapter.sp1Verifier();
+            vm.setEnv("EXPECTED_SP1_VERIFIER", vm.toString(address(verifier)));
+            vm.setEnv("EXPECTED_SP1_VERIFIER_HASH", vm.toString(verifier.VERIFIER_HASH()));
         }
     }
 
@@ -823,6 +826,18 @@ contract VerifyOPCM_verifySP1Verifier_Test is VerifyOPCM_TestInit {
         assertFalse(harness.verifySP1Verifier(adapter));
 
         vm.setEnv("EXPECTED_SP1_VERIFIER", vm.toString(verifier));
+    }
+
+    function test_verifySP1Verifier_hashMismatch_fails() public {
+        skipIfDevFeatureDisabled(DevFeatures.ZK_DISPUTE_GAME);
+        ISP1PlonkAdapter adapter = ISP1PlonkAdapter(opcm.implementations().sp1PlonkAdapterImpl);
+        bytes32 actualHash = adapter.sp1Verifier().VERIFIER_HASH();
+
+        vm.setEnv("EXPECTED_SP1_VERIFIER_HASH", vm.toString(bytes32(uint256(0xBEEF))));
+        assertFalse(harness.verifySP1Verifier(adapter));
+
+        vm.setEnv("EXPECTED_SP1_VERIFIER_HASH", vm.toString(actualHash));
+        assertTrue(harness.verifySP1Verifier(adapter));
     }
 }
 
