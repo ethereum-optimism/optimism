@@ -24,69 +24,69 @@ type txTypeTest struct {
 	signer types.Signer
 }
 
-func TestSpanBatchTxsContractCreationBits(t *testing.T) {
+func TestSpanBatchTxsZeroToBits(t *testing.T) {
 	rng := rand.New(rand.NewSource(0x1234567))
 	chainID := big.NewInt(rng.Int63n(1000))
 
 	rawSpanBatch := RandomRawSpanBatch(rng, chainID)
-	contractCreationBits := rawSpanBatch.txs.contractCreationBits
+	zeroToBits := rawSpanBatch.txs.zeroToBits
 	totalBlockTxCount := rawSpanBatch.txs.totalBlockTxCount
 
 	var sbt spanBatchTxs
-	sbt.contractCreationBits = contractCreationBits
+	sbt.zeroToBits = zeroToBits
 	sbt.totalBlockTxCount = totalBlockTxCount
 
 	var buf bytes.Buffer
-	err := sbt.encodeContractCreationBits(&buf)
+	err := sbt.encodeZeroToBits(&buf)
 	require.NoError(t, err)
 
-	// contractCreationBit field is fixed length: single bit
-	contractCreationBitBufferLen := totalBlockTxCount / 8
+	// zeroToBit field is fixed length: single bit
+	zeroToBitBufferLen := totalBlockTxCount / 8
 	if totalBlockTxCount%8 != 0 {
-		contractCreationBitBufferLen++
+		zeroToBitBufferLen++
 	}
-	require.Equal(t, buf.Len(), int(contractCreationBitBufferLen))
+	require.Equal(t, buf.Len(), int(zeroToBitBufferLen))
 
 	result := buf.Bytes()
-	sbt.contractCreationBits = nil
+	sbt.zeroToBits = nil
 
 	r := bytes.NewReader(result)
-	err = sbt.decodeContractCreationBits(r)
+	err = sbt.decodeZeroToBits(r)
 	require.NoError(t, err)
 
-	require.Equal(t, contractCreationBits, sbt.contractCreationBits)
+	require.Equal(t, zeroToBits, sbt.zeroToBits)
 }
 
-func TestSpanBatchTxsContractCreationCount(t *testing.T) {
+func TestSpanBatchTxsZeroToCount(t *testing.T) {
 	rng := rand.New(rand.NewSource(0x1337))
 	chainID := big.NewInt(rng.Int63n(1000))
 
 	rawSpanBatch := RandomRawSpanBatch(rng, chainID)
 
-	contractCreationBits := rawSpanBatch.txs.contractCreationBits
-	contractCreationCount, err := rawSpanBatch.txs.contractCreationCount()
+	zeroToBits := rawSpanBatch.txs.zeroToBits
+	zeroToCount, err := rawSpanBatch.txs.zeroToCount()
 	require.NoError(t, err)
 	totalBlockTxCount := rawSpanBatch.txs.totalBlockTxCount
 
 	var sbt spanBatchTxs
-	sbt.contractCreationBits = contractCreationBits
+	sbt.zeroToBits = zeroToBits
 	sbt.totalBlockTxCount = totalBlockTxCount
 
 	var buf bytes.Buffer
-	err = sbt.encodeContractCreationBits(&buf)
+	err = sbt.encodeZeroToBits(&buf)
 	require.NoError(t, err)
 
 	result := buf.Bytes()
-	sbt.contractCreationBits = nil
+	sbt.zeroToBits = nil
 
 	r := bytes.NewReader(result)
-	err = sbt.decodeContractCreationBits(r)
+	err = sbt.decodeZeroToBits(r)
 	require.NoError(t, err)
 
-	contractCreationCount2, err := sbt.contractCreationCount()
+	zeroToCount2, err := sbt.zeroToCount()
 	require.NoError(t, err)
 
-	require.Equal(t, contractCreationCount, contractCreationCount2)
+	require.Equal(t, zeroToCount, zeroToCount2)
 }
 
 func TestSpanBatchTxsYParityBits(t *testing.T) {
@@ -251,13 +251,13 @@ func TestSpanBatchTxsTxTos(t *testing.T) {
 
 	rawSpanBatch := RandomRawSpanBatch(rng, chainID)
 	txTos := rawSpanBatch.txs.txTos
-	contractCreationBits := rawSpanBatch.txs.contractCreationBits
+	zeroToBits := rawSpanBatch.txs.zeroToBits
 	totalBlockTxCount := rawSpanBatch.txs.totalBlockTxCount
 
 	var sbt spanBatchTxs
 	sbt.txTos = txTos
 	// creation bits and block tx count must be se to decode tos
-	sbt.contractCreationBits = contractCreationBits
+	sbt.zeroToBits = zeroToBits
 	sbt.totalBlockTxCount = totalBlockTxCount
 
 	var buf bytes.Buffer
@@ -504,7 +504,7 @@ func TestSpanBatchTxsPostExecFieldsMatchGeth(t *testing.T) {
 
 	require.Nil(t, gethTx.To())
 	require.Empty(t, sbt.txTos, "a tx without recipient stores no address")
-	require.Equal(t, uint(1), sbt.contractCreationBits.Bit(0))
+	require.Equal(t, uint(1), sbt.zeroToBits.Bit(0))
 
 	require.Equal(t, gethTx.Data(), testPostExecTx().Data, "op-geth carries the payload verbatim")
 	require.Equal(t, hexutil.Bytes(raw), sbt.txDatas[0])
@@ -619,12 +619,12 @@ func TestSpanBatchTxsFullTxNotEnoughTxTos(t *testing.T) {
 	}
 }
 
-func TestSpanBatchTxsMaxContractCreationBitsLength(t *testing.T) {
+func TestSpanBatchTxsMaxZeroToBitsLength(t *testing.T) {
 	var sbt spanBatchTxs
 	sbt.totalBlockTxCount = 0xFFFFFFFFFFFFFFFF
 
 	r := bytes.NewReader([]byte{})
-	err := sbt.decodeContractCreationBits(r)
+	err := sbt.decodeZeroToBits(r)
 	require.ErrorIs(t, err, ErrTooBigSpanBatchSize)
 }
 
@@ -672,9 +672,9 @@ func TestSpanBatchTxsCheckPostExecSlots(t *testing.T) {
 		expect string
 	}{
 		{
-			name:   "contract creation bit cleared",
-			mutate: func(s *spanBatchTxs) { s.contractCreationBits.SetBit(s.contractCreationBits, 0, 0) },
-			expect: "must set the contract creation bit",
+			name:   "zero-to bit cleared",
+			mutate: func(s *spanBatchTxs) { s.zeroToBits.SetBit(s.zeroToBits, 0, 0) },
+			expect: "must set the zero-to bit",
 		},
 		{
 			name:   "y parity bit set",
