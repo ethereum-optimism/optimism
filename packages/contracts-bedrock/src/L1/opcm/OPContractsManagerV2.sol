@@ -158,9 +158,9 @@ contract OPContractsManagerV2 is ISemver, OPContractsManagerUtilsCaller {
     ///         - Major bump: New required sequential upgrade
     ///         - Minor bump: Replacement OPCM for same upgrade
     ///         - Patch bump: Development changes (expected for normal dev work)
-    /// @custom:semver 8.0.6
+    /// @custom:semver 8.0.7
     function version() public pure returns (string memory) {
-        return "8.0.6";
+        return "8.0.7";
     }
 
     /// @param _standardValidator The standard validator for this OPCM release.
@@ -1088,14 +1088,22 @@ contract OPContractsManagerV2 is ISemver, OPContractsManagerUtilsCaller {
 
         // We have three permitted cases:
         // 1. Address of the last used OPCM is identical to the address of this OPCM (re-running).
-        // 2. This OPCM version is the same major version but a greater minor version (patch).
+        // 2. This OPCM is a later release within the same major version, by minor or by patch.
+        //    Patch releases have to count: a patch bump is normal development work, so requiring
+        //    a minor bump would leave a chain unable to take any later release of its own major.
         // 3. This OPCM version is the next major version (sequential upgrade).
         bool isSameOPCM = address(lastUsedOPCM) == address(opcmV2);
         bool isNextMajor = thisSemver.major == lastUsedSemver.major + 1;
-        bool isSameMajorHigherMinor =
-            thisSemver.major == lastUsedSemver.major && thisSemver.minor > lastUsedSemver.minor;
+        // Compared field by field off the structs already parsed above. `SemverComp.gt` would read
+        // better, but it reparses both version strings, and this contract has no bytecode budget
+        // for that.
+        bool isSameMajorLaterRelease = thisSemver.major == lastUsedSemver.major
+            && (
+                thisSemver.minor > lastUsedSemver.minor
+                    || (thisSemver.minor == lastUsedSemver.minor && thisSemver.patch > lastUsedSemver.patch)
+            );
 
-        return isSameOPCM || isSameMajorHigherMinor || isNextMajor;
+        return isSameOPCM || isSameMajorLaterRelease || isNextMajor;
     }
 
     /// @notice Returns the blueprint contract addresses.
