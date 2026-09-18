@@ -437,16 +437,9 @@ pub(crate) mod destroyed_accounts {
         BundleAccount::new(None, None, Default::default(), AccountStatus::Destroyed)
     }
 
-    /// Storage key carried by [`injected_error`].
-    const INJECTED_KEY: B256 = B256::repeat_byte(0xEE);
-
     /// Error with which [`FailingStorageProvider`] fails hashed storage reads.
     pub(crate) const fn injected_error() -> OpProofsStorageError {
-        OpProofsStorageError::MissingHashedStorageHistory {
-            hashed_address: B256::ZERO,
-            hashed_storage_key: INJECTED_KEY,
-            block_number: 0,
-        }
+        OpProofsStorageError::NoBlocksFound
     }
 
     /// Asserts that `result` failed with [`injected_error`].
@@ -454,11 +447,7 @@ pub(crate) mod destroyed_accounts {
         let err = result.expect_err("storage read failure must surface");
         let ProviderError::Database(err) = err else { panic!("unexpected error: {err:?}") };
         assert!(
-            matches!(
-                OpProofsStorageError::from(err.clone()),
-                OpProofsStorageError::MissingHashedStorageHistory { hashed_storage_key, .. }
-                    if hashed_storage_key == INJECTED_KEY
-            ),
+            matches!(OpProofsStorageError::from(err.clone()), OpProofsStorageError::NoBlocksFound),
             "unexpected error: {err:?}"
         );
     }
