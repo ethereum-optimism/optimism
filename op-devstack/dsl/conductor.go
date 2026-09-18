@@ -367,9 +367,11 @@ func (c *Conductor) awaitLeadershipTransferRequestTo(target *Conductor, info con
 			return err
 		}
 		if leading {
-			if !requested {
-				return fmt.Errorf("leadership reached conductor %s before any transfer was requested", target)
-			}
+			// Terminal, so fail here rather than retrying: requesting is the only
+			// thing that sets this, and that happens on the branch below, which a
+			// leading target never reaches.
+			c.require.Truef(requested,
+				"leadership reached conductor %s before any transfer was requested", target)
 			// A request that reported failure still landed, or an earlier one did.
 			return nil
 		}
