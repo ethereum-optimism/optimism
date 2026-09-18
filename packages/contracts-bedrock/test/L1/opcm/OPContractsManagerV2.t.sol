@@ -3923,12 +3923,8 @@ contract OPContractsManagerV2_FeatBatchUpgrade_Test is OPContractsManagerV2_Test
     /// @notice Tests that multiple upgrade operations can be executed within a single transaction.
     ///         This enforces the OPCMV2 invariant that multiple upgrade operations should be
     ///         executable in one transaction.
-    /// forge-config: default.enable_tx_gas_limit = true
     function test_batchUpgrade_multipleChains_succeeds() public {
         skipIfUnoptimized();
-
-        // Enforce the transaction gas limit only on batchUpgrade().
-        vm.pauseGasMetering();
 
         uint256 numberOfChains = 14;
 
@@ -4024,12 +4020,14 @@ contract OPContractsManagerV2_FeatBatchUpgrade_Test is OPContractsManagerV2_Test
             });
         }
 
-        vm.resumeGasMetering();
-
         // 5. Execute batch upgrade of all chains in a single transaction.
         batchUpgrader.batchUpgrade(upgradeInputs);
+        VmSafe.Gas memory gas = vm.lastFrameGas();
 
-        vm.pauseGasMetering();
+        // Reserve 65,000 gas for the Safe execution overhead within the EIP-7825 limit.
+        uint256 fusakaLimit = 2 ** 24;
+        uint256 upgradeGasBuffer = 65_000;
+        assertLt(gas.gasTotalUsed, fusakaLimit - upgradeGasBuffer, "Upgrade exceeds gas target");
 
         // 6. Verify all chains upgraded successfully.
         for (uint256 i = 0; i < numberOfChains; i++) {
