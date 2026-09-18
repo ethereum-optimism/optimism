@@ -80,6 +80,14 @@ impl OpTxEnv for OpTx {
     }
 }
 
+/// UPSTREAM-MIRROR(delegate): revm-context-interface@41.0.0 `revm_context_interface::Transaction`
+///
+/// Forwards the required getters and `effective_gas_price` to the inner `OpTransaction<TxEnv>`,
+/// which overrides `tx_type` and `effective_gas_price` for deposits. The remaining defaulted
+/// methods (`max_fee_per_gas`, `total_blob_gas`, `calc_max_data_fee` and the balance-spending
+/// helpers) are inherited from the trait and derive from the forwarded getters. On each bump
+/// check for a new defaulted method that `OpTransaction<T>` overrides and forward it too;
+/// `kona/bin/client/src/fpvm_evm/tx.rs` duplicates this impl and needs the same edit.
 impl revm::context::Transaction for OpTx {
     type AccessListItem<'a>
         = <OpTransaction<TxEnv> as revm::context::Transaction>::AccessListItem<'a>
@@ -134,6 +142,9 @@ impl revm::context::Transaction for OpTx {
     }
     fn max_priority_fee_per_gas(&self) -> Option<u128> {
         self.0.max_priority_fee_per_gas()
+    }
+    fn effective_gas_price(&self, base_fee: u128) -> u128 {
+        self.0.effective_gas_price(base_fee)
     }
 }
 

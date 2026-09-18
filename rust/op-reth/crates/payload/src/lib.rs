@@ -80,14 +80,14 @@ where
     type BuiltPayload = OpBuiltPayload<N>;
     type PayloadAttributes = crate::payload::OpPayloadAttrs;
 
-    // `block_to_payload` and `From<OpBuiltPayload<N>> for OpExecData` are two
-    // separate conversion paths to the same `ExecutionData` type — kept parallel
-    // (not delegating to each other) to mirror upstream `EthPayloadTypes`. The
-    // BAL travels differently in each: here as a separate `bal` arg supplied by
-    // the caller, in `From` as a field of the built payload itself. Once OP
-    // gains BAL support, dropping it on either path would be silent corruption,
-    // so each path threads its own source through to the shared lower-level
-    // helper.
+    // `block_to_payload` and `From<OpBuiltPayload<N>> for OpExecData` are
+    // separate conversion paths to the same type. OP execution data does not
+    // currently carry a BAL, so both paths intentionally discard it.
+    /// UPSTREAM-MIRROR(copy): reth@rev:aef8d3e
+    /// `reth_ethereum_engine_primitives::EthPayloadTypes::block_to_payload`
+    ///
+    /// Mirrors the upstream conversion while constructing OP execution data.
+    /// Re-check this path when upstream changes or OP execution data gains BAL support.
     fn block_to_payload(
         block: SealedBlock<
             <<Self::BuiltPayload as BuiltPayload>::Primitives as NodePrimitives>::Block,
