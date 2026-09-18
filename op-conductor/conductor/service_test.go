@@ -418,6 +418,32 @@ func (s *OpConductorTestSuite) TestScenario3() {
 	s.ctrl.AssertCalled(s.T(), "LatestUnsafeBlock", mock.Anything)
 }
 
+// A newly bootstrapped cluster may elect a new leader before its first sequencer payload is
+// committed. With no consensus unsafe head to hand off, it must start from its local head.
+func (s *OpConductorTestSuite) TestStartSequencerWithEmptyConsensusState() {
+	s.enableSynchronization()
+
+	// Model the incoming leader during an outage: the previous sequencer is down, so
+	// the health monitor marks every follower unhealthy before Raft elects a new one.
+	s.updateHealthStatusAndExecuteAction(health.ErrSequencerNotHealthy)
+
+	localHead := &testutils.MockBlockInfo{
+		InfoNum:  7,
+		InfoHash: [32]byte{7, 8, 9},
+	}
+	s.cons.EXPECT().LatestUnsafePayload().Return(nil, nil).Times(1)
+	s.ctrl.EXPECT().LatestUnsafeBlock(mock.Anything).Return(localHead, nil).Times(1)
+	s.ctrl.EXPECT().StartSequencer(mock.Anything, localHead.InfoHash).Return(nil).Times(1)
+
+	s.updateLeaderStatusAndExecuteAction(true)
+
+	s.True(s.conductor.leader.Load())
+	s.False(s.conductor.healthy.Load())
+	s.True(s.conductor.seqActive.Load())
+	s.ctrl.AssertNotCalled(s.T(), "PostUnsafePayload", mock.Anything, mock.Anything)
+	s.cons.AssertNotCalled(s.T(), "TransferLeader")
+}
+
 // This test setup is the same as Scenario 3, the difference is that scenario 3 is all happy case and in this test, we try to exhaust all the error cases.
 // [follower, healthy, not sequencing] -- become leader, unsafe head does not match, retry, eventually succeed --> [leader, healthy, sequencing]
 func (s *OpConductorTestSuite) TestScenario4() {
