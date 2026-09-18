@@ -140,23 +140,14 @@ func attachSupernodeSuperProofs(t devtest.T, runtime *MultiChainRuntime, cfg Pre
 	return runtime
 }
 
-// attachSupernodeSuperProofsViaUpgrade adds permissionless super games via
-// opcm.upgrade, then wires the interop challenger and super proposer.
+// attachSupernodeSuperProofsViaUpgrade configures super games through OPCM upgrade, then starts their services.
 func attachSupernodeSuperProofsViaUpgrade(t devtest.T, runtime *MultiChainRuntime, cfg PresetConfig) *MultiChainRuntime {
 	chains := orderedRuntimeChains(runtime)
 	t.Require().NotEmpty(chains, "supernode superproofs runtime must contain at least one chain")
 	t.Require().NotNil(runtime.Supernode, "supernode superproofs runtime must provide a supernode")
 
 	proofChain := chains[0]
-	cls := make([]L2CLNode, 0, len(chains))
-	for _, chain := range chains {
-		t.Require().NotNil(chain, "runtime chain entry must not be nil")
-		cls = append(cls, chain.CL)
-	}
-
-	superrootTime := awaitSuperrootTime(t, cls...)
-	superRoot := getSupernodeSuperRoot(t, runtime.Supernode, superrootTime)
-	upgradeToSuperRoots(t, runtime.Keys, runtime.Migration, runtime.L1Network.ChainID(), runtime.L1EL, superRoot, superrootTime, proofChain.Network.ChainID())
+	upgradeSuperRootGames(t, runtime.Keys, runtime.Migration, runtime.L1Network.ChainID(), runtime.L1EL, proofChain.Network.ChainID())
 
 	attachSuperChallengerAndProposer(t, runtime, cfg, gameTypes.SuperCannonKonaGameType)
 	return runtime
@@ -276,12 +267,12 @@ func newMultiL2SupernodeProofsRuntimeWithConfig(
 	return attachSupernodeSuperProofs(t, runtime, cfg)
 }
 
-// NewSingleChainSupernodeProofsRuntimeWithConfig deploys a single chain with
-// SuperPermissioned at genesis, then uses opcm.upgrade to add the
-// permissionless super games and set the real starting anchor root.
+// NewSingleChainSupernodeProofsRuntimeWithConfig deploys a valid permissionless genesis anchor.
+// Its normal OPCM upgrade preserves the registry and factory.
 // lagoonAtGenesis controls whether Lagoon activates interop at genesis.
 func NewSingleChainSupernodeProofsRuntimeWithConfig(t devtest.T, lagoonAtGenesis bool, cfg PresetConfig) *MultiChainRuntime {
 	cfg = withSuperRootGamesAtGenesisDeployerFeatures(cfg)
+	cfg.AddedGameTypes = append(cfg.AddedGameTypes, gameTypes.SuperCannonKonaGameType)
 	runtime := newSingleChainSupernodeRuntimeWithConfig(t, lagoonAtGenesis, cfg)
 	attachTestSequencerToRuntime(t, runtime, "dev")
 	return attachSupernodeSuperProofsViaUpgrade(t, runtime, cfg)

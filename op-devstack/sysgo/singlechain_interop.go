@@ -11,7 +11,7 @@ func newSingleChainInteropWorldNoSupernode(t devtest.T, keys devkeys.Keys, cfg P
 	cfg.DeployerOptions = append([]DeployerOption{
 		WithDevFeatureEnabled(devfeatures.OptimismPortalInteropFlag),
 	}, cfg.DeployerOptions...)
-	l1Net, l2Net, depSet, fullCfgSet := buildSingleChainWorldWithInterop(t, keys, true, cfg.LocalContractArtifactsPath, cfg.DeployerOptions...)
+	_, l1Net, l2Net, depSet, fullCfgSet := buildSingleChainWorld(t, keys, true, cfg.LocalContractArtifactsPath, initialProofGameType(t, cfg), cfg.DeployerOptions...)
 	return singleChainRuntimeWorld{
 		L1Network: l1Net,
 		L2Network: l2Net,

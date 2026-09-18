@@ -236,9 +236,9 @@ func NewMixedSingleChainRuntime(t devtest.T, cfg MixedSingleChainPresetConfig) *
 	var l2Net *L2Network
 	var depSet coredepset.DependencySet
 	if cfg.InteropAtGenesis {
-		l1Net, l2Net, depSet, _ = buildSingleChainWorldWithInterop(t, keys, true, cfg.LocalContractArtifactsPath, cfg.DeployerOptions...)
+		_, l1Net, l2Net, depSet, _ = buildSingleChainWorld(t, keys, true, cfg.LocalContractArtifactsPath, nil, cfg.DeployerOptions...)
 	} else {
-		l1Net, l2Net = buildSingleChainWorld(t, keys, cfg.LocalContractArtifactsPath, cfg.DeployerOptions...)
+		_, l1Net, l2Net, _, _ = buildSingleChainWorld(t, keys, false, cfg.LocalContractArtifactsPath, nil, cfg.DeployerOptions...)
 	}
 	jwtPath, jwtSecret := writeJWTSecret(t)
 	l1EL, l1CL := startInProcessL1(t, l1Net, jwtPath)

@@ -23,6 +23,7 @@ import (
 	"github.com/ethereum/go-ethereum"
 
 	"github.com/ethereum-optimism/optimism/op-chain-ops/script"
+	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/testutils"
 	"github.com/ethereum-optimism/optimism/op-service/testutils/devnet"
 
@@ -52,8 +53,11 @@ import (
 	"github.com/ethereum-optimism/optimism/op-core/predeploys"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/core/rawdb"
+	gethstate "github.com/ethereum/go-ethereum/core/state"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/ethclient"
+	"github.com/ethereum/go-ethereum/triedb"
 	"github.com/stretchr/testify/require"
 )
 
@@ -545,6 +549,123 @@ func TestApplyGenesisStrategy(t *testing.T) {
 		expectedPragueTimestamp := l1GenesisParams.BlockParams.Timestamp + *l1GenesisParams.PragueTimeOffset
 		require.EqualValues(t, expectedPragueTimestamp, *st.L1DevGenesis.Config.PragueTime)
 	})
+}
+
+func TestGenesisPermissionlessAnchors(t *testing.T) {
+	op_e2e.InitParallel(t)
+	for _, tc := range []struct {
+		name           string
+		chains         int
+		permissionless bool
+		legacy         bool
+	}{
+		{"singleton", 1, true, false},
+		{"dependency set", 2, true, false},
+		{"permissioned placeholder", 1, false, false},
+		{"legacy permissionless follow-on", 1, false, true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			opts, intent, st := setupGenesisChain(t, devnet.DefaultChainID)
+			intent.L1DevGenesisParams = &state.L1DevGenesisParams{
+				BlockParams: state.L1DevGenesisBlockParams{Timestamp: 1_800_000_000},
+			}
+			if tc.chains == 2 {
+				second := *intent.Chains[0]
+				second.ID = common.Hash(uint256.NewInt(2).Bytes32())
+				intent.Chains = append(intent.Chains, &second)
+			}
+			gameType := embedded.GameTypeSuperPermissioned
+			if tc.permissionless {
+				gameType = embedded.GameTypeSuperCannonKona
+			}
+			intent.GlobalDeployOverrides = map[string]any{
+				"respectedGameType":         gameType,
+				"faultGameAbsolutePrestate": common.HexToHash("0x123456"),
+			}
+			if tc.legacy {
+				legacyGameType := uint32(embedded.GameTypeCannonKona)
+				opts.GenesisAnchorGameType = &legacyGameType
+				for _, fork := range []string{"Isthmus", "Jovian", "Karst", "Lagoon"} {
+					intent.GlobalDeployOverrides["l2Genesis"+fork+"TimeOffset"] = nil
+				}
+			}
+			opts.L2GenesisAllocMutator = func(_ common.Hash, allocs *foundry.ForgeAllocs) error {
+				account := allocs.Accounts[common.HexToAddress("0x9876")]
+				account.Nonce = 7
+				allocs.Accounts[common.HexToAddress("0x9876")] = account
+				return nil
+			}
+			prefund := common.HexToAddress("0x9876")
+			for _, chain := range intent.Chains {
+				chain.L2DevGenesisParams = &state.L2DevGenesisParams{
+					Prefund: map[common.Address]*hexutil.U256{
+						prefund: (*hexutil.U256)(uint256.NewInt(123456789)),
+					},
+				}
+			}
+			require.NoError(t, deployer.ApplyPipeline(t.Context(), opts))
+
+			_, artifactsFS := testutil.LocalArtifacts(t)
+			host, err := env.DefaultScriptHost(
+				broadcaster.NoopBroadcaster(), opts.Logger,
+				crypto.PubkeyToAddress(opts.DeployerPrivateKey.PublicKey), artifactsFS,
+				script.WithNoMaxCodeSize(),
+			)
+			require.NoError(t, err)
+			host.ImportState(st.L1StateDump.Data)
+			caller := &shared.HostCaller{Host: host}
+			outputs := make([]eth.ChainIDAndOutput, 0, len(st.Chains))
+			var timestamp uint64
+			for _, chain := range st.Chains {
+				gen, cfg, err := inspect.GenesisAndRollup(st, chain.ID)
+				require.NoError(t, err)
+				require.Equal(t, big.NewInt(123456789), gen.Alloc[prefund].Balance)
+				require.EqualValues(t, 7, gen.Alloc[prefund].Nonce)
+				require.Equal(t, testCustomGasLimit, gen.GasLimit)
+				require.Equal(t, st.L1DevGenesis.ToBlock().Hash(), cfg.Genesis.L1.Hash)
+				header := gen.ToBlock().Header()
+				var messagePasserRoot common.Hash
+				if tc.legacy {
+					require.Nil(t, gen.Config.IsthmusTime)
+					db := rawdb.NewMemoryDatabase()
+					trieDB := triedb.NewDatabase(db, nil)
+					t.Cleanup(func() { _ = trieDB.Close(); _ = db.Close() })
+					block, err := gen.Commit(db, trieDB, nil)
+					require.NoError(t, err)
+					stateDB, err := gethstate.New(block.Root(), gethstate.NewDatabase(trieDB, nil))
+					require.NoError(t, err)
+					messagePasserRoot = stateDB.GetStorageRoot(predeploys.L2ToL1MessagePasserAddr)
+				} else {
+					require.NotNil(t, header.WithdrawalsHash)
+					messagePasserRoot = *header.WithdrawalsHash
+				}
+				root, err := rollup.ComputeL2OutputRootV0(eth.HeaderBlockInfo(header), messagePasserRoot)
+				require.NoError(t, err)
+				outputs = append(outputs, eth.ChainIDAndOutput{ChainID: eth.ChainIDFromBytes32(chain.ID), Output: root})
+				timestamp = gen.Timestamp
+			}
+			expected := opcm.DefaultStartingAnchorProposal()
+			if tc.permissionless {
+				expected = opcm.Proposal{
+					Root:             common.Hash(eth.SuperRoot(eth.NewSuperV1(timestamp, outputs...))),
+					L2SequenceNumber: new(big.Int).SetUint64(timestamp),
+				}
+			} else if tc.legacy {
+				expected.Root = common.Hash(outputs[0].Output)
+			}
+			getAnchor := w3.MustNewFunc("getStartingAnchorRoot()", "(bytes32 root, uint256 l2SequenceNumber)")
+			data, err := getAnchor.EncodeArgs()
+			require.NoError(t, err)
+			for _, chain := range st.Chains {
+				ret, err := caller.Call(chain.AnchorStateRegistryProxy, data)
+				require.NoError(t, err)
+				var actual opcm.Proposal
+				require.NoError(t, getAnchor.DecodeReturns(ret, &actual))
+				require.Equal(t, expected.Root, actual.Root)
+				require.Zero(t, expected.L2SequenceNumber.Cmp(actual.L2SequenceNumber))
+			}
+		})
+	}
 }
 
 func TestContinuationDeploymentUsesPreparedInputs(t *testing.T) {
@@ -1105,9 +1226,6 @@ func runEndToEndBootstrapAndApplyUpgradeTest(t *testing.T, afactsFS foundry.Stat
 
 			// Then test upgrade on the V2-deployed chain
 			t.Run("upgrade chain v2", func(t *testing.T) {
-				// TODO(#22934): Re-enable once the test handles U20 already applied.
-				t.Skip("Test does not handle U20 already applied")
-
 				// FaultDisputeGameConfig just needs absolutePrestate (bytes32)
 				testPrestate := common.Hash{'P', 'R', 'E', 'S', 'T', 'A', 'T', 'E'}
 
@@ -1148,14 +1266,20 @@ func runEndToEndBootstrapAndApplyUpgradeTest(t *testing.T, afactsFS foundry.Stat
 								},
 							},
 							{
-								Enabled:  false,
+								Enabled:  true,
 								InitBond: big.NewInt(0),
 								GameType: embedded.GameTypeSuperPermissioned,
+								SuperPermissionedDisputeGameConfig: &embedded.SuperPermissionedDisputeGameConfig{
+									Proposer: testProposer,
+								},
 							},
 							{
-								Enabled:  false,
-								InitBond: big.NewInt(0),
+								Enabled:  true,
+								InitBond: big.NewInt(1000000000000000000),
 								GameType: embedded.GameTypeSuperCannonKona,
+								FaultDisputeGameConfig: &embedded.FaultDisputeGameConfig{
+									AbsolutePrestate: testPrestate,
+								},
 							},
 							{
 								Enabled:  false,

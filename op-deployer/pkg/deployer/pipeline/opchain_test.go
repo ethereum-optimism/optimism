@@ -105,7 +105,7 @@ func Test_makeDCI_OpcmAddress(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got, gotErr := makeDCI(tt.intent, tt.thisIntent, tt.chainID, tt.st)
+			got, gotErr := makeDCI(tt.intent, tt.thisIntent, tt.chainID, tt.st, false)
 			if gotErr != nil {
 				if !tt.shouldThrowErr {
 					t.Errorf("makeDCI() failed: %v", gotErr)
@@ -140,9 +140,9 @@ func Test_makeDCI_OwnsStartingAnchorSequenceNumber(t *testing.T) {
 		},
 	}
 
-	first, err := makeDCI(intent, chainIntent, chainID, st)
+	first, err := makeDCI(intent, chainIntent, chainID, st, false)
 	require.NoError(t, err)
-	second, err := makeDCI(intent, chainIntent, chainID, st)
+	second, err := makeDCI(intent, chainIntent, chainID, st, false)
 	require.NoError(t, err)
 
 	require.Zero(t, first.StartingAnchorRoot.L2SequenceNumber.Sign())
@@ -181,7 +181,7 @@ func Test_makeDCI_RejectsPermissionlessGameType(t *testing.T) {
 				DeployOverrides: map[string]any{"respectedGameType": tt.gameType},
 			}
 
-			_, err := makeDCI(intent, chainIntent, chainID, st)
+			_, err := makeDCI(intent, chainIntent, chainID, st, false)
 			require.ErrorContains(t, err, "permissionless")
 		})
 	}
@@ -267,7 +267,7 @@ func Test_makeDCI_RejectsInvalidInitialGameTypeBeforePermissionlessHandling(t *t
 				DeployOverrides: map[string]any{"respectedGameType": tt.gameType},
 			}
 
-			_, err := makeDCI(intent, chainIntent, chainID, &state.State{})
+			_, err := makeDCI(intent, chainIntent, chainID, &state.State{}, false)
 			require.ErrorContains(t, err, tt.wantErr)
 			require.NotContains(t, err.Error(), "apply only supports permissioned deploys")
 		})

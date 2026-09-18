@@ -44,7 +44,7 @@ func NewSingleSupernodeWithSyncTesterRuntimeWithConfig(t devtest.T, cfg PresetCo
 	}
 	deployerOpts = append(deployerOpts, cfg.DeployerOptions...)
 
-	migration, l1Net, l2Net, depSet, _ := buildSingleChainWorldWithInteropAndState(t, keys, interopAtGenesis, cfg.LocalContractArtifactsPath, deployerOpts...)
+	migration, l1Net, l2Net, depSet, _ := buildSingleChainWorld(t, keys, interopAtGenesis, cfg.LocalContractArtifactsPath, initialProofGameType(t, cfg), deployerOpts...)
 	validateSimpleInteropPresetConfig(t, cfg, l2Net)
 
 	jwtPath, jwtSecret := writeJWTSecret(t)

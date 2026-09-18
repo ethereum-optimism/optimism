@@ -4,12 +4,14 @@ import (
 	"context"
 	"crypto/ecdsa"
 	"fmt"
+	"maps"
 	"math/big"
 	"strings"
 	"time"
 
 	"github.com/ethereum-optimism/optimism/op-service/ioutil"
 
+	"github.com/ethereum-optimism/optimism/op-chain-ops/foundry"
 	"github.com/ethereum-optimism/optimism/op-chain-ops/script"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/artifacts"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/broadcaster"
@@ -24,6 +26,8 @@ import (
 	opcrypto "github.com/ethereum-optimism/optimism/op-service/crypto"
 	"github.com/ethereum-optimism/optimism/op-service/ctxinterrupt"
 	oplog "github.com/ethereum-optimism/optimism/op-service/log"
+	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/ethereum/go-ethereum/log"
@@ -205,6 +209,11 @@ type ApplyPipelineOpts struct {
 	PrivateKey            string
 	Workdir               string
 	ReceiptQueryInterval  time.Duration
+	// GenesisAnchorGameType selects the anchor family for a later permissionless game upgrade.
+	// Nil keeps permissioned placeholders and derives permissionless anchors from the initial game type.
+	GenesisAnchorGameType *uint32
+	// L2GenesisAllocMutator runs after prefunds and before any genesis commitment.
+	L2GenesisAllocMutator func(common.Hash, *foundry.ForgeAllocs) error
 }
 
 func ApplyPipeline(
@@ -214,11 +223,44 @@ func ApplyPipeline(
 	if opts.DeployMockSP1Verifier && opts.DeploymentTarget != DeploymentTargetGenesis {
 		return fmt.Errorf("mock SP1 verifier deployment is only supported for genesis")
 	}
+	if opts.DeploymentTarget != DeploymentTargetGenesis &&
+		(opts.GenesisAnchorGameType != nil || opts.L2GenesisAllocMutator != nil) {
+		return fmt.Errorf("genesis anchor and allocation options require the genesis deployment target")
+	}
 
 	intent := opts.Intent
 	st := opts.State
 	if err := pipeline.ValidateInputs(intent, st); err != nil {
 		return err
+	}
+
+	prepareGenesis := false
+	if opts.DeploymentTarget == DeploymentTargetGenesis {
+		prepareGenesis = opts.GenesisAnchorGameType != nil
+		if opts.GenesisAnchorGameType != nil {
+			requirements, err := pipeline.ResolveInitialDeployRequirements(*opts.GenesisAnchorGameType)
+			if err != nil {
+				return err
+			}
+			if !requirements.Permissionless {
+				return fmt.Errorf("genesis anchor game type must be permissionless")
+			}
+		}
+		for _, chain := range intent.Chains {
+			params, err := pipeline.ResolveChainProofParams(intent, chain)
+			if err != nil {
+				return err
+			}
+			requirements, err := pipeline.ResolveInitialDeployRequirements(params.DisputeGameType)
+			if err != nil {
+				return err
+			}
+			if requirements.Permissionless && opts.GenesisAnchorGameType != nil &&
+				pipeline.IsSuperGameType(params.DisputeGameType) != pipeline.IsSuperGameType(*opts.GenesisAnchorGameType) {
+				return fmt.Errorf("chain %s initial game and requested genesis anchor use different root families", chain.ID)
+			}
+			prepareGenesis = prepareGenesis || requirements.Permissionless
+		}
 	}
 
 	bundle, err := artifacts.DownloadBundle(ctx, intent.L1ContractsLocator, intent.L2ContractsLocator, ioutil.BarProgressor(), opts.CacheDir)
@@ -354,6 +396,25 @@ func ApplyPipeline(
 		}},
 	}
 
+	finalizeL2Allocs := func(chainID common.Hash) error {
+		if err := pipeline.PrefundL2DevGenesis(pEnv, intent, st, chainID); err != nil {
+			return err
+		}
+		if opts.L2GenesisAllocMutator != nil {
+			chain, err := st.Chain(chainID)
+			if err != nil {
+				return err
+			}
+			return opts.L2GenesisAllocMutator(chainID, chain.Allocs.Data)
+		}
+		return nil
+	}
+	if prepareGenesis {
+		pline = append(pline, pipelineStage{"prepare-genesis-anchors", func() error {
+			return prepareGenesisAnchors(pEnv, intent, bundle, st, opts.GenesisAnchorGameType, finalizeL2Allocs)
+		}})
+	}
+
 	for _, chain := range intent.Chains {
 		chainID := chain.ID
 		pline = append(pline, pipelineStage{
@@ -380,14 +441,14 @@ func ApplyPipeline(
 	}
 
 	if opts.DeploymentTarget == DeploymentTargetGenesis {
-		for _, chain := range intent.Chains {
-			chainID := chain.ID
-			pline = append(pline, pipelineStage{
-				"prefund-l2-dev-genesis",
-				func() error {
-					return pipeline.PrefundL2DevGenesis(pEnv, intent, st, chainID)
-				},
-			})
+		if !prepareGenesis {
+			for _, chain := range intent.Chains {
+				chainID := chain.ID
+				pline = append(pline, pipelineStage{
+					"finalize-l2-dev-genesis",
+					func() error { return finalizeL2Allocs(chainID) },
+				})
+			}
 		}
 
 		pline = append(pline, pipelineStage{
@@ -468,4 +529,83 @@ func ApplyPipeline(
 	}
 
 	return nil
+}
+
+func prepareGenesisAnchors(
+	pEnv *pipeline.Env,
+	intent *state.Intent,
+	bundle artifacts.Bundle,
+	st *state.State,
+	anchorGameType *uint32,
+	finalizeAllocs func(common.Hash) error,
+) error {
+	// Prediction must not deploy chain contracts into the final L1 state.
+	dump, err := pEnv.L1ScriptHost.StateDump()
+	if err != nil {
+		return fmt.Errorf("failed to snapshot implementations: %w", err)
+	}
+	host, err := env.DefaultScriptHost(
+		broadcaster.NoopBroadcaster(), pEnv.Logger, pEnv.Deployer, bundle.L1, script.WithNoMaxCodeSize(),
+	)
+	if err != nil {
+		return err
+	}
+	host.ImportState(dump)
+	deployScript, err := opcm.NewDeployOPChainScript(host)
+	if err != nil {
+		return err
+	}
+	if intent.L1DevGenesisParams == nil {
+		intent.L1DevGenesisParams = &state.L1DevGenesisParams{}
+	}
+	if intent.L1DevGenesisParams.BlockParams.Timestamp == 0 {
+		intent.L1DevGenesisParams.BlockParams.Timestamp = uint64(time.Now().Unix())
+	}
+	timestamp := intent.L1DevGenesisParams.BlockParams.Timestamp
+	predictionIntent := *intent
+	predictionIntent.OPCMAddress = &st.ImplementationsDeployment.OpcmV2Impl
+	predictionIntent.SuperchainConfigProxy = &st.SuperchainDeployment.SuperchainConfigProxy
+	for _, chain := range intent.Chains {
+		if st.IsChainDeployed(chain.ID) {
+			continue
+		}
+		input, err := makePredictionInput(&predictionIntent, st, chain)
+		if err != nil {
+			return err
+		}
+		output, err := deployScript.Run(input)
+		if err != nil {
+			return fmt.Errorf("failed to predict chain %s: %w", chain.ID, err)
+		}
+		st.SetChainContracts(chain.ID, pipeline.OpChainContractsFromDeployOutput(output), false)
+		chainState, err := st.Chain(chain.ID)
+		if err != nil {
+			return err
+		}
+		// L2 genesis uses this timestamp, not the L1 block hash. Sealing replaces this reference.
+		chainState.StartBlock = &state.L1BlockRefJSON{Time: hexutil.Uint64(timestamp)}
+		if err := pipeline.GenerateL2Genesis(pEnv, intent, bundle, st, chain.ID); err != nil {
+			return err
+		}
+		if err := finalizeAllocs(chain.ID); err != nil {
+			return err
+		}
+	}
+
+	rootIntent := intent
+	if anchorGameType != nil {
+		copyIntent := *intent
+		copyIntent.Chains = make([]*state.ChainIntent, len(intent.Chains))
+		for i, chain := range intent.Chains {
+			copyChain := *chain
+			copyChain.DeployOverrides = maps.Clone(chain.DeployOverrides)
+			if copyChain.DeployOverrides == nil {
+				copyChain.DeployOverrides = make(map[string]any)
+			}
+			copyChain.DeployOverrides["respectedGameType"] = *anchorGameType
+			copyIntent.Chains[i] = &copyChain
+		}
+		rootIntent = &copyIntent
+	}
+	return pipeline.ComputeGenesisOutputRoots(pEnv, rootIntent, st)
 }

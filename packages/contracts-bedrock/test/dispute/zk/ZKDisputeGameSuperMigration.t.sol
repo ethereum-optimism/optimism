@@ -9,16 +9,7 @@ import { DevFeatures } from "src/libraries/DevFeatures.sol";
 import { Types } from "src/libraries/Types.sol";
 import { Encoding } from "src/libraries/Encoding.sol";
 import { Hashing } from "src/libraries/Hashing.sol";
-import {
-    BondDistributionMode,
-    Claim,
-    Duration,
-    GameStatus,
-    GameType,
-    GameTypes,
-    Hash,
-    Proposal
-} from "src/dispute/lib/Types.sol";
+import { BondDistributionMode, Claim, Duration, GameStatus, GameType, GameTypes, Hash } from "src/dispute/lib/Types.sol";
 
 // Contracts
 import { ZKDisputeGame } from "src/dispute/zk/ZKDisputeGame.sol";
@@ -79,11 +70,9 @@ contract ZKDisputeGameSuperMigration_Test is DisputeGameFactory_TestInit {
         _runFlipAndAssert(GameTypes.SUPER_PERMISSIONED);
     }
 
-    /// @notice Drives the SFDG -> ZK flip for the following in-flight games: an anchor that a
-    ///         game has already advanced (`anchorGame != 0`), a Guardian blacklist entry, and a game
-    ///         still IN_PROGRESS. The upgrade re-initializes the AnchorStateRegistry in place.
-    ///         `anchorGame` is cleared, `retirementTimestamp` and the blacklist are preserved, and a
-    ///         in-flight game can still resolve, close in NORMAL mode, and re-advance the anchor.
+    /// @notice Tests the flip with an advanced anchor, a blacklist entry, and an unresolved game.
+    ///         The upgrade preserves the anchor game, retirement timestamp, and blacklist.
+    ///         An in-flight game can still resolve, close in NORMAL mode, and advance the anchor.
     /// @dev    SFDG only. SuperPermissionedDisputeGame resolves DEFENDER_WINS at initialization, so
     ///         it cannot be left unresolved across the boundary.
     function test_flip_inFlightStateCrossesBoundary_succeeds() public {
@@ -119,20 +108,17 @@ contract ZKDisputeGameSuperMigration_Test is DisputeGameFactory_TestInit {
         assertEq(uint8(inFlight.status()), uint8(GameStatus.IN_PROGRESS), "in-flight game must be unresolved pre-flip");
 
         uint64 retirementBefore = anchorStateRegistry.retirementTimestamp();
+        (Hash anchorBefore, uint256 sequenceBefore) = anchorStateRegistry.getAnchorRoot();
 
         // ── Flip ──
         _buildZKFlipUpgradeInput();
         _runUpgradeAsPAO();
 
-        // ── The in-place ASR re-init clears the anchor game and re-seeds the starting root ──
-        assertEq(
-            address(anchorStateRegistry.anchorGame()),
-            address(0),
-            "anchorGame must be cleared when the starting anchor root changes"
-        );
-        (Hash reseededRoot, uint256 reseededSeq) = anchorStateRegistry.getAnchorRoot();
-        assertEq(reseededRoot.raw(), keccak256("zkMigrationAnchor"), "anchor must be re-seeded to the supplied root");
-        assertEq(reseededSeq, anchorSeqNum + 2, "anchor seq must be re-seeded one above the pre-flip anchor");
+        // The game-type switch must preserve the existing super-root anchor.
+        assertEq(address(anchorStateRegistry.anchorGame()), address(advancer), "anchor game must survive the flip");
+        (Hash anchorAfter, uint256 sequenceAfter) = anchorStateRegistry.getAnchorRoot();
+        assertEq(anchorAfter.raw(), anchorBefore.raw(), "anchor root must survive the flip");
+        assertEq(sequenceAfter, sequenceBefore, "anchor sequence must survive the flip");
 
         // ── retirementTimestamp is deliberately preserved: the flip must not mass-retire games ──
         assertEq(anchorStateRegistry.retirementTimestamp(), retirementBefore, "retirementTimestamp must be preserved");
@@ -186,13 +172,14 @@ contract ZKDisputeGameSuperMigration_Test is DisputeGameFactory_TestInit {
         vm.warp(anchorStateRegistry.retirementTimestamp() + 1);
 
         // ── 2. Create + resolve the old super game ──
-        (, uint256 anchorSeqNum) = anchorStateRegistry.getAnchorRoot();
+        (Hash anchorBefore, uint256 anchorSeqNum) = anchorStateRegistry.getAnchorRoot();
+        address anchorGameBefore = address(anchorStateRegistry.anchorGame());
         IDisputeGame oldGame = _createSuperGame(_sourceSuperType, anchorSeqNum + 1);
         _resolveSuperGame(_sourceSuperType, oldGame);
         assertEq(uint8(oldGame.status()), uint8(GameStatus.DEFENDER_WINS), "old super game must resolve DEFENDER_WINS");
 
         // ── 3. Run the OPCMv2.upgrade() that disables the source super game, enables ZK, ──
-        //       flips the respected type to ZK, re-seeds the anchor.
+        //       flips the respected type to ZK, and preserves the anchor.
         _buildZKFlipUpgradeInput();
         _runUpgradeAsPAO();
 
@@ -212,10 +199,10 @@ contract ZKDisputeGameSuperMigration_Test is DisputeGameFactory_TestInit {
             "respected game type must be ZK"
         );
 
-        // Assert that the flip re-seeded the anchor to the supplied honest root.
-        (Hash reseededRoot, uint256 reseededSeq) = anchorStateRegistry.getAnchorRoot();
-        assertEq(reseededRoot.raw(), keccak256("zkMigrationAnchor"), "anchor must be re-seeded to the supplied root");
-        assertEq(reseededSeq, anchorSeqNum + 1, "anchor seq must be re-seeded");
+        (Hash anchorAfter, uint256 sequenceAfter) = anchorStateRegistry.getAnchorRoot();
+        assertEq(anchorAfter.raw(), anchorBefore.raw(), "anchor root must survive the flip");
+        assertEq(sequenceAfter, anchorSeqNum, "anchor sequence must survive the flip");
+        assertEq(address(anchorStateRegistry.anchorGame()), anchorGameBefore, "anchor game must survive the flip");
 
         // ── 5. A ZK game can be created, used, and finalized in place of the super game ──
         _createAndFinalizeZKGame();
@@ -284,7 +271,7 @@ contract ZKDisputeGameSuperMigration_Test is DisputeGameFactory_TestInit {
     }
 
     /// @notice Builds the OPCMv2 upgrade input that flips the chain to the ZK dispute game.
-    ///         The anchor override re-seeds a new super root.
+    ///         The upgrade preserves the existing super-root anchor.
     function _buildZKFlipUpgradeInput() internal {
         delete _zkUpgradeInput.disputeGameConfigs;
         delete _zkUpgradeInput.extraInstructions;
@@ -318,21 +305,6 @@ contract ZKDisputeGameSuperMigration_Test is DisputeGameFactory_TestInit {
             IOPContractsManagerUtils.ExtraInstruction({
                 key: "overrides.cfg.startingRespectedGameType",
                 data: abi.encode(GameTypes.ZK_DISPUTE_GAME)
-            })
-        );
-
-        // Re-seed the anchor to a fresh honest super root, as the real migration does. The override
-        // is derived from getAnchorRoot() so it always sits one above the live anchor. That keeps it
-        // valid whether or not a game has already advanced the anchor: when `anchorGame != 0`,
-        // AnchorStateRegistry.initialize requires the new root to be strictly ahead of the current
-        // anchor and then clears `anchorGame` so getAnchorRoot() falls back to startingAnchorRoot.
-        (, uint256 anchorSeqNum) = anchorStateRegistry.getAnchorRoot();
-        _zkUpgradeInput.extraInstructions.push(
-            IOPContractsManagerUtils.ExtraInstruction({
-                key: "overrides.cfg.startingAnchorRoot",
-                data: abi.encode(
-                    Proposal({ root: Hash.wrap(keccak256("zkMigrationAnchor")), l2SequenceNumber: anchorSeqNum + 1 })
-                )
             })
         );
     }

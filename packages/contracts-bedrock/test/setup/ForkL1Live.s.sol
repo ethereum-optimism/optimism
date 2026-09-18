@@ -16,7 +16,7 @@ import { Deploy } from "scripts/deploy/Deploy.s.sol";
 import { Config } from "scripts/libraries/Config.sol";
 
 // Libraries
-import { GameType, GameTypes, Claim, Proposal, Hash } from "src/dispute/lib/Types.sol";
+import { GameType, GameTypes, Claim } from "src/dispute/lib/Types.sol";
 import { EIP1967Helper } from "test/mocks/EIP1967Helper.sol";
 import { LibString } from "@solady/utils/LibString.sol";
 import { LibGameArgs } from "src/dispute/lib/LibGameArgs.sol";
@@ -248,33 +248,6 @@ contract ForkL1Live is Deployer, StdAssertions, FeatureFlags {
     function _doUpgradeV2(IOPContractsManagerV2 _opcm, address _delegateCaller) internal {
         ISystemConfig systemConfig = ISystemConfig(artifacts.mustGetAddress("SystemConfigProxy"));
 
-        // Get the SuperchainPAO address.
-        ISuperchainConfig superchainConfig = ISuperchainConfig(artifacts.mustGetAddress("SuperchainConfigProxy"));
-        IProxyAdmin superchainProxyAdmin = IProxyAdmin(EIP1967Helper.getAdmin(address(superchainConfig)));
-        address superchainPAO = superchainProxyAdmin.owner();
-
-        // Always try to upgrade the SuperchainConfig. Not always necessary but easier to do it
-        // every time rather than adding or removing this code for each upgrade.
-        vm.prank(superchainPAO, true);
-        (bool success, bytes memory reason) = address(_opcm).delegatecall(
-            abi.encodeCall(
-                IOPContractsManagerV2.upgradeSuperchain,
-                (
-                    IOPContractsManagerV2.SuperchainUpgradeInput({
-                        superchainConfig: superchainConfig,
-                        extraInstructions: new IOPContractsManagerUtils.ExtraInstruction[](0)
-                    })
-                )
-            )
-        );
-        if (success == false) {
-            // Only acceptable revert reason is downgrade not allowed.
-            assertTrue(
-                bytes4(reason) == IOPContractsManagerUtils.OPContractsManagerUtils_DowngradeNotAllowed.selector,
-                "Revert reason other than DowngradeNotAllowed"
-            );
-        }
-
         IDisputeGameFactory disputeGameFactory =
             IDisputeGameFactory(artifacts.mustGetAddress("DisputeGameFactoryProxy"));
 
@@ -293,9 +266,6 @@ contract ForkL1Live is Deployer, StdAssertions, FeatureFlags {
 
             // Determine the target SUPER_* game type.
             GameType targetGameType = isPermissionless ? GameTypes.SUPER_CANNON_KONA : GameTypes.SUPER_PERMISSIONED;
-
-            // Read the current anchor root sequence number so we can set a higher one.
-            (, uint256 currentAnchorSeqNum) = asr.getAnchorRoot();
 
             // Migration upgrade: legacy types disabled, super types enabled.
             // Order must match validGameTypes in OPContractsManagerV2._assertValidFullConfig().
@@ -350,15 +320,11 @@ contract ForkL1Live is Deployer, StdAssertions, FeatureFlags {
                 gameArgs: hex""
             });
 
-            // Anchor root and game type overrides, plus lockbox deployment permission in v9.
-            extraInstructions = new IOPContractsManagerUtils.ExtraInstruction[](permitLockboxDeployment ? 3 : 2);
+            PastUpgrades.migrateToSuperRoots(_delegateCaller, systemConfig, disputeGameConfigs, targetGameType);
+
+            // V9 preserves the super-root anchor established by v8.
+            extraInstructions = new IOPContractsManagerUtils.ExtraInstruction[](permitLockboxDeployment ? 2 : 1);
             extraInstructions[0] = IOPContractsManagerUtils.ExtraInstruction({
-                key: "overrides.cfg.startingAnchorRoot",
-                data: abi.encode(
-                    Proposal({ root: Hash.wrap(keccak256("migrationAnchorRoot")), l2SequenceNumber: currentAnchorSeqNum + 1 })
-                )
-            });
-            extraInstructions[1] = IOPContractsManagerUtils.ExtraInstruction({
                 key: "overrides.cfg.startingRespectedGameType",
                 data: abi.encode(targetGameType)
             });
@@ -429,6 +395,33 @@ contract ForkL1Live is Deployer, StdAssertions, FeatureFlags {
                 key: Constants.PERMITTED_PROXY_DEPLOYMENT_KEY,
                 data: bytes("ETHLockbox")
             });
+        }
+
+        // Get the SuperchainPAO address.
+        ISuperchainConfig superchainConfig = ISuperchainConfig(artifacts.mustGetAddress("SuperchainConfigProxy"));
+        IProxyAdmin superchainProxyAdmin = IProxyAdmin(EIP1967Helper.getAdmin(address(superchainConfig)));
+        address superchainPAO = superchainProxyAdmin.owner();
+
+        // Always try to upgrade the SuperchainConfig. Not always necessary but easier to do it
+        // every time rather than adding or removing this code for each upgrade.
+        vm.prank(superchainPAO, true);
+        (bool success, bytes memory reason) = address(_opcm).delegatecall(
+            abi.encodeCall(
+                IOPContractsManagerV2.upgradeSuperchain,
+                (
+                    IOPContractsManagerV2.SuperchainUpgradeInput({
+                        superchainConfig: superchainConfig,
+                        extraInstructions: new IOPContractsManagerUtils.ExtraInstruction[](0)
+                    })
+                )
+            )
+        );
+        if (success == false) {
+            // Only acceptable revert reason is downgrade not allowed.
+            assertTrue(
+                bytes4(reason) == IOPContractsManagerUtils.OPContractsManagerUtils_DowngradeNotAllowed.selector,
+                "Revert reason other than DowngradeNotAllowed"
+            );
         }
 
         vm.prank(_delegateCaller, true);

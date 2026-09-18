@@ -18,7 +18,9 @@ import (
 	"github.com/holiman/uint256"
 
 	"github.com/ethereum-optimism/optimism/op-chain-ops/devkeys"
+	"github.com/ethereum-optimism/optimism/op-chain-ops/foundry"
 	"github.com/ethereum-optimism/optimism/op-chain-ops/interopgen/config"
+	gameTypes "github.com/ethereum-optimism/optimism/op-challenger/game/types"
 	"github.com/ethereum-optimism/optimism/op-core/devfeatures"
 	opforks "github.com/ethereum-optimism/optimism/op-core/forks"
 	"github.com/ethereum-optimism/optimism/op-core/predeploys"
@@ -206,9 +208,9 @@ type worldBuilder struct {
 
 	// options
 	deployerPipelineOptions []DeployerPipelineOption
+	genesisAnchorGameType   *uint32
 
-	// preForkPredeployAllocs, when non-nil, is overlaid onto every L2 chain's
-	// genesis predeploy accounts before the genesis and rollup config are built.
+	// Apply the pre-fork snapshot before any genesis commitment.
 	preForkPredeployAllocs types.GenesisAlloc
 
 	builder intentbuilder.Builder
@@ -477,45 +479,6 @@ func (wb *worldBuilder) buildL2Genesis() {
 	wb.outL2Genesis = make(map[eth.ChainID]*core.Genesis)
 	wb.outL2RollupCfg = make(map[eth.ChainID]*rollup.Config)
 	for _, ch := range wb.output.Chains {
-		if wb.preForkPredeployAllocs != nil {
-			wb.require.NotNil(ch.Allocs, "chain must have allocs to overlay pre-fork state onto")
-			for addr, acct := range wb.preForkPredeployAllocs {
-				// Permit2's bytecode contains chain-id-derived immutables (cached
-				// domain separator), so the frozen snapshot's Permit2 is only
-				// valid for its source chain. Keep each chain's own Permit2.
-				// Other chain-agnostic preinstalls are safe to overlay wholesale.
-				if addr == predeploys.Permit2Addr {
-					continue
-				}
-				// Proxied predeploys have chain-specific storage (owners,
-				// balances, mappings, etc.) that the frozen snapshot would
-				// clobber. For these, only overlay the EIP-1967 implementation
-				// slot so the proxy delegates to the frozen pre-fork
-				// implementation while keeping each chain's own state.
-				// Non-proxied predeploys (WETH, GovernanceToken, etc.) and
-				// non-predeploy entries (implementation contracts at 0xc0d3…,
-				// preinstalls, deployer EOA, …) are overlaid wholesale.
-				if p, ok := predeploys.PredeploysByAddress[addr]; ok && !p.ProxyDisabled {
-					existing, ok := ch.Allocs.Data.Accounts[addr]
-					wb.require.Truef(ok, "predeploy %s missing from chain genesis allocs", addr)
-					implSlot, ok := acct.Storage[proxyImplementationSlot]
-					if !ok {
-						// No pre-fork implementation to pin: this proxy had no
-						// implementation in the frozen state. Leave
-						// the chain's own proxy state; the fork's NUT bundle
-						// installs the implementation at activation.
-						continue
-					}
-					if existing.Storage == nil {
-						existing.Storage = make(map[common.Hash]common.Hash, 1)
-					}
-					existing.Storage[proxyImplementationSlot] = implSlot
-					ch.Allocs.Data.Accounts[addr] = existing
-					continue
-				}
-				ch.Allocs.Data.Accounts[addr] = acct
-			}
-		}
 		l2Genesis, l2RollupCfg, err := inspect.GenesisAndRollup(wb.output, ch.ID)
 		wb.require.NoError(err, "need L2 genesis and rollup")
 		id := eth.ChainIDFromBytes32(ch.ID)
@@ -532,6 +495,34 @@ func (wb *worldBuilder) buildL2Genesis() {
 			wb.p.SkipNow()
 		}
 	}
+}
+
+func (wb *worldBuilder) finalizeL2GenesisAllocs(_ common.Hash, allocs *foundry.ForgeAllocs) error {
+	for addr, account := range wb.preForkPredeployAllocs {
+		// Permit2 embeds the chain ID, so retain the generated instance.
+		if addr == predeploys.Permit2Addr {
+			continue
+		}
+		if predeploy, ok := predeploys.PredeploysByAddress[addr]; ok && !predeploy.ProxyDisabled {
+			existing, ok := allocs.Accounts[addr]
+			if !ok {
+				return fmt.Errorf("predeploy %s missing from chain genesis allocs", addr)
+			}
+			implementation, ok := account.Storage[proxyImplementationSlot]
+			if !ok {
+				continue
+			}
+			// Retain chain-specific proxy storage and replace only its implementation.
+			if existing.Storage == nil {
+				existing.Storage = make(map[common.Hash]common.Hash, 1)
+			}
+			existing.Storage[proxyImplementationSlot] = implementation
+			allocs.Accounts[addr] = existing
+			continue
+		}
+		allocs.Accounts[addr] = account
+	}
+	return nil
 }
 
 func (wb *worldBuilder) buildL2DeploymentOutputs() {
@@ -575,6 +566,16 @@ func (wb *worldBuilder) Build() {
 	deployerKey, err := wb.keys.Secret(devkeys.DeployerRole.Key(big.NewInt(0)))
 	wb.require.NoError(err, "need deployer key")
 
+	if wb.genesisAnchorGameType != nil && *wb.genesisAnchorGameType == uint32(gameTypes.SuperCannonKonaGameType) {
+		if wb.builder.GlobalOverride("respectedGameType") == nil {
+			wb.builder.WithGlobalOverride("respectedGameType", *wb.genesisAnchorGameType)
+		}
+		if wb.builder.GlobalOverride(state.FaultGameAbsolutePrestateOverrideKey) == nil {
+			wb.builder.WithGlobalOverride(state.FaultGameAbsolutePrestateOverrideKey,
+				PrestateForGameType(wb.p, gameTypes.SuperCannonKonaGameType))
+		}
+	}
+
 	intent, err := wb.builder.Build()
 	wb.require.NoError(err)
 
@@ -588,6 +589,8 @@ func (wb *worldBuilder) Build() {
 		StateWriter:        wb, // direct output back here
 		// Devstack deliberately uses an accept-all raw verifier when ZK dispute games are enabled.
 		DeployMockSP1Verifier: true,
+		GenesisAnchorGameType: wb.genesisAnchorGameType,
+		L2GenesisAllocMutator: wb.finalizeL2GenesisAllocs,
 	}
 	for _, opt := range wb.deployerPipelineOptions {
 		opt(wb, intent, &pipelineOpts)

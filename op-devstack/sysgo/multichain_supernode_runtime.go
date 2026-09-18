@@ -158,7 +158,7 @@ func newSingleChainSupernodeRuntimeWithConfig(t devtest.T, lagoonAtGenesis bool,
 	keys, err := devkeys.NewMnemonicDevKeys(devkeys.TestMnemonic)
 	require.NoError(err, "failed to derive dev keys from mnemonic")
 
-	migration, l1Net, l2Net, depSet, _ := buildSingleChainWorldWithInteropAndState(t, keys, lagoonAtGenesis, cfg.LocalContractArtifactsPath, cfg.DeployerOptions...)
+	migration, l1Net, l2Net, depSet, _ := buildSingleChainWorld(t, keys, lagoonAtGenesis, cfg.LocalContractArtifactsPath, initialProofGameType(t, cfg), cfg.DeployerOptions...)
 	validateSimpleInteropPresetConfig(t, cfg, l2Net)
 
 	jwtPath, jwtSecret := writeJWTSecret(t)
@@ -266,6 +266,7 @@ func newMultiL2SupernodeRuntimeWithConfigAndSequencerMode(
 		delaySeconds,
 		cfg.LocalContractArtifactsPath,
 		chainSpecs,
+		initialProofGameType(t, cfg),
 		cfg.DeployerOptions...,
 	)
 	migration := newInteropMigrationState(wb)
@@ -419,14 +420,16 @@ func buildMultiL2RuntimeWorld(
 	delaySeconds uint64,
 	localContractArtifactsPath string,
 	chainSpecs []runtimeChainSpec,
+	anchorGameType *uint32,
 	deployerOpts ...DeployerOption,
 ) (*worldBuilder, *L1Network, []*L2Network) {
 	wb := &worldBuilder{
-		p:       t,
-		logger:  t.Logger(),
-		require: t.Require(),
-		keys:    keys,
-		builder: intentbuilder.New(),
+		p:                     t,
+		logger:                t.Logger(),
+		require:               t.Require(),
+		keys:                  keys,
+		builder:               intentbuilder.New(),
+		genesisAnchorGameType: anchorGameType,
 	}
 
 	applyConfigLocalContractSources(t, keys, wb.builder, localContractArtifactsPath)

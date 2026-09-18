@@ -44,7 +44,7 @@ func DeployOPChain(env *Env, intent *state.Intent, st *state.State, chainID comm
 		return fmt.Errorf("failed to get chain intent: %w", err)
 	}
 
-	dci, err := makeDCI(intent, thisIntent, chainID, st)
+	dci, err := makeDCI(intent, thisIntent, chainID, st, env.IsGenesis)
 	if err != nil {
 		return fmt.Errorf("error making deploy OP chain input: %w", err)
 	}
@@ -52,6 +52,12 @@ func DeployOPChain(env *Env, intent *state.Intent, st *state.State, chainID comm
 	result, err := ExecuteOPChainDeployment(env, st, chainID, dci)
 	if err != nil {
 		return err
+	}
+	if env.IsGenesis {
+		if predicted, err := st.Chain(chainID); err == nil && predicted.StartingAnchorRoot != nil &&
+			predicted.OpChainContracts != result.Contracts() {
+			return fmt.Errorf("deployed chain %s does not match its predicted addresses", chainID)
+		}
 	}
 	// Record in memory. The stage runner persists state after its broadcast succeeds.
 	return RecordOPChainDeployment(st, result)
@@ -432,32 +438,9 @@ func BuildContinuationDCI(chainID common.Hash, st *state.State) (opcm.DeployOPCh
 
 	startingAnchorRoot := opcm.DefaultStartingAnchorProposal()
 	if requirements.Permissionless {
-		if chainState.StartingAnchorRoot == nil || chainState.StartingAnchorRoot.Root == (common.Hash{}) {
-			return opcm.DeployOPChainInput{}, fmt.Errorf(
-				"chain %s has no valid starting anchor proposal committed. Rerun the proposal-producing stage",
-				chainID.Hex(),
-			)
-		}
-		if chainState.StartingAnchorRoot.Root == opcm.DefaultStartingAnchorRoot.Root {
-			return opcm.DeployOPChainInput{}, fmt.Errorf(
-				"chain %s has the permissioned starting anchor placeholder committed. Rerun the proposal-producing stage",
-				chainID.Hex(),
-			)
-		}
-		// The initial anchor must leave room for a strictly greater uint64 game sequence.
-		// The field is uint64-bounded, so equality is the only invalid value representable here.
-		if chainState.StartingAnchorRoot.L2SequenceNumber == math.MaxUint64 {
-			return opcm.DeployOPChainInput{}, fmt.Errorf(
-				"chain %s has a starting anchor sequence number that is too large. Rerun the proposal-producing stage",
-				chainID.Hex(),
-			)
-		}
-
-		startingAnchorRoot = opcm.Proposal{
-			Root: chainState.StartingAnchorRoot.Root,
-			L2SequenceNumber: new(big.Int).SetUint64(
-				uint64(chainState.StartingAnchorRoot.L2SequenceNumber),
-			),
+		startingAnchorRoot, err = committedStartingAnchor(chainState)
+		if err != nil {
+			return opcm.DeployOPChainInput{}, err
 		}
 	}
 
@@ -478,7 +461,7 @@ func BuildContinuationDCI(chainID common.Hash, st *state.State) (opcm.DeployOPCh
 	), nil
 }
 
-func makeDCI(intent *state.Intent, thisIntent *state.ChainIntent, chainID common.Hash, st *state.State) (opcm.DeployOPChainInput, error) {
+func makeDCI(intent *state.Intent, thisIntent *state.ChainIntent, chainID common.Hash, st *state.State, isGenesis bool) (opcm.DeployOPChainInput, error) {
 	proofParams, err := ResolveChainProofParams(intent, thisIntent)
 	if err != nil {
 		return opcm.DeployOPChainInput{}, fmt.Errorf("error merging proof params from overrides: %w", err)
@@ -488,8 +471,26 @@ func makeDCI(intent *state.Intent, thisIntent *state.ChainIntent, chainID common
 	if err != nil {
 		return opcm.DeployOPChainInput{}, err
 	}
-	if requirements.Permissionless {
+	if requirements.Permissionless && !isGenesis {
 		return opcm.DeployOPChainInput{}, fmt.Errorf("apply only supports permissioned deploys: permissionless chains are deployed through the prepare flow")
+	}
+	startingAnchorRoot := opcm.DefaultStartingAnchorProposal()
+	if isGenesis {
+		chainState, err := st.Chain(chainID)
+		if requirements.Permissionless && err != nil {
+			return opcm.DeployOPChainInput{}, fmt.Errorf("permissionless chain %s has no genesis anchor: %w", chainID, err)
+		}
+		if err == nil && (requirements.Permissionless || chainState.StartingAnchorRoot != nil) {
+			startingAnchorRoot, err = committedStartingAnchor(chainState)
+			if err != nil {
+				return opcm.DeployOPChainInput{}, err
+			}
+		}
+		if requirements.RequiresPrestate &&
+			(proofParams.DisputeAbsolutePrestate == (common.Hash{}) ||
+				proofParams.DisputeAbsolutePrestate == opcm.PermissionedCannonFallbackPrestatePlaceholder) {
+			return opcm.DeployOPChainInput{}, fmt.Errorf("permissionless chain %s requires a valid prestate", chainID)
+		}
 	}
 
 	opcmAddr := st.ImplementationsDeployment.OpcmV2Impl
@@ -505,9 +506,26 @@ func makeDCI(intent *state.Intent, thisIntent *state.ChainIntent, chainID common
 		chainID,
 		st.Create2Salt.String(),
 		thisIntent.GasLimit,
-		opcm.DefaultStartingAnchorProposal(),
+		startingAnchorRoot,
 		thisIntent,
 	), nil
+}
+
+func committedStartingAnchor(chainState *state.ChainState) (opcm.Proposal, error) {
+	anchor := chainState.StartingAnchorRoot
+	if anchor == nil || anchor.Root == (common.Hash{}) {
+		return opcm.Proposal{}, fmt.Errorf("chain %s has no valid starting anchor proposal committed. Rerun the proposal-producing stage", chainState.ID)
+	}
+	if anchor.Root == opcm.DefaultStartingAnchorRoot.Root {
+		return opcm.Proposal{}, fmt.Errorf("chain %s has the permissioned starting anchor placeholder committed. Rerun the proposal-producing stage", chainState.ID)
+	}
+	if anchor.L2SequenceNumber == math.MaxUint64 {
+		return opcm.Proposal{}, fmt.Errorf("chain %s has a starting anchor sequence number that is too large. Rerun the proposal-producing stage", chainState.ID)
+	}
+	return opcm.Proposal{
+		Root:             anchor.Root,
+		L2SequenceNumber: new(big.Int).SetUint64(uint64(anchor.L2SequenceNumber)),
+	}, nil
 }
 
 func BuildDeployOPChainInput(

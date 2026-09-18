@@ -1,6 +1,7 @@
 package sysgo
 
 import (
+	"math/big"
 	"os"
 	"path/filepath"
 	"testing"
@@ -9,11 +10,18 @@ import (
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/params/forks"
+	"github.com/ethereum/go-ethereum/rpc"
+	"github.com/lmittmann/w3"
+	w3eth "github.com/lmittmann/w3/module/eth"
 
 	"github.com/ethereum-optimism/optimism/op-chain-ops/devkeys"
+	gameTypes "github.com/ethereum-optimism/optimism/op-challenger/game/types"
+	"github.com/ethereum-optimism/optimism/op-core/devfeatures"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/artifacts"
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/intentbuilder"
+	"github.com/ethereum-optimism/optimism/op-node/rollup"
+	"github.com/ethereum-optimism/optimism/op-service/bigs"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 )
 
@@ -174,6 +182,72 @@ func TestDevstackFutureL1ForkAddsBlobSchedule(t *testing.T) {
 	require.NotNil(t, schedule.BPO4)
 	require.NotNil(t, schedule.BPO5)
 	require.NotNil(t, schedule.Amsterdam)
+}
+
+func TestProofSetupPreservesGenesisAnchor(t *testing.T) {
+	for _, gameType := range []gameTypes.GameType{gameTypes.SuperCannonKonaGameType, gameTypes.ZKDisputeGameType, gameTypes.CannonKonaGameType} {
+		t.Run(gameType.String(), func(t *testing.T) {
+			dt := devtest.SerialT(t)
+			keys, err := devkeys.NewMnemonicDevKeys(devkeys.TestMnemonic)
+			require.NoError(t, err)
+			cfg := PresetConfig{
+				AddedGameTypes:  []gameTypes.GameType{gameType},
+				DeployerOptions: []DeployerOption{WithJovianAtGenesis},
+			}
+			if gameType == gameTypes.ZKDisputeGameType {
+				cfg.DeployerOptions = append(cfg.DeployerOptions, WithDevFeatureEnabled(devfeatures.ZKDisputeGameFlag))
+			}
+			world := newDefaultSingleChainWorld(dt, keys, cfg)
+			jwtPath, _ := writeJWTSecret(dt)
+			l1EL, _ := startInProcessL1(dt, world.L1Network, jwtPath)
+			rpcClient, err := rpc.DialContext(t.Context(), l1EL.UserRPC())
+			require.NoError(t, err)
+			defer rpcClient.Close()
+			client := w3.NewClient(rpcClient)
+			portal := world.L2Network.rollupCfg.DepositContractAddress
+			var registry, factory common.Address
+			require.NoError(t, client.Call(
+				w3eth.CallFunc(portal, w3.MustNewFunc("anchorStateRegistry()", "address")).Returns(&registry),
+			))
+			require.NoError(t, client.Call(
+				w3eth.CallFunc(registry, w3.MustNewFunc("disputeGameFactory()", "address")).Returns(&factory),
+			))
+			header := world.L2Network.genesis.ToBlock().Header()
+			require.NotNil(t, header.WithdrawalsHash)
+			output, err := rollup.ComputeL2OutputRootV0(eth.HeaderBlockInfo(header), *header.WithdrawalsHash)
+			require.NoError(t, err)
+			expected := common.Hash(eth.SuperRoot(eth.NewSuperV1(header.Time,
+				eth.ChainIDAndOutput{ChainID: world.L2Network.ChainID(), Output: output})))
+			expectedSequence := header.Time
+			if gameType == gameTypes.CannonKonaGameType {
+				expected = common.Hash(output)
+				expectedSequence = 0
+			}
+			assertAnchor := func() {
+				var root common.Hash
+				var sequence *big.Int
+				require.NoError(t, client.Call(
+					w3eth.CallFunc(registry, w3.MustNewFunc("getAnchorRoot()", "bytes32,uint256")).Returns(&root, &sequence),
+				))
+				require.Equal(t, expected, root)
+				require.Equal(t, expectedSequence, bigs.Uint64Strict(sequence))
+			}
+			assertAnchor()
+			addGameTypesForRuntime(dt, keys, cfg.AddedGameTypes, world.L1Network.ChainID(), l1EL.UserRPC(), world.L2Network)
+			var registryAfter, factoryAfter common.Address
+			require.NoError(t, client.Call(
+				w3eth.CallFunc(portal, w3.MustNewFunc("anchorStateRegistry()", "address")).Returns(&registryAfter),
+			))
+			require.NoError(t, client.Call(
+				w3eth.CallFunc(registryAfter, w3.MustNewFunc("disputeGameFactory()", "address")).Returns(&factoryAfter),
+			))
+			require.Equal(t, registry, registryAfter)
+			require.Equal(t, factory, factoryAfter)
+			require.Equal(t, factory, world.L2Network.deployment.DisputeGameFactoryProxyAddr())
+			require.NotEqual(t, common.Address{}, getGameImpl(dt, client, factory, uint32(gameType)))
+			assertAnchor()
+		})
+	}
 }
 
 func newValidIntentBuilder() intentbuilder.Builder {
