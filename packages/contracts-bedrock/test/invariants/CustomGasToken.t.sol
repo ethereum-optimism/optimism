@@ -206,6 +206,9 @@ contract CustomGasToken_Invariants_Test is CommonTest {
         // Create the initial supply
         vm.deal(address(nativeAssetLiquidity), STARTING_BALANCE);
 
+        // Handler callers must not impersonate accounts whose balances are tracked.
+        targetSender(makeAddr("invariantSender"));
+
         // Set the target contract.
         targetContract(address(actor_minter));
         targetContract(address(actor_funder));
