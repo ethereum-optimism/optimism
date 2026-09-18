@@ -36,7 +36,7 @@ use reth_optimism_exex::OpProofsExEx;
 use reth_optimism_node::{
     OpAddOns, OpConsensusBuilder, OpEngineApiBuilder, OpEngineValidatorBuilder, OpExecutorBuilder,
     OpNetworkBuilder, OpNode, OpNodeTypes, OpPoolBuilder,
-    args::{ProofsStorageVersion, RollupArgs},
+    args::RollupArgs,
     node::{OpFullNodeTypes, OpPayloadBuilder},
     proof_history::spawn_proofs_db_metrics,
     rpc::OpEthApiBuilder,
@@ -47,10 +47,7 @@ use reth_optimism_rpc::{
     debug::{DebugApiExt, DebugApiOverrideServer},
     eth::proofs::{EthApiExt, EthApiOverrideServer},
 };
-use reth_optimism_trie::{
-    OpProofsStorage, OpProofsStore,
-    db::{MdbxProofsStorage, MdbxProofsStorageV2},
-};
+use reth_optimism_trie::{OpProofsStorage, OpProofsStore, db::MdbxProofsStorageV2};
 use reth_payload_builder::PayloadBuilderHandle;
 use reth_payload_primitives::BuildNextEnv;
 use reth_transaction_pool::TransactionPool;
@@ -273,24 +270,12 @@ async fn launch_fixture_node(
     }
 
     let path = args.history.resolve_storage_path(builder.config().datadir().as_ref());
-    match args.history.storage_version {
-        ProofsStorageVersion::V1 => {
-            info!(target: "reth::cli", "Using on-disk storage for proofs history (v1)");
-            let storage = Arc::new(
-                MdbxProofsStorage::new(&path)
-                    .map_err(|err| eyre::eyre!("Failed to create MdbxProofsStorage: {err}"))?,
-            );
-            launch_fixture_with_proof_history(builder, args, storage).await
-        }
-        ProofsStorageVersion::V2 => {
-            info!(target: "reth::cli", "Using on-disk storage for proofs history (v2)");
-            let storage = Arc::new(
-                MdbxProofsStorageV2::new(&path)
-                    .map_err(|err| eyre::eyre!("Failed to create MdbxProofsStorageV2: {err}"))?,
-            );
-            launch_fixture_with_proof_history(builder, args, storage).await
-        }
-    }
+    info!(target: "reth::cli", "Using on-disk storage for proofs history (v2)");
+    let storage = Arc::new(
+        MdbxProofsStorageV2::new(&path)
+            .map_err(|err| eyre::eyre!("Failed to create MdbxProofsStorageV2: {err}"))?,
+    );
+    launch_fixture_with_proof_history(builder, args, storage).await
 }
 
 async fn launch_fixture_with_proof_history<S>(

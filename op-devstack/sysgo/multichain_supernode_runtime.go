@@ -148,7 +148,7 @@ func startSupernodeELWithInteropURL(
 		return l2EL
 	default: // op-reth
 		return startMixedOpRethNodeWithInteropURL(
-			t, l2Net, key, jwtPath, jwtSecret, nil, interopURL, "v1", ResolveMixedL2ELOpts(t)...)
+			t, l2Net, key, jwtPath, jwtSecret, nil, interopURL, ResolveMixedL2ELOpts(t)...)
 	}
 }
 
