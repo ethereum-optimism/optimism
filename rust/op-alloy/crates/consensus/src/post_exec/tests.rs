@@ -1,6 +1,7 @@
 //! Tests for post-exec transaction types and the shared post-exec payload structure check.
 
 use super::*;
+use rstest::rstest;
 
 #[test]
 fn post_exec_payload_rlp_roundtrip_preserves_block_number() {
@@ -43,6 +44,26 @@ fn post_exec_payload_rlp_decode_rejects_trailing_bytes() {
 
     let err = PostExecPayload::from_rlp_bytes(&encoded).expect_err("reject trailing bytes");
     assert_eq!(err, alloy_rlp::Error::UnexpectedLength);
+}
+
+fn payload_with_refunds(refunds: &[u64]) -> PostExecPayload {
+    PostExecPayload {
+        gas_refund_entries: refunds
+            .iter()
+            .enumerate()
+            .map(|(index, gas_refund)| SDMGasEntry { index: index as u64, gas_refund: *gas_refund })
+            .collect(),
+        ..Default::default()
+    }
+}
+
+#[rstest]
+#[case::no_entries(&[], 0)]
+#[case::single_entry(&[5], 5)]
+#[case::sums_entries(&[5, 7], 12)]
+#[case::saturates(&[u64::MAX, 1], u64::MAX)]
+fn total_gas_refund_sums_entries(#[case] refunds: &[u64], #[case] expected: u64) {
+    assert_eq!(payload_with_refunds(refunds).total_gas_refund(), expected);
 }
 
 #[test]
