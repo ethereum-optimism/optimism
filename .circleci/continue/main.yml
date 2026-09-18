@@ -1182,7 +1182,6 @@ jobs:
   contracts-bedrock-coverage:
     docker:
       - image: <<pipeline.parameters.c-default_docker_image>>
-    # Coverage requires more than 32 GB with all feature suites instrumented.
     resource_class: 2xlarge+.gen2
     parameters:
       test_timeout:
