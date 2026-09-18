@@ -1,11 +1,11 @@
 package cli
 
 import (
-	"bytes"
 	"context"
 	"log/slog"
-	"os"
+	"os/exec"
 	"path/filepath"
+	"syscall"
 	"testing"
 	"time"
 
@@ -16,6 +16,8 @@ import (
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/stretchr/testify/require"
 )
+
+var cliTestBinary string
 
 // CLITestRunner provides utilities for running op-deployer CLI commands in tests
 type CLITestRunner struct {
@@ -41,7 +43,8 @@ func WithPrivateKey(pkHex string) CLITestRunnerOption {
 }
 
 func NewCLITestRunner(t *testing.T, opts ...CLITestRunnerOption) *CLITestRunner {
-	workDir := testutils.IsolatedTestDirWithAutoCleanup(t)
+	workDir, err := filepath.Abs(testutils.IsolatedTestDirWithAutoCleanup(t))
+	require.NoError(t, err)
 	runner := &CLITestRunner{
 		workDir: workDir,
 		lgr:     testlog.Logger(t, slog.LevelDebug),
@@ -55,7 +58,8 @@ func NewCLITestRunner(t *testing.T, opts ...CLITestRunnerOption) *CLITestRunner 
 // NewCLITestRunnerWithNetwork creates a new CLI test runner with default network setup.
 // Defaults can be overridden using functional options.
 func NewCLITestRunnerWithNetwork(t *testing.T, opts ...CLITestRunnerOption) *CLITestRunner {
-	workDir := testutils.IsolatedTestDirWithAutoCleanup(t)
+	workDir, err := filepath.Abs(testutils.IsolatedTestDirWithAutoCleanup(t))
+	require.NoError(t, err)
 
 	// Set up defaults
 	lgr := testlog.Logger(t, slog.LevelDebug)
@@ -112,67 +116,26 @@ func (r *CLITestRunner) GetPrivateKey() string {
 	return r.privateKeyHex
 }
 
-// captureOutputWriter captures output written to it for testing
-type captureOutputWriter struct {
-	buf *bytes.Buffer
-}
-
-func (w *captureOutputWriter) Write(p []byte) (n int, err error) {
-	return w.buf.Write(p)
-}
-
-func newCaptureOutputWriter() *captureOutputWriter {
-	return &captureOutputWriter{buf: &bytes.Buffer{}}
-}
-
 // Run executes a CLI command and returns the output
 func (r *CLITestRunner) Run(ctx context.Context, args []string, env map[string]string) (string, error) {
-	// Set up environment variables
-	for key, value := range env {
-		previousValue, existed := os.LookupEnv(key)
-		os.Setenv(key, value)
-		defer func(key string, previousValue string, existed bool) {
-			if existed {
-				_ = os.Setenv(key, previousValue)
-			} else {
-				_ = os.Unsetenv(key)
-			}
-		}(key, previousValue, existed)
-	}
-
-	// Change to the working directory for the test
-	originalDir, err := os.Getwd()
-	if err != nil {
-		return "", err
-	}
-	defer func() {
-		_ = os.Chdir(originalDir)
-	}()
-
-	if err := os.Chdir(r.workDir); err != nil {
-		return "", err
-	}
-
-	// Capture output
-	stdout := newCaptureOutputWriter()
-	stderr := newCaptureOutputWriter()
-
-	// Ensure command format is: op-deployer --cache-dir <path> <subcommand and flags>
-	cacheDir := filepath.Join(r.workDir, ".cache")
-	commandArgs := args
 	if len(args) > 0 && args[0] == "op-deployer" {
-		commandArgs = args[1:] // Skip "op-deployer" if already present
+		args = args[1:]
 	}
-	fullArgs := append([]string{"op-deployer", "--cache-dir", cacheDir}, commandArgs...)
-
-	// Run the CLI command using the testable interface
-	err = RunCLI(ctx, stdout, stderr, fullArgs)
-	output := stdout.buf.String() + stderr.buf.String()
-	if err != nil {
-		return output, err
+	args = append([]string{"--cache-dir", filepath.Join(r.workDir, ".cache")}, args...)
+	cmd := exec.CommandContext(ctx, cliTestBinary, args...)
+	// Forge descendants must stop with the CLI when its context expires.
+	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
+	cmd.Cancel = func() error {
+		return syscall.Kill(-cmd.Process.Pid, syscall.SIGKILL)
 	}
-
-	return output, nil
+	cmd.WaitDelay = 5 * time.Second
+	cmd.Dir = r.workDir
+	cmd.Env = cmd.Environ()
+	for key, value := range env {
+		cmd.Env = append(cmd.Env, key+"="+value)
+	}
+	output, err := cmd.CombinedOutput()
+	return string(output), err
 }
 
 // RunWithNetwork executes a CLI command with network parameters if available
