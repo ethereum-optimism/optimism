@@ -357,19 +357,22 @@ where
                 return LogFilterRoute::Local;
             };
 
-            // The pre-bedrock half ends at the last block before the transition.
-            if self.fits_span_limit(from_block, self.bedrock_block.saturating_sub(1)) {
+            // Splitting must not serve a range that local handling alone would have rejected, so
+            // meter the whole range asked for, not just the pre-bedrock half sent upstream. An
+            // upper bound tracking the chain tip leaves nothing wider to meter than that half,
+            // which ends at the last block before the transition.
+            let metered_to = to_block.unwrap_or_else(|| self.bedrock_block.saturating_sub(1));
+            if self.fits_span_limit(from_block, metered_to) {
                 return LogFilterRoute::Split;
             }
 
-            // Too wide to split, so the whole range is left to local handling, which rejects it:
-            // the range it was asked for is wider still.
+            // Too wide to split, so the range is left to local handling, which rejects it.
             warn!(
                 target: "rpc::historical",
                 from_block,
                 to_block = %to_bound.unwrap_or(BlockNumberOrTag::Latest),
                 bedrock = self.bedrock_block,
-                "log filter spans the bedrock transition and its pre-bedrock half exceeds the per-filter block limit; not splitting it"
+                "log filter spans the bedrock transition and exceeds the per-filter block limit; not splitting it"
             );
             return LogFilterRoute::Local;
         };
@@ -514,8 +517,10 @@ where
         S: RpcServiceT<MethodResponse = MethodResponse>,
     {
         let Some((pre_bedrock_filter, post_bedrock_filter)) = self.split_log_filter(&req) else {
-            // `route_log_filter` parsed the same params, so this is unreachable.
-            return inner.call(req).await;
+            // `route_log_filter` parsed the same params, so this is unreachable. Fail rather
+            // than fall through to local handling, which answers only the post-bedrock half.
+            warn!(target: "rpc::historical", "could not split a log filter that was routed as straddling");
+            return split_log_filter_error(req.id.clone());
         };
 
         debug!(
@@ -545,7 +550,7 @@ where
         let id = post_bedrock_req.id.clone();
         if let Err(err) = set_log_filter(&mut post_bedrock_req, &post_bedrock_filter) {
             warn!(target: "rpc::historical", %err, "failed to build the post-bedrock half of a split log filter");
-            return pre_bedrock_logs_error(id);
+            return split_log_filter_error(id);
         }
 
         let post_bedrock_response = inner.call(post_bedrock_req).await;
@@ -558,7 +563,7 @@ where
                 target: "rpc::historical",
                 "local node answered the post-bedrock half of a split log filter with a non-array result"
             );
-            return pre_bedrock_logs_error(id);
+            return split_log_filter_error(id);
         };
 
         let payload = jsonrpsee_types::ResponsePayload::success(logs).into();
@@ -672,11 +677,22 @@ where
 /// The message is deliberately generic: an error's `Display` may embed raw responses from the
 /// internal historical endpoint.
 fn pre_bedrock_logs_error(id: jsonrpsee_types::Id<'_>) -> MethodResponse {
+    internal_error(id, "failed to fetch pre-bedrock logs from historical endpoint")
+}
+
+/// The JSON-RPC error returned when a log filter straddling the transition could not be assembled
+/// from its two halves. Distinct from [`pre_bedrock_logs_error`] so that an operator isn't sent
+/// looking at the historical endpoint for a failure on the local side.
+fn split_log_filter_error(id: jsonrpsee_types::Id<'_>) -> MethodResponse {
+    internal_error(id, "failed to serve a log filter spanning the bedrock transition")
+}
+
+fn internal_error(id: jsonrpsee_types::Id<'_>, message: &'static str) -> MethodResponse {
     MethodResponse::error(
         id,
         jsonrpsee_types::ErrorObject::owned(
             jsonrpsee_types::error::INTERNAL_ERROR_CODE,
-            "failed to fetch pre-bedrock logs from historical endpoint",
+            message,
             None::<()>,
         ),
     )
@@ -1111,6 +1127,8 @@ mod tests {
         r#"{"fromBlock":"earliest","toBlock":"finalized"}"#,
         LogFilterRoute::Split
     )]
+    #[case::to_safe(r#"{"fromBlock":"0x0","toBlock":"safe"}"#, LogFilterRoute::Split)]
+    #[case::to_pending(r#"{"fromBlock":"0x0","toBlock":"pending"}"#, LogFilterRoute::Split)]
     #[case::open_ended(r#"{"fromBlock":"0x0"}"#, LogFilterRoute::Split)]
     fn routes_log_filters_by_bedrock_transition(
         #[case] filter: &str,
@@ -1165,12 +1183,12 @@ mod tests {
         );
     }
 
-    /// Tests that the span limit applies to the pre-bedrock half of a split as well, so a split
-    /// can't be used to aim an unmetered scan at the historical endpoint.
+    /// Tests that the span limit bounds what a split sends upstream, so it can't be used to aim
+    /// an unmetered scan at the historical endpoint. With the upper bound tracking the chain tip
+    /// the metered range is the pre-bedrock half, which ends at 105235062.
     #[test]
     fn does_not_split_log_filters_whose_pre_bedrock_half_exceeds_the_span_limit() {
         let historical = limited_historical(100_000);
-        // The last pre-bedrock block is 105235062, so the pre-bedrock half spans `span` blocks.
         let range_crossing_bedrock = |span: u64| {
             logs_request(&format!(
                 r#"{{"fromBlock":"{:#x}","toBlock":"latest"}}"#,
@@ -1184,6 +1202,30 @@ mod tests {
         );
         assert_eq!(
             historical.route_log_filter(&range_crossing_bedrock(100_001)),
+            LogFilterRoute::Local
+        );
+    }
+
+    /// Tests that a split doesn't serve a range local handling alone would have rejected: with
+    /// both bounds fixed it is the whole range that is metered, not each half on its own.
+    #[test]
+    fn does_not_split_log_filters_wider_than_the_span_limit() {
+        let historical = limited_historical(100_000);
+        // Centred on bedrock, so each half stays under the limit while the range doesn't.
+        let range_around_bedrock = |span: u64| {
+            logs_request(&format!(
+                r#"{{"fromBlock":"{:#x}","toBlock":"{:#x}"}}"#,
+                105_235_063 - span / 2,
+                105_235_063 + span / 2
+            ))
+        };
+
+        assert_eq!(
+            historical.route_log_filter(&range_around_bedrock(100_000)),
+            LogFilterRoute::Split
+        );
+        assert_eq!(
+            historical.route_log_filter(&range_around_bedrock(100_002)),
             LogFilterRoute::Local
         );
     }
@@ -1544,8 +1586,9 @@ mod tests {
         let (historical, forwarded) = recorded_historical(asserter);
         let local = LocalNode::answering(json!([post_bedrock_log]));
         let address = "0x5e61a079a178f0e5784107a4963baae0c5a680c6";
+        let topic = "0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef";
         let req = logs_request(&format!(
-            r#"{{"fromBlock":"0x645c276","toBlock":"0x645d1d8","address":"{address}"}}"#
+            r#"{{"fromBlock":"0x645c276","toBlock":"0x645d1d8","address":"{address}","topics":["{topic}"]}}"#
         ));
 
         let resp = historical.serve_split_log_filter(&local, req).await;
@@ -1557,14 +1600,24 @@ mod tests {
             vec![(
                 "eth_getLogs".to_string(),
                 // bedrock is 105235063, so the pre-bedrock half ends at 0x645c276.
-                json!([{"fromBlock": "0x645c276", "toBlock": "0x645c276", "address": address}])
+                json!([{
+                    "fromBlock": "0x645c276",
+                    "toBlock": "0x645c276",
+                    "address": address,
+                    "topics": [topic],
+                }])
             )]
         );
         assert_eq!(
             recorded_requests(&local.requests),
             vec![(
                 "eth_getLogs".to_string(),
-                json!([{"fromBlock": "0x645c277", "toBlock": "0x645d1d8", "address": address}])
+                json!([{
+                    "fromBlock": "0x645c277",
+                    "toBlock": "0x645d1d8",
+                    "address": address,
+                    "topics": [topic],
+                }])
             )]
         );
     }
@@ -1633,5 +1686,83 @@ mod tests {
 
         assert!(!resp.is_success());
         assert_eq!(error_message_of(&resp), "query exceeds max block range");
+    }
+
+    /// Tests that a local half answering with something other than an array of logs fails the
+    /// split, and reports the failure as its own rather than blaming the historical endpoint.
+    #[tokio::test]
+    async fn split_fails_when_the_local_half_is_not_an_array() {
+        let asserter = Asserter::new();
+        asserter.push_success(&json!([]));
+
+        let historical = mocked_historical(asserter);
+        let local = LocalNode::answering(json!({}));
+        let req = logs_request(r#"{"fromBlock":"0x645c276","toBlock":"latest"}"#);
+
+        let resp = historical.serve_split_log_filter(&local, req).await;
+
+        assert!(!resp.is_success());
+        assert_eq!(resp.as_error_code(), Some(jsonrpsee_types::error::INTERNAL_ERROR_CODE));
+        assert_eq!(
+            error_message_of(&resp),
+            "failed to serve a log filter spanning the bedrock transition"
+        );
+    }
+
+    /// Tests the service's own dispatch, not just the pieces it calls: a straddling filter
+    /// arriving at `HistoricalRpcService::call` comes back with both halves.
+    #[tokio::test]
+    async fn call_serves_a_straddling_log_filter_from_both_backends() {
+        let pre_bedrock_log = json!({"blockNumber": "0x645c276"});
+        let post_bedrock_log = json!({"blockNumber": "0x645d1d8"});
+        let asserter = Asserter::new();
+        asserter.push_success(&json!([pre_bedrock_log]));
+
+        let service = HistoricalRpcService::new(
+            LocalNode::answering(json!([post_bedrock_log])),
+            Arc::new(mocked_historical(asserter)),
+        );
+        let req = logs_request(r#"{"fromBlock":"0x645c276","toBlock":"latest"}"#);
+
+        let resp = service.call(req).await;
+
+        assert!(resp.is_success());
+        assert_eq!(result_of(&resp), json!([pre_bedrock_log, post_bedrock_log]));
+    }
+
+    /// Tests that the service leaves a post-bedrock filter to the inner service untouched.
+    #[tokio::test]
+    async fn call_serves_a_post_bedrock_log_filter_locally() {
+        let local_log = json!({"blockNumber": "0x645d1d8"});
+        let service = HistoricalRpcService::new(
+            LocalNode::answering(json!([local_log])),
+            Arc::new(mocked_historical(Asserter::new())),
+        );
+        let req = logs_request(r#"{"fromBlock":"0x645d1d8","toBlock":"latest"}"#);
+
+        let resp = service.call(req).await;
+
+        assert!(resp.is_success());
+        assert_eq!(result_of(&resp), json!([local_log]));
+    }
+
+    /// Tests that the service forwards a wholly pre-bedrock filter without consulting the local
+    /// node, which cannot answer it.
+    #[tokio::test]
+    async fn call_forwards_a_pre_bedrock_log_filter() {
+        let historical_log = json!({"blockNumber": "0x645c276"});
+        let asserter = Asserter::new();
+        asserter.push_success(&json!([historical_log]));
+
+        let local = LocalNode::answering(json!([]));
+        let service =
+            HistoricalRpcService::new(local.clone(), Arc::new(mocked_historical(asserter)));
+        let req = logs_request(r#"{"toBlock":"0x645c276"}"#);
+
+        let resp = service.call(req).await;
+
+        assert!(resp.is_success());
+        assert_eq!(result_of(&resp), json!([historical_log]));
+        assert!(recorded_requests(&local.requests).is_empty());
     }
 }
