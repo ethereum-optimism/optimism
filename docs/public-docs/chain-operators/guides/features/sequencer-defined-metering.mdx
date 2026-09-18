@@ -40,38 +40,33 @@ Run SDM-capable versions of:
 * `op-reth` on execution nodes; and
 * `op-node` or `kona-node` on consensus nodes.
 
-**Verifier operators need no policy opt-in and no SDM configuration.** If you run verifier nodes
-only, running SDM-capable software is the whole of your involvement.
+Verifier operators do not opt in to anything and have no SDM configuration. If you run verifier
+nodes only, running SDM-capable software is all you need to do.
 
-## Two gates control production
+## Operator opt-in
 
-A PostExec transaction is produced only when **both** gates are open. Either one closed means no
-PostExec transaction and legacy gas accounting.
+A producer appends a PostExec transaction only when two separate things are true: Lagoon is active
+at the block's timestamp, and the operator has opted in on that node. If either is false, the node
+builds blocks under legacy gas accounting and appends nothing.
 
-| Gate | Controlled by | Evaluated against |
-|---|---|---|
-| **Protocol** | Lagoon activation in the chain config | the next block's timestamp |
-| **Operator** | the opt-in flag below | in-process state, `false` at every process boot |
+The opt-in can be set before or after Lagoon. It does nothing until Lagoon activates, so there is
+no need to time it and nothing to change at activation itself.
 
-The operator gate can be set at any time, before or after Lagoon. **Before activation it has no
-effect**, so there is no race at the activation boundary and nothing that must be done at the
-moment Lagoon activates.
-
-### Setting the operator gate
+Three surfaces set it:
 
 | Surface | Value | Notes |
 |---|---|---|
 | `--rollup.operator-sdm-opt-in` | `true` / `false` | CLI flag, read at boot. Defaults to `false`. |
 | `OP_RETH_OPERATOR_SDM_OPT_IN` | `true` / `false` | Environment binding for the same flag. |
-| `admin_setOperatorSdmOptIn` | `true` / `false` | Admin RPC. Takes effect on the next produced block, no restart. |
+| `admin_setOperatorSdmOptIn` | `true` / `false` | Admin RPC. Applies to the next produced block, no restart. |
 
-The RPC-set value is **process-local and not persisted**. It does not survive a restart, and it
-does not carry to a standby sequencer on failover. Set the flag or environment variable in the
-deployment as the durable configuration, and treat the RPC as the fast lever.
+The value set over RPC lives in process memory and is not persisted. A restart loses it, and a
+standby sequencer taking over starts from whatever its own configuration says. Put the value you
+want to survive a restart in the CLI flag or environment variable, and use the RPC when you need
+to change it without one.
 
-`admin_sdmStatus` reports both gates. It takes an optional query timestamp (defaulting to
-wall-clock now) and returns a snapshot — here, a sequencer opted in ahead of a Lagoon activation
-that is not yet scheduled:
+`admin_sdmStatus` reports both gates. It takes an optional query timestamp and defaults to the
+current time. On a sequencer that has opted in while Lagoon is still unscheduled:
 
 ```json title="admin_sdmStatus"
 {
@@ -82,25 +77,22 @@ that is not yet scheduled:
 }
 ```
 
-`activationTime` is the protocol gate's activation timestamp once one is scheduled, and `null`
-otherwise.
-
-`effective` is the AND of the two gates — the single field to check when asking "is this node
-producing rebates?".
+`effective` is the AND of the two gates. `activationTime` is the Lagoon activation timestamp once
+one is scheduled, and `null` before that.
 
 ## Disabling SDM
 
 To stop a producer issuing rebates:
 
-1. Call `admin_setOperatorSdmOptIn(false)` on the sequencer. This takes effect from the next
-   payload; no restart is required.
-2. Confirm with `admin_sdmStatus` that `effective` is `false`.
-3. Update the deployment to set `OP_RETH_OPERATOR_SDM_OPT_IN=false` (or the CLI flag), or the next
-   restart will reinstate the previous value.
+1. Call `admin_setOperatorSdmOptIn(false)` on it. This applies from the next payload and needs no
+   restart.
+2. Check `admin_sdmStatus` to confirm `effective` is now `false`.
+3. Set `OP_RETH_OPERATOR_SDM_OPT_IN=false` (or the CLI flag) in the deployment, or a restart will
+   turn it back on.
 
-This is a producer-side change only. It is not a chain-level rollback: PostExec transactions
-already committed remain in the chain and verifiers continue to validate them as normal. There is
-nothing to coordinate with verifier operators, and no hardfork or config change is involved.
+Only what the producer builds from that point changes. PostExec transactions already in the chain
+stay valid and verifiers keep validating them, so there is nothing to coordinate with verifier
+operators and no config or hardfork change involved.
 
 ## Stock `op-reth` production behavior
 
@@ -116,20 +108,18 @@ Do not deploy it as a sequencer.
 
 ## Refund policies and OP Enterprise
 
-The control surface documented on this page is the complete one: the same flag, environment
-variable, and admin RPCs apply to any SDM producer, including `op-reth-premium`. What differs
-between producers is the **refund policy** — the rule deciding which transactions are rebated and
-by how much.
+Every SDM producer uses the same flag, environment variable and admin RPCs described above,
+`op-reth-premium` included. What varies between producers is the refund policy: the rule deciding
+which transactions get rebated and by how much.
 
-`op-reth-premium` currently ships with a single refund policy baked in. It is not selectable or
-configurable, and its details are documented for OP Enterprise customers rather than here.
+`op-reth-premium` currently ships with a single refund policy baked in. It cannot be selected or
+configured, and it is documented for OP Enterprise customers rather than here. SDM refund policies
+are a private feature available only to OP Enterprise customers. If you are interested in becoming
+an OP Enterprise customer, [contact the OP Enterprise team](https://optimism.io/learn-more).
 
-SDM refund policies are a private feature available only to OP Enterprise customers. If you are
-interested in becoming an OP Enterprise customer, [contact the OP Enterprise team](https://optimism.io/learn-more).
-
-If you use a third-party or proprietary SDM producer, follow that producer's policy and opt-in
-documentation. The producer must emit blocks that stock verifier nodes accept; no producer-specific
-policy code is required on verifiers.
+If you run a third-party or proprietary SDM producer, follow that producer's documentation for its
+policy and opt-in. Whatever policy it uses, it must emit blocks that stock verifier nodes accept,
+and verifiers need no producer-specific code.
 
 ## Confirming producer output
 
@@ -141,7 +131,7 @@ cast receipt <TX_HASH> --rpc-url <RPC_URL> --json | jq '.opGasRefund'
 
 You can also fetch the containing block and check whether its last transaction has type `0x7D`.
 A block without rebates has no PostExec transaction, so absence alone does not indicate whether the
-protocol is active — check `admin_sdmStatus` instead.
+protocol is active. Check `admin_sdmStatus` instead.
 
 ## Debug replay
 
