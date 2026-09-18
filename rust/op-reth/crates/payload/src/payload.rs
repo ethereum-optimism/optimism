@@ -447,7 +447,7 @@ impl<N: NodePrimitives> BuiltPayload for OpBuiltPayload<N> {
     }
 }
 
-/// UPSTREAM-MIRROR(copy): reth@rev:aef8d3e
+/// UPSTREAM-MIRROR(copy): reth@rev:0fbe428
 /// `reth_ethereum_engine_primitives::EthBuiltPayload::into_execution_data`
 ///
 /// Counterpart to `OpPayloadTypes::block_to_payload`; the two conversion paths are kept
