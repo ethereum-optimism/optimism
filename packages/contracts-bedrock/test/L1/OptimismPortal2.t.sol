@@ -1770,6 +1770,35 @@ contract OptimismPortal2_FinalizeWithdrawalTransaction_Test is OptimismPortal2_T
         optimismPortal2.finalizeWithdrawalTransaction{ gas: _defaultTx.gasLimit }(_defaultTx);
     }
 
+    /// @notice Tests that finalization reverts or supplies the minimum gas and records finalization.
+    function testFuzz_finalizeWithdrawalTransaction_minGasInvariant_succeeds(uint256 _gas) external {
+        _gas = bound(_gas, 0, 1_000_000);
+
+        // Record gas at target entry: GAS, PUSH1 0, SSTORE. A nonzero slot avoids state-creation costs.
+        vm.etch(_defaultTx.target, hex"5a600055");
+        vm.store(_defaultTx.target, bytes32(0), bytes32(uint256(1)));
+
+        optimismPortal2.proveWithdrawalTransaction(_defaultTx, _proposedGameIndex, _outputRootProof, _withdrawalProof);
+        game.resolveClaim(0, 0);
+        game.resolve();
+        vm.warp(
+            block.timestamp + optimismPortal2.proofMaturityDelaySeconds()
+                + optimismPortal2.disputeGameFinalityDelaySeconds() + 1
+        );
+        optimismPortal2.checkWithdrawal(_withdrawalHash, address(this));
+
+        (bool success,) = address(optimismPortal2).call{ gas: _gas }(
+            abi.encodeCall(optimismPortal2.finalizeWithdrawalTransaction, (_defaultTx))
+        );
+
+        assertEq(optimismPortal2.finalizedWithdrawals(_withdrawalHash), success);
+        if (success) {
+            // GAS reports the remaining gas after its own two-gas cost.
+            uint256 entryGas = uint256(vm.load(_defaultTx.target, bytes32(0))) + 2;
+            assertGe(entryGas, _defaultTx.gasLimit);
+        }
+    }
+
     /// @notice Tests that `finalizeWithdrawalTransaction` reverts if a sub-call attempts to
     ///         finalize another withdrawal.
     function test_finalizeWithdrawalTransaction_onReentrancy_reverts() external {
