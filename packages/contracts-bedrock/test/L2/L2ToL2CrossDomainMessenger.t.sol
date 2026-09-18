@@ -776,6 +776,9 @@ contract L2ToL2CrossDomainMessenger_RelayMessage_Test is L2ToL2CrossDomainMessen
         // Ensure that the target call is payable if value is sent
         if (_value > 0) assumePayable(_target);
 
+        // Ensure the value transfer cannot overflow the target's balance.
+        vm.deal(_target, 0);
+
         // Ensure that the target contract reverts
         vm.mockCallRevert({ callee: _target, msgValue: _value, data: _message, revertData: _revertData });
 
