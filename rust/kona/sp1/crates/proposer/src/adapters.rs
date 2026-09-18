@@ -6,13 +6,14 @@ use std::{
     time::{SystemTime, UNIX_EPOCH},
 };
 
+use alloy_contract::{CallBuilder, CallDecoder};
 use alloy_eips::{BlockId, BlockNumberOrTag};
 use alloy_network::Ethereum;
 use alloy_primitives::{Address, B256, Bytes, U256};
 use alloy_provider::{EthCallParams, Provider};
 use alloy_rpc_client::{BatchRequest, Waiter};
 use alloy_rpc_types_eth::{TransactionReceipt, TransactionRequest};
-use alloy_sol_types::{SolCall, SolEvent};
+use alloy_sol_types::SolEvent;
 use alloy_transport_http::reqwest::Url;
 use anyhow::{Context, Result, bail};
 use async_trait::async_trait;
@@ -46,36 +47,48 @@ pub(crate) struct ProductionL1View<P> {
 }
 
 /// A queued contract call and its response waiter.
-struct QueuedCall<C> {
-    call: C,
+///
+/// Keeping the typed call builder with its waiter prevents responses from being accidentally
+/// decoded with a different ABI when multiple batched calls have the same wire response type.
+struct QueuedCall<P, D> {
+    builder: CallBuilder<P, D>,
     waiter: Waiter<Bytes>,
 }
 
-impl<C: SolCall> QueuedCall<C> {
-    /// Decodes the response from the waiter.
+impl<P, D> QueuedCall<P, D>
+where
+    P: Provider,
+    D: CallDecoder,
+{
+    /// Awaits and decodes this individual response.
     ///
-    /// An individual eth_call failure may still surface here if the batch round trip completed
-    /// but this specific call failed.
-    async fn decode(self) -> Result<C::Return> {
+    /// `BatchRequest::send` only reports transport-level completion for the batch. A missing or
+    /// failed individual request is surfaced here when its waiter is awaited.
+    async fn decode(self) -> Result<D::CallOutput> {
         let raw = self.waiter.await.context("failed to receive batch call response")?;
-        self.call.decode_output(&raw).context("failed to decode batch call response")
+        self.builder.decode_output(raw).context("failed to decode batch call response")
     }
 }
 
-/// Adds an `eth_call` to the batch.
+/// Adds a typed `eth_call` builder to the batch.
 ///
-/// The provided `block` is authoritative and overrides any block metadata in the `builder`.
-fn add_eth_call<'a, C: SolCall + Clone>(
+/// The provided `block` is authoritative. Call-builder block/state overrides are intentionally
+/// not copied into the raw transaction request, so callers should pass an unmodified generated
+/// builder and supply the pinned block here.
+fn add_eth_call<'a, P, D>(
     batch: &mut BatchRequest<'a>,
-    builder: &impl AsRef<TransactionRequest>,
-    call: C,
+    builder: CallBuilder<P, D>,
     block: BlockId,
-) -> Result<QueuedCall<C>> {
+) -> Result<QueuedCall<P, D>>
+where
+    P: Provider,
+    D: CallDecoder,
+{
     let request = builder.as_ref().clone();
     let waiter = batch
         .add_call("eth_call", &EthCallParams::<Ethereum>::new(request).with_block(block))
         .context("failed to add call to batch")?;
-    Ok(QueuedCall { call, waiter })
+    Ok(QueuedCall { builder, waiter })
 }
 
 impl<P> ProductionL1View<P> {
@@ -168,20 +181,10 @@ where
         let sequence_number_call = contract.l2SequenceNumber();
 
         let mut batch = BatchRequest::new(self.provider.client());
-        let anchor_state_registry = add_eth_call(
-            &mut batch,
-            &anchor_state_registry_call,
-            anchor_state_registry_call.call.clone(),
-            block,
-        )?;
-        let weth = add_eth_call(&mut batch, &weth_call, weth_call.call.clone(), block)?;
-        let creator = add_eth_call(&mut batch, &creator_call, creator_call.call.clone(), block)?;
-        let sequence_number = add_eth_call(
-            &mut batch,
-            &sequence_number_call,
-            sequence_number_call.call.clone(),
-            block,
-        )?;
+        let anchor_state_registry = add_eth_call(&mut batch, anchor_state_registry_call, block)?;
+        let weth = add_eth_call(&mut batch, weth_call, block)?;
+        let creator = add_eth_call(&mut batch, creator_call, block)?;
+        let sequence_number = add_eth_call(&mut batch, sequence_number_call, block)?;
 
         batch.send().await.context("failed to send batch request")?;
 
@@ -202,16 +205,11 @@ where
 
         let mut batch = BatchRequest::new(self.provider.client());
         let root_claim =
-            add_eth_call(&mut batch, &root_claim_call, root_claim_call.call.clone(), block)?;
+            add_eth_call(&mut batch, root_claim_call, block)?;
         let was_respected =
-            add_eth_call(&mut batch, &was_respected_call, was_respected_call.call.clone(), block)?;
-        let status = add_eth_call(&mut batch, &status_call, status_call.call.clone(), block)?;
-        let absolute_prestate = add_eth_call(
-            &mut batch,
-            &absolute_prestate_call,
-            absolute_prestate_call.call.clone(),
-            block,
-        )?;
+            add_eth_call(&mut batch, was_respected_call, block)?;
+        let status = add_eth_call(&mut batch, status_call, block)?;
+        let absolute_prestate = add_eth_call(&mut batch, absolute_prestate_call, block)?;
 
         batch.send().await.context("failed to send batch request")?;
 
@@ -236,10 +234,10 @@ where
         let is_finalized_call = registry_contract.isGameFinalized(game);
 
         let mut batch = BatchRequest::new(self.provider.client());
-        let claim = add_eth_call(&mut batch, &claim_call, claim_call.call.clone(), block)?;
-        let status = add_eth_call(&mut batch, &status_call, status_call.call.clone(), block)?;
+        let claim = add_eth_call(&mut batch, claim_call, block)?;
+        let status = add_eth_call(&mut batch, status_call, block)?;
         let is_finalized =
-            add_eth_call(&mut batch, &is_finalized_call, is_finalized_call.call.clone(), block)?;
+            add_eth_call(&mut batch, is_finalized_call, block)?;
 
         batch.send().await.context("failed to send batch request")?;
 
@@ -280,10 +278,10 @@ where
         let delay_call = weth_contract.delay();
 
         let mut batch = BatchRequest::new(self.provider.client());
-        let credit = add_eth_call(&mut batch, &credit_call, credit_call.call.clone(), block)?;
+        let credit = add_eth_call(&mut batch, credit_call, block)?;
         let withdrawal =
-            add_eth_call(&mut batch, &withdrawal_call, withdrawal_call.call.clone(), block)?;
-        let delay = add_eth_call(&mut batch, &delay_call, delay_call.call.clone(), block)?;
+            add_eth_call(&mut batch, withdrawal_call, block)?;
+        let delay = add_eth_call(&mut batch, delay_call, block)?;
 
         batch.send().await.context("failed to send batch request")?;
 
@@ -858,8 +856,8 @@ mod tests {
     #[tokio::test]
     async fn identity_batches_all_reads_before_decoding_output() {
         let asserter = Asserter::new();
-        // push_success for anchor_state_registry (returns Address)
-        asserter.push_success(&Bytes::from(Address::left_padding_from(&[0x11]).to_vec()));
+        // anchor_state_registry: Address
+        push_abi(&asserter, Address::left_padding_from(&[0x11]));
         // push_abi for weth (returns Address)
         push_abi(&asserter, Address::left_padding_from(&[0x22]));
         // push_abi for creator (returns Address)
@@ -880,10 +878,18 @@ mod tests {
     #[tokio::test]
     async fn lifecycle_batches_all_reads_before_decoding_claim_status() {
         let asserter = Asserter::new();
-        // claimData: (u32 parentIndex, U256 countered, Address claimant, Address bond, u64 deadline, B256 root)
+        // claimData: (u32 parentIndex, uint8 status, address challenger, address prover,
+        //             uint64 deadline, bytes32 claim)
         push_abi(
             &asserter,
-            (11_u32, U256::from(22), Address::ZERO, Address::ZERO, 33_u64, B256::ZERO),
+            (
+                11_u32,
+                1_u8,
+                Address::left_padding_from(&[0x22]),
+                Address::left_padding_from(&[0x33]),
+                44_u64,
+                B256::repeat_byte(0x55),
+            ),
         );
         // status: u8
         push_abi(&asserter, 2_u8);
@@ -894,8 +900,9 @@ mod tests {
         let lifecycle =
             view.game_lifecycle(Address::ZERO, Address::ZERO, BlockId::latest()).await.unwrap();
 
+        assert_eq!(lifecycle.proposal_status, ProposalStatus::Challenged);
         assert_eq!(lifecycle.parent_index, 11);
-        assert_eq!(lifecycle.deadline, 33);
+        assert_eq!(lifecycle.deadline, 44);
         assert_eq!(lifecycle.status, GameStatus::DefenderWins);
         assert!(lifecycle.is_finalized);
         assert!(asserter.read_q().is_empty());
