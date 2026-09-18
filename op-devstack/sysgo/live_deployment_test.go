@@ -30,9 +30,12 @@ func TestLiveOPCMDeployment(t *testing.T) {
 		}
 		t.Run(name, func(t *testing.T) {
 			p := devtest.SerialT(t)
-			cfg := PresetConfig{DeployerOptions: []DeployerOption{WithJovianAtGenesis}}
+			cfg := PresetConfig{}
 			if permissionless {
+				cfg.DeployerOptions = []DeployerOption{WithJovianAtGenesis}
 				cfg.AddedGameTypes = []gameTypes.GameType{gameTypes.SuperCannonKonaGameType}
+			} else {
+				cfg.DeployerOptions = []DeployerOption{WithEcotoneAtGenesis}
 			}
 			runtime := NewMinimalNoFaultProofsRuntimeWithConfig(p, cfg)
 			l2 := runtime.L2Network

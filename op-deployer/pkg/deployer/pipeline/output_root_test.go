@@ -129,6 +129,24 @@ func TestComputeGenesisOutputRoot_RequiresAnchor(t *testing.T) {
 	require.ErrorContains(t, err, "anchor block and genesis time not yet pinned")
 }
 
+func TestComputeGenesisOutputRoot_RejectsPreIsthmusGenesis(t *testing.T) {
+	pEnv, intent, st, chainID := setupChainWithGenesis(t)
+	pEnv.IsGenesis = true
+	intent.Chains[0].DeployOverrides = map[string]any{
+		"l2GenesisIsthmusTimeOffset": nil,
+		"l2GenesisJovianTimeOffset":  nil,
+		"l2GenesisKarstTimeOffset":   nil,
+		"l2GenesisLagoonTimeOffset":  nil,
+	}
+
+	err := ComputeGenesisOutputRoots(pEnv, intent, st)
+	require.ErrorContains(t, err, "Isthmus")
+	chainState, err := st.Chain(chainID)
+	require.NoError(t, err)
+	require.Nil(t, chainState.GenesisBlockHash)
+	require.Nil(t, chainState.StartingAnchorRoot)
+}
+
 func TestComputeGenesisOutputRoot_ComputesAndPersists(t *testing.T) {
 	pEnv, intent, st, chainID := setupChainWithGenesis(t)
 

@@ -525,12 +525,6 @@ contract OPContractsManagerV2_Upgrade_Test is OPContractsManagerV2_Upgrade_TestI
         // Run all past upgrades.
         runPastUpgrades(chainPAO);
 
-        // V9 preserves anchors. The deployed v8 OPCM must convert output roots first.
-        GameType respectedGameType = optimismPortal2.respectedGameType();
-        GameType targetGameType = respectedGameType.raw() == GameTypes.PERMISSIONED_CANNON.raw()
-            ? GameTypes.SUPER_PERMISSIONED
-            : GameTypes.SUPER_CANNON_KONA;
-        PastUpgrades.migrateToSuperRoots(chainPAO, systemConfig, v2UpgradeInput.disputeGameConfigs, targetGameType);
         anchorStateRegistry = optimismPortal2.anchorStateRegistry();
     }
 

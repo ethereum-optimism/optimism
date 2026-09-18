@@ -4,17 +4,12 @@ import (
 	"fmt"
 
 	"github.com/ethereum-optimism/optimism/op-chain-ops/genesis"
-	"github.com/ethereum-optimism/optimism/op-core/predeploys"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/state"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
-	"github.com/ethereum/go-ethereum/core/rawdb"
-	gethstate "github.com/ethereum/go-ethereum/core/state"
-	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/log"
-	"github.com/ethereum/go-ethereum/triedb"
 )
 
 // genesisOutput is one chain's own plain V0 genesis output root, and the L2
@@ -96,37 +91,14 @@ func computeGenesisOutput(lgr log.Logger, intent *state.Intent, st *state.State,
 	block := l2Genesis.ToBlock()
 	header := block.Header()
 	isIsthmus := l2Genesis.Config.IsOptimismIsthmus(header.Time)
-	if (!isGenesis && !isIsthmus) || (isIsthmus && header.WithdrawalsHash == nil) {
+	if !isIsthmus || header.WithdrawalsHash == nil {
 		return genesisOutput{}, fmt.Errorf(
-			"chain %s: genesis output root computation requires an Isthmus withdrawals root outside genesis deployment",
+			"chain %s: genesis output root computation requires an Isthmus withdrawals root",
 			chainID.Hex(),
 		)
 	}
 
-	var messagePasserRoot common.Hash
-	if isIsthmus {
-		messagePasserRoot = *header.WithdrawalsHash
-	} else {
-		// Pre-Isthmus headers omit this root. Build only the message passer's storage trie.
-		db := rawdb.NewMemoryDatabase()
-		defer db.Close()
-		trieDB := triedb.NewDatabase(db, nil)
-		defer trieDB.Close()
-		storage, err := gethstate.New(types.EmptyRootHash, gethstate.NewDatabase(trieDB, nil))
-		if err != nil {
-			return genesisOutput{}, fmt.Errorf("failed to create genesis storage trie: %w", err)
-		}
-		storage.CreateAccount(predeploys.L2ToL1MessagePasserAddr)
-		for key, value := range l2Genesis.Alloc[predeploys.L2ToL1MessagePasserAddr].Storage {
-			storage.SetState(predeploys.L2ToL1MessagePasserAddr, key, value)
-		}
-		storage.IntermediateRoot(false)
-		if err := storage.Error(); err != nil {
-			return genesisOutput{}, fmt.Errorf("failed to compute message passer storage root: %w", err)
-		}
-		messagePasserRoot = storage.GetStorageRoot(predeploys.L2ToL1MessagePasserAddr)
-	}
-	outputRoot, err := rollup.ComputeL2OutputRootV0(eth.HeaderBlockInfo(header), messagePasserRoot)
+	outputRoot, err := rollup.ComputeL2OutputRootV0(eth.HeaderBlockInfo(header), *header.WithdrawalsHash)
 	if err != nil {
 		return genesisOutput{}, fmt.Errorf("failed to compute genesis output root: %w", err)
 	}
