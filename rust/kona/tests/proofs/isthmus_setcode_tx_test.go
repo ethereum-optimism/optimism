@@ -266,9 +266,9 @@ func runSetCodeTxTypeWithContractCreationBitSetTest(gt *testing.T, testCfg *help
 			return block.WithBody(types.Body{Transactions: append(block.Transactions(), tx, tx2)})
 		}),
 		actionsHelpers.WithChannelModifier(
-			derive.TestWithContractCreationBitsMod(func(ob *big.Int) *big.Int {
-				// ensure contract bits are originally set to 0b10
-				require.Equal(t, big.NewInt(0b10), ob, "expected contract creation bits to be 0b10")
+			derive.TestWithZeroToBitsMod(func(ob *big.Int) *big.Int {
+				// ensure the zero-to bits are originally set to 0b10
+				require.Equal(t, big.NewInt(0b10), ob, "expected zero-to bits to be 0b10")
 				// flip bits
 				return big.NewInt(0b01)
 			})),
