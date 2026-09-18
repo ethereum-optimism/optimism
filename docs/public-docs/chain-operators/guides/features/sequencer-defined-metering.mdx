@@ -30,6 +30,13 @@ Verifier nodes do not execute the producer's private policy. They validate the c
 apply its settlement effects, and reproduce the same receipts and state root. Consensus-layer
 clients derive the trailing PostExec transaction from L1 data like any other transaction.
 
+Producer policy output is advisory. To keep a faulty policy from halting block production, op-reth
+caps a normal transaction's requested refund at its pre-refund EVM gas and ignores refunds requested
+for deposits. Each correction increments
+`reth_optimism_sdm_policy_refund_corrections{reason="exceeds_evm_gas"}` or
+`reth_optimism_sdm_policy_refund_corrections{reason="ineligible_transaction"}`. Either series should
+remain zero under a healthy producer policy.
+
 ## Protocol activation
 
 SDM is gated by the [**Lagoon** hardfork](/op-stack/protocol/hardforks/lagoon). Before Lagoon, a PostExec transaction is invalid. At or
