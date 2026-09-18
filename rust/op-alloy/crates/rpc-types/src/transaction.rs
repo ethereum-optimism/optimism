@@ -397,6 +397,29 @@ mod tests {
     }
 
     #[test]
+    fn can_roundtrip_bedrock_system_deposit() {
+        // op-geth eth_getBlockByHash response for a pre-Regolith L1-info deposit.
+        let rpc_tx = r#"{"blockHash":"0x2a3d4ceb37456815f793e8900fe9c863a15737bfbba646df4c51a5914149b4dd","blockNumber":"0xb","blockTimestamp":"0x6aad7010","from":"0xdeaddeaddeaddeaddeaddeaddeaddeaddead0001","gas":"0x8f0d180","gasPrice":"0x0","hash":"0x67c97e03f0759855b20459dd9b5f9ddebdc094f3669bf039011252bae68f5f24","input":"0x015d8eb90000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000006aad7005000000000000000000000000000000000000000000000000000000003b9aca001b7ca7f22fd5e435bbc1f175d4e7721cee397530e7ef753563b0b8772ec58d86000000000000000000000000000000000000000000000000000000000000000b0000000000000000000000003c44cdddb6a900fa2b585dd299e03d12fa4293bc000000000000000000000000000000000000000000000000000000000000083400000000000000000000000000000000000000000000000000000000000f4240","nonce":"0x0","to":"0x4200000000000000000000000000000000000015","transactionIndex":"0x0","value":"0x0","type":"0x7e","v":"0x0","r":"0x0","s":"0x0","sourceHash":"0xfd3be1af69bee3e315a5dc5b773c64432230d76db68edae7a64193522118a377","mint":"0x0","isSystemTx":true}"#;
+        let expected_hash = "0x67c97e03f0759855b20459dd9b5f9ddebdc094f3669bf039011252bae68f5f24"
+            .parse::<B256>()
+            .unwrap();
+
+        let tx = serde_json::from_str::<Transaction>(rpc_tx).unwrap();
+        let deposit = tx.as_ref().as_deposit().expect("expected deposit transaction");
+        assert!(deposit.is_system_transaction);
+        assert_eq!(deposit.hash(), expected_hash);
+        assert_eq!(deposit.inner().tx_hash(), expected_hash);
+
+        let serialized = serde_json::to_value(&tx).unwrap();
+        assert_eq!(serialized["isSystemTx"], serde_json::json!(true));
+        let round_trip = serde_json::from_value::<Transaction>(serialized).unwrap();
+        let deposit =
+            round_trip.as_ref().as_deposit().expect("expected deposit transaction after roundtrip");
+        assert!(deposit.is_system_transaction);
+        assert_eq!(deposit.hash(), expected_hash);
+    }
+
+    #[test]
     fn can_serialize_post_exec_rpc_transaction() {
         let post_exec = build_post_exec_tx(42, vec![SDMGasEntry { index: 3, gas_refund: 7 }]);
         let expected_input = serde_json::to_value(post_exec.input.clone()).unwrap();
