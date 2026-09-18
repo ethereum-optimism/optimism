@@ -3365,7 +3365,7 @@ contract OPContractsManagerV2_Migrate_Test is OPContractsManagerV2_TestInit {
     /// @notice A different OPCM address on the same major is accepted.
     function test_migrate_replacementOpcmSameRelease_succeeds() public {
         address replacedOPCM = makeAddr("replacedSameReleaseOPCM");
-        vm.mockCall(replacedOPCM, abi.encodeCall(ISemver.version, ()), abi.encode("8.0.0"));
+        vm.mockCall(replacedOPCM, abi.encodeCall(ISemver.version, ()), abi.encode("9.0.1"));
         vm.mockCall(
             address(chainContracts1.systemConfig),
             abi.encodeCall(ISystemConfig.lastUsedOPCM, ()),
