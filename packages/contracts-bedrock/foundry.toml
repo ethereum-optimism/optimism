@@ -123,6 +123,8 @@ depth = 32
 optimizer = false
 compilation_restrictions = []
 ignored_error_codes = ["transient-storage", "code-size", "init-code-size", "too-many-warnings", 5159, 6335, 8429, 9207, 2424]
+# Keep coverage concurrency within the runner's memory budget.
+threads = 16
 
 [profile.cicoverage.fuzz]
 runs = 1
