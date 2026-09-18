@@ -215,7 +215,7 @@ func TestEndToEndBootstrapApplyWithUpgrade(t *testing.T) {
 
 // TestApplyDefaultsSP1VerifierOnSepolia pins that a ZK-enabled live apply with no sp1Verifier
 // override deploys an SP1PlonkAdapter wrapping the release-approved raw verifier, and that the
-// verifier implements the circuit recorded in standard.SP1VerifierHash.
+// verifier implements the circuit recorded in standard.SP1VerifierHashFor.
 func TestApplyDefaultsSP1VerifierOnSepolia(t *testing.T) {
 	op_e2e.InitParallel(t)
 
@@ -285,7 +285,9 @@ func TestApplyDefaultsSP1VerifierOnSepolia(t *testing.T) {
 	require.NoError(t, err)
 	var verifierHash common.Hash
 	require.NoError(t, verifierHashFn.DecodeReturns(ret, &verifierHash))
-	require.Equal(t, standard.SP1VerifierHash(), verifierHash, "release verifier must implement the pinned circuit")
+	expectedHash, err := standard.SP1VerifierHashFor(sepoliaChainID)
+	require.NoError(t, err)
+	require.Equal(t, expectedHash, verifierHash, "release verifier must implement the pinned circuit")
 }
 
 func TestEndToEndApply(t *testing.T) {

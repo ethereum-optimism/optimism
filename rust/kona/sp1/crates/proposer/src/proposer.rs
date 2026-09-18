@@ -3682,10 +3682,10 @@ impl Proposer {
         &self,
         game_index: U256,
         game_address: Address,
-        result: Result<()>,
+        result: Result<TaskSuccess>,
     ) -> Result<TaskSuccess> {
         match result {
-            Ok(()) => Ok(TaskSuccess::Completed),
+            Ok(success) => Ok(success),
             Err(err) if is_unprovable(&err) => {
                 tracing::error!(
                     ?game_address,
@@ -3735,7 +3735,7 @@ impl Proposer {
     }
 
     #[tracing::instrument(name = "[[Proving]]", skip(self), fields(game_address = ?game_address))]
-    async fn prove_game(&self, game_address: Address) -> Result<()> {
+    async fn prove_game(&self, game_address: Address) -> Result<TaskSuccess> {
         let start_time = Instant::now();
 
         // Games with disallowed ancestry remain cached for lifecycle work but
@@ -3750,19 +3750,23 @@ impl Proposer {
         };
         let Some(prestate) = prestate else {
             tracing::info!(?game_address, "Game is not ancestry-eligible; abandoning its proving");
-            return Ok(());
+            return Ok(TaskSuccess::Completed);
         };
 
         let proof_inputs = self.l1_view.proof_inputs(game_address).await?;
         // Each game keeps the verifier it was created with. A game on a verifier for another
         // circuit cannot be proven by this SDK at all, so give it up before buying a proof.
+        // Reported as terminally unprovable, but not through `GameUnprovable`: its claim may
+        // still be valid, it must stay tracked so it can resolve and pay out, and its children
+        // carry their own verifiers.
         if !self.verifier_compatible(proof_inputs.verifier).await? {
             tracing::error!(
                 ?game_address,
                 "Game verifier rejects this SDK's proofs; giving up on proving it"
             );
+            ProposerGauge::GameUnprovable.increment(1.0);
             self.undefendable.lock().await.insert(game_address);
-            return Ok(());
+            return Ok(TaskSuccess::TerminallyUnprovable);
         }
         let keys = match self.config.proof_provider {
             ProofProviderKind::Network => {
@@ -3780,7 +3784,7 @@ impl Proposer {
         // its deadline, or was evicted (parent lost) meanwhile.
         if !self.pre_submit_checks(game_address).await? {
             self.proof_engine.clear(game_address);
-            return Ok(());
+            return Ok(TaskSuccess::Completed);
         }
 
         let transaction_hash = self.action_executor.prove_game(game_address, proof_bytes).await?;
@@ -3794,7 +3798,7 @@ impl Proposer {
             duration_s = start_time.elapsed().as_secs_f64(),
             "Game proven successfully"
         );
-        Ok(())
+        Ok(TaskSuccess::Completed)
     }
 
     const fn game_proof_inputs(
@@ -4280,6 +4284,17 @@ impl PrestateCache {
                 setup_kicked: AtomicBool::new(false),
             }),
         );
+    }
+
+    /// Test-only: whether background key setup has been kicked for `prestate`, i.e. whether
+    /// the creation gate got past its cheaper checks to the prestate verdict.
+    #[cfg(test)]
+    pub(crate) async fn setup_kicked_for_tests(&self, prestate: B256) -> bool {
+        self.programs
+            .read()
+            .await
+            .get(&prestate)
+            .is_some_and(|entry| entry.setup_kicked.load(std::sync::atomic::Ordering::SeqCst))
     }
 
     /// Snapshot of the prestates the proposer can currently prove: loaded
@@ -6327,9 +6342,11 @@ mod tests {
         };
         let programs = PrestatePrograms { aggregation_elf: vec![1], range_elf: vec![1] };
 
-        // Network mode: a foreign VERIFIER_HASH on the registered adapter pauses creation.
+        // Network mode: a foreign VERIFIER_HASH on the registered adapter pauses creation
+        // before the prestate gate runs (key setup is never kicked). Real proving keys need
+        // a real ELF, so the latch is the observable that separates the two rejections.
         let config = ProposerConfig { proof_provider: ProofProviderKind::Network, ..test_config() };
-        let mut proposer = test_proposer_with(config).await;
+        let mut proposer = test_proposer_with(config.clone()).await;
         proposer.prestates.insert_for_tests(prestate, programs.clone()).await;
         let view = Arc::new(RecordingL1View {
             verifier_hash: B256::repeat_byte(0xaa),
@@ -6339,6 +6356,17 @@ mod tests {
         proposer.l1_view = view.clone();
         assert!(!proposer.registered_args_usable_for_creation().await.unwrap());
         assert_eq!(*view.verifier_targets.lock().unwrap(), vec![registered_adapter]);
+        assert!(!proposer.prestates.setup_kicked_for_tests(prestate).await);
+
+        // Network mode with the matching hash reaches the prestate gate.
+        let mut proposer = test_proposer_with(config).await;
+        proposer.prestates.insert_for_tests(prestate, programs.clone()).await;
+        proposer.l1_view = Arc::new(RecordingL1View {
+            registered_args: registered_args.clone(),
+            ..Default::default()
+        });
+        assert!(!proposer.registered_args_usable_for_creation().await.unwrap());
+        assert!(proposer.prestates.setup_kicked_for_tests(prestate).await);
 
         // Mock mode: the hash is read but never compared.
         let mut proposer = test_proposer().await;
@@ -6360,10 +6388,19 @@ mod tests {
         let root = B256::repeat_byte(0x11);
         let config = ProposerConfig { proof_provider: ProofProviderKind::Network, ..test_config() };
         let mut proposer = test_proposer_with(config).await;
-        proposer.l1_view = Arc::new(RecordingL1View {
+        // The registered prestate is loaded, so only the verifier can stop dispatch.
+        proposer
+            .prestates
+            .insert_for_tests(
+                B256::ZERO,
+                PrestatePrograms { aggregation_elf: vec![1], range_elf: vec![1] },
+            )
+            .await;
+        let view = Arc::new(RecordingL1View {
             verifier_hash: B256::repeat_byte(0xaa),
             ..Default::default()
         });
+        proposer.l1_view = view.clone();
         proposer.superroot_source = Arc::new(ScriptedSuperRootSource {
             horizon: ProposalHorizon { safe_timestamp: 100, finalized_timestamp: 100 },
             roots: vec![(100, super_root_at_timestamp(100, root, 12, 11))],
@@ -6375,6 +6412,8 @@ mod tests {
 
         assert!(actions.calls.lock().is_empty());
         assert!(proposer.in_flight_creation.lock().await.is_none());
+        assert_eq!(*view.verifier_targets.lock().unwrap(), vec![Address::ZERO]);
+        assert!(!proposer.prestates.setup_kicked_for_tests(B256::ZERO).await);
     }
 
     #[tokio::test]
@@ -6397,7 +6436,8 @@ mod tests {
         proposer.proof_engine = engine.clone();
         proposer.state.write().await.games.insert(game.index, game.clone());
 
-        proposer.prove_game(game.address).await.unwrap();
+        let outcome = proposer.prove_game(game.address).await.unwrap();
+        assert_eq!(outcome, TaskSuccess::TerminallyUnprovable);
 
         assert!(engine.calls.lock().unwrap().is_empty());
         assert!(proposer.undefendable.lock().await.contains(&game.address));

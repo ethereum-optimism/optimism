@@ -115,12 +115,6 @@ contract VerifyOPCM is Script {
     /// @notice Succinct's v6.1.0 SP1 PLONK verifier on Ethereum Sepolia.
     address internal constant SEPOLIA_SP1_VERIFIER_V6_1_0 = 0xc3c6dDDAc8829b233Dc6536Ec024775a57b0AF2A;
 
-    /// @notice VERIFIER_HASH() of Succinct's v6.1.0 SP1 PLONK verifier. Proofs from the sp1-sdk
-    ///         circuit v6.1.0 carry the first four bytes of this value as their selector. Must
-    ///         match op-deployer's standard.SP1VerifierHash.
-    bytes32 internal constant SP1_VERIFIER_HASH_V6_1_0 =
-        0x5a093a2fcb46394f5cadfe55c44d4d572fad9cec7aeb38026b0278322ef07fac;
-
     /// @notice Represents a contract name and its corresponding address.
     /// @param field     Name of the field the address was extracted from.
     /// @param name      Name of the contract.
@@ -1413,8 +1407,9 @@ contract VerifyOPCM is Script {
 
     /// @notice Verifies the raw SP1 verifier referenced by the release adapter: its address
     ///         (`EXPECTED_SP1_VERIFIER`, network default) and its `VERIFIER_HASH()`
-    ///         (`EXPECTED_SP1_VERIFIER_HASH`, default `SP1_VERIFIER_HASH_V6_1_0`). The hash is
-    ///         only read once the address matches, so an unexpected address never reverts here.
+    ///         (`EXPECTED_SP1_VERIFIER_HASH`, required; the release value is
+    ///         op-deployer's standard.SP1VerifierHashFor). The hash is only read once the
+    ///         address matches, so an unexpected address never reverts here.
     function _verifySP1Verifier(ISP1PlonkAdapter _adapter) internal view returns (bool) {
         // nosemgrep: sol-style-vm-env-only-in-config-sol
         address expectedVerifier = vm.envOr("EXPECTED_SP1_VERIFIER", _defaultSP1Verifier());
@@ -1432,8 +1427,13 @@ contract VerifyOPCM is Script {
         console.log("    [OK] SP1 verifier verified");
 
         // nosemgrep: sol-style-vm-env-only-in-config-sol
-        bytes32 expectedHash = vm.envOr("EXPECTED_SP1_VERIFIER_HASH", SP1_VERIFIER_HASH_V6_1_0);
-        bytes32 actualHash = ISP1Verifier(actualVerifier).VERIFIER_HASH();
+        bytes32 expectedHash = vm.envBytes32("EXPECTED_SP1_VERIFIER_HASH");
+        (bool ok, bytes memory data) = actualVerifier.staticcall(abi.encodeCall(ISP1Verifier.VERIFIER_HASH, ()));
+        if (!ok || data.length != 32) {
+            console.log("    [FAIL] SP1 verifier does not expose VERIFIER_HASH()");
+            return false;
+        }
+        bytes32 actualHash = abi.decode(data, (bytes32));
 
         console.log("  Verifying SP1 verifier hash...");
         console.log(string.concat("    Expected: ", vm.toString(expectedHash)));
