@@ -58,7 +58,32 @@ pub(crate) fn check_verifier_hash(
 
 #[cfg(test)]
 mod tests {
+    use std::collections::BTreeMap;
+
     use super::*;
+
+    /// Holds the linked sp1-sdk to the release-approved verifier on every chain in
+    /// op-deployer's `sp1-verifier.json` (the file behind `standard.SP1VerifierHashFor`).
+    /// Bumping sp1-sdk to another circuit fails here until the verifier address and that file
+    /// move with it.
+    #[test]
+    fn sdk_circuit_matches_release_pin() {
+        let pins: BTreeMap<String, B256> = serde_json::from_str(include_str!(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/../../../../../op-deployer/pkg/deployer/standard/sp1-verifier.json"
+        )))
+        .expect("valid release pin");
+        assert!(!pins.is_empty());
+        for (chain, hash) in pins {
+            assert_eq!(
+                expected_verifier_hash(),
+                hash,
+                "sp1-sdk moved to another circuit than chain {chain}'s release verifier; update \
+                 op-deployer/pkg/deployer/standard/sp1-verifier.json and standard.SP1VerifierFor \
+                 together"
+            );
+        }
+    }
 
     #[test]
     fn check_verifier_hash_rejects_other_circuit() {

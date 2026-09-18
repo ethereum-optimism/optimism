@@ -1,8 +1,11 @@
 package standard
 
 import (
+	_ "embed"
+	"encoding/json"
 	"fmt"
 	"reflect"
+	"strconv"
 	"strings"
 	"sync"
 
@@ -110,14 +113,26 @@ const (
 	// Source: succinctlabs/sp1-contracts@2ac5ecbbe473421a963d67e55f182e9a36576f7c,
 	// contracts/deployments/11155111.json, V6_1_0_SP1_VERIFIER_PLONK.
 	sepoliaSP1VerifierV610 = "0xc3c6dDDAc8829b233Dc6536Ec024775a57b0AF2A"
-	// VERIFIER_HASH() of the verifier above: the PLONK circuit it accepts proofs for. Proofs
-	// carry the first four bytes of this value as their selector, so the linked sp1-sdk must
-	// prove for the same circuit (kona-sp1-proposer derives that circuit's hash from the SDK it
-	// links and checks it against the chain before it creates or proves a game).
-	// Source: succinctlabs/sp1-contracts@2ac5ecbbe473421a963d67e55f182e9a36576f7c,
-	// contracts/src/v6.1.0/SP1VerifierPlonk.sol, VERIFIER_HASH().
-	sp1VerifierHashV610 = "0x5a093a2fcb46394f5cadfe55c44d4d572fad9cec7aeb38026b0278322ef07fac"
 )
+
+// sp1VerifierHashJSON maps each L1 chain ID to the VERIFIER_HASH() of the verifier from
+// SP1VerifierFor, i.e. the PLONK circuit it accepts proofs for. Proofs carry the first four bytes
+// of that value as their selector, so the linked sp1-sdk must prove for the same circuit;
+// kona-sp1-proposer's release-pin test reads the same file and holds the SDK to it.
+// Source: succinctlabs/sp1-contracts@2ac5ecbbe473421a963d67e55f182e9a36576f7c,
+// contracts/src/v6.1.0/SP1VerifierPlonk.sol, VERIFIER_HASH().
+// DO NOT MODIFY THIS FILE WITHOUT CLEARING IT WITH THE EVM SAFETY TEAM.
+//
+//go:embed sp1-verifier.json
+var sp1VerifierHashJSON []byte
+
+var sp1VerifierHashes = func() map[string]common.Hash {
+	var hashes map[string]common.Hash
+	if err := json.Unmarshal(sp1VerifierHashJSON, &hashes); err != nil {
+		panic(fmt.Sprintf("sp1-verifier.json: %v", err))
+	}
+	return hashes
+}()
 
 // SP1VerifierFor returns the raw SP1 verifier approved for the current OPCM release on the given L1
 // chain ID. Both `bootstrap implementations` and `apply` default to it when ZK dispute games are
@@ -136,16 +151,15 @@ func SP1VerifierFor(chainID uint64) (common.Address, error) {
 }
 
 // SP1VerifierHashFor returns the VERIFIER_HASH() the verifier from SP1VerifierFor implements on
-// the given L1 chain ID. TestApplyDefaultsSP1VerifierOnSepolia holds it to the chain, and the
-// EVM Safety release runbook passes it to VerifyOPCM as EXPECTED_SP1_VERIFIER_HASH.
-// DO NOT MODIFY THIS METHOD WITHOUT CLEARING IT WITH THE EVM SAFETY TEAM.
+// the given L1 chain ID, from sp1-verifier.json. TestApplyDefaultsSP1VerifierOnSepolia holds it to
+// the chain, and the EVM Safety release runbook passes it to VerifyOPCM as
+// EXPECTED_SP1_VERIFIER_HASH.
 func SP1VerifierHashFor(chainID uint64) (common.Hash, error) {
-	switch chainID {
-	case 1, 11155111:
-		return common.HexToHash(sp1VerifierHashV610), nil
-	default:
+	hash, ok := sp1VerifierHashes[strconv.FormatUint(chainID, 10)]
+	if !ok {
 		return common.Hash{}, fmt.Errorf("unsupported chain ID: %d", chainID)
 	}
+	return hash, nil
 }
 
 func SuperchainFor(chainID uint64) (superchain.Superchain, error) {
