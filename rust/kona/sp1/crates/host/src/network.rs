@@ -54,9 +54,8 @@ pub fn determine_network_mode(
 ///
 /// A remote op-signer takes precedence when `<PREFIX>_SPN_SIGNER_URL` and
 /// `<PREFIX>_SPN_SIGNER_ADDRESS` are set. Its `<PREFIX>_SPN_SIGNER_TLS_CA`, `_CERT`, and `_KEY`
-/// variables are required. Otherwise, `<PREFIX>_NETWORK_PRIVATE_KEY` selects AWS KMS or local
-/// signing according to `use_kms_requester`.
-pub async fn get_network_signer(prefix: &str, use_kms_requester: bool) -> Result<NetworkSigner> {
+/// variables are required. Otherwise, `<PREFIX>_NETWORK_PRIVATE_KEY` selects local signing.
+pub async fn get_network_signer(prefix: &str) -> Result<NetworkSigner> {
     let remote_url_name = prefixed_env_var(prefix, "SPN_SIGNER_URL");
     let remote_address_name = prefixed_env_var(prefix, "SPN_SIGNER_ADDRESS");
     let env_value = |name: &str| env::var(name).ok().filter(|value| !value.trim().is_empty());
@@ -83,47 +82,21 @@ pub async fn get_network_signer(prefix: &str, use_kms_requester: bool) -> Result
     }
 
     let private_key_name = prefixed_env_var(prefix, "NETWORK_PRIVATE_KEY");
-    let use_kms_name = prefixed_env_var(prefix, "USE_KMS_REQUESTER");
-    let network_signer = if use_kms_requester {
-        let key_arn = env::var(&private_key_name).with_context(|| {
-            format!("{private_key_name} must be set when {use_kms_name} is true")
-        })?;
-        let signer = NetworkSigner::aws_kms(&key_arn)
-            .await
-            .with_context(|| format!("failed to create requester from {private_key_name}"))?;
-        tracing::info!("Using KMS requester with address: {:?}", signer.address());
-        signer
-    } else {
-        let private_key = env_value(&private_key_name).with_context(|| {
-            format!(
-                "{private_key_name} must be set for network proving (or set {use_kms_name}=true \
-                 to sign requests with AWS KMS)"
-            )
-        })?;
-        let signer = NetworkSigner::local(&private_key)
-            .with_context(|| format!("failed to create requester from {private_key_name}"))?;
-        tracing::info!("Using local requester with address: {:?}", signer.address());
-        signer
-    };
-
-    Ok(network_signer)
+    let private_key = env_value(&private_key_name)
+        .with_context(|| format!("{private_key_name} must be set for network proving"))?;
+    let signer = NetworkSigner::local(&private_key)
+        .with_context(|| format!("failed to create requester from {private_key_name}"))?;
+    tracing::info!("Using local requester with address: {:?}", signer.address());
+    Ok(signer)
 }
 
-/// Builds a network prover using the provided fulfillment strategy and
-/// `<PREFIX>_USE_KMS_REQUESTER`.
-///
+/// Builds a network prover using the provided fulfillment strategy.
 /// `<PREFIX>_NETWORK_RPC_URL` overrides the SP1 endpoint. If it is absent or empty, the
 /// SDK default for the fulfillment strategy's network mode is used.
 pub async fn build_network_prover_from_env(
     prefix: &str,
     strategy: FulfillmentStrategy,
 ) -> Result<NetworkProver> {
-    let use_kms_name = prefixed_env_var(prefix, "USE_KMS_REQUESTER");
-    let use_kms_requester = env::var(&use_kms_name)
-        .unwrap_or_else(|_| "false".to_string())
-        .parse::<bool>()
-        .with_context(|| format!("{use_kms_name} must be true or false"))?;
-
     let network_mode = match strategy {
         FulfillmentStrategy::Auction => NetworkMode::Mainnet,
         FulfillmentStrategy::Hosted | FulfillmentStrategy::Reserved => NetworkMode::Reserved,
@@ -134,7 +107,7 @@ pub async fn build_network_prover_from_env(
         .ok()
         .filter(|url| !url.trim().is_empty())
         .unwrap_or_else(|| get_default_rpc_url_for_mode(network_mode));
-    let network_signer = get_network_signer(prefix, use_kms_requester).await?;
+    let network_signer = get_network_signer(prefix).await?;
 
     let prover = ProverClient::builder()
         .network_for(network_mode)
@@ -174,7 +147,7 @@ mod tests {
         set_env(prefix, "NETWORK_PRIVATE_KEY", "not-a-private-key");
         set_tls_env(prefix);
 
-        let signer = get_network_signer(prefix, false).await.unwrap();
+        let signer = get_network_signer(prefix).await.unwrap();
 
         assert_eq!(signer.address(), address.parse::<Address>().unwrap());
     }
@@ -184,7 +157,7 @@ mod tests {
         let prefix = "KONA_SP1_HOST_NETWORK_TEST_PARTIAL";
         set_env(prefix, "SPN_SIGNER_URL", "https://signer.example");
 
-        let error = get_network_signer(prefix, false).await.unwrap_err().to_string();
+        let error = get_network_signer(prefix).await.unwrap_err().to_string();
 
         assert!(error.contains("SPN_SIGNER_URL"), "{error}");
         assert!(error.contains("SPN_SIGNER_ADDRESS"), "{error}");
@@ -200,7 +173,7 @@ mod tests {
         );
         set_tls_env(prefix);
 
-        let error = get_network_signer(prefix, false).await.unwrap_err().to_string();
+        let error = get_network_signer(prefix).await.unwrap_err().to_string();
 
         assert!(error.contains("SPN_SIGNER_URL"), "{error}");
         assert!(error.contains("SPN_SIGNER_TLS_CA"), "{error}");
@@ -213,7 +186,7 @@ mod tests {
         set_env(prefix, "SPN_SIGNER_ADDRESS", "0x1111111111111111111111111111111111111111");
         set_tls_env(prefix);
 
-        let error = get_network_signer(prefix, false).await.unwrap_err().to_string();
+        let error = get_network_signer(prefix).await.unwrap_err().to_string();
 
         assert!(error.contains("failed to create remote SPN requester"), "{error}");
     }
