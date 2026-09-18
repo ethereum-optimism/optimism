@@ -709,6 +709,8 @@ contract L2ToL2CrossDomainMessenger_RelayMessage_Test is L2ToL2CrossDomainMessen
                 && _target != foundryVMAddress
         );
 
+        assumeNotForgeAddress(_target);
+
         // Ensure that the target contract does not revert (using the message also as the return
         // data)
         vm.mockCall({ callee: _target, msgValue: _value, data: _message, returnData: _message });
@@ -768,6 +770,8 @@ contract L2ToL2CrossDomainMessenger_RelayMessage_Test is L2ToL2CrossDomainMessen
             _target != Predeploys.CROSS_L2_INBOX && _target != Predeploys.L2_TO_L2_CROSS_DOMAIN_MESSENGER
                 && _target != foundryVMAddress
         );
+
+        assumeNotForgeAddress(_target);
 
         // Ensure that the target call is payable if value is sent
         if (_value > 0) assumePayable(_target);
