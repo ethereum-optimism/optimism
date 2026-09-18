@@ -7,12 +7,10 @@ use reth_cli_commands::common::{AccessRights, CliNodeTypes, Environment, Environ
 use reth_node_core::version::version_metadata;
 use reth_optimism_node::args::{
     ProofsHistoryBackfillArgs, ProofsHistoryStorageArgs, ProofsHistoryWindowArg,
-    ProofsStorageVersion,
 };
 use reth_optimism_trie::{
     BackfillJob, InitializationJob, OpProofsProviderRO, OpProofsStorageError, OpProofsStore,
-    RethTrieStorageLayout,
-    db::{MdbxProofsStorage, MdbxProofsStorageV2},
+    RethTrieStorageLayout, db::MdbxProofsStorageV2,
 };
 use reth_provider::{BlockNumReader, DBProvider, DatabaseProviderFactory, StorageSettingsCache};
 use std::sync::Arc;
@@ -35,8 +33,7 @@ pub struct InitCommand<C: ChainSpecParser> {
     /// the current chain state is captured the proof window is extended back
     /// by `--proofs-history.window` blocks using the snapshot-accelerated
     /// path. Set this flag to leave the window at `[latest, latest]` and run
-    /// `op-proofs backfill` later instead. No effect on V1 storage (V1 does
-    /// not support backfill).
+    /// `op-proofs backfill` later instead.
     #[arg(long = "proofs-history.skip-backfill")]
     pub skip_backfill: bool,
 
@@ -71,61 +68,41 @@ impl<C: ChainSpecParser<ChainSpec: EthChainSpec>> InitCommand<C> {
         // During initialization we write billions of entries; the metrics layer's
         // `AtomicBucket::push` (used by `Histogram::record_many`) is append-only and
         // would accumulate ~19 bytes per observation, causing OOM on large chains.
-        match self.history.storage_version {
-            ProofsStorageVersion::V1 => {
-                if !self.skip_backfill {
-                    return Err(eyre::eyre!(
-                        "V1 proofs storage does not support backfill. \
-                         Re-run with --proofs-history.storage-version v2, \
-                         or with --proofs-history.skip-backfill to initialize without backfilling."
-                    ));
-                }
+        let storage: Arc<MdbxProofsStorageV2> = Arc::new(
+            MdbxProofsStorageV2::new(&storage_path)
+                .map_err(|e| eyre::eyre!("Failed to create MdbxProofsStorageV2: {e}"))?,
+        );
+        Self::run_init(&provider_factory, storage.clone())?;
 
-                let storage: Arc<MdbxProofsStorage> = Arc::new(
-                    MdbxProofsStorage::new(&storage_path)
-                        .map_err(|e| eyre::eyre!("Failed to create MdbxProofsStorage: {e}"))?,
-                );
-                Self::run_init(&provider_factory, storage)?;
+        if !self.skip_backfill {
+            let proof_window = storage.provider_ro()?.get_proof_window()?;
+            let window_blocks = self.proofs_history_window.window;
+            // Mirror `op-proofs backfill`: compute target from `latest`, not `earliest`.
+            // On retry after a partial backfill, `earliest` has already advanced backward,
+            // so anchoring on `latest` keeps `target_earliest_block` stable across runs
+            // (otherwise each retry would push the target further back by however much
+            // the prior partial run completed).
+            let target_earliest_block = proof_window.latest.number.saturating_sub(window_blocks);
+            info!(
+                target: "reth::cli",
+                earliest = ?proof_window.earliest,
+                latest = ?proof_window.latest,
+                window_blocks,
+                target_earliest_block,
+                "Running snapshot-accelerated backfill"
+            );
+            let provider = provider_factory
+                .database_provider_ro()
+                .map_err(|e| eyre::eyre!("Failed to open reth DB provider: {e}"))?
+                .disable_long_read_transaction_safety();
+            let job = BackfillJob::new(provider, storage)
+                .with_batch_size(self.backfill_args.backfill_batch_size);
+            if self.backfill_args.use_snapshot {
+                job.run_with_snapshot(target_earliest_block)?;
+            } else {
+                job.run(target_earliest_block)?;
             }
-            ProofsStorageVersion::V2 => {
-                let storage: Arc<MdbxProofsStorageV2> = Arc::new(
-                    MdbxProofsStorageV2::new(&storage_path)
-                        .map_err(|e| eyre::eyre!("Failed to create MdbxProofsStorageV2: {e}"))?,
-                );
-                Self::run_init(&provider_factory, storage.clone())?;
-
-                if !self.skip_backfill {
-                    let proof_window = storage.provider_ro()?.get_proof_window()?;
-                    let window_blocks = self.proofs_history_window.window;
-                    // Mirror `op-proofs backfill`: compute target from `latest`, not `earliest`.
-                    // On retry after a partial backfill, `earliest` has already advanced backward,
-                    // so anchoring on `latest` keeps `target_earliest_block` stable across runs
-                    // (otherwise each retry would push the target further back by however much
-                    // the prior partial run completed).
-                    let target_earliest_block =
-                        proof_window.latest.number.saturating_sub(window_blocks);
-                    info!(
-                        target: "reth::cli",
-                        earliest = ?proof_window.earliest,
-                        latest = ?proof_window.latest,
-                        window_blocks,
-                        target_earliest_block,
-                        "Running snapshot-accelerated backfill"
-                    );
-                    let provider = provider_factory
-                        .database_provider_ro()
-                        .map_err(|e| eyre::eyre!("Failed to open reth DB provider: {e}"))?
-                        .disable_long_read_transaction_safety();
-                    let job = BackfillJob::new(provider, storage)
-                        .with_batch_size(self.backfill_args.backfill_batch_size);
-                    if self.backfill_args.use_snapshot {
-                        job.run_with_snapshot(target_earliest_block)?;
-                    } else {
-                        job.run(target_earliest_block)?;
-                    }
-                    info!(target: "reth::cli", "Backfill complete");
-                }
-            }
+            info!(target: "reth::cli", "Backfill complete");
         }
 
         Ok(())

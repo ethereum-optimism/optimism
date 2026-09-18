@@ -7,14 +7,8 @@
 
 mod block;
 pub use block::*;
-mod version;
-pub use version::*;
 mod storage;
 pub use storage::*;
-mod change_set;
-pub use change_set::*;
-pub mod kv;
-pub use kv::*;
 mod key;
 pub use key::*;
 mod value;
@@ -33,67 +27,8 @@ use reth_trie_common::{BranchNodeCompact, StorageTrieEntry, StoredNibbles, Store
 use std::fmt;
 
 tables! {
-    /// Stores historical branch nodes for the account state trie.
-    ///
-    /// Each entry maps a compact-encoded trie path (`StoredNibbles`) to its versioned branch node.
-    /// Multiple versions of the same node are stored using the block number as a subkey.
-    table AccountTrieHistory {
-        type Key = StoredNibbles;
-        type Value = VersionedValue<BranchNodeCompact>;
-        type SubKey = u64; // block number
-    }
-
-    /// Stores historical branch nodes for the storage trie of each account.
-    ///
-    /// Each entry is identified by a composite key combining the account’s hashed address and the
-    /// compact-encoded trie path. Versions are tracked using block numbers as subkeys.
-    table StorageTrieHistory {
-        type Key = StorageTrieKey;
-        type Value = VersionedValue<BranchNodeCompact>;
-        type SubKey = u64; // block number
-    }
-
-    /// Stores versioned account state across block history.
-    ///
-    /// Each entry maps a hashed account address to its serialized account data (balance, nonce,
-    /// code hash, storage root).
-    table HashedAccountHistory {
-        type Key = B256;
-        type Value = VersionedValue<Account>;
-        type SubKey = u64; // block number
-    }
-
-    /// Stores versioned storage state across block history.
-    ///
-    /// Each entry maps a composite key of (hashed address, storage key) to its stored value.
-    /// Used for reconstructing contract storage at any historical block height.
-    table HashedStorageHistory {
-        type Key = HashedStorageKey;
-        type Value = VersionedValue<StorageValue>;
-        type SubKey = u64; // block number
-    }
-
-    /// Tracks the active proof window in the external historical storage.
-    ///
-    /// Stores the earliest and latest block numbers (and corresponding hashes)
-    /// for which historical trie data is retained.
-    table ProofWindow {
-      type Key = ProofWindowKey;
-      type Value = BlockNumberHash;
-    }
-
-    /// A reverse mapping of block numbers to a keys of the tables.
-    /// This is used for efficiently locating data by block number.
-    table BlockChangeSet {
-        type Key = u64; // Block number
-        type Value = ChangeSet;
-    }
-
-    // ==================== V2 Tables ====================
-    //
-    // The v2 schema uses the 3-table-per-data-type pattern. All v2 tables are
-    // prefixed with `V2` to clearly distinguish them from v1 tables and to ensure
-    // each store only reads/writes its own tables.
+    // The v2 schema uses the 3-table-per-data-type pattern. Table names retain
+    // their `V2` prefix for compatibility with existing proofs databases.
     //
     //   - **Current state** tables hold the latest values for fast reads.
     //   - **ChangeSet** tables group changes by block number for efficient pruning/unwinding.
@@ -102,7 +37,7 @@ tables! {
 
     // -------------------- Proof Window --------------------
 
-    /// V2 proof window tracking (independent of the v1 [`ProofWindow`] table).
+    /// Tracks the active proof window.
     table V2ProofWindow {
         type Key = ProofWindowKey;
         type Value = BlockNumberHash;

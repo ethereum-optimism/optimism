@@ -2,7 +2,7 @@
 
 use crate::{
     OpEngineApiBuilder, OpEngineTypes,
-    args::{ProofsStorageVersion, RollupArgs},
+    args::RollupArgs,
     engine::OpEngineValidator,
     payload_service::OpPayloadServiceBuilder,
     txpool::{OpCustomTransactionPool, OpTransactionValidator},
@@ -63,10 +63,7 @@ use reth_optimism_rpc::{
     witness::{DebugExecutionWitnessApiServer, OpDebugPostExecApiServer, OpDebugWitnessApi},
 };
 use reth_optimism_storage::OpStorage;
-use reth_optimism_trie::{
-    OpProofsStorage, OpProofsStore,
-    db::{MdbxProofsStorage, MdbxProofsStorageV2},
-};
+use reth_optimism_trie::{OpProofsStorage, OpProofsStore, db::MdbxProofsStorageV2};
 use reth_optimism_txpool::{
     OpPool, OpPooledTx, interop::InteropFailsafe, interop_filter::InteropFilterClient,
 };
@@ -417,7 +414,6 @@ pub async fn launch_node(
             // Defaults to `<reth-data-dir>/historical-proofs` when not supplied — see
             // [`ProofsHistoryStorageArgs::resolve_storage_path`].
             args.history.resolve_storage_path(builder.config().datadir().as_ref()),
-            args.history.storage_version,
             args.proofs_history_window.window,
             args.proofs_history_verification_interval,
         )
@@ -426,15 +422,7 @@ pub async fn launch_node(
     let builder = builder.node(node);
     let builder = match proof_history {
         None => builder,
-        Some((path, ProofsStorageVersion::V1, window, verification_interval)) => {
-            info!(target: "reth::cli", "Using on-disk storage for proofs history (v1)");
-            let mdbx = Arc::new(
-                MdbxProofsStorage::new(&path)
-                    .map_err(|e| eyre::eyre!("Failed to create MdbxProofsStorage: {e}"))?,
-            );
-            configure_proof_history(builder, mdbx, window, verification_interval)
-        }
-        Some((path, ProofsStorageVersion::V2, window, verification_interval)) => {
+        Some((path, window, verification_interval)) => {
             info!(target: "reth::cli", "Using on-disk storage for proofs history (v2)");
             let mdbx = Arc::new(
                 MdbxProofsStorageV2::new(&path)

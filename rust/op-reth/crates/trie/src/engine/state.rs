@@ -248,7 +248,7 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{OpProofsInitProvider, db::MdbxProofsStorage};
+    use crate::{OpProofsInitProvider, db::MdbxProofsStorageV2};
     use alloy_eips::{BlockNumHash, NumHash, eip1898::BlockWithParent};
     use alloy_primitives::B256;
     use reth_chainspec::MAINNET;
@@ -261,12 +261,15 @@ mod tests {
     use std::sync::Arc;
     use tempfile::TempDir;
 
-    type TestEngineState =
-        EngineState<EthEvmConfig, BlockchainProvider<MockNodeTypesWithDB>, Arc<MdbxProofsStorage>>;
+    type TestEngineState = EngineState<
+        EthEvmConfig,
+        BlockchainProvider<MockNodeTypesWithDB>,
+        Arc<MdbxProofsStorageV2>,
+    >;
 
-    fn bootstrap_storage() -> Arc<MdbxProofsStorage> {
+    fn bootstrap_storage() -> Arc<MdbxProofsStorageV2> {
         let dir = TempDir::new().unwrap().keep();
-        let store = Arc::new(MdbxProofsStorage::new(&dir).unwrap());
+        let store = Arc::new(MdbxProofsStorageV2::new(&dir).unwrap());
         let init = store.initialization_provider().expect("init provider");
         init.set_initial_state_anchor(BlockNumHash { number: 0, hash: B256::ZERO })
             .expect("set anchor");
