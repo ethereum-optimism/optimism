@@ -18,8 +18,6 @@ use alloy_consensus::{
 use alloy_primitives::{B64, B256};
 use core::fmt::Debug;
 use op_alloy_consensus::OpTransaction;
-#[cfg(feature = "std")]
-use op_alloy_consensus::parse_post_exec_payload_from_transactions;
 use reth_chainspec::EthChainSpec;
 use reth_consensus::{Consensus, ConsensusError, FullConsensus, HeaderValidator, ReceiptRootBloom};
 use reth_consensus_common::validation::{
@@ -95,39 +93,8 @@ where
             receipt_root_bloom,
         )?;
         #[cfg(feature = "std")]
-        self.record_sdm_import::<N>(block);
+        sdm_metrics::record_validated_block(block.header().gas_used(), block.body().transactions());
         Ok(())
-    }
-}
-
-#[cfg(feature = "std")]
-impl<ChainSpec: OpHardforks> OpBeaconConsensus<ChainSpec> {
-    /// Records the SDM refund counters for a block that passed post-execution validation.
-    fn record_sdm_import<N: NodePrimitives<SignedTx: OpTransaction>>(
-        &self,
-        block: &RecoveredBlock<N::Block>,
-    ) {
-        let header = block.header();
-        // `reth_optimism_evm::is_sdm_active_at_timestamp` is the SDM gate's single source of
-        // truth, but that crate depends on this one, so the Lagoon check is repeated here.
-        let sdm_active = self.chain_spec.is_lagoon_active_at_timestamp(header.timestamp());
-        let post_exec = parse_post_exec_payload_from_transactions(
-            block.body().transactions(),
-            header.number(),
-            sdm_active,
-        )
-        .unwrap_or_else(|error| {
-            tracing::warn!(
-                block_number = header.number(),
-                %error,
-                "validated block carries an unparsable post-exec transaction; its SDM refunds are not recorded"
-            );
-            None
-        });
-        sdm_metrics::record_validated_block(
-            header.gas_used(),
-            post_exec.as_ref().map(|parsed| &parsed.payload),
-        );
     }
 }
 

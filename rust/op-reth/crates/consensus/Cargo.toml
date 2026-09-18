@@ -54,7 +54,7 @@ reth-optimism-node.workspace = true
 
 alloy-chains.workspace = true
 metrics-exporter-prometheus.workspace = true
-reth-node-metrics.workspace = true
+metrics-util.workspace = true
 rstest.workspace = true
 
 [features]
