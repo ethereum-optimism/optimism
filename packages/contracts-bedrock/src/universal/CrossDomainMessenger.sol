@@ -213,6 +213,7 @@ abstract contract CrossDomainMessenger is
     /// @notice Relays a message that was sent by the other CrossDomainMessenger contract. Can only
     ///         be executed via cross-chain call from the other messenger OR if the message was
     ///         already received once and is currently being replayed.
+    /// @dev A memory parameter prevents payload copying from consuming the finalization gas reserve.
     /// @param _nonce       Nonce of the message being relayed.
     /// @param _sender      Address of the user who sent the message.
     /// @param _target      Address that the message is targeted at.
@@ -225,7 +226,7 @@ abstract contract CrossDomainMessenger is
         address _target,
         uint256 _value,
         uint256 _minGasLimit,
-        bytes calldata _message
+        bytes memory _message
     )
         external
         payable
