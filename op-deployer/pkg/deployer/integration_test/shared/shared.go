@@ -6,7 +6,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"math/big"
-	"sort"
 	"strings"
 	"sync"
 	"testing"
@@ -283,11 +282,6 @@ func buildV2OPCMUpgradeConfig(t *testing.T, prank, opcmAddr, systemConfigProxy c
 			GameType: embedded.GameTypeZKDisputeGame,
 		},
 	}
-
-	// Sort by game type (required by OPCM)
-	sort.Slice(disputeGameConfigs, func(i, j int) bool {
-		return disputeGameConfigs[i].GameType < disputeGameConfigs[j].GameType
-	})
 
 	return embedded.UpgradeOPChainInput{
 		Prank: prank,
