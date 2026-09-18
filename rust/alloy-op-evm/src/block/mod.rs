@@ -53,6 +53,33 @@ fn validation_error(err: OpBlockExecutionError) -> BlockExecutionError {
     BlockExecutionError::Validation(BlockValidationError::Other(Box::new(err)))
 }
 
+/// Returns a producer policy's consensus-safe refund for an executed transaction.
+///
+/// A refund policy is advisory: malformed output must not reject an otherwise valid transaction or
+/// abort payload production. Normal-transaction refunds are capped at the gas the EVM actually
+/// used, while deposits are never refundable. Verifiers independently enforce these same bounds on
+/// the resulting post-exec payload.
+#[cfg_attr(not(feature = "metrics"), allow(clippy::missing_const_for_fn))]
+fn sanitize_producer_refund(refund: u64, evm_gas_used: u64, is_deposit: bool) -> u64 {
+    let (refund, correction) = if is_deposit && refund > 0 {
+        (0, Some("ineligible_transaction"))
+    } else if refund > evm_gas_used {
+        (evm_gas_used, Some("exceeds_evm_gas"))
+    } else {
+        (refund, None)
+    };
+
+    #[cfg(feature = "metrics")]
+    if let Some(reason) = correction {
+        metrics::counter!("optimism_sdm.policy_refund_corrections", "reason" => reason)
+            .increment(1);
+    }
+    #[cfg(not(feature = "metrics"))]
+    let _ = correction;
+
+    refund
+}
+
 /// Trait for OP transaction environments. Allows to recover the transaction encoded bytes if
 /// they're available.
 pub trait OpTxEnv {
@@ -968,16 +995,10 @@ where
         let (post_exec_refund, refund_events) = if self.post_exec.is_producing() {
             let PostExecExecutedTx { refund_total: refund, refund_events } =
                 self.evm.take_last_post_exec_tx_result();
-            // The inspector's accumulated refund must never exceed the tx's evm_gas_used. If
-            // it does, we'd emit an `SDMGasEntry` that any honest verifier would reject
-            // at pre-execution ("payload refund exceeds evm_gas_used"), so the sequencer
-            // would ship a block it can't verify itself. Fail here with a loud error
-            // instead of letting `saturating_sub` mask the discrepancy.
-            if refund > evm_gas_used {
-                return Err(Self::invalid_post_exec_payload(format!(
-                    "produced refund {refund} exceeds evm_gas_used {evm_gas_used} for tx index {tx_index}",
-                )));
-            }
+            // The policy is advisory. Contain a faulty policy here, before its output changes gas,
+            // settlement, receipts, or the trailing payload: excessive normal-tx refunds are
+            // capped to the verifier's structural bound, and deposits never receive a refund.
+            let refund = sanitize_producer_refund(refund, evm_gas_used, is_deposit);
             (refund, refund_events)
         } else {
             (
