@@ -29,10 +29,11 @@ contract CrossDomainMessenger_ExternalRelay_Harness is Test {
     }
 
     /// @notice Internal helper function to relay a message and perform assertions.
-    function _internalRelay(address _innerSender) internal {
+    function reenterMessenger(address _innerSender) external payable {
         address initialSender = l1CrossDomainMessenger.xDomainMessageSender();
 
-        bytes memory callMessage = getCallData();
+        bytes memory callMessage =
+            abi.encodeCall(CrossDomainMessenger_ExternalRelay_Harness.reenterMessenger, (_innerSender));
 
         bytes32 hash = Hashing.hashCrossDomainMessage({
             _nonce: Encoding.encodeVersionedNonce({ _nonce: 0, _version: 1 }),
@@ -56,25 +57,10 @@ contract CrossDomainMessenger_ExternalRelay_Harness is Test {
             _message: callMessage
         });
 
+        // Assert that the inner message hash is failed.
         assertTrue(l1CrossDomainMessenger.failedMessages(hash));
         assertFalse(l1CrossDomainMessenger.successfulMessages(hash));
         assertEq(initialSender, l1CrossDomainMessenger.xDomainMessageSender());
-    }
-
-    /// @notice externalCallWithMinGas is called by the CrossDomainMessenger.
-    function externalCallWithMinGas() external payable {
-        for (uint256 i = 0; i < 10; i++) {
-            address _innerSender;
-            unchecked {
-                _innerSender = address(uint160(uint256(uint160(fuzzedSender)) + i));
-            }
-            _internalRelay(_innerSender);
-        }
-    }
-
-    /// @notice Helper function to get the callData for an `externalCallWithMinGas
-    function getCallData() public pure returns (bytes memory) {
-        return abi.encodeCall(CrossDomainMessenger_ExternalRelay_Harness.externalCallWithMinGas, ());
     }
 
     /// @notice Helper function to set the fuzzed sender
@@ -89,11 +75,11 @@ abstract contract CrossDomainMessenger_TestInit is CommonTest {
     // Storage slot of the l2Sender
     uint256 constant senderSlotIndex = 50;
 
-    CrossDomainMessenger_ExternalRelay_Harness public er;
+    CrossDomainMessenger_ExternalRelay_Harness public externalRelay;
 
     function setUp() public override {
         super.setUp();
-        er = new CrossDomainMessenger_ExternalRelay_Harness(l1CrossDomainMessenger, address(optimismPortal2));
+        externalRelay = new CrossDomainMessenger_ExternalRelay_Harness(l1CrossDomainMessenger, address(optimismPortal2));
     }
 }
 
@@ -104,16 +90,16 @@ contract CrossDomainMessenger_RelayMessage_Test is CrossDomainMessenger_TestInit
     ///      `relayMessage` function. The `relayMessage` function will then use `SafeCall`'s
     ///      `callWithMinGas` to call the target with call data packed in the `callMessage`. For
     ///      this test, the `callWithMinGas` will call the mock `ExternalRelay` test contract
-    ///      defined above, executing the `externalCallWithMinGas` function which will try to
+    ///      defined above, executing the `reenterMessenger` function which will try to
     ///      re-enter the `CrossDomainMessenger`'s `relayMessage` function, resulting in that
     ///      message being recorded as failed.
     function testFuzz_relayMessageReenter_succeeds(address _sender, uint256 _gasLimit) external {
         vm.assume(_sender != Predeploys.L2_CROSS_DOMAIN_MESSENGER);
         address sender = Predeploys.L2_CROSS_DOMAIN_MESSENGER;
 
-        er.setFuzzedSender(_sender);
-        address target = address(er);
-        bytes memory callMessage = er.getCallData();
+        address target = address(externalRelay);
+        bytes memory callMessage =
+            abi.encodeCall(CrossDomainMessenger_ExternalRelay_Harness.reenterMessenger, (_sender));
 
         vm.expectCall(target, callMessage);
 
@@ -140,6 +126,8 @@ contract CrossDomainMessenger_RelayMessage_Test is CrossDomainMessenger_TestInit
             _message: callMessage
         });
 
+        // Assert that the outer message hash is successful.
+        // The ExternalRelay harness makes the assertion that the inner message hash is failed.
         assertTrue(l1CrossDomainMessenger.successfulMessages(hash));
         assertEq(l1CrossDomainMessenger.failedMessages(hash), false);
 
