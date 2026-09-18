@@ -278,7 +278,7 @@ func TestValidateAccessEntry_TimestampNotIngested(t *testing.T) {
 // validateExecutingMessage Timing Tests
 // =============================================================================
 
-func TestValidateExecMsg_InitBeforeInclusion(t *testing.T) {
+func TestValidateExecMsg_InitAtInclusion(t *testing.T) {
 	mock := newMockChainIngester()
 	checksum := messages.MessageChecksum{0x01}
 	mock.AddLog(100, 10, 0, checksum, messages.BlockSeal{})
@@ -289,14 +289,70 @@ func TestValidateExecMsg_InitBeforeInclusion(t *testing.T) {
 	}
 	cv := newTestCrossValidator(chains, testExpiryWindow, 100)
 
-	// Init timestamp = 100, Inclusion timestamp = 100 (equal, not before)
+	// An indexed initiating message may execute at the same timestamp.
 	access := makeAccess(testChainA, 100, 10, 0, checksum)
 	exec := makeExecDescriptor(testChainA, 100, 0) // Same as init timestamp
 
 	err := cv.ValidateAccessEntry(access, safety.LocalUnsafe, exec)
-	require.Error(t, err)
-	require.ErrorIs(t, err, interop.ErrConflict)
-	require.Contains(t, err.Error(), "not before inclusion")
+	require.NoError(t, err)
+}
+
+func TestCrossValidator_SameTimestampDependency(t *testing.T) {
+	for _, tc := range []struct {
+		name    string
+		addLog  bool
+		corrupt bool
+	}{
+		{name: "valid", addLog: true},
+		{name: "missing initiating log"},
+		{name: "wrong checksum", addLog: true, corrupt: true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			source, destination := newMockChainIngester(), newMockChainIngester()
+			checksum := messages.MessageChecksum{0x01}
+			if tc.addLog {
+				source.AddLog(102, 51, 0, checksum, messages.BlockSeal{})
+			}
+			if tc.corrupt {
+				checksum = messages.MessageChecksum{0x02}
+			}
+			destination.AddExecMsg(IncludedMessage{
+				ExecutingMessage: &messages.ExecutingMessage{
+					ChainID: eth.ChainIDFromUInt64(testChainA), BlockNum: 51,
+					LogIdx: 0, Timestamp: 102, Checksum: checksum,
+				},
+				InclusionBlockNum: 51, InclusionTimestamp: 102,
+			})
+			source.SetLatestTimestamp(100)
+			destination.SetLatestTimestamp(102)
+			cv := newTestCrossValidator(map[eth.ChainID]ChainIngester{
+				eth.ChainIDFromUInt64(testChainA):     source,
+				eth.ChainIDFromUInt64(testChainA + 1): destination,
+			}, testExpiryWindow, 100)
+			cv.advanceValidation()
+			cv.advanceValidation()
+			require.Nil(t, cv.Error(), "wait for source ingestion without entering failsafe")
+			ts, ok := cv.CrossValidatedTimestamp()
+			require.True(t, ok)
+			require.Equal(t, uint64(100), ts)
+
+			access := makeAccess(testChainA, 102, 51, 0, checksum)
+			exec := makeExecDescriptor(testChainA+1, 102, 0)
+			require.ErrorIs(t, cv.ValidateAccessEntry(access, safety.LocalUnsafe, exec), interop.ErrOutOfScope)
+			source.SetLatestTimestamp(102)
+			cv.advanceValidation()
+			if !tc.addLog || tc.corrupt {
+				require.NotNil(t, cv.Error())
+				require.ErrorIs(t, cv.ValidateAccessEntry(access, safety.LocalUnsafe, exec), interop.ErrConflict)
+				return
+			}
+			require.Nil(t, cv.Error())
+			ts, ok = cv.CrossValidatedTimestamp()
+			require.True(t, ok)
+			require.Equal(t, uint64(102), ts)
+			require.NoError(t, cv.ValidateAccessEntry(access, safety.CrossUnsafe, exec))
+		})
+	}
 }
 
 func TestValidateExecMsg_MessageExpired(t *testing.T) {
@@ -465,14 +521,13 @@ func TestValidateMessageTiming(t *testing.T) {
 			wantErr:             false,
 		},
 		{
-			name:                "invalid: init timestamp equals inclusion",
+			name:                "valid: init timestamp equals inclusion",
 			initTimestamp:       100,
 			inclusionTimestamp:  100,
 			messageExpiryWindow: 100,
 			timeout:             0,
 			execTimestamp:       0,
-			wantErr:             true,
-			errContains:         "not before inclusion",
+			wantErr:             false,
 		},
 		{
 			name:                "invalid: init timestamp after inclusion",
@@ -482,7 +537,7 @@ func TestValidateMessageTiming(t *testing.T) {
 			timeout:             0,
 			execTimestamp:       0,
 			wantErr:             true,
-			errContains:         "not before inclusion",
+			errContains:         "after inclusion",
 		},
 		{
 			name:                "valid: timestamps near max uint64",
