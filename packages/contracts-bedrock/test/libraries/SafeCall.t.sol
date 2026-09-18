@@ -9,6 +9,7 @@ import { StdCheatsSafe } from "forge-std/StdCheats.sol";
 import { Config } from "scripts/libraries/Config.sol";
 
 // Libraries
+import { Preinstalls } from "src/libraries/Preinstalls.sol";
 import { SafeCall } from "src/libraries/SafeCall.sol";
 
 contract SimpleSafeCaller {
@@ -33,9 +34,33 @@ abstract contract SafeCall_TestInit is Test {
     /// @notice Helper function to deduplicate code. Makes all assumptions required for these
     ///         tests.
     function assumeNot(address _addr) internal {
-        vm.deal(_addr, 0);
         vm.assume(_addr != address(this));
         assumeAddressIsNot(_addr, StdCheatsSafe.AddressType.ForgeAddress, StdCheatsSafe.AddressType.Precompile);
+        vm.assume(_addr.code.length == 0);
+        assumeNotPreinstall(_addr);
+        vm.deal(_addr, 0);
+    }
+
+    /// @notice Excludes protocol-managed addresses from generic account fuzzing.
+    function assumeNotPreinstall(address _addr) internal pure {
+        vm.assume(_addr != Preinstalls.MultiCall3);
+        vm.assume(_addr != Preinstalls.Create2Deployer);
+        vm.assume(_addr != Preinstalls.Safe_v130);
+        vm.assume(_addr != Preinstalls.SafeL2_v130);
+        vm.assume(_addr != Preinstalls.MultiSendCallOnly_v130);
+        vm.assume(_addr != Preinstalls.SafeSingletonFactory);
+        vm.assume(_addr != Preinstalls.DeterministicDeploymentProxy);
+        vm.assume(_addr != Preinstalls.MultiSend_v130);
+        vm.assume(_addr != Preinstalls.Permit2);
+        vm.assume(_addr != Preinstalls.SenderCreator_v060);
+        vm.assume(_addr != Preinstalls.EntryPoint_v060);
+        vm.assume(_addr != Preinstalls.SenderCreator_v070);
+        vm.assume(_addr != Preinstalls.EntryPoint_v070);
+        vm.assume(_addr != Preinstalls.CreateX);
+        vm.assume(_addr != Preinstalls.BeaconBlockRoots);
+        vm.assume(_addr != Preinstalls.BeaconBlockRootsSender);
+        vm.assume(_addr != Preinstalls.HistoryStorage);
+        vm.assume(_addr != Preinstalls.HistoryStorageSender);
     }
 
     /// @notice Internal helper function for `send` tests
