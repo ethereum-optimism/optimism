@@ -343,6 +343,11 @@ where
     }
 }
 
+/// UPSTREAM-MIRROR(delegate): reth@rev:aef8d3e
+/// `reth_transaction_pool::validate::EthTransactionValidator`
+///
+/// Wraps the Ethereum validator. Re-check newly defaulted batch methods and upstream overrides;
+/// inheriting a generic default can lose the inner validator's shared-state batching.
 impl<Client, Tx, Evm> TransactionValidator for OpTransactionValidator<Client, Tx, Evm>
 where
     Client:

@@ -120,7 +120,7 @@ func TestProposerDoesNotBuildOnGameCreatedAheadOfSuperRootRPC(gt *testing.T) {
 	_, outputRoots := factory.WaitForSafeSuperRootAfter(anchorSequence)
 
 	supernode := sys.Supernode()
-	futureSequence := supernode.EnsureInteropPaused(sys.L2CLA, sys.L2CLB, 10)
+	futureSequence := supernode.EnsureInteropPaused(10, sys.L2CLA, sys.L2CLB)
 	t.Cleanup(supernode.ResumeInterop)
 	t.Require().Nil(sys.SuperRoots.SuperRootAtTimestamp(futureSequence).Data,
 		"super-root RPC must be behind the future game's timestamp")

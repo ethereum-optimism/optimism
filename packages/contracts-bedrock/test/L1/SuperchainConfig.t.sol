@@ -172,6 +172,56 @@ contract SuperchainConfig_Paused_Test is SuperchainConfig_TestInit {
     }
 }
 
+/// @title SuperchainConfig_IsLocalOrGlobalPaused_Test
+/// @notice Test contract for SuperchainConfig `isLocalOrGlobalPaused` function.
+contract SuperchainConfig_IsLocalOrGlobalPaused_Test is SuperchainConfig_TestInit {
+    /// @notice Tests that `isLocalOrGlobalPaused` returns false when unpaused.
+    /// @param _identifier The identifier to test.
+    function testFuzz_isLocalOrGlobalPaused_notPaused_succeeds(address _identifier) external view {
+        assertFalse(superchainConfig.isLocalOrGlobalPaused(_identifier));
+    }
+
+    /// @notice Tests that `isLocalOrGlobalPaused` includes the global pause.
+    /// @param _identifier The identifier to test.
+    function testFuzz_isLocalOrGlobalPaused_globalPause_succeeds(address _identifier) external {
+        vm.prank(superchainConfig.guardian());
+        superchainConfig.pause(address(0));
+
+        assertTrue(superchainConfig.isLocalOrGlobalPaused(_identifier));
+    }
+
+    /// @notice Tests that `isLocalOrGlobalPaused` includes scoped pauses.
+    /// @param _identifier The identifier to test.
+    function testFuzz_isLocalOrGlobalPaused_scopedPause_succeeds(address _identifier) external {
+        vm.assume(_identifier != address(0));
+
+        vm.prank(superchainConfig.guardian());
+        superchainConfig.pause(_identifier);
+
+        assertTrue(superchainConfig.isLocalOrGlobalPaused(_identifier));
+
+        address other = vm.randomAddress();
+        while (other == _identifier) {
+            other = vm.randomAddress();
+        }
+
+        assertFalse(superchainConfig.isLocalOrGlobalPaused(other));
+    }
+
+    /// @notice Tests that `isLocalOrGlobalPaused` respects pause expiry.
+    /// @param _identifier The identifier to test.
+    function testFuzz_isLocalOrGlobalPaused_expired_succeeds(address _identifier) external {
+        vm.assume(_identifier != address(0));
+
+        vm.prank(superchainConfig.guardian());
+        superchainConfig.pause(_identifier);
+        assertTrue(superchainConfig.isLocalOrGlobalPaused(_identifier));
+
+        vm.warp(block.timestamp + superchainConfig.pauseExpiry() + 1);
+        assertFalse(superchainConfig.isLocalOrGlobalPaused(_identifier));
+    }
+}
+
 /// @title SuperchainConfig_Pause_Test
 /// @notice Test contract for SuperchainConfig `pause` function.
 contract SuperchainConfig_Pause_Test is SuperchainConfig_TestInit {

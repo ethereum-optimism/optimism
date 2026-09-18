@@ -7754,6 +7754,8 @@ dependencies = [
  "kona-sp1-client-utils",
  "kona-sp1-host-utils",
  "kona-sp1-super-range-executor",
+ "metrics",
+ "metrics-exporter-prometheus",
  "parking_lot",
  "serde",
  "sp1-sdk",

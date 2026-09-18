@@ -158,9 +158,9 @@ contract OPContractsManagerV2 is ISemver, OPContractsManagerUtilsCaller {
     ///         - Major bump: New required sequential upgrade
     ///         - Minor bump: Replacement OPCM for same upgrade
     ///         - Patch bump: Development changes (expected for normal dev work)
-    /// @custom:semver 8.0.5
+    /// @custom:semver 9.0.1
     function version() public pure returns (string memory) {
-        return "8.0.5";
+        return "9.0.1";
     }
 
     /// @param _standardValidator The standard validator for this OPCM release.
@@ -341,7 +341,7 @@ contract OPContractsManagerV2 is ISemver, OPContractsManagerUtilsCaller {
         // developers start working on the next release this will automatically become false so
         // even if the code is somehow forgotten it will not actually apply to the deployment. Make
         // sure to REMOVE the allowance once the upgrade is complete.
-        // TODO(#22836): When OPCM bumps to v9, remove the anchor-root override here and from upgrade inputs.
+        // TODO(#22836): Remove anchor overrides once devstack fixtures initialize valid anchors.
         if (SemverComp.parse(_version()).major == 9) {
             // Allow deploying an ETHLockbox for existing chains only in the v9 release.
             if (_isMatchingInstruction(_instruction, Constants.PERMITTED_PROXY_DEPLOYMENT_KEY, bytes("ETHLockbox"))) {
@@ -349,7 +349,7 @@ contract OPContractsManagerV2 is ISemver, OPContractsManagerUtilsCaller {
             }
         }
 
-        if (SemverComp.lt(_version(), "9.0.0")) {
+        if (SemverComp.lt(_version(), "10.0.0")) {
             // Super game upgrades require overriding the anchor root.
             if (_isMatchingInstructionByKey(_instruction, "overrides.cfg.startingAnchorRoot")) return true;
         }
@@ -867,9 +867,7 @@ contract OPContractsManagerV2 is ISemver, OPContractsManagerUtilsCaller {
             _cts.proxyAdmin,
             address(_cts.ethLockbox),
             impls.ethLockboxImpl,
-            abi.encodeCall(
-                IETHLockbox.initialize, (_systemConfigFor(_cts.systemConfig, address(_cts.ethLockbox)), portals)
-            )
+            abi.encodeCall(IETHLockbox.initialize, (_cts.systemConfig.superchainConfig(), portals))
         );
 
         // Custom gas token chains keep custody in the portal and do not migrate ETH.
@@ -925,7 +923,7 @@ contract OPContractsManagerV2 is ISemver, OPContractsManagerUtilsCaller {
             _cts.proxyAdmin,
             address(_cts.delayedWETH),
             impls.delayedWETHImpl,
-            abi.encodeCall(IDelayedWETH.initialize, (_systemConfigFor(_cts.systemConfig, address(_cts.delayedWETH))))
+            abi.encodeCall(IDelayedWETH.initialize, (_cts.ethLockbox))
         );
 
         // Update the AnchorStateRegistry.
@@ -935,12 +933,7 @@ contract OPContractsManagerV2 is ISemver, OPContractsManagerUtilsCaller {
             impls.anchorStateRegistryImpl,
             abi.encodeCall(
                 IAnchorStateRegistry.initialize,
-                (
-                    _systemConfigFor(_cts.systemConfig, address(_cts.anchorStateRegistry)),
-                    _cts.disputeGameFactory,
-                    _cfg.startingAnchorRoot,
-                    _cfg.startingRespectedGameType
-                )
+                (_cts.ethLockbox, _cts.disputeGameFactory, _cfg.startingAnchorRoot, _cfg.startingRespectedGameType)
             )
         );
 

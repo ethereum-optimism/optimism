@@ -225,13 +225,54 @@ func attachSuperChallengerAndProposer(
 // NewTwoL2SupernodeProofsRuntimeWithConfig creates a two-chain supernode proofs
 // runtime. lagoonAtGenesis controls whether Lagoon activates interop at genesis.
 func NewTwoL2SupernodeProofsRuntimeWithConfig(t devtest.T, lagoonAtGenesis bool, cfg PresetConfig) *MultiChainRuntime {
+	return newMultiL2SupernodeProofsRuntimeWithConfig(
+		t,
+		lagoonAtGenesis,
+		cfg,
+		"test-sequencer-2l2",
+		[]runtimeChainSpec{
+			{Name: "l2a", ID: DefaultL2AID},
+			{Name: "l2b", ID: DefaultL2BID},
+		},
+	)
+}
+
+// NewThreeL2SupernodeProofsRuntimeWithConfig creates a three-chain supernode proofs runtime.
+func NewThreeL2SupernodeProofsRuntimeWithConfig(t devtest.T, lagoonAtGenesis bool, cfg PresetConfig) *MultiChainRuntime {
+	return newMultiL2SupernodeProofsRuntimeWithConfig(
+		t,
+		lagoonAtGenesis,
+		cfg,
+		"test-sequencer-3l2",
+		[]runtimeChainSpec{
+			{Name: "l2a", ID: DefaultL2AID},
+			{Name: "l2b", ID: DefaultL2BID},
+			{Name: "l2c", ID: DefaultL2CID},
+		},
+	)
+}
+
+func newMultiL2SupernodeProofsRuntimeWithConfig(
+	t devtest.T,
+	lagoonAtGenesis bool,
+	cfg PresetConfig,
+	testSequencerName string,
+	chainSpecs []runtimeChainSpec,
+) *MultiChainRuntime {
 	if cfg.ZKDisputeGame != nil {
 		t.Require().NoError(cfg.ZKDisputeGame.validate(), "invalid ZK dispute game config")
 		t.Require().Nil(cfg.PreGenesisSuperGame, "ZK dispute game does not support the pre-genesis game fixture")
 	}
 	cfg = withSuperProofsDeployerFeature(cfg)
-	runtime, _ := newTwoL2SupernodeRuntimeWithConfig(t, lagoonAtGenesis, 0, cfg)
-	attachTestSequencerToRuntime(t, runtime, "test-sequencer-2l2")
+	runtime, _ := newMultiL2SupernodeRuntimeWithConfigAndSequencerMode(
+		t,
+		lagoonAtGenesis,
+		0,
+		cfg,
+		true,
+		chainSpecs,
+	)
+	attachTestSequencerToRuntime(t, runtime, testSequencerName)
 	return attachSupernodeSuperProofs(t, runtime, cfg)
 }
 

@@ -265,15 +265,39 @@ sent together may count as one request.
 
 ### Operator alarms
 
-`kona_sp1_proposer_game_proving_error` counts failed proving tasks. A sustained
-rate needs investigation because identity changes and retryable terminal
-outcomes can purchase replacement proofs.
-`kona_sp1_proposer_proving_timeout_error` means a polling attempt exceeded its
-client-side wait; the submitted request ID remains available to the next retry.
-`kona_sp1_proposer_game_unprovable` counts games given up as permanently
-unprovable. A proving task that never completes holds its capacity slot and its
-game's dedup slot, so watch `kona_sp1_proposer_proving_duration_seconds` and the
-per-tick task-stats log.
+The following metrics support availability, funding, and defense-deadline alerts.
+Names below use the `kona_sp1_proposer_` prefix.
+
+| Metric | Type | Meaning |
+|---|---|---|
+| `up` | Gauge | `1` after the process starts. This does not imply chain-dependent startup validation has completed. Use Prometheus scrape availability to detect process loss. |
+| `signer_balance_eth` | Gauge | L1 transaction signer's balance in ETH. |
+| `prove_balance` | Gauge | Configured SP1 network account's spendable balance in PROVE, not the signer's ERC-20 wallet balance. Absent in mock mode. |
+| `deadline_passed_total` | Counter | Missed game windows observed by this process, with `window="defense"` or `window="fast_finality"`. Defense expiry and missed fast-finality acceleration have different consequences. |
+| `defense_deadline_remaining_seconds` | Gauge | Minimum observed defense deadline minus L1 block time, including queued and active games. Zero is the deadline boundary; negative values indicate expiry. |
+
+Balances refresh every 15 seconds. Failed balance reads return `NaN`
+without blocking other metrics. Deadline metrics update during game sync
+using the confirmed L1 timestamp.
+
+Deadline checks cover discovered games with eligible ancestry that the proposer
+owns or created. Positive infinity means no outstanding defense. `NaN` means
+the first sync or game validation is incomplete, or sync reads failed.
+
+Each expired window counts once while the game remains cached. Restarts or
+eviction can cause recounts; gaps between observations can miss events.
+A missed fast-finality window does not by itself mean a lost game.
+
+Set defense alerts early enough to allow proving, L1 inclusion, and operator
+response. Use the error metrics below for diagnosis, not separate alerts.
+
+`kona_sp1_proposer_game_proving_error` counts failed attempts; retries may buy
+replacement proofs. `kona_sp1_proposer_proving_timeout_error` means polling
+timed out; the next attempt can reuse the request.
+`kona_sp1_proposer_game_unprovable` counts games the proposer cannot prove.
+
+`kona_sp1_proposer_proving_duration_seconds` records only successful runs,
+including the L1 transaction path. Use the task-stats log to investigate stuck work.
 
 ### Environment
 
@@ -312,7 +336,8 @@ Optional core and operational configuration:
 | `KONA_SP1_PROPOSER_FAST_FINALITY_MODE` | prove signer-created owned games while unchallenged (default `false`) |
 | `KONA_SP1_PROPOSER_FAST_FINALITY_PROVING_LIMIT` | total in-flight proving tasks before creation pauses (default `1`) |
 
-SP1 network configuration applies when `KONA_SP1_PROPOSER_PROOF_PROVIDER=network`:
+SP1 network configuration applies when `KONA_SP1_PROPOSER_PROOF_PROVIDER=network`.
+`KONA_SP1_PROPOSER_NETWORK_CALLS_TIMEOUT` also bounds metric observations in mock mode.
 
 | Variable | Purpose |
 |---|---|
@@ -322,7 +347,7 @@ SP1 network configuration applies when `KONA_SP1_PROPOSER_PROOF_PROVIDER=network
 | `KONA_SP1_PROPOSER_RANGE_PROOF_STRATEGY` | range fulfillment strategy (default `auction`) |
 | `KONA_SP1_PROPOSER_AGG_PROOF_STRATEGY` | aggregation fulfillment strategy (default `auction`) |
 | `KONA_SP1_PROPOSER_SP1_TIMEOUT_SECONDS` | per-proof request deadline and client wait (default `7200`) |
-| `KONA_SP1_PROPOSER_NETWORK_CALLS_TIMEOUT` | individual network-call timeout (default `15`) |
+| `KONA_SP1_PROPOSER_NETWORK_CALLS_TIMEOUT` | SP1 API and metric observation timeout, including L1 balance and super-root queries (default `15` seconds) |
 | `KONA_SP1_PROPOSER_AUCTION_TIMEOUT` | unassigned mainnet request timeout (default `300`) |
 | `KONA_SP1_PROPOSER_RANGE_CYCLE_LIMIT` | range request cycle limit (default `1e12`) |
 | `KONA_SP1_PROPOSER_RANGE_GAS_LIMIT` | range request gas limit (default `200000000000`) |
