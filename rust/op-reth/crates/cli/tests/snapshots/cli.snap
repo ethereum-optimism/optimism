@@ -383,64 +383,6 @@ arg: --header <HEADER_FILE> [action: Set] [num-args: 1] help: Header file contai
 arg: --header-hash <HEADER_HASH> [action: Set] [num-args: 1] help: Hash of the header.
 arg: --without-ovm [action: SetTrue] [num-args: 0] [default: false] help: Specifies whether to initialize the state without relying on OVM or EVM historical data
 
-== op-reth import-op
-about: This syncs RLP encoded OP blocks below Bedrock from a file, without executing
-arg: --datadir <DATA_DIR> [action: Set] [num-args: 1] [default: default] help: The path to the data dir for all reth files and subdirectories.
-arg: --datadir.static-files <PATH> [action: Set] [num-args: 1] [aliases: datadir.static_files] help: The absolute path to store static files in.
-arg: --datadir.rocksdb <PATH> [action: Set] [num-args: 1] help: The absolute path to store `RocksDB` database in.
-arg: --datadir.pprof-dumps <PATH> [action: Set] [num-args: 1] help: The absolute path to store pprof dumps in.
-arg: --config <FILE> [action: Set] [num-args: 1] help: The path to the configuration file to use
-arg: --chain <CHAIN_OR_PATH> [action: Set] [num-args: 1] [default: optimism] [global] help: The chain this node is running
-arg: --db.log-level <LOG_LEVEL> [action: Set] [num-args: 1] [possible: fatal, error, warn, notice, verbose, debug, trace, extra] help: Database logging level. Levels higher than "notice" require a debug build
-arg: --db.exclusive <EXCLUSIVE> [action: Set] [num-args: 1] [possible: true, false] help: Open environment in exclusive/monopolistic mode. Makes it possible to open a database on an NFS volume
-arg: --db.max-size <MAX_SIZE> [action: Set] [num-args: 1] help: Maximum database size (e.g., 4TB, 8TB)
-arg: --db.page-size <PAGE_SIZE> [action: Set] [num-args: 1] help: Database page size (e.g., 4KB, 8KB, 16KB)
-arg: --db.growth-step <GROWTH_STEP> [action: Set] [num-args: 1] help: Database growth step (e.g., 4GB, 4KB)
-arg: --db.read-transaction-timeout <READ_TRANSACTION_TIMEOUT> [action: Set] [num-args: 1] help: Read transaction timeout in seconds, 0 means no timeout
-arg: --db.max-readers <MAX_READERS> [action: Set] [num-args: 1] help: Maximum number of readers allowed to access the database concurrently
-arg: --db.sync-mode <SYNC_MODE> [action: Set] [num-args: 1] help: Controls how aggressively the database synchronizes data to disk
-arg: --db.rocksdb-block-cache-size <ROCKSDB_BLOCK_CACHE_SIZE> [action: Set] [num-args: 1] help: `RocksDB` block cache size (e.g., 512MB, 4GB)
-arg: --db.balstore-cache-size <BALSTORE_CACHE_SIZE> [action: Set] [num-args: 1] help: Number of recent blocks to keep in the in-memory BAL store cache
-arg: --db.disable-metrics [action: SetTrue] [num-args: 0] help: Disable built-in database metrics
-arg: --static-files.blocks-per-file.headers <BLOCKS_PER_FILE_HEADERS> [action: Set] [num-args: 1] help: Number of blocks per file for the headers segment
-arg: --static-files.blocks-per-file.transactions <BLOCKS_PER_FILE_TRANSACTIONS> [action: Set] [num-args: 1] help: Number of blocks per file for the transactions segment
-arg: --static-files.blocks-per-file.receipts <BLOCKS_PER_FILE_RECEIPTS> [action: Set] [num-args: 1] help: Number of blocks per file for the receipts segment
-arg: --static-files.blocks-per-file.transaction-senders <BLOCKS_PER_FILE_TRANSACTION_SENDERS> [action: Set] [num-args: 1] help: Number of blocks per file for the transaction senders segment
-arg: --static-files.blocks-per-file.account-change-sets <BLOCKS_PER_FILE_ACCOUNT_CHANGE_SETS> [action: Set] [num-args: 1] help: Number of blocks per file for the account changesets segment
-arg: --static-files.blocks-per-file.storage-change-sets <BLOCKS_PER_FILE_STORAGE_CHANGE_SETS> [action: Set] [num-args: 1] help: Number of blocks per file for the storage changesets segment
-arg: --storage.v2 <V2> [action: SetTrue] [num-args: 0..=1] [default: true] [default-missing-values: ["true"]] [possible: true, false] help: Enable V2 (hot/cold) storage layout for new databases
-arg: --chunk-len <CHUNK_LEN> [action: Set] [num-args: 1] help: Chunk byte length to read from file.
-arg: [positional: path] <IMPORT_PATH> [action: Set] [num-args: 1] [required] help: The path to a block file for import.
-
-== op-reth import-receipts-op
-about: This imports RLP encoded receipts from a file
-arg: --datadir <DATA_DIR> [action: Set] [num-args: 1] [default: default] help: The path to the data dir for all reth files and subdirectories.
-arg: --datadir.static-files <PATH> [action: Set] [num-args: 1] [aliases: datadir.static_files] help: The absolute path to store static files in.
-arg: --datadir.rocksdb <PATH> [action: Set] [num-args: 1] help: The absolute path to store `RocksDB` database in.
-arg: --datadir.pprof-dumps <PATH> [action: Set] [num-args: 1] help: The absolute path to store pprof dumps in.
-arg: --config <FILE> [action: Set] [num-args: 1] help: The path to the configuration file to use
-arg: --chain <CHAIN_OR_PATH> [action: Set] [num-args: 1] [default: optimism] [global] help: The chain this node is running
-arg: --db.log-level <LOG_LEVEL> [action: Set] [num-args: 1] [possible: fatal, error, warn, notice, verbose, debug, trace, extra] help: Database logging level. Levels higher than "notice" require a debug build
-arg: --db.exclusive <EXCLUSIVE> [action: Set] [num-args: 1] [possible: true, false] help: Open environment in exclusive/monopolistic mode. Makes it possible to open a database on an NFS volume
-arg: --db.max-size <MAX_SIZE> [action: Set] [num-args: 1] help: Maximum database size (e.g., 4TB, 8TB)
-arg: --db.page-size <PAGE_SIZE> [action: Set] [num-args: 1] help: Database page size (e.g., 4KB, 8KB, 16KB)
-arg: --db.growth-step <GROWTH_STEP> [action: Set] [num-args: 1] help: Database growth step (e.g., 4GB, 4KB)
-arg: --db.read-transaction-timeout <READ_TRANSACTION_TIMEOUT> [action: Set] [num-args: 1] help: Read transaction timeout in seconds, 0 means no timeout
-arg: --db.max-readers <MAX_READERS> [action: Set] [num-args: 1] help: Maximum number of readers allowed to access the database concurrently
-arg: --db.sync-mode <SYNC_MODE> [action: Set] [num-args: 1] help: Controls how aggressively the database synchronizes data to disk
-arg: --db.rocksdb-block-cache-size <ROCKSDB_BLOCK_CACHE_SIZE> [action: Set] [num-args: 1] help: `RocksDB` block cache size (e.g., 512MB, 4GB)
-arg: --db.balstore-cache-size <BALSTORE_CACHE_SIZE> [action: Set] [num-args: 1] help: Number of recent blocks to keep in the in-memory BAL store cache
-arg: --db.disable-metrics [action: SetTrue] [num-args: 0] help: Disable built-in database metrics
-arg: --static-files.blocks-per-file.headers <BLOCKS_PER_FILE_HEADERS> [action: Set] [num-args: 1] help: Number of blocks per file for the headers segment
-arg: --static-files.blocks-per-file.transactions <BLOCKS_PER_FILE_TRANSACTIONS> [action: Set] [num-args: 1] help: Number of blocks per file for the transactions segment
-arg: --static-files.blocks-per-file.receipts <BLOCKS_PER_FILE_RECEIPTS> [action: Set] [num-args: 1] help: Number of blocks per file for the receipts segment
-arg: --static-files.blocks-per-file.transaction-senders <BLOCKS_PER_FILE_TRANSACTION_SENDERS> [action: Set] [num-args: 1] help: Number of blocks per file for the transaction senders segment
-arg: --static-files.blocks-per-file.account-change-sets <BLOCKS_PER_FILE_ACCOUNT_CHANGE_SETS> [action: Set] [num-args: 1] help: Number of blocks per file for the account changesets segment
-arg: --static-files.blocks-per-file.storage-change-sets <BLOCKS_PER_FILE_STORAGE_CHANGE_SETS> [action: Set] [num-args: 1] help: Number of blocks per file for the storage changesets segment
-arg: --storage.v2 <V2> [action: SetTrue] [num-args: 0..=1] [default: true] [default-missing-values: ["true"]] [possible: true, false] help: Enable V2 (hot/cold) storage layout for new databases
-arg: --chunk-len <CHUNK_LEN> [action: Set] [num-args: 1] help: Chunk byte length to read from file.
-arg: [positional: path] <IMPORT_PATH> [action: Set] [num-args: 1] [required] help: The path to a receipts file for import. File must use `OpGethReceiptFileCodec` (used for\nexporting OP chain segment below Bedrock block via testinprod/op-geth).
-
 == op-reth dump-genesis
 about: Dumps genesis block JSON configuration to stdout
 arg: --chain <CHAIN_OR_PATH> [action: Set] [num-args: 1] [default: optimism] help: The chain this node is running
