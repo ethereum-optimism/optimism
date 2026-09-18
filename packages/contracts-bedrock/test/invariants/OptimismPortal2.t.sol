@@ -162,6 +162,8 @@ contract OptimismPortal2_Invariant_Harness is DisputeGameFactory_TestInit {
         targetInterface(FuzzInterface({ addr: address(optimismPortal2), artifacts: artifacts }));
 
         excludeSender(EIP1967Helper.getAdmin(address(optimismPortal2)));
+        // The lockbox cannot originate arbitrary ETH transfers.
+        excludeSender(address(ethLockbox));
     }
 }
 
