@@ -248,17 +248,72 @@ test-kontrol: build-go-ffi build kontrol-summary-full test-kontrol-no-build
 test-kontrol-no-build:
   ./test/kontrol/scripts/run-kontrol.sh script
 
-# Runs contract coverage.
-coverage: build-go-ffi
-  forge coverage
+# Runs contract coverage. Mirrors `test`: L1 coverage runs under Amsterdam while L2
+# coverage and ExecuteNUTBundle run at the default EVM version.
+#
+# Env:
+# - TEST_FILES: optional newline-separated list of test files to run, relative to the
+#   package root; defaults to all of test/.
+# - COVERAGE_REPORT_FILE: optional merged lcov output path.
+coverage *ARGS: build-go-ffi
+  #!/bin/bash
+  set -euo pipefail
+  TEST_FILES="${TEST_FILES:-$(find test -name '*.t.sol')}"
+  AMSTERDAM_FILES=$(echo "$TEST_FILES" | grep -vE '{{DEFAULT_EVM_TESTS}}' || true)
+  DEFAULT_EVM_FILES=$(echo "$TEST_FILES" | grep -E '{{DEFAULT_EVM_TESTS}}' || true)
+  REPORT_FILE="${COVERAGE_REPORT_FILE:-}"
+  REPORTS=()
+
+  mkdir -p cache
+  rm -f cache/test-failures-amsterdam cache/test-failures-l2
+
+  run_coverage() { # <pass-name> <test-files>
+    local pass="$1"
+    local files="$2"
+    shift 2
+    local pass_report=""
+    if [ -n "$REPORT_FILE" ]; then
+      pass_report="cache/coverage-$pass.info"
+      set -- --report lcov --report-file "$pass_report"
+      REPORTS+=("$pass_report")
+    fi
+
+    rm -f cache/test-failures
+    local status=0
+    FOUNDRY_MATCH_PATH="./{$(echo "$files" | paste -sd, -)}" \
+      forge coverage {{ARGS}} "$@" || status=$?
+    if [ "$status" -ne 0 ]; then
+      if [ -f cache/test-failures ]; then
+        cp cache/test-failures "cache/test-failures-$pass"
+      fi
+      return "$status"
+    fi
+  }
+
+  if [ -n "$AMSTERDAM_FILES" ]; then
+    # Solc requires experimental mode for Amsterdam codegen.
+    FOUNDRY_EVM_VERSION=amsterdam FOUNDRY_EXPERIMENTAL=true run_coverage amsterdam "$AMSTERDAM_FILES"
+  fi
+  if [ -n "$DEFAULT_EVM_FILES" ]; then
+    run_coverage l2 "$DEFAULT_EVM_FILES"
+  fi
+
+  if [ -n "$REPORT_FILE" ]; then
+    if [ "${#REPORTS[@]}" -eq 1 ]; then
+      cp "${REPORTS[0]}" "$REPORT_FILE"
+    else
+      lcov -a "${REPORTS[0]}" -a "${REPORTS[1]}" -o "$REPORT_FILE"
+    fi
+  fi
 
 # Runs contract coverage with lcov.
-coverage-lcov *ARGS: build-go-ffi
-  forge coverage {{ARGS}} --report lcov --report-file lcov.info
+coverage-lcov *ARGS:
+  COVERAGE_REPORT_FILE=lcov.info just coverage {{ARGS}}
 
 # Runs upgrade path variant of contract coverage tests.
 coverage-upgrade *ARGS:
-  just prepare-upgrade-env "forge coverage {{ARGS}}"
+  # Solc requires experimental mode for Amsterdam codegen.
+  FOUNDRY_EVM_VERSION=amsterdam FOUNDRY_EXPERIMENTAL=true just prepare-upgrade-env "forge coverage {{ARGS}}"
 
 # Runs contract coverage with lcov.
 coverage-lcov-upgrade *ARGS: build-go-ffi
