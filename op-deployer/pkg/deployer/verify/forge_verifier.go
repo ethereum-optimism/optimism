@@ -143,6 +143,7 @@ func (v *ForgeVerifier) VerifyContractWithConstructorArgs(ctx context.Context, a
 		args = append(args, "--num-of-optimizations", fmt.Sprintf("%d", metadata.Optimizer.Runs))
 	}
 
+	// Same here
 	if metadata.EVMVersion != "" {
 		args = append(args, "--evm-version", metadata.EVMVersion)
 	}
