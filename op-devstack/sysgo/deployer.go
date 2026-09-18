@@ -288,6 +288,8 @@ func WithCommons(l1ChainID eth.ChainID) DeployerOption {
 
 		l1StartTimestamp := uint64(time.Now().Unix()) + 1
 		l1Config.WithTimestamp(l1StartTimestamp)
+		// Amsterdam state gas raises live OPCM deployment above 50 million gas.
+		l1Config.WithGasLimit(60_000_000)
 
 		l1Fork := forks.Prague // activate Pectra on L1 by default
 		if value, ok := os.LookupEnv(DevstackL1ForkEnvVar); ok {
