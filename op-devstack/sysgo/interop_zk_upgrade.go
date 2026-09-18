@@ -26,55 +26,6 @@ var (
 	defaultZKChallengerBond = big.NewInt(5e17)
 )
 
-// upgradeToSuperRoots configures super games without changing the initial genesis anchor.
-func upgradeToSuperRoots(
-	t devtest.T,
-	keys devkeys.Keys,
-	migration *interopMigrationState,
-	l1ChainID eth.ChainID,
-	l1EL L1ELNode,
-	primaryL2 eth.ChainID,
-) {
-	require := t.Require()
-	require.NotNil(migration, "interop migration state is required")
-	require.NotEmpty(migration.opcmImpl, "must have an OPCM implementation")
-	require.NotEmpty(migration.l2Deployments, "must have L2 deployments for interop upgrade")
-
-	rpcClient, err := rpc.DialContext(t.Ctx(), l1EL.UserRPC())
-	require.NoError(err)
-	defer rpcClient.Close()
-	client := ethclient.NewClient(rpcClient)
-
-	absoluteCannonKonaPrestate := getCannonKonaAbsolutePrestate(t)
-
-	l2Ops := devkeys.ChainOperatorKeys(primaryL2.ToBig())
-	proposer, err := keys.Address(l2Ops(devkeys.ProposerRole))
-	require.NoError(err, "must have configured proposer")
-
-	l1PAO, l1PAOKey := resolveL1ProxyAdminOwner(t, keys, l1ChainID)
-
-	respectedGameTypeData := encodeStartingRespectedGameType(t, superCannonKonaGameType)
-
-	artifactsFS, err := artifacts.Download(t.Ctx(), LocalArtifacts(t), ioutil.NoopProgressor(), t.TempDir())
-	require.NoError(err, "failed to download artifacts")
-
-	for _, l2Deployment := range migration.l2Deployments {
-		executeOPCMUpgrade(t, rpcClient, client, l1PAOKey, artifactsFS, embedded.UpgradeOPChainInput{
-			Prank: l1PAO,
-			Opcm:  migration.opcmImpl,
-			UpgradeInputV2: &embedded.UpgradeInputV2{
-				SystemConfig: l2Deployment.SystemConfigProxyAddr(),
-				DisputeGameConfigs: buildSuperRootUpgradeGameConfigs(
-					absoluteCannonKonaPrestate, proposer,
-				),
-				ExtraInstructions: []embedded.ExtraInstruction{
-					{Key: "overrides.cfg.startingRespectedGameType", Data: respectedGameTypeData},
-				},
-			},
-		})
-	}
-}
-
 // setInteropZKDisputeGameViaUpgrade re-points the shared dispute games of a migrated interop set
 // to the ZK dispute game. The chains in the set share an AnchorStateRegistry and
 // DisputeGameFactory, so upgrading a single chain applies the new dispute game config to the set.
@@ -156,28 +107,6 @@ func buildZKUpgradeGameConfigs(
 				ChallengerBond:       new(big.Int).Set(defaultZKChallengerBond),
 			},
 		},
-	}
-}
-
-func buildSuperRootUpgradeGameConfigs(
-	absoluteCannonKonaPrestate common.Hash,
-	proposer common.Address,
-) []embedded.DisputeGameConfig {
-	return []embedded.DisputeGameConfig{
-		{Enabled: false, InitBond: new(big.Int), GameType: embedded.GameTypeCannon},
-		{Enabled: false, InitBond: new(big.Int), GameType: embedded.GameTypePermissionedCannon},
-		{Enabled: false, InitBond: new(big.Int), GameType: embedded.GameTypeCannonKona},
-		{
-			Enabled: true, InitBond: new(big.Int), GameType: embedded.GameTypeSuperPermissioned,
-			SuperPermissionedDisputeGameConfig: &embedded.SuperPermissionedDisputeGameConfig{
-				Proposer: proposer,
-			},
-		},
-		{
-			Enabled: true, InitBond: new(big.Int).Set(defaultInitBond), GameType: embedded.GameTypeSuperCannonKona,
-			FaultDisputeGameConfig: &embedded.FaultDisputeGameConfig{AbsolutePrestate: absoluteCannonKonaPrestate},
-		},
-		{Enabled: false, InitBond: new(big.Int), GameType: embedded.GameTypeZKDisputeGame},
 	}
 }
 

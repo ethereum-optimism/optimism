@@ -14,6 +14,7 @@ import (
 
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm"
 	challengerConfig "github.com/ethereum-optimism/optimism/op-challenger/config"
+	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/contracts/gameargs"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/trace/cannon"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/trace/outputs"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/trace/prestates"
@@ -348,6 +349,20 @@ func (f *DisputeGameFactory) waitForSafeSuperRootAfter(sequence uint64) uint64 {
 	return timestamp
 }
 
+// superAnchorSequenceNumber reads the sequence number the super game's anchor commits to.
+func (f *DisputeGameFactory) superAnchorSequenceNumber(gameType gameTypes.GameType) uint64 {
+	// The implementation holds its anchor registry in proxy call data, so read the factory's args.
+	registryAddr, err := gameargs.AnchorStateRegistry(f.GameArgs(gameType))
+	f.require.NoErrorf(err, "failed to read the anchor registry from the factory args for %s", gameType)
+	registry := bindings.NewBindings[bindings.AnchorStateRegistry](
+		bindings.WithClient(f.ethClient),
+		bindings.WithTo(registryAddr),
+		bindings.WithTest(f.t),
+	)
+	anchor := contract.Read(registry.GetAnchorRoot())
+	return bigs.Uint64Strict(anchor.L2SequenceNumber)
+}
+
 func (f *DisputeGameFactory) zkAnchorSequenceNumber() uint64 {
 	impl := f.ZKGameImpl()
 	registry := bindings.NewBindings[bindings.AnchorStateRegistry](
@@ -367,7 +382,8 @@ func (f *DisputeGameFactory) startSuperGameOfType(eoa *dsl.EOA, gameType gameTyp
 	}
 	timestamp := cfg.l2SequenceNumber
 	if !cfg.l2SequenceNumberSet {
-		timestamp = f.safeTimestamp()
+		// A proposal must commit past the anchor, so wait for a safe super root beyond it.
+		timestamp = f.waitForSafeSuperRootAfter(f.superAnchorSequenceNumber(gameType))
 	}
 	extraData := f.createSuperGameExtraData(timestamp, cfg)
 	rootClaim := cfg.rootClaim
