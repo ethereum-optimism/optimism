@@ -123,6 +123,17 @@ impl PostExecPayloadValidationError {
     pub fn into_string(self) -> String {
         self.to_string()
     }
+
+    /// The failed rule as a stable label value, independent of the display text.
+    #[must_use]
+    pub const fn as_reason(self) -> &'static str {
+        match self {
+            Self::UnexpectedPostExecTx { .. } => "unexpected_post_exec_tx",
+            Self::MultiplePostExecTxs { .. } => "multiple_post_exec_txs",
+            Self::PostExecTxNotLast { .. } => "post_exec_tx_not_last",
+            Self::BlockNumberMismatch { .. } => "block_number_mismatch",
+        }
+    }
 }
 
 /// Parse and validate the block-level post-exec transaction, if present.
