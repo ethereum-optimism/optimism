@@ -7,11 +7,11 @@ import (
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
 )
 
-func newSingleChainInteropWorldNoSupernode(t devtest.T, keys devkeys.Keys, cfg PresetConfig) singleChainRuntimeWorld {
+func newSingleChainInteropWorldNoSupernode(t devtest.T, keys devkeys.Keys, cfg PresetConfig, startL1 func(*L1Network) (*L1Geth, *L1CLNode)) singleChainRuntimeWorld {
 	cfg.DeployerOptions = append([]DeployerOption{
 		WithDevFeatureEnabled(devfeatures.OptimismPortalInteropFlag),
 	}, cfg.DeployerOptions...)
-	migration, l1Net, l2Net, depSet, fullCfgSet := buildSingleChainWorld(t, keys, true, cfg.LocalContractArtifactsPath, genesisAnchorGameType(cfg), cfg.DeployerOptions...)
+	migration, l1Net, l2Net, depSet, fullCfgSet := buildSingleChainWorld(t, keys, true, cfg.LocalContractArtifactsPath, genesisAnchorGameType(cfg), startL1, cfg.DeployerOptions...)
 	return singleChainRuntimeWorld{
 		L1Network: l1Net,
 		L2Network: l2Net,

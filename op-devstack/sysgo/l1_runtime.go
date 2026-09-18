@@ -88,9 +88,6 @@ func startInProcessL1WithClockConfig(t devtest.T, l1Net *L1Network, jwtPath stri
 		beacon:         bcn,
 		fakepos:        &FakePoS{fakepos: fp, p: t},
 	}
-	if l1Net.deployChains != nil {
-		l1Net.deployChains(l1EL.UserRPC())
-	}
 	return l1EL, l1CL
 }
 
@@ -228,9 +225,6 @@ func startSubprocessL1WithClock(t devtest.T, l1Net *L1Network, jwtPath string, l
 		beaconHTTPAddr: beaconAddr,
 		beacon:         bcn,
 		fakepos:        fp,
-	}
-	if l1Net.deployChains != nil {
-		l1Net.deployChains(l1EL.UserRPC())
 	}
 	return l1EL, l1CL
 }

@@ -8,11 +8,10 @@ import (
 )
 
 type L1Network struct {
-	name         string
-	chainID      eth.ChainID
-	genesis      *core.Genesis
-	blockTime    uint64
-	deployChains func(string)
+	name      string
+	chainID   eth.ChainID
+	genesis   *core.Genesis
+	blockTime uint64
 }
 
 func (n *L1Network) Name() string {

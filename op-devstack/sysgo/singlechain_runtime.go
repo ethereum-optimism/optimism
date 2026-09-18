@@ -45,7 +45,7 @@ type singleChainPrimaryRuntime struct {
 }
 
 type singleChainRuntimeSpec struct {
-	BuildWorld      func(t devtest.T, keys devkeys.Keys, cfg PresetConfig) singleChainRuntimeWorld
+	BuildWorld      func(t devtest.T, keys devkeys.Keys, cfg PresetConfig, startL1 func(*L1Network) (*L1Geth, *L1CLNode)) singleChainRuntimeWorld
 	StartPrimary    func(t devtest.T, keys devkeys.Keys, world singleChainRuntimeWorld, l1EL *L1Geth, l1CL *L1CLNode, jwtPath string, jwtSecret [32]byte, cfg PresetConfig) singleChainPrimaryRuntime
 	StartBatcher    bool
 	StartProposer   bool
@@ -62,14 +62,14 @@ func newSingleChainNodeRuntime(name string, isSequencer bool, el L2ELNode, cl L2
 	}
 }
 
-func newDefaultSingleChainWorld(t devtest.T, keys devkeys.Keys, cfg PresetConfig) singleChainRuntimeWorld {
+func newDefaultSingleChainWorld(t devtest.T, keys devkeys.Keys, cfg PresetConfig, startL1 func(*L1Network) (*L1Geth, *L1CLNode)) singleChainRuntimeWorld {
 	deployerOpts := cfg.DeployerOptions
 	if cfg.InteropAtGenesis {
 		deployerOpts = append([]DeployerOption{
 			WithDevFeatureEnabled(devfeatures.OptimismPortalInteropFlag),
 		}, deployerOpts...)
 	}
-	migration, l1Net, l2Net, depSet, fullCfgSet := buildSingleChainWorld(t, keys, cfg.InteropAtGenesis, cfg.LocalContractArtifactsPath, genesisAnchorGameType(cfg), deployerOpts...)
+	migration, l1Net, l2Net, depSet, fullCfgSet := buildSingleChainWorld(t, keys, cfg.InteropAtGenesis, cfg.LocalContractArtifactsPath, genesisAnchorGameType(cfg), startL1, deployerOpts...)
 	world := singleChainRuntimeWorld{
 		L1Network: l1Net,
 		L2Network: l2Net,
@@ -160,7 +160,6 @@ func newSingleChainRuntimeWithConfig(t devtest.T, cfg PresetConfig, spec singleC
 	keys, err := devkeys.NewMnemonicDevKeys(devkeys.TestMnemonic)
 	require.NoError(err, "failed to derive dev keys from mnemonic")
 
-	world := spec.BuildWorld(t, keys, cfg)
 	jwtPath, jwtSecret := writeJWTSecret(t)
 
 	l1Clock := clock.SystemClock
@@ -169,7 +168,12 @@ func newSingleChainRuntimeWithConfig(t devtest.T, cfg PresetConfig, spec singleC
 		timeTravelClock = clock.NewAdvancingClock()
 		l1Clock = timeTravelClock
 	}
-	l1EL, l1CL := startInProcessL1WithClockConfig(t, world.L1Network, jwtPath, l1Clock, cfg)
+	var l1EL *L1Geth
+	var l1CL *L1CLNode
+	world := spec.BuildWorld(t, keys, cfg, func(l1Net *L1Network) (*L1Geth, *L1CLNode) {
+		l1EL, l1CL = startInProcessL1WithClockConfig(t, l1Net, jwtPath, l1Clock, cfg)
+		return l1EL, l1CL
+	})
 
 	primary := spec.StartPrimary(t, keys, world, l1EL, l1CL, jwtPath, jwtSecret, cfg)
 	primaryNode := newSingleChainNodeRuntime("sequencer", true, primary.EL, primary.CL)

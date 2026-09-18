@@ -235,13 +235,18 @@ func NewMixedSingleChainRuntime(t devtest.T, cfg MixedSingleChainPresetConfig) *
 	var l1Net *L1Network
 	var l2Net *L2Network
 	var depSet coredepset.DependencySet
-	if cfg.InteropAtGenesis {
-		_, l1Net, l2Net, depSet, _ = buildSingleChainWorld(t, keys, true, cfg.LocalContractArtifactsPath, nil, cfg.DeployerOptions...)
-	} else {
-		_, l1Net, l2Net, _, _ = buildSingleChainWorld(t, keys, false, cfg.LocalContractArtifactsPath, nil, cfg.DeployerOptions...)
-	}
 	jwtPath, jwtSecret := writeJWTSecret(t)
-	l1EL, l1CL := startInProcessL1(t, l1Net, jwtPath)
+	var l1EL *L1Geth
+	var l1CL *L1CLNode
+	startL1 := func(l1Net *L1Network) (*L1Geth, *L1CLNode) {
+		l1EL, l1CL = startInProcessL1(t, l1Net, jwtPath)
+		return l1EL, l1CL
+	}
+	if cfg.InteropAtGenesis {
+		_, l1Net, l2Net, depSet, _ = buildSingleChainWorld(t, keys, true, cfg.LocalContractArtifactsPath, nil, startL1, cfg.DeployerOptions...)
+	} else {
+		_, l1Net, l2Net, _, _ = buildSingleChainWorld(t, keys, false, cfg.LocalContractArtifactsPath, nil, startL1, cfg.DeployerOptions...)
+	}
 
 	metricsRegistrar := mixedNoopMetricsRegistrar{}
 

@@ -63,6 +63,10 @@ func setupClusterWithGenesis(t *testing.T, n int) (*Env, *state.Intent, *state.S
 	bundle := artifacts.Bundle{L1: afacts, L2: afacts}
 	ids := make([]common.Hash, 0, n)
 	for _, chain := range intent.Chains {
+		if chain.DeployOverrides == nil {
+			chain.DeployOverrides = make(map[string]any)
+		}
+		chain.DeployOverrides["respectedGameType"] = embedded.GameTypePermissionedCannon
 		st.PinChainAnchor(chain.ID, anchor, genesisTime)
 		require.NoError(t, GenerateL2Genesis(pEnv, intent, bundle, st, chain.ID))
 		ids = append(ids, chain.ID)
