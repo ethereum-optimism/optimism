@@ -26,16 +26,13 @@ var (
 	defaultZKChallengerBond = big.NewInt(5e17)
 )
 
-// upgradeToSuperRoots calls OPCMv2.upgrade on each chain in the migration state
-// to enable all three super-root game types with the supplied starting anchor.
+// upgradeToSuperRoots configures super games without changing the initial genesis anchor.
 func upgradeToSuperRoots(
 	t devtest.T,
 	keys devkeys.Keys,
 	migration *interopMigrationState,
 	l1ChainID eth.ChainID,
 	l1EL L1ELNode,
-	superRoot eth.Bytes32,
-	superrootTime uint64,
 	primaryL2 eth.ChainID,
 ) {
 	require := t.Require()
@@ -56,7 +53,6 @@ func upgradeToSuperRoots(
 
 	l1PAO, l1PAOKey := resolveL1ProxyAdminOwner(t, keys, l1ChainID)
 
-	anchorRootData := encodeStartingAnchorRoot(t, superRoot, superrootTime)
 	respectedGameTypeData := encodeStartingRespectedGameType(t, superCannonKonaGameType)
 
 	artifactsFS, err := artifacts.Download(t.Ctx(), LocalArtifacts(t), ioutil.NoopProgressor(), t.TempDir())
@@ -72,7 +68,6 @@ func upgradeToSuperRoots(
 					absoluteCannonKonaPrestate, proposer,
 				),
 				ExtraInstructions: []embedded.ExtraInstruction{
-					{Key: "overrides.cfg.startingAnchorRoot", Data: anchorRootData},
 					{Key: "overrides.cfg.startingRespectedGameType", Data: respectedGameTypeData},
 				},
 			},
@@ -184,26 +179,6 @@ func buildSuperRootUpgradeGameConfigs(
 		},
 		{Enabled: false, InitBond: new(big.Int), GameType: embedded.GameTypeZKDisputeGame},
 	}
-}
-
-func encodeStartingAnchorRoot(t devtest.T, superRoot eth.Bytes32, superrootTime uint64) []byte {
-	require := t.Require()
-	proposalTy, err := abi.NewType("tuple", "", []abi.ArgumentMarshaling{
-		{Name: "root", Type: "bytes32"},
-		{Name: "l2SequenceNumber", Type: "uint256"},
-	})
-	require.NoError(err, "failed to build Proposal ABI type")
-	data, err := (abi.Arguments{{Type: proposalTy}}).Pack(
-		struct {
-			Root             common.Hash
-			L2SequenceNumber *big.Int
-		}{
-			Root:             common.Hash(superRoot),
-			L2SequenceNumber: new(big.Int).SetUint64(superrootTime),
-		},
-	)
-	require.NoError(err, "failed to encode startingAnchorRoot override")
-	return data
 }
 
 func encodeStartingRespectedGameType(t devtest.T, gameType uint32) []byte {

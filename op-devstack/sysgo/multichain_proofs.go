@@ -148,15 +148,7 @@ func attachSupernodeSuperProofsViaUpgrade(t devtest.T, runtime *MultiChainRuntim
 	t.Require().NotNil(runtime.Supernode, "supernode superproofs runtime must provide a supernode")
 
 	proofChain := chains[0]
-	cls := make([]L2CLNode, 0, len(chains))
-	for _, chain := range chains {
-		t.Require().NotNil(chain, "runtime chain entry must not be nil")
-		cls = append(cls, chain.CL)
-	}
-
-	superrootTime := awaitSuperrootTime(t, cls...)
-	superRoot := getSupernodeSuperRoot(t, runtime.Supernode, superrootTime)
-	upgradeToSuperRoots(t, runtime.Keys, runtime.Migration, runtime.L1Network.ChainID(), runtime.L1EL, superRoot, superrootTime, proofChain.Network.ChainID())
+	upgradeToSuperRoots(t, runtime.Keys, runtime.Migration, runtime.L1Network.ChainID(), runtime.L1EL, proofChain.Network.ChainID())
 
 	attachSuperChallengerAndProposer(t, runtime, cfg, gameTypes.SuperCannonKonaGameType)
 	return runtime
@@ -276,12 +268,11 @@ func newMultiL2SupernodeProofsRuntimeWithConfig(
 	return attachSupernodeSuperProofs(t, runtime, cfg)
 }
 
-// NewSingleChainSupernodeProofsRuntimeWithConfig deploys a single chain with
-// SuperPermissioned at genesis, then uses opcm.upgrade to add the
-// permissionless super games and set the real starting anchor root.
+// NewSingleChainSupernodeProofsRuntimeWithConfig deploys a valid genesis anchor before it enables permissionless games.
 // lagoonAtGenesis controls whether Lagoon activates interop at genesis.
 func NewSingleChainSupernodeProofsRuntimeWithConfig(t devtest.T, lagoonAtGenesis bool, cfg PresetConfig) *MultiChainRuntime {
 	cfg = withSuperRootGamesAtGenesisDeployerFeatures(cfg)
+	cfg.AddedGameTypes = append(cfg.AddedGameTypes, gameTypes.SuperCannonKonaGameType)
 	runtime := newSingleChainSupernodeRuntimeWithConfig(t, lagoonAtGenesis, cfg)
 	attachTestSequencerToRuntime(t, runtime, "dev")
 	return attachSupernodeSuperProofsViaUpgrade(t, runtime, cfg)

@@ -10,8 +10,10 @@ import (
 	"time"
 
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/core/types"
+	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/params"
 	"github.com/ethereum/go-ethereum/params/forks"
@@ -206,6 +208,8 @@ type worldBuilder struct {
 
 	// options
 	deployerPipelineOptions []DeployerPipelineOption
+	genesisAnchorGameType   *uint32
+	liveDeployment          *deployer.LocalDeployment
 
 	// preForkPredeployAllocs, when non-nil, is overlaid onto every L2 chain's
 	// genesis predeploy accounts before the genesis and rollup config are built.
@@ -592,8 +596,10 @@ func (wb *worldBuilder) Build() {
 	for _, opt := range wb.deployerPipelineOptions {
 		opt(wb, intent, &pipelineOpts)
 	}
+	intent.L1DevGenesisParams.Prefund[crypto.PubkeyToAddress(pipelineOpts.DeployerPrivateKey.PublicKey)] = (*hexutil.U256)(millionEth)
+	pipelineOpts.ReceiptQueryInterval = 100 * time.Millisecond
 
-	err = deployer.ApplyPipeline(wb.p.Ctx(), pipelineOpts)
+	wb.liveDeployment, err = deployer.PrepareLocalDeployment(wb.p.Ctx(), pipelineOpts, wb.genesisAnchorGameType)
 	wb.require.NoError(err)
 
 	wb.require.NotNil(wb.output, "expected state-write to output")
@@ -607,6 +613,19 @@ func (wb *worldBuilder) Build() {
 	wb.buildL2Genesis()
 	wb.buildL2DeploymentOutputs()
 	wb.buildFullConfigSet()
+}
+
+func (wb *worldBuilder) deployChains(rpcURL string) {
+	wb.require.NoError(wb.liveDeployment.Deploy(wb.p.Ctx(), rpcURL), "deploy chains on local L1")
+	for _, chain := range wb.output.Chains {
+		id := eth.ChainIDFromBytes32(chain.ID)
+		// Preserve the addresses held by every runtime and migration configuration.
+		wb.require.Equal(wb.outL2Deployment[id].SystemConfigProxyAddr(), chain.SystemConfigProxy)
+		genesis, rollupCfg, err := inspect.GenesisAndRollup(wb.output, chain.ID)
+		wb.require.NoError(err)
+		wb.require.Equal(wb.outL2Genesis[id].ToBlock().Hash(), genesis.ToBlock().Hash(), "deployment must preserve L2 genesis")
+		*wb.outL2RollupCfg[id] = *rollupCfg
+	}
 }
 
 // WriteState is a callback used by deployer.ApplyPipeline to write the output

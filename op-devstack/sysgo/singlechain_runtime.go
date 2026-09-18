@@ -35,6 +35,7 @@ import (
 type singleChainRuntimeWorld struct {
 	L1Network *L1Network
 	L2Network *L2Network
+	Migration *interopMigrationState
 	Interop   *SingleChainInteropSupport
 }
 
@@ -62,25 +63,26 @@ func newSingleChainNodeRuntime(name string, isSequencer bool, el L2ELNode, cl L2
 }
 
 func newDefaultSingleChainWorld(t devtest.T, keys devkeys.Keys, cfg PresetConfig) singleChainRuntimeWorld {
+	deployerOpts := cfg.DeployerOptions
 	if cfg.InteropAtGenesis {
-		deployerOpts := append([]DeployerOption{
+		deployerOpts = append([]DeployerOption{
 			WithDevFeatureEnabled(devfeatures.OptimismPortalInteropFlag),
-		}, cfg.DeployerOptions...)
-		l1Net, l2Net, depSet, fullCfgSet := buildSingleChainWorldWithInterop(t, keys, true, cfg.LocalContractArtifactsPath, deployerOpts...)
-		return singleChainRuntimeWorld{
-			L1Network: l1Net,
-			L2Network: l2Net,
-			Interop: &SingleChainInteropSupport{
-				DependencySet: depSet,
-				FullConfigSet: fullCfgSet,
-			},
-		}
+		}, deployerOpts...)
 	}
-	l1Net, l2Net := buildSingleChainWorld(t, keys, cfg.LocalContractArtifactsPath, cfg.DeployerOptions...)
-	return singleChainRuntimeWorld{
+	migration, l1Net, l2Net, depSet, fullCfgSet := buildSingleChainWorld(t, keys, cfg.InteropAtGenesis, cfg.LocalContractArtifactsPath, genesisAnchorGameType(cfg), deployerOpts...)
+	world := singleChainRuntimeWorld{
 		L1Network: l1Net,
 		L2Network: l2Net,
+		Migration: migration,
 	}
+	if cfg.InteropAtGenesis {
+		world.Interop = &SingleChainInteropSupport{
+			Migration:     migration,
+			DependencySet: depSet,
+			FullConfigSet: fullCfgSet,
+		}
+	}
+	return world
 }
 
 func startDefaultSingleChainPrimary(
@@ -177,7 +179,7 @@ func newSingleChainRuntimeWithConfig(t devtest.T, cfg PresetConfig, spec singleC
 		l2Batcher = startMinimalBatcher(t, keys, world.L2Network, l1EL, primary.CL, primary.EL, cfg.BatcherOptions...)
 	}
 
-	applyMinimalGameTypeOptions(t, keys, world.L1Network, world.L2Network, l1EL, primary.CL, cfg.AddedGameTypes, cfg.RespectedGameTypes)
+	applyMinimalGameTypeOptions(t, keys, world.L1Network, world.L2Network, l1EL, cfg.AddedGameTypes, cfg.RespectedGameTypes)
 
 	var l2Proposer *L2Proposer
 	if spec.StartProposer && !cfg.SkipHonestProposer {
@@ -512,7 +514,6 @@ func applyMinimalGameTypeOptions(
 	l1Net *L1Network,
 	l2Net *L2Network,
 	l1EL L1ELNode,
-	l2CL L2CLNode,
 	addedGameTypes []gameTypes.GameType,
 	respectedGameTypes []gameTypes.GameType,
 ) {
@@ -522,7 +523,7 @@ func applyMinimalGameTypeOptions(
 	l1ChainID := l1Net.ChainID()
 
 	if len(addedGameTypes) > 0 {
-		addGameTypesForRuntime(t, keys, addedGameTypes, l1ChainID, l1EL.UserRPC(), l2Net, l2CL)
+		addGameTypesForRuntime(t, keys, addedGameTypes, l1ChainID, l1EL, l2Net)
 	}
 	for _, gameType := range respectedGameTypes {
 		setRespectedGameTypeForRuntime(t, keys, gameType, l1ChainID, l1EL.UserRPC(), l2Net)

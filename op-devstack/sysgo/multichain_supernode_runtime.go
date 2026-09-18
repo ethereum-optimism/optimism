@@ -158,7 +158,7 @@ func newSingleChainSupernodeRuntimeWithConfig(t devtest.T, lagoonAtGenesis bool,
 	keys, err := devkeys.NewMnemonicDevKeys(devkeys.TestMnemonic)
 	require.NoError(err, "failed to derive dev keys from mnemonic")
 
-	migration, l1Net, l2Net, depSet, _ := buildSingleChainWorldWithInteropAndState(t, keys, lagoonAtGenesis, cfg.LocalContractArtifactsPath, cfg.DeployerOptions...)
+	migration, l1Net, l2Net, depSet, _ := buildSingleChainWorld(t, keys, lagoonAtGenesis, cfg.LocalContractArtifactsPath, genesisAnchorGameType(cfg), cfg.DeployerOptions...)
 	validateSimpleInteropPresetConfig(t, cfg, l2Net)
 
 	jwtPath, jwtSecret := writeJWTSecret(t)
@@ -266,6 +266,7 @@ func newMultiL2SupernodeRuntimeWithConfigAndSequencerMode(
 		delaySeconds,
 		cfg.LocalContractArtifactsPath,
 		chainSpecs,
+		genesisAnchorGameType(cfg),
 		cfg.DeployerOptions...,
 	)
 	migration := newInteropMigrationState(wb)
@@ -419,14 +420,16 @@ func buildMultiL2RuntimeWorld(
 	delaySeconds uint64,
 	localContractArtifactsPath string,
 	chainSpecs []runtimeChainSpec,
+	anchorGameType *uint32,
 	deployerOpts ...DeployerOption,
 ) (*worldBuilder, *L1Network, []*L2Network) {
 	wb := &worldBuilder{
-		p:       t,
-		logger:  t.Logger(),
-		require: t.Require(),
-		keys:    keys,
-		builder: intentbuilder.New(),
+		p:                     t,
+		logger:                t.Logger(),
+		require:               t.Require(),
+		keys:                  keys,
+		builder:               intentbuilder.New(),
+		genesisAnchorGameType: anchorGameType,
 	}
 
 	applyConfigLocalContractSources(t, keys, wb.builder, localContractArtifactsPath)
@@ -458,10 +461,11 @@ func buildMultiL2RuntimeWorld(
 	t.Require().Len(wb.l2Chains, len(chainSpecs), "unexpected L2 chain count")
 	l1ID := eth.ChainIDFromUInt64(wb.output.AppliedIntent.L1ChainID)
 	l1Net := &L1Network{
-		name:      "l1",
-		chainID:   l1ID,
-		genesis:   wb.outL1Genesis,
-		blockTime: 6,
+		name:         "l1",
+		chainID:      l1ID,
+		genesis:      wb.outL1Genesis,
+		blockTime:    6,
+		deployChains: wb.deployChains,
 	}
 	l2Nets := make([]*L2Network, len(chainSpecs))
 	for i, chainSpec := range chainSpecs {
