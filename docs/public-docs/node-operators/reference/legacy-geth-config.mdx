@@ -86,16 +86,17 @@ Routed to Legacy Geth when the transaction belongs to a pre-Bedrock block, or wh
 ### Log queries
 
 `eth_getLogs` is routed to Legacy Geth when the filter cannot match a post-Bedrock block: either it pins a `blockHash` that op-reth does not know, or its `toBlock` is a pre-Bedrock block number or `earliest`.
-A filter whose upper bound follows the chain tip (`latest`, `safe`, `finalized`, `pending`, or no `toBlock` at all) is served locally, because the tip is post-Bedrock.
+A filter that can only match post-Bedrock blocks is served locally; this includes any filter whose `fromBlock` follows the chain tip (`latest`, `safe`, `finalized`, `pending`), because the tip is post-Bedrock.
 
-Forwarded filters are still subject to `--rpc.max-blocks-per-filter`: a pre-Bedrock range wider than that limit is not forwarded, and local handling rejects it.
+A filter that starts before Bedrock and ends at or after it — including one with no `toBlock`, or a `toBlock` that follows the chain tip, which is where an "all logs for this contract" query lands — is served from both:
+op-reth asks Legacy Geth for the blocks below the Bedrock block and itself for the rest, then returns the two sets of logs concatenated.
+The response is identical to what a single node holding the whole chain would return, and stays ordered by block number.
+If either half fails, the whole request fails; op-reth never returns just one half, because a partial result is indistinguishable from a complete one.
+
+Forwarded filters are still subject to `--rpc.max-blocks-per-filter`: it is applied to the range op-reth sends to Legacy Geth, so a fully pre-Bedrock range wider than the limit is not forwarded at all, and a split filter whose pre-Bedrock half is wider than the limit is not split.
+In both cases op-reth falls back to local handling, which rejects the query — the range asked for is at least as wide.
+A skipped split is logged as a warning on the `rpc::historical` target, with the filter's `from_block`, `to_block` and the `bedrock` block.
 A forwarded query that Legacy Geth cannot answer fails with a JSON-RPC error rather than falling back to op-reth, which would return an empty array that looks like a successful "no matching logs".
-
-<Warning>
-  A range that starts before Bedrock and ends at or after it is served locally, so it returns only the post-Bedrock logs and silently omits the pre-Bedrock ones.
-  op-reth logs a warning on the `rpc::historical` target when this happens, with the filter's `from_block`, `to_block` and the `bedrock` block.
-  To get the pre-Bedrock half, issue separate queries that end at the last pre-Bedrock block, each spanning at most `--rpc.max-blocks-per-filter` blocks.
-</Warning>
 
 The filter API is never routed: `eth_newFilter`, `eth_getFilterLogs` and `eth_getFilterChanges` are always served locally, because filter IDs are local state.
 Pre-Bedrock logs are therefore unreachable through a filter ID; query them with `eth_getLogs`.
