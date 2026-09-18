@@ -42,13 +42,20 @@ reth-optimism-primitives.workspace = true
 revm.workspace = true
 op-revm.workspace = true
 
+# metrics
+reth-metrics = { workspace = true, optional = true }
+
 # misc
 thiserror.workspace = true
+tracing.workspace = true
 
 [dev-dependencies]
 reth-evm = { workspace = true, features = ["test-utils"] }
 reth-revm = { workspace = true, features = ["test-utils"] }
 alloy-genesis.workspace = true
+metrics-exporter-prometheus.workspace = true
+metrics-util.workspace = true
+rstest.workspace = true
 serde_json.workspace = true
 reth-optimism-primitives = { workspace = true, features = ["arbitrary"] }
 reth-optimism-chainspec = { workspace = true, features = ["superchain-configs"] }
@@ -56,6 +63,7 @@ reth-optimism-chainspec = { workspace = true, features = ["superchain-configs"] 
 [features]
 default = ["std"]
 std = [
+	"dep:reth-metrics",
 	"reth-revm/std",
 	"alloy-consensus/std",
 	"alloy-eips/std",
@@ -66,6 +74,7 @@ std = [
 	"reth-optimism-primitives/std",
 	"reth-optimism-forks/std",
 	"thiserror/std",
+	"tracing/std",
 	"op-alloy-consensus/std",
 	"reth-chainspec/std",
 	"reth-optimism-consensus/std",

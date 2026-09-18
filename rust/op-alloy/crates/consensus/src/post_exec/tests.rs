@@ -2,6 +2,7 @@
 
 use super::*;
 use rstest::rstest;
+use std::collections::BTreeSet;
 
 #[test]
 fn post_exec_payload_rlp_roundtrip_preserves_block_number() {
@@ -336,4 +337,37 @@ fn parse_rejects_payload_anchored_to_wrong_block() {
             block_number: PARSE_BLOCK,
         },
     );
+}
+
+const UNEXPECTED: PostExecPayloadValidationError =
+    PostExecPayloadValidationError::UnexpectedPostExecTx { tx_index: 0 };
+const MULTIPLE: PostExecPayloadValidationError =
+    PostExecPayloadValidationError::MultiplePostExecTxs { first_index: 0, duplicate_index: 1 };
+const NOT_LAST: PostExecPayloadValidationError =
+    PostExecPayloadValidationError::PostExecTxNotLast { tx_index: 0, last_index: 1 };
+const MISMATCH: PostExecPayloadValidationError =
+    PostExecPayloadValidationError::BlockNumberMismatch {
+        payload_block_number: 1,
+        block_number: 2,
+    };
+
+#[rstest]
+#[case::unexpected(UNEXPECTED, "unexpected_post_exec_tx")]
+#[case::multiple(MULTIPLE, "multiple_post_exec_txs")]
+#[case::not_last(NOT_LAST, "post_exec_tx_not_last")]
+#[case::mismatch(MISMATCH, "block_number_mismatch")]
+fn as_reason_names_the_failed_rule(
+    #[case] error: PostExecPayloadValidationError,
+    #[case] expected: &str,
+) {
+    assert_eq!(error.as_reason(), expected);
+}
+
+/// Two rules sharing a label would merge two failure modes into one metric series.
+#[test]
+fn as_reason_is_distinct_per_rule() {
+    let reasons =
+        [UNEXPECTED, MULTIPLE, NOT_LAST, MISMATCH].map(PostExecPayloadValidationError::as_reason);
+    let distinct: BTreeSet<&str> = reasons.iter().copied().collect();
+    assert_eq!(distinct.len(), reasons.len(), "{reasons:?}");
 }
