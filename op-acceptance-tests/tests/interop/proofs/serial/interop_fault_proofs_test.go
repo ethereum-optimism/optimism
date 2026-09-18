@@ -85,6 +85,12 @@ func TestInteropFaultProofs_IntraBlock(gt *testing.T) {
 	}
 }
 
+func TestInteropFaultProofs_CycleReplacementPreservesAcyclicPrerequisite(gt *testing.T) {
+	t := devtest.SerialT(gt)
+	sys := presets.NewThreeChainInterop(t, presets.WithoutHonestProposer())
+	sfp.RunCycleReplacementPreservesAcyclicPrerequisiteTest(t, sys, proofRunners()...)
+}
+
 func TestInteropFaultProofs_DepositMessage_InvalidExecution(gt *testing.T) {
 	t := devtest.SerialT(gt)
 	sys := presets.NewSimpleInterop(t)

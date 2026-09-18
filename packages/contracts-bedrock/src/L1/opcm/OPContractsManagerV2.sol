@@ -166,9 +166,9 @@ contract OPContractsManagerV2 is ISemver, OPContractsManagerUtilsCaller {
     ///         - Major bump: New required sequential upgrade
     ///         - Minor bump: Replacement OPCM for same upgrade
     ///         - Patch bump: Development changes (expected for normal dev work)
-    /// @custom:semver 8.0.6
+    /// @custom:semver 9.0.0
     function version() public pure returns (string memory) {
-        return "8.0.6";
+        return "9.0.0";
     }
 
     /// @param _standardValidator The standard validator for this OPCM release.
@@ -358,7 +358,7 @@ contract OPContractsManagerV2 is ISemver, OPContractsManagerUtilsCaller {
         // developers start working on the next release this will automatically become false so
         // even if the code is somehow forgotten it will not actually apply to the deployment. Make
         // sure to REMOVE the allowance once the upgrade is complete.
-        // TODO(#22836): When OPCM bumps to v9, remove the anchor-root override here and from upgrade inputs.
+        // TODO(#22836): Remove anchor overrides once devstack fixtures initialize valid anchors.
         if (SemverComp.parse(_version()).major == 9) {
             // Allow deploying an ETHLockbox for existing chains only in the v9 release.
             if (_isMatchingInstruction(_instruction, Constants.PERMITTED_PROXY_DEPLOYMENT_KEY, bytes("ETHLockbox"))) {
@@ -366,7 +366,7 @@ contract OPContractsManagerV2 is ISemver, OPContractsManagerUtilsCaller {
             }
         }
 
-        if (SemverComp.lt(_version(), "9.0.0")) {
+        if (SemverComp.lt(_version(), "10.0.0")) {
             // Super root games migration requires overriding anchor root.
             if (isDevFeatureEnabled(DevFeatures.SUPER_ROOT_GAMES_MIGRATION)) {
                 if (_isMatchingInstructionByKey(_instruction, "overrides.cfg.startingAnchorRoot")) return true;

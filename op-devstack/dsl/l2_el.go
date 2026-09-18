@@ -50,6 +50,11 @@ func (el *L2ELNode) Escape() stack.L2ELNode {
 	return el.inner
 }
 
+// UserRPC returns the execution node's user RPC endpoint.
+func (el *L2ELNode) UserRPC() string {
+	return el.inner.UserRPC()
+}
+
 func (el *L2ELNode) EthClient() apis.EthClient {
 	return el.inner.EthClient()
 }

@@ -447,10 +447,13 @@ impl<N: NodePrimitives> BuiltPayload for OpBuiltPayload<N> {
     }
 }
 
-// Counterpart to `OpPayloadTypes::block_to_payload`. The two are intentionally
-// parallel: this path receives the BAL via the payload's own field once OP
-// gains BAL support, while `block_to_payload` receives it as a separate arg.
-// See the comment on `OpPayloadTypes::block_to_payload` in `lib.rs`.
+/// UPSTREAM-MIRROR(copy): reth@rev:aef8d3e
+/// `reth_ethereum_engine_primitives::EthBuiltPayload::into_execution_data`
+///
+/// Counterpart to `OpPayloadTypes::block_to_payload`; the two conversion paths are kept
+/// parallel. Upstream also threads the built payload's requests and block access list into
+/// the sidecar; OP execution data carries neither today, so this path discards them.
+/// Re-check when upstream changes the sidecar or OP execution data gains BAL support.
 impl<T, N> From<OpBuiltPayload<N>> for OpExecData
 where
     T: SignedTransaction,
