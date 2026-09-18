@@ -125,6 +125,9 @@ impl revm::context::Transaction for FpvmOpTx {
     fn max_priority_fee_per_gas(&self) -> Option<u128> {
         self.0.max_priority_fee_per_gas()
     }
+    fn effective_gas_price(&self, base_fee: u128) -> u128 {
+        self.0.effective_gas_price(base_fee)
+    }
 }
 
 impl FromRecoveredTx<OpTxEnvelope> for FpvmOpTx {

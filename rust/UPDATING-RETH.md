@@ -59,8 +59,8 @@ main's CI actually validated.
 
    ```bash
    cd rust
-   sed -i 's/tag = "<OLD_TAG>"/tag = "<NEW_TAG>"/g' Cargo.toml
-   sed -i 's#git = "https://github.com/<OLD_OWNER>/reth", rev = "<OLD_REV>"#git = "https://github.com/paradigmxyz/reth", tag = "<NEW_TAG>"#g' Cargo.toml
+   perl -pi -e 's/tag = "<OLD_TAG>"/tag = "<NEW_TAG>"/g' Cargo.toml
+   perl -pi -e 's#git = "https://github.com/<OLD_OWNER>/reth", rev = "<OLD_REV>"#git = "https://github.com/paradigmxyz/reth", tag = "<NEW_TAG>"#g' Cargo.toml
    grep -nE '<OLD_TAG>|<OLD_REV>|github.com/<OLD_OWNER>/reth' Cargo.toml  # no matches
    ```
 
