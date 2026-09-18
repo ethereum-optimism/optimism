@@ -71,18 +71,64 @@ clean:
 #                         TEST                         #
 ########################################################
 
-# Runs standard contract tests.
-test *ARGS: build-go-ffi
+# Runs one Forge invocation without EVM routing.
+_test-single *ARGS: build-go-ffi
   #!/bin/bash
-  if [ -n "$JUNIT_TEST_PATH" ]; then
+  if [ -n "${JUNIT_TEST_PATH:-}" ]; then
     forge test {{ARGS}} --junit > "$JUNIT_TEST_PATH"
   else
     forge test {{ARGS}}
   fi
 
+# L2 tests and ExecuteNUTBundle retain the configured EVM.
+DEFAULT_EVM_TESTS := '^test/L2/|^test/scripts/ExecuteNUTBundle\.t\.sol$'
+
+# Runs L1 tests under Amsterdam and default-EVM tests separately.
+# TEST_FILES optionally limits the input; JUNIT_TEST_DIR enables per-pass reports.
+test *ARGS:
+  #!/bin/bash
+  set -uo pipefail
+  TEST_FILES="${TEST_FILES:-$(find test -name '*.t.sol')}"
+  AMSTERDAM_FILES=$(echo "$TEST_FILES" | grep -vE '{{DEFAULT_EVM_TESTS}}' || true)
+  DEFAULT_EVM_FILES=$(echo "$TEST_FILES" | grep -E '{{DEFAULT_EVM_TESTS}}' || true)
+  [ -z "${JUNIT_TEST_DIR:-}" ] || mkdir -p "$JUNIT_TEST_DIR"
+  mkdir -p cache
+  printf '%s\n' "$TEST_FILES" > cache/test-files
+  rm -f cache/test-failures-amsterdam cache/test-failures-l2
+
+  run_test() { # <pass-name> <test-files>
+    local pass="$1"
+    local files="$2"
+    local junit_path="${JUNIT_TEST_DIR:+$JUNIT_TEST_DIR/results-$pass.xml}"
+    rm -f cache/test-failures
+    FOUNDRY_MATCH_PATH="./{$(echo "$files" | paste -sd, -)}" \
+    JUNIT_TEST_PATH="$junit_path" \
+      just _test-single {{ARGS}} || {
+        status=1
+        [ ! -f cache/test-failures ] || cp cache/test-failures "cache/test-failures-$pass"
+      }
+  }
+
+  status=0
+  if [ -n "$AMSTERDAM_FILES" ]; then
+    FOUNDRY_EVM_VERSION=amsterdam run_test amsterdam "$AMSTERDAM_FILES"
+  fi
+  if [ -n "$DEFAULT_EVM_FILES" ]; then
+    run_test l2 "$DEFAULT_EVM_FILES"
+  fi
+  exit $status
+
 # Runs standard contract tests (developer mode).
 test-dev *ARGS: build-go-ffi
   FOUNDRY_PROFILE=lite forge test {{ARGS}}
+
+# Runs only the Amsterdam half of the suite (everything not in DEFAULT_EVM_TESTS).
+test-amsterdam *ARGS:
+  TEST_FILES="$(find test -name '*.t.sol' | grep -vE '{{DEFAULT_EVM_TESTS}}')" just test {{ARGS}}
+
+# Runs only the default-EVM suite (the L2 EVM is not changing).
+test-l2 *ARGS:
+  TEST_FILES="$(find test -name '*.t.sol' | grep -E '{{DEFAULT_EVM_TESTS}}')" just test {{ARGS}}
 
 # Default block number for the forked upgrade path.
 # Block numbers are calculated deterministically based on the current day.
@@ -167,9 +213,29 @@ test-upgrade-against-anvil *ARGS: build-go-ffi
   forge test {{ARGS}} \
   --match-path "test/{L1,dispute,cannon}/**"
 
-# Runs standard contract tests with rerun flag.
+# Reruns each pass's recorded failures under its original EVM version.
 test-rerun: build-go-ffi
-  forge test --rerun -vvv
+  #!/bin/bash
+  set -uo pipefail
+  status=0
+  found=0
+  if [ -f cache/test-failures-amsterdam ]; then
+    found=1
+    cp cache/test-failures-amsterdam cache/test-failures
+    FOUNDRY_EVM_VERSION=amsterdam forge test --rerun -vvv || status=1
+  fi
+  if [ -f cache/test-failures-l2 ]; then
+    found=1
+    cp cache/test-failures-l2 cache/test-failures
+    forge test --rerun -vvv || status=1
+  fi
+  if [ "$found" = 0 ]; then
+    if [ -f cache/test-files ]; then
+      export TEST_FILES="$(cat cache/test-files)"
+    fi
+    exec just test -vvv
+  fi
+  exit "$status"
 
 # Runs standard contract tests with rerun flag (developer mode).
 test-dev-rerun: build-go-ffi
@@ -219,7 +285,7 @@ prepare-l2-upgrade-env *ARGS:
 # Runs L2 fork upgrade tests.
 # Usage: L2_FORK_RPC_URL=<url> just test-l2-fork-upgrade [ARGS]
 test-l2-fork-upgrade *ARGS:
-  just prepare-l2-upgrade-env "just test {{ARGS}}"
+  just prepare-l2-upgrade-env "just _test-single {{ARGS}}"
 
 test-l2-fork-upgrade-rerun *ARGS:
   just test-l2-fork-upgrade {{ARGS}} --rerun -vvvv
@@ -242,7 +308,7 @@ prepare-l2cm-activation-env *ARGS:
 # Runs L2CM activation (betanet fork) tests.
 # Usage: L2_FORK_RPC_URL=<url> L2_BLOCK_BEFORE_FORK=<block> NUT_BUNDLE_PATH=<path> just test-l2cm-activation-test [ARGS]
 test-l2cm-activation-test *ARGS:
-  just prepare-l2cm-activation-env "just test {{ARGS}}"
+  just prepare-l2cm-activation-env "just _test-single {{ARGS}}"
 
 test-l2cm-activation-test-rerun *ARGS:
   just test-l2cm-activation-test {{ARGS}} --rerun -vvvv
