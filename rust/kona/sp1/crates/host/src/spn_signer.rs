@@ -60,9 +60,14 @@ impl Signer for OpSignerRequester {
         self.address
     }
 
+    /// Returns no chain ID because SP1 does not use one for chain-independent EIP-191 signing.
     fn chain_id(&self) -> Option<ChainId> {
+        tracing::error!("chain_id called on the SPN EIP-191 message-only signer");
         None
     }
 
-    fn set_chain_id(&mut self, _chain_id: Option<ChainId>) {}
+    /// Logs and ignores chain-ID updates because SP1 does not use them for EIP-191 signing.
+    fn set_chain_id(&mut self, chain_id: Option<ChainId>) {
+        tracing::error!(?chain_id, "set_chain_id called on the SPN EIP-191 message-only signer");
+    }
 }
