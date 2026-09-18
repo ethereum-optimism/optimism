@@ -809,7 +809,7 @@ contract OPContractsManagerV2_Upgrade_Test is OPContractsManagerV2_Upgrade_TestI
         runCurrentUpgradeV2(chainPAO, hex"", superMode ? "SCKDG-SHAPE,SCKDG-10" : "CKDG-NOSHAPE,CKDG-10");
         assertEq(address(disputeGameFactory.gameImpls(gameType)), address(0), "game impl not cleared");
 
-        // Re-enable CannonKona and restore its bond so that it is re-installed.
+        // Re-enable the permissionless game and restore its bond so that it is re-installed.
         game.enabled = true;
         game.initBond = originalBond;
         v2UpgradeInput.extraInstructions.pop();
