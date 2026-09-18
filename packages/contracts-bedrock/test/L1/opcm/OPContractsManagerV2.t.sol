@@ -656,15 +656,20 @@ contract OPContractsManagerV2_Upgrade_Test is OPContractsManagerV2_Upgrade_TestI
         );
     }
 
-    /// @notice Tests that the upgrade rejects a disabled respected game.
-    function test_upgrade_disabledRespectedGame_reverts() public {
-        GameType respectedGameType = anchorStateRegistry.respectedGameType();
-        for (uint256 i; i < v2UpgradeInput.disputeGameConfigs.length; i++) {
-            if (v2UpgradeInput.disputeGameConfigs[i].gameType.raw() == respectedGameType.raw()) {
-                v2UpgradeInput.disputeGameConfigs[i].enabled = false;
-                v2UpgradeInput.disputeGameConfigs[i].initBond = 0;
-            }
-        }
+    /// @notice Tests that the V2 upgrade function reverts when the user wants to disable the
+    ///         PermissionedDisputeGame.
+    function test_upgrade_disabledPermissionedGame_reverts() public {
+        // Disable the PermissionedDisputeGame.
+        IOPContractsManagerUtils.DisputeGameConfig storage game =
+            v2UpgradeInput.disputeGameConfigs[permissionedGameConfigIndex];
+        game.enabled = false;
+        game.initBond = 0;
+        v2UpgradeInput.extraInstructions.push(
+            IOPContractsManagerUtils.ExtraInstruction({
+                key: "overrides.cfg.startingRespectedGameType",
+                data: abi.encode(game.gameType)
+            })
+        );
 
         // Expect upgrade to revert due to missing game config.
         // nosemgrep: sol-style-use-abi-encodecall
@@ -804,6 +809,7 @@ contract OPContractsManagerV2_Upgrade_Test is OPContractsManagerV2_Upgrade_TestI
         runCurrentUpgradeV2(chainPAO, hex"", superMode ? "SCKDG-SHAPE,SCKDG-10" : "CKDG-NOSHAPE,CKDG-10");
         assertEq(address(disputeGameFactory.gameImpls(gameType)), address(0), "game impl not cleared");
 
+        // Re-enable CannonKona and restore its bond so that it is re-installed.
         game.enabled = true;
         game.initBond = originalBond;
         v2UpgradeInput.extraInstructions.pop();
@@ -894,6 +900,7 @@ contract OPContractsManagerV2_Upgrade_Test is OPContractsManagerV2_Upgrade_TestI
             v2UpgradeInput.disputeGameConfigs[permissionlessGameConfigIndex];
         GameType gameType = game.gameType;
         bool superMode = GameTypes.isSuperGame(gameType);
+        // Run baseline upgrade and capture the current prestates.
         runCurrentUpgradeV2(chainPAO);
         assertEq(
             _gameArgsAbsolutePrestate(gameType),
@@ -908,9 +915,12 @@ contract OPContractsManagerV2_Upgrade_Test is OPContractsManagerV2_Upgrade_TestI
             );
         }
 
+        // Prepare new prestates.
         Claim newPrestate = Claim.wrap(bytes32(keccak256("new cannon prestate")));
         cannonPrestate = newPrestate;
         cannonKonaPrestate = newPrestate;
+
+        // Update the dispute game configs to point at the new prestates.
         if (!superMode) {
             v2UpgradeInput.disputeGameConfigs[1].gameArgs = abi.encode(
                 IOPContractsManagerUtils.PermissionedDisputeGameConfig({
@@ -922,8 +932,13 @@ contract OPContractsManagerV2_Upgrade_Test is OPContractsManagerV2_Upgrade_TestI
         }
         game.gameArgs = abi.encode(IOPContractsManagerUtils.FaultDisputeGameConfig({ absolutePrestate: newPrestate }));
 
+        // Run the upgrade again and ensure prestates updated.
         runCurrentUpgradeV2(chainPAO);
-        assertEq(_gameArgsAbsolutePrestate(gameType), Claim.unwrap(newPrestate), "cannon kona prestate not updated");
+        assertEq(
+            _gameArgsAbsolutePrestate(gameType),
+            Claim.unwrap(newPrestate),
+            "cannon kona prestate not updated"
+        );
         if (!superMode) {
             assertEq(
                 _gameArgsAbsolutePrestate(GameTypes.PERMISSIONED_CANNON),
@@ -1005,13 +1020,12 @@ contract OPContractsManagerV2_Upgrade_Test is OPContractsManagerV2_Upgrade_TestI
         assertTrue(superchainConfig.paused(address(0)), "System should still be paused after upgrade");
     }
 
-    /// @notice Tests that an override changes the respected game to the permissionless game.
-    function test_upgrade_respectedGameTypeOverride_succeeds() public {
+    /// @notice Tests upgrading the respected game type to CANNON_KONA via the override key.
+    function test_upgrade_respectedGameTypeCannonToKona_succeeds() public {
         GameType gameType = v2UpgradeInput.disputeGameConfigs[permissionlessGameConfigIndex].gameType;
-        vm.prank(superchainConfig.guardian());
-        anchorStateRegistry.setRespectedGameType(
-            v2UpgradeInput.disputeGameConfigs[permissionedGameConfigIndex].gameType
-        );
+        /// This is a hack because fork live has an outdated superchain registry reference that it
+        /// pulls the addresses from
+        IAnchorStateRegistry anchorStateRegistry = optimismPortal2.anchorStateRegistry();
         v2UpgradeInput.extraInstructions.push(
             IOPContractsManagerUtils.ExtraInstruction({
                 key: "overrides.cfg.startingRespectedGameType",
@@ -1026,7 +1040,37 @@ contract OPContractsManagerV2_Upgrade_Test is OPContractsManagerV2_Upgrade_TestI
         );
     }
 
+    /// @notice Tests that overriding to CANNON_KONA is a no-op when already CANNON_KONA.
+    function test_upgrade_respectedGameTypeAlreadyKona_succeeds() public {
+        GameType gameType = v2UpgradeInput.disputeGameConfigs[permissionlessGameConfigIndex].gameType;
+        vm.mockCall(
+            address(anchorStateRegistry),
+            abi.encodeCall(IAnchorStateRegistry.respectedGameType, ()),
+            abi.encode(gameType)
+        );
+        v2UpgradeInput.extraInstructions.push(
+            IOPContractsManagerUtils.ExtraInstruction({
+                key: "overrides.cfg.startingRespectedGameType",
+                data: abi.encode(gameType)
+            })
+        );
+        runCurrentUpgradeV2(chainPAO);
+        assertEq(
+            anchorStateRegistry.respectedGameType().raw(),
+            gameType.raw(),
+            "respected game type should remain CANNON_KONA"
+        );
+    }
+
     function test_upgrade_respectedGameTypeUnchangedWithoutOverride_succeeds() public {
+        /// This is a hack because fork live has an outdated superchain registry reference that it pulls the addresses
+        /// from
+        IAnchorStateRegistry anchorStateRegistry = optimismPortal2.anchorStateRegistry();
+        vm.mockCall(
+            address(anchorStateRegistry),
+            abi.encodeCall(IAnchorStateRegistry.respectedGameType, ()),
+            abi.encode(v2UpgradeInput.disputeGameConfigs[permissionlessGameConfigIndex].gameType)
+        );
         GameType before = anchorStateRegistry.respectedGameType();
         runCurrentUpgradeV2(chainPAO);
         assertEq(
@@ -1971,11 +2015,13 @@ contract OPContractsManagerV2_Deploy_Test is OPContractsManagerV2_TestInit {
 
     /// @notice Tests lockbox deployment permission and first activation without requiring a fork.
     function test_upgrade_missingLockbox_succeeds() public {
+        vm.mockCall(address(opcmV2), abi.encodeCall(IOPContractsManagerV2.version, ()), abi.encode("9.0.0"));
         _testUpgradeMissingLockbox(false, false);
     }
 
     /// @notice Tests that a CGT chain without a lockbox can upgrade without migrating portal ETH.
     function test_upgrade_missingLockboxCGT_succeeds() public {
+        vm.mockCall(address(opcmV2), abi.encodeCall(IOPContractsManagerV2.version, ()), abi.encode("9.0.0"));
         _testUpgradeMissingLockbox(true, false);
     }
 
@@ -1987,11 +2033,13 @@ contract OPContractsManagerV2_Deploy_Test is OPContractsManagerV2_TestInit {
 
     /// @notice Tests liquidity migration when the flag was enabled without configuring a lockbox.
     function test_upgrade_missingLockboxFeatureEnabled_succeeds() public {
+        vm.mockCall(address(opcmV2), abi.encodeCall(IOPContractsManagerV2.version, ()), abi.encode("9.0.0"));
         _testUpgradeMissingLockbox(false, true);
     }
 
     /// @notice Tests that an enabled flag without a lockbox does not migrate CGT portal ETH.
     function test_upgrade_missingLockboxCGTFeatureEnabled_succeeds() public {
+        vm.mockCall(address(opcmV2), abi.encodeCall(IOPContractsManagerV2.version, ()), abi.encode("9.0.0"));
         _testUpgradeMissingLockbox(true, true);
     }
 
