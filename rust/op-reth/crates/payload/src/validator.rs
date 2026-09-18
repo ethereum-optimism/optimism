@@ -37,6 +37,10 @@ where
     }
 }
 
+/// UPSTREAM-MIRROR(copy): reth@rev:aef8d3e
+/// `reth_ethereum_payload_builder::validator::ensure_well_formed_payload`
+///
+/// Copies upstream's ordered payload checks with OP payload fields and fork activation.
 /// Ensures that the given payload does not violate any consensus rules that concern the block's
 /// layout, like:
 ///    - missing or invalid base fee

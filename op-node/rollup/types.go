@@ -385,25 +385,7 @@ func (cfg *Config) Check() error {
 		return err
 	}
 
-	if err := checkFork(cfg.RegolithTime, cfg.CanyonTime, forks.Regolith, forks.Canyon); err != nil {
-		return err
-	}
-	if err := checkFork(cfg.CanyonTime, cfg.DeltaTime, forks.Canyon, forks.Delta); err != nil {
-		return err
-	}
-	if err := checkFork(cfg.DeltaTime, cfg.EcotoneTime, forks.Delta, forks.Ecotone); err != nil {
-		return err
-	}
-	if err := checkFork(cfg.EcotoneTime, cfg.FjordTime, forks.Ecotone, forks.Fjord); err != nil {
-		return err
-	}
-	if err := checkFork(cfg.FjordTime, cfg.GraniteTime, forks.Fjord, forks.Granite); err != nil {
-		return err
-	}
-	if err := checkFork(cfg.GraniteTime, cfg.HoloceneTime, forks.Granite, forks.Holocene); err != nil {
-		return err
-	}
-	if err := checkFork(cfg.HoloceneTime, cfg.IsthmusTime, forks.Holocene, forks.Isthmus); err != nil {
+	if err := cfg.checkForkOrder(); err != nil {
 		return err
 	}
 
@@ -462,19 +444,56 @@ func validateAltDAConfig(cfg *Config) error {
 	return nil
 }
 
-// checkFork checks that fork A is before or at the same time as fork B
-func checkFork(a, b *uint64, aName, bName ForkName) error {
-	if a == nil && b == nil {
+// strictActivationOrderFrom is the first fork for which sharing a post-genesis activation
+// timestamp with its predecessor is rejected rather than merely unsupported.
+//
+// Simultaneous activation is not a supported configuration for any fork, but six chains in the
+// superchain registry were configured that way before the rule was written down — Celo mainnet
+// activated Holocene and Isthmus in the same block, and five Sepolia chains did the same for
+// earlier pairs. Their activations are chain history and cannot be changed, so op-node must keep
+// syncing them. Every one of those pairs predates Jovian, so enforcing from Jovian onwards rejects
+// new simultaneous activations without locking those chains out.
+const strictActivationOrderFrom = forks.Jovian
+
+// checkForkOrder checks that the scheduled mainline forks activate in the order given by
+// [forks.All]: a fork may only be scheduled if all of its predecessors are, and each fork must
+// activate after its predecessor.
+func (cfg *Config) checkForkOrder() error {
+	// forks.All starts at Bedrock, which is not activated by timestamp.
+	ordered := forks.From(forks.Regolith)
+	var strict bool
+	for i, name := range ordered[1:] {
+		strict = strict || name == strictActivationOrderFrom
+		if err := cfg.checkFork(ordered[i], name, strict); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// checkFork checks the activation time of fork B against that of fork A, its immediate
+// predecessor. Fork A must be scheduled if fork B is, and must activate before fork B.
+//
+// When strict is set, fork B may only share fork A's activation time at or before genesis, where
+// both activate in the genesis block and no activation-block processing happens. Past genesis,
+// activating two forks at the same timestamp is not supported: each fork's activation-block
+// behavior is only defined against a chain on which every preceding fork is already active, so
+// sharing an activation block leaves the combined behavior undefined. See the activation rules of
+// the superchain upgrades specification:
+// https://specs.optimism.io/protocol/superchain-upgrades.html#activation-rules
+func (cfg *Config) checkFork(aName, bName ForkName, strict bool) error {
+	a, b := cfg.ActivationTime(aName), cfg.ActivationTime(bName)
+	if b == nil {
 		return nil
 	}
-	if a == nil && b != nil {
+	if a == nil {
 		return fmt.Errorf("fork %s set (to %d), but prior fork %s missing", bName, *b, aName)
-	}
-	if a != nil && b == nil {
-		return nil
 	}
 	if *a > *b {
 		return fmt.Errorf("fork %s set to %d, but prior fork %s has higher offset %d", bName, *b, aName, *a)
+	}
+	if strict && *a == *b && *b > cfg.Genesis.L2Time {
+		return fmt.Errorf("fork %s and prior fork %s both set to %d, but activating multiple forks at the same time after genesis is not supported", bName, aName, *b)
 	}
 	return nil
 }

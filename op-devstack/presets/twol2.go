@@ -231,7 +231,7 @@ func (s *TwoL2SupernodeInterop) ForSameTimestampTesting(t devtest.T) *SameTimest
 	// Sync chains and pause interop
 	s.L2B.CatchUpTo(s.L2A)
 	s.L2A.CatchUpTo(s.L2B)
-	s.Supernode.EnsureInteropPaused(s.L2ACL, s.L2BCL, 10)
+	s.Supernode.EnsureInteropPaused(10, s.L2ACL, s.L2BCL)
 
 	// Stop sequencers
 	s.L2ACL.StopSequencer()

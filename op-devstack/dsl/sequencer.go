@@ -6,6 +6,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
 	"github.com/ethereum-optimism/optimism/op-devstack/stack"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
+	"github.com/ethereum-optimism/optimism/op-service/txplan"
 	"github.com/ethereum-optimism/optimism/op-test-sequencer/sequencer/seqtypes"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/stretchr/testify/require"
@@ -41,6 +42,21 @@ func (s *TestSequencer) SequenceBlock(t devtest.T, chainID eth.ChainID, parent c
 	require.NoError(t, ca.Next(t.Ctx()))
 }
 
+// AdvanceToBlockParent sequences empty blocks until the next block lands at timestamp.
+// It returns that next block's parent.
+func (s *TestSequencer) AdvanceToBlockParent(t devtest.T, network *L2Network, timestamp uint64) eth.L2BlockRef {
+	for {
+		parent := network.PrimaryEL().BlockRefByLabel(eth.Unsafe)
+		nextTimestamp := network.TimestampForBlockNum(parent.Number + 1)
+		t.Require().LessOrEqual(nextTimestamp, timestamp,
+			"chain %s advanced past target timestamp %d", network.ChainID(), timestamp)
+		if nextTimestamp == timestamp {
+			return parent
+		}
+		s.SequenceBlock(t, network.ChainID(), parent.Hash)
+	}
+}
+
 // SequenceBlockWithTxs builds a block with timestamp parent.Time + blockTime with the supplied transactions (bypassing the mempool).
 // This makes it ideal for same-timestamp interop testing, and avoids the chance that transactions are sequenced into later blocks.
 func (s *TestSequencer) SequenceBlockWithTxs(t devtest.T, chainID eth.ChainID, parent common.Hash, rawTxs [][]byte) {
@@ -68,4 +84,27 @@ func (s *TestSequencer) SequenceBlockWithTxs(t devtest.T, chainID eth.ChainID, p
 	// Publish is optional - it broadcasts via P2P which may not be enabled in tests.
 	// The block is already committed and canonical at this point.
 	_ = ca.Publish(ctx) // ignore publish errors
+}
+
+// SequenceBlockWithPlannedTxs assigns consecutive nonces and includes the planned transactions in one block.
+func (s *TestSequencer) SequenceBlockWithPlannedTxs(
+	t devtest.T,
+	parent common.Hash,
+	sender *EOA,
+	planned ...*txplan.PlannedTx,
+) {
+	s.log.Info("sequencing block with planned transactions",
+		"chain_id", sender.ChainID(),
+		"transaction_count", len(planned),
+	)
+	baseNonce := sender.PendingNonce()
+	rawTxs := make([][]byte, len(planned))
+	for i, plannedTx := range planned {
+		txplan.WithStaticNonce(baseNonce + uint64(i))(plannedTx)
+		signed, err := plannedTx.Signed.Eval(t.Ctx())
+		t.Require().NoError(err, "failed to sign transaction %d", i)
+		rawTxs[i], err = signed.MarshalBinary()
+		t.Require().NoError(err, "failed to marshal transaction %d", i)
+	}
+	s.SequenceBlockWithTxs(t, sender.ChainID(), parent, rawTxs)
 }

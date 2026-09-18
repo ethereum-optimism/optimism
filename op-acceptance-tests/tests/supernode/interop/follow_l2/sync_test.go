@@ -47,7 +47,7 @@ func TestFollowSource_HeadsDivergeThenConverge(gt *testing.T) {
 	}
 	dsl.CheckAll(t, initialChecks...)
 
-	pausedAt := sys.Supernode.EnsureInteropPaused(sys.L2ACL, sys.L2BCL, 10)
+	pausedAt := sys.Supernode.EnsureInteropPaused(10, sys.L2ACL, sys.L2BCL)
 	t.Logger().Info("interop paused", "timestamp", pausedAt)
 
 	baselines := make(map[string]headSnapshot, len(chains))
