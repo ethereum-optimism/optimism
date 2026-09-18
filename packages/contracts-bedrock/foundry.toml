@@ -79,9 +79,17 @@ fs_permissions = [
 # 8429 = virtual modifiers deprecated (solc 0.8.31, triggered by solmate)
 # 9207 = send deprecation (solc 0.8.36, triggered by safe-contracts)
 # 2424 = natspec memory-safe-assembly comment deprecated (solc 0.8.31, triggered by forge-std)
+<<<<<<< Updated upstream
 ignored_error_codes = [
   "transient-storage", "code-size", "init-code-size", "too-many-warnings",
   5159, 6335, 8429, 9207, 2424,
+=======
+# 3628 = payable fallback without receive (surfaced by the newer solc that forge 1.8.3 ships;
+#        needed only because this exploratory branch bumps forge to get --evm-version amsterdam)
+ignored_error_codes = [
+  "transient-storage", "code-size", "init-code-size", "too-many-warnings",
+  5159, 6335, 8429, 9207, 2424, 3628,
+>>>>>>> Stashed changes
 ]
 deny = "warnings"
 ffi = true
