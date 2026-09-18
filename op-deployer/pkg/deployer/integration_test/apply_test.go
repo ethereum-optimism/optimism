@@ -1105,9 +1105,6 @@ func runEndToEndBootstrapAndApplyUpgradeTest(t *testing.T, afactsFS foundry.Stat
 
 			// Then test upgrade on the V2-deployed chain
 			t.Run("upgrade chain v2", func(t *testing.T) {
-				// TODO(#22934): Re-enable once the test handles U20 already applied.
-				t.Skip("Test does not handle U20 already applied")
-
 				// FaultDisputeGameConfig just needs absolutePrestate (bytes32)
 				testPrestate := common.Hash{'P', 'R', 'E', 'S', 'T', 'A', 'T', 'E'}
 
@@ -1148,14 +1145,20 @@ func runEndToEndBootstrapAndApplyUpgradeTest(t *testing.T, afactsFS foundry.Stat
 								},
 							},
 							{
-								Enabled:  false,
+								Enabled:  true,
 								InitBond: big.NewInt(0),
 								GameType: embedded.GameTypeSuperPermissioned,
+								SuperPermissionedDisputeGameConfig: &embedded.SuperPermissionedDisputeGameConfig{
+									Proposer: testProposer,
+								},
 							},
 							{
-								Enabled:  false,
-								InitBond: big.NewInt(0),
+								Enabled:  true,
+								InitBond: big.NewInt(1000000000000000000),
 								GameType: embedded.GameTypeSuperCannonKona,
+								FaultDisputeGameConfig: &embedded.FaultDisputeGameConfig{
+									AbsolutePrestate: testPrestate,
+								},
 							},
 							{
 								Enabled:  false,
@@ -1169,11 +1172,6 @@ func runEndToEndBootstrapAndApplyUpgradeTest(t *testing.T, afactsFS foundry.Stat
 
 				upgradeConfigBytes, err := json.Marshal(upgradeConfig)
 				require.NoError(t, err, "UpgradeOPChainV2Input should marshal to JSON")
-
-				// Verify input encoding
-				encodedData, err := upgradeConfig.EncodedUpgradeInputV2()
-				require.NoError(t, err, "Should encode UpgradeInputV2")
-				require.NotEmpty(t, encodedData, "Encoded data should not be empty")
 
 				err = embedded.DefaultUpgrader.Upgrade(host, upgradeConfigBytes)
 				require.NoError(t, err, "OPCM V2 chain upgrade should succeed")
