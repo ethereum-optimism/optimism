@@ -130,6 +130,19 @@ test-amsterdam *ARGS:
 test-l2 *ARGS:
   TEST_FILES="$(find test -name '*.t.sol' | grep -E '{{DEFAULT_EVM_TESTS}}')" just test {{ARGS}}
 
+# Checks non-L2 operations against the EIP-7825 transaction gas cap.
+check-gas-cap *ARGS: build-go-ffi
+  #!/bin/bash
+  set -euo pipefail
+  TEST_FILES="${TEST_FILES:-$(find test -name '*.t.sol' | grep -vE '{{DEFAULT_EVM_TESTS}}')}"
+  REPORT=cache/gas-report-amsterdam.json
+  mkdir -p cache
+  echo "check-gas-cap: running the non-L2 suite under Amsterdam with the gas report enabled..."
+  FOUNDRY_MATCH_PATH="./{$(echo "$TEST_FILES" | paste -sd, -)}" \
+  FOUNDRY_EVM_VERSION=amsterdam \
+    forge test --gas-report --json {{ARGS}} > "$REPORT" || true
+  bash scripts/checks/check-gas-cap.sh "$REPORT"
+
 # Default block number for the forked upgrade path.
 # Block numbers are calculated deterministically based on the current day.
 # The block is set to approximately 00:00 UTC of the current day.
