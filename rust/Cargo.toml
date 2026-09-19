@@ -388,6 +388,7 @@ reth-evm = { git = "https://github.com/op-rs/reth", rev = "aef8d3ef92117f91455e1
 reth-evm-ethereum = { git = "https://github.com/op-rs/reth", rev = "aef8d3ef92117f91455e16969f0adf5bf7c6e9e1" }
 reth-exex = { git = "https://github.com/op-rs/reth", rev = "aef8d3ef92117f91455e16969f0adf5bf7c6e9e1" }
 reth-exex-test-utils = { git = "https://github.com/op-rs/reth", rev = "aef8d3ef92117f91455e16969f0adf5bf7c6e9e1" }
+reth-execution-cache = { git = "https://github.com/op-rs/reth", rev = "aef8d3ef92117f91455e16969f0adf5bf7c6e9e1" }
 reth-execution-errors = { git = "https://github.com/op-rs/reth", rev = "aef8d3ef92117f91455e16969f0adf5bf7c6e9e1", default-features = false }
 reth-execution-types = { git = "https://github.com/op-rs/reth", rev = "aef8d3ef92117f91455e16969f0adf5bf7c6e9e1", default-features = false }
 reth-fs-util = { git = "https://github.com/op-rs/reth", rev = "aef8d3ef92117f91455e16969f0adf5bf7c6e9e1" }
