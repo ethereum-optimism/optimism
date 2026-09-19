@@ -336,6 +336,67 @@ func (c *Conductor) AwaitNotLeader() {
 	c.waitForLeadership(false)
 }
 
+// The leadership-transfer RPCs are requests, not results: a nil error only means
+// Raft accepted the request (op-conductor/rpc/backend.go). Raft then gives the
+// handover a single ElectionTimeout, which op-conductor leaves at the 1s default
+// and a loaded CI box can exceed even though the transfer completes moments
+// later. So the helpers below ask from inside a settle loop and let the tests
+// assert on the leadership change rather than on any one response.
+
+// requestLeadershipTransfer asks Raft to hand c's leadership to any eligible voter.
+func (c *Conductor) requestLeadershipTransfer() error {
+	ctx, cancel := context.WithTimeout(c.ctx, DefaultTimeout)
+	defer cancel()
+	if err := c.inner.RpcAPI().TransferLeader(ctx); err != nil {
+		c.log.Info("Leadership transfer request did not settle, retrying", "from", c, "err", err)
+		return err
+	}
+	return nil
+}
+
+// awaitLeadershipTransferRequestTo gets a transfer request from c to target
+// accepted, retrying while the cluster moves. It does not confirm the transfer:
+// callers must observe the leadership change themselves.
+func (c *Conductor) awaitLeadershipTransferRequestTo(target *Conductor, info consensus.ServerInfo) {
+	// Without this, a target that wins leadership on its own before we ever ask
+	// would satisfy every later assertion with no transfer having happened.
+	requested := false
+	err := retry.Do0(c.ctx, conductorSettleAttempts, retry.Fixed(2*time.Second), func() error {
+		leading, err := target.isLeader()
+		if err != nil {
+			return err
+		}
+		if leading {
+			// Terminal, so fail here rather than retrying: requesting is the only
+			// thing that sets this, and that happens on the branch below, which a
+			// leading target never reaches.
+			c.require.Truef(requested,
+				"leadership reached conductor %s before any transfer was requested", target)
+			// A request that reported failure still landed, or an earlier one did.
+			return nil
+		}
+		sourceLeading, err := c.isLeader()
+		if err != nil {
+			return err
+		}
+		if !sourceLeading {
+			// The source steps down as the target's election bumps the term, so
+			// wait for the target instead of asking a conductor that no longer leads.
+			return fmt.Errorf("leadership has left conductor %s but not yet reached %s", c, target)
+		}
+		ctx, cancel := context.WithTimeout(c.ctx, DefaultTimeout)
+		defer cancel()
+		requested = true // set before the error check: a timeout may still have landed
+		if err := c.inner.RpcAPI().TransferLeaderToServer(ctx, info.ID, info.Addr); err != nil {
+			c.log.Info("Leadership transfer request did not settle, retrying",
+				"from", c, "to", target, "err", err)
+			return err
+		}
+		return nil
+	})
+	c.require.NoErrorf(err, "failed to transfer leadership from %s to %s", c, target)
+}
+
 // TransferLeadership transfers Raft leadership to an unspecified eligible
 // voter and waits for the cluster to settle on a different sole active
 // sequencer.
@@ -344,20 +405,19 @@ func (c *Conductor) TransferLeadership(cluster ConductorSet) *Conductor {
 	c.require.Same(c, cluster.AwaitOneActiveSequencer(),
 		"leadership transfer source must be the cluster's sole active sequencer")
 
-	ctx, cancel := context.WithTimeout(c.ctx, DefaultTimeout)
-	defer cancel()
-	err := c.inner.RpcAPI().TransferLeader(ctx)
-	c.require.NoErrorf(err, "failed to transfer leadership from %s", c)
-
-	err = retry.Do0(c.ctx, conductorSettleAttempts, retry.Fixed(2*time.Second), func() error {
+	// Ask from inside the loop, and exit only on the observed leadership change.
+	err := retry.Do0(c.ctx, conductorSettleAttempts, retry.Fixed(2*time.Second), func() error {
 		leader, _, err := cluster.leaderAndFollowers()
 		if err != nil {
 			return err
 		}
-		if leader == c {
-			return fmt.Errorf("conductor %s is still the leader", c)
+		if leader != c {
+			return nil
 		}
-		return nil
+		if err := c.requestLeadershipTransfer(); err != nil {
+			return err
+		}
+		return fmt.Errorf("conductor %s is still the leader", c)
 	})
 	c.require.NoErrorf(err, "conductor %s never transferred leadership", c)
 
@@ -380,10 +440,7 @@ func (s ConductorSet) TransferLeadershipTo(source, target *Conductor) {
 		"leadership transfer source must be the cluster's sole active sequencer")
 
 	info := source.clusterMemberInfo(target.String())
-	ctx, cancel := context.WithTimeout(source.ctx, DefaultTimeout)
-	defer cancel()
-	err := source.inner.RpcAPI().TransferLeaderToServer(ctx, info.ID, info.Addr)
-	c.require.NoErrorf(err, "failed to transfer leadership from %s to %s", source, target)
+	source.awaitLeadershipTransferRequestTo(target, info)
 
 	// First require the requested target to take leadership so an immediate
 	// pre-transfer sample cannot satisfy the cluster-wide waiter below.
