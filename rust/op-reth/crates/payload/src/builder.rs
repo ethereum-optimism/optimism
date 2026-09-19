@@ -1,7 +1,7 @@
 //! Optimism payload builder implementation.
 use crate::{
     OpAttributes, OpPayloadBuilderAttributes, OpPayloadPrimitives, config::OpBuilderConfig,
-    error::OpPayloadBuilderError, payload::OpBuiltPayload,
+    error::OpPayloadBuilderError, payload::OpBuiltPayload, sdm_metrics,
 };
 use alloy_consensus::{BlockHeader, Sealable, Transaction, Typed2718, transaction::Recovered};
 use alloy_eips::eip2718::Encodable2718;
@@ -912,7 +912,20 @@ where
     /// - **Rebuilding a derived block**: never produce — instead *verify* against the `0x7D`
     ///   post-exec tx that CL embedded in the attributes, or `Disabled` if there is none. This
     ///   holds regardless of the local opt-in, since the chain has already committed to it.
+    ///
+    /// Resolving for local sequencing also records SDM enablement, which re-reads the protocol
+    /// gate — it turns on at a timestamp, with no event to hook. Only resolve through here where
+    /// this node is deciding what to produce, so that reading stays about produced blocks.
     pub fn post_exec_mode(&self) -> Result<PostExecMode, PayloadBuilderError> {
+        let mode = self.resolve_post_exec_mode()?;
+        if !self.force_empty() {
+            sdm_metrics::record_effective(matches!(mode, PostExecMode::Produce));
+        }
+        Ok(mode)
+    }
+
+    /// Resolves the post-exec mode without recording enablement.
+    fn resolve_post_exec_mode(&self) -> Result<PostExecMode, PayloadBuilderError> {
         if !self.force_empty() {
             return Ok(self.sdm_production_enabled().into());
         }
@@ -937,6 +950,8 @@ where
     /// Callers that also decide whether to append the trailing `0x7D` must instead resolve
     /// [`Self::post_exec_mode`] once and pass it to [`Self::block_builder_with_mode`], so a
     /// concurrent opt-in toggle cannot change the mode between EVM construction and the append.
+    ///
+    /// Does not record SDM enablement.
     pub fn block_builder<'a, DB: Database>(
         &'a self,
         db: &'a mut State<DB>,
@@ -947,7 +962,7 @@ where
         > + 'a,
         PayloadBuilderError,
     > {
-        self.block_builder_with_mode(db, self.post_exec_mode()?)
+        self.block_builder_with_mode(db, self.resolve_post_exec_mode()?)
     }
 
     /// Like [`Self::block_builder`] but builds against a caller-supplied [`PostExecMode`], so a
