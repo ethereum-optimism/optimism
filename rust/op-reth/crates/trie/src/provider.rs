@@ -193,6 +193,11 @@ impl<'a, P> HashedPostStateProvider for OpProofsStateProviderRef<'a, P>
 where
     P: OpProofsProviderRO + Clone,
 {
+    /// UPSTREAM-MIRROR(copy): reth@rev:0fbe428
+    /// `reth_provider::LatestStateProviderRef::hashed_post_state`
+    ///
+    /// Mirrors the hashing/zeroing sequence, using historical OP proofs cursors instead of
+    /// upstream's database cursors. The deletion algorithm itself is delegated upstream.
     fn hashed_post_state(&self, bundle_state: &BundleState) -> ProviderResult<HashedPostState> {
         let mut hashed_state =
             HashedPostState::from_bundle_state::<KeccakKeyHasher>(bundle_state.state());
