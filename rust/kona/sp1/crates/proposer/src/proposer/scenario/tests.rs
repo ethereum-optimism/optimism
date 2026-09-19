@@ -748,7 +748,8 @@ async fn snapshots_are_sorted_and_immutable() {
         state.canonical_head_sequence_number = Some(32_400);
     }
     {
-        let mut pending = proposer.pending_games.write().await;
+        let mut state = proposer.state.write().await;
+        let pending = &mut state.pending_games;
         pending.insert(
             U256::from(7),
             CompactGameSummary {
@@ -801,8 +802,11 @@ async fn snapshots_are_sorted_and_immutable() {
         vec![resolution.task_id, claim.task_id]
     );
     let snapshot = result.snapshot.clone();
-    proposer.pending_games.write().await.clear();
-    proposer.state.write().await.anchor_game = None;
+    {
+        let mut state = proposer.state.write().await;
+        state.pending_games.clear();
+        state.anchor_game = None;
+    }
     assert_eq!(result.snapshot, snapshot);
     claim.release();
     resolution.release();
