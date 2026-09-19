@@ -7740,6 +7740,7 @@ dependencies = [
  "alloy-network 2.1.1",
  "alloy-primitives",
  "alloy-provider",
+ "alloy-rpc-client",
  "alloy-rpc-types-eth 2.1.1",
  "alloy-signer-local 2.1.1",
  "alloy-sol-types",
