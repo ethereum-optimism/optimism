@@ -28,10 +28,11 @@ alloy-eips.workspace = true
 alloy-network.workspace = true
 alloy-primitives.workspace = true
 alloy-provider = { workspace = true, features = ["reqwest"] }
+alloy-rpc-client.workspace = true
 alloy-rpc-types-eth.workspace = true
 alloy-signer-local.workspace = true
 alloy-sol-types = { workspace = true, features = ["json"] }
-alloy-transport-http.workspace = true
+alloy-transport-http = { workspace = true, features = ["reqwest", "reqwest-rustls-tls"] }
 alloy-contract.workspace = true
 
 # general
@@ -55,6 +56,7 @@ jsonrpsee = { workspace = true, features = ["http-client"] }
 kona-sp1-client-utils = { workspace = true, features = ["aggregation-test-utils"] }
 metrics-exporter-prometheus.workspace = true
 tempfile.workspace = true
+serial_test.workspace = true
 tokio = { workspace = true, features = ["test-util"] }
 
 [[bin]]
