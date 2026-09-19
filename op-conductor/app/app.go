@@ -23,9 +23,27 @@ import (
 
 // Config describes how to build the application.
 type Config struct {
+	// Name and Usage default to op-conductor's own if left empty.
+	Name  string
+	Usage string
+
 	Version   string
 	GitCommit string
 	GitDate   string
+
+	// ExtraFlags are registered alongside op-conductor's own flags.
+	ExtraFlags []cli.Flag
+
+	// Options is called once the CLI context is available, so that embedders can
+	// build conductor options from their own flags. May be nil.
+	Options func(ctx *cli.Context, log log.Logger) ([]conductor.Option, error)
+}
+
+func (c Config) name() string {
+	if c.Name != "" {
+		return c.Name
+	}
+	return "op-conductor"
 }
 
 func (c Config) version() string {
@@ -38,10 +56,14 @@ func (c Config) version() string {
 // NewApp builds the CLI application without running it.
 func NewApp(cfg Config) *cli.App {
 	app := cli.NewApp()
-	app.Flags = cliapp.ProtectFlags(flags.Flags)
+	app.Flags = cliapp.ProtectFlags(append(append([]cli.Flag{}, flags.Flags...), cfg.ExtraFlags...))
 	app.Version = opservice.FormatVersion(cfg.version(), cfg.GitCommit, cfg.GitDate, "")
-	app.Name = "op-conductor"
-	app.Usage = "Optimism Sequencer Conductor Service"
+	app.Name = cfg.name()
+	if cfg.Usage != "" {
+		app.Usage = cfg.Usage
+	} else {
+		app.Usage = "Optimism Sequencer Conductor Service"
+	}
 	app.Description = "op-conductor help sequencer to run in highly available mode"
 	app.Action = cliapp.LifecycleCmd(Lifecycle(cfg))
 	app.Commands = []*cli.Command{}
@@ -62,7 +84,15 @@ func Lifecycle(cfg Config) cliapp.LifecycleAction {
 			return nil, fmt.Errorf("failed to read config: %w", err)
 		}
 
-		c, err := conductor.New(ctx.Context, conductorCfg, logger, cfg.version())
+		var opts []conductor.Option
+		if cfg.Options != nil {
+			opts, err = cfg.Options(ctx, logger)
+			if err != nil {
+				return nil, fmt.Errorf("failed to build conductor options: %w", err)
+			}
+		}
+
+		c, err := conductor.New(ctx.Context, conductorCfg, logger, cfg.version(), opts...)
 		if err != nil {
 			return nil, fmt.Errorf("failed to create conductor: %w", err)
 		}
