@@ -971,8 +971,20 @@ func (oc *OpConductor) startSequencer() error {
 	// When starting sequencer, we need to make sure that the current node has the latest unsafe head from the consensus protocol
 	// If not, then we wait for the unsafe head to catch up or gossip it to op-node manually from op-conductor.
 	unsafeInCons, unsafeInNode, err := oc.compareUnsafeHead(ctx)
-	// if there's a mismatch, try to post the unsafe head to op-node
-	if errors.Is(err, ErrUnsafeHeadMismatch) && uint64(unsafeInCons.ExecutionPayload.BlockNumber)-unsafeInNode.NumberU64() == 1 {
+	switch {
+	case errors.Is(err, ErrNoUnsafeHead):
+		// No sequencer payload has reached consensus yet. Sequencer payloads are committed
+		// before they are gossiped or inserted locally, so the node's current unsafe head
+		// is a safe bootstrap point (normally genesis or an L1-derived safe block).
+		unsafeInNode, err = oc.ctrl.LatestUnsafeBlock(ctx)
+		if err != nil {
+			return fmt.Errorf("failed to get local unsafe head while consensus is empty: %w", err)
+		}
+		oc.log.Info("consensus has no unsafe head, starting from local unsafe head",
+			"node_num", unsafeInNode.NumberU64(),
+			"node_hash", unsafeInNode.Hash(),
+		)
+	case errors.Is(err, ErrUnsafeHeadMismatch) && uint64(unsafeInCons.ExecutionPayload.BlockNumber)-unsafeInNode.NumberU64() == 1:
 		// tries to post the unsafe head to op-node when head is only 1 block behind (most likely due to gossip delay)
 		oc.log.Debug(
 			"posting unsafe head to op-node",
@@ -985,12 +997,16 @@ func (oc *OpConductor) startSequencer() error {
 			oc.log.Error("failed to post unsafe head payload envelope to op-node", "err", err)
 			return err
 		}
-	} else if err != nil {
+	case err != nil:
 		return err
 	}
 
+	startingHead := unsafeInNode.Hash()
+	if unsafeInCons != nil {
+		startingHead = unsafeInCons.ExecutionPayload.BlockHash
+	}
 	oc.log.Info("starting sequencer", "server", oc.cons.ServerID(), "leader", oc.leader.Load(), "healthy", oc.healthy.Load(), "active", oc.seqActive.Load())
-	err = oc.ctrl.StartSequencer(ctx, unsafeInCons.ExecutionPayload.BlockHash)
+	err = oc.ctrl.StartSequencer(ctx, startingHead)
 	if err != nil {
 		// cannot directly compare using Errors.Is because the error is returned from an JSON RPC server which lost its type.
 		if !strings.Contains(err.Error(), driver.ErrSequencerAlreadyStarted.Error()) {
