@@ -10,8 +10,8 @@ use tokio::sync::oneshot;
 pub enum SequencerAdminQuery {
     /// A query to check if the sequencer is active.
     SequencerActive(oneshot::Sender<Result<bool, SequencerAdminAPIError>>),
-    /// A query to start the sequencer.
-    StartSequencer(oneshot::Sender<Result<(), SequencerAdminAPIError>>),
+    /// A query to start the sequencer from the expected unsafe head.
+    StartSequencer(B256, oneshot::Sender<Result<(), SequencerAdminAPIError>>),
     /// A query to stop the sequencer.
     StopSequencer(oneshot::Sender<Result<B256, SequencerAdminAPIError>>),
     /// A query to check if the conductor is enabled.
@@ -57,8 +57,8 @@ where
                     warn!(target: "sequencer", "Failed to send response for is_sequencer_active query");
                 }
             }
-            SequencerAdminQuery::StartSequencer(tx) => {
-                if tx.send(self.start_sequencer().await).is_err() {
+            SequencerAdminQuery::StartSequencer(head, tx) => {
+                if tx.send(self.start_sequencer(head).await).is_err() {
                     warn!(target: "sequencer", "Failed to send response for start_sequencer query");
                 }
             }
@@ -96,25 +96,49 @@ where
     }
 
     /// Returns whether the sequencer is active.
-    pub(super) async fn is_sequencer_active(&self) -> Result<bool, SequencerAdminAPIError> {
+    async fn is_sequencer_active(&self) -> Result<bool, SequencerAdminAPIError> {
         Ok(self.is_active)
     }
 
     /// Returns whether the conductor is enabled.
-    pub(super) async fn is_conductor_enabled(&self) -> Result<bool, SequencerAdminAPIError> {
+    async fn is_conductor_enabled(&self) -> Result<bool, SequencerAdminAPIError> {
         Ok(self.conductor.is_some())
     }
 
     /// Returns whether the node is in recovery mode.
-    pub(super) async fn in_recovery_mode(&self) -> Result<bool, SequencerAdminAPIError> {
+    async fn in_recovery_mode(&self) -> Result<bool, SequencerAdminAPIError> {
         Ok(self.in_recovery_mode)
     }
 
-    /// Starts the sequencer in an idempotent fashion.
-    pub(super) async fn start_sequencer(&mut self) -> Result<(), SequencerAdminAPIError> {
+    /// Starts the sequencer in an idempotent fashion after validating conductor leadership and
+    /// the expected unsafe head.
+    async fn start_sequencer(&mut self, head: B256) -> Result<(), SequencerAdminAPIError> {
         if self.is_active {
             info!(target: "sequencer", "received request to start sequencer, but it is already started");
             return Ok(());
+        }
+
+        if let Some(conductor) = &self.conductor {
+            let is_leader = conductor.leader().await.map_err(|err| {
+                SequencerAdminAPIError::RequestError(format!(
+                    "sequencer leader check failed: {err}"
+                ))
+            })?;
+            if !is_leader {
+                return Err(SequencerAdminAPIError::RequestError(
+                    "sequencer is not the leader, aborting".to_string(),
+                ));
+            }
+        }
+
+        let unsafe_head = self.engine_client.get_unsafe_head().await.map_err(|err| {
+            SequencerAdminAPIError::RequestError(format!("failed to get unsafe head: {err}"))
+        })?;
+        if unsafe_head.hash() != head {
+            return Err(SequencerAdminAPIError::RequestError(format!(
+                "block hash does not match: head {}, received {head}",
+                unsafe_head.hash()
+            )));
         }
 
         info!(target: "sequencer", "Starting sequencer");
@@ -126,7 +150,7 @@ where
     }
 
     /// Stops the sequencer in an idempotent fashion.
-    pub(super) async fn stop_sequencer(&mut self) -> Result<B256, SequencerAdminAPIError> {
+    async fn stop_sequencer(&mut self) -> Result<B256, SequencerAdminAPIError> {
         info!(target: "sequencer", "Stopping sequencer");
         self.is_active = false;
 
@@ -141,10 +165,7 @@ where
     }
 
     /// Sets the recovery mode of the sequencer in an idempotent fashion.
-    pub(super) async fn set_recovery_mode(
-        &mut self,
-        is_active: bool,
-    ) -> Result<(), SequencerAdminAPIError> {
+    async fn set_recovery_mode(&mut self, is_active: bool) -> Result<(), SequencerAdminAPIError> {
         self.in_recovery_mode = is_active;
         info!(target: "sequencer", is_active, "Updated recovery mode");
 
@@ -155,7 +176,7 @@ where
 
     /// Overrides the leader, if the conductor is enabled.
     /// If not, an error will be returned.
-    pub(super) async fn override_leader(&mut self) -> Result<(), SequencerAdminAPIError> {
+    async fn override_leader(&mut self) -> Result<(), SequencerAdminAPIError> {
         let Some(conductor) = self.conductor.as_mut() else {
             return Err(SequencerAdminAPIError::LeaderOverrideError(
                 "No conductor configured".to_string(),
@@ -173,7 +194,7 @@ where
         Ok(())
     }
 
-    pub(super) async fn reset_derivation_pipeline(&self) -> Result<(), SequencerAdminAPIError> {
+    async fn reset_derivation_pipeline(&self) -> Result<(), SequencerAdminAPIError> {
         info!(target: "sequencer", "Resetting derivation pipeline");
         self.engine_client.reset_engine_forkchoice().await.map_err(|e| {
             error!(target: "sequencer", err=?e, "Failed to reset engine forkchoice");
@@ -181,3 +202,7 @@ where
         })
     }
 }
+
+#[cfg(test)]
+#[path = "tests/admin_api_impl_test.rs"]
+mod tests;

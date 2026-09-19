@@ -16,7 +16,7 @@ pub use service::{
 
 mod actors;
 pub use actors::{
-    BlockStream, BuildRequest, Conductor, ConductorClient, ConductorError,
+    BlockStream, BuildRequest, CanonicalizeRequest, Conductor, ConductorClient, ConductorError,
     DelayedL1OriginSelectorProvider, DelegateDerivationActor, DerivationActor,
     DerivationActorRequest, DerivationClientError, DerivationClientResult,
     DerivationDelegateClient, DerivationDelegateClientError, DerivationDelegateProvider,

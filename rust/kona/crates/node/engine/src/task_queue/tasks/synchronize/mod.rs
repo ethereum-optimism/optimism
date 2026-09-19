@@ -1,6 +1,7 @@
 //! Task and its associated types for the forkchoice engine update.
 
 mod task;
+pub(crate) use task::CanonicalizeForkchoiceTask;
 pub use task::SynchronizeTask;
 
 mod error;
