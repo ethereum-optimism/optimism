@@ -5,7 +5,7 @@ use reth_chainspec::EthChainSpec;
 use reth_cli::chainspec::ChainSpecParser;
 use reth_cli_commands::common::{AccessRights, CliNodeTypes, Environment, EnvironmentArgs};
 use reth_node_core::version::version_metadata;
-use reth_optimism_node::args::{ProofsHistoryStorageArgs, ProofsStorageVersion};
+use reth_optimism_node::args::ProofsHistoryStorageArgs;
 use reth_optimism_trie::{
     OpProofsProviderRO, OpProofsStore, SnapshotInitJob, db::MdbxProofsStorageV2,
 };
@@ -43,48 +43,40 @@ impl<C: ChainSpecParser<ChainSpec: EthChainSpec>> SnapshotInitCommand<C> {
         let storage_path = self.history.resolve_storage_path(data_dir.as_ref());
         info!(target: "reth::cli", "Initializing OP proofs snapshot at: {:?}", storage_path);
 
-        match self.history.storage_version {
-            ProofsStorageVersion::V1 => Err(eyre::eyre!(
-                "Snapshot is not supported for V1 proofs storage. \
-                 Re-run with --proofs-history.storage-version v2."
-            )),
-            ProofsStorageVersion::V2 => {
-                let storage: Arc<MdbxProofsStorageV2> = Arc::new(
-                    MdbxProofsStorageV2::new(&storage_path)
-                        .map_err(|e| eyre::eyre!("Failed to open MdbxProofsStorageV2: {e}"))?,
-                );
+        let storage: Arc<MdbxProofsStorageV2> = Arc::new(
+            MdbxProofsStorageV2::new(&storage_path)
+                .map_err(|e| eyre::eyre!("Failed to open MdbxProofsStorageV2: {e}"))?,
+        );
 
-                // Resolve `None` to the proof window's `earliest`.
-                let target_block = match self.target_block {
-                    Some(b) => b,
-                    None => {
-                        storage
-                            .provider_ro()
-                            .map_err(|e| eyre::eyre!("Failed to open proofs RO provider: {e}"))?
-                            .get_proof_window()
-                            .map_err(|e| eyre::eyre!("Failed to read proof window: {e}"))?
-                            .earliest
-                            .number
-                    }
-                };
-
-                let provider = provider_factory
-                    .database_provider_ro()
-                    .map_err(|e| eyre::eyre!("Failed to open reth DB provider: {e}"))?
-                    .disable_long_read_transaction_safety();
-
-                let outcome = SnapshotInitJob::new(provider, storage).run(target_block)?;
-                info!(
-                    target: "reth::cli",
-                    anchor = ?outcome.block,
-                    status = ?outcome.status,
-                    account_nodes_copied = outcome.account_nodes_copied,
-                    storage_nodes_copied = outcome.storage_nodes_copied,
-                    "Snapshot init complete"
-                );
-                Ok(())
+        // Resolve `None` to the proof window's `earliest`.
+        let target_block = match self.target_block {
+            Some(b) => b,
+            None => {
+                storage
+                    .provider_ro()
+                    .map_err(|e| eyre::eyre!("Failed to open proofs RO provider: {e}"))?
+                    .get_proof_window()
+                    .map_err(|e| eyre::eyre!("Failed to read proof window: {e}"))?
+                    .earliest
+                    .number
             }
-        }
+        };
+
+        let provider = provider_factory
+            .database_provider_ro()
+            .map_err(|e| eyre::eyre!("Failed to open reth DB provider: {e}"))?
+            .disable_long_read_transaction_safety();
+
+        let outcome = SnapshotInitJob::new(provider, storage).run(target_block)?;
+        info!(
+            target: "reth::cli",
+            anchor = ?outcome.block,
+            status = ?outcome.status,
+            account_nodes_copied = outcome.account_nodes_copied,
+            storage_nodes_copied = outcome.storage_nodes_copied,
+            "Snapshot init complete"
+        );
+        Ok(())
     }
 }
 

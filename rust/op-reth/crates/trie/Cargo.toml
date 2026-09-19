@@ -44,7 +44,6 @@ tokio = { workspace = true, features = ["sync"] }
 # codec
 bytes.workspace = true
 serde.workspace = true
-bincode.workspace = true
 
 # misc
 parking_lot.workspace = true
