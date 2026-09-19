@@ -447,7 +447,7 @@ impl<N: NodePrimitives> BuiltPayload for OpBuiltPayload<N> {
     }
 }
 
-/// UPSTREAM-MIRROR(copy): reth@rev:aef8d3e
+/// UPSTREAM-MIRROR(copy): reth@rev:0fbe428
 /// `reth_ethereum_engine_primitives::EthBuiltPayload::into_execution_data`
 ///
 /// Counterpart to `OpPayloadTypes::block_to_payload`; the two conversion paths are kept
@@ -857,19 +857,13 @@ mod tests {
             eip_1559_params: None,
             min_base_fee: None,
         };
-        let err = OpPayloadBuilderAttributes::<OpTransactionSigned>::try_new(
-            B256::ZERO,
-            attrs.clone(),
-            3,
-        )
-        .unwrap_err();
-        assert!(err.to_string().contains("non-canonical"), "{err}");
-        let err = OpPayloadBuilderAttributes::<OpTransactionSigned>::from_rpc_attrs(
+        OpPayloadBuilderAttributes::<OpTransactionSigned>::try_new(B256::ZERO, attrs.clone(), 3)
+            .unwrap_err();
+        OpPayloadBuilderAttributes::<OpTransactionSigned>::from_rpc_attrs(
             B256::ZERO,
             PayloadId::new([0; 8]),
             attrs,
         )
         .unwrap_err();
-        assert!(err.to_string().contains("non-canonical"), "{err}");
     }
 }

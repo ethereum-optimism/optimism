@@ -156,7 +156,7 @@ where
     let execution_result = block_executor.execute(block).unwrap();
 
     let hashed_state =
-        LatestStateProviderRef::new(&provider).hashed_post_state(&execution_result.state);
+        LatestStateProviderRef::new(&provider).hashed_post_state(&execution_result.state).unwrap();
     let state_root = LatestStateProviderRef::new(&provider).state_root(hashed_state).unwrap();
     block.set_state_root(state_root);
     execution_result
@@ -181,7 +181,8 @@ pub(crate) fn commit_block_to_database<N>(
     let hashed_state = HashedPostStateProvider::hashed_post_state(
         &LatestStateProviderRef::new(&state_provider),
         &execution_output.state,
-    );
+    )
+    .unwrap();
     let provider_rw = provider_factory.provider_rw().unwrap();
     provider_rw
         .append_blocks_with_state(
