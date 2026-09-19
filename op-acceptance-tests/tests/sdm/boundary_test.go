@@ -2,6 +2,7 @@ package sdm
 
 import (
 	"testing"
+	"time"
 
 	"github.com/ethereum-optimism/optimism/op-acceptance-tests/tests/sdm/sdmtest"
 	sdmpkg "github.com/ethereum-optimism/optimism/op-chain-ops/pkg/sdm"
@@ -26,6 +27,7 @@ func TestSDMPostExecSpanCrossesInteropBoundary(gt *testing.T) {
 	sys := newSDMRethSystemWithLagoonOffset(t, &offset, withCrossActivationSpanBatcher)
 	sdmtest.VerifySDMFixture(t, sys.L2EL)
 	sdmtest.VerifyOpReth(t, sys.L2ELVerifier)
+	sys.L2CL.StartSequencer()
 
 	activationBlock := sys.L2Network.AwaitActivation(t, forks.Lagoon)
 	activationRef := sys.L2EL.BlockRefByNumber(activationBlock.Number)
@@ -78,11 +80,23 @@ func TestSDMActivatesAtLagoonBoundary(gt *testing.T) {
 	t.Require().False(sys.L2Network.IsForkActive(forks.Lagoon),
 		"Lagoon must not be active yet at the start of the boundary test")
 
-	// Phase 1: pre-Lagoon workload. We may need a few attempts to land the densest
-	// block before the activation timestamp; sdmtest.MustFindRepeatedSlotBlock retries
-	// internally and sdmpkg.FindPostExecTransaction tolerates absence.
-	preBlock, preIncluded, preBlockNum := sdmtest.MustFindRepeatedSlotBlock(t, sys, 2, 3)
-	t.Require().GreaterOrEqual(len(preIncluded), 2, "pre-Lagoon target block must contain user txs")
+	// Phase 1: queue funding transactions while sequencing is stopped. Waiting for both to enter
+	// the mempool before starting the sequencer guarantees they land in block 1, independently of
+	// how much wall-clock time system setup consumed.
+	const preUserTxCount = 2
+	fundedUsersCh := make(chan []*dsl.EOA, 1)
+	go func() {
+		defer close(fundedUsersCh)
+		fundedUsersCh <- sys.FunderL2.NewFundedEOAs(preUserTxCount, eth.OneEther)
+	}()
+	sys.L2EL.WaitForPendingNonceMatch(sys.FunderL2.Address(), preUserTxCount, 100, 100*time.Millisecond)
+	sys.L2CL.StartSequencer()
+	t.Require().Len(<-fundedUsersCh, preUserTxCount, "pre-Lagoon users must be funded")
+
+	const preBlockNum = 1
+	preBlock := sdmtest.GetBlockWithTxs(t, sys.L2EL, preBlockNum)
+	t.Require().GreaterOrEqual(len(preBlock.Transactions), preUserTxCount+1,
+		"pre-Lagoon block must contain the L1-info deposit and funding transactions")
 	preRef := sys.L2EL.BlockRefByNumber(preBlockNum)
 	t.Require().False(sys.L2Network.IsForkActiveAt(forks.Lagoon, preRef.Time),
 		"pre-Lagoon workload block %d (ts=%d) must land before Lagoon activation",
