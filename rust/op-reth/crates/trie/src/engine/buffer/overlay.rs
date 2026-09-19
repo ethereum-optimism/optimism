@@ -281,13 +281,17 @@ impl<'a, P> HashedPostStateProvider for MemoryOverlayOpProofsStateProviderRef<'a
 where
     P: OpProofsProviderRO + Clone,
 {
+    /// UPSTREAM-MIRROR(copy): reth@rev:0fbe428
+    /// `reth_chain_state::MemoryOverlayStateProviderRef::hashed_post_state`
+    ///
+    /// Uses the OP proofs-buffer trie input instead of upstream's executed-block overlay.
     fn hashed_post_state(&self, bundle_state: &BundleState) -> ProviderResult<HashedPostState> {
         let mut hashed_state = self.inner.hashed_post_state(bundle_state)?;
 
         // `self.inner` zeroes destroyed accounts' storage against the *persisted* proofs
         // storage only. Slots written by blocks still in the buffer live in the overlay, so
         // zero those too, or a destroyed account stays partially wiped and the state root is
-        // wrong. Mirrors upstream's `MemoryOverlayStateProviderRef::hashed_post_state`.
+        // wrong.
         for (address, account) in bundle_state.state() {
             // Accounts created in this bundle cannot have parent storage to zero.
             if !account.was_destroyed() || account.original_info.is_none() {

@@ -188,6 +188,7 @@ impl<N: RpcNodeCore, Rpc: RpcConvert> OpEthApi<N, Rpc> {
                             false,
                         ) {
                             Ok(logs) => logs,
+                            // Unreachable with the current OP converter: `convert_log` always returns `Ok`.
                             Err(err) => {
                                 warn!(target: "rpc::eth", %err, "failed to convert flashblock logs");
                                 Vec::new()
