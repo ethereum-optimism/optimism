@@ -54,7 +54,7 @@ type HeadSignalFn func(eth.L1BlockRef)
 
 // Config is the relevant subset of rollup config for AltDA.
 type Config struct {
-	// Required for filtering contract events
+	// DAChallengeContractAddress filters challenge contract events. Zero means no challenge contract.
 	DAChallengeContractAddress common.Address
 	// Allowed CommitmentType
 	CommitmentType CommitmentType
@@ -410,7 +410,7 @@ func (d *DA) loadChallengeEvents(ctx context.Context, l1 L1Fetcher, block eth.Bl
 func (d *DA) fetchChallengeLogs(ctx context.Context, l1 L1Fetcher, block eth.BlockID) ([]*types.Log, error) {
 	var logs []*types.Log
 	// Don't look at the challenge contract if there is no challenge contract.
-	if d.cfg.CommitmentType == GenericCommitmentType {
+	if d.cfg.DAChallengeContractAddress == (common.Address{}) {
 		return logs, nil
 	}
 	//cached with deposits events call so not expensive
