@@ -12,6 +12,7 @@
 mod builder;
 mod chain;
 mod exec;
+pub mod rpc;
 #[cfg(test)]
 mod testsupport;
 
