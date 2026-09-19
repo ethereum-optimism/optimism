@@ -27,6 +27,7 @@ revm = { workspace = true }
 op-revm = { workspace = true }
 
 thiserror = { workspace = true }
+metrics = { workspace = true, optional = true }
 
 auto_impl = { workspace = true }
 
@@ -34,6 +35,7 @@ auto_impl = { workspace = true }
 alloy-hardforks = { workspace = true }
 revm-inspectors.workspace = true
 test-case.workspace = true
+metrics-util = { workspace = true, features = ["debugging"] }
 
 [features]
 default = ["std"]
@@ -47,6 +49,7 @@ std = [
 	"op-alloy/std",
 	"thiserror/std",
 ]
+metrics = ["std", "dep:metrics", "op-revm/fee-observation"]
 gmp = ["alloy-evm/gmp"]
 engine = ["op-alloy/rpc-types-engine"]
 rpc = ["alloy-evm/rpc", "op-alloy/rpc-types"]

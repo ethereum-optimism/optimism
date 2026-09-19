@@ -9,6 +9,8 @@ pub mod api;
 pub mod constants;
 pub mod evm;
 pub mod fast_lz;
+#[cfg(feature = "fee-observation")]
+pub mod fee_observation;
 pub mod handler;
 pub mod l1block;
 pub mod precompiles;

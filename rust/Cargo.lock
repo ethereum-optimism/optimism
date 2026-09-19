@@ -558,6 +558,8 @@ dependencies = [
  "alloy-op-hardforks",
  "alloy-primitives",
  "auto_impl",
+ "metrics",
+ "metrics-util",
  "op-alloy",
  "op-revm",
  "revm",

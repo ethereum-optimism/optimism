@@ -52,6 +52,8 @@ std = [
 ]
 serde = ["dep:serde", "revm/serde", "alloy-eips/serde", "alloy-primitives/serde", "op-alloy-consensus/serde"]
 portable = ["revm/portable"]
+# Diagnostic fee-transfer observation; never required for execution or proof builds.
+fee-observation = ["std"]
 
 dev = [
 	"revm/dev",
