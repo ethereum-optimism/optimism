@@ -3,7 +3,7 @@
 set -euo pipefail
 
 # Timeouts, so a mirror that stops responding errors out instead of being waited on.
-APT_OPTS=(-o Acquire::Retries=3 -o Acquire::http::Timeout=20 -o Acquire::https::Timeout=20)
+APT_OPTS=(-o Acquire::Retries=8 -o Acquire::http::Timeout=20 -o Acquire::https::Timeout=20)
 
 export NEEDRESTART_MODE=a
 export DEBIAN_FRONTEND=noninteractive
