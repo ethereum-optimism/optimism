@@ -1323,7 +1323,7 @@ contract OPContractsManagerV2_Upgrade_Test is OPContractsManagerV2_Upgrade_TestI
             Proposal({ root: Hash.wrap(keccak256("superRootAnchorRoot")), l2SequenceNumber: currentSeqNum + 1 });
 
         // Rebuild dispute game configs: legacy (disabled) + super types.
-        // Order must match validGameTypes in OPContractsManagerV2._assertValidFullConfig().
+        // Order must match VALID_GAME_TYPES in OPContractsManagerV2._assertValidFullConfig().
         delete v2UpgradeInput.disputeGameConfigs;
 
         // Legacy types (all disabled).
@@ -2862,19 +2862,27 @@ contract OPContractsManagerV2_Migrate_Test is OPContractsManagerV2_TestInit {
         _doMigration(_input, bytes4(0));
     }
 
-    /// @notice Helper function to execute a migration with a revert selector.
+    /// @notice Helper function to execute a migration, asserting the revert selector when one is
+    ///         given. Reports separately whether migrate unexpectedly succeeded or reverted with a
+    ///         different error.
     /// @param _input The input to the migration function.
-    /// @param _revertSelector The selector of the revert to expect.
+    /// @param _revertSelector The selector of the revert to expect, or bytes4(0) to expect success.
     function _doMigration(IOPContractsManagerMigrator.MigrateInput memory _input, bytes4 _revertSelector) internal {
         // Set the proxy admin owner to be a delegate caller.
         address proxyAdminOwner = chainContracts1.proxyAdmin.owner();
 
+        if (_revertSelector != bytes4(0)) {
+            prankDelegateCall(proxyAdminOwner);
+            (bool reverted, bytes memory returnData) =
+                address(opcmV2).delegatecall(abi.encodeCall(IOPContractsManagerV2.migrate, (_input)));
+            assertFalse(reverted, "expected migrate to revert, but it succeeded");
+            assertEq(bytes4(returnData), _revertSelector, "migrate reverted with an unexpected selector");
+            return;
+        }
+
         // Execute a delegatecall to the OPCM migration function.
         // Check gas usage of the migration function.
         uint256 gasBefore = gasleft();
-        if (_revertSelector != bytes4(0)) {
-            vm.expectRevert(_revertSelector);
-        }
         prankDelegateCall(proxyAdminOwner);
         (bool success,) = address(opcmV2).delegatecall(abi.encodeCall(IOPContractsManagerV2.migrate, (_input)));
         assertTrue(success, "migrate failed");
@@ -2933,6 +2941,40 @@ contract OPContractsManagerV2_Migrate_Test is OPContractsManagerV2_TestInit {
         IOPContractsManagerMigrator.MigrateInput memory input = _getDefaultMigrateInput();
         vm.expectRevert(IOPContractsManagerV2.OPContractsManagerV2_OnlyDelegateCall.selector);
         opcmV2.migrate(input);
+    }
+
+    /// @notice Tests that migrate reverts when the starting anchor root is zero.
+    function test_migrate_zeroStartingAnchorRoot_reverts() public {
+        _enableEthLockboxes();
+
+        IOPContractsManagerMigrator.MigrateInput memory input = _getDefaultMigrateInput();
+        input.startingAnchorRoot.root = Hash.wrap(bytes32(0));
+
+        _doMigration(input, IOPContractsManagerMigrator.OPContractsManagerMigrator_InvalidStartingAnchorRoot.selector);
+    }
+
+    /// @notice Tests that migrate reverts when the starting anchor root leaves no room for a
+    ///         successor.
+    function test_migrate_startingAnchorRootSequenceTooLarge_reverts() public {
+        _enableEthLockboxes();
+
+        IOPContractsManagerMigrator.MigrateInput memory input = _getDefaultMigrateInput();
+        input.startingAnchorRoot.l2SequenceNumber = type(uint64).max;
+
+        _doMigration(input, IOPContractsManagerMigrator.OPContractsManagerMigrator_InvalidStartingAnchorRoot.selector);
+    }
+
+    function test_migrate_maxValidStartingAnchorRootSequence_succeeds() public {
+        _enableEthLockboxes();
+
+        IOPContractsManagerMigrator.MigrateInput memory input = _getDefaultMigrateInput();
+        input.startingAnchorRoot.l2SequenceNumber = uint256(type(uint64).max) - 1;
+
+        _doMigration(input);
+
+        IOptimismPortal2 portal1 = IOptimismPortal2(payable(chainContracts1.systemConfig.optimismPortal()));
+        (, uint256 anchorSeq) = portal1.anchorStateRegistry().getAnchorRoot();
+        assertEq(anchorSeq, uint256(type(uint64).max) - 1, "starting anchor sequence number mismatch");
     }
 
     /// @notice Tests that upgrade re-points the shared dispute games of a migrated interop set.
@@ -3039,6 +3081,24 @@ contract OPContractsManagerV2_Migrate_Test is OPContractsManagerV2_TestInit {
     }
 
     /// @notice Tests that the migration function succeeds and liquidity is migrated.
+    function test_migrate_clearsEveryCanonicalGameType_succeeds() public {
+        _doMigration(_getDefaultMigrateInput());
+
+        GameType[] memory gameTypes = GameTypes.clearedGameTypes();
+        for (uint256 i = 0; i < gameTypes.length; i++) {
+            assertEq(
+                address(chainContracts1.disputeGameFactory.gameImpls(gameTypes[i])),
+                address(0),
+                "chain 1 game type not cleared"
+            );
+            assertEq(
+                address(chainContracts2.disputeGameFactory.gameImpls(gameTypes[i])),
+                address(0),
+                "chain 2 game type not cleared"
+            );
+        }
+    }
+
     function test_migrate_succeeds() public {
         IOPContractsManagerMigrator.MigrateInput memory input = _getDefaultMigrateInput();
 
@@ -3278,6 +3338,56 @@ contract OPContractsManagerV2_Migrate_Test is OPContractsManagerV2_TestInit {
         assertEq(bytes4(returnData), IOPContractsManagerMigrator.OPContractsManagerMigrator_SystemPaused.selector);
     }
 
+    /// @notice Migration is refused when the SuperchainConfig is behind this release's
+    ///         implementation.
+    function test_migrate_superchainConfigNeedsUpgrade_reverts() public {
+        vm.mockCall(address(superchainConfig), abi.encodeCall(ISuperchainConfig.version, ()), abi.encode("0.0.0"));
+
+        _doMigration(
+            _getDefaultMigrateInput(),
+            IOPContractsManagerMigrator.OPContractsManagerMigrator_SuperchainConfigNeedsUpgrade.selector
+        );
+    }
+
+    /// @notice Migration is refused for a chain still on the previous release.
+    function test_migrate_chainOnPreviousRelease_reverts() public {
+        address oldOPCM = makeAddr("previousReleaseOPCM");
+        vm.mockCall(oldOPCM, abi.encodeCall(ISemver.version, ()), abi.encode("7.1.17"));
+        vm.mockCall(
+            address(chainContracts1.systemConfig), abi.encodeCall(ISystemConfig.lastUsedOPCM, ()), abi.encode(oldOPCM)
+        );
+
+        _doMigration(
+            _getDefaultMigrateInput(), IOPContractsManagerV2.OPContractsManagerV2_InvalidUpgradeSequence.selector
+        );
+    }
+
+    /// @notice A different OPCM address on the same major is accepted.
+    function test_migrate_replacementOpcmSameRelease_succeeds() public {
+        address replacedOPCM = makeAddr("replacedSameReleaseOPCM");
+        vm.mockCall(replacedOPCM, abi.encodeCall(ISemver.version, ()), abi.encode("9.0.1"));
+        vm.mockCall(
+            address(chainContracts1.systemConfig),
+            abi.encodeCall(ISystemConfig.lastUsedOPCM, ()),
+            abi.encode(replacedOPCM)
+        );
+
+        _doMigration(_getDefaultMigrateInput());
+    }
+
+    /// @notice A chain last touched by a *newer* minor of this release is refused.
+    function test_migrate_chainOnNewerMinor_reverts() public {
+        address newerOPCM = makeAddr("newerMinorOPCM");
+        vm.mockCall(newerOPCM, abi.encodeCall(ISemver.version, ()), abi.encode("8.9.0"));
+        vm.mockCall(
+            address(chainContracts1.systemConfig), abi.encodeCall(ISystemConfig.lastUsedOPCM, ()), abi.encode(newerOPCM)
+        );
+
+        _doMigration(
+            _getDefaultMigrateInput(), IOPContractsManagerV2.OPContractsManagerV2_InvalidUpgradeSequence.selector
+        );
+    }
+
     /// @notice Tests that migration cannot be rerun.
     function test_migrate_calledTwice_reverts() public {
         IOPContractsManagerMigrator.MigrateInput memory input = _getDefaultMigrateInput();
@@ -3285,9 +3395,41 @@ contract OPContractsManagerV2_Migrate_Test is OPContractsManagerV2_TestInit {
 
         _doMigration(input);
 
-        prankDelegateCall(chainContracts1.proxyAdmin.owner());
-        (bool success,) = address(opcmV2).delegatecall(abi.encodeCall(IOPContractsManagerV2.migrate, (input)));
-        assertFalse(success, "second migration should revert");
+        _doMigration(input, IOPContractsManagerMigrator.OPContractsManagerMigrator_ChainAlreadyMigrated.selector);
+    }
+
+    /// @notice A second migration in a later block is rejected. The salt mixes block.timestamp, so
+    ///         moving forward one second gives the shared proxies fresh addresses and CREATE2 no
+    ///         longer collide.
+    function test_migrate_calledTwiceInLaterBlock_reverts() public {
+        IOPContractsManagerMigrator.MigrateInput memory input = _getDefaultMigrateInput();
+        _enableEthLockboxes();
+
+        _doMigration(input);
+        vm.warp(block.timestamp + 1);
+
+        _doMigration(input, IOPContractsManagerMigrator.OPContractsManagerMigrator_ChainAlreadyMigrated.selector);
+    }
+
+    /// @notice The guard is per-chain, so an input mixing a migrated chain with a fresh one is
+    ///         rejected.
+    function test_migrate_oneChainAlreadyMigrated_reverts() public {
+        _enableEthLockboxes();
+
+        // Migrate chain 1 on its own.
+        IOPContractsManagerMigrator.MigrateInput memory firstInput = _getDefaultMigrateInput();
+        ISystemConfig[] memory onlyChain1 = new ISystemConfig[](1);
+        onlyChain1[0] = chainContracts1.systemConfig;
+        firstInput.chainSystemConfigs = onlyChain1;
+        _doMigration(firstInput);
+
+        vm.warp(block.timestamp + 1);
+
+        // Try to migrate both chains together
+        _doMigration(
+            _getDefaultMigrateInput(),
+            IOPContractsManagerMigrator.OPContractsManagerMigrator_ChainAlreadyMigrated.selector
+        );
     }
 
     /// @notice Tests that the migration function reverts when the ProxyAdmin owners are mismatched.
@@ -3630,7 +3772,7 @@ contract OPContractsManagerV2_Migrate_Test is OPContractsManagerV2_TestInit {
     }
 
     /// @notice Builds the dispute game configs for upgrading a migrated super-permissioned
-    ///         interop chain. Order must match validGameTypes in
+    ///         interop chain. Order must match VALID_GAME_TYPES in
     ///         OPContractsManagerV2._assertValidFullConfig(): only SUPER_PERMISSIONED is enabled,
     ///         matching the respected game type the migration installs on the shared registry.
     /// @return configs_ The dispute game configs.
@@ -3800,7 +3942,7 @@ contract OPContractsManagerV2_FeatBatchUpgrade_Test is OPContractsManagerV2_Test
     function test_batchUpgrade_multipleChains_succeeds() public {
         skipIfUnoptimized();
 
-        uint256 numberOfChains = 14;
+        uint256 numberOfChains = 13;
 
         // 1. Deploy BatchUpgrader helper contract.
         BatchUpgrader batchUpgrader = new BatchUpgrader(opcmV2);

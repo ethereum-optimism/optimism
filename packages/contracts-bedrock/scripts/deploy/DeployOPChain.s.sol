@@ -127,7 +127,7 @@ contract DeployOPChain is Script {
         bool enableSuperPermissioned =
             enableSuperCannonKona || respectedGameType.raw() == GameTypes.SUPER_PERMISSIONED.raw();
         // Build dispute game configs - OPCMV2 requires all 6 game type configs.
-        // Order must match validGameTypes in OPContractsManagerV2._assertValidFullConfig().
+        // Order must match VALID_GAME_TYPES in OPContractsManagerV2._assertValidFullConfig().
         IOPContractsManagerUtils.DisputeGameConfig[] memory disputeGameConfigs =
             new IOPContractsManagerUtils.DisputeGameConfig[](6);
 
