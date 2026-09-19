@@ -6,6 +6,10 @@ import "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
 import {IERC7802, IERC165} from "lib/interop-lib/src/interfaces/IERC7802.sol";
 import {PredeployAddresses} from "lib/interop-lib/src/libraries/PredeployAddresses.sol";
 
+// NOTE: SUPERCHAIN_TOKEN_BRIDGE at 0x4200000000000000000000000000000000000028 was removed from
+// the OP Stack in ethereum-optimism/optimism#19999 and nothing replaced it, so the crosschainMint
+// and crosschainBurn hooks below can never be called on a current chain. Kept as a reference for
+// the ERC-7802 shape.
 contract InteropToken is Initializable, ERC20Upgradeable, OwnableUpgradeable, IERC7802 {
     function initialize(string memory name, string memory symbol, uint256 initialSupply) public initializer {
         __ERC20_init(name, symbol);
