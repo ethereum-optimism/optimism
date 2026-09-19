@@ -46,8 +46,8 @@ import { IBigStepper } from "interfaces/dispute/IBigStepper.sol";
 /// before and after an upgrade.
 contract OPContractsManagerStandardValidator is ISemver {
     /// @notice The semantic version of the OPContractsManagerStandardValidator contract.
-    /// @custom:semver 3.7.0
-    string public constant version = "3.7.0";
+    /// @custom:semver 3.7.1
+    string public constant version = "3.7.1";
 
     /// @notice The SuperchainConfig contract.
     ISuperchainConfig public superchainConfig;
@@ -947,8 +947,7 @@ contract OPContractsManagerStandardValidator is ISemver {
 
         GameType rgt =
             IOptimismPortal2(payable(_input.sysCfg.optimismPortal())).anchorStateRegistry().respectedGameType();
-        bool isSuperMode = DevFeatures.isDevFeatureEnabled(devFeatureBitmap, DevFeatures.SUPER_ROOT_GAMES_MIGRATION)
-            && GameTypes.isSuperGame(rgt);
+        bool isSuperMode = GameTypes.isSuperGame(rgt);
 
         _errors = internalRequire(isRespectedGameTypeValidated(rgt, isSuperMode, _input.sysCfg), "ASR-RGT", _errors);
 

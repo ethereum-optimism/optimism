@@ -9,7 +9,6 @@ import (
 func withSuperRootGamesAtGenesisDeployerFeatures(cfg PresetConfig) PresetConfig {
 	cfg.DeployerOptions = append([]DeployerOption{
 		WithDevFeatureEnabled(devfeatures.OptimismPortalInteropFlag),
-		WithDevFeatureEnabled(devfeatures.SuperRootGamesMigrationFlag),
 	}, cfg.DeployerOptions...)
 	return cfg
 }

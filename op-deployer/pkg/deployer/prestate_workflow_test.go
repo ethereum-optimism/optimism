@@ -28,12 +28,6 @@ func TestPrestateWorkflowFromPrepareChains(t *testing.T) {
 		wantSelected       common.Hash
 	}{
 		{
-			name:               "permissioned and CANNON_KONA",
-			permissionlessType: embedded.GameTypeCannonKona,
-			selected:           common.HexToHash("0x11"),
-			wantSelected:       common.HexToHash("0x11"),
-		},
-		{
 			name:               "permissioned and SUPER_CANNON_KONA",
 			permissionlessType: embedded.GameTypeSuperCannonKona,
 			selected:           common.HexToHash("0x33"),
@@ -48,6 +42,7 @@ func TestPrestateWorkflowFromPrepareChains(t *testing.T) {
 			permissionlessID := common.HexToHash("0x03")
 			chainIDs := []common.Hash{deployedID, permissionedID, permissionlessID}
 			intent := newPrestateWorkflowIntent(t, chainIDs)
+			intent.Chains[0].DeployOverrides = map[string]any{"respectedGameType": embedded.GameTypeCannonKona}
 			intent.Chains[2].DeployOverrides = map[string]any{"respectedGameType": tt.permissionlessType}
 
 			historicalSelected := common.HexToHash("0xaa")
@@ -61,7 +56,7 @@ func TestPrestateWorkflowFromPrepareChains(t *testing.T) {
 			deployed, err := st.Chain(deployedID)
 			require.NoError(t, err)
 			deployed.Prestate = historicalSelected
-			historicalGameType := uint32(embedded.GameTypeSuperPermissioned)
+			historicalGameType := uint32(embedded.GameTypeCannonKona)
 			deployed.InitialGameType = &historicalGameType
 
 			predicted := make(map[common.Hash]common.Address)
@@ -122,14 +117,14 @@ func TestPrestateWorkflowFromPrepareChains(t *testing.T) {
 			deployed, err = persisted.Chain(deployedID)
 			require.NoError(t, err)
 			require.Equal(t, historicalSelected, deployed.Prestate)
-			require.Equal(t, uint32(embedded.GameTypeSuperPermissioned), *deployed.InitialGameType)
+			require.Equal(t, uint32(embedded.GameTypeCannonKona), *deployed.InitialGameType)
 
 			permissioned, err := persisted.Chain(permissionedID)
 			require.NoError(t, err)
 			require.Equal(t, predicted[permissionedID], permissioned.SystemConfigProxy)
 			require.Zero(t, permissioned.Prestate)
 			// No respectedGameType override, so this chain resolves to the standard
-			// selector, which is SUPER_PERMISSIONED now that super-root is default-on.
+			// selector, which is unconditionally SUPER_PERMISSIONED.
 			permissionedProof, err := pipeline.PreparedChainProofParams(persisted, permissionedID)
 			require.NoError(t, err)
 			require.Equal(t, standard.DisputeGameType, permissionedProof.DisputeGameType)

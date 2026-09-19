@@ -145,7 +145,8 @@ type AdditionalDisputeGameState struct {
 	VMType        VMType
 }
 
-// StartingAnchorProposal is the committed starting-anchor proposal for a permissionless chain.
+// StartingAnchorProposal is the committed SuperV1 genesis anchor that continue hands to OPCM.deploy
+// for every prepared chain.
 type StartingAnchorProposal struct {
 	Root             common.Hash    `json:"root"`
 	L2SequenceNumber hexutil.Uint64 `json:"l2SequenceNumber"`
