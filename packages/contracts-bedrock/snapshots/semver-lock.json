@@ -195,6 +195,10 @@
     "initCodeHash": "0x3a82e248129d19764bb975bb79b48a982f077f33bb508480bf8d2ec1c0c9810d",
     "sourceCodeHash": "0x955bd0c9b47e43219865e4e92abf28d916c96de20cbdf2f94c8ab14d02083759"
   },
+  "src/periphery/interop/SafeETHBridge.sol:SafeETHBridge": {
+    "initCodeHash": "0xb0a18cdcd828fa5e7fe534c312d429b7bdb4c11a0da62a70b938f5e990070628",
+    "sourceCodeHash": "0xb62abee587438f560e47969a3b10863a603b55d01fb11be19457621fb1c12de4"
+  },
   "src/periphery/staking/PolicyEngineStaking.sol:PolicyEngineStaking": {
     "initCodeHash": "0x0dd679c6e955a4bf4af7d98da8c42ac7fd48c5c28af4c61eaeddb782690d6223",
     "sourceCodeHash": "0x24fe77ae2b0dacad1f61f6dd65026ce3a34df7c4d0331eadc661b2e062d6bb54"
