@@ -10,6 +10,7 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-interop-filter/metrics"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
+	"github.com/ethereum-optimism/optimism/op-service/ptr"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
 
 	"github.com/ethereum-optimism/optimism/op-core/interop"
@@ -137,6 +138,47 @@ func TestCrossValidator_InitiatingMessageNotFound(t *testing.T) {
 	err := cv.ValidateAccessEntry(access, safety.LocalUnsafe, exec)
 	require.Error(t, err)
 	require.ErrorIs(t, err, interop.ErrConflict)
+}
+
+func TestCrossValidator_RejectsLagoonActivationBlockMessages(t *testing.T) {
+	mock := newMockChainIngester()
+	checksum := messages.MessageChecksum{0x01}
+	mock.AddLog(102, 10, 0, checksum, messages.BlockSeal{})
+	mock.SetLatestTimestamp(104)
+
+	cfg := testRollupConfig(testChainA, 0, 100)
+	cfg.LagoonTime = ptr.New(uint64(101))
+	mock.isValidInitiatingTimestamp = func(timestamp uint64) bool {
+		return cfg.IsInterop(timestamp) && !cfg.IsInteropActivationBlock(timestamp)
+	}
+
+	chains := map[eth.ChainID]ChainIngester{
+		eth.ChainIDFromUInt64(testChainA): mock,
+	}
+	cv := newTestCrossValidator(chains, testExpiryWindow, 104)
+
+	t.Run("access list validation", func(t *testing.T) {
+		access := makeAccess(testChainA, 102, 10, 0, checksum)
+		exec := makeExecDescriptor(testChainA, 104, 0)
+
+		err := cv.ValidateAccessEntry(access, safety.LocalUnsafe, exec)
+		require.ErrorIs(t, err, interop.ErrConflict)
+		require.ErrorContains(t, err, "Lagoon activation")
+	})
+
+	t.Run("background validation", func(t *testing.T) {
+		execMsg := &messages.ExecutingMessage{
+			ChainID:   eth.ChainIDFromUInt64(testChainA),
+			BlockNum:  10,
+			LogIdx:    0,
+			Timestamp: 102,
+			Checksum:  checksum,
+		}
+
+		err := cv.validateExecutingMessage(execMsg, 104)
+		require.ErrorIs(t, err, interop.ErrConflict)
+		require.ErrorContains(t, err, "Lagoon activation")
+	})
 }
 
 // =============================================================================
@@ -566,6 +608,8 @@ func TestValidateMessageTiming(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			err := validateMessageTiming(
+				newMockChainIngester(),
+				eth.ChainIDFromUInt64(testChainA),
 				tt.initTimestamp,
 				tt.inclusionTimestamp,
 				tt.messageExpiryWindow,
