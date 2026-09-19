@@ -72,6 +72,10 @@ just test-unit
 just test-docs
 ```
 
+`--all-features` pulls in tracy via `reth-tracing`. On hosts without an invariant TSC,
+`tracy-client-sys` otherwise `exit(1)`s before any test runs. `rust/.cargo/config.toml`
+sets `TRACY_NO_INVARIANT_CHECK=1` (non-forced; override with `=0` in the shell if needed).
+
 ### Running op-reth E2E Tests
 
 The op-reth E2E tests (`rust/op-reth/tests/proofs/`) run a full devnet with op-reth as both the sequencer and the validator EL by default; `OP_DEVSTACK_PROOF_SEQUENCER_EL` and `OP_DEVSTACK_PROOF_VALIDATOR_EL` override either role (`rust/op-reth/tests/proofs/utils/preset.go`). They require two build prerequisites:
