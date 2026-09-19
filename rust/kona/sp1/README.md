@@ -208,6 +208,13 @@ proposer loses the ability to defend, resolve, and claim those games.
   prestate and remove its games from the owned set). The registered prestate's
   keys are verified BEFORE any game is created on it, so the proposer never
   bonds a game it has not proven it can defend.
+  The proposer also reads the verifier behind each `SP1PlonkAdapter` it is about to rely on
+  (`sp1Verifier().VERIFIER_HASH()`) and compares it with `sha256(sp1_verifier::PLONK_VK_BYTES)`,
+  the selector the linked sp1-sdk puts on every proof. The registered adapter is checked
+  every creation cycle, so a mismatched registration pauses creation; each game's own
+  immutable verifier is checked before a proof is requested, so a game on another circuit is
+  given up without proving spend. The ERROR log names both hashes and the SDK circuit; the fix
+  is a verifier re-pin or an SDK change. Defense of games on a compatible verifier continues.
 - `KONA_SP1_PROPOSER_PROOF_PROVIDER=mock`: dev-only. Runs the full pipeline natively (witness
   collection computes the real range/consolidation outputs and the aggregation
   inputs are validated), then submits placeholder proof bytes. Only a deployment

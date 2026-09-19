@@ -125,6 +125,8 @@ pub(crate) struct ProofInputs {
     pub(crate) starting_sequence_number: u64,
     pub(crate) root_claim: B256,
     pub(crate) sequence_number: u64,
+    /// The game's immutable `verifier()` adapter; each game keeps the one it was created with.
+    pub(crate) verifier: Address,
 }
 
 /// Super-root safety horizons used by proposal policy.
@@ -220,6 +222,9 @@ pub(crate) trait L1View: Send + Sync {
     async fn proof_status(&self, game: Address) -> Result<u8>;
     async fn proof_inputs(&self, game: Address) -> Result<ProofInputs>;
     async fn latest_l1_timestamp(&self) -> Result<u64>;
+    /// `VERIFIER_HASH()` of the raw SP1 verifier wrapped by the `SP1PlonkAdapter` at
+    /// `verifier` (a game's or the registered args' `verifier`).
+    async fn verifier_hash(&self, verifier: Address) -> Result<B256>;
 }
 
 /// Super-root observations consumed by proposal and proof policy.

@@ -21,6 +21,7 @@ kona-sp1-super-range-executor.workspace = true
 
 # sp1
 sp1-sdk.workspace = true
+sp1-verifier.workspace = true
 
 # alloy
 alloy-consensus.workspace = true
@@ -38,6 +39,7 @@ alloy-contract.workspace = true
 anyhow.workspace = true
 bincode.workspace = true
 parking_lot.workspace = true
+sha2.workspace = true
 metrics.workspace = true
 serde = { workspace = true, features = ["derive", "std"] }
 futures.workspace = true
@@ -54,6 +56,7 @@ jsonrpsee = { workspace = true, features = ["http-client"] }
 [dev-dependencies]
 kona-sp1-client-utils = { workspace = true, features = ["aggregation-test-utils"] }
 metrics-exporter-prometheus.workspace = true
+serde_json = { workspace = true, features = ["std"] }
 tempfile.workspace = true
 tokio = { workspace = true, features = ["test-util"] }
 
