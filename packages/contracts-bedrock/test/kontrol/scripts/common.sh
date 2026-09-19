@@ -172,9 +172,9 @@ copy_to_docker() {
     TMP_DIR=$(mktemp -d)
     cp -r "$WORKSPACE_DIR/." "$TMP_DIR"
     rm -rf "$TMP_DIR/node_modules"
-    # Also remove the agent-doc symlinks (AGENTS.md and its CLAUDE.md alias) because they point
-    # outside the copied tree, which docker cp rejects with the same "invalid symlink" error.
-    rm -f "$TMP_DIR/AGENTS.md" "$TMP_DIR/CLAUDE.md"
+    # Also remove the agent-doc symlink (AGENTS.md) because it points outside the copied
+    # tree, which docker cp rejects with the same "invalid symlink" error.
+    rm -f "$TMP_DIR/AGENTS.md"
     docker cp --follow-link "$TMP_DIR/." $CONTAINER_NAME:/home/user/workspace
     rm -rf "$TMP_DIR"
 

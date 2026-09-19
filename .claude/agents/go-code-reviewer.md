@@ -18,7 +18,7 @@ Do not restate build, lint, test, or convention detail here — read it:
   usage, pre-PR checks
 - [docs/ai/flake-prevention.md](../../docs/ai/flake-prevention.md) — required reading for
   any diff that touches tests
-- [CLAUDE.md](../../CLAUDE.md) and the nearest package-level `CLAUDE.md` — commit format
+- [AGENTS.md](../../AGENTS.md) and the nearest package-level `AGENTS.md` — commit format
   and area-specific rules
 - Domain docs when the diff lands in that area: `derivation.md`, `execution-layer.md`,
   `fault-proofs.md`, `acceptance-tests.md`, `writing-acceptance-tests.md`,
