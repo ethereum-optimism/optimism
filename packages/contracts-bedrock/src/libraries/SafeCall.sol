@@ -11,16 +11,15 @@ library SafeCall {
     /// @param _value    Amount of value to pass to the call
     function send(address _target, uint256 _gas, uint256 _value) internal returns (bool success_) {
         assembly {
-            success_ :=
-                call(
-                    _gas, // gas
-                    _target, // recipient
-                    _value, // ether value
-                    0, // inloc
-                    0, // inlen
-                    0, // outloc
-                    0 // outlen
-                )
+            success_ := call(
+                _gas, // gas
+                _target, // recipient
+                _value, // ether value
+                0, // inloc
+                0, // inlen
+                0, // outloc
+                0 // outlen
+            )
         }
     }
 
@@ -46,16 +45,15 @@ library SafeCall {
         returns (bool success_)
     {
         assembly {
-            success_ :=
-                call(
-                    _gas, // gas
-                    _target, // recipient
-                    _value, // ether value
-                    add(_calldata, 32), // inloc
-                    mload(_calldata), // inlen
-                    0, // outloc
-                    0 // outlen
-                )
+            success_ := call(
+                _gas, // gas
+                _target, // recipient
+                _value, // ether value
+                add(_calldata, 32), // inloc
+                mload(_calldata), // inlen
+                0, // outloc
+                0 // outlen
+            )
         }
     }
 
@@ -152,16 +150,15 @@ library SafeCall {
             // `_minGas` does not account for the `memory_expansion_cost` and `code_execution_cost`
             // factors of the dynamic cost of the `CALL` opcode), the call will receive at least
             // the minimum amount of gas specified.
-            _success :=
-                call(
-                    gas(), // gas
-                    _target, // recipient
-                    _value, // ether value
-                    add(_calldata, 32), // inloc
-                    mload(_calldata), // inlen
-                    0x00, // outloc
-                    0x00 // outlen
-                )
+            _success := call(
+                gas(), // gas
+                _target, // recipient
+                _value, // ether value
+                add(_calldata, 32), // inloc
+                mload(_calldata), // inlen
+                0x00, // outloc
+                0x00 // outlen
+            )
         }
         return _success;
     }

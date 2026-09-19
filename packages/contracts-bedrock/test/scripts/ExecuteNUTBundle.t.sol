@@ -194,13 +194,7 @@ contract ExecuteNUTBundle_Test is Test {
         bytes memory data = abi.encodeCall(ExecuteNUTBundle_Target.record, (1));
         uint64 intrinsicGas = UpgradeUtils.computeIntrinsicGas(data);
         ExecuteNUTBundle.PostWrapperTxn memory wrapper = ExecuteNUTBundle.PostWrapperTxn({
-            from: alice,
-            to: TARGET,
-            data: data,
-            gasLimit: intrinsicGas - 1,
-            mint: 0,
-            value: 0,
-            intent: "Wrapper Gas"
+            from: alice, to: TARGET, data: data, gasLimit: intrinsicGas - 1, mint: 0, value: 0, intent: "Wrapper Gas"
         });
 
         vm.expectRevert("ExecuteNUTBundle: wrapper gasLimit < intrinsicGas for Wrapper Gas");

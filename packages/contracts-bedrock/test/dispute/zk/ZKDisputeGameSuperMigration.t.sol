@@ -297,29 +297,30 @@ contract ZKDisputeGameSuperMigration_Test is DisputeGameFactory_TestInit {
         _pushDisabled(GameTypes.SUPER_PERMISSIONED);
         _pushDisabled(GameTypes.SUPER_CANNON_KONA);
 
-        _zkUpgradeInput.disputeGameConfigs.push(
-            IOPContractsManagerUtils.DisputeGameConfig({
-                enabled: true,
-                initBond: flipBond,
-                gameType: GameTypes.ZK_DISPUTE_GAME,
-                gameArgs: abi.encode(
-                    IOPContractsManagerUtils.ZKDisputeGameConfig({
-                        absolutePrestate: zkAbsolutePrestate,
-                        maxChallengeDuration: zkMaxChallengeDuration,
-                        maxProveDuration: zkMaxProveDuration,
-                        challengerBond: flipBond
-                    })
-                )
-            })
-        );
+        _zkUpgradeInput.disputeGameConfigs
+            .push(
+                IOPContractsManagerUtils.DisputeGameConfig({
+                    enabled: true,
+                    initBond: flipBond,
+                    gameType: GameTypes.ZK_DISPUTE_GAME,
+                    gameArgs: abi.encode(
+                        IOPContractsManagerUtils.ZKDisputeGameConfig({
+                            absolutePrestate: zkAbsolutePrestate,
+                            maxChallengeDuration: zkMaxChallengeDuration,
+                            maxProveDuration: zkMaxProveDuration,
+                            challengerBond: flipBond
+                        })
+                    )
+                })
+            );
 
         // Flip the respected game type to ZK (the previously-respected super game is now disabled).
-        _zkUpgradeInput.extraInstructions.push(
-            IOPContractsManagerUtils.ExtraInstruction({
-                key: "overrides.cfg.startingRespectedGameType",
-                data: abi.encode(GameTypes.ZK_DISPUTE_GAME)
-            })
-        );
+        _zkUpgradeInput.extraInstructions
+            .push(
+                IOPContractsManagerUtils.ExtraInstruction({
+                    key: "overrides.cfg.startingRespectedGameType", data: abi.encode(GameTypes.ZK_DISPUTE_GAME)
+                })
+            );
 
         // Re-seed the anchor to a fresh honest super root, as the real migration does. The override
         // is derived from getAnchorRoot() so it always sits one above the live anchor. That keeps it
@@ -327,26 +328,27 @@ contract ZKDisputeGameSuperMigration_Test is DisputeGameFactory_TestInit {
         // AnchorStateRegistry.initialize requires the new root to be strictly ahead of the current
         // anchor and then clears `anchorGame` so getAnchorRoot() falls back to startingAnchorRoot.
         (, uint256 anchorSeqNum) = anchorStateRegistry.getAnchorRoot();
-        _zkUpgradeInput.extraInstructions.push(
-            IOPContractsManagerUtils.ExtraInstruction({
-                key: "overrides.cfg.startingAnchorRoot",
-                data: abi.encode(
-                    Proposal({ root: Hash.wrap(keccak256("zkMigrationAnchor")), l2SequenceNumber: anchorSeqNum + 1 })
-                )
-            })
-        );
+        _zkUpgradeInput.extraInstructions
+            .push(
+                IOPContractsManagerUtils.ExtraInstruction({
+                    key: "overrides.cfg.startingAnchorRoot",
+                    data: abi.encode(
+                        Proposal({
+                            root: Hash.wrap(keccak256("zkMigrationAnchor")), l2SequenceNumber: anchorSeqNum + 1
+                        })
+                    )
+                })
+            );
     }
 
     /// @notice Pushes a disabled dispute game config for the given type.
     function _pushDisabled(GameType _gameType) internal {
-        _zkUpgradeInput.disputeGameConfigs.push(
-            IOPContractsManagerUtils.DisputeGameConfig({
-                enabled: false,
-                initBond: 0,
-                gameType: _gameType,
-                gameArgs: hex""
-            })
-        );
+        _zkUpgradeInput.disputeGameConfigs
+            .push(
+                IOPContractsManagerUtils.DisputeGameConfig({
+                    enabled: false, initBond: 0, gameType: _gameType, gameArgs: hex""
+                })
+            );
     }
 
     /// @notice Runs the OPCM upgrade as the chain ProxyAdmin owner

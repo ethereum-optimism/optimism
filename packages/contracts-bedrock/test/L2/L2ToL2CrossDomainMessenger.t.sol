@@ -35,28 +35,46 @@ contract L2ToL2CrossDomainMessenger_WithModifiableTransientStorage_Harness is L2
         return _entered();
     }
 
-    /// @notice Sets the entered slot value in transient storage.
-    /// @param _value Value to set.
-    function setEntered(uint256 _value) external {
+    /// @notice Sets and reads the cross-domain message sender in one transaction.
+    function setAndGetCrossDomainMessageSender(address _sender) external returns (address sender_) {
         assembly {
-            tstore(ENTERED_SLOT, _value)
-        }
-    }
-
-    /// @notice Sets the cross domain messenger sender in transient storage.
-    /// @param _sender Sender address to set.
-    function setCrossDomainMessageSender(address _sender) external {
-        assembly {
+            tstore(ENTERED_SLOT, 1)
             tstore(CROSS_DOMAIN_MESSAGE_SENDER_SLOT, _sender)
         }
+        return this.crossDomainMessageSender();
     }
 
-    /// @notice Sets the cross domain messenger source in transient storage.
-    /// @param _source Source chain ID to set.
-    function setCrossDomainMessageSource(uint256 _source) external {
+    /// @notice Sets and reads the cross-domain message source in one transaction.
+    function setAndGetCrossDomainMessageSource(uint256 _source) external returns (uint256 source_) {
         assembly {
+            tstore(ENTERED_SLOT, 1)
             tstore(CROSS_DOMAIN_MESSAGE_SOURCE_SLOT, _source)
         }
+        return this.crossDomainMessageSource();
+    }
+
+    /// @notice Sets and reads the cross-domain message context in one transaction.
+    function setAndGetCrossDomainMessageContext(
+        address _sender,
+        uint256 _source
+    )
+        external
+        returns (address sender_, uint256 source_)
+    {
+        assembly {
+            tstore(ENTERED_SLOT, 1)
+            tstore(CROSS_DOMAIN_MESSAGE_SENDER_SLOT, _sender)
+            tstore(CROSS_DOMAIN_MESSAGE_SOURCE_SLOT, _source)
+        }
+        return this.crossDomainMessageContext();
+    }
+
+    /// @notice Reads the cross-domain message context after entering in the same transaction.
+    function getCrossDomainMessageContextAfterEntering() external returns (address sender_, uint256 source_) {
+        assembly {
+            tstore(ENTERED_SLOT, 1)
+        }
+        return this.crossDomainMessageContext();
     }
 }
 
@@ -87,14 +105,7 @@ abstract contract L2ToL2CrossDomainMessenger_TestInit is Test {
 contract L2ToL2CrossDomainMessenger_CrossDomainMessageSender_Test is L2ToL2CrossDomainMessenger_TestInit {
     /// @notice Tests that the `crossDomainMessageSender` function returns the correct value.
     function testFuzz_crossDomainMessageSender_succeeds(address _sender) external {
-        // Set `entered` to non-zero value to prevent NotEntered revert
-        l2ToL2CrossDomainMessenger.setEntered(1);
-        // Ensure that the contract is now entered
-        assertEq(l2ToL2CrossDomainMessenger.entered(), true);
-        // Set cross domain message sender in the transient storage
-        l2ToL2CrossDomainMessenger.setCrossDomainMessageSender(_sender);
-        // Check that the `crossDomainMessageSender` function returns the correct value
-        assertEq(l2ToL2CrossDomainMessenger.crossDomainMessageSender(), _sender);
+        assertEq(l2ToL2CrossDomainMessenger.setAndGetCrossDomainMessageSender(_sender), _sender);
     }
 
     /// @notice Tests that the `crossDomainMessageSender` function reverts when not entered.
@@ -115,14 +126,7 @@ contract L2ToL2CrossDomainMessenger_CrossDomainMessageSender_Test is L2ToL2Cross
 contract L2ToL2CrossDomainMessenger_CrossDomainMessageSource_Test is L2ToL2CrossDomainMessenger_TestInit {
     /// @notice Tests that the `crossDomainMessageSource` function returns the correct value.
     function testFuzz_crossDomainMessageSource_succeeds(uint256 _source) external {
-        // Set `entered` to non-zero value to prevent NotEntered revert
-        l2ToL2CrossDomainMessenger.setEntered(1);
-        // Ensure that the contract is now entered
-        assertEq(l2ToL2CrossDomainMessenger.entered(), true);
-        // Set cross domain message source in the transient storage
-        l2ToL2CrossDomainMessenger.setCrossDomainMessageSource(_source);
-        // Check that the `crossDomainMessageSource` function returns the correct value
-        assertEq(l2ToL2CrossDomainMessenger.crossDomainMessageSource(), _source);
+        assertEq(l2ToL2CrossDomainMessenger.setAndGetCrossDomainMessageSource(_source), _source);
     }
 
     /// @notice Tests that the `crossDomainMessageSource` function reverts when not entered.
@@ -143,18 +147,8 @@ contract L2ToL2CrossDomainMessenger_CrossDomainMessageSource_Test is L2ToL2Cross
 contract L2ToL2CrossDomainMessenger_CrossDomainMessageContext_Test is L2ToL2CrossDomainMessenger_TestInit {
     /// @notice Tests that the `crossDomainMessageContext` function returns the correct value.
     function testFuzz_crossDomainMessageContext_succeeds(address _sender, uint256 _source) external {
-        // Set `entered` to non-zero value to prevent NotEntered revert
-        l2ToL2CrossDomainMessenger.setEntered(1);
-        // Ensure that the contract is now entered
-        assertEq(l2ToL2CrossDomainMessenger.entered(), true);
-
-        // Set cross domain message source in the transient storage
-        l2ToL2CrossDomainMessenger.setCrossDomainMessageSender(_sender);
-        l2ToL2CrossDomainMessenger.setCrossDomainMessageSource(_source);
-
-        // Check that the `crossDomainMessageContext` function returns the correct value
         (address crossDomainContextSender, uint256 crossDomainContextSource) =
-            l2ToL2CrossDomainMessenger.crossDomainMessageContext();
+            l2ToL2CrossDomainMessenger.setAndGetCrossDomainMessageContext(_sender, _source);
         assertEq(crossDomainContextSender, _sender);
         assertEq(crossDomainContextSource, _source);
     }
@@ -274,9 +268,7 @@ contract L2ToL2CrossDomainMessenger_SendMessage_Test is L2ToL2CrossDomainMesseng
 
         // Call `senderMessage` with the L2ToL2CrossDomainMessenger as the target to provoke revert
         l2ToL2CrossDomainMessenger.sendMessage({
-            _destination: _destination,
-            _target: Predeploys.L2_TO_L2_CROSS_DOMAIN_MESSENGER,
-            _message: _message
+            _destination: _destination, _target: Predeploys.L2_TO_L2_CROSS_DOMAIN_MESSENGER, _message: _message
         });
     }
 }
@@ -500,12 +492,10 @@ contract L2ToL2CrossDomainMessenger_RelayMessage_Test is L2ToL2CrossDomainMessen
         // Check that entered slot is cleared after the function call
         assertEq(l2ToL2CrossDomainMessenger.entered(), false);
 
-        // Check that metadata is cleared after the function call. We need to set the `entered` slot
-        // to non-zero value to prevent NotEntered revert when calling the
-        // crossDomainMessageSender and crossDomainMessageSource functions
-        l2ToL2CrossDomainMessenger.setEntered(1);
-        assertEq(l2ToL2CrossDomainMessenger.crossDomainMessageSource(), 0);
-        assertEq(l2ToL2CrossDomainMessenger.crossDomainMessageSender(), address(0));
+        // Check that metadata is cleared after the function call.
+        (address sender, uint256 source) = l2ToL2CrossDomainMessenger.getCrossDomainMessageContextAfterEntering();
+        assertEq(source, 0);
+        assertEq(sender, address(0));
     }
 
     /// @notice Tests the `relayMessage` function returns the expected return data from the call to
@@ -611,12 +601,10 @@ contract L2ToL2CrossDomainMessenger_RelayMessage_Test is L2ToL2CrossDomainMessen
         // Check that entered slot is cleared after the function call
         assertEq(l2ToL2CrossDomainMessenger.entered(), false);
 
-        // Check that metadata is cleared after the function call. We need to set the `entered`
-        // slot to non-zero value to prevent NotEntered revert when calling the
-        // crossDomainMessageSender and crossDomainMessageSource functions
-        l2ToL2CrossDomainMessenger.setEntered(1);
-        assertEq(l2ToL2CrossDomainMessenger.crossDomainMessageSource(), 0);
-        assertEq(l2ToL2CrossDomainMessenger.crossDomainMessageSender(), address(0));
+        // Check that metadata is cleared after the function call.
+        (address sender, uint256 source) = l2ToL2CrossDomainMessenger.getCrossDomainMessageContextAfterEntering();
+        assertEq(source, 0);
+        assertEq(sender, address(0));
     }
 
     /// @notice Tests that the `relayMessage` function reverts when log identifier is not the cdm
@@ -721,6 +709,8 @@ contract L2ToL2CrossDomainMessenger_RelayMessage_Test is L2ToL2CrossDomainMessen
                 && _target != foundryVMAddress
         );
 
+        assumeNotForgeAddress(_target);
+
         // Ensure that the target contract does not revert (using the message also as the return
         // data)
         vm.mockCall({ callee: _target, msgValue: _value, data: _message, returnData: _message });
@@ -781,8 +771,13 @@ contract L2ToL2CrossDomainMessenger_RelayMessage_Test is L2ToL2CrossDomainMessen
                 && _target != foundryVMAddress
         );
 
+        assumeNotForgeAddress(_target);
+
         // Ensure that the target call is payable if value is sent
         if (_value > 0) assumePayable(_target);
+
+        // Ensure the value transfer cannot overflow the target's balance.
+        vm.deal(_target, 0);
 
         // Ensure that the target contract reverts
         vm.mockCallRevert({ callee: _target, msgValue: _value, data: _message, revertData: _revertData });

@@ -318,8 +318,7 @@ contract GenerateNUTBundle is Script {
         for (uint256 i = 0; i < _implementationConfigs.length; i++) {
             _implRecords.push(
                 L2ContractsManagerTypes.ImplRecord({
-                    name: _implementationConfigs[i].name,
-                    impl: _implementationConfigs[i].implementation
+                    name: _implementationConfigs[i].name, impl: _implementationConfigs[i].implementation
                 })
             );
         }

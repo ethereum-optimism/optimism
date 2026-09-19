@@ -54,6 +54,8 @@ func NewStandardClient(workdir string) (*Client, error) {
 	}
 
 	forgeClient := NewClient(forgeBinary)
+	// Confirm each broadcast transaction before submitting the next.
+	forgeClient.SlowBroadcast = true
 
 	// Determine the working directory for forge
 	// The artifacts FS points to a subdirectory (e.g., "forge-artifacts" or "out"),

@@ -75,8 +75,7 @@ contract SaferSafes_Uncategorized_Test is SaferSafes_TestInit {
 
         // Configure the liveness module FIRST
         LivenessModule2.ModuleConfig memory moduleConfig = LivenessModule2.ModuleConfig({
-            livenessResponsePeriod: livenessResponsePeriod,
-            fallbackOwner: fallbackOwner
+            livenessResponsePeriod: livenessResponsePeriod, fallbackOwner: fallbackOwner
         });
 
         vm.prank(address(safeInstance.safe));
@@ -102,8 +101,7 @@ contract SaferSafes_Uncategorized_Test is SaferSafes_TestInit {
         saferSafes.configureTimelockGuard(timelockDelay);
 
         LivenessModule2.ModuleConfig memory moduleConfig = LivenessModule2.ModuleConfig({
-            livenessResponsePeriod: livenessResponsePeriod,
-            fallbackOwner: fallbackOwner
+            livenessResponsePeriod: livenessResponsePeriod, fallbackOwner: fallbackOwner
         });
 
         // Configure the liveness module SECOND (this will trigger the check)
@@ -126,8 +124,7 @@ contract SaferSafes_Uncategorized_Test is SaferSafes_TestInit {
 
         // Configure liveness module first
         LivenessModule2.ModuleConfig memory moduleConfig = LivenessModule2.ModuleConfig({
-            livenessResponsePeriod: livenessResponsePeriod,
-            fallbackOwner: fallbackOwner
+            livenessResponsePeriod: livenessResponsePeriod, fallbackOwner: fallbackOwner
         });
 
         vm.prank(address(safeInstance.safe));
@@ -148,8 +145,7 @@ contract SaferSafes_Uncategorized_Test is SaferSafes_TestInit {
         saferSafes.configureTimelockGuard(timelockDelay);
 
         LivenessModule2.ModuleConfig memory moduleConfig = LivenessModule2.ModuleConfig({
-            livenessResponsePeriod: livenessResponsePeriod,
-            fallbackOwner: fallbackOwner
+            livenessResponsePeriod: livenessResponsePeriod, fallbackOwner: fallbackOwner
         });
 
         // Configure liveness module second - this will trigger the check

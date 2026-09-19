@@ -367,18 +367,19 @@ library SafeTestLib {
         bytes32 safeTxHash;
         {
             uint256 _nonce = instance.safe.nonce();
-            safeTxHash = instance.safe.getTransactionHash({
-                to: to,
-                value: value,
-                data: data,
-                operation: operation,
-                safeTxGas: safeTxGas,
-                baseGas: baseGas,
-                gasPrice: gasPrice,
-                gasToken: gasToken,
-                refundReceiver: refundReceiver,
-                _nonce: _nonce
-            });
+            safeTxHash = instance.safe
+                .getTransactionHash({
+                    to: to,
+                    value: value,
+                    data: data,
+                    operation: operation,
+                    safeTxGas: safeTxGas,
+                    baseGas: baseGas,
+                    gasPrice: gasPrice,
+                    gasToken: gasToken,
+                    refundReceiver: refundReceiver,
+                    _nonce: _nonce
+                });
         }
 
         if (signatures.length == 0) {
@@ -397,18 +398,19 @@ library SafeTestLib {
             }
         }
 
-        return instance.safe.execTransaction({
-            to: to,
-            value: value,
-            data: data,
-            operation: operation,
-            safeTxGas: safeTxGas,
-            baseGas: baseGas,
-            gasPrice: gasPrice,
-            gasToken: gasToken,
-            refundReceiver: payable(refundReceiver),
-            signatures: signatures
-        });
+        return instance.safe
+            .execTransaction({
+                to: to,
+                value: value,
+                data: data,
+                operation: operation,
+                safeTxGas: safeTxGas,
+                baseGas: baseGas,
+                gasPrice: gasPrice,
+                gasToken: gasToken,
+                refundReceiver: payable(refundReceiver),
+                signatures: signatures
+            });
     }
 
     /// @dev Executes either a CALL or DELEGATECALL transaction.
