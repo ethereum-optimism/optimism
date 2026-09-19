@@ -3,6 +3,7 @@ package status
 import (
 	"context"
 	"math/rand"
+	"sync"
 	"testing"
 
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
@@ -10,6 +11,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
 	"github.com/ethereum-optimism/optimism/op-service/testutils"
+	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/stretchr/testify/require"
 )
@@ -96,4 +98,37 @@ func TestForkchoiceUpdateSeedsLocalSafeWithGenesisSafe(t *testing.T) {
 	require.Equal(t, genesis, status.SafeL2)
 	require.Equal(t, genesis, status.LocalSafeL2)
 	require.Equal(t, genesis, status.FinalizedL2)
+}
+
+// The L1 handlers run on three separate goroutines — the head subscription and
+// the safe/finalized pollers — while OnEvent runs on the driver's event loop.
+// All four mutate st.data, so they must serialise on the same mutex. Run with
+// -race: without the locks this reports writes racing with UpdateSyncStatus.
+func TestStatusTrackerConcurrentUpdates(t *testing.T) {
+	tracker := NewStatusTracker(testlog.Logger(t, log.LevelError), NoopMetrics{})
+
+	const iterations = 200
+	writers := []func(i uint64){
+		func(i uint64) { tracker.OnL1Unsafe(eth.L1BlockRef{Number: i, Hash: common.Hash{byte(i)}}) },
+		func(i uint64) { tracker.OnL1Safe(eth.L1BlockRef{Number: i}) },
+		func(i uint64) { tracker.OnL1Finalized(eth.L1BlockRef{Number: i}) },
+		func(i uint64) {
+			tracker.OnEvent(context.Background(), engine.ForkchoiceUpdateEvent{
+				UnsafeL2Head: eth.L2BlockRef{Number: i},
+			})
+		},
+		func(i uint64) { require.NotNil(t, tracker.SyncStatus()) },
+	}
+
+	var wg sync.WaitGroup
+	for _, writer := range writers {
+		wg.Add(1)
+		go func(fn func(uint64)) {
+			defer wg.Done()
+			for i := uint64(0); i < iterations; i++ {
+				fn(i)
+			}
+		}(writer)
+	}
+	wg.Wait()
 }
