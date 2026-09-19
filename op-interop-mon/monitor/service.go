@@ -53,9 +53,9 @@ type InteropMonitorService struct {
 }
 
 func InteropMonitorServiceFromCLIConfig(ctx context.Context, version string, cfg *CLIConfig, log log.Logger) (*InteropMonitorService, error) {
-	var ms InteropMonitorService
+	ms := InteropMonitorService{Log: log}
 	if err := ms.initFromCLIConfig(ctx, version, cfg, log); err != nil {
-		return nil, errors.Join(err, ms.Start(ctx))
+		return nil, errors.Join(err, ms.Stop(ctx))
 	}
 	return &ms, nil
 }
@@ -68,9 +68,9 @@ func InteropMonitorServiceFromClients(
 	clients map[eth.ChainID]*sources.EthClient,
 	log log.Logger,
 ) (*InteropMonitorService, error) {
-	var ms InteropMonitorService
+	ms := InteropMonitorService{Log: log}
 	if err := ms.initFromClients(ctx, version, cfg, clients, log); err != nil {
-		return nil, errors.Join(err, ms.Start(ctx))
+		return nil, errors.Join(err, ms.Stop(ctx))
 	}
 	return &ms, nil
 }
@@ -376,10 +376,12 @@ func (ms *InteropMonitorService) Stop(ctx context.Context) error {
 		}
 	}
 
-	ms.Log.Info("stopping metric collector")
-	if err := ms.collector.Stop(); err != nil {
-		result = errors.Join(result, fmt.Errorf("failed to stop metric collector: %w", err))
-		ms.Log.Error("failed to stop metric collector", "error", err)
+	if ms.collector != nil {
+		ms.Log.Info("stopping metric collector")
+		if err := ms.collector.Stop(); err != nil {
+			result = errors.Join(result, fmt.Errorf("failed to stop metric collector: %w", err))
+			ms.Log.Error("failed to stop metric collector", "error", err)
+		}
 	}
 
 	ms.Log.Info("stopping rpc server")
