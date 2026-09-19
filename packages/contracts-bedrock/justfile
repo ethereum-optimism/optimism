@@ -71,18 +71,77 @@ clean:
 #                         TEST                         #
 ########################################################
 
-# Runs standard contract tests.
-test *ARGS: build-go-ffi
+# Runs one Forge invocation without EVM routing.
+_test-single *ARGS: build-go-ffi
   #!/bin/bash
-  if [ -n "$JUNIT_TEST_PATH" ]; then
+  if [ -n "${JUNIT_TEST_PATH:-}" ]; then
     forge test {{ARGS}} --junit > "$JUNIT_TEST_PATH"
   else
     forge test {{ARGS}}
   fi
 
+# L2 tests and ExecuteNUTBundle retain the configured EVM.
+DEFAULT_EVM_TESTS := '^test/L2/|^test/scripts/ExecuteNUTBundle\.t\.sol$'
+
+# Runs L1 tests under Amsterdam and default-EVM tests separately.
+# TEST_FILES optionally limits the input; JUNIT_TEST_DIR enables per-pass reports.
+test *ARGS:
+  #!/bin/bash
+  set -uo pipefail
+  TEST_FILES="${TEST_FILES:-$(find test -name '*.t.sol')}"
+  AMSTERDAM_FILES=$(echo "$TEST_FILES" | grep -vE '{{DEFAULT_EVM_TESTS}}' || true)
+  DEFAULT_EVM_FILES=$(echo "$TEST_FILES" | grep -E '{{DEFAULT_EVM_TESTS}}' || true)
+  [ -z "${JUNIT_TEST_DIR:-}" ] || mkdir -p "$JUNIT_TEST_DIR"
+  mkdir -p cache
+  printf '%s\n' "$TEST_FILES" > cache/test-files
+  rm -f cache/test-failures-amsterdam cache/test-failures-l2
+
+  run_test() { # <pass-name> <test-files>
+    local pass="$1"
+    local files="$2"
+    local junit_path="${JUNIT_TEST_DIR:+$JUNIT_TEST_DIR/results-$pass.xml}"
+    rm -f cache/test-failures
+    FOUNDRY_MATCH_PATH="./{$(echo "$files" | paste -sd, -)}" \
+    JUNIT_TEST_PATH="$junit_path" \
+      just _test-single {{ARGS}} || {
+        status=1
+        [ ! -f cache/test-failures ] || cp cache/test-failures "cache/test-failures-$pass"
+      }
+  }
+
+  status=0
+  if [ -n "$AMSTERDAM_FILES" ]; then
+    FOUNDRY_EVM_VERSION=amsterdam run_test amsterdam "$AMSTERDAM_FILES"
+  fi
+  if [ -n "$DEFAULT_EVM_FILES" ]; then
+    run_test l2 "$DEFAULT_EVM_FILES"
+  fi
+  exit $status
+
 # Runs standard contract tests (developer mode).
 test-dev *ARGS: build-go-ffi
   FOUNDRY_PROFILE=lite forge test {{ARGS}}
+
+# Runs only the Amsterdam half of the suite (everything not in DEFAULT_EVM_TESTS).
+test-amsterdam *ARGS:
+  TEST_FILES="$(find test -name '*.t.sol' | grep -vE '{{DEFAULT_EVM_TESTS}}')" just test {{ARGS}}
+
+# Runs only the default-EVM suite (the L2 EVM is not changing).
+test-l2 *ARGS:
+  TEST_FILES="$(find test -name '*.t.sol' | grep -E '{{DEFAULT_EVM_TESTS}}')" just test {{ARGS}}
+
+# Checks non-L2 operations against the EIP-7825 transaction gas cap.
+check-gas-cap *ARGS: build-go-ffi
+  #!/bin/bash
+  set -euo pipefail
+  TEST_FILES="${TEST_FILES:-$(find test -name '*.t.sol' | grep -vE '{{DEFAULT_EVM_TESTS}}')}"
+  REPORT=cache/gas-report-amsterdam.json
+  mkdir -p cache
+  echo "check-gas-cap: running the non-L2 suite under Amsterdam with the gas report enabled..."
+  FOUNDRY_MATCH_PATH="./{$(echo "$TEST_FILES" | paste -sd, -)}" \
+  FOUNDRY_EVM_VERSION=amsterdam \
+    forge test --gas-report --json {{ARGS}} > "$REPORT" || true
+  bash scripts/checks/check-gas-cap.sh "$REPORT"
 
 # Default block number for the forked upgrade path.
 # Block numbers are calculated deterministically based on the current day.
@@ -167,9 +226,29 @@ test-upgrade-against-anvil *ARGS: build-go-ffi
   forge test {{ARGS}} \
   --match-path "test/{L1,dispute,cannon}/**"
 
-# Runs standard contract tests with rerun flag.
+# Reruns each pass's recorded failures under its original EVM version.
 test-rerun: build-go-ffi
-  forge test --rerun -vvv
+  #!/bin/bash
+  set -uo pipefail
+  status=0
+  found=0
+  if [ -f cache/test-failures-amsterdam ]; then
+    found=1
+    cp cache/test-failures-amsterdam cache/test-failures
+    FOUNDRY_EVM_VERSION=amsterdam forge test --rerun -vvv || status=1
+  fi
+  if [ -f cache/test-failures-l2 ]; then
+    found=1
+    cp cache/test-failures-l2 cache/test-failures
+    forge test --rerun -vvv || status=1
+  fi
+  if [ "$found" = 0 ]; then
+    if [ -f cache/test-files ]; then
+      export TEST_FILES="$(cat cache/test-files)"
+    fi
+    exec just test -vvv
+  fi
+  exit "$status"
 
 # Runs standard contract tests with rerun flag (developer mode).
 test-dev-rerun: build-go-ffi
@@ -182,17 +261,72 @@ test-kontrol: build-go-ffi build kontrol-summary-full test-kontrol-no-build
 test-kontrol-no-build:
   ./test/kontrol/scripts/run-kontrol.sh script
 
-# Runs contract coverage.
-coverage: build-go-ffi
-  forge coverage
+# Runs contract coverage. Mirrors `test`: L1 coverage runs under Amsterdam while L2
+# coverage and ExecuteNUTBundle run at the default EVM version.
+#
+# Env:
+# - TEST_FILES: optional newline-separated list of test files to run, relative to the
+#   package root; defaults to all of test/.
+# - COVERAGE_REPORT_FILE: optional merged lcov output path.
+coverage *ARGS: build-go-ffi
+  #!/bin/bash
+  set -euo pipefail
+  TEST_FILES="${TEST_FILES:-$(find test -name '*.t.sol')}"
+  AMSTERDAM_FILES=$(echo "$TEST_FILES" | grep -vE '{{DEFAULT_EVM_TESTS}}' || true)
+  DEFAULT_EVM_FILES=$(echo "$TEST_FILES" | grep -E '{{DEFAULT_EVM_TESTS}}' || true)
+  REPORT_FILE="${COVERAGE_REPORT_FILE:-}"
+  REPORTS=()
+
+  mkdir -p cache
+  rm -f cache/test-failures-amsterdam cache/test-failures-l2
+
+  run_coverage() { # <pass-name> <test-files>
+    local pass="$1"
+    local files="$2"
+    shift 2
+    local pass_report=""
+    if [ -n "$REPORT_FILE" ]; then
+      pass_report="cache/coverage-$pass.info"
+      set -- --report lcov --report-file "$pass_report"
+      REPORTS+=("$pass_report")
+    fi
+
+    rm -f cache/test-failures
+    local status=0
+    FOUNDRY_MATCH_PATH="./{$(echo "$files" | paste -sd, -)}" \
+      forge coverage {{ARGS}} "$@" || status=$?
+    if [ "$status" -ne 0 ]; then
+      if [ -f cache/test-failures ]; then
+        cp cache/test-failures "cache/test-failures-$pass"
+      fi
+      return "$status"
+    fi
+  }
+
+  if [ -n "$AMSTERDAM_FILES" ]; then
+    # Solc requires experimental mode for Amsterdam codegen.
+    FOUNDRY_EVM_VERSION=amsterdam FOUNDRY_EXPERIMENTAL=true run_coverage amsterdam "$AMSTERDAM_FILES"
+  fi
+  if [ -n "$DEFAULT_EVM_FILES" ]; then
+    run_coverage l2 "$DEFAULT_EVM_FILES"
+  fi
+
+  if [ -n "$REPORT_FILE" ]; then
+    if [ "${#REPORTS[@]}" -eq 1 ]; then
+      cp "${REPORTS[0]}" "$REPORT_FILE"
+    else
+      lcov -a "${REPORTS[0]}" -a "${REPORTS[1]}" -o "$REPORT_FILE"
+    fi
+  fi
 
 # Runs contract coverage with lcov.
-coverage-lcov *ARGS: build-go-ffi
-  forge coverage {{ARGS}} --report lcov --report-file lcov.info
+coverage-lcov *ARGS:
+  COVERAGE_REPORT_FILE=lcov.info just coverage {{ARGS}}
 
 # Runs upgrade path variant of contract coverage tests.
 coverage-upgrade *ARGS:
-  just prepare-upgrade-env "forge coverage {{ARGS}}"
+  # Solc requires experimental mode for Amsterdam codegen.
+  FOUNDRY_EVM_VERSION=amsterdam FOUNDRY_EXPERIMENTAL=true just prepare-upgrade-env "forge coverage {{ARGS}}"
 
 # Runs contract coverage with lcov.
 coverage-lcov-upgrade *ARGS: build-go-ffi
@@ -219,7 +353,7 @@ prepare-l2-upgrade-env *ARGS:
 # Runs L2 fork upgrade tests.
 # Usage: L2_FORK_RPC_URL=<url> just test-l2-fork-upgrade [ARGS]
 test-l2-fork-upgrade *ARGS:
-  just prepare-l2-upgrade-env "just test {{ARGS}}"
+  just prepare-l2-upgrade-env "just _test-single {{ARGS}}"
 
 test-l2-fork-upgrade-rerun *ARGS:
   just test-l2-fork-upgrade {{ARGS}} --rerun -vvvv
@@ -242,7 +376,7 @@ prepare-l2cm-activation-env *ARGS:
 # Runs L2CM activation (betanet fork) tests.
 # Usage: L2_FORK_RPC_URL=<url> L2_BLOCK_BEFORE_FORK=<block> NUT_BUNDLE_PATH=<path> just test-l2cm-activation-test [ARGS]
 test-l2cm-activation-test *ARGS:
-  just prepare-l2cm-activation-env "just test {{ARGS}}"
+  just prepare-l2cm-activation-env "just _test-single {{ARGS}}"
 
 test-l2cm-activation-test-rerun *ARGS:
   just test-l2cm-activation-test {{ARGS}} --rerun -vvvv

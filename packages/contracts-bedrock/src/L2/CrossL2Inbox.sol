@@ -50,8 +50,8 @@ contract CrossL2Inbox is ISemver {
     error LogIndexTooHigh();
 
     /// @notice Semantic version.
-    /// @custom:semver 1.1.0
-    string public constant version = "1.1.0";
+    /// @custom:semver 1.1.1
+    string public constant version = "1.1.1";
 
     /// @notice The mask for the most significant bits of the checksum.
     /// @dev    Used to set the most significant byte to zero.
@@ -60,6 +60,7 @@ contract CrossL2Inbox is ISemver {
     /// @notice Mask used to set the first byte of the bare checksum to 3 (0x03).
     bytes32 internal constant _TYPE_3_MASK = bytes32(uint256(0x03 << 248));
 
+    // TODO(#22948): Verify warm-slot detection against the L2 Glamsterdam gas schedule.
     /// @notice The threshold to use to know whether the slot is warm or not.
     uint256 internal constant _WARM_READ_THRESHOLD = 1000;
 

@@ -291,12 +291,8 @@ contract L2CrossDomainMessenger_Uncategorized_Test is L2CrossDomainMessenger_Tes
         uint32 _minGasLimit,
         uint32 _gasToUse
     )
-        external
+        public
     {
-        // TODO(#14609): Update this test to use default.isolate = true once a new stable Foundry
-        // release is available that includes #9904. That will allow us to use this test to check
-        // for changes to the EVM itself that might cause our gas formula to be incorrect.
-
         // Skip if this is a fork test, won't work.
         skipIfForkTest("L2CrossDomainMessenger doesn't exist on L1 in forked test");
 
@@ -368,6 +364,11 @@ contract L2CrossDomainMessenger_Uncategorized_Test is L2CrossDomainMessenger_Tes
         assertTrue(
             inFailedMessages || inSuccessfulMessages, "message should be in either failed or successful messages"
         );
+    }
+
+    /// @notice Tests that payload copying leaves enough gas to record a failed relay.
+    function test_relayMessage_largePayloadAllGasTarget_succeeds() external {
+        testFuzz_relayMessage_baseGasSufficient_succeeds(34_000, 10_000, type(uint32).max);
     }
 
     /// @notice Tests that `relayMessage` has enough base gas to finish when relaying a near-max
