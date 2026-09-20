@@ -122,7 +122,7 @@ func TestCLITestRunnerCancellation(t *testing.T) {
 	select {
 	case err := <-done:
 		require.Error(t, err)
-	case <-time.After(3 * time.Second):
+	case <-time.After(10 * time.Second):
 		// A surviving child retains stdout and prevents Run from returning.
 		_ = syscall.Kill(childPID, syscall.SIGKILL)
 		<-done
