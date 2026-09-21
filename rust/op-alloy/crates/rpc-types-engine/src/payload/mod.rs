@@ -14,6 +14,13 @@ use alloy_rpc_types_engine::{
     ExecutionPayloadV3,
 };
 
+/// UPSTREAM-MIRROR(copy): alloy-rpc-types-engine@2.4.2 `alloy_rpc_types_engine::ExecutionPayload`
+///
+/// Same versioned enum and the same field-sniffing `Deserialize`, but V4 is the OP Isthmus
+/// payload selected by `withdrawalsRoot` where upstream's V4 is Amsterdam, and this type also
+/// carries a transparent SSZ encoding. Re-diff the visitor's accepted field set and its version
+/// selection whenever upstream gains or reshapes a payload version.
+///
 /// A versioned OP execution payload.
 ///
 /// V1 through V3 use the corresponding Alloy execution payload types. V4 uses the OP-specific
