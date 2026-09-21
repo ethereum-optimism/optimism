@@ -968,16 +968,11 @@ where
         let (post_exec_refund, refund_events) = if self.post_exec.is_producing() {
             let PostExecExecutedTx { refund_total: refund, refund_events } =
                 self.evm.take_last_post_exec_tx_result();
-            // The inspector's accumulated refund must never exceed the tx's evm_gas_used. If
-            // it does, we'd emit an `SDMGasEntry` that any honest verifier would reject
-            // at pre-execution ("payload refund exceeds evm_gas_used"), so the sequencer
-            // would ship a block it can't verify itself. Fail here with a loud error
-            // instead of letting `saturating_sub` mask the discrepancy.
-            if refund > evm_gas_used {
-                return Err(Self::invalid_post_exec_payload(format!(
-                    "produced refund {refund} exceeds evm_gas_used {evm_gas_used} for tx index {tx_index}",
-                )));
-            }
+            // Policy output is advisory. Contain malformed output before it reaches settlement,
+            // receipts or the payload, rather than aborting production on a valid transaction.
+            // Policies may impose stricter economic bounds (e.g. respecting the calldata floor);
+            // these are only the verifier's structural bounds, not a policy's pricing formula.
+            let refund = if is_deposit { 0 } else { refund.min(evm_gas_used) };
             (refund, refund_events)
         } else {
             (

@@ -55,7 +55,7 @@ use reth_payload_builder::PayloadBuilderHandle;
 use reth_payload_primitives::BuildNextEnv;
 use reth_transaction_pool::TransactionPool;
 use revm::{
-    context_interface::ContextTr,
+    context_interface::{ContextTr, result::ResultGas},
     inspector::JournalExt,
     interpreter::{CallInputs, CallOutcome, CreateInputs, CreateOutcome, Interpreter},
 };
@@ -79,8 +79,9 @@ impl PostExecRefundInspector for FixedRefundPolicy {
 
     fn note_account_touch(&mut self, _address: Address) {}
 
-    fn finish_tx(&mut self) -> PostExecExecutedTx {
-        let refund_total = u64::from(self.current_kind.take() == Some(PostExecTxKind::Normal));
+    fn finish_tx(&mut self, gas: Option<&ResultGas>) -> PostExecExecutedTx {
+        let kind = self.current_kind.take();
+        let refund_total = u64::from(gas.is_some() && kind == Some(PostExecTxKind::Normal));
         PostExecExecutedTx { refund_total, refund_events: Vec::new() }
     }
 
@@ -408,7 +409,9 @@ mod tests {
         ] {
             policy.begin_tx(PostExecTxContext { tx_index: 3, kind });
             policy.note_account_touch(Address::ZERO);
-            assert_eq!(policy.finish_tx().refund_total, expected);
+            assert_eq!(policy.finish_tx(Some(&ResultGas::default())).refund_total, expected);
+            policy.begin_tx(PostExecTxContext { tx_index: 1, kind });
+            assert_eq!(policy.finish_tx(None).refund_total, 0);
         }
     }
 

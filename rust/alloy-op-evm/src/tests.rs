@@ -15,7 +15,7 @@ use revm::{
     context::CfgEnv,
     context_interface::{
         ContextTr,
-        result::{EVMError, InvalidTransaction},
+        result::{EVMError, ExecutionResult, InvalidTransaction, ResultGas},
     },
     database::{CacheDB, EmptyDB, InMemoryDB},
     inspector::JournalExt,
@@ -33,10 +33,11 @@ use super::*;
 struct TestRefundPolicy {
     current_kind: Option<post_exec::PostExecTxKind>,
     committed: u64,
+    gas_results: Vec<Option<ResultGas>>,
 }
 
 impl post_exec::PostExecRefundInspector for TestRefundPolicy {
-    type Snapshot = u64;
+    type Snapshot = (u64, Vec<Option<ResultGas>>);
 
     fn begin_tx(&mut self, ctx: post_exec::PostExecTxContext) {
         self.current_kind = Some(ctx.kind);
@@ -44,8 +45,10 @@ impl post_exec::PostExecRefundInspector for TestRefundPolicy {
 
     fn note_account_touch(&mut self, _address: Address) {}
 
-    fn finish_tx(&mut self) -> post_exec::PostExecExecutedTx {
-        let refund_total = if self.current_kind.take() == Some(post_exec::PostExecTxKind::Normal) {
+    fn finish_tx(&mut self, gas: Option<&ResultGas>) -> post_exec::PostExecExecutedTx {
+        self.gas_results.push(gas.copied());
+        let kind = self.current_kind.take();
+        let refund_total = if gas.is_some() && kind == Some(post_exec::PostExecTxKind::Normal) {
             self.committed += 1;
             7
         } else {
@@ -95,11 +98,11 @@ impl post_exec::PostExecRefundInspector for TestRefundPolicy {
     fn inspect_selfdestruct(&mut self, _contract: Address, _target: Address, _value: U256) {}
 
     fn snapshot(&self) -> Self::Snapshot {
-        self.committed
+        (self.committed, self.gas_results.clone())
     }
 
     fn restore(&mut self, snapshot: Self::Snapshot) {
-        self.committed = snapshot;
+        (self.committed, self.gas_results) = snapshot;
     }
 }
 
@@ -261,9 +264,68 @@ fn op_evm_factory_uses_configured_refund_policy_and_snapshot() {
     });
     evm.transact_raw(legacy_op_tx(0, caller, target, 100_000)).expect("tx executes");
     assert_eq!(evm.take_last_post_exec_tx_result().refund_total, 7);
-    assert_eq!(evm.refund_snapshot(), 1);
-    evm.seed_refund_snapshot(9);
-    assert_eq!(evm.refund_snapshot(), 9);
+    assert_eq!(evm.refund_snapshot().0, 1);
+    evm.seed_refund_snapshot((9, Vec::new()));
+    assert_eq!(evm.refund_snapshot(), (9, Vec::new()));
+}
+
+#[test_case::test_case("600060005500", "success")]
+#[test_case::test_case("600060005560006000fd", "revert")]
+#[test_case::test_case("6000600055fe", "halt")]
+fn refund_policy_receives_original_gas_and_finalizes_errors(code: &str, outcome: &str) {
+    let caller = Address::ZERO;
+    let target = Address::from([0x33; 20]);
+    let code = revm::state::Bytecode::new_raw(code.parse::<Bytes>().unwrap());
+    let mut db = InMemoryDB::default();
+    db.insert_account_info(
+        caller,
+        AccountInfo { balance: U256::from(1_000_000_000u64), ..Default::default() },
+    );
+    db.insert_account_info(target, AccountInfo::new(U256::ZERO, 1, code.hash_slow(), code));
+    db.insert_account_storage(target, U256::ZERO, U256::ONE).unwrap();
+    let mut evm = OpEvmFactory::<OpTx, TestRefundPolicy>::default().create_evm(
+        db,
+        EvmEnv::new(
+            CfgEnv::new_with_spec(OpSpecId::JOVIAN),
+            BlockEnv { gas_limit: 1_000_000, ..Default::default() },
+        ),
+    );
+
+    // Validation errors must still finalize once, without gas or a refund. A subsequent valid
+    // candidate must not see stale per-transaction data from this failed attempt.
+    evm.begin_post_exec_tx(post_exec::PostExecTxContext {
+        tx_index: 0,
+        kind: post_exec::PostExecTxKind::Normal,
+    });
+    evm.transact_raw(legacy_op_tx(0, caller, target, 1)).expect_err("intrinsic gas too low");
+    assert_eq!(evm.refund_snapshot(), (0, vec![None]));
+    assert_eq!(evm.take_last_post_exec_tx_result().refund_total, 0);
+
+    let tx = TxLegacy {
+        gas_limit: 200_000,
+        to: TxKind::Call(target),
+        input: Bytes::from(vec![0xff; 128]),
+        ..Default::default()
+    }
+    .into_signed(Signature::new(Default::default(), Default::default(), Default::default()));
+    evm.begin_post_exec_tx(post_exec::PostExecTxContext {
+        tx_index: 0,
+        kind: post_exec::PostExecTxKind::Normal,
+    });
+    let result = evm.transact_raw(OpTx::from_recovered_tx(&tx, caller)).expect("EVM outcome");
+    let gas = *result.result.gas();
+    assert_eq!(evm.refund_snapshot(), (1, vec![None, Some(gas)]));
+    assert_eq!(evm.take_last_post_exec_tx_result().refund_total, 7);
+    assert!(gas.floor_gas() > 0, "calldata floor must reach the policy");
+    match outcome {
+        "success" => {
+            assert!(result.result.is_success());
+            assert!(gas.inner_refunded() > 0, "native clear refund must reach the policy");
+        }
+        "revert" => assert!(matches!(result.result, ExecutionResult::Revert { .. })),
+        "halt" => assert!(matches!(result.result, ExecutionResult::Halt { .. })),
+        _ => unreachable!(),
+    }
 }
 
 #[test]

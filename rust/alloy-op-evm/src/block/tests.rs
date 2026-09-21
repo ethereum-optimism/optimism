@@ -18,7 +18,7 @@ use op_revm::{
 use revm::{
     Context, MainContext,
     context::{BlockEnv, CfgEnv},
-    context_interface::ContextTr,
+    context_interface::{ContextTr, result::ResultGas},
     database::{CacheDB, EmptyDB, InMemoryDB, State},
     inspector::{JournalExt, NoOpInspector},
     interpreter::{CallInputs, CallOutcome, CreateInputs, CreateOutcome, Interpreter},
@@ -695,7 +695,7 @@ impl PostExecRefundInspector for HookObservingPolicy {
 
     fn note_account_touch(&mut self, _address: Address) {}
 
-    fn finish_tx(&mut self) -> PostExecExecutedTx {
+    fn finish_tx(&mut self, _gas: Option<&ResultGas>) -> PostExecExecutedTx {
         PostExecExecutedTx { refund_total: self.observed_hooks, refund_events: Vec::new() }
     }
 
@@ -784,7 +784,7 @@ impl PostExecRefundInspector for ScriptedRefundPolicy {
 
     fn note_account_touch(&mut self, _address: Address) {}
 
-    fn finish_tx(&mut self) -> PostExecExecutedTx {
+    fn finish_tx(&mut self, _gas: Option<&ResultGas>) -> PostExecExecutedTx {
         self.executed_candidates += 1;
         PostExecExecutedTx { refund_total: self.executed_candidates, refund_events: Vec::new() }
     }

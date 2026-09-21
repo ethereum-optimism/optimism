@@ -385,7 +385,10 @@ where
                 }
             }
 
-            self.last_tx_post_exec_result = self.inner.0.inspector.finish_post_exec_tx();
+            // Finalize exactly once even on an EVM error. Successful execution (including revert
+            // and halt outcomes) exposes its original gas accounting before SDM canonicalization.
+            let gas = result.as_ref().ok().map(|result| result.result.gas());
+            self.last_tx_post_exec_result = self.inner.0.inspector.finish_post_exec_tx(gas);
             self.post_exec_tracking_active = false;
         }
 

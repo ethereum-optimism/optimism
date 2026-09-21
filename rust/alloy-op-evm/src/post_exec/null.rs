@@ -2,7 +2,7 @@
 
 use alloy_primitives::{Address, U256};
 use revm::{
-    context_interface::ContextTr,
+    context_interface::{ContextTr, result::ResultGas},
     inspector::JournalExt,
     interpreter::{CallInputs, CallOutcome, CreateInputs, CreateOutcome, Interpreter},
 };
@@ -24,7 +24,7 @@ impl PostExecRefundInspector for NullRefundPolicy {
 
     fn note_account_touch(&mut self, _address: Address) {}
 
-    fn finish_tx(&mut self) -> PostExecExecutedTx {
+    fn finish_tx(&mut self, _gas: Option<&ResultGas>) -> PostExecExecutedTx {
         PostExecExecutedTx::default()
     }
 
@@ -84,7 +84,12 @@ mod tests {
         for kind in [PostExecTxKind::Normal, PostExecTxKind::Deposit, PostExecTxKind::PostExec] {
             policy.begin_tx(PostExecTxContext { tx_index: 1, kind });
             policy.note_account_touch(Address::ZERO);
-            assert_eq!(policy.finish_tx(), PostExecExecutedTx::default());
+            assert_eq!(policy.finish_tx(None), PostExecExecutedTx::default());
+            policy.begin_tx(PostExecTxContext { tx_index: 2, kind });
+            assert_eq!(
+                policy.finish_tx(Some(&ResultGas::default())),
+                PostExecExecutedTx::default()
+            );
             policy.restore(());
         }
     }

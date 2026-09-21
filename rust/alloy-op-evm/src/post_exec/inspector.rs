@@ -2,7 +2,7 @@ use alloc::vec::Vec;
 use alloy_primitives::{Address, B256};
 use revm::{
     Inspector,
-    context_interface::ContextTr,
+    context_interface::{ContextTr, result::ResultGas},
     inspector::JournalExt,
     interpreter::{CallInputs, CreateInputs, Interpreter},
 };
@@ -135,9 +135,10 @@ impl<I, R: super::PostExecRefundInspector> PostExecCompositeInspector<I, R> {
         self.post_exec.note_account_touch(address);
     }
 
-    /// Finish tracking the current transaction.
-    pub fn finish_post_exec_tx(&mut self) -> PostExecExecutedTx {
-        self.post_exec.finish_tx()
+    /// Finish tracking the current transaction with its unmodified EVM gas accounting, or `None`
+    /// when execution returned an error rather than an EVM outcome.
+    pub fn finish_post_exec_tx(&mut self, gas: Option<&ResultGas>) -> PostExecExecutedTx {
+        self.post_exec.finish_tx(gas)
     }
 }
 

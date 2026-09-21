@@ -76,7 +76,7 @@ impl PostExecRefundInspector for FixedRefundPolicy {
 
     fn note_account_touch(&mut self, _address: Address) {}
 
-    fn finish_tx(&mut self) -> PostExecExecutedTx {
+    fn finish_tx(&mut self, _gas: Option<&ResultGas>) -> PostExecExecutedTx {
         PostExecExecutedTx {
             refund_total: u64::from(self.kind.take() == Some(PostExecTxKind::Normal)),
             refund_events: Vec::new(),
@@ -401,11 +401,11 @@ fn fixed_policy_tracks_pre_refund_gas() {
 }
 
 #[derive(Debug, Clone, Default)]
-struct ErroringRefundPolicy {
+struct ExcessiveRefundPolicy {
     block_state: u64,
 }
 
-impl PostExecRefundInspector for ErroringRefundPolicy {
+impl PostExecRefundInspector for ExcessiveRefundPolicy {
     type Snapshot = u64;
 
     fn begin_tx(&mut self, _ctx: PostExecTxContext) {
@@ -414,7 +414,7 @@ impl PostExecRefundInspector for ErroringRefundPolicy {
 
     fn note_account_touch(&mut self, _address: Address) {}
 
-    fn finish_tx(&mut self) -> PostExecExecutedTx {
+    fn finish_tx(&mut self, _gas: Option<&ResultGas>) -> PostExecExecutedTx {
         PostExecExecutedTx { refund_total: u64::MAX, refund_events: Vec::new() }
     }
 
@@ -473,14 +473,64 @@ fn execution_error_restores_refund_policy_snapshot() {
     let receipt_builder = OpAlloyReceiptBuilder::default();
     let hardforks = OpChainHardforks::op_mainnet();
     let mut executor =
-        build_policy_executor::<ErroringRefundPolicy>(&mut db, &receipt_builder, &hardforks);
+        build_policy_executor::<ExcessiveRefundPolicy>(&mut db, &receipt_builder, &hardforks);
 
     assert_eq!(executor.refund_snapshot(), 0);
     executor
-        .execute_transaction(&observer_test_tx())
-        .expect_err("an impossible refund must fail execution");
+        .execute_transaction(&legacy_tx_with_gas(0, Address::ZERO, 1))
+        .expect_err("insufficient intrinsic gas must fail execution");
     assert_eq!(executor.refund_snapshot(), 0, "failed execution must restore policy state");
 }
+
+#[test]
+fn excessive_producer_refund_is_capped_and_verifies() {
+    let tx = observer_test_tx();
+    let mut producer_db = prepare_observer_db();
+    let receipt_builder = OpAlloyReceiptBuilder::default();
+    let hardforks = OpChainHardforks::op_mainnet();
+    let mut producer = build_policy_executor::<ExcessiveRefundPolicy>(
+        &mut producer_db,
+        &receipt_builder,
+        &hardforks,
+    );
+
+    producer.execute_transaction(&tx).expect("excessive policy output must not abort production");
+    assert!(producer.evm_gas_used > 0);
+    assert_eq!(producer.gas_used, 0);
+    assert_eq!(producer.refund_snapshot(), 1, "the corrected transaction is committed");
+    assert_eq!(
+        producer.post_exec_entries(),
+        &[SDMGasEntry { index: 0, gas_refund: producer.evm_gas_used }]
+    );
+    let entries = producer.take_post_exec_entries();
+    let post_exec = recovered_post_exec(0, entries.clone());
+    producer.execute_transaction(&post_exec).unwrap();
+    let (_, produced) = producer.finish().unwrap();
+
+    let mut fixture =
+        JovianExecutorFixture::new(DEFAULT_DA_FOOTPRINT_GAS_SCALAR, 500_000, JOVIAN_TIMESTAMP);
+    fixture.db = prepare_observer_db();
+    let mut verifier = fixture.verifier(0, entries);
+    verifier.execute_transaction(&tx).unwrap();
+    verifier.execute_transaction(&post_exec).unwrap();
+    let (_, verified) = verifier.finish().unwrap();
+    assert_eq!(verified.gas_used, produced.gas_used);
+    assert_eq!(verified.receipts, produced.receipts);
+}
+
+#[test]
+fn excessive_deposit_refund_is_discarded() {
+    let mut db = prepare_observer_db();
+    let receipt_builder = OpAlloyReceiptBuilder::default();
+    let hardforks = OpChainHardforks::op_mainnet();
+    let mut producer =
+        build_policy_executor::<ExcessiveRefundPolicy>(&mut db, &receipt_builder, &hardforks);
+    producer.execute_transaction(&recovered_deposit()).expect("deposit executes");
+    assert_eq!(producer.gas_used, producer.evm_gas_used);
+    assert!(producer.post_exec_entries().is_empty());
+    producer.finish().expect("deposit block finishes without a payload");
+}
+
 #[test]
 fn test_settlement_state_account_preserves_original_info() {
     type TestExecutor<'a> = OpBlockExecutor<
@@ -1239,7 +1289,7 @@ mod warm_set_leak {
             self.touched.insert(address);
         }
 
-        fn finish_tx(&mut self) -> PostExecExecutedTx {
+        fn finish_tx(&mut self, _gas: Option<&ResultGas>) -> PostExecExecutedTx {
             PostExecExecutedTx::default()
         }
 
