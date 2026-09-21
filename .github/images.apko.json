@@ -49,7 +49,7 @@
       },
       "source_submodules": "recursive",
       "runners": {
-        "x86_64": "oplabs-ubuntu-x86",
+        "x86_64": "audit-test-runner",
         "aarch64": "oplabs-ubuntu-arm"
       },
       "use_gha_cache": true,
