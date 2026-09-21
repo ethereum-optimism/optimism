@@ -25,7 +25,7 @@ import (
 // holds back validation for all chains.
 //
 // Simplifications in this implementation:
-//   - No cycle detection for same-timestamp dependencies
+//   - No cycle detection: same-block executing messages are not supported
 //   - Lockstep advancement: waits for ALL chains to reach timestamp T before
 //     validating T, rather than validating each chain independently
 //
@@ -167,10 +167,9 @@ func (v *LockstepCrossValidator) ResetCrossValidatedTimestamp(timestamp uint64) 
 func validateMessageTiming(
 	initTimestamp, inclusionTimestamp, messageExpiryWindow, timeout, execTimestamp uint64,
 ) error {
-	// Rule 1: init must be at or before inclusion. Same-timestamp messages still
-	// require an indexed initiating log; this check does not detect cycles.
-	if initTimestamp > inclusionTimestamp {
-		return fmt.Errorf("initiating message timestamp %d after inclusion timestamp %d: %w",
+	// Rule 1: init must be strictly before inclusion
+	if initTimestamp >= inclusionTimestamp {
+		return fmt.Errorf("initiating message timestamp %d not before inclusion timestamp %d: %w",
 			initTimestamp, inclusionTimestamp, interop.ErrConflict)
 	}
 
