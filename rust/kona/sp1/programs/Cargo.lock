@@ -1694,6 +1694,7 @@ dependencies = [
  "alloy-rlp",
  "alloy-rpc-types-engine",
  "alloy-rpc-types-eth",
+ "alloy-sol-types",
  "ambassador",
  "async-trait",
  "brotli-decompressor",

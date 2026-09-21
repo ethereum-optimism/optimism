@@ -82,7 +82,6 @@ kona-registry.workspace = true
 [features]
 default = []
 std = [
- "alloy-sol-types/std",
 	"alloy-consensus/std",
 	"alloy-eips/std",
 	"alloy-primitives/std",
@@ -90,6 +89,7 @@ std = [
 	"alloy-rpc-types-engine/std",
 	"alloy-rpc-types-eth/std",
 	"alloy-serde?/std",
+	"alloy-sol-types/std",
 	"brotli-decompressor/std",
 	"derive_more/std",
 	"kona-genesis/std",
@@ -114,6 +114,7 @@ arbitrary = [
 	"alloy-rpc-types-engine/arbitrary",
 	"alloy-rpc-types-eth/arbitrary",
 	"alloy-serde?/arbitrary",
+	"alloy-sol-types/arbitrary",
 	"dep:arbitrary",
 	"kona-genesis/arbitrary",
 	"op-alloy-consensus/arbitrary",
