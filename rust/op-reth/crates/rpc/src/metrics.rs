@@ -38,6 +38,18 @@ pub struct EthApiExtMetrics {
 
     /// Total number of failures handling `eth_getProof` requests
     pub(crate) get_proof_failures: Counter,
+
+    /// How long it takes to handle a `eth_getMultiProof` request successfully
+    pub(crate) get_multi_proof_latency: Histogram,
+
+    /// Total number of `eth_getMultiProof` requests
+    pub(crate) get_multi_proof_requests: Counter,
+
+    /// Total number of successful `eth_getMultiProof` responses
+    pub(crate) get_multi_proof_successful_responses: Counter,
+
+    /// Total number of failures handling `eth_getMultiProof` requests
+    pub(crate) get_multi_proof_failures: Counter,
 }
 
 /// Types of debug apis
