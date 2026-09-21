@@ -718,9 +718,9 @@ contract OPContractsManagerMigrationValidator_PerChain_Test is OPContractsManage
         assertEq("MIG-CHAIN-1-10", _validateMigration(true));
     }
 
-    // NOTE: Per-chain DGF clearing checks (-20 through -70) are exercised in
-    // OPContractsManagerMigrationValidator_PerChainDGF_Test below, which mocks
-    // systemConfig.disputeGameFactory() to return a DGF that differs from the shared DGF.
+    // NOTE: The per-chain DGF clearing checks (-20 through -70, plus -140) are exercised together
+    // by test_validate_everyClearedGameTypeIsChecked_succeeds, which walks
+    // GameTypes.clearedGameTypes() against chain 1's real pre-migration factory.
 
     /// @notice MIG-CHAIN-0-80: Portal not authorized in shared lockbox.
     function test_validate_chain080PortalNotAuthorized_succeeds() public {
@@ -1024,132 +1024,6 @@ contract OPContractsManagerMigrationValidator_AllowFailure_Test is OPContractsMa
     }
 }
 
-/// @title OPContractsManagerMigrationValidator_PerChainDGF_Test
-/// @notice Tests MIG-CHAIN-*-20 through MIG-CHAIN-*-70 by mocking systemConfig.disputeGameFactory()
-///         to return a DGF that differs from the shared DGF, exercising the per-chain clearing checks.
-///         The shared DGF is derived from chain 0 (first chain), so we mock chain 1 (second chain).
-contract OPContractsManagerMigrationValidator_PerChainDGF_Test is OPContractsManagerMigrationValidator_TestInit {
-    /// @notice Address used as a fake per-chain DGF distinct from the shared DGF.
-    address fakeDGF = makeAddr("fakeDGF");
-
-    /// @notice Supplies a `fakeDGF` as chain 1's legacy factory with every game type cleared, so
-    ///         each test can set exactly one of them.
-    function _validateWithFakeDGF() internal view returns (string memory) {
-        ISystemConfig[] memory chains = new ISystemConfig[](2);
-        chains[0] = chainContracts1.systemConfig;
-        chains[1] = chainContracts2.systemConfig;
-        IDisputeGameFactory[] memory dgfs = new IDisputeGameFactory[](2);
-        dgfs[0] = legacyContracts[0].disputeGameFactory;
-        dgfs[1] = IDisputeGameFactory(fakeDGF);
-        return _validateMigrationCustomDGFs(chains, dgfs, true);
-    }
-
-    /// @notice Mocks the fake per-chain DGF with all game types returning address(0) (cleared).
-    function _mockPerChainDGF() internal {
-        // Default: all game types cleared (return address(0)).
-        vm.mockCall(fakeDGF, abi.encodeCall(IDisputeGameFactory.gameImpls, (GameTypes.CANNON)), abi.encode(address(0)));
-        vm.mockCall(
-            fakeDGF,
-            abi.encodeCall(IDisputeGameFactory.gameImpls, (GameTypes.PERMISSIONED_CANNON)),
-            abi.encode(address(0))
-        );
-        vm.mockCall(
-            fakeDGF, abi.encodeCall(IDisputeGameFactory.gameImpls, (GameTypes.CANNON_KONA)), abi.encode(address(0))
-        );
-        vm.mockCall(
-            fakeDGF, abi.encodeCall(IDisputeGameFactory.gameImpls, (GameTypes.SUPER_CANNON)), abi.encode(address(0))
-        );
-        vm.mockCall(
-            fakeDGF,
-            abi.encodeCall(IDisputeGameFactory.gameImpls, (GameTypes.SUPER_PERMISSIONED)),
-            abi.encode(address(0))
-        );
-        vm.mockCall(
-            fakeDGF,
-            abi.encodeCall(IDisputeGameFactory.gameImpls, (GameTypes.SUPER_CANNON_KONA)),
-            abi.encode(address(0))
-        );
-        vm.mockCall(
-            fakeDGF, abi.encodeCall(IDisputeGameFactory.gameImpls, (GameTypes.ZK_DISPUTE_GAME)), abi.encode(address(0))
-        );
-    }
-
-    /// @notice MIG-CHAIN-1-20: Per-chain DGF has CANNON still registered.
-    function test_validate_chain120CannonNotCleared_succeeds() public {
-        _mockPerChainDGF();
-        vm.mockCall(
-            fakeDGF, abi.encodeCall(IDisputeGameFactory.gameImpls, (GameTypes.CANNON)), abi.encode(address(0xdead))
-        );
-        assertEq("MIG-CHAIN-1-20", _validateWithFakeDGF());
-    }
-
-    /// @notice MIG-CHAIN-1-30: Per-chain DGF has PERMISSIONED_CANNON still registered.
-    function test_validate_chain130PermissionedCannonNotCleared_succeeds() public {
-        _mockPerChainDGF();
-        vm.mockCall(
-            fakeDGF,
-            abi.encodeCall(IDisputeGameFactory.gameImpls, (GameTypes.PERMISSIONED_CANNON)),
-            abi.encode(address(0xdead))
-        );
-        assertEq("MIG-CHAIN-1-30", _validateWithFakeDGF());
-    }
-
-    /// @notice MIG-CHAIN-1-40: Per-chain DGF has CANNON_KONA still registered.
-    function test_validate_chain140CannonKonaNotCleared_succeeds() public {
-        _mockPerChainDGF();
-        vm.mockCall(
-            fakeDGF, abi.encodeCall(IDisputeGameFactory.gameImpls, (GameTypes.CANNON_KONA)), abi.encode(address(0xdead))
-        );
-        assertEq("MIG-CHAIN-1-40", _validateWithFakeDGF());
-    }
-
-    /// @notice MIG-CHAIN-1-50: Per-chain DGF has SUPER_CANNON still registered.
-    function test_validate_chain150SuperCannonNotCleared_succeeds() public {
-        _mockPerChainDGF();
-        vm.mockCall(
-            fakeDGF,
-            abi.encodeCall(IDisputeGameFactory.gameImpls, (GameTypes.SUPER_CANNON)),
-            abi.encode(address(0xdead))
-        );
-        assertEq("MIG-CHAIN-1-50", _validateWithFakeDGF());
-    }
-
-    /// @notice MIG-CHAIN-1-60: Per-chain DGF has SUPER_PERMISSIONED still registered.
-    function test_validate_chain160SuperPermissionedNotCleared_succeeds() public {
-        _mockPerChainDGF();
-        vm.mockCall(
-            fakeDGF,
-            abi.encodeCall(IDisputeGameFactory.gameImpls, (GameTypes.SUPER_PERMISSIONED)),
-            abi.encode(address(0xdead))
-        );
-        assertEq("MIG-CHAIN-1-60", _validateWithFakeDGF());
-    }
-
-    /// @notice MIG-CHAIN-1-70: Per-chain DGF has SUPER_CANNON_KONA still registered.
-    function test_validate_chain170SuperCannonKonaNotCleared_succeeds() public {
-        _mockPerChainDGF();
-        vm.mockCall(
-            fakeDGF,
-            abi.encodeCall(IDisputeGameFactory.gameImpls, (GameTypes.SUPER_CANNON_KONA)),
-            abi.encode(address(0xdead))
-        );
-        assertEq("MIG-CHAIN-1-70", _validateWithFakeDGF());
-    }
-
-    function test_validate_legacyDGFCannonNotCleared_succeeds() public {
-        IDisputeGameFactory legacyDGF = chainContracts2.disputeGameFactory;
-
-        // migrate() zeroes every game type on each chain's pre-migration factory.
-        assertEq(address(legacyDGF.gameImpls(GameTypes.CANNON)), address(0), "CANNON not cleared by migrate");
-
-        // Put one back, as a migration that failed to clear it would have left it.
-        vm.prank(legacyDGF.owner());
-        legacyDGF.setImplementation(GameTypes.CANNON, IDisputeGame(address(0xdead)), hex"");
-
-        assertEq("MIG-CHAIN-1-20", _validateMigration(true));
-    }
-}
-
 /// @title OPContractsManagerMigrationValidator_MigrationIntent_Test
 /// @notice Tests the assertions that compare post-migration state against what the migration was
 ///         asked and the assertions for the state of the contracts the migration retire.
@@ -1288,13 +1162,14 @@ contract OPContractsManagerMigrationValidator_MigrationIntent_Test is OPContract
         GameType[] memory gameTypes = GameTypes.clearedGameTypes();
 
         string[] memory expectedCodes = new string[](7);
-        expectedCodes[0] = "MIG-CHAIN-1-20"; // CANNON
-        expectedCodes[1] = "MIG-CHAIN-1-30"; // PERMISSIONED_CANNON
-        expectedCodes[2] = "MIG-CHAIN-1-40"; // CANNON_KONA
-        expectedCodes[3] = "MIG-CHAIN-1-50"; // SUPER_CANNON
-        expectedCodes[4] = "MIG-CHAIN-1-60"; // SUPER_PERMISSIONED
-        expectedCodes[5] = "MIG-CHAIN-1-70"; // SUPER_CANNON_KONA
-        expectedCodes[6] = "MIG-CHAIN-1-140"; // ZK_DISPUTE_GAME
+        string[] memory gameTypeNames = new string[](7);
+        (expectedCodes[0], gameTypeNames[0]) = ("MIG-CHAIN-1-20", "CANNON");
+        (expectedCodes[1], gameTypeNames[1]) = ("MIG-CHAIN-1-30", "PERMISSIONED_CANNON");
+        (expectedCodes[2], gameTypeNames[2]) = ("MIG-CHAIN-1-40", "CANNON_KONA");
+        (expectedCodes[3], gameTypeNames[3]) = ("MIG-CHAIN-1-50", "SUPER_CANNON");
+        (expectedCodes[4], gameTypeNames[4]) = ("MIG-CHAIN-1-60", "SUPER_PERMISSIONED");
+        (expectedCodes[5], gameTypeNames[5]) = ("MIG-CHAIN-1-70", "SUPER_CANNON_KONA");
+        (expectedCodes[6], gameTypeNames[6]) = ("MIG-CHAIN-1-140", "ZK_DISPUTE_GAME");
         assertEq(gameTypes.length, expectedCodes.length, "clearing list changed without choosing a code");
 
         IDisputeGameFactory legacyDGF = chainContracts2.disputeGameFactory;
@@ -1306,7 +1181,11 @@ contract OPContractsManagerMigrationValidator_MigrationIntent_Test is OPContract
             vm.prank(dgfOwner);
             legacyDGF.setImplementation(gameTypes[i], IDisputeGame(address(0xdead)), hex"");
 
-            assertEq(expectedCodes[i], _validateMigration(true));
+            assertEq(
+                expectedCodes[i],
+                _validateMigration(true),
+                string.concat("validator should report ", expectedCodes[i], " for uncleared ", gameTypeNames[i])
+            );
 
             vm.prank(dgfOwner);
             legacyDGF.setImplementation(gameTypes[i], IDisputeGame(address(0)), hex"");
