@@ -595,14 +595,12 @@ contract OPContractsManagerMigrationValidator {
             address(_shared.lockbox) == address(_input.expectedShared.ethLockbox), "MIG-SHARED-20", _errors
         );
         _errors = internalRequire(_shared.weth == _input.expectedShared.delayedWETH, "MIG-SHARED-30", _errors);
+        _errors = internalRequire(
+            address(_input.dgf) == address(IAnchorStateRegistry(_shared.asr).disputeGameFactory()),
+            "MIG-SHARED-40",
+            _errors
+        );
 
-        if (_shared.asr != address(0)) {
-            _errors = internalRequire(
-                address(_input.dgf) == address(IAnchorStateRegistry(_shared.asr).disputeGameFactory()),
-                "MIG-SHARED-40",
-                _errors
-            );
-        }
         return _errors;
     }
 
