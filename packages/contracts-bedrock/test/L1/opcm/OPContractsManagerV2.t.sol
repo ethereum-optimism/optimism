@@ -3360,10 +3360,26 @@ contract OPContractsManagerV2_Migrate_Test is OPContractsManagerV2_TestInit {
         );
     }
 
+    /// @notice Builds a version string offset from this OPCM's live version, so the migrate
+    ///         sequence fixtures below state the branch they target instead of a literal that
+    ///         silently changes meaning when the OPCM version is bumped.
+    /// @param _majorDelta Offset applied to the major component.
+    /// @param _minorDelta Offset applied to the minor component.
+    /// @return The offset version string.
+    function _opcmVersionOffset(int256 _majorDelta, int256 _minorDelta) internal view returns (string memory) {
+        SemverComp.Semver memory live = SemverComp.parse(opcmV2.version());
+        return string.concat(
+            vm.toString(uint256(int256(live.major) + _majorDelta)),
+            ".",
+            vm.toString(uint256(int256(live.minor) + _minorDelta)),
+            ".0"
+        );
+    }
+
     /// @notice Migration is refused for a chain still on the previous release.
     function test_migrate_chainOnPreviousRelease_reverts() public {
         address oldOPCM = makeAddr("previousReleaseOPCM");
-        vm.mockCall(oldOPCM, abi.encodeCall(ISemver.version, ()), abi.encode("7.1.17"));
+        vm.mockCall(oldOPCM, abi.encodeCall(ISemver.version, ()), abi.encode(_opcmVersionOffset(-1, 0)));
         vm.mockCall(
             address(chainContracts1.systemConfig), abi.encodeCall(ISystemConfig.lastUsedOPCM, ()), abi.encode(oldOPCM)
         );
@@ -3376,7 +3392,7 @@ contract OPContractsManagerV2_Migrate_Test is OPContractsManagerV2_TestInit {
     /// @notice A different OPCM address on the same major is accepted.
     function test_migrate_replacementOpcmSameRelease_succeeds() public {
         address replacedOPCM = makeAddr("replacedSameReleaseOPCM");
-        vm.mockCall(replacedOPCM, abi.encodeCall(ISemver.version, ()), abi.encode("9.0.1"));
+        vm.mockCall(replacedOPCM, abi.encodeCall(ISemver.version, ()), abi.encode(opcmV2.version()));
         vm.mockCall(
             address(chainContracts1.systemConfig),
             abi.encodeCall(ISystemConfig.lastUsedOPCM, ()),
@@ -3389,7 +3405,7 @@ contract OPContractsManagerV2_Migrate_Test is OPContractsManagerV2_TestInit {
     /// @notice A chain last touched by a *newer* minor of this release is refused.
     function test_migrate_chainOnNewerMinor_reverts() public {
         address newerOPCM = makeAddr("newerMinorOPCM");
-        vm.mockCall(newerOPCM, abi.encodeCall(ISemver.version, ()), abi.encode("8.9.0"));
+        vm.mockCall(newerOPCM, abi.encodeCall(ISemver.version, ()), abi.encode(_opcmVersionOffset(0, 1)));
         vm.mockCall(
             address(chainContracts1.systemConfig), abi.encodeCall(ISystemConfig.lastUsedOPCM, ()), abi.encode(newerOPCM)
         );
