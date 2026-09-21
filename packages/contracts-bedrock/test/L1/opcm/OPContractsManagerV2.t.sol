@@ -2873,9 +2873,9 @@ contract OPContractsManagerV2_Migrate_Test is OPContractsManagerV2_TestInit {
 
         if (_revertSelector != bytes4(0)) {
             prankDelegateCall(proxyAdminOwner);
-            (bool reverted, bytes memory returnData) =
+            (bool succeeded, bytes memory returnData) =
                 address(opcmV2).delegatecall(abi.encodeCall(IOPContractsManagerV2.migrate, (_input)));
-            assertFalse(reverted, "expected migrate to revert, but it succeeded");
+            assertFalse(succeeded, "expected migrate to revert, but it succeeded");
             assertEq(bytes4(returnData), _revertSelector, "migrate reverted with an unexpected selector");
             return;
         }
