@@ -5,7 +5,7 @@ use crate::{
     state::OpStateProviderFactory,
 };
 use alloy_consensus::BlockHeader;
-use alloy_eips::{BlockId, BlockNumberOrTag};
+use alloy_eips::BlockId;
 use alloy_primitives::{B256, Sealed};
 use alloy_rpc_types_debug::ExecutionWitness;
 use async_trait::async_trait;
@@ -61,8 +61,11 @@ pub trait DebugApiOverride<Attributes> {
     ) -> RpcResult<ExecutionWitness>;
 
     /// Returns the execution witness for a given block.
+    ///
+    /// Takes the same [`BlockId`] as upstream's `debug_executionWitness`, so installing the
+    /// proofs ExEx does not narrow the accepted parameter to a number or tag.
     #[method(name = "executionWitness")]
-    async fn execution_witness(&self, block: BlockNumberOrTag) -> RpcResult<ExecutionWitness>;
+    async fn execution_witness(&self, block: BlockId) -> RpcResult<ExecutionWitness>;
 
     /// Returns the current proofs sync status.
     #[method(name = "proofsSyncStatus")]
@@ -256,7 +259,7 @@ where
             .await
     }
 
-    async fn execution_witness(&self, block_id: BlockNumberOrTag) -> RpcResult<ExecutionWitness> {
+    async fn execution_witness(&self, block_id: BlockId) -> RpcResult<ExecutionWitness> {
         self.inner
             .metrics
             .record_operation_async(DebugApis::DebugExecutionWitness, async {
@@ -265,9 +268,9 @@ where
                 let block = self
                     .inner
                     .eth_api
-                    .recovered_block(block_id.into())
+                    .recovered_block(block_id)
                     .await?
-                    .ok_or(EthApiError::HeaderNotFound(block_id.into()))?;
+                    .ok_or(EthApiError::HeaderNotFound(block_id))?;
 
                 let this = self.inner.clone();
                 let block_number = block.header().number();
@@ -316,5 +319,66 @@ where
             }
             Err(err) => Err(internal_rpc_err(err.to_string())),
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use alloy_primitives::b256;
+    use serde_json::json;
+    use std::sync::Mutex;
+
+    const BLOCK_HASH: B256 =
+        b256!("0x1111111111111111111111111111111111111111111111111111111111111111");
+
+    /// Stand-in for [`DebugApiExt`] that records the decoded argument instead of re-executing a
+    /// block, so these tests pin the RPC parameter shape rather than the witness contents.
+    #[derive(Debug, Default)]
+    struct RecordingDebugApi {
+        seen: Arc<Mutex<Option<BlockId>>>,
+    }
+
+    #[async_trait]
+    impl DebugApiOverrideServer<serde_json::Value> for RecordingDebugApi {
+        async fn execute_payload(
+            &self,
+            _parent_block_hash: B256,
+            _attributes: serde_json::Value,
+        ) -> RpcResult<ExecutionWitness> {
+            unimplemented!("not exercised by these tests")
+        }
+
+        async fn execution_witness(&self, block: BlockId) -> RpcResult<ExecutionWitness> {
+            *self.seen.lock().unwrap() = Some(block);
+            Ok(ExecutionWitness::default())
+        }
+
+        async fn proofs_sync_status(&self) -> RpcResult<ProofsSyncStatus> {
+            unimplemented!("not exercised by these tests")
+        }
+    }
+
+    async fn decoded_block(param: serde_json::Value) -> BlockId {
+        let seen = Arc::<Mutex<Option<BlockId>>>::default();
+        let module = RecordingDebugApi { seen: seen.clone() }.into_rpc();
+        let _: ExecutionWitness = module
+            .call("debug_executionWitness", [param])
+            .await
+            .expect("debug_executionWitness should accept the parameter");
+        seen.lock().unwrap().expect("handler should have run")
+    }
+
+    /// The override must accept every `debug_executionWitness` parameter the stock handler
+    /// does, so a caller sees one method shape whether or not the proofs ExEx is installed.
+    #[tokio::test]
+    async fn execution_witness_accepts_every_block_id_form() {
+        assert_eq!(decoded_block(json!(BLOCK_HASH)).await, BlockId::from(BLOCK_HASH));
+        assert_eq!(
+            decoded_block(json!({ "blockHash": BLOCK_HASH })).await,
+            BlockId::from(BLOCK_HASH)
+        );
+        assert_eq!(decoded_block(json!("0x2a")).await, BlockId::from(42));
+        assert_eq!(decoded_block(json!("latest")).await, BlockId::latest());
     }
 }
