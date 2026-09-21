@@ -25,7 +25,10 @@ use op_alloy_consensus::{
 };
 use op_revm::OpSpecId;
 use reth_chainspec::EthChainSpec;
-use reth_evm::{ConfigureEvm, EvmEnv, eth::NextEvmEnvAttributes, precompiles::PrecompilesMap};
+use reth_evm::{
+    ConfigureEvm, EvmEnv, SenderRecoveryCache, eth::NextEvmEnvAttributes,
+    precompiles::PrecompilesMap,
+};
 use reth_optimism_chainspec::OpChainSpec;
 use reth_optimism_forks::OpHardforks;
 use reth_optimism_primitives::{DepositReceipt, OpPrimitives};
@@ -91,6 +94,8 @@ pub struct OpEvmConfig<
     pub executor_factory: OpBlockExecutorFactory<R, Arc<ChainSpec>, EvmFactory>,
     /// Optimism block assembler.
     pub block_assembler: OpBlockAssembler<ChainSpec>,
+    /// Cache of recovered transaction senders, if enabled.
+    pub sender_recovery_cache: Option<SenderRecoveryCache>,
     #[doc(hidden)]
     pub _pd: core::marker::PhantomData<N>,
 }
@@ -102,6 +107,7 @@ impl<ChainSpec, N: NodePrimitives, R: Clone, EvmFactory: Clone> Clone
         Self {
             executor_factory: self.executor_factory.clone(),
             block_assembler: self.block_assembler.clone(),
+            sender_recovery_cache: self.sender_recovery_cache.clone(),
             _pd: self._pd,
         }
     }
@@ -124,8 +130,15 @@ impl<ChainSpec, N: NodePrimitives, R, EvmFactory> OpEvmConfig<ChainSpec, N, R, E
         Self {
             block_assembler: OpBlockAssembler::new(chain_spec.clone()),
             executor_factory: OpBlockExecutorFactory::new(receipt_builder, chain_spec, evm_factory),
+            sender_recovery_cache: None,
             _pd: core::marker::PhantomData,
         }
+    }
+
+    /// Uses the provided sender recovery cache.
+    pub fn with_sender_recovery_cache(mut self, cache: SenderRecoveryCache) -> Self {
+        self.sender_recovery_cache = Some(cache);
+        self
     }
 }
 
@@ -325,9 +338,6 @@ where
 /// UPSTREAM-MIRROR(copy): reth@rev:0fbe428 `reth_evm_ethereum::EthEvmConfig`
 ///
 /// Mirrors upstream payload-to-EVM configuration with OP payload and fork semantics.
-/// `tx_iterator_for_payload` recovers senders directly; upstream routes the same recovery through
-/// an optional `SenderRecoveryCache`, which only memoizes `try_recover` and so returns the same
-/// signer.
 #[cfg(feature = "std")]
 impl<ChainSpec, N, R> ConfigureEngineEvm<OpExecutionData> for OpEvmConfig<ChainSpec, N, R>
 where
@@ -419,10 +429,14 @@ where
         payload: &OpExecutionData,
     ) -> Result<impl ExecutableTxIterator<Self>, Self::Error> {
         let transactions = payload.payload.transactions().clone();
-        let convert = |encoded: Bytes| {
+        let sender_recovery_cache = self.sender_recovery_cache.clone();
+        let convert = move |encoded: Bytes| {
             let tx = TxTy::<Self::Primitives>::decode_2718_exact(encoded.as_ref())
                 .map_err(AnyError::new)?;
-            let signer = tx.try_recover().map_err(AnyError::new)?;
+            let signer = sender_recovery_cache
+                .as_ref()
+                .map_or_else(|| tx.try_recover(), |cache| cache.recover(&tx))
+                .map_err(AnyError::new)?;
             Ok::<_, AnyError>(WithEncoded::new(encoded, tx.with_signer(signer)))
         };
 
@@ -434,17 +448,20 @@ where
 mod tests {
     use super::*;
     use alloc::collections::BTreeMap;
-    use alloy_consensus::{Block, BlockBody, Header, Receipt, Sealable};
+    use alloy_consensus::{
+        Block, BlockBody, Header, Receipt, Sealable, SignableTransaction, TxEip1559,
+    };
     use alloy_eips::eip7685::Requests;
     use alloy_genesis::Genesis;
     use alloy_primitives::{
-        Address, B256, LogData, bytes,
+        Address, B256, LogData, Signature, bytes,
         map::{AddressMap, B256Map, HashMap},
     };
     use op_alloy_consensus::{SDMGasEntry, build_post_exec_tx};
+    use op_alloy_rpc_types_engine::OpExecutionPayloadEnvelope;
     use op_revm::OpSpecId;
     use reth_chainspec::ChainSpec;
-    use reth_evm::execute::ProviderError;
+    use reth_evm::{ConvertTx, ExecutableTxTuple, execute::ProviderError};
     use reth_execution_types::{
         AccountRevertInit, BundleStateInit, Chain, ExecutionOutcome, RevertsInit,
     };
@@ -487,6 +504,37 @@ mod tests {
         assert!(evm_config.is_sdm_active_at_timestamp(100));
         assert!(evm_config.is_sdm_active_at_timestamp(101));
         assert!(evm_config.is_sdm_active_at_timestamp(u64::MAX));
+    }
+
+    #[test]
+    fn payload_transaction_recovery_populates_sender_cache() {
+        let tx: OpTransactionSigned =
+            TxEip1559 { chain_id: 10, gas_limit: 21_000, ..Default::default() }
+                .into_signed(Signature::test_signature())
+                .into();
+        let tx_hash = tx.tx_hash();
+        let signer = tx.try_recover().expect("test transaction has a valid signature");
+        let block = Block {
+            header: Header::default(),
+            body: BlockBody { transactions: vec![tx], ..Default::default() },
+        };
+        let payload = OpExecutionData::from(
+            OpExecutionPayloadEnvelope::from_block_slow(&block)
+                .expect("test block converts to an execution payload"),
+        );
+        let cache = SenderRecoveryCache::new(4);
+        let evm_config = test_evm_config().with_sender_recovery_cache(cache.clone());
+
+        assert_eq!(cache.get(&tx_hash), None);
+        let transactions =
+            ConfigureEngineEvm::<OpExecutionData>::tx_iterator_for_payload(&evm_config, &payload)
+                .expect("payload transactions decode");
+        let (transactions, convert) = transactions.into_parts();
+        for transaction in transactions {
+            convert.convert(transaction).expect("payload transaction recovers");
+        }
+
+        assert_eq!(cache.get(&tx_hash), Some(signer));
     }
 
     #[test]

@@ -1123,7 +1123,11 @@ where
         OpEvmConfig<<Node::Types as NodeTypes>::ChainSpec, <Node::Types as NodeTypes>::Primitives>;
 
     async fn build_evm(self, ctx: &BuilderContext<Node>) -> eyre::Result<Self::EVM> {
-        Ok(OpEvmConfig::new(ctx.chain_spec(), OpRethReceiptBuilder::default()))
+        let mut evm_config = OpEvmConfig::new(ctx.chain_spec(), OpRethReceiptBuilder::default());
+        if let Some(cache) = ctx.sender_recovery_cache() {
+            evm_config = evm_config.with_sender_recovery_cache(cache.clone());
+        }
+        Ok(evm_config)
     }
 }
 
