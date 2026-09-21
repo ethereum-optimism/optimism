@@ -31,6 +31,7 @@ reth-node-core.workspace = true
 reth-rpc-engine-api.workspace = true
 
 reth-rpc-api.workspace = true
+reth-rpc-builder.workspace = true
 reth-db.workspace = true
 reth-db-api.workspace = true
 reth-chain-state.workspace = true
