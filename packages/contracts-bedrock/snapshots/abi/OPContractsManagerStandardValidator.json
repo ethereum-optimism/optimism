@@ -632,11 +632,6 @@
           },
           {
             "internalType": "bytes32",
-            "name": "cannonPrestate",
-            "type": "bytes32"
-          },
-          {
-            "internalType": "bytes32",
             "name": "cannonKonaPrestate",
             "type": "bytes32"
           },
@@ -768,11 +763,6 @@
             "internalType": "GameType",
             "name": "startingRespectedGameType",
             "type": "uint32"
-          },
-          {
-            "internalType": "bytes32",
-            "name": "cannonPrestate",
-            "type": "bytes32"
           },
           {
             "internalType": "bytes32",

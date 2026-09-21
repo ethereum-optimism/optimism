@@ -109,9 +109,6 @@ contract OPContractsManagerMigrationValidator {
         if (_overrides.l1PAOMultisig != address(0)) {
             _cfg.l1PAOMultisig = _overrides.l1PAOMultisig;
         }
-        if (_overrides.challenger != address(0)) {
-            _cfg.challenger = _overrides.challenger;
-        }
 
         string memory _errors = "";
 

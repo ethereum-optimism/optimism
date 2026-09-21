@@ -103,11 +103,6 @@
           },
           {
             "internalType": "bytes32",
-            "name": "cannonPrestate",
-            "type": "bytes32"
-          },
-          {
-            "internalType": "bytes32",
             "name": "cannonKonaPrestate",
             "type": "bytes32"
           },
@@ -178,11 +173,6 @@
           {
             "internalType": "address",
             "name": "l1PAOMultisig",
-            "type": "address"
-          },
-          {
-            "internalType": "address",
-            "name": "challenger",
             "type": "address"
           },
           {
@@ -316,11 +306,6 @@
           },
           {
             "internalType": "bytes32",
-            "name": "cannonPrestate",
-            "type": "bytes32"
-          },
-          {
-            "internalType": "bytes32",
             "name": "cannonKonaPrestate",
             "type": "bytes32"
           },
@@ -408,11 +393,6 @@
           {
             "internalType": "address",
             "name": "l1PAOMultisig",
-            "type": "address"
-          },
-          {
-            "internalType": "address",
-            "name": "challenger",
             "type": "address"
           },
           {

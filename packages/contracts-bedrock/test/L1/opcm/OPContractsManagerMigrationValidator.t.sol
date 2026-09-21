@@ -274,7 +274,6 @@ abstract contract OPContractsManagerMigrationValidator_TestInit is CommonTest {
     function _buildCfg() internal view returns (IOPContractsManagerMigrationValidator.SharedConfig memory) {
         return IOPContractsManagerMigrationValidator.SharedConfig({
             l1PAOMultisig: standardValidator.l1PAOMultisig(),
-            challenger: standardValidator.challenger(),
             withdrawalDelaySeconds: standardValidator.withdrawalDelaySeconds(),
             superchainConfig: standardValidator.superchainConfig()
         });
@@ -373,7 +372,6 @@ abstract contract OPContractsManagerMigrationValidator_TestInit is CommonTest {
             expectedInitBonds: _expectedInitBonds(),
             startingAnchorRoot: Proposal({ root: Hash.wrap(bytes32(hex"ABBA")), l2SequenceNumber: 1234 }),
             startingRespectedGameType: GameTypes.SUPER_PERMISSIONED,
-            cannonPrestate: cannonPrestate.raw(),
             cannonKonaPrestate: cannonKonaPrestate.raw(),
             proposer: proposer
         });

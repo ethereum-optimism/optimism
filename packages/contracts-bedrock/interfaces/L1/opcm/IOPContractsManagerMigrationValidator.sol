@@ -49,7 +49,6 @@ interface IOPContractsManagerMigrationValidator {
         ExpectedInitBond[] expectedInitBonds;
         Proposal startingAnchorRoot;
         GameType startingRespectedGameType;
-        bytes32 cannonPrestate;
         bytes32 cannonKonaPrestate;
         address proposer;
     }
@@ -70,7 +69,6 @@ interface IOPContractsManagerMigrationValidator {
     /// @notice Shared roles and config values used during migration validation.
     struct SharedConfig {
         address l1PAOMultisig;
-        address challenger;
         uint256 withdrawalDelaySeconds;
         ISuperchainConfig superchainConfig;
     }

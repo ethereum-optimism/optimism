@@ -856,7 +856,6 @@ contract OPContractsManagerStandardValidator is ISemver {
     function _buildSharedConfig() private view returns (IOPContractsManagerMigrationValidator.SharedConfig memory) {
         return IOPContractsManagerMigrationValidator.SharedConfig({
             l1PAOMultisig: l1PAOMultisig,
-            challenger: challenger,
             withdrawalDelaySeconds: withdrawalDelaySeconds,
             superchainConfig: superchainConfig
         });
