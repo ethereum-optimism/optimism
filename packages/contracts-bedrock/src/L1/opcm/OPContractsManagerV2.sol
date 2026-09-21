@@ -113,6 +113,14 @@ contract OPContractsManagerV2 is ISemver, OPContractsManagerUtilsCaller {
         IOPContractsManagerUtils.ExtraInstruction[] extraInstructions;
     }
 
+    /// @notice Number of dispute game configs a full config must supply.
+    uint256 internal constant VALID_GAME_TYPE_COUNT = 6;
+
+    /// @notice The valid game types, packed low-to-high as six uint32s in the order the dispute
+    ///         game configs must be supplied: CANNON, PERMISSIONED_CANNON, CANNON_KONA,
+    ///         SUPER_PERMISSIONED, SUPER_CANNON_KONA, ZK_DISPUTE_GAME.
+    uint256 internal constant VALID_GAME_TYPES = 0x0000000a_00000009_00000005_00000008_00000001_00000000;
+
     /// @notice Thrown when the SuperchainConfig needs to be upgraded.
     error OPContractsManagerV2_SuperchainConfigNeedsUpgrade();
 
@@ -142,14 +150,6 @@ contract OPContractsManagerV2 is ISemver, OPContractsManagerUtilsCaller {
 
     /// @notice Thrown when an enabled game type resolves to a zero implementation in the container.
     error OPContractsManagerV2_ZeroGameImplementation(GameType _gameType);
-
-    /// @notice Number of dispute game configs a full config must supply.
-    uint256 internal constant VALID_GAME_TYPE_COUNT = 6;
-
-    /// @notice The valid game types, packed low-to-high as six uint32s in the order the dispute
-    ///         game configs must be supplied: CANNON, PERMISSIONED_CANNON, CANNON_KONA,
-    ///         SUPER_PERMISSIONED, SUPER_CANNON_KONA, ZK_DISPUTE_GAME.
-    uint256 internal constant VALID_GAME_TYPES = 0x0000000a_00000009_00000005_00000008_00000001_00000000;
 
     /// @notice Address of the Standard Validator for this OPCM release.
     IOPContractsManagerStandardValidator public immutable opcmStandardValidator;
