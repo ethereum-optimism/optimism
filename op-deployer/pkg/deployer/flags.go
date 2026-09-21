@@ -5,7 +5,6 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/artifacts"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/flags"
-	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/standard"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/state"
 
 	op_service "github.com/ethereum-optimism/optimism/op-service"
@@ -147,11 +146,9 @@ var (
 	GenesisTimeOffsetFlag = &cli.Uint64Flag{
 		Name: GenesisTimeOffsetFlagName,
 		Usage: "Offset in seconds added to the L1 anchor block's timestamp to produce the committed L2 genesis " +
-			"timestamp. Must cover the runtime of the off-chain pipeline between anchor selection and OPCM.deploy " +
-			"landing on L1, including the prestate build. " +
-			fmt.Sprintf("Must be at least %d seconds.", standard.MinGenesisTimeOffsetSeconds),
+			"timestamp. A zero offset starts genesis at the anchor timestamp; nodes produce catch-up blocks for " +
+			"elapsed block times. Use a larger offset to schedule genesis after deployment.",
 		EnvVars: PrefixEnvVar("GENESIS_TIME_OFFSET"),
-		Value:   standard.DefaultGenesisTimeOffsetSeconds,
 	}
 )
 

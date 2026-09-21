@@ -167,12 +167,11 @@ func newContinueCLIFixture(t *testing.T) *continueCLIFixture {
 	require.NoError(t, intent.WriteToFile(filepath.Join(preparedWorkdir, "intent.toml")))
 	require.NoError(t, pipeline.WriteState(preparedWorkdir, st))
 	require.NoError(t, deployer.Prepare(ctx, deployer.PrepareConfig{
-		Workdir:           preparedWorkdir,
-		Logger:            lgr,
-		PrivateKey:        privateKey,
-		L1RPCUrl:          l1RPC,
-		CacheDir:          setupCacheDir,
-		GenesisTimeOffset: standard.MinGenesisTimeOffsetSeconds,
+		Workdir:    preparedWorkdir,
+		Logger:     lgr,
+		PrivateKey: privateKey,
+		L1RPCUrl:   l1RPC,
+		CacheDir:   setupCacheDir,
 	}))
 
 	prepared, err := pipeline.ReadState(preparedWorkdir)
