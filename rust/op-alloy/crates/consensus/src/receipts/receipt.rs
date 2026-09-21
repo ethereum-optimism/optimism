@@ -24,7 +24,7 @@ use alloy_rlp::{Buf, BufMut, Decodable, Encodable, Header};
 ///
 /// Receipt containing result of transaction execution.
 #[derive(Clone, Debug, PartialEq, Eq)]
-#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+#[cfg_attr(feature = "serde", derive(serde::Serialize))]
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[cfg_attr(feature = "serde", serde(tag = "type"))]
 pub enum OpReceipt<T = Log> {
@@ -46,6 +46,39 @@ pub enum OpReceipt<T = Log> {
     /// Deposit receipt
     #[cfg_attr(feature = "serde", serde(rename = "0x7e", alias = "0x7E"))]
     Deposit(OpDepositReceipt<T>),
+}
+
+/// Deserializes a receipt, treating a missing `type` field as [`OpTxType::Legacy`]. See
+/// [`OpReceiptEnvelope`]'s implementation for why.
+#[cfg(feature = "serde")]
+impl<'de, T: serde::Deserialize<'de>> serde::Deserialize<'de> for OpReceipt<T> {
+    fn deserialize<D: serde::Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        use alloy_eips::eip2718::LEGACY_TX_TYPE_ID;
+
+        #[derive(serde::Deserialize)]
+        struct OpReceiptHelper<T> {
+            #[serde(default, rename = "type", with = "alloy_serde::quantity::opt")]
+            ty: Option<u8>,
+            #[serde(flatten)]
+            receipt: OpDepositReceipt<T>,
+        }
+
+        let helper = OpReceiptHelper::<T>::deserialize(deserializer)?;
+        let ty = OpTxType::try_from(helper.ty.unwrap_or(LEGACY_TX_TYPE_ID))
+            .map_err(serde::de::Error::custom)?;
+        let OpDepositReceipt { inner, deposit_nonce, deposit_receipt_version } = helper.receipt;
+
+        Ok(match ty {
+            OpTxType::Legacy => Self::Legacy(inner),
+            OpTxType::Eip2930 => Self::Eip2930(inner),
+            OpTxType::Eip1559 => Self::Eip1559(inner),
+            OpTxType::Eip7702 => Self::Eip7702(inner),
+            OpTxType::PostExec => Self::PostExec(inner),
+            OpTxType::Deposit => {
+                Self::Deposit(OpDepositReceipt { inner, deposit_nonce, deposit_receipt_version })
+            }
+        })
+    }
 }
 
 impl<T> OpReceipt<T> {
@@ -817,5 +850,52 @@ mod tests {
 
         assert_eq!(decoded, receipt);
         assert_eq!(decoded.receipt.tx_type(), OpTxType::PostExec);
+    }
+
+    #[cfg(feature = "serde")]
+    fn json_receipt(tx_type: OpTxType) -> OpReceipt {
+        let inner =
+            Receipt { status: Eip658Value::Eip658(true), cumulative_gas_used: 100, logs: vec![] };
+        match tx_type {
+            OpTxType::Legacy => OpReceipt::Legacy(inner),
+            OpTxType::Eip2930 => OpReceipt::Eip2930(inner),
+            OpTxType::Eip1559 => OpReceipt::Eip1559(inner),
+            OpTxType::Eip7702 => OpReceipt::Eip7702(inner),
+            OpTxType::PostExec => OpReceipt::PostExec(inner),
+            OpTxType::Deposit => OpReceipt::Deposit(OpDepositReceipt {
+                inner,
+                deposit_nonce: Some(7),
+                deposit_receipt_version: Some(1),
+            }),
+        }
+    }
+
+    /// See the matching [`OpReceiptEnvelope`] test: a missing `type` means legacy.
+    #[test]
+    #[cfg(feature = "serde")]
+    fn receipt_json_without_a_type_deserializes_as_legacy() {
+        let legacy = json_receipt(OpTxType::Legacy);
+        let mut value = serde_json::to_value(&legacy).unwrap();
+        assert!(value.as_object_mut().unwrap().remove("type").is_some());
+        assert_eq!(serde_json::from_value::<OpReceipt>(value).unwrap(), legacy);
+    }
+
+    /// Every tagged receipt keeps round-tripping, and the serialized tag is unchanged.
+    #[test]
+    #[cfg(feature = "serde")]
+    fn every_receipt_type_round_trips_through_json() {
+        for (tx_type, tag) in [
+            (OpTxType::Legacy, "0x0"),
+            (OpTxType::Eip2930, "0x1"),
+            (OpTxType::Eip1559, "0x2"),
+            (OpTxType::Eip7702, "0x4"),
+            (OpTxType::PostExec, "0x7d"),
+            (OpTxType::Deposit, "0x7e"),
+        ] {
+            let receipt = json_receipt(tx_type);
+            let value = serde_json::to_value(&receipt).unwrap();
+            assert_eq!(value["type"], tag);
+            assert_eq!(serde_json::from_value::<OpReceipt>(value).unwrap(), receipt);
+        }
     }
 }

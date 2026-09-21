@@ -28,7 +28,7 @@ use alloy_rlp::{BufMut, Decodable, Encodable, length_of_length};
 ///
 /// [EIP-2718]: https://eips.ethereum.org/EIPS/eip-2718
 #[derive(Debug, Clone, PartialEq, Eq)]
-#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+#[cfg_attr(feature = "serde", derive(serde::Serialize))]
 #[cfg_attr(feature = "serde", serde(tag = "type"))]
 pub enum OpReceiptEnvelope<T = Log> {
     /// Receipt envelope with no type flag.
@@ -57,6 +57,50 @@ pub enum OpReceiptEnvelope<T = Log> {
     /// [deposit]: https://specs.optimism.io/protocol/deposits.html
     #[cfg_attr(feature = "serde", serde(rename = "0x7e", alias = "0x7E"))]
     Deposit(ReceiptWithBloom<OpDepositReceipt<T>>),
+}
+
+/// Deserializes a receipt, treating a missing `type` field as [`OpTxType::Legacy`].
+///
+/// The `type` field is required by the JSON-RPC specification, but some Ethereum-compatible
+/// nodes omit it entirely. A receipt without a type flag is a pre-[EIP-2718] receipt, which is
+/// unambiguously legacy, so it is accepted rather than rejected.
+///
+/// [EIP-2718]: https://eips.ethereum.org/EIPS/eip-2718
+#[cfg(feature = "serde")]
+impl<'de, T: serde::Deserialize<'de>> serde::Deserialize<'de> for OpReceiptEnvelope<T> {
+    fn deserialize<D: serde::Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        use alloy_eips::eip2718::LEGACY_TX_TYPE_ID;
+
+        // A deposit receipt is every other receipt plus two optional fields, so one helper
+        // decodes all six variants and the non-deposit ones drop them.
+        #[derive(serde::Deserialize)]
+        struct OpReceiptEnvelopeHelper<T> {
+            #[serde(default, rename = "type", with = "alloy_serde::quantity::opt")]
+            ty: Option<u8>,
+            #[serde(flatten)]
+            receipt: OpDepositReceiptWithBloom<T>,
+        }
+
+        let helper = OpReceiptEnvelopeHelper::<T>::deserialize(deserializer)?;
+        let ty = OpTxType::try_from(helper.ty.unwrap_or(LEGACY_TX_TYPE_ID))
+            .map_err(serde::de::Error::custom)?;
+        let ReceiptWithBloom {
+            receipt: OpDepositReceipt { inner, deposit_nonce, deposit_receipt_version },
+            logs_bloom,
+        } = helper.receipt;
+
+        Ok(match ty {
+            OpTxType::Legacy => Self::Legacy(ReceiptWithBloom { receipt: inner, logs_bloom }),
+            OpTxType::Eip2930 => Self::Eip2930(ReceiptWithBloom { receipt: inner, logs_bloom }),
+            OpTxType::Eip1559 => Self::Eip1559(ReceiptWithBloom { receipt: inner, logs_bloom }),
+            OpTxType::Eip7702 => Self::Eip7702(ReceiptWithBloom { receipt: inner, logs_bloom }),
+            OpTxType::PostExec => Self::PostExec(ReceiptWithBloom { receipt: inner, logs_bloom }),
+            OpTxType::Deposit => Self::Deposit(ReceiptWithBloom {
+                receipt: OpDepositReceipt { inner, deposit_nonce, deposit_receipt_version },
+                logs_bloom,
+            }),
+        })
+    }
 }
 
 impl OpReceiptEnvelope<Log> {
@@ -470,5 +514,63 @@ mod tests {
         assert_eq!(receipt.logs().len(), 0);
         assert_eq!(receipt.tx_type(), OpTxType::PostExec);
         assert!(matches!(receipt, OpReceiptEnvelope::PostExec(_)));
+    }
+
+    #[cfg(feature = "serde")]
+    fn json_envelope(tx_type: OpTxType) -> OpReceiptEnvelope {
+        let deposit = tx_type.is_deposit();
+        OpReceiptEnvelope::from_parts(
+            true,
+            100,
+            vec![],
+            tx_type,
+            deposit.then_some(7),
+            deposit.then_some(1),
+        )
+    }
+
+    /// A receipt object with no `type` is a pre-EIP-2718 receipt, which is unambiguously
+    /// legacy, and some Ethereum-compatible nodes still emit one. Upstream `ReceiptEnvelope`
+    /// accepts it; rejecting it here would make OP receipts undecodable from those nodes.
+    #[test]
+    #[cfg(feature = "serde")]
+    fn receipt_json_without_a_type_deserializes_as_legacy() {
+        let legacy = json_envelope(OpTxType::Legacy);
+        let mut value = serde_json::to_value(&legacy).unwrap();
+        assert!(value.as_object_mut().unwrap().remove("type").is_some());
+        assert_eq!(serde_json::from_value::<OpReceiptEnvelope>(value).unwrap(), legacy);
+    }
+
+    /// Every tagged receipt keeps round-tripping, and the serialized tag is unchanged.
+    #[test]
+    #[cfg(feature = "serde")]
+    fn every_receipt_type_round_trips_through_json() {
+        for (tx_type, tag) in [
+            (OpTxType::Legacy, "0x0"),
+            (OpTxType::Eip2930, "0x1"),
+            (OpTxType::Eip1559, "0x2"),
+            (OpTxType::Eip7702, "0x4"),
+            (OpTxType::PostExec, "0x7d"),
+            (OpTxType::Deposit, "0x7e"),
+        ] {
+            let receipt = json_envelope(tx_type);
+            let value = serde_json::to_value(&receipt).unwrap();
+            assert_eq!(value["type"], tag);
+            assert_eq!(serde_json::from_value::<OpReceiptEnvelope>(value).unwrap(), receipt);
+        }
+    }
+
+    /// Zero-padded and upper-case tags are accepted aliases.
+    #[test]
+    #[cfg(feature = "serde")]
+    fn padded_type_tags_still_deserialize() {
+        for (tag, tx_type) in [("0x00", OpTxType::Legacy), ("0x7E", OpTxType::Deposit)] {
+            let mut value = serde_json::to_value(json_envelope(tx_type)).unwrap();
+            value["type"] = serde_json::Value::from(tag);
+            assert_eq!(
+                serde_json::from_value::<OpReceiptEnvelope>(value).unwrap().tx_type(),
+                tx_type
+            );
+        }
     }
 }
