@@ -79,6 +79,8 @@ pub use alloy_op_evm::{
 mod post_exec_ext;
 pub use post_exec_ext::*;
 
+mod sdm_metrics;
+
 /// Optimism-related EVM configuration.
 #[derive(Debug)]
 pub struct OpEvmConfig<
@@ -163,6 +165,7 @@ where
     T: OpConsensusTransaction + 'a,
 {
     parse_post_exec_payload_from_transactions(transactions, block_number, sdm_active)
+        .inspect_err(|error| sdm_metrics::report_post_exec_validation_failure(block_number, *error))
         .map_err(|_| EIP1559ParamError::InvalidPostExecPayload)
         .map(|parsed| {
             parsed.map_or_else(PostExecMode::default, |parsed| PostExecMode::Verify(parsed.payload))
@@ -393,6 +396,13 @@ where
             .iter()
             .map(|encoded| TxTy::<Self::Primitives>::decode_2718_exact(encoded.as_ref()))
             .collect::<Result<Vec<_>, _>>()
+            .inspect_err(|error| {
+                tracing::warn!(
+                    block_number = payload.payload.block_number(),
+                    %error,
+                    "payload rejected: transaction failed to decode"
+                );
+            })
             .map_err(|_| EIP1559ParamError::InvalidPostExecPayload)?;
         let post_exec_mode = post_exec_mode_from_transactions(
             transactions.iter(),
