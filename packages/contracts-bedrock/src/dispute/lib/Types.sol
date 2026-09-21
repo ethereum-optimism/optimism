@@ -48,8 +48,7 @@ struct Proposal {
 
 /// @title GameTypes
 /// @notice A library that defines the IDs of games that can be played.
-///         When adding a new game type, the hardcoded game type lists in OPContractsManagerMigrator
-///         and OPContractsManagerUtils must also be updated.
+///         When adding a new game type, it must be added to the list returned by clearedGameTypes().
 library GameTypes {
     /// @dev A dispute game type the uses the cannon vm.
     GameType internal constant CANNON = GameType.wrap(0);
