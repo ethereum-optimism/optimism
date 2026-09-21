@@ -70,7 +70,7 @@ static EXCESSIVE_REFUND_TARGET: OnceLock<Option<Address>> = OnceLock::new();
 /// A deterministic fixture policy that refunds one gas per committed normal transaction.
 ///
 /// Deposits and the synthetic post-exec transaction receive no refund. For acceptance-test fault
-/// injection only, [`EXCESSIVE_REFUND_TARGET_ENV`] selects a call target whose transaction receives
+/// injection only, `EXCESSIVE_REFUND_TARGET_ENV` selects a call target whose transaction receives
 /// `u64::MAX`; this exercises producer containment of a faulty policy.
 #[derive(Debug, Clone, Copy, Default)]
 pub struct FixedRefundPolicy {
