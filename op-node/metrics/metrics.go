@@ -39,6 +39,7 @@ type Metricer interface {
 	RecordSuperAuthorityReorgSignal(reason string)
 	RecordSequencingError()
 	RecordPublishingError()
+	RecordDroppedPublish()
 	RecordDerivationError()
 	RecordEmittedEvent(eventName string, emitter string)
 	RecordProcessedEvent(eventName string, deriver string, duration time.Duration)
@@ -98,6 +99,7 @@ type Metrics struct {
 	DerivationErrors *metrics.Event
 	SequencingErrors *metrics.Event
 	PublishingErrors *metrics.Event
+	DroppedPublishes *metrics.Event
 	SequencerActive  prometheus.Gauge
 
 	*event.EventMetricsTracker
@@ -216,6 +218,7 @@ func NewMetrics(procName string, labels prometheus.Labels) *Metrics {
 		DerivationErrors: metrics.NewEvent(factory, ns, "", "derivation_errors", "derivation errors"),
 		SequencingErrors: metrics.NewEvent(factory, ns, "", "sequencing_errors", "sequencing errors"),
 		PublishingErrors: metrics.NewEvent(factory, ns, "", "publishing_errors", "p2p publishing errors"),
+		DroppedPublishes: metrics.NewEvent(factory, ns, "", "dropped_publishes", "sealed blocks that never reached peers"),
 		SequencerActive: factory.NewGauge(prometheus.GaugeOpts{
 			Namespace: ns,
 			Name:      "sequencer_active",
@@ -483,6 +486,13 @@ func (m *Metrics) RecordPublishingError() {
 	m.PublishingErrors.Record()
 }
 
+// RecordDroppedPublish counts sealed blocks that never reached peers, whether
+// evicted from a full publish queue or given up on after repeated failures. On
+// publishing_errors alone a final failure is indistinguishable from a retried one.
+func (m *Metrics) RecordDroppedPublish() {
+	m.DroppedPublishes.Record()
+}
+
 func (m *Metrics) RecordDerivationError() {
 	m.DerivationErrors.Record()
 }
@@ -694,6 +704,9 @@ func (n *noopMetricer) RecordSequencingError() {
 }
 
 func (n *noopMetricer) RecordPublishingError() {
+}
+
+func (n *noopMetricer) RecordDroppedPublish() {
 }
 
 func (n *noopMetricer) RecordDerivationError() {
