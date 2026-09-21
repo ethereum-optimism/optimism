@@ -7,7 +7,9 @@ use revm::{
     interpreter::{CallInputs, CallOutcome, CreateInputs, CreateOutcome, Interpreter},
 };
 
-use super::{PostExecExecutedTx, PostExecRefundInspector, PostExecTxContext};
+use super::{
+    PostExecCreateObservation, PostExecExecutedTx, PostExecRefundInspector, PostExecTxContext,
+};
 
 /// The public production post-exec refund policy.
 ///
@@ -28,13 +30,13 @@ impl PostExecRefundInspector for NullRefundPolicy {
         PostExecExecutedTx::default()
     }
 
-    fn inspect_step<CTX>(&mut self, _interp: &mut Interpreter, _context: &mut CTX)
+    fn inspect_step<CTX>(&mut self, _interp: &Interpreter, _context: &CTX)
     where
         CTX: ContextTr<Journal: JournalExt>,
     {
     }
 
-    fn inspect_call<CTX>(&mut self, _context: &mut CTX, _inputs: &mut CallInputs)
+    fn inspect_call<CTX>(&mut self, _context: &CTX, _inputs: &CallInputs)
     where
         CTX: ContextTr<Journal: JournalExt>,
     {
@@ -42,7 +44,7 @@ impl PostExecRefundInspector for NullRefundPolicy {
 
     fn inspect_call_end<CTX>(
         &mut self,
-        _context: &mut CTX,
+        _context: &CTX,
         _inputs: &CallInputs,
         _outcome: &CallOutcome,
     ) where
@@ -50,7 +52,7 @@ impl PostExecRefundInspector for NullRefundPolicy {
     {
     }
 
-    fn inspect_create<CTX>(&mut self, _context: &mut CTX, _inputs: &mut CreateInputs)
+    fn inspect_create<CTX>(&mut self, _context: &CTX, _observation: PostExecCreateObservation)
     where
         CTX: ContextTr<Journal: JournalExt>,
     {
@@ -58,7 +60,7 @@ impl PostExecRefundInspector for NullRefundPolicy {
 
     fn inspect_create_end<CTX>(
         &mut self,
-        _context: &mut CTX,
+        _context: &CTX,
         _inputs: &CreateInputs,
         _outcome: &CreateOutcome,
     ) where

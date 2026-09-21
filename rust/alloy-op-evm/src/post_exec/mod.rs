@@ -26,8 +26,8 @@ use revm::{
 };
 
 pub use inspector::{
-    PostExecCompositeInspector, PostExecExecutedTx, PostExecRefundEvent, PostExecRefundKind,
-    PostExecTxContext, PostExecTxKind,
+    PostExecCompositeInspector, PostExecCreateObservation, PostExecExecutedTx, PostExecRefundEvent,
+    PostExecRefundKind, PostExecTxContext, PostExecTxKind,
 };
 
 use crate::block::{OpBlockExecutor, receipt_builder::OpReceiptBuilder};

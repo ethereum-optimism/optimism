@@ -9,8 +9,8 @@ use std::{borrow::Cow, sync::Arc};
 use alloy_op_evm::{
     OpEvmFactory, OpTx,
     post_exec::{
-        PostExecEvmFactoryAdapter, PostExecExecutedTx, PostExecRefundInspector, PostExecTxContext,
-        PostExecTxKind,
+        PostExecCreateObservation, PostExecEvmFactoryAdapter, PostExecExecutedTx,
+        PostExecRefundInspector, PostExecTxContext, PostExecTxKind,
     },
 };
 use alloy_primitives::{Address, U256};
@@ -84,13 +84,13 @@ impl PostExecRefundInspector for FixedRefundPolicy {
         PostExecExecutedTx { refund_total, refund_events: Vec::new() }
     }
 
-    fn inspect_step<CTX>(&mut self, _interp: &mut Interpreter, _context: &mut CTX)
+    fn inspect_step<CTX>(&mut self, _interp: &Interpreter, _context: &CTX)
     where
         CTX: ContextTr<Journal: JournalExt>,
     {
     }
 
-    fn inspect_call<CTX>(&mut self, _context: &mut CTX, _inputs: &mut CallInputs)
+    fn inspect_call<CTX>(&mut self, _context: &CTX, _inputs: &CallInputs)
     where
         CTX: ContextTr<Journal: JournalExt>,
     {
@@ -98,7 +98,7 @@ impl PostExecRefundInspector for FixedRefundPolicy {
 
     fn inspect_call_end<CTX>(
         &mut self,
-        _context: &mut CTX,
+        _context: &CTX,
         _inputs: &CallInputs,
         _outcome: &CallOutcome,
     ) where
@@ -106,7 +106,7 @@ impl PostExecRefundInspector for FixedRefundPolicy {
     {
     }
 
-    fn inspect_create<CTX>(&mut self, _context: &mut CTX, _inputs: &mut CreateInputs)
+    fn inspect_create<CTX>(&mut self, _context: &CTX, _observation: PostExecCreateObservation)
     where
         CTX: ContextTr<Journal: JournalExt>,
     {
@@ -114,7 +114,7 @@ impl PostExecRefundInspector for FixedRefundPolicy {
 
     fn inspect_create_end<CTX>(
         &mut self,
-        _context: &mut CTX,
+        _context: &CTX,
         _inputs: &CreateInputs,
         _outcome: &CreateOutcome,
     ) where

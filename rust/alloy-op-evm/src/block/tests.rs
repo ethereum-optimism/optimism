@@ -28,7 +28,9 @@ use revm::{
 
 use crate::{
     OpEvm,
-    post_exec::{PostExecExecutedTx, PostExecRefundInspector, PostExecTxContext},
+    post_exec::{
+        PostExecCreateObservation, PostExecExecutedTx, PostExecRefundInspector, PostExecTxContext,
+    },
 };
 
 use super::*;
@@ -699,14 +701,14 @@ impl PostExecRefundInspector for HookObservingPolicy {
         PostExecExecutedTx { refund_total: self.observed_hooks, refund_events: Vec::new() }
     }
 
-    fn inspect_step<CTX>(&mut self, _interp: &mut Interpreter, _context: &mut CTX)
+    fn inspect_step<CTX>(&mut self, _interp: &Interpreter, _context: &CTX)
     where
         CTX: ContextTr<Journal: JournalExt>,
     {
         self.observed_hooks |= 1;
     }
 
-    fn inspect_call<CTX>(&mut self, _context: &mut CTX, _inputs: &mut CallInputs)
+    fn inspect_call<CTX>(&mut self, _context: &CTX, _inputs: &CallInputs)
     where
         CTX: ContextTr<Journal: JournalExt>,
     {
@@ -715,7 +717,7 @@ impl PostExecRefundInspector for HookObservingPolicy {
 
     fn inspect_call_end<CTX>(
         &mut self,
-        _context: &mut CTX,
+        _context: &CTX,
         _inputs: &CallInputs,
         _outcome: &CallOutcome,
     ) where
@@ -724,7 +726,7 @@ impl PostExecRefundInspector for HookObservingPolicy {
         self.observed_hooks |= 16;
     }
 
-    fn inspect_create<CTX>(&mut self, _context: &mut CTX, _inputs: &mut CreateInputs)
+    fn inspect_create<CTX>(&mut self, _context: &CTX, _observation: PostExecCreateObservation)
     where
         CTX: ContextTr<Journal: JournalExt>,
     {
@@ -733,7 +735,7 @@ impl PostExecRefundInspector for HookObservingPolicy {
 
     fn inspect_create_end<CTX>(
         &mut self,
-        _context: &mut CTX,
+        _context: &CTX,
         _inputs: &CreateInputs,
         _outcome: &CreateOutcome,
     ) where
@@ -789,13 +791,13 @@ impl PostExecRefundInspector for ScriptedRefundPolicy {
         PostExecExecutedTx { refund_total: self.executed_candidates, refund_events: Vec::new() }
     }
 
-    fn inspect_step<CTX>(&mut self, _interp: &mut Interpreter, _context: &mut CTX)
+    fn inspect_step<CTX>(&mut self, _interp: &Interpreter, _context: &CTX)
     where
         CTX: ContextTr<Journal: JournalExt>,
     {
     }
 
-    fn inspect_call<CTX>(&mut self, _context: &mut CTX, _inputs: &mut CallInputs)
+    fn inspect_call<CTX>(&mut self, _context: &CTX, _inputs: &CallInputs)
     where
         CTX: ContextTr<Journal: JournalExt>,
     {
@@ -803,7 +805,7 @@ impl PostExecRefundInspector for ScriptedRefundPolicy {
 
     fn inspect_call_end<CTX>(
         &mut self,
-        _context: &mut CTX,
+        _context: &CTX,
         _inputs: &CallInputs,
         _outcome: &CallOutcome,
     ) where
@@ -811,7 +813,7 @@ impl PostExecRefundInspector for ScriptedRefundPolicy {
     {
     }
 
-    fn inspect_create<CTX>(&mut self, _context: &mut CTX, _inputs: &mut CreateInputs)
+    fn inspect_create<CTX>(&mut self, _context: &CTX, _observation: PostExecCreateObservation)
     where
         CTX: ContextTr<Journal: JournalExt>,
     {
@@ -819,7 +821,7 @@ impl PostExecRefundInspector for ScriptedRefundPolicy {
 
     fn inspect_create_end<CTX>(
         &mut self,
-        _context: &mut CTX,
+        _context: &CTX,
         _inputs: &CreateInputs,
         _outcome: &CreateOutcome,
     ) where

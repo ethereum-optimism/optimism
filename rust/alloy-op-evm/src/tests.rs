@@ -27,6 +27,7 @@ use revm::{
 use revm_inspectors::tracing::{TracingInspector, TracingInspectorConfig};
 
 use super::*;
+use crate::post_exec::PostExecCreateObservation;
 
 /// Runtime of a contract that reads (warms) storage slot 0: `PUSH1 0x00; SLOAD; POP; STOP`.
 #[derive(Debug, Default)]
@@ -54,13 +55,13 @@ impl post_exec::PostExecRefundInspector for TestRefundPolicy {
         post_exec::PostExecExecutedTx { refund_total, refund_events: Vec::new() }
     }
 
-    fn inspect_step<CTX>(&mut self, _interp: &mut Interpreter, _context: &mut CTX)
+    fn inspect_step<CTX>(&mut self, _interp: &Interpreter, _context: &CTX)
     where
         CTX: ContextTr<Journal: JournalExt>,
     {
     }
 
-    fn inspect_call<CTX>(&mut self, _context: &mut CTX, _inputs: &mut CallInputs)
+    fn inspect_call<CTX>(&mut self, _context: &CTX, _inputs: &CallInputs)
     where
         CTX: ContextTr<Journal: JournalExt>,
     {
@@ -68,7 +69,7 @@ impl post_exec::PostExecRefundInspector for TestRefundPolicy {
 
     fn inspect_call_end<CTX>(
         &mut self,
-        _context: &mut CTX,
+        _context: &CTX,
         _inputs: &CallInputs,
         _outcome: &CallOutcome,
     ) where
@@ -76,7 +77,7 @@ impl post_exec::PostExecRefundInspector for TestRefundPolicy {
     {
     }
 
-    fn inspect_create<CTX>(&mut self, _context: &mut CTX, _inputs: &mut CreateInputs)
+    fn inspect_create<CTX>(&mut self, _context: &CTX, _observation: PostExecCreateObservation)
     where
         CTX: ContextTr<Journal: JournalExt>,
     {
@@ -84,7 +85,7 @@ impl post_exec::PostExecRefundInspector for TestRefundPolicy {
 
     fn inspect_create_end<CTX>(
         &mut self,
-        _context: &mut CTX,
+        _context: &CTX,
         _inputs: &CreateInputs,
         _outcome: &CreateOutcome,
     ) where

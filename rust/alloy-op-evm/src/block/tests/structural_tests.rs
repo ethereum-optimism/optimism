@@ -83,13 +83,13 @@ impl PostExecRefundInspector for FixedRefundPolicy {
         }
     }
 
-    fn inspect_step<CTX>(&mut self, _interp: &mut Interpreter, _context: &mut CTX)
+    fn inspect_step<CTX>(&mut self, _interp: &Interpreter, _context: &CTX)
     where
         CTX: ContextTr<Journal: JournalExt>,
     {
     }
 
-    fn inspect_call<CTX>(&mut self, _context: &mut CTX, _inputs: &mut CallInputs)
+    fn inspect_call<CTX>(&mut self, _context: &CTX, _inputs: &CallInputs)
     where
         CTX: ContextTr<Journal: JournalExt>,
     {
@@ -97,7 +97,7 @@ impl PostExecRefundInspector for FixedRefundPolicy {
 
     fn inspect_call_end<CTX>(
         &mut self,
-        _context: &mut CTX,
+        _context: &CTX,
         _inputs: &CallInputs,
         _outcome: &CallOutcome,
     ) where
@@ -105,7 +105,7 @@ impl PostExecRefundInspector for FixedRefundPolicy {
     {
     }
 
-    fn inspect_create<CTX>(&mut self, _context: &mut CTX, _inputs: &mut CreateInputs)
+    fn inspect_create<CTX>(&mut self, _context: &CTX, _observation: PostExecCreateObservation)
     where
         CTX: ContextTr<Journal: JournalExt>,
     {
@@ -113,7 +113,7 @@ impl PostExecRefundInspector for FixedRefundPolicy {
 
     fn inspect_create_end<CTX>(
         &mut self,
-        _context: &mut CTX,
+        _context: &CTX,
         _inputs: &CreateInputs,
         _outcome: &CreateOutcome,
     ) where
@@ -418,13 +418,13 @@ impl PostExecRefundInspector for ErroringRefundPolicy {
         PostExecExecutedTx { refund_total: u64::MAX, refund_events: Vec::new() }
     }
 
-    fn inspect_step<CTX>(&mut self, _interp: &mut Interpreter, _context: &mut CTX)
+    fn inspect_step<CTX>(&mut self, _interp: &Interpreter, _context: &CTX)
     where
         CTX: ContextTr<Journal: JournalExt>,
     {
     }
 
-    fn inspect_call<CTX>(&mut self, _context: &mut CTX, _inputs: &mut CallInputs)
+    fn inspect_call<CTX>(&mut self, _context: &CTX, _inputs: &CallInputs)
     where
         CTX: ContextTr<Journal: JournalExt>,
     {
@@ -432,7 +432,7 @@ impl PostExecRefundInspector for ErroringRefundPolicy {
 
     fn inspect_call_end<CTX>(
         &mut self,
-        _context: &mut CTX,
+        _context: &CTX,
         _inputs: &CallInputs,
         _outcome: &CallOutcome,
     ) where
@@ -440,7 +440,7 @@ impl PostExecRefundInspector for ErroringRefundPolicy {
     {
     }
 
-    fn inspect_create<CTX>(&mut self, _context: &mut CTX, _inputs: &mut CreateInputs)
+    fn inspect_create<CTX>(&mut self, _context: &CTX, _observation: PostExecCreateObservation)
     where
         CTX: ContextTr<Journal: JournalExt>,
     {
@@ -448,7 +448,7 @@ impl PostExecRefundInspector for ErroringRefundPolicy {
 
     fn inspect_create_end<CTX>(
         &mut self,
-        _context: &mut CTX,
+        _context: &CTX,
         _inputs: &CreateInputs,
         _outcome: &CreateOutcome,
     ) where
@@ -1243,13 +1243,13 @@ mod warm_set_leak {
             PostExecExecutedTx::default()
         }
 
-        fn inspect_step<CTX>(&mut self, _interp: &mut Interpreter, _context: &mut CTX)
+        fn inspect_step<CTX>(&mut self, _interp: &Interpreter, _context: &CTX)
         where
             CTX: ContextTr<Journal: JournalExt>,
         {
         }
 
-        fn inspect_call<CTX>(&mut self, _context: &mut CTX, _inputs: &mut CallInputs)
+        fn inspect_call<CTX>(&mut self, _context: &CTX, _inputs: &CallInputs)
         where
             CTX: ContextTr<Journal: JournalExt>,
         {
@@ -1257,7 +1257,7 @@ mod warm_set_leak {
 
         fn inspect_call_end<CTX>(
             &mut self,
-            _context: &mut CTX,
+            _context: &CTX,
             _inputs: &CallInputs,
             _outcome: &CallOutcome,
         ) where
@@ -1265,7 +1265,7 @@ mod warm_set_leak {
         {
         }
 
-        fn inspect_create<CTX>(&mut self, _context: &mut CTX, _inputs: &mut CreateInputs)
+        fn inspect_create<CTX>(&mut self, _context: &CTX, _observation: PostExecCreateObservation)
         where
             CTX: ContextTr<Journal: JournalExt>,
         {
@@ -1273,7 +1273,7 @@ mod warm_set_leak {
 
         fn inspect_create_end<CTX>(
             &mut self,
-            _context: &mut CTX,
+            _context: &CTX,
             _inputs: &CreateInputs,
             _outcome: &CreateOutcome,
         ) where

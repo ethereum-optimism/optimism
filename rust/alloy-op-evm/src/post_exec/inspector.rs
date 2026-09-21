@@ -1,11 +1,15 @@
 use alloc::vec::Vec;
-use alloy_primitives::{Address, B256};
+use alloy_primitives::{Address, B256, keccak256};
 use revm::{
     Inspector,
-    context_interface::ContextTr,
+    context_interface::{ContextTr, CreateScheme, JournalTr},
     inspector::JournalExt,
     interpreter::{CallInputs, CreateInputs, Interpreter},
 };
+
+#[cfg(test)]
+#[path = "inspector_tests.rs"]
+mod tests;
 
 /// Refund categories a policy can attribute a rebate to.
 ///
@@ -66,6 +70,70 @@ pub struct PostExecTxContext {
     pub tx_index: u64,
     /// Transaction classification.
     pub kind: PostExecTxKind,
+}
+
+/// Read-only CREATE observation supplied to a post-exec refund policy.
+///
+/// The policy never receives revm's live [`CreateInputs`], whose interior-mutable address cache is
+/// execution-relevant. The composite inspector derives these copied values without populating that
+/// cache, so a refund policy cannot change where revm deploys the contract.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct PostExecCreateObservation {
+    depth: usize,
+    caller: Address,
+    scheme: CreateScheme,
+    created_address: Option<Address>,
+}
+
+impl PostExecCreateObservation {
+    /// Creates a read-only CREATE observation from copied execution metadata.
+    pub const fn new(
+        depth: usize,
+        caller: Address,
+        scheme: CreateScheme,
+        created_address: Option<Address>,
+    ) -> Self {
+        Self { depth, caller, scheme, created_address }
+    }
+
+    fn from_evm<CTX>(context: &CTX, inputs: &CreateInputs) -> Self
+    where
+        CTX: ContextTr<Journal: JournalExt>,
+    {
+        let caller = inputs.caller();
+        let created_address = match inputs.scheme() {
+            CreateScheme::Create => context
+                .journal_ref()
+                .evm_state()
+                .get(&caller)
+                .map(|account| caller.create(account.info.nonce)),
+            CreateScheme::Create2 { salt } => {
+                Some(caller.create2(salt.to_be_bytes(), keccak256(inputs.init_code().as_ref())))
+            }
+            CreateScheme::Custom { address } => Some(address),
+        };
+        Self::new(context.journal_ref().depth(), caller, inputs.scheme(), created_address)
+    }
+
+    /// Current EVM call depth before revm initializes the CREATE frame.
+    pub const fn depth(&self) -> usize {
+        self.depth
+    }
+
+    /// Account executing CREATE.
+    pub const fn caller(&self) -> Address {
+        self.caller
+    }
+
+    /// CREATE addressing scheme.
+    pub const fn scheme(&self) -> CreateScheme {
+        self.scheme
+    }
+
+    /// Independently derived created address, or `None` if CREATE's caller was unexpectedly absent.
+    pub const fn created_address(&self) -> Option<Address> {
+        self.created_address
+    }
 }
 
 /// Extracted result for the most recently executed transaction.
@@ -204,7 +272,8 @@ where
         inputs: &mut CreateInputs,
     ) -> Option<revm::interpreter::CreateOutcome> {
         let inner = self.inner.create(context, inputs);
-        self.post_exec.inspect_create(context, inputs);
+        let observation = PostExecCreateObservation::from_evm(context, inputs);
+        self.post_exec.inspect_create(context, observation);
         inner
     }
 
