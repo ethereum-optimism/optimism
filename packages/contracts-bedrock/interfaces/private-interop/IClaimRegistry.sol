@@ -13,11 +13,15 @@ import { IProxyAdminOwnedBase } from "interfaces/universal/IProxyAdminOwnedBase.
 ///         and the rest of the reference is already derivable from public data; the parent hash was
 ///         the one remaining piece that was not, so it is published rather than derived.
 ///
-/// @custom:field version                   Claim format version. Must be 1 for this registry.
+/// @custom:field version                   Claim format version. Must be 2 for this registry.
 /// @custom:field firstBlock                First public block covered by the range.
 /// @custom:field lastBlock                 Last public block covered by the range.
 /// @custom:field privateTerminalBlockHash  The private chain's block hash at `lastBlock`.
 /// @custom:field privateTerminalParentHash Parent hash of that private terminal block.
+/// @custom:field anchorBlock               Height of the surviving private checkpoint.
+/// @custom:field anchorOutputRoot          Its admitted private OutputV0 commitment.
+/// @custom:field recoveryHash              Canonical public replacement inputs after that checkpoint.
+/// @custom:field parentOutputRoot          Claimed private output immediately before this range.
 /// @custom:field l1Head                    L1 head the range was derived under.
 /// @custom:field rollupConfigHash          Hash of the rollup config the range was derived under.
 /// @custom:field depSetHash                Hash of the dependency set the range was derived under.
@@ -29,6 +33,10 @@ struct RangeClaim {
     uint64 lastBlock;
     bytes32 privateTerminalBlockHash;
     bytes32 privateTerminalParentHash;
+    uint64 anchorBlock;
+    bytes32 anchorOutputRoot;
+    bytes32 recoveryHash;
+    bytes32 parentOutputRoot;
     bytes32 l1Head;
     bytes32 rollupConfigHash;
     bytes32 depSetHash;
@@ -50,6 +58,8 @@ interface IClaimRegistry is ISemver, IProxyAdminOwnedBase {
     function rangeCount() external view returns (uint64);
     function lastPostedLastBlock() external view returns (uint64);
     function lastClaimHash() external view returns (bytes32);
+
+    function recordOutput(bytes32) external pure;
 
     function postClaim(RangeClaim calldata _claim) external;
 

@@ -135,6 +135,8 @@ pub enum BatchValidity {
     Accept,
     /// We are lacking L1 information until we can proceed batch filtering
     Undecided,
+    /// Canonical projection context is temporarily unavailable; retain and retry.
+    Retry,
     /// The batch may be valid, but cannot be processed yet and should be checked again later
     Future,
     /// Introduced in Holocene, a special variant of the `Drop` variant that signals not to flush
@@ -147,6 +149,7 @@ impl core::fmt::Display for BatchValidity {
         match self {
             Self::Drop(reason) => write!(f, "Drop({reason})"),
             Self::Accept => write!(f, "Accept"),
+            Self::Retry => write!(f, "Retry"),
             Self::Undecided => write!(f, "Undecided"),
             Self::Future => write!(f, "Future"),
             Self::Past => write!(f, "Past"),

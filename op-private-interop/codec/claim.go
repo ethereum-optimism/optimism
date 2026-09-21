@@ -32,22 +32,26 @@
 // be a second thing to disagree about.
 //
 //	struct RangeClaim {
-//	    uint8   version;                  // exactly 1
+//	    uint8   version;                  // exactly 2
 //	    uint64  firstBlock;               // the range this claim describes, inclusive
 //	    uint64  lastBlock;
 //	    bytes32 privateTerminalBlockHash;  // the PRIVATE chain's block hash at lastBlock
 //	    bytes32 privateTerminalParentHash; // and that block's parent hash
+//	    uint64  anchorBlock;              // surviving private checkpoint height
+//	    bytes32 anchorOutputRoot;         // its admitted private OutputV0 root
+//	    bytes32 recoveryHash;             // canonical replacement inputs after the anchor
+//	    bytes32 parentOutputRoot;         // claimed private output before this range
 //	    bytes32 l1Head;
 //	    bytes32 rollupConfigHash;
 //	    bytes32 depSetHash;
 //	    bytes32 privateDataHash;          // content address of the range's full private input
-//	    bytes   proof;                    // EMPTY in attested mode
+//	    bytes   proof;                    // interpreted by the configured verifier
 //	}
 //
 // The struct has a dynamic member, so abi.encode(claim) is the leading offset word 0x20, then the
-// tuple: ten head words (nine statics and the offset to `proof`), then the proof's length word
-// and its padded bytes. An empty-proof claim is therefore 384 bytes, whatever the range's size —
-// v1 carries no per-block data at all.
+// tuple: fourteen head words (thirteen statics and the offset to `proof`), then the proof's
+// length word and padded bytes. An empty-proof v2 claim is 512 bytes. Separate recordOutput
+// transactions carry the per-block private outputs authenticated by the span proof.
 //
 // # What this package does NOT own
 //
@@ -111,7 +115,7 @@ const (
 	// It is a field of the ABI struct rather than a byte in front of it, so a consumer that got
 	// hold of the value without its framing — out of a log, out of a trace, out of a proof's
 	// public inputs — still knows what it is holding.
-	ClaimVersion uint8 = 1
+	ClaimVersion uint8 = 2
 
 	// EncodedSizeEmptyProof is the length of an attested (empty-proof) claim encoding: the
 	// outer offset word, the head words, and the proof's length word.
@@ -138,10 +142,10 @@ const (
 	// on its length alone, before any decoding allocates anything.
 	MaxEncodedSize = EncodedSizeEmptyProof + MaxProofSize
 
-	// headWords is the tuple's head: nine static fields plus one offset word for `proof`.
-	headWords = 10
+	// headWords is the tuple's head: thirteen static fields plus the proof offset.
+	headWords = 14
 	// proofOffset is the byte offset of the proof's length word, measured from the start of the
-	// TUPLE (that is, from the word after the outer offset) — the value the ninth head word must
+	// TUPLE (that is, from the word after the outer offset) — the value the final head word must
 	// carry in a canonical encoding.
 	proofOffset = headWords * 32
 )
@@ -183,15 +187,9 @@ type RangeClaim struct {
 	// a KNOWN PAST FACT at build time. The public terminal hash could not be here — it is a
 	// function of a range that contains this very transaction, which is circular.
 	//
-	// With it, a claim has the prevRoot -> newRoot chaining shape the proof-batch wire had: each
-	// claim pins the private state its range ends at, and the next claim starts from a range whose
-	// endpoint is already on the public record. That is what gives a proof something to be a proof
-	// ABOUT, and it is what an auditor walks.
-	//
-	// It is a deliberate disclosure: this publishes exactly one commitment to private chain state
-	// per range. One 32-byte hash per cadence, of a block whose contents stay private, was judged
-	// the right price for a chain of claims that means anything. Nothing else about the private
-	// chain's blocks reaches the public record.
+	// A terminal block hash is not a continuation anchor after partial invalidation.
+	// AnchorBlock/AnchorOutputRoot and canonical per-block records provide that anchor.
+	// Private output commitments are also disclosed once per submitted block.
 	//
 	// Note this is NOT the span-batch parent check. That check is the previous PUBLIC block's hash,
 	// truncated to 20 bytes, and the batching service reads it from the public chain it is building
@@ -213,6 +211,11 @@ type RangeClaim struct {
 	// block whose contents stay private exactly as every other block's do. One more 32-byte hash per
 	// cadence.
 	PrivateTerminalParentHash common.Hash
+	// Continuation binds the surviving checkpoint and canonical recovery inputs.
+	AnchorBlock      uint64
+	AnchorOutputRoot common.Hash
+	RecoveryHash     common.Hash
+	ParentOutputRoot common.Hash
 	// L1Head is the L1 block the operator derived the range under.
 	L1Head common.Hash
 	// RollupConfigHash and DepSetHash pin which chain and which dependency set this claim
@@ -225,9 +228,8 @@ type RangeClaim struct {
 	// the public record — which is what makes the claim the read-side authority for every object:
 	// there is no second commitment anywhere that a reader could resolve instead.
 	PrivateDataHash common.Hash
-	// Proof fills the proof slot. It is EMPTY under attested mode (v1), where a non-empty slot is
-	// refused outright rather than carried. The slot itself is unconditional and is the upgrade
-	// path: a proving system fills it, and nothing else about the wire changes.
+	// Proof is bounded opaque verifier input. Projection admission accepts dummy bytes
+	// under its explicit insecure stub. Legacy Decode/ModeAttested require it empty.
 	Proof []byte
 }
 
@@ -235,7 +237,7 @@ type RangeClaim struct {
 type Mode uint8
 
 const (
-	// ModeAttested is the v1 posture: the claim's authority is the operator's signature on the
+	// ModeAttested retains the legacy empty-proof posture: the claim's authority is the operator's signature on the
 	// carrying transaction, there is no proof system, and a non-empty proof slot is therefore a
 	// claim this verifier cannot evaluate. It refuses it. See the package comment.
 	ModeAttested Mode = iota
@@ -286,6 +288,10 @@ func mustClaimType() abi.Type {
 		{Name: "lastBlock", Type: "uint64"},
 		{Name: "privateTerminalBlockHash", Type: "bytes32"},
 		{Name: "privateTerminalParentHash", Type: "bytes32"},
+		{Name: "anchorBlock", Type: "uint64"},
+		{Name: "anchorOutputRoot", Type: "bytes32"},
+		{Name: "recoveryHash", Type: "bytes32"},
+		{Name: "parentOutputRoot", Type: "bytes32"},
 		{Name: "l1Head", Type: "bytes32"},
 		{Name: "rollupConfigHash", Type: "bytes32"},
 		{Name: "depSetHash", Type: "bytes32"},
@@ -306,11 +312,16 @@ type abiRangeClaim struct {
 	LastBlock                 uint64
 	PrivateTerminalBlockHash  common.Hash
 	PrivateTerminalParentHash common.Hash
-	L1Head                    common.Hash
-	RollupConfigHash          common.Hash
-	DepSetHash                common.Hash
-	PrivateDataHash           common.Hash
-	Proof                     []byte
+	// Continuation binds the surviving checkpoint and canonical recovery inputs.
+	AnchorBlock      uint64
+	AnchorOutputRoot common.Hash
+	RecoveryHash     common.Hash
+	ParentOutputRoot common.Hash
+	L1Head           common.Hash
+	RollupConfigHash common.Hash
+	DepSetHash       common.Hash
+	PrivateDataHash  common.Hash
+	Proof            []byte
 }
 
 // Encode ABI-encodes a claim at the current version.
@@ -342,6 +353,10 @@ func encodeAtVersion(e *RangeClaim, version uint8) ([]byte, error) {
 		LastBlock:                 e.LastBlock,
 		PrivateTerminalBlockHash:  e.PrivateTerminalBlockHash,
 		PrivateTerminalParentHash: e.PrivateTerminalParentHash,
+		AnchorBlock:               e.AnchorBlock,
+		AnchorOutputRoot:          e.AnchorOutputRoot,
+		RecoveryHash:              e.RecoveryHash,
+		ParentOutputRoot:          e.ParentOutputRoot,
 		L1Head:                    e.L1Head,
 		RollupConfigHash:          e.RollupConfigHash,
 		DepSetHash:                e.DepSetHash,
@@ -355,9 +370,9 @@ func encodeAtVersion(e *RangeClaim, version uint8) ([]byte, error) {
 }
 
 // Decode parses a claim in attested mode: exactly version 1, a non-inverted range, canonical
-// ABI form, and an empty proof slot. It is the decoder a v1 verifier wants, and it is what the
+// ABI form, and an empty proof slot. It is the decoder a legacy empty-proof reader wants, and it is what the
 // zero value of Mode selects.
-// Decode preserves the legacy empty-proof policy for callers explicitly using attested v1.
+// Decode preserves the legacy empty-proof policy for callers explicitly using the legacy empty-proof policy.
 // Projection admission and claim following use wire.DecodeClaim; proof policy lives in derivation.
 func Decode(data []byte) (*RangeClaim, error) { return DecodeMode(data, ModeAttested) }
 
@@ -406,6 +421,10 @@ func DecodeMode(data []byte, mode Mode) (*RangeClaim, error) {
 		LastBlock:                 d.LastBlock,
 		PrivateTerminalBlockHash:  d.PrivateTerminalBlockHash,
 		PrivateTerminalParentHash: d.PrivateTerminalParentHash,
+		AnchorBlock:               d.AnchorBlock,
+		AnchorOutputRoot:          d.AnchorOutputRoot,
+		RecoveryHash:              d.RecoveryHash,
+		ParentOutputRoot:          d.ParentOutputRoot,
 		L1Head:                    d.L1Head,
 		RollupConfigHash:          d.RollupConfigHash,
 		DepSetHash:                d.DepSetHash,

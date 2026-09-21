@@ -7,6 +7,7 @@ import (
 	"io"
 
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
+	"github.com/ethereum-optimism/optimism/op-private-interop/projection"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum/go-ethereum/log"
 )
@@ -22,6 +23,10 @@ import (
 // Upon Holocene activation, it replaces the [BatchQueue].
 type BatchStage struct {
 	baseBatchStage
+	pending            *BatchWithL1InclusionBlock
+	spanInclusion      eth.L1BlockRef
+	candidateInclusion eth.L1BlockRef
+	collector          projection.ContextCollector
 }
 
 var _ SingularBatchProvider = (*BatchStage)(nil)
@@ -31,11 +36,19 @@ func NewBatchStage(log log.Logger, cfg *rollup.Config, prev NextBatchProvider, l
 }
 
 func (bs *BatchStage) Reset(_ context.Context, base eth.L1BlockRef, _ eth.SystemConfig) error {
+	bs.pending = nil
+	bs.spanInclusion = eth.L1BlockRef{}
+	bs.candidateInclusion = eth.L1BlockRef{}
+	bs.collector.Reset()
 	bs.reset(base)
 	return io.EOF
 }
 
 func (bs *BatchStage) FlushChannel() {
+	bs.pending = nil
+	bs.spanInclusion = eth.L1BlockRef{}
+	bs.candidateInclusion = eth.L1BlockRef{}
+	bs.collector.Reset()
 	bs.nextSpan = bs.nextSpan[:0]
 	bs.prev.FlushChannel()
 }
@@ -47,7 +60,7 @@ func (bs *BatchStage) NextBatch(ctx context.Context, parent eth.L2BlockRef) (*Si
 	// If origin behind (or at parent), we drain previous stage(s), and then return.
 	// Note that a channel from the parent's L1 origin block can only contain past batches, so we
 	// can just skip them.
-	if bs.originBehind(parent) || parent.L1Origin.Number == bs.origin.Number {
+	if bs.pending == nil && (bs.originBehind(parent) || parent.L1Origin.Number == bs.origin.Number) {
 		if _, err := bs.prev.NextBatch(ctx); err != nil {
 			// includes io.EOF and NotEnoughData
 			return nil, false, err
@@ -83,7 +96,11 @@ func (bs *BatchStage) NextBatch(ctx context.Context, parent eth.L2BlockRef) (*Si
 	}
 
 	// check candidate validity
-	validity := checkSingularBatch(bs.config, bs.Log(), bs.l1Blocks, parent, batch, bs.origin)
+	inclusion := bs.origin
+	if bs.config.PrivateProjection != nil {
+		inclusion = bs.candidateInclusion
+	}
+	validity := checkSingularBatch(bs.config, bs.Log(), bs.l1Blocks, parent, batch, inclusion)
 	switch validity {
 	case BatchAccept: // continue
 		batch.LogContext(bs.Log()).Debug("Found next singular batch")
@@ -110,19 +127,29 @@ func (bs *BatchStage) NextBatch(ctx context.Context, parent eth.L2BlockRef) (*Si
 }
 
 func (bs *BatchStage) nextSingularBatchCandidate(ctx context.Context, parent eth.L2BlockRef) (*SingularBatch, error) {
+	bs.candidateInclusion = bs.origin
 	// First check for next span-derived batch
 	nextBatch, _ := bs.nextFromSpanBatch(parent)
 
 	if nextBatch != nil {
+		bs.candidateInclusion = bs.spanInclusion
 		return nextBatch, nil
 	}
 
 	// If the next batch is a singular batch, we forward it as the candidate.
 	// If it is a span batch, we check its validity and then forward its first singular batch.
-	batch, err := bs.prev.NextBatch(ctx)
-	if err != nil { // includes io.EOF
-		return nil, err
+	var batch Batch
+	inclusion := bs.origin
+	if bs.pending != nil {
+		batch, inclusion = bs.pending.Batch, bs.pending.L1InclusionBlock
+	} else {
+		var err error
+		batch, err = bs.prev.NextBatch(ctx)
+		if err != nil {
+			return nil, err
+		}
 	}
+	bs.pending = nil
 	switch typ := batch.GetBatchType(); typ {
 	case SingularBatchType:
 		if bs.config.PrivateProjection != nil {
@@ -141,7 +168,7 @@ func (bs *BatchStage) nextSingularBatchCandidate(ctx context.Context, parent eth
 			return nil, NewCriticalError(errors.New("failed type assertion to SpanBatch"))
 		}
 
-		validity := checkSpanBatchHolocene(ctx, bs.config, bs.Log(), bs.l1Blocks, parent, spanBatch, bs.origin, bs.l2)
+		validity := checkSpanBatchHolocene(ctx, bs.config, bs.Log(), bs.l1Blocks, parent, spanBatch, inclusion, bs.l2, &bs.collector)
 		switch validity {
 		case BatchAccept: // continue
 			spanBatch.LogContext(bs.Log()).Info("Found next valid span batch")
@@ -153,7 +180,10 @@ func (bs *BatchStage) nextSingularBatchCandidate(ctx context.Context, parent eth
 			spanBatch.LogContext(bs.Log()).Warn("Dropping invalid span batch, flushing channel (span batch checks)")
 			bs.FlushChannel()
 			return nil, NotEnoughData
-		case BatchUndecided: // l2 fetcher error; the span was already consumed and is skipped, not retried
+		case BatchRetry:
+			bs.pending = &BatchWithL1InclusionBlock{Batch: spanBatch, L1InclusionBlock: inclusion}
+			return nil, NewTemporaryError(projection.ErrContextUnavailable)
+		case BatchUndecided: // Missing buffered L1 information; retain ordinary Holocene behavior.
 			spanBatch.LogContext(bs.Log()).Warn("Undecided span batch")
 			return nil, NotEnoughData
 		case BatchFuture: // can't happen with Holocene
@@ -169,6 +199,8 @@ func (bs *BatchStage) nextSingularBatchCandidate(ctx context.Context, parent eth
 			bs.FlushChannel()
 			return nil, NotEnoughData
 		}
+		bs.spanInclusion = inclusion
+		bs.candidateInclusion = inclusion
 		bs.nextSpan = singularBatches
 		// span-batches are non-empty, so the below pop is safe.
 		return bs.popNextBatch(parent), nil

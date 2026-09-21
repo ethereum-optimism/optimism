@@ -52,7 +52,7 @@ func run() error {
 	if err != nil {
 		return err
 	}
-	projectionCfg, err := privategenesis.ProjectRollupConfigFrom(privateCfg, projection)
+	projectionCfg, err := privategenesis.ProjectRollupConfigFrom(privateCfg, private, projection)
 	if err != nil {
 		return err
 	}

@@ -14,6 +14,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
 	"github.com/ethereum-optimism/optimism/op-private-interop/codec"
+	"github.com/ethereum-optimism/optimism/op-private-interop/projection"
 	"github.com/ethereum-optimism/optimism/op-private-interop/wire"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/sources"
@@ -314,6 +315,38 @@ func (m *Module) Step(ctx context.Context) error {
 	if plan.Prefix != nil && plan.Prefix.Last.Number <= plan.Anchor.Number {
 		plan.Prefix = nil
 	}
+	if profile := m.rollupCfg.PrivateProjection; profile != nil {
+		outputAt := func(number uint64) (common.Hash, error) {
+			if number == m.rollupCfg.Genesis.L2.Number {
+				return profile.GenesisOutputRoot, nil
+			}
+			env, err := src.PayloadByNumber(ctx, number)
+			if err != nil {
+				return common.Hash{}, err
+			}
+			if env == nil || env.ExecutionPayload == nil {
+				return common.Hash{}, fmt.Errorf("checkpoint payload unavailable")
+			}
+			root, err := projection.CanonicalOutput(env.ExecutionPayload.Transactions)
+			if err != nil {
+				return common.Hash{}, err
+			}
+			if root == (common.Hash{}) {
+				return root, fmt.Errorf("private checkpoint has no canonical output")
+			}
+			return root, nil
+		}
+		plan.AnchorOutputRoot, err = outputAt(plan.Anchor.Number)
+		if err != nil {
+			return err
+		}
+		if plan.Prefix != nil {
+			plan.Prefix.OutputRoot, err = outputAt(plan.Prefix.Last.Number)
+			if err != nil {
+				return err
+			}
+		}
+	}
 	out.Recovery = plan
 	for _, expected := range []eth.L2BlockRef{status.LocalSafeL2, status.SafeL2, status.FinalizedL2} {
 		ref, err := projectionRef(ctx, src, m.rollupCfg, expected.Number)
@@ -427,6 +460,10 @@ func (m *Module) readClaims(ctx context.Context, src Rendering, payload *eth.Exe
 		if optypes.IsDepositTx(&tx) {
 			continue
 		}
+		// Per-block output records are consensus data, not range claims.
+		if _, err := wire.DecodeOutput(tx.Data()); err == nil {
+			continue
+		}
 		if c, ok := m.decodeClaim(&tx); ok {
 			candidates[tx.Hash()] = c
 			order = append(order, tx.Hash())
@@ -435,14 +472,21 @@ func (m *Module) readClaims(ctx context.Context, src Rendering, payload *eth.Exe
 	if len(order) == 0 {
 		return nil, nil
 	}
-	succeeded, err := m.succeeded(ctx, src, payload.ID())
-	if err != nil {
-		return nil, err
+	// This profile scans only locally safe, derivation-admitted calldata. Its
+	// claim and output records remain authoritative even if the no-log registry
+	// call reverts. Legacy profiles still authenticate via successful execution.
+	var succeeded map[common.Hash]bool
+	if m.rollupCfg.PrivateProjection == nil {
+		var err error
+		succeeded, err = m.succeeded(ctx, src, payload.ID())
+		if err != nil {
+			return nil, err
+		}
 	}
 	var out []claim
 	for _, hash := range order {
 		c := candidates[hash]
-		if !succeeded[hash] {
+		if m.rollupCfg.PrivateProjection == nil && !succeeded[hash] {
 			m.metrics.RecordRejectedClaim("reverted")
 			continue
 		}

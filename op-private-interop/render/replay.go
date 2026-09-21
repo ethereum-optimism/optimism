@@ -51,6 +51,7 @@ type ReplayTxBuilder interface {
 	// leading placement shifts nothing: every message's rendering log index still equals its
 	// RenderedLogs rank, in range-opening blocks as everywhere else.
 	ClaimTx(claim *codec.RangeClaim) (*types.Transaction, error)
+	OutputTx(root common.Hash) (*types.Transaction, error)
 }
 
 // GasPolicy is the frozen pricing the public projection's transactions use.
@@ -247,4 +248,16 @@ func (b *BatcherTxBuilder) sendTx(to common.Address, data []byte, al types.Acces
 	}
 	b.nonce++
 	return signed, nil
+}
+
+// OutputTx publishes consensus calldata without adding a rendering log.
+func (b *BatcherTxBuilder) OutputTx(root common.Hash) (*types.Transaction, error) {
+	if b.registry == (common.Address{}) {
+		return nil, fmt.Errorf("output registry is not configured")
+	}
+	data := wire.EncodeOutput(root)
+	if _, err := wire.DecodeOutput(data); err != nil {
+		return nil, err
+	}
+	return b.sendTx(b.registry, data, nil, 100_000)
 }

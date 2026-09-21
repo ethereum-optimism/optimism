@@ -16,6 +16,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
 	"github.com/ethereum-optimism/optimism/op-private-interop/builder"
+	"github.com/ethereum-optimism/optimism/op-private-interop/projection"
 	"github.com/ethereum-optimism/optimism/op-private-interop/render"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 )
@@ -49,6 +50,7 @@ type PrivateReceipts interface {
 // All four are execution-derived facts about a chain the builder is writing the INPUT for, so none
 // of them can be computed here. They come from a node following the rendering.
 type RangeStart struct {
+	Continuation projection.Continuation
 	// PrevTerminalRenderingHash is the previous range's terminal rendering block hash: the span's
 	// 20-byte parent check, and the channel ID's seed.
 	PrevTerminalRenderingHash common.Hash
@@ -164,8 +166,11 @@ func renderingBlockGasBudget(cfg *rollup.Config) (uint64, error) {
 type PrivateInteropEncoder struct {
 	cfg PrivateInteropConfig
 
-	mu       sync.Mutex
-	prepared map[common.Hash]optypes.Receipts
+	mu             sync.Mutex
+	prepared       map[common.Hash]optypes.Receipts
+	outputs        map[common.Hash][2]common.Hash
+	lastOutputHash common.Hash
+	lastOutputRoot common.Hash
 }
 
 var (
@@ -176,7 +181,7 @@ func NewPrivateInteropEncoder(cfg PrivateInteropConfig) (*PrivateInteropEncoder,
 	if err := cfg.Check(); err != nil {
 		return nil, err
 	}
-	return &PrivateInteropEncoder{cfg: cfg, prepared: make(map[common.Hash]optypes.Receipts)}, nil
+	return &PrivateInteropEncoder{cfg: cfg, prepared: make(map[common.Hash]optypes.Receipts), outputs: make(map[common.Hash][2]common.Hash)}, nil
 }
 
 // PrepareBlock fetches the private block's receipts.
@@ -200,8 +205,31 @@ func (e *PrivateInteropEncoder) PrepareBlock(ctx context.Context, payload *eth.E
 	if err != nil {
 		return fmt.Errorf("fetching private receipts for %s: %w", payload.BlockHash, err)
 	}
+	root, err := projection.PrivateOutput(payload)
+	if err != nil {
+		return err
+	}
+	e.mu.Lock()
+	parentHash, parentRoot := e.lastOutputHash, e.lastOutputRoot
+	e.mu.Unlock()
+	if parentHash != payload.ParentHash {
+		if payload.ParentHash == e.cfg.PrivateRollup.Genesis.L2.Hash && uint64(payload.BlockNumber) == e.cfg.PrivateRollup.Genesis.L2.Number+1 && e.cfg.Rollup.PrivateProjection != nil {
+			parentRoot = e.cfg.Rollup.PrivateProjection.GenesisOutputRoot
+		} else {
+			info, _, err := e.cfg.Receipts.FetchReceipts(ctx, payload.ParentHash)
+			if err != nil {
+				return fmt.Errorf("private publication parent output: %w", err)
+			}
+			if info == nil || info.Hash() != payload.ParentHash || info.WithdrawalsRoot() == nil {
+				return fmt.Errorf("private parent output unavailable")
+			}
+			parentRoot = common.Hash(eth.OutputRoot(&eth.OutputV0{StateRoot: eth.Bytes32(info.Root()), MessagePasserStorageRoot: eth.Bytes32(*info.WithdrawalsRoot()), BlockHash: info.Hash()}))
+		}
+	}
 	e.mu.Lock()
 	defer e.mu.Unlock()
+	e.outputs[payload.BlockHash] = [2]common.Hash{root, parentRoot}
+	e.lastOutputHash, e.lastOutputRoot = payload.BlockHash, root
 	e.prepared[payload.BlockHash] = receipts
 	return nil
 }
@@ -220,6 +248,7 @@ func (e *PrivateInteropEncoder) forget(hashes []common.Hash) {
 	defer e.mu.Unlock()
 	for _, h := range hashes {
 		delete(e.prepared, h)
+		delete(e.outputs, h)
 	}
 }
 
@@ -274,9 +303,10 @@ type renderChannelOut struct {
 	// kept for the range's private derivation-input object. privParent is the private chain's block
 	// hash before the range. They cost one retained slice and are the only way the object and the
 	// rendering are guaranteed to describe the same blocks.
-	privBatches []*derive.SingularBatch
-	privSeqNums []uint64
-	privParent  common.Hash
+	privBatches      []*derive.SingularBatch
+	privSeqNums      []uint64
+	privParent       common.Hash
+	parentOutputRoot common.Hash
 	// privDataHash is the range's privateDataHash once the object has been encoded and hashed;
 	// privDataHashed says it has been, so a Close retried after a later failure does not re-run the
 	// range's one expensive compression to arrive at the same bytes.
@@ -295,6 +325,7 @@ func (c *renderChannelOut) ID() derive.ChannelID { return c.id }
 
 func (c *renderChannelOut) Reset() error {
 	c.blocks, c.hashes = nil, nil
+	c.parentOutputRoot = common.Hash{}
 	c.privBatches, c.privSeqNums, c.privParent = nil, nil, common.Hash{}
 	c.privDataHashed, c.privDataHash = false, common.Hash{}
 	c.haveID, c.id = false, derive.ChannelID{}
@@ -346,6 +377,14 @@ func (c *renderChannelOut) AddBlock(rollupCfg *rollup.Config, payload *eth.Execu
 		return l1Info, fmt.Errorf("rendering private block %d: %w", payload.BlockNumber, err)
 	}
 
+	c.enc.mu.Lock()
+	roots, haveRoots := c.enc.outputs[payload.BlockHash]
+	c.enc.mu.Unlock()
+	if !haveRoots {
+		return l1Info, fmt.Errorf("private output was not prepared")
+	}
+	rendered.OutputRoot = roots[0]
+
 	// Leave an overflowing block queued for the next range. Consuming it first
 	// can leave Close unable to encode the range within its size limit.
 	nextInput := c.inputLen + estimatedRenderedBlockBytes(rendered)
@@ -369,6 +408,7 @@ func (c *renderChannelOut) AddBlock(rollupCfg *rollup.Config, payload *eth.Execu
 		c.start = start
 		c.id = builder.ChannelID(start.PrevTerminalRenderingHash, rendered.Number)
 		c.privParent = privBatch.ParentHash
+		c.parentOutputRoot = roots[1]
 		c.haveID = true
 	}
 
@@ -388,7 +428,7 @@ func (c *renderChannelOut) AddBlock(rollupCfg *rollup.Config, payload *eth.Execu
 // overhead; topic and data bytes are counted exactly. Ending early on an overestimate is harmless.
 func estimatedRenderedBlockBytes(block *render.RenderedBlock) int {
 	const transactionOverhead = 512
-	size := 0
+	size := transactionOverhead
 	for _, action := range block.Actions {
 		size += transactionOverhead + len(action.Topics)*common.HashLength + len(action.Data)
 	}
@@ -450,7 +490,9 @@ func (c *renderChannelOut) Close() error {
 	built, err := c.builder.Build(&builder.Range{
 		Blocks:                    c.blocks,
 		PrevTerminalRenderingHash: c.start.PrevTerminalRenderingHash,
+		Continuation:              c.start.Continuation,
 		Claim: &builder.ClaimInput{
+			ParentOutputRoot: c.parentOutputRoot,
 			RollupConfigHash: c.enc.cfg.RollupConfigHash,
 			DepSetHash:       c.enc.cfg.DepSetHash,
 			PrivateDataHash:  c.privDataHash,

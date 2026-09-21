@@ -181,7 +181,7 @@ func TestSelectorsAreStable(t *testing.T) {
 	require.Equal(t, crypto.Keccak256([]byte(ReplaySentMessageSig))[:4], ReplaySentMessageSelector[:])
 	require.Equal(t, crypto.Keccak256([]byte(ReplayEventSig))[:4], ReplayEventSelector[:])
 	require.Equal(t,
-		"postClaim((uint8,uint64,uint64,bytes32,bytes32,bytes32,bytes32,bytes32,bytes32,bytes))",
+		"postClaim((uint8,uint64,uint64,bytes32,bytes32,uint64,bytes32,bytes32,bytes32,bytes32,bytes32,bytes32,bytes32,bytes))",
 		PostClaimSig)
 	require.Equal(t, crypto.Keccak256([]byte(PostClaimSig))[:4], PostClaimSelector[:])
 
@@ -193,10 +193,10 @@ func TestSelectorsAreStable(t *testing.T) {
 	// pair, and the follow module -- comparing incoming calldata against the same stale constant --
 	// decoded those very transactions without complaint.
 	//
-	// 0x4db071ca is solc's own methodIdentifier for
+	// 0x46e3eef2 is solc's own methodIdentifier for
 	// ClaimRegistry.postClaim(RangeClaim), read from the compiled artifact. It is a fact about the
 	// CONTRACT, so it cannot move when this package does.
-	require.Equal(t, "4db071ca", fmt.Sprintf("%x", PostClaimSelector),
+	require.Equal(t, "46e3eef2", fmt.Sprintf("%x", PostClaimSelector),
 		"the postClaim selector must match the deployed ClaimRegistry's; a claim sent with any other "+
 			"selector reaches a contract with no fallback and reverts")
 }

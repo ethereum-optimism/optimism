@@ -50,8 +50,8 @@ func TestConfigurePrivateGenesis(t *testing.T) {
 	require.NoError(t, err)
 	// Shared with Rust's policy_profile_matches_the_cross_language_golden_vector.
 	require.Equal(t, common.HexToHash("0x452938229ba232178e219a0ebce32533ebfa8654c9ebda74c69b3946151a7395"), private.ToBlock().Hash())
-	require.Equal(t, common.HexToHash("0x93059f3c322785c2dc29835770d6c21913e510a3c084642b80e06e09b97244af"), projection.ToBlock().Hash())
-	require.Equal(t, common.HexToHash("0x561f98d7e8fc8f4bd0c84f9c645377ff97cb2a882377321d406742844b9bb080"), projection.ToBlock().Root())
+	require.Equal(t, common.HexToHash("0xc29e43fb8ad19d9b9e262e20670b533d8f718943f2f4fc7fa98f8ca0a2afcd11"), projection.ToBlock().Hash())
+	require.Equal(t, common.HexToHash("0xf26231b49dcd17795440dd84b259e24bd0e1165019d5cf8618f5f18bf3dde6f1"), projection.ToBlock().Root())
 	require.NotEqual(t, private.ToBlock().Hash(), projection.ToBlock().Hash())
 	again, _, err := ConfigurePrivateGenesis(private, privateCfg)
 	require.NoError(t, err)

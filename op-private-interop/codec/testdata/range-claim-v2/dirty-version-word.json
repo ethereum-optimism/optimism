@@ -1,0 +1,11 @@
+{
+  "name": "dirty-version-word",
+  "spec": "op-private-interop/docs/DESIGN.md: the claim is an ordinary L2 transaction, and it leads the range it describes.",
+  "kind": "invalid",
+  "description": "The version word is 0x...0102 instead of 0x...02: correct in its low byte, junk in the bits above a uint8. Refused, because two readers agreeing on the VALUE while disagreeing about the BYTES is how one transaction becomes two facts. A decoder that masked to the low byte would read this as a perfectly good version 2. (go-ethereum happens to reject it inside abi.Unpack rather than at the re-encode comparison, which is why the corpus states a refusal CATEGORY and not an error string.)",
+  "bin": "dirty-version-word.bin",
+  "bytes": 512,
+  "keccak": "0x07336415686ef1be69f88a03b3992e3a2026d17c6f7d67746efadaab9ce218ac",
+  "proofHex": "0x",
+  "refusal": "non-canonical"
+}

@@ -81,6 +81,26 @@
             "type": "bytes32"
           },
           {
+            "internalType": "uint64",
+            "name": "anchorBlock",
+            "type": "uint64"
+          },
+          {
+            "internalType": "bytes32",
+            "name": "anchorOutputRoot",
+            "type": "bytes32"
+          },
+          {
+            "internalType": "bytes32",
+            "name": "recoveryHash",
+            "type": "bytes32"
+          },
+          {
+            "internalType": "bytes32",
+            "name": "parentOutputRoot",
+            "type": "bytes32"
+          },
+          {
             "internalType": "bytes32",
             "name": "l1Head",
             "type": "bytes32"
@@ -153,6 +173,19 @@
       }
     ],
     "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "bytes32",
+        "name": "",
+        "type": "bytes32"
+      }
+    ],
+    "name": "recordOutput",
+    "outputs": [],
+    "stateMutability": "pure",
     "type": "function"
   },
   {

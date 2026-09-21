@@ -134,7 +134,7 @@ func applyPrivateInteropProjection(cliCtx *cli.Context, vnCfgs map[eth.ChainID]*
 		return err
 	}
 	vnCfg := vnCfgs[chainID]
-	publicProjectionRollup, err := projectiongenesis.ProjectRollupConfigFrom(&vnCfg.Rollup, publicProjectionGenesis)
+	publicProjectionRollup, err := projectiongenesis.ProjectRollupConfigFrom(&vnCfg.Rollup, privateChainGenesis, publicProjectionGenesis)
 	if err != nil {
 		return err
 	}

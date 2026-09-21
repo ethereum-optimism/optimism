@@ -11,6 +11,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/engine"
 	syncconfig "github.com/ethereum-optimism/optimism/op-node/rollup/sync"
+	"github.com/ethereum-optimism/optimism/op-private-interop/projection"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/event"
 	"github.com/ethereum-optimism/optimism/op-service/sources"
@@ -342,4 +343,50 @@ func TestCanonicalRecoveryCheckpointDoesNotWalkToGenesis(t *testing.T) {
 	require.Equal(t, anchor, ec.PendingSafeL2Head())
 	require.Equal(t, unsafe, ec.UnsafeL2Head(), "a completed checkpoint must preserve the sequenced suffix")
 	el.AssertExpectations(t)
+}
+
+// The root allows adopting a surviving block even when the invalid terminal
+// branch is no longer available, but never substitutes for schedule/ancestry.
+type outputRecoveryL2 struct {
+	recoveryBranchL2
+	payload *eth.ExecutionPayloadEnvelope
+}
+
+func (l *outputRecoveryL2) PayloadByHash(context.Context, common.Hash) (*eth.ExecutionPayloadEnvelope, error) {
+	return l.payload, nil
+}
+func TestFollowRecoveryUsesSurvivingOutput(t *testing.T) {
+	for _, scenario := range []string{"valid", "wrong root", "wrong payload", "wrong schedule", "wrong ancestry", "missing storage root"} {
+		t.Run(scenario, func(t *testing.T) {
+			base := eth.L2BlockRef{Hash: common.Hash{1}}
+			anchor := eth.L2BlockRef{Hash: common.Hash{2}, ParentHash: base.Hash, Number: 1, Time: 102}
+			storage := common.Hash{3}
+			payload := &eth.ExecutionPayload{BlockHash: anchor.Hash, StateRoot: eth.Bytes32{4}, WithdrawalsRoot: &storage}
+			root, err := projection.PrivateOutput(payload)
+			require.NoError(t, err)
+			prefix := &sources.FollowRecoveryPrefix{Parent: eth.BlockID{Hash: common.Hash{9}, Number: 8}, Last: anchor, OutputRoot: root}
+			prefix.Last.Hash = common.Hash{0xff}
+			l2 := &outputRecoveryL2{recoveryBranchL2: recoveryBranchL2{prefixL2: prefixL2{refs: map[common.Hash]eth.L2BlockRef{base.Hash: base}}, canonical: map[uint64]eth.L2BlockRef{1: anchor}}, payload: &eth.ExecutionPayloadEnvelope{ExecutionPayload: payload}}
+			switch scenario {
+			case "wrong root":
+				prefix.OutputRoot = common.Hash{5}
+			case "wrong payload":
+				payload.BlockHash = common.Hash{6}
+			case "wrong schedule":
+				prefix.Last.Time++
+			case "wrong ancestry":
+				base.Hash = common.Hash{7}
+			case "missing storage root":
+				payload.WithdrawalsRoot = nil
+			}
+			f := &followRecovery{l2: l2}
+			got, err := f.prefixAnchor(t.Context(), base, prefix)
+			if scenario == "valid" {
+				require.NoError(t, err)
+				require.Equal(t, anchor, got)
+			} else {
+				require.Error(t, err)
+			}
+		})
+	}
 }

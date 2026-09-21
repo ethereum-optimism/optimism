@@ -47,6 +47,16 @@ pub trait NextBatchProvider {
     /// [`SingleBatch`]: kona_protocol::SingleBatch
     fn span_buffer_size(&self) -> usize;
 
+    /// Original L1 inclusion of the last emitted batch, if retained across retries.
+    fn batch_inclusion_block(&self) -> Option<BlockInfo> {
+        None
+    }
+
+    /// Whether a candidate is waiting for canonical context rather than new L1 data.
+    fn has_pending_batch(&self) -> bool {
+        false
+    }
+
     /// Allows the stage to flush the buffer in the [`crate::stages::BatchStream`]
     /// if an invalid single batch is found. Pre-holocene hardfork, this will be a no-op.
     fn flush(&mut self);

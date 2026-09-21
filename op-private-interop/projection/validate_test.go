@@ -46,7 +46,7 @@ type vector struct {
 }
 
 func context() projection.Context {
-	return projection.Context{ChainID: big.NewInt(901), GenesisTime: 1000, BlockTime: 2, ParentHash: common.Hash{1}}
+	return projection.Context{ChainID: big.NewInt(901), GenesisTime: 1000, BlockTime: 2, ParentHash: common.Hash{1}, Continuation: projection.Continuation{Anchor: eth.BlockID{Number: 9, Hash: common.Hash{1}}, OutputRoot: common.Hash{9}}}
 }
 func signed(t *testing.T, tx *types.DynamicFeeTx) hexutil.Bytes {
 	t.Helper()
@@ -62,7 +62,7 @@ func transaction(t *testing.T, to common.Address, data []byte, al types.AccessLi
 	return signed(t, &types.DynamicFeeTx{ChainID: big.NewInt(901), Gas: 500000, GasFeeCap: new(big.Int), GasTipCap: new(big.Int), Value: new(big.Int), To: &to, Data: data, AccessList: al})
 }
 func claim(t *testing.T, first, last uint64, proof []byte) hexutil.Bytes {
-	data, err := wire.EncodePostClaim(&codec.RangeClaim{FirstBlock: first, LastBlock: last, Proof: proof, PrivateTerminalBlockHash: common.Hash{2}, PrivateTerminalParentHash: common.Hash{3}})
+	data, err := wire.EncodePostClaim(&codec.RangeClaim{FirstBlock: first, LastBlock: last, AnchorBlock: 9, AnchorOutputRoot: common.Hash{9}, ParentOutputRoot: common.Hash{9}, Proof: proof, PrivateTerminalBlockHash: common.Hash{2}, PrivateTerminalParentHash: common.Hash{3}})
 	require.NoError(t, err)
 	return transaction(t, predeploys.ClaimRegistryAddr, data, nil)
 }
@@ -93,9 +93,19 @@ func mutate(t *testing.T, raw hexutil.Bytes, f func(*types.DynamicFeeTx)) hexuti
 func vectors(t *testing.T) []vector {
 	var out []vector
 	add := func(name string, accept bool, change func(*vector)) {
-		v := vector{Name: name, Accept: accept, Config: projection.Config{Verifier: projection.InsecureStub}, Blocks: span{{1020, 5, []hexutil.Bytes{claim(t, 10, 12, []byte("dummy"))}}, {1022, 5, nil}, {1024, 6, []hexutil.Bytes{export(t), imported(t, false)}}}}
+		v := vector{Name: name, Accept: accept, Config: projection.Config{Verifier: projection.InsecureStub, GenesisOutputRoot: common.Hash{9}}, Blocks: span{{1020, 5, []hexutil.Bytes{claim(t, 10, 12, []byte("dummy"))}}, {1022, 5, nil}, {1024, 6, []hexutil.Bytes{export(t), imported(t, false)}}}}
 		if change != nil {
 			change(&v)
+		}
+		for i := range v.Blocks {
+			root := transaction(t, predeploys.ClaimRegistryAddr, wire.EncodeOutput(common.Hash{byte(i + 20)}), nil)
+			at := 0
+			if i == 0 && len(v.Blocks[i].Transactions) > 0 {
+				at = 1
+			}
+			txs := append([]hexutil.Bytes(nil), v.Blocks[i].Transactions[:at]...)
+			txs = append(txs, root)
+			v.Blocks[i].Transactions = append(txs, v.Blocks[i].Transactions[at:]...)
 		}
 		out = append(out, v)
 	}
@@ -158,6 +168,46 @@ func vectors(t *testing.T) []vector {
 			require.NoError(t, err)
 			v.Blocks[2].Transactions[0] = transaction(t, predeploys.EventReplayerAddr, data, nil)
 		})
+	}
+	for _, name := range []string{"missing_first_output", "missing_later_output", "duplicate_output", "late_output", "zero_output", "trailing_output", "wrong_anchor", "wrong_anchor_root", "wrong_parent_output", "unexpected_recovery"} {
+		raw, err := json.Marshal(out[0])
+		require.NoError(t, err)
+		var v vector
+		require.NoError(t, json.Unmarshal(raw, &v))
+		v.Name, v.Accept = name, false
+		switch name {
+		case "missing_first_output":
+			v.Blocks[0].Transactions = v.Blocks[0].Transactions[:1]
+		case "missing_later_output":
+			v.Blocks[1].Transactions = nil
+		case "duplicate_output":
+			v.Blocks[1].Transactions = append(v.Blocks[1].Transactions, v.Blocks[1].Transactions[0])
+		case "late_output":
+			v.Blocks[2].Transactions[0], v.Blocks[2].Transactions[1] = v.Blocks[2].Transactions[1], v.Blocks[2].Transactions[0]
+		case "zero_output":
+			v.Blocks[1].Transactions[0] = transaction(t, predeploys.ClaimRegistryAddr, wire.EncodeOutput(common.Hash{}), nil)
+		case "trailing_output":
+			v.Blocks[1].Transactions[0] = mutate(t, v.Blocks[1].Transactions[0], func(tx *types.DynamicFeeTx) { tx.Data = append(tx.Data, 0) })
+		default:
+			var tx types.Transaction
+			require.NoError(t, tx.UnmarshalBinary(v.Blocks[0].Transactions[0]))
+			c, err := wire.DecodeClaim(tx.Data())
+			require.NoError(t, err)
+			switch name {
+			case "wrong_anchor":
+				c.AnchorBlock--
+			case "wrong_anchor_root":
+				c.AnchorOutputRoot[0]++
+			case "wrong_parent_output":
+				c.ParentOutputRoot[0]++
+			case "unexpected_recovery":
+				c.RecoveryHash[0]++
+			}
+			data, err := wire.EncodePostClaim(c)
+			require.NoError(t, err)
+			v.Blocks[0].Transactions[0] = transaction(t, predeploys.ClaimRegistryAddr, data, nil)
+		}
+		out = append(out, v)
 	}
 	return out
 }
@@ -236,7 +286,7 @@ func TestProofGate(t *testing.T) {
 	checker := bindingVerifier{*statement, []byte("dummy")}
 	_, err = projection.ValidateProjectionRange(&v.Config, context(), v.Blocks, checker)
 	require.NoError(t, err)
-	v.Blocks[2].Transactions = nil
+	v.Blocks[2].Transactions = v.Blocks[2].Transactions[:1]
 	_, err = projection.ValidateProjectionRange(&v.Config, context(), v.Blocks, checker)
 	require.ErrorContains(t, err, "wrong statement")
 }
@@ -252,6 +302,7 @@ func TestProofStatementBindsExecutionEnvelopeAndContext(t *testing.T) {
 			ctx := context()
 			if field == "parent" {
 				ctx.ParentHash[1]++
+				ctx.Continuation.Anchor.Hash = ctx.ParentHash
 			} else {
 				candidate.Blocks[2].Transactions[0] = mutate(t, candidate.Blocks[2].Transactions[0], func(tx *types.DynamicFeeTx) {
 					if field == "nonce" {

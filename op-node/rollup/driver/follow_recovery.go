@@ -10,6 +10,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/engine"
+	"github.com/ethereum-optimism/optimism/op-private-interop/projection"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/event"
 	"github.com/ethereum-optimism/optimism/op-service/sources"
@@ -70,7 +71,7 @@ func (f *followRecovery) update(ctx context.Context, status *sources.FollowStatu
 	}
 	rpcCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
 	defer cancel()
-	changed := f.status == nil || f.status.Recovery.Anchor != plan.Anchor || !sameRecoveryPrefix(f.status.Recovery.Prefix, plan.Prefix)
+	changed := f.status == nil || f.status.Recovery.Anchor != plan.Anchor || f.status.Recovery.AnchorOutputRoot != plan.AnchorOutputRoot || !sameRecoveryPrefix(f.status.Recovery.Prefix, plan.Prefix)
 	changed = changed || f.applied.Number > plan.Target.Number || f.build != nil && f.build.public.Number > plan.Target.Number
 	if !changed && f.applied != (eth.L2BlockRef{}) {
 		ref, err := f.source.RecoveryBlock(rpcCtx, f.applied.Number, plan.Target.ID())
@@ -124,6 +125,11 @@ func (f *followRecovery) adopt(ctx, rpcCtx context.Context, status *sources.Foll
 	}
 	if err != nil {
 		return err
+	}
+	if anchor == plan.Anchor && plan.AnchorOutputRoot != (common.Hash{}) {
+		if err := f.checkOutput(rpcCtx, anchor.Hash, plan.AnchorOutputRoot); err != nil {
+			return err
+		}
 	}
 	if anchor.Number > plan.Target.Number {
 		return fmt.Errorf("projection recovery frontier is behind private finality")
@@ -279,6 +285,12 @@ func (f *followRecovery) prefixAnchor(ctx context.Context, base eth.L2BlockRef, 
 	if prefix.Last.Number < base.Number || prefix.Last.Number > prefix.Parent.Number {
 		return eth.L2BlockRef{}, fmt.Errorf("invalid surviving prefix bounds")
 	}
+	if prefix.OutputRoot != (common.Hash{}) {
+		candidate, err := f.l2.L2BlockRefByNumber(ctx, prefix.Last.Number)
+		if err == nil && f.checkOutput(ctx, candidate.Hash, prefix.OutputRoot) == nil {
+			return f.checkPrefixAnchor(ctx, base, candidate, prefix)
+		}
+	}
 	ref, err := f.privateHeader(ctx, prefix.Parent.Hash)
 	if err != nil {
 		return eth.L2BlockRef{}, err
@@ -289,6 +301,15 @@ func (f *followRecovery) prefixAnchor(ctx context.Context, base eth.L2BlockRef, 
 	anchor, err := f.ancestorAt(ctx, ref, prefix.Last.Number)
 	if err != nil {
 		return eth.L2BlockRef{}, err
+	}
+	return f.checkPrefixAnchor(ctx, base, anchor, prefix)
+}
+
+func (f *followRecovery) checkPrefixAnchor(ctx context.Context, base, anchor eth.L2BlockRef, prefix *sources.FollowRecoveryPrefix) (eth.L2BlockRef, error) {
+	if prefix.OutputRoot != (common.Hash{}) {
+		if err := f.checkOutput(ctx, anchor.Hash, prefix.OutputRoot); err != nil {
+			return eth.L2BlockRef{}, err
+		}
 	}
 	retained, err := f.ancestorAt(ctx, anchor, base.Number)
 	if err != nil {
@@ -423,5 +444,25 @@ func (f *followRecovery) next(ctx context.Context, parent eth.L2BlockRef) error 
 		// Window-expiry inputs became canonical at this frontier, not their L1 origin.
 		DerivedFrom: f.status.CurrentL1,
 	}})
+	return nil
+}
+
+// A canonical output authenticates the local payload; the public projection's
+// own state root is never substituted for private execution state.
+func (f *followRecovery) checkOutput(ctx context.Context, hash, expected common.Hash) error {
+	env, err := f.l2.PayloadByHash(ctx, hash)
+	if err != nil {
+		return err
+	}
+	if env == nil || env.ExecutionPayload == nil || env.ExecutionPayload.BlockHash != hash {
+		return fmt.Errorf("private checkpoint payload unavailable")
+	}
+	root, err := projection.PrivateOutput(env.ExecutionPayload)
+	if err != nil {
+		return err
+	}
+	if root != expected {
+		return fmt.Errorf("private checkpoint disagrees with canonical output commitment")
+	}
 	return nil
 }

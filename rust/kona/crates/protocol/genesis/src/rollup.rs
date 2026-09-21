@@ -4,7 +4,7 @@ use crate::{AltDAConfig, BaseFeeConfig, ChainGenesis, HardForkConfig, OP_MAINNET
 use alloy_chains::Chain;
 use alloy_hardforks::{EthereumHardfork, EthereumHardforks, ForkCondition};
 use alloy_op_hardforks::{OpHardfork, OpHardforks};
-use alloy_primitives::Address;
+use alloy_primitives::{Address, B256};
 
 /// The max rlp bytes per channel for the Bedrock hardfork.
 pub const MAX_RLP_BYTES_PER_CHANNEL_BEDROCK: u64 = 10_000_000;
@@ -35,6 +35,8 @@ const fn default_fjord_max_sequencer_drift() -> u64 {
 #[derive(Debug, Clone, Eq, PartialEq)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct PrivateProjectionConfig {
+    /// Private genesis output-v0 commitment, fixed by the deployment.
+    pub genesis_output_root: B256,
     /// Only `insecure-stub-v1` is currently supported; it provides no execution proof.
     pub verifier: alloc::string::String,
     /// Permit the explicitly configured generic replay contract.

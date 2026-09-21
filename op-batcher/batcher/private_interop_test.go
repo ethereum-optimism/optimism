@@ -124,7 +124,7 @@ func (f *fixedReceipts) FetchReceipts(_ context.Context, hash common.Hash) (eth.
 		l.BlockNumber, l.BlockHash, l.Index = num, hash, uint(i)
 		rec.Logs = append(rec.Logs, l)
 	}
-	return nil, optypes.Receipts{optypes.FromGethReceipt(rec)}, nil
+	return &testutils.MockBlockInfo{InfoHash: hash, InfoNum: num, InfoWithdrawalsRoot: &types.EmptyRootHash}, optypes.Receipts{optypes.FromGethReceipt(rec)}, nil
 }
 
 func piExportLog(nonce uint64) *types.Log {
@@ -192,11 +192,12 @@ func piPayload(t *testing.T, number uint64) *eth.ExecutionPayload {
 	privRaw, err := priv.MarshalBinary()
 	require.NoError(t, err)
 	return &eth.ExecutionPayload{
-		BlockNumber:  hexutil.Uint64(number),
-		Timestamp:    hexutil.Uint64(piL2Genesis + number*piBlockTime),
-		BlockHash:    common.BigToHash(new(big.Int).SetUint64(number)),
-		ParentHash:   common.BigToHash(new(big.Int).SetUint64(number - 1)),
-		Transactions: []eth.Data{raw, privRaw},
+		WithdrawalsRoot: &types.EmptyRootHash,
+		BlockNumber:     hexutil.Uint64(number),
+		Timestamp:       hexutil.Uint64(piL2Genesis + number*piBlockTime),
+		BlockHash:       common.BigToHash(new(big.Int).SetUint64(number)),
+		ParentHash:      common.BigToHash(new(big.Int).SetUint64(number - 1)),
+		Transactions:    []eth.Data{raw, privRaw},
 	}
 }
 
@@ -277,7 +278,7 @@ func TestPrivateInteropSeamProducesStockFrames(t *testing.T) {
 	enc, _, receipts := piEncoder(t)
 	co, frames := drive(t, enc, 901, piCadence)
 
-	require.Equal(t, int(piCadence), receipts.calls, "one receipt fetch per loaded private block")
+	require.Equal(t, int(piCadence)+1, receipts.calls, "one receipt fetch per block plus the first private parent")
 	require.NotEmpty(t, frames)
 	require.Equal(t, builder.ChannelID(piTerminal, 901), co.ID(),
 		"the channel ID is derived from the previous range's terminal rendering hash")
@@ -338,10 +339,10 @@ func TestPrivateInteropSeamRendersTheRightContent(t *testing.T) {
 	// The opening block: the claim LEADS, then two replay transactions (the private business log is
 	// filtered out). The claim emits no log, so replay transaction k still emits rendering log k.
 	opening := built.Blocks[0]
-	require.Len(t, opening.Txs, 3)
+	require.Len(t, opening.Txs, 4)
 	require.Equal(t, piRegistry, *decodeRenderTx(t, opening.Txs[0]).To())
-	require.Equal(t, predeploys.L2toL2CrossDomainMessengerAddr, *decodeRenderTx(t, opening.Txs[1]).To())
-	require.Equal(t, predeploys.CrossL2InboxAddr, *decodeRenderTx(t, opening.Txs[2]).To())
+	require.Equal(t, predeploys.L2toL2CrossDomainMessengerAddr, *decodeRenderTx(t, opening.Txs[2]).To())
+	require.Equal(t, predeploys.CrossL2InboxAddr, *decodeRenderTx(t, opening.Txs[3]).To())
 
 	// The claim the seam actually posted describes the range it opened, and commits to the private
 	// chain's own terminal hash — which the seam already had, from the payload it loaded.
@@ -351,7 +352,7 @@ func TestPrivateInteropSeamRendersTheRightContent(t *testing.T) {
 		"the private block hash of the range's last block, with no new dependency")
 
 	for _, blk := range built.Blocks[1:] {
-		require.Len(t, blk.Txs, 2, "every other block is exactly its replay transactions")
+		require.Len(t, blk.Txs, 3, "every other block contains an output and its replay transactions")
 	}
 	// Nonces run from the range's start, unbroken, across every block.
 	nonce := uint64(5)

@@ -53,16 +53,20 @@ abstract contract ClaimRegistry_TestInit is Test {
         registry_ = IClaimRegistry(address(proxy));
     }
 
-    /// @notice Builds a well-formed v1 claim covering the given range. Every field gets a distinct
+    /// @notice Builds a well-formed v2 claim covering the given range. Every field gets a distinct
     ///         value derived from the range, so a test comparing commitments cannot pass by
     ///         accident on two fields that happen to hold the same value.
     function _claim(uint64 _firstBlock, uint64 _lastBlock) internal pure returns (RangeClaim memory claim_) {
         claim_ = RangeClaim({
-            version: 1,
+            version: 2,
             firstBlock: _firstBlock,
             lastBlock: _lastBlock,
             privateTerminalBlockHash: keccak256(abi.encode("privateTerminal", _lastBlock)),
             privateTerminalParentHash: keccak256(abi.encode("privateTerminalParent", _lastBlock)),
+            anchorBlock: _firstBlock == 0 ? 0 : _firstBlock - 1,
+            anchorOutputRoot: keccak256("anchor"),
+            recoveryHash: bytes32(0),
+            parentOutputRoot: keccak256("anchor"),
             l1Head: keccak256(abi.encode("l1Head", _lastBlock)),
             rollupConfigHash: keccak256("rollupConfig"),
             depSetHash: keccak256("depSet"),
@@ -238,7 +242,7 @@ contract ClaimRegistry_PostClaim_Test is ClaimRegistry_TestInit {
 
     /// @notice Tests that a claim of an unsupported version is refused.
     function testFuzz_postClaim_unsupportedVersion_reverts(uint8 _version) external {
-        vm.assume(_version != 1);
+        vm.assume(_version != 2);
 
         RangeClaim memory claim = _claim(100, 399);
         claim.version = _version;
@@ -281,5 +285,20 @@ contract ClaimRegistry_PostClaim_Test is ClaimRegistry_TestInit {
         assertEq(registry.rangeCount(), 1);
         assertEq(registry.lastPostedLastBlock(), 399);
         assertEq(registry.lastClaimHash(), firstHash);
+    }
+}
+
+/// @title ClaimRegistry_RecordOutput_Test
+/// @notice Output records live in admitted calldata and cannot alter claim accounting.
+contract ClaimRegistry_RecordOutput_Test is ClaimRegistry_TestInit {
+    function test_recordOutput_succeeds() external {
+        vm.recordLogs();
+        registry.recordOutput(keccak256("private output"));
+        assertEq(vm.getRecordedLogs().length, 0);
+        assertEq(registry.rangeCount(), 0);
+        assertEq(registry.lastClaimHash(), bytes32(0));
+        assertEq(registry.lastPostedLastBlock(), 0);
+        assertEq(IClaimRegistry.recordOutput.selector, bytes4(0x6184d08e));
+        assertEq(IClaimRegistry.postClaim.selector, bytes4(0x46e3eef2));
     }
 }

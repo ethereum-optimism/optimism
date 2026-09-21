@@ -136,6 +136,7 @@ func (l *BatchSubmitter) clearChannelState(origin eth.BlockID) {
 	if encoder, ok := l.BlockEnricher.(*PrivateInteropEncoder); ok {
 		encoder.mu.Lock()
 		clear(encoder.prepared)
+		clear(encoder.outputs)
 		encoder.mu.Unlock()
 	}
 	l.channelMgr.Clear(origin)

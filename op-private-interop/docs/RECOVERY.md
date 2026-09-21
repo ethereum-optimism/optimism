@@ -19,7 +19,8 @@ For example, suppose private block 40 is the surviving checkpoint and public
 blocks 41–46 have become deposit-only fallback blocks:
 
 1. Pause private sequencing and cancel any unfinished build.
-2. Authenticate private block 40 and its ancestry against the safety labels.
+2. Match private block 40’s OutputV0 root to the surviving published output record,
+   and authenticate its ancestry against the safety labels.
 3. Set private forkchoice to that checkpoint using the ordinary engine reset.
 4. For each public position 41–46, fetch its canonical L1 origin, timestamp and
    sequence number. Build the corresponding private block from its **private**
@@ -39,10 +40,14 @@ Private and public replacement blocks need not have the same hash or state root.
 Local-safe execution, cross-safety and finality remain separate. The adapter maps the
 projection's safety frontiers through the authenticated private ancestry. A projection
 reorg revokes affected private checkpoints; finalized private history cannot be revoked.
-For a claim whose carrier survives but whose suffix is replaced, the parent hash in
-the accepted private terminal commitment authenticates the surviving prefix by ancestry. The
-supernode's durable deny list and retained denied headers reconstruct that information
-after restart. Missing headers or private state stop recovery.
+For a claim whose carrier survives but whose suffix is replaced, the public output
+record at the surviving position identifies the private checkpoint. LightCL first
+checks the local block at that height against the root. If necessary, it resolves
+another retained branch through claim-bound terminal-parent ancestry, then checks
+that root too. Matching roots simplify checkpoint selection; they do not generate
+replacement blocks or make a partially completed recovery safe to forget. The
+supernode's durable deny list and retained denied headers reconstruct the surviving
+public interval after restart. Missing required private blocks/state stop recovery.
 
 The supernode keeps each claim's observed branch tip and recomputes its surviving
 prefix from canonical history at every completed scan. It does not maintain separate
@@ -55,18 +60,19 @@ advance again.
 LightCL uses the engine controller's local-safe head as its execution cursor and only
 tracks the corresponding public input and any pending build.
 
-The replay interval is `(surviving private parent, recovery frontier]`. LightCL
-walks backward from the committed terminal parent to resolve the surviving private
-parent locally. An offset from an older checkpoint alone cannot identify the private
-branch. The invalidated terminal header is unnecessary: the parent hash is itself
-part of the operator's attestation, under the same trust policy as the rest of the
-claim. A future proof verifier must bind that parent to the proven private execution.
-Offsets are implicit in the endpoint heights, so no separate offset field is needed.
+The replay interval is `(surviving private parent, recovery frontier]`. Root matching
+uses the private state root, message-passer storage root and private block hash,
+never the public state root. The claim still provides terminal block/parent hashes
+for private safety labels and ancestry fallback. These are operator attestations
+under the dummy verifier; a future real proof must bind them and every per-block
+output to private execution. See [BATCHES.md](BATCHES.md) for how the next publication
+binds a surviving checkpoint and canonical recovery inputs.
 
-The experimental claimed-follow RPC prefix now carries `parent` (the committed private
-terminal parent's block ID) and `last` (the surviving projection reference), replacing
-`terminal` and `terminal_parent`. Run matching supernode and LightCL builds when upgrading;
-the batch commitment format is unchanged.
+The experimental claimed-follow RPC prefix carries `parent` (the committed private
+terminal parent's block ID), `last` (the surviving projection reference), and
+`output_root`. The recovery plan also carries `anchor_output_root`. These roots
+accompany version-2 batch commitments. Use matching supernode and LightCL builds
+on a fresh deployment.
 
 Private batchers require `--private-interop.public-projection-rollup-rpc` alongside the
 projection execution RPC. The publication cursor uses the projection's local-safe head
@@ -87,9 +93,10 @@ structural admission rule is described in [BATCHES.md](BATCHES.md); this recover
 adapter does not itself verify private-execution proofs.
 
 Local recovery does not publicly prove the resulting private state. A future span
-must extend the canonical projection parent after replacement and authenticate the
-corresponding private starting state. The continuation requirements and undecided
-commitment/recovery-proof choices are recorded in [BATCHES.md](BATCHES.md#continuation-after-partial-invalidation-proof-system-requirements).
+extends the canonical projection parent after replacement and binds the surviving
+checkpoint and canonical recovery inputs. The implemented format and the remaining
+cryptographic execution-proof requirements are recorded in
+[BATCHES.md](BATCHES.md#continuation-after-invalidation-or-sequencing-window-expiry).
 
 ## The supernode contract
 

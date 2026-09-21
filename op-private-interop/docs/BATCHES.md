@@ -1,188 +1,175 @@
-# Sequencer batches and ordinary deposits
+# Projection batch admission and private checkpoints
 
-The public projection advances under normal OP derivation when the private operator
-is offline. Its fallback blocks contain the required system and ordinary deposit
-transactions, but no synthetic private message replay transactions or new private
-range claims. Private commitments advance when the sequencer publishes another
-accepted range. This does not provide independent private execution during an outage.
+The public projection derives from ordinary L1 channel frames. Published spans carry
+private output commitments and message records, not private application transactions
+or write sets. Ordinary L1 deposits remain public. On the projection they follow its
+existing deposit execution policy; the private chain executes them normally.
 
-There is one ordinary portal deposit path. The special proof-carrying projection
-exporter, verifier hooks and reserved exporter address are removed. The general L1
-event oracle remains a separate contract feature; its ordinary export route uses
-the standard cross-domain messengers so failed L1 registration can be retried.
+This is an experimental, fresh-deployment profile. The only configured verifier is
+`insecure-stub-v1`: bounded dummy proof bytes succeed without cryptographic execution
+verification. Commitments therefore remain assertions of the authorized L1 publisher.
+Neither an output root nor a successful local recovery proves private execution.
 
-The batcher skips projection positions that are already canonical and publishes a
-claim at the beginning of each new range, followed by its synthetic message replay
-transactions. A range may cover later projection positions whose private blocks have
-already executed. It cannot commit unknown future L1 deposits. Claims publish private
-terminal block and parent hashes, L1/configuration bindings and a private input hash.
-There are no published write sets, key/value commitments or private-writes RPC.
+## Submitted block layout
 
-The private input hash covers stock span-batch frames, which exclude deposit payloads.
-Canonical L1 headers, receipts, configuration and block origins provide those deposits
-through ordinary derivation. An authentic private terminal block hash commits the
-executed deposits through transaction roots and ancestor headers. Today the registry
-accepts an operator attestation: it does not verify private execution or deposit
-completeness. The explicit `insecure-stub-v1` derivation verifier accepts bounded
-dummy proof bytes; the registry retains authorization and range accounting. A future execution verifier must
-bind the prior private checkpoint, the canonical deposit history, resulting private
-state and published message outputs; the input hash alone is insufficient.
+Each submitted span has exactly one leading `postClaim` transaction. Its first block
+then contains `recordOutput(bytes32)`, followed by zero or more message replay calls.
+Every subsequent block starts with exactly one `recordOutput`, followed by replays.
+Thus an application-empty submitted block still has an output record. The first
+block has both a claim and an output record. Missing, repeated, late or malformed
+records reject the entire submitted span before its first new block is released.
 
-[Recovery](RECOVERY.md) remains in place for private reconciliation after fallback or
-cross-chain invalidation. Removing write publication and the special exporter does
-not remove that mechanism. Existing interop message validation also retains its normal
-transaction access-list checks, which are separate from the removed private write sets.
-
-## Whole-range admission before execution
-
-The projection rollup config opts into `private_projection` with verifier
-`insecure-stub-v1` and, optionally, `allow_events`. This profile is for fresh chains
-with Holocene and interop active at genesis. Ordinary chains omit the field and
-retain their existing admission rules. It is consensus configuration, not a runtime
-choice of an RPC verifier.
-
-After channel decompression and span decoding, Go's `checkSpanBatchHolocene` and
-Kona's `SpanBatch::check_batch_holocene` authenticate the parent and canonical overlap,
-then invoke `projection.ValidateProjectionRange` / `validate_projection_range` before
-releasing the first singular batch. The batch producer uses the same Go function.
-Validation belongs here rather than in byte decoding because parent/overlap context
-must already be authenticated. No execution or private-node lookup is required.
-
-The shared validator is a pure function of config, the complete decoded span, its
-chain/genesis/interval/parent context, and a deterministic proof verifier. No clock,
-RPC, database, mutable cursor, or cross-call cache is consulted. The function:
-
-- Requires 1–65,536 consecutive blocks, aligned to the configured block interval,
-  with overflow-safe heights. A range cannot include genesis.
-- Requires exactly one canonical `postClaim` call: transaction zero of block zero.
-  Its inclusive first/last heights must cover exactly this span. Missing, duplicated,
-  misplaced or truncated claims reject the entire range. Empty later blocks are allowed.
-- Accepts only canonically encoded, validly signed EIP-1559 transactions for this
-  chain, with nonzero gas at most 16,777,216, zero value and zero fee caps; no contract
-  creation. Deposit envelopes and every other transaction type are rejected.
-- Allows only the ClaimRegistry `postClaim`, messenger `replaySentMessage`, inbox
-  `validateMessage`, and explicitly enabled EventReplayer `replayEvent` destinations
-  and selectors. ABI round trips must be exact: no trailing bytes, dirty padding,
-  alternate offsets or malformed calls. Messages are bounded to 1 MiB, proofs to
-  64 KiB and generic logs to four topics. Native ETH bridge replay remains forbidden.
-- Requires empty access lists except the exact canonical inbox checksum access list
-  for an import, including full-width chain IDs.
-- Constructs a proof statement from the actual public records, then calls the
-  proof verifier once. The statement contains the chain ID, authenticated span parent,
-  claim fields and an ordered transcript commitment. The transcript binds block
-  heights/timestamps/origin numbers and transaction sender, nonce, gas, destination
-  and canonical calldata. Import access lists are uniquely determined by that data.
-  Claim proof bytes are normalized to empty and signature bytes are excluded to
-  avoid circular dependence on the proof carried by the claim transaction.
-
-A final preflight reuses ordinary singular admission checks for the unexecuted suffix,
-including origin timestamps, drift and upgrade-block restrictions. This prevents a
-late deterministic schedule failure from releasing an earlier valid prefix. Future
-execution hashes are not predicted; execution still checks actual ancestry and state.
-
-Structural or proof failure drops the span and flushes its channel, without executing
-any new part of the range. Submitted singular batches cannot bypass this gate.
-Protocol-generated fallback blocks remain allowed. L1-derived deposits, L1-info and
-upgrade transactions are added later by ordinary attributes derivation, not trusted
-as operator-supplied batch records. The existing projection deposit execution rule
-still applies. No range cursor is persisted: reset/reorg clears normal batch buffers,
-and replay validates again against the new canonical parent and overlap. Registry
-non-overlap checks and claim-follower receipt/safety/recovery checks remain in place.
-
-This is **atomic structural admission**, not atomic EVM execution or cross-chain
-invalidation. A later EVM revert, nonce/state failure, or invalid interop dependency
-still follows the ordinary execution/replacement rules. The current stub proves no
-correspondence with private execution, no private data availability, and no private
-checkpoint continuity. A real proof system needs a versioned statement binding the
-prior private checkpoint and canonical deposit history; the claim's terminal-parent
-hash is only the immediate parent of its terminal block, not that checkpoint.
-
-Go and Kona consume the same acceptance vectors, including malformed late-block
-records and proof-statement hashes. Kona node and fault-proof derivation share this
-admission path. This does not establish complete fault-proof execution support for
-the private projection's custom execution rules.
-
-The default renderer's conservative gas formula limits export messages to 581,329
-bytes despite the larger wire allocation bound. Larger messages accepted privately
-can stall publication; private application admission and improved gas budgeting
-remain separate work.
-
-## Continuation after partial invalidation: proof-system requirements
-
-This section specifies requirements for future cryptographic continuity. It does
-not choose a commitment scheme or describe an implemented proof guarantee.
-
-Suppose a submitted range covers 1–5 and interop replaces 3–5 with 3′–5′. A later
-range 6–10 must extend canonical public 5′. It must prove private execution from
-the private state corresponding to 5′, not the old submitted range's endpoint 5.
-The public projection state root is never a substitute for a private state root.
-The previous submitted claim is not necessarily the canonical continuation anchor.
-
-There are three distinct guarantees:
-
-| Layer | Current guarantee |
-| --- | --- |
-| Structural admission | The entire submitted span has allowed public records and range framing; its parent and canonical overlap are checked before new blocks are emitted. The proof statement includes the full public parent hash. |
-| Trusted private recovery | LightCL authenticates a surviving private prefix against operator claim-bound header ancestry, then locally executes canonical deposit-only replacements. It normally completes the reserved interval before publication resumes. |
-| Cryptographic private continuity | Not implemented. Neither the stub verifier nor successful local recovery publicly proves the replacement private state. |
-
-The intended interface remains pure:
+The root is the standard private OP OutputV0 commitment:
 
 ```text
-resolveParentContext(canonicalDerivationHistory, candidateRange)
-    -> Ready(authenticatedContext) | Unavailable(reason) | Invalid(reason)
-validateSpan(config, authenticatedContext, decodedSpan, proof)
-    -> Valid(statement) | Invalid(reason)
+keccak256(versionZero || privateStateRoot || privateMessagePasserStorageRoot || privateBlockHash)
 ```
 
-The resolver is outside the pure function. Context must identify the canonical
-projection parent immediately before the whole submitted range, including its
-height/hash and chain/config domain. It must also provide either an independently
-authenticated private starting commitment or an authenticated earlier private anchor
-and the canonical replacement inputs from which the proof establishes that start.
-A prover-supplied private root alone is not authenticated context. The attested
-profile must remain explicitly distinct from a future proven profile; a missing
-private commitment cannot silently fall back to the stub.
+The publisher obtains the message-passer storage root from the private payload's
+post-Isthmus `withdrawalsRoot`. The source configuration must activate Isthmus at
+genesis. Projection configuration includes the independently computed private
+genesis output root as the initial checkpoint. The public projection's own state
+root is never used as a private commitment.
 
-Per-block private commitments authenticated by the original range proof could make
-the surviving anchor at block 2 available. They do not authenticate replacement
-states 3′–5′. A recovery proof could authenticate that transition; alternatively it
-could start at an older proven anchor and cover the surviving prefix as well as
-replacement inputs. The recovery segment may be included in the next span proof.
-These are design options, not a selected wire format or implemented circuit.
+Both record methods emit no logs. `recordOutput` deliberately stores nothing: its
+canonical admitted calldata is the durable record. Claims in this profile also
+remain readable when their EVM call reverts; registry storage and receipt success
+are not a second admission gate. Legacy claim-follow mode retains its receipt
+policy. Protocol-generated deposits/PostExec transactions cannot create checkpoints,
+even if their destination or calldata impersonates a record method.
 
-Protocol-generated replacements must remain derivable without a new publisher
-proof. Private correspondence for them can be established later, for example by
-that recovery segment before accepting the next proven span. A design requiring a
-pre-existing proven private root at 5′, while only the next proof can establish it,
-would deadlock; an earlier authenticated anchor avoids that circular requirement.
+## Pure admission and proof statement
 
-For overlapping submissions, resolve the parent before the original range, validate
-the complete proof, compare the overlapping public records/origins with canonical
-history, then emit only the suffix. A span matching abandoned history is invalid;
-one matching surviving canonical overlap remains eligible. Never choose a parent
-from the local unsafe tip or from the most recently received claim.
+The rollup config opts into `private_projection` with verifier `insecure-stub-v1`,
+a nonzero `genesis_output_root`, and optional `allow_events`. Holocene and interop
+must be active at genesis. Ordinary chains omit this config and retain their rules.
 
-A known mismatch or absent required proof material is an invalid submission and
-rejects the whole span. A temporary failure to obtain already committed canonical
-context is different. **Current Holocene handling consumes and skips an undecided
-span; it does not retain it for retry.** Before adding context-dependent proof
-verification, the pipeline must retain a bounded pending candidate with its original
-L1 inclusion context, retry context resolution, and invalidate/re-resolve that work
-on reset or reorg. It must not flush the candidate as invalid, emit its prefix, or
-substitute unsafe state. Required proof material must be publicly derivable from
-committed data; an unavailable private RPC or a future publisher action cannot
-become a prerequisite for advancing protocol-generated replacement history.
+After decompression and decoding, Go's `checkSpanBatchHolocene` and Kona's
+`SpanBatch::check_batch_holocene_with_context` check range geometry, authenticate the
+original span parent and overlap, resolve continuation context, and call
+`projection.ValidateProjectionRange` / `validate_projection_range`. This happens
+before decomposition releases any new singular batch. The producer uses the same
+Go validator. Byte decoding alone cannot authenticate a canonical parent.
 
-No pending-context mechanism or private commitment scheme is introduced by the
-current structural gate. Go/Kona parity and fault-proof replay must cover any such
-future change, including partial invalidation, canonical overlap, unavailable-context
-retry, and restart/reorg while a candidate is pending.
+```text
+resolveContext(canonicalProjectionHistory, originalSpanParent, genesis)
+    -> Ready(context) | Unavailable | Invalid
+validateSpan(config, context, completeDecodedSpan, pureVerifier)
+    -> Valid(statement) | Invalid
+```
 
-## Development migration
+The validator performs no RPC, clock, database or mutable-cache access. Its input
+includes chain ID, block interval, genesis geometry, full canonical public parent
+hash and an independently resolved continuation. It enforces:
 
-Start a fresh deployment with matching contracts, Go services and op-reth. This rollback
-restores claim wire version 1 and removes the exporter predeploy, changing projection
-genesis. ClaimRegistry 2.1.0 and the explicit projection admission config also require
-a fresh genesis; do not hot-swap this rule into existing deployments.
-Existing experimental version-3 deployments cannot adopt this as a live upgrade.
+- 1–65,536 aligned consecutive blocks, excluding genesis, with overflow-safe heights.
+- One version-2 claim whose first/last heights cover exactly the entire span.
+- The fixed per-block output placement described above, with nonzero roots.
+- Canonical, validly signed EIP-1559 envelopes for this chain; zero value and fee caps;
+  nonzero gas at most 16,777,216; no creation or operator-supplied deposit envelopes.
+- Only `postClaim`, `recordOutput`, `replaySentMessage`, `validateMessage`, and enabled
+  `replayEvent` at their designated predeploys. Native bridge replay is forbidden.
+- Exact ABI encoding, at most 64 KiB proof bytes, 1 MiB message bytes and four event
+  topics; no trailing data, dirty padding or alternate offsets.
+- Empty access lists except the exact inbox checksum list derived from each import.
+- Claim anchor height/root/recovery hash equal to the independently resolved context.
+  Without a recovery interval, the claimed private parent output must equal the
+  checkpoint at the public parent, and the recovery hash must be zero.
+
+The proof statement contains the chain ID, full public parent hash, continuation,
+normalized claim and a Merkle commitment to every ordered block record. Each leaf is
+`H(0x00 || blockTranscript)`. The transcript uses big-endian uint64 heights, timestamps,
+L1-origin numbers and transaction counts, then each sender, nonce, gas, destination,
+calldata length and canonical calldata. Proof bytes are normalized to empty; signature
+bytes are excluded to avoid circularity, while the recovered sender remains bound.
+Internal nodes are `H(0x01 || left || right)`, duplicating the last node at odd levels.
+The final root is `H("optimism.private-projection.v2\0" || uint64be(leafCount) || treeRoot)`.
+The count prevents duplicated leaves from aliasing spans of different lengths.
+
+A final preflight checks ordinary singular scheduling rules over the unexecuted
+suffix, including L1-origin timestamps, drift and upgrade blocks. For drift only,
+strict checkpoint metadata counts as application-empty; any replay still counts as
+nonempty. All empty-batch next-origin timing checks remain enforced. Fork activation
+blocks still prohibit submitted transactions: this fresh interop-at-genesis profile
+must not assume a future upgrade can be crossed with a published span. Such spans
+are rejected and require expiry/recovery, or a separately specified upgrade policy. Structural/proof
+failure drops the span and flushes its channel. Submitted singular wire batches
+cannot bypass this gate. This is whole-span structural admission, not atomic EVM
+execution: a transaction revert does not by itself replace a block. Payload-invalid
+execution and invalid interop dependencies retain their ordinary handling.
+
+## Continuation after invalidation or sequencing-window expiry
+
+For a span 1–5 followed by replacement of 3–5 with 3′–5′, the next span 6–10 extends
+canonical public 5′. Its surviving private checkpoint is the output record at 2,
+not the old submitted endpoint at 5. The claim carries:
+
+- `anchorBlock` and `anchorOutputRoot`: the surviving checkpoint.
+- `recoveryHash`: a commitment to the canonical replacement inputs from the
+  publication parent back to, but excluding, the anchor.
+- `parentOutputRoot`: the private output after executing that recovery interval.
+
+The resolver walks hash-linked canonical projection history backward from the
+**parent of the original full span**, including when part of the span overlaps safe
+history. It stops at the nearest admitted output record, or at the configured
+private genesis output. A block containing sequencer transactions but no valid
+output record is invalid context, never silently classified as fallback.
+
+Recovery hashes fold blocks in descending height order, beginning with zero:
+
+```text
+H("optimism.private-recovery.v1\0" || previousHash || publicBlockHash || publicParentHash
+  || uint64be(number) || uint64be(timestamp) || uint64be(transactionCount)
+  || each(uint64be(transactionLength) || rawTransaction))
+```
+
+The public block hash additionally binds the complete header. A future execution
+proof must authenticate private execution from the surviving output through these
+canonical replacement inputs, then through the submitted private range, and bind
+all intermediate output records and exported/imported messages. The present stub
+only checks the public framing and context bindings; it does **not** verify that the
+claimed private parent or intermediate outputs follow from execution. Configuration
+and dependency-set claims also remain trusted until the proof relation authenticates
+them against its protocol configuration.
+
+Protocol replacements need no publisher proof or private RPC to be derived. Their
+private-state correspondence is established later by the recovery segment of the
+next real span proof. Deposits replayed during recovery can emit private messages;
+those messages are not retroactively exported into deposit-only public replacements.
+Requiring a proven replacement root before that recovery proof would deadlock.
+
+## Missing context, overlap and resets
+
+The stateful context collector is outside the pure validator. Each attempt pins the
+canonical parent hash, then performs at most 128 backward reads. One constant-sized
+cursor persists across attempts; there is no consensus maximum outage length.
+Unavailable committed data or unfinished scanning retains one candidate and its
+original L1 inclusion block, returning a temporary error. Every decomposed block
+retains that inclusion block for its sequencing-window checks. The pipeline does not
+flush, emit a prefix, substitute unsafe history, or read a new candidate while waiting.
+
+A changed target parent restarts collection. Reset/flush discards both candidate and
+cursor. Malformed context rejects the candidate. Ordinary missing L1 scheduling
+information retains existing Holocene handling so waiting cannot prevent L1 traversal.
+Valid overlapping public records are checked against canonical history and only the
+new suffix is emitted. An overlap matching abandoned history is rejected.
+
+[LightCL recovery](RECOVERY.md) uses a surviving root to identify a matching local
+private checkpoint, preserves ancestry/finality and restart safeguards, executes the
+canonical replacement interval, and resumes sequencing after the reserved range.
+
+## Verification and deployment limits
+
+Go and Kona share admission/statement vectors and a canonical recovery transcript
+vector. Tests cover missing context, long incremental recovery, reorgs, reset, original
+inclusion retention, malformed records and changed intermediate roots. Node and
+fault-proof derivation use the same Kona gate; this does not establish complete
+fault-proof execution support for the projection's custom execution rules.
+
+The renderer's conservative gas formula limits export messages to 581,329 bytes,
+below the structural 1 MiB wire bound. Larger private messages can stall publication;
+private admission and improved gas budgeting remain separate work.
+
+Use a fresh deployment with matching contracts, rollup config, Go services and op-reth.
+Claim wire version 2, ClaimRegistry 3.0.0 and the output-root config change projection
+genesis and admission rules. This is not a live upgrade for existing private devnets.

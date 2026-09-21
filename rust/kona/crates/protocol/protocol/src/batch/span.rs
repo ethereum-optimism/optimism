@@ -556,7 +556,11 @@ impl SpanBatch {
                 Ok(p) => p,
                 Err(e) => {
                     warn!(target: "batch_span", "failed to fetch block number {safe_block_num}: {e}");
-                    return BatchValidity::Undecided;
+                    return if cfg.private_projection.is_some() {
+                        BatchValidity::Retry
+                    } else {
+                        BatchValidity::Undecided
+                    };
                 }
             };
             let safe_block = &safe_block_payload.body;
@@ -737,7 +741,14 @@ impl SpanBatch {
                     // Unable to validate the batch right now. Only the pre-Holocene
                     // BatchQueue retains the batch for a retry; the Holocene BatchStream has
                     // already consumed it and skips it.
-                    return (BatchValidity::Undecided, None);
+                    return (
+                        if cfg.private_projection.is_some() {
+                            BatchValidity::Retry
+                        } else {
+                            BatchValidity::Undecided
+                        },
+                        None,
+                    );
                 }
             };
         }
@@ -811,6 +822,30 @@ impl SpanBatch {
         inclusion_block: &BlockInfo,
         fetcher: &mut BV,
     ) -> BatchValidity {
+        self.check_batch_holocene_with_context(
+            cfg,
+            l1_origins,
+            l2_safe_head,
+            inclusion_block,
+            fetcher,
+            &mut crate::projection::ContextCollector::new(),
+        )
+        .await
+    }
+
+    /// Holocene checks with an incremental canonical projection-context collector.
+    pub async fn check_batch_holocene_with_context<BV: BatchValidationProvider>(
+        &self,
+        cfg: &RollupConfig,
+        l1_origins: &[BlockInfo],
+        l2_safe_head: L2BlockInfo,
+        inclusion_block: &BlockInfo,
+        fetcher: &mut BV,
+        collector: &mut crate::projection::ContextCollector,
+    ) -> BatchValidity {
+        if cfg.private_projection.is_some() && crate::projection::range_bounds(cfg, self).is_err() {
+            return BatchValidity::Drop(BatchDropReason::InvalidProjectionRange);
+        }
         let (prefix_validity, parent_block) =
             self.check_batch_prefix(cfg, l1_origins, l2_safe_head, inclusion_block, fetcher).await;
         if !prefix_validity.is_accept() {
@@ -821,18 +856,33 @@ impl SpanBatch {
         if !validity.is_accept() {
             return validity;
         }
-        if cfg.private_projection.is_some() &&
-            crate::projection::validate_projection_range(
+        if let Some(profile) = &cfg.private_projection {
+            let continuation = match collector
+                .resolve(
+                    fetcher,
+                    parent.block_info.id(),
+                    cfg.genesis.l2,
+                    profile.genesis_output_root,
+                )
+                .await
+            {
+                Ok(value) => value,
+                Err(crate::projection::ContextError::Unavailable) => return BatchValidity::Retry,
+                Err(crate::projection::ContextError::Invalid) => {
+                    return BatchValidity::Drop(BatchDropReason::InvalidProjectionRange);
+                }
+            };
+            if crate::projection::validate_projection_range(
                 cfg,
                 parent.block_info.hash,
+                continuation,
                 self,
                 &crate::projection::StubVerifier,
             )
             .is_err()
-        {
-            return BatchValidity::Drop(BatchDropReason::InvalidProjectionRange);
-        }
-        if cfg.private_projection.is_some() {
+            {
+                return BatchValidity::Drop(BatchDropReason::InvalidProjectionRange);
+            }
             return self.check_projection_schedule(cfg, l1_origins, l2_safe_head, inclusion_block);
         }
         BatchValidity::Accept

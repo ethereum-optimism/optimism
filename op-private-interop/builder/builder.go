@@ -156,7 +156,8 @@ type Range struct {
 	// including the chain's first, opens with its own claim.
 	Claim *ClaimInput
 	// StartNonce is the standard batcher account's nonce for the first transaction of the range.
-	StartNonce uint64
+	StartNonce   uint64
+	Continuation projection.Continuation
 }
 
 // BuiltBlock is one rendering block as the batch describes it.
@@ -165,10 +166,9 @@ type BuiltBlock struct {
 	Timestamp uint64
 	Origin    eth.BlockID
 	SeqNum    uint64
-	// Txs are the block's non-deposit transactions: one replay transaction per rendered log, in
-	// rendered order, preceded — in a range's FIRST block only — by that range's claim
-	// transaction. The claim emits no log, so the k-th REPLAY transaction still emits rendering
-	// log k with no exceptions anywhere in a range.
+	// Txs are sequencer transactions: an opening claim in the first block only,
+	// then one output record per block, followed by rendered message replays.
+	// Claim and output records emit no logs, preserving replay log indices.
 	Txs []hexutil.Bytes
 }
 
@@ -181,6 +181,7 @@ type BuiltBlock struct {
 // the range it opens" true by construction rather than by agreement, which matters for a record
 // that is the permanent claim about that range.
 type ClaimInput struct {
+	ParentOutputRoot common.Hash
 	// RollupConfigHash and DepSetHash pin which chain and which dependency set the claim speaks for.
 	RollupConfigHash common.Hash
 	DepSetHash       common.Hash
@@ -188,8 +189,8 @@ type ClaimInput struct {
 	// COMMITMENT, not a pointer. Nothing publishes the object — the bytes are hashed and dropped,
 	// and they reach every legitimate reader over the operator's private p2p network.
 	PrivateDataHash common.Hash
-	// Proof is empty in v1, where the registry refuses a non-empty slot. In proven mode it attests
-	// the claim series that follows it in the same block.
+	// Proof is bounded input to the configured whole-span verifier. The current
+	// insecure stub accepts dummy bytes and proves no private execution.
 	Proof []byte
 }
 
@@ -250,6 +251,10 @@ func (b *Builder) Build(r *Range) (*BuiltRange, error) {
 	// rendered block: it is the PRIVATE chain's hash, a fact that already existed before any of
 	// this ran, which is exactly what makes leading placement non-circular.
 	claim := &codec.RangeClaim{
+		AnchorBlock:               r.Continuation.Anchor.Number,
+		AnchorOutputRoot:          r.Continuation.OutputRoot,
+		RecoveryHash:              r.Continuation.RecoveryHash,
+		ParentOutputRoot:          r.Claim.ParentOutputRoot,
 		FirstBlock:                first.Number,
 		LastBlock:                 last.Number,
 		PrivateTerminalBlockHash:  last.PrivateRef.Hash,
@@ -323,7 +328,7 @@ func (b *Builder) Build(r *Range) (*BuiltRange, error) {
 		if _, err := projection.ValidateProjectionRange(cfg, projection.Context{
 			ChainID: b.cfg.Rollup.L2ChainID, GenesisNumber: b.cfg.Rollup.Genesis.L2.Number,
 			GenesisTime: b.cfg.Rollup.Genesis.L2Time, BlockTime: b.cfg.Rollup.BlockTime,
-			ParentHash: r.PrevTerminalRenderingHash,
+			ParentHash: r.PrevTerminalRenderingHash, Continuation: r.Continuation,
 		}, span, verifier); err != nil {
 			return nil, fmt.Errorf("projection admission: %w", err)
 		}
@@ -399,6 +404,13 @@ func (b *Builder) blockTxs(blk *render.RenderedBlock, isFirst bool, claim *codec
 		if err := appendTx(tx); err != nil {
 			return nil, 0, err
 		}
+	}
+	output, err := b.txs.OutputTx(blk.OutputRoot)
+	if err != nil {
+		return nil, 0, err
+	}
+	if err := appendTx(output); err != nil {
+		return nil, 0, err
 	}
 	for _, act := range blk.Actions {
 		tx, err := b.txs.ReplayTx(act)

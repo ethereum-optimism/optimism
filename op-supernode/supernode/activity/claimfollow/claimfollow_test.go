@@ -19,6 +19,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
 	"github.com/ethereum-optimism/optimism/op-private-interop/codec"
+	"github.com/ethereum-optimism/optimism/op-private-interop/projection"
 	"github.com/ethereum-optimism/optimism/op-private-interop/render"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
@@ -822,4 +823,19 @@ func TestScanIsBounded(t *testing.T) {
 	require.NoError(t, h.step()) // 12-14
 	require.NoError(t, h.step()) // 15-16
 	require.Equal(t, wantRef(16), h.status().SafeL2)
+}
+
+func TestAdmittedProjectionClaimSurvivesExecutionRevert(t *testing.T) {
+	h := newHarness(t)
+	h.f.rollupCfg.PrivateProjection = &projection.Config{Verifier: projection.InsecureStub, GenesisOutputRoot: common.Hash{1}}
+	tx := claimTx(t, 0, 1, 8)
+	h.r.set(1, "a", 0, tx)
+	h.r.revert(1, tx)
+	payload, err := h.r.PayloadByNumber(t.Context(), 1)
+	require.NoError(t, err)
+	claims, err := h.f.readClaims(t.Context(), h.r, payload.ExecutionPayload)
+	require.NoError(t, err)
+	require.Len(t, claims, 1, "admitted calldata is the checkpoint authority, not registry execution")
+	require.Equal(t, privHash(8), claims[0].terminal)
+	require.Zero(t, h.m.rejected["reverted"])
 }

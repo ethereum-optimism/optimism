@@ -12,8 +12,10 @@ import (
 	"github.com/ethereum/go-ethereum/rpc"
 
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
+	"github.com/ethereum-optimism/optimism/op-private-interop/projection"
 	"github.com/ethereum-optimism/optimism/op-service/dial"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
+	"github.com/ethereum-optimism/optimism/op-service/sources"
 )
 
 // The production RangeSource.
@@ -85,9 +87,8 @@ func (f *rpcPublicProjectionFollower) Close() {
 // rpcBlock is the subset of eth_getBlockByNumber's result the follower needs.
 //
 // The call asks for fullTx=FALSE, so no transaction is ever decoded on this path. That is not just
-// thrift: with fullTx=true the transactions arrive as objects, and the T1 devstack caught the
-// original hexutil.Bytes decode failing on every non-empty block. Nothing reads them any more, so
-// nothing has to survive decoding them.
+// thrift: full transaction objects require a different decoder. PayloadByNumber
+// uses sources.RPCBlock separately when continuation needs canonical transaction data.
 type rpcBlock struct {
 	Hash   common.Hash    `json:"hash"`
 	Number hexutil.Uint64 `json:"number"`
@@ -147,11 +148,11 @@ type PrivateInteropRangeSourceConfig struct {
 	NetworkTimeout time.Duration
 }
 
-// privateInteropRangeSource is the production RangeSource. It is stateless: since origin-copy there
-// is no L1 view to bound, no confirmation depth to hold back from, and no origin floor to remember
-// between calls — every answer is read from the public projection when asked.
+// privateInteropRangeSource resolves canonical publication parents. Its bounded
+// context collector retains only a hash-pinned backward scan across retries.
 type privateInteropRangeSource struct {
-	cfg PrivateInteropRangeSourceConfig
+	collector projection.ContextCollector
+	cfg       PrivateInteropRangeSourceConfig
 }
 
 var _ RangeSource = (*privateInteropRangeSource)(nil)
@@ -187,6 +188,8 @@ func NewPrivateInteropRangeSource(cfg PrivateInteropRangeSourceConfig) (RangeSou
 // sequence number are its private block's own, so the bookkeeping has no state to carry across a
 // range boundary.
 func (s *privateInteropRangeSource) RangeStart(ctx context.Context, firstBlock uint64) (RangeStart, error) {
+	ctx, cancel := context.WithTimeout(ctx, s.cfg.NetworkTimeout)
+	defer cancel()
 	genesis := s.cfg.PublicProjectionRollup.Genesis.L2.Number
 	if firstBlock <= genesis {
 		return RangeStart{}, fmt.Errorf("range cannot start at %d: the public projection's genesis is block %d", firstBlock, genesis)
@@ -206,10 +209,43 @@ func (s *privateInteropRangeSource) RangeStart(ctx context.Context, firstBlock u
 		return RangeStart{}, fmt.Errorf("reading the batcher's nonce at public-projection block %d: %w", prev, err)
 	}
 
+	var continuation projection.Continuation
+	if cfg := s.cfg.PublicProjectionRollup.PrivateProjection; cfg != nil {
+		safe, err := s.cfg.PublicProjection.SafeBlock(ctx)
+		if err != nil {
+			return RangeStart{}, err
+		}
+		if safe == nil || safe.Number < prev {
+			return RangeStart{}, errors.New("publication parent is not locally safe")
+		}
+		source, ok := s.cfg.PublicProjection.(projection.PayloadSource)
+		if !ok {
+			return RangeStart{}, errors.New("projection source cannot supply canonical continuation payloads")
+		}
+		continuation, err = s.collector.Resolve(ctx, source, eth.BlockID{Hash: blk.Hash, Number: prev}, s.cfg.PublicProjectionRollup.Genesis.L2, cfg.GenesisOutputRoot)
+		if err != nil {
+			return RangeStart{}, err
+		}
+	}
 	s.cfg.Log.Info("Private interop range start resolved",
 		"first_block", firstBlock, "parent_check", blk.Hash, "start_nonce", nonce)
 	return RangeStart{
 		PrevTerminalRenderingHash: blk.Hash,
 		StartNonce:                nonce,
+		Continuation:              continuation,
 	}, nil
+}
+
+// PayloadByNumber authenticates full canonical input data for proof continuation.
+func (f *rpcPublicProjectionFollower) PayloadByNumber(ctx context.Context, number uint64) (*eth.ExecutionPayloadEnvelope, error) {
+	ctx, cancel := context.WithTimeout(ctx, f.timeout)
+	defer cancel()
+	var block *sources.RPCBlock
+	if err := f.rpc.CallContext(ctx, &block, "eth_getBlockByNumber", hexutil.EncodeUint64(number), true); err != nil {
+		return nil, err
+	}
+	if block == nil {
+		return nil, fmt.Errorf("projection block %d unavailable", number)
+	}
+	return block.ExecutionPayloadEnvelope(false)
 }

@@ -191,6 +191,7 @@ func renderedBlock(t *testing.T, number, timestamp uint64, ref eth.L2BlockRef, t
 	}
 	out, err := render.RenderBlock(render.PrivateBlock{Header: hdr, Txs: txs, Receipts: receipts, Ref: ref}, testEmitters)
 	require.NoError(t, err)
+	out.OutputRoot = common.Hash{0xab}
 	return out
 }
 
@@ -431,7 +432,7 @@ func TestClaimPlacement(t *testing.T) {
 		[]render.ReplayKind{render.ReplayExport, render.ReplayImport, render.ReplayEvent, render.ReplayExport},
 		[]render.ReplayKind{rendered.Actions[0].Kind, rendered.Actions[1].Kind, rendered.Actions[2].Kind, rendered.Actions[3].Kind},
 		"the import contributes ONE replay transaction: its RelayedMessage is not a renderable claim")
-	require.Len(t, opening.Txs, len(rendered.Actions)+1, "the claim, then the replay transactions")
+	require.Len(t, opening.Txs, len(rendered.Actions)+2, "claim, output, then replay transactions")
 
 	firstTx := decodeTx(t, opening.Txs[0])
 	require.Equal(t, testRegistry, *firstTx.To(), "the FIRST transaction posts this range's claim")
@@ -446,7 +447,7 @@ func TestClaimPlacement(t *testing.T) {
 	// event, this offset would be the wrong one and this assertion would be the thing that caught it.
 	// (That the call emits no log is the registry's own property, covered by the contracts suite;
 	// here it is the transaction ORDERING that has to be right.)
-	replayTxs := opening.Txs[1:]
+	replayTxs := opening.Txs[2:]
 	require.Len(t, replayTxs, len(rendered.Actions))
 	for i, act := range rendered.Actions {
 		require.Equal(t, uint32(i), act.RenderedLogIndex, "rendered index is the RenderedLogs rank")
@@ -467,8 +468,8 @@ func TestClaimPlacement(t *testing.T) {
 
 	// One claim per range, in the opening block only.
 	for i, blk := range built.Blocks[1:] {
-		require.Len(t, blk.Txs, len(r.Blocks[i+1].Actions), "block %d has replay transactions only", i+1)
-		for j, raw := range blk.Txs {
+		require.Len(t, blk.Txs, len(r.Blocks[i+1].Actions)+1, "block %d has one output and its replay transactions", i+1)
+		for j, raw := range blk.Txs[1:] {
 			require.NotEqual(t, testRegistry, *decodeTx(t, raw).To(),
 				"block %d transaction %d posts a second claim", i+1, j)
 		}

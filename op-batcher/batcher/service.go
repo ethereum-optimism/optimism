@@ -458,7 +458,7 @@ func (bs *BatcherService) initPrivateInterop(ctx context.Context, cfg *CLIConfig
 	if err != nil {
 		return fmt.Errorf("projecting the private-chain genesis: %w", err)
 	}
-	publicProjectionRollup, err := projectiongenesis.ProjectRollupConfigFrom(bs.RollupConfig, publicProjectionGenesis)
+	publicProjectionRollup, err := projectiongenesis.ProjectRollupConfigFrom(bs.RollupConfig, privateChainGenesis, publicProjectionGenesis)
 	if err != nil {
 		return fmt.Errorf("projecting the private-chain rollup config: %w", err)
 	}

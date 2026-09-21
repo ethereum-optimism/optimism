@@ -28,8 +28,8 @@ import (
 // was hand-written; regenerate it with a stock op-deployer when the contract release moves and
 // update StockL2ToL2CrossDomainMessengerCodeHash alongside it.
 const (
-	goldenPublicProjectionStateRoot = "0x70fdec803ea12eaa33b3816b908b2188cc5c4bf5fd2d8711e092c591cf0ea091"
-	goldenPublicProjectionBlockHash = "0x0e4c5d1fc64b5afbcb548e1ec0dd42fc89362ed20746f1341abfe866680b31a2"
+	goldenPublicProjectionStateRoot = "0x9ae8ea9ee2dc6d6c87cb70b207cefbed431a86188e6d043ee45f27682b421595"
+	goldenPublicProjectionBlockHash = "0x5f3143fe8b66d34522c63a388f98a9da9068d96c3605b1bfd9c7c5350f42a93e"
 )
 
 func TestProjectGenesisFromIsPureAndDeterministic(t *testing.T) {
@@ -189,7 +189,7 @@ func TestProjectRollupConfigFrom(t *testing.T) {
 		},
 		LagoonTime: &lagoon,
 	}
-	projected, err := ProjectRollupConfigFrom(private, publicProjectionGenesis)
+	projected, err := ProjectRollupConfigFrom(private, privateChainGenesis, publicProjectionGenesis)
 	require.NoError(t, err)
 
 	require.Equal(t, publicProjectionGenesis.ToBlock().Hash(), projected.Genesis.L2.Hash)

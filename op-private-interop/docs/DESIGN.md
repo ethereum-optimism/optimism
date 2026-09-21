@@ -2,7 +2,9 @@
 
 Current batch/deposit behavior and pure whole-span admission are specified in
 [BATCHES.md](BATCHES.md). Its projection gate and dummy-proof policy supersede the
-historical empty-proof and future data-source-gate descriptions below.
+historical empty-proof and future data-source-gate descriptions below. It also
+specifies per-block private output roots, canonical continuation after replacement,
+and the distinction between structural enforcement and trusted private execution.
 
 **Status:** Historical design (2026-08-30 through 2026-09-01). The current ETH funding, native
 bridge permissions, messenger deposit policy and NetChef artifact flow are specified in

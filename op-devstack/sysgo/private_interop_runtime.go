@@ -313,7 +313,7 @@ func NewTwoL2PrivateInteropRuntimeWithConfig(t devtest.T, delaySeconds uint64, c
 	renderingNet.name += "-public-projection"
 	renderingNet.genesis, err = projectiongenesis.ProjectGenesisFrom(privateGenesis)
 	require.NoError(err, "projecting the private-chain genesis")
-	renderingNet.rollupCfg, err = projectiongenesis.ProjectRollupConfigFrom(privateRollup, renderingNet.genesis)
+	renderingNet.rollupCfg, err = projectiongenesis.ProjectRollupConfigFrom(privateRollup, privateGenesis, renderingNet.genesis)
 	require.NoError(err, "projecting the private-chain rollup config")
 	require.NotEqual(privateRollup.Genesis.L2.Hash, renderingNet.rollupCfg.Genesis.L2.Hash)
 

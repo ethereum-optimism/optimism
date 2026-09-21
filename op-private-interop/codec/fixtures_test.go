@@ -23,7 +23,7 @@ import (
 // Regenerate with `go test ./op-private-interop/codec -run TestFixtures -update`. Treat any
 // resulting diff in a `valid` case's bytes as a WIRE CHANGE needing a version bump, not as a test
 // fixture that drifted.
-const fixtureDir = "testdata/range-claim-v1"
+const fixtureDir = "testdata/range-claim-v2"
 
 var updateFixtures = flag.Bool("update", false, "regenerate the range-claim fixture corpus")
 
@@ -59,6 +59,10 @@ type fixtureBody struct {
 	LastBlock                 uint64      `json:"lastBlock"`
 	PrivateTerminalBlockHash  common.Hash `json:"privateTerminalBlockHash"`
 	PrivateTerminalParentHash common.Hash `json:"privateTerminalParentHash"`
+	AnchorBlock               uint64      `json:"anchorBlock"`
+	AnchorOutputRoot          common.Hash `json:"anchorOutputRoot"`
+	RecoveryHash              common.Hash `json:"recoveryHash"`
+	ParentOutputRoot          common.Hash `json:"parentOutputRoot"`
 	L1Head                    common.Hash `json:"l1Head"`
 	RollupConfigHash          common.Hash `json:"rollupConfigHash"`
 	DepSetHash                common.Hash `json:"depSetHash"`
@@ -72,10 +76,11 @@ func bodyFixture(e *RangeClaim, version uint8) fixtureBody {
 		LastBlock:                 e.LastBlock,
 		PrivateTerminalBlockHash:  e.PrivateTerminalBlockHash,
 		PrivateTerminalParentHash: e.PrivateTerminalParentHash,
-		L1Head:                    e.L1Head,
-		RollupConfigHash:          e.RollupConfigHash,
-		DepSetHash:                e.DepSetHash,
-		PrivateDataHash:           e.PrivateDataHash,
+		AnchorBlock:               e.AnchorBlock, AnchorOutputRoot: e.AnchorOutputRoot, RecoveryHash: e.RecoveryHash, ParentOutputRoot: e.ParentOutputRoot,
+		L1Head:           e.L1Head,
+		RollupConfigHash: e.RollupConfigHash,
+		DepSetHash:       e.DepSetHash,
+		PrivateDataHash:  e.PrivateDataHash,
 	}
 }
 
@@ -251,7 +256,7 @@ func buildFixtures(t *testing.T) []fixtureFile {
 		{
 			name: "cadence-300-blocks", kind: kindValid, claim: cadence,
 			desc: "The operating point: one 10-minute cadence at 2 s block time, 300 public blocks, " +
-				"mid-chain. Note it is the same 352 bytes as every other empty-proof claim — v1 " +
+				"mid-chain. Note it is the same 512 bytes as every other empty-proof claim — v2 " +
 				"carries no per-block data, so claim size is independent of range size.",
 		},
 		{
@@ -271,7 +276,7 @@ func buildFixtures(t *testing.T) []fixtureFile {
 			desc: "Well-formed bytes carrying a 65-byte proof slot (the bytes 0x00..0x40, a placeholder " +
 				"for a real proof; 65 is deliberately not a multiple of 32, so this also pins the ABI " +
 				"tail padding). ModeProven decodes it; ModeAttested REFUSES it, which is the standing " +
-				"v1 rule: a verifier with no proof system must not accept a claim whose central " +
+				"legacy empty-proof decoder policy rejects a claim whose central " +
 				"claim it is not equipped to evaluate.",
 		},
 	}
@@ -304,7 +309,7 @@ func buildFixtures(t *testing.T) []fixtureFile {
 	}{
 		{0x00, "Version 0: the zero value, which is what an uninitialised producer emits and what a " +
 			"decoder treating zero as 'unset, assume current' would wave through. Refused."},
-		{0x02, "Version 2: the next version, which does not exist yet. Forwards-leniency is how a " +
+		{0x03, "Version 3: the next version, which does not exist yet. Forwards-leniency is how a " +
 			"future field addition gets silently misread out of the wrong offsets by something that " +
 			"reports success, so an unrecognised successor is refused as firmly as anything else."},
 		{0xff, "Version 255: the top of the field. Refused like any other unrecognised version; " +
@@ -363,10 +368,10 @@ func buildFixtures(t *testing.T) []fixtureFile {
 		},
 		{
 			name: "dirty-version-word",
-			desc: "The version word is 0x...0101 instead of 0x...01: correct in its low byte, junk in " +
+			desc: "The version word is 0x...0102 instead of 0x...02: correct in its low byte, junk in " +
 				"the bits above a uint8. Refused, because two readers agreeing on the VALUE while " +
 				"disagreeing about the BYTES is how one transaction becomes two facts. A decoder that " +
-				"masked to the low byte would read this as a perfectly good version 1. (go-ethereum " +
+				"masked to the low byte would read this as a perfectly good version 2. (go-ethereum " +
 				"happens to reject it inside abi.Unpack rather than at the re-encode comparison, which " +
 				"is why the corpus states a refusal CATEGORY and not an error string.)",
 			refusal: refusalNonCanonical,
@@ -385,7 +390,7 @@ func buildFixtures(t *testing.T) []fixtureFile {
 			refusal: refusalNonCanonical,
 			data: mutate(func(b []byte) []byte {
 				// The tuple starts at byte 32; its ninth head word (bytes 288..319) is the offset to
-				// `proof`, canonically 0x140. Push it one word further and append the room it now
+				// `proof`, canonically 0x1c0. Push it one word further and append the room it now
 				// claims, so a lenient decoder finds a zero length word there and succeeds.
 				moved := uint16(proofOffset + 32)
 				b[32+(headWords-1)*32+30] = byte(moved >> 8)
@@ -562,20 +567,20 @@ func writeFixtures(t *testing.T, cases []fixtureFile) {
 			"policy; the truth of privateTerminalBlockHash is off-chain verifier/tooling policy, and " +
 			"could not be anything else — the public chain's EVM cannot see the private chain at all.",
 		PayloadEncoding: "abi.encode(RangeClaim). The struct has a dynamic member (`proof`), so the " +
-			"encoding is the offset word 0x20, then the tuple: ten head words (nine statics plus the " +
-			"tuple-relative offset to `proof`, which is 0x140 canonically), then the proof's length word " +
+			"encoding is the offset word 0x20, then the tuple: fourteen head words (thirteen statics plus the " +
+			"tuple-relative offset to `proof`, which is 0x1c0 canonically), then the proof's length word " +
 			"and its bytes padded to a multiple of 32.",
 		PayloadFields: []string{
 			"version", "firstBlock", "lastBlock", "privateTerminalBlockHash", "privateTerminalParentHash",
-			"l1Head", "rollupConfigHash", "depSetHash", "privateDataHash", "proof",
+			"anchorBlock", "anchorOutputRoot", "recoveryHash", "parentOutputRoot", "l1Head", "rollupConfigHash", "depSetHash", "privateDataHash", "proof",
 		},
 		PayloadSolidityTypes: []string{
-			"uint8", "uint64", "uint64", "bytes32", "bytes32", "bytes32", "bytes32", "bytes32", "bytes32", "bytes",
+			"uint8", "uint64", "uint64", "bytes32", "bytes32", "uint64", "bytes32", "bytes32", "bytes32", "bytes32", "bytes32", "bytes32", "bytes32", "bytes",
 		},
 		EncodedBytesEmptyProof: EncodedSizeEmptyProof,
 		MaxProofBytes:          MaxProofSize,
 		MaxEncodedBytes:        MaxEncodedSize,
-		RefusedVersions:        []uint16{0x00, 0x02, 0xff},
+		RefusedVersions:        []uint16{0x00, 0x03, 0xff},
 	}
 	for _, c := range cases {
 		index.Cases = append(index.Cases, fixtureCase{

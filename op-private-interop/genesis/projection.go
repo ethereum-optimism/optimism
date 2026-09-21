@@ -134,7 +134,7 @@ func ProjectGenesisFrom(privateChainGenesis *core.Genesis) (*core.Genesis, error
 // supplies the only value that cannot be copied from the private chain: the L2 genesis hash. The
 // genesis system config follows the projected block parameters. Everything else, the Lagoon
 // activation time included, is the private chain's: both views activate interop at genesis.
-func ProjectRollupConfigFrom(privateChainConfig *rollup.Config, publicProjectionGenesis *core.Genesis) (*rollup.Config, error) {
+func ProjectRollupConfigFrom(privateChainConfig *rollup.Config, privateGenesis, publicProjectionGenesis *core.Genesis) (*rollup.Config, error) {
 	if privateChainConfig == nil {
 		return nil, errors.New("private-chain rollup config is nil")
 	}
@@ -143,7 +143,20 @@ func ProjectRollupConfigFrom(privateChainConfig *rollup.Config, publicProjection
 	}
 
 	out := *privateChainConfig
-	out.PrivateProjection = &projection.Config{Verifier: projection.InsecureStub}
+	if privateGenesis == nil || privateGenesis.Config == nil || !privateGenesis.Config.IsOptimismIsthmus(privateGenesis.Timestamp) {
+		return nil, errors.New("private checkpoint requires Isthmus at genesis")
+	}
+	privateBlock := privateGenesis.ToBlock()
+	if privateBlock.Hash() != privateChainConfig.Genesis.L2.Hash {
+		return nil, errors.New("private genesis does not match rollup config")
+	}
+	header := privateBlock.Header()
+	if header.WithdrawalsHash == nil {
+		return nil, errors.New("missing private genesis withdrawal root")
+	}
+	out.PrivateProjection = &projection.Config{Verifier: projection.InsecureStub, GenesisOutputRoot: common.Hash(eth.OutputRoot(&eth.OutputV0{
+		StateRoot: eth.Bytes32(header.Root), MessagePasserStorageRoot: eth.Bytes32(*header.WithdrawalsHash), BlockHash: privateBlock.Hash(),
+	}))}
 	out.Genesis.L2.Hash = publicProjectionGenesis.ToBlock().Hash()
 	out.Genesis.SystemConfig.GasLimit = gethparams.MaxGasLimit
 	out.Genesis.SystemConfig.Scalar = eth.EncodeScalar(eth.EcotoneScalars{})

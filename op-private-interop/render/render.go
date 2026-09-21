@@ -287,8 +287,10 @@ type PrivateBlock struct {
 // block-for-block; PrivateRef identifies the SOURCE and is never the rendering's own ref, which
 // no pure function can know.
 type RenderedBlock struct {
-	Number    uint64
-	Timestamp uint64
+	// OutputRoot is supplied by the publisher from the private payload.
+	OutputRoot common.Hash
+	Number     uint64
+	Timestamp  uint64
 	// PrivateRef is the private block this renders, as supplied. Its L1Origin is the epoch the
 	// rendering block MUST carry — origins are copied, never chosen — and its Hash and ParentHash
 	// are what a range claim publishes for its terminal block.

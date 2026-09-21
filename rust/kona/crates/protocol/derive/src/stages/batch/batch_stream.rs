@@ -50,6 +50,12 @@ where
     pub config: Arc<RollupConfig>,
     /// Used to validate the batches.
     pub fetcher: BF,
+    /// Candidate retained while canonical projection context is unavailable.
+    pub pending: Option<BatchWithInclusionBlock>,
+    /// Original inclusion of the accepted span, retained through its last emitted block.
+    pub inclusion: Option<BlockInfo>,
+    /// Bounded, incremental context collection outside the pure validator.
+    pub collector: kona_protocol::projection::ContextCollector,
 }
 
 impl<P, BF> BatchStream<P, BF>
@@ -59,7 +65,16 @@ where
 {
     /// Create a new [`BatchStream`] stage.
     pub const fn new(prev: P, config: Arc<RollupConfig>, fetcher: BF) -> Self {
-        Self { prev, span: None, buffer: VecDeque::new(), config, fetcher }
+        Self {
+            prev,
+            span: None,
+            buffer: VecDeque::new(),
+            config,
+            fetcher,
+            pending: None,
+            inclusion: None,
+            collector: kona_protocol::projection::ContextCollector::new(),
+        }
     }
 
     /// Returns if the [`BatchStream`] stage is active based on the
@@ -112,8 +127,19 @@ where
         if self.is_active().unwrap_or(false) {
             self.prev.flush();
             self.span = None;
+            self.pending = None;
+            self.inclusion = None;
+            self.collector.reset();
             self.buffer.clear();
         }
+    }
+
+    fn batch_inclusion_block(&self) -> Option<BlockInfo> {
+        self.inclusion
+    }
+
+    fn has_pending_batch(&self) -> bool {
+        self.pending.is_some()
     }
 
     fn span_buffer_size(&self) -> usize {
@@ -137,11 +163,15 @@ where
 
         // If the buffer is empty, attempt to pull a batch from the previous stage.
         if self.buffer.is_empty() {
+            self.inclusion = None;
             // Safety: bubble up any errors from the batch reader.
-            let batch_with_inclusion = BatchWithInclusionBlock::new(
-                self.origin().ok_or(PipelineError::MissingOrigin.crit())?,
-                self.prev.next_batch().await?,
-            );
+            let batch_with_inclusion = match self.pending.take() {
+                Some(batch) => batch,
+                None => BatchWithInclusionBlock::new(
+                    self.origin().ok_or(PipelineError::MissingOrigin.crit())?,
+                    self.prev.next_batch().await?,
+                ),
+            };
 
             // If the next batch is a singular batch, it is immediately
             // forwarded to the `BatchQueue` stage. Otherwise, we buffer
@@ -158,12 +188,13 @@ where
                     #[cfg(feature = "metrics")]
                     let start = std::time::Instant::now();
                     let validity = b
-                        .check_batch_holocene(
+                        .check_batch_holocene_with_context(
                             self.config.as_ref(),
                             l1_origins,
                             parent,
                             &batch_with_inclusion.inclusion_block,
                             &mut self.fetcher,
+                            &mut self.collector,
                         )
                         .await;
                     kona_macros::record!(
@@ -179,7 +210,10 @@ where
                     );
 
                     match validity {
-                        BatchValidity::Accept => self.span = Some(b),
+                        BatchValidity::Accept => {
+                            self.inclusion = Some(batch_with_inclusion.inclusion_block);
+                            self.span = Some(b);
+                        }
                         BatchValidity::Drop(_) => {
                             // Flush the stage.
                             self.flush();
@@ -193,6 +227,13 @@ where
                             }
 
                             return Err(PipelineError::NotEnoughData.temp());
+                        }
+                        BatchValidity::Retry => {
+                            self.pending = Some(BatchWithInclusionBlock::new(
+                                batch_with_inclusion.inclusion_block,
+                                Batch::Span(b),
+                            ));
+                            return Err(PipelineError::ProjectionContextUnavailable.temp());
                         }
                         BatchValidity::Undecided | BatchValidity::Future => {
                             // Undecided: the span was already consumed and is skipped, not
@@ -254,6 +295,9 @@ where
         self.prev.reset(l1_origin, system_config).await?;
         self.buffer.clear();
         self.span.take();
+        self.pending = None;
+        self.inclusion = None;
+        self.collector.reset();
         Ok(())
     }
 
@@ -261,6 +305,9 @@ where
         self.prev.activate().await?;
         self.buffer.clear();
         self.span.take();
+        self.pending = None;
+        self.inclusion = None;
+        self.collector.reset();
         Ok(())
     }
 
@@ -268,6 +315,9 @@ where
         self.prev.flush_channel().await?;
         self.buffer.clear();
         self.span.take();
+        self.pending = None;
+        self.inclusion = None;
+        self.collector.reset();
         Ok(())
     }
 }
@@ -278,7 +328,7 @@ mod test {
     use crate::test_utils::{
         CollectingLayer, TestBatchStreamProvider, TestL2ChainProvider, TraceStorage,
     };
-    use alloc::vec;
+    use alloc::{vec, vec::Vec};
     use alloy_consensus::{BlockBody, Header};
     use alloy_eips::{BlockNumHash, NumHash};
     use alloy_primitives::{FixedBytes, b256};
@@ -286,6 +336,128 @@ mod test {
     use kona_protocol::{SingleBatch, SpanBatchElement};
     use op_alloy_consensus::OpBlock;
     use tracing_subscriber::layer::SubscriberExt;
+
+    #[tokio::test]
+    async fn projection_retry_preserves_inclusion_through_last_single() {
+        use crate::{AttributesProvider, BatchValidator};
+        use alloy_primitives::{B256, Bytes, TxKind};
+        use kona_genesis::PrivateProjectionConfig;
+        let vectors: serde_json::Value = serde_json::from_str(include_str!(
+            "../../../../../../../../op-private-interop/projection/testdata/ranges.json"
+        ))
+        .unwrap();
+        let v = &vectors[0];
+        let mut root = B256::ZERO;
+        root[0] = 9;
+        let cfg = Arc::new(RollupConfig {
+            l2_chain_id: 901.into(),
+            block_time: 2,
+            seq_window_size: 2,
+            max_sequencer_drift: 600,
+            genesis: ChainGenesis { l2_time: 1000, ..Default::default() },
+            hardforks: HardForkConfig {
+                delta_time: Some(0),
+                holocene_time: Some(0),
+                ..Default::default()
+            },
+            private_projection: Some(PrivateProjectionConfig {
+                verifier: "insecure-stub-v1".into(),
+                genesis_output_root: root,
+                allow_events: false,
+            }),
+            ..Default::default()
+        });
+        let checkpoint = OpBlock {
+            header: Header { number: 9, ..Default::default() },
+            body: BlockBody {
+                transactions: vec![op_alloy_consensus::OpTxEnvelope::Eip1559(
+                    alloy_consensus::Signed::new_unchecked(
+                        alloy_consensus::TxEip1559 {
+                            to: TxKind::Call(alloy_primitives::address!(
+                                "420000000000000000000000000000000000002e"
+                            )),
+                            input: [vec![0x61, 0x84, 0xd0, 0x8e], root.to_vec()].concat().into(),
+                            ..Default::default()
+                        },
+                        alloy_primitives::Signature::test_signature(),
+                        B256::ZERO,
+                    ),
+                )],
+                ..Default::default()
+            },
+        };
+        let origins = vec![
+            BlockInfo {
+                number: 5,
+                hash: B256::with_last_byte(5),
+                timestamp: 1000,
+                ..Default::default()
+            },
+            BlockInfo {
+                number: 6,
+                hash: B256::with_last_byte(6),
+                timestamp: 1012,
+                ..Default::default()
+            },
+        ];
+        let mut parent = L2BlockInfo {
+            block_info: BlockInfo {
+                number: 9,
+                hash: checkpoint.header.hash_slow(),
+                timestamp: 1018,
+                ..Default::default()
+            },
+            l1_origin: origins[0].id(),
+            ..Default::default()
+        };
+        let span = SpanBatch {
+            parent_check: parent.block_info.hash[..20].try_into().unwrap(),
+            l1_origin_check: origins[1].hash[..20].try_into().unwrap(),
+            batches: v["blocks"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .map(|b| SpanBatchElement {
+                    timestamp: b["timestamp"].as_u64().unwrap(),
+                    epoch_num: b["epoch"].as_u64().unwrap(),
+                    transactions: serde_json::from_value::<Vec<Bytes>>(b["transactions"].clone())
+                        .unwrap(),
+                })
+                .collect(),
+            ..Default::default()
+        };
+        let expected = span.batches.clone();
+        let prev = TestBatchStreamProvider {
+            origin: Some(origins[1]),
+            batches: vec![Ok(Batch::Span(span))],
+            ..Default::default()
+        };
+        let stream = BatchStream::new(prev, cfg.clone(), TestL2ChainProvider::default());
+        let mut validator = BatchValidator::new(cfg, stream);
+        validator.origin = Some(origins[1]);
+        validator.l1_blocks = origins.clone();
+        assert_eq!(
+            validator.next_batch(parent).await.unwrap_err(),
+            PipelineError::ProjectionContextUnavailable.temp()
+        );
+        assert!(validator.prev.has_pending_batch());
+        assert!(validator.prev.prev.batches.is_empty());
+        validator.prev.fetcher.op_blocks.push(checkpoint);
+        validator.prev.prev.origin =
+            Some(BlockInfo { number: 20, timestamp: 1180, ..Default::default() });
+        for block in expected {
+            let next = validator.next_batch(parent).await.unwrap();
+            assert_eq!(next.transactions, block.transactions);
+            assert_eq!(validator.prev.batch_inclusion_block(), Some(origins[1]));
+            parent.block_info.number += 1;
+            parent.block_info.timestamp = next.timestamp;
+            parent.block_info.hash = B256::with_last_byte(parent.block_info.number as u8);
+            parent.l1_origin = origins[(next.epoch_num - 5) as usize].id();
+        }
+        validator.prev.flush();
+        assert!(!validator.prev.has_pending_batch());
+        assert!(validator.prev.batch_inclusion_block().is_none());
+    }
 
     #[tokio::test]
     async fn test_batch_stream_flush() {

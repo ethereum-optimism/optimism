@@ -6,6 +6,7 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-service/client"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
+	"github.com/ethereum/go-ethereum/common"
 )
 
 type FollowClient struct {
@@ -23,11 +24,12 @@ type FollowStatus struct {
 // FollowRecoveryStatus identifies public deposit-only history after the last
 // private checkpoint. Public hashes identify inputs, never private forkchoice heads.
 type FollowRecoveryStatus struct {
-	Anchor    eth.L2BlockRef        `json:"anchor"`
-	Target    eth.L2BlockRef        `json:"target"`
-	Safe      eth.L2BlockRef        `json:"safe"`
-	Finalized eth.L2BlockRef        `json:"finalized"`
-	Prefix    *FollowRecoveryPrefix `json:"prefix,omitempty"`
+	AnchorOutputRoot common.Hash           `json:"anchor_output_root,omitempty"`
+	Anchor           eth.L2BlockRef        `json:"anchor"`
+	Target           eth.L2BlockRef        `json:"target"`
+	Safe             eth.L2BlockRef        `json:"safe"`
+	Finalized        eth.L2BlockRef        `json:"finalized"`
+	Prefix           *FollowRecoveryPrefix `json:"prefix,omitempty"`
 }
 
 // FollowRecoveryPrefix authenticates a surviving private prefix by ancestry of
@@ -37,8 +39,9 @@ type FollowRecoveryStatus struct {
 // under the same policy as the rest of the claim; a future verifier must bind it
 // to the proven private execution.
 type FollowRecoveryPrefix struct {
-	Parent eth.BlockID    `json:"parent"`
-	Last   eth.L2BlockRef `json:"last"`
+	OutputRoot common.Hash    `json:"output_root,omitempty"`
+	Parent     eth.BlockID    `json:"parent"`
+	Last       eth.L2BlockRef `json:"last"`
 }
 
 // FollowSyncStatus extends the ordinary follow response without changing the
