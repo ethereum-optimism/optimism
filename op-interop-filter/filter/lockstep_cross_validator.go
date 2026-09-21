@@ -25,7 +25,7 @@ import (
 // holds back validation for all chains.
 //
 // Simplifications in this implementation:
-//   - No cycle detection: same-block executing messages are not supported
+//   - No cycle detection for same-timestamp dependencies
 //   - Lockstep advancement: waits for ALL chains to reach timestamp T before
 //     validating T, rather than validating each chain independently
 //

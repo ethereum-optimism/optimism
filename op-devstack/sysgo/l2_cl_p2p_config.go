@@ -1,8 +1,6 @@
 package sysgo
 
 import (
-	"context"
-	"crypto/ecdsa"
 	"encoding/hex"
 	"flag"
 	"strings"
@@ -17,25 +15,14 @@ import (
 	opNodeFlags "github.com/ethereum-optimism/optimism/op-node/flags"
 	"github.com/ethereum-optimism/optimism/op-node/p2p"
 	p2pcli "github.com/ethereum-optimism/optimism/op-node/p2p/cli"
-	"github.com/ethereum-optimism/optimism/op-service/signer"
 )
-
-// Each node instance owns its signer and closes it on shutdown. Preserve the dev
-// identity across restarts without returning an already-closed signer instance.
-type devstackSignerSetup struct {
-	key *ecdsa.PrivateKey
-}
 
 func newDevstackSignerSetup(keyHex string) (p2p.SignerSetup, error) {
 	key, err := crypto.HexToECDSA(strings.TrimPrefix(keyHex, "0x"))
 	if err != nil {
 		return nil, err
 	}
-	return &devstackSignerSetup{key: key}, nil
-}
-
-func (s *devstackSignerSetup) SetupSigner(context.Context) (p2p.Signer, error) {
-	return signer.NewLocalSigner(s.key), nil
+	return &renewableP2PSignerSetup{priv: key}, nil
 }
 
 func newDevstackP2PConfig(

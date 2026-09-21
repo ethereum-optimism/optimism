@@ -303,7 +303,9 @@ func NewTwoL2PrivateInteropRuntimeWithConfig(t devtest.T, delaySeconds uint64, c
 	// because an activation block on the rendering would run the stock network-upgrade bundle and
 	// replace the replay messenger. The supernode's activation override below follows suit.
 	require.Zero(delaySeconds, "a private interop pair activates interop at genesis; a delayed activation has no projection")
-	wb, l1Net, l2ANet, l2BNet := buildTwoL2RuntimeWorld(t, keys, true, 0, cfg.LocalContractArtifactsPath, cfg.DeployerOptions...)
+	wb, l1Net, l2Nets := buildMultiL2RuntimeWorld(t, keys, true, 0, cfg.LocalContractArtifactsPath,
+		[]runtimeChainSpec{{Name: "l2a", ID: DefaultL2AID}, {Name: "l2b", ID: DefaultL2BID}}, cfg.DeployerOptions...)
+	l2ANet, l2BNet := l2Nets[0], l2Nets[1]
 	privateGenesis, privateRollup := l2BNet.genesis, l2BNet.rollupCfg
 
 	// Share the deployment and keys, but derive the projection's own genesis and rollup config.
@@ -376,10 +378,10 @@ func NewTwoL2PrivateInteropRuntimeWithConfig(t devtest.T, delaySeconds uint64, c
 	// The supernode judges {chain A, the RENDERING} and has no idea a private chain exists. That is
 	// the design's central claim about the public side, and it is true here by construction: the
 	// only chain-B endpoint it is given is the rendering's.
-	supernode, supernodeACL, renderingCL := startTwoL2SharedSupernode(
+	supernode, proxies := startSharedSupernode(
 		t, l1Net, l1EL, l1CL,
-		l2ANet, supernodeAEL,
-		renderingNet, renderingEL,
+		[]*L2Network{l2ANet, renderingNet},
+		[]L2ELNode{supernodeAEL, renderingEL},
 		depSet,
 		&activationTime,
 		cfg.InteropLogBackfillDepth,
@@ -389,6 +391,7 @@ func NewTwoL2PrivateInteropRuntimeWithConfig(t devtest.T, delaySeconds uint64, c
 		// anything points a LightCL at its route, because a disabled module's route is not a 404.
 		privateInteropFollowFlags(t, privateID, privateGenesisPath),
 	)
+	supernodeACL, renderingCL := proxies[0], proxies[1]
 
 	// Construct-last edge 1, and the sharp edge: the supernode above was built WITH the follow module
 	// enabled, so `/claimed` is the module. Check that before anything is pointed at it -- a
