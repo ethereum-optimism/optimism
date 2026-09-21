@@ -83,6 +83,7 @@ std = [
 	"reth-execution-types/std",
 	"alloy-evm/std",
 	"alloy-op-evm/std",
+	"alloy-op-evm/engine",
 	"alloy-op-evm/metrics",
 	"op-revm/std",
 	"reth-evm/std",
