@@ -24,6 +24,7 @@ pub mod superroot;
 
 mod adapters;
 mod ports;
+mod verifier;
 
 use alloy_provider::RootProvider;
 

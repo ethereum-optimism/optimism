@@ -45,6 +45,25 @@ sol!(
     "../../../../../packages/contracts-bedrock/snapshots/abi/DelayedWETH.json"
 );
 
+sol!(
+    #[allow(missing_docs)]
+    #[derive(Debug, PartialEq, Eq)]
+    #[sol(rpc)]
+    SP1PlonkAdapter,
+    "../../../../../packages/contracts-bedrock/snapshots/abi/SP1PlonkAdapter.json"
+);
+
+// Vendor interfaces under `packages/contracts-bedrock/interfaces/vendor` have no ABI
+// snapshot, so the one function the proposer needs from Succinct's SP1 verifier is bound
+// inline. It mirrors `interfaces/vendor/ISP1Verifier.sol`.
+sol! {
+    #[allow(missing_docs)]
+    #[sol(rpc)]
+    interface ISP1Verifier {
+        function VERIFIER_HASH() external pure returns (bytes32);
+    }
+}
+
 /// Proposal lifecycle status, mirroring ZKDisputeGame.sol `ProposalStatus`.
 /// Hand-written: enums are `uint8` in the ABI, so the variant order is pinned
 /// against the contract source (and by `proposal_status_values_match_zk_dispute_game_sol`).

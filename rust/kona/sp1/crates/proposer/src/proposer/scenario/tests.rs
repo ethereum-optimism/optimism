@@ -247,6 +247,10 @@ impl L1View for ScenarioL1View {
     async fn latest_l1_timestamp(&self) -> anyhow::Result<u64> {
         Ok(HEAD_TIMESTAMP)
     }
+
+    async fn verifier_hash(&self, _verifier: Address) -> anyhow::Result<B256> {
+        Ok(crate::verifier::expected_verifier_hash())
+    }
 }
 
 struct FixedQueryTime;

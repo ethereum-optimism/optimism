@@ -19,6 +19,7 @@ import { IOptimismPortal2 } from "interfaces/L1/IOptimismPortal2.sol";
 import { IAnchorStateRegistry } from "interfaces/dispute/IAnchorStateRegistry.sol";
 import { IMIPS64 } from "interfaces/cannon/IMIPS64.sol";
 import { ISP1PlonkAdapter } from "interfaces/dispute/zk/ISP1PlonkAdapter.sol";
+import { ISP1Verifier } from "interfaces/vendor/ISP1Verifier.sol";
 
 contract VerifyOPCM_Harness is VerifyOPCM {
     bool private _skipSecurityChecks;
@@ -158,7 +159,9 @@ abstract contract VerifyOPCM_TestInit is CommonTest {
         );
         if (zkDisputeGameEnabled()) {
             ISP1PlonkAdapter adapter = ISP1PlonkAdapter(opcm.implementations().sp1PlonkAdapterImpl);
-            vm.setEnv("EXPECTED_SP1_VERIFIER", vm.toString(address(adapter.sp1Verifier())));
+            ISP1Verifier verifier = adapter.sp1Verifier();
+            vm.setEnv("EXPECTED_SP1_VERIFIER", vm.toString(address(verifier)));
+            vm.setEnv("EXPECTED_SP1_VERIFIER_HASH", vm.toString(verifier.VERIFIER_HASH()));
         }
     }
 
@@ -808,21 +811,34 @@ contract VerifyOPCM_verifyPreimageOracle_Test is VerifyOPCM_TestInit {
 }
 
 /// @title VerifyOPCM_verifySP1Verifier_Test
-/// @notice Tests for release-approved raw SP1 verifier verification.
+/// @notice Tests for release-approved raw SP1 verifier verification. The env overrides are set
+///         once in `setupEnvVars`; mismatches are injected with `vm.mockCall` because
+///         `vm.setEnv` is process-global and races with tests running on other threads.
 contract VerifyOPCM_verifySP1Verifier_Test is VerifyOPCM_TestInit {
     function test_verifySP1Verifier_overrideAndMismatch_succeeds() public {
         skipIfDevFeatureDisabled(DevFeatures.ZK_DISPUTE_GAME);
         ISP1PlonkAdapter adapter = ISP1PlonkAdapter(opcm.implementations().sp1PlonkAdapterImpl);
-        address verifier = address(adapter.sp1Verifier());
 
-        vm.setEnv("EXPECTED_SP1_VERIFIER", vm.toString(verifier));
+        // On Mainnet the network default is Succinct's verifier; the env override must win.
         vm.chainId(Chains.Mainnet);
-        assertTrue(harness.verifySP1Verifier(adapter));
+        assertTrue(harness.verifySP1Verifier(adapter), "env override should match the adapter's verifier");
 
-        vm.setEnv("EXPECTED_SP1_VERIFIER", vm.toString(address(0xBEEF)));
-        assertFalse(harness.verifySP1Verifier(adapter));
+        vm.mockCall(address(adapter), abi.encodeCall(ISP1PlonkAdapter.sp1Verifier, ()), abi.encode(address(0xBEEF)));
+        assertFalse(harness.verifySP1Verifier(adapter), "verification should fail on address mismatch");
+    }
 
-        vm.setEnv("EXPECTED_SP1_VERIFIER", vm.toString(verifier));
+    function test_verifySP1Verifier_hashMismatch_fails() public {
+        skipIfDevFeatureDisabled(DevFeatures.ZK_DISPUTE_GAME);
+        ISP1PlonkAdapter adapter = ISP1PlonkAdapter(opcm.implementations().sp1PlonkAdapterImpl);
+        ISP1Verifier verifier = adapter.sp1Verifier();
+
+        vm.mockCall(
+            address(verifier), abi.encodeCall(ISP1Verifier.VERIFIER_HASH, ()), abi.encode(bytes32(uint256(0xBEEF)))
+        );
+        assertFalse(harness.verifySP1Verifier(adapter), "verification should fail on hash mismatch");
+
+        vm.clearMockedCalls();
+        assertTrue(harness.verifySP1Verifier(adapter), "verification should succeed once the hash matches");
     }
 }
 

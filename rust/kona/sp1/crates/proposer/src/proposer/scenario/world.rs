@@ -387,6 +387,7 @@ impl ScenarioGame {
                 starting_sequence_number: sequence_number.saturating_sub(1),
                 root_claim: canonical_super_root(sequence_number),
                 sequence_number,
+                verifier: Address::ZERO,
             },
             resolved_at: None,
             prover: None,
@@ -1714,6 +1715,10 @@ impl L1View for FakeL1View {
         let state = data.latest_state();
         data.record_l1_read(L1ReadBoundary::LatestL1Timestamp, L1ReadTarget::Global)?;
         Ok(state.block.timestamp)
+    }
+
+    async fn verifier_hash(&self, _verifier: Address) -> Result<B256> {
+        Ok(crate::verifier::expected_verifier_hash())
     }
 }
 
