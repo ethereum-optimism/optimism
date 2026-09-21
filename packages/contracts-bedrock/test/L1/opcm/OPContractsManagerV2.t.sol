@@ -2936,6 +2936,20 @@ contract OPContractsManagerV2_Migrate_Test is OPContractsManagerV2_TestInit {
         assertEq(_dgf.gameArgs(_gameType), hex"", string.concat("Game args should be empty: ", _label));
     }
 
+    /// @notice Seeds every cleared game type on a pre-migration factory with a non-zero
+    ///         implementation and non-empty args, so the post-migration clearing assertions have
+    ///         something to clear.
+    /// @param _dgf The chain's pre-migration DisputeGameFactory.
+    function _seedClearedGameTypes(IDisputeGameFactory _dgf) internal {
+        GameType[] memory gameTypes = GameTypes.clearedGameTypes();
+        address dgfOwner = _dgf.owner();
+        for (uint256 i = 0; i < gameTypes.length; i++) {
+            vm.prank(dgfOwner);
+            _dgf.setImplementation(gameTypes[i], IDisputeGame(address(0xdead)), hex"01");
+            assertNotEq(address(_dgf.gameImpls(gameTypes[i])), address(0), "seed did nothing");
+        }
+    }
+
     /// @notice Tests that the migrate function reverts when not delegatecalled.
     function test_migrate_notDelegateCalled_reverts() public {
         IOPContractsManagerMigrator.MigrateInput memory input = _getDefaultMigrateInput();
@@ -3082,20 +3096,17 @@ contract OPContractsManagerV2_Migrate_Test is OPContractsManagerV2_TestInit {
 
     /// @notice Tests that the migration function succeeds and liquidity is migrated.
     function test_migrate_clearsEveryCanonicalGameType_succeeds() public {
+        // _deployChainForMigration only enables SUPER_PERMISSIONED, so seed the rest first.
+        _seedClearedGameTypes(chainContracts1.disputeGameFactory);
+        _seedClearedGameTypes(chainContracts2.disputeGameFactory);
+
         _doMigration(_getDefaultMigrateInput());
 
         GameType[] memory gameTypes = GameTypes.clearedGameTypes();
         for (uint256 i = 0; i < gameTypes.length; i++) {
-            assertEq(
-                address(chainContracts1.disputeGameFactory.gameImpls(gameTypes[i])),
-                address(0),
-                "chain 1 game type not cleared"
-            );
-            assertEq(
-                address(chainContracts2.disputeGameFactory.gameImpls(gameTypes[i])),
-                address(0),
-                "chain 2 game type not cleared"
-            );
+            string memory label = vm.toString(gameTypes[i].raw());
+            _assertGameIsEmpty(chainContracts1.disputeGameFactory, gameTypes[i], string.concat("chain 1 type ", label));
+            _assertGameIsEmpty(chainContracts2.disputeGameFactory, gameTypes[i], string.concat("chain 2 type ", label));
         }
     }
 
