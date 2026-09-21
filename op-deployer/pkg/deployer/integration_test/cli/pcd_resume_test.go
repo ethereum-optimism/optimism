@@ -109,10 +109,12 @@ func TestCLIPCDResume(t *testing.T) {
 		require.NotNil(t, frozen.genesisTime)
 		journey.restartCold(committedWorkdir)
 
-		elapsedTimestamp := uint64(*frozen.genesisTime) + 1
+		head, err := journey.l1Client.HeaderByNumber(t.Context(), nil)
+		require.NoError(t, err)
+		elapsedTimestamp := max(uint64(*frozen.genesisTime)+1, head.Time+1)
 		require.NoError(t, journey.l1Client.Client().Call(nil, "anvil_setNextBlockTimestamp", elapsedTimestamp))
 		require.NoError(t, journey.l1Client.Client().Call(nil, "evm_mine"))
-		head, err := journey.l1Client.HeaderByNumber(t.Context(), nil)
+		head, err = journey.l1Client.HeaderByNumber(t.Context(), nil)
 		require.NoError(t, err)
 		require.Greater(t, head.Time, uint64(*frozen.genesisTime))
 
