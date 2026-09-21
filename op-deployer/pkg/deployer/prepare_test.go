@@ -1329,6 +1329,10 @@ func TestGenerateGenesisForChains_UsesPredictedAddressesAndPinnedGenesisTime(t *
 
 	intent, st := shared.NewIntent(t, l1ChainID, dk, l2ChainID, loc, loc, standard.GasLimit)
 	chain := intent.Chains[0]
+	if chain.DeployOverrides == nil {
+		chain.DeployOverrides = make(map[string]any)
+	}
+	chain.DeployOverrides["respectedGameType"] = embedded.GameTypePermissionedCannon
 
 	// Stub predicted addresses.
 	predicted := addresses.OpChainContracts{
@@ -1441,7 +1445,7 @@ func TestPrepare_RepredictionRebuildsL2Genesis(t *testing.T) {
 	genesisEnv := &pipeline.Env{Logger: lgr, Deployer: deployer}
 	bundle := artifacts.Bundle{L1: afacts, L2: afacts}
 	prepareOnce := func() *state.ChainState {
-		require.NoError(t, predictChains(lgr, intent, st, run, selectAnchor, anchor, genesisTimeOffset))
+		require.NoError(t, prepareChains(lgr, intent, st, run, selectAnchor, anchor, genesisTimeOffset))
 		require.NoError(t, generateGenesisForChains(genesisEnv, intent, bundle, st))
 		require.NoError(t, computeGenesisOutputRootsForChains(genesisEnv, intent, st))
 		chainState, err := st.Chain(chain.ID)

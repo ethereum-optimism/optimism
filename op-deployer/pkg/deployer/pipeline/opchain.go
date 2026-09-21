@@ -269,11 +269,10 @@ type InitialDeployRequirements struct {
 	RequiresPrestate bool
 }
 
-// IsSuperGameType reports whether the given dispute game type is SUPER_CANNON_KONA.
-// SUPER_PERMISSIONED is deliberately excluded as it's a derived fallback and
-// can never appear here as a chain's resolved DisputeGameType.
+// IsSuperGameType reports whether the initial game uses a super root.
 func IsSuperGameType(gameType uint32) bool {
-	return embedded.GameType(gameType) == embedded.GameTypeSuperCannonKona
+	return embedded.GameType(gameType) == embedded.GameTypeSuperCannonKona ||
+		embedded.GameType(gameType) == embedded.GameTypeSuperPermissioned
 }
 
 // DeploymentUsesSuperRoots reports whether the starting anchors are SuperV1 roots over the
@@ -431,7 +430,7 @@ func BuildContinuationDCI(chainID common.Hash, st *state.State) (opcm.DeployOPCh
 	}
 
 	startingAnchorRoot := opcm.DefaultStartingAnchorProposal()
-	if requirements.Permissionless {
+	if requirements.Permissionless || chainState.StartingAnchorRoot != nil {
 		if chainState.StartingAnchorRoot == nil || chainState.StartingAnchorRoot.Root == (common.Hash{}) {
 			return opcm.DeployOPChainInput{}, fmt.Errorf(
 				"chain %s has no valid starting anchor proposal committed. Rerun the proposal-producing stage",

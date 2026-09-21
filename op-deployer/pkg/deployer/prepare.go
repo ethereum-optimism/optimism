@@ -38,6 +38,9 @@ type PrepareConfig struct {
 	// GenesisTimeOffset is the number of seconds added to the L1 anchor block's timestamp
 	// to produce the committed L2 genesis timestamp.
 	GenesisTimeOffset uint64
+	// AllowUnoptimizedContracts is a test-only opt-in that lets oversized dev-profile
+	// artifacts build an L2 genesis.
+	AllowUnoptimizedContracts bool
 
 	privateKeyECDSA *ecdsa.PrivateKey
 }
@@ -242,7 +245,10 @@ func Prepare(ctx context.Context, cfg PrepareConfig) error {
 	}
 
 	// Build L2 genesis from the addresses and genesis time just committed.
-	genesisEnv := &pipeline.Env{Logger: cfg.Logger, Deployer: deployer}
+	genesisEnv := &pipeline.Env{
+		Logger: cfg.Logger, Deployer: deployer,
+		AllowUnoptimizedContracts: cfg.AllowUnoptimizedContracts,
+	}
 	if err := generateGenesisForChains(genesisEnv, intent, bundle, st); err != nil {
 		return err
 	}
