@@ -358,18 +358,10 @@ contract OPContractsManagerV2 is ISemver, OPContractsManagerUtilsCaller {
         // developers start working on the next release this will automatically become false so
         // even if the code is somehow forgotten it will not actually apply to the deployment. Make
         // sure to REMOVE the allowance once the upgrade is complete.
-        // TODO(#22836): Remove anchor overrides once devstack fixtures initialize valid anchors.
         if (SemverComp.parse(_version()).major == 9) {
             // Allow deploying an ETHLockbox for existing chains only in the v9 release.
             if (_isMatchingInstruction(_instruction, Constants.PERMITTED_PROXY_DEPLOYMENT_KEY, bytes("ETHLockbox"))) {
                 return true;
-            }
-        }
-
-        if (SemverComp.lt(_version(), "10.0.0")) {
-            // Super root games migration requires overriding anchor root.
-            if (isDevFeatureEnabled(DevFeatures.SUPER_ROOT_GAMES_MIGRATION)) {
-                if (_isMatchingInstructionByKey(_instruction, "overrides.cfg.startingAnchorRoot")) return true;
             }
         }
 
