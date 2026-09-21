@@ -38,6 +38,14 @@ abstract contract OPContractsManagerUtilsCaller {
         ISuperchainConfig superchainConfig;
     }
 
+    /// @notice Address of the OPContractsManagerUtils contract.
+    IOPContractsManagerUtils public immutable opcmUtils;
+
+    /// @param _utils Address of the OPContractsManagerUtils contract.
+    constructor(IOPContractsManagerUtils _utils) {
+        opcmUtils = _utils;
+    }
+
     /// @notice Builds SystemConfig.initialize calldata.
     /// @param _args The initializer arguments.
     /// @return Calldata for SystemConfig.initialize.
@@ -57,14 +65,6 @@ abstract contract OPContractsManagerUtilsCaller {
                 _args.superchainConfig
             )
         );
-    }
-
-    /// @notice Address of the OPContractsManagerUtils contract.
-    IOPContractsManagerUtils public immutable opcmUtils;
-
-    /// @param _utils Address of the OPContractsManagerUtils contract.
-    constructor(IOPContractsManagerUtils _utils) {
-        opcmUtils = _utils;
     }
 
     /// @notice Helper for computing a salt for a contract deployment.
