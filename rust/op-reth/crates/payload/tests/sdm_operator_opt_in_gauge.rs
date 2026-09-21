@@ -13,8 +13,7 @@ use reth_optimism_payload_builder::config::OpBuilderConfig;
 /// from one that silently booted with SDM off — the flag is in-memory and starts `false`.
 #[test]
 fn operator_opt_in_gauge_follows_every_write() {
-    // Install before the first record: the generated `Default` latches whichever recorder is
-    // global on the process's first write, permanently.
+    // Install before the first record so every write below lands on this recorder.
     let recorder = try_install_prometheus_recorder_with_builder(PrometheusBuilder::new())
         .unwrap_or_else(|_| install_prometheus_recorder());
     let opt_in = OpBuilderConfig::default().operator_sdm_opt_in;

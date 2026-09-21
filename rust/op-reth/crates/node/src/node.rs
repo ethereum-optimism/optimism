@@ -192,7 +192,7 @@ where
 }
 
 /// Type configuration for a regular Optimism node.
-#[derive(Debug, Default, Clone)]
+#[derive(Debug, Clone)]
 #[non_exhaustive]
 pub struct OpNode {
     /// Additional Optimism args
@@ -226,11 +226,16 @@ pub type OpNodeComponentBuilder<Node, Payload = OpPayloadBuilder> = ComponentsBu
     OpConsensusBuilder,
 >;
 
+impl Default for OpNode {
+    fn default() -> Self {
+        Self::new(RollupArgs::default())
+    }
+}
+
 impl OpNode {
     /// Creates a new instance of the Optimism node type.
     pub fn new(args: RollupArgs) -> Self {
-        let operator_sdm_opt_in = OperatorSdmOptIn::default();
-        operator_sdm_opt_in.set(args.operator_sdm_opt_in);
+        let operator_sdm_opt_in = OperatorSdmOptIn::configured(args.operator_sdm_opt_in);
         Self {
             args,
             da_config: OpDAConfig::default(),
