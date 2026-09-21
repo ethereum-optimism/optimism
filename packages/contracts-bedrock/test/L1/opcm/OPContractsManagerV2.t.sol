@@ -3416,11 +3416,11 @@ contract OPContractsManagerV2_Migrate_Test is OPContractsManagerV2_TestInit {
     function test_migrate_oneChainAlreadyMigrated_reverts() public {
         _enableEthLockboxes();
 
-        // Migrate chain 1 on its own.
+        // Migrate chain 2 on its own.
         IOPContractsManagerMigrator.MigrateInput memory firstInput = _getDefaultMigrateInput();
-        ISystemConfig[] memory onlyChain1 = new ISystemConfig[](1);
-        onlyChain1[0] = chainContracts1.systemConfig;
-        firstInput.chainSystemConfigs = onlyChain1;
+        ISystemConfig[] memory onlyChain2 = new ISystemConfig[](1);
+        onlyChain2[0] = chainContracts2.systemConfig;
+        firstInput.chainSystemConfigs = onlyChain2;
         _doMigration(firstInput);
 
         vm.warp(block.timestamp + 1);
