@@ -211,6 +211,24 @@ pub(crate) enum SyncDisposition {
     ConfirmedBlockUnavailable,
 }
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum AncestryActions {
+    Allowed,
+    Blocked,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+struct LastSuccessfulSync {
+    pinned_l1: crate::ports::L1BlockRef,
+    ancestry_actions: AncestryActions,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) struct StateSyncOutcome {
+    disposition: SyncDisposition,
+    ancestry_actions: AncestryActions,
+}
+
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub(crate) struct CompactGameSummary {
     pub(crate) factory_index: U256,
@@ -836,8 +854,8 @@ pub struct Proposer {
     state: Arc<RwLock<ProposerState>>,
     /// Proposer identity for foreign-game filtering and hardfork safety.
     pub identity: ProposerIdentity,
-    /// Full semantic observation from the last successful pinned sync.
-    last_successful_pinned_l1: Arc<RwLock<Option<crate::ports::L1BlockRef>>>,
+    /// Pinned L1 block and ancestry policy from the last successful full sync.
+    last_successful_sync: Arc<RwLock<Option<LastSuccessfulSync>>>,
     /// Sequence number of the most recently created game. Used to prevent duplicate
     /// game creation when the pinned sync cache lags behind the chain tip.
     last_created_game_l2_sequence_number: Arc<AtomicU64>,
@@ -957,7 +975,7 @@ impl Proposer {
             proof_retry_requested: Arc::new(AtomicBool::new(false)),
             state: Arc::new(RwLock::new(ProposerState::default())),
             identity,
-            last_successful_pinned_l1: Arc::new(RwLock::new(None)),
+            last_successful_sync: Arc::new(RwLock::new(None)),
             last_created_game_l2_sequence_number: Arc::new(AtomicU64::new(0)),
             last_created_game_address: Arc::new(tokio::sync::Mutex::new(Address::ZERO)),
             in_flight_creation: Arc::new(tokio::sync::Mutex::new(None)),
@@ -1031,22 +1049,24 @@ impl Proposer {
 
     /// Runs one no-sleep proposer cycle.
     pub(crate) async fn cycle(&self) -> Result<CycleResult> {
-        let sync_disposition = self.sync_state().await.inspect_err(|_| {
+        let sync_outcome = self.sync_state().await.inspect_err(|_| {
             ProposerGauge::DefenseDeadlineRemainingSeconds.set(f64::NAN);
         })?;
         if matches!(
-            sync_disposition,
+            sync_outcome.disposition,
             SyncDisposition::ConfirmedHeadRegressed { .. } |
                 SyncDisposition::ConfirmedBlockUnavailable
         ) {
             ProposerGauge::DefenseDeadlineRemainingSeconds.set(f64::NAN);
         }
         let completions = self.reap_completed_tasks().await;
-        if self.proof_retry_requested.swap(false, Ordering::Relaxed) {
+        if sync_outcome.ancestry_actions == AncestryActions::Allowed &&
+            self.proof_retry_requested.swap(false, Ordering::Relaxed)
+        {
             self.retry_terminal_proofs().await;
         }
-        let planned = self.determine_pending_operations().await;
-        let snapshot = self.cycle_snapshot(sync_disposition).await;
+        let planned = self.determine_pending_operations(sync_outcome.ancestry_actions).await;
+        let snapshot = self.cycle_snapshot(sync_outcome.disposition).await;
         let scheduled = self.spawn_planned_operations(planned).await;
         Ok(CycleResult { snapshot, completions, scheduled })
     }
@@ -1228,7 +1248,7 @@ impl Proposer {
     /// 1. `sync_games` discovers games, installs the registered anchor trust boundary, then prunes
     ///    and refreshes cached metadata.
     /// 2. `compute_canonical_head` recomputes the head game used for proposal selection.
-    pub(crate) async fn sync_state(&self) -> Result<SyncDisposition> {
+    pub(crate) async fn sync_state(&self) -> Result<StateSyncOutcome> {
         // Pin one L1 block for the entire sync cycle so every state read sees a consistent
         // snapshot. Without this, load-balanced RPCs or a reorg can make related reads resolve
         // against different L1 states (e.g. credit vs anchorGame).
@@ -1243,24 +1263,32 @@ impl Proposer {
         // A lower confirmed number indicates backend regression from a load-balanced RPC, or a
         // deep L1 reorg past `sync_l1_confirmations`. This case is logged at WARN; equality stays
         // at DEBUG since it is the normal "L1 hasn't ticked" path.
-        let previous_pin = *self.last_successful_pinned_l1.read().await;
-        if let Some(previous_pin) = previous_pin.filter(|pin| confirmed_number <= pin.number) {
-            if confirmed_number < previous_pin.number {
+        let previous_sync = *self.last_successful_sync.read().await;
+        if let Some(previous_sync) =
+            previous_sync.filter(|sync| confirmed_number <= sync.pinned_l1.number)
+        {
+            if confirmed_number < previous_sync.pinned_l1.number {
                 tracing::warn!(
                     confirmed_number,
-                    last_synced = previous_pin.number,
+                    last_synced = previous_sync.pinned_l1.number,
                     "L1 confirmed head moved backwards (backend regression or deep reorg), skipping sync"
                 );
-                return Ok(SyncDisposition::ConfirmedHeadRegressed {
-                    observed_number: confirmed_number,
+                return Ok(StateSyncOutcome {
+                    disposition: SyncDisposition::ConfirmedHeadRegressed {
+                        observed_number: confirmed_number,
+                    },
+                    ancestry_actions: previous_sync.ancestry_actions,
                 });
             }
             tracing::debug!(
                 confirmed_number,
-                last_synced = previous_pin.number,
+                last_synced = previous_sync.pinned_l1.number,
                 "L1 head unchanged, skipping sync"
             );
-            return Ok(SyncDisposition::UnchangedConfirmedHead);
+            return Ok(StateSyncOutcome {
+                disposition: SyncDisposition::UnchangedConfirmedHead,
+                ancestry_actions: previous_sync.ancestry_actions,
+            });
         }
 
         // When no confirmation offset, use the latest block directly (single RPC response).
@@ -1276,7 +1304,11 @@ impl Proposer {
                         confirmed_number,
                         "Confirmed block not available on this backend, skipping sync cycle"
                     );
-                    return Ok(SyncDisposition::ConfirmedBlockUnavailable);
+                    return Ok(StateSyncOutcome {
+                        disposition: SyncDisposition::ConfirmedBlockUnavailable,
+                        ancestry_actions: previous_sync
+                            .map_or(AncestryActions::Allowed, |sync| sync.ancestry_actions),
+                    });
                 }
             }
         };
@@ -1284,14 +1316,15 @@ impl Proposer {
         let pinned_timestamp = pinned_l1.timestamp;
 
         // Pull new games, install the registered anchor, and synchronize cached game statuses.
-        self.sync_games(pinned_block, pinned_timestamp).await?;
+        let ancestry_actions = self.sync_games_with_outcome(pinned_block, pinned_timestamp).await?;
 
         // With the cached games and anchor synchronized, recompute the canonical head.
         self.compute_canonical_head().await;
 
-        *self.last_successful_pinned_l1.write().await = Some(pinned_l1);
+        *self.last_successful_sync.write().await =
+            Some(LastSuccessfulSync { pinned_l1, ancestry_actions });
 
-        Ok(SyncDisposition::Advanced)
+        Ok(StateSyncOutcome { disposition: SyncDisposition::Advanced, ancestry_actions })
     }
 
     /// Synchronizes the game cache.
@@ -1300,12 +1333,16 @@ impl Proposer {
     ///    classifying each as valid / unsupported / invalid / pending, and stopping early once past
     ///    the anchor's deadline-lag cutoff. A fetch failure aborts the sync cycle (the cursor is
     ///    not advanced, so the range is re-walked next cycle). If the registered anchor is still
-    ///    missing after pending-game revalidation, reset the cache and rescan the factory once.
+    ///    missing after pending-game revalidation, read its type directly. An unsupported anchor
+    ///    blocks proposal and proof work while lifecycle work continues; a supported missing anchor
+    ///    triggers one cache reset and rescan, failing the sync if it remains absent.
     /// 2. Remove invalid games and their subtrees.
     /// 3. Re-validate pending games (timestamps not yet safe from this node's view, unavailable
     ///    super-root data, or an untrusted root mismatch); entries still pending past the anchor's
     ///    deadline-lag cutoff are tombstoned unless their prestate is locally available. Cached
-    ///    descendants remain available for lifecycle work but cannot be extended or proven.
+    ///    descendants remain available for lifecycle work but cannot be extended or proven. A read
+    ///    failure while revalidating the registered anchor aborts the cycle without clearing the
+    ///    pending entry or cache.
     /// 4. Synchronize cached game lifecycle and non-anchor own-registry standing. Blocked, locally
     ///    unprovable in-progress games use lifecycle-only polls. Apply actions: mark own games for
     ///    resolution (parent resolved in the defender's favor, game over), mark `DefenderWins`
@@ -1314,6 +1351,15 @@ impl Proposer {
     ///    `ChallengerWins` game (resetting the duplicate-creation guard when the tracked game is
     ///    inside it). Per-game read failures skip only that game for the cycle.
     pub async fn sync_games(&self, pinned_block: BlockId, pinned_timestamp: u64) -> Result<()> {
+        self.sync_games_with_outcome(pinned_block, pinned_timestamp).await?;
+        Ok(())
+    }
+
+    async fn sync_games_with_outcome(
+        &self,
+        pinned_block: BlockId,
+        pinned_timestamp: u64,
+    ) -> Result<AncestryActions> {
         let pinned_latest_index = self.l1_view.latest_game_index(pinned_block).await?;
         ProposerGauge::FactoryLatestGameIndex
             .set(pinned_latest_index.map_or(-1.0, |i| i.to::<u64>() as f64));
@@ -1335,12 +1381,12 @@ impl Proposer {
             ProposerGauge::SyncCursor.set(-1.0);
             self.missed_deadlines.lock().await.clear();
             ProposerGauge::DefenseDeadlineRemainingSeconds.set(f64::INFINITY);
-            return Ok(());
+            return Ok(AncestryActions::Allowed);
         };
         let latest_index = Cursor::from(latest_factory_index);
         let anchor_address = self.l1_view.registered_anchor_game(pinned_block).await?;
         let mut rescanned = false;
-        loop {
+        let ancestry_actions = loop {
             let discovery =
                 self.discover_new_games(latest_index.clone(), anchor_address, pinned_block).await?;
             ProposerGauge::SyncCursor
@@ -1355,17 +1401,24 @@ impl Proposer {
                 anchor_address,
                 pinned_block,
             )
-            .await;
+            .await?;
             self.sync_anchor_game(anchor_address).await;
 
             let anchor_missing = anchor_address != Address::ZERO &&
                 self.state.read().await.anchor_game.as_ref().map(|game| game.address) !=
                     Some(anchor_address);
             if !anchor_missing {
-                break;
+                break AncestryActions::Allowed;
             }
             if rescanned {
                 bail!("registered anchor remained unavailable after factory rediscovery");
+            }
+            if self.l1_view.game_type(anchor_address, pinned_block).await? != ZK_GAME_TYPE {
+                tracing::warn!(
+                    ?anchor_address,
+                    "Registered anchor has an unsupported game type; blocking ancestry work"
+                );
+                break AncestryActions::Blocked;
             }
 
             tracing::warn!(
@@ -1378,12 +1431,12 @@ impl Proposer {
                 self.proof_engine.clear(address);
             }
             rescanned = true;
-        }
+        };
 
         let (targets, known_prestates) = self.game_sync_targets().await;
         if targets.is_empty() {
             self.record_deadline_metrics(pinned_timestamp, &known_prestates, &[], true).await;
-            return Ok(());
+            return Ok(ancestry_actions);
         }
         let anchor_index = self.state.read().await.anchor_game.as_ref().map(|game| game.index);
 
@@ -1451,7 +1504,7 @@ impl Proposer {
         )
         .await;
 
-        Ok(())
+        Ok(ancestry_actions)
     }
 
     /// Walks new factory entries and advances the cursor only when no fetch fails.
@@ -1675,7 +1728,7 @@ impl Proposer {
         discovered_anchor_deadline: Option<u64>,
         anchor_address: Address,
         pinned_block: BlockId,
-    ) {
+    ) -> Result<()> {
         let previously_pending = {
             let mut state = self.state.write().await;
             let previously_pending = state
@@ -1784,9 +1837,13 @@ impl Proposer {
                         "Pending game re-validation failed; retrying next cycle"
                     );
                     ProposerGauge::GameSyncError.increment(1.0);
+                    if anchor_address != Address::ZERO && pending_game.address == anchor_address {
+                        return Err(error).context("registered anchor re-validation failed");
+                    }
                 }
             }
         }
+        Ok(())
     }
 
     async fn game_sync_targets(&self) -> (Vec<GameSyncTarget>, HashSet<B256>) {
@@ -2618,6 +2675,33 @@ impl Proposer {
                     );
                     return Ok(());
                 }
+                if parent_game_index == u32::MAX {
+                    let latest_head = self
+                        .l1_view
+                        .latest_head()
+                        .await?
+                        .context("failed to fetch latest L1 head before game creation")?;
+                    let latest_anchor = self
+                        .l1_view
+                        .registered_anchor_game(BlockId::hash(latest_head.hash))
+                        .await?;
+                    let cached_anchor = self
+                        .state
+                        .read()
+                        .await
+                        .anchor_game
+                        .as_ref()
+                        .map_or(Address::ZERO, |anchor| anchor.address);
+                    if latest_anchor != cached_anchor {
+                        tracing::info!(
+                            sequence_number,
+                            ?latest_anchor,
+                            ?cached_anchor,
+                            "Skipping game creation: registered anchor is unavailable or changed"
+                        );
+                        return Ok(());
+                    }
+                }
                 // Same reason for the registration: the factory creates the game with
                 // whatever verifier and prestate are registered when the transaction lands,
                 // and a registration rotated since planning could bond a game this SDK
@@ -3037,7 +3121,10 @@ impl Proposer {
         }
     }
 
-    async fn determine_pending_operations(&self) -> Vec<OperationSummary> {
+    async fn determine_pending_operations(
+        &self,
+        ancestry_actions: AncestryActions,
+    ) -> Vec<OperationSummary> {
         let mut deduplicated = {
             let tasks = self.tasks.lock().await;
             tasks
@@ -3047,9 +3134,22 @@ impl Proposer {
         };
         let mut planned = Vec::new();
 
+        // Reconcile an unresolved create even when new ancestry work is blocked, so a late
+        // inclusion is adopted before any future proposal can be planned.
         if deduplicated.contains(&TaskDeduplicationKey::Creation) {
             tracing::info!("Game creation task already active");
-        } else {
+        } else if let Some((sequence_number, parent_game_index)) = self
+            .in_flight_creation
+            .lock()
+            .await
+            .as_ref()
+            .map(|record| (record.sequence_number, record.parent_game_index))
+        {
+            planned
+                .push(OperationSummary::ReconcileCreation { sequence_number, parent_game_index });
+            deduplicated.insert(TaskDeduplicationKey::Creation);
+            tracing::info!("Successfully planned game creation reconciliation task");
+        } else if ancestry_actions == AncestryActions::Allowed {
             match self.plan_game_creation(&mut planned, &mut deduplicated).await {
                 Ok(true) => tracing::info!("Successfully planned game creation task"),
                 Ok(false) => {
@@ -3059,10 +3159,14 @@ impl Proposer {
             }
         }
 
-        match self.plan_game_defense_tasks(&mut planned, &mut deduplicated).await {
-            Ok(true) => tracing::info!("Successfully planned game defense tasks"),
-            Ok(false) => tracing::debug!("No games need defense or defense is at capacity"),
-            Err(e) => tracing::warn!("Failed to plan game defense tasks: {:?}", e),
+        if ancestry_actions == AncestryActions::Blocked {
+            tracing::warn!("Skipping game creation and proving while the anchor is unavailable");
+        } else {
+            match self.plan_game_defense_tasks(&mut planned, &mut deduplicated).await {
+                Ok(true) => tracing::info!("Successfully planned game defense tasks"),
+                Ok(false) => tracing::debug!("No games need defense or defense is at capacity"),
+                Err(e) => tracing::warn!("Failed to plan game defense tasks: {:?}", e),
+            }
         }
 
         if deduplicated.insert(TaskDeduplicationKey::Resolution) {
@@ -3117,7 +3221,11 @@ impl Proposer {
         });
 
         CycleSnapshot {
-            last_successful_pinned_l1: *self.last_successful_pinned_l1.read().await,
+            last_successful_pinned_l1: self
+                .last_successful_sync
+                .read()
+                .await
+                .map(|sync| sync.pinned_l1),
             sync_disposition,
             anchor,
             canonical_head_index,
@@ -3181,7 +3289,7 @@ impl Proposer {
             self.l1_view.latest_head().await?.context("failed to fetch latest L1 ancestry head")?;
         let latest_block = BlockId::hash(head.hash);
         let latest_anchor_address = self.l1_view.registered_anchor_game(latest_block).await?;
-        if anchor_index.is_some() && latest_anchor_address != cached_anchor_address {
+        if latest_anchor_address != cached_anchor_address {
             tracing::info!(
                 ?cached_anchor_address,
                 ?latest_anchor_address,
@@ -3269,23 +3377,6 @@ impl Proposer {
         planned: &mut Vec<OperationSummary>,
         deduplicated: &mut HashSet<TaskDeduplicationKey>,
     ) -> Result<bool> {
-        // An unresolved create takes precedence over new proposals: hold
-        // them until its uuid is adopted or provably dead, so a
-        // stuck-then-included original can never be joined by a sibling at
-        // a fresh timestamp.
-        let in_flight_sequence_number = self
-            .in_flight_creation
-            .lock()
-            .await
-            .as_ref()
-            .map(|record| (record.sequence_number, record.parent_game_index));
-        if let Some((sequence_number, parent_game_index)) = in_flight_sequence_number {
-            planned
-                .push(OperationSummary::ReconcileCreation { sequence_number, parent_game_index });
-            deduplicated.insert(TaskDeduplicationKey::Creation);
-            return Ok(true);
-        }
-
         let (should_create, next_sequence_number, parent_game_index) =
             self.plan_game_creation_decision(planned, deduplicated).await?;
         if !should_create {
@@ -4461,8 +4552,9 @@ mod tests {
     };
 
     use super::{
-        ClaimPreflightDecision, CompactGameSummary, Cursor, DEADLINE_WARNING_DIVISOR,
-        DeadlineStatus, Game, GameFetchResult, GameSyncAction, GameSyncFacts, GameSyncRetention,
+        AncestryActions, ClaimPreflightDecision, CompactGameSummary, Cursor,
+        DEADLINE_WARNING_DIVISOR, DeadlineStatus, Game, GameFetchResult, GameSyncAction,
+        GameSyncFacts, GameSyncRetention, InFlightCreation, LastSuccessfulSync,
         MAX_GAME_DEADLINE_LAG, OperationSummary, PrestateCache, Proposer, ProposerState,
         ProvingPurpose, SyncDisposition, TaskDeduplicationKey, TaskId, TaskSuccess, awaiting_proof,
         check_deadline_status, classify_claim_preflight, classify_game_sync,
@@ -4854,6 +4946,12 @@ mod tests {
             Ok(self.anchor_game)
         }
 
+        async fn game_type(&self, _game: Address, block: BlockId) -> anyhow::Result<u32> {
+            self.record("game_type");
+            self.record_block("game_type", block);
+            Ok(self.factory_game.game_type)
+        }
+
         async fn factory_game(&self, _index: U256, block: BlockId) -> anyhow::Result<FactoryGame> {
             self.record("factory_game");
             self.record_block("factory_game", block);
@@ -5218,8 +5316,11 @@ mod tests {
             proposer.l1_view = Arc::new(RecordingL1View::default());
             proposer.proof_engine = Arc::new(RecordingProofEngine::default());
             proposer.superroot_source = Arc::new(UnavailableSuperRootSource);
-            *proposer.last_successful_pinned_l1.write().await =
-                RecordingL1View::default().latest_head;
+            *proposer.last_successful_sync.write().await =
+                RecordingL1View::default().latest_head.map(|pinned_l1| LastSuccessfulSync {
+                    pinned_l1,
+                    ancestry_actions: AncestryActions::Allowed,
+                });
             proposer
                 .prestates
                 .insert_for_tests(
@@ -5509,17 +5610,52 @@ mod tests {
                 ..Default::default()
             });
             proposer.l1_view = view.clone();
-            *proposer.last_successful_pinned_l1.write().await =
-                Some(L1BlockRef { hash: B256::ZERO, number: previous_pin, timestamp: 1_000 });
+            let previous_sync = LastSuccessfulSync {
+                pinned_l1: L1BlockRef { hash: B256::ZERO, number: previous_pin, timestamp: 1_000 },
+                ancestry_actions: AncestryActions::Allowed,
+            };
+            *proposer.last_successful_sync.write().await = Some(previous_sync);
             match expected {
-                Some(expected) => assert_eq!(proposer.sync_state().await.unwrap(), expected),
+                Some(expected) => {
+                    assert_eq!(proposer.sync_state().await.unwrap().disposition, expected)
+                }
                 None => assert!(proposer.sync_state().await.is_err()),
             }
-            assert_eq!(
-                *proposer.last_successful_pinned_l1.read().await,
-                Some(L1BlockRef { hash: B256::ZERO, number: previous_pin, timestamp: 1_000 })
-            );
+            assert_eq!(*proposer.last_successful_sync.read().await, Some(previous_sync));
             assert_eq!(view.calls(), expected_calls);
+        }
+    }
+
+    #[tokio::test]
+    async fn sync_skip_paths_preserve_blocked_ancestry_work() {
+        let cases = [
+            (5, 5, 0, SyncDisposition::UnchangedConfirmedHead),
+            (4, 5, 0, SyncDisposition::ConfirmedHeadRegressed { observed_number: 4 }),
+            (10, 3, 2, SyncDisposition::ConfirmedBlockUnavailable),
+        ];
+
+        for (head, previous_pin, confirmations, expected_disposition) in cases {
+            let mut config = test_config();
+            config.sync_l1_confirmations = confirmations;
+            let mut proposer = test_proposer_with(config).await;
+            proposer.l1_view = Arc::new(RecordingL1View {
+                latest_head: Some(L1BlockRef { hash: B256::ZERO, number: head, timestamp: 1_000 }),
+                ..Default::default()
+            });
+            *proposer.last_successful_sync.write().await = Some(LastSuccessfulSync {
+                pinned_l1: L1BlockRef { hash: B256::ZERO, number: previous_pin, timestamp: 900 },
+                ancestry_actions: AncestryActions::Blocked,
+            });
+            proposer.proof_retry_requested.store(true, AtomicOrdering::Relaxed);
+
+            let result = proposer.cycle().await.unwrap();
+
+            assert_eq!(result.snapshot.sync_disposition, expected_disposition);
+            assert!(proposer.proof_retry_requested.load(AtomicOrdering::Relaxed));
+            assert!(!result.scheduled.iter().any(|scheduled| matches!(
+                scheduled.operation,
+                OperationSummary::ProposeGame { .. } | OperationSummary::ProveGame { .. }
+            )));
         }
     }
 
@@ -5531,8 +5667,11 @@ mod tests {
             ..Default::default()
         });
 
-        assert_eq!(proposer.sync_state().await.unwrap(), SyncDisposition::Advanced);
-        assert_eq!(proposer.sync_state().await.unwrap(), SyncDisposition::UnchangedConfirmedHead);
+        assert_eq!(proposer.sync_state().await.unwrap().disposition, SyncDisposition::Advanced);
+        assert_eq!(
+            proposer.sync_state().await.unwrap().disposition,
+            SyncDisposition::UnchangedConfirmedHead
+        );
     }
 
     #[tokio::test]
@@ -5544,19 +5683,42 @@ mod tests {
         });
         let mut proposer = test_proposer().await;
         proposer.l1_view = view.clone();
-        *proposer.last_successful_pinned_l1.write().await =
-            Some(L1BlockRef { hash: B256::ZERO, number: 3, timestamp: 900 });
+        let previous_sync = LastSuccessfulSync {
+            pinned_l1: L1BlockRef { hash: B256::ZERO, number: 3, timestamp: 900 },
+            ancestry_actions: AncestryActions::Allowed,
+        };
+        *proposer.last_successful_sync.write().await = Some(previous_sync);
         let cursor = Cursor::from(U256::from(7));
         proposer.state.write().await.cursor = cursor.clone();
 
         assert!(proposer.sync_state().await.is_err());
-        assert_eq!(
-            *proposer.last_successful_pinned_l1.read().await,
-            Some(L1BlockRef { hash: B256::ZERO, number: 3, timestamp: 900 })
-        );
+        assert_eq!(*proposer.last_successful_sync.read().await, Some(previous_sync));
         assert_eq!(proposer.state.read().await.cursor, cursor);
         assert_eq!(view.calls(), vec!["latest_head", "latest_game_index"]);
     }
+
+    #[tokio::test]
+    async fn blocked_ancestry_still_reconciles_an_in_flight_creation() {
+        let proposer = test_proposer().await;
+        *proposer.in_flight_creation.lock().await = Some(InFlightCreation {
+            root_claim: B256::left_padding_from(&[0x11]),
+            extra_data: vec![0x22],
+            sequence_number: 7_200,
+            parent_game_index: 4,
+        });
+
+        let planned = proposer.determine_pending_operations(AncestryActions::Blocked).await;
+
+        assert!(planned.iter().any(|operation| matches!(
+            operation,
+            OperationSummary::ReconcileCreation { sequence_number: 7_200, parent_game_index: 4 }
+        )));
+        assert!(!planned.iter().any(|operation| matches!(
+            operation,
+            OperationSummary::ProposeGame { .. } | OperationSummary::ProveGame { .. }
+        )));
+    }
+
     #[tokio::test]
     async fn sync_factory_history_resets() {
         for (latest_game_index, cursor, expected_cursor) in [
@@ -5628,15 +5790,15 @@ mod tests {
         });
         let mut proposer = test_proposer().await;
         proposer.l1_view = anchor_failure.clone();
-        *proposer.last_successful_pinned_l1.write().await =
-            Some(L1BlockRef { hash: B256::ZERO, number: 3, timestamp: 900 });
+        let previous_sync = LastSuccessfulSync {
+            pinned_l1: L1BlockRef { hash: B256::ZERO, number: 3, timestamp: 900 },
+            ancestry_actions: AncestryActions::Allowed,
+        };
+        *proposer.last_successful_sync.write().await = Some(previous_sync);
         let cursor = Cursor::from(U256::ZERO);
         proposer.state.write().await.cursor = cursor.clone();
         assert!(proposer.sync_state().await.is_err());
-        assert_eq!(
-            *proposer.last_successful_pinned_l1.read().await,
-            Some(L1BlockRef { hash: B256::ZERO, number: 3, timestamp: 900 })
-        );
+        assert_eq!(*proposer.last_successful_sync.read().await, Some(previous_sync));
         assert_eq!(proposer.state.read().await.cursor, cursor);
         assert_eq!(
             anchor_failure.calls(),
@@ -5651,13 +5813,13 @@ mod tests {
         });
         let mut proposer = test_proposer().await;
         proposer.l1_view = discovery_failure.clone();
-        *proposer.last_successful_pinned_l1.write().await =
-            Some(L1BlockRef { hash: B256::ZERO, number: 3, timestamp: 900 });
+        let previous_sync = LastSuccessfulSync {
+            pinned_l1: L1BlockRef { hash: B256::ZERO, number: 3, timestamp: 900 },
+            ancestry_actions: AncestryActions::Allowed,
+        };
+        *proposer.last_successful_sync.write().await = Some(previous_sync);
         assert!(proposer.sync_state().await.is_err());
-        assert_eq!(
-            *proposer.last_successful_pinned_l1.read().await,
-            Some(L1BlockRef { hash: B256::ZERO, number: 3, timestamp: 900 })
-        );
+        assert_eq!(*proposer.last_successful_sync.read().await, Some(previous_sync));
         assert_eq!(proposer.state.read().await.cursor, Cursor::none());
         assert_eq!(
             discovery_failure.calls(),
@@ -6204,7 +6366,8 @@ mod tests {
                     Address::ZERO,
                     BlockId::number(1),
                 )
-                .await;
+                .await
+                .unwrap();
 
             let state = proposer.state.read().await;
             assert!(!state.pending_games.contains_key(&parent.index));
@@ -6257,7 +6420,8 @@ mod tests {
                     anchor.address,
                     BlockId::number(1),
                 )
-                .await;
+                .await
+                .unwrap();
 
             let state = proposer.state.read().await;
             let cached_middle = state.games.get(&middle.index).unwrap();
@@ -6316,7 +6480,7 @@ mod tests {
         }
 
         #[tokio::test]
-        async fn missing_anchor_after_rescan_fails_sync() {
+        async fn unsupported_anchor_blocks_ancestry_work_without_resetting() {
             let anchor_address = Address::left_padding_from(&[0x66]);
             let mut proposer = test_proposer().await;
             let view = Arc::new(RecordingL1View {
@@ -6327,11 +6491,42 @@ mod tests {
             });
             proposer.l1_view = view.clone();
 
-            assert!(proposer.sync_state().await.is_err());
+            let outcome = proposer.sync_state().await.unwrap();
+            assert_eq!(outcome.ancestry_actions, AncestryActions::Blocked);
+            assert_eq!(outcome.disposition, SyncDisposition::Advanced);
             let state = proposer.state.read().await;
             assert!(state.anchor_game.is_none());
             drop(state);
-            assert_eq!(view.calls().into_iter().filter(|call| *call == "factory_game").count(), 2);
+            assert_eq!(view.calls().into_iter().filter(|call| *call == "factory_game").count(), 1);
+
+            let unchanged = proposer.sync_state().await.unwrap();
+            assert_eq!(unchanged.disposition, SyncDisposition::UnchangedConfirmedHead);
+            assert_eq!(unchanged.ancestry_actions, AncestryActions::Blocked);
+            assert_eq!(view.calls().into_iter().filter(|call| *call == "game_type").count(), 1);
+        }
+
+        #[tokio::test]
+        async fn supported_anchor_missing_after_rescan_checks_its_type_once() {
+            let anchor_address = Address::left_padding_from(&[0x77]);
+            let mut proposer = test_proposer().await;
+            let view = Arc::new(RecordingL1View {
+                latest_game_index: Some(U256::ZERO),
+                anchor_game: anchor_address,
+                factory_game: FactoryGame { address: anchor_address, game_type: ZK_GAME_TYPE },
+                game_identity: GameIdentity { sequence_number: U256::MAX, ..Default::default() },
+                ..Default::default()
+            });
+            proposer.l1_view = view.clone();
+
+            assert!(
+                proposer
+                    .sync_state()
+                    .await
+                    .unwrap_err()
+                    .to_string()
+                    .contains("registered anchor remained unavailable")
+            );
+            assert_eq!(view.calls().into_iter().filter(|call| *call == "game_type").count(), 1);
         }
 
         #[tokio::test]
@@ -6365,7 +6560,7 @@ mod tests {
                 state.cursor = Cursor::from(game.index);
             }
 
-            assert_eq!(proposer.sync_state().await.unwrap(), SyncDisposition::Advanced);
+            assert_eq!(proposer.sync_state().await.unwrap().disposition, SyncDisposition::Advanced);
             let state = proposer.state.read().await;
             assert_eq!(state.anchor_game.as_ref().map(|game| game.address), Some(game.address));
             assert_eq!(state.canonical_head_index, Some(game.index));

@@ -61,6 +61,7 @@ pub(super) struct GameTarget {
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub(super) enum L1ReadBoundary {
     LatestGameIndex,
+    GameType,
     FactoryGame,
     GameClaim,
     GameIdentity,
@@ -264,6 +265,18 @@ struct ProofScript {
 
 impl ProofScript {
     const fn immediate(outcome: ProofOutcome) -> Self {
+        Self { outcome, barrier: None }
+    }
+}
+
+#[derive(Clone)]
+struct SuperRootScript {
+    outcome: SuperRootOutcome,
+    barrier: Option<NamedBarrier>,
+}
+
+impl SuperRootScript {
+    const fn immediate(outcome: SuperRootOutcome) -> Self {
         Self { outcome, barrier: None }
     }
 }
@@ -611,7 +624,7 @@ struct WorldData {
     pending_nonce: u64,
     l1_read_scripts: Scripts<(L1ReadBoundary, L1ReadTarget), L1ReadScript>,
     l1_read_records: Vec<L1ReadRecord>,
-    superroot_scripts: Scripts<u64, SuperRootOutcome>,
+    superroot_scripts: Scripts<u64, SuperRootScript>,
     proposal_horizon_attempts: HashMap<u64, u64>,
     superroot_records: Vec<SuperRootQueryRecord>,
     action_scripts: Scripts<ActionTarget, ActionScript>,
@@ -856,11 +869,31 @@ impl ScenarioWorld {
     }
 
     pub(super) fn script_superroot(&self, timestamp: u64, attempt: u64, outcome: SuperRootOutcome) {
-        self.lock().superroot_scripts.script_exact(timestamp, attempt, outcome);
+        self.lock().superroot_scripts.script_exact(
+            timestamp,
+            attempt,
+            SuperRootScript::immediate(outcome),
+        );
     }
 
     pub(super) fn script_next_superroot(&self, timestamp: u64, outcome: SuperRootOutcome) {
-        self.lock().superroot_scripts.script_next(timestamp, outcome);
+        self.lock().superroot_scripts.script_next(timestamp, SuperRootScript::immediate(outcome));
+    }
+
+    pub(super) fn block_superroot(
+        &self,
+        timestamp: u64,
+        attempt: u64,
+        outcome: SuperRootOutcome,
+        name: &str,
+    ) -> NamedBarrier {
+        let barrier = NamedBarrier::new(name);
+        self.lock().superroot_scripts.script_exact(
+            timestamp,
+            attempt,
+            SuperRootScript { outcome, barrier: Some(barrier.clone()) },
+        );
+        barrier
     }
 
     pub(super) fn superroot_journal(&self) -> Vec<SuperRootQueryRecord> {
@@ -1496,6 +1529,12 @@ impl L1View for FakeL1View {
         Ok(self.state(block)?.registered_anchor_game)
     }
 
+    async fn game_type(&self, game: Address, block: BlockId) -> Result<u32> {
+        let GameReadResult { state, .. } =
+            self.state_for_game(L1ReadBoundary::GameType, game, block)?;
+        Ok(state.game(game)?.game_type)
+    }
+
     async fn factory_game(&self, index: U256, block: BlockId) -> Result<FactoryGame> {
         let mut data = self.0.lock();
         let state = data.state_at(block)?;
@@ -1757,48 +1796,57 @@ impl SuperRootSource for FakeSuperRootSource {
     }
 
     async fn super_root_at_timestamp(&self, timestamp: u64) -> Result<SuperRootAtTimestamp> {
-        let mut data = self.0.lock();
-        let safe = data.safe_time;
-        let finalized = data.finalized_time;
-        let (attempt, scripted) = data.superroot_scripts.next(&timestamp);
-        let outcome = scripted.unwrap_or_else(|| {
-            if timestamp > safe {
-                SuperRootOutcome::Unavailable
-            } else {
-                SuperRootOutcome::Root {
-                    root: canonical_super_root(timestamp),
-                    current_l1: 2,
-                    required_l1: 1,
-                }
-            }
-        });
-        let (current_l1, required_l1, journal_outcome) = match outcome {
-            SuperRootOutcome::Root { root, current_l1, required_l1 } => (
-                Some(current_l1),
-                Some(required_l1),
-                if current_l1 > required_l1 {
-                    SuperRootQueryOutcome::Trusted(root)
+        let (safe, finalized, outcome, barrier) = {
+            let mut data = self.0.lock();
+            let safe = data.safe_time;
+            let finalized = data.finalized_time;
+            let (attempt, scripted) = data.superroot_scripts.next(&timestamp);
+            let script = scripted.unwrap_or_else(|| {
+                SuperRootScript::immediate(if timestamp > safe {
+                    SuperRootOutcome::Unavailable
                 } else {
-                    SuperRootQueryOutcome::Untrusted(root)
-                },
-            ),
-            SuperRootOutcome::Unavailable => (Some(2), None, SuperRootQueryOutcome::Unavailable),
-            SuperRootOutcome::TransportFailure => {
-                (None, None, SuperRootQueryOutcome::TransportFailure)
-            }
-            SuperRootOutcome::Malformed => (None, None, SuperRootQueryOutcome::Malformed),
+                    SuperRootOutcome::Root {
+                        root: canonical_super_root(timestamp),
+                        current_l1: 2,
+                        required_l1: 1,
+                    }
+                })
+            });
+            let outcome = script.outcome;
+            let (current_l1, required_l1, journal_outcome) = match outcome {
+                SuperRootOutcome::Root { root, current_l1, required_l1 } => (
+                    Some(current_l1),
+                    Some(required_l1),
+                    if current_l1 > required_l1 {
+                        SuperRootQueryOutcome::Trusted(root)
+                    } else {
+                        SuperRootQueryOutcome::Untrusted(root)
+                    },
+                ),
+                SuperRootOutcome::Unavailable => {
+                    (Some(2), None, SuperRootQueryOutcome::Unavailable)
+                }
+                SuperRootOutcome::TransportFailure => {
+                    (None, None, SuperRootQueryOutcome::TransportFailure)
+                }
+                SuperRootOutcome::Malformed => (None, None, SuperRootQueryOutcome::Malformed),
+            };
+            data.superroot_records.push(SuperRootQueryRecord {
+                kind: SuperRootQueryKind::AtTimestamp,
+                requested_timestamp: timestamp,
+                attempt,
+                safe_timestamp: safe,
+                finalized_timestamp: finalized,
+                current_l1,
+                required_l1,
+                outcome: journal_outcome,
+            });
+            (safe, finalized, outcome, script.barrier)
         };
-        data.superroot_records.push(SuperRootQueryRecord {
-            kind: SuperRootQueryKind::AtTimestamp,
-            requested_timestamp: timestamp,
-            attempt,
-            safe_timestamp: safe,
-            finalized_timestamp: finalized,
-            current_l1,
-            required_l1,
-            outcome: journal_outcome,
-        });
-        drop(data);
+
+        if let Some(barrier) = barrier {
+            barrier.park_unassigned().await;
+        }
 
         match outcome {
             SuperRootOutcome::Root { root, current_l1, required_l1 } => {

@@ -181,6 +181,7 @@ pub(crate) trait L1View: Send + Sync {
     async fn anchor_root(&self, registry: Address, block: BlockId) -> Result<AnchorRoot>;
     async fn latest_game_index(&self, block: BlockId) -> Result<Option<U256>>;
     async fn registered_anchor_game(&self, block: BlockId) -> Result<Address>;
+    async fn game_type(&self, game: Address, block: BlockId) -> Result<u32>;
     async fn factory_game(&self, index: U256, block: BlockId) -> Result<FactoryGame>;
     async fn game_claim(&self, game: Address, block: BlockId) -> Result<GameClaim>;
     async fn game_identity(&self, game: Address, block: BlockId) -> Result<GameIdentity>;

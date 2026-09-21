@@ -116,6 +116,10 @@ impl L1View for ScenarioL1View {
         Ok(Address::ZERO)
     }
 
+    async fn game_type(&self, _game: Address, _block: BlockId) -> anyhow::Result<u32> {
+        unreachable!("scenario fixture has no registered anchor game")
+    }
+
     async fn factory_game(&self, _index: U256, _block: BlockId) -> anyhow::Result<FactoryGame> {
         unreachable!("scenario fixture does not discover factory games")
     }
@@ -4049,9 +4053,10 @@ async fn pending_game_promoted_to_anchor_is_installed_in_the_same_cycle() {
 }
 
 #[tokio::test]
-async fn unsupported_registered_anchor_fails_after_one_rescan() {
+async fn unsupported_registered_anchor_blocks_ancestry_work_but_allows_lifecycle_work() {
     let world = ScenarioWorld::new();
-    let valid = ScenarioGame::new(0, u32::MAX, 10, ScenarioWorld::default_prestate());
+    let valid = ScenarioGame::new(0, u32::MAX, 10, ScenarioWorld::default_prestate()).challenged();
+    let valid_target = valid.target();
     let mut unsupported = ScenarioGame::new(1, u32::MAX, 20, ScenarioWorld::default_prestate());
     unsupported.game_type = ZK_GAME_TYPE + 1;
     let unsupported_target = unsupported.target();
@@ -4069,11 +4074,18 @@ async fn unsupported_registered_anchor_fails_after_one_rescan() {
     world.set_anchor_game(&unsupported_target);
     world.set_horizons(120, 120);
     world.mine_block();
-    let error = scenario.tick().await.unwrap_err();
+    let blocked = scenario.tick().await.unwrap();
 
-    assert!(
-        matches!(error, ScenarioError::Cycle(message) if message.contains("registered anchor remained unavailable"))
-    );
+    assert_eq!(blocked.snapshot.canonical_head_index, Some(valid_target.factory_index));
+    assert!(!blocked.scheduled.iter().any(|scheduled| matches!(
+        scheduled.operation,
+        OperationSummary::ProposeGame { .. } | OperationSummary::ProveGame { .. }
+    )));
+    scenario.settle_scheduled(&blocked).await.unwrap();
+    assert!(matches!(
+        world.action_record(&ActionTarget::Resolve(valid_target.clone()), 1).unwrap().effect,
+        CommittedEffect::Resolved { game } if game == valid_target.address
+    ));
     assert!(
         world
             .l1_read_record(
@@ -4081,17 +4093,132 @@ async fn unsupported_registered_anchor_fails_after_one_rescan() {
                 &L1ReadTarget::Game(unsupported_target.clone()),
                 2,
             )
-            .is_some()
+            .is_none()
     );
     assert!(
         world
             .l1_read_record(
+                L1ReadBoundary::GameType,
+                &L1ReadTarget::Game(unsupported_target.clone()),
+                1,
+            )
+            .is_some()
+    );
+
+    world.mine_block();
+    let repeated = scenario.tick().await.unwrap();
+    assert!(!repeated.scheduled.iter().any(|scheduled| matches!(
+        scheduled.operation,
+        OperationSummary::ProposeGame { .. } | OperationSummary::ProveGame { .. }
+    )));
+    scenario.settle_scheduled(&repeated).await.unwrap();
+    assert!(
+        world
+            .l1_read_record(
                 L1ReadBoundary::FactoryGame,
-                &L1ReadTarget::Game(unsupported_target),
+                &L1ReadTarget::Game(unsupported_target.clone()),
+                2,
+            )
+            .is_none()
+    );
+    assert!(
+        world
+            .l1_read_record(L1ReadBoundary::GameType, &L1ReadTarget::Game(unsupported_target), 2,)
+            .is_some()
+    );
+}
+
+#[tokio::test]
+async fn running_anchor_root_creation_stops_when_anchor_becomes_unsupported() {
+    let world = ScenarioWorld::new();
+    world.set_horizons(1, 1);
+    let root_barrier = world.block_superroot(
+        1,
+        1,
+        SuperRootOutcome::Root { root: canonical_super_root(1), current_l1: 2, required_l1: 1 },
+        "creation waits for anchor sync",
+    );
+    let mut scenario = ScenarioHarness::new(world.clone(), scenario_config()).await.unwrap();
+
+    let started = scenario.tick().await.unwrap();
+    let create_id =
+        started.task_id_for(|operation| matches!(operation, OperationSummary::ProposeGame { .. }));
+    root_barrier.wait_until_reached().await;
+
+    let mut unsupported = ScenarioGame::new(0, u32::MAX, 0, ScenarioWorld::default_prestate());
+    unsupported.game_type = ZK_GAME_TYPE + 1;
+    let unsupported_target = unsupported.target();
+    world.add_game(unsupported);
+    world.set_anchor_game(&unsupported_target);
+    scenario.proposer.sync_state().await.unwrap();
+
+    root_barrier.release();
+    let completions = scenario.settle(&[create_id]).await.unwrap();
+    assert_eq!(completions[0].outcome, TaskCompletionOutcome::Success);
+    assert!(
+        world
+            .action_record(
+                &ActionTarget::Create { sequence_number: 1, parent_game_index: u32::MAX },
+                1,
+            )
+            .is_none()
+    );
+
+    let remaining = started.task_ids_except(create_id);
+    scenario.settle(&remaining).await.unwrap();
+}
+
+#[tokio::test]
+async fn pending_anchor_revalidation_fault_preserves_cache_for_retry() {
+    let world = ScenarioWorld::new();
+    let cached = ScenarioGame::new(0, u32::MAX, 0, ScenarioWorld::default_prestate());
+    let cached_target = cached.target();
+    let anchor = ScenarioGame::new(1, 0, 10, ScenarioWorld::default_prestate());
+    let anchor_target = anchor.target();
+    world.add_game(cached);
+    world.add_game(anchor);
+    world.set_horizons(0, 0);
+    let mut config = scenario_config();
+    config.proposal_interval_seconds = 100;
+    let mut scenario = ScenarioHarness::new(world.clone(), config).await.unwrap();
+
+    let pending = scenario.tick().await.unwrap();
+    assert!(pending.snapshot.anchor.is_none());
+    assert_eq!(pending.snapshot.canonical_head_index, Some(cached_target.factory_index));
+    assert_eq!(pending.snapshot.pending_games.len(), 1);
+    scenario.settle_scheduled(&pending).await.unwrap();
+
+    world.set_anchor_game(&anchor_target);
+    world.set_horizons(120, 120);
+    world.script_l1_fault(L1ReadBoundary::GameClaim, L1ReadTarget::Game(anchor_target.clone()), 2);
+    world.mine_block();
+    let faulted = scenario.tick().await.unwrap_err();
+
+    assert!(
+        matches!(faulted, ScenarioError::Cycle(message) if message.contains("registered anchor re-validation failed"))
+    );
+    {
+        let state = scenario.proposer.state.read().await;
+        assert!(state.games.contains_key(&cached_target.factory_index));
+        assert!(state.pending_games.contains_key(&anchor_target.factory_index));
+    }
+    assert!(
+        world
+            .l1_read_record(
+                L1ReadBoundary::FactoryGame,
+                &L1ReadTarget::Game(anchor_target.clone()),
                 3,
             )
             .is_none()
     );
+
+    let recovered = scenario.tick().await.unwrap();
+    assert_eq!(
+        recovered.snapshot.anchor.as_ref().map(|anchor| anchor.factory_index),
+        Some(anchor_target.factory_index)
+    );
+    assert!(recovered.snapshot.pending_games.is_empty());
+    scenario.settle_scheduled(&recovered).await.unwrap();
 }
 
 #[tokio::test]
