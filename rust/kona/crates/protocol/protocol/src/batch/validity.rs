@@ -7,6 +7,8 @@
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum BatchDropReason {
+    /// Public projection range failed structural or proof admission.
+    InvalidProjectionRange,
     // === Timestamp-related drops ===
     /// Batch timestamp is in the future (Holocene active).
     FutureTimestampHolocene,
@@ -73,6 +75,7 @@ pub enum BatchDropReason {
 impl core::fmt::Display for BatchDropReason {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
+            Self::InvalidProjectionRange => write!(f, "invalid public projection range"),
             Self::FutureTimestampHolocene => {
                 write!(f, "batch timestamp is in the future (Holocene active)")
             }

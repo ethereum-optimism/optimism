@@ -151,6 +151,7 @@ impl ChainConfig {
     /// Loads the rollup config for the OP-Stack chain given the chain config and address list.
     pub fn as_rollup_config(&self) -> RollupConfig {
         RollupConfig {
+            private_projection: None,
             genesis: self.genesis,
             l1_chain_id: self.l1_chain_id,
             l2_chain_id: Chain::from(self.chain_id),

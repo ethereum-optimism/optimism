@@ -675,8 +675,7 @@ func TestMalformedRegistryTransactionsAreSkipped(t *testing.T) {
 	h.r.safe, h.r.finalized = 8, 8
 	require.NoError(t, h.step())
 
-	require.Equal(t, 2, h.m.rejected["selector"], "a wrong selector and a stub are both selector rejections")
-	require.Equal(t, 1, h.m.rejected["decode"], "trailing bytes are not canonical form")
+	require.Equal(t, 3, h.m.rejected["decode"], "the shared parser rejects bad selectors, short calls and trailing bytes")
 	require.Equal(t, 1, h.m.claims)
 	require.Equal(t, wantRef(8), h.status().SafeL2)
 }

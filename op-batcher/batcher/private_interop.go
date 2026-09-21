@@ -455,7 +455,7 @@ func (c *renderChannelOut) Close() error {
 			DepSetHash:       c.enc.cfg.DepSetHash,
 			PrivateDataHash:  c.privDataHash,
 			// v1 is attested, never proven: the registry rejects a non-empty slot.
-			Proof: nil,
+			Proof: []byte("insecure-stub-v1"),
 		},
 		StartNonce: c.start.StartNonce,
 	})

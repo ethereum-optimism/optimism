@@ -37,7 +37,7 @@ import { RangeClaim } from "interfaces/private-interop/IClaimRegistry.sol";
 ///         The registry checks exactly what it can check cheaply and locally: the current batcher
 ///         is the caller, the claim version,
 ///         that each range starts strictly after the last posted range ended,
-///         and that the proof slot is empty. It does NOT check that the range's contents match the
+///         and that the proof slot is bounded. It does NOT check that the range's contents match the
 ///         private chain — in v1 that is the operator's attestation, unproven by design. Claim N's
 ///         stored hash folds into claim N+1's, so the posted sequence is a hash chain an auditor
 ///         can walk from `lastClaimHash`.
@@ -60,10 +60,9 @@ import { RangeClaim } from "interfaces/private-interop/IClaimRegistry.sol";
 ///         to this address and decode the argument. The hash chain and the range cursor are
 ///         readable from the getters.
 ///
-///         v1 REFUSES A NON-EMPTY PROOF SLOT. A proof-accepting registry is a future upgrade with
-///         a verifier behind it; until then, accepting proof bytes here would let an operator
-///         publish something that merely looks proven. The empty-slot rule is what makes "this
-///         range is attested, not proven" unambiguous on-chain.
+///         Proof policy is enforced by projection derivation before the span reaches execution.
+///         The initial verifier accepts dummy bytes and provides NO private execution proof.
+///         This contract bounds the slot and records it without interpreting the proof.
 contract ClaimRegistry is ProxyAdminOwnedBase, ISemver {
     /// @notice Thrown when someone other than the current batcher tries to post a claim.
     error ClaimRegistry_NotBatcher();
@@ -71,8 +70,8 @@ contract ClaimRegistry is ProxyAdminOwnedBase, ISemver {
     /// @notice Thrown when the claim version is not the version this registry accepts.
     error ClaimRegistry_UnsupportedClaimVersion();
 
-    /// @notice Thrown when the claim carries proof bytes. v1 is attested, never proven.
-    error ClaimRegistry_ProofNotSupported();
+    /// @notice Thrown when proof bytes exceed the protocol bound.
+    error ClaimRegistry_ProofTooLarge();
 
     /// @notice Thrown when the claim's range is empty or inverted.
     error ClaimRegistry_InvalidRange();
@@ -85,14 +84,12 @@ contract ClaimRegistry is ProxyAdminOwnedBase, ISemver {
     /// @notice Claim version this registry accepts.
     uint8 public constant CLAIM_VERSION = 1;
 
-    /// @notice Upper bound a future proof-accepting registry will place on the proof slot. Named
-    ///         here so the upgrade inherits a bound that was decided before it was needed; v1
-    ///         itself only ever accepts a zero-length proof, so nothing enforces it yet.
+    /// @notice Upper bound on the proof slot, independent of the derivation verifier mode.
     uint256 public constant MAX_PROOF_LENGTH = 65_536;
 
     /// @notice Semantic version.
-    /// @custom:semver 2.0.1
-    string public constant version = "2.0.1";
+    /// @custom:semver 2.1.0
+    string public constant version = "2.1.0";
 
     /// @notice Number of claims posted so far. Zero means no range has been posted, which is the
     ///         only state in which an arbitrary `firstBlock` is accepted.
@@ -131,9 +128,9 @@ contract ClaimRegistry is ProxyAdminOwnedBase, ISemver {
         }
         if (_claim.version != CLAIM_VERSION) revert ClaimRegistry_UnsupportedClaimVersion();
 
-        // v1 is attested, never proven: the slot must be empty. A proof-accepting registry is a
+        // Derivation owns proof policy; this registry only enforces the size bound. A proof-accepting registry is a
         // future upgrade, and it is the one that will enforce `MAX_PROOF_LENGTH`.
-        if (_claim.proof.length != 0) revert ClaimRegistry_ProofNotSupported();
+        if (_claim.proof.length > MAX_PROOF_LENGTH) revert ClaimRegistry_ProofTooLarge();
 
         if (_claim.lastBlock < _claim.firstBlock) revert ClaimRegistry_InvalidRange();
 

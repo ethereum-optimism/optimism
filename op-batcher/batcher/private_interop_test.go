@@ -450,7 +450,7 @@ func TestPrivateInteropSeamClaimsTheRangesPrivateInput(t *testing.T) {
 	// The claim's remaining operator inputs: configuration from the seam's config.
 	require.Equal(t, common.Hash{0x1b}, built.Claim.RollupConfigHash)
 	require.Equal(t, common.Hash{0x1c}, built.Claim.DepSetHash)
-	require.Empty(t, built.Claim.Proof, "v1 is attested, never proven")
+	require.Equal(t, []byte("insecure-stub-v1"), built.Claim.Proof, "stub bytes provide no execution proof")
 
 	// ORIGIN-COPY through the whole seam: every rendering block carries the origin and sequence
 	// number its private payload's own L1-info deposit declared, and no L1 client was consulted —

@@ -20,8 +20,11 @@ kona-genesis.workspace = true
 kona-hardforks.workspace = true
 alloy-op-hardforks.workspace = true
 
+# ABI for canonical projection calls
+alloy-sol-types.workspace = true
+
 # OP Alloy
-op-alloy-consensus.workspace = true
+op-alloy-consensus = { workspace = true, features = ["k256"] }
 op-alloy-rpc-types.workspace = true
 op-alloy-rpc-types-engine.workspace = true
 
@@ -66,7 +69,6 @@ rand = { workspace = true, features = ["std", "std_rng"] }
 rstest.workspace = true
 proptest.workspace = true
 serde_json.workspace = true
-alloy-sol-types.workspace = true
 tokio = { workspace = true, features = ["full"] }
 arbitrary = { workspace = true, features = ["derive"] }
 tracing-subscriber = { workspace = true, features = ["fmt"] }
@@ -80,6 +82,7 @@ kona-registry.workspace = true
 [features]
 default = []
 std = [
+ "alloy-sol-types/std",
 	"alloy-consensus/std",
 	"alloy-eips/std",
 	"alloy-primitives/std",

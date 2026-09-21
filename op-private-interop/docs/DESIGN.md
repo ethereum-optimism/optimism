@@ -1,6 +1,8 @@
 # Private Interop — the design
 
-Current batch/deposit behavior is described in [BATCHES.md](BATCHES.md).
+Current batch/deposit behavior and pure whole-span admission are specified in
+[BATCHES.md](BATCHES.md). Its projection gate and dummy-proof policy supersede the
+historical empty-proof and future data-source-gate descriptions below.
 
 **Status:** Historical design (2026-08-30 through 2026-09-01). The current ETH funding, native
 bridge permissions, messenger deposit policy and NetChef artifact flow are specified in

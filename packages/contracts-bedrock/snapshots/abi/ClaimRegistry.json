@@ -185,7 +185,7 @@
   },
   {
     "inputs": [],
-    "name": "ClaimRegistry_ProofNotSupported",
+    "name": "ClaimRegistry_ProofTooLarge",
     "type": "error"
   },
   {

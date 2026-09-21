@@ -128,6 +128,9 @@ where
         // If the stage is not active, "pass" the next batch
         // through this stage to the BatchQueue stage.
         if !self.is_active()? {
+            if self.config.private_projection.is_some() {
+                return Err(PipelineError::InvalidBatchValidity.crit());
+            }
             trace!(target: "batch_span", "BatchStream stage is inactive, pass-through.");
             return self.prev.next_batch().await;
         }
@@ -144,7 +147,13 @@ where
             // forwarded to the `BatchQueue` stage. Otherwise, we buffer
             // the span batch in this stage if it passes the validity checks.
             match batch_with_inclusion.batch {
-                Batch::Single(b) => return Ok(Batch::Single(b)),
+                Batch::Single(b) => {
+                    if self.config.private_projection.is_some() {
+                        self.flush();
+                        return Err(PipelineError::NotEnoughData.temp());
+                    }
+                    return Ok(Batch::Single(b));
+                }
                 Batch::Span(b) => {
                     #[cfg(feature = "metrics")]
                     let start = std::time::Instant::now();

@@ -125,6 +125,11 @@ func (bs *BatchStage) nextSingularBatchCandidate(ctx context.Context, parent eth
 	}
 	switch typ := batch.GetBatchType(); typ {
 	case SingularBatchType:
+		if bs.config.PrivateProjection != nil {
+			bs.Log().Warn("dropping singular wire batch on public projection")
+			bs.FlushChannel()
+			return nil, NotEnoughData
+		}
 		singularBatch, ok := batch.AsSingularBatch()
 		if !ok {
 			return nil, NewCriticalError(errors.New("failed type assertion to SingularBatch"))

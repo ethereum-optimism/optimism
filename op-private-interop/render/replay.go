@@ -11,6 +11,7 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-core/predeploys"
 	"github.com/ethereum-optimism/optimism/op-private-interop/codec"
+	"github.com/ethereum-optimism/optimism/op-private-interop/wire"
 	"github.com/ethereum-optimism/optimism/op-service/txintent"
 )
 
@@ -197,7 +198,7 @@ func (b *BatcherTxBuilder) ReplayTx(act ReplayAction) (*types.Transaction, error
 }
 
 func exportGasLimit(base uint64, messageSize int) (uint64, error) {
-	if messageSize > MaxRenderableMessageSize {
+	if messageSize < 0 || messageSize > MaxRenderableMessageSize {
 		return 0, fmt.Errorf(
 			"SentMessage payload is %d bytes, exceeding the %d-byte rendering limit",
 			messageSize, MaxRenderableMessageSize,
@@ -206,6 +207,9 @@ func exportGasLimit(base uint64, messageSize int) (uint64, error) {
 	extra := uint64(messageSize) * ExportGasPerMessageByte
 	if base > math.MaxUint64-extra {
 		return 0, fmt.Errorf("export gas limit overflows uint64")
+	}
+	if base+extra > wire.MaxTxGas {
+		return 0, fmt.Errorf("export gas limit %d exceeds projection transaction ceiling %d", base+extra, wire.MaxTxGas)
 	}
 	return base + extra, nil
 }

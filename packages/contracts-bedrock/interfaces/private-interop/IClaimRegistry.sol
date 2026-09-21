@@ -22,7 +22,7 @@ import { IProxyAdminOwnedBase } from "interfaces/universal/IProxyAdminOwnedBase.
 /// @custom:field rollupConfigHash          Hash of the rollup config the range was derived under.
 /// @custom:field depSetHash                Hash of the dependency set the range was derived under.
 /// @custom:field privateDataHash           Content hash of the full private derivation input.
-/// @custom:field proof                     Proof slot. Must be empty in v1.
+/// @custom:field proof                     Bounded proof bytes; verification policy belongs to derivation.
 struct RangeClaim {
     uint8 version;
     uint64 firstBlock;
@@ -41,7 +41,7 @@ struct RangeClaim {
 interface IClaimRegistry is ISemver, IProxyAdminOwnedBase {
     error ClaimRegistry_NotBatcher();
     error ClaimRegistry_UnsupportedClaimVersion();
-    error ClaimRegistry_ProofNotSupported();
+    error ClaimRegistry_ProofTooLarge();
     error ClaimRegistry_InvalidRange();
     error ClaimRegistry_OverlappingRange();
 

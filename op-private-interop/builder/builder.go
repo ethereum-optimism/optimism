@@ -90,6 +90,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
 	"github.com/ethereum-optimism/optimism/op-private-interop/codec"
+	"github.com/ethereum-optimism/optimism/op-private-interop/projection"
 	"github.com/ethereum-optimism/optimism/op-private-interop/render"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 )
@@ -311,6 +312,20 @@ func (b *Builder) Build(r *Range) (*BuiltRange, error) {
 		}
 		if err := span.AppendSingularBatch(sb, seqNum); err != nil {
 			return nil, fmt.Errorf("appending block %d to the span: %w", blk.Number, err)
+		}
+	}
+	// Use the same public admission policy as derivation before compressing/publishing.
+	if cfg := b.cfg.Rollup.PrivateProjection; cfg != nil {
+		verifier, err := projection.VerifierFor(cfg)
+		if err != nil {
+			return nil, err
+		}
+		if _, err := projection.ValidateProjectionRange(cfg, projection.Context{
+			ChainID: b.cfg.Rollup.L2ChainID, GenesisNumber: b.cfg.Rollup.Genesis.L2.Number,
+			GenesisTime: b.cfg.Rollup.Genesis.L2Time, BlockTime: b.cfg.Rollup.BlockTime,
+			ParentHash: r.PrevTerminalRenderingHash,
+		}, span, verifier); err != nil {
+			return nil, fmt.Errorf("projection admission: %w", err)
 		}
 	}
 	out.SpanBatch = span

@@ -816,13 +816,54 @@ impl SpanBatch {
         if !prefix_validity.is_accept() {
             return prefix_validity;
         }
-        self.check_batch_overlap(
-            cfg,
-            parent_block.expect("accepted prefix checks return a parent block"),
-            l2_safe_head,
-            fetcher,
-        )
-        .await
+        let parent = parent_block.expect("accepted prefix checks return a parent block");
+        let validity = self.check_batch_overlap(cfg, parent, l2_safe_head, fetcher).await;
+        if !validity.is_accept() {
+            return validity;
+        }
+        if cfg.private_projection.is_some() &&
+            crate::projection::validate_projection_range(
+                cfg,
+                parent.block_info.hash,
+                self,
+                &crate::projection::StubVerifier,
+            )
+            .is_err()
+        {
+            return BatchValidity::Drop(BatchDropReason::InvalidProjectionRange);
+        }
+        if cfg.private_projection.is_some() {
+            return self.check_projection_schedule(cfg, l1_origins, l2_safe_head, inclusion_block);
+        }
+        BatchValidity::Accept
+    }
+
+    /// Preflight singular admission using canonical input context, without execution or I/O.
+    /// Future hashes use matching placeholders; execution still checks actual ancestry.
+    fn check_projection_schedule(
+        &self,
+        cfg: &RollupConfig,
+        mut l1_origins: &[BlockInfo],
+        mut parent: L2BlockInfo,
+        inclusion_block: &BlockInfo,
+    ) -> BatchValidity {
+        let Ok(singles) = self.get_singular_batches(l1_origins, parent) else {
+            return BatchValidity::Drop(BatchDropReason::InvalidProjectionRange);
+        };
+        for mut single in singles {
+            while l1_origins.first().is_some_and(|origin| origin.number < parent.l1_origin.number) {
+                l1_origins = &l1_origins[1..];
+            }
+            single.parent_hash = parent.block_info.hash;
+            let validity = single.check_batch(cfg, l1_origins, parent, inclusion_block);
+            if !validity.is_accept() {
+                return validity;
+            }
+            parent.block_info.timestamp = single.timestamp;
+            parent.l1_origin =
+                alloy_eips::BlockNumHash { hash: single.epoch_hash, number: single.epoch_num };
+        }
+        BatchValidity::Accept
     }
 }
 

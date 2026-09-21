@@ -82,9 +82,14 @@ accelerated L1.
 
 Recovery consumes replacements produced by canonical derivation and cross-safety checks.
 A reverted ClaimRegistry call alone does not invalidate its block or suppress separate
-replay calls; adding a new proof verifier requires a consensus rule or atomic replay
-authorization that makes invalid proof handling effective. This adapter does not provide
-that rule.
+replay calls; adding a real proof verifier also needs cryptographic continuity. The whole-range
+structural admission rule is described in [BATCHES.md](BATCHES.md); this recovery
+adapter does not itself verify private-execution proofs.
+
+Local recovery does not publicly prove the resulting private state. A future span
+must extend the canonical projection parent after replacement and authenticate the
+corresponding private starting state. The continuation requirements and undecided
+commitment/recovery-proof choices are recorded in [BATCHES.md](BATCHES.md#continuation-after-partial-invalidation-proof-system-requirements).
 
 ## The supernode contract
 

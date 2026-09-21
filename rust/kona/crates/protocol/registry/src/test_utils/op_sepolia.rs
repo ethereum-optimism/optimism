@@ -16,6 +16,7 @@ use kona_genesis::{
 
 /// The [`RollupConfig`] for OP Sepolia.
 pub const OP_SEPOLIA_CONFIG: RollupConfig = RollupConfig {
+    private_projection: None,
     genesis: ChainGenesis {
         l1: BlockNumHash {
             hash: b256!("48f520cf4ddaf34c8336e6e490632ea3cf1e5e93b0b2bc6e917557e31845371b"),

@@ -28,8 +28,8 @@ import (
 // was hand-written; regenerate it with a stock op-deployer when the contract release moves and
 // update StockL2ToL2CrossDomainMessengerCodeHash alongside it.
 const (
-	goldenPublicProjectionStateRoot = "0x88e65cf29ff2b1143db9167bf9ffcb52002722154f500a048855f4f2beacf1a0"
-	goldenPublicProjectionBlockHash = "0xc581fb8dd0b9faf6bdc2352a57aa1b36a34f3e81863449118d9a85d107b04cbc"
+	goldenPublicProjectionStateRoot = "0x70fdec803ea12eaa33b3816b908b2188cc5c4bf5fd2d8711e092c591cf0ea091"
+	goldenPublicProjectionBlockHash = "0x0e4c5d1fc64b5afbcb548e1ec0dd42fc89362ed20746f1341abfe866680b31a2"
 )
 
 func TestProjectGenesisFromIsPureAndDeterministic(t *testing.T) {
@@ -202,7 +202,11 @@ func TestProjectRollupConfigFrom(t *testing.T) {
 	require.Equal(t, private.LagoonTime, projected.LagoonTime, "both views activate interop at genesis")
 	require.Equal(t, uint64(5), private.Genesis.SystemConfig.MinBaseFee, "projection mutated its source config")
 
-	// Only the genesis hash and the genesis system config differ.
+	require.NotNil(t, projected.PrivateProjection)
+	require.Equal(t, "insecure-stub-v1", projected.PrivateProjection.Verifier)
+	require.Nil(t, private.PrivateProjection)
+	projected.PrivateProjection = nil
+	// The remaining changes are the genesis hash and system config.
 	projected.Genesis = private.Genesis
 	require.True(t, reflect.DeepEqual(private, projected))
 }

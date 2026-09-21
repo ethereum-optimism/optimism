@@ -6,6 +6,7 @@ import (
 
 	optypes "github.com/ethereum-optimism/optimism/op-core/types"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
+	"github.com/ethereum-optimism/optimism/op-private-interop/projection"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/log"
@@ -38,6 +39,9 @@ const (
 func CheckBatch(ctx context.Context, cfg *rollup.Config, log log.Logger, l1Blocks []eth.L1BlockRef,
 	l2SafeHead eth.L2BlockRef, batch *BatchWithL1InclusionBlock, l2Fetcher SafeBlockFetcher,
 ) BatchValidity {
+	if cfg.PrivateProjection != nil {
+		return BatchDrop
+	} // Projection spans require the post-Holocene batch stage.
 	switch typ := batch.GetBatchType(); typ {
 	case SingularBatchType:
 		singularBatch, ok := batch.AsSingularBatch()
@@ -328,7 +332,47 @@ func checkSpanBatchHolocene(ctx context.Context, cfg *rollup.Config, log log.Log
 	if prefixValidity != BatchAccept {
 		return prefixValidity
 	}
-	return checkSpanBatchOverlap(ctx, cfg, log, batch, parentBlock, l2SafeHead, l2Fetcher)
+	if validity := checkSpanBatchOverlap(ctx, cfg, log, batch, parentBlock, l2SafeHead, l2Fetcher); validity != BatchAccept {
+		return validity
+	}
+	if cfg.PrivateProjection != nil {
+		verifier, err := projection.VerifierFor(cfg.PrivateProjection)
+		if err == nil {
+			_, err = projection.ValidateProjectionRange(cfg.PrivateProjection, projection.Context{
+				ChainID: cfg.L2ChainID, GenesisNumber: cfg.Genesis.L2.Number, GenesisTime: cfg.Genesis.L2Time,
+				BlockTime: cfg.BlockTime, ParentHash: parentBlock.Hash,
+			}, batch, verifier)
+		}
+		if err != nil {
+			log.Warn("dropping invalid projection range", "err", err)
+			return BatchDrop
+		}
+		return checkProjectionSpanSchedule(cfg, log, l1Blocks, l2SafeHead, batch, l1InclusionBlock)
+	}
+	return BatchAccept
+}
+
+// checkProjectionSpanSchedule preflights existing singular admission rules using
+// only the supplied canonical context. Future execution hashes are unknown: each
+// candidate uses the same placeholder hash as its synthetic parent. The actual
+// hashes and execution validity remain checked when attributes are executed.
+func checkProjectionSpanSchedule(cfg *rollup.Config, log log.Logger, l1Blocks []eth.L1BlockRef, parent eth.L2BlockRef, span *SpanBatch, inclusion eth.L1BlockRef) BatchValidity {
+	singles, err := span.GetSingularBatches(l1Blocks, parent)
+	if err != nil {
+		return BatchDrop
+	}
+	for _, single := range singles {
+		for len(l1Blocks) > 0 && l1Blocks[0].Number < parent.L1Origin.Number {
+			l1Blocks = l1Blocks[1:]
+		}
+		single.ParentHash = parent.Hash
+		if validity := checkSingularBatch(cfg, log, l1Blocks, parent, single, inclusion); validity != BatchAccept {
+			return validity
+		}
+		parent.Time = single.Timestamp
+		parent.L1Origin = eth.BlockID{Hash: single.EpochHash, Number: uint64(single.EpochNum)}
+	}
+	return BatchAccept
 }
 
 // checkSpanBatch checks the full SpanBatch semantic validation rules on a syntactically-correct

@@ -9,6 +9,8 @@
 
 extern crate alloc;
 
+pub mod projection;
+
 mod batch;
 pub use batch::{
     Batch, BatchDecodingError, BatchDropReason, BatchEncodingError, BatchReader, BatchTransaction,

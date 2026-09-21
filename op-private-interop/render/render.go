@@ -84,6 +84,7 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-core/interop/messages"
 	"github.com/ethereum-optimism/optimism/op-core/predeploys"
+	"github.com/ethereum-optimism/optimism/op-private-interop/wire"
 	"github.com/ethereum-optimism/optimism/op-service/bigs"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 )
@@ -91,16 +92,12 @@ import (
 const (
 	// MaxRenderableMessageSize bounds a single private SentMessage payload the renderer will replay.
 	//
-	// The private chain runs the STOCK L2ToL2CrossDomainMessenger, which accepts any payload, so
-	// this is not a mirror of a contract-side rule: it has to be at least the largest payload a
-	// private transaction can carry, or a message the private chain accepted would stall the
-	// batcher (a build that halts is a stall, by design). That largest payload is set by the
-	// EIP-7825 per-transaction gas cap of 16,777,216: with EIP-7623 floor pricing, LOG data and
-	// memory expansion, a zero-filled payload tops out near 930 KB and a random one near 420 KB.
-	// One MiB covers both with margin. A range that still cannot fit one L1 transaction (several
-	// maximal messages in one block) is refused by the builder's blob-count check instead, which
-	// is the single remaining stall point and a documented residual risk.
-	MaxRenderableMessageSize = 1024 * 1024
+	// This is the wire allocation bound, not a promise that every payload fits the
+	// execution gas budget. The transaction builder additionally enforces the gas
+	// ceiling; the default conservative policy supports at most 581,329 bytes.
+	// Larger private messages or ranges exceeding the blob limit can stall
+	// publication and require an admission policy on the private application.
+	MaxRenderableMessageSize = wire.MaxMessageBytes
 )
 
 var (

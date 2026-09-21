@@ -248,15 +248,22 @@ contract ClaimRegistry_PostClaim_Test is ClaimRegistry_TestInit {
         registry.postClaim(claim);
     }
 
-    /// @notice Tests that a claim carrying proof bytes is refused, so nobody can publish something
-    ///         that looks proven while v1 verifies nothing.
-    function testFuzz_postClaim_nonEmptyProof_reverts(bytes calldata _proof) external {
-        vm.assume(_proof.length != 0);
-
+    /// @notice Proof interpretation belongs to derivation; the registry records bounded bytes.
+    function testFuzz_postClaim_dummyProof_succeeds(bytes calldata _proof) external {
+        vm.assume(_proof.length <= registry.MAX_PROOF_LENGTH());
         RangeClaim memory claim = _claim(100, 399);
         claim.proof = _proof;
+        vm.prank(operator);
+        registry.postClaim(claim);
+        assertEq(registry.rangeCount(), 1);
+        assertEq(registry.lastClaimHash(), keccak256(abi.encode(bytes32(0), abi.encode(claim))));
+    }
 
-        vm.expectRevert(IClaimRegistry.ClaimRegistry_ProofNotSupported.selector);
+    /// @notice Oversized proof bytes are rejected even with a trivial derivation verifier.
+    function test_postClaim_oversizedProof_reverts() external {
+        RangeClaim memory claim = _claim(100, 399);
+        claim.proof = new bytes(registry.MAX_PROOF_LENGTH() + 1);
+        vm.expectRevert(IClaimRegistry.ClaimRegistry_ProofTooLarge.selector);
         vm.prank(operator);
         registry.postClaim(claim);
     }

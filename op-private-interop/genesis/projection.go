@@ -21,6 +21,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-core/devfeatures"
 	"github.com/ethereum-optimism/optimism/op-core/predeploys"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
+	"github.com/ethereum-optimism/optimism/op-private-interop/projection"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core"
@@ -142,6 +143,7 @@ func ProjectRollupConfigFrom(privateChainConfig *rollup.Config, publicProjection
 	}
 
 	out := *privateChainConfig
+	out.PrivateProjection = &projection.Config{Verifier: projection.InsecureStub}
 	out.Genesis.L2.Hash = publicProjectionGenesis.ToBlock().Hash()
 	out.Genesis.SystemConfig.GasLimit = gethparams.MaxGasLimit
 	out.Genesis.SystemConfig.Scalar = eth.EncodeScalar(eth.EcotoneScalars{})

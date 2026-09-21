@@ -343,3 +343,12 @@ func TestBatcherTxBuilderRefusesBrokenImport(t *testing.T) {
 	_, err := b.ReplayTx(ReplayAction{Kind: ReplayImport})
 	require.ErrorContains(t, err, "no decoded message")
 }
+
+func TestExportGasBudgetBoundary(t *testing.T) {
+	base := DefaultGasPolicy().GasLimitExport
+	gas, err := exportGasLimit(base, 581329)
+	require.NoError(t, err)
+	require.LessOrEqual(t, gas, uint64(16777216))
+	_, err = exportGasLimit(base, 581330)
+	require.ErrorContains(t, err, "projection transaction ceiling")
+}

@@ -31,10 +31,24 @@ const fn default_fjord_max_sequencer_drift() -> u64 {
     FJORD_MAX_SEQUENCER_DRIFT
 }
 
+/// Consensus settings for the experimental public projection protocol.
+#[derive(Debug, Clone, Eq, PartialEq)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+pub struct PrivateProjectionConfig {
+    /// Only `insecure-stub-v1` is currently supported; it provides no execution proof.
+    pub verifier: alloc::string::String,
+    /// Permit the explicitly configured generic replay contract.
+    #[cfg_attr(feature = "serde", serde(default))]
+    pub allow_events: bool,
+}
+
 /// The Rollup configuration.
 #[derive(Debug, Clone, Eq, PartialEq)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct RollupConfig {
+    /// Explicit genesis-only public projection admission profile.
+    #[cfg_attr(feature = "serde", serde(default, skip_serializing_if = "Option::is_none"))]
+    pub private_projection: Option<PrivateProjectionConfig>,
     /// The genesis state of the rollup.
     pub genesis: ChainGenesis,
     /// The block time of the L2, in seconds.
@@ -106,6 +120,7 @@ impl<'a> arbitrary::Arbitrary<'a> for RollupConfig {
         };
 
         Ok(Self {
+            private_projection: None,
             genesis: ChainGenesis::arbitrary(u)?,
             block_time: u.arbitrary()?,
             max_sequencer_drift: u.arbitrary()?,
@@ -133,6 +148,7 @@ impl<'a> arbitrary::Arbitrary<'a> for RollupConfig {
 impl Default for RollupConfig {
     fn default() -> Self {
         Self {
+            private_projection: None,
             genesis: ChainGenesis::default(),
             block_time: 0,
             max_sequencer_drift: 0,
@@ -878,6 +894,7 @@ mod tests {
     fn expected_rollup_config() -> RollupConfig {
         use crate::{OP_MAINNET_BASE_FEE_CONFIG, SystemConfig};
         RollupConfig {
+            private_projection: None,
             genesis: ChainGenesis {
                 l1: BlockNumHash {
                     hash: b256!("481724ee99b1f4cb71d826e2ec5a37265f460e9b112315665c977f4050b0af54"),

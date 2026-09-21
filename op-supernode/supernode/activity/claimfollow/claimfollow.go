@@ -4,7 +4,6 @@
 package claimfollow
 
 import (
-	"bytes"
 	"context"
 	"errors"
 	"fmt"
@@ -15,7 +14,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
 	"github.com/ethereum-optimism/optimism/op-private-interop/codec"
-	"github.com/ethereum-optimism/optimism/op-private-interop/render"
+	"github.com/ethereum-optimism/optimism/op-private-interop/wire"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/sources"
 	"github.com/ethereum/go-ethereum/common"
@@ -456,14 +455,7 @@ func (m *Module) readClaims(ctx context.Context, src Rendering, payload *eth.Exe
 }
 
 func (m *Module) decodeClaim(tx *types.Transaction) (*codec.RangeClaim, bool) {
-	data := tx.Data()
-	if len(data) < 4 || !bytes.Equal(data[:4], render.PostClaimSelector[:]) {
-		m.log.Error("A registry-addressed transaction is not a postClaim call; skipping",
-			"tx", tx.Hash(), "calldata", len(data))
-		m.metrics.RecordRejectedClaim("selector")
-		return nil, false
-	}
-	c, err := codec.Decode(data[4:])
+	c, err := wire.DecodeClaim(tx.Data())
 	if err != nil {
 		m.log.Error("A registry-addressed transaction does not carry a canonically-encoded claim; skipping",
 			"tx", tx.Hash(), "err", err)

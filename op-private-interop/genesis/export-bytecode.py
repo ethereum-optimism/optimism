@@ -5,7 +5,7 @@ import json
 from pathlib import Path
 
 root = Path(__file__).resolve().parents[2]
-for name in ("L2ToL2CrossDomainMessenger", "SuperchainETHBridge"):
+for name in ("L2ToL2CrossDomainMessenger", "SuperchainETHBridge", "ClaimRegistry"):
     artifact_path = root / "packages/contracts-bedrock/forge-artifacts" / f"{name}.sol" / f"{name}.json"
     artifact = json.loads(artifact_path.read_text())
     metadata = artifact["metadata"]

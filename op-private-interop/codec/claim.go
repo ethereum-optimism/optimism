@@ -87,15 +87,12 @@
 //     anything else: the public chain's EVM cannot see the private chain at all, and even for a
 //     public hash the 256-block blockhash lookback would not reach a cadence boundary.
 //
-// # The attested-mode rule
+// # Legacy attested decoding
 //
-// The proof slot is unconditional on the wire and empty in v1, where a claim's authority is the
-// operator's signature on the L2 transaction carrying it. A verifier configured for attested mode
-// MUST REFUSE a non-empty proof slot rather than ignore it — a verifier that accepts what it cannot
-// check has a hole exactly the size of the thing it skipped, and "there is a proof here" is
-// precisely the assertion an attested verifier is not equipped to evaluate. This is the standing v1
-// rule inherited from the proof-batch wire, and ModeAttested is the ZERO VALUE of Mode so that a
-// caller who thinks about none of this gets the strict decoder.
+// Decode and ModeAttested retain the historical empty-proof policy for legacy
+// callers. Current projection admission uses wire.DecodeClaim, which checks the
+// canonical encoding and proof size via ModeProven, then passes the proof to the
+// verifier selected by consensus config. Decoding alone never verifies a proof.
 package codec
 
 import (
@@ -360,6 +357,8 @@ func encodeAtVersion(e *RangeClaim, version uint8) ([]byte, error) {
 // Decode parses a claim in attested mode: exactly version 1, a non-inverted range, canonical
 // ABI form, and an empty proof slot. It is the decoder a v1 verifier wants, and it is what the
 // zero value of Mode selects.
+// Decode preserves the legacy empty-proof policy for callers explicitly using attested v1.
+// Projection admission and claim following use wire.DecodeClaim; proof policy lives in derivation.
 func Decode(data []byte) (*RangeClaim, error) { return DecodeMode(data, ModeAttested) }
 
 // DecodeMode parses a claim under an explicit proof posture.
