@@ -11,7 +11,7 @@ use alloy_rpc_types_debug::ExecutionWitness;
 use alloy_rpc_types_engine::PayloadId;
 use op_alloy_consensus::{
     ParsedPostExecPayload, SDMGasEntry, TxPostExec, build_post_exec_tx,
-    parse_post_exec_payload_from_transactions,
+    parse_post_exec_payload_from_transactions, total_gas_refund,
 };
 use op_revm::{L1BlockInfo, constants::L1_BLOCK_CONTRACT};
 use reth_basic_payload_builder::*;
@@ -68,10 +68,6 @@ impl OpPayloadBuilderMetrics {
         self.sdm_refund_gas_total.increment(gas_refund);
         self.sdm_refund_gas_per_block.set(gas_refund as f64);
     }
-}
-
-fn sdm_refund_gas(entries: &[SDMGasEntry]) -> u64 {
-    entries.iter().map(|entry| entry.gas_refund).sum()
 }
 
 fn build_post_exec_recovered_tx<Tx>(block_number: u64, entries: Vec<SDMGasEntry>) -> Recovered<Tx>
@@ -520,7 +516,7 @@ impl<Txs> OpBuilder<'_, Txs> {
         let sdm_refund_gas = if produce_post_exec {
             let block_number = builder.evm_mut().block().number().saturating_to();
             let entries = builder.executor_mut().take_post_exec_entries();
-            let refund_gas = self::sdm_refund_gas(&entries);
+            let refund_gas = total_gas_refund(&entries);
             try_include_post_exec_tx(block_number, entries, |tx| {
                 builder.execute_transaction(tx).map(|g| g.tx_gas_used())
             })?;
