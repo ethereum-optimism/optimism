@@ -39,6 +39,7 @@ type Metrics interface {
 	RecordSequencerInconsistentL1Origin(from eth.BlockID, to eth.BlockID)
 	RecordSequencerReset()
 	RecordSequencingError()
+	RecordSequencerPublishHandoff(duration time.Duration)
 }
 
 type SequencerStateListener interface {
@@ -494,7 +495,13 @@ func (s *Sequencer) insertAndPublish(envelope *eth.ExecutionPayloadEnvelope, ref
 	}
 	s.log.Info("Sequencer inserted block",
 		"block", ref, "parent", envelope.ExecutionPayload.ParentID())
+	// Timed because this is the hot path: whatever is spent here is subtracted
+	// from the next block's build window, which is computed as a residual. The
+	// publisher only takes a mutex, so this should stay near zero - it is the
+	// regression guard for the inline-publish stall in #22554.
+	handoffStart := s.timeNow()
 	s.asyncGossip.Gossip(envelope)
+	s.metrics.RecordSequencerPublishHandoff(s.timeNow().Sub(handoffStart))
 	s.building = BuildingState{}
 	s.scheduleNextAction(ref)
 }

@@ -40,6 +40,10 @@ type Metricer interface {
 	RecordSequencingError()
 	RecordPublishingError()
 	RecordDroppedPublish()
+	RecordSequencerInsertTime(stage string, duration time.Duration)
+	RecordSequencerPublishHandoff(duration time.Duration)
+	RecordPublishQueueLen(length int)
+	RecordPublishDelay(duration time.Duration)
 	RecordDerivationError()
 	RecordEmittedEvent(eventName string, emitter string)
 	RecordProcessedEvent(eventName string, deriver string, duration time.Duration)
@@ -119,7 +123,26 @@ type Metrics struct {
 	SequencerBuildingDiffTotal           prometheus.Counter
 
 	SequencerSealingDurationSeconds prometheus.Histogram
-	SequencerSealingTotal           prometheus.Counter
+
+	// SequencerInsertDurationSeconds splits the sequencer's block insert by engine
+	// call, so the two candidate publish points can be priced independently: a
+	// publish after newPayload pays only "newpayload", one after the whole insert
+	// pays "total".
+	SequencerInsertDurationSeconds *prometheus.HistogramVec
+	// SequencerPublishHandoffSeconds is how long the sequencer's own goroutine
+	// spends handing a sealed block to the publisher. It must stay near zero: this
+	// is the hot path, and time spent here comes out of the next block's build
+	// window.
+	SequencerPublishHandoffSeconds prometheus.Histogram
+	// PublishQueueLen is the number of sealed blocks awaiting publication.
+	PublishQueueLen prometheus.Gauge
+	// PublishDelaySeconds is seal-to-published, the delay peers actually see.
+	PublishDelaySeconds prometheus.Histogram
+	// UnsafePayloadArrivalDelaySeconds is how far behind its own timestamp a
+	// gossiped block arrives. Measured on the receiving node, this is the only
+	// metric that shows what peers experience end to end.
+	UnsafePayloadArrivalDelaySeconds prometheus.Histogram
+	SequencerSealingTotal            prometheus.Counter
 
 	UnsafePayloadsBufferLen     prometheus.Gauge
 	UnsafePayloadsBufferMemSize prometheus.Gauge
@@ -390,6 +413,44 @@ func NewMetrics(procName string, labels prometheus.Labels) *Metrics {
 			Help:      "Number of sequencer block sealing jobs",
 		}),
 
+		SequencerInsertDurationSeconds: factory.NewHistogramVec(prometheus.HistogramOpts{
+			Namespace: ns,
+			Name:      "sequencer_insert_seconds",
+			// Starts far finer than sequencer_sealing_seconds: a sub-millisecond
+			// insert would sit entirely inside that histogram's first (5ms) bucket,
+			// which cannot tell "nearly free" from "5ms" - the distinction the
+			// publish-ordering decision turns on. Tops out at payloadProcessTimeout,
+			// so +Inf means a real timeout.
+			Buckets: []float64{
+				.00005, .0001, .00025, .0005, .001, .0025, .005, .01, .025, .05,
+				.1, .25, .5, 1, 2.5, 5, 10},
+			Help: "Histogram of sequencer block insert time, by engine call",
+		}, []string{"stage"}),
+		SequencerPublishHandoffSeconds: factory.NewHistogram(prometheus.HistogramOpts{
+			Namespace: ns,
+			Name:      "sequencer_publish_handoff_seconds",
+			Buckets: []float64{
+				.000001, .000005, .00001, .00005, .0001, .0005, .001, .005, .01, .1, 1},
+			Help: "Histogram of time the sequencer spends handing a block to the publisher",
+		}),
+		PublishQueueLen: factory.NewGauge(prometheus.GaugeOpts{
+			Namespace: ns,
+			Name:      "publish_queue_len",
+			Help:      "Number of sealed blocks awaiting publication to peers",
+		}),
+		PublishDelaySeconds: factory.NewHistogram(prometheus.HistogramOpts{
+			Namespace: ns,
+			Name:      "publish_delay_seconds",
+			Buckets:   []float64{.001, .005, .01, .025, .05, .1, .25, .5, 1, 2.5, 5, 10, 30, 60},
+			Help:      "Histogram of time from queueing a block to publishing it to peers",
+		}),
+		UnsafePayloadArrivalDelaySeconds: factory.NewHistogram(prometheus.HistogramOpts{
+			Namespace: ns,
+			Name:      "unsafe_payload_arrival_delay_seconds",
+			Buckets:   []float64{.05, .1, .2, .3, .5, .75, 1, 1.5, 2, 3, 5, 10, 30},
+			Help:      "Histogram of how far behind its timestamp a gossiped unsafe block arrives",
+		}),
+
 		AltDAMetrics: altda.MakeMetrics(ns, factory),
 
 		registry: registry,
@@ -493,12 +554,37 @@ func (m *Metrics) RecordDroppedPublish() {
 	m.DroppedPublishes.Record()
 }
 
+// RecordSequencerInsertTime records one phase of a sequencer block insert. The
+// stages are observed separately and "total" is observed in its own right:
+// summing buckets across label values pools the observations rather than
+// convolving the distributions, so it would not yield the p99 of the sum.
+func (m *Metrics) RecordSequencerInsertTime(stage string, duration time.Duration) {
+	m.SequencerInsertDurationSeconds.WithLabelValues(stage).Observe(duration.Seconds())
+}
+
+func (m *Metrics) RecordSequencerPublishHandoff(duration time.Duration) {
+	m.SequencerPublishHandoffSeconds.Observe(duration.Seconds())
+}
+
+func (m *Metrics) RecordPublishQueueLen(length int) {
+	m.PublishQueueLen.Set(float64(length))
+}
+
+func (m *Metrics) RecordPublishDelay(duration time.Duration) {
+	m.PublishDelaySeconds.Observe(duration.Seconds())
+}
+
 func (m *Metrics) RecordDerivationError() {
 	m.DerivationErrors.Record()
 }
 
 func (m *Metrics) RecordReceivedUnsafePayload(payload *eth.ExecutionPayloadEnvelope) {
 	m.UnsafePayloads.Record()
+	// How late the block is against its own timestamp. Depends on clock skew
+	// between the sequencer and this node, so it is meaningful in aggregate and
+	// for before/after on one node, not as an absolute.
+	blockTime := time.Unix(int64(payload.ExecutionPayload.Timestamp), 0)
+	m.UnsafePayloadArrivalDelaySeconds.Observe(time.Since(blockTime).Seconds())
 	m.RecordRef("l2", "received_payload", uint64(payload.ExecutionPayload.BlockNumber), uint64(payload.ExecutionPayload.Timestamp), payload.ExecutionPayload.BlockHash)
 }
 
@@ -707,6 +793,18 @@ func (n *noopMetricer) RecordPublishingError() {
 }
 
 func (n *noopMetricer) RecordDroppedPublish() {
+}
+
+func (n *noopMetricer) RecordSequencerInsertTime(stage string, duration time.Duration) {
+}
+
+func (n *noopMetricer) RecordSequencerPublishHandoff(duration time.Duration) {
+}
+
+func (n *noopMetricer) RecordPublishQueueLen(length int) {
+}
+
+func (n *noopMetricer) RecordPublishDelay(duration time.Duration) {
 }
 
 func (n *noopMetricer) RecordDerivationError() {

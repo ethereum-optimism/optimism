@@ -53,9 +53,12 @@ func (m *mockNetwork) setErr(err error) {
 }
 
 type mockMetrics struct {
-	mu      sync.Mutex
-	errors  int
-	dropped int
+	mu       sync.Mutex
+	errors   int
+	dropped  int
+	queueLen int
+	maxQueue int
+	delays   []time.Duration
 }
 
 func (m *mockMetrics) RecordPublishingError() {
@@ -70,10 +73,43 @@ func (m *mockMetrics) RecordDroppedPublish() {
 	m.dropped++
 }
 
+func (m *mockMetrics) RecordPublishQueueLen(length int) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.queueLen = length
+	if length > m.maxQueue {
+		m.maxQueue = length
+	}
+}
+
+func (m *mockMetrics) RecordPublishDelay(d time.Duration) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.delays = append(m.delays, d)
+}
+
 func (m *mockMetrics) counts() (errs, dropped int) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	return m.errors, m.dropped
+}
+
+func (m *mockMetrics) reportedQueueLen() int {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	return m.queueLen
+}
+
+func (m *mockMetrics) reportedMaxQueueLen() int {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	return m.maxQueue
+}
+
+func (m *mockMetrics) reportedDelays() []time.Duration {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	return append([]time.Duration(nil), m.delays...)
 }
 
 func envelopeAt(n uint64) *eth.ExecutionPayloadEnvelope {
@@ -124,6 +160,12 @@ func TestAsyncGossiperPublishesInSealOrder(t *testing.T) {
 	errs, dropped := metrics.counts()
 	require.Zero(t, errs)
 	require.Zero(t, dropped)
+
+	require.Zero(t, metrics.reportedQueueLen(), "queue length is reported back to zero")
+	require.Len(t, metrics.reportedDelays(), len(want), "one publish delay per block")
+	for _, d := range metrics.reportedDelays() {
+		require.Positive(t, d, "a publish delay is a real elapsed duration")
+	}
 }
 
 // TestAsyncGossiperDoesNotBlockOnPublish is the regression test for #22554: the
@@ -233,6 +275,8 @@ func TestAsyncGossiperEvictsOldestWhenFull(t *testing.T) {
 	}
 
 	require.Equal(t, maxPublishQueue, p.queueLen(), "queue is bounded")
+	require.Equal(t, maxPublishQueue, metrics.reportedMaxQueueLen(),
+		"the reported depth never exceeds the bound")
 	_, dropped := metrics.counts()
 	require.Positive(t, dropped, "eviction is counted")
 

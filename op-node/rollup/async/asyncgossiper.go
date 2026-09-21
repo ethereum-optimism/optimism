@@ -52,7 +52,7 @@ type SimpleAsyncGossiper struct {
 	// mu guards queue and attempts.
 	mu sync.Mutex
 	// queue holds blocks awaiting publication, oldest first.
-	queue []*eth.ExecutionPayloadEnvelope
+	queue []pending
 	// attempts counts failed publishes of the block currently at queue[0]. It is
 	// reset whenever queue[0] changes.
 	attempts int
@@ -71,6 +71,13 @@ type SimpleAsyncGossiper struct {
 	metrics Metrics
 }
 
+// pending is a block awaiting publication, with the instant it was queued so
+// the delay peers pay can be measured.
+type pending struct {
+	envelope *eth.ExecutionPayloadEnvelope
+	queuedAt time.Time
+}
+
 // To avoid import cycles, we define a new Network interface here
 // this interface is compatible with driver.Network
 type Network interface {
@@ -82,6 +89,8 @@ type Network interface {
 type Metrics interface {
 	RecordPublishingError()
 	RecordDroppedPublish()
+	RecordPublishQueueLen(length int)
+	RecordPublishDelay(duration time.Duration)
 }
 
 func NewAsyncGossiper(ctx context.Context, net Network, log log.Logger, metrics Metrics) *SimpleAsyncGossiper {
@@ -106,11 +115,13 @@ func (p *SimpleAsyncGossiper) Gossip(payload *eth.ExecutionPayloadEnvelope) {
 		// pressure, and the publish goroutine drops the outcome of a block that is
 		// no longer at the front; that narrow race can over-count a drop whose
 		// publish landed anyway, which is the harmless direction for this counter.
-		dropped = p.queue[0]
+		dropped = p.queue[0].envelope
 		p.discardHead()
 	}
-	p.queue = append(p.queue, payload)
+	p.queue = append(p.queue, pending{envelope: payload, queuedAt: time.Now()})
+	queueLen := len(p.queue)
 	p.mu.Unlock()
+	p.metrics.RecordPublishQueueLen(queueLen)
 
 	if dropped != nil {
 		p.log.Warn("Publish queue is full, dropping oldest unpublished block",
@@ -128,6 +139,7 @@ func (p *SimpleAsyncGossiper) Clear() {
 	p.queue = nil
 	p.attempts = 0
 	p.mu.Unlock()
+	p.metrics.RecordPublishQueueLen(0)
 }
 
 // Stop stops the publish goroutine. It blocks until the goroutine accepts.
@@ -154,8 +166,9 @@ func (p *SimpleAsyncGossiper) publishLoop() {
 	for {
 		p.mu.Lock()
 		var envelope *eth.ExecutionPayloadEnvelope
+		var queuedAt time.Time
 		if len(p.queue) > 0 {
-			envelope = p.queue[0]
+			envelope, queuedAt = p.queue[0].envelope, p.queue[0].queuedAt
 		}
 		attempts := p.attempts
 		p.mu.Unlock()
@@ -173,7 +186,7 @@ func (p *SimpleAsyncGossiper) publishLoop() {
 		p.mu.Lock()
 		// Clear, or an eviction, may have removed this block while the publish was
 		// in flight. Then the outcome is no longer ours to record.
-		if len(p.queue) > 0 && p.queue[0] == envelope {
+		if len(p.queue) > 0 && p.queue[0].envelope == envelope {
 			switch {
 			case err == nil:
 				p.discardHead()
@@ -185,7 +198,14 @@ func (p *SimpleAsyncGossiper) publishLoop() {
 				retry = true
 			}
 		}
+		queueLen := len(p.queue)
 		p.mu.Unlock()
+		p.metrics.RecordPublishQueueLen(queueLen)
+		if err == nil {
+			// Queued-to-published. Added to the insert time, this is what the
+			// publish-after-insert ordering actually costs peers.
+			p.metrics.RecordPublishDelay(time.Since(queuedAt))
+		}
 
 		if err != nil {
 			p.log.Warn("Failed to publish newly created block",
@@ -244,7 +264,7 @@ func (p *SimpleAsyncGossiper) pause(d time.Duration) bool {
 
 // discardHead removes queue[0]. Callers must hold p.mu.
 func (p *SimpleAsyncGossiper) discardHead() {
-	p.queue[0] = nil // don't retain the block in the backing array
+	p.queue[0] = pending{} // don't retain the block in the backing array
 	p.queue = p.queue[1:]
 	p.attempts = 0
 }
