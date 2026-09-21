@@ -37,10 +37,14 @@ interface IOPContractsManagerMigrationValidator {
     }
 
     struct MigrationValidationInput {
+        /// @notice Should be sourced in the same way as expectedShared below.
         IDisputeGameFactory dgf;
         ISystemConfig[] chainSystemConfigs;
         /// @notice Each chain's pre-migration contracts, must be in the same order as chainSystemConfigs.
         LegacyChainContracts[] legacyChainContracts;
+        /// @notice The caller MUST source these independently of the migration's resulting state,
+        ///         otherwise the validation is meaningless as it would validate the contracts
+        ///         against their own state.
         ExpectedSharedContracts expectedShared;
         ExpectedInitBond[] expectedInitBonds;
         Proposal startingAnchorRoot;
