@@ -6,6 +6,7 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 
+	"github.com/ethereum-optimism/optimism/op-core/interop"
 	messages "github.com/ethereum-optimism/optimism/op-core/interop/messages"
 )
 
@@ -39,6 +40,31 @@ var (
 	// message in the initiating chain's pre-activation or activation block.
 	ErrInitiatedTooEarly = errors.New("interop is not active for at least one block on the initiating chain")
 )
+
+// invalidMessageErrs lists the errors that the verification round treats as an invalid
+// executing message. Any other error from verifyExecutingMessage reports a local failure,
+// such as a log store read error, and must not make the executing block invalid.
+var invalidMessageErrs = []error{
+	ErrUnknownChain,
+	ErrChainNotInDependencySet,
+	ErrTimestampViolation,
+	ErrMessageExpired,
+	ErrExecutedTooEarly,
+	ErrInitiatedTooEarly,
+	interop.ErrConflict,
+	interop.ErrFuture,
+	interop.ErrSkipped,
+}
+
+// isInvalidMessageErr reports whether err proves that an executing message is invalid.
+func isInvalidMessageErr(err error) bool {
+	for _, invalid := range invalidMessageErrs {
+		if errors.Is(err, invalid) {
+			return true
+		}
+	}
+	return false
+}
 
 type blockPerChain = map[eth.ChainID]eth.BlockID
 
@@ -129,6 +155,13 @@ func (i *Interop) verifyInteropMessages(ts uint64, blocksAtTimestamp blockPerCha
 		for logIdx, execMsg := range execMsgs {
 			err := i.verifyExecutingMessage(chainID, blockRef.Time, logIdx, execMsg, view)
 			if err != nil {
+				if !isInvalidMessageErr(err) {
+					// A local failure, such as a log store read error, must not make the
+					// block invalid. Abort the round and retry it later, the same way an
+					// OpenBlock failure aborts it.
+					return Result{}, fmt.Errorf("chain %s: failed to verify executing message %d in block %d: %w",
+						chainID, logIdx, expectedBlock.Number, err)
+				}
 				i.log.Warn("invalid executing message",
 					"chain", chainID,
 					"block", expectedBlock.Number,
@@ -227,6 +260,9 @@ func (i *Interop) verifyExecutingMessage(executingChain eth.ChainID, executingTi
 	}
 
 	// Check if the initiating message exists in the source chain's logsDB
-	_, err := sourceDB.Contains(query)
-	return err
+	if _, err := sourceDB.Contains(query); err != nil {
+		return fmt.Errorf("initiating message chain %s block %d log %d: %w",
+			execMsg.ChainID, execMsg.BlockNum, execMsg.LogIdx, err)
+	}
+	return nil
 }

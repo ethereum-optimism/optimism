@@ -25,6 +25,68 @@ import (
 // TestVerifyInteropMessages - Table-Driven Tests
 // =============================================================================
 
+// errTestLogStorage stands for a local log store failure, such as a WAL read error
+// or a block-record decode error.
+var errTestLogStorage = errors.New("log storage read failed")
+
+// newSourceContainsErrCase builds a two-chain verifyInteropTestCase in which the source
+// chain's Contains call returns containsErr. The destination chain executes one message
+// from the source chain. Set abort to true when containsErr reports a local failure, so
+// the round must abort and leave the executing block valid. Set abort to false when
+// containsErr proves the executing message is invalid.
+func newSourceContainsErrCase(name string, containsErr error, abort bool) verifyInteropTestCase {
+	sourceChainID := eth.ChainIDFromUInt64(10)
+	destChainID := eth.ChainIDFromUInt64(8453)
+	destBlockHash := common.HexToHash("0xDest")
+	destBlock := eth.BlockID{Number: 100, Hash: destBlockHash}
+	l1Block := eth.BlockID{Number: 40, Hash: common.HexToHash("0xL1")}
+
+	tc := verifyInteropTestCase{
+		name: name,
+		setup: func() (*Interop, uint64, map[eth.ChainID]eth.BlockID) {
+			execMsg := &messages.ExecutingMessage{
+				ChainID:   sourceChainID,
+				BlockNum:  50,
+				LogIdx:    0,
+				Timestamp: 500,
+				Checksum:  messages.MessageChecksum{0x01},
+			}
+			sourceDB := &algoMockLogsDB{containsErr: containsErr}
+			destDB := &algoMockLogsDB{
+				openBlockRef:     eth.BlockRef{Hash: destBlockHash, Number: 100, Time: 1000},
+				openBlockExecMsg: map[uint32]*messages.ExecutingMessage{0: execMsg},
+			}
+			interop := &Interop{
+				messageExpiryWindow: defaultMessageExpiryWindow,
+				log:                 gethlog.New(),
+				logsDBs: map[eth.ChainID]LogsDB{
+					sourceChainID: sourceDB,
+					destChainID:   destDB,
+				},
+				chains: map[eth.ChainID]cc.InteropChain{
+					sourceChainID: newMockChainWithL1(sourceChainID, l1Block),
+					destChainID:   newMockChainWithL1(destChainID, l1Block, destBlock),
+				},
+			}
+			return interop, 1000, map[eth.ChainID]eth.BlockID{destChainID: destBlock}
+		},
+	}
+
+	if abort {
+		tc.expectError = true
+		tc.errorMsg = containsErr.Error()
+		tc.validate = func(t *testing.T, result Result) {
+			require.Empty(t, result.InvalidHeads, "a local failure must not invalidate a block")
+		}
+		return tc
+	}
+	tc.validate = func(t *testing.T, result Result) {
+		require.False(t, result.IsValid())
+		require.Contains(t, result.InvalidHeads, destChainID)
+	}
+	return tc
+}
+
 // newMockChainWithL1 creates a mock chain with the specified L1 block for OptimisticAt
 func newMockChainWithL1(chainID eth.ChainID, l1Block eth.BlockID, blocks ...eth.BlockID) *algoMockChain {
 	hashes := make(map[uint64]common.Hash, len(blocks))
@@ -799,55 +861,9 @@ func TestVerifyInteropMessages(t *testing.T) {
 				require.Equal(t, expectedBlock, result.InvalidHeads[chainID].BlockID)
 			},
 		},
-		{
-			name: "InvalidBlocks/InitiatingMessageNotFound",
-			setup: func() (*Interop, uint64, map[eth.ChainID]eth.BlockID) {
-				sourceChainID := eth.ChainIDFromUInt64(10)
-				destChainID := eth.ChainIDFromUInt64(8453)
-
-				destBlockHash := common.HexToHash("0xDest")
-				destBlock := eth.BlockID{Number: 100, Hash: destBlockHash}
-
-				execMsg := &messages.ExecutingMessage{
-					ChainID:   sourceChainID,
-					BlockNum:  50,
-					LogIdx:    0,
-					Timestamp: 500,
-					Checksum:  messages.MessageChecksum{0x01},
-				}
-
-				sourceDB := &algoMockLogsDB{
-					containsErr: interop.ErrConflict, // Message not found
-				}
-
-				destDB := &algoMockLogsDB{
-					openBlockRef: eth.BlockRef{Hash: destBlockHash, Number: 100, Time: 1000},
-					openBlockExecMsg: map[uint32]*messages.ExecutingMessage{
-						0: execMsg,
-					},
-				}
-
-				interop := &Interop{
-					messageExpiryWindow: defaultMessageExpiryWindow,
-					log:                 gethlog.New(),
-					logsDBs: map[eth.ChainID]LogsDB{
-						sourceChainID: sourceDB,
-						destChainID:   destDB,
-					},
-					chains: map[eth.ChainID]cc.InteropChain{
-						sourceChainID: newMockChainWithL1(sourceChainID, eth.BlockID{Number: 40, Hash: common.HexToHash("0xL1")}),
-						destChainID:   newMockChainWithL1(destChainID, eth.BlockID{Number: 40, Hash: common.HexToHash("0xL1")}, destBlock),
-					},
-				}
-
-				return interop, 1000, map[eth.ChainID]eth.BlockID{destChainID: destBlock}
-			},
-			validate: func(t *testing.T, result Result) {
-				destChainID := eth.ChainIDFromUInt64(8453)
-				require.False(t, result.IsValid())
-				require.Contains(t, result.InvalidHeads, destChainID)
-			},
-		},
+		newSourceContainsErrCase("InvalidBlocks/InitiatingMessageNotFound", interop.ErrConflict, false),
+		newSourceContainsErrCase("InvalidBlocks/InitiatingMessageNotIndexed", interop.ErrFuture, false),
+		newSourceContainsErrCase("InvalidBlocks/InitiatingMessagePruned", interop.ErrSkipped, false),
 		{
 			name: "InvalidBlocks/FutureTimestamp",
 			setup: func() (*Interop, uint64, map[eth.ChainID]eth.BlockID) {
@@ -900,6 +916,7 @@ func TestVerifyInteropMessages(t *testing.T) {
 				require.Contains(t, result.InvalidHeads, destChainID)
 			},
 		},
+		newSourceContainsErrCase("StorageError/InitiatingLogReadFails", errTestLogStorage, true),
 		{
 			name: "InvalidBlocks/UnknownSourceChain",
 			setup: func() (*Interop, uint64, map[eth.ChainID]eth.BlockID) {
