@@ -10,9 +10,19 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/retry"
 )
 
-// conductorSettleAttempts bounds the polling loops that wait for cluster-wide
-// conditions (leadership, sequencer active-state). Polls are 2s apart.
-const conductorSettleAttempts = 30
+const (
+	// conductorSettleAttempts bounds the polling loops that wait for cluster-wide
+	// conditions (leadership, sequencer active-state). Polls are 2s apart.
+	conductorSettleAttempts = 30
+
+	// Hashicorp Raft does not expose a sentinel for its leadership-transfer
+	// watchdog timeout, and JSON-RPC preserves only the error message.
+	raftLeadershipTransferTimeout = "leadership transfer timeout"
+)
+
+func isLeadershipTransferTimeout(err error) bool {
+	return err != nil && err.Error() == raftLeadershipTransferTimeout
+}
 
 type ConductorSet []*Conductor
 
@@ -316,8 +326,8 @@ func (c *Conductor) CallProxy(result any, method string, args ...any) error {
 }
 
 // waitForLeadership waits until this conductor's Raft leadership matches want.
-func (c *Conductor) waitForLeadership(want bool) {
-	err := retry.Do0(c.ctx, conductorSettleAttempts, retry.Fixed(2*time.Second), func() error {
+func (c *Conductor) waitForLeadership(want bool) error {
+	return retry.Do0(c.ctx, conductorSettleAttempts, retry.Fixed(2*time.Second), func() error {
 		leader, err := c.isLeader()
 		if err != nil {
 			return err
@@ -328,12 +338,12 @@ func (c *Conductor) waitForLeadership(want bool) {
 		}
 		return nil
 	})
-	c.require.NoErrorf(err, "conductor %s never reached leadership=%v", c, want)
 }
 
 // AwaitNotLeader waits until this conductor no longer reports Raft leadership.
 func (c *Conductor) AwaitNotLeader() {
-	c.waitForLeadership(false)
+	err := c.waitForLeadership(false)
+	c.require.NoErrorf(err, "conductor %s never reached leadership=false", c)
 }
 
 // TransferLeadership transfers Raft leadership to an unspecified eligible
@@ -346,10 +356,16 @@ func (c *Conductor) TransferLeadership(cluster ConductorSet) *Conductor {
 
 	ctx, cancel := context.WithTimeout(c.ctx, DefaultTimeout)
 	defer cancel()
-	err := c.inner.RpcAPI().TransferLeader(ctx)
-	c.require.NoErrorf(err, "failed to transfer leadership from %s", c)
+	requestErr := c.inner.RpcAPI().TransferLeader(ctx)
+	if isLeadershipTransferTimeout(requestErr) {
+		// TimeoutNow may already be in flight. Observe the cluster before deciding
+		// whether the one requested transfer succeeded.
+		c.log.Info("Leadership transfer request timed out; waiting for the cluster outcome", "from", c, "err", requestErr)
+	} else {
+		c.require.NoErrorf(requestErr, "failed to request leadership transfer from %s", c)
+	}
 
-	err = retry.Do0(c.ctx, conductorSettleAttempts, retry.Fixed(2*time.Second), func() error {
+	err := retry.Do0(c.ctx, conductorSettleAttempts, retry.Fixed(2*time.Second), func() error {
 		leader, _, err := cluster.leaderAndFollowers()
 		if err != nil {
 			return err
@@ -359,7 +375,7 @@ func (c *Conductor) TransferLeadership(cluster ConductorSet) *Conductor {
 		}
 		return nil
 	})
-	c.require.NoErrorf(err, "conductor %s never transferred leadership", c)
+	c.require.NoErrorf(err, "conductor %s never transferred leadership; request error: %v", c, requestErr)
 
 	next := cluster.AwaitOneActiveSequencer()
 	c.require.NotSame(c, next, "untargeted transfer returned sequencing to its source")
@@ -382,12 +398,21 @@ func (s ConductorSet) TransferLeadershipTo(source, target *Conductor) {
 	info := source.clusterMemberInfo(target.String())
 	ctx, cancel := context.WithTimeout(source.ctx, DefaultTimeout)
 	defer cancel()
-	err := source.inner.RpcAPI().TransferLeaderToServer(ctx, info.ID, info.Addr)
-	c.require.NoErrorf(err, "failed to transfer leadership from %s to %s", source, target)
+	requestErr := source.inner.RpcAPI().TransferLeaderToServer(ctx, info.ID, info.Addr)
+	if isLeadershipTransferTimeout(requestErr) {
+		// TimeoutNow may already be in flight. Observe the target before deciding
+		// whether the one requested transfer succeeded.
+		source.log.Info("Leadership transfer request timed out; waiting for the cluster outcome",
+			"from", source, "to", target, "err", requestErr)
+	} else {
+		c.require.NoErrorf(requestErr, "failed to request leadership transfer from %s to %s", source, target)
+	}
 
 	// First require the requested target to take leadership so an immediate
 	// pre-transfer sample cannot satisfy the cluster-wide waiter below.
-	target.waitForLeadership(true)
+	err := target.waitForLeadership(true)
+	c.require.NoErrorf(err, "leadership transfer from %s never reached target %s; request error: %v",
+		source, target, requestErr)
 	settled := s.AwaitOneActiveSequencer()
 	c.require.Same(target, settled,
 		"leadership transfer target must become the cluster's sole active sequencer")
