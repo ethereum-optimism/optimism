@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/ethereum-optimism/optimism/op-service/eth"
+	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/params"
 )
@@ -19,10 +20,15 @@ type (
 		SuggestGasPriceCaps(ctx context.Context) (tipCap *big.Int, baseFee *big.Int, blobTipCap *big.Int, blobBaseFee *big.Int, err error)
 	}
 
+	L1HeaderFetcher interface {
+		HeaderByNumber(ctx context.Context, number *big.Int) (*types.Header, error)
+	}
+
 	DynamicEthChannelConfig struct {
-		log       log.Logger
-		timeout   time.Duration // query timeout
-		gasPricer GasPricer
+		log             log.Logger
+		timeout         time.Duration // query timeout
+		gasPricer       GasPricer
+		l1HeaderFetcher L1HeaderFetcher
 
 		blobConfig     ChannelConfig
 		calldataConfig ChannelConfig
@@ -31,15 +37,16 @@ type (
 )
 
 func NewDynamicEthChannelConfig(lgr log.Logger,
-	reqTimeout time.Duration, gasPricer GasPricer,
+	reqTimeout time.Duration, gasPricer GasPricer, l1HeaderFetcher L1HeaderFetcher,
 	blobConfig ChannelConfig, calldataConfig ChannelConfig,
 ) *DynamicEthChannelConfig {
 	dec := &DynamicEthChannelConfig{
-		log:            lgr,
-		timeout:        reqTimeout,
-		gasPricer:      gasPricer,
-		blobConfig:     blobConfig,
-		calldataConfig: calldataConfig,
+		log:             lgr,
+		timeout:         reqTimeout,
+		gasPricer:       gasPricer,
+		l1HeaderFetcher: l1HeaderFetcher,
+		blobConfig:      blobConfig,
+		calldataConfig:  calldataConfig,
 	}
 	// start with blob config
 	dec.lastConfig = &dec.blobConfig
@@ -66,6 +73,12 @@ func (dec *DynamicEthChannelConfig) ChannelConfig(isThrottling bool) ChannelConf
 		dec.log.Warn("Error querying gas prices, returning last config", "err", err)
 		return *dec.lastConfig
 	}
+	l1Head, err := dec.l1HeaderFetcher.HeaderByNumber(ctx, nil)
+	if err != nil {
+		dec.log.Warn("Error querying L1 head, returning last config", "err", err)
+		return *dec.lastConfig
+	}
+	isAmsterdam := l1Head.BlockAccessListHash != nil
 
 	// Channels built for blobs have higher capacity than channels built for calldata.
 	// If we have a channel built for calldata, we want to switch to blobs if the cost per byte is lower. Doing so
@@ -74,16 +87,15 @@ func (dec *DynamicEthChannelConfig) ChannelConfig(isThrottling bool) ChannelConf
 	// will mean several new (full) channels will be built resulting in several calldata txs. We compute the cost per byte
 	// for a _single_ transaction in either case.
 
-	// We assume that compressed random channel data has few zeros so they can be ignored (in actuality,
-	// zero bytes are worth one token instead of four):
+	// Before Amsterdam, we assume that compressed random channel data has few zeros and price every
+	// byte as non-zero. Amsterdam charges the floor price equally for zero and non-zero bytes.
 	calldataBytesPerTx := dec.calldataConfig.MaxFrameSize + 1 // +1 for the version byte
-	tokensPerCalldataTx := uint64(calldataBytesPerTx * 4)
 	numBlobsPerTx := dec.blobConfig.TargetNumFrames
 
 	// Compute the total absolute cost of submitting either a single calldata tx or a single blob tx.
-	calldataCost, blobCost, oracleBlobCost := computeSingleCalldataTxCost(tokensPerCalldataTx, baseFee, tipCap),
-		computeSingleBlobTxCost(numBlobsPerTx, baseFee, tipCap, blobBaseFee),
-		computeSingleBlobTxCost(numBlobsPerTx, baseFee, blobTipCap, blobBaseFee)
+	calldataCost, blobCost, oracleBlobCost := computeSingleCalldataTxCost(uint64(calldataBytesPerTx), baseFee, tipCap, isAmsterdam),
+		computeSingleBlobTxCost(numBlobsPerTx, baseFee, tipCap, blobBaseFee, isAmsterdam),
+		computeSingleBlobTxCost(numBlobsPerTx, baseFee, blobTipCap, blobBaseFee, isAmsterdam)
 
 	oracleBlobSavings := oracleBlobCost.Cmp(blobCost) < 0
 
@@ -98,6 +110,7 @@ func (dec *DynamicEthChannelConfig) ChannelConfig(isThrottling bool) ChannelConf
 	ayf, bxf := new(big.Float).SetInt(ay), new(big.Float).SetInt(bx)
 	costRatio := new(big.Float).Quo(ayf, bxf)
 	lgr := dec.log.New("base_fee", baseFee, "blob_base_fee", blobBaseFee, "tip_cap", tipCap,
+		"amsterdam", isAmsterdam,
 		"calldata_bytes", calldataBytesPerTx, "calldata_cost", calldataCost,
 		"blob_data_bytes", blobDataBytesPerTx, "blob_cost", blobCost,
 		"oracle_blob_cost", oracleBlobCost,
@@ -114,22 +127,36 @@ func (dec *DynamicEthChannelConfig) ChannelConfig(isThrottling bool) ChannelConf
 	return dec.blobConfig
 }
 
-func computeSingleCalldataTxCost(numTokens uint64, baseFee, tipCap *big.Int) *big.Int {
-	// We assume isContractCreation = false and execution_gas_used = 0 in https://eips.ethereum.org/EIPS/eip-7623
-	// This is a safe assumption given how batcher transactions are constructed.
-	// Since Pectra is active on L1, we use the totalCostFloorPerToken (10) as the multiplier.
-	const totalCostFloorPerToken = 10
+const (
+	pectraCalldataFloorGasPerByte    = params.TxTokenPerNonZeroByte * params.TxCostFloorPerToken // EIP-7623
+	amsterdamTxBaseGas               = uint64(12_000 + 3_000)                                    // EIP-2780: TX_BASE_COST + COLD_ACCOUNT_ACCESS
+	amsterdamCalldataFloorGasPerByte = uint64(4 * 16)                                            // EIP-7976: 4 floor tokens per byte at 16 gas per token
+)
+
+func computeSingleCalldataTxCost(numBytes uint64, baseFee, tipCap *big.Int, isAmsterdam bool) *big.Int {
+	// Batch submissions send zero value to the code-less batch inbox, so their gas used is the
+	// transaction base plus the calldata floor.
+	txBaseGas := uint64(params.TxGas)
+	calldataGasPerByte := pectraCalldataFloorGasPerByte
+	if isAmsterdam {
+		txBaseGas = amsterdamTxBaseGas
+		calldataGasPerByte = amsterdamCalldataFloorGasPerByte
+	}
 
 	calldataPrice := new(big.Int).Add(baseFee, tipCap)
-	calldataGas := big.NewInt(int64(params.TxGas + numTokens*totalCostFloorPerToken))
+	calldataGas := new(big.Int).SetUint64(txBaseGas + numBytes*calldataGasPerByte)
 
 	return new(big.Int).Mul(calldataGas, calldataPrice)
 }
 
-func computeSingleBlobTxCost(numBlobs int, baseFee, tipCap, blobBaseFee *big.Int) *big.Int {
-	// There is no execution gas or contract creation cost for blob transactions
+func computeSingleBlobTxCost(numBlobs int, baseFee, tipCap, blobBaseFee *big.Int, isAmsterdam bool) *big.Int {
+	// Blob batch submissions have no calldata and send zero value to the code-less batch inbox.
+	txBaseGas := uint64(params.TxGas)
+	if isAmsterdam {
+		txBaseGas = amsterdamTxBaseGas
+	}
 	calldataPrice := new(big.Int).Add(baseFee, tipCap)
-	blobCalldataCost := new(big.Int).Mul(big.NewInt(int64(params.TxGas)), calldataPrice)
+	blobCalldataCost := new(big.Int).Mul(new(big.Int).SetUint64(txBaseGas), calldataPrice)
 
 	blobGas := big.NewInt(params.BlobTxBlobGasPerBlob * int64(numBlobs))
 	blobCost := new(big.Int).Mul(blobGas, blobBaseFee)

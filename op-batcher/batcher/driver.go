@@ -1035,10 +1035,6 @@ func maxFloorDataGas(data []byte) (uint64, error) {
 // NOTE: we can probably replace this function with core.FloorDataGas once our geth dependency
 // includes the Amsterdam calculation.
 func amsterdamFloorDataGas(data []byte) (uint64, error) {
-	const (
-		amsterdamTxBaseGas               = uint64(12_000 + 3_000) // EIP-2780: TX_BASE_COST + COLD_ACCOUNT_ACCESS
-		amsterdamCalldataFloorGasPerByte = uint64(64)             // EIP-7976: 4 tokens per byte at 16 gas per token
-	)
 	return addGas(amsterdamTxBaseGas, uint64(len(data)), amsterdamCalldataFloorGasPerByte)
 }
 

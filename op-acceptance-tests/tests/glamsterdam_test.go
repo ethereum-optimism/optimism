@@ -9,14 +9,20 @@ import (
 	"time"
 
 	"github.com/ethereum/go-ethereum/common"
+	gethtypes "github.com/ethereum/go-ethereum/core/types"
+	"github.com/ethereum/go-ethereum/params"
 	"github.com/ethereum/go-ethereum/params/forks"
 
 	"github.com/ethereum-optimism/optimism/op-acceptance-tests/tests/interop/loadtest"
+	"github.com/ethereum-optimism/optimism/op-batcher/batcher"
+	batcherflags "github.com/ethereum-optimism/optimism/op-batcher/flags"
+	"github.com/ethereum-optimism/optimism/op-chain-ops/devkeys"
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
 	"github.com/ethereum-optimism/optimism/op-devstack/dsl"
 	"github.com/ethereum-optimism/optimism/op-devstack/presets"
 	"github.com/ethereum-optimism/optimism/op-devstack/shared/rustbin"
 	"github.com/ethereum-optimism/optimism/op-devstack/sysgo"
+	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/intentbuilder"
 	"github.com/ethereum-optimism/optimism/op-service/bigs"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/eth/safety"
@@ -58,6 +64,39 @@ func TestSafeHeadAdvancesAcrossGlamsterdam(gt *testing.T) {
 
 	sys.L2EL.WaitL1OriginReached(eth.Safe, postForkL1.Number, 120)
 	sys.L2EL.WaitForGasUsed(eth.Safe, threshold, 2*time.Minute)
+}
+
+func TestAutoDAUsesBlobsWhenGlamsterdamMakesThemCheaper(gt *testing.T) {
+	t := devtest.ParallelT(gt)
+	sys := presets.NewMinimal(t,
+		glamsterdamL1Geth(t),
+		presets.WithDeployerOptions(
+			sysgo.WithForkAtL1Genesis(forks.Amsterdam),
+			withGlamsterdamAutoDABlobFee,
+		),
+		presets.WithBatcherOption(func(_ sysgo.ComponentTarget, cfg *batcher.CLIConfig) {
+			cfg.Stopped = true
+			cfg.DataAvailabilityType = batcherflags.AutoType
+			// Keep the execution-gas price deterministic. The configured blob base fee is
+			// cheaper only when the Amsterdam calldata floor is included.
+			cfg.TxMgrConfig.MinBaseFeeGwei = 1
+			cfg.TxMgrConfig.MaxBaseFeeGwei = 1
+			cfg.TxMgrConfig.MinTipCapGwei = 1
+			cfg.TxMgrConfig.MaxTipCapGwei = 1
+		}),
+	)
+
+	l1Config := sys.L1Network.Escape().ChainConfig()
+	t.Require().NotNil(l1Config.AmsterdamTime)
+	l1Genesis := sys.L1EL.BlockRefByNumber(0)
+	t.Require().LessOrEqual(*l1Config.AmsterdamTime, l1Genesis.Time,
+		"Glamsterdam must be active when the batcher compares DA costs")
+
+	lastL1Block := sys.L1EL.BlockRefByLabel(eth.Unsafe).Number
+	sys.L2Batcher.Start()
+	batchTx := sys.L2Chain.WaitForBatchTransaction(lastL1Block)
+	t.Require().Equal(uint8(gethtypes.BlobTxType), batchTx.Type(),
+		"auto DA must choose blobs when the Glamsterdam calldata floor makes them cheaper")
 }
 
 func TestGlamsterdamP2PUnsafeBlockBecomesSafe(gt *testing.T) {
@@ -106,6 +145,34 @@ func TestGlamsterdamP2PUnsafeBlockBecomesSafe(gt *testing.T) {
 	t.Require().Equal(stoppedUnsafeHash, sequencerUnsafe.Hash)
 	t.Require().Equal(sequencerUnsafe.ID(), verifierUnsafe.ID(),
 		"sequencer and verifier must finish on the same unsafe chain")
+}
+
+func withGlamsterdamAutoDABlobFee(_ devtest.T, _ devkeys.Keys, builder intentbuilder.Builder) {
+	// A 100 gwei blob base fee lies between the pre-Amsterdam and Amsterdam break-even
+	// points when the batcher's base fee and tip are each 1 gwei. Use a large update
+	// fraction so the fee stays in that range while the devstack starts.
+	const (
+		blobBaseFeeUpdateFraction = uint64(1_000_000_000)
+		genesisExcessBlobGas      = uint64(25_328_436_000)
+	)
+	stableBlobConfig := &params.BlobConfig{
+		Target:         params.DefaultBPO4BlobConfig.Target,
+		Max:            params.DefaultBPO4BlobConfig.Max,
+		UpdateFraction: blobBaseFeeUpdateFraction,
+	}
+	builder.L1().
+		WithL1BlobSchedule(&params.BlobScheduleConfig{
+			Cancun:    params.DefaultCancunBlobConfig,
+			Prague:    params.DefaultPragueBlobConfig,
+			Osaka:     params.DefaultOsakaBlobConfig,
+			BPO1:      params.DefaultBPO1BlobConfig,
+			BPO2:      params.DefaultBPO2BlobConfig,
+			BPO3:      params.DefaultBPO3BlobConfig,
+			BPO4:      params.DefaultBPO4BlobConfig,
+			BPO5:      stableBlobConfig,
+			Amsterdam: stableBlobConfig,
+		}).
+		WithExcessBlobGas(genesisExcessBlobGas)
 }
 
 func glamsterdamL1Geth(t devtest.T) presets.Option {
