@@ -10,6 +10,8 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
+	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/stretchr/testify/require"
 )
 
@@ -28,6 +30,22 @@ func (gp *mockGasPricer) SuggestGasPriceCaps(context.Context) (tipCap *big.Int, 
 	return big.NewInt(gp.tipCap), big.NewInt(gp.baseFee), big.NewInt(gp.blobTipCap), big.NewInt(gp.blobBaseFee), nil
 }
 
+type mockL1HeaderFetcher struct {
+	err         error
+	isAmsterdam bool
+}
+
+func (f *mockL1HeaderFetcher) HeaderByNumber(context.Context, *big.Int) (*types.Header, error) {
+	if f.err != nil {
+		return nil, f.err
+	}
+	header := new(types.Header)
+	if f.isAmsterdam {
+		header.BlockAccessListHash = new(common.Hash)
+	}
+	return header, nil
+}
+
 func TestDynamicEthChannelConfig_ChannelConfig(t *testing.T) {
 	calldataCfg := ChannelConfig{
 		MaxFrameSize:    120_000 - 1,
@@ -39,12 +57,12 @@ func TestDynamicEthChannelConfig_ChannelConfig(t *testing.T) {
 		UseBlobs:        true,
 	}
 
-	// Since Pectra is now always active on L1, we only test with Pectra pricing (totalCostFloorPerToken = 10)
 	tests := []struct {
 		name         string
 		tipCap       int64
 		baseFee      int64
 		blobBaseFee  int64
+		isAmsterdam  bool
 		wantCalldata bool
 		isThrottling bool
 	}{
@@ -55,16 +73,31 @@ func TestDynamicEthChannelConfig_ChannelConfig(t *testing.T) {
 			blobBaseFee: 1,
 		},
 		{
-			name:        "close-cheaper-blobs",
+			name:        "close-cheaper-blobs-before-amsterdam",
 			tipCap:      1e3,
 			baseFee:     1e6,
-			blobBaseFee: 398e5, // this value just under the equilibrium point for 3 blobs
+			blobBaseFee: 398e5, // this value is just under the pre-Amsterdam equilibrium point for 3 blobs
 		},
 		{
-			name:         "close-cheaper-calldata",
+			name:         "close-cheaper-calldata-before-amsterdam",
 			tipCap:       1e3,
 			baseFee:      1e6,
-			blobBaseFee:  399e5, // this value just over the equilibrium point for 3 blobs
+			blobBaseFee:  399e5, // this value is just over the pre-Amsterdam equilibrium point for 3 blobs
+			wantCalldata: true,
+		},
+		{
+			name:        "close-cheaper-blobs-after-amsterdam",
+			tipCap:      1e3,
+			baseFee:     1e6,
+			blobBaseFee: 636e5, // this value is just under the Amsterdam equilibrium point for 3 blobs
+			isAmsterdam: true,
+		},
+		{
+			name:         "close-cheaper-calldata-after-amsterdam",
+			tipCap:       1e3,
+			baseFee:      1e6,
+			blobBaseFee:  637e5, // this value is just over the Amsterdam equilibrium point for 3 blobs
+			isAmsterdam:  true,
 			wantCalldata: true,
 		},
 		{
@@ -91,7 +124,8 @@ func TestDynamicEthChannelConfig_ChannelConfig(t *testing.T) {
 				baseFee:     tt.baseFee,
 				blobBaseFee: tt.blobBaseFee,
 			}
-			dec := NewDynamicEthChannelConfig(lgr, 1*time.Second, gp, blobCfg, calldataCfg)
+			headerFetcher := &mockL1HeaderFetcher{isAmsterdam: tt.isAmsterdam}
+			dec := NewDynamicEthChannelConfig(lgr, 1*time.Second, gp, headerFetcher, blobCfg, calldataCfg)
 			cc := dec.ChannelConfig(tt.isThrottling)
 			if tt.wantCalldata {
 				require.Equal(t, cc, calldataCfg)
@@ -113,7 +147,8 @@ func TestDynamicEthChannelConfig_ChannelConfig(t *testing.T) {
 			blobBaseFee: 1e6, // should return calldata cfg without error
 			err:         errors.New("gp-error"),
 		}
-		dec := NewDynamicEthChannelConfig(lgr, 1*time.Second, gp, blobCfg, calldataCfg)
+		headerFetcher := new(mockL1HeaderFetcher)
+		dec := NewDynamicEthChannelConfig(lgr, 1*time.Second, gp, headerFetcher, blobCfg, calldataCfg)
 		require.Equal(t, dec.ChannelConfig(false), blobCfg)
 		require.NotNil(t, ch.FindLog(
 			testlog.NewLevelFilter(slog.LevelWarn),
@@ -133,20 +168,47 @@ func TestDynamicEthChannelConfig_ChannelConfig(t *testing.T) {
 			testlog.NewLevelFilter(slog.LevelWarn),
 			testlog.NewMessageContainsFilter("returning last config"),
 		))
+
+		gp.err = nil
+		headerFetcher.err = errors.New("header-error")
+		require.Equal(t, dec.ChannelConfig(false), calldataCfg)
+		require.NotNil(t, ch.FindLog(
+			testlog.NewLevelFilter(slog.LevelWarn),
+			testlog.NewMessageContainsFilter("Error querying L1 head"),
+		))
 	})
 }
 
 func TestComputeSingleCalldataTxCost(t *testing.T) {
-	// 30KB of data - since Pectra is active, we use totalCostFloorPerToken = 10
-	got := computeSingleCalldataTxCost(120_000, big.NewInt(1), big.NewInt(1))
-	require.Equal(t, big.NewInt(2_442_000), got) // (21_000 + 10*120_000) * (1+1)
+	tests := []struct {
+		name        string
+		isAmsterdam bool
+		want        *big.Int
+	}{
+		{name: "pectra", want: big.NewInt(2_442_000)},                       // (21_000 + 40*30_000) * (1+1)
+		{name: "amsterdam", isAmsterdam: true, want: big.NewInt(3_870_000)}, // (15_000 + 64*30_000) * (1+1)
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := computeSingleCalldataTxCost(30_000, big.NewInt(1), big.NewInt(1), tt.isAmsterdam)
+			require.Equal(t, tt.want, got)
+		})
+	}
 }
 
 func TestComputeSingleBlobTxCost(t *testing.T) {
-	// This tx submits 655KB of data (21x the calldata example above)
-	// Setting blobBaseFee to 16x (baseFee + tipCap) gives a cost which is ~21x higher
-	// than the calldata example, showing the rough equilibrium point
-	// of the two DA markets.
-	got := computeSingleBlobTxCost(5, big.NewInt(1), big.NewInt(1), big.NewInt(32))
-	require.Equal(t, big.NewInt(21_013_520), got) // 21_000 * (1+1) + 131_072*5*32
+	tests := []struct {
+		name        string
+		isAmsterdam bool
+		want        *big.Int
+	}{
+		{name: "pectra", want: big.NewInt(21_013_520)},                       // 21_000 * (1+1) + 131_072*5*32
+		{name: "amsterdam", isAmsterdam: true, want: big.NewInt(21_001_520)}, // 15_000 * (1+1) + 131_072*5*32
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := computeSingleBlobTxCost(5, big.NewInt(1), big.NewInt(1), big.NewInt(32), tt.isAmsterdam)
+			require.Equal(t, tt.want, got)
+		})
+	}
 }

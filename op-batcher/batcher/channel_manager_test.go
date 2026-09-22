@@ -314,6 +314,7 @@ func newFakeDynamicEthChannelConfig(lgr log.Logger,
 			lgr,
 			reqTimeout,
 			&mockGasPricer{},
+			new(mockL1HeaderFetcher),
 			blobCfg,
 			calldataCfg),
 	}
