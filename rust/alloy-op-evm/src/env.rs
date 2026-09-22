@@ -124,7 +124,7 @@ pub fn evm_env_for_op_next_block(
 ///
 /// Copies upstream environment construction with OP fork mapping and blob semantics. Upstream
 /// sets `cfg_env.tx_gas_limit_cap` explicitly at Osaka; this leaves it unset and relies on revm's
-/// spec-derived EIP-7825 fallback, which `OpEvm::transact_raw` lifts for deposits.
+/// spec-derived EIP-7825 fallback, which `OpHandler::tx_gas` lifts for deposits.
 fn evm_env_for_op(
     input: EvmEnvInput,
     chain_spec: impl OpHardforks,

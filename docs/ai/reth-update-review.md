@@ -113,7 +113,9 @@ checked for:
 **Asymmetry worth knowing:** `OpHandler` does *not* override `validate_initial_tx_gas`, so
 deposits still get the intrinsic-gas, EIP-7623 floor and EIP-8037 regular-gas checks. Skipping
 `validate_env` is not the same as skipping validation — check which one a given upstream
-assumption is enforced by.
+assumption is enforced by. The cap does not bind a deposit's *execution* either:
+`OpHandler::tx_gas` splits a deposit's gas limit with the cap lifted, so the whole limit is
+regular gas and the EIP-8037 reservoir is empty.
 
 **2. Deposits take a separate `validate_against_state_and_deduct_caller` branch.**
 Same file. Relative to the upstream body, the deposit arm skips

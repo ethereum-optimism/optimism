@@ -208,8 +208,8 @@ fn try_trace_many_covers_every_tx_in_a_post_exec_block() {
 }
 
 /// EIP-7825 caps a transaction's gas limit, and a transaction above the cap is rejected before
-/// it executes. The deposit exemption in `transact_raw` is scoped to the deposit that carries
-/// it and must leave that rule intact for every other transaction.
+/// it executes. The deposit exemption in `OpHandler::tx_gas` must leave that rule intact for
+/// every other transaction.
 #[test]
 fn non_deposit_above_tx_gas_limit_cap_is_rejected() {
     let caller = Address::ZERO;
@@ -251,14 +251,12 @@ fn cold_sload_burner_runtime() -> Bytes {
 }
 
 /// Deposits are force-included from L1 and must not be clamped by the EIP-7825 per-transaction
-/// gas cap, so `transact_raw` lifts the cap for the duration of a deposit.
+/// gas cap. The exemption lives in `OpHandler::tx_gas`; this pins that `OpEvm::transact_raw`
+/// reaches it without cap handling of its own.
 ///
-/// The cap is not enforced by a rejection on this path — deposits skip `validate_env`, which is
-/// where `TxGasLimitGreaterThanCap` is raised — so the exemption is only observable in how much
-/// gas the first frame actually receives: `initial_gas_and_reservoir` splits the limit at
-/// `min(gas_limit, cap)`, and OP does not override the `validate_initial_tx_gas` path that feeds
-/// it. This test therefore measures execution, not the error type: the deposit runs a payload
-/// that costs more than the capped budget and must still complete.
+/// Deposits skip `validate_env`, where `TxGasLimitGreaterThanCap` is raised, so there is no
+/// rejection to observe. The test measures execution instead: a payload costing more than the
+/// capped budget must still complete.
 #[test]
 fn deposit_above_tx_gas_limit_cap_receives_the_full_gas_limit() {
     let caller = Address::ZERO;
@@ -312,48 +310,8 @@ fn deposit_above_tx_gas_limit_cap_receives_the_full_gas_limit() {
         result.result.tx_gas_used(),
     );
 
-    // The exemption is scoped to the deposit: the previous cap must be back afterwards.
+    // The exemption must not touch the shared cfg.
     assert_eq!(evm.inner.0.ctx.cfg.tx_gas_limit_cap, Some(CAP));
-}
-
-/// The cap is saved and restored around a deposit as an `Option<Option<u64>>`, so it must
-/// round-trip whichever resting state the field is in — including `None`, which is the
-/// production shape (the env builder leaves the raw field unset and lets revm derive the
-/// effective cap from the spec).
-#[test]
-fn deposit_cap_exemption_round_trips_every_resting_state() {
-    let caller = Address::ZERO;
-    let target = Address::from([0x55; 20]);
-
-    for resting in [None, Some(TX_GAS_LIMIT_CAP), Some(u64::MAX)] {
-        let mut cfg = CfgEnv::new_with_spec(OpSpecId::KARST);
-        cfg.tx_gas_limit_cap = resting;
-        let mut evm = OpEvmFactory::<OpTx>::default().create_evm(
-            EmptyDB::default(),
-            EvmEnv::new(cfg, BlockEnv { gas_limit: 60_000_000, ..Default::default() }),
-        );
-
-        let deposit = OpTx(OpTransaction {
-            base: TxEnv {
-                gas_limit: 100_000,
-                kind: TxKind::Call(target),
-                caller,
-                ..Default::default()
-            },
-            enveloped_tx: None,
-            deposit: op_revm::transaction::deposit::DepositTransactionParts::new(
-                B256::from([0x22; 32]),
-                None,
-                false,
-            ),
-        });
-        evm.transact_raw(deposit).expect("deposit executes");
-
-        assert_eq!(
-            evm.inner.0.ctx.cfg.tx_gas_limit_cap, resting,
-            "cap must be restored to its resting state {resting:?}",
-        );
-    }
 }
 
 #[test]
