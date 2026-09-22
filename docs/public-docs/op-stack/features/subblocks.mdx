@@ -71,7 +71,7 @@ Five consequences matter if you read the stream directly:
 *   **Read it from `diff`, and expect it to change.** Successive subblocks of the same `payload_id` may each carry a different `post_exec_tx`.
 *   **It is omitted when the block has no post-execution transaction yet.** The field is absent rather than null, that is not an error, and a later subblock may introduce it.
 *   **Only the last subblock's value is the one that lands in the block.** The stream marks no subblock as the last, and the number of subblocks per block varies, so do not treat any value as final until you know the block was sealed — for example when the next `payload_id` begins, or when you see the sealed block.
-*   **`transactions` may be empty.** A subblock can carry only an updated diff and `post_exec_tx`. Treat `"transactions": []` as ordinary, not as an error or as "nothing changed".
+*   **`transactions` may be empty.** A subblock is published every round even when no transaction was added, so quiet rounds arrive as a heartbeat carrying only an updated diff and `post_exec_tx`. Treat `"transactions": []` as ordinary, not as an error or as "nothing changed". The first subblock is the exception: it always carries at least the block's deposit transactions.
 *   **No receipt for it is streamed.** `metadata.receipts` covers the transactions in `diff.transactions` only. Fetch the post-execution transaction's receipt from the sealed block.
 
 Because the stream withholds it, concatenating `diff.transactions` across a block's subblocks gives you the sealed block's transaction list minus its final `0x7D` transaction.
