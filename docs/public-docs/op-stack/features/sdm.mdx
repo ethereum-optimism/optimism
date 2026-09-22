@@ -80,7 +80,7 @@ gossip, so mempool and transaction pool interfaces are unchanged.
 | An application | Usually nothing. A transaction's `gasUsed` is already the canonical amount it was charged, and `opGasRefund` is there if you want to show the rebate. |
 | A block explorer, indexer, or anything else that parses blocks and receipts | Check how you handle an unrecognized transaction type before Lagoon reaches a chain you follow. |
 
-That last row is the one that bites. A block may now end in a transaction type your decoder has
+Further detail on the last row: A block may now end in a transaction type your decoder has
 never seen: `from` is the zero address, the signature fields are absent rather than zeroed, and it
 emits its own receipt with everything charged set to zero. That is enough to break a strict decoder
 or to surface as a malformed row. Gas totals are worth re-checking too — summing per-transaction
