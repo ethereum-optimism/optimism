@@ -134,9 +134,8 @@ func (i *Interop) verifyInteropMessages(ts uint64, blocksAtTimestamp blockPerCha
 			err := i.verifyExecutingMessage(chainID, blockRef.Time, logIdx, execMsg, view)
 			if err != nil {
 				if !errors.Is(err, ErrInvalidMessage) {
-					// A local failure, such as a log store read error, must not make the
-					// block invalid. Abort the round and retry it later, the same way an
-					// OpenBlock failure aborts it.
+					// A local failure, not an indication the message is invalid.
+					// Abort the round and retry it later.
 					return Result{}, fmt.Errorf("chain %s: failed to verify executing message %d in block %d: %w",
 						chainID, logIdx, expectedBlock.Number, err)
 				}
@@ -239,9 +238,6 @@ func (i *Interop) verifyExecutingMessage(executingChain eth.ChainID, executingTi
 
 	// Check if the initiating message exists in the source chain's logsDB.
 	if _, err := sourceDB.Contains(query); err != nil {
-		// The logsDB seals timestamps contiguously to the last accepted one, the frontier
-		// view covers the current timestamp, and backfill covers one expiry window below
-		// the first verified timestamp. So a message the logsDB cannot produce does not exist.
 		if !errors.Is(err, interop.ErrDatabaseFailure) {
 			err = fmt.Errorf("%w: %w", ErrInvalidMessage, err)
 		}

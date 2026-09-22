@@ -17,7 +17,6 @@ import (
 )
 
 // LogsDB is the interface for interacting with a chain's logs database.
-// *raftwallogdb.DB is the only implementation.
 //
 // Error contract for the read methods: an error that wraps interop.ErrDatabaseFailure
 // reports an infrastructure fault, such as an I/O error or a corrupt record. It says

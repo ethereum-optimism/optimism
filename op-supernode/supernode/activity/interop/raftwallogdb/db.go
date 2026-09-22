@@ -198,8 +198,7 @@ func (d *DB) refreshCache() error {
 	return d.hidePreVirtualParentLayout()
 }
 
-// readBlockAt fetches the block record at the given raft-wal index. Both failure
-// modes are infrastructure faults, so both carry interop.ErrDatabaseFailure.
+// readBlockAt fetches the block record at the given raft-wal index.
 func (d *DB) readBlockAt(idx uint64) (blockRecord, error) {
 	var log raft.Log
 	if err := d.w.GetLog(idx, &log); err != nil {
