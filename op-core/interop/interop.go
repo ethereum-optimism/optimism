@@ -46,6 +46,9 @@ var (
 	ErrUninitialized = errors.New("uninitialized chain database")
 	// ErrFailsafeEnabled is when failsafe is enabled and the request is rejected
 	ErrFailsafeEnabled = errors.New("failsafe is enabled, rejecting all CheckAccessList requests")
+	// ErrDatabaseFailure happens when a database operation fails for an infrastructure
+	// reason, such as an I/O error or a corrupt record.
+	ErrDatabaseFailure = errors.New("database failure")
 )
 
 var genericInvalidParamsErr = -32602

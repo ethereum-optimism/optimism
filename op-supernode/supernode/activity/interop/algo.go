@@ -6,6 +6,7 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 
+	"github.com/ethereum-optimism/optimism/op-core/interop"
 	messages "github.com/ethereum-optimism/optimism/op-core/interop/messages"
 )
 
@@ -14,30 +15,33 @@ import (
 // The actual value used is read from the dependency set at construction time.
 const defaultMessageExpiryWindow uint64 = 604800
 
+// ErrInvalidMessage is the base for every error that proves an executing message invalid.
+var ErrInvalidMessage = errors.New("invalid executing message")
+
 var (
 	// ErrUnknownChain is returned when an executing message references
 	// a chain that is not registered with the interop activity.
-	ErrUnknownChain = errors.New("unknown chain")
+	ErrUnknownChain = fmt.Errorf("%w: unknown chain", ErrInvalidMessage)
 
 	// ErrChainNotInDependencySet is returned when either side of an executing
 	// message references a chain outside the dependency set.
-	ErrChainNotInDependencySet = errors.New("chain not in dependency set")
+	ErrChainNotInDependencySet = fmt.Errorf("%w: chain not in dependency set", ErrInvalidMessage)
 
 	// ErrTimestampViolation is returned when an executing message references
 	// an initiating message with a timestamp > the executing message's timestamp.
-	ErrTimestampViolation = errors.New("initiating message timestamp must not be greater than executing message timestamp")
+	ErrTimestampViolation = fmt.Errorf("%w: initiating message timestamp must not be greater than executing message timestamp", ErrInvalidMessage)
 
 	// ErrMessageExpired is returned when an executing message references
 	// an initiating message that has expired (older than the message expiry window).
-	ErrMessageExpired = errors.New("initiating message has expired")
+	ErrMessageExpired = fmt.Errorf("%w: initiating message has expired", ErrInvalidMessage)
 
 	// ErrExecutedTooEarly is returned when an executing message is in the executing chain's
 	// pre-activation or activation block.
-	ErrExecutedTooEarly = errors.New("interop is not active for at least one block on the executing chain")
+	ErrExecutedTooEarly = fmt.Errorf("%w: interop is not active for at least one block on the executing chain", ErrInvalidMessage)
 
 	// ErrInitiatedTooEarly is returned when an executing message references an initiating
 	// message in the initiating chain's pre-activation or activation block.
-	ErrInitiatedTooEarly = errors.New("interop is not active for at least one block on the initiating chain")
+	ErrInitiatedTooEarly = fmt.Errorf("%w: interop is not active for at least one block on the initiating chain", ErrInvalidMessage)
 )
 
 type blockPerChain = map[eth.ChainID]eth.BlockID
@@ -129,6 +133,12 @@ func (i *Interop) verifyInteropMessages(ts uint64, blocksAtTimestamp blockPerCha
 		for logIdx, execMsg := range execMsgs {
 			err := i.verifyExecutingMessage(chainID, blockRef.Time, logIdx, execMsg, view)
 			if err != nil {
+				if !errors.Is(err, ErrInvalidMessage) {
+					// A local failure, not an indication the message is invalid.
+					// Abort the round and retry it later.
+					return Result{}, fmt.Errorf("chain %s: failed to verify executing message %d in block %d: %w",
+						chainID, logIdx, expectedBlock.Number, err)
+				}
 				i.log.Warn("invalid executing message",
 					"chain", chainID,
 					"block", expectedBlock.Number,
@@ -226,7 +236,13 @@ func (i *Interop) verifyExecutingMessage(executingChain eth.ChainID, executingTi
 		}
 	}
 
-	// Check if the initiating message exists in the source chain's logsDB
-	_, err := sourceDB.Contains(query)
-	return err
+	// Check if the initiating message exists in the source chain's logsDB.
+	if _, err := sourceDB.Contains(query); err != nil {
+		if !errors.Is(err, interop.ErrDatabaseFailure) {
+			err = fmt.Errorf("%w: %w", ErrInvalidMessage, err)
+		}
+		return fmt.Errorf("initiating message chain %s block %d log %d: %w",
+			execMsg.ChainID, execMsg.BlockNum, execMsg.LogIdx, err)
+	}
+	return nil
 }

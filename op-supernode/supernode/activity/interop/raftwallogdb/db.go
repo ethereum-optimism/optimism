@@ -202,9 +202,15 @@ func (d *DB) refreshCache() error {
 func (d *DB) readBlockAt(idx uint64) (blockRecord, error) {
 	var log raft.Log
 	if err := d.w.GetLog(idx, &log); err != nil {
-		return blockRecord{}, fmt.Errorf("GetLog(%d): %w", idx, err)
+		return blockRecord{}, fmt.Errorf("%w: GetLog(idx %d, block %d): %w",
+			interop.ErrDatabaseFailure, idx, blockNumFor(idx), err)
 	}
-	return decodeBlockRecord(log.Data)
+	rec, err := decodeBlockRecord(log.Data)
+	if err != nil {
+		return blockRecord{}, fmt.Errorf("%w: decode block record at idx %d (block %d): %w",
+			interop.ErrDatabaseFailure, idx, blockNumFor(idx), err)
+	}
+	return rec, nil
 }
 
 func (d *DB) LatestSealedBlock() (eth.BlockID, bool) {
@@ -260,11 +266,7 @@ func (d *DB) OpenBlock(blockNum uint64) (eth.BlockRef, uint32, map[uint32]*messa
 	if blockNum < d.firstBlock {
 		return eth.BlockRef{}, 0, nil, interop.ErrSkipped
 	}
-	var log raft.Log
-	if err := d.w.GetLog(indexFor(blockNum), &log); err != nil {
-		return eth.BlockRef{}, 0, nil, fmt.Errorf("GetLog(%d): %w", blockNum, err)
-	}
-	rec, err := decodeBlockRecord(log.Data)
+	rec, err := d.readBlockAt(indexFor(blockNum))
 	if err != nil {
 		return eth.BlockRef{}, 0, nil, err
 	}
@@ -298,11 +300,7 @@ func (d *DB) Contains(query messages.ContainsQuery) (messages.BlockSeal, error) 
 		return messages.BlockSeal{}, interop.ErrSkipped
 	}
 
-	var log raft.Log
-	if err := d.w.GetLog(indexFor(query.BlockNum), &log); err != nil {
-		return messages.BlockSeal{}, fmt.Errorf("GetLog(%d): %w", query.BlockNum, err)
-	}
-	rec, err := decodeBlockRecord(log.Data)
+	rec, err := d.readBlockAt(indexFor(query.BlockNum))
 	if err != nil {
 		return messages.BlockSeal{}, err
 	}
