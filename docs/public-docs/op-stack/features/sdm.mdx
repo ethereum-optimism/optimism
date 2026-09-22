@@ -44,8 +44,8 @@ the full validity rules, see the
 
 ## What `gasUsed` means under SDM
 
-The consequence worth internalizing is that for a rebated transaction, the EVM's measurement and
-the chain's accounting come apart. The receipt's gas-used field reports the **canonical** gas: what
+For a rebated transaction, the EVM's measurement and the chain's accounting come apart. The
+receipt's gas-used field reports the **canonical** gas: what
 the EVM measured, minus the refund. That is also what the block's `gasUsed` sums. A refund can
 never exceed what the EVM measured, so canonical gas is never negative.
 

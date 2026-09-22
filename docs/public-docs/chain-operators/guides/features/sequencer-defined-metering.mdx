@@ -25,14 +25,14 @@ apply to you.
 
 ## Chain operator opt-in
 
-Sequencers append a post-exec transaction only when two separate things are true: Lagoon is active
-at the block's timestamp, and the operator has opted in on that node. If either is false, the node
-builds blocks under legacy gas accounting and appends nothing.
+A sequencer appends a post-exec transaction only if Lagoon is active at the block's timestamp and
+the operator has opted in on that node. If either is false, the node builds blocks under legacy
+gas accounting and appends nothing.
 
-The opt-in can be set before or after Lagoon. It does nothing until Lagoon activates, so there is
-no need to time it and nothing to change at activation itself.
+The opt-in can be set before or after Lagoon, and does nothing until Lagoon activates. You do not
+have to time it, and nothing needs changing at the activation itself.
 
-Three surfaces set it:
+It can be set three ways:
 
 | Surface | Value | Notes |
 |---|---|---|
@@ -40,10 +40,9 @@ Three surfaces set it:
 | `OP_RETH_OPERATOR_SDM_OPT_IN` | `true` / `false` | Environment binding for the same flag. |
 | `admin_setOperatorSdmOptIn` | `true` / `false` | Admin RPC. Applies to the next produced block, no restart. |
 
-The value set over RPC lives in process memory and is not persisted. A restart loses it, and a
-standby sequencer taking over starts from whatever its own configuration says. Put the value you
-want to survive a restart in the CLI flag or environment variable, and use the RPC when you need
-to change it without one.
+The RPC only changes the value in memory. A restart loses it, and a standby sequencer that takes
+over starts from its own configuration. Set the CLI flag or environment variable for the value you
+want to stick, and use the RPC when you need to change it without restarting.
 
 ## Confirming which gate is holding
 
@@ -59,8 +58,8 @@ current time. On a sequencer that has opted in while Lagoon is still unscheduled
 }
 ```
 
-`effective` is the AND of the two gates, and is the field that answers "is this node producing
-rebates". `activationTime` is the Lagoon activation timestamp once one is scheduled, and `null`
+`effective` is the AND of the two gates, and is the field that tells you whether the node is
+producing rebates. `activationTime` is the Lagoon activation timestamp once one is scheduled, and `null`
 before that.
 
 To inspect a receipt produced by an SDM-enabled sequencer:
@@ -83,9 +82,9 @@ To stop a sequencer issuing rebates:
 3. Set `OP_RETH_OPERATOR_SDM_OPT_IN=false` (or the CLI flag) in the deployment, or a restart will
    turn it back on.
 
-Only what the sequencer builds from that point changes. Post-exec transactions already in the chain
-stay valid and verifiers keep validating them, so there is nothing to coordinate with verifier
-operators and no config or hardfork change involved.
+This only affects blocks the sequencer builds from then on. Post-exec transactions already in the
+chain stay valid and verifiers keep validating them, so there is nothing to coordinate with
+verifier operators and no config or hardfork change to make.
 
 ## Stock `op-reth` production behavior
 
@@ -97,10 +96,10 @@ stock `op-reth`.
 
 ## Refund policies and OP Enterprise
 
-SDM policies are tuned to your chain's needs and are a premium feature for OP Enterprise customers.
-The types of refund policy vary between chain sequencers, and their unique policies determine which
-transactions receive rebates and by how much. If you are interested in becoming an OP Enterprise
-customer, [contact the OP Enterprise team](https://optimism.io/learn-more).
+Refund policies are tuned to a chain's needs, and are a premium feature for OP Enterprise
+customers. The policy is what decides which transactions get rebated and by how much, so it varies
+from sequencer to sequencer. If you are interested in becoming an OP Enterprise customer,
+[contact the OP Enterprise team](https://optimism.io/learn-more).
 
 ## Debug replay
 
