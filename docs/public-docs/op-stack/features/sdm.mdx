@@ -1,0 +1,111 @@
+---
+title: "Sequencer Defined Metering"
+description: "Understand how Sequencer Defined Metering lets a sequencer rebate gas, how the rebate is committed and verified, and what changes for nodes and applications at Lagoon."
+diataxis: explanation
+---
+
+import { NormativeSpec } from "/snippets/normative-spec.mdx"
+
+<NormativeSpec
+  what="Sequencer Defined Metering"
+  title="Sequencer-Defined Metering specification"
+  href="https://specs.optimism.io/protocol/lagoon/sdm.html"
+  note="This page explains the mechanism and what it changes for node operators and applications; it does not restate the spec. The Lagoon spec is not yet finalized."
+/>
+
+<Warning>
+  SDM is not live on any chain. It activates with the [Lagoon hardfork](/op-stack/protocol/hardforks/lagoon).
+</Warning>
+
+*Sequencer Defined Metering (SDM)* lets a sequencer charge a transaction less gas than the EVM
+measured, and commit that decision in the block so every verifier reproduces it.
+
+The gas schedule is uniform: a transaction pays the same for an operation whether or not an earlier
+transaction in the same block already paid for it. SDM gives the sequencer a way to hand some of
+that back. The chain keeps a single canonical answer for what each transaction was charged, because
+the rebate is block data that verifiers apply rather than a policy they re-derive.
+
+This page explains what the mechanism does and what it changes for the people running or building
+on a chain. To turn SDM on or off as a chain operator, follow the
+[SDM operator guide](/chain-operators/guides/features/sequencer-defined-metering).
+
+## How a rebate is committed
+
+A sequencer that issues rebates appends a single **post-exec transaction** (type `0x7D`) as the
+last transaction in the block. It is not executed as code, charges no fees and consumes no gas. It
+carries an RLP payload of transaction index and gas refund pairs — only non-zero refunds, ordered
+by index.
+
+The envelope is generic; SDM is its first payload schema (`version = 1`). If the sequencer assigns
+no refunds, the block simply has no post-exec transaction.
+
+Two kinds of transaction can never be rebated:
+
+| Kind | Why not |
+| --- | --- |
+| Deposits (`0x7E`) | Gas is bought on L1, so there is no L2 gas price to refund. |
+| The post-exec transaction (`0x7D`) | It carries data only and uses no gas. |
+
+## Canonical gas and settlement
+
+For a rebated transaction the EVM's measurement and the chain's accounting come apart:
+
+*   **`evmGasUsed`** is what the EVM reported.
+*   **`canonicalGasUsed`** is `evmGasUsed` minus the refund. It is what the receipt reports and what
+    the block's `gasUsed` sums. A refund can never exceed `evmGasUsed`.
+
+The EVM has already charged fees on `evmGasUsed` by the time the refund applies, so SDM settles the
+difference in the same transaction, atomically and without a separate receipt: the sender is
+credited the refunded gas at the transaction's effective gas price, plus the operator-fee
+difference, and the block beneficiary, base fee vault and operator fee vault are debited the
+matching amounts. The L1 fee vault is untouched, since L1 cost does not depend on L2 gas usage.
+
+## What consensus fixes, and what it leaves to the sequencer
+
+Consensus pins down the encoding, which transactions may be rebated, and the bound that a refund
+cannot exceed the transaction's EVM gas usage. Within those limits the sequencer chooses the
+amounts freely — that is what "sequencer defined" means. A verifier enforces the structural rules
+and applies the committed values; it never recomputes what the refunds *should* have been, which is
+why it needs no copy of the sequencer's policy.
+
+The policy the version-1 schema is designed around is *block-level warming*: rebating the
+[EIP-2929](https://eips.ethereum.org/EIPS/eip-2929) cold-to-warm surcharge a transaction paid for
+touching state that an earlier transaction in the same block had already warmed. Such a policy has
+to be careful about what it excludes — a transaction's own sender and target, precompiles, the
+coinbase, access list entries and EIP-7702 authorities are already warm and were never charged the
+cold price. But that reasoning lives in the sequencer, not in consensus.
+
+## What changes at Lagoon
+
+Before Lagoon activates, a block containing a post-exec transaction is invalid, and blocks are
+produced and validated exactly as on a chain that never specified SDM. From activation, two things
+become observable:
+
+*   A `0x7D` transaction may appear as the last transaction of a block, through the same
+    transaction list interfaces used today.
+*   Receipts for standard transactions gain an `opGasRefund` field.
+
+`opGasRefund` is a JSON-RPC field only. It is not part of the receipt's RLP encoding and not
+committed to the receipts trie, so tooling that ignores unknown fields — `cast receipt` included —
+is unaffected. Only consumers that opt in observe it.
+
+Post-exec transactions are not user-submittable and do not propagate over public transaction
+gossip, so mempool and transaction pool interfaces are unchanged.
+
+## Who needs to do what
+
+| You run | What SDM asks of you |
+| --- | --- |
+| Verifier or full nodes | Nothing beyond running software that implements Lagoon. There is no SDM configuration on a verifier. |
+| A sequencer | Software that implements Lagoon, plus an explicit opt-in. See the [operator guide](/chain-operators/guides/features/sequencer-defined-metering). |
+| An application | Nothing, unless you want to read `opGasRefund`. A transaction's `gasUsed` is already the canonical amount it was charged. |
+
+Rebates are sequencer-side. A sequencer that stops issuing them changes only the blocks it builds
+from that point: post-exec transactions already in the chain stay valid, and verifiers keep
+validating them.
+
+## Next steps
+
+*   Turn SDM on, confirm it, or turn it off with the [SDM operator guide](/chain-operators/guides/features/sequencer-defined-metering).
+*   See what else ships in the [Lagoon hardfork](/op-stack/protocol/hardforks/lagoon).
+*   Read the normative rules in the [SDM specification](https://specs.optimism.io/protocol/lagoon/sdm.html) and the [post-exec transaction specification](https://specs.optimism.io/protocol/lagoon/post-exec.html).

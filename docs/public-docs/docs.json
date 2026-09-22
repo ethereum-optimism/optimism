@@ -3549,6 +3549,7 @@
             "group": "Features",
             "pages": [
               "op-stack/features/subblocks",
+              "op-stack/features/sdm",
               "op-stack/features/custom-gas-token",
               "op-stack/features/bridged-usdc-standard",
               "op-stack/features/span-batches",
