@@ -65,12 +65,6 @@ Include unchanged guards when they determine reachability.
 Read each mapped specification section in full.
 Include active fork amendments and linked upstream formats.
 
-OP Stack L2 hard forks activate in protocol order.
-A later L2 fork cannot activate before an earlier L2 fork.
-Distinct L2 hard forks must not share an activation timestamp or block unless they activate at genesis.
-An L1 hard fork may activate on L2 with an L2 hard fork.
-Do not use a schedule that violates these rules as a review trigger.
-
 Give each extracted rule a short, meaningful name in review notes.
 Cite the exact text, source anchor, and specification commit.
 Do not invent numbered property identifiers.
@@ -139,6 +133,7 @@ Reject a candidate when:
 - The path is test-only or outside the area boundary.
 - The difference changes only an internal name, and both implementations reject at the same stage.
 - The specification permits every observed outcome, and there is no cross-client divergence or consensus/safety impact. Otherwise, retain the candidate and apply the divergence/specification-gap reporting rules below.
+- The trigger needs an unsupported configuration, such as two L2 upgrades that activate at the same post-genesis timestamp. See [One upgrade per activation timestamp](../public-docs/op-stack/protocol/network-upgrades.mdx#one-upgrade-per-activation-timestamp).
 - The evidence does not prove an observable effect.
 
 Use focused tests or small reproductions when practical.

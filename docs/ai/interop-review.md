@@ -47,8 +47,8 @@ All paths are relative to the repository root.
 | Message extraction and declarations | [Messaging](https://specs.optimism.io/interop/messaging.html), [Predeploys](https://specs.optimism.io/interop/predeploys.html) | `op-core/interop/messages/logs.go`, `op-core/interop/messages/messages.go` | `rust/kona/crates/protocol/interop/src/message.rs`, `rust/kona/crates/protocol/interop/src/graph.rs` |
 | Dependency, timing, and expiry rules | [Messaging](https://specs.optimism.io/interop/messaging.html), [Dependency set](https://specs.optimism.io/interop/dependency-set.html), [Interop derivation](https://specs.optimism.io/interop/derivation.html) | `op-core/interop/depset/depset.go`, `op-core/interop/depset/static_depset.go`, `op-core/interop/depset/json.go`, `op-core/superchain/types.go`, `op-core/superchain/chain.go`, `op-node/superchain/depset.go`, `op-node/service.go`, `op-node/config/config.go`, `op-supernode/cmd/depset.go`, `op-supernode/supernode/supernode.go`, `op-supernode/supernode/activity/interop/algo.go`, `op-interop-filter/filter/config.go`, `op-interop-filter/filter/service.go`, `op-interop-filter/filter/lockstep_cross_validator.go` | `rust/kona/crates/protocol/genesis/src/rollup.rs`, `rust/kona/crates/protocol/genesis/src/chain/config.rs`, `rust/kona/crates/protocol/genesis/src/interop/constants.rs`, `rust/kona/crates/protocol/genesis/src/interop/config.rs`, `rust/kona/crates/protocol/genesis/src/interop/depset.rs`, `rust/kona/crates/protocol/genesis/src/interop/mod.rs`, `rust/kona/crates/protocol/registry/build.rs`, `rust/kona/crates/protocol/registry/src/lib.rs`, `rust/kona/crates/proof/proof-interop/src/boot.rs`, `rust/kona/crates/protocol/interop/src/graph.rs`, `rust/kona/crates/protocol/interop/src/rules.rs` |
 | Message graph and cycle detection | [Messaging](https://specs.optimism.io/interop/messaging.html) | `op-supernode/supernode/activity/interop/logdb.go`, `op-supernode/supernode/activity/interop/log_backfill.go`, `op-supernode/supernode/activity/interop/raftwallogdb/db.go`, `op-supernode/supernode/activity/interop/verification_view.go`, `op-supernode/supernode/activity/interop/algo.go`, `op-supernode/supernode/activity/interop/cycle.go` | `rust/kona/crates/protocol/interop/src/graph.rs`, `rust/kona/crates/protocol/interop/src/rules.rs`, `rust/kona/crates/protocol/interop/src/traits.rs`, `rust/kona/crates/protocol/interop/src/errors.rs` |
-| Safe promotion and invalidation | [Verifier](https://specs.optimism.io/interop/verifier.html), [Messaging](https://specs.optimism.io/interop/messaging.html) | `op-supernode/supernode/activity/interop/interop.go`, `op-supernode/supernode/activity/interop/checker.go`, `op-supernode/supernode/activity/interop/types.go`, `op-supernode/supernode/activity/interop/verified_db.go`, `op-supernode/supernode/activity/interop/reader.go`, `op-supernode/supernode/activity/superroot/superroot.go`, `op-supernode/supernode/chain_container/super_authority.go`, `op-supernode/supernode/chain_container/invalidation.go`, `op-supernode/supernode/chain_container/engine_controller/rewind.go`, `op-node/rollup/engine/engine_controller.go`, `op-node/rollup/engine/cross_safe_cache.go` | No current Kona production path publishes live safe results or invalidates live heads. |
-| Cross-unsafe classification | [Verifier](https://specs.optimism.io/interop/verifier.html) | `op-interop-filter/filter/logsdb_chain_ingester.go`, `op-interop-filter/filter/lockstep_cross_validator.go`, `op-interop-filter/filter/backend.go`, `op-service/eth/safety/safety.go` | No current Kona production path publishes cross-unsafe safety. |
+| Safe promotion and invalidation | [Verifier](https://specs.optimism.io/interop/verifier.html), [Messaging](https://specs.optimism.io/interop/messaging.html) | `op-supernode/supernode/activity/interop/interop.go`, `op-supernode/supernode/activity/interop/checker.go`, `op-supernode/supernode/activity/interop/types.go`, `op-supernode/supernode/activity/interop/verified_db.go`, `op-supernode/supernode/activity/interop/reader.go`, `op-supernode/supernode/activity/superroot/superroot.go`, `op-supernode/supernode/chain_container/super_authority.go`, `op-supernode/supernode/chain_container/invalidation.go`, `op-supernode/supernode/chain_container/engine_controller/rewind.go`, `op-node/rollup/engine/engine_controller.go`, `op-node/rollup/engine/cross_safe_cache.go` | No mapped Kona path at this guide revision. Confirm during mapping validation. |
+| Cross-unsafe classification | [Verifier](https://specs.optimism.io/interop/verifier.html) | `op-interop-filter/filter/logsdb_chain_ingester.go`, `op-interop-filter/filter/lockstep_cross_validator.go`, `op-interop-filter/filter/backend.go`, `op-service/eth/safety/safety.go` | No mapped Kona path at this guide revision. Confirm during mapping validation. |
 | Invalid-block replacement | [Interop derivation](https://specs.optimism.io/interop/derivation.html), [Super fault dispute game](https://specs.optimism.io/fault-proof/stage-one/super-fault-dispute-game.html), [Holocene derivation](https://specs.optimism.io/protocol/holocene/derivation.html) | `op-node/rollup/engine/payload_process.go`, `op-node/rollup/engine/build_invalid.go`, `op-node/rollup/engine/payload_success.go`, `op-node/rollup/derive/deriver.go`, `op-node/rollup/derive/pipeline.go`, `op-node/rollup/derive/attributes_queue.go`, `op-service/eth/types.go` | `rust/kona/crates/proof/proof-interop/src/provider.rs`, `rust/kona/crates/proof/proof-interop/src/consolidation.rs`, `rust/kona/bin/client/src/interop/mod.rs`, `rust/kona/bin/client/src/interop/consolidate.rs`, `rust/kona/sp1/programs/super-range/src/main.rs`, `rust/kona/sp1/programs/super-aggregation/src/main.rs` |
 | Lagoon activation and upgrade handling | [Interop derivation](https://specs.optimism.io/interop/derivation.html), [L2 upgrades](https://specs.optimism.io/protocol/l2-upgrades-1-execution.html), [Superchain configuration](https://specs.optimism.io/protocol/superchain-config.html) | `op-node/rollup/toggles.go`, `op-node/rollup/types.go`, `op-node/rollup/derive/attributes.go`, `op-node/rollup/derive/lagoon_activation_transactions.go`, `op-node/rollup/derive/upgrade_transaction.go`, `op-node/rollup/derive/payload_util.go`, `op-node/rollup/derive/batches.go`, `op-node/rollup/sequencing/sequencer.go`, `op-supernode/supernode/supernode.go` | `rust/kona/crates/protocol/genesis/src/rollup.rs`, `rust/kona/crates/protocol/derive/src/attributes/stateful.rs`, `rust/kona/crates/protocol/hardforks/src/lagoon.rs`, `rust/kona/crates/protocol/protocol/src/utils.rs`, `rust/kona/crates/protocol/protocol/src/batch/single.rs`, `rust/kona/crates/node/service/src/actors/sequencer/actor.rs`, `rust/kona/bin/client/src/interop/transition.rs`, `rust/kona/bin/client/src/interop/consolidate.rs` |
 
@@ -59,9 +59,22 @@ Treat these names as navigation terms, not evidence that their semantics match.
 Cross-unsafe is a message-safety result in the current filter implementation.
 Do not assume it is a chain head.
 
-The protocol permits acyclic messages with equal initiating and executing timestamps.
-`op-interop-filter` currently rejects them as a stricter sequencer policy.
-Do not report this intentional policy difference as protocol divergence.
+## Sequencer policy and consensus
+
+A sequencer may accept less than the specification permits.
+Derivation and verification may not.
+They must accept every input that the specification permits.
+The same rule difference is therefore a policy choice on one path and a divergence on the other.
+
+Interop has one such difference today.
+The specification permits an acyclic message whose initiating and executing timestamps are equal.
+See the [timestamp invariant](https://specs.optimism.io/interop/messaging.html#timestamp-invariant) and [intra-block messaging](https://specs.optimism.io/interop/messaging.html#intra-block-messaging-cycles).
+`op-interop-filter` rejects a same-timestamp message, because it implements no cycle detection.
+See the simplifications comment in `op-interop-filter/filter/lockstep_cross_validator.go`.
+
+Dismiss that rejection only for a caller that admits transactions or builds blocks.
+Identify the caller and the requested safety level first.
+Report the same rejection on a derivation or verification path as a specification violation.
 
 ## When to run this reviewer
 
@@ -134,7 +147,7 @@ For each promotion branch, identify:
 - The persisted result.
 - The value published to consumers.
 
-Prove that each cross-unsafe publication branch validates all required messages.
+Compare the message set that each cross-unsafe publication branch validates with the messaging invariants.
 Do not infer full validation from one successful lookup.
 
 ## Replacement checks
@@ -147,7 +160,7 @@ Prove data availability for each exact block identity. Do not infer availability
 
 Trace invalid-block selection and recursive dependent replacement paths.
 Determine which transaction classes and log classes survive each path.
-Confirm replacement repeats until no invalid dependency remains.
+Compare the replacement loop with the specification rule for invalid dependencies.
 
 Compare live-node and proof replacement rules independently.
 Do not infer one path from the other.
