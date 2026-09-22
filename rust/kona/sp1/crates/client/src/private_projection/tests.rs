@@ -205,10 +205,10 @@ fn fixture_with_sdm(replacements: usize, sdm: bool) -> (PublicInputs, Witness) {
             n,
             Address::ZERO,
             0,
-            0,
-            0,
-            0,
-            0,
+            17,
+            19,
+            23,
+            29,
         );
         let info = if sdm {
             L1BlockInfoTx::Jovian(kona_protocol::L1BlockInfoJovian {
@@ -292,16 +292,47 @@ fn fixture_with_sdm(replacements: usize, sdm: bool) -> (PublicInputs, Witness) {
         let result = exec.build_block(executing).unwrap();
         let computed = exec.compute_output_root().unwrap();
         if i < replacements {
+            let public_base = L1BlockInfoIsthmus::new(
+                100,
+                999,
+                0,
+                B256::repeat_byte(5),
+                n,
+                Address::ZERO,
+                0,
+                0,
+                0,
+                0,
+                0,
+            );
+            let public_info = if sdm {
+                L1BlockInfoTx::Jovian(kona_protocol::L1BlockInfoJovian {
+                    base: public_base,
+                    da_footprint_gas_scalar: 400,
+                })
+            } else {
+                L1BlockInfoTx::Isthmus(public_base)
+            };
+            let mut public_txs = attrs.transactions.clone().unwrap();
+            let OpTxEnvelope::Deposit(ref tx) = deposit else { unreachable!() };
+            let mut public_deposit = tx.inner().clone();
+            public_deposit.input = public_info.encode_calldata();
+            public_txs[0] = OpTxEnvelope::from(public_deposit).encoded_2718().into();
+            assert_ne!(
+                public_txs[0],
+                attrs.transactions.as_ref().unwrap()[0],
+                "private fee settings differ from projection"
+            );
             let mut projection_header = result.header.clone().unseal();
+            projection_header.gas_limit = i64::MAX as u64;
+            projection_header.transactions_root =
+                ordered_trie_with_encoder(&public_txs, |tx, out| out.put_slice(tx)).root();
             projection_header.parent_hash = public.parent_hash;
             public.parent_hash = projection_header.hash_slow();
             public.recovery.push(OpBlock {
                 header: projection_header,
                 body: alloy_consensus::BlockBody {
-                    transactions: attrs
-                        .transactions
-                        .as_ref()
-                        .unwrap()
+                    transactions: public_txs
                         .iter()
                         .map(|raw| OpTxEnvelope::decode_2718_exact(raw).unwrap())
                         .collect(),

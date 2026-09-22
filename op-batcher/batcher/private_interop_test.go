@@ -7,7 +7,9 @@ import (
 	"errors"
 	"io"
 	"math/big"
+	"strings"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/require"
 
@@ -28,6 +30,7 @@ import (
 	derivepar "github.com/ethereum-optimism/optimism/op-node/rollup/derive/params"
 	"github.com/ethereum-optimism/optimism/op-private-interop/builder"
 	"github.com/ethereum-optimism/optimism/op-private-interop/codec"
+	"github.com/ethereum-optimism/optimism/op-private-interop/projection"
 	"github.com/ethereum-optimism/optimism/op-private-interop/render"
 	"github.com/ethereum-optimism/optimism/op-service/bigs"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
@@ -592,4 +595,103 @@ func TestPrivateEncoderDoesNotPublishUnauthorizedEpoch(t *testing.T) {
 	require.NoError(t, enc.PrepareBlock(t.Context(), payload))
 	_, prepared = enc.take(payload.BlockHash)
 	require.True(t, prepared)
+}
+
+func TestPrivateExecutionFailureCannotEmitFrames(t *testing.T) {
+	txs := render.NewBatcherTxBuilder(piChainIDBig, render.DefaultGasPolicy(), render.PrivateKeySigner(piKey, piChainIDBig))
+	txs.SetRegistry(predeploys.ClaimRegistryAddr)
+	txs.SetEventReplayer(predeploys.EventReplayerAddr)
+	enc, ranges, _ := piEncoderWithTxs(t, txs)
+	parentOutput := common.Hash(eth.OutputRoot(&eth.OutputV0{MessagePasserStorageRoot: eth.Bytes32(types.EmptyRootHash), BlockHash: common.BigToHash(big.NewInt(900))}))
+	enc.cfg.Rollup.PrivateProjection = &projection.Config{Verifier: projection.ExecutionMock, GenesisOutputRoot: parentOutput}
+	ranges.start.Continuation = projection.Continuation{Anchor: eth.BlockID{Number: 900, Hash: piTerminal}, OutputRoot: parentOutput}
+	attempts := 0
+	enc.cfg.Prove = func(_ context.Context, candidate *builder.BuiltRange, data []byte, start RangeStart) ([]byte, error) {
+		attempts++
+		if len(candidate.Frames) != 0 || len(candidate.Blobs) != 0 || candidate.Claim.PrivateDataHash != builder.PrivateDataHash(data) {
+			return nil, errors.New("producer received framed or inconsistent candidate")
+		}
+		if attempts == 1 {
+			return nil, errors.New("invalid execution witness")
+		}
+		statement, err := projection.ValidateProjectionRange(enc.cfg.Rollup.PrivateProjection, projection.Context{
+			ChainID: piChainIDBig, GenesisTime: piL2Genesis, BlockTime: piBlockTime,
+			ParentHash: piTerminal, Continuation: start.Continuation,
+		}, candidate.SpanBatch, projection.StubVerifier{})
+		if err != nil {
+			return nil, err
+		}
+		if attempts == 2 {
+			return nil, nil
+		} // A successful process with missing proof must also fail.
+		return projection.ExecutionMockProof(*statement), nil
+	}
+	out, err := enc.ChannelOut(ChannelConfig{MaxFrameSize: 100_000, CompressorConfig: compressor.Config{CompressionAlgo: derive.Zlib}}, enc.cfg.PrivateRollup)
+	require.NoError(t, err)
+	co := out.(*renderChannelOut)
+	for i := range piCadence {
+		p := piPayload(t, 901+i)
+		require.NoError(t, enc.PrepareBlock(t.Context(), p))
+		_, err := co.AddBlock(enc.cfg.PrivateRollup, p)
+		require.NoError(t, err)
+	}
+	for range 2 {
+		var closeErr error
+		require.Eventually(t, func() bool {
+			closeErr = co.Close()
+			return closeErr != nil && !strings.Contains(closeErr.Error(), "proof pending")
+		}, time.Second, time.Millisecond)
+		require.Error(t, closeErr)
+		require.Nil(t, co.BuiltRange())
+		require.Zero(t, co.ReadyBytes())
+		var buf bytes.Buffer
+		_, err := co.OutputFrame(&buf, 100_000)
+		require.ErrorIs(t, err, io.EOF)
+		require.Empty(t, buf.Bytes())
+	}
+	require.Eventually(t, func() bool { return co.Close() == nil }, time.Second, time.Millisecond)
+	require.Equal(t, 3, attempts)
+	require.NotEmpty(t, co.BuiltRange().Frames)
+	require.NotEmpty(t, co.BuiltRange().Claim.Proof)
+}
+
+// Reset must cancel witness collection and prevent its result from being reused.
+func TestPrivateExecutionProofResetCancelsWorker(t *testing.T) {
+	txs := render.NewBatcherTxBuilder(piChainIDBig, render.DefaultGasPolicy(), render.PrivateKeySigner(piKey, piChainIDBig))
+	txs.SetRegistry(predeploys.ClaimRegistryAddr)
+	txs.SetEventReplayer(predeploys.EventReplayerAddr)
+	enc, ranges, _ := piEncoderWithTxs(t, txs)
+	parentOutput := common.Hash(eth.OutputRoot(&eth.OutputV0{MessagePasserStorageRoot: eth.Bytes32(types.EmptyRootHash), BlockHash: common.BigToHash(big.NewInt(900))}))
+	enc.cfg.Rollup.PrivateProjection = &projection.Config{Verifier: projection.ExecutionMock, GenesisOutputRoot: parentOutput}
+	ranges.start.Continuation = projection.Continuation{Anchor: eth.BlockID{Number: 900, Hash: piTerminal}, OutputRoot: parentOutput}
+	started, stopped := make(chan struct{}), make(chan struct{})
+	enc.cfg.Prove = func(ctx context.Context, _ *builder.BuiltRange, _ []byte, _ RangeStart) ([]byte, error) {
+		close(started)
+		<-ctx.Done()
+		close(stopped)
+		return nil, ctx.Err()
+	}
+	out, err := enc.ChannelOut(ChannelConfig{MaxFrameSize: 100_000, CompressorConfig: compressor.Config{CompressionAlgo: derive.Zlib}}, enc.cfg.PrivateRollup)
+	require.NoError(t, err)
+	co := out.(*renderChannelOut)
+	p := piPayload(t, 901)
+	require.NoError(t, enc.PrepareBlock(t.Context(), p))
+	_, err = co.AddBlock(enc.cfg.PrivateRollup, p)
+	require.NoError(t, err)
+	require.ErrorContains(t, co.Close(), "proof pending")
+	select {
+	case <-started:
+	case <-time.After(time.Second):
+		t.Fatal("proof worker did not start")
+	}
+	require.NoError(t, co.Reset())
+	select {
+	case <-stopped:
+	case <-time.After(time.Second):
+		t.Fatal("proof worker did not stop")
+	}
+	require.Nil(t, co.proofResult)
+	require.Nil(t, co.cancelProof)
+	require.Nil(t, co.BuiltRange())
+	require.Zero(t, co.ReadyBytes())
 }

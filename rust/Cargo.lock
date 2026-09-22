@@ -7771,12 +7771,17 @@ dependencies = [
 name = "kona-sp1-super-range-executor"
 version = "0.0.1"
 dependencies = [
+ "alloy-eips 2.1.1",
  "alloy-primitives",
+ "alloy-rpc-types-engine",
+ "alloy-rpc-types-eth 2.1.1",
  "anyhow",
  "async-trait",
  "clap",
+ "jsonrpsee",
  "jsonrpsee-core",
  "jsonrpsee-http-client",
+ "kona-genesis",
  "kona-host",
  "kona-interop",
  "kona-preimage",
@@ -7786,6 +7791,9 @@ dependencies = [
  "kona-sp1-elfs",
  "kona-sp1-ethereum-client-utils",
  "kona-sp1-host-utils",
+ "op-alloy-consensus",
+ "op-alloy-rpc-types",
+ "op-alloy-rpc-types-engine",
  "revm",
  "rkyv",
  "serde",

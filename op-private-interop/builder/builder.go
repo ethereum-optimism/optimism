@@ -158,6 +158,9 @@ type Range struct {
 	// StartNonce is the standard batcher account's nonce for the first transaction of the range.
 	StartNonce   uint64
 	Continuation projection.Continuation
+	// Prove runs after structural preflight and before admission/compression. The
+	// returned bytes are installed by rebuilding the same range from StartNonce.
+	Prove func(*BuiltRange) ([]byte, error)
 }
 
 // BuiltBlock is one rendering block as the batch describes it.
@@ -318,6 +321,28 @@ func (b *Builder) Build(r *Range) (*BuiltRange, error) {
 		if err := span.AppendSingularBatch(sb, seqNum); err != nil {
 			return nil, fmt.Errorf("appending block %d to the span: %w", blk.Number, err)
 		}
+	}
+	out.SpanBatch = span
+	if r.Prove != nil {
+		// The candidate has no frames/blobs and cannot be published. Only this
+		// producer preflight uses the structural-only verifier.
+		if _, err := projection.ValidateProjectionRange(b.cfg.Rollup.PrivateProjection, projection.Context{
+			ChainID: b.cfg.Rollup.L2ChainID, GenesisNumber: b.cfg.Rollup.Genesis.L2.Number,
+			GenesisTime: b.cfg.Rollup.Genesis.L2Time, BlockTime: b.cfg.Rollup.BlockTime,
+			ParentHash: r.PrevTerminalRenderingHash, Continuation: r.Continuation,
+		}, span, projection.StubVerifier{}); err != nil {
+			return nil, err
+		}
+		proof, err := r.Prove(out)
+		if err != nil {
+			return nil, fmt.Errorf("private execution proof: %w", err)
+		}
+		next := *r
+		next.Prove = nil
+		claimInput := *r.Claim
+		claimInput.Proof = proof
+		next.Claim = &claimInput
+		return b.Build(&next)
 	}
 	// Use the same public admission policy as derivation before compressing/publishing.
 	if cfg := b.cfg.Rollup.PrivateProjection; cfg != nil {

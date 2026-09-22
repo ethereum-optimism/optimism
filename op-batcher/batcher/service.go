@@ -22,7 +22,9 @@ import (
 	"github.com/ethereum-optimism/optimism/op-batcher/rpc"
 	"github.com/ethereum-optimism/optimism/op-node/params"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
+	"github.com/ethereum-optimism/optimism/op-private-interop/builder"
 	projectiongenesis "github.com/ethereum-optimism/optimism/op-private-interop/genesis"
+	"github.com/ethereum-optimism/optimism/op-private-interop/projection"
 	"github.com/ethereum-optimism/optimism/op-private-interop/render"
 	"github.com/ethereum-optimism/optimism/op-service/cliapp"
 	"github.com/ethereum-optimism/optimism/op-service/client"
@@ -463,6 +465,13 @@ func (bs *BatcherService) initPrivateInterop(ctx context.Context, cfg *CLIConfig
 		return fmt.Errorf("projecting the private-chain rollup config: %w", err)
 	}
 
+	if settings.ProofCommand != "" {
+		publicProjectionRollup.PrivateProjection.Verifier = projection.ExecutionMock
+		if len(settings.ExtraEmitters) != 0 {
+			return fmt.Errorf("execution mock relation does not support extra emitters")
+		}
+	}
+
 	// The claim's two configuration commitments. Unless pinned by flag they are derived from what
 	// this process already holds: the projected rollup config, and the dependency set the private
 	// rollup node serves. Both are keccak256 of canonical JSON, the convention the devstack uses.
@@ -473,7 +482,8 @@ func (bs *BatcherService) initPrivateInterop(ctx context.Context, cfg *CLIConfig
 		}
 	}
 	depSetHash := settings.DepSetHash
-	if depSetHash == (common.Hash{}) {
+	var dependencySet []byte
+	if depSetHash == (common.Hash{}) || settings.ProofCommand != "" {
 		// The endpoint provider's rollup client does not expose the dependency set; dial the
 		// private rollup node directly for this one read.
 		rollupRPC, err := dial.DialRPCClientWithTimeout(ctx, bs.Log, cfg.RollupRpc[0])
@@ -485,9 +495,18 @@ func (bs *BatcherService) initPrivateInterop(ctx context.Context, cfg *CLIConfig
 		if err != nil {
 			return fmt.Errorf("private interop: reading the dependency set from the rollup node: %w", err)
 		}
-		if depSetHash, err = hashCanonicalJSON(depSet); err != nil {
-			return fmt.Errorf("hashing the dependency set: %w", err)
+		dependencySet, err = json.Marshal(depSet)
+		if err != nil {
+			return err
 		}
+		computed, hashErr := hashCanonicalJSON(depSet)
+		if hashErr != nil {
+			return hashErr
+		}
+		if depSetHash != (common.Hash{}) && depSetHash != computed {
+			return fmt.Errorf("pinned dependency set differs from execution context")
+		}
+		depSetHash = computed
 	}
 	bs.Log.Info("private interop claim commitments", "rollup_config_hash", rollupConfigHash, "dep_set_hash", depSetHash,
 		"rollup_config_hash_pinned", settings.RollupConfigHash != (common.Hash{}), "dep_set_hash_pinned", settings.DepSetHash != (common.Hash{}))
@@ -497,6 +516,26 @@ func (bs *BatcherService) initPrivateInterop(ctx context.Context, cfg *CLIConfig
 		return err
 	}
 	bs.privateProjection = follower
+	if settings.ProofCommand != "" {
+		var actual rollup.Config
+		if err := follower.(*rpcPublicProjectionFollower).rollupRPC.CallContext(ctx, &actual, "optimism_rollupConfig"); err != nil {
+			return err
+		}
+		if actual.PrivateProjection == nil || actual.PrivateProjection.Verifier != projection.ExecutionMock {
+			return fmt.Errorf("native execution producer requires execution-mock-v1 in the deployed projection rollup config")
+		}
+		actualHash, err := hashCanonicalJSON(&actual)
+		if err != nil {
+			return err
+		}
+		expectedHash, err := hashCanonicalJSON(publicProjectionRollup)
+		if err != nil {
+			return err
+		}
+		if actualHash != expectedHash || rollupConfigHash != expectedHash {
+			return fmt.Errorf("native execution producer projection configuration mismatch")
+		}
+	}
 	batcherAddr := bs.TxManager.From()
 	ranges, err := NewPrivateInteropRangeSource(PrivateInteropRangeSourceConfig{
 		Log:                    bs.Log,
@@ -538,7 +577,13 @@ func (bs *BatcherService) initPrivateInterop(ctx context.Context, cfg *CLIConfig
 	txs.SetEventReplayer(settings.EventReplayer)
 	txs.SetReplayMessenger(settings.ReplayMessenger)
 
+	var prove func(context.Context, *builder.BuiltRange, []byte, RangeStart) ([]byte, error)
+	if settings.ProofCommand != "" {
+		prove = nativeProjectionProducer(ctx, settings.ProofCommand, cfg.L2EthRpc[0], settings.PublicProjectionRPC,
+			bs.RollupConfig, publicProjectionRollup, dependencySet)
+	}
 	enc, err := NewPrivateInteropEncoder(PrivateInteropConfig{
+		Prove:             prove,
 		Rollup:            publicProjectionRollup,
 		PrivateRollup:     bs.RollupConfig,
 		Batcher:           batcherAddr,

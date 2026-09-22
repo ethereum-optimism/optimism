@@ -28,9 +28,17 @@ kona-protocol.workspace = true
 
 # alloy
 alloy-primitives.workspace = true
+alloy-eips.workspace = true
+alloy-rpc-types-eth.workspace = true
+alloy-rpc-types-engine.workspace = true
+op-alloy-consensus.workspace = true
+op-alloy-rpc-types.workspace = true
+op-alloy-rpc-types-engine.workspace = true
+kona-genesis.workspace = true
 
 # rpc / serialization
 jsonrpsee-http-client.workspace = true
+jsonrpsee = { workspace = true, features = ["ws-client"] }
 jsonrpsee-core.workspace = true
 rkyv.workspace = true
 serde = { workspace = true, features = ["derive"] }

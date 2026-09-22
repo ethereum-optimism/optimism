@@ -2,6 +2,7 @@ package batcher
 
 import (
 	"errors"
+	"fmt"
 	"io"
 	"math/big"
 	"math/rand"
@@ -1105,4 +1106,82 @@ func TestChannelManager_getReadyChannel_NilChannel(t *testing.T) {
 	require.NotPanics(t, func() {
 		_, _ = m.getReadyChannel(l1Head, pubInfo{forcePublish: true})
 	}, "getReadyChannel should not panic when currentChannel is nil")
+}
+
+// A full channel can wait for proof preparation without being replaced or losing
+// its inputs. Test both an exhausted block queue and more blocks waiting behind it.
+type pendingProofChannelOut struct {
+	derive.ChannelOut
+	ready     bool
+	discarded bool
+}
+
+func (c *pendingProofChannelOut) Close() error {
+	if !c.ready {
+		return errPrivateProofPending
+	}
+	return c.ChannelOut.Close()
+}
+func (c *pendingProofChannelOut) DiscardCompressor() {
+	c.discarded = true
+	c.ChannelOut.DiscardCompressor()
+}
+func TestChannelManagerRetainsPendingProof(t *testing.T) {
+	for _, extraBlock := range []bool{false, true} {
+		t.Run(fmt.Sprint(extraBlock), func(t *testing.T) {
+			cfg := channelManagerTestConfig(120_000, derive.SingularBatchType)
+			cfg.CompressorConfig.TargetOutputSize = 1
+			m := NewChannelManager(testlog.Logger(t, log.LevelCrit), metrics.NoopMetrics, cfg, defaultTestRollupConfig)
+			var worker *pendingProofChannelOut
+			created := 0
+			m.SetChannelOutFactory(func(cfg ChannelConfig, rollup *rollup.Config) (derive.ChannelOut, error) {
+				co, err := NewChannelOut(cfg, rollup)
+				created++
+				worker = &pendingProofChannelOut{ChannelOut: co}
+				return worker, err
+			})
+			a := newMiniL2Block(0)
+			require.NoError(t, m.AddL2Block(mustPayloadFromGeth(a)))
+			if extraBlock {
+				b := newMiniL2BlockWithNumberParent(0, big.NewInt(1), a.Hash())
+				require.NoError(t, m.AddL2Block(mustPayloadFromGeth(b)))
+			}
+			for range 2 {
+				data, err := m.TxData(eth.BlockID{}, false, pubInfo{})
+				require.ErrorIs(t, err, io.EOF)
+				require.Zero(t, data.Len())
+				require.Equal(t, 1, created)
+				require.Len(t, m.channelQueue, 1)
+				require.False(t, worker.discarded)
+			}
+			worker.ready = true
+			data, err := m.TxData(eth.BlockID{}, false, pubInfo{})
+			require.NoError(t, err)
+			require.Positive(t, data.Len())
+			require.Equal(t, 1, created)
+			require.True(t, worker.discarded)
+		})
+	}
+}
+func TestChannelManagerDiscardsPendingProof(t *testing.T) {
+	for _, action := range []string{"clear", "prune", "invalidate"} {
+		t.Run(action, func(t *testing.T) {
+			cfg := channelManagerTestConfig(120_000, derive.SingularBatchType)
+			m := NewChannelManager(testlog.Logger(t, log.LevelCrit), metrics.NoopMetrics, cfg, defaultTestRollupConfig)
+			require.NoError(t, m.ensureChannelWithSpace(eth.BlockID{}))
+			ch := m.currentChannel
+			worker := &pendingProofChannelOut{ChannelOut: ch.co}
+			ch.co = worker
+			switch action {
+			case "clear":
+				m.Clear(eth.BlockID{})
+			case "prune":
+				m.PruneChannels(1)
+			case "invalidate":
+				m.handleChannelInvalidated(ch)
+			}
+			require.True(t, worker.discarded)
+			require.Empty(t, m.channelQueue)
+		})
+	}
 }

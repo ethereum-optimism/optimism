@@ -26,6 +26,8 @@ import (
 // ALL-OR-NOTHING: there is no half-configured Private Interop batcher, because every field below is
 // load-bearing for bytes that go on L1.
 type PrivateInteropCLIConfig struct {
+	// ProofCommand enables native execution before mock publication on fresh test deployments.
+	ProofCommand string
 	// PrivateChainGenesisPath is the private-chain genesis projected by this process: a local path
 	// or an http(s) URL.
 	PrivateChainGenesisPath string
@@ -56,6 +58,7 @@ type PrivateInteropCLIConfig struct {
 // ReadPrivateInteropCLIConfig parses the flag group.
 func ReadPrivateInteropCLIConfig(ctx *cli.Context) PrivateInteropCLIConfig {
 	return PrivateInteropCLIConfig{
+		ProofCommand:              ctx.String(flags.PrivateInteropProofCommandFlag.Name),
 		PrivateChainGenesisPath:   ctx.String(flags.PrivateInteropGenesisFlag.Name),
 		PublicProjectionRPC:       ctx.String(flags.PrivateInteropPublicProjectionRPCFlag.Name),
 		PublicProjectionRollupRPC: ctx.String(flags.PrivateInteropPublicProjectionRollupRPCFlag.Name),
@@ -136,6 +139,7 @@ func (c *PrivateInteropCLIConfig) Check() error {
 
 // PrivateInteropSettings is the group in its typed form.
 type PrivateInteropSettings struct {
+	ProofCommand              string
 	PrivateChainGenesisPath   string
 	PublicProjectionRPC       string
 	PublicProjectionRollupRPC string
@@ -162,6 +166,7 @@ func (c *PrivateInteropCLIConfig) Resolve() (*PrivateInteropSettings, error) {
 	depSetHash, _ := parseOptionalHash(flags.PrivateInteropDepSetHashFlag.Name, c.DepSetHash)
 	emitters, _ := parseEmitters(c.ExtraEmitters)
 	return &PrivateInteropSettings{
+		ProofCommand:              c.ProofCommand,
 		PrivateChainGenesisPath:   c.PrivateChainGenesisPath,
 		PublicProjectionRPC:       c.PublicProjectionRPC,
 		PublicProjectionRollupRPC: c.PublicProjectionRollupRPC,

@@ -11,7 +11,7 @@ use alloy_op_evm::{block::OpAlloyReceiptBuilder, post_exec::PostExecEvmFactoryAd
 use alloy_primitives::{Address, B256, Bytes, Log, Sealable, address, keccak256};
 use alloy_rlp::Decodable;
 use alloy_sol_types::{SolCall, SolEvent, sol};
-use anyhow::{Result, anyhow, ensure};
+use anyhow::{Context, Result, anyhow, ensure};
 use kona_executor::{StatelessL2Builder, TrieDBProvider};
 use kona_genesis::RollupConfig;
 use kona_interop::ExecutingMessage;
@@ -63,10 +63,10 @@ pub struct PublicInputs {
     pub anchor_output: B256,
     /// Canonical deposit-only replacements, ascending from anchor + 1 to parent.
     pub recovery: Vec<OpBlock>,
-    /// Canonical replacement attributes followed by PRIVATE-config-derived attributes for the new
-    /// span. Ordinary private attributes retain the private chain's fees; projection fee
-    /// policy differs. These include the public execution environment (time, gas, fees,
-    /// randomness).
+    /// PRIVATE-config-derived attributes for both recovery and the new span.
+    /// Recovery follows the public schedule and forced deposits, but retains private fee
+    /// settings, just like `LightCL`. The verifier must authenticate these attributes; the
+    /// projection's zero-fee L1-info calldata and gas limit are not private execution inputs.
     pub attributes: Vec<OpPayloadAttributes>,
     /// Full submitted span; proof bytes are normalized before committing public inputs.
     pub blocks: Vec<ProjectionBlock>,
@@ -86,6 +86,8 @@ pub struct Witness {
 /// Exact journal checked in every mode, including native and mock execution.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct PublicOutputs {
+    /// Public admission statement, reconstructed independently by derivation.
+    pub admission_digest: B256,
     /// Explicit relation version; not a network verifier identifier.
     pub version: u32,
     /// Full normalized public context, including derived deposits and configuration.
@@ -94,6 +96,28 @@ pub struct PublicOutputs {
     pub projection_hash: B256,
     /// Private terminal output computed by executing the complete interval.
     pub terminal_output: B256,
+}
+
+/// Apply only the projection's fee policy to a canonical Isthmus-or-later L1-info
+/// deposit. Authentication of private fee settings still belongs to the caller's
+/// canonical context, not to this normalization.
+fn project_l1_info(raw: &[u8]) -> Result<Bytes> {
+    let OpTxEnvelope::Deposit(tx) = OpTxEnvelope::decode_2718_exact(raw)? else {
+        return Err(anyhow!("recovery L1 info is not a deposit"));
+    };
+    ensure!(!kona_protocol::is_projection_user_deposit(tx.inner(), 0), "invalid recovery L1 info");
+    let info = L1BlockInfoTx::decode_calldata(&tx.inner().input)?;
+    ensure!(
+        matches!(info, L1BlockInfoTx::Isthmus(_) | L1BlockInfoTx::Jovian(_)),
+        "unsupported recovery L1 info"
+    );
+    ensure!(info.encode_calldata() == tx.inner().input, "noncanonical recovery L1 info");
+    let mut normalized = tx.inner().clone();
+    let mut input = normalized.input.to_vec();
+    input[4..12].fill(0); // base and blob fee scalars
+    input[164..176].fill(0); // operator fee scalar and constant
+    normalized.input = input.into();
+    Ok(OpTxEnvelope::from(normalized).encoded_2718().into())
 }
 
 #[derive(Debug)]
@@ -220,17 +244,20 @@ pub fn execute(inputs: &PublicInputs, witness: &Witness) -> Result<PublicOutputs
             "recovery transaction root"
         );
         let attrs = &inputs.attributes[i];
-        ensure!(
-            attrs.transactions.as_ref() == Some(&txs),
-            "replacement inputs differ from canonical block"
-        );
+        let private_txs =
+            attrs.transactions.as_ref().ok_or_else(|| anyhow!("missing recovery inputs"))?;
+        ensure!(private_txs.len() == txs.len() && !txs.is_empty(), "recovery input count");
+        ensure!(private_txs[1..] == txs[1..], "recovery forced inputs differ from canonical block");
+        // LightCL derives private replacement attributes from L1 using PRIVATE
+        // SystemConfig. The projection deliberately clears only these fee fields.
+        // Compare all other L1-info calldata and deposit envelope bytes exactly.
+        ensure!(project_l1_info(&private_txs[0])? == txs[0], "recovery L1 info correspondence");
         ensure!(
             attrs.payload_attributes.timestamp == block.header.timestamp &&
                 attrs.payload_attributes.prev_randao == block.header.mix_hash &&
                 attrs.payload_attributes.suggested_fee_recipient == block.header.beneficiary &&
                 attrs.payload_attributes.parent_beacon_block_root ==
-                    block.header.parent_beacon_block_root &&
-                attrs.gas_limit == Some(block.header.gas_limit),
+                    block.header.parent_beacon_block_root,
             "replacement execution environment"
         );
         public_parent = block.header.hash_slow();
@@ -343,7 +370,9 @@ pub fn execute(inputs: &PublicInputs, witness: &Witness) -> Result<PublicOutputs
                 .expect("checked above")
                 .extend(b.transactions.iter().cloned());
         }
-        let result = executor.build_block(attrs)?;
+        let result = executor
+            .build_block(attrs)
+            .with_context(|| format!("private execution block {number}"))?;
         terminal_output = executor.compute_output_root()?;
         if published {
             let index = (number - first) as usize;
@@ -386,6 +415,7 @@ pub fn execute(inputs: &PublicInputs, witness: &Witness) -> Result<PublicOutputs
     transcript.extend_from_slice(statement.projection_hash.as_slice());
     transcript.extend_from_slice(&serde_json::to_vec(&normalized)?);
     Ok(PublicOutputs {
+        admission_digest: projection::admission_digest(&statement),
         version: 1,
         context_hash: keccak256(transcript),
         projection_hash: statement.projection_hash,

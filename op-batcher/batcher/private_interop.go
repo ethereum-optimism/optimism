@@ -77,6 +77,9 @@ type RangeSource interface {
 
 // PrivateInteropConfig configures the terminal seam.
 type PrivateInteropConfig struct {
+	// Prove executes the private relation before any frames may be emitted.
+	// Only explicitly configured execution-mock deployments use this producer.
+	Prove func(context.Context, *builder.BuiltRange, []byte, RangeStart) ([]byte, error)
 	// Rollup is the RENDERING's rollup config. It is NOT the private chain's: the timestamps and
 	// numbers coincide block-for-block, but the genesis, chain ID and drift the span batch is
 	// encoded against belong to the chain being described.
@@ -115,6 +118,9 @@ func (c *PrivateInteropConfig) Check() error {
 	}
 	if c.PrivateRollup == nil {
 		return errors.New("private interop: no private rollup config")
+	}
+	if c.Rollup.PrivateProjection != nil && c.Rollup.PrivateProjection.Verifier == projection.ExecutionMock && c.Prove == nil {
+		return errors.New("execution-mock admission requires a native execution producer")
 	}
 	if c.MaxBlocksPerRange == 0 {
 		return errors.New("private interop: no cadence configured")
@@ -276,6 +282,13 @@ func (e *PrivateInteropEncoder) ChannelOut(channelCfg ChannelConfig, rollupCfg *
 	return &renderChannelOut{enc: e, builder: b, maxFrame: maxFrame, compression: compression}, nil
 }
 
+var errPrivateProofPending = errors.New("private execution proof pending")
+
+type projectionProofResult struct {
+	proof []byte
+	err   error
+}
+
 // renderChannelOut is a derive.ChannelOut whose input is PRIVATE blocks and whose output is the
 // RENDERING's stock span batch.
 //
@@ -284,8 +297,10 @@ func (e *PrivateInteropEncoder) ChannelOut(channelCfg ChannelConfig, rollupCfg *
 // inject one. Every ENCODER is still stock — the span batch, its RLP, the compressor, the frame
 // layout — they are just driven from op-private-interop/builder instead of incrementally from here.
 type renderChannelOut struct {
-	enc     *PrivateInteropEncoder
-	builder *builder.Builder
+	proofResult <-chan projectionProofResult
+	cancelProof context.CancelFunc
+	enc         *PrivateInteropEncoder
+	builder     *builder.Builder
 	// maxFrame and compression are the channel settings this range was created with, resolved once
 	// so that the private derivation-input object is framed and compressed exactly like the
 	// rendering's own channel.
@@ -310,6 +325,7 @@ type renderChannelOut struct {
 	// privDataHash is the range's privateDataHash once the object has been encoded and hashed;
 	// privDataHashed says it has been, so a Close retried after a later failure does not re-run the
 	// range's one expensive compression to arrive at the same bytes.
+	privData       []byte
 	privDataHash   common.Hash
 	privDataHashed bool
 
@@ -324,10 +340,14 @@ var _ derive.ChannelOut = (*renderChannelOut)(nil)
 func (c *renderChannelOut) ID() derive.ChannelID { return c.id }
 
 func (c *renderChannelOut) Reset() error {
+	if c.cancelProof != nil {
+		c.cancelProof()
+	}
+	c.cancelProof, c.proofResult = nil, nil
 	c.blocks, c.hashes = nil, nil
 	c.parentOutputRoot = common.Hash{}
 	c.privBatches, c.privSeqNums, c.privParent = nil, nil, common.Hash{}
-	c.privDataHashed, c.privDataHash = false, common.Hash{}
+	c.privDataHashed, c.privDataHash, c.privData = false, common.Hash{}, nil
 	c.haveID, c.id = false, derive.ChannelID{}
 	c.inputLen = 0
 	c.closed, c.full, c.built, c.frameIdx = false, nil, nil, 0
@@ -458,8 +478,8 @@ func estimatedRenderedBlockBytes(block *render.RenderedBlock) int {
 // pure function of the blocks, so a hash once computed stays right, and recompressing identical
 // bytes after a later step failed would be work for nothing.
 //
-// Everything expensive happens exactly once, here, because a span batch is not compressible
-// incrementally anyway (see derive.SpanChannelOut.compress).
+// Private-input compression is cached across retries. The projection candidate is
+// reconstructed for admission; native execution runs asynchronously outside the caller's lock.
 func (c *renderChannelOut) Close() error {
 	if c.closed {
 		return derive.ErrChannelOutAlreadyClosed
@@ -485,9 +505,12 @@ func (c *renderChannelOut) Close() error {
 			return fmt.Errorf("encoding the private input for range %d-%d: %w", first.Number, last.Number, err)
 		}
 		c.privDataHash, c.privDataHashed = builder.PrivateDataHash(data), true
+		if c.enc.cfg.Prove != nil {
+			c.privData = data
+		}
 	}
 
-	built, err := c.builder.Build(&builder.Range{
+	request := &builder.Range{
 		Blocks:                    c.blocks,
 		PrevTerminalRenderingHash: c.start.PrevTerminalRenderingHash,
 		Continuation:              c.start.Continuation,
@@ -496,15 +519,41 @@ func (c *renderChannelOut) Close() error {
 			RollupConfigHash: c.enc.cfg.RollupConfigHash,
 			DepSetHash:       c.enc.cfg.DepSetHash,
 			PrivateDataHash:  c.privDataHash,
-			// v1 is attested, never proven: the registry rejects a non-empty slot.
+			// Legacy explicitly insecure admission; the execution producer replaces this.
 			Proof: []byte("insecure-stub-v1"),
 		},
 		StartNonce: c.start.StartNonce,
-	})
+	}
+	if c.enc.cfg.Prove != nil {
+		request.Prove = func(candidate *builder.BuiltRange) ([]byte, error) {
+			// Close runs under the channel-manager mutex. Collect/re-execute
+			// outside that lock, retain the candidate, and retry without frames.
+			if c.proofResult == nil {
+				jobCtx, cancel := context.WithCancel(context.Background())
+				result := make(chan projectionProofResult, 1)
+				c.cancelProof, c.proofResult = cancel, result
+				start, privateData, prove := c.start, c.privData, c.enc.cfg.Prove
+				go func() {
+					proof, err := prove(jobCtx, candidate, privateData, start)
+					result <- projectionProofResult{proof: proof, err: err}
+				}()
+			}
+			select {
+			case result := <-c.proofResult:
+				c.cancelProof()
+				c.cancelProof, c.proofResult = nil, nil
+				return result.proof, result.err
+			default:
+				return nil, errPrivateProofPending
+			}
+		}
+	}
+	built, err := c.builder.Build(request)
 	if err != nil {
 		return fmt.Errorf("building the rendering range %d-%d: %w", first.Number, last.Number, err)
 	}
 	c.built = built
+	c.privData = nil
 	c.closed = true
 	c.enc.forget(c.hashes)
 	return nil
@@ -557,9 +606,13 @@ func (c *renderChannelOut) InputBytes() int { return c.inputLen }
 func (c *renderChannelOut) FullErr() error  { return c.full }
 func (c *renderChannelOut) Flush() error    { return nil }
 
-// DiscardCompressor is a no-op: this encoder holds no compressor between ranges. The stock one
-// exists to release a long-lived buffer, and there is none here.
-func (c *renderChannelOut) DiscardCompressor() {}
+// DiscardCompressor releases retained proof input and cancels work for abandoned ranges.
+func (c *renderChannelOut) DiscardCompressor() {
+	if c.cancelProof != nil {
+		c.cancelProof()
+	}
+	c.cancelProof, c.proofResult, c.privData = nil, nil, nil
+}
 
 // BuiltRange exposes the encoded range, for tests and for operator tooling that wants to see what
 // was posted. It is nil until Close.

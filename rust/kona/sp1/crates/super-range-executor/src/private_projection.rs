@@ -5,6 +5,8 @@ use kona_sp1_client_utils::private_projection::{PublicInputs, PublicOutputs, Wit
 use sp1_sdk::{Elf, Prover, ProverClient, ProvingKey, SP1PublicValues, SP1Stdin};
 use std::{path::PathBuf, sync::Arc};
 
+mod private_projection_host;
+
 #[derive(Debug, Clone, Copy, ValueEnum)]
 enum Mode {
     Native,
@@ -17,7 +19,10 @@ enum Mode {
 struct Args {
     /// Local fixture tuple: public inputs, private witness, independently expected journal.
     #[arg(long)]
-    fixture: PathBuf,
+    fixture: Option<PathBuf>,
+    /// Read a live native-mock request from stdin; emit only its envelope on stdout.
+    #[arg(long, conflicts_with = "fixture")]
+    publication_request: bool,
     /// Native by default; mock explicitly emits placeholder bytes after native validation.
     #[arg(long, value_enum, default_value = "native")]
     mode: Mode,
@@ -39,8 +44,18 @@ async fn main() -> Result<()> {
         ),
         "crypto backend already initialized"
     );
+    if args.publication_request {
+        ensure!(
+            matches!(args.mode, Mode::Native),
+            "publication request uses native execution only"
+        );
+        return private_projection_host::publish().await;
+    }
+    let path = args
+        .fixture
+        .ok_or_else(|| anyhow::anyhow!("--fixture or --publication-request required"))?;
     let (inputs, witness, expected): (PublicInputs, Witness, PublicOutputs) =
-        serde_json::from_slice(&std::fs::read(args.fixture)?)?;
+        serde_json::from_slice(&std::fs::read(path)?)?;
     // Match existing mock lifecycle tests: real native execution precedes placeholder proof bytes.
     let native = execute(&inputs, &witness)?;
     ensure!(native == expected, "native journal differs from expected public inputs");

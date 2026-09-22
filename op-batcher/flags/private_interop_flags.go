@@ -108,9 +108,16 @@ var (
 	}
 )
 
+var PrivateInteropProofCommandFlag = &cli.StringFlag{
+	Name:    "private-interop.proof-command",
+	Usage:   "Path to the local native execution checker; requires a fresh execution-mock-v1 projection deployment",
+	EnvVars: prefixEnvVars("PRIVATE_INTEROP_PROOF_COMMAND"),
+}
+
 // PrivateInteropFlags is the whole group. It is appended to the batcher's optional flags: the
 // group is optional as a whole, and internally all-or-nothing (Check).
 var PrivateInteropFlags = []cli.Flag{
+	PrivateInteropProofCommandFlag,
 	PrivateInteropGenesisFlag,
 	PrivateInteropPublicProjectionRPCFlag,
 	PrivateInteropPublicProjectionRollupRPCFlag,
