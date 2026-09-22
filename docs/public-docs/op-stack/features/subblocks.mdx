@@ -67,7 +67,9 @@ It is computed from everything the block has executed so far, so the sequencer r
 Putting a value that still changes into an append-only list would publish a transaction that a later subblock contradicts.
 
 So if you read the stream directly, treat `diff.post_exec_tx` as mutable rather than as one more streamed transaction.
-Concatenating `diff.transactions` across a block's subblocks gives you the sealed block's transaction list minus its final `0x7D` transaction.
+
+Concatenating `diff.transactions` across a block's subblocks gives you the sealed block's transaction list, excluding the final `0x7D` transaction if one is present.
+
 
 <Info>
   The [Lagoon post-exec specification](https://specs.optimism.io/protocol/lagoon/post-exec.html#subblocks) is normative for this field and is the reference to build against.
