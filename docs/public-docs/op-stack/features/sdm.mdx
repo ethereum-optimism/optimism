@@ -22,8 +22,10 @@ measured, and commit that decision in the block so every verifier reproduces it.
 
 The gas schedule is uniform: a transaction pays the same for an operation whether or not an earlier
 transaction in the same block already paid for it. SDM gives the sequencer a way to hand some of
-that back. The chain keeps a single canonical answer for what each transaction was charged, because
-the rebate is block data that verifiers apply rather than a policy they re-derive.
+that back. Within the bounds the spec fixes, the sequencer chooses the amounts — that is the
+"sequencer defined" part. The chain still keeps a single canonical answer for what each transaction
+was charged, because the rebate travels in the block as data that verifiers apply, not as a policy
+they re-derive.
 
 This page explains what the mechanism does and what it changes for the people running or building
 on a chain. To turn SDM on or off as a chain operator, follow the
@@ -33,47 +35,24 @@ on a chain. To turn SDM on or off as a chain operator, follow the
 
 A sequencer that issues rebates appends a single **post-exec transaction** (type `0x7D`) as the
 last transaction in the block. It is not executed as code, charges no fees and consumes no gas. It
-carries an RLP payload of transaction index and gas refund pairs — only non-zero refunds, ordered
-by index.
+carries a payload of transaction index and gas refund pairs. If the sequencer assigns no refunds,
+the block has no post-exec transaction at all.
 
-The envelope is generic; SDM is its first payload schema (`version = 1`). If the sequencer assigns
-no refunds, the block simply has no post-exec transaction.
+Deposits and the post-exec transaction itself can never be rebated. For the payload encoding and
+the full validity rules, see the
+[SDM specification](https://specs.optimism.io/protocol/lagoon/sdm.html#validity-rules).
 
-Two kinds of transaction can never be rebated:
+## What `gasUsed` means under SDM
 
-| Kind | Why not |
-| --- | --- |
-| Deposits (`0x7E`) | Gas is bought on L1, so there is no L2 gas price to refund. |
-| The post-exec transaction (`0x7D`) | It carries data only and uses no gas. |
+The consequence worth internalizing is that for a rebated transaction, the EVM's measurement and
+the chain's accounting come apart. The receipt's gas-used field reports the **canonical** gas: what
+the EVM measured, minus the refund. That is also what the block's `gasUsed` sums. A refund can
+never exceed what the EVM measured, so canonical gas is never negative.
 
-## Canonical gas and settlement
-
-For a rebated transaction the EVM's measurement and the chain's accounting come apart:
-
-*   **`evmGasUsed`** is what the EVM reported.
-*   **`canonicalGasUsed`** is `evmGasUsed` minus the refund. It is what the receipt reports and what
-    the block's `gasUsed` sums. A refund can never exceed `evmGasUsed`.
-
-The EVM has already charged fees on `evmGasUsed` by the time the refund applies, so SDM settles the
-difference in the same transaction, atomically and without a separate receipt: the sender is
-credited the refunded gas at the transaction's effective gas price, plus the operator-fee
-difference, and the block beneficiary, base fee vault and operator fee vault are debited the
-matching amounts. The L1 fee vault is untouched, since L1 cost does not depend on L2 gas usage.
-
-## What consensus fixes, and what it leaves to the sequencer
-
-Consensus pins down the encoding, which transactions may be rebated, and the bound that a refund
-cannot exceed the transaction's EVM gas usage. Within those limits the sequencer chooses the
-amounts freely — that is what "sequencer defined" means. A verifier enforces the structural rules
-and applies the committed values; it never recomputes what the refunds *should* have been, which is
-why it needs no copy of the sequencer's policy.
-
-The policy the version-1 schema is designed around is *block-level warming*: rebating the
-[EIP-2929](https://eips.ethereum.org/EIPS/eip-2929) cold-to-warm surcharge a transaction paid for
-touching state that an earlier transaction in the same block had already warmed. Such a policy has
-to be careful about what it excludes — a transaction's own sender and target, precompiles, the
-coinbase, access list entries and EIP-7702 authorities are already warm and were never charged the
-cold price. But that reasoning lives in the sequencer, not in consensus.
+The EVM has already charged fees on the pre-rebate figure by the time the refund applies, so SDM
+re-settles the difference within the same transaction — crediting the sender and debiting the fee
+recipients, atomically and without a separate receipt. The exact per-recipient amounts are in the
+[spec's settlement rules](https://specs.optimism.io/protocol/lagoon/sdm.html#settlement).
 
 ## What changes at Lagoon
 
@@ -98,7 +77,15 @@ gossip, so mempool and transaction pool interfaces are unchanged.
 | --- | --- |
 | Verifier or full nodes | Nothing beyond running software that implements Lagoon. There is no SDM configuration on a verifier. |
 | A sequencer | Software that implements Lagoon, plus an explicit opt-in. See the [operator guide](/chain-operators/guides/features/sequencer-defined-metering). |
-| An application | Nothing, unless you want to read `opGasRefund`. A transaction's `gasUsed` is already the canonical amount it was charged. |
+| An application | Usually nothing. A transaction's `gasUsed` is already the canonical amount it was charged, and `opGasRefund` is there if you want to show the rebate. |
+| A block explorer, indexer, or anything else that parses blocks and receipts | Check how you handle an unrecognized transaction type before Lagoon reaches a chain you follow. |
+
+That last row is the one that bites. A block may now end in a transaction type your decoder has
+never seen: `from` is the zero address, the signature fields are absent rather than zeroed, and it
+emits its own receipt with everything charged set to zero. That is enough to break a strict decoder
+or to surface as a malformed row. Gas totals are worth re-checking too — summing per-transaction
+`gasUsed` still reconciles with the block, but it no longer equals what the EVM metered, so
+anything recomputing gas independently will disagree unless it accounts for `opGasRefund`.
 
 Rebates are sequencer-side. A sequencer that stops issuing them changes only the blocks it builds
 from that point: post-exec transactions already in the chain stay valid, and verifiers keep

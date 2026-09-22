@@ -106,9 +106,8 @@ customer, [contact the OP Enterprise team](https://optimism.io/learn-more).
 
 `debug_replaySDMBlock` is an operator and research diagnostic. It re-executes a historical block's
 non-post-exec transactions under standard gas accounting to recover each transaction's raw
-(pre-rebate) gas, then reports that alongside the block's claimed refunds and flags structurally
-invalid claims — a refund targeting a deposit or the post-exec transaction itself, a duplicate or
-out-of-range index, or a refund larger than the transaction's raw gas.
+(pre-rebate) gas, reports that alongside the block's claimed refunds, and flags any claim that
+breaks the spec's [validity rules](https://specs.optimism.io/protocol/lagoon/sdm.html#validity-rules).
 
 It does not recompute what the refunds should have been: that requires the sequencer's policy, which
 stock `op-reth` does not implement. The endpoint requires historical state and should not be exposed
