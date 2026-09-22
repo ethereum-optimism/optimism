@@ -82,6 +82,41 @@ impl ProofVerifier for StubVerifier {
     }
 }
 
+/// Consensus-selected verifier. No operator environment or proof-supplied mode switch.
+#[derive(Debug)]
+pub struct ConfiguredVerifier<'a>(pub &'a str);
+impl ProofVerifier for ConfiguredVerifier<'_> {
+    fn verify(&self, statement: &Statement, proof: &[u8]) -> Result<(), ProjectionError> {
+        match self.0 {
+            "insecure-stub-v1" => Ok(()),
+            "execution-mock-v1" if proof == execution_mock_proof(statement) => Ok(()),
+            _ => Err(ProjectionError("unsupported verifier or incorrect proof envelope")),
+        }
+    }
+}
+
+/// Commitment independently reconstructed by Go and Kona admission. The records
+/// root includes all normalized claim fields, outputs, messages and envelopes.
+pub fn admission_digest(s: &Statement) -> B256 {
+    let mut data = b"optimism.private-admission.v1\0".to_vec();
+    data.extend_from_slice(s.chain_id.as_slice());
+    data.extend_from_slice(s.parent_hash.as_slice());
+    data.extend_from_slice(s.projection_hash.as_slice());
+    put(&mut data, s.continuation.anchor.number);
+    data.extend_from_slice(s.continuation.anchor.hash.as_slice());
+    data.extend_from_slice(s.continuation.output_root.as_slice());
+    data.extend_from_slice(s.continuation.recovery_hash.as_slice());
+    keccak256(data)
+}
+
+/// Forgeable mock envelope, emitted only after native execution by the honest
+/// producer. This tests publication/admission plumbing, not execution soundness.
+pub fn execution_mock_proof(s: &Statement) -> Vec<u8> {
+    let mut out = b"optimism.private-execution.mock.v1\0".to_vec();
+    out.extend_from_slice(admission_digest(s).as_slice());
+    out
+}
+
 /// A deterministic projection admission rejection.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, thiserror::Error)]
 #[error("invalid projection range: {0}")]
@@ -146,7 +181,7 @@ pub fn validate_projection_range(
 ) -> Result<Statement, ProjectionError> {
     let mode =
         cfg.private_projection.as_ref().ok_or(ProjectionError("missing projection config"))?;
-    if mode.verifier != "insecure-stub-v1" ||
+    if !matches!(mode.verifier.as_str(), "insecure-stub-v1" | "execution-mock-v1") ||
         mode.genesis_output_root.is_zero() ||
         cfg.block_time == 0 ||
         cfg.l2_chain_id.id() == 0
@@ -842,6 +877,26 @@ mod tests {
             );
             assert_eq!(cfg, before_cfg);
             assert_eq!(span, before_span);
+        }
+    }
+
+    #[test]
+    fn shared_execution_mock_envelopes() {
+        let cases: Vec<Value> = serde_json::from_str(include_str!(
+            "../../../../../../op-private-interop/projection/testdata/proofs.json"
+        ))
+        .unwrap();
+        for v in cases {
+            let (cfg, span, parent) = inputs(&v);
+            let verifier = ConfiguredVerifier(&cfg.private_projection.as_ref().unwrap().verifier);
+            let result = validate_projection_range(
+                &cfg,
+                parent,
+                test_continuation(parent),
+                &span,
+                &verifier,
+            );
+            assert_eq!(result.is_ok(), v["accept"].as_bool().unwrap(), "{}: {result:?}", v["name"]);
         }
     }
 

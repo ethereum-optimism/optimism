@@ -37,6 +37,11 @@ func TestProjectionSpanAdmissionBeforeFirstBlock(t *testing.T) {
 		} `json:"blocks"`
 	}
 	require.NoError(t, json.Unmarshal(raw, &vectors))
+	proofs, err := os.ReadFile("../../../op-private-interop/projection/testdata/proofs.json")
+	require.NoError(t, err)
+	var proofVectors = vectors[:0:0]
+	require.NoError(t, json.Unmarshal(proofs, &proofVectors))
+	vectors = append(vectors, proofVectors...)
 	for _, name := range []string{"late_origin", "late_fork", "late_drift"} {
 		v := vectors[0]
 		v.Name, v.Schedule, v.Accept = name, name, false

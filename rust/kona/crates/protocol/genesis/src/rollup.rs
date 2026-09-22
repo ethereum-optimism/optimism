@@ -37,7 +37,7 @@ const fn default_fjord_max_sequencer_drift() -> u64 {
 pub struct PrivateProjectionConfig {
     /// Private genesis output-v0 commitment, fixed by the deployment.
     pub genesis_output_root: B256,
-    /// Only `insecure-stub-v1` is currently supported; it provides no execution proof.
+    /// `insecure-stub-v1` or `execution-mock-v1`; neither proves private execution.
     pub verifier: alloc::string::String,
     /// Permit the explicitly configured generic replay contract.
     #[cfg_attr(feature = "serde", serde(default))]

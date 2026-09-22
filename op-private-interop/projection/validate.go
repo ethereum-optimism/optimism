@@ -22,6 +22,7 @@ import (
 
 const (
 	InsecureStub   = "insecure-stub-v1"
+	ExecutionMock  = "execution-mock-v1"
 	MaxRangeBlocks = 65536
 	MaxTxGas       = wire.MaxTxGas
 )
@@ -34,7 +35,7 @@ type Config struct {
 }
 
 func (c *Config) Check() error {
-	if c == nil || c.Verifier != InsecureStub || c.GenesisOutputRoot == (common.Hash{}) {
+	if c == nil || (c.Verifier != InsecureStub && c.Verifier != ExecutionMock) || c.GenesisOutputRoot == (common.Hash{}) {
 		return fmt.Errorf("unsupported projection verifier")
 	}
 	return nil
@@ -78,6 +79,9 @@ func (StubVerifier) Verify(Statement, []byte) error { return nil }
 func VerifierFor(c *Config) (ProofVerifier, error) {
 	if err := c.Check(); err != nil {
 		return nil, err
+	}
+	if c.Verifier == ExecutionMock {
+		return ExecutionMockVerifier{}, nil
 	}
 	return StubVerifier{}, nil
 }

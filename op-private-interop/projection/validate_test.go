@@ -339,3 +339,71 @@ func TestProjectionContextBounds(t *testing.T) {
 		})
 	}
 }
+
+// Both clients consume these same vectors through their actual derivation gate.
+func TestExecutionMockEnvelopes(t *testing.T) {
+	raw, err := os.ReadFile("testdata/ranges.json")
+	require.NoError(t, err)
+	var vs []vector
+	require.NoError(t, json.Unmarshal(raw, &vs))
+	v := vs[0]
+	v.Config.Verifier = projection.ExecutionMock
+	statement, err := projection.ValidateProjectionRange(&v.Config, context(), v.Blocks, projection.StubVerifier{})
+	require.NoError(t, err)
+	good := projection.ExecutionMockProof(*statement)
+	cases := []struct {
+		name   string
+		proof  []byte
+		accept bool
+	}{
+		{"execution_mock_valid", good, true},
+		{"execution_mock_missing", nil, false},
+		{"execution_mock_legacy", []byte(projection.InsecureStub), false},
+		{"execution_mock_truncated", good[:len(good)-1], false},
+		{"execution_mock_trailing", append(append([]byte{}, good...), 0), false},
+		{"execution_mock_altered", append([]byte{}, good...), false},
+	}
+	cases[len(cases)-1].proof[len(good)-1] ^= 1
+	var generated []vector
+	for _, tc := range cases {
+		next := v
+		next.Name, next.Accept = tc.name, tc.accept
+		next.Blocks = append(span{}, v.Blocks...)
+		next.Blocks[0].Transactions = append([]hexutil.Bytes{}, v.Blocks[0].Transactions...)
+		next.Blocks[0].Transactions[0] = mutate(t, v.Blocks[0].Transactions[0], func(tx *types.DynamicFeeTx) {
+			claim, err := wire.DecodeClaim(tx.Data)
+			require.NoError(t, err)
+			claim.Proof = tc.proof
+			tx.Data, err = wire.EncodePostClaim(claim)
+			require.NoError(t, err)
+		})
+		verifier, err := projection.VerifierFor(&next.Config)
+		require.NoError(t, err)
+		_, err = projection.ValidateProjectionRange(&next.Config, context(), next.Blocks, verifier)
+		require.Equal(t, tc.accept, err == nil, tc.name)
+		generated = append(generated, next)
+	}
+	for _, change := range []func(*projection.Statement){
+		func(s *projection.Statement) { s.ParentHash[0] ^= 1 },
+		func(s *projection.Statement) { s.ChainID[0] ^= 1 },
+		func(s *projection.Statement) { s.ProjectionHash[0] ^= 1 },
+		func(s *projection.Statement) { s.Continuation.Anchor.Hash[0] ^= 1 },
+		func(s *projection.Statement) { s.Continuation.OutputRoot[0] ^= 1 },
+		func(s *projection.Statement) { s.Continuation.RecoveryHash[0] ^= 1 },
+		func(s *projection.Statement) { s.Continuation.Anchor.Number++ },
+	} {
+		changed := *statement
+		change(&changed)
+		require.Error(t, (projection.ExecutionMockVerifier{}).Verify(changed, good))
+	}
+	if *updateVectors {
+		data, err := json.MarshalIndent(generated, "", "  ")
+		require.NoError(t, err)
+		require.NoError(t, os.WriteFile("testdata/proofs.json", append(data, '\n'), 0644))
+	}
+	data, err := os.ReadFile("testdata/proofs.json")
+	require.NoError(t, err)
+	var expected []vector
+	require.NoError(t, json.Unmarshal(data, &expected))
+	require.Equal(t, expected, generated)
+}

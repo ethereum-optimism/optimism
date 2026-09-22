@@ -877,7 +877,7 @@ impl SpanBatch {
                 parent.block_info.hash,
                 continuation,
                 self,
-                &crate::projection::StubVerifier,
+                &crate::projection::ConfiguredVerifier(&profile.verifier),
             )
             .is_err()
             {
