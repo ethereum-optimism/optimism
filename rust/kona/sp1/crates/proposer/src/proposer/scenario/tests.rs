@@ -2667,6 +2667,8 @@ async fn untrusted_superroot_contradiction_retries_and_reaches_the_proof_engine(
 async fn own_creation_guard_survives_confirmation_lag_until_the_pin_catches_up() {
     let world = ScenarioWorld::new();
     world.set_horizons(2, 2);
+    world.mine_block();
+    world.mine_block();
     let create = ActionTarget::Create { sequence_number: 2, parent_game_index: u32::MAX };
     world.script_action(create.clone(), 1, ActionOutcome::Timeout);
     let mut config = scenario_config();
@@ -2678,7 +2680,7 @@ async fn own_creation_guard_survives_confirmation_lag_until_the_pin_catches_up()
     scenario.include_transaction(&create, 1, InclusionDepth::LatestOnly).unwrap();
 
     let adopted = scenario.tick().await.unwrap();
-    assert_eq!(adopted.snapshot.sync_disposition, SyncDisposition::ConfirmedBlockUnavailable);
+    assert_eq!(adopted.snapshot.sync_disposition, SyncDisposition::Advanced);
     assert!(adopted.scheduled.iter().any(|scheduled| matches!(
         scheduled.operation,
         OperationSummary::ReconcileCreation { sequence_number: 2, .. }
