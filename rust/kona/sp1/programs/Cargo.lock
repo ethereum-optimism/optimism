@@ -1702,6 +1702,7 @@ dependencies = [
  "kona-genesis",
  "kona-hardforks",
  "miniz_oxide",
+ "once_cell",
  "op-alloy-consensus",
  "op-alloy-rpc-types",
  "op-alloy-rpc-types-engine",

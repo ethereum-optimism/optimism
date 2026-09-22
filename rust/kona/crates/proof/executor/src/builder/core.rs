@@ -159,7 +159,10 @@ where
         parent_header: Sealed<Header>,
     ) -> Self {
         let trie_db = TrieDB::new(parent_header, provider, hinter);
-        let factory = OpBlockExecutorFactory::new(receipt_builder, config.clone(), evm_factory);
+        let mut factory = OpBlockExecutorFactory::new(receipt_builder, config.clone(), evm_factory);
+        if config.private_projection.is_some() {
+            factory = factory.with_deposit_noop(kona_protocol::is_projection_user_deposit);
+        }
         Self {
             config,
             trie_db,

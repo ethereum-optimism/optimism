@@ -116,6 +116,18 @@ func (ba *FetchingAttributesBuilder) PreparePayloadAttributes(ctx context.Contex
 		seqNumber = l2Parent.SequenceNumber + 1
 	}
 
+	// The projection has no fee market. Apply its policy after L1 updates as
+	// well as at genesis; OPCM upgrades can otherwise restore private-chain fees
+	// and silently exclude the projection's zero-fee record/replay transactions.
+	// Batcher authorization and other protocol configuration still follow L1.
+	if ba.rollupCfg.PrivateProjection != nil {
+		sysConfig.Scalar = eth.EncodeScalar(eth.EcotoneScalars{})
+		sysConfig.Overhead = eth.Bytes32{}
+		sysConfig.OperatorFeeParams = eth.EncodeOperatorFeeParams(eth.OperatorFeeParams{})
+		sysConfig.MinBaseFee = 0
+		sysConfig.GasLimit = params.MaxGasLimit
+	}
+
 	nextL2Time := l2Parent.Time + ba.rollupCfg.BlockTime
 	// Sanity check the L1 origin was correctly selected to maintain the time invariant between L1 and L2
 	if !ba.testSkipL1OriginCheck && nextL2Time < l1Info.Time() {

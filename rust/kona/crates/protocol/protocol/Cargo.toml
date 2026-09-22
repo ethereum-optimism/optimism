@@ -38,6 +38,7 @@ alloy-rpc-types-eth.workspace = true
 alloy-rpc-types-engine.workspace = true
 
 # Misc
+once_cell = { workspace = true, features = ["race"] }
 tracing.workspace = true
 thiserror.workspace = true
 async-trait.workspace = true
@@ -82,6 +83,7 @@ kona-registry.workspace = true
 [features]
 default = []
 std = [
+	"once_cell/std",
 	"alloy-consensus/std",
 	"alloy-eips/std",
 	"alloy-primitives/std",

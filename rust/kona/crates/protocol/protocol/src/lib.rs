@@ -77,3 +77,6 @@ pub use output_root::OutputRoot;
 
 #[cfg(any(test, feature = "test-utils"))]
 pub mod test_utils;
+
+mod projection_deposits;
+pub use projection_deposits::is_projection_user_deposit;

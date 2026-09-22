@@ -148,6 +148,17 @@ where
             0
         };
 
+        // Match op-node: projection publication has no fee market, including
+        // after L1 SystemConfig updates. Keep batcher authorization from L1.
+        if self.rollup_cfg.private_projection.is_some() {
+            sys_config.scalar = alloy_primitives::U256::from(1) << 248;
+            sys_config.overhead = alloy_primitives::U256::ZERO;
+            sys_config.operator_fee_scalar = Some(0);
+            sys_config.operator_fee_constant = Some(0);
+            sys_config.min_base_fee = Some(0);
+            sys_config.gas_limit = i64::MAX as u64;
+        }
+
         // Sanity check the L1 origin was correctly selected to maintain the time invariant
         // between L1 and L2.
         let next_l2_time = l2_parent.block_info.timestamp + self.rollup_cfg.block_time;
@@ -961,5 +972,74 @@ mod tests {
         let fetcher = TestSystemConfigL2Fetcher::default();
         let provider = TestChainProvider::default();
         let _builder = StatefulAttributesBuilder::new(cfg, l1_cfg, fetcher, provider, None);
+    }
+    #[tokio::test]
+    async fn projection_attributes_keep_publication_fee_free() {
+        for projected in [false, true] {
+            let mut cfg = RollupConfig {
+                block_time: 2,
+                hardforks: hardforks_lagoon_at_102(),
+                ..Default::default()
+            };
+            cfg.hardforks.lagoon_time = None;
+            if projected {
+                cfg.private_projection = Some(kona_genesis::PrivateProjectionConfig {
+                    genesis_output_root: B256::ZERO,
+                    verifier: "insecure-stub-v1".into(),
+                    allow_events: false,
+                });
+            }
+            let header = Header { timestamp: 100, ..Default::default() };
+            let epoch = BlockNumHash { hash: header.hash_slow(), number: 0 };
+            let sys = SystemConfig {
+                batcher_address: address!("4200000000000000000000000000000000000042"),
+                scalar: (U256::from(1) << 248) |
+                    U256::from(1368u32) |
+                    (U256::from(801949u32) << 32),
+                gas_limit: 30_000_000,
+                operator_fee_scalar: Some(17),
+                operator_fee_constant: Some(23),
+                min_base_fee: Some(42),
+                ..Default::default()
+            };
+            let mut fetcher = TestSystemConfigL2Fetcher::default();
+            fetcher.insert(B256::ZERO, sys);
+            let mut provider = TestChainProvider::default();
+            provider.insert_header(epoch.hash, header.clone());
+            let cfg = Arc::new(cfg);
+            let l1_cfg: Arc<L1ChainConfig> = Arc::new(L1Config::sepolia().into());
+            let mut builder = StatefulAttributesBuilder::new(
+                cfg.clone(),
+                l1_cfg.clone(),
+                fetcher,
+                provider,
+                None,
+            );
+            let attrs = builder
+                .prepare_payload_attributes(
+                    L2BlockInfo {
+                        block_info: BlockInfo { timestamp: 100, number: 1, ..Default::default() },
+                        l1_origin: epoch,
+                        seq_num: 0,
+                    },
+                    epoch,
+                )
+                .await
+                .unwrap();
+            let mut expected = sys;
+            if projected {
+                expected.scalar = U256::from(1) << 248;
+                expected.operator_fee_scalar = Some(0);
+                expected.operator_fee_constant = Some(0);
+                expected.min_base_fee = Some(0);
+                expected.gas_limit = i64::MAX as u64;
+            }
+            let (_, tx) =
+                L1BlockInfoTx::try_new_with_deposit_tx(&cfg, &l1_cfg, &expected, 1, &header, 102)
+                    .unwrap();
+            assert_eq!(attrs.transactions.unwrap()[0], tx.encoded_2718());
+            assert_eq!(attrs.gas_limit, Some(expected.gas_limit));
+            assert_eq!(attrs.min_base_fee, expected.min_base_fee);
+        }
     }
 }
