@@ -35,12 +35,12 @@ type mockChainIngester struct {
 	execMsgs []IncludedMessage
 
 	// State
-	ready                      bool
-	err                        *IngesterError
-	latestBlock                eth.BlockID
-	latestTimestamp            uint64
-	earliestIngestedBlock      uint64
-	isValidInitiatingTimestamp func(uint64) bool
+	ready                         bool
+	err                           *IngesterError
+	latestBlock                   eth.BlockID
+	latestTimestamp               uint64
+	earliestIngestedBlock         uint64
+	firstValidInitiatingTimestamp uint64
 
 	rewindToFinalizedErr   error
 	rewindToFinalizedCount int
@@ -148,11 +148,18 @@ func (m *mockChainIngester) Contains(query messages.ContainsQuery) (messages.Blo
 	return seal, nil
 }
 
+// SetFirstValidInitiatingTimestamp sets the earliest timestamp that may hold
+// initiating messages, i.e. the first block after Lagoon activation.
+func (m *mockChainIngester) SetFirstValidInitiatingTimestamp(ts uint64) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.firstValidInitiatingTimestamp = ts
+}
+
 func (m *mockChainIngester) IsValidInitiatingTimestamp(timestamp uint64) bool {
-	if m.isValidInitiatingTimestamp == nil {
-		return true
-	}
-	return m.isValidInitiatingTimestamp(timestamp)
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	return timestamp >= m.firstValidInitiatingTimestamp
 }
 
 // LatestBlock implements ChainIngester.

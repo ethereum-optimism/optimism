@@ -22,6 +22,7 @@ import (
 const (
 	testExpiryWindow = uint64(100)
 	testChainA       = uint64(900)
+	testChainB       = uint64(901)
 )
 
 // =============================================================================

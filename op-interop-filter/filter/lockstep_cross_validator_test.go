@@ -10,7 +10,6 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-interop-filter/metrics"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
-	"github.com/ethereum-optimism/optimism/op-service/ptr"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
 
 	"github.com/ethereum-optimism/optimism/op-core/interop"
@@ -140,44 +139,105 @@ func TestCrossValidator_InitiatingMessageNotFound(t *testing.T) {
 	require.ErrorIs(t, err, interop.ErrConflict)
 }
 
-func TestCrossValidator_RejectsLagoonActivationBlockMessages(t *testing.T) {
-	mock := newMockChainIngester()
+// TestCrossValidator_UsesSourceChainLagoonActivation checks the initiating message
+// against the activation of the chain that holds it. The source chain and the
+// destination chain activate Lagoon at different timestamps. A check against the
+// destination chain gives the wrong result in every subtest.
+func TestCrossValidator_UsesSourceChainLagoonActivation(t *testing.T) {
 	checksum := messages.MessageChecksum{0x01}
-	mock.AddLog(102, 10, 0, checksum, messages.BlockSeal{})
-	mock.SetLatestTimestamp(104)
+	const (
+		preActivationTs  = uint64(102)
+		postActivationTs = uint64(104)
+		inclusionTs      = uint64(106)
+	)
 
-	cfg := testRollupConfig(testChainA, 0, 100)
-	cfg.LagoonTime = ptr.New(uint64(101))
-	mock.isValidInitiatingTimestamp = func(timestamp uint64) bool {
-		return cfg.IsInterop(timestamp) && !cfg.IsInteropActivationBlock(timestamp)
+	// The source chain accepts initiating messages from postActivationTs onwards.
+	// The destination chain accepts none of the timestamps in this test.
+	newChains := func() (*mockChainIngester, *mockChainIngester, map[eth.ChainID]ChainIngester) {
+		source := newMockChainIngester()
+		source.SetFirstValidInitiatingTimestamp(postActivationTs)
+		source.AddLog(preActivationTs, 10, 0, checksum, messages.BlockSeal{})
+		source.AddLog(postActivationTs, 11, 0, checksum, messages.BlockSeal{})
+		source.SetLatestTimestamp(110)
+
+		destination := newMockChainIngester()
+		destination.SetFirstValidInitiatingTimestamp(1000)
+		destination.SetLatestTimestamp(110)
+
+		return source, destination, map[eth.ChainID]ChainIngester{
+			eth.ChainIDFromUInt64(testChainA): source,
+			eth.ChainIDFromUInt64(testChainB): destination,
+		}
 	}
 
-	chains := map[eth.ChainID]ChainIngester{
-		eth.ChainIDFromUInt64(testChainA): mock,
+	addExecMsg := func(destination *mockChainIngester, initTs uint64, blockNum uint64) {
+		destination.AddExecMsg(IncludedMessage{
+			ExecutingMessage: &messages.ExecutingMessage{
+				ChainID:   eth.ChainIDFromUInt64(testChainA),
+				BlockNum:  blockNum,
+				LogIdx:    0,
+				Timestamp: initTs,
+				Checksum:  checksum,
+			},
+			InclusionBlockNum:  20,
+			InclusionTimestamp: inclusionTs,
+		})
+		destination.SetLatestTimestamp(110)
 	}
-	cv := newTestCrossValidator(chains, testExpiryWindow, 104)
 
-	t.Run("access list validation", func(t *testing.T) {
-		access := makeAccess(testChainA, 102, 10, 0, checksum)
-		exec := makeExecDescriptor(testChainA, 104, 0)
+	t.Run("access list rejects source message from the activation block", func(t *testing.T) {
+		_, _, chains := newChains()
+		cv := newTestCrossValidator(chains, testExpiryWindow, 105)
+
+		access := makeAccess(testChainA, preActivationTs, 10, 0, checksum)
+		exec := makeExecDescriptor(testChainB, inclusionTs, 0)
 
 		err := cv.ValidateAccessEntry(access, safety.LocalUnsafe, exec)
 		require.ErrorIs(t, err, interop.ErrConflict)
 		require.ErrorContains(t, err, "Lagoon activation")
+		require.ErrorContains(t, err, eth.ChainIDFromUInt64(testChainA).String())
 	})
 
-	t.Run("background validation", func(t *testing.T) {
-		execMsg := &messages.ExecutingMessage{
-			ChainID:   eth.ChainIDFromUInt64(testChainA),
-			BlockNum:  10,
-			LogIdx:    0,
-			Timestamp: 102,
-			Checksum:  checksum,
-		}
+	t.Run("access list accepts source message the destination chain predates", func(t *testing.T) {
+		_, _, chains := newChains()
+		cv := newTestCrossValidator(chains, testExpiryWindow, 105)
 
-		err := cv.validateExecutingMessage(execMsg, 104)
-		require.ErrorIs(t, err, interop.ErrConflict)
-		require.ErrorContains(t, err, "Lagoon activation")
+		access := makeAccess(testChainA, postActivationTs, 11, 0, checksum)
+		exec := makeExecDescriptor(testChainB, inclusionTs, 0)
+
+		require.NoError(t, cv.ValidateAccessEntry(access, safety.LocalUnsafe, exec))
+	})
+
+	t.Run("background validation rejects source message from the activation block", func(t *testing.T) {
+		_, destination, chains := newChains()
+		addExecMsg(destination, preActivationTs, 10)
+		cv := newTestCrossValidator(chains, testExpiryWindow, 105)
+
+		cv.advanceValidation() // Initialise at timestamp 105
+		cv.advanceValidation() // Validate the executing message included at timestamp 106
+
+		require.NotNil(t, cv.Error())
+		require.Contains(t, cv.Error().Message, "Lagoon activation")
+		require.Contains(t, cv.Error().Message, eth.ChainIDFromUInt64(testChainA).String())
+
+		ts, ok := cv.CrossValidatedTimestamp()
+		require.True(t, ok)
+		require.Equal(t, uint64(105), ts)
+	})
+
+	t.Run("background validation accepts source message the destination chain predates", func(t *testing.T) {
+		_, destination, chains := newChains()
+		addExecMsg(destination, postActivationTs, 11)
+		cv := newTestCrossValidator(chains, testExpiryWindow, 105)
+
+		cv.advanceValidation() // Initialise at timestamp 105
+		cv.advanceValidation() // Validate the executing message included at timestamp 106
+
+		require.Nil(t, cv.Error())
+
+		ts, ok := cv.CrossValidatedTimestamp()
+		require.True(t, ok)
+		require.Equal(t, uint64(110), ts)
 	})
 }
 
