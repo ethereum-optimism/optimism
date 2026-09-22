@@ -29,7 +29,7 @@ type LogsDB interface {
 	// Contains checks if an initiating message exists in the database.
 	// Returns the block seal if found, or an error (ErrConflict if not found, ErrFuture if not yet indexed,
 	// ErrSkipped if the block is below the retained range).
-	// Only the errors in invalidMessageErrs report an invalid message. The verification round
+	// Only these three errors report an invalid message. The verification round
 	// treats every other error as a local failure and aborts instead of invalidating the block.
 	Contains(query messages.ContainsQuery) (messages.BlockSeal, error)
 	// AddLog adds a log entry to the database.

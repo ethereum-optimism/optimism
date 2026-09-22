@@ -15,56 +15,34 @@ import (
 // The actual value used is read from the dependency set at construction time.
 const defaultMessageExpiryWindow uint64 = 604800
 
+// ErrInvalidMessage is the base for every error that proves an executing message invalid.
+var ErrInvalidMessage = errors.New("invalid executing message")
+
 var (
 	// ErrUnknownChain is returned when an executing message references
 	// a chain that is not registered with the interop activity.
-	ErrUnknownChain = errors.New("unknown chain")
+	ErrUnknownChain = fmt.Errorf("%w: unknown chain", ErrInvalidMessage)
 
 	// ErrChainNotInDependencySet is returned when either side of an executing
 	// message references a chain outside the dependency set.
-	ErrChainNotInDependencySet = errors.New("chain not in dependency set")
+	ErrChainNotInDependencySet = fmt.Errorf("%w: chain not in dependency set", ErrInvalidMessage)
 
 	// ErrTimestampViolation is returned when an executing message references
 	// an initiating message with a timestamp > the executing message's timestamp.
-	ErrTimestampViolation = errors.New("initiating message timestamp must not be greater than executing message timestamp")
+	ErrTimestampViolation = fmt.Errorf("%w: initiating message timestamp must not be greater than executing message timestamp", ErrInvalidMessage)
 
 	// ErrMessageExpired is returned when an executing message references
 	// an initiating message that has expired (older than the message expiry window).
-	ErrMessageExpired = errors.New("initiating message has expired")
+	ErrMessageExpired = fmt.Errorf("%w: initiating message has expired", ErrInvalidMessage)
 
 	// ErrExecutedTooEarly is returned when an executing message is in the executing chain's
 	// pre-activation or activation block.
-	ErrExecutedTooEarly = errors.New("interop is not active for at least one block on the executing chain")
+	ErrExecutedTooEarly = fmt.Errorf("%w: interop is not active for at least one block on the executing chain", ErrInvalidMessage)
 
 	// ErrInitiatedTooEarly is returned when an executing message references an initiating
 	// message in the initiating chain's pre-activation or activation block.
-	ErrInitiatedTooEarly = errors.New("interop is not active for at least one block on the initiating chain")
+	ErrInitiatedTooEarly = fmt.Errorf("%w: interop is not active for at least one block on the initiating chain", ErrInvalidMessage)
 )
-
-// invalidMessageErrs lists the errors that the verification round treats as an invalid
-// executing message. Any other error from verifyExecutingMessage reports a local failure,
-// such as a log store read error, and must not make the executing block invalid.
-var invalidMessageErrs = []error{
-	ErrUnknownChain,
-	ErrChainNotInDependencySet,
-	ErrTimestampViolation,
-	ErrMessageExpired,
-	ErrExecutedTooEarly,
-	ErrInitiatedTooEarly,
-	interop.ErrConflict,
-	interop.ErrFuture,
-	interop.ErrSkipped,
-}
-
-// isInvalidMessageErr reports whether err proves that an executing message is invalid.
-func isInvalidMessageErr(err error) bool {
-	for _, invalid := range invalidMessageErrs {
-		if errors.Is(err, invalid) {
-			return true
-		}
-	}
-	return false
-}
 
 type blockPerChain = map[eth.ChainID]eth.BlockID
 
@@ -155,7 +133,7 @@ func (i *Interop) verifyInteropMessages(ts uint64, blocksAtTimestamp blockPerCha
 		for logIdx, execMsg := range execMsgs {
 			err := i.verifyExecutingMessage(chainID, blockRef.Time, logIdx, execMsg, view)
 			if err != nil {
-				if !isInvalidMessageErr(err) {
+				if !errors.Is(err, ErrInvalidMessage) {
 					// A local failure, such as a log store read error, must not make the
 					// block invalid. Abort the round and retry it later, the same way an
 					// OpenBlock failure aborts it.
@@ -261,6 +239,12 @@ func (i *Interop) verifyExecutingMessage(executingChain eth.ChainID, executingTi
 
 	// Check if the initiating message exists in the source chain's logsDB
 	if _, err := sourceDB.Contains(query); err != nil {
+		// Invalidation replaces blocks and is hard to reverse. An abort only stalls
+		// verification, which is visible and recoverable. So only these three errors
+		// prove invalidity, and every other error stays a local failure.
+		if errors.Is(err, interop.ErrConflict) || errors.Is(err, interop.ErrFuture) || errors.Is(err, interop.ErrSkipped) {
+			err = fmt.Errorf("%w: %w", ErrInvalidMessage, err)
+		}
 		return fmt.Errorf("initiating message chain %s block %d log %d: %w",
 			execMsg.ChainID, execMsg.BlockNum, execMsg.LogIdx, err)
 	}

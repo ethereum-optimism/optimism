@@ -519,6 +519,88 @@ func TestVerifyExecutingMessageChecksDependencySetMembership(t *testing.T) {
 	}
 }
 
+// TestSentinelsWrapErrInvalidMessage guards the accept-set. A new sentinel that does not
+// wrap ErrInvalidMessage makes the round abort instead of invalidate.
+func TestSentinelsWrapErrInvalidMessage(t *testing.T) {
+	t.Parallel()
+
+	for _, err := range []error{
+		ErrUnknownChain,
+		ErrChainNotInDependencySet,
+		ErrTimestampViolation,
+		ErrMessageExpired,
+		ErrExecutedTooEarly,
+		ErrInitiatedTooEarly,
+	} {
+		require.ErrorIs(t, err, ErrInvalidMessage, err.Error())
+	}
+}
+
+func TestVerifyExecutingMessageWrapsErrInvalidMessage(t *testing.T) {
+	t.Parallel()
+
+	sourceChainID := eth.ChainIDFromUInt64(10)
+	executingChainID := eth.ChainIDFromUInt64(8453)
+
+	newInterop := func(t *testing.T, sourceDB *algoMockLogsDB) *Interop {
+		dependencySet, err := depset.NewStaticConfigDependencySet(
+			map[eth.ChainID]*depset.StaticConfigDependency{
+				sourceChainID:    {},
+				executingChainID: {},
+			})
+		require.NoError(t, err)
+		return &Interop{
+			activationTimestamp: 0,
+			dependencySet:       dependencySet,
+			messageExpiryWindow: defaultMessageExpiryWindow,
+			logsDBs: map[eth.ChainID]LogsDB{
+				sourceChainID: sourceDB,
+			},
+			chains: map[eth.ChainID]cc.InteropChain{
+				sourceChainID:    &algoMockChain{id: sourceChainID},
+				executingChainID: &algoMockChain{id: executingChainID},
+			},
+		}
+	}
+
+	execMsg := func(timestamp uint64) *messages.ExecutingMessage {
+		return &messages.ExecutingMessage{
+			ChainID:   sourceChainID,
+			BlockNum:  50,
+			LogIdx:    0,
+			Timestamp: timestamp,
+			Checksum:  messages.MessageChecksum{0x01},
+		}
+	}
+
+	t.Run("LocalSentinel", func(t *testing.T) {
+		t.Parallel()
+		i := newInterop(t, &algoMockLogsDB{})
+		// An initiating timestamp after the executing timestamp violates the ordering rule.
+		err := i.verifyExecutingMessage(executingChainID, 1000, 0, execMsg(2000), nil)
+		require.ErrorIs(t, err, ErrTimestampViolation)
+		require.ErrorIs(t, err, ErrInvalidMessage)
+	})
+
+	for _, containsErr := range []error{interop.ErrConflict, interop.ErrFuture, interop.ErrSkipped} {
+		t.Run("Contains/"+containsErr.Error(), func(t *testing.T) {
+			t.Parallel()
+			i := newInterop(t, &algoMockLogsDB{containsErr: containsErr})
+			err := i.verifyExecutingMessage(executingChainID, 1000, 0, execMsg(500), nil)
+			require.ErrorIs(t, err, containsErr)
+			require.ErrorIs(t, err, ErrInvalidMessage)
+		})
+	}
+
+	t.Run("Contains/StorageError", func(t *testing.T) {
+		t.Parallel()
+		i := newInterop(t, &algoMockLogsDB{containsErr: errTestLogStorage})
+		err := i.verifyExecutingMessage(executingChainID, 1000, 0, execMsg(500), nil)
+		require.ErrorIs(t, err, errTestLogStorage)
+		require.NotErrorIs(t, err, ErrInvalidMessage)
+	})
+}
+
 func TestVerifyInteropMessages(t *testing.T) {
 	t.Parallel()
 
