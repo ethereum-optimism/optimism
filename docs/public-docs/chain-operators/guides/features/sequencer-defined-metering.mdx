@@ -41,11 +41,11 @@ Run SDM-capable versions of:
 * `op-node` or `kona-node` on consensus nodes.
 
 Verifier operators do not opt in to anything and have no SDM configuration. If you run verifier
-nodes only, running SDM-capable software is all you need to do.
+nodes only, running up-to-date software is all you need to do.
 
-## Operator opt-in
+## Chain operator opt-in
 
-A producer appends a PostExec transaction only when two separate things are true: Lagoon is active
+Sequencers append a PostExec transaction only when two separate things are true: Lagoon is active
 at the block's timestamp, and the operator has opted in on that node. If either is false, the node
 builds blocks under legacy gas accounting and appends nothing.
 
@@ -102,9 +102,6 @@ never appends a PostExec transaction, even when Lagoon is active and
 compatibility and downstream producer integrations; it is not a policy-selection interface in
 stock `op-reth`.
 
-The `op-reth-sdm-fixture` binary in the source tree is only a deterministic acceptance-test fixture.
-It is excluded from release packaging, images, and deployment manifests.
-Do not deploy it as a sequencer.
 
 ## Refund policies and OP Enterprise
 
