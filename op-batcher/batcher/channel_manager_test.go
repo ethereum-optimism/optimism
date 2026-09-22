@@ -1153,6 +1153,7 @@ func TestChannelManagerRetainsPendingProof(t *testing.T) {
 				require.Equal(t, 1, created)
 				require.Len(t, m.channelQueue, 1)
 				require.False(t, worker.discarded)
+				require.False(t, m.currentChannel.isFullySubmitted(), "proof preparation must not trigger stalled-submission recovery")
 			}
 			worker.ready = true
 			data, err := m.TxData(eth.BlockID{}, false, pubInfo{})

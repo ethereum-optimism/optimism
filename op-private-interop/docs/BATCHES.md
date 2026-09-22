@@ -5,10 +5,11 @@ private output commitments and message records, not private application transact
 or write sets. Ordinary L1 deposits remain public. On the projection they follow its
 existing deposit execution policy; the private chain executes them normally.
 
-This is an experimental, fresh-deployment profile. Two explicitly insecure verifier profiles are available. `insecure-stub-v1`
-accepts bounded dummy bytes. `execution-mock-v1` requires a versioned envelope
+This is an experimental, fresh-deployment profile. Two explicitly insecure verifier
+profiles are available. `insecure-stub-v1` accepts bounded dummy bytes. `execution-mock-v1` requires a versioned envelope
 bound to the independently reconstructed public admission statement. Neither
-provides cryptographic private-execution verification. Commitments therefore remain assertions of the authorized L1 publisher.
+provides cryptographic private-execution verification. Commitments therefore remain
+assertions of the authorized L1 publisher.
 Neither an output root nor a successful local recovery proves private execution.
 
 ## Submitted block layout
@@ -41,7 +42,7 @@ even if their destination or calldata impersonates a record method.
 
 ## Pure admission and proof statement
 
-The rollup config opts into `private_projection` with verifier `insecure-stub-v1`,
+The rollup config opts into `private_projection` with an explicit verifier mode,
 a nonzero `genesis_output_root`, and optional `allow_events`. Holocene and interop
 must be active at genesis. Ordinary chains omit this config and retain their rules.
 
@@ -127,8 +128,8 @@ H("optimism.private-recovery.v1\0" || previousHash || publicBlockHash || publicP
 The public block hash additionally binds the complete header. A future execution
 proof must authenticate private execution from the surviving output through these
 canonical replacement inputs, then through the submitted private range, and bind
-all intermediate output records and exported/imported messages. The present stub
-only checks the public framing and context bindings; it does **not** verify that the
+all intermediate output records and exported/imported messages. The present insecure profiles
+only check the public framing and context bindings; it does **not** verify that the
 claimed private parent or intermediate outputs follow from execution. Configuration
 and dependency-set claims also remain trusted until the proof relation authenticates
 them against its protocol configuration.
