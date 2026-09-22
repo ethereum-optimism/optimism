@@ -310,13 +310,22 @@ including the L1 transaction path. Use the task-stats log to investigate stuck w
 
 All proposer-owned variables use the `KONA_SP1_PROPOSER_` prefix.
 
+For a standard network, set `--network <name>` or `KONA_SP1_PROPOSER_NETWORK`
+to a predefined network name recognized by OP Stack services, such as `op-mainnet` or
+`op-sepolia`. The command-line
+value overrides the environment value. Custom deployments can set
+`KONA_SP1_PROPOSER_FACTORY_ADDRESS`; an explicit address overrides network lookup. Startup fails
+when neither source is set, the network name is unknown, or the selected registry chain has no
+`DisputeGameFactory` address.
+
 Required core configuration:
 
 | Variable | Purpose |
 |---|---|
 | `KONA_SP1_PROPOSER_L1_RPC` | L1 execution RPC; must support standard JSON-RPC batch requests (current proposer game-state batches contain at most 4 `eth_call` entries) |
 | `KONA_SP1_PROPOSER_SUPERROOT_RPCS` | op-supernode or single-chain op-node RPCs serving `superroot_atTimestamp`. Multiple comma-separated RPCs can be provided for redundancy |
-| `KONA_SP1_PROPOSER_FACTORY_ADDRESS` | `DisputeGameFactory` address |
+| `KONA_SP1_PROPOSER_NETWORK` | Predefined network name recognized by OP Stack services, such as `op-mainnet`; alternative to `KONA_SP1_PROPOSER_FACTORY_ADDRESS` |
+| `KONA_SP1_PROPOSER_FACTORY_ADDRESS` | Explicit `DisputeGameFactory` address; required when no network is selected and overrides network lookup |
 | `KONA_SP1_PROPOSER_PRESTATES_URL` | prestate artifact directory (`<vkey>.agg.bin.gz` + `<vkey>.range.bin.gz`) |
 | `KONA_SP1_PROPOSER_PROOF_PROVIDER` | `network` or `mock`; no default |
 | `KONA_SP1_PROPOSER_L1_BEACON_RPC` | L1 beacon API (blob sidecars for derivation witnesses) |

@@ -1,4 +1,4 @@
-//! Environment-driven proposer configuration.
+//! Proposer configuration.
 //!
 //! Trimmed from op-succinct's `fault-proof/src/config.rs` (@ 13716c2c):
 //! proof-provider selection, SP1 network knobs, range splitting, and the
@@ -16,6 +16,7 @@ use std::{
 use alloy_primitives::{Address, B256};
 use alloy_transport_http::reqwest::{self, Url};
 use anyhow::{Context, Result, anyhow, bail};
+use kona_registry::{CHAINS, OPCHAINS};
 use kona_sp1_host_utils::{metrics::MetricsListen, network::parse_fulfillment_strategy};
 use sp1_sdk::network::FulfillmentStrategy;
 
@@ -68,7 +69,7 @@ impl FromStr for ProofProviderKind {
     }
 }
 
-/// Runtime configuration for the proposer, parsed from environment variables.
+/// Runtime configuration for the proposer.
 #[derive(Debug, Clone)]
 pub struct ProposerConfig {
     /// The L1 RPC URL.
@@ -192,6 +193,15 @@ fn optional_env(suffix: &str) -> Option<String> {
     }
 }
 
+fn explicit_factory_address_env() -> Result<Option<String>> {
+    let name = env_var("FACTORY_ADDRESS");
+    match env::var(&name) {
+        Ok(value) => Ok(Some(value)),
+        Err(env::VarError::NotPresent) => Ok(None),
+        Err(err) => Err(anyhow!("invalid {name}: {err}")),
+    }
+}
+
 fn env_or(suffix: &str, default: &str) -> String {
     env::var(env_var(suffix)).unwrap_or_else(|_| default.to_string())
 }
@@ -221,10 +231,64 @@ where
         .transpose()
 }
 
+fn resolve_factory_address(
+    explicit_address: Option<&str>,
+    network: Option<&str>,
+) -> Result<Address> {
+    let address_name = env_var("FACTORY_ADDRESS");
+    if let Some(address) = explicit_address {
+        return address.parse().map_err(|err| anyhow!("invalid {address_name}: {err}"));
+    }
+
+    let network = network.ok_or_else(|| anyhow!("{address_name} or --network is required"))?;
+    factory_address_from_network(network)
+}
+
+fn factory_address_from_network(network: &str) -> Result<Address> {
+    let chain = CHAINS
+        .chains
+        .iter()
+        .find(|chain| network_matches_identifier(network, &chain.identifier))
+        .ok_or_else(|| anyhow!("unknown network {network:?}"))?;
+    let chain_id = chain.chain_id;
+    let chain_config = OPCHAINS
+        .get(&chain_id)
+        .expect("chain list and chain configs must contain the same chain IDs");
+
+    chain_config
+        .addresses
+        .as_ref()
+        .and_then(|addresses| addresses.dispute_game_factory_proxy)
+        .ok_or_else(|| {
+            anyhow!("network {network:?} (chain ID {chain_id}) has no dispute game factory proxy")
+        })
+}
+
+fn network_matches_identifier(network: &str, identifier: &str) -> bool {
+    let Some((superchain, chain)) = identifier.split_once('/') else {
+        return false;
+    };
+    let Some(network_chain) = network.get(..chain.len()) else {
+        return false;
+    };
+    let Some(network_superchain) =
+        network.get(chain.len()..).and_then(|suffix| suffix.strip_prefix('-'))
+    else {
+        return false;
+    };
+
+    network_chain.eq_ignore_ascii_case(chain) && network_superchain.eq_ignore_ascii_case(superchain)
+}
+
 impl ProposerConfig {
-    /// Parses the configuration from environment variables, applying defaults
-    /// for optional settings and failing on missing or invalid required ones.
-    pub fn from_env() -> Result<Self> {
+    /// Reads environment settings and resolves the factory address.
+    ///
+    /// The explicit factory-address environment variable takes precedence over
+    /// the predefined network name.
+    pub fn from_env(network: Option<&str>) -> Result<Self> {
+        let explicit_factory_address = explicit_factory_address_env()?;
+        let factory_address =
+            resolve_factory_address(explicit_factory_address.as_deref(), network)?;
         let tx_confirmation_timeout = parsed_env_or("TX_CONFIRMATION_TIMEOUT", 180u64)?;
         anyhow::ensure!(
             tx_confirmation_timeout > 0,
@@ -250,7 +314,7 @@ impl ProposerConfig {
         Ok(Self {
             l1_rpc: parsed_required_env("L1_RPC")?,
             superroot_rpcs,
-            factory_address: parsed_required_env("FACTORY_ADDRESS")?,
+            factory_address,
             prestates_url: parsed_required_env("PRESTATES_URL")?,
             proposal_interval_seconds: parsed_env_or("PROPOSAL_INTERVAL_SECONDS", 3600u64)?,
             proposal_safety: parsed_env_or("PROPOSAL_SAFETY", ProposalSafety::Finalized)?,
@@ -698,6 +762,60 @@ mod tests {
         }
     }
 
+    mod factory_address {
+        use super::*;
+
+        fn registry_factory(chain_id: u64) -> Address {
+            OPCHAINS
+                .get(&chain_id)
+                .and_then(|config| config.addresses.as_ref())
+                .and_then(|addresses| addresses.dispute_game_factory_proxy)
+                .expect("dispute game factory missing from registry")
+        }
+
+        #[test]
+        fn standard_network_resolves_registry_factory() {
+            assert_eq!(factory_address_from_network("op-mainnet").unwrap(), registry_factory(10));
+        }
+
+        #[test]
+        fn network_names_are_case_insensitive_and_preserve_hyphens() {
+            assert!(network_matches_identifier("A-B-C-D", "c-d/a-b"));
+            assert!(!network_matches_identifier("A-B-C-D", "a-b/c-d"));
+        }
+
+        #[test]
+        fn explicit_factory_takes_precedence() {
+            let address = "0x000000000000000000000000000000000000dEaD";
+            assert_eq!(
+                resolve_factory_address(Some(address), Some("not-a-network")).unwrap(),
+                address.parse::<Address>().unwrap()
+            );
+        }
+
+        /// Safe under nextest's process-per-test model; environment mutation
+        /// is `unsafe` on edition 2024.
+        #[test]
+        fn empty_explicit_factory_does_not_fall_back() {
+            let name = env_var("FACTORY_ADDRESS");
+            unsafe { env::set_var(&name, "") };
+
+            let explicit_factory_address = explicit_factory_address_env().unwrap();
+            let err =
+                resolve_factory_address(explicit_factory_address.as_deref(), Some("op-mainnet"))
+                    .unwrap_err()
+                    .to_string();
+            assert!(err.contains(&name), "unexpected error: {err}");
+        }
+
+        #[test]
+        fn missing_factory_source_is_rejected() {
+            let err = resolve_factory_address(None, None).unwrap_err().to_string();
+            assert!(err.contains("KONA_SP1_PROPOSER_FACTORY_ADDRESS"), "unexpected error: {err}");
+            assert!(err.contains("--network"), "unexpected error: {err}");
+        }
+    }
+
     mod proving_config {
         use super::*;
 
@@ -798,20 +916,20 @@ mod tests {
             set_proposer_env("PRESTATES_URL", "file:///tmp/prestates");
 
             // The proof provider has no default.
-            let err = ProposerConfig::from_env().unwrap_err().to_string();
+            let err = ProposerConfig::from_env(None).unwrap_err().to_string();
             assert!(err.contains("KONA_SP1_PROPOSER_PROOF_PROVIDER"), "unexpected error: {err}");
 
             set_proposer_env("PROOF_PROVIDER", "mock");
-            let err = ProposerConfig::from_env().unwrap_err().to_string();
+            let err = ProposerConfig::from_env(None).unwrap_err().to_string();
             assert!(err.contains("KONA_SP1_PROPOSER_L2_RPCS"), "unexpected error: {err}");
 
             set_proposer_env("L2_RPCS", "http://127.0.0.1:8646,http://127.0.0.1:8647");
-            let err = ProposerConfig::from_env().unwrap_err().to_string();
+            let err = ProposerConfig::from_env(None).unwrap_err().to_string();
             assert!(err.contains("KONA_SP1_PROPOSER_L1_BEACON_RPC"), "unexpected error: {err}");
 
             // Mock mode requires no SPN credentials.
             set_proposer_env("L1_BEACON_RPC", "http://127.0.0.1:5052");
-            let config = ProposerConfig::from_env().unwrap();
+            let config = ProposerConfig::from_env(None).unwrap();
             assert_eq!(config.proof_provider, ProofProviderKind::Mock);
             assert_eq!(config.superroot_rpcs.len(), 2);
             assert_eq!(config.l2_rpcs.len(), 2);
@@ -819,9 +937,9 @@ mod tests {
             assert_eq!(config.tx_confirmation_timeout, 180);
             assert_eq!(config.range_split_count.to_usize(), 16);
             set_proposer_env("RANGE_SPLIT_COUNT", "128");
-            assert_eq!(ProposerConfig::from_env().unwrap().range_split_count.to_usize(), 128);
+            assert_eq!(ProposerConfig::from_env(None).unwrap().range_split_count.to_usize(), 128);
             set_proposer_env("RANGE_SPLIT_COUNT", "129");
-            let err = ProposerConfig::from_env().unwrap_err().to_string();
+            let err = ProposerConfig::from_env(None).unwrap_err().to_string();
             assert!(err.contains("range splits must be between 1 and 128"), "unexpected: {err}");
             assert_eq!(config.max_concurrent_defense_tasks.get(), 8);
             assert!(!config.fast_finality_mode);
@@ -869,7 +987,7 @@ mod tests {
             set_proposer_env("L2_RPCS", "http://127.0.0.1:8646");
             set_proposer_env("L1_BEACON_RPC", "http://127.0.0.1:5052");
             set_proposer_env("MAX_CONCURRENT_DEFENSE_TASKS", "0");
-            let err = ProposerConfig::from_env().unwrap_err().to_string();
+            let err = ProposerConfig::from_env(None).unwrap_err().to_string();
             assert!(
                 err.contains("KONA_SP1_PROPOSER_MAX_CONCURRENT_DEFENSE_TASKS"),
                 "unexpected error: {err}"
@@ -889,7 +1007,7 @@ mod tests {
             set_proposer_env("L1_BEACON_RPC", "http://127.0.0.1:5052");
             for var in ["SP1_TIMEOUT_SECONDS", "NETWORK_CALLS_TIMEOUT", "AUCTION_TIMEOUT"] {
                 set_proposer_env(var, "0");
-                let err = ProposerConfig::from_env().unwrap_err().to_string();
+                let err = ProposerConfig::from_env(None).unwrap_err().to_string();
                 let name = env_var(var);
                 assert!(err.contains(&name), "expected {name} rejection, got: {err}");
                 unsafe { env::remove_var(name) };

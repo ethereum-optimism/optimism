@@ -1,7 +1,6 @@
 //! Proposer service binary for the super-root ZK dispute game.
 //!
 //! Derived from op-succinct's `fault-proof/bin/proposer.rs` (@ 13716c2c).
-//! Configuration is environment-only; see `ProposerConfig::from_env`.
 
 use std::sync::Arc;
 
@@ -23,19 +22,27 @@ use kona_sp1_proposer::{
     signer::{Signer, SignerLock},
 };
 
-/// Command-line interface for process metadata; runtime configuration remains environment-only.
 #[derive(Debug, Parser)]
 #[command(version, about = env!("CARGO_PKG_DESCRIPTION"))]
-struct Cli {}
+struct Cli {
+    /// Predefined network name recognized by OP Stack services, such as `op-mainnet`.
+    ///
+    /// Required unless `KONA_SP1_PROPOSER_FACTORY_ADDRESS` is set. An explicit
+    /// factory address takes precedence.
+    #[arg(long, env = "KONA_SP1_PROPOSER_NETWORK")]
+    network: Option<String>,
+}
 
 #[tokio::main]
 async fn main() -> Result<()> {
-    Cli::parse();
+    let cli = Cli::parse();
     setup_logger(ENV_VAR_PREFIX);
 
-    let config = ProposerConfig::from_env()?;
+    let network = cli.network.as_deref().filter(|network| !network.is_empty());
+    let config = ProposerConfig::from_env(network)?;
 
     tracing::info!(
+        network = ?network,
         l1_rpc = %redacted_url(&config.l1_rpc),
         superroot_rpcs = &config.superroot_rpcs.iter().map(redacted_url).collect::<Vec<_>>().join(","),
         factory_address = %config.factory_address,

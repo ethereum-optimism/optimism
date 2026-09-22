@@ -18,6 +18,7 @@ workspace = true
 kona-sp1-client-utils.workspace = true
 kona-sp1-host-utils.workspace = true
 kona-sp1-super-range-executor.workspace = true
+kona-registry.workspace = true
 
 # sp1
 sp1-sdk.workspace = true
@@ -45,7 +46,7 @@ metrics.workspace = true
 serde = { workspace = true, features = ["derive", "std"] }
 futures.workspace = true
 async-trait.workspace = true
-clap = { workspace = true, features = ["derive"] }
+clap = { workspace = true, features = ["derive", "env"] }
 strum.workspace = true
 strum_macros.workspace = true
 tokio = { workspace = true, features = ["full"] }
