@@ -237,12 +237,12 @@ func (i *Interop) verifyExecutingMessage(executingChain eth.ChainID, executingTi
 		}
 	}
 
-	// Check if the initiating message exists in the source chain's logsDB
+	// Check if the initiating message exists in the source chain's logsDB.
 	if _, err := sourceDB.Contains(query); err != nil {
-		// Invalidation replaces blocks and is hard to reverse. An abort only stalls
-		// verification, which is visible and recoverable. So only these three errors
-		// prove invalidity, and every other error stays a local failure.
-		if errors.Is(err, interop.ErrConflict) || errors.Is(err, interop.ErrFuture) || errors.Is(err, interop.ErrSkipped) {
+		// The logsDB seals timestamps contiguously to the last accepted one, the frontier
+		// view covers the current timestamp, and backfill covers one expiry window below
+		// the first verified timestamp. So a message the logsDB cannot produce does not exist.
+		if !errors.Is(err, interop.ErrDatabaseFailure) {
 			err = fmt.Errorf("%w: %w", ErrInvalidMessage, err)
 		}
 		return fmt.Errorf("initiating message chain %s block %d log %d: %w",

@@ -3,6 +3,7 @@ package interop
 import (
 	"context"
 	"errors"
+	"fmt"
 	"math/big"
 	"testing"
 
@@ -26,13 +27,17 @@ import (
 // =============================================================================
 
 // errTestLogStorage stands for a local log store failure, such as a WAL read error
-// or a block-record decode error.
-var errTestLogStorage = errors.New("log storage read failed")
+// or a block-record decode error. The logsDB marks such failures with interop.ErrDatabaseFailure.
+var errTestLogStorage = fmt.Errorf("%w: log storage read failed", interop.ErrDatabaseFailure)
+
+// errTestUnrecognised stands for an error the logsDB returns without marking it
+// a database failure. The verification layer must treat it as proof of an invalid message.
+var errTestUnrecognised = errors.New("unrecognised logsDB error")
 
 // newSourceContainsErrCase builds a two-chain verifyInteropTestCase in which the source
 // chain's Contains call returns containsErr. The destination chain executes one message
-// from the source chain. Set abort to true when containsErr reports a local failure, so
-// the round must abort and leave the executing block valid. Set abort to false when
+// from the source chain. Set abort to true when containsErr reports a database failure,
+// so the round must abort and leave the executing block valid. Set abort to false when
 // containsErr proves the executing message is invalid.
 func newSourceContainsErrCase(name string, containsErr error, abort bool) verifyInteropTestCase {
 	sourceChainID := eth.ChainIDFromUInt64(10)
@@ -74,10 +79,8 @@ func newSourceContainsErrCase(name string, containsErr error, abort bool) verify
 
 	if abort {
 		tc.expectError = true
-		tc.errorMsg = containsErr.Error()
-		tc.validate = func(t *testing.T, result Result) {
-			require.Empty(t, result.InvalidHeads, "a local failure must not invalidate a block")
-		}
+		tc.expectErrIs = containsErr
+		tc.rejectErrIs = ErrInvalidMessage
 		return tc
 	}
 	tc.validate = func(t *testing.T, result Result) {
@@ -106,6 +109,8 @@ type verifyInteropTestCase struct {
 	setup       func() (*Interop, uint64, map[eth.ChainID]eth.BlockID)
 	expectError bool
 	errorMsg    string
+	expectErrIs error
+	rejectErrIs error
 	validate    func(t *testing.T, result Result)
 }
 
@@ -121,6 +126,12 @@ func runVerifyInteropTest(t *testing.T, tc verifyInteropTestCase) {
 		require.Error(t, err)
 		if tc.errorMsg != "" {
 			require.Contains(t, err.Error(), tc.errorMsg)
+		}
+		if tc.expectErrIs != nil {
+			require.ErrorIs(t, err, tc.expectErrIs)
+		}
+		if tc.rejectErrIs != nil {
+			require.NotErrorIs(t, err, tc.rejectErrIs)
 		}
 	} else {
 		require.NoError(t, err)
@@ -582,22 +593,20 @@ func TestVerifyExecutingMessageWrapsErrInvalidMessage(t *testing.T) {
 		require.ErrorIs(t, err, ErrInvalidMessage)
 	})
 
-	for _, containsErr := range []error{interop.ErrConflict, interop.ErrFuture, interop.ErrSkipped} {
-		t.Run("Contains/"+containsErr.Error(), func(t *testing.T) {
-			t.Parallel()
-			i := newInterop(t, &algoMockLogsDB{containsErr: containsErr})
-			err := i.verifyExecutingMessage(executingChainID, 1000, 0, execMsg(500), nil)
-			require.ErrorIs(t, err, containsErr)
-			require.ErrorIs(t, err, ErrInvalidMessage)
-		})
-	}
+	t.Run("Contains/UnrecognisedError", func(t *testing.T) {
+		t.Parallel()
+		i := newInterop(t, &algoMockLogsDB{containsErr: errTestUnrecognised})
+		err := i.verifyExecutingMessage(executingChainID, 1000, 0, execMsg(500), nil)
+		require.ErrorIs(t, err, errTestUnrecognised)
+		require.ErrorIs(t, err, ErrInvalidMessage, "an unmarked logsDB error proves the message invalid")
+	})
 
-	t.Run("Contains/StorageError", func(t *testing.T) {
+	t.Run("Contains/DatabaseFailure", func(t *testing.T) {
 		t.Parallel()
 		i := newInterop(t, &algoMockLogsDB{containsErr: errTestLogStorage})
 		err := i.verifyExecutingMessage(executingChainID, 1000, 0, execMsg(500), nil)
 		require.ErrorIs(t, err, errTestLogStorage)
-		require.NotErrorIs(t, err, ErrInvalidMessage)
+		require.NotErrorIs(t, err, ErrInvalidMessage, "a database failure must abort the round")
 	})
 }
 
@@ -944,8 +953,7 @@ func TestVerifyInteropMessages(t *testing.T) {
 			},
 		},
 		newSourceContainsErrCase("InvalidBlocks/InitiatingMessageNotFound", interop.ErrConflict, false),
-		newSourceContainsErrCase("InvalidBlocks/InitiatingMessageNotIndexed", interop.ErrFuture, false),
-		newSourceContainsErrCase("InvalidBlocks/InitiatingMessagePruned", interop.ErrSkipped, false),
+		newSourceContainsErrCase("InvalidBlocks/InitiatingMessageUnrecognisedError", errTestUnrecognised, false),
 		{
 			name: "InvalidBlocks/FutureTimestamp",
 			setup: func() (*Interop, uint64, map[eth.ChainID]eth.BlockID) {

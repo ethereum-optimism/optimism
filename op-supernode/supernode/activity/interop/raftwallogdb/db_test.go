@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/hashicorp/raft"
 	"github.com/stretchr/testify/require"
 
 	"github.com/ethereum-optimism/optimism/op-service/eth"
@@ -717,4 +718,37 @@ func TestPersistence_AfterClear(t *testing.T) {
 	latest, ok := db2.LatestSealedBlock()
 	require.True(t, ok)
 	require.Equal(t, fresh, latest)
+}
+
+// TestContainsCorruptRecordIsDatabaseFailure proves a corrupt entry reports an
+// infrastructure fault. It must not report the queried message as absent.
+func TestContainsCorruptRecordIsDatabaseFailure(t *testing.T) {
+	db := tempDB(t)
+	parent := blockID(0, 0xA0)
+	require.NoError(t, db.SealBlock(common.Hash{}, parent, 100))
+	blk := blockID(1, 0x01)
+	require.NoError(t, db.SealBlock(parent.Hash, blk, 200))
+
+	// Corrupt the stored entry for block 1: drop it, then write a short payload back.
+	require.NoError(t, db.w.DeleteRange(indexFor(1), indexFor(1)))
+	require.NoError(t, db.w.StoreLogs([]*raft.Log{{Index: indexFor(1), Data: []byte{0x01, 0x02}}}))
+
+	_, err := db.Contains(messages.ContainsQuery{BlockNum: 1, Timestamp: 200})
+	require.ErrorIs(t, err, interop.ErrDatabaseFailure)
+}
+
+// TestContainsMissingEntryIsDatabaseFailure proves a lost WAL entry reports an
+// infrastructure fault. It must not report the queried message as absent.
+func TestContainsMissingEntryIsDatabaseFailure(t *testing.T) {
+	db := tempDB(t)
+	parent := blockID(0, 0xA0)
+	require.NoError(t, db.SealBlock(common.Hash{}, parent, 100))
+	blk := blockID(1, 0x01)
+	require.NoError(t, db.SealBlock(parent.Hash, blk, 200))
+
+	// Drop the entry for block 1 without replacing it, so GetLog fails.
+	require.NoError(t, db.w.DeleteRange(indexFor(1), indexFor(1)))
+
+	_, err := db.Contains(messages.ContainsQuery{BlockNum: 1, Timestamp: 200})
+	require.ErrorIs(t, err, interop.ErrDatabaseFailure)
 }

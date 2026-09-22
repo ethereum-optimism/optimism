@@ -300,11 +300,11 @@ func (d *DB) Contains(query messages.ContainsQuery) (messages.BlockSeal, error) 
 
 	var log raft.Log
 	if err := d.w.GetLog(indexFor(query.BlockNum), &log); err != nil {
-		return messages.BlockSeal{}, fmt.Errorf("GetLog(%d): %w", query.BlockNum, err)
+		return messages.BlockSeal{}, fmt.Errorf("%w: GetLog(%d): %w", interop.ErrDatabaseFailure, query.BlockNum, err)
 	}
 	rec, err := decodeBlockRecord(log.Data)
 	if err != nil {
-		return messages.BlockSeal{}, err
+		return messages.BlockSeal{}, fmt.Errorf("%w: decode block record %d: %w", interop.ErrDatabaseFailure, query.BlockNum, err)
 	}
 	if query.LogIdx >= rec.LogCount {
 		return messages.BlockSeal{}, interop.ErrConflict

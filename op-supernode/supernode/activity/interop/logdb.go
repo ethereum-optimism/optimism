@@ -27,10 +27,10 @@ type LogsDB interface {
 	// OpenBlock returns the block reference, log count, and executing messages for a block.
 	OpenBlock(blockNum uint64) (ref eth.BlockRef, logCount uint32, execMsgs map[uint32]*messages.ExecutingMessage, err error)
 	// Contains checks if an initiating message exists in the database.
-	// Returns the block seal if found, or an error (ErrConflict if not found, ErrFuture if not yet indexed,
-	// ErrSkipped if the block is below the retained range).
-	// Only these three errors report an invalid message. The verification round
-	// treats every other error as a local failure and aborts instead of invalidating the block.
+	// It returns the block seal if the message is present as claimed.
+	// An error that wraps interop.ErrDatabaseFailure reports an infrastructure fault,
+	// such as an I/O error or a corrupt record. It says nothing about the message.
+	// Every other error means the message is not present as claimed.
 	Contains(query messages.ContainsQuery) (messages.BlockSeal, error)
 	// AddLog adds a log entry to the database.
 	AddLog(logHash common.Hash, parentBlock eth.BlockID, logIdx uint32, execMsg *messages.ExecutingMessage) error
