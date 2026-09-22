@@ -32,12 +32,12 @@ func TestCompletedPrivateRecoveryRestartKeepsNewPrivateBlocks(gt *testing.T) {
 	testPrivateInvalidMessageRecovery(gt, false, true)
 }
 
-func testPrivateInvalidMessageRecovery(gt *testing.T, restart, completedRestart bool) {
+func testPrivateInvalidMessageRecovery(gt *testing.T, restart, completedRestart bool, extra ...sysgo.PrivateInteropOption) {
 	gt.Helper()
 	t := devtest.SerialT(gt)
 	sys := presets.NewTwoL2SupernodeLightSequencerInterop(t, 0,
 		presets.WithDeployerOptions(sysgo.WithSequencingWindow(10)),
-		presets.WithPrivateInteropChain(sysgo.WithoutRenderingInvariantCheck(), sysgo.WithPrivateInteropCadence(12)))
+		presets.WithPrivateInteropChain(append([]sysgo.PrivateInteropOption{sysgo.WithoutRenderingInvariantCheck(), sysgo.WithPrivateInteropCadence(12)}, extra...)...))
 	require := t.Require()
 	alice := sys.FunderB.NewFundedEOA(eth.OneEther)
 	source := sys.L2ELA.BlockRefByLabel(eth.Unsafe)

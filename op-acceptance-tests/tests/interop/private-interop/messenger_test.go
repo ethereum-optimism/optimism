@@ -12,6 +12,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
 	"github.com/ethereum-optimism/optimism/op-devstack/dsl"
 	"github.com/ethereum-optimism/optimism/op-devstack/presets"
+	"github.com/ethereum-optimism/optimism/op-devstack/sysgo"
 	"github.com/ethereum-optimism/optimism/op-private-interop/render"
 	"github.com/ethereum-optimism/optimism/op-service/bigs"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
@@ -41,8 +42,13 @@ import (
 // it sends the outbound message in a block position the private chain and the rendering
 // deliberately disagree about, and asserts the identifier that came back names the rendering's.
 func TestPrivateInteropMessengerBothDirections(gt *testing.T) {
+	testPrivateInteropMessengerBothDirections(gt)
+}
+
+func testPrivateInteropMessengerBothDirections(gt *testing.T, opts ...sysgo.PrivateInteropOption) {
+	gt.Helper()
 	t := devtest.SerialT(gt)
-	sys := presets.NewTwoL2SupernodeLightSequencerInterop(t, 0, presets.WithPrivateInteropChain())
+	sys := presets.NewTwoL2SupernodeLightSequencerInterop(t, 0, presets.WithPrivateInteropChain(opts...))
 	require := sys.T.Require()
 	logger := t.Logger()
 	rng := rand.New(rand.NewSource(1234))

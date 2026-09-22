@@ -688,15 +688,21 @@ private execution continues to execute user deposits normally.
 The private relation takes **public** canonical context: the projection parent,
 surviving checkpoint, replacement blocks, protocol-derived deposit attributes and
 configuration. New-span attributes are derived under the **private** configuration;
-replacement attributes use the canonical replacement inputs. Private fees can differ
+replacement attributes use the private configuration with canonical replacement
+origins and forced deposits. Private fees can differ
 from the public projection's zero-fee policy. The claim's existing `rollupConfigHash`
 commits to the exact projection-config JSON; the journal additionally binds the
-independently authenticated private configuration. Its journal binds all of that context, the production admission
+supplied private configuration. Its journal binds all of that context, the production admission
 validator's records root, and the computed private terminal output. A future network
 verifier must independently construct and compare that context. A publisher-chosen
 context hash is not sufficient. This program does not authenticate L1 derivation
 or decide interop dependency validity itself, and is not wired as a production
-network verifier. The current `insecure-stub-v1` admission setting remains explicit.
+network verifier. `insecure-stub-v1` remains available. The opt-in
+`execution-mock-v1` profile
+now exercises live witness collection, native execution, publication, and both
+clients' admission checks. It is still forgeable and does not enable cryptographic
+network enforcement; see
+[batch validation](../../../op-private-interop/docs/BATCHES.md#native-execution-with-mock-admission).
 
 The initial relation supports the current per-block checkpoint format and standard
 messenger/inbox emitters. Generic extra emitters are rejected. Sparse checkpoints
@@ -738,3 +744,9 @@ roots, record order/count, timestamps, parent ancestry and recovery bodies. Gene
 fixtures contain synthetic private inputs and remain local; no live private witness
 is uploaded by these commands. The small synthetic genesis is not a deployed-devnet
 witness collector.
+
+The private executor's `--publication-request` mode accepts a JSON request on stdin,
+collects witnesses from the explicitly supplied private/public RPC endpoints, runs
+the native relation, and emits only the public mock envelope on stdout. It never
+chooses a prover network. Devstack tests `TestPrivatePublicationExecutesWitnessBeforeAdmission`
+and `TestPrivateExecutionProof*` exercise this mode through the actual batcher.

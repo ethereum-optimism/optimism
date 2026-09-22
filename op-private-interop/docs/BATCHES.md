@@ -5,9 +5,10 @@ private output commitments and message records, not private application transact
 or write sets. Ordinary L1 deposits remain public. On the projection they follow its
 existing deposit execution policy; the private chain executes them normally.
 
-This is an experimental, fresh-deployment profile. The only configured verifier is
-`insecure-stub-v1`: bounded dummy proof bytes succeed without cryptographic execution
-verification. Commitments therefore remain assertions of the authorized L1 publisher.
+This is an experimental, fresh-deployment profile. Two explicitly insecure verifier profiles are available. `insecure-stub-v1`
+accepts bounded dummy bytes. `execution-mock-v1` requires a versioned envelope
+bound to the independently reconstructed public admission statement. Neither
+provides cryptographic private-execution verification. Commitments therefore remain assertions of the authorized L1 publisher.
 Neither an output root nor a successful local recovery proves private execution.
 
 ## Submitted block layout
@@ -176,8 +177,9 @@ through the ZK dispute-game mock-verifier path. This is not a cryptographic recu
 super-root proof. The separate experimental SP1 private-execution relation supports
 native execution, compiled guest execution and local CPU core proving; see
 [`rust/kona/sp1/README.md`](../../../rust/kona/sp1/README.md#experimental-private-projection-relation).
-Its journal binds independently authenticated canonical context and private execution;
-it does not replace the network's explicit stub verifier or provide an RPC witness collector.
+Its journal binds supplied canonical context and private execution. The optional
+native publisher below collects live RPC witnesses, but network admission remains
+explicitly insecure. A future real verifier must independently authenticate the context.
 
 The renderer's conservative gas formula limits export messages to 581,329 bytes,
 below the structural 1 MiB wire bound. Larger private messages can stall publication;
@@ -186,3 +188,53 @@ private admission and improved gas budgeting remain separate work.
 Use a fresh deployment with matching contracts, rollup config, Go services and op-reth.
 Claim wire version 2, ClaimRegistry 3.0.0 and the output-root config change projection
 genesis and admission rules. This is not a live upgrade for existing private devnets.
+
+## Native execution with mock admission
+
+Fresh test deployments may configure `private_projection.verifier` as
+`execution-mock-v1`. The publisher additionally requires
+`--private-interop.proof-command=/path/to/kona-sp1-private-projection-executor`.
+Startup checks that the projection RPC serves the same rollup configuration.
+The flag configures the producer; it cannot change the verifier used by other nodes.
+Existing deployments retain their configured admission mode.
+
+Before emitting any frames, the publisher prepares the complete span with its
+proof slot normalized, invokes the local native execution checker, installs the
+returned envelope, and runs admission again. An execution failure or mismatched
+envelope leaves no publishable frames; the ordinary retry path retains the range.
+Witness collection and execution run in a cancellable worker outside the batcher's
+channel-manager lock; reset discards pending results. The checker collects
+`debug_executionWitness` data from the private EL, including
+message-passer account proofs needed for output-root computation. It executes
+canonical recovery inputs and the new private range using the existing pure
+relation, checking computed outputs and ordered messages against the projection.
+The private EL must expose witness/account-proof RPCs and retain the required
+history. A lagging witness index is a retry, never permission to skip execution.
+Private witness data travels over private RPC and process stdin, not L1 or argv.
+The configured executable is launched directly, without a shell or paid prover.
+
+The envelope is exactly `optimism.private-execution.mock.v1\0` followed by the
+32-byte admission digest. The digest is Keccak-256 over
+`optimism.private-admission.v1\0`, chain ID, public parent hash, records root,
+anchor height (8-byte big-endian), anchor public hash, anchor private output root,
+and recovery-input hash. All hashes/chain IDs use 32 bytes. Go and Kona reconstruct
+these fields independently before releasing any submitted block. Shared vectors
+pin accepted and rejected bytes. Missing context still retries; known mismatches
+reject the entire span, with no change to protocol-generated replacements.
+
+**This is a testing mode.** Anyone can forge the mock envelope. The honest publisher
+runs the execution program, but admission cannot establish that a hostile publisher
+did so. In particular, its private execution attributes/configuration remain trusted
+producer inputs. A real consensus verifier must also authenticate that full context
+and pin the program verification key; it must not accept only this mock digest.
+Local SP1 tests additionally prove the execution relation and bind this admission
+digest in the cryptographic journal. These tests do not enable cryptographic admission
+on a deployed chain. No TEE backend is installed by this change.
+
+During recovery, private execution uses the LightCL's private-config-derived
+attributes. The relation checks the canonical public replacement schedule and
+exact forced deposits/PostExec records. It compares L1-info deposits after applying
+only the projection's zero base/blob/operator fee-scalar policy to the private
+calldata; other bytes must agree. Private gas/fee parameters remain bound in the
+full execution-context journal, requiring authentication by a future real verifier.
+It does not execute the projection's zero-fee attributes as private attributes.

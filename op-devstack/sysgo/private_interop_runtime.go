@@ -226,6 +226,7 @@ func privateInteropBatcherOption(
 		// Zero disables the duration check entirely (op-batcher/batcher/channel_config.go:24).
 		c.MaxChannelDuration = 0
 		c.PrivateInterop = bss.PrivateInteropCLIConfig{
+			ProofCommand:              cfg.ProofCommand,
 			PrivateChainGenesisPath:   privateGenesisPath,
 			PublicProjectionRPC:       renderingRPC,
 			PublicProjectionRollupRPC: renderingRollupRPC,
@@ -314,6 +315,9 @@ func NewTwoL2PrivateInteropRuntimeWithConfig(t devtest.T, delaySeconds uint64, c
 	renderingNet.genesis, err = projectiongenesis.ProjectGenesisFrom(privateGenesis)
 	require.NoError(err, "projecting the private-chain genesis")
 	renderingNet.rollupCfg, err = projectiongenesis.ProjectRollupConfigFrom(privateRollup, privateGenesis, renderingNet.genesis)
+	if err == nil && pi.ProofCommand != "" {
+		renderingNet.rollupCfg.PrivateProjection.Verifier = "execution-mock-v1"
+	}
 	require.NoError(err, "projecting the private-chain rollup config")
 	require.NotEqual(privateRollup.Genesis.L2.Hash, renderingNet.rollupCfg.Genesis.L2.Hash)
 

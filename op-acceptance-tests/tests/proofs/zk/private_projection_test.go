@@ -8,6 +8,8 @@ import (
 	"github.com/ethereum-optimism/optimism/op-devstack/dsl"
 	"github.com/ethereum-optimism/optimism/op-devstack/dsl/proofs"
 	"github.com/ethereum-optimism/optimism/op-devstack/presets"
+	"github.com/ethereum-optimism/optimism/op-devstack/shared/rustbin"
+	"github.com/ethereum-optimism/optimism/op-devstack/sysgo"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum/go-ethereum/common"
 )
@@ -17,7 +19,10 @@ import (
 // A user deposit distinguishes private execution from inert projection execution.
 func TestPrivateProjectionChallengedSuperRoot(gt *testing.T) {
 	t := devtest.SerialT(gt)
-	pair := presets.NewPrivateInteropProofs(t, presets.WithZK(), presets.WithoutHonestProposer())
+	command, err := (rustbin.Spec{SrcDir: "rust", Package: "kona-sp1-super-range-executor", Binary: "kona-sp1-private-projection-executor"}).EnsureExists(t.Ctx(), t.Logger())
+	t.Require().NoError(err)
+	pair := presets.NewPrivateInteropProofs(t, presets.WithZK(), presets.WithoutHonestProposer(),
+		presets.WithPrivateInteropChain(sysgo.WithPrivateInteropExecutionMock(command)))
 	sys := pair.SimpleInterop
 	alice := sys.FunderL1.NewFundedEOA(eth.OneEther)
 	bridge := dsl.NewStandardBridge(t, pair.Private.L2B, sys.L1EL)

@@ -13,6 +13,8 @@ import (
 // Everything here has a working default, because the point of the preset is that an ordinary
 // interop test does not have to know it is running against a pair.
 type PrivateInteropConfig struct {
+	// ProofCommand opts a fresh test chain into native execution + mock admission.
+	ProofCommand string
 	// MaxBlocksPerRange is the builder's cadence: how many private blocks one span batch, and one
 	// range claim, covers.
 	//
@@ -60,4 +62,9 @@ func (c *PrivateInteropConfig) Check() error {
 		return errors.New("private interop: the range cadence must be at least one block")
 	}
 	return nil
+}
+
+// WithPrivateInteropExecutionMock exercises native execution before publication.
+func WithPrivateInteropExecutionMock(command string) PrivateInteropOption {
+	return func(cfg *PrivateInteropConfig) { cfg.ProofCommand = command }
 }

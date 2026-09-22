@@ -22,11 +22,15 @@ import (
 
 // Public derivation and its counterparty advance after expiry without a private node or batcher.
 func TestPrivateOutageDoesNotBlockPublicProgress(gt *testing.T) {
+	testPrivateOutageDoesNotBlockPublicProgress(gt)
+}
+func testPrivateOutageDoesNotBlockPublicProgress(gt *testing.T, opts ...sysgo.PrivateInteropOption) {
+	gt.Helper()
 	t := devtest.SerialT(gt)
 	const maxCatchupLag = uint64(8)
 	sys := presets.NewTwoL2SupernodeLightSequencerInterop(t, 0,
 		presets.WithDeployerOptions(sysgo.WithSequencingWindow(10)),
-		presets.WithPrivateInteropChain(sysgo.WithoutRenderingInvariantCheck()),
+		presets.WithPrivateInteropChain(append([]sysgo.PrivateInteropOption{sysgo.WithoutRenderingInvariantCheck()}, opts...)...),
 	)
 	require := t.Require()
 	alice := sys.FunderL1.NewFundedEOA(eth.OneEther)
