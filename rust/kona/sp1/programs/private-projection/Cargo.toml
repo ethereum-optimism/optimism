@@ -1,0 +1,15 @@
+[package]
+name = "kona-sp1-private-projection"
+version = "0.0.1"
+publish = false
+license.workspace = true
+edition.workspace = true
+
+[dependencies]
+kona-sp1-client-utils.workspace = true
+kona-sp1-build-info.workspace = true
+revm.workspace = true
+sp1-zkvm.workspace = true
+
+[lints]
+workspace = true

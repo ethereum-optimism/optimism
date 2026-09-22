@@ -99,7 +99,8 @@ fn put(out: &mut Vec<u8>, n: u64) {
     out.extend_from_slice(&n.to_be_bytes());
 }
 
-fn import_keys(call: &validateMessageCall) -> Result<Vec<B256>, ProjectionError> {
+/// Canonical inbox access-list keys for a projected executing message.
+pub fn import_keys(call: &validateMessageCall) -> Result<Vec<B256>, ProjectionError> {
     let id = &call.identifier;
     let number: u64 = id.blockNumber.try_into().map_err(|_| ProjectionError("block overflow"))?;
     let timestamp: u64 =

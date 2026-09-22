@@ -17,3 +17,5 @@ extern crate alloc;
 pub mod metrics;
 
 pub mod witness;
+
+pub mod private_projection;

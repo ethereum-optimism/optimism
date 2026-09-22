@@ -1,6 +1,7 @@
 [workspace]
 members = [
   "super-range",
+  "private-projection",
   "super-aggregation",
 ]
 resolver = "2"

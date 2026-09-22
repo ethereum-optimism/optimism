@@ -10,6 +10,7 @@ name = "kona-sp1-super-range-executor"
 path = "src/main.rs"
 
 [dependencies]
+revm.workspace = true
 sp1-sdk.workspace = true
 
 # local
@@ -45,3 +46,7 @@ tracing-subscriber = { workspace = true, features = ["fmt", "env-filter"] }
 
 [lints]
 workspace = true
+
+[[bin]]
+name = "kona-sp1-private-projection-executor"
+path = "src/private_projection.rs"
