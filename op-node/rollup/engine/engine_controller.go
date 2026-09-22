@@ -843,14 +843,16 @@ func (e *EngineController) insertUnsafePayload(ctx context.Context, envelope *et
 		if err != nil {
 			return err
 		}
-		fc.SafeBlockHash = safeRef.Hash
 		fc.FinalizedBlockHash = finalizedRef.Hash
 		e.SetUnsafeHead(ref)
 		e.emitter.Emit(ctx, UnsafeUpdateEvent{Ref: ref})
 		e.SetLocalSafeHead(safeRef)
 		e.SetDeprecatedSafeHead(safeRef)
-		e.onSafeUpdate(ctx, safeRef, safeRef)
 		e.SetFinalizedHead(finalizedRef)
+		// safeRef is only local-safe; SafeL2Head bounds it by the verified head.
+		crossSafe := e.SafeL2Head()
+		fc.SafeBlockHash = crossSafe.Hash
+		e.onSafeUpdate(ctx, crossSafe, safeRef)
 	}
 	logFn := e.logSyncProgressMaybe()
 	defer logFn()
