@@ -74,7 +74,7 @@ func attachSupernodeSuperProofs(t devtest.T, runtime *MultiChainRuntime, cfg Pre
 			Root:             common.Hash(superRoot),
 			L2SequenceNumber: new(big.Int).SetUint64(superrootTime),
 		}
-		sharedDGF := migrateSuperRootsWithProposal(t, runtime.Keys, runtime.Migration, runtime.L1Network.ChainID(), runtime.L1EL, startingAnchor, proofChain.Network.ChainID())
+		sharedDGF := migrateSuperRootsWithGames(t, runtime.Keys, runtime.Migration, runtime.L1Network.ChainID(), runtime.L1EL, startingAnchor, proofChain.Network.ChainID(), cfg.ZKDisputeGame == nil)
 		if cfg.ZKDisputeGame != nil {
 			elfDir := os.Getenv(konaSP1ELFDirEnv)
 			programVKey, err := loadZKProgramVKey(elfDir)
@@ -437,4 +437,30 @@ func startInteropChallenger(
 		service:  svc,
 		config:   cfg,
 	}
+}
+
+// NewPrivateInteropProofsRuntimeWithConfig returns separate application and proof
+// views of a private pair. Proof services must use the public projection's genesis,
+// rollup configuration and RPC, even though it shares the private chain's chain ID.
+func NewPrivateInteropProofsRuntimeWithConfig(t devtest.T, cfg PresetConfig) (*MultiChainRuntime, *MultiChainRuntime) {
+	if cfg.ZKDisputeGame != nil {
+		t.Require().NoError(cfg.ZKDisputeGame.validate())
+	}
+	t.Require().Nil(cfg.PreGenesisSuperGame, "private projection proofs require a canonical public anchor")
+	cfg = withSuperProofsDeployerFeature(cfg)
+	// WithZK selects Jovian by default; the private profile requires Lagoon at genesis.
+	cfg.DeployerOptions = append(cfg.DeployerOptions, WithInteropAtGenesis())
+	runtime := NewTwoL2PrivateInteropRuntimeWithConfig(t, 0, cfg)
+	public := *runtime
+	public.Chains = make(map[string]*MultiChainNodeRuntime, len(runtime.Chains))
+	for name, chain := range runtime.Chains {
+		view := *chain
+		if chain.RenderingNetwork != nil {
+			view.Network = chain.RenderingNetwork
+			view.EL = chain.SupernodeEL
+			view.CL = chain.SupernodeCL
+		}
+		public.Chains[name] = &view
+	}
+	return runtime, attachSupernodeSuperProofs(t, &public, cfg)
 }

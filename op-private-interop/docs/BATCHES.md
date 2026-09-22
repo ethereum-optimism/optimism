@@ -163,8 +163,21 @@ canonical replacement interval, and resumes sequencing after the reserved range.
 Go and Kona share admission/statement vectors and a canonical recovery transcript
 vector. Tests cover missing context, long incremental recovery, reorgs, reset, original
 inclusion retention, malformed records and changed intermediate roots. Node and
-fault-proof derivation use the same Kona gate; this does not establish complete
-fault-proof execution support for the projection's custom execution rules.
+fault-proof derivation use the same Kona gate. Kona's stateless executor and op-reth
+share the authenticated-system/user-deposit classifier: public user deposits are
+inert, while private execution applies them normally. Both attribute builders keep
+projection publication fee-free after L1 SystemConfig updates (zero fee scalars,
+operator fees and minimum base fee; maximum gas limit). Batcher authorization
+continues to follow L1 updates.
+
+The private super-root lifecycle test exercises native range/consolidation verification,
+a challenged correct projection root, and rejection of a corrupted projection root
+through the ZK dispute-game mock-verifier path. This is not a cryptographic recursive
+super-root proof. The separate experimental SP1 private-execution relation supports
+native execution, compiled guest execution and local CPU core proving; see
+[`rust/kona/sp1/README.md`](../../../rust/kona/sp1/README.md#experimental-private-projection-relation).
+Its journal binds independently authenticated canonical context and private execution;
+it does not replace the network's explicit stub verifier or provide an RPC witness collector.
 
 The renderer's conservative gas formula limits export messages to 581,329 bytes,
 below the structural 1 MiB wire bound. Larger private messages can stall publication;

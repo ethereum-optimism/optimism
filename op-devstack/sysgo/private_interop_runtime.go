@@ -450,7 +450,10 @@ func NewTwoL2PrivateInteropRuntimeWithConfig(t devtest.T, delaySeconds uint64, c
 	)
 
 	l2ABatcher := startMinimalBatcher(t, keys, l2ANet, l1EL, l2ACL, seqAEL, cfg.BatcherOptions...)
-	l2AProposer := startMinimalProposer(t, keys, l2ANet, l1EL, supernodeACL)
+	var l2AProposer *L2Proposer
+	if cfg.ZKDisputeGame == nil {
+		l2AProposer = startMinimalProposer(t, keys, l2ANet, l1EL, supernodeACL)
+	}
 	// The pair's batcher loads PRIVATE blocks and posts the RENDERING's batches. Its own rollup
 	// config comes from --rollup-rpc, which is the private chain's op-node; the rendering's comes
 	// from the file written above, because no node it can reach serves it.
@@ -458,7 +461,10 @@ func NewTwoL2PrivateInteropRuntimeWithConfig(t devtest.T, delaySeconds uint64, c
 		append(append([]BatcherOption{}, cfg.BatcherOptions...), piBatcherOpt)...)
 	// The rendering's proposer proposes the rendering's output roots: the rendering is the chain the
 	// dependency set names, so it is the chain that settles.
-	renderingProposer := startMinimalProposer(t, keys, renderingNet, l1EL, renderingCL)
+	var renderingProposer *L2Proposer
+	if cfg.ZKDisputeGame == nil {
+		renderingProposer = startMinimalProposer(t, keys, renderingNet, l1EL, renderingCL)
+	}
 
 	runtime := &MultiChainRuntime{
 		Keys:          keys,

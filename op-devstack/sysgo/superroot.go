@@ -183,6 +183,17 @@ func migrateSuperRootsWithProposal(
 	startingAnchorRoot Proposal,
 	primaryL2 eth.ChainID,
 ) common.Address {
+	return migrateSuperRootsWithGames(t, keys, migration, l1ChainID, l1EL, startingAnchorRoot, primaryL2, true)
+}
+
+// migrateSuperRootsWithGames can omit the Cannon implementation for ZK-only
+// systems. They migrate through the permissioned game before installing ZK;
+// no dummy or unrelated Cannon prestate is required.
+func migrateSuperRootsWithGames(
+	t devtest.T, keys devkeys.Keys, migration *interopMigrationState,
+	l1ChainID eth.ChainID, l1EL L1ELNode, startingAnchorRoot Proposal,
+	primaryL2 eth.ChainID, includeCannon bool,
+) common.Address {
 	require := t.Require()
 	require.NotNil(migration, "interop migration state is required")
 	require.NotEmpty(migration.opcmImpl, "must have an OPCM implementation")
@@ -193,8 +204,6 @@ func migrateSuperRootsWithProposal(
 	require.NoError(err)
 	client := ethclient.NewClient(rpcClient)
 	w3Client := w3.NewClient(rpcClient)
-
-	absoluteCannonKonaPrestate := getCannonKonaAbsolutePrestate(t)
 
 	permissionedChainOps := devkeys.ChainOperatorKeys(primaryL2.ToBig())
 	proposer, err := keys.Address(permissionedChainOps(devkeys.ProposerRole))
@@ -212,24 +221,18 @@ func migrateSuperRootsWithProposal(
 	superPermissionedGameArgs, err := abi.Arguments{{Type: addressTy}}.Pack(proposer)
 	require.NoError(err, "failed to encode super permissioned game args")
 
+	games := []DisputeGameConfigV2{{Enabled: true, InitBond: new(big.Int),
+		GameType: superPermissionedGameType, GameArgs: superPermissionedGameArgs}}
+	respectedType := uint32(superPermissionedGameType)
+	if includeCannon {
+		prestate := getCannonKonaAbsolutePrestate(t)
+		games = append(games, DisputeGameConfigV2{Enabled: true,
+			InitBond: new(big.Int).Set(defaultInitBond), GameType: superCannonKonaGameType, GameArgs: prestate[:]})
+		respectedType = superCannonKonaGameType
+	}
 	migrateInputV2 := MigrateInputV2{
-		ChainSystemConfigs: chainSystemConfigs,
-		DisputeGameConfigs: []DisputeGameConfigV2{
-			{
-				Enabled:  true,
-				InitBond: new(big.Int),
-				GameType: superPermissionedGameType,
-				GameArgs: superPermissionedGameArgs,
-			},
-			{
-				Enabled:  true,
-				InitBond: new(big.Int).Set(defaultInitBond),
-				GameType: superCannonKonaGameType,
-				GameArgs: absoluteCannonKonaPrestate[:],
-			},
-		},
-		StartingAnchorRoot:        startingAnchorRoot,
-		StartingRespectedGameType: superCannonKonaGameType,
+		ChainSystemConfigs: chainSystemConfigs, DisputeGameConfigs: games,
+		StartingAnchorRoot: startingAnchorRoot, StartingRespectedGameType: respectedType,
 	}
 	migrateCall := contract.Call("migrate", migrateInputV2)
 	migrateCallData, err := migrateCall.Pack()
@@ -250,7 +253,7 @@ func migrateSuperRootsWithProposal(
 			require.Equal(sharedDGF, addr, "dispute game factory address is not the same for all deployments")
 		}
 	}
-	require.NotEmpty(getGameImpl(t, w3Client, sharedDGF, superCannonKonaGameType))
+	require.NotEmpty(getGameImpl(t, w3Client, sharedDGF, respectedType))
 
 	for chainID, l2Deployment := range migration.l2Deployments {
 		l2Deployment.disputeGameFactoryProxy = sharedDGF

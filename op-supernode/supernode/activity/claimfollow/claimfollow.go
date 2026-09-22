@@ -332,7 +332,7 @@ func (m *Module) Step(ctx context.Context) error {
 				return common.Hash{}, err
 			}
 			if root == (common.Hash{}) {
-				return root, fmt.Errorf("private checkpoint has no canonical output")
+				return root, fmt.Errorf("private checkpoint %d has no canonical output", number)
 			}
 			return root, nil
 		}
