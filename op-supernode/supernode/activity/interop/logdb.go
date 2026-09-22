@@ -10,13 +10,18 @@ import (
 	gethTypes "github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/log"
 
+	"github.com/ethereum-optimism/optimism/op-core/interop"
 	"github.com/ethereum-optimism/optimism/op-core/interop/messages"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-supernode/supernode/activity/interop/raftwallogdb"
 )
 
 // LogsDB is the interface for interacting with a chain's logs database.
-// *logs.DB implements this interface.
+// *raftwallogdb.DB is the only implementation.
+//
+// Error contract for the read methods: an error that wraps interop.ErrDatabaseFailure
+// reports an infrastructure fault, such as an I/O error or a corrupt record. It says
+// nothing about the queried data. Any other error describes the queried data.
 type LogsDB interface {
 	// LatestSealedBlock returns the latest sealed block ID, or false if no blocks are sealed.
 	LatestSealedBlock() (eth.BlockID, bool)
@@ -28,9 +33,8 @@ type LogsDB interface {
 	OpenBlock(blockNum uint64) (ref eth.BlockRef, logCount uint32, execMsgs map[uint32]*messages.ExecutingMessage, err error)
 	// Contains checks if an initiating message exists in the database.
 	// It returns the block seal if the message is present as claimed.
-	// An error that wraps interop.ErrDatabaseFailure reports an infrastructure fault,
-	// such as an I/O error or a corrupt record. It says nothing about the message.
-	// Every other error means the message is not present as claimed.
+	// Any error that is not an infrastructure fault means the message
+	// is not present as claimed.
 	Contains(query messages.ContainsQuery) (messages.BlockSeal, error)
 	// AddLog adds a log entry to the database.
 	AddLog(logHash common.Hash, parentBlock eth.BlockID, logIdx uint32, execMsg *messages.ExecutingMessage) error
@@ -121,6 +125,12 @@ func (i *Interop) sealBlockDataIntoLogsDB(chainID eth.ChainID, blockID eth.Block
 	if hasBlocks {
 		if latestBlock.Number > blockID.Number {
 			seal, err := db.FindSealedBlock(blockID.Number)
+			if errors.Is(err, interop.ErrDatabaseFailure) {
+				// The database never answered, so it cannot prove the data is stale.
+				// Report the real cause and let the caller retry.
+				return fmt.Errorf("chain %s: failed to read sealed block %d: %w",
+					chainID, blockID.Number, err)
+			}
 			if err == nil && seal.Hash == blockID.Hash {
 				return nil
 			}

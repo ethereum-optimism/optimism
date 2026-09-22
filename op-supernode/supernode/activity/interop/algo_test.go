@@ -61,7 +61,7 @@ func newSourceContainsErrCase(name string, containsErr error, abort bool) verify
 				openBlockRef:     eth.BlockRef{Hash: destBlockHash, Number: 100, Time: 1000},
 				openBlockExecMsg: map[uint32]*messages.ExecutingMessage{0: execMsg},
 			}
-			interop := &Interop{
+			i := &Interop{
 				messageExpiryWindow: defaultMessageExpiryWindow,
 				log:                 gethlog.New(),
 				logsDBs: map[eth.ChainID]LogsDB{
@@ -73,7 +73,7 @@ func newSourceContainsErrCase(name string, containsErr error, abort bool) verify
 					destChainID:   newMockChainWithL1(destChainID, l1Block, destBlock),
 				},
 			}
-			return interop, 1000, map[eth.ChainID]eth.BlockID{destChainID: destBlock}
+			return i, 1000, map[eth.ChainID]eth.BlockID{destChainID: destBlock}
 		},
 	}
 
@@ -530,8 +530,9 @@ func TestVerifyExecutingMessageChecksDependencySetMembership(t *testing.T) {
 	}
 }
 
-// TestSentinelsWrapErrInvalidMessage guards the accept-set. A new sentinel that does not
-// wrap ErrInvalidMessage makes the round abort instead of invalidate.
+// TestSentinelsWrapErrInvalidMessage checks the listed sentinels. A listed sentinel that
+// does not wrap ErrInvalidMessage makes the round abort instead of invalidate.
+// The list is manual, so a new sentinel must be added here as well.
 func TestSentinelsWrapErrInvalidMessage(t *testing.T) {
 	t.Parallel()
 
