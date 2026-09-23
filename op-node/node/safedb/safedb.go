@@ -111,8 +111,18 @@ func (d *SafeDB) SafeHeadUpdated(safeHead eth.L2BlockRef, l1Head eth.BlockID) er
 		return ErrClosed
 	}
 	d.log.Info("Record local safe head", "l2", safeHead.ID(), "l1", l1Head)
+	truncateFrom, err := d.firstInconsistentKey(safeHead, l1Head)
+	if err != nil {
+		return err
+	}
 	batch := d.db.NewBatch()
 	defer batch.Close()
+	if truncateFrom != nil {
+		d.log.Warn("Safe head moved back, truncating safe head db", "l2", safeHead.ID(), "l1", l1Head)
+		if err := batch.DeleteRange(truncateFrom, safeByL1BlockNumKey.Max(), d.writeOpts); err != nil {
+			return fmt.Errorf("failed to truncate entries from %x: %w", truncateFrom, err)
+		}
+	}
 	if err := batch.Set(safeByL1BlockNumKey.Of(l1Head.Number), safeByL1BlockNumValue(l1Head, safeHead.ID()), d.writeOpts); err != nil {
 		return fmt.Errorf("failed to record safe head update: %w", err)
 	}
@@ -120,6 +130,33 @@ func (d *SafeDB) SafeHeadUpdated(safeHead eth.L2BlockRef, l1Head eth.BlockID) er
 		return fmt.Errorf("failed to commit safe head update: %w", err)
 	}
 	return nil
+}
+
+// firstInconsistentKey returns the key of the first entry that conflicts with safeHead becoming
+// safe at l1Head, or nil if no entry conflicts. An entry conflicts if it has a later L1 block, a
+// higher L2 block, or a different L2 block at the same height. Entries only conflict as a suffix,
+// so the walk starts at the last entry. The caller must hold d.m.
+func (d *SafeDB) firstInconsistentKey(safeHead eth.L2BlockRef, l1Head eth.BlockID) ([]byte, error) {
+	iter, err := d.db.NewIter(safeByL1BlockNumKey.IterRange())
+	if err != nil {
+		return nil, fmt.Errorf("failed to create iterator: %w", err)
+	}
+	defer iter.Close()
+	var first []byte
+	for valid := iter.Last(); valid; valid = iter.Prev() {
+		l1Block, l2Block, err := decodeEntry(iter)
+		if err != nil {
+			return nil, fmt.Errorf("safe head db has invalid entry at %x: %w", iter.Key(), err)
+		}
+		conflicts := l1Block.Number > l1Head.Number ||
+			l2Block.Number > safeHead.Number ||
+			(l2Block.Number == safeHead.Number && l2Block.Hash != safeHead.Hash)
+		if !conflicts {
+			break
+		}
+		first = slices.Clone(iter.Key())
+	}
+	return first, nil
 }
 
 func (d *SafeDB) SafeHeadReset(safeHead eth.L2BlockRef) error {

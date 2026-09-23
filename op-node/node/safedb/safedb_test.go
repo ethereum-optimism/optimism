@@ -494,3 +494,105 @@ func TestDecodeSafeByL1BlockNum(t *testing.T) {
 		require.ErrorIs(t, err, ErrInvalidEntry)
 	})
 }
+
+func TestSafeHeadUpdatedTruncatesInconsistentEntries(t *testing.T) {
+	l1 := func(num uint64) eth.BlockID {
+		return eth.BlockID{Hash: common.Hash{0x01, byte(num)}, Number: num}
+	}
+	l2 := func(num uint64) eth.L2BlockRef {
+		return eth.L2BlockRef{Hash: common.Hash{0x02, byte(num)}, Number: num}
+	}
+	type entry struct {
+		l1 eth.BlockID
+		l2 eth.BlockID
+	}
+	allEntries := func(t *testing.T, db *SafeDB) []entry {
+		iter, err := db.db.NewIter(safeByL1BlockNumKey.IterRange())
+		require.NoError(t, err)
+		defer iter.Close()
+		var entries []entry
+		for valid := iter.First(); valid; valid = iter.Next() {
+			l1Block, l2Block, err := decodeEntry(iter)
+			require.NoError(t, err)
+			entries = append(entries, entry{l1Block, l2Block})
+		}
+		return entries
+	}
+	newDB := func(t *testing.T) *SafeDB {
+		db, err := NewSafeDB(testlog.Logger(t, log.LvlInfo), t.TempDir())
+		require.NoError(t, err)
+		t.Cleanup(func() { _ = db.Close() })
+		require.NoError(t, db.SafeHeadUpdated(l2(20), l1(100)))
+		require.NoError(t, db.SafeHeadUpdated(l2(25), l1(150)))
+		require.NoError(t, db.SafeHeadUpdated(l2(30), l1(160)))
+		return db
+	}
+
+	t.Run("LowerSafeHead", func(t *testing.T) {
+		db := newDB(t)
+		require.NoError(t, db.SafeHeadUpdated(l2(22), l1(170)))
+		require.Equal(t, []entry{
+			{l1(100), l2(20).ID()},
+			{l1(170), l2(22).ID()},
+		}, allEntries(t, db))
+	})
+
+	t.Run("SameNumberDifferentHash", func(t *testing.T) {
+		db := newDB(t)
+		reorged := eth.L2BlockRef{Hash: common.Hash{0x03}, Number: 25}
+		require.NoError(t, db.SafeHeadUpdated(reorged, l1(170)))
+		require.Equal(t, []entry{
+			{l1(100), l2(20).ID()},
+			{l1(170), reorged.ID()},
+		}, allEntries(t, db))
+	})
+
+	t.Run("SameBlockKeepsEarlierEntry", func(t *testing.T) {
+		db := newDB(t)
+		require.NoError(t, db.SafeHeadUpdated(l2(30), l1(170)))
+		require.Equal(t, []entry{
+			{l1(100), l2(20).ID()},
+			{l1(150), l2(25).ID()},
+			{l1(160), l2(30).ID()},
+			{l1(170), l2(30).ID()},
+		}, allEntries(t, db))
+	})
+
+	t.Run("EarlierL1Block", func(t *testing.T) {
+		db := newDB(t)
+		require.NoError(t, db.SafeHeadUpdated(l2(40), l1(155)))
+		require.Equal(t, []entry{
+			{l1(100), l2(20).ID()},
+			{l1(150), l2(25).ID()},
+			{l1(155), l2(40).ID()},
+		}, allEntries(t, db))
+	})
+
+	t.Run("SameL1LowerSafeHead", func(t *testing.T) {
+		db := newDB(t)
+		require.NoError(t, db.SafeHeadUpdated(l2(28), l1(160)))
+		require.Equal(t, []entry{
+			{l1(100), l2(20).ID()},
+			{l1(150), l2(25).ID()},
+			{l1(160), l2(28).ID()},
+		}, allEntries(t, db))
+	})
+
+	t.Run("SameL1HigherSafeHead", func(t *testing.T) {
+		db := newDB(t)
+		require.NoError(t, db.SafeHeadUpdated(l2(31), l1(160)))
+		require.Equal(t, []entry{
+			{l1(100), l2(20).ID()},
+			{l1(150), l2(25).ID()},
+			{l1(160), l2(31).ID()},
+		}, allEntries(t, db))
+	})
+
+	t.Run("BeforeFirstEntry", func(t *testing.T) {
+		db := newDB(t)
+		require.NoError(t, db.SafeHeadUpdated(l2(10), l1(90)))
+		require.Equal(t, []entry{
+			{l1(90), l2(10).ID()},
+		}, allEntries(t, db))
+	})
+}

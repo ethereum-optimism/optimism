@@ -526,7 +526,8 @@ func (c *simpleChainContainer) BlockNumberToTimestamp(ctx context.Context, block
 
 // FirstSafeHeadTimestamp returns the timestamp of SafeDB's first entry, but
 // only once the deriver has moved past that entry's L1. SafeHeadUpdated
-// overwrites entries at the same L1 key, so until then the L2 value is still
+// overwrites entries at the same L1 key, and truncates entries if the deriver
+// moves back after a reset, so until then the L2 value is still
 // in flight and snapshots can go stale. Sample SyncStatus before
 // FirstSafeHeadEntry so firstEntry.L1 < capturedCurrentL1 implies the writes
 // at that L1 had already completed.
