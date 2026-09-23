@@ -50,12 +50,20 @@ pub fn determine_network_mode(
     }
 }
 
-/// Computes the SPN network signer from environment variables.
-///
-/// A remote op-signer takes precedence when `<PREFIX>_SPN_SIGNER_URL` and
-/// `<PREFIX>_SPN_SIGNER_ADDRESS` are set. Its `<PREFIX>_SPN_SIGNER_TLS_CA`, `_CERT`, and `_KEY`
-/// variables are required. Otherwise, `<PREFIX>_NETWORK_PRIVATE_KEY` selects local signing.
+/// Computes the local SPN network signer from environment variables.
 pub async fn get_network_signer(prefix: &str) -> Result<NetworkSigner> {
+    let private_key_name = prefixed_env_var(prefix, "NETWORK_PRIVATE_KEY");
+    let private_key = env::var(&private_key_name)
+        .ok()
+        .filter(|value| !value.trim().is_empty())
+        .with_context(|| format!("{private_key_name} must be set for network proving"))?;
+    let signer = NetworkSigner::local(&private_key)
+        .with_context(|| format!("failed to create requester from {private_key_name}"))?;
+    tracing::info!("Using local requester with address: {:?}", signer.address());
+    Ok(signer)
+}
+
+fn get_remote_network_signer(prefix: &str) -> Result<Option<OpSignerRequester>> {
     let remote_url_name = prefixed_env_var(prefix, "SPN_SIGNER_URL");
     let remote_address_name = prefixed_env_var(prefix, "SPN_SIGNER_ADDRESS");
     let env_value = |name: &str| env::var(name).ok().filter(|value| !value.trim().is_empty());
@@ -72,22 +80,14 @@ pub async fn get_network_signer(prefix: &str) -> Result<NetworkSigner> {
             let signer = OpSignerRequester::new(endpoint, address, tls)
                 .context("failed to create remote SPN requester")?;
             tracing::info!("Using remote SPN requester with address: {:?}", signer.address());
-            return Ok(NetworkSigner::dynamic(Arc::new(signer)));
+            Ok(Some(signer))
         }
-        (None, None, None) => {}
+        (None, None, None) => Ok(None),
         _ => bail!(
             "{remote_url_name}, {remote_address_name}, {prefix}_SPN_SIGNER_TLS_CA, \
              {prefix}_SPN_SIGNER_TLS_CERT, and {prefix}_SPN_SIGNER_TLS_KEY must be set together"
         ),
     }
-
-    let private_key_name = prefixed_env_var(prefix, "NETWORK_PRIVATE_KEY");
-    let private_key = env_value(&private_key_name)
-        .with_context(|| format!("{private_key_name} must be set for network proving"))?;
-    let signer = NetworkSigner::local(&private_key)
-        .with_context(|| format!("failed to create requester from {private_key_name}"))?;
-    tracing::info!("Using local requester with address: {:?}", signer.address());
-    Ok(signer)
 }
 
 /// Builds a network prover using the provided fulfillment strategy.
@@ -107,14 +107,12 @@ pub async fn build_network_prover_from_env(
         .ok()
         .filter(|url| !url.trim().is_empty())
         .unwrap_or_else(|| get_default_rpc_url_for_mode(network_mode));
-    let network_signer = get_network_signer(prefix).await?;
-
-    let prover = ProverClient::builder()
-        .network_for(network_mode)
-        .signer(network_signer)
-        .rpc_url(&rpc_url)
-        .build()
-        .await;
+    let builder = ProverClient::builder().network_for(network_mode).rpc_url(&rpc_url);
+    let builder = match get_remote_network_signer(prefix)? {
+        Some(signer) => builder.dynamic_signer(Arc::new(signer)),
+        None => builder.signer(get_network_signer(prefix).await?),
+    };
+    let prover = builder.build().await;
 
     Ok(prover)
 }
@@ -147,9 +145,7 @@ mod tests {
         set_env(prefix, "NETWORK_PRIVATE_KEY", "not-a-private-key");
         set_tls_env(prefix);
 
-        let signer = get_network_signer(prefix).await.unwrap();
-
-        assert_eq!(signer.address(), address.parse::<Address>().unwrap());
+        build_network_prover_from_env(prefix, FulfillmentStrategy::Auction).await.unwrap();
     }
 
     #[tokio::test]
@@ -157,7 +153,11 @@ mod tests {
         let prefix = "KONA_SP1_HOST_NETWORK_TEST_PARTIAL";
         set_env(prefix, "SPN_SIGNER_URL", "https://signer.example");
 
-        let error = get_network_signer(prefix).await.unwrap_err().to_string();
+        let error = build_network_prover_from_env(prefix, FulfillmentStrategy::Auction)
+            .await
+            .err()
+            .expect("partial remote signer configuration should fail")
+            .to_string();
 
         assert!(error.contains("SPN_SIGNER_URL"), "{error}");
         assert!(error.contains("SPN_SIGNER_ADDRESS"), "{error}");
@@ -173,7 +173,11 @@ mod tests {
         );
         set_tls_env(prefix);
 
-        let error = get_network_signer(prefix).await.unwrap_err().to_string();
+        let error = build_network_prover_from_env(prefix, FulfillmentStrategy::Auction)
+            .await
+            .err()
+            .expect("TLS-only remote signer configuration should fail")
+            .to_string();
 
         assert!(error.contains("SPN_SIGNER_URL"), "{error}");
         assert!(error.contains("SPN_SIGNER_TLS_CA"), "{error}");
@@ -186,7 +190,11 @@ mod tests {
         set_env(prefix, "SPN_SIGNER_ADDRESS", "0x1111111111111111111111111111111111111111");
         set_tls_env(prefix);
 
-        let error = get_network_signer(prefix).await.unwrap_err().to_string();
+        let error = build_network_prover_from_env(prefix, FulfillmentStrategy::Auction)
+            .await
+            .err()
+            .expect("HTTP remote signer endpoint should fail")
+            .to_string();
 
         assert!(error.contains("failed to create remote SPN requester"), "{error}");
     }
