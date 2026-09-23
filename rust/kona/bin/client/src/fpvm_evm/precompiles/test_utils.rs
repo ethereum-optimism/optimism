@@ -62,7 +62,9 @@ async fn test_accelerated_precompile_inner(
         HintReader::new(hint_chan.host),
         last_hint,
     ));
-    let client = tokio::task::spawn(async move {
+    // The client closure blocks its thread on the oracle round trips, so it must not occupy a
+    // runtime worker the host tasks need.
+    let client = tokio::task::spawn_blocking(move || {
         let oracle_reader = OracleReader::new(preimage_chan.client);
         let hint_writer = HintWriter::new(hint_chan.client);
 
