@@ -277,7 +277,7 @@ where
 
                 let state_provider = this
                     .state_provider_factory
-                    .state_provider(Some(BlockId::Number(block.parent_num_hash().number.into())))
+                    .state_provider(Some(BlockId::Hash(block.parent_hash().into())))
                     .await
                     .map_err(EthApiError::from)?;
                 let db = StateProviderDatabase::new(&state_provider);

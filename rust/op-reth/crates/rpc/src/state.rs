@@ -7,7 +7,7 @@ use reth_optimism_trie::{
     OpProofsStorage, OpProofsStorageError, OpProofsStore, api::OpProofsProviderRO,
     provider::OpProofsStateProviderRef,
 };
-use reth_provider::{BlockIdReader, ProviderError, ProviderResult, StateProvider};
+use reth_provider::{BlockHashReader, BlockIdReader, ProviderError, ProviderResult, StateProvider};
 use reth_rpc_api::eth::helpers::FullEthApi;
 use reth_rpc_eth_types::EthApiError;
 
@@ -37,6 +37,14 @@ where
             .block_number_for_id(block_id)?
             .ok_or(EthApiError::HeaderNotFound(block_id))
             .map_err(ProviderError::other)?;
+
+        // The proofs storage is canonical-only and is overlaid by block number, so a hash that
+        // names a non-canonical block would be served canonical state for its height.
+        if let BlockId::Hash(hash) = block_id &&
+            self.eth_api.provider().block_hash(block_number)? != Some(hash.block_hash)
+        {
+            return Err(ProviderError::other(EthApiError::HeaderNotFound(block_id)));
+        }
 
         let historical_provider =
             self.eth_api.state_at_block_id(block_id).await.map_err(ProviderError::other)?;
