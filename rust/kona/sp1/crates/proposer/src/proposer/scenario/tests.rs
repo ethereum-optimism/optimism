@@ -4055,7 +4055,7 @@ async fn pending_game_promoted_to_anchor_is_installed_in_the_same_cycle() {
 }
 
 #[tokio::test]
-async fn unsupported_registered_anchor_blocks_ancestry_work_but_allows_lifecycle_work() {
+async fn unsupported_registered_anchor_blocks_extension_but_allows_lifecycle_work() {
     let world = ScenarioWorld::new();
     let valid = ScenarioGame::new(0, u32::MAX, 10, ScenarioWorld::default_prestate()).challenged();
     let valid_target = valid.target();
@@ -4079,9 +4079,13 @@ async fn unsupported_registered_anchor_blocks_ancestry_work_but_allows_lifecycle
     let blocked = scenario.tick().await.unwrap();
 
     assert_eq!(blocked.snapshot.canonical_head_index, Some(valid_target.factory_index));
+    assert!(blocked.scheduled.iter().any(|scheduled| matches!(
+        scheduled.operation,
+        OperationSummary::ProposeGame { sequence_number: 120, parent_game_index: u32::MAX }
+    )));
     assert!(!blocked.scheduled.iter().any(|scheduled| matches!(
         scheduled.operation,
-        OperationSummary::ProposeGame { .. } | OperationSummary::ProveGame { .. }
+        OperationSummary::ProposeGame { parent_game_index: 0, .. }
     )));
     scenario.settle_scheduled(&blocked).await.unwrap();
     assert!(matches!(
@@ -4111,7 +4115,7 @@ async fn unsupported_registered_anchor_blocks_ancestry_work_but_allows_lifecycle
     let repeated = scenario.tick().await.unwrap();
     assert!(!repeated.scheduled.iter().any(|scheduled| matches!(
         scheduled.operation,
-        OperationSummary::ProposeGame { .. } | OperationSummary::ProveGame { .. }
+        OperationSummary::ProposeGame { parent_game_index: 0, .. }
     )));
     scenario.settle_scheduled(&repeated).await.unwrap();
     assert!(
@@ -4131,43 +4135,151 @@ async fn unsupported_registered_anchor_blocks_ancestry_work_but_allows_lifecycle
 }
 
 #[tokio::test]
-async fn running_anchor_root_creation_stops_when_anchor_becomes_unsupported() {
+async fn unsupported_anchor_allows_a_new_zk_root() {
     let world = ScenarioWorld::new();
-    world.set_horizons(1, 1);
-    let root_barrier = world.block_superroot(
-        1,
-        1,
-        SuperRootOutcome::Root { root: canonical_super_root(1), current_l1: 2, required_l1: 1 },
-        "creation waits for anchor sync",
-    );
+    let mut old_anchor = ScenarioGame::new(0, u32::MAX, 20, ScenarioWorld::default_prestate());
+    old_anchor.game_type = ZK_GAME_TYPE + 1;
+    let old_anchor_target = old_anchor.target();
+    world.add_game(old_anchor);
+    world.set_anchor_game(&old_anchor_target);
+    world.set_horizons(120, 120);
+    let mut config = scenario_config();
+    config.proposal_interval_seconds = 100;
+    let mut scenario = ScenarioHarness::new(world.clone(), config).await.unwrap();
+
+    let tick = scenario.tick().await.unwrap();
+    assert!(tick.scheduled.iter().any(|scheduled| matches!(
+        scheduled.operation,
+        OperationSummary::ProposeGame { sequence_number: 120, parent_game_index: u32::MAX }
+    )));
+    scenario.settle_scheduled(&tick).await.unwrap();
+    assert!(matches!(
+        world
+            .action_record(
+                &ActionTarget::Create { sequence_number: 120, parent_game_index: u32::MAX },
+                1,
+            )
+            .unwrap()
+            .effect,
+        CommittedEffect::Created { .. }
+    ));
+}
+
+#[tokio::test]
+async fn unsupported_anchor_does_not_stop_existing_zk_defense() {
+    let world = ScenarioWorld::new();
+    let mut challenged =
+        ScenarioGame::new(0, u32::MAX, 30, ScenarioWorld::default_prestate()).challenged();
+    challenged.deadline = 5_000;
+    let challenged_target = challenged.target();
+    world.add_game(challenged);
+    let mut old_anchor = ScenarioGame::new(1, u32::MAX, 20, ScenarioWorld::default_prestate());
+    old_anchor.game_type = ZK_GAME_TYPE + 1;
+    let old_anchor_target = old_anchor.target();
+    world.add_game(old_anchor);
+    world.set_anchor_game(&old_anchor_target);
+    world.set_horizons(30, 30);
+    let mut scenario = ScenarioHarness::new(world.clone(), scenario_config()).await.unwrap();
+
+    let tick = scenario.tick().await.unwrap();
+    assert!(tick.scheduled.iter().any(|scheduled| matches!(
+        scheduled.operation,
+        OperationSummary::ProveGame {
+            address,
+            purpose: ProvingPurpose::Defense,
+            ..
+        } if address == challenged_target.address
+    )));
+    scenario.settle_scheduled(&tick).await.unwrap();
+    assert!(matches!(
+        world.action_record(&ActionTarget::Prove(challenged_target.clone()), 1).unwrap().effect,
+        CommittedEffect::Proven { game } if game == challenged_target.address
+    ));
+}
+
+#[tokio::test]
+async fn proof_waits_for_sync_when_a_cached_zk_anchor_becomes_unsupported() {
+    let world = ScenarioWorld::new();
+    let anchor = ScenarioGame::new(0, u32::MAX, 10, ScenarioWorld::default_prestate());
+    let anchor_target = anchor.target();
+    let mut challenged =
+        ScenarioGame::new(1, 0, 20, ScenarioWorld::default_prestate()).challenged();
+    challenged.deadline = 5_000;
+    let challenged_target = challenged.target();
+    world.add_game(anchor);
+    world.add_game(challenged);
+    world.set_anchor_game(&anchor_target);
+    world.set_horizons(20, 20);
+    world.block_proof(challenged_target.clone(), 1, ProofOutcome::Success, "anchor changes");
     let mut scenario = ScenarioHarness::new(world.clone(), scenario_config()).await.unwrap();
 
     let started = scenario.tick().await.unwrap();
-    let create_id =
-        started.task_id_for(|operation| matches!(operation, OperationSummary::ProposeGame { .. }));
-    root_barrier.wait_until_reached().await;
+    let proof_id = started.task_id_for(|operation| {
+        matches!(operation, OperationSummary::ProveGame { address, .. } if *address == challenged_target.address)
+    });
+    scenario.wait_for_proof_barrier(proof_id, &challenged_target, 1).await.unwrap();
+    scenario.settle(&started.task_ids_except(proof_id)).await.unwrap();
 
-    let mut unsupported = ScenarioGame::new(0, u32::MAX, 0, ScenarioWorld::default_prestate());
-    unsupported.game_type = ZK_GAME_TYPE + 1;
-    let unsupported_target = unsupported.target();
-    world.add_game(unsupported);
-    world.set_anchor_game(&unsupported_target);
-    scenario.proposer.sync_state().await.unwrap();
+    let mut old_game = ScenarioGame::new(2, u32::MAX, 15, ScenarioWorld::default_prestate());
+    old_game.game_type = ZK_GAME_TYPE + 1;
+    let old_game_target = old_game.target();
+    world.add_game(old_game);
+    world.set_anchor_game(&old_game_target);
+    world.update_game(&anchor_target, |game| {
+        game.standing = GameStanding { blacklisted: true, retired: false };
+    });
 
-    root_barrier.release();
-    let completions = scenario.settle(&[create_id]).await.unwrap();
-    assert_eq!(completions[0].outcome, TaskCompletionOutcome::Success);
-    assert!(
-        world
-            .action_record(
-                &ActionTarget::Create { sequence_number: 1, parent_game_index: u32::MAX },
-                1,
-            )
-            .is_none()
-    );
+    scenario.release_proof_barrier(&challenged_target, 1).unwrap();
+    scenario.settle(&[proof_id]).await.unwrap();
+    assert!(world.action_record(&ActionTarget::Prove(challenged_target), 1).is_none());
+}
 
-    let remaining = started.task_ids_except(create_id);
-    scenario.settle(&remaining).await.unwrap();
+#[tokio::test]
+async fn running_anchor_root_creation_checks_new_unsupported_anchor_boundary() {
+    for (anchor_sequence_number, should_create) in [(0, true), (2, false)] {
+        let world = ScenarioWorld::new();
+        world.set_horizons(1, 1);
+        let root_barrier = world.block_superroot(
+            1,
+            1,
+            SuperRootOutcome::Root { root: canonical_super_root(1), current_l1: 2, required_l1: 1 },
+            "creation waits for anchor sync",
+        );
+        let mut scenario = ScenarioHarness::new(world.clone(), scenario_config()).await.unwrap();
+
+        let started = scenario.tick().await.unwrap();
+        let create_id = started
+            .task_id_for(|operation| matches!(operation, OperationSummary::ProposeGame { .. }));
+        root_barrier.wait_until_reached().await;
+
+        let mut unsupported = ScenarioGame::new(
+            0,
+            u32::MAX,
+            anchor_sequence_number,
+            ScenarioWorld::default_prestate(),
+        );
+        unsupported.game_type = ZK_GAME_TYPE + 1;
+        let unsupported_target = unsupported.target();
+        world.add_game(unsupported);
+        world.set_anchor_game(&unsupported_target);
+        scenario.proposer.sync_state().await.unwrap();
+
+        root_barrier.release();
+        let completions = scenario.settle(&[create_id]).await.unwrap();
+        assert_eq!(completions[0].outcome, TaskCompletionOutcome::Success);
+        assert_eq!(
+            world
+                .action_record(
+                    &ActionTarget::Create { sequence_number: 1, parent_game_index: u32::MAX },
+                    1,
+                )
+                .is_some(),
+            should_create
+        );
+
+        let remaining = started.task_ids_except(create_id);
+        scenario.settle(&remaining).await.unwrap();
+    }
 }
 
 #[tokio::test]

@@ -214,6 +214,7 @@ pub(crate) enum SyncDisposition {
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum AncestryDecision {
     Allowed,
+    UnsupportedAnchor,
     Blocked,
 }
 
@@ -1062,7 +1063,7 @@ impl Proposer {
             ProposerGauge::DefenseDeadlineRemainingSeconds.set(f64::NAN);
         }
         let completions = self.reap_completed_tasks().await;
-        if sync_outcome.ancestry_decision == AncestryDecision::Allowed &&
+        if sync_outcome.ancestry_decision != AncestryDecision::Blocked &&
             self.proof_retry_requested.swap(false, Ordering::Relaxed)
         {
             self.retry_terminal_proofs().await;
@@ -1336,8 +1337,8 @@ impl Proposer {
     ///    the anchor's deadline-lag cutoff. A fetch failure aborts the sync cycle (the cursor is
     ///    not advanced, so the range is re-walked next cycle). If the registered anchor is still
     ///    missing after pending-game revalidation, read its type directly. An unsupported anchor
-    ///    blocks proposal and proof work while lifecycle work continues; a supported missing anchor
-    ///    triggers one cache reset and rescan, failing the sync if it remains absent.
+    ///    permits only root creation and per-game proving; a supported missing anchor triggers one
+    ///    cache reset and rescan, failing the sync if it remains absent.
     /// 2. Remove invalid games and their subtrees.
     /// 3. Re-validate pending games (timestamps not yet safe from this node's view, unavailable
     ///    super-root data, or an untrusted root mismatch); entries still pending past the anchor's
@@ -1415,9 +1416,9 @@ impl Proposer {
             if self.l1_view.game_type(anchor_address, pinned_block).await? != ZK_GAME_TYPE {
                 tracing::warn!(
                     ?anchor_address,
-                    "Registered anchor has an unsupported game type; blocking ancestry work"
+                    "Registered anchor has an unsupported game type; allowing roots and defense"
                 );
-                break AncestryDecision::Blocked;
+                break AncestryDecision::UnsupportedAnchor;
             }
 
             tracing::warn!(
@@ -1575,12 +1576,7 @@ impl Proposer {
                         break;
                     }
                 }
-                GameFetchResult::UnsupportedType { game_address } => {
-                    if game_address == anchor_address {
-                        break;
-                    }
-                }
-                GameFetchResult::AlreadyExists => {}
+                GameFetchResult::UnsupportedType { .. } | GameFetchResult::AlreadyExists => {}
                 GameFetchResult::InvalidGame { index } => {
                     invalid_game_ids.push(index);
                 }
@@ -2690,10 +2686,8 @@ impl Proposer {
                         .latest_head()
                         .await?
                         .context("failed to fetch latest L1 head before game creation")?;
-                    let latest_anchor = self
-                        .l1_view
-                        .registered_anchor_game(BlockId::hash(latest_head.hash))
-                        .await?;
+                    let latest_block = BlockId::hash(latest_head.hash);
+                    let latest_anchor = self.l1_view.registered_anchor_game(latest_block).await?;
                     let cached_anchor = self
                         .state
                         .read()
@@ -2701,12 +2695,29 @@ impl Proposer {
                         .anchor_game
                         .as_ref()
                         .map_or(Address::ZERO, |anchor| anchor.address);
-                    if latest_anchor != cached_anchor {
+                    if latest_anchor != cached_anchor &&
+                        (latest_anchor == Address::ZERO ||
+                            self.l1_view.game_type(latest_anchor, latest_block).await? ==
+                                ZK_GAME_TYPE)
+                    {
                         tracing::info!(
                             sequence_number,
                             ?latest_anchor,
                             ?cached_anchor,
                             "Skipping game creation: registered anchor is unavailable or changed"
+                        );
+                        return Ok(());
+                    }
+                    let args = self.l1_view.registered_game_args(latest_block).await?;
+                    let anchor =
+                        self.l1_view.anchor_root(args.anchor_state_registry, latest_block).await?;
+                    if anchor.root == B256::ZERO ||
+                        anchor.sequence_number >= U256::from(sequence_number)
+                    {
+                        tracing::info!(
+                            sequence_number,
+                            anchor_sequence_number = %anchor.sequence_number,
+                            "Skipping game creation: root does not advance the registered anchor"
                         );
                         return Ok(());
                     }
@@ -3158,8 +3169,9 @@ impl Proposer {
                 .push(OperationSummary::ReconcileCreation { sequence_number, parent_game_index });
             deduplicated.insert(TaskDeduplicationKey::Creation);
             tracing::info!("Successfully planned game creation reconciliation task");
-        } else if ancestry_decision == AncestryDecision::Allowed {
-            match self.plan_game_creation(&mut planned, &mut deduplicated).await {
+        } else if ancestry_decision != AncestryDecision::Blocked {
+            match self.plan_game_creation(&mut planned, &mut deduplicated, ancestry_decision).await
+            {
                 Ok(true) => tracing::info!("Successfully planned game creation task"),
                 Ok(false) => {
                     tracing::debug!("No game creation needed - proposal interval not elapsed")
@@ -3169,7 +3181,7 @@ impl Proposer {
         }
 
         if ancestry_decision == AncestryDecision::Blocked {
-            tracing::warn!("Skipping game creation and proving while the anchor is unavailable");
+            tracing::warn!("Skipping game creation and proving without a trustworthy L1 view");
         } else {
             match self.plan_game_defense_tasks(&mut planned, &mut deduplicated).await {
                 Ok(true) => tracing::info!("Successfully planned game defense tasks"),
@@ -3272,9 +3284,14 @@ impl Proposer {
     }
 
     /// Rechecks a game's whole cached ancestry against one `latest` L1 block.
-    /// Returns false when the registered anchor changed or a link is blacklisted,
-    /// retired, or `ChallengerWins`; terminal invalidation waits for confirmed sync.
-    async fn latest_ancestry_eligible(&self, index: U256, address: Address) -> Result<bool> {
+    /// Returns false when a cached link is blacklisted, retired, or `ChallengerWins`.
+    /// Proofs may cross a non-ZK anchor only after sync clears the old cached anchor.
+    async fn latest_ancestry_eligible(
+        &self,
+        index: U256,
+        address: Address,
+        allow_unsupported_anchor: bool,
+    ) -> Result<bool> {
         let (anchor_index, cached_anchor_address, chain) = {
             let state = self.state.read().await;
             if !state
@@ -3298,7 +3315,13 @@ impl Proposer {
             self.l1_view.latest_head().await?.context("failed to fetch latest L1 ancestry head")?;
         let latest_block = BlockId::hash(head.hash);
         let latest_anchor_address = self.l1_view.registered_anchor_game(latest_block).await?;
-        if latest_anchor_address != cached_anchor_address {
+        if latest_anchor_address != cached_anchor_address &&
+            !(allow_unsupported_anchor &&
+                cached_anchor_address == Address::ZERO &&
+                latest_anchor_address != Address::ZERO &&
+                self.l1_view.game_type(latest_anchor_address, latest_block).await? !=
+                    ZK_GAME_TYPE)
+        {
             tracing::info!(
                 ?cached_anchor_address,
                 ?latest_anchor_address,
@@ -3362,7 +3385,7 @@ impl Proposer {
             );
             return Ok(None);
         };
-        if !self.latest_ancestry_eligible(index, parent_address).await? {
+        if !self.latest_ancestry_eligible(index, parent_address, false).await? {
             return Ok(None);
         }
 
@@ -3385,9 +3408,10 @@ impl Proposer {
         &self,
         planned: &mut Vec<OperationSummary>,
         deduplicated: &mut HashSet<TaskDeduplicationKey>,
+        ancestry_decision: AncestryDecision,
     ) -> Result<bool> {
         let (should_create, next_sequence_number, parent_game_index) =
-            self.plan_game_creation_decision(planned, deduplicated).await?;
+            self.plan_game_creation_decision(planned, deduplicated, ancestry_decision).await?;
         if !should_create {
             return Ok(false);
         }
@@ -3426,6 +3450,7 @@ impl Proposer {
         &self,
         planned: &mut Vec<OperationSummary>,
         deduplicated: &mut HashSet<TaskDeduplicationKey>,
+        ancestry_decision: AncestryDecision,
     ) -> Result<(bool, u64, u32)> {
         if self.config.fast_finality_mode {
             let mut active_proving = deduplicated
@@ -3523,7 +3548,26 @@ impl Proposer {
             return Ok((false, 0, u32::MAX));
         }
 
-        let (canonical_head_sequence_number, parent_game_index) = {
+        let (canonical_head_sequence_number, parent_game_index) = if ancestry_decision ==
+            AncestryDecision::UnsupportedAnchor
+        {
+            let head = self.l1_view.latest_head().await?.context("latest L1 head unavailable")?;
+            let block = BlockId::hash(head.hash);
+            let anchor_address = self.l1_view.registered_anchor_game(block).await?;
+            if anchor_address == Address::ZERO ||
+                self.l1_view.game_type(anchor_address, block).await? == ZK_GAME_TYPE
+            {
+                return Ok((false, 0, u32::MAX));
+            }
+            let args = self.l1_view.registered_game_args(block).await?;
+            let anchor = self.l1_view.anchor_root(args.anchor_state_registry, block).await?;
+            if anchor.root == B256::ZERO {
+                bail!("registered anchor root is zero");
+            }
+            let boundary = u64::try_from(anchor.sequence_number)
+                .context("registered anchor sequence number exceeds u64")?;
+            (boundary, u32::MAX)
+        } else {
             let state = self.state.read().await;
 
             let Some(canonical_head_sequence_number) = state.canonical_head_sequence_number else {
@@ -3989,7 +4033,7 @@ impl Proposer {
             tracing::info!(?game_address, "Skipping prove(): game is not ancestry-eligible");
             return Ok(false);
         };
-        if !self.latest_ancestry_eligible(game_index, game_address).await? {
+        if !self.latest_ancestry_eligible(game_index, game_address, true).await? {
             tracing::info!(?game_address, "Skipping prove(): ancestry is no longer eligible");
             return Ok(false);
         }
@@ -6582,7 +6626,7 @@ mod tests {
         }
 
         #[tokio::test]
-        async fn unsupported_anchor_blocks_ancestry_work_without_resetting() {
+        async fn unsupported_anchor_preserves_cache_across_syncs() {
             let anchor_address = Address::left_padding_from(&[0x66]);
             let mut proposer = test_proposer().await;
             let view = Arc::new(RecordingL1View {
@@ -6594,7 +6638,7 @@ mod tests {
             proposer.l1_view = view.clone();
 
             let outcome = proposer.sync_state().await.unwrap();
-            assert_eq!(outcome.ancestry_decision, AncestryDecision::Blocked);
+            assert_eq!(outcome.ancestry_decision, AncestryDecision::UnsupportedAnchor);
             assert_eq!(outcome.disposition, SyncDisposition::Advanced);
             let state = proposer.state.read().await;
             assert!(state.anchor_game.is_none());
@@ -6603,7 +6647,7 @@ mod tests {
 
             let unchanged = proposer.sync_state().await.unwrap();
             assert_eq!(unchanged.disposition, SyncDisposition::UnchangedConfirmedHead);
-            assert_eq!(unchanged.ancestry_decision, AncestryDecision::Blocked);
+            assert_eq!(unchanged.ancestry_decision, AncestryDecision::UnsupportedAnchor);
             assert_eq!(view.calls().into_iter().filter(|call| *call == "game_type").count(), 1);
         }
 
@@ -7903,7 +7947,9 @@ mod tests {
         ) -> (anyhow::Result<(bool, u64, u32)>, Vec<OperationSummary>) {
             let mut planned = Vec::new();
             let mut active = active_task_keys(proposer).await;
-            let decision = proposer.plan_game_creation_decision(&mut planned, &mut active).await;
+            let decision = proposer
+                .plan_game_creation_decision(&mut planned, &mut active, AncestryDecision::Allowed)
+                .await;
             (decision, planned)
         }
 
@@ -8464,7 +8510,10 @@ mod tests {
             state(vec![cached_anchor.clone(), candidate.clone()], Some(cached_anchor));
 
         assert!(
-            !proposer.latest_ancestry_eligible(candidate.index, candidate.address).await.unwrap()
+            !proposer
+                .latest_ancestry_eligible(candidate.index, candidate.address, false)
+                .await
+                .unwrap()
         );
     }
 
@@ -8478,10 +8527,10 @@ mod tests {
             ..Default::default()
         });
 
-        assert!(!proposer.latest_ancestry_eligible(game.index, game.address).await.unwrap());
+        assert!(!proposer.latest_ancestry_eligible(game.index, game.address, false).await.unwrap());
 
         proposer.l1_view = Arc::new(RecordingL1View::default());
-        assert!(proposer.latest_ancestry_eligible(game.index, game.address).await.unwrap());
+        assert!(proposer.latest_ancestry_eligible(game.index, game.address, false).await.unwrap());
     }
 
     #[test]
