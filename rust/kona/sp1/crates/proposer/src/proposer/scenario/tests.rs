@@ -4135,28 +4135,143 @@ async fn unsupported_registered_anchor_blocks_extension_but_allows_lifecycle_wor
 }
 
 #[tokio::test]
-async fn unsupported_anchor_allows_a_new_zk_root() {
+async fn unsupported_anchor_spaces_root_creation_across_lag_and_restart() {
     let world = ScenarioWorld::new();
     let mut old_anchor = ScenarioGame::new(0, u32::MAX, 20, ScenarioWorld::default_prestate());
     old_anchor.game_type = ZK_GAME_TYPE + 1;
     let old_anchor_target = old_anchor.target();
     world.add_game(old_anchor);
     world.set_anchor_game(&old_anchor_target);
-    world.set_horizons(120, 120);
+    world.set_horizons(220, 220);
+    world.mine_block();
     let mut config = scenario_config();
     config.proposal_interval_seconds = 100;
+    config.sync_l1_confirmations = 1;
     let mut scenario = ScenarioHarness::new(world.clone(), config).await.unwrap();
 
     let tick = scenario.tick().await.unwrap();
     assert!(tick.scheduled.iter().any(|scheduled| matches!(
         scheduled.operation,
-        OperationSummary::ProposeGame { sequence_number: 120, parent_game_index: u32::MAX }
+        OperationSummary::ProposeGame { sequence_number: 220, parent_game_index: u32::MAX }
     )));
     scenario.settle_scheduled(&tick).await.unwrap();
     assert!(matches!(
         world
             .action_record(
-                &ActionTarget::Create { sequence_number: 120, parent_game_index: u32::MAX },
+                &ActionTarget::Create { sequence_number: 220, parent_game_index: u32::MAX },
+                1,
+            )
+            .unwrap()
+            .effect,
+        CommittedEffect::Created { .. }
+    ));
+
+    world.set_horizons(221, 221);
+    let lagged = scenario.tick().await.unwrap();
+    scenario.settle_scheduled(&lagged).await.unwrap();
+    assert!(
+        world
+            .action_record(
+                &ActionTarget::Create { sequence_number: 221, parent_game_index: u32::MAX },
+                1,
+            )
+            .is_none()
+    );
+
+    scenario.restart().await.unwrap();
+    world.set_horizons(222, 222);
+    // Planning before sync models a restarted proposer whose confirmed pin still lacks the root.
+    let mut planned = Vec::new();
+    let mut active = std::collections::HashSet::new();
+    let (should_create, timestamp, parent) = scenario
+        .proposer
+        .plan_game_creation_decision(
+            &mut planned,
+            &mut active,
+            crate::proposer::AncestryDecision::UnsupportedAnchor,
+        )
+        .await
+        .unwrap();
+    assert_eq!((should_create, timestamp, parent), (true, 220, u32::MAX));
+    scenario.proposer.handle_game_creation(timestamp, parent).await.unwrap();
+    assert!(
+        world
+            .action_record(
+                &ActionTarget::Create { sequence_number: 220, parent_game_index: u32::MAX },
+                2,
+            )
+            .is_none()
+    );
+    let restarted = scenario.tick().await.unwrap();
+    scenario.settle_scheduled(&restarted).await.unwrap();
+    assert!(
+        world
+            .action_record(
+                &ActionTarget::Create { sequence_number: 222, parent_game_index: u32::MAX },
+                1,
+            )
+            .is_none()
+    );
+
+    world.mine_block();
+    world.set_horizons(223, 223);
+    let cached = scenario.tick().await.unwrap();
+    scenario.settle_scheduled(&cached).await.unwrap();
+    assert!(
+        world
+            .action_record(
+                &ActionTarget::Create { sequence_number: 223, parent_game_index: u32::MAX },
+                1,
+            )
+            .is_none()
+    );
+
+    world.set_horizons(320, 320);
+    let due = scenario.tick().await.unwrap();
+    scenario.settle_scheduled(&due).await.unwrap();
+    assert!(matches!(
+        world
+            .action_record(
+                &ActionTarget::Create { sequence_number: 320, parent_game_index: u32::MAX },
+                1,
+            )
+            .unwrap()
+            .effect,
+        CommittedEffect::Created { .. }
+    ));
+}
+
+#[tokio::test]
+async fn unsupported_anchor_defers_foreign_root_collision_to_next_interval() {
+    let world = ScenarioWorld::new();
+    let mut old_anchor = ScenarioGame::new(0, u32::MAX, 20, ScenarioWorld::default_prestate());
+    old_anchor.game_type = ZK_GAME_TYPE + 1;
+    let old_anchor_target = old_anchor.target();
+    world.add_game(old_anchor);
+    world.set_anchor_game(&old_anchor_target);
+    world.add_game(ScenarioGame::new(1, u32::MAX, 220, ScenarioWorld::default_prestate()));
+    world.set_horizons(221, 221);
+    let mut config = scenario_config();
+    config.proposal_interval_seconds = 100;
+    let scenario = ScenarioHarness::new(world.clone(), config).await.unwrap();
+
+    // The confirmed pin can still miss the competing root when creation checks latest L1.
+    scenario.proposer.handle_game_creation(220, u32::MAX).await.unwrap();
+    assert!(
+        world
+            .action_record(
+                &ActionTarget::Create { sequence_number: 221, parent_game_index: u32::MAX },
+                1,
+            )
+            .is_none()
+    );
+
+    world.set_horizons(320, 320);
+    scenario.proposer.handle_game_creation(320, u32::MAX).await.unwrap();
+    assert!(matches!(
+        world
+            .action_record(
+                &ActionTarget::Create { sequence_number: 320, parent_game_index: u32::MAX },
                 1,
             )
             .unwrap()

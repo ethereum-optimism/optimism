@@ -2783,6 +2783,25 @@ impl Proposer {
                 self.arm_creation_guard(sequence_number, parent_game_index, existing_game).await;
                 return Ok(());
             }
+            if parent_game_index == u32::MAX && self.config.proposal_interval_seconds != 0 {
+                let latest_head = self
+                    .l1_view
+                    .latest_head()
+                    .await?
+                    .context("failed to fetch latest L1 head after root collision")?;
+                let latest_block = BlockId::hash(latest_head.hash);
+                let latest_anchor = self.l1_view.registered_anchor_game(latest_block).await?;
+                if latest_anchor != Address::ZERO &&
+                    self.l1_view.game_type(latest_anchor, latest_block).await? != ZK_GAME_TYPE
+                {
+                    tracing::info!(
+                        sequence_number,
+                        game_address = ?existing_game,
+                        "Deferring root after third-party collision with unsupported anchor"
+                    );
+                    return Ok(());
+                }
+            }
             // Third-party collision: advance the timestamp - bounded by the
             // safety limit - and refetch a fresh super root (the proof
             // embeds the timestamp). On reaching the bound, defer: the next
@@ -3548,7 +3567,7 @@ impl Proposer {
             return Ok((false, 0, u32::MAX));
         }
 
-        let (canonical_head_sequence_number, parent_game_index) = if ancestry_decision ==
+        let (baseline_sequence_number, parent_game_index) = if ancestry_decision ==
             AncestryDecision::UnsupportedAnchor
         {
             let head = self.l1_view.latest_head().await?.context("latest L1 head unavailable")?;
@@ -3566,7 +3585,12 @@ impl Proposer {
             }
             let boundary = u64::try_from(anchor.sequence_number)
                 .context("registered anchor sequence number exceeds u64")?;
-            (boundary, u32::MAX)
+            let cached_head = {
+                let state = self.state.read().await;
+                state.canonical_head_index.and(state.canonical_head_sequence_number).unwrap_or(0)
+            };
+            let last_created = self.last_created_game_l2_sequence_number.load(Ordering::Relaxed);
+            (boundary.max(cached_head).max(last_created), u32::MAX)
         } else {
             let state = self.state.read().await;
 
@@ -3589,13 +3613,24 @@ impl Proposer {
         };
 
         let max_proposable = self.max_proposable_timestamp().await?;
+        let max_proposable = if ancestry_decision == AncestryDecision::UnsupportedAnchor &&
+            self.config.proposal_interval_seconds != 0 &&
+            max_proposable >= baseline_sequence_number
+        {
+            // A stable interval grid lets a restart find and adopt an unconfirmed own root.
+            let interval = self.config.proposal_interval_seconds;
+            let elapsed = max_proposable - baseline_sequence_number;
+            baseline_sequence_number + elapsed / interval * interval
+        } else {
+            max_proposable
+        };
         let Some(next_sequence_number) = next_proposal_timestamp(
-            canonical_head_sequence_number,
+            baseline_sequence_number,
             self.config.proposal_interval_seconds,
             max_proposable,
         ) else {
             tracing::debug!(
-                head = canonical_head_sequence_number,
+                head = baseline_sequence_number,
                 max_proposable,
                 "Skipping game creation: proposal interval not elapsed under safety bound"
             );
