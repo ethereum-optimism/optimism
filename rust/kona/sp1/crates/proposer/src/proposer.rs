@@ -2040,7 +2040,13 @@ impl Proposer {
         } else if let Some((_, anchor_game)) =
             state.games.iter().find(|(_, game)| game.address == anchor_address)
         {
-            state.anchor_game = Some(anchor_game.clone());
+            let anchor_game = anchor_game.clone();
+            if state.invalid_games.contains(&anchor_game.index) {
+                // Missing invalid roots disconnect independently blocked branches.
+                let trusted_subtree = state.descendants_of(anchor_game.index);
+                state.invalid_games.retain(|index| !trusted_subtree.contains(index));
+            }
+            state.anchor_game = Some(anchor_game);
             tracing::debug!(?anchor_address, "Anchor game updated in cache");
         } else {
             // Anchor not in cache (unsupported, pruned, or not yet fetched); clear to prevent
@@ -6485,6 +6491,57 @@ mod tests {
                     recipient: proposer.proposer_address,
                 }]
             );
+        }
+
+        #[tokio::test]
+        async fn anchor_promotion_clears_only_inherited_tombstones() {
+            let prestate = B256::left_padding_from(&[0x57]);
+            let mut proposer = test_proposer().await;
+            proposer.l1_view = Arc::new(pending_view(prestate));
+            proposer.superroot_source = Arc::new(UnavailableSuperRootSource);
+            let root = game_with(0, u32::MAX, 100);
+            let promoted = game_with(1, 0, 200);
+            let trusted_child = game_with(2, 1, 300);
+            let independently_invalid = game_with(3, 1, 300);
+            let blocked_sibling = game_with(4, 0, 250);
+            let independently_blocked_child = game_with(5, 3, 400);
+            {
+                let mut state = proposer.state.write().await;
+                for game in [
+                    promoted.clone(),
+                    trusted_child.clone(),
+                    blocked_sibling.clone(),
+                    independently_blocked_child.clone(),
+                ] {
+                    state.games.insert(game.index, game);
+                }
+                state.pending_games.insert(root.index, CompactGameSummary::from(&root));
+                state.pending_games.insert(
+                    independently_invalid.index,
+                    CompactGameSummary::from(&independently_invalid),
+                );
+            }
+
+            proposer
+                .revalidate_pending_games(
+                    &[],
+                    Some(MAX_GAME_DEADLINE_LAG + 1),
+                    Address::ZERO,
+                    BlockId::number(1),
+                )
+                .await
+                .unwrap();
+
+            proposer.sync_anchor_game(promoted.address).await;
+
+            let state = proposer.state.read().await;
+            assert!(state.ancestry_eligible(&trusted_child));
+            assert!(!state.invalid_games.contains(&promoted.index));
+            assert!(!state.invalid_games.contains(&trusted_child.index));
+            assert!(state.invalid_games.contains(&independently_invalid.index));
+            assert!(state.invalid_games.contains(&independently_blocked_child.index));
+            assert!(!state.ancestry_eligible(&independently_blocked_child));
+            assert!(state.invalid_games.contains(&blocked_sibling.index));
         }
 
         #[tokio::test]
