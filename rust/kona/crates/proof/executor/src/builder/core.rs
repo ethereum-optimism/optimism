@@ -20,7 +20,9 @@ use alloy_op_hardforks::OpHardforks;
 use core::fmt::Debug;
 use kona_genesis::RollupConfig;
 use kona_mpt::TrieHinter;
-use op_alloy_consensus::{OpTxEnvelope, parse_post_exec_payload_from_transactions};
+use op_alloy_consensus::{
+    OpTxEnvelope, parse_post_exec_payload_from_transactions, validate_post_exec_entry_count,
+};
 use op_alloy_rpc_types_engine::OpPayloadAttributes;
 use op_revm::OpSpecId;
 use revm::{
@@ -296,6 +298,8 @@ where
             State::builder().with_database(&mut self.trie_db).with_bundle_update().build();
         let evm = self.factory.evm_factory().create_evm(&mut state, evm_env);
         // Step 3. Decode and validate the block transactions within the payload attributes.
+        validate_post_exec_entry_count(attrs.transactions.as_deref().unwrap_or_default())
+            .map_err(|err| ExecutorError::InvalidPostExecPayload(err.to_string()))?;
         let transactions = attrs
             .recovered_transactions_with_encoded()
             .collect::<Result<Vec<_>, RecoveryError>>()

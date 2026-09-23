@@ -1,7 +1,7 @@
 //! Block executor for Optimism.
 
 use crate::{OpEvmFactory, spec_by_timestamp_after_bedrock};
-use alloc::{boxed::Box, collections::BTreeMap, format, string::String, vec::Vec};
+use alloc::{boxed::Box, format, string::String, vec::Vec};
 use alloy_consensus::{Eip658Value, Header, Transaction, TransactionEnvelope, TxReceipt};
 use alloy_eips::{Encodable2718, Typed2718, eip7685::Requests};
 use alloy_evm::{
@@ -96,15 +96,12 @@ pub enum PostExecState {
         entries: Vec<SDMGasEntry>,
     },
     /// Verify canonical gas accounting using a post-exec payload embedded in the block.
-    ///
-    /// `payload` and `remaining` are not redundant: `payload` is the immutable verifier input
-    /// (kept for byte-equality comparison against the actual `0x7D` tx and for the block-number
-    /// re-check), while `remaining` is the mutable working set drained as txs are matched.
     Verifying {
-        /// Decoded post-exec payload being verified.
+        /// Decoded post-exec payload being verified. Entries are strictly ordered by transaction
+        /// index, so verification can consume them with a cursor instead of allocating a map.
         payload: PostExecPayload,
-        /// Verifier payload entries not yet consumed, indexed by original tx index.
-        remaining: BTreeMap<u64, u64>,
+        /// Offset of the next unconsumed payload entry.
+        next_entry: usize,
         /// Invalid verifier payload reason, if any.
         invalid_reason: Option<String>,
         /// Whether the block's synthetic post-exec transaction has been seen during execution.
@@ -118,27 +115,42 @@ impl PostExecState {
             PostExecMode::Disabled => Self::Disabled,
             PostExecMode::Produce => Self::Producing { entries: Vec::new() },
             PostExecMode::Verify(payload) => {
-                let mut remaining = BTreeMap::new();
-                let mut invalid_reason = None;
+                let mut invalid_reason = payload
+                    .gas_refund_entries
+                    .is_empty()
+                    .then(|| String::from("empty post-exec payload gas refund entries"));
+                let mut previous_index = None;
 
-                for entry in &payload.gas_refund_entries {
-                    if entry.gas_refund == 0 {
-                        invalid_reason = Some(format!(
-                            "zero post-exec payload refund for tx index {}",
-                            entry.index
-                        ));
-                        break;
-                    }
-                    if remaining.insert(entry.index, entry.gas_refund).is_some() {
-                        invalid_reason = Some(format!(
-                            "duplicate post-exec payload entry for tx index {}",
-                            entry.index
-                        ));
-                        break;
+                if invalid_reason.is_none() {
+                    for entry in &payload.gas_refund_entries {
+                        if entry.gas_refund == 0 {
+                            invalid_reason = Some(format!(
+                                "zero post-exec payload refund for tx index {}",
+                                entry.index
+                            ));
+                            break;
+                        }
+                        if let Some(previous) = previous_index {
+                            if entry.index == previous {
+                                invalid_reason = Some(format!(
+                                    "duplicate post-exec payload entry for tx index {}",
+                                    entry.index
+                                ));
+                                break;
+                            }
+                            if entry.index < previous {
+                                invalid_reason = Some(format!(
+                                    "post-exec payload entries not strictly increasing: tx index {} follows {}",
+                                    entry.index, previous,
+                                ));
+                                break;
+                            }
+                        }
+                        previous_index = Some(entry.index);
                     }
                 }
 
-                Self::Verifying { payload, remaining, invalid_reason, saw_post_exec_tx: false }
+                Self::Verifying { payload, next_entry: 0, invalid_reason, saw_post_exec_tx: false }
             }
         }
     }
@@ -193,14 +205,24 @@ impl PostExecState {
 
     fn verifier_refund(&self, tx_index: u64) -> Option<u64> {
         match self {
-            Self::Verifying { remaining, .. } => remaining.get(&tx_index).copied(),
+            Self::Verifying { payload, next_entry, .. } => payload
+                .gas_refund_entries
+                .get(*next_entry)
+                .filter(|entry| entry.index == tx_index)
+                .map(|entry| entry.gas_refund),
             _ => None,
         }
     }
 
     fn consume_verifier_entry(&mut self, tx_index: u64) {
-        if let Self::Verifying { remaining, .. } = self {
-            remaining.remove(&tx_index);
+        if let Self::Verifying { payload, next_entry, .. } = self {
+            if payload
+                .gas_refund_entries
+                .get(*next_entry)
+                .is_some_and(|entry| entry.index == tx_index)
+            {
+                *next_entry += 1;
+            }
         }
     }
 
@@ -229,7 +251,9 @@ impl PostExecState {
 
     fn remaining_verifier_indexes(&self) -> Vec<u64> {
         match self {
-            Self::Verifying { remaining, .. } => remaining.keys().copied().collect(),
+            Self::Verifying { payload, next_entry, .. } => {
+                payload.gas_refund_entries[*next_entry..].iter().map(|entry| entry.index).collect()
+            }
             _ => Vec::new(),
         }
     }

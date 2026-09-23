@@ -783,7 +783,7 @@ fn test_mismatched_payload_block_number_fails_pre_execution() {
     // build_executor configures BlockEnv with block number 0; a payload anchored to a
     // different block must be rejected before any tx runs.
     let mut fixture = JovianExecutorFixture::default();
-    let mut executor = fixture.verifier(42, vec![]);
+    let mut executor = fixture.verifier(42, vec![SDMGasEntry { index: 0, gas_refund: 1 }]);
 
     let err =
         executor.apply_pre_execution_changes().expect_err("mismatched block number must fail");
@@ -804,6 +804,61 @@ fn test_duplicate_payload_index_fails_pre_execution() {
         .apply_pre_execution_changes()
         .expect_err("duplicate payload index must fail pre-execution");
     assert_invalid_post_exec(err, "duplicate post-exec payload entry for tx index 3");
+}
+
+#[test]
+fn test_empty_payload_entries_fail_pre_execution() {
+    let mut fixture = JovianExecutorFixture::default();
+    let mut executor = fixture.verifier(0, vec![]);
+
+    let err = executor
+        .apply_pre_execution_changes()
+        .expect_err("empty payload entries must fail pre-execution");
+    assert_invalid_post_exec(err, "empty post-exec payload gas refund entries");
+}
+
+#[test]
+fn test_zero_payload_refund_fails_pre_execution() {
+    let mut fixture = JovianExecutorFixture::default();
+    let mut executor = fixture.verifier(0, vec![SDMGasEntry { index: 3, gas_refund: 0 }]);
+
+    let err = executor
+        .apply_pre_execution_changes()
+        .expect_err("zero payload refund must fail pre-execution");
+    assert_invalid_post_exec(err, "zero post-exec payload refund for tx index 3");
+}
+
+#[test]
+fn test_out_of_order_payload_entries_fail_pre_execution() {
+    let mut fixture = JovianExecutorFixture::default();
+    let mut executor = fixture.verifier(
+        0,
+        vec![SDMGasEntry { index: 3, gas_refund: 10 }, SDMGasEntry { index: 2, gas_refund: 20 }],
+    );
+
+    let err = executor
+        .apply_pre_execution_changes()
+        .expect_err("out-of-order payload entries must fail pre-execution");
+    assert_invalid_post_exec(
+        err,
+        "post-exec payload entries not strictly increasing: tx index 2 follows 3",
+    );
+}
+
+#[test]
+fn test_sparse_ordered_payload_entries_are_consumed_linearly() {
+    let mut fixture = JovianExecutorFixture::default();
+    let mut executor = fixture.verifier(
+        0,
+        vec![SDMGasEntry { index: 2, gas_refund: 7 }, SDMGasEntry { index: 5, gas_refund: 11 }],
+    );
+
+    assert_eq!(executor.post_exec.invalid_reason(), None, "sparse ordered entries are valid");
+    assert_eq!(executor.post_exec.verifier_refund(1), None);
+    assert_eq!(executor.post_exec.verifier_refund(2), Some(7));
+    executor.post_exec.consume_verifier_entry(2);
+    assert_eq!(executor.post_exec.verifier_refund(4), None);
+    assert_eq!(executor.post_exec.verifier_refund(5), Some(11));
 }
 
 #[test]
