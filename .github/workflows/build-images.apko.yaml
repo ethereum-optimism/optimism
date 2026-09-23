@@ -63,7 +63,7 @@ jobs:
 
       - name: Plan melange, apko, and smoke matrices
         id: plan
-        uses: ethereum-optimism/factory/actions/apko-plan@b87283a8bb6c325da0ef18400eb819b5979a9bd3
+        uses: ethereum-optimism/factory/actions/apko-plan@8e1089eda9118f3589019bf9fd9304e2860986ff
         with:
           config: .github/images.apko.json
 
@@ -80,11 +80,11 @@ jobs:
       id-token: write
       attestations: write
       artifact-metadata: write
-    uses: ethereum-optimism/factory/.github/workflows/melange-build.yaml@b87283a8bb6c325da0ef18400eb819b5979a9bd3
+    uses: ethereum-optimism/factory/.github/workflows/melange-build.yaml@8e1089eda9118f3589019bf9fd9304e2860986ff
     with:
       stack: ${{ matrix.stack }}
       arch: ${{ matrix.arch }}
-      runner: ${{ matrix.runner }}
+      runner-profile: ${{ matrix.runner_profile }}
       melange-config: ${{ matrix.melange_config }}
       source-repository: ${{ matrix.source_repository }}
       source-ref: ${{ matrix.source_ref }}
