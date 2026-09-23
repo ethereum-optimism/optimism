@@ -78,7 +78,9 @@ func NewDriver(
 	derivationPipeline := derive.NewDerivationPipeline(log, cfg, depSet, verifConfDepth, l1Blobs, altDA, l2, metrics, l1ChainConfig)
 
 	pipelineDeriver := derive.NewPipelineDeriver(driverCtx, derivationPipeline)
-	sys.Register("pipeline", pipelineDeriver)
+	if !syncCfg.FollowSourceEnabled() {
+		sys.Register("pipeline", pipelineDeriver)
+	}
 
 	// Connect components that need force reset notifications to the engine controller
 	ec.SetAttributesResetter(attrHandler)
@@ -121,6 +123,18 @@ func NewDriver(
 	} else {
 		sequencer = sequencing.DisabledSequencer{}
 	}
+	var recovery *followRecovery
+	if source, ok := upstreamFollowSource.(recoverySource); ok && syncCfg.FollowSourceEnabled() {
+		pause := func(bool) {}
+		if seq, ok := sequencer.(*sequencing.Sequencer); ok {
+			pause = seq.SetRecoveryPaused
+		}
+		recovery = &followRecovery{source: source, l2: l2, engine: ec, pause: pause,
+			enabled: driverCfg.FollowRecoveryPath != "",
+			journal: &recoveryJournal{path: driverCfg.FollowRecoveryPath, genesis: cfg.Genesis.L2.Hash},
+			builder: derive.NewFetchingAttributesBuilder(cfg, l1ChainConfig, depSet, l1, l2)}
+		sys.Register("follow-recovery", recovery)
+	}
 
 	driverEmitter := sys.Register("driver", nil)
 	driver := &Driver{
@@ -139,6 +153,7 @@ func NewDriver(
 		sequencer:            sequencer,
 		metrics:              metrics,
 		upstreamFollowSource: upstreamFollowSource,
+		followRecovery:       recovery,
 	}
 
 	return driver
@@ -177,6 +192,7 @@ type Driver struct {
 	driverCancel context.CancelFunc
 
 	upstreamFollowSource UpstreamFollowSource
+	followRecovery       *followRecovery
 }
 
 // Start starts up the state loop.
@@ -194,6 +210,11 @@ func (s *Driver) Start() error {
 		}
 		if err := s.sequencer.Init(s.driverCtx, !s.driverConfig.SequencerStopped); err != nil {
 			return fmt.Errorf("persist initial sequencer state: %w", err)
+		}
+		// Init starts the async gossiper used by pause. Fence private sequencing
+		// before RunLoop can produce blocks in a still-reserved recovery range.
+		if s.followRecovery != nil && s.followRecovery.enabled {
+			s.followRecovery.pause(true)
 		}
 	}
 
@@ -313,7 +334,13 @@ func (s *Driver) eventLoop() {
 					s.emitter.Emit(s.driverCtx, derive.DeriverL1StatusEvent{Origin: status.CurrentL1})
 				}
 				s.metrics.RecordFollowSourceRequest("success")
-				s.SyncDeriver.Engine.FollowSource(status.SafeL2, status.LocalSafeL2, status.FinalizedL2)
+				if s.followRecovery != nil {
+					if err := s.followRecovery.update(s.driverCtx, status); err != nil {
+						s.log.Warn("Follow recovery is waiting for consistent canonical inputs", "err", err)
+					}
+				} else {
+					s.SyncDeriver.Engine.FollowSource(status.SafeL2, status.LocalSafeL2, status.FinalizedL2)
+				}
 			}
 		case <-s.sched.NextDelayedStep():
 			s.sched.AttemptStep(s.driverCtx)
@@ -483,6 +510,40 @@ func (s *Driver) followUpstream() *sources.FollowStatus {
 		return nil
 	}
 
+	// A restarting source exposes its persisted checkpoint before derivation
+	// initializes. That checkpoint is not a revocation of the live sequencer's
+	// newer history. Wait for an initialized L1 view before applying any heads.
+	if status.CurrentL1 == (eth.L1BlockRef{}) {
+		s.log.Debug("Follow Upstream: waiting for source L1 initialization")
+		s.metrics.RecordFollowSourceRequest("error_uninitialized_l1")
+		return nil
+	}
+
+	// Initialization can be followed by replay from a persisted checkpoint.
+	// Until the source reaches our previous L1 view, its lower L2 heads do
+	// not revoke history derived from that still-canonical view. A genuine
+	// L1 reorg invalidates the previous view and must remain free to rewind.
+	// At the same L1 height, wait for its L2 blocks too: CurrentL1 advances
+	// when traversal enters the block, before all its batches are executed.
+	// Private recovery has its own anchor validation; a lower claimed head
+	// is expected while it fills a reserved recovery range.
+	previous := s.StatusTracker.SyncStatus()
+	previousL1 := previous.CurrentL1
+	if status.Recovery == nil && (status.CurrentL1.Number < previousL1.Number ||
+		(status.CurrentL1.Number == previousL1.Number && status.LocalSafeL2.Number < previous.LocalSafeL2.Number)) {
+		canonical, err := s.upstreamFollowSource.L1BlockRefByNumber(s.driverCtx, previousL1.Number)
+		if err != nil {
+			s.log.Warn("Follow Upstream: failed to check previous L1 view", "err", err)
+			s.metrics.RecordFollowSourceRequest("error_l1_lookup")
+			return nil
+		}
+		if canonical.Hash == previousL1.Hash {
+			s.log.Debug("Follow Upstream: waiting for source replay", "previousL1", previousL1, "currentL1", status.CurrentL1)
+			s.metrics.RecordFollowSourceRequest("error_source_replaying")
+			return nil
+		}
+	}
+
 	eLocalSafeL1Origin, err := s.upstreamFollowSource.L1BlockRefByNumber(s.driverCtx, status.LocalSafeL2.L1Origin.Number)
 	if err != nil {
 		s.log.Warn("Follow Upstream: Failed to look up L1 origin of external local safe head", "err", err)
@@ -531,24 +592,20 @@ func (s *Driver) followUpstream() *sources.FollowStatus {
 		return nil
 	}
 
-	if (status.CurrentL1 == eth.L1BlockRef{}) {
-		s.log.Debug("Follow Upstream: CurrentL1 not available")
-	} else {
-		eCurrentL1, err := s.upstreamFollowSource.L1BlockRefByNumber(s.driverCtx, status.CurrentL1.Number)
-		if err != nil {
-			s.log.Warn("Follow Upstream: Failed to look up external currentL1", "err", err)
-			s.metrics.RecordFollowSourceRequest("error_l1_lookup")
-			return nil
-		}
-		if eCurrentL1.Hash != status.CurrentL1.Hash {
-			s.log.Warn(
-				"Follow Upstream: Invalid external CurrentL1: L1 head mismatch",
-				"actual", eCurrentL1,
-				"expected", status.CurrentL1,
-			)
-			s.metrics.RecordFollowSourceRequest("error_l1_mismatch")
-			return nil
-		}
+	eCurrentL1, err := s.upstreamFollowSource.L1BlockRefByNumber(s.driverCtx, status.CurrentL1.Number)
+	if err != nil {
+		s.log.Warn("Follow Upstream: Failed to look up external currentL1", "err", err)
+		s.metrics.RecordFollowSourceRequest("error_l1_lookup")
+		return nil
+	}
+	if eCurrentL1.Hash != status.CurrentL1.Hash {
+		s.log.Warn(
+			"Follow Upstream: Invalid external CurrentL1: L1 head mismatch",
+			"actual", eCurrentL1,
+			"expected", status.CurrentL1,
+		)
+		s.metrics.RecordFollowSourceRequest("error_l1_mismatch")
+		return nil
 	}
 	return status
 }

@@ -16,6 +16,7 @@ use kona_genesis::{
 
 /// The [`RollupConfig`] for OP Mainnet.
 pub const OP_MAINNET_CONFIG: RollupConfig = RollupConfig {
+    private_projection: None,
     genesis: ChainGenesis {
         l1: BlockNumHash {
             hash: b256!("438335a20d98863a4c0c97999eb2481921ccd28553eac6f913af7c12aec04108"),

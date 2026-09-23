@@ -803,7 +803,7 @@ jobs:
                   - "<< parameters.directory >>/target/<< parameters.profile
                     >>/op-*"
 
-  # Build the SP1 super-range executor into a dedicated workspace artifact.
+  # Build both SP1 execution harnesses into a dedicated workspace artifact.
   # Keeping its persisted copy out of rust/target prevents it from overlapping
   # the broad kona-* layer persisted by concurrent full-workspace builds.
   rust-build-sp1-super-range-executor:
@@ -816,18 +816,19 @@ jobs:
           profile: release
           features: all
           package: kona-sp1-super-range-executor
-          binary: kona-sp1-super-range-executor
           save_cache: false
       - run:
-          name: Stage SP1 super-range executor
+          name: Stage SP1 execution harnesses
           command: |
             BIN_DIR=".circleci-cache/rust-binaries"
             mkdir -p "$BIN_DIR"
             cp rust/target/release/kona-sp1-super-range-executor "$BIN_DIR/"
+            cp rust/target/release/kona-sp1-private-projection-executor "$BIN_DIR/"
       - persist_to_workspace:
           root: .
           paths:
             - ".circleci-cache/rust-binaries/kona-sp1-super-range-executor"
+            - ".circleci-cache/rust-binaries/kona-sp1-private-projection-executor"
 
   # Split of the former single rust-workspace-binaries build: kona binaries and
   # op-reth compile in parallel jobs, so the critical path is the slower of the
@@ -1985,12 +1986,14 @@ jobs:
             echo "export RUST_BINARY_PATH_OP_RETH=$ROOT_DIR/rust/target/release/op-reth" >> "$BASH_ENV"
             echo "export RUST_BINARY_PATH_OP_RETH_SDM_FIXTURE=$ROOT_DIR/rust/target/release/op-reth-sdm-fixture" >> "$BASH_ENV"
             echo "export RUST_BINARY_PATH_KONA_SP1_SUPER_RANGE_EXECUTOR=$BIN_DIR/kona-sp1-super-range-executor" >> "$BASH_ENV"
+            echo "export RUST_BINARY_PATH_KONA_SP1_PRIVATE_PROJECTION_EXECUTOR=$BIN_DIR/kona-sp1-private-projection-executor" >> "$BASH_ENV"
 
             # Fail here in seconds rather than ~25 minutes into the test run: a drift in the
             # persist path or the build profile would otherwise surface as an opaque devstack
             # error when a test first tries to launch one of these.
             test -x "$ROOT_DIR/rust/target/release/op-reth"
             test -x "$ROOT_DIR/rust/target/release/op-reth-sdm-fixture"
+            test -x "$BIN_DIR/kona-sp1-private-projection-executor"
             # KONA_SP1_ELF_DIR deliberately not set: acceptance tests run with
             # stub prestate artifacts (the devstack deploys the mock verifier,
             # so nothing consumes real ELF bytes until the proving path). This

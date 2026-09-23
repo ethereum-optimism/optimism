@@ -378,3 +378,71 @@ async fn post_exec_payload_rejects_refund_exceeding_gas_used() {
     let err = execute_loaded_fixture(loaded, Some(true)).unwrap_err();
     assert_post_exec_validation_failure(err, "exceeds evm_gas_used");
 }
+
+/// Projection proofs must apply exactly the deposit policy used by op-reth. A portal
+/// deposit may mint, transfer, create or call arbitrary code on the private chain;
+/// none of those effects may enter its public projection's output root.
+#[test]
+fn projection_deposit_policy_is_applied_by_stateless_execution() {
+    use crate::NoopTrieDBProvider;
+    use alloy_eips::eip2718::Encodable2718;
+    use alloy_primitives::{B256, TxKind};
+    use alloy_rpc_types_engine::PayloadAttributes;
+    use kona_genesis::{PrivateProjectionConfig, RollupConfig};
+    use op_alloy_consensus::{OpTxEnvelope, TxDeposit};
+    use op_alloy_rpc_types_engine::OpPayloadAttributes;
+
+    for create in [false, true] {
+        let mut roots = Vec::new();
+        for projection in [false, true] {
+            let cfg = RollupConfig {
+                private_projection: projection.then(|| PrivateProjectionConfig {
+                    genesis_output_root: B256::repeat_byte(1),
+                    verifier: "insecure-stub-v1".into(),
+                    allow_events: false,
+                }),
+                ..Default::default()
+            };
+            let parent = Header {
+                state_root: alloy_trie::EMPTY_ROOT_HASH,
+                gas_limit: 30_000_000,
+                base_fee_per_gas: Some(0),
+                ..Default::default()
+            };
+            let tx = OpTxEnvelope::from(TxDeposit {
+                from: Address::with_last_byte(0xaa),
+                to: if create { TxKind::Create } else { Address::with_last_byte(0xbb).into() },
+                mint: 1000,
+                value: U256::from(500),
+                gas_limit: 100_000,
+                ..Default::default()
+            });
+            let mut builder = StatelessL2Builder::new(
+                &cfg,
+                OpEvmFactory::<alloy_op_evm::OpTx>::default(),
+                alloy_op_evm::block::OpAlloyReceiptBuilder::default(),
+                NoopTrieDBProvider,
+                NoopTrieHinter,
+                parent.seal_slow(),
+            );
+            let outcome = builder
+                .build_block(OpPayloadAttributes {
+                    payload_attributes: PayloadAttributes { timestamp: 2, ..Default::default() },
+                    transactions: Some(vec![tx.encoded_2718().into()]),
+                    gas_limit: Some(30_000_000),
+                    no_tx_pool: Some(true),
+                    ..Default::default()
+                })
+                .unwrap();
+            if projection {
+                assert_eq!(outcome.header.state_root, alloy_trie::EMPTY_ROOT_HASH);
+                assert_eq!(outcome.header.gas_used, 0);
+            } else {
+                assert_ne!(outcome.header.state_root, alloy_trie::EMPTY_ROOT_HASH);
+                assert!(outcome.header.gas_used > 0);
+            }
+            roots.push(outcome.header.state_root);
+        }
+        assert_ne!(roots[0], roots[1]);
+    }
+}

@@ -95,6 +95,7 @@ func startInteropFilter(
 	name string,
 	l2RPCs []string,
 	rollupConfigs map[eth.ChainID]*rollup.Config,
+	opts ...func(*filter.Config),
 ) *InteropFilter {
 	logger := t.Logger().New("component", name)
 
@@ -111,6 +112,10 @@ func startInteropFilter(
 		RPCAddr:             "127.0.0.1",
 		RPCPort:             0, // Auto-assign
 		Version:             "devstack",
+	}
+
+	for _, opt := range opts {
+		opt(cfg)
 	}
 
 	t.Require().NoError(cfg.Check(), "invalid interop filter config")

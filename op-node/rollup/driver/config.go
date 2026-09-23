@@ -7,6 +7,9 @@ import (
 )
 
 type Config struct {
+	// FollowRecoveryPath stores authenticated private prefix ancestry before rewind.
+	FollowRecoveryPath string `json:"follow_recovery_path,omitempty"`
+
 	// VerifierConfDepth is the distance to keep from the L1 head when reading L1 data for L2 derivation.
 	VerifierConfDepth uint64 `json:"verifier_conf_depth"`
 

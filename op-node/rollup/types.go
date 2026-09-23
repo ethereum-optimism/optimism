@@ -12,6 +12,7 @@ import (
 	altda "github.com/ethereum-optimism/optimism/op-alt-da"
 	"github.com/ethereum-optimism/optimism/op-core/forks"
 	opparams "github.com/ethereum-optimism/optimism/op-core/params"
+	"github.com/ethereum-optimism/optimism/op-private-interop/projection"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/common"
@@ -85,6 +86,8 @@ func (c *AltDAConfig) MaxInputSizeOrDefault() uint64 {
 }
 
 type Config struct {
+	// PrivateProjection enables whole-range admission only for a fresh public projection.
+	PrivateProjection *projection.Config `json:"private_projection,omitempty"`
 	// Genesis anchor point of the rollup
 	Genesis Genesis `json:"genesis"`
 	// Seconds per L2 block
@@ -327,6 +330,15 @@ func isHistoryPrunedErr(err error) bool {
 
 // Check verifies that the given configuration makes sense
 func (cfg *Config) Check() error {
+	if cfg.PrivateProjection != nil {
+		if err := cfg.PrivateProjection.Check(); err != nil {
+			return err
+		}
+		if !cfg.IsHolocene(cfg.Genesis.L2Time) || !cfg.IsInterop(cfg.Genesis.L2Time) {
+			return fmt.Errorf("private projection requires Holocene and interop at genesis")
+		}
+	}
+
 	if cfg.BlockTime == 0 {
 		return ErrBlockTimeZero
 	}

@@ -1,0 +1,370 @@
+package claimfollow
+
+import (
+	"context"
+	"fmt"
+	"testing"
+
+	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
+	"github.com/ethereum-optimism/optimism/op-service/eth"
+	"github.com/ethereum/go-ethereum/common"
+	"github.com/stretchr/testify/require"
+)
+
+func TestClaimFollowWaitsForRangeImport(t *testing.T) {
+	h := newHarness(t)
+	require.NoError(t, h.step())
+	h.r.set(1, "a", 0, claimTx(t, 0, 1, 300))
+	h.r.fill(2, 300, "a", 0)
+	h.r.set(301, "a", 0, claimTx(t, 1, 301, 600))
+	h.r.fill(302, 600, "a", 0)
+	checkpoint := uint64(0)
+	for _, tip := range []uint64{1, 107, 263, 299, 300, 301, 450, 599, 600} {
+		t.Run(fmt.Sprint(tip), func(t *testing.T) {
+			h.r.localSafe, h.r.safe = tip, tip
+			require.NoError(t, h.step())
+			if tip%300 == 0 {
+				checkpoint = tip
+			}
+			status, err := NewAPI(h.f).SyncStatus(t.Context())
+			require.NoError(t, err)
+			require.Equal(t, checkpoint, status.LocalSafeL2.Number)
+			require.NotNil(t, status.Recovery)
+			require.Nil(t, status.Recovery.Prefix, "in-progress import must not revoke the private suffix")
+			require.Equal(t, checkpoint, status.Recovery.Target.Number, "do not replay an in-progress claim as fallback")
+		})
+	}
+}
+
+func TestClaimFollowWaitsForRangeImportAfterRestart(t *testing.T) {
+	h := newHarness(t)
+	h.r.set(1, "a", 0, claimTx(t, 0, 1, 8))
+	h.r.fill(2, 8, "a", 0)
+	h.r.localSafe, h.r.safe = 3, 3
+	require.NoError(t, h.step())
+	status, err := NewAPI(h.f).SyncStatus(t.Context())
+	require.NoError(t, err)
+	require.Equal(t, wantGenesisRef(), status.LocalSafeL2)
+	require.NotNil(t, status.Recovery)
+	require.Nil(t, status.Recovery.Prefix, "a fresh scan must not invent a recovery prefix")
+	require.Zero(t, status.Recovery.Target.Number)
+	h.r.localSafe, h.r.safe = 8, 8
+	require.NoError(t, h.step())
+	require.Equal(t, wantRef(8), h.status().LocalSafeL2)
+}
+
+func TestClaimFollowPartialImportKeepsEarlierSafetyUpdates(t *testing.T) {
+	h := newHarness(t)
+	h.r.set(1, "a", 0, claimTx(t, 0, 1, 8))
+	h.r.fill(2, 8, "a", 0)
+	h.r.set(9, "a", 0, claimTx(t, 1, 9, 16))
+	h.r.fill(10, 16, "a", 0)
+	// The first poll may already contain a completed range and part of the next.
+	h.r.localSafe, h.r.safe = 10, 8
+	require.NoError(t, h.step())
+	require.Equal(t, wantRef(8), h.status().LocalSafeL2)
+	require.Equal(t, wantRef(8), h.status().SafeL2)
+	h.r.safe = 3
+	require.NoError(t, h.step())
+	status, err := NewAPI(h.f).SyncStatus(t.Context())
+	require.NoError(t, err)
+	require.Equal(t, wantRef(8), status.LocalSafeL2)
+	require.Equal(t, wantGenesisRef(), status.SafeL2)
+	require.Equal(t, uint64(3), status.Recovery.Safe.Number)
+	require.Equal(t, uint64(8), status.Recovery.Target.Number)
+	require.Nil(t, status.Recovery.Prefix)
+}
+
+func TestRecoveryBlockRequiresCanonicalDepositOnlyInputs(t *testing.T) {
+	h := newHarness(t)
+	h.r.fill(1, 4, "a", 0)
+	h.r.safe = 4
+	require.NoError(t, h.step())
+	target, err := derive.PayloadToBlockRef(testRollupCfg(), h.r.blocks[4].env.ExecutionPayload)
+	require.NoError(t, err)
+	h.f.view.Recovery.Target = target
+	api := NewAPI(h.f)
+	ref, err := api.RecoveryBlock(t.Context(), 2, target.ID())
+	require.NoError(t, err)
+	require.Equal(t, uint64(2), ref.Number)
+	require.Equal(t, renderHash(2, "a"), ref.Hash)
+	_, err = api.RecoveryBlock(t.Context(), 0, target.ID())
+	require.ErrorContains(t, err, "outside")
+	_, err = api.RecoveryBlock(t.Context(), 5, target.ID())
+	require.ErrorContains(t, err, "outside")
+	_, err = api.RecoveryBlock(t.Context(), 2, eth.BlockID{Hash: common.Hash{0xff}, Number: 4})
+	require.ErrorContains(t, err, "target changed")
+	h.r.set(2, "a", 0, claimTx(t, 0, 2, 4))
+	_, err = api.RecoveryBlock(t.Context(), 2, target.ID())
+	require.ErrorContains(t, err, "sequencer transactions")
+}
+
+func TestPartialClaimRecoverySurvivesRestart(t *testing.T) {
+	for _, invalidated := range []uint64{1, 4, 8} {
+		t.Run(fmt.Sprintf("block_%d", invalidated), func(t *testing.T) {
+			h := newHarness(t)
+			h.r.set(1, "a", 0, claimTx(t, 0, 1, 8))
+			h.r.fill(2, 8, "a", 0)
+			h.r.safe = 8
+			require.NoError(t, h.step())
+			denied := h.r.blocks[invalidated].env.ExecutionPayload.BlockHash
+			h.r.denied[invalidated] = []common.Hash{denied}
+			h.r.fill(invalidated, 8, "b", invalidated)
+			require.NoError(t, h.step())
+			require.Equal(t, wantGenesisRef(), h.status().LocalSafeL2)
+			check := func(m *Module) {
+				t.Helper()
+				status, err := NewAPI(m).SyncStatus(t.Context())
+				require.NoError(t, err)
+				require.NotNil(t, status.Recovery)
+				if invalidated == 1 {
+					require.Nil(t, status.Recovery.Prefix, "an erased carrier authenticates no prefix")
+				} else {
+					require.NotNil(t, status.Recovery.Prefix)
+					require.Equal(t, invalidated-1, status.Recovery.Prefix.Last.Number)
+					require.Equal(t, eth.BlockID{Hash: privHash(7), Number: 7}, status.Recovery.Prefix.Parent)
+				}
+			}
+			check(h.f)
+			// All volatile scan state is lost. The retained canonical carrier and
+			// persisted denial identities must reconstruct the same recovery plan.
+			h.r.deniedParents = map[eth.BlockID]common.Hash{
+				{Hash: denied, Number: invalidated}: h.r.byHash[denied].ExecutionPayload.ParentHash,
+			}
+			// Restart also loses the EL client's cached noncanonical headers.
+			clear(h.r.byHash)
+			restarted := New(h.f.cfg, testRollupCfg(), h.f.log, nil)
+			restarted.Attach(h.r)
+			require.NoError(t, restarted.Step(t.Context()))
+			check(restarted)
+		})
+	}
+}
+
+func TestClaimFollowSeparatesLocalAndCrossSafety(t *testing.T) {
+	h := newHarness(t)
+	h.r.set(1, "a", 0, claimTx(t, 0, 1, 8))
+	h.r.fill(2, 8, "a", 0)
+	h.r.localSafe, h.r.safe = 8, 3
+	require.NoError(t, h.step())
+	require.Equal(t, wantRef(8), h.status().LocalSafeL2)
+	require.Equal(t, wantGenesisRef(), h.status().SafeL2)
+	h.r.safe = 8
+	require.NoError(t, h.step())
+	require.Equal(t, wantRef(8), h.status().SafeL2)
+	h.r.safe = 3
+	require.NoError(t, h.step())
+	require.Equal(t, wantRef(8), h.status().LocalSafeL2)
+	require.Equal(t, wantGenesisRef(), h.status().SafeL2)
+}
+
+func TestBoundedCatchupRetainsCursorBelowPublicFinality(t *testing.T) {
+	h := newHarnessWithConfig(t, Config{Registry: registryAddr, GenesisHash: privateGenesisHash(), MaxBlocksPerPoll: 3})
+	h.r.set(1, "a", 0, claimTx(t, 0, 1, 8))
+	h.r.fill(2, 8, "a", 0)
+	h.r.safe, h.r.finalized = 8, 8
+	for range 3 {
+		require.NoError(t, h.step())
+	}
+	require.Equal(t, wantRef(8), h.status().FinalizedL2)
+}
+
+func TestReplacementRecoveryRequiresAvailableDeniedAncestry(t *testing.T) {
+	h := newHarness(t)
+	h.r.set(1, "a", 0, claimTx(t, 0, 1, 8))
+	h.r.fill(2, 8, "a", 0)
+	old := h.r.blocks[4].env.ExecutionPayload.BlockHash
+	h.r.denied[4] = []common.Hash{old}
+	h.r.fill(4, 8, "b", 4)
+	h.r.safe = 8
+	delete(h.r.byHash, old)
+	require.ErrorContains(t, h.step(), "denied projection header")
+	require.Equal(t, wantGenesisRef(), h.status().LocalSafeL2)
+}
+
+func TestTemporarySafetyRetreatCanRestoreSameClaim(t *testing.T) {
+	for _, initiallyScanned := range []uint64{5, 8} {
+		t.Run(fmt.Sprint(initiallyScanned), func(t *testing.T) {
+			h := newHarness(t)
+			h.r.set(1, "a", 0, claimTx(t, 0, 1, 8))
+			h.r.fill(2, 8, "a", 0)
+			h.r.safe = initiallyScanned
+			require.NoError(t, h.step())
+			h.r.safe = 3
+			require.NoError(t, h.step())
+			require.Equal(t, wantGenesisRef(), h.status().LocalSafeL2)
+			h.r.safe = 8
+			require.NoError(t, h.step())
+			require.Equal(t, wantRef(8), h.status().LocalSafeL2)
+		})
+	}
+}
+
+type resettingRendering struct {
+	*fakeRendering
+	reset func()
+}
+
+func (r *resettingRendering) PayloadByNumber(ctx context.Context, number uint64) (*eth.ExecutionPayloadEnvelope, error) {
+	if r.reset != nil {
+		reset := r.reset
+		r.reset = nil
+		reset()
+	}
+	return r.fakeRendering.PayloadByNumber(ctx, number)
+}
+func TestRecoveryBlockRejectsRevokedSnapshotWithUnchangedEL(t *testing.T) {
+	h := newHarness(t)
+	h.r.fill(1, 4, "a", 0)
+	h.r.safe = 4
+	require.NoError(t, h.step())
+	target, err := derive.PayloadToBlockRef(testRollupCfg(), h.r.blocks[4].env.ExecutionPayload)
+	require.NoError(t, err)
+	h.f.view.Recovery.Target = target
+	h.f.Attach(&resettingRendering{fakeRendering: h.r, reset: func() { h.f.rewind(1) }})
+	_, err = NewAPI(h.f).RecoveryBlock(t.Context(), 2, target.ID())
+	require.ErrorContains(t, err, "snapshot was revoked")
+}
+
+func TestTemporaryRetreatPreservesConfirmedReplacementBoundary(t *testing.T) {
+	h := newHarness(t)
+	h.r.set(1, "a", 0, claimTx(t, 0, 1, 8))
+	h.r.fill(2, 8, "a", 0)
+	h.r.safe = 8
+	require.NoError(t, h.step())
+	h.r.denied[6] = []common.Hash{h.r.blocks[6].env.ExecutionPayload.BlockHash}
+	h.r.fill(6, 8, "b", 6)
+	require.NoError(t, h.step())
+	current, err := NewAPI(h.f).SyncStatus(t.Context())
+	require.NoError(t, err)
+	require.Equal(t, uint64(5), current.Recovery.Prefix.Last.Number)
+	h.r.safe = 3
+	require.NoError(t, h.step())
+	h.r.safe = 8
+	require.NoError(t, h.step())
+	status, err := NewAPI(h.f).SyncStatus(t.Context())
+	require.NoError(t, err)
+	require.NotNil(t, status.Recovery.Prefix)
+	require.Equal(t, uint64(5), status.Recovery.Prefix.Last.Number)
+	require.Equal(t, wantGenesisRef(), status.LocalSafeL2)
+}
+
+type resettingStatusRendering struct {
+	*fakeRendering
+	reset func()
+}
+
+func (r *resettingStatusRendering) SyncStatus(ctx context.Context) (*eth.SyncStatus, error) {
+	status, err := r.fakeRendering.SyncStatus(ctx)
+	if r.reset != nil {
+		reset := r.reset
+		r.reset = nil
+		reset()
+	}
+	return status, err
+}
+func TestClaimFollowRejectsStatusFromBeforeReset(t *testing.T) {
+	h := newHarness(t)
+	h.r.set(1, "a", 0, claimTx(t, 0, 1, 8))
+	h.r.fill(2, 8, "a", 0)
+	h.r.safe = 8
+	require.NoError(t, h.step())
+	h.f.Attach(&resettingStatusRendering{fakeRendering: h.r, reset: func() {
+		h.f.rewind(3)
+		h.r.fill(4, 8, "b", 4)
+	}})
+	require.ErrorContains(t, h.step(), "frontier changed")
+	require.Nil(t, h.f.view.Recovery)
+	require.Equal(t, wantGenesisRef(), h.status().LocalSafeL2)
+}
+
+func TestResetAheadOfScanPreservesUnreadClaimPrefix(t *testing.T) {
+	for _, invalidated := range []uint64{7, 100} {
+		t.Run(fmt.Sprint(invalidated), func(t *testing.T) {
+			h := newHarnessWithConfig(t, Config{Registry: registryAddr, GenesisHash: privateGenesisHash(), MaxBlocksPerPoll: 3})
+			h.r.set(1, "a", 0, claimTx(t, 0, 1, 8))
+			h.r.fill(2, 8, "a", 0)
+			h.r.safe = 8
+			require.NoError(t, h.step()) // Scan only 0..2.
+			h.f.rewind(invalidated - 1)
+			if invalidated == 7 {
+				h.r.denied[7] = []common.Hash{h.r.blocks[7].env.ExecutionPayload.BlockHash}
+				h.r.fill(7, 8, "b", 7)
+			}
+			require.NoError(t, h.step())
+			require.NoError(t, h.step())
+			status, err := NewAPI(h.f).SyncStatus(t.Context())
+			require.NoError(t, err)
+			if invalidated == 7 {
+				require.Equal(t, uint64(6), status.Recovery.Prefix.Last.Number)
+			} else {
+				require.Equal(t, wantRef(8), status.LocalSafeL2)
+				require.Nil(t, status.Recovery.Prefix)
+			}
+		})
+	}
+}
+
+func TestClaimRestoresAfterCanonicalBranchReturns(t *testing.T) {
+	h := newHarness(t)
+	h.r.set(1, "a", 0, claimTx(t, 0, 1, 8))
+	h.r.fill(2, 8, "a", 0)
+	h.r.safe = 8
+	require.NoError(t, h.step())
+	h.r.fill(4, 8, "b", 4)
+	require.NoError(t, h.step())
+	require.Equal(t, wantGenesisRef(), h.status().LocalSafeL2)
+	h.r.fill(4, 8, "a", 0)
+	require.NoError(t, h.step())
+	require.Equal(t, wantRef(8), h.status().LocalSafeL2)
+}
+
+// Persisting an invalidation precedes the engine rewind. Old canonical hashes
+// must not authorize either the carrier itself or any later descendant claim.
+func TestPendingDenialCapsAllClaims(t *testing.T) {
+	for _, denied := range []uint64{1, 4, 10} {
+		t.Run(fmt.Sprint(denied), func(t *testing.T) {
+			h := newHarness(t)
+			h.r.set(1, "a", 0, claimTx(t, 0, 1, 8))
+			h.r.fill(2, 12, "a", 0)
+			h.r.set(13, "a", 0, claimTx(t, 1, 13, 16))
+			h.r.fill(14, 16, "a", 0)
+			h.r.safe = 16
+			require.NoError(t, h.step())
+			require.Equal(t, wantRef(16), h.status().LocalSafeL2)
+			h.r.denied[denied] = []common.Hash{h.r.blocks[denied].env.ExecutionPayload.BlockHash}
+			require.NoError(t, h.step())
+			status, err := NewAPI(h.f).SyncStatus(t.Context())
+			require.NoError(t, err)
+			require.Equal(t, denied-1, status.Recovery.Target.Number)
+			require.Equal(t, denied-1, status.Recovery.Safe.Number)
+			if denied <= 8 {
+				require.Equal(t, wantGenesisRef(), status.LocalSafeL2)
+			} else {
+				require.Equal(t, wantRef(8), status.LocalSafeL2)
+			}
+			if denied == 4 {
+				require.Equal(t, uint64(3), status.Recovery.Prefix.Last.Number)
+			} else {
+				require.Nil(t, status.Recovery.Prefix)
+			}
+		})
+	}
+}
+
+func TestHistoricalDenialDoesNotCapLaterHealthyClaim(t *testing.T) {
+	h := newHarness(t)
+	h.r.set(1, "a", 0, claimTx(t, 0, 1, 8))
+	h.r.fill(2, 8, "a", 0)
+	h.r.denied[4] = []common.Hash{h.r.blocks[4].env.ExecutionPayload.BlockHash}
+	h.r.fill(4, 8, "b", 4)
+	h.r.set(9, "b", 4, claimTx(t, 1, 9, 16))
+	h.r.fill(10, 16, "b", 4)
+	h.r.safe = 16
+	require.NoError(t, h.step())
+	status, err := NewAPI(h.f).SyncStatus(t.Context())
+	require.NoError(t, err)
+	require.Equal(t, wantRef(16), status.LocalSafeL2)
+	require.Equal(t, uint64(16), status.Recovery.Target.Number)
+	require.Nil(t, status.Recovery.Prefix)
+}

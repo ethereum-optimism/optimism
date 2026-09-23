@@ -1,0 +1,140 @@
+package privateinterop
+
+import (
+	"math/big"
+	"testing"
+	"time"
+
+	"github.com/ethereum-optimism/optimism/op-core/interop/messages"
+	"github.com/ethereum-optimism/optimism/op-core/predeploys"
+	optypes "github.com/ethereum-optimism/optimism/op-core/types"
+	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
+	"github.com/ethereum-optimism/optimism/op-devstack/presets"
+	"github.com/ethereum-optimism/optimism/op-devstack/sysgo"
+	"github.com/ethereum-optimism/optimism/op-private-interop/codec"
+	"github.com/ethereum-optimism/optimism/op-private-interop/render"
+	"github.com/ethereum-optimism/optimism/op-service/bigs"
+	"github.com/ethereum-optimism/optimism/op-service/eth"
+	"github.com/ethereum-optimism/optimism/op-service/txintent"
+	"github.com/ethereum-optimism/optimism/op-service/txintent/bindings"
+	"github.com/lmittmann/w3"
+)
+
+// Public derivation and its counterparty advance after expiry without a private node or batcher.
+func TestPrivateOutageDoesNotBlockPublicProgress(gt *testing.T) {
+	testPrivateOutageDoesNotBlockPublicProgress(gt)
+}
+func testPrivateOutageDoesNotBlockPublicProgress(gt *testing.T, opts ...sysgo.PrivateInteropOption) {
+	gt.Helper()
+	t := devtest.SerialT(gt)
+	const maxCatchupLag = uint64(8)
+	sys := presets.NewTwoL2SupernodeLightSequencerInterop(t, 0,
+		presets.WithDeployerOptions(sysgo.WithSequencingWindow(10)),
+		presets.WithPrivateInteropChain(append([]sysgo.PrivateInteropOption{sysgo.WithoutRenderingInvariantCheck()}, opts...)...),
+	)
+	require := t.Require()
+	alice := sys.FunderL1.NewFundedEOA(eth.OneEther)
+	receiver := sys.FunderA.NewFundedEOA(eth.OneEther)
+	require.Eventually(func() bool {
+		status, err := sys.L2BSupernodeCL.Escape().RollupAPI().SyncStatus(t.Ctx())
+		return err == nil && status.SafeL2.Number > 2
+	}, 3*time.Minute, time.Second, "public projection should advance before the outage")
+
+	sys.L2BatcherB.Stop()
+	sys.L2BCL.Stop()
+	lastPrivate := sys.L2ELB.BlockRefByLabel(eth.Unsafe)
+	sys.L2ELB.Stop()
+
+	// Forced calls are no-ops, including calls to privileged projection contracts.
+	calldata, err := bindings.NewBindings[bindings.CrossL2Inbox]().ValidateMessage(
+		messages.Identifier{}, eth.Bytes32{}).EncodeInputLambda()
+	require.NoError(err)
+	depositor := alice.AsEL(sys.L2BSupernodeEL).ViaDepositTx(alice, sys.L2BSupernodeEL, sys.L2B)
+	receipt := depositor.DepositTx(predeploys.CrossL2InboxAddr, calldata)
+	require.Zero(receipt.GasUsed)
+	require.Empty(receipt.Logs)
+
+	// A forced claim must not poison the range cursor and prevent the batcher from recovering.
+	calldata, err = render.EncodePostClaim(&codec.RangeClaim{LastBlock: ^uint64(0)})
+	require.NoError(err)
+	forcedClaim := depositor.DepositTx(predeploys.ClaimRegistryAddr, calldata)
+	require.Zero(forcedClaim.GasUsed)
+	require.Empty(forcedClaim.Logs)
+
+	// A direct replay call cannot execute or publish a message through a deposit.
+	calldata, err = w3.MustNewFunc("replaySentMessage(uint256,uint256,address,address,bytes)", "bytes32").EncodeArgs(
+		sys.L2A.ChainID().ToBig(), big.NewInt(9000), alice.Address(), receiver.Address(), []byte{})
+	require.NoError(err)
+	forcedReplay := depositor.DepositTx(predeploys.L2toL2CrossDomainMessengerAddr, calldata)
+	require.Empty(forcedReplay.Logs, "projection deposits cannot publish initiating events")
+	require.Zero(forcedReplay.GasUsed)
+
+	// The private messenger can create this message when it resumes, although the projection's
+	// messenger does not execute sendMessage and there is no sequencer batch to publish its event.
+	send := &txintent.SendTrigger{
+		Emitter:     predeploys.L2toL2CrossDomainMessengerAddr,
+		DestChainID: sys.L2A.ChainID(),
+		Target:      receiver.Address(),
+	}
+	calldata, err = send.EncodeInput()
+	require.NoError(err)
+	missed := depositor.DepositTx(predeploys.L2toL2CrossDomainMessengerAddr, calldata)
+	require.Zero(missed.GasUsed)
+	require.Empty(missed.Logs)
+
+	// Crossing the last private timestamp proves these blocks did not come from queued batches.
+	require.Eventually(func() bool {
+		projection, err := sys.L2BSupernodeCL.Escape().RollupAPI().SyncStatus(t.Ctx())
+		if err != nil || projection.SafeL2.Time <= lastPrivate.Time+4 {
+			return false
+		}
+		counterparty, err := sys.L2ASupernodeCL.Escape().RollupAPI().SyncStatus(t.Ctx())
+		return err == nil && counterparty.SafeL2.Time > lastPrivate.Time+4
+	}, 3*time.Minute, time.Second, "both chains must progress beyond the offline private head")
+
+	ref := sys.L2BSupernodeEL.BlockRefByLabel(eth.Safe)
+	_, txs, err := sys.L2BSupernodeEL.EthClient().InfoAndTxsByNumber(t.Ctx(), ref.Number)
+	require.NoError(err)
+	for _, tx := range txs {
+		require.True(optypes.IsDepositTx(tx) || optypes.IsPostExecTx(tx), "fallback must contain no sequenced transactions")
+	}
+	_, receipts, err := sys.L2BSupernodeEL.Escape().L2EthClient().FetchReceipts(t.Ctx(), ref.Hash)
+	require.NoError(err)
+	for _, receipt := range receipts {
+		require.Empty(receipt.Logs, "empty fallback block must contain no interop messages")
+	}
+
+	sys.L2ELB.Start()
+	sys.L2BCL.Start()
+	sys.L2BatcherB.Start()
+	privateReceipt := sys.L2ELB.WaitForReceipt(missed.TxHash)
+	require.Len(privateReceipt.Logs, 1, "the forced send must exist in private state after recovery")
+	// Execution can reach the live head before the batcher drains its backlog.
+	// Require accepted private claims within eight blocks of the current head;
+	// otherwise even a freshly forced deposit can expire behind old batches.
+	require.Eventually(func() bool {
+		private, err := sys.L2BCL.Escape().RollupAPI().SyncStatus(t.Ctx())
+		if err != nil {
+			return false
+		}
+		counterparty, err := sys.L2ASupernodeCL.Escape().RollupAPI().SyncStatus(t.Ctx())
+		return err == nil && private.UnsafeL2.Time >= counterparty.UnsafeL2.Time &&
+			private.LocalSafeL2.Number <= private.UnsafeL2.Number &&
+			private.UnsafeL2.Number-private.LocalSafeL2.Number <= maxCatchupLag
+	}, 3*time.Minute, time.Second, "private execution and accepted publication must catch up before forcing a new deposit")
+
+	// Repeat the L1 deposit now that publication is online. This is a new send,
+	// not a sequenced resend of the message whose publication window expired.
+	privateDepositor := alice.AsEL(sys.L2ELB).ViaDepositTx(alice, sys.L2ELB, sys.L2B)
+	forced := privateDepositor.DepositTx(predeploys.L2toL2CrossDomainMessengerAddr, calldata)
+	require.NotEqual(missed.TxHash, forced.TxHash, "force a fresh L1 inclusion")
+	require.Len(forced.Logs, 1)
+	require.Greater(bigs.Uint64Strict(forced.BlockNumber), bigs.Uint64Strict(privateReceipt.BlockNumber))
+	before, err := render.DecodeSentMessage(privateReceipt.Logs[0].Topics, privateReceipt.Logs[0].Data)
+	require.NoError(err)
+	after, err := render.DecodeSentMessage(forced.Logs[0].Topics, forced.Logs[0].Data)
+	require.NoError(err)
+	require.Equal(new(big.Int).Add(before.Nonce, big.NewInt(1)), after.Nonce,
+		"ordinary private deposit execution must retain the first send and allocate a fresh nonce")
+	relayPrivateMessage(t, receiver, sys.L2ELB, sys.L2ASupernodeCL, forced)
+}

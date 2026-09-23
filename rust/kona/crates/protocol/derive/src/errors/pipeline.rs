@@ -124,6 +124,9 @@ pub enum PipelineErrorKind {
 /// - [`Self::Provider`]: External provider communication failures
 #[derive(Error, Debug, PartialEq, Eq)]
 pub enum PipelineError {
+    /// Retry retained projection data without advancing L1 or emitting a prefix.
+    #[error("canonical projection context unavailable")]
+    ProjectionContextUnavailable,
     /// End of file: no more data available from the channel bank.
     ///
     /// This error indicates that the channel bank has been completely drained

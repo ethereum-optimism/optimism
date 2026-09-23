@@ -9,7 +9,7 @@ use futures_util::FutureExt;
 use reth_db::DatabaseEnv;
 use reth_db_api::database_metrics::DatabaseMetrics;
 use reth_node_builder::{FullNodeComponents, NodeBuilder, WithLaunchContext};
-use reth_optimism_chainspec::OpChainSpec;
+use reth_optimism_chainspec::{OpChainSpec, project_genesis_from};
 use reth_optimism_exex::OpProofsExEx;
 use reth_optimism_rpc::{
     debug::{DebugApiExt, DebugApiOverrideServer},
@@ -36,9 +36,17 @@ use tracing::info;
 /// RPC override, different ExEx configuration) must be mirrored in
 /// `op-reth/crates/sdm-fixture-node/src/lib.rs`.
 pub async fn launch_node(
-    builder: WithLaunchContext<NodeBuilder<DatabaseEnv, OpChainSpec>>,
+    mut builder: WithLaunchContext<NodeBuilder<DatabaseEnv, OpChainSpec>>,
     args: RollupArgs,
 ) -> eyre::Result<(), ErrReport> {
+    if args.private {
+        let source = builder.config().chain.genesis.clone();
+        let projected = project_genesis_from(&source)
+            .map_err(|err| eyre::eyre!("failed to project private-chain genesis: {err}"))?;
+        builder.config_mut().chain = Arc::new(OpChainSpec::from_genesis(projected));
+        info!(target: "reth::cli", "Using deterministic public-projection genesis");
+    }
+
     if !args.proofs_history {
         let handle = builder.node(OpNode::new(args)).launch_with_debug_capabilities().await?;
         return handle.node_exit_future.await;

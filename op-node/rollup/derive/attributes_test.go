@@ -13,6 +13,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-core/predeploys"
 	optypes "github.com/ethereum-optimism/optimism/op-core/types"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
+	"github.com/ethereum-optimism/optimism/op-private-interop/projection"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/testutils"
 	"github.com/ethereum/go-ethereum/common"
@@ -498,4 +499,46 @@ func encodeDeposits(deposits []*optypes.DepositTx) (out []eth.Data, err error) {
 		out = append(out, opaqueTx)
 	}
 	return
+}
+
+// A config reconstructed from a parent or updated on L1 must not re-enable fees
+// on the projection. The paired ordinary-chain case retains the same fees.
+func TestProjectionAttributesKeepPublicationFeeFree(t *testing.T) {
+	for _, projected := range []bool{false, true} {
+		t.Run(fmt.Sprintf("projection=%v", projected), func(t *testing.T) {
+			rng := rand.New(rand.NewSource(1234))
+			cfg := &rollup.Config{BlockTime: 2, L1ChainID: big.NewInt(101), L2ChainID: big.NewInt(102)}
+			cfg.ActivateAtGenesis(forks.Jovian)
+			if projected {
+				cfg.PrivateProjection = &projection.Config{}
+			}
+			parent := testutils.RandomL2BlockRef(rng)
+			info := testutils.RandomBlockInfo(rng)
+			info.InfoNum = parent.L1Origin.Number
+			info.InfoTime = parent.Time
+			info.InfoHash = parent.L1Origin.Hash
+			sys := eth.SystemConfig{BatcherAddr: common.Address{42}, GasLimit: 30_000_000,
+				Scalar:            eth.EncodeScalar(eth.EcotoneScalars{BaseFeeScalar: 1368, BlobBaseFeeScalar: 801949}),
+				OperatorFeeParams: eth.EncodeOperatorFeeParams(eth.OperatorFeeParams{Scalar: 17, Constant: 23}), MinBaseFee: 42}
+			l1 := &testutils.MockL1Source{}
+			defer l1.AssertExpectations(t)
+			l1.ExpectInfoByHash(info.ID().Hash, info, nil)
+			l2 := &testutils.MockL2Client{}
+			defer l2.AssertExpectations(t)
+			l2.ExpectSystemConfigByL2Hash(parent.Hash, sys, nil)
+			attrs, err := NewFetchingAttributesBuilder(cfg, params.MergedTestChainConfig, nil, l1, l2).PreparePayloadAttributes(context.Background(), parent, parent.L1Origin)
+			require.NoError(t, err)
+			if projected {
+				sys.Scalar = eth.EncodeScalar(eth.EcotoneScalars{})
+				sys.OperatorFeeParams = eth.EncodeOperatorFeeParams(eth.OperatorFeeParams{})
+				sys.MinBaseFee = 0
+				sys.GasLimit = params.MaxGasLimit
+			}
+			expected, err := L1InfoDepositBytes(cfg, params.MergedTestChainConfig, sys, parent.SequenceNumber+1, info, parent.Time+2)
+			require.NoError(t, err)
+			require.Equal(t, expected, []byte(attrs.Transactions[0]))
+			require.Equal(t, sys.GasLimit, uint64(*attrs.GasLimit))
+			require.Equal(t, sys.MinBaseFee, *attrs.MinBaseFee)
+		})
+	}
 }

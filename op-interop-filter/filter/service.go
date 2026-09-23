@@ -12,6 +12,7 @@ import (
 	"github.com/ethereum/go-ethereum/rpc"
 	"github.com/urfave/cli/v2"
 
+	"github.com/ethereum-optimism/optimism/op-private-interop/render"
 	opservice "github.com/ethereum-optimism/optimism/op-service"
 	"github.com/ethereum-optimism/optimism/op-service/cliapp"
 	"github.com/ethereum-optimism/optimism/op-service/clock"
@@ -70,6 +71,11 @@ func Main(version string) cliapp.LifecycleAction {
 		}
 		if cfg.LegacyCheckAccessListFormat {
 			l.Warn("LEGACY CHECK ACCESS LIST FORMAT ENABLED: interop_checkAccessList will not reject missing executing chain IDs")
+		}
+		if cfg.PrivateInteropChainID != nil {
+			l.Warn("RENDER TRANSFORM: enabled by --private-interop.chain-id; this chain's logs are stored "+
+				"at their rendered positions, not their raw ones.",
+				"chain", *cfg.PrivateInteropChainID, "extra_emitters", cfg.PrivateInteropExtraEmitters)
 		}
 
 		if !cfg.MessageExpiryWindowExplicit {
@@ -190,7 +196,12 @@ func (s *Service) initBackend(ctx context.Context, cfg *Config) error {
 			return fmt.Errorf("duplicate chain ID %s: multiple RPCs return the same chain ID", chainID)
 		}
 
-		s.log.Info("Creating chain ingester", "chain", chainID, "rpc", rpcURL)
+		// --private-interop.chain-id is the transform switch and --private-interop.extra-emitters
+		// the emitter set; the private batcher is given the same two values.
+		renderTransform := renderingEmitterSet(cfg, chainID)
+
+		s.log.Info("Creating chain ingester", "chain", chainID, "rpc", rpcURL,
+			"render_transform", renderTransform != nil)
 
 		ingester, err := NewLogsDBChainIngester(
 			ctx,
@@ -205,6 +216,7 @@ func (s *Service) initBackend(ctx context.Context, cfg *Config) error {
 			rollupCfg,
 			cfg.RPCConcurrency,
 			cfg.FetchConcurrency,
+			renderTransform,
 		)
 		if err != nil {
 			return fmt.Errorf("failed to create chain ingester for chain %s: %w", chainID, err)
@@ -237,6 +249,16 @@ func (s *Service) initBackend(ctx context.Context, cfg *Config) error {
 
 	s.log.Info("Created backend", "chains", len(chains))
 	return nil
+}
+
+// renderingEmitterSet derives the optional private-log transform from the filter's own
+// configuration. Returning nil for every other chain preserves the stock ingestion path.
+func renderingEmitterSet(cfg *Config, chainID eth.ChainID) *render.EmitterSet {
+	if cfg == nil || cfg.PrivateInteropChainID == nil || *cfg.PrivateInteropChainID != chainID {
+		return nil
+	}
+	set := render.NewEmitterSet(cfg.PrivateInteropExtraEmitters...)
+	return &set
 }
 
 func (s *Service) initRPCServer(cfg *Config) error {

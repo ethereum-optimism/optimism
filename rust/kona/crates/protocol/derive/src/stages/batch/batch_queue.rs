@@ -156,7 +156,7 @@ where
                     remaining.extend_from_slice(&self.batches[i + 1..]);
                     break;
                 }
-                BatchValidity::Undecided => {
+                BatchValidity::Undecided | BatchValidity::Retry => {
                     remaining.extend_from_slice(&self.batches[i..]);
                     self.batches = remaining;
                     return Err(PipelineError::Eof.temp());

@@ -3,9 +3,11 @@ package derive
 import (
 	"bytes"
 	"context"
+	"errors"
 
 	optypes "github.com/ethereum-optimism/optimism/op-core/types"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
+	"github.com/ethereum-optimism/optimism/op-private-interop/projection"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/log"
@@ -30,6 +32,8 @@ const (
 	// BatchPast indicates that the batch is from the past, i.e. its timestamp is smaller or equal
 	// to the safe head's timestamp.
 	BatchPast
+	// BatchRetry retains a projection candidate while canonical L2 context is unavailable.
+	BatchRetry
 )
 
 // CheckBatch checks if the given batch can be applied on top of the given l2SafeHead, given the contextual L1 blocks the batch was included in.
@@ -38,6 +42,9 @@ const (
 func CheckBatch(ctx context.Context, cfg *rollup.Config, log log.Logger, l1Blocks []eth.L1BlockRef,
 	l2SafeHead eth.L2BlockRef, batch *BatchWithL1InclusionBlock, l2Fetcher SafeBlockFetcher,
 ) BatchValidity {
+	if cfg.PrivateProjection != nil {
+		return BatchDrop
+	} // Projection spans require the post-Holocene batch stage.
 	switch typ := batch.GetBatchType(); typ {
 	case SingularBatchType:
 		singularBatch, ok := batch.AsSingularBatch()
@@ -146,7 +153,7 @@ func checkSingularBatch(cfg *rollup.Config, log log.Logger, l1Blocks []eth.L1Blo
 	spec := rollup.NewChainSpec(cfg)
 	// Check if we ran out of sequencer time drift
 	if max := batchOrigin.Time + spec.MaxSequencerDrift(batchOrigin.Time); batch.Timestamp > max {
-		if len(batch.Transactions) == 0 {
+		if len(batch.Transactions) == 0 || (cfg.PrivateProjection != nil && projection.MetadataOnly(batch.Transactions)) {
 			// If the sequencer is co-operating by producing an empty batch,
 			// then allow the batch if it was the right thing to do to maintain the L2 time >= L1 time invariant.
 			// We only check batches that do not advance the epoch, to ensure epoch advancement regardless of time drift is allowed.
@@ -274,7 +281,7 @@ func checkSpanBatchPrefix(ctx context.Context, cfg *rollup.Config, log log.Logge
 			log.Warn("failed to fetch L2 block", "number", parentNum, "err", err)
 			// Unable to validate the batch right now. Only the pre-Holocene BatchQueue retains
 			// the batch for a retry; the Holocene BatchStage has already consumed it and skips it.
-			return BatchUndecided, eth.L2BlockRef{}
+			return missingCanonicalContext(cfg), eth.L2BlockRef{}
 		}
 	}
 	if !batch.CheckParentHash(parentBlock.Hash) {
@@ -322,13 +329,70 @@ func checkSpanBatchPrefix(ctx context.Context, cfg *rollup.Config, log log.Logge
 // checkSpanBatchHolocene validates the span batch prefix followed by its overlap with the safe
 // chain. Holocene validates batches as they are loaded, so the legacy full checks are not run.
 func checkSpanBatchHolocene(ctx context.Context, cfg *rollup.Config, log log.Logger, l1Blocks []eth.L1BlockRef, l2SafeHead eth.L2BlockRef,
-	batch *SpanBatch, l1InclusionBlock eth.L1BlockRef, l2Fetcher SafeBlockFetcher,
+	batch *SpanBatch, l1InclusionBlock eth.L1BlockRef, l2Fetcher SafeBlockFetcher, collectors ...*projection.ContextCollector,
 ) BatchValidity {
+	if cfg.PrivateProjection != nil {
+		if _, _, err := projection.RangeBounds(cfg.Genesis.L2.Number, cfg.Genesis.L2Time, cfg.BlockTime, batch); err != nil {
+			return BatchDrop
+		}
+	}
 	prefixValidity, parentBlock := checkSpanBatchPrefix(ctx, cfg, log, l1Blocks, l2SafeHead, batch, l1InclusionBlock, l2Fetcher)
 	if prefixValidity != BatchAccept {
 		return prefixValidity
 	}
-	return checkSpanBatchOverlap(ctx, cfg, log, batch, parentBlock, l2SafeHead, l2Fetcher)
+	if validity := checkSpanBatchOverlap(ctx, cfg, log, batch, parentBlock, l2SafeHead, l2Fetcher); validity != BatchAccept {
+		return validity
+	}
+	if cfg.PrivateProjection != nil {
+		collector := new(projection.ContextCollector)
+		if len(collectors) > 0 {
+			collector = collectors[0]
+		}
+		continuation, err := collector.Resolve(ctx, l2Fetcher, parentBlock.ID(), cfg.Genesis.L2, cfg.PrivateProjection.GenesisOutputRoot)
+		if errors.Is(err, projection.ErrContextUnavailable) {
+			return BatchRetry
+		}
+		if err != nil {
+			log.Warn("invalid projection continuation", "err", err)
+			return BatchDrop
+		}
+		verifier, err := projection.VerifierFor(cfg.PrivateProjection)
+		if err == nil {
+			_, err = projection.ValidateProjectionRange(cfg.PrivateProjection, projection.Context{
+				ChainID: cfg.L2ChainID, GenesisNumber: cfg.Genesis.L2.Number, GenesisTime: cfg.Genesis.L2Time,
+				BlockTime: cfg.BlockTime, ParentHash: parentBlock.Hash, Continuation: continuation,
+			}, batch, verifier)
+		}
+		if err != nil {
+			log.Warn("dropping invalid projection range", "err", err)
+			return BatchDrop
+		}
+		return checkProjectionSpanSchedule(cfg, log, l1Blocks, l2SafeHead, batch, l1InclusionBlock)
+	}
+	return BatchAccept
+}
+
+// checkProjectionSpanSchedule preflights existing singular admission rules using
+// only the supplied canonical context. Future execution hashes are unknown: each
+// candidate uses the same placeholder hash as its synthetic parent. The actual
+// hashes and execution validity remain checked when attributes are executed.
+func checkProjectionSpanSchedule(cfg *rollup.Config, log log.Logger, l1Blocks []eth.L1BlockRef, parent eth.L2BlockRef, span *SpanBatch, inclusion eth.L1BlockRef) BatchValidity {
+	singles, err := span.GetSingularBatches(l1Blocks, parent)
+	if err != nil {
+		return BatchDrop
+	}
+	for _, single := range singles {
+		for len(l1Blocks) > 0 && l1Blocks[0].Number < parent.L1Origin.Number {
+			l1Blocks = l1Blocks[1:]
+		}
+		single.ParentHash = parent.Hash
+		if validity := checkSingularBatch(cfg, log, l1Blocks, parent, single, inclusion); validity != BatchAccept {
+			return validity
+		}
+		parent.Time = single.Timestamp
+		parent.L1Origin = eth.BlockID{Hash: single.EpochHash, Number: uint64(single.EpochNum)}
+	}
+	return BatchAccept
 }
 
 // checkSpanBatch checks the full SpanBatch semantic validation rules on a syntactically-correct
@@ -443,11 +507,11 @@ func checkSpanBatchOverlap(ctx context.Context, cfg *rollup.Config, log log.Logg
 	for i := uint64(0); i < l2SafeHead.Number-parentNum; i++ {
 		safeBlockNum := parentNum + i + 1
 		safeBlockPayload, err := l2Fetcher.PayloadByNumber(ctx, safeBlockNum)
-		if err != nil {
+		if err != nil || safeBlockPayload == nil || safeBlockPayload.ExecutionPayload == nil {
 			log.Warn("failed to fetch L2 block payload", "number", safeBlockNum, "err", err)
 			// Unable to validate the batch right now. Only the pre-Holocene BatchQueue retains
 			// the batch for a retry; the Holocene BatchStage has already consumed it and skips it.
-			return BatchUndecided
+			return missingCanonicalContext(cfg)
 		}
 		safeBlockTxs := safeBlockPayload.ExecutionPayload.Transactions
 		batchTxs := batch.GetBlockTransactions(int(i))
@@ -479,4 +543,11 @@ func checkSpanBatchOverlap(ctx context.Context, cfg *rollup.Config, log log.Logg
 		}
 	}
 	return BatchAccept
+}
+
+func missingCanonicalContext(cfg *rollup.Config) BatchValidity {
+	if cfg.PrivateProjection != nil {
+		return BatchRetry
+	}
+	return BatchUndecided
 }

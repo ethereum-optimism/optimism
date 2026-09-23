@@ -128,7 +128,10 @@ impl SingleBatch {
         };
 
         if self.timestamp > max {
-            if !self.transactions.is_empty() {
+            if !(self.transactions.is_empty() ||
+                (cfg.private_projection.is_some() &&
+                    crate::projection::metadata_only(&self.transactions)))
+            {
                 // If the sequencer is ignoring the time drift rule, then drop the batch and force
                 // an empty batch instead, as the sequencer is not allowed to include anything past
                 // this point without moving to the next epoch.

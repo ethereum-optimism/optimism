@@ -19,6 +19,7 @@
 !/op-supervisor
 !/op-supernode
 !/op-interop-filter
+!/op-private-interop
 !/op-test-sequencer
 !/op-wheel
 !/op-alt-da

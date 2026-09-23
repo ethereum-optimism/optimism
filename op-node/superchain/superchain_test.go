@@ -98,6 +98,11 @@ func TestRollupConfigFromRegistry_AllFieldsSet(t *testing.T) {
 	v := reflect.ValueOf(*cfg)
 	typ := v.Type()
 	for i := 0; i < v.NumField(); i++ {
+		// Private projection is an explicit custom-genesis profile, never a registry default.
+		if typ.Field(i).Name == "PrivateProjection" {
+			require.True(t, v.Field(i).IsNil())
+			continue
+		}
 		require.Falsef(t, v.Field(i).IsZero(),
 			"rollup Config field %q is zero after conversion: map it in rollupConfigFromRegistry, and "+
 				"make sure fullyPopulatedChainConfig provides its source", typ.Field(i).Name)

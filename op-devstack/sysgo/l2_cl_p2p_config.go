@@ -3,6 +3,7 @@ package sysgo
 import (
 	"encoding/hex"
 	"flag"
+	"strings"
 	"time"
 
 	"github.com/urfave/cli/v2"
@@ -15,6 +16,14 @@ import (
 	"github.com/ethereum-optimism/optimism/op-node/p2p"
 	p2pcli "github.com/ethereum-optimism/optimism/op-node/p2p/cli"
 )
+
+func newDevstackSignerSetup(keyHex string) (p2p.SignerSetup, error) {
+	key, err := crypto.HexToECDSA(strings.TrimPrefix(keyHex, "0x"))
+	if err != nil {
+		return nil, err
+	}
+	return &renewableP2PSignerSetup{priv: key}, nil
+}
 
 func newDevstackP2PConfig(
 	p devtest.CommonT,
@@ -61,7 +70,7 @@ func newDevstackP2PConfig(
 	var p2pSignerSetup p2p.SignerSetup
 	if sequencerP2PKeyHex != "" {
 		require.NoError(fs.Set(opNodeFlags.SequencerP2PKeyName, sequencerP2PKeyHex))
-		p2pSignerSetup, err = p2pcli.LoadSignerSetup(cliCtx, logger)
+		p2pSignerSetup, err = newDevstackSignerSetup(sequencerP2PKeyHex)
 		require.NoError(err, "failed to load p2p signer")
 		logger.Info("Sequencer key acquired")
 	}

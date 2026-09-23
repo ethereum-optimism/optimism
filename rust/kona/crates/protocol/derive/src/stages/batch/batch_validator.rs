@@ -205,7 +205,9 @@ where
 
         // If the origin is behind, we must drain previous stages to catch up.
         let stage_origin = self.origin.ok_or(PipelineError::MissingOrigin.crit())?;
-        if self.origin_behind(&parent) || parent.l1_origin.number == stage_origin.number {
+        if !self.prev.has_pending_batch() &&
+            (self.origin_behind(&parent) || parent.l1_origin.number == stage_origin.number)
+        {
             self.prev.next_batch(parent, self.l1_blocks.as_ref()).await?;
             return Err(PipelineError::NotEnoughData.temp());
         }
@@ -248,13 +250,15 @@ where
         };
         next_batch.parent_hash = parent.block_info.hash;
 
+        // Only the fresh projection profile retains candidates across context retries.
+        let inclusion = if self.cfg.private_projection.is_some() {
+            self.prev.batch_inclusion_block().unwrap_or(stage_origin)
+        } else {
+            stage_origin
+        };
         // Check the validity of the single batch before forwarding it.
-        match next_batch.check_batch(
-            self.cfg.as_ref(),
-            self.l1_blocks.as_ref(),
-            parent,
-            &stage_origin,
-        ) {
+        match next_batch.check_batch(self.cfg.as_ref(), self.l1_blocks.as_ref(), parent, &inclusion)
+        {
             BatchValidity::Accept => {
                 info!(target: "batch_validator", "Found next batch (epoch #{})", next_batch.epoch_num);
                 Ok(next_batch)
@@ -268,7 +272,9 @@ where
                 self.prev.flush();
                 Err(PipelineError::NotEnoughData.temp())
             }
-            BatchValidity::Undecided => Err(PipelineError::NotEnoughData.temp()),
+            BatchValidity::Undecided | BatchValidity::Retry => {
+                Err(PipelineError::NotEnoughData.temp())
+            }
             BatchValidity::Future => {
                 error!(target: "batch_validator", "Future batch detected in BatchValidator.");
                 Err(PipelineError::InvalidBatchValidity.crit())

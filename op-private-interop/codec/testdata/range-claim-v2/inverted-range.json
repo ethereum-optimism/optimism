@@ -1,0 +1,11 @@
+{
+  "name": "inverted-range",
+  "spec": "op-private-interop/docs/DESIGN.md: the claim is an ordinary L2 transaction, and it leads the range it describes.",
+  "kind": "invalid",
+  "description": "lastBlock (299) is below firstBlock (300): a range that reads backwards. Refused at DECODE, not merely by an optional structural check, and refused by Encode too, so there is no path that produces it and no consumer that has to remember to look.",
+  "bin": "inverted-range.bin",
+  "bytes": 512,
+  "keccak": "0xf5fe351989e15d91094e1827796922be31cd87ef00858d759b5b598762675333",
+  "proofHex": "0x",
+  "refusal": "inverted-range"
+}

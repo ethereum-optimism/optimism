@@ -1694,6 +1694,7 @@ dependencies = [
  "alloy-rlp",
  "alloy-rpc-types-engine",
  "alloy-rpc-types-eth",
+ "alloy-sol-types",
  "ambassador",
  "async-trait",
  "brotli-decompressor",
@@ -1701,6 +1702,7 @@ dependencies = [
  "kona-genesis",
  "kona-hardforks",
  "miniz_oxide",
+ "once_cell",
  "op-alloy-consensus",
  "op-alloy-rpc-types",
  "op-alloy-rpc-types-engine",
@@ -1749,11 +1751,14 @@ dependencies = [
  "kona-executor",
  "kona-genesis",
  "kona-interop",
+ "kona-mpt",
  "kona-preimage",
  "kona-proof",
  "kona-protocol",
  "kzg-rs",
+ "miniz_oxide",
  "op-alloy-consensus",
+ "op-alloy-rpc-types-engine",
  "op-revm",
  "revm",
  "rkyv",
@@ -1788,6 +1793,16 @@ dependencies = [
  "revm",
  "serde_json",
  "spin 0.10.0",
+]
+
+[[package]]
+name = "kona-sp1-private-projection"
+version = "0.0.1"
+dependencies = [
+ "kona-sp1-build-info",
+ "kona-sp1-client-utils",
+ "revm",
+ "sp1-zkvm",
 ]
 
 [[package]]

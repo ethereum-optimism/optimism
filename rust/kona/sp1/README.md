@@ -16,6 +16,7 @@ zkVM programs that execute inside the SP1 prover:
 
 - **`super-range`**: Unified super-root program for one or more chains, with modes for
   proving ranges and span-shaped consolidation.
+- **`private-projection`**: Experimental private execution-to-projection relation; independent of network enforcement.
 - **`super-aggregation`**: Recursively verifies unified super-range proofs and
   commits the public values consumed by `ZKDisputeGame`.
 
@@ -23,7 +24,7 @@ zkVM programs that execute inside the SP1 prover:
 
 Supporting libraries for the SP1 fault proof system:
 
-- **`build-info`**: Compile-time build marker embedding the monorepo commit into both guests
+- **`build-info`**: Compile-time build marker embedding the monorepo commit into the guests
 - **`client`**: Client-side utilities and types for witness execution in the zkVM
 - **`elfs`**: Runtime loading of compiled ELF binaries
 - **`ethereum/client`**: Ethereum-specific client-side data availability utilities
@@ -677,3 +678,84 @@ by Succinct Labs and incorporates code licensed under the MIT License and Apache
 Significant modifications have been made to integrate with the Kona monorepo architecture.
 
 See [LICENSE-THIRD-PARTY](./LICENSE-THIRD-PARTY) for full license details and attribution.
+
+## Experimental private projection relation
+
+The `private-projection` guest runs the same pure
+`kona_sp1_client_utils::private_projection::execute` function as native tests.
+It executes private transactions against hash-checked trie/code witnesses, computes
+OutputV0 checkpoints, and compares ordered initiating/executing message records
+with the receipts produced by execution. A recovery witness starts at the surviving
+private checkpoint, executes canonical deposit-only replacements, then the new range.
+Replacement blocks need no advance publisher proof.
+
+This is a separate relation from proving the public projection's super root. The
+latter uses the ordinary super-range/consolidation programs with the projection's
+rollup config and RPC. Kona and op-reth share the projection deposit classifier;
+private execution continues to execute user deposits normally.
+
+The private relation takes **public** canonical context: the projection parent,
+surviving checkpoint, replacement blocks, protocol-derived deposit attributes and
+configuration. New-span attributes are derived under the **private** configuration;
+replacement attributes use the private configuration with canonical replacement
+origins and forced deposits. Private fees can differ
+from the public projection's zero-fee policy. The claim's existing `rollupConfigHash`
+commits to the exact projection-config JSON; the journal additionally binds the
+supplied private configuration. Its journal binds all of that context, the production admission
+validator's records root, and the computed private terminal output. A future network
+verifier must independently construct and compare that context. A publisher-chosen
+context hash is not sufficient. This program does not authenticate L1 derivation
+or decide interop dependency validity itself, and is not wired as a production
+network verifier. `insecure-stub-v1` remains available. The opt-in
+`execution-mock-v1` profile
+now exercises live witness collection, native execution, publication, and both
+clients' admission checks. It is still forgeable and does not enable cryptographic
+network enforcement; see
+[batch validation](../../../op-private-interop/docs/BATCHES.md#native-execution-with-mock-admission).
+
+The initial relation supports the current per-block checkpoint format and standard
+messenger/inbox emitters. Generic extra emitters are rejected. Sparse checkpoints
+and surviving rootless history are not implemented by this relation yet. Recovery executes forced deposits and accepts Lagoon PostExec markers with empty refund entries.
+
+Tests follow the existing coverage split: native execution by default, actual guest
+execution as a separate tier, and explicit mock proof bytes for lifecycle plumbing.
+Neither native nor execute mode generates a cryptographic proof. `prove` uses the
+local CPU backend and verifies a real SP1 core proof, including rejection after
+altering its public inputs. It never selects the prover network from environment.
+These core STARK proofs are **not zero-knowledge**. A privacy-preserving production
+proof needs the appropriate Groth16/PLONK wrapping and verifier integration; see
+[SP1's security model](https://docs.succinct.xyz/docs/sp1/security/security-model#groth16-plonk-and-the-zero-knowledgeness-of-sp1).
+The runner verifies synthetic local proofs in memory and does not publish them.
+
+```sh
+# From rust/, generate disposable test witnesses on the larger build machine.
+PRIVATE_PROJECTION_FIXTURE_DIR=/absolute/task/fixtures \
+  cargo nextest run -p kona-sp1-client-utils private_projection
+cd kona/sp1
+just build-private-projection-elf-native
+cd ../..
+cargo build -p kona-sp1-super-range-executor --bin kona-sp1-private-projection-executor
+# mode: native, mock, execute, or prove. --elf is needed for execute/prove.
+target/debug/kona-sp1-private-projection-executor \
+  --fixture /absolute/task/fixtures/range-3.json --mode execute --check-rejection \
+  --elf kona/sp1/elf/private-projection-elf
+```
+
+`just test-private-projection native` (from `rust/kona/sp1`) runs the relation
+matrix and ordinary/Lagoon recovery fixtures. Use `mock`, `execute`, or `prove`
+for the other tiers; execute/prove require the guest build above. The recipe
+cleans up synthetic witness files when it exits. CPU proving can use substantial
+RAM; run it on the larger build machine.
+
+Fixtures include real EVM calls emitting initiating and executing records, empty
+publication, and zero/one/three-block recovery. Negative cases alter witnesses,
+roots, record order/count, timestamps, parent ancestry and recovery bodies. Generated
+fixtures contain synthetic private inputs and remain local; no live private witness
+is uploaded by these commands. The small synthetic genesis is not a deployed-devnet
+witness collector.
+
+The private executor's `--publication-request` mode accepts a JSON request on stdin,
+collects witnesses from the explicitly supplied private/public RPC endpoints, runs
+the native relation, and emits only the public mock envelope on stdout. It never
+chooses a prover network. Devstack tests `TestPrivatePublicationExecutesWitnessBeforeAdmission`
+and `TestPrivateExecutionProof*` exercise this mode through the actual batcher.

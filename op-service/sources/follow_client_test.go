@@ -40,10 +40,10 @@ func TestFollowClient_GetFollowStatus(t *testing.T) {
 			},
 		}
 
-		rpc.On("CallContext", ctx, mock.AnythingOfType("**eth.SyncStatus"),
+		rpc.On("CallContext", ctx, mock.AnythingOfType("*sources.FollowSyncStatus"),
 			"optimism_syncStatus", []any(nil)).Run(func(args mock.Arguments) {
 			// Set the result pointer to our mock sync status
-			*args[1].(**eth.SyncStatus) = mockSyncStatus
+			args[1].(*FollowSyncStatus).SyncStatus = *mockSyncStatus
 		}).Return([]error{nil})
 
 		status, err := client.GetFollowStatus(ctx)
@@ -64,7 +64,7 @@ func TestFollowClient_GetFollowStatus(t *testing.T) {
 		client, err := NewFollowClient(rpc)
 		require.NoError(t, err)
 
-		rpc.On("CallContext", ctx, mock.AnythingOfType("**eth.SyncStatus"),
+		rpc.On("CallContext", ctx, mock.AnythingOfType("*sources.FollowSyncStatus"),
 			"optimism_syncStatus", []any(nil)).Return([]error{context.DeadlineExceeded})
 
 		_, err = client.GetFollowStatus(ctx)

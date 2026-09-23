@@ -10,6 +10,7 @@ import { Predeploys } from "src/libraries/Predeploys.sol";
 import { Unauthorized, ZeroAddress } from "src/libraries/errors/CommonErrors.sol";
 
 // Interfaces
+import { IProxyAdmin } from "interfaces/universal/IProxyAdmin.sol";
 import { IETHLiquidity } from "interfaces/L2/IETHLiquidity.sol";
 import { ISuperchainETHBridge } from "interfaces/L2/ISuperchainETHBridge.sol";
 import { IL2ToL2CrossDomainMessenger } from "interfaces/L2/IL2ToL2CrossDomainMessenger.sol";
@@ -20,6 +21,12 @@ abstract contract SuperchainETHBridge_TestInit is CommonTest, MockHelper {
     event SendETH(address indexed from, address indexed to, uint256 amount, uint256 destination);
 
     event RelayETH(address indexed from, address indexed to, uint256 amount, uint256 source);
+
+    function _setPermissions(uint256 _chainId, bool _send, bool _relay) internal {
+        address owner = IProxyAdmin(Predeploys.PROXY_ADMIN).owner();
+        vm.prank(owner);
+        superchainETHBridge.setChainPermissions(_chainId, _send, _relay);
+    }
 
     address internal constant ZERO_ADDRESS = address(0);
 
@@ -68,6 +75,7 @@ contract SuperchainETHBridge_SendETH_Test is SuperchainETHBridge_TestInit {
         _amount = bound(_amount, 0, type(uint248).max - 1);
 
         // Arrange
+        _setPermissions(_chainId, true, false);
         vm.deal(_sender, _amount);
 
         // Get the total balance of `_sender` before the send to compare later on the assertions
@@ -153,6 +161,7 @@ contract SuperchainETHBridge_RelayETH_Test is SuperchainETHBridge_TestInit {
         _amount = bound(_amount, 0, type(uint248).max - 1);
 
         // Arrange
+        _setPermissions(_source, false, true);
         vm.deal(address(superchainETHBridge), _amount);
         vm.deal(Predeploys.ETH_LIQUIDITY, _amount);
         _mockAndExpect(
@@ -175,5 +184,56 @@ contract SuperchainETHBridge_RelayETH_Test is SuperchainETHBridge_TestInit {
         superchainETHBridge.relayETH(_from, _to, _amount);
 
         assertEq(_to.balance, _toBalanceBefore + _amount);
+    }
+}
+
+/// @notice Tests native ETH route configuration independently from generic interop.
+contract SuperchainETHBridge_SetChainPermissions_Test is SuperchainETHBridge_TestInit {
+    event ChainPermissionsUpdated(uint256 indexed chainId, bool allowSend, bool allowRelay);
+
+    function test_setChainPermissions_unauthorized_reverts() public {
+        vm.prank(address(0xbeef));
+        vm.expectRevert(Unauthorized.selector);
+        superchainETHBridge.setChainPermissions(42, true, true);
+    }
+
+    function test_setChainPermissions_succeeds() public {
+        assertFalse(superchainETHBridge.allowedSendChain(42));
+        assertFalse(superchainETHBridge.allowedRelayChain(42));
+        vm.expectEmit(address(superchainETHBridge));
+        emit ChainPermissionsUpdated(42, true, false);
+        _setPermissions(42, true, false);
+        assertTrue(superchainETHBridge.allowedSendChain(42));
+        assertFalse(superchainETHBridge.allowedRelayChain(42));
+        _setPermissions(42, false, true);
+        assertFalse(superchainETHBridge.allowedSendChain(42));
+        assertTrue(superchainETHBridge.allowedRelayChain(42));
+        _setPermissions(42, false, false);
+        assertFalse(superchainETHBridge.allowedRelayChain(42));
+    }
+
+    function test_sendETH_relayPermissionOnly_reverts() public {
+        _setPermissions(42, false, true);
+        vm.deal(alice, 1 ether);
+        uint256 liquidityBefore = Predeploys.ETH_LIQUIDITY.balance;
+        vm.prank(alice);
+        vm.expectRevert(ISuperchainETHBridge.SuperchainETHBridge_SendChainNotAllowed.selector);
+        superchainETHBridge.sendETH{ value: 1 ether }(bob, 42);
+        assertEq(alice.balance, 1 ether);
+        assertEq(Predeploys.ETH_LIQUIDITY.balance, liquidityBefore);
+    }
+
+    function test_relayETH_sendPermissionOnly_reverts() public {
+        _setPermissions(42, true, false);
+        vm.mockCall(
+            Predeploys.L2_TO_L2_CROSS_DOMAIN_MESSENGER,
+            abi.encodeCall(IL2ToL2CrossDomainMessenger.crossDomainMessageContext, ()),
+            abi.encode(address(superchainETHBridge), uint256(42))
+        );
+        uint256 balanceBefore = bob.balance;
+        vm.prank(Predeploys.L2_TO_L2_CROSS_DOMAIN_MESSENGER);
+        vm.expectRevert(ISuperchainETHBridge.SuperchainETHBridge_RelayChainNotAllowed.selector);
+        superchainETHBridge.relayETH(alice, bob, 1 ether);
+        assertEq(bob.balance, balanceBefore);
     }
 }

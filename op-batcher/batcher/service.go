@@ -2,12 +2,16 @@ package batcher
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
 	"sync/atomic"
 	"time"
 
+	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/core/types"
+	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/ethereum/go-ethereum/log"
 
@@ -18,7 +22,12 @@ import (
 	"github.com/ethereum-optimism/optimism/op-batcher/rpc"
 	"github.com/ethereum-optimism/optimism/op-node/params"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
+	"github.com/ethereum-optimism/optimism/op-private-interop/builder"
+	projectiongenesis "github.com/ethereum-optimism/optimism/op-private-interop/genesis"
+	"github.com/ethereum-optimism/optimism/op-private-interop/projection"
+	"github.com/ethereum-optimism/optimism/op-private-interop/render"
 	"github.com/ethereum-optimism/optimism/op-service/cliapp"
+	"github.com/ethereum-optimism/optimism/op-service/client"
 	"github.com/ethereum-optimism/optimism/op-service/dial"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/httputil"
@@ -26,6 +35,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/oppprof"
 	oprpc "github.com/ethereum-optimism/optimism/op-service/rpc"
 	"github.com/ethereum-optimism/optimism/op-service/slices"
+	"github.com/ethereum-optimism/optimism/op-service/sources"
 	"github.com/ethereum-optimism/optimism/op-service/txmgr"
 )
 
@@ -66,6 +76,10 @@ type BatcherService struct {
 
 	ChannelConfig ChannelConfigProvider
 	RollupConfig  *rollup.Config
+
+	// privateInterop is the terminal seam, non-nil only when the rollup config declares private interop.
+	privateInterop    *PrivateInteropEncoder
+	privateProjection PublicProjectionFollower
 
 	driver *BatchSubmitter
 
@@ -177,6 +191,11 @@ func (bs *BatcherService) initFromCLIConfig(ctx context.Context, closeApp contex
 	}
 	if err := bs.initChannelConfig(cfg); err != nil {
 		return fmt.Errorf("failed to init channel config: %w", err)
+	}
+	// After the rollup config (the seam needs the PRIVATE chain's) and before the driver, which is
+	// what the seam is installed on.
+	if err := bs.initPrivateInterop(ctx, cfg); err != nil {
+		return fmt.Errorf("failed to init Private Interop: %w", err)
 	}
 	bs.initBalanceMonitor(cfg)
 	if err := bs.initMetricsServer(cfg); err != nil {
@@ -407,10 +426,185 @@ func (bs *BatcherService) initDriver(opts ...DriverSetupOption) {
 		ChannelConfig:    bs.ChannelConfig,
 		AltDA:            bs.AltDA,
 	}
+	if bs.privateInterop != nil {
+		ds.PublicProjection = bs.privateProjection
+		ds.BlockEnricher = bs.privateInterop
+		ds.ChannelOutFactory = bs.privateInterop.ChannelOut
+	}
 	for _, opt := range opts {
 		opt(&ds)
 	}
 	bs.driver = NewBatchSubmitter(ds)
+}
+
+// initPrivateInterop builds the terminal seam from the --private-interop.* group.
+//
+// The group's genesis flag activates this path; there is no marker in the rollup config. The
+// batcher's own rollup config is the private chain's; its public-projection config is derived
+// locally from that config and the private genesis, and the projection's validator refuses any
+// genesis that is not a stock interop-at-genesis custom-gas-token chain.
+func (bs *BatcherService) initPrivateInterop(ctx context.Context, cfg *CLIConfig) error {
+	if !cfg.PrivateInterop.Enabled() {
+		return nil
+	}
+	settings, err := cfg.PrivateInterop.Resolve()
+	if err != nil {
+		return err
+	}
+
+	privateChainGenesis, err := projectiongenesis.LoadPrivateChainGenesis(ctx, settings.PrivateChainGenesisPath)
+	if err != nil {
+		return err
+	}
+	publicProjectionGenesis, err := projectiongenesis.ProjectGenesisFrom(privateChainGenesis)
+	if err != nil {
+		return fmt.Errorf("projecting the private-chain genesis: %w", err)
+	}
+	publicProjectionRollup, err := projectiongenesis.ProjectRollupConfigFrom(bs.RollupConfig, privateChainGenesis, publicProjectionGenesis)
+	if err != nil {
+		return fmt.Errorf("projecting the private-chain rollup config: %w", err)
+	}
+
+	if settings.ProofCommand != "" {
+		publicProjectionRollup.PrivateProjection.Verifier = projection.ExecutionMock
+		if len(settings.ExtraEmitters) != 0 {
+			return fmt.Errorf("execution mock relation does not support extra emitters")
+		}
+	}
+
+	// The claim's two configuration commitments. Unless pinned by flag they are derived from what
+	// this process already holds: the projected rollup config, and the dependency set the private
+	// rollup node serves. Both are keccak256 of canonical JSON, the convention the devstack uses.
+	rollupConfigHash := settings.RollupConfigHash
+	if rollupConfigHash == (common.Hash{}) {
+		if rollupConfigHash, err = hashCanonicalJSON(publicProjectionRollup); err != nil {
+			return fmt.Errorf("hashing the projected rollup config: %w", err)
+		}
+	}
+	depSetHash := settings.DepSetHash
+	var dependencySet []byte
+	if depSetHash == (common.Hash{}) || settings.ProofCommand != "" {
+		// The endpoint provider's rollup client does not expose the dependency set; dial the
+		// private rollup node directly for this one read.
+		rollupRPC, err := dial.DialRPCClientWithTimeout(ctx, bs.Log, cfg.RollupRpc[0])
+		if err != nil {
+			return fmt.Errorf("private interop: dialling the rollup node for the dependency set: %w", err)
+		}
+		depSet, err := sources.NewRollupClient(client.NewBaseRPCClient(rollupRPC)).DependencySet(ctx)
+		rollupRPC.Close()
+		if err != nil {
+			return fmt.Errorf("private interop: reading the dependency set from the rollup node: %w", err)
+		}
+		dependencySet, err = json.Marshal(depSet)
+		if err != nil {
+			return err
+		}
+		computed, hashErr := hashCanonicalJSON(depSet)
+		if hashErr != nil {
+			return hashErr
+		}
+		if depSetHash != (common.Hash{}) && depSetHash != computed {
+			return fmt.Errorf("pinned dependency set differs from execution context")
+		}
+		depSetHash = computed
+	}
+	bs.Log.Info("private interop claim commitments", "rollup_config_hash", rollupConfigHash, "dep_set_hash", depSetHash,
+		"rollup_config_hash_pinned", settings.RollupConfigHash != (common.Hash{}), "dep_set_hash_pinned", settings.DepSetHash != (common.Hash{}))
+
+	follower, err := NewRPCPublicProjectionFollower(ctx, bs.Log, settings.PublicProjectionRPC, settings.PublicProjectionRollupRPC, bs.NetworkTimeout)
+	if err != nil {
+		return err
+	}
+	bs.privateProjection = follower
+	if settings.ProofCommand != "" {
+		var actual rollup.Config
+		if err := follower.(*rpcPublicProjectionFollower).rollupRPC.CallContext(ctx, &actual, "optimism_rollupConfig"); err != nil {
+			return err
+		}
+		if actual.PrivateProjection == nil || actual.PrivateProjection.Verifier != projection.ExecutionMock {
+			return fmt.Errorf("native execution producer requires execution-mock-v1 in the deployed projection rollup config")
+		}
+		actualHash, err := hashCanonicalJSON(&actual)
+		if err != nil {
+			return err
+		}
+		expectedHash, err := hashCanonicalJSON(publicProjectionRollup)
+		if err != nil {
+			return err
+		}
+		if actualHash != expectedHash || rollupConfigHash != expectedHash {
+			return fmt.Errorf("native execution producer projection configuration mismatch")
+		}
+	}
+	batcherAddr := bs.TxManager.From()
+	ranges, err := NewPrivateInteropRangeSource(PrivateInteropRangeSourceConfig{
+		Log:                    bs.Log,
+		PublicProjectionRollup: publicProjectionRollup,
+		PublicProjection:       follower,
+		Batcher:                batcherAddr,
+		NetworkTimeout:         bs.NetworkTimeout,
+	})
+	if err != nil {
+		return err
+	}
+
+	// The private EL's receipt source. It is a separate client from the batcher's payload source
+	// because a payload does not carry receipts, and the public transformation is defined over
+	// logs.
+	privateRPC, err := dial.DialRPCClientWithTimeout(ctx, bs.Log, cfg.L2EthRpc[0])
+	if err != nil {
+		return fmt.Errorf("dialling the private execution client: %w", err)
+	}
+	receipts, err := sources.NewEthClient(client.NewBaseRPCClient(privateRPC), bs.Log, nil,
+		sources.DefaultEthClientConfig(int(settings.MaxBlocksPerRange)))
+	if err != nil {
+		return fmt.Errorf("building the private receipt source: %w", err)
+	}
+
+	signerFactory, signerAddr, err := txmgr.SignerFactoryFromCLIConfig(bs.Log, cfg.TxMgrConfig)
+	if err != nil {
+		return fmt.Errorf("resolving the standard batcher signer for public-projection transactions: %w", err)
+	}
+	if signerAddr != batcherAddr {
+		return fmt.Errorf("standard batcher signer address changed during startup: %s != %s", signerAddr, batcherAddr)
+	}
+	projectionSigner := signerFactory(publicProjectionRollup.L2ChainID)
+	txs := render.NewBatcherTxBuilder(publicProjectionRollup.L2ChainID, settings.Gas,
+		func(tx *types.Transaction) (*types.Transaction, error) {
+			return projectionSigner(ctx, batcherAddr, tx)
+		})
+	txs.SetRegistry(settings.ClaimRegistry)
+	txs.SetEventReplayer(settings.EventReplayer)
+	txs.SetReplayMessenger(settings.ReplayMessenger)
+
+	var prove func(context.Context, *builder.BuiltRange, []byte, RangeStart) ([]byte, error)
+	if settings.ProofCommand != "" {
+		prove = nativeProjectionProducer(ctx, settings.ProofCommand, cfg.L2EthRpc[0], settings.PublicProjectionRPC,
+			bs.RollupConfig, publicProjectionRollup, dependencySet)
+	}
+	enc, err := NewPrivateInteropEncoder(PrivateInteropConfig{
+		Prove:             prove,
+		Rollup:            publicProjectionRollup,
+		PrivateRollup:     bs.RollupConfig,
+		Batcher:           batcherAddr,
+		Emitters:          render.NewEmitterSet(settings.ExtraEmitters...),
+		MaxBlocksPerRange: settings.MaxBlocksPerRange,
+		MaxRangeBytes:     settings.MaxRangeBytes,
+		RollupConfigHash:  rollupConfigHash,
+		DepSetHash:        depSetHash,
+		Receipts:          receipts,
+		Ranges:            ranges,
+		Txs:               txs,
+	})
+	if err != nil {
+		return err
+	}
+	bs.privateInterop = enc
+	bs.Log.Warn("PRIVATE INTEROP MODE: this batcher loads private blocks and posts their public projection",
+		"public_projection_chain_id", publicProjectionRollup.L2ChainID, "batcher", batcherAddr,
+		"cadence_blocks", settings.MaxBlocksPerRange, "max_range_bytes", settings.MaxRangeBytes,
+		"claim_registry", settings.ClaimRegistry)
+	return nil
 }
 
 func (bs *BatcherService) initRPCServer(cfg *CLIConfig) error {
@@ -514,6 +708,9 @@ func (bs *BatcherService) Stop(ctx context.Context) error {
 		}
 	}
 
+	if bs.privateProjection != nil {
+		bs.privateProjection.Close()
+	}
 	if bs.L1Client != nil {
 		bs.L1Client.Close()
 	}
@@ -553,4 +750,13 @@ func (bs *BatcherService) HTTPEndpoint() string {
 		return ""
 	}
 	return "http://" + bs.rpcServer.Endpoint()
+}
+
+// hashCanonicalJSON is the claim-commitment convention: keccak256 of the value's JSON encoding.
+func hashCanonicalJSON(v any) (common.Hash, error) {
+	encoded, err := json.Marshal(v)
+	if err != nil {
+		return common.Hash{}, err
+	}
+	return crypto.Keccak256Hash(encoded), nil
 }

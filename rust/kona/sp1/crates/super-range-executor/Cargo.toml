@@ -10,6 +10,7 @@ name = "kona-sp1-super-range-executor"
 path = "src/main.rs"
 
 [dependencies]
+revm.workspace = true
 sp1-sdk.workspace = true
 
 # local
@@ -27,9 +28,17 @@ kona-protocol.workspace = true
 
 # alloy
 alloy-primitives.workspace = true
+alloy-eips.workspace = true
+alloy-rpc-types-eth.workspace = true
+alloy-rpc-types-engine.workspace = true
+op-alloy-consensus.workspace = true
+op-alloy-rpc-types.workspace = true
+op-alloy-rpc-types-engine.workspace = true
+kona-genesis.workspace = true
 
 # rpc / serialization
 jsonrpsee-http-client.workspace = true
+jsonrpsee = { workspace = true, features = ["ws-client"] }
 jsonrpsee-core.workspace = true
 rkyv.workspace = true
 serde = { workspace = true, features = ["derive"] }
@@ -45,3 +54,7 @@ tracing-subscriber = { workspace = true, features = ["fmt", "env-filter"] }
 
 [lints]
 workspace = true
+
+[[bin]]
+name = "kona-sp1-private-projection-executor"
+path = "src/private_projection.rs"

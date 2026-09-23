@@ -20,8 +20,11 @@ kona-genesis.workspace = true
 kona-hardforks.workspace = true
 alloy-op-hardforks.workspace = true
 
+# ABI for canonical projection calls
+alloy-sol-types.workspace = true
+
 # OP Alloy
-op-alloy-consensus.workspace = true
+op-alloy-consensus = { workspace = true, features = ["k256"] }
 op-alloy-rpc-types.workspace = true
 op-alloy-rpc-types-engine.workspace = true
 
@@ -35,6 +38,7 @@ alloy-rpc-types-eth.workspace = true
 alloy-rpc-types-engine.workspace = true
 
 # Misc
+once_cell = { workspace = true, features = ["race"] }
 tracing.workspace = true
 thiserror.workspace = true
 async-trait.workspace = true
@@ -66,7 +70,6 @@ rand = { workspace = true, features = ["std", "std_rng"] }
 rstest.workspace = true
 proptest.workspace = true
 serde_json.workspace = true
-alloy-sol-types.workspace = true
 tokio = { workspace = true, features = ["full"] }
 arbitrary = { workspace = true, features = ["derive"] }
 tracing-subscriber = { workspace = true, features = ["fmt"] }
@@ -80,6 +83,7 @@ kona-registry.workspace = true
 [features]
 default = []
 std = [
+	"once_cell/std",
 	"alloy-consensus/std",
 	"alloy-eips/std",
 	"alloy-primitives/std",
@@ -87,6 +91,7 @@ std = [
 	"alloy-rpc-types-engine/std",
 	"alloy-rpc-types-eth/std",
 	"alloy-serde?/std",
+	"alloy-sol-types/std",
 	"brotli-decompressor/std",
 	"derive_more/std",
 	"kona-genesis/std",
@@ -111,6 +116,7 @@ arbitrary = [
 	"alloy-rpc-types-engine/arbitrary",
 	"alloy-rpc-types-eth/arbitrary",
 	"alloy-serde?/arbitrary",
+	"alloy-sol-types/arbitrary",
 	"dep:arbitrary",
 	"kona-genesis/arbitrary",
 	"op-alloy-consensus/arbitrary",

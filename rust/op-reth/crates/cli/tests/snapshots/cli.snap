@@ -302,6 +302,7 @@ arg: --jit.code-cache-bytes <CODE_CACHE_BYTES> [action: Set] [num-args: 1] [defa
 arg: --jit.idle-evict-duration <IDLE_EVICT_DURATION> [action: Set] [num-args: 1] [default: 1h] help: Duration after which a compiled program with no lookup hits is evicted
 arg: --jit.debug [action: SetTrue] [num-args: 0] [default: false] help: Enable compiler debug dumps
 arg: --jit.blocking [action: SetTrue] [num-args: 0] [default: false] [hidden] help: Blocking mode: synchronously JIT-compile every contract on first encounter. Intended for debugging only
+arg: --rollup.private <BOOL> [action: Set] [num-args: 0..=1] [default: false] [default-missing-values: ["true"]] [possible: true, false] help: Derive the public-projection genesis from the supplied private-chain genesis before the database is initialized. This is only enabled on the public-projection execution client; the private-chain execution client consumes the same genesis without this flag
 arg: --rollup.sequencer <SEQUENCER> [action: Set] [num-args: 1] [aliases: rollup.sequencer-http, rollup.sequencer-ws] [visible-aliases: rollup.sequencer-http, rollup.sequencer-ws] help: Endpoint for the sequencer mempool (can be both HTTP and WS)
 arg: --rollup.disable-tx-pool-gossip [action: SetTrue] [num-args: 0] help: Disable transaction pool gossip
 arg: --rollup.compute-pending-block [action: SetTrue] [num-args: 0] help: By default the pending block equals the latest block to save resources and not leak txs from the tx-pool, this flag enables computing of the pending block from the tx-pool instead

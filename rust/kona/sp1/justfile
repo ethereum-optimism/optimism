@@ -157,3 +157,22 @@ build-elfs-native:
       just _build-elf "${name}" native
       just _append-vkey "${name}" "$m"
     done
+
+# Experimental private execution relation. Kept separate from super-root prestates.
+build-private-projection-elf-native:
+    KONA_SP1_GIT_SHA="$(just _git-sha)" just _build-elf private-projection native
+
+# Local-only relation checks. Execute/prove require build-private-projection-elf-native first.
+test-private-projection MODE="native":
+    #!/usr/bin/env bash
+    set -euo pipefail
+    fixtures="$(mktemp -d)"
+    trap 'rm -rf "$fixtures"' EXIT
+    root="$(cd "{{justfile_directory()}}/../.." && pwd)"
+    cd "$root"
+    PRIVATE_PROJECTION_FIXTURE_DIR="$fixtures" cargo nextest run -p kona-sp1-client-utils -E 'test(private_projection)'
+    for name in range-0 lagoon-recovery; do
+      cargo run -p kona-sp1-super-range-executor --bin kona-sp1-private-projection-executor -- \
+        --fixture "$fixtures/$name.json" --mode "{{MODE}}" --check-rejection \
+        --elf "{{justfile_directory()}}/elf/private-projection-elf"
+    done

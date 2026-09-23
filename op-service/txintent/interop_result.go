@@ -23,6 +23,12 @@ func (i *InteropOutput) Init() Result {
 }
 
 // FromReceipt creates Messages from receipt and block included, to prepare validating messages
+//
+// The identifiers it builds are receipt positions, which is what names a message on every chain
+// that publishes its own blocks. A chain whose public presence is a rendering of its blocks rather
+// than the blocks themselves registers a PositionResolver (see interop_positions.go), and the
+// entries are then rewritten to the positions its counterparties actually read. With no resolver
+// registered the rewrite is one atomic load, and the entries are exactly what they always were.
 func (i *InteropOutput) FromReceipt(ctx context.Context, rec *types.Receipt, includedIn eth.BlockRef, chainID eth.ChainID) error {
 	for _, logEvent := range rec.Logs {
 		payload := messages.LogToMessagePayload(logEvent)
@@ -39,7 +45,7 @@ func (i *InteropOutput) FromReceipt(ctx context.Context, rec *types.Receipt, inc
 			PayloadHash: payloadHash,
 		})
 	}
-	return nil
+	return applyPublicPositions(ctx, i, rec, includedIn, chainID)
 }
 
 // ExecuteIndexeds returns a lambda to transform InteropOutput to a new MultiTrigger which batches multiple ExecTrigger

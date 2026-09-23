@@ -38,6 +38,7 @@ const (
 	optionKindZKDisputeGame
 	optionKindZKProposer
 	optionKindConductorFastHealthChecks
+	optionKindPrivateInteropChain
 )
 
 const allOptionKinds = optionKindDeployer |
@@ -66,7 +67,8 @@ const allOptionKinds = optionKindDeployer |
 	optionKindSupernodeVNSequencerForBootstrap |
 	optionKindZKDisputeGame |
 	optionKindZKProposer |
-	optionKindConductorFastHealthChecks
+	optionKindConductorFastHealthChecks |
+	optionKindPrivateInteropChain
 
 var optionKindLabels = []struct {
 	kind  optionKinds
@@ -99,6 +101,7 @@ var optionKindLabels = []struct {
 	{kind: optionKindZKDisputeGame, label: "ZK dispute game"},
 	{kind: optionKindZKProposer, label: "ZK proposer options"},
 	{kind: optionKindConductorFastHealthChecks, label: "conductor fast health checks"},
+	{kind: optionKindPrivateInteropChain, label: "private interop chain"},
 }
 
 func (k optionKinds) String() string {
@@ -131,6 +134,7 @@ func collectSupportedPresetConfig(t devtest.T, presetName string, opts []Option,
 	if unsupported := unsupportedPresetOptionKinds(combined, supported); unsupported != 0 {
 		t.Require().FailNowf("%s does not support preset options: %s", presetName, unsupported)
 	}
+	applyAmbientPrivateInterop(t, presetName, &cfg, supported)
 	t.Require().NoError(validatePresetConfig(cfg), "%s has invalid preset options", presetName)
 	return cfg, combined
 }
@@ -200,6 +204,11 @@ const twoL2SupernodeProofsPresetSupportedOptionKinds = supernodeProofsPresetSupp
 const twoL2SupernodePresetSupportedOptionKinds = optionKindDeployer |
 	optionKindL1EL
 
+// twoL2SupernodeInteropPresetSupportedOptionKinds accepts the private-interop chain so that the
+// stock two-L2 interop suites -- which name this preset and pass no options of their own -- can be
+// run against a pair unchanged (see private_interop_ambient.go). The pair's runtime is a
+// light-sequencer one, so the option changes more about this preset than the others do; that is why
+// it is spelled out here rather than inherited.
 const twoL2SupernodeInteropPresetSupportedOptionKinds = optionKindDeployer |
 	optionKindBatcher |
 	optionKindTimeTravel |
@@ -207,11 +216,13 @@ const twoL2SupernodeInteropPresetSupportedOptionKinds = optionKindDeployer |
 	optionKindInteropLogBackfill |
 	optionKindInteropFilter |
 	optionKindPreGenesisSuperGame |
-	optionKindSupernodeVNSequencerForBootstrap
+	optionKindSupernodeVNSequencerForBootstrap |
+	optionKindPrivateInteropChain
 
 // twoL2SupernodeLightSequencerPresetSupportedOptionKinds additionally accepts
 // L2 CL options: the light-sequencer runtime is the only two-L2 supernode
 // variant that wires GlobalL2CLOptions (to the light sequencer CLs), so the
 // option is accepted here and nowhere else to avoid a silent no-op.
 const twoL2SupernodeLightSequencerPresetSupportedOptionKinds = twoL2SupernodeInteropPresetSupportedOptionKinds |
-	optionKindGlobalL2CL
+	optionKindGlobalL2CL |
+	optionKindPrivateInteropChain

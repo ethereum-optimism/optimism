@@ -76,6 +76,11 @@ func (s *channelManager) SetChannelOutFactory(outFactory ChannelOutFactory) {
 // It is intended to be used before launching op-batcher and after an L2 reorg.
 func (s *channelManager) Clear(l1OriginLastSubmittedChannel eth.BlockID) {
 	s.log.Trace("clearing channel manager state")
+	for _, ch := range s.channelQueue {
+		if ch.co != nil {
+			ch.co.DiscardCompressor()
+		}
+	}
 	s.blocks.Clear()
 	s.blockCursor = 0
 	s.l1OriginLastSubmittedChannel = l1OriginLastSubmittedChannel
@@ -172,6 +177,9 @@ func (s *channelManager) handleChannelInvalidated(c *channel) {
 	}
 
 	for i := invalidatedChannelIdx; i < len(s.channelQueue); i++ {
+		if s.channelQueue[i].co != nil {
+			s.channelQueue[i].co.DiscardCompressor()
+		}
 		s.log.Warn("Dropped channel",
 			"id", s.channelQueue[i].ID(),
 			"none_submitted", s.channelQueue[i].noneSubmitted(),
@@ -225,6 +233,9 @@ func (s *channelManager) nextTxData(channel *channel) (txData, error) {
 // with a new ChannelConfig.
 func (s *channelManager) TxData(l1Head eth.BlockID, isThrottling bool, pi pubInfo) (txData, error) {
 	channel, err := s.getReadyChannel(l1Head, pi)
+	if errors.Is(err, errPrivateProofPending) {
+		return emptyTxData, io.EOF
+	}
 	if err != nil {
 		return emptyTxData, err
 	}
@@ -259,6 +270,9 @@ func (s *channelManager) TxData(l1Head eth.BlockID, isThrottling bool, pi pubInf
 
 	// Try again to get data to send on chain.
 	channel, err = s.getReadyChannel(l1Head, pi)
+	if errors.Is(err, errPrivateProofPending) {
+		return emptyTxData, io.EOF
+	}
 	if err != nil {
 		return emptyTxData, err
 	}
@@ -284,6 +298,14 @@ type pubInfo struct {
 // If forcePublish is true, it will force close channels and
 // generate frames for them.
 func (s *channelManager) getReadyChannel(l1Head eth.BlockID, pi pubInfo) (*channel, error) {
+	// A full channel can still be awaiting asynchronous preparation. Retry it
+	// before allocating another channel, even when no more blocks are queued.
+	if s.currentChannel != nil && s.currentChannel.IsFull() && s.currentChannel.TotalFrames() == 0 {
+		if err := s.outputFrames(); err != nil {
+			return nil, err
+		}
+	}
+
 	if pi.forcePublish && s.currentChannel != nil && s.currentChannel.TotalFrames() == 0 {
 		s.log.Info("Force-closing channel and creating frames", "channel_id", s.currentChannel.ID())
 		s.currentChannel.Close()
@@ -554,6 +576,9 @@ func (s *channelManager) PruneSafeBlocks(num int) {
 func (s *channelManager) PruneChannels(num int) {
 	clearCurrentChannel := false
 	for i := 0; i < num; i++ {
+		if s.channelQueue[i].co != nil {
+			s.channelQueue[i].co.DiscardCompressor()
+		}
 		if s.channelQueue[i] == s.currentChannel {
 			clearCurrentChannel = true
 		}

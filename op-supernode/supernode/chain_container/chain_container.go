@@ -188,8 +188,13 @@ type simpleChainContainer struct {
 	addMetricsRegistry func(key string, g prometheus.Gatherer) // Set the metrics registry on the global metrics server
 	appVersion         string
 	virtualNodeFactory virtualNodeFactory    // Factory function to create virtual node (for testing)
+	rollupClientMu     sync.Mutex            // Serializes replacement with Stop.
 	rollupClient       *sources.RollupClient // In-proc rollup RPC client bound to rpcHandler
 	metrics            *resources.SupernodeMetrics
+	// extraRPCRoutes are optional sibling routes mounted on this chain's own handler, at
+	// <base>/<chainID>/<route>. Empty unless a caller passed WithExtraRPCRoutes; see
+	// extra_rpc_routes.go.
+	extraRPCRoutes []ExtraRPCRoute
 
 	// verifierMu guards writes and reads of the verifier.
 	verifierMu sync.RWMutex
@@ -215,6 +220,7 @@ func NewChainContainer(
 	addMetricsRegistry func(key string, g prometheus.Gatherer),
 	metrics *resources.SupernodeMetrics,
 	appVersion string,
+	opts ...ChainContainerOption,
 ) (InteropChain, error) {
 	if metrics == nil {
 		metrics = resources.NewSupernodeMetrics()
@@ -232,6 +238,11 @@ func NewChainContainer(
 		appVersion:         appVersion,
 		virtualNodeFactory: defaultVirtualNodeFactory,
 		metrics:            metrics,
+	}
+	// Options are applied before any I/O so that an option can only ever add configuration, never
+	// react to a half-built container. With no options this is a no-op.
+	for _, opt := range opts {
+		opt(c)
 	}
 	vncfg.SafeDBPath = c.subPath("safe_db")
 	vncfg.RPC = cfg.RPCConfig
@@ -377,6 +388,10 @@ func (c *simpleChainContainer) Start(ctx context.Context) error {
 		}
 		c.initOverload.RPCHandler = h
 		c.rpcHandler = h
+		// Mount any optional sibling routes on the fresh handler. No-op when none are configured.
+		if err := c.registerExtraRPCRoutes(h); err != nil {
+			return err
+		}
 		// attach in-proc rollup client for this handler
 		if err := c.attachInProcRollupClient(); err != nil {
 			c.log.Warn("failed to attach in-proc rollup client", "err", err)
@@ -419,9 +434,9 @@ func (c *simpleChainContainer) Start(ctx context.Context) error {
 		// start the virtual node
 		err := vn.Start(ctx)
 		if err != nil {
-			c.log.Warn("virtual node exited with error", "vn_id", vn, "error", err)
+			c.log.Warn("virtual node exited with error", "vn_id", fmt.Sprintf("%p", vn), "error", err)
 		} else {
-			c.log.Info("virtual node exited", "vn_id", vn)
+			c.log.Info("virtual node exited", "vn_id", fmt.Sprintf("%p", vn))
 		}
 
 		// always stop the virtual node after it exits
@@ -429,7 +444,7 @@ func (c *simpleChainContainer) Start(ctx context.Context) error {
 		if stopErr := vn.Stop(stopCtx); stopErr != nil {
 			c.log.Error("error stopping virtual node", "error", stopErr)
 		} else {
-			c.log.Info("virtual node stopped", "vn_id", vn)
+			c.log.Info("virtual node stopped", "vn_id", fmt.Sprintf("%p", vn))
 		}
 
 		cancel()
@@ -460,9 +475,12 @@ func (c *simpleChainContainer) Stop(ctx context.Context) error {
 	defer cancel()
 
 	// Close in-proc rollup RPC resources
+	c.rollupClientMu.Lock()
 	if c.rollupClient != nil {
 		c.rollupClient.Close()
+		c.rollupClient = nil
 	}
+	c.rollupClientMu.Unlock()
 
 	if vn := c.getVN(); vn != nil {
 		if err := vn.Stop(stopCtx); err != nil {
@@ -699,6 +717,32 @@ func (c *simpleChainContainer) PayloadByNumber(ctx context.Context, number uint6
 	return c.engine.PayloadByNumber(ctx, number)
 }
 
+// DeniedBlocksInRange exposes every persisted denial in an inclusive height range.
+func (c *simpleChainContainer) DeniedBlocksInRange(first, last uint64) ([]eth.BlockID, error) {
+	if c.denyList == nil {
+		return nil, nil
+	}
+	return c.denyList.BlocksInRange(first, last)
+}
+
+// DeniedParentHash reads durable ancestry without depending on orphaned EL payloads.
+// Older records may lack a parent; callers must resolve it or fail closed.
+func (c *simpleChainContainer) DeniedParentHash(id eth.BlockID) (common.Hash, bool, error) {
+	if c.denyList == nil {
+		return common.Hash{}, false, nil
+	}
+	records, err := c.denyList.GetDeniedRecords(id.Number)
+	if err != nil {
+		return common.Hash{}, false, err
+	}
+	for _, record := range records {
+		if record.PayloadHash == id.Hash && record.ParentHash != nil {
+			return *record.ParentHash, true, nil
+		}
+	}
+	return common.Hash{}, false, nil
+}
+
 func (c *simpleChainContainer) FetchReceipts(ctx context.Context, blockID eth.BlockID) (eth.BlockInfo, optypes.Receipts, error) {
 	if c.engine == nil {
 		return nil, nil, engine_controller.ErrNoEngineClient
@@ -723,6 +767,12 @@ func (c *simpleChainContainer) attachInProcRollupClient() error {
 	inproc, err := c.rpcHandler.DialInProc()
 	if err != nil {
 		return err
+	}
+	c.rollupClientMu.Lock()
+	defer c.rollupClientMu.Unlock()
+	if c.stop.Load() {
+		inproc.Close()
+		return nil
 	}
 	// Close previous rollup client if present
 	if c.rollupClient != nil {

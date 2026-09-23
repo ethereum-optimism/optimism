@@ -146,6 +146,10 @@ type CLIConfig struct {
 
 	ThrottleConfig ThrottleConfig
 
+	// PrivateInterop is the --private-interop.* group. Inert unless enabled; see
+	// private_interop.go for what it turns the batcher into.
+	PrivateInterop PrivateInteropCLIConfig
+
 	TxMgrConfig   txmgr.CLIConfig
 	LogConfig     oplog.CLIConfig
 	MetricsConfig opmetrics.CLIConfig
@@ -201,7 +205,6 @@ func (c *CLIConfig) Check() error {
 	if err := c.ThrottleConfig.Check(); err != nil {
 		return err
 	}
-
 	if err := c.MetricsConfig.Check(); err != nil {
 		return err
 	}
@@ -248,6 +251,7 @@ func NewConfig(ctx *cli.Context) *CLIConfig {
 		PprofConfig:                  oppprof.ReadCLIConfig(ctx),
 		RPC:                          oprpc.ReadCLIConfig(ctx),
 		AltDA:                        altda.ReadCLIConfig(ctx),
+		PrivateInterop:               ReadPrivateInteropCLIConfig(ctx),
 		ThrottleConfig: ThrottleConfig{
 			AdditionalEndpoints: ctx.StringSlice(flags.AdditionalThrottlingEndpointsFlag.Name),
 			TxSizeLowerLimit:    ctx.Uint64(flags.ThrottleTxSizeLowerLimitFlag.Name),

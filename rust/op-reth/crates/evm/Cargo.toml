@@ -33,6 +33,7 @@ op-alloy-rpc-types-engine.workspace = true
 alloy-consensus.workspace = true
 
 # Optimism
+kona-protocol.workspace = true
 reth-optimism-chainspec.workspace = true
 reth-optimism-consensus.workspace = true
 reth-optimism-forks.workspace = true
@@ -56,6 +57,7 @@ reth-optimism-chainspec = { workspace = true, features = ["superchain-configs"] 
 [features]
 default = ["std"]
 std = [
+    "kona-protocol/std",
 	"reth-revm/std",
 	"alloy-consensus/std",
 	"alloy-eips/std",
