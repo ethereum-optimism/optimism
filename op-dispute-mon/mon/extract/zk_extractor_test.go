@@ -68,6 +68,23 @@ func TestExtractorZKSnapshotValidation(t *testing.T) {
 		require.Equal(t, []string{"metadata", "l1-head", "agreement", "challenger", "anchor", "parent", "bond-metadata", "mode", "withdrawals", "credits", "balance"}, *trace)
 	})
 
+	t.Run("resolved game with undecided distribution reads finality", func(t *testing.T) {
+		caller := validZKCaller()
+		caller.metadata.Status = gameTypes.GameStatusDefenderWon
+		caller.challenger.ProposalStatus = contracts.ProposalStatusResolved
+		caller.finalized = true
+		extractor, trace := newZKExtractor(t, caller, parentStatus(gameTypes.GameStatusDefenderWon), &testZKAgreement{})
+		blockHash := common.Hash{0xcc}
+
+		game, err := extractor.enrichGame(t.Context(), blockHash, zkMetadata())
+		require.NoError(t, err)
+		require.True(t, game.(*monTypes.ZKGameData).Finalized)
+		require.Equal(t, "finality", (*trace)[len(*trace)-1])
+		require.Equal(t, caller.anchorStateRegistry, caller.finalityRegistry)
+		require.Equal(t, zkMetadata().Proxy, caller.finalityGame)
+		require.Equal(t, rpcblock.ByHash(blockHash), caller.blocks[len(caller.blocks)-1])
+	})
+
 	tests := []struct {
 		name      string
 		configure func(*testZKCaller)
@@ -103,6 +120,15 @@ func TestExtractorZKSnapshotValidation(t *testing.T) {
 			parent:  parentStatus(gameTypes.GameStatusInProgress),
 			wantErr: "terminal ZK child has in-progress parent 7",
 		},
+		{
+			name: "finality read",
+			configure: func(c *testZKCaller) {
+				c.metadata.Status = gameTypes.GameStatusDefenderWon
+				c.challenger.ProposalStatus = contracts.ProposalStatusResolved
+				c.finalityErr = errors.New("registry unavailable")
+			},
+			wantErr: "failed to fetch ZK game finality",
+		},
 	}
 
 	for _, test := range tests {
@@ -136,6 +162,7 @@ func TestExtractorRejectsZKCallerWithoutCapabilities(t *testing.T) {
 		nil,
 		nil,
 		&testZKAgreement{},
+		nil,
 		nil,
 	)
 
@@ -386,6 +413,10 @@ type testZKCaller struct {
 	bondRecipients      []common.Address
 	bondMetadataCalls   int
 	balanceErr          error
+	finalized           bool
+	finalityErr         error
+	finalityRegistry    common.Address
+	finalityGame        common.Address
 }
 
 func validZKCaller() *testZKCaller {
@@ -471,6 +502,13 @@ func (c *testZKCaller) GetBalanceAndDelay(_ context.Context, block rpcblock.Bloc
 	return big.NewInt(100), time.Hour, common.Address{0xdd}, c.balanceErr
 }
 
+func (c *testZKCaller) IsGameFinalized(_ context.Context, block rpcblock.Block, game common.Address) (bool, error) {
+	*c.trace = append(*c.trace, "finality")
+	c.blocks = append(c.blocks, block)
+	c.finalityGame = game
+	return c.finalized, c.finalityErr
+}
+
 type testZKAgreement struct {
 	trace  *[]string
 	err    error
@@ -533,6 +571,10 @@ func newZKExtractor(t *testing.T, caller *testZKCaller, parent ParentGameStatusF
 		nil,
 		agreement,
 		NewBondDataEnricher(),
+		func(registry common.Address) GameFinalityChecker {
+			caller.finalityRegistry = registry
+			return caller
+		},
 	), trace
 }
 

@@ -63,9 +63,14 @@ func TestZKLifecyclePendingActions(t *testing.T) {
 			game.ProposalStatus = contracts.ProposalStatusResolved
 			game.Deadline = now.Add(-time.Second)
 		})},
-		{name: "terminal undecided distribution", game: zkLifecycleGame(now, func(game *monTypes.ZKGameData) {
+		{name: "terminal undecided distribution inside finality delay", game: zkLifecycleGame(now, func(game *monTypes.ZKGameData) {
 			game.Status = gameTypes.GameStatusDefenderWon
 			game.ProposalStatus = contracts.ProposalStatusResolved
+		})},
+		{name: "finalized terminal undecided distribution", game: zkLifecycleGame(now, func(game *monTypes.ZKGameData) {
+			game.Status = gameTypes.GameStatusDefenderWon
+			game.ProposalStatus = contracts.ProposalStatusResolved
+			game.Finalized = true
 		}), wantDistribution: 1},
 		{name: "terminal normal distribution", game: zkLifecycleGame(now, func(game *monTypes.ZKGameData) {
 			game.Status = gameTypes.GameStatusDefenderWon
@@ -101,6 +106,7 @@ func TestZKLifecyclePendingActions(t *testing.T) {
 			zkLifecycleGame(now, func(game *monTypes.ZKGameData) {
 				game.Status = gameTypes.GameStatusDefenderWon
 				game.ProposalStatus = contracts.ProposalStatusResolved
+				game.Finalized = true
 			}),
 		})
 		monitor.CheckLifecycle(nil)

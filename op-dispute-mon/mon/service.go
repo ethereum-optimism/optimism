@@ -246,6 +246,9 @@ func (s *Service) initMonitor(ctx context.Context, cfg *config.Config) {
 		s.faultEnrichers(bondEnricher),
 		extract.NewZKAgreementEnricher(s.logger, s.metrics, s.asSuperRootProviders(), clock.SystemClock),
 		bondEnricher,
+		func(addr common.Address) extract.GameFinalityChecker {
+			return contracts.NewAnchorStateRegistryContract(s.metrics, addr, s.l1Caller)
+		},
 	)
 	forecast := NewForecast(s.logger, s.metrics)
 	bonds := bonds.NewBonds(s.logger, s.metrics, s.cl, s.honestActors)
