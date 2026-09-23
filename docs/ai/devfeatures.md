@@ -20,8 +20,7 @@ Active flags:
 | `ZKDisputeGame` | ZK dispute game system |
 
 The predicate is a bitwise AND (`(bitmap & flag) == flag && flag != 0`). Retired bit values remain
-permanently reserved and must never be reused. In particular, `0x...10000000` may still be present
-in older devnet genesis bitmaps.
+permanently reserved and must never be reused.
 
 **Adding a new dev feature**: the full checklist lives in the `DevFeatures.sol` natspec — both constant files, the env-var reader in `scripts/libraries/Config.sol`, the test assembler in `test/setup/FeatureFlags.sol`, and the CI `&features_matrix` anchor in `.circleci/continue/main.yml` all need updating; there is no compile-time link between them.
 

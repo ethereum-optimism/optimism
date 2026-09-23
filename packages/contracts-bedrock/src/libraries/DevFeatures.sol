@@ -13,9 +13,7 @@ pragma solidity ^0.8.0;
 ///      A dev feature is wired through several files. There is no compile-time link between them.
 ///      Update every item below.
 ///
-///        1. Add the new feature bit in this file. Retired values must never be reused. The
-///           0x...10000000 value is permanently reserved because it may still be set in the genesis
-///           bitmap of older devnets.
+///        1. Add the new feature bit in this file. Retired values must never be reused.
 ///        2. Add the matching Go flag in `op-core/devfeatures/devfeatures.go`. The Go value MUST
 ///           match the Solidity value byte-for-byte.
 ///        3. Add the env var reader in `packages/contracts-bedrock/scripts/libraries/Config.sol`.
