@@ -495,3 +495,80 @@ func TestAsyncGossiperUnboundedThresholdPublishesAnyAge(t *testing.T) {
 	}, 5*time.Second, time.Millisecond)
 	require.Same(t, old, net.published()[0], "no age bound when the threshold is zero")
 }
+
+// TestAsyncGossiperStopAfterContextCancel pins the invariant the CI deadlock in
+// TestSupernodeVerifierELSyncsFromCold violated: OpNode.Stop cancels the driver
+// context and then calls Stop, so the publish loop may already have exited, and
+// Stop must still return.
+//
+// It does not reproduce that failure on the old code, because it waits for the
+// loop to exit before calling Stop and so steps past the window where Stop saw
+// running still true. The deterministic reproduction is
+// TestAsyncGossiperStopCancelsInFlightPublish, which fails on the old
+// signalling; TestAsyncGossiperStopRacesContextCancel covers the window itself,
+// probabilistically.
+func TestAsyncGossiperStopAfterContextCancel(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	p := NewAsyncGossiper(ctx, &mockNetwork{}, log.New(), &mockMetrics{})
+	p.Start()
+	require.Eventually(t, p.running.Load, 5*time.Second, time.Millisecond)
+
+	// The loop exits by itself, exactly as it does on driver shutdown.
+	cancel()
+	require.Eventually(t, func() bool { return !p.running.Load() }, 5*time.Second, time.Millisecond)
+
+	done := make(chan struct{})
+	go func() { defer close(done); p.Stop() }()
+	select {
+	case <-done:
+	case <-time.After(5 * time.Second):
+		t.Fatal("Stop deadlocked after the publish loop had already exited")
+	}
+}
+
+// TestAsyncGossiperStopRacesContextCancel covers the narrow window the CI run
+// actually lost: the loop exits and Stop is called concurrently, so neither
+// ordering may block.
+func TestAsyncGossiperStopRacesContextCancel(t *testing.T) {
+	for i := 0; i < 50; i++ {
+		ctx, cancel := context.WithCancel(context.Background())
+		p := NewAsyncGossiper(ctx, &mockNetwork{}, log.New(), &mockMetrics{})
+		p.Start()
+		require.Eventually(t, p.running.Load, 5*time.Second, time.Millisecond)
+
+		done := make(chan struct{})
+		go func() { defer close(done); p.Stop() }()
+		cancel() // races the Stop above
+
+		select {
+		case <-done:
+		case <-time.After(5 * time.Second):
+			t.Fatalf("Stop deadlocked on iteration %d", i)
+		}
+	}
+}
+
+// TestAsyncGossiperStopCancelsInFlightPublish checks that Stop does not wait out
+// publishTimeout on a publish that is already hanging.
+func TestAsyncGossiperStopCancelsInFlightPublish(t *testing.T) {
+	gate := make(chan struct{})
+	defer close(gate)
+	net := &mockNetwork{gate: gate}
+	p := NewAsyncGossiper(context.Background(), net, log.New(), &mockMetrics{})
+	p.Start()
+	require.Eventually(t, p.running.Load, 5*time.Second, time.Millisecond)
+
+	p.Gossip(envelopeAt(1))
+	require.Eventually(t, func() bool { return len(net.published()) == 1 }, 5*time.Second, time.Millisecond)
+
+	start := time.Now()
+	done := make(chan struct{})
+	go func() { defer close(done); p.Stop() }()
+	select {
+	case <-done:
+	case <-time.After(5 * time.Second):
+		t.Fatal("Stop blocked on an in-flight publish")
+	}
+	require.Less(t, time.Since(start), publishTimeout,
+		"Stop must cancel the publish rather than wait out publishTimeout")
+}

@@ -67,8 +67,15 @@ type SimpleAsyncGossiper struct {
 
 	// wake coalesces signals (cap 1) for the publish goroutine.
 	wake chan struct{}
-	// stop is unbuffered: Stop blocks until the publish goroutine accepts.
-	stop chan struct{}
+
+	// lifecycle guards cancelLoop and loopDone, which Start replaces on each run.
+	// Signalling the loop through a channel it has to receive from cannot work:
+	// the loop also exits on its own when the parent context is cancelled, and a
+	// Stop that had already committed to the send would then block forever with
+	// no receiver left.
+	lifecycle  sync.Mutex
+	cancelLoop context.CancelFunc
+	loopDone   chan struct{}
 
 	// retryInterval is retryInterval, overridden in tests.
 	retryInterval time.Duration
@@ -108,7 +115,6 @@ type Metrics interface {
 func NewAsyncGossiper(ctx context.Context, net Network, log log.Logger, metrics Metrics) *SimpleAsyncGossiper {
 	return &SimpleAsyncGossiper{
 		wake:          make(chan struct{}, 1),
-		stop:          make(chan struct{}),
 		retryInterval: retryInterval,
 		net:           net,
 		ctx:           ctx,
@@ -154,12 +160,18 @@ func (p *SimpleAsyncGossiper) Clear() {
 	p.metrics.RecordPublishQueueLen(0)
 }
 
-// Stop stops the publish goroutine. It blocks until the goroutine accepts.
+// Stop stops the publish goroutine and waits for it to exit. It is safe to call
+// on a gossiper that was never started, and on one whose loop has already
+// exited because the parent context was cancelled.
 func (p *SimpleAsyncGossiper) Stop() {
-	if !p.running.Load() {
+	p.lifecycle.Lock()
+	cancel, done := p.cancelLoop, p.loopDone
+	p.lifecycle.Unlock()
+	if cancel == nil {
 		return
 	}
-	p.stop <- struct{}{}
+	cancel()
+	<-done
 }
 
 // Start starts the publish goroutine.
@@ -167,13 +179,19 @@ func (p *SimpleAsyncGossiper) Start() {
 	if !p.running.CompareAndSwap(false, true) {
 		return
 	}
-	go p.publishLoop()
+	ctx, cancel := context.WithCancel(p.ctx)
+	done := make(chan struct{})
+	p.lifecycle.Lock()
+	p.cancelLoop, p.loopDone = cancel, done
+	p.lifecycle.Unlock()
+	go p.publishLoop(ctx, done)
 }
 
 // publishLoop publishes the front of the queue until it is empty, then waits.
 // A failed publish is retried at the front rather than skipped: peers follow the
 // chain block by block, so a gap they cannot cross is worse than a delay.
-func (p *SimpleAsyncGossiper) publishLoop() {
+func (p *SimpleAsyncGossiper) publishLoop(ctx context.Context, done chan struct{}) {
+	defer close(done)
 	defer p.running.Store(false)
 	for {
 		p.mu.Lock()
@@ -186,7 +204,7 @@ func (p *SimpleAsyncGossiper) publishLoop() {
 		p.mu.Unlock()
 
 		if envelope == nil {
-			if !p.waitForWork() {
+			if !p.waitForWork(ctx) {
 				return
 			}
 			continue
@@ -219,7 +237,7 @@ func (p *SimpleAsyncGossiper) publishLoop() {
 			continue
 		}
 
-		err := p.publish(envelope)
+		err := p.publish(ctx, envelope)
 
 		var gaveUp, retry bool
 		p.mu.Lock()
@@ -264,7 +282,7 @@ func (p *SimpleAsyncGossiper) publishLoop() {
 			}
 		}
 
-		if retry && !p.pause(p.retryInterval) {
+		if retry && !p.pause(ctx, p.retryInterval) {
 			return
 		}
 	}
@@ -281,37 +299,35 @@ func (p *SimpleAsyncGossiper) tooOldToPublish(envelope *eth.ExecutionPayloadEnve
 	return age >= threshold, age
 }
 
-// publish publishes one block, under a deadline of its own.
-func (p *SimpleAsyncGossiper) publish(envelope *eth.ExecutionPayloadEnvelope) error {
-	ctx, cancel := context.WithTimeout(p.ctx, publishTimeout)
+// publish publishes one block, under a deadline of its own. It derives from the
+// loop context so Stop aborts a publish already in flight rather than waiting
+// out publishTimeout.
+func (p *SimpleAsyncGossiper) publish(ctx context.Context, envelope *eth.ExecutionPayloadEnvelope) error {
+	ctx, cancel := context.WithTimeout(ctx, publishTimeout)
 	defer cancel()
 	return p.net.SignAndPublishL2Payload(ctx, envelope)
 }
 
 // waitForWork blocks until a block is queued. It reports false when the gossiper
 // is stopping.
-func (p *SimpleAsyncGossiper) waitForWork() bool {
+func (p *SimpleAsyncGossiper) waitForWork(ctx context.Context) bool {
 	select {
 	case <-p.wake:
 		return true
-	case <-p.stop:
-		return false
-	case <-p.ctx.Done():
+	case <-ctx.Done():
 		return false
 	}
 }
 
 // pause waits out the retry interval. It reports false when the gossiper is
 // stopping, so Stop does not wait for the interval to elapse.
-func (p *SimpleAsyncGossiper) pause(d time.Duration) bool {
+func (p *SimpleAsyncGossiper) pause(ctx context.Context, d time.Duration) bool {
 	timer := time.NewTimer(d)
 	defer timer.Stop()
 	select {
 	case <-timer.C:
 		return true
-	case <-p.stop:
-		return false
-	case <-p.ctx.Done():
+	case <-ctx.Done():
 		return false
 	}
 }
