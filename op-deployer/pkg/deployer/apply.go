@@ -202,9 +202,12 @@ type ApplyPipelineOpts struct {
 	UseForge           bool
 	// DeployMockSP1Verifier is a test-only opt-in for development environments.
 	DeployMockSP1Verifier bool
-	PrivateKey            string
-	Workdir               string
-	ReceiptQueryInterval  time.Duration
+	// AllowUnoptimizedContracts is a test-only opt-in that lets oversized dev-profile
+	// artifacts build an L2 genesis. A genesis deployment always allows them.
+	AllowUnoptimizedContracts bool
+	PrivateKey                string
+	Workdir                   string
+	ReceiptQueryInterval      time.Duration
 }
 
 func ApplyPipeline(
@@ -330,7 +333,7 @@ func ApplyPipeline(
 		UseForge:                  opts.UseForge,
 		IsGenesis:                 opts.DeploymentTarget == DeploymentTargetGenesis,
 		DeployMockSP1Verifier:     opts.DeployMockSP1Verifier,
-		AllowUnoptimizedContracts: opts.DeploymentTarget == DeploymentTargetGenesis,
+		AllowUnoptimizedContracts: opts.DeploymentTarget == DeploymentTargetGenesis || opts.AllowUnoptimizedContracts,
 		L1RPCUrl:                  opts.L1RPCUrl,
 		PrivateKey:                opts.PrivateKey,
 		Context:                   ctx,
