@@ -3,6 +3,7 @@ package async
 import (
 	"context"
 	"errors"
+	"fmt"
 	"sync"
 	"testing"
 	"time"
@@ -22,6 +23,14 @@ type mockNetwork struct {
 	err error
 	// gate, when set, is received from before each publish returns.
 	gate chan struct{}
+	// threshold is reported as the gossip timestamp threshold.
+	threshold time.Duration
+}
+
+func (m *mockNetwork) GossipTimestampThreshold() time.Duration {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	return m.threshold
 }
 
 func (m *mockNetwork) SignAndPublishL2Payload(ctx context.Context, payload *eth.ExecutionPayloadEnvelope) error {
@@ -113,8 +122,16 @@ func (m *mockMetrics) reportedDelays() []time.Duration {
 }
 
 func envelopeAt(n uint64) *eth.ExecutionPayloadEnvelope {
+	return envelopeAged(n, 0)
+}
+
+// envelopeAged builds a block whose timestamp is `age` in the past.
+func envelopeAged(n uint64, age time.Duration) *eth.ExecutionPayloadEnvelope {
 	return &eth.ExecutionPayloadEnvelope{
-		ExecutionPayload: &eth.ExecutionPayload{BlockNumber: hexutil.Uint64(n)},
+		ExecutionPayload: &eth.ExecutionPayload{
+			BlockNumber: hexutil.Uint64(n),
+			Timestamp:   hexutil.Uint64(time.Now().Add(-age).Unix()),
+		},
 	}
 }
 
@@ -372,4 +389,109 @@ func TestAsyncGossiperConcurrentAccess(t *testing.T) {
 		}(uint64(i))
 	}
 	wg.Wait()
+}
+
+// TestAsyncGossiperDropsBlocksPastThreshold pins the fix for the fixed point
+// observed on a live devnet: a block already older than the gossip timestamp
+// threshold is rejected by every peer, so it must be dropped without spending a
+// publish attempt at the head of the queue.
+func TestAsyncGossiperDropsBlocksPastThreshold(t *testing.T) {
+	net := &mockNetwork{threshold: 60 * time.Second}
+	p, metrics := newTestGossiper(t, net)
+
+	stale := envelopeAged(1, 90*time.Second)
+	fresh := envelopeAt(2)
+	p.Gossip(stale)
+	p.Gossip(fresh)
+
+	require.Eventually(t, func() bool {
+		return p.queueLen() == 0
+	}, 5*time.Second, time.Millisecond)
+
+	published := net.published()
+	require.Len(t, published, 1, "the stale block must not be offered to peers at all")
+	require.Same(t, fresh, published[0], "the fresh block still goes out")
+
+	errs, dropped := metrics.counts()
+	require.Zero(t, errs, "a block dropped before publishing is not a publish error")
+	require.Equal(t, 1, dropped, "the stale block is counted as never reaching peers")
+}
+
+// TestAsyncGossiperRecoversFromSustainedOutage reproduces the devnet failure
+// directly. A queue full of blocks that all aged past the threshold during an
+// outage must drain in one pass once publishing works again, rather than
+// settling into a state where every block reaching the head is already stale.
+func TestAsyncGossiperRecoversFromSustainedOutage(t *testing.T) {
+	net := &mockNetwork{threshold: 60 * time.Second}
+	p, metrics := newTestGossiper(t, net)
+
+	// Fill the queue with blocks sealed during a two-minute outage.
+	for i := uint64(0); i < maxPublishQueue; i++ {
+		p.Gossip(envelopeAged(i, 120*time.Second))
+	}
+	// Then one fresh block, as the sequencer would seal after recovery.
+	fresh := envelopeAt(maxPublishQueue)
+	p.Gossip(fresh)
+
+	require.Eventually(t, func() bool {
+		return p.queueLen() == 0
+	}, 5*time.Second, 2*time.Millisecond)
+
+	published := net.published()
+	require.Len(t, published, 1, "no stale block is published")
+	require.Same(t, fresh, published[0], "gossip recovers for fresh blocks")
+
+	_, dropped := metrics.counts()
+	require.Positive(t, dropped, "the stale backlog is counted as dropped")
+}
+
+// TestAsyncGossiperDropsPermanentFailureImmediately checks the classification:
+// a failure no retry can fix costs one attempt, not maxPublishAttempts.
+func TestAsyncGossiperDropsPermanentFailureImmediately(t *testing.T) {
+	net := &mockNetwork{err: fmt.Errorf("%w: topic closed", ErrPermanentPublish)}
+	p, metrics := newTestGossiper(t, net)
+
+	p.Gossip(envelopeAt(1))
+	require.Eventually(t, func() bool {
+		_, dropped := metrics.counts()
+		return dropped == 1
+	}, 5*time.Second, time.Millisecond)
+
+	errs, _ := metrics.counts()
+	require.Equal(t, 1, errs, "one attempt, not maxPublishAttempts")
+	require.Len(t, net.published(), 1, "publish was tried exactly once")
+}
+
+// TestAsyncGossiperKeepsTimeoutsRetryable is the guard against classifying too
+// broadly. Topic.Publish surfaces the caller's context error, so a publish that
+// merely hit publishTimeout must still be retried.
+func TestAsyncGossiperKeepsTimeoutsRetryable(t *testing.T) {
+	net := &mockNetwork{err: context.DeadlineExceeded}
+	p, metrics := newTestGossiper(t, net)
+
+	p.Gossip(envelopeAt(1))
+	require.Eventually(t, func() bool {
+		errs, _ := metrics.counts()
+		return errs >= maxPublishAttempts
+	}, 5*time.Second, time.Millisecond)
+
+	// The distinguishing fact: a timeout spends the whole retry ladder, where a
+	// permanent failure would have been dropped after a single attempt.
+	errs, _ := metrics.counts()
+	require.Equal(t, maxPublishAttempts, errs, "a timed-out publish is retried, not classified permanent")
+	require.Len(t, net.published(), maxPublishAttempts, "every attempt reached the network")
+}
+
+// TestAsyncGossiperUnboundedThresholdPublishesAnyAge covers p2p being disabled,
+// where the threshold is reported as zero.
+func TestAsyncGossiperUnboundedThresholdPublishesAnyAge(t *testing.T) {
+	net := &mockNetwork{threshold: 0}
+	p, _ := newTestGossiper(t, net)
+
+	old := envelopeAged(1, time.Hour)
+	p.Gossip(old)
+	require.Eventually(t, func() bool {
+		return len(net.published()) == 1
+	}, 5*time.Second, time.Millisecond)
+	require.Same(t, old, net.published()[0], "no age bound when the threshold is zero")
 }

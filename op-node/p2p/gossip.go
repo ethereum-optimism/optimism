@@ -21,6 +21,7 @@ import (
 	"github.com/ethereum/go-ethereum/log"
 
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
+	"github.com/ethereum-optimism/optimism/op-node/rollup/async"
 	"github.com/ethereum-optimism/optimism/op-service/clock"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/ptr"
@@ -627,11 +628,13 @@ func (p *publisher) SignAndPublishL2Payload(ctx context.Context, envelope *eth.E
 
 	if envelope.ParentBeaconBlockRoot != nil {
 		if _, err := envelope.MarshalSSZ(buf); err != nil {
-			return fmt.Errorf("failed to encoded execution payload envelope to publish: %w", err)
+			return fmt.Errorf("%w: failed to encoded execution payload envelope to publish: %w",
+				async.ErrPermanentPublish, err)
 		}
 	} else {
 		if _, err := envelope.ExecutionPayload.MarshalSSZ(buf); err != nil {
-			return fmt.Errorf("failed to encoded execution payload to publish: %w", err)
+			return fmt.Errorf("%w: failed to encoded execution payload to publish: %w",
+				async.ErrPermanentPublish, err)
 		}
 	}
 	data := buf.Bytes()
@@ -651,15 +654,24 @@ func (p *publisher) publishRawSignedPayload(ctx context.Context, timestamp uint6
 	// This also copies the data, freeing up the original buffer to go back into the pool
 	out := snappy.Encode(nil, data)
 
-	if p.cfg.IsIsthmus(timestamp) {
-		return p.blocksV4.topic.Publish(ctx, out)
-	} else if p.cfg.IsEcotone(timestamp) {
-		return p.blocksV3.topic.Publish(ctx, out)
-	} else if p.cfg.IsCanyon(timestamp) {
-		return p.blocksV2.topic.Publish(ctx, out)
-	} else {
-		return p.blocksV1.topic.Publish(ctx, out)
+	var err error
+	switch {
+	case p.cfg.IsIsthmus(timestamp):
+		err = p.blocksV4.topic.Publish(ctx, out)
+	case p.cfg.IsEcotone(timestamp):
+		err = p.blocksV3.topic.Publish(ctx, out)
+	case p.cfg.IsCanyon(timestamp):
+		err = p.blocksV2.topic.Publish(ctx, out)
+	default:
+		err = p.blocksV1.topic.Publish(ctx, out)
 	}
+	// A closed topic never reopens, so a retry cannot help. Deliberately narrow:
+	// Topic.Publish also surfaces the caller's context error, and a publish that
+	// merely timed out must stay retryable.
+	if errors.Is(err, pubsub.ErrTopicClosed) {
+		return fmt.Errorf("%w: %w", async.ErrPermanentPublish, err)
+	}
+	return err
 }
 
 func (p *publisher) Close() error {

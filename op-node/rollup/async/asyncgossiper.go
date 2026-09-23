@@ -2,6 +2,7 @@ package async
 
 import (
 	"context"
+	"errors"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -29,6 +30,13 @@ const (
 	// hung connection stops gossip until the connection dies by itself.
 	publishTimeout = 5 * time.Second
 )
+
+// ErrPermanentPublish marks a publish failure that no retry can fix. Producers
+// wrap it around deterministic rejections only, as a strict allowlist:
+// Topic.Publish also surfaces the caller's context error, so a publish that
+// merely hit publishTimeout must stay retryable, and classifying that as
+// permanent would silently disable retry altogether.
+var ErrPermanentPublish = errors.New("permanent publish failure")
 
 type AsyncGossiper interface {
 	Gossip(payload *eth.ExecutionPayloadEnvelope)
@@ -82,6 +90,10 @@ type pending struct {
 // this interface is compatible with driver.Network
 type Network interface {
 	SignAndPublishL2Payload(ctx context.Context, envelope *eth.ExecutionPayloadEnvelope) error
+	// GossipTimestampThreshold is the age past which peers reject a block
+	// outright. Zero means unbounded, which is what a node with p2p disabled
+	// reports; publishing is a no-op there anyway.
+	GossipTimestampThreshold() time.Duration
 }
 
 // To avoid import cycles, we define a new Metrics interface here
@@ -180,6 +192,33 @@ func (p *SimpleAsyncGossiper) publishLoop() {
 			continue
 		}
 
+		// A block older than the threshold is rejected by every peer, and by our
+		// own validator, which Topic.Publish runs inline. Attempting it anyway
+		// costs the retry ladder's full budget at the head of the queue, and that
+		// cost is what makes a transient outage permanent: the queue holds
+		// maxPublishQueue blocks, so if draining one stale block takes as long as
+		// a new block takes to arrive, the queue never empties and every block
+		// reaching the head is stale in turn. Dropping without publishing keeps
+		// the drain effectively instant, so the queue empties in one pass and
+		// gossip recovers by itself.
+		if stale, age := p.tooOldToPublish(envelope); stale {
+			p.mu.Lock()
+			dropped := len(p.queue) > 0 && p.queue[0].envelope == envelope
+			if dropped {
+				p.discardHead()
+			}
+			queueLen := len(p.queue)
+			p.mu.Unlock()
+			if dropped {
+				p.log.Warn("Dropping block already too old to publish, peers would reject it",
+					"id", envelope.ExecutionPayload.ID(), "age", age,
+					"threshold", p.net.GossipTimestampThreshold())
+				p.metrics.RecordPublishQueueLen(queueLen)
+				p.metrics.RecordDroppedPublish()
+			}
+			continue
+		}
+
 		err := p.publish(envelope)
 
 		var gaveUp, retry bool
@@ -190,6 +229,10 @@ func (p *SimpleAsyncGossiper) publishLoop() {
 			switch {
 			case err == nil:
 				p.discardHead()
+			case errors.Is(err, ErrPermanentPublish):
+				// No retry can fix this one, so spend no attempts on it.
+				p.discardHead()
+				gaveUp = true
 			case attempts+1 >= maxPublishAttempts:
 				p.discardHead()
 				gaveUp = true
@@ -225,6 +268,17 @@ func (p *SimpleAsyncGossiper) publishLoop() {
 			return
 		}
 	}
+}
+
+// tooOldToPublish reports whether a block has already aged past the threshold
+// peers enforce, along with its age.
+func (p *SimpleAsyncGossiper) tooOldToPublish(envelope *eth.ExecutionPayloadEnvelope) (bool, time.Duration) {
+	threshold := p.net.GossipTimestampThreshold()
+	age := time.Since(time.Unix(int64(envelope.ExecutionPayload.Timestamp), 0))
+	if threshold <= 0 {
+		return false, age
+	}
+	return age >= threshold, age
 }
 
 // publish publishes one block, under a deadline of its own.
