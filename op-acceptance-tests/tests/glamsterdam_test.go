@@ -148,9 +148,20 @@ func TestGlamsterdamP2PUnsafeBlockBecomesSafe(gt *testing.T) {
 }
 
 func withGlamsterdamAutoDABlobFee(_ devtest.T, _ devkeys.Keys, builder intentbuilder.Builder) {
-	// A 100 gwei blob base fee lies between the pre-Amsterdam and Amsterdam break-even
-	// points when the batcher's base fee and tip are each 1 gwei. Use a large update
-	// fraction so the fee stays in that range while the devstack starts.
+	// With one 120,000-byte calldata tx, one 130,044-byte blob, and a 2 gwei
+	// execution-gas price (1 gwei base fee + 1 gwei tip), a 100 gwei blob base fee gives:
+	//
+	//   pre-Amsterdam calldata: (21,000 + 40*120,000)*2 / 120,000 = 80.35 gwei/byte
+	//   pre-Amsterdam blob:     (21,000*2 + 131,072*100) / 130,044 = 101.11 gwei/byte
+	//   Amsterdam calldata:     (15,000 + 64*120,000)*2 / 120,000 = 128.25 gwei/byte
+	//   Amsterdam blob:         (15,000*2 + 131,072*100) / 130,044 = 101.02 gwei/byte
+	//
+	// Thus calldata is cheaper before Amsterdam, while blobs are cheaper after it. The exact
+	// break-even blob base fees are 79.4 and 127.0 gwei, respectively. Use a large update
+	// fraction so the fee stays in that range while the devstack starts. An empty block reduces
+	// excess blob gas by 14*131,072, which lowers the fee by only about 0.183% with this update
+	// fraction. It takes 126 consecutive empty blocks (about 12m36s at the six-second L1 block
+	// time) to fall below 79.4 gwei, and no other component submits blobs before the batcher starts.
 	const (
 		blobBaseFeeUpdateFraction = uint64(1_000_000_000)
 		genesisExcessBlobGas      = uint64(25_328_436_000)
