@@ -49,7 +49,16 @@ func NewL2FaultProofEnv[c any](t helpers.Testing, testCfg *TestCfg[c], tp *e2eut
 		if testCfg.Hardfork == nil {
 			t.Fatalf("HF not set")
 		}
-		dp.DeployConfig.ActivateForkAtGenesis(forks.Name(testCfg.Hardfork.Name))
+		hardfork := forks.Name(testCfg.Hardfork.Name)
+		if hardfork == forks.Bedrock {
+			// Bedrock is implicit and has no activation offset. Disable only the
+			// schedulable mainline L2 forks, preserving independent fork settings.
+			for _, fork := range forks.From(forks.Regolith) {
+				dp.DeployConfig.SetForkTimeOffset(fork, nil)
+			}
+		} else {
+			dp.DeployConfig.ActivateForkAtGenesis(hardfork)
+		}
 
 		for _, override := range deployConfigOverrides {
 			override(dp.DeployConfig)
