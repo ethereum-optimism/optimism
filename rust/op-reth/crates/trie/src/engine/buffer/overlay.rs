@@ -311,3 +311,128 @@ where
         Ok(hashed_state)
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::{
+        InMemoryProofsStorage,
+        api::OpProofsStore,
+        engine::buffer::state::TrieBufferState,
+        test_utils::{
+            create_storage,
+            destroyed_accounts::{
+                FailingStorageProvider, StorageFailure, assert_injected_error, bundle,
+                created_and_destroyed, destroyed, destroyed_and_recreated, hashed_storage,
+                seed_initial_storage, storage_diff,
+            },
+        },
+    };
+    use alloy_eips::NumHash;
+    use reth_provider::noop::NoopProvider;
+
+    const DESTROYED: Address = Address::repeat_byte(0x01);
+    const UNTOUCHED: Address = Address::repeat_byte(0x02);
+
+    /// Hashed post state of `bundle` on top of block 1, which is buffered with the plain
+    /// `buffered` storage writes and whose parent is the persisted block 0 of `provider`.
+    fn hashed_post_state<P: OpProofsProviderRO + Clone>(
+        provider: P,
+        buffered: &[(Address, &[(u64, u64)])],
+        bundle: &BundleState,
+    ) -> ProviderResult<HashedPostState> {
+        let block = BlockWithParent::new(B256::ZERO, NumHash::new(1, B256::repeat_byte(1)));
+        let buffer = TrieBufferState::new();
+        buffer.insert(block, storage_diff(buffered));
+        let inner = OpProofsStateProviderRef::new(Box::new(NoopProvider::default()), provider, 0);
+        buffer.state_provider(block.block.hash, inner).hashed_post_state(bundle)
+    }
+
+    /// A destroyed account's persisted and buffered slots all come back as explicit zeros;
+    /// buffered slots of untouched accounts are not zeroed.
+    #[test]
+    fn destroyed_account_zeroes_persisted_and_buffered_slots() {
+        fn check<S: OpProofsStore>(store: &S) {
+            seed_initial_storage(store, &[(DESTROYED, &[(1, 11)])]);
+            let buffered: &[(Address, &[(u64, u64)])] =
+                &[(DESTROYED, &[(2, 22)]), (UNTOUCHED, &[(3, 33)])];
+            let bundle = bundle([(DESTROYED, destroyed())]);
+
+            let state = hashed_post_state(store.provider_ro().unwrap(), buffered, &bundle).unwrap();
+
+            assert_eq!(
+                state.storages.get(&keccak256(DESTROYED)),
+                Some(&hashed_storage(&[(1, 0), (2, 0)]))
+            );
+            assert!(!state.storages.contains_key(&keccak256(UNTOUCHED)));
+        }
+        check(&InMemoryProofsStorage::new());
+        check(&*create_storage());
+    }
+
+    /// A slot present only in the buffer, not in persisted storage, comes back as an explicit
+    /// zero.
+    #[test]
+    fn destroyed_account_zeroes_buffer_only_slots() {
+        let store = InMemoryProofsStorage::new();
+        seed_initial_storage(&store, &[]);
+        let bundle = bundle([(DESTROYED, destroyed())]);
+
+        let state =
+            hashed_post_state(store.provider_ro().unwrap(), &[(DESTROYED, &[(2, 22)])], &bundle)
+                .unwrap();
+
+        assert_eq!(state.storages.get(&keccak256(DESTROYED)), Some(&hashed_storage(&[(2, 0)])));
+    }
+
+    /// Slots written by the recreated account keep the bundle's value, whether they were
+    /// persisted or buffered; the remaining old slots are zeroed.
+    #[test]
+    fn recreated_account_keeps_bundle_values() {
+        let store = InMemoryProofsStorage::new();
+        seed_initial_storage(&store, &[(DESTROYED, &[(1, 11), (2, 22)])]);
+        let buffered: &[(Address, &[(u64, u64)])] = &[(DESTROYED, &[(3, 33), (4, 44)])];
+        let bundle = bundle([(DESTROYED, destroyed_and_recreated(&[(1, 91), (3, 93)]))]);
+
+        let state = hashed_post_state(store.provider_ro().unwrap(), buffered, &bundle).unwrap();
+
+        assert_eq!(
+            state.storages.get(&keccak256(DESTROYED)),
+            Some(&hashed_storage(&[(1, 91), (2, 0), (3, 93), (4, 0)]))
+        );
+    }
+
+    /// An account created and destroyed within the bundle has no parent storage: neither its
+    /// persisted nor its buffered storage is read or zeroed.
+    #[test]
+    fn created_and_destroyed_account_skips_parent_scan() {
+        let buffered: &[(Address, &[(u64, u64)])] = &[(DESTROYED, &[(2, 22)])];
+        let bundle = bundle([(DESTROYED, created_and_destroyed())]);
+
+        let store = InMemoryProofsStorage::new();
+        seed_initial_storage(&store, &[(DESTROYED, &[(1, 11)])]);
+        let state = hashed_post_state(store.provider_ro().unwrap(), buffered, &bundle).unwrap();
+        assert!(!state.storages.contains_key(&keccak256(DESTROYED)));
+
+        for failure in [StorageFailure::Open, StorageFailure::Seek] {
+            let state =
+                hashed_post_state(FailingStorageProvider::new(failure), buffered, &bundle).unwrap();
+            assert!(state.storages.is_empty());
+        }
+    }
+
+    /// A failing persisted storage cursor fails the whole call, even when the buffer holds
+    /// slots for the destroyed account.
+    #[test]
+    fn storage_cursor_error_propagates() {
+        let buffered: &[(Address, &[(u64, u64)])] = &[(DESTROYED, &[(2, 22)])];
+        let bundle = bundle([(DESTROYED, destroyed())]);
+        for failure in [StorageFailure::Open, StorageFailure::Seek] {
+            assert_injected_error(hashed_post_state(
+                FailingStorageProvider::new(failure),
+                buffered,
+                &bundle,
+            ));
+        }
+    }
+}
