@@ -17,10 +17,6 @@ const (
 	// signer or network hiccup, so a backlog deeper than a minute of blocks is one
 	// no peer is still waiting for. The oldest block is evicted first.
 	maxPublishQueue = 32
-	// maxPublishAttempts bounds head-of-line blocking. A retry goes to the front of
-	// the queue, so a block that keeps failing is eventually dropped rather than
-	// held in front of its descendants indefinitely.
-	maxPublishAttempts = 3
 	// retryInterval paces retries. Topic.Publish runs op-node's own block validator
 	// inline and synchronously on the publishing node, so a publish can fail in
 	// about a millisecond and unpaced retries spin.
@@ -29,6 +25,11 @@ const (
 	// an HTTPS round-trip that carries no deadline of its own, so without this a
 	// hung connection stops gossip until the connection dies by itself.
 	publishTimeout = 5 * time.Second
+	// defaultRetryWindow is the retry budget when the network reports no gossip
+	// threshold, which only happens with p2p disabled - where publishing is a
+	// no-op and cannot fail. A backstop against a misconfiguration turning the
+	// retry loop unbounded, not a value anything should rely on.
+	defaultRetryWindow = time.Minute
 )
 
 // ErrPermanentPublish marks a publish failure that no retry can fix. Producers
@@ -61,8 +62,8 @@ type SimpleAsyncGossiper struct {
 	mu sync.Mutex
 	// queue holds blocks awaiting publication, oldest first.
 	queue []pending
-	// attempts counts failed publishes of the block currently at queue[0]. It is
-	// reset whenever queue[0] changes.
+	// attempts counts failed publishes of the block currently at queue[0], for the
+	// log field only. Retries are bounded by the block's age, not by a count.
 	attempts int
 
 	// wake coalesces signals (cap 1) for the publish goroutine.
@@ -219,7 +220,7 @@ func (p *SimpleAsyncGossiper) publishLoop(ctx context.Context, done chan struct{
 		// reaching the head is stale in turn. Dropping without publishing keeps
 		// the drain effectively instant, so the queue empties in one pass and
 		// gossip recovers by itself.
-		if stale, age := p.tooOldToPublish(envelope); stale {
+		if stale, age := p.pastRetryWindow(envelope); stale {
 			p.mu.Lock()
 			dropped := len(p.queue) > 0 && p.queue[0].envelope == envelope
 			if dropped {
@@ -228,7 +229,7 @@ func (p *SimpleAsyncGossiper) publishLoop(ctx context.Context, done chan struct{
 			queueLen := len(p.queue)
 			p.mu.Unlock()
 			if dropped {
-				p.log.Warn("Dropping block already too old to publish, peers would reject it",
+				p.log.Warn("Dropping block, it has aged out of the gossip window",
 					"id", envelope.ExecutionPayload.ID(), "age", age,
 					"threshold", p.net.GossipTimestampThreshold())
 				p.metrics.RecordPublishQueueLen(queueLen)
@@ -248,13 +249,14 @@ func (p *SimpleAsyncGossiper) publishLoop(ctx context.Context, done chan struct{
 			case err == nil:
 				p.discardHead()
 			case errors.Is(err, ErrPermanentPublish):
-				// No retry can fix this one, so spend no attempts on it.
-				p.discardHead()
-				gaveUp = true
-			case attempts+1 >= maxPublishAttempts:
+				// No retry can fix this one, so do not spend the window on it.
 				p.discardHead()
 				gaveUp = true
 			default:
+				// Keep trying. The retry budget is the block's remaining life in
+				// the gossip window, checked at the top of the loop, so a block is
+				// abandoned exactly when peers would stop accepting it rather than
+				// after an arbitrary number of tries.
 				p.attempts = attempts + 1
 				retry = true
 			}
@@ -288,15 +290,18 @@ func (p *SimpleAsyncGossiper) publishLoop(ctx context.Context, done chan struct{
 	}
 }
 
-// tooOldToPublish reports whether a block has already aged past the threshold
-// peers enforce, along with its age.
-func (p *SimpleAsyncGossiper) tooOldToPublish(envelope *eth.ExecutionPayloadEnvelope) (bool, time.Duration) {
-	threshold := p.net.GossipTimestampThreshold()
-	age := time.Since(time.Unix(int64(envelope.ExecutionPayload.Timestamp), 0))
-	if threshold <= 0 {
-		return false, age
+// pastRetryWindow reports whether a block has aged out of the window peers will
+// still accept it in, along with its age. This is both the pre-publish check and
+// the retry budget: a block is attempted while it is inside the window and
+// abandoned once it leaves, which makes the budget independent of the block time
+// and of how long each individual failure takes.
+func (p *SimpleAsyncGossiper) pastRetryWindow(envelope *eth.ExecutionPayloadEnvelope) (bool, time.Duration) {
+	window := p.net.GossipTimestampThreshold()
+	if window <= 0 {
+		window = defaultRetryWindow
 	}
-	return age >= threshold, age
+	age := time.Since(time.Unix(int64(envelope.ExecutionPayload.Timestamp), 0))
+	return age >= window, age
 }
 
 // publish publishes one block, under a deadline of its own. It derives from the

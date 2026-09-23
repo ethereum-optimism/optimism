@@ -245,11 +245,16 @@ func TestAsyncGossiperRetriesAtFront(t *testing.T) {
 	require.Same(t, second, published[len(published)-1])
 }
 
-// TestAsyncGossiperGivesUpAfterMaxAttempts checks the head-of-line bound. A
-// block whose publish keeps failing is dropped, counted, and its descendants go
-// out — otherwise one permanently unpublishable block stops gossip entirely.
-func TestAsyncGossiperGivesUpAfterMaxAttempts(t *testing.T) {
-	net := &mockNetwork{err: errors.New("publish failed")}
+// TestAsyncGossiperRetriesUntilTheWindowCloses replaces the old fixed-attempt
+// bound. A block is retried for as long as peers would still accept it, and
+// abandoned exactly when it ages out — so the budget does not depend on how long
+// each individual failure happens to take.
+func TestAsyncGossiperRetriesUntilTheWindowCloses(t *testing.T) {
+	// Block timestamps are whole unix seconds, so a just-sealed block already
+	// reads as up to 1s old. The window has to clear that before it means
+	// anything. At a 5ms retry interval this still leaves room for far more than
+	// the three attempts the old bound allowed.
+	net := &mockNetwork{err: errors.New("publish failed"), threshold: 3 * time.Second}
 	p, metrics := newTestGossiper(t, net)
 
 	p.Gossip(envelopeAt(1))
@@ -257,11 +262,11 @@ func TestAsyncGossiperGivesUpAfterMaxAttempts(t *testing.T) {
 	require.Eventually(t, func() bool {
 		_, dropped := metrics.counts()
 		return dropped == 1
-	}, 5*time.Second, time.Millisecond)
+	}, 15*time.Second, 5*time.Millisecond)
 
 	errs, _ := metrics.counts()
-	require.Equal(t, maxPublishAttempts, errs, "tried exactly maxPublishAttempts times")
-	require.Zero(t, p.queueLen(), "the doomed block is no longer at the front")
+	require.Greater(t, errs, 3, "retried past the old three-attempt bound")
+	require.Zero(t, p.queueLen(), "the aged-out block is no longer at the front")
 
 	// Gossip is alive: a later block still publishes.
 	net.setErr(nil)
@@ -472,28 +477,39 @@ func TestAsyncGossiperKeepsTimeoutsRetryable(t *testing.T) {
 	p.Gossip(envelopeAt(1))
 	require.Eventually(t, func() bool {
 		errs, _ := metrics.counts()
-		return errs >= maxPublishAttempts
+		return errs >= 3
 	}, 5*time.Second, time.Millisecond)
 
-	// The distinguishing fact: a timeout spends the whole retry ladder, where a
-	// permanent failure would have been dropped after a single attempt.
+	// The distinguishing fact: a timeout is retried repeatedly, where a permanent
+	// failure is dropped after a single attempt.
 	errs, _ := metrics.counts()
-	require.Equal(t, maxPublishAttempts, errs, "a timed-out publish is retried, not classified permanent")
-	require.Len(t, net.published(), maxPublishAttempts, "every attempt reached the network")
+	require.Greater(t, errs, 1, "a timed-out publish is retried, not classified permanent")
+	require.Equal(t, errs, len(net.published()), "every attempt reached the network")
 }
 
-// TestAsyncGossiperUnboundedThresholdPublishesAnyAge covers p2p being disabled,
-// where the threshold is reported as zero.
-func TestAsyncGossiperUnboundedThresholdPublishesAnyAge(t *testing.T) {
+// TestAsyncGossiperUnreportedThresholdFallsBackToDefault covers p2p being
+// disabled, where the network reports no threshold. The retry window then falls
+// back to defaultRetryWindow rather than becoming unbounded, so a block older
+// than that is still dropped and the retry loop still terminates.
+func TestAsyncGossiperUnreportedThresholdFallsBackToDefault(t *testing.T) {
 	net := &mockNetwork{threshold: 0}
-	p, _ := newTestGossiper(t, net)
+	p, metrics := newTestGossiper(t, net)
 
-	old := envelopeAged(1, time.Hour)
-	p.Gossip(old)
+	// Comfortably inside the default window: published normally.
+	fresh := envelopeAt(1)
+	p.Gossip(fresh)
 	require.Eventually(t, func() bool {
 		return len(net.published()) == 1
 	}, 5*time.Second, time.Millisecond)
-	require.Same(t, old, net.published()[0], "no age bound when the threshold is zero")
+	require.Same(t, fresh, net.published()[0])
+
+	// Well outside it: dropped, never offered to peers.
+	p.Gossip(envelopeAged(2, 2*defaultRetryWindow))
+	require.Eventually(t, func() bool {
+		_, dropped := metrics.counts()
+		return dropped == 1
+	}, 5*time.Second, time.Millisecond)
+	require.Len(t, net.published(), 1, "the aged block was never published")
 }
 
 // TestAsyncGossiperStopAfterContextCancel pins the invariant the CI deadlock in
