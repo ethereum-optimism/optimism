@@ -120,8 +120,8 @@ func TestSDMFixtureOperatorOptInControlsProduction(gt *testing.T) {
 
 // TestSDMFixtureExcessiveRefundDoesNotHaltSequencer regression-tests a producer-liveness failure:
 // before refund sanitization, an otherwise valid transaction whose test policy returned u64::MAX
-// aborted every payload build and left the unsafe head stalled. The producer must instead cap the
-// refund, include the transaction, and keep building verifier-accepted blocks.
+// aborted every payload build and left the unsafe head stalled. The producer must instead zero the
+// invalid refund, include the transaction, and keep building verifier-accepted blocks.
 func TestSDMFixtureExcessiveRefundDoesNotHaltSequencer(gt *testing.T) {
 	const excessiveRefundTarget = "0x000000000000000000000000000000000000f00d"
 	gt.Setenv("OP_RETH_SDM_FIXTURE_EXCESSIVE_REFUND_TARGET", excessiveRefundTarget)
@@ -148,18 +148,19 @@ func TestSDMFixtureExcessiveRefundDoesNotHaltSequencer(gt *testing.T) {
 	t.Require().NoError(err, "a faulty SDM over-refund must not stall unsafe block production")
 
 	receipt, err := faulty.Included.Eval(t.Ctx())
-	t.Require().NoError(err, "fault-injection transaction must be included after refund capping")
+	t.Require().NoError(err, "fault-injection transaction must be included after its refund is zeroed")
 	t.Require().Equal(types.ReceiptStatusSuccessful, receipt.Status)
 	blockNum := bigs.Uint64Strict(receipt.BlockNumber)
 	block := sdmtest.GetBlockWithTxs(t, sys.L2EL, blockNum)
 	postExecTx, _ := sdmpkg.FindPostExecTransaction(block)
-	t.Require().NotNil(postExecTx, "capped refund block must carry a post-exec transaction")
+	t.Require().Nil(postExecTx, "a block with only an invalid refund must omit the post-exec transaction")
 
 	refund, present := getOPGasRefund(t, sys.L2EL, receipt.TxHash)
-	t.Require().True(present, "capped transaction receipt must expose opGasRefund")
-	t.Require().Greater(refund, uint64(0), "capped transaction must receive a non-zero refund")
-	t.Require().Zero(getReceiptGasUsed(t, sys.L2EL, receipt.TxHash),
-		"u64::MAX policy output must cap to the full raw EVM gas, leaving zero canonical gas")
+	t.Require().False(present, "zeroed transaction receipt must omit opGasRefund")
+	t.Require().Zero(refund, "zeroed transaction must not receive a refund")
+	receiptGasUsed := getReceiptGasUsed(t, sys.L2EL, receipt.TxHash)
+	t.Require().Greater(receiptGasUsed, uint64(0),
+		"zeroing an invalid refund must preserve the transaction's EVM gas used")
 
 	replay := sdmtest.ReplayBlockWithSDM(t, sys.L2EL, blockNum)
 	var replayed *sdmpkg.ReplaySDMTx
@@ -169,17 +170,20 @@ func TestSDMFixtureExcessiveRefundDoesNotHaltSequencer(gt *testing.T) {
 			break
 		}
 	}
-	t.Require().NotNil(replayed, "structural replay must include the capped transaction")
-	t.Require().Equal(replayed.RawGasUsed, refund,
-		"capped refund must equal, and never exceed, pre-refund EVM gas")
-	t.Require().Zero(replayed.CanonicalGasUsed)
-	t.Require().Empty(replay.Mismatches, "stock replay must accept the capped payload")
+	t.Require().NotNil(replayed, "structural replay must include the unrefunded transaction")
+	t.Require().Nil(replayed.OPGasRefundPayload,
+		"zeroed refund must not produce a post-exec payload entry")
+	t.Require().Equal(replayed.RawGasUsed, replayed.CanonicalGasUsed,
+		"zeroed refund must leave canonical gas equal to pre-refund EVM gas")
+	t.Require().Equal(receiptGasUsed, replayed.CanonicalGasUsed,
+		"receipt gas must match the unrefunded canonical gas")
+	t.Require().Empty(replay.Mismatches, "stock replay must accept the unrefunded payload")
 
 	targetRef := sys.L2EL.BlockRefByNumber(blockNum)
 	sys.L2ELVerifier.Reached(eth.Unsafe, blockNum, 60)
 	verifierRef := sys.L2ELVerifier.BlockRefByNumber(blockNum)
 	t.Require().Equal(targetRef.Hash, verifierRef.Hash,
-		"stock verifier must accept the capped refund block")
+		"stock verifier must accept the block with the invalid refund zeroed")
 }
 
 func submitFixtureProbe(t devtest.T, sys *sdmtest.RethSystem) (*sdmpkg.RPCBlock, *types.Receipt) {

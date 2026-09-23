@@ -475,7 +475,12 @@ impl PostExecRefundInspector for FaultyRefundPolicy {
 }
 
 #[test]
-fn excessive_producer_refund_is_capped_and_verifies() {
+fn producer_refund_at_evm_gas_limit_is_preserved() {
+    assert_eq!(sanitize_producer_refund(42, 42, false), 42);
+}
+
+#[test]
+fn excessive_producer_refund_is_zeroed_and_verifies() {
     let tx = observer_test_tx();
     let mut producer_db = prepare_observer_db();
     let receipt_builder = OpAlloyReceiptBuilder::default();
@@ -486,25 +491,23 @@ fn excessive_producer_refund_is_capped_and_verifies() {
     producer.execute_transaction(&tx).expect("faulty refund must not reject a valid transaction");
     let evm_gas_used = producer.evm_gas_used;
     assert!(evm_gas_used > 0);
-    assert_eq!(producer.gas_used, 0, "the refund is capped at the full EVM gas used");
-    assert_eq!(producer.post_exec_entries(), &[SDMGasEntry { index: 0, gas_refund: evm_gas_used }]);
+    assert_eq!(producer.gas_used, evm_gas_used, "the invalid refund must be zeroed");
+    assert!(
+        producer.post_exec_entries().is_empty(),
+        "an invalid refund must not produce a post-exec entry"
+    );
     assert_eq!(
         producer.refund_snapshot(),
         (1, None),
-        "a corrected refund still came from a committed transaction"
+        "a zeroed refund still came from a committed transaction"
     );
-
-    let entries = producer.take_post_exec_entries();
-    let post_exec = recovered_post_exec(0, entries.clone());
-    producer.execute_transaction(&post_exec).expect("producer appends capped refund payload");
     let (_, produced) = producer.finish().expect("producer finishes block");
 
     let mut verifier_fixture =
         JovianExecutorFixture::new(DEFAULT_DA_FOOTPRINT_GAS_SCALAR, 500_000, JOVIAN_TIMESTAMP);
     verifier_fixture.db = prepare_observer_db();
-    let mut verifier = verifier_fixture.verifier(0, entries);
-    verifier.execute_transaction(&tx).expect("verifier accepts refunded transaction");
-    verifier.execute_transaction(&post_exec).expect("verifier accepts capped refund payload");
+    let mut verifier = verifier_fixture.executor();
+    verifier.execute_transaction(&tx).expect("verifier accepts the unrefunded transaction");
     let (_, verified) = verifier.finish().expect("verifier accepts produced block");
 
     assert_eq!(verified.gas_used, produced.gas_used);
@@ -544,7 +547,7 @@ fn faulty_producer_refunds_increment_correction_metrics() {
     let recorder = DebuggingRecorder::new();
     let snapshotter = recorder.snapshotter();
     metrics::with_local_recorder(&recorder, || {
-        assert_eq!(sanitize_producer_refund(u64::MAX, 42, false), 42);
+        assert_eq!(sanitize_producer_refund(u64::MAX, 42, false), 0);
         assert_eq!(sanitize_producer_refund(1, 42, true), 0);
     });
 

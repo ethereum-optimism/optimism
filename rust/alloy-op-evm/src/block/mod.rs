@@ -56,15 +56,15 @@ fn validation_error(err: OpBlockExecutionError) -> BlockExecutionError {
 /// Returns a producer policy's consensus-safe refund for an executed transaction.
 ///
 /// A refund policy is advisory: malformed output must not reject an otherwise valid transaction or
-/// abort payload production. Normal-transaction refunds are capped at the gas the EVM actually
-/// used, while deposits are never refundable. Verifiers independently enforce these same bounds on
-/// the resulting post-exec payload.
+/// abort payload production. A normal-transaction refund that exceeds the gas the EVM actually used
+/// is discarded, while deposits are never refundable. Verifiers independently enforce these same
+/// bounds on the resulting post-exec payload.
 #[cfg_attr(not(feature = "metrics"), allow(clippy::missing_const_for_fn))]
 fn sanitize_producer_refund(refund: u64, evm_gas_used: u64, is_deposit: bool) -> u64 {
     let (refund, correction) = if is_deposit && refund > 0 {
         (0, Some("ineligible_transaction"))
     } else if refund > evm_gas_used {
-        (evm_gas_used, Some("exceeds_evm_gas"))
+        (0, Some("exceeds_evm_gas"))
     } else {
         (refund, None)
     };
@@ -997,7 +997,7 @@ where
                 self.evm.take_last_post_exec_tx_result();
             // The policy is advisory. Contain a faulty policy here, before its output changes gas,
             // settlement, receipts, or the trailing payload: excessive normal-tx refunds are
-            // capped to the verifier's structural bound, and deposits never receive a refund.
+            // discarded, and deposits never receive a refund.
             let refund = sanitize_producer_refund(refund, evm_gas_used, is_deposit);
             (refund, refund_events)
         } else {
