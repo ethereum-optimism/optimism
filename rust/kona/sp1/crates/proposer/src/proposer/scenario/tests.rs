@@ -4283,6 +4283,44 @@ async fn running_anchor_root_creation_checks_new_unsupported_anchor_boundary() {
 }
 
 #[tokio::test]
+async fn running_root_creation_stops_when_a_supported_anchor_changes() {
+    let world = ScenarioWorld::new();
+    world.set_horizons(1, 1);
+    let root_barrier = world.block_superroot(
+        1,
+        1,
+        SuperRootOutcome::Root { root: canonical_super_root(1), current_l1: 2, required_l1: 1 },
+        "creation waits for anchor change",
+    );
+    let mut scenario = ScenarioHarness::new(world.clone(), scenario_config()).await.unwrap();
+
+    let started = scenario.tick().await.unwrap();
+    let create_id =
+        started.task_id_for(|operation| matches!(operation, OperationSummary::ProposeGame { .. }));
+    root_barrier.wait_until_reached().await;
+
+    let anchor = ScenarioGame::new(0, u32::MAX, 0, ScenarioWorld::default_prestate());
+    let anchor_target = anchor.target();
+    world.add_game(anchor);
+    world.set_anchor_game(&anchor_target);
+
+    root_barrier.release();
+    let completions = scenario.settle(&[create_id]).await.unwrap();
+    assert_eq!(completions[0].outcome, TaskCompletionOutcome::Success);
+    assert!(
+        world
+            .action_record(
+                &ActionTarget::Create { sequence_number: 1, parent_game_index: u32::MAX },
+                1,
+            )
+            .is_none()
+    );
+
+    let remaining = started.task_ids_except(create_id);
+    scenario.settle(&remaining).await.unwrap();
+}
+
+#[tokio::test]
 async fn pending_anchor_revalidation_fault_preserves_cache_for_retry() {
     let world = ScenarioWorld::new();
     let cached = ScenarioGame::new(0, u32::MAX, 0, ScenarioWorld::default_prestate());

@@ -6437,7 +6437,9 @@ mod tests {
         async fn tombstoned_pending_parent_blocks_cached_descendant() {
             let prestate = B256::left_padding_from(&[0x44]);
             let mut proposer = test_proposer().await;
-            proposer.l1_view = Arc::new(pending_view(prestate));
+            let view = pending_view(prestate);
+            let revalidated_parent_address = view.factory_game.address;
+            proposer.l1_view = Arc::new(view);
             proposer.superroot_source = Arc::new(UnavailableSuperRootSource);
             let proof_engine = Arc::new(RecordingProofEngine::default());
             proposer.proof_engine = proof_engine.clone();
@@ -6468,7 +6470,16 @@ mod tests {
             let cached_game = state.games.get(&cached_descendant.index).unwrap();
             assert!(cached_game.should_attempt_to_claim_bond);
             assert!(!state.ancestry_eligible(cached_game));
-            assert!(proof_engine.cleared.lock().unwrap().contains(&cached_descendant.address));
+            let cleared =
+                proof_engine.cleared.lock().unwrap().iter().copied().collect::<HashSet<_>>();
+            assert_eq!(
+                cleared,
+                HashSet::from([
+                    parent.address,
+                    revalidated_parent_address,
+                    cached_descendant.address
+                ])
+            );
         }
 
         #[tokio::test]
@@ -6481,8 +6492,11 @@ mod tests {
                 U256::from(1),
                 WithdrawalState { amount: U256::ZERO, timestamp: U256::ZERO },
             ));
+            let revalidated_parent_address = view.factory_game.address;
             proposer.l1_view = Arc::new(view);
             proposer.superroot_source = Arc::new(UnavailableSuperRootSource);
+            let proof_engine = Arc::new(RecordingProofEngine::default());
+            proposer.proof_engine = proof_engine.clone();
             let actions = Arc::new(RecordingActionExecutor::default());
             proposer.action_executor = actions.clone();
             let parent = game_with(0, u32::MAX, 100);
@@ -6526,6 +6540,12 @@ mod tests {
             assert!(!state.invalid_games.contains(&anchor.index));
             assert_eq!(state.anchor_game.as_ref().map(|game| game.index), Some(anchor.index));
             drop(state);
+            let cleared =
+                proof_engine.cleared.lock().unwrap().iter().copied().collect::<HashSet<_>>();
+            assert_eq!(
+                cleared,
+                HashSet::from([parent.address, revalidated_parent_address, middle.address])
+            );
 
             proposer.claim_bonds().await.unwrap();
             assert_eq!(
