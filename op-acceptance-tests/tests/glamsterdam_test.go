@@ -82,12 +82,13 @@ func TestAutoDASwitchesFromCalldataToBlobsAtGlamsterdam(gt *testing.T) {
 			cfg.Stopped = true
 			cfg.DataAvailabilityType = batcherflags.AutoType
 			cfg.ThrottleConfig.LowerThreshold = 0
-			// Keep the execution-gas price deterministic. The configured blob base fee is
-			// cheaper only when the Amsterdam calldata floor is included.
+			// Bound the execution-gas price while leaving headroom for geth's tip estimate.
+			// The configured blob base fee is cheaper only when the Amsterdam calldata
+			// floor is included throughout this range.
 			cfg.TxMgrConfig.MinBaseFeeGwei = 1
 			cfg.TxMgrConfig.MaxBaseFeeGwei = 1
 			cfg.TxMgrConfig.MinTipCapGwei = 1
-			cfg.TxMgrConfig.MaxTipCapGwei = 1
+			cfg.TxMgrConfig.MaxTipCapGwei = 1.4
 		}),
 	)
 
@@ -179,12 +180,20 @@ func withGlamsterdamAutoDABlobFee(_ devtest.T, _ devkeys.Keys, builder intentbui
 	//   Amsterdam calldata:     (15,000 + 64*120,000)*2 / 120,000 = 128.25 gwei/byte
 	//   Amsterdam blob:         (15,000*2 + 131,072*100) / 130,044 = 101.02 gwei/byte
 	//
-	// Thus calldata is cheaper before Amsterdam, while blobs are cheaper after it. The exact
-	// break-even blob base fees are 79.4 and 127.0 gwei, respectively. Use a large update
-	// fraction so the fee stays in that range while the devstack starts. An empty block reduces
-	// excess blob gas by 14*131,072, which lowers the fee by only about 0.183% with this update
-	// fraction. It takes 126 consecutive empty blocks (about 12m36s at the six-second L1 block
-	// time) to fall below 79.4 gwei, and no other component submits blobs before the batcher starts.
+	// Solving the per-byte equalities for blob base fee F gives the break-even points:
+	//
+	//   pre-Amsterdam: F = (80.35*130,044 - 21,000*2) / 131,072 = 79.399 gwei
+	//   Amsterdam:     F = (128.25*130,044 - 15,000*2) / 131,072 = 127.015 gwei
+	//
+	// Thus calldata is cheaper before Amsterdam, while blobs are cheaper after it. The configured
+	// tip range allows a 2-2.4 gwei execution-gas price; at the upper bound the corresponding
+	// break-even points are 95.279 and 152.418 gwei, so 100 gwei still distinguishes the rules.
+	//
+	// A large update fraction keeps the fee in that range while the devstack starts. An empty block
+	// reduces excess blob gas by 14*131,072, which lowers the fee by only about 0.183%. It takes
+	// 126 consecutive empty blocks (about 12m36s at the six-second L1 block time) to fall below
+	// 79.4 gwei. Even the 2.4 gwei lower boundary takes 27 empty blocks to cross, while Amsterdam
+	// activates after 10; no other component submits blobs before the batcher starts.
 	const (
 		blobBaseFeeUpdateFraction = uint64(1_000_000_000)
 		genesisExcessBlobGas      = uint64(25_328_436_000)
