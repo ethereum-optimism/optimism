@@ -6,12 +6,12 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"os"
 	"sync/atomic"
 	"time"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
-	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/ethereum/go-ethereum/log"
 
@@ -20,6 +20,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-batcher/flags"
 	"github.com/ethereum-optimism/optimism/op-batcher/metrics"
 	"github.com/ethereum-optimism/optimism/op-batcher/rpc"
+	"github.com/ethereum-optimism/optimism/op-core/interop/depset"
 	"github.com/ethereum-optimism/optimism/op-node/params"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-private-interop/builder"
@@ -460,82 +461,74 @@ func (bs *BatcherService) initPrivateInterop(ctx context.Context, cfg *CLIConfig
 	if err != nil {
 		return fmt.Errorf("projecting the private-chain genesis: %w", err)
 	}
-	publicProjectionRollup, err := projectiongenesis.ProjectRollupConfigFrom(bs.RollupConfig, privateChainGenesis, publicProjectionGenesis)
+	localProjectionRollup, err := projectiongenesis.ProjectRollupConfigFrom(bs.RollupConfig, privateChainGenesis, publicProjectionGenesis)
 	if err != nil {
 		return fmt.Errorf("projecting the private-chain rollup config: %w", err)
 	}
 
-	if settings.ProofCommand != "" {
-		publicProjectionRollup.PrivateProjection.Verifier = projection.ExecutionMock
-		if len(settings.ExtraEmitters) != 0 {
-			return fmt.Errorf("execution mock relation does not support extra emitters")
-		}
+	// The dependency set the private rollup node serves. The endpoint provider's rollup client
+	// does not expose it; dial the private rollup node directly for this one read.
+	rollupRPC, err := dial.DialRPCClientWithTimeout(ctx, bs.Log, cfg.RollupRpc[0])
+	if err != nil {
+		return fmt.Errorf("private interop: dialling the rollup node for the dependency set: %w", err)
 	}
-
-	// The claim's two configuration commitments. Unless pinned by flag they are derived from what
-	// this process already holds: the projected rollup config, and the dependency set the private
-	// rollup node serves. Both are keccak256 of canonical JSON, the convention the devstack uses.
-	rollupConfigHash := settings.RollupConfigHash
-	if rollupConfigHash == (common.Hash{}) {
-		if rollupConfigHash, err = hashCanonicalJSON(publicProjectionRollup); err != nil {
-			return fmt.Errorf("hashing the projected rollup config: %w", err)
-		}
+	depSet, err := sources.NewRollupClient(client.NewBaseRPCClient(rollupRPC)).DependencySet(ctx)
+	rollupRPC.Close()
+	if err != nil {
+		return fmt.Errorf("private interop: reading the dependency set from the rollup node: %w", err)
 	}
-	depSetHash := settings.DepSetHash
-	var dependencySet []byte
-	if depSetHash == (common.Hash{}) || settings.ProofCommand != "" {
-		// The endpoint provider's rollup client does not expose the dependency set; dial the
-		// private rollup node directly for this one read.
-		rollupRPC, err := dial.DialRPCClientWithTimeout(ctx, bs.Log, cfg.RollupRpc[0])
-		if err != nil {
-			return fmt.Errorf("private interop: dialling the rollup node for the dependency set: %w", err)
-		}
-		depSet, err := sources.NewRollupClient(client.NewBaseRPCClient(rollupRPC)).DependencySet(ctx)
-		rollupRPC.Close()
-		if err != nil {
-			return fmt.Errorf("private interop: reading the dependency set from the rollup node: %w", err)
-		}
-		dependencySet, err = json.Marshal(depSet)
-		if err != nil {
-			return err
-		}
-		computed, hashErr := hashCanonicalJSON(depSet)
-		if hashErr != nil {
-			return hashErr
-		}
-		if depSetHash != (common.Hash{}) && depSetHash != computed {
-			return fmt.Errorf("pinned dependency set differs from execution context")
-		}
-		depSetHash = computed
+	// The client always returns a *StaticConfigDependencySet, typed nil inside the interface when the
+	// node answers null, so the check is on the concrete pointer.
+	if static, _ := depSet.(*depset.StaticConfigDependencySet); static == nil {
+		return errors.New("private interop: the rollup node serves no dependency set")
 	}
-	bs.Log.Info("private interop claim commitments", "rollup_config_hash", rollupConfigHash, "dep_set_hash", depSetHash,
-		"rollup_config_hash_pinned", settings.RollupConfigHash != (common.Hash{}), "dep_set_hash_pinned", settings.DepSetHash != (common.Hash{}))
+	dependencySet, err := json.Marshal(depSet)
+	if err != nil {
+		return err
+	}
 
 	follower, err := NewRPCPublicProjectionFollower(ctx, bs.Log, settings.PublicProjectionRPC, settings.PublicProjectionRollupRPC, bs.NetworkTimeout)
 	if err != nil {
 		return err
 	}
 	bs.privateProjection = follower
-	if settings.ProofCommand != "" {
-		var actual rollup.Config
-		if err := follower.(*rpcPublicProjectionFollower).rollupRPC.CallContext(ctx, &actual, "optimism_rollupConfig"); err != nil {
-			return err
+	rpcFollower := follower.(*rpcPublicProjectionFollower)
+	// private_projection comes from the DEPLOYED projection config; the batcher never chooses
+	// the verifier.
+	var deployed rollup.Config
+	if err := rpcFollower.rollupRPC.CallContext(ctx, &deployed, "optimism_rollupConfig"); err != nil {
+		return fmt.Errorf("private interop: reading the deployed projection rollup config: %w", err)
+	}
+	var privateRollupJSON, l1ChainConfigJSON []byte
+	if settings.PrivateRollupConfigPath != "" {
+		if privateRollupJSON, err = os.ReadFile(settings.PrivateRollupConfigPath); err != nil {
+			return fmt.Errorf("private interop: reading the pinned private rollup config: %w", err)
 		}
-		if actual.PrivateProjection == nil || actual.PrivateProjection.Verifier != projection.ExecutionMock {
-			return fmt.Errorf("native execution producer requires execution-mock-v1 in the deployed projection rollup config")
-		}
-		actualHash, err := hashCanonicalJSON(&actual)
-		if err != nil {
-			return err
-		}
-		expectedHash, err := hashCanonicalJSON(publicProjectionRollup)
-		if err != nil {
-			return err
-		}
-		if actualHash != expectedHash || rollupConfigHash != expectedHash {
-			return fmt.Errorf("native execution producer projection configuration mismatch")
+		if l1ChainConfigJSON, err = os.ReadFile(settings.L1ChainConfigPath); err != nil {
+			return fmt.Errorf("private interop: reading the pinned L1 chain config: %w", err)
 		}
 	}
+	profile, err := resolvePrivateInteropProfile(privateInteropProfileInputs{
+		Settings:          settings,
+		PrivateRollup:     bs.RollupConfig,
+		Local:             localProjectionRollup,
+		Deployed:          &deployed,
+		DependencySet:     depSet.Chains(),
+		PrivateRollupJSON: privateRollupJSON,
+		L1ChainConfigJSON: l1ChainConfigJSON,
+	})
+	if err != nil {
+		return err
+	}
+	publicProjectionRollup := profile.Rollup
+	rollupConfigHash, depSetHash := profile.RollupConfigHash, profile.DepSetHash
+	if publicProjectionRollup.PrivateProjection.Verifier != projection.InsecureStub && len(settings.ExtraEmitters) != 0 {
+		return fmt.Errorf("the %s relation does not support extra emitters", publicProjectionRollup.PrivateProjection.Verifier)
+	}
+	bs.Log.Info("private interop claim commitments", "verifier", publicProjectionRollup.PrivateProjection.Verifier,
+		"rollup_config_hash", rollupConfigHash, "dep_set_hash", depSetHash, "prover", profile.Prover,
+		"rollup_config_hash_pinned", settings.RollupConfigHash != (common.Hash{}), "dep_set_hash_pinned", settings.DepSetHash != (common.Hash{}))
+
 	batcherAddr := bs.TxManager.From()
 	ranges, err := NewPrivateInteropRangeSource(PrivateInteropRangeSourceConfig{
 		Log:                    bs.Log,
@@ -578,12 +571,30 @@ func (bs *BatcherService) initPrivateInterop(ctx context.Context, cfg *CLIConfig
 	txs.SetReplayMessenger(settings.ReplayMessenger)
 
 	var prove func(context.Context, *builder.BuiltRange, []byte, RangeStart) ([]byte, error)
-	if settings.ProofCommand != "" {
-		prove = nativeProjectionProducer(ctx, settings.ProofCommand, cfg.L2EthRpc[0], settings.PublicProjectionRPC,
-			bs.RollupConfig, publicProjectionRollup, dependencySet)
+	if profile.Prover != "" {
+		projectionJSON, err := json.Marshal(publicProjectionRollup)
+		if err != nil {
+			return err
+		}
+		prove = newProjectionProducer(ctx, projectionProducerConfig{
+			Command:          settings.ProofCommand,
+			Prover:           profile.Prover,
+			PrivateRPC:       cfg.L2EthRpc[0],
+			ProjectionRPC:    settings.PublicProjectionRPC,
+			L1RPC:            cfg.L1EthRpc,
+			PublicRollup:     publicProjectionRollup,
+			PrivateConfig:    profile.PrivateConfigJSON,
+			L1Config:         profile.L1ConfigJSON,
+			ProjectionConfig: projectionJSON,
+			DependencySet:    dependencySet,
+			Timeout:          settings.ProofTimeout,
+			TimeoutPerBlock:  settings.ProofTimeoutPerBlock,
+		})
 	}
 	enc, err := NewPrivateInteropEncoder(PrivateInteropConfig{
 		Prove:             prove,
+		Caller:            newRPCProjectionCaller(rpcFollower.rpc),
+		TestHooks:         settings.TestHooks,
 		Rollup:            publicProjectionRollup,
 		PrivateRollup:     bs.RollupConfig,
 		Batcher:           batcherAddr,
@@ -750,13 +761,4 @@ func (bs *BatcherService) HTTPEndpoint() string {
 		return ""
 	}
 	return "http://" + bs.rpcServer.Endpoint()
-}
-
-// hashCanonicalJSON is the claim-commitment convention: keccak256 of the value's JSON encoding.
-func hashCanonicalJSON(v any) (common.Hash, error) {
-	encoded, err := json.Marshal(v)
-	if err != nil {
-		return common.Hash{}, err
-	}
-	return crypto.Keccak256Hash(encoded), nil
 }

@@ -9,6 +9,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto"
 
@@ -346,9 +347,103 @@ func TestBatcherTxBuilderRefusesBrokenImport(t *testing.T) {
 
 func TestExportGasBudgetBoundary(t *testing.T) {
 	base := DefaultGasPolicy().GasLimitExport
-	gas, err := exportGasLimit(base, 581329)
+	// All-zero payloads have the cheapest calldata floor, so the linear rule sets the ceiling.
+	gas, err := exportGasLimit(base, 581329, make([]byte, 581329+196))
 	require.NoError(t, err)
 	require.LessOrEqual(t, gas, uint64(16777216))
-	_, err = exportGasLimit(base, 581330)
+	_, err = exportGasLimit(base, 581330, make([]byte, 581330+196))
 	require.ErrorContains(t, err, "projection transaction ceiling")
+}
+
+// exportTx builds the export replay of a payload of n copies of fill.
+func exportTx(t *testing.T, n int, fill byte) (*types.Transaction, error) {
+	t.Helper()
+	b := testBuilder(t)
+	return b.ReplayTx(ReplayAction{Kind: ReplayExport, Export: &SentMessage{
+		Destination: big.NewInt(902), Nonce: big.NewInt(1), Sender: extraAddr, Target: otherAddr,
+		Message: bytes.Repeat([]byte{fill}, n),
+	}})
+}
+
+func requireCoversFloor(t *testing.T, tx *types.Transaction, margin uint64) {
+	t.Helper()
+	floor, err := core.FloorDataGas(tx.Data())
+	require.NoError(t, err)
+	intrinsic, err := core.IntrinsicGas(tx.Data(), tx.AccessList(), nil, false, true, true, true)
+	require.NoError(t, err)
+	require.GreaterOrEqual(t, tx.Gas(), floor+margin, "gas must cover the EIP-7623 floor plus margin")
+	require.GreaterOrEqual(t, tx.Gas(), intrinsic)
+}
+
+// TestExportGasCoversCalldataFloor is the H4 boundary: the export limit is
+// max(base + 28·len, FloorDataGas + 21000) at every size up to the documented maximum.
+func TestExportGasCoversCalldataFloor(t *testing.T) {
+	base := DefaultGasPolicy().GasLimitExport
+	for _, n := range []int{0, 1, 40 * 1024, 64 * 1024, MaxExportMessageBytesAllNonZero} {
+		for _, fill := range []byte{0x00, 0xff} {
+			t.Run(fmt.Sprintf("%d bytes of %#x", n, fill), func(t *testing.T) {
+				tx, err := exportTx(t, n, fill)
+				require.NoError(t, err)
+				requireCoversFloor(t, tx, ExportFloorMargin)
+				require.GreaterOrEqual(t, tx.Gas(), base+uint64(n)*ExportGasPerMessageByte)
+				floor, err := core.FloorDataGas(tx.Data())
+				require.NoError(t, err)
+				require.Equal(t, max(base+uint64(n)*ExportGasPerMessageByte, floor+ExportFloorMargin), tx.Gas())
+				require.LessOrEqual(t, tx.Gas(), uint64(16777216))
+			})
+		}
+	}
+	// Above 38 KiB of incompressible payload the floor, not the linear rule, sets the limit: the
+	// previous policy under-gassed exactly these replays.
+	tx, err := exportTx(t, 40*1024, 0xff)
+	require.NoError(t, err)
+	require.Greater(t, tx.Gas(), base+40*1024*ExportGasPerMessageByte)
+
+	// The documented maximum is exact for incompressible payloads.
+	_, err = exportTx(t, MaxExportMessageBytesAllNonZero+1, 0xff)
+	require.ErrorContains(t, err, "projection transaction ceiling")
+	// Zero-byte payloads beyond it still render, up to the linear ceiling.
+	_, err = exportTx(t, MaxExportMessageBytesAllNonZero+1, 0x00)
+	require.NoError(t, err)
+}
+
+// TestClaimGasCoversCalldataFloor: the claim limit is max(GasLimitClaim, FloorDataGas + 100000),
+// so a claim carrying the largest proof is not under-gassed.
+func TestClaimGasCoversCalldataFloor(t *testing.T) {
+	b := testBuilder(t)
+	b.SetRegistry(extraAddr)
+	for _, proofLen := range []int{0, 836, 1032, 65536} {
+		t.Run(fmt.Sprintf("proof %d bytes", proofLen), func(t *testing.T) {
+			claim := &codec.RangeClaim{FirstBlock: 1, LastBlock: 2,
+				Proof: bytes.Repeat([]byte{0xff}, proofLen)}
+			tx, err := b.ClaimTx(claim)
+			require.NoError(t, err)
+			requireCoversFloor(t, tx, ClaimFloorMargin)
+			floor, err := core.FloorDataGas(tx.Data())
+			require.NoError(t, err)
+			require.Equal(t, max(DefaultGasPolicy().GasLimitClaim, floor+ClaimFloorMargin), tx.Gas())
+		})
+	}
+	// The largest proof needs far more than the fixed default.
+	tx, err := b.ClaimTx(&codec.RangeClaim{Proof: bytes.Repeat([]byte{0xff}, 65536)})
+	require.NoError(t, err)
+	require.Greater(t, tx.Gas(), DefaultGasPolicy().GasLimitClaim)
+}
+
+// TestOutputGasCoversCalldataFloor: the fixed recordOutput limit covers its worst-case floor.
+func TestOutputGasCoversCalldataFloor(t *testing.T) {
+	b := testBuilder(t)
+	b.SetRegistry(extraAddr)
+	tx, err := b.OutputTx(common.HexToHash("0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"))
+	require.NoError(t, err)
+	require.Equal(t, OutputGasLimit, tx.Gas())
+	requireCoversFloor(t, tx, 21_000)
+}
+
+func TestSetGasPolicy(t *testing.T) {
+	b := testBuilder(t)
+	override := DefaultGasPolicy()
+	override.GasLimitImport = 21_100
+	b.SetGasPolicy(override)
+	require.Equal(t, override, b.GasPolicy())
 }

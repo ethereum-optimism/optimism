@@ -7,6 +7,7 @@ import (
 	"math/big"
 
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/core/types"
 
 	"github.com/ethereum-optimism/optimism/op-core/predeploys"
@@ -19,6 +20,29 @@ import (
 // with a conservative four-gas margin for hashing and memory expansion. GasLimitExport is the
 // fixed base; this coefficient makes the complete limit a deterministic function of the payload.
 const ExportGasPerMessageByte uint64 = 28
+
+// The projection runs Prague rules, so every transaction also pays at least the EIP-7623
+// calldata floor. On the projection a transaction that runs out of gas invalidates its whole
+// block, so each carrier's limit is raised to cover the floor plus an execution margin:
+//
+//   - export:  max(GasLimitExport + 28·len(message), FloorDataGas(calldata) + ExportFloorMargin)
+//   - claim:   max(GasLimitClaim, FloorDataGas(calldata) + ClaimFloorMargin)
+//   - output:  OutputGasLimit, which covers the floor of its fixed 36-byte calldata.
+//
+// For large, incompressible exports the floor (40 gas per non-zero calldata byte) exceeds the
+// linear rule (28 gas per byte); the crossover is near 38 KiB with the default base.
+const (
+	ExportFloorMargin uint64 = 21_000
+	ClaimFloorMargin  uint64 = 100_000
+	// OutputGasLimit is the fixed gas limit of a recordOutput transaction.
+	OutputGasLimit uint64 = 100_000
+)
+
+// MaxExportMessageBytesAllNonZero is the largest SentMessage payload that always renders under
+// DefaultGasPolicy, whatever its content: an all-non-zero payload one byte longer needs an export
+// gas limit above the projection transaction ceiling wire.MaxTxGas, and cannot be rendered.
+// Payloads with zero bytes have a cheaper floor and may be longer, up to MaxRenderableMessageSize.
+const MaxExportMessageBytesAllNonZero = 418_314
 
 // ReplayTxBuilder turns replay actions into the standard batcher's signed transactions.
 //
@@ -144,6 +168,13 @@ func (b *BatcherTxBuilder) SetRegistry(addr common.Address) { b.registry = addr 
 // see the field.
 func (b *BatcherTxBuilder) SetReplayMessenger(addr common.Address) { b.messenger = addr }
 
+// SetGasPolicy replaces the builder's gas policy. The batcher's test hooks use it to install an
+// override between ranges; production sets the policy once, at construction.
+func (b *BatcherTxBuilder) SetGasPolicy(gas GasPolicy) { b.gas = gas }
+
+// GasPolicy returns the builder's current gas policy.
+func (b *BatcherTxBuilder) GasPolicy() GasPolicy { return b.gas }
+
 func (b *BatcherTxBuilder) Reset(nonce uint64) { b.nonce = nonce }
 func (b *BatcherTxBuilder) Nonce() uint64      { return b.nonce }
 
@@ -153,11 +184,15 @@ func (b *BatcherTxBuilder) ReplayTx(act ReplayAction) (*types.Transaction, error
 		if act.Export == nil {
 			return nil, fmt.Errorf("export action at rendered index %d has no decoded SentMessage", act.RenderedLogIndex)
 		}
-		gasLimit, err := exportGasLimit(b.gas.GasLimitExport, len(act.Export.Message))
+		if n := len(act.Export.Message); n > MaxRenderableMessageSize {
+			return nil, fmt.Errorf("rendered index %d: SentMessage payload is %d bytes, exceeding the %d-byte rendering limit",
+				act.RenderedLogIndex, n, MaxRenderableMessageSize)
+		}
+		data, err := EncodeReplaySentMessage(act.Export)
 		if err != nil {
 			return nil, fmt.Errorf("rendered index %d: %w", act.RenderedLogIndex, err)
 		}
-		data, err := EncodeReplaySentMessage(act.Export)
+		gasLimit, err := exportGasLimit(b.gas.GasLimitExport, len(act.Export.Message), data)
 		if err != nil {
 			return nil, fmt.Errorf("rendered index %d: %w", act.RenderedLogIndex, err)
 		}
@@ -198,7 +233,9 @@ func (b *BatcherTxBuilder) ReplayTx(act ReplayAction) (*types.Transaction, error
 	}
 }
 
-func exportGasLimit(base uint64, messageSize int) (uint64, error) {
+// exportGasLimit is max(base + 28·messageSize, FloorDataGas(calldata) + ExportFloorMargin),
+// refused above the projection transaction ceiling.
+func exportGasLimit(base uint64, messageSize int, calldata []byte) (uint64, error) {
 	if messageSize < 0 || messageSize > MaxRenderableMessageSize {
 		return 0, fmt.Errorf(
 			"SentMessage payload is %d bytes, exceeding the %d-byte rendering limit",
@@ -209,10 +246,26 @@ func exportGasLimit(base uint64, messageSize int) (uint64, error) {
 	if base > math.MaxUint64-extra {
 		return 0, fmt.Errorf("export gas limit overflows uint64")
 	}
-	if base+extra > wire.MaxTxGas {
-		return 0, fmt.Errorf("export gas limit %d exceeds projection transaction ceiling %d", base+extra, wire.MaxTxGas)
+	limit, err := withFloor(base+extra, calldata, ExportFloorMargin)
+	if err != nil {
+		return 0, err
 	}
-	return base + extra, nil
+	if limit > wire.MaxTxGas {
+		return 0, fmt.Errorf("export gas limit %d exceeds projection transaction ceiling %d", limit, wire.MaxTxGas)
+	}
+	return limit, nil
+}
+
+// withFloor raises limit to FloorDataGas(calldata) + margin when that is larger.
+func withFloor(limit uint64, calldata []byte, margin uint64) (uint64, error) {
+	floor, err := core.FloorDataGas(calldata)
+	if err != nil {
+		return 0, fmt.Errorf("calldata floor gas: %w", err)
+	}
+	if floor > math.MaxUint64-margin {
+		return 0, fmt.Errorf("calldata floor gas overflows uint64")
+	}
+	return max(limit, floor+margin), nil
 }
 
 func (b *BatcherTxBuilder) ClaimTx(claim *codec.RangeClaim) (*types.Transaction, error) {
@@ -223,7 +276,14 @@ func (b *BatcherTxBuilder) ClaimTx(claim *codec.RangeClaim) (*types.Transaction,
 	if err != nil {
 		return nil, err
 	}
-	return b.sendTx(b.registry, data, nil, b.gas.GasLimitClaim)
+	gasLimit, err := withFloor(b.gas.GasLimitClaim, data, ClaimFloorMargin)
+	if err != nil {
+		return nil, err
+	}
+	if gasLimit > wire.MaxTxGas {
+		return nil, fmt.Errorf("claim gas limit %d exceeds projection transaction ceiling %d", gasLimit, wire.MaxTxGas)
+	}
+	return b.sendTx(b.registry, data, nil, gasLimit)
 }
 
 func (b *BatcherTxBuilder) sendTx(to common.Address, data []byte, al types.AccessList, gasLimit uint64) (*types.Transaction, error) {
@@ -259,5 +319,5 @@ func (b *BatcherTxBuilder) OutputTx(root common.Hash) (*types.Transaction, error
 	if _, err := wire.DecodeOutput(data); err != nil {
 		return nil, err
 	}
-	return b.sendTx(b.registry, data, nil, 100_000)
+	return b.sendTx(b.registry, data, nil, OutputGasLimit)
 }

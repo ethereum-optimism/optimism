@@ -454,7 +454,7 @@ func TestPrivateInteropSeamClaimsTheRangesPrivateInput(t *testing.T) {
 	// The claim's remaining operator inputs: configuration from the seam's config.
 	require.Equal(t, common.Hash{0x1b}, built.Claim.RollupConfigHash)
 	require.Equal(t, common.Hash{0x1c}, built.Claim.DepSetHash)
-	require.Equal(t, []byte("insecure-stub-v1"), built.Claim.Proof, "stub bytes provide no execution proof")
+	require.Empty(t, built.Claim.Proof, "without a producer the claim carries no proof bytes at all")
 
 	// ORIGIN-COPY through the whole seam: every rendering block carries the origin and sequence
 	// number its private payload's own L1-info deposit declared, and no L1 client was consulted —
@@ -602,9 +602,7 @@ func TestPrivateExecutionFailureCannotEmitFrames(t *testing.T) {
 	txs.SetRegistry(predeploys.ClaimRegistryAddr)
 	txs.SetEventReplayer(predeploys.EventReplayerAddr)
 	enc, ranges, _ := piEncoderWithTxs(t, txs)
-	parentOutput := common.Hash(eth.OutputRoot(&eth.OutputV0{MessagePasserStorageRoot: eth.Bytes32(types.EmptyRootHash), BlockHash: common.BigToHash(big.NewInt(900))}))
-	enc.cfg.Rollup.PrivateProjection = &projection.Config{Verifier: projection.ExecutionMock, GenesisOutputRoot: parentOutput}
-	ranges.start.Continuation = projection.Continuation{Anchor: eth.BlockID{Number: 900, Hash: piTerminal}, OutputRoot: parentOutput}
+	piExecutionMock(enc, ranges)
 	attempts := 0
 	enc.cfg.Prove = func(_ context.Context, candidate *builder.BuiltRange, data []byte, start RangeStart) ([]byte, error) {
 		attempts++
@@ -614,10 +612,7 @@ func TestPrivateExecutionFailureCannotEmitFrames(t *testing.T) {
 		if attempts == 1 {
 			return nil, errors.New("invalid execution witness")
 		}
-		statement, err := projection.ValidateProjectionRange(enc.cfg.Rollup.PrivateProjection, projection.Context{
-			ChainID: piChainIDBig, GenesisTime: piL2Genesis, BlockTime: piBlockTime,
-			ParentHash: piTerminal, Continuation: start.Continuation,
-		}, candidate.SpanBatch, projection.StubVerifier{})
+		statement, err := projectionPreflight(enc.cfg.Rollup, candidate, start)
 		if err != nil {
 			return nil, err
 		}
@@ -661,9 +656,7 @@ func TestPrivateExecutionProofResetCancelsWorker(t *testing.T) {
 	txs.SetRegistry(predeploys.ClaimRegistryAddr)
 	txs.SetEventReplayer(predeploys.EventReplayerAddr)
 	enc, ranges, _ := piEncoderWithTxs(t, txs)
-	parentOutput := common.Hash(eth.OutputRoot(&eth.OutputV0{MessagePasserStorageRoot: eth.Bytes32(types.EmptyRootHash), BlockHash: common.BigToHash(big.NewInt(900))}))
-	enc.cfg.Rollup.PrivateProjection = &projection.Config{Verifier: projection.ExecutionMock, GenesisOutputRoot: parentOutput}
-	ranges.start.Continuation = projection.Continuation{Anchor: eth.BlockID{Number: 900, Hash: piTerminal}, OutputRoot: parentOutput}
+	piExecutionMock(enc, ranges)
 	started, stopped := make(chan struct{}), make(chan struct{})
 	enc.cfg.Prove = func(ctx context.Context, _ *builder.BuiltRange, _ []byte, _ RangeStart) ([]byte, error) {
 		close(started)
@@ -694,4 +687,24 @@ func TestPrivateExecutionProofResetCancelsWorker(t *testing.T) {
 	require.Nil(t, co.cancelProof)
 	require.Nil(t, co.BuiltRange())
 	require.Zero(t, co.ReadyBytes())
+}
+
+// piExecutionMock switches a test encoder to an execution-mock-v1 deployment: the profile, the
+// claim commitments derived from it, and a projection client whose simulations all succeed.
+func piExecutionMock(enc *PrivateInteropEncoder, ranges *staticRanges) *fakeCaller {
+	parentOutput := common.Hash(eth.OutputRoot(&eth.OutputV0{MessagePasserStorageRoot: eth.Bytes32(types.EmptyRootHash), BlockHash: common.BigToHash(big.NewInt(900))}))
+	cfg := enc.cfg.Rollup
+	cfg.PrivateProjection = &projection.Config{
+		Verifier: projection.ExecutionMock, GenesisOutputRoot: parentOutput,
+		DependencySetHash: projection.DependencySetHash([]eth.ChainID{eth.ChainIDFromUInt64(901), eth.ChainIDFromUInt64(902)}),
+	}
+	enc.cfg.RollupConfigHash = projection.ConfigHash(cfg.PrivateProjection, projection.Context{
+		ChainID: cfg.L2ChainID, GenesisNumber: cfg.Genesis.L2.Number, GenesisTime: cfg.Genesis.L2Time,
+		BlockTime: cfg.BlockTime, GenesisHash: cfg.Genesis.L2.Hash,
+	})
+	enc.cfg.DepSetHash = cfg.PrivateProjection.DependencySetHash
+	ranges.start.Continuation = projection.Continuation{Anchor: eth.BlockID{Number: 900, Hash: piTerminal}, OutputRoot: parentOutput}
+	caller := &fakeCaller{}
+	enc.cfg.Caller = caller
+	return caller
 }

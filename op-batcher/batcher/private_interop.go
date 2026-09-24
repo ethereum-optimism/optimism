@@ -75,11 +75,34 @@ type RangeSource interface {
 	RangeStart(ctx context.Context, firstBlock uint64) (RangeStart, error)
 }
 
+// PrivateInteropTestHooks are programmatic test hooks for the terminal seam. They are never set by
+// a CLI flag or by production code. The seam reads them when it builds each range, so a test may
+// change or clear them while the batcher runs.
+type PrivateInteropTestHooks struct {
+	// SkipCarrierPreRun disables the carrier pre-run (static gas check and eth_call simulation),
+	// so a test can publish a span whose carrier fails on the projection.
+	SkipCarrierPreRun bool
+	// GasPolicyOverride replaces the transaction builder's gas policy for the ranges built while
+	// it is set.
+	GasPolicyOverride *render.GasPolicy
+	// MutateProof is applied to the producer's envelope after the producer verified it.
+	MutateProof func([]byte) []byte
+	// SkipAdmissionPreflight skips the post-proof admission preflight
+	// (builder.Range.TestSkipAdmission).
+	SkipAdmissionPreflight bool
+}
+
 // PrivateInteropConfig configures the terminal seam.
 type PrivateInteropConfig struct {
-	// Prove executes the private relation before any frames may be emitted.
-	// Only explicitly configured execution-mock deployments use this producer.
+	// Prove produces the range's proof envelope before any frames may be emitted. Publication
+	// blocks until it succeeds: there is no fallback verifier and no unproven publication. Every
+	// verifier except insecure-stub-v1 requires it.
 	Prove func(context.Context, *builder.BuiltRange, []byte, RangeStart) ([]byte, error)
+	// Caller simulates carrier transactions on the public projection before proving (§E.3). It
+	// is required whenever Prove is set, unless the pre-run is disabled by a test hook.
+	Caller ProjectionCaller
+	// TestHooks are programmatic test hooks; nil in production.
+	TestHooks *PrivateInteropTestHooks
 	// Rollup is the RENDERING's rollup config. It is NOT the private chain's: the timestamps and
 	// numbers coincide block-for-block, but the genesis, chain ID and drift the span batch is
 	// encoded against belong to the chain being described.
@@ -119,8 +142,11 @@ func (c *PrivateInteropConfig) Check() error {
 	if c.PrivateRollup == nil {
 		return errors.New("private interop: no private rollup config")
 	}
-	if c.Rollup.PrivateProjection != nil && c.Rollup.PrivateProjection.Verifier == projection.ExecutionMock && c.Prove == nil {
-		return errors.New("execution-mock admission requires a native execution producer")
+	if pp := c.Rollup.PrivateProjection; pp != nil && pp.Verifier != projection.InsecureStub && c.Prove == nil {
+		return fmt.Errorf("private interop: %s admission requires a proof producer (--private-interop.proof-command)", pp.Verifier)
+	}
+	if c.Prove != nil && c.Caller == nil && (c.TestHooks == nil || !c.TestHooks.SkipCarrierPreRun) {
+		return errors.New("private interop: the carrier pre-run needs a public-projection execution client")
 	}
 	if c.MaxBlocksPerRange == 0 {
 		return errors.New("private interop: no cadence configured")
@@ -171,6 +197,9 @@ func renderingBlockGasBudget(cfg *rollup.Config) (uint64, error) {
 // and hands the channel manager a ChannelOut that renders them.
 type PrivateInteropEncoder struct {
 	cfg PrivateInteropConfig
+	// baseGas is the transaction builder's configured gas policy, restored after a test hook's
+	// override is cleared. It is nil when the builder does not expose its policy.
+	baseGas *render.GasPolicy
 
 	mu             sync.Mutex
 	prepared       map[common.Hash]optypes.Receipts
@@ -187,7 +216,33 @@ func NewPrivateInteropEncoder(cfg PrivateInteropConfig) (*PrivateInteropEncoder,
 	if err := cfg.Check(); err != nil {
 		return nil, err
 	}
-	return &PrivateInteropEncoder{cfg: cfg, prepared: make(map[common.Hash]optypes.Receipts), outputs: make(map[common.Hash][2]common.Hash)}, nil
+	enc := &PrivateInteropEncoder{cfg: cfg, prepared: make(map[common.Hash]optypes.Receipts), outputs: make(map[common.Hash][2]common.Hash)}
+	if g, ok := cfg.Txs.(gasPolicySetter); ok {
+		base := g.GasPolicy()
+		enc.baseGas = &base
+	}
+	return enc, nil
+}
+
+// gasPolicySetter is the part of render.BatcherTxBuilder the gas-policy test hook drives.
+type gasPolicySetter interface {
+	GasPolicy() render.GasPolicy
+	SetGasPolicy(render.GasPolicy)
+}
+
+// applyGasHook installs the test hook's gas policy override, or restores the configured policy
+// once it is cleared. Production (no hooks) never touches the policy.
+func (e *PrivateInteropEncoder) applyGasHook() {
+	hooks := e.cfg.TestHooks
+	g, ok := e.cfg.Txs.(gasPolicySetter)
+	if hooks == nil || !ok || e.baseGas == nil {
+		return
+	}
+	if hooks.GasPolicyOverride != nil {
+		g.SetGasPolicy(*hooks.GasPolicyOverride)
+	} else {
+		g.SetGasPolicy(*e.baseGas)
+	}
 }
 
 // PrepareBlock fetches the private block's receipts.
@@ -299,8 +354,11 @@ type projectionProofResult struct {
 type renderChannelOut struct {
 	proofResult <-chan projectionProofResult
 	cancelProof context.CancelFunc
-	enc         *PrivateInteropEncoder
-	builder     *builder.Builder
+	// carrierErr is the range's carrier pre-run verdict once a carrier failed. It is sticky: the
+	// range is never published, and Close keeps returning it until the channel is reset.
+	carrierErr error
+	enc        *PrivateInteropEncoder
+	builder    *builder.Builder
 	// maxFrame and compression are the channel settings this range was created with, resolved once
 	// so that the private derivation-input object is framed and compressed exactly like the
 	// rendering's own channel.
@@ -343,7 +401,7 @@ func (c *renderChannelOut) Reset() error {
 	if c.cancelProof != nil {
 		c.cancelProof()
 	}
-	c.cancelProof, c.proofResult = nil, nil
+	c.cancelProof, c.proofResult, c.carrierErr = nil, nil, nil
 	c.blocks, c.hashes = nil, nil
 	c.parentOutputRoot = common.Hash{}
 	c.privBatches, c.privSeqNums, c.privParent = nil, nil, common.Hash{}
@@ -519,22 +577,45 @@ func (c *renderChannelOut) Close() error {
 			RollupConfigHash: c.enc.cfg.RollupConfigHash,
 			DepSetHash:       c.enc.cfg.DepSetHash,
 			PrivateDataHash:  c.privDataHash,
-			// Legacy explicitly insecure admission; the execution producer replaces this.
-			Proof: []byte("insecure-stub-v1"),
+			// Always the producer's envelope. Only insecure-stub-v1 publishes without one.
+			Proof: []byte{},
 		},
 		StartNonce: c.start.StartNonce,
 	}
+	hooks := c.enc.cfg.TestHooks
+	if hooks != nil {
+		request.TestSkipAdmission = hooks.SkipAdmissionPreflight
+	}
+	c.enc.applyGasHook()
 	if c.enc.cfg.Prove != nil {
 		request.Prove = func(candidate *builder.BuiltRange) ([]byte, error) {
-			// Close runs under the channel-manager mutex. Collect/re-execute
-			// outside that lock, retain the candidate, and retry without frames.
+			if c.carrierErr != nil {
+				return nil, c.carrierErr
+			}
+			// Close runs under the channel-manager mutex. Simulate and prove outside that
+			// lock, retain the candidate, and retry without frames.
 			if c.proofResult == nil {
 				jobCtx, cancel := context.WithCancel(context.Background())
 				result := make(chan projectionProofResult, 1)
 				c.cancelProof, c.proofResult = cancel, result
 				start, privateData, prove := c.start, c.privData, c.enc.cfg.Prove
+				caller, batcher := c.enc.cfg.Caller, c.enc.cfg.Batcher
+				skipPreRun := hooks != nil && hooks.SkipCarrierPreRun
+				var mutate func([]byte) []byte
+				if hooks != nil {
+					mutate = hooks.MutateProof
+				}
 				go func() {
+					if !skipPreRun {
+						if err := preRunCarriers(jobCtx, caller, batcher, start.PrevTerminalRenderingHash, candidate); err != nil {
+							result <- projectionProofResult{err: err}
+							return
+						}
+					}
 					proof, err := prove(jobCtx, candidate, privateData, start)
+					if err == nil && mutate != nil {
+						proof = mutate(proof)
+					}
 					result <- projectionProofResult{proof: proof, err: err}
 				}()
 			}
@@ -542,6 +623,9 @@ func (c *renderChannelOut) Close() error {
 			case result := <-c.proofResult:
 				c.cancelProof()
 				c.cancelProof, c.proofResult = nil, nil
+				if errors.Is(result.err, ErrCarrierPreRun) {
+					c.carrierErr = result.err
+				}
 				return result.proof, result.err
 			default:
 				return nil, errPrivateProofPending
@@ -551,6 +635,14 @@ func (c *renderChannelOut) Close() error {
 	built, err := c.builder.Build(request)
 	if err != nil {
 		return fmt.Errorf("building the rendering range %d-%d: %w", first.Number, last.Number, err)
+	}
+	// The published claim carries the proof, so its calldata and gas limit differ from the
+	// candidate's: statically re-check the carriers that are actually published.
+	if c.enc.cfg.Prove != nil && (hooks == nil || !hooks.SkipCarrierPreRun) {
+		if err := checkRangeCarrierGas(built); err != nil {
+			c.carrierErr = err
+			return fmt.Errorf("building the rendering range %d-%d: %w", first.Number, last.Number, err)
+		}
 	}
 	c.built = built
 	c.privData = nil

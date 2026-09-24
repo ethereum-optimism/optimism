@@ -1,6 +1,8 @@
 package flags
 
 import (
+	"time"
+
 	"github.com/urfave/cli/v2"
 
 	"github.com/ethereum-optimism/optimism/op-private-interop/render"
@@ -24,6 +26,13 @@ const (
 	// DefaultPrivateInteropMaxRangeBytes leaves ample room beneath the six-blob capacity of one L1
 	// transaction even when attacker-controlled payloads do not compress.
 	DefaultPrivateInteropMaxRangeBytes = 512 * 1024
+	// DefaultPrivateInteropSP1Prover is the producer's prover for sp1-private-projection-v1.
+	DefaultPrivateInteropSP1Prover = "network"
+	// DefaultPrivateInteropProofTimeout and DefaultPrivateInteropProofTimeoutPerBlock give the
+	// producer timeout base + perBlock × (lastBlock − anchorBlock), so a span that must also
+	// prove a long recovery interval gets proportionally longer.
+	DefaultPrivateInteropProofTimeout         = 2 * time.Minute
+	DefaultPrivateInteropProofTimeoutPerBlock = 100 * time.Millisecond
 )
 
 var (
@@ -70,17 +79,50 @@ var (
 	}
 	PrivateInteropRollupConfigHashFlag = &cli.StringFlag{
 		Name: "private-interop.rollup-config-hash",
-		Usage: "32-byte rollupConfigHash the range claim commits to: which chain the claim speaks " +
-			"for. Defaults to keccak256 of the projected rollup config's canonical JSON; set it only to pin " +
-			"a different convention.",
+		Usage: "Optional cross-check of the claim's rollupConfigHash. The batcher always derives it as " +
+			"the canonical ConfigHash of the DEPLOYED projection rollup config; if set, startup fails unless " +
+			"this value equals it.",
 		EnvVars: prefixEnvVars("PRIVATE_INTEROP_ROLLUP_CONFIG_HASH"),
 	}
 	PrivateInteropDepSetHashFlag = &cli.StringFlag{
 		Name: "private-interop.dep-set-hash",
-		Usage: "32-byte depSetHash the range claim commits to: which dependency set the claim " +
-			"speaks for. Defaults to keccak256 of the canonical JSON of the dependency set the rollup node " +
-			"serves; set it only to pin a different convention.",
+		Usage: "Optional cross-check of the claim's depSetHash. The batcher always uses the deployed " +
+			"private_projection.dependency_set_hash, and checks it against the dependency set the rollup " +
+			"node serves; if set, startup fails unless this value equals it.",
 		EnvVars: prefixEnvVars("PRIVATE_INTEROP_DEP_SET_HASH"),
+	}
+	PrivateInteropPrivateRollupConfigFlag = &cli.PathFlag{
+		Name: "private-interop.private-rollup-config",
+		Usage: "Path to the private chain's deployed rollup.json, byte for byte the artifact the " +
+			"projection's private_config_hash covers. Required for sp1-private-projection-v1.",
+		EnvVars: prefixEnvVars("PRIVATE_INTEROP_PRIVATE_ROLLUP_CONFIG"),
+	}
+	PrivateInteropL1ChainConfigFlag = &cli.PathFlag{
+		Name: "private-interop.l1-chain-config",
+		Usage: "Path to the L1 chain config JSON (geth ChainConfig), byte for byte the artifact the " +
+			"projection's private_config_hash covers. Required for sp1-private-projection-v1.",
+		EnvVars: prefixEnvVars("PRIVATE_INTEROP_L1_CHAIN_CONFIG"),
+	}
+	PrivateInteropSP1ProverFlag = &cli.StringFlag{
+		Name: "private-interop.sp1-prover",
+		Usage: "Prover the proof command uses for sp1-private-projection-v1: network, cpu, mock or " +
+			"native-mock. mock and native-mock are refused unless the deployed projection config sets mock_proofs.",
+		Value:   DefaultPrivateInteropSP1Prover,
+		EnvVars: prefixEnvVars("PRIVATE_INTEROP_SP1_PROVER"),
+	}
+	PrivateInteropProofTimeoutFlag = &cli.DurationFlag{
+		Name: "private-interop.proof-timeout",
+		Usage: "Base timeout of one proof command run. Publication blocks until a proof exists; a " +
+			"timed-out run is retried.",
+		Value:   DefaultPrivateInteropProofTimeout,
+		EnvVars: prefixEnvVars("PRIVATE_INTEROP_PROOF_TIMEOUT"),
+	}
+	PrivateInteropProofTimeoutPerBlockFlag = &cli.DurationFlag{
+		Name: "private-interop.proof-timeout-per-block",
+		Usage: "Additional proof timeout per block from the range's anchor to its last block, so " +
+			"spans that must prove a recovery interval get proportionally longer.",
+		Value:   DefaultPrivateInteropProofTimeoutPerBlock,
+		EnvVars: prefixEnvVars("PRIVATE_INTEROP_PROOF_TIMEOUT_PER_BLOCK"),
 	}
 	PrivateInteropGasLimitExportFlag = &cli.Uint64Flag{
 		Name:    "private-interop.gas-limit-export",
@@ -109,8 +151,9 @@ var (
 )
 
 var PrivateInteropProofCommandFlag = &cli.StringFlag{
-	Name:    "private-interop.proof-command",
-	Usage:   "Path to the local native execution checker; requires a fresh execution-mock-v1 projection deployment",
+	Name: "private-interop.proof-command",
+	Usage: "Path to the proof producer (kona-sp1-private-projection-executor), run as " +
+		"`<command> --publication-request`. Required unless the deployed projection verifier is insecure-stub-v1.",
 	EnvVars: prefixEnvVars("PRIVATE_INTEROP_PROOF_COMMAND"),
 }
 
@@ -130,4 +173,9 @@ var PrivateInteropFlags = []cli.Flag{
 	PrivateInteropGasLimitImportFlag,
 	PrivateInteropGasLimitEventFlag,
 	PrivateInteropGasLimitClaimFlag,
+	PrivateInteropPrivateRollupConfigFlag,
+	PrivateInteropL1ChainConfigFlag,
+	PrivateInteropSP1ProverFlag,
+	PrivateInteropProofTimeoutFlag,
+	PrivateInteropProofTimeoutPerBlockFlag,
 }
