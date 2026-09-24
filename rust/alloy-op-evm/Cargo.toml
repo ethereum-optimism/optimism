@@ -29,9 +29,11 @@ op-revm = { workspace = true }
 thiserror = { workspace = true }
 
 auto_impl = { workspace = true }
+metrics = { workspace = true, optional = true }
 
 [dev-dependencies]
 alloy-hardforks = { workspace = true }
+metrics-util = { workspace = true, features = ["debugging"] }
 revm-inspectors.workspace = true
 test-case.workspace = true
 
@@ -48,6 +50,7 @@ std = [
 	"thiserror/std",
 ]
 gmp = ["alloy-evm/gmp"]
+metrics = ["std", "dep:metrics"]
 engine = ["op-alloy/rpc-types-engine"]
 rpc = ["alloy-evm/rpc", "op-alloy/rpc-types"]
 asm-keccak = ["alloy-evm/asm-keccak", "alloy-primitives/asm-keccak", "revm/asm-keccak"]

@@ -22,13 +22,14 @@ use super::{PostExecExecutedTx, PostExecTxContext};
 /// every possible database context.
 ///
 /// **Not consensus.** The executor reads [`PostExecExecutedTx::refund_total`] via
-/// [`finish_tx`](Self::finish_tx) and bounds it by the structural `refund <= evm_gas_used` rule —
-/// it never observes how the refund was computed. Verifiers run the default inspector and discard
-/// its refund, so a proprietary producer policy can never make a verifier accept an *invalid*
-/// block. It can, however, produce a *self-rejecting* block: the seam requires the implementor to
-/// be side-effect-free w.r.t. EVM state (see the [`Inspector`](revm::Inspector) rule below); a
-/// violation just fails the producer's own block, never verifier acceptance.
-/// [`PostExecExecutedTx::refund_events`] are optional diagnostics and may be empty.
+/// [`finish_tx`](Self::finish_tx), discards normal-transaction refunds above `evm_gas_used`, and
+/// discards refunds for ineligible transaction kinds. It never observes how the refund was
+/// computed. Verifiers run the default inspector and discard its refund, so a proprietary producer
+/// policy cannot make a verifier accept an *invalid* block. The seam still requires the implementor
+/// to be side-effect-free w.r.t. EVM state (see the [`Inspector`](revm::Inspector) rule below):
+/// mutating execution rather than merely returning malformed refund data can produce a
+/// self-rejecting block. [`PostExecExecutedTx::refund_events`] are optional diagnostics and may be
+/// empty.
 ///
 /// # Implementor contract
 /// - [`finish_tx`](Self::finish_tx) is called exactly once per [`begin_tx`](Self::begin_tx),
@@ -52,8 +53,8 @@ pub trait PostExecRefundInspector {
     /// it lets a *later* tx that genuinely accesses the account via an opcode earn its rebate.
     fn note_account_touch(&mut self, address: Address);
 
-    /// Finish the current transaction. The result's aggregate refund is consensus-facing; its
-    /// attribution events are optional diagnostics.
+    /// Finish the current transaction. The result's aggregate refund is sanitized before becoming
+    /// consensus-facing; its attribution events are optional diagnostics.
     fn finish_tx(&mut self) -> PostExecExecutedTx;
 
     /// Observe one opcode step while post-exec tracking is active.
