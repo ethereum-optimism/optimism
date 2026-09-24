@@ -640,6 +640,8 @@ fn test_post_exec_settlement_deltas_conserve_value() {
             REFUND,
             /* is_deposit */ false,
             /* is_post_exec */ false,
+            #[cfg(feature = "metrics")]
+            None,
         )
         .expect("settlement deltas computed");
 
@@ -673,6 +675,110 @@ fn test_post_exec_settlement_deltas_conserve_value() {
     );
 }
 
+#[cfg(feature = "metrics")]
+#[test]
+fn settlement_metrics_are_verify_only() {
+    use metrics_util::debugging::{DebugValue, DebuggingRecorder};
+
+    for mode in [
+        PostExecMode::Disabled,
+        PostExecMode::Produce,
+        PostExecMode::Verify(PostExecPayload {
+            version: 1,
+            block_number: 0,
+            gas_refund_entries: vec![SDMGasEntry { index: 0, gas_refund: 1 }],
+        }),
+    ] {
+        let verifying = matches!(mode, PostExecMode::Verify(_));
+        let recorder = DebuggingRecorder::new();
+        metrics::with_local_recorder(&recorder, || {
+            let mut db = prepare_jovian_db(0);
+            let receipt_builder = OpAlloyReceiptBuilder::default();
+            // Match the Jovian EVM configuration used by build_policy_executor.
+            let hardforks = OpChainHardforks::new(
+                OpHardfork::op_mainnet()
+                    .into_iter()
+                    .chain([(OpHardfork::Jovian, ForkCondition::Timestamp(JOVIAN_TIMESTAMP))]),
+            );
+            let mut executor = build_policy_executor_with::<FixedRefundPolicy>(
+                &mut db,
+                &receipt_builder,
+                &hardforks,
+                7,
+                BASE_FEE_RECIPIENT,
+                Inspect::Disabled,
+            )
+            .with_post_exec_mode(mode);
+            executor
+                .execute_transaction(&legacy_tx_with_price(
+                    0,
+                    Address::from([0x11; 20]),
+                    50_000,
+                    100,
+                ))
+                .expect("transaction executes");
+        });
+
+        let snapshot = recorder.snapshotter().snapshot().into_vec();
+        if verifying {
+            assert_eq!(snapshot.len(), 7);
+            for (key, _, _, value) in snapshot {
+                assert!(matches!(
+                    key.key().name(),
+                    "optimism_sdm.fee_settlements" | "optimism_sdm.fee_charge_checks"
+                ));
+                let label = key.key().labels().next().expect("result label");
+                assert_eq!(label.key(), "result");
+                assert_eq!(value, DebugValue::Counter(u64::from(label.value() == "ok")));
+            }
+        } else {
+            assert!(snapshot.is_empty(), "Produce/Disabled must not emit settlement metrics");
+        }
+    }
+}
+
+#[cfg(feature = "metrics")]
+#[test]
+fn fee_charge_check_detects_settlement_draining_a_prefunded_vault() {
+    use metrics_util::debugging::{DebugValue, DebuggingRecorder};
+
+    let recorder = DebuggingRecorder::new();
+    metrics::with_local_recorder(&recorder, || {
+        let mut fixture = JovianExecutorFixture::default();
+        fixture.db.insert_account(
+            OPERATOR_FEE_RECIPIENT,
+            AccountInfo { balance: U256::from(1_000_000_000_000u64), ..Default::default() },
+        );
+        let mut info =
+            L1BlockInfo::try_fetch(&mut fixture.db, U256::ZERO, OpSpecId::JOVIAN).unwrap();
+        // Fault injection: settlement uses a different scalar from the actual EVM charge.
+        // The resulting 1-gas refund takes more than this tx paid, but the funded vault hides
+        // the underflow and the calculated patch still conserves ETH.
+        info.operator_fee_scalar = Some(U256::from(10_000_000));
+        let mut executor = fixture.verifier(0, vec![SDMGasEntry { index: 0, gas_refund: 1 }]);
+        executor.l1_block_info = Some(info);
+        executor
+            .execute_transaction(&legacy_tx(0, Address::from([0x11; 20])))
+            .expect("diagnostic must not change validity");
+    });
+    let snapshot = recorder.snapshotter().snapshot().into_vec();
+    for (name, result, expected) in [
+        ("optimism_sdm.fee_charge_checks", "mismatch", 1),
+        ("optimism_sdm.fee_charge_checks", "ok", 0),
+        ("optimism_sdm.fee_charge_checks", "unavailable", 0),
+        ("optimism_sdm.fee_settlements", "ok", 1),
+        ("optimism_sdm.fee_settlements", "recipient_overdebit", 0),
+    ] {
+        let (_, _, _, value) = snapshot
+            .iter()
+            .find(|(key, _, _, _)| {
+                key.key().name() == name && key.key().labels().any(|label| label.value() == result)
+            })
+            .expect("initialized counter");
+        assert_eq!(value, &DebugValue::Counter(expected), "{name}/{result}");
+    }
+}
+
 #[test]
 fn test_post_exec_settlement_deltas_skip_non_refunding_txs() {
     let mut fixture = JovianExecutorFixture { base_fee: 7, ..Default::default() };
@@ -691,8 +797,13 @@ fn test_post_exec_settlement_deltas_skip_non_refunding_txs() {
         is_no_op(
             executor
                 .post_exec_settlement_deltas(
-                    &tx, /* evm_gas_used */ 50_000, /* post_exec_refund */ 1_000,
-                    /* is_deposit */ true, /* is_post_exec */ false,
+                    &tx,
+                    /* evm_gas_used */ 50_000,
+                    /* post_exec_refund */ 1_000,
+                    /* is_deposit */ true,
+                    /* is_post_exec */ false,
+                    #[cfg(feature = "metrics")]
+                    None,
                 )
                 .unwrap()
         ),
@@ -703,8 +814,13 @@ fn test_post_exec_settlement_deltas_skip_non_refunding_txs() {
         is_no_op(
             executor
                 .post_exec_settlement_deltas(
-                    &tx, /* evm_gas_used */ 50_000, /* post_exec_refund */ 1_000,
-                    /* is_deposit */ false, /* is_post_exec */ true,
+                    &tx,
+                    /* evm_gas_used */ 50_000,
+                    /* post_exec_refund */ 1_000,
+                    /* is_deposit */ false,
+                    /* is_post_exec */ true,
+                    #[cfg(feature = "metrics")]
+                    None,
                 )
                 .unwrap()
         ),
@@ -715,8 +831,13 @@ fn test_post_exec_settlement_deltas_skip_non_refunding_txs() {
         is_no_op(
             executor
                 .post_exec_settlement_deltas(
-                    &tx, /* evm_gas_used */ 50_000, /* post_exec_refund */ 0,
-                    /* is_deposit */ false, /* is_post_exec */ false,
+                    &tx,
+                    /* evm_gas_used */ 50_000,
+                    /* post_exec_refund */ 0,
+                    /* is_deposit */ false,
+                    /* is_post_exec */ false,
+                    #[cfg(feature = "metrics")]
+                    None,
                 )
                 .unwrap()
         ),
@@ -740,6 +861,8 @@ fn test_post_exec_settlement_conserves_value_at_arithmetic_extremes() {
                         /* post_exec_refund */ refund,
                         /* is_deposit */ false,
                         /* is_post_exec */ false,
+                        #[cfg(feature = "metrics")]
+                        None,
                     )
                     .expect("settlement deltas");
                 let inputs = format!("base_fee={base_fee}, refund={refund}, gas_price={gas_price}");

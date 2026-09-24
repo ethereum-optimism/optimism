@@ -191,7 +191,13 @@ where
         let balance = calculate_caller_fee(balance, tx, block, cfg)?;
 
         // make changes to the account
+        #[cfg(feature = "fee-observation")]
+        let before_charge = *caller_account.balance();
         caller_account.set_balance(balance);
+        #[cfg(feature = "fee-observation")]
+        crate::fee_observation::record(|fees| {
+            fees.sender_charge = before_charge.checked_sub(*caller_account.balance());
+        });
         if tx.kind().is_call() {
             caller_account.bump_nonce();
         }
@@ -296,7 +302,21 @@ where
             U256::ZERO
         };
 
-        reimburse_caller(evm.ctx(), frame_result.gas(), additional_refund).map_err(From::from)
+        #[cfg(feature = "fee-observation")]
+        let before = {
+            let ctx = evm.ctx();
+            crate::fee_observation::CreditSnapshot::capture(
+                ctx.journal().evm_state(),
+                ctx.tx().caller(),
+            )
+        };
+        reimburse_caller(evm.ctx(), frame_result.gas(), additional_refund)?;
+        #[cfg(feature = "fee-observation")]
+        if let Some(before) = before {
+            let credit = before.credit(evm.ctx().journal().evm_state());
+            crate::fee_observation::record(|fees| fees.sender_reimbursement = credit);
+        }
+        Ok(())
     }
 
     /// UPSTREAM-MIRROR(override): revm-handler@42.0.1 `revm_handler::Handler::refund`
@@ -341,7 +361,20 @@ where
             return Ok(());
         }
 
+        #[cfg(feature = "fee-observation")]
+        let before = {
+            let ctx = evm.ctx();
+            crate::fee_observation::CreditSnapshot::capture(
+                ctx.journal().evm_state(),
+                ctx.block().beneficiary(),
+            )
+        };
         self.mainnet.reward_beneficiary(evm, frame_result)?;
+        #[cfg(feature = "fee-observation")]
+        if let Some(before) = before {
+            let credit = before.credit(evm.ctx().journal().evm_state());
+            crate::fee_observation::record(|fees| fees.beneficiary_credit = credit);
+        }
         let basefee = evm.ctx().block().basefee() as u128;
 
         // If the transaction is not a deposit transaction, fees are paid out
@@ -372,7 +405,20 @@ where
             (BASE_FEE_RECIPIENT, base_fee_amount),
             (OPERATOR_FEE_RECIPIENT, operator_fee_cost),
         ] {
+            #[cfg(feature = "fee-observation")]
+            let before =
+                crate::fee_observation::CreditSnapshot::capture(journal.evm_state(), recipient);
             journal.balance_incr(recipient, amount)?;
+            #[cfg(feature = "fee-observation")]
+            if let Some(before) = before {
+                let credit = before.credit(journal.evm_state());
+                crate::fee_observation::record(|fees| match recipient {
+                    L1_FEE_RECIPIENT => fees.l1_fee_credit = credit,
+                    BASE_FEE_RECIPIENT => fees.base_fee_credit = credit,
+                    OPERATOR_FEE_RECIPIENT => fees.operator_fee_credit = credit,
+                    _ => {}
+                });
+            }
         }
 
         Ok(())

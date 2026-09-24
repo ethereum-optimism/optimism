@@ -47,6 +47,11 @@ use crate::post_exec::{
 
 mod canyon;
 pub mod receipt_builder;
+#[cfg(feature = "metrics")]
+mod settlement_metrics;
+
+#[cfg(feature = "metrics")]
+use settlement_metrics::PostExecSettlementResult;
 
 /// Wraps an [`OpBlockExecutionError`] as a block-execution validation error.
 fn validation_error(err: OpBlockExecutionError) -> BlockExecutionError {
@@ -412,6 +417,8 @@ where
     /// Creates a new [`OpBlockExecutor`].
     pub fn new(evm: E, ctx: OpBlockExecutionCtx, spec: Spec, receipt_builder: R) -> Self {
         let post_exec = PostExecState::new(ctx.post_exec_mode.clone());
+        #[cfg(feature = "metrics")]
+        post_exec.init_settlement_metrics();
         Self {
             is_regolith: spec
                 .is_regolith_active_at_timestamp(evm.block().timestamp().saturating_to()),
@@ -443,6 +450,8 @@ where
     /// block-context default after construction.
     pub fn set_post_exec_mode(&mut self, post_exec_mode: PostExecMode) {
         self.post_exec = PostExecState::new(post_exec_mode);
+        #[cfg(feature = "metrics")]
+        self.post_exec.init_settlement_metrics();
     }
 
     /// Returns the accumulated post-exec entries (sequencer mode) without clearing them.
@@ -582,6 +591,8 @@ where
         }
 
         if refund > evm_gas_used {
+            #[cfg(feature = "metrics")]
+            self.post_exec.record_settlement_result(PostExecSettlementResult::RefundExceedsGas);
             return Err(Self::invalid_post_exec_payload(format!(
                 "payload refund {refund} exceeds evm_gas_used {evm_gas_used} for tx index {tx_index}"
             )));
@@ -655,7 +666,7 @@ where
     }
 
     fn sub_state_balance(
-        db: &mut E::DB,
+        &mut self,
         state: &mut EvmState,
         address: Address,
         delta: U256,
@@ -664,13 +675,17 @@ where
             return Ok(());
         }
 
-        let account = Self::state_account_mut(db, state, address)?;
+        let account = Self::state_account_mut(self.evm.db_mut(), state, address)?;
         account.mark_touch();
-        account.info.balance = account.info.balance.checked_sub(delta).ok_or_else(|| {
-            BlockExecutionError::Validation(BlockValidationError::Other(Box::new(
-                OpBlockExecutionError::PostExecSettlementUnderflow { address, delta },
-            )))
-        })?;
+        let Some(balance) = account.info.balance.checked_sub(delta) else {
+            #[cfg(feature = "metrics")]
+            self.post_exec.record_settlement_result(PostExecSettlementResult::RecipientOverdebit);
+            return Err(validation_error(OpBlockExecutionError::PostExecSettlementUnderflow {
+                address,
+                delta,
+            }));
+        };
+        account.info.balance = balance;
         Ok(())
     }
 
@@ -702,6 +717,7 @@ where
         post_exec_refund: u64,
         is_deposit: bool,
         is_post_exec: bool,
+        #[cfg(feature = "metrics")] fee_transfers: Option<&op_revm::fee_observation::FeeTransfers>,
     ) -> Result<PostExecAdjustment, BlockExecutionError> {
         if is_deposit || is_post_exec || post_exec_refund == 0 {
             return Ok(PostExecAdjustment::default());
@@ -742,14 +758,25 @@ where
             .saturating_mul(U256::from(effective_gas_price))
             .saturating_add(operator_fee_balance_delta);
 
-        Ok(PostExecAdjustment {
+        let adjustment = PostExecAdjustment {
             refund: post_exec_refund,
             sender_balance_delta,
             beneficiary_balance_delta,
             base_fee_balance_delta,
             operator_fee_balance_delta,
             refund_events: Vec::new(),
-        })
+        };
+        #[cfg(feature = "metrics")]
+        self.post_exec.record_fee_charge_check(
+            &adjustment,
+            fee_transfers,
+            [
+                U256::from(evm_gas_used) * U256::from(beneficiary_gas_price),
+                U256::from(evm_gas_used) * U256::from(basefee),
+                raw_fee,
+            ],
+        );
+        Ok(adjustment)
     }
 
     fn apply_post_exec_refund_to_state(
@@ -760,24 +787,9 @@ where
     ) -> Result<(), BlockExecutionError> {
         let beneficiary = self.evm.block().beneficiary();
         Self::add_state_balance(self.evm.db_mut(), state, sender, deltas.sender_balance_delta)?;
-        Self::sub_state_balance(
-            self.evm.db_mut(),
-            state,
-            beneficiary,
-            deltas.beneficiary_balance_delta,
-        )?;
-        Self::sub_state_balance(
-            self.evm.db_mut(),
-            state,
-            BASE_FEE_RECIPIENT,
-            deltas.base_fee_balance_delta,
-        )?;
-        Self::sub_state_balance(
-            self.evm.db_mut(),
-            state,
-            OPERATOR_FEE_RECIPIENT,
-            deltas.operator_fee_balance_delta,
-        )?;
+        self.sub_state_balance(state, beneficiary, deltas.beneficiary_balance_delta)?;
+        self.sub_state_balance(state, BASE_FEE_RECIPIENT, deltas.base_fee_balance_delta)?;
+        self.sub_state_balance(state, OPERATOR_FEE_RECIPIENT, deltas.operator_fee_balance_delta)?;
 
         Ok(())
     }
@@ -985,8 +997,20 @@ where
             });
         }
 
-        // Execute transaction and return the result
-        let mut result = self.evm.transact(tx_env).map_err(|err| {
+        // Only refunded Verify transactions need fee observations. The scope is synchronous and
+        // restores its sink even when execution fails; no observations survive into another tx.
+        #[cfg(feature = "metrics")]
+        let (result, fee_transfers) = if !is_deposit &&
+            self.post_exec.verifier_refund(tx_index).is_some()
+        {
+            let (result, fees) = op_revm::fee_observation::observe(|| self.evm.transact(tx_env));
+            (result, Some(fees))
+        } else {
+            (self.evm.transact(tx_env), None)
+        };
+        #[cfg(not(feature = "metrics"))]
+        let result = self.evm.transact(tx_env);
+        let mut result = result.map_err(|err| {
             let hash = tx.tx().trie_hash();
             BlockExecutionError::evm(err, hash)
         })?;
@@ -1013,6 +1037,8 @@ where
             post_exec_refund,
             is_deposit,
             false,
+            #[cfg(feature = "metrics")]
+            fee_transfers.as_ref(),
         )?;
         deltas.refund_events = refund_events;
         let post_exec =
@@ -1066,6 +1092,9 @@ where
             post_exec,
             depositor_nonce,
         } = output;
+
+        #[cfg(feature = "metrics")]
+        let settlement_result = self.post_exec.committed_settlement_result(post_exec.as_ref());
 
         let (post_exec_refund, refund_events) = match post_exec {
             Some(deltas) => (deltas.refund, deltas.refund_events),
@@ -1136,6 +1165,11 @@ where
         );
 
         self.evm.db_mut().commit(state);
+
+        #[cfg(feature = "metrics")]
+        if let Some(result) = settlement_result {
+            self.post_exec.record_settlement_result(result);
+        }
 
         GasOutput::new(canonical_gas_used)
     }
