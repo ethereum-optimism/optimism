@@ -17,6 +17,7 @@ use alloy_consensus::{
 };
 use alloy_primitives::{B64, B256};
 use core::fmt::Debug;
+use op_alloy_consensus::{decode_holocene_extra_data, decode_jovian_extra_data};
 use reth_chainspec::EthChainSpec;
 use reth_consensus::{Consensus, ConsensusError, FullConsensus, HeaderValidator, ReceiptRootBloom};
 use reth_consensus_common::validation::{
@@ -40,6 +41,25 @@ pub use validation::{canyon, isthmus, validate_block_post_execution};
 
 pub mod error;
 pub use error::OpConsensusError;
+
+fn validate_op_header_extra_data<H, ChainSpec>(
+    header: &SealedHeader<H>,
+    chain_spec: &ChainSpec,
+) -> Result<(), ConsensusError>
+where
+    H: BlockHeader,
+    ChainSpec: EthChainSpec<Header = H> + OpHardforks,
+{
+    if chain_spec.is_jovian_active_at_timestamp(header.timestamp()) {
+        decode_jovian_extra_data(header.extra_data()).map_err(ConsensusError::other)?;
+    } else if chain_spec.is_holocene_active_at_timestamp(header.timestamp()) {
+        decode_holocene_extra_data(header.extra_data()).map_err(ConsensusError::other)?;
+    } else if header.hash() != chain_spec.genesis_hash() && !header.extra_data().is_empty() {
+        return Err(ConsensusError::msg("extraData must be empty before Holocene"));
+    }
+
+    Ok(())
+}
 
 /// Optimism consensus implementation.
 ///
@@ -157,7 +177,8 @@ where
     ChainSpec: EthChainSpec<Header = H> + OpHardforks + Debug + Send + Sync,
 {
     fn validate_header(&self, header: &SealedHeader<H>) -> Result<(), ConsensusError> {
-        let header = header.header();
+        let sealed_header = header;
+        let header = sealed_header.header();
         // with OP-stack Bedrock activation number determines when TTD (eth Merge) has been reached.
         debug_assert!(
             self.chain_spec.is_bedrock_active_at_block(header.number()),
@@ -182,6 +203,7 @@ where
 
         // validate header extra data for all networks post merge
         validate_header_extra_data(header, self.max_extra_data_size)?;
+        validate_op_header_extra_data(sealed_header, &self.chain_spec)?;
         validate_header_gas(header)?;
         validate_header_base_fee(header, &self.chain_spec)
     }
@@ -241,11 +263,11 @@ mod tests {
 
     use alloy_consensus::{BlockBody, Eip658Value, Header, Receipt, TxEip7702, TxReceipt};
     use alloy_eips::{eip4895::Withdrawals, eip7685::Requests};
-    use alloy_primitives::{Address, Bytes, Log, Signature, U256};
+    use alloy_primitives::{Address, B64, Bytes, Log, Signature, U256};
     use op_alloy_consensus::{
         OpTypedTransaction, encode_holocene_extra_data, encode_jovian_extra_data,
     };
-    use reth_chainspec::BaseFeeParams;
+    use reth_chainspec::{BaseFeeParams, EthChainSpec};
     use reth_consensus::{Consensus, ConsensusError, FullConsensus, HeaderValidator};
     use reth_optimism_chainspec::{OP_MAINNET, OpChainSpec, OpChainSpecBuilder};
     use reth_optimism_primitives::{OpPrimitives, OpReceipt, OpTransactionSigned};
@@ -271,6 +293,105 @@ mod tests {
         let signature = Signature::new(U256::default(), U256::default(), true);
 
         OpTransactionSigned::new_unhashed(OpTypedTransaction::Eip7702(tx), signature)
+    }
+
+    fn test_chain_spec(builder: OpChainSpecBuilder, genesis_extra_data: Bytes) -> Arc<OpChainSpec> {
+        let mut genesis = OP_MAINNET.genesis.clone();
+        genesis.config.chain_id = 12_345;
+        genesis.extra_data = genesis_extra_data;
+        Arc::new(builder.genesis(genesis).chain(12_345u64.into()).build())
+    }
+
+    fn child_header_with_extra_data(
+        chain_spec: &OpChainSpec,
+        extra_data: Bytes,
+    ) -> SealedHeader<Header> {
+        let mut header = chain_spec.genesis_header().clone();
+        header.number += 1;
+        header.parent_hash = chain_spec.genesis_hash();
+        header.timestamp += 2;
+        header.extra_data = extra_data;
+        SealedHeader::seal_slow(header)
+    }
+
+    #[test]
+    fn header_extra_data_before_holocene() {
+        let genesis_extra_data = Bytes::from_static(b"custom genesis");
+        let chain_spec = test_chain_spec(
+            OpChainSpecBuilder::default().granite_activated(),
+            genesis_extra_data.clone(),
+        );
+        let consensus = OpBeaconConsensus::new(chain_spec.clone());
+        let genesis = SealedHeader::seal_slow(chain_spec.genesis_header().clone());
+
+        assert_eq!(genesis.extra_data, genesis_extra_data);
+        let genesis_result = consensus.validate_header(&genesis);
+        assert!(genesis_result.is_ok(), "{genesis_result:?}");
+        assert!(
+            consensus
+                .validate_header(&child_header_with_extra_data(&chain_spec, Bytes::new()))
+                .is_ok()
+        );
+        assert!(
+            consensus
+                .validate_header(&child_header_with_extra_data(
+                    &chain_spec,
+                    Bytes::from_static(b"not allowed"),
+                ))
+                .is_err()
+        );
+    }
+
+    #[test]
+    fn header_extra_data_at_holocene() {
+        let chain_spec =
+            test_chain_spec(OpChainSpecBuilder::default().holocene_activated(), Bytes::new());
+        let consensus = OpBeaconConsensus::new(chain_spec.clone());
+        let valid = encode_holocene_extra_data(B64::ZERO, BaseFeeParams::optimism()).unwrap();
+
+        assert!(
+            consensus.validate_header(&child_header_with_extra_data(&chain_spec, valid)).is_ok()
+        );
+
+        for invalid in [
+            Bytes::new(),
+            Bytes::from(vec![0; 8]),
+            Bytes::from(vec![1, 0, 0, 0, 1, 0, 0, 0, 1]),
+            Bytes::from(vec![0, 0, 0, 0, 0, 0, 0, 0, 1]),
+            Bytes::from(vec![0, 0, 0, 0, 1, 0, 0, 0, 0]),
+        ] {
+            assert!(
+                consensus
+                    .validate_header(&child_header_with_extra_data(&chain_spec, invalid))
+                    .is_err()
+            );
+        }
+    }
+
+    #[test]
+    fn header_extra_data_at_jovian() {
+        let chain_spec =
+            test_chain_spec(OpChainSpecBuilder::default().jovian_activated(), Bytes::new());
+        let consensus = OpBeaconConsensus::new(chain_spec.clone());
+        let valid =
+            encode_jovian_extra_data(B64::ZERO, BaseFeeParams::optimism(), 1_000_000_000).unwrap();
+
+        assert!(
+            consensus.validate_header(&child_header_with_extra_data(&chain_spec, valid)).is_ok()
+        );
+
+        for invalid in [
+            encode_holocene_extra_data(B64::ZERO, BaseFeeParams::optimism()).unwrap(),
+            Bytes::from(vec![0, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 1]),
+            Bytes::from(vec![1, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 1]),
+            Bytes::from(vec![1, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1]),
+        ] {
+            assert!(
+                consensus
+                    .validate_header(&child_header_with_extra_data(&chain_spec, invalid))
+                    .is_err()
+            );
+        }
     }
 
     #[test]
