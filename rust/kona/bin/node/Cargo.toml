@@ -22,7 +22,8 @@ kona-rpc.workspace = true
 kona-peers.workspace = true
 kona-genesis = { workspace = true, features = ["tabled"] }
 kona-interop = { workspace = true, features = ["serde"] }
-kona-protocol.workspace = true
+# SP1 Groth16 admission of `sp1-private-projection-v1` spans.
+kona-protocol = { workspace = true, features = ["sp1-projection-verifier"] }
 
 kona-cli = { workspace = true, features = ["secrets"] }
 kona-gossip = { workspace = true, features = ["metrics"] }
@@ -81,3 +82,6 @@ tempfile.workspace = true
 [features]
 default = [ "asm-keccak" ]
 asm-keccak = [ "alloy-primitives/asm-keccak" ]
+# Test binaries only: compile in the test-gated projection verifiers (stub, execution
+# mock, SP1 mock proofs). They still run only on the allowlisted chain IDs 901 and 902.
+private-projection-test-verifiers = [ "kona-protocol/private-projection-test-verifiers" ]

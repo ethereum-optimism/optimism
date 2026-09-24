@@ -986,7 +986,7 @@ mod tests {
                 cfg.private_projection = Some(kona_genesis::PrivateProjectionConfig {
                     genesis_output_root: B256::ZERO,
                     verifier: "insecure-stub-v1".into(),
-                    allow_events: false,
+                    ..Default::default()
                 });
             }
             let header = Header { timestamp: 100, ..Default::default() };

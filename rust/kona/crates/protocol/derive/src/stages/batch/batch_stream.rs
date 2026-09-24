@@ -347,23 +347,38 @@ mod test {
         ))
         .unwrap();
         let v = &vectors[0];
-        let mut root = B256::ZERO;
-        root[0] = 9;
+        let h = |x: &serde_json::Value| -> B256 {
+            if x.is_null() { B256::ZERO } else { serde_json::from_value(x.clone()).unwrap() }
+        };
+        let (c, x) = (&v["config"], &v["context"]);
+        let root = h(&x["continuation"]["output_root"]);
+        let l1_head = h(&x["l1_head"]);
         let cfg = Arc::new(RollupConfig {
-            l2_chain_id: 901.into(),
-            block_time: 2,
+            l2_chain_id: x["chain_id"].as_u64().unwrap().into(),
+            block_time: x["block_time"].as_u64().unwrap(),
             seq_window_size: 2,
             max_sequencer_drift: 600,
-            genesis: ChainGenesis { l2_time: 1000, ..Default::default() },
+            genesis: ChainGenesis {
+                l2_time: x["genesis_time"].as_u64().unwrap(),
+                l2: BlockNumHash {
+                    number: x["genesis_number"].as_u64().unwrap(),
+                    hash: h(&x["genesis_hash"]),
+                },
+                ..Default::default()
+            },
             hardforks: HardForkConfig {
                 delta_time: Some(0),
                 holocene_time: Some(0),
                 ..Default::default()
             },
             private_projection: Some(PrivateProjectionConfig {
-                verifier: "insecure-stub-v1".into(),
-                genesis_output_root: root,
-                allow_events: false,
+                verifier: c["verifier"].as_str().unwrap().into(),
+                allow_events: c["allow_events"].as_bool().unwrap_or(false),
+                genesis_output_root: h(&c["genesis_output_root"]),
+                program_vkey: h(&c["program_vkey"]),
+                private_config_hash: h(&c["private_config_hash"]),
+                dependency_set_hash: h(&c["dependency_set_hash"]),
+                mock_proofs: c["mock_proofs"].as_bool().unwrap_or(false),
             }),
             ..Default::default()
         });
@@ -393,12 +408,8 @@ mod test {
                 timestamp: 1000,
                 ..Default::default()
             },
-            BlockInfo {
-                number: 6,
-                hash: B256::with_last_byte(6),
-                timestamp: 1012,
-                ..Default::default()
-            },
+            // The span's last epoch: its hash is the claim's `l1Head`.
+            BlockInfo { number: 6, hash: l1_head, timestamp: 1012, ..Default::default() },
         ];
         let mut parent = L2BlockInfo {
             block_info: BlockInfo {
@@ -410,7 +421,7 @@ mod test {
             l1_origin: origins[0].id(),
             ..Default::default()
         };
-        let span = SpanBatch {
+        let mut span = SpanBatch {
             parent_check: parent.block_info.hash[..20].try_into().unwrap(),
             l1_origin_check: origins[1].hash[..20].try_into().unwrap(),
             batches: v["blocks"]
@@ -426,6 +437,31 @@ mod test {
                 .collect(),
             ..Default::default()
         };
+        // The vector's execution-mock proof binds its own parent; re-prove the span for
+        // this derivation context (parent and anchor = the checkpoint) and re-sign the
+        // claim with the vector key, as the batcher would.
+        {
+            use kona_protocol::projection;
+            let ctx = projection::ProjectionContext {
+                parent_hash: parent.block_info.hash,
+                l1_head,
+                continuation: projection::Continuation {
+                    anchor: parent.block_info.id(),
+                    output_root: root,
+                    recovery_hash: B256::ZERO,
+                },
+            };
+            let statement =
+                projection::validate_projection_range(&cfg, ctx, &span, &projection::StubVerifier)
+                    .unwrap();
+            let proof = projection::execution_mock_proof(&statement);
+            let raw = &mut span.batches[0].transactions[0];
+            *raw = kona_protocol::test_utils::resign_projection_claim(
+                raw,
+                kona_protocol::test_utils::PROJECTION_VECTOR_KEY,
+                |claim| claim.proof = proof.into(),
+            );
+        }
         let expected = span.batches.clone();
         let prev = TestBatchStreamProvider {
             origin: Some(origins[1]),

@@ -32,16 +32,37 @@ const fn default_fjord_max_sequencer_drift() -> u64 {
 }
 
 /// Consensus settings for the experimental public projection protocol.
-#[derive(Debug, Clone, Eq, PartialEq)]
+///
+/// Field names and order match Go `projection.Config`. Fields added by the sound
+/// profile default to zero/false, so older configs still parse (and then fail the
+/// admission config check).
+#[derive(Debug, Clone, Default, Eq, PartialEq)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct PrivateProjectionConfig {
-    /// Private genesis output-v0 commitment, fixed by the deployment.
-    pub genesis_output_root: B256,
-    /// `insecure-stub-v1` or `execution-mock-v1`; neither proves private execution.
+    /// `sp1-private-projection-v1`, or a test-gated `execution-mock-v1` / `insecure-stub-v1`.
     pub verifier: alloc::string::String,
     /// Permit the explicitly configured generic replay contract.
-    #[cfg_attr(feature = "serde", serde(default))]
+    #[cfg_attr(feature = "serde", serde(default, skip_serializing_if = "is_false"))]
     pub allow_events: bool,
+    /// Private genesis output-v0 commitment, fixed by the deployment.
+    pub genesis_output_root: B256,
+    /// SP1 program verification-key hash of the private-projection guest.
+    #[cfg_attr(feature = "serde", serde(default))]
+    pub program_vkey: B256,
+    /// Hash of the exact deployed private rollup config and L1 chain config bytes.
+    #[cfg_attr(feature = "serde", serde(default))]
+    pub private_config_hash: B256,
+    /// Canonical hash of the private chain's dependency-set chain IDs.
+    #[cfg_attr(feature = "serde", serde(default))]
+    pub dependency_set_hash: B256,
+    /// Accept SP1 mock envelopes. Test-gated.
+    #[cfg_attr(feature = "serde", serde(default, skip_serializing_if = "is_false"))]
+    pub mock_proofs: bool,
+}
+
+#[cfg(feature = "serde")]
+const fn is_false(b: &bool) -> bool {
+    !*b
 }
 
 /// The Rollup configuration.
@@ -504,6 +525,49 @@ mod tests {
     use alloy_primitives::address;
     #[cfg(feature = "serde")]
     use alloy_primitives::{U256, b256};
+
+    #[test]
+    #[cfg(feature = "serde")]
+    fn private_projection_config_go_json_round_trip() {
+        // Byte-exact Go `json.Marshal(projection.Config)`: Go field order, `omitempty`
+        // on the two booleans, lowercase 0x-hex hashes.
+        let go = concat!(
+            r#"{"verifier":"sp1-private-projection-v1","#,
+            r#""genesis_output_root":"0x0900000000000000000000000000000000000000000000000000000000000000","#,
+            r#""program_vkey":"0x00aa000000000000000000000000000000000000000000000000000000000001","#,
+            r#""private_config_hash":"0x0200000000000000000000000000000000000000000000000000000000000002","#,
+            r#""dependency_set_hash":"0x0300000000000000000000000000000000000000000000000000000000000003","#,
+            r#""mock_proofs":true}"#
+        );
+        let cfg: PrivateProjectionConfig = serde_json::from_str(go).unwrap();
+        assert_eq!(cfg.verifier, "sp1-private-projection-v1");
+        assert_eq!(
+            cfg.program_vkey,
+            b256!("0x00aa000000000000000000000000000000000000000000000000000000000001")
+        );
+        assert_eq!(cfg.dependency_set_hash[0], 3);
+        assert!(cfg.mock_proofs && !cfg.allow_events);
+        assert_eq!(serde_json::to_string(&cfg).unwrap(), go);
+
+        // A pre-sound-profile config still parses; the new fields default to zero.
+        let old = r#"{"genesis_output_root":"0x0900000000000000000000000000000000000000000000000000000000000000","verifier":"execution-mock-v1","allow_events":true}"#;
+        let cfg: PrivateProjectionConfig = serde_json::from_str(old).unwrap();
+        assert_eq!(
+            cfg,
+            PrivateProjectionConfig {
+                verifier: "execution-mock-v1".into(),
+                allow_events: true,
+                genesis_output_root: b256!(
+                    "0x0900000000000000000000000000000000000000000000000000000000000000"
+                ),
+                ..Default::default()
+            }
+        );
+        assert_eq!(
+            serde_json::to_string(&cfg).unwrap(),
+            r#"{"verifier":"execution-mock-v1","allow_events":true,"genesis_output_root":"0x0900000000000000000000000000000000000000000000000000000000000000","program_vkey":"0x0000000000000000000000000000000000000000000000000000000000000000","private_config_hash":"0x0000000000000000000000000000000000000000000000000000000000000000","dependency_set_hash":"0x0000000000000000000000000000000000000000000000000000000000000000"}"#
+        );
+    }
 
     #[test]
     #[cfg(feature = "arbitrary")]

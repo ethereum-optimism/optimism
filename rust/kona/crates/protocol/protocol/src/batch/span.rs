@@ -872,15 +872,25 @@ impl SpanBatch {
                     return BatchValidity::Drop(BatchDropReason::InvalidProjectionRange);
                 }
             };
-            if crate::projection::validate_projection_range(
-                cfg,
-                parent.block_info.hash,
+            // §C.5: the claim's `l1Head` is the node's own L1 block at the span's last
+            // epoch. The accepted prefix already found it in `l1_origins`.
+            // SAFETY: `range_bounds` above rejects an empty span.
+            let end_epoch = self.batches.last().unwrap().epoch_num;
+            let Some(l1_head) = l1_origins.iter().find(|b| b.number == end_epoch).map(|b| b.hash)
+            else {
+                return BatchValidity::Retry;
+            };
+            let ctx = crate::projection::ProjectionContext {
+                parent_hash: parent.block_info.hash,
+                l1_head,
                 continuation,
-                self,
-                &crate::projection::ConfiguredVerifier(&profile.verifier),
-            )
-            .is_err()
+            };
+            let verifier =
+                crate::projection::ConfiguredVerifier { profile, chain_id: cfg.l2_chain_id.id() };
+            if let Err(err) =
+                crate::projection::validate_projection_range(cfg, ctx, self, &verifier)
             {
+                warn!(target: "batch_span", %err, "dropping invalid projection range");
                 return BatchValidity::Drop(BatchDropReason::InvalidProjectionRange);
             }
             return self.check_projection_schedule(cfg, l1_origins, l2_safe_head, inclusion_block);

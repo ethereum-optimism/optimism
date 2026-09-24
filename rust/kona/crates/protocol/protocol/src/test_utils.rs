@@ -142,3 +142,31 @@ impl<S: Subscriber> Layer<S> for CollectingLayer {
         storage.push((level, message));
     }
 }
+
+/// Batcher key of every transaction in the shared private-projection vectors.
+pub const PROJECTION_VECTOR_KEY: B256 = B256::repeat_byte(0x11);
+
+/// Edit the range claim of a projection claim transaction and re-sign it with `key`,
+/// as the batcher does after proving. The sender must stay the same.
+pub fn resign_projection_claim(
+    raw: &alloy_primitives::Bytes,
+    key: B256,
+    f: impl FnOnce(&mut crate::projection::RangeClaim),
+) -> alloy_primitives::Bytes {
+    use alloy_consensus::{SignableTransaction, TxEnvelope};
+    use alloy_eips::{Decodable2718, Encodable2718};
+    use alloy_sol_types::SolCall;
+    let TxEnvelope::Eip1559(signed) = TxEnvelope::decode_2718_exact(raw).expect("claim tx") else {
+        panic!("projection claim transactions are EIP-1559")
+    };
+    let sender = signed.recover_signer().expect("signed claim");
+    let mut tx = signed.tx().clone();
+    let mut call = crate::projection::postClaimCall::abi_decode(&tx.input).expect("postClaim");
+    f(&mut call.claim);
+    tx.input = call.abi_encode().into();
+    let sig = alloy_consensus::crypto::secp256k1::sign_message(key, tx.signature_hash())
+        .expect("sign claim");
+    let signed = tx.into_signed(sig);
+    assert_eq!(signed.recover_signer().expect("re-signed claim"), sender, "claim key");
+    TxEnvelope::Eip1559(signed).encoded_2718().into()
+}

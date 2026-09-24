@@ -1,5 +1,10 @@
 //! Pure, whole-range admission for the experimental public projection protocol.
-//! No execution correctness is established by the explicitly insecure stub verifier.
+//!
+//! Admission computes the public statement of a span from its own derivation state
+//! and consensus config, binds the claim's `l1Head`, `rollupConfigHash` and
+//! `depSetHash` in every verifier mode, and checks the proof against the 672-byte
+//! `PublicValuesV1` under `sp1-private-projection-v1`. The two older verifier IDs are
+//! test-gated (§B.5 of the sound-profile spec) and prove nothing about execution.
 
 use crate::{BatchValidationProvider, SpanBatch};
 use alloc::{vec, vec::Vec};
@@ -7,8 +12,32 @@ use alloy_consensus::{TxEnvelope, transaction::SignerRecoverable};
 use alloy_eips::{BlockNumHash, Decodable2718, Encodable2718};
 use alloy_primitives::{Address, B256, Bytes, U256, address, keccak256};
 use alloy_sol_types::{SolCall, sol};
-use kona_genesis::RollupConfig;
+use kona_genesis::{PrivateProjectionConfig, RollupConfig};
 use op_alloy_consensus::OpBlock;
+
+mod commit;
+pub use commit::{
+    MESSAGES_DOMAIN, MessageKind, OUTPUTS_DOMAIN, commitment_proof, commitment_root,
+    export_message_hash, import_message_hash, message_leaf, output_leaf, verify_commitment_proof,
+};
+mod envelope;
+pub use envelope::{
+    ENVELOPE_VERSION, Envelope, EnvelopeKind, GROTH16_PROOF_LEN, MOCK_PROOF_LEN, check_mock_proof,
+    decode_envelope, encode_envelope, mock_proof,
+};
+mod render;
+pub use render::{
+    RenderedLog, message_leaves, rendered_logs, rendered_message, renders, replay_calldata,
+    sent_message_log,
+};
+mod statement;
+pub use statement::{
+    BN254_SCALAR_MODULUS, CONFIG_DOMAIN, DEP_SET_DOMAIN, DepSetChainId, PRIVATE_CONFIG_DOMAIN,
+    PUBLIC_VALUES_LEN, PUBLIC_VALUES_MAGIC, PUBLIC_VALUES_WORDS, config_hash, dependency_set_hash,
+    is_canonical_scalar, private_config_hash, public_values, public_values_digest,
+};
+#[cfg(feature = "sp1-projection-verifier")]
+pub mod sp1;
 
 const REGISTRY: Address = address!("420000000000000000000000000000000000002e");
 const MESSENGER: Address = address!("4200000000000000000000000000000000000023");
@@ -17,6 +46,19 @@ const REPLAYER: Address = address!("420000000000000000000000000000000000002f");
 const BRIDGE: Address = address!("4200000000000000000000000000000000000024");
 const MAX_MESSAGE: usize = 1024 * 1024;
 const MAX_PROOF: usize = 65536;
+
+/// Explicitly insecure verifier ID: accepts any proof bytes. Test-gated.
+pub const INSECURE_STUB: &str = "insecure-stub-v1";
+/// Forgeable execution-mock verifier ID (admission digest only). Test-gated.
+pub const EXECUTION_MOCK: &str = "execution-mock-v1";
+/// The production verifier ID: SP1 Groth16 over the SP1 v6.1.0 circuit.
+pub const SP1_PRIVATE_PROJECTION_V1: &str = "sp1-private-projection-v1";
+
+/// Whether this build compiles in the test verifiers (Cargo feature
+/// `private-projection-test-verifiers`).
+pub const TEST_VERIFIERS_COMPILED: bool = cfg!(feature = "private-projection-test-verifiers");
+/// Projection chain IDs on which test-gated verifier modes may run (devstack L2 A/B).
+pub const TEST_CHAIN_IDS: [u64; 2] = [901, 902];
 
 sol! {
     /// The existing range-claim wire tuple; proof policy is owned by admission.
@@ -50,6 +92,10 @@ sol! {
     function replaySentMessage(uint256 destination, uint256 nonce, address sender, address target, bytes message);
     function replayEvent(bytes32[] topics, bytes data);
     function validateMessage(Identifier identifier, bytes32 payloadHash);
+    /// `L2ToL2CrossDomainMessenger` export event.
+    event SentMessage(uint256 indexed destination, address indexed target, uint256 indexed messageNonce, address sender, bytes message);
+    /// `CrossL2Inbox` import event.
+    event ExecutingMessage(bytes32 indexed msgHash, Identifier id);
 }
 
 /// A public statement derived from the actual decoded span. Claim proof bytes are empty.
@@ -65,6 +111,28 @@ pub struct Statement {
     pub continuation: Continuation,
     /// Operator-supplied checkpoint fields, with proof removed.
     pub claim: RangeClaim,
+    /// [`config_hash`] of the node's own projection config (= `claim.rollupConfigHash`).
+    pub projection_config_hash: B256,
+    /// Consensus constant `private_projection.private_config_hash`.
+    pub private_config_hash: B256,
+    /// Commitment to the published per-block private output roots.
+    pub outputs_root: B256,
+    /// Commitment to the published replayed messages.
+    pub messages_root: B256,
+    /// Root of the last `recordOutput` of the span.
+    pub terminal_output: B256,
+}
+
+/// Derivation-side inputs of [`validate_projection_range`]. The chain ID and genesis
+/// come from the rollup config.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub struct ProjectionContext {
+    /// Canonical parent of the span.
+    pub parent_hash: B256,
+    /// Hash of the node's own L1 block at the span's last epoch number.
+    pub l1_head: B256,
+    /// Canonical continuation collected by [`ContextCollector`].
+    pub continuation: Continuation,
 }
 
 /// Deterministic proof checking with no I/O or mutable state.
@@ -82,17 +150,145 @@ impl ProofVerifier for StubVerifier {
     }
 }
 
-/// Consensus-selected verifier. No operator environment or proof-supplied mode switch.
-#[derive(Debug)]
-pub struct ConfiguredVerifier<'a>(pub &'a str);
-impl ProofVerifier for ConfiguredVerifier<'_> {
+/// `execution-mock-v1`: accepts exactly [`execution_mock_proof`] of the statement.
+#[derive(Debug, Default)]
+pub struct ExecutionMockVerifier;
+impl ProofVerifier for ExecutionMockVerifier {
     fn verify(&self, statement: &Statement, proof: &[u8]) -> Result<(), ProjectionError> {
-        match self.0 {
-            "insecure-stub-v1" => Ok(()),
-            "execution-mock-v1" if proof == execution_mock_proof(statement) => Ok(()),
-            _ => Err(ProjectionError("unsupported verifier or incorrect proof envelope")),
+        if proof == execution_mock_proof(statement).as_slice() {
+            Ok(())
+        } else {
+            Err(ProjectionError("incorrect execution-mock proof envelope"))
         }
     }
+}
+
+/// `sp1-private-projection-v1`: the envelope's public values must equal
+/// [`public_values`] of the statement, bytewise; Groth16 is checked against the pinned
+/// circuit and `program_vkey`; mock envelopes only when `allow_mock`. Fails closed
+/// without the `sp1-projection-verifier` feature.
+#[derive(Debug)]
+pub struct Sp1Verifier<'a> {
+    /// The consensus profile (program vkey).
+    pub profile: &'a PrivateProjectionConfig,
+    /// `mock_proofs` and the §B.5 gate both hold.
+    pub allow_mock: bool,
+}
+impl ProofVerifier for Sp1Verifier<'_> {
+    #[cfg(not(feature = "sp1-projection-verifier"))]
+    fn verify(&self, _: &Statement, _: &[u8]) -> Result<(), ProjectionError> {
+        Err(ProjectionError("sp1 projection verifier not compiled"))
+    }
+
+    #[cfg(feature = "sp1-projection-verifier")]
+    fn verify(&self, statement: &Statement, proof: &[u8]) -> Result<(), ProjectionError> {
+        let env = decode_envelope(proof)?;
+        if env.public_values != public_values(statement) {
+            return Err(ProjectionError("public values do not match the statement"));
+        }
+        match env.kind {
+            EnvelopeKind::Groth16 => sp1::verify_groth16(
+                &sp1::circuit_v6_1_0(),
+                &env.proof,
+                self.profile.program_vkey,
+                &env.public_values,
+            ),
+            EnvelopeKind::Mock if self.allow_mock => {
+                check_mock_proof(&env.proof, self.profile.program_vkey, &env.public_values)
+            }
+            EnvelopeKind::Mock => Err(ProjectionError("mock proofs disabled")),
+        }
+    }
+}
+
+/// Consensus-selected verifier. No operator environment or proof-supplied mode switch.
+/// Every call first applies [`check_config`] for the chain.
+#[derive(Debug, Clone, Copy)]
+pub struct ConfiguredVerifier<'a> {
+    /// The projection chain's consensus profile.
+    pub profile: &'a PrivateProjectionConfig,
+    /// The projection chain ID (`l2_chain_id`), for the §B.5 gate.
+    pub chain_id: u64,
+}
+impl<'a> ConfiguredVerifier<'a> {
+    /// The verifier of `cfg.private_projection`.
+    pub fn from_config(cfg: &'a RollupConfig) -> Result<Self, ProjectionError> {
+        let profile =
+            cfg.private_projection.as_ref().ok_or(ProjectionError("missing projection config"))?;
+        Ok(Self { profile, chain_id: cfg.l2_chain_id.id() })
+    }
+}
+impl ProofVerifier for ConfiguredVerifier<'_> {
+    fn verify(&self, statement: &Statement, proof: &[u8]) -> Result<(), ProjectionError> {
+        check_config(self.profile, self.chain_id)?;
+        match self.profile.verifier.as_str() {
+            INSECURE_STUB => StubVerifier.verify(statement, proof),
+            EXECUTION_MOCK => ExecutionMockVerifier.verify(statement, proof),
+            SP1_PRIVATE_PROJECTION_V1 => Sp1Verifier {
+                profile: self.profile,
+                allow_mock: self.profile.mock_proofs &&
+                    gate_allows(TEST_VERIFIERS_COMPILED, self.chain_id),
+            }
+            .verify(statement, proof),
+            _ => Err(ProjectionError("unsupported verifier")),
+        }
+    }
+}
+
+/// §B.5 gate: test-gated modes run only when compiled in and on an allowlisted chain.
+pub const fn gate_allows(compiled: bool, chain_id: u64) -> bool {
+    compiled && (chain_id == TEST_CHAIN_IDS[0] || chain_id == TEST_CHAIN_IDS[1])
+}
+
+/// `insecure-stub-v1`, `execution-mock-v1`, or `sp1-private-projection-v1` with mock proofs.
+pub fn is_test_gated(p: &PrivateProjectionConfig) -> bool {
+    matches!(p.verifier.as_str(), INSECURE_STUB | EXECUTION_MOCK) ||
+        (p.verifier == SP1_PRIVATE_PROJECTION_V1 && p.mock_proofs)
+}
+
+/// Chain-independent field rules of §B.1 (Go `Config.Check`).
+pub fn check_profile(p: &PrivateProjectionConfig) -> Result<(), ProjectionError> {
+    if p.genesis_output_root.is_zero() || p.dependency_set_hash.is_zero() {
+        return Err(ProjectionError("missing genesis output or dependency set hash"));
+    }
+    match p.verifier.as_str() {
+        SP1_PRIVATE_PROJECTION_V1 => {
+            if p.program_vkey.is_zero() || !is_canonical_scalar(&p.program_vkey.0) {
+                return Err(ProjectionError("invalid program vkey"));
+            }
+            if p.private_config_hash.is_zero() {
+                return Err(ProjectionError("missing private config hash"));
+            }
+            if p.allow_events {
+                return Err(ProjectionError("events are unsupported by the sp1 profile"));
+            }
+        }
+        INSECURE_STUB | EXECUTION_MOCK => {
+            if !p.program_vkey.is_zero() || !p.private_config_hash.is_zero() || p.mock_proofs {
+                return Err(ProjectionError("sp1 fields set on an insecure verifier"));
+            }
+        }
+        _ => return Err(ProjectionError("unsupported verifier")),
+    }
+    Ok(())
+}
+
+/// [`check_profile`] plus the §B.5 gate with an explicit compile-gate value.
+pub fn check_config_with_gate(
+    p: &PrivateProjectionConfig,
+    chain_id: u64,
+    compiled: bool,
+) -> Result<(), ProjectionError> {
+    check_profile(p)?;
+    if is_test_gated(p) && !gate_allows(compiled, chain_id) {
+        return Err(ProjectionError("test-gated verifier on an ungated build or chain"));
+    }
+    Ok(())
+}
+
+/// [`check_profile`] plus the §B.5 gate of this build (Go `Config.CheckChain`).
+pub fn check_config(p: &PrivateProjectionConfig, chain_id: u64) -> Result<(), ProjectionError> {
+    check_config_with_gate(p, chain_id, TEST_VERIFIERS_COMPILED)
 }
 
 /// Commitment independently reconstructed by Go and Kona admission. The records
@@ -174,20 +370,18 @@ pub fn import_keys(call: &validateMessageCall) -> Result<Vec<B256>, ProjectionEr
 /// Pure with respect to all inputs; no valid prefix is emitted on error.
 pub fn validate_projection_range(
     cfg: &RollupConfig,
-    parent_hash: B256,
-    continuation: Continuation,
+    ctx: ProjectionContext,
     span: &SpanBatch,
     verifier: &impl ProofVerifier,
 ) -> Result<Statement, ProjectionError> {
+    let ProjectionContext { parent_hash, l1_head, continuation } = ctx;
     let mode =
         cfg.private_projection.as_ref().ok_or(ProjectionError("missing projection config"))?;
-    if !matches!(mode.verifier.as_str(), "insecure-stub-v1" | "execution-mock-v1") ||
-        mode.genesis_output_root.is_zero() ||
-        cfg.block_time == 0 ||
-        cfg.l2_chain_id.id() == 0
-    {
-        return Err(ProjectionError("unsupported projection config"));
+    check_config(mode, cfg.l2_chain_id.id())?;
+    if cfg.block_time == 0 || cfg.l2_chain_id.id() == 0 || l1_head.is_zero() {
+        return Err(ProjectionError("unsupported projection config or context"));
     }
+    let projection_config_hash = config_hash(cfg)?;
     let (first, last) = range_bounds(cfg, span)?;
     let start = span.batches[0].timestamp;
     if continuation.anchor.number >= first ||
@@ -197,14 +391,18 @@ pub fn validate_projection_range(
         return Err(ProjectionError("invalid authenticated checkpoint"));
     }
     let mut leaves = Vec::new();
+    let mut output_leaves = Vec::with_capacity(span.batches.len());
+    let mut message_leaves = Vec::new();
+    let mut terminal_output = B256::ZERO;
     let mut claim = None;
     let mut transcript = Vec::new();
     for (i, block) in span.batches.iter().enumerate() {
         if block.timestamp != start + (i as u64) * cfg.block_time {
             return Err(ProjectionError("noncontiguous timestamps"));
         }
+        let number = first + i as u64;
         let block_start = transcript.len();
-        put(&mut transcript, first + i as u64);
+        put(&mut transcript, number);
         put(&mut transcript, block.timestamp);
         put(&mut transcript, block.epoch_num);
         if i == 0 && block.transactions.is_empty() {
@@ -213,6 +411,8 @@ pub fn validate_projection_range(
         put(&mut transcript, block.transactions.len() as u64);
         let mut output_seen = false;
         let output_position = usize::from(i == 0);
+        // Rendered index of the next replay: every replay emits exactly one log (§E).
+        let mut replay_ordinal: u32 = 0;
         for (j, raw) in block.transactions.iter().enumerate() {
             if raw.len() > MAX_MESSAGE + 4096 {
                 return Err(ProjectionError("transaction too large"));
@@ -242,13 +442,13 @@ pub fn validate_projection_range(
             let mut keys = None;
             match *to {
                 REGISTRY if data.starts_with(&recordOutputCall::SELECTOR) => {
-                    if output_seen ||
-                        j != output_position ||
-                        decode::<recordOutputCall>(&data)?.outputRoot.is_zero()
-                    {
+                    let root = decode::<recordOutputCall>(&data)?.outputRoot;
+                    if output_seen || j != output_position || root.is_zero() {
                         return Err(ProjectionError("duplicate, misplaced or empty output"));
                     }
                     output_seen = true;
+                    output_leaves.push(output_leaf(number, root));
+                    terminal_output = root;
                 }
                 REGISTRY => {
                     if i != 0 || j != 0 {
@@ -283,6 +483,16 @@ pub fn validate_projection_range(
                     } else if continuation.recovery_hash.is_zero() {
                         return Err(ProjectionError("missing recovery inputs"));
                     }
+                    // §C.5: bound in every verifier mode, against the node's own view.
+                    if c.l1Head != l1_head {
+                        return Err(ProjectionError("claim l1 head mismatch"));
+                    }
+                    if c.rollupConfigHash != projection_config_hash {
+                        return Err(ProjectionError("claim rollup config hash mismatch"));
+                    }
+                    if c.depSetHash != mode.dependency_set_hash {
+                        return Err(ProjectionError("claim dependency set hash mismatch"));
+                    }
                     claim = Some(decoded.claim.clone());
                     decoded.claim.proof = Bytes::new();
                     data = decoded.abi_encode();
@@ -295,12 +505,27 @@ pub fn validate_projection_range(
                     if c.message.len() > MAX_MESSAGE || c.sender == BRIDGE || c.target == BRIDGE {
                         return Err(ProjectionError("unsupported message"));
                     }
+                    message_leaves.push(message_leaf(
+                        number,
+                        replay_ordinal,
+                        MessageKind::Init,
+                        export_message_hash(&c),
+                    ));
+                    replay_ordinal += 1;
                 }
                 INBOX => {
                     if data.len() != 196 {
                         return Err(ProjectionError("import length"));
                     }
                     keys = Some(import_keys(&decode::<validateMessageCall>(&data)?)?);
+                    let args: &[u8; 192] = data[4..].try_into().expect("length checked above");
+                    message_leaves.push(message_leaf(
+                        number,
+                        replay_ordinal,
+                        MessageKind::Exec,
+                        import_message_hash(args),
+                    ));
+                    replay_ordinal += 1;
                 }
                 REPLAYER => {
                     if !mode.allow_events || data.len() > MAX_MESSAGE + 1024 {
@@ -310,6 +535,9 @@ pub fn validate_projection_range(
                     if c.topics.len() > 4 || c.data.len() > MAX_MESSAGE {
                         return Err(ProjectionError("event bounds"));
                     }
+                    // Kind 0x03 is undefined in v1 (`allow_events` is false under sp1):
+                    // an event replay takes a rendered index but has no message leaf.
+                    replay_ordinal += 1;
                 }
                 _ => return Err(ProjectionError("unexpected destination")),
             }
@@ -353,6 +581,11 @@ pub fn validate_projection_range(
         projection_hash: records_root(leaves),
         continuation,
         claim,
+        projection_config_hash,
+        private_config_hash: mode.private_config_hash,
+        outputs_root: commitment_root(OUTPUTS_DOMAIN, &output_leaves),
+        messages_root: commitment_root(MESSAGES_DOMAIN, &message_leaves),
+        terminal_output,
     };
     verifier.verify(&statement, &proof)?;
     Ok(statement)
@@ -509,7 +742,9 @@ pub fn canonical_output(txs: &[Bytes]) -> Result<B256, ProjectionError> {
                 if position != 0 {
                     return Err(ProjectionError("canonical claim placement"));
                 }
-                decode::<postClaimCall>(data)?;
+                if decode::<postClaimCall>(data)?.claim.version != 2 {
+                    return Err(ProjectionError("canonical claim version"));
+                }
                 output_position = 1;
             }
         }
@@ -613,424 +848,4 @@ pub fn range_bounds(cfg: &RollupConfig, span: &SpanBatch) -> Result<(u64, u64), 
 }
 
 #[cfg(test)]
-mod tests {
-    use super::*;
-    use crate::SpanBatchElement;
-    use kona_genesis::PrivateProjectionConfig;
-    use serde_json::Value;
-
-    #[test]
-    fn shared_recovery_transcript() {
-        use alloy_rlp::Decodable;
-        let v: Value = serde_json::from_str(include_str!(
-            "../../../../../../op-private-interop/projection/testdata/recovery.json"
-        ))
-        .unwrap();
-        let mut hash = B256::ZERO;
-        for b in v["blocks"].as_array().unwrap().iter().rev() {
-            let raw: Bytes = serde_json::from_value(b["header"].clone()).unwrap();
-            let header = alloy_consensus::Header::decode(&mut raw.as_ref()).unwrap();
-            let txs: Vec<Bytes> = serde_json::from_value(b["transactions"].clone()).unwrap();
-            assert!(canonical_output(&txs).unwrap().is_zero());
-            hash = recovery_step(hash, &OpBlock { header, body: Default::default() }, &txs);
-        }
-        assert_eq!(hash, serde_json::from_value::<B256>(v["recovery_hash"].clone()).unwrap());
-    }
-
-    #[tokio::test]
-    async fn continuation_retries_long_outage_and_reorgs() {
-        use crate::test_utils::TestBatchValidator;
-        let genesis = BlockNumHash { number: 0, hash: B256::repeat_byte(8) };
-        let output = B256::repeat_byte(9);
-        let mut blocks = Vec::new();
-        let mut hash = genesis.hash;
-        for n in 1..=400 {
-            let block = OpBlock {
-                header: alloy_consensus::Header {
-                    number: n,
-                    parent_hash: hash,
-                    timestamp: 1000 + 2 * n,
-                    ..Default::default()
-                },
-                body: Default::default(),
-            };
-            hash = block.header.hash_slow();
-            blocks.push(block);
-        }
-        let parent = BlockNumHash { number: 400, hash };
-        let mut fetcher = TestBatchValidator { op_blocks: blocks, ..Default::default() };
-        let mut collector = ContextCollector::new();
-        for _ in 0..3 {
-            assert_eq!(
-                collector.resolve(&mut fetcher, parent, genesis, output).await,
-                Err(ContextError::Unavailable)
-            );
-        }
-        let missing = fetcher.op_blocks.remove(4);
-        assert_eq!(
-            collector.resolve(&mut fetcher, parent, genesis, output).await,
-            Err(ContextError::Unavailable)
-        );
-        fetcher.op_blocks.insert(4, missing);
-        let got = collector.resolve(&mut fetcher, parent, genesis, output).await.unwrap();
-        assert_eq!(got.anchor, genesis);
-        assert_eq!(got.output_root, output);
-        let mut expected = B256::ZERO;
-        for block in fetcher.op_blocks.iter().rev() {
-            expected = recovery_step(expected, block, &[]);
-        }
-        assert_eq!(got.recovery_hash, expected);
-        collector.reset();
-        assert_eq!(
-            collector.resolve(&mut fetcher, parent, genesis, output).await,
-            Err(ContextError::Unavailable)
-        );
-        // A mid-scan reorg invalidates the cursor even if the caller is still
-        // supplying its old parent. Once updated it must start a fresh scan.
-        fetcher.op_blocks[399].header.timestamp += 1;
-        assert_eq!(
-            collector.resolve(&mut fetcher, parent, genesis, output).await,
-            Err(ContextError::Unavailable)
-        );
-        let new_parent =
-            BlockNumHash { number: 400, hash: fetcher.op_blocks[399].header.hash_slow() };
-        for _ in 0..3 {
-            assert_eq!(
-                collector.resolve(&mut fetcher, new_parent, genesis, output).await,
-                Err(ContextError::Unavailable)
-            );
-        }
-        assert!(collector.resolve(&mut fetcher, new_parent, genesis, output).await.is_ok());
-        // Completed results are also pinned to the caller's canonical parent.
-        assert_eq!(
-            collector.resolve(&mut fetcher, parent, genesis, output).await,
-            Err(ContextError::Unavailable)
-        );
-    }
-
-    #[test]
-    fn metadata_preserves_drift_scheduling() {
-        use crate::{BatchDropReason, BatchValidity, BlockInfo, L2BlockInfo, SingleBatch};
-        let (_, span, _) = inputs(&vectors()[0]);
-        let output = span.batches[0].transactions[1].clone();
-        assert!(metadata_only(core::slice::from_ref(&output)));
-        assert!(canonical_output(core::slice::from_ref(&output)).is_ok());
-        assert!(canonical_output(&[output.clone(), output.clone()]).is_err());
-        assert!(!metadata_only(&[Bytes::from_static(&[0x7e])]));
-        for scenario in [
-            "late L1",
-            "next origin available",
-            "missing origin",
-            "with replay",
-            "ordinary chain",
-            "activation",
-        ] {
-            let mut cfg = inputs(&vectors()[0]).0;
-            cfg.seq_window_size = 100;
-            cfg.max_sequencer_drift = 1;
-            cfg.hardforks.holocene_time = Some(0);
-            let mut origins = vec![
-                BlockInfo {
-                    hash: B256::with_last_byte(5),
-                    number: 5,
-                    timestamp: 1000,
-                    ..Default::default()
-                },
-                BlockInfo { number: 6, timestamp: 3006, ..Default::default() },
-            ];
-            let parent = L2BlockInfo {
-                block_info: BlockInfo {
-                    number: 1,
-                    hash: B256::with_last_byte(1),
-                    timestamp: 3002,
-                    ..Default::default()
-                },
-                l1_origin: origins[0].id(),
-                ..Default::default()
-            };
-            let mut batch = SingleBatch {
-                parent_hash: parent.block_info.hash,
-                timestamp: 3004,
-                epoch_num: 5,
-                epoch_hash: origins[0].hash,
-                transactions: vec![output.clone()],
-            };
-            let want = match scenario {
-                "next origin available" => {
-                    origins[1].timestamp = batch.timestamp;
-                    BatchValidity::Drop(BatchDropReason::SequencerDriftNotAdoptedNextOrigin)
-                }
-                "missing origin" => {
-                    origins.truncate(1);
-                    BatchValidity::Undecided
-                }
-                "with replay" => {
-                    batch.transactions.push(span.batches[2].transactions[1].clone());
-                    BatchValidity::Drop(BatchDropReason::SequencerDriftExceeded)
-                }
-                "ordinary chain" => {
-                    cfg.private_projection = None;
-                    BatchValidity::Drop(BatchDropReason::SequencerDriftExceeded)
-                }
-                "activation" => {
-                    cfg.hardforks.jovian_time = Some(3004);
-                    BatchValidity::Drop(BatchDropReason::NonEmptyTransitionBlock)
-                }
-                _ => BatchValidity::Accept,
-            };
-            assert_eq!(
-                batch.check_batch(
-                    &cfg,
-                    &origins,
-                    parent,
-                    &BlockInfo { number: 6, ..Default::default() }
-                ),
-                want,
-                "{scenario}"
-            );
-        }
-    }
-
-    fn test_continuation(parent: B256) -> Continuation {
-        let mut root = B256::ZERO;
-        root[0] = 9;
-        Continuation {
-            anchor: BlockNumHash { number: 9, hash: parent },
-            output_root: root,
-            recovery_hash: B256::ZERO,
-        }
-    }
-    fn vectors() -> Vec<Value> {
-        serde_json::from_str(include_str!(
-            "../../../../../../op-private-interop/projection/testdata/ranges.json"
-        ))
-        .unwrap()
-    }
-
-    fn inputs(v: &Value) -> (RollupConfig, SpanBatch, B256) {
-        let cfg = RollupConfig {
-            l2_chain_id: 901.into(),
-            block_time: 2,
-            genesis: kona_genesis::ChainGenesis { l2_time: 1000, ..Default::default() },
-            private_projection: Some(PrivateProjectionConfig {
-                verifier: v["config"]["verifier"].as_str().unwrap().into(),
-                genesis_output_root: serde_json::from_value(
-                    v["config"]["genesis_output_root"].clone(),
-                )
-                .unwrap(),
-                allow_events: v["config"]["allow_events"].as_bool().unwrap_or(false),
-            }),
-            ..Default::default()
-        };
-        let span = SpanBatch {
-            batches: v["blocks"]
-                .as_array()
-                .unwrap()
-                .iter()
-                .map(|b| SpanBatchElement {
-                    timestamp: b["timestamp"].as_u64().unwrap(),
-                    epoch_num: b["epoch"].as_u64().unwrap(),
-                    transactions: b["transactions"]
-                        .as_array()
-                        .map(|xs| {
-                            xs.iter()
-                                .map(|tx| serde_json::from_value(tx.clone()).unwrap())
-                                .collect()
-                        })
-                        .unwrap_or_default(),
-                })
-                .collect(),
-            ..Default::default()
-        };
-        let mut parent = B256::ZERO;
-        parent[0] = 1;
-        (cfg, span, parent)
-    }
-
-    #[test]
-    fn shared_projection_vectors_and_purity() {
-        for v in vectors() {
-            let (cfg, span, parent) = inputs(&v);
-            let before_cfg = cfg.clone();
-            let before_span = span.clone();
-            let first = validate_projection_range(
-                &cfg,
-                parent,
-                test_continuation(parent),
-                &span,
-                &StubVerifier,
-            );
-            assert_eq!(first.is_ok(), v["accept"].as_bool().unwrap(), "{}: {first:?}", v["name"]);
-            if let Ok(statement) = &first {
-                let expected: B256 = serde_json::from_value(v["digest"].clone()).unwrap();
-                assert_eq!(statement.projection_hash, expected, "{}", v["name"]);
-            }
-            assert_eq!(
-                first,
-                validate_projection_range(
-                    &cfg,
-                    parent,
-                    test_continuation(parent),
-                    &span,
-                    &StubVerifier
-                )
-            );
-            assert_eq!(cfg, before_cfg);
-            assert_eq!(span, before_span);
-        }
-    }
-
-    #[test]
-    fn shared_execution_mock_envelopes() {
-        let cases: Vec<Value> = serde_json::from_str(include_str!(
-            "../../../../../../op-private-interop/projection/testdata/proofs.json"
-        ))
-        .unwrap();
-        for v in cases {
-            let (cfg, span, parent) = inputs(&v);
-            let verifier = ConfiguredVerifier(&cfg.private_projection.as_ref().unwrap().verifier);
-            let result = validate_projection_range(
-                &cfg,
-                parent,
-                test_continuation(parent),
-                &span,
-                &verifier,
-            );
-            assert_eq!(result.is_ok(), v["accept"].as_bool().unwrap(), "{}: {result:?}", v["name"]);
-        }
-    }
-
-    struct Reject;
-    impl ProofVerifier for Reject {
-        fn verify(&self, _: &Statement, _: &[u8]) -> Result<(), ProjectionError> {
-            Err(ProjectionError("proof rejected"))
-        }
-    }
-    struct Binding(Statement);
-    impl ProofVerifier for Binding {
-        fn verify(&self, statement: &Statement, proof: &[u8]) -> Result<(), ProjectionError> {
-            if statement != &self.0 || proof != b"dummy" {
-                return Err(ProjectionError("wrong statement or proof"));
-            }
-            Ok(())
-        }
-    }
-    #[test]
-    fn proof_result_gates_admission() {
-        let (cfg, mut span, parent) = inputs(&vectors()[0]);
-        let statement = validate_projection_range(
-            &cfg,
-            parent,
-            test_continuation(parent),
-            &span,
-            &StubVerifier,
-        )
-        .unwrap();
-        assert!(statement.claim.proof.is_empty());
-        assert_eq!(
-            validate_projection_range(&cfg, parent, test_continuation(parent), &span, &Reject),
-            Err(ProjectionError("proof rejected"))
-        );
-        let verifier = Binding(statement);
-        assert!(
-            validate_projection_range(&cfg, parent, test_continuation(parent), &span, &verifier)
-                .is_ok()
-        );
-        span.batches[2].transactions.truncate(1);
-        assert_eq!(
-            validate_projection_range(&cfg, parent, test_continuation(parent), &span, &verifier),
-            Err(ProjectionError("wrong statement or proof"))
-        );
-    }
-    #[tokio::test]
-    async fn projection_admission_preflights_late_schedule_errors() {
-        use crate::{BlockInfo, L2BlockInfo, test_utils::TestBatchValidator};
-        use kona_genesis::HardForkConfig;
-        for scenario in ["valid", "late_origin", "late_fork", "late_drift"] {
-            let (mut cfg, mut span, _) = inputs(&vectors()[0]);
-            let mut root = B256::ZERO;
-            root[0] = 9;
-            let checkpoint = OpBlock {
-                header: alloy_consensus::Header { number: 9, ..Default::default() },
-                body: alloy_consensus::BlockBody {
-                    transactions: vec![op_alloy_consensus::OpTxEnvelope::Eip1559(
-                        alloy_consensus::Signed::new_unchecked(
-                            alloy_consensus::TxEip1559 {
-                                to: alloy_primitives::TxKind::Call(REGISTRY),
-                                input: recordOutputCall { outputRoot: root }.abi_encode().into(),
-                                ..Default::default()
-                            },
-                            alloy_primitives::Signature::test_signature(),
-                            B256::ZERO,
-                        ),
-                    )],
-                    ..Default::default()
-                },
-            };
-            let parent_hash = checkpoint.header.hash_slow();
-            let mut fetcher =
-                TestBatchValidator { op_blocks: vec![checkpoint], ..Default::default() };
-            cfg.seq_window_size = 100;
-            cfg.max_sequencer_drift = 600;
-            cfg.hardforks = HardForkConfig {
-                delta_time: Some(0),
-                holocene_time: Some(0),
-                ..Default::default()
-            };
-            let mut origins = [
-                BlockInfo {
-                    hash: B256::with_last_byte(5),
-                    number: 5,
-                    timestamp: 1000,
-                    ..Default::default()
-                },
-                BlockInfo {
-                    hash: B256::with_last_byte(6),
-                    number: 6,
-                    timestamp: 1012,
-                    ..Default::default()
-                },
-            ];
-            match scenario {
-                "late_origin" => origins[1].timestamp = 1025,
-                "late_fork" => cfg.hardforks.jovian_time = Some(1024),
-                "late_drift" => {
-                    cfg.genesis.l2_time += 800;
-                    for block in &mut span.batches {
-                        block.timestamp += 800;
-                    }
-                    origins[0].timestamp = 20;
-                    origins[1].timestamp = 21;
-                }
-                _ => {}
-            }
-            span.parent_check = parent_hash[..20].try_into().unwrap();
-            span.l1_origin_check = origins[1].hash[..20].try_into().unwrap();
-            let parent = L2BlockInfo {
-                block_info: BlockInfo {
-                    hash: parent_hash,
-                    number: 9,
-                    timestamp: cfg.genesis.l2_time + 18,
-                    ..Default::default()
-                },
-                l1_origin: origins[0].id(),
-                ..Default::default()
-            };
-            let result =
-                span.check_batch_holocene(&cfg, &origins, parent, &origins[1], &mut fetcher).await;
-            let expected = match scenario {
-                "late_origin" => {
-                    crate::BatchValidity::Drop(crate::BatchDropReason::TimestampBeforeL1Origin)
-                }
-                "late_fork" => {
-                    crate::BatchValidity::Drop(crate::BatchDropReason::NonEmptyTransitionBlock)
-                }
-                "late_drift" => crate::BatchValidity::Drop(
-                    crate::BatchDropReason::SequencerDriftNotAdoptedNextOrigin,
-                ),
-                _ => crate::BatchValidity::Accept,
-            };
-            assert_eq!(result, expected, "{scenario}");
-        }
-    }
-}
+mod tests;

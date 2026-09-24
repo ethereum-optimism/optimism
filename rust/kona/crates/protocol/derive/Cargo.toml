@@ -45,6 +45,11 @@ tracing-subscriber = { workspace = true, optional = true, features = ["fmt"] }
 metrics = { workspace = true, optional = true }
 
 [dev-dependencies]
+# The projection batch-stream test replays the shared (test-gated) admission vectors.
+kona-protocol = { workspace = true, features = [
+	"private-projection-test-verifiers",
+	"test-utils",
+] }
 spin.workspace = true
 proptest.workspace = true
 serde_json.workspace = true

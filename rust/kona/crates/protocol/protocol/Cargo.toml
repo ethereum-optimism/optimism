@@ -23,6 +23,11 @@ alloy-op-hardforks.workspace = true
 # ABI for canonical projection calls
 alloy-sol-types.workspace = true
 
+# Private-projection statement digest (sha256) and SP1 Groth16 verification.
+sha2.workspace = true
+# The workspace entry enables `full` (std, recursion); only the no_std Groth16 path is used here.
+sp1-verifier = { version = "6.8.0", default-features = false, optional = true }
+
 # OP Alloy
 op-alloy-consensus = { workspace = true, features = ["k256"] }
 op-alloy-rpc-types.workspace = true
@@ -63,7 +68,11 @@ tracing-subscriber = { workspace = true, features = ["fmt"], optional = true }
 ambassador.workspace = true
 
 [dev-dependencies]
-kona-protocol = { path = ".", features = ["std"] }
+kona-protocol = { path = ".", features = [
+	"std",
+	"private-projection-test-verifiers",
+	"sp1-projection-verifier",
+] }
 brotli = { workspace = true, features = ["std"] }
 spin.workspace = true
 rand = { workspace = true, features = ["std", "std_rng"] }
@@ -101,6 +110,8 @@ std = [
 	"op-alloy-rpc-types-engine/std",
 	"op-alloy-rpc-types/std",
 	"serde?/std",
+	"sha2/std",
+	"sp1-verifier?/std",
 	"spin?/std",
 	"thiserror/std",
 	"tracing/std",
@@ -108,6 +119,12 @@ std = [
 	"tracing-subscriber?/std"
 ]
 test-utils = [ "dep:spin", "dep:tracing-subscriber" ]
+# SP1 Groth16 verification of `sp1-private-projection-v1` envelopes. Without it,
+# every `sp1-*` proof is rejected (fail closed).
+sp1-projection-verifier = [ "dep:sp1-verifier" ]
+# Compile in the test-gated verifier modes (`insecure-stub-v1`, `execution-mock-v1`,
+# SP1 mock proofs). They still run only on the allowlisted chain IDs 901 and 902.
+private-projection-test-verifiers = []
 arbitrary = [
 	"alloy-consensus/arbitrary",
 	"alloy-eips/arbitrary",
