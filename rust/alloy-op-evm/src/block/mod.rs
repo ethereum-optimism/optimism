@@ -109,47 +109,46 @@ pub enum PostExecState {
     },
 }
 
+/// Checks the version-1 canonical form of a verifier payload's refund entries: non-empty, no zero
+/// refunds, and tx indices strictly increasing. Returns the first violation.
+fn validate_verifier_entries(entries: &[SDMGasEntry]) -> Result<(), String> {
+    if entries.is_empty() {
+        return Err(String::from("empty post-exec payload gas refund entries"));
+    }
+
+    let mut previous_index = None;
+    for entry in entries {
+        if entry.gas_refund == 0 {
+            return Err(format!("zero post-exec payload refund for tx index {}", entry.index));
+        }
+        match previous_index {
+            Some(previous) if entry.index == previous => {
+                return Err(format!(
+                    "duplicate post-exec payload entry for tx index {}",
+                    entry.index
+                ));
+            }
+            Some(previous) if entry.index < previous => {
+                return Err(format!(
+                    "post-exec payload entries not strictly increasing: tx index {} follows {}",
+                    entry.index, previous,
+                ));
+            }
+            _ => {}
+        }
+        previous_index = Some(entry.index);
+    }
+
+    Ok(())
+}
+
 impl PostExecState {
     fn new(mode: PostExecMode) -> Self {
         match mode {
             PostExecMode::Disabled => Self::Disabled,
             PostExecMode::Produce => Self::Producing { entries: Vec::new() },
             PostExecMode::Verify(payload) => {
-                let mut invalid_reason = payload
-                    .gas_refund_entries
-                    .is_empty()
-                    .then(|| String::from("empty post-exec payload gas refund entries"));
-                let mut previous_index = None;
-
-                if invalid_reason.is_none() {
-                    for entry in &payload.gas_refund_entries {
-                        if entry.gas_refund == 0 {
-                            invalid_reason = Some(format!(
-                                "zero post-exec payload refund for tx index {}",
-                                entry.index
-                            ));
-                            break;
-                        }
-                        if let Some(previous) = previous_index {
-                            if entry.index == previous {
-                                invalid_reason = Some(format!(
-                                    "duplicate post-exec payload entry for tx index {}",
-                                    entry.index
-                                ));
-                                break;
-                            }
-                            if entry.index < previous {
-                                invalid_reason = Some(format!(
-                                    "post-exec payload entries not strictly increasing: tx index {} follows {}",
-                                    entry.index, previous,
-                                ));
-                                break;
-                            }
-                        }
-                        previous_index = Some(entry.index);
-                    }
-                }
-
+                let invalid_reason = validate_verifier_entries(&payload.gas_refund_entries).err();
                 Self::Verifying { payload, next_entry: 0, invalid_reason, saw_post_exec_tx: false }
             }
         }
