@@ -5,9 +5,8 @@ use crate::{
     state::OpStateProviderFactory,
 };
 use alloy_consensus::BlockHeader;
-use alloy_eips::{BlockId, BlockNumberOrTag};
+use alloy_eips::BlockId;
 use alloy_primitives::{B256, Sealed};
-use alloy_rlp::Encodable;
 use alloy_rpc_types_debug::ExecutionWitness;
 use async_trait::async_trait;
 use jsonrpsee::proc_macros::rpc;
@@ -62,8 +61,11 @@ pub trait DebugApiOverride<Attributes> {
     ) -> RpcResult<ExecutionWitness>;
 
     /// Returns the execution witness for a given block.
+    ///
+    /// Takes the same [`BlockId`] as upstream's `debug_executionWitness`, so installing the
+    /// proofs ExEx does not narrow the accepted parameter to a number or tag.
     #[method(name = "executionWitness")]
-    async fn execution_witness(&self, block: BlockNumberOrTag) -> RpcResult<ExecutionWitness>;
+    async fn execution_witness(&self, block: BlockId) -> RpcResult<ExecutionWitness>;
 
     /// Returns the current proofs sync status.
     #[method(name = "proofsSyncStatus")]
@@ -242,7 +244,9 @@ where
                             >::default()
                         });
 
-                        builder.witness(state_provider, &ctx).map_err(PayloadBuilderError::other)
+                        builder
+                            .witness(state_provider, &this.provider, &ctx)
+                            .map_err(PayloadBuilderError::other)
                     };
 
                     let _ = tx.send(result.await);
@@ -255,7 +259,7 @@ where
             .await
     }
 
-    async fn execution_witness(&self, block_id: BlockNumberOrTag) -> RpcResult<ExecutionWitness> {
+    async fn execution_witness(&self, block_id: BlockId) -> RpcResult<ExecutionWitness> {
         self.inner
             .metrics
             .record_operation_async(DebugApis::DebugExecutionWitness, async {
@@ -264,56 +268,37 @@ where
                 let block = self
                     .inner
                     .eth_api
-                    .recovered_block(block_id.into())
+                    .recovered_block(block_id)
                     .await?
-                    .ok_or(EthApiError::HeaderNotFound(block_id.into()))?;
+                    .ok_or(EthApiError::HeaderNotFound(block_id))?;
 
                 let this = self.inner.clone();
                 let block_number = block.header().number();
 
                 let state_provider = this
                     .state_provider_factory
-                    .state_provider(Some(BlockId::Number(block.parent_num_hash().number.into())))
+                    .state_provider(Some(BlockId::Hash(block.parent_hash().into())))
                     .await
                     .map_err(EthApiError::from)?;
                 let db = StateProviderDatabase::new(&state_provider);
                 let block_executor = this.eth_api.evm_config().executor(db);
 
-                let mut witness_record = ExecutionWitnessRecord::default();
-
+                let mut witness = None;
                 let _ = block_executor
                     .execute_with_state_closure(&block, |statedb: &State<_>| {
-                        witness_record.record_executed_state(statedb, Default::default());
+                        witness =
+                            Some(ExecutionWitnessRecord::new(statedb).into_execution_witness(
+                                &state_provider,
+                                &this.provider,
+                                block_number,
+                                Default::default(),
+                            ));
                     })
                     .map_err(EthApiError::from)?;
 
-                let ExecutionWitnessRecord { hashed_state, codes, keys, lowest_block_number } =
-                    witness_record;
-
-                let state = state_provider
-                    .witness(Default::default(), hashed_state, Default::default())
+                let exec_witness = witness
+                    .expect("state closure is called after successful execution")
                     .map_err(EthApiError::from)?;
-                let mut exec_witness =
-                    ExecutionWitness { state, codes, keys, ..Default::default() };
-
-                // If there were no calls to the BLOCKHASH opcode, return only the
-                // parent header.
-                let smallest =
-                    lowest_block_number.unwrap_or_else(|| block_number.saturating_sub(1));
-
-                let range = smallest..block_number;
-                exec_witness.headers = self
-                    .inner
-                    .provider
-                    .headers_range(range)
-                    .map_err(EthApiError::from)?
-                    .into_iter()
-                    .map(|header| {
-                        let mut serialized_header = Vec::new();
-                        header.encode(&mut serialized_header);
-                        serialized_header.into()
-                    })
-                    .collect();
 
                 Ok(exec_witness)
             })
@@ -334,5 +319,66 @@ where
             }
             Err(err) => Err(internal_rpc_err(err.to_string())),
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use alloy_primitives::b256;
+    use serde_json::json;
+    use std::sync::Mutex;
+
+    const BLOCK_HASH: B256 =
+        b256!("0x1111111111111111111111111111111111111111111111111111111111111111");
+
+    /// Stand-in for [`DebugApiExt`] that records the decoded argument instead of re-executing a
+    /// block, so these tests pin the RPC parameter shape rather than the witness contents.
+    #[derive(Debug, Default)]
+    struct RecordingDebugApi {
+        seen: Arc<Mutex<Option<BlockId>>>,
+    }
+
+    #[async_trait]
+    impl DebugApiOverrideServer<serde_json::Value> for RecordingDebugApi {
+        async fn execute_payload(
+            &self,
+            _parent_block_hash: B256,
+            _attributes: serde_json::Value,
+        ) -> RpcResult<ExecutionWitness> {
+            unimplemented!("not exercised by these tests")
+        }
+
+        async fn execution_witness(&self, block: BlockId) -> RpcResult<ExecutionWitness> {
+            *self.seen.lock().unwrap() = Some(block);
+            Ok(ExecutionWitness::default())
+        }
+
+        async fn proofs_sync_status(&self) -> RpcResult<ProofsSyncStatus> {
+            unimplemented!("not exercised by these tests")
+        }
+    }
+
+    async fn decoded_block(param: serde_json::Value) -> BlockId {
+        let seen = Arc::<Mutex<Option<BlockId>>>::default();
+        let module = RecordingDebugApi { seen: seen.clone() }.into_rpc();
+        let _: ExecutionWitness = module
+            .call("debug_executionWitness", [param])
+            .await
+            .expect("debug_executionWitness should accept the parameter");
+        seen.lock().unwrap().expect("handler should have run")
+    }
+
+    /// The override must accept every `debug_executionWitness` parameter the stock handler
+    /// does, so a caller sees one method shape whether or not the proofs ExEx is installed.
+    #[tokio::test]
+    async fn execution_witness_accepts_every_block_id_form() {
+        assert_eq!(decoded_block(json!(BLOCK_HASH)).await, BlockId::from(BLOCK_HASH));
+        assert_eq!(
+            decoded_block(json!({ "blockHash": BLOCK_HASH })).await,
+            BlockId::from(BLOCK_HASH)
+        );
+        assert_eq!(decoded_block(json!("0x2a")).await, BlockId::from(42));
+        assert_eq!(decoded_block(json!("latest")).await, BlockId::latest());
     }
 }

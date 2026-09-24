@@ -96,7 +96,7 @@ where
         true
     }
 
-    /// UPSTREAM-MIRROR(copy): revm-handler@41.0.0 `revm_handler::EthPrecompiles::run`
+    /// UPSTREAM-MIRROR(copy): revm-handler@42.0.1 `revm_handler::EthPrecompiles::run`
     ///
     /// FPVM acceleration replaces dispatch, while output conversion delegates to revm. Re-check
     /// input materialization, execution errors, and gas/reservoir propagation across both paths.

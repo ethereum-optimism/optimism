@@ -1,7 +1,7 @@
 //! Provider for external proofs storage
 
 use crate::{
-    OpProofsProviderRO, OpProofsStorageError,
+    OpProofsHashedAccountCursorFactory, OpProofsProviderRO, OpProofsStorageError,
     proof::{
         DatabaseProof, DatabaseStateRoot, DatabaseStorageProof, DatabaseStorageRoot,
         DatabaseTrieWitness,
@@ -20,7 +20,7 @@ use reth_revm::{
 };
 use reth_trie::{
     ExecutionWitnessMode, StateRoot, StorageRoot,
-    hashed_cursor::HashedCursor,
+    hashed_cursor::{HashedCursor, zero_destroyed_account_storage},
     proof::{self, Proof},
     witness::TrieWitness,
 };
@@ -189,9 +189,27 @@ where
     }
 }
 
-impl<'a, P> HashedPostStateProvider for OpProofsStateProviderRef<'a, P> {
-    fn hashed_post_state(&self, bundle_state: &BundleState) -> HashedPostState {
-        HashedPostState::from_bundle_state::<KeccakKeyHasher>(bundle_state.state())
+impl<'a, P> HashedPostStateProvider for OpProofsStateProviderRef<'a, P>
+where
+    P: OpProofsProviderRO + Clone,
+{
+    /// UPSTREAM-MIRROR(copy): reth@rev:0fbe428
+    /// `reth_provider::LatestStateProviderRef::hashed_post_state`
+    ///
+    /// Mirrors the hashing/zeroing sequence, using historical OP proofs cursors instead of
+    /// upstream's database cursors. The deletion algorithm itself is delegated upstream.
+    fn hashed_post_state(&self, bundle_state: &BundleState) -> ProviderResult<HashedPostState> {
+        let mut hashed_state =
+            HashedPostState::from_bundle_state::<KeccakKeyHasher>(bundle_state.state());
+        // `from_bundle_state` no longer marks destroyed accounts' storage as wiped, so the
+        // deletions have to be materialized as explicit zero-valued slots against the parent
+        // state — here the proofs storage at `block_number`.
+        zero_destroyed_account_storage(
+            &OpProofsHashedAccountCursorFactory::new(self.provider.clone(), self.block_number),
+            bundle_state.state(),
+            &mut hashed_state,
+        )?;
+        Ok(hashed_state)
     }
 }
 
@@ -233,12 +251,112 @@ impl<'a, P> BytecodeReader for OpProofsStateProviderRef<'a, P> {
     }
 }
 
-#[cfg(all(test, not(feature = "metrics")))]
+#[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{InMemoryProofsStorage, api::OpProofsStore};
+    use crate::{
+        InMemoryProofsStorage,
+        api::OpProofsStore,
+        test_utils::{
+            create_storage,
+            destroyed_accounts::{
+                FailingStorageProvider, StorageFailure, assert_injected_error, bundle,
+                created_and_destroyed, destroyed, destroyed_and_recreated, hashed_storage,
+                seed_initial_storage,
+            },
+        },
+    };
     use reth_provider::noop::NoopProvider;
 
+    const DESTROYED: Address = Address::repeat_byte(0x01);
+    const DESTROYED_TOO: Address = Address::repeat_byte(0x02);
+    const UNTOUCHED: Address = Address::repeat_byte(0x03);
+
+    fn hashed_post_state<P: OpProofsProviderRO + Clone>(
+        provider: P,
+        bundle: &BundleState,
+    ) -> ProviderResult<HashedPostState> {
+        OpProofsStateProviderRef::new(Box::new(NoopProvider::default()), provider, 0)
+            .hashed_post_state(bundle)
+    }
+
+    /// Persisted slots of pre-existing destroyed accounts come back as explicit zeros, for every
+    /// destroyed account sharing the storage cursor; untouched accounts get no storage entry.
+    #[test]
+    fn destroyed_account_zeroes_persisted_slots() {
+        fn check<S: OpProofsStore>(store: &S) {
+            seed_initial_storage(
+                store,
+                &[
+                    (DESTROYED, &[(1, 11), (2, 22)]),
+                    (DESTROYED_TOO, &[(3, 33)]),
+                    (UNTOUCHED, &[(1, 44)]),
+                ],
+            );
+            let bundle = bundle([(DESTROYED, destroyed()), (DESTROYED_TOO, destroyed())]);
+
+            let state = hashed_post_state(store.provider_ro().unwrap(), &bundle).unwrap();
+
+            assert_eq!(
+                state.storages.get(&keccak256(DESTROYED)),
+                Some(&hashed_storage(&[(1, 0), (2, 0)]))
+            );
+            assert_eq!(
+                state.storages.get(&keccak256(DESTROYED_TOO)),
+                Some(&hashed_storage(&[(3, 0)]))
+            );
+            assert!(!state.storages.contains_key(&keccak256(UNTOUCHED)));
+        }
+        check(&InMemoryProofsStorage::new());
+        check(&*create_storage());
+    }
+
+    /// A slot written by the recreated account keeps the bundle's value; other persisted slots
+    /// are zeroed.
+    #[test]
+    fn recreated_account_keeps_bundle_values() {
+        fn check<S: OpProofsStore>(store: &S) {
+            seed_initial_storage(store, &[(DESTROYED, &[(1, 11), (2, 22)])]);
+            let bundle = bundle([(DESTROYED, destroyed_and_recreated(&[(1, 99)]))]);
+
+            let state = hashed_post_state(store.provider_ro().unwrap(), &bundle).unwrap();
+
+            assert_eq!(
+                state.storages.get(&keccak256(DESTROYED)),
+                Some(&hashed_storage(&[(1, 99), (2, 0)]))
+            );
+        }
+        check(&InMemoryProofsStorage::new());
+        check(&*create_storage());
+    }
+
+    /// An account created and destroyed within the bundle has no parent storage: its persisted
+    /// storage is neither read nor zeroed.
+    #[test]
+    fn created_and_destroyed_account_skips_parent_scan() {
+        let bundle = bundle([(DESTROYED, created_and_destroyed())]);
+
+        let store = InMemoryProofsStorage::new();
+        seed_initial_storage(&store, &[(DESTROYED, &[(1, 11)])]);
+        let state = hashed_post_state(store.provider_ro().unwrap(), &bundle).unwrap();
+        assert!(!state.storages.contains_key(&keccak256(DESTROYED)));
+
+        for failure in [StorageFailure::Open, StorageFailure::Seek] {
+            let state = hashed_post_state(FailingStorageProvider::new(failure), &bundle).unwrap();
+            assert!(state.storages.is_empty());
+        }
+    }
+
+    /// A storage cursor that fails to open or to seek fails the whole call.
+    #[test]
+    fn storage_cursor_error_propagates() {
+        let bundle = bundle([(DESTROYED, destroyed())]);
+        for failure in [StorageFailure::Open, StorageFailure::Seek] {
+            assert_injected_error(hashed_post_state(FailingStorageProvider::new(failure), &bundle));
+        }
+    }
+
+    #[cfg(not(feature = "metrics"))]
     #[test]
     fn test_op_proofs_state_provider_ref_debug() {
         let latest: Box<dyn StateProvider + Send> = Box::new(NoopProvider::default());

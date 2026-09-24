@@ -95,7 +95,7 @@ impl<TX: Transaction + SystemCallTx> SystemCallTx for OpTransaction<TX> {
     }
 }
 
-/// UPSTREAM-MIRROR(delegate): revm-context-interface@41.0.0 `revm_context_interface::Transaction`
+/// UPSTREAM-MIRROR(delegate): revm-context-interface@42.0.0 `revm_context_interface::Transaction`
 ///
 /// Forwards the primitive getters to `self.base` and overrides `tx_type` and
 /// `effective_gas_price` for deposits. Everything not listed here inherits the upstream
