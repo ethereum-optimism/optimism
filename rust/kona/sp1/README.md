@@ -778,9 +778,11 @@ parent block hash, and rejects (and re-fetches) a `debug_executionWitness` that 
 parent state: op-reth can briefly serve a witness of the abandoned branch right after a private
 reorg (a known op-reth issue, see
 [RECOVERY.md](../../../op-private-interop/docs/RECOVERY.md#proven-recovery)). On a relation
-failure it prints recovery diagnostics to stderr and, if `KONA_SP1_PRIVATE_PROJECTION_DUMP_DIR`
-is set, writes the relation input to `failed-<anchor>.json` there (debugging only; the file
-contains private witness data). The devstack acceptance tests
+failure it prints recovery diagnostics to stderr. Only when the executor is also started with
+`--allow-witness-dump` and `KONA_SP1_PRIVATE_PROJECTION_DUMP_DIR` is set does it write the
+relation input to `failed-<anchor>.json` there. That file is the **full private witness**
+(private transactions, state and private data) in plaintext, so the flag is for debugging only
+and must never be set on a production batcher; without it the variable is ignored with a warning. The devstack acceptance tests
 `TestPrivateSoundProfile*` exercise this mode through the actual batcher with mock envelopes;
 `TestPrivatePublicationExecutesWitnessBeforeAdmission` and `TestPrivateExecutionProof*` exercise
 it under the legacy `execution-mock-v1` verifier.

@@ -50,6 +50,13 @@ func TestFixtureVerifies(t *testing.T) {
 	require.ErrorIs(t, Verify(CircuitV6_1_0, f.Proof, f.VKey, f.PublicValues), ErrCircuitPrefix)
 }
 
+// zeroed returns a copy of b with [from, to) zeroed.
+func zeroed(b []byte, from, to int) []byte {
+	out := append([]byte(nil), b...)
+	clear(out[from:to])
+	return out
+}
+
 func TestFixtureNegatives(t *testing.T) {
 	c, f := loadFixture(t)
 	clone := func(b []byte) []byte { return append([]byte(nil), b...) }
@@ -76,6 +83,11 @@ func TestFixtureNegatives(t *testing.T) {
 		{name: "length_355", proof: clone(f.Proof[:ProofLength-1]), target: ErrProofLength},
 		{name: "length_357", proof: append(clone(f.Proof), 0), target: ErrProofLength},
 		{name: "empty", proof: []byte{}, target: ErrProofLength},
+		// Points at infinity (all-zero uncompressed encodings) are rejected before the pairing,
+		// as sp1-verifier does (Kona parity: projection/tests.rs groth16::upstream_v6_0_0_fixture).
+		{name: "a_at_infinity", proof: zeroed(f.Proof, gnarkProofOffset, gnarkProofOffset+64), target: ErrProofPoint},
+		{name: "b_at_infinity", proof: zeroed(f.Proof, gnarkProofOffset+64, gnarkProofOffset+192), target: ErrProofPoint},
+		{name: "c_at_infinity", proof: zeroed(f.Proof, gnarkProofOffset+192, gnarkProofOffset+256), target: ErrProofPoint},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {

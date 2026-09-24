@@ -161,8 +161,10 @@ type Range struct {
 	// Prove runs after structural preflight and before admission/compression. The
 	// returned bytes are installed by rebuilding the same range from StartNonce.
 	Prove func(*BuiltRange) ([]byte, error)
-	// TestSkipAdmission skips only the post-proof admission preflight, so tests can publish a
-	// span that derivation must reject. It is never set by production code or a CLI flag.
+	// TestSkipAdmission skips the builder's admission preflights, the structural one before
+	// proving and the full one after, so tests can publish a span that derivation must reject
+	// (a forged proof, or a structurally inadmissible span such as an under-gassed carrier). It
+	// is never set by production code or a CLI flag.
 	TestSkipAdmission bool
 }
 
@@ -329,8 +331,10 @@ func (b *Builder) Build(r *Range) (*BuiltRange, error) {
 	if r.Prove != nil {
 		// The candidate has no frames/blobs and cannot be published. Only this
 		// producer preflight uses the structural-only verifier.
-		if _, err := projection.ValidateProjectionRange(b.cfg.Rollup.PrivateProjection, b.admissionContext(r, out), span, projection.StubVerifier{}); err != nil {
-			return nil, err
+		if !r.TestSkipAdmission {
+			if _, err := projection.ValidateProjectionRange(b.cfg.Rollup.PrivateProjection, b.admissionContext(r, out), span, projection.StubVerifier{}); err != nil {
+				return nil, err
+			}
 		}
 		proof, err := r.Prove(out)
 		if err != nil {

@@ -742,4 +742,14 @@ func TestPreflightsPassDerivationContext(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, []byte("forged"), built.Claim.Proof)
 	require.NotEmpty(t, built.Blobs)
+
+	// With the skip, a structurally inadmissible span (a claim the structural preflight rejects)
+	// is published too, for derivation to drop.
+	r = newRange()
+	r.Claim.RollupConfigHash[0] ^= 1
+	r.Prove = func(*BuiltRange) ([]byte, error) { return []byte("forged"), nil }
+	r.TestSkipAdmission = true
+	built, err = b.Build(r)
+	require.NoError(t, err)
+	require.NotEmpty(t, built.Blobs)
 }

@@ -51,6 +51,11 @@ struct Args {
     /// Also run corrupted inputs (execute: inside the guest) and require rejection.
     #[arg(long)]
     check_rejection: bool,
+    /// Debugging only: on a relation failure, write the FULL PRIVATE WITNESS (private
+    /// transactions, state and private data) in plaintext to
+    /// `$KONA_SP1_PRIVATE_PROJECTION_DUMP_DIR`. Without this flag the variable is ignored.
+    #[arg(long, requires = "publication_request")]
+    allow_witness_dump: bool,
 }
 
 /// Admission's statement over a fixture's public data, independent of `execute`.
@@ -125,7 +130,8 @@ async fn main() -> Result<()> {
         "crypto backend already initialized"
     );
     if args.publication_request {
-        return private_projection_host::publish(args.elf.as_deref()).await;
+        return private_projection_host::publish(args.elf.as_deref(), args.allow_witness_dump)
+            .await;
     }
     let path = args
         .fixture

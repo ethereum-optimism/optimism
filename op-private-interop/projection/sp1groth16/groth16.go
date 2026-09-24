@@ -179,6 +179,16 @@ func Verify(c Circuit, proof356 []byte, programVKey [32]byte, publicValues []byt
 	if err := setG1(&cc, raw[192:256]); err != nil {
 		return fmt.Errorf("%w: C: %w", ErrProofPoint, err)
 	}
+	// gnark decodes an uncompressed all-zero point as the point at infinity. sp1-verifier (Kona)
+	// rejects it, so reject it here too, for byte-identical verdicts on malformed proofs.
+	switch {
+	case a.IsInfinity():
+		return fmt.Errorf("%w: A is the point at infinity", ErrProofPoint)
+	case b.IsInfinity():
+		return fmt.Errorf("%w: B is the point at infinity", ErrProofPoint)
+	case cc.IsInfinity():
+		return fmt.Errorf("%w: C is the point at infinity", ErrProofPoint)
+	}
 
 	digest := PublicValuesDigest(publicValues)
 	inputs := [PublicInputCount][32]byte{programVKey, digest, exit, vkRoot, nonce}

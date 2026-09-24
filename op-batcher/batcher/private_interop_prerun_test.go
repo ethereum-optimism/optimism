@@ -282,6 +282,29 @@ func TestPrivateInteropTestHooks(t *testing.T) {
 	require.NoError(t, err)
 	require.Error(t, projection.ExecutionMockVerifier{}.Verify(*statement, co.BuiltRange().Claim.Proof),
 		"the published proof is the mutated one")
+
+	// ReplaceProof publishes an under-gassed import, which both the static pre-run and the
+	// producer's admission preflight would refuse, without running the producer.
+	under := render.DefaultGasPolicy()
+	under.GasLimitImport = 21_000
+	var replaced []*builder.BuiltRange
+	enc = newSeam(&PrivateInteropTestHooks{
+		GasPolicyOverride: &under, SkipCarrierPreRun: true, SkipAdmissionPreflight: true,
+		ReplaceProof: func(b *builder.BuiltRange) ([]byte, bool) {
+			replaced = append(replaced, b)
+			return []byte("replaced"), true
+		},
+	})
+	enc.cfg.Prove = func(context.Context, *builder.BuiltRange, []byte, RangeStart) ([]byte, error) {
+		return nil, errors.New("the producer must not run")
+	}
+	co = piFill(t, enc, 901, piCadence)
+	require.NoError(t, closeOK(co))
+	require.Len(t, replaced, 1)
+	require.Equal(t, []byte("replaced"), co.BuiltRange().Claim.Proof)
+	_, err = projectionPreflight(enc.cfg.Rollup, co.BuiltRange(), enc.cfg.Ranges.(*staticRanges).start)
+	require.ErrorContains(t, err, "transaction gas below intrinsic or calldata floor",
+		"admission rejects the published span")
 }
 
 // piProjectionTxs is a transaction builder against the real predeploy addresses.

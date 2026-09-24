@@ -1273,8 +1273,15 @@ mod groth16 {
         p.push(0);
         reject(&p, vkey, &pv);
         // A noncanonical nonce (>= r) is rejected rather than reduced.
-        let mut p = proof;
+        let mut p = proof.clone();
         p[68..100].copy_from_slice(&[0xff; 32]);
         reject(&p, vkey, &pv);
+        // A, B or C at infinity (all-zero uncompressed encodings) is rejected. Go parity:
+        // `sp1groth16` `TestFixtureNegatives/{a,b,c}_at_infinity`.
+        for (point, range) in [("A", 100..164), ("B", 164..292), ("C", 292..356)] {
+            let mut p = proof.clone();
+            p[range].fill(0);
+            assert!(verify_groth16(&circuit, &p, vkey, &pv).is_err(), "{point} at infinity");
+        }
     }
 }

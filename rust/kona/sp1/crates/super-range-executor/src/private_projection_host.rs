@@ -587,10 +587,41 @@ pub(crate) async fn collect(r: &Request) -> Result<(RelationInput, Witness, Vec<
     ))
 }
 
+/// The environment variable naming the directory a failed relation's full input is written to.
+pub(super) const WITNESS_DUMP_DIR_ENV: &str = "KONA_SP1_PRIVATE_PROJECTION_DUMP_DIR";
+
+/// Where to write a failed relation's input, if anywhere. The dump holds the full private witness
+/// (private transactions, state and the private data), so it needs both the environment variable
+/// and the explicit `--allow-witness-dump` flag; the variable alone is ignored with a warning.
+pub(super) fn witness_dump_dir(
+    allow: bool,
+    dir: Option<std::ffi::OsString>,
+) -> Option<std::path::PathBuf> {
+    let dir = dir?;
+    if !allow {
+        eprintln!(
+            "warning: ignoring {WITNESS_DUMP_DIR_ENV}: writing the private witness to disk needs \
+             --allow-witness-dump"
+        );
+        return None;
+    }
+    eprintln!(
+        "WARNING: --allow-witness-dump: a relation failure writes the FULL PRIVATE WITNESS \
+         (private transactions and state) in plaintext to {}",
+        Path::new(&dir).display()
+    );
+    Some(dir.into())
+}
+
 /// On a relation failure, print how the private recovery blocks relate to the canonical ones, and
-/// write the relation's input to `$KONA_SP1_PRIVATE_PROJECTION_DUMP_DIR` if set. Stderr only;
-/// never on stdout, which carries the envelope.
-fn diagnose(input: &RelationInput, witness: &Witness, private_recovery: &[OpBlock]) {
+/// write the relation's input to `dump_dir` (see [`witness_dump_dir`]). Stderr only; never on
+/// stdout, which carries the envelope.
+fn diagnose(
+    input: &RelationInput,
+    witness: &Witness,
+    private_recovery: &[OpBlock],
+    dump_dir: Option<&Path>,
+) {
     for (public, private) in input.recovery.iter().zip(private_recovery) {
         let (p, q) = (&private.header, &public.header);
         eprintln!(
@@ -609,8 +640,8 @@ fn diagnose(input: &RelationInput, witness: &Witness, private_recovery: &[OpBloc
             },
         );
     }
-    if let Some(dir) = std::env::var_os("KONA_SP1_PRIVATE_PROJECTION_DUMP_DIR") {
-        let path = Path::new(&dir).join(format!("failed-{}.json", input.anchor.number));
+    if let Some(dir) = dump_dir {
+        let path = dir.join(format!("failed-{}.json", input.anchor.number));
         let dump = serde_json::json!({
             "input": input, "witness": witness, "private_recovery": private_recovery,
         });
@@ -751,7 +782,8 @@ pub(crate) async fn envelope(
 
 /// Serve one v2 request: collect, run native `execute`, check the preflight statement, prove.
 /// Private bytes stay in memory/stdin; stdout carries only the public envelope.
-pub(super) async fn publish(elf: Option<&Path>) -> Result<()> {
+pub(super) async fn publish(elf: Option<&Path>, allow_witness_dump: bool) -> Result<()> {
+    let dump_dir = witness_dump_dir(allow_witness_dump, std::env::var_os(WITNESS_DUMP_DIR_ENV));
     let mut encoded = Vec::new();
     std::io::stdin().take(MAX_REQUEST as u64 + 1).read_to_end(&mut encoded)?;
     ensure!(encoded.len() <= MAX_REQUEST, "publication request too large");
@@ -779,8 +811,8 @@ pub(super) async fn publish(elf: Option<&Path>) -> Result<()> {
     }
     let (input, witness, private_recovery) = collect(&r).await?;
     let started = Instant::now();
-    let pv =
-        execute(&input, &witness).inspect_err(|_| diagnose(&input, &witness, &private_recovery))?;
+    let pv = execute(&input, &witness)
+        .inspect_err(|_| diagnose(&input, &witness, &private_recovery, dump_dir.as_deref()))?;
     let blocks = input.recovery.len() + input.blocks.len();
     let elapsed = started.elapsed();
     eprintln!(
@@ -814,6 +846,15 @@ pub(super) async fn publish(elf: Option<&Path>) -> Result<()> {
 mod tests {
     use super::*;
     use op_alloy_consensus::{OpTxEnvelope, TxDeposit};
+
+    /// The private witness is written to disk only with both the variable and the flag.
+    #[test]
+    fn witness_dump_needs_the_explicit_flag() {
+        let dir = || Some(std::ffi::OsString::from("/tmp/dump"));
+        assert_eq!(witness_dump_dir(false, dir()), None, "the variable alone is ignored");
+        assert_eq!(witness_dump_dir(true, None), None, "the flag alone dumps nothing");
+        assert_eq!(witness_dump_dir(true, dir()), Some("/tmp/dump".into()));
+    }
 
     const SAMPLE: &str = r#"{ "version": 2, "prover": "native-mock",
       "private_rpc": "http://a", "projection_rpc": "http://b", "l1_rpc": "http://c",

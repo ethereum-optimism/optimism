@@ -90,6 +90,12 @@ type PrivateInteropTestHooks struct {
 	// SkipAdmissionPreflight skips the post-proof admission preflight
 	// (builder.Range.TestSkipAdmission).
 	SkipAdmissionPreflight bool
+	// ReplaceProof, when set and returning ok, replaces the producer for that range: the range is
+	// published with the returned bytes as its proof, without running the proof command. Together
+	// with SkipCarrierPreRun and SkipAdmissionPreflight it publishes a span the batcher itself
+	// would refuse (for example an under-gassed carrier, which the producer's own admission
+	// preflight rejects), so a test can check that derivation's admission drops it.
+	ReplaceProof func(*builder.BuiltRange) (proof []byte, ok bool)
 }
 
 // PrivateInteropConfig configures the terminal seam.
@@ -602,13 +608,20 @@ func (c *renderChannelOut) Close() error {
 				caller, batcher := c.enc.cfg.Caller, c.enc.cfg.Batcher
 				skipPreRun := hooks != nil && hooks.SkipCarrierPreRun
 				var mutate func([]byte) []byte
+				var replace func(*builder.BuiltRange) ([]byte, bool)
 				if hooks != nil {
-					mutate = hooks.MutateProof
+					mutate, replace = hooks.MutateProof, hooks.ReplaceProof
 				}
 				go func() {
 					if !skipPreRun {
 						if err := preRunCarriers(jobCtx, caller, batcher, start.PrevTerminalRenderingHash, candidate); err != nil {
 							result <- projectionProofResult{err: err}
+							return
+						}
+					}
+					if replace != nil {
+						if proof, ok := replace(candidate); ok {
+							result <- projectionProofResult{proof: proof}
 							return
 						}
 					}
