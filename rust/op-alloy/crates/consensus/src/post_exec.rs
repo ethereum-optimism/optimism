@@ -189,10 +189,20 @@ where
     Ok(parsed)
 }
 
+/// Total SDM gas refunded by `entries`, saturating on overflow.
+pub fn total_gas_refund(entries: &[SDMGasEntry]) -> u64 {
+    entries.iter().map(|entry| entry.gas_refund).fold(0, u64::saturating_add)
+}
+
 impl PostExecPayload {
     /// Look up refund for a given tx index.
     pub fn gas_refund_for_idx(&self, index: u64) -> Option<u64> {
         self.gas_refund_entries.iter().find(|e| e.index == index).map(|e| e.gas_refund)
+    }
+
+    /// Total SDM gas refunded by this payload, saturating on overflow.
+    pub fn total_gas_refund(&self) -> u64 {
+        total_gas_refund(&self.gas_refund_entries)
     }
 
     /// RLP-encode the payload into bytes.

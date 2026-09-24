@@ -7,7 +7,7 @@ use crate::{
     txpool::{OpCustomTransactionPool, OpTransactionValidator},
 };
 use alloy_primitives::Sealed;
-use op_alloy_consensus::{OpPooledTransaction, TxPostExec, interop::SafetyLevel};
+use op_alloy_consensus::{OpPooledTransaction, OpTransaction, TxPostExec, interop::SafetyLevel};
 use reth_chainspec::{
     BaseFeeParams, ChainSpecProvider, EthChainSpec, EthereumHardforks, ForkCondition, Hardforks,
 };
@@ -1725,7 +1725,7 @@ where
     Node: FullNodeTypes<
         Types: NodeTypes<
             ChainSpec: OpHardforks,
-            Primitives: NodePrimitives<Receipt: DepositReceipt>,
+            Primitives: NodePrimitives<Receipt: DepositReceipt, SignedTx: OpTransaction>,
         >,
     >,
 {
