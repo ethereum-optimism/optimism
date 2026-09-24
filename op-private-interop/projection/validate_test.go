@@ -21,6 +21,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/txintent"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
+	"github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/stretchr/testify/require"
@@ -163,8 +164,12 @@ type spanBuilder struct {
 	ctx projection.Context
 }
 
+// tx signs a carrier with 500k gas, raised to the admission minimum (MinTxGas) for calldata-heavy
+// carriers such as a maximal claim.
 func (b spanBuilder) tx(to common.Address, data []byte, al types.AccessList) hexutil.Bytes {
-	return signed(b.t, &types.DynamicFeeTx{ChainID: b.ctx.ChainID, Gas: 500000, GasFeeCap: new(big.Int), GasTipCap: new(big.Int), Value: new(big.Int), To: &to, Data: data, AccessList: al})
+	need, err := projection.MinTxGas(data, al)
+	require.NoError(b.t, err)
+	return signed(b.t, &types.DynamicFeeTx{ChainID: b.ctx.ChainID, Gas: max(500000, need), GasFeeCap: new(big.Int), GasTipCap: new(big.Int), Value: new(big.Int), To: &to, Data: data, AccessList: al})
 }
 
 // claimFields is the claim admission accepts for (cfg, ctx) over [first, last].
@@ -332,6 +337,36 @@ func vectors(t *testing.T) []vector {
 	for _, change := range changes {
 		add("late_"+change.name, false, func(v *vector) { v.Blocks[2].Transactions[0] = mutate(t, v.Blocks[2].Transactions[0], change.f) })
 	}
+	// §E.1 gas rule: a carrier below max(intrinsic, EIP-7623 floor) is an invalid transaction the
+	// EVM would not execute. The import (access list) is bound by its intrinsic gas, the export
+	// (calldata only) by the floor; at exactly the minimum both are admitted.
+	minGas := func(raw hexutil.Bytes) (need, intrinsic, floor uint64) {
+		var tx types.Transaction
+		require.NoError(t, tx.UnmarshalBinary(raw))
+		need, err := projection.MinTxGas(tx.Data(), tx.AccessList())
+		require.NoError(t, err)
+		intrinsic, err = core.IntrinsicGas(tx.Data(), tx.AccessList(), nil, false, true, true, true)
+		require.NoError(t, err)
+		floor, err = core.FloorDataGas(tx.Data())
+		require.NoError(t, err)
+		return need, intrinsic, floor
+	}
+	add("late_gas_below_intrinsic", false, func(v *vector) {
+		need, intrinsic, floor := minGas(v.Blocks[2].Transactions[1])
+		require.Greater(t, intrinsic, floor, "the import is bound by its intrinsic gas")
+		v.Blocks[2].Transactions[1] = mutate(t, v.Blocks[2].Transactions[1], func(tx *types.DynamicFeeTx) { tx.Gas = need - 1 })
+	})
+	add("late_gas_below_floor", false, func(v *vector) {
+		need, intrinsic, floor := minGas(v.Blocks[2].Transactions[0])
+		require.Greater(t, floor, intrinsic, "the export is bound by the calldata floor")
+		v.Blocks[2].Transactions[0] = mutate(t, v.Blocks[2].Transactions[0], func(tx *types.DynamicFeeTx) { tx.Gas = need - 1 })
+	})
+	add("gas_at_minimum", true, func(v *vector) {
+		for k := range v.Blocks[2].Transactions {
+			need, _, _ := minGas(v.Blocks[2].Transactions[k])
+			v.Blocks[2].Transactions[k] = mutate(t, v.Blocks[2].Transactions[k], func(tx *types.DynamicFeeTx) { tx.Gas = need })
+		}
+	})
 	add("bad_import_checksum", false, func(v *vector) {
 		v.Blocks[2].Transactions[1] = mutate(t, v.Blocks[2].Transactions[1], func(tx *types.DynamicFeeTx) { tx.AccessList[0].StorageKeys[1][5] ^= 1 })
 	})
@@ -815,6 +850,8 @@ var rejectReason = map[string]string{
 	"sp1_truncated":              "sp1 envelope length 835",
 	"sp1_groth16_len_355":        "proof length 355",
 	"sp1_groth16_invalid":        "invalid sp1 groth16 proof point",
+	"late_gas_below_intrinsic":   "transaction gas below intrinsic or calldata floor",
+	"late_gas_below_floor":       "transaction gas below intrinsic or calldata floor",
 }
 
 func requireRejectReason(t *testing.T, v vector, verifier func(*vector) (projection.ProofVerifier, error)) {

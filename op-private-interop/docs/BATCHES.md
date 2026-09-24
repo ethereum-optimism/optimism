@@ -315,6 +315,19 @@ closed". It is implemented once in `alloy-op-evm` (`require_sequencer_tx_success
 error `ProjectionSequencerTxFailed`) and switched on by both op-reth and the Kona
 executor for projection chains.
 
+A carrier the EVM rejects as an *invalid transaction* rather than executing it (a nonce gap
+or reuse, a gas limit below its intrinsic gas or the EIP-7623 calldata floor) is covered too:
+on projection chains the executor reports it as `ProjectionSequencerTxInvalid` instead of the
+generic `InvalidTx`. That matters because payload builders skip `InvalidTx` transactions of
+derived attributes: before, op-reth's payload job and its FCU pre-check dropped such a carrier
+and built the block without it (a hidden executing message, and a split from Kona, which fails
+the block), while now the job fails and the FCU pre-check answers `INVALID_PAYLOAD_ATTRIBUTES`,
+as op-geth and Kona do. Admission additionally rejects any span transaction whose gas is below
+`max(intrinsic, floor)` (`projection.MinTxGas` in Go, `projection::min_tx_gas` in Kona). It
+cannot check nonces, because it is pure and has no state; a nonce fault is caught by the
+execution rule, and the batcher's pre-run checks that its carriers' nonces are contiguous
+from its nonce at the span parent.
+
 This closes the replay-revert hole: previously gas was only range-checked, so an
 under-gassed replay could revert, drop its log and renumber every later message in the
 block while the span was still admitted. Now each admitted replay emits its log, and
@@ -412,8 +425,10 @@ canonical replacement interval, and resumes sequencing after the reserved range.
 The batcher builds the candidate span, runs the structural preflight, then:
 
 1. **Carrier pre-run.** A static check that each carrier's gas covers the intrinsic and
-   EIP-7623 floor cost, then an `eth_call` of each carrier, in order, on the projection at
-   the span parent. Any revert or out-of-gas is a fatal error naming the block, index and
+   EIP-7623 floor cost (the admission bound), a check that the carriers' nonces are
+   contiguous from the batcher's nonce at the span parent (`eth_getTransactionCount` by
+   block hash; `eth_call` ignores nonces), then an `eth_call` of each carrier, in order, on
+   the projection at the span parent. Any revert or out-of-gas is a fatal error naming the block, index and
    revert data. The span is not published and not silently retried. The carriers are
    stateless or read only parent state, so the simulation is exact, except for a batcher
    rotation in the first block's epoch. Export and claim gas limits now also cover the

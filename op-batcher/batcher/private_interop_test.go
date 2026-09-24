@@ -704,7 +704,8 @@ func piExecutionMock(enc *PrivateInteropEncoder, ranges *staticRanges) *fakeCall
 	})
 	enc.cfg.DepSetHash = cfg.PrivateProjection.DependencySetHash
 	ranges.start.Continuation = projection.Continuation{Anchor: eth.BlockID{Number: 900, Hash: piTerminal}, OutputRoot: parentOutput}
-	caller := &fakeCaller{}
+	// The batcher's nonce at the span parent is the range's start nonce.
+	caller := &fakeCaller{nonce: ranges.start.StartNonce}
 	enc.cfg.Caller = caller
 	return caller
 }

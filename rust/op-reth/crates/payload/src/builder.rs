@@ -1009,6 +1009,9 @@ where
 
             let gas_used = match builder.execute_transaction(sequencer_tx.clone()) {
                 Ok(gas_used) => gas_used,
+                // On a public projection the executor never returns `InvalidTx` for a
+                // non-deposit transaction: it reports `ProjectionSequencerTxInvalid`, which
+                // falls through to the fatal arm below, so a required carrier cannot be skipped.
                 Err(BlockExecutionError::Validation(BlockValidationError::InvalidTx {
                     error,
                     ..

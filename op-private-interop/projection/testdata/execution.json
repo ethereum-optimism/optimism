@@ -126,6 +126,75 @@
         "gas_used": 0,
         "state_root": "0x91304abea2e54a61e0a12035b660faf208646ad9eb73bf330edb7504ac25fe3d"
       }
+    },
+    {
+      "name": "below_intrinsic",
+      "description": "call whose gas is one below its intrinsic gas (21000 + one access-list address), above the calldata floor",
+      "transactions": [
+        "0x02f87b820385808080825b679400000000000000000000000000000000000000bb8080d7d69400000000000000000000000000000000000000bbc001a02ff55b9c56c9d1368f599e6cd42d797a4d24298c02dbdd54942f221a2e9109d4a03df1075705dfe8b2a1f16bdcdea6ff58105cf1da2bcc8a6a1191ab583a4bd7dc"
+      ],
+      "execution": {
+        "valid": false,
+        "error": "InvalidTx",
+        "tx_index": 0
+      },
+      "projection": {
+        "valid": false,
+        "error": "ProjectionSequencerTxInvalid",
+        "tx_index": 0
+      }
+    },
+    {
+      "name": "below_floor",
+      "description": "call whose gas covers its intrinsic gas but is one below the EIP-7623 calldata floor",
+      "transactions": [
+        "0x02f8a5820385808080825c079400000000000000000000000000000000000000bb80b840ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffc080a0a214c555b350542b5ac211aca9dbe9dc06e8e771439d46ffe9d6a60b19b052e1a0441b77d2f80d7f77871c98fb15b4f5264693c4cfabd5a2ce39c76b6cf7988f13"
+      ],
+      "execution": {
+        "valid": false,
+        "error": "InvalidTx",
+        "tx_index": 0
+      },
+      "projection": {
+        "valid": false,
+        "error": "ProjectionSequencerTxInvalid",
+        "tx_index": 0
+      }
+    },
+    {
+      "name": "nonce_gap",
+      "description": "call with nonce 1 from an account with nonce 0",
+      "transactions": [
+        "0x02f8648203850180808252089400000000000000000000000000000000000000bb8080c001a078ea84c8c69616a914213806e0e3cb4fef485571ec2176323b2e1650bf0ceb26a0645608484f5ff58d2cc69d278ea119f5e2fa1ee2884bc9031ee8203f27f410ce"
+      ],
+      "execution": {
+        "valid": false,
+        "error": "InvalidTx",
+        "tx_index": 0
+      },
+      "projection": {
+        "valid": false,
+        "error": "ProjectionSequencerTxInvalid",
+        "tx_index": 0
+      }
+    },
+    {
+      "name": "nonce_reuse",
+      "description": "two calls with nonce 0: the second is invalid",
+      "transactions": [
+        "0x02f8648203858080808252089400000000000000000000000000000000000000bb8080c080a0d96c7b98bd4018da2253a084a860e54d2224a4a5a9a26c61af103b76436123afa0259a13b2ea06a2a1f89e635ab0cce8fad52cb1de56ec79e81dfb604db5cae2f9",
+        "0x02f8648203858080808252089400000000000000000000000000000000000000cc8080c001a0afa1db641d944237f779250ccee3279c0106e7db8dadf34c314528f0626cd391a003d35dd23b93a46b437dc71482dea2564c12ea46b2c9a6cb05e20c509278eb4a"
+      ],
+      "execution": {
+        "valid": false,
+        "error": "InvalidTx",
+        "tx_index": 1
+      },
+      "projection": {
+        "valid": false,
+        "error": "ProjectionSequencerTxInvalid",
+        "tx_index": 1
+      }
     }
   ]
 }

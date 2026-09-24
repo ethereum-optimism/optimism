@@ -5,6 +5,7 @@ package projection
 import (
 	"bytes"
 	"encoding/binary"
+	"errors"
 	"fmt"
 	"math"
 	"math/big"
@@ -16,6 +17,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-private-interop/wire"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
+	"github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto"
 )
@@ -160,6 +162,27 @@ func verifierFor(c *Config, chainID *big.Int, compiledOrTesting bool) (ProofVeri
 	return nil, fmt.Errorf("unsupported projection verifier")
 }
 
+// errTxGasBelowMinimum is shared, word for word, with Kona's admission.
+var errTxGasBelowMinimum = errors.New("projection transaction gas below intrinsic or calldata floor")
+
+// MinTxGas is the least gas limit a projection transaction (a call, never a creation) with this
+// calldata and access list can declare and still be valid to include: max(intrinsic gas, EIP-7623
+// calldata floor) under the Prague rules the projection runs under. The EVM rejects a transaction
+// below it as invalid rather than executing it, and a payload builder skips invalid transactions,
+// so admission rejects the span instead (spec-sound-profile §E.1). Kona's admission computes the
+// same value.
+func MinTxGas(data []byte, accessList types.AccessList) (uint64, error) {
+	intrinsic, err := core.IntrinsicGas(data, accessList, nil, false, true, true, true)
+	if err != nil {
+		return 0, err
+	}
+	floor, err := core.FloorDataGas(data)
+	if err != nil {
+		return 0, err
+	}
+	return max(intrinsic, floor), nil
+}
+
 // ValidateProjectionRange checks every block before invoking the proof verifier.
 // It never releases a valid prefix of a structurally invalid range.
 func ValidateProjectionRange(c *Config, ctx Context, span Range, verifier ProofVerifier) (*Statement, error) {
@@ -225,6 +248,11 @@ func ValidateProjectionRange(c *Config, ctx Context, span Range, verifier ProofV
 				return nil, fmt.Errorf("invalid projection signature: %w", err)
 			}
 			data := tx.Data()
+			// Nonces cannot be checked here: admission is pure and has no state. A nonce gap or
+			// reuse is instead fatal to the block at execution (§E.1, ProjectionSequencerTxInvalid).
+			if need, err := MinTxGas(data, tx.AccessList()); err != nil || tx.Gas() < need {
+				return nil, errTxGasBelowMinimum
+			}
 			var expected types.AccessList
 			switch *tx.To() {
 			case predeploys.ClaimRegistryAddr:

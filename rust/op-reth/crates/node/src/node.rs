@@ -1823,7 +1823,7 @@ mod tests {
         ))
         .unwrap();
         let cases = vectors["cases"].as_array().unwrap();
-        assert!(cases.len() >= 5);
+        assert!(cases.len() >= 9);
 
         let mut rejected = 0;
         for (genesis, projection) in [(private, false), (projected, true)] {
@@ -1865,7 +1865,11 @@ mod tests {
                 }
             }
         }
-        assert_eq!(rejected, 3, "create_reverts, create_oog and deposit_then_revert");
+        assert_eq!(
+            rejected, 7,
+            "create_reverts, create_oog, deposit_then_revert, below_intrinsic, below_floor, \
+             nonce_gap and nonce_reuse"
+        );
     }
 
     #[test]

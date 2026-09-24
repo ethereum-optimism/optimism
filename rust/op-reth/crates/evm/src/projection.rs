@@ -6,16 +6,51 @@ use alloy_evm::block::{BlockExecutionError, BlockValidationError};
 use alloy_op_evm::block::OpBlockExecutionError;
 
 /// Returns whether `err` is the projection execution rule rejecting a block: a sequencer
-/// transaction that did not execute successfully (`ProjectionSequencerTxFailed`).
+/// transaction that did not execute successfully (`ProjectionSequencerTxFailed`) or that the EVM
+/// rejected as invalid (`ProjectionSequencerTxInvalid`: nonce, intrinsic gas, calldata floor, ...).
 pub fn is_projection_sequencer_tx_failure(err: &BlockExecutionError) -> bool {
     matches!(
         err,
         BlockExecutionError::Validation(BlockValidationError::Other(inner))
             if matches!(
                 inner.downcast_ref::<OpBlockExecutionError>(),
-                Some(OpBlockExecutionError::ProjectionSequencerTxFailed { .. })
+                Some(
+                    OpBlockExecutionError::ProjectionSequencerTxFailed { .. } |
+                        OpBlockExecutionError::ProjectionSequencerTxInvalid { .. }
+                )
             )
     )
+}
+
+/// Checks `err` against an invalid outcome of the shared executor vectors
+/// (`op-private-interop/projection/testdata/execution.json`): the expected error variant and,
+/// for the projection rule, the failing transaction's index.
+#[cfg(test)]
+pub(crate) fn assert_vector_error(
+    err: &BlockExecutionError,
+    expected: &serde_json::Value,
+    what: &str,
+) {
+    let want = expected["error"].as_str().unwrap();
+    let index = expected["tx_index"].as_u64().unwrap();
+    match (want, err) {
+        ("InvalidTx", BlockExecutionError::Validation(BlockValidationError::InvalidTx { .. })) => {}
+        (_, BlockExecutionError::Validation(BlockValidationError::Other(inner))) => {
+            match (want, inner.downcast_ref::<OpBlockExecutionError>()) {
+                (
+                    "ProjectionSequencerTxFailed",
+                    Some(OpBlockExecutionError::ProjectionSequencerTxFailed { tx_index }),
+                ) |
+                (
+                    "ProjectionSequencerTxInvalid",
+                    Some(OpBlockExecutionError::ProjectionSequencerTxInvalid { tx_index, .. }),
+                ) => assert_eq!(*tx_index, index, "{what}: tx index"),
+                _ => panic!("{what}: expected {want}, got {inner}"),
+            }
+            assert!(is_projection_sequencer_tx_failure(err), "{what}");
+        }
+        _ => panic!("{what}: expected {want}, got {err}"),
+    }
 }
 
 #[cfg(test)]
@@ -65,9 +100,7 @@ mod tests {
     fn projection_execution_vectors() {
         use alloy_consensus::{Header, TxReceipt, transaction::SignerRecoverable};
         use alloy_eips::Decodable2718;
-        use alloy_evm::block::{BlockExecutionError, BlockValidationError};
         use alloy_genesis::GenesisAccount;
-        use alloy_op_evm::block::OpBlockExecutionError;
         use reth_evm::ConfigureEvm;
         use revm::database::states::bundle_state::BundleRetention;
         use serde_json::Value;
@@ -105,7 +138,7 @@ mod tests {
             })
             .collect();
         let cases = vectors["cases"].as_array().unwrap();
-        assert!(cases.len() >= 5);
+        assert!(cases.len() >= 9);
 
         for case in cases {
             let name = case["name"].as_str().unwrap();
@@ -160,26 +193,9 @@ mod tests {
                 let result = executor.execute_block(txs.iter());
 
                 if !expected["valid"].as_bool().unwrap() {
-                    assert_eq!(expected["error"], "ProjectionSequencerTxFailed", "{name}/{mode}");
                     let err =
                         result.err().unwrap_or_else(|| panic!("{name}/{mode}: must be invalid"));
-                    assert!(super::is_projection_sequencer_tx_failure(&err), "{name}/{mode}");
-                    let BlockExecutionError::Validation(BlockValidationError::Other(inner)) = &err
-                    else {
-                        panic!("{name}/{mode}: expected a validation error, got {err}");
-                    };
-                    match inner.downcast_ref::<OpBlockExecutionError>() {
-                        Some(OpBlockExecutionError::ProjectionSequencerTxFailed { tx_index }) => {
-                            assert_eq!(
-                                *tx_index,
-                                expected["tx_index"].as_u64().unwrap(),
-                                "{name}/{mode}: tx index"
-                            )
-                        }
-                        _ => panic!(
-                            "{name}/{mode}: expected ProjectionSequencerTxFailed, got {inner}"
-                        ),
-                    }
+                    super::assert_vector_error(&err, expected, &format!("{name}/{mode}"));
                     continue;
                 }
 

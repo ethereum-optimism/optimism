@@ -29,9 +29,12 @@ use reth_storage_api::StateProvider;
 /// Executes the sequencer transactions of `attributes` on top of `parent`, exactly as the payload
 /// job does, and returns the first execution error the job would treat as fatal.
 ///
-/// Returns `Ok(None)` when every sequencer transaction executes. Transactions the job skips
-/// (`InvalidTx`: bad nonce, insufficient funds, ...) are skipped here too. `Err` means the check
-/// itself could not run, which callers should treat as "no verdict".
+/// Returns `Ok(None)` when every sequencer transaction executes. On a projection chain the
+/// executor reports a non-deposit transaction the EVM rejects as invalid (bad nonce, gas below
+/// intrinsic or the calldata floor, ...) as `ProjectionSequencerTxInvalid`, which the job treats
+/// as fatal and so is returned here like a failed one. Only a plain `InvalidTx`, which the job
+/// skips, is skipped here too; on a projection chain that can only be a deposit. `Err` means the
+/// check itself could not run, which callers should treat as "no verdict".
 pub fn first_failing_sequencer_tx<Evm, N, ChainSpec>(
     evm_config: &Evm,
     chain_spec: &ChainSpec,

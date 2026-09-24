@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"github.com/ethereum-optimism/optimism/op-core/predeploys"
+	"github.com/ethereum-optimism/optimism/op-private-interop/projection"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/core"
@@ -99,7 +100,15 @@ var (
 	revertingInitcode = []byte{0x60, 0x00, 0x60, 0x00, 0xfd} // PUSH1 0; PUSH1 0; REVERT
 	loopingInitcode   = []byte{0x5b, 0x60, 0x00, 0x56}       // JUMPDEST; PUSH1 0; JUMP
 	callTarget        = common.HexToAddress("0x00000000000000000000000000000000000000bb")
-	depositor         = common.HexToAddress("0x00000000000000000000000000000000000000aa")
+	otherCallTarget   = common.HexToAddress("0x00000000000000000000000000000000000000cc")
+	// below_intrinsic: 21000 + 2400 for one access-list address; empty calldata has floor 21000.
+	belowIntrinsicAccessList = types.AccessList{{Address: callTarget}}
+	belowIntrinsicGas        = uint64(21_000 + 2_400 - 1)
+	// below_floor: 64 non-zero bytes cost 21000 + 16·64 = 22024 intrinsic, 21000 + 10·4·64 = 23560
+	// floor.
+	belowFloorData = bytes.Repeat([]byte{0xff}, 64)
+	belowFloorGas  = uint64(21_000 + 10*4*64 - 1)
+	depositor      = common.HexToAddress("0x00000000000000000000000000000000000000aa")
 )
 
 func executionChainConfig() *params.ChainConfig {
@@ -110,17 +119,23 @@ func executionChainConfig() *params.ChainConfig {
 
 func signedExecutionTx(t *testing.T, nonce uint64, to *common.Address, gas uint64, data []byte) *types.Transaction {
 	t.Helper()
+	return signedExecutionTxWithAccessList(t, nonce, to, gas, data, nil)
+}
+
+func signedExecutionTxWithAccessList(t *testing.T, nonce uint64, to *common.Address, gas uint64, data []byte, al types.AccessList) *types.Transaction {
+	t.Helper()
 	key, err := crypto.ToECDSA(executionKey)
 	require.NoError(t, err)
 	tx, err := types.SignNewTx(key, types.LatestSignerForChainID(executionChainConfig().ChainID), &types.DynamicFeeTx{
-		ChainID:   executionChainConfig().ChainID,
-		Nonce:     nonce,
-		GasTipCap: new(big.Int),
-		GasFeeCap: new(big.Int),
-		Gas:       gas,
-		To:        to,
-		Value:     new(big.Int),
-		Data:      data,
+		ChainID:    executionChainConfig().ChainID,
+		Nonce:      nonce,
+		GasTipCap:  new(big.Int),
+		GasFeeCap:  new(big.Int),
+		Gas:        gas,
+		To:         to,
+		Value:      new(big.Int),
+		Data:       data,
+		AccessList: al,
 	})
 	require.NoError(t, err)
 	return tx
@@ -177,9 +192,17 @@ func executeReference(t *testing.T, txs []*types.Transaction, projection bool) e
 		}
 		statedb.SetTxContext(tx.Hash(), i)
 		receipt, err := core.ApplyTransaction(evm, gp, statedb, header, tx)
-		require.NoError(t, err, "case transaction %d must be valid to include", i)
+		index := uint64(i)
+		if err != nil {
+			// The EVM rejects the transaction as invalid (nonce, intrinsic gas, calldata floor):
+			// a block containing it is invalid on any chain. A payload builder may skip it off
+			// the projection, but must not on it (§E.1).
+			if projection {
+				return executionOutcome{Valid: false, Error: "ProjectionSequencerTxInvalid", TxIndex: &index}
+			}
+			return executionOutcome{Valid: false, Error: "InvalidTx", TxIndex: &index}
+		}
 		if projection && receipt.Status != types.ReceiptStatusSuccessful {
-			index := uint64(i)
 			return executionOutcome{Valid: false, Error: "ProjectionSequencerTxFailed", TxIndex: &index}
 		}
 		statuses = append(statuses, receipt.Status)
@@ -214,6 +237,19 @@ func buildExecutionVectors(t *testing.T) executionVectors {
 		}},
 		{"deposit_reverts", "user deposit whose CREATE initcode reverts: never invalidates the block", []*types.Transaction{
 			userDeposit(nil, revertingInitcode),
+		}},
+		// Invalid transactions: the EVM rejects them instead of executing them.
+		{"below_intrinsic", "call whose gas is one below its intrinsic gas (21000 + one access-list address), above the calldata floor", []*types.Transaction{
+			signedExecutionTxWithAccessList(t, 0, &callTarget, belowIntrinsicGas, nil, belowIntrinsicAccessList),
+		}},
+		{"below_floor", "call whose gas covers its intrinsic gas but is one below the EIP-7623 calldata floor", []*types.Transaction{
+			signedExecutionTx(t, 0, &callTarget, belowFloorGas, belowFloorData),
+		}},
+		{"nonce_gap", "call with nonce 1 from an account with nonce 0", []*types.Transaction{
+			signedExecutionTx(t, 1, &callTarget, 21_000, nil),
+		}},
+		{"nonce_reuse", "two calls with nonce 0: the second is invalid", []*types.Transaction{
+			signedExecutionTx(t, 0, &callTarget, 21_000, nil), signedExecutionTx(t, 0, &otherCallTarget, 21_000, nil),
 		}},
 	}
 	vectors := executionVectors{
@@ -280,4 +316,24 @@ func TestExecutionVectors(t *testing.T) {
 	require.NotEqual(t, *deposit.Execution.StateRoot, *deposit.Projection.StateRoot)
 	require.Equal(t, *ok.Projection.StateRoot, *byName["create_reverts"].Execution.StateRoot,
 		"a failed create and an empty call both only bump the sender nonce")
+
+	// Invalid transactions invalidate the block in both modes; only the projection names the
+	// rule, because only there must a payload builder not skip them.
+	for name, index := range map[string]uint64{"below_intrinsic": 0, "below_floor": 0, "nonce_gap": 0, "nonce_reuse": 1} {
+		c := byName[name]
+		require.Equal(t, executionOutcome{Valid: false, Error: "InvalidTx", TxIndex: &index}, c.Execution, name)
+		require.Equal(t, executionOutcome{Valid: false, Error: "ProjectionSequencerTxInvalid", TxIndex: &index}, c.Projection, name)
+	}
+	// The gas cases sit exactly one below the bound admission enforces (MinTxGas), and that
+	// bound is binding: one more gas makes each valid.
+	for name, tx := range map[string]*types.Transaction{
+		"below_intrinsic": signedExecutionTxWithAccessList(t, 0, &callTarget, belowIntrinsicGas, nil, belowIntrinsicAccessList),
+		"below_floor":     signedExecutionTx(t, 0, &callTarget, belowFloorGas, belowFloorData),
+	} {
+		need, err := projection.MinTxGas(tx.Data(), tx.AccessList())
+		require.NoError(t, err)
+		require.Equal(t, tx.Gas()+1, need, name)
+		enough := signedExecutionTxWithAccessList(t, 0, tx.To(), need, tx.Data(), tx.AccessList())
+		require.True(t, executeReference(t, []*types.Transaction{enough}, true).Valid, name)
+	}
 }

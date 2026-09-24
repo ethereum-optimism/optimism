@@ -531,7 +531,8 @@ const EXECUTION_VECTORS: &str =
 
 /// Every case of the shared executor vectors (spec-sound-profile §E.4), in both modes, through
 /// the projection trigger in [`StatelessL2Builder::new`]: a failed non-deposit transaction
-/// invalidates the block with `ProjectionSequencerTxFailed`, a user deposit never does, and valid
+/// invalidates the block with `ProjectionSequencerTxFailed`, an invalid one (nonce, intrinsic gas,
+/// calldata floor) with `ProjectionSequencerTxInvalid`, a user deposit never does, and valid
 /// blocks match the reference statuses, gas used and state root.
 #[test]
 fn projection_execution_vectors() {
@@ -551,7 +552,7 @@ fn projection_execution_vectors() {
     let env = &vectors["env"];
     let u64_of = |key: &str| env[key].as_u64().unwrap();
     let cases = vectors["cases"].as_array().unwrap();
-    assert!(cases.len() >= 5);
+    assert!(cases.len() >= 9);
     let prestate = || {
         PrestateProvider::new(
             env["prestate"]
@@ -578,6 +579,19 @@ fn projection_execution_vectors() {
             .iter()
             .map(|tx| tx.as_str().unwrap().parse().unwrap())
             .collect();
+        if name == "below_intrinsic" || name == "below_floor" {
+            // Admission's gas bound is exactly the one the EVM enforces: each case is one gas
+            // short of `min_tx_gas`, which the EVM rejects below.
+            use alloy_consensus::{Transaction, TxEnvelope};
+            use alloy_eips::Decodable2718;
+            let tx = TxEnvelope::decode_2718(&mut txs[0].as_ref()).unwrap();
+            let empty = alloy_eips::eip2930::AccessList::default();
+            let need = kona_protocol::projection::min_tx_gas(
+                tx.input(),
+                tx.access_list().unwrap_or(&empty),
+            );
+            assert_eq!(tx.gas_limit() + 1, need, "{name}: admission minimum");
+        }
         for (mode, projection) in [("execution", false), ("projection", true)] {
             let expected = &case[mode];
             let cfg = RollupConfig {
@@ -664,23 +678,36 @@ fn projection_execution_vectors() {
                     "{name}/{mode}: state root"
                 );
             } else {
-                assert_eq!(expected["error"], "ProjectionSequencerTxFailed", "{name}/{mode}");
+                let want = expected["error"].as_str().unwrap();
+                let index = expected["tx_index"].as_u64().unwrap();
                 let err = result.err().unwrap_or_else(|| panic!("{name}/{mode}: must be invalid"));
-                let ExecutorError::ExecutionError(BlockExecutionError::Validation(
-                    BlockValidationError::Other(inner),
-                )) = err
-                else {
-                    panic!("{name}/{mode}: expected a validation error, got {err}");
-                };
-                match inner.downcast_ref::<OpBlockExecutionError>() {
-                    Some(OpBlockExecutionError::ProjectionSequencerTxFailed { tx_index }) => {
-                        assert_eq!(
-                            *tx_index,
-                            expected["tx_index"].as_u64().unwrap(),
-                            "{name}/{mode}: tx index"
-                        )
-                    }
-                    _ => panic!("{name}/{mode}: expected ProjectionSequencerTxFailed, got {inner}"),
+                match (want, &err) {
+                    (
+                        "InvalidTx",
+                        ExecutorError::ExecutionError(BlockExecutionError::Validation(
+                            BlockValidationError::InvalidTx { .. },
+                        )),
+                    ) => {}
+                    (
+                        _,
+                        ExecutorError::ExecutionError(BlockExecutionError::Validation(
+                            BlockValidationError::Other(inner),
+                        )),
+                    ) => match (want, inner.downcast_ref::<OpBlockExecutionError>()) {
+                        (
+                            "ProjectionSequencerTxFailed",
+                            Some(OpBlockExecutionError::ProjectionSequencerTxFailed { tx_index }),
+                        ) |
+                        (
+                            "ProjectionSequencerTxInvalid",
+                            Some(OpBlockExecutionError::ProjectionSequencerTxInvalid {
+                                tx_index,
+                                ..
+                            }),
+                        ) => assert_eq!(*tx_index, index, "{name}/{mode}: tx index"),
+                        _ => panic!("{name}/{mode}: expected {want}, got {inner}"),
+                    },
+                    _ => panic!("{name}/{mode}: expected {want}, got {err}"),
                 }
             }
         }

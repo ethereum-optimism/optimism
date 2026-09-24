@@ -579,7 +579,7 @@ the operator's private-data view and the public judge's).
 | Export serving to counterparties | message DB from real receipts | stock |
 | Public block execution, roots, hashes | op-reth | stock |
 | Replay faithfulness to the private chain | legacy verifiers: attested (unchecked); `sp1-private-projection-v1`: the proof binds `outputsRoot` and `messagesRoot`, checked at admission | operator / the proof |
-| Every carrier executes | projection execution rule: a failed non-deposit tx invalidates the block (added 2026-09-24) | ours (shared executor) |
+| Every carrier executes | projection execution rule: a failed or invalid (nonce, intrinsic gas, calldata floor) non-deposit tx invalidates the block, in import, the payload job and the FCU pre-check; admission also rejects gas below max(intrinsic, floor) (added 2026-09-24) | ours (shared executor) |
 | Claim structure + contiguity | the ClaimRegistry, at post time | ours (small) |
 | Claimed private terminal hash vs the local private chain | the supernode follow module serves the claim verbatim; divergence is a MONITORING alert, and a diverged sequencer snaps back to the claim | ours (small) |
 | Full-input integrity | the claim's `privateDataHash` = keccak of the re-encoded range, checked by whoever holds the private blocks | ours (small) |

@@ -47,6 +47,17 @@ type fakeCaller struct {
 	at        []common.Hash
 	overrides []StateOverrides
 	fail      func(call int, msg ethereum.CallMsg) error
+	// nonce is the batcher's nonce at every block; nonceErr fails the read.
+	nonce    uint64
+	nonceErr error
+	nonceAt  []common.Hash
+}
+
+func (f *fakeCaller) NonceAtHash(_ context.Context, _ common.Address, blockHash common.Hash) (uint64, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.nonceAt = append(f.nonceAt, blockHash)
+	return f.nonce, f.nonceErr
 }
 
 func (f *fakeCaller) CallContractAtHash(_ context.Context, msg ethereum.CallMsg, blockHash common.Hash, overrides StateOverrides) ([]byte, error) {
@@ -377,4 +388,42 @@ func TestRPCProjectionCallerEncodesStateOverride(t *testing.T) {
 	require.JSONEq(t, `{"blockHash":"0x9e00000000000000000000000000000000000000000000000000000000000000"}`, string(got[1]))
 	require.JSONEq(t, `{"0x4200000000000000000000000000000000000015":{"stateDiff":{
 		"0x0000000000000000000000000000000000000000000000000000000000000004":"0x0000000000000000000000004200000000000000000000000000000000000000"}}}`, string(got[2]))
+}
+
+// TestCarrierPreRunChecksNonces: carrier nonces must be contiguous from the batcher's nonce at the
+// span parent, read by hash. A gap or reuse is a sticky pre-run failure before any simulation
+// (eth_call ignores nonces); a failed nonce read stays retryable.
+func TestCarrierPreRunChecksNonces(t *testing.T) {
+	batcher := common.Address{0x42}
+	span := func(nonces ...uint64) *builder.BuiltRange {
+		var txs []hexutil.Bytes
+		for _, n := range nonces {
+			txs = append(txs, signedCarrier(t, n, predeploys.ClaimRegistryAddr, 100_000, []byte{1}, nil))
+		}
+		return &builder.BuiltRange{Blocks: []builder.BuiltBlock{{Number: 7, Txs: txs[:1]}, {Number: 8, Txs: txs[1:]}}}
+	}
+	ok := &fakeCaller{nonce: 5}
+	require.NoError(t, preRunCarriers(context.Background(), ok, batcher, piTerminal, span(5, 6, 7)))
+	require.Equal(t, []common.Hash{piTerminal}, ok.nonceAt, "read at the span parent")
+	require.Len(t, ok.calls, 3)
+
+	for name, nonces := range map[string][]uint64{
+		"gap":        {5, 7, 8},
+		"reuse":      {5, 5, 6},
+		"stale_base": {4, 5, 6},
+		"ahead_base": {6, 7, 8},
+	} {
+		t.Run(name, func(t *testing.T) {
+			caller := &fakeCaller{nonce: 5}
+			err := preRunCarriers(context.Background(), caller, batcher, piTerminal, span(nonces...))
+			require.ErrorIs(t, err, ErrCarrierPreRun)
+			require.ErrorContains(t, err, "contiguous from the batcher's nonce")
+			require.Zero(t, caller.callCount(), "no simulation after a nonce failure")
+		})
+	}
+
+	flaky := &fakeCaller{nonceErr: errors.New("connection refused")}
+	err := preRunCarriers(context.Background(), flaky, batcher, piTerminal, span(0, 1, 2))
+	require.Error(t, err)
+	require.NotErrorIs(t, err, ErrCarrierPreRun)
 }

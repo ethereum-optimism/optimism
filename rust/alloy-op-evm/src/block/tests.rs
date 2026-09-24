@@ -921,6 +921,86 @@ fn test_failed_sequencer_tx_invalidates_block_when_required() {
     }
 }
 
+/// Transactions the EVM rejects as invalid rather than executing them: a nonce gap, a gas limit
+/// below the intrinsic gas, and one at or above the intrinsic gas but below the EIP-7623 calldata
+/// floor (64 non-zero bytes: intrinsic 22024, floor 23560).
+fn invalid_calls() -> [(&'static str, Recovered<OpTxEnvelope>); 3] {
+    let call = |nonce, gas_limit, input: &'static [u8]| {
+        recovered_legacy(TxLegacy {
+            nonce,
+            to: TxKind::Call(Address::with_last_byte(0xbb)),
+            gas_limit,
+            input: Bytes::from_static(input),
+            ..Default::default()
+        })
+    };
+    [
+        ("nonce gap", call(1, 21_000, &[])),
+        ("below intrinsic", call(0, 20_999, &[])),
+        ("below floor", call(0, 23_559, &[0xff; 64])),
+    ]
+}
+
+fn assert_projection_sequencer_tx_invalid(err: BlockExecutionError, expected_index: u64) {
+    match err {
+        BlockExecutionError::Validation(BlockValidationError::Other(inner)) => {
+            match inner.downcast_ref::<OpBlockExecutionError>() {
+                Some(OpBlockExecutionError::ProjectionSequencerTxInvalid { tx_index, .. }) => {
+                    assert_eq!(*tx_index, expected_index)
+                }
+                _ => panic!("expected ProjectionSequencerTxInvalid, got {inner}"),
+            }
+        }
+        other => panic!("expected a validation error, got {other:?}"),
+    }
+}
+
+/// An invalid sequencer transaction never reaches the success check, so the rule must cover it
+/// separately: a payload builder skips `InvalidTx`, which would drop a required carrier.
+#[test]
+fn test_invalid_sequencer_tx_invalidates_block_when_required() {
+    for mode in [PostExecMode::Disabled, PostExecMode::Produce] {
+        for (name, tx) in invalid_calls() {
+            let mut fixture = JovianExecutorFixture::default();
+            let mut executor = fixture.executor_with_post_exec_mode(mode.clone());
+            executor.require_sequencer_tx_success = true;
+            let err = executor
+                .execute_transaction(&tx)
+                .expect_err("an invalid sequencer tx must invalidate the block");
+            assert!(err.to_string().contains("is invalid"), "{name}: {err}");
+            assert_projection_sequencer_tx_invalid(err, 0);
+            assert!(executor.receipts.is_empty(), "{name}: no receipt may be recorded");
+        }
+        // Nonce reuse: the second transaction with nonce 0 is invalid at index 1.
+        let mut fixture = JovianExecutorFixture::default();
+        let mut executor = fixture.executor_with_post_exec_mode(mode.clone());
+        executor.require_sequencer_tx_success = true;
+        let tx = recovered_legacy(TxLegacy {
+            to: TxKind::Call(Address::with_last_byte(0xbb)),
+            gas_limit: 21_000,
+            ..Default::default()
+        });
+        executor.execute_transaction(&tx).expect("the first nonce-0 transaction is valid");
+        let err = executor.execute_transaction(&tx).expect_err("nonce reuse must invalidate");
+        assert_projection_sequencer_tx_invalid(err, 1);
+    }
+}
+
+/// Without the rule an invalid transaction stays a plain `InvalidTx`, which payload builders
+/// skip.
+#[test]
+fn test_invalid_sequencer_tx_is_invalid_tx_by_default() {
+    for (name, tx) in invalid_calls() {
+        let mut fixture = JovianExecutorFixture::default();
+        let mut executor = fixture.executor();
+        let err = executor.execute_transaction(&tx).expect_err("the tx is invalid");
+        assert!(
+            matches!(err, BlockExecutionError::Validation(BlockValidationError::InvalidTx { .. })),
+            "{name}: {err:?}"
+        );
+    }
+}
+
 #[test]
 fn test_failed_sequencer_tx_yields_status_zero_receipt_by_default() {
     for (name, tx) in failing_creates() {

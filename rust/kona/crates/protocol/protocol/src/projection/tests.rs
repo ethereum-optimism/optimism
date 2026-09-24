@@ -304,8 +304,21 @@ fn shared_projection_vectors_and_purity() {
         "retired_stub_ungated",
         "sp1_allow_events_rejected",
         "wrong_parent_output",
+        "late_gas_below_intrinsic",
+        "late_gas_below_floor",
+        "gas_at_minimum",
     ] {
         assert!(all.iter().any(|v| v["name"] == name), "missing range vector {name}");
+    }
+    // The §E.1 gas rule rejects with the same reason as Go.
+    for name in ["late_gas_below_intrinsic", "late_gas_below_floor"] {
+        let v = all.iter().find(|v| v["name"] == name).unwrap();
+        let (cfg, span, ctx) = inputs(v);
+        assert_eq!(
+            validate_projection_range(&cfg, ctx, &span, &StubVerifier),
+            Err(ProjectionError("transaction gas below intrinsic or calldata floor")),
+            "{name}"
+        );
     }
     for v in all {
         let (cfg, span, ctx) = inputs(&v);

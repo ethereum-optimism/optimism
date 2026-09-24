@@ -10,12 +10,12 @@ import (
 	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
-	"github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/rpc"
 
 	"github.com/ethereum-optimism/optimism/op-core/predeploys"
 	"github.com/ethereum-optimism/optimism/op-private-interop/builder"
+	"github.com/ethereum-optimism/optimism/op-private-interop/projection"
 )
 
 // Carrier pre-run (spec-sound-profile §E.3).
@@ -32,9 +32,11 @@ import (
 var ErrCarrierPreRun = errors.New("carrier pre-run failed")
 
 // ProjectionCaller simulates a call on the public projection's execution client at a given
-// block, with a storage state override (eth_call's third parameter, `stateDiff` form).
+// block, with a storage state override (eth_call's third parameter, `stateDiff` form), and reads
+// an account nonce at a given block (eth_getTransactionCount by block hash).
 type ProjectionCaller interface {
 	CallContractAtHash(ctx context.Context, msg ethereum.CallMsg, blockHash common.Hash, overrides StateOverrides) ([]byte, error)
+	NonceAtHash(ctx context.Context, account common.Address, blockHash common.Hash) (uint64, error)
 }
 
 // StateOverrides are per-account storage overrides: address → slot → value.
@@ -91,22 +93,30 @@ func (c *rpcProjectionCaller) CallContractAtHash(ctx context.Context, msg ethere
 	return out, err
 }
 
+func (c *rpcProjectionCaller) NonceAtHash(ctx context.Context, account common.Address, blockHash common.Hash) (uint64, error) {
+	var out hexutil.Uint64
+	err := c.rpc.CallContext(ctx, &out, "eth_getTransactionCount", account, rpc.BlockNumberOrHashWithHash(blockHash, false))
+	return uint64(out), err
+}
+
 // carrierCallTimeout bounds one simulated carrier call.
 const carrierCallTimeout = 10 * time.Second
 
 // checkCarrierGas is the static check: a carrier must declare at least its intrinsic gas and the
 // EIP-7623 calldata floor, the Prague rules the projection runs under. A transaction below either
 // is not even includable; one between them and its execution cost fails in the simulation.
+//
+// It is the same bound projection admission enforces (projection.MinTxGas), so a span failing it
+// would be dropped on chain.
 func checkCarrierGas(tx *types.Transaction) error {
-	intrinsic, err := core.IntrinsicGas(tx.Data(), tx.AccessList(), nil, tx.To() == nil, true, true, true)
+	if tx.To() == nil {
+		return errors.New("carrier is a contract creation")
+	}
+	need, err := projection.MinTxGas(tx.Data(), tx.AccessList())
 	if err != nil {
 		return err
 	}
-	floor, err := core.FloorDataGas(tx.Data())
-	if err != nil {
-		return err
-	}
-	if need := max(intrinsic, floor); tx.Gas() < need {
+	if tx.Gas() < need {
 		return fmt.Errorf("gas limit %d is below the %d intrinsic and calldata-floor gas", tx.Gas(), need)
 	}
 	return nil
@@ -133,6 +143,9 @@ func preRunCarriers(ctx context.Context, caller ProjectionCaller, from common.Ad
 	}
 	if caller == nil {
 		return fmt.Errorf("%w: no projection execution client to simulate carriers on", ErrCarrierPreRun)
+	}
+	if err := checkCarrierNonces(ctx, caller, from, parent, candidate); err != nil {
+		return err
 	}
 	overrides := carrierOverrides(from)
 	return forEachCarrier(candidate, func(block uint64, index int, tx *types.Transaction) error {
@@ -165,6 +178,31 @@ func preRunCarriers(ctx context.Context, caller ProjectionCaller, from common.Ad
 			return fmt.Errorf("simulating block %d tx %d: %w", block, index, err)
 		}
 		return fmt.Errorf("%w: block %d tx %d to %s: %w (revert data: %v)", ErrCarrierPreRun, block, index, tx.To(), err, data)
+	})
+}
+
+// checkCarrierNonces requires the carriers' nonces to be contiguous from the batcher's nonce at
+// the span parent. A nonce gap or reuse makes a carrier an invalid transaction, which invalidates
+// its projection block (ProjectionSequencerTxInvalid) and drops the rest of the span. Admission
+// cannot catch it, because it has no state, and eth_call ignores nonces, so the simulation cannot
+// either. A failure to read the nonce is not a verdict on the span and stays retryable.
+func checkCarrierNonces(ctx context.Context, caller ProjectionCaller, from common.Address, parent common.Hash, candidate *builder.BuiltRange) error {
+	callCtx, cancel := context.WithTimeout(ctx, carrierCallTimeout)
+	defer cancel()
+	next, err := caller.NonceAtHash(callCtx, from, parent)
+	if err != nil {
+		if ctx.Err() != nil {
+			return ctx.Err()
+		}
+		return fmt.Errorf("reading the batcher's nonce at the span parent %s: %w", parent, err)
+	}
+	return forEachCarrier(candidate, func(block uint64, index int, tx *types.Transaction) error {
+		if tx.Nonce() != next {
+			return fmt.Errorf("%w: block %d tx %d has nonce %d, want %d (contiguous from the batcher's nonce at the span parent %s)",
+				ErrCarrierPreRun, block, index, tx.Nonce(), next, parent)
+		}
+		next++
+		return nil
 	})
 }
 

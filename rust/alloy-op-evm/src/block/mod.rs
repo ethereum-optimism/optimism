@@ -351,8 +351,9 @@ pub struct OpBlockExecutor<Evm, R: OpReceiptBuilder, Spec> {
     pub deposit_noop: Option<fn(&TxDeposit, usize) -> bool>,
     /// Whether every non-deposit, non-post-exec transaction must execute successfully. When set, a
     /// reverted, halted or out-of-gas sequencer transaction makes the whole block invalid instead
-    /// of producing a status-0 receipt. Used by the public projection, where every sequencer
-    /// transaction is a carrier that must take effect.
+    /// of producing a status-0 receipt, and a transaction the EVM rejects as invalid makes it
+    /// invalid instead of being skippable by a payload builder. Used by the public projection,
+    /// where every sequencer transaction is a carrier that must take effect.
     pub require_sequencer_tx_success: bool,
     /// Context for block execution.
     pub ctx: OpBlockExecutionCtx,
@@ -506,6 +507,19 @@ pub enum OpBlockExecutionError {
     ProjectionSequencerTxFailed {
         /// Index of the failed transaction in the block.
         tx_index: u64,
+    },
+
+    /// A sequencer (non-deposit, non-post-exec) transaction was rejected by the EVM as invalid
+    /// (nonce gap or reuse, gas limit below intrinsic gas or the EIP-7623 calldata floor,
+    /// insufficient balance, ...) on a chain that requires every sequencer transaction to
+    /// succeed. Elsewhere a payload builder skips such a transaction; here it invalidates the
+    /// block, in the payload builder as well as on import.
+    #[error("projection sequencer transaction {tx_index} is invalid: {reason}")]
+    ProjectionSequencerTxInvalid {
+        /// Index of the invalid transaction in the block.
+        tx_index: u64,
+        /// The EVM's transaction validation error.
+        reason: String,
     },
 }
 
@@ -1010,10 +1024,31 @@ where
         }
 
         // Execute transaction and return the result
-        let mut result = self.evm.transact(tx_env).map_err(|err| {
-            let hash = tx.tx().trie_hash();
-            BlockExecutionError::evm(err, hash)
-        })?;
+        let mut result = match self.evm.transact(tx_env) {
+            Ok(result) => result,
+            Err(err) => {
+                let err = BlockExecutionError::evm(err, tx.tx().trie_hash());
+                // Post-exec transactions returned above, so only deposits are exempt here. An
+                // invalid transaction never reaches the success check below, so the rule must
+                // also cover it: otherwise a payload builder, which skips invalid transactions,
+                // would silently drop a carrier the block is required to execute.
+                if let BlockExecutionError::Validation(BlockValidationError::InvalidTx {
+                    error,
+                    ..
+                }) = &err
+                {
+                    if self.require_sequencer_tx_success && !is_deposit {
+                        return Err(validation_error(
+                            OpBlockExecutionError::ProjectionSequencerTxInvalid {
+                                tx_index,
+                                reason: format!("{error}"),
+                            },
+                        ));
+                    }
+                }
+                return Err(err);
+            }
+        };
 
         // Post-exec transactions returned above, so only deposits are exempt here.
         if self.require_sequencer_tx_success && !is_deposit && !result.result.is_success() {
@@ -1273,8 +1308,10 @@ impl<R, Spec, EvmFactory> OpBlockExecutorFactory<R, Spec, EvmFactory> {
     }
 
     /// Makes every non-deposit, non-post-exec transaction that does not execute successfully
-    /// invalidate its block with [`OpBlockExecutionError::ProjectionSequencerTxFailed`], in both
-    /// building and validation.
+    /// invalidate its block, in both building and validation: a reverted, halted or out-of-gas
+    /// one with [`OpBlockExecutionError::ProjectionSequencerTxFailed`], and one the EVM rejects
+    /// as invalid (nonce, intrinsic gas, calldata floor, balance, ...) with
+    /// [`OpBlockExecutionError::ProjectionSequencerTxInvalid`].
     #[must_use]
     pub const fn with_sequencer_tx_success_required(mut self) -> Self {
         self.require_sequencer_tx_success = true;

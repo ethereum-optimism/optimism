@@ -313,6 +313,32 @@ pub fn execution_mock_proof(s: &Statement) -> Vec<u8> {
     out
 }
 
+/// The least gas limit a projection transaction (a call, never a creation) with this calldata and
+/// access list can declare and still be valid to include: max(intrinsic gas, EIP-7623 calldata
+/// floor) under the Prague rules the projection runs under. The EVM rejects a transaction below
+/// it as invalid rather than executing it, and a payload builder skips invalid transactions, so
+/// admission rejects the span instead (spec-sound-profile §E.1). Go's `projection.MinTxGas`
+/// computes the same value from go-ethereum's `IntrinsicGas` and `FloorDataGas`.
+pub fn min_tx_gas(input: &[u8], access_list: &alloy_eips::eip2930::AccessList) -> u64 {
+    const TX_GAS: u64 = 21_000;
+    const STANDARD_TOKEN_GAS: u64 = 4;
+    const FLOOR_TOKEN_GAS: u64 = 10;
+    const ACCESS_LIST_ADDRESS_GAS: u64 = 2_400;
+    const ACCESS_LIST_STORAGE_KEY_GAS: u64 = 1_900;
+    let nonzero = input.iter().filter(|b| **b != 0).count() as u64;
+    // EIP-7623 tokens: one per zero byte, four per non-zero byte.
+    let tokens = input.len() as u64 + 3 * nonzero;
+    let access: u64 = access_list
+        .iter()
+        .map(|item| {
+            ACCESS_LIST_ADDRESS_GAS + ACCESS_LIST_STORAGE_KEY_GAS * item.storage_keys.len() as u64
+        })
+        .sum();
+    let intrinsic = TX_GAS + STANDARD_TOKEN_GAS * tokens + access;
+    let floor = TX_GAS + FLOOR_TOKEN_GAS * tokens;
+    intrinsic.max(floor)
+}
+
 /// A deterministic projection admission rejection.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, thiserror::Error)]
 #[error("invalid projection range: {0}")]
@@ -437,6 +463,12 @@ pub fn validate_projection_range(
                 tx.gas_limit > 16777216
             {
                 return Err(ProjectionError("transaction envelope"));
+            }
+            // Nonces cannot be checked here: admission is pure and has no state. A nonce gap or
+            // reuse is instead fatal to the block at execution (§E.1,
+            // `ProjectionSequencerTxInvalid`).
+            if tx.gas_limit < min_tx_gas(&tx.input, &tx.access_list) {
+                return Err(ProjectionError("transaction gas below intrinsic or calldata floor"));
             }
             let mut data = tx.input.to_vec();
             let mut keys = None;

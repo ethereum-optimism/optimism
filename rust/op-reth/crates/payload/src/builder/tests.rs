@@ -978,3 +978,114 @@ fn execute_best_transactions_excludes_interop_txs_when_failsafe_active() {
     failsafe.set(false);
     assert_eq!(build(&failsafe), vec![normal_hash, interop_hash]);
 }
+
+/// The payload job itself, not only block import and the FCU pre-check, enforces the projection
+/// execution rule on every case of the shared executor vectors
+/// (`op-private-interop/projection/testdata/execution.json`): on a projection chain a failed or
+/// invalid (nonce, intrinsic gas, calldata floor) sequencer transaction fails the job instead of
+/// being skipped. On a plain chain the job keeps skipping invalid transactions.
+#[test]
+fn projection_sequencer_transactions_match_execution_vectors() {
+    use alloy_eips::Decodable2718;
+
+    let mut private: alloy_genesis::Genesis = serde_json::from_str(include_str!(
+        "../../../../../../op-private-interop/genesis/testdata/private-chain-genesis.json"
+    ))
+    .unwrap();
+    // The vectors are signed for chain 901 with zero fees, as on the projection.
+    private.config.chain_id = 901;
+    private.base_fee_per_gas = Some(0);
+    let projected = reth_optimism_chainspec::project_genesis_from(&private).unwrap();
+    let vectors: serde_json::Value = serde_json::from_str(include_str!(
+        "../../../../../../op-private-interop/projection/testdata/execution.json"
+    ))
+    .unwrap();
+    let cases = vectors["cases"].as_array().unwrap();
+    assert!(cases.len() >= 9);
+
+    let mut failed_jobs = 0;
+    let mut skipped = 0;
+    for (genesis, projection) in [(private, false), (projected, true)] {
+        let spec = Arc::new(OpChainSpec::from_genesis(genesis));
+        let parent = SealedHeader::seal_slow(spec.genesis_header().clone());
+        for case in cases {
+            let name = case["name"].as_str().unwrap();
+            let transactions: Vec<_> = case["transactions"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .map(|raw| {
+                    let raw: Bytes = raw.as_str().unwrap().parse().unwrap();
+                    let tx = OpTransactionSigned::decode_2718(&mut raw.as_ref()).unwrap();
+                    WithEncoded::new(raw, tx)
+                })
+                .collect();
+            let count = transactions.len();
+            let attributes = OpPayloadBuilderAttributes {
+                timestamp: parent.timestamp + 2,
+                gas_limit: Some(parent.gas_limit),
+                no_tx_pool: true,
+                transactions,
+                parent_beacon_block_root: Some(B256::ZERO),
+                eip_1559_params: Some(B64::ZERO),
+                min_base_fee: Some(0),
+                ..Default::default()
+            };
+            let ctx = OpPayloadBuilderCtx {
+                evm_config: OpEvmConfig::optimism(spec.clone()),
+                builder_config: OpBuilderConfig::default(),
+                chain_spec: spec.clone(),
+                config: PayloadConfig {
+                    parent_header: Arc::new(parent.clone()),
+                    parent_block_info: None,
+                    payload_id: attributes.id,
+                    attributes,
+                },
+                cancel: Default::default(),
+                best_payload: None,
+            };
+            let state_provider = StateProviderTest::default();
+            let mut db = State::builder()
+                .with_database(StateProviderDatabase::new(&state_provider))
+                .with_bundle_update()
+                .build();
+            let mut builder = ctx.block_builder(&mut db).expect("block builder can be created");
+            let mut committed = Vec::new();
+            let result = ctx.execute_sequencer_transactions(&mut builder, Some(&mut committed));
+
+            let mode = if projection { "projection" } else { "execution" };
+            let expected = &case[mode];
+            if projection && !expected["valid"].as_bool().unwrap() {
+                let err = result.expect_err(&format!("{name}: the projection job must fail"));
+                let PayloadBuilderError::EvmExecutionError(err) = &err else {
+                    panic!("{name}: expected an execution error, got {err:?}");
+                };
+                let err =
+                    err.downcast_ref::<BlockExecutionError>().expect("a block execution error");
+                assert!(
+                    reth_optimism_evm::is_projection_sequencer_tx_failure(err),
+                    "{name}: {err}"
+                );
+                failed_jobs += 1;
+                continue;
+            }
+            result.unwrap_or_else(|e| panic!("{name}/{mode}: {e:?}"));
+            if expected["error"] == "InvalidTx" {
+                // Upstream behaviour off the projection: the invalid transaction is skipped.
+                assert_eq!(
+                    committed.len(),
+                    expected["tx_index"].as_u64().unwrap() as usize,
+                    "{name}/{mode}"
+                );
+                skipped += 1;
+            } else {
+                assert_eq!(committed.len(), count, "{name}/{mode}: every transaction commits");
+            }
+        }
+    }
+    assert_eq!(
+        failed_jobs, 7,
+        "create_reverts, create_oog, deposit_then_revert, below_intrinsic, below_floor, nonce_gap, nonce_reuse"
+    );
+    assert_eq!(skipped, 4, "below_intrinsic, below_floor, nonce_gap, nonce_reuse");
+}
