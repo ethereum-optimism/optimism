@@ -3,11 +3,16 @@ package claimfollow
 import (
 	"context"
 	"fmt"
+	"math/big"
 	"testing"
 
+	"github.com/ethereum-optimism/optimism/op-core/predeploys"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
+	"github.com/ethereum-optimism/optimism/op-private-interop/projection"
+	"github.com/ethereum-optimism/optimism/op-private-interop/wire"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/stretchr/testify/require"
 )
 
@@ -367,4 +372,34 @@ func TestHistoricalDenialDoesNotCapLaterHealthyClaim(t *testing.T) {
 	require.Equal(t, wantRef(16), status.LocalSafeL2)
 	require.Equal(t, uint64(16), status.Recovery.Target.Number)
 	require.Nil(t, status.Recovery.Prefix)
+}
+
+// TestExecutionInvalidatedSuffixIsNotClaimed: under the projection execution rule a block whose
+// carrier fails is replaced by a deposit-only block on the SAME branch, and Holocene drops the rest
+// of the span, so nothing is reorged or denied. The claim must still stop at the last block that
+// kept its output record: the replaced suffix is recovered, never served as safe.
+func TestExecutionInvalidatedSuffixIsNotClaimed(t *testing.T) {
+	h := newHarness(t)
+	h.f.rollupCfg.PrivateProjection = &projection.Config{Verifier: projection.InsecureStub, GenesisOutputRoot: common.Hash{1}}
+	root := func(n uint64) common.Hash { return common.BigToHash(new(big.Int).SetUint64(0x1000 + n)) }
+	record := func(n uint64) *types.Transaction {
+		return rawTx(n, predeploys.ClaimRegistryAddr, wire.EncodeOutput(root(n)))
+	}
+	h.r.set(1, "a", 0, claimTx(t, 0, 1, 8), record(1))
+	for n := uint64(2); n <= 4; n++ {
+		h.r.set(n, "a", 0, record(n))
+	}
+	// Block 5's replay reverted: 5 is deposit-only, and so is the dropped rest of the span.
+	h.r.fill(5, 8, "a", 0)
+	h.r.localSafe, h.r.safe = 8, 8
+	require.NoError(t, h.step())
+
+	status, err := NewAPI(h.f).SyncStatus(t.Context())
+	require.NoError(t, err)
+	require.Equal(t, wantGenesisRef(), status.LocalSafeL2, "a partly admitted claim is not a checkpoint")
+	require.NotNil(t, status.Recovery)
+	require.NotNil(t, status.Recovery.Prefix)
+	require.Equal(t, uint64(4), status.Recovery.Prefix.Last.Number, "the prefix ends at the last recorded block")
+	require.Equal(t, root(4), status.Recovery.Prefix.OutputRoot)
+	require.Equal(t, common.Hash{1}, status.Recovery.AnchorOutputRoot)
 }

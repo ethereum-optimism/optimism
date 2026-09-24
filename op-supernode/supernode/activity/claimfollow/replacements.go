@@ -6,6 +6,7 @@ import (
 
 	"github.com/ethereum/go-ethereum/common"
 
+	"github.com/ethereum-optimism/optimism/op-private-interop/projection"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 )
 
@@ -48,6 +49,30 @@ func (m *Module) surviving(ctx context.Context, src Rendering, c claim, frontier
 			return 0, fmt.Errorf("original projection header is unavailable or inconsistent")
 		}
 		old = eth.BlockID{Hash: env.ExecutionPayload.ParentHash, Number: old.Number - 1}
+	}
+	// Execution invalidation (spec-sound-profile §E): on the projection a failed carrier makes its
+	// block invalid, and Holocene derivation replaces it with a deposit-only block on the same
+	// branch and drops the rest of the span. No branch changes and nothing is denied, but the
+	// replacement carries no output record. The claim then survives only up to the last block
+	// before the first record-less block of its range.
+	if m.rollupCfg.PrivateProjection != nil {
+		for n := c.carrier + 1; n <= end; n++ {
+			env, err := src.PayloadByNumber(ctx, n)
+			if err != nil {
+				return 0, err
+			}
+			if env == nil || env.ExecutionPayload == nil || uint64(env.ExecutionPayload.BlockNumber) != n {
+				return 0, fmt.Errorf("missing projection block %d", n)
+			}
+			root, err := projection.CanonicalOutput(env.ExecutionPayload.Transactions)
+			if err != nil {
+				return 0, err
+			}
+			if root == (common.Hash{}) {
+				end = n - 1
+				break
+			}
+		}
 	}
 	for _, id := range denied {
 		if id.Number <= c.carrier || id.Number > end {
