@@ -162,6 +162,10 @@ where
             .await?)
     }
 
+    async fn game_type(&self, game: Address, block: BlockId) -> Result<u32> {
+        Ok(ZKDisputeGame::new(game, self.provider.clone()).gameType().block(block).call().await?)
+    }
+
     async fn factory_game(&self, index: U256, block: BlockId) -> Result<FactoryGame> {
         let game = self.factory.gameAtIndex(index).block(block).call().await?;
         Ok(FactoryGame { address: game.proxy_, game_type: game.gameType_ })
