@@ -66,17 +66,22 @@ func TestSafeHeadAdvancesAcrossGlamsterdam(gt *testing.T) {
 	sys.L2EL.WaitForGasUsed(eth.Safe, threshold, 2*time.Minute)
 }
 
-func TestAutoDAUsesBlobsWhenGlamsterdamMakesThemCheaper(gt *testing.T) {
+func TestAutoDASwitchesFromCalldataToBlobsAtGlamsterdam(gt *testing.T) {
 	t := devtest.ParallelT(gt)
+	prepareGlamsterdamOpReth(t)
 	sys := presets.NewMinimal(t,
 		glamsterdamL1Geth(t),
 		presets.WithDeployerOptions(
-			sysgo.WithForkAtL1Genesis(forks.Amsterdam),
+			// Activate the stable test blob schedule before setting the large excess blob gas.
+			sysgo.WithForkAtL1Genesis(forks.BPO5),
+			// Leave enough time to submit a pre-Amsterdam batch before exercising the fork.
+			sysgo.WithForkAtL1Offset(forks.Amsterdam, 60),
 			withGlamsterdamAutoDABlobFee,
 		),
 		presets.WithBatcherOption(func(_ sysgo.ComponentTarget, cfg *batcher.CLIConfig) {
 			cfg.Stopped = true
 			cfg.DataAvailabilityType = batcherflags.AutoType
+			cfg.ThrottleConfig.LowerThreshold = 0
 			// Keep the execution-gas price deterministic. The configured blob base fee is
 			// cheaper only when the Amsterdam calldata floor is included.
 			cfg.TxMgrConfig.MinBaseFeeGwei = 1
@@ -89,14 +94,32 @@ func TestAutoDAUsesBlobsWhenGlamsterdamMakesThemCheaper(gt *testing.T) {
 	l1Config := sys.L1Network.Escape().ChainConfig()
 	t.Require().NotNil(l1Config.AmsterdamTime)
 	l1Genesis := sys.L1EL.BlockRefByNumber(0)
-	t.Require().LessOrEqual(*l1Config.AmsterdamTime, l1Genesis.Time,
-		"Glamsterdam must be active when the batcher compares DA costs")
+	t.Require().Greater(*l1Config.AmsterdamTime, l1Genesis.Time,
+		"Glamsterdam must activate after L1 genesis to exercise both pricing regimes")
 
-	lastL1Block := sys.L1EL.BlockRefByLabel(eth.Unsafe).Number
+	preForkStart := sys.L1EL.BlockRefByLabel(eth.Unsafe)
+	t.Require().Less(preForkStart.Time, *l1Config.AmsterdamTime)
 	sys.L2Batcher.Start()
-	batchTx := sys.L2Chain.WaitForBatchTransaction(lastL1Block)
-	t.Require().Equal(uint8(gethtypes.BlobTxType), batchTx.Type(),
-		"auto DA must choose blobs when the Glamsterdam calldata floor makes them cheaper")
+	preForkBatchTx := sys.L2Chain.WaitForBatchTransaction(preForkStart.Number)
+	// The provider initializes and falls back to blobs, so observing calldata also proves that
+	// the gas-price and L1-header queries succeeded instead of silently taking a fallback path.
+	t.Require().Equal(uint8(gethtypes.DynamicFeeTxType), preForkBatchTx.Type(),
+		"auto DA must choose calldata under the pre-Amsterdam floor schedule")
+	preForkL1 := sys.L1EL.BlockRefByLabel(eth.Unsafe)
+	t.Require().Less(preForkL1.Time, *l1Config.AmsterdamTime,
+		"the calldata batch must be included before Glamsterdam activates")
+	sys.L2Batcher.Stop()
+
+	postForkL1 := sys.L1EL.WaitForTime(*l1Config.AmsterdamTime)
+	postForkHeader, err := sys.L1EL.EthClient().HeaderByHash(t.Ctx(), postForkL1.Hash)
+	t.Require().NoError(err)
+	t.Require().NotNil(postForkHeader.BlockAccessListHash,
+		"post-Glamsterdam L1 block must include a block access list hash")
+
+	sys.L2Batcher.Start()
+	postForkBatchTx := sys.L2Chain.WaitForBatchTransaction(postForkL1.Number)
+	t.Require().Equal(uint8(gethtypes.BlobTxType), postForkBatchTx.Type(),
+		"auto DA must switch to blobs when the Amsterdam calldata floor makes them cheaper")
 }
 
 func TestGlamsterdamP2PUnsafeBlockBecomesSafe(gt *testing.T) {

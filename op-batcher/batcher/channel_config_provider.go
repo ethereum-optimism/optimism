@@ -78,6 +78,12 @@ func (dec *DynamicEthChannelConfig) ChannelConfig(isThrottling bool) ChannelConf
 		dec.log.Warn("Error querying L1 head, returning last config", "err", err)
 		return *dec.lastConfig
 	}
+	// Price against the latest canonical head rather than predicting the fork rules of the
+	// transaction's eventual inclusion block. This intentionally accepts one head of lag at
+	// Amsterdam activation: a transaction priced on the final pre-Amsterdam head may be included
+	// in the first Amsterdam block using the pre-Amsterdam comparison. This affects only DA cost
+	// selection; the transaction gas limit accounts for both floor schedules, so validity is
+	// unchanged.
 	isAmsterdam := l1Head.BlockAccessListHash != nil
 
 	// Channels built for blobs have higher capacity than channels built for calldata.
