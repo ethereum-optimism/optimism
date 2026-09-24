@@ -11,6 +11,7 @@ import (
 	"sync/atomic"
 
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/contracts"
+	faultTypes "github.com/ethereum-optimism/optimism/op-challenger/game/fault/types"
 	gameTypes "github.com/ethereum-optimism/optimism/op-challenger/game/types"
 	monTypes "github.com/ethereum-optimism/optimism/op-dispute-mon/mon/types"
 	"github.com/ethereum-optimism/optimism/op-service/clock"
@@ -22,13 +23,19 @@ import (
 var ErrIgnored = errors.New("ignored")
 
 type (
-	CreateGameCaller        func(ctx context.Context, game gameTypes.GameMetadata) (GameCaller, error)
-	FactoryGameFetcher      func(ctx context.Context, blockHash common.Hash, earliestTimestamp uint64) ([]gameTypes.GameMetadata, error)
-	ParentGameStatusFetcher func(ctx context.Context, index uint64, block rpcblock.Block) (gameTypes.GameStatus, error)
+	CreateGameCaller           func(ctx context.Context, game gameTypes.GameMetadata) (GameCaller, error)
+	FactoryGameFetcher         func(ctx context.Context, blockHash common.Hash, earliestTimestamp uint64) ([]gameTypes.GameMetadata, error)
+	ParentGameStatusFetcher    func(ctx context.Context, index uint64, block rpcblock.Block) (gameTypes.GameStatus, error)
+	GameFinalityCheckerCreator func(anchorStateRegistry common.Address) GameFinalityChecker
 )
 
 type GamesWaitingForRootSourceMetrics interface {
 	RecordGamesWaitingForRootSource(gameTypeCounts map[string]int)
+}
+
+// GameFinalityChecker reads AnchorStateRegistry finality for a game.
+type GameFinalityChecker interface {
+	IsGameFinalized(ctx context.Context, block rpcblock.Block, game common.Address) (bool, error)
 }
 
 // CommonEnricher adds data shared by every enriched game variant.
@@ -58,6 +65,7 @@ type Extractor struct {
 	faultEnrichers    []FaultEnricher
 	zkAgreement       ZKEnricher
 	zkBonds           *BondDataEnricher
+	newFinality       GameFinalityCheckerCreator
 	ignoredGames      map[common.Address]bool
 	latestGameData    map[common.Address]monTypes.EnrichedGame
 }
@@ -75,6 +83,7 @@ func NewExtractor(
 	faultEnrichers []FaultEnricher,
 	zkAgreement ZKEnricher,
 	zkBonds *BondDataEnricher,
+	newFinality GameFinalityCheckerCreator,
 ) *Extractor {
 	ignored := make(map[common.Address]bool)
 	for _, game := range ignoredGames {
@@ -92,6 +101,7 @@ func NewExtractor(
 		faultEnrichers:    faultEnrichers,
 		zkAgreement:       zkAgreement,
 		zkBonds:           zkBonds,
+		newFinality:       newFinality,
 		ignoredGames:      ignored,
 	}
 }
@@ -281,6 +291,13 @@ func (e *Extractor) enrichZKGame(ctx context.Context, block rpcblock.Block, call
 	enrichedGame.ChallengerBond = cloneBigInt(bondMeta.ChallengerBond)
 	if err := e.zkBonds.EnrichZK(ctx, block, zkCaller, enrichedGame); err != nil {
 		return nil, fmt.Errorf("failed to enrich ZK game bonds: %w", err)
+	}
+	if meta.Status != gameTypes.GameStatusInProgress && enrichedGame.BondDistributionMode == faultTypes.UndecidedDistributionMode {
+		finalized, err := e.newFinality(anchorStateRegistry).IsGameFinalized(ctx, block, game.Proxy)
+		if err != nil {
+			return nil, fmt.Errorf("failed to fetch ZK game finality: %w", err)
+		}
+		enrichedGame.Finalized = finalized
 	}
 	return enrichedGame, nil
 }

@@ -66,6 +66,7 @@ func TestExtractorChecksSuperPermissionedGame(t *testing.T) {
 		nil,
 		nil,
 		nil,
+		nil,
 	)
 
 	games, ignored, failed, err := extractor.Extract(context.Background(), blockHash, 0)

@@ -30,7 +30,8 @@ func (m *ZKLifecycleMonitor) CheckLifecycle(games []*types.ZKGameData) {
 			pendingResolution++
 		}
 		if game.Status != gameTypes.GameStatusInProgress &&
-			game.BondDistributionMode == faultTypes.UndecidedDistributionMode {
+			game.BondDistributionMode == faultTypes.UndecidedDistributionMode &&
+			game.Finalized {
 			pendingBondDistribution++
 		}
 	}
