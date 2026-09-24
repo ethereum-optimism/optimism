@@ -320,7 +320,7 @@ arg: --flashblocks-url <FLASHBLOCKS_URL> [action: Set] [num-args: 1] [aliases: w
 arg: --flashblock-consensus [action: SetTrue] [num-args: 0] [aliases: subblocks-consensus] [default: false] [requires: [(IsPresent, "flashblocks_url")]] help: Enable flashblock consensus client to drive the chain forward
 arg: --proofs-history [action: SetTrue] [num-args: 0] [default-values-if: [("proofs-history.storage-path", IsPresent, Some(["true"]))]] help: If true, initialize external-proofs exex to save and serve trie nodes to provide proofs faster
 arg: --proofs-history.storage-path <PROOFS_HISTORY_STORAGE_PATH> [action: Set] [num-args: 1] help: Path to the proofs-history storage DB. Defaults to `<reth-data-dir>/historical-proofs` (chain-namespaced via reth's `--datadir`)
-arg: --proofs-history.storage-version <PROOFS_HISTORY_STORAGE_VERSION> [action: Set] [num-args: 1] [default: v1] [possible: v1, v2] help: Storage schema version. Must match the version used when starting the node
+arg: --proofs-history.storage-version <PROOFS_HISTORY_STORAGE_VERSION> [action: Set] [num-args: 1] [default: v2] [possible: v2] help: Storage schema version. Must match the version used when starting the node
 arg: --proofs-history.window <PROOFS_HISTORY_WINDOW> [action: Set] [num-args: 1] [default: 1296000] help: The window to span blocks for proofs history. Value is the number of blocks. Default is 1 month of blocks based on 2 seconds block time (`30 * 24 * 60 * 60 / 2 = 1_296_000`)
 arg: --proofs-history.verification-interval <PROOFS_HISTORY_VERIFICATION_INTERVAL> [action: Set] [num-args: 1] [default: 0] help: Verification interval: perform full block execution every N blocks for data integrity. - 0: Disabled (Default) (always use fast path with pre-computed data from notifications) - 1: Always verify (always execute blocks, slowest) - N: Verify every Nth block (e.g., 100 = every 100 blocks)
 
@@ -1083,8 +1083,8 @@ arg: --static-files.blocks-per-file.account-change-sets <BLOCKS_PER_FILE_ACCOUNT
 arg: --static-files.blocks-per-file.storage-change-sets <BLOCKS_PER_FILE_STORAGE_CHANGE_SETS> [action: Set] [num-args: 1] help: Number of blocks per file for the storage changesets segment
 arg: --storage.v2 <V2> [action: SetTrue] [num-args: 0..=1] [default: true] [default-missing-values: ["true"]] [possible: true, false] help: Enable V2 (hot/cold) storage layout for new databases
 arg: --proofs-history.storage-path <PROOFS_HISTORY_STORAGE_PATH> [action: Set] [num-args: 1] help: Path to the proofs-history storage DB. Defaults to `<reth-data-dir>/historical-proofs` (chain-namespaced via reth's `--datadir`)
-arg: --proofs-history.storage-version <PROOFS_HISTORY_STORAGE_VERSION> [action: Set] [num-args: 1] [default: v1] [possible: v1, v2] help: Storage schema version. Must match the version used when starting the node
-arg: --proofs-history.skip-backfill [action: SetTrue] [num-args: 0] help: Skip the post-init backward backfill. By default, after the snapshot of the current chain state is captured the proof window is extended back by `--proofs-history.window` blocks using the snapshot-accelerated path. Set this flag to leave the window at `[latest, latest]` and run `op-proofs backfill` later instead. No effect on V1 storage (V1 does not support backfill)
+arg: --proofs-history.storage-version <PROOFS_HISTORY_STORAGE_VERSION> [action: Set] [num-args: 1] [default: v2] [possible: v2] help: Storage schema version. Must match the version used when starting the node
+arg: --proofs-history.skip-backfill [action: SetTrue] [num-args: 0] help: Skip the post-init backward backfill. By default, after the snapshot of the current chain state is captured the proof window is extended back by `--proofs-history.window` blocks using the snapshot-accelerated path. Set this flag to leave the window at `[latest, latest]` and run `op-proofs backfill` later instead
 arg: --proofs-history.window <PROOFS_HISTORY_WINDOW> [action: Set] [num-args: 1] [default: 1296000] help: The window to span blocks for proofs history. Value is the number of blocks. Default is 1 month of blocks based on 2 seconds block time (`30 * 24 * 60 * 60 / 2 = 1_296_000`)
 arg: --proofs-history.backfill-batch-size <N> [action: Set] [num-args: 1] [default: 25] help: Number of blocks committed per MDBX write transaction (>= 1)
 arg: --proofs-history.use-snapshot <BOOL> [action: Set] [num-args: 0..=1] [default: true] [default-missing-values: ["true"]] [possible: true, false] help: Use the trie-state snapshot to accelerate per-block reads during backfill. If no snapshot exists, one is bootstrapped at the current `earliest` before the backfill loop begins. Requires v2 storage
@@ -1116,7 +1116,7 @@ arg: --static-files.blocks-per-file.account-change-sets <BLOCKS_PER_FILE_ACCOUNT
 arg: --static-files.blocks-per-file.storage-change-sets <BLOCKS_PER_FILE_STORAGE_CHANGE_SETS> [action: Set] [num-args: 1] help: Number of blocks per file for the storage changesets segment
 arg: --storage.v2 <V2> [action: SetTrue] [num-args: 0..=1] [default: true] [default-missing-values: ["true"]] [possible: true, false] help: Enable V2 (hot/cold) storage layout for new databases
 arg: --proofs-history.storage-path <PROOFS_HISTORY_STORAGE_PATH> [action: Set] [num-args: 1] help: Path to the proofs-history storage DB. Defaults to `<reth-data-dir>/historical-proofs` (chain-namespaced via reth's `--datadir`)
-arg: --proofs-history.storage-version <PROOFS_HISTORY_STORAGE_VERSION> [action: Set] [num-args: 1] [default: v1] [possible: v1, v2] help: Storage schema version. Must match the version used when starting the node
+arg: --proofs-history.storage-version <PROOFS_HISTORY_STORAGE_VERSION> [action: Set] [num-args: 1] [default: v2] [possible: v2] help: Storage schema version. Must match the version used when starting the node
 arg: --proofs-history.window <PROOFS_HISTORY_WINDOW> [action: Set] [num-args: 1] [default: 1296000] help: The window to span blocks for proofs history. Value is the number of blocks. Default is 1 month of blocks based on 2 seconds block time (`30 * 24 * 60 * 60 / 2 = 1_296_000`)
 arg: --proofs-history.backfill-batch-size <N> [action: Set] [num-args: 1] [default: 25] help: Number of blocks committed per MDBX write transaction (>= 1)
 arg: --proofs-history.use-snapshot <BOOL> [action: Set] [num-args: 0..=1] [default: true] [default-missing-values: ["true"]] [possible: true, false] help: Use the trie-state snapshot to accelerate per-block reads during backfill. If no snapshot exists, one is bootstrapped at the current `earliest` before the backfill loop begins. Requires v2 storage
@@ -1148,7 +1148,7 @@ arg: --static-files.blocks-per-file.account-change-sets <BLOCKS_PER_FILE_ACCOUNT
 arg: --static-files.blocks-per-file.storage-change-sets <BLOCKS_PER_FILE_STORAGE_CHANGE_SETS> [action: Set] [num-args: 1] help: Number of blocks per file for the storage changesets segment
 arg: --storage.v2 <V2> [action: SetTrue] [num-args: 0..=1] [default: true] [default-missing-values: ["true"]] [possible: true, false] help: Enable V2 (hot/cold) storage layout for new databases
 arg: --proofs-history.storage-path <PROOFS_HISTORY_STORAGE_PATH> [action: Set] [num-args: 1] help: Path to the proofs-history storage DB. Defaults to `<reth-data-dir>/historical-proofs` (chain-namespaced via reth's `--datadir`)
-arg: --proofs-history.storage-version <PROOFS_HISTORY_STORAGE_VERSION> [action: Set] [num-args: 1] [default: v1] [possible: v1, v2] help: Storage schema version. Must match the version used when starting the node
+arg: --proofs-history.storage-version <PROOFS_HISTORY_STORAGE_VERSION> [action: Set] [num-args: 1] [default: v2] [possible: v2] help: Storage schema version. Must match the version used when starting the node
 arg: --proofs-history.window <PROOFS_HISTORY_WINDOW> [action: Set] [num-args: 1] [default: 1296000] help: The window to span blocks for proofs history. Value is the number of blocks. Default is 1 month of blocks based on 2 seconds block time (`30 * 24 * 60 * 60 / 2 = 1_296_000`)
 arg: --proofs-history.prune-batch-size <PROOFS_HISTORY_PRUNE_BATCH_SIZE> [action: Set] [num-args: 1] [default: 1000] help: The batch size for pruning operations
 
@@ -1183,7 +1183,7 @@ arg: --static-files.blocks-per-file.account-change-sets <BLOCKS_PER_FILE_ACCOUNT
 arg: --static-files.blocks-per-file.storage-change-sets <BLOCKS_PER_FILE_STORAGE_CHANGE_SETS> [action: Set] [num-args: 1] help: Number of blocks per file for the storage changesets segment
 arg: --storage.v2 <V2> [action: SetTrue] [num-args: 0..=1] [default: true] [default-missing-values: ["true"]] [possible: true, false] help: Enable V2 (hot/cold) storage layout for new databases
 arg: --proofs-history.storage-path <PROOFS_HISTORY_STORAGE_PATH> [action: Set] [num-args: 1] help: Path to the proofs-history storage DB. Defaults to `<reth-data-dir>/historical-proofs` (chain-namespaced via reth's `--datadir`)
-arg: --proofs-history.storage-version <PROOFS_HISTORY_STORAGE_VERSION> [action: Set] [num-args: 1] [default: v1] [possible: v1, v2] help: Storage schema version. Must match the version used when starting the node
+arg: --proofs-history.storage-version <PROOFS_HISTORY_STORAGE_VERSION> [action: Set] [num-args: 1] [default: v2] [possible: v2] help: Storage schema version. Must match the version used when starting the node
 arg: --proofs-history.snapshot-target-block <TARGET_BLOCK> [action: Set] [num-args: 1] help: Target block for the snapshot anchor. Must fall inside the proofs window `[earliest, latest]`. Defaults to `earliest` — that's the anchor the snapshot-accelerated backfill flow picks up
 
 == op-reth proofs snapshot drop
@@ -1213,7 +1213,7 @@ arg: --static-files.blocks-per-file.account-change-sets <BLOCKS_PER_FILE_ACCOUNT
 arg: --static-files.blocks-per-file.storage-change-sets <BLOCKS_PER_FILE_STORAGE_CHANGE_SETS> [action: Set] [num-args: 1] help: Number of blocks per file for the storage changesets segment
 arg: --storage.v2 <V2> [action: SetTrue] [num-args: 0..=1] [default: true] [default-missing-values: ["true"]] [possible: true, false] help: Enable V2 (hot/cold) storage layout for new databases
 arg: --proofs-history.storage-path <PROOFS_HISTORY_STORAGE_PATH> [action: Set] [num-args: 1] help: Path to the proofs-history storage DB. Defaults to `<reth-data-dir>/historical-proofs` (chain-namespaced via reth's `--datadir`)
-arg: --proofs-history.storage-version <PROOFS_HISTORY_STORAGE_VERSION> [action: Set] [num-args: 1] [default: v1] [possible: v1, v2] help: Storage schema version. Must match the version used when starting the node
+arg: --proofs-history.storage-version <PROOFS_HISTORY_STORAGE_VERSION> [action: Set] [num-args: 1] [default: v2] [possible: v2] help: Storage schema version. Must match the version used when starting the node
 
 == op-reth proofs unwind
 about: Unwind the proofs storage to a specific block
@@ -1242,5 +1242,5 @@ arg: --static-files.blocks-per-file.account-change-sets <BLOCKS_PER_FILE_ACCOUNT
 arg: --static-files.blocks-per-file.storage-change-sets <BLOCKS_PER_FILE_STORAGE_CHANGE_SETS> [action: Set] [num-args: 1] help: Number of blocks per file for the storage changesets segment
 arg: --storage.v2 <V2> [action: SetTrue] [num-args: 0..=1] [default: true] [default-missing-values: ["true"]] [possible: true, false] help: Enable V2 (hot/cold) storage layout for new databases
 arg: --proofs-history.storage-path <PROOFS_HISTORY_STORAGE_PATH> [action: Set] [num-args: 1] help: Path to the proofs-history storage DB. Defaults to `<reth-data-dir>/historical-proofs` (chain-namespaced via reth's `--datadir`)
-arg: --proofs-history.storage-version <PROOFS_HISTORY_STORAGE_VERSION> [action: Set] [num-args: 1] [default: v1] [possible: v1, v2] help: Storage schema version. Must match the version used when starting the node
+arg: --proofs-history.storage-version <PROOFS_HISTORY_STORAGE_VERSION> [action: Set] [num-args: 1] [default: v2] [possible: v2] help: Storage schema version. Must match the version used when starting the node
 arg: --target <TARGET_BLOCK> [action: Set] [num-args: 1] [required] help: The target block number to unwind to
