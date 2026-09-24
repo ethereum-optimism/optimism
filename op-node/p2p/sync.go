@@ -17,10 +17,10 @@ import (
 	"golang.org/x/time/rate"
 
 	"github.com/ethereum/go-ethereum"
-	"github.com/ethereum/go-ethereum/log"
 
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
+	"github.com/ethereum-optimism/optimism/op-service/log"
 )
 
 // StreamCtxFn provides a new context to use when handling stream requests

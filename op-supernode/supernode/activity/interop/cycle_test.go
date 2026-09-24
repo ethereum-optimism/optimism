@@ -5,11 +5,11 @@ import (
 	"testing"
 
 	"github.com/ethereum/go-ethereum/common"
-	gethlog "github.com/ethereum/go-ethereum/log"
 	"github.com/stretchr/testify/require"
 
 	messages "github.com/ethereum-optimism/optimism/op-core/interop/messages"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
+	oplog "github.com/ethereum-optimism/optimism/op-service/log"
 )
 
 // =============================================================================
@@ -607,7 +607,7 @@ func TestVerifyCycleMessages_OpenBlockErrorReturnsError(t *testing.T) {
 	mockDB := &algoMockLogsDB{openBlockErr: errors.New("database read failed")}
 
 	i := &Interop{
-		log:     gethlog.New(),
+		log:     oplog.New(),
 		logsDBs: map[eth.ChainID]LogsDB{chainID: mockDB},
 	}
 
@@ -630,7 +630,7 @@ func TestVerifyCycleMessages_BlockNotAtTimestampSkippedWithoutError(t *testing.T
 	}
 
 	i := &Interop{
-		log:     gethlog.New(),
+		log:     oplog.New(),
 		logsDBs: map[eth.ChainID]LogsDB{chainID: mockDB},
 	}
 

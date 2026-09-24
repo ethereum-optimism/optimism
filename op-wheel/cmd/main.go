@@ -7,8 +7,7 @@ import (
 	opservice "github.com/ethereum-optimism/optimism/op-service"
 	"github.com/urfave/cli/v2"
 
-	"github.com/ethereum/go-ethereum/log"
-
+	"github.com/ethereum-optimism/optimism/op-service/log"
 	"github.com/ethereum-optimism/optimism/op-service/log/logcli"
 	wheel "github.com/ethereum-optimism/optimism/op-wheel"
 )

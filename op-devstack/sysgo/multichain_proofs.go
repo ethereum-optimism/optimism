@@ -11,7 +11,6 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/crypto"
-	"github.com/ethereum/go-ethereum/log"
 
 	"github.com/ethereum-optimism/optimism/op-chain-ops/devkeys"
 	opchallenger "github.com/ethereum-optimism/optimism/op-challenger"
@@ -27,7 +26,7 @@ import (
 	ps "github.com/ethereum-optimism/optimism/op-proposer/proposer"
 	"github.com/ethereum-optimism/optimism/op-service/endpoint"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
-	oplog "github.com/ethereum-optimism/optimism/op-service/log"
+	"github.com/ethereum-optimism/optimism/op-service/log"
 	"github.com/ethereum-optimism/optimism/op-service/log/logcli"
 	opmetrics "github.com/ethereum-optimism/optimism/op-service/metrics"
 	"github.com/ethereum-optimism/optimism/op-service/oppprof"
@@ -296,7 +295,7 @@ func startSuperProposer(
 		AllowNonFinalized:            true,
 		TxMgrConfig:                  setuputils.NewTxMgrConfig(endpoint.URL(l1EL.UserRPC()), proposerSecret),
 		RPCConfig:                    oprpc.CLIConfig{ListenAddr: "127.0.0.1"},
-		LogConfig:                    logcli.CLIConfig{Level: log.LvlInfo, Format: oplog.FormatText},
+		LogConfig:                    logcli.CLIConfig{Level: log.LvlInfo, Format: log.FormatText},
 		MetricsConfig:                opmetrics.CLIConfig{},
 		PprofConfig:                  oppprof.CLIConfig{},
 		DGFAddress:                   l2Net.deployment.DisputeGameFactoryProxyAddr().Hex(),

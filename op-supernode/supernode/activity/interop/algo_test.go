@@ -8,12 +8,12 @@ import (
 	"testing"
 
 	"github.com/ethereum/go-ethereum/common"
-	gethlog "github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/params"
 	"github.com/stretchr/testify/require"
 
 	optypes "github.com/ethereum-optimism/optimism/op-core/types"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
+	oplog "github.com/ethereum-optimism/optimism/op-service/log"
 	"github.com/ethereum-optimism/optimism/op-supernode/supernode/activity"
 	cc "github.com/ethereum-optimism/optimism/op-supernode/supernode/chain_container"
 
@@ -63,7 +63,7 @@ func newSourceContainsErrCase(name string, containsErr error, abort bool) verify
 			}
 			i := &Interop{
 				messageExpiryWindow: defaultMessageExpiryWindow,
-				log:                 gethlog.New(),
+				log:                 oplog.New(),
 				logsDBs: map[eth.ChainID]LogsDB{
 					sourceChainID: sourceDB,
 					destChainID:   destDB,
@@ -194,7 +194,7 @@ func newActivationBoundaryCase(name string, activationTs, blockTimeOverride, exe
 			interop := &Interop{
 				activationTimestamp: activationTs,
 				messageExpiryWindow: defaultMessageExpiryWindow,
-				log:                 gethlog.New(),
+				log:                 oplog.New(),
 				logsDBs: map[eth.ChainID]LogsDB{
 					sourceChainID: sourceDB,
 					destChainID:   destDB,
@@ -260,7 +260,7 @@ func TestL1Inclusion(t *testing.T) {
 
 				interop := &Interop{
 					messageExpiryWindow: defaultMessageExpiryWindow,
-					log:                 gethlog.New(),
+					log:                 oplog.New(),
 					logsDBs:             map[eth.ChainID]LogsDB{},
 					chains:              map[eth.ChainID]cc.InteropChain{chainID: &algoMockChain{id: chainID, optimisticL1: l1Block}},
 				}
@@ -282,7 +282,7 @@ func TestL1Inclusion(t *testing.T) {
 				// Chain 3 has L1 at 50 (middle)
 				interop := &Interop{
 					messageExpiryWindow: defaultMessageExpiryWindow,
-					log:                 gethlog.New(),
+					log:                 oplog.New(),
 					logsDBs:             map[eth.ChainID]LogsDB{},
 					chains: map[eth.ChainID]cc.InteropChain{
 						chain1ID: &algoMockChain{id: chain1ID, optimisticL1: eth.BlockID{Number: 60, Hash: common.HexToHash("0xL1_1")}},
@@ -310,7 +310,7 @@ func TestL1Inclusion(t *testing.T) {
 
 				interop := &Interop{
 					messageExpiryWindow: defaultMessageExpiryWindow,
-					log:                 gethlog.New(),
+					log:                 oplog.New(),
 					logsDBs:             map[eth.ChainID]LogsDB{},
 					chains: map[eth.ChainID]cc.InteropChain{
 						chain1ID: &algoMockChain{id: chain1ID, optimisticL1: l1Block1},
@@ -334,7 +334,7 @@ func TestL1Inclusion(t *testing.T) {
 				// optimisticAtErr makes l1HeadsFromMocks omit the chain, simulating a snapshot gap.
 				interop := &Interop{
 					messageExpiryWindow: defaultMessageExpiryWindow,
-					log:                 gethlog.New(),
+					log:                 oplog.New(),
 					logsDBs:             map[eth.ChainID]LogsDB{},
 					chains: map[eth.ChainID]cc.InteropChain{
 						chainID: &algoMockChain{id: chainID, optimisticAtErr: errors.New("optimistic at error")},
@@ -352,7 +352,7 @@ func TestL1Inclusion(t *testing.T) {
 			setup: func() (*Interop, uint64, map[eth.ChainID]eth.BlockID) {
 				interop := &Interop{
 					messageExpiryWindow: defaultMessageExpiryWindow,
-					log:                 gethlog.New(),
+					log:                 oplog.New(),
 					logsDBs:             map[eth.ChainID]LogsDB{},
 					chains:              map[eth.ChainID]cc.InteropChain{},
 				}
@@ -371,7 +371,7 @@ func TestL1Inclusion(t *testing.T) {
 
 				interop := &Interop{
 					messageExpiryWindow: defaultMessageExpiryWindow,
-					log:                 gethlog.New(),
+					log:                 oplog.New(),
 					logsDBs:             map[eth.ChainID]LogsDB{},
 					chains:              map[eth.ChainID]cc.InteropChain{chainID: &algoMockChain{id: chainID, optimisticL1: l1Block}},
 				}
@@ -418,7 +418,7 @@ func TestL1Inclusion_UsesSnapshotNotChainContainer(t *testing.T) {
 
 	interop := &Interop{
 		messageExpiryWindow: defaultMessageExpiryWindow,
-		log:                 gethlog.New(),
+		log:                 oplog.New(),
 		logsDBs:             map[eth.ChainID]LogsDB{},
 		chains: map[eth.ChainID]cc.InteropChain{
 			chainID: &algoMockChain{id: chainID, optimisticAtErr: errors.New("chain container must not be called")},
@@ -631,7 +631,7 @@ func TestVerifyInteropMessages(t *testing.T) {
 
 				interop := &Interop{
 					messageExpiryWindow: defaultMessageExpiryWindow,
-					log:                 gethlog.New(),
+					log:                 oplog.New(),
 					logsDBs:             map[eth.ChainID]LogsDB{chainID: mockDB},
 					chains:              map[eth.ChainID]cc.InteropChain{chainID: newMockChainWithL1(chainID, l1Block)},
 				}
@@ -681,7 +681,7 @@ func TestVerifyInteropMessages(t *testing.T) {
 
 				interop := &Interop{
 					messageExpiryWindow: defaultMessageExpiryWindow,
-					log:                 gethlog.New(),
+					log:                 oplog.New(),
 					logsDBs: map[eth.ChainID]LogsDB{
 						sourceChainID: sourceDB,
 						destChainID:   destDB,
@@ -741,7 +741,7 @@ func TestVerifyInteropMessages(t *testing.T) {
 
 				interop := &Interop{
 					messageExpiryWindow: defaultMessageExpiryWindow,
-					log:                 gethlog.New(),
+					log:                 oplog.New(),
 					logsDBs: map[eth.ChainID]LogsDB{
 						sourceChainID: sourceDB,
 						destChainID:   destDB,
@@ -800,7 +800,7 @@ func TestVerifyInteropMessages(t *testing.T) {
 
 				interop := &Interop{
 					messageExpiryWindow: defaultMessageExpiryWindow,
-					log:                 gethlog.New(),
+					log:                 oplog.New(),
 					logsDBs: map[eth.ChainID]LogsDB{
 						sourceChainID: sourceDB,
 						destChainID:   destDB,
@@ -862,7 +862,7 @@ func TestVerifyInteropMessages(t *testing.T) {
 
 				interop := &Interop{
 					messageExpiryWindow: defaultMessageExpiryWindow,
-					log:                 gethlog.New(),
+					log:                 oplog.New(),
 					logsDBs: map[eth.ChainID]LogsDB{
 						sourceChainID: sourceDB,
 						destChainID:   destDB,
@@ -900,7 +900,7 @@ func TestVerifyInteropMessages(t *testing.T) {
 
 				interop := &Interop{
 					messageExpiryWindow: defaultMessageExpiryWindow,
-					log:                 gethlog.New(),
+					log:                 oplog.New(),
 					logsDBs:             map[eth.ChainID]LogsDB{registeredChain: mockDB},
 					chains: map[eth.ChainID]cc.InteropChain{
 						registeredChain: newMockChainWithL1(registeredChain, eth.BlockID{Number: 40, Hash: common.HexToHash("0xL1")}),
@@ -938,7 +938,7 @@ func TestVerifyInteropMessages(t *testing.T) {
 
 				interop := &Interop{
 					messageExpiryWindow: defaultMessageExpiryWindow,
-					log:                 gethlog.New(),
+					log:                 oplog.New(),
 					logsDBs:             map[eth.ChainID]LogsDB{chainID: mockDB},
 					chains:              map[eth.ChainID]cc.InteropChain{chainID: newMockChainWithL1(chainID, l1Block, expectedBlock)},
 				}
@@ -988,7 +988,7 @@ func TestVerifyInteropMessages(t *testing.T) {
 
 				interop := &Interop{
 					messageExpiryWindow: defaultMessageExpiryWindow,
-					log:                 gethlog.New(),
+					log:                 oplog.New(),
 					logsDBs: map[eth.ChainID]LogsDB{
 						sourceChainID: sourceDB,
 						destChainID:   destDB,
@@ -1034,7 +1034,7 @@ func TestVerifyInteropMessages(t *testing.T) {
 
 				interop := &Interop{
 					messageExpiryWindow: defaultMessageExpiryWindow,
-					log:                 gethlog.New(),
+					log:                 oplog.New(),
 					logsDBs: map[eth.ChainID]LogsDB{
 						destChainID: destDB,
 						// Note: unknownSourceChain NOT in logsDBs
@@ -1088,7 +1088,7 @@ func TestVerifyInteropMessages(t *testing.T) {
 
 				interop := &Interop{
 					messageExpiryWindow: defaultMessageExpiryWindow,
-					log:                 gethlog.New(),
+					log:                 oplog.New(),
 					logsDBs: map[eth.ChainID]LogsDB{
 						sourceChainID: sourceDB,
 						destChainID:   destDB,
@@ -1146,7 +1146,7 @@ func TestVerifyInteropMessages(t *testing.T) {
 
 				interop := &Interop{
 					messageExpiryWindow: defaultMessageExpiryWindow,
-					log:                 gethlog.New(),
+					log:                 oplog.New(),
 					logsDBs: map[eth.ChainID]LogsDB{
 						sourceChainID:  sourceDB,
 						validChainID:   validDB,
@@ -1216,7 +1216,7 @@ func TestVerifyInteropMessages(t *testing.T) {
 
 				interop := &Interop{
 					messageExpiryWindow: defaultMessageExpiryWindow,
-					log:                 gethlog.New(),
+					log:                 oplog.New(),
 					logsDBs:             map[eth.ChainID]LogsDB{chainID: mockDB},
 					chains:              map[eth.ChainID]cc.InteropChain{chainID: newMockChainWithL1(chainID, l1Block)},
 				}

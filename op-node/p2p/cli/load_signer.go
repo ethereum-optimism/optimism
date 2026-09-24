@@ -5,11 +5,11 @@ import (
 	"strings"
 
 	"github.com/ethereum/go-ethereum/crypto"
-	"github.com/ethereum/go-ethereum/log"
 
 	"github.com/ethereum-optimism/optimism/op-node/flags"
 	"github.com/ethereum-optimism/optimism/op-node/p2p"
 	"github.com/ethereum-optimism/optimism/op-service/cliiface"
+	"github.com/ethereum-optimism/optimism/op-service/log"
 	opsigner "github.com/ethereum-optimism/optimism/op-service/signer"
 )
 

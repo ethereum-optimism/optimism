@@ -10,11 +10,11 @@ import (
 	optypes "github.com/ethereum-optimism/optimism/op-core/types"
 	opnodecfg "github.com/ethereum-optimism/optimism/op-node/config"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
+	oplog "github.com/ethereum-optimism/optimism/op-service/log"
 	"github.com/ethereum-optimism/optimism/op-supernode/supernode/chain_container/engine_controller"
 	"github.com/ethereum-optimism/optimism/op-supernode/supernode/chain_container/virtual_node"
 	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/common"
-	gethlog "github.com/ethereum/go-ethereum/log"
 	"github.com/stretchr/testify/require"
 )
 
@@ -763,8 +763,8 @@ func TestIsDenied(t *testing.T) {
 	}
 }
 
-func testLogger() gethlog.Logger {
-	return gethlog.New()
+func testLogger() oplog.Logger {
+	return oplog.New()
 }
 
 // TestDenyList_ConcurrentAccess verifies the DenyList is safe for concurrent use.

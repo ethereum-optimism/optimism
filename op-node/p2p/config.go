@@ -8,7 +8,6 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-node/p2p/gating"
 
-	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/p2p/discover"
 	"github.com/ethereum/go-ethereum/p2p/enode"
 	"github.com/ethereum/go-ethereum/p2p/netutil"
@@ -23,6 +22,7 @@ import (
 	cmgr "github.com/libp2p/go-libp2p/p2p/net/connmgr"
 
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
+	"github.com/ethereum-optimism/optimism/op-service/log"
 )
 
 var DefaultBootnodes = []string{

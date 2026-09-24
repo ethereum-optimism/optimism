@@ -10,9 +10,9 @@ import (
 	opnodecfg "github.com/ethereum-optimism/optimism/op-node/config"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
+	oplog "github.com/ethereum-optimism/optimism/op-service/log"
 	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/common"
-	gethlog "github.com/ethereum/go-ethereum/log"
 	"github.com/stretchr/testify/require"
 )
 
@@ -31,7 +31,7 @@ func TestNewEngineControllerFromConfig_LazyDialSucceedsWhenELUnavailable(t *test
 		Rollup: rollup.Config{L2ChainID: big.NewInt(420), BlockTime: 2},
 	}
 
-	ec, err := NewEngineControllerFromConfig(context.Background(), gethlog.New(), vncfg)
+	ec, err := NewEngineControllerFromConfig(context.Background(), oplog.New(), vncfg)
 	require.NoError(t, err, "lazy setup must not dial, so an unreachable EL must not fail construction")
 	require.NotNil(t, ec)
 	require.False(t, l2cfg.LazyDial, "lazy must be applied to a copy, leaving the shared VN config eager")
@@ -50,7 +50,7 @@ func TestOutputV0AtBlockNumber_UsesPayloadWhenAvailable(t *testing.T) {
 			BlockHash:       func() common.Hash { h := common.Hash{}; h[0] = 0xcc; return h }(),
 		}},
 	}
-	ec := &simpleEngineController{l2: l2, rollup: &rollup.Config{}, log: gethlog.New()}
+	ec := &simpleEngineController{l2: l2, rollup: &rollup.Config{}, log: oplog.New()}
 	out, err := ec.OutputV0AtBlockNumber(context.Background(), 100)
 	require.NoError(t, err)
 	require.NotNil(t, out)
@@ -66,7 +66,7 @@ func TestOutputV0AtBlockNumber_FallsBackWithoutWithdrawalsRoot(t *testing.T) {
 		payload: &eth.ExecutionPayloadEnvelope{ExecutionPayload: &eth.ExecutionPayload{}},
 		output:  &eth.OutputV0{StateRoot: eth.Bytes32{0x01}, MessagePasserStorageRoot: eth.Bytes32{0x02}, BlockHash: func() common.Hash { var h common.Hash; h[0] = 0x03; return h }()},
 	}
-	ec := &simpleEngineController{l2: l2, rollup: &rollup.Config{}, log: gethlog.New()}
+	ec := &simpleEngineController{l2: l2, rollup: &rollup.Config{}, log: oplog.New()}
 	out, err := ec.OutputV0AtBlockNumber(context.Background(), 100)
 	require.NoError(t, err)
 	require.NotNil(t, out)
@@ -84,7 +84,7 @@ func TestOutputV0ByBlockHash_PostIsthmus(t *testing.T) {
 			BlockHash:       hash,
 		}},
 	}
-	ec := &simpleEngineController{l2: l2, rollup: &rollup.Config{}, log: gethlog.New()}
+	ec := &simpleEngineController{l2: l2, rollup: &rollup.Config{}, log: oplog.New()}
 	out, err := ec.OutputV0ByBlockHash(context.Background(), hash)
 	require.NoError(t, err)
 	require.NotNil(t, out)
@@ -101,7 +101,7 @@ func TestOutputV0ByBlockHash_PreIsthmus(t *testing.T) {
 		payload: &eth.ExecutionPayloadEnvelope{ExecutionPayload: &eth.ExecutionPayload{BlockHash: hash}},
 		output:  &eth.OutputV0{StateRoot: eth.Bytes32{0x01}, MessagePasserStorageRoot: eth.Bytes32{0x02}, BlockHash: hash},
 	}
-	ec := &simpleEngineController{l2: l2, rollup: &rollup.Config{}, log: gethlog.New()}
+	ec := &simpleEngineController{l2: l2, rollup: &rollup.Config{}, log: oplog.New()}
 	out, err := ec.OutputV0ByBlockHash(context.Background(), hash)
 	require.NoError(t, err)
 	require.NotNil(t, out)
@@ -116,7 +116,7 @@ func TestOutputV0ByBlockHash_PayloadError(t *testing.T) {
 		payloadErr: fmt.Errorf("payload fetch failed"),
 		output:     &eth.OutputV0{BlockHash: hash},
 	}
-	ec := &simpleEngineController{l2: l2, rollup: &rollup.Config{}, log: gethlog.New()}
+	ec := &simpleEngineController{l2: l2, rollup: &rollup.Config{}, log: oplog.New()}
 	out, err := ec.OutputV0ByBlockHash(context.Background(), hash)
 	require.NoError(t, err)
 	require.NotNil(t, out)
@@ -131,7 +131,7 @@ func TestOutputV0ByBlockHash_NotFound(t *testing.T) {
 		payloadErr: ethereum.NotFound,
 		outputErr:  ethereum.NotFound,
 	}
-	ec := &simpleEngineController{l2: l2, rollup: &rollup.Config{}, log: gethlog.New()}
+	ec := &simpleEngineController{l2: l2, rollup: &rollup.Config{}, log: oplog.New()}
 	out, err := ec.OutputV0ByBlockHash(context.Background(), hash)
 	require.Error(t, err)
 	require.ErrorIs(t, err, ethereum.NotFound)
@@ -148,7 +148,7 @@ func TestOutputV0ByBlockHash_PreIsthmus_StatePruned(t *testing.T) {
 		payload:   &eth.ExecutionPayloadEnvelope{ExecutionPayload: &eth.ExecutionPayload{BlockHash: hash}},
 		outputErr: fmt.Errorf("eth_getProof: missing trie node"),
 	}
-	ec := &simpleEngineController{l2: l2, rollup: &rollup.Config{}, log: gethlog.New()}
+	ec := &simpleEngineController{l2: l2, rollup: &rollup.Config{}, log: oplog.New()}
 	_, err := ec.OutputV0ByBlockHash(context.Background(), hash)
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "eth_getProof")

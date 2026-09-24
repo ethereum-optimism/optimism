@@ -1,10 +1,11 @@
 package gating
 
 import (
-	"github.com/ethereum/go-ethereum/log"
 	"github.com/libp2p/go-libp2p/core/network"
 	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/multiformats/go-multiaddr"
+
+	"github.com/ethereum-optimism/optimism/op-service/log"
 )
 
 //go:generate mockery --name Scores --output mocks/ --with-expecter=true
