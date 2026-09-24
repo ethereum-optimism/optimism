@@ -35,12 +35,11 @@ use revm::context::BlockEnv;
 #[allow(unused_imports)]
 use {
     alloy_eips::Decodable2718,
-    alloy_primitives::{Bytes, U256},
+    alloy_primitives::Bytes,
     op_alloy_rpc_types_engine::OpExecutionData,
     reth_evm::{EvmEnvFor, ExecutionCtxFor},
     reth_primitives_traits::{TxTy, WithEncoded},
     reth_storage_errors::any::AnyError,
-    revm::context::CfgEnv,
 };
 
 #[cfg(feature = "std")]
@@ -420,7 +419,7 @@ mod tests {
     use alloy_eips::eip7685::Requests;
     use alloy_genesis::Genesis;
     use alloy_primitives::{
-        Address, B256, LogData, bytes,
+        Address, B256, LogData, U256, bytes,
         map::{AddressMap, B256Map, HashMap},
     };
     use op_alloy_consensus::{SDMGasEntry, build_post_exec_tx};
@@ -434,6 +433,7 @@ mod tests {
     use reth_optimism_primitives::{OpBlock, OpPrimitives, OpReceipt, OpTransactionSigned};
     use reth_primitives_traits::{Account, RecoveredBlock, SealedBlock};
     use revm::{
+        context::CfgEnv,
         database::{BundleState, CacheDB},
         database_interface::EmptyDBTyped,
         inspector::NoOpInspector,
