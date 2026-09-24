@@ -35,6 +35,7 @@ crate = "crate"
 crates = "crates"
 
 # Blockchain/Ethereum specific terms
+groth = "groth"  # Groth16 proof system, not "growth"
 alloy = "alloy"
 anvil = "anvil"
 asm = "asm"
