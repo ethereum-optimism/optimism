@@ -159,11 +159,12 @@ where
     /// - **Reset**: Reorg detected, pipeline reset and derivation continues
     /// - **Other Critical**: Fatal pipeline errors that stop derivation
     ///
-    /// ## Execution Errors  
-    /// - **Pre-Holocene**: Block execution failures cause block to be discarded
-    /// - **Holocene+**: Failed blocks are retried as deposit-only blocks
+    /// ## Execution Errors
+    /// - Errors that establish an invalid payload are discarded before Holocene
+    /// - After Holocene, invalid payloads are retried as deposit-only blocks
     ///   - Strips non-deposit transactions and flushes invalidated channel
     ///   - If deposit-only block also fails, returns critical error
+    /// - Provider, database, and internal errors return without invalidating the channel
     ///
     /// ## Other Errors
     /// - **`MissingOrigin`**: Pipeline origin not available when expected
@@ -286,6 +287,10 @@ where
                 Ok(outcome) => outcome,
                 Err(e) => {
                     error!(target: "client", "Failed to execute L2 block: {}", e);
+
+                    if !E::is_invalid_payload_error(&e) {
+                        return Err(DriverError::Executor(e));
+                    }
 
                     if cfg.is_holocene_active(attributes.payload_attributes.timestamp) {
                         // Retry with a deposit-only block.
