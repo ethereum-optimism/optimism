@@ -23,6 +23,7 @@ import (
 	altda "github.com/ethereum-optimism/optimism/op-alt-da"
 	"github.com/ethereum-optimism/optimism/op-core/forks"
 	opparams "github.com/ethereum-optimism/optimism/op-core/params"
+	"github.com/ethereum-optimism/optimism/op-private-interop/projection"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/ptr"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
@@ -1278,4 +1279,38 @@ func TestConfig_ActivateAtGenesis(t *testing.T) {
 		}
 		require.Zero(t, cfg)
 	})
+}
+
+// Config.Check applies the private-projection field rules and the §B.5 test gate on the
+// projection chain ID: a go test binary may run the insecure modes on 901/902 only.
+func TestConfigCheckPrivateProjection(t *testing.T) {
+	sp1 := projection.Config{Verifier: projection.SP1PrivateProjectionV1, GenesisOutputRoot: common.Hash{9}, ProgramVKey: common.Hash{0, 1},
+		PrivateConfigHash: common.Hash{3}, DependencySetHash: common.Hash{4}}
+	mock := projection.Config{Verifier: projection.ExecutionMock, GenesisOutputRoot: common.Hash{9}, DependencySetHash: common.Hash{4}}
+	for _, tc := range []struct {
+		name    string
+		cfg     projection.Config
+		chainID int64
+		ok      bool
+	}{
+		{"sp1_prod_chain", sp1, 10, true},
+		{"sp1_mock_allowlisted", func() projection.Config { c := sp1; c.MockProofs = true; return c }(), 901, true},
+		{"sp1_mock_prod_chain", func() projection.Config { c := sp1; c.MockProofs = true; return c }(), 10, false},
+		{"exec_mock_allowlisted", mock, 902, true},
+		{"exec_mock_prod_chain", mock, 10, false},
+		{"sp1_zero_vkey", func() projection.Config { c := sp1; c.ProgramVKey = common.Hash{}; return c }(), 10, false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			cfg := randConfig()
+			cfg.ActivateAtGenesis(forks.Lagoon)
+			cfg.L2ChainID = big.NewInt(tc.chainID)
+			cfg.PrivateProjection = &tc.cfg
+			err := cfg.Check()
+			if tc.ok {
+				require.NoError(t, err)
+			} else {
+				require.Error(t, err)
+			}
+		})
+	}
 }

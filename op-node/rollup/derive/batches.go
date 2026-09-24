@@ -9,6 +9,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-private-interop/projection"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
+	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/log"
 )
@@ -356,11 +357,26 @@ func checkSpanBatchHolocene(ctx context.Context, cfg *rollup.Config, log log.Log
 			log.Warn("invalid projection continuation", "err", err)
 			return BatchDrop
 		}
-		verifier, err := projection.VerifierFor(cfg.PrivateProjection)
+		// The claim's l1Head is bound to the node's own L1 view: the block whose number is the
+		// span's last epoch. The accepted prefix already located it to check the origin hash.
+		endEpochNum := batch.GetBlockEpochNum(batch.GetBlockCount() - 1)
+		var l1Head common.Hash
+		for _, l1Block := range l1Blocks {
+			if l1Block.Number == endEpochNum {
+				l1Head = l1Block.Hash
+				break
+			}
+		}
+		if l1Head == (common.Hash{}) {
+			log.Warn("projection span end epoch is not in the L1 window", "end_epoch", endEpochNum)
+			return missingCanonicalContext(cfg)
+		}
+		verifier, err := projection.VerifierFor(cfg.PrivateProjection, cfg.L2ChainID)
 		if err == nil {
 			_, err = projection.ValidateProjectionRange(cfg.PrivateProjection, projection.Context{
 				ChainID: cfg.L2ChainID, GenesisNumber: cfg.Genesis.L2.Number, GenesisTime: cfg.Genesis.L2Time,
-				BlockTime: cfg.BlockTime, ParentHash: parentBlock.Hash, Continuation: continuation,
+				BlockTime: cfg.BlockTime, GenesisHash: cfg.Genesis.L2.Hash, ParentHash: parentBlock.Hash,
+				L1Head: l1Head, Continuation: continuation,
 			}, batch, verifier)
 		}
 		if err != nil {

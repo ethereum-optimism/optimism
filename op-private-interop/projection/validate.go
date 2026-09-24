@@ -21,10 +21,15 @@ import (
 )
 
 const (
-	InsecureStub   = "insecure-stub-v1"
-	ExecutionMock  = "execution-mock-v1"
-	MaxRangeBlocks = 65536
-	MaxTxGas       = wire.MaxTxGas
+	// InsecureStub accepts any proof bytes. Test-gated (§B.5); retired from production.
+	InsecureStub = "insecure-stub-v1"
+	// ExecutionMock accepts the forgeable native-execution envelope. Test-gated (§B.5).
+	ExecutionMock = "execution-mock-v1"
+	// SP1PrivateProjectionV1 is the production profile: an SP1 Groth16 proof (circuit v6.1.0) of
+	// the private-projection relation over PublicValuesV1.
+	SP1PrivateProjectionV1 = "sp1-private-projection-v1"
+	MaxRangeBlocks         = 65536
+	MaxTxGas               = wire.MaxTxGas
 )
 
 // Config is consensus configuration, not an operator-selected verifier override.
@@ -32,11 +37,59 @@ type Config struct {
 	Verifier          string      `json:"verifier"`
 	AllowEvents       bool        `json:"allow_events,omitempty"`
 	GenesisOutputRoot common.Hash `json:"genesis_output_root"`
+	ProgramVKey       common.Hash `json:"program_vkey"`
+	PrivateConfigHash common.Hash `json:"private_config_hash"`
+	DependencySetHash common.Hash `json:"dependency_set_hash"`
+	MockProofs        bool        `json:"mock_proofs,omitempty"`
 }
 
+// Check applies the chain-independent field rules of §B.1. CheckChain adds the §B.5 test gate.
 func (c *Config) Check() error {
-	if c == nil || (c.Verifier != InsecureStub && c.Verifier != ExecutionMock) || c.GenesisOutputRoot == (common.Hash{}) {
+	if c == nil {
 		return fmt.Errorf("unsupported projection verifier")
+	}
+	switch c.Verifier {
+	case SP1PrivateProjectionV1:
+		switch {
+		case c.GenesisOutputRoot == (common.Hash{}):
+			return fmt.Errorf("projection genesis output root is zero")
+		case c.ProgramVKey == (common.Hash{}) || !isBN254Scalar(c.ProgramVKey):
+			return fmt.Errorf("projection program vkey is zero or not a BN254 scalar")
+		case c.PrivateConfigHash == (common.Hash{}):
+			return fmt.Errorf("projection private config hash is zero")
+		case c.DependencySetHash == (common.Hash{}):
+			return fmt.Errorf("projection dependency set hash is zero")
+		case c.AllowEvents:
+			return fmt.Errorf("sp1-private-projection-v1 does not support event replays")
+		}
+	case InsecureStub, ExecutionMock:
+		switch {
+		case c.GenesisOutputRoot == (common.Hash{}):
+			return fmt.Errorf("projection genesis output root is zero")
+		case c.DependencySetHash == (common.Hash{}):
+			return fmt.Errorf("projection dependency set hash is zero")
+		case c.ProgramVKey != (common.Hash{}) || c.PrivateConfigHash != (common.Hash{}) || c.MockProofs:
+			return fmt.Errorf("%s requires zero program vkey and private config hash and no mock proofs", c.Verifier)
+		}
+	default:
+		return fmt.Errorf("unsupported projection verifier")
+	}
+	return nil
+}
+
+// CheckChain is Check plus the §B.5 gate: a test-gated mode (stub, execution mock, SP1 with mock
+// envelopes) passes only in a binary with the test verifiers compiled in (build tag
+// private_interop_test_verifiers, or a go test binary) and only on an allowlisted chain ID.
+func (c *Config) CheckChain(chainID *big.Int) error {
+	return c.checkChain(chainID, testVerifiersCompiledOrTesting())
+}
+
+func (c *Config) checkChain(chainID *big.Int, compiledOrTesting bool) error {
+	if err := c.Check(); err != nil {
+		return err
+	}
+	if c.testGated() && !gateAllows(compiledOrTesting, chainID) {
+		return fmt.Errorf("projection verifier mode %q (mock proofs %v) is test-gated and not enabled for chain %v", c.Verifier, c.MockProofs, chainID)
 	}
 	return nil
 }
@@ -49,22 +102,32 @@ type Range interface {
 	GetBlockTransactions(int) []hexutil.Bytes
 }
 
+// Context is the derivation-side view admission binds the claim to. GenesisHash is the
+// projection's genesis L2 hash; L1Head is the hash of the L1 block whose number is the span's last
+// epoch, taken from the node's own L1 window.
 type Context struct {
 	ChainID                               *big.Int
 	GenesisNumber, GenesisTime, BlockTime uint64
-	ParentHash                            common.Hash
+	GenesisHash, ParentHash, L1Head       common.Hash
 	Continuation                          Continuation
 }
 
 // Statement commits to the public records, not to proof-dependent signatures.
 // Claim.Proof is always nil. Continuation binds the surviving checkpoint and
 // canonical recovery inputs; a real proof must verify their private execution.
+// PublicValues(statement) is the exact sp1-private-projection-v1 public input.
 type Statement struct {
 	ChainID        common.Hash
 	ParentHash     common.Hash
 	ProjectionHash common.Hash
 	Continuation   Continuation
 	Claim          codec.RangeClaim
+
+	ProjectionConfigHash common.Hash
+	PrivateConfigHash    common.Hash
+	OutputsRoot          common.Hash
+	MessagesRoot         common.Hash
+	TerminalOutput       common.Hash
 }
 
 // ProofVerifier implementations must be pure: no I/O, mutation of inputs, clock,
@@ -76,23 +139,34 @@ type StubVerifier struct{}
 
 func (StubVerifier) Verify(Statement, []byte) error { return nil }
 
-func VerifierFor(c *Config) (ProofVerifier, error) {
-	if err := c.Check(); err != nil {
+// VerifierFor returns the consensus verifier for c on the projection chain chainID, after
+// CheckChain. Mock SP1 envelopes are accepted only when mock_proofs is set and the §B.5 gate is open.
+func VerifierFor(c *Config, chainID *big.Int) (ProofVerifier, error) {
+	return verifierFor(c, chainID, testVerifiersCompiledOrTesting())
+}
+
+func verifierFor(c *Config, chainID *big.Int, compiledOrTesting bool) (ProofVerifier, error) {
+	if err := c.checkChain(chainID, compiledOrTesting); err != nil {
 		return nil, err
 	}
-	if c.Verifier == ExecutionMock {
+	switch c.Verifier {
+	case SP1PrivateProjectionV1:
+		return SP1Verifier{cfg: *c, allowMock: c.MockProofs && gateAllows(compiledOrTesting, chainID)}, nil
+	case ExecutionMock:
 		return ExecutionMockVerifier{}, nil
+	case InsecureStub:
+		return StubVerifier{}, nil
 	}
-	return StubVerifier{}, nil
+	return nil, fmt.Errorf("unsupported projection verifier")
 }
 
 // ValidateProjectionRange checks every block before invoking the proof verifier.
 // It never releases a valid prefix of a structurally invalid range.
 func ValidateProjectionRange(c *Config, ctx Context, span Range, verifier ProofVerifier) (*Statement, error) {
-	if err := c.Check(); err != nil {
+	if err := c.CheckChain(ctx.ChainID); err != nil {
 		return nil, err
 	}
-	if verifier == nil || ctx.ChainID == nil || ctx.ChainID.Sign() <= 0 || ctx.ChainID.BitLen() > 256 || ctx.BlockTime == 0 {
+	if verifier == nil || ctx.ChainID == nil || ctx.ChainID.Sign() <= 0 || ctx.ChainID.BitLen() > 256 || ctx.BlockTime == 0 || ctx.L1Head == (common.Hash{}) {
 		return nil, fmt.Errorf("invalid projection context or verifier")
 	}
 	first, _, err := RangeBounds(ctx.GenesisNumber, ctx.GenesisTime, ctx.BlockTime, span)
@@ -103,7 +177,9 @@ func ValidateProjectionRange(c *Config, ctx Context, span Range, verifier ProofV
 	if ctx.Continuation.Anchor.Number >= first || ctx.Continuation.Anchor.Hash == (common.Hash{}) || ctx.Continuation.OutputRoot == (common.Hash{}) {
 		return nil, fmt.Errorf("invalid authenticated private checkpoint")
 	}
-	var leaves []common.Hash
+	configHash := ConfigHash(c, ctx)
+	var leaves, outputLeaves, messageLeaves []common.Hash
+	var terminalOutput common.Hash
 	var claim *codec.RangeClaim
 	var transcript bytes.Buffer
 	put := func(n uint64) { var b [8]byte; binary.BigEndian.PutUint64(b[:], n); transcript.Write(b[:]) }
@@ -123,6 +199,9 @@ func ValidateProjectionRange(c *Config, ctx Context, span Range, verifier ProofV
 		put(uint64(len(txs)))
 		outputSeen := false
 		outputPosition := 0
+		// replayIndex is the rendered log index of the next replay: every replay emits exactly
+		// one log (§E) and claim/output records emit none.
+		var replayIndex uint32
 		if i == 0 {
 			outputPosition = 1
 		}
@@ -153,9 +232,12 @@ func ValidateProjectionRange(c *Config, ctx Context, span Range, verifier ProofV
 					if outputSeen || j != outputPosition {
 						return nil, fmt.Errorf("duplicate or misplaced private output")
 					}
-					if _, err := wire.DecodeOutput(data); err != nil {
+					root, err := wire.DecodeOutput(data)
+					if err != nil {
 						return nil, err
 					}
+					outputLeaves = append(outputLeaves, OutputLeaf(first+uint64(i), root))
+					terminalOutput = root
 					outputSeen = true
 					break
 				}
@@ -180,6 +262,15 @@ func ValidateProjectionRange(c *Config, ctx Context, span Range, verifier ProofV
 				if claim.FirstBlock != first || claim.LastBlock != first+uint64(count-1) {
 					return nil, fmt.Errorf("claim does not cover exactly the span")
 				}
+				if claim.L1Head != ctx.L1Head {
+					return nil, fmt.Errorf("claim l1Head does not match the span's canonical L1 origin")
+				}
+				if claim.RollupConfigHash != configHash {
+					return nil, fmt.Errorf("claim rollupConfigHash does not match the projection config")
+				}
+				if claim.DepSetHash != c.DependencySetHash {
+					return nil, fmt.Errorf("claim depSetHash does not match the consensus dependency set")
+				}
 				normalized := *claim
 				normalized.Proof = nil
 				data, err = wire.EncodePostClaim(&normalized)
@@ -194,12 +285,16 @@ func ValidateProjectionRange(c *Config, ctx Context, span Range, verifier ProofV
 				if m.Sender == predeploys.SuperchainETHBridgeAddr || m.Target == predeploys.SuperchainETHBridgeAddr {
 					return nil, fmt.Errorf("private native bridge replay is forbidden")
 				}
+				messageLeaves = append(messageLeaves, MessageLeaf(first+uint64(i), replayIndex, MessageKindInit, ExportMessageHash(m)))
+				replayIndex++
 			case predeploys.CrossL2InboxAddr:
 				m, err := wire.DecodeValidateMessage(data)
 				if err != nil {
 					return nil, err
 				}
 				expected = types.AccessList{{Address: predeploys.CrossL2InboxAddr, StorageKeys: messages.EncodeAccessList([]messages.Access{m.Access()})}}
+				messageLeaves = append(messageLeaves, MessageLeaf(first+uint64(i), replayIndex, MessageKindExec, ImportMessageHash([192]byte(data[4:196]))))
+				replayIndex++
 			case predeploys.EventReplayerAddr:
 				if !c.AllowEvents {
 					return nil, fmt.Errorf("extra event replay is disabled")
@@ -207,6 +302,9 @@ func ValidateProjectionRange(c *Config, ctx Context, span Range, verifier ProofV
 				if err := wire.CheckReplayEvent(data); err != nil {
 					return nil, err
 				}
+				// A generic event consumes a rendered index but has no v1 message leaf; the
+				// sp1 profile forbids allow_events.
+				replayIndex++
 			default:
 				return nil, fmt.Errorf("unexpected projection destination")
 			}
@@ -237,7 +335,13 @@ func ValidateProjectionRange(c *Config, ctx Context, span Range, verifier ProofV
 	if claim == nil {
 		return nil, fmt.Errorf("missing claim")
 	}
-	statement := &Statement{ChainID: common.BigToHash(ctx.ChainID), ParentHash: ctx.ParentHash, ProjectionHash: RecordsRoot(leaves), Continuation: ctx.Continuation, Claim: *claim}
+	statement := &Statement{
+		ChainID: common.BigToHash(ctx.ChainID), ParentHash: ctx.ParentHash, ProjectionHash: RecordsRoot(leaves),
+		Continuation: ctx.Continuation, Claim: *claim,
+		ProjectionConfigHash: configHash, PrivateConfigHash: c.PrivateConfigHash,
+		OutputsRoot: CommitmentRoot(OutputsDomain, outputLeaves), MessagesRoot: CommitmentRoot(MessagesDomain, messageLeaves),
+		TerminalOutput: terminalOutput,
+	}
 	statement.Claim.Proof = nil
 	if err := verifier.Verify(*statement, claim.Proof); err != nil {
 		return nil, fmt.Errorf("projection proof: %w", err)

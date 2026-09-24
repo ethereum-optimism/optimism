@@ -10,6 +10,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-core/devfeatures"
 	"github.com/ethereum-optimism/optimism/op-core/predeploys"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
+	"github.com/ethereum-optimism/optimism/op-private-interop/projection"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core"
@@ -28,8 +29,8 @@ import (
 // was hand-written; regenerate it with a stock op-deployer when the contract release moves and
 // update StockL2ToL2CrossDomainMessengerCodeHash alongside it.
 const (
-	goldenPublicProjectionStateRoot = "0x9ae8ea9ee2dc6d6c87cb70b207cefbed431a86188e6d043ee45f27682b421595"
-	goldenPublicProjectionBlockHash = "0x5f3143fe8b66d34522c63a388f98a9da9068d96c3605b1bfd9c7c5350f42a93e"
+	goldenPublicProjectionStateRoot = "0x562879a993e3be88901bd517aa395f9f36a517c7126777ea18982db1dbc91d22"
+	goldenPublicProjectionBlockHash = "0x08756256e3cc093ec2342294254af2b0fcc6c2acd59d7afa9f1211a408a3cf36"
 )
 
 func TestProjectGenesisFromIsPureAndDeterministic(t *testing.T) {
@@ -244,4 +245,52 @@ func genesisJSON(t *testing.T, g *core.Genesis) string {
 
 func maxUint128() *big.Int {
 	return new(big.Int).Sub(new(big.Int).Lsh(big.NewInt(1), 128), big.NewInt(1))
+}
+
+func TestProjectRollupConfigFromOptions(t *testing.T) {
+	privateChainGenesis := loadPrivateChainGenesis(t)
+	publicProjectionGenesis, err := ProjectGenesisFrom(privateChainGenesis)
+	require.NoError(t, err)
+	lagoon := uint64(0)
+	private := &rollup.Config{Genesis: rollup.Genesis{L2: eth.BlockID{Hash: privateChainGenesis.ToBlock().Hash()}}, LagoonTime: &lagoon}
+	depSet := []eth.ChainID{eth.ChainIDFromUInt64(902), eth.ChainIDFromUInt64(901)}
+	rollupJSON, l1JSON := []byte(`{"rollup":true}`), []byte(`{"l1":true}`)
+	vkey := common.HexToHash("0x00aa")
+
+	sp1, err := ProjectRollupConfigFrom(private, privateChainGenesis, publicProjectionGenesis, ProjectionOptions{
+		Verifier: projection.SP1PrivateProjectionV1, ProgramVKey: vkey, PrivateRollupJSON: rollupJSON, L1ChainConfigJSON: l1JSON,
+		DependencySet: depSet, MockProofs: true,
+	})
+	require.NoError(t, err)
+	legacy, err := ProjectRollupConfigFrom(private, privateChainGenesis, publicProjectionGenesis)
+	require.NoError(t, err)
+	require.Equal(t, projection.Config{
+		Verifier: projection.SP1PrivateProjectionV1, GenesisOutputRoot: legacy.PrivateProjection.GenesisOutputRoot, ProgramVKey: vkey,
+		PrivateConfigHash: projection.PrivateConfigHash(rollupJSON, l1JSON), DependencySetHash: projection.DependencySetHash(depSet), MockProofs: true,
+	}, *sp1.PrivateProjection)
+	require.NotEqual(t, common.Hash{}, legacy.PrivateProjection.GenesisOutputRoot)
+	require.Equal(t, projection.InsecureStub, legacy.PrivateProjection.Verifier)
+
+	// The insecure profiles take only the genesis output and dependency set.
+	mock, err := ProjectRollupConfigFrom(private, privateChainGenesis, publicProjectionGenesis, ProjectionOptions{
+		Verifier: projection.ExecutionMock, ProgramVKey: vkey, PrivateRollupJSON: rollupJSON, L1ChainConfigJSON: l1JSON, DependencySet: depSet, MockProofs: true,
+	})
+	require.NoError(t, err)
+	require.Equal(t, projection.Config{Verifier: projection.ExecutionMock, GenesisOutputRoot: legacy.PrivateProjection.GenesisOutputRoot,
+		DependencySetHash: projection.DependencySetHash(depSet)}, *mock.PrivateProjection)
+	require.NoError(t, mock.PrivateProjection.Check())
+
+	for name, opts := range map[string]ProjectionOptions{
+		"no_dep_set":    {Verifier: projection.ExecutionMock},
+		"no_verifier":   {DependencySet: depSet},
+		"unknown":       {Verifier: "unknown", DependencySet: depSet},
+		"sp1_no_files":  {Verifier: projection.SP1PrivateProjectionV1, ProgramVKey: vkey, DependencySet: depSet},
+		"sp1_zero_vkey": {Verifier: projection.SP1PrivateProjectionV1, PrivateRollupJSON: rollupJSON, L1ChainConfigJSON: l1JSON, DependencySet: depSet},
+		"sp1_vkey_ge_r": {Verifier: projection.SP1PrivateProjectionV1, ProgramVKey: common.Hash{0xff}, PrivateRollupJSON: rollupJSON, L1ChainConfigJSON: l1JSON, DependencySet: depSet},
+	} {
+		_, err := ProjectRollupConfigFrom(private, privateChainGenesis, publicProjectionGenesis, opts)
+		require.Error(t, err, name)
+	}
+	_, err = ProjectRollupConfigFrom(private, privateChainGenesis, publicProjectionGenesis, ProjectionOptions{}, ProjectionOptions{})
+	require.Error(t, err)
 }

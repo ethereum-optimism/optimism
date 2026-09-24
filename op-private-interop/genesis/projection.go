@@ -130,11 +130,39 @@ func ProjectGenesisFrom(privateChainGenesis *core.Genesis) (*core.Genesis, error
 	return out, nil
 }
 
+// ProjectionOptions carries the deployment-time inputs of the private_projection consensus
+// constants (§B.1) that cannot be derived from the private chain's config and genesis.
+type ProjectionOptions struct {
+	// Verifier is the verifier ID. Required.
+	Verifier string
+	// ProgramVKey is the SP1 program vkey hash of the private-projection guest (sp1 only).
+	ProgramVKey common.Hash
+	// PrivateRollupJSON and L1ChainConfigJSON are the exact deployed artifact bytes that
+	// private_config_hash commits to (sp1 only). They are hashed, never re-serialised.
+	PrivateRollupJSON, L1ChainConfigJSON []byte
+	// DependencySet is the private chain's dependency set (chain IDs, including itself).
+	DependencySet []eth.ChainID
+	// MockProofs accepts SP1 mock envelopes (sp1 only, test-gated by CheckChain).
+	MockProofs bool
+}
+
 // ProjectRollupConfigFrom constructs the public-projection rollup config. The projected genesis
 // supplies the only value that cannot be copied from the private chain: the L2 genesis hash. The
 // genesis system config follows the projected block parameters. Everything else, the Lagoon
 // activation time included, is the private chain's: both views activate interop at genesis.
-func ProjectRollupConfigFrom(privateChainConfig *rollup.Config, privateGenesis, publicProjectionGenesis *core.Genesis) (*rollup.Config, error) {
+//
+// opts fills private_projection (§B.1). For sp1-private-projection-v1 every field is set and the
+// result must pass Config.Check. For the test-gated execution-mock-v1 and insecure-stub-v1 only
+// genesis_output_root and dependency_set_hash are set; ProgramVKey, the config files and
+// MockProofs are ignored because those profiles require them zero.
+//
+// opts is variadic only so pre-profile callers keep compiling: with no options the legacy
+// insecure-stub-v1 config with only genesis_output_root is returned, which fails Config.Check
+// (dependency_set_hash is required). Pass exactly one ProjectionOptions.
+func ProjectRollupConfigFrom(privateChainConfig *rollup.Config, privateGenesis, publicProjectionGenesis *core.Genesis, opts ...ProjectionOptions) (*rollup.Config, error) {
+	if len(opts) > 1 {
+		return nil, errors.New("at most one ProjectionOptions")
+	}
 	if privateChainConfig == nil {
 		return nil, errors.New("private-chain rollup config is nil")
 	}
@@ -154,9 +182,29 @@ func ProjectRollupConfigFrom(privateChainConfig *rollup.Config, privateGenesis, 
 	if header.WithdrawalsHash == nil {
 		return nil, errors.New("missing private genesis withdrawal root")
 	}
-	out.PrivateProjection = &projection.Config{Verifier: projection.InsecureStub, GenesisOutputRoot: common.Hash(eth.OutputRoot(&eth.OutputV0{
+	profile := &projection.Config{Verifier: projection.InsecureStub, GenesisOutputRoot: common.Hash(eth.OutputRoot(&eth.OutputV0{
 		StateRoot: eth.Bytes32(header.Root), MessagePasserStorageRoot: eth.Bytes32(*header.WithdrawalsHash), BlockHash: privateBlock.Hash(),
 	}))}
+	if len(opts) == 1 {
+		o := opts[0]
+		profile.Verifier = o.Verifier
+		if len(o.DependencySet) == 0 {
+			return nil, errors.New("projection options require the private dependency set")
+		}
+		profile.DependencySetHash = projection.DependencySetHash(o.DependencySet)
+		if o.Verifier == projection.SP1PrivateProjectionV1 {
+			if len(o.PrivateRollupJSON) == 0 || len(o.L1ChainConfigJSON) == 0 {
+				return nil, errors.New("sp1 projection requires the private rollup and L1 chain config bytes")
+			}
+			profile.ProgramVKey = o.ProgramVKey
+			profile.PrivateConfigHash = projection.PrivateConfigHash(o.PrivateRollupJSON, o.L1ChainConfigJSON)
+			profile.MockProofs = o.MockProofs
+		}
+		if err := profile.Check(); err != nil {
+			return nil, fmt.Errorf("projection options: %w", err)
+		}
+	}
+	out.PrivateProjection = profile
 	out.Genesis.L2.Hash = publicProjectionGenesis.ToBlock().Hash()
 	out.Genesis.SystemConfig.GasLimit = gethparams.MaxGasLimit
 	out.Genesis.SystemConfig.Scalar = eth.EncodeScalar(eth.EcotoneScalars{})

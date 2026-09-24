@@ -10,7 +10,6 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-core/predeploys"
 	optypes "github.com/ethereum-optimism/optimism/op-core/types"
-	"github.com/ethereum-optimism/optimism/op-private-interop/codec"
 	"github.com/ethereum-optimism/optimism/op-private-interop/projection"
 	"github.com/ethereum-optimism/optimism/op-private-interop/wire"
 	"github.com/ethereum-optimism/optimism/op-service/bigs"
@@ -160,7 +159,8 @@ func TestContinuationAdmissionAndIntermediateRoots(t *testing.T) {
 	ctx := context()
 	ctx.Continuation.Anchor.Number = 2
 	ctx.Continuation.RecoveryHash = common.Hash{77}
-	c := &codec.RangeClaim{FirstBlock: 10, LastBlock: 12, AnchorBlock: 2, AnchorOutputRoot: ctx.Continuation.OutputRoot, RecoveryHash: ctx.Continuation.RecoveryHash, ParentOutputRoot: common.Hash{78}, Proof: []byte("dummy")}
+	c := spanBuilder{t, mockConfig(), ctx}.claimFields(10, 12, []byte("dummy"))
+	c.ParentOutputRoot = common.Hash{78}
 	data, err := wire.EncodePostClaim(c)
 	require.NoError(t, err)
 	v.Blocks[0].Transactions[0] = transaction(t, predeploys.ClaimRegistryAddr, data, nil)

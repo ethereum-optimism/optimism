@@ -20,38 +20,115 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+// projectionVector is the shared admission vector schema v2 (op-private-interop/projection
+// testdata): each vector carries its consensus config and derivation context.
+type projectionVector struct {
+	Schedule string            `json:"-"`
+	Name     string            `json:"name"`
+	Accept   bool              `json:"accept"`
+	Config   projection.Config `json:"config"`
+	Context  struct {
+		ChainID       uint64      `json:"chain_id"`
+		GenesisNumber uint64      `json:"genesis_number"`
+		GenesisHash   common.Hash `json:"genesis_hash"`
+		GenesisTime   uint64      `json:"genesis_time"`
+		BlockTime     uint64      `json:"block_time"`
+		ParentHash    common.Hash `json:"parent_hash"`
+		L1Head        common.Hash `json:"l1_head"`
+		Continuation  struct {
+			Anchor       eth.BlockID `json:"anchor"`
+			OutputRoot   common.Hash `json:"output_root"`
+			RecoveryHash common.Hash `json:"recovery_hash"`
+		} `json:"continuation"`
+	} `json:"context"`
+	Blocks []struct {
+		Timestamp    uint64          `json:"timestamp"`
+		Epoch        uint64          `json:"epoch"`
+		Transactions []hexutil.Bytes `json:"transactions"`
+	} `json:"blocks"`
+}
+
+func loadProjectionVectors(t *testing.T, names ...string) []projectionVector {
+	var out []projectionVector
+	for _, name := range names {
+		raw, err := os.ReadFile("../../../op-private-interop/projection/testdata/" + name)
+		require.NoError(t, err)
+		var vs []projectionVector
+		require.NoError(t, json.Unmarshal(raw, &vs))
+		out = append(out, vs...)
+	}
+	return out
+}
+
+// rollupConfig is the projection rollup config the vector's context describes.
+func (v *projectionVector) rollupConfig(seqWindow uint64) *rollup.Config {
+	return &rollup.Config{
+		Genesis:   rollup.Genesis{L2: eth.BlockID{Number: v.Context.GenesisNumber, Hash: v.Context.GenesisHash}, L2Time: v.Context.GenesisTime},
+		BlockTime: v.Context.BlockTime, L2ChainID: new(big.Int).SetUint64(v.Context.ChainID), SeqWindowSize: seqWindow,
+		MaxSequencerDrift: 600, HoloceneTime: &zero64, DeltaTime: &zero64, PrivateProjection: &v.Config,
+	}
+}
+
+// pureAdmission is the verdict of the pure admission function under the vector's configured
+// verifier, with the context the batch stage resolves in these tests.
+func (v *projectionVector) pureAdmission(t *testing.T, cfg *rollup.Config, l1Head common.Hash) bool {
+	verifier, err := projection.VerifierFor(cfg.PrivateProjection, cfg.L2ChainID)
+	if err != nil {
+		return false
+	}
+	blocks := make(testProjectionSpan, len(v.Blocks))
+	for i, b := range v.Blocks {
+		blocks[i] = testProjectionBlock{b.Timestamp, b.Epoch, b.Transactions}
+	}
+	_, err = projection.ValidateProjectionRange(cfg.PrivateProjection, projection.Context{
+		ChainID: cfg.L2ChainID, GenesisNumber: cfg.Genesis.L2.Number, GenesisTime: cfg.Genesis.L2Time, BlockTime: cfg.BlockTime,
+		GenesisHash: cfg.Genesis.L2.Hash, ParentHash: common.Hash{1}, L1Head: l1Head,
+		Continuation: projection.Continuation{Anchor: eth.BlockID{Number: 9, Hash: common.Hash{1}}, OutputRoot: common.Hash{9}},
+	}, blocks, verifier)
+	return err == nil
+}
+
+type testProjectionBlock struct {
+	timestamp, epoch uint64
+	txs              []hexutil.Bytes
+}
+type testProjectionSpan []testProjectionBlock
+
+func (s testProjectionSpan) GetBlockCount() int                         { return len(s) }
+func (s testProjectionSpan) GetBlockTimestamp(i int) uint64             { return s[i].timestamp }
+func (s testProjectionSpan) GetBlockEpochNum(i int) uint64              { return s[i].epoch }
+func (s testProjectionSpan) GetBlockTransactions(i int) []hexutil.Bytes { return s[i].txs }
+
 // The malformed transaction is in the final block: no valid prefix may escape
 // into attributes/execution. Use the exact same bytes as the Go/Kona pure tests.
+// The batch stage must agree with pure admission under the configured verifier, which accepts
+// every vector that carries a valid envelope for its config.
 func TestProjectionSpanAdmissionBeforeFirstBlock(t *testing.T) {
-	raw, err := os.ReadFile("../../../op-private-interop/projection/testdata/ranges.json")
-	require.NoError(t, err)
-	var vectors []struct {
-		Schedule string            `json:"-"`
-		Name     string            `json:"name"`
-		Accept   bool              `json:"accept"`
-		Config   projection.Config `json:"config"`
-		Blocks   []struct {
-			Timestamp    uint64          `json:"timestamp"`
-			Epoch        uint64          `json:"epoch"`
-			Transactions []hexutil.Bytes `json:"transactions"`
-		} `json:"blocks"`
-	}
-	require.NoError(t, json.Unmarshal(raw, &vectors))
-	proofs, err := os.ReadFile("../../../op-private-interop/projection/testdata/proofs.json")
-	require.NoError(t, err)
-	var proofVectors = vectors[:0:0]
-	require.NoError(t, json.Unmarshal(proofs, &proofVectors))
-	vectors = append(vectors, proofVectors...)
+	vectors := loadProjectionVectors(t, "ranges.json", "proofs.json")
 	for _, name := range []string{"late_origin", "late_fork", "late_drift"} {
 		v := vectors[0]
 		v.Name, v.Schedule, v.Accept = name, name, false
 		vectors = append(vectors, v)
 	}
+	accepted := 0
 	for _, v := range vectors {
 		t.Run(v.Name, func(t *testing.T) {
+			// The fake fetcher below serves the normal-mode continuation only; recovery-mode
+			// vectors are exercised by the pure admission tests.
+			if c := v.Context.Continuation; c.Anchor != (eth.BlockID{Number: 9, Hash: common.Hash{1}}) || c.OutputRoot != (common.Hash{9}) || c.RecoveryHash != (common.Hash{}) {
+				t.Skip("recovery-mode context")
+			}
 			l1 := []eth.L1BlockRef{{Hash: common.Hash{5}, Number: 5, Time: 1000}, {Hash: common.Hash{6}, ParentHash: common.Hash{5}, Number: 6, Time: 1012}}
 			parent := eth.L2BlockRef{Hash: common.Hash{1}, Number: 9, Time: 1018, L1Origin: l1[0].ID()}
-			cfg := &rollup.Config{Genesis: rollup.Genesis{L2Time: 1000}, BlockTime: 2, L2ChainID: big.NewInt(901), SeqWindowSize: 100, MaxSequencerDrift: 600, HoloceneTime: &zero64, DeltaTime: &zero64, PrivateProjection: &v.Config}
+			cfg := v.rollupConfig(100)
+			pure := v.pureAdmission(t, cfg, l1[1].Hash)
+			if !v.Accept && v.Schedule == "" {
+				require.False(t, pure, "a structurally rejected vector cannot be admitted")
+			}
+			if v.Schedule != "" {
+				require.True(t, pure, "schedule variants are rejected only by the schedule")
+			}
+			want := v.Schedule == "" && pure
 			switch v.Schedule {
 			case "late_origin":
 				l1[1].Time = 1025
@@ -59,13 +136,9 @@ func TestProjectionSpanAdmissionBeforeFirstBlock(t *testing.T) {
 				fork := uint64(1024)
 				cfg.JovianTime = &fork
 			case "late_drift":
-				cfg.FjordTime = &zero64
-				cfg.Genesis.L2Time += 800
-				parent.Time += 800
-				v.Blocks = append(v.Blocks[:0:0], v.Blocks...)
-				for i := range v.Blocks {
-					v.Blocks[i].Timestamp += 800
-				}
+				// Pre-Fjord drift (600s) is exceeded by the replay block: 1024 - 21 > 600. The
+				// vector geometry is kept, so the claim's rollupConfigHash still matches and the
+				// schedule is the only reason for rejection.
 				l1[0].Time = 20
 				l1[1].Time = 21
 			}
@@ -94,7 +167,8 @@ func TestProjectionSpanAdmissionBeforeFirstBlock(t *testing.T) {
 			stage.l1Blocks = l1
 			stage.origin = l1[1]
 			next, _, err := stage.NextBatch(context.Background(), parent)
-			if v.Accept {
+			if want {
+				accepted++
 				require.NoError(t, err)
 				require.NotNil(t, next)
 				require.Equal(t, singles[0].Transactions, next.Transactions)
@@ -106,6 +180,8 @@ func TestProjectionSpanAdmissionBeforeFirstBlock(t *testing.T) {
 			}
 		})
 	}
+	// mixed, empty_messages, wide_chain_id, events_enabled, execution_mock_valid, sp1_mock_valid.
+	require.GreaterOrEqual(t, accepted, 6)
 }
 
 func TestProjectionRejectsSubmittedSingularButPreservesOrdinaryChains(t *testing.T) {
@@ -130,22 +206,11 @@ func TestProjectionRejectsSubmittedSingularButPreservesOrdinaryChains(t *testing
 }
 
 func TestProjectionRetainsCandidateAndOriginalInclusion(t *testing.T) {
-	raw, err := os.ReadFile("../../../op-private-interop/projection/testdata/ranges.json")
-	require.NoError(t, err)
-	var vectors []struct {
-		Config projection.Config `json:"config"`
-		Blocks []struct {
-			Timestamp    uint64          `json:"timestamp"`
-			Epoch        uint64          `json:"epoch"`
-			Transactions []hexutil.Bytes `json:"transactions"`
-		} `json:"blocks"`
-	}
-	require.NoError(t, json.Unmarshal(raw, &vectors))
-	v := vectors[0]
+	v := loadProjectionVectors(t, "ranges.json")[0]
 	for _, reset := range []bool{false, true} {
 		l1 := []eth.L1BlockRef{{Hash: common.Hash{5}, Number: 5, Time: 1000}, {Hash: common.Hash{6}, ParentHash: common.Hash{5}, Number: 6, Time: 1012}}
 		parent := eth.L2BlockRef{Hash: common.Hash{1}, Number: 9, Time: 1018, L1Origin: l1[0].ID()}
-		cfg := &rollup.Config{Genesis: rollup.Genesis{L2Time: 1000}, BlockTime: 2, L2ChainID: big.NewInt(901), SeqWindowSize: 2, MaxSequencerDrift: 600, HoloceneTime: &zero64, DeltaTime: &zero64, PrivateProjection: &v.Config}
+		cfg := v.rollupConfig(2)
 		singles := make([]*SingularBatch, len(v.Blocks))
 		for i, b := range v.Blocks {
 			origin := l1[b.Epoch-5]

@@ -18,6 +18,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
 	"github.com/ethereum-optimism/optimism/op-private-interop/codec"
+	"github.com/ethereum-optimism/optimism/op-private-interop/projection"
 	"github.com/ethereum-optimism/optimism/op-private-interop/render"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
@@ -669,4 +670,76 @@ func decodeTx(t *testing.T, raw []byte) *types.Transaction {
 	var tx types.Transaction
 	require.NoError(t, tx.UnmarshalBinary(raw))
 	return &tx
+}
+
+// projectionBuilder is a builder whose rollup config carries a private_projection profile, with
+// the projection predeploys wired in, so Build runs both admission preflights.
+func projectionBuilder(t *testing.T) (*Builder, *rollup.Config) {
+	t.Helper()
+	cfg := testRollupCfg()
+	cfg.Genesis.L2.Hash = common.Hash{0x0c}
+	cfg.PrivateProjection = &projection.Config{
+		Verifier: projection.ExecutionMock, GenesisOutputRoot: common.Hash{9}, AllowEvents: true,
+		DependencySetHash: projection.DependencySetHash([]eth.ChainID{eth.ChainIDFromUInt64(901)}),
+	}
+	txs := render.NewBatcherTxBuilder(cfg.L2ChainID, render.DefaultGasPolicy(), render.PrivateKeySigner(testKey, cfg.L2ChainID))
+	txs.SetEventReplayer(predeploys.EventReplayerAddr)
+	txs.SetRegistry(predeploys.ClaimRegistryAddr)
+	b, err := New(Config{Rollup: cfg, Emitters: testEmitters}, txs)
+	require.NoError(t, err)
+	return b, cfg
+}
+
+// Both preflights bind the claim to the derivation context: l1Head = the terminal block's L1
+// origin, and rollupConfigHash over the genesis hash and geometry (§C.5).
+func TestPreflightsPassDerivationContext(t *testing.T) {
+	l1 := l1Chain(120)
+	head := safeHead(l1, 900, l2Genesis+1800)
+	b, cfg := projectionBuilder(t)
+	newRange := func() *Range {
+		r := testRange(t, l1, head, 12, nil)
+		r.Continuation = projection.Continuation{Anchor: head.ID(), OutputRoot: common.Hash{0x0a}}
+		terminal := r.Blocks[len(r.Blocks)-1].PrivateRef.L1Origin
+		// The context derivation will use, computed here independently of the builder.
+		ctx := projection.Context{
+			ChainID: cfg.L2ChainID, GenesisNumber: cfg.Genesis.L2.Number, GenesisTime: cfg.Genesis.L2Time, BlockTime: cfg.BlockTime,
+			GenesisHash: cfg.Genesis.L2.Hash, ParentHash: head.Hash, L1Head: terminal.Hash, Continuation: r.Continuation,
+		}
+		r.Claim = &ClaimInput{
+			ParentOutputRoot: common.Hash{0x0a}, RollupConfigHash: projection.ConfigHash(cfg.PrivateProjection, ctx),
+			DepSetHash: cfg.PrivateProjection.DependencySetHash, PrivateDataHash: common.Hash{0x1d},
+		}
+		r.Prove = func(built *BuiltRange) ([]byte, error) {
+			require.Equal(t, terminal.Hash, built.Claim.L1Head)
+			require.Equal(t, ctx, b.AdmissionContext(r, built))
+			s, err := projection.ValidateProjectionRange(cfg.PrivateProjection, ctx, built.SpanBatch, projection.StubVerifier{})
+			if err != nil {
+				return nil, err
+			}
+			return projection.ExecutionMockProof(*s), nil
+		}
+		return r
+	}
+	built, err := b.Build(newRange())
+	require.NoError(t, err)
+	require.NotEmpty(t, built.Blobs)
+
+	// A claim with the wrong rollupConfigHash fails the structural preflight before proving.
+	r := newRange()
+	r.Claim.RollupConfigHash[0] ^= 1
+	_, err = b.Build(r)
+	require.ErrorContains(t, err, "claim rollupConfigHash does not match")
+
+	// A bad proof fails the post-proof admission preflight, unless a test skips it.
+	r = newRange()
+	r.Prove = func(*BuiltRange) ([]byte, error) { return []byte("forged"), nil }
+	_, err = b.Build(r)
+	require.ErrorContains(t, err, "projection admission")
+	r = newRange()
+	r.Prove = func(*BuiltRange) ([]byte, error) { return []byte("forged"), nil }
+	r.TestSkipAdmission = true
+	built, err = b.Build(r)
+	require.NoError(t, err)
+	require.Equal(t, []byte("forged"), built.Claim.Proof)
+	require.NotEmpty(t, built.Blobs)
 }

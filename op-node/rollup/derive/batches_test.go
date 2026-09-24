@@ -11,10 +11,13 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/ethereum-optimism/optimism/op-core/forks"
+	"github.com/ethereum-optimism/optimism/op-core/predeploys"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
+	"github.com/ethereum-optimism/optimism/op-private-interop/wire"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
 	"github.com/ethereum-optimism/optimism/op-service/testutils"
+	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/log"
@@ -1903,4 +1906,34 @@ func TestValidBatch(t *testing.T) {
 	t.Run(invalidTxTestCase.Name, func(t *testing.T) {
 		runTestCase(t, invalidTxTestCase)
 	})
+}
+
+// The claim's l1Head is bound to the node's own L1 view: the hash of the L1 block whose number is
+// the span's last epoch (§C.5). A claim naming another canonical L1 block is dropped.
+func TestProjectionSpanL1HeadBinding(t *testing.T) {
+	byName := make(map[string]projectionVector)
+	for _, v := range loadProjectionVectors(t, "ranges.json") {
+		byName[v.Name] = v
+	}
+	for name, want := range map[string]BatchValidity{"mixed": BatchAccept, "wrong_l1_head": BatchDrop} {
+		t.Run(name, func(t *testing.T) {
+			v := byName[name]
+			l1 := []eth.L1BlockRef{{Hash: common.Hash{5}, Number: 5, Time: 1000}, {Hash: common.Hash{6}, ParentHash: common.Hash{5}, Number: 6, Time: 1012}}
+			require.Equal(t, l1[1].Hash, v.Context.L1Head, "the vectors use the L1 block of the span's last epoch")
+			parent := eth.L2BlockRef{Hash: common.Hash{1}, Number: 9, Time: 1018, L1Origin: l1[0].ID()}
+			cfg := v.rollupConfig(100)
+			singles := make([]*SingularBatch, len(v.Blocks))
+			for i, b := range v.Blocks {
+				singles[i] = &SingularBatch{ParentHash: parent.Hash, Timestamp: b.Timestamp, EpochNum: rollup.Epoch(b.Epoch), EpochHash: l1[b.Epoch-5].Hash, Transactions: b.Transactions}
+			}
+			span := initializedSpanBatch(singles, 0, cfg.L2ChainID)
+			fetcher := newFakeSafeBlockFetcher()
+			to := predeploys.ClaimRegistryAddr
+			output, err := types.NewTx(&types.DynamicFeeTx{ChainID: cfg.L2ChainID, To: &to, Data: wire.EncodeOutput(common.Hash{9})}).MarshalBinary()
+			require.NoError(t, err)
+			fetcher.addBlock(parent, &eth.ExecutionPayloadEnvelope{ExecutionPayload: &eth.ExecutionPayload{BlockHash: parent.Hash, BlockNumber: hexutil.Uint64(parent.Number), Transactions: []hexutil.Bytes{output}}})
+			got := checkSpanBatchHolocene(context.Background(), cfg, testlog.Logger(t, log.LevelDebug), l1, parent, span, l1[1], fetcher)
+			require.Equal(t, want, got)
+		})
+	}
 }

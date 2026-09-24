@@ -331,7 +331,7 @@ func isHistoryPrunedErr(err error) bool {
 // Check verifies that the given configuration makes sense
 func (cfg *Config) Check() error {
 	if cfg.PrivateProjection != nil {
-		if err := cfg.PrivateProjection.Check(); err != nil {
+		if err := cfg.PrivateProjection.CheckChain(cfg.L2ChainID); err != nil {
 			return err
 		}
 		if !cfg.IsHolocene(cfg.Genesis.L2Time) || !cfg.IsInterop(cfg.Genesis.L2Time) {

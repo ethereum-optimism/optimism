@@ -154,6 +154,37 @@ func DecodeSentMessage(topics []common.Hash, data []byte) (*SentMessage, error) 
 	return out, nil
 }
 
+// EncodeSentMessageData is the SentMessage data section, abi.encode(address sender, bytes message):
+// the sender word, the offset 0x40, the length word and the zero-padded message.
+func EncodeSentMessageData(sender common.Address, message []byte) []byte {
+	out := make([]byte, 96+(len(message)+31)/32*32)
+	copy(out[12:32], sender[:])
+	out[63] = 0x40
+	new(big.Int).SetUint64(uint64(len(message))).FillBytes(out[64:96])
+	copy(out[96:], message)
+	return out
+}
+
+// SentMessageLog is the exact SentMessage log (topics and data) that the replay messenger emits
+// for m, and that the private messenger emitted when DecodeSentMessage round-trips:
+//
+//	topics = [SentMessageEventTopic, destination, left-pad(target), nonce]
+//	data   = abi.encode(address sender, bytes message)
+//
+// Destination and nonce are uint256 values; callers obtain them from canonical calldata or a log
+// topic, so they always fit in 32 bytes.
+func SentMessageLog(m *SentMessage) ([]common.Hash, []byte) {
+	var destination, nonce common.Hash
+	if m.Destination != nil {
+		destination = common.BigToHash(m.Destination)
+	}
+	if m.Nonce != nil {
+		nonce = common.BigToHash(m.Nonce)
+	}
+	topics := []common.Hash{SentMessageEventTopic, destination, common.BytesToHash(m.Target[:]), nonce}
+	return topics, EncodeSentMessageData(m.Sender, m.Message)
+}
+
 // EncodeReplaySentMessage builds the calldata for one export re-emission.
 func EncodeReplaySentMessage(m *SentMessage) ([]byte, error) {
 	data, err := ReplaySentMessageArgs.Pack(m.Destination, m.Nonce, m.Sender, m.Target, m.Message)

@@ -369,7 +369,7 @@ func encodeAtVersion(e *RangeClaim, version uint8) ([]byte, error) {
 	return out, nil
 }
 
-// Decode parses a claim in attested mode: exactly version 1, a non-inverted range, canonical
+// Decode parses a claim in attested mode: exactly version 2, a non-inverted range, canonical
 // ABI form, and an empty proof slot. It is the decoder a legacy empty-proof reader wants, and it is what the
 // zero value of Mode selects.
 // Decode preserves the legacy empty-proof policy for callers explicitly using the legacy empty-proof policy.

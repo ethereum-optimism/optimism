@@ -161,6 +161,9 @@ type Range struct {
 	// Prove runs after structural preflight and before admission/compression. The
 	// returned bytes are installed by rebuilding the same range from StartNonce.
 	Prove func(*BuiltRange) ([]byte, error)
+	// TestSkipAdmission skips only the post-proof admission preflight, so tests can publish a
+	// span that derivation must reject. It is never set by production code or a CLI flag.
+	TestSkipAdmission bool
 }
 
 // BuiltBlock is one rendering block as the batch describes it.
@@ -326,11 +329,7 @@ func (b *Builder) Build(r *Range) (*BuiltRange, error) {
 	if r.Prove != nil {
 		// The candidate has no frames/blobs and cannot be published. Only this
 		// producer preflight uses the structural-only verifier.
-		if _, err := projection.ValidateProjectionRange(b.cfg.Rollup.PrivateProjection, projection.Context{
-			ChainID: b.cfg.Rollup.L2ChainID, GenesisNumber: b.cfg.Rollup.Genesis.L2.Number,
-			GenesisTime: b.cfg.Rollup.Genesis.L2Time, BlockTime: b.cfg.Rollup.BlockTime,
-			ParentHash: r.PrevTerminalRenderingHash, Continuation: r.Continuation,
-		}, span, projection.StubVerifier{}); err != nil {
+		if _, err := projection.ValidateProjectionRange(b.cfg.Rollup.PrivateProjection, b.admissionContext(r, out), span, projection.StubVerifier{}); err != nil {
 			return nil, err
 		}
 		proof, err := r.Prove(out)
@@ -345,16 +344,12 @@ func (b *Builder) Build(r *Range) (*BuiltRange, error) {
 		return b.Build(&next)
 	}
 	// Use the same public admission policy as derivation before compressing/publishing.
-	if cfg := b.cfg.Rollup.PrivateProjection; cfg != nil {
-		verifier, err := projection.VerifierFor(cfg)
+	if cfg := b.cfg.Rollup.PrivateProjection; cfg != nil && !r.TestSkipAdmission {
+		verifier, err := projection.VerifierFor(cfg, b.cfg.Rollup.L2ChainID)
 		if err != nil {
 			return nil, err
 		}
-		if _, err := projection.ValidateProjectionRange(cfg, projection.Context{
-			ChainID: b.cfg.Rollup.L2ChainID, GenesisNumber: b.cfg.Rollup.Genesis.L2.Number,
-			GenesisTime: b.cfg.Rollup.Genesis.L2Time, BlockTime: b.cfg.Rollup.BlockTime,
-			ParentHash: r.PrevTerminalRenderingHash, Continuation: r.Continuation,
-		}, span, verifier); err != nil {
+		if _, err := projection.ValidateProjectionRange(cfg, b.admissionContext(r, out), span, verifier); err != nil {
 			return nil, fmt.Errorf("projection admission: %w", err)
 		}
 	}
@@ -383,6 +378,24 @@ func (b *Builder) Build(r *Range) (*BuiltRange, error) {
 		return nil, err
 	}
 	return out, nil
+}
+
+// admissionContext is the derivation view of the range: the span parent, the canonical
+// continuation, and l1Head = the terminal block's L1 origin, which derivation reads from its own L1
+// window at the span's last epoch.
+func (b *Builder) admissionContext(r *Range, out *BuiltRange) projection.Context {
+	return projection.Context{
+		ChainID: b.cfg.Rollup.L2ChainID, GenesisNumber: b.cfg.Rollup.Genesis.L2.Number,
+		GenesisTime: b.cfg.Rollup.Genesis.L2Time, BlockTime: b.cfg.Rollup.BlockTime,
+		GenesisHash: b.cfg.Rollup.Genesis.L2.Hash, ParentHash: r.PrevTerminalRenderingHash,
+		L1Head: out.Blocks[len(out.Blocks)-1].Origin.Hash, Continuation: r.Continuation,
+	}
+}
+
+// AdmissionContext is the projection admission context Build uses for a built range: the batcher
+// producer uses it to compute the preflight statement it asks the prover to commit.
+func (b *Builder) AdmissionContext(r *Range, built *BuiltRange) projection.Context {
+	return b.admissionContext(r, built)
 }
 
 // ChannelID is the normative deterministic channel ID.
