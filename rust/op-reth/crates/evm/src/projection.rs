@@ -2,6 +2,22 @@
 
 pub(crate) use kona_protocol::is_projection_user_deposit as is_user_deposit;
 
+use alloy_evm::block::{BlockExecutionError, BlockValidationError};
+use alloy_op_evm::block::OpBlockExecutionError;
+
+/// Returns whether `err` is the projection execution rule rejecting a block: a sequencer
+/// transaction that did not execute successfully (`ProjectionSequencerTxFailed`).
+pub fn is_projection_sequencer_tx_failure(err: &BlockExecutionError) -> bool {
+    matches!(
+        err,
+        BlockExecutionError::Validation(BlockValidationError::Other(inner))
+            if matches!(
+                inner.downcast_ref::<OpBlockExecutionError>(),
+                Some(OpBlockExecutionError::ProjectionSequencerTxFailed { .. })
+            )
+    )
+}
+
 #[cfg(test)]
 mod tests {
     use crate::{OpBlockExecutionCtx, OpEvmConfig, PostExecMode};
@@ -22,6 +38,212 @@ mod tests {
         database::{InMemoryDB, State},
         state::{AccountInfo, Bytecode},
     };
+
+    /// Both projection execution rules are switched on by the projection genesis only.
+    #[test]
+    fn only_projection_genesis_enables_execution_rules() {
+        let private: alloy_genesis::Genesis = serde_json::from_str(include_str!(
+            "../../../../../op-private-interop/genesis/testdata/private-chain-genesis.json"
+        ))
+        .unwrap();
+        let plain = OpEvmConfig::optimism(Arc::new(OpChainSpec::from_genesis(private.clone())));
+        assert!(plain.executor_factory.deposit_noop().is_none());
+        assert!(!plain.executor_factory.requires_sequencer_tx_success());
+        let projected = OpEvmConfig::optimism(Arc::new(OpChainSpec::from_genesis(
+            project_genesis_from(&private).unwrap(),
+        )));
+        assert!(projected.executor_factory.deposit_noop().is_some());
+        assert!(projected.executor_factory.requires_sequencer_tx_success());
+    }
+
+    /// Every case of the shared op-reth/Kona executor vectors
+    /// (`op-private-interop/projection/testdata/execution.json`, spec-sound-profile §E.4), in both
+    /// modes, through the real trigger in [`OpEvmConfig::optimism`]: the private genesis for
+    /// `execution`, its projection for `projection`. Blocks run from the vector prestate in an
+    /// `InMemoryDB`.
+    #[test]
+    fn projection_execution_vectors() {
+        use alloy_consensus::{Header, TxReceipt, transaction::SignerRecoverable};
+        use alloy_eips::Decodable2718;
+        use alloy_evm::block::{BlockExecutionError, BlockValidationError};
+        use alloy_genesis::GenesisAccount;
+        use alloy_op_evm::block::OpBlockExecutionError;
+        use reth_evm::ConfigureEvm;
+        use revm::database::states::bundle_state::BundleRetention;
+        use serde_json::Value;
+        use std::collections::BTreeMap;
+
+        fn b256(v: &Value) -> B256 {
+            v.as_str().unwrap().parse().unwrap()
+        }
+
+        let private: alloy_genesis::Genesis = serde_json::from_str(include_str!(
+            "../../../../../op-private-interop/genesis/testdata/private-chain-genesis.json"
+        ))
+        .unwrap();
+        let vectors: Value = serde_json::from_str(include_str!(
+            "../../../../../op-private-interop/projection/testdata/execution.json"
+        ))
+        .unwrap();
+        let env = &vectors["env"];
+        let u64_of = |key: &str| env[key].as_u64().unwrap();
+        let prestate: BTreeMap<Address, AccountInfo> = env["prestate"]
+            .as_object()
+            .unwrap()
+            .iter()
+            .map(|(address, account)| {
+                let code: Bytes = account["code"].as_str().unwrap().parse().unwrap();
+                let code = Bytecode::new_raw(code);
+                let info = AccountInfo {
+                    nonce: account["nonce"].as_u64().unwrap(),
+                    balance: account["balance"].as_str().unwrap().parse().unwrap(),
+                    code_hash: code.hash_slow(),
+                    code: Some(code),
+                    ..Default::default()
+                };
+                (address.parse().unwrap(), info)
+            })
+            .collect();
+        let cases = vectors["cases"].as_array().unwrap();
+        assert!(cases.len() >= 5);
+
+        for case in cases {
+            let name = case["name"].as_str().unwrap();
+            let txs: Vec<_> = case["transactions"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .map(|raw| {
+                    let raw: Bytes = raw.as_str().unwrap().parse().unwrap();
+                    OpTransactionSigned::decode_2718(&mut raw.as_ref())
+                        .unwrap()
+                        .try_into_recovered()
+                        .unwrap()
+                })
+                .collect();
+            for (mode, projection) in [("execution", false), ("projection", true)] {
+                let expected = &case[mode];
+                let genesis = if projection {
+                    project_genesis_from(&private).unwrap()
+                } else {
+                    private.clone()
+                };
+                let config = OpEvmConfig::optimism(Arc::new(OpChainSpec::from_genesis(genesis)));
+                let header = Header {
+                    number: u64_of("number"),
+                    timestamp: u64_of("timestamp"),
+                    gas_limit: u64_of("gas_limit"),
+                    base_fee_per_gas: Some(u64_of("base_fee")),
+                    beneficiary: env["coinbase"].as_str().unwrap().parse().unwrap(),
+                    mix_hash: b256(&env["prev_randao"]),
+                    ..Default::default()
+                };
+                let mut evm_env = config.evm_env(&header).unwrap();
+                evm_env.cfg_env.chain_id = u64_of("chain_id");
+
+                let mut db = State::builder()
+                    .with_database(InMemoryDB::default())
+                    .with_bundle_update()
+                    .build();
+                for (address, info) in &prestate {
+                    db.insert_account(*address, info.clone());
+                }
+                let factory = &config.executor_factory;
+                let evm = factory.evm_factory().create_evm(&mut db, evm_env);
+                let executor = factory.create_executor(
+                    evm,
+                    OpBlockExecutionCtx {
+                        parent_beacon_block_root: Some(b256(&env["parent_beacon_block_root"])),
+                        ..Default::default()
+                    },
+                );
+                let result = executor.execute_block(txs.iter());
+
+                if !expected["valid"].as_bool().unwrap() {
+                    assert_eq!(expected["error"], "ProjectionSequencerTxFailed", "{name}/{mode}");
+                    let err =
+                        result.err().unwrap_or_else(|| panic!("{name}/{mode}: must be invalid"));
+                    assert!(super::is_projection_sequencer_tx_failure(&err), "{name}/{mode}");
+                    let BlockExecutionError::Validation(BlockValidationError::Other(inner)) = &err
+                    else {
+                        panic!("{name}/{mode}: expected a validation error, got {err}");
+                    };
+                    match inner.downcast_ref::<OpBlockExecutionError>() {
+                        Some(OpBlockExecutionError::ProjectionSequencerTxFailed { tx_index }) => {
+                            assert_eq!(
+                                *tx_index,
+                                expected["tx_index"].as_u64().unwrap(),
+                                "{name}/{mode}: tx index"
+                            )
+                        }
+                        _ => panic!(
+                            "{name}/{mode}: expected ProjectionSequencerTxFailed, got {inner}"
+                        ),
+                    }
+                    continue;
+                }
+
+                let result = result.unwrap_or_else(|e| panic!("{name}/{mode}: {e}"));
+                let statuses: Vec<u64> =
+                    result.receipts.iter().map(|r| u64::from(r.status())).collect();
+                let want: Vec<u64> = expected["statuses"]
+                    .as_array()
+                    .unwrap()
+                    .iter()
+                    .map(|s| s.as_u64().unwrap())
+                    .collect();
+                assert_eq!(statuses, want, "{name}/{mode}: statuses");
+                assert_eq!(
+                    result.gas_used,
+                    expected["gas_used"].as_u64().unwrap(),
+                    "{name}/{mode}: gas used"
+                );
+
+                // Post-state = prestate overlaid with the bundle. The state root is computed as a
+                // genesis alloc root, which needs no trie dependency here.
+                db.merge_transitions(BundleRetention::PlainState);
+                let bundle = db.take_bundle();
+                let mut post: BTreeMap<Address, GenesisAccount> = prestate
+                    .iter()
+                    .map(|(address, info)| {
+                        let account = GenesisAccount::default()
+                            .with_nonce(Some(info.nonce))
+                            .with_balance(info.balance)
+                            .with_code(info.code.as_ref().map(|c| c.original_bytes()));
+                        (*address, account)
+                    })
+                    .collect();
+                for (address, account) in bundle.state() {
+                    let Some(info) = account.info.as_ref() else {
+                        post.remove(address);
+                        continue;
+                    };
+                    let code = info
+                        .code
+                        .clone()
+                        .or_else(|| bundle.contracts.get(&info.code_hash).cloned());
+                    let storage: BTreeMap<B256, B256> = account
+                        .storage
+                        .iter()
+                        .filter(|(_, slot)| !slot.present_value.is_zero())
+                        .map(|(key, slot)| (B256::from(*key), B256::from(slot.present_value)))
+                        .collect();
+                    let entry = GenesisAccount::default()
+                        .with_nonce(Some(info.nonce))
+                        .with_balance(info.balance)
+                        .with_code(code.map(|c| c.original_bytes()).filter(|c| !c.is_empty()))
+                        .with_storage((!storage.is_empty()).then_some(storage));
+                    post.insert(*address, entry);
+                }
+                let root = OpChainSpec::from_genesis(
+                    alloy_genesis::Genesis::default().extend_accounts(post),
+                )
+                .genesis_header()
+                .state_root;
+                assert_eq!(root, b256(&expected["state_root"]), "{name}/{mode}: state root");
+            }
+        }
+    }
 
     #[test]
     fn projection_build_and_import_share_deposit_policy() {

@@ -201,36 +201,73 @@ contract ClaimRegistry_PostClaim_Test is ClaimRegistry_TestInit {
         assertEq(registry.lastClaimHash(), keccak256(abi.encode(firstHash, abi.encode(afterGap))));
     }
 
-    /// @notice Tests that a range overlapping the last posted range is refused, gap rule or not.
-    function test_postClaim_overlap_reverts() external {
+    /// @notice Tests that a range overlapping the last posted range advances the cursor. On the
+    ///         projection a failed carrier invalidates its block, so after a span is only partly
+    ///         admitted the next honest claim restarts inside the previous range. A revert here
+    ///         would invalidate that claim's block and every retry, wedging publication.
+    function test_postClaim_overlapAdvancesCursor_succeeds() external {
         vm.prank(operator);
         registry.postClaim(_claim(100, 399));
+        bytes32 firstHash = registry.lastClaimHash();
 
-        vm.expectRevert(IClaimRegistry.ClaimRegistry_OverlappingRange.selector);
+        RangeClaim memory overlapping = _claim(250, 699);
         vm.prank(operator);
-        registry.postClaim(_claim(399, 699));
+        registry.postClaim(overlapping);
+
+        assertEq(registry.rangeCount(), 2);
+        assertEq(registry.lastPostedLastBlock(), 699);
+        assertEq(registry.lastClaimHash(), keccak256(abi.encode(firstHash, abi.encode(overlapping))));
     }
 
-    /// @notice Tests that a range running backwards behind the last posted range is refused.
-    function test_postClaim_regression_reverts() external {
+    /// @notice Tests that a range running backwards behind the last posted range is recorded, and
+    ///         that the cursor follows the latest post.
+    function test_postClaim_regression_succeeds() external {
         vm.prank(operator);
         registry.postClaim(_claim(100, 399));
+        bytes32 firstHash = registry.lastClaimHash();
 
-        vm.expectRevert(IClaimRegistry.ClaimRegistry_OverlappingRange.selector);
+        RangeClaim memory behind = _claim(50, 99);
         vm.prank(operator);
-        registry.postClaim(_claim(50, 99));
+        registry.postClaim(behind);
+
+        assertEq(registry.rangeCount(), 2);
+        assertEq(registry.lastPostedLastBlock(), 99);
+        assertEq(registry.lastClaimHash(), keccak256(abi.encode(firstHash, abi.encode(behind))));
     }
 
-    /// @notice Tests that re-posting the same range is refused.
-    function test_postClaim_duplicate_reverts() external {
+    /// @notice Tests that re-posting the same range is recorded as a second post.
+    function test_postClaim_duplicate_succeeds() external {
         RangeClaim memory claim = _claim(100, 399);
 
         vm.prank(operator);
         registry.postClaim(claim);
+        bytes32 firstHash = registry.lastClaimHash();
 
-        vm.expectRevert(IClaimRegistry.ClaimRegistry_OverlappingRange.selector);
         vm.prank(operator);
         registry.postClaim(claim);
+
+        assertEq(registry.rangeCount(), 2);
+        assertEq(registry.lastPostedLastBlock(), 399);
+        assertEq(registry.lastClaimHash(), keccak256(abi.encode(firstHash, abi.encode(claim))));
+    }
+
+    /// @notice Tests that any well-formed second post advances the cursor, whatever its position
+    ///         relative to the first.
+    function testFuzz_postClaim_anySecondRange_succeeds(uint64 _firstBlock, uint64 _length) external {
+        _firstBlock = uint64(bound(_firstBlock, 0, type(uint32).max));
+        _length = uint64(bound(_length, 0, type(uint16).max));
+
+        vm.prank(operator);
+        registry.postClaim(_claim(100, 399));
+        bytes32 firstHash = registry.lastClaimHash();
+
+        RangeClaim memory second = _claim(_firstBlock, _firstBlock + _length);
+        vm.prank(operator);
+        registry.postClaim(second);
+
+        assertEq(registry.rangeCount(), 2);
+        assertEq(registry.lastPostedLastBlock(), _firstBlock + _length);
+        assertEq(registry.lastClaimHash(), keccak256(abi.encode(firstHash, abi.encode(second))));
     }
 
     /// @notice Tests that an inverted range is refused.
@@ -278,9 +315,9 @@ contract ClaimRegistry_PostClaim_Test is ClaimRegistry_TestInit {
         registry.postClaim(_claim(100, 399));
         bytes32 firstHash = registry.lastClaimHash();
 
-        vm.expectRevert(IClaimRegistry.ClaimRegistry_OverlappingRange.selector);
+        vm.expectRevert(IClaimRegistry.ClaimRegistry_InvalidRange.selector);
         vm.prank(operator);
-        registry.postClaim(_claim(200, 799));
+        registry.postClaim(_claim(800, 799));
 
         assertEq(registry.rangeCount(), 1);
         assertEq(registry.lastPostedLastBlock(), 399);

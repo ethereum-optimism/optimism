@@ -56,6 +56,7 @@ pub use execute::*;
 pub mod l1;
 pub use l1::*;
 mod projection;
+pub use projection::is_projection_sequencer_tx_failure;
 mod receipts;
 pub use receipts::*;
 mod build;
@@ -114,8 +115,10 @@ impl<ChainSpec: EthChainSpec<Header = Header> + OpHardforks> OpEvmConfig<ChainSp
         let projection = is_public_projection_genesis(chain_spec.genesis());
         let mut config = Self::new(chain_spec, OpRethReceiptBuilder::default());
         if projection {
-            config.executor_factory =
-                config.executor_factory.with_deposit_noop(projection::is_user_deposit);
+            config.executor_factory = config
+                .executor_factory
+                .with_deposit_noop(projection::is_user_deposit)
+                .with_sequencer_tx_success_required();
         }
         config
     }

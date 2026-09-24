@@ -17,6 +17,7 @@ pub use builder::{
 };
 pub mod error;
 pub mod payload;
+pub mod projection;
 use op_alloy_rpc_types_engine::{OpExecutionData, OpExecutionPayloadEnvelope};
 pub use payload::{
     OpBuiltPayload, OpExecData, OpPayloadAttributes, OpPayloadAttrs, OpPayloadBuilderAttributes,

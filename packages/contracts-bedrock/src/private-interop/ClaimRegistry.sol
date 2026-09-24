@@ -35,21 +35,22 @@ import { RangeClaim } from "interfaces/private-interop/IClaimRegistry.sol";
 ///         special case is the first post, which has no predecessor to sit after.
 ///
 ///         The registry checks exactly what it can check cheaply and locally: the current batcher
-///         is the caller, the claim version,
-///         that each range starts strictly after the last posted range ended,
-///         and that the proof slot is bounded. It does NOT check that the range's contents match the
-///         private chain: the current dummy verifier trusts the operator for that correspondence. Claim N's
-///         stored hash folds into claim N+1's, so the posted sequence is a hash chain an auditor
-///         can walk from `lastClaimHash`.
+///         is the caller, the claim version, that the range is not inverted, and that the proof
+///         slot is bounded. It does NOT check that the range's contents match the private chain:
+///         that correspondence is bound by projection derivation, which admits a span only with a
+///         claim and proof it verified itself. Claim N's stored hash folds into claim N+1's, so the
+///         posted sequence is a hash chain an auditor can walk from `lastClaimHash`.
 ///
-///         RANGES MAY LEAVE FORWARD GAPS. The rule is `firstBlock > lastPostedLastBlock`, not
-///         `== lastPostedLastBlock + 1`: no overlap and no regression, but a jump forward is fine.
-///         A range whose opening block is invalidated and replaced — stock interop invalidation
-///         today, the proof gate in proven mode later — never executes its claim transaction at
-///         all, so the registry cannot advance for a range that was voided. Under a strict
-///         contiguity rule that voided range would permanently wedge the next honest claim, since
-///         nothing could ever satisfy `+ 1` again. A gap in the record is therefore the
-///         self-documenting mark of a voided range, not an error.
+///         THE REGISTRY DOES NOT ORDER RANGES. Every accepted post advances `rangeCount`, sets
+///         `lastPostedLastBlock` to the claim's `lastBlock` and extends `lastClaimHash`, whether the
+///         range follows, skips past, overlaps or repeats the previous one. On the projection every
+///         non-deposit transaction must succeed or its whole block is invalid, and derivation then
+///         replaces the rest of the span. If a span is invalidated after its opening claim executed,
+///         the next honest claim restarts at the first replaced block, which is at or before
+///         `lastPostedLastBlock`. An ordering revert here would invalidate that claim's block too,
+///         and every later retry, permanently wedging publication. Ordering is therefore enforced
+///         by derivation alone. In the record, a forward gap marks a range whose opening block was
+///         voided, and an overlap marks a range that was only partly admitted.
 ///
 ///         THIS REGISTRY EMITS NO LOGS, deliberately, against the usual rule that a state-changing
 ///         function emits an event. The claim is the first transaction of a range-opening block, so
@@ -58,12 +59,12 @@ import { RangeClaim } from "interfaces/private-interop/IClaimRegistry.sol";
 ///         log would silently break the canonical-position rule the whole design rests on. The
 ///         durable record is the claim transaction's own calldata: readers scan transactions sent
 ///         to this address and decode the argument. The hash chain and the range cursor are
-///         readable from the getters. In the derivation-gated projection profile, admitted claim
-///         calldata remains authoritative even when the registry call reverts. Storage accounting
-///         is not a second consensus admission gate. Per-block output records are calldata-only.
+///         readable from the getters. On the projection a reverting claim invalidates its whole
+///         block. The reverts kept here are the sender check, whose failure correctly voids a claim
+///         not signed by the current batcher, and the version, range and proof-size checks, which
+///         admission already excludes. Per-block output records are calldata-only.
 ///
 ///         Proof policy is enforced by projection derivation before the span reaches execution.
-///         The initial verifier accepts dummy bytes and provides NO private execution proof.
 ///         This contract bounds the slot and records it without interpreting the proof.
 contract ClaimRegistry is ProxyAdminOwnedBase, ISemver {
     /// @notice Thrown when someone other than the current batcher tries to post a claim.
@@ -78,11 +79,6 @@ contract ClaimRegistry is ProxyAdminOwnedBase, ISemver {
     /// @notice Thrown when the claim's range is empty or inverted.
     error ClaimRegistry_InvalidRange();
 
-    /// @notice Thrown when the claim's range does not begin strictly after the last posted range
-    ///         ended. Overlaps, regressions and duplicate posts all land here; a forward gap does
-    ///         not, and is accepted.
-    error ClaimRegistry_OverlappingRange();
-
     /// @notice Claim version this registry accepts.
     uint8 public constant CLAIM_VERSION = 2;
 
@@ -90,14 +86,14 @@ contract ClaimRegistry is ProxyAdminOwnedBase, ISemver {
     uint256 public constant MAX_PROOF_LENGTH = 65_536;
 
     /// @notice Semantic version.
-    /// @custom:semver 3.0.0
-    string public constant version = "3.0.0";
+    /// @custom:semver 4.0.0
+    string public constant version = "4.0.0";
 
-    /// @notice Number of claims posted so far. Zero means no range has been posted, which is the
-    ///         only state in which an arbitrary `firstBlock` is accepted.
+    /// @notice Number of claims posted so far. Zero means no range has been posted.
     uint64 public rangeCount;
 
-    /// @notice Last block of the most recently posted range.
+    /// @notice Last block of the most recently posted range. It follows the latest post and may
+    ///         move backwards after a partly admitted range.
     uint64 public lastPostedLastBlock;
 
     /// @notice Running hash of the posted claim sequence. Zero before the first post.
@@ -109,12 +105,9 @@ contract ClaimRegistry is ProxyAdminOwnedBase, ISemver {
     ///         Deposit calls cannot create checkpoints; readers exclude deposits.
     function recordOutput(bytes32) external pure { }
 
-    /// @notice Posts the claim for the range this transaction opens. Reverts unless the range
-    ///         begins strictly after the last posted range ended, so posted ranges never overlap,
-    ///         never run backwards and can never be posted twice — but may skip forward, which is
-    ///         how a voided range leaves its mark instead of wedging the registry. See the
-    ///         contract-level notice. The first-ever post has nothing to sit after and sets the
-    ///         starting point.
+    /// @notice Posts the claim for the range this transaction opens. The range is not ordered
+    ///         against earlier posts: see the contract-level notice. Every accepted post advances
+    ///         `rangeCount`, sets `lastPostedLastBlock` and extends `lastClaimHash`.
     ///
     ///         Emits nothing: see the contract-level notice. The transaction's calldata is the
     ///         record, and the resulting chain state is readable from `lastClaimHash`,
@@ -141,12 +134,7 @@ contract ClaimRegistry is ProxyAdminOwnedBase, ISemver {
 
         if (_claim.lastBlock < _claim.firstBlock) revert ClaimRegistry_InvalidRange();
 
-        uint64 index = rangeCount;
-        if (index != 0 && _claim.firstBlock <= lastPostedLastBlock) {
-            revert ClaimRegistry_OverlappingRange();
-        }
-
-        rangeCount = index + 1;
+        rangeCount += 1;
         lastPostedLastBlock = _claim.lastBlock;
         lastClaimHash = keccak256(abi.encode(lastClaimHash, abi.encode(_claim)));
     }

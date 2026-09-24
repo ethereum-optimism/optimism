@@ -349,6 +349,11 @@ pub struct OpBlockExecutor<Evm, R: OpReceiptBuilder, Spec> {
     pub receipt_builder: R,
     /// Optional chain-specific rule making selected deposits successful zero-effect no-ops.
     pub deposit_noop: Option<fn(&TxDeposit, usize) -> bool>,
+    /// Whether every non-deposit, non-post-exec transaction must execute successfully. When set, a
+    /// reverted, halted or out-of-gas sequencer transaction makes the whole block invalid instead
+    /// of producing a status-0 receipt. Used by the public projection, where every sequencer
+    /// transaction is a carrier that must take effect.
+    pub require_sequencer_tx_success: bool,
     /// Context for block execution.
     pub ctx: OpBlockExecutionCtx,
     /// The EVM used by executor.
@@ -395,6 +400,7 @@ where
             spec,
             receipt_builder,
             deposit_noop: None,
+            require_sequencer_tx_success: false,
             receipts: Vec::new(),
             gas_used: 0,
             evm_gas_used: 0,
@@ -492,6 +498,14 @@ pub enum OpBlockExecutionError {
         address: Address,
         /// Delta that could not be removed from the account.
         delta: U256,
+    },
+
+    /// A sequencer (non-deposit, non-post-exec) transaction did not execute successfully on a
+    /// chain that requires every sequencer transaction to succeed.
+    #[error("projection sequencer transaction {tx_index} failed")]
+    ProjectionSequencerTxFailed {
+        /// Index of the failed transaction in the block.
+        tx_index: u64,
     },
 }
 
@@ -1001,6 +1015,18 @@ where
             BlockExecutionError::evm(err, hash)
         })?;
 
+        // Post-exec transactions returned above, so only deposits are exempt here.
+        if self.require_sequencer_tx_success && !is_deposit && !result.result.is_success() {
+            if self.post_exec.is_producing() {
+                // Finish the producer-policy record opened for this candidate, so the
+                // candidate is discarded the same way as any other invalid transaction.
+                let _ = self.evm.take_last_post_exec_tx_result();
+            }
+            return Err(validation_error(OpBlockExecutionError::ProjectionSequencerTxFailed {
+                tx_index,
+            }));
+        }
+
         let evm_gas_used = result.result.tx_gas_used();
         let (post_exec_refund, refund_events) = if self.post_exec.is_producing() {
             let PostExecExecutedTx { refund_total: refund, refund_events } =
@@ -1221,13 +1247,21 @@ pub struct OpBlockExecutorFactory<
     evm_factory: EvmFactory,
     /// Chain-specific deposit execution rule, shared by building and validation.
     deposit_noop: Option<fn(&TxDeposit, usize) -> bool>,
+    /// Whether every sequencer transaction must succeed, shared by building and validation.
+    require_sequencer_tx_success: bool,
 }
 
 impl<R, Spec, EvmFactory> OpBlockExecutorFactory<R, Spec, EvmFactory> {
     /// Creates a new [`OpBlockExecutorFactory`] with the given spec, [`EvmFactory`], and
     /// [`OpReceiptBuilder`].
     pub const fn new(receipt_builder: R, spec: Spec, evm_factory: EvmFactory) -> Self {
-        Self { receipt_builder, spec, evm_factory, deposit_noop: None }
+        Self {
+            receipt_builder,
+            spec,
+            evm_factory,
+            deposit_noop: None,
+            require_sequencer_tx_success: false,
+        }
     }
 
     /// Makes deposits selected by `noop` successful transactions with no state or gas effects.
@@ -1236,6 +1270,25 @@ impl<R, Spec, EvmFactory> OpBlockExecutorFactory<R, Spec, EvmFactory> {
     pub const fn with_deposit_noop(mut self, noop: fn(&TxDeposit, usize) -> bool) -> Self {
         self.deposit_noop = Some(noop);
         self
+    }
+
+    /// Makes every non-deposit, non-post-exec transaction that does not execute successfully
+    /// invalidate its block with [`OpBlockExecutionError::ProjectionSequencerTxFailed`], in both
+    /// building and validation.
+    #[must_use]
+    pub const fn with_sequencer_tx_success_required(mut self) -> Self {
+        self.require_sequencer_tx_success = true;
+        self
+    }
+
+    /// Returns the chain-specific deposit no-op rule, if any.
+    pub const fn deposit_noop(&self) -> Option<fn(&TxDeposit, usize) -> bool> {
+        self.deposit_noop
+    }
+
+    /// Returns whether every sequencer transaction must execute successfully.
+    pub const fn requires_sequencer_tx_success(&self) -> bool {
+        self.require_sequencer_tx_success
     }
 
     /// Exposes the receipt builder.
@@ -1295,6 +1348,7 @@ where
     {
         let mut executor = OpBlockExecutor::new(evm, ctx, &self.spec, &self.receipt_builder);
         executor.deposit_noop = self.deposit_noop;
+        executor.require_sequencer_tx_success = self.require_sequencer_tx_success;
         executor
     }
 }
@@ -1352,6 +1406,7 @@ where
     {
         let mut executor = OpBlockExecutor::new(evm, ctx, &self.spec, &self.receipt_builder);
         executor.deposit_noop = self.deposit_noop;
+        executor.require_sequencer_tx_success = self.require_sequencer_tx_success;
         executor
     }
 }

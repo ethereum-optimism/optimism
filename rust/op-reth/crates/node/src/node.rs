@@ -42,7 +42,7 @@ use reth_optimism_payload_builder::{
     builder::OpPayloadTransactions,
     config::{OpBuilderConfig, OpDAConfig, OpGasLimitConfig, OperatorSdmOptIn},
 };
-use reth_optimism_primitives::{DepositReceipt, OpPrimitives};
+use reth_optimism_primitives::{DepositReceipt, OpPrimitives, OpTransactionSigned};
 use reth_optimism_rpc::{
     SequencerClient,
     eth::{OpEthApiBuilder, ext::OpEthExtApi},
@@ -54,8 +54,10 @@ use reth_optimism_storage::OpStorage;
 use reth_optimism_txpool::{
     OpPool, OpPooledTx, interop::InteropFailsafe, interop_filter::InteropFilterClient,
 };
-use reth_primitives_traits::header::HeaderMut;
-use reth_provider::{CanonStateSubscriptions, providers::ProviderFactoryBuilder};
+use reth_primitives_traits::{SealedHeader, header::HeaderMut};
+use reth_provider::{
+    CanonStateSubscriptions, StateProviderFactory, providers::ProviderFactoryBuilder,
+};
 use reth_rpc_api::{
     DebugApiServer, EthConfigApiServer, L2EthApiExtServer,
     eth::{RpcTypes, helpers::config::EthConfigHandler},
@@ -68,7 +70,7 @@ use reth_transaction_pool::{
     blobstore::DiskFileBlobStore,
 };
 use reth_trie_common::KeccakKeyHasher;
-use std::{marker::PhantomData, sync::Arc};
+use std::{any::Any, marker::PhantomData, sync::Arc};
 use url::Url;
 
 use reth_optimism_payload_builder::OpPayloadAttrs;
@@ -1723,7 +1725,10 @@ pub struct OpEngineValidatorBuilder;
 impl<Node> PayloadValidatorBuilder<Node> for OpEngineValidatorBuilder
 where
     Node: FullNodeComponents<
-        Types: NodeTypes<ChainSpec: OpHardforks, Payload: PayloadTypes<ExecutionData = OpExecData>>,
+        Types: NodeTypes<
+            ChainSpec: OpHardforks + 'static,
+            Payload: PayloadTypes<ExecutionData = OpExecData>,
+        >,
     >,
 {
     type Validator = OpEngineValidator<
@@ -1733,11 +1738,61 @@ where
     >;
 
     async fn build(self, ctx: &AddOnsContext<'_, Node>) -> eyre::Result<Self::Validator> {
-        Ok(OpEngineValidator::new::<KeccakKeyHasher>(
+        let validator = OpEngineValidator::new::<KeccakKeyHasher>(
             ctx.config.chain.clone(),
             ctx.node.provider().clone(),
-        ))
+        );
+        if !reth_optimism_chainspec::is_public_projection_genesis(ctx.config.chain.genesis()) {
+            return Ok(validator);
+        }
+        // The projection pre-execution is concrete over the stock OP chain spec and EVM, which is
+        // what `OpEvmConfig::optimism` enables the projection execution rule on.
+        let chain: Arc<dyn Any + Send + Sync> = ctx.config.chain.clone();
+        let Ok(chain) = chain.downcast::<OpChainSpec>() else {
+            tracing::warn!(target: "reth::cli", "Public projection on a non-OP chain spec: payload attributes are not pre-executed");
+            return Ok(validator);
+        };
+        Ok(validator
+            .with_projection_check(projection_attributes_check(chain, ctx.node.provider().clone())))
     }
+}
+
+/// The public-projection attribute pre-execution installed on [`OpEngineValidator`]: attributes
+/// whose sequencer transactions break the projection execution rule are answered with
+/// `INVALID_PAYLOAD_ATTRIBUTES`, so derivation replaces them with a deposit-only block instead of
+/// retrying a payload job that can only fail. Any other outcome, including a missing parent state,
+/// gives no verdict and leaves the attributes to the payload job.
+pub fn projection_attributes_check<P>(
+    chain: Arc<OpChainSpec>,
+    provider: P,
+) -> crate::engine::ProjectionAttributesCheck
+where
+    P: StateProviderFactory + Send + Sync + 'static,
+{
+    let evm = OpEvmConfig::optimism(chain.clone());
+    crate::engine::ProjectionAttributesCheck(Arc::new(move |attributes, parent| {
+        let parent = SealedHeader::seal_slow(parent.clone());
+        let Ok(state) = provider.state_by_block_hash(parent.hash()) else { return Ok(()) };
+        let Ok(attributes) = OpPayloadBuilderAttributes::<OpTransactionSigned>::try_new(
+            parent.hash(),
+            attributes.clone(),
+            3,
+        ) else {
+            return Ok(());
+        };
+        match reth_optimism_payload_builder::projection::first_failing_sequencer_tx(
+            &evm,
+            chain.as_ref(),
+            state,
+            &parent,
+            &attributes,
+        ) {
+            Ok(Some(err)) if reth_optimism_evm::is_projection_sequencer_tx_failure(&err) => {
+                Err(err.to_string())
+            }
+            _ => Ok(()),
+        }
+    }))
 }
 
 /// Network primitive types used by Optimism networks.
@@ -1746,6 +1801,72 @@ pub type OpNetworkPrimitives = BasicNetworkPrimitives<OpPrimitives, OpPooledTran
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// The projection attribute pre-execution rejects exactly the shared executor-vector cases
+    /// the projection execution rule invalidates, and nothing on a non-projection chain.
+    #[test]
+    fn projection_attributes_check_matches_execution_vectors() {
+        use alloy_primitives::{B64, Bytes};
+        use alloy_rpc_types_engine::PayloadAttributes;
+        use reth_optimism_payload_builder::OpPayloadAttributes;
+        use reth_provider::test_utils::MockEthProvider;
+
+        let mut private: alloy_genesis::Genesis = serde_json::from_str(include_str!(
+            "../../../../../op-private-interop/genesis/testdata/private-chain-genesis.json"
+        ))
+        .unwrap();
+        // The vectors are signed for chain 901.
+        private.config.chain_id = 901;
+        let projected = reth_optimism_chainspec::project_genesis_from(&private).unwrap();
+        let vectors: serde_json::Value = serde_json::from_str(include_str!(
+            "../../../../../op-private-interop/projection/testdata/execution.json"
+        ))
+        .unwrap();
+        let cases = vectors["cases"].as_array().unwrap();
+        assert!(cases.len() >= 5);
+
+        let mut rejected = 0;
+        for (genesis, projection) in [(private, false), (projected, true)] {
+            let spec = Arc::new(OpChainSpec::from_genesis(genesis));
+            assert_eq!(
+                reth_optimism_chainspec::is_public_projection_genesis(spec.genesis()),
+                projection
+            );
+            let provider = MockEthProvider::<OpPrimitives>::new().with_chain_spec(spec.clone());
+            let check = projection_attributes_check(spec.clone(), provider);
+            let parent = spec.genesis_header().clone();
+            for case in cases {
+                let name = case["name"].as_str().unwrap();
+                let txs: Vec<Bytes> = case["transactions"]
+                    .as_array()
+                    .unwrap()
+                    .iter()
+                    .map(|tx| tx.as_str().unwrap().parse().unwrap())
+                    .collect();
+                let attributes = OpPayloadAttributes {
+                    payload_attributes: PayloadAttributes {
+                        timestamp: parent.timestamp + 2,
+                        withdrawals: Some(Vec::new()),
+                        parent_beacon_block_root: Some(Default::default()),
+                        ..Default::default()
+                    },
+                    transactions: Some(txs),
+                    no_tx_pool: Some(true),
+                    gas_limit: Some(parent.gas_limit),
+                    eip_1559_params: Some(B64::ZERO),
+                    min_base_fee: Some(0),
+                };
+                let invalid = projection && !case["projection"]["valid"].as_bool().unwrap();
+                let result = (check.0)(&attributes, &parent);
+                assert_eq!(result.is_err(), invalid, "{name}, projection={projection}: {result:?}");
+                if let Err(reason) = result {
+                    assert!(reason.contains("projection sequencer transaction"), "{reason}");
+                    rejected += 1;
+                }
+            }
+        }
+        assert_eq!(rejected, 3, "create_reverts, create_oog and deposit_then_revert");
+    }
 
     #[test]
     fn standard_pool_builder_forwards_base_config() {

@@ -7,6 +7,7 @@ use crate::{
 };
 use alloy_consensus::{Header, Transaction};
 use alloy_eips::Encodable2718;
+use alloy_evm::block::{BlockExecutionError, BlockValidationError};
 use alloy_op_evm::OpEvmFactory;
 use alloy_primitives::{Address, Sealable, U256};
 use kona_mpt::NoopTrieHinter;
@@ -386,9 +387,9 @@ async fn post_exec_payload_rejects_refund_exceeding_gas_used() {
 fn projection_deposit_policy_is_applied_by_stateless_execution() {
     use crate::NoopTrieDBProvider;
     use alloy_eips::eip2718::Encodable2718;
-    use alloy_primitives::{B256, TxKind};
+    use alloy_primitives::TxKind;
     use alloy_rpc_types_engine::PayloadAttributes;
-    use kona_genesis::{PrivateProjectionConfig, RollupConfig};
+    use kona_genesis::RollupConfig;
     use op_alloy_consensus::{OpTxEnvelope, TxDeposit};
     use op_alloy_rpc_types_engine::OpPayloadAttributes;
 
@@ -396,11 +397,7 @@ fn projection_deposit_policy_is_applied_by_stateless_execution() {
         let mut roots = Vec::new();
         for projection in [false, true] {
             let cfg = RollupConfig {
-                private_projection: projection.then(|| PrivateProjectionConfig {
-                    genesis_output_root: B256::repeat_byte(1),
-                    verifier: "insecure-stub-v1".into(),
-                    allow_events: false,
-                }),
+                private_projection: projection.then(projection_profile),
                 ..Default::default()
             };
             let parent = Header {
@@ -444,5 +441,248 @@ fn projection_deposit_policy_is_applied_by_stateless_execution() {
             roots.push(outcome.header.state_root);
         }
         assert_ne!(roots[0], roots[1]);
+    }
+}
+
+/// A projection admission profile. The executor only tests for its presence, so it is built from
+/// the minimal JSON form, which stays valid as the profile gains defaulted fields.
+fn projection_profile() -> kona_genesis::PrivateProjectionConfig {
+    serde_json::from_value(serde_json::json!({
+        "genesis_output_root": alloy_primitives::B256::repeat_byte(1),
+        "verifier": "insecure-stub-v1",
+    }))
+    .expect("minimal projection profile")
+}
+
+/// Serves the trie nodes and bytecode of a vector prestate. Every prestate account has empty
+/// storage.
+#[derive(Debug)]
+struct PrestateProvider {
+    nodes: std::collections::HashMap<alloy_primitives::B256, alloy_primitives::Bytes>,
+    code: std::collections::HashMap<alloy_primitives::B256, alloy_primitives::Bytes>,
+}
+
+impl PrestateProvider {
+    /// Builds the state trie of `accounts` (address, nonce, balance, code) and returns its root.
+    fn new(
+        accounts: Vec<(Address, u64, U256, alloy_primitives::Bytes)>,
+    ) -> (Self, alloy_primitives::B256) {
+        use alloy_primitives::keccak256;
+        use alloy_trie::{HashBuilder, Nibbles, TrieAccount, proof::ProofRetainer};
+
+        let mut leaves: Vec<_> = accounts
+            .into_iter()
+            .map(|(address, nonce, balance, code)| {
+                let account = TrieAccount {
+                    nonce,
+                    balance,
+                    storage_root: alloy_trie::EMPTY_ROOT_HASH,
+                    code_hash: keccak256(&code),
+                };
+                (Nibbles::unpack(keccak256(address)), alloy_rlp::encode(account), code)
+            })
+            .collect();
+        leaves.sort_by_key(|leaf| leaf.0);
+        let mut builder = HashBuilder::default()
+            .with_proof_retainer(ProofRetainer::new(leaves.iter().map(|l| l.0).collect()));
+        let mut code = std::collections::HashMap::new();
+        for (key, value, bytecode) in leaves {
+            builder.add_leaf(key, &value);
+            code.insert(keccak256(&bytecode), bytecode);
+        }
+        let root = builder.root();
+        let nodes = builder
+            .take_proof_nodes()
+            .into_inner()
+            .into_values()
+            .map(|node| (keccak256(&node), node))
+            .collect();
+        (Self { nodes, code }, root)
+    }
+}
+
+impl kona_mpt::TrieProvider for PrestateProvider {
+    type Error = String;
+
+    fn trie_node_by_hash(&self, key: alloy_primitives::B256) -> Result<kona_mpt::TrieNode, String> {
+        use alloy_rlp::Decodable;
+        let raw = self.nodes.get(&key).ok_or_else(|| format!("missing trie node {key}"))?;
+        kona_mpt::TrieNode::decode(&mut raw.as_ref()).map_err(|e| e.to_string())
+    }
+}
+
+impl crate::TrieDBProvider for PrestateProvider {
+    fn bytecode_by_hash(
+        &self,
+        code_hash: alloy_primitives::B256,
+    ) -> Result<alloy_primitives::Bytes, String> {
+        self.code.get(&code_hash).cloned().ok_or_else(|| format!("missing code {code_hash}"))
+    }
+
+    fn header_by_hash(&self, hash: alloy_primitives::B256) -> Result<Header, String> {
+        Err(format!("no headers in a vector prestate: {hash}"))
+    }
+}
+
+/// The shared op-reth/Kona projection executor vectors, generated by
+/// `op-private-interop/projection/execution_vectors_test.go`.
+const EXECUTION_VECTORS: &str =
+    include_str!("../../../../../../../../op-private-interop/projection/testdata/execution.json");
+
+/// Every case of the shared executor vectors (spec-sound-profile §E.4), in both modes, through
+/// the projection trigger in [`StatelessL2Builder::new`]: a failed non-deposit transaction
+/// invalidates the block with `ProjectionSequencerTxFailed`, a user deposit never does, and valid
+/// blocks match the reference statuses, gas used and state root.
+#[test]
+fn projection_execution_vectors() {
+    use alloy_eips::eip1559::BaseFeeParams;
+    use alloy_op_evm::block::OpBlockExecutionError;
+    use alloy_primitives::{B64, B256, Bytes};
+    use alloy_rpc_types_engine::PayloadAttributes;
+    use kona_genesis::{HardForkConfig, RollupConfig};
+    use op_alloy_rpc_types_engine::OpPayloadAttributes;
+    use serde_json::Value;
+
+    fn b256(v: &Value) -> B256 {
+        v.as_str().unwrap().parse().unwrap()
+    }
+
+    let vectors: Value = serde_json::from_str(EXECUTION_VECTORS).unwrap();
+    let env = &vectors["env"];
+    let u64_of = |key: &str| env[key].as_u64().unwrap();
+    let cases = vectors["cases"].as_array().unwrap();
+    assert!(cases.len() >= 5);
+    let prestate = || {
+        PrestateProvider::new(
+            env["prestate"]
+                .as_object()
+                .unwrap()
+                .iter()
+                .map(|(address, account)| {
+                    (
+                        address.parse().unwrap(),
+                        account["nonce"].as_u64().unwrap(),
+                        account["balance"].as_str().unwrap().parse().unwrap(),
+                        account["code"].as_str().unwrap().parse().unwrap(),
+                    )
+                })
+                .collect(),
+        )
+    };
+
+    for case in cases {
+        let name = case["name"].as_str().unwrap();
+        let txs: Vec<Bytes> = case["transactions"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|tx| tx.as_str().unwrap().parse().unwrap())
+            .collect();
+        for (mode, projection) in [("execution", false), ("projection", true)] {
+            let expected = &case[mode];
+            let cfg = RollupConfig {
+                l2_chain_id: u64_of("chain_id").into(),
+                block_time: 2,
+                hardforks: HardForkConfig {
+                    regolith_time: Some(0),
+                    canyon_time: Some(0),
+                    delta_time: Some(0),
+                    ecotone_time: Some(0),
+                    fjord_time: Some(0),
+                    granite_time: Some(0),
+                    holocene_time: Some(0),
+                    isthmus_time: Some(0),
+                    jovian_time: Some(0),
+                    karst_time: Some(0),
+                    lagoon_time: Some(0),
+                    ..Default::default()
+                },
+                private_projection: projection.then(projection_profile),
+                ..Default::default()
+            };
+            let (provider, prestate_root) = prestate();
+            let parent = Header {
+                number: u64_of("number") - 1,
+                timestamp: u64_of("timestamp") - 2,
+                state_root: prestate_root,
+                gas_limit: u64_of("gas_limit"),
+                base_fee_per_gas: Some(u64_of("base_fee")),
+                extra_data: op_alloy_consensus::encode_jovian_extra_data(
+                    B64::ZERO,
+                    BaseFeeParams::new(250, 6),
+                    0,
+                )
+                .unwrap(),
+                ..Default::default()
+            };
+            let mut builder = StatelessL2Builder::new(
+                &cfg,
+                OpEvmFactory::<alloy_op_evm::OpTx>::default(),
+                alloy_op_evm::block::OpAlloyReceiptBuilder::default(),
+                provider,
+                NoopTrieHinter,
+                parent.seal_slow(),
+            );
+            let result = builder.build_block(OpPayloadAttributes {
+                payload_attributes: PayloadAttributes {
+                    timestamp: u64_of("timestamp"),
+                    prev_randao: b256(&env["prev_randao"]),
+                    suggested_fee_recipient: env["coinbase"].as_str().unwrap().parse().unwrap(),
+                    withdrawals: Some(Vec::new()),
+                    parent_beacon_block_root: Some(b256(&env["parent_beacon_block_root"])),
+                    ..Default::default()
+                },
+                transactions: Some(txs.clone()),
+                no_tx_pool: Some(true),
+                gas_limit: Some(u64_of("gas_limit")),
+                eip_1559_params: Some(B64::ZERO),
+                min_base_fee: Some(0),
+            });
+            if expected["valid"].as_bool().unwrap() {
+                let outcome = result.unwrap_or_else(|e| panic!("{name}/{mode}: {e}"));
+                let statuses: Vec<u64> = outcome
+                    .execution_result
+                    .receipts
+                    .iter()
+                    .map(|r| u64::from(r.status()))
+                    .collect();
+                let want: Vec<u64> = expected["statuses"]
+                    .as_array()
+                    .unwrap()
+                    .iter()
+                    .map(|s| s.as_u64().unwrap())
+                    .collect();
+                assert_eq!(statuses, want, "{name}/{mode}: statuses");
+                assert_eq!(
+                    outcome.header.gas_used,
+                    expected["gas_used"].as_u64().unwrap(),
+                    "{name}/{mode}: gas used"
+                );
+                assert_eq!(
+                    outcome.header.state_root,
+                    b256(&expected["state_root"]),
+                    "{name}/{mode}: state root"
+                );
+            } else {
+                assert_eq!(expected["error"], "ProjectionSequencerTxFailed", "{name}/{mode}");
+                let err = result.err().unwrap_or_else(|| panic!("{name}/{mode}: must be invalid"));
+                let ExecutorError::ExecutionError(BlockExecutionError::Validation(
+                    BlockValidationError::Other(inner),
+                )) = err
+                else {
+                    panic!("{name}/{mode}: expected a validation error, got {err}");
+                };
+                match inner.downcast_ref::<OpBlockExecutionError>() {
+                    Some(OpBlockExecutionError::ProjectionSequencerTxFailed { tx_index }) => {
+                        assert_eq!(
+                            *tx_index,
+                            expected["tx_index"].as_u64().unwrap(),
+                            "{name}/{mode}: tx index"
+                        )
+                    }
+                    _ => panic!("{name}/{mode}: expected ProjectionSequencerTxFailed, got {inner}"),
+                }
+            }
+        }
     }
 }

@@ -51,7 +51,6 @@ interface IClaimRegistry is ISemver, IProxyAdminOwnedBase {
     error ClaimRegistry_UnsupportedClaimVersion();
     error ClaimRegistry_ProofTooLarge();
     error ClaimRegistry_InvalidRange();
-    error ClaimRegistry_OverlappingRange();
 
     function CLAIM_VERSION() external view returns (uint8);
     function MAX_PROOF_LENGTH() external view returns (uint256);

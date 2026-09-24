@@ -213,11 +213,6 @@
   },
   {
     "inputs": [],
-    "name": "ClaimRegistry_OverlappingRange",
-    "type": "error"
-  },
-  {
-    "inputs": [],
     "name": "ClaimRegistry_ProofTooLarge",
     "type": "error"
   },

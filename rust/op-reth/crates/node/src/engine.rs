@@ -1,4 +1,4 @@
-use alloy_consensus::BlockHeader;
+use alloy_consensus::{BlockHeader, Header};
 use alloy_primitives::B256;
 use alloy_rpc_types_engine::{ExecutionPayloadEnvelopeV2, ExecutionPayloadV1};
 use op_alloy_rpc_types_engine::{
@@ -10,22 +10,23 @@ use reth_node_api::{
     BuiltPayload, EngineApiValidator, EngineTypes, InsertBlockErrorKind, NodePrimitives,
     PayloadValidator,
     payload::{
-        EngineApiMessageVersion, EngineObjectValidationError, MessageValidationKind,
-        NewPayloadError, PayloadOrAttributes, PayloadTypes, VersionSpecificValidationError,
-        validate_parent_beacon_block_root_presence,
+        EngineApiMessageVersion, EngineObjectValidationError, InvalidPayloadAttributesError,
+        MessageValidationKind, NewPayloadError, PayloadAttributes as _, PayloadOrAttributes,
+        PayloadTypes, VersionSpecificValidationError, validate_parent_beacon_block_root_presence,
     },
     validate_version_specific_fields,
 };
 use reth_optimism_consensus::isthmus;
 use reth_optimism_forks::OpHardforks;
 use reth_optimism_payload_builder::{
-    OpExecData, OpExecutionPayloadValidator, OpPayloadAttrs, OpPayloadTypes,
+    OpExecData, OpExecutionPayloadValidator, OpPayloadAttributes, OpPayloadAttrs, OpPayloadTypes,
 };
 use reth_optimism_primitives::{L2_TO_L1_MESSAGE_PASSER_ADDRESS, OpBlock};
 use reth_primitives_traits::{Block, RecoveredBlock, SealedBlock, SignedTransaction};
 use reth_provider::{ProviderResult, StateProviderBox, StateProviderFactory};
 use reth_trie_common::{HashedPostState, KeyHasher};
-use std::{marker::PhantomData, sync::Arc};
+use std::{any::Any, marker::PhantomData, sync::Arc};
+use tracing::warn;
 
 /// The types used in the optimism beacon consensus engine.
 #[derive(Debug, Default, Clone, serde::Deserialize, serde::Serialize)]
@@ -81,7 +82,25 @@ pub struct OpEngineValidator<P, Tx, ChainSpec> {
     inner: OpExecutionPayloadValidator<ChainSpec>,
     provider: P,
     hashed_addr_l2tol1_msg_passer: B256,
+    /// Public-projection attribute pre-execution, set only on projection chains. See
+    /// [`reth_optimism_payload_builder::projection`].
+    projection_check: Option<ProjectionAttributesCheck>,
     phantom: PhantomData<Tx>,
+}
+
+/// Pre-executes the sequencer transactions of payload attributes on top of their parent header
+/// and returns the reason when the projection execution rule rejects them.
+#[derive(Clone)]
+pub struct ProjectionAttributesCheck(pub Arc<ProjectionAttributesCheckFn>);
+
+/// The function behind [`ProjectionAttributesCheck`]: `Err(reason)` rejects the attributes.
+pub type ProjectionAttributesCheckFn =
+    dyn Fn(&OpPayloadAttributes, &Header) -> Result<(), String> + Send + Sync;
+
+impl core::fmt::Debug for ProjectionAttributesCheck {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        f.write_str("ProjectionAttributesCheck")
+    }
 }
 
 impl<P, Tx, ChainSpec> OpEngineValidator<P, Tx, ChainSpec> {
@@ -92,8 +111,16 @@ impl<P, Tx, ChainSpec> OpEngineValidator<P, Tx, ChainSpec> {
             inner: OpExecutionPayloadValidator::new(chain_spec),
             provider,
             hashed_addr_l2tol1_msg_passer,
+            projection_check: None,
             phantom: PhantomData,
         }
+    }
+
+    /// Rejects payload attributes, as `INVALID_PAYLOAD_ATTRIBUTES` in `engine_forkchoiceUpdated`,
+    /// whenever `check` does. Used by public-projection chains.
+    pub fn with_projection_check(mut self, check: ProjectionAttributesCheck) -> Self {
+        self.projection_check = Some(check);
+        self
     }
 }
 
@@ -107,6 +134,7 @@ where
             inner: OpExecutionPayloadValidator::new(self.inner.clone()),
             provider: self.provider.clone(),
             hashed_addr_l2tol1_msg_passer: self.hashed_addr_l2tol1_msg_passer,
+            projection_check: self.projection_check.clone(),
             phantom: Default::default(),
         }
     }
@@ -163,6 +191,25 @@ where
         payload: OpExecData,
     ) -> Result<SealedBlock<Self::Block>, NewPayloadError> {
         self.inner.ensure_well_formed_payload(payload.0).map_err(NewPayloadError::other)
+    }
+
+    fn validate_payload_attributes_against_header(
+        &self,
+        attr: &Types::PayloadAttributes,
+        header: &Header,
+    ) -> Result<(), InvalidPayloadAttributesError> {
+        if attr.timestamp() <= header.timestamp() {
+            return Err(InvalidPayloadAttributesError::InvalidTimestamp);
+        }
+        if let Some(check) = &self.projection_check &&
+            let Some(attrs) = (attr as &dyn Any).downcast_ref::<OpPayloadAttrs>()
+        {
+            (check.0)(&attrs.0, header).map_err(|reason| {
+                warn!(target: "engine::op", %reason, parent = ?header.number, "Projection payload attributes rejected");
+                InvalidPayloadAttributesError::InvalidParams(reason.into())
+            })?;
+        }
+        Ok(())
     }
 }
 

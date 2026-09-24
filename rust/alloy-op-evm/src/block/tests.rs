@@ -861,3 +861,138 @@ fn declined_candidate_restores_refund_policy_snapshot() {
 }
 
 mod structural_tests;
+
+/// Initcode that reverts immediately: `PUSH1 0; PUSH1 0; REVERT`.
+const REVERTING_INITCODE: &[u8] = &[0x60, 0x00, 0x60, 0x00, 0xfd];
+/// Initcode that loops until it runs out of gas: `JUMPDEST; PUSH1 0; JUMP`.
+const LOOPING_INITCODE: &[u8] = &[0x5b, 0x60, 0x00, 0x56];
+
+fn failing_creates() -> [(&'static str, Recovered<OpTxEnvelope>); 2] {
+    [
+        (
+            "revert",
+            recovered_legacy(TxLegacy {
+                to: TxKind::Create,
+                gas_limit: 100_000,
+                input: Bytes::from_static(REVERTING_INITCODE),
+                ..Default::default()
+            }),
+        ),
+        (
+            "out of gas",
+            recovered_legacy(TxLegacy {
+                to: TxKind::Create,
+                gas_limit: 60_000,
+                input: Bytes::from_static(LOOPING_INITCODE),
+                ..Default::default()
+            }),
+        ),
+    ]
+}
+
+fn assert_projection_sequencer_tx_failed(err: BlockExecutionError, expected_index: u64) {
+    match err {
+        BlockExecutionError::Validation(BlockValidationError::Other(inner)) => {
+            match inner.downcast_ref::<OpBlockExecutionError>() {
+                Some(OpBlockExecutionError::ProjectionSequencerTxFailed { tx_index }) => {
+                    assert_eq!(*tx_index, expected_index)
+                }
+                _ => panic!("expected ProjectionSequencerTxFailed, got {inner}"),
+            }
+        }
+        other => panic!("expected a validation error, got {other:?}"),
+    }
+}
+
+#[test]
+fn test_failed_sequencer_tx_invalidates_block_when_required() {
+    for mode in [PostExecMode::Disabled, PostExecMode::Produce] {
+        for (name, tx) in failing_creates() {
+            let mut fixture = JovianExecutorFixture::default();
+            let mut executor = fixture.executor_with_post_exec_mode(mode.clone());
+            executor.require_sequencer_tx_success = true;
+            let err = executor
+                .execute_transaction(&tx)
+                .expect_err("a failed sequencer tx must invalidate the block");
+            assert_projection_sequencer_tx_failed(err, 0);
+            assert!(executor.receipts.is_empty(), "{name}: no receipt may be recorded");
+            assert_eq!(executor.gas_used, 0, "{name}: no gas may be accounted");
+        }
+    }
+}
+
+#[test]
+fn test_failed_sequencer_tx_yields_status_zero_receipt_by_default() {
+    for (name, tx) in failing_creates() {
+        let mut fixture = JovianExecutorFixture::default();
+        let mut executor = fixture.executor();
+        assert!(!executor.require_sequencer_tx_success);
+        executor.execute_transaction(&tx).expect("the failed tx is valid to include");
+        assert_eq!(executor.receipts.len(), 1);
+        assert!(!executor.receipts[0].status(), "{name}: receipt must have status 0");
+    }
+}
+
+#[test]
+fn test_successful_sequencer_tx_is_unaffected_when_required() {
+    let mut fixture = JovianExecutorFixture::default();
+    let mut executor = fixture.executor();
+    executor.require_sequencer_tx_success = true;
+    let tx = recovered_legacy(TxLegacy {
+        to: TxKind::Call(Address::with_last_byte(0xbb)),
+        gas_limit: 21_000,
+        ..Default::default()
+    });
+    executor.execute_transaction(&tx).expect("a successful tx is accepted");
+    assert!(executor.receipts[0].status());
+}
+
+#[test]
+fn test_failed_deposit_is_exempt_when_required() {
+    let mut fixture =
+        JovianExecutorFixture::new(DEFAULT_DA_FOOTPRINT_GAS_SCALAR, 1_000_000, JOVIAN_TIMESTAMP);
+    let mut executor = fixture.executor();
+    executor.require_sequencer_tx_success = true;
+    let depositor = Address::with_last_byte(1);
+    let deposit = TxDeposit {
+        source_hash: B256::ZERO,
+        from: depositor,
+        to: TxKind::Create,
+        gas_limit: 60_000,
+        input: Bytes::from_static(REVERTING_INITCODE),
+        ..Default::default()
+    };
+    let deposit = Recovered::new_unchecked(
+        OpTxEnvelope::Deposit(Sealed::new_unchecked(deposit, B256::ZERO)),
+        depositor,
+    );
+    executor.execute_transaction(&deposit).expect("a failed deposit stays valid");
+    assert!(!executor.receipts[0].status());
+
+    // A later failed sequencer tx reports its own block index.
+    let (_, tx) = failing_creates().into_iter().next().unwrap();
+    let err = executor.execute_transaction(&tx).expect_err("sequencer tx must succeed");
+    assert_projection_sequencer_tx_failed(err, 1);
+}
+
+#[test]
+fn test_factory_propagates_sequencer_tx_success_rule() {
+    fn rule(_: &TxDeposit, _: usize) -> bool {
+        false
+    }
+    let plain = OpBlockExecutorFactory::new(
+        OpAlloyReceiptBuilder::default(),
+        OpChainHardforks::op_mainnet(),
+        OpEvmFactory::<crate::OpTx>::default(),
+    );
+    assert!(!plain.requires_sequencer_tx_success());
+    let factory = plain.with_deposit_noop(rule).with_sequencer_tx_success_required();
+    assert!(factory.requires_sequencer_tx_success());
+    assert!(factory.deposit_noop().is_some());
+
+    let mut db = State::builder().with_database(CacheDB::<EmptyDB>::default()).build();
+    let evm = factory.evm_factory.create_evm(&mut db, EvmEnv::default());
+    let executor = factory.create_executor(evm, OpBlockExecutionCtx::default());
+    assert!(executor.require_sequencer_tx_success);
+    assert!(executor.deposit_noop.is_some());
+}

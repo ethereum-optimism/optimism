@@ -161,7 +161,9 @@ where
         let trie_db = TrieDB::new(parent_header, provider, hinter);
         let mut factory = OpBlockExecutorFactory::new(receipt_builder, config.clone(), evm_factory);
         if config.private_projection.is_some() {
-            factory = factory.with_deposit_noop(kona_protocol::is_projection_user_deposit);
+            factory = factory
+                .with_deposit_noop(kona_protocol::is_projection_user_deposit)
+                .with_sequencer_tx_success_required();
         }
         Self {
             config,
