@@ -85,6 +85,19 @@ func TestExtractorZKSnapshotValidation(t *testing.T) {
 		require.Equal(t, rpcblock.ByHash(blockHash), caller.blocks[len(caller.blocks)-1])
 	})
 
+	t.Run("resolved game with decided distribution skips finality", func(t *testing.T) {
+		caller := validZKCaller()
+		caller.metadata.Status = gameTypes.GameStatusDefenderWon
+		caller.challenger.ProposalStatus = contracts.ProposalStatusResolved
+		caller.mode = faultTypes.NormalDistributionMode
+		extractor, trace := newZKExtractor(t, caller, parentStatus(gameTypes.GameStatusDefenderWon), &testZKAgreement{})
+
+		game, err := extractor.enrichGame(t.Context(), common.Hash{0xcc}, zkMetadata())
+		require.NoError(t, err)
+		require.False(t, game.(*monTypes.ZKGameData).Finalized)
+		require.NotContains(t, *trace, "finality")
+	})
+
 	tests := []struct {
 		name      string
 		configure func(*testZKCaller)
@@ -413,6 +426,7 @@ type testZKCaller struct {
 	bondRecipients      []common.Address
 	bondMetadataCalls   int
 	balanceErr          error
+	mode                faultTypes.BondDistributionMode
 	finalized           bool
 	finalityErr         error
 	finalityRegistry    common.Address
@@ -471,7 +485,7 @@ func (c *testZKCaller) GetBondMetadata(_ context.Context, block rpcblock.Block) 
 func (c *testZKCaller) GetBondDistributionMode(_ context.Context, block rpcblock.Block) (faultTypes.BondDistributionMode, error) {
 	*c.trace = append(*c.trace, "mode")
 	c.blocks = append(c.blocks, block)
-	return faultTypes.UndecidedDistributionMode, nil
+	return c.mode, nil
 }
 
 func (c *testZKCaller) GetWithdrawals(_ context.Context, block rpcblock.Block, recipients ...common.Address) ([]*contracts.WithdrawalRequest, error) {
