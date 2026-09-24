@@ -1,8 +1,9 @@
 //! A task for building a new block and importing it.
 use super::BuildTaskError;
 use crate::{
-    EngineClient, EngineForkchoiceVersion, EngineState, EngineTaskExt,
-    state::EngineSyncStateUpdate, task_queue::tasks::build::error::EngineBuildError,
+    BuildSealCoupling, EngineClient, EngineForkchoiceVersion, EngineState, EngineTaskExt,
+    state::EngineSyncStateUpdate,
+    task_queue::tasks::{build::error::EngineBuildError, is_invalid_forkchoice_state},
 };
 use alloy_rpc_types_engine::{PayloadId, PayloadStatusEnum};
 use async_trait::async_trait;
@@ -32,9 +33,11 @@ pub struct BuildTask<EngineClient_: EngineClient> {
     pub cfg: Arc<RollupConfig>,
     /// The [`OpAttributesWithParent`] to instruct the execution layer to build.
     pub attributes: OpAttributesWithParent,
-    /// The optional sender through which [`PayloadId`] will be sent after the
-    /// block build has been started.
-    pub payload_id_tx: Option<mpsc::Sender<PayloadId>>,
+    /// How this build is coupled to the seal that will follow it.
+    pub coupling: BuildSealCoupling,
+    /// The optional sender through which the build result will be sent after the block build has
+    /// been started.
+    pub result_tx: Option<mpsc::Sender<Result<PayloadId, BuildTaskError>>>,
 }
 
 impl<EngineClient_: EngineClient> BuildTask<EngineClient_> {
@@ -72,7 +75,7 @@ impl<EngineClient_: EngineClient> BuildTask<EngineClient_> {
     ///
     /// ### Success (`VALID`)
     /// If the build is successful, the [`PayloadId`] is returned for sealing and the successful
-    /// forkchoice update identifier is relayed via the stored `payload_id_tx` sender.
+    /// forkchoice update identifier is relayed via the stored `result_tx` sender.
     ///
     /// ### Failure (`INVALID`)
     /// If the forkchoice update fails, the [`BuildTaskError`].
@@ -129,7 +132,15 @@ impl<EngineClient_: EngineClient> BuildTask<EngineClient_> {
         }
         .map_err(|e| {
             error!(target: "engine_builder", "Forkchoice update failed: {}", e);
-            BuildTaskError::EngineBuildError(EngineBuildError::AttributesInsertionFailed(e))
+
+            // A forkchoice state the engine rejects as inconsistent can never be made valid by
+            // re-sending it. Ask for a reset instead, mirroring the attribute-less forkchoice
+            // update in `SynchronizeTask`.
+            BuildTaskError::EngineBuildError(if is_invalid_forkchoice_state(&e) {
+                EngineBuildError::InvalidForkchoiceState
+            } else {
+                EngineBuildError::AttributesInsertionFailed(e)
+            })
         })?;
 
         Self::validate_forkchoice_status(update.payload_status.status)?;
@@ -164,6 +175,22 @@ impl<EngineClient_: EngineClient> EngineTaskExt for BuildTask<EngineClient_> {
             "Starting new build job"
         );
 
+        if self.coupling.job_is_stale(state, &self.attributes.parent) {
+            info!(
+                target: "engine_builder",
+                unsafe_block_info = ?state.sync_state.unsafe_head().block_info,
+                parent_block_info = ?self.attributes.parent.block_info,
+                "Build attributes parent does not match unsafe head, returning rebuild error"
+            );
+
+            if let Some(tx) = &self.result_tx {
+                tx.send(Err(BuildTaskError::UnsafeHeadChangedSinceBuild))
+                    .await
+                    .map_err(Box::new)?;
+            }
+            return Err(BuildTaskError::UnsafeHeadChangedSinceBuild);
+        }
+
         // Start the build by sending an FCU call with the current forkchoice and the input
         // payload attributes.
         let fcu_start_time = Instant::now();
@@ -177,8 +204,8 @@ impl<EngineClient_: EngineClient> EngineTaskExt for BuildTask<EngineClient_> {
         );
 
         // If a channel was provided, send the payload ID to it.
-        if let Some(tx) = &self.payload_id_tx {
-            tx.send(payload_id).await.map_err(Box::new)?;
+        if let Some(tx) = &self.result_tx {
+            tx.send(Ok(payload_id)).await.map_err(Box::new)?;
         }
 
         Ok(payload_id)
