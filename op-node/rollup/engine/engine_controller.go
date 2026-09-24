@@ -89,6 +89,12 @@ type OriginSelectorForceResetter interface {
 	ResetOrigins()
 }
 
+// UnsafeHeadInvalidator discards pending work that belongs to an abandoned
+// unsafe chain. Clear must not wait for network I/O or call back into the engine.
+type UnsafeHeadInvalidator interface {
+	Clear()
+}
+
 // CrossUpdateHandler handles cross-safe L2 head changes.
 // It is optional: callers that don't track cross-chain safety leave it unset, so
 // consumers must nil-check before invoking it.
@@ -163,6 +169,7 @@ type EngineController struct {
 	attributesResetter     AttributesForceResetter
 	pipelineResetter       PipelineForceResetter
 	originSelectorResetter OriginSelectorForceResetter
+	unsafeHeadInvalidator  UnsafeHeadInvalidator
 
 	// Handler for cross-safe updates
 	crossUpdateHandler CrossUpdateHandler
@@ -494,8 +501,23 @@ func (e *EngineController) SetDeprecatedSafeHead(r eth.L2BlockRef) {
 	e.deprecatedSafeHead = r // TODO Supervisor-only code path
 }
 
-// SetUnsafeHead sets the local-unsafe head.
+// SetUnsafeHeadInvalidator registers the publish queue before the driver starts.
+func (e *EngineController) SetUnsafeHeadInvalidator(invalidator UnsafeHeadInvalidator) {
+	e.unsafeHeadInvalidator = invalidator
+}
+
+// SetUnsafeHead sets the local-unsafe head. Like other head setters, it is called
+// under the engine lock (or during initialization, before concurrent use).
 func (e *EngineController) SetUnsafeHead(r eth.L2BlockRef) {
+	// Invalidate from the authoritative transition, not ForkchoiceUpdateEvent:
+	// those notifications can arrive after a newer head was inserted inline.
+	// Unchanged heads and direct extensions preserve queued ancestors. For a
+	// rewind, sibling, or unproven jump, discard and cancel obsolete publishes
+	// before changing the head, including while sequencing is inactive.
+	if e.unsafeHeadInvalidator != nil && r.Hash != e.unsafeHead.Hash &&
+		(r.ParentHash != e.unsafeHead.Hash || r.Number != e.unsafeHead.Number+1) {
+		e.unsafeHeadInvalidator.Clear()
+	}
 	e.metrics.RecordL2Ref("l2_unsafe", r)
 	e.unsafeHead = r
 	e.chainSpec.CheckForkActivation(e.log, r)

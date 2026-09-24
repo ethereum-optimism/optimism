@@ -457,7 +457,7 @@ func (s *Sequencer) RunAction() {
 // queueing it for publication. ProcessPayload validates newPayload and updates
 // op-node's unsafe head, but may still need to retry the concluding EL forkchoice
 // update. Neither that acceptance nor publication makes an unsafe block final:
-// reset/head-change handling must invalidate any abandoned publish backlog.
+// reset handling and engine head transitions invalidate abandoned publish work.
 // Gossip only queues work, so this does not wait for the signer or the network.
 func (s *Sequencer) insertAndPublish(envelope *eth.ExecutionPayloadEnvelope, ref eth.L2BlockRef, buildStarted time.Time) {
 	if err := s.eng.ProcessPayload(s.ctx, envelope, ref, buildStarted); err != nil {
@@ -572,14 +572,9 @@ func (s *Sequencer) onEngineResetConfirmedEvent(engine.EngineResetConfirmedEvent
 func (s *Sequencer) onForkchoiceUpdate(x engine.ForkchoiceUpdateEvent) {
 	s.log.Debug("Sequencer is processing forkchoice update", "unsafe", x.UnsafeL2Head, "prev_unsafe", s.unsafeHead)
 
-	// Keep the backlog for unchanged heads (including our own insertion echo)
-	// and proven direct extensions. Rewinds, siblings, and jumps whose ancestry
-	// we cannot establish invalidate it, even when sequencing is stopped: the
-	// publisher continues running while this node follows another sequencer.
-	if x.UnsafeL2Head.Hash != s.unsafeHead.Hash &&
-		(x.UnsafeL2Head.ParentHash != s.unsafeHead.Hash || x.UnsafeL2Head.Number != s.unsafeHead.Number+1) {
-		s.asyncGossip.Clear()
-	}
+	// Do not invalidate publishing from this snapshot. A build-parent FCU can
+	// arrive after a successful inline insertion advanced s.unsafeHead. The
+	// engine invalidates the queue when its actual unsafe head changes instead.
 	s.safeHead = x.SafeL2Head
 	if !s.active.Load() {
 		s.setUnsafeHead(x.UnsafeL2Head)

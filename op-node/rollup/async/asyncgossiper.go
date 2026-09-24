@@ -51,8 +51,8 @@ type AsyncGossiper interface {
 //
 // The sequencer hands a block over only once it has accepted it locally. These
 // are still unsafe blocks: a reset or reorg may abandon them before publication.
-// The sequencer must Clear the queue when it can no longer establish that the
-// queued chain is canonical.
+// The engine clears abandoned work on authoritative unsafe-head transitions;
+// the sequencer also clears the queue on resets and sequencing restarts.
 //
 // Gossip and Clear only take a mutex. Neither waits for the network.
 type SimpleAsyncGossiper struct {

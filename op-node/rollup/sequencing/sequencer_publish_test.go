@@ -15,6 +15,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/async"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/engine"
+	rollupsync "github.com/ethereum-optimism/optimism/op-node/rollup/sync"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 )
 
@@ -63,7 +64,7 @@ func queueInsertedBlock(s *seqTestSetup, hash byte) *eth.ExecutionPayloadEnvelop
 
 // newPublishQueueSetup must be used inside a synctest bubble. It leaves two
 // successfully inserted blocks in the real publisher: one in flight, one queued.
-func newPublishQueueSetup(t *testing.T) (*seqTestSetup, *gatedPublishNetwork, []*eth.ExecutionPayloadEnvelope) {
+func newPublishQueueSetup(t *testing.T) (*seqTestSetup, *gatedPublishNetwork, []*eth.ExecutionPayloadEnvelope, *engine.EngineController) {
 	t.Helper()
 	s := newSeqSetup(t)
 	net := &gatedPublishNetwork{gate: make(chan struct{})}
@@ -71,7 +72,14 @@ func newPublishQueueSetup(t *testing.T) (*seqTestSetup, *gatedPublishNetwork, []
 	s.seq.asyncGossip = gossiper
 	gossiper.Start()
 	t.Cleanup(gossiper.Stop)
-	s.deps.eng.processPayloadFn = func(context.Context, *eth.ExecutionPayloadEnvelope, eth.L2BlockRef, time.Time) error {
+	// Exercise the same authoritative head setter and invalidation wiring as
+	// the driver, while keeping the execution RPC scripted for this unit test.
+	ec := engine.NewEngineController(t.Context(), nil, log.New(), metrics.NoopMetrics,
+		s.deps.cfg, &rollupsync.Config{}, nil, nil, nil)
+	ec.SetUnsafeHead(s.head)
+	ec.SetUnsafeHeadInvalidator(gossiper)
+	s.deps.eng.processPayloadFn = func(_ context.Context, _ *eth.ExecutionPayloadEnvelope, ref eth.L2BlockRef, _ time.Time) error {
+		ec.SetUnsafeHead(ref)
 		return nil
 	}
 	first := queueInsertedBlock(s, 0xa1)
@@ -80,14 +88,14 @@ func newPublishQueueSetup(t *testing.T) (*seqTestSetup, *gatedPublishNetwork, []
 	second := queueInsertedBlock(s, 0xa2)
 	synctest.Wait()
 	require.Empty(t, net.published)
-	return s, net, []*eth.ExecutionPayloadEnvelope{first, second}
+	return s, net, []*eth.ExecutionPayloadEnvelope{first, second}, ec
 }
 
 func TestSequencerInvalidatesPublishBacklog(t *testing.T) {
 	for _, change := range []string{"reset", "forced reset", "rewind", "sibling", "unproven advance", "stopped reorg", "restart"} {
 		t.Run(change, func(t *testing.T) {
 			synctest.Test(t, func(t *testing.T) {
-				s, net, _ := newPublishQueueSetup(t)
+				s, net, _, ec := newPublishQueueSetup(t)
 				head := s.seq.unsafeHead
 				switch change {
 				case "reset":
@@ -96,6 +104,7 @@ func TestSequencerInvalidatesPublishBacklog(t *testing.T) {
 					// EngineController.forceReset need not send ResetEvent first.
 					deliver(s.seq, engine.EngineResetConfirmedEvent{LocalUnsafe: s.head})
 				case "rewind":
+					ec.SetUnsafeHead(s.head)
 					deliver(s.seq, engine.ForkchoiceUpdateEvent{UnsafeL2Head: s.head})
 				case "sibling", "stopped reorg":
 					if change == "stopped reorg" {
@@ -103,11 +112,13 @@ func TestSequencerInvalidatesPublishBacklog(t *testing.T) {
 						require.NoError(t, err)
 					}
 					head.Hash = common.Hash{0xb1}
+					ec.SetUnsafeHead(head)
 					deliver(s.seq, engine.ForkchoiceUpdateEvent{UnsafeL2Head: head})
 				case "unproven advance":
 					head.Hash = common.Hash{0xb2}
 					head.ParentHash = common.Hash{0xb1}
 					head.Number += 2
+					ec.SetUnsafeHead(head)
 					deliver(s.seq, engine.ForkchoiceUpdateEvent{UnsafeL2Head: head})
 				case "restart":
 					_, err := s.seq.Stop(t.Context())
@@ -134,7 +145,7 @@ func TestSequencerPreservesCanonicalPublishBacklog(t *testing.T) {
 	for _, change := range []string{"insertion echo", "safe head only", "direct extension", "stopped extension"} {
 		t.Run(change, func(t *testing.T) {
 			synctest.Test(t, func(t *testing.T) {
-				s, net, queued := newPublishQueueSetup(t)
+				s, net, queued, ec := newPublishQueueSetup(t)
 				head := s.seq.unsafeHead
 				ev := engine.ForkchoiceUpdateEvent{UnsafeL2Head: head}
 				switch change {
@@ -152,6 +163,7 @@ func TestSequencerPreservesCanonicalPublishBacklog(t *testing.T) {
 						Time:       head.Time + s.deps.cfg.BlockTime,
 					}
 				}
+				ec.SetUnsafeHead(ev.UnsafeL2Head)
 				deliver(s.seq, ev)
 				synctest.Wait()
 				require.NoError(t, net.firstCtx.Err(), "canonical backlog must survive ordinary head updates")
