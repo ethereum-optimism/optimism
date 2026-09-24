@@ -186,10 +186,8 @@ func NewLogger(wr io.Writer, cfg CLIConfig) log.Logger {
 // logfilter, an in-repo package, and op-service/log must stay free of in-repo
 // imports.
 func SetGlobalLogHandler(h slog.Handler) {
-	l := log.NewLogger(h)
 	ctx := logfilter.AddLogAttrToContext(context.Background(), "global", true)
-	l.SetContext(ctx)
-	log.SetDefault(l)
+	log.SetDefault(log.NewLogger(h).WithContext(ctx))
 }
 
 // DefaultCLIConfig creates a default log configuration.
