@@ -40,7 +40,9 @@ use reth_optimism_forks::OpHardforks;
 use reth_optimism_payload_builder::{
     OpBuiltPayload, OpExecData, OpPayloadBuilderAttributes, OpPayloadPrimitives,
     builder::OpPayloadTransactions,
-    config::{OpBuilderConfig, OpDAConfig, OpGasLimitConfig, OperatorSdmOptIn},
+    config::{
+        DEFAULT_STATE_ROOT_WAIT, OpBuilderConfig, OpDAConfig, OpGasLimitConfig, OperatorSdmOptIn,
+    },
 };
 use reth_optimism_primitives::{DepositReceipt, OpPrimitives};
 use reth_optimism_rpc::{
@@ -267,6 +269,7 @@ impl OpNode {
             operator_sdm_opt_in: self.operator_sdm_opt_in.clone(),
             interop_failsafe: self.interop_failsafe.clone(),
             max_uncompressed_block_size: self.args.max_uncompressed_block_size,
+            state_root_wait: Some(DEFAULT_STATE_ROOT_WAIT),
         }
     }
 
