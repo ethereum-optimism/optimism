@@ -63,9 +63,10 @@ tracks the corresponding public input and any pending build.
 The replay interval is `(surviving private parent, recovery frontier]`. Root matching
 uses the private state root, message-passer storage root and private block hash,
 never the public state root. The claim still provides terminal block/parent hashes
-for private safety labels and ancestry fallback. These are operator attestations
-under the dummy verifier; a future real proof must bind them and every per-block
-output to private execution. See [BATCHES.md](BATCHES.md) for how the next publication
+for private safety labels and ancestry fallback. Under `sp1-private-projection-v1`
+the proof binds them, and every per-block output, to private execution (see
+[proven recovery](#proven-recovery) below). Under the legacy test-only verifiers they
+remain operator attestations. See [BATCHES.md](BATCHES.md) for how the next publication
 binds a surviving checkpoint and canonical recovery inputs.
 
 The experimental claimed-follow RPC prefix carries `parent` (the committed private
@@ -87,15 +88,64 @@ catch-up limit and uses the devstack/op-up default of twelve-block ranges with i
 accelerated L1.
 
 Recovery consumes replacements produced by canonical derivation and cross-safety checks.
-A reverted ClaimRegistry call alone does not invalidate its block or suppress separate
-replay calls; adding a real proof verifier also needs cryptographic continuity. The whole-range
-structural admission rule is described in [BATCHES.md](BATCHES.md); this recovery
-adapter does not itself verify private-execution proofs.
+On the projection a reverted carrier (`postClaim`, `recordOutput` or a replay) now
+invalidates its block, so Holocene replaces it with a deposit-only block and drops the rest
+of the span ([the execution rule](BATCHES.md#execution-rule-a-failed-carrier-invalidates-the-block)).
+That is a new source of replacement intervals, handled exactly like any other invalidation.
+Because the next honest claim then overlaps the last posted range, `ClaimRegistry` 4.0.0
+accepts overlapping claims instead of reverting. This recovery adapter does not itself verify
+private-execution proofs.
 
-Local recovery does not publicly prove the resulting private state. A future span
+Such an execution invalidation differs from a reorg or a denial: the replacement happens on the
+**same** projection branch, and nothing is added to the deny list. The supernode therefore also
+scans each claim's range for its first block without an output record and clips the claim to
+the block before it (`claimfollow` `surviving`). The prefix up to that block is the surviving
+checkpoint; the record-less suffix is a replacement interval like any other and is never
+reported as private-safe on the strength of the original claim.
+
+## Proven recovery
+
+Local recovery does not publicly prove the resulting private state. The next span
 extends the canonical projection parent after replacement and binds the surviving
-checkpoint and canonical recovery inputs. The implemented format and the remaining
-cryptographic execution-proof requirements are recorded in
+checkpoint and canonical recovery inputs; its proof covers the recovery interval.
+
+- **`parentOutputRoot` binding.** In normal mode (anchor = first − 1) admission checks the
+  claim's `parentOutputRoot` against the canonical parent's output record. In recovery mode
+  (anchor < first − 1) admission only requires it to be nonzero. The binding is in the
+  relation: it executes the canonical deposit-only replacements from the anchor (public
+  values words 6–9, filled by admission from its own context collector), deriving their
+  private attributes from L1, and requires the resulting output to equal `parentOutputRoot`
+  (word 12). Under the legacy `execution-mock-v1` and `insecure-stub-v1` verifiers a
+  recovery-mode `parentOutputRoot` is **unconstrained**.
+- **Recovery messages stay suppressed.** Private recovery blocks can emit messages (a
+  replayed user deposit can call the messenger). Deposit-only public replacements carry no
+  replays, so those messages are not rendered and are not part of `messagesRoot`. This is by
+  design: rejecting recovery that emits logs would let a user deposit halt the chain forever.
+  A message sent during recovery must be re-sent (`resendMessage`) or re-forced after
+  publication resumes.
+- **Long outages.** The proof timeout scales with the interval
+  (`--private-interop.proof-timeout` + `--private-interop.proof-timeout-per-block` × blocks from
+  the anchor), the host fetches witnesses with bounded concurrency, and the prover request
+  carries only span-bounded data, so the 128 MiB request cap does not depend on the outage.
+  **Chunked recovery proofs are deferred.** With real proving, a single proof over a very long
+  recovery interval can exceed practical cycle and memory limits, making the next span
+  unprovable. This liveness risk is inherited by the sound profile until recovery-segment
+  statements exist; see [BATCHES.md](BATCHES.md#latency-and-the-sequencing-window).
+- **Witnesses of recovered blocks (host).** The prover host waits until LightCL has adopted
+  the private counterpart of every canonical recovery block (same height, time, L1 origin and
+  forced inputs) before it collects witnesses, pins its `eth_getProof` reads to each block's
+  parent **by hash** (EIP-1898), and accepts a `debug_executionWitness` only if it carries the
+  parent header, the parent state-root node and account proofs rooted there. Otherwise it
+  retries within the adoption budget.
+- **Known issue: op-reth can serve a stale witness after a private reorg.** Right after
+  LightCL replaces a span with deposit-only blocks, op-reth's `debug_executionWitness` (which
+  is addressed by block number) can briefly return a witness built on the abandoned branch's
+  persisted state. The relation would then miss trie nodes (visible first in the next block's
+  system calls) and fail, which is a liveness fault, not a soundness one: a witness of the
+  wrong state cannot produce the admission-computed public values. The host check above
+  detects it and retries; the underlying op-reth behaviour is not fixed in this change.
+
+The implemented format is recorded in
 [BATCHES.md](BATCHES.md#continuation-after-invalidation-or-sequencing-window-expiry).
 
 ## The supernode contract
@@ -148,6 +198,9 @@ canonical public schedule being recovered.
   fresh forced deposit whose message is published and relayed.
 - `op-acceptance-tests/tests/interop/private-interop/l1_reorg_test.go`: canonical
   private L1 origins and resumed publication after a real L1 reorg.
+- `op-acceptance-tests/tests/interop/private-interop/reverted_replay_test.go`: an
+  under-gassed import replay invalidates its projection block, and the next span is
+  admitted in recovery mode.
 
 The L1 reorg acceptance case removes a private origin. It does not isolate the
 case where only a claim's L1 publication disappears while every private origin

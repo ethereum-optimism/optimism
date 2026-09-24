@@ -1,10 +1,19 @@
 # Private Interop — the design
 
-Current batch/deposit behavior and pure whole-span admission are specified in
-[BATCHES.md](BATCHES.md). Its projection gate and dummy-proof policy supersede the
-historical empty-proof and future data-source-gate descriptions below. It also
-specifies per-block private output roots, canonical continuation after replacement,
-and the distinction between structural enforcement and trusted private execution.
+Current batch/deposit behavior, pure whole-span admission and the **sound proof profile**
+(`sp1-private-projection-v1`) are specified in [BATCHES.md](BATCHES.md). Its projection gate,
+consensus constants (`program_vkey`, `private_config_hash`, `genesis_output_root`, plus
+`dependency_set_hash`), public values, envelope, execution rule and test gate supersede the
+historical empty-proof, "v1 attested" and future data-source-gate descriptions below. It also
+specifies per-block private output roots, canonical continuation after replacement, and which
+parts are implemented (statement, verifier, mock-proof plumbing) versus deferred (real proving
+in CI, chunked recovery proofs, vkey rotation).
+
+**Corrections (2026-09-24).** Reviews found four statements below wrong; each is annotated in place:
+deposits are not "prevented" (decision 7); the private sequencer and followers are not a
+"stock" LightCL; the claim's `l1Head` was not verified by anything until the sound profile;
+and the JSON config-hash convention is replaced by the binary `ConfigHash` /
+`DependencySetHash` of [BATCHES.md](BATCHES.md#what-admission-checks).
 
 **Status:** Historical design (2026-08-30 through 2026-09-01). The current ETH funding, native
 bridge permissions, messenger deposit policy and NetChef artifact flow are specified in
@@ -50,6 +59,11 @@ Every mechanical claim marked *(spike)* was verified by a runnable test against 
    positive gas limit and therefore reverts under the stock resource-metering path. Derivation and
    attribute handling never see a user deposit. The batch layer independently enforces the same
    boundary: deposit-type transactions inside batch data are dropped by stock validation *(spike)*.
+   **CORRECTED (2026-09-24): superseded, and "prevented" was never accurate for the shipped
+   profile.** Deposits are enabled with stock resource metering: the private chain executes them
+   normally, and on the public projection every user deposit is a successful zero-effect no-op
+   ([ETH-PROFILE.md](ETH-PROFILE.md)). Only deposit-type transactions *inside batch data* are
+   still dropped by stock validation.
 
 ## The architecture in one paragraph
 
@@ -283,9 +297,11 @@ struct RangeClaim {
                                       // L1 origin — DERIVED, never operator-supplied. With
                                       // origin-copy this is the newest L1 the range actually
                                       // consumed, needs no live-L1 access to produce, and is
-                                      // VERIFIABLE: the public projection's terminal block carries the
-                                      // same origin, so a claim cannot name L1 the range never
-                                      // saw.
+                                      // checkable: the public projection's terminal block carries the
+                                      // same origin. CORRECTED (2026-09-24): nothing checked it
+                                      // until the sound profile. Admission now requires it to
+                                      // equal l1Blocks[span's last epoch].Hash in every verifier
+                                      // mode, and the relation anchors its L1 witness at it.
     bytes32 rollupConfigHash;
     bytes32 depSetHash;
     bytes32 privateDataHash;          // content address of this range's full private input — a
@@ -318,37 +334,46 @@ What changed from the earlier (trailing) envelope and why:
   blobs. No carry-on blob, no ProofPosted event, no separate L1 object. No circularity: the proof
   is over the REAL private data and the claim list, never over the rendered blocks that carry it.
 - Registry rules otherwise unchanged: batch-authenticated, on-chain contiguity — AMENDED to
-  `firstBlock > lastPostedLastBlock` (no overlap, no regression, FORWARD GAPS ALLOWED: a range
+  `firstBlock > lastPostedLastBlock` (SUPERSEDED, see the note below; no overlap, no regression, FORWARD GAPS ALLOWED: a range
   whose opening block is invalidated-and-replaced never executes its claim, so a gap in the
   record is the self-documenting mark of a voided range, not an error) — and v1 rejects
   non-empty proofs.
   Codec rules unchanged: canonical ABI form, 64 KiB proof cap.
+  **SUPERSEDED (2026-09-24):** the claim is version 2 (anchor, recovery and parent-output fields
+  were added), the proof slot carries the sound-profile envelope (or is EMPTY under the test-only
+  `insecure-stub-v1`), and `ClaimRegistry` 4.0.0 drops the contiguity check entirely: every
+  `postClaim` by the current batcher does `rangeCount += 1`, sets `lastPostedLastBlock` and extends
+  `lastClaimHash`. Under the fail-closed carrier rule a reverting `postClaim`
+  invalidates its block, so after a partial-span invalidation an overlap revert would wedge
+  publication. See [BATCHES.md](BATCHES.md#submitted-block-layout).
 
-## Config hash convention (RATIFIED, 2026-08-31 — Karl delegated the pick)
+## Config hash convention (REPLACED 2026-09-24; originally ratified 2026-08-31)
 
-The claim's two configuration commitments are computed from JSON, not from a bespoke binary
-encoding:
+The original convention hashed canonical JSON: `rollupConfigHash = keccak256(json(projection
+rollup.Config))` and `depSetHash = keccak256(json(dependency set))`, taken by the batcher as flags
+and computed inline by the devstack. It is **replaced**, for two reasons found in review: Kona serde
+and Go `json.Marshal` do not produce the same bytes for the same config, so no Kona node could
+recompute the hash; and derivation never checked either value, so both were unverified operator
+assertions.
 
-    rollupConfigHash = keccak256( canonical JSON of the PUBLIC PROJECTION's rollup config,
-                                  as marshaled by op-node's rollup.Config JSON encoding )
-    depSetHash       = keccak256( canonical JSON of the dependency set )
+The sound profile redefines both claim fields in place (claim layout and version 2 unchanged), and
+derivation now checks both in every verifier mode:
 
-JSON rather than a new binary format because the marshaling already exists, is the form operators
-already exchange (`rollup.json`), is cross-client readable, and needs no second spec to disagree
-about. The rollup config hashed is the PUBLIC PROJECTION's — the chain the claim speaks for and the chain
-a public verifier holds — not the private chain's.
+    rollupConfigHash = ConfigHash = keccak256("optimism.private-projection-config.v1\0"
+        ‖ chainId(32) ‖ u64be(genesis.l2.number) ‖ genesis.l2.hash ‖ u64be(genesis.l2_time)
+        ‖ u64be(block_time) ‖ keccak256(verifier) ‖ genesis_output_root ‖ program_vkey
+        ‖ private_config_hash ‖ dependency_set_hash ‖ u8(allow_events) ‖ u8(mock_proofs))
+    depSetHash       = DependencySetHash = keccak256("optimism.private-dependency-set.v1\0"
+        ‖ u64be(n) ‖ sorted distinct chain IDs as 32-byte big-endian)
 
-This closes the hole the Silhouette-era wire documented and never did ("the spec does not say WHAT
-is hashed"). Both values are frozen configuration, so the batcher takes them as flags
-(`--private-interop.rollup-config-hash`, `--private-interop.dep-set-hash`) rather than recomputing
-them per range.
-
-**Today the devstack injects the values directly**, computing exactly this convention inline at
-pair construction (`keccak256(json.Marshal(...))` over the public projection's `rollup.Config` and over the
-dependency set). A SHARED HELPER that both the devstack and an operator's tooling call — so that
-"what a claim binds" has one implementation rather than one per caller — is a devnet-prep item, not
-built here. Until it exists, an operator computing these by hand must reproduce the recipe above
-byte for byte; a mismatch is a claim that commits to a config nobody else can name.
+The hashed rollup config is still the PUBLIC PROJECTION's. It now also commits the verifier ID,
+program vkey, private config hash and dependency set hash. The private chain's configuration is
+bound separately, by the consensus constant `private_config_hash` over the exact deployed bytes of
+the private `rollup.json` and the L1 chain config JSON (public-values word 3), not by a claim
+field. The shared helpers are `projection.ConfigHash`, `projection.DependencySetHash` and
+`projection.PrivateConfigHash` (Go) and their `kona_protocol::projection` twins; the batcher
+derives the claim fields from the deployed config, and the old flags are optional cross-checks.
+See [BATCHES.md](BATCHES.md#what-admission-checks).
 
 ## Hardfork adoption on the public projection (constraint recorded 2026-08-31, genesis lane)
 
@@ -415,9 +440,13 @@ follow module" below; the earlier withhold-latch rule is superseded there.
 **Components (NORMATIVE NUMBERING — code comments cite these numbers).** Four, and no new binary
 in any of them: one LightCL, one batcher, one public projection node, one supernode.
 
-1. **Private sequencer**: op-reth consuming the private genesis unchanged + STOCK LightCL, whose
+1. **Private sequencer**: op-reth consuming the private genesis unchanged + a LightCL, whose
    follow-source URL points at the supernode's claimed route (component 4) instead of a same-chain
-   CL — "the slightly different thing it queries in private mode". No op-node changes.
+   CL — "the slightly different thing it queries in private mode". **CORRECTED (2026-09-24): not
+   stock, and not "no op-node changes".** The shipped LightCL is op-node with the private recovery
+   adapter (`op-node/rollup/driver/follow_recovery*.go`, the recovery journal and
+   `--l2.follow.source.recovery-path`), which executes canonical deposit-only replacements after
+   invalidation ([RECOVERY.md](RECOVERY.md)).
 2. **op-batcher with `--private-interop` flags** — the builder. It renders, computes the range's
    full private derivation input and commits to its keccak as the claim's `privateDataHash`, and
    posts ONE public batch tx per cadence. The object is hashed and the bytes dropped — nothing
@@ -444,7 +473,8 @@ standalone claim-follower sidecar. Both were deleted 2026-08-31 — see "Private
 and "The supernode follow module" below. The numbering above is post-deletion and final.)
 
 **Private followers (FINAL, Karl 2026-08-31): 100% stock LightCL + op-reth, and the claim stays
-HASH-ONLY.** The follow endpoint must serve complete L2BlockRefs (verified first-hand:
+HASH-ONLY.** (CORRECTED 2026-09-24: the LightCL carries the recovery adapter described under
+component 1; "stock" below means no private-only binary, not an unmodified op-node.) The follow endpoint must serve complete L2BlockRefs (verified first-hand:
 followUpstream hash-checks each served ref's L1 origin against real L1, and consolidation is
 full-struct equality). The claim publishes the two fields that cannot be derived —
 `privateTerminalBlockHash` and `privateTerminalParentHash` — and origin-copy supplies the rest
@@ -544,11 +574,12 @@ the operator's private-data view and the public judge's).
 |---|---|---|
 | Attestation (submitter signature) | op-node inbox filter | stock |
 | Batch structure, parent check, origins, timestamps | op-node span-batch validation | stock |
-| No deposits ever | L1 portal reverts + batch validation drops 0x7E | stock + 1 contract |
+| No deposit envelopes in batch data (user deposits themselves are enabled; inert on the projection, CORRECTED 2026-09-24) | batch validation drops 0x7E; projection executor no-ops user deposits | stock + executor rule |
 | Import validity, expiry, cycles | cross-safety judge over real receipts | stock |
 | Export serving to counterparties | message DB from real receipts | stock |
 | Public block execution, roots, hashes | op-reth | stock |
-| Replay faithfulness to the private chain | v1: attested (unchecked, by design); v2: the proof | operator / shelf |
+| Replay faithfulness to the private chain | legacy verifiers: attested (unchecked); `sp1-private-projection-v1`: the proof binds `outputsRoot` and `messagesRoot`, checked at admission | operator / the proof |
+| Every carrier executes | projection execution rule: a failed non-deposit tx invalidates the block (added 2026-09-24) | ours (shared executor) |
 | Claim structure + contiguity | the ClaimRegistry, at post time | ours (small) |
 | Claimed private terminal hash vs the local private chain | the supernode follow module serves the claim verbatim; divergence is a MONITORING alert, and a diverged sequencer snaps back to the claim | ours (small) |
 | Full-input integrity | the claim's `privateDataHash` = keccak of the re-encoded range, checked by whoever holds the private blocks | ours (small) |
@@ -562,6 +593,13 @@ fabricated-export-is-accepted test must survive the retarget as a passing test.
 **Status:** direction RATIFIED (Karl, 2026-08-30). NOTHING HERE IS ON THE v1 PATH — in v1 the batch
 submitter's signature is the verification, full stop. The exploratory survey behind the rulings
 below is in git history.
+
+**UPDATE (2026-09-24): built as the sound proof profile, with a different gate location and
+statement.** The gate is the Holocene span-batch admission check in op-node and Kona (not the
+data source), the verifier is SP1 Groth16 checked natively against a pinned `program_vkey`, and
+the public values are the fixed 672-byte `PublicValuesV1` of [BATCHES.md](BATCHES.md#public-values),
+not "the batch-content commitment + config hashes". Real proving is not exercised in CI; the
+plumbing runs with test-gated mock envelopes. The text below is the historical direction.
 
 A real proof fills the range claim's proof slot. The claim it attests: "the covered public blocks
 are exactly the deterministic public projection of a valid private chain's messenger traffic" —
@@ -618,7 +656,11 @@ Atomicity falls out for free: one range = one span batch = one channel = one L1 
 the claim unit and the admission/invalidation unit coincide by construction. Registry consequence:
 contiguity is `firstBlock > lastPostedLastBlock` — FORWARD GAPS ALLOWED — because a voided range's
 claim never executes and a strict rule would wedge the next honest claim; a gap in the record IS
-the mark of a voided range.
+the mark of a voided range. **SUPERSEDED (2026-09-24):** under the fail-closed carrier rule a
+partially invalidated span leaves its claim executed, so the next honest claim OVERLAPS the last
+posted range. `ClaimRegistry` 4.0.0 therefore has no contiguity check at all: every `postClaim`
+by the current batcher does `rangeCount += 1`, sets `lastPostedLastBlock = lastBlock` and extends
+`lastClaimHash`. An overlap in the record marks a partially admitted range; a gap marks a voided one.
 
 **Recorded, not chosen:**
 
@@ -731,7 +773,7 @@ that private blocks cannot be replaced.
 
 | Suite | Why |
 |---|---|
-| `tests/base/deposit`, `tests/base/withdrawal`, `dsl/bridge.go` deposit paths | Deposits revert on the private chain by the resource-config gate (`maxResourceLimit=0`; the portal itself is stock — ratified). There is nothing on the private side for a deposit suite to assert. |
+| `tests/base/deposit`, `tests/base/withdrawal`, `dsl/bridge.go` deposit paths | Historical reason (deposits reverting under `maxResourceLimit=0`) is superseded: deposits are enabled and covered by `private-interop/deposit_test.go` ([ETH-PROFILE.md](ETH-PROFILE.md)). |
 | `supernode/interop/eth_bridge` | The private chain deliberately has no `SuperchainETHBridge` or `ETHLiquidity` implementation; its only ETH-denominated path is `NativeMintBridge`/`ETHLockVault`. |
 | `interop/proofs*` (~25) | Fault-proof program fixtures; the public projection settles by a different (future) proof path. Out of v1 scope by ratified decision. |
 | `interop/upgrade*` predeploy-introspection against the public projection | The messenger predeploy carries the replay implementation, so impl-slot equality assertions are wrong by design there. The private chain is also specialized by removing the stock protocol ETH path. |

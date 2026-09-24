@@ -126,11 +126,39 @@ the actual indices of both replayed messages, and their successful cross-safe re
 The outage fixture shortens the sequencing window to ten L1 blocks; this does not change the
 devnet's production setting.
 
+The sound proof profile (`sp1-private-projection-v1`, see [BATCHES.md](BATCHES.md)) adds three
+acceptance tests, run with SP1 **mock** envelopes under the test gate:
+
+- `TestPrivateSoundProfileMockProofsPublish`: batcher, admission and claim-follow end to end. It
+  checks that the envelope is a mock envelope (kind `0x02`), that public-values words 15, 18, 19
+  and 20 equal the canonical L1 origin, the recorded outputs, the rendered messages and the last
+  record, and that one message is delivered each way.
+- `TestPrivateSoundProfileRejectsForgedEnvelope`: a span whose envelope has a flipped
+  `messagesRoot` word is dropped by admission. No safe projection block in the forged range
+  carries it (if the span lands late in its sequencing window, those heights become
+  deposit-only after expiry, which the test accepts and checks), private safety does not pass
+  the checked projection safe head, and publication recovers once the fault is removed.
+- `TestPrivateRevertedReplayInvalidatesBlock`: an under-gassed `validateMessage` replay reverts,
+  so the projection block is replaced by a deposit-only block (the execution rule, both clients),
+  and the next span recovers in recovery mode.
+
+`TestPrivateSoundProfileGroth16` is a skeleton that runs only when
+`PRIVATE_INTEROP_SP1_PROVER` is `cpu` or `network`. CI does not produce real Groth16 proofs, so
+the sound profile's cryptographic path is covered by the vendored-fixture verifier tests, not by
+an end-to-end proof of the relation.
+
+The sound profile requires operators to distribute two pinned artifacts, byte for byte: the
+private chain's `rollup.json` and the L1 chain config JSON. `private_config_hash` covers both, and
+the batcher and prover refuse to run with files that do not hash to the deployed value. See
+[DEVNET.md](DEVNET.md#sound-proof-profile-configuration).
+
 `RUST_JIT_BUILD=1 mise x -- go run ./op-up --private-interop --smoke` runs chain-ops `interopsmoke`
 in-process with the private message-position resolver. Native ETH bridging is skipped. Standalone
 remote private-pair smoke now constructs the same resolver from explicit projection execution and
 rollup endpoints. See [DEVNET.md](DEVNET.md) for commands and persistent-volume requirements.
 Local validation does not establish that a live Sepolia deployment is healthy.
 
-V1 remains operator-attested, with the existing proof-bytes extension reserved for later
-verification. Private-state proofs and private withdrawal settlement are outside this patch.
+Under the legacy test-only verifiers the chain remains operator-attested. Under
+`sp1-private-projection-v1`, admission requires a proof of private execution and message
+completeness; producing real proofs is not yet exercised. Private withdrawal settlement is
+outside this patch.

@@ -22,7 +22,7 @@ image. Build/deploy images from the same revision for the selected environment.
 | Projection EL | Same source genesis with `--rollup.private`; persistent execution database. |
 | Supernode | Private chain/genesis configuration; persistent data directory including denial and interop transition databases. |
 | Private LightCL | Its own L1 RPC, private EL engine endpoint, `--l2.follow.source=<supernode>/<id>/claimed`, and `--l2.follow.source.recovery-path=/data/private-recovery.db`. |
-| Private batcher | Existing private-interop flag group, private EL/CL and public projection EL/ordinary CL endpoints. |
+| Private batcher | Existing private-interop flag group, private EL/CL and public projection EL/ordinary CL endpoints. Under the sound profile also the pinned private `rollup.json`, the L1 chain config JSON, the proof command and the prover choice (see below). |
 
 The recovery journal contains private header metadata and durable public/private replay checkpoints. Keep it on the private node's persistent
 volume. Preserve it with the private EL database; recovery authenticates surviving prefixes using
@@ -36,6 +36,63 @@ retaining its unsafe block, even when an earlier replay checkpoint remains canon
 The `/claimed` endpoint reports private commitments and recovery schedules. The ordinary
 `/<chain-id>` supernode route reports projection safety. Do not interchange them.
 
+## Sound proof profile configuration
+
+A projection chain using `sp1-private-projection-v1` pins its proof in the projection rollup
+config's `private_projection` object (`program_vkey`, `private_config_hash`,
+`dependency_set_hash`, `genesis_output_root`; see [BATCHES.md](BATCHES.md#configuration-the-consensus-constants)).
+Generate it once, at deployment, and treat it as immutable: changing any field is an unspecified
+projection hardfork.
+
+1. Write the private chain's `rollup.json` and the L1 chain config JSON (geth `ChainConfig`
+   format, as op-node consumes it) to files **once**. `private_config_hash` is computed over these
+   exact bytes; do not re-serialise them later, because a reformatted file hashes differently.
+2. Obtain `program_vkey` from the reproducible ELF build: `cd rust/kona/sp1 && just build-elfs`
+   records it in `elf/vkeys.toml`. `kona-sp1-private-projection-executor --print-vkey --elf <path>`
+   prints the same value for a given ELF. Native ELF builds are not reproducible and must not
+   be used for a deployment vkey.
+3. Pass both byte strings, the vkey, the dependency set and the verifier ID to
+   `ProjectRollupConfigFrom` (`genesis.ProjectionOptions`), which fills `private_projection`.
+4. Distribute both files, byte for byte, to the batcher and the prover.
+
+Batcher flags (in addition to the existing group):
+
+| Flag | Meaning |
+| --- | --- |
+| `--private-interop.private-rollup-config` | path to the pinned private `rollup.json`; given together with the next flag; required for `sp1-*` |
+| `--private-interop.l1-chain-config` | path to the pinned L1 chain config JSON; required for `sp1-*` |
+| `--private-interop.proof-command` | the `kona-sp1-private-projection-executor` binary; required for every verifier except the test-only `insecure-stub-v1` |
+| `--private-interop.sp1-prover` | `network` (default), `cpu`, `mock`, `native-mock`; the mock provers require `mock_proofs` in the deployed config |
+| `--private-interop.proof-timeout` | base proof timeout, default `2m` |
+| `--private-interop.proof-timeout-per-block` | added per block from the anchor to the span end, default `100ms` |
+
+At startup the batcher reads `private_projection` from the deployed projection rollup config over
+RPC and fails unless its locally projected config matches, the two files hash to
+`private_config_hash`, the private `rollup.json` names the same chain ID and genesis as the
+batcher's own rollup config, and the rollup node's dependency set hashes to
+`dependency_set_hash`. The older `--private-interop.rollup-config-hash` and
+`--private-interop.dep-set-hash` flags are optional; if set they must equal the values computed
+from the deployed config.
+
+The batcher never chooses the prover mode for the legacy `execution-mock-v1` verifier: it runs the
+host in `native` mode. Under the test-only `insecure-stub-v1` the claim's proof slot is empty and no
+producer runs.
+
+The supernode projects the rendering's rollup config from the private chain's config, but cannot
+derive the consensus constants. The rollup config it is given for the private-interop chain must
+therefore carry the deployed `private_projection` object; the supernode copies it verbatim into the
+projected config after checking its `genesis_output_root` against the private genesis. The offline
+`op-private-interop/cmd/genesis` tool writes a matching set: `private-rollup.json` (the exact bytes
+it hashes), `l1-chain-config.json` (a copy of `--l1-chain-config`) and `projection-rollup.json`,
+given `--verifier` (default `sp1-private-projection-v1`), `--program-vkey`, `--l1-chain-config` and
+`--dependency-set` (chain IDs; default the chain itself).
+
+The executor also needs the L1 RPC (the relation derives private attributes from L1 headers and
+receipts) and, for `mock`, the guest ELF at `$KONA_SP1_ELF_DIR/private-projection-elf`.
+
+Mock envelopes (`mock_proofs = true`) and the legacy verifiers are accepted only by binaries
+built with the test gate, and only on chain IDs 901 and 902. Do not deploy them.
+
 ## Local verification
 
 From the repository root, with the pinned mise toolchain and a built op-reth:
@@ -47,6 +104,36 @@ mise exec -- go test ./op-private-interop/... ./op-supernode/supernode/activity/
   ./op-supernode/supernode/chain_container ./op-node/rollup/driver ./op-chain-ops/interopsmoke
 mise exec -- go test ./op-acceptance-tests/tests/interop/private-interop -count=1 -timeout=30m
 ```
+
+The sound-profile acceptance tests use SP1 mock envelopes. They need the private-projection
+executor, which `rustbin` builds under `RUST_JIT_BUILD=1` (or set
+`RUST_BINARY_PATH_KONA_SP1_PRIVATE_PROJECTION_EXECUTOR`). With
+`KONA_SP1_ELF_DIR` pointing at a directory holding `private-projection-elf`
+(`cd rust/kona/sp1 && just build-private-projection-elf-native`, then
+`export KONA_SP1_ELF_DIR=$PWD/rust/kona/sp1/elf`) the devstack pins that ELF's vkey and the
+producer uses the SP1 mock prover; otherwise it pins the placeholder vkey `0x…01` and the host's
+`native-mock` mode. The test log says which:
+
+```sh
+mise exec -- go test ./op-acceptance-tests/tests/interop/private-interop \
+  -run 'SoundProfile|RevertedReplay' -count=1 -timeout=30m -v
+```
+
+`TestPrivateSoundProfileGroth16` runs only with `PRIVATE_INTEROP_SP1_PROVER=cpu` or `network`
+and is otherwise skipped.
+
+The shared Go/Kona vectors are regenerated from Go and then consumed unchanged by Kona and op-reth:
+
+```sh
+# ranges.json, proofs.json, commitments.json (admission, envelopes, commitment trees)
+mise exec -- go test ./op-private-interop/projection -update-projection-vectors
+# execution.json (the carrier execution rule in op-reth and the Kona executor)
+mise exec -- go test ./op-private-interop/projection -run TestExecutionVectors -update-execution-vectors
+```
+
+The relation's negative series runs with the SP1 client crate
+(`cd rust && cargo test -p kona-sp1-client-utils --lib private_projection`), and the Go
+statement-binding harness with `go test ./op-private-interop/projection -run Soundness`.
 
 The production-cadence soak is separate because it takes roughly twenty minutes. It accumulates
 two 300-block ranges with publication stopped, then checks catch-up with a 3,600-L1-block sequencing
