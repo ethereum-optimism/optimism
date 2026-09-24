@@ -18,6 +18,12 @@ workspace = true
 kona-sp1-client-utils.workspace = true
 kona-sp1-host-utils.workspace = true
 kona-sp1-super-range-executor.workspace = true
+# Native super-range runs projection admission. Test verifiers on for devstack; the §B.5 chain
+# allowlist (901/902) protects production chains.
+kona-protocol = { workspace = true, features = [
+  "private-projection-test-verifiers",
+  "sp1-projection-verifier",
+] }
 
 # sp1
 sp1-sdk.workspace = true

@@ -309,13 +309,19 @@ check-sp1-guest-precompile-patches:
     done
   }
 
+  # Every guest links kona-protocol's `sp1-projection-verifier` (through kona-sp1-client-utils),
+  # so `sp1-verifier` must use the precompile-backed BN254 fork: unpatched, one Groth16
+  # verification costs ~3.1B cycles instead of ~2.9M.
+  bn254_verifier_patch="substrate-bn-succinct-rs bn"
+
   # The super-range guest executes the L2 EVM, so it must also use the patched
-  # substrate-bn backend selected by revm's `bn` feature.
-  verify_program_patches kona-sp1-super-range "${common_patches[@]}" "substrate-bn bn"
-  verify_program_patches kona-sp1-private-projection "${common_patches[@]}" "substrate-bn bn"
+  # substrate-bn backend selected by revm's `bn` feature. It also verifies private-projection
+  # Groth16 envelopes in-guest during derivation.
+  verify_program_patches kona-sp1-super-range "${common_patches[@]}" "substrate-bn bn" "$bn254_verifier_patch"
+  verify_program_patches kona-sp1-private-projection "${common_patches[@]}" "substrate-bn bn" "$bn254_verifier_patch"
 
   # The aggregation guest verifies proofs but does not execute L2 EVM precompiles.
-  verify_program_patches kona-sp1-super-aggregation "${common_patches[@]}"
+  verify_program_patches kona-sp1-super-aggregation "${common_patches[@]}" "$bn254_verifier_patch"
 
 # Resolves without --locked (minimal change), so it only touches entries that
 # actually moved rather than bumping unrelated guest deps.

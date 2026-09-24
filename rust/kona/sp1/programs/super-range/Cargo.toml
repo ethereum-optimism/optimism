@@ -11,6 +11,10 @@ repository.workspace = true
 [dependencies]
 anyhow.workspace = true
 kona-proof.workspace = true
+# Kona derivation inside this program runs private-projection span admission, so the
+# `sp1-private-projection-v1` Groth16 envelope is verified in-guest with `sp1-verifier`
+# (spec-sound-profile §F.4). Never the test verifiers: mock envelopes fail inside the proof.
+kona-protocol = { workspace = true, features = ["sp1-projection-verifier"] }
 kona-sp1-build-info.workspace = true
 kona-sp1-client-utils.workspace = true
 kona-sp1-ethereum-client-utils.workspace = true

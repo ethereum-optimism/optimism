@@ -24,10 +24,18 @@ kona-host = { workspace = true, features = ["interop"] }
 kona-interop = { workspace = true, features = ["serde"] }
 kona-preimage = { workspace = true, features = ["std"] }
 kona-proof.workspace = true
-kona-protocol.workspace = true
+# The native super-range core and the private-projection host verify projection envelopes.
+# Test verifiers on: this binary serves devstack, and the §B.5 chain allowlist (901/902) keeps
+# mock envelopes out of every other chain.
+kona-protocol = { workspace = true, features = [
+  "private-projection-test-verifiers",
+  "sp1-projection-verifier",
+] }
 
 # alloy
+alloy-consensus.workspace = true
 alloy-primitives.workspace = true
+alloy-rlp.workspace = true
 alloy-eips.workspace = true
 alloy-rpc-types-eth.workspace = true
 alloy-rpc-types-engine.workspace = true

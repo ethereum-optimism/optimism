@@ -118,6 +118,7 @@ too_long_first_doc_paragraph = "allow"
 [workspace.dependencies]
 # Guest path dependencies. Paths are relative to rust/kona/sp1/programs.
 kona-proof = { path = "../../crates/proof/proof", version = "0.3.0", default-features = false }
+kona-protocol = { path = "../../crates/protocol/protocol", default-features = false }
 kona-sp1-build-info = { path = "../crates/build-info" }
 kona-sp1-client-utils = { path = "../crates/client" }
 kona-sp1-ethereum-client-utils = { path = "../crates/ethereum/client" }
@@ -141,3 +142,7 @@ crypto-bigint = { git = "https://github.com/sp1-patches/RustCrypto-bigint", tag 
 k256 = { git = "https://github.com/sp1-patches/elliptic-curves", tag = "patch-k256-13.4-sp1-6.2.0" }
 p256 = { git = "https://github.com/sp1-patches/elliptic-curves", tag = "patch-p256-13.2-sp1-6.2.0" }
 substrate-bn = { git = "https://github.com/sp1-patches/bn", tag = "patch-0.6.0-sp1-6.2.0-substrate-bn" }
+# BN254 precompiles for `sp1-verifier` (in-guest Groth16 verification of private-projection
+# envelopes during super-range derivation). Unpatched, one verification costs ~3.1B cycles;
+# patched, ~2.9M.
+substrate-bn-succinct-rs = { git = "https://github.com/sp1-patches/bn", tag = "patch-0.6.0-sp1-6.2.0" }

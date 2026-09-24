@@ -29,7 +29,9 @@ kona-mpt.workspace = true
 op-alloy-rpc-types-engine = { workspace = true, features = ["serde"] }
 miniz_oxide.workspace = true
 kona-driver.workspace = true
-kona-protocol.workspace = true
+# Groth16 verification of `sp1-private-projection-v1` envelopes, for the super-range program
+# (admission runs inside its derivation) and the host.
+kona-protocol = { workspace = true, features = ["sp1-projection-verifier"] }
 kona-genesis = { workspace = true, features = ["serde"] }
 kona-interop = { workspace = true, features = ["serde"] }
 
@@ -50,6 +52,7 @@ cfg-if.workspace = true
 [dev-dependencies]
 alloy-trie.workspace = true
 alloy-rpc-types-engine.workspace = true
+kona-protocol = { workspace = true, features = ["private-projection-test-verifiers"] }
 
 [features]
 # Exposes the canonical super-aggregation fixture to downstream guest tests. Kept narrowly named

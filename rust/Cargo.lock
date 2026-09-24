@@ -7750,6 +7750,7 @@ dependencies = [
  "flate2",
  "futures",
  "jsonrpsee",
+ "kona-protocol",
  "kona-sp1-client-utils",
  "kona-sp1-host-utils",
  "kona-sp1-super-range-executor",
@@ -7773,8 +7774,10 @@ dependencies = [
 name = "kona-sp1-super-range-executor"
 version = "0.0.1"
 dependencies = [
+ "alloy-consensus 2.1.1",
  "alloy-eips 2.1.1",
  "alloy-primitives",
+ "alloy-rlp",
  "alloy-rpc-types-engine",
  "alloy-rpc-types-eth 2.1.1",
  "anyhow",

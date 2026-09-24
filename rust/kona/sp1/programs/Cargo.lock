@@ -1706,6 +1706,8 @@ dependencies = [
  "op-alloy-consensus",
  "op-alloy-rpc-types",
  "op-alloy-rpc-types-engine",
+ "sha2",
+ "sp1-verifier",
  "thiserror",
  "tracing",
  "unsigned-varint",
@@ -1799,6 +1801,7 @@ dependencies = [
 name = "kona-sp1-private-projection"
 version = "0.0.1"
 dependencies = [
+ "kona-protocol",
  "kona-sp1-build-info",
  "kona-sp1-client-utils",
  "revm",
@@ -1828,6 +1831,7 @@ version = "0.0.1"
 dependencies = [
  "anyhow",
  "kona-proof",
+ "kona-protocol",
  "kona-sp1-build-info",
  "kona-sp1-client-utils",
  "kona-sp1-ethereum-client-utils",
@@ -3208,6 +3212,21 @@ dependencies = [
 ]
 
 [[package]]
+name = "sp1-verifier"
+version = "6.8.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "baa28fcc5db98b8fd1d5433f20b5c02d2deb0d6bb73891850e83aa74083622f5"
+dependencies = [
+ "blake3",
+ "cfg-if",
+ "hex",
+ "lazy_static",
+ "sha2",
+ "substrate-bn-succinct-rs",
+ "thiserror",
+]
+
+[[package]]
 name = "sp1-zkvm"
 version = "6.8.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3303,6 +3322,22 @@ dependencies = [
 name = "substrate-bn"
 version = "0.6.0"
 source = "git+https://github.com/sp1-patches/bn?tag=patch-0.6.0-sp1-6.2.0-substrate-bn#b9cd95a749de1f20ac786178f9f8754f79a5ad55"
+dependencies = [
+ "bytemuck",
+ "byteorder",
+ "cfg-if",
+ "crunchy",
+ "lazy_static",
+ "num-bigint 0.4.6",
+ "rand 0.8.6",
+ "rustc-hex",
+ "sp1-lib",
+]
+
+[[package]]
+name = "substrate-bn-succinct-rs"
+version = "0.6.0"
+source = "git+https://github.com/sp1-patches/bn?tag=patch-0.6.0-sp1-6.2.0#af2ee646c36ad80a44a15b91db0a2b648b517b44"
 dependencies = [
  "bytemuck",
  "byteorder",

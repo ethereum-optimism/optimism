@@ -22,6 +22,8 @@ build-elfs:
     just _append-vkey super-range "$m"
     just build-super-aggregation-elf
     just _append-vkey super-aggregation "$m"
+    just build-private-projection-elf
+    just _append-vkey private-projection "$m"
 
 # Build ELF file for the unified super-root range/consolidation program.
 # Does not update elf/vkeys.toml; prefer build-elfs.
@@ -35,12 +37,18 @@ build-super-range-elf:
 build-super-aggregation-elf:
     @just _build-elf super-aggregation docker
 
+# Build the reproducible private-projection ELF, whose vkey is the production `program_vkey`.
+# Built without the test verifiers. Does not update elf/vkeys.toml; prefer build-elfs.
+[private]
+build-private-projection-elf:
+    @just _build-elf private-projection docker
+
 # Install the native Succinct toolchain for non-Docker builds.
 install-sp1-toolchain:
     cargo prove install-toolchain
 
 [private]
-_build-elf NAME MODE:
+_build-elf NAME MODE FEATURES="":
     #!/usr/bin/env bash
     set -euo pipefail
 
@@ -83,6 +91,9 @@ _build-elf NAME MODE:
 
     # --locked appears to be a no-op in upstream cargo-prove (regenerates the lock anyway).
     args=(--locked --ignore-rust-version --elf-name "{{NAME}}-elf" --workspace-directory "$root" --output-directory "{{justfile_directory()}}/elf")
+    if [[ -n "{{FEATURES}}" ]]; then
+      args+=(--features "{{FEATURES}}")
+    fi
     if [[ "{{MODE}}" == "docker" ]]; then
       mkdir -p "{{justfile_directory()}}/programs/target/elf-compilation/docker"
       args=(--docker --tag "{{SP1_TAG}}" "${args[@]}")
@@ -158,11 +169,22 @@ build-elfs-native:
       just _append-vkey "${name}" "$m"
     done
 
-# Experimental private execution relation. Kept separate from super-root prestates.
+# Private-projection relation ELF for local iteration and devstack. Compiled with the test
+# verifiers, so the SP1 mock prover can run it on a `mock_proofs` profile (chains 901/902 only).
+# Not reproducible: devstack derives `program_vkey` from this file (private-projection-vkey).
 build-private-projection-elf-native:
-    KONA_SP1_GIT_SHA="$(just _git-sha)" just _build-elf private-projection native
+    KONA_SP1_GIT_SHA="$(just _git-sha)" just _build-elf private-projection native test-verifiers
 
-# Local-only relation checks. Execute/prove require build-private-projection-elf-native first.
+# Print the bytes32 program vkey (`program_vkey`) of a private-projection ELF.
+private-projection-vkey ELF=(justfile_directory() / "elf/private-projection-elf"):
+    #!/usr/bin/env bash
+    set -euo pipefail
+    cd "{{justfile_directory()}}/../.."
+    cargo run -q -p kona-sp1-super-range-executor --bin kona-sp1-private-projection-executor -- \
+      --print-vkey --elf "{{ELF}}"
+
+# Local-only relation checks. Execute/prove require build-private-projection-elf-native first;
+# mock uses the SP1 mock prover when that ELF exists, else the native mock envelope.
 test-private-projection MODE="native":
     #!/usr/bin/env bash
     set -euo pipefail
@@ -171,7 +193,7 @@ test-private-projection MODE="native":
     root="$(cd "{{justfile_directory()}}/../.." && pwd)"
     cd "$root"
     PRIVATE_PROJECTION_FIXTURE_DIR="$fixtures" cargo nextest run -p kona-sp1-client-utils -E 'test(private_projection)'
-    for name in range-0 lagoon-recovery; do
+    for name in range-0 lagoon-recovery anchored-recovery; do
       cargo run -p kona-sp1-super-range-executor --bin kona-sp1-private-projection-executor -- \
         --fixture "$fixtures/$name.json" --mode "{{MODE}}" --check-rejection \
         --elf "{{justfile_directory()}}/elf/private-projection-elf"

@@ -8,8 +8,17 @@ edition.workspace = true
 [dependencies]
 kona-sp1-client-utils.workspace = true
 kona-sp1-build-info.workspace = true
+kona-protocol.workspace = true
 revm.workspace = true
 sp1-zkvm.workspace = true
+
+[features]
+# Accept test-gated projection profiles (`sp1-private-projection-v1` with `mock_proofs`, or
+# `execution-mock-v1`) on the allowlisted chains 901/902, so the devstack `mock` prover can run
+# this guest. Admission, not the relation, enforces the §B.5 gate, and word 2 commits to the
+# profile, so this never widens what a production verifier accepts. The reproducible production
+# ELF (`just build-elfs`) is built without it.
+test-verifiers = ["kona-protocol/private-projection-test-verifiers"]
 
 [lints]
 workspace = true
