@@ -453,14 +453,12 @@ func (s *Sequencer) RunAction() {
 	}
 }
 
-// insertAndPublish makes a sealed, conductor-committed block our own canonical
-// head, and only then hands it to peers.
-//
-// The order matters: the gossiper queues and returns, so publishing here does
-// not wait for the signer or the network, and because the block is already
-// canonical for us a queued block can only ever be late — never one the
-// sequencer has to take back. Every way this insert can fail therefore leaves
-// nothing to un-publish.
+// insertAndPublish locally accepts a sealed, conductor-committed block before
+// queueing it for publication. ProcessPayload validates newPayload and updates
+// op-node's unsafe head, but may still need to retry the concluding EL forkchoice
+// update. Neither that acceptance nor publication makes an unsafe block final:
+// reset handling and engine head transitions invalidate abandoned publish work.
+// Gossip only queues work, so this does not wait for the signer or the network.
 func (s *Sequencer) insertAndPublish(envelope *eth.ExecutionPayloadEnvelope, ref eth.L2BlockRef, buildStarted time.Time) {
 	if err := s.eng.ProcessPayload(s.ctx, envelope, ref, buildStarted); err != nil {
 		switch {
@@ -538,6 +536,8 @@ func (s *Sequencer) onEngineTemporaryError(x rollup.EngineTemporaryErrorEvent) {
 func (s *Sequencer) onReset(x rollup.ResetEvent) {
 	s.log.Error("Sequencer encountered reset signal, aborting work", "err", x.Err)
 	s.metrics.RecordSequencerReset()
+	// Previously inserted blocks may be abandoned too, not just the build job.
+	s.asyncGossip.Clear()
 	// try to cancel any ongoing payload building job
 	if s.building.Info != (eth.PayloadInfo{}) {
 		s.emitter.Emit(s.ctx, engine.BuildCancelEvent{Info: s.building.Info})
@@ -553,6 +553,8 @@ func (s *Sequencer) onReset(x rollup.ResetEvent) {
 }
 
 func (s *Sequencer) onEngineResetConfirmedEvent(engine.EngineResetConfirmedEvent) {
+	// Forced resets (e.g. block replacement) need not emit a ResetEvent first.
+	s.asyncGossip.Clear()
 	s.awaitingResetConfirm = false
 	s.nextActionArmed = s.active.Load()
 	// Before sequencing we can wait a block,
@@ -570,6 +572,9 @@ func (s *Sequencer) onEngineResetConfirmedEvent(engine.EngineResetConfirmedEvent
 func (s *Sequencer) onForkchoiceUpdate(x engine.ForkchoiceUpdateEvent) {
 	s.log.Debug("Sequencer is processing forkchoice update", "unsafe", x.UnsafeL2Head, "prev_unsafe", s.unsafeHead)
 
+	// Do not invalidate publishing from this snapshot. A build-parent FCU can
+	// arrive after a successful inline insertion advanced s.unsafeHead. The
+	// engine invalidates the queue when its actual unsafe head changes instead.
 	s.safeHead = x.SafeL2Head
 	if !s.active.Load() {
 		s.setUnsafeHead(x.UnsafeL2Head)
@@ -964,7 +969,7 @@ func (s *Sequencer) Stop(ctx context.Context) (common.Hash, error) {
 		return common.Hash{}, ErrSequencerAlreadyStopped
 	}
 
-	// Wait for the head to catch up to a block we sealed and gossiped. A zero
+	// Wait for the head to catch up to a block we sealed and committed. A zero
 	// marker means there is no such block, so there is nothing to wait for.
 	for s.lastSealed != (eth.L2BlockRef{}) && s.unsafeHead.Hash != s.lastSealed.Hash {
 

@@ -654,6 +654,13 @@ func (p *publisher) publishRawSignedPayload(ctx context.Context, timestamp uint6
 	// This also copies the data, freeing up the original buffer to go back into the pool
 	out := snappy.Encode(nil, data)
 
+	// A signer may finish successfully after its queued block was invalidated.
+	// Do not hand that result to pubsub: its internal select may choose a ready
+	// publish channel even when ctx.Done is also ready. Once handed off, a
+	// message cannot be retracted by cancellation.
+	if err := ctx.Err(); err != nil {
+		return err
+	}
 	var err error
 	switch {
 	case p.cfg.IsIsthmus(timestamp):

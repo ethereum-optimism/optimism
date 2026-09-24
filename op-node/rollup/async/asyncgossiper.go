@@ -49,19 +49,23 @@ type AsyncGossiper interface {
 // SimpleAsyncGossiper publishes sealed blocks to peers off the sequencer's hot
 // path, in seal order, on a dedicated goroutine.
 //
-// The sequencer hands a block over only once it has inserted it, so every queued
-// block is one this node has already adopted as its canonical head. A queued
-// block can therefore be late, but it can never be one the sequencer has to take
-// back — which is what makes it safe to queue and retry at all.
+// The sequencer hands a block over only once it has accepted it locally. These
+// are still unsafe blocks: a reset or reorg may abandon them before publication.
+// The engine clears abandoned work on authoritative unsafe-head transitions;
+// the sequencer also clears the queue on resets and sequencing restarts.
 //
 // Gossip and Clear only take a mutex. Neither waits for the network.
 type SimpleAsyncGossiper struct {
 	running atomic.Bool
 
-	// mu guards queue and attempts.
+	// mu guards queue, attempts, cancelPublish, and queue-length metric updates.
 	mu sync.Mutex
-	// queue holds blocks awaiting publication, oldest first.
-	queue []pending
+	// queue holds blocks awaiting publication, oldest first. Each enqueue has its
+	// own identity, even if Clear is followed by re-queueing the same envelope.
+	queue []*pending
+	// cancelPublish interrupts signing/publishing on Clear, even if queue pressure
+	// has already evicted its entry.
+	cancelPublish context.CancelFunc
 	// attempts counts failed publishes of the block currently at queue[0], for the
 	// log field only. Retries are bounded by the block's age, not by a count.
 	attempts int
@@ -130,17 +134,15 @@ func (p *SimpleAsyncGossiper) Gossip(payload *eth.ExecutionPayloadEnvelope) {
 	var dropped *eth.ExecutionPayloadEnvelope
 	p.mu.Lock()
 	if len(p.queue) >= maxPublishQueue {
-		// queue[0] may be in flight right now. Evicting it is the point under
-		// pressure, and the publish goroutine drops the outcome of a block that is
-		// no longer at the front; that narrow race can over-count a drop whose
-		// publish landed anyway, which is the harmless direction for this counter.
+		// Do not cancel an in-flight attempt just for queue pressure: a slow but
+		// working signer could otherwise be canceled on every arriving block and
+		// never finish. Eviction can over-count a drop if that attempt succeeds.
 		dropped = p.queue[0].envelope
 		p.discardHead()
 	}
-	p.queue = append(p.queue, pending{envelope: payload, queuedAt: time.Now()})
-	queueLen := len(p.queue)
+	p.queue = append(p.queue, &pending{envelope: payload, queuedAt: time.Now()})
+	p.metrics.RecordPublishQueueLen(len(p.queue))
 	p.mu.Unlock()
-	p.metrics.RecordPublishQueueLen(queueLen)
 
 	if dropped != nil {
 		p.log.Warn("Publish queue is full, dropping oldest unpublished block",
@@ -150,14 +152,17 @@ func (p *SimpleAsyncGossiper) Gossip(payload *eth.ExecutionPayloadEnvelope) {
 	p.signal()
 }
 
-// Clear drops every queued block. The sequencer uses it when the chain those
-// blocks extend is not the one it is building on: a reset, or a start from an
-// unknown pre-state.
+// Clear drops every queued block and cancels any in-flight attempt, without
+// waiting for the network. It cannot retract a message already handed to pubsub.
 func (p *SimpleAsyncGossiper) Clear() {
 	p.mu.Lock()
+	defer p.mu.Unlock()
+	p.cancelInFlight()
+	for range p.queue {
+		p.metrics.RecordDroppedPublish()
+	}
 	p.queue = nil
 	p.attempts = 0
-	p.mu.Unlock()
 	p.metrics.RecordPublishQueueLen(0)
 }
 
@@ -195,21 +200,24 @@ func (p *SimpleAsyncGossiper) publishLoop(ctx context.Context, done chan struct{
 	defer close(done)
 	defer p.running.Store(false)
 	for {
+		if ctx.Err() != nil {
+			return
+		}
 		p.mu.Lock()
-		var envelope *eth.ExecutionPayloadEnvelope
-		var queuedAt time.Time
+		var item *pending
 		if len(p.queue) > 0 {
-			envelope, queuedAt = p.queue[0].envelope, p.queue[0].queuedAt
+			item = p.queue[0]
 		}
 		attempts := p.attempts
 		p.mu.Unlock()
 
-		if envelope == nil {
+		if item == nil {
 			if !p.waitForWork(ctx) {
 				return
 			}
 			continue
 		}
+		envelope := item.envelope
 
 		// A block older than the threshold is rejected by every peer, and by our
 		// own validator, which Topic.Publish runs inline. Attempting it anyway
@@ -222,29 +230,30 @@ func (p *SimpleAsyncGossiper) publishLoop(ctx context.Context, done chan struct{
 		// gossip recovers by itself.
 		if stale, age := p.pastRetryWindow(envelope); stale {
 			p.mu.Lock()
-			dropped := len(p.queue) > 0 && p.queue[0].envelope == envelope
+			dropped := len(p.queue) > 0 && p.queue[0] == item
 			if dropped {
 				p.discardHead()
+				p.metrics.RecordPublishQueueLen(len(p.queue))
 			}
-			queueLen := len(p.queue)
 			p.mu.Unlock()
 			if dropped {
 				p.log.Warn("Dropping block, it has aged out of the gossip window",
 					"id", envelope.ExecutionPayload.ID(), "age", age,
 					"threshold", p.net.GossipTimestampThreshold())
-				p.metrics.RecordPublishQueueLen(queueLen)
 				p.metrics.RecordDroppedPublish()
 			}
 			continue
 		}
 
-		err := p.publish(ctx, envelope)
+		err := p.publish(ctx, item)
 
 		var gaveUp, retry bool
 		p.mu.Lock()
-		// Clear, or an eviction, may have removed this block while the publish was
-		// in flight. Then the outcome is no longer ours to record.
-		if len(p.queue) > 0 && p.queue[0].envelope == envelope {
+		// Clear, or an eviction, may have removed this entry while the publish
+		// was in flight. Do not let its outcome affect a new enqueue of the same
+		// envelope, or count deliberate cancellation as a publishing error.
+		current := len(p.queue) > 0 && p.queue[0] == item
+		if current {
 			switch {
 			case err == nil:
 				p.discardHead()
@@ -261,13 +270,15 @@ func (p *SimpleAsyncGossiper) publishLoop(ctx context.Context, done chan struct{
 				retry = true
 			}
 		}
-		queueLen := len(p.queue)
+		p.metrics.RecordPublishQueueLen(len(p.queue))
 		p.mu.Unlock()
-		p.metrics.RecordPublishQueueLen(queueLen)
+		if !current {
+			continue
+		}
 		if err == nil {
 			// Queued-to-published. Added to the insert time, this is what the
 			// publish-after-insert ordering actually costs peers.
-			p.metrics.RecordPublishDelay(time.Since(queuedAt))
+			p.metrics.RecordPublishDelay(time.Since(item.queuedAt))
 		}
 
 		if err != nil {
@@ -304,13 +315,28 @@ func (p *SimpleAsyncGossiper) pastRetryWindow(envelope *eth.ExecutionPayloadEnve
 	return age >= window, age
 }
 
-// publish publishes one block, under a deadline of its own. It derives from the
-// loop context so Stop aborts a publish already in flight rather than waiting
-// out publishTimeout.
-func (p *SimpleAsyncGossiper) publish(ctx context.Context, envelope *eth.ExecutionPayloadEnvelope) error {
+// publish registers cancellation under the queue lock, so Clear cannot miss an
+// attempt between selecting a queue entry and starting the network call. The
+// loop context also lets Stop abort the attempt without waiting out its timeout.
+func (p *SimpleAsyncGossiper) publish(ctx context.Context, item *pending) error {
+	p.mu.Lock()
+	if len(p.queue) == 0 || p.queue[0] != item {
+		p.mu.Unlock()
+		return context.Canceled
+	}
 	ctx, cancel := context.WithTimeout(ctx, publishTimeout)
-	defer cancel()
-	return p.net.SignAndPublishL2Payload(ctx, envelope)
+	p.cancelPublish = cancel
+	p.mu.Unlock()
+	defer func() {
+		cancel()
+		p.mu.Lock()
+		p.cancelPublish = nil
+		p.mu.Unlock()
+	}()
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	return p.net.SignAndPublishL2Payload(ctx, item.envelope)
 }
 
 // waitForWork blocks until a block is queued. It reports false when the gossiper
@@ -339,9 +365,18 @@ func (p *SimpleAsyncGossiper) pause(ctx context.Context, d time.Duration) bool {
 
 // discardHead removes queue[0]. Callers must hold p.mu.
 func (p *SimpleAsyncGossiper) discardHead() {
-	p.queue[0] = pending{} // don't retain the block in the backing array
+	p.queue[0] = nil // don't retain the block in the backing array
 	p.queue = p.queue[1:]
 	p.attempts = 0
+}
+
+// cancelInFlight must be called with p.mu held. Cancellation never waits for the
+// network; the single publish loop discards the obsolete attempt's result.
+func (p *SimpleAsyncGossiper) cancelInFlight() {
+	if p.cancelPublish != nil {
+		p.cancelPublish()
+		p.cancelPublish = nil
+	}
 }
 
 // signal wakes the publish goroutine without blocking on it.

@@ -136,7 +136,7 @@ type Metrics struct {
 	SequencerPublishHandoffSeconds prometheus.Histogram
 	// PublishQueueLen is the number of sealed blocks awaiting publication.
 	PublishQueueLen prometheus.Gauge
-	// PublishDelaySeconds is seal-to-published, the delay peers actually see.
+	// PublishDelaySeconds measures queueing-to-published, excluding local insertion.
 	PublishDelaySeconds prometheus.Histogram
 	// UnsafePayloadArrivalDelaySeconds is how far behind its own timestamp a
 	// gossiped block arrives. Measured on the receiving node, this is the only
@@ -548,8 +548,10 @@ func (m *Metrics) RecordPublishingError() {
 }
 
 // RecordDroppedPublish counts sealed blocks that never reached peers, whether
-// evicted from a full publish queue or given up on after repeated failures. On
-// publishing_errors alone a final failure is indistinguishable from a retried one.
+// evicted from a full publish queue, invalidated on a chain change, or given up
+// on after failures. Cancellation cannot retract an already-published message,
+// so an in-flight drop can over-count. On publishing_errors alone a final
+// failure is indistinguishable from a retried one.
 func (m *Metrics) RecordDroppedPublish() {
 	m.DroppedPublishes.Record()
 }
