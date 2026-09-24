@@ -438,15 +438,15 @@ methods.
 
 **Log context extensions** — fork adds `Logger.SetContext`, `WriteCtx`, `LogAttrs`, and the
 `Trace/…/ErrorContext` methods; `op-service/log`'s logfilter feature and `op-service/testlog`
-build on them. Strategy: **own the log layer** — depending on an internal log API is better
-layering than importing `geth/log` everywhere anyway.
+build on them. Strategy: **own the log layer**.
 
-- *Phase 1 (pre-cutover, mechanical, per-component):* `oplog.Logger` becomes a **type alias** of
-  geth `log.Logger`, plus re-exports of the package-level API in use (`Root`, `SetDefault`,
-  `NewLogger`, level parsing). Sweep every `go-ethereum/log` import to `op-service/log` — a
-  no-op rename while the alias holds.
-- *Phase 2 (at cutover):* flip the alias to an owned interface (upstream's method set + the
-  context methods) with an slog-backed implementation. Implement over `slog` — don't copy
+- *In place:* `op-service/log` is the monorepo's logging API. Its `Logger` is a **type alias**
+  of geth `log.Logger`, and `logger.go` re-exports the package-level names the tree uses (`Root`,
+  `SetDefault`, `NewLogger`, the level constants, the handler constructors) as aliases of the
+  geth values, never wrappers. No monorepo Go file imports `go-ethereum/log` except
+  `op-service/log/logger.go`; the `geth-log` depguard rule in `.golangci.yaml` enforces that.
+- *Remaining (at cutover):* replace the aliases with an owned interface (upstream's method set +
+  the context methods) with an slog-backed implementation. Implement over `slog` — don't copy
   upstream's LGPL log package; the fork's context-extension logic is OP-authored and ports. The
   owned interface is a superset of upstream's, so our loggers still satisfy `log.Logger` where we
   hand one into geth code (e.g. the in-process L1 geth in op-e2e).
@@ -665,7 +665,7 @@ monorepo has to fix on their behalf.
 | Genesis tooling (§14) | upstream geth as library + `opparams` | open (#21281) |
 | op-simulate / op-run-block (§14) | delete | **done** (#21282) |
 | op-sync-tester PayloadID hash | OP-aware `Id()` reimplementation | open (#21525) |
-| Log context extensions (§15) | owned `op-service/log` layer (alias sweep → owned interface) | open — **gating**, blocks `op-service/testlog` |
+| Log context extensions (§15) | owned `op-service/log` layer (aliases → owned interface) | aliases + import gate **done**; owned interface open — **gating**, blocks `op-service/testlog` |
 | RPC recorder hooks + `JsonError` (§15) | client wrappers + server-side interception | open — **gating**, blocks `op-service/{metrics,client,rpc}` |
 | One-off fork symbols (§15) | per-symbol swaps, ride #20263 family | `SetBlobTxSidecar`/`LogForStorage` **done**; rest are test-only, ride §13 |
 | `op-chain-ops/script` + op-deployer (§16) | **Rust script engine** (foundry crates) | open |

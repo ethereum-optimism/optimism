@@ -7,6 +7,7 @@ linters:
     - misspell
     - errorlint
     - bigint
+    - depguard
 
     # Only enabled in specific cases. See settings and exclusions below
     - exhaustruct
@@ -23,6 +24,17 @@ linters:
         type: "module"
         description: "Optimism big.Int checks"
         settings: {}
+    depguard:
+      rules:
+        # op-service/log is the monorepo's logging API; logger.go is its one
+        # binding to the go-ethereum logger.
+        geth-log:
+          files:
+            - $all
+            - "!**/op-service/log/logger.go"
+          deny:
+            - pkg: github.com/ethereum/go-ethereum/log$
+              desc: import github.com/ethereum-optimism/optimism/op-service/log instead
     # Require specifying all fields in op-deployer's OPCM input and output structs
     exhaustruct:
       include:
