@@ -20,6 +20,11 @@ type Spec struct {
 	SrcDir  string // directory name relative to monorepo root, e.g. "rust/kona"
 	Package string // cargo package name, e.g. "kona-node"
 	Binary  string // binary name, e.g. "kona-node"
+	// Features are cargo features passed as `--features` in JIT mode, e.g.
+	// "kona-node/private-projection-test-verifiers". A prebuilt binary (RUST_BINARY_PATH_<BINARY>,
+	// or an existing target/ build without RUST_JIT_BUILD) is used as found: the caller must have
+	// built it with the same features (see `just build-rust-release`).
+	Features []string
 }
 
 // EnsureExists locates or builds a Rust binary as needed.
@@ -52,8 +57,8 @@ func (s Spec) EnsureExists(ctx context.Context, logger log.Logger) (string, erro
 	jitBuild := os.Getenv("RUST_JIT_BUILD") != ""
 
 	if jitBuild {
-		logger.Info("Building Rust binary (JIT)", "binary", s.Binary, "dir", srcRoot)
-		if err := buildRustBinary(ctx, srcRoot, s.Package, s.Binary); err != nil {
+		logger.Info("Building Rust binary (JIT)", "binary", s.Binary, "dir", srcRoot, "features", s.Features)
+		if err := buildRustBinary(ctx, srcRoot, s.Package, s.Binary, s.Features); err != nil {
 			return "", err
 		}
 	}
@@ -89,12 +94,21 @@ func toEnvVarSuffix(binary string) string {
 	return strings.ToUpper(strings.ReplaceAll(binary, "-", "_"))
 }
 
-func buildRustBinary(ctx context.Context, root, pkg, bin string) error {
-	cmd := exec.CommandContext(ctx, "cargo", "build", "-p", pkg, "--bin", bin)
+func buildRustBinary(ctx context.Context, root, pkg, bin string, features []string) error {
+	cmd := exec.CommandContext(ctx, "cargo", cargoBuildArgs(pkg, bin, features)...)
 	cmd.Dir = root
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	return cmd.Run()
+}
+
+// cargoBuildArgs is the JIT build command line. Features are joined into one `--features` value.
+func cargoBuildArgs(pkg, bin string, features []string) []string {
+	args := []string{"build", "-p", pkg, "--bin", bin}
+	if len(features) > 0 {
+		args = append(args, "--features", strings.Join(features, ","))
+	}
+	return args
 }
 
 type cargoMetadata struct {

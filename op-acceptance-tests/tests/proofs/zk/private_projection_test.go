@@ -14,10 +14,21 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 )
 
-// The public projection must be replayed by the actual native SP1 range and
-// consolidation cores before the lifecycle's mock proof bytes are submitted.
-// A user deposit distinguishes private execution from inert projection execution.
-func TestPrivateProjectionChallengedSuperRoot(gt *testing.T) {
+// TestPrivateProjectionHonestProposerLifecycleMockVerifier is an honest-proposer
+// lifecycle test of the ZK dispute game over a super root that includes a private
+// chain's PUBLIC PROJECTION. It covers only the projection -> super root layer.
+//
+// What it exercises: the native SP1 range and consolidation cores replay the public
+// projection (a user deposit distinguishes private execution from inert projection
+// execution), the honest proposer defends a challenged correct root, and a corrupted
+// projection root is rejected.
+//
+// What it does NOT establish: the ZK dispute game here uses the on-chain
+// MockSP1Verifier, so the submitted proof bytes are not cryptographic, and nothing in
+// this test proves private execution. The private -> projection layer is checked at
+// span admission (op-private-interop/docs/BATCHES.md); here the pair runs the legacy,
+// test-only execution-mock-v1 verifier.
+func TestPrivateProjectionHonestProposerLifecycleMockVerifier(gt *testing.T) {
 	t := devtest.SerialT(gt)
 	command, err := (rustbin.Spec{SrcDir: "rust", Package: "kona-sp1-super-range-executor", Binary: "kona-sp1-private-projection-executor"}).EnsureExists(t.Ctx(), t.Logger())
 	t.Require().NoError(err)

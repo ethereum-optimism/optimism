@@ -57,3 +57,20 @@ func writeStubBinary(t *testing.T, path string, mod time.Time) {
 		t.Fatal(err)
 	}
 }
+
+func TestCargoBuildArgsFeatures(t *testing.T) {
+	got := cargoBuildArgs("kona-node", "kona-node", nil)
+	want := []string{"build", "-p", "kona-node", "--bin", "kona-node"}
+	if len(got) != len(want) {
+		t.Fatalf("no features: got %q, want %q", got, want)
+	}
+	for i := range want {
+		if got[i] != want[i] {
+			t.Fatalf("no features: got %q, want %q", got, want)
+		}
+	}
+	got = cargoBuildArgs("kona-node", "kona-node", []string{"kona-node/private-projection-test-verifiers", "x/y"})
+	if n := len(got); n != 7 || got[5] != "--features" || got[6] != "kona-node/private-projection-test-verifiers,x/y" {
+		t.Fatalf("features: got %q", got)
+	}
+}

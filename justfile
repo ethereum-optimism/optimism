@@ -429,8 +429,13 @@ update-op-geth:
 # Build all Rust binaries (release) for sysgo tests.
 # Every binary needs an explicit `-p`: a bare `--bin` only resolves against the
 # `default-members` of the workspace, and op-reth-sdm-fixture is a plain member.
+# These are TEST binaries: kona-node is built with the private-projection test
+# gate (insecure/mock projection verifiers on chains 901/902 only). Release
+# images are built elsewhere and must not enable it. The private-projection
+# executor is built separately (CI job rust-build-sp1-super-range-executor, or
+# RUST_JIT_BUILD=1 locally).
 build-rust-release:
-  cd rust && cargo build --release -p kona-node --bin kona-node -p kona-host --bin kona-host -p op-reth --bin op-reth -p op-reth-sdm-fixture --bin op-reth-sdm-fixture
+  cd rust && cargo build --release -p kona-node --bin kona-node -p kona-host --bin kona-host -p op-reth --bin op-reth -p op-reth-sdm-fixture --bin op-reth-sdm-fixture --features kona-node/private-projection-test-verifiers
 
 # Checks that locked NUT bundles have not been modified.
 check-nut-locks:

@@ -4,7 +4,10 @@ import (
 	"encoding/json"
 	"flag"
 	"os"
+	"os/exec"
 	"path/filepath"
+	"regexp"
+	"time"
 
 	"github.com/urfave/cli/v2"
 
@@ -21,6 +24,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-interop-filter/filter"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	projectiongenesis "github.com/ethereum-optimism/optimism/op-private-interop/genesis"
+	"github.com/ethereum-optimism/optimism/op-private-interop/projection"
 	"github.com/ethereum-optimism/optimism/op-service/client"
 	"github.com/ethereum-optimism/optimism/op-service/clock"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
@@ -206,15 +210,16 @@ func assertClaimedRouteIsTheModule(t devtest.T, logger log.Logger, url string, p
 // Resolve, and initPrivateInterop's own assembly of the follower and the range source.
 // The alternative -- constructing the terminal seam directly -- would mean the devstack tests a
 // component wiring that no deployment uses.
+//
+// The claim's rollupConfigHash and depSetHash are not set here: the batcher derives both from the
+// DEPLOYED projection config it reads over RPC (projection.ConfigHash and the pinned
+// dependency_set_hash), and the flags exist only as operator cross-checks.
 func privateInteropBatcherOption(
-	t devtest.T,
 	cfg PrivateInteropConfig,
-	renderingRollup *rollup.Config,
+	proof privateInteropProof,
 	privateGenesisPath string,
 	renderingRPC, renderingRollupRPC string,
-	depSetHash common.Hash,
 ) BatcherOption {
-	rollupConfigHash := hashOfJSON(t, renderingRollup, "the rendering's rollup config")
 	return func(_ ComponentTarget, c *bss.CLIConfig) {
 		// The cadence owns where a range ends, and these two stock knobs would otherwise take that
 		// away. A range that ends somewhere its claim did not say it would is a range whose parent
@@ -236,8 +241,13 @@ func privateInteropBatcherOption(
 			// reuses each private block's OWN L1 origin as the rendering block's epoch, so there is
 			// no origin to choose and nothing for a shallow L1 reorg to orphan.
 
-			RollupConfigHash: rollupConfigHash.Hex(),
-			DepSetHash:       depSetHash.Hex(),
+			// The two pinned artifacts private_config_hash covers, byte for byte the files the
+			// projection config was generated from.
+			PrivateRollupConfigPath: proof.PrivateRollupPath,
+			L1ChainConfigPath:       proof.L1ChainConfigPath,
+			SP1Prover:               proof.SP1Prover,
+			ProofTimeout:            proof.ProofTimeout,
+			TestHooks:               cfg.TestHooks,
 
 			GasLimitExport: 500_000,
 			GasLimitImport: 500_000,
@@ -247,18 +257,98 @@ func privateInteropBatcherOption(
 	}
 }
 
-// hashOfJSON is the devstack's convention for the claim's two configuration commitments.
+// privateInteropProof is the resolved proof profile of a pair: the consensus options its projection
+// config is generated from, and the producer settings the batcher is given to match them.
+type privateInteropProof struct {
+	Options           projectiongenesis.ProjectionOptions
+	PrivateRollupPath string
+	L1ChainConfigPath string
+	// SP1Prover is empty outside the sp1 profile.
+	SP1Prover string
+	// ProofTimeout is zero for the batcher default.
+	ProofTimeout time.Duration
+}
+
+// privateProjectionELFName is the guest ELF the executor's SP1 mock prover loads from
+// $KONA_SP1_ELF_DIR.
+const privateProjectionELFName = "private-projection-elf"
+
+// resolvePrivateInteropProof writes the pair's two pinned artifacts (the private rollup.json and the
+// L1 chain config JSON) exactly once, and derives the projection options from them.
 //
-// The claim commits to WHICH CHAIN and WHICH DEPENDENCY SET it speaks for, and the codec takes both
-// as opaque 32-byte values -- neither op-private-interop nor op-node defines how they are computed,
-// because nothing yet reads them back. A deterministic hash of the canonical JSON is therefore
-// enough for every property the devstack can check (the same configuration hashes the same, a
-// different one differs) and is explicitly NOT a claim about the production convention. When one is
-// ratified, this is the single place the devstack changes.
-func hashOfJSON(t devtest.T, v any, what string) common.Hash {
-	encoded, err := json.Marshal(v)
-	t.Require().NoErrorf(err, "encoding %s for its claim commitment", what)
-	return crypto.Keccak256Hash(encoded)
+// The files are written once and never re-serialised: private_config_hash is over these exact
+// bytes, and the batcher and the producer are given the same paths.
+func resolvePrivateInteropProof(t devtest.T, cfg PrivateInteropConfig, dir string, privateRollup *rollup.Config,
+	l1Net *L1Network, depSet depset.DependencySet) privateInteropProof {
+	require := t.Require()
+	privateRollupJSON, err := json.Marshal(privateRollup)
+	require.NoError(err, "encoding the private rollup config")
+	l1ChainConfigJSON, err := json.Marshal(l1Net.genesis.Config)
+	require.NoError(err, "encoding the L1 chain config")
+	out := privateInteropProof{
+		PrivateRollupPath: filepath.Join(dir, "private-rollup.json"),
+		L1ChainConfigPath: filepath.Join(dir, "l1-chain-config.json"),
+	}
+	require.NoError(os.WriteFile(out.PrivateRollupPath, privateRollupJSON, 0o644), "writing the private rollup config")
+	require.NoError(os.WriteFile(out.L1ChainConfigPath, l1ChainConfigJSON, 0o644), "writing the L1 chain config")
+
+	require.NotNil(depSet, "a private interop pair needs the dependency set")
+	ids := depSet.Chains()
+	require.NotEmpty(ids, "the dependency set names no chains")
+	out.Options = projectiongenesis.ProjectionOptions{DependencySet: ids}
+
+	switch cfg.profile() {
+	case PrivateInteropStub:
+		out.Options.Verifier = projection.InsecureStub
+	case PrivateInteropExecutionMock:
+		out.Options.Verifier = projection.ExecutionMock
+	case PrivateInteropSP1:
+		out.Options.Verifier = projection.SP1PrivateProjectionV1
+		out.Options.PrivateRollupJSON = privateRollupJSON
+		out.Options.L1ChainConfigJSON = l1ChainConfigJSON
+		elf := ""
+		if dir := os.Getenv("KONA_SP1_ELF_DIR"); dir != "" {
+			if _, err := os.Stat(filepath.Join(dir, privateProjectionELFName)); err == nil {
+				elf = filepath.Join(dir, privateProjectionELFName)
+			}
+		}
+		out.SP1Prover = cfg.SP1Prover
+		if out.SP1Prover == "" {
+			out.SP1Prover = "native-mock"
+			if elf != "" {
+				out.SP1Prover = "mock"
+			}
+		}
+		switch out.SP1Prover {
+		case "native-mock":
+			out.Options.ProgramVKey = PrivateInteropNativeMockVKey
+			out.Options.MockProofs = true
+		case "mock", "cpu", "network":
+			require.NotEmpty(elf, "the %s prover needs $KONA_SP1_ELF_DIR/%s", out.SP1Prover, privateProjectionELFName)
+			out.Options.ProgramVKey = printProgramVKey(t, cfg.ProofCommand, elf)
+			out.Options.MockProofs = out.SP1Prover == "mock"
+			// The SP1 mock prover executes the ELF; real proving takes longer still.
+			out.ProofTimeout = 20 * time.Minute
+			if !out.Options.MockProofs {
+				out.ProofTimeout = 60 * time.Minute
+			}
+		}
+		t.Logger().Info("Private interop sound profile", "prover", out.SP1Prover, "elf", elf,
+			"program_vkey", out.Options.ProgramVKey, "mock_proofs", out.Options.MockProofs)
+	}
+	return out
+}
+
+var vkeyPattern = regexp.MustCompile(`0x[0-9a-fA-F]{64}`)
+
+// printProgramVKey asks the executor for the ELF's program vkey (`--print-vkey --elf <path>`).
+func printProgramVKey(t devtest.T, command, elf string) common.Hash {
+	cmd := exec.CommandContext(t.Ctx(), command, "--print-vkey", "--elf", elf)
+	out, err := cmd.Output()
+	t.Require().NoError(err, "%s --print-vkey --elf %s", command, elf)
+	found := vkeyPattern.FindAllString(string(out), -1)
+	t.Require().NotEmpty(found, "no 32-byte vkey in the output of --print-vkey: %q", out)
+	return common.HexToHash(found[len(found)-1])
 }
 
 // writePrivateChainGenesis puts the private-chain genesis where consumers can derive the public
@@ -309,15 +399,18 @@ func NewTwoL2PrivateInteropRuntimeWithConfig(t devtest.T, delaySeconds uint64, c
 	l2ANet, l2BNet := l2Nets[0], l2Nets[1]
 	privateGenesis, privateRollup := l2BNet.genesis, l2BNet.rollupCfg
 
+	// The consensus constants of the projection's private_projection config come from two pinned
+	// artifacts written once here, the dependency set, and the proof profile.
+	depSet, runtimeDepSet := resolveRuntimeDepSet(t, wb, cfg)
+	artifactDir := t.TempDirWithPrefix("private-interop-artifacts")
+	proof := resolvePrivateInteropProof(t, pi, artifactDir, privateRollup, l1Net, runtimeDepSet)
+
 	// Share the deployment and keys, but derive the projection's own genesis and rollup config.
 	renderingNet := ptr.New(*l2BNet)
 	renderingNet.name += "-public-projection"
 	renderingNet.genesis, err = projectiongenesis.ProjectGenesisFrom(privateGenesis)
 	require.NoError(err, "projecting the private-chain genesis")
-	renderingNet.rollupCfg, err = projectiongenesis.ProjectRollupConfigFrom(privateRollup, privateGenesis, renderingNet.genesis)
-	if err == nil && pi.ProofCommand != "" {
-		renderingNet.rollupCfg.PrivateProjection.Verifier = "execution-mock-v1"
-	}
+	renderingNet.rollupCfg, err = projectiongenesis.ProjectRollupConfigFrom(privateRollup, privateGenesis, renderingNet.genesis, proof.Options)
 	require.NoError(err, "projecting the private-chain rollup config")
 	require.NotEqual(privateRollup.Genesis.L2.Hash, renderingNet.rollupCfg.Genesis.L2.Hash)
 
@@ -376,7 +469,6 @@ func NewTwoL2PrivateInteropRuntimeWithConfig(t devtest.T, delaySeconds uint64, c
 	require.Equal(l2ANet.rollupCfg.Genesis.L2Time, renderingNet.rollupCfg.Genesis.L2Time,
 		"the world's chains must share a genesis timestamp for one interop activation to fit them all")
 
-	depSet, runtimeDepSet := resolveRuntimeDepSet(t, wb, cfg)
 	privateGenesisPath := writePrivateChainGenesis(t, l2BNet.genesis)
 
 	// The supernode judges {chain A, the RENDERING} and has no idea a private chain exists. That is
@@ -447,11 +539,7 @@ func NewTwoL2PrivateInteropRuntimeWithConfig(t devtest.T, delaySeconds uint64, c
 	// No connectL2CLPeers and no connectL2ELPeers across the pair. This absence is the severance.
 
 	// Construct-last edge 3: the batchers, which read both chains.
-	depSetHash := hashOfJSON(t, runtimeDepSet, "the dependency set")
-	piBatcherOpt := privateInteropBatcherOption(
-		t, pi, renderingNet.rollupCfg, privateGenesisPath, renderingEL.UserRPC(), renderingCL.UserRPC(),
-		depSetHash,
-	)
+	piBatcherOpt := privateInteropBatcherOption(pi, proof, privateGenesisPath, renderingEL.UserRPC(), renderingCL.UserRPC())
 
 	l2ABatcher := startMinimalBatcher(t, keys, l2ANet, l1EL, l2ACL, seqAEL, cfg.BatcherOptions...)
 	var l2AProposer *L2Proposer
@@ -524,6 +612,8 @@ func NewTwoL2PrivateInteropRuntimeWithConfig(t devtest.T, delaySeconds uint64, c
 		"rendering_genesis", renderingNet.rollupCfg.Genesis.L2.Hash,
 		"batcher", batcherAddr,
 		"cadence_blocks", pi.MaxBlocksPerRange,
+		"verifier", renderingNet.rollupCfg.PrivateProjection.Verifier,
+		"sp1_prover", proof.SP1Prover,
 	)
 	return runtime
 }
