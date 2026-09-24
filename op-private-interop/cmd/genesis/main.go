@@ -10,10 +10,15 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
+
+	"github.com/ethereum/go-ethereum/common"
 
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	privategenesis "github.com/ethereum-optimism/optimism/op-private-interop/genesis"
+	piprojection "github.com/ethereum-optimism/optimism/op-private-interop/projection"
+	"github.com/ethereum-optimism/optimism/op-service/eth"
 )
 
 func main() {
@@ -28,6 +33,10 @@ func run() error {
 	rollupPath := flag.String("rollup", "", "matching source rollup JSON path")
 	out := flag.String("out", "", "new output directory (must not exist)")
 	baseURL := flag.String("artifact-base-url", "", "immutable HTTP(S) directory for NetChef overrides (optional)")
+	verifier := flag.String("verifier", piprojection.SP1PrivateProjectionV1, "projection verifier ID (sp1-private-projection-v1; the other IDs are test-only)")
+	programVKey := flag.String("program-vkey", "", "SP1 program vkey of the private-projection guest (sp1 only; from the reproducible ELF build)")
+	l1ConfigPath := flag.String("l1-chain-config", "", "L1 chain config JSON pinned into private_config_hash (sp1 only)")
+	depSetFlag := flag.String("dependency-set", "", "comma-separated chain IDs of the private dependency set (default: the chain itself)")
 	flag.Parse()
 	if *source == "" || *rollupPath == "" || *out == "" {
 		return fmt.Errorf("--genesis, --rollup and --out are required")
@@ -52,7 +61,38 @@ func run() error {
 	if err != nil {
 		return err
 	}
-	projectionCfg, err := privategenesis.ProjectRollupConfigFrom(privateCfg, private, projection)
+	// private-rollup.json is written from exactly these bytes: private_config_hash covers them.
+	privateRollupJSON, err := json.MarshalIndent(privateCfg, "", "  ")
+	if err != nil {
+		return err
+	}
+	privateRollupJSON = append(privateRollupJSON, '\n')
+	opts := privategenesis.ProjectionOptions{Verifier: *verifier, PrivateRollupJSON: privateRollupJSON}
+	for _, id := range strings.Split(*depSetFlag, ",") {
+		if id = strings.TrimSpace(id); id == "" {
+			continue
+		}
+		n, err := strconv.ParseUint(id, 10, 64)
+		if err != nil {
+			return fmt.Errorf("--dependency-set: %w", err)
+		}
+		opts.DependencySet = append(opts.DependencySet, eth.ChainIDFromUInt64(n))
+	}
+	if len(opts.DependencySet) == 0 {
+		opts.DependencySet = []eth.ChainID{eth.ChainIDFromBig(cfg.L2ChainID)}
+	}
+	var l1ChainConfigJSON []byte
+	if *verifier == piprojection.SP1PrivateProjectionV1 {
+		if *programVKey == "" || *l1ConfigPath == "" {
+			return fmt.Errorf("--program-vkey and --l1-chain-config are required for %s", piprojection.SP1PrivateProjectionV1)
+		}
+		opts.ProgramVKey = common.HexToHash(*programVKey)
+		if l1ChainConfigJSON, err = os.ReadFile(*l1ConfigPath); err != nil {
+			return err
+		}
+		opts.L1ChainConfigJSON = l1ChainConfigJSON
+	}
+	projectionCfg, err := privategenesis.ProjectRollupConfigFrom(privateCfg, private, projection, opts)
 	if err != nil {
 		return err
 	}
@@ -87,8 +127,15 @@ func run() error {
 			"OP_SUPERNODE_PRIVATE_INTEROP_CHAIN_ID": cfg.L2ChainID.String(),
 		}}
 	}
-	files := make(map[string][]byte)
+	delete(objects, "private-rollup.json")
+	files := map[string][]byte{"private-rollup.json": privateRollupJSON}
+	if l1ChainConfigJSON != nil {
+		files["l1-chain-config.json"] = l1ChainConfigJSON
+	}
 	digests := make(map[string]string)
+	for name, data := range files {
+		digests[name] = fmt.Sprintf("%x", sha256.Sum256(data))
+	}
 	for name, object := range objects {
 		data, err := json.MarshalIndent(object, "", "  ")
 		if err != nil {

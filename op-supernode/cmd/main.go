@@ -116,6 +116,11 @@ func main() {
 // applyPrivateInteropProjection replaces exactly one virtual node's private-chain rollup config
 // with the deterministic public-projection config. The private-chain genesis is loaded locally;
 // the projection itself remains a pure function and performs no network or filesystem I/O.
+//
+// The projection's private_projection object (verifier, program_vkey, private_config_hash,
+// dependency_set_hash) holds deployment-time consensus constants that cannot be derived from the
+// private chain's genesis. The virtual node's rollup config must therefore carry the DEPLOYED
+// object, which is copied verbatim into the projected config.
 func applyPrivateInteropProjection(cliCtx *cli.Context, vnCfgs map[eth.ChainID]*opnodecfg.Config) error {
 	privateInterop := claimfollow.ReadCLIConfig(cliCtx)
 	chainID, enabled, err := supernode.FindPrivateInteropChain(privateInterop, vnCfgs)
@@ -134,9 +139,23 @@ func applyPrivateInteropProjection(cliCtx *cli.Context, vnCfgs map[eth.ChainID]*
 		return err
 	}
 	vnCfg := vnCfgs[chainID]
+	deployed := vnCfg.Rollup.PrivateProjection
+	if deployed == nil {
+		return fmt.Errorf("private interop: the rollup config of chain %v must carry the deployed private_projection object "+
+			"(its consensus constants are not derivable from the private genesis)", chainID)
+	}
 	publicProjectionRollup, err := projectiongenesis.ProjectRollupConfigFrom(&vnCfg.Rollup, privateChainGenesis, publicProjectionGenesis)
 	if err != nil {
 		return err
+	}
+	if computed := publicProjectionRollup.PrivateProjection.GenesisOutputRoot; deployed.GenesisOutputRoot != computed {
+		return fmt.Errorf("private interop: deployed genesis_output_root %s differs from the private genesis output %s",
+			deployed.GenesisOutputRoot, computed)
+	}
+	deployedCopy := *deployed
+	publicProjectionRollup.PrivateProjection = &deployedCopy
+	if err := deployedCopy.CheckChain(publicProjectionRollup.L2ChainID); err != nil {
+		return fmt.Errorf("private interop: deployed private_projection: %w", err)
 	}
 	vnCfg.Rollup = *publicProjectionRollup
 	return nil
