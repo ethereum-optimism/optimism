@@ -150,9 +150,10 @@ func (p *SimpleAsyncGossiper) Gossip(payload *eth.ExecutionPayloadEnvelope) {
 	p.signal()
 }
 
-// Clear drops every queued block. The sequencer uses it when the chain those
-// blocks extend is not the one it is building on: a reset, or a start from an
-// unknown pre-state.
+// Clear drops every queued block. The sequencer calls it each time sequencing
+// starts, since anything still queued was sealed under a previous stint and
+// extends a chain it is no longer necessarily building on. It is not called on a
+// reset, so blocks inserted before a reset but not yet published stay queued.
 func (p *SimpleAsyncGossiper) Clear() {
 	p.mu.Lock()
 	p.queue = nil
