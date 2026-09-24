@@ -15,6 +15,11 @@ use tracing::{debug, error, trace};
 const INITIAL_RETRY_DELAY: Duration = Duration::from_millis(100);
 const MAX_RETRY_DELAY: Duration = Duration::from_secs(5);
 
+/// Marks a hint failure that retrying cannot resolve for the current preimage request.
+#[derive(Debug, thiserror::Error)]
+#[error("{0}")]
+pub struct NonRetryableHintError(pub anyhow::Error);
+
 /// The [`OnlineHostBackendCfg`] trait is used to define the type configuration for the
 /// [`OnlineHostBackend`].
 pub trait OnlineHostBackendCfg {
@@ -157,6 +162,9 @@ where
                         }
                     }
                     Err(e) => {
+                        if e.downcast_ref::<NonRetryableHintError>().is_some() {
+                            return Err(PreimageOracleError::Other(format!("{e:#}")));
+                        }
                         error!(target: "host_backend", "Failed to prefetch high-level hint: {e:#}");
                     }
                 }
@@ -167,6 +175,9 @@ where
                 if let Err(e) =
                     H::fetch_hint(hint, &self.cfg, &self.providers, self.kv.clone()).await
                 {
+                    if e.downcast_ref::<NonRetryableHintError>().is_some() {
+                        return Err(PreimageOracleError::Other(format!("{e:#}")));
+                    }
                     error!(target: "host_backend", "Failed to prefetch hint: {e:#}");
                 } else {
                     preimage = self.kv.read().await.get(key.into());
@@ -234,6 +245,7 @@ mod tests {
         /// Whether the fine-grained fetch stores `target`.
         low_level_stores_target: bool,
         low_level_attempts: Arc<AtomicUsize>,
+        terminal_failure: Option<TestHint>,
     }
 
     struct TestHintHandler;
@@ -251,6 +263,12 @@ mod tests {
             match hint.ty {
                 TestHint::HighLevel => {
                     let attempt = providers.high_level_attempts.fetch_add(1, Ordering::SeqCst);
+                    if providers.terminal_failure == Some(TestHint::HighLevel) {
+                        return Err(anyhow::Error::new(NonRetryableHintError(anyhow::anyhow!(
+                            "invalid preimage"
+                        )))
+                        .context("fetch high-level hint"));
+                    }
                     if attempt < providers.high_level_fail_until {
                         anyhow::bail!("transient high-level failure");
                     }
@@ -261,6 +279,12 @@ mod tests {
                 }
                 TestHint::LowLevel => {
                     providers.low_level_attempts.fetch_add(1, Ordering::SeqCst);
+                    if providers.terminal_failure == Some(TestHint::LowLevel) {
+                        return Err(anyhow::Error::new(NonRetryableHintError(anyhow::anyhow!(
+                            "invalid preimage"
+                        )))
+                        .context("fetch low-level hint"));
+                    }
                     if providers.low_level_stores_target {
                         kv.write().await.set(providers.target, providers.value.clone())?;
                     }
@@ -298,6 +322,7 @@ mod tests {
             high_level_attempts: high_level_attempts.clone(),
             low_level_stores_target: false,
             low_level_attempts: Arc::new(AtomicUsize::new(0)),
+            terminal_failure: None,
         });
         backend.route_hint("high 00".to_string()).await.unwrap();
 
@@ -331,6 +356,7 @@ mod tests {
             high_level_attempts: high_level_attempts.clone(),
             low_level_stores_target: true,
             low_level_attempts: low_level_attempts.clone(),
+            terminal_failure: None,
         });
         backend.route_hint("high 00".to_string()).await.unwrap();
         backend.route_hint("low 00".to_string()).await.unwrap();
@@ -361,6 +387,7 @@ mod tests {
             high_level_attempts: high_level_attempts.clone(),
             low_level_stores_target: true,
             low_level_attempts: low_level_attempts.clone(),
+            terminal_failure: None,
         });
         backend.route_hint("high 00".to_string()).await.unwrap();
         backend.route_hint("low 00".to_string()).await.unwrap();
@@ -393,6 +420,7 @@ mod tests {
             high_level_attempts: high_level_attempts.clone(),
             low_level_stores_target: true,
             low_level_attempts: low_level_attempts.clone(),
+            terminal_failure: None,
         });
         backend.route_hint("high 00".to_string()).await.unwrap();
         backend.route_hint("low 00".to_string()).await.unwrap();
@@ -422,6 +450,7 @@ mod tests {
             high_level_attempts: Arc::new(AtomicUsize::new(0)),
             low_level_stores_target: false,
             low_level_attempts: Arc::new(AtomicUsize::new(0)),
+            terminal_failure: None,
         });
 
         backend.route_hint("high 00".to_string()).await.unwrap();
@@ -435,5 +464,40 @@ mod tests {
             backend.last_hint.read().await.as_ref().map(|h| h.ty.clone()),
             Some(TestHint::LowLevel)
         );
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn non_retryable_hint_stops_after_one_attempt() {
+        for hint in [TestHint::HighLevel, TestHint::LowLevel] {
+            let (key, target) = target_key();
+            let high_level_attempts = Arc::new(AtomicUsize::new(0));
+            let low_level_attempts = Arc::new(AtomicUsize::new(0));
+            let backend = new_backend(TestProviders {
+                target,
+                value: Vec::new(),
+                high_level_fail_until: 0,
+                high_level_stores_target: false,
+                high_level_attempts: high_level_attempts.clone(),
+                low_level_stores_target: false,
+                low_level_attempts: low_level_attempts.clone(),
+                terminal_failure: Some(hint.clone()),
+            });
+            let hint_text = match hint {
+                TestHint::HighLevel => "high 00",
+                TestHint::LowLevel => "low 00",
+            };
+            backend.route_hint(hint_text.to_string()).await.unwrap();
+
+            let result =
+                tokio::time::timeout(Duration::from_millis(350), backend.get_preimage(key))
+                    .await
+                    .expect("a non-retryable hint must end the preimage request");
+            assert!(result.is_err());
+            assert_eq!(
+                high_level_attempts.load(Ordering::SeqCst) +
+                    low_level_attempts.load(Ordering::SeqCst),
+                1
+            );
+        }
     }
 }
