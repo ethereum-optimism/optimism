@@ -56,6 +56,8 @@ serde.workspace = true
 [dev-dependencies]
 alloy-rpc-types-eth.workspace = true
 metrics-exporter-prometheus.workspace = true
+metrics-util.workspace = true
 reth-node-metrics.workspace = true
 reth-optimism-chainspec = { workspace = true, features = ["superchain-configs"] }
 reth-revm = { workspace = true, features = ["test-utils"] }
+rstest.workspace = true
