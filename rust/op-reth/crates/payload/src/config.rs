@@ -1,10 +1,12 @@
 //! Additional configuration for the OP builder
 
+use crate::sdm_metrics;
 use reth_optimism_txpool::interop::InteropFailsafe;
 use std::sync::{
     Arc,
     atomic::{AtomicBool, AtomicU64, Ordering},
 };
+use tracing::info;
 
 /// Settings for the OP builder.
 #[derive(Debug, Clone, Default)]
@@ -63,9 +65,14 @@ impl OperatorSdmOptIn {
         self.inner.load(Ordering::Acquire)
     }
 
-    /// Sets the opt-in state.
+    /// Sets the opt-in state, and reports it.
+    ///
+    /// Reports on every store rather than at the call sites, so the exported value cannot drift
+    /// from the flag.
     pub fn set(&self, enabled: bool) {
         self.inner.store(enabled, Ordering::Release);
+        sdm_metrics::record_operator_opt_in(enabled);
+        info!(target: "payload_builder", operator_sdm_opt_in = enabled, "SDM operator opt-in set");
     }
 }
 
