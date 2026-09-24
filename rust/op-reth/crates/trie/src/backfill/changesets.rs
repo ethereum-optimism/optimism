@@ -21,7 +21,7 @@ use reth_trie::{
     trie_cursor::TrieCursorFactory,
 };
 use reth_trie_common::{HashedPostStateSorted, updates::TrieUpdatesSorted};
-use reth_trie_db::from_reverts_auto;
+use reth_trie_db::DatabaseHashedPostState;
 
 /// Compute the backfill diff for `block_number`:
 /// - `HashedPostStateSorted` — per-block leaf revert (state before block N ran), reused as
@@ -51,7 +51,8 @@ where
 {
     // Per-block leaf revert: doubles as `post_state` for `prepend_block` and
     // as the state overlay for the trie@N-1 reconstruction below.
-    let individual_state_revert = from_reverts_auto(reth_provider, block_number..=block_number)?;
+    let individual_state_revert =
+        HashedPostStateSorted::from_reverts(reth_provider, block_number..=block_number)?;
 
     // Reth prunes the per-block changesets together with the body. An empty revert means either:
     // (a) the block genuinely changed nothing — header[N].state_root == header[N-1].state_root, or

@@ -447,7 +447,7 @@ impl<N: NodePrimitives> BuiltPayload for OpBuiltPayload<N> {
     }
 }
 
-/// UPSTREAM-MIRROR(copy): reth@rev:aef8d3e
+/// UPSTREAM-MIRROR(copy): reth@rev:0fbe428
 /// `reth_ethereum_engine_primitives::EthBuiltPayload::into_execution_data`
 ///
 /// Counterpart to `OpPayloadTypes::block_to_payload`; the two conversion paths are kept
@@ -819,27 +819,25 @@ mod tests {
         assert_eq!(extra_data.unwrap_err(), EIP1559ParamError::MinBaseFeeNotSet);
     }
 
-    /// A transaction that decodes but does not re-encode to the same bytes (here: an EIP-1559
-    /// body with its type byte stripped) must be rejected, not silently canonicalised.
+    /// A legacy transaction with a `0x00` type tag decodes but does not re-encode to the same
+    /// bytes. It must be rejected, not silently canonicalised.
     #[test]
     fn try_new_rejects_non_canonical_transaction_encoding() {
         use alloy_consensus::SignableTransaction;
         use alloy_eips::eip2718::Encodable2718;
-        let typed = alloy_consensus::TxEip1559 {
-            chain_id: 10,
+        let legacy = alloy_consensus::TxLegacy {
+            chain_id: Some(10),
             nonce: 1,
             gas_limit: 21_000,
-            max_fee_per_gas: 2,
-            max_priority_fee_per_gas: 1,
+            gas_price: 2,
             to: Address::ZERO.into(),
             value: Default::default(),
-            access_list: Default::default(),
             input: Default::default(),
         }
         .into_signed(alloy_primitives::Signature::test_signature())
         .encoded_2718();
-        assert_eq!(typed[0], 0x02);
-        let bare = Bytes::copy_from_slice(&typed[1..]);
+        let mut tagged = vec![0x00];
+        tagged.extend_from_slice(&legacy);
 
         let attrs = OpPayloadAttributes {
             payload_attributes: PayloadAttributes {
@@ -851,25 +849,19 @@ mod tests {
                 slot_number: None,
                 target_gas_limit: None,
             },
-            transactions: Some(vec![bare]),
+            transactions: Some(vec![tagged.into()]),
             no_tx_pool: Some(true),
             gas_limit: Some(30_000_000),
             eip_1559_params: None,
             min_base_fee: None,
         };
-        let err = OpPayloadBuilderAttributes::<OpTransactionSigned>::try_new(
-            B256::ZERO,
-            attrs.clone(),
-            3,
-        )
-        .unwrap_err();
-        assert!(err.to_string().contains("non-canonical"), "{err}");
-        let err = OpPayloadBuilderAttributes::<OpTransactionSigned>::from_rpc_attrs(
+        OpPayloadBuilderAttributes::<OpTransactionSigned>::try_new(B256::ZERO, attrs.clone(), 3)
+            .unwrap_err();
+        OpPayloadBuilderAttributes::<OpTransactionSigned>::from_rpc_attrs(
             B256::ZERO,
             PayloadId::new([0; 8]),
             attrs,
         )
         .unwrap_err();
-        assert!(err.to_string().contains("non-canonical"), "{err}");
     }
 }

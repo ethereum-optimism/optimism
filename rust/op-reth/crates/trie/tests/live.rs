@@ -183,7 +183,7 @@ where
     let execution_result = block_executor.execute(block)?;
 
     let hashed_state =
-        LatestStateProviderRef::new(&provider).hashed_post_state(&execution_result.state);
+        LatestStateProviderRef::new(&provider).hashed_post_state(&execution_result.state)?;
     let state_root = LatestStateProviderRef::new(&provider).state_root(hashed_state)?;
 
     block.set_state_root(state_root);
@@ -214,7 +214,7 @@ where
     let hashed_state = HashedPostStateProvider::hashed_post_state(
         &LatestStateProviderRef::new(&state_provider),
         &execution_output.state,
-    );
+    )?;
 
     let provider_rw = provider_factory.provider_rw()?;
     provider_rw.append_blocks_with_state(

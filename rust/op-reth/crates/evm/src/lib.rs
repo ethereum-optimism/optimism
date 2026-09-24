@@ -225,7 +225,7 @@ where
     }
 }
 
-/// UPSTREAM-MIRROR(copy): reth@rev:aef8d3e `reth_evm_ethereum::EthEvmConfig`
+/// UPSTREAM-MIRROR(copy): reth@rev:0fbe428 `reth_evm_ethereum::EthEvmConfig`
 ///
 /// Mirrors upstream `ConfigureEvm` plumbing with OP environments and execution context.
 impl<ChainSpec, N, R, EvmF> ConfigureEvm for OpEvmConfig<ChainSpec, N, R, EvmF>
@@ -325,9 +325,12 @@ where
     }
 }
 
-/// UPSTREAM-MIRROR(copy): reth@rev:aef8d3e `reth_evm_ethereum::EthEvmConfig`
+/// UPSTREAM-MIRROR(copy): reth@rev:0fbe428 `reth_evm_ethereum::EthEvmConfig`
 ///
 /// Mirrors upstream payload-to-EVM configuration with OP payload and fork semantics.
+/// `tx_iterator_for_payload` recovers senders directly; upstream routes the same recovery through
+/// an optional `SenderRecoveryCache`, which only memoizes `try_recover` and so returns the same
+/// signer.
 #[cfg(feature = "std")]
 impl<ChainSpec, N, R> ConfigureEngineEvm<OpExecutionData> for OpEvmConfig<ChainSpec, N, R>
 where

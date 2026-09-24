@@ -13,6 +13,14 @@ use alloy_eips::eip2718::{Eip2718Error, Eip2718Result, IsTyped2718};
 use alloy_primitives::{Bloom, Log};
 use alloy_rlp::{Buf, BufMut, Decodable, Encodable, Header};
 
+/// UPSTREAM-MIRROR(copy): alloy-consensus@2.4.2 `alloy_consensus::ReceiptEnvelope`
+///
+/// Mirrors the envelope's per-transaction-type payload split, holding a bare [`Receipt`] rather
+/// than a [`ReceiptWithBloom`] — upstream has no unbloomed counterpart — and adding the OP
+/// `PostExec` and `Deposit` variants. Re-diff the variant list and the EIP-2718/RLP dispatch
+/// against the envelope; the bloom is threaded through the `*_with_bloom` helpers instead. JSON
+/// deliberately stays strict about a missing `type` field, as on [`OpReceiptEnvelope`].
+///
 /// Typed Optimism transaction receipt.
 ///
 /// Receipt containing result of transaction execution.

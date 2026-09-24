@@ -156,7 +156,7 @@ where
     let execution_result = block_executor.execute(block).unwrap();
 
     let hashed_state =
-        LatestStateProviderRef::new(&provider).hashed_post_state(&execution_result.state);
+        LatestStateProviderRef::new(&provider).hashed_post_state(&execution_result.state).unwrap();
     let state_root = LatestStateProviderRef::new(&provider).state_root(hashed_state).unwrap();
     block.set_state_root(state_root);
     execution_result
@@ -181,7 +181,8 @@ pub(crate) fn commit_block_to_database<N>(
     let hashed_state = HashedPostStateProvider::hashed_post_state(
         &LatestStateProviderRef::new(&state_provider),
         &execution_output.state,
-    );
+    )
+    .unwrap();
     let provider_rw = provider_factory.provider_rw().unwrap();
     provider_rw
         .append_blocks_with_state(
@@ -328,4 +329,243 @@ pub(crate) fn build_chain_with_storage_writes_and_initialize_storage(
     }
 
     (provider_factory, storage, last_number, last_hash)
+}
+
+/// Fixtures for `HashedPostStateProvider` tests over the proofs storage: persisted storage
+/// seeding, bundles with destroyed accounts, and a provider whose storage reads fail.
+pub(crate) mod destroyed_accounts {
+    use crate::{
+        OpProofsStorageError, OpProofsStorageResult,
+        api::{
+            BlockStateDiff, OpProofsInitProvider, OpProofsProviderRO, OpProofsStore,
+            ProofWindowRange,
+        },
+        in_memory::{
+            InMemoryAccountCursor, InMemoryProofsProvider, InMemoryProofsStorage,
+            InMemoryTrieCursor,
+        },
+    };
+    use alloy_eips::{BlockNumHash, NumHash};
+    use alloy_primitives::{Address, B256, U256, keccak256};
+    use reth_db::DatabaseError;
+    use reth_provider::{ProviderError, ProviderResult};
+    use reth_revm::{
+        db::{AccountStatus, BundleAccount, BundleState, states::StorageSlot},
+        state::AccountInfo,
+    };
+    use reth_trie::{
+        HashedPostState, HashedStorage,
+        hashed_cursor::{HashedCursor, HashedStorageCursor},
+    };
+
+    /// Hashed storage key of the plain slot `slot`.
+    pub(crate) fn hashed_slot(slot: u64) -> B256 {
+        keccak256(B256::from(U256::from(slot)))
+    }
+
+    /// Non-wiped [`HashedStorage`] holding the plain `(slot, value)` pairs.
+    pub(crate) fn hashed_storage(slots: &[(u64, u64)]) -> HashedStorage {
+        HashedStorage::from_iter(
+            slots.iter().map(|&(slot, value)| (hashed_slot(slot), U256::from(value))),
+        )
+    }
+
+    /// Commits `storages` as the initial state of `store`, anchored at block 0.
+    pub(crate) fn seed_initial_storage<S: OpProofsStore>(
+        store: &S,
+        storages: &[(Address, &[(u64, u64)])],
+    ) {
+        let provider = store.initialization_provider().unwrap();
+        for (address, slots) in storages {
+            // The MDBX init writer appends, so slots must arrive in key order.
+            let mut slots: Vec<_> = hashed_storage(slots).storage.into_iter().collect();
+            slots.sort_unstable();
+            provider.store_hashed_storages(keccak256(address), slots).unwrap();
+        }
+        provider.set_initial_state_anchor(BlockNumHash::new(0, B256::ZERO)).unwrap();
+        provider.commit_initial_state().unwrap();
+        OpProofsInitProvider::commit(provider).unwrap();
+    }
+
+    /// Block diff writing the plain `(slot, value)` storage of each address.
+    pub(crate) fn storage_diff(storages: &[(Address, &[(u64, u64)])]) -> BlockStateDiff {
+        let mut post_state = HashedPostState::default();
+        for (address, slots) in storages {
+            post_state.storages.insert(keccak256(address), hashed_storage(slots));
+        }
+        BlockStateDiff { sorted_post_state: post_state.into_sorted(), ..Default::default() }
+    }
+
+    /// Bundle holding `accounts`.
+    pub(crate) fn bundle(
+        accounts: impl IntoIterator<Item = (Address, BundleAccount)>,
+    ) -> BundleState {
+        let mut bundle = BundleState::default();
+        bundle.state.extend(accounts);
+        bundle
+    }
+
+    /// Pre-existing account that self-destructed.
+    pub(crate) fn destroyed() -> BundleAccount {
+        BundleAccount::new(
+            Some(AccountInfo::default()),
+            None,
+            Default::default(),
+            AccountStatus::Destroyed,
+        )
+    }
+
+    /// Pre-existing account that self-destructed and was recreated with the plain
+    /// `(slot, value)` storage.
+    pub(crate) fn destroyed_and_recreated(storage: &[(u64, u64)]) -> BundleAccount {
+        let storage = storage
+            .iter()
+            .map(|&(slot, value)| {
+                (U256::from(slot), StorageSlot::new_changed(U256::ZERO, U256::from(value)))
+            })
+            .collect();
+        BundleAccount::new(
+            Some(AccountInfo::default()),
+            Some(AccountInfo::default()),
+            storage,
+            AccountStatus::DestroyedChanged,
+        )
+    }
+
+    /// Account created and self-destructed within the bundle.
+    pub(crate) fn created_and_destroyed() -> BundleAccount {
+        BundleAccount::new(None, None, Default::default(), AccountStatus::Destroyed)
+    }
+
+    /// Storage key carried by [`injected_error`].
+    const INJECTED_KEY: B256 = B256::repeat_byte(0xEE);
+
+    /// Error with which [`FailingStorageProvider`] fails hashed storage reads.
+    pub(crate) const fn injected_error() -> OpProofsStorageError {
+        OpProofsStorageError::MissingHashedStorageHistory {
+            hashed_address: B256::ZERO,
+            hashed_storage_key: INJECTED_KEY,
+            block_number: 0,
+        }
+    }
+
+    /// Asserts that `result` failed with [`injected_error`].
+    pub(crate) fn assert_injected_error(result: ProviderResult<HashedPostState>) {
+        let err = result.expect_err("storage read failure must surface");
+        let ProviderError::Database(err) = err else { panic!("unexpected error: {err:?}") };
+        assert!(
+            matches!(
+                OpProofsStorageError::from(err.clone()),
+                OpProofsStorageError::MissingHashedStorageHistory { hashed_storage_key, .. }
+                    if hashed_storage_key == INJECTED_KEY
+            ),
+            "unexpected error: {err:?}"
+        );
+    }
+
+    /// Stage at which [`FailingStorageProvider`] fails a hashed storage read.
+    #[derive(Debug, Clone, Copy)]
+    pub(crate) enum StorageFailure {
+        /// Opening the storage cursor fails.
+        Open,
+        /// Seeking the opened storage cursor fails.
+        Seek,
+    }
+
+    /// [`OpProofsProviderRO`] delegating to an [`InMemoryProofsProvider`], except that every
+    /// hashed storage read fails with [`injected_error`].
+    #[derive(Debug, Clone)]
+    pub(crate) struct FailingStorageProvider {
+        inner: InMemoryProofsProvider,
+        failure: StorageFailure,
+    }
+
+    impl FailingStorageProvider {
+        /// Creates a provider over an empty in-memory store that fails at `failure`.
+        pub(crate) fn new(failure: StorageFailure) -> Self {
+            Self { inner: InMemoryProofsStorage::new().provider_ro().unwrap(), failure }
+        }
+    }
+
+    /// Hashed storage cursor whose reads fail with [`injected_error`].
+    #[derive(Debug)]
+    pub(crate) struct FailingStorageCursor;
+
+    impl HashedCursor for FailingStorageCursor {
+        type Value = U256;
+
+        fn seek(&mut self, _key: B256) -> Result<Option<(B256, U256)>, DatabaseError> {
+            Err(injected_error().into())
+        }
+
+        fn next(&mut self) -> Result<Option<(B256, U256)>, DatabaseError> {
+            Err(injected_error().into())
+        }
+
+        fn reset(&mut self) {}
+    }
+
+    impl HashedStorageCursor for FailingStorageCursor {
+        fn is_storage_empty(&mut self) -> Result<bool, DatabaseError> {
+            Err(injected_error().into())
+        }
+
+        fn set_hashed_address(&mut self, _hashed_address: B256) {}
+    }
+
+    impl OpProofsProviderRO for FailingStorageProvider {
+        type StorageTrieCursor<'tx> = InMemoryTrieCursor;
+        type AccountTrieCursor<'tx> = InMemoryTrieCursor;
+        type StorageCursor<'tx> = FailingStorageCursor;
+        type AccountHashedCursor<'tx> = InMemoryAccountCursor;
+
+        fn get_earliest_block(&self) -> OpProofsStorageResult<NumHash> {
+            self.inner.get_earliest_block()
+        }
+
+        fn get_latest_block(&self) -> OpProofsStorageResult<NumHash> {
+            self.inner.get_latest_block()
+        }
+
+        fn get_proof_window(&self) -> OpProofsStorageResult<ProofWindowRange> {
+            self.inner.get_proof_window()
+        }
+
+        fn storage_trie_cursor<'tx>(
+            &self,
+            hashed_address: B256,
+            max_block_number: u64,
+        ) -> OpProofsStorageResult<Self::StorageTrieCursor<'tx>> {
+            self.inner.storage_trie_cursor(hashed_address, max_block_number)
+        }
+
+        fn account_trie_cursor<'tx>(
+            &self,
+            max_block_number: u64,
+        ) -> OpProofsStorageResult<Self::AccountTrieCursor<'tx>> {
+            self.inner.account_trie_cursor(max_block_number)
+        }
+
+        fn storage_hashed_cursor<'tx>(
+            &self,
+            _hashed_address: B256,
+            _max_block_number: u64,
+        ) -> OpProofsStorageResult<Self::StorageCursor<'tx>> {
+            match self.failure {
+                StorageFailure::Open => Err(injected_error()),
+                StorageFailure::Seek => Ok(FailingStorageCursor),
+            }
+        }
+
+        fn account_hashed_cursor<'tx>(
+            &self,
+            max_block_number: u64,
+        ) -> OpProofsStorageResult<Self::AccountHashedCursor<'tx>> {
+            self.inner.account_hashed_cursor(max_block_number)
+        }
+
+        fn fetch_trie_updates(&self, block_number: u64) -> OpProofsStorageResult<BlockStateDiff> {
+            self.inner.fetch_trie_updates(block_number)
+        }
+    }
 }
