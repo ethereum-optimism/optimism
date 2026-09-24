@@ -122,9 +122,9 @@ pub enum ProposerGauge {
         message = "Total number of times a game's super-root data was unavailable (sync or proving)"
     )]
     SuperRootUnavailable,
-    /// Total number of per-game sync failures. A discovery (fetch) failure
-    /// aborts the sync cycle; status-read failures are contained to the
-    /// affected game.
+    /// Total number of per-game sync failures. A discovery failure aborts the
+    /// sync cycle; lifecycle and settlement-ancestor failures are contained
+    /// to the affected game.
     #[strum(
         serialize = "kona_sp1_proposer_game_sync_error",
         message = "Total number of per-game sync failures"

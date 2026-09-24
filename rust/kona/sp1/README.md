@@ -200,6 +200,32 @@ but the restart scan does not fast-finalize them.
 under `KONA_SP1_PROPOSER_PRESTATES_URL` for as long as games created under them can be live, or the
 proposer loses the ability to defend, resolve, and claim those games.
 
+### Settlement scope
+
+Normal bond recovery covers prestate-owned games in `state.games`, including
+resolved entries. Tracked games also extend settlement to their parents when
+those parents fall outside the 14-day observation window.
+
+Settlement follows missing unresolved ancestors and includes the first resolved
+ancestor for its own credit recovery, then stops. Discovered ancestors remain
+in memory until their two-phase bond claim finishes or neither open distribution
+mode can pay proposer credit. Completion is checked at a finalized L1 block;
+until then, a confirmed payout remains eligible for recovery after a reorg.
+Completed ancestors leave the retained set and may be rediscovered while a tracked
+game still references them.
+A resolved game no longer depends on its parent;
+following that parent to search for bonds could walk the entire game history on
+a linear chain. Outstanding credit does not extend this traversal boundary.
+
+After a restart, recovery is rebuilt only from games still in the tracked set;
+there is no factory-wide search for historical outstanding bonds. Settlement
+may resolve a challenged ancestor after its proof deadline, when the contract no
+longer accepts a proof. Defense selection and proving policy are unchanged.
+
+Claim preflight selects the latest L1 block once per sweep, then reads the
+distribution, registry, credit, and withdrawal state at that block in one RPC
+batch. A failed required read defers the claim until a later cycle.
+
 ### Proof providers
 
 - `KONA_SP1_PROPOSER_PROOF_PROVIDER=network`: real SP1 proving via the Succinct Prover Network.
@@ -322,7 +348,7 @@ Required core configuration:
 
 | Variable | Purpose |
 |---|---|
-| `KONA_SP1_PROPOSER_L1_RPC` | L1 execution RPC; must support standard JSON-RPC batch requests (current proposer game-state batches contain at most 4 `eth_call` entries) |
+| `KONA_SP1_PROPOSER_L1_RPC` | L1 execution RPC; must support standard JSON-RPC batch requests (current proposer game-state batches contain at most 4 `eth_call` entries) and the `finalized` block tag for ancestor completion |
 | `KONA_SP1_PROPOSER_SUPERROOT_RPCS` | op-supernode or single-chain op-node RPCs serving `superroot_atTimestamp`. Multiple comma-separated RPCs can be provided for redundancy |
 | `KONA_SP1_PROPOSER_NETWORK` | Predefined network name recognized by OP Stack services, such as `op-mainnet`; alternative to `KONA_SP1_PROPOSER_FACTORY_ADDRESS` |
 | `KONA_SP1_PROPOSER_FACTORY_ADDRESS` | Explicit `DisputeGameFactory` address; required when no network is selected and overrides network lookup |

@@ -15,7 +15,7 @@ use alloy_rpc_client::{BatchRequest, Waiter};
 use alloy_rpc_types_eth::{TransactionReceipt, TransactionRequest};
 use alloy_sol_types::SolEvent;
 use alloy_transport_http::reqwest::Url;
-use anyhow::{Context, Result, bail};
+use anyhow::{Context, Result, anyhow, bail};
 use async_trait::async_trait;
 use kona_sp1_super_range_executor::{HostInputs, SuperRootAtTimestampResponse};
 
@@ -91,6 +91,16 @@ where
     Ok(QueuedCall { builder, waiter })
 }
 
+fn unavailable_claim_preflight(error: impl std::fmt::Display) -> ClaimPreflight {
+    let message = error.to_string();
+    ClaimPreflight {
+        paused: false,
+        has_potential_credit: false,
+        credit: Err(anyhow!(message.clone())),
+        withdrawal: Err(anyhow!(message)),
+    }
+}
+
 impl<P> ProductionL1View<P> {
     pub(crate) const fn new(
         provider: P,
@@ -112,6 +122,16 @@ where
 
     async fn latest_head(&self) -> Result<Option<L1BlockRef>> {
         Ok(self.provider.get_block_by_number(BlockNumberOrTag::Latest).await?.map(|block| {
+            L1BlockRef {
+                hash: block.header.hash,
+                number: block.header.number,
+                timestamp: block.header.timestamp,
+            }
+        }))
+    }
+
+    async fn finalized_head(&self) -> Result<Option<L1BlockRef>> {
+        Ok(self.provider.get_block_by_number(BlockNumberOrTag::Finalized).await?.map(|block| {
             L1BlockRef {
                 hash: block.header.hash,
                 number: block.header.number,
@@ -273,34 +293,49 @@ where
         &self,
         game: Address,
         weth: Address,
+        registry: Address,
         proposer: Address,
         block: BlockId,
     ) -> Result<BondState> {
         let game_contract = ZKDisputeGame::new(game, self.provider.clone());
         let weth_contract = DelayedWETH::new(weth, self.provider.clone());
+        let registry_contract = AnchorStateRegistry::new(registry, self.provider.clone());
         let distribution_mode_call = game_contract.bondDistributionMode();
         let credit_call = game_contract.credit(proposer);
         let refund_mode_credit_call = game_contract.refundModeCredit(proposer);
         let withdrawal_call = weth_contract.withdrawals(game, proposer);
         let delay_call = weth_contract.delay();
-
         let mut batch = BatchRequest::new(self.provider.client());
         let distribution_mode = add_eth_call(&mut batch, distribution_mode_call, block)?;
         let credit = add_eth_call(&mut batch, credit_call, block)?;
-        let refund_mode_credit = add_eth_call(&mut batch, refund_mode_credit_call, block)?;
         let withdrawal = add_eth_call(&mut batch, withdrawal_call, block)?;
         let delay = add_eth_call(&mut batch, delay_call, block)?;
+        let registry_paused = add_eth_call(&mut batch, registry_contract.paused(), block)?;
+        let proper = add_eth_call(&mut batch, registry_contract.isGameProper(game), block)?;
+        let refund_mode_credit = add_eth_call(&mut batch, refund_mode_credit_call, block)?;
 
         batch.send().await.context("failed to send batch request")?;
 
-        let distribution_mode = distribution_mode.decode().await?;
-        let credit = credit.decode().await?;
+        let distribution_mode = BondDistributionMode::try_from(distribution_mode.decode().await?)?;
+        let current_credit = credit.decode().await?;
         let refund_mode_credit = refund_mode_credit.decode().await?;
         let withdrawal = withdrawal.decode().await?;
         let delay = delay.decode().await?;
-
+        let (credit, paused, has_potential_credit) = if distribution_mode !=
+            BondDistributionMode::Undecided
+        {
+            (current_credit, false, current_credit > U256::ZERO)
+        } else if registry_paused.decode().await? {
+            (U256::ZERO, true, true)
+        } else if proper.decode().await? {
+            (current_credit, false, current_credit > U256::ZERO || refund_mode_credit > U256::ZERO)
+        } else {
+            (refund_mode_credit, false, refund_mode_credit > U256::ZERO)
+        };
         Ok(BondState {
-            bond_distribution_mode: BondDistributionMode::try_from(distribution_mode)?,
+            bond_distribution_mode: distribution_mode,
+            paused,
+            has_potential_credit,
             credit,
             refund_mode_credit,
             withdrawal_amount: withdrawal.amount,
@@ -321,33 +356,60 @@ where
         &self,
         game: Address,
         weth: Address,
+        registry: Address,
         proposer: Address,
+        block: BlockId,
     ) -> ClaimPreflight {
         let game_contract = ZKDisputeGame::new(game, self.provider.clone());
-        let distribution_mode = game_contract.bondDistributionMode();
-        let credit = game_contract.credit(proposer);
-        let refund_mode_credit = game_contract.refundModeCredit(proposer);
+        let registry_contract = AnchorStateRegistry::new(registry, self.provider.clone());
         let weth_contract = DelayedWETH::new(weth, self.provider.clone());
-        let withdrawal = weth_contract.withdrawals(game, proposer);
-        let (distribution_mode, credit, refund_mode_credit, withdrawal) = tokio::join!(
-            distribution_mode.call(),
-            credit.call(),
-            refund_mode_credit.call(),
-            withdrawal.call(),
-        );
-        ClaimPreflight {
-            bond_distribution_mode: distribution_mode
-                .map_err(Into::into)
-                .and_then(BondDistributionMode::try_from),
-            credit: credit.map_err(Into::into),
-            refund_mode_credit: refund_mode_credit.map_err(Into::into),
-            withdrawal: withdrawal
-                .map(|withdrawal| WithdrawalState {
-                    amount: withdrawal.amount,
-                    timestamp: withdrawal.timestamp,
-                })
-                .map_err(Into::into),
+        let mut batch = BatchRequest::new(self.provider.client());
+        let calls = (|| {
+            Ok::<_, anyhow::Error>((
+                add_eth_call(&mut batch, game_contract.bondDistributionMode(), block)?,
+                add_eth_call(&mut batch, game_contract.credit(proposer), block)?,
+                add_eth_call(&mut batch, registry_contract.paused(), block)?,
+                add_eth_call(&mut batch, registry_contract.isGameProper(game), block)?,
+                add_eth_call(&mut batch, game_contract.refundModeCredit(proposer), block)?,
+                add_eth_call(&mut batch, weth_contract.withdrawals(game, proposer), block)?,
+            ))
+        })();
+        let (mode, current_credit, registry_paused, proper, refund_credit, withdrawal) = match calls
+        {
+            Ok(calls) => calls,
+            Err(error) => return unavailable_claim_preflight(error),
+        };
+        if let Err(error) = batch.send().await {
+            return unavailable_claim_preflight(error);
         }
+
+        let credit_state = async {
+            let mode = BondDistributionMode::try_from(mode.decode().await?)?;
+            if mode != BondDistributionMode::Undecided {
+                let credit = current_credit.decode().await?;
+                return Ok::<_, anyhow::Error>((credit, false, credit > U256::ZERO));
+            }
+            if registry_paused.decode().await? {
+                return Ok((U256::ZERO, true, true));
+            }
+            if proper.decode().await? {
+                let credit = current_credit.decode().await?;
+                let potential = credit > U256::ZERO || refund_credit.decode().await? > U256::ZERO;
+                Ok((credit, false, potential))
+            } else {
+                let credit = refund_credit.decode().await?;
+                Ok((credit, false, credit > U256::ZERO))
+            }
+        }
+        .await;
+        let paused = credit_state.as_ref().is_ok_and(|(_, paused, _)| *paused);
+        let has_potential_credit = credit_state.as_ref().is_ok_and(|(_, _, potential)| *potential);
+        let credit = credit_state.map(|(credit, _, _)| credit);
+        let withdrawal = withdrawal.decode().await.map(|withdrawal| WithdrawalState {
+            amount: withdrawal.amount,
+            timestamp: withdrawal.timestamp,
+        });
+        ClaimPreflight { paused, has_potential_credit, credit, withdrawal }
     }
 
     async fn weth_delay(&self, weth: Address) -> Result<U256> {
@@ -863,20 +925,168 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn claim_preflight_does_not_claim_a_hypothetical_refund() {
+        let asserter = Asserter::new();
+        push_abi(&asserter, U256::ZERO); // UNDECIDED
+        push_abi(&asserter, U256::ZERO); // current normal credit
+        push_abi(&asserter, false); // not paused
+        push_abi(&asserter, true); // proper: only normal credit is payable
+        push_abi(&asserter, U256::from(7)); // hypothetical refund must not be claimed
+        push_abi(&asserter, (U256::ZERO, U256::ZERO));
+        let result = view(asserter.clone())
+            .claim_preflight(
+                Address::ZERO,
+                Address::ZERO,
+                Address::ZERO,
+                Address::ZERO,
+                BlockId::number(123),
+            )
+            .await;
+        assert_eq!(result.credit.unwrap(), U256::ZERO);
+        assert!(result.has_potential_credit);
+        assert_eq!(result.withdrawal.unwrap().amount, U256::ZERO);
+        assert!(asserter.read_q().is_empty());
+    }
+
+    #[tokio::test]
+    async fn settlement_credit_tracks_distribution_and_pause_state() {
+        for (mode, paused, proper, payable, other_credit) in [
+            (0, false, true, 0, 0),
+            (0, false, true, 0, 7),
+            (0, false, true, 7, 0),
+            (0, false, false, 7, 0),
+            (0, false, false, 0, 0),
+            (0, false, false, 0, 7),
+            (0, true, false, 0, 0),
+            (1, true, false, 0, 0),
+            (2, true, false, 7, 0),
+        ] {
+            for preflight in [false, true] {
+                let asserter = Asserter::new();
+                push_abi(&asserter, U256::from(mode));
+                let current_credit = if mode != 0 || proper { payable } else { other_credit };
+                let refund_credit = if proper { other_credit } else { payable };
+                push_abi(&asserter, U256::from(current_credit));
+                if preflight {
+                    push_abi(&asserter, paused);
+                    push_abi(&asserter, proper);
+                    push_abi(&asserter, U256::from(refund_credit));
+                    push_abi(&asserter, (U256::ZERO, U256::ZERO));
+                } else {
+                    push_abi(&asserter, (U256::ZERO, U256::ZERO));
+                    push_abi(&asserter, U256::from(10));
+                    push_abi(&asserter, paused);
+                    push_abi(&asserter, proper);
+                    push_abi(&asserter, U256::from(refund_credit));
+                }
+                let view = view(asserter.clone());
+                let credit = if preflight {
+                    let result = view
+                        .claim_preflight(
+                            Address::ZERO,
+                            Address::ZERO,
+                            Address::repeat_byte(3),
+                            Address::ZERO,
+                            BlockId::number(123),
+                        )
+                        .await;
+                    assert_eq!(result.paused, mode == 0 && paused);
+                    assert_eq!(
+                        result.has_potential_credit,
+                        payable > 0 || (mode == 0 && (paused || (proper && other_credit > 0))),
+                    );
+                    result.credit.unwrap()
+                } else {
+                    let bond = view
+                        .bond_state(
+                            Address::ZERO,
+                            Address::ZERO,
+                            Address::repeat_byte(3),
+                            Address::ZERO,
+                            BlockId::number(1),
+                        )
+                        .await
+                        .unwrap();
+                    assert_eq!(bond.paused, mode == 0 && paused);
+                    assert_eq!(
+                        bond.has_potential_credit,
+                        payable > 0 || (mode == 0 && (paused || (proper && other_credit > 0))),
+                    );
+                    bond.credit
+                };
+                assert_eq!(
+                    credit,
+                    U256::from(payable),
+                    "mode={mode}, paused={paused}, proper={proper}"
+                );
+                assert!(asserter.read_q().is_empty());
+            }
+        }
+    }
+
+    #[tokio::test]
+    async fn claim_preflight_preserves_withdrawals_after_distribution_closes() {
+        for mode in [1, 2] {
+            let asserter = Asserter::new();
+            push_abi(&asserter, U256::from(mode));
+            push_abi(&asserter, U256::ZERO);
+            push_abi(&asserter, false);
+            push_abi(&asserter, true);
+            push_abi(&asserter, U256::ZERO);
+            push_abi(&asserter, (U256::from(7), U256::from(100)));
+            let result = view(asserter)
+                .claim_preflight(
+                    Address::ZERO,
+                    Address::ZERO,
+                    Address::ZERO,
+                    Address::ZERO,
+                    BlockId::number(123),
+                )
+                .await;
+            assert_eq!(result.credit.unwrap(), U256::ZERO);
+            assert_eq!(result.withdrawal.unwrap().amount, U256::from(7));
+        }
+    }
+
+    #[tokio::test]
     async fn claim_preflight_preserves_independent_read_failures() {
         let asserter = Asserter::new();
         push_abi(&asserter, U256::from(BondDistributionMode::Normal as u8));
         asserter.push_failure_msg("credit unavailable");
+        push_abi(&asserter, false);
+        push_abi(&asserter, true);
         asserter.push_failure_msg("refund credit unavailable");
         push_abi(&asserter, (U256::from(2), U256::from(3)));
-
-        let result =
-            view(asserter).claim_preflight(Address::ZERO, Address::ZERO, Address::ZERO).await;
-
-        assert_eq!(result.bond_distribution_mode.unwrap(), BondDistributionMode::Normal);
+        let result = view(asserter)
+            .claim_preflight(
+                Address::ZERO,
+                Address::ZERO,
+                Address::ZERO,
+                Address::ZERO,
+                BlockId::number(123),
+            )
+            .await;
         assert!(result.credit.is_err());
-        assert!(result.refund_mode_credit.is_err());
         assert_eq!(result.withdrawal.unwrap().amount, U256::from(2));
+
+        let asserter = Asserter::new();
+        push_abi(&asserter, U256::from(1));
+        push_abi(&asserter, U256::from(1));
+        push_abi(&asserter, false);
+        push_abi(&asserter, true);
+        push_abi(&asserter, U256::ZERO);
+        asserter.push_failure_msg("withdrawal unavailable");
+        let result = view(asserter)
+            .claim_preflight(
+                Address::ZERO,
+                Address::ZERO,
+                Address::ZERO,
+                Address::ZERO,
+                BlockId::number(123),
+            )
+            .await;
+        assert_eq!(result.credit.unwrap(), U256::from(1));
+        assert!(result.withdrawal.is_err());
     }
 
     #[tokio::test]
@@ -971,16 +1181,24 @@ mod tests {
         push_abi(&asserter, U256::from(BondDistributionMode::Refund as u8));
         // credit: U256
         push_abi(&asserter, U256::from(11));
-        // refundModeCredit: U256
-        push_abi(&asserter, U256::from(55));
         // withdrawals: (U256 amount, U256 timestamp)
         push_abi(&asserter, (U256::from(22), U256::from(33)));
         // delay: U256
         push_abi(&asserter, U256::from(44));
+        // paused and proper are batched but ignored for a closed distribution.
+        push_abi(&asserter, false);
+        push_abi(&asserter, true);
+        push_abi(&asserter, U256::from(55));
 
         let view = view(asserter.clone());
         let bond = view
-            .bond_state(Address::ZERO, Address::ZERO, Address::ZERO, BlockId::latest())
+            .bond_state(
+                Address::ZERO,
+                Address::ZERO,
+                Address::ZERO,
+                Address::ZERO,
+                BlockId::latest(),
+            )
             .await
             .unwrap();
 
@@ -990,6 +1208,56 @@ mod tests {
         assert_eq!(bond.withdrawal_amount, U256::from(22));
         assert_eq!(bond.withdrawal_timestamp, U256::from(33));
         assert_eq!(bond.delay, U256::from(44));
+        assert!(asserter.read_q().is_empty());
+    }
+
+    #[tokio::test]
+    async fn bond_state_batches_open_mode_reads_before_decoding_output() {
+        let asserter = Asserter::new();
+        push_abi(&asserter, U256::ZERO);
+        asserter.push_success(&Bytes::new());
+        push_abi(&asserter, (U256::ZERO, U256::ZERO));
+        push_abi(&asserter, U256::ZERO);
+        push_abi(&asserter, false);
+        push_abi(&asserter, true);
+        push_abi(&asserter, U256::ZERO);
+
+        let result = view(asserter.clone())
+            .bond_state(
+                Address::ZERO,
+                Address::ZERO,
+                Address::ZERO,
+                Address::ZERO,
+                BlockId::latest(),
+            )
+            .await;
+
+        assert!(result.is_err());
+        assert!(asserter.read_q().is_empty());
+    }
+
+    #[tokio::test]
+    async fn claim_preflight_batches_reads_before_decoding_credit() {
+        let asserter = Asserter::new();
+        asserter.push_failure_msg("mode unavailable");
+        push_abi(&asserter, U256::ZERO);
+        push_abi(&asserter, false);
+        push_abi(&asserter, true);
+        push_abi(&asserter, U256::ZERO);
+        push_abi(&asserter, (U256::from(2), U256::from(3)));
+
+        let result = view(asserter.clone())
+            .claim_preflight(
+                Address::ZERO,
+                Address::ZERO,
+                Address::ZERO,
+                Address::ZERO,
+                BlockId::number(123),
+            )
+            .await;
+
+        assert!(result.credit.is_err());
+        assert_eq!(result.withdrawal.unwrap().amount, U256::from(2));
         assert!(asserter.read_q().is_empty());
     }
 

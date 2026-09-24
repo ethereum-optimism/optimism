@@ -76,6 +76,8 @@ pub(crate) struct GameLifecycle {
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) struct BondState {
     pub(crate) bond_distribution_mode: BondDistributionMode,
+    pub(crate) paused: bool,
+    pub(crate) has_potential_credit: bool,
     pub(crate) credit: U256,
     pub(crate) refund_mode_credit: U256,
     pub(crate) withdrawal_amount: U256,
@@ -104,9 +106,10 @@ pub(crate) struct WithdrawalState {
 /// Independently failing fields from the latest-state claim preflight.
 #[derive(Debug)]
 pub(crate) struct ClaimPreflight {
-    pub(crate) bond_distribution_mode: Result<BondDistributionMode>,
+    pub(crate) paused: bool,
+    /// Credit may become payable if an open distribution changes mode.
+    pub(crate) has_potential_credit: bool,
     pub(crate) credit: Result<U256>,
-    pub(crate) refund_mode_credit: Result<U256>,
     pub(crate) withdrawal: Result<WithdrawalState>,
 }
 
@@ -191,6 +194,7 @@ pub(crate) struct GameCreationReceipt {
 pub(crate) trait L1View: Send + Sync {
     async fn signer_balance(&self, address: Address) -> Result<U256>;
     async fn latest_head(&self) -> Result<Option<L1BlockRef>>;
+    async fn finalized_head(&self) -> Result<Option<L1BlockRef>>;
     async fn block_ref(&self, number: u64) -> Result<Option<L1BlockRef>>;
     async fn registered_game_args(&self, block: BlockId) -> Result<ZKGameArgs>;
     async fn anchor_root(&self, registry: Address, block: BlockId) -> Result<AnchorRoot>;
@@ -212,6 +216,7 @@ pub(crate) trait L1View: Send + Sync {
         &self,
         game: Address,
         weth: Address,
+        registry: Address,
         proposer: Address,
         block: BlockId,
     ) -> Result<BondState>;
@@ -221,7 +226,9 @@ pub(crate) trait L1View: Send + Sync {
         &self,
         game: Address,
         weth: Address,
+        registry: Address,
         proposer: Address,
+        block: BlockId,
     ) -> ClaimPreflight;
     async fn weth_delay(&self, weth: Address) -> Result<U256>;
     async fn game_by_uuid(&self, root_claim: B256, extra_data: Vec<u8>) -> Result<Address>;

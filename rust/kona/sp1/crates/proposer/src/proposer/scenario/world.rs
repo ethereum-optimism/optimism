@@ -70,9 +70,7 @@ pub(super) enum L1ReadBoundary {
     ParentGameStatus,
     BondState,
     GameStatus,
-    ClaimDistributionMode,
     ClaimCredit,
-    ClaimRefundCredit,
     ClaimWithdrawal,
     WethDelay,
     GameStanding,
@@ -192,6 +190,30 @@ impl From<ActionBarrierPoint> for BarrierPoint {
             ActionBarrierPoint::AfterInclusion => Self::AfterInclusion,
         }
     }
+}
+
+#[test]
+#[should_panic(expected = "closed game has no credit to claim")]
+fn closed_zero_credit_claim_is_rejected() {
+    let world = ScenarioWorld::new();
+    let mut game =
+        ScenarioGame::new(0, u32::MAX, 1, ScenarioWorld::default_prestate()).claimable(0);
+    game.bond.bond_distribution_mode = BondDistributionMode::Normal;
+    let address = game.address;
+    world.add_game(game);
+    world.lock().commit_transaction(PendingEffect::Claim(address), 0, true).unwrap();
+}
+
+#[test]
+fn zero_credit_close_is_not_reported_as_a_payout() {
+    let world = ScenarioWorld::new();
+    let mut game =
+        ScenarioGame::new(0, u32::MAX, 1, ScenarioWorld::default_prestate()).claimable(0);
+    game.bond.bond_distribution_mode = BondDistributionMode::Undecided;
+    let address = game.address;
+    world.add_game(game);
+    let effect = world.lock().commit_transaction(PendingEffect::Claim(address), 0, true).unwrap();
+    assert_eq!(effect, CommittedEffect::ClosedWithoutPayout { game: address });
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
@@ -360,6 +382,7 @@ pub(super) struct ScenarioGame {
     pub(super) registered_parent_standing: Option<GameStanding>,
     /// Bond state for the scenario proposer's address.
     pub(super) bond: BondState,
+    pub(super) registry_paused: bool,
     pub(super) proof_inputs: ProofInputs,
     resolved_at: Option<u64>,
     prover: Option<Address>,
@@ -392,12 +415,15 @@ impl ScenarioGame {
             registered_parent_standing: None,
             bond: BondState {
                 bond_distribution_mode: BondDistributionMode::Undecided,
+                paused: false,
+                has_potential_credit: false,
                 credit: U256::ZERO,
                 refund_mode_credit: U256::ZERO,
                 withdrawal_amount: U256::ZERO,
                 withdrawal_timestamp: U256::ZERO,
                 delay: U256::from(10),
             },
+            registry_paused: false,
             proof_inputs: ProofInputs {
                 l1_head: deterministic_hash(0x80, INITIAL_BLOCK),
                 l1_head_number: INITIAL_BLOCK,
@@ -432,6 +458,35 @@ impl ScenarioGame {
         self.bond.bond_distribution_mode = BondDistributionMode::Normal;
         self.bond.credit = U256::from(credit);
         self
+    }
+
+    fn settlement_bond(&self) -> BondState {
+        let mut bond = self.bond;
+        bond.paused =
+            bond.bond_distribution_mode == BondDistributionMode::Undecided && self.registry_paused;
+        bond.has_potential_credit =
+            if bond.bond_distribution_mode != BondDistributionMode::Undecided {
+                if bond.bond_distribution_mode == BondDistributionMode::Refund {
+                    bond.refund_mode_credit > U256::ZERO
+                } else {
+                    bond.credit > U256::ZERO
+                }
+            } else if bond.paused {
+                true
+            } else if self.standing.disallowed() {
+                bond.refund_mode_credit > U256::ZERO
+            } else {
+                bond.credit > U256::ZERO || bond.refund_mode_credit > U256::ZERO || bond.paused
+            };
+        if bond.bond_distribution_mode == BondDistributionMode::Undecided && self.registry_paused {
+            bond.credit = U256::ZERO;
+        } else if bond.bond_distribution_mode == BondDistributionMode::Refund ||
+            (bond.bond_distribution_mode == BondDistributionMode::Undecided &&
+                self.standing.disallowed())
+        {
+            bond.credit = bond.refund_mode_credit;
+        }
+        bond
     }
 
     fn bind_proof_inputs(&mut self, state: &L1State) {
@@ -513,6 +568,7 @@ pub(super) enum CommittedEffect {
     Resolved { game: Address },
     ClaimUnlocked { game: Address, amount: U256 },
     ClaimPaid { game: Address, amount: U256 },
+    ClosedWithoutPayout { game: Address },
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -1416,20 +1472,17 @@ impl WorldData {
                             .expect("resolved scenario parent game must exist")
                             .status
                     };
+                    let parent_lost = parent_status == GameStatus::ChallengerWins;
                     let game = state
                         .games
                         .values_mut()
                         .find(|game| game.address == address)
                         .expect("resolved scenario game must exist");
                     let proposal_status = game.proposal_status;
-                    game.bond.credit = if parent_status == GameStatus::ChallengerWins {
-                        U256::ZERO
-                    } else {
-                        game.proposer_credit_on_resolution()
-                    };
-                    game.status = if parent_status == GameStatus::ChallengerWins ||
-                        proposal_status == ProposalStatus::Challenged
-                    {
+                    let proposer_credit =
+                        if parent_lost { U256::ZERO } else { game.proposer_credit_on_resolution() };
+                    game.bond.credit = proposer_credit;
+                    game.status = if parent_lost || proposal_status == ProposalStatus::Challenged {
                         GameStatus::ChallengerWins
                     } else {
                         GameStatus::DefenderWins
@@ -1446,24 +1499,29 @@ impl WorldData {
                         .values_mut()
                         .find(|game| game.address == address)
                         .expect("claimed scenario game must exist");
-                    if game.bond.bond_distribution_mode == BondDistributionMode::Undecided {
+                    let just_closed =
+                        game.bond.bond_distribution_mode == BondDistributionMode::Undecided;
+                    if just_closed {
+                        assert!(!game.registry_paused, "cannot close a paused game");
                         game.bond.bond_distribution_mode = if game.standing.disallowed() {
                             BondDistributionMode::Refund
                         } else {
                             BondDistributionMode::Normal
                         };
                     }
-                    let credit = match game.bond.bond_distribution_mode {
-                        BondDistributionMode::Refund => game.bond.refund_mode_credit,
-                        BondDistributionMode::Normal => game.bond.credit,
-                        BondDistributionMode::Undecided => {
-                            unreachable!("claim selects a scenario bond distribution mode")
-                        }
-                    };
+                    let credit = game.settlement_bond().credit;
                     if credit == U256::ZERO {
                         let amount = game.bond.withdrawal_amount;
+                        assert!(
+                            amount > U256::ZERO || just_closed,
+                            "closed game has no credit to claim"
+                        );
                         game.bond.withdrawal_amount = U256::ZERO;
-                        CommittedEffect::ClaimPaid { game: address, amount }
+                        if amount == U256::ZERO {
+                            CommittedEffect::ClosedWithoutPayout { game: address }
+                        } else {
+                            CommittedEffect::ClaimPaid { game: address, amount }
+                        }
                     } else {
                         game.bond.refund_mode_credit = U256::ZERO;
                         game.bond.credit = U256::ZERO;
@@ -1558,6 +1616,12 @@ impl L1View for FakeL1View {
 
     async fn latest_head(&self) -> Result<Option<L1BlockRef>> {
         Ok(Some(self.0.lock().latest_state().block))
+    }
+
+    async fn finalized_head(&self) -> Result<Option<L1BlockRef>> {
+        let data = self.0.lock();
+        let number = data.latest_state().block.number.saturating_sub(NUM_CONFIRMATIONS + 1);
+        Ok(data.states.get(&number).map(|state| state.block))
     }
 
     async fn block_ref(&self, number: u64) -> Result<Option<L1BlockRef>> {
@@ -1669,6 +1733,7 @@ impl L1View for FakeL1View {
         &self,
         game: Address,
         weth: Address,
+        registry: Address,
         proposer: Address,
         block: BlockId,
     ) -> Result<BondState> {
@@ -1676,11 +1741,12 @@ impl L1View for FakeL1View {
             self.state_for_game(L1ReadBoundary::BondState, game, block)?;
         let game = state.game(game)?;
         ensure!(game.weth == weth, "bond state used WETH {weth}, expected {}", game.weth);
+        ensure!(game.anchor_state_registry == registry, "unexpected bond registry");
         ensure!(
             proposer == ScenarioWorld::proposer_address(),
             "bond state used unexpected proposer {proposer}"
         );
-        Ok(game.bond_state_view())
+        Ok(game.settlement_bond())
     }
 
     async fn init_bond(&self) -> Result<U256> {
@@ -1697,18 +1763,32 @@ impl L1View for FakeL1View {
         &self,
         game: Address,
         weth: Address,
+        registry: Address,
         proposer: Address,
+        block: BlockId,
     ) -> ClaimPreflight {
         let mut data = self.0.lock();
-        let state = data.latest_state();
+        let state = match data.state_at(block) {
+            Ok(state) => state,
+            Err(error) => {
+                let message = error.to_string();
+                return ClaimPreflight {
+                    paused: false,
+                    has_potential_credit: false,
+                    credit: Err(anyhow::anyhow!(message.clone())),
+                    withdrawal: Err(anyhow::anyhow!(message)),
+                };
+            }
+        };
+        assert_eq!(state.game(game).unwrap().anchor_state_registry, registry);
         let target = match state.game(game) {
             Ok(game) => game.target(),
             Err(error) => {
                 let message = error.to_string();
                 return ClaimPreflight {
-                    bond_distribution_mode: Err(anyhow::anyhow!(message.clone())),
+                    paused: false,
+                    has_potential_credit: false,
                     credit: Err(anyhow::anyhow!(message.clone())),
-                    refund_mode_credit: Err(anyhow::anyhow!(message.clone())),
                     withdrawal: Err(anyhow::anyhow!(message)),
                 };
             }
@@ -1716,27 +1796,9 @@ impl L1View for FakeL1View {
         let game_state = state.game(game).expect("game was just resolved");
         let arguments_valid =
             game_state.weth == weth && proposer == ScenarioWorld::proposer_address();
-        let bond_distribution_mode = if arguments_valid {
-            data.record_l1_read(
-                L1ReadBoundary::ClaimDistributionMode,
-                L1ReadTarget::Game(target.clone()),
-            )
-            .map(|_| game_state.bond.bond_distribution_mode)
-        } else {
-            Err(anyhow::anyhow!("claim preflight used the wrong game WETH or proposer"))
-        };
         let credit = if arguments_valid {
             data.record_l1_read(L1ReadBoundary::ClaimCredit, L1ReadTarget::Game(target.clone()))
-                .map(|_| game_state.bond_state_view().credit)
-        } else {
-            Err(anyhow::anyhow!("claim preflight used the wrong game WETH or proposer"))
-        };
-        let refund_mode_credit = if arguments_valid {
-            data.record_l1_read(
-                L1ReadBoundary::ClaimRefundCredit,
-                L1ReadTarget::Game(target.clone()),
-            )
-            .map(|_| game_state.bond.refund_mode_credit)
+                .map(|_| game_state.settlement_bond().credit)
         } else {
             Err(anyhow::anyhow!("claim preflight used the wrong game WETH or proposer"))
         };
@@ -1750,7 +1812,13 @@ impl L1View for FakeL1View {
         } else {
             Err(anyhow::anyhow!("claim preflight used the wrong game WETH or proposer"))
         };
-        ClaimPreflight { bond_distribution_mode, credit, refund_mode_credit, withdrawal }
+        let settlement = game_state.settlement_bond();
+        ClaimPreflight {
+            paused: settlement.paused,
+            has_potential_credit: settlement.has_potential_credit,
+            credit,
+            withdrawal,
+        }
     }
 
     async fn weth_delay(&self, weth: Address) -> Result<U256> {
