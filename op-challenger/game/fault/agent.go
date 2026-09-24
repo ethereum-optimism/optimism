@@ -205,7 +205,9 @@ func (a *Agent) Act(ctx context.Context) error {
 	}
 
 	actions, err := a.solver.CalculateNextActions(ctx, game)
-	if err != nil {
+	if errors.Is(err, gameTypes.ErrNotInSync) {
+		a.log.Warn("Local node not sufficiently up to date", "err", err)
+	} else if err != nil {
 		a.log.Error("Failed to calculate all required moves", "err", err)
 	}
 
