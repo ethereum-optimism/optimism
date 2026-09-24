@@ -143,7 +143,7 @@ func TestPrivateInteropFlagsParse(t *testing.T) {
 	require.NoError(t, pi.Check())
 	// The sound-profile flags and their defaults.
 	require.Equal(t, "network", pi.SP1Prover)
-	require.Equal(t, 2*time.Minute, pi.ProofTimeout)
+	require.Zero(t, pi.ProofTimeout, "no default base timeout at the flag: the real provers need one given")
 	require.Equal(t, 100*time.Millisecond, pi.ProofTimeoutPerBlock)
 	require.Empty(t, pi.PrivateRollupConfigPath)
 
@@ -205,6 +205,35 @@ func TestPrivateInteropSoundProfileFlagsCheck(t *testing.T) {
 	require.Equal(t, ProverNetwork, s.SP1Prover)
 	require.Equal(t, flags.DefaultPrivateInteropProofTimeout, s.ProofTimeout)
 	require.Equal(t, flags.DefaultPrivateInteropProofTimeoutPerBlock, s.ProofTimeoutPerBlock)
+	require.False(t, s.ProofTimeoutExplicit)
+	c.ProofTimeout = 2 * time.Hour
+	s, err = c.Resolve()
+	require.NoError(t, err)
+	require.True(t, s.ProofTimeoutExplicit)
+	require.Equal(t, 2*time.Hour, s.ProofTimeout)
+}
+
+// TestRealProverRequiresExplicitProofTimeout (P1-2): with the cpu or network SP1 prover the batcher
+// refuses to start on the default proof timeout, and starts once one is given. The mock provers
+// keep the default.
+func TestRealProverRequiresExplicitProofTimeout(t *testing.T) {
+	for _, prover := range []string{ProverCPU, ProverNetwork} {
+		f := newPIProfileFixture(t)
+		f.in.Deployed.PrivateProjection.MockProofs = false
+		f.in.Settings.SP1Prover = prover
+		_, err := resolvePrivateInteropProfile(f.in)
+		require.ErrorContains(t, err, "requires an explicit --private-interop.proof-timeout", prover)
+		f.in.Settings.ProofTimeoutExplicit = true
+		got, err := resolvePrivateInteropProfile(f.in)
+		require.NoError(t, err, prover)
+		require.Equal(t, prover, got.Prover)
+	}
+	for _, prover := range []string{ProverMock, ProverNativeMock} {
+		f := newPIProfileFixture(t)
+		f.in.Settings.SP1Prover = prover
+		_, err := resolvePrivateInteropProfile(f.in)
+		require.NoError(t, err, prover)
+	}
 }
 
 // piProfileFixture is a deployed sp1-private-projection-v1 profile and the matching local view.
@@ -302,6 +331,12 @@ func TestResolvePrivateInteropProfile(t *testing.T) {
 			f.in.PrivateRollupJSON = raw
 		}, "not this batcher's private chain"},
 		{"no proof command", func(f *piProfileFixture) { f.in.Settings.ProofCommand = "" }, "requires --private-interop.proof-command"},
+		{"network prover with the default proof timeout", func(f *piProfileFixture) {
+			f.in.Settings.SP1Prover = ProverNetwork
+		}, "requires an explicit --private-interop.proof-timeout"},
+		{"cpu prover with the default proof timeout", func(f *piProfileFixture) {
+			f.in.Settings.SP1Prover = ProverCPU
+		}, "requires an explicit --private-interop.proof-timeout"},
 		{"no deployed profile", func(f *piProfileFixture) { f.in.Deployed.PrivateProjection = nil }, "no private_projection"},
 		{"deployed profile fails its gate", func(f *piProfileFixture) {
 			f.in.Local.L2ChainID, f.in.Deployed.L2ChainID = big10(), big10()

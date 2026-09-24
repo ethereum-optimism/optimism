@@ -19,7 +19,10 @@ kona-driver.workspace = true
 kona-interop.workspace = true
 kona-preimage.workspace = true
 kona-executor.workspace = true
-kona-protocol.workspace = true
+# Admission verifies `sp1-private-projection-v1` spans in the fault-proof program exactly as the
+# nodes do. Enabled here, never left to feature unification (asserted at compile time in lib.rs
+# and by `just check-sp1-projection-verifier-features`).
+kona-protocol = { workspace = true, features = ["sp1-projection-verifier"] }
 kona-registry.workspace = true
 kona-genesis = { workspace = true, features = ["serde"] }
 
@@ -57,6 +60,9 @@ ark-bls12-381.workspace = true
 tokio = { workspace = true, features = ["full"], optional = true }
 
 [dev-dependencies]
+# The mock envelope of the shared sp1 vectors. The sp1 verifier itself comes from the normal
+# dependency above, which is what `tests/sp1_projection_admission.rs` checks.
+kona-protocol = { workspace = true, features = ["private-projection-test-verifiers"] }
 alloy-eips = { workspace = true, features = ["kzg"] }
 tokio = { workspace = true, features = ["full"] }
 rstest.workspace = true

@@ -64,7 +64,9 @@ type PrivateInteropCLIConfig struct {
 	// empty), cpu, mock or native-mock.
 	SP1Prover string
 	// ProofTimeout and ProofTimeoutPerBlock give the producer timeout
-	// ProofTimeout + ProofTimeoutPerBlock × (lastBlock − anchorBlock). Zero takes the default.
+	// ProofTimeout + ProofTimeoutPerBlock × (lastBlock − anchorBlock). Zero takes the default,
+	// except that ProofTimeout has none for the real SP1 provers (cpu, network): a zero
+	// ProofTimeout with either is a startup error.
 	ProofTimeout         time.Duration
 	ProofTimeoutPerBlock time.Duration
 
@@ -198,7 +200,11 @@ type PrivateInteropSettings struct {
 	SP1Prover               string
 	ProofTimeout            time.Duration
 	ProofTimeoutPerBlock    time.Duration
-	TestHooks               *PrivateInteropTestHooks
+	// ProofTimeoutExplicit reports whether ProofTimeout was configured rather than defaulted.
+	// The real SP1 provers require it (P1-2: a default sized for mock proofs would time out every
+	// real proof, retry it forever and let the sequencing window expire).
+	ProofTimeoutExplicit bool
+	TestHooks            *PrivateInteropTestHooks
 }
 
 // Resolve converts the raw group into its typed form. It re-runs Check first, so a caller cannot
@@ -224,6 +230,7 @@ func (c *PrivateInteropCLIConfig) Resolve() (*PrivateInteropSettings, error) {
 		SP1Prover:                 prover,
 		ProofTimeout:              timeout,
 		ProofTimeoutPerBlock:      perBlock,
+		ProofTimeoutExplicit:      c.ProofTimeout != 0,
 		TestHooks:                 c.TestHooks,
 		ProofCommand:              c.ProofCommand,
 		PrivateChainGenesisPath:   c.PrivateChainGenesisPath,
@@ -392,6 +399,12 @@ func resolvePrivateInteropProfile(in privateInteropProfileInputs) (*privateInter
 		if (out.Prover == ProverMock || out.Prover == ProverNativeMock) && !deployedProfile.MockProofs {
 			return nil, fmt.Errorf("private interop: --%s %s needs mock_proofs in the deployed projection config",
 				flags.PrivateInteropSP1ProverFlag.Name, out.Prover)
+		}
+		if (out.Prover == ProverCPU || out.Prover == ProverNetwork) && !s.ProofTimeoutExplicit {
+			return nil, fmt.Errorf("private interop: --%s %s requires an explicit --%s: a real Groth16 proof takes far "+
+				"longer than the %s default for mock proofs, which would time out and retry every span until its "+
+				"sequencing window expires", flags.PrivateInteropSP1ProverFlag.Name, out.Prover,
+				flags.PrivateInteropProofTimeoutFlag.Name, flags.DefaultPrivateInteropProofTimeout)
 		}
 	default:
 		return nil, fmt.Errorf("private interop: unsupported deployed verifier %q", deployedProfile.Verifier)

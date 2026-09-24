@@ -30,7 +30,9 @@ const (
 	DefaultPrivateInteropSP1Prover = "network"
 	// DefaultPrivateInteropProofTimeout and DefaultPrivateInteropProofTimeoutPerBlock give the
 	// producer timeout base + perBlock × (lastBlock − anchorBlock), so a span that must also
-	// prove a long recovery interval gets proportionally longer.
+	// prove a long recovery interval gets proportionally longer. The base default suits only the
+	// mock provers and execution-mock-v1: a real Groth16 proof (cpu, network) takes far longer, so
+	// with those provers the base timeout has no default and must be given explicitly.
 	DefaultPrivateInteropProofTimeout         = 2 * time.Minute
 	DefaultPrivateInteropProofTimeoutPerBlock = 100 * time.Millisecond
 )
@@ -113,8 +115,9 @@ var (
 	PrivateInteropProofTimeoutFlag = &cli.DurationFlag{
 		Name: "private-interop.proof-timeout",
 		Usage: "Base timeout of one proof command run. Publication blocks until a proof exists; a " +
-			"timed-out run is retried.",
-		Value:   DefaultPrivateInteropProofTimeout,
+			"timed-out run is retried. Required with --private-interop.sp1-prover cpu or network, " +
+			"whose real Groth16 proofs take far longer than the 2m used by default for the mock " +
+			"provers and execution-mock-v1.",
 		EnvVars: prefixEnvVars("PRIVATE_INTEROP_PROOF_TIMEOUT"),
 	}
 	PrivateInteropProofTimeoutPerBlockFlag = &cli.DurationFlag{

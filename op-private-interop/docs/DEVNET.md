@@ -63,7 +63,7 @@ Batcher flags (in addition to the existing group):
 | `--private-interop.l1-chain-config` | path to the pinned L1 chain config JSON; required for `sp1-*` |
 | `--private-interop.proof-command` | the `kona-sp1-private-projection-executor` binary; required for every verifier except the test-only `insecure-stub-v1` |
 | `--private-interop.sp1-prover` | `network` (default), `cpu`, `mock`, `native-mock`; the mock provers require `mock_proofs` in the deployed config |
-| `--private-interop.proof-timeout` | base proof timeout, default `2m` |
+| `--private-interop.proof-timeout` | base proof timeout; **required** with the `cpu` and `network` provers (startup fails without it: a real Groth16 proof takes far longer than a mock one, so a mock-sized default would time out and retry every span until its window expired); `2m` otherwise |
 | `--private-interop.proof-timeout-per-block` | added per block from the anchor to the span end, default `100ms` |
 
 At startup the batcher reads `private_projection` from the deployed projection rollup config over

@@ -155,7 +155,23 @@ lint-clippy:
 
 # Lint-config + self-embed + lock + precompile-patch checks, fmt-check, and clippy for the SP1
 # guest program workspace. CI runs this after building the guest ELFs.
-lint-sp1-guest: check-no-self-embed check-sp1-guest-lints check-sp1-guest-lock check-sp1-guest-precompile-patches fmt-check-sp1-guest lint-clippy-sp1-guest
+lint-sp1-guest: check-no-self-embed check-sp1-guest-lints check-sp1-guest-lock check-sp1-guest-precompile-patches check-sp1-projection-verifier-features fmt-check-sp1-guest lint-clippy-sp1-guest
+
+# Every consensus client that admits private-projection spans must itself enable kona-protocol's
+# `sp1-projection-verifier`, resolved for that package alone (as its release and fault-proof
+# builds are), so that Cargo feature unification in a larger build cannot decide whether sp1 spans
+# are admitted. The fault-proof crates also assert it at compile time.
+[script('bash')]
+check-sp1-projection-verifier-features:
+  set -euo pipefail
+  for package in kona-proof kona-proof-interop kona-client kona-node; do
+    if ! cargo tree --locked -p "$package" -e features,normal -i kona-protocol \
+        | grep -q 'kona-protocol feature "sp1-projection-verifier"'; then
+      echo "error: $package does not enable kona-protocol/sp1-projection-verifier on its own" >&2
+      exit 1
+    fi
+    echo "$package: kona-protocol/sp1-projection-verifier enabled"
+  done
 
 # Verify the nested guest workspace uses the root workspace's lint configuration.
 [script('bash')]

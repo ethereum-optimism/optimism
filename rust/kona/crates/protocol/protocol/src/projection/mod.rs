@@ -339,6 +339,12 @@ pub fn min_tx_gas(input: &[u8], access_list: &alloy_eips::eip2930::AccessList) -
     intrinsic.max(floor)
 }
 
+/// Whether this build verifies `sp1-private-projection-v1` envelopes (the
+/// `sp1-projection-verifier` feature). Without it every `sp1-*` proof is rejected, so a
+/// consensus client that admits projection spans must assert this at compile time rather than
+/// leave it to Cargo feature unification.
+pub const SP1_PROJECTION_VERIFIER_COMPILED: bool = cfg!(feature = "sp1-projection-verifier");
+
 /// A deterministic projection admission rejection.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, thiserror::Error)]
 #[error("invalid projection range: {0}")]

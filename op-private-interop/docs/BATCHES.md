@@ -447,15 +447,22 @@ projected config matches, the `--private-interop.private-rollup-config` and
 `--private-interop.l1-chain-config` files hash to `private_config_hash`, and the rollup
 node's dependency set hashes to `dependency_set_hash`. `--private-interop.sp1-prover`
 selects `network` (default), `cpu`, `mock` or `native-mock`; the two mock provers are
-refused unless the deployed config sets `mock_proofs`.
+refused unless the deployed config sets `mock_proofs`, and the two real provers are refused
+unless `--private-interop.proof-timeout` is given explicitly.
 
 ## Latency and the sequencing window
 
 **Publication blocks until the proof exists.** There is no fallback verifier and no
 unproven publication. The proof timeout is
-`--private-interop.proof-timeout` (default 2m) plus `--private-interop.proof-timeout-per-block`
+`--private-interop.proof-timeout` plus `--private-interop.proof-timeout-per-block`
 (default 100ms) times the number of blocks from the anchor to the span end, so it scales
-with the recovery interval.
+with the recovery interval. The base timeout defaults to 2m only for the mock provers and
+`execution-mock-v1`. With `--private-interop.sp1-prover=cpu|network` it has no default and the
+batcher refuses to start without it: a real Groth16 proof never finishes in 2m, so each span
+would time out, be retried and never publish until its window expired, and the next span would
+have a longer recovery interval to prove (the long-outage spiral below). Size it from measured
+proving time for a full span plus the longest recovery interval you intend to survive (the
+devstack uses 60m for real proving).
 
 A span must be included within `SeqWindowSize` L1 blocks of its first epoch. If proving
 time plus L1 inclusion exceeds the remaining window, the window expires, derivation fills
