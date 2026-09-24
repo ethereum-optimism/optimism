@@ -130,6 +130,7 @@ mod tests {
     #[case::two_post_exec_txs(ACTIVE, vec![post_exec(BLOCK), post_exec(BLOCK)], "multiple_post_exec_txs")]
     #[case::not_last(ACTIVE, vec![post_exec(BLOCK), deposit()], "post_exec_tx_not_last")]
     #[case::wrong_anchor(ACTIVE, vec![post_exec(BLOCK + 1)], "block_number_mismatch")]
+    #[case::too_many_entries(ACTIVE, vec![post_exec(BLOCK)], "too_many_gas_refund_entries")]
     fn rejected_block_counts_under_the_failed_rule(
         #[case] timestamp: u64,
         #[case] transactions: Vec<OpTransactionSigned>,

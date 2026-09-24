@@ -17,6 +17,7 @@ use alloy_rpc_types_engine::{
 };
 use op_alloy_consensus::{
     EIP1559ParamError, decode_2718_canonical, encode_holocene_extra_data, encode_jovian_extra_data,
+    validate_post_exec_entry_count,
 };
 use op_alloy_rpc_types_engine::{
     OpExecutionPayloadEnvelope, OpExecutionPayloadEnvelopeV3, OpExecutionPayloadEnvelopeV4,
@@ -321,9 +322,9 @@ impl<T: Decodable2718 + Encodable2718 + Send + Sync + Debug + Unpin + 'static>
         id: PayloadId,
         attributes: OpPayloadAttributes,
     ) -> Result<Self, alloy_rlp::Error> {
-        let transactions = attributes
-            .transactions
-            .unwrap_or_default()
+        let encoded_transactions = attributes.transactions.unwrap_or_default();
+        validate_post_exec_entry_count(&encoded_transactions)?;
+        let transactions = encoded_transactions
             .into_iter()
             .map(|data| decode_2718_canonical(data.as_ref()).map(|tx| WithEncoded::new(data, tx)))
             .collect::<Result<_, _>>()?;
