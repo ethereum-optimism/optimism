@@ -36,6 +36,7 @@ use reth_node_builder::{
 use reth_optimism_chainspec::{OpChainSpec, OpHardfork};
 use reth_optimism_consensus::OpBeaconConsensus;
 use reth_optimism_evm::{ConfigurePostExecEvm, OpEvmConfig, OpRethReceiptBuilder};
+use reth_optimism_flashblocks::DEFAULT_IDLE_TIMEOUT;
 use reth_optimism_forks::OpHardforks;
 use reth_optimism_payload_builder::{
     OpBuiltPayload, OpExecData, OpPayloadBuilderAttributes, OpPayloadPrimitives,
@@ -69,7 +70,7 @@ use reth_transaction_pool::{
     blobstore::DiskFileBlobStore,
 };
 use reth_trie_common::KeccakKeyHasher;
-use std::{marker::PhantomData, sync::Arc};
+use std::{marker::PhantomData, sync::Arc, time::Duration};
 use url::Url;
 
 use reth_optimism_payload_builder::OpPayloadAttrs;
@@ -331,6 +332,7 @@ impl OpNode {
             .with_historical_rpc(self.args.historical_rpc.clone())
             .with_flashblocks(self.args.flashblocks_url.clone())
             .with_flashblock_consensus(self.args.flashblock_consensus)
+            .with_flashblocks_idle_timeout(self.args.flashblocks_idle_timeout())
             .with_retain_forwarded_txs(self.args.retain_forwarded_txs)
     }
 
@@ -942,6 +944,8 @@ pub struct OpAddOnsBuilder<NetworkT, RpcMiddleware = Identity> {
     flashblocks_url: Option<Url>,
     /// Enable flashblock consensus client to drive chain forward.
     flashblock_consensus: bool,
+    /// How long the subblocks websocket may stay silent before it is reconnected.
+    flashblocks_idle_timeout: Option<Duration>,
 }
 
 impl<NetworkT> Default for OpAddOnsBuilder<NetworkT> {
@@ -961,6 +965,7 @@ impl<NetworkT> Default for OpAddOnsBuilder<NetworkT> {
             tokio_runtime: None,
             flashblocks_url: None,
             flashblock_consensus: false,
+            flashblocks_idle_timeout: Some(DEFAULT_IDLE_TIMEOUT),
         }
     }
 }
@@ -1046,6 +1051,7 @@ impl<NetworkT, RpcMiddleware> OpAddOnsBuilder<NetworkT, RpcMiddleware> {
             _nt,
             flashblocks_url,
             flashblock_consensus,
+            flashblocks_idle_timeout,
             ..
         } = self;
         OpAddOnsBuilder {
@@ -1063,6 +1069,7 @@ impl<NetworkT, RpcMiddleware> OpAddOnsBuilder<NetworkT, RpcMiddleware> {
             tokio_runtime,
             flashblocks_url,
             flashblock_consensus,
+            flashblocks_idle_timeout,
         }
     }
 
@@ -1075,6 +1082,17 @@ impl<NetworkT, RpcMiddleware> OpAddOnsBuilder<NetworkT, RpcMiddleware> {
     /// With a flashblock consensus client to drive chain forward.
     pub const fn with_flashblock_consensus(mut self, flashblock_consensus: bool) -> Self {
         self.flashblock_consensus = flashblock_consensus;
+        self
+    }
+
+    /// With how long the subblocks websocket may stay silent before it is reconnected.
+    ///
+    /// `None` disables the check.
+    pub const fn with_flashblocks_idle_timeout(
+        mut self,
+        flashblocks_idle_timeout: Option<Duration>,
+    ) -> Self {
+        self.flashblocks_idle_timeout = flashblocks_idle_timeout;
         self
     }
 }
@@ -1105,6 +1123,7 @@ impl<NetworkT, RpcMiddleware> OpAddOnsBuilder<NetworkT, RpcMiddleware> {
             tokio_runtime,
             flashblocks_url,
             flashblock_consensus,
+            flashblocks_idle_timeout,
             ..
         } = self;
 
@@ -1116,6 +1135,7 @@ impl<NetworkT, RpcMiddleware> OpAddOnsBuilder<NetworkT, RpcMiddleware> {
                     .with_min_suggested_priority_fee(min_suggested_priority_fee)
                     .with_flashblocks(flashblocks_url)
                     .with_flashblock_consensus(flashblock_consensus)
+                    .with_flashblocks_idle_timeout(flashblocks_idle_timeout)
                     .with_retain_forwarded_txs(retain_forwarded_txs),
                 PVB::default(),
                 EB::default(),
