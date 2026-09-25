@@ -40,16 +40,20 @@ impl<T: OpTransaction + TransactionTrait> Transaction<T> {
     pub fn from_transaction(tx: Recovered<T>, tx_info: OpTransactionInfo) -> Self {
         let base_fee = tx_info.inner.base_fee;
         let effective_gas_price = if tx.is_deposit() {
-            // For deposits, we must always set the `gasPrice` field to 0 in rpc
-            // deposit tx don't have a gas price field, but serde of `Transaction` will take care of
-            // it
-            0
+            // Deposits have no gas price, but the legacy RPC shape reports an explicit zero.
+            Some(0)
+        } else if tx.as_post_exec().is_some() {
+            // PostExec has no fee fields. The Lagoon RPC specification requires gasPrice to be
+            // omitted rather than populated from the containing block's base fee.
+            None
         } else {
-            base_fee
-                .map(|base_fee| {
-                    tx.effective_tip_per_gas(base_fee).unwrap_or_default() + base_fee as u128
-                })
-                .unwrap_or_else(|| tx.max_fee_per_gas())
+            Some(
+                base_fee
+                    .map(|base_fee| {
+                        tx.effective_tip_per_gas(base_fee).unwrap_or_default() + base_fee as u128
+                    })
+                    .unwrap_or_else(|| tx.max_fee_per_gas()),
+            )
         };
 
         Self {
@@ -58,7 +62,7 @@ impl<T: OpTransaction + TransactionTrait> Transaction<T> {
                 block_hash: tx_info.inner.block_hash,
                 block_number: tx_info.inner.block_number,
                 transaction_index: tx_info.inner.index,
-                effective_gas_price: Some(effective_gas_price),
+                effective_gas_price,
                 block_timestamp: tx_info.inner.block_timestamp,
             },
             deposit_nonce: tx_info.deposit_meta.deposit_nonce,
@@ -436,6 +440,11 @@ mod tests {
         assert_eq!(value.get("input"), Some(&expected_input));
         assert_eq!(value.get("hash"), Some(&expected_hash));
         assert_eq!(value.get("from"), Some(&serde_json::to_value(Address::ZERO).unwrap()));
+        assert_eq!(value.get("gas"), Some(&serde_json::json!("0x0")));
+        assert_eq!(value.get("value"), Some(&serde_json::json!("0x0")));
+        assert!(value.get("gasPrice").is_none());
+        assert!(value.get("nonce").is_none());
+        assert!(value.get("to").is_none());
         assert!(value.get("gasRefundEntries").is_none());
         assert!(value.get("version").is_none());
     }
