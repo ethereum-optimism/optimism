@@ -754,7 +754,12 @@ where
                 info!(target: "reth::cli", %bedrock_block, ?historical_rpc, "Using historical RPC endpoint pre bedrock");
                 let provider = ctx.node.provider().clone();
                 let client = HistoricalRpcClient::new(&historical_rpc)?;
-                let layer = HistoricalRpc::new(provider, client, bedrock_block);
+                let layer = HistoricalRpc::new(
+                    provider,
+                    client,
+                    bedrock_block,
+                    ctx.config.rpc.rpc_max_blocks_per_filter.0,
+                );
                 Ok(layer)
             })
             .transpose()?
