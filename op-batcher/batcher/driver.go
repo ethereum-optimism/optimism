@@ -759,7 +759,7 @@ func (l *BatchSubmitter) waitNodeSync() error {
 	cCtx, cancel := context.WithTimeout(ctx, l.Config.NetworkTimeout)
 	defer cancel()
 
-	l1Tip, err := l.l1Tip(cCtx)
+	l1Tip, _, err := l.l1Tip(cCtx)
 	if err != nil {
 		return fmt.Errorf("failed to retrieve l1 tip: %w", err)
 	}
@@ -854,7 +854,7 @@ func (l *BatchSubmitter) clearState(ctx context.Context) {
 // publishTxToL1 submits a single state tx to the L1
 func (l *BatchSubmitter) publishTxToL1(ctx context.Context, queue *txmgr.Queue[txRef], receiptsCh chan txmgr.TxReceipt[txRef], daGroup *errgroup.Group, pi pubInfo) error {
 	// send all available transactions
-	l1tip, err := l.l1Tip(ctx)
+	l1tip, isAmsterdam, err := l.l1Tip(ctx)
 	if err != nil {
 		l.Log.Error("Failed to query L1 tip", "err", err)
 		return err
@@ -864,8 +864,13 @@ func (l *BatchSubmitter) publishTxToL1(ctx context.Context, queue *txmgr.Queue[t
 	_, params := l.throttleController.Load()
 	// Collect next transaction data. This pulls data out of the channel, so we need to make sure
 	// to put it back if ever da or txmgr requests fail, by calling l.recordFailedDARequest/recordFailedTx.
+	//
+	// Price DA using the fork rules active at the fetched L1 tip rather than predicting the
+	// transaction's inclusion block. A transaction built on the final pre-Amsterdam head may use
+	// the pre-Amsterdam comparison even if it lands in the first Amsterdam block. This only affects
+	// DA selection; the transaction gas limit accounts for both floor schedules.
 	l.channelMgrMutex.Lock()
-	txdata, err := l.channelMgr.TxData(l1tip.ID(), params.IsThrottling(), pi)
+	txdata, err := l.channelMgr.TxData(l1tip.ID(), params.IsThrottling(), isAmsterdam, pi)
 	l.channelMgrMutex.Unlock()
 
 	if err == io.EOF {
@@ -1035,10 +1040,6 @@ func maxFloorDataGas(data []byte) (uint64, error) {
 // NOTE: we can probably replace this function with core.FloorDataGas once our geth dependency
 // includes the Amsterdam calculation.
 func amsterdamFloorDataGas(data []byte) (uint64, error) {
-	const (
-		amsterdamTxBaseGas               = uint64(12_000 + 3_000) // EIP-2780: TX_BASE_COST + COLD_ACCOUNT_ACCESS
-		amsterdamCalldataFloorGasPerByte = uint64(64)             // EIP-7976: 4 tokens per byte at 16 gas per token
-	)
 	return addGas(amsterdamTxBaseGas, uint64(len(data)), amsterdamCalldataFloorGasPerByte)
 }
 
@@ -1107,16 +1108,17 @@ func (l *BatchSubmitter) recordConfirmedTx(id txID, receipt *types.Receipt) {
 	l.channelMgr.TxConfirmed(id, l1block)
 }
 
-// l1Tip gets the current L1 tip as a L1BlockRef. The passed context is assumed
-// to be a lifetime context, so it is internally wrapped with a network timeout.
-func (l *BatchSubmitter) l1Tip(ctx context.Context) (eth.L1BlockRef, error) {
+// l1Tip gets the current L1 tip as a L1BlockRef and reports whether Amsterdam is active.
+// The passed context is assumed to be a lifetime context, so it is internally wrapped with a
+// network timeout.
+func (l *BatchSubmitter) l1Tip(ctx context.Context) (eth.L1BlockRef, bool, error) {
 	tctx, cancel := context.WithTimeout(ctx, l.Config.NetworkTimeout)
 	defer cancel()
 	head, err := l.L1Client.HeaderByNumber(tctx, nil)
 	if err != nil {
-		return eth.L1BlockRef{}, fmt.Errorf("getting latest L1 block: %w", err)
+		return eth.L1BlockRef{}, false, fmt.Errorf("getting latest L1 block: %w", err)
 	}
-	return eth.InfoToL1BlockRef(eth.HeaderBlockInfo(head)), nil
+	return eth.InfoToL1BlockRef(eth.HeaderBlockInfo(head)), head.BlockAccessListHash != nil, nil
 }
 
 func (l *BatchSubmitter) checkTxpool(queue *txmgr.Queue[txRef], receiptsCh chan txmgr.TxReceipt[txRef]) bool {

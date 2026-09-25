@@ -57,11 +57,13 @@ type channelManager struct {
 }
 
 func NewChannelManager(log log.Logger, metr metrics.Metricer, cfgProvider ChannelConfigProvider, rollupCfg *rollup.Config) *channelManager {
+	// Amsterdam activation is unknown until the driver fetches the first L1 head. The config
+	// selected here is reassessed with the current activation status before its first submission.
 	return &channelManager{
 		log:         log,
 		metr:        metr,
 		cfgProvider: cfgProvider,
-		defaultCfg:  cfgProvider.ChannelConfig(false),
+		defaultCfg:  cfgProvider.ChannelConfig(false, false),
 		rollupCfg:   rollupCfg,
 		outFactory:  NewChannelOut,
 		txChannels:  make(map[string]*channel),
@@ -220,10 +222,10 @@ func (s *channelManager) nextTxData(channel *channel) (txData, error) {
 // full, it only returns the remaining frames of this channel until it got
 // successfully fully sent to L1. It returns io.EOF if there's no pending tx data.
 //
-// It will decide whether to switch DA type automatically.
-// When switching DA type, the channelManager state will be rebuilt
-// with a new ChannelConfig.
-func (s *channelManager) TxData(l1Head eth.BlockID, isThrottling bool, pi pubInfo) (txData, error) {
+// It will decide whether to switch DA type automatically. isAmsterdam reports whether Amsterdam
+// is active at l1Head. When switching DA type, the channelManager state will be rebuilt with a new
+// ChannelConfig.
+func (s *channelManager) TxData(l1Head eth.BlockID, isThrottling bool, isAmsterdam bool, pi pubInfo) (txData, error) {
 	channel, err := s.getReadyChannel(l1Head, pi)
 	if err != nil {
 		return emptyTxData, err
@@ -235,7 +237,7 @@ func (s *channelManager) TxData(l1Head eth.BlockID, isThrottling bool, pi pubInf
 	}
 
 	// Call provider method to reassess optimal DA type
-	newCfg := s.cfgProvider.ChannelConfig(isThrottling)
+	newCfg := s.cfgProvider.ChannelConfig(isThrottling, isAmsterdam)
 
 	// No change:
 	if newCfg.UseBlobs == s.defaultCfg.UseBlobs {
