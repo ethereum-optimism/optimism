@@ -5,7 +5,7 @@ use alloy_consensus::Block;
 use derive_more::{Constructor, Deref};
 use op_alloy_rpc_types_engine::{OpExecutionData, OpExecutionPayloadEnvelope, OpPayloadError};
 use reth_optimism_forks::OpHardforks;
-use reth_payload_validator::{cancun, prague, shanghai};
+use reth_payload_validator::{amsterdam, cancun, prague, shanghai};
 use reth_primitives_traits::{Block as _, SealedBlock, SignedTransaction};
 
 /// Execution payload validator.
@@ -37,7 +37,7 @@ where
     }
 }
 
-/// UPSTREAM-MIRROR(copy): reth@rev:0fbe428
+/// UPSTREAM-MIRROR(copy): reth@rev:4553cf1
 /// `reth_ethereum_payload_builder::validator::ensure_well_formed_payload`
 ///
 /// Copies upstream's ordered payload checks with OP payload fields and fork activation.
@@ -88,6 +88,11 @@ where
         sealed_block.body(),
         sidecar.isthmus(),
         chain_spec.is_prague_active_at_timestamp(sealed_block.timestamp),
+    )?;
+
+    amsterdam::ensure_well_formed_fields(
+        &sealed_block,
+        chain_spec.is_amsterdam_active_at_timestamp(sealed_block.timestamp),
     )?;
 
     Ok(sealed_block)

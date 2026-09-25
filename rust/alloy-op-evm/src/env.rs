@@ -51,7 +51,7 @@ pub fn spec_by_timestamp_after_bedrock(chain_spec: impl OpHardforks, timestamp: 
     OpSpecId::BEDROCK
 }
 
-/// UPSTREAM-MIRROR(copy): alloy-evm@0.38.0 `alloy_evm::eth::env::EvmEnvInput`
+/// UPSTREAM-MIRROR(copy): alloy-evm@0.39.0 `alloy_evm::eth::env::EvmEnvInput`
 ///
 /// Omits upstream `excess_blob_gas` and `slot_number`; OP uses synthetic blob values and zero slot.
 /// Internal helper for constructing EVM environment from block header fields.
@@ -120,7 +120,7 @@ pub fn evm_env_for_op_next_block(
     )
 }
 
-/// UPSTREAM-MIRROR(copy): alloy-evm@0.38.0 `alloy_evm::eth::env::EvmEnv::for_eth`
+/// UPSTREAM-MIRROR(copy): alloy-evm@0.39.0 `alloy_evm::eth::env::EvmEnv::for_eth`
 ///
 /// Copies upstream environment construction with OP fork mapping and blob semantics. Upstream
 /// sets `cfg_env.tx_gas_limit_cap` explicitly at Osaka; this leaves it unset and relies on revm's
