@@ -4,7 +4,7 @@ use alloy_rpc_types_engine::JwtSecret;
 use kona_engine::{EngineClientBuilder, OpEngineClient};
 use kona_genesis::RollupConfig;
 use op_alloy_network::Optimism;
-use std::sync::Arc;
+use std::{sync::Arc, time::Duration};
 use url::Url;
 
 /// Configuration for the Engine Actor.
@@ -17,6 +17,8 @@ pub struct EngineConfig {
     pub l2_url: Url,
     /// The engine jwt secret.
     pub l2_jwt_secret: JwtSecret,
+    /// Timeout for requests to the engine api.
+    pub l2_timeout: Duration,
 
     /// The L1 rpc url.
     pub l1_url: Url,
@@ -33,6 +35,7 @@ impl EngineConfig {
         EngineClientBuilder {
             l2: self.l2_url,
             l2_jwt: self.l2_jwt_secret,
+            l2_timeout: self.l2_timeout,
             l1_rpc: self.l1_url,
             cfg: self.config,
         }

@@ -122,6 +122,7 @@ impl GossipCommand {
                 port: self.disc_port,
             })
             .build(),
+            disable_discovery: false,
             discovery_interval: Duration::from_secs(self.interval),
             discovery_randomize: None,
             keypair: Keypair::generate_secp256k1(),
@@ -129,6 +130,8 @@ impl GossipCommand {
             scoring: Default::default(),
             topic_scoring: Default::default(),
             monitor_peers: Default::default(),
+            peers_lo: None,
+            peers_hi: None,
             bootstore: None,
             gater_config: Default::default(),
             bootnodes: Default::default(),

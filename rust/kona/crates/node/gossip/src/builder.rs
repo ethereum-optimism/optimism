@@ -4,8 +4,9 @@ use alloy_primitives::Address;
 use kona_genesis::RollupConfig;
 use kona_peers::{PeerMonitoring, PeerScoreLevel};
 use libp2p::{
-    Multiaddr, StreamProtocol, SwarmBuilder, gossipsub::Config, identity::Keypair,
-    noise::Config as NoiseConfig, tcp::Config as TcpConfig, yamux::Config as YamuxConfig,
+    Multiaddr, StreamProtocol, SwarmBuilder, connection_limits::ConnectionLimits,
+    gossipsub::Config, identity::Keypair, noise::Config as NoiseConfig, tcp::Config as TcpConfig,
+    yamux::Config as YamuxConfig,
 };
 use std::time::Duration;
 use tokio::sync::watch;
@@ -36,6 +37,10 @@ pub struct GossipDriverBuilder {
     gater_config: Option<GaterConfig>,
     /// Topic scoring. Disabled by default.
     topic_scoring: bool,
+    /// Peers found by discovery are only dialed while fewer than this many peers are connected.
+    peers_lo: Option<u32>,
+    /// The maximum number of established connections.
+    peers_hi: Option<u32>,
 }
 
 impl GossipDriverBuilder {
@@ -57,6 +62,8 @@ impl GossipDriverBuilder {
             gater_config: None,
             rollup_config,
             topic_scoring: false,
+            peers_lo: None,
+            peers_hi: None,
         }
     }
 
@@ -122,6 +129,16 @@ impl GossipDriverBuilder {
         self
     }
 
+    /// Sets the low and high tide peer counts.
+    ///
+    /// Peers found by discovery are only dialed while fewer than `lo` peers are connected, and no
+    /// more than `hi` connections are established.
+    pub const fn with_peer_limits(mut self, lo: Option<u32>, hi: Option<u32>) -> Self {
+        self.peers_lo = lo;
+        self.peers_hi = hi;
+        self
+    }
+
     /// Builds the [`GossipDriver`].
     pub fn build(
         mut self,
@@ -163,6 +180,8 @@ impl GossipDriverBuilder {
             config.max_transmit_size()
         );
         let mut behaviour = Behaviour::new(keypair.public(), config, &[Box::new(handler.clone())])?;
+        *behaviour.connection_limits.limits_mut() =
+            ConnectionLimits::default().with_max_established(self.peers_hi);
 
         // If peer scoring is configured, set it on the behaviour.
         match self.scoring {
@@ -216,6 +235,9 @@ impl GossipDriverBuilder {
         let gater_config = self.gater_config.take().unwrap_or_default();
         let gate = crate::ConnectionGater::new(gater_config);
 
-        Ok((GossipDriver::new(swarm, addr, handler, sync_handler, sync_protocol, gate), signer_tx))
+        let mut driver = GossipDriver::new(swarm, addr, handler, sync_handler, sync_protocol, gate);
+        driver.peers_lo = self.peers_lo.map(|lo| lo as usize);
+
+        Ok((driver, signer_tx))
     }
 }

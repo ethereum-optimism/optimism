@@ -8,6 +8,7 @@ use kona_gossip::{ConnectionGater, GossipDriver, PEER_SCORE_INSPECT_FREQUENCY};
 use kona_sources::{BlockSigner, BlockSignerStartError};
 use libp2p::{Multiaddr, TransportError};
 use tokio::sync::watch;
+use tracing::info;
 
 use crate::actors::network::handler::NetworkHandler;
 
@@ -23,6 +24,8 @@ pub struct NetworkDriver {
     /// This may be set to false if the node is configured to use a static advertised address (when
     /// used with a nat for example).
     pub enr_update: bool,
+    /// Whether discv5 peer discovery is disabled.
+    pub disable_discovery: bool,
     /// The unsafe block signer sender.
     pub unsafe_block_signer_sender: watch::Sender<Address>,
     /// A block signer. This is optional and should be set if the node is configured to sign blocks
@@ -76,7 +79,12 @@ impl NetworkDriver {
         }
 
         // Start the discovery service.
-        let (handler, enr_receiver) = self.discovery.start();
+        let (handler, enr_receiver) = if self.disable_discovery {
+            info!(target: "node::p2p", "Peer discovery is disabled");
+            self.discovery.start_disabled()
+        } else {
+            self.discovery.start()
+        };
 
         // We are checking the peer scores every [`PEER_SCORE_INSPECT_FREQUENCY`] seconds.
         let peer_score_inspector = tokio::time::interval(*PEER_SCORE_INSPECT_FREQUENCY);

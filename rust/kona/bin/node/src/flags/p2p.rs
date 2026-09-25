@@ -108,6 +108,8 @@ pub struct P2PArgs {
     #[arg(long = "p2p.peers.hi", default_value = "30", env = "KONA_NODE_P2P_PEERS_HI")]
     pub peers_hi: u32,
     /// Grace period to keep a newly connected peer around, if it is not misbehaving.
+    ///
+    /// Currently has no effect: connections are capped at `p2p.peers.hi` rather than trimmed.
     #[arg(
         long = "p2p.peers.grace",
         default_value = "30",
@@ -367,6 +369,14 @@ impl P2PArgs {
         args: &GlobalArgs,
         l1_rpc: Option<Url>,
     ) -> anyhow::Result<NetworkConfig> {
+        if self.peers_lo == 0 || self.peers_hi == 0 || self.peers_lo > self.peers_hi {
+            anyhow::bail!(
+                "invalid p2p.peers.lo/p2p.peers.hi: {}/{}, both must be non-zero and lo must not exceed hi",
+                self.peers_lo,
+                self.peers_hi
+            );
+        }
+
         // Note: the advertised address is contained in the ENR for external peers from the
         // discovery layer to use.
 
@@ -446,6 +456,7 @@ impl P2PArgs {
 
         Ok(NetworkConfig {
             discovery_config,
+            disable_discovery: self.no_discovery,
             discovery_interval: Duration::from_secs(self.discovery_interval),
             discovery_address,
             discovery_randomize: self.discovery_randomize.map(Duration::from_secs),
@@ -456,6 +467,8 @@ impl P2PArgs {
             gossip_config,
             scoring: self.scoring,
             monitor_peers,
+            peers_lo: Some(self.peers_lo),
+            peers_hi: Some(self.peers_hi),
             bootstore,
             topic_scoring: self.topic_scoring,
             gater_config: GaterConfig {

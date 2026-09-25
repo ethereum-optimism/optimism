@@ -29,6 +29,8 @@ pub struct NetworkBuilder {
     /// This may be set to false if the node is configured to use a static advertised address (when
     /// used with a nat for example).
     pub(super) enr_update: bool,
+    /// Whether to disable discv5 peer discovery.
+    pub(super) disable_discovery: bool,
 }
 
 impl From<NetworkConfig> for NetworkBuilder {
@@ -52,6 +54,8 @@ impl From<NetworkConfig> for NetworkBuilder {
         .with_peer_monitoring(config.monitor_peers)
         .with_topic_scoring(config.topic_scoring)
         .with_gater_config(config.gater_config)
+        .with_peer_limits(config.peers_lo, config.peers_hi)
+        .with_discovery_disabled(config.disable_discovery)
     }
 }
 
@@ -80,6 +84,7 @@ impl NetworkBuilder {
             ),
             signer,
             enr_update: true,
+            disable_discovery: false,
         }
     }
 
@@ -121,6 +126,16 @@ impl NetworkBuilder {
     /// Sets topic scoring for the [`GossipDriverBuilder`].
     pub fn with_topic_scoring(self, topic_scoring: bool) -> Self {
         Self { gossip: self.gossip.with_topic_scoring(topic_scoring), ..self }
+    }
+
+    /// Sets the low and high tide peer counts for the [`GossipDriverBuilder`].
+    pub fn with_peer_limits(self, lo: Option<u32>, hi: Option<u32>) -> Self {
+        Self { gossip: self.gossip.with_peer_limits(lo, hi), ..self }
+    }
+
+    /// Disables discv5 peer discovery.
+    pub fn with_discovery_disabled(self, disable_discovery: bool) -> Self {
+        Self { disable_discovery, ..self }
     }
 
     /// Sets the peer monitoring for the [`GossipDriverBuilder`].
@@ -169,6 +184,7 @@ impl NetworkBuilder {
             unsafe_block_signer_sender,
             signer: self.signer,
             enr_update: self.enr_update,
+            disable_discovery: self.disable_discovery,
         })
     }
 }

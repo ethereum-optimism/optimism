@@ -1,6 +1,7 @@
 //! Event Handling Module.
 
 use libp2p::{gossipsub, identify, ping};
+use std::convert::Infallible;
 
 /// High-level events emitted by the gossip networking system.
 ///
@@ -62,6 +63,13 @@ impl From<()> for Event {
     /// Converts () to [Event]
     fn from(_value: ()) -> Self {
         Self::Stream
+    }
+}
+
+impl From<Infallible> for Event {
+    /// The connection limits behaviour never emits events.
+    fn from(value: Infallible) -> Self {
+        match value {}
     }
 }
 
