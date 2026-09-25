@@ -1,9 +1,12 @@
 package logfilter_test
 
 import (
+	"bytes"
 	"context"
+	"fmt"
 	"io"
 	"log/slog"
+	"strings"
 	"sync"
 	"testing"
 
@@ -960,4 +963,69 @@ func createTestLogger(t *testing.T, level slog.Level) log.Logger {
 	filterHandler := WrapFilterHandler(baseHandler)
 	capturer := testlog.WrapCaptureLogger(filterHandler)
 	return log.NewLogger(capturer)
+}
+
+// TestFilterUsesDefaultContext checks that a filter sees the default context set
+// with WithContext, on the logger and on loggers derived from it, and that a
+// logger without it is filtered as usual.
+func TestFilterUsesDefaultContext(t *testing.T) {
+	var buf bytes.Buffer
+	h := WrapFilterHandler(log.LogfmtHandlerWithLevel(&buf, log.LevelTrace))
+	filterHandler, ok := logmods.FindHandler[FilterHandler](h)
+	require.True(t, ok)
+	filterHandler.Set(DefaultMute(CtxTestKeySelector("admin").Show()))
+
+	admin := log.NewLogger(h).WithContext(ContextWithFoo(context.Background(), "admin"))
+	admin.Debug("admin debug")
+	admin.With("k", "v").Debug("admin child debug")
+	log.NewLogger(h).Debug("sibling debug")
+
+	require.Contains(t, buf.String(), `msg="admin debug"`)
+	require.Contains(t, buf.String(), `msg="admin child debug"`)
+	require.NotContains(t, buf.String(), "sibling debug")
+}
+
+// fakeT is a testlog.Testing that keeps what the test logger writes.
+type fakeT struct {
+	mu    sync.Mutex
+	lines []string
+}
+
+func (f *fakeT) Logf(format string, args ...any) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.lines = append(f.lines, fmt.Sprintf(format, args...))
+}
+func (f *fakeT) Helper()        {}
+func (f *fakeT) FailNow()       {}
+func (f *fakeT) Name() string   { return "fakeT" }
+func (f *fakeT) Cleanup(func()) {}
+func (f *fakeT) output() string {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return strings.Join(f.lines, "\n")
+}
+
+// TestTestLoggerWithContext checks that a test logger's WithContext context
+// reaches a filter for records logged without an explicit context, on the
+// derived logger and on loggers derived from it, and leaves the original
+// logger's records unaffected.
+func TestTestLoggerWithContext(t *testing.T) {
+	// The assertions read what the logger writes to its Testing, so keep
+	// testlog from redirecting output to a file as it does in CI.
+	t.Setenv("OP_TESTLOG_FILE_LOGGER_OUTDIR", "")
+	ft := new(fakeT)
+	logger := testlog.LoggerWithHandlerMod(ft, log.LevelTrace, WrapFilterHandler)
+	filterHandler, ok := logmods.FindHandler[FilterHandler](logger.Handler())
+	require.True(t, ok)
+	filterHandler.Set(DefaultMute(CtxTestKeySelector("admin").Show()))
+
+	admin := logger.WithContext(ContextWithFoo(context.Background(), "admin"))
+	admin.Debug("admin debug")
+	admin.New("k", "v").Info("admin child info")
+	logger.Debug("original debug")
+
+	require.Contains(t, ft.output(), "admin debug")
+	require.Contains(t, ft.output(), "admin child info")
+	require.NotContains(t, ft.output(), "original debug")
 }

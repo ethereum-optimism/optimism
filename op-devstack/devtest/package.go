@@ -167,8 +167,7 @@ func (t *implP) WithCtx(ctx context.Context) P {
 	expected := TestScope(t.ctx)
 	got := TestScope(ctx)
 	t.req.Equal(expected, got, "cannot replace context with different test-scope")
-	logger := t.logger.New()
-	logger.SetContext(ctx)
+	logger := t.logger.WithContext(ctx)
 	out := &wrapP{ctx: ctx, logger: logger, P: t}
 	out.req = testreq.New(out)
 	return out

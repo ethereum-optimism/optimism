@@ -26,12 +26,13 @@ linters:
         settings: {}
     depguard:
       rules:
-        # op-service/log is the monorepo's logging API; logger.go is its one
+        # op-service/log is the monorepo's logging API; geth.go is its one
         # binding to the go-ethereum logger.
         geth-log:
           files:
             - $all
-            - "!**/op-service/log/logger.go"
+            - "!**/op-service/log/geth.go"
+            - "!**/op-service/log/geth_test.go"
           deny:
             - pkg: github.com/ethereum/go-ethereum/log$
               desc: import github.com/ethereum-optimism/optimism/op-service/log instead

@@ -149,10 +149,8 @@ func newLogger(ctx context.Context, stderr io.Writer) log.Logger {
 	logHandler = logfilter.WrapFilterHandler(logHandler)
 	logHandler.(logfilter.FilterHandler).Set(logfilter.DefaultMute())
 	logHandler = logfilter.WrapContextHandler(logHandler)
-	logger := log.NewLogger(logHandler)
 	logcli.SetGlobalLogHandler(logHandler)
-	logger.SetContext(ctx)
-	return logger
+	return log.NewLogger(logHandler).WithContext(ctx)
 }
 
 func newMinimalSystem(t *testingT) (sys *presets.Minimal, err error) {
@@ -670,8 +668,7 @@ func (t *testingT) Tracer() trace.Tracer {
 
 // WithCtx implements devtest.T.
 func (t *testingT) WithCtx(ctx context.Context) devtest.T {
-	logger := t.logger.New()
-	logger.SetContext(ctx)
+	logger := t.logger.WithContext(ctx)
 	out := &testingT{
 		state:  t.state,
 		ctx:    ctx,
