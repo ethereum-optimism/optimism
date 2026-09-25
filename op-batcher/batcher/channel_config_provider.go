@@ -6,29 +6,23 @@ import (
 	"time"
 
 	"github.com/ethereum-optimism/optimism/op-service/eth"
-	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/params"
 )
 
 type (
 	ChannelConfigProvider interface {
-		ChannelConfig(isThrottling bool) ChannelConfig
+		ChannelConfig(isThrottling bool, isAmsterdam bool) ChannelConfig
 	}
 
 	GasPricer interface {
 		SuggestGasPriceCaps(ctx context.Context) (tipCap *big.Int, baseFee *big.Int, blobTipCap *big.Int, blobBaseFee *big.Int, err error)
 	}
 
-	L1HeaderFetcher interface {
-		HeaderByNumber(ctx context.Context, number *big.Int) (*types.Header, error)
-	}
-
 	DynamicEthChannelConfig struct {
-		log             log.Logger
-		timeout         time.Duration // query timeout
-		gasPricer       GasPricer
-		l1HeaderFetcher L1HeaderFetcher
+		log       log.Logger
+		timeout   time.Duration // query timeout
+		gasPricer GasPricer
 
 		blobConfig     ChannelConfig
 		calldataConfig ChannelConfig
@@ -37,16 +31,15 @@ type (
 )
 
 func NewDynamicEthChannelConfig(lgr log.Logger,
-	reqTimeout time.Duration, gasPricer GasPricer, l1HeaderFetcher L1HeaderFetcher,
+	reqTimeout time.Duration, gasPricer GasPricer,
 	blobConfig ChannelConfig, calldataConfig ChannelConfig,
 ) *DynamicEthChannelConfig {
 	dec := &DynamicEthChannelConfig{
-		log:             lgr,
-		timeout:         reqTimeout,
-		gasPricer:       gasPricer,
-		l1HeaderFetcher: l1HeaderFetcher,
-		blobConfig:      blobConfig,
-		calldataConfig:  calldataConfig,
+		log:            lgr,
+		timeout:        reqTimeout,
+		gasPricer:      gasPricer,
+		blobConfig:     blobConfig,
+		calldataConfig: calldataConfig,
 	}
 	// start with blob config
 	dec.lastConfig = &dec.blobConfig
@@ -56,11 +49,12 @@ func NewDynamicEthChannelConfig(lgr log.Logger,
 // ChannelConfig will perform an estimate of the cost per byte for
 // calldata and for blobs, given current market conditions: it will return
 // the appropriate ChannelConfig depending on which is cheaper. It makes
-// assumptions about the typical makeup of channel data.
+// assumptions about the typical makeup of channel data. isAmsterdam reports whether Amsterdam
+// is active at the latest canonical L1 head.
 //
 // The blob config is returned when throttling is in progress, prioritizing throughput over cost
 // in times of limited bandwidth.
-func (dec *DynamicEthChannelConfig) ChannelConfig(isThrottling bool) ChannelConfig {
+func (dec *DynamicEthChannelConfig) ChannelConfig(isThrottling bool, isAmsterdam bool) ChannelConfig {
 	if isThrottling {
 		dec.log.Info("Using blob channel config while throttling is in progress")
 		dec.lastConfig = &dec.blobConfig
@@ -73,18 +67,12 @@ func (dec *DynamicEthChannelConfig) ChannelConfig(isThrottling bool) ChannelConf
 		dec.log.Warn("Error querying gas prices, returning last config", "err", err)
 		return *dec.lastConfig
 	}
-	l1Head, err := dec.l1HeaderFetcher.HeaderByNumber(ctx, nil)
-	if err != nil {
-		dec.log.Warn("Error querying L1 head, returning last config", "err", err)
-		return *dec.lastConfig
-	}
 	// Price against the latest canonical head rather than predicting the fork rules of the
 	// transaction's eventual inclusion block. This intentionally accepts one head of lag at
 	// Amsterdam activation: a transaction priced on the final pre-Amsterdam head may be included
 	// in the first Amsterdam block using the pre-Amsterdam comparison. This affects only DA cost
 	// selection; the transaction gas limit accounts for both floor schedules, so validity is
 	// unchanged.
-	isAmsterdam := l1Head.BlockAccessListHash != nil
 
 	// Channels built for blobs have higher capacity than channels built for calldata.
 	// If we have a channel built for calldata, we want to switch to blobs if the cost per byte is lower. Doing so

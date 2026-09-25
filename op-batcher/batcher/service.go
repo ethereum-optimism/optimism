@@ -335,7 +335,7 @@ func (bs *BatcherService) initChannelConfig(cfg *CLIConfig) error {
 		calldataCC.UseBlobs = false
 		calldataCC.ReinitCompressorConfig()
 
-		bs.ChannelConfig = NewDynamicEthChannelConfig(bs.Log, 10*time.Second, bs.TxManager, bs.L1Client, cc, calldataCC)
+		bs.ChannelConfig = NewDynamicEthChannelConfig(bs.Log, 10*time.Second, bs.TxManager, cc, calldataCC)
 	} else {
 		bs.ChannelConfig = cc
 	}

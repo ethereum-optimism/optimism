@@ -10,8 +10,6 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
-	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/stretchr/testify/require"
 )
 
@@ -28,22 +26,6 @@ func (gp *mockGasPricer) SuggestGasPriceCaps(context.Context) (tipCap *big.Int, 
 		return nil, nil, nil, nil, gp.err
 	}
 	return big.NewInt(gp.tipCap), big.NewInt(gp.baseFee), big.NewInt(gp.blobTipCap), big.NewInt(gp.blobBaseFee), nil
-}
-
-type mockL1HeaderFetcher struct {
-	err         error
-	isAmsterdam bool
-}
-
-func (f *mockL1HeaderFetcher) HeaderByNumber(context.Context, *big.Int) (*types.Header, error) {
-	if f.err != nil {
-		return nil, f.err
-	}
-	header := new(types.Header)
-	if f.isAmsterdam {
-		header.BlockAccessListHash = new(common.Hash)
-	}
-	return header, nil
 }
 
 func TestDynamicEthChannelConfig_ChannelConfig(t *testing.T) {
@@ -124,9 +106,8 @@ func TestDynamicEthChannelConfig_ChannelConfig(t *testing.T) {
 				baseFee:     tt.baseFee,
 				blobBaseFee: tt.blobBaseFee,
 			}
-			headerFetcher := &mockL1HeaderFetcher{isAmsterdam: tt.isAmsterdam}
-			dec := NewDynamicEthChannelConfig(lgr, 1*time.Second, gp, headerFetcher, blobCfg, calldataCfg)
-			cc := dec.ChannelConfig(tt.isThrottling)
+			dec := NewDynamicEthChannelConfig(lgr, 1*time.Second, gp, blobCfg, calldataCfg)
+			cc := dec.ChannelConfig(tt.isThrottling, tt.isAmsterdam)
 			if tt.wantCalldata {
 				require.Equal(t, cc, calldataCfg)
 				require.NotNil(t, ch.FindLog(testlog.NewMessageContainsFilter("calldata")))
@@ -147,34 +128,25 @@ func TestDynamicEthChannelConfig_ChannelConfig(t *testing.T) {
 			blobBaseFee: 1e6, // should return calldata cfg without error
 			err:         errors.New("gp-error"),
 		}
-		headerFetcher := new(mockL1HeaderFetcher)
-		dec := NewDynamicEthChannelConfig(lgr, 1*time.Second, gp, headerFetcher, blobCfg, calldataCfg)
-		require.Equal(t, dec.ChannelConfig(false), blobCfg)
+		dec := NewDynamicEthChannelConfig(lgr, 1*time.Second, gp, blobCfg, calldataCfg)
+		require.Equal(t, dec.ChannelConfig(false, false), blobCfg)
 		require.NotNil(t, ch.FindLog(
 			testlog.NewLevelFilter(slog.LevelWarn),
 			testlog.NewMessageContainsFilter("returning last config"),
 		))
 
 		gp.err = nil
-		require.Equal(t, dec.ChannelConfig(false), calldataCfg)
+		require.Equal(t, dec.ChannelConfig(false, false), calldataCfg)
 		require.NotNil(t, ch.FindLog(
 			testlog.NewLevelFilter(slog.LevelInfo),
 			testlog.NewMessageContainsFilter("calldata"),
 		))
 
 		gp.err = errors.New("gp-error-2")
-		require.Equal(t, dec.ChannelConfig(false), calldataCfg)
+		require.Equal(t, dec.ChannelConfig(false, false), calldataCfg)
 		require.NotNil(t, ch.FindLog(
 			testlog.NewLevelFilter(slog.LevelWarn),
 			testlog.NewMessageContainsFilter("returning last config"),
-		))
-
-		gp.err = nil
-		headerFetcher.err = errors.New("header-error")
-		require.Equal(t, dec.ChannelConfig(false), calldataCfg)
-		require.NotNil(t, ch.FindLog(
-			testlog.NewLevelFilter(slog.LevelWarn),
-			testlog.NewMessageContainsFilter("Error querying L1 head"),
 		))
 	})
 }
