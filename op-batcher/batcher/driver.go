@@ -864,6 +864,11 @@ func (l *BatchSubmitter) publishTxToL1(ctx context.Context, queue *txmgr.Queue[t
 	_, params := l.throttleController.Load()
 	// Collect next transaction data. This pulls data out of the channel, so we need to make sure
 	// to put it back if ever da or txmgr requests fail, by calling l.recordFailedDARequest/recordFailedTx.
+	//
+	// Price DA using the fork rules active at the fetched L1 tip rather than predicting the
+	// transaction's inclusion block. A transaction built on the final pre-Amsterdam head may use
+	// the pre-Amsterdam comparison even if it lands in the first Amsterdam block. This only affects
+	// DA selection; the transaction gas limit accounts for both floor schedules.
 	l.channelMgrMutex.Lock()
 	txdata, err := l.channelMgr.TxData(l1tip.ID(), params.IsThrottling(), isAmsterdam, pi)
 	l.channelMgrMutex.Unlock()
