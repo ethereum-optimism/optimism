@@ -82,6 +82,14 @@ To stop a sequencer issuing rebates:
 3. Set `OP_RETH_OPERATOR_SDM_OPT_IN=false` (or the CLI flag) in the deployment, or a restart will
    turn it back on.
 
+Steps 1 and 2 with `cast`:
+
+```bash title="Disable SDM at runtime"
+cast rpc admin_setOperatorSdmOptIn false --rpc-url <SEQUENCER_ADMIN_RPC_URL>
+cast rpc admin_sdmStatus --rpc-url <SEQUENCER_ADMIN_RPC_URL> | jq '.effective'
+```
+
+
 This only affects blocks the sequencer builds from then on. Post-exec transactions already in the
 chain stay valid and verifiers keep validating them, so there is nothing to coordinate with
 verifier operators and no config or hardfork change to make.
