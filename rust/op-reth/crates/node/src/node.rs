@@ -4,6 +4,7 @@ use crate::{
     OpEngineApiBuilder, OpEngineTypes,
     args::RollupArgs,
     engine::OpEngineValidator,
+    sdm_test_policy::TestSdmPayloadServiceBuilder,
     txpool::{OpCustomTransactionPool, OpTransactionValidator},
 };
 use alloy_primitives::Sealed;
@@ -226,6 +227,19 @@ pub type OpNodeComponentBuilder<Node, Payload = OpPayloadBuilder> = ComponentsBu
     OpConsensusBuilder,
 >;
 
+/// The component builder used by the stock node configuration.
+///
+/// The payload-service builder selects the stock or test-only SDM policy once when the service is
+/// constructed, keeping policy selection out of transaction execution.
+pub type DefaultOpNodeComponentBuilder<Node> = ComponentsBuilder<
+    Node,
+    OpPoolBuilder,
+    TestSdmPayloadServiceBuilder,
+    OpNetworkBuilder,
+    OpExecutorBuilder,
+    OpConsensusBuilder,
+>;
+
 impl Default for OpNode {
     fn default() -> Self {
         Self::new(RollupArgs::default())
@@ -304,7 +318,7 @@ impl OpNode {
     }
 
     /// Returns the components for the given [`RollupArgs`].
-    pub fn components<Node>(&self) -> OpNodeComponentBuilder<Node>
+    pub fn components<Node>(&self) -> DefaultOpNodeComponentBuilder<Node>
     where
         Node: FullNodeTypes<Types: OpNodeTypes>,
     {
@@ -313,9 +327,16 @@ impl OpNode {
             .node_types::<Node>()
             .executor(OpExecutorBuilder::default())
             .pool(self.standard_pool_builder())
-            .payload(BasicPayloadServiceBuilder::new(self.payload_builder()))
+            .payload(self.payload_service_builder())
             .network(OpNetworkBuilder::new(disable_txpool_gossip, !discovery_v4))
             .consensus(OpConsensusBuilder::default())
+    }
+
+    fn payload_service_builder(&self) -> TestSdmPayloadServiceBuilder {
+        TestSdmPayloadServiceBuilder::new(
+            self.payload_builder(),
+            self.args.testing_sdm_fixed_policy,
+        )
     }
 
     /// Returns [`OpAddOnsBuilder`] with configured arguments.
@@ -378,14 +399,7 @@ impl<N> Node<N> for OpNode
 where
     N: FullNodeTypes<Types: OpFullNodeTypes + OpNodeTypes>,
 {
-    type ComponentsBuilder = ComponentsBuilder<
-        N,
-        OpPoolBuilder,
-        BasicPayloadServiceBuilder<OpPayloadBuilder>,
-        OpNetworkBuilder,
-        OpExecutorBuilder,
-        OpConsensusBuilder,
-    >;
+    type ComponentsBuilder = DefaultOpNodeComponentBuilder<N>;
 
     type AddOns = OpAddOns<
         NodeAdapter<N, <Self::ComponentsBuilder as NodeComponentsBuilder<N>>::Components>,

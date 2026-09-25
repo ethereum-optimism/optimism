@@ -39,6 +39,10 @@ pub use reth_optimism_txpool as txpool;
 
 pub mod proof_history;
 
+/// Deterministic SDM policy used by hidden test-only op-reth controls.
+#[doc(hidden)]
+pub mod sdm_test_policy;
+
 /// Helpers for running test node instances.
 #[cfg(feature = "test-utils")]
 pub mod utils;

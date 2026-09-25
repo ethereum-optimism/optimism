@@ -47,7 +47,6 @@ members = [
   "op-reth/crates/primitives/",
   "op-reth/crates/reth/",
   "op-reth/crates/rpc/",
-  "op-reth/crates/sdm-fixture-node/",
   "op-reth/crates/storage/",
   "op-reth/crates/exex/",
   "op-reth/crates/trie/",
