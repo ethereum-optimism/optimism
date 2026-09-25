@@ -23,7 +23,7 @@ use crate::{
     TX_REVERTED_PREFIX, ZK_GAME_TYPE,
     config::RangeSplitCount,
     contract::{
-        AnchorStateRegistry, DelayedWETH,
+        AnchorStateRegistry, BondDistributionMode, DelayedWETH,
         DisputeGameFactory::{DisputeGameCreated, DisputeGameFactoryInstance},
         GameStatus, ISP1Verifier, ProposalStatus, SP1PlonkAdapter, ZKDisputeGame, ZKGameArgs,
     },
@@ -278,23 +278,31 @@ where
     ) -> Result<BondState> {
         let game_contract = ZKDisputeGame::new(game, self.provider.clone());
         let weth_contract = DelayedWETH::new(weth, self.provider.clone());
+        let distribution_mode_call = game_contract.bondDistributionMode();
         let credit_call = game_contract.credit(proposer);
+        let refund_mode_credit_call = game_contract.refundModeCredit(proposer);
         let withdrawal_call = weth_contract.withdrawals(game, proposer);
         let delay_call = weth_contract.delay();
 
         let mut batch = BatchRequest::new(self.provider.client());
+        let distribution_mode = add_eth_call(&mut batch, distribution_mode_call, block)?;
         let credit = add_eth_call(&mut batch, credit_call, block)?;
+        let refund_mode_credit = add_eth_call(&mut batch, refund_mode_credit_call, block)?;
         let withdrawal = add_eth_call(&mut batch, withdrawal_call, block)?;
         let delay = add_eth_call(&mut batch, delay_call, block)?;
 
         batch.send().await.context("failed to send batch request")?;
 
+        let distribution_mode = distribution_mode.decode().await?;
         let credit = credit.decode().await?;
+        let refund_mode_credit = refund_mode_credit.decode().await?;
         let withdrawal = withdrawal.decode().await?;
         let delay = delay.decode().await?;
 
         Ok(BondState {
+            bond_distribution_mode: BondDistributionMode::try_from(distribution_mode)?,
             credit,
+            refund_mode_credit,
             withdrawal_amount: withdrawal.amount,
             withdrawal_timestamp: withdrawal.timestamp,
             delay,
@@ -315,17 +323,31 @@ where
         weth: Address,
         proposer: Address,
     ) -> ClaimPreflight {
-        let credit = ZKDisputeGame::new(game, self.provider.clone()).credit(proposer).call().await;
-        let withdrawal = DelayedWETH::new(weth, self.provider.clone())
-            .withdrawals(game, proposer)
-            .call()
-            .await
-            .map(|withdrawal| WithdrawalState {
-                amount: withdrawal.amount,
-                timestamp: withdrawal.timestamp,
-            })
-            .map_err(Into::into);
-        ClaimPreflight { credit: credit.map_err(Into::into), withdrawal }
+        let game_contract = ZKDisputeGame::new(game, self.provider.clone());
+        let distribution_mode = game_contract.bondDistributionMode();
+        let credit = game_contract.credit(proposer);
+        let refund_mode_credit = game_contract.refundModeCredit(proposer);
+        let weth_contract = DelayedWETH::new(weth, self.provider.clone());
+        let withdrawal = weth_contract.withdrawals(game, proposer);
+        let (distribution_mode, credit, refund_mode_credit, withdrawal) = tokio::join!(
+            distribution_mode.call(),
+            credit.call(),
+            refund_mode_credit.call(),
+            withdrawal.call(),
+        );
+        ClaimPreflight {
+            bond_distribution_mode: distribution_mode
+                .map_err(Into::into)
+                .and_then(BondDistributionMode::try_from),
+            credit: credit.map_err(Into::into),
+            refund_mode_credit: refund_mode_credit.map_err(Into::into),
+            withdrawal: withdrawal
+                .map(|withdrawal| WithdrawalState {
+                    amount: withdrawal.amount,
+                    timestamp: withdrawal.timestamp,
+                })
+                .map_err(Into::into),
+        }
     }
 
     async fn weth_delay(&self, weth: Address) -> Result<U256> {
@@ -843,20 +865,18 @@ mod tests {
     #[tokio::test]
     async fn claim_preflight_preserves_independent_read_failures() {
         let asserter = Asserter::new();
+        push_abi(&asserter, U256::from(BondDistributionMode::Normal as u8));
         asserter.push_failure_msg("credit unavailable");
+        asserter.push_failure_msg("refund credit unavailable");
         push_abi(&asserter, (U256::from(2), U256::from(3)));
-        let result =
-            view(asserter).claim_preflight(Address::ZERO, Address::ZERO, Address::ZERO).await;
-        assert!(result.credit.is_err());
-        assert_eq!(result.withdrawal.unwrap().amount, U256::from(2));
 
-        let asserter = Asserter::new();
-        push_abi(&asserter, U256::from(1));
-        asserter.push_failure_msg("withdrawal unavailable");
         let result =
             view(asserter).claim_preflight(Address::ZERO, Address::ZERO, Address::ZERO).await;
-        assert_eq!(result.credit.unwrap(), U256::from(1));
-        assert!(result.withdrawal.is_err());
+
+        assert_eq!(result.bond_distribution_mode.unwrap(), BondDistributionMode::Normal);
+        assert!(result.credit.is_err());
+        assert!(result.refund_mode_credit.is_err());
+        assert_eq!(result.withdrawal.unwrap().amount, U256::from(2));
     }
 
     #[tokio::test]
@@ -947,8 +967,12 @@ mod tests {
     #[tokio::test]
     async fn bond_state_batches_all_reads_before_decoding_output() {
         let asserter = Asserter::new();
+        // bondDistributionMode: uint8, encoded as a full 32-byte word
+        push_abi(&asserter, U256::from(BondDistributionMode::Refund as u8));
         // credit: U256
         push_abi(&asserter, U256::from(11));
+        // refundModeCredit: U256
+        push_abi(&asserter, U256::from(55));
         // withdrawals: (U256 amount, U256 timestamp)
         push_abi(&asserter, (U256::from(22), U256::from(33)));
         // delay: U256
@@ -960,7 +984,9 @@ mod tests {
             .await
             .unwrap();
 
+        assert_eq!(bond.bond_distribution_mode, BondDistributionMode::Refund);
         assert_eq!(bond.credit, U256::from(11));
+        assert_eq!(bond.refund_mode_credit, U256::from(55));
         assert_eq!(bond.withdrawal_amount, U256::from(22));
         assert_eq!(bond.withdrawal_timestamp, U256::from(33));
         assert_eq!(bond.delay, U256::from(44));
