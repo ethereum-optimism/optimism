@@ -86,7 +86,7 @@ arg: --max-seen-tx-history <COUNT> [action: Set] [num-args: 1] [default: 320] he
 arg: --max-pending-imports <COUNT> [action: Set] [num-args: 1] [default: 4096] help: Max number of transactions to import concurrently.
 arg: --pooled-tx-response-soft-limit <BYTES> [action: Set] [num-args: 1] [default: 2097152] help: Experimental, for usage in research. Sets the max accumulated byte size of transactions\nto pack in one response.\nSpec'd at 2MiB.
 arg: --pooled-tx-pack-soft-limit <BYTES> [action: Set] [num-args: 1] [default: 131072] help: Experimental, for usage in research. Sets the max accumulated byte size of transactions to\nrequest in one request.
-arg: --max-tx-pending-fetch <COUNT> [action: Set] [num-args: 1] [default: 25600] help: Max capacity of cache of hashes for transactions pending fetch.
+arg: --max-tx-pending-fetch <COUNT> [action: Set] [num-args: 1] [default: 25600] help: Maximum number of announced transaction hashes to track, including inflight requests.
 arg: --tx-channel-memory-limit <BYTES> [action: Set] [num-args: 1] [default: 1073741824] help: Memory limit (in bytes) for the channel that buffers transaction events flowing\nfrom the network manager to the transactions manager.
 arg: --net-if.experimental <IF_NAME> [action: Set] [num-args: 1] [conflicts: --addr] help: Name of network interface used to communicate with peers
 arg: --tx-propagation-policy <TX_PROPAGATION_POLICY> [action: Set] [num-args: 1] [default: All] help: Transaction Propagation Policy
@@ -102,6 +102,8 @@ arg: --http [action: SetTrue] [num-args: 0] [default: false] [default-values-if:
 arg: --http.addr <HTTP_ADDR> [action: Set] [num-args: 1] [default: 127.0.0.1] help: Http server address to listen on
 arg: --http.port <HTTP_PORT> [action: Set] [num-args: 1] [default: 8545] help: Http server port to listen on
 arg: --http.disable-compression [action: SetTrue] [num-args: 0] [default: false] help: Disable compression for HTTP responses
+arg: --http.compression <ALGOS> [action: Append] [num-args: 1] [value-delimiter: ','] [possible: zstd, gzip, deflate, br] help: Comma-separated list of allowed compression algorithms for HTTP responses
+arg: --http.decompression <ALGOS> [action: Append] [num-args: 1] [value-delimiter: ','] [possible: zstd, gzip, deflate, br] help: Comma-separated list of allowed decompression algorithms for HTTP requests
 arg: --http.api <HTTP_API> [action: Set] [num-args: 1] [possible: admin, debug, eth, net, trace, txpool, web3, rpc, reth, ots, flashbots, miner, mev, testing] help: Rpc Modules to be configured for the HTTP server
 arg: --http.corsdomain <HTTP_CORSDOMAIN> [action: Set] [num-args: 1] help: Http Corsdomain to allow request from
 arg: --ws [action: SetTrue] [num-args: 0] [default: false] help: Enable the WS-RPC server
@@ -114,7 +116,8 @@ arg: --ipcpath <IPCPATH> [action: Set] [num-args: 1] [default: /tmp/reth.ipc] he
 arg: --ipc.permissions <IPC_SOCKET_PERMISSIONS> [action: Set] [num-args: 1] help: Set the permissions for the IPC socket file, in octal format
 arg: --authrpc.addr <AUTH_ADDR> [action: Set] [num-args: 1] [default: 127.0.0.1] help: Auth server address to listen on
 arg: --authrpc.port <AUTH_PORT> [action: Set] [num-args: 1] [default: 8551] help: Auth server port to listen on
-arg: --authrpc.jwtsecret <PATH> [action: Set] [num-args: 1] [global] help: Path to a JWT secret to use for the authenticated engine-API RPC server
+arg: --authrpc.jwtsecret <PATH> [action: Set] [num-args: 1] [conflicts: --authrpc.jwtsecret-hex] [global] help: Path to a JWT secret to use for the authenticated engine-API RPC server
+arg: --authrpc.jwtsecret-hex <HEX> [action: Set] [num-args: 1] [conflicts: --authrpc.jwtsecret] [global] help: Hex encoded JWT secret to use for the authenticated engine-API RPC server
 arg: --auth-ipc [action: SetTrue] [num-args: 0] [default: false] help: Enable auth engine API over IPC
 arg: --auth-ipc.path <AUTH_IPC_PATH> [action: Set] [num-args: 1] [default: /tmp/reth_engine_api.ipc] help: Filename for auth IPC socket/pipe within the datadir
 arg: --disable-auth-server [action: SetTrue] [num-args: 0] [aliases: disable-engine-api] [default: false] help: Disable the auth/engine API server
@@ -141,10 +144,12 @@ arg: --rpc.forwarder <FORWARDER> [action: Set] [num-args: 1] [aliases: rpc-forwa
 arg: --builder.disallow <PATH> [action: Set] [num-args: 1] help: Path to file containing disallowed addresses, json-encoded list of strings. Block validation API will reject blocks containing transactions from these addresses
 arg: --rpc-cache.max-blocks <MAX_BLOCKS> [action: Set] [num-args: 1] [default: 5000] help: Max number of blocks in cache
 arg: --rpc-cache.max-receipts <MAX_RECEIPTS> [action: Set] [num-args: 1] [default: 2000] help: Max number receipts in cache
-arg: --rpc-cache.max-headers <MAX_HEADERS> [action: Set] [num-args: 1] [aliases: rpc-cache.max-envs] [default: 1000] help: Max number of headers in cache
+arg: --rpc-cache.max-headers <MAX_HEADERS> [action: Set] [num-args: 1] [aliases: rpc-cache.max-envs] [default: 1000] [hidden] help: Legacy no-op retained for CLI compatibility
 arg: --rpc-cache.max-bals <MAX_BALS> [action: Set] [num-args: 1] [default: 1000] help: Max number of block access lists in cache
+arg: --rpc-cache.cache-computed-bals [action: SetTrue] [num-args: 0] help: Cache block access lists computed by RPC requests for transaction tracing
+arg: --rpc-cache.prewarm-bals <BLOCKS> [action: Set] [num-args: 0..=1] [default-missing-values: ["0"]] [require-equals] help: Replay new canonical blocks to cache block access lists until native BAL support
 arg: --rpc-cache.max-concurrent-db-requests <MAX_CONCURRENT_DB_REQUESTS> [action: Set] [num-args: 1] [default: 512] help: Max number of concurrent database requests
-arg: --rpc-cache.max-cached-tx-hashes <MAX_CACHED_TX_HASHES> [action: Set] [num-args: 1] [default: 30000] help: Maximum number of transaction hashes to cache for transaction lookups
+arg: --rpc-cache.max-cached-tx-hashes <MAX_CACHED_TX_HASHES> [action: Set] [num-args: 1] [default: 100000] help: Maximum number of transaction hashes to cache for transaction lookups
 arg: --gpo.blocks <BLOCKS> [action: Set] [num-args: 1] [default: 20] help: Number of recent blocks to check for gas price
 arg: --gpo.ignoreprice <IGNORE_PRICE> [action: Set] [num-args: 1] [default: 0] help: Gas Price below which gpo will ignore transactions
 arg: --gpo.maxprice <MAX_PRICE> [action: Set] [num-args: 1] [default: 500000000000] help: Maximum transaction priority fee(or gasprice before London Fork) to be recommended by gpo
@@ -247,8 +252,9 @@ arg: --prune.bodies.pre-merge [action: SetTrue] [num-args: 0] [conflicts: --prun
 arg: --prune.bodies.distance <BLOCKS> [action: Set] [num-args: 1] [conflicts: --prune.bodies.before, --prune.bodies.pre-merge] help: Prune bodies before the `head-N` block number. In other words, keep last N + 1 blocks
 arg: --prune.bodies.before <BLOCK_NUMBER> [action: Set] [num-args: 1] [conflicts: --prune.bodies.distance, --prune.bodies.pre-merge] help: Prune storage history before the specified block number. The specified block number is not pruned
 arg: --prune.minimum-distance <BLOCKS> [action: Set] [num-args: 1] help: Minimum pruning distance from the tip. This controls the safety margin for reorgs and manual unwinds
-arg: --engine.persistence-threshold <PERSISTENCE_THRESHOLD> [action: Set] [num-args: 1] [default: 7] help: Configure persistence threshold for the engine. This determines how many canonical blocks must be in-memory, ahead of the last persisted block, before flushing canonical blocks to disk again
+arg: --engine.persistence-threshold <PERSISTENCE_THRESHOLD> [action: Set] [num-args: 1] [env: RETH_ENGINE_PERSISTENCE_THRESHOLD] [default: 50] help: Configure persistence threshold for the engine. This determines how many canonical blocks must be in-memory, ahead of the last persisted block, before flushing canonical blocks to disk again
 arg: --engine.persistence-backpressure-threshold <PERSISTENCE_BACKPRESSURE_THRESHOLD> [action: Set] [num-args: 1] help: Configure the maximum number of blocks beyond the in-memory buffer target that may await persistence before engine API processing stalls
+arg: --engine.num-state-masking-blocks <NUM_STATE_MASKING_BLOCKS> [action: Set] [num-args: 1] [env: RETH_ENGINE_NUM_STATE_MASKING_BLOCKS] [default: 30] help: Configure how many of the blocks being persisted should only mask state/trie writes instead of durably persisting their state/trie updates in the current cycle
 arg: --engine.memory-block-buffer-target <MEMORY_BLOCK_BUFFER_TARGET> [action: Set] [num-args: 1] help: Configure the target number of blocks to keep in memory
 arg: --engine.invalid-header-cache-hit-eviction-threshold <INVALID_HEADER_HIT_EVICTION_THRESHOLD> [action: Set] [num-args: 1] [default: 128] help: Configure how many cache hits an invalid header can accumulate before it is evicted and reprocessed
 arg: --engine.legacy-state-root [action: SetTrue] [num-args: 0] [default: false] [hidden] help: CAUTION: This CLI flag has no effect anymore, use --engine.state-root-fallback if you want to force synchronous state root computation
@@ -686,7 +692,7 @@ arg: --max-seen-tx-history <COUNT> [action: Set] [num-args: 1] [default: 320] he
 arg: --max-pending-imports <COUNT> [action: Set] [num-args: 1] [default: 4096] help: Max number of transactions to import concurrently.
 arg: --pooled-tx-response-soft-limit <BYTES> [action: Set] [num-args: 1] [default: 2097152] help: Experimental, for usage in research. Sets the max accumulated byte size of transactions\nto pack in one response.\nSpec'd at 2MiB.
 arg: --pooled-tx-pack-soft-limit <BYTES> [action: Set] [num-args: 1] [default: 131072] help: Experimental, for usage in research. Sets the max accumulated byte size of transactions to\nrequest in one request.
-arg: --max-tx-pending-fetch <COUNT> [action: Set] [num-args: 1] [default: 25600] help: Max capacity of cache of hashes for transactions pending fetch.
+arg: --max-tx-pending-fetch <COUNT> [action: Set] [num-args: 1] [default: 25600] help: Maximum number of announced transaction hashes to track, including inflight requests.
 arg: --tx-channel-memory-limit <BYTES> [action: Set] [num-args: 1] [default: 1073741824] help: Memory limit (in bytes) for the channel that buffers transaction events flowing\nfrom the network manager to the transactions manager.
 arg: --net-if.experimental <IF_NAME> [action: Set] [num-args: 1] [conflicts: --addr] help: Name of network interface used to communicate with peers
 arg: --tx-propagation-policy <TX_PROPAGATION_POLICY> [action: Set] [num-args: 1] [default: All] help: Transaction Propagation Policy
@@ -863,7 +869,7 @@ arg: --max-seen-tx-history <COUNT> [action: Set] [num-args: 1] [default: 320] he
 arg: --max-pending-imports <COUNT> [action: Set] [num-args: 1] [default: 4096] help: Max number of transactions to import concurrently.
 arg: --pooled-tx-response-soft-limit <BYTES> [action: Set] [num-args: 1] [default: 2097152] help: Experimental, for usage in research. Sets the max accumulated byte size of transactions\nto pack in one response.\nSpec'd at 2MiB.
 arg: --pooled-tx-pack-soft-limit <BYTES> [action: Set] [num-args: 1] [default: 131072] help: Experimental, for usage in research. Sets the max accumulated byte size of transactions to\nrequest in one request.
-arg: --max-tx-pending-fetch <COUNT> [action: Set] [num-args: 1] [default: 25600] help: Max capacity of cache of hashes for transactions pending fetch.
+arg: --max-tx-pending-fetch <COUNT> [action: Set] [num-args: 1] [default: 25600] help: Maximum number of announced transaction hashes to track, including inflight requests.
 arg: --tx-channel-memory-limit <BYTES> [action: Set] [num-args: 1] [default: 1073741824] help: Memory limit (in bytes) for the channel that buffers transaction events flowing\nfrom the network manager to the transactions manager.
 arg: --net-if.experimental <IF_NAME> [action: Set] [num-args: 1] [conflicts: --addr] help: Name of network interface used to communicate with peers
 arg: --tx-propagation-policy <TX_PROPAGATION_POLICY> [action: Set] [num-args: 1] [default: All] help: Transaction Propagation Policy
@@ -922,7 +928,7 @@ arg: --max-seen-tx-history <COUNT> [action: Set] [num-args: 1] [default: 320] he
 arg: --max-pending-imports <COUNT> [action: Set] [num-args: 1] [default: 4096] help: Max number of transactions to import concurrently.
 arg: --pooled-tx-response-soft-limit <BYTES> [action: Set] [num-args: 1] [default: 2097152] help: Experimental, for usage in research. Sets the max accumulated byte size of transactions\nto pack in one response.\nSpec'd at 2MiB.
 arg: --pooled-tx-pack-soft-limit <BYTES> [action: Set] [num-args: 1] [default: 131072] help: Experimental, for usage in research. Sets the max accumulated byte size of transactions to\nrequest in one request.
-arg: --max-tx-pending-fetch <COUNT> [action: Set] [num-args: 1] [default: 25600] help: Max capacity of cache of hashes for transactions pending fetch.
+arg: --max-tx-pending-fetch <COUNT> [action: Set] [num-args: 1] [default: 25600] help: Maximum number of announced transaction hashes to track, including inflight requests.
 arg: --tx-channel-memory-limit <BYTES> [action: Set] [num-args: 1] [default: 1073741824] help: Memory limit (in bytes) for the channel that buffers transaction events flowing\nfrom the network manager to the transactions manager.
 arg: --net-if.experimental <IF_NAME> [action: Set] [num-args: 1] [conflicts: --addr] help: Name of network interface used to communicate with peers
 arg: --tx-propagation-policy <TX_PROPAGATION_POLICY> [action: Set] [num-args: 1] [default: All] help: Transaction Propagation Policy

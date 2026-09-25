@@ -6,11 +6,11 @@ use alloy_consensus::{
 use alloy_eips::{eip7685::EMPTY_REQUESTS_HASH, merge::BEACON_NONCE};
 use alloy_evm::block::BlockExecutorFactory;
 use alloy_op_evm::OpBlockExecutionCtx;
-use alloy_primitives::logs_bloom;
+use alloy_primitives::Bloom;
 use reth_evm::execute::{BlockAssembler, BlockAssemblerInput};
 use reth_execution_errors::BlockExecutionError;
 use reth_execution_types::BlockExecutionResult;
-use reth_optimism_consensus::{calculate_receipt_root_no_memo_optimism, isthmus};
+use reth_optimism_consensus::{calculate_receipt_root_optimism, isthmus};
 use reth_optimism_forks::OpHardforks;
 use reth_optimism_primitives::DepositReceipt;
 use reth_primitives_traits::{Receipt, SignedTransaction};
@@ -30,7 +30,7 @@ impl<ChainSpec> OpBlockAssembler<ChainSpec> {
 }
 
 impl<ChainSpec: OpHardforks> OpBlockAssembler<ChainSpec> {
-    /// UPSTREAM-MIRROR(copy): reth@rev:0fbe428
+    /// UPSTREAM-MIRROR(copy): reth@rev:4553cf1
     /// `reth_evm_ethereum::EthBlockAssembler::assemble_block`
     ///
     /// Copies upstream block assembly with OP receipt roots, withdrawals, and DA fields.
@@ -61,9 +61,13 @@ impl<ChainSpec: OpHardforks> OpBlockAssembler<ChainSpec> {
         let timestamp = evm_env.block_env.timestamp().saturating_to();
 
         let transactions_root = proofs::calculate_transaction_root(&transactions);
+        // Reuse the receipt blooms for the block bloom instead of hashing every log twice.
+        let receipts_with_bloom =
+            receipts.iter().map(TxReceipt::with_bloom_ref).collect::<Vec<_>>();
         let receipts_root =
-            calculate_receipt_root_no_memo_optimism(receipts, &self.chain_spec, timestamp);
-        let logs_bloom = logs_bloom(receipts.iter().flat_map(|r| r.logs()));
+            calculate_receipt_root_optimism(&receipts_with_bloom, &self.chain_spec, timestamp);
+        let logs_bloom =
+            receipts_with_bloom.iter().fold(Bloom::ZERO, |acc, receipt| acc | receipt.bloom_ref());
 
         let mut requests_hash = None;
 

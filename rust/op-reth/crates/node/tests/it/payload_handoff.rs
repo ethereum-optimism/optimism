@@ -137,9 +137,9 @@ async fn wait_until(message: &str, mut ready: impl FnMut() -> bool) {
 }
 
 fn persistence_completions() -> u64 {
-    // This histogram is recorded by EngineApiTreeHandler::finish_persistence, not the disk
-    // writer. Once observed, the engine must pass through its active-build handoff branch
-    // before it can receive another request. Disk height alone cannot establish that ordering.
+    // This histogram is recorded by EngineApiTreeHandler after persistence completes, not by the
+    // disk writer. Once observed, the engine has processed the in-memory handoff before it can
+    // receive another request. Disk height alone cannot establish that ordering.
     install_prometheus_recorder()
         .handle()
         .render()
@@ -152,7 +152,7 @@ fn persistence_completions() -> u64 {
 }
 
 #[test]
-fn pending_handoff_keeps_engine_responsive_and_drains() {
+fn persistence_handoff_keeps_engine_responsive_and_drains() {
     // Metrics handles are cached globally upstream. A fresh process makes the rendezvous
     // specific to this node, even under cargo test with other node tests running concurrently.
     const CHILD: &str = "OP_RETH_HANDOFF_TEST_CHILD";
@@ -160,7 +160,7 @@ fn pending_handoff_keeps_engine_responsive_and_drains() {
         let output = Command::new(std::env::current_exe().unwrap())
             .args([
                 "--exact",
-                "payload_handoff::pending_handoff_keeps_engine_responsive_and_drains",
+                "payload_handoff::persistence_handoff_keeps_engine_responsive_and_drains",
                 "--nocapture",
             ])
             .env(CHILD, "1")
@@ -284,14 +284,11 @@ async fn run_handoff_scenario() -> eyre::Result<()> {
         .await?;
         assert!(fcu.payload_status.is_valid());
 
-        if number == 1 {
-            wait_until("engine did not observe persistence completion", || {
-                persistence_completions() > 0
-            })
-            .await;
-        }
-        assert_eq!(disk_height(), 1, "a pending handoff must retain its persistence frontier");
-        assert_eq!(handed_off_height(), 0, "live worker leases must protect the old overlay");
+        wait_until("persistence handoff did not advance", || {
+            disk_height() == number && handed_off_height() == number
+        })
+        .await;
+        assert!(persistence_completions() > 0, "engine did not observe persistence completion");
     }
 
     // Abandon a first attempt with no best payload. Dropping resolve_kind's response receiver
@@ -317,14 +314,15 @@ async fn run_handoff_scenario() -> eyre::Result<()> {
     );
     abandoned.release().await;
 
-    // Drain newer workers first. The oldest detached worker must still protect the handoff.
+    // Drain newer workers first. Every detached worker must safely resume after its original
+    // overlay has been persisted.
     while held.len() > 1 {
         held.pop().unwrap().release().await;
     }
-    assert_eq!(disk_height(), 1);
-    assert_eq!(handed_off_height(), 0);
+    assert_eq!(disk_height(), 4);
+    assert_eq!(handed_off_height(), 4);
     held.pop().unwrap().release().await;
-    wait_until("finite payload workload never released persistence", || {
+    wait_until("detached payload workers disturbed the persistence frontier", || {
         disk_height() == 4 && handed_off_height() == 4
     })
     .await;

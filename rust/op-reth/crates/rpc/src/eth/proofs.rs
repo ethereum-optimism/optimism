@@ -16,7 +16,7 @@ use std::time::Instant;
 
 /// The `eth_` proof methods served from the historical proofs storage.
 ///
-/// UPSTREAM-MIRROR(set): reth@rev:0fbe428 `reth_rpc_eth_api::EthApi`
+/// UPSTREAM-MIRROR(set): reth@rev:4553cf1 `reth_rpc_eth_api::EthApi`
 ///
 /// Re-declares the proof methods that are answered from historical proofs rather than live state.
 /// A proof method added to upstream's `EthApi` produces no diff here, so diff the two method sets
