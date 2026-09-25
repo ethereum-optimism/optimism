@@ -17,8 +17,9 @@ use reth_trie::{
     witness::TrieWitness,
 };
 use reth_trie_common::{
-    AccountProof, HashedPostState, HashedPostStateSorted, HashedStorage, MultiProof,
-    MultiProofTargets, StorageMultiProof, StorageProof, TrieInput, updates::TrieUpdates,
+    AccountProof, DecodedMultiProofV2, HashedPostState, HashedPostStateSorted, HashedStorage,
+    MultiProof, MultiProofTargets, MultiProofTargetsV2, StorageMultiProof, StorageProof, TrieInput,
+    updates::TrieUpdates,
 };
 
 /// Extends [`Proof`] with operations specific for working with [`crate::OpProofsStorage`].
@@ -42,6 +43,14 @@ pub trait DatabaseProof<P> {
         input: TrieInput,
         targets: MultiProofTargets,
     ) -> Result<MultiProof, StateProofError>;
+
+    /// Generates the state [`DecodedMultiProofV2`] for target hashed account and storage keys.
+    fn overlay_multiproof_v2(
+        provider: P,
+        block_number: u64,
+        input: TrieInput,
+        targets: MultiProofTargetsV2,
+    ) -> Result<DecodedMultiProofV2, StateProofError>;
 }
 
 impl<P> DatabaseProof<P>
@@ -100,6 +109,28 @@ where
             ))
             .with_prefix_sets_mut(input.prefix_sets)
             .multiproof(targets)
+    }
+
+    /// Generates the state [`DecodedMultiProofV2`] for target hashed account and storage keys.
+    fn overlay_multiproof_v2(
+        provider: P,
+        block_number: u64,
+        input: TrieInput,
+        targets: MultiProofTargetsV2,
+    ) -> Result<DecodedMultiProofV2, StateProofError> {
+        let nodes_sorted = input.nodes.into_sorted();
+        let state_sorted = input.state.into_sorted();
+        Self::from_provider(provider.clone(), block_number)
+            .with_trie_cursor_factory(InMemoryTrieCursorFactory::new(
+                OpProofsTrieCursorFactory::new(provider.clone(), block_number),
+                &nodes_sorted,
+            ))
+            .with_hashed_cursor_factory(HashedPostStateCursorFactory::new(
+                OpProofsHashedAccountCursorFactory::new(provider, block_number),
+                &state_sorted,
+            ))
+            .with_prefix_sets_mut(input.prefix_sets)
+            .multiproof_v2(targets)
     }
 }
 

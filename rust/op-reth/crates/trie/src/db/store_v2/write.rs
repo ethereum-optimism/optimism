@@ -184,51 +184,6 @@ fn append_storage_trie_entry(
     Ok(())
 }
 
-/// Snapshot all existing storage-trie nodes for `hashed_address` into the changeset and
-/// collector, then delete them from the state table.
-///
-/// Returns the set of nibble subkeys that were snapshotted so the caller can avoid
-/// double-recording changeset entries for those nodes in the subsequent per-node loop.
-///
-/// Used for the `is_deleted` (full-wipe) path in [`MdbxProofsProviderV2::write_storage_trie`].
-fn snapshot_and_wipe_storage_trie(
-    state_cursor: &mut (
-             impl DbCursorRO<V2StoragesTrie>
-             + DbDupCursorRO<V2StoragesTrie>
-             + DbDupCursorRW<V2StoragesTrie>
-         ),
-    cs_cursor: &mut impl DbDupCursorRW<V2StorageTrieChangeSets>,
-    cs_key: BlockNumberHashedAddress,
-    collector: &mut HistoryCollector,
-) -> OpProofsStorageResult<BTreeSet<StoredNibblesSubKey>> {
-    let hashed_address = cs_key.0.1;
-    let mut wiped_nibbles = BTreeSet::new();
-    if let Some((_key, first_entry)) = state_cursor.seek_exact(hashed_address)? {
-        wiped_nibbles.insert(first_entry.nibbles.clone());
-        append_storage_trie_entry(
-            cs_cursor,
-            cs_key,
-            first_entry.nibbles,
-            Some(first_entry.node),
-            collector,
-        )?;
-        while let Some((_, entry)) = state_cursor.next_dup()? {
-            wiped_nibbles.insert(entry.nibbles.clone());
-            append_storage_trie_entry(
-                cs_cursor,
-                cs_key,
-                entry.nibbles,
-                Some(entry.node),
-                collector,
-            )?;
-        }
-        if state_cursor.seek_exact(hashed_address)?.is_some() {
-            state_cursor.delete_current_duplicates()?;
-        }
-    }
-    Ok(wiped_nibbles)
-}
-
 /// Write a single storage-trie node update: snapshot the old node into the changeset,
 /// record in the history collector, then apply the new value (upsert or delete).
 ///
@@ -271,36 +226,6 @@ fn append_hashed_storage_entry(
     cs_cursor.append_dup(cs_key, entry)?;
     collector.hashed_storages.entry((hashed_address, entry.key)).or_default().push(block_number);
     Ok(())
-}
-
-/// Snapshot all existing hashed-storage slots for `hashed_address` into the changeset and
-/// collector, delete them from the state table, and return the set of slot keys that were wiped.
-///
-/// Used for the `is_wiped` (full-wipe) path in [`MdbxProofsProviderV2::write_hashed_storages`].
-fn snapshot_and_wipe_hashed_storage(
-    state_cursor: &mut (
-             impl DbCursorRO<V2HashedStorages>
-             + DbDupCursorRO<V2HashedStorages>
-             + DbDupCursorRW<V2HashedStorages>
-         ),
-    cs_cursor: &mut impl DbDupCursorRW<V2HashedStorageChangeSets>,
-    cs_key: BlockNumberHashedAddress,
-    collector: &mut HistoryCollector,
-) -> OpProofsStorageResult<alloy_primitives::map::B256Set> {
-    let hashed_address = cs_key.0.1;
-    let mut wiped_slots = alloy_primitives::map::B256Set::default();
-    if let Some(entry) = state_cursor.seek_by_key_subkey(hashed_address, B256::ZERO)? {
-        append_hashed_storage_entry(cs_cursor, cs_key, entry, collector)?;
-        wiped_slots.insert(entry.key);
-        while let Some(entry) = state_cursor.next_dup_val()? {
-            append_hashed_storage_entry(cs_cursor, cs_key, entry, collector)?;
-            wiped_slots.insert(entry.key);
-        }
-        if state_cursor.seek_exact(hashed_address)?.is_some() {
-            state_cursor.delete_current_duplicates()?;
-        }
-    }
-    Ok(wiped_slots)
 }
 
 /// Write a single hashed-storage slot update: snapshot the old value into the changeset,
@@ -685,9 +610,6 @@ impl<TX: DbTxMut + DbTx> MdbxProofsProviderV2<TX> {
     }
 
     /// Write storage trie branch-node updates for one block.
-    ///
-    /// Handles the `is_deleted` wipe path (snapshot all existing nodes into
-    /// the changeset before clearing) as well as per-node updates.
     fn write_storage_trie(
         block_number: BlockNumber,
         updates: &TrieUpdatesSorted,
@@ -700,48 +622,16 @@ impl<TX: DbTxMut + DbTx> MdbxProofsProviderV2<TX> {
 
         for (hashed_address, nodes) in updates.storage_tries_ref() {
             let cs_key = BlockNumberHashedAddress((block_number, *hashed_address));
-
-            if nodes.is_deleted {
-                let wiped_nibbles =
-                    snapshot_and_wipe_storage_trie(state_cursor, cs_cursor, cs_key, collector)?;
+            for (nibbles, maybe_node) in nodes.storage_nodes_ref() {
+                write_storage_trie_node(
+                    state_cursor,
+                    cs_cursor,
+                    cs_key,
+                    StoredNibblesSubKey(*nibbles),
+                    maybe_node,
+                    collector,
+                )?;
                 count += 1;
-
-                // After a wipe the state table is empty for this address, so there is no
-                // old node to seek or delete.  Nodes whose nibbles were already snapshotted
-                // above must not be recorded again (that would create conflicting duplicate
-                // changeset entries).  Brand-new nibbles get a `None` old-value entry so
-                // that unwind knows to delete them.
-                for (nibbles, maybe_node) in nodes.storage_nodes_ref() {
-                    let subkey = StoredNibblesSubKey(*nibbles);
-                    if !wiped_nibbles.contains(&subkey) {
-                        append_storage_trie_entry(
-                            cs_cursor,
-                            cs_key,
-                            subkey.clone(),
-                            None,
-                            collector,
-                        )?;
-                    }
-                    if let Some(node) = maybe_node {
-                        state_cursor.upsert(
-                            *hashed_address,
-                            &StorageTrieEntry { nibbles: subkey, node: node.clone() },
-                        )?;
-                    }
-                    count += 1;
-                }
-            } else {
-                for (nibbles, maybe_node) in nodes.storage_nodes_ref() {
-                    write_storage_trie_node(
-                        state_cursor,
-                        cs_cursor,
-                        cs_key,
-                        StoredNibblesSubKey(*nibbles),
-                        maybe_node,
-                        collector,
-                    )?;
-                    count += 1;
-                }
             }
         }
         Ok(count)
@@ -787,9 +677,6 @@ impl<TX: DbTxMut + DbTx> MdbxProofsProviderV2<TX> {
     }
 
     /// Write hashed-storage updates for one block.
-    ///
-    /// Handles the `is_wiped` path (snapshot all existing slots into the
-    /// changeset before clearing) as well as per-slot updates.
     fn write_hashed_storages(
         block_number: BlockNumber,
         post_state: &HashedPostStateSorted,
@@ -802,44 +689,16 @@ impl<TX: DbTxMut + DbTx> MdbxProofsProviderV2<TX> {
 
         for (hashed_address, storage) in &post_state.storages {
             let cs_key = BlockNumberHashedAddress((block_number, *hashed_address));
-
-            if storage.is_wiped() {
-                // Snapshot + wipe existing slots; track what was wiped so the
-                // new-slots loop below doesn't double-append changeset entries.
-                let wiped_slots =
-                    snapshot_and_wipe_hashed_storage(state_cursor, cs_cursor, cs_key, collector)?;
-
-                // Write new slots. Slots not seen during the wipe get a zero
-                // old-value entry in the changeset.
-                for (storage_key, value) in storage.storage_slots_ref() {
-                    if !wiped_slots.contains(storage_key) {
-                        append_hashed_storage_entry(
-                            cs_cursor,
-                            cs_key,
-                            StorageEntry { key: *storage_key, value: U256::ZERO },
-                            collector,
-                        )?;
-                    }
-                    if *value != U256::ZERO {
-                        state_cursor.upsert(
-                            *hashed_address,
-                            &StorageEntry { key: *storage_key, value: *value },
-                        )?;
-                    }
-                    count += 1;
-                }
-            } else {
-                for (storage_key, value) in storage.storage_slots_ref() {
-                    write_hashed_storage_slot(
-                        state_cursor,
-                        cs_cursor,
-                        cs_key,
-                        *storage_key,
-                        *value,
-                        collector,
-                    )?;
-                    count += 1;
-                }
+            for (storage_key, value) in storage.storage_slots_ref() {
+                write_hashed_storage_slot(
+                    state_cursor,
+                    cs_cursor,
+                    cs_key,
+                    *storage_key,
+                    *value,
+                    collector,
+                )?;
+                count += 1;
             }
         }
         Ok(count)

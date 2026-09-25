@@ -21,7 +21,7 @@ use alloy_op_evm::{
 use core::fmt::Debug;
 use op_alloy_consensus::{
     EIP1559ParamError, OpTransaction as OpConsensusTransaction,
-    parse_post_exec_payload_from_transactions, validate_post_exec_entry_count,
+    parse_post_exec_payload_from_transactions,
 };
 use op_revm::OpSpecId;
 use reth_chainspec::EthChainSpec;
@@ -45,6 +45,7 @@ use {
 #[cfg(feature = "std")]
 use {
     alloy_op_evm::evm_env_for_op_payload,
+    op_alloy_consensus::validate_post_exec_entry_count,
     reth_evm::{ConfigureEngineEvm, ExecutableTxIterator},
 };
 
@@ -224,7 +225,7 @@ where
     }
 }
 
-/// UPSTREAM-MIRROR(copy): reth@rev:0fbe428 `reth_evm_ethereum::EthEvmConfig`
+/// UPSTREAM-MIRROR(copy): reth@rev:4553cf1 `reth_evm_ethereum::EthEvmConfig`
 ///
 /// Mirrors upstream `ConfigureEvm` plumbing with OP environments and execution context.
 impl<ChainSpec, N, R, EvmF> ConfigureEvm for OpEvmConfig<ChainSpec, N, R, EvmF>
@@ -324,7 +325,7 @@ where
     }
 }
 
-/// UPSTREAM-MIRROR(copy): reth@rev:0fbe428 `reth_evm_ethereum::EthEvmConfig`
+/// UPSTREAM-MIRROR(copy): reth@rev:4553cf1 `reth_evm_ethereum::EthEvmConfig`
 ///
 /// Mirrors upstream payload-to-EVM configuration with OP payload and fork semantics.
 /// `tx_iterator_for_payload` recovers senders directly; upstream routes the same recovery through

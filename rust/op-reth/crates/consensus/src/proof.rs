@@ -9,7 +9,7 @@ use reth_optimism_forks::OpHardforks;
 use reth_optimism_primitives::DepositReceipt;
 
 /// Calculates the receipt root for a header.
-pub(crate) fn calculate_receipt_root_optimism<R: DepositReceipt>(
+pub fn calculate_receipt_root_optimism<R: DepositReceipt>(
     receipts: &[ReceiptWithBloom<&R>],
     chain_spec: impl OpHardforks,
     timestamp: u64,

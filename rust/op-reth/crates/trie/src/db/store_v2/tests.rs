@@ -689,7 +689,7 @@ fn store_trie_updates_deleted_storage_trie() {
 }
 
 #[test]
-fn store_trie_updates_wiped_storage_trie_nodes() {
+fn store_trie_updates_deleted_storage_trie_nodes() {
     let db = setup_db();
 
     let addr_wiped = B256::from([0x10; 32]);
@@ -710,11 +710,11 @@ fn store_trie_updates_wiped_storage_trie_nodes() {
         OpProofsInitProvider::commit(provider).expect("commit");
     }
 
-    // Build diff that wipes addr_wiped's storage trie and adds a node for addr_live
+    // Delete addr_wiped's storage trie nodes and add a node for addr_live.
     let mut trie_updates = TrieUpdates::default();
-    let mut wiped_updates = StorageTrieUpdates::default();
-    wiped_updates.set_deleted(true);
-    trie_updates.storage_tries.insert(addr_wiped, wiped_updates);
+    let mut deleted_updates = StorageTrieUpdates::default();
+    deleted_updates.removed_nodes.extend([p1, p2]);
+    trie_updates.storage_tries.insert(addr_wiped, deleted_updates);
 
     let live_path = Nibbles::from_nibbles_unchecked([0xEE, 0xFF]);
     let live_node = BranchNodeCompact::default();
@@ -744,7 +744,7 @@ fn store_trie_updates_wiped_storage_trie_nodes() {
 }
 
 #[test]
-fn store_trie_updates_wiped_storage() {
+fn store_trie_updates_deleted_storage() {
     let db = setup_db();
 
     let addr = B256::from([0x55; 32]);
@@ -762,9 +762,11 @@ fn store_trie_updates_wiped_storage() {
         OpProofsInitProvider::commit(provider).expect("commit");
     }
 
-    // Build diff that wipes storage
+    // Delete both storage slots.
     let mut post_state = HashedPostState::default();
-    post_state.storages.insert(addr, HashedStorage::new(true));
+    post_state
+        .storages
+        .insert(addr, HashedStorage::from_iter([(s1, U256::ZERO), (s2, U256::ZERO)]));
     let diff = BlockStateDiff {
         sorted_trie_updates: TrieUpdates::default().into_sorted(),
         sorted_post_state: post_state.into_sorted(),
@@ -796,7 +798,7 @@ fn store_trie_updates_wiped_storage() {
 }
 
 #[test]
-fn store_trie_updates_wiped_and_non_wiped_mixed_order() {
+fn store_trie_updates_deleted_and_live_mixed_order() {
     let db = setup_db();
 
     let addr_wiped = B256::from([0x01; 32]);
@@ -817,9 +819,9 @@ fn store_trie_updates_wiped_and_non_wiped_mixed_order() {
         OpProofsInitProvider::commit(provider).expect("commit");
     }
 
-    // Build diff: wipe addr_wiped, update addr_live
+    // Delete addr_wiped's slot and update addr_live.
     let mut post_state = HashedPostState::default();
-    post_state.storages.insert(addr_wiped, HashedStorage::new(true));
+    post_state.storages.insert(addr_wiped, HashedStorage::from_iter([(ws1, U256::ZERO)]));
     let mut live_storage = HashedStorage::default();
     live_storage.storage.insert(ls1, lv1_new);
     post_state.storages.insert(addr_live, live_storage);
@@ -1790,10 +1792,9 @@ fn hashed_storages_no_duplicates_multiple_slots() {
     assert!(slots.iter().all(|(k, _)| *k != slot_b), "slot_b should be gone");
 }
 
-/// Regression: wipe followed by re-add in same block must leave exactly the
-/// new slots, no ghosts from pre-wipe state.
+/// Regression: deleting one slot while adding another must not leave duplicate entries.
 #[test]
-fn hashed_storages_wipe_then_readd_no_duplicates() {
+fn hashed_storages_delete_then_add_no_duplicates() {
     let db = setup_db();
 
     let addr = B256::from([0xEE; 32]);
@@ -1811,11 +1812,11 @@ fn hashed_storages_wipe_then_readd_no_duplicates() {
 
     assert_eq!(count_hashed_storage_entries(&db, addr), 1);
 
-    // Block 1: wipe + write new_slot
+    // Block 1: delete old_slot and write new_slot.
     {
         let mut post_state = HashedPostState::default();
-        let mut storage = HashedStorage::new(true); // wiped = true
-        storage.storage.insert(new_slot, U256::from(42u64));
+        let storage =
+            HashedStorage::from_iter([(old_slot, U256::ZERO), (new_slot, U256::from(42u64))]);
         post_state.storages.insert(addr, storage);
 
         let diff = BlockStateDiff {
@@ -1825,16 +1826,15 @@ fn hashed_storages_wipe_then_readd_no_duplicates() {
         store_block(&db, make_block_ref(1, B256::repeat_byte(0x01), B256::ZERO), diff);
     }
 
-    // Exactly 1 entry: only new_slot, old_slot wiped
+    // Exactly 1 entry: only new_slot remains.
     let slots = collect_hashed_storage_slots(&db, addr);
-    assert_eq!(slots.len(), 1, "after wipe+add: exactly 1 entry");
+    assert_eq!(slots.len(), 1, "after delete+add: exactly 1 entry");
     assert_eq!(slots[0], (new_slot, U256::from(42u64)));
 
-    // Block 2: wipe + re-add the same new_slot with different value
+    // Block 2: update new_slot.
     {
         let mut post_state = HashedPostState::default();
-        let mut storage = HashedStorage::new(true);
-        storage.storage.insert(new_slot, U256::from(84u64));
+        let storage = HashedStorage::from_iter([(new_slot, U256::from(84u64))]);
         post_state.storages.insert(addr, storage);
 
         let diff = BlockStateDiff {
@@ -1846,7 +1846,7 @@ fn hashed_storages_wipe_then_readd_no_duplicates() {
 
     // Still exactly 1 entry
     let slots = collect_hashed_storage_slots(&db, addr);
-    assert_eq!(slots.len(), 1, "after second wipe+add: exactly 1 entry");
+    assert_eq!(slots.len(), 1, "after update: exactly 1 entry");
     assert_eq!(slots[0], (new_slot, U256::from(84u64)));
 }
 
