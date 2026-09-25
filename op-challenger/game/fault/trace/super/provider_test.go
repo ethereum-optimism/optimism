@@ -319,6 +319,7 @@ func TestSuperNodeProvider_Get(t *testing.T) {
 		stubSuperNode.Add(response)
 		_, err := provider.Get(context.Background(), types.RootPosition)
 		require.ErrorIs(t, err, types2.ErrNotInSync)
+		require.ErrorContains(t, err, "super root source (superroot_atTimestamp)", "should identify which node is behind")
 	})
 
 	t.Run("PreviousSuperRootNotInSync", func(t *testing.T) {
