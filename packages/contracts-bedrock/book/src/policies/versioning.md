@@ -48,7 +48,7 @@ Versioning for individual contracts works as follows:
 
 Versioning is enforced by CI checks:
 - Any contract that differs from its version in the `develop` branch must be bumped to a new semver value, or the build will fail.
-- Formatting-only changes produced by the repository formatter do not require a version bump.
+- Formatting-only changes produced by the repository formatter do not require a version bump, provided the contract's `initCodeHash` is unchanged. A contract whose bytecode changes through a library or base contract must still be bumped.
 - Any branch with at least one modified contract must have its `semver-lock.json` file updated, or the build will fail. You can use the `semver-lock` or `pre-commit` just commands to do so.
 
 Note: Previously, the versioning scheme included `-beta.n` and `-rc.n` qualifiers. These are no longer used to reduce the amount of work required to execute this versioning system.

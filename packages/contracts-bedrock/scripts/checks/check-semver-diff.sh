@@ -89,6 +89,16 @@ is_excluded() {
   return 1
 }
 
+# Helper function to check that every contract in a source file kept its initCodeHash.
+init_code_unchanged() {
+  local contract="$1"
+  jq -e --arg file "$contract" --slurpfile upstream "$temp_dir/upstream_semver_lock.json" '
+    to_entries
+    | map(select(.key | startswith($file + ":")))
+    | all(.value.initCodeHash == $upstream[0][.key].initCodeHash)
+  ' "$temp_dir/local_semver_lock.json" > /dev/null
+}
+
 # Create a temporary directory.
 temp_dir=$(mktemp -d)
 trap 'rm -rf "$temp_dir"' EXIT
@@ -167,11 +177,16 @@ for contract in $changed_contracts; do
   get_upstream_file packages/contracts-bedrock/"$contract" "$old_source_file" || true
   cp "$contract" "$new_source_file"
 
-  # Normalize formatting so formatter-only changes do not require a version bump.
+  # Normalize formatting so formatter-only changes do not require a version bump. The bytecode
+  # must also be unchanged, since a library or base contract change can alter it without
+  # touching this source file.
   forge fmt --quiet --root . "$old_source_file" "$new_source_file"
   if cmp -s "$old_source_file" "$new_source_file"; then
-    echo "✅ $contract: formatting-only change"
-    continue
+    if init_code_unchanged "$contract"; then
+      echo "✅ $contract: formatting-only change"
+      continue
+    fi
+    echo "⚠️  $contract: source is unchanged after formatting, but its initCodeHash changed"
   fi
 
   # Extract the old and new versions.
