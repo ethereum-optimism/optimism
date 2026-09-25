@@ -499,6 +499,27 @@ mod tests {
     }
 
     #[test]
+    fn test_node_cli_trust_rpc_flags() {
+        let parse = |extra: &[&'static str]| {
+            NodeCommand::parse_from(
+                std::iter::once(&"node").chain(default_flags().iter()).chain(extra).copied(),
+            )
+        };
+
+        let args = parse(&[]);
+        assert!(args.l1_rpc_args.l1_trust_rpc);
+        assert!(args.l2_client_args.l2_trust_rpc);
+
+        let args = parse(&["--l1.trust-rpc=false", "--l2.trust-rpc=false"]);
+        assert!(!args.l1_rpc_args.l1_trust_rpc);
+        assert!(!args.l2_client_args.l2_trust_rpc);
+
+        let args = parse(&["--l1.trust-rpc", "--l2.trust-rpc", "true"]);
+        assert!(args.l1_rpc_args.l1_trust_rpc);
+        assert!(args.l2_client_args.l2_trust_rpc);
+    }
+
+    #[test]
     fn test_node_cli_missing_l1_eth_rpc() {
         let err = NodeCommand::try_parse_from(["node"]).unwrap_err();
         assert!(err.to_string().contains("--l1-eth-rpc"));

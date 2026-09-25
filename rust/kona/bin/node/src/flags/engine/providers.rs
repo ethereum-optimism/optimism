@@ -15,12 +15,16 @@ pub struct L1ClientArgs {
     #[arg(long, visible_alias = "l1", env = "KONA_NODE_L1_ETH_RPC")]
     pub l1_eth_rpc: Url,
     /// Whether to trust the L1 RPC.
-    /// If false, block hash verification is performed for all retrieved blocks.
+    /// If false, the hash, transactions and receipts of every retrieved block are checked against
+    /// its header. Disable with `--l1.trust-rpc=false`.
     #[arg(
         long,
         visible_alias = "l1.trust-rpc",
         env = "KONA_NODE_L1_TRUST_RPC",
-        default_value_t = DEFAULT_L1_TRUST_RPC
+        default_value_t = DEFAULT_L1_TRUST_RPC,
+        num_args = 0..=1,
+        default_missing_value = "true",
+        action = clap::ArgAction::Set
     )]
     pub l1_trust_rpc: bool,
     /// URL of the L1 beacon API.
@@ -73,11 +77,15 @@ pub struct L2ClientArgs {
     )]
     pub l2_engine_timeout: u64,
     /// If false, block hash verification is performed for all retrieved blocks.
+    /// Disable with `--l2.trust-rpc=false`.
     #[arg(
         long,
         visible_alias = "l2.trust-rpc",
         env = "KONA_NODE_L2_TRUST_RPC",
-        default_value_t = DEFAULT_L2_TRUST_RPC
+        default_value_t = DEFAULT_L2_TRUST_RPC,
+        num_args = 0..=1,
+        default_missing_value = "true",
+        action = clap::ArgAction::Set
     )]
     pub l2_trust_rpc: bool,
 }
