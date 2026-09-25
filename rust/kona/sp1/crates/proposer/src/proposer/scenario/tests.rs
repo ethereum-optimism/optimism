@@ -5062,7 +5062,7 @@ async fn restart_recovers_a_blacklisted_game_despite_permanent_superroot_failure
 }
 
 #[tokio::test]
-async fn proposer_created_loser_without_blacklisting_is_dropped_without_a_claim() {
+async fn proposer_created_loser_without_blacklisting_is_closed_then_evicted() {
     let world = ScenarioWorld::new();
     let mut game = ScenarioGame::new(0, u32::MAX, 1, ScenarioWorld::default_prestate());
     game.creator = ScenarioWorld::proposer_address();
@@ -5071,33 +5071,129 @@ async fn proposer_created_loser_without_blacklisting_is_dropped_without_a_claim(
     game.finalized = true;
     game.bond.refund_mode_credit = U256::from(2);
     let target = game.target();
+    let address = game.address;
+    // A later anchor puts the lost game behind the trust boundary, so no link retention applies.
+    let anchor = ScenarioGame::new(1, u32::MAX, 2, ScenarioWorld::default_prestate()).claimable(0);
+    let anchor_target = anchor.target();
+    world.add_game(game);
+    world.add_game(anchor);
+    world.set_anchor_game(&anchor_target);
+    world.set_horizons(2, 2);
+    let mut config = scenario_config();
+    config.proposal_interval_seconds = 100;
+    let mut scenario = ScenarioHarness::new(world.clone(), config).await.unwrap();
+
+    let closed = scenario.tick().await.unwrap();
+    scenario.settle_scheduled(&closed).await.unwrap();
+    assert_eq!(
+        world.action_record(&ActionTarget::ClaimCredit(target.clone()), 1).unwrap().effect,
+        CommittedEffect::Closed { game: address }
+    );
+    assert_eq!(
+        world.observation().games[0].bond.bond_distribution_mode,
+        BondDistributionMode::Normal
+    );
+
+    world.mine_block();
+    let evicted = scenario.tick().await.unwrap();
+    scenario.settle_scheduled(&evicted).await.unwrap();
+    world.mine_block();
+    let still_evicted = scenario.tick().await.unwrap();
+    scenario.settle_scheduled(&still_evicted).await.unwrap();
+    assert!(world.action_record(&ActionTarget::ClaimCredit(target.clone()), 2).is_none());
+    assert!(
+        world
+            .l1_read_record(L1ReadBoundary::GameLifecycle, &L1ReadTarget::Game(target), 3)
+            .is_none()
+    );
+}
+
+#[tokio::test]
+async fn proposer_created_loser_blacklisted_before_close_recovers_its_refund() {
+    let world = ScenarioWorld::new();
+    let mut game = ScenarioGame::new(0, u32::MAX, 1, ScenarioWorld::default_prestate());
+    game.creator = ScenarioWorld::proposer_address();
+    game.status = GameStatus::ChallengerWins;
+    game.proposal_status = ProposalStatus::Resolved;
+    game.bond.refund_mode_credit = U256::from(2);
+    let target = game.target();
+    let address = game.address;
     world.add_game(game);
     world.set_horizons(1, 1);
     let mut config = scenario_config();
     config.proposal_interval_seconds = 100;
     let mut scenario = ScenarioHarness::new(world.clone(), config).await.unwrap();
 
-    let dropped = scenario.tick().await.unwrap();
-    scenario.settle_scheduled(&dropped).await.unwrap();
+    // Still inside the airgap: the game cannot close yet, but stays tracked.
+    let waiting = scenario.tick().await.unwrap();
+    scenario.settle_scheduled(&waiting).await.unwrap();
     assert!(world.action_record(&ActionTarget::ClaimCredit(target.clone()), 1).is_none());
-    assert!(
-        world
-            .l1_read_record(L1ReadBoundary::GameLifecycle, &L1ReadTarget::Game(target.clone()), 1,)
-            .is_none()
-    );
+
+    world.update_game(&target, |game| {
+        game.standing = GameStanding { blacklisted: true, retired: false };
+        game.finalized = true;
+    });
     world.mine_block();
-    let still_dropped = scenario.tick().await.unwrap();
-    scenario.settle_scheduled(&still_dropped).await.unwrap();
-    assert!(world.action_record(&ActionTarget::ClaimCredit(target.clone()), 1).is_none());
-    assert!(
-        world
-            .l1_read_record(L1ReadBoundary::GameLifecycle, &L1ReadTarget::Game(target), 1)
-            .is_none()
+    let refunded = scenario.tick().await.unwrap();
+    scenario.settle_scheduled(&refunded).await.unwrap();
+    assert_eq!(
+        world.action_record(&ActionTarget::ClaimCredit(target), 1).unwrap().effect,
+        CommittedEffect::ClaimUnlocked { game: address, amount: U256::from(2) }
+    );
+    assert_eq!(
+        world.observation().games[0].bond.bond_distribution_mode,
+        BondDistributionMode::Refund
     );
 }
 
 #[tokio::test]
-async fn unprovable_proof_retains_the_owned_refund_root_and_drops_its_descendants() {
+async fn retained_refund_root_keeps_foreign_descendants_and_closes_them() {
+    let world = ScenarioWorld::new();
+    let mut root = ScenarioGame::new(0, u32::MAX, 10, ScenarioWorld::default_prestate());
+    root.creator = ScenarioWorld::proposer_address();
+    root.standing = GameStanding { blacklisted: true, retired: false };
+    let foreign_child = ScenarioGame::new(1, 0, 20, B256::repeat_byte(0xf1));
+    let child_target = foreign_child.target();
+    let child_address = foreign_child.address;
+    for game in [root, foreign_child] {
+        world.add_game(game);
+    }
+    world.set_horizons(20, 20);
+    // The root's validation fails, so discovery retains it through the blacklisted-refund path
+    // after its foreign child was already cached.
+    world.script_next_superroot(10, SuperRootOutcome::TransportFailure);
+    let mut config = scenario_config();
+    config.proposal_interval_seconds = 100;
+    let mut scenario = ScenarioHarness::new(world.clone(), config).await.unwrap();
+
+    let discovered = scenario.tick().await.unwrap();
+    scenario.settle_scheduled(&discovered).await.unwrap();
+    assert!(
+        world
+            .l1_read_record(
+                L1ReadBoundary::GameLifecycle,
+                &L1ReadTarget::Game(child_target.clone()),
+                1,
+            )
+            .is_some()
+    );
+
+    world.update_game(&child_target, |game| {
+        game.status = GameStatus::ChallengerWins;
+        game.proposal_status = ProposalStatus::Resolved;
+        game.finalized = true;
+    });
+    world.mine_block();
+    let closed = scenario.tick().await.unwrap();
+    scenario.settle_scheduled(&closed).await.unwrap();
+    assert_eq!(
+        world.action_record(&ActionTarget::ClaimCredit(child_target), 1).unwrap().effect,
+        CommittedEffect::Closed { game: child_address }
+    );
+}
+
+#[tokio::test]
+async fn unprovable_proof_retains_the_owned_refund_root_and_its_descendants() {
     let world = ScenarioWorld::new();
     let mut root =
         ScenarioGame::new(0, u32::MAX, 10, ScenarioWorld::default_prestate()).challenged();
@@ -5137,6 +5233,7 @@ async fn unprovable_proof_retains_the_owned_refund_root_and_drops_its_descendant
     world.mine_block();
     let pruned = scenario.tick().await.unwrap();
     scenario.settle_scheduled(&pruned).await.unwrap();
+    // The foreign descendant stays cached for lifecycle-only polling.
     assert!(
         world
             .l1_read_record(
@@ -5144,7 +5241,7 @@ async fn unprovable_proof_retains_the_owned_refund_root_and_drops_its_descendant
                 &L1ReadTarget::Game(descendant_target),
                 2,
             )
-            .is_none()
+            .is_some()
     );
     assert!(
         world

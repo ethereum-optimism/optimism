@@ -512,6 +512,7 @@ pub(super) enum CommittedEffect {
     Proven { game: Address },
     Resolved { game: Address },
     ClaimUnlocked { game: Address, amount: U256 },
+    Closed { game: Address },
     ClaimPaid { game: Address, amount: U256 },
 }
 
@@ -1446,7 +1447,9 @@ impl WorldData {
                         .values_mut()
                         .find(|game| game.address == address)
                         .expect("claimed scenario game must exist");
-                    if game.bond.bond_distribution_mode == BondDistributionMode::Undecided {
+                    let was_open =
+                        game.bond.bond_distribution_mode == BondDistributionMode::Undecided;
+                    if was_open {
                         game.bond.bond_distribution_mode = if game.standing.disallowed() {
                             BondDistributionMode::Refund
                         } else {
@@ -1460,7 +1463,10 @@ impl WorldData {
                             unreachable!("claim selects a scenario bond distribution mode")
                         }
                     };
-                    if credit == U256::ZERO {
+                    if credit == U256::ZERO && game.bond.withdrawal_amount == U256::ZERO && was_open
+                    {
+                        CommittedEffect::Closed { game: address }
+                    } else if credit == U256::ZERO {
                         let amount = game.bond.withdrawal_amount;
                         game.bond.withdrawal_amount = U256::ZERO;
                         CommittedEffect::ClaimPaid { game: address, amount }
