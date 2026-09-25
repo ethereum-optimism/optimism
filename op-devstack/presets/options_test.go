@@ -160,13 +160,13 @@ func TestUnsupportedPresetOptionKinds(t *testing.T) {
 		{
 			name:      "single chain supernode proofs reject op-reth options",
 			supported: supernodeProofsPresetSupportedOptionKinds,
-			opts:      WithOpRethOption(sysgo.OpRethWithBinary("op-reth-sdm-fixture")),
+			opts:      WithOpRethOption(sysgo.OpRethWithExtraArgs("--testing.sdm-fixed-policy")),
 			want:      optionKindOpReth,
 		},
 		{
 			name:      "single chain no-supernode proofs accept op-reth options",
 			supported: singleChainInteropNoSupernodePresetSupportedOptionKinds,
-			opts:      WithOpRethOption(sysgo.OpRethWithBinary("op-reth-sdm-fixture")),
+			opts:      WithOpRethOption(sysgo.OpRethWithExtraArgs("--testing.sdm-fixed-policy")),
 			want:      0,
 		},
 		{

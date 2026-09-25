@@ -25,6 +25,8 @@ reth-db.workspace = true
 
 op-version.workspace = true
 
+alloy-primitives.workspace = true
+clap.workspace = true
 tracing.workspace = true
 eyre.workspace = true
 
@@ -58,11 +60,13 @@ tracy = [
 ]
 
 asm-keccak = [
+    "alloy-primitives/asm-keccak",
     "reth-optimism-cli/asm-keccak",
     "reth-optimism-node/asm-keccak",
     "reth-node-core/asm-keccak",
 ]
 keccak-cache-global = [
+    "alloy-primitives/keccak-cache-global",
     "reth-optimism-cli/keccak-cache-global",
     "reth-optimism-node/keccak-cache-global",
     "reth-node-core/keccak-cache-global",

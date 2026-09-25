@@ -24,7 +24,7 @@ func TestSDMPostExecSpanCrossesInteropBoundary(gt *testing.T) {
 	t := devtest.SerialT(gt)
 	offset := boundaryLagoonOffset
 	sys := newSDMRethSystemWithLagoonOffset(t, &offset, withCrossActivationSpanBatcher)
-	sdmtest.VerifySDMFixture(t, sys.L2EL)
+	sdmtest.VerifyOpReth(t, sys.L2EL)
 	sdmtest.VerifyOpReth(t, sys.L2ELVerifier)
 
 	activationBlock := sys.L2Network.AwaitActivation(t, forks.Lagoon)
@@ -72,7 +72,7 @@ func TestSDMActivatesAtLagoonBoundary(gt *testing.T) {
 	t := devtest.SerialT(gt)
 	offset := boundaryLagoonOffset
 	sys := newSDMRethSystemWithLagoonOffset(t, &offset)
-	sdmtest.VerifySDMFixture(t, sys.L2EL)
+	sdmtest.VerifyOpReth(t, sys.L2EL)
 	sdmtest.VerifyOpReth(t, sys.L2ELVerifier)
 
 	t.Require().False(sys.L2Network.IsForkActive(forks.Lagoon),
