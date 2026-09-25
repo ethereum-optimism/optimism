@@ -5,7 +5,8 @@
 //! database operation errors.
 
 use alloc::string::String;
-use alloy_evm::block::BlockExecutionError;
+use alloy_evm::block::{BlockExecutionError, BlockValidationError};
+use alloy_op_evm::block::OpBlockExecutionError;
 use kona_mpt::TrieNodeError;
 use op_alloy_consensus::EIP1559ParamError;
 use revm::context::DBErrorMarker;
@@ -196,6 +197,91 @@ pub enum ExecutorError {
     /// - Incorrect executor lifecycle management
     #[error("Missing the executor")]
     MissingExecutor,
+}
+
+impl ExecutorError {
+    /// Returns whether the error establishes that the derived payload is invalid.
+    ///
+    /// Only these errors may trigger the Holocene deposit-only replacement. Errors caused by
+    /// missing witnesses, database access, or executor state must propagate instead.
+    pub fn is_invalid_payload(&self) -> bool {
+        match self {
+            Self::BlockGasLimitExceeded | Self::InvalidPostExecPayload(_) | Self::Recovery(_) => {
+                true
+            }
+            Self::ExecutionError(BlockExecutionError::Validation(validation)) => match validation {
+                BlockValidationError::InvalidTx { .. } |
+                BlockValidationError::TransactionGasLimitMoreThanAvailableBlockGas { .. } |
+                BlockValidationError::BlockGasExceeded => true,
+                BlockValidationError::Other(error) => {
+                    error.downcast_ref::<OpBlockExecutionError>().is_some_and(|error| {
+                        matches!(
+                            error,
+                            OpBlockExecutionError::TransactionDaFootprintAboveGasLimit { .. } |
+                                OpBlockExecutionError::UnexpectedNonDepositTxInForkActivationBlock |
+                                OpBlockExecutionError::InvalidPostExecPayload(_) |
+                                OpBlockExecutionError::PostExecSettlementUnderflow { .. }
+                        )
+                    })
+                }
+                _ => false,
+            },
+            _ => false,
+        }
+    }
+}
+
+#[cfg(test)]
+mod classification_tests {
+    use super::*;
+    use alloc::boxed::Box;
+
+    #[test]
+    fn only_invalid_payload_errors_allow_deposit_only_replacement() {
+        let cases = [
+            ("block gas", ExecutorError::BlockGasLimitExceeded, true),
+            (
+                "transaction gas",
+                ExecutorError::ExecutionError(BlockExecutionError::Validation(
+                    BlockValidationError::TransactionGasLimitMoreThanAvailableBlockGas {
+                        transaction_gas_limit: 2,
+                        block_available_gas: 1,
+                    },
+                )),
+                true,
+            ),
+            (
+                "post-exec payload",
+                ExecutorError::ExecutionError(BlockExecutionError::Validation(
+                    BlockValidationError::Other(Box::new(
+                        OpBlockExecutionError::InvalidPostExecPayload("invalid".into()),
+                    )),
+                )),
+                true,
+            ),
+            (
+                "provider",
+                ExecutorError::TrieDBError(TrieDBError::Provider("missing witness".into())),
+                false,
+            ),
+            (
+                "database validation",
+                ExecutorError::ExecutionError(BlockExecutionError::Validation(
+                    BlockValidationError::IncrementBalanceFailed,
+                )),
+                false,
+            ),
+            (
+                "internal execution",
+                ExecutorError::ExecutionError(BlockExecutionError::msg("database failure")),
+                false,
+            ),
+        ];
+
+        for (name, error, expected) in cases {
+            assert_eq!(error.is_invalid_payload(), expected, "{name}");
+        }
+    }
 }
 
 /// Result type alias for operations that may fail with [`ExecutorError`].
