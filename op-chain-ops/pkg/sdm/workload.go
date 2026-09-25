@@ -56,18 +56,35 @@ type RPCBlock struct {
 	Number       hexutil.Uint64   `json:"number"`
 	Hash         common.Hash      `json:"hash"`
 	GasUsed      hexutil.Uint64   `json:"gasUsed"`
+	BlobGasUsed  *hexutil.Uint64  `json:"blobGasUsed"`
+	Timestamp    hexutil.Uint64   `json:"timestamp"`
 	Transactions []RPCTransaction `json:"transactions"`
 }
 
-// RPCReceipt is a minimal raw JSON receipt. It avoids ethclient's typed receipt decoding, which
+// RPCReceipt is a raw JSON receipt. It avoids ethclient's typed receipt decoding, which
 // may reject experimental post-exec receipt types before all client libraries know about them.
 type RPCReceipt struct {
-	TxHash           common.Hash     `json:"transactionHash"`
-	BlockNumber      *hexutil.Big    `json:"blockNumber"`
-	TransactionIndex hexutil.Uint64  `json:"transactionIndex"`
-	ContractAddress  *common.Address `json:"contractAddress"`
-	Status           hexutil.Uint64  `json:"status"`
-	GasUsed          hexutil.Uint64  `json:"gasUsed"`
+	Type                 hexutil.Uint64  `json:"type"`
+	TxHash               common.Hash     `json:"transactionHash"`
+	BlockHash            common.Hash     `json:"blockHash"`
+	BlockNumber          *hexutil.Big    `json:"blockNumber"`
+	TransactionIndex     hexutil.Uint64  `json:"transactionIndex"`
+	ContractAddress      *common.Address `json:"contractAddress"`
+	Status               hexutil.Uint64  `json:"status"`
+	GasUsed              hexutil.Uint64  `json:"gasUsed"`
+	EffectiveGasPrice    *hexutil.Big    `json:"effectiveGasPrice"`
+	BlobGasUsed          *hexutil.Uint64 `json:"blobGasUsed"`
+	OPGasRefund          *hexutil.Uint64 `json:"opGasRefund"`
+	L1GasPrice           *hexutil.Big    `json:"l1GasPrice"`
+	L1GasUsed            *hexutil.Big    `json:"l1GasUsed"`
+	L1Fee                *hexutil.Big    `json:"l1Fee"`
+	L1FeeScalar          *hexutil.Big    `json:"l1FeeScalar"`
+	L1BaseFeeScalar      *hexutil.Big    `json:"l1BaseFeeScalar"`
+	L1BlobBaseFee        *hexutil.Big    `json:"l1BlobBaseFee"`
+	L1BlobBaseFeeScalar  *hexutil.Big    `json:"l1BlobBaseFeeScalar"`
+	OperatorFeeScalar    *hexutil.Big    `json:"operatorFeeScalar"`
+	OperatorFeeConstant  *hexutil.Big    `json:"operatorFeeConstant"`
+	DAFootprintGasScalar *hexutil.Big    `json:"daFootprintGasScalar"`
 }
 
 func (r *RPCReceipt) BlockNum() uint64 {

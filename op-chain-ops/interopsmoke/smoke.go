@@ -476,6 +476,21 @@ func resolveSmokeKey(privateKey string) (*ecdsa.PrivateKey, common.Address, erro
 	return privKey, crypto.PubkeyToAddress(privKey.PublicKey), nil
 }
 
+// RunAll runs the complete Interop smoke suite against two live L2 RPCs. It is
+// reusable by other Lagoon conformance tools without constructing a CLI context.
+func RunAll(ctx context.Context, stderr io.Writer, l2AURL, l2BURL, privateKey string) error {
+	env, cleanup, err := newSmokeEnv(ctx, stderr, l2AURL, l2BURL, privateKey)
+	if err != nil {
+		return err
+	}
+	defer cleanup()
+
+	fmt.Fprintf(stderr, "Chain A RPC: %s (chain ID %s)\n", env.chainA.url, env.chainA.chainID)
+	fmt.Fprintf(stderr, "Chain B RPC: %s (chain ID %s)\n", env.chainB.url, env.chainB.chainID)
+	fmt.Fprintf(stderr, "Interop Sender Address: %s\n\n", env.userA.address)
+	return smokeAll(env)
+}
+
 func withSmokeEnv(cliCtx *cli.Context, name string, fn func(env *smokeEnv) error) error {
 	ctx := cliCtx.Context
 	stderr := cliCtx.App.ErrWriter

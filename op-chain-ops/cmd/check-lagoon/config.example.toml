@@ -13,6 +13,11 @@ relay-timeout = "2m"
 # Number of A->B->A round-trips to perform.
 iterations = 3
 
+# --- Used only by top-level `all` ---
+# `all` concurrently runs interop-smoke all and one SDM workload per chain.
+all-timeout = "25m"
+json = false
+
 # --- Used only by `failsafe` ---
 # How long to wait for the initiating message to propagate before the blocked relay.
 propagation-wait = "6s"
@@ -21,3 +26,49 @@ propagation-wait = "6s"
 [filter]
 admin-rpc = ["http://localhost:8420", "http://localhost:8421"]
 jwt-secret = ["0x<32-byte-hex-secret-1>", "0x<32-byte-hex-secret-2>"]
+
+# --- Used by `sdm all`, `sdm block`, and `sdm verifier` ---
+[sdm]
+# Producer execution RPC. The all command needs admin_setOperatorSdmOptIn and
+# debug_replaySDMBlock; block validation needs debug_replaySDMBlock.
+l2 = "http://localhost:9545"
+# Optional independent verifier and rollup RPC. Supplying these enables
+# producer/verifier agreement, Lagoon activation, and safe-head checks.
+l2-verifier = ""
+rollup-rpc = ""
+# Top-level `all` requires one rollup route per chain.
+rollup-rpc-a = ""
+rollup-rpc-b = ""
+# Required by focused `sdm all`; optional for top-level `all`, which derives
+# and funds a stable SDM test account when this is empty. An explicit account
+# must differ from the root Interop account.
+account = ""
+l2-fund-amount = "20000000000000000"
+# Reuse previously deployed StateBloat contracts, or leave empty to deploy.
+contract = ""
+contract-a = ""
+contract-b = ""
+# Calling the admin opt-in is intrusive and in-memory. Disable this against a
+# shared network whose operator has already opted in.
+opt-in = true
+batch-size = 12
+slot-count = 20
+min-user-txs = 2
+attempts = 3
+gas-limit = 1000000
+deploy-gas-limit = 2000000
+tx-spacing = "0s"
+receipt-timeout = "45s"
+verify-timeout = "2m"
+timeout = "3m"
+json = false
+# Set only for `sdm block` and `sdm verifier`.
+block = 0
+
+# Optional L1 -> L2 funding, used only when the workload account has no L2 balance.
+fund-l2 = false
+l1 = ""
+l1-account = ""
+portal = ""
+fund-amount = "1000000000000000000"
+fund-gas-limit = 200000
