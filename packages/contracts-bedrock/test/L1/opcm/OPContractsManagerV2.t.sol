@@ -2117,8 +2117,8 @@ contract OPContractsManagerV2_Deploy_Test is OPContractsManagerV2_TestInit {
     function test_deploy_customGasToken_succeeds() public {
         deployConfig.useCustomGasToken = true;
 
-        bool superRoot = isDevFeatureEnabled(DevFeatures.SUPER_ROOT_GAMES_MIGRATION);
-        string memory expectedErrors = superRoot ? "SCKDG-SHAPE,SCKDG-10" : "CKDG-NOSHAPE,CKDG-10";
+        // SUPER_CANNON_KONA is disabled, so its validator errors are expected.
+        string memory expectedErrors = "SCKDG-SHAPE,SCKDG-10";
         IOPContractsManagerV2.ChainContracts memory cts = runDeployV2(deployConfig, bytes(""), expectedErrors);
 
         assertTrue(cts.systemConfig.isCustomGasToken(), "CGT not enabled");
