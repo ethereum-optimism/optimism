@@ -260,6 +260,52 @@ func TestColdStartBackfill_NoOpWhenNoChains(t *testing.T) {
 	require.Equal(t, uint64(1000), h.interop.verificationStartTimestamp)
 }
 
+// TestAdvanceColdStartInit_BackfillWaitsForFinality confirms cold-start
+// initialization does not mutate logsDB or expose a verification frontier
+// until the first verification block is irreversible on every chain.
+func TestAdvanceColdStartInit_BackfillWaitsForFinality(t *testing.T) {
+	const safeTs uint64 = 110
+	h := newInteropTestHarness(t).
+		WithActivation(100).
+		WithLogBackfillDepth(20*time.Second).
+		WithChain(10, func(m *mockChainContainer) {
+			m.firstSafeHeadTimestamp = safeTs
+			m.firstSafeHeadTimestampSet = true
+			m.syncStatusFull = &eth.SyncStatus{FinalizedL2: eth.L2BlockRef{Number: safeTs}}
+		}).
+		WithChain(20, func(m *mockChainContainer) {
+			m.firstSafeHeadTimestamp = safeTs
+			m.firstSafeHeadTimestampSet = true
+			m.syncStatusFull = &eth.SyncStatus{FinalizedL2: eth.L2BlockRef{Number: safeTs - 1}}
+		}).
+		Build()
+	h.interop.initialized.Store(false)
+	h.interop.verificationStartTimestamp = 0
+
+	advanced, err := h.interop.advanceColdStartInit()
+	require.NoError(t, err)
+	require.False(t, advanced)
+	require.False(t, h.interop.initialized.Load())
+	require.Zero(t, h.interop.verificationStartTimestamp)
+	require.False(t, h.interop.backfillCompleted.Load())
+	for _, chainID := range []uint64{10, 20} {
+		_, has := h.interop.logsDBs[eth.ChainIDFromUInt64(chainID)].LatestSealedBlock()
+		require.False(t, has, "backfill must not run before every first verification block finalizes")
+	}
+
+	mock := h.Mock(20)
+	mock.mu.Lock()
+	mock.syncStatusFull = &eth.SyncStatus{FinalizedL2: eth.L2BlockRef{Number: safeTs}}
+	mock.mu.Unlock()
+
+	advanced, err = h.interop.advanceColdStartInit()
+	require.NoError(t, err)
+	require.True(t, advanced)
+	require.True(t, h.interop.initialized.Load())
+	require.Equal(t, safeTs, h.interop.verificationStartTimestamp)
+	require.True(t, h.interop.backfillCompleted.Load())
+}
+
 // TestColdStartBackfill_GenesisClamp exercises the per-chain genesis clamp.
 // activationTimestamp=0, depth=1000s, verificationStart=2000 would naively
 // yield start=1000; but the chain's genesis time is 1500, so backfill must
@@ -275,6 +321,7 @@ func TestColdStartBackfill_GenesisClamp(t *testing.T) {
 		WithChain(10, func(m *mockChainContainer) {
 			m.firstSafeHeadTimestamp = 2000
 			m.firstSafeHeadTimestampSet = true
+			m.syncStatusFull = &eth.SyncStatus{FinalizedL2: eth.L2BlockRef{Number: 2000}}
 			m.blockNumberToTimestampOverride = func(_ context.Context, n uint64) (uint64, error) {
 				if n == 0 {
 					return 1500, nil
@@ -328,6 +375,7 @@ func TestColdStartBackfill_MisalignedActivation(t *testing.T) {
 		WithChain(10, func(m *mockChainContainer) {
 			m.firstSafeHeadTimestamp = safeTs
 			m.firstSafeHeadTimestampSet = true
+			m.syncStatusFull = &eth.SyncStatus{FinalizedL2: eth.L2BlockRef{Number: safeTs / blockTime}}
 			m.blockTimeOverride = blockTime
 			m.blockInfoTimeFn = blockNumToTime
 			m.timestampToBlockNumberOverride = func(_ context.Context, ts uint64) (uint64, error) {
@@ -380,6 +428,7 @@ func TestColdStartBackfill_RecoversFromOfflineReorg(t *testing.T) {
 		WithChain(10, func(m *mockChainContainer) {
 			m.firstSafeHeadTimestamp = safeTs
 			m.firstSafeHeadTimestampSet = true
+			m.syncStatusFull = &eth.SyncStatus{FinalizedL2: eth.L2BlockRef{Number: safeTs}}
 		}).
 		Build()
 	h.interop.initialized.Store(false)
@@ -434,6 +483,7 @@ func TestColdStartBackfill_LeavesAheadLogsDBUnchanged(t *testing.T) {
 		WithChain(10, func(m *mockChainContainer) {
 			m.firstSafeHeadTimestamp = safeTs
 			m.firstSafeHeadTimestampSet = true
+			m.syncStatusFull = &eth.SyncStatus{FinalizedL2: eth.L2BlockRef{Number: safeTs}}
 		}).
 		Build()
 	h.interop.initialized.Store(false)
@@ -482,6 +532,7 @@ func TestColdStartBackfill_TrimsNonCanonicalAheadLogsDBAndCatchesUp(t *testing.T
 		WithChain(10, func(m *mockChainContainer) {
 			m.firstSafeHeadTimestamp = safeTs
 			m.firstSafeHeadTimestampSet = true
+			m.syncStatusFull = &eth.SyncStatus{FinalizedL2: eth.L2BlockRef{Number: safeTs}}
 		}).
 		Build()
 	h.interop.initialized.Store(false)
