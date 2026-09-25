@@ -55,8 +55,9 @@ var (
 	ninetyNine = big.NewInt(99)
 	two        = big.NewInt(2)
 
-	ErrBlobFeeLimit = errors.New("blob fee limit reached")
-	ErrClosed       = errors.New("transaction manager is closed")
+	ErrBlobFeeLimit    = errors.New("blob fee limit reached")
+	ErrClosed          = errors.New("transaction manager is closed")
+	ErrNoBlobTipOracle = errors.New("blob tip oracle is not configured, start with --" + BlobTipCapDynamicFlagName + " to use it")
 )
 
 type SendResponse struct {
@@ -572,9 +573,15 @@ func (m *SimpleTxManager) GetBlobTipCapDynamic() bool {
 	return m.cfg.BlobTipCapDynamic.Load()
 }
 
-func (m *SimpleTxManager) SetBlobTipCapDynamic(val bool) {
+// SetBlobTipCapDynamic toggles the use of the blob tip oracle for blob tx tips.
+// Enabling it requires the tx manager to have been created with a blob tip oracle.
+func (m *SimpleTxManager) SetBlobTipCapDynamic(val bool) error {
+	if val && m.blobTipOracle == nil {
+		return ErrNoBlobTipOracle
+	}
 	m.cfg.BlobTipCapDynamic.Store(val)
 	m.l.Info("txmgr config val changed: SetBlobTipCapDynamic", "newVal", val)
+	return nil
 }
 
 // MakeSidecar builds & returns the BlobTxSidecar and corresponding blob hashes from the raw blob
