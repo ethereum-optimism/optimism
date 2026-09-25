@@ -43,8 +43,7 @@ impl<T: OpTransaction + TransactionTrait> Transaction<T> {
             // Deposits have no gas price, but the legacy RPC shape reports an explicit zero.
             Some(0)
         } else if tx.as_post_exec().is_some() {
-            // PostExec has no fee fields. The Lagoon RPC specification requires gasPrice to be
-            // omitted rather than populated from the containing block's base fee.
+            // PostExec has no fee fields: https://specs.optimism.io/protocol/lagoon/post-exec.html#generic-transaction-interface-representation
             None
         } else {
             Some(
