@@ -15,7 +15,7 @@ import (
 	opservice "github.com/ethereum-optimism/optimism/op-service"
 	"github.com/ethereum-optimism/optimism/op-service/cliapp"
 	"github.com/ethereum-optimism/optimism/op-service/ctxinterrupt"
-	oplog "github.com/ethereum-optimism/optimism/op-service/log"
+	"github.com/ethereum-optimism/optimism/op-service/log/logcli"
 )
 
 var (
@@ -39,7 +39,7 @@ func main() {
 type ConfiguredLifecycle func(ctx context.Context, log log.Logger, config *config.Config) (cliapp.Lifecycle, error)
 
 func run(ctx context.Context, args []string, action ConfiguredLifecycle) error {
-	oplog.SetupDefaults()
+	logcli.SetupDefaults()
 
 	app := cli.NewApp()
 	app.Version = VersionWithMeta
@@ -69,8 +69,8 @@ func run(ctx context.Context, args []string, action ConfiguredLifecycle) error {
 }
 
 func setupLogging(ctx *cli.Context) (log.Logger, error) {
-	logCfg := oplog.ReadCLIConfig(ctx)
-	logger := oplog.NewLogger(oplog.AppOut(ctx), logCfg)
-	oplog.SetGlobalLogHandler(logger.Handler())
+	logCfg := logcli.ReadCLIConfig(ctx)
+	logger := logcli.NewLogger(logcli.AppOut(ctx), logCfg)
+	logcli.SetGlobalLogHandler(logger.Handler())
 	return logger, nil
 }

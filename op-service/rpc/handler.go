@@ -7,11 +7,11 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/node"
 	"github.com/ethereum/go-ethereum/rpc"
 
-	oplog "github.com/ethereum-optimism/optimism/op-service/log"
+	"github.com/ethereum-optimism/optimism/op-service/httputil"
+	"github.com/ethereum-optimism/optimism/op-service/log"
 	opmetrics "github.com/ethereum-optimism/optimism/op-service/metrics"
 	optls "github.com/ethereum-optimism/optimism/op-service/tls"
 )
@@ -76,7 +76,7 @@ func NewHandler(appVersion string, opts ...Option) *Handler {
 	// Outer-most middlewares: logging, metrics, TLS
 	handler = optls.NewPeerTLSMiddleware(handler)
 	handler = opmetrics.NewHTTPRecordingMiddleware(bs.httpRecorder, handler)
-	handler = oplog.NewLoggingMiddleware(bs.log, handler)
+	handler = httputil.NewLoggingMiddleware(bs.log, handler)
 	bs.outer = handler
 
 	if err := bs.AddRPC(rootRoute); err != nil {

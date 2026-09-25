@@ -22,6 +22,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/dial"
 	"github.com/ethereum-optimism/optimism/op-service/endpoint"
 	oplog "github.com/ethereum-optimism/optimism/op-service/log"
+	"github.com/ethereum-optimism/optimism/op-service/log/logcli"
 	oprpc "github.com/ethereum-optimism/optimism/op-service/rpc"
 	opsigner "github.com/ethereum-optimism/optimism/op-service/signer"
 	"github.com/ethereum-optimism/optimism/op-service/sources"
@@ -209,7 +210,7 @@ func (s *interopE2ESystem) startBatcherForL2(id string) {
 		SubSafetyMargin:          4,
 		PollInterval:             50 * time.Millisecond,
 		TxMgrConfig:              setuputils.NewTxMgrConfig(s.l1.UserRPC(), &batcherSecret),
-		LogConfig: oplog.CLIConfig{
+		LogConfig: logcli.CLIConfig{
 			Level:  log.LevelInfo,
 			Format: oplog.FormatText,
 		},

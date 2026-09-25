@@ -9,7 +9,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-dripper/flags"
 	opservice "github.com/ethereum-optimism/optimism/op-service"
 	"github.com/ethereum-optimism/optimism/op-service/cliapp"
-	oplog "github.com/ethereum-optimism/optimism/op-service/log"
+	"github.com/ethereum-optimism/optimism/op-service/log/logcli"
 )
 
 func Main(version string) cliapp.LifecycleAction {
@@ -22,8 +22,8 @@ func Main(version string) cliapp.LifecycleAction {
 			return nil, fmt.Errorf("invalid CLI flags: %w", err)
 		}
 
-		l := oplog.NewLogger(oplog.AppOut(cliCtx), cfg.LogConfig)
-		oplog.SetGlobalLogHandler(l.Handler())
+		l := logcli.NewLogger(logcli.AppOut(cliCtx), cfg.LogConfig)
+		logcli.SetGlobalLogHandler(l.Handler())
 		opservice.ValidateEnvVars(flags.EnvVarPrefix, flags.Flags, l)
 
 		l.Info("initializing executor")

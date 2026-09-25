@@ -5,8 +5,7 @@ import (
 	"encoding/json"
 	"log/slog"
 
-	oplog "github.com/ethereum-optimism/optimism/op-service/log"
-	"github.com/ethereum/go-ethereum/log"
+	"github.com/ethereum-optimism/optimism/op-service/log"
 )
 
 type rawGoJSONLog map[string]any
@@ -28,7 +27,7 @@ func ParseGoStructuredLogs(line []byte) LogEntry {
 			Fields:  map[string]any{"line": string(line)},
 		}
 	}
-	lvl, err := oplog.LevelFromString(e["lvl"].(string))
+	lvl, err := log.LevelFromString(e["lvl"].(string))
 	if err != nil {
 		lvl = log.LevelInfo
 	}

@@ -1,16 +1,15 @@
-package log
+package httputil
 
 import (
 	"net/http"
 	"time"
 
-	"github.com/ethereum-optimism/optimism/op-service/httputil"
-	"github.com/ethereum/go-ethereum/log"
+	"github.com/ethereum-optimism/optimism/op-service/log"
 )
 
 func NewLoggingMiddleware(lgr log.Logger, next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		ww := httputil.NewWrappedResponseWriter(w)
+		ww := NewWrappedResponseWriter(w)
 		start := time.Now()
 		next.ServeHTTP(ww, r)
 		lgr.Debug(

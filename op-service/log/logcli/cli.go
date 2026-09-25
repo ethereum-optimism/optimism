@@ -1,4 +1,10 @@
-package log
+// Package logcli wires the logging package into urfave/cli applications: the log
+// flags, the CLIConfig they parse into, the logger constructors that consume it,
+// and the process-level logger setup a service performs at startup.
+//
+// It is separate from op-service/log so that op-service/log stays free of
+// in-repo dependencies and can be imported by any package in the monorepo.
+package logcli
 
 import (
 	"context"
@@ -12,11 +18,10 @@ import (
 	"github.com/urfave/cli/v2"
 	"golang.org/x/term"
 
-	"github.com/ethereum/go-ethereum/log"
-
 	opservice "github.com/ethereum-optimism/optimism/op-service"
 	"github.com/ethereum-optimism/optimism/op-service/cliapp"
 	"github.com/ethereum-optimism/optimism/op-service/cliiface"
+	"github.com/ethereum-optimism/optimism/op-service/log"
 	"github.com/ethereum-optimism/optimism/op-service/log/logfilter"
 )
 
@@ -53,8 +58,8 @@ func CLIFlagsWithCategory(envPrefix string, category string) []cli.Flag {
 		},
 		&cli.GenericFlag{
 			Name:     FormatFlagName,
-			Usage:    fmt.Sprintf("Format the log output. Supported formats: %s", SupportedFormatsString()),
-			Value:    NewFormatFlagValue(FormatText),
+			Usage:    fmt.Sprintf("Format the log output. Supported formats: %s", log.SupportedFormatsString()),
+			Value:    NewFormatFlagValue(log.FormatText),
 			EnvVars:  opservice.PrefixEnvVar(envPrefix, "LOG_FORMAT"),
 			Category: category,
 		},
@@ -83,7 +88,7 @@ func NewLevelFlagValue(lvl slog.Level) *LevelFlagValue {
 
 func (fv *LevelFlagValue) Set(value string) error {
 	value = strings.ToLower(value) // ignore case
-	lvl, err := LevelFromString(value)
+	lvl, err := log.LevelFromString(value)
 	if err != nil {
 		return err
 	}
@@ -104,108 +109,18 @@ func (fv *LevelFlagValue) Clone() any {
 	return &cpy
 }
 
-// LevelFromString returns the appropriate Level from a string name.
-// Useful for parsing command line args and configuration files.
-// It also converts strings to lowercase.
-// If the string is unknown, LevelDebug is returned as a default, together with
-// a non-nil error.
-func LevelFromString(lvlString string) (slog.Level, error) {
-	lvlString = strings.ToLower(lvlString) // ignore case
-	switch lvlString {
-	case "trace", "trce":
-		return log.LevelTrace, nil
-	case "debug", "dbug":
-		return log.LevelDebug, nil
-	case "info":
-		return log.LevelInfo, nil
-	case "warn":
-		return log.LevelWarn, nil
-	case "error", "eror":
-		return log.LevelError, nil
-	case "crit":
-		return log.LevelCrit, nil
-	default:
-		return log.LevelDebug, fmt.Errorf("unknown level: %v", lvlString)
-	}
-}
-
 var _ cliapp.CloneableGeneric = (*LevelFlagValue)(nil)
 
-// FormatType defines a type of log format.
-// Supported formats: 'text', 'terminal', 'logfmt', 'json'
-type FormatType string
-
-const (
-	FormatText     FormatType = "text"
-	FormatTerminal FormatType = "terminal"
-	FormatLogFmt   FormatType = "logfmt"
-	FormatLogFmtMs FormatType = "logfmtms"
-	FormatJSON     FormatType = "json"
-	FormatJSONMs   FormatType = "jsonms"
-)
-
-// All supported format types in a slice for iteration
-var formatTypes = []FormatType{
-	FormatText,
-	FormatTerminal,
-	FormatLogFmt,
-	FormatLogFmtMs,
-	FormatJSON,
-	FormatJSONMs,
-}
-
-// SupportedFormatsString returns a comma-delimited string of supported formats,
-func SupportedFormatsString() string {
-	names := make([]string, 0, len(formatTypes))
-	for _, f := range formatTypes {
-		names = append(names, f.String())
-	}
-	return strings.Join(names, ", ")
-}
-
-// FormatHandler returns the correct slog handler factory for the provided format.
-func FormatHandler(ft FormatType, color bool) func(io.Writer) slog.Handler {
-	termColorHandler := func(w io.Writer) slog.Handler {
-		return log.NewTerminalHandler(w, color)
-	}
-	logfmtHandler := func(w io.Writer) slog.Handler { return log.LogfmtHandlerWithLevel(w, log.LevelTrace) }
-	logfmtMsHandler := func(w io.Writer) slog.Handler { return LogfmtMsHandlerWithLevel(w, log.LevelTrace) }
-	switch ft {
-	case FormatJSON:
-		return log.JSONHandler
-	case FormatJSONMs:
-		return JSONMsHandler
-	case FormatText:
-		if color {
-			return termColorHandler
-		} else {
-			return logfmtHandler
-		}
-	case FormatTerminal:
-		return termColorHandler
-	case FormatLogFmt:
-		return logfmtHandler
-	case FormatLogFmtMs:
-		return logfmtMsHandler
-	default:
-		panic(fmt.Errorf("failed to create slog.Handler factory for format-type=%q and color=%v", ft, color))
-	}
-}
-
-func (ft FormatType) String() string {
-	return string(ft)
-}
-
 // FormatFlagValue is a value type for cli.GenericFlag to parse and validate log-formatting-type values
-type FormatFlagValue FormatType
+type FormatFlagValue log.FormatType
 
-func NewFormatFlagValue(fmtType FormatType) *FormatFlagValue {
+func NewFormatFlagValue(fmtType log.FormatType) *FormatFlagValue {
 	return (*FormatFlagValue)(&fmtType)
 }
 
 func (fv *FormatFlagValue) Set(value string) error {
-	switch FormatType(value) {
-	case FormatText, FormatTerminal, FormatLogFmt, FormatLogFmtMs, FormatJSON, FormatJSONMs:
+	switch log.FormatType(value) {
+	case log.FormatText, log.FormatTerminal, log.FormatLogFmt, log.FormatLogFmtMs, log.FormatJSON, log.FormatJSONMs:
 		*fv = FormatFlagValue(value)
 		return nil
 	default:
@@ -214,11 +129,11 @@ func (fv *FormatFlagValue) Set(value string) error {
 }
 
 func (fv FormatFlagValue) String() string {
-	return FormatType(fv).String()
+	return log.FormatType(fv).String()
 }
 
-func (fv FormatFlagValue) FormatType() FormatType {
-	return FormatType(fv)
+func (fv FormatFlagValue) FormatType() log.FormatType {
+	return log.FormatType(fv)
 }
 
 func (fv *FormatFlagValue) Clone() any {
@@ -231,7 +146,7 @@ var _ cliapp.CloneableGeneric = (*FormatFlagValue)(nil)
 type CLIConfig struct {
 	Level  slog.Level
 	Color  bool
-	Format FormatType
+	Format log.FormatType
 	Pid    bool
 }
 
@@ -246,8 +161,8 @@ func AppOut(ctx *cli.Context) io.Writer {
 
 // NewLogHandler creates a new configured handler, compatible as LvlSetter for log-level changes during runtime.
 func NewLogHandler(wr io.Writer, cfg CLIConfig) slog.Handler {
-	handler := FormatHandler(cfg.Format, cfg.Color)(wr)
-	return NewDynamicLogHandler(cfg.Level, handler)
+	handler := log.FormatHandler(cfg.Format, cfg.Color)(wr)
+	return log.NewDynamicLogHandler(cfg.Level, handler)
 }
 
 // NewLogger creates a new configured logger.
@@ -266,6 +181,10 @@ func NewLogger(wr io.Writer, cfg CLIConfig) log.Logger {
 // as it does makes it difficult to distinguish different services in the same process, e.g. during tests.
 // Geth and other components may use the global logger however,
 // and it is thus recommended to set the global log handler to catch these logs.
+//
+// This cannot move into op-service/log: it tags the global logger through
+// logfilter, an in-repo package, and op-service/log must stay free of in-repo
+// imports.
 func SetGlobalLogHandler(h slog.Handler) {
 	l := log.NewLogger(h)
 	ctx := logfilter.AddLogAttrToContext(context.Background(), "global", true)
@@ -278,7 +197,7 @@ func SetGlobalLogHandler(h slog.Handler) {
 func DefaultCLIConfig() CLIConfig {
 	return CLIConfig{
 		Level:  log.LevelInfo,
-		Format: FormatText,
+		Format: log.FormatText,
 		Color:  term.IsTerminal(int(os.Stdout.Fd())),
 	}
 }
@@ -311,14 +230,14 @@ func ReadTestCLIConfig() CLIConfig {
 		*flPID = v == "true"
 	}
 
-	lvl, err := LevelFromString(*flLevel)
+	lvl, err := log.LevelFromString(*flLevel)
 	if err != nil {
 		panic(fmt.Errorf("failed to parse log level: %w", err))
 	}
 
 	return CLIConfig{
 		Level:  lvl,
-		Format: FormatType(*flFormat),
+		Format: log.FormatType(*flFormat),
 		Color:  term.IsTerminal(int(os.Stdout.Fd())) || *flColor,
 		Pid:    *flPID,
 	}

@@ -13,7 +13,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-proposer/metrics"
 	"github.com/ethereum-optimism/optimism/op-proposer/proposer"
 	"github.com/ethereum-optimism/optimism/op-service/cliapp"
-	oplog "github.com/ethereum-optimism/optimism/op-service/log"
+	"github.com/ethereum-optimism/optimism/op-service/log/logcli"
 	"github.com/ethereum-optimism/optimism/op-service/metrics/doc"
 	"github.com/ethereum/go-ethereum/log"
 )
@@ -25,7 +25,7 @@ var (
 )
 
 func main() {
-	oplog.SetupDefaults()
+	logcli.SetupDefaults()
 
 	app := cli.NewApp()
 	app.Flags = cliapp.ProtectFlags(flags.Flags)

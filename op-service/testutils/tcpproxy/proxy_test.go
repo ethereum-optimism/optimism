@@ -11,8 +11,8 @@ import (
 
 	"github.com/stretchr/testify/require"
 
+	"github.com/ethereum-optimism/optimism/op-service/log"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
-	"github.com/ethereum/go-ethereum/log"
 )
 
 // startEchoServer returns a listener that echoes one byte back on each accepted

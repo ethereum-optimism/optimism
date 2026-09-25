@@ -8,7 +8,7 @@ import (
 
 	opnodeflags "github.com/ethereum-optimism/optimism/op-node/flags"
 	opservice "github.com/ethereum-optimism/optimism/op-service"
-	oplog "github.com/ethereum-optimism/optimism/op-service/log"
+	"github.com/ethereum-optimism/optimism/op-service/log/logcli"
 	opmetrics "github.com/ethereum-optimism/optimism/op-service/metrics"
 	"github.com/ethereum-optimism/optimism/op-service/oppprof"
 	oprpc "github.com/ethereum-optimism/optimism/op-service/rpc"
@@ -102,7 +102,7 @@ func init() {
 	optionalFlags = append(optionalFlags, L1BeaconFallbackAddrs)
 	optionalFlags = append(optionalFlags, DataDirFlag)
 	optionalFlags = append(optionalFlags, oprpc.CLIFlags(EnvVarPrefix)...)
-	optionalFlags = append(optionalFlags, oplog.CLIFlags(EnvVarPrefix)...)
+	optionalFlags = append(optionalFlags, logcli.CLIFlags(EnvVarPrefix)...)
 	optionalFlags = append(optionalFlags, opmetrics.CLIFlags(EnvVarPrefix)...)
 	optionalFlags = append(optionalFlags, oppprof.CLIFlags(EnvVarPrefix)...)
 
