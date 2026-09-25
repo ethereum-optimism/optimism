@@ -84,8 +84,16 @@ func deprecatedP2PFlags(envPrefix string) []cli.Flag {
 			Category: P2PCategory,
 		},
 		&cli.BoolFlag{
+			Name:     SyncReqRespName,
+			Usage:    "Deprecated, no-op flag. The Req/Resp CL P2P sync protocol has been removed.",
+			Required: false,
+			Hidden:   true,
+			EnvVars:  p2pEnv(envPrefix, "SYNC_REQ_RESP"),
+			Category: P2PCategory,
+		},
+		&cli.BoolFlag{
 			Name:     SyncOnlyReqToStaticName,
-			Usage:    "Deprecated, no-op flag. The Req/Resp CL P2P sync protocol client has been removed.",
+			Usage:    "Deprecated, no-op flag. The Req/Resp CL P2P sync protocol has been removed.",
 			Required: false,
 			Hidden:   true,
 			EnvVars:  p2pEnv(envPrefix, "SYNC_ONLYREQTOSTATIC"),
@@ -401,14 +409,6 @@ func P2PFlags(envPrefix string) []cli.Flag {
 			Required: false,
 			Value:    60 * time.Second,
 			EnvVars:  p2pEnv(envPrefix, "GOSSIP_TIMESTAMP_THRESHOLD"),
-			Category: P2PCategory,
-		},
-		&cli.BoolFlag{
-			Name:     SyncReqRespName,
-			Usage:    "Enables the P2P req-resp sync server, which serves payloads-by-number to peers that request them. The client side has been removed; the server will be deprecated in a future release in favor of EL P2P sync.",
-			Value:    true,
-			Required: false,
-			EnvVars:  p2pEnv(envPrefix, "SYNC_REQ_RESP"),
 			Category: P2PCategory,
 		},
 		&cli.BoolFlag{
