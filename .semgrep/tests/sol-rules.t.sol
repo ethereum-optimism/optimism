@@ -34,9 +34,7 @@ contract SemgrepTest__sol_safety_deployutils_args {
     function test() {
         // ruleid: sol-safety-deployutils-args
         DeployUtils.create1AndSave({
-            _save: this,
-            _name: "SuperchainConfig",
-            _args: abi.encodeCall(ISuperchainConfig.__constructor__, ())
+            _save: this, _name: "SuperchainConfig", _args: abi.encodeCall(ISuperchainConfig.__constructor__, ())
         });
 
         // ruleid: sol-safety-deployutils-args
@@ -52,16 +50,12 @@ contract SemgrepTest__sol_safety_deployutils_args {
 
         // ruleid: sol-safety-deployutils-args
         DeployUtils.create2({
-            _salt: _implSalt(),
-            _name: "SuperchainConfig",
-            _args: abi.encodeCall(ISuperchainConfig.__constructor__, ())
+            _salt: _implSalt(), _name: "SuperchainConfig", _args: abi.encodeCall(ISuperchainConfig.__constructor__, ())
         });
 
         // ruleid: sol-safety-deployutils-args
         DeployUtils.createDeterministic({
-            _name: "SuperchainConfig",
-            _args: abi.encodeCall(ISuperchainConfig.__constructor__, ()),
-            _salt: _implSalt()
+            _name: "SuperchainConfig", _args: abi.encodeCall(ISuperchainConfig.__constructor__, ()), _salt: _implSalt()
         });
 
         // ok: sol-safety-deployutils-args
@@ -695,21 +689,36 @@ contract SemgrepTest__sol_style_enforce_require_msg {
 }
 
 contract SemgrepTest__sol_safety_try_catch_eip_150 {
-    function test() {
+    function test_multilineSafe() {
         // ok: sol-safety-trycatch-eip150
         // eip150-safe
         try someContract.someFunction() {
-            // ...
-        } catch {
+        // ...
+        }
+            catch {
             // ...
         }
+    }
 
+    function test_multilineUnsafe() {
         // ruleid: sol-safety-trycatch-eip150
         try someContract.someFunction() {
-            // ...
-        } catch {
+        // ...
+        }
+            catch {
             // ...
         }
+    }
+
+    function test_emptyUnsafe() {
+        // ruleid: sol-safety-trycatch-eip150
+        try someContract.someFunction() { } catch { }
+    }
+
+    function test_emptySafe() {
+        // ok: sol-safety-trycatch-eip150
+        // eip150-safe
+        try someContract.someFunction() { } catch { }
     }
 }
 

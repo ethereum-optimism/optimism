@@ -157,12 +157,10 @@ contract OPContractsManagerMigrator is OPContractsManagerUtilsCaller {
         // provided in ascending order.
         _validateChainSystemConfigs(_input.chainSystemConfigs);
 
-        if (
-            SemverComp.lt(
+        if (SemverComp.lt(
                 _input.chainSystemConfigs[0].superchainConfig().version(),
                 ISuperchainConfig(contractsContainer().implementations().superchainConfigImpl).version()
-            )
-        ) {
+            )) {
             revert OPContractsManagerMigrator_SuperchainConfigNeedsUpgrade();
         }
 
@@ -184,16 +182,13 @@ contract OPContractsManagerMigrator is OPContractsManagerUtilsCaller {
         IOPContractsManagerUtils.ExtraInstruction[] memory extraInstructions =
             new IOPContractsManagerUtils.ExtraInstruction[](3);
         extraInstructions[0] = IOPContractsManagerUtils.ExtraInstruction({
-            key: Constants.PERMITTED_PROXY_DEPLOYMENT_KEY,
-            data: bytes("ETHLockbox")
+            key: Constants.PERMITTED_PROXY_DEPLOYMENT_KEY, data: bytes("ETHLockbox")
         });
         extraInstructions[1] = IOPContractsManagerUtils.ExtraInstruction({
-            key: Constants.PERMITTED_PROXY_DEPLOYMENT_KEY,
-            data: bytes("DisputeGameFactory")
+            key: Constants.PERMITTED_PROXY_DEPLOYMENT_KEY, data: bytes("DisputeGameFactory")
         });
         extraInstructions[2] = IOPContractsManagerUtils.ExtraInstruction({
-            key: Constants.PERMITTED_PROXY_DEPLOYMENT_KEY,
-            data: bytes("AnchorStateRegistry")
+            key: Constants.PERMITTED_PROXY_DEPLOYMENT_KEY, data: bytes("AnchorStateRegistry")
         });
 
         // Deploy the new ETHLockbox.

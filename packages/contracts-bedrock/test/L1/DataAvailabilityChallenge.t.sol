@@ -530,7 +530,7 @@ contract DataAvailabilityChallenge_Resolve_Test is DataAvailabilityChallenge_Tes
         uint256 challengedBlockNumber,
         uint256 resolverRefundPercentage,
         uint64 bondSize,
-        uint128 txGasPrice
+        uint64 txGasPrice
     )
         public
     {
@@ -574,11 +574,11 @@ contract DataAvailabilityChallenge_Resolve_Test is DataAvailabilityChallenge_Tes
         uint256 zeroAddressBalanceBeforeResolve = address(0).balance;
 
         // Assert challenger balance after bond distribution
-        uint256 resolutionCost = (
-            dataAvailabilityChallenge.fixedResolutionCost()
-                + preImage.length * dataAvailabilityChallenge.variableResolutionCost()
-                    / dataAvailabilityChallenge.variableResolutionCostPrecision()
-        ) * block.basefee;
+        uint256 resolutionCost =
+            (dataAvailabilityChallenge.fixedResolutionCost()
+                    + preImage.length
+                    * dataAvailabilityChallenge.variableResolutionCost()
+                    / dataAvailabilityChallenge.variableResolutionCostPrecision()) * block.basefee;
         uint256 challengerRefund = bondSize > resolutionCost ? bondSize - resolutionCost : 0;
         uint256 resolverRefund = resolutionCost * dataAvailabilityChallenge.resolverRefundPercentage() / 100;
         resolverRefund = resolverRefund > resolutionCost ? resolutionCost : resolverRefund;
@@ -626,7 +626,7 @@ contract DataAvailabilityChallenge_Resolve_Test is DataAvailabilityChallenge_Tes
         bytes memory wrongPreImage,
         uint256 challengedBlockNumber,
         uint256 resolverRefundPercentage,
-        uint128 txGasPrice
+        uint64 txGasPrice
     )
         public
     {

@@ -1182,7 +1182,7 @@ jobs:
   contracts-bedrock-coverage:
     docker:
       - image: <<pipeline.parameters.c-default_docker_image>>
-    resource_class: 2xlarge.gen2
+    resource_class: 2xlarge+.gen2
     parameters:
       test_timeout:
         description: Timeout for running tests

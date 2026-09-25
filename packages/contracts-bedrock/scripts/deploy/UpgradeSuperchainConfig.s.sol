@@ -61,8 +61,7 @@ contract UpgradeSuperchainConfig is Script {
         bytes memory data = abi.encodeCall(
             IOPContractsManagerV2.upgradeSuperchain,
             IOPContractsManagerV2.SuperchainUpgradeInput({
-                superchainConfig: _input.superchainConfig,
-                extraInstructions: _input.extraInstructions
+                superchainConfig: _input.superchainConfig, extraInstructions: _input.extraInstructions
             })
         );
         (bool success, bytes memory returnData) = _prank.call(data);

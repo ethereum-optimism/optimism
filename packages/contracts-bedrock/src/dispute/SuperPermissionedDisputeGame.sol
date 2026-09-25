@@ -5,7 +5,11 @@ pragma solidity 0.8.15;
 import { Clone } from "@solady/utils/Clone.sol";
 import { Claim, GameStatus, GameType, Hash, Timestamp } from "src/dispute/lib/Types.sol";
 import {
-    AlreadyInitialized, BadAuth, BadExtraData, IncorrectBondAmount, UnknownChainId
+    AlreadyInitialized,
+    BadAuth,
+    BadExtraData,
+    IncorrectBondAmount,
+    UnknownChainId
 } from "src/dispute/lib/Errors.sol";
 import { Encoding } from "src/libraries/Encoding.sol";
 import { Hashing } from "src/libraries/Hashing.sol";

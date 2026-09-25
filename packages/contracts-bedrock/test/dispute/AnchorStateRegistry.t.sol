@@ -5,7 +5,16 @@ pragma solidity ^0.8.15;
 import { BaseFaultDisputeGame_TestInit, _changeClaimStatus } from "test/dispute/FaultDisputeGame.t.sol";
 
 // Libraries
-import { GameType, GameTypes, GameStatus, Hash, Claim, Duration, VMStatuses, Proposal } from "src/dispute/lib/Types.sol";
+import {
+    GameType,
+    GameTypes,
+    GameStatus,
+    Hash,
+    Claim,
+    Duration,
+    VMStatuses,
+    Proposal
+} from "src/dispute/lib/Types.sol";
 import { ForgeArtifacts, StorageSlot } from "scripts/libraries/ForgeArtifacts.sol";
 
 // Interfaces
@@ -163,8 +172,7 @@ contract AnchorStateRegistry_Initialize_Test is AnchorStateRegistry_TestInit {
             asrETHLockbox,
             disputeGameFactory,
             Proposal({
-                root: Hash.wrap(0xDEADBEEFDEADBEEFDEADBEEFDEADBEEFDEADBEEFDEADBEEFDEADBEEFDEADBEEF),
-                l2SequenceNumber: 0
+                root: Hash.wrap(0xDEADBEEFDEADBEEFDEADBEEFDEADBEEFDEADBEEFDEADBEEFDEADBEEFDEADBEEF), l2SequenceNumber: 0
             }),
             GameType.wrap(0)
         );
@@ -193,8 +201,7 @@ contract AnchorStateRegistry_Initialize_Test is AnchorStateRegistry_TestInit {
             asrETHLockbox,
             disputeGameFactory,
             Proposal({
-                root: Hash.wrap(0xDEADBEEFDEADBEEFDEADBEEFDEADBEEFDEADBEEFDEADBEEFDEADBEEFDEADBEEF),
-                l2SequenceNumber: 0
+                root: Hash.wrap(0xDEADBEEFDEADBEEFDEADBEEFDEADBEEFDEADBEEFDEADBEEFDEADBEEFDEADBEEF), l2SequenceNumber: 0
             }),
             GameType.wrap(0)
         );
