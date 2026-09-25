@@ -23,10 +23,11 @@ use reth_optimism_trie::{
     OpProofsStorage, OpProofsStore,
     db::{MdbxProofsStorage, MdbxProofsStorageV2},
 };
+use reth_provider::{DatabaseProviderFactory, StorageSettingsCache};
 use reth_tasks::TaskExecutor;
 use std::{sync::Arc, time::Duration};
 use tokio::time::sleep;
-use tracing::info;
+use tracing::{info, warn};
 
 type ConfiguredOpNodeBuilder = WithLaunchContext<
     NodeBuilderWithComponents<
@@ -96,7 +97,20 @@ pub async fn launch_node(
         }
     };
 
-    builder.launch_with_debug_capabilities().await?.node_exit_future.await
+    let handle = builder.launch_with_debug_capabilities().await?;
+    match handle.node.provider.database_provider_ro() {
+        Ok(provider) if !provider.cached_storage_settings().is_v2() => {
+            warn!(
+                target: "reth::cli",
+                "Storage V1 is deprecated and will be removed on 2027-01-04. Stop the node, then migrate to Storage V2 with `op-reth db migrate-v2` using the same chain and data-directory arguments."
+            );
+        }
+        Ok(_) => {}
+        Err(err) => {
+            warn!(target: "reth::cli", %err, "Failed to check whether Storage V1 deprecation applies");
+        }
+    }
+    handle.node_exit_future.await
 }
 
 /// Installs the ExEx, RPC overrides, and metrics hook for proof history.
