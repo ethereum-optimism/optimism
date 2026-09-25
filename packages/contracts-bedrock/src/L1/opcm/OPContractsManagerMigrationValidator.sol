@@ -562,8 +562,9 @@ contract OPContractsManagerMigrationValidator {
         // nothing here.
         bool hasRetiredLockbox = address(legacyLockbox) != address(0) && legacyLockbox != _sharedLockbox;
         if (hasRetiredLockbox) {
-            _errors =
-                internalRequire(address(legacyLockbox).balance == 0, string.concat("MIG-CHAIN-", _idx, "-160"), _errors);
+            _errors = internalRequire(
+                address(legacyLockbox).balance == 0, string.concat("MIG-CHAIN-", _idx, "-160"), _errors
+            );
         }
         _errors = internalRequire(
             !_superchainConfig.paused(address(portal)), string.concat("MIG-CHAIN-", _idx, "-170"), _errors
@@ -592,8 +593,9 @@ contract OPContractsManagerMigrationValidator {
         view
         returns (string memory)
     {
-        _errors =
-            internalRequire(_shared.asr == address(_input.expectedShared.anchorStateRegistry), "MIG-SHARED-10", _errors);
+        _errors = internalRequire(
+            _shared.asr == address(_input.expectedShared.anchorStateRegistry), "MIG-SHARED-10", _errors
+        );
         _errors = internalRequire(
             address(_shared.lockbox) == address(_input.expectedShared.ethLockbox), "MIG-SHARED-20", _errors
         );
