@@ -92,7 +92,18 @@ async fn test_start_sequencer(
     #[values(true, false)] already_started: bool,
     #[values(true, false)] via_channel: bool,
 ) {
+    let unsafe_head = L2BlockInfo {
+        block_info: BlockInfo { hash: B256::from([1u8; 32]), ..Default::default() },
+        ..Default::default()
+    };
+    let expected_hash = unsafe_head.hash();
+    let mut client = MockSequencerEngineClient::new();
+    if !already_started {
+        client.expect_get_unsafe_head().times(1).return_once(move || Ok(unsafe_head));
+    }
+
     let mut actor = test_actor();
+    actor.engine_client = client;
     actor.is_active = already_started;
 
     // verify starting state
@@ -103,10 +114,12 @@ async fn test_start_sequencer(
     // start the sequencer
     let result = async {
         match via_channel {
-            false => actor.start_sequencer().await,
+            false => actor.start_sequencer(expected_hash).await,
             true => {
                 let (tx, rx) = oneshot::channel();
-                actor.handle_admin_query(SequencerAdminQuery::StartSequencer(tx)).await;
+                actor
+                    .handle_admin_query(SequencerAdminQuery::StartSequencer(expected_hash, tx))
+                    .await;
                 rx.await.unwrap()
             }
         }
@@ -118,6 +131,38 @@ async fn test_start_sequencer(
     let result = actor.is_sequencer_active().await;
     assert!(result.is_ok());
     assert!(result.unwrap());
+}
+
+#[tokio::test]
+async fn test_start_sequencer_requires_conductor_leadership() {
+    let mut conductor = MockConductor::new();
+    conductor.expect_leader().times(1).return_once(|| Ok(false));
+
+    let mut actor = test_actor();
+    actor.conductor = Some(conductor);
+    actor.is_active = false;
+
+    let err = actor.start_sequencer(B256::ZERO).await.unwrap_err();
+    assert!(err.to_string().contains("sequencer is not the leader"));
+    assert!(!actor.is_active);
+}
+
+#[tokio::test]
+async fn test_start_sequencer_validates_unsafe_head() {
+    let unsafe_head = L2BlockInfo {
+        block_info: BlockInfo { hash: B256::from([1u8; 32]), ..Default::default() },
+        ..Default::default()
+    };
+    let mut client = MockSequencerEngineClient::new();
+    client.expect_get_unsafe_head().times(1).return_once(move || Ok(unsafe_head));
+
+    let mut actor = test_actor();
+    actor.engine_client = client;
+    actor.is_active = false;
+
+    let err = actor.start_sequencer(B256::ZERO).await.unwrap_err();
+    assert!(err.to_string().contains("block hash does not match"));
+    assert!(!actor.is_active);
 }
 
 #[rstest]
@@ -370,7 +415,7 @@ async fn test_handle_admin_query_resilient_to_dropped_receiver() {
     {
         // immediately drop receiver
         let (tx, _rx) = oneshot::channel();
-        queries.push(SequencerAdminQuery::StartSequencer(tx));
+        queries.push(SequencerAdminQuery::StartSequencer(B256::ZERO, tx));
     }
     {
         // immediately drop receiver

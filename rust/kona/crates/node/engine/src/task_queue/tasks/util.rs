@@ -60,6 +60,7 @@ pub(in crate::task_queue) async fn build_and_seal<EngineClient_: EngineClient>(
         attributes,
         is_attributes_derived,
         BuildSealCoupling::Atomic,
+        true,
         None,
         block_sink,
     )
