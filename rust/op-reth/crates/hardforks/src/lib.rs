@@ -23,7 +23,7 @@ use alloy_primitives::U256;
 use once_cell::sync::Lazy as LazyLock;
 use reth_ethereum_forks::{ChainHardforks, EthereumHardfork, ForkCondition, Hardfork};
 
-/// UPSTREAM-MIRROR(set): reth@rev:0fbe428 `reth_ethereum_forks::DEV_HARDFORKS`
+/// UPSTREAM-MIRROR(set): reth@rev:4553cf1 `reth_ethereum_forks::DEV_HARDFORKS`
 ///
 /// Mirrors reth's dev hardfork list with OP forks interleaved. Upstream includes an explicit
 /// Osaka entry; this list activates those semantics through Karst instead. Re-diff every L1

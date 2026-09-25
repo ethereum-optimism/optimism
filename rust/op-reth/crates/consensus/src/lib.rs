@@ -34,7 +34,7 @@ use reth_primitives_traits::{
 };
 
 mod proof;
-pub use proof::calculate_receipt_root_no_memo_optimism;
+pub use proof::{calculate_receipt_root_no_memo_optimism, calculate_receipt_root_optimism};
 
 #[cfg(feature = "std")]
 mod sdm_metrics;
