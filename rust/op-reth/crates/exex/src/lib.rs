@@ -17,7 +17,8 @@ use reth_node_api::{FullNodeComponents, NodePrimitives, NodeTypes};
 use reth_optimism_trie::{
     OpProofStoragePruner, OpProofsProviderRO, OpProofsStore, engine::EngineHandle,
 };
-use reth_provider::BlockNumReader;
+use reth_provider::{BlockNumReader, StageCheckpointReader};
+use reth_stages_types::StageId;
 use reth_trie::{HashedPostStateSorted, SortedTrieData, updates::TrieUpdatesSorted};
 use std::sync::Arc;
 use tracing::{debug, info};
@@ -298,6 +299,30 @@ where
             return Ok(());
         }
 
+        // During pipeline sync, block execution can run ahead of the Merkle stage. A state
+        // provider above the durable trie frontier depends on the canonical memory chain, which
+        // the pipeline can prune concurrently. Defer to the retrying sync loop until the required
+        // parent is durable instead of racing that pruning.
+        let execution_parent = new.blocks().iter().rev().find_map(|(&block_number, block)| {
+            let should_verify = self.verification_interval > 0 &&
+                block_number.is_multiple_of(self.verification_interval);
+            (should_verify || new.trie_data_at(block_number).is_none())
+                .then_some((block_number.saturating_sub(1), block.parent_hash()))
+        });
+        if let Some((parent_number, parent_hash)) = execution_parent &&
+            !self.state_trie_covers(parent_number)?
+        {
+            debug!(
+                target: "optimism::exex",
+                parent_number,
+                ?parent_hash,
+                target_block = new.tip().number(),
+                "Deferring proofs-history execution until parent state is available",
+            );
+            engine_handle.sync_to(new.tip().number())?;
+            return Ok(());
+        }
+
         // `Chain::blocks()` is a BTreeMap so iteration is already ordered oldest → newest.
         for (&block_number, block) in new.blocks() {
             // Fast path: use pre-computed trie data only when verification is not due.
@@ -320,6 +345,22 @@ where
         }
 
         Ok(())
+    }
+
+    /// Returns whether reth has durably persisted state and trie data through `block_number`.
+    fn state_trie_covers(&self, block_number: u64) -> eyre::Result<bool> {
+        let partial_state_trie = self
+            .ctx
+            .provider()
+            .get_stage_checkpoint(StageId::Finish)?
+            .map(|checkpoint| {
+                checkpoint
+                    .finish_stage_checkpoint()
+                    .and_then(|finish| finish.partial_state_trie())
+                    .unwrap_or(checkpoint.block_number)
+            })
+            .unwrap_or_default();
+        Ok(partial_state_trie >= block_number)
     }
 
     fn handle_chain_reorged(
@@ -458,11 +499,26 @@ mod tests {
             trie_data.insert(n, data);
         }
 
+        mk_chain(blocks, from, trie_data)
+    }
+
+    fn mk_chain_without_updates(
+        from: u64,
+        to: u64,
+    ) -> Chain<reth_ethereum_primitives::EthPrimitives> {
+        mk_chain((from..=to).map(mk_block).collect(), from, BTreeMap::new())
+    }
+
+    fn mk_chain(
+        blocks: Vec<RecoveredBlock<Block>>,
+        first_block: u64,
+        trie_data: BTreeMap<u64, LazyTrieData>,
+    ) -> Chain<reth_ethereum_primitives::EthPrimitives> {
         let execution_outcome: ExecutionOutcome<Receipt> = ExecutionOutcome {
             bundle: Default::default(),
             receipts: Vec::new(),
             requests: Vec::new(),
-            first_block: from,
+            first_block,
         };
 
         Chain::new(blocks, execution_outcome, trie_data)
@@ -888,6 +944,39 @@ mod tests {
         let err = exex.handle_notification(notif, &engine_handle).unwrap_err();
         // Error now comes from the engine layer (storage not initialised).
         assert_eq!(err.to_string(), "No blocks found");
+    }
+
+    #[tokio::test]
+    async fn handle_notification_defers_execution_while_merkle_stage_is_behind() {
+        let dir = tempdir_path();
+        let store = Arc::new(MdbxProofsStorageV2::new(dir.as_path()).expect("env"));
+        init_storage(store.clone());
+
+        let (ctx, _handle) =
+            reth_exex_test_utils::test_exex_context().await.expect("exex test context");
+        let pruner = OpProofStoragePruner::new(store.clone(), ctx.components.provider.clone(), 20);
+        let engine_handle = EngineHandle::spawn_with_thresholds(
+            ctx.components.components.evm_config.clone(),
+            ctx.components.provider.clone(),
+            store.clone(),
+            pruner,
+            1,
+            2,
+        );
+        let exex = build_test_exex(ctx, store.clone());
+
+        // Without pre-computed trie data this notification needs EVM execution. The test provider
+        // has no state for its parent and no completed Merkle checkpoint, so execution must be
+        // handed to the retrying sync loop rather than failing the ExEx.
+        let notif =
+            ExExNotification::ChainCommitted { new: Arc::new(mk_chain_without_updates(5, 10)) };
+        exex.handle_notification(notif, &engine_handle)
+            .expect("unavailable parent state should defer execution");
+
+        engine_handle.flush();
+        let latest =
+            store.provider_ro().expect("provider ro").get_latest_block().expect("get").number;
+        assert_eq!(latest, 0);
     }
 
     #[tokio::test]
