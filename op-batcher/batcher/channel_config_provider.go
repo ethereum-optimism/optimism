@@ -67,13 +67,6 @@ func (dec *DynamicEthChannelConfig) ChannelConfig(isThrottling bool, isAmsterdam
 		dec.log.Warn("Error querying gas prices, returning last config", "err", err)
 		return *dec.lastConfig
 	}
-	// Price against the latest canonical head rather than predicting the fork rules of the
-	// transaction's eventual inclusion block. This intentionally accepts one head of lag at
-	// Amsterdam activation: a transaction priced on the final pre-Amsterdam head may be included
-	// in the first Amsterdam block using the pre-Amsterdam comparison. This affects only DA cost
-	// selection; the transaction gas limit accounts for both floor schedules, so validity is
-	// unchanged.
-
 	// Channels built for blobs have higher capacity than channels built for calldata.
 	// If we have a channel built for calldata, we want to switch to blobs if the cost per byte is lower. Doing so
 	// will mean a new channel is built which will not be full but will eventually fill up with additional data.
