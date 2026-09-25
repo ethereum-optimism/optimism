@@ -133,6 +133,7 @@ Reject a candidate when:
 - The path is test-only or outside the area boundary.
 - The difference changes only an internal name, and both implementations reject at the same stage.
 - The specification permits every observed outcome, and there is no cross-client divergence or consensus/safety impact. Otherwise, retain the candidate and apply the divergence/specification-gap reporting rules below.
+- The trigger needs an unsupported configuration, such as two L2 upgrades that activate at the same post-genesis timestamp. See [One upgrade per activation timestamp](../public-docs/op-stack/protocol/network-upgrades.mdx#one-upgrade-per-activation-timestamp).
 - The evidence does not prove an observable effect.
 
 Use focused tests or small reproductions when practical.
