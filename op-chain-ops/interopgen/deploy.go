@@ -230,7 +230,7 @@ func DeployL2ToL1(l1Host *script.Host, superCfg *SuperchainConfig, superDeployme
 	if err != nil {
 		return nil, fmt.Errorf("failed to load DeployOPChain script: %w", err)
 	}
-	selectedAbsolutePrestate, cannonAbsolutePrestate := initialDisputeAbsolutePrestates(cfg)
+	selectedAbsolutePrestate := initialDisputeAbsolutePrestate(cfg)
 
 	output, err := deployOPChainScript.Run(opcm.DeployOPChainInput{
 		OpChainProxyAdminOwner:  superCfg.ProxyAdminOwner,
@@ -251,7 +251,6 @@ func DeployL2ToL1(l1Host *script.Host, superCfg *SuperchainConfig, superDeployme
 			Root:             opcm.DefaultStartingAnchorRoot.Root,
 			L2SequenceNumber: common.Big0,
 		},
-		CannonAbsolutePrestate:       cannonAbsolutePrestate,
 		DisputeMaxGameDepth:          new(big.Int).SetUint64(cfg.DisputeMaxGameDepth),
 		DisputeSplitDepth:            new(big.Int).SetUint64(cfg.DisputeSplitDepth),
 		DisputeClockExtension:        cfg.DisputeClockExtension,
@@ -272,12 +271,11 @@ func DeployL2ToL1(l1Host *script.Host, superCfg *SuperchainConfig, superDeployme
 	}, nil
 }
 
-func initialDisputeAbsolutePrestates(cfg *L2Config) (common.Hash, common.Hash) {
-	selectedAbsolutePrestate := cfg.DisputeAbsolutePrestate
+func initialDisputeAbsolutePrestate(cfg *L2Config) common.Hash {
 	if cfg.DisputeGameType == uint32(gameTypes.CannonKonaGameType) {
-		selectedAbsolutePrestate = cfg.DisputeKonaAbsolutePrestate
+		return cfg.DisputeKonaAbsolutePrestate
 	}
-	return selectedAbsolutePrestate, cfg.DisputeAbsolutePrestate
+	return cfg.DisputeAbsolutePrestate
 }
 
 func MigrateInterop(
