@@ -31,6 +31,9 @@ pub type Gossipsub = libp2p::gossipsub::Behaviour<IdentityTransform, WhitelistSu
 #[derive(NetworkBehaviour, Debug)]
 #[behaviour(out_event = "Event")]
 pub struct Behaviour {
+    /// Limits the number of established connections.
+    #[debug(skip)]
+    pub connection_limits: libp2p::connection_limits::Behaviour,
     /// Responds to inbound pings and send outbound pings.
     #[debug(skip)]
     pub ping: libp2p::ping::Behaviour,
@@ -53,6 +56,7 @@ impl Behaviour {
         cfg: Config,
         handlers: &[Box<dyn Handler>],
     ) -> Result<Self, BehaviourError> {
+        let connection_limits = libp2p::connection_limits::Behaviour::new(Default::default());
         let ping = libp2p::ping::Behaviour::default();
 
         let topics = handlers.iter().flat_map(|handler| handler.topics()).collect::<Vec<_>>();
@@ -80,7 +84,7 @@ impl Behaviour {
             tracing::info!(target: "gossip", "-> {}", topic);
         }
 
-        Ok(Self { identify, ping, gossipsub, sync_req_resp })
+        Ok(Self { connection_limits, identify, ping, gossipsub, sync_req_resp })
     }
 }
 

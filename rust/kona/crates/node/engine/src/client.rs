@@ -31,9 +31,15 @@ use op_alloy_rpc_types_engine::{
     OpExecutionPayloadEnvelopeV3, OpExecutionPayloadEnvelopeV4, OpExecutionPayloadV4,
     OpPayloadAttributes,
 };
-use std::{future::Future, sync::Arc, time::Instant};
+use std::{
+    future::Future,
+    pin::Pin,
+    sync::Arc,
+    task::{Context, Poll},
+    time::{Duration, Instant},
+};
 use thiserror::Error;
-use tower::ServiceBuilder;
+use tower::{Layer, Service, ServiceBuilder};
 use url::Url;
 
 /// An error that occurred in the [`EngineClient`].
@@ -150,10 +156,15 @@ where
     L2Provider: Provider<Optimism>,
 {
     /// Creates a new RPC client for the given address and JWT secret.
-    pub fn rpc_client<N: Network>(addr: Url, jwt: JwtSecret) -> RootProvider<N> {
+    ///
+    /// Requests fail with a timeout error if the server has not responded within `timeout`.
+    pub fn rpc_client<N: Network>(addr: Url, jwt: JwtSecret, timeout: Duration) -> RootProvider<N> {
         let hyper_client = Client::builder(TokioExecutor::new()).build_http::<Full<Bytes>>();
         let auth_layer = AuthLayer::new(jwt);
-        let service = ServiceBuilder::new().layer(auth_layer).service(hyper_client);
+        let service = ServiceBuilder::new()
+            .layer(RequestTimeoutLayer { timeout })
+            .layer(auth_layer)
+            .service(hyper_client);
         let layer_transport = HyperClient::with_service(service);
         let http_hyper = Http::with_client(layer_transport, addr);
         let rpc_client = RpcClient::new(http_hyper, false);
@@ -168,6 +179,8 @@ pub struct EngineClientBuilder {
     pub l2: Url,
     /// The L2 JWT secret.
     pub l2_jwt: JwtSecret,
+    /// Timeout for requests to the L2 Engine API endpoint.
+    pub l2_timeout: Duration,
     /// The L1 RPC URL.
     pub l1_rpc: Url,
     /// The [`RollupConfig`] for determining Engine API versions based on hardfork activations.
@@ -183,6 +196,7 @@ impl EngineClientBuilder {
         let engine = OpEngineClient::<RootProvider, RootProvider<Optimism>>::rpc_client::<Optimism>(
             self.l2,
             self.l2_jwt,
+            self.l2_timeout,
         );
 
         let l1_provider = RootProvider::new_http(self.l1_rpc);
@@ -418,4 +432,95 @@ async fn record_call_time<T, Err>(
         duration.as_secs_f64()
     );
     Ok(result)
+}
+
+/// Layer that fails an Engine API request if the server does not respond within `timeout`.
+#[derive(Debug, Clone, Copy)]
+struct RequestTimeoutLayer {
+    timeout: Duration,
+}
+
+impl<S> Layer<S> for RequestTimeoutLayer {
+    type Service = RequestTimeout<S>;
+
+    fn layer(&self, inner: S) -> Self::Service {
+        RequestTimeout { inner, timeout: self.timeout }
+    }
+}
+
+/// Service created by [`RequestTimeoutLayer`].
+#[derive(Debug, Clone)]
+struct RequestTimeout<S> {
+    inner: S,
+    timeout: Duration,
+}
+
+/// Error returned by [`RequestTimeout`].
+#[derive(Debug, Error)]
+enum RequestTimeoutError<E> {
+    /// The server did not respond in time.
+    #[error("request timed out after {0:?}")]
+    Elapsed(Duration),
+    /// The inner service failed.
+    #[error(transparent)]
+    Inner(E),
+}
+
+impl<S, Req> Service<Req> for RequestTimeout<S>
+where
+    S: Service<Req>,
+    S::Future: Send + 'static,
+{
+    type Response = S::Response;
+    type Error = RequestTimeoutError<S::Error>;
+    type Future = Pin<Box<dyn Future<Output = Result<Self::Response, Self::Error>> + Send>>;
+
+    fn poll_ready(&mut self, cx: &mut Context<'_>) -> Poll<Result<(), Self::Error>> {
+        self.inner.poll_ready(cx).map_err(RequestTimeoutError::Inner)
+    }
+
+    fn call(&mut self, req: Req) -> Self::Future {
+        let timeout = self.timeout;
+        let fut = self.inner.call(req);
+        Box::pin(async move {
+            tokio::time::timeout(timeout, fut)
+                .await
+                .map_err(|_| RequestTimeoutError::Elapsed(timeout))?
+                .map_err(RequestTimeoutError::Inner)
+        })
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use tokio::net::TcpListener;
+
+    #[tokio::test]
+    async fn test_rpc_client_times_out() {
+        // Accept connections but never answer, like a hung execution client.
+        let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let addr = listener.local_addr().unwrap();
+        tokio::spawn(async move {
+            while let Ok((conn, _)) = listener.accept().await {
+                tokio::spawn(async move {
+                    let _conn = conn;
+                    std::future::pending::<()>().await;
+                });
+            }
+        });
+
+        let url = Url::parse(&format!("http://{addr}")).unwrap();
+        let client = OpEngineClient::<RootProvider, RootProvider<Optimism>>::rpc_client::<Optimism>(
+            url,
+            JwtSecret::random(),
+            Duration::from_millis(100),
+        );
+
+        let res = tokio::time::timeout(Duration::from_secs(5), client.get_block_number())
+            .await
+            .expect("request should time out on its own");
+        let err = res.unwrap_err();
+        assert!(err.to_string().contains("timed out"), "unexpected error: {err}");
+    }
 }

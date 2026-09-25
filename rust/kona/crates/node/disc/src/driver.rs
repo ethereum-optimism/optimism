@@ -210,60 +210,7 @@ impl Discv5Driver {
                 tokio::select! {
                     msg = req_recv.recv() => {
                         match msg {
-                            Some(msg) => match msg {
-                                HandlerRequest::Metrics(tx) => {
-                                    let metrics = self.disc.metrics();
-                                    if let Err(e) = tx.send(metrics) {
-                                        warn!(target: "discovery", "Failed to send metrics: {:?}", e);
-                                    }
-                                }
-                                HandlerRequest::PeerCount(tx) => {
-                                    let peers = self.disc.connected_peers();
-                                    if let Err(e) = tx.send(peers) {
-                                        warn!(target: "discovery", "Failed to send peer count: {:?}", e);
-                                    }
-                                }
-                                HandlerRequest::LocalEnr(tx) => {
-                                    let enr = self.disc.local_enr().clone();
-                                    if let Err(e) = tx.send(enr.clone()) {
-                                        warn!(target: "discovery", "Failed to send local enr: {:?}", e);
-                                    }
-                                }
-                                HandlerRequest::AddEnr(enr) => {
-                                    let _ = self.disc.add_enr(enr);
-                                }
-                                HandlerRequest::RequestEnr{out, addr} => {
-                                    let enr = self.disc.request_enr(addr).await;
-                                    if let Err(e) = out.send(enr) {
-                                        warn!(target: "discovery", "Failed to send request enr: {:?}", e);
-                                    }
-                                }
-                                HandlerRequest::TableEnrs(tx) => {
-                                    let enrs = self.disc.table_entries_enr();
-                                    if let Err(e) = tx.send(enrs) {
-                                        warn!(target: "discovery", "Failed to send table enrs: {:?}", e);
-                                    }
-                                },
-                                HandlerRequest::TableInfos(tx) => {
-                                    let infos = self.disc.table_entries();
-                                    if let Err(e) = tx.send(infos) {
-                                        warn!(target: "discovery", "Failed to send table infos: {:?}", e);
-                                    }
-                                },
-                                HandlerRequest::BanAddrs{addrs_to_ban, ban_duration} => {
-                                    let enrs = self.disc.table_entries_enr();
-
-                                    for enr in enrs {
-                                        let Some(multi_addr) = enr_to_multiaddr(&enr) else {
-                                            continue;
-                                        };
-
-                                        if addrs_to_ban.contains(&multi_addr) {
-                                            self.disc.ban_node(&enr.node_id(), Some(ban_duration));
-                                        }
-                                    }
-                                },
-                            }
+                            Some(msg) => Self::handle_request(&self.disc, msg).await,
                             None => {
                                 trace!(target: "discovery", "Receiver `None` peer enr");
                             }
@@ -363,6 +310,84 @@ impl Discv5Driver {
 
         (Discv5Handler::new(chain_id, req_sender), enr_recv)
     }
+
+    /// Answers a [`HandlerRequest`] using the [`Discv5`] service.
+    async fn handle_request(disc: &Discv5, msg: HandlerRequest) {
+        match msg {
+            HandlerRequest::Metrics(tx) => {
+                let metrics = disc.metrics();
+                if let Err(e) = tx.send(metrics) {
+                    warn!(target: "discovery", "Failed to send metrics: {:?}", e);
+                }
+            }
+            HandlerRequest::PeerCount(tx) => {
+                let peers = disc.connected_peers();
+                if let Err(e) = tx.send(peers) {
+                    warn!(target: "discovery", "Failed to send peer count: {:?}", e);
+                }
+            }
+            HandlerRequest::LocalEnr(tx) => {
+                let enr = disc.local_enr();
+                if let Err(e) = tx.send(enr) {
+                    warn!(target: "discovery", "Failed to send local enr: {:?}", e);
+                }
+            }
+            HandlerRequest::AddEnr(enr) => {
+                let _ = disc.add_enr(enr);
+            }
+            HandlerRequest::RequestEnr { out, addr } => {
+                let enr = disc.request_enr(addr).await;
+                if let Err(e) = out.send(enr) {
+                    warn!(target: "discovery", "Failed to send request enr: {:?}", e);
+                }
+            }
+            HandlerRequest::TableEnrs(tx) => {
+                let enrs = disc.table_entries_enr();
+                if let Err(e) = tx.send(enrs) {
+                    warn!(target: "discovery", "Failed to send table enrs: {:?}", e);
+                }
+            }
+            HandlerRequest::TableInfos(tx) => {
+                let infos = disc.table_entries();
+                if let Err(e) = tx.send(infos) {
+                    warn!(target: "discovery", "Failed to send table infos: {:?}", e);
+                }
+            }
+            HandlerRequest::BanAddrs { addrs_to_ban, ban_duration } => {
+                let enrs = disc.table_entries_enr();
+
+                for enr in enrs {
+                    let Some(multi_addr) = enr_to_multiaddr(&enr) else {
+                        continue;
+                    };
+
+                    if addrs_to_ban.contains(&multi_addr) {
+                        disc.ban_node(&enr.node_id(), Some(ban_duration));
+                    }
+                }
+            }
+        }
+    }
+
+    /// Spawns a task that answers [`HandlerRequest`]s without starting the [`Discv5`] service.
+    ///
+    /// This is used when peer discovery is disabled: the node does not bind the discovery socket,
+    /// advertise its ENR or look up peers, and the returned receiver never yields an [`Enr`].
+    pub fn start_disabled(self) -> (Discv5Handler, tokio::sync::mpsc::Receiver<Enr>) {
+        let chain_id = self.chain_id;
+        let (req_sender, mut req_recv) = channel::<HandlerRequest>(1024);
+        let (enr_sender, enr_recv) = channel::<Enr>(1);
+
+        tokio::spawn(async move {
+            // Keep the sender alive so the receiver does not report a closed channel.
+            let _enr_sender = enr_sender;
+            while let Some(msg) = req_recv.recv().await {
+                Self::handle_request(&self.disc, msg).await;
+            }
+        });
+
+        (Discv5Handler::new(chain_id, req_sender), enr_recv)
+    }
 }
 
 #[cfg(test)]
@@ -378,6 +403,28 @@ mod tests {
     use tempfile::tempdir;
 
     use std::net::{IpAddr, Ipv4Addr, SocketAddr};
+
+    #[tokio::test]
+    async fn test_discv5_driver_start_disabled() {
+        let CombinedKey::Secp256k1(secret_key) = CombinedKey::generate_secp256k1() else {
+            unreachable!()
+        };
+
+        let socket = SocketAddr::new(IpAddr::V4(Ipv4Addr::UNSPECIFIED), 0);
+        let discovery = Discv5Driver::builder(
+            LocalNode::new(secret_key, IpAddr::V4(Ipv4Addr::UNSPECIFIED), 0, 0),
+            OP_SEPOLIA_CHAIN_ID,
+            ConfigBuilder::new(socket.into()).build(),
+        )
+        .build()
+        .expect("Failed to build discovery service");
+        let (handler, mut enr_receiver) = discovery.start_disabled();
+
+        // The handler still answers requests, the node just never finds any peers.
+        assert_eq!(handler.peer_count().await.unwrap(), 0);
+        assert!(handler.table_enrs().await.unwrap().is_empty());
+        assert_eq!(enr_receiver.try_recv(), Err(tokio::sync::mpsc::error::TryRecvError::Empty));
+    }
 
     #[tokio::test]
     async fn test_online_discv5_driver() {
