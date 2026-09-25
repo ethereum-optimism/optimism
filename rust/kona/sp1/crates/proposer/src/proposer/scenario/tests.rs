@@ -362,6 +362,7 @@ fn test_config(fetch_interval: u64) -> ProposerConfig {
         fetch_interval,
         metrics_listen: MetricsListen::Disabled,
         sync_l1_confirmations: 0,
+        max_game_deadline_lag: MAX_GAME_DEADLINE_LAG,
         tx_confirmation_timeout: 60,
         max_fee_per_gas: None,
         max_priority_fee_per_gas: None,
@@ -3043,6 +3044,60 @@ async fn incremental_discovery_stops_before_old_history_and_resumes_for_new_entr
             .is_some()
     );
     scenario.settle_scheduled(&resumed).await.unwrap();
+}
+
+#[tokio::test]
+async fn widened_startup_discovery_keeps_old_ancestor_until_bond_payout() {
+    let world = ScenarioWorld::new();
+    let root = ScenarioGame::new(0, u32::MAX, 10, ScenarioWorld::default_prestate()).claimable(0);
+    let mut ancestor =
+        ScenarioGame::new(1, 0, 20, ScenarioWorld::default_prestate()).provable_for_resolution();
+    ancestor.creator = ScenarioWorld::proposer_address();
+    ancestor.deadline = 2_000_000 - MAX_GAME_DEADLINE_LAG - 1;
+    let ancestor_target = ancestor.target();
+    let child =
+        ScenarioGame::new(2, 1, 22, ScenarioWorld::default_prestate()).provable_for_resolution();
+    let child_target = child.target();
+    let mut boundary = ScenarioGame::new(3, u32::MAX, 25, ScenarioWorld::default_prestate());
+    boundary.deadline = ancestor.deadline;
+    let mut anchor = ScenarioGame::new(4, u32::MAX, 30, ScenarioWorld::default_prestate());
+    anchor.deadline = 2_000_000;
+    let anchor_target = anchor.target();
+    for game in [root, ancestor, child, boundary, anchor] {
+        world.add_game(game);
+    }
+    world.set_anchor_game(&anchor_target);
+    world.set_horizons(30, 30);
+
+    let mut config = scenario_config();
+    config.proposal_interval_seconds = 100;
+    config.max_game_deadline_lag = 28 * 24 * 60 * 60;
+    let mut widened = ScenarioHarness::new(world.clone(), config).await.unwrap();
+    let discovered = widened.tick().await.unwrap();
+    widened.settle_scheduled(&discovered).await.unwrap();
+    assert!(world.action_record(&ActionTarget::Resolve(child_target.clone()), 1).is_none());
+
+    world.set_latest_l1_time(
+        world.observation().latest_l1.timestamp + SCENARIO_GAME_FINALITY_DELAY + 1,
+    );
+    let finalized = widened.tick().await.unwrap();
+    widened.settle_scheduled(&finalized).await.unwrap();
+    assert!(matches!(
+        world.action_record(&ActionTarget::Resolve(child_target), 1).unwrap().effect,
+        CommittedEffect::Resolved { .. }
+    ));
+    assert!(matches!(
+        world.action_record(&ActionTarget::ClaimCredit(ancestor_target.clone()), 1).unwrap().effect,
+        CommittedEffect::ClaimUnlocked { game, .. } if game == ancestor_target.address
+    ));
+
+    world.set_latest_l1_time(world.observation().latest_l1.timestamp + 20);
+    let matured = widened.tick().await.unwrap();
+    widened.settle_scheduled(&matured).await.unwrap();
+    assert!(matches!(
+        world.action_record(&ActionTarget::ClaimCredit(ancestor_target.clone()), 2).unwrap().effect,
+        CommittedEffect::ClaimPaid { game, .. } if game == ancestor_target.address
+    ));
 }
 
 #[tokio::test]

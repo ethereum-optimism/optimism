@@ -1564,7 +1564,11 @@ impl Proposer {
                         anchor_deadline = Some(deadline);
                     }
                     if let Some(anchor_d) = anchor_deadline &&
-                        beyond_deadline_lag(anchor_d, deadline)
+                        beyond_deadline_lag(
+                            anchor_d,
+                            deadline,
+                            self.config.max_game_deadline_lag,
+                        )
                     {
                         tracing::debug!(
                             game_index = %index,
@@ -1778,7 +1782,11 @@ impl Proposer {
                             "Keeping pending owned game re-checkable (eviction exempt)"
                         );
                     } else if let Some(anchor_deadline) = anchor_deadline &&
-                        beyond_deadline_lag(anchor_deadline, deadline)
+                        beyond_deadline_lag(
+                            anchor_deadline,
+                            deadline,
+                            self.config.max_game_deadline_lag,
+                        )
                     {
                         tracing::warn!(
                             game_index = %index,
@@ -4317,8 +4325,8 @@ pub fn withdrawal_matured(withdrawal_ts: u64, weth_delay: u64, l1_now: u64) -> b
 
 /// Returns whether a game deadline is more than the maximum allowed lag
 /// behind the anchor deadline.
-pub const fn beyond_deadline_lag(anchor_deadline: u64, game_deadline: u64) -> bool {
-    game_deadline.saturating_add(MAX_GAME_DEADLINE_LAG) < anchor_deadline
+pub const fn beyond_deadline_lag(anchor_deadline: u64, game_deadline: u64, max_lag: u64) -> bool {
+    game_deadline.saturating_add(max_lag) < anchor_deadline
 }
 
 /// Policy for game creation when the registered prestate's programs cannot
@@ -5312,6 +5320,7 @@ mod tests {
             fetch_interval: 30,
             metrics_listen: MetricsListen::Disabled,
             sync_l1_confirmations: 0,
+            max_game_deadline_lag: MAX_GAME_DEADLINE_LAG,
             tx_confirmation_timeout: 60,
             max_fee_per_gas: None,
             max_priority_fee_per_gas: None,
@@ -8901,11 +8910,15 @@ mod tests {
         #[test]
         fn cutoff_only_fires_behind_the_anchor() {
             let anchor = 1_000_000 + MAX_GAME_DEADLINE_LAG + 1;
-            assert!(beyond_deadline_lag(anchor, 1_000_000));
-            assert!(!beyond_deadline_lag(anchor - 1, 1_000_000));
-            assert!(!beyond_deadline_lag(1_000_000, 1_000_000));
-            assert!(!beyond_deadline_lag(1_000_000, 1_000_000 + MAX_GAME_DEADLINE_LAG + 1));
-            assert!(!beyond_deadline_lag(1_000_000, u64::MAX));
+            assert!(beyond_deadline_lag(anchor, 1_000_000, MAX_GAME_DEADLINE_LAG));
+            assert!(!beyond_deadline_lag(anchor - 1, 1_000_000, MAX_GAME_DEADLINE_LAG));
+            assert!(!beyond_deadline_lag(1_000_000, 1_000_000, MAX_GAME_DEADLINE_LAG));
+            assert!(!beyond_deadline_lag(
+                1_000_000,
+                1_000_000 + MAX_GAME_DEADLINE_LAG + 1,
+                MAX_GAME_DEADLINE_LAG,
+            ));
+            assert!(!beyond_deadline_lag(1_000_000, u64::MAX, MAX_GAME_DEADLINE_LAG));
         }
     }
 }
