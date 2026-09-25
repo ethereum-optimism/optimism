@@ -19,11 +19,15 @@ func newSDMRethSystemWithBatcherOptions(t devtest.T, sdmEnabled bool, batcherOpt
 	// SDM rides the Lagoon hardfork. The stock constructor covers the disabled and
 	// null-policy regressions while still provisioning the dependency set required
 	// whenever Lagoon is scheduled.
-	return buildSDMRethSystem(t, sdmEnabled, false, false, nil, batcherOpts...)
+	return buildSDMRethSystem(t, sdmEnabled, false, false, "", nil, batcherOpts...)
 }
 
-func newFixtureSDMRethSystem(t devtest.T, batcherOpts ...sysgo.BatcherOption) *sdmtest.RethSystem {
-	return buildSDMRethSystem(t, true, true, false, nil, batcherOpts...)
+func newFixedPolicySDMRethSystem(t devtest.T, batcherOpts ...sysgo.BatcherOption) *sdmtest.RethSystem {
+	return buildSDMRethSystem(t, true, true, false, "", nil, batcherOpts...)
+}
+
+func newExcessiveRefundSDMRethSystem(t devtest.T, target string) *sdmtest.RethSystem {
+	return buildSDMRethSystem(t, true, true, false, target, nil)
 }
 
 // newSDMRethSystemWithIsolatedVerifier builds the SDM system (Interop/SDM at genesis) with the
@@ -42,7 +46,7 @@ func newSDMRethSystemWithIsolatedVerifier(t devtest.T) *sdmtest.RethSystem {
 	if sysgo.ResolveMixedL2CLKind() == sysgo.MixedL2CLKona {
 		t.Skip("isolated-verifier force-build path is not supported by kona-node (no L1-only EL-sync bootstrap); op-node only")
 	}
-	return buildSDMRethSystem(t, true, true, true, nil)
+	return buildSDMRethSystem(t, true, true, true, "", nil)
 }
 
 // newSDMRethSystemWithLagoonOffset builds the SDM system with Lagoon scheduled at the given
@@ -64,16 +68,17 @@ func newSDMRethSystemWithLagoonOffset(
 				l2Cfg.WithForkAtOffset(forks.Lagoon, &offset)
 			}
 		})
-		return buildSDMRethSystem(t, true, true, false, deployerOpts, batcherOpts...)
+		return buildSDMRethSystem(t, true, true, false, "", deployerOpts, batcherOpts...)
 	}
-	return buildSDMRethSystem(t, false, true, false, deployerOpts, batcherOpts...)
+	return buildSDMRethSystem(t, false, true, false, "", deployerOpts, batcherOpts...)
 }
 
 func buildSDMRethSystem(
 	t devtest.T,
 	interopAtGenesis bool,
-	fixtureSequencer bool,
+	fixedPolicySequencer bool,
 	isolateVerifier bool,
+	excessiveRefundTarget string,
 	deployerOpts []sysgo.DeployerOption,
 	batcherOpts ...sysgo.BatcherOption,
 ) *sdmtest.RethSystem {
@@ -90,18 +95,16 @@ func buildSDMRethSystem(
 	//   - Stock path (below): plain op-reth on both nodes, backing the disabled and null-policy
 	//     regressions. These assert that op-reth produces no PostExec transaction at all, so a
 	//     refund-producing DEVSTACK_L2EL_OVERRIDE_BINARY would fail them by construction.
-	//   - Fixture path (`fixtureSequencer`): pins op-reth-sdm-fixture as the producer against a
-	//     stock op-reth verifier, so any block the fixture produces that stock op-reth rejects
-	//     fails the run.
+	//   - Fixed-policy path: stock op-reth with its hidden deterministic test policy enabled on the
+	//     producer, against a stock null-policy verifier. Any incompatible block fails the run.
 	//
 	// A downstream suite exercising its own refund policy does not run this package; it mirrors
 	// the `sdmtest` workload semantics in its own harness.
 	sequencerOpts := sysgo.ResolveMixedL2ELOpts(t)
-	if fixtureSequencer {
-		sequencerKey = "sequencer-op-reth-sdm-fixture"
+	if fixedPolicySequencer {
+		sequencerKey = "sequencer-op-reth-sdm-fixed-policy"
 		sequencerOpts = []sysgo.OpRethOption{
-			sysgo.OpRethWithBinary("op-reth-sdm-fixture"),
-			sysgo.OpRethWithoutProofsHistory(),
+			sdmtest.FixedPolicyOpRethOption(excessiveRefundTarget),
 		}
 	}
 
