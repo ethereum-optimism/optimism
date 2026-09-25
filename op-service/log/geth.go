@@ -2,6 +2,7 @@ package log
 
 import (
 	"context"
+	"io"
 	"log/slog"
 
 	"github.com/ethereum/go-ethereum/log"
@@ -11,8 +12,8 @@ import (
 // It re-exports the go-ethereum handlers and level helpers, and converts a
 // [Logger] into the go-ethereum logger type for go-ethereum APIs that take one.
 //
-// Every re-export is a type alias, a constant, or a variable bound directly to
-// the go-ethereum value, never a wrapper.
+// Types are aliases and levels are constants of the go-ethereum ones; functions
+// forward to their go-ethereum counterparts.
 
 // TerminalHandler formats log records for human consumption, optionally with
 // ANSI colour. Construct one with [NewTerminalHandler] or
@@ -46,34 +47,53 @@ const (
 	LvlInfo  = log.LvlInfo
 )
 
-// Handler constructors.
-var (
-	// DiscardHandler returns a handler that drops every record.
-	DiscardHandler = log.DiscardHandler
+// DiscardHandler returns a handler that drops every record.
+func DiscardHandler() slog.Handler { return log.DiscardHandler() }
 
-	NewTerminalHandler          = log.NewTerminalHandler
-	NewTerminalHandlerWithLevel = log.NewTerminalHandlerWithLevel
+// NewTerminalHandler returns a [TerminalHandler] writing to wr that logs every
+// level, with ANSI colour if useColor is set.
+func NewTerminalHandler(wr io.Writer, useColor bool) *TerminalHandler {
+	return log.NewTerminalHandler(wr, useColor)
+}
 
-	JSONHandler            = log.JSONHandler
-	JSONHandlerWithLevel   = log.JSONHandlerWithLevel
-	LogfmtHandler          = log.LogfmtHandler
-	LogfmtHandlerWithLevel = log.LogfmtHandlerWithLevel
+// NewTerminalHandlerWithLevel returns a [TerminalHandler] writing to wr that
+// logs records at lvl and above, with ANSI colour if useColor is set.
+func NewTerminalHandlerWithLevel(wr io.Writer, lvl slog.Level, useColor bool) *TerminalHandler {
+	return log.NewTerminalHandlerWithLevel(wr, lvl, useColor)
+}
 
-	NewGlogHandler = log.NewGlogHandler
-)
+// JSONHandler returns a handler writing JSON records to wr that logs every level.
+func JSONHandler(wr io.Writer) slog.Handler { return log.JSONHandler(wr) }
 
-// Level formatting and conversion. See also [LevelFromString] for the inverse
-// of LevelString.
-var (
-	// LevelString renders a level as a lowercase name, e.g. "info".
-	LevelString = log.LevelString
+// JSONHandlerWithLevel returns a handler writing JSON records to wr that logs
+// records at level and above.
+func JSONHandlerWithLevel(wr io.Writer, level slog.Level) slog.Handler {
+	return log.JSONHandlerWithLevel(wr, level)
+}
 
-	// LevelAlignedString renders a level as a 5-character padded name, e.g. "INFO ".
-	LevelAlignedString = log.LevelAlignedString
+// LogfmtHandler returns a handler writing logfmt records to wr that logs every
+// level.
+func LogfmtHandler(wr io.Writer) slog.Handler { return log.LogfmtHandler(wr) }
 
-	// FromLegacyLevel converts a pre-slog geth verbosity number to a level.
-	FromLegacyLevel = log.FromLegacyLevel
-)
+// LogfmtHandlerWithLevel returns a handler writing logfmt records to wr that
+// logs records at level and above.
+func LogfmtHandlerWithLevel(wr io.Writer, level slog.Level) slog.Handler {
+	return log.LogfmtHandlerWithLevel(wr, level)
+}
+
+// NewGlogHandler returns a [GlogHandler] that filters records for h by
+// glog-style verbosity and per-file rules.
+func NewGlogHandler(h slog.Handler) *GlogHandler { return log.NewGlogHandler(h) }
+
+// LevelString renders a level as a lowercase name, e.g. "info". [LevelFromString]
+// is its inverse.
+func LevelString(l slog.Level) string { return log.LevelString(l) }
+
+// LevelAlignedString renders a level as a 5-character padded name, e.g. "INFO ".
+func LevelAlignedString(l slog.Level) string { return log.LevelAlignedString(l) }
+
+// FromLegacyLevel converts a pre-slog geth verbosity number to a level.
+func FromLegacyLevel(lvl int) slog.Level { return log.FromLegacyLevel(lvl) }
 
 // ToGeth returns l as a go-ethereum logger, for go-ethereum APIs that take one.
 // The result forwards every call to l, so it shares l's handler, attributes and
