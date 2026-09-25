@@ -300,9 +300,8 @@ impl<DB: Database, I, P, Tx, R> DerefMut for OpEvm<DB, I, P, Tx, R> {
 /// UPSTREAM-MIRROR(copy): alloy-evm@0.38.0 `alloy_evm::eth::EthEvm`
 ///
 /// Mirrors upstream's `Evm` impl for `EthEvm`, adding the OP transaction wrapper, the post-exec
-/// transaction short-circuit, the post-exec refund tracking and the deposit exemption from the
-/// EIP-7825 transaction gas-limit cap in `transact_raw`. A method added to the `Evm` trait, or a
-/// changed body in upstream's impl, needs mirroring here.
+/// transaction short-circuit and the post-exec refund tracking. A method added to the `Evm`
+/// trait, or a changed body in upstream's impl, needs mirroring here.
 impl<DB, I, P, Tx, R> Evm for OpEvm<DB, I, P, Tx, R>
 where
     DB: Database,
@@ -347,33 +346,12 @@ where
             return Ok(post_exec::noop_post_exec_result());
         }
 
-        // Deposits are force-included from L1 and are exempt from EIP-7825's per-transaction gas
-        // limit cap: https://specs.optimism.io/protocol/karst/overview.html#execution-layer
-        // Temporarily remove the cap so it cannot limit the deposit's execution, then restore it
-        // so non-deposit transactions remain subject to it. Changing the cap itself, rather than
-        // special-casing deposits at each place that reads it, means every reader sees the
-        // exemption, including any added upstream later.
-        //
-        // The cap feeds `initial_gas_and_reservoir`, which splits the gas limit between the first
-        // frame's budget and the EIP-8037 reservoir: removing it hands the frame the whole limit
-        // and leaves the reservoir empty, which is what the exemption means while no OP fork
-        // enables EIP-8037. The cap is shared across every transaction this EVM runs, and the RPC
-        // call, estimate and simulate paths raise it deliberately, so the previous value is put
-        // back rather than recomputed.
-        let saved_tx_gas_limit_cap = (tx.tx_type() ==
-            op_revm::transaction::deposit::DEPOSIT_TRANSACTION_TYPE)
-            .then(|| self.inner.0.ctx.cfg.tx_gas_limit_cap.replace(u64::MAX));
-
         let track_post_exec = self.post_exec_tracking_active;
         let result = if self.inspect || track_post_exec {
             self.inner.inspect_tx(tx)
         } else {
             self.inner.transact(tx)
         };
-
-        if let Some(cap) = saved_tx_gas_limit_cap {
-            self.inner.0.ctx.cfg.tx_gas_limit_cap = cap;
-        }
 
         if track_post_exec {
             if self.inner.0.ctx.tx.tx_type() !=
