@@ -6,7 +6,7 @@ use crate::{
     engine::OpEngineValidator,
     txpool::{OpCustomTransactionPool, OpTransactionValidator},
 };
-use alloy_primitives::Sealed;
+use alloy_primitives::{Address, Sealed};
 use op_alloy_consensus::{OpPooledTransaction, OpTransaction, TxPostExec, interop::SafetyLevel};
 use reth_chainspec::{
     BaseFeeParams, ChainSpecProvider, EthChainSpec, EthereumHardforks, ForkCondition, Hardforks,
@@ -214,6 +214,10 @@ pub struct OpNode {
     /// Interop failsafe gate, shared between the txpool's interop filter client (writer) and the
     /// payload builder (reader, to exclude interop txs while it is active).
     pub interop_failsafe: InteropFailsafe,
+    /// Selects the deterministic refund policy used by SDM acceptance tests.
+    test_sdm_fixed_refund: bool,
+    /// Optional call target for excessive-refund fault injection in the test policy.
+    test_sdm_excessive_refund_target: Option<Address>,
 }
 
 /// A [`ComponentsBuilder`] with its generic arguments set to a stack of Optimism specific builders.
@@ -221,6 +225,19 @@ pub type OpNodeComponentBuilder<Node, Payload = OpPayloadBuilder> = ComponentsBu
     Node,
     OpPoolBuilder,
     BasicPayloadServiceBuilder<Payload>,
+    OpNetworkBuilder,
+    OpExecutorBuilder,
+    OpConsensusBuilder,
+>;
+
+/// The component builder used by the stock node configuration.
+///
+/// The payload-service builder selects the stock or test-only SDM policy once when the service is
+/// constructed, keeping policy selection out of transaction execution.
+pub type DefaultOpNodeComponentBuilder<Node> = ComponentsBuilder<
+    Node,
+    OpPoolBuilder,
+    crate::sdm_test_policy::TestSdmPayloadServiceBuilder,
     OpNetworkBuilder,
     OpExecutorBuilder,
     OpConsensusBuilder,
@@ -242,7 +259,21 @@ impl OpNode {
             gas_limit_config: OpGasLimitConfig::default(),
             operator_sdm_opt_in,
             interop_failsafe: InteropFailsafe::default(),
+            test_sdm_fixed_refund: false,
+            test_sdm_excessive_refund_target: None,
         }
+    }
+
+    /// Selects the deterministic fixed-refund policy used by SDM acceptance tests.
+    #[doc(hidden)]
+    #[must_use]
+    pub const fn with_test_sdm_fixed_refund(
+        mut self,
+        excessive_refund_target: Option<Address>,
+    ) -> Self {
+        self.test_sdm_fixed_refund = true;
+        self.test_sdm_excessive_refund_target = excessive_refund_target;
+        self
     }
 
     /// Configure the data availability configuration for the OP builder.
@@ -304,7 +335,7 @@ impl OpNode {
     }
 
     /// Returns the components for the given [`RollupArgs`].
-    pub fn components<Node>(&self) -> OpNodeComponentBuilder<Node>
+    pub fn components<Node>(&self) -> DefaultOpNodeComponentBuilder<Node>
     where
         Node: FullNodeTypes<Types: OpNodeTypes>,
     {
@@ -313,9 +344,20 @@ impl OpNode {
             .node_types::<Node>()
             .executor(OpExecutorBuilder::default())
             .pool(self.standard_pool_builder())
-            .payload(BasicPayloadServiceBuilder::new(self.payload_builder()))
+            .payload(self.payload_service_builder())
             .network(OpNetworkBuilder::new(disable_txpool_gossip, !discovery_v4))
             .consensus(OpConsensusBuilder::default())
+    }
+
+    fn payload_service_builder(&self) -> crate::sdm_test_policy::TestSdmPayloadServiceBuilder {
+        if self.test_sdm_fixed_refund {
+            crate::sdm_test_policy::TestSdmPayloadServiceBuilder::fixed_refund(
+                self.payload_builder(),
+                self.test_sdm_excessive_refund_target,
+            )
+        } else {
+            crate::sdm_test_policy::TestSdmPayloadServiceBuilder::standard(self.payload_builder())
+        }
     }
 
     /// Returns [`OpAddOnsBuilder`] with configured arguments.
@@ -378,14 +420,7 @@ impl<N> Node<N> for OpNode
 where
     N: FullNodeTypes<Types: OpFullNodeTypes + OpNodeTypes>,
 {
-    type ComponentsBuilder = ComponentsBuilder<
-        N,
-        OpPoolBuilder,
-        BasicPayloadServiceBuilder<OpPayloadBuilder>,
-        OpNetworkBuilder,
-        OpExecutorBuilder,
-        OpConsensusBuilder,
-    >;
+    type ComponentsBuilder = DefaultOpNodeComponentBuilder<N>;
 
     type AddOns = OpAddOns<
         NodeAdapter<N, <Self::ComponentsBuilder as NodeComponentsBuilder<N>>::Components>,

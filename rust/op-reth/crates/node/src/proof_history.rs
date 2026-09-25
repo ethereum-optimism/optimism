@@ -4,11 +4,15 @@ use crate::{
     OpNode,
     args::{ProofsStorageVersion, RollupArgs},
 };
+use alloy_primitives::Address;
 use eyre::ErrReport;
 use futures_util::FutureExt;
 use reth_db::DatabaseEnv;
 use reth_db_api::database_metrics::DatabaseMetrics;
-use reth_node_builder::{FullNodeComponents, NodeBuilder, WithLaunchContext};
+use reth_node_builder::{
+    FullNodeComponents, Node, NodeBuilder, NodeBuilderWithComponents, RethFullAdapter,
+    WithLaunchContext,
+};
 use reth_optimism_chainspec::OpChainSpec;
 use reth_optimism_exex::OpProofsExEx;
 use reth_optimism_rpc::{
@@ -24,68 +28,91 @@ use std::{sync::Arc, time::Duration};
 use tokio::time::sleep;
 use tracing::info;
 
-/// Launch the node in one of three proof-history modes:
-///
-/// # Keep in sync
-///
-/// The test-only `op-reth-sdm-fixture` binary duplicates this function because it launches a node
-/// type that wraps [`OpNode`] with a different payload service. The wiring below cannot be shared
-/// generically: reth parameterizes add-ons and the RPC stack by the node's component set, so a
-/// launcher generic over the node type has to restate reth's entire `EthApi`/`RpcNodeCore` bound
-/// chain — a worse artifact than the duplication. Any change here (a new storage version, another
-/// RPC override, different ExEx configuration) must be mirrored in
-/// `op-reth/crates/sdm-fixture-node/src/lib.rs`.
-pub async fn launch_node(
-    builder: WithLaunchContext<NodeBuilder<DatabaseEnv, OpChainSpec>>,
-    args: RollupArgs,
-) -> eyre::Result<(), ErrReport> {
-    if !args.proofs_history {
-        let handle = builder.node(OpNode::new(args)).launch_with_debug_capabilities().await?;
-        return handle.node_exit_future.await;
+type ConfiguredOpNodeBuilder = WithLaunchContext<
+    NodeBuilderWithComponents<
+        RethFullAdapter<DatabaseEnv, OpNode>,
+        <OpNode as Node<RethFullAdapter<DatabaseEnv, OpNode>>>::ComponentsBuilder,
+        <OpNode as Node<RethFullAdapter<DatabaseEnv, OpNode>>>::AddOns,
+    >,
+>;
+
+/// Declarative configuration for the shared OP node launcher.
+#[derive(Debug)]
+pub struct OpNodeLaunchConfig {
+    node: OpNode,
+}
+
+impl OpNodeLaunchConfig {
+    /// Configures a production op-reth node.
+    pub fn production(args: RollupArgs) -> Self {
+        Self { node: OpNode::new(args) }
     }
 
-    // Defaults to `<reth-data-dir>/historical-proofs` when not supplied — see
-    // [`ProofsHistoryStorageArgs::resolve_storage_path`].
-    let path = args.history.resolve_storage_path(builder.config().datadir().as_ref());
+    /// Selects the deterministic fixed-refund policy used by SDM acceptance tests.
+    #[doc(hidden)]
+    #[must_use]
+    pub fn with_test_sdm_fixed_refund(mut self, excessive_refund_target: Option<Address>) -> Self {
+        self.node = self.node.with_test_sdm_fixed_refund(excessive_refund_target);
+        self
+    }
+}
 
-    match args.history.storage_version {
-        ProofsStorageVersion::V1 => {
+/// Launches an OP node, optionally installing proof history, then waits for it to exit.
+pub async fn launch_node(
+    builder: WithLaunchContext<NodeBuilder<DatabaseEnv, OpChainSpec>>,
+    config: OpNodeLaunchConfig,
+) -> eyre::Result<(), ErrReport> {
+    let OpNodeLaunchConfig { node } = config;
+    let args = &node.args;
+    let proof_history = args.proofs_history.then(|| {
+        (
+            // Defaults to `<reth-data-dir>/historical-proofs` when not supplied — see
+            // [`ProofsHistoryStorageArgs::resolve_storage_path`].
+            args.history.resolve_storage_path(builder.config().datadir().as_ref()),
+            args.history.storage_version,
+            args.proofs_history_window.window,
+            args.proofs_history_verification_interval,
+        )
+    });
+
+    let builder = builder.node(node);
+    let builder = match proof_history {
+        None => builder,
+        Some((path, ProofsStorageVersion::V1, window, verification_interval)) => {
             info!(target: "reth::cli", "Using on-disk storage for proofs history (v1)");
             let mdbx = Arc::new(
                 MdbxProofsStorage::new(&path)
                     .map_err(|e| eyre::eyre!("Failed to create MdbxProofsStorage: {e}"))?,
             );
-            launch_with_proof_history(builder, args, mdbx).await
+            configure_proof_history(builder, mdbx, window, verification_interval)
         }
-        ProofsStorageVersion::V2 => {
+        Some((path, ProofsStorageVersion::V2, window, verification_interval)) => {
             info!(target: "reth::cli", "Using on-disk storage for proofs history (v2)");
             let mdbx = Arc::new(
                 MdbxProofsStorageV2::new(&path)
                     .map_err(|e| eyre::eyre!("Failed to create MdbxProofsStorageV2: {e}"))?,
             );
-            launch_with_proof_history(builder, args, mdbx).await
+            configure_proof_history(builder, mdbx, window, verification_interval)
         }
-    }
+    };
+
+    builder.launch_with_debug_capabilities().await?.node_exit_future.await
 }
 
-/// Installs the ExEx, RPC overrides, and metrics hook for proof history, then launches the node.
-async fn launch_with_proof_history<S>(
-    builder: WithLaunchContext<NodeBuilder<DatabaseEnv, OpChainSpec>>,
-    args: RollupArgs,
+/// Installs the ExEx, RPC overrides, and metrics hook for proof history.
+fn configure_proof_history<S>(
+    builder: ConfiguredOpNodeBuilder,
     mdbx: Arc<S>,
-) -> eyre::Result<(), ErrReport>
+    proofs_history_window: u64,
+    proofs_history_verification_interval: u64,
+) -> ConfiguredOpNodeBuilder
 where
     S: OpProofsStore + DatabaseMetrics + Send + Sync + 'static,
 {
     let storage: OpProofsStorage<Arc<S>> = mdbx.clone().into();
     let storage_exec = storage.clone();
 
-    let RollupArgs { proofs_history_window, proofs_history_verification_interval, .. } =
-        args.clone();
-    let proofs_history_window = proofs_history_window.window;
-
-    let handle = builder
-        .node(OpNode::new(args))
+    builder
         .on_node_started(move |node| {
             spawn_proofs_db_metrics(
                 node.task_executor,
@@ -119,14 +146,10 @@ where
             info!(target: "reth::cli", eth_replaced, auth_eth_replaced, debug_replaced, "Proofs-history RPC overrides installed");
             Ok(())
         })
-        .launch_with_debug_capabilities()
-        .await?;
-
-    handle.node_exit_future.await
 }
 
 /// Spawns a task that periodically reports metrics for the proofs DB.
-pub fn spawn_proofs_db_metrics<S>(
+fn spawn_proofs_db_metrics<S>(
     executor: TaskExecutor,
     storage: Arc<S>,
     metrics_report_interval: Duration,
