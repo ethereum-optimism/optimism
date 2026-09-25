@@ -6,24 +6,24 @@ import (
 	"fmt"
 
 	"github.com/ethereum-optimism/optimism/op-service/eth"
+	oplog "github.com/ethereum-optimism/optimism/op-service/log"
 	"github.com/ethereum-optimism/optimism/op-supernode/supernode/activity/internal/syncstatus"
 	"github.com/ethereum-optimism/optimism/op-supernode/supernode/activity/interop"
 	cc "github.com/ethereum-optimism/optimism/op-supernode/supernode/chain_container"
 	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/common/hexutil"
-	gethlog "github.com/ethereum/go-ethereum/log"
 )
 
 // Superroot composes the super-root at a given timestamp across the
 // configured dep set, returning aggregated sync status and the per-chain
 // optimistic outputs alongside.
 type Superroot struct {
-	log      gethlog.Logger
+	log      oplog.Logger
 	chains   map[eth.ChainID]cc.ChainContainer
 	verified interop.VerifiedResultReader
 }
 
-func New(log gethlog.Logger, chains map[eth.ChainID]cc.ChainContainer, verified interop.VerifiedResultReader) *Superroot {
+func New(log oplog.Logger, chains map[eth.ChainID]cc.ChainContainer, verified interop.VerifiedResultReader) *Superroot {
 	return &Superroot{
 		log:      log,
 		chains:   chains,

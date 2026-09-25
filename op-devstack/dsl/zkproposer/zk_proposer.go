@@ -10,7 +10,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
 	devtestmetrics "github.com/ethereum-optimism/optimism/op-devstack/devtest/metrics"
 	"github.com/ethereum-optimism/optimism/op-service/client"
-	"github.com/ethereum/go-ethereum/log"
+	"github.com/ethereum-optimism/optimism/op-service/log"
 )
 
 const (

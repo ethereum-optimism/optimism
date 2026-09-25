@@ -24,13 +24,12 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-e2e/config/secrets"
 	"github.com/ethereum/go-ethereum/common/hexutil"
-	"github.com/ethereum/go-ethereum/log"
 
 	"github.com/ethereum-optimism/optimism/op-chain-ops/addresses"
 	"github.com/ethereum-optimism/optimism/op-chain-ops/foundry"
 	"github.com/ethereum-optimism/optimism/op-chain-ops/genesis"
 	op_service "github.com/ethereum-optimism/optimism/op-service"
-	oplog "github.com/ethereum-optimism/optimism/op-service/log"
+	"github.com/ethereum-optimism/optimism/op-service/log"
 	"github.com/ethereum-optimism/optimism/op-service/log/logcli"
 
 	_ "embed"
@@ -227,13 +226,13 @@ func init() {
 		handler = logcli.NewLogHandler(os.Stdout, logcli.CLIConfig{
 			Level:  lvl,
 			Color:  false, // some CI logs do not handle colors well
-			Format: oplog.FormatTerminal,
+			Format: log.FormatTerminal,
 		})
 
 		errHandler = logcli.NewLogHandler(os.Stderr, logcli.CLIConfig{
 			Level:  log.LevelError,
 			Color:  false,
-			Format: oplog.FormatTerminal,
+			Format: log.FormatTerminal,
 		})
 	}
 

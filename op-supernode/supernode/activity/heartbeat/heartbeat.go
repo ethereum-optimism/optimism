@@ -6,9 +6,9 @@ import (
 	"time"
 
 	"github.com/ethereum-optimism/optimism/op-service/eth"
+	oplog "github.com/ethereum-optimism/optimism/op-service/log"
 	"github.com/ethereum-optimism/optimism/op-supernode/supernode/activity"
 	"github.com/ethereum/go-ethereum/common/hexutil"
-	gethlog "github.com/ethereum/go-ethereum/log"
 )
 
 // compile time assertions
@@ -19,14 +19,14 @@ var (
 
 // Activity that emits periodic heartbeats and exposes a simple liveness RPC.
 type Heartbeat struct {
-	log      gethlog.Logger
+	log      oplog.Logger
 	interval time.Duration
 	ctx      context.Context
 	cancel   context.CancelFunc
 }
 
 // New creates a new Heartbeat activity.
-func New(log gethlog.Logger, interval time.Duration) *Heartbeat {
+func New(log oplog.Logger, interval time.Duration) *Heartbeat {
 	return &Heartbeat{log: log, interval: interval}
 }
 

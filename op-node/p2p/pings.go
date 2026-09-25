@@ -9,9 +9,8 @@ import (
 	"github.com/libp2p/go-libp2p/p2p/protocol/ping"
 	"golang.org/x/time/rate"
 
-	"github.com/ethereum/go-ethereum/log"
-
 	"github.com/ethereum-optimism/optimism/op-service/clock"
+	"github.com/ethereum-optimism/optimism/op-service/log"
 )
 
 const (

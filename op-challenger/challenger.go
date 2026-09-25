@@ -4,11 +4,11 @@ import (
 	"context"
 
 	"github.com/ethereum-optimism/optimism/op-challenger/metrics"
-	"github.com/ethereum/go-ethereum/log"
 
 	"github.com/ethereum-optimism/optimism/op-challenger/config"
 	"github.com/ethereum-optimism/optimism/op-challenger/game"
 	"github.com/ethereum-optimism/optimism/op-service/cliapp"
+	"github.com/ethereum-optimism/optimism/op-service/log"
 )
 
 // Main is the programmatic entry-point for running op-challenger with a given configuration.

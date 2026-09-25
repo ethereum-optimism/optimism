@@ -23,14 +23,13 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/clock"
 	"github.com/ethereum-optimism/optimism/op-service/endpoint"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
-	oplog "github.com/ethereum-optimism/optimism/op-service/log"
+	"github.com/ethereum-optimism/optimism/op-service/log"
 	"github.com/ethereum-optimism/optimism/op-service/log/logcli"
 	opmetrics "github.com/ethereum-optimism/optimism/op-service/metrics"
 	"github.com/ethereum-optimism/optimism/op-service/oppprof"
 	oprpc "github.com/ethereum-optimism/optimism/op-service/rpc"
 	"github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/crypto"
-	"github.com/ethereum/go-ethereum/log"
 )
 
 type singleChainRuntimeWorld struct {
@@ -291,7 +290,7 @@ func startMinimalBatcher(
 		TxMgrConfig:              setuputils.NewTxMgrConfig(endpoint.URL(l1EL.UserRPC()), batcherSecret),
 		LogConfig: logcli.CLIConfig{
 			Level:  log.LevelInfo,
-			Format: oplog.FormatText,
+			Format: log.FormatText,
 		},
 		Stopped:               false,
 		BatchType:             derive.SpanBatchType,
@@ -367,7 +366,7 @@ func startMinimalProposer(
 		},
 		LogConfig: logcli.CLIConfig{
 			Level:  log.LvlInfo,
-			Format: oplog.FormatText,
+			Format: log.FormatText,
 		},
 		MetricsConfig:                opmetrics.CLIConfig{},
 		PprofConfig:                  oppprof.CLIConfig{},

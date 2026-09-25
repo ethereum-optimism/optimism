@@ -11,8 +11,8 @@ import (
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/flags"
 	"github.com/ethereum-optimism/optimism/op-service/bigs"
 	"github.com/ethereum-optimism/optimism/op-service/ctxinterrupt"
+	"github.com/ethereum-optimism/optimism/op-service/log"
 	"github.com/ethereum-optimism/optimism/op-service/log/logcli"
-	"github.com/ethereum/go-ethereum/log"
 )
 
 func printVerificationSummary(logger log.Logger, verified, skipped, partiallyVerified, failed, unavailable int, partiallyVerifiedContracts, failedContracts map[string][]string) {
