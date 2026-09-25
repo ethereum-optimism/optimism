@@ -1,6 +1,11 @@
 [alias]
 docs = "doc --workspace --all-features --no-deps"
 
+# tracy-client-sys exit(1)s on hosts without an invariant TSC when linked via --all-features.
+# Non-forced: an explicit TRACY_NO_INVARIANT_CHECK=0 in the shell still wins.
+[env]
+TRACY_NO_INVARIANT_CHECK = "1"
+
 [target.x86_64-pc-windows-msvc]
 rustflags = [
     # Increases the stack size to 10MB, which is
