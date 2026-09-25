@@ -14,7 +14,8 @@ Packages:
 - `devkeys`: generate OP-Stack development keys from a common source.
 - `foundry`: utils to read foundry artifacts.
 - `genesis`: OP Stack genesis-configs generation, pre OPCM.
-- `interopbridge`: shared cross-chain ETH bridge used by the interop test tools (check-lagoon, interop-smoke).
+- `interopbridge`: shared cross-chain ETH bridge used by the Interop test tools (check-lagoon, interop-smoke).
+- `pkg/sdm`: shared SDM workload, PostExec validation, receipt, replay, and verifier-conformance helpers.
 - `interopgen`: interop test-chain genesis config generation.
 - `interopsmoke`: interop smoke tests against live chain RPCs (bridging, executing-message validation).
 - `script`: foundry-like solidity scripting environment in Go.
@@ -30,9 +31,10 @@ but can be built from source.
 Utils:
 ```text
 cmd/
-├── check-prestate                - Checks a fault proof absolute prestate's chain compatibility. e.g: go run cmd/check-prestate --prestate-hash <HASH>
-├── deposit-hash                  - Determine the L2 deposit tx hash, based on log event(s) emitted by a L1 tx.
-├── interop-smoke                 - Interop smoke tests against two live chain RPCs: ETH bridging, valid/invalid executing messages.
+├── check-lagoon                 - Lagoon conformance checks for Interop messaging/filter failsafe and SDM PostExec behavior.
+├── check-prestate               - Checks a fault proof absolute prestate's chain compatibility. e.g: go run cmd/check-prestate --prestate-hash <HASH>
+├── deposit-hash                 - Determine the L2 deposit tx hash, based on log event(s) emitted by an L1 tx.
+├── interop-smoke                - Interop smoke tests against two live chain RPCs: ETH bridging, valid/invalid executing messages.
 ├── receipt-reference-builder     - Receipt data collector for pre-Canyon deposit-nonce metadata.
 └── unclaimed-credits             - Utility to inspect credits of resolved fault-proof games.
 ```
