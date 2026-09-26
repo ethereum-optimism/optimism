@@ -501,11 +501,11 @@ op-alloy = { version = "2.0.0", path = "op-alloy/crates/op-alloy", default-featu
 op-alloy-flz = { version = "0.13.1", default-features = false }
 
 # ==================== SP1 ====================
-sp1-core-executor = { version = "6.8.0", default-features = false }
-sp1-sdk = { version = "6.8.0", default-features = false, features = [
+sp1-core-executor = { version = "6.8.1", default-features = false }
+sp1-sdk = { version = "6.8.1", default-features = false, features = [
   "network",
 ] }
-sp1-verifier = { version = "6.8.0", default-features = false, features = ["full"] }
+sp1-verifier = { version = "6.8.1", default-features = false, features = ["full"] }
 
 # ==================== ASYNC ====================
 async-channel = "2.5"
