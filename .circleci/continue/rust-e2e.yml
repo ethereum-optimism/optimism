@@ -463,6 +463,10 @@ workflows:
           directory: rust
           profile: release
           persist_to_workspace: true
+          # The release build's peak memory is at the tail, where the big
+          # binaries (op-reth, kona-sp1-proposer, the op-reth examples) link
+          # concurrently under `lto = "thin"`; that OOM-kills xlarge.gen2.
+          resource_class: 2xlarge.gen2
           context:
             - circleci-repo-readonly-authenticated-github-token
             - sccache-gcs-optimism
