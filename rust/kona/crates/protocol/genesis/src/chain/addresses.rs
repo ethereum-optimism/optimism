@@ -32,6 +32,8 @@ pub struct AddressList {
     pub proxy_admin: Option<Address>,
     /// The superchain config address
     pub superchain_config: Option<Address>,
+    /// ETH Lockbox proxy address
+    pub eth_lockbox_proxy: Option<Address>,
 
     // Fault Proof Contract Addresses
     /// Anchor State Registry Proxy address
@@ -48,6 +50,10 @@ pub struct AddressList {
     pub mips: Option<Address>,
     /// Permissioned Dispute Game Proxy address
     pub permissioned_dispute_game: Option<Address>,
+    /// Super Fault Dispute Game implementation address
+    pub super_fault_dispute_game: Option<Address>,
+    /// Super Permissioned Dispute Game implementation address
+    pub super_permissioned_dispute_game: Option<Address>,
     /// Preimage Oracle Proxy address
     pub preimage_oracle: Option<Address>,
     /// The data availability challenge contract address
@@ -76,6 +82,12 @@ impl AddressList {
         if self.permissioned_dispute_game == Some(Address::ZERO) {
             self.permissioned_dispute_game = None;
         }
+        if self.super_fault_dispute_game == Some(Address::ZERO) {
+            self.super_fault_dispute_game = None;
+        }
+        if self.super_permissioned_dispute_game == Some(Address::ZERO) {
+            self.super_permissioned_dispute_game = None;
+        }
         if self.preimage_oracle == Some(Address::ZERO) {
             self.preimage_oracle = None;
         }
@@ -96,6 +108,8 @@ mod tests {
             fault_dispute_game: Some(Address::ZERO),
             mips: Some(Address::ZERO),
             permissioned_dispute_game: Some(Address::ZERO),
+            super_fault_dispute_game: Some(Address::ZERO),
+            super_permissioned_dispute_game: Some(Address::ZERO),
             preimage_oracle: Some(Address::ZERO),
             ..Default::default()
         };
@@ -108,6 +122,8 @@ mod tests {
         assert_eq!(addresses.fault_dispute_game, None);
         assert_eq!(addresses.mips, None);
         assert_eq!(addresses.permissioned_dispute_game, None);
+        assert_eq!(addresses.super_fault_dispute_game, None);
+        assert_eq!(addresses.super_permissioned_dispute_game, None);
         assert_eq!(addresses.preimage_oracle, None);
     }
 
@@ -124,12 +140,15 @@ mod tests {
             "OptimismPortalProxy": "0x49048044d57e1c92a77f79988d21fa8faf74e97e",
             "SystemConfigProxy": "0x73a79fab69143498ed3712e519a88a918e1f4072",
             "ProxyAdmin": "0x0475cbcaebd9ce8afa5025828d5b98dfb67e059e",
+            "EthLockboxProxy": "0xc38de74a8b0f6c671669cfb36e160548fb4a0c05",
             "AnchorStateRegistryProxy": "0xdb9091e48b1c42992a1213e6916184f9ebdbfedf",
             "DelayedWethProxy": "0xa2f2ac6f5af72e494a227d79db20473cf7a1ffe8",
             "DisputeGameFactoryProxy": "0x43edb88c4b80fdd2adff2412a7bebf9df42cb40e",
             "FaultDisputeGame": "0xcd3c0194db74c23807d4b90a5181e1b28cf7007c",
             "Mips": "0x16e83ce5ce29bf90ad9da06d2fe6a15d5f344ce4",
             "PermissionedDisputeGame": "0x19009debf8954b610f207d5925eede827805986e",
+            "SuperFaultDisputeGame": "0x19af533cc2a2a55786dcb8672aa5717e64213208",
+            "SuperPermissionedDisputeGame": "0x5c3eb47cb0174aea522a2a9ae79487139a53d691",
             "PreimageOracle": "0x9c065e11870b891d214bc2da7ef1f9ddfa1be277"
         }
         "#;
@@ -149,12 +168,17 @@ mod tests {
             system_config_proxy: Some(address!("73a79Fab69143498Ed3712e519A88a918e1f4072")),
             proxy_admin: Some(address!("0475cBCAebd9CE8AfA5025828d5b98DFb67E059E")),
             superchain_config: None,
+            eth_lockbox_proxy: Some(address!("C38de74A8B0F6C671669cfB36e160548Fb4A0c05")),
             anchor_state_registry_proxy: Some(address!("db9091e48b1c42992a1213e6916184f9ebdbfedf")),
             delayed_weth_proxy: Some(address!("a2f2ac6f5af72e494a227d79db20473cf7a1ffe8")),
             dispute_game_factory_proxy: Some(address!("43edb88c4b80fdd2adff2412a7bebf9df42cb40e")),
             fault_dispute_game: Some(address!("cd3c0194db74c23807d4b90a5181e1b28cf7007c")),
             mips: Some(address!("16e83ce5ce29bf90ad9da06d2fe6a15d5f344ce4")),
             permissioned_dispute_game: Some(address!("19009debf8954b610f207d5925eede827805986e")),
+            super_fault_dispute_game: Some(address!("19Af533cC2A2A55786dcb8672Aa5717e64213208")),
+            super_permissioned_dispute_game: Some(address!(
+                "5C3eb47cB0174aea522a2a9Ae79487139A53D691"
+            )),
             preimage_oracle: Some(address!("9c065e11870b891d214bc2da7ef1f9ddfa1be277")),
             data_availability_challenge: None,
         };
@@ -202,12 +226,15 @@ mod tests {
             system_config_proxy: Some(address!("73a79Fab69143498Ed3712e519A88a918e1f4072")),
             proxy_admin: Some(address!("0475cBCAebd9CE8AfA5025828d5b98DFb67E059E")),
             superchain_config: None,
+            eth_lockbox_proxy: None,
             anchor_state_registry_proxy: Some(address!("db9091e48b1c42992a1213e6916184f9ebdbfedf")),
             delayed_weth_proxy: Some(address!("a2f2ac6f5af72e494a227d79db20473cf7a1ffe8")),
             dispute_game_factory_proxy: Some(address!("43edb88c4b80fdd2adff2412a7bebf9df42cb40e")),
             fault_dispute_game: Some(address!("cd3c0194db74c23807d4b90a5181e1b28cf7007c")),
             mips: Some(address!("16e83ce5ce29bf90ad9da06d2fe6a15d5f344ce4")),
             permissioned_dispute_game: Some(address!("19009debf8954b610f207d5925eede827805986e")),
+            super_fault_dispute_game: None,
+            super_permissioned_dispute_game: None,
             preimage_oracle: Some(address!("9c065e11870b891d214bc2da7ef1f9ddfa1be277")),
             data_availability_challenge: None,
         };

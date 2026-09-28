@@ -115,10 +115,13 @@ type AddressesConfig struct {
 	SuperchainConfig                  *common.Address `toml:"SuperchainConfig,omitempty" json:"SuperchainConfig,omitempty"`
 	AnchorStateRegistryProxy          *common.Address `toml:"AnchorStateRegistryProxy,omitempty" json:"AnchorStateRegistryProxy,omitempty"`
 	DelayedWETHProxy                  *common.Address `toml:"DelayedWETHProxy,omitempty" json:"DelayedWETHProxy,omitempty"`
+	EthLockboxProxy                   *common.Address `toml:"EthLockboxProxy,omitempty" json:"EthLockboxProxy,omitempty"`
 	DisputeGameFactoryProxy           *common.Address `toml:"DisputeGameFactoryProxy,omitempty" json:"DisputeGameFactoryProxy,omitempty"`
 	FaultDisputeGame                  *common.Address `toml:"FaultDisputeGame,omitempty" json:"FaultDisputeGame,omitempty"`
 	MIPS                              *common.Address `toml:"MIPS,omitempty" json:"MIPS,omitempty"`
 	PermissionedDisputeGame           *common.Address `toml:"PermissionedDisputeGame,omitempty" json:"PermissionedDisputeGame,omitempty"`
+	SuperFaultDisputeGame             *common.Address `toml:"SuperFaultDisputeGame,omitempty" json:"SuperFaultDisputeGame,omitempty"`
+	SuperPermissionedDisputeGame      *common.Address `toml:"SuperPermissionedDisputeGame,omitempty" json:"SuperPermissionedDisputeGame,omitempty"`
 	PreimageOracle                    *common.Address `toml:"PreimageOracle,omitempty" json:"PreimageOracle,omitempty"`
 	DAChallengeAddress                *common.Address `toml:"DAChallengeAddress,omitempty" json:"DAChallengeAddress,omitempty"`
 }
