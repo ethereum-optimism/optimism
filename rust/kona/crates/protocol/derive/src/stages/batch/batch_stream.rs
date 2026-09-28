@@ -197,7 +197,12 @@ where
 
         // Attempt to pull a SingleBatch out of the SpanBatch.
         match self.get_single_batch(parent, l1_origins) {
-            Ok(Some(single_batch)) => Ok(Batch::Single(single_batch)),
+            Ok(Some(mut single_batch)) => {
+                // Span batches carry no parent hash for each block. `check_batch_holocene` checked
+                // `parent_check` for the first block. Singular batches keep their own parent hash.
+                single_batch.parent_hash = parent.block_info.hash;
+                Ok(Batch::Single(single_batch))
+            }
             Ok(None) => Err(PipelineError::NotEnoughData.temp()),
             Err(e) => {
                 warn!(target: "batch_span", "Extracting singular batches from span batch failed: {}", e);
@@ -327,6 +332,27 @@ mod test {
         assert!(stream.prev.flushed);
         assert!(stream.buffer.is_empty());
         assert!(stream.span.is_none());
+    }
+
+    #[tokio::test]
+    async fn test_span_derived_batch_parent_hash_set_from_parent() {
+        let config = Arc::new(RollupConfig {
+            hardforks: HardForkConfig { holocene_time: Some(0), ..Default::default() },
+            ..Default::default()
+        });
+        let prev = TestBatchStreamProvider::new(vec![]);
+        let mut stream = BatchStream::new(prev, config, TestL2ChainProvider::default());
+        stream.buffer.push_back(SingleBatch::default());
+
+        let parent_hash = b256!("1111111111111111111111111111111111111111000000000000000000000000");
+        let parent = L2BlockInfo {
+            block_info: BlockInfo { hash: parent_hash, ..Default::default() },
+            ..Default::default()
+        };
+        let Batch::Single(single) = stream.next_batch(parent, &[]).await.unwrap() else {
+            panic!("Wrong batch type");
+        };
+        assert_eq!(single.parent_hash, parent_hash);
     }
 
     #[tokio::test]
@@ -649,7 +675,11 @@ mod test {
 
     #[tokio::test]
     async fn test_single_batch_pass_through() {
-        let data = vec![Ok(Batch::Single(SingleBatch::default()))];
+        let single = SingleBatch {
+            parent_hash: alloy_primitives::B256::repeat_byte(0xaa),
+            ..Default::default()
+        };
+        let data = vec![Ok(Batch::Single(single.clone()))];
         let config = Arc::new(RollupConfig {
             hardforks: HardForkConfig { holocene_time: Some(0), ..Default::default() },
             ..Default::default()
@@ -661,8 +691,15 @@ mod test {
         assert!(stream.is_active().unwrap());
 
         // The next batch should be passed through to the [BatchQueue] stage.
-        let batch = stream.next_batch(Default::default(), &[]).await.unwrap();
-        assert!(matches!(batch, Batch::Single(_)));
+        let parent = L2BlockInfo {
+            block_info: BlockInfo {
+                hash: alloy_primitives::B256::repeat_byte(0xbb),
+                ..Default::default()
+            },
+            ..Default::default()
+        };
+        let batch = stream.next_batch(parent, &[]).await.unwrap();
+        assert_eq!(batch, Batch::Single(single));
         assert_eq!(stream.span_buffer_size(), 0);
         assert!(stream.span.is_none());
     }
