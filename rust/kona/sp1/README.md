@@ -357,9 +357,9 @@ SP1 network configuration applies when `KONA_SP1_PROPOSER_PROOF_PROVIDER=network
 
 | Variable | Purpose |
 |---|---|
-| `KONA_SP1_PROPOSER_NETWORK_PRIVATE_KEY` | local SPN requester private key |
+| `KONA_SP1_PROPOSER_NETWORK_PRIVATE_KEY` | local SPN requester private key; mutually exclusive with `KONA_SP1_PROPOSER_SPN_SIGNER_URL` |
 | `KONA_SP1_PROPOSER_NETWORK_RPC_URL` | SPN RPC override; absent or empty uses the SP1 SDK default for the selected network mode |
-| `KONA_SP1_PROPOSER_SPN_SIGNER_URL` | HTTPS op-signer endpoint for remote SPN request signing; takes precedence over the local requester key |
+| `KONA_SP1_PROPOSER_SPN_SIGNER_URL` | HTTPS op-signer endpoint for remote SPN request signing; mutually exclusive with `KONA_SP1_PROPOSER_NETWORK_PRIVATE_KEY` |
 | `KONA_SP1_PROPOSER_SPN_SIGNER_ADDRESS` | authorized op-signer address for SPN request signing |
 | `KONA_SP1_PROPOSER_SPN_SIGNER_TLS_CA` | server CA certificate path for the SPN op-signer connection |
 | `KONA_SP1_PROPOSER_SPN_SIGNER_TLS_CERT` | client certificate path for the SPN op-signer connection |
@@ -399,12 +399,12 @@ increase witness collection, fixed proving overhead, SPN request count, and
 aggregation input size. `RANGE_GAS_LIMIT` limits each range request, not the
 total work of the defense.
 
-Transaction signing requires one of these configurations:
+Transaction signing requires exactly one of these configurations:
 
 | Variable | Purpose |
 |---|---|
-| `KONA_SP1_PROPOSER_PRIVATE_KEY` | local L1 transaction-signing key |
-| `KONA_SP1_PROPOSER_SIGNER_URL` | Web3Signer URL; requires `KONA_SP1_PROPOSER_SIGNER_ADDRESS` |
+| `KONA_SP1_PROPOSER_PRIVATE_KEY` | local L1 transaction-signing key; mutually exclusive with `KONA_SP1_PROPOSER_SIGNER_URL` |
+| `KONA_SP1_PROPOSER_SIGNER_URL` | Web3Signer URL; requires `KONA_SP1_PROPOSER_SIGNER_ADDRESS`; mutually exclusive with `KONA_SP1_PROPOSER_PRIVATE_KEY` |
 | `KONA_SP1_PROPOSER_SIGNER_ADDRESS` | Web3Signer address; requires `KONA_SP1_PROPOSER_SIGNER_URL` |
 | `KONA_SP1_PROPOSER_SIGNER_TLS_CA` | server CA PEM path; all three signer TLS paths are required together and enable mTLS to op-signer |
 | `KONA_SP1_PROPOSER_SIGNER_TLS_CERT` | client certificate PEM path; all three signer TLS paths are required together and enable mTLS to op-signer |

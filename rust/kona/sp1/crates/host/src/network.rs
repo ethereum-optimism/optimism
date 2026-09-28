@@ -71,6 +71,13 @@ fn get_remote_network_signer(prefix: &str) -> Result<Option<OpSignerRequester>> 
     let remote_tls = ClientTls::from_env(prefix, "SPN_SIGNER")?;
     match (env_value(&remote_url_name), env_value(&remote_address_name), remote_tls) {
         (Some(endpoint), Some(address), Some(tls)) => {
+            let private_key_name = prefixed_env_var(prefix, "NETWORK_PRIVATE_KEY");
+            if env_value(&private_key_name).is_some() {
+                bail!(
+                    "{remote_url_name} and {private_key_name} are mutually exclusive; configure \
+                     either the remote SPN signer or the local requester key"
+                );
+            }
             let endpoint = endpoint
                 .parse::<Url>()
                 .with_context(|| format!("{remote_url_name} must be a valid URL"))?;
@@ -137,15 +144,26 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn remote_signer_takes_precedence_over_local_key() {
+    async fn remote_signer_rejects_local_key() {
         let prefix = "KONA_SP1_HOST_NETWORK_TEST_REMOTE";
-        let address = "0x1111111111111111111111111111111111111111";
         set_env(prefix, "SPN_SIGNER_URL", "https://signer.example");
-        set_env(prefix, "SPN_SIGNER_ADDRESS", address);
-        set_env(prefix, "NETWORK_PRIVATE_KEY", "not-a-private-key");
+        set_env(prefix, "SPN_SIGNER_ADDRESS", "0x1111111111111111111111111111111111111111");
+        set_env(
+            prefix,
+            "NETWORK_PRIVATE_KEY",
+            "0x0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+        );
         set_tls_env(prefix);
 
-        build_network_prover_from_env(prefix, FulfillmentStrategy::Auction).await.unwrap();
+        let error = build_network_prover_from_env(prefix, FulfillmentStrategy::Auction)
+            .await
+            .err()
+            .expect("remote signer with a local requester key should fail")
+            .to_string();
+
+        assert!(error.contains("SPN_SIGNER_URL"), "{error}");
+        assert!(error.contains("NETWORK_PRIVATE_KEY"), "{error}");
+        assert!(error.contains("mutually exclusive"), "{error}");
     }
 
     #[tokio::test]

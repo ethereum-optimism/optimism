@@ -101,8 +101,8 @@ impl Signer {
     /// Builds a signer from the environment. `KONA_SP1_PROPOSER_SIGNER_URL` and
     /// `KONA_SP1_PROPOSER_SIGNER_ADDRESS` select [`Signer::Web3Signer`]; optional signer
     /// TLS variables configure mutual TLS. Otherwise, `KONA_SP1_PROPOSER_PRIVATE_KEY`
-    /// selects [`Signer::LocalSigner`]. Setting only one `Web3Signer` variable is an error
-    /// instead of falling back to the local key.
+    /// selects [`Signer::LocalSigner`]. Setting only one `Web3Signer` variable, or setting
+    /// the local key alongside the `Web3Signer`, is an error.
     pub async fn from_env() -> Result<Self> {
         let signer_url_name = env_var("SIGNER_URL");
         let signer_address_name = env_var("SIGNER_ADDRESS");
@@ -111,6 +111,11 @@ impl Signer {
         let signer_address = std::env::var(&signer_address_name).ok();
         match (signer_url, signer_address) {
             (Some(url), Some(address)) => {
+                anyhow::ensure!(
+                    std::env::var_os(&private_key_name).is_none(),
+                    "{private_key_name} and {signer_url_name} are mutually exclusive; configure \
+                     either the local key or the Web3Signer"
+                );
                 let signer_url = Url::parse(&url)
                     .with_context(|| format!("Failed to parse {signer_url_name}"))?;
                 let signer_address = Address::from_str(&address)
@@ -380,6 +385,21 @@ mod tests {
         let error = Signer::from_env().await.unwrap_err().to_string();
         assert!(error.contains(&crate::env_var("SIGNER_URL")), "{error}");
         assert!(error.contains(&crate::env_var("SIGNER_ADDRESS")), "{error}");
+        clear_signer_env();
+    }
+
+    #[tokio::test]
+    #[serial]
+    async fn rejects_local_key_with_web3_signer() {
+        clear_signer_env();
+        set_signer_env("PRIVATE_KEY", "unused");
+        set_signer_env("SIGNER_URL", "https://localhost:8545");
+        set_signer_env("SIGNER_ADDRESS", Address::ZERO.to_string());
+
+        let error = Signer::from_env().await.unwrap_err().to_string();
+        assert!(error.contains(&crate::env_var("PRIVATE_KEY")), "{error}");
+        assert!(error.contains(&crate::env_var("SIGNER_URL")), "{error}");
+        assert!(error.contains("mutually exclusive"), "{error}");
         clear_signer_env();
     }
 
