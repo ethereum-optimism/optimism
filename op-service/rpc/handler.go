@@ -11,6 +11,7 @@ import (
 	"github.com/ethereum/go-ethereum/rpc"
 
 	"github.com/ethereum-optimism/optimism/op-service/httputil"
+	"github.com/ethereum-optimism/optimism/op-service/jsonrpc"
 	"github.com/ethereum-optimism/optimism/op-service/log"
 	opmetrics "github.com/ethereum-optimism/optimism/op-service/metrics"
 	optls "github.com/ethereum-optimism/optimism/op-service/tls"
@@ -43,7 +44,7 @@ type Handler struct {
 
 	log         log.Logger
 	middlewares []Middleware
-	recorder    rpc.Recorder
+	recorder    jsonrpc.Recorder
 
 	// rpcRoutes is a collection of RPC servers
 	rpcRoutes     map[string]*rpc.Server
@@ -159,7 +160,7 @@ func (b *Handler) AddRPCWithAuthentication(route string, isAuthenticated *bool) 
 	}
 
 	srv := rpc.NewServer()
-	srv.SetRecorder(b.recorder)
+	setServerRecorder(srv, b.recorder)
 
 	if err := srv.RegisterName("health", &healthzAPI{
 		appVersion: b.appVersion,

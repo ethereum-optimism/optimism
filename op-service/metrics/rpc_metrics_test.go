@@ -3,53 +3,64 @@ package metrics
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"strings"
 	"testing"
 
+	"github.com/prometheus/client_golang/prometheus"
 	gocl "github.com/prometheus/client_model/go"
 
 	"github.com/stretchr/testify/require"
 
-	"github.com/ethereum/go-ethereum/rpc"
+	"github.com/ethereum-optimism/optimism/op-service/jsonrpc"
 )
 
-type testMessage struct {
-	id     json.RawMessage
-	method string
-	params json.RawMessage
-	err    *rpc.JsonError
-	result json.RawMessage
+type describingRegisterer struct {
+	descs []string
 }
 
-func (m *testMessage) MsgIsNotification() bool {
-	return len(m.id) == 0
+func (r *describingRegisterer) Register(c prometheus.Collector) error {
+	ch := make(chan *prometheus.Desc, 1)
+	go func() {
+		c.Describe(ch)
+		close(ch)
+	}()
+	for d := range ch {
+		r.descs = append(r.descs, d.String())
+	}
+	return nil
 }
 
-func (m *testMessage) MsgIsResponse() bool {
-	return len(m.params) == 0
+func (r *describingRegisterer) MustRegister(cs ...prometheus.Collector) {
+	for _, c := range cs {
+		_ = r.Register(c)
+	}
 }
 
-func (m *testMessage) MsgID() json.RawMessage {
-	return m.id
-}
+func (r *describingRegisterer) Unregister(prometheus.Collector) bool { return false }
 
-func (m *testMessage) MsgMethod() string {
-	return m.method
+// TestRPCMetricsDescriptors pins the RPC metric names and label sets, which dashboards and alerts depend on.
+func TestRPCMetricsDescriptors(t *testing.T) {
+	reg := new(describingRegisterer)
+	MakeRPCMetrics("ns", With(reg))
+	desc := func(name, help, labels string) string {
+		return fmt.Sprintf("Desc{fqName: %q, help: %q, constLabels: {}, variableLabels: {%s}}", name, help, labels)
+	}
+	require.ElementsMatch(t, []string{
+		desc("ns_rpc_client_requests_total", "Total RPC requests initiated", "rpc,method"),
+		desc("ns_rpc_client_request_duration_seconds", "Histogram of RPC client request durations", "rpc,method"),
+		desc("ns_rpc_client_responses_total", "Total RPC request responses received", "rpc,method,error"),
+		desc("ns_rpc_server_requests_total", "Total requests to the RPC server", "rpc,method"),
+		desc("ns_rpc_server_request_duration_seconds", "Histogram of RPC server request durations", "rpc,method"),
+		desc("ns_rpc_server_responses_total", "Total RPC request responses served", "rpc,method,error"),
+		desc("ns_rpc_client_notifications_received_total", "Total RPC notifications received", "rpc,method"),
+		desc("ns_rpc_server_notifications_sent_total", "Total RPC notifications sent", "rpc,method"),
+		desc("ns_rpc_client_params_size_total", "Total bytes of RPC params sent", "rpc,method"),
+		desc("ns_rpc_client_results_size_total", "Total bytes of RPC results received", "rpc,method"),
+		desc("ns_rpc_server_params_size_total", "Total bytes of RPC params received", "rpc,method"),
+		desc("ns_rpc_server_results_size_total", "Total bytes of RPC results sent back", "rpc,method"),
+	}, reg.descs)
 }
-
-func (m *testMessage) MsgParams() json.RawMessage {
-	return m.params
-}
-
-func (m *testMessage) MsgError() *rpc.JsonError {
-	return m.err
-}
-
-func (m *testMessage) MsgResult() json.RawMessage {
-	return m.result
-}
-
-var _ rpc.RecordedMsg = (*testMessage)(nil)
 
 func TestRPCMetrics(t *testing.T) {
 	reg := NewRegistry()
@@ -60,61 +71,43 @@ func TestRPCMetrics(t *testing.T) {
 	ctx := context.Background()
 
 	// Incoming request / response
-	reqIn := &testMessage{
-		method: "test_helloIn",
-		id:     json.RawMessage(`123`),
-		params: json.RawMessage(`[42, "hello", "world"]`),
+	reqIn := jsonrpc.Message{
+		Method: "test_helloIn",
+		Params: json.RawMessage(`[42, "hello", "world"]`),
 	}
 	onDone := rec.RecordIncoming(ctx, reqIn)
-	respIn := &testMessage{
-		id:     reqIn.id,
-		result: json.RawMessage(`"echo"`),
-	}
-	onDone(ctx, reqIn, respIn)
+	onDone(ctx, jsonrpc.Response{Result: json.RawMessage(`"echo"`)})
 
 	// Incoming request / response with error
 	onDone = rec.RecordIncoming(ctx, reqIn)
-	respInErr := &testMessage{
-		id:     reqIn.id,
-		result: nil,
-		err:    &rpc.JsonError{Code: -123},
-	}
-	onDone(ctx, reqIn, respInErr)
+	onDone(ctx, jsonrpc.Response{Error: &jsonrpc.Error{Code: -123}})
 
 	// Outgoing request / response
-	reqOut := &testMessage{
-		method: "test_helloOut",
-		id:     json.RawMessage(`42`),
-		params: json.RawMessage(`[42, "hello", "world"]`),
+	reqOut := jsonrpc.Message{
+		Method: "test_helloOut",
+		Params: json.RawMessage(`[42, "hello", "world"]`),
 	}
-	respOut := &testMessage{
-		id:     reqOut.id,
-		result: json.RawMessage(`"echo"`),
-	}
-	onDone = rec.RecordOutgoing(ctx, reqIn)
-	onDone(ctx, reqOut, respOut)
+	onDone = rec.RecordOutgoing(ctx, reqOut)
+	onDone(ctx, jsonrpc.Response{Result: json.RawMessage(`"echo"`)})
 
 	// Outgoing request / response with error
-	onDone = rec.RecordOutgoing(ctx, reqIn)
-	respOutErr := &testMessage{
-		id:     reqOut.id,
-		result: nil,
-		err:    &rpc.JsonError{Code: -42},
-	}
-	onDone(ctx, reqOut, respOutErr)
+	onDone = rec.RecordOutgoing(ctx, reqOut)
+	onDone(ctx, jsonrpc.Response{Error: &jsonrpc.Error{Code: -42}})
 
 	// Incoming notification
-	notificationIn := &testMessage{
-		method: "test_notifyIn",
-		params: json.RawMessage(`["hello"]`),
+	notificationIn := jsonrpc.Message{
+		Method:       "test_notifyIn",
+		Params:       json.RawMessage(`["hello"]`),
+		Notification: true,
 	}
 	onDone = rec.RecordIncoming(ctx, notificationIn)
 	require.Nil(t, onDone)
 
 	// Outgoing notification
-	notificationOut := &testMessage{
-		method: "test_notifyOut",
-		params: json.RawMessage(`["hello"]`),
+	notificationOut := jsonrpc.Message{
+		Method:       "test_notifyOut",
+		Params:       json.RawMessage(`["hello"]`),
+		Notification: true,
 	}
 	onDone = rec.RecordOutgoing(ctx, notificationOut)
 	require.Nil(t, onDone)
@@ -166,27 +159,27 @@ func TestRPCMetrics(t *testing.T) {
 		switch name {
 		case "server_params_size_total":
 			require.NotZero(t, entry.Counter.GetValue())
-			require.Equal(t, reqIn.method, labels["method"])
+			require.Equal(t, reqIn.Method, labels["method"])
 		case "server_request_duration_seconds":
 			require.NotZero(t, entry.Histogram.GetSampleSum())
-			require.Equal(t, reqIn.method, labels["method"])
+			require.Equal(t, reqIn.Method, labels["method"])
 		case "server_requests_total":
 			require.EqualValues(t, 2, entry.Counter.GetValue())
-			require.Equal(t, reqIn.method, labels["method"])
+			require.Equal(t, reqIn.Method, labels["method"])
 		case "server_responses_total":
 			require.EqualValues(t, 1, entry.Counter.GetValue())
 			require.EqualValues(t, 1, entryErr.Counter.GetValue())
-			require.Equal(t, reqIn.method, labels["method"])
+			require.Equal(t, reqIn.Method, labels["method"])
 			require.Equal(t, "rpc_-123", labelsErr["error"])
 		case "server_results_size_total":
 			require.NotZero(t, entry.Counter.GetValue())
-			require.Equal(t, reqIn.method, labels["method"])
+			require.Equal(t, reqIn.Method, labels["method"])
 		case "server_notifications_sent_total":
 			require.EqualValues(t, 1, entry.Counter.GetValue())
-			require.Equal(t, notificationOut.method, labels["method"])
+			require.Equal(t, notificationOut.Method, labels["method"])
 		case "client_notifications_received_total":
 			require.EqualValues(t, 1, entry.Counter.GetValue())
-			require.Equal(t, notificationIn.method, labels["method"])
+			require.Equal(t, notificationIn.Method, labels["method"])
 		case "client_params_size_total":
 			require.NotZero(t, entry.Counter.GetValue())
 		case "client_request_duration_seconds":

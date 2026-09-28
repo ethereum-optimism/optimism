@@ -7,11 +7,10 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"github.com/ethereum/go-ethereum/rpc"
-
 	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
 	"github.com/ethereum-optimism/optimism/op-service/apis"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
+	"github.com/ethereum-optimism/optimism/op-service/jsonrpc"
 	"github.com/ethereum-optimism/optimism/op-service/log"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
 	"github.com/ethereum-optimism/optimism/op-service/testutils"
@@ -40,7 +39,7 @@ func (t *testAPI) CancelBlock(ctx context.Context, id eth.PayloadInfo) error {
 
 func (t *testAPI) SealBlock(ctx context.Context, id eth.PayloadInfo) (*eth.ExecutionPayloadEnvelope, error) {
 	if t.info != id {
-		return nil, &rpc.JsonError{Code: apis.BuildErrCodeUnknownPayload, Message: "unknown payload"}
+		return nil, &jsonrpc.Error{Code: apis.BuildErrCodeUnknownPayload, Message: "unknown payload"}
 	}
 	return t.v, nil
 }

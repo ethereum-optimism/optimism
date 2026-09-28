@@ -8,6 +8,7 @@ import (
 	"github.com/ethereum/go-ethereum/rpc"
 
 	"github.com/ethereum-optimism/optimism/op-service/eth"
+	"github.com/ethereum-optimism/optimism/op-service/jsonrpc"
 
 	"github.com/ethereum-optimism/optimism/op-core/interop"
 	messages "github.com/ethereum-optimism/optimism/op-core/interop/messages"
@@ -25,7 +26,7 @@ func (f *QueryFrontend) CheckAccessList(ctx context.Context, inboxEntries []comm
 
 	err := f.backend.CheckAccessList(ctx, inboxEntries, minSafety, executingDescriptor)
 	if err != nil {
-		return &rpc.JsonError{
+		return &jsonrpc.Error{
 			Code:    interop.GetErrorCode(err),
 			Message: err.Error(),
 		}
