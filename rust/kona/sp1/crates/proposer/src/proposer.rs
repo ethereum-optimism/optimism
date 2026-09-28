@@ -58,14 +58,12 @@ use crate::{
 #[cfg(test)]
 mod scenario;
 
-/// Max allowed time (secs) between a game's deadline and the anchor game's deadline.
-///
-/// Games beyond this threshold are skipped during incremental syncs to cut startup latency and
-/// avoid caching stale data.
-///
-/// The 14-day window is chosen with a 7-day challenge period in mind, plus a 7-day buffer,
-/// ensuring all actionable games are included under normal conditions.
+/// Default cutoff between a game's deadline and the anchor game's deadline, in seconds.
+/// Configurable for factory discovery and pending-game eviction.
 pub const MAX_GAME_DEADLINE_LAG: u64 = 60 * 60 * 24 * 14; // 14 days
+
+/// Maximum lead of a game's L2 timestamp over local safe, in seconds.
+const MAX_FUTURE_GAME_TIMESTAMP_LAG: u64 = 60 * 60 * 24 * 14; // 14 days
 
 /// Nonzero identifier assigned to a proposer task.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
@@ -1609,7 +1607,11 @@ impl Proposer {
                         anchor_deadline = Some(deadline);
                     }
                     if let Some(anchor_d) = anchor_deadline &&
-                        beyond_deadline_lag(anchor_d, deadline)
+                        beyond_deadline_lag(
+                            anchor_d,
+                            deadline,
+                            self.config.max_game_deadline_lag,
+                        )
                     {
                         tracing::debug!(
                             game_index = %index,
@@ -1875,7 +1877,11 @@ impl Proposer {
                             "Keeping pending owned game re-checkable (eviction exempt)"
                         );
                     } else if let Some(anchor_deadline) = anchor_deadline &&
-                        beyond_deadline_lag(anchor_deadline, deadline)
+                        beyond_deadline_lag(
+                            anchor_deadline,
+                            deadline,
+                            self.config.max_game_deadline_lag,
+                        )
                     {
                         tracing::warn!(
                             game_index = %index,
@@ -2654,7 +2660,7 @@ impl Proposer {
                 // nearer is pending and re-validated next sync.
                 let local_safe = super_root_at.response.current_local_safe_timestamp;
                 if local_safe > 0 &&
-                    sequence_number > local_safe.saturating_add(MAX_GAME_DEADLINE_LAG)
+                    sequence_number > local_safe.saturating_add(MAX_FUTURE_GAME_TIMESTAMP_LAG)
                 {
                     tracing::warn!(
                         game_index = %index,
@@ -4440,8 +4446,8 @@ pub fn withdrawal_matured(withdrawal_ts: u64, weth_delay: u64, l1_now: u64) -> b
 
 /// Returns whether a game deadline is more than the maximum allowed lag
 /// behind the anchor deadline.
-pub const fn beyond_deadline_lag(anchor_deadline: u64, game_deadline: u64) -> bool {
-    game_deadline.saturating_add(MAX_GAME_DEADLINE_LAG) < anchor_deadline
+pub const fn beyond_deadline_lag(anchor_deadline: u64, game_deadline: u64, max_lag: u64) -> bool {
+    game_deadline.saturating_add(max_lag) < anchor_deadline
 }
 
 /// Policy for game creation when the registered prestate's programs cannot
@@ -5444,6 +5450,7 @@ mod tests {
             fetch_interval: 30,
             metrics_listen: MetricsListen::Disabled,
             sync_l1_confirmations: 0,
+            max_game_deadline_lag: MAX_GAME_DEADLINE_LAG,
             tx_confirmation_timeout: 60,
             max_fee_per_gas: None,
             max_priority_fee_per_gas: None,
@@ -7095,7 +7102,7 @@ mod tests {
         let cases = [
             (100, absent_super_root_at_timestamp(99), canonical, false, Expected::Pending),
             (
-                super::MAX_GAME_DEADLINE_LAG + 101,
+                super::MAX_FUTURE_GAME_TIMESTAMP_LAG + 101,
                 absent_super_root_at_timestamp(100),
                 canonical,
                 false,
@@ -9184,11 +9191,15 @@ mod tests {
         #[test]
         fn cutoff_only_fires_behind_the_anchor() {
             let anchor = 1_000_000 + MAX_GAME_DEADLINE_LAG + 1;
-            assert!(beyond_deadline_lag(anchor, 1_000_000));
-            assert!(!beyond_deadline_lag(anchor - 1, 1_000_000));
-            assert!(!beyond_deadline_lag(1_000_000, 1_000_000));
-            assert!(!beyond_deadline_lag(1_000_000, 1_000_000 + MAX_GAME_DEADLINE_LAG + 1));
-            assert!(!beyond_deadline_lag(1_000_000, u64::MAX));
+            assert!(beyond_deadline_lag(anchor, 1_000_000, MAX_GAME_DEADLINE_LAG));
+            assert!(!beyond_deadline_lag(anchor - 1, 1_000_000, MAX_GAME_DEADLINE_LAG));
+            assert!(!beyond_deadline_lag(1_000_000, 1_000_000, MAX_GAME_DEADLINE_LAG));
+            assert!(!beyond_deadline_lag(
+                1_000_000,
+                1_000_000 + MAX_GAME_DEADLINE_LAG + 1,
+                MAX_GAME_DEADLINE_LAG,
+            ));
+            assert!(!beyond_deadline_lag(1_000_000, u64::MAX, MAX_GAME_DEADLINE_LAG));
         }
     }
 }

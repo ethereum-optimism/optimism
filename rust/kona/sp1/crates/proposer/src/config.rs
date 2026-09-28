@@ -20,7 +20,7 @@ use kona_registry::{CHAINS, OPCHAINS};
 use kona_sp1_host_utils::{metrics::MetricsListen, network::parse_fulfillment_strategy};
 use sp1_sdk::network::FulfillmentStrategy;
 
-use crate::env_var;
+use crate::{env_var, proposer::MAX_GAME_DEADLINE_LAG};
 
 /// Safety level gating how far proposals may advance.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -115,6 +115,9 @@ pub struct ProposerConfig {
 
     /// Number of L1 blocks behind `latest` to pin reads during sync cycles.
     pub sync_l1_confirmations: u64,
+
+    /// Maximum game-deadline lag behind the anchor, in seconds.
+    pub max_game_deadline_lag: u64,
 
     /// Maximum time (in seconds) to wait for an L1 transaction to reach the
     /// required confirmations before the watcher gives up.
@@ -290,6 +293,13 @@ impl ProposerConfig {
         let factory_address =
             resolve_factory_address(explicit_factory_address.as_deref(), network)?;
         let tx_confirmation_timeout = parsed_env_or("TX_CONFIRMATION_TIMEOUT", 180u64)?;
+        let max_game_deadline_lag =
+            parsed_env_or("MAX_GAME_DEADLINE_LAG_SECONDS", MAX_GAME_DEADLINE_LAG)?;
+        anyhow::ensure!(
+            max_game_deadline_lag > 0,
+            "{} must be positive",
+            env_var("MAX_GAME_DEADLINE_LAG_SECONDS")
+        );
         anyhow::ensure!(
             tx_confirmation_timeout > 0,
             "{} must be positive (0 would time out every transaction immediately)",
@@ -321,6 +331,7 @@ impl ProposerConfig {
             fetch_interval: parsed_env_or("FETCH_INTERVAL", 30u64)?,
             metrics_listen: parsed_env_or("METRICS_PORT", MetricsListen::default())?,
             sync_l1_confirmations: parsed_env_or("SYNC_L1_CONFIRMATIONS", 0u64)?,
+            max_game_deadline_lag,
             tx_confirmation_timeout,
             max_fee_per_gas: parsed_optional_env("MAX_FEE_PER_GAS")?,
             max_priority_fee_per_gas: parsed_optional_env("MAX_PRIORITY_FEE_PER_GAS")?,
@@ -935,6 +946,10 @@ mod tests {
             assert_eq!(config.l2_rpcs.len(), 2);
             assert!(config.rollup_config_paths.is_none());
             assert_eq!(config.tx_confirmation_timeout, 180);
+            assert_eq!(config.max_game_deadline_lag, MAX_GAME_DEADLINE_LAG);
+            set_proposer_env("MAX_GAME_DEADLINE_LAG_SECONDS", "2419200");
+            assert_eq!(ProposerConfig::from_env(None).unwrap().max_game_deadline_lag, 2_419_200);
+            unsafe { env::remove_var(env_var("MAX_GAME_DEADLINE_LAG_SECONDS")) };
             assert_eq!(config.range_split_count.to_usize(), 16);
             set_proposer_env("RANGE_SPLIT_COUNT", "128");
             assert_eq!(ProposerConfig::from_env(None).unwrap().range_split_count.to_usize(), 128);
