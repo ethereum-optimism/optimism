@@ -7,7 +7,9 @@ use revm::{
     interpreter::{CallInputs, CallOutcome, CreateInputs, CreateOutcome, Interpreter},
 };
 
-use super::{PostExecExecutedTx, PostExecRefundInspector, PostExecTxContext};
+use super::{
+    PostExecExecutedTx, PostExecRefundInspector, PostExecRefundPolicyFactory, PostExecTxContext,
+};
 
 /// The public production post-exec refund policy.
 ///
@@ -71,6 +73,14 @@ impl PostExecRefundInspector for NullRefundPolicy {
     fn snapshot(&self) -> Self::Snapshot {}
 
     fn restore(&mut self, _snapshot: Self::Snapshot) {}
+}
+
+impl PostExecRefundPolicyFactory for NullRefundPolicy {
+    type Policy = Self;
+
+    fn create(&self) -> Self::Policy {
+        *self
+    }
 }
 
 #[cfg(test)]

@@ -119,12 +119,12 @@ impl<DB: Database, I, P, Tx, R> OpEvm<DB, I, P, Tx, R> {
     }
 }
 
-impl<DB: Database, I, P, Tx, R: Default> OpEvm<DB, I, P, Tx, R> {
-    /// Creates a new OP EVM instance.
+impl<DB: Database, I, P, Tx, R> OpEvm<DB, I, P, Tx, R> {
+    /// Creates a new OP EVM instance with the provided post-exec refund policy.
     ///
     /// The `inspect` argument determines whether the configured [`Inspector`] of the given
     /// [`OpEvm`](op_revm::OpEvm) should be invoked on [`Evm::transact`].
-    pub fn new(
+    pub fn new_with_refund_policy(
         evm: op_revm::OpEvm<
             OpEvmContext<DB>,
             I,
@@ -132,6 +132,7 @@ impl<DB: Database, I, P, Tx, R: Default> OpEvm<DB, I, P, Tx, R> {
             P,
         >,
         inspect: bool,
+        refund_policy: R,
     ) -> Self {
         let op_revm::OpEvm(revm::context::Evm {
             ctx,
@@ -144,7 +145,10 @@ impl<DB: Database, I, P, Tx, R: Default> OpEvm<DB, I, P, Tx, R> {
         Self {
             inner: op_revm::OpEvm(revm::context::Evm {
                 ctx,
-                inspector: post_exec::PostExecCompositeInspector::new(inspector),
+                inspector: post_exec::PostExecCompositeInspector::new_with_post_exec(
+                    inspector,
+                    refund_policy,
+                ),
                 instruction,
                 precompiles,
                 frame_stack,
@@ -157,16 +161,29 @@ impl<DB: Database, I, P, Tx, R: Default> OpEvm<DB, I, P, Tx, R> {
     }
 }
 
-impl<DB: Database, I, Tx, R: Default> OpEvm<DB, I, PrecompilesMap, Tx, R> {
-    /// Creates an OP EVM with the standard OP context and precompiles.
-    ///
-    /// This is shared by factories that differ only in their fixed post-exec refund inspector.
-    /// The `inspect` argument controls whether `inspector` is invoked during execution.
-    pub fn from_env(
+impl<DB: Database, I, P, Tx, R: Default> OpEvm<DB, I, P, Tx, R> {
+    /// Creates a new OP EVM instance with a default-constructed post-exec refund policy.
+    pub fn new(
+        evm: op_revm::OpEvm<
+            OpEvmContext<DB>,
+            I,
+            EthInstructions<EthInterpreter, OpEvmContext<DB>>,
+            P,
+        >,
+        inspect: bool,
+    ) -> Self {
+        Self::new_with_refund_policy(evm, inspect, R::default())
+    }
+}
+
+impl<DB: Database, I, Tx, R> OpEvm<DB, I, PrecompilesMap, Tx, R> {
+    /// Creates an OP EVM with the standard OP context, precompiles, and provided refund policy.
+    pub fn from_env_with_refund_policy(
         db: DB,
         input: EvmEnv<OpSpecId, BlockEnv>,
         inspector: I,
         inspect: bool,
+        refund_policy: R,
     ) -> Self {
         let spec_id = input.cfg_env.spec;
         let inner = Context::mainnet()
@@ -181,7 +198,22 @@ impl<DB: Database, I, Tx, R: Default> OpEvm<DB, I, PrecompilesMap, Tx, R> {
                 OpPrecompiles::new_with_spec(spec_id).precompiles(),
             ));
 
-        Self::new(inner, inspect)
+        Self::new_with_refund_policy(inner, inspect, refund_policy)
+    }
+}
+
+impl<DB: Database, I, Tx, R: Default> OpEvm<DB, I, PrecompilesMap, Tx, R> {
+    /// Creates an OP EVM with the standard OP context and precompiles.
+    ///
+    /// This is shared by factories that differ only in their fixed post-exec refund inspector.
+    /// The `inspect` argument controls whether `inspector` is invoked during execution.
+    pub fn from_env(
+        db: DB,
+        input: EvmEnv<OpSpecId, BlockEnv>,
+        inspector: I,
+        inspect: bool,
+    ) -> Self {
+        Self::from_env_with_refund_policy(db, input, inspector, inspect, R::default())
     }
 }
 
@@ -239,12 +271,12 @@ where
     }
 }
 
-impl<Tx, R> post_exec::PostExecEvmFactoryHooks for OpEvmFactory<Tx, R>
+impl<Tx, F> post_exec::PostExecEvmFactoryHooks for OpEvmFactory<Tx, F>
 where
     Tx: IntoTxEnv<Tx> + Into<OpTransaction<TxEnv>> + Default + Clone + Debug,
-    R: Default + post_exec::PostExecRefundInspector,
+    F: post_exec::PostExecRefundPolicyFactory,
 {
-    type Snapshot = R::Snapshot;
+    type Snapshot = <F::Policy as post_exec::PostExecRefundInspector>::Snapshot;
 
     fn begin_post_exec_tx<DB, I>(evm: &mut Self::Evm<DB, I>, ctx: post_exec::PostExecTxContext)
     where
@@ -409,37 +441,51 @@ where
 
 /// Factory producing [`OpEvm`]s.
 ///
-/// The `Tx` type parameter controls the transaction type used by the created EVMs.
-/// By default it uses [`OpTx`] which wraps [`OpTransaction<TxEnv>`] and implements
-/// the necessary foreign traits.
+/// The `Tx` type parameter controls the transaction type used by the created EVMs. By default it
+/// uses [`OpTx`], which wraps [`OpTransaction<TxEnv>`] and implements the necessary foreign traits.
 ///
-/// The `R` type parameter fixes the post-exec refund inspector and its block-scoped snapshot.
-/// It defaults to [`NullRefundPolicy`](post_exec::NullRefundPolicy), so standard node
-/// configurations cannot produce a non-empty post-exec payload without explicitly selecting a
-/// different factory type.
+/// The `F` type parameter creates the post-exec refund policy installed in every new EVM. It
+/// defaults to [`NullRefundPolicy`](post_exec::NullRefundPolicy), which is stateless and also acts
+/// as its own factory. Configured policies use an explicit factory type.
 #[derive(Debug)]
-pub struct OpEvmFactory<Tx = OpTx, R = post_exec::NullRefundPolicy>(PhantomData<(Tx, R)>);
+pub struct OpEvmFactory<Tx = OpTx, F = post_exec::NullRefundPolicy> {
+    refund_policy_factory: F,
+    _marker: PhantomData<Tx>,
+}
 
-impl<Tx, R> Clone for OpEvmFactory<Tx, R> {
+impl<Tx, F> OpEvmFactory<Tx, F> {
+    /// Creates an EVM factory backed by the provided refund-policy factory.
+    pub const fn new(refund_policy_factory: F) -> Self {
+        Self { refund_policy_factory, _marker: PhantomData }
+    }
+
+    /// Returns the configured refund-policy factory.
+    pub const fn refund_policy_factory(&self) -> &F {
+        &self.refund_policy_factory
+    }
+}
+
+impl<Tx, F: Clone> Clone for OpEvmFactory<Tx, F> {
     fn clone(&self) -> Self {
-        *self
+        Self::new(self.refund_policy_factory.clone())
     }
 }
 
-impl<Tx, R> Copy for OpEvmFactory<Tx, R> {}
+impl<Tx, F: Copy> Copy for OpEvmFactory<Tx, F> {}
 
-impl<Tx, R> Default for OpEvmFactory<Tx, R> {
+impl<Tx> Default for OpEvmFactory<Tx, post_exec::NullRefundPolicy> {
     fn default() -> Self {
-        Self(PhantomData)
+        Self::new(post_exec::NullRefundPolicy)
     }
 }
 
-impl<Tx, R> EvmFactory for OpEvmFactory<Tx, R>
+impl<Tx, F> EvmFactory for OpEvmFactory<Tx, F>
 where
     Tx: IntoTxEnv<Tx> + Into<OpTransaction<TxEnv>> + Default + Clone + Debug,
-    R: Default + post_exec::PostExecRefundInspector,
+    F: post_exec::PostExecRefundPolicyFactory,
 {
-    type Evm<DB: Database, I: Inspector<OpEvmContext<DB>>> = OpEvm<DB, I, Self::Precompiles, Tx, R>;
+    type Evm<DB: Database, I: Inspector<OpEvmContext<DB>>> =
+        OpEvm<DB, I, Self::Precompiles, Tx, F::Policy>;
     type Context<DB: Database> = OpEvmContext<DB>;
     type Tx = Tx;
     type Error<DBError: DBErrorMarker> = EVMError<DBError, OpTxError>;
@@ -453,7 +499,13 @@ where
         db: DB,
         input: EvmEnv<OpSpecId, BlockEnv>,
     ) -> Self::Evm<DB, NoOpInspector> {
-        OpEvm::from_env(db, input, NoOpInspector {}, false)
+        OpEvm::from_env_with_refund_policy(
+            db,
+            input,
+            NoOpInspector {},
+            false,
+            self.refund_policy_factory.create(),
+        )
     }
 
     fn create_evm_with_inspector<DB: Database, I: Inspector<Self::Context<DB>>>(
@@ -462,7 +514,13 @@ where
         input: EvmEnv<OpSpecId, BlockEnv>,
         inspector: I,
     ) -> Self::Evm<DB, I> {
-        OpEvm::from_env(db, input, inspector, true)
+        OpEvm::from_env_with_refund_policy(
+            db,
+            input,
+            inspector,
+            true,
+            self.refund_policy_factory.create(),
+        )
     }
 }
 
