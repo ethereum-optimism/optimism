@@ -109,7 +109,7 @@ library PastUpgrades {
     )
         internal
     {
-        bool needsMigration = Config.devFeatureSuperRootGamesMigration()
+        bool needsSuperRootGamesMigration = Config.devFeatureSuperRootGamesMigration()
             && !_isSuperGameType(
                 IOptimismPortal2(payable(_systemConfig.optimismPortal())).anchorStateRegistry().respectedGameType()
             );
@@ -118,7 +118,7 @@ library PastUpgrades {
         OPCMInfo[] memory opcms = fetchOPCMs(block.chainid);
 
         if (opcms.length == 0) {
-            require(!needsMigration, "PastUpgrades: deployed v8 OPCM required");
+            require(!needsSuperRootGamesMigration, "PastUpgrades: deployed v8 OPCM required");
             console.log("PastUpgrades: No OPCMs found for chain %d", block.chainid);
             return;
         }
@@ -127,7 +127,7 @@ library PastUpgrades {
         ResolvedOPCM[] memory resolved = _resolveAndFilterOPCMs(opcms);
 
         if (resolved.length == 0) {
-            require(!needsMigration, "PastUpgrades: deployed v8 OPCM required");
+            require(!needsSuperRootGamesMigration, "PastUpgrades: deployed v8 OPCM required");
             console.log("PastUpgrades: No OPCMs >= 8.x.x found for chain %d", block.chainid);
             return;
         }
@@ -148,7 +148,7 @@ library PastUpgrades {
             ResolvedOPCM memory opcm = resolved[i];
 
             // An applied v8 upgrade can still require the super-root migration.
-            bool replayForMigration = needsMigration && opcm.semver.major == 8 && hasLastVersion
+            bool replayForMigration = needsSuperRootGamesMigration && opcm.semver.major == 8 && hasLastVersion
                 && bytes(lastVersion).length > 0 && SemverComp.eq(opcm.opcmVersion, lastVersion)
                 && opcm.addr == address(_systemConfig.lastUsedOPCM());
             if (
@@ -169,9 +169,9 @@ library PastUpgrades {
             executeV2Upgrade(opcm.addr, _delegateCaller, _systemConfig, _superchainConfig, _disputeGameFactory);
             lastVersion = opcm.opcmVersion;
             hasLastVersion = true;
-            needsMigration = false;
+            needsSuperRootGamesMigration = false;
         }
-        require(!needsMigration, "PastUpgrades: deployed v8 OPCM required");
+        require(!needsSuperRootGamesMigration, "PastUpgrades: deployed v8 OPCM required");
     }
 
     /// @notice Executes a single V2 OPCM upgrade.
@@ -213,12 +213,12 @@ library PastUpgrades {
 
         IAnchorStateRegistry asr = IOptimismPortal2(payable(_systemConfig.optimismPortal())).anchorStateRegistry();
         GameType respectedGameType = asr.respectedGameType();
-        bool migrate = Config.devFeatureSuperRootGamesMigration() && !_isSuperGameType(respectedGameType);
+        bool migrateSuperRootGames = Config.devFeatureSuperRootGamesMigration() && !_isSuperGameType(respectedGameType);
         IOPContractsManagerUtils.ExtraInstruction[] memory instructions =
-            new IOPContractsManagerUtils.ExtraInstruction[](migrate ? 2 : 0);
+            new IOPContractsManagerUtils.ExtraInstruction[](migrateSuperRootGames ? 2 : 0);
         Proposal memory anchor;
         GameType targetGameType = respectedGameType;
-        if (migrate) {
+        if (migrateSuperRootGames) {
             require(SemverComp.parse(ISemver(_opcm).version()).major == 8, "PastUpgrades: deployed v8 OPCM required");
             require(
                 respectedGameType.raw() == GameTypes.CANNON.raw()
@@ -243,7 +243,7 @@ library PastUpgrades {
         }
 
         IOPContractsManagerUtils.DisputeGameConfig[] memory disputeGameConfigs =
-            _disputeGameConfigs(_disputeGameFactory, migrate);
+            _disputeGameConfigs(_disputeGameFactory, migrateSuperRootGames);
 
         // Execute the V2 upgrade
         vm.prank(_delegateCaller, true);
@@ -276,7 +276,7 @@ library PastUpgrades {
     /// @notice Keeps the v8 game order and preserves registered games and their roles.
     function _disputeGameConfigs(
         IDisputeGameFactory _disputeGameFactory,
-        bool _migrate
+        bool _migrateSuperRootGames
     )
         private
         view
@@ -294,12 +294,12 @@ library PastUpgrades {
         for (uint256 i = 0; i < gameTypes.length; i++) {
             configs_[i].gameType = gameTypes[i];
             configs_[i].gameArgs = hex"";
-            if (_migrate && i < 3) {
+            if (_migrateSuperRootGames && i < 3) {
                 continue;
             }
 
             GameType sourceGameType = gameTypes[i];
-            if (_migrate && address(_disputeGameFactory.gameImpls(sourceGameType)) == address(0)) {
+            if (_migrateSuperRootGames && address(_disputeGameFactory.gameImpls(sourceGameType)) == address(0)) {
                 if (sourceGameType.raw() == GameTypes.SUPER_PERMISSIONED.raw()) {
                     sourceGameType = GameTypes.PERMISSIONED_CANNON;
                 } else if (sourceGameType.raw() == GameTypes.SUPER_CANNON_KONA.raw()) {
