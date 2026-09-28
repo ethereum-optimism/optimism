@@ -25,12 +25,9 @@ You need the following to use the examples in this guide:
 
 ## Wait for safe blocks before acting off-chain
 
-The following rule decides which blocks you can rely on:
-
-*   **On-chain actions on the same chain** can rely on unsafe blocks.
-    A contract call that depends on an earlier transaction shares its fate, so if that transaction is reorged out, the call is reorged out with it.
-*   **Off-chain actions and actions on other chains** need the safe chain.
-    Crediting an exchange balance, releasing funds on another chain, or filling a bridge order cannot be undone if the source transaction later disappears.
+Crediting an exchange balance, filling a bridge order, or releasing funds on another chain are hard to undo.
+If the transaction you acted on is later removed from the chain, you absorb the loss.
+Wait until that transaction is in a safe block before you act.
 
 ### Understand the risk of unsafe blocks
 
