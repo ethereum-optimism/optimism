@@ -420,7 +420,7 @@ Logging and telemetry:
 | `KONA_SP1_PROPOSER_LOG_FORMAT` | `pretty` or `json` (default `pretty`) |
 
 The proposer and its dependencies also observe the standard `RUST_LOG`, `NO_COLOR`,
-`SSL_CERT_DIR`, `SSL_CERT_FILE`, `OTEL_*`, proxy, AWS credential, and SP1 worker/debug
+`SSL_CERT_DIR`, `SSL_CERT_FILE`, `OTEL_*`, proxy, and SP1 worker/debug
 variables. `KONA_SP1_ELF_DIR` configures shared build/test infrastructure.
 
 ### Fast finality
