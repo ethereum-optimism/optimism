@@ -4,7 +4,7 @@ use crate::{
     OpEngineApiBuilder, OpEngineTypes,
     args::RollupArgs,
     engine::OpEngineValidator,
-    sdm_test_policy::TestSdmPayloadServiceBuilder,
+    payload_service::OpPayloadServiceBuilder,
     txpool::{OpCustomTransactionPool, OpTransactionValidator},
 };
 use alloy_primitives::Sealed;
@@ -229,12 +229,12 @@ pub type OpNodeComponentBuilder<Node, Payload = OpPayloadBuilder> = ComponentsBu
 
 /// The component builder used by the stock node configuration.
 ///
-/// The payload-service builder selects the stock or test-only SDM policy once when the service is
-/// constructed, keeping policy selection out of transaction execution.
+/// The payload-service builder delegates to the stock service by default and selects the test-only
+/// SDM policy once during service construction when explicitly requested.
 pub type DefaultOpNodeComponentBuilder<Node> = ComponentsBuilder<
     Node,
     OpPoolBuilder,
-    TestSdmPayloadServiceBuilder,
+    OpPayloadServiceBuilder,
     OpNetworkBuilder,
     OpExecutorBuilder,
     OpConsensusBuilder,
@@ -332,11 +332,8 @@ impl OpNode {
             .consensus(OpConsensusBuilder::default())
     }
 
-    fn payload_service_builder(&self) -> TestSdmPayloadServiceBuilder {
-        TestSdmPayloadServiceBuilder::new(
-            self.payload_builder(),
-            self.args.testing_sdm_fixed_policy,
-        )
+    fn payload_service_builder(&self) -> OpPayloadServiceBuilder {
+        OpPayloadServiceBuilder::new(self.payload_builder(), self.args.testing_sdm_fixed_policy)
     }
 
     /// Returns [`OpAddOnsBuilder`] with configured arguments.
