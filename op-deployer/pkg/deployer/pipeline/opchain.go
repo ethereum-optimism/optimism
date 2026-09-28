@@ -366,15 +366,6 @@ func BuildContinuationDCI(chainID common.Hash, st *state.State) (opcm.DeployOPCh
 			chainID.Hex(),
 		)
 	}
-	// A super-root anchor is sequenced by the L2 genesis timestamp, so 0 is never valid. Older
-	// workdirs anchored SUPER_PERMISSIONED chains to a plain V0 output root at sequence 0. That
-	// anchor must not be broadcast as a super root.
-	if chainState.StartingAnchorRoot.L2SequenceNumber == 0 {
-		return opcm.DeployOPChainInput{}, fmt.Errorf(
-			"chain %s has a starting anchor sequenced at 0, which is not a super-root genesis anchor. Rerun op-deployer prepare",
-			chainID.Hex(),
-		)
-	}
 	// The initial anchor must leave room for a strictly greater uint64 game sequence.
 	// The field is uint64-bounded, so equality is the only invalid value representable here.
 	if chainState.StartingAnchorRoot.L2SequenceNumber == math.MaxUint64 {

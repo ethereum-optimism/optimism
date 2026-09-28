@@ -145,8 +145,8 @@ type AdditionalDisputeGameState struct {
 	VMType        VMType
 }
 
-// StartingAnchorProposal is the committed SuperV1 genesis anchor that continue hands to OPCM.deploy
-// for every prepared chain.
+// StartingAnchorProposal is the committed anchor that continue hands to OPCM.deploy for every
+// prepared chain. Prepare commits the SuperV1 genesis anchor.
 type StartingAnchorProposal struct {
 	Root             common.Hash    `json:"root"`
 	L2SequenceNumber hexutil.Uint64 `json:"l2SequenceNumber"`

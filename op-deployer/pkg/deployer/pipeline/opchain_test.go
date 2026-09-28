@@ -596,13 +596,6 @@ func TestBuildContinuationDCI_FailClosedGates(t *testing.T) {
 			wantErrors: []string{"permissioned starting anchor placeholder", "proposal-producing stage"},
 		},
 		{
-			name: "gate 12 rejects zero anchor sequence",
-			mutate: func(_ *state.Intent, _ *state.ChainIntent, st *state.State) {
-				st.Chains[0].StartingAnchorRoot.L2SequenceNumber = 0
-			},
-			wantErrors: []string{"sequenced at 0", "op-deployer prepare"},
-		},
-		{
 			name: "gate 12 rejects maximum anchor sequence",
 			mutate: func(_ *state.Intent, _ *state.ChainIntent, st *state.State) {
 				st.Chains[0].StartingAnchorRoot.L2SequenceNumber = math.MaxUint64
@@ -686,6 +679,17 @@ func TestBuildContinuationDCI_UsesLateBoundPrestate(t *testing.T) {
 
 func TestBuildContinuationDCI_LosslessAnchorSequenceTransport(t *testing.T) {
 	chainID := common.HexToHash("0x0300")
+
+	// Devstack's legacy CannonKona fixtures commit a block-zero output-root anchor. The
+	// SUPER_PERMISSIONED game only uses the anchor sequence as a lower bound.
+	t.Run("zero is transported exactly", func(t *testing.T) {
+		_, _, st := continuationDCITestInputs(chainID, embedded.GameTypeSuperPermissioned)
+		st.Chains[0].StartingAnchorRoot.L2SequenceNumber = 0
+
+		got, err := BuildContinuationDCI(chainID, st)
+		require.NoError(t, err)
+		require.Equal(t, new(big.Int), got.StartingAnchorRoot.L2SequenceNumber)
+	})
 
 	t.Run("uint64 max minus one is transported exactly", func(t *testing.T) {
 		_, _, st := continuationDCITestInputs(chainID, embedded.GameTypeSuperCannonKona)
