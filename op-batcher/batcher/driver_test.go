@@ -531,3 +531,45 @@ func TestBatchSubmitter_LoadBlocksIntoState_DepositPayload(t *testing.T) {
 		ep.ethClient.AssertExpectations(t)
 	})
 }
+
+// sendTransaction invariant shuts the batcher down through closeApp and returns
+// an error.
+func TestBatchSubmitter_SendTransactionInvariants(t *testing.T) {
+	twoFrames := []frameData{{data: []byte{1}}, {data: []byte{2}}}
+	tests := []struct {
+		name      string
+		useAltDA  bool
+		txdata    txData
+		expectErr string
+	}{
+		{
+			name:      "CalldataMultipleFrames",
+			txdata:    txData{frames: twoFrames},
+			expectErr: "unexpected number of frames in calldata tx: 2",
+		},
+		{
+			name:      "AltDAMultipleFrames",
+			useAltDA:  true,
+			txdata:    txData{frames: twoFrames},
+			expectErr: "unexpected number of frames in calldata tx: 2",
+		},
+		{
+			name:      "AltDABlob",
+			useAltDA:  true,
+			txdata:    txData{frames: twoFrames[:1], asBlob: true},
+			expectErr: "unexpected blob txdata with AltDA enabled",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var causes []error
+			bs, _ := setup(t, func(cause error) { causes = append(causes, cause) })
+			bs.Config.UseAltDA = tt.useAltDA
+
+			err := bs.sendTransaction(tt.txdata, nil, nil, nil)
+			require.ErrorContains(t, err, tt.expectErr)
+			require.Len(t, causes, 1)
+			require.ErrorIs(t, causes[0], err)
+		})
+	}
+}

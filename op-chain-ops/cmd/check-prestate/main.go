@@ -90,7 +90,10 @@ func main() {
 	if prestateType != "cannon64-kona" && prestateType != "cannon64-kona-interop" {
 		log.Crit("Unsupported prestate type; only kona prestates are supported", "type", prestateType)
 	}
-	elCommitInfo, fppCommitInfo, commit, prestateConfigs := prestate.NewKonaPrestate().FindVersions(log, prestateVersion)
+	elCommitInfo, fppCommitInfo, commit, prestateConfigs, err := prestate.NewKonaPrestate().FindVersions(log, prestateVersion)
+	if err != nil {
+		log.Crit("Failed to find prestate versions", "err", err)
+	}
 
 	prestateNames := prestateConfigs.ChainNames()
 

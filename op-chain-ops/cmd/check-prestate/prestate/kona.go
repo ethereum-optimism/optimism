@@ -23,15 +23,17 @@ func (p *KonaPrestate) FindVersions(log log.Logger, prestateVersion string) (
 	elCommitInfo types.CommitInfo,
 	fppCommitInfo types.CommitInfo,
 	superChainRegistryCommit string,
-	prestateConfigs *superchain.ChainConfigLoader) {
+	prestateConfigs *superchain.ChainConfigLoader,
+	err error) {
 
 	prestateTag := fmt.Sprintf("kona-client/v%s", prestateVersion)
 	log.Info("Found prestate tag", "tag", prestateTag)
 	fppCommitInfo = types.NewCommitInfo("ethereum-optimism", "optimism", prestateTag, "develop", "rust/kona")
 
-	superChainRegistryCommit, err := fetchSuperchainRegistryCommit(prestateTag)
+	superChainRegistryCommit, err = fetchSuperchainRegistryCommit(prestateTag)
 	if err != nil {
-		log.Crit("Failed to fetch superchain registry commit", "err", err)
+		err = fmt.Errorf("failed to fetch superchain registry commit: %w", err)
+		return
 	}
 
 	// Kona doesn't directly depend on op-reth but uses various crates from it.
@@ -42,11 +44,10 @@ func (p *KonaPrestate) FindVersions(log log.Logger, prestateVersion string) (
 	// Rather than re-implement that custom JSON format and work out how to convert it to the go format
 	// (which could be brittle), we clone the superchain registry at the same commit and run op-core's
 	// sync-superchain.sh to convert it to the go format directly — the same conversion the build uses.
-	configs, err := registry.SuperchainConfigsForCommit(superChainRegistryCommit)
+	prestateConfigs, err = registry.SuperchainConfigsForCommit(superChainRegistryCommit)
 	if err != nil {
-		log.Crit("Failed to fetch chain configs for prestate", "err", err)
+		err = fmt.Errorf("failed to fetch chain configs for prestate: %w", err)
 	}
-	prestateConfigs = configs
 	return
 }
 

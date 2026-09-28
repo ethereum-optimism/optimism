@@ -922,13 +922,18 @@ func (l *BatchSubmitter) cancelBlockingTx(queue *txmgr.Queue[txRef], receiptsCh 
 }
 
 // publishToAltDAAndL1 posts the txdata to the DA Provider and then sends the commitment to L1.
-func (l *BatchSubmitter) publishToAltDAAndL1(txdata txData, queue *txmgr.Queue[txRef], receiptsCh chan txmgr.TxReceipt[txRef], daGroup *errgroup.Group) {
+// It returns an error, after starting the batcher's shutdown, if txdata violates a sanity check.
+func (l *BatchSubmitter) publishToAltDAAndL1(txdata txData, queue *txmgr.Queue[txRef], receiptsCh chan txmgr.TxReceipt[txRef], daGroup *errgroup.Group) error {
 	// sanity checks
 	if nf := len(txdata.frames); nf != 1 {
-		l.Log.Crit("Unexpected number of frames in calldata tx", "num_frames", nf)
+		err := fmt.Errorf("unexpected number of frames in calldata tx: %d", nf)
+		l.shutdownOnCriticalError(err)
+		return err
 	}
 	if txdata.asBlob {
-		l.Log.Crit("Unexpected blob txdata with AltDA enabled")
+		err := errors.New("unexpected blob txdata with AltDA enabled")
+		l.shutdownOnCriticalError(err)
+		return err
 	}
 
 	// when posting txdata to an external DA Provider, we use a goroutine to avoid blocking the main loop
@@ -963,6 +968,7 @@ func (l *BatchSubmitter) publishToAltDAAndL1(txdata txData, queue *txmgr.Queue[t
 		// return it for later processing. We use nil error to skip error logging.
 		l.recordFailedDARequest(txdata.ID(), nil)
 	}
+	return nil
 }
 
 // sendTransaction creates & queues for sending a transaction to the batch inbox address with the given `txData`.
@@ -973,9 +979,9 @@ func (l *BatchSubmitter) sendTransaction(txdata txData, queue *txmgr.Queue[txRef
 
 	// if Alt DA is enabled we post the txdata to the DA Provider and replace it with the commitment.
 	if l.Config.UseAltDA {
-		l.publishToAltDAAndL1(txdata, queue, receiptsCh, daGroup)
-		// we return nil to allow publishStateToL1 to keep processing the next txdata
-		return nil
+		// A nil error lets publishStateToL1 keep processing the next txdata while the
+		// DA request is in flight.
+		return l.publishToAltDAAndL1(txdata, queue, receiptsCh, daGroup)
 	}
 
 	var candidate *txmgr.TxCandidate
@@ -990,7 +996,9 @@ func (l *BatchSubmitter) sendTransaction(txdata txData, queue *txmgr.Queue[txRef
 	} else {
 		// sanity check
 		if nf := len(txdata.frames); nf != 1 {
-			l.Log.Crit("Unexpected number of frames in calldata tx", "num_frames", nf)
+			err := fmt.Errorf("unexpected number of frames in calldata tx: %d", nf)
+			l.shutdownOnCriticalError(err)
+			return err
 		}
 		candidate = l.calldataTxCandidate(txdata.CallData())
 	}
