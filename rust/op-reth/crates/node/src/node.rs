@@ -29,8 +29,8 @@ use reth_node_builder::{
     BuilderContext, DebugNode, Node, NodeAdapter, NodeBuilder, NodeBuilderWithComponents,
     NodeComponentsBuilder, RethFullAdapter, WithLaunchContext,
     components::{
-        BasicPayloadServiceBuilder, ComponentsBuilder, ConsensusBuilder, ExecutorBuilder,
-        NetworkBuilder, PayloadBuilderBuilder, PoolBuilder, PoolBuilderConfigOverrides,
+        ComponentsBuilder, ConsensusBuilder, ExecutorBuilder, NetworkBuilder,
+        PayloadBuilderBuilder, PoolBuilder, PoolBuilderConfigOverrides,
     },
     node::{FullNodeTypes, NodeTypes},
     rpc::{
@@ -233,28 +233,16 @@ pub struct OpNode {
     pub interop_failsafe: InteropFailsafe,
 }
 
-/// A [`ComponentsBuilder`] with its generic arguments set to a stack of Optimism specific builders.
-pub type OpNodeComponentBuilder<Node, Payload = OpPayloadBuilder> = ComponentsBuilder<
-    Node,
-    OpPoolBuilder,
-    BasicPayloadServiceBuilder<Payload>,
-    OpNetworkBuilder,
-    OpExecutorBuilder,
-    OpConsensusBuilder,
->;
-
 /// The component builder used by the stock node configuration.
-///
-/// The payload-service builder delegates to the stock service by default and selects the test-only
-/// SDM policy once during service construction when explicitly requested.
-pub type DefaultOpNodeComponentBuilder<Node> = ComponentsBuilder<
-    Node,
-    OpPoolBuilder,
-    OpPayloadServiceBuilder,
-    OpNetworkBuilder,
-    OpExecutorBuilder,
-    OpConsensusBuilder,
->;
+pub type OpNodeComponentBuilder<Node, PayloadServiceB = OpPayloadServiceBuilder> =
+    ComponentsBuilder<
+        Node,
+        OpPoolBuilder,
+        PayloadServiceB,
+        OpNetworkBuilder,
+        OpExecutorBuilder,
+        OpConsensusBuilder,
+    >;
 
 impl Default for OpNode {
     fn default() -> Self {
@@ -334,7 +322,7 @@ impl OpNode {
     }
 
     /// Returns the components for the given [`RollupArgs`].
-    pub fn components<Node>(&self) -> DefaultOpNodeComponentBuilder<Node>
+    pub fn components<Node>(&self) -> OpNodeComponentBuilder<Node>
     where
         Node: FullNodeTypes<Types: OpNodeTypes>,
     {
@@ -343,13 +331,12 @@ impl OpNode {
             .node_types::<Node>()
             .executor(OpExecutorBuilder::default())
             .pool(self.standard_pool_builder())
-            .payload(self.payload_service_builder())
+            .payload(OpPayloadServiceBuilder::new(
+                self.payload_builder(),
+                self.args.testing_sdm_fixed_policy,
+            ))
             .network(OpNetworkBuilder::new(disable_txpool_gossip, !discovery_v4))
             .consensus(OpConsensusBuilder::default())
-    }
-
-    fn payload_service_builder(&self) -> OpPayloadServiceBuilder {
-        OpPayloadServiceBuilder::new(self.payload_builder(), self.args.testing_sdm_fixed_policy)
     }
 
     /// Returns [`OpAddOnsBuilder`] with configured arguments.
@@ -521,7 +508,7 @@ impl<N> Node<N> for OpNode
 where
     N: FullNodeTypes<Types: OpFullNodeTypes + OpNodeTypes>,
 {
-    type ComponentsBuilder = DefaultOpNodeComponentBuilder<N>;
+    type ComponentsBuilder = OpNodeComponentBuilder<N>;
 
     type AddOns = OpAddOns<
         NodeAdapter<N, <Self::ComponentsBuilder as NodeComponentsBuilder<N>>::Components>,
