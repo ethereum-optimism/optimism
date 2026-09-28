@@ -377,10 +377,8 @@ func newLogger(ctx context.Context, stderr io.Writer) log.Logger {
 	logHandler = logfilter.WrapFilterHandler(logHandler)
 	logHandler.(logfilter.FilterHandler).Set(logfilter.DefaultMute())
 	logHandler = logfilter.WrapContextHandler(logHandler)
-	logger := log.NewLogger(logHandler)
 	logcli.SetGlobalLogHandler(logHandler)
-	logger.SetContext(ctx)
-	return logger
+	return log.NewLogger(logHandler).WithContext(ctx)
 }
 
 func newSmokeEnv(ctx context.Context, stderr io.Writer, l2AURL, l2BURL, privateKey string) (*smokeEnv, func(), error) {

@@ -58,7 +58,7 @@ type logger struct {
 	buf *syncBuffer
 }
 
-// This implements the full geth logger interface
+// This implements the full log.Logger interface
 var _ log.Logger = (*logger)(nil)
 
 // Logger returns a logger which logs to the unit test log of t.
@@ -159,8 +159,10 @@ func (l *logger) Handler() slog.Handler {
 	return l.l.Handler()
 }
 
-func (l *logger) SetContext(ctx context.Context) {
-	// no-op: test-logger does not use default contexts.
+// WithContext returns a logger that writes to the same test log and uses ctx for
+// every record logged without an explicit context.
+func (l *logger) WithContext(ctx context.Context) log.Logger {
+	return &logger{l.t, l.l.WithContext(ctx), l.mu, l.buf}
 }
 
 func (l *logger) LogAttrs(ctx context.Context, level slog.Level, msg string, attrs ...slog.Attr) {
@@ -256,7 +258,7 @@ func (l *logger) Crit(msg string, ctx ...any) {
 	l.mu.Lock()
 	defer l.mu.Unlock()
 	// We can't use l.l.Crit because that will exit the program before we can flush the buffer.
-	l.l.Write(log.LevelCrit, msg, ctx...)
+	l.l.Log(log.LevelCrit, msg, ctx...)
 	l.flush()
 	l.t.FailNow()
 }
@@ -266,22 +268,6 @@ func (l *logger) Log(level slog.Level, msg string, ctx ...any) {
 	l.mu.Lock()
 	defer l.mu.Unlock()
 	l.l.Log(level, msg, ctx...)
-	l.flush()
-}
-
-func (l *logger) Write(level slog.Level, msg string, ctx ...any) {
-	l.t.Helper()
-	l.mu.Lock()
-	defer l.mu.Unlock()
-	l.l.Log(level, msg, ctx...)
-	l.flush()
-}
-
-func (l *logger) WriteCtx(ctx context.Context, level slog.Level, msg string, args ...interface{}) {
-	l.t.Helper()
-	l.mu.Lock()
-	defer l.mu.Unlock()
-	l.l.WriteCtx(ctx, level, msg, args...)
 	l.flush()
 }
 

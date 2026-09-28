@@ -431,25 +431,31 @@ rather than symbols. (Found by the 2026-07 upstream-build spike; §19 keeps find
 **This section is now the gating item for the whole tree, and for downstream repos too**
 (see §20). With the §1/§3/§4/§5/§11 swaps landed and the cutover scaffolding removed,
 `op-core/types`, `op-core/params`, `op-core/predeploys`, `op-service/eth` and `op-service/signer`
-all compile against upstream go-ethereum today, and `op-service/log` needs only the logfilter
-feature re-homed. What still fails to compile is `op-service/metrics`, `op-service/client` and
-`op-service/rpc` on the RPC recording hooks below, plus `op-service/testlog` on the log context
-methods.
+and `op-service/log` (with `logcli`, `logfilter`) and `op-service/testlog` all compile against
+upstream go-ethereum today. What still fails to compile is `op-service/metrics`,
+`op-service/client` and `op-service/rpc` on the RPC recording hooks below.
 
 **Log context extensions** — fork adds `Logger.SetContext`, `WriteCtx`, `LogAttrs`, and the
 `Trace/…/ErrorContext` methods; `op-service/log`'s logfilter feature and `op-service/testlog`
-build on them. Strategy: **own the log layer**.
+build on them. **Done: the monorepo owns the log layer.**
 
-- *In place:* `op-service/log` is the monorepo's logging API. Its `Logger` is a **type alias**
-  of geth `log.Logger`, and `logger.go` re-exports the package-level names the tree uses (`Root`,
-  `SetDefault`, `NewLogger`, the level constants, the handler constructors) as aliases of the
-  geth values, never wrappers. No monorepo Go file imports `go-ethereum/log` except
-  `op-service/log/logger.go`; the `geth-log` depguard rule in `.golangci.yaml` enforces that.
-- *Remaining (at cutover):* replace the aliases with an owned interface (upstream's method set +
-  the context methods) with an slog-backed implementation. Implement over `slog` — don't copy
-  upstream's LGPL log package; the fork's context-extension logic is OP-authored and ports. The
-  owned interface is a superset of upstream's, so our loggers still satisfy `log.Logger` where we
-  hand one into geth code (e.g. the in-process L1 geth in op-e2e).
+- `op-service/log` is the monorepo's logging API. It owns the `Logger` interface, its
+  slog-backed implementation (`NewLogger`), the global logger (`Root`, `SetDefault`, `New`) and
+  the package-level `Trace`…`Crit`. The interface is upstream's method set without `Write`, with
+  `With`/`New` returning `Logger`, plus `WithContext`, `LogAttrs` and the `…Context` methods. A
+  `Logger` is immutable: `WithContext` derives a logger whose records default to that context,
+  in place of the fork's mutating `SetContext`. The implementation is OP-authored over `slog`,
+  not a copy of upstream's LGPL log package, and attributes every record to the direct caller
+  of the logging method.
+- The handlers (`TerminalHandler`, JSON/logfmt, `GlogHandler`, `DiscardHandler`) and level
+  helpers stay re-exported from go-ethereum. `op-service/log/geth.go` is the only file that
+  imports `go-ethereum/log`; the `geth-log` depguard rule in `.golangci.yaml` enforces that.
+- Go has no covariant return types, so a `Logger` is not a geth `log.Logger`. `ToGeth` converts
+  one where a geth API takes a logger (today only discv5's `discover.Config.Log` in op-node);
+  the result shares the handler, attributes and default context, and implements geth's `Write`
+  so that geth's package-level functions attribute records to geth's call site. `SetDefault`
+  also installs the logger as geth's global logger, which is how geth code running in-process
+  (e.g. the L1 geth in op-e2e) reaches our handlers.
 
 **RPC recording hooks** — fork adds `rpc.Recorder`/`RecordedMsg`/`RecordDone`/`WithRecorder`
 inside the geth RPC client *and server*; `op-service/metrics` (RPC metrics), `op-service/rpc`,
@@ -570,12 +576,14 @@ latest" as one change.
 
 Two qualifications, because that standard is not always satisfiable today.
 
-**For a module blocked only by §15, the two halves are currently mutually exclusive.** Its build
-closure reaches `op-service/log`, which calls the fork's `Logger.SetContext`, so a current
-monorepo pin *requires* op-geth. Such a module can run upstream go-ethereum on an older monorepo
-pin, or the latest monorepo pin on op-geth — not both, until §15 lands. Prefer upstream geth and
-accept the older monorepo pin: the geth half is the one carrying security relevance, and the
-monorepo pin catches up in one bump afterwards. Revisit these when §15 lands.
+**For a module blocked only by the §15 RPC hooks, the two halves are currently mutually
+exclusive.** Its build closure reaches `op-service/{rpc,metrics,client}`, which use the fork's RPC
+recorder, so a current monorepo pin *requires* op-geth. Such a module can run upstream
+go-ethereum on an older monorepo pin, or the latest monorepo pin on op-geth — not both, until the
+RPC hooks are re-homed. Prefer upstream geth and accept the older monorepo pin: the geth half is
+the one carrying security relevance, and the monorepo pin catches up in one bump afterwards.
+Revisit these when §15 lands. The log layer is not a blocker: `op-service/log` and
+`op-service/testlog` compile against upstream go-ethereum.
 
 **An edge into `op-core/superchain` caps a consumer's monorepo version.** Any package reaching
 the bundle cannot be built by a downstream module at all (#22678), so a consumer that reaches it
@@ -600,9 +608,10 @@ Compiling every Go module in those repos against upstream go-ethereum with the r
 - **Decoupled now** — the replace drops with no other change. A small number of private service
   modules, mostly ones that only ever used geth's `log` package.
 - **Blocked on §15** — everything else, which is most of them. Almost every service imports
-  `op-service/{rpc,metrics,client}` or `op-service/testlog`, so the RPC recorder hooks and log
-  context methods gate the whole fleet: `infra/{op-signer,op-conductor-mon,op-ufm,
-  peer-mgmt-service}`, `monitorism/op-monitorism`, and most private service modules.
+  `op-service/{rpc,metrics,client}`, so the RPC recorder hooks gate the whole fleet:
+  `infra/{op-signer,op-conductor-mon,op-ufm,peer-mgmt-service}`, `monitorism/op-monitorism`, and
+  most private service modules. A module whose only §15 edge is `op-service/log` or
+  `op-service/testlog` is unblocked on a monorepo pin that includes the owned log layer.
 
 One case is worth generalising because it is a trap rather than a blocker. A module pinned to a
 years-old op-geth pseudo-version compiled fine with the replace dropped, and dependency scanning
@@ -665,7 +674,7 @@ monorepo has to fix on their behalf.
 | Genesis tooling (§14) | upstream geth as library + `opparams` | open (#21281) |
 | op-simulate / op-run-block (§14) | delete | **done** (#21282) |
 | op-sync-tester PayloadID hash | OP-aware `Id()` reimplementation | open (#21525) |
-| Log context extensions (§15) | owned `op-service/log` layer (aliases → owned interface) | aliases + import gate **done**; owned interface open — **gating**, blocks `op-service/testlog` |
+| Log context extensions (§15) | owned `op-service/log` layer: owned `Logger` + slog implementation, `ToGeth` at geth boundaries | **done** |
 | RPC recorder hooks + `JsonError` (§15) | client wrappers + server-side interception | open — **gating**, blocks `op-service/{metrics,client,rpc}` |
 | One-off fork symbols (§15) | per-symbol swaps, ride #20263 family | `SetBlobTxSidecar`/`LogForStorage` **done**; rest are test-only, ride §13 |
 | `op-chain-ops/script` + op-deployer (§16) | **Rust script engine** (foundry crates) | open |

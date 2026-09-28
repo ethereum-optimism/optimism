@@ -266,8 +266,7 @@ func startMinimalBatcher(
 	require.NoError(err)
 	batcherTarget := NewComponentTarget("main", l2Net.ChainID())
 
-	logger := t.Logger().New("component", "l2-batcher")
-	logger.SetContext(t.Ctx())
+	logger := t.Logger().New("component", "l2-batcher").WithContext(t.Ctx())
 	logger.Info("Batcher key acquired", "addr", crypto.PubkeyToAddress(batcherSecret.PublicKey))
 
 	compressionAlgo := derive.Zlib
