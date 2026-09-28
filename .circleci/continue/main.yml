@@ -1136,6 +1136,8 @@ jobs:
             MATCH_PATH="./test/{$(echo "$TEST_FILES" | paste -sd "," -)}"
             mkdir -p results
             forge test --match-path "$MATCH_PATH" --junit > results/results.xml
+            # Forge exits 0 when the filter matches nothing; fail if no tests ran.
+            ./scripts/checks/check-junit-tests-ran.sh results/results.xml
           environment:
             FOUNDRY_PROFILE: <<parameters.test_profile>>
           working_directory: packages/contracts-bedrock
