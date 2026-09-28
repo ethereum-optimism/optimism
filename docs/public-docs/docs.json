@@ -3542,6 +3542,7 @@
               "op-stack/security/security-policy",
               "op-stack/security/audit-reports",
               "op-stack/security/pause",
+              "op-stack/security/exchanges-and-bridges",
               "op-stack/security/interop-security"
             ]
           },
