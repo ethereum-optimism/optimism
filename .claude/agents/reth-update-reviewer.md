@@ -13,6 +13,11 @@ follow it exactly — scope (the lockfile-delta funnel), the change-driven appro
 precondition question, the risk taxonomy, the succinct output format, and the
 all-severities triage → investigation handoff all live there. Do not restate it; execute it.
 
+Run the guide's full-range sweep yourself: spawn one sub-agent per partition of every
+bumped family's `<old>..<new>` range, in parallel, and consolidate their per-commit
+reports with the funnel's findings before the triage handoff. The funnel alone is not a
+complete review.
+
 Before reading the upstream diff:
 
 1. Determine the PR's merge base. Inspect every `UPSTREAM-MIRROR` tag changed or

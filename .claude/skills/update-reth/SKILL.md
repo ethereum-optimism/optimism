@@ -40,8 +40,10 @@ Default: the latest upstream release tag (`gh release list --repo paradigmxyz/re
    it into `rust/UPDATING-RETH.md` before review.
 
 5. **Review and resolve.** Commit a review candidate and run code, security, and
-   the **`reth-update-reviewer` agent** (`docs/ai/reth-update-review.md`).
-   Complete its all-severities triage and selected investigations. Fix findings,
+   the **`reth-update-reviewer` agent** (`docs/ai/reth-update-review.md`),
+   including its partitioned full-range sweep over every bumped family; the
+   mirror funnel alone does not clear a bump. Complete its all-severities
+   triage and selected investigations. Fix findings,
    then rerun every matching reviewer until the candidate is clean.
 
 6. **Final verification.** Verify everything the guide lists on the reviewed
