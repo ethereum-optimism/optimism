@@ -25,7 +25,6 @@ reth-transaction-pool.workspace = true
 reth-network.workspace = true
 reth-evm.workspace = true
 reth-rpc-server-types.workspace = true
-reth-tasks.workspace = true
 reth-trie-common.workspace = true
 reth-node-core.workspace = true
 reth-rpc-engine-api.workspace = true
@@ -82,7 +81,6 @@ serde.workspace = true
 eyre.workspace = true
 url.workspace = true
 futures-util.workspace = true
-tracing.workspace = true
 
 # test-utils dependencies
 reth-e2e-test-utils = { workspace = true, optional = true }
