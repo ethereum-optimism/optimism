@@ -55,14 +55,12 @@ use crate::{
 #[cfg(test)]
 mod scenario;
 
-/// Max allowed time (secs) between a game's deadline and the anchor game's deadline.
-///
-/// Games beyond this threshold are skipped during incremental syncs to cut startup latency and
-/// avoid caching stale data.
-///
-/// The 14-day window is chosen with a 7-day challenge period in mind, plus a 7-day buffer,
-/// ensuring all actionable games are included under normal conditions.
+/// Default cutoff between a game's deadline and the anchor game's deadline, in seconds.
+/// Configurable for factory discovery and pending-game eviction.
 pub const MAX_GAME_DEADLINE_LAG: u64 = 60 * 60 * 24 * 14; // 14 days
+
+/// Maximum lead of a game's L2 timestamp over local safe, in seconds.
+const MAX_FUTURE_GAME_TIMESTAMP_LAG: u64 = 60 * 60 * 24 * 14; // 14 days
 
 /// Nonzero identifier assigned to a proposer task.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
@@ -2560,7 +2558,7 @@ impl Proposer {
                 // nearer is pending and re-validated next sync.
                 let local_safe = super_root_at.response.current_local_safe_timestamp;
                 if local_safe > 0 &&
-                    sequence_number > local_safe.saturating_add(MAX_GAME_DEADLINE_LAG)
+                    sequence_number > local_safe.saturating_add(MAX_FUTURE_GAME_TIMESTAMP_LAG)
                 {
                     tracing::warn!(
                         game_index = %index,
@@ -6872,7 +6870,7 @@ mod tests {
         let cases = [
             (100, absent_super_root_at_timestamp(99), canonical, false, Expected::Pending),
             (
-                super::MAX_GAME_DEADLINE_LAG + 101,
+                super::MAX_FUTURE_GAME_TIMESTAMP_LAG + 101,
                 absent_super_root_at_timestamp(100),
                 canonical,
                 false,
