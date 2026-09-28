@@ -2,7 +2,7 @@
 
 use reth_node_core::version::{RethCliVersionConsts, try_init_version_metadata};
 use reth_optimism_cli::{Cli, chainspec::OpChainSpecParser};
-use reth_optimism_node::{OpNode, args::RollupArgs, proof_history};
+use reth_optimism_node::{OpNode, args::RollupArgs, launch_node};
 use tracing::{info, warn};
 
 use std::borrow::Cow;
@@ -61,7 +61,7 @@ fn main() {
             }
 
             info!(target: "reth::cli", "Launching node");
-            proof_history::launch_node(builder, OpNode::new(args)).await
+            launch_node(builder, OpNode::new(args)).await
         },
     ) {
         eprintln!("Error: {err:?}");
