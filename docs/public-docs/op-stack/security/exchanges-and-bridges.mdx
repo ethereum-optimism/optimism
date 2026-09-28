@@ -26,7 +26,7 @@ You need the following to use the examples in this guide:
 ## Wait for safe blocks before acting off-chain
 
 Crediting an exchange balance, filling a bridge order, or releasing funds on another chain are hard to undo.
-If the transaction you acted on is later removed from the chain, you absorb the loss.
+If the transaction you acted on is later removed from the chain because of a chain reorg, you absorb the loss.
 Wait until that transaction is in a safe block before you act.
 
 ### Understand the risk of unsafe blocks
