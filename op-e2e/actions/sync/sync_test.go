@@ -188,7 +188,7 @@ func TestBackupUnsafe(gt *testing.T) {
 	upgradesHelpers.ApplyDeltaTimeOffset(dp, &minTs)
 	dp.DeployConfig.L2BlockTime = 2
 	sd := e2eutils.Setup(t, dp, actionsHelpers.DefaultAlloc)
-	log := testlog.Logger(t, log.LvlInfo)
+	log := testlog.Logger(t, log.LevelInfo)
 	_, dp, miner, sequencer, seqEng, verifier, _, batcher := actionsHelpers.SetupReorgTestActors(t, dp, sd, log)
 	l2Cl := seqEng.EthClient()
 	seqEngCl, err := sources.NewEngineClient(seqEng.RPCClient(), log, nil, sources.EngineClientDefaultConfig(sd.RollupCfg))
@@ -351,7 +351,7 @@ func TestBackupUnsafeReorgForkChoiceInputError(gt *testing.T) {
 	upgradesHelpers.ApplyDeltaTimeOffset(dp, &minTs)
 	dp.DeployConfig.L2BlockTime = 2
 	sd := e2eutils.Setup(t, dp, actionsHelpers.DefaultAlloc)
-	log := testlog.Logger(t, log.LvlInfo)
+	log := testlog.Logger(t, log.LevelInfo)
 	_, dp, miner, sequencer, seqEng, verifier, _, batcher := actionsHelpers.SetupReorgTestActors(t, dp, sd, log)
 	l2Cl := seqEng.EthClient()
 	seqEngCl, err := sources.NewEngineClient(seqEng.RPCClient(), log, nil, sources.EngineClientDefaultConfig(sd.RollupCfg))
@@ -486,7 +486,7 @@ func TestBackupUnsafeReorgForkChoiceNotInputError(gt *testing.T) {
 	upgradesHelpers.ApplyDeltaTimeOffset(dp, &minTs)
 	dp.DeployConfig.L2BlockTime = 2
 	sd := e2eutils.Setup(t, dp, actionsHelpers.DefaultAlloc)
-	log := testlog.Logger(t, log.LvlInfo)
+	log := testlog.Logger(t, log.LevelInfo)
 	_, dp, miner, sequencer, seqEng, verifier, _, batcher := actionsHelpers.SetupReorgTestActors(t, dp, sd, log)
 	l2Cl := seqEng.EthClient()
 	seqEngCl, err := sources.NewEngineClient(seqEng.RPCClient(), log, nil, sources.EngineClientDefaultConfig(sd.RollupCfg))

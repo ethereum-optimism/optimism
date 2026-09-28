@@ -211,7 +211,7 @@ func TestEngineController_Rewind(t *testing.T) {
 				l2.newPayloadStatuses = []*eth.PayloadStatusV1{nil, {Status: eth.ExecutionInvalid}}
 			}
 
-			ec := &simpleEngineController{l2: &l2, rollup: &rollupConfig, log: testlog.Logger(t, log.LvlDebug)}
+			ec := &simpleEngineController{l2: &l2, rollup: &rollupConfig, log: testlog.Logger(t, log.LevelDebug)}
 			if tc.missingEngineClient {
 				ec.l2 = nil
 			}

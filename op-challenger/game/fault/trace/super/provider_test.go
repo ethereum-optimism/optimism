@@ -350,7 +350,7 @@ func TestSuperNodeProvider_Get(t *testing.T) {
 func TestSuperNodeProvider_ComputeStep(t *testing.T) {
 	t.Run("ErrorWhenTraceIndexTooBig", func(t *testing.T) {
 		// Uses a big game depth so the trace index doesn't fit in uint64
-		provider := NewSuperNodeTraceProvider(testlog.Logger(t, log.LvlInfo), nil, &stubSuperNodeRootProvider{}, eth.BlockID{}, 65, prestateTimestamp, poststateTimestamp)
+		provider := NewSuperNodeTraceProvider(testlog.Logger(t, log.LevelInfo), nil, &stubSuperNodeRootProvider{}, eth.BlockID{}, 65, prestateTimestamp, poststateTimestamp)
 		// Left-most position in top game
 		_, _, err := provider.ComputeStep(types.RootPosition)
 		require.ErrorIs(t, err, ErrIndexTooBig)
@@ -421,7 +421,7 @@ func TestSuperNodeProvider_GetL2BlockNumberChallengeReturnsError(t *testing.T) {
 }
 
 func createSuperNodeProvider(t *testing.T) (*SuperNodeTraceProvider, *stubSuperNodeRootProvider, eth.BlockID) {
-	logger := testlog.Logger(t, log.LvlInfo)
+	logger := testlog.Logger(t, log.LevelInfo)
 	l1Head := eth.BlockID{Number: 23542, Hash: common.Hash{0xab, 0xcd}}
 	stubSuperNode := &stubSuperNodeRootProvider{
 		rootsByTimestamp: make(map[uint64]eth.SuperRootAtTimestampResponse),

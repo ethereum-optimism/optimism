@@ -21,7 +21,7 @@ func TestMonitorL2Challenges(t *testing.T) {
 		{CommonGameData: types.CommonGameData{AgreeWithClaim: true}},
 	}
 	metrics := &stubL2ChallengeMetrics{}
-	logger, capturedLogs := testlog.CaptureLogger(t, log.LvlDebug)
+	logger, capturedLogs := testlog.CaptureLogger(t, log.LevelDebug)
 	monitor := NewL2ChallengesMonitor(logger, metrics)
 	monitor.CheckL2Challenges(games)
 	require.Equal(t, 1, metrics.challengeCount[true])

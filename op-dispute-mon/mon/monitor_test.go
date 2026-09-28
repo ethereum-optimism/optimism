@@ -285,7 +285,7 @@ func newEnrichedGameData(proxy common.Address, timestamp uint64) *monTypes.Fault
 }
 
 func setupMonitorTest(t *testing.T) (*gameMonitor, *mockExtractor, *mockForecast, []*mockMonitor) {
-	logger := testlog.Logger(t, log.LvlDebug)
+	logger := testlog.Logger(t, log.LevelDebug)
 	fetchHeadBlock := func(ctx context.Context) (eth.L1BlockRef, error) {
 		return eth.L1BlockRef{Number: 1, Hash: common.Hash{0xaa}}, nil
 	}

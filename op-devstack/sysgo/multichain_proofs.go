@@ -295,7 +295,7 @@ func startSuperProposer(
 		AllowNonFinalized:            true,
 		TxMgrConfig:                  setuputils.NewTxMgrConfig(endpoint.URL(l1EL.UserRPC()), proposerSecret),
 		RPCConfig:                    oprpc.CLIConfig{ListenAddr: "127.0.0.1"},
-		LogConfig:                    logcli.CLIConfig{Level: log.LvlInfo, Format: log.FormatText},
+		LogConfig:                    logcli.CLIConfig{Level: log.LevelInfo, Format: log.FormatText},
 		MetricsConfig:                opmetrics.CLIConfig{},
 		PprofConfig:                  oppprof.CLIConfig{},
 		DGFAddress:                   l2Net.deployment.DisputeGameFactoryProxyAddr().Hex(),

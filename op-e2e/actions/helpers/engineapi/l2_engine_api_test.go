@@ -36,7 +36,7 @@ func TestNewPayloadV4(t *testing.T) {
 		{6, 8, "", false},                  // after isthmus
 		{6, 8, "Invalid parameters", true}, // after isthmus, nil withdrawal root
 	}
-	logger, _ := testlog.CaptureLogger(t, log.LvlInfo)
+	logger, _ := testlog.CaptureLogger(t, log.LevelInfo)
 
 	for _, c := range cases {
 		genesis := createGenesisWithIsthmusTimeOffset(c.isthmusTime)
@@ -85,7 +85,7 @@ func TestNewPayloadV4(t *testing.T) {
 }
 
 func TestCreatedBlocksAreCached(t *testing.T) {
-	logger, logs := testlog.CaptureLogger(t, log.LvlInfo)
+	logger, logs := testlog.CaptureLogger(t, log.LevelInfo)
 
 	backend := newStubBackend(t)
 	engineAPI := NewL2EngineAPI(logger, backend, nil)

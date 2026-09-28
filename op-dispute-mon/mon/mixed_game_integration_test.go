@@ -28,7 +28,7 @@ func TestMonitorMixedFaultAndZKGames(t *testing.T) {
 	now := time.Unix(1_000_000, 0)
 	createdAt := now.Add(-time.Minute)
 	cl := clock.NewDeterministicClock(now)
-	logger := testlog.Logger(t, log.LvlDebug)
+	logger := testlog.Logger(t, log.LevelDebug)
 	metricer := metrics.NewMetrics()
 	actor := common.Address{0xa1}
 	weth := common.Address{0xee}

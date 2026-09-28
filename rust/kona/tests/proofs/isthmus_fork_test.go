@@ -192,7 +192,7 @@ func TestWithdrawalsRootBeforeAtAndAfterIsthmus(gt *testing.T) {
 		}
 		env := helpers.NewL2FaultProofEnv(t, testCfg, tp, helpers.NewBatcherCfg(), setIsthmusTime)
 		withdrawalTx, withdrawalTxBlock, totalBlocks := testCfg.Custom.withdrawalTx, testCfg.Custom.withdrawalTxBlock, testCfg.Custom.totalBlocks
-		log := testlog.Logger(t, log.LvlDebug)
+		log := testlog.Logger(t, log.LevelDebug)
 		require.NoError(t, env.Dp.DeployConfig.Check(log), "must have valid config")
 
 		sequencer, engine := env.Sequencer, env.Engine
@@ -326,7 +326,7 @@ func testIsthmusNetworkUpgradeTransactions(gt *testing.T, testCfg *helpers.TestC
 	tp := helpers.NewTestParams(func(tp *e2eutils.TestParams) {})
 	env := helpers.NewL2FaultProofEnv(t, testCfg, tp, helpers.NewBatcherCfg(), setIsthmusTime)
 
-	log := testlog.Logger(t, log.LvlDebug)
+	log := testlog.Logger(t, log.LevelDebug)
 
 	require.NoError(t, env.Dp.DeployConfig.Check(log), "must have valid config")
 

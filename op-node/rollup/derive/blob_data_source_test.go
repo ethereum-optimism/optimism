@@ -25,7 +25,7 @@ func TestDataAndHashesFromTxs(t *testing.T) {
 	publicKey, _ := privateKey.Public().(*ecdsa.PublicKey)
 	batcherAddr := crypto.PubkeyToAddress(*publicKey)
 	batchInboxAddr := testutils.RandomAddress(rng)
-	logger := testlog.Logger(t, log.LvlInfo)
+	logger := testlog.Logger(t, log.LevelInfo)
 
 	chainId := new(big.Int).SetUint64(rng.Uint64())
 	signer := types.NewPragueSigner(chainId)

@@ -188,7 +188,7 @@ func TestClaimMonitor_CheckClaims(t *testing.T) {
 }
 
 func newTestClaimMonitor(t *testing.T) (*ClaimMonitor, *clock.DeterministicClock, *stubClaimMetrics, *testlog.CapturingHandler) {
-	logger, handler := testlog.CaptureLogger(t, log.LvlInfo)
+	logger, handler := testlog.CaptureLogger(t, log.LevelInfo)
 	cl := clock.NewDeterministicClock(frozen)
 	metrics := &stubClaimMetrics{}
 	honestActors := types.NewHonestActors([]common.Address{

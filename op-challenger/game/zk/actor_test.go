@@ -243,7 +243,7 @@ func TestActor(t *testing.T) {
 }
 
 func setupActorTest(t *testing.T) (*Actor, *zkTestStubs) {
-	return newZKActor(t, testlog.Logger(t, log.LvlInfo))
+	return newZKActor(t, testlog.Logger(t, log.LevelInfo))
 }
 
 func newZKActor(t *testing.T, logger log.Logger) (*Actor, *zkTestStubs) {

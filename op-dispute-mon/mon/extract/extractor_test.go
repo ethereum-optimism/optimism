@@ -310,7 +310,7 @@ func verifyLogs(t *testing.T, logs *testlog.CapturingHandler, createErr, metadat
 }
 
 func setupExtractorTest(t *testing.T, enrichers ...CommonEnricher) (*Extractor, *mockGameCallerCreator, *mockGameFetcher, *testlog.CapturingHandler, *clock.DeterministicClock) {
-	logger, capturedLogs := testlog.CaptureLogger(t, log.LvlDebug)
+	logger, capturedLogs := testlog.CaptureLogger(t, log.LevelDebug)
 	games := &mockGameFetcher{}
 	caller := &mockGameCaller{metadata: contracts.GameMetadata{
 		L1Head:    common.Hash{0xaa},

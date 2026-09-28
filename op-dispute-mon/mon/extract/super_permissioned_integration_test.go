@@ -48,7 +48,7 @@ func TestExtractorChecksSuperPermissionedGame(t *testing.T) {
 		superRoot:             mockRootClaim,
 	}
 	metrics := &stubOutputMetrics{}
-	logger := testlog.Logger(t, log.LvlInfo)
+	logger := testlog.Logger(t, log.LevelInfo)
 	creator := NewGameCallerCreator(&mockCacheMetrics{}, caller)
 	extractor := NewExtractor(
 		logger,
