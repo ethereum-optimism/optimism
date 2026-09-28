@@ -4,37 +4,13 @@ use alloy_primitives::{Address, U256};
 #[cfg(test)]
 use reth_optimism_evm::{OpEvmFactory, OpTx};
 use reth_optimism_evm::{
-    PostExecExecutedTx, PostExecRefundInspector, PostExecTxContext, PostExecTxKind,
+    PostExecExecutedTx, PostExecRefundInspector, PostExecRefundPolicyFactory, PostExecTxContext,
 };
 use revm::{
     context_interface::ContextTr,
     inspector::JournalExt,
     interpreter::{CallInputs, CallOutcome, CreateInputs, CreateOutcome, Interpreter},
 };
-use std::sync::OnceLock;
-
-static EXCESSIVE_REFUND_TARGET: OnceLock<Option<Address>> = OnceLock::new();
-
-/// Configures the optional call target used for excessive-refund fault injection.
-///
-/// [`reth_optimism_evm::OpEvmFactory`] constructs the policy through [`Default`], so the
-/// process-level test setting must be installed before the payload service creates an EVM. A
-/// production op-reth process hosts one node; accepting an identical second value also keeps
-/// in-process builder tests deterministic.
-pub(crate) fn configure_excessive_refund_target(target: Option<Address>) -> eyre::Result<()> {
-    if EXCESSIVE_REFUND_TARGET.set(target).is_ok() {
-        return Ok(());
-    }
-
-    let configured = EXCESSIVE_REFUND_TARGET.get().copied().flatten();
-    if configured == target {
-        return Ok(());
-    }
-
-    eyre::bail!(
-        "test SDM excessive-refund target already configured as {configured:?}, cannot change it to {target:?}"
-    );
-}
 
 /// A deterministic fixture policy that refunds one gas per committed normal transaction.
 ///
@@ -43,27 +19,51 @@ pub(crate) fn configure_excessive_refund_target(target: Option<Address>) -> eyre
 /// producer containment of a faulty policy.
 #[derive(Debug, Clone, Copy, Default)]
 pub(crate) struct FixedRefundPolicy {
-    current_kind: Option<PostExecTxKind>,
-    excessive_refund: bool,
+    excessive_refund_target: Option<Address>,
+    current_refund: u64,
+}
+
+impl FixedRefundPolicy {
+    const fn new(excessive_refund_target: Option<Address>) -> Self {
+        Self { excessive_refund_target, current_refund: 0 }
+    }
+}
+
+/// Creates independent fixed-refund policies with the configured fault-injection target.
+#[derive(Debug, Clone, Copy)]
+pub(crate) struct FixedRefundPolicyFactory {
+    excessive_refund_target: Option<Address>,
+}
+
+impl FixedRefundPolicyFactory {
+    /// Creates a fixed-refund policy factory.
+    pub(crate) const fn new(excessive_refund_target: Option<Address>) -> Self {
+        Self { excessive_refund_target }
+    }
+}
+
+impl PostExecRefundPolicyFactory for FixedRefundPolicyFactory {
+    type Policy = FixedRefundPolicy;
+
+    fn create(&self) -> Self::Policy {
+        FixedRefundPolicy::new(self.excessive_refund_target)
+    }
 }
 
 impl PostExecRefundInspector for FixedRefundPolicy {
     type Snapshot = ();
 
     fn begin_tx(&mut self, ctx: PostExecTxContext) {
-        self.current_kind = Some(ctx.kind);
-        self.excessive_refund = false;
+        self.current_refund = u64::from(ctx.kind.claims_refunds());
     }
 
     fn note_account_touch(&mut self, _address: Address) {}
 
     fn finish_tx(&mut self) -> PostExecExecutedTx {
-        let refund_total = if self.current_kind.take() == Some(PostExecTxKind::Normal) {
-            if self.excessive_refund { u64::MAX } else { 1 }
-        } else {
-            0
-        };
-        PostExecExecutedTx { refund_total, refund_events: Vec::new() }
+        PostExecExecutedTx {
+            refund_total: core::mem::take(&mut self.current_refund),
+            refund_events: Vec::new(),
+        }
     }
 
     fn inspect_step<CTX>(&mut self, _interp: &mut Interpreter, _context: &mut CTX)
@@ -76,13 +76,10 @@ impl PostExecRefundInspector for FixedRefundPolicy {
     where
         CTX: ContextTr<Journal: JournalExt>,
     {
-        if EXCESSIVE_REFUND_TARGET
-            .get()
-            .copied()
-            .flatten()
-            .is_some_and(|target| target == inputs.bytecode_address)
+        if self.current_refund != 0 &&
+            self.excessive_refund_target.is_some_and(|target| target == inputs.bytecode_address)
         {
-            self.excessive_refund = true;
+            self.current_refund = u64::MAX;
         }
     }
 
@@ -122,6 +119,7 @@ impl PostExecRefundInspector for FixedRefundPolicy {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use reth_optimism_evm::PostExecTxKind;
 
     #[test]
     fn fixed_policy_refunds_only_normal_transactions() {
@@ -143,7 +141,20 @@ mod tests {
             F: alloy_op_evm::post_exec::PostExecEvmFactoryHooks<Snapshot = ()>,
         >() {
         }
-        assert_unit_snapshot::<OpEvmFactory<OpTx, FixedRefundPolicy>>();
-        let _ = OpEvmFactory::<OpTx, FixedRefundPolicy>::default();
+        type Factory = OpEvmFactory<OpTx, FixedRefundPolicyFactory>;
+        assert_unit_snapshot::<Factory>();
+        let _ = Factory::new(FixedRefundPolicyFactory::new(None));
+    }
+
+    #[test]
+    fn fixed_policy_factories_hold_independent_targets() {
+        let first_target = Address::with_last_byte(1);
+        let second_target = Address::with_last_byte(2);
+
+        let first = FixedRefundPolicyFactory::new(Some(first_target)).create();
+        let second = FixedRefundPolicyFactory::new(Some(second_target)).create();
+
+        assert_eq!(first.excessive_refund_target, Some(first_target));
+        assert_eq!(second.excessive_refund_target, Some(second_target));
     }
 }

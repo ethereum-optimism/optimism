@@ -8,7 +8,7 @@
 
 use crate::{
     node::{OpNodeTypes, OpPayloadBuilder},
-    sdm_test_policy::{FixedRefundPolicy, configure_excessive_refund_target},
+    sdm_test_policy::FixedRefundPolicyFactory,
 };
 use alloy_primitives::Address;
 use op_alloy_consensus::OpTxEnvelope;
@@ -25,28 +25,13 @@ use reth_optimism_payload_builder::OpPayloadBuilderAttributes;
 use reth_optimism_primitives::OpPrimitives;
 use reth_payload_builder::PayloadBuilderHandle;
 use reth_transaction_pool::TransactionPool;
-use std::sync::Arc;
-
 /// EVM configuration used only by the fixed SDM test policy.
 type FixedPolicyOpEvmConfig<ChainSpec, N> = OpEvmConfig<
     ChainSpec,
     N,
     OpRethReceiptBuilder,
-    PostExecEvmFactoryAdapter<OpEvmFactory<OpTx, FixedRefundPolicy>>,
+    PostExecEvmFactoryAdapter<OpEvmFactory<OpTx, FixedRefundPolicyFactory>>,
 >;
-
-fn fixed_policy_evm_config<ChainSpec, N>(
-    chain_spec: Arc<ChainSpec>,
-) -> FixedPolicyOpEvmConfig<ChainSpec, N>
-where
-    N: reth_node_api::NodePrimitives,
-{
-    OpEvmConfig::new_with_evm_factory(
-        chain_spec,
-        OpRethReceiptBuilder::default(),
-        PostExecEvmFactoryAdapter::new(OpEvmFactory::default()),
-    )
-}
 
 /// Builds the payload service for an OP node.
 ///
@@ -109,11 +94,16 @@ where
                 .await;
         };
 
-        configure_excessive_refund_target(excessive_refund_target)?;
-        let evm_config = fixed_policy_evm_config::<
+        let evm_config: FixedPolicyOpEvmConfig<
             <Node::Types as NodeTypes>::ChainSpec,
             OpPrimitives,
-        >(ctx.chain_spec());
+        > = OpEvmConfig::new_with_evm_factory(
+            ctx.chain_spec(),
+            OpRethReceiptBuilder::default(),
+            PostExecEvmFactoryAdapter::new(OpEvmFactory::new(FixedRefundPolicyFactory::new(
+                excessive_refund_target,
+            ))),
+        );
         BasicPayloadServiceBuilder::new(payload_builder)
             .spawn_payload_builder_service(ctx, pool, evm_config)
             .await
