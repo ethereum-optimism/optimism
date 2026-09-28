@@ -1,41 +1,27 @@
-//! Test-only SDM refund policy and payload-service configuration.
-//!
-//! The policy is always compiled into op-reth, whose normal binary exposes it only through hidden,
-//! default-off controls. Keeping selection in the payload-service builder avoids per-transaction
-//! dispatch and lets test nodes use the production node type and launcher.
+//! Deterministic SDM policy used by hidden, default-off testing controls.
 
-use crate::node::{OpNodeTypes, OpPayloadBuilder};
 use alloy_primitives::{Address, U256};
-use op_alloy_consensus::OpTxEnvelope;
-use reth_node_api::{BuildNextEnv, NodeTypes, node::FullNodeTypes};
-use reth_node_builder::{
-    BuilderContext,
-    components::{BasicPayloadServiceBuilder, PayloadBuilderBuilder, PayloadServiceBuilder},
-};
+#[cfg(test)]
+use reth_optimism_evm::{OpEvmFactory, OpTx};
 use reth_optimism_evm::{
-    ConfigurePostExecEvm, OpEvmConfig, OpEvmFactory, OpRethReceiptBuilder, OpTx,
-    PostExecEvmFactoryAdapter, PostExecExecutedTx, PostExecRefundInspector, PostExecTxContext,
-    PostExecTxKind,
+    PostExecExecutedTx, PostExecRefundInspector, PostExecTxContext, PostExecTxKind,
 };
-use reth_optimism_payload_builder::OpPayloadBuilderAttributes;
-use reth_optimism_primitives::OpPrimitives;
-use reth_payload_builder::PayloadBuilderHandle;
-use reth_transaction_pool::TransactionPool;
 use revm::{
     context_interface::ContextTr,
     inspector::JournalExt,
     interpreter::{CallInputs, CallOutcome, CreateInputs, CreateOutcome, Interpreter},
 };
-use std::sync::{Arc, OnceLock};
+use std::sync::OnceLock;
 
 static EXCESSIVE_REFUND_TARGET: OnceLock<Option<Address>> = OnceLock::new();
 
 /// Configures the optional call target used for excessive-refund fault injection.
 ///
-/// [`OpEvmFactory`] constructs the policy through [`Default`], so the process-level test setting
-/// must be installed before the payload service creates an EVM. A production op-reth process hosts
-/// one node; accepting an identical second value also keeps in-process builder tests deterministic.
-fn configure_excessive_refund_target(target: Option<Address>) -> eyre::Result<()> {
+/// [`reth_optimism_evm::OpEvmFactory`] constructs the policy through [`Default`], so the
+/// process-level test setting must be installed before the payload service creates an EVM. A
+/// production op-reth process hosts one node; accepting an identical second value also keeps
+/// in-process builder tests deterministic.
+pub(crate) fn configure_excessive_refund_target(target: Option<Address>) -> eyre::Result<()> {
     if EXCESSIVE_REFUND_TARGET.set(target).is_ok() {
         return Ok(());
     }
@@ -56,7 +42,7 @@ fn configure_excessive_refund_target(target: Option<Address>) -> eyre::Result<()
 /// injection only, the configured excessive-refund target receives `u64::MAX`; this exercises
 /// producer containment of a faulty policy.
 #[derive(Debug, Clone, Copy, Default)]
-pub struct FixedRefundPolicy {
+pub(crate) struct FixedRefundPolicy {
     current_kind: Option<PostExecTxKind>,
     excessive_refund: bool,
 }
@@ -131,99 +117,6 @@ impl PostExecRefundInspector for FixedRefundPolicy {
     fn snapshot(&self) -> Self::Snapshot {}
 
     fn restore(&mut self, _snapshot: Self::Snapshot) {}
-}
-
-/// EVM configuration used only by the fixed SDM test policy.
-type FixedPolicyOpEvmConfig<ChainSpec, N> = OpEvmConfig<
-    ChainSpec,
-    N,
-    OpRethReceiptBuilder,
-    PostExecEvmFactoryAdapter<OpEvmFactory<OpTx, FixedRefundPolicy>>,
->;
-
-fn fixed_policy_evm_config<ChainSpec, N>(
-    chain_spec: Arc<ChainSpec>,
-) -> FixedPolicyOpEvmConfig<ChainSpec, N>
-where
-    N: reth_node_api::NodePrimitives,
-{
-    OpEvmConfig::new_with_evm_factory(
-        chain_spec,
-        OpRethReceiptBuilder::default(),
-        PostExecEvmFactoryAdapter::new(OpEvmFactory::default()),
-    )
-}
-
-/// Payload-service builder that selects either stock production or the fixed test policy.
-///
-/// Keeping the choice inside one payload-service type lets both modes use the same concrete
-/// [`crate::OpNode`] and launcher while resolving the policy before transaction execution begins.
-#[derive(Debug, Clone)]
-pub struct TestSdmPayloadServiceBuilder {
-    inner: OpPayloadBuilder,
-    /// `None` selects the stock policy; `Some(target)` selects the fixed test policy with an
-    /// optional excessive-refund target.
-    fixed_refund_target: Option<Option<Address>>,
-}
-
-impl TestSdmPayloadServiceBuilder {
-    /// Creates a payload service with the requested test-policy configuration.
-    pub const fn new(
-        inner: OpPayloadBuilder,
-        fixed_refund_target: Option<Option<Address>>,
-    ) -> Self {
-        Self { inner, fixed_refund_target }
-    }
-}
-
-impl<Node, Pool, EvmConfig> PayloadServiceBuilder<Node, Pool, EvmConfig>
-    for TestSdmPayloadServiceBuilder
-where
-    Node: FullNodeTypes<Types: OpNodeTypes>,
-    Pool: TransactionPool + Clone + Send + Sync + Unpin + 'static,
-    EvmConfig: Send,
-    FixedPolicyOpEvmConfig<<Node::Types as NodeTypes>::ChainSpec, OpPrimitives>:
-        ConfigurePostExecEvm<
-                Primitives = OpPrimitives,
-                NextBlockEnvCtx: BuildNextEnv<
-                    OpPayloadBuilderAttributes<OpTxEnvelope>,
-                    alloy_consensus::Header,
-                    <Node::Types as NodeTypes>::ChainSpec,
-                >,
-            > + Clone
-            + Send
-            + Sync
-            + Unpin
-            + 'static,
-    OpPayloadBuilder: PayloadBuilderBuilder<Node, Pool, EvmConfig>
-        + PayloadBuilderBuilder<
-            Node,
-            Pool,
-            FixedPolicyOpEvmConfig<<Node::Types as NodeTypes>::ChainSpec, OpPrimitives>,
-        >,
-{
-    async fn spawn_payload_builder_service(
-        self,
-        ctx: &BuilderContext<Node>,
-        pool: Pool,
-        evm_config: EvmConfig,
-    ) -> eyre::Result<PayloadBuilderHandle<<Node::Types as NodeTypes>::Payload>> {
-        let Self { inner, fixed_refund_target } = self;
-        let Some(excessive_refund_target) = fixed_refund_target else {
-            return BasicPayloadServiceBuilder::new(inner)
-                .spawn_payload_builder_service(ctx, pool, evm_config)
-                .await;
-        };
-
-        configure_excessive_refund_target(excessive_refund_target)?;
-        let evm_config = fixed_policy_evm_config::<
-            <Node::Types as NodeTypes>::ChainSpec,
-            OpPrimitives,
-        >(ctx.chain_spec());
-        BasicPayloadServiceBuilder::new(inner)
-            .spawn_payload_builder_service(ctx, pool, evm_config)
-            .await
-    }
 }
 
 #[cfg(test)]
