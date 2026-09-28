@@ -25,6 +25,7 @@ reth-transaction-pool.workspace = true
 reth-network.workspace = true
 reth-evm.workspace = true
 reth-rpc-server-types.workspace = true
+reth-tasks = { workspace = true, optional = true }
 reth-trie-common.workspace = true
 reth-node-core.workspace = true
 reth-rpc-engine-api.workspace = true
