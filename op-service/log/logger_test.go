@@ -196,21 +196,30 @@ func TestWithContext(t *testing.T) {
 	require.Equal(t, want, values(h.enabledContexts()), "contexts passed to Enabled")
 }
 
-// TestNilContext checks that a nil context reaches the handler as
-// context.Background(), as it does with log/slog.
+// TestNilContext checks that a nil context means the logger's default context:
+// the one set with WithContext, or context.Background() without one.
 func TestNilContext(t *testing.T) {
 	h := newRecordingHandler()
-	l := oplog.NewLogger(h)
+	def := withValue("default")
+	l := oplog.NewLogger(h).WithContext(def)
 	//nolint:staticcheck // SA1012: a nil context is what this test is about.
 	l.InfoContext(nil, "explicit nil")
 	//nolint:staticcheck // SA1012: a nil context is what this test is about.
 	l.LogAttrs(nil, oplog.LevelInfo, "explicit nil attrs")
 	//nolint:staticcheck // SA1012: a nil context is what this test is about.
-	l.WithContext(nil).Info("nil default")
+	require.True(t, l.Enabled(nil, oplog.LevelInfo))
+	for _, ctx := range append(h.contexts(), h.enabledContexts()...) {
+		require.Equal(t, def, ctx)
+	}
+	require.Len(t, h.contexts(), 2)
+
+	h = newRecordingHandler()
+	//nolint:staticcheck // SA1012: a nil context is what this test is about.
+	oplog.NewLogger(h).WithContext(nil).InfoContext(nil, "no default")
 	for _, ctx := range append(h.contexts(), h.enabledContexts()...) {
 		require.Equal(t, context.Background(), ctx)
 	}
-	require.Len(t, h.contexts(), 3)
+	require.Len(t, h.contexts(), 1)
 }
 
 // TestLevelFiltering checks that a record is only built and handled when the

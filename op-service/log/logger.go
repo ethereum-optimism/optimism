@@ -39,7 +39,8 @@ type Logger interface {
 
 	// WithContext returns a Logger that logs every record without an explicit
 	// context with ctx. Handlers can use the context to filter records; see
-	// slog.Handler.Enabled.
+	// slog.Handler.Enabled. A nil context passed to any method taking one
+	// also means this default.
 	WithContext(ctx context.Context) Logger
 
 	// Log logs a message at the given level. It does not exit, even at
@@ -96,7 +97,7 @@ func NewLogger(h slog.Handler) Logger {
 // the stack depth, and hence the attribution, does not depend on the call path.
 func (l *logger) emit(ctx context.Context, skip int, level slog.Level, msg string, args []any) {
 	if ctx == nil {
-		ctx = context.Background()
+		ctx = l.ctx
 	}
 	if !l.inner.Enabled(ctx, level) {
 		return
@@ -108,7 +109,7 @@ func (l *logger) emit(ctx context.Context, skip int, level slog.Level, msg strin
 
 func (l *logger) emitAttrs(ctx context.Context, skip int, level slog.Level, msg string, attrs []slog.Attr) {
 	if ctx == nil {
-		ctx = context.Background()
+		ctx = l.ctx
 	}
 	if !l.inner.Enabled(ctx, level) {
 		return
@@ -156,6 +157,9 @@ func (l *logger) Crit(msg string, args ...any) {
 }
 
 func (l *logger) Enabled(ctx context.Context, level slog.Level) bool {
+	if ctx == nil {
+		ctx = l.ctx
+	}
 	return l.inner.Enabled(ctx, level)
 }
 
