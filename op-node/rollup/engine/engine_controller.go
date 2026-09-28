@@ -1012,7 +1012,7 @@ func (e *EngineController) shouldTryBackupUnsafeReorg() bool {
 	return true
 }
 
-func (e *EngineController) TryBackupUnsafeReorg(ctx context.Context) (bool, error) {
+func (e *EngineController) TryBackupUnsafeReorg(ctx context.Context) error {
 	e.mu.Lock()
 	defer e.mu.Unlock()
 	return e.tryBackupUnsafeReorg(ctx)
@@ -1020,10 +1020,10 @@ func (e *EngineController) TryBackupUnsafeReorg(ctx context.Context) (bool, erro
 
 // tryBackupUnsafeReorg attempts to reorg(restore) unsafe head to backupUnsafeHead.
 // If succeeds, update current forkchoice state to the rollup node.
-func (e *EngineController) tryBackupUnsafeReorg(ctx context.Context) (bool, error) {
+func (e *EngineController) tryBackupUnsafeReorg(ctx context.Context) error {
 	if !e.shouldTryBackupUnsafeReorg() {
 		// Do not need to perform FCU.
-		return false, nil
+		return nil
 	}
 	// Only try FCU once because execution engine may forgot backupUnsafeHead
 	// or backupUnsafeHead is not part of the chain.
@@ -1045,18 +1045,18 @@ func (e *EngineController) tryBackupUnsafeReorg(ctx context.Context) (bool, erro
 			switch eth.ErrorCode(rpcErr.ErrorCode()) {
 			case eth.InvalidForkchoiceState:
 				e.SetBackupUnsafeL2Head(eth.L2BlockRef{}, false)
-				return true, derive.NewResetError(fmt.Errorf("forkchoice update was inconsistent with engine, need reset to resolve: %w", err))
+				return derive.NewResetError(fmt.Errorf("forkchoice update was inconsistent with engine, need reset to resolve: %w", err))
 			default:
 				// Retry when forkChoiceUpdate returns non-input error.
 				// Do not reset backupUnsafeHead because it will be used again.
 				e.needFCUCallForBackupUnsafeReorg = true
-				return true, derive.NewTemporaryError(fmt.Errorf("unexpected error code in forkchoice-updated response: %w", err))
+				return derive.NewTemporaryError(fmt.Errorf("unexpected error code in forkchoice-updated response: %w", err))
 			}
 		} else {
 			// Retry when forkChoiceUpdate returns non-input error.
 			// Do not reset backupUnsafeHead because it will be used again.
 			e.needFCUCallForBackupUnsafeReorg = true
-			return true, derive.NewTemporaryError(fmt.Errorf("failed to sync forkchoice with engine: %w", err))
+			return derive.NewTemporaryError(fmt.Errorf("failed to sync forkchoice with engine: %w", err))
 		}
 	}
 	if fcRes.PayloadStatus.Status == eth.ExecutionValid {
@@ -1067,11 +1067,11 @@ func (e *EngineController) tryBackupUnsafeReorg(ctx context.Context) (bool, erro
 		e.lastForkchoice = fc
 
 		e.requestForkchoiceUpdate(ctx)
-		return true, nil
+		return nil
 	}
 	e.SetBackupUnsafeL2Head(eth.L2BlockRef{}, false)
 	// Execution engine could not reorg back to previous unsafe head.
-	return true, derive.NewTemporaryError(fmt.Errorf("cannot restore unsafe chain using backupUnsafe: err: %w",
+	return derive.NewTemporaryError(fmt.Errorf("cannot restore unsafe chain using backupUnsafe: err: %w",
 		eth.ForkchoiceUpdateErr(fcRes.PayloadStatus)))
 }
 
