@@ -10,8 +10,8 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
 )
 
-// TestFindVersionsReturnsError checks that FindVersions reports a failed lookup
-// to its caller instead of exiting the process.
+// TestFindVersionsReturnsError checks that FindVersions returns a failed lookup
+// to its caller.
 func TestFindVersionsReturnsError(t *testing.T) {
 	t.Chdir(t.TempDir())
 	if _, stderr, err := runGit("init", "--quiet"); err != nil {

@@ -980,7 +980,7 @@ func (l *BatchSubmitter) sendTransaction(txdata txData, queue *txmgr.Queue[txRef
 	// if Alt DA is enabled we post the txdata to the DA Provider and replace it with the commitment.
 	if l.Config.UseAltDA {
 		// A nil error lets publishStateToL1 keep processing the next txdata while the
-		// DA request is in flight; a non-nil error means shutdown was already requested.
+		// DA request is in flight.
 		return l.publishToAltDAAndL1(txdata, queue, receiptsCh, daGroup)
 	}
 

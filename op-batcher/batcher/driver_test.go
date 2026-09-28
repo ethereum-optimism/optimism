@@ -532,9 +532,8 @@ func TestBatchSubmitter_LoadBlocksIntoState_DepositPayload(t *testing.T) {
 	})
 }
 
-// TestBatchSubmitter_SendTransactionInvariants checks that txdata violating a
 // sendTransaction invariant shuts the batcher down through closeApp and returns
-// an error, instead of exiting the process.
+// an error.
 func TestBatchSubmitter_SendTransactionInvariants(t *testing.T) {
 	twoFrames := []frameData{{data: []byte{1}}, {data: []byte{2}}}
 	tests := []struct {
