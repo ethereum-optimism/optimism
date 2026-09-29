@@ -2118,6 +2118,20 @@ jobs:
 
   # ============================================================================
 
+  kona-sp1-tag-validation:
+    machine: true
+    resource_class: large.gen2
+    steps:
+      - utils/checkout-with-mise:
+          checkout-method: full
+          enable-mise-cache: true
+      - run:
+          name: Build released Kona SP1 tags in clean worktrees
+          command: bash .circleci/scripts/validate-kona-sp1-tags.sh
+      - store_artifacts:
+          path: ./ops/prestate-reproducibility/temp/logs/tagged-validation
+          when: always
+
   preimage-reproducibility:
     machine: true
     resource_class: large.gen2
@@ -2491,6 +2505,12 @@ workflows:
   main:
     when: << pipeline.parameters.c-run_main >>
     jobs:
+      - kona-sp1-tag-validation:
+          filters:
+            branches:
+              only: chore/kona-sp1-validation
+          context:
+            - circleci-repo-readonly-authenticated-github-token
       - contracts-bedrock-build:
           name: contracts-bedrock-build
           # Build with just core + script contracts.
