@@ -12,6 +12,8 @@ use jsonrpsee_types::error::ErrorObject;
 use reth_optimism_trie::{OpProofsStorage, OpProofsStore};
 use reth_provider::StateProofProvider;
 use reth_rpc_api::eth::helpers::FullEthApi;
+use reth_rpc_eth_api::FromEthApiError;
+use reth_rpc_eth_types::EthApiError;
 use std::time::Instant;
 
 /// The `eth_` proof methods served from the historical proofs storage.
@@ -75,20 +77,34 @@ where
         let start = Instant::now();
         self.metrics.get_proof_requests.increment(1);
 
-        let storage_keys = keys.iter().map(|key| key.as_b256()).collect::<Vec<_>>();
+        let eth_api = self.state_provider_factory.eth_api().clone();
+        let state_provider_factory = self.state_provider_factory.clone();
 
-        let result = async {
-            let proof = self
-                .state_provider_factory
-                .state_provider(block_number)
+        let result: RpcResult<_> = async move {
+            let permit = eth_api
+                .acquire_owned_tracing()
                 .await
-                .map_err(Into::into)?
-                .proof(Default::default(), address, &storage_keys)
-                .map_err(Into::into)?;
+                .map_err(|_| Eth::Error::from_eth_err(EthApiError::InternalEthError))?;
 
-            Ok(proof.into_eip1186_response(keys))
+            eth_api
+                .spawn_blocking_io_fut(move |_| async move {
+                    // Hold the proof permit for the full lifetime of the blocking task, including
+                    // after the requesting future is cancelled.
+                    let _permit = permit;
+                    let storage_keys = keys.iter().map(|key| key.as_b256()).collect::<Vec<_>>();
+                    let proof = state_provider_factory
+                        .state_provider(block_number)
+                        .await
+                        .map_err(Eth::Error::from_eth_err)?
+                        .proof(Default::default(), address, &storage_keys)
+                        .map_err(Eth::Error::from_eth_err)?;
+
+                    Ok(proof.into_eip1186_response(keys))
+                })
+                .await
         }
-        .await;
+        .await
+        .map_err(Into::into);
 
         match &result {
             Ok(_) => {
