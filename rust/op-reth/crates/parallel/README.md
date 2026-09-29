@@ -1,5 +1,7 @@
 # Optimistic OP execution
 
+See the [PoC write-up](POC.md) for the design decisions, summarized results, and production gates.
+
 Execution remains sequential by default. The node accepts `--execution.mode shadow` or
 `--execution.mode parallel`. Both modes cover Engine payload validation, historical execution,
 forced ordinary transactions, and pool transactions. Tracing stays sequential. Shadow mode commits
@@ -99,6 +101,13 @@ Existing bounded preview coverage is unchanged; transactions beyond it remain ex
 For downstream Rust integrations, `OpBlockExecutionCtx` has a new `parallel_candidates` field;
 sequential callers can supply an empty vector or use `..Default::default()`. Executor factories
 are now `Clone` rather than `Copy` because they can share an `Arc<ParallelRuntime>`.
+`OpExecutorBuilder` also requires explicit cloning, custom `OpTxEnv` implementations must implement
+`Clone`, and generic users of `OpBlockExecutor` must carry its `Evm` bound. Construct `OpHandler`
+through `OpHandler::new()` rather than external struct literals; its deferred-fee storage is private.
+
+The upstream source hook currently preserves its no-op default on borrowed and `Arc` configuration
+wrappers. Those wrappers retain broker reads even when the inner configuration advertises source
+support. Stock node paths use concrete `OpEvmConfig`; wrapper support is an upstream follow-up.
 
 ## Fees and SDM policies
 

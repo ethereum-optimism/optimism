@@ -13,12 +13,12 @@ controlled overall comparison is the final sequential reference versus final par
 using the same fixture and run. Earlier records isolate stages of the implementation:
 
 1. The initial broker/window prototype, before sender filtering and stock-precompile reuse.
-2. The optimized broker/window checkpoint, commit `daa143adca`.
+2. The optimized broker/window checkpoint, commit `5da8b7a3d3`.
 3. Independent readers versus broker reads, measured on eight-transaction blocks.
 4. Rolling versus direct windows, measured on 64-transaction blocks.
 
 The original prototype and checkpoint numbers below come from the benchmark record in
-`rust/op-reth/crates/parallel/README.md` at `daa143adca`. The later data is preserved in
+`rust/op-reth/crates/parallel/README.md` at `5da8b7a3d3`. The later data is preserved in
 [independent-reads.csv](independent-reads.csv) and [rolling.csv](rolling.csv). These are separate
 experiments. Their ratios must not be multiplied to claim a cumulative speedup.
 
@@ -239,8 +239,10 @@ end-to-end before/after measurements. Reorg, historical, subblock, selector, lif
 cancellation and source-failure behavior have correctness coverage, which does not quantify their
 performance.
 
-The saved validation record is 542 passing execution/integration/CLI tests plus the 121-configuration
-rolling benchmark, with formatting, Clippy, rustdoc and affected no_std checks passing. Execution
+The benchmark-time validation record is 542 passing execution/integration/CLI tests plus the
+121-configuration rolling benchmark, with formatting, Clippy, rustdoc and affected no_std checks
+passing. The subsequent rebased pre-PR run passes 603 tests, including txpool coverage and regressions
+for provider errors wrapped by EVM execution or racing cancellation. Execution
 remains sequential by default; window remains the selected scheduler if parallel mode is enabled
 without an explicit scheduler flag. Real-chain replay with fixed parents, budgets, cache policy and
 worker allocation is needed before choosing a production default.
