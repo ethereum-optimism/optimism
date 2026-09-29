@@ -13,17 +13,19 @@ function cleanup() {
 }
 trap cleanup EXIT
 
-echo "Creating worktree in: ${WORKTREE_DIR}"
-# Create a detached worktree - we'll checkout specific tags in the build functions
-git -C "${REPO_ROOT}" worktree add "${WORKTREE_DIR}" HEAD --detach
-
 STATES_DIR="${SCRIPTS_DIR}/temp/states"
 LOGS_DIR="${SCRIPTS_DIR}/temp/logs"
 BIN_DIR="${WORKTREE_DIR}/op-program/bin/"
 VERSIONS_FILE="${STATES_DIR}/versions.json"
+STANDARD_PRESTATES_SNAPSHOT_FILE="${STATES_DIR}/standard-prestates.toml"
+KONA_SP1_VERSIONS_FILE="${TMP_DIR}/kona-sp1-versions.txt"
 
 mkdir -p "${STATES_DIR}" "${LOGS_DIR}"
+(cd "${REPO_ROOT}" && mise exec -- go run ./ops/prestate-reproducibility/prestates/kona-sp1-versions --output "${STANDARD_PRESTATES_SNAPSHOT_FILE}") > "${KONA_SP1_VERSIONS_FILE}"
 
+echo "Creating worktree in: ${WORKTREE_DIR}"
+# Create a detached worktree - we'll checkout specific tags in the build functions
+git -C "${REPO_ROOT}" worktree add "${WORKTREE_DIR}" HEAD --detach
 cd "${WORKTREE_DIR}"
 
 function build_prestates() {
@@ -68,8 +70,83 @@ function build_prestates() {
   fi
 }
 
+function fail_kona_sp1() {
+  echo "Kona SP1 version $1: $2" >&2
+  return 1
+}
+
+function build_kona_sp1() {
+  local version=$1
+  local log_file=$2
+  local ref="refs/tags/kona-sp1-proposer/v${version}"
+  local commit
+  commit=$(git rev-parse --verify "${ref}^{commit}" 2>/dev/null) || {
+    fail_kona_sp1 "$version" "missing tag ${ref}"
+    return 1
+  }
+  echo "Kona SP1 version ${version}: ${ref} -> ${commit}; logs: ${log_file}"
+  git checkout --detach --force "$commit" > "$log_file" 2>&1 || {
+    fail_kona_sp1 "$version" "failed to check out ${commit}"
+    return 1
+  }
+  git clean -fdX -- rust/kona/sp1/elf >> "$log_file" 2>&1
+  if [[ -n "${KONA_CUSTOM_CONFIGS_DIR:-}" ]]; then
+    fail_kona_sp1 "$version" "KONA_CUSTOM_CONFIGS_DIR must be unset"
+    return 1
+  fi
+  if [[ ! -f rust/kona/sp1/justfile ]]; then
+    fail_kona_sp1 "$version" "tag has no SP1 guest recipe"
+    return 1
+  fi
+  if ! (mise trust && mise install -v -y go just jq 'github:succinctlabs/sp1') 2>&1 | tee -a "$log_file"; then
+    fail_kona_sp1 "$version" "failed to install tag-pinned tools"
+    return 1
+  fi
+  if ! (cd rust/kona/sp1 && mise exec -- just install-sp1-toolchain && mise exec -- just build-elfs) 2>&1 | tee -a "$log_file"; then
+    fail_kona_sp1 "$version" "tagged Docker build failed"
+    return 1
+  fi
+
+  local manifest="rust/kona/sp1/elf/vkeys.toml"
+  local elf="rust/kona/sp1/elf/super-aggregation-elf"
+  local line hash derived output
+  [[ -f "$manifest" && -s "$elf" ]] || {
+    fail_kona_sp1 "$version" "missing aggregation manifest or ELF"
+    return 1
+  }
+  line=$(grep -E '^[[:space:]]*super-aggregation[[:space:]]*=' "$manifest" || true)
+  if [[ ! "$line" =~ ^[[:space:]]*super-aggregation[[:space:]]*=[[:space:]]*\"(0x[0-9a-fA-F]{64})\"[[:space:]]*$ ]]; then
+    fail_kona_sp1 "$version" "missing, duplicate, or malformed super-aggregation vkey"
+    return 1
+  fi
+  hash="${BASH_REMATCH[1]}"
+  if [[ "$hash" =~ ^0x0{64}$ ]]; then
+    fail_kona_sp1 "$version" "zero super-aggregation vkey"
+    return 1
+  fi
+  output=$(SP1_PROVER=cpu mise exec -- cargo prove vkey --elf "$elf" 2>&1) || {
+    fail_kona_sp1 "$version" "could not derive vkey from aggregation ELF: ${output}"
+    return 1
+  }
+  derived=$(printf '%s\n' "$output" | grep -oE '0x[[:alnum:]]+' || true)
+  if [[ ! "$derived" =~ ^0x[0-9a-fA-F]{64}$ ]]; then
+    fail_kona_sp1 "$version" "ELF produced no unique bytes32 vkey"
+    return 1
+  fi
+  if [[ "$(printf '%s' "$hash" | tr 'A-F' 'a-f')" != "$(printf '%s' "$derived" | tr 'A-F' 'a-f')" ]]; then
+    fail_kona_sp1 "$version" "manifest vkey ${hash} differs from ELF vkey ${derived}"
+    return 1
+  fi
+  VERSIONS_JSON=$(printf '%s\n' "$VERSIONS_JSON" | jq --arg version "$version" --arg hash "$hash" '. + [{version: $version, hash: $hash, type: "kona-sp1"}]')
+  echo "Kona SP1 version ${version}: rebuilt super-aggregation vkey ${hash}"
+}
+
 VERSIONS_JSON="[]"
-readarray -t VERSIONS < <(git tag --list 'kona-client/v*' --sort=taggerdate)
+git tag --list 'kona-client/v*' --sort=taggerdate > "${TMP_DIR}/cannon-tags"
+VERSIONS=()
+while IFS= read -r tag; do
+  VERSIONS+=("$tag")
+done < "${TMP_DIR}/cannon-tags"
 
 for i in "${!VERSIONS[@]}"; do
   tag="${VERSIONS[i]}"
@@ -85,6 +162,17 @@ for i in "${!VERSIONS[@]}"; do
     fi
   fi
 done
+
+kona_count=0
+while IFS= read -r version; do
+  [[ -n "$version" ]] || continue
+  kona_count=$((kona_count + 1))
+  log_file="${LOGS_DIR}/build-kona-sp1-proposer-v${version}.txt"
+  build_kona_sp1 "$version" "$log_file"
+done < "$KONA_SP1_VERSIONS_FILE"
+if [[ "$kona_count" -eq 0 ]]; then
+  echo "Kona SP1 registry selection: 0 entries; Cannon checks completed"
+fi
 
 echo "${VERSIONS_JSON}" > "${VERSIONS_FILE}"
 echo "All prestates successfully built and available in ${STATES_DIR}"
