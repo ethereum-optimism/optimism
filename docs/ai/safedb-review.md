@@ -50,7 +50,7 @@ Two writes:
   `safe_head` at that L1 block. Re-record nothing when no earlier entry survives: the L1
   block that made it safe is then unknown.
 
-Four queries:
+Queries:
 
 - **safe head at L1** — the entry at the highest L1 block at or below the query. The
   returned L1 block is normally lower than the one asked for.
