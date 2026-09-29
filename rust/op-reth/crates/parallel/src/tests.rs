@@ -612,6 +612,70 @@ fn rolling_dropped_spawned_tasks_still_complete_their_drain() {
 }
 
 #[test]
+fn provider_errors_survive_worker_wrapping_and_cancellation() {
+    struct Reader {
+        generation: ExecutionGeneration,
+        panic: bool,
+    }
+    impl Database for Reader {
+        type Error = SpeculationError;
+        fn basic(&mut self, _: Address) -> Result<Option<AccountInfo>, Self::Error> {
+            // A running read can fail after its attempt is retired or its build is cancelled.
+            self.generation.cancel();
+            assert!(!self.panic, "provider panicked during cancellation");
+            Err(SpeculationError::Source("provider failed during cancellation".into()))
+        }
+        fn storage(&mut self, _: Address, _: U256) -> Result<U256, Self::Error> {
+            unreachable!()
+        }
+        fn code_by_hash(&mut self, _: B256) -> Result<Bytecode, Self::Error> {
+            unreachable!()
+        }
+        fn block_hash(&mut self, _: u64) -> Result<B256, Self::Error> {
+            unreachable!()
+        }
+    }
+    for (rolling, panic) in [(false, false), (true, false), (false, true), (true, true)] {
+        let runtime =
+            ParallelRuntime::new(ParallelExecutionConfig { workers: 1, ..Default::default() })
+                .unwrap();
+        let generation = ExecutionGeneration::default();
+        let cancel = generation.clone();
+        let session = SnapshotSession::new(
+            Arc::new(move || {
+                Ok(Box::new(Reader { generation: cancel.clone(), panic })
+                    as Box<dyn Database<Error = SpeculationError>>)
+            }),
+            65536,
+        );
+        let mut canonical =
+            revm::database::State::builder().with_database(InMemoryDB::default()).build();
+        let reads = session.capture(&mut canonical).unwrap();
+        let execute: Arc<SpeculativeWorker<(), ()>> = Arc::new(|(), db| {
+            db.basic(Address::ZERO).map_err(|error| SpeculationError::Worker(error.to_string()))?;
+            Ok(())
+        });
+        if rolling {
+            let pipeline = ExecutionPipeline::new(&runtime, execute, generation, &reads);
+            pipeline.submit(B256::ZERO, (), reads).unwrap();
+            assert!(pipeline.take(B256::ZERO).is_none_or(|result| result.is_err()));
+            pipeline.cancel_and_drain();
+            assert!(pipeline.source_failed(), "cancellation must not hide failed source health");
+        } else {
+            let output = runtime.execute_with_reads(
+                &mut canonical,
+                vec![()],
+                execute,
+                &generation,
+                Some(reads),
+            );
+            assert!(matches!(output[0], Err(SpeculationError::Source(_))));
+        }
+        assert_eq!(runtime.statistics().broker_reads, 0);
+    }
+}
+
+#[test]
 fn rolling_cancels_queued_operations_without_waiting_for_another_build() {
     let runtime =
         ParallelRuntime::new(ParallelExecutionConfig { workers: 1, ..Default::default() }).unwrap();

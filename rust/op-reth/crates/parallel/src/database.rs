@@ -241,15 +241,18 @@ impl SpeculativeDatabase {
     }
 
     pub(crate) fn finish(self) -> Result<Dependencies, SpeculationError> {
-        if self.attempt_generation.as_ref().is_some_and(crate::ExecutionGeneration::is_cancelled) ||
+        if self.source_failed.get() {
+            Err(SpeculationError::Source("a read failed during execution or observation".into()))
+        } else if self
+            .attempt_generation
+            .as_ref()
+            .is_some_and(crate::ExecutionGeneration::is_cancelled) ||
             self.generation.is_cancelled() ||
             self.session_generation
                 .as_ref()
                 .is_some_and(crate::ExecutionGeneration::is_cancelled)
         {
             Err(SpeculationError::Cancelled)
-        } else if self.source_failed.get() {
-            Err(SpeculationError::Source("a read failed during execution or observation".into()))
         } else if self.exceeded {
             Err(SpeculationError::Limit)
         } else {

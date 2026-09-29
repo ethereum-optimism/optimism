@@ -1713,3 +1713,97 @@ fn rolling_teardown_failure_disables_the_retained_session(destroy_executor: bool
     assert!(session.is_disabled(), "the next block/subblock must retain broker fallback");
     assert_eq!(db.cache.accounts[&Address::repeat_byte(1)].account_info().unwrap().nonce, 1);
 }
+
+#[test_case::test_case(ExecutionScheduler::Window; "window")]
+#[test_case::test_case(ExecutionScheduler::Rolling; "rolling")]
+fn evm_read_failure_disables_direct_reads_and_retries_canonically(scheduler: ExecutionScheduler) {
+    struct Reader(ParentReader);
+    impl revm::Database for Reader {
+        type Error = reth_optimism_parallel::SpeculationError;
+        fn basic(&mut self, address: Address) -> Result<Option<AccountInfo>, Self::Error> {
+            self.0.basic(address)
+        }
+        fn storage(&mut self, address: Address, slot: U256) -> Result<U256, Self::Error> {
+            self.0.storage(address, slot)
+        }
+        fn code_by_hash(&mut self, hash: B256) -> Result<Bytecode, Self::Error> {
+            self.0.code_by_hash(hash)
+        }
+        fn block_hash(&mut self, _: u64) -> Result<B256, Self::Error> {
+            Err(Self::Error::Source("parent hash read failed".into()))
+        }
+    }
+    // BLOCKHASH propagates the provider error through the EVM's normal transaction error path.
+    let code = [0x60, 0x00, 0x40, 0x50, 0x00];
+    let txs: Vec<_> = (1..=4).map(|sender| transfer(sender, 0, CONTRACT)).collect();
+    let reference = run(ParallelExecutionConfig::default(), &txs, &code, None, BENEFICIARY);
+    let mut db = database(&code);
+    let parent = ParentReader(Arc::new(db.database.clone()), Arc::default());
+    let session = Arc::new(reth_optimism_parallel::SnapshotSession::new(
+        Arc::new(move || {
+            Ok(Box::new(Reader(parent.clone()))
+                as Box<dyn revm::Database<Error = reth_optimism_parallel::SpeculationError>>)
+        }),
+        64 * 1024 * 1024,
+    ));
+    let runtime = Arc::new(
+        ParallelRuntime::new(ParallelExecutionConfig {
+            mode: ExecutionMode::Parallel,
+            scheduler,
+            workers: 1,
+            max_in_flight: 2,
+            ..Default::default()
+        })
+        .unwrap(),
+    );
+    let factory = OpBlockExecutorFactory::new(
+        OpAlloyReceiptBuilder::default(),
+        OpChainHardforks::op_mainnet(),
+        OpEvmFactory::<crate::OpTx, ObservedRefundPolicy<Policy>>::default(),
+    )
+    .with_parallel_runtime(runtime.clone());
+    let evm = factory.evm_factory.create_evm(
+        &mut db,
+        EvmEnv::new(
+            CfgEnv::new_with_spec(OpSpecId::JOVIAN),
+            BlockEnv {
+                timestamp: U256::from(JOVIAN_TIMESTAMP),
+                number: U256::from(1),
+                gas_limit: 10_000_000,
+                basefee: 2,
+                beneficiary: BENEFICIARY,
+                ..Default::default()
+            },
+        ),
+    );
+    let mut executor = factory.create_executor_with_snapshot(
+        evm,
+        OpBlockExecutionCtx {
+            post_exec_mode: PostExecMode::Produce,
+            parallel_candidates: txs
+                .iter()
+                .map(|tx| ParallelCandidate {
+                    hash: tx.trie_hash(),
+                    transaction: crate::OpTx::from_recovered_tx(tx.inner(), tx.signer()),
+                })
+                .collect(),
+            ..Default::default()
+        },
+        Some(session.clone()),
+    );
+    executor.execute_transaction(&txs[0]).unwrap();
+    assert!(session.is_disabled(), "EVM error wrapping must preserve failed source health");
+    assert_eq!(runtime.statistics().reused, 0);
+    let opens = runtime.statistics().provider_opens;
+    assert!(opens > 0);
+    for tx in &txs[1..] {
+        executor.execute_transaction(tx).unwrap();
+    }
+    assert_eq!(executor.receipts, reference.receipts);
+    assert_eq!(executor.refund_snapshot(), reference.policy);
+    assert_eq!(runtime.statistics().provider_opens, opens, "failed sources stay disabled");
+    assert!(runtime.statistics().broker_reads > 0, "later windows use the broker");
+    drop(executor);
+    assert_eq!(state_root(&db), reference.state_root);
+    assert!(session.capture(&mut db).is_none(), "retained sessions preserve fallback");
+}

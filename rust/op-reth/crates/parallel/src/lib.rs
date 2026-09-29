@@ -470,14 +470,21 @@ impl ParallelRuntime {
             );
         }
         drop(events);
-        let mut source_failed = false;
+        let mut source_failure = None;
         loop {
             match receiver.recv() {
                 Ok(database::Event::Read(request)) => request.respond(database),
                 Ok(database::Event::Finished(index, result)) => {
+                    if let Err(error @ SpeculationError::Source(_)) = &result {
+                        source_failure.get_or_insert_with(|| error.clone());
+                    }
                     results[index] = Some(result);
                 }
-                Ok(database::Event::SourceFailed) => source_failed = true,
+                Ok(database::Event::SourceFailed) => {
+                    source_failure.get_or_insert_with(|| {
+                        SpeculationError::Source("reader teardown panicked".into())
+                    });
+                }
                 Err(_) => break,
             }
         }
@@ -486,13 +493,13 @@ impl ParallelRuntime {
         results
             .into_iter()
             .map(|result| {
+                if let Some(error) = &source_failure {
+                    return Err(error.clone());
+                }
                 if generation.is_cancelled() ||
                     reads.as_ref().is_some_and(|reads| reads.generation.is_cancelled())
                 {
                     return Err(SpeculationError::Cancelled);
-                }
-                if source_failed {
-                    return Err(SpeculationError::Source("reader teardown panicked".into()));
                 }
                 result
                     .unwrap_or_else(|| Err(SpeculationError::Worker("worker disconnected".into())))
@@ -556,7 +563,13 @@ fn run_attempt<Job, Output>(
         metrics::histogram!("optimism_parallel.provider_read_seconds")
             .record(read_wait.as_secs_f64());
     }
-    let result = result.and_then(|output| db.finish().map(|reads| (output, reads)));
+    // EVM error wrapping can hide a provider error. Always inspect database health so a failed
+    // source disables the session even when execution failed or the attempt was cancelled.
+    let reads = db.finish();
+    let result = match result {
+        Err(error @ SpeculationError::Source(_)) => Err(error),
+        result => reads.and_then(|reads| result.map(|output| (output, reads))),
+    };
     if let Ok((_, reads)) = &result {
         counters.completed.fetch_add(1, Ordering::Relaxed);
         metrics::histogram!("optimism_parallel.read_bytes").record(reads.size_bytes() as f64);
