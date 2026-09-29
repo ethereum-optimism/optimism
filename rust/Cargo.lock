@@ -13445,6 +13445,7 @@ dependencies = [
  "reth-primitives-traits",
  "reth-revm",
  "reth-rpc-eth-api",
+ "reth-rpc-eth-types",
  "reth-storage-errors",
  "revm",
  "rstest",

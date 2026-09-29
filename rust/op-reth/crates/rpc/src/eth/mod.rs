@@ -20,13 +20,13 @@ use eyre::WrapErr;
 use futures::StreamExt;
 use op_alloy_consensus::OpReceipt;
 use op_alloy_network::Optimism;
-use op_alloy_rpc_types_engine::OpFlashblockPayloadBase;
 pub use receipt::{OpReceiptBuilder, OpReceiptFieldsBuilder};
 use reqwest::Url;
-use reth_chainspec::{EthereumHardforks, Hardforks};
+use reth_chainspec::{ChainSpecProvider, EthChainSpec, EthereumHardforks, Hardforks};
 use reth_evm::ConfigureEvm;
-use reth_node_api::{FullNodeComponents, FullNodeTypes, HeaderTy, NodeTypes};
+use reth_node_api::{FullNodeComponents, FullNodeTypes, NodeTypes};
 use reth_node_builder::rpc::{EthApiBuilder, EthApiCtx};
+use reth_optimism_evm::{DEFAULT_OP_BLOCK_TIME, OpNextBlockEnvAttributes, OpPendingEnvBuilder};
 use reth_optimism_flashblocks::{
     FlashBlockBuildInfo, FlashBlockCompleteSequence, FlashBlockCompleteSequenceRx,
     FlashBlockConsensusClient, FlashBlockRx, FlashBlockService, FlashblockCachedReceipt,
@@ -39,7 +39,7 @@ use reth_rpc_eth_api::{
     RpcNodeCoreExt, RpcTypes,
     helpers::{
         EthApiSpec, EthFees, EthState, EthSubscriptions, LoadFee, LoadPendingBlock, LoadState,
-        SpawnBlocking, Trace, bal::GetBlockAccessList, pending_block::BuildPendingEnv,
+        SpawnBlocking, Trace, bal::GetBlockAccessList,
     },
 };
 use reth_rpc_eth_types::{
@@ -63,6 +63,13 @@ use tracing::{info, warn};
 
 /// Maximum duration to wait for a fresh flashblock when one is being built.
 const MAX_FLASHBLOCK_WAIT_DURATION: Duration = Duration::from_millis(50);
+
+fn pending_block_timestamp_increment(block_time_hint: Option<Duration>) -> u64 {
+    block_time_hint
+        .map(|duration| duration.as_secs().saturating_add(u64::from(duration.subsec_nanos() > 0)))
+        .filter(|&seconds| seconds > 0)
+        .unwrap_or(DEFAULT_OP_BLOCK_TIME)
+}
 
 /// Adapter for [`EthApiInner`], which holds all the data required to serve core `eth_` API.
 pub type EthApiNodeBackend<N, Rpc> = EthApiInner<N, Rpc>;
@@ -587,11 +594,7 @@ impl<NetworkT> OpEthApiBuilder<NetworkT> {
 impl<N, NetworkT> EthApiBuilder<N> for OpEthApiBuilder<NetworkT>
 where
     N: FullNodeComponents<
-            Evm: ConfigureEvm<
-                NextBlockEnvCtx: BuildPendingEnv<HeaderTy<N::Types>>
-                                     + From<OpFlashblockPayloadBase>
-                                     + Unpin,
-            >,
+            Evm: ConfigureEvm<NextBlockEnvCtx = OpNextBlockEnvAttributes>,
             Types: NodeTypes<
                 ChainSpec: Hardforks + EthereumHardforks,
                 Payload: reth_node_api::PayloadTypes<
@@ -624,6 +627,9 @@ where
             RpcConverter::new(OpReceiptConverter::new(ctx.components.provider().clone()))
                 .with_mapper(OpTxInfoMapper::new(ctx.components.provider().clone()))
                 .with_tx_env_converter(reth_optimism_evm::tx::OpTxEnvConverter);
+        let pending_block_time = pending_block_timestamp_increment(
+            ctx.components.provider().chain_spec().chain().average_blocktime_hint(),
+        );
 
         let sequencer_client = if let Some(url) = sequencer_url {
             Some(
@@ -673,7 +679,11 @@ where
             None
         };
 
-        let eth_api = ctx.eth_api_builder().with_rpc_converter(rpc_converter).build_inner();
+        let eth_api = ctx
+            .eth_api_builder()
+            .with_rpc_converter(rpc_converter)
+            .with_pending_env_builder(OpPendingEnvBuilder::new(pending_block_time))
+            .build_inner();
 
         Ok(OpEthApi::new(
             eth_api,
@@ -682,5 +692,22 @@ where
             flashblocks,
             retain_forwarded_txs,
         ))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn pending_block_time_uses_chain_hint() {
+        assert_eq!(pending_block_timestamp_increment(Some(Duration::from_secs(2))), 2);
+        assert_eq!(pending_block_timestamp_increment(Some(Duration::from_millis(500))), 1);
+    }
+
+    #[test]
+    fn pending_block_time_falls_back_to_op_default() {
+        assert_eq!(pending_block_timestamp_increment(None), DEFAULT_OP_BLOCK_TIME);
+        assert_eq!(pending_block_timestamp_increment(Some(Duration::ZERO)), DEFAULT_OP_BLOCK_TIME);
     }
 }
