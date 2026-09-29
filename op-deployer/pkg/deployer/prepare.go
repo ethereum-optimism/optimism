@@ -15,12 +15,12 @@ import (
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/env"
 	"github.com/ethereum-optimism/optimism/op-service/ctxinterrupt"
 	"github.com/ethereum-optimism/optimism/op-service/ioutil"
-	oplog "github.com/ethereum-optimism/optimism/op-service/log"
+	"github.com/ethereum-optimism/optimism/op-service/log"
+	"github.com/ethereum-optimism/optimism/op-service/log/logcli"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/ethclient"
-	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/rpc"
 	"github.com/urfave/cli/v2"
 )
@@ -38,6 +38,9 @@ type PrepareConfig struct {
 	// GenesisTimeOffset is the number of seconds added to the L1 anchor block's timestamp
 	// to produce the committed L2 genesis timestamp.
 	GenesisTimeOffset uint64
+	// AllowUnoptimizedContracts is a test-only opt-in that lets oversized dev-profile
+	// artifacts build an L2 genesis.
+	AllowUnoptimizedContracts bool
 
 	privateKeyECDSA *ecdsa.PrivateKey
 }
@@ -73,9 +76,9 @@ func (c *PrepareConfig) Check() error {
 
 func PrepareCLI() func(cliCtx *cli.Context) error {
 	return func(cliCtx *cli.Context) error {
-		logCfg := oplog.ReadCLIConfig(cliCtx)
-		l := oplog.NewLogger(oplog.AppOut(cliCtx), logCfg)
-		oplog.SetGlobalLogHandler(l.Handler())
+		logCfg := logcli.ReadCLIConfig(cliCtx)
+		l := logcli.NewLogger(logcli.AppOut(cliCtx), logCfg)
+		logcli.SetGlobalLogHandler(l.Handler())
 
 		ctx := ctxinterrupt.WithCancelOnInterrupt(cliCtx.Context)
 
@@ -242,7 +245,10 @@ func Prepare(ctx context.Context, cfg PrepareConfig) error {
 	}
 
 	// Build L2 genesis from the addresses and genesis time just committed.
-	genesisEnv := &pipeline.Env{Logger: cfg.Logger, Deployer: deployer}
+	genesisEnv := &pipeline.Env{
+		Logger: cfg.Logger, Deployer: deployer,
+		AllowUnoptimizedContracts: cfg.AllowUnoptimizedContracts,
+	}
 	if err := generateGenesisForChains(genesisEnv, intent, bundle, st); err != nil {
 		return err
 	}

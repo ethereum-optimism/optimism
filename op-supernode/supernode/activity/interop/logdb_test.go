@@ -2,15 +2,18 @@ package interop
 
 import (
 	"errors"
+	"fmt"
 	"testing"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
-	gethlog "github.com/ethereum/go-ethereum/log"
 	"github.com/stretchr/testify/require"
 
+	"github.com/ethereum-optimism/optimism/op-core/interop"
 	messages "github.com/ethereum-optimism/optimism/op-core/interop/messages"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
+	oplog "github.com/ethereum-optimism/optimism/op-service/log"
+	cc "github.com/ethereum-optimism/optimism/op-supernode/supernode/chain_container"
 )
 
 // =============================================================================
@@ -27,7 +30,7 @@ func TestLogsDB_Persistence(t *testing.T) {
 
 		// Create and populate a logsDB
 		{
-			db, err := openLogsDB(gethlog.New(), chainID, dataDir)
+			db, err := openLogsDB(oplog.New(), chainID, dataDir)
 			require.NoError(t, err)
 
 			// Seal parent block
@@ -51,7 +54,7 @@ func TestLogsDB_Persistence(t *testing.T) {
 
 		// Reopen and verify persistence
 		{
-			db, err := openLogsDB(gethlog.New(), chainID, dataDir)
+			db, err := openLogsDB(oplog.New(), chainID, dataDir)
 			require.NoError(t, err)
 			defer db.Close()
 
@@ -69,11 +72,11 @@ func TestLogsDB_Persistence(t *testing.T) {
 		chainID1 := eth.ChainIDFromUInt64(10)
 		chainID2 := eth.ChainIDFromUInt64(8453)
 
-		db1, err := openLogsDB(gethlog.New(), chainID1, dataDir)
+		db1, err := openLogsDB(oplog.New(), chainID1, dataDir)
 		require.NoError(t, err)
 		defer db1.Close()
 
-		db2, err := openLogsDB(gethlog.New(), chainID2, dataDir)
+		db2, err := openLogsDB(oplog.New(), chainID2, dataDir)
 		require.NoError(t, err)
 		defer db2.Close()
 
@@ -221,7 +224,7 @@ func TestVerifyPreviousTimestampSealed(t *testing.T) {
 			t.Parallel()
 
 			interop := &Interop{
-				log:                        gethlog.New(),
+				log:                        oplog.New(),
 				activationTimestamp:        tt.activationTS,
 				verificationStartTimestamp: tt.activationTS,
 			}
@@ -270,7 +273,7 @@ func TestProcessBlockLogs(t *testing.T) {
 	t.Run("empty receipts seals block with no logs", func(t *testing.T) {
 		t.Parallel()
 
-		interop := &Interop{log: gethlog.New()}
+		interop := &Interop{log: oplog.New()}
 		db := &mockLogsDB{}
 		blockInfo := &testBlockInfo{
 			hash:       common.Hash{0x02},
@@ -292,7 +295,7 @@ func TestProcessBlockLogs(t *testing.T) {
 	t.Run("multiple logs extracted from receipts", func(t *testing.T) {
 		t.Parallel()
 
-		interop := &Interop{log: gethlog.New()}
+		interop := &Interop{log: oplog.New()}
 		db := &mockLogsDB{}
 		blockInfo := &testBlockInfo{
 			hash:       common.Hash{0x02},
@@ -325,7 +328,7 @@ func TestProcessBlockLogs(t *testing.T) {
 	t.Run("genesis block handled correctly", func(t *testing.T) {
 		t.Parallel()
 
-		interop := &Interop{log: gethlog.New()}
+		interop := &Interop{log: oplog.New()}
 		db := &mockLogsDB{}
 		blockInfo := &testBlockInfo{
 			hash:       common.Hash{0x01},
@@ -344,7 +347,7 @@ func TestProcessBlockLogs(t *testing.T) {
 	t.Run("first block at non-zero number is sealed directly", func(t *testing.T) {
 		t.Parallel()
 
-		interop := &Interop{log: gethlog.New()}
+		interop := &Interop{log: oplog.New()}
 		db := &mockLogsDB{}
 		blockInfo := &testBlockInfo{
 			hash:       common.Hash{0x02},
@@ -365,7 +368,7 @@ func TestProcessBlockLogs(t *testing.T) {
 	t.Run("first block with logs succeeds", func(t *testing.T) {
 		t.Parallel()
 
-		interop := &Interop{log: gethlog.New()}
+		interop := &Interop{log: oplog.New()}
 		db := &mockLogsDB{}
 		blockInfo := &testBlockInfo{
 			hash:       common.Hash{0x02},
@@ -395,11 +398,11 @@ func TestProcessBlockLogs(t *testing.T) {
 		dataDir := t.TempDir()
 		chainID := eth.ChainIDFromUInt64(10)
 
-		db, err := openLogsDB(gethlog.New(), chainID, dataDir)
+		db, err := openLogsDB(oplog.New(), chainID, dataDir)
 		require.NoError(t, err)
 		defer db.Close()
 
-		interop := &Interop{log: gethlog.New()}
+		interop := &Interop{log: oplog.New()}
 		blockInfo := &testBlockInfo{
 			hash:       common.Hash{0x02},
 			parentHash: common.Hash{0x01},
@@ -434,7 +437,7 @@ func TestProcessBlockLogs(t *testing.T) {
 	t.Run("AddLog error propagated", func(t *testing.T) {
 		t.Parallel()
 
-		interop := &Interop{log: gethlog.New()}
+		interop := &Interop{log: oplog.New()}
 		db := &mockLogsDB{addLogErr: errors.New("add log failed")}
 		blockInfo := &testBlockInfo{
 			hash:       common.Hash{0x02},
@@ -457,7 +460,7 @@ func TestProcessBlockLogs(t *testing.T) {
 	t.Run("SealBlock error propagated", func(t *testing.T) {
 		t.Parallel()
 
-		interop := &Interop{log: gethlog.New()}
+		interop := &Interop{log: oplog.New()}
 		db := &mockLogsDB{sealBlockErr: errors.New("seal failed")}
 		blockInfo := &testBlockInfo{
 			hash:       common.Hash{0x02},
@@ -482,6 +485,7 @@ type mockLogsDB struct {
 	hasBlocks      bool
 	seal           messages.BlockSeal
 	findSealErr    error
+	findSealErrAt  map[uint64]error // per-block-number override of findSealErr
 	addLogErr      error
 	sealBlockErr   error
 	addLogCalls    int
@@ -517,6 +521,9 @@ func (m *mockLogsDB) FirstSealedBlock() (messages.BlockSeal, error) {
 }
 
 func (m *mockLogsDB) FindSealedBlock(number uint64) (messages.BlockSeal, error) {
+	if err, ok := m.findSealErrAt[number]; ok {
+		return messages.BlockSeal{}, err
+	}
 	if m.findSealErr != nil {
 		return messages.BlockSeal{}, m.findSealErr
 	}
@@ -556,3 +563,49 @@ func (m *mockLogsDB) Clear() error                     { return nil }
 func (m *mockLogsDB) Close() error                     { return nil }
 
 var _ LogsDB = (*mockLogsDB)(nil)
+
+// TestSealBlockDataIntoLogsDBReadFailure proves that a FindSealedBlock infrastructure
+// fault reaches the caller unchanged. The database never answered, so it cannot prove
+// the logsDB holds stale reorg data.
+func TestSealBlockDataIntoLogsDBReadFailure(t *testing.T) {
+	t.Parallel()
+
+	chainID := eth.ChainIDFromUInt64(10)
+	readErr := fmt.Errorf("%w: GetLog(51): log not found", interop.ErrDatabaseFailure)
+
+	newInterop := func(findSealErrAt map[uint64]error) *Interop {
+		db := &mockLogsDB{
+			hasBlocks:     true,
+			latestBlock:   eth.BlockID{Hash: common.Hash{0x01}, Number: 100},
+			seal:          messages.BlockSeal{Hash: common.Hash{0x01}, Number: 100, Timestamp: 1000},
+			findSealErrAt: findSealErrAt,
+		}
+		i := &Interop{
+			log:                        oplog.New(),
+			activationTimestamp:        500,
+			verificationStartTimestamp: 500,
+			logsDBs:                    map[eth.ChainID]LogsDB{chainID: db},
+			chains:                     map[eth.ChainID]cc.InteropChain{chainID: &algoMockChain{id: chainID}},
+		}
+		i.initialized.Store(true)
+		return i
+	}
+
+	block := eth.BlockID{Hash: common.Hash{0x50}, Number: 50}
+
+	t.Run("DatabaseFailure", func(t *testing.T) {
+		t.Parallel()
+		i := newInterop(map[uint64]error{50: readErr})
+		err := i.sealBlockDataIntoLogsDB(chainID, block, nil, nil, 1000, false)
+		require.ErrorIs(t, err, interop.ErrDatabaseFailure)
+		require.NotErrorIs(t, err, ErrStaleLogsDB, "an unanswered read must not report stale data")
+	})
+
+	t.Run("HashMismatchIsStale", func(t *testing.T) {
+		t.Parallel()
+		// The database answered, but with a different hash at the same height.
+		i := newInterop(nil)
+		err := i.sealBlockDataIntoLogsDB(chainID, block, nil, nil, 1000, false)
+		require.ErrorIs(t, err, ErrStaleLogsDB)
+	})
+}

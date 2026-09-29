@@ -310,13 +310,22 @@ including the L1 transaction path. Use the task-stats log to investigate stuck w
 
 All proposer-owned variables use the `KONA_SP1_PROPOSER_` prefix.
 
+For a standard network, set `--network <name>` or `KONA_SP1_PROPOSER_NETWORK`
+to a predefined network name recognized by OP Stack services, such as `op-mainnet` or
+`op-sepolia`. The command-line
+value overrides the environment value. Custom deployments can set
+`KONA_SP1_PROPOSER_FACTORY_ADDRESS`; an explicit address overrides network lookup. Startup fails
+when neither source is set, the network name is unknown, or the selected registry chain has no
+`DisputeGameFactory` address.
+
 Required core configuration:
 
 | Variable | Purpose |
 |---|---|
-| `KONA_SP1_PROPOSER_L1_RPC` | L1 execution RPC |
+| `KONA_SP1_PROPOSER_L1_RPC` | L1 execution RPC; must support standard JSON-RPC batch requests (current proposer game-state batches contain at most 4 `eth_call` entries) |
 | `KONA_SP1_PROPOSER_SUPERROOT_RPCS` | op-supernode or single-chain op-node RPCs serving `superroot_atTimestamp`. Multiple comma-separated RPCs can be provided for redundancy |
-| `KONA_SP1_PROPOSER_FACTORY_ADDRESS` | `DisputeGameFactory` address |
+| `KONA_SP1_PROPOSER_NETWORK` | Predefined network name recognized by OP Stack services, such as `op-mainnet`; alternative to `KONA_SP1_PROPOSER_FACTORY_ADDRESS` |
+| `KONA_SP1_PROPOSER_FACTORY_ADDRESS` | Explicit `DisputeGameFactory` address; required when no network is selected and overrides network lookup |
 | `KONA_SP1_PROPOSER_PRESTATES_URL` | prestate artifact directory (`<vkey>.agg.bin.gz` + `<vkey>.range.bin.gz`) |
 | `KONA_SP1_PROPOSER_PROOF_PROVIDER` | `network` or `mock`; no default |
 | `KONA_SP1_PROPOSER_L1_BEACON_RPC` | L1 beacon API (blob sidecars for derivation witnesses) |
@@ -334,6 +343,7 @@ Optional core and operational configuration:
 | `KONA_SP1_PROPOSER_FETCH_INTERVAL` | loop interval in seconds (default `30`) |
 | `KONA_SP1_PROPOSER_METRICS_PORT` | `0` disables metrics; `auto` selects a free port (default `0`) |
 | `KONA_SP1_PROPOSER_SYNC_L1_CONFIRMATIONS` | L1 confirmation lag for pinned reads (default `0`) |
+| `KONA_SP1_PROPOSER_MAX_GAME_DEADLINE_LAG_SECONDS` | Startup discovery and pending-game eviction cutoff relative to the anchor deadline (default `1209600`, 14 days) |
 | `KONA_SP1_PROPOSER_TX_CONFIRMATION_TIMEOUT` | transaction confirmation timeout in seconds (default `180`) |
 | `KONA_SP1_PROPOSER_MAX_FEE_PER_GAS` | L1 max-fee cap in wei (default uncapped) |
 | `KONA_SP1_PROPOSER_MAX_PRIORITY_FEE_PER_GAS` | L1 priority-fee cap in wei (default uncapped) |
@@ -348,9 +358,13 @@ SP1 network configuration applies when `KONA_SP1_PROPOSER_PROOF_PROVIDER=network
 
 | Variable | Purpose |
 |---|---|
-| `KONA_SP1_PROPOSER_NETWORK_PRIVATE_KEY` | SPN requester private key, or AWS KMS key ARN when KMS is enabled |
+| `KONA_SP1_PROPOSER_NETWORK_PRIVATE_KEY` | local SPN requester private key; mutually exclusive with `KONA_SP1_PROPOSER_SPN_SIGNER_URL` |
 | `KONA_SP1_PROPOSER_NETWORK_RPC_URL` | SPN RPC override; absent or empty uses the SP1 SDK default for the selected network mode |
-| `KONA_SP1_PROPOSER_USE_KMS_REQUESTER` | use AWS KMS for request signing (default `false`) |
+| `KONA_SP1_PROPOSER_SPN_SIGNER_URL` | HTTPS op-signer endpoint for remote SPN request signing; mutually exclusive with `KONA_SP1_PROPOSER_NETWORK_PRIVATE_KEY` |
+| `KONA_SP1_PROPOSER_SPN_SIGNER_ADDRESS` | authorized op-signer address for SPN request signing |
+| `KONA_SP1_PROPOSER_SPN_SIGNER_TLS_CA` | server CA certificate path for the SPN op-signer connection |
+| `KONA_SP1_PROPOSER_SPN_SIGNER_TLS_CERT` | client certificate path for the SPN op-signer connection |
+| `KONA_SP1_PROPOSER_SPN_SIGNER_TLS_KEY` | client private-key path for the SPN op-signer connection |
 | `KONA_SP1_PROPOSER_RANGE_PROOF_STRATEGY` | range fulfillment strategy (default `auction`) |
 | `KONA_SP1_PROPOSER_AGG_PROOF_STRATEGY` | aggregation fulfillment strategy (default `auction`) |
 | `KONA_SP1_PROPOSER_SP1_TIMEOUT_SECONDS` | per-proof request deadline and client wait (default `7200`) |
@@ -386,13 +400,16 @@ increase witness collection, fixed proving overhead, SPN request count, and
 aggregation input size. `RANGE_GAS_LIMIT` limits each range request, not the
 total work of the defense.
 
-Transaction signing requires one of these configurations:
+Transaction signing requires exactly one of these configurations:
 
 | Variable | Purpose |
 |---|---|
-| `KONA_SP1_PROPOSER_PRIVATE_KEY` | local L1 transaction-signing key |
-| `KONA_SP1_PROPOSER_SIGNER_URL` | Web3Signer URL; requires `KONA_SP1_PROPOSER_SIGNER_ADDRESS` |
+| `KONA_SP1_PROPOSER_PRIVATE_KEY` | local L1 transaction-signing key; mutually exclusive with `KONA_SP1_PROPOSER_SIGNER_URL` |
+| `KONA_SP1_PROPOSER_SIGNER_URL` | Web3Signer URL; requires `KONA_SP1_PROPOSER_SIGNER_ADDRESS`; mutually exclusive with `KONA_SP1_PROPOSER_PRIVATE_KEY` |
 | `KONA_SP1_PROPOSER_SIGNER_ADDRESS` | Web3Signer address; requires `KONA_SP1_PROPOSER_SIGNER_URL` |
+| `KONA_SP1_PROPOSER_SIGNER_TLS_CA` | server CA PEM path; all three signer TLS paths are required together and enable mTLS to op-signer |
+| `KONA_SP1_PROPOSER_SIGNER_TLS_CERT` | client certificate PEM path; all three signer TLS paths are required together and enable mTLS to op-signer |
+| `KONA_SP1_PROPOSER_SIGNER_TLS_KEY` | client private-key PEM path; all three signer TLS paths are required together and enable mTLS to op-signer |
 
 Logging and telemetry:
 
@@ -404,7 +421,7 @@ Logging and telemetry:
 | `KONA_SP1_PROPOSER_LOG_FORMAT` | `pretty` or `json` (default `pretty`) |
 
 The proposer and its dependencies also observe the standard `RUST_LOG`, `NO_COLOR`,
-`SSL_CERT_DIR`, `SSL_CERT_FILE`, `OTEL_*`, proxy, AWS credential, and SP1 worker/debug
+`SSL_CERT_DIR`, `SSL_CERT_FILE`, `OTEL_*`, proxy, and SP1 worker/debug
 variables. `KONA_SP1_ELF_DIR` configures shared build/test infrastructure.
 
 ### Fast finality

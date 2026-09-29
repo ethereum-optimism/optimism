@@ -44,9 +44,6 @@ func NewSingleSupernodeWithSyncTesterRuntimeWithConfig(t devtest.T, cfg PresetCo
 	}
 	deployerOpts = append(deployerOpts, cfg.DeployerOptions...)
 
-	migration, l1Net, l2Net, depSet, _ := buildSingleChainWorldWithInteropAndState(t, keys, interopAtGenesis, cfg.LocalContractArtifactsPath, deployerOpts...)
-	validateSimpleInteropPresetConfig(t, cfg, l2Net)
-
 	jwtPath, jwtSecret := writeJWTSecret(t)
 	l1Clock := clock.SystemClock
 	var timeTravelClock *clock.AdvancingClock
@@ -54,7 +51,14 @@ func NewSingleSupernodeWithSyncTesterRuntimeWithConfig(t devtest.T, cfg PresetCo
 		timeTravelClock = clock.NewAdvancingClock()
 		l1Clock = timeTravelClock
 	}
-	l1EL, l1CL := startInProcessL1WithClockConfig(t, l1Net, jwtPath, l1Clock, cfg)
+	var l1EL *L1Geth
+	var l1CL *L1CLNode
+	migration, l1Net, l2Net, depSet, _ := buildSingleChainWorld(t, keys, interopAtGenesis, cfg.LocalContractArtifactsPath, genesisAnchorGameType(cfg),
+		func(l1Net *L1Network) (*L1Geth, *L1CLNode) {
+			l1EL, l1CL = startInProcessL1WithClockConfig(t, l1Net, jwtPath, l1Clock, cfg)
+			return l1EL, l1CL
+		}, deployerOpts...)
+	validateSimpleInteropPresetConfig(t, cfg, l2Net)
 
 	l2EL := startSequencerEL(t, l2Net, jwtPath, jwtSecret, NewELNodeIdentity(0), ResolveMixedL2ELOpts(t)...)
 	l2CL := startL2CLNode(t, keys, l1Net, l2Net, l1EL, l1CL, l2EL, jwtSecret, l2CLNodeStartConfig{

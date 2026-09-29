@@ -9,7 +9,7 @@ use async_trait::async_trait;
 use kona_sp1_super_range_executor::SuperRootAtTimestampResponse;
 
 use crate::{
-    contract::{GameStatus, ProposalStatus, ZKGameArgs},
+    contract::{BondDistributionMode, GameStatus, ProposalStatus, ZKGameArgs},
     prover::ProofKeys,
     superroot::SuperRootAt,
 };
@@ -72,13 +72,26 @@ pub(crate) struct GameLifecycle {
     pub(crate) is_finalized: bool,
 }
 
-/// Bond fields read only for a defender-wins game.
+/// Bond-distribution and withdrawal fields for terminal lifecycle recovery.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) struct BondState {
+    pub(crate) bond_distribution_mode: BondDistributionMode,
     pub(crate) credit: U256,
+    pub(crate) refund_mode_credit: U256,
     pub(crate) withdrawal_amount: U256,
     pub(crate) withdrawal_timestamp: U256,
     pub(crate) delay: U256,
+}
+
+impl BondState {
+    /// The credit a `claimCredit` call would actually pay out.
+    pub(crate) const fn claimable_credit(&self, refundable: bool) -> U256 {
+        if refundable && matches!(self.bond_distribution_mode, BondDistributionMode::Undecided) {
+            self.refund_mode_credit
+        } else {
+            self.credit
+        }
+    }
 }
 
 /// A withdrawal observation used by the latest-state claim preflight.
@@ -91,7 +104,9 @@ pub(crate) struct WithdrawalState {
 /// Independently failing fields from the latest-state claim preflight.
 #[derive(Debug)]
 pub(crate) struct ClaimPreflight {
+    pub(crate) bond_distribution_mode: Result<BondDistributionMode>,
     pub(crate) credit: Result<U256>,
+    pub(crate) refund_mode_credit: Result<U256>,
     pub(crate) withdrawal: Result<WithdrawalState>,
 }
 
@@ -181,6 +196,7 @@ pub(crate) trait L1View: Send + Sync {
     async fn anchor_root(&self, registry: Address, block: BlockId) -> Result<AnchorRoot>;
     async fn latest_game_index(&self, block: BlockId) -> Result<Option<U256>>;
     async fn registered_anchor_game(&self, block: BlockId) -> Result<Address>;
+    async fn game_type(&self, game: Address, block: BlockId) -> Result<u32>;
     async fn factory_game(&self, index: U256, block: BlockId) -> Result<FactoryGame>;
     async fn game_claim(&self, game: Address, block: BlockId) -> Result<GameClaim>;
     async fn game_identity(&self, game: Address, block: BlockId) -> Result<GameIdentity>;

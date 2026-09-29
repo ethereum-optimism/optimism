@@ -10,7 +10,7 @@ import (
 	filterflags "github.com/ethereum-optimism/optimism/op-interop-filter/flags"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
-	"github.com/ethereum/go-ethereum/log"
+	"github.com/ethereum-optimism/optimism/op-service/log"
 )
 
 // InteropFilter wraps an in-process op-interop-filter service for devstack.

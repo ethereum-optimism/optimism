@@ -3,11 +3,13 @@ package testlog
 import (
 	"context"
 	"log/slog"
+	"slices"
 	"strings"
+	"sync"
 
-	"github.com/ethereum/go-ethereum/log"
 	"github.com/stretchr/testify/require"
 
+	"github.com/ethereum-optimism/optimism/op-service/log"
 	"github.com/ethereum-optimism/optimism/op-service/logmods"
 )
 
@@ -54,18 +56,44 @@ func (r *CapturedRecord) Attrs(f func(slog.Attr) bool) {
 }
 
 // CapturingHandler provides a log handler that captures all log records and optionally forwards them to a delegate.
-// Note that it is not thread safe.
+// It is safe for concurrent use, including through handlers derived from it with WithAttrs or WithGroup.
 type CapturingHandler struct {
 	handler slog.Handler
-	Logs    *[]*CapturedRecord // shared among derived CapturingHandlers
+	// records is shared among derived CapturingHandlers.
+	records *recordStore
 	// attrs are inherited log record attributes, from a logger that this CapturingHandler may be derived from
 	attrs *CapturedAttributes
 }
 
 var _ logmods.Handler = (*CapturingHandler)(nil)
 
+// recordStore holds the captured records together with the lock that guards them.
+type recordStore struct {
+	mu   sync.Mutex
+	logs []*CapturedRecord
+}
+
+func (s *recordStore) add(r *CapturedRecord) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.logs = append(s.logs, r)
+}
+
+func (s *recordStore) clear() {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.logs = s.logs[:0] // reuse slice
+}
+
+// snapshot returns a copy of the captured records, so that callers can filter them without holding the lock.
+func (s *recordStore) snapshot() []*CapturedRecord {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return slices.Clone(s.logs)
+}
+
 func WrapCaptureLogger(h slog.Handler) slog.Handler {
-	return &CapturingHandler{handler: h, Logs: new([]*CapturedRecord)}
+	return &CapturingHandler{handler: h, records: new(recordStore)}
 }
 
 func CaptureLogger(t Testing, level slog.Level) (_ log.Logger, ch *CapturingHandler) {
@@ -82,7 +110,7 @@ func (c *CapturingHandler) Unwrap() slog.Handler {
 }
 
 func (c *CapturingHandler) Handle(ctx context.Context, r slog.Record) error {
-	*c.Logs = append(*c.Logs, &CapturedRecord{
+	c.records.add(&CapturedRecord{
 		Parent: c.attrs,
 		Record: &r,
 	})
@@ -92,7 +120,7 @@ func (c *CapturingHandler) Handle(ctx context.Context, r slog.Record) error {
 func (c *CapturingHandler) WithAttrs(attrs []slog.Attr) slog.Handler {
 	return &CapturingHandler{
 		handler: c.handler.WithAttrs(attrs),
-		Logs:    c.Logs,
+		records: c.records,
 		attrs: &CapturedAttributes{
 			Parent:     c.attrs,
 			Attributes: attrs,
@@ -103,7 +131,7 @@ func (c *CapturingHandler) WithAttrs(attrs []slog.Attr) slog.Handler {
 func (c *CapturingHandler) WithGroup(name string) slog.Handler {
 	return &CapturingHandler{
 		handler: c.handler.WithGroup(name),
-		Logs:    c.Logs,
+		records: c.records,
 	}
 }
 
@@ -112,7 +140,7 @@ func (c *CapturingHandler) Enabled(ctx context.Context, level slog.Level) bool {
 }
 
 func (c *CapturingHandler) Clear() {
-	*c.Logs = (*c.Logs)[:0] // reuse slice
+	c.records.clear()
 }
 
 func NewLevelFilter(level slog.Level) LogFilter {
@@ -181,7 +209,7 @@ func NewErrContainsFilter(errMessage string) LogFilter {
 type LogFilter func(record *CapturedRecord) bool
 
 func (c *CapturingHandler) FindLog(filters ...LogFilter) *CapturedRecord {
-	for _, record := range *c.Logs {
+	for _, record := range c.records.snapshot() {
 		match := true
 		for _, filter := range filters {
 			if !filter(record) {
@@ -198,7 +226,7 @@ func (c *CapturingHandler) FindLog(filters ...LogFilter) *CapturedRecord {
 
 func (c *CapturingHandler) FindLogs(filters ...LogFilter) []*CapturedRecord {
 	var logs []*CapturedRecord
-	for _, record := range *c.Logs {
+	for _, record := range c.records.snapshot() {
 		match := true
 		for _, filter := range filters {
 			if !filter(record) {

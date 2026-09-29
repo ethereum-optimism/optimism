@@ -613,3 +613,95 @@ fn deposit_call_keeps_contract_address_none() {
     );
     assert_eq!(addr, None, "a deposit call must not derive a contract address");
 }
+
+/// Non-zero Ecotone-era L1 fee parameters, so a regular transaction in the fixture block is
+/// charged a non-zero `l1Fee` and `l1GasUsed`.
+fn lagoon_l1_block_info() -> op_revm::L1BlockInfo {
+    op_revm::L1BlockInfo {
+        l1_base_fee: U256::from(1_000_000_000u64),
+        l1_base_fee_scalar: U256::from(1_368u64),
+        l1_blob_base_fee: Some(U256::from(57_000_000u64)),
+        l1_blob_base_fee_scalar: Some(U256::from(801_949u64)),
+        da_footprint_gas_scalar: Some(400),
+        ..Default::default()
+    }
+}
+
+/// A post-exec (`0x7D`) receipt reports zero for the transaction-scoped L1 fee fields, and
+/// reports every block-scoped L1 fee parameter exactly as a regular transaction's receipt in
+/// the same block does.
+///
+/// Specs: <https://specs.optimism.io/protocol/lagoon/post-exec.html#json-rpc-fields>
+#[test]
+fn post_exec_receipt_zeroes_tx_scoped_l1_fee_fields() {
+    let op_hardforks = lagoon_hardforks();
+    let mut l1_block_info = lagoon_l1_block_info();
+
+    let regular =
+        OpTransactionSigned::decode_2718(&mut TX_1_OP_MAINNET_BLOCK_124665056.as_slice()).unwrap();
+    let regular_fields = OpReceiptFieldsBuilder::new(LAGOON_TIMESTAMP, 1)
+        .l1_block_info(&op_hardforks, &regular, &mut l1_block_info)
+        .expect("should parse revm l1 info")
+        .build();
+
+    // Without a charged regular transaction to compare against, the assertions below are vacuous.
+    assert!(
+        regular_fields.l1_block_info.l1_fee.is_some_and(|fee| fee > 0),
+        "fixture must charge a non-zero l1Fee"
+    );
+    assert!(
+        regular_fields.l1_block_info.l1_gas_used.is_some_and(|gas| gas > 0),
+        "fixture must charge non-zero l1GasUsed"
+    );
+
+    // `convert_receipts_with_block` clears the per-transaction cost cache between receipts.
+    l1_block_info.clear_tx_l1_cost();
+
+    let post_exec = OpTransactionSigned::PostExec(
+        build_post_exec_tx(1, vec![SDMGasEntry { index: 1, gas_refund: 77 }]).seal_slow(),
+    );
+    let post_exec_fields = OpReceiptFieldsBuilder::new(LAGOON_TIMESTAMP, 1)
+        .l1_block_info(&op_hardforks, &post_exec, &mut l1_block_info)
+        .expect("should parse revm l1 info")
+        .build();
+
+    let L1BlockInfo {
+        l1_gas_price,
+        l1_gas_used,
+        l1_fee,
+        l1_fee_scalar,
+        l1_base_fee_scalar,
+        l1_blob_base_fee,
+        l1_blob_base_fee_scalar,
+        operator_fee_scalar,
+        operator_fee_constant,
+        da_footprint_gas_scalar,
+    } = post_exec_fields.l1_block_info;
+
+    // Transaction-scoped: a post-exec transaction is charged nothing.
+    assert_eq!(l1_fee, Some(0), "a post-exec transaction pays no L1 fee");
+    assert_eq!(l1_gas_used, Some(0), "a post-exec transaction is charged no L1 gas");
+
+    // Block-scoped: identical value *and* presence to the regular receipt in the same block.
+    let expected = regular_fields.l1_block_info;
+    assert_eq!(l1_gas_price, expected.l1_gas_price, "l1GasPrice is block-scoped");
+    assert_eq!(l1_fee_scalar, None, "l1FeeScalar was removed in Ecotone");
+    assert_eq!(l1_base_fee_scalar, expected.l1_base_fee_scalar, "l1BaseFeeScalar is block-scoped");
+    assert_eq!(l1_blob_base_fee, expected.l1_blob_base_fee, "l1BlobBaseFee is block-scoped");
+    assert_eq!(
+        l1_blob_base_fee_scalar, expected.l1_blob_base_fee_scalar,
+        "l1BlobBaseFeeScalar is block-scoped"
+    );
+    assert_eq!(
+        operator_fee_scalar, expected.operator_fee_scalar,
+        "operatorFeeScalar is block-scoped"
+    );
+    assert_eq!(
+        operator_fee_constant, expected.operator_fee_constant,
+        "operatorFeeConstant is block-scoped"
+    );
+    assert_eq!(
+        da_footprint_gas_scalar, expected.da_footprint_gas_scalar,
+        "daFootprintGasScalar is block-scoped"
+    );
+}

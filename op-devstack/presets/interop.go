@@ -3,8 +3,6 @@ package presets
 import (
 	"time"
 
-	"github.com/ethereum/go-ethereum/log"
-
 	"github.com/ethereum-optimism/optimism/op-chain-ops/devkeys"
 	challengerConfig "github.com/ethereum-optimism/optimism/op-challenger/config"
 	"github.com/ethereum-optimism/optimism/op-core/forks"
@@ -15,6 +13,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-devstack/sysgo"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/intentbuilder"
 	"github.com/ethereum-optimism/optimism/op-service/clock"
+	"github.com/ethereum-optimism/optimism/op-service/log"
 )
 
 type SingleChainInterop struct {

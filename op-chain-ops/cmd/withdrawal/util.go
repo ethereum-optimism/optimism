@@ -5,19 +5,19 @@ import (
 	"time"
 
 	"github.com/ethereum-optimism/optimism/op-service/ctxinterrupt"
-	oplog "github.com/ethereum-optimism/optimism/op-service/log"
+	"github.com/ethereum-optimism/optimism/op-service/log"
+	"github.com/ethereum-optimism/optimism/op-service/log/logcli"
 	"github.com/ethereum-optimism/optimism/op-service/txmgr"
 	"github.com/ethereum-optimism/optimism/op-service/txmgr/metrics"
-	"github.com/ethereum/go-ethereum/log"
 	"github.com/urfave/cli/v2"
 )
 
 const EnvVarPrefix = "WITHDRAWAL"
 
 func setupLogging(ctx *cli.Context) (log.Logger, error) {
-	logCfg := oplog.ReadCLIConfig(ctx)
-	logger := oplog.NewLogger(oplog.AppOut(ctx), logCfg)
-	oplog.SetGlobalLogHandler(logger.Handler())
+	logCfg := logcli.ReadCLIConfig(ctx)
+	logger := logcli.NewLogger(logcli.AppOut(ctx), logCfg)
+	logcli.SetGlobalLogHandler(logger.Handler())
 	return logger, nil
 }
 

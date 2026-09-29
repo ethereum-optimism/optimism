@@ -13,7 +13,6 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/core/types"
-	"github.com/ethereum/go-ethereum/log"
 
 	"github.com/ethereum-optimism/optimism/op-core/interop/depset"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
@@ -21,6 +20,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/bigs"
 	rpcclient "github.com/ethereum-optimism/optimism/op-service/client"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
+	"github.com/ethereum-optimism/optimism/op-service/log"
 	opmetrics "github.com/ethereum-optimism/optimism/op-service/metrics"
 	oprpc "github.com/ethereum-optimism/optimism/op-service/rpc"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"

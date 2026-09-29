@@ -31,7 +31,7 @@ This runbook assumes:
 * Both chains run permissionless fault proofs with `SUPER_CANNON_KONA` (game type `9`) as the respected game type today.
 * The per-chain `op-proposer`, `op-challenger`, and `op-dispute-mon` instances stood up by the [single-chain super-roots upgrade](/chain-operators/tutorials/upgrade-chain-to-super-roots) are running for both chains. The per-chain challengers and monitors keep running through migration cutover and the subsequent drain window.
 * A separate `op-supernode` instance is in sync and derives **exactly `chainA` and `chainB`** (and no other chains) in the same process. This is the supernode the new shared `op-proposer`, `op-challenger`, and `op-dispute-mon` point at after migration; it must not double as a multi-chain supernode for any other chain or interop cluster.
-* Both chains have already been upgraded to a release that exposes `OPContractsManagerMigrator.migrate` and have `Features.INTEROP` and `Features.ETH_LOCKBOX` enabled on their `SystemConfig`. These features are turned on automatically by `OPContractsManagerV2.upgrade()` when the OPCM container has the `OPTIMISM_PORTAL_INTEROP` dev feature set; that pre-upgrade is a prerequisite for this runbook.
+* Both chains have already been upgraded to a release that exposes `OPContractsManagerMigrator.migrate` and have `Features.ETH_LOCKBOX` enabled on their `SystemConfig`. `ETH_LOCKBOX` is turned on automatically by `OPContractsManagerV2.upgrade()`; that pre-upgrade is a prerequisite for this runbook. `Features.INTEROP` must still be **disabled** going in, `migrate()` enables it.
 
 ### Install Required Tooling
 
@@ -73,7 +73,7 @@ The portal-derived lookups return the chain's current `DisputeGameFactory`, `Anc
 
 | Item | Source |
 | --- | --- |
-| `OPCM` address for the migrate-feature container | The same OPCM the chains ran for the prerequisite `OPCMv2.upgrade()`. The container has `OPTIMISM_PORTAL_INTEROP` set in `devFeatureBitmap`, which is what enables both `Features.INTEROP` and `Features.ETH_LOCKBOX` on each `SystemConfig`. |
+| `OPCM` address for the migrate-feature container | The same OPCM the chains ran for the prerequisite `OPCMv2.upgrade()`. This run is what enables `Features.ETH_LOCKBOX` on each `SystemConfig`. `Features.INTEROP` is not set by the upgrade; `migrate()` sets it. The container must have `OPTIMISM_PORTAL_INTEROP` set in `devFeatureBitmap`, which gates `migrate()` itself; without it `migrate()` reverts with `OPContractsManagerMigrator_InteropNotEnabled`. |
 | `SUPER_CANNON_KONA` absolute prestate hash | `validation/standard/standard-prestates.toml` in `superchain-registry`. Use the entry with `type="cannon64-kona-interop"` for the OPCM release version. |
 | Prestate artifact URL | The `cannon-kona-prestates-url` server, with the kona-interop prestate uploaded ahead of the migration. |
 | Shared `op-supernode` RPC URL | Your infrastructure team. The instance must derive **exactly `chainA` and `chainB`** (and no other chains). The shared `op-proposer`, `op-challenger`, and `op-dispute-mon` for the merged factory all point at this same instance. The per-chain services will be pointed to chain-specific endpoints under this URL. |
@@ -97,7 +97,7 @@ Run every check below. Each one corresponds to an invariant the migrator enforce
   # Expect: no output (identical).
   ```
 
-* **Confirm both chains have `Features.INTEROP` and `Features.ETH_LOCKBOX` enabled.** `_migratePortal` reverts with `OPContractsManagerMigrator_InteropFeatureNotEnabled` or `OPContractsManagerMigrator_EthLockboxFeatureNotEnabled` if either is missing. These flip automatically during the prerequisite `OPCMv2.upgrade()` against an `OPTIMISM_PORTAL_INTEROP`-enabled OPCM container; if any of the four checks below returns `false`, run that prerequisite upgrade first. `Features` constants are short-string `bytes32` values, so feed them through `cast format-bytes32-string`.
+* **Confirm `Features.INTEROP` is disabled and `Features.ETH_LOCKBOX` is enabled on both chains.** `migrate()` is the only thing that sets `INTEROP` on L1, so a chain that already has it on is already in an interop set; `_validateChainSystemConfigs` reverts with `OPContractsManagerMigrator_ChainAlreadyMigrated` when INTEROP is already on, so **do not** enable `INTEROP` yourself via `SystemConfig.setFeature`, doing so permanently blocks the migration. `ETH_LOCKBOX` flips on automatically during the prerequisite `OPCMv2.upgrade()`; if either `ETH_LOCKBOX` check below returns `false`, run that prerequisite upgrade first. `Features` constants are short-string `bytes32` values, so feed them through `cast format-bytes32-string`.
 
   ```bash
   for SC in <SystemConfig_chainA> <SystemConfig_chainB>; do
@@ -105,7 +105,7 @@ Run every check below. Each one corresponds to an invariant the migrator enforce
           echo "$SC $F = $(cast call $SC 'isFeatureEnabled(bytes32)(bool)' "$(cast format-bytes32-string $F)" --rpc-url $L1_RPC)"
       done
   done
-  # Expect: every line ends in true.
+  # Expect: both INTEROP lines end in false, both ETH_LOCKBOX lines end in true.
   ```
 
 * **Confirm neither chain runs in Custom Gas Token mode.** `_migratePortal` reverts with `OPContractsManagerMigrator_CustomGasTokenNotSupported` for any CGT chain.

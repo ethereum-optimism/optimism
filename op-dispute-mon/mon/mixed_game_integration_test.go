@@ -15,10 +15,10 @@ import (
 	monTypes "github.com/ethereum-optimism/optimism/op-dispute-mon/mon/types"
 	"github.com/ethereum-optimism/optimism/op-service/clock"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
+	"github.com/ethereum-optimism/optimism/op-service/log"
 	metricstest "github.com/ethereum-optimism/optimism/op-service/metrics/test"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/params"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/stretchr/testify/require"
@@ -28,7 +28,7 @@ func TestMonitorMixedFaultAndZKGames(t *testing.T) {
 	now := time.Unix(1_000_000, 0)
 	createdAt := now.Add(-time.Minute)
 	cl := clock.NewDeterministicClock(now)
-	logger := testlog.Logger(t, log.LvlDebug)
+	logger := testlog.Logger(t, log.LevelDebug)
 	metricer := metrics.NewMetrics()
 	actor := common.Address{0xa1}
 	weth := common.Address{0xee}
@@ -213,6 +213,7 @@ func TestMonitorMixedFaultAndZKGames(t *testing.T) {
 	zkGame.Bonds[0].Recipient = actor
 	zkGame.ExpectedCredits[actor] = zkBond
 	zkGame.Credits[actor] = zkBond
+	zkGame.Finalized = true
 	require.NoError(t, monitor.monitorGames())
 	snapshot = metricstest.NewMetricChecker(t, metricer.Registry())
 	requireGauge(t, snapshot, "op_dispute_mon_games", map[string]string{"game_type": gameTypes.SuperCannonKonaGameType.String()}, 1)

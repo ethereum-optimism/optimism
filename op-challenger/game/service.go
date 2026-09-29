@@ -16,7 +16,6 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/sources"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/ethclient"
-	"github.com/ethereum/go-ethereum/log"
 
 	"github.com/ethereum-optimism/optimism/op-challenger/config"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault"
@@ -30,6 +29,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/clock"
 	"github.com/ethereum-optimism/optimism/op-service/dial"
 	"github.com/ethereum-optimism/optimism/op-service/httputil"
+	"github.com/ethereum-optimism/optimism/op-service/log"
 	opmetrics "github.com/ethereum-optimism/optimism/op-service/metrics"
 	"github.com/ethereum-optimism/optimism/op-service/oppprof"
 	"github.com/ethereum-optimism/optimism/op-service/sources/batching"

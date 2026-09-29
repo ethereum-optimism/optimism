@@ -77,6 +77,21 @@ main's CI actually validated.
    Pin that commit with `rev = "<sha>"`. Verify every reth workspace dependency
    uses the same repository and ref; the mirror checker rejects split pins.
 
+   Use `ethereum-optimism/reth`'s `optimism` branch for maintenance backports.
+   Rebuild it from the selected upstream release, replay the required runtime
+   patches, then replay the fork's CircleCI/Actions support as one final commit.
+   Keep those CI changes squashed so subsequent rebuilds need only one CI
+   cherry-pick. Preserve the original branch tip locally and use an explicit
+   force-with-lease when publishing a rebuilt branch.
+   Update the maintenance-push compact-codec comparison base in the fork's
+   `.github/workflows/compact.yml` to the selected release too; comparing against
+   `main` can test unsupported future formats. Check the fork's own lockfile
+   advisories separately: downstream lockfile fixes do not repair the fork's CI.
+
+   Merging a fix into upstream `main` does not establish that a patch release
+   contains it. Check the selected tag's ancestry or patch equivalence before
+   removing any backport; a newer tag can still omit the required fix.
+
    The lockfiles record the resolved commit, so builds remain reproducible.
 
 4. Sync shared dependency versions to the new rev's pins. reth and the OP Stack
@@ -214,6 +229,12 @@ main's CI actually validated.
    the node. Upstream flags op-reth deliberately rejects (the `DENIED_ARGS`
    deny-list in `op-reth/crates/cli/src/lib.rs`, e.g. `--minimal`) must stay
    rejected — they render with a `[hidden]` marker in the snapshot.
+
+   Report removed flags and changed defaults in the PR's migration notes. The
+   [published CLI reference](../docs/public-docs/scripts/gen-op-reth-cli/README.md)
+   intentionally documents a finalized release, not `develop`. Do not regenerate
+   it from an unreleased dependency bump; update it through the release generator
+   after the next finalized tag.
 
 ## Expect upstream churn beyond your target change
 

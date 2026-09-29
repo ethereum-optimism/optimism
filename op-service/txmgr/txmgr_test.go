@@ -20,11 +20,11 @@ import (
 	"github.com/ethereum/go-ethereum/core/txpool"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto/kzg4844"
-	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/params"
 
 	"github.com/ethereum-optimism/optimism/op-service/bigs"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
+	"github.com/ethereum-optimism/optimism/op-service/log"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
 	"github.com/ethereum-optimism/optimism/op-service/txmgr/metrics"
 )

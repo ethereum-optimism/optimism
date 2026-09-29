@@ -401,21 +401,28 @@ fn fixed_policy_tracks_pre_refund_gas() {
 }
 
 #[derive(Debug, Clone, Default)]
-struct ErroringRefundPolicy {
+struct FaultyRefundPolicy {
     block_state: u64,
+    kind: Option<PostExecTxKind>,
 }
 
-impl PostExecRefundInspector for ErroringRefundPolicy {
-    type Snapshot = u64;
+impl PostExecRefundInspector for FaultyRefundPolicy {
+    type Snapshot = (u64, Option<PostExecTxKind>);
 
-    fn begin_tx(&mut self, _ctx: PostExecTxContext) {
+    fn begin_tx(&mut self, ctx: PostExecTxContext) {
         self.block_state += 1;
+        self.kind = Some(ctx.kind);
     }
 
     fn note_account_touch(&mut self, _address: Address) {}
 
     fn finish_tx(&mut self) -> PostExecExecutedTx {
-        PostExecExecutedTx { refund_total: u64::MAX, refund_events: Vec::new() }
+        let refund_total = match self.kind.take() {
+            Some(PostExecTxKind::Normal) => u64::MAX,
+            Some(PostExecTxKind::Deposit) => 1,
+            _ => 0,
+        };
+        PostExecExecutedTx { refund_total, refund_events: Vec::new() }
     }
 
     fn inspect_step<CTX>(&mut self, _interp: &mut Interpreter, _context: &mut CTX)
@@ -459,28 +466,117 @@ impl PostExecRefundInspector for ErroringRefundPolicy {
     fn inspect_selfdestruct(&mut self, _contract: Address, _target: Address, _value: U256) {}
 
     fn snapshot(&self) -> Self::Snapshot {
-        self.block_state
+        (self.block_state, self.kind)
     }
 
     fn restore(&mut self, snapshot: Self::Snapshot) {
-        self.block_state = snapshot;
+        (self.block_state, self.kind) = snapshot;
     }
 }
 
 #[test]
-fn execution_error_restores_refund_policy_snapshot() {
-    let mut db = prepare_observer_db();
+fn producer_refund_at_evm_gas_limit_is_preserved() {
+    assert_eq!(sanitize_producer_refund(42, 42, false), 42);
+}
+
+#[test]
+fn excessive_producer_refund_is_zeroed_and_verifies() {
+    let tx = observer_test_tx();
+    let mut producer_db = prepare_observer_db();
     let receipt_builder = OpAlloyReceiptBuilder::default();
     let hardforks = OpChainHardforks::op_mainnet();
-    let mut executor =
-        build_policy_executor::<ErroringRefundPolicy>(&mut db, &receipt_builder, &hardforks);
+    let mut producer =
+        build_policy_executor::<FaultyRefundPolicy>(&mut producer_db, &receipt_builder, &hardforks);
 
-    assert_eq!(executor.refund_snapshot(), 0);
-    executor
-        .execute_transaction(&observer_test_tx())
-        .expect_err("an impossible refund must fail execution");
-    assert_eq!(executor.refund_snapshot(), 0, "failed execution must restore policy state");
+    producer.execute_transaction(&tx).expect("faulty refund must not reject a valid transaction");
+    let evm_gas_used = producer.evm_gas_used;
+    assert!(evm_gas_used > 0);
+    assert_eq!(producer.gas_used, evm_gas_used, "the invalid refund must be zeroed");
+    assert!(
+        producer.post_exec_entries().is_empty(),
+        "an invalid refund must not produce a post-exec entry"
+    );
+    assert_eq!(
+        producer.refund_snapshot(),
+        (1, None),
+        "a zeroed refund still came from a committed transaction"
+    );
+    let (_, produced) = producer.finish().expect("producer finishes block");
+
+    let mut verifier_fixture =
+        JovianExecutorFixture::new(DEFAULT_DA_FOOTPRINT_GAS_SCALAR, 500_000, JOVIAN_TIMESTAMP);
+    verifier_fixture.db = prepare_observer_db();
+    let mut verifier = verifier_fixture.executor();
+    verifier.execute_transaction(&tx).expect("verifier accepts the unrefunded transaction");
+    let (_, verified) = verifier.finish().expect("verifier accepts produced block");
+
+    assert_eq!(verified.gas_used, produced.gas_used);
+    assert_eq!(verified.receipts, produced.receipts);
 }
+
+#[test]
+fn faulty_policy_refund_for_deposit_is_ignored() {
+    let deposit = recovered_deposit();
+    let mut producer_db = prepare_observer_db();
+    let receipt_builder = OpAlloyReceiptBuilder::default();
+    let hardforks = OpChainHardforks::op_mainnet();
+    let mut producer =
+        build_policy_executor::<FaultyRefundPolicy>(&mut producer_db, &receipt_builder, &hardforks);
+
+    producer.execute_transaction(&deposit).expect("faulty policy must not reject a deposit");
+    assert_eq!(producer.gas_used, producer.evm_gas_used);
+    assert!(producer.post_exec_entries().is_empty(), "deposits must not receive refund entries");
+    let (_, produced) = producer.finish().expect("producer finishes deposit block");
+
+    let mut verifier_fixture =
+        JovianExecutorFixture::new(DEFAULT_DA_FOOTPRINT_GAS_SCALAR, 500_000, JOVIAN_TIMESTAMP);
+    verifier_fixture.db = prepare_observer_db();
+    let mut verifier = verifier_fixture.executor();
+    verifier.execute_transaction(&deposit).expect("verifier executes deposit without a refund");
+    let (_, verified) = verifier.finish().expect("verifier accepts produced block");
+
+    assert_eq!(verified.gas_used, produced.gas_used);
+    assert_eq!(verified.receipts, produced.receipts);
+}
+
+#[cfg(feature = "metrics")]
+#[test]
+fn faulty_producer_refunds_increment_correction_metrics() {
+    use metrics_util::debugging::{DebugValue, DebuggingRecorder};
+
+    let recorder = DebuggingRecorder::new();
+    let snapshotter = recorder.snapshotter();
+    metrics::with_local_recorder(&recorder, || {
+        assert_eq!(sanitize_producer_refund(u64::MAX, 42, false), 0);
+        assert_eq!(sanitize_producer_refund(1, 42, true), 0);
+    });
+
+    let mut corrections = snapshotter
+        .snapshot()
+        .into_vec()
+        .into_iter()
+        .filter(|(key, _, _, _)| key.key().name() == "optimism_sdm.policy_refund_corrections")
+        .map(|(key, _, _, value)| {
+            let reason = key
+                .key()
+                .labels()
+                .find(|label| label.key() == "reason")
+                .expect("correction metric has a reason label")
+                .value()
+                .to_string();
+            (reason, value)
+        })
+        .collect::<Vec<_>>();
+    corrections.sort_by(|a, b| a.0.cmp(&b.0));
+    assert_eq!(
+        corrections,
+        vec![
+            ("exceeds_evm_gas".to_string(), DebugValue::Counter(1)),
+            ("ineligible_transaction".to_string(), DebugValue::Counter(1)),
+        ]
+    );
+}
+
 #[test]
 fn test_settlement_state_account_preserves_original_info() {
     type TestExecutor<'a> = OpBlockExecutor<
@@ -783,7 +879,7 @@ fn test_mismatched_payload_block_number_fails_pre_execution() {
     // build_executor configures BlockEnv with block number 0; a payload anchored to a
     // different block must be rejected before any tx runs.
     let mut fixture = JovianExecutorFixture::default();
-    let mut executor = fixture.verifier(42, vec![]);
+    let mut executor = fixture.verifier(42, vec![SDMGasEntry { index: 0, gas_refund: 1 }]);
 
     let err =
         executor.apply_pre_execution_changes().expect_err("mismatched block number must fail");
@@ -804,6 +900,61 @@ fn test_duplicate_payload_index_fails_pre_execution() {
         .apply_pre_execution_changes()
         .expect_err("duplicate payload index must fail pre-execution");
     assert_invalid_post_exec(err, "duplicate post-exec payload entry for tx index 3");
+}
+
+#[test]
+fn test_empty_payload_entries_fail_pre_execution() {
+    let mut fixture = JovianExecutorFixture::default();
+    let mut executor = fixture.verifier(0, vec![]);
+
+    let err = executor
+        .apply_pre_execution_changes()
+        .expect_err("empty payload entries must fail pre-execution");
+    assert_invalid_post_exec(err, "empty post-exec payload gas refund entries");
+}
+
+#[test]
+fn test_zero_payload_refund_fails_pre_execution() {
+    let mut fixture = JovianExecutorFixture::default();
+    let mut executor = fixture.verifier(0, vec![SDMGasEntry { index: 3, gas_refund: 0 }]);
+
+    let err = executor
+        .apply_pre_execution_changes()
+        .expect_err("zero payload refund must fail pre-execution");
+    assert_invalid_post_exec(err, "zero post-exec payload refund for tx index 3");
+}
+
+#[test]
+fn test_out_of_order_payload_entries_fail_pre_execution() {
+    let mut fixture = JovianExecutorFixture::default();
+    let mut executor = fixture.verifier(
+        0,
+        vec![SDMGasEntry { index: 3, gas_refund: 10 }, SDMGasEntry { index: 2, gas_refund: 20 }],
+    );
+
+    let err = executor
+        .apply_pre_execution_changes()
+        .expect_err("out-of-order payload entries must fail pre-execution");
+    assert_invalid_post_exec(
+        err,
+        "post-exec payload entries not strictly increasing: tx index 2 follows 3",
+    );
+}
+
+#[test]
+fn test_sparse_ordered_payload_entries_are_consumed_linearly() {
+    let mut fixture = JovianExecutorFixture::default();
+    let mut executor = fixture.verifier(
+        0,
+        vec![SDMGasEntry { index: 2, gas_refund: 7 }, SDMGasEntry { index: 5, gas_refund: 11 }],
+    );
+
+    assert_eq!(executor.post_exec.invalid_reason(), None, "sparse ordered entries are valid");
+    assert_eq!(executor.post_exec.verifier_refund(1), None);
+    assert_eq!(executor.post_exec.verifier_refund(2), Some(7));
+    executor.post_exec.consume_verifier_entry(2);
+    assert_eq!(executor.post_exec.verifier_refund(4), None);
+    assert_eq!(executor.post_exec.verifier_refund(5), Some(11));
 }
 
 #[test]

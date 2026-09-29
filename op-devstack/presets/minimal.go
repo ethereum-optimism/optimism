@@ -3,14 +3,13 @@ package presets
 import (
 	"time"
 
-	"github.com/ethereum/go-ethereum/log"
-
 	challengerConfig "github.com/ethereum-optimism/optimism/op-challenger/config"
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
 	"github.com/ethereum-optimism/optimism/op-devstack/dsl"
 	"github.com/ethereum-optimism/optimism/op-devstack/dsl/proofs"
 	"github.com/ethereum-optimism/optimism/op-devstack/sysgo"
 	"github.com/ethereum-optimism/optimism/op-service/clock"
+	"github.com/ethereum-optimism/optimism/op-service/log"
 )
 
 type Minimal struct {

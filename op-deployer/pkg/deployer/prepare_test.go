@@ -32,6 +32,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-service/bigs"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
+	"github.com/ethereum-optimism/optimism/op-service/log"
 	"github.com/ethereum-optimism/optimism/op-service/ptr"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
 	"github.com/ethereum-optimism/optimism/op-service/testutils/devnet"
@@ -39,7 +40,6 @@ import (
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/ethclient"
-	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/rpc"
 	"github.com/holiman/uint256"
 	"github.com/stretchr/testify/require"
@@ -1329,6 +1329,10 @@ func TestGenerateGenesisForChains_UsesPredictedAddressesAndPinnedGenesisTime(t *
 
 	intent, st := shared.NewIntent(t, l1ChainID, dk, l2ChainID, loc, loc, standard.GasLimit)
 	chain := intent.Chains[0]
+	if chain.DeployOverrides == nil {
+		chain.DeployOverrides = make(map[string]any)
+	}
+	chain.DeployOverrides["respectedGameType"] = embedded.GameTypePermissionedCannon
 
 	// Stub predicted addresses.
 	predicted := addresses.OpChainContracts{
@@ -1441,7 +1445,7 @@ func TestPrepare_RepredictionRebuildsL2Genesis(t *testing.T) {
 	genesisEnv := &pipeline.Env{Logger: lgr, Deployer: deployer}
 	bundle := artifacts.Bundle{L1: afacts, L2: afacts}
 	prepareOnce := func() *state.ChainState {
-		require.NoError(t, predictChains(lgr, intent, st, run, selectAnchor, anchor, genesisTimeOffset))
+		require.NoError(t, prepareChains(lgr, intent, st, run, selectAnchor, anchor, genesisTimeOffset))
 		require.NoError(t, generateGenesisForChains(genesisEnv, intent, bundle, st))
 		require.NoError(t, computeGenesisOutputRootsForChains(genesisEnv, intent, st))
 		chainState, err := st.Chain(chain.ID)

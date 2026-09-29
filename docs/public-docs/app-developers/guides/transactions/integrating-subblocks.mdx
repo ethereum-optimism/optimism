@@ -17,6 +17,7 @@ Most apps need only a change of endpoint and the `pending` block tag.
 <Info>
   This guide covers reading pre-confirmed state through an RPC endpoint, which is what most apps want.
   If you consume the WebSocket stream directly instead, four payload fields are zeroed and need handling — see the [Subblocks notice](/notices/subblocks).
+  On a Lagoon chain the stream also carries the block's post-execution transaction outside the transaction list — see [the post-execution transaction](/op-stack/features/subblocks#the-post-execution-transaction).
 </Info>
 
 ## Supported RPC methods

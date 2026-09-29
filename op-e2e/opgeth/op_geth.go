@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/ethereum-optimism/optimism/op-e2e/system/e2esys"
+	"github.com/ethereum-optimism/optimism/op-service/log"
 
 	"github.com/ethereum-optimism/optimism/op-chain-ops/genesis"
 	"github.com/ethereum-optimism/optimism/op-e2e/config"
@@ -24,7 +25,6 @@ import (
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/ethclient"
-	"github.com/ethereum/go-ethereum/log"
 	gn "github.com/ethereum/go-ethereum/node"
 	"github.com/ethereum/go-ethereum/params"
 	"github.com/ethereum/go-ethereum/rpc"

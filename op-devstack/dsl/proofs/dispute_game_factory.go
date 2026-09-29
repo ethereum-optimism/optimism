@@ -14,6 +14,7 @@ import (
 
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm"
 	challengerConfig "github.com/ethereum-optimism/optimism/op-challenger/config"
+	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/contracts/gameargs"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/trace/cannon"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/trace/outputs"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/trace/prestates"
@@ -23,11 +24,11 @@ import (
 	gameTypes "github.com/ethereum-optimism/optimism/op-challenger/game/types"
 	"github.com/ethereum-optimism/optimism/op-challenger/metrics"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
+	"github.com/ethereum-optimism/optimism/op-service/log"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto"
-	"github.com/ethereum/go-ethereum/log"
 	"github.com/stretchr/testify/require"
 
 	challengerTypes "github.com/ethereum-optimism/optimism/op-challenger/game/fault/types"
@@ -297,7 +298,7 @@ func (f *DisputeGameFactory) StartZKGame(eoa *dsl.EOA, opts ...GameOpt) *ZKGame 
 
 	timestamp := cfg.l2SequenceNumber
 	if !cfg.l2SequenceNumberSet {
-		minSequence := f.zkAnchorSequenceNumber()
+		minSequence := f.anchorSequenceNumber(gameTypes.ZKDisputeGameType)
 		if cfg.zkParentIndex != nil {
 			minSequence = f.ZKGameAtIndex(*cfg.zkParentIndex).L2SequenceNumber()
 		}
@@ -348,11 +349,14 @@ func (f *DisputeGameFactory) waitForSafeSuperRootAfter(sequence uint64) uint64 {
 	return timestamp
 }
 
-func (f *DisputeGameFactory) zkAnchorSequenceNumber() uint64 {
-	impl := f.ZKGameImpl()
+// anchorSequenceNumber reads the sequence number the game type's anchor commits to.
+func (f *DisputeGameFactory) anchorSequenceNumber(gameType gameTypes.GameType) uint64 {
+	// A game implementation holds its anchor registry in proxy call data, so read the factory args.
+	registryAddr, err := gameargs.AnchorStateRegistry(f.GameArgs(gameType))
+	f.require.NoErrorf(err, "failed to read the anchor registry from the factory args for %s", gameType)
 	registry := bindings.NewBindings[bindings.AnchorStateRegistry](
 		bindings.WithClient(f.ethClient),
-		bindings.WithTo(impl.Args.AnchorStateRegistry),
+		bindings.WithTo(registryAddr),
 		bindings.WithTest(f.t),
 	)
 	anchor := contract.Read(registry.GetAnchorRoot())
@@ -367,7 +371,8 @@ func (f *DisputeGameFactory) startSuperGameOfType(eoa *dsl.EOA, gameType gameTyp
 	}
 	timestamp := cfg.l2SequenceNumber
 	if !cfg.l2SequenceNumberSet {
-		timestamp = f.safeTimestamp()
+		// A proposal must commit past the anchor, so wait for a safe super root beyond it.
+		timestamp = f.waitForSafeSuperRootAfter(f.anchorSequenceNumber(gameType))
 	}
 	extraData := f.createSuperGameExtraData(timestamp, cfg)
 	rootClaim := cfg.rootClaim

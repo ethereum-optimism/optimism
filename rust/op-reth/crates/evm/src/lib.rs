@@ -21,7 +21,7 @@ use alloy_op_evm::{
 use core::fmt::Debug;
 use op_alloy_consensus::{
     EIP1559ParamError, OpTransaction as OpConsensusTransaction,
-    parse_post_exec_payload_from_transactions,
+    parse_post_exec_payload_from_transactions, validate_post_exec_entry_count,
 };
 use op_revm::OpSpecId;
 use reth_chainspec::EthChainSpec;
@@ -35,19 +35,18 @@ use revm::context::BlockEnv;
 #[allow(unused_imports)]
 use {
     alloy_eips::Decodable2718,
-    alloy_primitives::{Bytes, U256},
+    alloy_primitives::Bytes,
     op_alloy_rpc_types_engine::OpExecutionData,
     reth_evm::{EvmEnvFor, ExecutionCtxFor},
     reth_primitives_traits::{TxTy, WithEncoded},
     reth_storage_errors::any::AnyError,
-    revm::{
-        context::CfgEnv, context_interface::block::BlobExcessGasAndPrice,
-        primitives::hardfork::SpecId,
-    },
 };
 
 #[cfg(feature = "std")]
-use reth_evm::{ConfigureEngineEvm, ExecutableTxIterator};
+use {
+    alloy_op_evm::evm_env_for_op_payload,
+    reth_evm::{ConfigureEngineEvm, ExecutableTxIterator},
+};
 
 mod config;
 pub use config::{OpNextBlockEnvAttributes, revm_spec, revm_spec_by_timestamp_after_bedrock};
@@ -78,6 +77,8 @@ pub use alloy_op_evm::{
 
 mod post_exec_ext;
 pub use post_exec_ext::*;
+
+mod sdm_metrics;
 
 /// Optimism-related EVM configuration.
 #[derive(Debug)]
@@ -163,6 +164,7 @@ where
     T: OpConsensusTransaction + 'a,
 {
     parse_post_exec_payload_from_transactions(transactions, block_number, sdm_active)
+        .inspect_err(|error| sdm_metrics::report_post_exec_validation_failure(block_number, *error))
         .map_err(|_| EIP1559ParamError::InvalidPostExecPayload)
         .map(|parsed| {
             parsed.map_or_else(PostExecMode::default, |parsed| PostExecMode::Verify(parsed.payload))
@@ -222,7 +224,7 @@ where
     }
 }
 
-/// UPSTREAM-MIRROR(copy): reth@rev:aef8d3e `reth_evm_ethereum::EthEvmConfig`
+/// UPSTREAM-MIRROR(copy): reth@rev:0fbe428 `reth_evm_ethereum::EthEvmConfig`
 ///
 /// Mirrors upstream `ConfigureEvm` plumbing with OP environments and execution context.
 impl<ChainSpec, N, R, EvmF> ConfigureEvm for OpEvmConfig<ChainSpec, N, R, EvmF>
@@ -322,9 +324,12 @@ where
     }
 }
 
-/// UPSTREAM-MIRROR(copy): reth@rev:aef8d3e `reth_evm_ethereum::EthEvmConfig`
+/// UPSTREAM-MIRROR(copy): reth@rev:0fbe428 `reth_evm_ethereum::EthEvmConfig`
 ///
 /// Mirrors upstream payload-to-EVM configuration with OP payload and fork semantics.
+/// `tx_iterator_for_payload` recovers senders directly; upstream routes the same recovery through
+/// an optional `SenderRecoveryCache`, which only memoizes `try_recover` and so returns the same
+/// signer.
 #[cfg(feature = "std")]
 impl<ChainSpec, N, R> ConfigureEngineEvm<OpExecutionData> for OpEvmConfig<ChainSpec, N, R>
 where
@@ -348,51 +353,32 @@ where
         &self,
         payload: &OpExecutionData,
     ) -> Result<EvmEnvFor<Self>, Self::Error> {
-        let timestamp = payload.payload.timestamp();
-        let block_number = payload.payload.block_number();
-
-        let spec = revm_spec_by_timestamp_after_bedrock(self.chain_spec(), timestamp);
-
-        let cfg_env = CfgEnv::new()
-            .with_chain_id(self.chain_spec().chain().id())
-            .with_spec_and_mainnet_gas_params(spec);
-
-        let blob_excess_gas_and_price = spec
-            .into_eth_spec()
-            .is_enabled_in(SpecId::CANCUN)
-            .then_some(BlobExcessGasAndPrice { excess_blob_gas: 0, blob_gasprice: 1 });
-
-        let block_env = BlockEnv {
-            number: U256::from(block_number),
-            beneficiary: payload.payload.as_v1().fee_recipient,
-            timestamp: U256::from(timestamp),
-            difficulty: if spec.into_eth_spec() >= SpecId::MERGE {
-                U256::ZERO
-            } else {
-                payload.payload.as_v1().prev_randao.into()
-            },
-            prevrandao: (spec.into_eth_spec() >= SpecId::MERGE)
-                .then(|| payload.payload.as_v1().prev_randao),
-            gas_limit: payload.payload.as_v1().gas_limit,
-            basefee: payload.payload.as_v1().base_fee_per_gas.to(),
-            // EIP-4844 excess blob gas of this block, introduced in Cancun
-            blob_excess_gas_and_price,
-            slot_num: 0,
-        };
-
-        Ok(EvmEnv { cfg_env, block_env })
+        Ok(evm_env_for_op_payload(
+            &payload.payload,
+            self.chain_spec(),
+            self.chain_spec().chain().id(),
+        ))
     }
 
     fn context_for_payload<'a>(
         &self,
         payload: &'a OpExecutionData,
     ) -> Result<ExecutionCtxFor<'a, Self>, Self::Error> {
+        validate_post_exec_entry_count(payload.payload.transactions())
+            .map_err(|_| EIP1559ParamError::InvalidPostExecPayload)?;
         let transactions = payload
             .payload
             .transactions()
             .iter()
             .map(|encoded| TxTy::<Self::Primitives>::decode_2718_exact(encoded.as_ref()))
             .collect::<Result<Vec<_>, _>>()
+            .inspect_err(|error| {
+                tracing::warn!(
+                    block_number = payload.payload.block_number(),
+                    %error,
+                    "payload rejected: transaction failed to decode"
+                );
+            })
             .map_err(|_| EIP1559ParamError::InvalidPostExecPayload)?;
         let post_exec_mode = post_exec_mode_from_transactions(
             transactions.iter(),
@@ -415,6 +401,8 @@ where
         &self,
         payload: &OpExecutionData,
     ) -> Result<impl ExecutableTxIterator<Self>, Self::Error> {
+        validate_post_exec_entry_count(payload.payload.transactions())
+            .map_err(|_| EIP1559ParamError::InvalidPostExecPayload)?;
         let transactions = payload.payload.transactions().clone();
         let convert = |encoded: Bytes| {
             let tx = TxTy::<Self::Primitives>::decode_2718_exact(encoded.as_ref())
@@ -435,10 +423,10 @@ mod tests {
     use alloy_eips::eip7685::Requests;
     use alloy_genesis::Genesis;
     use alloy_primitives::{
-        Address, B256, LogData, bytes,
+        Address, B256, LogData, U256, bytes,
         map::{AddressMap, B256Map, HashMap},
     };
-    use op_alloy_consensus::{SDMGasEntry, build_post_exec_tx};
+    use op_alloy_consensus::{SDMGasEntry, TxDeposit, build_post_exec_tx};
     use op_revm::OpSpecId;
     use reth_chainspec::ChainSpec;
     use reth_evm::execute::ProviderError;
@@ -449,6 +437,7 @@ mod tests {
     use reth_optimism_primitives::{OpBlock, OpPrimitives, OpReceipt, OpTransactionSigned};
     use reth_primitives_traits::{Account, RecoveredBlock, SealedBlock};
     use revm::{
+        context::CfgEnv,
         database::{BundleState, CacheDB},
         database_interface::EmptyDBTyped,
         inspector::NoOpInspector,
@@ -507,13 +496,16 @@ mod tests {
         SealedBlock::new_unhashed(Block::<OpTransactionSigned> {
             header: Header { number, timestamp, ..Default::default() },
             body: BlockBody {
-                transactions: vec![OpTransactionSigned::PostExec(
-                    build_post_exec_tx(
-                        tx_block_number,
-                        vec![SDMGasEntry { index: 0, gas_refund: 1 }],
-                    )
-                    .seal_slow(),
-                )],
+                transactions: vec![
+                    OpTransactionSigned::Deposit(TxDeposit::default().seal_slow()),
+                    OpTransactionSigned::PostExec(
+                        build_post_exec_tx(
+                            tx_block_number,
+                            vec![SDMGasEntry { index: 0, gas_refund: 1 }],
+                        )
+                        .seal_slow(),
+                    ),
+                ],
                 ..Default::default()
             },
         })

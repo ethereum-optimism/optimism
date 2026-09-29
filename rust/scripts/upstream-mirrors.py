@@ -47,6 +47,8 @@ TAG_PROSE_RE = re.compile(rf"^{TAG_HEAD}`{RUST_PATH}`\s*\S")
 DOC_RE = re.compile(r"^\s*(///|//!)\s?(.*)$")
 KINDS = {"override", "copy", "delegate", "set", "port"}
 
+REQUIREMENT_RE = re.compile(r"\s*[\^=]?\s*(?P<version>[0-9]+(?:\.[0-9]+){0,2})\s*")
+
 SEMVER_RE = re.compile(
     r"^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)"
     r"(?:-([0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*))?"
@@ -258,6 +260,64 @@ def reth_pin(manifest_path: Path | None = None) -> tuple[str, str]:
     return token, repo
 
 
+def workspace_requirements(manifest_path: Path | None = None) -> dict[str, str]:
+    """The version requirement each crates.io dependency is declared with in the workspace."""
+    path = manifest_path or RUST_ROOT / "Cargo.toml"
+    with path.open("rb") as manifest_file:
+        manifest = tomllib.load(manifest_file)
+
+    requirements: dict[str, str] = {}
+    for name, dependency in manifest.get("workspace", {}).get("dependencies", {}).items():
+        if isinstance(dependency, str):
+            requirements[name] = dependency
+        elif isinstance(dependency, dict) and not dependency.keys() & {"git", "path"}:
+            version = dependency.get("version")
+            if isinstance(version, str):
+                requirements[name] = version
+    return requirements
+
+
+def compat_class(version: SemVer) -> tuple[int, ...]:
+    """The range cargo keeps a version inside: crates differing here never unify."""
+    if version.major:
+        return (version.major,)
+    if version.minor:
+        return (0, version.minor)
+    return (0, 0, version.patch)
+
+
+def requirement_compat_class(requirement: str) -> tuple[int, ...] | None:
+    """The compatibility range a manifest requirement selects, or `None` if it spans more
+    than one. `2`, `^2.3.0` and `0.38` each pick one; `0`, `*` and `>=1, <3` do not."""
+    match = REQUIREMENT_RE.fullmatch(requirement)
+    if match is None:
+        return None
+    parts = [int(part) for part in match.group("version").split(".")]
+    if parts[0]:
+        return (parts[0],)
+    if len(parts) > 1 and parts[1]:
+        return (0, parts[1])
+    if len(parts) > 2:
+        return (0, 0, parts[2])
+    return None
+
+
+def narrow_to_workspace_range(versions: set[str], requirement: str | None) -> set[str]:
+    """The locked versions the workspace's own requirement accepts, or all of them when the
+    requirement is absent, unselective, or matches none."""
+    wanted = requirement_compat_class(requirement) if requirement else None
+    if wanted is None:
+        return versions
+    selected = set()
+    for version in versions:
+        try:
+            if compat_class(parse_semver(version)) == wanted:
+                selected.add(version)
+        except ValueError:
+            continue
+    return selected or versions
+
+
 def freeze_port(mirror: Mirror) -> None:
     """A `port` is deliberately behind the pin, so report its staleness as frozen. An
     overshot version stays an error: it cannot have been verified against the pin."""
@@ -270,8 +330,10 @@ def classify(
     *,
     locked: dict[str, set[str]] | None = None,
     reth_info: tuple[str, str] | None = None,
+    requirements: dict[str, str] | None = None,
 ) -> list[Mirror]:
     locked = locked if locked is not None else locked_versions()
+    requirements = requirements if requirements is not None else workspace_requirements()
     reth, reth_repo = reth_info if reth_info is not None else reth_pin()
     for mirror in mirrors:
         if mirror.status == Status.MALFORMED:
@@ -328,6 +390,11 @@ def classify(
             mirror.status = Status.UNKNOWN_CRATE
             mirror.note = "not in rust/Cargo.lock — renamed, dropped, or a typo in the tag"
             continue
+        if len(versions) != 1:
+            # Several incompatible releases of one crate can coexist in the lock when an
+            # unrelated dependency pulls an older line. A tag mirrors what our own crates
+            # build against, so narrow to the range the workspace's requirement selects.
+            versions = narrow_to_workspace_range(versions, requirements.get(mirror.crate))
         if len(versions) != 1:
             mirror.status = Status.AMBIGUOUS_VERSION
             mirror.pinned = ",".join(sorted(versions))

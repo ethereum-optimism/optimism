@@ -7,7 +7,7 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/artifacts"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/flags"
-	"github.com/ethereum/go-ethereum/log"
+	"github.com/ethereum-optimism/optimism/op-service/log"
 )
 
 func AutoVerify(ctx context.Context, logger log.Logger, rpcUrl string, chainID uint64, stateFile string, retryStateFile string, artifactsLocator *artifacts.Locator, verifierTypes string, verifierUrl string, apiKey string) error {

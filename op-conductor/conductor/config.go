@@ -5,13 +5,13 @@ import (
 	"math"
 	"time"
 
-	"github.com/ethereum/go-ethereum/log"
 	"github.com/urfave/cli/v2"
 
 	"github.com/ethereum-optimism/optimism/op-conductor/flags"
 	opnode "github.com/ethereum-optimism/optimism/op-node"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
-	oplog "github.com/ethereum-optimism/optimism/op-service/log"
+	"github.com/ethereum-optimism/optimism/op-service/log"
+	"github.com/ethereum-optimism/optimism/op-service/log/logcli"
 	opmetrics "github.com/ethereum-optimism/optimism/op-service/metrics"
 	"github.com/ethereum-optimism/optimism/op-service/oppprof"
 	oprpc "github.com/ethereum-optimism/optimism/op-service/rpc"
@@ -98,7 +98,7 @@ type Config struct {
 	// WebsocketServerPort is the port at which op-conductor exposes its websocket server from which clients can read streams sourced from rollupBoostWsUrl.
 	WebsocketServerPort int
 
-	LogConfig     oplog.CLIConfig
+	LogConfig     logcli.CLIConfig
 	MetricsConfig opmetrics.CLIConfig
 	PprofConfig   oppprof.CLIConfig
 	RPC           oprpc.CLIConfig
@@ -208,7 +208,7 @@ func NewConfig(ctx *cli.Context, log log.Logger) (*Config, error) {
 		RPCEnableProxy:      ctx.Bool(flags.RPCEnableProxy.Name),
 		RollupBoostWsURL:    ctx.String(flags.RollupBoostWsURL.Name),
 		WebsocketServerPort: ctx.Int(flags.WebsocketServerPort.Name),
-		LogConfig:           oplog.ReadCLIConfig(ctx),
+		LogConfig:           logcli.ReadCLIConfig(ctx),
 		MetricsConfig:       opmetrics.ReadCLIConfig(ctx),
 		PprofConfig:         oppprof.ReadCLIConfig(ctx),
 		RPC:                 oprpc.ReadCLIConfig(ctx),

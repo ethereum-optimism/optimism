@@ -298,7 +298,7 @@ contract ForkL1Live is Deployer, StdAssertions, FeatureFlags {
             (, uint256 currentAnchorSeqNum) = asr.getAnchorRoot();
 
             // Migration upgrade: legacy types disabled, super types enabled.
-            // Order must match validGameTypes in OPContractsManagerV2._assertValidFullConfig().
+            // Order must match VALID_GAME_TYPES in OPContractsManagerV2._assertValidFullConfig().
             disputeGameConfigs = new IOPContractsManagerUtils.DisputeGameConfig[](6);
             disputeGameConfigs[0] = IOPContractsManagerUtils.DisputeGameConfig({
                 enabled: false,
@@ -366,7 +366,7 @@ contract ForkL1Live is Deployer, StdAssertions, FeatureFlags {
             address challenger = DisputeGames.permissionedGameChallenger(disputeGameFactory);
             address proposer = DisputeGames.permissionedGameProposer(disputeGameFactory);
             // Standard upgrade path: CANNON disabled, remaining legacy types enabled, super types disabled.
-            // Order must match validGameTypes in OPContractsManagerV2._assertValidFullConfig().
+            // Order must match VALID_GAME_TYPES in OPContractsManagerV2._assertValidFullConfig().
             uint256 cannonKonaInitBond = DisputeGames.permissionlessGameInitBondForUpgrade(
                 disputeGameFactory, GameTypes.CANNON_KONA, DEFAULT_PERMISSIONLESS_INIT_BOND
             );

@@ -14,7 +14,8 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/dial"
 	"github.com/ethereum-optimism/optimism/op-service/endpoint"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
-	oplog "github.com/ethereum-optimism/optimism/op-service/log"
+	"github.com/ethereum-optimism/optimism/op-service/log"
+	"github.com/ethereum-optimism/optimism/op-service/log/logcli"
 	"github.com/ethereum-optimism/optimism/op-service/retry"
 	oprpc "github.com/ethereum-optimism/optimism/op-service/rpc"
 	"github.com/ethereum-optimism/optimism/op-service/sources"
@@ -22,7 +23,6 @@ import (
 	"github.com/ethereum-optimism/optimism/op-sync-tester/synctester"
 	stconf "github.com/ethereum-optimism/optimism/op-sync-tester/synctester/backend/config"
 	sttypes "github.com/ethereum-optimism/optimism/op-sync-tester/synctester/backend/types"
-	"github.com/ethereum/go-ethereum/log"
 )
 
 func NewSingleChainMultiNodeRuntime(t devtest.T, withP2P bool) *SingleChainRuntime {
@@ -401,9 +401,9 @@ func startConductorNode(
 		HealthCheck:             healthCheck,
 		RollupCfg:               *l2Net.rollupCfg,
 		RPCEnableProxy:          true,
-		LogConfig: oplog.CLIConfig{
+		LogConfig: logcli.CLIConfig{
 			Level:  log.LevelInfo,
-			Format: oplog.FormatText,
+			Format: log.FormatText,
 			Color:  false,
 		},
 		RPC: oprpc.CLIConfig{

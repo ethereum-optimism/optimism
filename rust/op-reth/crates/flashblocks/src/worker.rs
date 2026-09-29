@@ -328,14 +328,16 @@ where
 
             let (hashed_state, state_root) = if args.compute_state_root {
                 trace!(target: "flashblocks", "Computing block state root");
-                let hashed_state = state_provider.hashed_post_state(&db.bundle_state);
+                let hashed_state =
+                    state_provider.hashed_post_state(&db.bundle_state).map_err(RethError::other)?;
                 let (state_root, _) = state_provider
                     .state_root_with_updates(hashed_state.clone())
                     .map_err(RethError::other)?;
                 (hashed_state, state_root)
             } else {
                 let noop_provider = NoopProvider::default();
-                let hashed_state = noop_provider.hashed_post_state(&db.bundle_state);
+                let hashed_state =
+                    noop_provider.hashed_post_state(&db.bundle_state).map_err(RethError::other)?;
                 let (state_root, _) = noop_provider
                     .state_root_with_updates(hashed_state.clone())
                     .map_err(RethError::other)?;

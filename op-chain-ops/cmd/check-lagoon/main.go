@@ -10,7 +10,6 @@ import (
 	"time"
 
 	"github.com/ethereum/go-ethereum/crypto"
-	"github.com/ethereum/go-ethereum/log"
 	gn "github.com/ethereum/go-ethereum/node"
 	gethrpc "github.com/ethereum/go-ethereum/rpc"
 	"github.com/urfave/cli/v2"
@@ -22,7 +21,8 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/client"
 	"github.com/ethereum-optimism/optimism/op-service/ctxinterrupt"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
-	oplog "github.com/ethereum-optimism/optimism/op-service/log"
+	"github.com/ethereum-optimism/optimism/op-service/log"
+	"github.com/ethereum-optimism/optimism/op-service/log/logcli"
 	"github.com/ethereum-optimism/optimism/op-service/sources"
 )
 
@@ -88,7 +88,7 @@ func baseFlags() []cli.Flag {
 		altsrc.NewStringFlag(EndpointL2B),
 		altsrc.NewStringFlag(AccountKey),
 		altsrc.NewDurationFlag(RelayTimeout),
-	}, oplog.CLIFlags(prefix)...)
+	}, logcli.CLIFlags(prefix)...)
 }
 
 func roundtripFlags() []cli.Flag {
@@ -105,8 +105,8 @@ func failsafeFlags() []cli.Flag {
 
 // setup reads the logging config and wires interrupt cancellation onto the context.
 func setup(c *cli.Context) (log.Logger, context.Context) {
-	logCfg := oplog.ReadCLIConfig(c)
-	logger := oplog.NewLogger(c.App.Writer, logCfg)
+	logCfg := logcli.ReadCLIConfig(c)
+	logger := logcli.NewLogger(c.App.Writer, logCfg)
 	c.Context = ctxinterrupt.WithCancelOnInterrupt(c.Context)
 	return logger, c.Context
 }

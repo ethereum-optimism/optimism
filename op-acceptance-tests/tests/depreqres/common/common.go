@@ -10,9 +10,9 @@ import (
 	"github.com/ethereum-optimism/optimism/op-devstack/sysgo"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/sync"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
+	"github.com/ethereum-optimism/optimism/op-service/log"
 
 	safety "github.com/ethereum-optimism/optimism/op-service/eth/safety"
-	"github.com/ethereum/go-ethereum/log"
 )
 
 func syncModeOpt(syncMode sync.Mode) presets.Option {

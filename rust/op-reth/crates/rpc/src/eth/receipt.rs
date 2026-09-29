@@ -11,7 +11,7 @@ use reth_chainspec::{ChainSpecProvider, EthChainSpec};
 use reth_node_api::NodePrimitives;
 use reth_optimism_evm::RethL1BlockInfo;
 use reth_optimism_forks::OpHardforks;
-use reth_primitives_traits::{BlockBody, SealedBlock};
+use reth_primitives_traits::{BlockBody, SealedBlock, SealedHeaderFor};
 use reth_rpc_eth_api::{
     RpcConvert,
     helpers::LoadReceipt,
@@ -48,7 +48,17 @@ where
         BlockReader<Block = N::Block> + ChainSpecProvider<ChainSpec: OpHardforks> + Debug + 'static,
 {
     type RpcReceipt = OpTransactionReceipt;
+    type RpcLog = Log;
     type Error = OpEthApiError;
+
+    fn convert_log(
+        &self,
+        log: Log,
+        _receipt: &N::Receipt,
+        _header: &SealedHeaderFor<N>,
+    ) -> Result<Self::RpcLog, Self::Error> {
+        Ok(log)
+    }
 
     fn convert_receipts(
         &self,
@@ -186,23 +196,34 @@ impl OpReceiptFieldsBuilder {
         tx: &T,
         l1_block_info: &mut op_revm::L1BlockInfo,
     ) -> Result<Self, OpEthApiError> {
-        let raw_tx = tx.encoded_2718();
         let timestamp = self.block_timestamp;
 
-        self.l1_fee = Some(
-            l1_block_info
-                .l1_tx_data_fee(chain_spec, timestamp, &raw_tx, tx.is_deposit())
-                .map_err(|_| OpEthApiError::L1BlockFeeError)?
-                .saturating_to(),
-        );
+        // A post-exec transaction is constructed by the protocol: it pays no fees and is charged
+        // no DA footprint, so its transaction-scoped fee fields are reported as zero instead of
+        // being derived from its encoding. The block-scoped L1 fee parameters set below still
+        // apply, and match every other receipt in the block.
+        // <https://specs.optimism.io/protocol/lagoon/post-exec.html#json-rpc-fields>
+        if tx.as_post_exec().is_some() {
+            self.l1_fee = Some(0);
+            self.l1_data_gas = Some(0);
+        } else {
+            let raw_tx = tx.encoded_2718();
 
-        self.l1_data_gas = Some(
-            l1_block_info
-                .l1_data_gas(chain_spec, timestamp, &raw_tx)
-                .map_err(|_| OpEthApiError::L1BlockGasError)?
-                .saturating_add(l1_block_info.l1_fee_overhead.unwrap_or_default())
-                .saturating_to(),
-        );
+            self.l1_fee = Some(
+                l1_block_info
+                    .l1_tx_data_fee(chain_spec, timestamp, &raw_tx, tx.is_deposit())
+                    .map_err(|_| OpEthApiError::L1BlockFeeError)?
+                    .saturating_to(),
+            );
+
+            self.l1_data_gas = Some(
+                l1_block_info
+                    .l1_data_gas(chain_spec, timestamp, &raw_tx)
+                    .map_err(|_| OpEthApiError::L1BlockGasError)?
+                    .saturating_add(l1_block_info.l1_fee_overhead.unwrap_or_default())
+                    .saturating_to(),
+            );
+        }
 
         self.l1_fee_scalar = (!chain_spec.is_ecotone_active_at_timestamp(timestamp))
             .then_some(f64::from(l1_block_info.l1_base_fee_scalar) / 1_000_000.0);

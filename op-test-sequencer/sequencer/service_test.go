@@ -8,12 +8,12 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"github.com/ethereum/go-ethereum/log"
 	gn "github.com/ethereum/go-ethereum/node"
 	"github.com/ethereum/go-ethereum/rpc"
 
 	"github.com/ethereum-optimism/optimism/op-service/client"
-	oplog "github.com/ethereum-optimism/optimism/op-service/log"
+	"github.com/ethereum-optimism/optimism/op-service/log"
+	"github.com/ethereum-optimism/optimism/op-service/log/logcli"
 	opmetrics "github.com/ethereum-optimism/optimism/op-service/metrics"
 	"github.com/ethereum-optimism/optimism/op-service/oppprof"
 	oprpc "github.com/ethereum-optimism/optimism/op-service/rpc"
@@ -24,10 +24,10 @@ import (
 func TestService(t *testing.T) {
 	cfg := &config.Config{
 		Version: "",
-		LogConfig: oplog.CLIConfig{
+		LogConfig: logcli.CLIConfig{
 			Level:  log.LevelError,
 			Color:  false,
-			Format: oplog.FormatLogFmt,
+			Format: log.FormatLogFmt,
 		},
 		MetricsConfig: opmetrics.CLIConfig{
 			Enabled:    true,

@@ -51,7 +51,7 @@ pub fn spec_by_timestamp_after_bedrock(chain_spec: impl OpHardforks, timestamp: 
     OpSpecId::BEDROCK
 }
 
-/// UPSTREAM-MIRROR(copy): alloy-evm@0.37.1 `alloy_evm::eth::env::EvmEnvInput`
+/// UPSTREAM-MIRROR(copy): alloy-evm@0.38.0 `alloy_evm::eth::env::EvmEnvInput`
 ///
 /// Omits upstream `excess_blob_gas` and `slot_number`; OP uses synthetic blob values and zero slot.
 /// Internal helper for constructing EVM environment from block header fields.
@@ -120,9 +120,11 @@ pub fn evm_env_for_op_next_block(
     )
 }
 
-/// UPSTREAM-MIRROR(copy): alloy-evm@0.37.1 `alloy_evm::eth::env::EvmEnv::for_eth`
+/// UPSTREAM-MIRROR(copy): alloy-evm@0.38.0 `alloy_evm::eth::env::EvmEnv::for_eth`
 ///
-/// Copies upstream environment construction with OP fork mapping and blob semantics.
+/// Copies upstream environment construction with OP fork mapping and blob semantics. Upstream
+/// sets `cfg_env.tx_gas_limit_cap` explicitly at Osaka; this leaves it unset and relies on revm's
+/// spec-derived EIP-7825 fallback, which `OpHandler::tx_gas` lifts for deposits.
 fn evm_env_for_op(
     input: EvmEnvInput,
     chain_spec: impl OpHardforks,
@@ -179,6 +181,8 @@ pub fn evm_env_for_op_payload(
 mod tests {
     use super::*;
     use alloy_consensus::Header;
+    #[cfg(feature = "engine")]
+    use alloy_consensus::{Block, BlockBody};
     use alloy_hardforks::EthereumHardfork;
     use alloy_op_hardforks::{
         EthereumHardforks, ForkCondition, OP_MAINNET_CANYON_TIMESTAMP,
@@ -187,6 +191,10 @@ mod tests {
         OP_MAINNET_REGOLITH_TIMESTAMP, OpChainHardforks, OpHardfork,
     };
     use alloy_primitives::BlockTimestamp;
+    #[cfg(feature = "engine")]
+    use alloy_primitives::{Address, B256, U256};
+    #[cfg(feature = "engine")]
+    use op_alloy::{consensus::OpTxEnvelope, rpc_types_engine::OpExecutionPayload};
 
     struct FakeHardfork {
         fork: OpHardfork,
@@ -236,6 +244,68 @@ mod tests {
         fn op_fork_activation(&self, fork: OpHardfork) -> ForkCondition {
             if fork == self.fork { self.cond } else { ForkCondition::Never }
         }
+    }
+
+    #[cfg(feature = "engine")]
+    fn execution_payload(header: Header) -> OpExecutionPayload {
+        let block = Block::<OpTxEnvelope> { header, body: BlockBody::default() };
+        OpExecutionPayload::from_block_unchecked(B256::ZERO, &block).0
+    }
+
+    #[cfg(feature = "engine")]
+    #[test]
+    fn payload_env_saturates_base_fee_and_sets_fork_fields() {
+        let prev_randao = B256::repeat_byte(0x11);
+        let header = Header {
+            beneficiary: Address::repeat_byte(0x22),
+            number: 42,
+            timestamp: 1_234,
+            mix_hash: prev_randao,
+            difficulty: U256::from(123),
+            gas_limit: 30_000_000,
+            base_fee_per_gas: Some(1_000_000_000),
+            ..Default::default()
+        };
+        let mut payload = execution_payload(header);
+        payload.as_v1_mut().base_fee_per_gas = U256::MAX;
+
+        let cases = [
+            (FakeHardfork::bedrock(), None),
+            (
+                FakeHardfork::ecotone(),
+                Some(BlobExcessGasAndPrice { excess_blob_gas: 0, blob_gasprice: 1 }),
+            ),
+        ];
+        for (fork, expected_blob) in cases {
+            let env = evm_env_for_op_payload(&payload, fork, 10);
+            assert_eq!(env.block_env.basefee, u64::MAX);
+            assert_eq!(env.block_env.prevrandao, Some(prev_randao));
+            assert_eq!(env.block_env.difficulty, U256::ZERO);
+            assert_eq!(env.block_env.blob_excess_gas_and_price, expected_blob);
+        }
+    }
+
+    #[cfg(feature = "engine")]
+    #[test]
+    fn payload_env_matches_converted_block_env() {
+        let header = Header {
+            beneficiary: Address::repeat_byte(0x22),
+            number: 42,
+            timestamp: 1_234,
+            mix_hash: B256::repeat_byte(0x11),
+            gas_limit: 30_000_000,
+            base_fee_per_gas: Some(1_000_000_000),
+            ..Default::default()
+        };
+        let payload = execution_payload(header);
+        let converted_block =
+            payload.as_v1().clone().into_block_raw().expect("valid payload converts to a block");
+        let fork = FakeHardfork::ecotone();
+
+        assert_eq!(
+            evm_env_for_op_payload(&payload, &fork, 10),
+            evm_env_for_op_block(&converted_block.header, &fork, 10),
+        );
     }
 
     /// The `BLOBBASEFEE` opcode must always be 1 on the OP Stack from Ecotone onward. Post-Jovian

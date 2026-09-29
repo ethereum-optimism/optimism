@@ -11,7 +11,6 @@ import (
 	"time"
 
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/log"
 
 	optypes "github.com/ethereum-optimism/optimism/op-core/types"
 	"github.com/ethereum-optimism/optimism/op-interop-filter/metrics"
@@ -19,6 +18,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/client"
 	"github.com/ethereum-optimism/optimism/op-service/clock"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
+	"github.com/ethereum-optimism/optimism/op-service/log"
 	"github.com/ethereum-optimism/optimism/op-service/sources"
 	"github.com/ethereum-optimism/optimism/op-supernode/supernode/activity/interop/raftwallogdb"
 
@@ -252,6 +252,11 @@ func (c *LogsDBChainIngester) Contains(query messages.ContainsQuery) (messages.B
 	return c.logsDB.Contains(query)
 }
 
+// IsValidInitiatingTimestamp returns true if the timestamp can contain initiating messages.
+func (c *LogsDBChainIngester) IsValidInitiatingTimestamp(timestamp uint64) bool {
+	return c.rollupCfg.IsInterop(timestamp) && !c.rollupCfg.IsInteropActivationBlock(timestamp)
+}
+
 // LatestBlock returns the latest sealed block
 func (c *LogsDBChainIngester) LatestBlock() (eth.BlockID, bool) {
 	c.mu.RLock()
@@ -381,14 +386,12 @@ func (c *LogsDBChainIngester) findAndSetEarliestBlock() error {
 func (c *LogsDBChainIngester) calculateStartingBlock() uint64 {
 	backfillSeconds := uint64(c.backfillDuration.Seconds())
 	if c.startTimestamp < backfillSeconds {
-		// Backfill reaches before epoch 0; start from genesis
 		return c.rollupCfg.Genesis.L2.Number
 	}
 	backfillTimestamp := c.startTimestamp - backfillSeconds
 
 	startingBlock, err := c.rollupCfg.TargetBlockNumber(backfillTimestamp)
 	if err != nil {
-		// Timestamp is before genesis, start from genesis block
 		return c.rollupCfg.Genesis.L2.Number
 	}
 	return startingBlock

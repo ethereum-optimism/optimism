@@ -31,6 +31,7 @@ pub mod validator;
 pub use validator::OpExecutionPayloadValidator;
 
 pub mod config;
+mod sdm_metrics;
 
 // Implement `ConfigureEngineEvm<OpExecData>` by delegating to the `OpExecutionData` implementation.
 // This must live here because `OpExecData` is defined in this crate (orphan rules).
@@ -83,7 +84,7 @@ where
     // `block_to_payload` and `From<OpBuiltPayload<N>> for OpExecData` are
     // separate conversion paths to the same type. OP execution data does not
     // currently carry a BAL, so both paths intentionally discard it.
-    /// UPSTREAM-MIRROR(copy): reth@rev:aef8d3e
+    /// UPSTREAM-MIRROR(copy): reth@rev:0fbe428
     /// `reth_ethereum_engine_primitives::EthPayloadTypes::block_to_payload`
     ///
     /// Mirrors the upstream conversion while constructing OP execution data.

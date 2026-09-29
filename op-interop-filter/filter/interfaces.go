@@ -50,6 +50,9 @@ type ChainIngester interface {
 	// Contains checks if a log exists in the chain's database.
 	Contains(query messages.ContainsQuery) (messages.BlockSeal, error)
 
+	// IsValidInitiatingTimestamp returns true if the timestamp is after the Lagoon activation block.
+	IsValidInitiatingTimestamp(timestamp uint64) bool
+
 	// LatestBlock returns the latest ingested block.
 	LatestBlock() (eth.BlockID, bool)
 

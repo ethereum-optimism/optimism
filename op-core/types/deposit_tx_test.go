@@ -151,6 +151,28 @@ func TestDepositHashParity(t *testing.T) {
 	}
 }
 
+// TestBedrockSystemDepositHashGoldenVector pins the cross-client hash of a pre-Regolith
+// L1-info deposit captured from op-geth. The system flag is part of the canonical encoding,
+// so both the flag and this hash must stay aligned with op-alloy after op-geth is removed.
+func TestBedrockSystemDepositHashGoldenVector(t *testing.T) {
+	to := common.HexToAddress("0x4200000000000000000000000000000000000015")
+	tx := &optypes.DepositTx{
+		SourceHash:          common.HexToHash("0xfd3be1af69bee3e315a5dc5b773c64432230d76db68edae7a64193522118a377"),
+		From:                common.HexToAddress("0xdeaddeaddeaddeaddeaddeaddeaddeaddead0001"),
+		To:                  &to,
+		Mint:                big.NewInt(0),
+		Value:               big.NewInt(0),
+		Gas:                 150_000_000,
+		IsSystemTransaction: true,
+		Data: common.FromHex(
+			"0x015d8eb90000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000006aad7005000000000000000000000000000000000000000000000000000000003b9aca001b7ca7f22fd5e435bbc1f175d4e7721cee397530e7ef753563b0b8772ec58d86000000000000000000000000000000000000000000000000000000000000000b0000000000000000000000003c44cdddb6a900fa2b585dd299e03d12fa4293bc000000000000000000000000000000000000000000000000000000000000083400000000000000000000000000000000000000000000000000000000000f4240",
+		),
+	}
+	const opAlloyTxHash = "0x67c97e03f0759855b20459dd9b5f9ddebdc094f3669bf039011252bae68f5f24"
+
+	require.Equal(t, opAlloyTxHash, tx.Hash().Hex())
+}
+
 func TestUnmarshalDepositTxRoundTrip(t *testing.T) {
 	for _, tc := range depositTxTestCases() {
 		t.Run(tc.name, func(t *testing.T) {

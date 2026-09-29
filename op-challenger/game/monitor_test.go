@@ -14,11 +14,11 @@ import (
 	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/common"
 	ethtypes "github.com/ethereum/go-ethereum/core/types"
-	"github.com/ethereum/go-ethereum/log"
 	"github.com/stretchr/testify/require"
 
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/wait"
 	"github.com/ethereum-optimism/optimism/op-service/clock"
+	"github.com/ethereum-optimism/optimism/op-service/log"
 )
 
 // TestMonitorGames tests that the monitor can handle a new head event

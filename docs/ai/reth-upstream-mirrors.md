@@ -69,6 +69,11 @@ Statuses: `current`, `stale` (review it), `frozen` (an intentionally old
 `port`), and the tag errors `ahead`, `unknown-crate`, `ambiguous-version`, and
 `malformed`.
 
+A crate can resolve to several incompatible versions at once, when an unrelated
+dependency pulls an older line. The version a tag is checked against is then the
+one inside the range `rust/Cargo.toml` asks for — what our own crates build
+against. `ambiguous-version` is reported only when that still leaves a choice.
+
 ## Using it on a bump
 
 1. Bump the pin and refresh the lockfiles as usual (`rust/UPDATING-RETH.md`).

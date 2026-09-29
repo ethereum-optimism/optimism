@@ -12,7 +12,6 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/rpc"
 	"github.com/hashicorp/raft"
 
@@ -28,6 +27,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/dial"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/httputil"
+	"github.com/ethereum-optimism/optimism/op-service/log"
 	opmetrics "github.com/ethereum-optimism/optimism/op-service/metrics"
 	"github.com/ethereum-optimism/optimism/op-service/retry"
 	oprpc "github.com/ethereum-optimism/optimism/op-service/rpc"

@@ -5,15 +5,15 @@ import (
 	"os"
 
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer"
-	oplog "github.com/ethereum-optimism/optimism/op-service/log"
-	"github.com/ethereum/go-ethereum/log"
+	"github.com/ethereum-optimism/optimism/op-service/log"
+	"github.com/ethereum-optimism/optimism/op-service/log/logcli"
 	"github.com/urfave/cli/v2"
 )
 
 func CacheCLI(cliCtx *cli.Context) error {
-	logCfg := oplog.ReadCLIConfig(cliCtx)
-	l := oplog.NewLogger(oplog.AppOut(cliCtx), logCfg)
-	oplog.SetGlobalLogHandler(l.Handler())
+	logCfg := logcli.ReadCLIConfig(cliCtx)
+	l := logcli.NewLogger(logcli.AppOut(cliCtx), logCfg)
+	logcli.SetGlobalLogHandler(l.Handler())
 
 	cacheDir := cliCtx.String(deployer.CacheDirFlag.Name)
 	if cacheDir == "" {

@@ -214,8 +214,13 @@ impl L1BlockInfo {
         let operator_cost_gas_limit =
             self.operator_fee_charge_inner(U256::from(gas.limit()), spec_id);
         // Exclude reservoir gas (EIP-8037) from used gas — reservoir is unused and reimbursed.
+        // revm 42 can credit `remaining` from the reservoir after the fact, so the sum can
+        // exceed the limit.
         let operator_cost_gas_used = self.operator_fee_charge_inner(
-            U256::from(gas.limit() - (gas.remaining() + gas.reservoir() + gas.refunded() as u64)),
+            U256::from(
+                gas.limit()
+                    .saturating_sub(gas.remaining() + gas.reservoir() + gas.refunded() as u64),
+            ),
             spec_id,
         );
 
@@ -679,5 +684,21 @@ mod tests {
         let refunded = l1_block_info.operator_fee_refund(&gas, OpSpecId::ISTHMUS);
 
         assert_eq!(refunded, U256::from(100))
+    }
+
+    /// Reservoir gas is credited on top of the regular budget, so `remaining + reservoir` can
+    /// exceed the limit and the used-gas expression goes negative.
+    #[test]
+    fn test_operator_fee_refund_with_unspent_reservoir() {
+        let gas = Gas::new_with_regular_gas_and_reservoir(50000, 100);
+
+        let l1_block_info = L1BlockInfo {
+            operator_fee_scalar: Some(U256::from(2000)),
+            operator_fee_constant: Some(U256::from(5)),
+            ..Default::default()
+        };
+
+        // Nothing was spent, so the whole limit-based charge is refunded.
+        assert_eq!(l1_block_info.operator_fee_refund(&gas, OpSpecId::ISTHMUS), U256::from(100));
     }
 }

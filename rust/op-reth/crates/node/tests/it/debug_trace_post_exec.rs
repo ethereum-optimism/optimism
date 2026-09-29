@@ -9,11 +9,12 @@
 //!
 //! [the bug]: https://github.com/ethereum-optimism/optimism-premium/issues/163
 
-use alloy_consensus::{Block, BlockBody, Header, Sealable};
-use alloy_primitives::{Address, B256, Bytes, TxKind, U256};
+use alloy_consensus::{Block, BlockBody, Header, Sealable, SignableTransaction, TxEip1559};
+use alloy_primitives::{Address, B256, Bytes, Signature, TxKind, U256};
 use alloy_rpc_types_eth::TransactionRequest;
 use alloy_rpc_types_trace::{common::TraceResult, geth::GethDebugTracingOptions};
-use op_alloy_consensus::{OpTxEnvelope, TxDeposit, build_post_exec_tx};
+use op_alloy_consensus::{OpTxEnvelope, SDMGasEntry, TxDeposit, build_post_exec_tx};
+use reth_chainspec::EthChainSpec;
 use reth_node_builder::{NodeBuilder, NodeHandle};
 use reth_node_core::{
     args::{NetworkArgs, RpcServerArgs},
@@ -72,13 +73,24 @@ async fn test_debug_trace_block_with_post_exec_tx() -> eyre::Result<()> {
         ..Default::default()
     };
 
-    // A deposit needs no signature (senders recover from its `from` field), so the block gets a
-    // normally-executing transaction without any signing machinery.
+    // Fund the regular transaction's recovered sender with a preceding deposit. A valid version-1
+    // post-exec payload must be non-empty and may only target regular transactions.
+    let regular = TxEip1559 {
+        chain_id: chain_spec.chain_id(),
+        // The preceding deposit increments the depositor nonce after Regolith.
+        nonce: 1,
+        gas_limit: 21_000,
+        max_fee_per_gas: u128::from(header.base_fee_per_gas.unwrap_or_default()),
+        to: TxKind::Call(Address::with_last_byte(1)),
+        ..Default::default()
+    }
+    .into_signed(Signature::test_signature());
+    let signer = regular.recover_signer()?;
     let deposit = TxDeposit {
         source_hash: B256::with_last_byte(1),
-        from: Address::with_last_byte(0xDE),
+        from: signer,
         to: TxKind::Call(Address::with_last_byte(1)),
-        mint: 0,
+        mint: 1_000_000_000_000_000_000,
         value: U256::ZERO,
         gas_limit: 21_000,
         is_system_transaction: false,
@@ -86,7 +98,10 @@ async fn test_debug_trace_block_with_post_exec_tx() -> eyre::Result<()> {
     };
     let transactions = vec![
         OpTxEnvelope::Deposit(deposit.seal_slow()),
-        OpTxEnvelope::PostExec(build_post_exec_tx(1, vec![]).seal_slow()),
+        OpTxEnvelope::Eip1559(regular),
+        OpTxEnvelope::PostExec(
+            build_post_exec_tx(1, vec![SDMGasEntry { index: 1, gas_refund: 1 }]).seal_slow(),
+        ),
     ];
     let block = Block::new(header, BlockBody { transactions, ommers: vec![], withdrawals: None });
 
@@ -97,7 +112,7 @@ async fn test_debug_trace_block_with_post_exec_tx() -> eyre::Result<()> {
     )
     .await?;
 
-    assert_eq!(traces.len(), 2, "one trace per transaction, including the post-exec tx");
+    assert_eq!(traces.len(), 3, "one trace per transaction, including the post-exec tx");
     for (index, trace) in traces.iter().enumerate() {
         assert!(
             matches!(trace, TraceResult::Success { .. }),

@@ -1,11 +1,11 @@
 package node
 
 import (
-	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/rpc"
 
 	"github.com/ethereum-optimism/optimism/op-core/interop/depset"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
+	"github.com/ethereum-optimism/optimism/op-service/log"
 	opmetrics "github.com/ethereum-optimism/optimism/op-service/metrics"
 	oprpc "github.com/ethereum-optimism/optimism/op-service/rpc"
 )

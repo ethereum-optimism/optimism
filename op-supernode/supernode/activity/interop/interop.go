@@ -14,12 +14,12 @@ import (
 	opservice "github.com/ethereum-optimism/optimism/op-service"
 	"github.com/ethereum-optimism/optimism/op-service/clock"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
+	"github.com/ethereum-optimism/optimism/op-service/log"
 	"github.com/ethereum-optimism/optimism/op-supernode/flags"
 	"github.com/ethereum-optimism/optimism/op-supernode/supernode/activity"
 	cc "github.com/ethereum-optimism/optimism/op-supernode/supernode/chain_container"
 	"github.com/ethereum-optimism/optimism/op-supernode/supernode/resources"
 	"github.com/ethereum/go-ethereum"
-	"github.com/ethereum/go-ethereum/log"
 	"github.com/urfave/cli/v2"
 )
 
@@ -493,12 +493,14 @@ func checkPreconditions(obs RoundObservation) *StepOutput {
 		output := StepOutput{Decision: DecisionWait}
 		return &output
 	}
-	if !obs.ChainsReady {
-		output := StepOutput{Decision: DecisionWait}
-		return &output
-	}
+	// A rewind takes priority over waiting. The frontier is often unavailable
+	// exactly because the L1 reorg pulled local-safe back.
 	if obs.L1NeedsRewind {
 		output := StepOutput{Decision: DecisionRewind}
+		return &output
+	}
+	if !obs.ChainsReady {
+		output := StepOutput{Decision: DecisionWait}
 		return &output
 	}
 	if !obs.L1Consistent {
@@ -620,18 +622,10 @@ func (i *Interop) observeRound() (RoundObservation, error) {
 		return obs, nil
 	}
 
-	ready, err := i.checkChainsReady(obs.NextTimestamp)
-	if err != nil {
-		if errors.Is(err, ethereum.NotFound) {
-			obs.ChainsReady = false
-			return obs, nil
-		}
-		return obs, err
-	}
-	obs.ChainsReady = true
-	obs.BlocksAtTS = ready.blocks
-	obs.L1Heads = ready.l1Heads
-
+	// Check the accepted L1 inclusion before the frontier. An L1 reorg can pull
+	// local-safe back below the last verified timestamp, which makes the next
+	// frontier unavailable. The accepted state is stale in that case and must
+	// be rewound, not left in place while the round waits.
 	if obs.LastVerified != nil {
 		same, err := i.l1Checker.SameL1Chain(i.ctx, []eth.BlockID{obs.LastVerified.L1Inclusion})
 		if err != nil {
@@ -643,6 +637,18 @@ func (i *Interop) observeRound() (RoundObservation, error) {
 			return obs, nil
 		}
 	}
+
+	ready, err := i.checkChainsReady(obs.NextTimestamp)
+	if err != nil {
+		if errors.Is(err, ethereum.NotFound) {
+			obs.ChainsReady = false
+			return obs, nil
+		}
+		return obs, err
+	}
+	obs.ChainsReady = true
+	obs.BlocksAtTS = ready.blocks
+	obs.L1Heads = ready.l1Heads
 
 	// Check the new frontier independently from the accepted L1 head. If the
 	// accepted head is still canonical but a frontier L1 head is stale, waiting

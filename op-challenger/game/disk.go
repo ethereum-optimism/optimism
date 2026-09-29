@@ -28,6 +28,9 @@ func (d *diskManager) DirForGame(addr common.Address) string {
 
 func (d *diskManager) RemoveAllExcept(keep []common.Address) error {
 	entries, err := os.ReadDir(d.datadir)
+	if errors.Is(err, os.ErrNotExist) {
+		return nil
+	}
 	if err != nil {
 		return fmt.Errorf("failed to list directory: %w", err)
 	}

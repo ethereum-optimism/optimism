@@ -13,7 +13,6 @@ import (
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/ethclient"
-	"github.com/ethereum/go-ethereum/log"
 
 	"github.com/ethereum-optimism/optimism/op-chain-ops/devkeys"
 	coredepset "github.com/ethereum-optimism/optimism/op-core/interop/depset"
@@ -21,7 +20,8 @@ import (
 	"github.com/ethereum-optimism/optimism/op-devstack/shared/rustbin"
 	"github.com/ethereum-optimism/optimism/op-service/endpoint"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
-	oplog "github.com/ethereum-optimism/optimism/op-service/log"
+	"github.com/ethereum-optimism/optimism/op-service/log"
+	"github.com/ethereum-optimism/optimism/op-service/log/logcli"
 	opmetrics "github.com/ethereum-optimism/optimism/op-service/metrics"
 	"github.com/ethereum-optimism/optimism/op-service/oppprof"
 	oprpc "github.com/ethereum-optimism/optimism/op-service/rpc"
@@ -235,13 +235,18 @@ func NewMixedSingleChainRuntime(t devtest.T, cfg MixedSingleChainPresetConfig) *
 	var l1Net *L1Network
 	var l2Net *L2Network
 	var depSet coredepset.DependencySet
-	if cfg.InteropAtGenesis {
-		l1Net, l2Net, depSet, _ = buildSingleChainWorldWithInterop(t, keys, true, cfg.LocalContractArtifactsPath, cfg.DeployerOptions...)
-	} else {
-		l1Net, l2Net = buildSingleChainWorld(t, keys, cfg.LocalContractArtifactsPath, cfg.DeployerOptions...)
-	}
 	jwtPath, jwtSecret := writeJWTSecret(t)
-	l1EL, l1CL := startInProcessL1(t, l1Net, jwtPath)
+	var l1EL *L1Geth
+	var l1CL *L1CLNode
+	startL1 := func(l1Net *L1Network) (*L1Geth, *L1CLNode) {
+		l1EL, l1CL = startInProcessL1(t, l1Net, jwtPath)
+		return l1EL, l1CL
+	}
+	if cfg.InteropAtGenesis {
+		_, l1Net, l2Net, depSet, _ = buildSingleChainWorld(t, keys, true, cfg.LocalContractArtifactsPath, nil, startL1, cfg.DeployerOptions...)
+	} else {
+		_, l1Net, l2Net, _, _ = buildSingleChainWorld(t, keys, false, cfg.LocalContractArtifactsPath, nil, startL1, cfg.DeployerOptions...)
+	}
 
 	metricsRegistrar := mixedNoopMetricsRegistrar{}
 
@@ -782,9 +787,9 @@ func startTestSequencerForRPCs(
 		PprofConfig: oppprof.CLIConfig{
 			ListenEnabled: false,
 		},
-		LogConfig: oplog.CLIConfig{
+		LogConfig: logcli.CLIConfig{
 			Level:  log.LevelDebug,
-			Format: oplog.FormatText,
+			Format: log.FormatText,
 		},
 		RPC: oprpc.CLIConfig{
 			ListenAddr:  "127.0.0.1",

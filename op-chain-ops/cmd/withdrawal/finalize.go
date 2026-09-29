@@ -6,7 +6,7 @@ import (
 
 	bindingspreview "github.com/ethereum-optimism/optimism/op-node/bindings/preview"
 	"github.com/ethereum-optimism/optimism/op-node/withdrawals"
-	oplog "github.com/ethereum-optimism/optimism/op-service/log"
+	"github.com/ethereum-optimism/optimism/op-service/log/logcli"
 	"github.com/ethereum-optimism/optimism/op-service/txmgr"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/ethclient"
@@ -80,7 +80,7 @@ func finalizeFlags() []cli.Flag {
 		PortalAddressFlag,
 	}
 	cliFlags = append(cliFlags, txmgr.CLIFlagsWithDefaults(EnvVarPrefix, txmgr.DefaultChallengerFlagValues)...)
-	cliFlags = append(cliFlags, oplog.CLIFlags(EnvVarPrefix)...)
+	cliFlags = append(cliFlags, logcli.CLIFlags(EnvVarPrefix)...)
 	return cliFlags
 }
 

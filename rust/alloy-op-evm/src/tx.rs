@@ -80,7 +80,7 @@ impl OpTxEnv for OpTx {
     }
 }
 
-/// UPSTREAM-MIRROR(delegate): revm-context-interface@41.0.0 `revm_context_interface::Transaction`
+/// UPSTREAM-MIRROR(delegate): revm-context-interface@42.0.0 `revm_context_interface::Transaction`
 ///
 /// Forwards the required getters and `effective_gas_price` to the inner `OpTransaction<TxEnv>`,
 /// which overrides `tx_type` and `effective_gas_price` for deposits. The remaining defaulted

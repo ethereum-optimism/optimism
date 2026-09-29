@@ -17,6 +17,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-service/client"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
+	oplog "github.com/ethereum-optimism/optimism/op-service/log"
 	oprpc "github.com/ethereum-optimism/optimism/op-service/rpc"
 	"github.com/ethereum-optimism/optimism/op-service/sources"
 	"github.com/ethereum-optimism/optimism/op-supernode/config"
@@ -26,7 +27,6 @@ import (
 	"github.com/ethereum-optimism/optimism/op-supernode/supernode/resources"
 	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/common"
-	gethlog "github.com/ethereum/go-ethereum/log"
 	"github.com/prometheus/client_golang/prometheus"
 )
 
@@ -148,7 +148,7 @@ type InteropChain interface {
 	WaitReady(ctx context.Context) error
 }
 
-type virtualNodeFactory func(cfg *opnodecfg.Config, log gethlog.Logger, initOverrides *rollupNode.InitializationOverrides, appVersion string, superAuthority rollup.SuperAuthority) virtual_node.VirtualNode
+type virtualNodeFactory func(cfg *opnodecfg.Config, log oplog.Logger, initOverrides *rollupNode.InitializationOverrides, appVersion string, superAuthority rollup.SuperAuthority) virtual_node.VirtualNode
 
 // RPCRouterGate is the chain container's narrow view of the shared RPC router.
 // It lets containers swap per-chain handlers while also controlling when the
@@ -180,7 +180,7 @@ type simpleChainContainer struct {
 	stop               atomic.Bool
 	resetting          atomic.Bool
 	stopped            chan struct{}
-	log                gethlog.Logger
+	log                oplog.Logger
 	chainID            eth.ChainID
 	initOverload       *rollupNode.InitializationOverrides     // Base shared resources for all virtual nodes
 	rpcHandler         *oprpc.Handler                          // Current per-chain RPC handler instance
@@ -207,7 +207,7 @@ var _ InteropChain = (*simpleChainContainer)(nil)
 func NewChainContainer(
 	chainID eth.ChainID,
 	vncfg *opnodecfg.Config,
-	log gethlog.Logger,
+	log oplog.Logger,
 	cfg config.CLIConfig,
 	initOverload *rollupNode.InitializationOverrides,
 	rpcHandler *oprpc.Handler,
@@ -299,7 +299,7 @@ func (c *simpleChainContainer) registeredVerifier() activity.VerificationActivit
 }
 
 // defaultVirtualNodeFactory is the default factory that creates a real VirtualNode
-func defaultVirtualNodeFactory(cfg *opnodecfg.Config, log gethlog.Logger, initOverload *rollupNode.InitializationOverrides, appVersion string, superAuthority rollup.SuperAuthority) virtual_node.VirtualNode {
+func defaultVirtualNodeFactory(cfg *opnodecfg.Config, log oplog.Logger, initOverload *rollupNode.InitializationOverrides, appVersion string, superAuthority rollup.SuperAuthority) virtual_node.VirtualNode {
 	initOverload.SuperAuthority = superAuthority
 	return virtual_node.NewVirtualNode(cfg, log, initOverload, appVersion)
 }

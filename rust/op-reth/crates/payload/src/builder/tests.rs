@@ -16,7 +16,7 @@ use alloy_evm::RecoveredTx;
 use alloy_primitives::{Address, B64, B256, Bytes, Signature, TxHash, TxKind, U256};
 use alloy_rpc_types_eth::erc4337::TransactionConditional;
 use op_alloy_consensus::{
-    POST_EXEC_PAYLOAD_VERSION, PostExecPayload, SDMGasEntry, build_post_exec_tx,
+    POST_EXEC_PAYLOAD_VERSION, PostExecPayload, SDMGasEntry, TxDeposit, build_post_exec_tx,
 };
 use reth_basic_payload_builder::PayloadConfig;
 use reth_chainspec::MIN_TRANSACTION_GAS;
@@ -54,6 +54,12 @@ fn post_exec_with_encoded(
     WithEncoded::new(encoded, tx)
 }
 
+fn deposit_with_encoded() -> WithEncoded<OpTransactionSigned> {
+    let tx = OpTransactionSigned::Deposit(TxDeposit::default().seal_slow());
+    let encoded = Bytes::from(tx.encoded_2718());
+    WithEncoded::new(encoded, tx)
+}
+
 /// Builds a payload-builder ctx on an SDM-active (Interop/Lagoon at genesis) chain.
 ///
 /// `no_tx_pool` picks local sequencing (`false`) vs rebuilding a derived block (`true`); `opt_in`
@@ -77,8 +83,9 @@ fn interop_ctx(
         ..Default::default()
     });
     // Parent is block 0, so the block being built — and any embedded payload — anchors to block 1.
-    let transactions =
-        embedded_post_exec.map(|e| vec![post_exec_with_encoded(1, e)]).unwrap_or_default();
+    let transactions = embedded_post_exec
+        .map(|entries| vec![deposit_with_encoded(), post_exec_with_encoded(1, entries)])
+        .unwrap_or_default();
     let attributes = OpPayloadBuilderAttributes {
         timestamp: 1,
         gas_limit: Some(gas_limit),

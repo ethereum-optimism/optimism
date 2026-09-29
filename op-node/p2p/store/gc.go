@@ -6,7 +6,7 @@ import (
 	"time"
 
 	"github.com/ethereum-optimism/optimism/op-service/clock"
-	"github.com/ethereum/go-ethereum/log"
+	"github.com/ethereum-optimism/optimism/op-service/log"
 )
 
 const (

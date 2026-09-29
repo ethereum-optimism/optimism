@@ -2779,6 +2779,7 @@
                   "chain-operators/guides/features/setting-operator-fee",
                   "chain-operators/guides/features/setting-da-footprint",
                   "chain-operators/guides/features/subblocks-guide",
+                  "chain-operators/guides/features/sequencer-defined-metering",
                   "chain-operators/guides/features/alt-da-mode-guide",
                   "chain-operators/guides/features/blobs",
                   "chain-operators/guides/features/enable-span-batches",
@@ -3548,6 +3549,7 @@
             "group": "Features",
             "pages": [
               "op-stack/features/subblocks",
+              "op-stack/features/sdm",
               "op-stack/features/custom-gas-token",
               "op-stack/features/bridged-usdc-standard",
               "op-stack/features/span-batches",

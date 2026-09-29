@@ -116,6 +116,7 @@ type ForkMatrix = []*Hardfork
 
 // Hardfork definitions
 var (
+	Bedrock  = &Hardfork{Name: string(forks.Bedrock), Precedence: 0}
 	Regolith = &Hardfork{Name: string(forks.Regolith), Precedence: 1}
 	Canyon   = &Hardfork{Name: string(forks.Canyon), Precedence: 2}
 	Delta    = &Hardfork{Name: string(forks.Delta), Precedence: 3}
@@ -129,7 +130,7 @@ var (
 )
 
 var (
-	Hardforks      = ForkMatrix{Regolith, Canyon, Delta, Ecotone, Fjord, Granite, Holocene, Isthmus, Jovian, Karst}
+	Hardforks      = ForkMatrix{Bedrock, Regolith, Canyon, Delta, Ecotone, Fjord, Granite, Holocene, Isthmus, Jovian, Karst}
 	LatestFork     = Hardforks[len(Hardforks)-1]
 	LatestForkOnly = ForkMatrix{LatestFork}
 )
@@ -141,7 +142,7 @@ func NewForkMatrix(forks ...*Hardfork) ForkMatrix {
 func FaultProofForks() ForkMatrix {
 	var forks ForkMatrix
 	for _, hf := range Hardforks {
-		if hf == Regolith || hf == Canyon || hf == Delta {
+		if hf == Bedrock || hf == Regolith || hf == Canyon || hf == Delta {
 			continue
 		}
 		forks = append(forks, hf)

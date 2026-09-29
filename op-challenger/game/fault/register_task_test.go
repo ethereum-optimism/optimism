@@ -19,13 +19,13 @@ import (
 	gameTypes "github.com/ethereum-optimism/optimism/op-challenger/game/types"
 	"github.com/ethereum-optimism/optimism/op-challenger/metrics"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
+	"github.com/ethereum-optimism/optimism/op-service/log"
 	"github.com/ethereum-optimism/optimism/op-service/sources/batching"
 	"github.com/ethereum-optimism/optimism/op-service/sources/batching/rpcblock"
 	"github.com/ethereum-optimism/optimism/op-service/sources/batching/test"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
 	"github.com/ethereum-optimism/optimism/packages/contracts-bedrock/snapshots"
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/log"
 	"github.com/stretchr/testify/require"
 )
 
@@ -75,7 +75,7 @@ func TestRegisterOracle_MissingGameImpl(t *testing.T) {
 			gameFactory, err := contracts.NewDisputeGameFactoryContract(context.Background(), m, gameFactoryAddr, caller)
 			require.NoError(t, err)
 
-			logger, logs := testlog.CaptureLogger(t, log.LvlInfo)
+			logger, logs := testlog.CaptureLogger(t, log.LevelInfo)
 			oracles := registry.NewOracleRegistry()
 			gameType := gameTypes.CannonGameType
 
@@ -155,7 +155,7 @@ func TestRegisterOracle_AddsOracle(t *testing.T) {
 						rpc.SetResponse(gameFactoryAddr, "gameArgs", rpcblock.Latest, []interface{}{gameType}, []interface{}{[]byte{}})
 					}
 
-					logger := testlog.Logger(t, log.LvlInfo)
+					logger := testlog.Logger(t, log.LevelInfo)
 					oracles := registry.NewOracleRegistry()
 
 					// Use the latest v1 of these contracts. Doesn't have to be an exact match for the version.

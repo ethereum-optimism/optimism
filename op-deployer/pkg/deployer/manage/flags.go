@@ -3,7 +3,7 @@ package manage
 import (
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/upgrade"
-	oplog "github.com/ethereum-optimism/optimism/op-service/log"
+	"github.com/ethereum-optimism/optimism/op-service/log/logcli"
 	"github.com/urfave/cli/v2"
 )
 
@@ -17,7 +17,7 @@ var Commands = cli.Commands{
 			upgrade.OverrideArtifactsURLFlag,
 			upgrade.OutfileFlag,
 			deployer.CacheDirFlag,
-		}, oplog.CLIFlags(deployer.EnvVarPrefix)...),
+		}, logcli.CLIFlags(deployer.EnvVarPrefix)...),
 		Action: AddGameTypeOPCMV2CLI,
 	},
 }
