@@ -320,6 +320,7 @@ where
             // This field is unused for individual block building jobs.
             extra_data: Default::default(),
             post_exec_mode,
+            parallel_candidates: Vec::new(),
         };
         let executor = self.factory.create_executor(evm, ctx);
 

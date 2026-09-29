@@ -285,4 +285,116 @@ mod tests {
             "Recipient balance should equal the transferred value"
         );
     }
+
+    #[test]
+    fn historical_and_engine_execution_match_across_modes_and_parents() {
+        use crate::{ExecutionMode, ParallelExecutionConfig};
+        use alloy_evm::block::BlockExecutor;
+        use op_alloy_rpc_types_engine::{OpExecutionData, OpExecutionPayload};
+        use reth_evm::{ConfigureEngineEvm, ConfigureEvm, ConvertTx, ExecutableTxTuple};
+        use reth_primitives_traits::SignedTransaction;
+        use revm::database::{State, states::bundle_state::BundleRetention};
+        let chain_spec =
+            Arc::new(OpChainSpecBuilder::optimism_mainnet().regolith_activated().build());
+        let transactions: Vec<OpTransactionSigned> = (1..=4u8)
+            .map(|i| {
+                TxEip1559 {
+                    chain_id: chain_spec.chain.id(),
+                    gas_limit: 150_000,
+                    max_fee_per_gas: 10,
+                    // SHA256, identity and pairing must reuse worker results through both
+                    // historical execution and the Engine environment/converter path.
+                    to: if i < 4 {
+                        Address::with_last_byte(1 << i)
+                    } else {
+                        Address::repeat_byte(i + 10)
+                    }
+                    .into(),
+                    ..Default::default()
+                }
+                .into_signed(Signature::test_signature())
+                .into()
+            })
+            .collect();
+        let senders: Vec<_> = transactions.iter().map(|tx| tx.try_recover().unwrap()).collect();
+        for parent in [1, 2] {
+            let mut db = create_op_state_provider();
+            for sender in &senders {
+                db.insert_account(
+                    *sender,
+                    Account {
+                        balance: U256::from(10_000_000_000_000u64 + parent),
+                        ..Default::default()
+                    },
+                    None,
+                    Default::default(),
+                );
+            }
+            let header = Header {
+                timestamp: 1,
+                number: 1,
+                gas_limit: 1_000_000,
+                parent_hash: alloy_primitives::B256::with_last_byte(parent as u8),
+                base_fee_per_gas: Some(1),
+                ..Default::default()
+            };
+            let reference = execute_block(
+                chain_spec.clone(),
+                &db,
+                header.clone(),
+                transactions.clone(),
+                senders.clone(),
+            );
+            let block = Block {
+                header,
+                body: BlockBody { transactions: transactions.clone(), ..Default::default() },
+            };
+            let (payload, sidecar) = OpExecutionPayload::from_block_slow(&block);
+            let payload = OpExecutionData::new(payload, sidecar);
+            for mode in [ExecutionMode::Shadow, ExecutionMode::Parallel] {
+                let config = evm_config(chain_spec.clone())
+                    .with_parallel_execution(ParallelExecutionConfig {
+                        mode,
+                        workers: 2,
+                        ..Default::default()
+                    })
+                    .unwrap();
+                let historical =
+                    BasicBlockExecutor::new(config.clone(), StateProviderDatabase::new(&db));
+                let actual = historical
+                    .execute(&RecoveredBlock::new_unhashed(block.clone(), senders.clone()))
+                    .unwrap();
+                assert_eq!(actual.state, reference.state);
+                assert_eq!(actual.receipts, reference.receipts);
+                assert_eq!(actual.gas_used, reference.gas_used);
+
+                let mut state = State::builder()
+                    .with_database(StateProviderDatabase::new(&db))
+                    .with_bundle_update()
+                    .build();
+                let env = config.evm_env_for_payload(&payload).unwrap();
+                let ctx = config.context_for_payload(&payload).unwrap();
+                assert_eq!(ctx.parallel_candidates.len(), 4);
+                let evm = config.evm_with_env(&mut state, env);
+                let mut executor = config.create_executor(evm, ctx);
+                executor.apply_pre_execution_changes().unwrap();
+                let (transactions, convert) =
+                    config.tx_iterator_for_payload(&payload).unwrap().into_parts();
+                for encoded in transactions {
+                    executor.execute_transaction(convert.convert(encoded).unwrap()).unwrap();
+                }
+                let (_, result) = executor.finish().unwrap();
+                state.merge_transitions(BundleRetention::Reverts);
+                assert_eq!(state.take_bundle(), reference.state);
+                assert_eq!(result.receipts, reference.receipts);
+                assert_eq!(result.gas_used, reference.gas_used);
+                let statistics = config.executor_factory.parallel_runtime().unwrap().statistics();
+                assert!(statistics.completed >= 8);
+                assert_eq!(statistics.shadow_mismatches, 0);
+                if mode == ExecutionMode::Parallel {
+                    assert!(statistics.reused >= 8);
+                }
+            }
+        }
+    }
 }

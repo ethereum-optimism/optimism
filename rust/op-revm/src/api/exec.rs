@@ -2,7 +2,9 @@
 //!
 //! Every upstream API impl below must also be checked for newly defaulted trait methods.
 use crate::{
-    L1BlockInfo, OpHaltReason, OpSpecId, OpTransactionError, evm::OpEvm, handler::OpHandler,
+    L1BlockInfo, OpHaltReason, OpSpecId, OpTransactionError,
+    evm::OpEvm,
+    handler::{DeferredFeeCredit, OpHandler},
     transaction::OpTxTr,
 };
 use revm::{
@@ -23,6 +25,37 @@ use revm::{
     primitives::{Address, Bytes},
     state::EvmState,
 };
+use std::vec::Vec;
+
+/// Isolated execution result plus protocol fee operations awaiting ordered settlement.
+pub type DeferredFeeResult =
+    (ExecResultAndState<ExecutionResult<OpHaltReason>, EvmState>, Vec<DeferredFeeCredit>);
+
+impl<CTX, INSP, PRECOMPILE> OpEvm<CTX, INSP, EthInstructions<EthInterpreter, CTX>, PRECOMPILE>
+where
+    CTX: OpContextTr<Journal: JournalExt> + ContextSetters,
+    INSP: Inspector<CTX, EthInterpreter>,
+    PRECOMPILE: PrecompileProvider<CTX, Output = InterpreterResult>,
+{
+    /// Executes an isolated transaction, returning protocol credits for ordered settlement.
+    ///
+    /// The returned state is incomplete until the credits have been applied. This is only for
+    /// execution coordinators that validate dependencies before committing; normal execution and
+    /// RPC tracing continue to use [`ExecuteEvm::transact`]. The journal is finalized on errors
+    /// too.
+    pub fn transact_with_deferred_fees(
+        &mut self,
+        tx: CTX::Tx,
+        inspect: bool,
+    ) -> Result<DeferredFeeResult, OpError<CTX>> {
+        self.0.ctx.set_tx(tx);
+        let mut handler =
+            OpHandler::<_, OpError<CTX>, EthFrame<EthInterpreter>>::with_deferred_fees();
+        let result = if inspect { handler.inspect_run(self) } else { handler.run(self) };
+        let state = self.finalize();
+        result.map(|result| (ExecResultAndState::new(result, state), handler.take_deferred_fees()))
+    }
+}
 
 /// Type alias for Optimism context
 pub trait OpContextTr:

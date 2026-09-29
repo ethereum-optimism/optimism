@@ -78,6 +78,10 @@ impl OpTxEnv for OpTx {
     fn encoded_bytes(&self) -> Option<&Bytes> {
         self.0.enveloped_tx.as_ref()
     }
+
+    fn parallel_transaction(&self) -> Option<Self> {
+        Some(self.clone())
+    }
 }
 
 /// UPSTREAM-MIRROR(delegate): revm-context-interface@42.0.0 `revm_context_interface::Transaction`

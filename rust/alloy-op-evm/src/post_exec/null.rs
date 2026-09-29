@@ -20,6 +20,26 @@ pub struct NullRefundPolicy;
 impl PostExecRefundInspector for NullRefundPolicy {
     type Snapshot = ();
 
+    fn supports_parallel_observation(&self) -> bool {
+        true
+    }
+
+    fn matches_prepared_snapshot(&self, _snapshot: &Self::Snapshot) -> bool {
+        true
+    }
+
+    fn take_parallel_observation(&mut self) -> Option<super::ParallelObservation> {
+        Some(super::ParallelObservation::new((), 0))
+    }
+
+    fn evaluate_parallel_observation(
+        &mut self,
+        _context: PostExecTxContext,
+        observation: &super::ParallelObservation,
+    ) -> Option<PostExecExecutedTx> {
+        observation.downcast_ref::<()>().map(|()| PostExecExecutedTx::default())
+    }
+
     fn begin_tx(&mut self, _ctx: PostExecTxContext) {}
 
     fn note_account_touch(&mut self, _address: Address) {}

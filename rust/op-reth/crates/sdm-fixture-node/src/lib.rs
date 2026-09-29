@@ -187,7 +187,7 @@ impl<Node, Pool, EvmConfig> PayloadServiceBuilder<Node, Pool, EvmConfig>
 where
     Node: FullNodeTypes<Types: OpNodeTypes>,
     Pool: TransactionPool + Clone + Send + Sync + Unpin + 'static,
-    EvmConfig: Send,
+    EvmConfig: ConfigurePostExecEvm + Send,
     FixtureOpEvmConfig<<Node::Types as NodeTypes>::ChainSpec, OpPrimitives>: ConfigurePostExecEvm<
             Primitives = OpPrimitives,
             NextBlockEnvCtx: BuildNextEnv<
@@ -210,8 +210,11 @@ where
         self,
         ctx: &BuilderContext<Node>,
         pool: Pool,
-        _evm_config: EvmConfig,
+        evm_config: EvmConfig,
     ) -> eyre::Result<PayloadBuilderHandle<<Node::Types as NodeTypes>::Payload>> {
+        if evm_config.parallel_candidate_limit() != 0 {
+            eyre::bail!("the opaque SDM fixture policy requires sequential execution");
+        }
         let evm_config = fixture_evm_config::<<Node::Types as NodeTypes>::ChainSpec, OpPrimitives>(
             ctx.chain_spec(),
         );

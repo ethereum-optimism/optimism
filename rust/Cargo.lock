@@ -574,15 +574,18 @@ dependencies = [
  "alloy-hardforks",
  "alloy-op-hardforks",
  "alloy-primitives",
+ "alloy-trie",
  "auto_impl",
  "metrics",
  "metrics-util",
  "op-alloy",
  "op-revm",
+ "reth-optimism-parallel",
  "revm",
  "revm-inspectors",
  "test-case",
  "thiserror 2.0.18",
+ "tracing",
 ]
 
 [[package]]
@@ -13606,6 +13609,16 @@ dependencies = [
  "tokio",
  "tracing",
  "url",
+]
+
+[[package]]
+name = "reth-optimism-parallel"
+version = "1.11.3"
+dependencies = [
+ "metrics",
+ "rayon",
+ "revm",
+ "thiserror 2.0.18",
 ]
 
 [[package]]

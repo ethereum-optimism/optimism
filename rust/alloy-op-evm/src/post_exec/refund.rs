@@ -45,6 +45,44 @@ pub trait PostExecRefundInspector {
     /// Opaque block-scoped state carried across subblocks and candidate rollback.
     type Snapshot: Clone;
 
+    /// Whether this policy supports transaction-local observation for parallel execution.
+    fn supports_parallel_observation(&self) -> bool {
+        false
+    }
+
+    /// Captures prepared state for shadow comparison without publishing it.
+    fn prepared_snapshot(&self) -> Self::Snapshot {
+        self.snapshot()
+    }
+
+    /// Compares all prepared policy state, including state that has not affected refunds yet.
+    /// Parallel policies must implement this; the default conservatively reports a mismatch.
+    fn matches_prepared_snapshot(&self, _snapshot: &Self::Snapshot) -> bool {
+        false
+    }
+
+    /// Selects observation-only mode. Called only after checking support.
+    fn set_parallel_observation(&mut self, _enabled: bool) {}
+
+    /// Takes the observations from the most recently finished speculative transaction.
+    fn take_parallel_observation(&mut self) -> Option<super::ParallelObservation> {
+        None
+    }
+
+    /// Evaluates validated observations in commit order. A declined candidate requires restoring
+    /// the policy snapshot, just as a declined sequential candidate does.
+    fn evaluate_parallel_observation(
+        &mut self,
+        _context: PostExecTxContext,
+        _observation: &super::ParallelObservation,
+    ) -> Option<PostExecExecutedTx> {
+        None
+    }
+
+    /// Publishes a prepared policy update only after the coordinator accepts the transaction.
+    /// Legacy inspectors already update during execution and rely on snapshot rollback.
+    fn commit_tx(&mut self) {}
+
     /// Begin observing the next transaction.
     fn begin_tx(&mut self, ctx: PostExecTxContext);
 

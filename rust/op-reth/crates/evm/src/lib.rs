@@ -11,8 +11,8 @@
 
 extern crate alloc;
 
-use alloc::sync::Arc;
-use alloy_consensus::{BlockHeader, Header};
+use alloc::{sync::Arc, vec::Vec};
+use alloy_consensus::{BlockHeader, Header, transaction::TxHashRef};
 use alloy_evm::{EvmFactory, FromRecoveredTx, FromTxWithEncoded, block::BlockExecutorFactory};
 use alloy_op_evm::{
     block::{OpTxEnv, receipt_builder::OpReceiptBuilder},
@@ -29,7 +29,9 @@ use reth_evm::{ConfigureEvm, EvmEnv, eth::NextEvmEnvAttributes, precompiles::Pre
 use reth_optimism_chainspec::OpChainSpec;
 use reth_optimism_forks::OpHardforks;
 use reth_optimism_primitives::{DepositReceipt, OpPrimitives};
-use reth_primitives_traits::{NodePrimitives, SealedBlock, SealedHeader, SignedTransaction};
+use reth_primitives_traits::{
+    BlockBody as _, NodePrimitives, SealedBlock, SealedHeader, SignedTransaction,
+};
 use revm::context::BlockEnv;
 
 #[allow(unused_imports)]
@@ -75,6 +77,10 @@ pub use alloy_op_evm::{
     },
 };
 
+pub use alloy_op_evm::block::ParallelCandidate;
+#[cfg(feature = "std")]
+pub use alloy_op_evm::block::{ExecutionMode, ParallelExecutionConfig, ParallelRuntime};
+
 mod post_exec_ext;
 pub use post_exec_ext::*;
 
@@ -116,6 +122,30 @@ impl<ChainSpec: EthChainSpec<Header = Header> + OpHardforks> OpEvmConfig<ChainSp
 }
 
 impl<ChainSpec, N: NodePrimitives, R, EvmFactory> OpEvmConfig<ChainSpec, N, R, EvmFactory> {
+    /// Configures the shared optimistic executor. Sequential mode allocates no workers.
+    #[cfg(feature = "std")]
+    pub fn with_parallel_execution(
+        mut self,
+        config: ParallelExecutionConfig,
+    ) -> Result<Self, alloy_op_evm::block::ParallelConfigurationError> {
+        let runtime = if config.mode == ExecutionMode::Sequential {
+            None
+        } else {
+            Some(Arc::new(ParallelRuntime::new(config)?))
+        };
+        self.executor_factory = self.executor_factory.with_parallel_runtime(runtime);
+        Ok(self)
+    }
+
+    /// Maximum bounded lookahead used for payloads and historical blocks.
+    pub fn parallel_candidate_limit(&self) -> usize {
+        #[cfg(feature = "std")]
+        if let Some(runtime) = self.executor_factory.parallel_runtime() {
+            return runtime.config().max_in_flight.saturating_mul(64).min(4096);
+        }
+        0
+    }
+
     /// Creates a new [`OpEvmConfig`] with an explicit EVM factory.
     pub fn new_with_evm_factory(
         chain_spec: Arc<ChainSpec>,
@@ -193,7 +223,10 @@ where
         &self,
         block: &SealedBlock<N::Block>,
         post_exec_mode: Option<PostExecMode>,
-    ) -> OpBlockExecutionCtx {
+    ) -> OpBlockExecutionCtx
+    where
+        OpTx: FromRecoveredTx<N::SignedTx>,
+    {
         OpBlockExecutionCtx {
             parent_hash: block.header().parent_hash(),
             // No parent header on this path to detect fork-activation blocks, so the executor's
@@ -202,6 +235,18 @@ where
             parent_beacon_block_root: block.header().parent_beacon_block_root(),
             extra_data: block.header().extra_data().clone(),
             post_exec_mode: post_exec_mode.unwrap_or_default(),
+            parallel_candidates: block
+                .body()
+                .transactions()
+                .iter()
+                .take(self.parallel_candidate_limit())
+                .filter_map(|tx| {
+                    tx.try_recover().ok().map(|sender| ParallelCandidate {
+                        hash: *tx.tx_hash(),
+                        transaction: OpTx::from_recovered_tx(tx, sender),
+                    })
+                })
+                .collect(),
         }
     }
 
@@ -220,6 +265,7 @@ where
             parent_beacon_block_root: attributes.parent_beacon_block_root,
             extra_data: attributes.extra_data,
             post_exec_mode,
+            parallel_candidates: Vec::new(),
         }
     }
 }
@@ -331,7 +377,8 @@ where
 /// an optional `SenderRecoveryCache`, which only memoizes `try_recover` and so returns the same
 /// signer.
 #[cfg(feature = "std")]
-impl<ChainSpec, N, R> ConfigureEngineEvm<OpExecutionData> for OpEvmConfig<ChainSpec, N, R>
+impl<ChainSpec, N, R, Policy> ConfigureEngineEvm<OpExecutionData>
+    for OpEvmConfig<ChainSpec, N, R, OpEvmFactory<OpTx, Policy>>
 where
     ChainSpec: EthChainSpec<Header = Header> + OpHardforks,
     N: NodePrimitives<
@@ -347,6 +394,7 @@ where
             Receipt: DepositReceipt,
             Transaction: SignedTransaction + OpConsensusTransaction,
         >,
+    Policy: PostExecRefundInspector + Default + Debug + 'static,
     Self: Send + Sync + Unpin + Clone + 'static,
 {
     fn evm_env_for_payload(
@@ -394,6 +442,16 @@ where
             parent_beacon_block_root: payload.sidecar.parent_beacon_block_root(),
             extra_data: payload.payload.as_v1().extra_data.clone(),
             post_exec_mode,
+            parallel_candidates: transactions
+                .iter()
+                .take(self.parallel_candidate_limit())
+                .filter_map(|tx| {
+                    tx.try_recover().ok().map(|sender| ParallelCandidate {
+                        hash: *tx.tx_hash(),
+                        transaction: OpTx::from_recovered_tx(tx, sender),
+                    })
+                })
+                .collect(),
         })
     }
 
