@@ -417,6 +417,8 @@ where
 {
 }
 
+// Upstream's `FullEthApi` requires this helper trait even when its RPC methods are not served.
+// op-reth explicitly removes the untested BAL endpoints in `op-reth/crates/node/src/node.rs`.
 impl<N, Rpc> GetBlockAccessList for OpEthApi<N, Rpc>
 where
     N: RpcNodeCore,
