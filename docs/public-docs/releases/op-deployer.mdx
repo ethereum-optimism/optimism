@@ -57,16 +57,6 @@ diataxis: reference
 * ebfa948478248ca90e7821bdd47a77d09c223e2e op-deployer: fix missing Superchain Deployment after prepare (#22082)
 * 0eb8cf871f330ddce7fe28f604d894e69291f1e0 op-deployer: fix superchainconfig resolution in InitLiveStrategy (#22252)
 * 97a3f56a399b96ab994b59df64e014f9197b81f5 op-deployer: isolate apply subtest deadlines (#22389)
-* 8d87500534488ee8d1b407109a10b546673ee3e0 op-deployer: make SP1 verifier OPCM release-owned (#22218)
-* b35088a5b53c8087824b1aa67c1748bd752b41b1 op-deployer: remove deprecated upgrade command (#21945)
-* bfcf378660099b71cf94d197af13956bc758e8a5 op-deployer: select the release SP1 verifier for ZK-enabled apply (#22367)
-* a59890e835c1571f147170db2c1fb00b29a08d22 op-deployer: update SCR dep and CurrentTag for op-contracts/v8.0.0-rc.3 (#22703)
-* 0012fcaf435e732050d3106b7d58be5810a44dbb op-deployer: verify contracts by default (#21947)
-* fc8648775a03fbb4c532a03b50f0681d74bbc106 op-service: make sources the OP-aware eth client (#21908)
-* a39ee0e362c466aa88864df7cff950b5444e6d13 refactor(depset): move leaf dependency-set into op-core/interop/depset (#20884)
-* 35121b586aa3e6359782f900c09fc6e35dd372e1 refactor: remove ProtocolVersions Go plumbing (#20441)
-* 16cbeecbb1359ddbaa111944ae00aeec7587b92a refactor: remove ProtocolVersions Solidity contract and OPCM remnants (#20527)
-* 61cc3034923bba60d68c66f25dab0c2d5b0737aa superchain: wire op-core/superchain across the monorepo (decouple from op-geth superchain) (#21487)
 
 [View full release on GitHub →](https://github.com/ethereum-optimism/optimism/releases/tag/op-deployer/v0.8.0-rc.2)
 
@@ -114,15 +104,6 @@ diataxis: reference
 * 0eb8cf871f330ddce7fe28f604d894e69291f1e0 op-deployer: fix superchainconfig resolution in InitLiveStrategy (#22252)
 * 97a3f56a399b96ab994b59df64e014f9197b81f5 op-deployer: isolate apply subtest deadlines (#22389)
 * 8d87500534488ee8d1b407109a10b546673ee3e0 op-deployer: make SP1 verifier OPCM release-owned (#22218)
-* b35088a5b53c8087824b1aa67c1748bd752b41b1 op-deployer: remove deprecated upgrade command (#21945)
-* bfcf378660099b71cf94d197af13956bc758e8a5 op-deployer: select the release SP1 verifier for ZK-enabled apply (#22367)
-* a59890e835c1571f147170db2c1fb00b29a08d22 op-deployer: update SCR dep and CurrentTag for op-contracts/v8.0.0-rc.3 (#22703)
-* 0012fcaf435e732050d3106b7d58be5810a44dbb op-deployer: verify contracts by default (#21947)
-* fc8648775a03fbb4c532a03b50f0681d74bbc106 op-service: make sources the OP-aware eth client (#21908)
-* a39ee0e362c466aa88864df7cff950b5444e6d13 refactor(depset): move leaf dependency-set into op-core/interop/depset (#20884)
-* 35121b586aa3e6359782f900c09fc6e35dd372e1 refactor: remove ProtocolVersions Go plumbing (#20441)
-* 16cbeecbb1359ddbaa111944ae00aeec7587b92a refactor: remove ProtocolVersions Solidity contract and OPCM remnants (#20527)
-* 61cc3034923bba60d68c66f25dab0c2d5b0737aa superchain: wire op-core/superchain across the monorepo (decouple from op-geth superchain) (#21487)
 
 [View full release on GitHub →](https://github.com/ethereum-optimism/optimism/releases/tag/op-deployer/v0.8.0-rc.1)
 
@@ -471,22 +452,5 @@ Additional changes outside of `op-contracts/v4.1.0` support include:
   3. `file://` - point to local filepath of contract artifacts
 
 [View full release on GitHub →](https://github.com/ethereum-optimism/optimism/releases/tag/op-deployer/v0.4.4)
-
-</Update>
-
-<Update label="October 9, 2025" description="v0.4.4-rc.2" tags={["Release Candidate"]}>
-
-## Changelog
-
-[View full release on GitHub →](https://github.com/ethereum-optimism/optimism/releases/tag/op-deployer/v0.4.4-rc.2)
-
-</Update>
-
-<Update label="October 9, 2025" description="v0.4.4-rc.1" tags={["Release Candidate"]}>
-
-## Changelog
-* 35bb3786c19162bd0fc8d8a49d025c8b3992709c op-deployer: add upgrade v4_1_0 command (#17790)
-
-[View full release on GitHub →](https://github.com/ethereum-optimism/optimism/releases/tag/op-deployer/v0.4.4-rc.1)
 
 </Update>
