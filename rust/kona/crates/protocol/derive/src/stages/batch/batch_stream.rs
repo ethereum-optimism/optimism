@@ -69,7 +69,7 @@ where
         Ok(self.config.is_holocene_active(origin.timestamp))
     }
 
-    /// Gets a [`SingleBatch`] from the in-memory buffer.
+    /// Gets a [`SingleBatch`] from the in-memory buffer, with its parent hash set from `parent`.
     pub fn get_single_batch(
         &mut self,
         parent: L2BlockInfo,
@@ -78,7 +78,12 @@ where
         trace!(target: "batch_span", "Attempting to get a SingleBatch from buffer len: {}", self.buffer.len());
 
         self.try_hydrate_buffer(parent, l1_origins)?;
-        Ok(self.buffer.pop_front())
+        Ok(self.buffer.pop_front().map(|mut batch| {
+            // Span batches carry no parent hash for each block. `check_batch_holocene` checked
+            // `parent_check` for the first block.
+            batch.parent_hash = parent.block_info.hash;
+            batch
+        }))
     }
 
     /// Hydrates the buffer with single batches derived from the span batch, if there is one
@@ -197,12 +202,7 @@ where
 
         // Attempt to pull a SingleBatch out of the SpanBatch.
         match self.get_single_batch(parent, l1_origins) {
-            Ok(Some(mut single_batch)) => {
-                // Span batches carry no parent hash for each block. `check_batch_holocene` checked
-                // `parent_check` for the first block. Singular batches keep their own parent hash.
-                single_batch.parent_hash = parent.block_info.hash;
-                Ok(Batch::Single(single_batch))
-            }
+            Ok(Some(single_batch)) => Ok(Batch::Single(single_batch)),
             Ok(None) => Err(PipelineError::NotEnoughData.temp()),
             Err(e) => {
                 warn!(target: "batch_span", "Extracting singular batches from span batch failed: {}", e);
