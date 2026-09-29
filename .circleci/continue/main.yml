@@ -140,7 +140,7 @@ parameters:
     default: false
 
 orbs:
-  utils: ethereum-optimism/circleci-utils@1.0.31
+  utils: ethereum-optimism/circleci-utils@1.0.32
   go: circleci/go@1.8.0
   gcp-cli: circleci/gcp-cli@3.0.1
   slack: circleci/slack@6.0.0
@@ -950,15 +950,24 @@ jobs:
         default: ci
       use_caches:
         description: >-
-          Restore and save the solc, forge build and Go caches. The op-deployer
-          release build disables them so the artifacts it ships don't depend on
-          content an earlier job saved to a cache.
+          Restore and save the mise, solc, forge build and Go caches. The
+          op-deployer release build disables them so the artifacts it ships don't
+          depend on content an earlier job saved to a cache.
         type: boolean
         default: true
     steps:
-      - utils/checkout-with-mise:
-          checkout-method: blobless
-          enable-mise-cache: true
+      - when:
+          condition: << parameters.use_caches >>
+          steps:
+            - utils/checkout-with-mise:
+                checkout-method: blobless
+                enable-mise-cache: true
+      - unless:
+          condition: << parameters.use_caches >>
+          steps:
+            - utils/checkout-with-mise:
+                checkout-method: blobless
+                fresh-install: true
       - install-contracts-dependencies:
           use_cache: << parameters.use_caches >>
       - run:
@@ -2337,9 +2346,9 @@ jobs:
         type: string
       use_caches:
         description: >-
-          Restore the Go module cache and use Docker layer caching. The op-deployer
-          release disables them so its binary and images are built from freshly
-          downloaded modules.
+          Restore the mise and Go module caches and use Docker layer caching. The
+          op-deployer release disables them so its binary and images are built with
+          freshly installed tools and freshly downloaded modules.
         type: boolean
         default: true
     docker:
@@ -2352,8 +2361,16 @@ jobs:
       - gcp-oidc-authenticate:
           gcp_cred_config_file_path: /tmp/gcp_cred_config.json
           oidc_token_file_path: /tmp/oidc_token.json
-      - utils/checkout-with-mise:
-          enable-mise-cache: true
+      - when:
+          condition: << parameters.use_caches >>
+          steps:
+            - utils/checkout-with-mise:
+                enable-mise-cache: true
+      - unless:
+          condition: << parameters.use_caches >>
+          steps:
+            - utils/checkout-with-mise:
+                fresh-install: true
       - attach_workspace: {at: "."}
       # goreleaser compiles the Go release binaries on the host.
       - when:
