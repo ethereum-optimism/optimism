@@ -20,13 +20,14 @@ use eyre::WrapErr;
 use futures::StreamExt;
 use op_alloy_consensus::OpReceipt;
 use op_alloy_network::Optimism;
-use op_alloy_rpc_types_engine::OpFlashblockPayloadBase;
 pub use receipt::{OpReceiptBuilder, OpReceiptFieldsBuilder};
 use reqwest::Url;
-use reth_chainspec::{EthereumHardforks, Hardforks};
+use reth_chainspec::{ChainSpecProvider, EthereumHardforks, Hardforks};
 use reth_evm::ConfigureEvm;
-use reth_node_api::{FullNodeComponents, FullNodeTypes, HeaderTy, NodeTypes};
+use reth_node_api::{FullNodeComponents, FullNodeTypes, NodeTypes};
 use reth_node_builder::rpc::{EthApiBuilder, EthApiCtx};
+use reth_optimism_chainspec::OpChainSpecExt;
+use reth_optimism_evm::{OpNextBlockEnvAttributes, OpPendingEnvBuilder};
 use reth_optimism_flashblocks::{
     FlashBlockBuildInfo, FlashBlockCompleteSequence, FlashBlockCompleteSequenceRx,
     FlashBlockConsensusClient, FlashBlockRx, FlashBlockService, FlashblockCachedReceipt,
@@ -39,7 +40,7 @@ use reth_rpc_eth_api::{
     RpcNodeCoreExt, RpcTypes,
     helpers::{
         EthApiSpec, EthFees, EthState, EthSubscriptions, LoadFee, LoadPendingBlock, LoadState,
-        SpawnBlocking, Trace, bal::GetBlockAccessList, pending_block::BuildPendingEnv,
+        SpawnBlocking, Trace, bal::GetBlockAccessList,
     },
 };
 use reth_rpc_eth_types::{
@@ -589,11 +590,7 @@ impl<NetworkT> OpEthApiBuilder<NetworkT> {
 impl<N, NetworkT> EthApiBuilder<N> for OpEthApiBuilder<NetworkT>
 where
     N: FullNodeComponents<
-            Evm: ConfigureEvm<
-                NextBlockEnvCtx: BuildPendingEnv<HeaderTy<N::Types>>
-                                     + From<OpFlashblockPayloadBase>
-                                     + Unpin,
-            >,
+            Evm: ConfigureEvm<NextBlockEnvCtx = OpNextBlockEnvAttributes>,
             Types: NodeTypes<
                 ChainSpec: Hardforks + EthereumHardforks,
                 Payload: reth_node_api::PayloadTypes<
@@ -626,6 +623,7 @@ where
             RpcConverter::new(OpReceiptConverter::new(ctx.components.provider().clone()))
                 .with_mapper(OpTxInfoMapper::new(ctx.components.provider().clone()))
                 .with_tx_env_converter(reth_optimism_evm::tx::OpTxEnvConverter);
+        let pending_block_time = ctx.components.provider().chain_spec().block_time();
 
         let sequencer_client = if let Some(url) = sequencer_url {
             Some(
@@ -675,7 +673,11 @@ where
             None
         };
 
-        let eth_api = ctx.eth_api_builder().with_rpc_converter(rpc_converter).build_inner();
+        let eth_api = ctx
+            .eth_api_builder()
+            .with_rpc_converter(rpc_converter)
+            .with_pending_env_builder(OpPendingEnvBuilder::new(pending_block_time))
+            .build_inner();
 
         Ok(OpEthApi::new(
             eth_api,

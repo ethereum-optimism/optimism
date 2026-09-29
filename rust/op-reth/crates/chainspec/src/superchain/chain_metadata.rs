@@ -14,6 +14,7 @@ use serde::{Deserialize, Serialize};
 #[serde(rename_all = "snake_case")]
 pub(crate) struct ChainMetadata {
     pub chain_id: ChainId,
+    pub block_time: u64,
     pub hardforks: HardforkConfig,
     pub optimism: Option<OptimismConfig>,
 }
@@ -68,6 +69,7 @@ pub(crate) struct OptimismConfig {
 #[derive(Clone, Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub(crate) struct ChainConfigExtraFields {
+    pub block_time: u64,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub bedrock_block: Option<u64>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -157,6 +159,7 @@ pub(crate) fn to_genesis_chain_config(chain_config: &ChainMetadata) -> ChainConf
 
     // Add extra fields for ChainConfig from Genesis
     let extra_fields = ChainConfigExtraFields {
+        block_time: chain_config.block_time,
         bedrock_block: if chain_config.chain_id == NamedChain::Optimism as ChainId {
             Some(105235063)
         } else {
@@ -189,6 +192,7 @@ mod tests {
     const GENERIC_CHAIN_METADATA: &str = r#"
     {
       "chain_id": 130,
+      "block_time": 1,
       "hardforks": {
         "canyon_time": 1704992401,
         "delta_time": 1708560000,
@@ -210,6 +214,7 @@ mod tests {
     fn test_deserialize_chain_config() {
         let config: ChainMetadata = serde_json::from_str(GENERIC_CHAIN_METADATA).unwrap();
         assert_eq!(config.chain_id, 130);
+        assert_eq!(config.block_time, 1);
         // hardforks
         assert_eq!(config.hardforks.canyon_time, Some(1704992401));
         assert_eq!(config.hardforks.delta_time, Some(1708560000));
@@ -227,6 +232,7 @@ mod tests {
     #[test]
     fn test_chain_config_extra_fields() {
         let extra_fields = ChainConfigExtraFields {
+            block_time: 2,
             bedrock_block: Some(105235063),
             regolith_time: Some(0),
             canyon_time: Some(1704992401),
@@ -245,6 +251,7 @@ mod tests {
             }),
         };
         let value = serde_json::to_value(extra_fields).unwrap();
+        assert_eq!(value.get("blockTime").unwrap(), 2);
         assert_eq!(value.get("bedrockBlock").unwrap(), 105235063);
         assert_eq!(value.get("regolithTime").unwrap(), 0);
         assert_eq!(value.get("canyonTime").unwrap(), 1704992401);
@@ -267,6 +274,7 @@ mod tests {
         let config: ChainMetadata = serde_json::from_str(GENERIC_CHAIN_METADATA).unwrap();
         let chain_config = to_genesis_chain_config(&config);
         assert_eq!(chain_config.chain_id, 130);
+        assert_eq!(chain_config.extra_fields.get("blockTime").unwrap(), 1);
         assert_eq!(chain_config.homestead_block, Some(0));
         assert_eq!(chain_config.dao_fork_block, None);
         assert!(!chain_config.dao_fork_support);
@@ -312,6 +320,7 @@ mod tests {
         const OP_CHAIN_METADATA: &str = r#"
         {
           "chain_id": 10,
+          "block_time": 2,
           "hardforks": {
             "canyon_time": 1704992401,
             "delta_time": 1708560000,
@@ -332,6 +341,7 @@ mod tests {
         assert_eq!(config.hardforks.canyon_time, Some(1704992401));
         let chain_config = to_genesis_chain_config(&config);
         assert_eq!(chain_config.chain_id, 10);
+        assert_eq!(chain_config.extra_fields.get("blockTime").unwrap(), 2);
         assert_eq!(chain_config.shanghai_time, Some(1704992401));
         assert_eq!(chain_config.cancun_time, Some(1710374401));
         assert_eq!(chain_config.prague_time, Some(1746806401));

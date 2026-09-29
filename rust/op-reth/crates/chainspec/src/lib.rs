@@ -212,6 +212,9 @@ impl OpChainSpecBuilder {
     }
 }
 
+/// Default OP Stack block time in seconds for chain specs without an explicit configuration.
+pub const DEFAULT_OP_BLOCK_TIME: u64 = 2;
+
 /// OP stack chain spec type.
 #[derive(Debug, Clone, Deref, Into, Constructor, PartialEq, Eq)]
 pub struct OpChainSpec {
@@ -224,7 +227,27 @@ impl OpChainSpec {
     pub fn from_genesis(genesis: Genesis) -> Self {
         genesis.into()
     }
+
+    /// Returns the configured block time in seconds.
+    pub fn block_time(&self) -> u64 {
+        OpChainSpecExt::block_time(self)
+    }
 }
+
+/// OP-specific extensions to a chain specification.
+pub trait OpChainSpecExt: EthChainSpec {
+    /// Returns the configured block time in seconds.
+    fn block_time(&self) -> u64 {
+        self.genesis()
+            .config
+            .extra_fields
+            .get("blockTime")
+            .and_then(serde_json::Value::as_u64)
+            .unwrap_or(DEFAULT_OP_BLOCK_TIME)
+    }
+}
+
+impl<T: EthChainSpec + ?Sized> OpChainSpecExt for T {}
 
 impl EthChainSpec for OpChainSpec {
     type Header = Header;
