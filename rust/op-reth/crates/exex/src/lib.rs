@@ -9,7 +9,7 @@
 #![cfg_attr(not(test), warn(unused_crate_dependencies))]
 
 use alloy_consensus::BlockHeader;
-use alloy_eips::eip1898::BlockWithParent;
+use alloy_eips::{NumHash, eip1898::BlockWithParent};
 use futures_util::TryStreamExt;
 use reth_execution_types::Chain;
 use reth_exex::{ExExContext, ExExEvent, ExExNotification};
@@ -299,23 +299,11 @@ where
             return Ok(());
         }
 
-        // During pipeline sync, block execution can run ahead of the Merkle stage. A state
-        // provider above the durable trie frontier depends on the canonical memory chain, which
-        // the pipeline can prune concurrently. Defer to the retrying sync loop until the required
-        // parent is durable instead of racing that pruning.
-        let execution_parent = new.blocks().iter().rev().find_map(|(&block_number, block)| {
-            let should_verify = self.verification_interval > 0 &&
-                block_number.is_multiple_of(self.verification_interval);
-            (should_verify || new.trie_data_at(block_number).is_none())
-                .then_some((block_number.saturating_sub(1), block.parent_hash()))
-        });
-        if let Some((parent_number, parent_hash)) = execution_parent &&
-            !self.state_trie_covers(parent_number)?
-        {
+        if let Some(parent) = self.execution_parent_above_durable_trie(&new)? {
             debug!(
                 target: "optimism::exex",
-                parent_number,
-                ?parent_hash,
+                parent_number = parent.number,
+                parent_hash = ?parent.hash,
                 target_block = new.tip().number(),
                 "Deferring proofs-history execution until parent state is available",
             );
@@ -347,9 +335,27 @@ where
         Ok(())
     }
 
-    /// Returns whether reth has durably persisted state and trie data through `block_number`.
-    fn state_trie_covers(&self, block_number: u64) -> eyre::Result<bool> {
-        let partial_state_trie = self
+    /// Returns the highest parent required for block execution if it is above reth's durable state
+    /// trie frontier.
+    ///
+    /// During pipeline sync, state above this frontier may depend on the canonical in-memory chain,
+    /// which the pipeline can prune concurrently.
+    fn execution_parent_above_durable_trie(
+        &self,
+        chain: &Chain<Primitives>,
+    ) -> eyre::Result<Option<NumHash>> {
+        // Checking the highest execution parent is sufficient because the durable trie frontier is
+        // monotonic by block number.
+        let Some(parent) = chain.blocks().iter().rev().find_map(|(&block_number, block)| {
+            let should_verify = self.verification_interval > 0 &&
+                block_number.is_multiple_of(self.verification_interval);
+            (should_verify || chain.trie_data_at(block_number).is_none())
+                .then_some(NumHash::new(block_number.saturating_sub(1), block.parent_hash()))
+        }) else {
+            return Ok(None);
+        };
+
+        let durable_trie_tip = self
             .ctx
             .provider()
             .get_stage_checkpoint(StageId::Finish)?
@@ -360,7 +366,8 @@ where
                     .unwrap_or(checkpoint.block_number)
             })
             .unwrap_or_default();
-        Ok(partial_state_trie >= block_number)
+
+        Ok((parent.number > durable_trie_tip).then_some(parent))
     }
 
     fn handle_chain_reorged(
