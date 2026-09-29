@@ -305,7 +305,7 @@ where
             // accounts for them too. This check only sees one transaction against the on-chain
             // balance; a sender's later nonces must also cover the OP fees of the earlier ones, or
             // the pool marks them pending although execution rejects them for insufficient funds.
-            // Like op-geth's pool (`list.Add` via `TotalTxCost`), the fees are priced at admission.
+            // The fees are priced at admission.
             match &mut valid_tx {
                 ValidTransaction::Valid(tx) |
                 ValidTransaction::ValidWithSidecar { transaction: tx, .. } => {
@@ -524,7 +524,7 @@ mod tests {
     /// L2 `cost()`. Each tx below is affordable on its own (so both pass admission against the same
     /// on-chain balance), but the sender cannot pay the L1 data fee of both. Without the L1 fee in
     /// the pool's cumulative accounting, nonce 1 is marked pending and the payload builder retries
-    /// it every block, failing with insufficient funds — the ink-mainnet stuck-pending cohort.
+    /// it every block, failing with insufficient funds.
     #[tokio::test]
     async fn pool_parks_descendant_unaffordable_with_l1_fee() {
         use crate::{OpL1BlockInfo, OpPooledTransaction, OpTransactionValidator};
