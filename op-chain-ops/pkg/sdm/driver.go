@@ -25,7 +25,7 @@ func DeployStateBloat(ctx context.Context, sender *TxSender, gasLimit uint64, po
 	}
 	receipt, err := WaitRPCReceipt(ctx, sender.RPC, tx.Hash(), pollInterval)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("StateBloat deploy from %s nonce %d: %w", sender.From, nonce, err)
 	}
 	if uint64(receipt.Status) != types.ReceiptStatusSuccessful {
 		return nil, fmt.Errorf("StateBloat deploy tx %s failed with status %d", tx.Hash(), receipt.Status)

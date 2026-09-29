@@ -11,6 +11,7 @@ import (
 	"math/big"
 	"os"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/ethereum/go-ethereum/common"
@@ -462,34 +463,13 @@ func lagoonAllAction(c *cli.Context) error {
 	}
 
 	result := lagoonAllResult{SDMAccount: sdmAccount, SDMAccountDerived: sdmAccountDerived}
-	group, groupCtx := errgroup.WithContext(ctx)
-	group.Go(func() error {
-		if err := interopsmoke.RunAll(groupCtx, c.App.ErrWriter, cfgA.RPCURL, cfgB.RPCURL, interopKeyHex); err != nil {
-			result.InteropError = err.Error()
-			return fmt.Errorf("Interop smoke: %w", err)
-		}
-		result.InteropPassed = true
-		return nil
-	})
-	group.Go(func() error {
-		check, err := sdmcheck.CheckAll(groupCtx, cfgA)
-		result.SDMChainA = check
-		if err != nil {
-			result.SDMChainAError = err.Error()
-			return fmt.Errorf("chain A SDM: %w", err)
-		}
-		return nil
-	})
-	group.Go(func() error {
-		check, err := sdmcheck.CheckAll(groupCtx, cfgB)
-		result.SDMChainB = check
-		if err != nil {
-			result.SDMChainBError = err.Error()
-			return fmt.Errorf("chain B SDM: %w", err)
-		}
-		return nil
-	})
-	groupErr := group.Wait()
+	groupErr := runLagoonLegs(ctx, lagoonLegs{
+		interop: func(ctx context.Context) error {
+			return interopsmoke.RunAll(ctx, c.App.ErrWriter, cfgA.RPCURL, cfgB.RPCURL, interopKeyHex)
+		},
+		sdmA: func(ctx context.Context) (*sdmcheck.Result, error) { return sdmcheck.CheckAll(ctx, cfgA) },
+		sdmB: func(ctx context.Context) (*sdmcheck.Result, error) { return sdmcheck.CheckAll(ctx, cfgB) },
+	}, &result)
 
 	if c.Bool(AllJSON.Name) {
 		encoder := json.NewEncoder(c.App.Writer)
@@ -505,6 +485,45 @@ func lagoonAllAction(c *cli.Context) error {
 		"sdmBlockA", result.SDMChainA.Conformance.Block.Number,
 		"sdmBlockB", result.SDMChainB.Conformance.Block.Number)
 	return nil
+}
+
+type lagoonLegs struct {
+	interop func(context.Context) error
+	sdmA    func(context.Context) (*sdmcheck.Result, error)
+	sdmB    func(context.Context) (*sdmcheck.Result, error)
+}
+
+// runLagoonLegs runs every leg to completion on ctx, so one leg's failure does
+// not cut the others short, and records each outcome in result.
+func runLagoonLegs(ctx context.Context, legs lagoonLegs, result *lagoonAllResult) error {
+	var wg sync.WaitGroup
+	var interopErr, sdmAErr, sdmBErr error
+	wg.Go(func() {
+		if err := legs.interop(ctx); err != nil {
+			result.InteropError = err.Error()
+			interopErr = fmt.Errorf("Interop smoke: %w", err)
+			return
+		}
+		result.InteropPassed = true
+	})
+	wg.Go(func() {
+		check, err := legs.sdmA(ctx)
+		result.SDMChainA = check
+		if err != nil {
+			result.SDMChainAError = err.Error()
+			sdmAErr = fmt.Errorf("chain A SDM: %w", err)
+		}
+	})
+	wg.Go(func() {
+		check, err := legs.sdmB(ctx)
+		result.SDMChainB = check
+		if err != nil {
+			result.SDMChainBError = err.Error()
+			sdmBErr = fmt.Errorf("chain B SDM: %w", err)
+		}
+	})
+	wg.Wait()
+	return errors.Join(interopErr, sdmAErr, sdmBErr)
 }
 
 func sdmCheckFlags() []cli.Flag {

@@ -4,8 +4,10 @@ package sdmcheck
 import (
 	"context"
 	"crypto/ecdsa"
+	"encoding/json"
 	"errors"
 	"fmt"
+	"math"
 	"math/big"
 	"time"
 
@@ -15,6 +17,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/log"
 	"github.com/ethereum-optimism/optimism/op-service/retry"
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto"
 )
@@ -27,7 +30,7 @@ const (
 	gasLimit            = 1_000_000
 	deployGasLimit      = 2_000_000
 	receiptTimeout      = 45 * time.Second
-	verifyTimeout       = 2 * time.Minute
+	verifierTimeout     = 2 * time.Minute
 	pollInterval        = 500 * time.Millisecond
 	optInRestoreTimeout = 10 * time.Second
 )
@@ -177,6 +180,10 @@ func CheckAll(ctx context.Context, cfg Config) (*Result, error) {
 		return nil, fmt.Errorf("SDM sender %s has zero balance", sender.From)
 	}
 	cfg.Log.Info("connected to SDM producer", "rpc", cfg.RPCURL, "chain", sender.ChainID, "account", sender.From, "balance", balance)
+	// Lagoon stays active once activated, so an active head covers the workload blocks.
+	if err := checkLagoonActive(ctx, cfg, sender.RPC, "latest"); err != nil {
+		return nil, err
+	}
 
 	optInToggled, err := ensureOptIn(ctx, cfg, sender.RPC)
 	if err != nil {
@@ -256,6 +263,9 @@ func CheckBlock(ctx context.Context, cfg Config, blockNum uint64) (*Result, erro
 		return nil, err
 	}
 	defer sender.Close()
+	if err := checkLagoonActive(ctx, cfg, sender.RPC, hexutil.EncodeUint64(blockNum)); err != nil {
+		return nil, err
+	}
 	conformance, verifierChecked, safeHeadChecked, err := checkConformance(ctx, cfg, sender.RPC, blockNum)
 	if err != nil {
 		return nil, err
@@ -318,20 +328,13 @@ func checkConformance(ctx context.Context, cfg Config, producer sdm.Caller, bloc
 	if err != nil {
 		return nil, false, false, err
 	}
-	if cfg.Rollup != nil {
-		rollupCfg, err := cfg.Rollup.RollupConfig(ctx)
-		if err != nil {
-			return nil, false, false, fmt.Errorf("fetch rollup config: %w", err)
-		}
-		if !rollupCfg.IsLagoon(uint64(conformance.Block.Timestamp)) {
-			return nil, false, false, fmt.Errorf("Lagoon is not active at SDM block %d timestamp %d", blockNum, conformance.Block.Timestamp)
-		}
-	}
 	verifierChecked := false
 	if cfg.Verifier != nil {
-		err := waitFor(ctx, verifyTimeout, func(verifyCtx context.Context) error {
+		verifyCtx, cancel := context.WithTimeout(ctx, verifierTimeout)
+		err := waitFor(verifyCtx, func(verifyCtx context.Context) error {
 			return sdm.ValidateVerifierAgreement(verifyCtx, conformance, cfg.Verifier)
 		})
+		cancel()
 		if err != nil {
 			return nil, false, false, fmt.Errorf("verifier did not agree on SDM block %d: %w", blockNum, err)
 		}
@@ -347,10 +350,40 @@ func checkConformance(ctx context.Context, cfg Config, producer sdm.Caller, bloc
 	return conformance, verifierChecked, safeHeadChecked, nil
 }
 
-// checkSafeHead waits for the safe head to pass the SDM block, then checks the
-// rollup node and producer still agree on the validated block.
+// checkLagoonActive fails fast when the rollup config says Lagoon is inactive
+// at block, so a pre-Lagoon chain does not surface as a conformance failure.
+func checkLagoonActive(ctx context.Context, cfg Config, producer sdm.Caller, block string) error {
+	if cfg.Rollup == nil {
+		return nil
+	}
+	rollupCfg, err := cfg.Rollup.RollupConfig(ctx)
+	if err != nil {
+		return fmt.Errorf("fetch rollup config: %w", err)
+	}
+	var raw json.RawMessage
+	if err := producer.CallContext(ctx, &raw, "eth_getBlockByNumber", block, false); err != nil {
+		return fmt.Errorf("eth_getBlockByNumber(%s): %w", block, err)
+	}
+	if len(raw) == 0 || string(raw) == "null" {
+		return fmt.Errorf("block %s not found", block)
+	}
+	var header struct {
+		Number    hexutil.Uint64 `json:"number"`
+		Timestamp hexutil.Uint64 `json:"timestamp"`
+	}
+	if err := json.Unmarshal(raw, &header); err != nil {
+		return fmt.Errorf("unmarshal block %s: %w", block, err)
+	}
+	if !rollupCfg.IsLagoon(uint64(header.Timestamp)) {
+		return fmt.Errorf("Lagoon is not active at block %d timestamp %d", header.Number, header.Timestamp)
+	}
+	return nil
+}
+
+// checkSafeHead waits, for as long as ctx allows, for the safe head to pass the
+// SDM block, then checks the rollup node and producer still agree on it.
 func checkSafeHead(ctx context.Context, cfg Config, producer sdm.Caller, validated *sdm.RPCBlock, blockNum uint64) error {
-	err := waitFor(ctx, verifyTimeout, func(verifyCtx context.Context) error {
+	err := waitFor(ctx, func(verifyCtx context.Context) error {
 		status, err := cfg.Rollup.SyncStatus(verifyCtx)
 		if err != nil {
 			return err
@@ -380,17 +413,15 @@ func checkSafeHead(ctx context.Context, cfg Config, producer sdm.Caller, validat
 	return nil
 }
 
-// waitFor retries op each second until it succeeds or timeout expires, keeping
-// op's last error when the deadline cuts the wait short.
-func waitFor(ctx context.Context, timeout time.Duration, op func(context.Context) error) error {
-	waitCtx, cancel := context.WithTimeout(ctx, timeout)
-	defer cancel()
+// waitFor retries op each second until it succeeds or ctx ends, keeping op's
+// last error when the deadline cuts the wait short.
+func waitFor(ctx context.Context, op func(context.Context) error) error {
 	var lastErr error
-	err := retry.Do0(waitCtx, int(timeout/time.Second)+1, retry.Fixed(time.Second), func() error {
-		lastErr = op(waitCtx)
+	err := retry.Do0(ctx, math.MaxInt, retry.Fixed(time.Second), func() error {
+		lastErr = op(ctx)
 		return lastErr
 	})
-	if err != nil && lastErr != nil && !errors.Is(err, lastErr) {
+	if err != nil && lastErr != nil && !errors.Is(lastErr, err) {
 		return errors.Join(err, lastErr)
 	}
 	return err

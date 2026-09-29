@@ -22,7 +22,13 @@ type ConformanceResult struct {
 	Receipts map[common.Hash]*RPCReceipt `json:"receipts"`
 }
 
-// ValidatePostExecConformance runs the policy-independent SDM block checks.
+// replayCaveat qualifies replay gas mismatches: debug_replaySDMBlock runs with
+// post-exec accounting disabled, so replayed balances never include earlier refunds.
+const replayCaveat = "a transaction that reads a balance refunded earlier in the block can cause this without a producer bug"
+
+// ValidatePostExecConformance runs the policy-independent SDM block checks. The
+// replay gas checks additionally assume no transaction's execution depends on a
+// balance refunded earlier in the block.
 func ValidatePostExecConformance(ctx context.Context, rpcClient Caller, blockNum uint64) (*ConformanceResult, error) {
 	validation, err := ValidatePostExecBlock(ctx, rpcClient, blockNum, DefaultValidationOptions())
 	if err != nil {
@@ -289,10 +295,11 @@ func validateReplayAccounting(validation *ValidationResult, receipts map[common.
 		return fmt.Errorf("replay embedded payload does not match canonical post-exec payload")
 	}
 	if replay.Summary.MismatchCount != 0 {
-		return fmt.Errorf("replay summary reports %d mismatches", replay.Summary.MismatchCount)
+		// A payload refund can exceed the replay's raw gas for the same reason.
+		return fmt.Errorf("replay summary reports %d mismatches (%s)", replay.Summary.MismatchCount, replayCaveat)
 	}
 	if replay.Summary.BlockGasUsed != uint64(validation.Block.GasUsed) {
-		return fmt.Errorf("replay block gas used %d, want header gasUsed %d", replay.Summary.BlockGasUsed, validation.Block.GasUsed)
+		return fmt.Errorf("replay block gas used %d, want header gasUsed %d (%s)", replay.Summary.BlockGasUsed, validation.Block.GasUsed, replayCaveat)
 	}
 	if math.MaxUint64-replay.Summary.BlockGasUsed < validation.TotalPayloadRefund {
 		return fmt.Errorf("canonical gas plus payload refund overflows uint64")
@@ -324,10 +331,9 @@ func validateReplayAccounting(validation *ValidationResult, receipts map[common.
 		if row.TxHash != tx.Hash {
 			return fmt.Errorf("replay transaction %d hash %s, want %s", i, row.TxHash, tx.Hash)
 		}
-		// Sound only when gas does not depend on refunded balances, as for StateBloat.
 		receipt := receipts[tx.Hash]
 		if row.CanonicalGasUsed != uint64(receipt.GasUsed) {
-			return fmt.Errorf("replay transaction %d canonical gas %d, want receipt gasUsed %d", i, row.CanonicalGasUsed, receipt.GasUsed)
+			return fmt.Errorf("replay transaction %d canonical gas %d, want receipt gasUsed %d (%s)", i, row.CanonicalGasUsed, receipt.GasUsed, replayCaveat)
 		}
 		if uint64(tx.Type) == types.DepositTxType {
 			if row.OPGasRefundPayload != nil || row.RawGasUsed != row.CanonicalGasUsed {

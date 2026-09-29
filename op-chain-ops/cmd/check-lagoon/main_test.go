@@ -1,13 +1,18 @@
 package main
 
 import (
+	"context"
+	"errors"
 	"io"
 	"os"
 	"path/filepath"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/require"
 	"github.com/urfave/cli/v2"
+
+	"github.com/ethereum-optimism/optimism/op-chain-ops/cmd/check-lagoon/sdmcheck"
 )
 
 func TestSDMConfigLoadsFromNestedTable(t *testing.T) {
@@ -165,4 +170,56 @@ func TestSDMBlockCommandsRejectWorkloadFlags(t *testing.T) {
 		err := app.Run([]string{"check-lagoon", "sdm", subcommand, "--sdm.account", "abcd"})
 		require.ErrorContains(t, err, "flag provided but not defined", subcommand)
 	}
+}
+
+func TestRunLagoonLegsFailureDoesNotCancelOtherLegs(t *testing.T) {
+	interopFailed := make(chan struct{})
+	// Each SDM leg outlives the Interop failure and passes only if ctx is still live.
+	sdmLeg := func(ctx context.Context) (*sdmcheck.Result, error) {
+		<-interopFailed
+		// Gives a cancel-on-first-error implementation time to cancel ctx; the
+		// sleep only affects how reliably a regression is caught, never a pass.
+		time.Sleep(10 * time.Millisecond)
+		if err := ctx.Err(); err != nil {
+			return nil, err
+		}
+		return &sdmcheck.Result{RPCURL: "sdm"}, nil
+	}
+	var result lagoonAllResult
+	err := runLagoonLegs(context.Background(), lagoonLegs{
+		interop: func(context.Context) error {
+			defer close(interopFailed)
+			return errors.New("relay failed")
+		},
+		sdmA: sdmLeg,
+		sdmB: sdmLeg,
+	}, &result)
+
+	require.ErrorContains(t, err, "Interop smoke: relay failed")
+	require.False(t, result.InteropPassed)
+	require.Equal(t, "relay failed", result.InteropError)
+	require.NotNil(t, result.SDMChainA)
+	require.Empty(t, result.SDMChainAError)
+	require.NotNil(t, result.SDMChainB)
+	require.Empty(t, result.SDMChainBError)
+}
+
+func TestRunLagoonLegsJoinsEveryFailure(t *testing.T) {
+	var result lagoonAllResult
+	err := runLagoonLegs(context.Background(), lagoonLegs{
+		interop: func(context.Context) error { return nil },
+		sdmA:    func(context.Context) (*sdmcheck.Result, error) { return nil, errors.New("no PostExec tx") },
+		sdmB: func(context.Context) (*sdmcheck.Result, error) {
+			return &sdmcheck.Result{RPCURL: "b"}, errors.New("verifier disagreed")
+		},
+	}, &result)
+
+	require.ErrorContains(t, err, "chain A SDM: no PostExec tx")
+	require.ErrorContains(t, err, "chain B SDM: verifier disagreed")
+	require.True(t, result.InteropPassed)
+	require.Empty(t, result.InteropError)
+	require.Nil(t, result.SDMChainA)
+	require.Equal(t, "no PostExec tx", result.SDMChainAError)
+	require.Equal(t, "b", result.SDMChainB.RPCURL)
+	require.Equal(t, "verifier disagreed", result.SDMChainBError)
 }

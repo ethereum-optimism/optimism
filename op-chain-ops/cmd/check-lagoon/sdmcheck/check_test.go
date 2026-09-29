@@ -123,12 +123,16 @@ func TestEnsureOptIn(t *testing.T) {
 }
 
 type fakeRollup struct {
+	cfg    *rollup.Config
 	safe   uint64
 	output common.Hash
 }
 
 func (f *fakeRollup) RollupConfig(context.Context) (*rollup.Config, error) {
-	return nil, errors.New("not used")
+	if f.cfg == nil {
+		return nil, errors.New("not used")
+	}
+	return f.cfg, nil
 }
 
 func (f *fakeRollup) SyncStatus(context.Context) (*eth.SyncStatus, error) {
@@ -190,6 +194,10 @@ func (stubEth) GetBalance(common.Address, string) *hexutil.Big {
 	return (*hexutil.Big)(big.NewInt(1e18))
 }
 
+func (stubEth) GetBlockByNumber(string, bool) map[string]any {
+	return map[string]any{"number": hexutil.Uint64(5), "timestamp": hexutil.Uint64(100)}
+}
+
 func (stubEth) GetTransactionCount(common.Address, string) (hexutil.Uint64, error) {
 	return 0, errors.New("nonce unavailable")
 }
@@ -214,4 +222,38 @@ func TestCheckAllRestoresOptInOnFailure(t *testing.T) {
 	_, err = CheckAll(context.Background(), cfg)
 	require.ErrorContains(t, err, "nonce unavailable")
 	require.Equal(t, []bool{true, false}, admin.optInSets)
+}
+
+func TestCheckLagoonActive(t *testing.T) {
+	lagoonAt := func(ts uint64) *fakeRollup { return &fakeRollup{cfg: &rollup.Config{LagoonTime: &ts}} }
+	producer := &fakeProducer{block: &sdm.RPCBlock{Number: 7, Timestamp: 100}}
+
+	require.NoError(t, checkLagoonActive(context.Background(), Config{}, producer, "0x7"))
+	require.NoError(t, checkLagoonActive(context.Background(), Config{Rollup: lagoonAt(100)}, producer, "0x7"))
+	err := checkLagoonActive(context.Background(), Config{Rollup: lagoonAt(101)}, producer, "0x7")
+	require.ErrorContains(t, err, "Lagoon is not active at block 7 timestamp 100")
+}
+
+func TestCheckAllChecksLagoonBeforeWorkload(t *testing.T) {
+	admin := &stubAdmin{}
+	server := gethrpc.NewServer()
+	require.NoError(t, server.RegisterName("admin", admin))
+	require.NoError(t, server.RegisterName("eth", stubEth{}))
+	httpServer := httptest.NewServer(server)
+	t.Cleanup(httpServer.Close)
+	t.Cleanup(server.Stop)
+
+	key, err := crypto.GenerateKey()
+	require.NoError(t, err)
+	lagoonTime := uint64(200)
+	cfg := Config{
+		RPCURL: httpServer.URL,
+		Key:    key,
+		OptIn:  true,
+		Log:    testlog.Logger(t, log.LevelDebug),
+		Rollup: &fakeRollup{cfg: &rollup.Config{LagoonTime: &lagoonTime}},
+	}
+	_, err = CheckAll(context.Background(), cfg)
+	require.ErrorContains(t, err, "Lagoon is not active at block 5 timestamp 100")
+	require.Empty(t, admin.optInSets, "no opt-in toggle before the activation check")
 }

@@ -52,7 +52,8 @@ go run . sdm block --sdm-l2 http://localhost:9545 --sdm-block 12345
 ```
 
 The producer needs the `admin_` and `debug_` namespaces. `--sdm-rollup-rpc`
-adds Lagoon-activation and safe-head checks. The checks fail if the producer
+adds Lagoon-activation and safe-head checks; the safe-head wait is bounded only
+by the command timeout (10 minutes for `sdm`, 25 minutes for `all`). The checks fail if the producer
 has not opted in to SDM; `--sdm-opt-in` enables it for the duration of the
 check and switches it back off afterwards.
 
@@ -64,6 +65,13 @@ Checked for every SDM block:
 - block-scoped L1 fee parameters and per-receipt DA footprints summing to the header;
 - `debug_replaySDMBlock` gas accounting;
 - optionally, verifier agreement, Lagoon activation, and safe-head progression.
+
+The replay runs with post-exec accounting disabled, so replayed balances never
+include refunds from earlier transactions in the block. A transaction whose
+execution reads such a balance (a refunded sender or a fee vault) replays with
+different gas and fails the replay gas checks even though the block is valid.
+The StateBloat workload never reads balances, but a block from `sdm block` or
+`sdm verifier`, or one shared with third-party transactions, can.
 
 ## Config
 
