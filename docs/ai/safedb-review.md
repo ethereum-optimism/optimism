@@ -40,7 +40,7 @@ behaviour they illustrate applies to both.
 
 ## The contract
 
-Two writes:
+Writes:
 
 - **record** — `safe_head` became safe as of `l1_head`, the first L1 block containing all
   data needed to derive it. Keyed by L1 block, so a second record at the same L1 block
