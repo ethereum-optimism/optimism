@@ -41,7 +41,7 @@ cast call $VAULT "minWithdrawalAmount()" --rpc-url $L2_RPC
 # Withdrawal network (0 = L1, 1 = L2)
 cast call $VAULT "withdrawalNetwork()" --rpc-url $L2_RPC
 
-# Total ETH withdrawn historically
+# Total native token withdrawn historically
 cast call $VAULT "totalProcessed()" --rpc-url $L2_RPC
 ```
 
@@ -70,6 +70,10 @@ cast send --rpc-url $L2_RPC --private-key $PK \
 ```
 
 ### Set withdrawal network
+
+<Warning>
+  Chains using Custom Gas Token (CGT) v2 must use L2 withdrawals (`withdrawalNetwork = 1`) with a recipient on L2, including in the initial deployment configuration. L1 fee withdrawals revert because `L2ToL1MessagePasser` rejects nonzero native token value on CGT chains.
+</Warning>
 
 ```bash
 # 0 = L1, 1 = L2
