@@ -144,10 +144,6 @@ func (f *FakeAsyncGossip) Gossip(payload *eth.ExecutionPayloadEnvelope) {
 	f.payload = payload
 }
 
-func (f *FakeAsyncGossip) Get() *eth.ExecutionPayloadEnvelope {
-	return f.payload
-}
-
 func (f *FakeAsyncGossip) Clear() {
 	f.payload = nil
 }
@@ -436,18 +432,20 @@ func TestSequencer_StaleBuild(t *testing.T) {
 		}, nil
 	}
 	// The block seals fine, but local processing fails with a temporary
-	// (non-sentinel) error: the block is committed and gossiped, but not canonical.
+	// (non-sentinel) error: the block is committed to the conductor, but it is not
+	// canonical and so must not reach peers.
 	processPayloadCalled := false
 	deps.eng.processPayloadFn = func(ctx context.Context, envelope *eth.ExecutionPayloadEnvelope, ref eth.L2BlockRef, buildStarted time.Time) error {
 		processPayloadCalled = true
 		return fmt.Errorf("mock temporary engine error")
 	}
 
-	// Seal action: SealBuild succeeds, commits to conductor and gossip, ProcessPayload fails.
+	// Seal action: SealBuild succeeds, commits to conductor, ProcessPayload fails.
 	seq.RunAction()
 	require.True(t, processPayloadCalled, "ProcessPayload must have been called")
 	require.Equal(t, payloadEnvelope, deps.conductor.committed, "must commit to conductor")
-	require.Equal(t, payloadEnvelope, deps.asyncGossip.payload, "must send to async gossip")
+	require.Nil(t, deps.asyncGossip.payload, "an uninserted block must not reach peers")
+	require.Equal(t, payloadEnvelope, seq.building.Envelope, "envelope retained for the insert retry")
 	_, ok = seq.NextAction()
 	require.False(t, ok, "not ready to act; the engine's temporary-error event re-arms the schedule via the inbox")
 
@@ -481,10 +479,11 @@ func TestSequencer_StaleBuild(t *testing.T) {
 	_, ok = seq.NextAction()
 	require.True(t, ok, "new head re-arms the sequencer")
 
-	// Regression check: async-gossip is cleared upon sequencer un-pause.
-	// We could clear it earlier. But absolutely have to clear it upon Start(),
-	// to not continue from this older point.
-	require.NotNil(t, deps.asyncGossip.payload, "async-gossip still not cleared")
+	// The block was never published, so there is nothing on the network to take
+	// back. The competing head also dropped the retained envelope: it lives in
+	// the building state, which a forkchoice update onto another branch clears.
+	require.Nil(t, deps.asyncGossip.payload, "an uninserted block never reached peers")
+	require.Equal(t, BuildingState{}, seq.building, "the abandoned block was dropped with the build job")
 
 	// Stop() waits for lastSealed == unsafeHead. The head advanced past our
 	// sealed block (another sequencer took over), so match lastSealed to
@@ -498,8 +497,8 @@ func TestSequencer_StaleBuild(t *testing.T) {
 	// start sequencing on top of the new chain
 	require.NoError(t, seq.Start(context.Background(), newHead.Hash), "must continue from new block")
 
-	// regression check: no stale async gossip is continued
-	require.Nil(t, deps.asyncGossip.payload, "async gossip should be cleared on Start")
+	// regression check: no stale publish queue is carried across a restart
+	require.Nil(t, deps.asyncGossip.payload, "publish queue should be cleared on Start")
 
 	// Start building the block with the new L1 origin
 	deps.l1OriginSelector.l1OriginFn = func(l2Head eth.L2BlockRef) (eth.L1BlockRef, error) {
@@ -636,11 +635,11 @@ func TestSequencerBuild(t *testing.T) {
 		return nil
 	}
 
-	// Seal action: seals, commits to conductor, gossips, and inserts the payload,
-	// all synchronously via direct calls.
+	// Seal action: seals, commits to conductor, inserts, and only then publishes
+	// the payload, all synchronously via direct calls.
 	seq.RunAction()
 	require.Equal(t, payloadEnvelope, deps.conductor.committed, "must commit to conductor")
-	require.Nil(t, deps.asyncGossip.payload, "async gossip should have cleared after successful insert")
+	require.Equal(t, payloadEnvelope, deps.asyncGossip.payload, "published after a successful insert")
 	require.Equal(t, BuildingState{}, seq.building, "building state cleared after successful insert")
 	require.Equal(t, payloadRef, seq.lastSealed, "sealed block recorded")
 
@@ -769,8 +768,8 @@ func (s *seqTestSetup) startBuild(t *testing.T) eth.PayloadInfo {
 }
 
 // sealedPayload returns a payload envelope and matching block-ref for the block
-// on top of the setup head. The L1 origin is encoded in tx[0], so the test
-// toBlockRef hook can reconstruct the same ref from the envelope.
+// on top of the setup head. The L1 origin is encoded in tx[0], matching the
+// mock payloads the rest of the suite builds.
 func (s *seqTestSetup) sealedPayload() (*eth.ExecutionPayloadEnvelope, eth.L2BlockRef) {
 	envelope := &eth.ExecutionPayloadEnvelope{
 		ExecutionPayload: &eth.ExecutionPayload{
@@ -913,8 +912,8 @@ func TestSequencerProcessPayloadErrors(t *testing.T) {
 	for _, tc := range []struct {
 		name string
 		err  error
-		// dropped marks the payload as permanently rejected: gossip and building
-		// state are cleared, and a fresh build is scheduled after a backoff.
+		// dropped marks the payload as permanently rejected: the building state is
+		// cleared and a fresh build is scheduled after a backoff.
 		dropped bool
 	}{
 		{name: "payload invalid", err: engine.ErrPayloadInvalid, dropped: true},
@@ -934,8 +933,9 @@ func TestSequencerProcessPayloadErrors(t *testing.T) {
 			s.seq.RunAction()
 			require.Equal(t, envelope, s.deps.conductor.committed, "sealed block is committed before processing")
 
+			require.Nil(t, s.deps.asyncGossip.payload, "nothing is published until the insert succeeds")
+
 			if tc.dropped {
-				require.Nil(t, s.deps.asyncGossip.payload, "rejected payload is dropped from gossip")
 				require.Equal(t, BuildingState{}, s.seq.building)
 				next, ok := s.seq.NextAction()
 				require.True(t, ok, "restart building after backoff")
@@ -943,7 +943,7 @@ func TestSequencerProcessPayloadErrors(t *testing.T) {
 				return
 			}
 
-			require.Equal(t, envelope, s.deps.asyncGossip.payload, "payload stays in gossip for retry")
+			require.Equal(t, envelope, s.seq.building.Envelope, "envelope retained for the insert retry")
 			require.Equal(t, ref, s.seq.building.Ref, "building state is kept")
 			_, ok := s.seq.NextAction()
 			require.False(t, ok, "paused until the engine's temporary-error event re-arms the schedule")
@@ -955,17 +955,23 @@ func TestSequencerProcessPayloadErrors(t *testing.T) {
 			require.True(t, ok)
 			require.Equal(t, s.clock.Now().Add(time.Second), next, "temporary-error backoff")
 
-			// The retry action processes the gossiped payload instead of re-sealing.
+			// The retry action re-inserts the retained envelope instead of re-sealing:
+			// the conductor has committed this block, so a different block must not
+			// take its place at that height.
+			s.deps.eng.sealBuildFn = func(context.Context, eth.PayloadInfo, time.Time) (*engine.SealResult, error) {
+				t.Fatal("must not re-seal a block the conductor has committed")
+				return nil, nil
+			}
 			var retried *eth.ExecutionPayloadEnvelope
 			s.deps.eng.processPayloadFn = func(ctx context.Context, envelope *eth.ExecutionPayloadEnvelope, gotRef eth.L2BlockRef, buildStarted time.Time) error {
 				retried = envelope
-				require.Equal(t, ref, gotRef, "ref reconstructed from the gossiped payload")
-				require.True(t, buildStarted.IsZero(), "no build-start time for gossip-buffer retries")
+				require.Equal(t, ref, gotRef, "retried with the retained ref")
+				require.True(t, buildStarted.IsZero(), "no build-start time for insert retries")
 				return nil
 			}
 			s.seq.RunAction()
-			require.Equal(t, envelope, retried, "gossiped payload was retried")
-			require.Nil(t, s.deps.asyncGossip.payload, "gossip cleared after successful retry")
+			require.Equal(t, envelope, retried, "retained envelope was re-inserted")
+			require.Equal(t, envelope, s.deps.asyncGossip.payload, "published once the insert succeeded")
 			require.Equal(t, BuildingState{}, s.seq.building)
 			require.Equal(t, ref, s.seq.unsafeHead, "head updated directly after successful insert")
 			_, ok = s.seq.NextAction()
@@ -1086,10 +1092,11 @@ func TestSequencerStopAfterStaleProcess(t *testing.T) {
 		return &engine.SealResult{Envelope: envelope, Ref: ref}, nil
 	}
 	s.deps.eng.processPayloadFn = func(ctx context.Context, envelope *eth.ExecutionPayloadEnvelope, ref eth.L2BlockRef, buildStarted time.Time) error {
-		return engine.ErrStaleBuild // competing block won after we gossiped
+		return engine.ErrStaleBuild // a competing block won the race
 	}
 	s.seq.RunAction()
 	require.Equal(t, s.seq.unsafeHead, s.seq.lastSealed, "nothing outstanding after the stale drop")
+	require.Nil(t, s.deps.asyncGossip.payload, "the losing sibling never reached peers")
 
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
 	defer cancel()
@@ -1098,19 +1105,23 @@ func TestSequencerStopAfterStaleProcess(t *testing.T) {
 	require.Equal(t, s.seq.unsafeHead.Hash, hash)
 }
 
-// TestSequencerRearmsAfterStaleBufferedPayload covers the retry of a payload
-// left in the async-gossip buffer by an earlier temporary insertion failure.
+// TestSequencerDropsRetainedBlockOnCompetingHead covers a block that was sealed
+// and committed to the conductor, but whose insert failed temporarily, when a
+// competing block becomes the head before the retry. The retained block lives in
+// the building state, so the forkchoice update drops it — and because nothing is
+// published before a block is inserted, there is no sibling on the network to
+// take back.
 // If the chain has already moved on by the time it is retried, the engine
 // rejects it and requests a forkchoice update — but that update names the head
 // the sequencer already knows, so it re-plans nothing. Waiting for it would
 // park an active leader forever.
-func TestSequencerRearmsAfterStaleBufferedPayload(t *testing.T) {
+func TestSequencerDropsRetainedBlockOnCompetingHead(t *testing.T) {
 	s := newSeqSetup(t)
 	envelope, ref := s.sealedPayload()
 
-	// A previous action sealed and gossiped this payload, then failed to insert
-	// it with a temporary error, so it stayed in the buffer.
-	s.deps.asyncGossip.payload = envelope
+	// A previous action sealed this payload and committed it to the conductor,
+	// then failed to insert it with a temporary error, so it is retained.
+	s.seq.building = BuildingState{Ref: ref, Envelope: envelope}
 	s.seq.lastSealed = ref
 
 	// Meanwhile a competing block at the same height became the head, and the
@@ -1124,21 +1135,22 @@ func TestSequencerRearmsAfterStaleBufferedPayload(t *testing.T) {
 	}
 	deliver(s.seq, engine.ForkchoiceUpdateEvent{UnsafeL2Head: competing})
 	require.Equal(t, competing, s.seq.unsafeHead)
-	_, ok := s.seq.NextAction()
-	require.True(t, ok, "the competing head re-armed the sequencer")
-
-	// Retrying the buffered payload now fails: it does not extend the new head.
-	s.deps.eng.processPayloadFn = func(context.Context, *eth.ExecutionPayloadEnvelope, eth.L2BlockRef, time.Time) error {
-		return engine.ErrStaleBuild
-	}
-	s.seq.RunAction()
-
-	require.Nil(t, s.deps.asyncGossip.payload, "the stale payload is discarded")
+	require.Equal(t, BuildingState{}, s.seq.building,
+		"the retained block is dropped with the build job it belongs to")
+	require.Nil(t, s.deps.asyncGossip.payload, "a block we never adopted never reached peers")
 	next, ok := s.seq.NextAction()
-	require.True(t, ok, "must re-plan locally; the requested forkchoice update is one we already have")
-	require.Equal(t, competing, s.seq.unsafeHead, "the next build targets the current head")
+	require.True(t, ok, "the competing head re-armed the sequencer")
 	require.False(t, next.After(time.Unix(int64(competing.Time+s.deps.cfg.BlockTime), 0)),
 		"scheduled no later than the next block's slot")
+
+	// The retry never re-inserts the abandoned block: the next action starts a
+	// fresh build on the competing head.
+	s.deps.eng.processPayloadFn = func(context.Context, *eth.ExecutionPayloadEnvelope, eth.L2BlockRef, time.Time) error {
+		t.Fatal("must not insert a block the chain has moved past")
+		return nil
+	}
+	s.seq.RunAction()
+	require.Equal(t, competing, s.seq.building.Onto, "the next build targets the current head")
 }
 
 // TestSequencerStopAfterRejectedInsert checks that a block discarded as
@@ -1279,17 +1291,6 @@ func createSequencer(log log.Logger) (*Sequencer, *sequencerTestDeps) {
 	seq := NewSequencer(context.Background(), log, cfg, defaultSealingDuration, deps.attribBuilder,
 		deps.l1OriginSelector, deps.seqState, deps.conductor,
 		deps.asyncGossip, metrics.NoopMetrics, eng)
-	// We create mock payloads, with the epoch-id as tx[0], rather than proper L1Block-info deposit tx.
-	seq.toBlockRef = func(rollupCfg *rollup.Config, payload *eth.ExecutionPayload) (eth.L2BlockRef, error) {
-		return eth.L2BlockRef{
-			Hash:           payload.BlockHash,
-			Number:         uint64(payload.BlockNumber),
-			ParentHash:     payload.ParentHash,
-			Time:           uint64(payload.Timestamp),
-			L1Origin:       decodeID(payload.Transactions[0]),
-			SequenceNumber: 0,
-		}, nil
-	}
 	return seq, deps
 }
 
@@ -1359,22 +1360,19 @@ func TestSequencerMaxSafeLagHoldsThroughRecovery(t *testing.T) {
 // derivation-originated payloads: the async-gossip buffer must be cleared when
 // the inserted block is the one we were building, so a stale payload cannot be
 // reused, and left alone otherwise.
-func TestSequencerPayloadSuccessClearsGossip(t *testing.T) {
+func TestSequencerPayloadSuccessClearsBuildState(t *testing.T) {
 	s := newSeqSetup(t)
 	envelope, ref := s.sealedPayload()
 
-	s.seq.building = BuildingState{Ref: ref}
-	s.deps.asyncGossip.payload = envelope
+	s.seq.building = BuildingState{Ref: ref, Envelope: envelope}
 
 	unrelated := &eth.ExecutionPayloadEnvelope{ExecutionPayload: &eth.ExecutionPayload{
 		BlockHash: common.Hash{0xaa},
 	}}
 	deliver(s.seq, engine.PayloadSuccessEvent{Envelope: unrelated})
-	require.NotNil(t, s.deps.asyncGossip.payload, "another block's insertion is not ours to act on")
-	require.Equal(t, ref, s.seq.building.Ref, "build state untouched")
+	require.Equal(t, ref, s.seq.building.Ref, "another block's insertion is not ours to act on")
 
 	deliver(s.seq, engine.PayloadSuccessEvent{Envelope: envelope})
-	require.Nil(t, s.deps.asyncGossip.payload, "our block was inserted: drop the gossip buffer")
 	require.Equal(t, BuildingState{}, s.seq.building, "our block was inserted: build state is done")
 }
 
