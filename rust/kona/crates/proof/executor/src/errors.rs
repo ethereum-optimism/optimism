@@ -209,24 +209,46 @@ impl ExecutorError {
             Self::BlockGasLimitExceeded | Self::InvalidPostExecPayload(_) | Self::Recovery(_) => {
                 true
             }
-            Self::ExecutionError(BlockExecutionError::Validation(validation)) => match validation {
-                BlockValidationError::InvalidTx { .. } |
-                BlockValidationError::TransactionGasLimitMoreThanAvailableBlockGas { .. } |
-                BlockValidationError::BlockGasExceeded => true,
-                BlockValidationError::Other(error) => {
-                    error.downcast_ref::<OpBlockExecutionError>().is_some_and(|error| {
-                        matches!(
-                            error,
-                            OpBlockExecutionError::TransactionDaFootprintAboveGasLimit { .. } |
+            Self::ExecutionError(error) => match error {
+                BlockExecutionError::Validation(validation) => match validation {
+                    BlockValidationError::InvalidTx { .. } |
+                    BlockValidationError::TransactionGasLimitMoreThanAvailableBlockGas {
+                        ..
+                    } |
+                    BlockValidationError::BlockGasExceeded => true,
+                    BlockValidationError::Other(error) => {
+                        error.downcast_ref::<OpBlockExecutionError>().is_some_and(|error| {
+                            match error {
+                                OpBlockExecutionError::TransactionDaFootprintAboveGasLimit { .. } |
                                 OpBlockExecutionError::UnexpectedNonDepositTxInForkActivationBlock |
                                 OpBlockExecutionError::InvalidPostExecPayload(_) |
-                                OpBlockExecutionError::PostExecSettlementUnderflow { .. }
-                        )
-                    })
-                }
-                _ => false,
+                                OpBlockExecutionError::PostExecSettlementUnderflow { .. } => true,
+                                OpBlockExecutionError::LoadCacheAccount |
+                                OpBlockExecutionError::GetJovianDaFootprintScalar(_) => false,
+                            }
+                        })
+                    }
+                    BlockValidationError::EVM { .. } |
+                    BlockValidationError::IncrementBalanceFailed |
+                    BlockValidationError::MissingParentBeaconBlockRoot |
+                    BlockValidationError::CancunGenesisParentBeaconBlockRootNotZero { .. } |
+                    BlockValidationError::BeaconRootContractCall { .. } |
+                    BlockValidationError::BlockHashContractCall { .. } |
+                    BlockValidationError::WithdrawalRequestsContractCall { .. } |
+                    BlockValidationError::ConsolidationRequestsContractCall { .. } |
+                    BlockValidationError::DepositRequestDecode(_) => false,
+                },
+                BlockExecutionError::Internal(_) => false,
             },
-            _ => false,
+            Self::MissingGasLimit |
+            Self::MissingTransactions |
+            Self::MissingEIP1559Params |
+            Self::MissingParentBeaconBlockRoot |
+            Self::InvalidExtraData(_) |
+            Self::UnsupportedTransactionType(_) |
+            Self::TrieDBError(_) |
+            Self::RLPError(_) |
+            Self::MissingExecutor => false,
         }
     }
 }
@@ -240,6 +262,11 @@ mod classification_tests {
     fn only_invalid_payload_errors_allow_deposit_only_replacement() {
         let cases = [
             ("block gas", ExecutorError::BlockGasLimitExceeded, true),
+            (
+                "unsupported transaction type",
+                ExecutorError::UnsupportedTransactionType(0xff),
+                false,
+            ),
             (
                 "transaction gas",
                 ExecutorError::ExecutionError(BlockExecutionError::Validation(
