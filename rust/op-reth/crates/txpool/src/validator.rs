@@ -14,7 +14,7 @@ use reth_primitives_traits::{
 use reth_storage_api::{AccountInfoReader, BlockReaderIdExt, StateProviderFactory};
 use reth_transaction_pool::{
     EthPoolTransaction, EthTransactionValidator, TransactionOrigin, TransactionValidationOutcome,
-    TransactionValidator, error::InvalidPoolTransactionError,
+    TransactionValidator, error::InvalidPoolTransactionError, validate::ValidTransaction,
 };
 use std::sync::{
     Arc,
@@ -262,7 +262,7 @@ where
         if let TransactionValidationOutcome::Valid {
             balance,
             state_nonce,
-            transaction: valid_tx,
+            transaction: mut valid_tx,
             propagate,
             bytecode_hash,
             authorities,
@@ -301,7 +301,18 @@ where
                 valid_tx.transaction().gas_limit(),
             ));
 
-            let cost = valid_tx.transaction().cost().saturating_add(cost_addition);
+            // Fold the OP fees into `cost()` so the pool's cumulative per-sender balance check
+            // accounts for them too. This check only sees one transaction against the on-chain
+            // balance; a sender's later nonces must also cover the OP fees of the earlier ones, or
+            // the pool marks them pending although execution rejects them for insufficient funds.
+            // Like op-geth's pool (`list.Add` via `TotalTxCost`), the fees are priced at admission.
+            match &mut valid_tx {
+                ValidTransaction::Valid(tx) |
+                ValidTransaction::ValidWithSidecar { transaction: tx, .. } => {
+                    tx.set_op_fee_reservation(cost_addition)
+                }
+            }
+            let cost = *valid_tx.transaction().cost();
 
             // Checks for max cost
             if cost > balance {
@@ -507,5 +518,91 @@ mod tests {
             operator_fee_addition(&l1, OpSpecId::ISTHMUS, &[0x7E, 0x00], 21_000),
             U256::ZERO
         );
+    }
+
+    /// The pool must classify a sender's consecutive nonces against the full OP cost, not just the
+    /// L2 `cost()`. Each tx below is affordable on its own (so both pass admission against the same
+    /// on-chain balance), but the sender cannot pay the L1 data fee of both. Without the L1 fee in
+    /// the pool's cumulative accounting, nonce 1 is marked pending and the payload builder retries
+    /// it every block, failing with insufficient funds — the ink-mainnet stuck-pending cohort.
+    #[tokio::test]
+    async fn pool_parks_descendant_unaffordable_with_l1_fee() {
+        use crate::{OpL1BlockInfo, OpPooledTransaction, OpTransactionValidator};
+        use alloy_consensus::{SignableTransaction, TxEip1559, transaction::Recovered};
+        use alloy_eips::eip2718::Encodable2718;
+        use alloy_primitives::{Address, Signature, TxKind};
+        use parking_lot::RwLock;
+        use reth_optimism_chainspec::OP_MAINNET;
+        use reth_optimism_evm::{OpEvmConfig, RethL1BlockInfo};
+        use reth_optimism_primitives::{OpPrimitives, OpTransactionSigned};
+        use reth_provider::test_utils::{ExtendedAccount, MockEthProvider};
+        use reth_transaction_pool::{
+            CoinbaseTipOrdering, Pool, PoolConfig, PoolTransaction, TransactionOrigin,
+            TransactionPool, blobstore::InMemoryBlobStore,
+            validate::EthTransactionValidatorBuilder,
+        };
+        use std::sync::atomic::AtomicU64;
+
+        let signer = Address::with_last_byte(1);
+        let make_tx = |nonce: u64| -> OpPooledTransaction {
+            let tx: OpTransactionSigned = TxEip1559 {
+                chain_id: 10,
+                nonce,
+                gas_limit: 21_000,
+                max_fee_per_gas: 1_000_000_000,
+                to: TxKind::Call(Address::with_last_byte(0x42)),
+                ..Default::default()
+            }
+            .into_signed(Signature::test_signature())
+            .into();
+            let recovered = Recovered::new_unchecked(tx, signer);
+            let len = recovered.encode_2718_len();
+            OpPooledTransaction::new(recovered, len)
+        };
+        let (tx0, tx1) = (make_tx(0), make_tx(1));
+
+        let mut l1_block_info = L1BlockInfo {
+            l1_base_fee: U256::from(1_000_000_000_000u64),
+            l1_base_fee_scalar: U256::from(1_000_000),
+            ..Default::default()
+        };
+        let l1_fee =
+            l1_block_info.l1_tx_data_fee(OP_MAINNET.clone(), 0, tx0.encoded_2718(), false).unwrap();
+        let l2_cost = *tx0.cost();
+        assert!(l1_fee > l2_cost, "test needs the L1 fee to dominate, as on ink-mainnet");
+
+        // Covers either tx alone (and both txs' L2 cost), but not both txs' full OP cost.
+        let balance = l2_cost * U256::from(2) + l1_fee + l1_fee / U256::from(2);
+
+        let client = MockEthProvider::<OpPrimitives>::new()
+            .with_chain_spec(OP_MAINNET.clone())
+            .with_genesis_block();
+        client.add_account(signer, ExtendedAccount::new(0, balance));
+        let inner =
+            EthTransactionValidatorBuilder::new(client, OpEvmConfig::optimism(OP_MAINNET.clone()))
+                .build(InMemoryBlobStore::default());
+        let validator = OpTransactionValidator::with_block_info(
+            inner,
+            OpL1BlockInfo {
+                l1_block_info: RwLock::new(l1_block_info),
+                timestamp: AtomicU64::new(0),
+            },
+        );
+        let pool = Pool::new(
+            validator,
+            CoinbaseTipOrdering::default(),
+            InMemoryBlobStore::default(),
+            PoolConfig::default(),
+        );
+
+        pool.add_transaction(TransactionOrigin::External, tx0).await.unwrap();
+        pool.add_transaction(TransactionOrigin::External, tx1).await.unwrap();
+
+        let pending: Vec<_> =
+            pool.get_pending_transactions_by_sender(signer).iter().map(|tx| tx.nonce()).collect();
+        let queued: Vec<_> =
+            pool.get_queued_transactions_by_sender(signer).iter().map(|tx| tx.nonce()).collect();
+        assert_eq!(pending, vec![0], "only nonce 0 is executable");
+        assert_eq!(queued, vec![1], "nonce 1 cannot cover its L1 data fee after nonce 0");
     }
 }

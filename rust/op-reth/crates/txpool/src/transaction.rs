@@ -54,13 +54,20 @@ pub struct OpPooledTransaction<
 
     /// Cached EIP-2718 encoded bytes of the transaction, lazily computed.
     encoded_2718: OnceLock<Bytes>,
+
+    /// Worst-case cost including the OP fees reserved at validation, see
+    /// [`OpPooledTx::set_op_fee_reservation`].
+    cost: U256,
 }
 
 impl<Cons: SignedTransaction, Pooled> OpPooledTransaction<Cons, Pooled> {
     /// Create new instance of [Self].
     pub fn new(transaction: Recovered<Cons>, encoded_length: usize) -> Self {
+        let inner = EthPooledTransaction::new(transaction, encoded_length);
+        let cost = inner.cost;
         Self {
-            inner: EthPooledTransaction::new(transaction, encoded_length),
+            inner,
+            cost,
             estimated_tx_compressed_size: Default::default(),
             conditional: None,
             interop: Arc::new(AtomicU64::new(NO_INTEROP_TX)),
@@ -165,7 +172,7 @@ where
     }
 
     fn cost(&self) -> &U256 {
-        &self.inner.cost
+        &self.cost
     }
 
     fn encoded_length(&self) -> usize {
@@ -299,6 +306,13 @@ pub trait OpPooledTx:
 {
     /// Returns the EIP-2718 encoded bytes of the transaction.
     fn encoded_2718(&self) -> Cow<'_, Bytes>;
+
+    /// Adds the OP fees the sender must also cover (L1 data fee and operator fee) to
+    /// [`PoolTransaction::cost`], replacing any previous reservation.
+    ///
+    /// The pool sums `cost()` over a sender's consecutive nonces to decide which are executable, so
+    /// without the reservation it marks transactions pending that cannot pay their L1 data fee.
+    fn set_op_fee_reservation(&mut self, fee: U256);
 }
 
 impl<Cons, Pooled> OpPooledTx for OpPooledTransaction<Cons, Pooled>
@@ -309,6 +323,10 @@ where
 {
     fn encoded_2718(&self) -> Cow<'_, Bytes> {
         Cow::Borrowed(self.encoded_2718())
+    }
+
+    fn set_op_fee_reservation(&mut self, fee: U256) {
+        self.cost = self.inner.cost.saturating_add(fee);
     }
 }
 
