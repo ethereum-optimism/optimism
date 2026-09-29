@@ -299,64 +299,27 @@ func resolveContract(ctx context.Context, cfg config, sender *sdm.TxSender) (com
 		return contract, nil
 	}
 
-	nonce, err := sender.Eth.PendingNonceAt(ctx, sender.From)
-	if err != nil {
-		return common.Address{}, fmt.Errorf("pending nonce for deployer %s: %w", sender.From, err)
-	}
-	bytecode, err := sdm.DecodeHexBytes(sdm.StateBloatBin)
-	if err != nil {
-		return common.Address{}, err
-	}
-	deployTx, err := sender.SendContractCreation(ctx, nonce, bytecode, cfg.deployGasLimit)
-	if err != nil {
-		return common.Address{}, err
-	}
-	log.Printf("submitted StateBloat deploy tx=%s nonce=%d", deployTx.Hash(), nonce)
 	receiptCtx, cancel := context.WithTimeout(ctx, cfg.receiptTimeout)
 	defer cancel()
-	receipt, err := sdm.WaitRPCReceipt(receiptCtx, sender.RPC, deployTx.Hash(), cfg.pollInterval)
+	receipt, err := sdm.DeployStateBloat(receiptCtx, sender, cfg.deployGasLimit, cfg.pollInterval)
 	if err != nil {
 		return common.Address{}, err
-	}
-	if uint64(receipt.Status) != types.ReceiptStatusSuccessful {
-		return common.Address{}, fmt.Errorf("StateBloat deploy tx %s failed with status %d", deployTx.Hash(), receipt.Status)
-	}
-	if receipt.ContractAddress == nil {
-		return common.Address{}, fmt.Errorf("StateBloat deploy tx %s receipt missing contractAddress", deployTx.Hash())
 	}
 	log.Printf("deployed StateBloat contract=%s block=%d gas_used=%d", *receipt.ContractAddress, receipt.BlockNum(), receipt.GasUsed)
 	return *receipt.ContractAddress, nil
 }
 
 func submitAttempt(ctx context.Context, cfg config, sender *sdm.TxSender, contract common.Address, attempt int, validationOpts sdm.ValidationOptions) (*workloadResult, error) {
-	startNonce, err := sender.Eth.PendingNonceAt(ctx, sender.From)
-	if err != nil {
-		return nil, fmt.Errorf("pending nonce: %w", err)
-	}
-	log.Printf("attempt=%d submitting %d txs contract=%s start_nonce=%d slot_count=%d", attempt, cfg.batchSize, contract, startNonce, cfg.slotCount)
-
-	calldata := sdm.EncodeRun(cfg.slotCount)
-	txs, err := submitWorkloadTxs(ctx, cfg, sender, contract, startNonce, calldata)
+	log.Printf("attempt=%d submitting %d txs contract=%s slot_count=%d", attempt, cfg.batchSize, contract, cfg.slotCount)
+	txs, err := sdm.SubmitWorkload(ctx, sender, contract, cfg.batchSize, cfg.slotCount, cfg.gasLimit, cfg.txSpacing)
 	if err != nil {
 		return nil, err
 	}
-
-	blockTxs := make(map[uint64][]*sdm.RPCReceipt)
-	includedByBlock := make(map[uint64]int)
-	for i, tx := range txs {
-		receiptCtx, cancel := context.WithTimeout(ctx, cfg.receiptTimeout)
-		receipt, err := sdm.WaitRPCReceipt(receiptCtx, sender.RPC, tx.Hash(), cfg.pollInterval)
-		cancel()
-		if err != nil {
-			return nil, fmt.Errorf("tx %d %s receipt: %w", i, tx.Hash(), err)
-		}
-		if uint64(receipt.Status) != types.ReceiptStatusSuccessful {
-			return nil, fmt.Errorf("tx %d %s failed with status %d", i, tx.Hash(), receipt.Status)
-		}
-		blockNum := receipt.BlockNum()
-		blockTxs[blockNum] = append(blockTxs[blockNum], receipt)
-		includedByBlock[blockNum]++
+	blockTxs, err := sdm.CollectWorkloadReceipts(ctx, sender, txs, cfg.receiptTimeout, cfg.pollInterval)
+	if err != nil {
+		return nil, err
 	}
+	includedByBlock := sdm.CountByBlock(blockTxs)
 	log.Printf("attempt=%d included_by_block=%v", attempt, includedByBlock)
 
 	var validationErrs []error
@@ -383,32 +346,6 @@ func submitAttempt(ctx context.Context, cfg config, sender *sdm.TxSender, contra
 		return nil, errors.Join(validationErrs...)
 	}
 	return nil, fmt.Errorf("no block had at least %d submitted txs; included_by_block=%v", cfg.minUserTxs, includedByBlock)
-}
-
-func submitWorkloadTxs(
-	ctx context.Context,
-	cfg config,
-	sender *sdm.TxSender,
-	contract common.Address,
-	startNonce uint64,
-	calldata []byte,
-) ([]*types.Transaction, error) {
-	txs := make([]*types.Transaction, 0, cfg.batchSize)
-	for i := 0; i < cfg.batchSize; i++ {
-		if i > 0 && cfg.txSpacing > 0 {
-			select {
-			case <-ctx.Done():
-				return txs, ctx.Err()
-			case <-time.After(cfg.txSpacing):
-			}
-		}
-		tx, err := sender.SendCall(ctx, startNonce+uint64(i), contract, calldata, cfg.gasLimit)
-		if err != nil {
-			return txs, err
-		}
-		txs = append(txs, tx)
-	}
-	return txs, nil
 }
 
 func printResult(cfg config, result workloadResult) error {
