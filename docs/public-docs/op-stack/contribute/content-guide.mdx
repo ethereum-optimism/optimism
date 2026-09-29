@@ -7,6 +7,7 @@ diataxis: reference
 import ThirdPartyContent from "/snippets/third-party-content.mdx"
 import ThirdPartyContentSingle from "/snippets/third-party-content-single.mdx"
 import { NormativeSpec } from "/snippets/normative-spec.mdx"
+import { Unreleased } from "/snippets/unreleased.mdx"
 
 This page defines what content belongs on docs.optimism.io and, for every
 content type, which source is canonical. It exists so that "where does this
@@ -74,7 +75,7 @@ docs.optimism.io holds for each.
 | Protocol | Normative protocol behavior | [specs.optimism.io](https://specs.optimism.io/) | Explanation and routing pages that cite the spec with deep links — never restated normative text |
 | Protocol | Hardfork activations and chain metadata | [superchain-registry](https://github.com/ethereum-optimism/superchain-registry) | Pages rendered from the registry's structured data, joined — not hand-copied |
 | Components | Concepts, how-tos, and tutorials for running components | docs.optimism.io (full ownership) | The pages themselves, e.g. the [batcher guide](/chain-operators/guides/configuration/batcher) |
-| Components | Flags and configuration reference | The component's source at a tagged release | A reference page generated from source where a generator exists; otherwise a hand-maintained page pinned to a named release, e.g. the [batcher configuration reference](/chain-operators/reference/batcher-configuration) |
+| Components | Flags, commands, and configuration reference | The published release artifact at a finalized tag (its `--help` output, or the schema in its source at that tag) | Generated pages only, versioned by release line, under `reference/` — see [Component reference](#component-reference). Never a hand-maintained flag table |
 | Components | Implementation internals and developer books (e.g. [kona](https://github.com/ethereum-optimism/optimism/tree/develop/rust/kona), [op-reth](https://github.com/ethereum-optimism/optimism/tree/develop/rust/op-reth)) | The component's developer documentation, maintained beside its source | Orientation and selection pages that link into the deep material |
 | Periphery | SDKs and ecosystem tooling (e.g. [viem](https://viem.sh/op-stack), wagmi) | The upstream project's own documentation | One curated hub with a support matrix; every listing marked with `<ThirdPartyContent>` |
 
@@ -101,6 +102,111 @@ Precedents for the matrix, clause by clause:
 When two pages could both claim a topic, the matrix decides. If the matrix
 does not cover the case, raise it in the docs PR and propose a new row —
 amendments to this page go through the same review as any other docs change.
+
+## Component reference
+
+Every first-party component with a command-line interface has one reference
+in these docs, and every page of it is generated. This section is the
+convention that makes those references uniform across components; the
+generator and its lint enforce it, and reviewers cite it when a change would
+break it.
+
+**Components covered:** op-node, op-batcher, op-proposer, op-challenger,
+op-conductor, op-supernode, op-deployer, op-reth, and kona-node. A component
+joins the list by being added to the generator, never by a hand-written page.
+
+### Source of truth
+
+The `--help` output of the **published release artifact** at a **finalized**
+release tag: the Docker image published for the tag, or the release binary
+where one is published. Never `develop`, never a pre-release. The
+deploy-config schema, which has no `--help`, is generated from the component's
+source at the same finalized tag.
+
+### Rendering
+
+One generator, one output shape, whatever the CLI framework. Every flag
+renders as a table row (flag, environment variable, default, description),
+and the verbatim `--help` text follows in an expandable block so an operator
+can match what their terminal shows.
+
+### Page tree
+
+*   One page per top-level command.
+*   Subcommand families collapse onto their parent page as one heading per
+    subcommand, so a subcommand stays deep-linkable by anchor
+    (`db/checksum#mdbx`) without a page of its own.
+*   Option blocks that every command repeats (logging, metrics, profiling,
+    RPC) hoist to one `global-options` page per component.
+*   URLs are `reference/<component>/<vX.Y>/<command>` and never deeper.
+
+### Versions
+
+*   One version per **minor release line** (`v1.19`, `v2.4`), generated from
+    the latest finalized patch in that line. The provenance header names the
+    exact tag.
+*   The newest line is the default and is tagged **Latest**. The newest three
+    lines are published; older lines are removed, with redirects into the
+    newest line.
+*   A patch release that changes `--help` regenerates its line in place.
+
+### Provenance and no hand edits
+
+*   Every generated page opens with a `DO NOT EDIT` comment, before any
+    prose and after any imports, naming the exact tag and the artifact it
+    was generated from. The generator's manifest records the tag, artifact,
+    and content hash per component per line.
+*   **Nothing under the top-level `reference/` directory is hand-written.**
+    Orientation ("how the CLI is organized"), advice on choosing values, and
+    notes on selected flags live in guides in the persona tabs and link into
+    the reference. `pnpm lint:reference` fails any page under `reference/`
+    without the generated header.
+*   A hand edit to a generated page fails the generator's drift check on the
+    next run; regenerate instead.
+
+<Note>
+  **Transition.** The component references published today live inside the
+  persona tabs (for example `chain-operators/reference/` and
+  `node-operators/op-reth/cli/`), some generated and some hand-maintained.
+  They move into the top-level `reference/` tree as each component joins the
+  generator, and the rules above apply to a component once it has moved.
+  Until then, do not add a new hand-maintained flag table anywhere; add the
+  component to the generator instead.
+</Note>
+
+### Documenting unreleased changes
+
+docs.optimism.io deploys from `develop`; components ship from release tags.
+A component pull request that changes behavior should update the docs in the
+same pull request, as follows:
+
+*   **Generated reference:** do nothing. The pipeline regenerates the
+    component's reference at the next finalized tag.
+*   **Hand-written guides and explainers:** edit the prose in the same pull
+    request and wrap the changed statement in the `<Unreleased>` component,
+    naming the release that will carry the change:
+
+    ```mdx
+    import { Unreleased } from "/snippets/unreleased.mdx"
+
+    <Unreleased component="op-reth" version="v2.5.0" />
+    ```
+
+    Which renders (shown here with a fictional version, so this example can
+    never itself go stale):
+
+    <Unreleased component="op-reth" version="v99.0.0" />
+
+    The callout is temporary by construction: `pnpm lint:reference` fails
+    once the tag `op-reth/v2.5.0` exists, so it must be removed when the
+    release ships. The lint also rejects a callout that names a component
+    outside the covered list or a version that is not a full `vX.Y.Z`, since
+    such a callout could never become stale.
+*   **Removing a feature:** add the callout, or set `deprecated: true` in the
+    page's frontmatter, in the same pull request. Delete the page only after
+    the release ships, with a redirect.
+*   **Embargoed content** that must not go live before a release uses the
+    `flag:merge-pending-release` pull request label instead.
 
 ## Marking third-party content
 

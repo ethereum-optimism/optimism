@@ -81,7 +81,7 @@ When a new finalized (non-rc) `op-reth/vX.Y.Z` tag is published:
    against the docs tree you are committing from).
 3. If the run deleted pages, add one redirect per deleted URL to `docs.json`
    in the same change, pointing at the nearest surviving command page.
-4. Run the docs lints (`pnpm lint:nav`, `pnpm lint:redirects`,
+4. Run the docs lints (`pnpm lint:nav`, `pnpm lint:redirects`, `pnpm lint:reference`,
    `node scripts/lint-link-policy.mjs --baseline scripts/lint-link-policy.baseline.json`)
    and commit pages, nav fragment, redirects, and `manifest.json` together.
 

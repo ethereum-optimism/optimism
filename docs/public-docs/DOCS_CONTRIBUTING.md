@@ -14,7 +14,8 @@ Thanks for taking the time to contribute! ❤️
     - [Content Guidelines](#content-guidelines)
     - [Shared snippets](#shared-snippets)
     - [Local Testing](#local-testing)
-    - [Nav and redirect lint](#nav-and-redirect-lint)
+    - [Docs lints](#docs-lints)
+    - [Documenting unreleased changes](#documenting-unreleased-changes)
   - [Pull Request Process](#pull-request-process)
     - [Before Submitting](#before-submitting)
     - [Submission Guidelines](#submission-guidelines)
@@ -111,10 +112,11 @@ prose that ought to read differently per audience.
 
 Follow these [docs](https://www.mintlify.com/docs/installation) for local changes.
 
-### Nav and redirect lint
+### Docs lints
 
-`docs.json` (navigation + redirects) is a guarded artifact. Two deterministic
-checks apply to every change that touches `docs/public-docs/`. They are enforced
+Three deterministic checks apply to every change that touches
+`docs/public-docs/`. The first two guard `docs.json` (navigation + redirects);
+the third guards the generated component reference. They are enforced
 by a [Mintlify automation](https://www.mintlify.com/docs/automations) that runs
 on content updates and proposes review-gated fixes, and they should be run
 locally before pushing (see below):
@@ -128,6 +130,13 @@ locally before pushing (see below):
   [Redirects Guide](REDIRECTS_GUIDE.md)); no chained redirects; no redirects to
   non-existent targets; no duplicate redirect sources; no redirect source that
   shadows a live page; no internal links to non-existent paths.
+- **Reference lint** (`scripts/lint/validate-reference.ts`): enforces the
+  [Component reference](https://docs.optimism.io/op-stack/contribute/content-guide#component-reference)
+  convention. Every page under the top-level `reference/` directory opens with a generated
+  `DO NOT EDIT` header (hand-written content belongs in a guide); every
+  `<Unreleased>` callout names a release that is not yet published (the lint
+  fails once the tag exists, so the callout gets removed); every tag in a
+  generator manifest is a real git tag.
 
 Run them locally before pushing:
 
@@ -135,10 +144,12 @@ Run them locally before pushing:
 # from docs/public-docs (uses the tsx devDependency)
 pnpm lint:nav
 pnpm lint:redirects
+pnpm lint:reference
 
 # or from the monorepo root with bun (zero-dependency)
 bun docs/public-docs/scripts/lint/validate-nav.ts
 bun docs/public-docs/scripts/lint/validate-redirects.ts
+bun docs/public-docs/scripts/lint/validate-reference.ts
 ```
 
 Violations that pre-date the checks are grandfathered in
@@ -148,6 +159,15 @@ entry in the same PR (a stale entry fails the check). Never add a baseline entry
 to silence a new violation — add the missing redirect or nav entry instead;
 the allowlist is reserved for pages that are deliberately unlisted, with the
 reason recorded.
+
+### Documenting unreleased changes
+
+The site deploys from `develop`; components ship from release tags. When a
+component PR changes behavior, update the hand-written guide in the same PR
+and wrap the changed statement in `<Unreleased component="…" version="…" />`
+(see `snippets/unreleased.mdx`). Do not touch generated reference pages; they
+regenerate at the next finalized tag. Full rules:
+[Component reference › Documenting unreleased changes](https://docs.optimism.io/op-stack/contribute/content-guide#documenting-unreleased-changes).
 
 ## Pull Request Process
 
