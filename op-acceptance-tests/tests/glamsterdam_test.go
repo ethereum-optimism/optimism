@@ -101,13 +101,12 @@ func TestAutoDASwitchesFromCalldataToBlobsAtGlamsterdam(gt *testing.T) {
 	preForkStart := sys.L1EL.BlockRefByLabel(eth.Unsafe)
 	t.Require().Less(preForkStart.Time, *l1Config.AmsterdamTime)
 	sys.L2Batcher.Start()
-	preForkBatchTx := sys.L2Chain.WaitForBatchTransaction(preForkStart.Number)
+	preForkBatchTx, preForkInclusionBlock := sys.L2Chain.WaitForBatchTransaction(preForkStart.Number)
 	// The provider initializes and falls back to blobs, so observing calldata also proves that
 	// the gas-price and L1-header queries succeeded instead of silently taking a fallback path.
 	t.Require().Equal(uint8(gethtypes.DynamicFeeTxType), preForkBatchTx.Type(),
 		"auto DA must choose calldata under the pre-Amsterdam floor schedule")
-	preForkL1 := sys.L1EL.BlockRefByLabel(eth.Unsafe)
-	t.Require().Less(preForkL1.Time, *l1Config.AmsterdamTime,
+	t.Require().Less(preForkInclusionBlock.Time(), *l1Config.AmsterdamTime,
 		"the calldata batch must be included before Glamsterdam activates")
 	sys.L2Batcher.Stop()
 
@@ -118,7 +117,9 @@ func TestAutoDASwitchesFromCalldataToBlobsAtGlamsterdam(gt *testing.T) {
 		"post-Glamsterdam L1 block must include a block access list hash")
 
 	sys.L2Batcher.Start()
-	postForkBatchTx := sys.L2Chain.WaitForBatchTransaction(postForkL1.Number)
+	postForkBatchTx, postForkInclusionBlock := sys.L2Chain.WaitForBatchTransaction(postForkL1.Number)
+	t.Require().GreaterOrEqual(postForkInclusionBlock.Time(), *l1Config.AmsterdamTime,
+		"the blob batch must be included at or after Glamsterdam activation")
 	t.Require().Equal(uint8(gethtypes.BlobTxType), postForkBatchTx.Type(),
 		"auto DA must switch to blobs when the Amsterdam calldata floor makes them cheaper")
 }

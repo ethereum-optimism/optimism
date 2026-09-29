@@ -298,8 +298,8 @@ func (n *L2Network) DeriveData(blocks int) (channels []derive.ChannelID, channel
 }
 
 // WaitForBatchTransaction waits for and returns the first transaction to this network's batch
-// inbox included after the given L1 block number.
-func (n *L2Network) WaitForBatchTransaction(afterL1Block uint64) *ethtypes.Transaction {
+// inbox included after the given L1 block number, along with its L1 inclusion block.
+func (n *L2Network) WaitForBatchTransaction(afterL1Block uint64) (*ethtypes.Transaction, eth.BlockInfo) {
 	ctx, cancel := context.WithTimeout(n.ctx, 2*DefaultTimeout)
 	defer cancel()
 
@@ -307,19 +307,21 @@ func (n *L2Network) WaitForBatchTransaction(afterL1Block uint64) *ethtypes.Trans
 	batchInbox := n.inner.RollupConfig().BatchInboxAddress
 	nextBlock := afterL1Block + 1
 	var batchTx *ethtypes.Transaction
+	var inclusionBlock eth.BlockInfo
 	err := wait.For(ctx, 200*time.Millisecond, func() (bool, error) {
 		head, err := l1Client.InfoByLabel(ctx, eth.Unsafe)
 		if err != nil {
 			return false, nil
 		}
 		for nextBlock <= head.NumberU64() {
-			_, txs, err := l1Client.InfoAndTxsByNumber(ctx, nextBlock)
+			info, txs, err := l1Client.InfoAndTxsByNumber(ctx, nextBlock)
 			if err != nil {
 				return false, nil
 			}
 			for _, tx := range txs {
 				if tx.To() != nil && *tx.To() == batchInbox {
 					batchTx = tx
+					inclusionBlock = info
 					n.log.Info("Batch transaction found", "chain", n.ChainID(), "l1_block", nextBlock, "tx", tx.Hash())
 					return true, nil
 				}
@@ -329,7 +331,7 @@ func (n *L2Network) WaitForBatchTransaction(afterL1Block uint64) *ethtypes.Trans
 		return false, nil
 	})
 	n.require.NoError(err, "Expected a batch transaction after L1 block %d (scanned through %d)", afterL1Block, nextBlock-1)
-	return batchTx
+	return batchTx, inclusionBlock
 }
 
 // DeriveSpanBatches monitors upcoming L1 blocks and returns the span batches submitted in them.
