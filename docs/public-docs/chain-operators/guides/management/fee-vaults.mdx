@@ -72,7 +72,7 @@ cast send --rpc-url $L2_RPC --private-key $PK \
 ### Set withdrawal network
 
 <Warning>
-  Chains using Custom Gas Token (CGT) v2 must use L2 withdrawals (`withdrawalNetwork = 1`) with a recipient on L2, including in the initial deployment configuration. L1 fee withdrawals revert because `L2ToL1MessagePasser` rejects nonzero native token value on CGT chains.
+On CGT chains, fee vaults must withdraw to L2 (`withdrawalNetwork = 1`) with an L2 recipient. Deployment rejects L1 for CGT chains, but `setWithdrawalNetwork` does not: setting it to 0 after deployment makes nonzero `withdraw()` calls revert, because `L2ToL1MessagePasser` rejects native token value on CGT chains.
 </Warning>
 
 ```bash
