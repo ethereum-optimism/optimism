@@ -97,13 +97,29 @@ fn get_remote_network_signer(prefix: &str) -> Result<Option<OpSignerRequester>> 
     }
 }
 
+/// A network prover and the SPN requester address it signs proof requests as.
+pub struct NetworkProverWithRequester {
+    /// The configured SP1 network prover.
+    pub prover: NetworkProver,
+    /// Address that signs this prover's SPN requests and holds its PROVE balance.
+    pub requester: Address,
+}
+
+impl std::fmt::Debug for NetworkProverWithRequester {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("NetworkProverWithRequester")
+            .field("requester", &self.requester)
+            .finish_non_exhaustive()
+    }
+}
+
 /// Builds a network prover using the provided fulfillment strategy.
 /// `<PREFIX>_NETWORK_RPC_URL` overrides the SP1 endpoint. If it is absent or empty, the
 /// SDK default for the fulfillment strategy's network mode is used.
 pub async fn build_network_prover_from_env(
     prefix: &str,
     strategy: FulfillmentStrategy,
-) -> Result<NetworkProver> {
+) -> Result<NetworkProverWithRequester> {
     let network_mode = match strategy {
         FulfillmentStrategy::Auction => NetworkMode::Mainnet,
         FulfillmentStrategy::Hosted | FulfillmentStrategy::Reserved => NetworkMode::Reserved,
@@ -115,13 +131,20 @@ pub async fn build_network_prover_from_env(
         .filter(|url| !url.trim().is_empty())
         .unwrap_or_else(|| get_default_rpc_url_for_mode(network_mode));
     let builder = ProverClient::builder().network_for(network_mode).rpc_url(&rpc_url);
-    let builder = match get_remote_network_signer(prefix)? {
-        Some(signer) => builder.dynamic_signer(Arc::new(signer)),
-        None => builder.signer(get_network_signer(prefix).await?),
+    let (builder, requester) = match get_remote_network_signer(prefix)? {
+        Some(signer) => {
+            let requester = signer.address();
+            (builder.dynamic_signer(Arc::new(signer)), requester)
+        }
+        None => {
+            let signer = get_network_signer(prefix).await?;
+            let requester = signer.address();
+            (builder.signer(signer), requester)
+        }
     };
     let prover = builder.build().await;
 
-    Ok(prover)
+    Ok(NetworkProverWithRequester { prover, requester })
 }
 
 #[cfg(test)]
@@ -157,8 +180,7 @@ mod tests {
 
         let error = build_network_prover_from_env(prefix, FulfillmentStrategy::Auction)
             .await
-            .err()
-            .expect("remote signer with a local requester key should fail")
+            .expect_err("remote signer with a local requester key should fail")
             .to_string();
 
         assert!(error.contains("SPN_SIGNER_URL"), "{error}");
@@ -173,8 +195,7 @@ mod tests {
 
         let error = build_network_prover_from_env(prefix, FulfillmentStrategy::Auction)
             .await
-            .err()
-            .expect("partial remote signer configuration should fail")
+            .expect_err("partial remote signer configuration should fail")
             .to_string();
 
         assert!(error.contains("SPN_SIGNER_URL"), "{error}");
@@ -193,8 +214,7 @@ mod tests {
 
         let error = build_network_prover_from_env(prefix, FulfillmentStrategy::Auction)
             .await
-            .err()
-            .expect("TLS-only remote signer configuration should fail")
+            .expect_err("TLS-only remote signer configuration should fail")
             .to_string();
 
         assert!(error.contains("SPN_SIGNER_URL"), "{error}");
@@ -210,8 +230,7 @@ mod tests {
 
         let error = build_network_prover_from_env(prefix, FulfillmentStrategy::Auction)
             .await
-            .err()
-            .expect("HTTP remote signer endpoint should fail")
+            .expect_err("HTTP remote signer endpoint should fail")
             .to_string();
 
         assert!(error.contains("failed to create remote SPN requester"), "{error}");
