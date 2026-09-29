@@ -12,10 +12,17 @@ use reth_rpc_api::eth::helpers::FullEthApi;
 use reth_rpc_eth_types::EthApiError;
 
 /// Creates a factory for state providers using OP Proofs external proofs storage.
-#[derive(Debug, Constructor)]
+#[derive(Debug, Constructor, Clone)]
 pub struct OpStateProviderFactory<Eth, P> {
     eth_api: Eth,
     preimage_store: OpProofsStorage<P>,
+}
+
+impl<Eth, P> OpStateProviderFactory<Eth, P> {
+    /// Returns the underlying Ethereum API.
+    pub(crate) const fn eth_api(&self) -> &Eth {
+        &self.eth_api
+    }
 }
 
 impl<'a, Eth, P> OpStateProviderFactory<Eth, P>
