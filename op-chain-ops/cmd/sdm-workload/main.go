@@ -63,7 +63,7 @@ type workloadResult struct {
 func main() {
 	cfg := parseFlags()
 	if err := run(cfg); err != nil {
-		log.Fatalf("sdm-devnet failed: %v", err)
+		log.Fatalf("sdm-workload failed: %v", err)
 	}
 }
 
