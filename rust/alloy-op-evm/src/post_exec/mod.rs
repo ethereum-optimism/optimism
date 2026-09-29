@@ -369,6 +369,17 @@ pub trait PostExecExecutorExt {
     /// Supplies non-authoritative candidate previews without advancing a transaction selector.
     fn set_parallel_candidates(&mut self, _candidates: Vec<crate::block::ParallelCandidate>) {}
 
+    /// Retires a skipped candidate and, when requested, all invalid sender descendants.
+    fn reject_parallel_candidate(
+        &mut self,
+        _hash: alloy_primitives::B256,
+        _descendants: Option<(alloy_primitives::Address, u64)>,
+    ) {
+    }
+
+    /// Drains a subblock or selection phase while retaining the execution configuration.
+    fn drain_parallel_work(&mut self) {}
+
     /// Invalidates all speculative output when a build is cancelled or its parent changes.
     fn invalidate_parallel_work(&mut self) {}
 
@@ -396,6 +407,13 @@ where
 {
     type Snapshot = E::Snapshot;
 
+    fn drain_parallel_work(&mut self) {
+        #[cfg(feature = "parallel")]
+        if let Some(parallel) = &mut self.parallel {
+            parallel.clear();
+        }
+    }
+
     fn invalidate_parallel_work(&mut self) {
         #[cfg(feature = "parallel")]
         {
@@ -403,10 +421,21 @@ where
         }
     }
 
+    fn reject_parallel_candidate(
+        &mut self,
+        _hash: alloy_primitives::B256,
+        _descendants: Option<(alloy_primitives::Address, u64)>,
+    ) {
+        #[cfg(feature = "parallel")]
+        if let Some(parallel) = &mut self.parallel {
+            parallel.rejected(_hash, _descendants);
+        }
+    }
+
     fn set_parallel_candidates(&mut self, candidates: Vec<crate::block::ParallelCandidate>) {
         #[cfg(feature = "parallel")]
         if let Some(parallel) = self.parallel.as_mut() {
-            parallel.candidates_changed();
+            parallel.candidates_changed(&candidates);
         }
         self.ctx.parallel_candidates = candidates;
     }

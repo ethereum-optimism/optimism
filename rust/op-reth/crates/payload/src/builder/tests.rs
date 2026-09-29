@@ -20,7 +20,10 @@ use op_alloy_consensus::{
 };
 use reth_basic_payload_builder::PayloadConfig;
 use reth_chainspec::MIN_TRANSACTION_GAS;
-use reth_evm::execute::{BlockBuilder, BlockExecutionError};
+use reth_evm::{
+    ConfigureEvm,
+    execute::{BlockBuilder, BlockExecutionError},
+};
 use reth_optimism_chainspec::{OpChainSpec, OpChainSpecBuilder};
 use reth_optimism_evm::{OpEvmConfig, PostExecMode, PreRefundGasUsed};
 use reth_optimism_primitives::{OpPrimitives, OpTransactionSigned};
@@ -456,6 +459,13 @@ fn execute_best_transactions_committed_txs_preserves_execution() {
 #[case(reth_optimism_evm::ExecutionMode::Parallel)]
 fn execute_best_transactions_on_commit_hook_execution(
     #[case] mode: reth_optimism_evm::ExecutionMode,
+    #[values(false, true)] direct: bool,
+    #[values(false, true)] independent_senders: bool,
+    #[values(
+        reth_optimism_evm::ExecutionScheduler::Window,
+        reth_optimism_evm::ExecutionScheduler::Rolling
+    )]
+    scheduler: reth_optimism_evm::ExecutionScheduler,
 ) {
     use reth_payload_util::PayloadTransactions;
     use std::{cell::RefCell, rc::Rc};
@@ -493,7 +503,12 @@ fn execute_best_transactions_on_commit_hook_execution(
 
     impl PayloadTransactionsWithCommitHook for TestPayloadTxsImpl {
         fn preview(&self, limit: usize) -> Vec<reth_optimism_evm::ParallelCandidate> {
-            self.hints.iter().take(limit).cloned().collect()
+            self.hints
+                .iter()
+                .filter(|hint| !self.yielded_hashes.borrow().contains(&hint.hash))
+                .take(limit)
+                .cloned()
+                .collect()
         }
         fn on_commit(&mut self, gas: CommittedTxGas) {
             let tx_hash = *self.yielded_hashes.borrow().last().expect("on_commit after a next()");
@@ -506,8 +521,18 @@ fn execute_best_transactions_on_commit_hook_execution(
     let recipient = Address::repeat_byte(0x22);
     // Distinct calldata gives each committed tx distinct gas to verify.
     let committed_tx0 = op_pooled_tx_with_input(0, signer, recipient, Bytes::from(vec![0x11; 4]));
-    let committed_tx1 = op_pooled_tx_with_input(1, signer, recipient, Bytes::from(vec![0x22; 400]));
-    let committed_tx2 = op_pooled_tx_with_input(2, signer, recipient, Bytes::from(vec![0x33; 200]));
+    let committed_tx1 = op_pooled_tx_with_input(
+        if independent_senders { 0 } else { 1 },
+        if independent_senders { Address::repeat_byte(0x12) } else { signer },
+        recipient,
+        Bytes::from(vec![0x22; 400]),
+    );
+    let committed_tx2 = op_pooled_tx_with_input(
+        if independent_senders { 0 } else { 2 },
+        if independent_senders { Address::repeat_byte(0x13) } else { signer },
+        recipient,
+        Bytes::from(vec![0x33; 200]),
+    );
     let not_committed_tx = op_pooled_tx_from(signer, base_pooled_tx(3, recipient, gas_limit + 1));
 
     let committed_order = [committed_tx0.clone(), committed_tx1.clone(), committed_tx2.clone()];
@@ -524,18 +549,33 @@ fn execute_best_transactions_on_commit_hook_execution(
         .evm_config
         .with_parallel_execution(reth_optimism_evm::ParallelExecutionConfig {
             mode,
+            scheduler,
             workers: 2,
             ..Default::default()
         })
         .unwrap();
 
     let mut state_provider = StateProviderTest::default();
-    state_provider.insert_account(
-        signer,
-        Account { balance: U256::MAX, ..Default::default() },
-        None,
-        Default::default(),
-    );
+    for tx in &committed_order {
+        state_provider.insert_account(
+            tx.sender(),
+            Account { balance: U256::MAX, ..Default::default() },
+            None,
+            Default::default(),
+        );
+    }
+
+    if direct {
+        let source = state_provider.clone();
+        ctx.evm_config = ctx.evm_config.with_execution_state_source(
+            reth_evm::state_source::ExecutionStateSource(Arc::new(move || {
+                Ok(Box::new(StateProviderDatabase::new(source.clone()))
+                    as Box<
+                        dyn reth_revm::Database<Error = reth_storage_api::errors::ProviderError>,
+                    >)
+            })),
+        );
+    }
 
     // Re-execute each tx that should be committed so we know the gas passed to on_commit.
     let expected_committed_gas: Vec<ReportedGas> = {
@@ -588,8 +628,17 @@ fn execute_best_transactions_on_commit_hook_execution(
         committed_txs_gas: committed_txs_gas.clone(),
     };
 
+    let runtime = ctx.evm_config.block_executor_factory().parallel_runtime();
+    let reused_before = runtime.map_or(0, |runtime| runtime.statistics().reused);
     ctx.execute_best_transactions(&mut info, &mut builder, best_txs, None, None)
         .expect("best transactions execute");
+    if independent_senders && mode == reth_optimism_evm::ExecutionMode::Parallel {
+        assert_eq!(
+            runtime.unwrap().statistics().reused - reused_before,
+            3,
+            "refreshing lookahead must retain the transaction just selected"
+        );
+    }
 
     let distinct_gas: std::collections::HashSet<u64> =
         expected_committed_gas.iter().map(|a| a.gas.canonical_gas_used).collect();

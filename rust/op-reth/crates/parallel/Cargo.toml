@@ -14,3 +14,4 @@ revm = { workspace = true, features = ["std"] }
 rayon.workspace = true
 thiserror.workspace = true
 metrics.workspace = true
+imbl.workspace = true

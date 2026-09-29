@@ -1,9 +1,6 @@
 use alloc::{sync::Arc, vec::Vec};
 use alloy_consensus::{Header, transaction::TxHashRef};
-use alloy_evm::{
-    FromRecoveredTx, FromTxWithEncoded,
-    block::{BlockExecutor, BlockExecutorFactory},
-};
+use alloy_evm::{FromRecoveredTx, FromTxWithEncoded, block::BlockExecutor};
 use alloy_op_evm::{
     PreRefundGasUsed,
     block::{OpTxEnv, receipt_builder::OpReceiptBuilder},
@@ -145,7 +142,7 @@ where
         let evm = self.evm_for_block(db, block.header())?;
         let ctx = self.context_for_block_with_post_exec_mode(block, Some(post_exec_mode));
 
-        Ok(self.executor_factory.create_executor(evm, ctx))
+        Ok(self.create_executor(evm, ctx))
     }
 
     fn post_exec_builder_for_next_block<'a, DB: Database + 'a>(
@@ -169,7 +166,7 @@ where
         let evm = self.evm_with_env(db, evm_env);
         let ctx =
             self.context_for_next_block_with_post_exec_mode(parent, attributes, post_exec_mode);
-        let executor = self.executor_factory.create_executor(evm, ctx.clone());
+        let executor = self.create_executor(evm, ctx.clone());
 
         Ok(BasicBlockBuilder::<
             'a,
@@ -241,7 +238,7 @@ where
         let evm = self.evm_for_block(db, block.header())?;
         let ctx = self.context_for_block_with_post_exec_mode(block, Some(post_exec_mode));
 
-        Ok(self.executor_factory.create_executor(evm, ctx))
+        Ok(self.create_executor(evm, ctx))
     }
 
     fn post_exec_builder_for_next_block<'a, DB: Database + 'a>(
@@ -265,7 +262,7 @@ where
         let evm = self.evm_with_env(db, evm_env);
         let ctx =
             self.context_for_next_block_with_post_exec_mode(parent, attributes, post_exec_mode);
-        let executor = self.executor_factory.create_executor(evm, ctx.clone());
+        let executor = self.create_executor(evm, ctx.clone());
 
         Ok(BasicBlockBuilder::<
             'a,

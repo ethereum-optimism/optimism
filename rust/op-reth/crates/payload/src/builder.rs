@@ -255,7 +255,7 @@ where
     {
         let BuildArguments { mut cached_reads, config, cancel, best_payload, .. } = args;
 
-        let ctx = OpPayloadBuilderCtx {
+        let mut ctx = OpPayloadBuilderCtx {
             evm_config: self.evm_config.clone(),
             builder_config: self.config.clone(),
             chain_spec: self.client.chain_spec(),
@@ -266,16 +266,73 @@ where
 
         let builder = OpBuilder::new(best).with_candidate_preview(preview);
 
-        let state_provider = self.client.state_by_block_hash(ctx.parent().hash())?;
-        let state = StateProviderDatabase::new(&state_provider);
-
-        if ctx.attributes().no_tx_pool() {
+        let mut source = if ctx.evm_config.wants_execution_state_source() {
+            self.client.pinned_state_by_block_hash(ctx.parent().hash()).unwrap_or_else(|error| {
+                debug!(target: "payload_builder", %error, "Independent state source unavailable");
+                metrics::counter!("optimism_parallel.source_fallbacks", "reason" => "factory_initialization").increment(1);
+                None
+            })
+        } else {
+            None
+        };
+        let state_provider = match source.as_ref().map(|source| source()).transpose() {
+            Ok(Some(provider)) => provider,
+            result => {
+                if let Err(error) = result {
+                    debug!(target: "payload_builder", %error, "Independent state source failed to open");
+                    metrics::counter!("optimism_parallel.source_fallbacks", "reason" => "initial_reader_open").increment(1);
+                    source = None;
+                }
+                self.client.state_by_block_hash(ctx.parent().hash())?
+            }
+        };
+        let Some(source) = source else {
+            let state = StateProviderDatabase::new(&state_provider);
+            let result = if ctx.attributes().no_tx_pool() {
+                builder.build(state, &state_provider, ctx)
+            } else {
+                builder.build(cached_reads.as_db_mut(state), &state_provider, ctx)
+            };
+            return result.map(|out| out.with_cached_reads(cached_reads));
+        };
+        // Move the initial cache into one immutable view, shared with worker factories. The
+        // canonical cache continues recording misses and is merged back after the build drains.
+        let initial_cache = Arc::new(if ctx.attributes().no_tx_pool() {
+            Default::default()
+        } else {
+            core::mem::take(&mut cached_reads)
+        });
+        let cache = initial_cache.clone();
+        ctx.evm_config = ctx.evm_config.with_execution_state_source(
+            reth_evm::state_source::ExecutionStateSource(Arc::new(move || {
+                Ok(Box::new(reth_revm::cached::SharedCachedReads {
+                    cache: cache.clone(),
+                    database: StateProviderDatabase::new(source()?),
+                }) as Box<dyn reth_revm::Database<Error = ProviderError>>)
+            })),
+        );
+        let state = reth_revm::cached::SharedCachedReads {
+            cache: initial_cache.clone(),
+            database: StateProviderDatabase::new(&state_provider),
+        };
+        let result = if ctx.attributes().no_tx_pool() {
             builder.build(state, &state_provider, ctx)
         } else {
-            // sequencer mode we can reuse cachedreads from previous runs
             builder.build(cached_reads.as_db_mut(state), &state_provider, ctx)
+        };
+        let mut initial = Arc::try_unwrap(initial_cache).unwrap_or_else(|cache| (*cache).clone());
+        // Existing cache values are from this same parent. Keep cached slots when new misses
+        // added another slot of an already cached account.
+        for (address, account) in cached_reads.accounts {
+            if let Some(entry) = initial.accounts.get_mut(&address) {
+                entry.storage.extend(account.storage);
+            } else {
+                initial.accounts.insert(address, account);
+            }
         }
-        .map(|out| out.with_cached_reads(cached_reads))
+        initial.contracts.extend(cached_reads.contracts);
+        initial.block_hashes.extend(cached_reads.block_hashes);
+        result.map(|out| out.with_cached_reads(initial))
     }
 
     /// Computes the witness for the payload.
@@ -1069,6 +1126,7 @@ where
         for sequencer_tx in self.attributes().sequencer_transactions() {
             // A sequencer's block should never contain blob transactions.
             if sequencer_tx.value().is_eip4844() {
+                builder.executor_mut().drain_parallel_work();
                 return Err(PayloadBuilderError::other(
                     OpPayloadBuilderError::BlobTransactionRejected,
                 ));
@@ -1079,6 +1137,7 @@ where
             // Deposit transactions do not have signatures, so if the tx is a deposit, this
             // will just pull in its `from` address.
             let sequencer_tx = sequencer_tx.value().try_clone_into_recovered().map_err(|_| {
+                builder.executor_mut().drain_parallel_work();
                 PayloadBuilderError::other(OpPayloadBuilderError::TransactionEcRecoverFailed)
             })?;
 
@@ -1089,10 +1148,14 @@ where
                     ..
                 })) => {
                     trace!(target: "payload_builder", %error, ?sequencer_tx, "Error in sequencer transaction, skipping.");
+                    builder
+                        .executor_mut()
+                        .reject_parallel_candidate(sequencer_tx.trie_hash(), None);
                     continue;
                 }
                 Err(err) => {
                     // this is an error that we should treat as fatal for this attempt
+                    builder.executor_mut().drain_parallel_work();
                     return Err(PayloadBuilderError::EvmExecutionError(Box::new(err)));
                 }
             };
@@ -1113,6 +1176,7 @@ where
             }
         }
 
+        builder.executor_mut().drain_parallel_work();
         Ok(info)
     }
 
@@ -1203,18 +1267,27 @@ where
                 // we can't fit this transaction into the block, so we need to mark it as
                 // invalid which also removes all dependent transaction from
                 // the iterator before we can continue
+                builder
+                    .executor_mut()
+                    .reject_parallel_candidate(tx.trie_hash(), Some((tx.signer(), tx.nonce())));
                 best_txs.mark_invalid(tx.signer(), tx.nonce());
                 continue;
             }
 
             // A sequencer's block should never contain blob or deposit transactions from the pool.
             if tx.is_eip4844() || tx.is_deposit() {
+                builder
+                    .executor_mut()
+                    .reject_parallel_candidate(tx.trie_hash(), Some((tx.signer(), tx.nonce())));
                 best_txs.mark_invalid(tx.signer(), tx.nonce());
                 continue;
             }
 
             // While the failsafe is active, exclude every interop tx regardless of its deadline.
             if interop_failsafe_active && is_interop_tx(&*tx) {
+                builder
+                    .executor_mut()
+                    .reject_parallel_candidate(tx.trie_hash(), Some((tx.signer(), tx.nonce())));
                 best_txs.mark_invalid(tx.signer(), tx.nonce());
                 continue;
             }
@@ -1224,6 +1297,9 @@ where
             if let Some(interop) = interop &&
                 !is_valid_interop(interop, self.config.attributes.timestamp())
             {
+                builder
+                    .executor_mut()
+                    .reject_parallel_candidate(tx.trie_hash(), Some((tx.signer(), tx.nonce())));
                 best_txs.mark_invalid(tx.signer(), tx.nonce());
                 continue;
             }
@@ -1237,9 +1313,16 @@ where
             if preview_limit > 0 {
                 let hints = best_txs.preview(preview_limit);
                 if !hints.is_empty() {
-                    builder
-                        .executor_mut()
-                        .set_parallel_candidates(hints.into_iter().take(preview_limit).collect());
+                    // The selector has already advanced past `tx`. Preserve its admitted
+                    // attempt when replacing the remaining non-authoritative hints.
+                    let candidates = self
+                        .evm_config
+                        .parallel_candidate(&tx)
+                        .into_iter()
+                        .chain(hints)
+                        .take(preview_limit)
+                        .collect();
+                    builder.executor_mut().set_parallel_candidates(candidates);
                 }
             }
             let mut evm_gas_used = 0;
@@ -1262,16 +1345,22 @@ where
                     if error.is_nonce_too_low() {
                         // if the nonce is too low, we can skip this transaction
                         trace!(target: "payload_builder", %error, ?tx, "skipping nonce too low transaction");
+                        builder.executor_mut().reject_parallel_candidate(tx.trie_hash(), None);
                     } else {
                         // if the transaction is invalid, we can skip it and all of its
                         // descendants
                         trace!(target: "payload_builder", %error, ?tx, "skipping invalid transaction and its descendants");
+                        builder.executor_mut().reject_parallel_candidate(
+                            tx.trie_hash(),
+                            Some((tx.signer(), tx.nonce())),
+                        );
                         best_txs.mark_invalid(tx.signer(), tx.nonce());
                     }
                     continue;
                 }
                 Err(err) => {
                     // this is an error that we should treat as fatal for this attempt
+                    builder.executor_mut().drain_parallel_work();
                     return Err(PayloadBuilderError::EvmExecutionError(Box::new(err)));
                 }
             };
@@ -1298,6 +1387,7 @@ where
             }
         }
 
+        builder.executor_mut().drain_parallel_work();
         Ok(None)
     }
 }

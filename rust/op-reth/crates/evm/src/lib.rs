@@ -15,13 +15,15 @@ use alloc::{sync::Arc, vec::Vec};
 use alloy_consensus::{BlockHeader, Header, transaction::TxHashRef};
 use alloy_evm::{EvmFactory, FromRecoveredTx, FromTxWithEncoded, block::BlockExecutorFactory};
 use alloy_op_evm::{
-    block::{OpTxEnv, receipt_builder::OpReceiptBuilder},
+    block::{OpTxEnv, SnapshotExecutorFactory, receipt_builder::OpReceiptBuilder},
     evm_env_for_op_block, evm_env_for_op_next_block,
 };
 use core::fmt::Debug;
+#[cfg(feature = "std")]
+use op_alloy_consensus::validate_post_exec_entry_count;
 use op_alloy_consensus::{
     EIP1559ParamError, OpTransaction as OpConsensusTransaction,
-    parse_post_exec_payload_from_transactions, validate_post_exec_entry_count,
+    parse_post_exec_payload_from_transactions,
 };
 use op_revm::OpSpecId;
 use reth_chainspec::EthChainSpec;
@@ -79,7 +81,11 @@ pub use alloy_op_evm::{
 
 pub use alloy_op_evm::block::ParallelCandidate;
 #[cfg(feature = "std")]
-pub use alloy_op_evm::block::{ExecutionMode, ParallelExecutionConfig, ParallelRuntime};
+pub use alloy_op_evm::block::{
+    ExecutionMode, ExecutionScheduler, ParallelExecutionConfig, ParallelRuntime, StateReads,
+};
+#[cfg(feature = "std")]
+mod state_source;
 
 mod post_exec_ext;
 pub use post_exec_ext::*;
@@ -270,7 +276,7 @@ where
     }
 }
 
-/// UPSTREAM-MIRROR(copy): reth@rev:0fbe428 `reth_evm_ethereum::EthEvmConfig`
+/// UPSTREAM-MIRROR(copy): reth@rev:a643e09 `reth_evm_ethereum::EthEvmConfig`
 ///
 /// Mirrors upstream `ConfigureEvm` plumbing with OP environments and execution context.
 impl<ChainSpec, N, R, EvmF> ConfigureEvm for OpEvmConfig<ChainSpec, N, R, EvmF>
@@ -283,7 +289,7 @@ where
             BlockBody = alloy_consensus::BlockBody<R::Transaction>,
             Block = alloy_consensus::Block<R::Transaction>,
         >,
-    OpTx: FromRecoveredTx<N::SignedTx> + FromTxWithEncoded<N::SignedTx>,
+    OpTx: FromRecoveredTx<R::Transaction> + FromTxWithEncoded<R::Transaction>,
     N::SignedTx: OpConsensusTransaction,
     R: OpReceiptBuilder<
             Receipt: DepositReceipt,
@@ -303,9 +309,87 @@ where
             ExecutionCtx<'a> = OpBlockExecutionCtx,
             Transaction = R::Transaction,
             Receipt = R::Receipt,
-        >,
+        > + SnapshotExecutorFactory,
     Self: Send + Sync + Unpin + Clone + 'static,
 {
+    #[cfg(feature = "std")]
+    fn wants_execution_state_source(&self) -> bool {
+        self.executor_factory
+            .parallel_runtime()
+            .is_some_and(|runtime| runtime.config().state_reads == StateReads::Auto)
+    }
+
+    #[cfg(feature = "std")]
+    fn with_execution_state_source(
+        mut self,
+        source: reth_evm::state_source::ExecutionStateSource,
+    ) -> Self {
+        let session = self
+            .executor_factory
+            .parallel_runtime()
+            .filter(|runtime| runtime.config().state_reads == StateReads::Auto)
+            .map(|runtime| {
+                Arc::new(alloy_op_evm::block::SnapshotSession::new(
+                    Arc::new(state_source::SourceAdapter(source)),
+                    runtime.config().max_snapshot_bytes,
+                ))
+            });
+        self.executor_factory = self.executor_factory.with_snapshot_session(session);
+        self
+    }
+
+    #[cfg(feature = "std")]
+    fn set_execution_state_hook<DB: reth_evm::Database>(
+        &self,
+        state: &mut revm::database::State<DB>,
+        hook: Option<alloc::boxed::Box<dyn revm::database_interface::OnStateHook>>,
+    ) {
+        if let Some(session) = self.executor_factory.snapshot_session() {
+            session.set_public_hook(state, hook);
+        } else {
+            state.set_state_hook(hook);
+        }
+    }
+
+    #[cfg(feature = "std")]
+    fn create_executor<'a, DB, I>(
+        &'a self,
+        evm: reth_evm::EvmFor<Self, &'a mut revm::database::State<DB>, I>,
+        ctx: <Self::BlockExecutorFactory as BlockExecutorFactory>::ExecutionCtx<'a>,
+    ) -> reth_evm::BlockExecutorForEvm<'a, Self, DB, I>
+    where
+        DB: reth_evm::Database,
+        I: reth_evm::InspectorFor<Self, &'a mut revm::database::State<DB>> + 'a,
+    {
+        self.executor_factory.create_executor_with_snapshot(
+            evm,
+            ctx,
+            self.executor_factory.snapshot_session().cloned(),
+        )
+    }
+
+    #[cfg(feature = "std")]
+    fn create_executor_with_state<'a, 'db, DB, I>(
+        &'a self,
+        evm: reth_evm::EvmFor<Self, &'db mut revm::database::State<DB>, I>,
+        ctx: <Self::BlockExecutorFactory as BlockExecutorFactory>::ExecutionCtx<'a>,
+    ) -> alloy_evm::block::BlockExecutorFor<
+        'a,
+        Self::BlockExecutorFactory,
+        &'db mut revm::database::State<DB>,
+        I,
+    >
+    where
+        DB: reth_evm::Database,
+        I: reth_evm::InspectorFor<Self, &'db mut revm::database::State<DB>>,
+    {
+        self.executor_factory.create_executor_with_snapshot(
+            evm,
+            ctx,
+            self.executor_factory.snapshot_session().cloned(),
+        )
+    }
+
     type Primitives = N;
     type Error = EIP1559ParamError;
     type NextBlockEnvCtx = OpNextBlockEnvAttributes;
@@ -370,7 +454,7 @@ where
     }
 }
 
-/// UPSTREAM-MIRROR(copy): reth@rev:0fbe428 `reth_evm_ethereum::EthEvmConfig`
+/// UPSTREAM-MIRROR(copy): reth@rev:a643e09 `reth_evm_ethereum::EthEvmConfig`
 ///
 /// Mirrors upstream payload-to-EVM configuration with OP payload and fork semantics.
 /// `tx_iterator_for_payload` recovers senders directly; upstream routes the same recovery through

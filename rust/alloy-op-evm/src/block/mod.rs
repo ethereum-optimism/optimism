@@ -51,8 +51,8 @@ mod parallel;
 pub mod receipt_builder;
 #[cfg(feature = "parallel")]
 pub use reth_optimism_parallel::{
-    ExecutionMode, ParallelExecutionConfig, ParallelRuntime,
-    SpeculationError as ParallelConfigurationError,
+    ExecutionMode, ExecutionScheduler, ParallelExecutionConfig, ParallelRuntime, SnapshotSession,
+    SpeculationError as ParallelConfigurationError, StateReadFactory, StateReads,
 };
 
 /// A non-authoritative transaction preview. Inclusion and commit order remain with the caller.
@@ -444,6 +444,9 @@ pub struct OpBlockExecutor<Evm: alloy_evm::Evm, R: OpReceiptBuilder, Spec> {
     pub receipt_builder: R,
     /// Context for block execution.
     pub ctx: OpBlockExecutionCtx,
+    // Declared before the EVM so dropping the executor drains readers before its database.
+    #[cfg(feature = "parallel")]
+    pub(crate) parallel: Option<parallel::ParallelBlockState<Evm::HaltReason>>,
     /// The EVM used by executor.
     pub evm: Evm,
     /// Receipts of executed transactions.
@@ -470,7 +473,7 @@ pub struct OpBlockExecutor<Evm: alloy_evm::Evm, R: OpReceiptBuilder, Spec> {
     /// Per-transaction exact policy-provided refund attribution events aligned with receipts.
     pub refund_events_by_tx: Vec<Vec<PostExecRefundEvent>>,
     #[cfg(feature = "parallel")]
-    pub(crate) parallel: Option<parallel::ParallelBlockState<Evm::HaltReason>>,
+    parallel_snapshot: Option<parallel::SnapshotCapture<Evm::DB>>,
     #[cfg(feature = "parallel")]
     parallel_configuration_error: Option<&'static str>,
 }
@@ -501,6 +504,8 @@ where
             refund_events_by_tx: Vec::new(),
             #[cfg(feature = "parallel")]
             parallel: None,
+            #[cfg(feature = "parallel")]
+            parallel_snapshot: None,
             #[cfg(feature = "parallel")]
             parallel_configuration_error: None,
         }
@@ -934,12 +939,20 @@ where
                 if let Some(snapshot) = snapshot {
                     self.seed_refund_snapshot(snapshot);
                 }
+                #[cfg(feature = "parallel")]
+                if let Some(parallel) = &mut self.parallel {
+                    parallel.retire_authoritative();
+                }
                 return Err(error);
             }
         };
         if !commit(&prepared).should_commit() {
             if let Some(snapshot) = snapshot {
                 self.seed_refund_snapshot(snapshot);
+            }
+            #[cfg(feature = "parallel")]
+            if let Some(parallel) = &mut self.parallel {
+                parallel.retire_authoritative();
             }
             return Ok(None);
         }
@@ -1182,6 +1195,10 @@ where
 
     fn apply_pre_execution_changes(&mut self) -> Result<(), BlockExecutionError> {
         #[cfg(feature = "parallel")]
+        if let Some(parallel) = &mut self.parallel {
+            parallel.clear();
+        }
+        #[cfg(feature = "parallel")]
         if let Some(error) = self.parallel_configuration_error {
             return Err(BlockExecutionError::msg(error));
         }
@@ -1228,6 +1245,10 @@ where
                 if let Some(snapshot) = refund_snapshot {
                     self.seed_refund_snapshot(snapshot);
                 }
+                #[cfg(feature = "parallel")]
+                if let Some(parallel) = &mut self.parallel {
+                    parallel.retire_authoritative();
+                }
                 return Err(err);
             }
         };
@@ -1235,6 +1256,10 @@ where
         if !f(&output).should_commit() {
             if let Some(snapshot) = refund_snapshot {
                 self.seed_refund_snapshot(snapshot);
+            }
+            #[cfg(feature = "parallel")]
+            if let Some(parallel) = &mut self.parallel {
+                parallel.retire_authoritative();
             }
             return Ok(None);
         }
@@ -1278,6 +1303,7 @@ where
                 if tx.tx().ty() == DEPOSIT_TRANSACTION_TYPE || tx.tx().ty() == POST_EXEC_TX_TYPE_ID
                 {
                     parallel.clear();
+                    parallel.selected(tx.tx().trie_hash());
                     None
                 } else if let Some(worker_tx) = tx_env.parallel_transaction() {
                     parallel
@@ -1287,6 +1313,7 @@ where
                             &self.ctx.parallel_candidates,
                             context,
                             self.evm.db_mut(),
+                            self.parallel_snapshot.as_ref(),
                         )
                         .map_err(BlockExecutionError::other)?
                 } else {
@@ -1481,12 +1508,32 @@ where
 
         self.evm.db_mut().commit(state);
 
+        #[cfg(feature = "parallel")]
+        if let Some(parallel) = &mut self.parallel {
+            let context =
+                self.evm.parallel_environment().map(|environment| parallel::ExecutionContext {
+                    environment,
+                    l1_block_info: self.evm.execution_l1_block_info(),
+                    producing: self.post_exec.is_producing(),
+                });
+            parallel.committed(
+                &self.ctx.parallel_candidates,
+                context,
+                self.evm.db_mut(),
+                self.parallel_snapshot.as_ref(),
+            );
+        }
+
         GasOutput::new(canonical_gas_used)
     }
 
     fn finish(
         mut self,
     ) -> Result<(Self::Evm, BlockExecutionResult<R::Receipt>), BlockExecutionError> {
+        #[cfg(feature = "parallel")]
+        if let Some(parallel) = &mut self.parallel {
+            parallel.clear();
+        }
         let indexes = self.post_exec.remaining_verifier_indexes();
         if !indexes.is_empty() {
             return Err(Self::invalid_post_exec_payload(format!(
@@ -1549,6 +1596,8 @@ pub struct OpBlockExecutorFactory<
     evm_factory: EvmFactory,
     #[cfg(feature = "parallel")]
     parallel_runtime: Option<alloc::sync::Arc<ParallelRuntime>>,
+    #[cfg(feature = "parallel")]
+    snapshot_session: Option<alloc::sync::Arc<SnapshotSession>>,
 }
 
 impl<R, Spec, EvmFactory> OpBlockExecutorFactory<R, Spec, EvmFactory> {
@@ -1561,6 +1610,8 @@ impl<R, Spec, EvmFactory> OpBlockExecutorFactory<R, Spec, EvmFactory> {
             evm_factory,
             #[cfg(feature = "parallel")]
             parallel_runtime: None,
+            #[cfg(feature = "parallel")]
+            snapshot_session: None,
         }
     }
 
@@ -1571,6 +1622,7 @@ impl<R, Spec, EvmFactory> OpBlockExecutorFactory<R, Spec, EvmFactory> {
         runtime: impl Into<Option<alloc::sync::Arc<ParallelRuntime>>>,
     ) -> Self {
         self.parallel_runtime = runtime.into();
+        self.snapshot_session = None;
         self
     }
 
@@ -1578,6 +1630,22 @@ impl<R, Spec, EvmFactory> OpBlockExecutorFactory<R, Spec, EvmFactory> {
     #[cfg(feature = "parallel")]
     pub const fn parallel_runtime(&self) -> Option<&alloc::sync::Arc<ParallelRuntime>> {
         self.parallel_runtime.as_ref()
+    }
+
+    /// Associates an execution-local snapshot session with this factory clone.
+    #[cfg(feature = "parallel")]
+    pub fn with_snapshot_session(
+        mut self,
+        session: Option<alloc::sync::Arc<SnapshotSession>>,
+    ) -> Self {
+        self.snapshot_session = session;
+        self
+    }
+
+    /// Returns the execution-local snapshot session, when an exact base source was supplied.
+    #[cfg(feature = "parallel")]
+    pub const fn snapshot_session(&self) -> Option<&alloc::sync::Arc<SnapshotSession>> {
+        self.snapshot_session.as_ref()
     }
 
     /// Exposes the receipt builder.
@@ -1809,6 +1877,84 @@ where
             }
             executor
         };
+        executor
+    }
+}
+
+/// Factory integration for independent reads from a canonical revm State.
+/// Custom factories retain the broker unless they explicitly install a capture adapter.
+pub trait SnapshotExecutorFactory: BlockExecutorFactory {
+    /// Constructs an executor with an optional operation-local snapshot session.
+    #[cfg(feature = "parallel")]
+    fn create_executor_with_snapshot<'a, 'db, DB, I>(
+        &'a self,
+        evm: <Self::EvmFactory as EvmFactory>::Evm<&'db mut revm::database::State<DB>, I>,
+        ctx: Self::ExecutionCtx<'a>,
+        _session: Option<alloc::sync::Arc<reth_optimism_parallel::SnapshotSession>>,
+    ) -> Self::Executor<'a, &'db mut revm::database::State<DB>, I>
+    where
+        DB: alloy_evm::Database,
+        I: Inspector<<Self::EvmFactory as EvmFactory>::Context<&'db mut revm::database::State<DB>>>,
+    {
+        self.create_executor(evm, ctx)
+    }
+}
+
+impl<R, Spec, F> SnapshotExecutorFactory
+    for OpBlockExecutorFactory<R, Spec, PostExecEvmFactoryAdapter<F>>
+where
+    R: OpReceiptBuilder<
+            Transaction: Transaction + Encodable2718 + OpConsensusTransaction,
+            Receipt: TxReceipt,
+        > + 'static,
+    Spec: OpHardforks + 'static,
+    F: PostExecEvmFactoryHooks + 'static,
+    F::Tx: FromRecoveredTx<R::Transaction> + FromTxWithEncoded<R::Transaction> + OpTxEnv,
+    Self: 'static,
+{
+}
+
+impl<ReceiptBuilder, Spec, Tx, RefundPolicy> SnapshotExecutorFactory
+    for OpBlockExecutorFactory<ReceiptBuilder, Spec, OpEvmFactory<Tx, RefundPolicy>>
+where
+    ReceiptBuilder: OpReceiptBuilder<
+            Transaction: Transaction + Encodable2718 + OpConsensusTransaction,
+            Receipt: TxReceipt,
+        > + 'static,
+    Spec: OpHardforks + 'static,
+    Tx: IntoTxEnv<Tx>
+        + Into<OpTransaction<TxEnv>>
+        + Default
+        + Clone
+        + core::fmt::Debug
+        + FromRecoveredTx<ReceiptBuilder::Transaction>
+        + FromTxWithEncoded<ReceiptBuilder::Transaction>
+        + OpTxEnv
+        + 'static,
+    RefundPolicy: Default + PostExecRefundInspector + 'static,
+    Self: 'static,
+{
+    #[cfg(feature = "parallel")]
+    fn create_executor_with_snapshot<'a, 'db, DB, I>(
+        &'a self,
+        evm: <Self::EvmFactory as EvmFactory>::Evm<&'db mut revm::database::State<DB>, I>,
+        ctx: Self::ExecutionCtx<'a>,
+        session: Option<alloc::sync::Arc<reth_optimism_parallel::SnapshotSession>>,
+    ) -> Self::Executor<'a, &'db mut revm::database::State<DB>, I>
+    where
+        DB: alloy_evm::Database,
+        I: Inspector<<Self::EvmFactory as EvmFactory>::Context<&'db mut revm::database::State<DB>>>,
+    {
+        let mut executor = self.create_executor(evm, ctx);
+        if let Some(session) = session.filter(|_| {
+            executor.parallel.as_ref().is_some_and(|state| {
+                state.runtime.config().state_reads == reth_optimism_parallel::StateReads::Auto
+            })
+        }) {
+            // Capture now so pre-execution system changes and deposits reach the collector.
+            let _ = session.capture(executor.evm.db_mut());
+            executor.parallel_snapshot = Some((session, |state, session| session.capture(*state)));
+        }
         executor
     }
 }

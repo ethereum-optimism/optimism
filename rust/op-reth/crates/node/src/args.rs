@@ -138,6 +138,15 @@ pub struct ParallelExecutionArgs {
     /// Execution mode: sequential (default), shadow, or parallel.
     #[arg(long = "execution.mode", default_value = "sequential")]
     pub mode: reth_optimism_evm::ExecutionMode,
+    /// Speculative scheduling: drained windows (default), or rolling independent reads.
+    #[arg(long = "execution.scheduler", default_value = "window")]
+    pub scheduler: reth_optimism_evm::ExecutionScheduler,
+    /// Prefer independent worker reads where supported, or force coordinator reads.
+    #[arg(long = "execution.state-reads", default_value = "auto")]
+    pub state_reads: reth_optimism_evm::StateReads,
+    /// Estimated retained snapshot and dirty-key budget per build or historical batch, in bytes.
+    #[arg(long = "execution.max-snapshot-bytes", default_value_t = 64 * 1024 * 1024)]
+    pub max_snapshot_bytes: usize,
     /// Shared speculative workers. Zero reserves half the available CPUs for execution.
     #[arg(long = "execution.workers", default_value_t = 0)]
     pub workers: usize,
@@ -160,6 +169,9 @@ impl Default for ParallelExecutionArgs {
         let config = reth_optimism_evm::ParallelExecutionConfig::default();
         Self {
             mode: config.mode,
+            scheduler: config.scheduler,
+            state_reads: config.state_reads,
+            max_snapshot_bytes: config.max_snapshot_bytes,
             workers: config.workers,
             max_in_flight: config.max_in_flight,
             max_speculative_gas: config.max_speculative_gas,
@@ -173,6 +185,9 @@ impl From<&ParallelExecutionArgs> for reth_optimism_evm::ParallelExecutionConfig
     fn from(args: &ParallelExecutionArgs) -> Self {
         Self {
             mode: args.mode,
+            scheduler: args.scheduler,
+            state_reads: args.state_reads,
+            max_snapshot_bytes: args.max_snapshot_bytes,
             workers: args.workers,
             max_in_flight: args.max_in_flight,
             max_speculative_gas: args.max_speculative_gas,

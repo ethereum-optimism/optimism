@@ -1,12 +1,19 @@
 //! Bounded optimistic execution against a frozen committed prefix.
 //!
-//! The coordinator services state reads while its canonical database is frozen. This supports
-//! reth's thread-affine providers without sharing a mutable `State` or database transaction across
-//! workers. Once the window finishes, results are validated and committed by the caller in order.
+//! Workers read immutable committed snapshots over independently opened base readers, or request
+//! reads from the coordinator when no compatible source exists. Both backends support thread-affine
+//! providers without sharing a mutable `State` or database transaction across workers. Windows
+//! drain before returning; rolling direct execution publishes individual results while other
+//! workers continue. The caller validates and commits results in authoritative order.
 //! Workers never consume speculative writes. A failed/missing result is a request to run the
 //! canonical sequential path, never an authoritative transaction-validation error.
 
 mod database;
+mod pipeline;
+mod snapshot;
+mod workers;
+pub use pipeline::ExecutionPipeline;
+pub use snapshot::{CommittedSnapshot, ReadWindow, SnapshotSession, StateReadFactory};
 #[cfg(test)]
 mod tests;
 pub use database::{Dependencies, SpeculationError, SpeculativeDatabase};
@@ -59,6 +66,14 @@ impl ExecutionGeneration {
 /// Runtime counters, useful for tests, benchmarking, and operational inspection.
 #[derive(Debug, Default, Clone, Copy)]
 pub struct ParallelStatistics {
+    /// Logical reads served without a coordinator request.
+    pub direct_reads: u64,
+    /// Logical reads served by the coordinator.
+    pub broker_reads: u64,
+    /// Direct reads satisfied by the committed overlay.
+    pub snapshot_hits: u64,
+    /// Independent readers opened on workers.
+    pub provider_opens: u64,
     /// Transactions dispatched to workers.
     pub attempted: u64,
     /// Worker executions that returned complete bounded outputs.
@@ -75,6 +90,10 @@ pub struct ParallelStatistics {
 
 #[derive(Default)]
 struct Counters {
+    direct_reads: AtomicU64,
+    broker_reads: AtomicU64,
+    snapshot_hits: AtomicU64,
+    provider_opens: AtomicU64,
     attempted: AtomicU64,
     completed: AtomicU64,
     reused: AtomicU64,
@@ -91,6 +110,66 @@ pub type SpeculativeWorker<Job, Output> =
     dyn Fn(Job, &mut SpeculativeDatabase) -> Result<Output, SpeculationError> + Send + Sync;
 
 type SpawnWorker = dyn Fn(WorkerTask) + Send + Sync;
+
+/// How workers obtain state. Auto prefers independent readers when a source is available.
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]
+pub enum StateReads {
+    /// Prefer direct reads; retain the broker for unsupported integrations.
+    #[default]
+    Auto,
+    /// Always request state from the coordinator, for comparison and fallback.
+    Broker,
+}
+
+/// Scheduling strategy within shadow or parallel execution.
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]
+pub enum ExecutionScheduler {
+    /// Drain each speculative window before committing.
+    #[default]
+    Window,
+    /// Overlap ordered commit with independent-reader execution.
+    Rolling,
+}
+
+impl fmt::Display for ExecutionScheduler {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str(match self {
+            Self::Window => "window",
+            Self::Rolling => "rolling",
+        })
+    }
+}
+
+impl core::str::FromStr for ExecutionScheduler {
+    type Err = &'static str;
+    fn from_str(value: &str) -> Result<Self, Self::Err> {
+        match value {
+            "window" => Ok(Self::Window),
+            "rolling" => Ok(Self::Rolling),
+            _ => Err("expected window or rolling"),
+        }
+    }
+}
+
+impl fmt::Display for StateReads {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str(match self {
+            Self::Auto => "auto",
+            Self::Broker => "broker",
+        })
+    }
+}
+
+impl core::str::FromStr for StateReads {
+    type Err = &'static str;
+    fn from_str(value: &str) -> Result<Self, Self::Err> {
+        match value {
+            "auto" => Ok(Self::Auto),
+            "broker" => Ok(Self::Broker),
+            _ => Err("expected auto or broker"),
+        }
+    }
+}
 
 /// Operational mode. The reference executor remains authoritative in shadow mode.
 #[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]
@@ -129,6 +208,12 @@ impl core::str::FromStr for ExecutionMode {
 /// Per-runtime concurrency and per-executor resource bounds.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ParallelExecutionConfig {
+    /// Window scheduling remains the default; rolling requires independent readers.
+    pub scheduler: ExecutionScheduler,
+    /// Independent source selection.
+    pub state_reads: StateReads,
+    /// Estimated retained snapshot versions and dirty-key budget per execution session.
+    pub max_snapshot_bytes: usize,
     /// Disabled by default.
     pub mode: ExecutionMode,
     /// Shared worker budget; zero selects half the available CPUs, at least one.
@@ -146,6 +231,9 @@ pub struct ParallelExecutionConfig {
 impl Default for ParallelExecutionConfig {
     fn default() -> Self {
         Self {
+            scheduler: ExecutionScheduler::Window,
+            state_reads: StateReads::Auto,
+            max_snapshot_bytes: 64 * 1024 * 1024,
             mode: ExecutionMode::Sequential,
             workers: 0,
             max_in_flight: 16,
@@ -159,9 +247,8 @@ impl Default for ParallelExecutionConfig {
 /// A validated runtime configuration owns a persistent worker pool, shared across blocks/builds.
 pub struct ParallelRuntime {
     config: ParallelExecutionConfig,
-    spawn: Box<SpawnWorker>,
-    window: Mutex<()>,
-    counters: Counters,
+    workers: Arc<workers::Workers>,
+    counters: Arc<Counters>,
 }
 
 impl fmt::Debug for ParallelRuntime {
@@ -173,7 +260,8 @@ impl fmt::Debug for ParallelRuntime {
 impl ParallelRuntime {
     /// Creates a bounded worker pool. Callers avoid constructing one in sequential mode.
     pub fn new(config: ParallelExecutionConfig) -> Result<Self, SpeculationError> {
-        if config.max_in_flight == 0 ||
+        if config.max_snapshot_bytes == 0 ||
+            config.max_in_flight == 0 ||
             config.max_speculative_gas == 0 ||
             config.max_read_bytes == 0 ||
             config.max_output_bytes == 0
@@ -203,6 +291,7 @@ impl ParallelRuntime {
         spawn: impl Fn(WorkerTask) + Send + Sync + 'static,
     ) -> Result<Self, SpeculationError> {
         if max_workers == 0 ||
+            config.max_snapshot_bytes == 0 ||
             config.max_in_flight == 0 ||
             config.max_speculative_gas == 0 ||
             config.max_read_bytes == 0 ||
@@ -219,10 +308,9 @@ impl ParallelRuntime {
         };
         config.workers = requested.min(max_workers);
         Ok(Self {
+            workers: workers::Workers::new(config.workers, Box::new(spawn)),
             config,
-            spawn: Box::new(spawn),
-            window: Mutex::new(()),
-            counters: Counters::default(),
+            counters: Arc::default(),
         })
     }
 
@@ -235,6 +323,10 @@ impl ParallelRuntime {
     pub fn statistics(&self) -> ParallelStatistics {
         let counters = &self.counters;
         ParallelStatistics {
+            direct_reads: counters.direct_reads.load(Ordering::Relaxed),
+            broker_reads: counters.broker_reads.load(Ordering::Relaxed),
+            snapshot_hits: counters.snapshot_hits.load(Ordering::Relaxed),
+            provider_opens: counters.provider_opens.load(Ordering::Relaxed),
             attempted: counters.attempted.load(Ordering::Relaxed),
             completed: counters.completed.load(Ordering::Relaxed),
             reused: counters.reused.load(Ordering::Relaxed),
@@ -293,11 +385,34 @@ impl ParallelRuntime {
         Job: Send + 'static,
         Output: Send + 'static,
     {
-        // One admitted window across concurrent validation/build callers bounds queued work and
-        // retained memory as well as active threads. A panic cannot publish any worker output.
-        let _window = self.window.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
+        self.execute_with_reads(database, jobs, execute, generation, None)
+    }
+
+    /// Runs a window with an optional immutable snapshot and independent parent reader factory.
+    /// Providers are created and destroyed on their worker. The return barrier includes teardown.
+    pub fn execute_with_reads<DB, Job, Output>(
+        &self,
+        database: &mut DB,
+        jobs: Vec<Job>,
+        execute: Arc<SpeculativeWorker<Job, Output>>,
+        generation: &ExecutionGeneration,
+        reads: Option<ReadWindow>,
+    ) -> Vec<Result<(Output, Dependencies), SpeculationError>>
+    where
+        DB: Database,
+        Job: Send + 'static,
+        Output: Send + 'static,
+    {
         if jobs.len() > self.config.max_in_flight {
             return jobs.into_iter().map(|_| Err(SpeculationError::Limit)).collect();
+        }
+        if generation.is_cancelled() ||
+            reads.as_ref().is_some_and(|reads| reads.generation.is_cancelled())
+        {
+            return jobs.into_iter().map(|_| Err(SpeculationError::Cancelled)).collect();
+        }
+        if reads.is_none() {
+            metrics::counter!("optimism_parallel.source_fallbacks", "reason" => if self.config.state_reads == StateReads::Broker { "forced_broker" } else { "source_unavailable" }).increment(1);
         }
         let count = jobs.len();
         let started = Instant::now();
@@ -312,53 +427,57 @@ impl ParallelRuntime {
             let events = events.clone();
             let limit = self.config.max_read_bytes;
             let generation = generation.clone();
-            (self.spawn)(Box::new(move || {
-                loop {
-                    let Some((index, job)) =
-                        jobs.lock().unwrap_or_else(std::sync::PoisonError::into_inner).next()
-                    else {
-                        break;
-                    };
-                    let mut db =
-                        SpeculativeDatabase::new(events.clone(), limit, generation.clone());
-                    let started = Instant::now();
-                    let result = catch_unwind(AssertUnwindSafe(|| {
-                        if generation.is_cancelled() {
-                            return Err(SpeculationError::Cancelled);
-                        }
-                        execute(job, &mut db)
-                    }))
-                    .map_err(|_| SpeculationError::Worker("speculative worker panicked".into()))
-                    .and_then(core::convert::identity);
-                    let elapsed = started.elapsed();
-                    let read_wait = db.read_wait();
-                    metrics::histogram!("optimism_parallel.worker_seconds")
-                        .record(elapsed.as_secs_f64());
-                    metrics::histogram!("optimism_parallel.evm_seconds")
-                        .record(elapsed.saturating_sub(read_wait).as_secs_f64());
-                    metrics::histogram!("optimism_parallel.read_wait_seconds")
-                        .record(read_wait.as_secs_f64());
-                    let result = result.and_then(|output| db.finish().map(|reads| (output, reads)));
-                    let _ = events.send(database::Event::Finished(index, result));
-                }
-            }));
+            let reads = reads.clone();
+            let counters = self.counters.clone();
+            self.workers.submit(
+                generation.id(),
+                None,
+                Box::new(move || {
+                    let reader =
+                        reads.as_ref().map(|reads| open_reader(reads.factory.as_ref(), &counters));
+                    loop {
+                        let Some((index, job)) =
+                            jobs.lock().unwrap_or_else(std::sync::PoisonError::into_inner).next()
+                        else {
+                            break;
+                        };
+                        let db = match (&reader, &reads) {
+                            (Some(Ok(reader)), Some(reads)) => SpeculativeDatabase::from_reader(
+                                reader.clone(),
+                                reads.snapshot.clone(),
+                                limit,
+                                generation.clone(),
+                                reads.generation.clone(),
+                            ),
+                            (Some(Err(error)), _) => {
+                                let _ = events
+                                    .send(database::Event::Finished(index, Err(error.clone())));
+                                continue;
+                            }
+                            _ => {
+                                SpeculativeDatabase::new(events.clone(), limit, generation.clone())
+                            }
+                        };
+                        let result =
+                            run_attempt(execute.as_ref(), job, db, &counters, reads.is_some());
+                        let _ = events.send(database::Event::Finished(index, result));
+                    }
+                    // Drop thread-affine readers before disconnecting the completion channel.
+                    if catch_unwind(AssertUnwindSafe(|| drop(reader))).is_err() {
+                        let _ = events.send(database::Event::SourceFailed);
+                    }
+                }),
+            );
         }
         drop(events);
-        let mut remaining = count;
-        while remaining != 0 {
+        let mut source_failed = false;
+        loop {
             match receiver.recv() {
                 Ok(database::Event::Read(request)) => request.respond(database),
                 Ok(database::Event::Finished(index, result)) => {
-                    if let Ok((_, reads)) = &result {
-                        self.counters.completed.fetch_add(1, Ordering::Relaxed);
-                        metrics::histogram!("optimism_parallel.read_bytes")
-                            .record(reads.size_bytes() as f64);
-                    } else {
-                        metrics::counter!("optimism_parallel.worker_failures").increment(1);
-                    }
                     results[index] = Some(result);
-                    remaining -= 1;
                 }
+                Ok(database::Event::SourceFailed) => source_failed = true,
                 Err(_) => break,
             }
         }
@@ -367,12 +486,82 @@ impl ParallelRuntime {
         results
             .into_iter()
             .map(|result| {
-                if generation.is_cancelled() {
+                if generation.is_cancelled() ||
+                    reads.as_ref().is_some_and(|reads| reads.generation.is_cancelled())
+                {
                     return Err(SpeculationError::Cancelled);
+                }
+                if source_failed {
+                    return Err(SpeculationError::Source("reader teardown panicked".into()));
                 }
                 result
                     .unwrap_or_else(|| Err(SpeculationError::Worker("worker disconnected".into())))
             })
             .collect()
     }
+}
+
+fn open_reader(
+    factory: &dyn StateReadFactory,
+    counters: &Counters,
+) -> Result<database::LocalReader, SpeculationError> {
+    let started = Instant::now();
+    let result = catch_unwind(AssertUnwindSafe(|| factory.open()))
+        .map_err(|_| SpeculationError::Source("reader initialization panicked".into()))
+        .and_then(core::convert::identity)
+        .map_err(|error| SpeculationError::Source(error.to_string()))
+        .map(|reader| std::rc::Rc::new(std::cell::RefCell::new(reader)));
+    metrics::histogram!("optimism_parallel.provider_open_seconds")
+        .record(started.elapsed().as_secs_f64());
+    if result.is_ok() {
+        counters.provider_opens.fetch_add(1, Ordering::Relaxed);
+        metrics::counter!("optimism_parallel.provider_opens").increment(1);
+    }
+    result
+}
+
+fn run_attempt<Job, Output>(
+    execute: &SpeculativeWorker<Job, Output>,
+    job: Job,
+    mut db: SpeculativeDatabase,
+    counters: &Counters,
+    direct: bool,
+) -> Result<(Output, Dependencies), SpeculationError> {
+    let started = Instant::now();
+    let result = catch_unwind(AssertUnwindSafe(|| {
+        db.check_generation()?;
+        execute(job, &mut db)
+    }))
+    .map_err(|_| {
+        if direct {
+            SpeculationError::Source("speculative worker panicked".into())
+        } else {
+            SpeculationError::Worker("speculative worker panicked".into())
+        }
+    })
+    .and_then(core::convert::identity);
+    let elapsed = started.elapsed();
+    let read_wait = db.read_wait();
+    metrics::histogram!("optimism_parallel.worker_seconds").record(elapsed.as_secs_f64());
+    metrics::histogram!("optimism_parallel.evm_seconds")
+        .record(elapsed.saturating_sub(read_wait).as_secs_f64());
+    metrics::histogram!("optimism_parallel.read_wait_seconds").record(read_wait.as_secs_f64());
+    counters.direct_reads.fetch_add(db.direct_reads.get(), Ordering::Relaxed);
+    counters.broker_reads.fetch_add(db.broker_reads.get(), Ordering::Relaxed);
+    counters.snapshot_hits.fetch_add(db.snapshot_hits.get(), Ordering::Relaxed);
+    metrics::counter!("optimism_parallel.direct_reads").increment(db.direct_reads.get());
+    metrics::counter!("optimism_parallel.broker_reads").increment(db.broker_reads.get());
+    metrics::counter!("optimism_parallel.snapshot_hits").increment(db.snapshot_hits.get());
+    if direct {
+        metrics::histogram!("optimism_parallel.provider_read_seconds")
+            .record(read_wait.as_secs_f64());
+    }
+    let result = result.and_then(|output| db.finish().map(|reads| (output, reads)));
+    if let Ok((_, reads)) = &result {
+        counters.completed.fetch_add(1, Ordering::Relaxed);
+        metrics::histogram!("optimism_parallel.read_bytes").record(reads.size_bytes() as f64);
+    } else {
+        metrics::counter!("optimism_parallel.worker_failures").increment(1);
+    }
+    result
 }

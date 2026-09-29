@@ -86,6 +86,11 @@ impl TransactionObserver for Observer {
     }
 }
 
+std::thread_local! {
+    // Synthetic policy work is opt-in in the ignored benchmark, on the coordinator only.
+    static POLICY_WORK: core::cell::Cell<usize> = const { core::cell::Cell::new(0) };
+}
+
 struct Policy;
 impl ParallelRefundPolicy for Policy {
     type Observer = Observer;
@@ -95,6 +100,13 @@ impl ParallelRefundPolicy for Policy {
         context: PostExecTxContext,
         observation: &Observation,
     ) -> (PostExecExecutedTx, PolicyState) {
+        POLICY_WORK.with(|work| {
+            let mut digest = B256::ZERO;
+            for _ in 0..work.get() {
+                digest = alloy_primitives::keccak256(core::hint::black_box(digest));
+            }
+            core::hint::black_box(digest);
+        });
         let mut next = state.clone();
         let refund = observation
             .touches
@@ -162,7 +174,7 @@ fn database(code: &[u8]) -> State<InMemoryDB> {
 
 // These fixtures put the entire parent state in the cache over an empty backing database.
 // Include unchanged accounts and storage as well as the committed transaction changes.
-fn state_root(db: &State<InMemoryDB>) -> B256 {
+fn state_root<DB: revm::Database>(db: &State<DB>) -> B256 {
     alloy_trie::root::state_root_unhashed(db.cache.trie_account().into_iter().map(
         |(address, account)| {
             let storage_root = alloy_trie::root::storage_root_unhashed(
@@ -207,6 +219,39 @@ fn run_on(
     run_on_with_statistics(db, config, txs, reject, beneficiary, seed, None).0
 }
 
+#[derive(Clone, Debug)]
+struct ParentReader(Arc<InMemoryDB>, Arc<std::sync::atomic::AtomicU64>);
+impl revm::Database for ParentReader {
+    type Error = reth_optimism_parallel::SpeculationError;
+    fn basic(&mut self, address: Address) -> Result<Option<AccountInfo>, Self::Error> {
+        self.1.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+        Ok(revm::DatabaseRef::basic_ref(&*self.0, address).unwrap())
+    }
+    fn storage(&mut self, address: Address, slot: U256) -> Result<U256, Self::Error> {
+        self.1.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+        Ok(revm::DatabaseRef::storage_ref(&*self.0, address, slot).unwrap())
+    }
+    fn code_by_hash(&mut self, hash: B256) -> Result<Bytecode, Self::Error> {
+        self.1.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+        Ok(revm::DatabaseRef::code_by_hash_ref(&*self.0, hash).unwrap())
+    }
+    fn block_hash(&mut self, number: u64) -> Result<B256, Self::Error> {
+        self.1.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+        Ok(revm::DatabaseRef::block_hash_ref(&*self.0, number).unwrap())
+    }
+}
+
+fn independent_session(db: &State<InMemoryDB>) -> Arc<reth_optimism_parallel::SnapshotSession> {
+    let parent = ParentReader(Arc::new(db.database.clone()), Arc::default());
+    Arc::new(reth_optimism_parallel::SnapshotSession::new(
+        Arc::new(move || {
+            Ok(Box::new(parent.clone())
+                as Box<dyn revm::Database<Error = reth_optimism_parallel::SpeculationError>>)
+        }),
+        64 * 1024 * 1024,
+    ))
+}
+
 fn run_on_with_statistics(
     db: &mut State<InMemoryDB>,
     config: ParallelExecutionConfig,
@@ -217,6 +262,7 @@ fn run_on_with_statistics(
     configure_precompiles: Option<ConfigurePrecompiles>,
 ) -> (Reference, reth_optimism_parallel::ParallelStatistics) {
     let mode = config.mode;
+    let direct = config.state_reads == reth_optimism_parallel::StateReads::Auto;
     let expect_workers = config.max_read_bytes > 4096 &&
         config.max_output_bytes > 4096 &&
         config.max_speculative_gas >= txs[0].gas_limit() &&
@@ -236,6 +282,7 @@ fn run_on_with_statistics(
         factory = factory.with_parallel_runtime(Arc::new(ParallelRuntime::new(config).unwrap()));
     }
     let runtime = factory.parallel_runtime().cloned();
+    let session = direct.then(|| independent_session(db));
     let mut evm = factory.evm_factory.create_evm(
         &mut *db,
         EvmEnv::new(
@@ -260,13 +307,14 @@ fn run_on_with_statistics(
             transaction: crate::OpTx::from_recovered_tx(tx.inner(), tx.signer()),
         })
         .collect();
-    let mut executor = factory.create_executor(
+    let mut executor = factory.create_executor_with_snapshot(
         evm,
         OpBlockExecutionCtx {
             post_exec_mode: PostExecMode::Produce,
             parallel_candidates: candidates,
             ..Default::default()
         },
+        session,
     );
     executor.seed_refund_snapshot(seed);
     let mut outputs = Vec::new();
@@ -285,6 +333,11 @@ fn run_on_with_statistics(
         assert!(executor.parallel.is_some(), "shadow mismatch disabled the runtime");
     }
     let statistics = runtime.as_ref().map(|runtime| runtime.statistics()).unwrap_or_default();
+    if direct {
+        assert_eq!(statistics.broker_reads, 0);
+    } else {
+        assert_eq!(statistics.direct_reads, 0);
+    }
     if let Some(runtime) = runtime.filter(|_| expect_workers) {
         let statistics = runtime.statistics();
         assert!(statistics.completed > 0, "test must execute successful speculative work");
@@ -322,14 +375,27 @@ fn assert_parity(
     beneficiary: Address,
 ) -> Reference {
     let reference = run(ParallelExecutionConfig::default(), txs, code, reject, beneficiary);
-    for workers in [1, 2, 4] {
+    for workers in [1, 2, 4, 8] {
         for mode in [ExecutionMode::Shadow, ExecutionMode::Parallel] {
-            let config = ParallelExecutionConfig { mode, workers, ..Default::default() };
-            assert_eq!(
-                run(config, txs, code, reject, beneficiary),
-                reference,
-                "{mode:?}, workers={workers}"
-            );
+            for (state_reads, scheduler) in [
+                (reth_optimism_parallel::StateReads::Broker, ExecutionScheduler::Window),
+                (reth_optimism_parallel::StateReads::Auto, ExecutionScheduler::Window),
+                (reth_optimism_parallel::StateReads::Broker, ExecutionScheduler::Rolling),
+                (reth_optimism_parallel::StateReads::Auto, ExecutionScheduler::Rolling),
+            ] {
+                let config = ParallelExecutionConfig {
+                    mode,
+                    workers,
+                    state_reads,
+                    scheduler,
+                    ..Default::default()
+                };
+                assert_eq!(
+                    run(config, txs, code, reject, beneficiary),
+                    reference,
+                    "{mode:?}, {state_reads:?}, {scheduler:?}, workers={workers}"
+                );
+            }
         }
     }
     reference
@@ -408,13 +474,19 @@ fn sender_descendants_preserve_other_results_and_speculative_budget() {
     }
 }
 
-#[test]
-fn single_sender_chain_avoids_worker_round_trips() {
+#[test_case::test_case(ExecutionScheduler::Window)]
+#[test_case::test_case(ExecutionScheduler::Rolling)]
+fn single_sender_chain_avoids_worker_round_trips(scheduler: ExecutionScheduler) {
     let txs: Vec<_> = (0..8).map(|nonce| transfer(1, nonce, CONTRACT)).collect();
     let reference = run(ParallelExecutionConfig::default(), &txs, &[0], None, BENEFICIARY);
     let (actual, statistics) = run_on_with_statistics(
         &mut database(&[0]),
-        ParallelExecutionConfig { mode: ExecutionMode::Parallel, workers: 4, ..Default::default() },
+        ParallelExecutionConfig {
+            mode: ExecutionMode::Parallel,
+            scheduler,
+            workers: 4,
+            ..Default::default()
+        },
         &txs,
         None,
         BENEFICIARY,
@@ -425,8 +497,9 @@ fn single_sender_chain_avoids_worker_round_trips() {
     assert_eq!(statistics.attempted, 0);
 }
 
-#[test]
-fn fresh_preview_reopens_speculation_after_a_serial_sender_chain() {
+#[test_case::test_case(ExecutionScheduler::Window)]
+#[test_case::test_case(ExecutionScheduler::Rolling)]
+fn fresh_preview_reopens_speculation_after_a_serial_sender_chain(scheduler: ExecutionScheduler) {
     use crate::post_exec::PostExecExecutorExt;
     let txs = vec![
         transfer(1, 0, Address::repeat_byte(0x51)),
@@ -438,6 +511,7 @@ fn fresh_preview_reopens_speculation_after_a_serial_sender_chain() {
     let runtime = Arc::new(
         ParallelRuntime::new(ParallelExecutionConfig {
             mode: ExecutionMode::Parallel,
+            scheduler,
             workers: 2,
             ..Default::default()
         })
@@ -449,6 +523,7 @@ fn fresh_preview_reopens_speculation_after_a_serial_sender_chain() {
         OpEvmFactory::<crate::OpTx, ObservedRefundPolicy<Policy>>::default(),
     )
     .with_parallel_runtime(runtime.clone());
+    let session = independent_session(&db);
     let evm = factory.evm_factory.create_evm(
         &mut db,
         EvmEnv::new(
@@ -463,9 +538,10 @@ fn fresh_preview_reopens_speculation_after_a_serial_sender_chain() {
             },
         ),
     );
-    let mut executor = factory.create_executor(
+    let mut executor = factory.create_executor_with_snapshot(
         evm,
         OpBlockExecutionCtx { post_exec_mode: PostExecMode::Produce, ..Default::default() },
+        Some(session),
     );
     executor.execute_transaction(&txs[0]).unwrap();
     assert_eq!(runtime.statistics().attempted, 0);
@@ -543,8 +619,9 @@ fn creations_selfdestructs_and_deposits_preserve_boundaries() {
     assert_eq!(result.policy.evaluations[2].0.kind, PostExecTxKind::Deposit);
 }
 
-#[test]
-fn resource_exhaustion_falls_back_and_subblocks_carry_policy_state() {
+#[test_case::test_case(ExecutionScheduler::Window)]
+#[test_case::test_case(ExecutionScheduler::Rolling)]
+fn resource_exhaustion_falls_back_and_subblocks_carry_policy_state(scheduler: ExecutionScheduler) {
     let txs = vec![transfer(1, 0, CONTRACT), transfer(2, 0, CONTRACT)];
     let reference = run(ParallelExecutionConfig::default(), &txs, &[0], None, BENEFICIARY);
     for config in [
@@ -554,7 +631,12 @@ fn resource_exhaustion_falls_back_and_subblocks_carry_policy_state() {
     ] {
         assert_eq!(
             run(
-                ParallelExecutionConfig { mode: ExecutionMode::Parallel, workers: 2, ..config },
+                ParallelExecutionConfig {
+                    mode: ExecutionMode::Parallel,
+                    scheduler,
+                    workers: 2,
+                    ..config
+                },
                 &txs,
                 &[0],
                 None,
@@ -579,6 +661,7 @@ fn resource_exhaustion_falls_back_and_subblocks_carry_policy_state() {
             &mut parallel,
             ParallelExecutionConfig {
                 mode: ExecutionMode::Parallel,
+                scheduler,
                 workers: 2,
                 ..Default::default()
             },
@@ -861,8 +944,9 @@ fn opaque_policy_is_rejected_when_parallel_production_is_selected() {
     );
 }
 
-#[test]
-fn shuffled_sender_schedules_match_at_different_window_sizes() {
+#[test_case::test_case(ExecutionScheduler::Window)]
+#[test_case::test_case(ExecutionScheduler::Rolling)]
+fn shuffled_sender_schedules_match_at_different_window_sizes(scheduler: ExecutionScheduler) {
     for seed in 1..=8u64 {
         let mut rng = seed;
         let mut nonces = [0; 8];
@@ -880,6 +964,7 @@ fn shuffled_sender_schedules_match_at_different_window_sizes() {
             let result = run(
                 ParallelExecutionConfig {
                     mode: ExecutionMode::Parallel,
+                    scheduler,
                     workers: 4,
                     max_in_flight,
                     ..Default::default()
@@ -994,8 +1079,9 @@ fn prepared_policy_state_is_private_until_commit() {
     assert_eq!(policy.snapshot(), committed);
 }
 
-#[test]
-fn only_committed_results_reach_state_hooks() {
+#[test_case::test_case(ExecutionScheduler::Window)]
+#[test_case::test_case(ExecutionScheduler::Rolling)]
+fn only_committed_results_reach_state_hooks(scheduler: ExecutionScheduler) {
     use std::sync::Mutex;
     let mut db = database(&[0]);
     let seen = Arc::new(Mutex::new(Vec::new()));
@@ -1006,7 +1092,12 @@ fn only_committed_results_reach_state_hooks() {
     let txs = vec![transfer(1, 0, CONTRACT), transfer(2, 0, CONTRACT), transfer(3, 0, CONTRACT)];
     let result = run_on(
         &mut db,
-        ParallelExecutionConfig { mode: ExecutionMode::Parallel, workers: 4, ..Default::default() },
+        ParallelExecutionConfig {
+            mode: ExecutionMode::Parallel,
+            scheduler,
+            workers: 4,
+            ..Default::default()
+        },
         &txs,
         Some(1),
         BENEFICIARY,
@@ -1105,26 +1196,84 @@ fn shadow_matching_cumulative_limit_rejections_are_not_mismatches() {
 #[test]
 #[ignore = "manual synthetic execution benchmark"]
 fn benchmark_optimistic_execution() {
+    benchmark_execution(false);
+}
+
+/// Long blocks exercise refill, stragglers and ordered evaluation across many windows.
+#[test]
+#[ignore = "manual rolling execution benchmark"]
+#[cfg(feature = "metrics")]
+fn benchmark_rolling_execution() {
+    benchmark_execution(true);
+}
+
+fn benchmark_execution(rolling: bool) {
+    use metrics_util::debugging::{DebugValue, DebuggingRecorder};
     use std::time::Instant;
+    let recorder = DebuggingRecorder::new();
+    let snapshotter = recorder.snapshotter();
+    recorder.install().unwrap();
+    let count = if rolling { 64u8 } else { 8u8 };
     // EIP-197 identity pairing vector, also exercised by op-revm's pairing tests.
     const PAIRING_INPUT: &[u8] = &alloy_primitives::hex!(
         "2cf44499d5d27bb186308b7af7af02ac5bc9eeb6a3d147c186b21fb1b76e18da2c0f001f52110ccfe69108924926e45f0b0c868df0e7bde1fe16d3242dc715f61fb19bb476f6b9e44e2a32234da8212f61cd63919354bc06aef31e3cfaff3ebc22606845ff186793914e03e21df544c34ffe2f2f3504de8a79d9159eca2d98d92bd368e28381e8eccb5fa81fc26cf3f048eea9abfdd85d7ed3ab3698d63e4f902fe02e47887507adf0ff1743cbac6ba291e66f59be6bd763950bb16041a0a85e000000000000000000000000000000000000000000000000000000000000000130644e72e131a029b85045b68181585d97816a916871ca8d3c208c16d87cfd451971ff0471b09fa93caaf13cbf443c1aede09cc4328f5a62aad45f40ec133eb4091058a3141822985733cbdddfed0fd8d6c104e9e9eff40bf5abfef9ab163bc72a23af9a5ce2ba2796c1f4e453a370eb0af8c212d9dc9acd8fc02c2e907baea223a8eb0b0996252cb548a4487da97b02422ebc0e834613f954de6c7e0afdc1fc"
     );
     // Count down 3,000 iterations, using no shared storage writes.
     let code = [0x61, 0x0b, 0xb8, 0x5b, 0x60, 1, 0x90, 0x03, 0x80, 0x60, 3, 0x57, 0];
-    for workload in ["independent", "nonce_chain", "pairing"] {
+    for workload in [
+        "independent",
+        "nonce_chain",
+        "pairing",
+        "storage_shared_warm",
+        "storage_independent_warm",
+        "storage_shared_cold",
+        "storage_independent_cold",
+        "storage_conflict_cold",
+        "slow_head",
+        "slow_tail",
+        "costly_policy",
+    ] {
+        if !rolling && matches!(workload, "slow_head" | "slow_tail" | "costly_policy") {
+            continue;
+        }
+        POLICY_WORK.with(|work| work.set(if workload == "costly_policy" { 256 } else { 0 }));
+        let mixed = matches!(workload, "slow_head" | "slow_tail");
+        let slow_code = [0x61, 0x75, 0x30, 0x5b, 0x60, 1, 0x90, 0x03, 0x80, 0x60, 3, 0x57, 0];
+        let fast_code = [0x60, 0x96, 0x5b, 0x60, 1, 0x90, 0x03, 0x80, 0x60, 2, 0x57, 0];
+        let storage = workload.starts_with("storage_");
+        let cold = workload.ends_with("_cold");
+        let independent = workload.starts_with("storage_independent");
+        let mut storage_code = Vec::new();
+        for slot in 0..256u16 {
+            storage_code.extend([0x61, (slot >> 8) as u8, slot as u8, 0x54, 0x50]);
+        }
+        if workload == "storage_conflict_cold" {
+            storage_code.extend([0x60, 0, 0x54, 0x60, 1, 0x01, 0x60, 0, 0x55]);
+        }
+        storage_code.push(0);
+        let code = if storage {
+            storage_code.as_slice()
+        } else if mixed {
+            &slow_code
+        } else {
+            &code
+        };
         let chained = workload == "nonce_chain";
         let pairing = workload == "pairing";
-        let txs: Vec<_> = (0..8)
+        let txs: Vec<_> = (0..count)
             .map(|i| {
                 recovered_legacy_from(
                     Address::repeat_byte(if chained { 1 } else { i + 1 }),
                     TxLegacy {
                         nonce: if chained { u64::from(i) } else { 0 },
-                        gas_limit: 150_000,
+                        gas_limit: if storage || mixed { 1_000_000 } else { 150_000 },
                         gas_price: if pairing { 10 + u128::from(i) } else { 10 },
                         to: TxKind::Call(if pairing {
                             Address::with_last_byte(8)
+                        } else if independent {
+                            Address::with_last_byte(0x50 + i)
+                        } else if mixed && i % 16 != if workload == "slow_head" { 0 } else { 15 } {
+                            Address::repeat_byte(0x44)
                         } else {
                             CONTRACT
                         }),
@@ -1145,93 +1294,422 @@ fn benchmark_optimistic_execution() {
             (ExecutionMode::Parallel, 1),
             (ExecutionMode::Parallel, 2),
             (ExecutionMode::Parallel, 4),
+            (ExecutionMode::Parallel, 8),
         ] {
-            let runtime = Arc::new(
-                ParallelRuntime::new(ParallelExecutionConfig {
-                    mode,
-                    workers,
-                    ..Default::default()
-                })
-                .unwrap(),
-            );
-            let factory = OpBlockExecutorFactory::new(
-                OpAlloyReceiptBuilder::default(),
-                OpChainHardforks::op_mainnet(),
-                OpEvmFactory::<crate::OpTx, ObservedRefundPolicy<Policy>>::default(),
-            )
-            .with_parallel_runtime((mode != ExecutionMode::Sequential).then(|| runtime.clone()));
-            let mut samples = Vec::new();
-            for iteration in 0..21 {
-                let mut db = database(&code);
-                let env = EvmEnv::new(
-                    CfgEnv::new_with_spec(OpSpecId::JOVIAN),
-                    BlockEnv {
-                        timestamp: U256::from(JOVIAN_TIMESTAMP),
-                        number: U256::from(1),
-                        gas_limit: 10_000_000,
-                        basefee: 2,
-                        beneficiary: BENEFICIARY,
+            for (state_reads, scheduler) in if rolling {
+                vec![
+                    (reth_optimism_parallel::StateReads::Auto, ExecutionScheduler::Window),
+                    (reth_optimism_parallel::StateReads::Auto, ExecutionScheduler::Rolling),
+                ]
+            } else {
+                vec![
+                    (reth_optimism_parallel::StateReads::Broker, ExecutionScheduler::Window),
+                    (reth_optimism_parallel::StateReads::Auto, ExecutionScheduler::Window),
+                ]
+            } {
+                if mode == ExecutionMode::Sequential &&
+                    (scheduler == ExecutionScheduler::Rolling ||
+                        (!rolling && state_reads == reth_optimism_parallel::StateReads::Auto))
+                {
+                    continue;
+                }
+                let runtime = Arc::new(
+                    ParallelRuntime::new(ParallelExecutionConfig {
+                        mode,
+                        workers,
+                        state_reads,
+                        scheduler,
+                        max_speculative_gas: if rolling { 128_000_000 } else { 30_000_000 },
                         ..Default::default()
-                    },
-                );
-                let candidates = txs
-                    .iter()
-                    .map(|tx| ParallelCandidate {
-                        hash: tx.trie_hash(),
-                        transaction: crate::OpTx::from_recovered_tx(tx.inner(), tx.signer()),
                     })
-                    .collect();
-                let start = Instant::now();
-                let evm = factory.evm_factory.create_evm(&mut db, env);
-                let mut executor = factory.create_executor(
-                    evm,
-                    OpBlockExecutionCtx {
-                        post_exec_mode: PostExecMode::Produce,
-                        parallel_candidates: candidates,
-                        ..Default::default()
-                    },
+                    .unwrap(),
                 );
-                for tx in &txs {
-                    executor.execute_transaction(tx).unwrap();
-                }
-                let result = (
-                    executor.receipts.clone(),
-                    executor.refund_snapshot(),
-                    executor.post_exec_entries().to_vec(),
+                let factory = OpBlockExecutorFactory::new(
+                    OpAlloyReceiptBuilder::default(),
+                    OpChainHardforks::op_mainnet(),
+                    OpEvmFactory::<crate::OpTx, ObservedRefundPolicy<Policy>>::default(),
+                )
+                .with_parallel_runtime(
+                    (mode != ExecutionMode::Sequential).then(|| runtime.clone()),
                 );
-                drop(executor);
-                db.merge_transitions(BundleRetention::Reverts);
-                let bundle = db.take_bundle();
-                let elapsed = start.elapsed().as_secs_f64();
-                assert!(result.0.iter().all(alloy_consensus::TxReceipt::status));
-                if iteration > 0 {
-                    samples.push(elapsed);
+                let mut samples = Vec::new();
+                let mut snapshot_bytes = 0;
+                let mut provider_reads = 0;
+                let mut timing: BTreeMap<String, f64> = BTreeMap::new();
+                let mut snapshot_versions = 0.0f64;
+                for iteration in 0..21 {
+                    let mut db = database(code);
+                    for sender in 1..=count {
+                        db.insert_account(
+                            Address::repeat_byte(sender),
+                            AccountInfo::default().with_balance(U256::from(if rolling {
+                                1_000_000_000_000u64
+                            } else {
+                                1_000_000_000u64
+                            })),
+                        );
+                    }
+                    if mixed {
+                        db.insert_account(
+                            Address::repeat_byte(0x44),
+                            AccountInfo::default()
+                                .with_code(Bytecode::new_raw(Bytes::copy_from_slice(&fast_code))),
+                        );
+                    }
+                    if storage {
+                        for address in if independent {
+                            (0..count)
+                                .map(|i| Address::with_last_byte(0x50 + i))
+                                .collect::<Vec<_>>()
+                        } else {
+                            vec![CONTRACT]
+                        } {
+                            let info = AccountInfo::default()
+                                .with_code(Bytecode::new_raw(Bytes::copy_from_slice(code)));
+                            let slots: alloy_primitives::map::U256Map<U256> = (0..256)
+                                .map(|slot| (U256::from(slot), U256::from(slot + 1)))
+                                .collect();
+                            if cold {
+                                db.cache.accounts.remove(&address);
+                                db.database.insert_account_info(address, info);
+                                for (key, value) in slots {
+                                    db.database
+                                        .insert_account_storage(address, key, value)
+                                        .unwrap();
+                                }
+                            } else {
+                                db.insert_account_with_storage(address, info, slots);
+                            }
+                        }
+                    }
+                    let reader = ParentReader(Arc::new(db.database), Arc::default());
+                    let read_count = reader.1.clone();
+                    let mut db = State::builder()
+                        .with_database(reader.clone())
+                        .with_cached_prestate(db.cache)
+                        .with_bundle_update()
+                        .build();
+                    let env = EvmEnv::new(
+                        CfgEnv::new_with_spec(OpSpecId::JOVIAN),
+                        BlockEnv {
+                            timestamp: U256::from(JOVIAN_TIMESTAMP),
+                            number: U256::from(1),
+                            gas_limit: if rolling { 100_000_000 } else { 10_000_000 },
+                            basefee: 2,
+                            beneficiary: BENEFICIARY,
+                            ..Default::default()
+                        },
+                    );
+                    let candidates = txs
+                        .iter()
+                        .map(|tx| ParallelCandidate {
+                            hash: tx.trie_hash(),
+                            transaction: crate::OpTx::from_recovered_tx(tx.inner(), tx.signer()),
+                        })
+                        .collect();
+                    let start = Instant::now();
+                    let session = (state_reads == reth_optimism_parallel::StateReads::Auto &&
+                        mode != ExecutionMode::Sequential)
+                        .then(|| Arc::new(reth_optimism_parallel::SnapshotSession::new(
+                            Arc::new(move || Ok(Box::new(reader.clone()) as Box<dyn revm::Database<Error = reth_optimism_parallel::SpeculationError>>)),
+                            64 * 1024 * 1024,
+                        )));
+                    let evm = factory.evm_factory.create_evm(&mut db, env);
+                    let mut executor = factory.create_executor_with_snapshot(
+                        evm,
+                        OpBlockExecutionCtx {
+                            post_exec_mode: PostExecMode::Produce,
+                            parallel_candidates: candidates,
+                            ..Default::default()
+                        },
+                        session.clone(),
+                    );
+                    for tx in &txs {
+                        executor.execute_transaction(tx).unwrap();
+                    }
+                    let result = (
+                        executor.receipts.clone(),
+                        executor.refund_snapshot(),
+                        executor.post_exec_entries().to_vec(),
+                    );
+                    drop(executor);
+                    snapshot_bytes = snapshot_bytes
+                        .max(session.as_ref().map_or(0, |session| session.estimated_bytes()));
+                    db.merge_transitions(BundleRetention::Reverts);
+                    let bundle = db.take_bundle();
+                    let elapsed = start.elapsed().as_secs_f64();
+                    let root_started = Instant::now();
+                    let root = state_root(&db);
+                    let receipt_root = alloy_consensus::proofs::calculate_receipt_root(&result.0);
+                    let root_time = root_started.elapsed().as_secs_f64();
+                    let result = (result.0, result.1, result.2, root, receipt_root);
+                    provider_reads =
+                        provider_reads.max(read_count.load(std::sync::atomic::Ordering::Relaxed));
+                    assert!(result.0.iter().all(alloy_consensus::TxReceipt::status));
+                    let metrics = snapshotter.snapshot().into_vec();
+                    if iteration > 0 {
+                        samples.push(elapsed);
+                        *timing.entry("synthetic_roots_seconds".to_owned()).or_default() +=
+                            root_time;
+                        for (key, _, _, value) in metrics {
+                            if let DebugValue::Histogram(values) = value {
+                                if key.key().name().ends_with("_seconds") {
+                                    *timing.entry(key.key().name().to_owned()).or_default() +=
+                                        values.iter().map(|value| value.0).sum::<f64>();
+                                } else if key.key().name() == "optimism_parallel.snapshot_bytes" {
+                                    snapshot_bytes = snapshot_bytes.max(
+                                        values
+                                            .iter()
+                                            .map(|value| value.0 as usize)
+                                            .max()
+                                            .unwrap_or_default(),
+                                    );
+                                } else if key.key().name() == "optimism_parallel.snapshot_versions"
+                                {
+                                    snapshot_versions = snapshot_versions.max(
+                                        values.iter().map(|value| value.0).fold(0.0, f64::max),
+                                    );
+                                }
+                            }
+                        }
+                    }
+                    if let Some((expected, state)) = &reference {
+                        assert_eq!(&result, expected);
+                        assert_eq!(&bundle, state);
+                    } else {
+                        reference = Some((result, bundle));
+                    }
                 }
-                if let Some((expected, state)) = &reference {
-                    assert_eq!(&result, expected);
-                    assert_eq!(&bundle, state);
-                } else {
-                    reference = Some((result, bundle));
+                if !rolling && mode != ExecutionMode::Sequential && !chained {
+                    assert_eq!(runtime.statistics().completed, 21 * txs.len() as u64);
+                    if mode == ExecutionMode::Parallel && workload != "storage_conflict_cold" {
+                        assert_eq!(runtime.statistics().reused, 21 * txs.len() as u64);
+                    } else if mode == ExecutionMode::Shadow && workload != "storage_conflict_cold" {
+                        assert_eq!(runtime.statistics().shadow_matches, 21 * txs.len() as u64);
+                    }
                 }
-            }
-            if mode != ExecutionMode::Sequential && !chained {
-                assert_eq!(runtime.statistics().completed, 21 * txs.len() as u64);
-                if mode == ExecutionMode::Parallel {
-                    assert_eq!(runtime.statistics().reused, 21 * txs.len() as u64);
-                } else {
-                    assert_eq!(runtime.statistics().shadow_matches, 21 * txs.len() as u64);
+                if mode == ExecutionMode::Parallel && chained {
+                    assert_eq!(runtime.statistics().attempted, 0);
                 }
+                assert_eq!(runtime.statistics().shadow_mismatches, 0);
+                if state_reads == reth_optimism_parallel::StateReads::Auto {
+                    assert_eq!(runtime.statistics().broker_reads, 0);
+                }
+                samples.sort_by(f64::total_cmp);
+                eprintln!(
+                    "workload={workload} mode={mode} reads={state_reads} scheduler={scheduler} workers={workers} txs={count} snapshot_bytes={snapshot_bytes} snapshot_versions={snapshot_versions} provider_reads={provider_reads} median_ms={:.3} p95_ms={:.3} mean_ms={:.3} stats={:?}",
+                    samples[10] * 1000.0,
+                    samples[18] * 1000.0,
+                    samples.iter().sum::<f64>() * 1000.0 / samples.len() as f64,
+                    runtime.statistics()
+                );
+                let mean_ms: BTreeMap<_, _> =
+                    timing.into_iter().map(|(key, value)| (key, value * 1000.0 / 20.0)).collect();
+                eprintln!(
+                    "timings workload={workload} mode={mode} scheduler={scheduler} workers={workers} mean_ms={mean_ms:?}"
+                );
             }
-            if mode == ExecutionMode::Parallel && chained {
-                assert_eq!(runtime.statistics().attempted, 0);
-            }
-            samples.sort_by(f64::total_cmp);
-            eprintln!(
-                "workload={workload} mode={mode} workers={workers} median_ms={:.3} p95_ms={:.3} stats={:?}",
-                samples[10] * 1000.0,
-                samples[18] * 1000.0,
-                runtime.statistics()
-            );
         }
     }
+}
+
+#[test_case::test_case(true; "refill_uses_committed_state")]
+#[test_case::test_case(false; "unpreviewed_selection_runs_canonically")]
+fn rolling_executor_commits_while_a_later_transaction_is_running(refill: bool) {
+    use std::sync::{Mutex, mpsc};
+    let txs = [transfer(1, 0, CONTRACT), transfer(2, 0, CONTRACT), transfer(3, 0, CONTRACT)];
+    let order = if refill {
+        vec![txs[0].clone(), txs[1].clone(), txs[2].clone()]
+    } else {
+        vec![txs[0].clone(), txs[2].clone(), txs[1].clone()]
+    };
+    let reference = run(ParallelExecutionConfig::default(), &order, &[0], None, BENEFICIARY);
+    let mut db = database(&[0]);
+    let session = independent_session(&db);
+    let (entered, started) = mpsc::channel();
+    let (release, gate) = mpsc::channel();
+    let gate = Mutex::new(gate);
+    let started = Mutex::new(started);
+    let release_on_commit = release.clone();
+    db.set_state_hook(Some(Box::new(move |changes: revm::state::EvmState| {
+        if !refill && changes.contains_key(&Address::repeat_byte(3)) {
+            release_on_commit.send(()).unwrap();
+        }
+    })));
+    let runtime = Arc::new(
+        ParallelRuntime::new(ParallelExecutionConfig {
+            mode: ExecutionMode::Parallel,
+            scheduler: ExecutionScheduler::Rolling,
+            workers: 2,
+            max_in_flight: if refill { 2 } else { 3 },
+            ..Default::default()
+        })
+        .unwrap(),
+    );
+    let factory = OpBlockExecutorFactory::new(
+        OpAlloyReceiptBuilder::default(),
+        OpChainHardforks::op_mainnet(),
+        OpEvmFactory::<crate::OpTx, ObservedRefundPolicy<Policy>>::default(),
+    )
+    .with_parallel_runtime(runtime.clone());
+    let evm = factory.evm_factory.create_evm(
+        &mut db,
+        EvmEnv::new(
+            CfgEnv::new_with_spec(OpSpecId::JOVIAN),
+            BlockEnv {
+                timestamp: U256::from(JOVIAN_TIMESTAMP),
+                number: U256::from(1),
+                gas_limit: 10_000_000,
+                basefee: 2,
+                beneficiary: BENEFICIARY,
+                ..Default::default()
+            },
+        ),
+    );
+    let mut executor = factory.create_executor_with_snapshot(
+        evm,
+        OpBlockExecutionCtx {
+            post_exec_mode: PostExecMode::Produce,
+            parallel_candidates: txs[..if refill { 3 } else { 2 }]
+                .iter()
+                .map(|tx| ParallelCandidate {
+                    hash: tx.trie_hash(),
+                    transaction: crate::OpTx::from_recovered_tx(tx.inner(), tx.signer()),
+                })
+                .collect(),
+            ..Default::default()
+        },
+        Some(session),
+    );
+    let parallel = executor.parallel.as_mut().unwrap();
+    let worker = parallel.worker.clone();
+    parallel.worker = Arc::new(move |job, db| {
+        match job.0.0.base.caller {
+            caller if caller == Address::repeat_byte(1) => {
+                started.lock().unwrap().recv_timeout(std::time::Duration::from_secs(10)).unwrap();
+            }
+            caller if caller == Address::repeat_byte(2) => {
+                entered.send(()).unwrap();
+                gate.lock().unwrap().recv_timeout(std::time::Duration::from_secs(10)).unwrap();
+            }
+            _ => {
+                assert!(refill, "an unpreviewed selected transaction must run canonically");
+                assert_eq!(
+                    revm::Database::basic(db, Address::repeat_byte(1))?.unwrap().nonce,
+                    1,
+                    "replacement workers observe the committed prefix"
+                );
+                release.send(()).unwrap();
+            }
+        }
+        worker(job, db)
+    });
+    for tx in &order {
+        executor.execute_transaction(tx).unwrap();
+    }
+    assert_eq!(executor.receipts, reference.receipts);
+    assert_eq!(executor.refund_snapshot(), reference.policy);
+    assert_eq!(runtime.statistics().broker_reads, 0);
+    assert_eq!(runtime.statistics().attempted, if refill { 3 } else { 2 });
+    drop(executor);
+    assert_eq!(state_root(&db), reference.state_root);
+}
+
+#[test_case::test_case(false; "phase_boundary")]
+#[test_case::test_case(true; "executor_destruction")]
+fn rolling_teardown_failure_disables_the_retained_session(destroy_executor: bool) {
+    use std::sync::{Mutex, mpsc};
+    struct Reader {
+        parent: ParentReader,
+        release: Arc<Mutex<mpsc::Receiver<()>>>,
+    }
+    impl revm::Database for Reader {
+        type Error = reth_optimism_parallel::SpeculationError;
+        fn basic(&mut self, address: Address) -> Result<Option<AccountInfo>, Self::Error> {
+            self.parent.basic(address)
+        }
+        fn storage(&mut self, address: Address, slot: U256) -> Result<U256, Self::Error> {
+            self.parent.storage(address, slot)
+        }
+        fn code_by_hash(&mut self, hash: B256) -> Result<Bytecode, Self::Error> {
+            self.parent.code_by_hash(hash)
+        }
+        fn block_hash(&mut self, number: u64) -> Result<B256, Self::Error> {
+            self.parent.block_hash(number)
+        }
+    }
+    impl Drop for Reader {
+        fn drop(&mut self) {
+            self.release.lock().unwrap().recv_timeout(std::time::Duration::from_secs(10)).unwrap();
+            panic!("reader teardown failed after commit");
+        }
+    }
+    let txs = [transfer(1, 0, CONTRACT), transfer(2, 0, CONTRACT)];
+    let mut db = database(&[0]);
+    let parent = ParentReader(Arc::new(db.database.clone()), Arc::default());
+    let (release, gate) = mpsc::channel();
+    let gate = Arc::new(Mutex::new(gate));
+    let session = Arc::new(reth_optimism_parallel::SnapshotSession::new(
+        Arc::new(move || {
+            Ok(Box::new(Reader { parent: parent.clone(), release: gate.clone() })
+                as Box<dyn revm::Database<Error = reth_optimism_parallel::SpeculationError>>)
+        }),
+        64 * 1024 * 1024,
+    ));
+    let runtime = Arc::new(
+        ParallelRuntime::new(ParallelExecutionConfig {
+            mode: ExecutionMode::Parallel,
+            scheduler: ExecutionScheduler::Rolling,
+            workers: 1,
+            max_in_flight: 2,
+            ..Default::default()
+        })
+        .unwrap(),
+    );
+    let factory = OpBlockExecutorFactory::new(
+        OpAlloyReceiptBuilder::default(),
+        OpChainHardforks::op_mainnet(),
+        OpEvmFactory::<crate::OpTx, ObservedRefundPolicy<Policy>>::default(),
+    )
+    .with_parallel_runtime(runtime);
+    let evm = factory.evm_factory.create_evm(
+        &mut db,
+        EvmEnv::new(
+            CfgEnv::new_with_spec(OpSpecId::JOVIAN),
+            BlockEnv {
+                timestamp: U256::from(JOVIAN_TIMESTAMP),
+                number: U256::from(1),
+                gas_limit: 10_000_000,
+                basefee: 2,
+                beneficiary: BENEFICIARY,
+                ..Default::default()
+            },
+        ),
+    );
+    let mut executor = factory.create_executor_with_snapshot(
+        evm,
+        OpBlockExecutionCtx {
+            post_exec_mode: PostExecMode::Produce,
+            parallel_candidates: txs
+                .iter()
+                .map(|tx| ParallelCandidate {
+                    hash: tx.trie_hash(),
+                    transaction: crate::OpTx::from_recovered_tx(tx.inner(), tx.signer()),
+                })
+                .collect(),
+            ..Default::default()
+        },
+        Some(session.clone()),
+    );
+    executor.execute_transaction(&txs[0]).unwrap();
+    assert_eq!(executor.receipts.len(), 1);
+    assert!(!session.is_disabled());
+    release.send(()).unwrap();
+    if !destroy_executor {
+        crate::post_exec::PostExecExecutorExt::drain_parallel_work(&mut executor);
+        assert!(session.is_disabled(), "draining must include reader teardown failure");
+    }
+    drop(executor);
+    assert!(session.is_disabled(), "the next block/subblock must retain broker fallback");
+    assert_eq!(db.cache.accounts[&Address::repeat_byte(1)].account_info().unwrap().nonce, 1);
 }

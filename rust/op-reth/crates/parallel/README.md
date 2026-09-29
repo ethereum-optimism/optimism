@@ -4,7 +4,9 @@ Execution remains sequential by default. The node accepts `--execution.mode shad
 `--execution.mode parallel`. Both modes cover Engine payload validation, historical execution,
 forced ordinary transactions, and pool transactions. Tracing stays sequential. Shadow mode commits
 the reference result, logs differences, counts mismatches, and disables speculation for the rest of
-that block after a mismatch.
+that block after a mismatch. `--execution.scheduler window` remains the default. Select
+`--execution.scheduler rolling` to overlap ordered commit with independent-reader execution;
+broker reads continue using drained windows.
 
 ## Coordinator and workers
 
@@ -13,38 +15,86 @@ pool through `with_spawner`; validation and payload builds share that budget ins
 another pool alongside prewarming and state-root work. Standalone integrations can use `new`.
 
 A window freezes the coordinator's committed state while isolated `op-revm` instances execute.
-Workers request reads through a bounded channel. The coordinator services the requests on its own
-thread, so reth providers and their read transactions need not be `Send` or `Sync`. Each worker has
-its own journal and read cache. Reads from canonical overlays and physical caches are recorded
-above those caches, including missing accounts, account metadata, code, slots, and block hashes.
-No worker can see another worker's writes. No speculative state reaches a state hook or receipt
-stream.
+With `--execution.state-reads auto` (the default), compatible integrations open one independent
+base reader on each active worker and reuse it for that window or rolling worker task. The owned `StateReadFactory` is
+`Send + Sync`; its readers need neither trait. Readers are created, used and destroyed on their
+worker. Successful direct execution sends completion messages and no broker read requests.
+`--execution.state-reads broker` forces the original bounded request/reply channel; integrations
+without an explicit compatible source also use it.
 
-Windows drain before ordered commit. At the authoritative transaction's turn, its entire environment,
-identity and read set must still match. A failed or stale attempt executes once through the canonical
+`SnapshotSession` belongs to one execution operation. It combines the exact pinned base with a
+`CommittedSnapshot` of committed accounts, storage, bytecode and block hashes. Persistent `imbl`
+maps share unchanged nodes, including per-account storage. A collector composed with public state
+hooks records dirty addresses, slots and lifecycle resets. Before dispatching another committed version, a typed adapter
+refreshes just those entries from canonical revm `State`, including fees, refunds, deposits and
+system changes. Initial canonical cache/preloaded-bundle state takes precedence over the base.
+Unknown accounts/slots remain distinct from absent accounts, explicit zero slots and cleared
+storage. Creation, deletion and recreation follow revm's committed lifecycle status.
+
+Workers have private journals, read caches, dependencies and observations for every transaction.
+Dependency recording sits above every backend and cache; ordered validation still loads canonical
+caches before commit. Physical cache sharing does not change EVM warmth or transient storage.
+No worker sees another worker's writes, and speculative state never reaches public hooks.
+
+A source failure invalidates the affected speculation and invokes the canonical retry; subsequent
+windows use the broker for that session. Initialization, read and reader-destruction panics are
+contained. Cancellation checks guard reads (including cache hits) and result acceptance. Workers
+and readers drain before the window returns. Exceeding the snapshot estimate releases the overlay
+and keeps that session on broker reads.
+
+Engine execution carries the existing parent-provider closure, its cache generation/instrumentation
+and retained in-memory ancestry into an execution-local config clone. Historical stage execution
+opts in only when a durable checkpoint matches its starting writer state; one session follows the
+batch's unpersisted changes. Custom write transactions retain the broker unless their caller supplies
+an explicit source contract. Sequencing pins the selected parent, shares immutable physical reads,
+and carries committed state across forced/pool transactions and subblock continuation. Competing
+builds create separate sessions. Reusing a session with a newly constructed canonical State reseeds
+its actual preloaded state; reusing the same State updates only dirty entries.
+
+Window scheduling drains before ordered commit. Rolling scheduling owns an `ExecutionPipeline`
+with bounded queued, running, completed and prepared attempts. The authoritative transaction can
+commit while other attempts execute. Commit refreshes dirty snapshot entries and refills available
+slots; workers never consume uncommitted results. Each task yields between transactions when another
+operation is waiting, and after at most `max_in_flight` attempts. Idle tasks destroy their readers and
+return the shared worker permit instead of parking a prewarming thread. Readers may be reopened by a
+later task; this setup cost is included in benchmarks.
+
+At the authoritative transaction's turn, its environment, identity and read set must still match. A failed or stale attempt executes once through the canonical
 path. Account dependencies protect metadata; revm applies only touched accounts and changed slots,
 with its existing creation/deletion semantics. State, fee settlement, receipt accounting, and policy
 publication happen only after the commit decision. Prepared transactions must be finalized and
 committed in order, as required by the underlying `BlockExecutor` API.
 
-Each window dispatches at most one candidate per sender. Descendants consume no speculative gas
-or worker slots and execute canonically while cached results for other senders remain available.
+Each window dispatches at most one candidate per sender. Rolling scheduling retains the same
+restriction across outstanding attempts and releases the sender reservation on commit or rejection.
+A running cancelled attempt retains its slot until it stops. An authoritative candidate that was
+not admitted while other speculation remains executes canonically; it does not wait for unrelated
+hints. A prepared result retains its slot until commit or rejection.
+
+In window scheduling, descendants consume no speculative gas or worker slots and execute canonically while cached results for other senders remain available.
 A window with only one candidate executes canonically in parallel mode; shadow mode still runs
 the worker for comparison. Pure nonce chains avoid repeated lookahead scans until another sender
 is selected or fresh candidate hints arrive.
 
 Each executor owns a build-generation identifier. Boundaries clear cached outcomes and rotate the
-generation; dropping or cancelling the executor invalidates it. Workers finish before control returns
-to the selector. Cancellation is checked again before a prepared pool transaction commits. Deposits,
+generation; dropping or cancelling the executor invalidates it. Rolling workers may continue between
+selector calls. Deposits, structural post-exec transactions,
+environment changes, block/subblock completion, cancellation and executor destruction drain work
+before the execution context is released. Cancellation is checked again before a prepared pool
+transaction commits. Deposits,
 system changes, activation rules, and the trailing structural post-exec transaction retain the
 canonical path.
 
-The integration supplies bounded `ParallelCandidate` hints through `OpBlockExecutionCtx` instead
-of changing the pinned reth traits. This lets reth's existing Engine and historical loops retain
+The integration supplies bounded `ParallelCandidate` hints through `OpBlockExecutionCtx`.
+The reth configuration hooks supply independent state sources and preserve composed state hooks. This lets reth's existing Engine and historical loops retain
 authority over transaction order and commit hooks without requiring a block access list. Pool
 lookahead uses an independent iterator. `PayloadTransactionsWithCommitHook::preview` lets custom
 selectors provide hints without advancing `next()`. Existing selectors can return no previews.
 `on_commit` still runs before the selector's next authoritative `next()`.
+`reject_parallel_candidate` retires skipped candidates and invalid sender descendants;
+`drain_parallel_work` closes a selection phase while preserving the execution configuration. These
+extension methods default to no-ops for custom executors. Replacing previews retires obsolete hints.
+Existing bounded preview coverage is unchanged; transactions beyond it remain executable canonically.
 
 For downstream Rust integrations, `OpBlockExecutionCtx` has a new `parallel_candidates` field;
 sequential callers can supply an empty vector or use `..Default::default()`. Executor factories
@@ -90,6 +140,9 @@ and dynamic lookups. Custom instruction sets are not supported by the stock para
 
 | Option | Default | Scope |
 | --- | --- | --- |
+| `--execution.scheduler` | `window` | `rolling` overlaps direct execution with ordered commit |
+| `--execution.state-reads` | `auto` | Independent readers when explicitly supported; `broker` forces coordinator reads |
+| `--execution.max-snapshot-bytes` | `67108864` | All retained snapshot versions plus dirty tracking per session |
 | `--execution.workers` | `0` | Auto: half available CPUs, capped by the shared pool |
 | `--execution.max-in-flight` | `16` | Retained transactions per executor |
 | `--execution.max-speculative-gas` | `30000000` | Additional declared gas per block/build |
@@ -98,10 +151,24 @@ and dynamic lookups. Custom instruction sets are not supported by the stock para
 
 Failed speculative attempts consume the gas budget too. A transaction consumes at least 21,000
 units of this budget, preventing zero-gas invalid candidates from growing the attempted set without
-bound. Preview lists are capped at `min(64 * max_in_flight, 4096)`. One window per runtime is admitted
-at a time, bounding queued jobs and active worker memory across competing callers. Completed
-windows retained by separate executors each have their own per-executor bound. Retained-byte
-estimates are admission limits, not an operating-system RSS cap; EVM working memory is additionally
+bound. Preview lists are capped at `min(64 * max_in_flight, 4096)`. Both schedulers share runtime-wide
+worker permits. FIFO admission between finite tasks prevents a rolling build from monopolizing the
+pool. Each execution operation retains at most its configured transaction budget, including queued
+hints and completed output.
+
+Snapshot leases charge each distinct live immutable version once. Clones share a charge; different
+versions conservatively pay their full logical size even where persistent nodes share storage. The
+canonical version and pending dirty keys also count. Completed results release their snapshot lease
+and retain only output and dependencies. Budget exhaustion disables direct reads for the session,
+drains workers and releases retained versions before switching to broker windows. This conservative
+estimate can cause earlier fallback on large historical overlays.
+
+A rolling reader failure discards uncommitted speculation and disables direct reads. An output
+already transferred to the coordinator still requires canonical dependency validation; a later
+reader teardown failure cannot invalidate a dependency-validated committed prefix. A dropped
+scheduled task also releases its completion bookkeeping, including during pool shutdown.
+
+Retained-byte estimates are admission limits, not an operating-system RSS cap; EVM working memory is additionally
 bounded by transaction and speculative gas limits.
 
 Metrics use the `optimism_parallel` prefix: `attempts`, `worker_failures`, `conflicts`, `reused`,
@@ -109,7 +176,16 @@ Metrics use the `optimism_parallel` prefix: `attempts`, `worker_failures`, `conf
 (excluding broker waits, including observation), `read_wait_seconds`, `window_seconds`,
 `finalization_seconds`, `policy_evaluation_seconds`, `canonical_retry_seconds`,
 `canonical_retry_gas`, `read_bytes`, and `output_bytes`. Policy observation is included in worker
-EVM time; evaluation is measured separately. `statistics()` also exposes counters without
+EVM time; evaluation is measured separately. Read-backend measurements add `direct_reads`,
+`broker_reads`, `snapshot_hits`, `provider_opens`, `source_fallbacks{reason}`, `snapshot_bytes`,
+`snapshot_update_seconds`, `provider_open_seconds`, `provider_read_seconds` and
+`dependency_validation_seconds`. Rolling adds `head_wait_seconds`, `queue_wait_seconds`,
+`pipeline_drain_seconds`, `worker_lease_seconds`, `active_workers`, `in_flight` and `snapshot_versions`.
+Worker lease time includes reader setup and teardown; divide summed lease time by wall time and the
+worker count to estimate utilization. Histogram timings from concurrent workers overlap and must
+not be added to wall latency. Provider reads exclude snapshot hits; dependency validation and
+ordered finalization are timed separately. The existing `read_wait_seconds` includes backend wait
+and lookup time in either mode. `statistics()` also exposes counters without
 requiring a metrics recorder. Use existing reth block validation, payload build, and state-root timing
 metrics together with process RSS when evaluating end-to-end performance.
 
@@ -121,63 +197,53 @@ mise exec -- cargo nextest run -p reth-optimism-evm -p reth-optimism-payload-bui
 mise exec -- cargo build -p alloy-op-evm -p op-revm -p kona-executor --no-default-features --target riscv32imac-unknown-none-elf
 ```
 
-The ignored `benchmark_optimistic_execution` fixture measures warmed execution windows for
-independent senders, a nonce chain and stock BN254 pairings, including stateful policy evaluation
-and settlement. It checks successful receipts, state and refund parity on every sample, and asserts
-that parallel independent/pairing transactions actually reuse worker results:
+The ignored `benchmark_optimistic_execution` fixture compares sequential, broker and direct
+execution at 1/2/4/8 workers, plus both shadow backends. It covers compute, nonce chains, stock
+BN254 pairings, warm/cold shared and independent storage reads, and conflicting storage writes.
+Every sample checks state, receipt and refund parity. Supported direct samples assert zero broker
+reads. Conflicting samples verify canonical retry; nonce-chain production dispatches no workers.
 
 ```sh
-mise exec -- cargo nextest run -p alloy-op-evm --features parallel --run-ignored only --nocapture -E 'test(benchmark_optimistic_execution)'
+mise exec -- cargo nextest run -p alloy-op-evm --features parallel,metrics --run-ignored only --nocapture -E 'test(benchmark_optimistic_execution)'
 ```
 
-One local run on an Intel Core i9-13900 (32 logical CPUs), Rust 1.95, using the workspace's
-optimized development/test profile (`opt-level = 1`) produced these timings. Each sample contains
-eight transactions; the runtime is reused, one warmup sample is discarded, and 20 samples are
-measured. These include EVM execution, observation, ordered settlement and bundle merging, but
-exclude provider I/O, trie roots, pool selection and Engine API overhead.
+See the [session-wide performance comparison](benchmarks/session-summary.md) for the effects of
+sender filtering, precompile reuse, independent readers and rolling scheduling.
 
-| Workload | Mode / workers | Median ms | p95 ms |
-| --- | --- | ---: | ---: |
-| Independent senders | Sequential | 0.755 | 0.791 |
-| Independent senders | Shadow / 4 | 1.173 | 1.791 |
-| Independent senders | Parallel / 1 | 1.076 | 1.471 |
-| Independent senders | Parallel / 2 | 0.525 | 0.641 |
-| Independent senders | Parallel / 4 | 0.435 | 0.493 |
-| Same-sender nonce chain | Sequential | 0.753 | 0.765 |
-| Same-sender nonce chain | Shadow / 4 | 1.669 | 1.996 |
-| Same-sender nonce chain | Parallel / 1 | 0.744 | 0.764 |
-| Same-sender nonce chain | Parallel / 2 | 0.742 | 0.757 |
-| Same-sender nonce chain | Parallel / 4 | 0.746 | 0.773 |
-| Stock BN254 pairings | Sequential | 12.675 | 12.936 |
-| Stock BN254 pairings | Shadow / 4 | 19.673 | 20.520 |
-| Stock BN254 pairings | Parallel / 1 | 13.768 | 14.087 |
-| Stock BN254 pairings | Parallel / 2 | 7.268 | 9.069 |
-| Stock BN254 pairings | Parallel / 4 | 5.203 | 5.834 |
+See [benchmark results](benchmarks/independent-reads.md) for the measured setup, complete
+1/2/4/8-worker results, snapshot estimates, base-reader amplification and limitations. Synthetic
+storage measurements include session creation, initial capture, provider opening, dependency
+validation, canonical retries, policy/fee settlement and bundle merging. They do not model MDBX
+I/O or include trie-root construction, pool selection or Engine API overhead.
 
-All independent and pairing transactions reused worker output. Parallel nonce chains dispatched no
-workers. Shadow mode deliberately still dispatches singleton windows: it now compares every nonce
-chain transaction, increasing coverage and runtime. No shadow mismatch occurred.
+The ignored `benchmark_rolling_execution` fixture uses 64-transaction blocks, four times the default
+window size. It compares direct windows and rolling at 1/2/4/8 workers, shadow at four workers, and
+sequential execution. It also covers a slow transaction at each window's head/tail and an explicitly
+synthetic expensive ordered policy. It checks state, receipt roots, gas and policy/refund parity;
+root calculation is measured separately from execution. See
+[rolling benchmark results](benchmarks/rolling.md) for full results, costs and limitations.
 
-A baseline run of the same fixture before sender filtering and stock-precompile compatibility had
-these median timings. The runs are separate local samples and subject to scheduling noise:
+```sh
+mise exec -- cargo nextest run -p alloy-op-evm --features parallel,metrics --run-ignored only --nocapture -E 'test(benchmark_rolling_execution)'
+```
 
-| Workload / mode | Before ms | After ms |
-| --- | ---: | ---: |
-| Nonce chain / sequential | 0.747 | 0.753 |
-| Nonce chain / parallel 1 | 1.091 | 0.744 |
-| Nonce chain / parallel 2 | 0.887 | 0.742 |
-| Nonce chain / parallel 4 | 0.790 | 0.746 |
-| Pairings / sequential | 11.981 | 12.675 |
-| Pairings / parallel 1 | 25.653 | 13.768 |
-| Pairings / parallel 2 | 20.480 | 7.268 |
-| Pairings / parallel 4 | 17.265 | 5.203 |
+End-to-end replay remains a separate acceptance check: replay a fixed representative chain range
+from the same parent-state database in every mode and worker configuration. Compare state/receipt
+roots and refund payloads; record validation/build latency, retry work, policy/finalization time,
+RSS, database calls and state-root time. Include high-contention blocks, unpersisted ancestors and
+cancellation/reorg scenarios. No target-chain database was supplied for this run, so no end-to-end
+speedup is claimed. Parallel execution remains disabled by default.
 
-Previously, nonce descendants consumed the speculative budget and then ran canonically, while
-precompile results were always discarded. The new paths avoid these duplicate executions. The
-pairing measurements use stock maps, without reth's opaque precompile-cache wrappers.
+## Upstream dependency
 
-Synthetic results do not justify enabling parallel mode by default. Before deployment, replay a
-fixed representative chain range from the same parent-state snapshot in each mode and worker
-configuration. Compare state/receipt roots and refund payloads, and record validation/build latency,
-retry work, policy/finalization time, RSS and state-root time. Include high-contention blocks and
-cancellation/reorg scenarios. Default enablement remains a separate decision.
+The reth hooks are in [ethereum-optimism/reth#10](https://github.com/ethereum-optimism/reth/pull/10),
+pinned for integration to `a643e0989ffc0c225dc5925031e5870bcfbb6e0d`, a direct descendant of the
+previous `0fbe428518594611bdd3fdd822eb5968823c8e66` pin. This development pin must be replaced by
+the reviewed merge revision before landing, following `rust/UPDATING-RETH.md`.
+
+The 11-file upstream delta changes only source/configuration plumbing, immutable cache access,
+parent retention and checkpoint opt-in. It preserves the fork's existing patches and shared crate
+versions. Slot-preimage APIs/layout and all 22 non-frozen mirrored symbols are unchanged; their
+source files were compared across these revisions before advancing mirror tags. Lockfile changes
+are limited to the reth revision and the explicitly added workspace/dev dependencies; both SP1
+workspace lockfiles still resolve without updates.
