@@ -3406,6 +3406,7 @@
               "op-stack/protocol/differences",
               "op-stack/protocol/components",
               "op-stack/protocol/derivation-pipeline",
+              "op-stack/protocol/smart-contracts",
               "op-stack/protocol/blockspace-charter",
               "op-stack/protocol/outages",
               "op-stack/research/block-time-research",
@@ -3534,8 +3535,7 @@
                       "op-stack/components/cannon",
                       "op-stack/components/kona-client",
                       "op-stack/components/kona-host",
-                      "op-stack/components/op-contracts",
-                      "op-stack/protocol/smart-contracts"
+                      "op-stack/components/op-contracts"
                     ]
                   },
                   {
