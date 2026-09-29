@@ -116,10 +116,10 @@ Follow these [docs](https://www.mintlify.com/docs/installation) for local change
 
 Three deterministic checks apply to every change that touches
 `docs/public-docs/`. The first two guard `docs.json` (navigation + redirects);
-the third guards the generated component reference. They are enforced
-by a [Mintlify automation](https://www.mintlify.com/docs/automations) that runs
-on content updates and proposes review-gated fixes, and they should be run
-locally before pushing (see below):
+the third guards the generated component reference. They run in CI on every
+docs pull request (the CI job is tracked in
+[ethereum-optimism/solutions#1518](https://github.com/ethereum-optimism/solutions/issues/1518);
+until it lands, running them locally before pushing is the gate):
 
 - **Nav validator** (`scripts/lint/validate-nav.ts`): every `.mdx` on disk must
   be reachable from `docs.json` navigation or explicitly allowlisted in

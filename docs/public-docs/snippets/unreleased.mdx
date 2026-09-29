@@ -8,8 +8,8 @@
   tags, so prose that lands with a component PR is live before the binary is.
   This callout marks such prose. It is temporary: when it names a version,
   `pnpm lint:reference` fails once that tag exists in git; when it does not,
-  the weekly docs automation compares it with the component's latest release
-  notes and proposes its removal once the change has shipped.
+  the weekly CI sweep lists it for review once it is thirty days old, and a
+  maintainer removes it after confirming the change has shipped.
 
   Do not use this on generated reference pages (anything under reference/):
   those regenerate from the published artifact at the next finalized tag and

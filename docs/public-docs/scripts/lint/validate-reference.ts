@@ -10,8 +10,8 @@
 //       covered component and, when it names a version, a release that does
 //       not exist yet. Once the git tag `<component>/<version>` exists, the
 //       callout is stale and must be removed (the prose it guards is now
-//       current). Callouts without a version are swept by the weekly docs
-//       automation against release notes instead. Callouts the lint cannot
+//       current). Callouts without a version are listed by the weekly CI
+//       sweep for a maintainer to remove. Callouts the lint cannot
 //       parse (expression attributes, a missing component) are errors, so a
 //       callout can never be silently unlinted.
 //   R3. Every `tag` recorded in a generator manifest (scripts/*/manifest.json)
@@ -193,7 +193,7 @@ for (const rel of mdxFiles) {
       );
       continue;
     }
-    if (!version) continue; // no version: the weekly automation sweeps it against release notes
+    if (!version) continue; // no version: the weekly CI sweep lists it for review
     if (!SEMVER_RE.test(version)) {
       errors.push(
         `${rel}: <Unreleased component="${component}" version="${version}"> — version must be a full semver with a leading v (e.g. v2.5.0)`,

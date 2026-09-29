@@ -205,12 +205,14 @@ pages render one table (name, type, labels, description).
   component to the generator instead.
 </Note>
 
-### Regeneration and automations
+### Regeneration and automation
 
-Nobody runs the generator by hand.
+Nobody runs the generator by hand, and nothing depends on an agent: every
+job below is a deterministic script in monorepo CI, and its output is
+verifiable by the generator's own `--check`.
 
-*   **On every finalized release tag**, a monorepo CI job runs the generator
-    against that release's artifact and opens a docs pull request with the
+*   **On every finalized release tag**, a CI job runs the generator against
+    that release's artifact and opens a docs pull request with the
     regenerated version, its manifest, and any redirects. The docs team
     reviews and merges it. A tag that has been public for a week with no
     such pull request is a pipeline bug; file it.
@@ -218,16 +220,17 @@ Nobody runs the generator by hand.
     same job regenerates that component's `develop` version and merges it
     without review, since it carries no editorial content and is not
     indexed.
-*   **Mintlify automations** cover the work that takes judgment rather than
-    a build. On content updates they run the docs lints and propose fixes.
-    When a component pull request merges, they read the change and propose
-    the matching edits to the hand-written guides, wrapped in the
-    `<Unreleased>` callout. Weekly, they compare each component's newest
-    finalized tag with the manifest and each `<Unreleased>` callout with the
-    component's latest release notes, then open a pull request removing
-    callouts whose change has shipped and an issue for any regeneration
-    that did not happen. Automation prompts are committed beside the
-    generator and reviewed like code.
+*   **On every docs pull request**, CI runs the docs lints: navigation,
+    redirects, reference, and link policy.
+*   **Weekly**, a CI job regenerates the [release history](/releases) pages
+    from GitHub Releases, compares each component's newest finalized tag
+    with the generator manifest, and lists every `<Unreleased>` callout
+    that is more than thirty days old, opening one issue for anything that
+    needs a maintainer: a regeneration that did not happen, or a callout
+    whose change has probably shipped.
+
+Each job lands together with the generator it serves; until a job exists,
+its step is done by hand and the convention still applies.
 
 ### Documenting unreleased changes
 
@@ -256,12 +259,11 @@ same pull request, as follows:
 
     The callout is temporary. When it names a version, `pnpm lint:reference`
     fails once that tag exists, so it must be removed when the release
-    ships. When it does not, the weekly automation compares it with the
-    component's latest release notes and proposes removing it once the
-    change has shipped, and a reviewer confirms. The lint also rejects a
-    callout that names a component outside the covered list, or a version
-    that is not a full `vX.Y.Z`, since such a callout could never become
-    stale.
+    ships. When it does not, the weekly CI sweep lists it once it is thirty
+    days old, and a maintainer removes it after confirming the change has
+    shipped. The lint also rejects a callout that names a component outside
+    the covered list, or a version that is not a full `vX.Y.Z`, since such a
+    callout could never become stale.
 *   **Removing a feature:** add the callout, or set `deprecated: true` in the
     page's frontmatter, in the same pull request. Delete the page only after
     the release ships, with a redirect.
