@@ -24,7 +24,7 @@ func TestSuperRootSource_SyncStatus(t *testing.T) {
 				}, nil
 			},
 		}
-		source := NewSuperRootProposalSource(testlog.Logger(t, log.LvlInfo), client)
+		source := NewSuperRootProposalSource(testlog.Logger(t, log.LevelInfo), client)
 		status, err := source.SyncStatus(context.Background())
 		require.NoError(t, err)
 		require.Equal(t, SyncStatus{
@@ -53,7 +53,7 @@ func TestSuperRootSource_SyncStatus(t *testing.T) {
 				}, nil
 			},
 		}
-		source := NewSuperRootProposalSource(testlog.Logger(t, log.LvlInfo), client1, client2)
+		source := NewSuperRootProposalSource(testlog.Logger(t, log.LevelInfo), client1, client2)
 		status, err := source.SyncStatus(context.Background())
 		require.NoError(t, err)
 		require.Equal(t, SyncStatus{
@@ -74,7 +74,7 @@ func TestSuperRootSource_SyncStatus(t *testing.T) {
 				}, nil
 			},
 		}
-		logger, logs := testlog.CaptureLogger(t, log.LvlInfo)
+		logger, logs := testlog.CaptureLogger(t, log.LevelInfo)
 		source := NewSuperRootProposalSource(logger, client1, client2)
 		status, err := source.SyncStatus(context.Background())
 		require.NoError(t, err)
@@ -127,7 +127,7 @@ func TestSuperRootSource_ProposalAtSequenceNum(t *testing.T) {
 				timestamp: response,
 			},
 		}
-		source := NewSuperRootProposalSource(testlog.Logger(t, log.LvlInfo), client)
+		source := NewSuperRootProposalSource(testlog.Logger(t, log.LevelInfo), client)
 		actual, err := source.ProposalAtSequenceNum(context.Background(), timestamp)
 		require.NoError(t, err)
 		require.Equal(t, expected, actual)
@@ -138,7 +138,7 @@ func TestSuperRootSource_ProposalAtSequenceNum(t *testing.T) {
 		client := &mockSuperNodeClient{
 			err: expectedErr,
 		}
-		source := NewSuperRootProposalSource(testlog.Logger(t, log.LvlInfo), client)
+		source := NewSuperRootProposalSource(testlog.Logger(t, log.LevelInfo), client)
 		_, err := source.ProposalAtSequenceNum(context.Background(), 294)
 		require.ErrorIs(t, err, expectedErr)
 	})
@@ -155,7 +155,7 @@ func TestSuperRootSource_ProposalAtSequenceNum(t *testing.T) {
 				},
 			},
 		}
-		source := NewSuperRootProposalSource(testlog.Logger(t, log.LvlInfo), client)
+		source := NewSuperRootProposalSource(testlog.Logger(t, log.LevelInfo), client)
 		_, err := source.ProposalAtSequenceNum(context.Background(), timestamp)
 		require.ErrorIs(t, err, ErrNoSuperRootData)
 	})
@@ -167,7 +167,7 @@ func TestSuperRootSource_ProposalAtSequenceNum(t *testing.T) {
 			},
 		}
 		client2 := &mockSuperNodeClient{}
-		source := NewSuperRootProposalSource(testlog.Logger(t, log.LvlInfo), client1, client2)
+		source := NewSuperRootProposalSource(testlog.Logger(t, log.LevelInfo), client1, client2)
 		actual, err := source.ProposalAtSequenceNum(context.Background(), timestamp)
 		require.NoError(t, err)
 		require.Equal(t, expected, actual)
@@ -184,7 +184,7 @@ func TestSuperRootSource_ProposalAtSequenceNum(t *testing.T) {
 				timestamp: response,
 			},
 		}
-		logger, logs := testlog.CaptureLogger(t, log.LvlInfo)
+		logger, logs := testlog.CaptureLogger(t, log.LevelInfo)
 		source := NewSuperRootProposalSource(logger, client1, client2)
 		actual, err := source.ProposalAtSequenceNum(context.Background(), timestamp)
 		require.NoError(t, err)
@@ -208,7 +208,7 @@ func TestSuperRootSource_ProposalAtSequenceNum(t *testing.T) {
 				timestamp: response,
 			},
 		}
-		logger, logs := testlog.CaptureLogger(t, log.LvlInfo)
+		logger, logs := testlog.CaptureLogger(t, log.LevelInfo)
 		source := NewSuperRootProposalSource(logger, client1, client2)
 		actual, err := source.ProposalAtSequenceNum(context.Background(), timestamp)
 		require.NoError(t, err)
@@ -225,7 +225,7 @@ func TestSuperRootSource_ProposalAtSequenceNum(t *testing.T) {
 		client2 := &mockSuperNodeClient{
 			err: errors.New("test error2"),
 		}
-		logger, logs := testlog.CaptureLogger(t, log.LvlInfo)
+		logger, logs := testlog.CaptureLogger(t, log.LevelInfo)
 		source := NewSuperRootProposalSource(logger, client1, client2)
 		_, err := source.ProposalAtSequenceNum(context.Background(), timestamp)
 		require.ErrorIs(t, err, client1.err)

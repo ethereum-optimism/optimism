@@ -73,7 +73,7 @@ func TestBondClaimScheduler_Schedule(t *testing.T) {
 }
 
 func setupTestBondClaimScheduler(t *testing.T) (*BondClaimScheduler, *stubMetrics, *stubClaimer) {
-	logger := testlog.Logger(t, log.LvlInfo)
+	logger := testlog.Logger(t, log.LevelInfo)
 	metrics := &stubMetrics{}
 	claimer := &stubClaimer{}
 	scheduler := NewBondClaimScheduler(logger, metrics, claimer)

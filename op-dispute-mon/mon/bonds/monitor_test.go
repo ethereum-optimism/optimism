@@ -316,7 +316,7 @@ func setupBondMetricsTest(t *testing.T) (*Bonds, *stubBondMetrics, *testlog.Capt
 }
 
 func setupBondMetricsTestWithHonestActors(t *testing.T, honestActors monTypes.HonestActors) (*Bonds, *stubBondMetrics, *testlog.CapturingHandler) {
-	logger, logs := testlog.CaptureLogger(t, log.LvlInfo)
+	logger, logs := testlog.CaptureLogger(t, log.LevelInfo)
 	metricer := &stubBondMetrics{
 		credits:  make(map[metrics.CreditExpectation]int),
 		recorded: make(map[common.Address]Collateral),

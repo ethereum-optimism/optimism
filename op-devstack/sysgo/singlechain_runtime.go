@@ -364,7 +364,7 @@ func startMinimalProposer(
 			ListenAddr: "127.0.0.1",
 		},
 		LogConfig: logcli.CLIConfig{
-			Level:  log.LvlInfo,
+			Level:  log.LevelInfo,
 			Format: log.FormatText,
 		},
 		MetricsConfig:                opmetrics.CLIConfig{},

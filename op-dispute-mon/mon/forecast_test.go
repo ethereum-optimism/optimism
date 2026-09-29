@@ -432,7 +432,7 @@ func TestForecastExcludesZKFromLatestValidL2Block(t *testing.T) {
 }
 
 func setupForecastTest(t *testing.T) (*Forecast, *mockForecastMetrics, *testlog.CapturingHandler) {
-	logger, capturedLogs := testlog.CaptureLogger(t, log.LvlDebug)
+	logger, capturedLogs := testlog.CaptureLogger(t, log.LevelDebug)
 	m := &mockForecastMetrics{
 		gameAgreement: zeroGameAgreement(),
 	}

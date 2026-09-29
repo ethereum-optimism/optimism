@@ -83,7 +83,7 @@ func envelope(payload *eth.ExecutionPayload) *eth.ExecutionPayloadEnvelope {
 }
 
 func TestPayloadsQueue(t *testing.T) {
-	pq := NewPayloadsQueue(testlog.Logger(t, log.LvlInfo), payloadMemFixedCost*3, payloadMemSize)
+	pq := NewPayloadsQueue(testlog.Logger(t, log.LevelInfo), payloadMemFixedCost*3, payloadMemSize)
 	require.Equal(t, 0, pq.Len())
 	require.Nil(t, pq.Peek())
 	require.Nil(t, pq.Pop())
@@ -148,7 +148,7 @@ func TestPayloadsQueue(t *testing.T) {
 }
 
 func TestPayloadsQueue_ReaddAfterPopAllowed(t *testing.T) {
-	pq := NewPayloadsQueue(testlog.Logger(t, log.LvlInfo), payloadMemFixedCost*10, payloadMemSize)
+	pq := NewPayloadsQueue(testlog.Logger(t, log.LevelInfo), payloadMemFixedCost*10, payloadMemSize)
 	b := envelope(&eth.ExecutionPayload{BlockNumber: 4, BlockHash: common.Hash{4}})
 	require.NoError(t, pq.Push(b))
 	require.Equal(t, b, pq.Pop())
@@ -157,7 +157,7 @@ func TestPayloadsQueue_ReaddAfterPopAllowed(t *testing.T) {
 }
 
 func TestDropInapplicable_PopsMultipleInapplicable(t *testing.T) {
-	logger := testlog.Logger(t, log.LvlInfo)
+	logger := testlog.Logger(t, log.LevelInfo)
 	pq := NewPayloadsQueue(logger, payloadMemFixedCost*10, payloadMemSize)
 
 	// queue: processed (=unsafe head), old<=safe, old<=unsafe, then applicable next
@@ -190,7 +190,7 @@ func mkRef(number uint64, hash common.Hash) eth.L2BlockRef {
 }
 
 func TestDropInapplicable_RemovesAlreadyProcessed(t *testing.T) {
-	logger := testlog.Logger(t, log.LvlInfo)
+	logger := testlog.Logger(t, log.LevelInfo)
 	pq := NewPayloadsQueue(logger, payloadMemFixedCost*10, payloadMemSize)
 
 	headHash := common.Hash{0xaa}
@@ -209,7 +209,7 @@ func TestDropInapplicable_RemovesAlreadyProcessed(t *testing.T) {
 }
 
 func TestDropInapplicable_DropOlderThanSafe(t *testing.T) {
-	logger := testlog.Logger(t, log.LvlInfo)
+	logger := testlog.Logger(t, log.LevelInfo)
 	pq := NewPayloadsQueue(logger, payloadMemFixedCost*10, payloadMemSize)
 
 	payload := envelope(&eth.ExecutionPayload{BlockNumber: eth.Uint64Quantity(8), BlockHash: common.Hash{0x01}})
@@ -226,7 +226,7 @@ func TestDropInapplicable_DropOlderThanSafe(t *testing.T) {
 }
 
 func TestDropInapplicable_DropOlderThanUnsafe(t *testing.T) {
-	logger := testlog.Logger(t, log.LvlInfo)
+	logger := testlog.Logger(t, log.LevelInfo)
 	pq := NewPayloadsQueue(logger, payloadMemFixedCost*10, payloadMemSize)
 
 	// Block is newer than safe head but not newer than unsafe head
@@ -244,7 +244,7 @@ func TestDropInapplicable_DropOlderThanUnsafe(t *testing.T) {
 }
 
 func TestDropInapplicable_DropNextHeightMismatch(t *testing.T) {
-	logger := testlog.Logger(t, log.LvlInfo)
+	logger := testlog.Logger(t, log.LevelInfo)
 	pq := NewPayloadsQueue(logger, payloadMemFixedCost*10, payloadMemSize)
 
 	headHash := common.Hash{0xaa}
@@ -263,7 +263,7 @@ func TestDropInapplicable_DropNextHeightMismatch(t *testing.T) {
 }
 
 func TestDropInapplicable_NonAdjacentMismatchReturns(t *testing.T) {
-	logger := testlog.Logger(t, log.LvlInfo)
+	logger := testlog.Logger(t, log.LevelInfo)
 	pq := NewPayloadsQueue(logger, payloadMemFixedCost*10, payloadMemSize)
 
 	headHash := common.Hash{0xaa}
@@ -283,7 +283,7 @@ func TestDropInapplicable_NonAdjacentMismatchReturns(t *testing.T) {
 }
 
 func TestDropInapplicable_ApplicablePayloadKept(t *testing.T) {
-	logger := testlog.Logger(t, log.LvlInfo)
+	logger := testlog.Logger(t, log.LevelInfo)
 	pq := NewPayloadsQueue(logger, payloadMemFixedCost*10, payloadMemSize)
 
 	headHash := common.Hash{0xaa}
@@ -304,7 +304,7 @@ func TestDropInapplicable_ApplicablePayloadKept(t *testing.T) {
 
 // TestPayloadsQueue_Pop_SameElementFullQueue tests that we correctly Pop the same element, if it is to be popped, when the payloads queue is full.
 func TestPayloadsQueue_Pop_SameElementFullQueue(t *testing.T) {
-	logger := testlog.Logger(t, log.LvlInfo)
+	logger := testlog.Logger(t, log.LevelInfo)
 
 	// pq is PayloadsQueue with MaxSize = payloadMemFixedCost, so space for a single payload with no txs
 	pq := NewPayloadsQueue(logger, payloadMemFixedCost, payloadMemSize)

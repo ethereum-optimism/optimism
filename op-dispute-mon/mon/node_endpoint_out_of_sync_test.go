@@ -19,7 +19,7 @@ func TestCheckNodeEndpointOutOfSync_NoOutOfSync(t *testing.T) {
 	}
 
 	metrics := &stubNodeEndpointOutOfSyncMetrics{}
-	logger := testlog.Logger(t, log.LvlDebug)
+	logger := testlog.Logger(t, log.LevelDebug)
 	monitor := NewNodeEndpointOutOfSyncMonitor(logger, metrics)
 
 	monitor.CheckNodeEndpointOutOfSync(games)
@@ -40,7 +40,7 @@ func TestCheckNodeEndpointOutOfSync_SingleGameOutOfSync(t *testing.T) {
 	}
 
 	metrics := &stubNodeEndpointOutOfSyncMetrics{}
-	logger := testlog.Logger(t, log.LvlDebug)
+	logger := testlog.Logger(t, log.LevelDebug)
 	monitor := NewNodeEndpointOutOfSyncMonitor(logger, metrics)
 
 	monitor.CheckNodeEndpointOutOfSync(games)
@@ -65,7 +65,7 @@ func TestCheckNodeEndpointOutOfSync_MultipleGamesOutOfSync(t *testing.T) {
 	}
 
 	metrics := &stubNodeEndpointOutOfSyncMetrics{}
-	logger := testlog.Logger(t, log.LvlDebug)
+	logger := testlog.Logger(t, log.LevelDebug)
 	monitor := NewNodeEndpointOutOfSyncMonitor(logger, metrics)
 
 	monitor.CheckNodeEndpointOutOfSync(games)
@@ -95,7 +95,7 @@ func TestCheckNodeEndpointOutOfSync_MixedGamesWithAndWithoutOutOfSync(t *testing
 	}
 
 	metrics := &stubNodeEndpointOutOfSyncMetrics{}
-	logger := testlog.Logger(t, log.LvlDebug)
+	logger := testlog.Logger(t, log.LevelDebug)
 	monitor := NewNodeEndpointOutOfSyncMonitor(logger, metrics)
 
 	monitor.CheckNodeEndpointOutOfSync(games)
@@ -108,7 +108,7 @@ func TestCheckNodeEndpointOutOfSync_EmptyGamesList(t *testing.T) {
 	games := []*types.CommonGameData{}
 
 	metrics := &stubNodeEndpointOutOfSyncMetrics{}
-	logger := testlog.Logger(t, log.LvlDebug)
+	logger := testlog.Logger(t, log.LevelDebug)
 	monitor := NewNodeEndpointOutOfSyncMonitor(logger, metrics)
 
 	monitor.CheckNodeEndpointOutOfSync(games)

@@ -39,7 +39,7 @@ func TestCheckDifferentRoots(t *testing.T) {
 		},
 	}
 	metrics := &stubDifferentOutputRootMetrics{}
-	logger, capturedLogs := testlog.CaptureLogger(t, log.LvlDebug)
+	logger, capturedLogs := testlog.CaptureLogger(t, log.LevelDebug)
 	monitor := NewDifferentRootMonitor(logger, metrics)
 	monitor.CheckDifferentRoots(games)
 	require.Equal(t, 2, metrics.recordedCount)
@@ -76,7 +76,7 @@ func TestCheckDifferentRoots_NoDisagreements(t *testing.T) {
 		},
 	}
 	metrics := &stubDifferentOutputRootMetrics{}
-	logger, capturedLogs := testlog.CaptureLogger(t, log.LvlDebug)
+	logger, capturedLogs := testlog.CaptureLogger(t, log.LevelDebug)
 	monitor := NewDifferentRootMonitor(logger, metrics)
 	monitor.CheckDifferentRoots(games)
 	require.Equal(t, 0, metrics.recordedCount)
@@ -91,7 +91,7 @@ func TestCheckDifferentRoots_NoDisagreements(t *testing.T) {
 func TestCheckDifferentRoots_EmptyGamesList(t *testing.T) {
 	games := []*types.CommonGameData{}
 	metrics := &stubDifferentOutputRootMetrics{}
-	logger, capturedLogs := testlog.CaptureLogger(t, log.LvlDebug)
+	logger, capturedLogs := testlog.CaptureLogger(t, log.LevelDebug)
 	monitor := NewDifferentRootMonitor(logger, metrics)
 	monitor.CheckDifferentRoots(games)
 	require.Equal(t, 0, metrics.recordedCount)
@@ -122,7 +122,7 @@ func TestCheckDifferentRoots_AllGamesHaveDisagreements(t *testing.T) {
 		},
 	}
 	metrics := &stubDifferentOutputRootMetrics{}
-	logger, capturedLogs := testlog.CaptureLogger(t, log.LvlDebug)
+	logger, capturedLogs := testlog.CaptureLogger(t, log.LevelDebug)
 	monitor := NewDifferentRootMonitor(logger, metrics)
 	monitor.CheckDifferentRoots(games)
 	require.Equal(t, 3, metrics.recordedCount)

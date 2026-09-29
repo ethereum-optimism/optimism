@@ -34,7 +34,7 @@ func TestFjordNetworkUpgradeTransactions(gt *testing.T) {
 	t := helpers.NewDefaultTesting(gt)
 	dp := e2eutils.MakeDeployParams(t, helpers.DefaultRollupTestParams())
 
-	log := testlog.Logger(t, log.LvlDebug)
+	log := testlog.Logger(t, log.LevelDebug)
 
 	// Activate all forks at genesis, and schedule Fjord the block after
 	fjordOffset := uint64(2)

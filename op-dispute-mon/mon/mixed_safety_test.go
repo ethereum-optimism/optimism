@@ -20,7 +20,7 @@ func TestCheckMixedSafety(t *testing.T) {
 		{NodeEndpointSafeCount: 0, NodeEndpointUnsafeCount: 0}, // No safety checks
 	}
 	metrics := &stubMixedSafetyMetrics{}
-	logger, capturedLogs := testlog.CaptureLogger(t, log.LvlDebug)
+	logger, capturedLogs := testlog.CaptureLogger(t, log.LevelDebug)
 	monitor := NewMixedSafetyMonitor(logger, metrics)
 	monitor.CheckMixedSafety(games)
 	require.Equal(t, 2, metrics.recordedCount)

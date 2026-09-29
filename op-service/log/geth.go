@@ -39,14 +39,6 @@ const (
 	LevelCrit  = log.LevelCrit
 )
 
-// Legacy spellings of the log levels, identical in value to the Level*
-// constants above. Prefer the Level* names in new code.
-const (
-	LvlTrace = log.LvlTrace
-	LvlDebug = log.LvlDebug
-	LvlInfo  = log.LvlInfo
-)
-
 // DiscardHandler returns a handler that drops every record.
 func DiscardHandler() slog.Handler { return log.DiscardHandler() }
 

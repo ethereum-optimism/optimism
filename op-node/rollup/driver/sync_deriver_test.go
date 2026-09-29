@@ -21,7 +21,7 @@ import (
 // without reporting one.
 func TestEngineConfirmedResetTruncatesToLocalSafe(t *testing.T) {
 	ctx := context.Background()
-	logger := testlog.Logger(t, log.LvlInfo)
+	logger := testlog.Logger(t, log.LevelInfo)
 
 	db, err := safedb.NewSafeDB(logger, t.TempDir())
 	require.NoError(t, err)
@@ -70,7 +70,7 @@ func TestEngineConfirmedResetTruncatesToLocalSafe(t *testing.T) {
 // removes the entries that derivation re-derives.
 func TestEngineConfirmedResetTruncatesAboveLocalSafe(t *testing.T) {
 	ctx := context.Background()
-	logger := testlog.Logger(t, log.LvlInfo)
+	logger := testlog.Logger(t, log.LevelInfo)
 
 	db, err := safedb.NewSafeDB(logger, t.TempDir())
 	require.NoError(t, err)

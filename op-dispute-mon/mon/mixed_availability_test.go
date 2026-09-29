@@ -20,7 +20,7 @@ func TestCheckMixedAvailability(t *testing.T) {
 		{NodeEndpointTotalCount: 2, NodeEndpointNotFoundCount: 0, NodeEndpointErrorCount: 2},                                                                    // All errors
 	}
 	metrics := &stubMixedAvailabilityMetrics{}
-	logger, capturedLogs := testlog.CaptureLogger(t, log.LvlDebug)
+	logger, capturedLogs := testlog.CaptureLogger(t, log.LevelDebug)
 	monitor := NewMixedAvailability(logger, metrics)
 	monitor.CheckMixedAvailability(games)
 	require.Equal(t, 2, metrics.recordedCount)

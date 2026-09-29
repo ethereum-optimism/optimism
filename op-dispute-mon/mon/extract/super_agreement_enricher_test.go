@@ -425,7 +425,7 @@ func TestDetector_CheckSuperRootAgreement(t *testing.T) {
 }
 
 func setupSuperValidatorTest(t *testing.T) (*SuperAgreementEnricher, *stubSuperRootProvider, *stubOutputMetrics) {
-	logger := testlog.Logger(t, log.LvlInfo)
+	logger := testlog.Logger(t, log.LevelInfo)
 	client := &stubSuperRootProvider{derivedFromL1BlockNum: 0, superRoot: mockRootClaim}
 	metrics := &stubOutputMetrics{}
 	validator := NewSuperAgreementEnricher(logger, metrics, []SuperRootProvider{client}, clock.NewDeterministicClock(time.Unix(9824924, 499)))
@@ -433,7 +433,7 @@ func setupSuperValidatorTest(t *testing.T) (*SuperAgreementEnricher, *stubSuperR
 }
 
 func setupMultiSuperRootTest(t *testing.T, numNodes int) (*SuperAgreementEnricher, []*stubSuperRootProvider, *stubOutputMetrics) {
-	logger := testlog.Logger(t, log.LvlInfo)
+	logger := testlog.Logger(t, log.LevelInfo)
 	clients := make([]*stubSuperRootProvider, numNodes)
 	providers := make([]SuperRootProvider, numNodes)
 	for i := range clients {
@@ -615,7 +615,7 @@ func TestSuperRootEndpointTracking(t *testing.T) {
 	})
 
 	t.Run("AllFieldsZeroWhenNoEndpoints", func(t *testing.T) {
-		logger := testlog.Logger(t, log.LvlInfo)
+		logger := testlog.Logger(t, log.LevelInfo)
 		validator := NewSuperAgreementEnricher(logger, &stubOutputMetrics{}, []SuperRootProvider{}, clock.NewDeterministicClock(time.Unix(9824924, 499)))
 
 		game := &types.CommonGameData{

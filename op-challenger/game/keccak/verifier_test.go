@@ -97,7 +97,7 @@ func TestVerify(t *testing.T) {
 }
 
 func TestCacheValidRoots(t *testing.T) {
-	logger := testlog.Logger(t, log.LvlInfo)
+	logger := testlog.Logger(t, log.LevelInfo)
 	inputs := validInputs(t, 1)
 	fetcher := &stubFetcher{
 		inputs: inputs,

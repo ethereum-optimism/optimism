@@ -66,63 +66,63 @@ func TestOpProgramFillHostCommand(t *testing.T) {
 	}
 
 	t.Run("NoExtras", func(t *testing.T) {
-		pairs := oracleCommand(t, log.LvlInfo, func(c *Config, _ *utils.LocalGameInputs) {})
+		pairs := oracleCommand(t, log.LevelInfo, func(c *Config, _ *utils.LocalGameInputs) {})
 		require.NotContains(t, pairs, "--network")
 		require.NotContains(t, pairs, "--rollup.config")
 		require.NotContains(t, pairs, "--l2.genesis")
 	})
 
 	t.Run("WithNetwork", func(t *testing.T) {
-		pairs := oracleCommand(t, log.LvlInfo, func(c *Config, _ *utils.LocalGameInputs) {
+		pairs := oracleCommand(t, log.LevelInfo, func(c *Config, _ *utils.LocalGameInputs) {
 			c.Networks = []string{"op-test"}
 		})
 		require.Equal(t, "op-test", pairs["--network"])
 	})
 
 	t.Run("WithMultipleNetworks", func(t *testing.T) {
-		pairs := oracleCommand(t, log.LvlInfo, func(c *Config, _ *utils.LocalGameInputs) {
+		pairs := oracleCommand(t, log.LevelInfo, func(c *Config, _ *utils.LocalGameInputs) {
 			c.Networks = []string{"op-test", "op-other"}
 		})
 		require.Equal(t, "op-test,op-other", pairs["--network"])
 	})
 
 	t.Run("WithL2Custom", func(t *testing.T) {
-		pairs := oracleCommand(t, log.LvlInfo, func(c *Config, _ *utils.LocalGameInputs) {
+		pairs := oracleCommand(t, log.LevelInfo, func(c *Config, _ *utils.LocalGameInputs) {
 			c.L2Custom = true
 		})
 		require.Equal(t, "true", pairs["--l2.custom"])
 	})
 
 	t.Run("WithRollupConfigPath", func(t *testing.T) {
-		pairs := oracleCommand(t, log.LvlInfo, func(c *Config, _ *utils.LocalGameInputs) {
+		pairs := oracleCommand(t, log.LevelInfo, func(c *Config, _ *utils.LocalGameInputs) {
 			c.RollupConfigPaths = []string{"rollup.config.json"}
 		})
 		require.Equal(t, "rollup.config.json", pairs["--rollup.config"])
 	})
 
 	t.Run("WithMultipleRollupConfigPaths", func(t *testing.T) {
-		pairs := oracleCommand(t, log.LvlInfo, func(c *Config, _ *utils.LocalGameInputs) {
+		pairs := oracleCommand(t, log.LevelInfo, func(c *Config, _ *utils.LocalGameInputs) {
 			c.RollupConfigPaths = []string{"rollup.config.json", "rollup2.json"}
 		})
 		require.Equal(t, "rollup.config.json,rollup2.json", pairs["--rollup.config"])
 	})
 
 	t.Run("WithL2GenesisPath", func(t *testing.T) {
-		pairs := oracleCommand(t, log.LvlInfo, func(c *Config, _ *utils.LocalGameInputs) {
+		pairs := oracleCommand(t, log.LevelInfo, func(c *Config, _ *utils.LocalGameInputs) {
 			c.L2GenesisPaths = []string{"genesis.json"}
 		})
 		require.Equal(t, "genesis.json", pairs["--l2.genesis"])
 	})
 
 	t.Run("WithMultipleL2GenesisPaths", func(t *testing.T) {
-		pairs := oracleCommand(t, log.LvlInfo, func(c *Config, _ *utils.LocalGameInputs) {
+		pairs := oracleCommand(t, log.LevelInfo, func(c *Config, _ *utils.LocalGameInputs) {
 			c.L2GenesisPaths = []string{"genesis.json", "genesis2.json"}
 		})
 		require.Equal(t, "genesis.json,genesis2.json", pairs["--l2.genesis"])
 	})
 
 	t.Run("WithAllExtras", func(t *testing.T) {
-		pairs := oracleCommand(t, log.LvlInfo, func(c *Config, _ *utils.LocalGameInputs) {
+		pairs := oracleCommand(t, log.LevelInfo, func(c *Config, _ *utils.LocalGameInputs) {
 			c.Networks = []string{"op-test"}
 			c.RollupConfigPaths = []string{"rollup.config.json"}
 			c.L2GenesisPaths = []string{"genesis.json"}
@@ -133,7 +133,7 @@ func TestOpProgramFillHostCommand(t *testing.T) {
 	})
 
 	t.Run("WithoutL2Head", func(t *testing.T) {
-		pairs := oracleCommand(t, log.LvlInfo, func(_ *Config, inputs *utils.LocalGameInputs) {
+		pairs := oracleCommand(t, log.LevelInfo, func(_ *Config, inputs *utils.LocalGameInputs) {
 			inputs.L2Head = common.Hash{}
 		})
 		require.NotContains(t, pairs, "--l2.head")
@@ -141,14 +141,14 @@ func TestOpProgramFillHostCommand(t *testing.T) {
 
 	t.Run("WithL2Head", func(t *testing.T) {
 		val := common.Hash{0xab}
-		pairs := oracleCommand(t, log.LvlInfo, func(_ *Config, inputs *utils.LocalGameInputs) {
+		pairs := oracleCommand(t, log.LevelInfo, func(_ *Config, inputs *utils.LocalGameInputs) {
 			inputs.L2Head = val
 		})
 		require.Equal(t, val.Hex(), pairs["--l2.head"])
 	})
 
 	t.Run("WithoutL2OutputRoot", func(t *testing.T) {
-		pairs := oracleCommand(t, log.LvlInfo, func(_ *Config, inputs *utils.LocalGameInputs) {
+		pairs := oracleCommand(t, log.LevelInfo, func(_ *Config, inputs *utils.LocalGameInputs) {
 			inputs.L2OutputRoot = common.Hash{}
 		})
 		require.NotContains(t, pairs, "--l2.outputroot")
@@ -156,21 +156,21 @@ func TestOpProgramFillHostCommand(t *testing.T) {
 
 	t.Run("WithL2OutputRoot", func(t *testing.T) {
 		val := common.Hash{0xab}
-		pairs := oracleCommand(t, log.LvlInfo, func(_ *Config, inputs *utils.LocalGameInputs) {
+		pairs := oracleCommand(t, log.LevelInfo, func(_ *Config, inputs *utils.LocalGameInputs) {
 			inputs.L2OutputRoot = val
 		})
 		require.Equal(t, val.Hex(), pairs["--l2.outputroot"])
 	})
 
 	t.Run("NilAgreedPrestate", func(t *testing.T) {
-		pairs := oracleCommand(t, log.LvlInfo, func(_ *Config, inputs *utils.LocalGameInputs) {
+		pairs := oracleCommand(t, log.LevelInfo, func(_ *Config, inputs *utils.LocalGameInputs) {
 			inputs.AgreedPreState = nil
 		})
 		require.NotContains(t, pairs, "--l2.agreed-prestate")
 	})
 
 	t.Run("EmptyAgreedPrestate", func(t *testing.T) {
-		pairs := oracleCommand(t, log.LvlInfo, func(_ *Config, inputs *utils.LocalGameInputs) {
+		pairs := oracleCommand(t, log.LevelInfo, func(_ *Config, inputs *utils.LocalGameInputs) {
 			inputs.AgreedPreState = []byte{}
 		})
 		require.NotContains(t, pairs, "--l2.agreed-prestate")
@@ -178,14 +178,14 @@ func TestOpProgramFillHostCommand(t *testing.T) {
 
 	t.Run("WithAgreedPrestate", func(t *testing.T) {
 		val := []byte{1, 6, 53, 42}
-		pairs := oracleCommand(t, log.LvlInfo, func(_ *Config, inputs *utils.LocalGameInputs) {
+		pairs := oracleCommand(t, log.LevelInfo, func(_ *Config, inputs *utils.LocalGameInputs) {
 			inputs.AgreedPreState = val
 		})
 		require.Equal(t, common.Bytes2Hex(val), pairs["--l2.agreed-prestate"])
 	})
 
 	t.Run("WithoutDepsetConfig", func(t *testing.T) {
-		pairs := oracleCommand(t, log.LvlInfo, func(c *Config, _ *utils.LocalGameInputs) {
+		pairs := oracleCommand(t, log.LevelInfo, func(c *Config, _ *utils.LocalGameInputs) {
 			c.DepsetConfigPath = ""
 		})
 		require.NotContains(t, pairs, "--depset.config")
@@ -193,7 +193,7 @@ func TestOpProgramFillHostCommand(t *testing.T) {
 
 	t.Run("WithL2OutputRoot", func(t *testing.T) {
 		val := "depset.json"
-		pairs := oracleCommand(t, log.LvlInfo, func(c *Config, _ *utils.LocalGameInputs) {
+		pairs := oracleCommand(t, log.LevelInfo, func(c *Config, _ *utils.LocalGameInputs) {
 			c.DepsetConfigPath = val
 		})
 		require.Equal(t, val, pairs["--depset.config"])

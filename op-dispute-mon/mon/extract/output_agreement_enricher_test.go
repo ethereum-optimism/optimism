@@ -637,7 +637,7 @@ func (e testRPCError) Error() string  { return e.msg }
 func (e testRPCError) ErrorCode() int { return e.code }
 
 func setupOutputValidatorTest(t *testing.T) (*OutputAgreementEnricher, *stubRollupClient, *stubOutputMetrics) {
-	logger := testlog.Logger(t, log.LvlInfo)
+	logger := testlog.Logger(t, log.LevelInfo)
 	client := &stubRollupClient{
 		currentL1:   math.MaxUint64,
 		safeHeadNum: 99999999999,
@@ -648,7 +648,7 @@ func setupOutputValidatorTest(t *testing.T) (*OutputAgreementEnricher, *stubRoll
 }
 
 func setupMultiNodeTest(t *testing.T, numNodes int) (*OutputAgreementEnricher, []*stubRollupClient, *stubOutputMetrics) {
-	logger := testlog.Logger(t, log.LvlInfo)
+	logger := testlog.Logger(t, log.LevelInfo)
 	clients := make([]*stubRollupClient, numNodes)
 	rollupClients := make([]OutputRollupClient, numNodes)
 	for i := range clients {

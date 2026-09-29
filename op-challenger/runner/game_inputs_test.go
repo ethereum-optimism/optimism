@@ -49,7 +49,7 @@ func (s *stubSuperRootProvider) SuperRootAtTimestamp(_ context.Context, timestam
 // Interop inputs come from superroot_atTimestamp, which op-node serves for single-chain
 // rollups, rather than the supernode-only supernode_syncStatus.
 func TestCreateGameInputsInteropReadsStatusFromSuperRoot(t *testing.T) {
-	logger := testlog.Logger(t, log.LvlInfo)
+	logger := testlog.Logger(t, log.LevelInfo)
 	before := uint64(time.Now().Unix())
 	client := &stubSuperRootProvider{resp: eth.SuperRootAtTimestampResponse{
 		CurrentFinalizedTimestamp: 0, // stop before any trace work
@@ -64,7 +64,7 @@ func TestCreateGameInputsInteropReadsStatusFromSuperRoot(t *testing.T) {
 }
 
 func TestCreateGameInputsInteropStatusFailure(t *testing.T) {
-	logger := testlog.Logger(t, log.LvlInfo)
+	logger := testlog.Logger(t, log.LevelInfo)
 	boom := errors.New("boom")
 	client := &stubSuperRootProvider{err: boom}
 
@@ -76,7 +76,7 @@ func TestCreateGameInputsInteropStatusFailure(t *testing.T) {
 // A finalized timestamp of zero means nothing is finalized yet: there is no super root to
 // dispute, and claimTimestamp-1 would underflow.
 func TestCreateGameInputsInteropRejectsZeroFinalizedTimestamp(t *testing.T) {
-	logger := testlog.Logger(t, log.LvlInfo)
+	logger := testlog.Logger(t, log.LevelInfo)
 	client := &stubSuperRootProvider{resp: eth.SuperRootAtTimestampResponse{
 		CurrentFinalizedTimestamp: 0,
 		CurrentL1:                 eth.BlockID{Number: 100},
@@ -87,7 +87,7 @@ func TestCreateGameInputsInteropRejectsZeroFinalizedTimestamp(t *testing.T) {
 }
 
 func TestCreateGameInputsInteropRejectsZeroL1Head(t *testing.T) {
-	logger := testlog.Logger(t, log.LvlInfo)
+	logger := testlog.Logger(t, log.LevelInfo)
 	client := &stubSuperRootProvider{resp: eth.SuperRootAtTimestampResponse{
 		CurrentFinalizedTimestamp: 5000,
 		CurrentL1:                 eth.BlockID{Number: 0},
@@ -100,14 +100,14 @@ func TestCreateGameInputsInteropRejectsZeroL1Head(t *testing.T) {
 // Super root games need a source; without one the run fails rather than silently falling
 // back to single-chain inputs.
 func TestCreateGameInputsRequiresSuperRootSource(t *testing.T) {
-	logger := testlog.Logger(t, log.LvlInfo)
+	logger := testlog.Logger(t, log.LevelInfo)
 
 	_, err := createGameInputs(context.Background(), logger, nil, nil, nil, "test", gameTypes.SuperCannonKonaGameType, false)
 	require.ErrorContains(t, err, "requires super root RPC to be set")
 }
 
 func TestCreateGameInputsRequiresRollupClient(t *testing.T) {
-	logger := testlog.Logger(t, log.LvlInfo)
+	logger := testlog.Logger(t, log.LevelInfo)
 
 	_, err := createGameInputs(context.Background(), logger, nil, nil, nil, "test", gameTypes.CannonKonaGameType, false)
 	require.ErrorContains(t, err, "requires rollup rpc to be set")
@@ -157,7 +157,7 @@ func (s *stubSyncedSuperNode) SuperRootAtTimestamp(_ context.Context, timestamp 
 // The game L1 head must be one the node has fully processed, otherwise the trace provider's
 // sync gate (which requires CurrentL1 > l1Head) rejects every claim as ErrNotInSync.
 func TestCreateGameInputsInteropBuildsInputsFromSyncedNode(t *testing.T) {
-	logger := testlog.Logger(t, log.LvlInfo)
+	logger := testlog.Logger(t, log.LevelInfo)
 	currentL1 := eth.BlockID{Number: 5000, Hash: common.Hash{0xaa}}
 	client := &stubSyncedSuperNode{currentL1: currentL1, finalizedTs: 9000}
 
@@ -182,7 +182,7 @@ func TestCreateGameInputsInteropBuildsInputsFromSyncedNode(t *testing.T) {
 // error. The FPP would prove it trivially, so the run must fail rather than pass having
 // verified nothing.
 func TestCreateGameInputsInteropRejectsSentinelClaim(t *testing.T) {
-	logger := testlog.Logger(t, log.LvlInfo)
+	logger := testlog.Logger(t, log.LevelInfo)
 	currentL1 := eth.BlockID{Number: 5000, Hash: common.Hash{0xaa}}
 	client := &stubSyncedSuperNode{
 		currentL1:   currentL1,
@@ -200,7 +200,7 @@ func TestCreateGameInputsInteropRejectsSentinelClaim(t *testing.T) {
 // The game L1 head needs a working L1 client to resolve its hash. A lookup failure must
 // surface, not leave the run to fall back on an unusable head.
 func TestCreateGameInputsInteropL1LookupFailure(t *testing.T) {
-	logger := testlog.Logger(t, log.LvlInfo)
+	logger := testlog.Logger(t, log.LevelInfo)
 	client := &stubSyncedSuperNode{currentL1: eth.BlockID{Number: 5000}, finalizedTs: 9000}
 	boom := errors.New("l1 unavailable")
 

@@ -164,7 +164,7 @@ func TestExtractorZKSnapshotValidation(t *testing.T) {
 func TestExtractorRejectsZKCallerWithoutCapabilities(t *testing.T) {
 	caller := &anchorOnlyCaller{}
 	extractor := NewExtractor(
-		testlog.Logger(t, log.LvlDebug),
+		testlog.Logger(t, log.LevelDebug),
 		clock.NewDeterministicClock(time.Unix(1234, 0)),
 		new(stubGamesWaitingForRootSourceMetrics),
 		func(context.Context, gameTypes.GameMetadata) (GameCaller, error) { return caller, nil },
@@ -187,7 +187,7 @@ func TestExtractorRejectsZKCallerWithoutCapabilities(t *testing.T) {
 func TestCommonEnrichersSkipZKOwnedReads(t *testing.T) {
 	caller := &anchorOnlyCaller{}
 	game := &monTypes.CommonGameData{GameMetadata: gameTypes.GameMetadata{GameType: uint32(gameTypes.ZKDisputeGameType)}}
-	logger := testlog.Logger(t, log.LvlDebug)
+	logger := testlog.Logger(t, log.LevelDebug)
 
 	require.NoError(t, NewAnchorStateRegistryEnricher(logger).Enrich(t.Context(), rpcblock.Latest, caller, game))
 	require.Zero(t, caller.calls)
@@ -290,7 +290,7 @@ func TestExtractorZKLagPublishesCurrentEndpointHealthFromCachedSnapshot(t *testi
 	root := caller.metadata.ProposedRoot
 	provider := &zkSuperRootProvider{response: zkResponse(101, &root)}
 	agreement := NewZKAgreementEnricher(
-		testlog.Logger(t, log.LvlDebug),
+		testlog.Logger(t, log.LevelDebug),
 		&stubOutputMetrics{},
 		[]SuperRootProvider{provider},
 		clock.NewDeterministicClock(time.Unix(1234, 0)),
@@ -571,7 +571,7 @@ func newZKExtractor(t *testing.T, caller *testZKCaller, parent ParentGameStatusF
 		return parent(ctx, index, block)
 	}
 	return NewExtractor(
-		testlog.Logger(t, log.LvlDebug),
+		testlog.Logger(t, log.LevelDebug),
 		clock.NewDeterministicClock(time.Unix(1234, 0)),
 		new(stubGamesWaitingForRootSourceMetrics),
 		func(context.Context, gameTypes.GameMetadata) (GameCaller, error) { return caller, nil },

@@ -182,7 +182,7 @@ func FuzzChannelBuilder_DurationZero(f *testing.F) {
 			t.Skip("Max channel duration cannot be 0")
 		}
 
-		log := testlog.Logger(t, log.LvlInfo)
+		log := testlog.Logger(t, log.LevelInfo)
 		// Create the channel builder
 		channelConfig := defaultTestChannelConfig()
 		channelConfig.MaxChannelDuration = maxChannelDuration
@@ -210,7 +210,7 @@ func FuzzDurationTimeoutMaxChannelDuration(f *testing.F) {
 			t.Skip("Max channel duration cannot be 0")
 		}
 
-		log := testlog.Logger(t, log.LvlInfo)
+		log := testlog.Logger(t, log.LevelInfo)
 		// Create the channel builder
 		channelConfig := defaultTestChannelConfig()
 		channelConfig.MaxChannelDuration = maxChannelDuration
@@ -244,7 +244,7 @@ func FuzzChannelCloseTimeout(f *testing.F) {
 		f.Add(uint64(i), uint64(i), uint64(i), uint64(i*5))
 	}
 	f.Fuzz(func(t *testing.T, l1BlockNum uint64, channelTimeout uint64, subSafetyMargin uint64, timeout uint64) {
-		log := testlog.Logger(t, log.LvlInfo)
+		log := testlog.Logger(t, log.LevelInfo)
 		// Create the channel builder
 		channelConfig := defaultTestChannelConfig()
 		channelConfig.ChannelTimeout = channelTimeout
@@ -273,7 +273,7 @@ func FuzzChannelZeroCloseTimeout(f *testing.F) {
 		f.Add(uint64(i), uint64(i), uint64(i))
 	}
 	f.Fuzz(func(t *testing.T, l1BlockNum uint64, channelTimeout uint64, subSafetyMargin uint64) {
-		log := testlog.Logger(t, log.LvlInfo)
+		log := testlog.Logger(t, log.LevelInfo)
 		// Create the channel builder
 		channelConfig := defaultTestChannelConfig()
 		channelConfig.ChannelTimeout = channelTimeout
@@ -301,7 +301,7 @@ func FuzzSeqWindowClose(f *testing.F) {
 		f.Add(uint64(i), uint64(i), uint64(i), uint64(i*5))
 	}
 	f.Fuzz(func(t *testing.T, epochNum uint64, seqWindowSize uint64, subSafetyMargin uint64, timeout uint64) {
-		log := testlog.Logger(t, log.LvlInfo)
+		log := testlog.Logger(t, log.LevelInfo)
 		// Create the channel builder
 		channelConfig := defaultTestChannelConfig()
 		channelConfig.SeqWindowSize = seqWindowSize
@@ -330,7 +330,7 @@ func FuzzSeqWindowZeroTimeoutClose(f *testing.F) {
 		f.Add(uint64(i), uint64(i), uint64(i))
 	}
 	f.Fuzz(func(t *testing.T, epochNum uint64, seqWindowSize uint64, subSafetyMargin uint64) {
-		log := testlog.Logger(t, log.LvlInfo)
+		log := testlog.Logger(t, log.LevelInfo)
 		// Create the channel builder
 		channelConfig := defaultTestChannelConfig()
 		channelConfig.SeqWindowSize = seqWindowSize
@@ -380,7 +380,7 @@ func TestChannelBuilderBatchType(t *testing.T) {
 
 // TestChannelBuilder_NextFrame tests calling NextFrame on a ChannelBuilder with only one frame
 func TestChannelBuilder_NextFrame(t *testing.T) {
-	log := testlog.Logger(t, log.LvlInfo)
+	log := testlog.Logger(t, log.LevelInfo)
 	channelConfig := defaultTestChannelConfig()
 
 	// Create a new channel builder
@@ -421,7 +421,7 @@ func TestChannelBuilder_NextFrame(t *testing.T) {
 
 // TestChannelBuilder_OutputWrongFramePanic tests that a panic is thrown when we try to rewind the cursor with an invalid frame id
 func ChannelBuilder_OutputWrongFramePanic(t *testing.T, batchType uint) {
-	log := testlog.Logger(t, log.LvlInfo)
+	log := testlog.Logger(t, log.LevelInfo)
 	channelConfig := defaultTestChannelConfig()
 	channelConfig.BatchType = batchType
 
@@ -456,7 +456,7 @@ func ChannelBuilder_OutputWrongFramePanic(t *testing.T, batchType uint) {
 
 // TestChannelBuilder_OutputFrames tests [ChannelBuilder.OutputFrames] for singular batches.
 func TestChannelBuilder_OutputFrames(t *testing.T) {
-	log := testlog.Logger(t, log.LvlInfo)
+	log := testlog.Logger(t, log.LevelInfo)
 	channelConfig := defaultTestChannelConfig()
 	channelConfig.MaxFrameSize = derive.FrameV0OverHeadSize + 1
 	channelConfig.TargetNumFrames = 1000
@@ -506,7 +506,7 @@ func TestChannelBuilder_OutputFrames_SpanBatch(t *testing.T) {
 }
 
 func ChannelBuilder_OutputFrames_SpanBatch(t *testing.T, algo derive.CompressionAlgo) {
-	log := testlog.Logger(t, log.LvlInfo)
+	log := testlog.Logger(t, log.LevelInfo)
 	channelConfig := defaultTestChannelConfig()
 	channelConfig.MaxFrameSize = 20 + derive.FrameV0OverHeadSize
 	if algo.IsBrotli() {
@@ -569,7 +569,7 @@ func ChannelBuilder_OutputFrames_SpanBatch(t *testing.T, algo derive.Compression
 // function errors when the max RLP bytes per channel is reached.
 func ChannelBuilder_MaxRLPBytesPerChannel(t *testing.T, batchType uint) {
 	t.Parallel()
-	log := testlog.Logger(t, log.LvlInfo)
+	log := testlog.Logger(t, log.LevelInfo)
 	channelConfig := defaultTestChannelConfig()
 	chainSpec := rollup.NewChainSpec(defaultTestRollupConfig)
 	channelConfig.MaxFrameSize = chainSpec.MaxRLPBytesPerChannel(latestL1BlockOrigin) * 2
@@ -592,7 +592,7 @@ func ChannelBuilder_MaxRLPBytesPerChannel(t *testing.T, batchType uint) {
 // then check postFjord w/ double the amount of blocks
 func ChannelBuilder_MaxRLPBytesPerChannelFjord(t *testing.T, batchType uint) {
 	t.Parallel()
-	log := testlog.Logger(t, log.LvlInfo)
+	log := testlog.Logger(t, log.LevelInfo)
 	channelConfig := defaultTestChannelConfig()
 	chainSpec := rollup.NewChainSpec(defaultTestRollupConfig)
 	channelConfig.MaxFrameSize = chainSpec.MaxRLPBytesPerChannel(latestL1BlockOrigin) * 2
@@ -633,7 +633,7 @@ func ChannelBuilder_MaxRLPBytesPerChannelFjord(t *testing.T, batchType uint) {
 // ChannelBuilder_OutputFramesMaxFrameIndex tests the [ChannelBuilder.OutputFrames]
 // function errors when the max frame index is reached.
 func ChannelBuilder_OutputFramesMaxFrameIndex(t *testing.T, batchType uint) {
-	log := testlog.Logger(t, log.LvlInfo)
+	log := testlog.Logger(t, log.LevelInfo)
 	channelConfig := defaultTestChannelConfig()
 	channelConfig.MaxFrameSize = derive.FrameV0OverHeadSize + 1
 	channelConfig.TargetNumFrames = math.MaxUint16 + 1
@@ -673,7 +673,7 @@ func ChannelBuilder_OutputFramesMaxFrameIndex(t *testing.T, batchType uint) {
 // [derive.FrameV0OverHeadSize] in [MaxDataSize] is omitted, which has been the
 // case before it got fixed it #9887.
 func TestChannelBuilder_FullShadowCompressor(t *testing.T) {
-	log := testlog.Logger(t, log.LvlInfo)
+	log := testlog.Logger(t, log.LevelInfo)
 	require := require.New(t)
 	cfg := ChannelConfig{
 		MaxFrameSize:    752,
@@ -704,7 +704,7 @@ func TestChannelBuilder_FullShadowCompressor(t *testing.T) {
 }
 
 func ChannelBuilder_AddBlock(t *testing.T, batchType uint) {
-	log := testlog.Logger(t, log.LvlInfo)
+	log := testlog.Logger(t, log.LevelInfo)
 	channelConfig := defaultTestChannelConfig()
 	channelConfig.BatchType = batchType
 
@@ -738,7 +738,7 @@ func ChannelBuilder_AddBlock(t *testing.T, batchType uint) {
 }
 
 func TestChannelBuilder_CheckTimeout(t *testing.T) {
-	log := testlog.Logger(t, log.LvlInfo)
+	log := testlog.Logger(t, log.LevelInfo)
 	channelConfig := defaultTestChannelConfig()
 
 	// Construct the channel builder
@@ -761,7 +761,7 @@ func TestChannelBuilder_CheckTimeout(t *testing.T) {
 }
 
 func TestChannelBuilder_MaxChannelDurationZero(t *testing.T) {
-	log := testlog.Logger(t, log.LvlInfo)
+	log := testlog.Logger(t, log.LevelInfo)
 	channelConfig := defaultTestChannelConfig()
 	channelConfig.MaxChannelDuration = 0
 
@@ -780,7 +780,7 @@ func TestChannelBuilder_MaxChannelDurationZero(t *testing.T) {
 }
 
 func TestChannelBuilder_CheckTimeoutZeroMaxChannelDuration(t *testing.T) {
-	log := testlog.Logger(t, log.LvlInfo)
+	log := testlog.Logger(t, log.LevelInfo)
 	channelConfig := defaultTestChannelConfig()
 
 	// Set the max channel duration to 0
@@ -804,7 +804,7 @@ func TestChannelBuilder_CheckTimeoutZeroMaxChannelDuration(t *testing.T) {
 }
 
 func TestChannelBuilder_FramePublished(t *testing.T) {
-	log := testlog.Logger(t, log.LvlInfo)
+	log := testlog.Logger(t, log.LevelInfo)
 	cfg := defaultTestChannelConfig()
 	cfg.MaxChannelDuration = 10_000
 	cfg.ChannelTimeout = 1000
@@ -828,7 +828,7 @@ func TestChannelBuilder_FramePublished(t *testing.T) {
 }
 
 func TestChannelBuilder_LatestL1Origin(t *testing.T) {
-	log := testlog.Logger(t, log.LvlInfo)
+	log := testlog.Logger(t, log.LevelInfo)
 	cb, err := newChannelBuilder(log, defaultTestChannelConfig(), defaultTestRollupConfig, latestL1BlockOrigin)
 	require.NoError(t, err)
 	require.Equal(t, eth.BlockID{}, cb.LatestL1Origin(), "LatestL1Origin should be empty")
@@ -851,7 +851,7 @@ func TestChannelBuilder_LatestL1Origin(t *testing.T) {
 }
 
 func TestChannelBuilder_OldestL1Origin(t *testing.T) {
-	log := testlog.Logger(t, log.LvlInfo)
+	log := testlog.Logger(t, log.LevelInfo)
 	cb, err := newChannelBuilder(log, defaultTestChannelConfig(), defaultTestRollupConfig, latestL1BlockOrigin)
 	require.NoError(t, err)
 	require.Equal(t, eth.BlockID{}, cb.OldestL1Origin())
@@ -874,7 +874,7 @@ func TestChannelBuilder_OldestL1Origin(t *testing.T) {
 }
 
 func TestChannelBuilder_LatestL2(t *testing.T) {
-	log := testlog.Logger(t, log.LvlInfo)
+	log := testlog.Logger(t, log.LevelInfo)
 	cb, err := newChannelBuilder(log, defaultTestChannelConfig(), defaultTestRollupConfig, latestL1BlockOrigin)
 	require.NoError(t, err)
 	require.Equal(t, eth.BlockID{}, cb.LatestL2())
@@ -897,7 +897,7 @@ func TestChannelBuilder_LatestL2(t *testing.T) {
 }
 
 func TestChannelBuilder_OldestL2(t *testing.T) {
-	log := testlog.Logger(t, log.LvlInfo)
+	log := testlog.Logger(t, log.LevelInfo)
 	cb, err := newChannelBuilder(log, defaultTestChannelConfig(), defaultTestRollupConfig, latestL1BlockOrigin)
 	require.NoError(t, err)
 	require.Equal(t, eth.BlockID{}, cb.OldestL2())
@@ -920,7 +920,7 @@ func TestChannelBuilder_OldestL2(t *testing.T) {
 }
 
 func ChannelBuilder_PendingFrames_TotalFrames(t *testing.T, batchType uint) {
-	log := testlog.Logger(t, log.LvlInfo)
+	log := testlog.Logger(t, log.LevelInfo)
 	const tnf = 9
 	rng := rand.New(rand.NewSource(94572314))
 	require := require.New(t)
@@ -965,7 +965,7 @@ func ChannelBuilder_PendingFrames_TotalFrames(t *testing.T, batchType uint) {
 }
 
 func ChannelBuilder_InputBytes(t *testing.T, batchType uint) {
-	log := testlog.Logger(t, log.LvlInfo)
+	log := testlog.Logger(t, log.LevelInfo)
 	require := require.New(t)
 	rng := rand.New(rand.NewSource(4982432))
 	cfg := defaultTestChannelConfig()
@@ -1005,7 +1005,7 @@ func ChannelBuilder_InputBytes(t *testing.T, batchType uint) {
 }
 
 func ChannelBuilder_OutputBytes(t *testing.T, batchType uint) {
-	log := testlog.Logger(t, log.LvlInfo)
+	log := testlog.Logger(t, log.LevelInfo)
 	require := require.New(t)
 	rng := rand.New(rand.NewSource(9860372))
 	cfg := defaultTestChannelConfig()

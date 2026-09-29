@@ -156,7 +156,7 @@ func TestValidateL1Config(t *testing.T) {
 	config.Genesis.L1.Number = 100
 	config.Genesis.L1.Hash = [32]byte{0x01}
 	mockClient := mockL1Client{chainID: big.NewInt(100), Hash: common.Hash{0x01}}
-	err := config.ValidateL1Config(context.TODO(), testlog.Logger(t, log.LvlInfo), &mockClient)
+	err := config.ValidateL1Config(context.TODO(), testlog.Logger(t, log.LevelInfo), &mockClient)
 	assert.NoError(t, err)
 }
 
@@ -166,7 +166,7 @@ func TestValidateL1ConfigInvalidChainIdFails(t *testing.T) {
 	config.Genesis.L1.Number = 100
 	config.Genesis.L1.Hash = [32]byte{0x01}
 	mockClient := mockL1Client{chainID: big.NewInt(100), Hash: common.Hash{0x01}}
-	logger := testlog.Logger(t, log.LvlInfo)
+	logger := testlog.Logger(t, log.LevelInfo)
 	err := config.ValidateL1Config(context.TODO(), logger, &mockClient)
 	assert.Error(t, err)
 	config.L1ChainID = big.NewInt(99)
@@ -180,7 +180,7 @@ func TestValidateL1ConfigInvalidGenesisHashFails(t *testing.T) {
 	config.Genesis.L1.Number = 100
 	config.Genesis.L1.Hash = [32]byte{0x00}
 	mockClient := mockL1Client{chainID: big.NewInt(100), Hash: common.Hash{0x01}}
-	logger := testlog.Logger(t, log.LvlInfo)
+	logger := testlog.Logger(t, log.LevelInfo)
 	err := config.ValidateL1Config(context.TODO(), logger, &mockClient)
 	assert.Error(t, err)
 	config.Genesis.L1.Hash = [32]byte{0x02}
@@ -200,7 +200,7 @@ func TestCheckL1ChainID(t *testing.T) {
 }
 
 func TestCheckL1BlockRefByNumber(t *testing.T) {
-	logger := testlog.Logger(t, log.LvlInfo)
+	logger := testlog.Logger(t, log.LevelInfo)
 	config := randConfig()
 	config.Genesis.L1.Number = 100
 	config.Genesis.L1.Hash = [32]byte{0x01}
@@ -491,7 +491,7 @@ func TestValidateL2Config(t *testing.T) {
 	config.Genesis.L2.Number = 100
 	config.Genesis.L2.Hash = [32]byte{0x01}
 	mockClient := mockL2Client{chainID: big.NewInt(100), Hash: common.Hash{0x01}}
-	err := config.ValidateL2Config(context.TODO(), testlog.Logger(t, log.LvlInfo), &mockClient, false)
+	err := config.ValidateL2Config(context.TODO(), testlog.Logger(t, log.LevelInfo), &mockClient, false)
 	assert.NoError(t, err)
 }
 
@@ -501,10 +501,10 @@ func TestValidateL2ConfigInvalidChainIdFails(t *testing.T) {
 	config.Genesis.L2.Number = 100
 	config.Genesis.L2.Hash = [32]byte{0x01}
 	mockClient := mockL2Client{chainID: big.NewInt(100), Hash: common.Hash{0x01}}
-	err := config.ValidateL2Config(context.TODO(), testlog.Logger(t, log.LvlInfo), &mockClient, false)
+	err := config.ValidateL2Config(context.TODO(), testlog.Logger(t, log.LevelInfo), &mockClient, false)
 	assert.Error(t, err)
 	config.L2ChainID = big.NewInt(99)
-	err = config.ValidateL2Config(context.TODO(), testlog.Logger(t, log.LvlInfo), &mockClient, false)
+	err = config.ValidateL2Config(context.TODO(), testlog.Logger(t, log.LevelInfo), &mockClient, false)
 	assert.Error(t, err)
 }
 
@@ -514,10 +514,10 @@ func TestValidateL2ConfigInvalidGenesisHashFails(t *testing.T) {
 	config.Genesis.L2.Number = 100
 	config.Genesis.L2.Hash = [32]byte{0x00}
 	mockClient := mockL2Client{chainID: big.NewInt(100), Hash: common.Hash{0x01}}
-	err := config.ValidateL2Config(context.TODO(), testlog.Logger(t, log.LvlInfo), &mockClient, false)
+	err := config.ValidateL2Config(context.TODO(), testlog.Logger(t, log.LevelInfo), &mockClient, false)
 	assert.Error(t, err)
 	config.Genesis.L2.Hash = [32]byte{0x02}
-	err = config.ValidateL2Config(context.TODO(), testlog.Logger(t, log.LvlInfo), &mockClient, false)
+	err = config.ValidateL2Config(context.TODO(), testlog.Logger(t, log.LevelInfo), &mockClient, false)
 	assert.Error(t, err)
 }
 
@@ -527,10 +527,10 @@ func TestValidateL2ConfigInvalidGenesisHashSkippedWhenRequested(t *testing.T) {
 	config.Genesis.L2.Number = 100
 	config.Genesis.L2.Hash = [32]byte{0x00}
 	mockClient := mockL2Client{chainID: big.NewInt(100), Hash: common.Hash{0x01}}
-	err := config.ValidateL2Config(context.TODO(), testlog.Logger(t, log.LvlInfo), &mockClient, true)
+	err := config.ValidateL2Config(context.TODO(), testlog.Logger(t, log.LevelInfo), &mockClient, true)
 	assert.NoError(t, err)
 	config.Genesis.L2.Hash = [32]byte{0x02}
-	err = config.ValidateL2Config(context.TODO(), testlog.Logger(t, log.LvlInfo), &mockClient, true)
+	err = config.ValidateL2Config(context.TODO(), testlog.Logger(t, log.LevelInfo), &mockClient, true)
 	assert.NoError(t, err)
 }
 
@@ -550,29 +550,29 @@ func TestCheckL2BlockRefByNumber(t *testing.T) {
 	config.Genesis.L2.Number = 100
 	config.Genesis.L2.Hash = [32]byte{0x01}
 	mockClient := mockL2Client{chainID: big.NewInt(100), Hash: common.Hash{0x01}}
-	err := config.CheckL2GenesisBlockHash(context.TODO(), testlog.Logger(t, log.LvlInfo), &mockClient)
+	err := config.CheckL2GenesisBlockHash(context.TODO(), testlog.Logger(t, log.LevelInfo), &mockClient)
 	assert.NoError(t, err)
 	mockClient.Hash = common.Hash{0x02}
-	err = config.CheckL2GenesisBlockHash(context.TODO(), testlog.Logger(t, log.LvlInfo), &mockClient)
+	err = config.CheckL2GenesisBlockHash(context.TODO(), testlog.Logger(t, log.LevelInfo), &mockClient)
 	assert.Error(t, err)
 	mockClient.Hash = common.Hash{0x00}
-	err = config.CheckL2GenesisBlockHash(context.TODO(), testlog.Logger(t, log.LvlInfo), &mockClient)
+	err = config.CheckL2GenesisBlockHash(context.TODO(), testlog.Logger(t, log.LevelInfo), &mockClient)
 	assert.Error(t, err)
 
 	// A history-pruned execution engine can no longer serve the genesis block; the configured
 	// genesis hash is authoritative, so the check is skipped rather than failing.
 	mockClient = mockL2Client{chainID: big.NewInt(100), Hash: common.Hash{0x01}, err: historyPrunedRPCError{}}
-	err = config.CheckL2GenesisBlockHash(context.TODO(), testlog.Logger(t, log.LvlInfo), &mockClient)
+	err = config.CheckL2GenesisBlockHash(context.TODO(), testlog.Logger(t, log.LevelInfo), &mockClient)
 	assert.NoError(t, err)
 
 	// A NotFound result is likewise tolerated.
 	mockClient = mockL2Client{chainID: big.NewInt(100), Hash: common.Hash{0x01}, err: ethereum.NotFound}
-	err = config.CheckL2GenesisBlockHash(context.TODO(), testlog.Logger(t, log.LvlInfo), &mockClient)
+	err = config.CheckL2GenesisBlockHash(context.TODO(), testlog.Logger(t, log.LevelInfo), &mockClient)
 	assert.NoError(t, err)
 
 	// Any other fetch error still fails the check.
 	mockClient = mockL2Client{chainID: big.NewInt(100), Hash: common.Hash{0x01}, err: errors.New("connection refused")}
-	err = config.CheckL2GenesisBlockHash(context.TODO(), testlog.Logger(t, log.LvlInfo), &mockClient)
+	err = config.CheckL2GenesisBlockHash(context.TODO(), testlog.Logger(t, log.LevelInfo), &mockClient)
 	assert.Error(t, err)
 }
 

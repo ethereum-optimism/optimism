@@ -19,7 +19,7 @@ func TestCheckNodeEndpointErrors_NoErrors(t *testing.T) {
 	}
 
 	metrics := &stubNodeEndpointErrorsMetrics{}
-	logger := testlog.Logger(t, log.LvlDebug)
+	logger := testlog.Logger(t, log.LevelDebug)
 	monitor := NewNodeEndpointErrorsMonitor(logger, metrics)
 
 	monitor.CheckNodeEndpointErrors(games)
@@ -40,7 +40,7 @@ func TestCheckNodeEndpointErrors_SingleGameWithErrors(t *testing.T) {
 	}
 
 	metrics := &stubNodeEndpointErrorsMetrics{}
-	logger := testlog.Logger(t, log.LvlDebug)
+	logger := testlog.Logger(t, log.LevelDebug)
 	monitor := NewNodeEndpointErrorsMonitor(logger, metrics)
 
 	monitor.CheckNodeEndpointErrors(games)
@@ -73,7 +73,7 @@ func TestCheckNodeEndpointErrors_MultipleGamesWithOverlappingErrors(t *testing.T
 	}
 
 	metrics := &stubNodeEndpointErrorsMetrics{}
-	logger := testlog.Logger(t, log.LvlDebug)
+	logger := testlog.Logger(t, log.LevelDebug)
 	monitor := NewNodeEndpointErrorsMonitor(logger, metrics)
 
 	monitor.CheckNodeEndpointErrors(games)
@@ -101,7 +101,7 @@ func TestCheckNodeEndpointErrors_MixedGamesWithAndWithoutErrors(t *testing.T) {
 	}
 
 	metrics := &stubNodeEndpointErrorsMetrics{}
-	logger, _ := testlog.CaptureLogger(t, log.LvlDebug)
+	logger, _ := testlog.CaptureLogger(t, log.LevelDebug)
 	monitor := NewNodeEndpointErrorsMonitor(logger, metrics)
 
 	monitor.CheckNodeEndpointErrors(games)
@@ -113,7 +113,7 @@ func TestCheckNodeEndpointErrors_EmptyGamesList(t *testing.T) {
 	games := []*types.CommonGameData{}
 
 	metrics := &stubNodeEndpointErrorsMetrics{}
-	logger := testlog.Logger(t, log.LvlDebug)
+	logger := testlog.Logger(t, log.LevelDebug)
 	monitor := NewNodeEndpointErrorsMonitor(logger, metrics)
 
 	monitor.CheckNodeEndpointErrors(games)

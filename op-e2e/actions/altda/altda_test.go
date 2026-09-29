@@ -62,7 +62,7 @@ func NewL2AltDA(t helpers.Testing, params ...AltDAParam) *L2AltDA {
 	for _, apply := range params {
 		apply(p)
 	}
-	log := testlog.Logger(t, log.LvlDebug)
+	log := testlog.Logger(t, log.LevelDebug)
 
 	dp := e2eutils.MakeDeployParams(t, p)
 	sd := e2eutils.Setup(t, dp, helpers.DefaultAlloc)

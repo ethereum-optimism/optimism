@@ -14,7 +14,7 @@ import (
 
 func TestObtainJWTSecret(t *testing.T) {
 	testPath := t.TempDir()
-	logger := testlog.Logger(t, log.LvlInfo)
+	logger := testlog.Logger(t, log.LevelInfo)
 
 	t.Run("no-generate", func(t *testing.T) {
 		secret, err := ObtainJWTSecret(logger, filepath.Join(testPath, "non_existent.txt"), false)
