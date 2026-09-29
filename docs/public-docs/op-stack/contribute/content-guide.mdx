@@ -105,11 +105,11 @@ amendments to this page go through the same review as any other docs change.
 
 ## Component reference
 
-Every first-party component with a command-line interface has one reference
-in these docs, and every page of it is generated. This section is the
-convention that makes those references uniform across components; the
-generator and its lint enforce it, and reviewers cite it when a change would
-break it.
+Every first-party component has one reference in these docs, covering its
+command-line interface, its JSON-RPC API, and its metrics, and every page of
+it is generated. This section is the convention that makes those references
+uniform across components; the generator and its lint enforce it, and
+reviewers cite it when a change would break it.
 
 **Components covered:** op-node, op-batcher, op-proposer, op-challenger,
 op-conductor, op-supernode, op-deployer, op-reth, and kona-node. A component
@@ -117,18 +117,37 @@ joins the list by being added to the generator, never by a hand-written page.
 
 ### Source of truth
 
-The `--help` output of the **published release artifact** at a **finalized**
-release tag: the Docker image published for the tag, or the release binary
-where one is published. Never `develop`, never a pre-release. The
-deploy-config schema, which has no `--help`, is generated from the component's
-source at the same finalized tag.
+Every surface is generated from the component at a **finalized** release
+tag, never from a pre-release, and never from `develop` except into the
+`develop` version described under [Versions](#versions).
+
+*   **Command line:** the `--help` output of the **published release
+    artifact** (the Docker image published for the tag, or the release binary
+    where one is published). `--help` is the one surface every binary exposes
+    the same way, whether it is a Go program built on urfave/cli or a Rust
+    program built on clap, and it is by definition what the released binary
+    accepts, so it cannot drift from the release the way a source parser
+    run on the wrong commit can. geth and reth document their CLIs from the
+    same output.
+*   **JSON-RPC:** the method registrations in the component's source at the
+    tag: the `rpc.API` namespaces the Go services register, and the `#[rpc]`
+    and `#[method]` attributes on kona-node's jsonrpsee traits. A component
+    that inherits an upstream client's RPC (op-reth) points at the upstream
+    reference for the inherited namespaces and generates only the OP Stack
+    additions.
+*   **Metrics:** the metric definitions (name, type, labels, help string) in
+    the component's source at the tag, with the same upstream rule.
+*   **Configuration schemas** that have no `--help`, such as the deploy
+    config, are generated from the source at the same tag.
 
 ### Rendering
 
-One generator, one output shape, whatever the CLI framework. Every flag
-renders as a table row (flag, environment variable, default, description),
-and the verbatim `--help` text follows in an expandable block so an operator
-can match what their terminal shows.
+One generator, one output shape, whatever the framework. Every flag renders
+as a table row (flag, environment variable, default, description), and the
+verbatim `--help` text follows in an expandable block so an operator can
+match what their terminal shows. RPC pages render one section per namespace
+with a table of methods (method, parameters, result, description). Metrics
+pages render one table (name, type, labels, description).
 
 ### Page tree
 
@@ -138,7 +157,9 @@ can match what their terminal shows.
     (`db/checksum#mdbx`) without a page of its own.
 *   Option blocks that every command repeats (logging, metrics, profiling,
     RPC) hoist to one `global-options` page per component.
-*   URLs are `reference/<component>/<vX.Y>/<command>` and never deeper.
+*   One `rpc` page and one `metrics` page per component, beside the command
+    pages.
+*   URLs are `reference/<component>/<version>/<page>` and never deeper.
 
 ### Versions
 
@@ -148,14 +169,24 @@ can match what their terminal shows.
 *   The newest line is the default and is tagged **Latest**. The newest three
     lines are published; older lines are removed, with redirects into the
     newest line.
-*   A patch release that changes `--help` regenerates its line in place.
+*   A patch release that changes a surface regenerates its line in place.
+*   One further version named `develop`, tagged **Unreleased**, generated
+    from the `develop` branch on every merge that touches the component. Its
+    provenance names the commit, and its pages carry `noindex: true`, so
+    unreleased behavior never appears in site search or search engines. It
+    exists so that a reader who meets an `<Unreleased>` callout can see what
+    is coming.
 
 ### Provenance and no hand edits
 
 *   Every generated page opens with a `DO NOT EDIT` comment, before any
-    prose and after any imports, naming the exact tag and the artifact it
-    was generated from. The generator's manifest records the tag, artifact,
-    and content hash per component per line.
+    prose and after any imports, naming the exact tag (or commit, for the
+    `develop` version), linking the GitHub release, and naming the artifact
+    it was generated from. The generator's manifest records the tag,
+    artifact, and content hash per component per version.
+*   Release notes are linked, never copied. The provenance link is the
+    pointer to what changed in that release; the generated
+    [release history](/releases) pages remain the home of the notes.
 *   **Nothing under the top-level `reference/` directory is hand-written.**
     Orientation ("how the CLI is organized"), advice on choosing values, and
     notes on selected flags live in guides in the persona tabs and link into
@@ -174,6 +205,30 @@ can match what their terminal shows.
   component to the generator instead.
 </Note>
 
+### Regeneration and automations
+
+Nobody runs the generator by hand.
+
+*   **On every finalized release tag**, a monorepo CI job runs the generator
+    against that release's artifact and opens a docs pull request with the
+    regenerated version, its manifest, and any redirects. The docs team
+    reviews and merges it. A tag that has been public for a week with no
+    such pull request is a pipeline bug; file it.
+*   **On every merge to `develop` that touches a covered component**, the
+    same job regenerates that component's `develop` version and merges it
+    without review, since it carries no editorial content and is not
+    indexed.
+*   **Mintlify automations** cover the work that takes judgment rather than
+    a build. On content updates they run the docs lints and propose fixes.
+    When a component pull request merges, they read the change and propose
+    the matching edits to the hand-written guides, wrapped in the
+    `<Unreleased>` callout. Weekly, they compare each component's newest
+    finalized tag with the manifest and each `<Unreleased>` callout with the
+    component's latest release notes, then open a pull request removing
+    callouts whose change has shipped and an issue for any regeneration
+    that did not happen. Automation prompts are committed beside the
+    generator and reviewed like code.
+
 ### Documenting unreleased changes
 
 docs.optimism.io deploys from `develop`; components ship from release tags.
@@ -184,24 +239,29 @@ same pull request, as follows:
     component's reference at the next finalized tag.
 *   **Hand-written guides and explainers:** edit the prose in the same pull
     request and wrap the changed statement in the `<Unreleased>` component,
-    naming the release that will carry the change:
+    naming the component. The release that will carry the change is usually
+    not known when the change merges, so the version is optional; give it
+    when you know it:
 
     ```mdx
     import { Unreleased } from "/snippets/unreleased.mdx"
 
+    <Unreleased component="op-reth" />
     <Unreleased component="op-reth" version="v2.5.0" />
     ```
 
-    Which renders (shown here with a fictional version, so this example can
-    never itself go stale):
+    Which renders:
 
-    <Unreleased component="op-reth" version="v99.0.0" />
+    <Unreleased component="op-reth" />
 
-    The callout is temporary by construction: `pnpm lint:reference` fails
-    once the tag `op-reth/v2.5.0` exists, so it must be removed when the
-    release ships. The lint also rejects a callout that names a component
-    outside the covered list or a version that is not a full `vX.Y.Z`, since
-    such a callout could never become stale.
+    The callout is temporary. When it names a version, `pnpm lint:reference`
+    fails once that tag exists, so it must be removed when the release
+    ships. When it does not, the weekly automation compares it with the
+    component's latest release notes and proposes removing it once the
+    change has shipped, and a reviewer confirms. The lint also rejects a
+    callout that names a component outside the covered list, or a version
+    that is not a full `vX.Y.Z`, since such a callout could never become
+    stale.
 *   **Removing a feature:** add the callout, or set `deprecated: true` in the
     page's frontmatter, in the same pull request. Delete the page only after
     the release ships, with a redirect.

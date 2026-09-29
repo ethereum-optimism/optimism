@@ -6,10 +6,10 @@
 
   docs.optimism.io deploys from `develop` while components ship from release
   tags, so prose that lands with a component PR is live before the binary is.
-  This callout names the release that carries the change. It is temporary by
-  construction: `pnpm lint:reference` fails the build once the named tag
-  exists in git, which forces the callout to be removed and the prose to be
-  read as current.
+  This callout marks such prose. It is temporary: when it names a version,
+  `pnpm lint:reference` fails once that tag exists in git; when it does not,
+  the weekly docs automation compares it with the component's latest release
+  notes and proposes its removal once the change has shipped.
 
   Do not use this on generated reference pages (anything under reference/):
   those regenerate from the published artifact at the next finalized tag and
@@ -18,27 +18,32 @@
   Usage:
     import { Unreleased } from "/snippets/unreleased.mdx"
 
+    <Unreleased component="op-reth" />
     <Unreleased component="op-reth" version="v2.5.0" />
 
-  Props (both required):
-    component - the release-tag prefix as published on GitHub Releases:
-                "op-node", "op-batcher", "op-proposer", "op-challenger",
-                "op-conductor", "op-supernode", "op-deployer", "op-reth",
-                "kona-node".
-    version   - the finalized release that will carry the change, as a full
-                semver with the leading v ("v2.5.0"). The lint matches the git
-                tag `<component>/<version>` exactly.
+  Props:
+    component - required. The release-tag prefix as published on GitHub
+                Releases: "op-node", "op-batcher", "op-proposer",
+                "op-challenger", "op-conductor", "op-supernode",
+                "op-deployer", "op-reth", "kona-node".
+    version   - optional. The finalized release that will carry the change,
+                as a full semver with the leading v ("v2.5.0"), when known.
+                The lint matches the git tag `<component>/<version>` exactly.
 */}
 
 export const Unreleased = ({ component, version }) => (
   <Warning>
     <strong>Unreleased:</strong> this describes behavior that is merged but not
     yet in a published <code>{component}</code> release. It ships in{" "}
-    <a href={`https://github.com/ethereum-optimism/optimism/releases?q=${component}%2F${version}&expanded=true`}>
-      <code>{component}/{version}</code>
-    </a>
-    . Until that release is published, the current release behaves as
-    documented in the rest of this page; see the{" "}
-    <a href="/releases">release history</a> for what has shipped.
+    {version ? (
+      <a href={`https://github.com/ethereum-optimism/optimism/releases?q=${component}%2F${version}&expanded=true`}>
+        <code>{component}/{version}</code>
+      </a>
+    ) : (
+      <span>an upcoming <code>{component}</code> release</span>
+    )}
+    . Until then, the current release behaves as documented in the rest of
+    this page; see the <a href="/releases">release history</a> for what has
+    shipped.
   </Warning>
 );

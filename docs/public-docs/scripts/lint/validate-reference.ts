@@ -6,11 +6,13 @@
 //       first non-import content after frontmatter is a comment block carrying
 //       the DO NOT EDIT marker. Hand-written pages do not live under
 //       reference/; they live in the persona tabs.
-//   R2. Every <Unreleased component="…" version="…" /> callout names a covered
-//       component and a release that does not exist yet. Once the git tag
-//       `<component>/<version>` exists, the callout is stale and must be
-//       removed (the prose it guards is now current). Callouts the lint cannot
-//       parse (expression attributes, a missing attribute) are errors, so a
+//   R2. Every <Unreleased component="…" [version="…"] /> callout names a
+//       covered component and, when it names a version, a release that does
+//       not exist yet. Once the git tag `<component>/<version>` exists, the
+//       callout is stale and must be removed (the prose it guards is now
+//       current). Callouts without a version are swept by the weekly docs
+//       automation against release notes instead. Callouts the lint cannot
+//       parse (expression attributes, a missing component) are errors, so a
 //       callout can never be silently unlinted.
 //   R3. Every `tag` recorded in a generator manifest (scripts/*/manifest.json)
 //       is an existing git tag, so provenance lines can never name a release
@@ -174,9 +176,10 @@ for (const rel of mdxFiles) {
     for (const a of tag.matchAll(ATTR_RE)) attrs[a[1]] = a[2];
     const component = attrs.component;
     const version = attrs.version;
-    if (!component || !version) {
+    const hasVersionAttr = /\bversion\s*=/.test(tag);
+    if (!component || (hasVersionAttr && !version)) {
       errors.push(
-        `${rel}: cannot parse ${tag.split(/\s+/).join(" ")} — <Unreleased> needs literal, quoted component="…" and version="…" attributes`,
+        `${rel}: cannot parse ${tag.split(/\s+/).join(" ")} — <Unreleased> needs a literal, quoted component="…" attribute (and a literal, quoted version="…" if given)`,
       );
       continue;
     }
@@ -190,6 +193,7 @@ for (const rel of mdxFiles) {
       );
       continue;
     }
+    if (!version) continue; // no version: the weekly automation sweeps it against release notes
     if (!SEMVER_RE.test(version)) {
       errors.push(
         `${rel}: <Unreleased component="${component}" version="${version}"> — version must be a full semver with a leading v (e.g. v2.5.0)`,

@@ -134,9 +134,10 @@ locally before pushing (see below):
   [Component reference](https://docs.optimism.io/op-stack/contribute/content-guide#component-reference)
   convention. Every page under the top-level `reference/` directory opens with a generated
   `DO NOT EDIT` header (hand-written content belongs in a guide); every
-  `<Unreleased>` callout names a release that is not yet published (the lint
-  fails once the tag exists, so the callout gets removed); every tag in a
-  generator manifest is a real git tag.
+  `<Unreleased>` callout names a covered component and, if it names a
+  release, one that is not yet published (the lint fails once the tag
+  exists, so the callout gets removed); every tag in a generator manifest is
+  a real git tag.
 
 Run them locally before pushing:
 
@@ -164,9 +165,10 @@ reason recorded.
 
 The site deploys from `develop`; components ship from release tags. When a
 component PR changes behavior, update the hand-written guide in the same PR
-and wrap the changed statement in `<Unreleased component="…" version="…" />`
-(see `snippets/unreleased.mdx`). Do not touch generated reference pages; they
-regenerate at the next finalized tag. Full rules:
+and wrap the changed statement in `<Unreleased component="…" />` (add
+`version="…"` if the release is already known; see `snippets/unreleased.mdx`).
+Do not touch generated reference pages; they regenerate at the next finalized
+tag, and the `develop` version regenerates on every merge. Full rules:
 [Component reference › Documenting unreleased changes](https://docs.optimism.io/op-stack/contribute/content-guide#documenting-unreleased-changes).
 
 ## Pull Request Process
