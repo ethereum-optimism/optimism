@@ -10,7 +10,7 @@ import (
 )
 
 // maxRecordedBodySize matches the go-ethereum server's default request body limit, which it
-// cannot serve beyond. It also caps the response copy, to bound the memory recording adds.
+// cannot serve beyond. It also caps the response held back for recording, to bound its memory.
 const maxRecordedBodySize = 5 * 1024 * 1024
 
 // envelope holds the JSON-RPC message fields that recording reads, of a request or a response.
@@ -23,9 +23,10 @@ type envelope struct {
 }
 
 // newRecordingHandler reports the JSON-RPC requests that next serves over HTTP, and their
-// responses, to rec. Each element of a batch is timed as the whole HTTP request. A request gets
-// no recorded response if the server rejects the HTTP request (e.g. for its content type) or if
-// the response exceeds maxRecordedBodySize.
+// responses, to rec. The response is held back until it is recorded, so recorded durations end
+// when the response is built, not when the client has received it. Each element of a batch is
+// timed as the whole HTTP request. A request gets no recorded response if the server rejects the
+// HTTP request (e.g. for its content type) or if the response exceeds maxRecordedBodySize.
 func newRecordingHandler(rec jsonrpc.Recorder, next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		requests := readRequests(r)
@@ -45,18 +46,20 @@ func newRecordingHandler(rec jsonrpc.Recorder, next http.Handler) http.Handler {
 			next.ServeHTTP(w, r)
 			return
 		}
-		tee := &teeResponseWriter{ResponseWriter: w}
-		next.ServeHTTP(tee, r)
-		if tee.truncated {
+		held := &heldResponseWriter{ResponseWriter: w}
+		next.ServeHTTP(held, r)
+		if held.passthrough {
 			return
 		}
-		for _, resp := range parseEnvelopes(tee.body.Bytes()) {
+		for _, resp := range parseEnvelopes(held.body.Bytes()) {
 			key := idKey(resp.ID)
 			if pending := dones[key]; len(pending) > 0 {
 				dones[key] = pending[1:]
 				pending[0](ctx, jsonrpc.Response{Result: resp.Result, Error: resp.Error})
 			}
 		}
+		// The client may be gone; there is nobody to report a write error to.
+		_, _ = w.Write(held.body.Bytes())
 	})
 }
 
@@ -107,25 +110,29 @@ type readCloser struct {
 	io.Closer
 }
 
-// teeResponseWriter keeps a copy of the response body it writes, up to maxRecordedBodySize.
-type teeResponseWriter struct {
+// heldResponseWriter holds the response body back from the client, up to maxRecordedBodySize.
+// A larger body passes through, starting with what was held.
+type heldResponseWriter struct {
 	http.ResponseWriter
-	body      bytes.Buffer
-	truncated bool
+	body        bytes.Buffer
+	passthrough bool
 }
 
-func (w *teeResponseWriter) Write(b []byte) (int, error) {
-	if !w.truncated {
-		if w.body.Len()+len(b) > maxRecordedBodySize {
-			w.truncated = true
-			w.body = bytes.Buffer{}
-		} else {
-			w.body.Write(b)
-		}
+func (w *heldResponseWriter) Write(b []byte) (int, error) {
+	if w.passthrough {
+		return w.ResponseWriter.Write(b)
 	}
+	if w.body.Len()+len(b) <= maxRecordedBodySize {
+		return w.body.Write(b)
+	}
+	w.passthrough = true
+	if _, err := w.ResponseWriter.Write(w.body.Bytes()); err != nil {
+		return 0, err
+	}
+	w.body = bytes.Buffer{}
 	return w.ResponseWriter.Write(b)
 }
 
-func (w *teeResponseWriter) Unwrap() http.ResponseWriter {
+func (w *heldResponseWriter) Unwrap() http.ResponseWriter {
 	return w.ResponseWriter
 }
