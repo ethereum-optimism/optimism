@@ -1,6 +1,7 @@
 package testlog_test
 
 import (
+	"sync"
 	"testing"
 
 	"github.com/ethereum-optimism/optimism/op-service/log"
@@ -85,4 +86,45 @@ func TestCaptureLoggerNested(t *testing.T) {
 
 	require.Len(t, logs.FindLogs(
 		testlog.NewAttributesFilter("a", "test")), 1, "root logger logged 'a' once")
+}
+
+func TestCaptureLoggerConcurrent(t *testing.T) {
+	lgr, logs := testlog.CaptureLogger(t, log.LevelInfo)
+	// testlog's logger serialises its own calls, so most writers log through the
+	// bare handler, as services do when they build their own logger from it.
+	raw := log.NewLogger(lgr.Handler())
+	loggers := []log.Logger{
+		lgr,
+		raw,
+		raw.With("name", "childX"),
+		raw.New("name", "childY"),
+		raw.With("name", "childZ").With("nested", true),
+	}
+
+	const writersPerLogger, perWriter = 4, 200
+	var wg sync.WaitGroup
+	for _, l := range loggers {
+		for range writersPerLogger {
+			wg.Add(1)
+			go func() {
+				defer wg.Done()
+				for i := range perWriter {
+					l.Info("concurrent", "i", i)
+				}
+			}()
+		}
+		// Read concurrently with the writers.
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			for range perWriter {
+				logs.FindLogs(testlog.NewAttributesFilter("name", "childX"))
+			}
+		}()
+	}
+	wg.Wait()
+
+	want := len(loggers) * writersPerLogger * perWriter
+	require.Equal(t, want, len(logs.FindLogs(testlog.NewMessageFilter("concurrent"))), "no records may be lost")
+	require.Equal(t, writersPerLogger*perWriter, len(logs.FindLogs(testlog.NewAttributesFilter("name", "childX"))))
 }

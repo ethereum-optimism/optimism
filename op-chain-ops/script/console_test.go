@@ -45,7 +45,7 @@ func TestConsole(t *testing.T) {
 	_, err = p.Run(input)
 	require.NoError(t, err)
 
-	for i, l := range *captLog.Logs {
+	for i, l := range captLog.FindLogs() {
 		t.Logf("log %d", i)
 		l.Attrs(func(attr slog.Attr) bool {
 			t.Logf("attr: k: %s, v: %s", attr.Key, attr.Value.String())
