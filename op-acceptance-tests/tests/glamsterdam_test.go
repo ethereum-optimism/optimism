@@ -75,7 +75,7 @@ func TestAutoDASwitchesFromCalldataToBlobsAtGlamsterdam(gt *testing.T) {
 			// Activate the stable test blob schedule before setting the large excess blob gas.
 			sysgo.WithForkAtL1Genesis(forks.BPO5),
 			// Leave enough time to submit a pre-Amsterdam batch before exercising the fork.
-			sysgo.WithForkAtL1Offset(forks.Amsterdam, 60),
+			sysgo.WithForkAtL1Offset(forks.Amsterdam, 120),
 			withGlamsterdamAutoDABlobFee,
 		),
 		presets.WithBatcherOption(func(_ sysgo.ComponentTarget, cfg *batcher.CLIConfig) {
@@ -194,7 +194,7 @@ func withGlamsterdamAutoDABlobFee(_ devtest.T, _ devkeys.Keys, builder intentbui
 	// reduces excess blob gas by 14*131,072, which lowers the fee by only about 0.183%. It takes
 	// 126 consecutive empty blocks (about 12m36s at the six-second L1 block time) to fall below
 	// 79.4 gwei. Even the 2.4 gwei lower boundary takes 27 empty blocks to cross, while Amsterdam
-	// activates after 10; no other component submits blobs before the batcher starts.
+	// activates after 20 blocks; no other component submits blobs before the batcher starts.
 	const (
 		blobBaseFeeUpdateFraction = uint64(1_000_000_000)
 		genesisExcessBlobGas      = uint64(25_328_436_000)
