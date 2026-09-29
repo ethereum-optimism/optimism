@@ -3507,9 +3507,6 @@
           {
             "group": "Reference",
             "pages": [
-              "op-stack/reference/glossary",
-              "op-stack/protocol/smart-contracts",
-              "op-stack/protocol/superchain-registry",
               {
                 "group": "Stack Components",
                 "pages": [
@@ -3537,7 +3534,8 @@
                       "op-stack/components/cannon",
                       "op-stack/components/kona-client",
                       "op-stack/components/kona-host",
-                      "op-stack/components/op-contracts"
+                      "op-stack/components/op-contracts",
+                      "op-stack/protocol/smart-contracts"
                     ]
                   },
                   {
@@ -3565,7 +3563,9 @@
                   "op-stack/protocol/hardforks/canyon",
                   "op-stack/protocol/hardforks/regolith"
                 ]
-              }
+              },
+              "op-stack/protocol/superchain-registry",
+              "op-stack/reference/glossary"
             ]
           }
         ]
