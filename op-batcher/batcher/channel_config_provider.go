@@ -7,6 +7,7 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/log"
+	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/params"
 )
 
@@ -119,6 +120,12 @@ const (
 	amsterdamTxBaseGas               = uint64(12_000 + 3_000)                                    // EIP-2780: TX_BASE_COST + COLD_ACCOUNT_ACCESS
 	amsterdamCalldataFloorGasPerByte = uint64(4 * 16)                                            // EIP-7976: 4 floor tokens per byte at 16 gas per token
 )
+
+// isAmsterdamHeader reports whether Amsterdam is active at the given L1 header. It detects the
+// fork from the EIP-7928 block access list hash, so it needs no L1 chain config.
+func isAmsterdamHeader(h *types.Header) bool {
+	return h.BlockAccessListHash != nil
+}
 
 func computeSingleCalldataTxCost(numBytes uint64, baseFee, tipCap *big.Int, isAmsterdam bool) *big.Int {
 	// Batch submissions send zero value to the code-less batch inbox, so their gas used is the
