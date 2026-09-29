@@ -2693,7 +2693,8 @@ workflows:
               only: /^op-deployer.*/
             branches:
               ignore: /.*/
-          build_args: --skip test
+          # --force: never ship artifacts restored from the shared forge cache.
+          build_args: --skip test --force
           context:
             - circleci-repo-readonly-authenticated-github-token
       - go-release:
