@@ -58,9 +58,11 @@ have_rust=0
 # --- dependency sets -------------------------------------------------------------------
 # Which units of code end up in the component's binaries. Empty leaves every row tagged '?'.
 
+# The first of <targets> whose dependency set is non-empty.
 resolve_go() {
-    local artifact=$1 out=$2 target
-    for target in "./$artifact/cmd" "./$artifact/..."; do
+    local out=$1 target
+    shift
+    for target in "$@"; do
         if (cd "$root" && go list -deps "$target" 2>/dev/null) |
             sed -n "s|^$MODULE/||p" | sort -u > "$out" && [ -s "$out" ]; then
             return 0
@@ -92,8 +94,8 @@ build_pkgmap() {
 }
 
 # The shipping units, from the monorepo's own list. `shared` is infrastructure every
-# component links, not an artifact. Falling back to the component name keeps this working
-# for an artifact that release-paths does not name, such as kona-host or op-reth.
+# component links, not an artifact. Empty for a component release-paths does not know,
+# such as op-program.
 artifacts_of() {
     (cd "$root" && just release-paths "$1" 2>/dev/null) |
         awk -F'\t' '$1 != "shared" && $1 != "" { print $1 }' | awk '!seen[$0]++'
@@ -109,34 +111,41 @@ case "${component:-}" in
             have_rust=1
         fi ;;
     *)
-        if resolve_go "$component" "$workdir/one"; then
+        if resolve_go "$workdir/one" "./$component/cmd" "./$component/..."; then
             cat "$workdir/one" >> "$workdir/deps"
             have_go=1
         fi
-        # An image can ship binaries of both languages. release-paths names every unit that
-        # ships, so a label that is also a workspace crate is a bundled Rust binary --
-        # kona-host in op-challenger's image -- and a label naming another directory is a
-        # second Go binary, such as cannon.
-        workspace_crates=$( (cd "$root/rust" && cargo metadata --no-deps --format-version 1 2>/dev/null) |
-            jq -r '.packages[].name' | sort -u )
+        # Other labels are bundled binaries: a workspace crate (kona-host) is Rust, a Go main
+        # package (cannon) is Go. Anything else, like packages/contracts-bedrock's CI
+        # tooling, is not a binary; resolving it would tag every Solidity-only PR '--'.
+        extra_artifacts=$(artifacts_of "$component" | awk -v c="$component" '$0 != c') || true
+        workspace_crates=
+        if [ -n "$extra_artifacts" ]; then
+            workspace_crates=$( (cd "$root/rust" && cargo metadata --no-deps --format-version 1 2>/dev/null) |
+                jq -r '.packages[].name' | sort -u ) || true
+            [ -n "$workspace_crates" ] ||
+                echo "warning: could not list Rust workspace crates; bundled Rust binaries will not be resolved" >&2
+        fi
         while IFS= read -r artifact; do
             [ -n "$artifact" ] || continue
-            [ "$artifact" != "$component" ] || continue
-            case "$artifact" in rust/*) continue ;; esac
             if printf '%s\n' "$workspace_crates" | grep -qxF "$artifact"; then
                 if resolve_rust "$artifact" "$workdir/one"; then
                     cat "$workdir/one" >> "$workdir/deps"
                     have_rust=1
+                    continue
                 fi
-            elif [ -d "$root/$artifact" ]; then
-                if resolve_go "$artifact" "$workdir/one"; then
+            elif [ "$(cd "$root" && go list -f '{{.Name}}' "./$artifact" 2>/dev/null)" = main ]; then
+                if resolve_go "$workdir/one" "./$artifact"; then
                     cat "$workdir/one" >> "$workdir/deps"
                     have_go=1
+                    continue
                 fi
+            else
+                echo "note: skipping '$artifact': not a workspace crate or Go main package" >&2
+                continue
             fi
-        done <<ARTIFACTS
-$(artifacts_of "$component")
-ARTIFACTS
+            echo "warning: '$component' ships '$artifact', which could not be resolved; its changes will not be tagged LINKED" >&2
+        done <<< "$extra_artifacts"
         ;;
 esac
 
