@@ -115,11 +115,7 @@ func (dec *DynamicEthChannelConfig) ChannelConfig(isThrottling bool, isAmsterdam
 	return dec.blobConfig
 }
 
-const (
-	pectraCalldataFloorGasPerByte    = params.TxTokenPerNonZeroByte * params.TxCostFloorPerToken // EIP-7623
-	amsterdamTxBaseGas               = uint64(12_000 + 3_000)                                    // EIP-2780: TX_BASE_COST + COLD_ACCOUNT_ACCESS
-	amsterdamCalldataFloorGasPerByte = uint64(4 * 16)                                            // EIP-7976: 4 floor tokens per byte at 16 gas per token
-)
+const pectraCalldataFloorGasPerByte = params.TxTokenPerNonZeroByte * params.TxCostFloorPerToken // EIP-7623
 
 // isAmsterdamHeader reports whether Amsterdam is active at the given L1 header. It detects the
 // fork from the EIP-7928 block access list hash, so it needs no L1 chain config.

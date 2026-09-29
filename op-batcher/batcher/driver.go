@@ -1031,6 +1031,11 @@ func (l *BatchSubmitter) sendTx(txdata txData, isCancel bool, candidate *txmgr.T
 	queue.Send(txRef{id: txdata.ID(), isCancel: isCancel, isBlob: txdata.asBlob}, *candidate, receiptsCh)
 }
 
+const (
+	amsterdamTxBaseGas               = uint64(12_000 + 3_000) // EIP-2780: TX_BASE_COST + COLD_ACCOUNT_ACCESS
+	amsterdamCalldataFloorGasPerByte = uint64(4 * 16)         // EIP-7976: 4 floor tokens per byte at 16 gas per token
+)
+
 // maxFloorDataGas returns a gas limit valid under both the pre-Amsterdam EIP-7623 rules and
 // Amsterdam's EIP-2780/EIP-7976 rules. The pre-Amsterdam floor also exceeds Amsterdam's regular
 // intrinsic gas whenever it exceeds the Amsterdam floor, so the larger floor is sufficient.
