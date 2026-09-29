@@ -134,10 +134,11 @@ until it lands, running them locally before pushing is the gate):
   [Component reference](https://docs.optimism.io/op-stack/contribute/content-guide#component-reference)
   convention. Every page under the top-level `reference/` directory opens with a generated
   `DO NOT EDIT` header (hand-written content belongs in a guide); every
-  `<Unreleased>` callout names a covered component and, if it names a
-  release, one that is not yet published (the lint fails once the tag
-  exists, so the callout gets removed); every tag in a generator manifest is
-  a real git tag.
+  `<Unreleased>` callout names a covered component and a valid version if
+  any (a callout whose release has since been tagged is a warning here and a
+  failure in the weekly CI sweep, which runs the lint with `--strict`, so
+  the callout gets removed); every tag in a generator manifest is a real git
+  tag.
 
 Run them locally before pushing:
 

@@ -222,12 +222,11 @@ verifiable by the generator's own `--check`.
     indexed.
 *   **On every docs pull request**, CI runs the docs lints: navigation,
     redirects, reference, and link policy.
-*   **Weekly**, a CI job regenerates the [release history](/releases) pages
-    from GitHub Releases, compares each component's newest finalized tag
-    with the generator manifest, and lists every `<Unreleased>` callout
-    that is more than thirty days old, opening one issue for anything that
-    needs a maintainer: a regeneration that did not happen, or a callout
-    whose change has probably shipped.
+*   **Weekly**, CI regenerates the [release history](/releases) pages from
+    GitHub Releases into one rolling pull request, and runs the reference
+    lint in strict mode, which fails on an `<Unreleased>` callout whose
+    release has since been tagged and lists the callouts that name no
+    version, so a maintainer can confirm what has shipped.
 
 Each job lands together with the generator it serves; until a job exists,
 its step is done by hand and the convention still applies.
@@ -258,10 +257,12 @@ same pull request, as follows:
     <Unreleased component="op-reth" />
 
     The callout is temporary. When it names a version, `pnpm lint:reference`
-    fails once that tag exists, so it must be removed when the release
-    ships. When it does not, the weekly CI sweep lists it once it is thirty
-    days old, and a maintainer removes it after confirming the change has
-    shipped. The lint also rejects a callout that names a component outside
+    warns on every run once that tag exists, and the weekly CI sweep, which
+    runs the lint in strict mode, fails until the callout is removed. The
+    check lives in the weekly job rather than in pull-request CI so that a
+    release tag appearing cannot turn an unrelated pull request red. When
+    the callout names no version, the weekly sweep lists it, and a
+    maintainer removes it after confirming the change has shipped. The lint also rejects a callout that names a component outside
     the covered list, or a version that is not a full `vX.Y.Z`, since such a
     callout could never become stale.
 *   **Removing a feature:** add the callout, or set `deprecated: true` in the

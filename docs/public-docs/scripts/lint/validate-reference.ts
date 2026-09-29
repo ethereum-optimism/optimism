@@ -7,13 +7,17 @@
 //       the DO NOT EDIT marker. Hand-written pages do not live under
 //       reference/; they live in the persona tabs.
 //   R2. Every <Unreleased component="…" [version="…"] /> callout names a
-//       covered component and, when it names a version, a release that does
-//       not exist yet. Once the git tag `<component>/<version>` exists, the
-//       callout is stale and must be removed (the prose it guards is now
-//       current). Callouts without a version are listed by the weekly CI
-//       sweep for a maintainer to remove. Callouts the lint cannot
-//       parse (expression attributes, a missing component) are errors, so a
-//       callout can never be silently unlinted.
+//       covered component and, when it names a version, a valid semver. Once
+//       the git tag `<component>/<version>` exists the callout is stale: the
+//       prose it guards is current and the callout must go. Staleness is a
+//       WARNING by default and an ERROR under --strict. A PR's CI runs the
+//       default, so a tag appearing elsewhere can never turn an unrelated PR
+//       red; the weekly docs-unreleased-sweep job runs --strict and fails
+//       until the callout is removed. Under --strict, callouts without a
+//       version are listed so a maintainer can check whether their change
+//       has shipped. Callouts the lint cannot parse (expression attributes, a
+//       missing component) are always errors, so a callout can never be
+//       silently unlinted.
 //   R3. Every `tag` recorded in a generator manifest (scripts/*/manifest.json)
 //       is an existing git tag, so provenance lines can never name a release
 //       that was not published.
@@ -25,8 +29,9 @@
 // tagless runner can never report a false pass.
 //
 // Usage:
-//   bun docs/public-docs/scripts/lint/validate-reference.ts   (from monorepo root, CI)
-//   pnpm lint:reference                                        (from docs/public-docs)
+//   bun docs/public-docs/scripts/lint/validate-reference.ts            (from monorepo root, CI)
+//   bun docs/public-docs/scripts/lint/validate-reference.ts --strict   (weekly sweep)
+//   pnpm lint:reference                                                 (from docs/public-docs)
 //
 // Exit codes: 0 = clean, 1 = violations, 2 = setup error.
 
@@ -36,7 +41,9 @@ import * as path from "path";
 import { collectAllFiles, findDocsRoot, report, resolveInside } from "./common";
 
 const docsRoot = findDocsRoot();
+const strict = process.argv.includes("--strict");
 const errors: string[] = [];
+const warnings: string[] = [];
 
 // Components covered by the convention. Keep in sync with the "Components
 // covered" list in the content guide and the Props comment in
@@ -193,7 +200,10 @@ for (const rel of mdxFiles) {
       );
       continue;
     }
-    if (!version) continue; // no version: the weekly CI sweep lists it for review
+    if (!version) {
+      if (strict) warnings.push(`${rel}: <Unreleased component="${component}"> has no version — check whether the change has shipped and remove the callout if so`);
+      continue;
+    }
     if (!SEMVER_RE.test(version)) {
       errors.push(
         `${rel}: <Unreleased component="${component}" version="${version}"> — version must be a full semver with a leading v (e.g. v2.5.0)`,
@@ -201,10 +211,10 @@ for (const rel of mdxFiles) {
       continue;
     }
     if (tags !== null && tags.has(`${component}/${version}`)) {
-      errors.push(
+      const msg =
         `${rel}: stale <Unreleased component="${component}" version="${version}"> — ` +
-          `${component}/${version} is published; remove the callout and let the prose read as current`,
-      );
+        `${component}/${version} is published; remove the callout and let the prose read as current`;
+      (strict ? errors : warnings).push(msg);
     }
   }
 }
@@ -241,9 +251,12 @@ for (const rel of manifests) {
   }
 }
 
+for (const w of warnings) console.warn(`warning: ${w}`);
+
 const tagNote = tags === null ? " (R2/R3 SKIPPED: no tags)" : ` (tags from ${tagInfo!.source})`;
+const modeNote = strict ? ", strict" : "";
 report(
   errors,
   `reference lint: OK — ${mdxFiles.filter(isReferencePage).length} generated page(s) under reference/, ` +
-    `${unreleasedCount} <Unreleased> callout(s), ${manifestTagCount} manifest tag(s) across ${manifests.length} manifest(s)${tagNote}`,
+    `${unreleasedCount} <Unreleased> callout(s), ${manifestTagCount} manifest tag(s) across ${manifests.length} manifest(s)${tagNote}${modeNote}`,
 );

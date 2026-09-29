@@ -7,9 +7,10 @@
   docs.optimism.io deploys from `develop` while components ship from release
   tags, so prose that lands with a component PR is live before the binary is.
   This callout marks such prose. It is temporary: when it names a version,
-  `pnpm lint:reference` fails once that tag exists in git; when it does not,
-  the weekly CI sweep lists it for review once it is thirty days old, and a
-  maintainer removes it after confirming the change has shipped.
+  `pnpm lint:reference` warns once that tag exists in git and the weekly CI
+  sweep (the lint in --strict mode) fails until the callout is removed; when
+  it does not, the weekly sweep lists it, and a maintainer removes it after
+  confirming the change has shipped.
 
   Do not use this on generated reference pages (anything under reference/):
   those regenerate from the published artifact at the next finalized tag and
