@@ -2,8 +2,10 @@ package sysgo
 
 import (
 	"context"
+	"os"
 	"path/filepath"
 	"runtime"
+	"slices"
 	"time"
 
 	bss "github.com/ethereum-optimism/optimism/op-batcher/batcher"
@@ -187,7 +189,19 @@ func newSingleChainRuntimeWithConfig(t devtest.T, cfg PresetConfig, spec singleC
 
 	var l2Proposer *L2Proposer
 	if spec.StartProposer && !cfg.SkipHonestProposer {
-		l2Proposer = startMinimalProposer(t, keys, world.L2Network, l1EL, primary.CL, cfg.ProposerOptions...)
+		if slices.Contains(cfg.AddedGameTypes, gameTypes.ZKDisputeGameType) {
+			dependencySet, err := depset.NewStaticConfigDependencySet(map[eth.ChainID]*depset.StaticConfigDependency{
+				world.L2Network.ChainID(): {},
+			})
+			require.NoError(err)
+			startZKProposer(t, keys, world.L2Network.ChainID(), world.L1Network, l1EL, l1CL,
+				dependencySet, primary.CL.UserRPC(), []*L2Network{world.L2Network}, []L2ELNode{primary.EL},
+				world.L2Network.deployment.DisputeGameFactoryProxyAddr(),
+				ZKDisputeGameConfigForRuntime().AbsolutePrestate, os.Getenv(konaSP1ELFDirEnv),
+				WithZKProposalInterval(6*time.Second))
+		} else {
+			l2Proposer = startMinimalProposer(t, keys, world.L2Network, l1EL, primary.CL, cfg.ProposerOptions...)
+		}
 	}
 
 	var l2Challenger *L2Challenger
