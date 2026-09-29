@@ -279,11 +279,14 @@ Names below use the `kona_sp1_proposer_` prefix.
 |---|---|---|
 | `up` | Gauge | `1` after the process starts. This does not imply chain-dependent startup validation has completed. Use Prometheus scrape availability to detect process loss. |
 | `signer_balance_eth` | Gauge | L1 transaction signer's balance in ETH. |
+| `signer_nonce` / `signer_pending_nonce` | Gauge | L1 signer's latest mined and pending nonces. Pending stays above latest while proposer transactions wait in the mempool; a gap that does not close means a stuck transaction. |
 | `prove_balance` | Gauge | Configured SP1 network account's spendable balance in PROVE, not the signer's ERC-20 wallet balance. Absent in mock mode. |
 | `deadline_passed_total` | Counter | Missed game windows observed by this process, with `window="defense"` or `window="fast_finality"`. Defense expiry and missed fast-finality acceleration have different consequences. |
 | `defense_deadline_remaining_seconds` | Gauge | Minimum observed defense deadline minus L1 block time, including queued and active games. Zero is the deadline boundary; negative values indicate expiry. |
+| `proof_requests` | Gauge | SPN requests of games still being proven, by `kind` (`range`, `consolidation`, `aggregation`) and `state` (`submitting`, `submitted`, `fulfilled`, `terminal`). A game's requests drop out once its proof is submitted or its progress is discarded. `terminal` requests wait for a retry signal. |
+| `spn_requester_info` | Gauge | `1`, with the SPN requester address in the `address` label. Absent in mock mode. |
 
-Balances refresh every 15 seconds. Failed balance reads return `NaN`
+Balances and nonces refresh every 15 seconds. Failed reads return `NaN`
 without blocking other metrics. Deadline metrics update during game sync
 using the confirmed L1 timestamp.
 

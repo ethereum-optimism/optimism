@@ -41,7 +41,7 @@ use crate::{
         TaskCompletion, TaskId,
     },
     prover::ProofKeys,
-    proving::GameProofInputs,
+    proving::{GameProofInputs, ProofRequestCounts},
     signer::NUM_CONFIRMATIONS,
     superroot::{SuperRootAt, zk_extra_data},
 };
@@ -2042,6 +2042,10 @@ impl ProofEngine for FakeProofEngine {
 
     fn retry_terminal_requests(&self, _game_address: Address) -> usize {
         0
+    }
+
+    fn request_counts(&self) -> ProofRequestCounts {
+        ProofRequestCounts::new()
     }
 }
 
