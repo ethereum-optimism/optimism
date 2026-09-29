@@ -776,10 +776,21 @@ where
 
 /// RPC methods an OP node does not serve, on any transport.
 ///
-/// Upstream installs `eth_getMultiProof` by default, no OP user has asked for it, and a
-/// proofs-history node could not answer it consistently from its pruned state window. Drop an
-/// entry from this list once there is a user for the method.
-const UNSERVED_RPC_METHODS: &[&str] = &["eth_getMultiProof"];
+/// UPSTREAM-MIRROR(set): reth@rev:4553cf1 `reth_rpc_eth_api::EthApi`
+///
+/// Upstream installs these methods as part of the full `eth` API. `eth_getMultiProof` has no OP
+/// users and a proofs-history node could not answer it consistently from its pruned state window.
+/// The block access list methods are explicitly disabled because OP execution data does not carry
+/// EIP-7928 BALs and reconstruction has not been tested against OP-specific state transitions.
+/// Do not expose them until that behavior is tested; re-check this list whenever upstream changes
+/// the `EthApi` method set.
+const UNSERVED_RPC_METHODS: &[&str] = &[
+    "eth_getMultiProof",
+    "eth_getBlockAccessListByBlockHash",
+    "eth_getBlockAccessListByBlockNumber",
+    "eth_getBlockAccessList",
+    "eth_getBlockAccessListRaw",
+];
 
 /// Removes [`UNSERVED_RPC_METHODS`] from the http/ws/ipc modules and from the auth module.
 fn remove_unserved_rpc_methods(modules: &mut TransportRpcModules, auth_module: &mut AuthRpcModule) {
@@ -1898,6 +1909,18 @@ mod tests {
     #[test]
     fn eth_get_multi_proof_is_unserved() {
         assert!(UNSERVED_RPC_METHODS.contains(&"eth_getMultiProof"));
+    }
+
+    #[test]
+    fn block_access_list_methods_are_unserved() {
+        for method in [
+            "eth_getBlockAccessListByBlockHash",
+            "eth_getBlockAccessListByBlockNumber",
+            "eth_getBlockAccessList",
+            "eth_getBlockAccessListRaw",
+        ] {
+            assert!(UNSERVED_RPC_METHODS.contains(&method));
+        }
     }
 
     #[test]
