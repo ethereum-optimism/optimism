@@ -2,6 +2,7 @@ package rpc
 
 import (
 	"context"
+	"io"
 	"net/http"
 	"strings"
 	"sync/atomic"
@@ -22,6 +23,8 @@ import (
 type metricsTestAPI struct{}
 
 func (a *metricsTestAPI) Echo(n int) int { return n }
+
+func (a *metricsTestAPI) Big(n int) string { return strings.Repeat("x", n) }
 
 func (a *metricsTestAPI) Fail() error {
 	return &jsonrpc.Error{Code: -39001, Message: "boom", Data: "details"}
@@ -70,7 +73,7 @@ func gatherValues(t *testing.T, reg *prometheus.Registry) map[string]float64 {
 }
 
 // TestServerRPCMetrics checks the server-side RPC metrics that the handler records for the
-// traffic it serves.
+// JSON-RPC traffic it serves over HTTP.
 func TestServerRPCMetrics(t *testing.T) {
 	reg := opmetrics.NewRegistry()
 	m := opmetrics.MakeRPCMetrics("ns", opmetrics.With(reg))
@@ -103,7 +106,38 @@ func TestServerRPCMetrics(t *testing.T) {
 		{Method: "test_fail", Result: new(any)},
 	}
 	require.NoError(t, httpCl.BatchCallContext(ctx, batch))
+	// A response too large to be recorded is still served.
+	var big string
+	require.NoError(t, httpCl.CallContext(ctx, &big, "test_big", 6<<20))
+	require.Len(t, big, 6<<20)
 
+	post := func(body io.Reader) (int, string) {
+		req, err := http.NewRequestWithContext(ctx, http.MethodPost, "http://"+server.Endpoint(), body)
+		require.NoError(t, err)
+		req.Header.Set("Content-Type", "application/json")
+		resp, err := http.DefaultClient.Do(req)
+		require.NoError(t, err)
+		defer resp.Body.Close()
+		respBody, err := io.ReadAll(resp.Body)
+		require.NoError(t, err)
+		return resp.StatusCode, string(respBody)
+	}
+	// A notification, and a batch with duplicate IDs that geth re-encodes in its response.
+	post(strings.NewReader(`{"jsonrpc":"2.0","method":"test_echo","params":[5]}`))
+	status, body := post(strings.NewReader(`[{"jsonrpc":"2.0","id":"<a>","method":"test_echo","params":[3]},` +
+		`{"jsonrpc":"2.0","id":"<a>","method":"test_echo","params":[3]}]`))
+	require.Equal(t, http.StatusOK, status)
+	require.Equal(t, 2, strings.Count(body, `"result":3`), body)
+	status, body = post(strings.NewReader(`{"jsonrpc":`))
+	require.Equal(t, http.StatusOK, status)
+	require.Contains(t, body, `"code":-32700`)
+	// An oversized body of unknown length, which the server truncates.
+	status, body = post(io.MultiReader(strings.NewReader(`{"jsonrpc":"2.0","id":1,"method":"test_echo","params":["`),
+		strings.NewReader(strings.Repeat("x", 6<<20)), strings.NewReader(`"]}`)))
+	require.Equal(t, http.StatusOK, status)
+	require.Contains(t, body, `"code":-32700`)
+
+	// Websocket traffic is not recorded.
 	wsCl, err := rpc.DialContext(ctx, "ws://"+server.Endpoint())
 	require.NoError(t, err)
 	defer wsCl.Close()
@@ -120,24 +154,49 @@ func TestServerRPCMetrics(t *testing.T) {
 			t.Fatal("timed out waiting for notification")
 		}
 	}
+	require.NoError(t, wsCl.CallContext(ctx, &n, "test_echo", 4))
 
 	values := gatherValues(t, reg)
+	var requests float64
+	for key, v := range values {
+		if strings.HasPrefix(key, "server_requests_total ") {
+			requests += v
+		}
+	}
+	require.Equal(t, 8.0, requests, "only well-formed HTTP requests are recorded")
 	for key, want := range map[string]float64{
-		"server_requests_total method=test_echo rpc=main":                      2,
+		"server_requests_total method=test_echo rpc=main":                      4,
 		"server_requests_total method=test_fail rpc=main":                      2,
 		"server_requests_total method=test_unknown rpc=main":                   1,
-		"server_requests_total method=test_subscribe rpc=main":                 1,
-		"server_request_duration_seconds method=test_echo rpc=main":            2,
-		"server_responses_total error=<nil> method=test_echo rpc=main":         2,
+		"server_request_duration_seconds method=test_echo rpc=main":            4,
+		"server_responses_total error=<nil> method=test_echo rpc=main":         4,
 		"server_responses_total error=rpc_-39001 method=test_fail rpc=main":    2,
 		"server_responses_total error=rpc_-32601 method=test_unknown rpc=main": 1,
-		"server_responses_total error=<nil> method=test_subscribe rpc=main":    1,
-		"server_params_size_total method=test_echo rpc=main":                   6, // [3]
-		"server_results_size_total method=test_echo rpc=main":                  2, // 3
-		"server_notifications_sent_total method=test_subscription rpc=main":    2,
+		"server_params_size_total method=test_echo rpc=main":                   12, // [3]
+		"server_results_size_total method=test_echo rpc=main":                  4,  // 3
+		"server_requests_total method=test_big rpc=main":                       1,
+		"server_responses_total error=<nil> method=test_big rpc=main":          0,
+		"client_notifications_received_total method=test_echo rpc=main":        1,
 	} {
 		require.Equal(t, want, values[key], key)
 	}
+	for key := range values {
+		require.NotContains(t, key, "notifications_sent", "websocket notifications are not recorded")
+	}
+}
+
+func TestWebsocketRecordingWarning(t *testing.T) {
+	m := opmetrics.MakeRPCMetrics("ns", opmetrics.With(opmetrics.NewRegistry()))
+	rec := m.NewRecorder("main")
+	warning := testlog.NewMessageContainsFilter("websocket traffic is not recorded")
+
+	lgr, logs := testlog.CaptureLogger(t, log.LevelWarn)
+	NewHandler("test", WithLogger(lgr), WithWebsocketEnabled(), WithRPCRecorder(rec))
+	require.NotNil(t, logs.FindLog(warning))
+
+	lgr, logs = testlog.CaptureLogger(t, log.LevelWarn)
+	NewHandler("test", WithLogger(lgr), WithRPCRecorder(rec))
+	require.Nil(t, logs.FindLog(warning))
 }
 
 type notificationRecorder struct {

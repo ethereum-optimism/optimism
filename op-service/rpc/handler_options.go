@@ -31,7 +31,8 @@ func WithVHosts(hosts []string) Option {
 }
 
 // WithWebsocketEnabled allows `ws://host:port/`, `ws://host:port/ws` and `ws://host:port/ws/`
-// to be upgraded to a websocket JSON RPC connection.
+// to be upgraded to a websocket JSON RPC connection. A recorder set with WithRPCRecorder does
+// not record websocket traffic.
 func WithWebsocketEnabled() Option {
 	return func(b *Handler) {
 		b.wsEnabled = true
@@ -66,7 +67,9 @@ func WithMiddleware(middleware func(http.Handler) (hdlr http.Handler)) Option {
 	}
 }
 
-// WithRPCRecorder adds an RPC recorder to the RPC handler stack.
+// WithRPCRecorder makes the handler report the JSON-RPC traffic it serves over HTTP to the
+// given recorder. Websocket traffic is not recorded, and each element of a batch request is
+// timed as the whole request.
 // See op-service RPCMetricer to create a recorder that maintains RPC metrics.
 func WithRPCRecorder(recorder jsonrpc.Recorder) Option {
 	return func(b *Handler) {

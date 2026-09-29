@@ -71,6 +71,9 @@ func NewHandler(appVersion string, opts ...Option) *Handler {
 		opt(bs)
 	}
 	bs.log.Debug("Creating RPC handler")
+	if bs.wsEnabled && bs.recorder != nil {
+		bs.log.Warn("RPC recorder is set, but websocket traffic is not recorded")
+	}
 
 	var handler http.Handler
 	handler = bs.mux
@@ -160,7 +163,6 @@ func (b *Handler) AddRPCWithAuthentication(route string, isAuthenticated *bool) 
 	}
 
 	srv := rpc.NewServer()
-	setServerRecorder(srv, b.recorder)
 
 	if err := srv.RegisterName("health", &healthzAPI{
 		appVersion: b.appVersion,
@@ -226,7 +228,11 @@ func (b *Handler) newHealthMiddleware(next http.Handler) http.Handler {
 func (b *Handler) newHttpRPCMiddleware(server *rpc.Server, next http.Handler, jwtSecret []byte) http.Handler {
 	// Only allow RPC handlers behind the appropriate CORS / vhost / JWT setup.
 	// Note that websockets have their own handler-stack, also configured with CORS and JWT, separately.
-	httpHandler := node.NewHTTPHandlerStack(server, b.corsHosts, b.vHosts, jwtSecret)
+	var rpcHandler http.Handler = server
+	if b.recorder != nil {
+		rpcHandler = newRecordingHandler(b.recorder, server)
+	}
+	httpHandler := node.NewHTTPHandlerStack(rpcHandler, b.corsHosts, b.vHosts, jwtSecret)
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		// URL is already stripped with http.StripPrefix
 		if r.URL.Path == "" {
