@@ -57,17 +57,17 @@ pub struct OpPooledTransaction<
 
     /// Worst-case cost including the OP fees reserved at validation, see
     /// [`OpPooledTx::set_op_fee_reservation`].
-    cost: U256,
+    op_cost: U256,
 }
 
 impl<Cons: SignedTransaction, Pooled> OpPooledTransaction<Cons, Pooled> {
     /// Create new instance of [Self].
     pub fn new(transaction: Recovered<Cons>, encoded_length: usize) -> Self {
         let inner = EthPooledTransaction::new(transaction, encoded_length);
-        let cost = inner.cost;
+        let op_cost = inner.cost;
         Self {
             inner,
-            cost,
+            op_cost,
             estimated_tx_compressed_size: Default::default(),
             conditional: None,
             interop: Arc::new(AtomicU64::new(NO_INTEROP_TX)),
@@ -172,7 +172,7 @@ where
     }
 
     fn cost(&self) -> &U256 {
-        &self.cost
+        &self.op_cost
     }
 
     fn encoded_length(&self) -> usize {
@@ -299,8 +299,8 @@ where
     }
 }
 
-/// Helper trait to provide payload builder with access to conditionals and encoded bytes of
-/// transaction.
+/// OP-specific pool transaction behaviour: gives the payload builder access to conditionals and
+/// encoded bytes, and lets the validator reserve the OP fees in [`PoolTransaction::cost`].
 pub trait OpPooledTx:
     MaybeConditionalTransaction + MaybeInteropTransaction + PoolTransaction + DataAvailabilitySized
 {
@@ -326,7 +326,7 @@ where
     }
 
     fn set_op_fee_reservation(&mut self, fee: U256) {
-        self.cost = self.inner.cost.saturating_add(fee);
+        self.op_cost = self.inner.cost.saturating_add(fee);
     }
 }
 
