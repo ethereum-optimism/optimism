@@ -12,6 +12,7 @@ cleanup() {
   fi
   for path in "$trial_dir"/build-*; do
     [[ -d "$path" ]] || continue
+    sudo rm -rf "$path/rust/kona/sp1/programs/target/elf-compilation/docker" || true
     git -C "$repo_root" worktree remove --force "$path" || true
   done
   rm -rf "$trial_dir"
@@ -71,19 +72,23 @@ build_tag() {
       fflush()
     }
   ' | tee "${logs_dir}/${label}.txt"
+  echo "TRIAL Docker build completed label=${label}" | tee -a "${logs_dir}/summary.txt"
 
   manifest="${worktree}/rust/kona/sp1/elf/vkeys.toml"
   elf="${worktree}/rust/kona/sp1/elf/super-aggregation-elf"
   [[ -s "$elf" && -f "$manifest" ]]
+  echo "TRIAL artifacts present label=${label}" | tee -a "${logs_dir}/summary.txt"
   key=$(grep -E '^[[:space:]]*super-aggregation[[:space:]]*=' "$manifest" | sed -nE 's/^[[:space:]]*super-aggregation[[:space:]]*=[[:space:]]*"(0x[0-9a-fA-F]{64})"[[:space:]]*$/\1/p')
   [[ "$key" =~ ^0x[0-9a-fA-F]{64}$ ]]
   derived_output=$(cd "$worktree" && SP1_PROVER=cpu mise exec -- cargo prove vkey --elf "$elf")
   derived=$(printf '%s\n' "$derived_output" | grep -oE '0x[0-9a-fA-F]{64}')
   [[ "$derived" =~ ^0x[0-9a-fA-F]{64}$ ]]
   [[ "${key,,}" == "${derived,,}" ]]
+  echo "TRIAL manifest and ELF agree label=${label} vkey=${key}" | tee -a "${logs_dir}/summary.txt"
   elapsed=$(($(date +%s) - started))
-  echo "TRIAL PASS label=${label} tag=${ref} commit=${commit} vkey=${key} elapsed_seconds=${elapsed}"
+  echo "TRIAL PASS label=${label} tag=${ref} commit=${commit} vkey=${key} elapsed_seconds=${elapsed}" | tee -a "${logs_dir}/summary.txt"
   BUILT_KEY=$key
+  sudo rm -rf "${worktree}/rust/kona/sp1/programs/target/elf-compilation/docker"
   git -C "$repo_root" worktree remove --force "$worktree"
 }
 
