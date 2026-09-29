@@ -25,6 +25,9 @@ use reth_transaction_pool::{PoolTransaction, TransactionPool};
 use std::time::{Duration, Instant};
 use tracing::{info, warn};
 
+mod op_fees;
+pub use op_fees::{maintain_transaction_pool_op_fees, maintain_transaction_pool_op_fees_future};
+
 /// Transaction pool maintenance metrics
 #[derive(Metrics)]
 #[metrics(scope = "transaction_pool")]

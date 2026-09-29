@@ -4,7 +4,7 @@ use alloy_primitives::U256;
 use op_revm::{L1BlockInfo, OpSpecId};
 use parking_lot::RwLock;
 use reth_chainspec::ChainSpecProvider;
-use reth_evm::ConfigureEvm;
+use reth_evm::{ConfigureEvm, execute::BlockExecutionError};
 use reth_optimism_evm::{RethL1BlockInfo, revm_spec_by_timestamp_after_bedrock};
 use reth_optimism_forks::OpHardforks;
 use reth_primitives_traits::{
@@ -272,34 +272,18 @@ where
 
             let encoded = valid_tx.transaction().encoded_2718();
 
-            let mut cost_addition = match l1_block_info.l1_tx_data_fee(
+            let cost_addition = match op_fee_reservation(
+                &mut l1_block_info,
                 self.chain_spec(),
                 self.block_timestamp(),
                 &encoded,
-                false,
+                valid_tx.transaction().gas_limit(),
             ) {
                 Ok(cost) => cost,
                 Err(err) => {
                     return TransactionValidationOutcome::Error(*valid_tx.hash(), Box::new(err));
                 }
             };
-
-            // Also reserve the operator fee (introduced in Isthmus). The Isthmus exec-engine spec
-            // mandates this pool behavior: "the transaction pool must reject transactions that do
-            // not have enough balance to cover the worst-case cost of the transaction fee. This
-            // worst-case cost of a transaction now includes the worst-case operator fee."
-            // <https://specs.optimism.io/protocol/isthmus/exec-engine.html#operator-fee>
-            // (Jovian changes the formula: <https://specs.optimism.io/protocol/jovian/exec-engine.html#operator-fee>.)
-            // Reserving only the L1 data fee above lets a sender covering L2 gas + value + L1 data
-            // fee — but not the operator fee — be admitted to the pool and then fail at execution.
-            let spec_id =
-                revm_spec_by_timestamp_after_bedrock(self.chain_spec(), self.block_timestamp());
-            cost_addition = cost_addition.saturating_add(operator_fee_addition(
-                &l1_block_info,
-                spec_id,
-                &encoded,
-                valid_tx.transaction().gas_limit(),
-            ));
 
             // Fold the OP fees into `cost()` so the pool's cumulative per-sender balance check
             // accounts for them too. This check only sees one transaction against the on-chain
@@ -398,6 +382,32 @@ impl OpForkTracker {
     pub(crate) fn is_interop_activated(&self) -> bool {
         self.interop.load(Ordering::Relaxed)
     }
+}
+
+/// OP fees a non-deposit transaction must be able to pay on top of its L2 cost (gas + value): the
+/// L1 data fee plus the worst-case operator fee, priced with `l1_block_info` at `timestamp`.
+///
+/// The operator fee (Isthmus onwards) is part of the reservation because the Isthmus exec-engine
+/// spec mandates it for the pool: "the transaction pool must reject transactions that do not have
+/// enough balance to cover the worst-case cost of the transaction fee. This worst-case cost of a
+/// transaction now includes the worst-case operator fee."
+/// <https://specs.optimism.io/protocol/isthmus/exec-engine.html#operator-fee>
+pub(crate) fn op_fee_reservation<C: OpHardforks + Clone>(
+    l1_block_info: &mut L1BlockInfo,
+    chain_spec: C,
+    timestamp: u64,
+    encoded: &[u8],
+    gas_limit: u64,
+) -> Result<U256, BlockExecutionError> {
+    let l1_data_fee =
+        l1_block_info.l1_tx_data_fee(chain_spec.clone(), timestamp, encoded, false)?;
+    let spec_id = revm_spec_by_timestamp_after_bedrock(chain_spec, timestamp);
+    Ok(l1_data_fee.saturating_add(operator_fee_addition(
+        l1_block_info,
+        spec_id,
+        encoded,
+        gas_limit,
+    )))
 }
 
 /// Operator fee to reserve for a non-deposit transaction in the tx-pool balance check.

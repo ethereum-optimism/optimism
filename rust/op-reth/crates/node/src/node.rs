@@ -1483,6 +1483,21 @@ where
             debug!(target: "reth::cli", "Spawned Op conditional txpool maintenance task");
         }
 
+        // Re-price pending transactions' OP fees on every new block. Skipped in --dev mode for the
+        // same reason the validator skips the L1 data fee: blocks carry no L1 block info there.
+        if !ctx.config().dev.dev {
+            let chain_events = ctx.provider().canonical_state_stream();
+            ctx.task_executor().spawn_critical_task(
+                "Op txpool OP fee maintenance task",
+                reth_optimism_txpool::maintain::maintain_transaction_pool_op_fees_future(
+                    transaction_pool.clone(),
+                    ctx.provider().clone(),
+                    chain_events,
+                ),
+            );
+            debug!(target: "reth::cli", "Spawned Op fee txpool maintenance task");
+        }
+
         Ok(transaction_pool)
     }
 }
