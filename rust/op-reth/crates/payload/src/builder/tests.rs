@@ -917,6 +917,9 @@ fn miner_fee_uses_pool_wrapper_tip() {
         fn encoded_2718(&self) -> Cow<'_, Bytes> {
             OpPooledTx::encoded_2718(&self.inner)
         }
+        fn set_op_fee_reservation(&mut self, fee: U256) {
+            self.inner.set_op_fee_reservation(fee);
+        }
     }
 
     let signer = Address::repeat_byte(0x11);
