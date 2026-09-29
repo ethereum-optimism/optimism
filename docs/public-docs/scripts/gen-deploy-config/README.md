@@ -88,11 +88,11 @@ than against a regeneration from the current tree: the schema source on
 `develop` may legitimately move past the tag between releases, so tree parity
 is reported informationally only.
 
-Enforcement runs as a review-gated Mintlify docs automation on a weekly
-schedule: it compares the newest finalized `op-deployer/v*` tag against the
-tag in `manifest.json` and, when a newer release exists, regenerates per the
-steps above and proposes the change for human review. Local `-check` runs
-cover the gap between scheduled runs.
+Regeneration is not yet automated. A monorepo CI job triggered by each
+finalized `op-deployer/v*` tag will run the generator and open the docs pull
+request (ethereum-optimism/solutions#1518, Phase 2). Until it exists,
+regenerate locally per the steps above when a release is published; `-check`
+verifies the committed snippet at any time.
 
 ## Ownership
 
@@ -104,15 +104,15 @@ model in the Solutions repo's
 
 | Artifact | Author of record | Reviewer | Stale-reference triage |
 | --- | --- | --- | --- |
-| Generator code + docs automation (this directory, the Mintlify automation config) | Matthew Cruz (@sbvegan), docs owner — proposed, pending confirmation | @ethereum-optimism/solutions (via the `/docs/public-docs/scripts/` CODEOWNERS rule) | Author of record |
-| Generated snippet (`snippets/generated/deploy-config-schema.mdx`) | The pipeline — nobody hand-edits; `-check` fails on hand edits by construction | @ethereum-optimism/solutions review the automation's regeneration PRs | A snippet that can't be regenerated cleanly is filed as an `accuracy`-labelled issue on the Solutions board |
+| Generator code + its CI job (this directory, the regeneration workflow) | Matthew Cruz (@sbvegan), docs owner — proposed, pending confirmation | @ethereum-optimism/solutions (via the `/docs/public-docs/scripts/` CODEOWNERS rule) | Author of record |
+| Generated snippet (`snippets/generated/deploy-config-schema.mdx`) | The pipeline — nobody hand-edits; `-check` fails on hand edits by construction | @ethereum-optimism/solutions review the regeneration PRs | A snippet that can't be regenerated cleanly is filed as an `accuracy`-labelled issue on the Solutions board |
 | Schema facts (`op-chain-ops/genesis` struct tags + doc comments) | Component engineers | Component team | Component team; the docs schema follows at the next finalized op-deployer release |
 
 Known residual gaps (accepted, by design):
 
 - The schema documents the manifest release tag, not `develop`. Struct changes
   merged after a release are intentionally not reflected until the next
-  finalized tag is published and the automation (or a maintainer) regenerates.
+  finalized tag is published and the CI job (or a maintainer) regenerates.
 - Descriptions are the source's Go doc comments; fields without a doc comment
   (the dev-only L1/L2 genesis block fields, `channelTimeoutGranite`) render an
   em dash. Improving them means improving the doc comments upstream — by
