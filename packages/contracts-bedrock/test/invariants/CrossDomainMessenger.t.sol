@@ -39,6 +39,10 @@ contract RelayActor is StdUtils {
         address target = address(0x04); // ID precompile
         address sender = Predeploys.L2_CROSS_DOMAIN_MESSENGER;
 
+        // Bound the message size so the fixed `doFail` gas range below covers the relay's memory
+        // costs.
+        vm.assume(_message.length <= 5_000);
+
         // Set the minimum gas limit to the cost of the identity precompile's execution for
         // the given message.
         // ID Precompile cost can be determined by calculating: 15 + 3 * data_word_length
@@ -55,9 +59,9 @@ contract RelayActor is StdUtils {
         // will not reject value being sent to it.
         _value = _value % 2;
 
-        // If the message should succeed, supply it `baseGas`. If not, supply it an amount of
-        // gas that is too low to complete the call.
-        uint256 gas = doFail ? bound(minGasLimit, 90_000, 100_000) : xdm.baseGas(_message, minGasLimit);
+        // If the message should succeed, supply it `baseGas`. If not, supply enough gas for the
+        // relay to record the failure from cold storage, but too little to call the target.
+        uint256 gas = doFail ? bound(minGasLimit, 125_000, 135_000) : xdm.baseGas(_message, minGasLimit);
 
         // Compute the cross domain message hash and store it in `hashes`.
         // The `relayMessage` function will always encode the message as a version 1
