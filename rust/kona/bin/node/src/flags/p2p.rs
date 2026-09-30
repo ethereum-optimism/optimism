@@ -5,8 +5,7 @@
 //! [op-node]: https://github.com/ethereum-optimism/optimism/blob/develop/op-node/flags/p2p_flags.go
 
 use crate::flags::{GlobalArgs, SignerArgs};
-use alloy_primitives::{B256, b256};
-use alloy_provider::Provider;
+use alloy_primitives::B256;
 use alloy_signer_local::PrivateKeySigner;
 use anyhow::Result;
 use clap::Parser;
@@ -322,29 +321,15 @@ impl P2PArgs {
         l1_eth_rpc: Option<Url>,
     ) -> anyhow::Result<alloy_primitives::Address> {
         if let Some(l1_eth_rpc) = l1_eth_rpc {
-            /// The storage slot that the unsafe block signer address is stored at.
-            /// Computed as: `bytes32(uint256(keccak256("systemconfig.unsafeblocksigner")) - 1)`
-            const UNSAFE_BLOCK_SIGNER_ADDRESS_STORAGE_SLOT: B256 =
-                b256!("0x65a7ed542fb37fe237fdfbdd70b31598523fe5b32879e307bae27a0bd9581c08");
-
             let mut provider = AlloyChainProvider::new_http(l1_eth_rpc, 1024);
             let latest_block_num = provider.latest_block_number().await?;
             let block_info = provider.block_info_by_number(latest_block_num).await?;
-
-            // Fetch the unsafe block signer address from the system config.
-            let unsafe_block_signer_address = provider
-                .inner
-                .get_storage_at(
-                    rollup_config.l1_system_config_address,
-                    UNSAFE_BLOCK_SIGNER_ADDRESS_STORAGE_SLOT.into(),
-                )
-                .hash(block_info.hash)
-                .await?;
-
-            // Convert the unsafe block signer address to the correct type.
-            return Ok(alloy_primitives::Address::from_slice(
-                &unsafe_block_signer_address.to_be_bytes_vec()[12..],
-            ));
+            return Ok(kona_providers_alloy::unsafe_block_signer(
+                &provider.inner,
+                rollup_config.l1_system_config_address,
+                block_info.hash,
+            )
+            .await?);
         }
 
         // Otherwise use the genesis signer or the configured unsafe block signer.
