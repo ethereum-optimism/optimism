@@ -143,6 +143,28 @@ pub enum OpProofsStorageError {
          Please clear proofs data and retry initialization."
     )]
     InitializeStorageInconsistentState,
+    /// The source database's hashed-state and trie tables lag its block tip, so they describe no
+    /// single block and cannot seed the proofs storage.
+    #[error(
+        "reth database state is not durable at its tip #{db_tip}: hashed state and trie tables \
+         are only persisted through #{partial_state_trie}. This happens after an unclean \
+         shutdown or when the datadir was copied from a running node. Start `op-reth node` on \
+         this datadir so it repairs its state, stop it cleanly, then re-run initialization."
+    )]
+    InitializeSourceStateTrieLagging {
+        /// Block number of reth's Finish checkpoint.
+        db_tip: u64,
+        /// Highest block whose hashed state and trie are durable in reth's database.
+        partial_state_trie: u64,
+    },
+    /// reth's repair unwind of a lagging hashed-state/trie frontier was interrupted, so those
+    /// tables are half-unwound.
+    #[error(
+        "reth database is in the middle of repairing its state (an interrupted partial state \
+         trie unwind). Start `op-reth node` on this datadir so it completes the repair, stop it \
+         cleanly, then re-run initialization."
+    )]
+    InitializeSourceStateTrieUnwindPending,
     /// The snapshot has never been initialized — no init job has run yet.
     #[error("Snapshot is not initialized")]
     SnapshotNotInitialized,

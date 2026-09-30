@@ -19,6 +19,7 @@ reth-execution-errors.workspace = true
 reth-primitives-traits.workspace = true
 reth-provider.workspace = true
 reth-revm.workspace = true
+reth-stages-types.workspace = true
 reth-trie = { workspace = true, features = ["serde"] }
 reth-trie-common = { workspace = true, features = ["serde"] }
 reth-trie-db.workspace = true
@@ -67,6 +68,7 @@ reth-db = { workspace = true, features = ["test-utils"] }
 reth-db-api = { workspace = true, features = ["test-utils"] }
 reth-trie = { workspace = true, features = ["test-utils"] }
 reth-provider = { workspace = true, features = ["test-utils"] }
+reth-chain-state.workspace = true
 reth-node-api.workspace = true
 alloy-consensus.workspace = true
 alloy-genesis.workspace = true
@@ -94,7 +96,8 @@ test-utils = [
 	"reth-tasks/test-utils",
 	"reth-trie/test-utils",
 	"reth-trie-common/test-utils",
-	"reth-trie-db/test-utils"
+	"reth-trie-db/test-utils",
+	"reth-stages-types/test-utils"
 ]
 serde-bincode-compat = [
 	"reth-trie-common/serde-bincode-compat",
