@@ -176,9 +176,12 @@ func TestStream_Subscription(t *testing.T) {
 	api.events.Send(&Foo{Message: "hello dave"})
 
 	dest = make(chan *Foo, 10)
-	_, err = SubscribeStream[Foo](testCtx,
+	sub, err = SubscribeStream[Foo](testCtx,
 		"custom", &ClientWrapper{cl: cl}, dest, "foo")
 	require.NoError(t, err)
+	// Unsubscribe before the client closes: a client disconnect ends the server-side subscription
+	// asynchronously, and the Stream would log that through the test logger after the test has completed.
+	t.Cleanup(sub.Unsubscribe)
 
 	// Send another event, now that we have a live subscription again.
 	api.events.Send(&Foo{Message: "hello elizabeth"})
