@@ -74,6 +74,11 @@ func gatherValues(t *testing.T, reg *prometheus.Registry) map[string]float64 {
 
 // TestServerRPCMetrics checks the server-side RPC metrics that the handler records for the
 // JSON-RPC traffic it serves over HTTP.
+//
+// It also pins a go-ethereum implementation detail that recording relies on: the rpc.Server
+// writes each HTTP response, single or batch, in one Write call, which the recording middleware
+// parses before passing it on. If a go-ethereum update breaks this, the response counts here drop
+// to zero and the middleware needs to hold the response back instead.
 func TestServerRPCMetrics(t *testing.T) {
 	reg := opmetrics.NewRegistry()
 	m := opmetrics.MakeRPCMetrics("ns", opmetrics.With(reg))
@@ -106,7 +111,7 @@ func TestServerRPCMetrics(t *testing.T) {
 		{Method: "test_fail", Result: new(any)},
 	}
 	require.NoError(t, httpCl.BatchCallContext(ctx, batch))
-	// A response too large to be recorded is still served.
+	// A large response is written in one call too.
 	var big string
 	require.NoError(t, httpCl.CallContext(ctx, &big, "test_big", 6<<20))
 	require.Len(t, big, 6<<20)
@@ -175,7 +180,7 @@ func TestServerRPCMetrics(t *testing.T) {
 		"server_params_size_total method=test_echo rpc=main":                   12, // [3]
 		"server_results_size_total method=test_echo rpc=main":                  4,  // 3
 		"server_requests_total method=test_big rpc=main":                       1,
-		"server_responses_total error=<nil> method=test_big rpc=main":          0,
+		"server_responses_total error=<nil> method=test_big rpc=main":          1,
 		"client_notifications_received_total method=test_echo rpc=main":        1,
 	} {
 		require.Equal(t, want, values[key], key)

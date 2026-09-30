@@ -9,9 +9,9 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/jsonrpc"
 )
 
-// maxRecordedBodySize matches the go-ethereum server's default request body limit, which it
-// cannot serve beyond. It also caps the response held back for recording, to bound its memory.
-const maxRecordedBodySize = 5 * 1024 * 1024
+// maxRequestBodySize matches the go-ethereum server's default request body limit, which it
+// cannot serve beyond. Larger requests are served unrecorded.
+const maxRequestBodySize = 5 * 1024 * 1024
 
 // envelope holds the JSON-RPC message fields that recording reads, of a request or a response.
 type envelope struct {
@@ -23,10 +23,10 @@ type envelope struct {
 }
 
 // newRecordingHandler reports the JSON-RPC requests that next serves over HTTP, and their
-// responses, to rec. The response is held back until it is recorded, so recorded durations end
-// when the response is built, not when the client has received it. Each element of a batch is
-// timed as the whole HTTP request. A request gets no recorded response if the server rejects the
-// HTTP request (e.g. for its content type) or if the response exceeds maxRecordedBodySize.
+// responses, to rec. The response is recorded as the server writes it, before it reaches the
+// client, so recorded durations end when the response is built. Each element of a batch is timed
+// as the whole HTTP request. A request gets no recorded response if the server rejects the HTTP
+// request (e.g. for its content type).
 func newRecordingHandler(rec jsonrpc.Recorder, next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		requests := readRequests(r)
@@ -46,20 +46,15 @@ func newRecordingHandler(rec jsonrpc.Recorder, next http.Handler) http.Handler {
 			next.ServeHTTP(w, r)
 			return
 		}
-		held := &heldResponseWriter{ResponseWriter: w}
-		next.ServeHTTP(held, r)
-		if held.passthrough {
-			return
-		}
-		for _, resp := range parseEnvelopes(held.body.Bytes()) {
-			key := idKey(resp.ID)
-			if pending := dones[key]; len(pending) > 0 {
-				dones[key] = pending[1:]
-				pending[0](ctx, jsonrpc.Response{Result: resp.Result, Error: resp.Error})
+		next.ServeHTTP(&firstWriteRecorder{ResponseWriter: w, record: func(body []byte) {
+			for _, resp := range parseEnvelopes(body) {
+				key := idKey(resp.ID)
+				if pending := dones[key]; len(pending) > 0 {
+					dones[key] = pending[1:]
+					pending[0](ctx, jsonrpc.Response{Result: resp.Result, Error: resp.Error})
+				}
 			}
-		}
-		// The client may be gone; there is nobody to report a write error to.
-		_, _ = w.Write(held.body.Bytes())
+		}}, r)
 	})
 }
 
@@ -76,11 +71,11 @@ func idKey(id json.RawMessage) string {
 // readRequests parses the JSON-RPC requests in the body of r, and leaves the body for the
 // next reader. It returns nil for a body it does not record.
 func readRequests(r *http.Request) []envelope {
-	if r.Method != http.MethodPost || r.ContentLength > maxRecordedBodySize {
+	if r.Method != http.MethodPost || r.ContentLength > maxRequestBodySize {
 		return nil
 	}
-	body, err := io.ReadAll(io.LimitReader(r.Body, maxRecordedBodySize+1))
-	if err != nil || len(body) > maxRecordedBodySize {
+	body, err := io.ReadAll(io.LimitReader(r.Body, maxRequestBodySize+1))
+	if err != nil || len(body) > maxRequestBodySize {
 		r.Body = readCloser{io.MultiReader(bytes.NewReader(body), r.Body), r.Body}
 		return nil
 	}
@@ -110,29 +105,23 @@ type readCloser struct {
 	io.Closer
 }
 
-// heldResponseWriter holds the response body back from the client, up to maxRecordedBodySize.
-// A larger body passes through, starting with what was held.
-type heldResponseWriter struct {
+// firstWriteRecorder passes the response through, calling record with its first body write.
+// The go-ethereum server writes each HTTP response in a single call, so that is the whole
+// response; TestServerRPCMetrics pins this.
+type firstWriteRecorder struct {
 	http.ResponseWriter
-	body        bytes.Buffer
-	passthrough bool
+	record   func(body []byte)
+	recorded bool
 }
 
-func (w *heldResponseWriter) Write(b []byte) (int, error) {
-	if w.passthrough {
-		return w.ResponseWriter.Write(b)
+func (w *firstWriteRecorder) Write(b []byte) (int, error) {
+	if !w.recorded {
+		w.recorded = true
+		w.record(b)
 	}
-	if w.body.Len()+len(b) <= maxRecordedBodySize {
-		return w.body.Write(b)
-	}
-	w.passthrough = true
-	if _, err := w.ResponseWriter.Write(w.body.Bytes()); err != nil {
-		return 0, err
-	}
-	w.body = bytes.Buffer{}
 	return w.ResponseWriter.Write(b)
 }
 
-func (w *heldResponseWriter) Unwrap() http.ResponseWriter {
+func (w *firstWriteRecorder) Unwrap() http.ResponseWriter {
 	return w.ResponseWriter
 }
