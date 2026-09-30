@@ -86,11 +86,33 @@ pub struct Cli<
 /// the type level. They are hidden from all help output and rejected with a hard error after
 /// parsing. Add new entries here as further unsupported upstream options are identified
 /// (tracked in [#21687](https://github.com/ethereum-optimism/optimism/issues/21687)).
-const DENIED_ARGS: &[(&str, &str, &str)] = &[("node", "minimal", MINIMAL_REMOVED_HELP)];
+const DENIED_ARGS: &[(&str, &str, &str)] = &[
+    ("node", "minimal", MINIMAL_REMOVED_HELP),
+    ("node", "cache_computed_bals", BAL_CACHE_UNSUPPORTED_HELP),
+    ("node", "prewarm_bals", BAL_CACHE_UNSUPPORTED_HELP),
+];
+
+/// Upstream block access list arguments hidden from every op-reth subcommand.
+///
+/// OP blocks do not carry EIP-7928 block access lists, so these settings are not useful to OP node
+/// operators. The two settings that activate BAL reconstruction are also rejected via
+/// [`DENIED_ARGS`].
+const HIDDEN_BAL_ARGS: &[&str] = &[
+    "max_bals",
+    "cache_computed_bals",
+    "prewarm_bals",
+    "balstore_cache_size",
+    "bal_parallel_execution_disabled",
+    "bal_parallel_state_root_disabled",
+    "disable_bal_batch_io",
+];
 
 /// Startup error for `--minimal`, which configures pruning (including block-body pruning) that
 /// op-node derivation cannot tolerate.
 const MINIMAL_REMOVED_HELP: &str = "--minimal is not supported by op-reth and has been removed.\n\nIt prunes block bodies to a fixed 10,064-block window, which breaks op-node derivation\n(op-node reads the L1-info deposit transaction from historical block bodies).\n\nFor a pruned (non-archive) node, use the supported pruning recipe instead:\n  --prune.minimum-distance <BLOCKS>\n  --prune.receipts.distance <BLOCKS>\n  --prune.account-history.distance <BLOCKS>\n  --prune.storage-history.distance <BLOCKS>\nDo NOT prune block bodies.\n\nSee https://docs.optimism.io/node-operators/guides/management/archive-node#pruning-op-reth";
+
+/// Startup error for block access list cache options, which rely on untested BAL reconstruction.
+const BAL_CACHE_UNSUPPORTED_HELP: &str = "--rpc-cache.cache-computed-bals and --rpc-cache.prewarm-bals are not supported by op-reth.\n\nOP blocks do not carry EIP-7928 block access lists, and BAL reconstruction has not been tested against OP-specific state transitions.";
 
 impl Cli {
     /// Parses only the default CLI arguments, rejecting `DENIED_ARGS`
@@ -114,23 +136,30 @@ where
     Ext: clap::Args + fmt::Debug,
     Rpc: RpcModuleValidator,
 {
-    /// Returns the clap command with all `DENIED_ARGS` hidden from help output.
+    /// Returns the clap command with all `DENIED_ARGS` and [`HIDDEN_BAL_ARGS`] hidden from help
+    /// output.
     pub fn command_with_denied_args_hidden() -> clap::Command {
-        // `mut_subcommand`/`mut_arg` move the modified entry to the end of help output, so use
-        // the order-preserving `mut_subcommands`/`mut_args` instead.
-        <Self as clap::CommandFactory>::command().mut_subcommands(|sc| {
-            let name = sc.get_name().to_string();
-            sc.mut_args(|arg| {
-                if DENIED_ARGS
-                    .iter()
-                    .any(|(sub, arg_id, _)| *sub == name && *arg_id == arg.get_id().as_str())
-                {
-                    arg.hide(true)
-                } else {
-                    arg
-                }
-            })
-        })
+        fn hide_args(command: clap::Command) -> clap::Command {
+            // `mut_subcommand`/`mut_arg` move the modified entry to the end of help output, so use
+            // the order-preserving `mut_subcommands`/`mut_args` instead.
+            let name = command.get_name().to_string();
+            command
+                .mut_args(|arg| {
+                    let arg_id = arg.get_id().as_str();
+                    if HIDDEN_BAL_ARGS.contains(&arg_id) ||
+                        DENIED_ARGS
+                            .iter()
+                            .any(|(sub, denied_id, _)| *sub == name && *denied_id == arg_id)
+                    {
+                        arg.hide(true)
+                    } else {
+                        arg
+                    }
+                })
+                .mut_subcommands(hide_args)
+        }
+
+        hide_args(<Self as clap::CommandFactory>::command())
     }
 
     /// Parses the CLI from the process arguments, hiding `DENIED_ARGS` from help output and
@@ -238,6 +267,59 @@ mod test {
             .to_string();
         assert!(!help.contains("--minimal"), "--minimal must be hidden from node help:\n{help}");
         assert!(help.contains("--full"), "other pruning args must stay visible:\n{help}");
+    }
+
+    #[test]
+    fn deny_bal_cache_args_on_parse() {
+        for arg in ["--rpc-cache.cache-computed-bals", "--rpc-cache.prewarm-bals"] {
+            let err = Cli::<OpChainSpecParser, RollupArgs>::try_parse_with_denied_args_from([
+                "op-reth", "node", arg,
+            ])
+            .unwrap_err();
+            assert_eq!(err.kind(), clap::error::ErrorKind::ValueValidation);
+            let msg = err.to_string();
+            assert!(msg.contains("not supported by op-reth"), "{msg}");
+            assert!(msg.contains("EIP-7928 block access lists"), "{msg}");
+        }
+    }
+
+    #[test]
+    fn bal_args_hidden_from_help() {
+        let mut cmd = Cli::<OpChainSpecParser, RollupArgs>::command_with_denied_args_hidden();
+        let node_help = cmd
+            .find_subcommand_mut("node")
+            .expect("node subcommand")
+            .render_long_help()
+            .to_string();
+        for arg in [
+            "--rpc-cache.max-bals",
+            "--rpc-cache.cache-computed-bals",
+            "--rpc-cache.prewarm-bals",
+            "--db.balstore-cache-size",
+            "--engine.disable-bal-parallel-execution",
+            "--engine.disable-bal-parallel-state-root",
+            "--engine.disable-bal-batch-io",
+        ] {
+            assert!(!node_help.contains(arg), "{arg} must be hidden from node help:\n{node_help}");
+        }
+        assert!(
+            node_help.contains("--rpc-cache.max-blocks"),
+            "other RPC cache args must stay visible:\n{node_help}"
+        );
+        assert!(
+            node_help.contains("--engine.disable-prewarming"),
+            "other engine args must stay visible:\n{node_help}"
+        );
+
+        let prune_help = cmd
+            .find_subcommand_mut("prune")
+            .expect("prune subcommand")
+            .render_long_help()
+            .to_string();
+        assert!(
+            !prune_help.contains("--db.balstore-cache-size"),
+            "BAL args must also be hidden from non-node commands:\n{prune_help}"
+        );
     }
 
     #[test]
