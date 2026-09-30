@@ -39,7 +39,6 @@ use reth_node_builder::{
         RethRpcMiddleware, RethRpcServerHandles, RpcAddOns, RpcContext, RpcHandle,
     },
 };
-use reth_node_core::args::RpcStateCacheArgs;
 use reth_optimism_chainspec::{OpChainSpec, OpHardfork};
 use reth_optimism_consensus::OpBeaconConsensus;
 use reth_optimism_evm::{ConfigurePostExecEvm, OpEvmConfig, OpRethReceiptBuilder};
@@ -801,16 +800,6 @@ fn remove_unserved_rpc_methods(modules: &mut TransportRpcModules, auth_module: &
     }
 }
 
-/// Rejects cache settings that rely on untested OP block access list reconstruction.
-fn ensure_bal_cache_disabled(config: &RpcStateCacheArgs) -> eyre::Result<()> {
-    if config.cache_computed_bals || config.prewarm_bals.is_some() {
-        eyre::bail!(
-            "rpc-cache.cache-computed-bals and rpc-cache.prewarm-bals are not supported by op-reth"
-        );
-    }
-    Ok(())
-}
-
 impl<N, EthB, PVB, EB, EVB, RpcMiddleware> NodeAddOns<N>
     for OpAddOns<N, EthB, PVB, EB, EVB, RpcMiddleware>
 where
@@ -842,8 +831,6 @@ where
         self,
         ctx: reth_node_api::AddOnsContext<'_, N>,
     ) -> eyre::Result<Self::Handle> {
-        ensure_bal_cache_disabled(&ctx.config.rpc.rpc_state_cache)?;
-
         let Self {
             rpc_add_ons,
             da_config,
@@ -1934,21 +1921,6 @@ mod tests {
         ] {
             assert!(UNSERVED_RPC_METHODS.contains(&method));
         }
-    }
-
-    #[test]
-    fn bal_cache_must_be_disabled() {
-        let mut config = RpcStateCacheArgs::default();
-        ensure_bal_cache_disabled(&config).unwrap();
-
-        config.cache_computed_bals = true;
-        let err = ensure_bal_cache_disabled(&config).unwrap_err().to_string();
-        assert!(err.contains("cache-computed-bals"), "{err}");
-
-        config.cache_computed_bals = false;
-        config.prewarm_bals = Some(0);
-        let err = ensure_bal_cache_disabled(&config).unwrap_err().to_string();
-        assert!(err.contains("prewarm-bals"), "{err}");
     }
 
     #[test]
