@@ -3194,6 +3194,25 @@ contract OPContractsManagerV2_Migrate_Test is OPContractsManagerV2_TestInit {
         );
     }
 
+    /// @notice A set member cannot clear INTEROP, so it cannot be re-migrated alone into a new set,
+    ///         which would drain the shared ETHLockbox and clear the shared DisputeGameFactory.
+    function test_migrate_interopDisableAfterMigration_reverts() public {
+        _enableEthLockboxes();
+        _doMigration(_getDefaultMigrateInput());
+
+        vm.expectRevert(ISystemConfig.SystemConfig_InvalidFeatureState.selector);
+        vm.prank(chainContracts1.proxyAdmin.owner());
+        chainContracts2.systemConfig.setFeature(Features.INTEROP, false);
+
+        vm.warp(block.timestamp + 12);
+
+        IOPContractsManagerMigrator.MigrateInput memory input = _getDefaultMigrateInput();
+        ISystemConfig[] memory onlyChain2 = new ISystemConfig[](1);
+        onlyChain2[0] = chainContracts2.systemConfig;
+        input.chainSystemConfigs = onlyChain2;
+        _doMigration(input, IOPContractsManagerMigrator.OPContractsManagerMigrator_ChainAlreadyMigrated.selector);
+    }
+
     /// @notice Tests that the migration function reverts when the ProxyAdmin owners are mismatched.
     /// @param _owner1 The owner address for the first chain's ProxyAdmin.
     /// @param _owner2 The owner address for the second chain's ProxyAdmin.

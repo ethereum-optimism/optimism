@@ -811,6 +811,17 @@ contract SystemConfig_SetFeature_Test is SystemConfig_TestInit {
         systemConfig.setFeature(Features.ETH_LOCKBOX, false);
     }
 
+    /// @notice Tests that INTEROP cannot be disabled by either authorized caller.
+    /// @param _byOwner Whether to call as the ProxyAdmin owner instead of the ProxyAdmin.
+    function testFuzz_setFeature_interopDisable_reverts(bool _byOwner) external {
+        address caller = _byOwner ? systemConfig.proxyAdminOwner() : address(systemConfig.proxyAdmin());
+        stdstore.target(address(systemConfig)).sig("isFeatureEnabled(bytes32)").with_key(Features.INTEROP)
+            .checked_write(true);
+        vm.expectRevert(ISystemConfig.SystemConfig_InvalidFeatureState.selector);
+        vm.prank(caller);
+        systemConfig.setFeature(Features.INTEROP, false);
+    }
+
     /// @notice Tests that a global pause does not block ETHLockbox activation.
     function test_setFeature_ethLockboxEnableWhileGloballyPaused_succeeds() external {
         address proxyAdmin = address(systemConfig.proxyAdmin());
