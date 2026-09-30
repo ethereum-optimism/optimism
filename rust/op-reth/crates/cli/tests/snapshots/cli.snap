@@ -145,9 +145,9 @@ arg: --builder.disallow <PATH> [action: Set] [num-args: 1] help: Path to file co
 arg: --rpc-cache.max-blocks <MAX_BLOCKS> [action: Set] [num-args: 1] [default: 5000] help: Max number of blocks in cache
 arg: --rpc-cache.max-receipts <MAX_RECEIPTS> [action: Set] [num-args: 1] [default: 2000] help: Max number receipts in cache
 arg: --rpc-cache.max-headers <MAX_HEADERS> [action: Set] [num-args: 1] [aliases: rpc-cache.max-envs] [default: 1000] [hidden] help: Legacy no-op retained for CLI compatibility
-arg: --rpc-cache.max-bals <MAX_BALS> [action: Set] [num-args: 1] [default: 1000] help: Max number of block access lists in cache
-arg: --rpc-cache.cache-computed-bals [action: SetTrue] [num-args: 0] help: Cache block access lists computed by RPC requests for transaction tracing
-arg: --rpc-cache.prewarm-bals <BLOCKS> [action: Set] [num-args: 0..=1] [default-missing-values: ["0"]] [require-equals] help: Replay new canonical blocks to cache block access lists until native BAL support
+arg: --rpc-cache.max-bals <MAX_BALS> [action: Set] [num-args: 1] [default: 1000] [hidden] help: Max number of block access lists in cache
+arg: --rpc-cache.cache-computed-bals [action: SetTrue] [num-args: 0] [hidden] help: Cache block access lists computed by RPC requests for transaction tracing
+arg: --rpc-cache.prewarm-bals <BLOCKS> [action: Set] [num-args: 0..=1] [default-missing-values: ["0"]] [hidden] [require-equals] help: Replay new canonical blocks to cache block access lists until native BAL support
 arg: --rpc-cache.max-concurrent-db-requests <MAX_CONCURRENT_DB_REQUESTS> [action: Set] [num-args: 1] [default: 512] help: Max number of concurrent database requests
 arg: --rpc-cache.max-cached-tx-hashes <MAX_CACHED_TX_HASHES> [action: Set] [num-args: 1] [default: 100000] help: Maximum number of transaction hashes to cache for transaction lookups
 arg: --gpo.blocks <BLOCKS> [action: Set] [num-args: 1] [default: 20] help: Number of recent blocks to check for gas price
@@ -220,7 +220,7 @@ arg: --db.read-transaction-timeout <READ_TRANSACTION_TIMEOUT> [action: Set] [num
 arg: --db.max-readers <MAX_READERS> [action: Set] [num-args: 1] help: Maximum number of readers allowed to access the database concurrently
 arg: --db.sync-mode <SYNC_MODE> [action: Set] [num-args: 1] help: Controls how aggressively the database synchronizes data to disk
 arg: --db.rocksdb-block-cache-size <ROCKSDB_BLOCK_CACHE_SIZE> [action: Set] [num-args: 1] help: `RocksDB` block cache size (e.g., 512MB, 4GB)
-arg: --db.balstore-cache-size <BALSTORE_CACHE_SIZE> [action: Set] [num-args: 1] help: Number of recent blocks to keep in the in-memory BAL store cache
+arg: --db.balstore-cache-size <BALSTORE_CACHE_SIZE> [action: Set] [num-args: 1] [hidden] help: Number of recent blocks to keep in the in-memory BAL store cache
 arg: --db.disable-metrics [action: SetTrue] [num-args: 0] help: Disable built-in database metrics
 arg: --dev [action: SetTrue] [num-args: 0] [aliases: auto-mine] [default: false] help: Start the node in dev mode
 arg: --dev.block-max-transactions <BLOCK_MAX_TRANSACTIONS> [action: Set] [num-args: 1] [conflicts: --dev.block-time] help: How many transactions to mine per block
@@ -286,9 +286,9 @@ arg: --engine.state-root-task-timeout <STATE_ROOT_TASK_TIMEOUT> [action: Set] [n
 arg: --engine.share-execution-cache-with-payload-builder [action: SetTrue] [num-args: 0] [default: false] help: Whether to share execution cache with the payload builder
 arg: --engine.share-sparse-trie-with-payload-builder [action: SetTrue] [num-args: 0] [default: false] help: Whether to share the sparse trie with the payload builder
 arg: --engine.suppress-persistence-during-build [action: SetTrue] [num-args: 0] [default: false] help: Suppress persistence while building a payload
-arg: --engine.disable-bal-parallel-execution [action: SetTrue] [num-args: 0] [default: false] help: Disable BAL (Block Access List, EIP-7928) based parallel execution
-arg: --engine.disable-bal-parallel-state-root [action: SetTrue] [num-args: 0] [default: false] help: Disable BAL-driven parallel state root computation. This is only valid together with `--engine.disable-bal-parallel-execution`
-arg: --engine.disable-bal-batch-io [action: SetTrue] [num-args: 0] [default: false] help: Disable BAL (Block Access List) storage prefetch IO during prewarming. When set, BAL storage slots are not read into the execution cache
+arg: --engine.disable-bal-parallel-execution [action: SetTrue] [num-args: 0] [default: false] [hidden] help: Disable BAL (Block Access List, EIP-7928) based parallel execution
+arg: --engine.disable-bal-parallel-state-root [action: SetTrue] [num-args: 0] [default: false] [hidden] help: Disable BAL-driven parallel state root computation. This is only valid together with `--engine.disable-bal-parallel-execution`
+arg: --engine.disable-bal-batch-io [action: SetTrue] [num-args: 0] [default: false] [hidden] help: Disable BAL (Block Access List) storage prefetch IO during prewarming. When set, BAL storage slots are not read into the execution cache
 arg: --era.enable [action: SetTrue] [num-args: 0] [default: false] help: Enable import from ERA1 files
 arg: --era.path <ERA_PATH> [action: Set] [num-args: 1] help: The path to a directory for import.
 arg: --era.url <ERA_URL> [action: Set] [num-args: 1] help: The URL to a remote host where the ERA1 files are hosted.
@@ -348,7 +348,7 @@ arg: --db.read-transaction-timeout <READ_TRANSACTION_TIMEOUT> [action: Set] [num
 arg: --db.max-readers <MAX_READERS> [action: Set] [num-args: 1] help: Maximum number of readers allowed to access the database concurrently
 arg: --db.sync-mode <SYNC_MODE> [action: Set] [num-args: 1] help: Controls how aggressively the database synchronizes data to disk
 arg: --db.rocksdb-block-cache-size <ROCKSDB_BLOCK_CACHE_SIZE> [action: Set] [num-args: 1] help: `RocksDB` block cache size (e.g., 512MB, 4GB)
-arg: --db.balstore-cache-size <BALSTORE_CACHE_SIZE> [action: Set] [num-args: 1] help: Number of recent blocks to keep in the in-memory BAL store cache
+arg: --db.balstore-cache-size <BALSTORE_CACHE_SIZE> [action: Set] [num-args: 1] [hidden] help: Number of recent blocks to keep in the in-memory BAL store cache
 arg: --db.disable-metrics [action: SetTrue] [num-args: 0] help: Disable built-in database metrics
 arg: --static-files.blocks-per-file.headers <BLOCKS_PER_FILE_HEADERS> [action: Set] [num-args: 1] help: Number of blocks per file for the headers segment
 arg: --static-files.blocks-per-file.transactions <BLOCKS_PER_FILE_TRANSACTIONS> [action: Set] [num-args: 1] help: Number of blocks per file for the transactions segment
@@ -375,7 +375,7 @@ arg: --db.read-transaction-timeout <READ_TRANSACTION_TIMEOUT> [action: Set] [num
 arg: --db.max-readers <MAX_READERS> [action: Set] [num-args: 1] help: Maximum number of readers allowed to access the database concurrently
 arg: --db.sync-mode <SYNC_MODE> [action: Set] [num-args: 1] help: Controls how aggressively the database synchronizes data to disk
 arg: --db.rocksdb-block-cache-size <ROCKSDB_BLOCK_CACHE_SIZE> [action: Set] [num-args: 1] help: `RocksDB` block cache size (e.g., 512MB, 4GB)
-arg: --db.balstore-cache-size <BALSTORE_CACHE_SIZE> [action: Set] [num-args: 1] help: Number of recent blocks to keep in the in-memory BAL store cache
+arg: --db.balstore-cache-size <BALSTORE_CACHE_SIZE> [action: Set] [num-args: 1] [hidden] help: Number of recent blocks to keep in the in-memory BAL store cache
 arg: --db.disable-metrics [action: SetTrue] [num-args: 0] help: Disable built-in database metrics
 arg: --static-files.blocks-per-file.headers <BLOCKS_PER_FILE_HEADERS> [action: Set] [num-args: 1] help: Number of blocks per file for the headers segment
 arg: --static-files.blocks-per-file.transactions <BLOCKS_PER_FILE_TRANSACTIONS> [action: Set] [num-args: 1] help: Number of blocks per file for the transactions segment
@@ -412,7 +412,7 @@ arg: --db.read-transaction-timeout <READ_TRANSACTION_TIMEOUT> [action: Set] [num
 arg: --db.max-readers <MAX_READERS> [action: Set] [num-args: 1] help: Maximum number of readers allowed to access the database concurrently
 arg: --db.sync-mode <SYNC_MODE> [action: Set] [num-args: 1] help: Controls how aggressively the database synchronizes data to disk
 arg: --db.rocksdb-block-cache-size <ROCKSDB_BLOCK_CACHE_SIZE> [action: Set] [num-args: 1] help: `RocksDB` block cache size (e.g., 512MB, 4GB)
-arg: --db.balstore-cache-size <BALSTORE_CACHE_SIZE> [action: Set] [num-args: 1] help: Number of recent blocks to keep in the in-memory BAL store cache
+arg: --db.balstore-cache-size <BALSTORE_CACHE_SIZE> [action: Set] [num-args: 1] [hidden] help: Number of recent blocks to keep in the in-memory BAL store cache
 arg: --db.disable-metrics [action: SetTrue] [num-args: 0] help: Disable built-in database metrics
 arg: --static-files.blocks-per-file.headers <BLOCKS_PER_FILE_HEADERS> [action: Set] [num-args: 1] help: Number of blocks per file for the headers segment
 arg: --static-files.blocks-per-file.transactions <BLOCKS_PER_FILE_TRANSACTIONS> [action: Set] [num-args: 1] help: Number of blocks per file for the transactions segment
@@ -485,7 +485,7 @@ arg: --db.read-transaction-timeout <READ_TRANSACTION_TIMEOUT> [action: Set] [num
 arg: --db.max-readers <MAX_READERS> [action: Set] [num-args: 1] help: Maximum number of readers allowed to access the database concurrently
 arg: --db.sync-mode <SYNC_MODE> [action: Set] [num-args: 1] help: Controls how aggressively the database synchronizes data to disk
 arg: --db.rocksdb-block-cache-size <ROCKSDB_BLOCK_CACHE_SIZE> [action: Set] [num-args: 1] help: `RocksDB` block cache size (e.g., 512MB, 4GB)
-arg: --db.balstore-cache-size <BALSTORE_CACHE_SIZE> [action: Set] [num-args: 1] help: Number of recent blocks to keep in the in-memory BAL store cache
+arg: --db.balstore-cache-size <BALSTORE_CACHE_SIZE> [action: Set] [num-args: 1] [hidden] help: Number of recent blocks to keep in the in-memory BAL store cache
 arg: --db.disable-metrics [action: SetTrue] [num-args: 0] help: Disable built-in database metrics
 arg: --table <TABLE> [action: Set] [num-args: 1] help: The table name to diff. If not specified, all tables are diffed.
 arg: --output <OUTPUT> [action: Set] [num-args: 1] [required] help: The output directory for the diff report.
@@ -639,7 +639,7 @@ arg: --db.read-transaction-timeout <READ_TRANSACTION_TIMEOUT> [action: Set] [num
 arg: --db.max-readers <MAX_READERS> [action: Set] [num-args: 1] help: Maximum number of readers allowed to access the database concurrently
 arg: --db.sync-mode <SYNC_MODE> [action: Set] [num-args: 1] help: Controls how aggressively the database synchronizes data to disk
 arg: --db.rocksdb-block-cache-size <ROCKSDB_BLOCK_CACHE_SIZE> [action: Set] [num-args: 1] help: `RocksDB` block cache size (e.g., 512MB, 4GB)
-arg: --db.balstore-cache-size <BALSTORE_CACHE_SIZE> [action: Set] [num-args: 1] help: Number of recent blocks to keep in the in-memory BAL store cache
+arg: --db.balstore-cache-size <BALSTORE_CACHE_SIZE> [action: Set] [num-args: 1] [hidden] help: Number of recent blocks to keep in the in-memory BAL store cache
 arg: --db.disable-metrics [action: SetTrue] [num-args: 0] help: Disable built-in database metrics
 arg: --static-files.blocks-per-file.headers <BLOCKS_PER_FILE_HEADERS> [action: Set] [num-args: 1] help: Number of blocks per file for the headers segment
 arg: --static-files.blocks-per-file.transactions <BLOCKS_PER_FILE_TRANSACTIONS> [action: Set] [num-args: 1] help: Number of blocks per file for the transactions segment
@@ -722,7 +722,7 @@ arg: --db.read-transaction-timeout <READ_TRANSACTION_TIMEOUT> [action: Set] [num
 arg: --db.max-readers <MAX_READERS> [action: Set] [num-args: 1] help: Maximum number of readers allowed to access the database concurrently
 arg: --db.sync-mode <SYNC_MODE> [action: Set] [num-args: 1] help: Controls how aggressively the database synchronizes data to disk
 arg: --db.rocksdb-block-cache-size <ROCKSDB_BLOCK_CACHE_SIZE> [action: Set] [num-args: 1] help: `RocksDB` block cache size (e.g., 512MB, 4GB)
-arg: --db.balstore-cache-size <BALSTORE_CACHE_SIZE> [action: Set] [num-args: 1] help: Number of recent blocks to keep in the in-memory BAL store cache
+arg: --db.balstore-cache-size <BALSTORE_CACHE_SIZE> [action: Set] [num-args: 1] [hidden] help: Number of recent blocks to keep in the in-memory BAL store cache
 arg: --db.disable-metrics [action: SetTrue] [num-args: 0] help: Disable built-in database metrics
 arg: --static-files.blocks-per-file.headers <BLOCKS_PER_FILE_HEADERS> [action: Set] [num-args: 1] help: Number of blocks per file for the headers segment
 arg: --static-files.blocks-per-file.transactions <BLOCKS_PER_FILE_TRANSACTIONS> [action: Set] [num-args: 1] help: Number of blocks per file for the transactions segment
@@ -751,7 +751,7 @@ arg: --db.read-transaction-timeout <READ_TRANSACTION_TIMEOUT> [action: Set] [num
 arg: --db.max-readers <MAX_READERS> [action: Set] [num-args: 1] help: Maximum number of readers allowed to access the database concurrently
 arg: --db.sync-mode <SYNC_MODE> [action: Set] [num-args: 1] help: Controls how aggressively the database synchronizes data to disk
 arg: --db.rocksdb-block-cache-size <ROCKSDB_BLOCK_CACHE_SIZE> [action: Set] [num-args: 1] help: `RocksDB` block cache size (e.g., 512MB, 4GB)
-arg: --db.balstore-cache-size <BALSTORE_CACHE_SIZE> [action: Set] [num-args: 1] help: Number of recent blocks to keep in the in-memory BAL store cache
+arg: --db.balstore-cache-size <BALSTORE_CACHE_SIZE> [action: Set] [num-args: 1] [hidden] help: Number of recent blocks to keep in the in-memory BAL store cache
 arg: --db.disable-metrics [action: SetTrue] [num-args: 0] help: Disable built-in database metrics
 arg: --static-files.blocks-per-file.headers <BLOCKS_PER_FILE_HEADERS> [action: Set] [num-args: 1] help: Number of blocks per file for the headers segment
 arg: --static-files.blocks-per-file.transactions <BLOCKS_PER_FILE_TRANSACTIONS> [action: Set] [num-args: 1] help: Number of blocks per file for the transactions segment
@@ -807,7 +807,7 @@ arg: --db.read-transaction-timeout <READ_TRANSACTION_TIMEOUT> [action: Set] [num
 arg: --db.max-readers <MAX_READERS> [action: Set] [num-args: 1] help: Maximum number of readers allowed to access the database concurrently
 arg: --db.sync-mode <SYNC_MODE> [action: Set] [num-args: 1] help: Controls how aggressively the database synchronizes data to disk
 arg: --db.rocksdb-block-cache-size <ROCKSDB_BLOCK_CACHE_SIZE> [action: Set] [num-args: 1] help: `RocksDB` block cache size (e.g., 512MB, 4GB)
-arg: --db.balstore-cache-size <BALSTORE_CACHE_SIZE> [action: Set] [num-args: 1] help: Number of recent blocks to keep in the in-memory BAL store cache
+arg: --db.balstore-cache-size <BALSTORE_CACHE_SIZE> [action: Set] [num-args: 1] [hidden] help: Number of recent blocks to keep in the in-memory BAL store cache
 arg: --db.disable-metrics [action: SetTrue] [num-args: 0] help: Disable built-in database metrics
 arg: --static-files.blocks-per-file.headers <BLOCKS_PER_FILE_HEADERS> [action: Set] [num-args: 1] help: Number of blocks per file for the headers segment
 arg: --static-files.blocks-per-file.transactions <BLOCKS_PER_FILE_TRANSACTIONS> [action: Set] [num-args: 1] help: Number of blocks per file for the transactions segment
@@ -990,7 +990,7 @@ arg: --db.read-transaction-timeout <READ_TRANSACTION_TIMEOUT> [action: Set] [num
 arg: --db.max-readers <MAX_READERS> [action: Set] [num-args: 1] help: Maximum number of readers allowed to access the database concurrently
 arg: --db.sync-mode <SYNC_MODE> [action: Set] [num-args: 1] help: Controls how aggressively the database synchronizes data to disk
 arg: --db.rocksdb-block-cache-size <ROCKSDB_BLOCK_CACHE_SIZE> [action: Set] [num-args: 1] help: `RocksDB` block cache size (e.g., 512MB, 4GB)
-arg: --db.balstore-cache-size <BALSTORE_CACHE_SIZE> [action: Set] [num-args: 1] help: Number of recent blocks to keep in the in-memory BAL store cache
+arg: --db.balstore-cache-size <BALSTORE_CACHE_SIZE> [action: Set] [num-args: 1] [hidden] help: Number of recent blocks to keep in the in-memory BAL store cache
 arg: --db.disable-metrics [action: SetTrue] [num-args: 0] help: Disable built-in database metrics
 arg: --static-files.blocks-per-file.headers <BLOCKS_PER_FILE_HEADERS> [action: Set] [num-args: 1] help: Number of blocks per file for the headers segment
 arg: --static-files.blocks-per-file.transactions <BLOCKS_PER_FILE_TRANSACTIONS> [action: Set] [num-args: 1] help: Number of blocks per file for the transactions segment
@@ -1034,7 +1034,7 @@ arg: --db.read-transaction-timeout <READ_TRANSACTION_TIMEOUT> [action: Set] [num
 arg: --db.max-readers <MAX_READERS> [action: Set] [num-args: 1] help: Maximum number of readers allowed to access the database concurrently
 arg: --db.sync-mode <SYNC_MODE> [action: Set] [num-args: 1] help: Controls how aggressively the database synchronizes data to disk
 arg: --db.rocksdb-block-cache-size <ROCKSDB_BLOCK_CACHE_SIZE> [action: Set] [num-args: 1] help: `RocksDB` block cache size (e.g., 512MB, 4GB)
-arg: --db.balstore-cache-size <BALSTORE_CACHE_SIZE> [action: Set] [num-args: 1] help: Number of recent blocks to keep in the in-memory BAL store cache
+arg: --db.balstore-cache-size <BALSTORE_CACHE_SIZE> [action: Set] [num-args: 1] [hidden] help: Number of recent blocks to keep in the in-memory BAL store cache
 arg: --db.disable-metrics [action: SetTrue] [num-args: 0] help: Disable built-in database metrics
 arg: --static-files.blocks-per-file.headers <BLOCKS_PER_FILE_HEADERS> [action: Set] [num-args: 1] help: Number of blocks per file for the headers segment
 arg: --static-files.blocks-per-file.transactions <BLOCKS_PER_FILE_TRANSACTIONS> [action: Set] [num-args: 1] help: Number of blocks per file for the transactions segment
@@ -1080,7 +1080,7 @@ arg: --db.read-transaction-timeout <READ_TRANSACTION_TIMEOUT> [action: Set] [num
 arg: --db.max-readers <MAX_READERS> [action: Set] [num-args: 1] help: Maximum number of readers allowed to access the database concurrently
 arg: --db.sync-mode <SYNC_MODE> [action: Set] [num-args: 1] help: Controls how aggressively the database synchronizes data to disk
 arg: --db.rocksdb-block-cache-size <ROCKSDB_BLOCK_CACHE_SIZE> [action: Set] [num-args: 1] help: `RocksDB` block cache size (e.g., 512MB, 4GB)
-arg: --db.balstore-cache-size <BALSTORE_CACHE_SIZE> [action: Set] [num-args: 1] help: Number of recent blocks to keep in the in-memory BAL store cache
+arg: --db.balstore-cache-size <BALSTORE_CACHE_SIZE> [action: Set] [num-args: 1] [hidden] help: Number of recent blocks to keep in the in-memory BAL store cache
 arg: --db.disable-metrics [action: SetTrue] [num-args: 0] help: Disable built-in database metrics
 arg: --static-files.blocks-per-file.headers <BLOCKS_PER_FILE_HEADERS> [action: Set] [num-args: 1] help: Number of blocks per file for the headers segment
 arg: --static-files.blocks-per-file.transactions <BLOCKS_PER_FILE_TRANSACTIONS> [action: Set] [num-args: 1] help: Number of blocks per file for the transactions segment
@@ -1113,7 +1113,7 @@ arg: --db.read-transaction-timeout <READ_TRANSACTION_TIMEOUT> [action: Set] [num
 arg: --db.max-readers <MAX_READERS> [action: Set] [num-args: 1] help: Maximum number of readers allowed to access the database concurrently
 arg: --db.sync-mode <SYNC_MODE> [action: Set] [num-args: 1] help: Controls how aggressively the database synchronizes data to disk
 arg: --db.rocksdb-block-cache-size <ROCKSDB_BLOCK_CACHE_SIZE> [action: Set] [num-args: 1] help: `RocksDB` block cache size (e.g., 512MB, 4GB)
-arg: --db.balstore-cache-size <BALSTORE_CACHE_SIZE> [action: Set] [num-args: 1] help: Number of recent blocks to keep in the in-memory BAL store cache
+arg: --db.balstore-cache-size <BALSTORE_CACHE_SIZE> [action: Set] [num-args: 1] [hidden] help: Number of recent blocks to keep in the in-memory BAL store cache
 arg: --db.disable-metrics [action: SetTrue] [num-args: 0] help: Disable built-in database metrics
 arg: --static-files.blocks-per-file.headers <BLOCKS_PER_FILE_HEADERS> [action: Set] [num-args: 1] help: Number of blocks per file for the headers segment
 arg: --static-files.blocks-per-file.transactions <BLOCKS_PER_FILE_TRANSACTIONS> [action: Set] [num-args: 1] help: Number of blocks per file for the transactions segment
@@ -1145,7 +1145,7 @@ arg: --db.read-transaction-timeout <READ_TRANSACTION_TIMEOUT> [action: Set] [num
 arg: --db.max-readers <MAX_READERS> [action: Set] [num-args: 1] help: Maximum number of readers allowed to access the database concurrently
 arg: --db.sync-mode <SYNC_MODE> [action: Set] [num-args: 1] help: Controls how aggressively the database synchronizes data to disk
 arg: --db.rocksdb-block-cache-size <ROCKSDB_BLOCK_CACHE_SIZE> [action: Set] [num-args: 1] help: `RocksDB` block cache size (e.g., 512MB, 4GB)
-arg: --db.balstore-cache-size <BALSTORE_CACHE_SIZE> [action: Set] [num-args: 1] help: Number of recent blocks to keep in the in-memory BAL store cache
+arg: --db.balstore-cache-size <BALSTORE_CACHE_SIZE> [action: Set] [num-args: 1] [hidden] help: Number of recent blocks to keep in the in-memory BAL store cache
 arg: --db.disable-metrics [action: SetTrue] [num-args: 0] help: Disable built-in database metrics
 arg: --static-files.blocks-per-file.headers <BLOCKS_PER_FILE_HEADERS> [action: Set] [num-args: 1] help: Number of blocks per file for the headers segment
 arg: --static-files.blocks-per-file.transactions <BLOCKS_PER_FILE_TRANSACTIONS> [action: Set] [num-args: 1] help: Number of blocks per file for the transactions segment
@@ -1180,7 +1180,7 @@ arg: --db.read-transaction-timeout <READ_TRANSACTION_TIMEOUT> [action: Set] [num
 arg: --db.max-readers <MAX_READERS> [action: Set] [num-args: 1] help: Maximum number of readers allowed to access the database concurrently
 arg: --db.sync-mode <SYNC_MODE> [action: Set] [num-args: 1] help: Controls how aggressively the database synchronizes data to disk
 arg: --db.rocksdb-block-cache-size <ROCKSDB_BLOCK_CACHE_SIZE> [action: Set] [num-args: 1] help: `RocksDB` block cache size (e.g., 512MB, 4GB)
-arg: --db.balstore-cache-size <BALSTORE_CACHE_SIZE> [action: Set] [num-args: 1] help: Number of recent blocks to keep in the in-memory BAL store cache
+arg: --db.balstore-cache-size <BALSTORE_CACHE_SIZE> [action: Set] [num-args: 1] [hidden] help: Number of recent blocks to keep in the in-memory BAL store cache
 arg: --db.disable-metrics [action: SetTrue] [num-args: 0] help: Disable built-in database metrics
 arg: --static-files.blocks-per-file.headers <BLOCKS_PER_FILE_HEADERS> [action: Set] [num-args: 1] help: Number of blocks per file for the headers segment
 arg: --static-files.blocks-per-file.transactions <BLOCKS_PER_FILE_TRANSACTIONS> [action: Set] [num-args: 1] help: Number of blocks per file for the transactions segment
@@ -1210,7 +1210,7 @@ arg: --db.read-transaction-timeout <READ_TRANSACTION_TIMEOUT> [action: Set] [num
 arg: --db.max-readers <MAX_READERS> [action: Set] [num-args: 1] help: Maximum number of readers allowed to access the database concurrently
 arg: --db.sync-mode <SYNC_MODE> [action: Set] [num-args: 1] help: Controls how aggressively the database synchronizes data to disk
 arg: --db.rocksdb-block-cache-size <ROCKSDB_BLOCK_CACHE_SIZE> [action: Set] [num-args: 1] help: `RocksDB` block cache size (e.g., 512MB, 4GB)
-arg: --db.balstore-cache-size <BALSTORE_CACHE_SIZE> [action: Set] [num-args: 1] help: Number of recent blocks to keep in the in-memory BAL store cache
+arg: --db.balstore-cache-size <BALSTORE_CACHE_SIZE> [action: Set] [num-args: 1] [hidden] help: Number of recent blocks to keep in the in-memory BAL store cache
 arg: --db.disable-metrics [action: SetTrue] [num-args: 0] help: Disable built-in database metrics
 arg: --static-files.blocks-per-file.headers <BLOCKS_PER_FILE_HEADERS> [action: Set] [num-args: 1] help: Number of blocks per file for the headers segment
 arg: --static-files.blocks-per-file.transactions <BLOCKS_PER_FILE_TRANSACTIONS> [action: Set] [num-args: 1] help: Number of blocks per file for the transactions segment
@@ -1239,7 +1239,7 @@ arg: --db.read-transaction-timeout <READ_TRANSACTION_TIMEOUT> [action: Set] [num
 arg: --db.max-readers <MAX_READERS> [action: Set] [num-args: 1] help: Maximum number of readers allowed to access the database concurrently
 arg: --db.sync-mode <SYNC_MODE> [action: Set] [num-args: 1] help: Controls how aggressively the database synchronizes data to disk
 arg: --db.rocksdb-block-cache-size <ROCKSDB_BLOCK_CACHE_SIZE> [action: Set] [num-args: 1] help: `RocksDB` block cache size (e.g., 512MB, 4GB)
-arg: --db.balstore-cache-size <BALSTORE_CACHE_SIZE> [action: Set] [num-args: 1] help: Number of recent blocks to keep in the in-memory BAL store cache
+arg: --db.balstore-cache-size <BALSTORE_CACHE_SIZE> [action: Set] [num-args: 1] [hidden] help: Number of recent blocks to keep in the in-memory BAL store cache
 arg: --db.disable-metrics [action: SetTrue] [num-args: 0] help: Disable built-in database metrics
 arg: --static-files.blocks-per-file.headers <BLOCKS_PER_FILE_HEADERS> [action: Set] [num-args: 1] help: Number of blocks per file for the headers segment
 arg: --static-files.blocks-per-file.transactions <BLOCKS_PER_FILE_TRANSACTIONS> [action: Set] [num-args: 1] help: Number of blocks per file for the transactions segment
