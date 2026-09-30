@@ -675,7 +675,7 @@ where
 
 /// RPC methods an OP node does not serve, on any transport.
 ///
-/// UPSTREAM-MIRROR(set): reth@rev:4553cf1 `reth_rpc_eth_api::EthApi`
+/// UPSTREAM-MIRROR(set): reth@rev:1c51c30 `reth_rpc_eth_api::EthApi`
 ///
 /// Upstream installs these methods as part of the full `eth` API. `eth_getMultiProof` has no OP
 /// users and a proofs-history node could not answer it consistently from its pruned state window.
