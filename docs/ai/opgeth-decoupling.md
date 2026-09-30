@@ -465,8 +465,8 @@ and `Server.SetRecorder` inside the geth RPC client *and server*, and exports `r
   `RecordDone` and the JSON-RPC `Error`, which replaces `rpc.JsonError`. `RPCMetricer` returns
   a `jsonrpc.Recorder`, and `op-service/client` records calls in its own wrapper around the geth
   client; subscriptions are not recorded. There is no server-side RPC recording: nothing
-  consumed it. `op-service/rpc`'s `WithHTTPRecorder` counts and times HTTP requests if that is
-  needed. A `forbidigo` rule in `.golangci.yaml` rejects the fork-only symbols. The
+  consumed it. Code that embeds `op-service/rpc` can count and time HTTP requests with its
+  `WithHTTPRecorder` option. A `forbidigo` rule in `.golangci.yaml` rejects the fork-only symbols. The
   `<ns>_rpc_client_*` metric names and labels are pinned by `TestRPCMetricsDescriptors`.
 
 **One-off fork symbols** in the same spirit ride the §2-style call-site swaps (#20263 family).
