@@ -7364,6 +7364,7 @@ dependencies = [
  "op-alloy-rpc-types-engine",
  "rand 0.9.4",
  "rstest",
+ "serde_json",
  "strum",
  "thiserror 2.0.18",
  "tokio",

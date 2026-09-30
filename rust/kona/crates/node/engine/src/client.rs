@@ -218,14 +218,14 @@ where
     }
 
     async fn new_payload_v1(&self, payload: ExecutionPayloadV1) -> TransportResult<PayloadStatus> {
-        self.engine.new_payload_v1(payload).await
+        record_call_time(self.engine.new_payload_v1(payload), Metrics::NEW_PAYLOAD_METHOD).await
     }
 
     async fn l2_block_by_label(
         &self,
         numtag: BlockNumberOrTag,
     ) -> Result<Option<Block<Transaction>>, EngineClientError> {
-        Ok(self.engine.get_block_by_number(numtag).full().await?)
+        Ok(rpc_timeout(self.engine.get_block_by_number(numtag).full()).await?)
     }
 }
 
@@ -400,13 +400,13 @@ where
 }
 
 /// Wrapper to record the time taken for a call to the engine API and log the result as a metric.
-async fn record_call_time<T, Err>(
-    f: impl Future<Output = Result<T, Err>>,
+async fn record_call_time<T>(
+    f: impl Future<Output = TransportResult<T>>,
     metric_label: &'static str,
-) -> Result<T, Err> {
+) -> TransportResult<T> {
     // Await on the future and track its duration.
     let start = Instant::now();
-    let result = f.await?;
+    let result = rpc_timeout(f).await?;
     let duration = start.elapsed();
 
     // Record the call duration.
@@ -418,4 +418,26 @@ async fn record_call_time<T, Err>(
         duration.as_secs_f64()
     );
     Ok(result)
+}
+
+/// Bound one dependency call, never a multi-RPC operation whose progress would be lost.
+pub(crate) async fn rpc_timeout<T>(
+    read: impl std::future::IntoFuture<Output = TransportResult<T>>,
+) -> TransportResult<T> {
+    tokio::time::timeout(std::time::Duration::from_secs(10), read.into_future())
+        .await
+        .map_err(|_| TransportErrorKind::custom_str("engine RPC timed out"))?
+}
+
+#[cfg(test)]
+mod deadline_tests {
+    #[tokio::test(start_paused = true)]
+    async fn stalled_rpc_has_a_deadline() {
+        let start = tokio::time::Instant::now();
+        let result =
+            super::rpc_timeout(std::future::pending::<alloy_transport::TransportResult<()>>())
+                .await;
+        assert!(result.is_err());
+        assert_eq!(start.elapsed(), std::time::Duration::from_secs(10));
+    }
 }

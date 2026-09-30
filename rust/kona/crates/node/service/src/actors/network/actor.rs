@@ -1,10 +1,12 @@
+use super::signing::{SignedBlock, sign_block};
 use alloy_primitives::Address;
 use async_trait::async_trait;
 use kona_gossip::P2pRpcRequest;
 use kona_rpc::NetworkAdminQuery;
-use kona_sources::BlockSignerError;
+use kona_sources::{BlockSignerError, BlockSignerHandler};
 use libp2p::TransportError;
 use op_alloy_rpc_types_engine::OpExecutionPayloadEnvelope;
+use std::sync::Arc;
 use thiserror::Error;
 use tokio::{
     self, select,
@@ -39,6 +41,10 @@ pub struct NetworkActor<NetworkEngineClient_: NetworkEngineClient> {
     // never crosses an actor boundary, so it lives here rather than being injected.
     unsafe_block_tx: UnboundedSender<OpExecutionPayloadEnvelope>,
     unsafe_block_rx: UnboundedReceiver<OpExecutionPayloadEnvelope>,
+    /// Shared only with the bounded signing job; the swarm remains on this actor.
+    signer: Option<Arc<BlockSignerHandler>>,
+    /// At most one signing job. Dropping the actor cancels it.
+    signing: tokio::task::JoinSet<Result<Option<SignedBlock>, BlockSignerError>>,
 }
 
 impl<NetworkEngineClient_: NetworkEngineClient> NetworkActor<NetworkEngineClient_> {
@@ -51,14 +57,17 @@ impl<NetworkEngineClient_: NetworkEngineClient> NetworkActor<NetworkEngineClient
     /// deliberate trade-off over an `init()`-style trait method.
     pub fn new(
         engine_client: NetworkEngineClient_,
-        handler: NetworkHandler,
+        mut handler: NetworkHandler,
         unsafe_block_signer_rx: mpsc::Receiver<Address>,
         p2p_rpc_rx: mpsc::Receiver<P2pRpcRequest>,
         admin_query_rx: mpsc::Receiver<NetworkAdminQuery>,
         publish_rx: mpsc::Receiver<OpExecutionPayloadEnvelope>,
     ) -> Self {
         let (unsafe_block_tx, unsafe_block_rx) = mpsc::unbounded_channel();
+        let signer = handler.signer.take().map(Arc::new);
         Self {
+            signer,
+            signing: tokio::task::JoinSet::new(),
             handler,
             unsafe_block_signer_rx,
             p2p_rpc_rx,
@@ -95,6 +104,9 @@ pub enum NetworkActorError {
     /// Failed to sign the payload.
     #[error("Failed to sign the payload: {0}")]
     FailedToSignPayload(#[from] BlockSignerError),
+    /// The signing worker panicked.
+    #[error("Signing task failed: {0}")]
+    SigningTask(#[from] tokio::task::JoinError),
 }
 
 #[async_trait]
@@ -133,26 +145,28 @@ impl<NetworkEngineClient_: NetworkEngineClient + 'static> NodeActor
                 }
                 Ok(())
             }
-            Some(block) = self.publish_rx.recv(), if !self.publish_rx.is_closed() => {
-                let timestamp = block.timestamp();
-                let selector = |handler: &kona_gossip::BlockHandler| {
-                    handler.topic(timestamp)
-                };
-                let Some(signer) = self.handler.signer.as_ref() else {
+            Some(block) = self.publish_rx.recv(), if self.signing.is_empty() => {
+                let Some(signer) = self.signer.clone() else {
                     warn!(target: "net", "No local signer available to sign the payload");
                     return Ok(());
                 };
-
                 let chain_id = self.handler.discovery.chain_id;
-
-                let sender_address = *self.handler.unsafe_block_signer_sender.borrow();
-
-                let payload_hash = block.payload_hash();
-                let signature = signer.sign_block(payload_hash, chain_id, sender_address).await?;
-
-                match self.handler.gossip.publish(selector, block, signature) {
-                    Ok(id) => info!("Published unsafe payload | {:?}", id),
-                    Err(e) => warn!("Failed to publish unsafe payload: {:?}", e),
+                let address = *self.handler.unsafe_block_signer_sender.borrow();
+                self.signing.spawn(async move { sign_block(&signer, block, chain_id, address).await });
+                Ok(())
+            }
+            Some(result) = self.signing.join_next(), if !self.signing.is_empty() => {
+                if let Some(signed) = result?? {
+                    // A signer rotation may have arrived while the remote RPC was pending.
+                    if signed.address != *self.handler.unsafe_block_signer_sender.borrow() {
+                        return Ok(());
+                    }
+                    let timestamp = signed.block.timestamp();
+                    let selector = |handler: &kona_gossip::BlockHandler| handler.topic(timestamp);
+                    match self.handler.gossip.publish(selector, signed.block, signed.signature) {
+                        Ok(id) => info!("Published unsafe payload | {:?}", id),
+                        Err(e) => warn!("Failed to publish unsafe payload: {:?}", e),
+                    }
                 }
                 Ok(())
             }
