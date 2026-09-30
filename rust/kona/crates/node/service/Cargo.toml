@@ -70,6 +70,7 @@ http-body-util.workspace = true
 metrics = { workspace = true, optional = true }
 
 [dev-dependencies]
+tokio = { workspace = true, features = ["test-util"] }
 rstest.workspace = true
 arbitrary.workspace = true
 rand.workspace = true

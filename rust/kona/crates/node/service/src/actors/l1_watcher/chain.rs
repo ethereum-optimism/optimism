@@ -4,7 +4,7 @@ use super::{L1WatcherActorError, L1WatcherDerivationClient};
 use crate::DerivationClientError;
 use alloy_primitives::Address;
 use alloy_provider::Provider;
-use kona_genesis::{RollupConfig, SystemConfigLog, SystemConfigUpdate, UnsafeBlockSignerUpdate};
+use kona_genesis::RollupConfig;
 use kona_protocol::BlockInfo;
 use kona_rpc::L1WatcherQueries;
 use std::sync::Arc;
@@ -16,8 +16,7 @@ use tokio::sync::mpsc;
 /// standalone kona-node builds exactly one.
 #[derive(Debug)]
 pub struct L1WatcherChain<L1WatcherDerivationClient_> {
-    /// The [`RollupConfig`] of this chain. Used for the chain's system config address filter and
-    /// to tell if ecotone is active, which decides how its system config logs are read.
+    /// The configuration and `SystemConfig` address of this chain.
     pub(super) rollup_config: Arc<RollupConfig>,
     /// Client used to interact with this chain's [`crate::DerivationActor`].
     pub(super) derivation_client: L1WatcherDerivationClient_,
@@ -76,50 +75,23 @@ where
             .map_err(|e| self.client_err("finalized l1 block update", e))
     }
 
-    /// Reads this chain's system config logs from the given L1 head block and forwards any unsafe
-    /// block signer update they carry to this chain's network actor.
-    pub(super) async fn process_system_config_logs(
-        &self,
-        l1_provider: &impl Provider,
-        head_block_info: BlockInfo,
-    ) -> Result<(), L1WatcherActorError<BlockInfo>> {
-        let filter_address = self.rollup_config.l1_system_config_address;
-        let logs = l1_provider
-            .get_logs(
-                &alloy_rpc_types_eth::Filter::new()
-                    .address(filter_address)
-                    .select(head_block_info.hash),
-            )
-            .await
-            .inspect_err(|e| {
-                error!(
-                    target: "l1_watcher",
-                    chain_id = self.chain_id(),
-                    "Error fetching system config logs: {e}"
-                );
-            })?;
-        let ecotone_active = self.rollup_config.is_ecotone_active(head_block_info.timestamp);
-        for log in logs {
-            let sys_cfg_log = SystemConfigLog::new(log.into(), ecotone_active);
-            if let Ok(SystemConfigUpdate::UnsafeBlockSigner(UnsafeBlockSignerUpdate {
-                unsafe_block_signer,
-            })) = sys_cfg_log.build()
-            {
-                info!(
-                    target: "l1_watcher",
-                    chain_id = self.chain_id(),
-                    "Unsafe block signer update: {unsafe_block_signer}"
-                );
-                if let Err(e) = self.block_signer_sender.send(unsafe_block_signer).await {
-                    error!(
-                        target: "l1_watcher",
-                        chain_id = self.chain_id(),
-                        "Error sending unsafe block signer update: {e}"
-                    );
+    /// Reconciles the signer against current state, including rotations missed between heads.
+    /// Failed reads retain the last known signer and are retried by the next head or timer.
+    pub(super) async fn reconcile_signer(&self, l1_provider: &impl Provider, head: BlockInfo) {
+        let read = kona_providers_alloy::unsafe_block_signer(
+            l1_provider,
+            self.rollup_config.l1_system_config_address,
+            head.hash,
+        );
+        match tokio::time::timeout(std::time::Duration::from_secs(10), read).await {
+            Ok(Ok(signer)) => {
+                if let Err(err) = self.block_signer_sender.send(signer).await {
+                    warn!(target: "l1_watcher", chain_id = self.chain_id(), %err, "Signer receiver closed");
                 }
             }
+            result => {
+                warn!(target: "l1_watcher", chain_id = self.chain_id(), ?result, "Failed to refresh unsafe block signer; retaining previous value");
+            }
         }
-
-        Ok(())
     }
 }

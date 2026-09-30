@@ -7,11 +7,15 @@ use alloy_provider::Provider;
 use async_trait::async_trait;
 use futures::{
     Stream, StreamExt,
-    future::{select_all, try_join_all},
+    future::{join_all, select_all, try_join_all},
 };
 use kona_protocol::BlockInfo;
 use kona_rpc::{L1State, L1WatcherQueries};
-use tokio::{select, sync::watch};
+use tokio::{
+    select,
+    sync::watch,
+    time::{self, Duration, Instant},
+};
 
 use super::{L1WatcherChain, L1WatcherDerivationClient};
 
@@ -21,6 +25,8 @@ use super::{L1WatcherChain, L1WatcherDerivationClient};
 /// the arms hold on the actor's streams and query receivers have been released.
 #[derive(Debug)]
 enum L1WatcherEvent {
+    /// Retry configuration reads even when the L1 head has not changed.
+    Reconcile,
     /// A new L1 head block, or `None` if the head stream ended.
     Head(Option<BlockInfo>),
     /// A new finalized L1 block, or `None` if the finalized stream ended.
@@ -37,7 +43,7 @@ enum L1WatcherEvent {
 /// An L1 chain watcher that checks for L1 block updates over RPC.
 ///
 /// A single watcher serves N chains: the L1 head and finalized streams are shared, and every
-/// update is fanned out to each chain's derivation actor. The system config log filter and the
+/// update is fanned out to each chain's derivation actor. The runtime configuration reads and the
 /// unsafe block signer updates are per chain. A standalone kona-node runs this with a single
 /// chain.
 #[derive(Debug)]
@@ -57,6 +63,8 @@ where
     finalized_stream: BlockStream,
     /// The chains served by this watcher, rotated as their queries are served. Never empty.
     chains: Vec<L1WatcherChain<L1WatcherDerivationClient_>>,
+    /// Drives recovery independently of new head notifications.
+    reconcile: time::Interval,
 }
 
 impl<BlockStream, L1Provider, L1WatcherDerivationClient_>
@@ -79,7 +87,17 @@ where
     ) -> Self {
         assert!(!chains.is_empty(), "the L1 watcher must serve at least one chain");
 
-        Self { l1_provider, latest_head: l1_head_updates_tx, head_stream, finalized_stream, chains }
+        let period = Duration::from_secs(10);
+        let mut reconcile = time::interval_at(Instant::now() + period, period);
+        reconcile.set_missed_tick_behavior(time::MissedTickBehavior::Skip);
+        Self {
+            l1_provider,
+            latest_head: l1_head_updates_tx,
+            head_stream,
+            finalized_stream,
+            chains,
+            reconcile,
+        }
     }
 
     /// Reads the L1 view answered by [`L1WatcherQueries::L1State`] from the L1 provider.
@@ -122,6 +140,7 @@ where
 
     async fn step(&mut self) -> Result<(), Self::Error> {
         let event = select! {
+            _ = self.reconcile.tick() => L1WatcherEvent::Reconcile,
             new_head = self.head_stream.next() => L1WatcherEvent::Head(new_head),
             new_finalized = self.finalized_stream.next() => L1WatcherEvent::Finalized(new_finalized),
             // `select_all` panics on an empty iterator, which `new` rules out.
@@ -131,6 +150,18 @@ where
         };
 
         match event {
+            L1WatcherEvent::Reconcile => {
+                let head = *self.latest_head.borrow();
+                if let Some(head) = head {
+                    join_all(
+                        self.chains
+                            .iter()
+                            .map(|chain| chain.reconcile_signer(&self.l1_provider, head)),
+                    )
+                    .await;
+                }
+                Ok(())
+            }
             L1WatcherEvent::Head(None) | L1WatcherEvent::Finalized(None) => {
                 Err(L1WatcherActorError::StreamEnded)
             }
@@ -138,21 +169,19 @@ where
                 // Send the head update event to all consumers.
                 self.latest_head.send_replace(Some(head_block_info));
 
-                // Fan out to every chain before the log queries below. Each derivation queue is
+                // Fan out to every chain before the signer reads below. Each derivation queue is
                 // bounded, so serial awaits let one full queue park the watcher and stall every
                 // other chain.
                 try_join_all(
                     self.chains.iter().map(|chain| chain.send_new_l1_head(head_block_info)),
                 )
                 .await?;
-                // Fetch every chain's system config logs together, so the latency is one round
-                // trip rather than N and one chain's failing request does not stop the others'
-                // from being made. The first error still aborts the round, and the signer updates
-                // already delivered stay delivered.
-                try_join_all(self.chains.iter().map(|chain| {
-                    chain.process_system_config_logs(&self.l1_provider, head_block_info)
-                }))
-                .await?;
+                join_all(
+                    self.chains
+                        .iter()
+                        .map(|chain| chain.reconcile_signer(&self.l1_provider, head_block_info)),
+                )
+                .await;
 
                 Ok(())
             }
@@ -207,11 +236,9 @@ mod tests {
     use crate::DerivationClientResult;
     use alloy_primitives::{Address, B256, U256};
     use alloy_provider::{ProviderBuilder, mock::Asserter};
-    use alloy_rpc_types_eth::{Block as RpcBlock, Log as RpcLog};
+    use alloy_rpc_types_eth::Block as RpcBlock;
     use futures::stream;
-    use kona_genesis::{
-        CONFIG_UPDATE_EVENT_VERSION_0, CONFIG_UPDATE_TOPIC, RollupConfig, SystemConfigUpdateKind,
-    };
+    use kona_genesis::RollupConfig;
     use kona_rpc::L1WatcherQueries;
     use std::{
         pin::Pin,
@@ -243,27 +270,8 @@ mod tests {
         BlockInfo::new(B256::repeat_byte(number as u8), number, B256::ZERO, number * 12)
     }
 
-    /// An `eth_getLogs` result carrying a single unsafe block signer update.
-    fn signer_update_log(system_config_address: Address, signer: Address) -> RpcLog {
-        let mut data = Vec::with_capacity(96);
-        data.extend_from_slice(&U256::from(32).to_be_bytes::<32>());
-        data.extend_from_slice(&U256::from(32).to_be_bytes::<32>());
-        data.extend_from_slice(signer.into_word().as_slice());
-
-        RpcLog {
-            inner: alloy_primitives::Log {
-                address: system_config_address,
-                data: alloy_primitives::LogData::new_unchecked(
-                    vec![
-                        CONFIG_UPDATE_TOPIC,
-                        CONFIG_UPDATE_EVENT_VERSION_0,
-                        B256::from(U256::from(SystemConfigUpdateKind::UnsafeBlockSigner as u64)),
-                    ],
-                    data.into(),
-                ),
-            },
-            ..Default::default()
-        }
+    fn signer_storage(signer: Address) -> U256 {
+        U256::from_be_slice(signer.as_slice())
     }
 
     /// An `eth_getBlockByNumber` result whose header fields identify which tag it answered.
@@ -320,11 +328,11 @@ mod tests {
         (actor, latest_head_rx)
     }
 
-    /// A new L1 head reaches every chain's derivation actor, and each chain's system config logs
+    /// A new L1 head reaches every chain's derivation actor, and each chain's current signer reads
     /// are routed to that chain's unsafe block signer channel.
     ///
-    /// The chains' log requests are issued concurrently, and [`Asserter`] answers them from one
-    /// FIFO queue with no per-request routing. `try_join_all` polls its futures in the order it
+    /// The chains' storage requests are issued concurrently, and [`Asserter`] answers them from one
+    /// FIFO queue with no per-request routing. `join_all` polls its futures in the order it
     /// was given them, so response `i` still answers chain `i`'s request: a chain that read
     /// another chain's response would receive the wrong signer and fail the assertions below.
     #[tokio::test]
@@ -342,7 +350,7 @@ mod tests {
                 .returning(|_| Ok(()));
             client.expect_send_finalized_l1_block().times(0);
 
-            asserter.push_success(&vec![signer_update_log(chain_at(index), signer_at(index))]);
+            asserter.push_success(&signer_storage(signer_at(index)));
 
             client
         });
@@ -433,9 +441,9 @@ mod tests {
         let mut observed = Vec::new();
 
         let (chains, handles) = test_chains(CHAINS, |_| {
-            // Only the head fan-out reaches the log queries; the finalized case leaves these
+            // Only the head fan-out reaches the signer reads; the finalized case leaves these
             // responses unread.
-            asserter.push_success(&Vec::<RpcLog>::new());
+            asserter.push_success(&U256::ZERO);
 
             let chain_observed = Arc::new(AtomicUsize::new(0));
             observed.push(Arc::clone(&chain_observed));
@@ -554,7 +562,7 @@ mod tests {
     /// An `L1State` query is answered on the querying chain's oneshot, with the actor's current
     /// head and one block per provider read.
     ///
-    /// The three `get_block` calls are issued concurrently, so like the head arm's log fan-out
+    /// The three `get_block` calls are issued concurrently, so like the head arm's signer fan-out
     /// this does depend on [`Asserter`]'s FIFO answering lining up with a set of concurrent
     /// requests. `tokio::join!` polls its futures in the order written on the first poll - its
     /// rotator starts at zero skips - so the reads are issued latest, finalized, safe and
@@ -576,8 +584,8 @@ mod tests {
             let mut client = MockL1WatcherDerivationClient::new();
             client.expect_send_new_l1_head().times(1).returning(|_| Ok(()));
 
-            // No config updates: this test is about the query arm, not the log fan-out.
-            asserter.push_success(&Vec::<RpcLog>::new());
+            // No config updates: this test is about the query arm, not the signer fan-out.
+            asserter.push_success(&U256::ZERO);
 
             client
         });
@@ -618,5 +626,49 @@ mod tests {
             asserter.read_q().is_empty(),
             "the arm made fewer provider reads than the three responses queued for it"
         );
+    }
+    /// A missed rotation is recovered from state even without another L1 head. A later
+    /// snapshot can restore the old signer after a reorg without another rotation event.
+    #[tokio::test(start_paused = true)]
+    async fn signer_refresh_recovers_without_new_head_and_restores_reorged_rotation() {
+        let asserter = Asserter::new();
+        let (chains, mut handles) = test_chains(1, |_| {
+            let mut client = MockL1WatcherDerivationClient::new();
+            client.expect_send_new_l1_head().times(2).returning(|_| Ok(()));
+            client
+        });
+        asserter.push_failure_msg("temporary L1 failure");
+        let (mut actor, _latest) = actor(asserter.clone(), vec![head(7)], vec![], chains);
+        actor.step().await.unwrap();
+        assert!(handles[0].signer_rx.try_recv().is_err());
+
+        asserter.push_success(&signer_storage(signer_at(1)));
+        time::advance(Duration::from_secs(10)).await;
+        actor.step().await.unwrap();
+        assert_eq!(handles[0].signer_rx.try_recv().unwrap(), signer_at(1));
+
+        // Canonical head replaces the rotated branch, with no new rotation log.
+        let mut replacement = head(7);
+        replacement.hash = B256::repeat_byte(99);
+        actor.head_stream = Box::pin(stream::iter([replacement]).chain(stream::pending()));
+        asserter.push_success(&signer_storage(signer_at(0)));
+        actor.step().await.unwrap();
+        assert_eq!(handles[0].signer_rx.try_recv().unwrap(), signer_at(0));
+    }
+
+    #[tokio::test]
+    async fn failed_signer_read_does_not_cancel_other_chains() {
+        let asserter = Asserter::new();
+        let (chains, mut handles) = test_chains(2, |_| {
+            let mut client = MockL1WatcherDerivationClient::new();
+            client.expect_send_new_l1_head().times(1).returning(|_| Ok(()));
+            client
+        });
+        asserter.push_failure_msg("temporary L1 failure");
+        asserter.push_success(&signer_storage(signer_at(1)));
+        let (mut actor, _latest) = actor(asserter, vec![head(9)], vec![], chains);
+        actor.step().await.unwrap();
+        assert!(handles[0].signer_rx.try_recv().is_err());
+        assert_eq!(handles[1].signer_rx.try_recv().unwrap(), signer_at(1));
     }
 }
