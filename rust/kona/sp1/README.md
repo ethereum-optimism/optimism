@@ -120,8 +120,11 @@ the guests ship separately; `kona-sp1-proposer` has its own image and tag family
   together whenever possible. The proposer embeds kona-host, which collects the witness these
   programs execute. Tag both on the same commit; a proposer-only release with no program change is
   fine.
-- **Release paths**: like `kona-client`, a release covers the whole `rust/kona/` tree, and any
-  change that alters the guests rotates the vkeys, so every consumer must repin.
+- **Release paths**: like `kona-client`, a release covers the whole `rust/kona/` tree.
+- **Every new commit rotates the vkeys**: both guests embed the commit they were built from (see
+  [Build provenance](#build-provenance)), so a release tagged on a different commit from the
+  previous one always has new vkeys, even if no guest code changed, and every consumer must repin.
+  Only a final release, which re-tags its last RC's commit, keeps that RC's vkeys.
 
 CircleCI publishes the standard ELFs, built with the Docker recipe `just build-elfs` and no custom
 configs, to `gs://oplabs-network-data/proofs/kona/sp1/`, served publicly under
