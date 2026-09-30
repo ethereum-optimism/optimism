@@ -42,21 +42,47 @@ func ListCredits(ctx *cli.Context) error {
 	defer l1Client.Close()
 
 	caller := batching.NewMultiCaller(l1Client.Client(), batching.DefaultBatchSize)
-	contract, err := contracts.NewFaultDisputeGameContract(ctx.Context, metrics.NoopContractMetrics, gameAddr, caller)
+	gameType, err := contracts.DetectGameType(ctx.Context, gameAddr, caller)
+	if err != nil {
+		return fmt.Errorf("failed to detect dispute game type: %w", err)
+	}
+	contract, err := contracts.NewDisputeGameContract(ctx.Context, metrics.NoopContractMetrics, caller, gameType, gameAddr)
 	if err != nil {
 		return err
 	}
-	return listCredits(ctx.Context, contract)
+	creditGameContract, ok := contract.(creditGame)
+	if !ok {
+		return fmt.Errorf("%w: cannot list credits for game type %s", contracts.ErrUnsupportedGameType, gameType)
+	}
+	return listCredits(ctx.Context, creditGameContract)
 }
 
-func listCredits(ctx context.Context, game contracts.FaultDisputeGameContract) error {
-	claims, err := game.GetAllClaims(ctx, rpcblock.Latest)
+// listCredits prints the DelayedWETH credits of any supported dispute game type.
+// ZK games have no claim tree, so their recipient set is the game creator, the
+// challenger and the prover rather than the claim participants.
+func listCredits(ctx context.Context, game creditGame) error {
+	recipients, err := creditRecipients(ctx, game)
 	if err != nil {
-		return fmt.Errorf("failed to load claims: %w", err)
+		return err
 	}
-	metadata, err := game.GetExtendedMetadata(ctx, rpcblock.Latest)
+	return printCredits(ctx, game, recipients)
+}
+
+func creditRecipients(ctx context.Context, game creditGame) ([]common.Address, error) {
+	if zkGame, ok := game.(contracts.ZKDisputeGameContract); ok {
+		return zkCreditRecipients(ctx, zkGame)
+	}
+	faultGame, ok := game.(contracts.FaultDisputeGameContract)
+	if !ok {
+		return nil, fmt.Errorf("%w: cannot list credits for game type %T", contracts.ErrUnsupportedGameType, game)
+	}
+	claims, err := faultGame.GetAllClaims(ctx, rpcblock.Latest)
 	if err != nil {
-		return fmt.Errorf("failed to load metadata: %w", err)
+		return nil, fmt.Errorf("failed to load claims: %w", err)
+	}
+	metadata, err := faultGame.GetExtendedMetadata(ctx, rpcblock.Latest)
+	if err != nil {
+		return nil, fmt.Errorf("failed to load metadata: %w", err)
 	}
 	recipients := make(map[common.Address]bool)
 	for _, claim := range claims {
@@ -68,13 +94,49 @@ func listCredits(ctx context.Context, game contracts.FaultDisputeGameContract) e
 	if metadata.L2BlockNumberChallenger != (common.Address{}) {
 		recipients[metadata.L2BlockNumberChallenger] = true
 	}
+	return slices.Collect(maps.Keys(recipients)), nil
+}
 
+// zkCreditRecipients returns the only addresses a ZK game can credit. This mirrors
+// ZKDisputeGame.sol, which assigns credit to the game creator in every case and to
+// the challenger or prover for the proposal, and never to any other address.
+func zkCreditRecipients(ctx context.Context, game contracts.ZKDisputeGameContract) ([]common.Address, error) {
+	bonds, err := game.GetBondMetadata(ctx, rpcblock.Latest)
+	if err != nil {
+		return nil, fmt.Errorf("failed to load bond metadata: %w", err)
+	}
+	recipients := make(map[common.Address]bool)
+	if bonds.GameCreator != (common.Address{}) {
+		recipients[bonds.GameCreator] = true
+	}
+	metadata, err := game.GetChallengerMetadata(ctx, rpcblock.Latest)
+	if err != nil {
+		return nil, fmt.Errorf("failed to load challenger metadata: %w", err)
+	}
+	if metadata.Challenger != (common.Address{}) {
+		recipients[metadata.Challenger] = true
+	}
+	if metadata.Prover != (common.Address{}) {
+		recipients[metadata.Prover] = true
+	}
+	return slices.Collect(maps.Keys(recipients)), nil
+}
+
+// creditGame is the part of a dispute game contract that list-credits needs once the
+// recipient set is known. Both FaultDisputeGameContract and ZKDisputeGameContract
+// satisfy it, so the ZK path reuses the existing output formatting unchanged.
+type creditGame interface {
+	contracts.DisputeGameContract
+	GetBalanceAndDelay(ctx context.Context, block rpcblock.Block) (*big.Int, time.Duration, common.Address, error)
+	GetWithdrawals(ctx context.Context, block rpcblock.Block, recipients ...common.Address) ([]*contracts.WithdrawalRequest, error)
+}
+
+func printCredits(ctx context.Context, game creditGame, recipients []common.Address) error {
 	balance, withdrawalDelay, wethAddress, err := game.GetBalanceAndDelay(ctx, rpcblock.Latest)
 	if err != nil {
 		return fmt.Errorf("failed to get DelayedWETH info: %w", err)
 	}
-	claimants := slices.Collect(maps.Keys(recipients))
-	withdrawals, err := game.GetWithdrawals(ctx, rpcblock.Latest, claimants...)
+	withdrawals, err := game.GetWithdrawals(ctx, rpcblock.Latest, recipients...)
 	if err != nil {
 		return fmt.Errorf("failed to get withdrawals: %w", err)
 	}
@@ -93,7 +155,7 @@ func listCredits(ctx context.Context, game contracts.FaultDisputeGameContract) e
 		} else {
 			unlockTime = time.Unix(withdrawal.Timestamp.Int64(), 0).Add(withdrawalDelay).Format(time.DateTime)
 		}
-		info += fmt.Sprintf(lineFormat, claimants[i], amount, unlockTime)
+		info += fmt.Sprintf(lineFormat, recipients[i], amount, unlockTime)
 	}
 	fmt.Printf("DelayedWETH Contract: %v • Total Balance (ETH): %12.8f • Delay: %v\n%v\n",
 		wethAddress, eth.WeiToEther(balance), withdrawalDelay, info)
