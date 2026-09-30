@@ -20,6 +20,22 @@ pub(crate) struct ExecuteBlockTask<Block: reth_primitives_traits::Block> {
     pub(crate) reply: Sender<Result<(), EngineError>>,
 }
 
+/// Result of an execute-block attempt.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum ExecuteBlockOutcome {
+    /// The block was executed and indexed.
+    Indexed,
+    /// The indexed tip did not advance.
+    NoProgress,
+}
+
+impl ExecuteBlockOutcome {
+    /// Returns whether the attempt advanced the indexed tip.
+    pub(crate) const fn made_progress(self) -> bool {
+        matches!(self, Self::Indexed)
+    }
+}
+
 impl<Block: reth_primitives_traits::Block> ExecuteBlockTask<Block> {
     pub(crate) fn execute<Evm, Provider, Store>(self, state: &mut EngineState<Evm, Provider, Store>)
     where
@@ -33,7 +49,7 @@ impl<Block: reth_primitives_traits::Block> ExecuteBlockTask<Block> {
             + 'static,
         Store: OpProofsStore + Clone + 'static,
     {
-        let result = run(&self.block, state);
+        let result = run(&self.block, state).map(|_| ());
         let _ = self.reply.send(result);
     }
 }
@@ -41,7 +57,7 @@ impl<Block: reth_primitives_traits::Block> ExecuteBlockTask<Block> {
 pub(crate) fn run<Block, Evm, Provider, Store>(
     block: &RecoveredBlock<Block>,
     state: &mut EngineState<Evm, Provider, Store>,
-) -> Result<(), EngineError>
+) -> Result<ExecuteBlockOutcome, EngineError>
 where
     Block: reth_primitives_traits::Block,
     Evm: ConfigureEvm<Primitives: NodePrimitives<Block = Block>>,
@@ -76,7 +92,7 @@ where
             tip_number = tip.number,
             "Block already covered by tip, skipping execute_and_store",
         );
-        return Ok(());
+        return Ok(ExecuteBlockOutcome::NoProgress);
     }
 
     if block.number() > tip.number.saturating_add(1) {
@@ -87,7 +103,7 @@ where
             "Gap detected, updating sync target",
         );
         state.update_sync_target(block.number());
-        return Ok(());
+        return Ok(ExecuteBlockOutcome::NoProgress);
     }
 
     if block.parent_hash() != tip.hash {
@@ -113,7 +129,7 @@ where
                 parent_hash = ?hash,
                 "Parent state not available in reth; skipping execute_block",
             );
-            return Ok(());
+            return Ok(ExecuteBlockOutcome::NoProgress);
         }
         Err(e) => return Err(e.into()),
     };
@@ -166,5 +182,5 @@ where
         "Block executed and trie updates buffered successfully",
     );
 
-    Ok(())
+    Ok(ExecuteBlockOutcome::Indexed)
 }

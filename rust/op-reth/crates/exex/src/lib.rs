@@ -216,10 +216,22 @@ where
             pruner,
         );
 
+        let mut indexed_height = engine_handle.subscribe_indexed_height();
         engine_handle.sync_to(self.ctx.provider().best_block_number()?)?;
 
-        while let Some(notification) = self.ctx.notifications.try_next().await? {
-            self.handle_notification(notification, &engine_handle)?;
+        loop {
+            tokio::select! {
+                changed = indexed_height.changed() => {
+                    changed.map_err(|_| eyre::eyre!("proofs engine progress channel closed"))?;
+                    if let Some(height) = *indexed_height.borrow_and_update() {
+                        self.ctx.events.send(ExExEvent::FinishedHeight(height))?;
+                    }
+                }
+                notification = self.ctx.notifications.try_next() => {
+                    let Some(notification) = notification? else { break };
+                    self.handle_notification(notification, &engine_handle)?;
+                }
+            }
         }
 
         Ok(())
@@ -270,10 +282,6 @@ where
             ExExNotification::ChainReverted { old } => {
                 self.handle_chain_reverted(old.clone(), engine_handle)?
             }
-        }
-
-        if let Some(committed_chain) = notification.committed_chain() {
-            self.ctx.events.send(ExExEvent::FinishedHeight(committed_chain.tip().num_hash()))?;
         }
 
         Ok(())
@@ -1024,5 +1032,71 @@ mod tests {
         let latest =
             store.provider_ro().expect("provider ro").get_latest_block().expect("get").number;
         assert_eq!(latest, 0, "Main thread should not have processed the blocks synchronously");
+    }
+
+    #[tokio::test]
+    async fn run_acknowledges_height_after_engine_indexes_it() {
+        let dir = tempdir_path();
+        let store = Arc::new(MdbxProofsStorageV2::new(dir.as_path()).expect("env"));
+        init_storage(store.clone());
+
+        let (ctx, mut handle) =
+            reth_exex_test_utils::test_exex_context().await.expect("exex test context");
+        let exex = build_test_exex(ctx, store);
+        let run = tokio::spawn(exex.run());
+
+        handle
+            .send_notification_chain_committed(mk_chain_with_updates(1, 1, None))
+            .await
+            .expect("send notification");
+
+        let indexed = tokio::time::timeout(std::time::Duration::from_secs(5), async {
+            loop {
+                let event = handle.events_rx.recv().await.expect("ExEx event channel closed");
+                let ExExEvent::FinishedHeight(height) = event;
+                if height.number == 1 {
+                    break height;
+                }
+            }
+        })
+        .await
+        .expect("engine should index the notified block");
+        assert_eq!(indexed, NumHash::new(1, hash_for_num(1)));
+
+        run.abort();
+        let _ = run.await;
+    }
+
+    #[tokio::test]
+    async fn run_does_not_acknowledge_deferred_height() {
+        let dir = tempdir_path();
+        let store = Arc::new(MdbxProofsStorageV2::new(dir.as_path()).expect("env"));
+        init_storage(store.clone());
+
+        let (ctx, mut handle) =
+            reth_exex_test_utils::test_exex_context().await.expect("exex test context");
+        let exex = build_test_exex(ctx, store);
+        let run = tokio::spawn(exex.run());
+
+        handle
+            .send_notification_chain_committed(mk_chain_without_updates(5, 10))
+            .await
+            .expect("send notification");
+
+        let target = NumHash::new(10, hash_for_num(10));
+        let target_event = tokio::time::timeout(std::time::Duration::from_millis(500), async {
+            loop {
+                let event = handle.events_rx.recv().await.expect("ExEx event channel closed");
+                let ExExEvent::FinishedHeight(height) = event;
+                if height == target {
+                    break;
+                }
+            }
+        })
+        .await;
+        assert!(target_event.is_err(), "deferred target was acknowledged before it was indexed");
+
+        run.abort();
+        let _ = run.await;
     }
 }

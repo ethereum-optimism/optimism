@@ -3,8 +3,10 @@
 use super::{
     DEFAULT_BACKPRESSURE_THRESHOLD, DEFAULT_PERSISTENCE_THRESHOLD, EngineAction,
     IDLE_FLUSH_INTERVAL, error::EngineError, state::EngineState as State,
+    tasks::ExecuteBlockOutcome,
 };
 use crate::{OpProofStoragePruner, OpProofsStore};
+use alloy_eips::NumHash;
 use crossbeam_channel::Receiver;
 use reth_evm::ConfigureEvm;
 use reth_primitives_traits::BlockTy;
@@ -16,6 +18,7 @@ use std::{
     ops::ControlFlow,
     time::{Duration, Instant},
 };
+use tokio::sync::watch;
 use tracing::{debug, error};
 
 /// First retry delay after a sync step fails. Successful steps reset the delay to zero.
@@ -27,6 +30,10 @@ const SYNC_BACKOFF_MAX: Duration = Duration::from_secs(10);
 
 fn next_sync_backoff(current: Duration) -> Duration {
     current.saturating_mul(2).clamp(SYNC_BACKOFF_INITIAL, SYNC_BACKOFF_MAX)
+}
+
+fn sync_backoff_after_step(current: Duration, outcome: ExecuteBlockOutcome) -> Duration {
+    if outcome.made_progress() { Duration::ZERO } else { next_sync_backoff(current) }
 }
 
 /// The engine that runs on a dedicated thread, dispatching [`EngineAction`]
@@ -41,8 +48,11 @@ where
     incoming: Receiver<EngineAction<BlockTy<Evm::Primitives>>>,
     persistence_threshold: u64,
     backpressure_threshold: u64,
-    /// Current retry delay for the sync arm; grows on failure, resets on success.
+    /// Current retry delay for the sync arm; grows on failure or no progress, resets when the
+    /// indexed tip advances.
     sync_backoff: Duration,
+    /// Publishes the latest height after it has been indexed by the engine.
+    indexed_height: watch::Sender<Option<NumHash>>,
 }
 
 impl<Evm, Provider, Store> Engine<Evm, Provider, Store>
@@ -63,6 +73,7 @@ where
         storage: Store,
         pruner: OpProofStoragePruner<Store, Provider>,
         incoming: Receiver<EngineAction<BlockTy<Evm::Primitives>>>,
+        indexed_height: watch::Sender<Option<NumHash>>,
     ) -> Self {
         Self {
             state: State::new(evm_config, provider, storage, pruner),
@@ -70,6 +81,7 @@ where
             persistence_threshold: DEFAULT_PERSISTENCE_THRESHOLD,
             backpressure_threshold: DEFAULT_BACKPRESSURE_THRESHOLD,
             sync_backoff: Duration::ZERO,
+            indexed_height,
         }
     }
 
@@ -104,12 +116,25 @@ where
         }
     }
 
+    /// Publish the current tip if it changed since the last update.
+    fn publish_indexed_height(&self) {
+        let Ok(tip) = self.state.get_tip() else { return };
+        self.indexed_height.send_if_modified(|indexed_height| {
+            if *indexed_height == Some(tip) {
+                false
+            } else {
+                *indexed_height = Some(tip);
+                true
+            }
+        });
+    }
+
     /// Execute the next sequential block (`current_tip + 1`) to advance toward the sync target.
-    fn advance_sync(&mut self) -> Result<(), EngineError> {
+    fn advance_sync(&mut self) -> Result<ExecuteBlockOutcome, EngineError> {
         let current_tip = self.state.get_tip()?.number;
 
         if self.state.sync_target <= current_tip {
-            return Ok(());
+            return Ok(ExecuteBlockOutcome::NoProgress);
         }
 
         let block_num = current_tip + 1;
@@ -134,7 +159,7 @@ where
                 "Clamping sync_target to best_block to avoid mmap/ftruncate race"
             );
             self.state.sync_target = best_block;
-            return Ok(());
+            return Ok(ExecuteBlockOutcome::NoProgress);
         }
 
         let block = self
@@ -190,12 +215,27 @@ where
 
         crossbeam_channel::select! {
             recv(incoming_rx) -> msg => match msg {
-                Ok(action) => action.execute(&mut self.state),
+                Ok(action) => {
+                    action.execute(&mut self.state);
+                    self.publish_indexed_height();
+                }
                 Err(_) => return ControlFlow::Break(()),
             },
             recv(persist_rx) -> result => self.state.persistence.on_complete(result, &self.state.memory),
             recv(sync_rx) -> _ => match self.advance_sync() {
-                Ok(()) => self.sync_backoff = Duration::ZERO,
+                Ok(outcome) if outcome.made_progress() => {
+                    self.sync_backoff = sync_backoff_after_step(self.sync_backoff, outcome);
+                    self.publish_indexed_height();
+                }
+                Ok(outcome) if self.needs_sync() => {
+                    self.sync_backoff = sync_backoff_after_step(self.sync_backoff, outcome);
+                    debug!(
+                        target: "trie::engine::runner",
+                        backoff = ?self.sync_backoff,
+                        "Sync step made no progress; retrying"
+                    );
+                }
+                Ok(_) => self.sync_backoff = Duration::ZERO,
                 Err(err) => {
                     self.sync_backoff = next_sync_backoff(self.sync_backoff);
                     error!(target: "trie::engine::runner", ?err, backoff = ?self.sync_backoff, "Sync step failed");
@@ -234,7 +274,10 @@ where
 
 #[cfg(test)]
 mod tests {
-    use super::{SYNC_BACKOFF_INITIAL, SYNC_BACKOFF_MAX, next_sync_backoff};
+    use super::{
+        ExecuteBlockOutcome, SYNC_BACKOFF_INITIAL, SYNC_BACKOFF_MAX, next_sync_backoff,
+        sync_backoff_after_step,
+    };
     use std::time::Duration;
 
     #[test]
@@ -269,5 +312,29 @@ mod tests {
     fn does_not_overflow_on_huge_input() {
         let near_max = Duration::new(u64::MAX / 2 + 1, 0);
         assert_eq!(next_sync_backoff(near_max), SYNC_BACKOFF_MAX);
+    }
+
+    #[test]
+    fn eventual_progress_resets_no_progress_backoff() {
+        let backoff = sync_backoff_after_step(Duration::ZERO, ExecuteBlockOutcome::NoProgress);
+        assert_eq!(backoff, SYNC_BACKOFF_INITIAL);
+
+        let backoff = sync_backoff_after_step(backoff, ExecuteBlockOutcome::NoProgress);
+        assert_eq!(backoff, SYNC_BACKOFF_INITIAL * 2);
+
+        let backoff = sync_backoff_after_step(backoff, ExecuteBlockOutcome::Indexed);
+        assert_eq!(backoff, Duration::ZERO);
+    }
+
+    #[test]
+    fn persistent_unavailability_is_rate_limited() {
+        let mut backoff = Duration::ZERO;
+        for _ in 0..16 {
+            backoff = sync_backoff_after_step(backoff, ExecuteBlockOutcome::NoProgress);
+        }
+        assert_eq!(backoff, SYNC_BACKOFF_MAX);
+
+        backoff = sync_backoff_after_step(backoff, ExecuteBlockOutcome::NoProgress);
+        assert_eq!(backoff, SYNC_BACKOFF_MAX);
     }
 }
