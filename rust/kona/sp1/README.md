@@ -62,10 +62,6 @@ artifacts at runtime from `KONA_SP1_ELF_DIR`; a missing or empty artifact fails 
 infrastructure error. `kona-sp1-publish-prestates{,-on-tag}` publishes develop and tag ELFs
 (see [Releases](#releases)).
 
-TODO(ethereum-optimism/optimism#21424): pin the `super-aggregation` vkey of each
-`kona-sp1-program` release in superchain-registry
-`validation/standard/standard-prestates.toml` for the daily comparison.
-
 #### Build provenance
 
 Both guests embed the commit they were built from, so a guest ELF identifies its own source
