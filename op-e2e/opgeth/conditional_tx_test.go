@@ -63,7 +63,7 @@ func TestSendRawTransactionConditionalDisabled(t *testing.T) {
 	require.Error(t, err)
 
 	// method not found json error
-	require.Equal(t, -32601, err.(*rpc.JsonError).Code)
+	require.Equal(t, -32601, err.(rpc.Error).ErrorCode())
 }
 
 func TestSendRawTransactionConditionalEnabled(t *testing.T) {
@@ -85,7 +85,7 @@ func TestSendRawTransactionConditionalEnabled(t *testing.T) {
 	// rejected conditional
 	err = l2Client.Client().Call(nil, sendTxCondMethodName, hexutil.Encode(txBytes), &types.TransactionConditional{TimestampMax: uint64Ptr(0)})
 	require.Error(t, err)
-	require.Equal(t, params.TransactionConditionalRejectedErrCode, err.(*rpc.JsonError).Code)
+	require.Equal(t, params.TransactionConditionalRejectedErrCode, err.(rpc.Error).ErrorCode())
 
 	// accepted conditional
 	var hash common.Hash

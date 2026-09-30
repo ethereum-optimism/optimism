@@ -432,8 +432,8 @@ rather than symbols. (Found by the 2026-07 upstream-build spike; §19 keeps find
 (see §20). With the §1/§3/§4/§5/§11 swaps landed and the cutover scaffolding removed,
 `op-core/types`, `op-core/params`, `op-core/predeploys`, `op-service/eth` and `op-service/signer`
 and `op-service/log` (with `logcli`, `logfilter`) and `op-service/testlog` all compile against
-upstream go-ethereum today. What still fails to compile is `op-service/metrics`,
-`op-service/client` and `op-service/rpc` on the RPC recording hooks below.
+upstream go-ethereum today. What still fails to compile is `op-service/rpc` on the server-side
+RPC recording hook below.
 
 **Log context extensions** — fork adds `Logger.SetContext`, `WriteCtx`, `LogAttrs`, and the
 `Trace/…/ErrorContext` methods; `op-service/log`'s logfilter feature and `op-service/testlog`
@@ -458,11 +458,17 @@ build on them. **Done: the monorepo owns the log layer.**
   (e.g. the L1 geth in op-e2e) reaches our handlers.
 
 **RPC recording hooks** — fork adds `rpc.Recorder`/`RecordedMsg`/`RecordDone`/`WithRecorder`
-inside the geth RPC client *and server*; `op-service/metrics` (RPC metrics), `op-service/rpc`,
-and `op-service/client` build on them. Client-side recording moves into our own client wrappers
-(a seam we own); server-side needs a new interception point (HTTP middleware or handler
-wrapping) — small design task, metric names/labels must be preserved. `rpc.JsonError`
-(op-test-sequencer) is the same family, trivially replaced by a local error type.
+and `Server.SetRecorder` inside the geth RPC client *and server*, and exports `rpc.JsonError`. Strategy: **own the seam**.
+
+- *In place:* `op-service/jsonrpc` (a leaf package) owns `Recorder`, `Message`, `Response`,
+  `RecordDone` and the JSON-RPC `Error`, which replaces `rpc.JsonError`. `RPCMetricer` returns
+  a `jsonrpc.Recorder`, and `op-service/client` records calls in its own wrapper around the
+  geth client; subscriptions are not recorded. A `forbidigo` rule in `.golangci.yaml` rejects
+  the fork-only symbols everywhere except `op-service/rpc/server_recorder.go`, which binds the
+  server side to op-geth's `Server.SetRecorder`.
+- *Remaining:* a server-side interception point in `op-service/rpc` to replace
+  `server_recorder.go` (HTTP middleware or handler wrapping — design open, #22753). The
+  `<ns>_rpc_*` metric names and labels must not change; `TestRPCMetricsDescriptors` pins them.
 
 **One-off fork symbols** in the same spirit ride the §2-style call-site swaps (#20263 family).
 `Transaction.SetBlobTxSidecar` and `types.LogForStorage` are **done** (no occurrences remain),
@@ -625,10 +631,10 @@ Some repos have coupling of their own on top of §15, and these need decisions r
 waiting:
 
 - **`infra/op-txproxy`** uses op-geth-only `rpc.JsonError` and
-  `params.TransactionConditional*ErrCode` directly — the transaction-conditional feature. Two
-  ways out: re-home the symbols in the monorepo (`op-service/rpc` and `op-core/params` or
-  similar) if other consumers are likely, or copy them into `infra` if op-txproxy is the only
-  user. Worth deciding before §15 lands, since the `rpc.JsonError` half rides the same work.
+  `params.TransactionConditional*ErrCode` directly — the transaction-conditional feature.
+  Replace `rpc.JsonError` with `op-service/jsonrpc.Error`. The error codes need a decision: re-home
+  them in the monorepo (`op-core/params` or similar) if other consumers are likely, or copy them
+  into `infra` if op-txproxy is the only user.
 - **`infra/proxyd`** imports `core/types/interoptypes`, which has no upstream equivalent. It
   should move to `op-core` — `op-core/interop/messages` already carries the access-list
   encoding — rather than inlining a local copy of `TxToInteropAccessList`.
@@ -675,7 +681,7 @@ monorepo has to fix on their behalf.
 | op-simulate / op-run-block (§14) | delete | **done** (#21282) |
 | op-sync-tester PayloadID hash | OP-aware `Id()` reimplementation | open (#21525) |
 | Log context extensions (§15) | owned `op-service/log` layer: owned `Logger` + slog implementation, `ToGeth` at geth boundaries | **done** |
-| RPC recorder hooks + `JsonError` (§15) | client wrappers + server-side interception | open — **gating**, blocks `op-service/{metrics,client,rpc}` |
+| RPC recorder hooks + `JsonError` (§15) | owned `op-service/jsonrpc` seam: client wrapper + server-side interception | seam, client side, `JsonError` + lint gate **done**; server side open — **gating**, blocks `op-service/rpc` |
 | One-off fork symbols (§15) | per-symbol swaps, ride #20263 family | `SetBlobTxSidecar`/`LogForStorage` **done**; rest are test-only, ride §13 |
 | `op-chain-ops/script` + op-deployer (§16) | **Rust script engine** (foundry crates) | open |
 | In-process op-geth L2 EL in system tests + sysgo (§17) | op-reth-only; folds #21451 | open |

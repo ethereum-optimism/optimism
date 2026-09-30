@@ -3,9 +3,8 @@ package rpc
 import (
 	"context"
 
-	"github.com/ethereum/go-ethereum/rpc"
-
 	"github.com/ethereum-optimism/optimism/op-conductor/consensus"
+	"github.com/ethereum-optimism/optimism/op-service/client"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 )
 
@@ -13,13 +12,13 @@ var RPCNamespace = "conductor"
 
 // APIClient provides a client for calling API methods.
 type APIClient struct {
-	c *rpc.Client
+	c client.RPC
 }
 
 var _ API = (*APIClient)(nil)
 
 // NewAPIClient creates a new APIClient instance.
-func NewAPIClient(c *rpc.Client) *APIClient {
+func NewAPIClient(c client.RPC) *APIClient {
 	return &APIClient{c: c}
 }
 

@@ -4,8 +4,9 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/ethereum/go-ethereum/rpc"
 	"github.com/prometheus/client_golang/prometheus"
+
+	"github.com/ethereum-optimism/optimism/op-service/jsonrpc"
 )
 
 const (
@@ -14,7 +15,8 @@ const (
 )
 
 type RPCMetricer interface {
-	NewRecorder(name string) rpc.Recorder
+	// NewRecorder returns a recorder for the RPC of the given name, or nil if no metrics are kept.
+	NewRecorder(name string) jsonrpc.Recorder
 }
 
 // RPCMetrics tracks all the RPC metrics, both client & server.
@@ -38,7 +40,7 @@ type RPCMetrics struct {
 	serverResultsSizeTotal     *prometheus.CounterVec
 }
 
-func (m *RPCMetrics) NewRecorder(name string) rpc.Recorder {
+func (m *RPCMetrics) NewRecorder(name string) jsonrpc.Recorder {
 	return &rpcRecorder{m: m, name: name}
 }
 
@@ -168,63 +170,51 @@ type rpcRecorder struct {
 	name string
 }
 
-func (rec *rpcRecorder) RecordOutgoing(ctx context.Context, msg rpc.RecordedMsg) rpc.RecordDone {
-	if msg.MsgIsNotification() {
-		rec.m.notificationsSentTotal.WithLabelValues(rec.name, msg.MsgMethod()).Inc()
+func (rec *rpcRecorder) RecordOutgoing(ctx context.Context, msg jsonrpc.Message) jsonrpc.RecordDone {
+	if msg.Notification {
+		rec.m.notificationsSentTotal.WithLabelValues(rec.name, msg.Method).Inc()
 		return nil
 	}
-	rec.m.clientRequestsTotal.WithLabelValues(rec.name, msg.MsgMethod()).Inc()
-	rec.m.clientParamsSizeTotal.WithLabelValues(rec.name, msg.MsgMethod()).Add(float64(len(msg.MsgParams())))
-	timer := prometheus.NewTimer(rec.m.clientRequestDurationSeconds.WithLabelValues(rec.name, msg.MsgMethod()))
-	return func(ctx context.Context, input, output rpc.RecordedMsg) {
+	rec.m.clientRequestsTotal.WithLabelValues(rec.name, msg.Method).Inc()
+	rec.m.clientParamsSizeTotal.WithLabelValues(rec.name, msg.Method).Add(float64(len(msg.Params)))
+	timer := prometheus.NewTimer(rec.m.clientRequestDurationSeconds.WithLabelValues(rec.name, msg.Method))
+	return func(ctx context.Context, resp jsonrpc.Response) {
 		timer.ObserveDuration()
-		if output != nil {
-			errStr := "<nil>"
-			if msgErr := output.MsgError(); msgErr != nil {
-				errStr = fmt.Sprintf("rpc_%d", msgErr.ErrorCode())
-			} else {
-				rec.m.clientResultsSizeTotal.WithLabelValues(rec.name, input.MsgMethod()).Add(float64(len(output.MsgResult())))
-			}
-			rec.m.clientResponsesTotal.WithLabelValues(rec.name, input.MsgMethod(), errStr).Inc()
+		rec.m.clientResponsesTotal.WithLabelValues(rec.name, msg.Method, errorLabel(resp)).Inc()
+		if resp.Error == nil {
+			rec.m.clientResultsSizeTotal.WithLabelValues(rec.name, msg.Method).Add(float64(len(resp.Result)))
 		}
 	}
 }
 
-func (rec *rpcRecorder) RecordIncoming(ctx context.Context, msg rpc.RecordedMsg) rpc.RecordDone {
-	if msg.MsgIsNotification() {
-		rec.m.notificationsReceivedTotal.WithLabelValues(rec.name, msg.MsgMethod()).Inc()
+func (rec *rpcRecorder) RecordIncoming(ctx context.Context, msg jsonrpc.Message) jsonrpc.RecordDone {
+	if msg.Notification {
+		rec.m.notificationsReceivedTotal.WithLabelValues(rec.name, msg.Method).Inc()
 		return nil
 	}
-	rec.m.serverRequestsTotal.WithLabelValues(rec.name, msg.MsgMethod()).Inc()
-	rec.m.serverParamsSizeTotal.WithLabelValues(rec.name, msg.MsgMethod()).Add(float64(len(msg.MsgParams())))
-	timer := prometheus.NewTimer(rec.m.serverRequestDurationSeconds.WithLabelValues(rec.name, msg.MsgMethod()))
-	return func(ctx context.Context, input, output rpc.RecordedMsg) {
+	rec.m.serverRequestsTotal.WithLabelValues(rec.name, msg.Method).Inc()
+	rec.m.serverParamsSizeTotal.WithLabelValues(rec.name, msg.Method).Add(float64(len(msg.Params)))
+	timer := prometheus.NewTimer(rec.m.serverRequestDurationSeconds.WithLabelValues(rec.name, msg.Method))
+	return func(ctx context.Context, resp jsonrpc.Response) {
 		timer.ObserveDuration()
-		if output != nil {
-			errStr := "<nil>"
-			if msgErr := output.MsgError(); msgErr != nil {
-				errStr = fmt.Sprintf("rpc_%d", msgErr.ErrorCode())
-			} else {
-				rec.m.serverResultsSizeTotal.WithLabelValues(rec.name, input.MsgMethod()).Add(float64(len(output.MsgResult())))
-			}
-			rec.m.serverResponsesTotal.WithLabelValues(rec.name, input.MsgMethod(), errStr).Inc()
+		rec.m.serverResponsesTotal.WithLabelValues(rec.name, msg.Method, errorLabel(resp)).Inc()
+		if resp.Error == nil {
+			rec.m.serverResultsSizeTotal.WithLabelValues(rec.name, msg.Method).Add(float64(len(resp.Result)))
 		}
 	}
+}
+
+func errorLabel(resp jsonrpc.Response) string {
+	if resp.Error == nil {
+		return "<nil>"
+	}
+	return fmt.Sprintf("rpc_%d", resp.Error.Code)
 }
 
 type NoopRPCMetrics struct{}
 
-func (n *NoopRPCMetrics) NewRecorder(name string) rpc.Recorder {
-	return &NoopRPCRecorder{}
-}
-
-type NoopRPCRecorder struct{}
-
-func (n *NoopRPCRecorder) RecordIncoming(ctx context.Context, msg rpc.RecordedMsg) rpc.RecordDone {
-	return nil
-}
-
-func (n *NoopRPCRecorder) RecordOutgoing(ctx context.Context, msg rpc.RecordedMsg) rpc.RecordDone {
+// NewRecorder returns nil, so that clients and servers skip recording altogether.
+func (n *NoopRPCMetrics) NewRecorder(name string) jsonrpc.Recorder {
 	return nil
 }
 
