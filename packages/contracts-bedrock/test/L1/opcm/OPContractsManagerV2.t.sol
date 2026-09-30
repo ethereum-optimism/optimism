@@ -3200,8 +3200,9 @@ contract OPContractsManagerV2_Migrate_Test is OPContractsManagerV2_TestInit {
         _enableEthLockboxes();
         _doMigration(_getDefaultMigrateInput());
 
+        address proxyAdminOwner = chainContracts1.proxyAdmin.owner();
         vm.expectRevert(ISystemConfig.SystemConfig_InvalidFeatureState.selector);
-        vm.prank(chainContracts1.proxyAdmin.owner());
+        vm.prank(proxyAdminOwner);
         chainContracts2.systemConfig.setFeature(Features.INTEROP, false);
 
         vm.warp(block.timestamp + 12);
