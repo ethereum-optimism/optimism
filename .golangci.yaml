@@ -40,9 +40,7 @@ linters:
     forbidigo:
       analyze-types: true
       forbid:
-        # op-geth's RPC recording hooks and exported JSON-RPC error are fork-only. Use
-        # op-service/jsonrpc instead; op-service/rpc/server_recorder.go is the one binding
-        # to the server-side hook.
+        # op-geth's RPC recording hooks and exported JSON-RPC error are fork-only.
         - pattern: ^rpc\.(Recorder|RecordedMsg|RecordDone|WithRecorder|JsonError|Server\.SetRecorder)$
           pkg: ^github\.com/ethereum/go-ethereum/rpc$
           msg: use github.com/ethereum-optimism/optimism/op-service/jsonrpc instead
@@ -81,9 +79,6 @@ linters:
       - legacy
       - std-error-handling
     rules:
-      - path: op-service/rpc/server_recorder\.go$
-        linters:
-          - forbidigo
       - path: (.+)\.go$
         text: errors.As
       - path: (.+)\.go$

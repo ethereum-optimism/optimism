@@ -602,7 +602,7 @@ func initFollowSource(ctx context.Context, cfg *config.Config, node *OpNode) (*s
 func initRPCServer(cfg *config.Config, node *OpNode) (*oprpc.Server, error) {
 	server := newRPCServer(&cfg.RPC, &cfg.Rollup, cfg.DependencySet,
 		node.l2Source.L2Client, node.l2Driver, node.safeDB,
-		node.log, node.metrics, node.appVersion)
+		node.log, node.appVersion)
 	if err := registerAPIs(cfg, node, server.Handler); err != nil {
 		// panic here is to match the behavior of oprcp.Server.AddAPI,
 		// which wraps the Handler and panics if the API can't be added.

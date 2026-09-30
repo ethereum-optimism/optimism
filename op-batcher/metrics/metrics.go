@@ -30,8 +30,6 @@ type Metricer interface {
 	// Record Tx metrics
 	txmetrics.TxMetricer
 
-	opmetrics.RPCMetricer
-
 	StartBalanceMetrics(l log.Logger, client *ethclient.Client, account common.Address) io.Closer
 
 	RecordLatestL1Block(l1ref eth.L1BlockRef)
@@ -77,7 +75,6 @@ type Metrics struct {
 
 	opmetrics.RefMetrics
 	txmetrics.TxMetrics
-	opmetrics.RPCMetrics
 
 	info prometheus.GaugeVec
 	up   prometheus.Gauge
@@ -145,7 +142,6 @@ func NewMetrics(procName string) *Metrics {
 
 		RefMetrics: opmetrics.MakeRefMetrics(ns, factory),
 		TxMetrics:  txmetrics.MakeTxMetrics(ns, factory),
-		RPCMetrics: opmetrics.MakeRPCMetrics(ns, factory),
 
 		info: *factory.NewGaugeVec(prometheus.GaugeOpts{
 			Namespace: ns,
