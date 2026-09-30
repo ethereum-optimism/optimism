@@ -33,6 +33,7 @@ type ChallengableContract interface {
 	Addr() common.Address
 	ChallengeTx(ctx context.Context) (txmgr.TxCandidate, error)
 	GetProposal(ctx context.Context) (common.Hash, uint64, error)
+	GetStartingProposal(ctx context.Context) (common.Hash, uint64, error)
 	GetChallengerMetadata(ctx context.Context, block rpcblock.Block) (contracts.ChallengerMetadata, error)
 	ResolveTx() (txmgr.TxCandidate, error)
 }
@@ -97,7 +98,7 @@ func (a *Actor) createChallengeTx(ctx context.Context, gameState contracts.Chall
 		a.logger.Trace("Skipping unchallengeable zk game")
 		return txmgr.TxCandidate{}, errNoChallengeRequired
 	}
-	valid, err := a.isValidProposal(ctx)
+	valid, err := a.isValidProposal(ctx, gameState.ParentIndex)
 	if errors.Is(err, gameTypes.ErrNotInSync) {
 		a.logger.Debug("Waiting for source node to process past the game L1 head")
 		return txmgr.TxCandidate{}, errNoChallengeRequired
@@ -114,11 +115,23 @@ func (a *Actor) createChallengeTx(ctx context.Context, gameState contracts.Chall
 	return a.contract.ChallengeTx(ctx)
 }
 
-func (a *Actor) isValidProposal(ctx context.Context) (bool, error) {
+func (a *Actor) isValidProposal(ctx context.Context, parentIndex uint32) (bool, error) {
 	proposalHash, proposalTimestamp, err := a.contract.GetProposal(ctx)
 	if err != nil {
 		return false, fmt.Errorf("failed to get zk game proposal: %w", err)
 	}
+	valid, err := a.isValidSuperRoot(ctx, proposalHash, proposalTimestamp)
+	if err != nil || !valid || parentIndex == math.MaxUint32 {
+		return valid, err
+	}
+	startingHash, startingTimestamp, err := a.contract.GetStartingProposal(ctx)
+	if err != nil {
+		return false, fmt.Errorf("failed to get zk game starting proposal: %w", err)
+	}
+	return a.isValidSuperRoot(ctx, startingHash, startingTimestamp)
+}
+
+func (a *Actor) isValidSuperRoot(ctx context.Context, proposalHash common.Hash, proposalTimestamp uint64) (bool, error) {
 	resp, err := a.superRootProvider.SuperRootAtTimestamp(ctx, proposalTimestamp)
 	if err != nil {
 		return false, fmt.Errorf("failed to get canonical super root at timestamp %v: %w", proposalTimestamp, err)

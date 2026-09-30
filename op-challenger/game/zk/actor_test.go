@@ -242,6 +242,101 @@ func TestActor(t *testing.T) {
 	}
 }
 
+func TestActorStartingProposal(t *testing.T) {
+	tests := []struct {
+		name      string
+		setup     func(*zkTestStubs)
+		challenge bool
+		expectErr string
+	}{
+		{
+			name: "ChallengeCanonicalChildWithLocallyInvalidUnresolvedParent",
+			setup: func(stubs *zkTestStubs) {
+				stubs.contract.startingRoot = common.Hash{0xba, 0xd0}
+			},
+			challenge: true,
+		},
+		{
+			name: "DoNotChallengeCanonicalChildWithCanonicalUnresolvedParent",
+		},
+		{
+			name: "ChallengeParentWithNoSuperRootData",
+			setup: func(stubs *zkTestStubs) {
+				resp := stubs.rootProvider.responses[stubs.contract.startingTimestamp]
+				resp.Data = nil
+				stubs.rootProvider.responses[stubs.contract.startingTimestamp] = resp
+			},
+			challenge: true,
+		},
+		{
+			name: "WaitWhenParentSourceNotSyncedPastChildL1Head",
+			setup: func(stubs *zkTestStubs) {
+				stubs.contract.startingRoot = common.Hash{0xba, 0xd0}
+				resp := stubs.rootProvider.responses[stubs.contract.startingTimestamp]
+				resp.CurrentL1.Number = zkTestL1Head
+				stubs.rootProvider.responses[stubs.contract.startingTimestamp] = resp
+			},
+		},
+		{
+			name: "ErrorFetchingStartingProposal",
+			setup: func(stubs *zkTestStubs) {
+				stubs.contract.startingErr = errors.New("starting proposal unavailable")
+			},
+			expectErr: "starting proposal unavailable",
+		},
+		{
+			name: "ErrorFetchingParentSuperRoot",
+			setup: func(stubs *zkTestStubs) {
+				delete(stubs.rootProvider.responses, stubs.contract.startingTimestamp)
+			},
+			expectErr: "unexpected super root request",
+		},
+		{
+			name: "TrustAnchorForGameWithNoParent",
+			setup: func(stubs *zkTestStubs) {
+				stubs.contract.parentIndex = math.MaxUint32
+				stubs.contract.startingErr = errors.New("must not request anchor")
+			},
+		},
+		{
+			name: "DoNotInspectStartingProposalAfterChallengeDeadline",
+			setup: func(stubs *zkTestStubs) {
+				stubs.contract.setDeadlineExpired()
+				stubs.contract.startingErr = errors.New("must not request expired proposal")
+			},
+		},
+		{
+			name: "ChallengeInvalidChildWithoutFetchingStartingProposal",
+			setup: func(stubs *zkTestStubs) {
+				stubs.contract.proposalHash = common.Hash{0xba, 0xd0}
+				stubs.contract.startingErr = errors.New("must not request starting proposal")
+			},
+			challenge: true,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			actor, stubs := setupActorTest(t)
+			stubs.contract.setParentStatus(types.GameStatusInProgress)
+			if tt.setup != nil {
+				tt.setup(stubs)
+			}
+			err := actor.Act(context.Background())
+			if tt.expectErr != "" {
+				require.ErrorContains(t, err, tt.expectErr)
+				require.Empty(t, stubs.sender.sentData)
+				return
+			}
+			require.NoError(t, err)
+			if tt.challenge {
+				require.Equal(t, []string{challengeData}, stubs.sender.sentData)
+			} else {
+				require.Empty(t, stubs.sender.sentData)
+			}
+		})
+	}
+}
+
 func setupActorTest(t *testing.T) (*Actor, *zkTestStubs) {
 	return newZKActor(t, testlog.Logger(t, log.LevelInfo))
 }
@@ -266,6 +361,14 @@ func newZKActor(t *testing.T, logger log.Logger) (*Actor, *zkTestStubs) {
 		parentStatus:     types.GameStatusDefenderWon,
 		parentIndex:      482,
 	}
+	contract.startingRoot = common.Hash{0x22}
+	contract.startingTimestamp = rootTimestamp - 1
+	rootProvider.responses = map[uint64]eth.SuperRootAtTimestampResponse{
+		contract.startingTimestamp: {
+			CurrentL1: rootProvider.currentL1,
+			Data:      &eth.SuperRootResponseData{SuperRoot: eth.Bytes32(contract.startingRoot)},
+		},
+	}
 	contract.setDeadlineNotReached()
 	txSender := &stubTxSender{}
 	l1Clock := clock.NewDeterministicClock(l1Time)
@@ -283,6 +386,7 @@ func newZKActor(t *testing.T, logger log.Logger) (*Actor, *zkTestStubs) {
 }
 
 type stubSuperRootProvider struct {
+	responses          map[uint64]eth.SuperRootAtTimestampResponse
 	outputErr          error
 	rootTimestamp      uint64
 	root               common.Hash
@@ -294,6 +398,9 @@ type stubSuperRootProvider struct {
 func (s *stubSuperRootProvider) SuperRootAtTimestamp(_ context.Context, timestamp uint64) (eth.SuperRootAtTimestampResponse, error) {
 	if s.outputErr != nil {
 		return eth.SuperRootAtTimestampResponse{}, s.outputErr
+	}
+	if resp, ok := s.responses[timestamp]; ok {
+		return resp, nil
 	}
 	if timestamp != s.rootTimestamp {
 		return eth.SuperRootAtTimestampResponse{}, errors.New("unexpected super root request")
@@ -311,13 +418,16 @@ func (s *stubSuperRootProvider) SuperRootAtTimestamp(_ context.Context, timestam
 }
 
 type stubContract struct {
-	parentIndex      uint32
-	parentStatus     types.GameStatus
-	proposalStatus   contracts.ProposalStatus
-	deadline         time.Time
-	txCreated        bool
-	proposalHash     common.Hash
-	l2SequenceNumber uint64
+	startingRoot      common.Hash
+	startingTimestamp uint64
+	startingErr       error
+	parentIndex       uint32
+	parentStatus      types.GameStatus
+	proposalStatus    contracts.ProposalStatus
+	deadline          time.Time
+	txCreated         bool
+	proposalHash      common.Hash
+	l2SequenceNumber  uint64
 }
 
 func (s *stubContract) Addr() common.Address {
@@ -389,6 +499,10 @@ func (s *stubContract) ResolveTx() (txmgr.TxCandidate, error) {
 
 func (s *stubContract) GetProposal(_ context.Context) (common.Hash, uint64, error) {
 	return s.proposalHash, s.l2SequenceNumber, nil
+}
+
+func (s *stubContract) GetStartingProposal(_ context.Context) (common.Hash, uint64, error) {
+	return s.startingRoot, s.startingTimestamp, s.startingErr
 }
 
 type stubTxSender struct {
