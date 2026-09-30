@@ -2369,6 +2369,9 @@ contract OPContractsManagerV2_DevFeatureBitmap_Test is OPContractsManagerV2_Test
 /// @title OPContractsManagerV2_Migrate_Test
 /// @notice Tests the `migrate` function of the `OPContractsManagerV2` contract.
 contract OPContractsManagerV2_Migrate_Test is OPContractsManagerV2_TestInit {
+    /// @notice Buffer percentage (relative to EIP-7825 gas limit) allowed for migrations.
+    uint256 public constant MIGRATE_GAS_BUFFER_PERCENTAGE = 50; // 50%
+
     /// @notice Deployed chain contracts for chain 1.
     IOPContractsManagerV2.ChainContracts chainContracts1;
 
@@ -2623,8 +2626,9 @@ contract OPContractsManagerV2_Migrate_Test is OPContractsManagerV2_TestInit {
         assertTrue(success, "migrate failed");
         uint256 gasAfter = gasleft();
 
-        // Make sure the gas usage is less than 20 million so we can definitely fit in a block.
-        assertLt(gasBefore - gasAfter, 20_000_000, "Gas usage too high");
+        // Make sure we can fit in a block
+        uint256 fusakaLimit = 2 ** 24;
+        assertLt(gasBefore - gasAfter, fusakaLimit * MIGRATE_GAS_BUFFER_PERCENTAGE / 100, "Gas usage too high");
     }
 
     /// @notice Helper function to enable a chain's existing per-chain ETHLockbox before migration.
