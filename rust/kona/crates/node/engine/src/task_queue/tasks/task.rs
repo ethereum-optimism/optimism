@@ -13,7 +13,6 @@ use async_trait::async_trait;
 use derive_more::Display;
 use std::cmp::Ordering;
 use thiserror::Error;
-use tokio::task::yield_now;
 
 /// The severity of an engine task error.
 ///
@@ -212,36 +211,15 @@ impl<EngineClient_: EngineClient> EngineTaskExt for EngineTask<EngineClient_> {
     type Error = EngineTaskErrors;
 
     async fn execute(&self, state: &mut EngineState) -> Result<(), Self::Error> {
-        // Retry the task until it succeeds or a critical error occurs.
-        while let Err(e) = self.execute_inner(state).await {
-            let severity = e.severity();
-
+        // The queue retains failed work. Its owner schedules the next attempt so a dependency
+        // outage cannot monopolize the actor or turn into a tight retry loop.
+        if let Err(e) = self.execute_inner(state).await {
             kona_macros::inc!(
                 counter,
                 crate::Metrics::ENGINE_TASK_FAILURE,
-                self.task_metrics_label() => severity.to_string()
+                self.task_metrics_label() => e.severity().to_string()
             );
-
-            match severity {
-                EngineTaskErrorSeverity::Temporary => {
-                    trace!(target: "engine", "{e}");
-
-                    // Yield the task to allow other tasks to execute to avoid starvation.
-                    yield_now().await;
-                }
-                EngineTaskErrorSeverity::Critical => {
-                    error!(target: "engine", "{e}");
-                    return Err(e);
-                }
-                EngineTaskErrorSeverity::Reset => {
-                    warn!(target: "engine", "Engine requested derivation reset");
-                    return Err(e);
-                }
-                EngineTaskErrorSeverity::Flush => {
-                    warn!(target: "engine", "Engine requested derivation flush");
-                    return Err(e);
-                }
-            }
+            return Err(e);
         }
 
         kona_macros::inc!(counter, crate::Metrics::ENGINE_TASK_SUCCESS, self.task_metrics_label());

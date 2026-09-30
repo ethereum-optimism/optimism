@@ -40,8 +40,10 @@ pub async fn find_starting_forkchoice<EngineClient_: EngineClient>(
 
     // Search for the highest `unsafe` block, relative to the initial `unsafe` block's L1 origin,
     loop {
-        let l1_origin =
-            engine_client.get_l1_block(current_fc.un_safe.l1_origin.hash.into()).await?;
+        let l1_origin = crate::client::rpc_timeout(
+            engine_client.get_l1_block(current_fc.un_safe.l1_origin.hash.into()),
+        )
+        .await?;
         info!(
             target: "sync_start",
             l1_origin = %current_fc.un_safe.l1_origin.number,
@@ -61,11 +63,10 @@ pub async fn find_starting_forkchoice<EngineClient_: EngineClient>(
             }
             None => {
                 let l2_parent_hash = current_fc.un_safe.block_info.parent_hash.into();
-                let l2_parent = engine_client
-                    .get_l2_block(l2_parent_hash)
-                    .full()
-                    .await?
-                    .ok_or(SyncStartError::BlockNotFound(l2_parent_hash))?;
+                let l2_parent =
+                    crate::client::rpc_timeout(engine_client.get_l2_block(l2_parent_hash).full())
+                        .await?
+                        .ok_or(SyncStartError::BlockNotFound(l2_parent_hash))?;
 
                 current_fc.un_safe =
                     L2BlockInfo::from_block_and_genesis(&l2_parent.into_consensus(), &cfg.genesis)?;
@@ -101,11 +102,11 @@ pub async fn find_starting_forkchoice<EngineClient_: EngineClient>(
             current_fc.safe = safe_cursor;
             break;
         }
-        let block = engine_client
-            .get_l2_block(safe_cursor.block_info.parent_hash.into())
-            .full()
-            .await?
-            .ok_or(SyncStartError::BlockNotFound(safe_cursor.block_info.parent_hash.into()))?;
+        let block = crate::client::rpc_timeout(
+            engine_client.get_l2_block(safe_cursor.block_info.parent_hash.into()).full(),
+        )
+        .await?
+        .ok_or(SyncStartError::BlockNotFound(safe_cursor.block_info.parent_hash.into()))?;
         safe_cursor = L2BlockInfo::from_block_and_genesis(&block.into_consensus(), &cfg.genesis)?;
     }
 
