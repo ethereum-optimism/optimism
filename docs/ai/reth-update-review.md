@@ -280,6 +280,11 @@ a **minor** bump, `op-revm` at `20.x` only by a major.
 So: **if the adaptation diff changes a `version =` line in one of our published crates,
 say so in the review.** It is a release-coordination item, not just a manifest edit.
 
+The op-reth crates (`op-reth`, `reth-optimism-*`, `reth-op`) and the `op-alloy*` crates
+are each versioned as a group (UPDATING-RETH step 4): flag a `version =` change that moves
+only part of a family, and check whether sibling crates changed their public API without a
+bump.
+
 ## Review process
 
 1. Identify the old→new pins from the `Cargo.toml` diff; compute the lockfile
