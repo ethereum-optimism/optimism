@@ -676,9 +676,9 @@ where
 
 /// RPC methods an OP node does not serve, on any transport.
 ///
-/// UPSTREAM-MIRROR(set): reth@rev:4553cf1 `reth_rpc_eth_api::EthApi`
+/// UPSTREAM-MIRROR(set): reth@rev:339cb63 `reth_rpc_eth_api::EthApi`
 ///
-/// UPSTREAM-MIRROR(set): reth@rev:4553cf1 `reth_rpc_api::DebugApi`
+/// UPSTREAM-MIRROR(set): reth@rev:339cb63 `reth_rpc_api::DebugApi`
 ///
 /// Upstream installs these methods as part of the full `eth` and `debug` APIs.
 /// `eth_getMultiProof` has no OP users and a proofs-history node could not answer it consistently
@@ -698,7 +698,7 @@ const UNSERVED_RPC_METHODS: &[&str] = &[
 
 /// Rejects the RPC cache options that compute EIP-7928 block access lists by re-executing blocks.
 ///
-/// UPSTREAM-MIRROR(set): reth@rev:4553cf1 `reth_node_core::args::RpcStateCacheArgs`
+/// UPSTREAM-MIRROR(set): reth@rev:339cb63 `reth_node_core::args::RpcStateCacheArgs`
 ///
 /// Upstream replays every new canonical block to compute its BAL with `--rpc-cache.prewarm-bals`
 /// until a block carries a `block_access_list_hash`, which OP blocks never do, and transaction
