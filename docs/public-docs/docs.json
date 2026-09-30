@@ -2705,7 +2705,7 @@
         "tab": "Get Started",
         "groups": [
           {
-            "group": "Get started",
+            "group": "Start here",
             "pages": [
               "index",
               "ai-docs",
@@ -2753,7 +2753,7 @@
         "tab": "Chain Operators",
         "groups": [
           {
-            "group": "Get started",
+            "group": "Launch a chain",
             "pages": [
               "chain-operators/index"
             ]
@@ -2928,7 +2928,7 @@
         "tab": "Node Operators",
         "groups": [
           {
-            "group": "Get started",
+            "group": "Run a node",
             "pages": [
               "node-operators/overview"
             ]
@@ -3222,7 +3222,7 @@
         "tab": "App Developers",
         "groups": [
           {
-            "group": "Get started",
+            "group": "Build an app",
             "pages": [
               "app-developers/index",
               "app-developers/quickstarts/get-started",
@@ -3574,7 +3574,7 @@
         "tab": "OP Mainnet",
         "groups": [
           {
-            "group": "Get started",
+            "group": "About OP Mainnet",
             "pages": [
               "op-mainnet/index"
             ]
