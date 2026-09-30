@@ -104,8 +104,8 @@ STUB
   chmod +x "$root/bin/git" "$root/bin/mise" "$root/bin/rm" "$root/bin/sudo"
   local status=0
   TEST_ROOT="$root" TEST_SCENARIO="$scenario" TEST_HASH="$HASH" TEST_OTHER="$OTHER" \
-    PATH="$root/bin:$PATH" KONA_CUSTOM_CONFIGS_DIR="$([[ "$scenario" == "custom-config" ]] && printf '/tmp/custom' || true)" \
-    bash "$root/ops/prestate-reproducibility/build-prestates.sh" < /dev/null > "$root/output" 2>&1 || status=$?
+    PATH="$root/bin:$PATH" BASH_ENV=/dev/null KONA_CUSTOM_CONFIGS_DIR="$([[ "$scenario" == "custom-config" ]] && printf '/tmp/custom' || true)" \
+    env -u 'BASH_FUNC_mise%%' bash "$root/ops/prestate-reproducibility/build-prestates.sh" < /dev/null > "$root/output" 2>&1 || status=$?
   if [[ "$expected" == "zero" ]]; then
     [[ "$status" -eq 0 ]] || { cat "$root/output"; exit 1; }
     grep -q 'Kona SP1 registry selection: 0 entries' "$root/output"
