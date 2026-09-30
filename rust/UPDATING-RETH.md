@@ -231,8 +231,9 @@ main's CI actually validated.
    rejected — they render with a `[hidden]` marker in the snapshot.
 
    Report removed flags and changed defaults in the PR's migration notes. The
-   [published CLI reference](../docs/public-docs/scripts/gen-op-reth-cli/README.md)
-   intentionally documents a finalized release, not `develop`. Do not regenerate
+   [published CLI reference](../docs/public-docs/scripts/gen-cli/README.md)
+   (rendered under `/reference/op-reth/`) intentionally documents a finalized
+   release, not `develop`. Do not regenerate
    it from an unreleased dependency bump; update it through the release generator
    after the next finalized tag.
 
