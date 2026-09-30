@@ -51,3 +51,44 @@ func TestRecordingBeforeResponseWrite(t *testing.T) {
 	require.Equal(t, eventLog{"recorded", "written"}, events)
 	require.Equal(t, response, w.Body.String())
 }
+
+func TestFirstWriteRecorderPassThrough(t *testing.T) {
+	var recorded []string
+	w := httptest.NewRecorder()
+	fw := &firstWriteRecorder{ResponseWriter: w, record: func(body []byte) { recorded = append(recorded, string(body)) }}
+	fw.WriteHeader(http.StatusInternalServerError)
+	_, err := fw.Write([]byte("first"))
+	require.NoError(t, err)
+	_, err = fw.Write([]byte("second"))
+	require.NoError(t, err)
+	fw.Flush()
+
+	require.Equal(t, []string{"first"}, recorded)
+	require.Equal(t, http.StatusInternalServerError, w.Code)
+	require.Equal(t, "firstsecond", w.Body.String())
+	require.True(t, w.Flushed, "flushes must reach the underlying writer")
+}
+
+func TestIDKey(t *testing.T) {
+	for _, tc := range []struct {
+		request, response string
+	}{
+		{`1`, `1`},
+		{`"a"`, `"a"`},
+		{`"<a>"`, `"\u003ca\u003e"`},
+		{`null`, `null`},
+		{` 7 `, `7`},
+	} {
+		require.Equal(t, idKey([]byte(tc.response)), idKey([]byte(tc.request)), tc.request)
+	}
+	require.NotEqual(t, idKey([]byte(`1`)), idKey([]byte(`"1"`)))
+}
+
+func TestParseEnvelopes(t *testing.T) {
+	batch := parseEnvelopes([]byte(" \n[{\"id\":1,\"method\":\"a\"},{\"method\":\"b\"}]"))
+	require.Len(t, batch, 2)
+	require.Equal(t, "a", batch[0].Method)
+	require.Empty(t, batch[1].ID)
+	require.Len(t, parseEnvelopes([]byte(`{"id":1,"result":2}`)), 1)
+	require.Nil(t, parseEnvelopes([]byte(`not json`)))
+}

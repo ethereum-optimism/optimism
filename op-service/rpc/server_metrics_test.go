@@ -78,7 +78,7 @@ func gatherValues(t *testing.T, reg *prometheus.Registry) map[string]float64 {
 // It also pins a go-ethereum implementation detail that recording relies on: the rpc.Server
 // writes each HTTP response, single or batch, in one Write call, which the recording middleware
 // parses before passing it on. If a go-ethereum update breaks this, the response counts here drop
-// to zero and the middleware needs to hold the response back instead.
+// to zero and the middleware needs to buffer the whole response instead.
 func TestServerRPCMetrics(t *testing.T) {
 	reg := opmetrics.NewRegistry()
 	m := opmetrics.MakeRPCMetrics("ns", opmetrics.With(reg))
@@ -133,6 +133,20 @@ func TestServerRPCMetrics(t *testing.T) {
 		`{"jsonrpc":"2.0","id":"<a>","method":"test_echo","params":[3]}]`))
 	require.Equal(t, http.StatusOK, status)
 	require.Equal(t, 2, strings.Count(body, `"result":3`), body)
+	// A batch mixing a call and a notification.
+	status, body = post(strings.NewReader(`[{"jsonrpc":"2.0","id":9,"method":"test_fail"},` +
+		`{"jsonrpc":"2.0","method":"test_fail"}]`))
+	require.Equal(t, http.StatusOK, status)
+	require.Contains(t, body, `"code":-39001`)
+	// A request the server rejects for its content type counts, but gets no response.
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, "http://"+server.Endpoint(),
+		strings.NewReader(`{"jsonrpc":"2.0","id":1,"method":"test_unknown"}`))
+	require.NoError(t, err)
+	req.Header.Set("Content-Type", "text/plain")
+	resp, err := http.DefaultClient.Do(req)
+	require.NoError(t, err)
+	require.NoError(t, resp.Body.Close())
+	require.Equal(t, http.StatusUnsupportedMediaType, resp.StatusCode)
 	status, body = post(strings.NewReader(`{"jsonrpc":`))
 	require.Equal(t, http.StatusOK, status)
 	require.Contains(t, body, `"code":-32700`)
@@ -168,19 +182,20 @@ func TestServerRPCMetrics(t *testing.T) {
 			requests += v
 		}
 	}
-	require.Equal(t, 8.0, requests, "only well-formed HTTP requests are recorded")
+	require.Equal(t, 10.0, requests, "malformed, oversized, notification and websocket requests are not counted")
 	for key, want := range map[string]float64{
 		"server_requests_total method=test_echo rpc=main":                      4,
-		"server_requests_total method=test_fail rpc=main":                      2,
-		"server_requests_total method=test_unknown rpc=main":                   1,
+		"server_requests_total method=test_fail rpc=main":                      3,
+		"server_requests_total method=test_unknown rpc=main":                   2,
 		"server_request_duration_seconds method=test_echo rpc=main":            4,
 		"server_responses_total error=<nil> method=test_echo rpc=main":         4,
-		"server_responses_total error=rpc_-39001 method=test_fail rpc=main":    2,
+		"server_responses_total error=rpc_-39001 method=test_fail rpc=main":    3,
 		"server_responses_total error=rpc_-32601 method=test_unknown rpc=main": 1,
 		"server_params_size_total method=test_echo rpc=main":                   12, // [3]
 		"server_results_size_total method=test_echo rpc=main":                  4,  // 3
 		"server_requests_total method=test_big rpc=main":                       1,
 		"server_responses_total error=<nil> method=test_big rpc=main":          1,
+		"client_notifications_received_total method=test_fail rpc=main":        1,
 		"client_notifications_received_total method=test_echo rpc=main":        1,
 	} {
 		require.Equal(t, want, values[key], key)
@@ -242,4 +257,30 @@ func TestServerRecordDoneNotCalledForNotifications(t *testing.T) {
 		require.NoError(t, resp.Body.Close())
 	}
 	require.EqualValues(t, 1, rec.dones.Load(), "only the call's response is recorded")
+}
+
+// TestServerRPCMetricsUnauthenticated checks that requests the JWT check rejects are not
+// recorded, so unauthenticated callers cannot add metric series.
+func TestServerRPCMetricsUnauthenticated(t *testing.T) {
+	reg := opmetrics.NewRegistry()
+	m := opmetrics.MakeRPCMetrics("ns", opmetrics.With(reg))
+	server := ServerFromConfig(&ServerConfig{
+		RpcOptions: []Option{
+			WithLogger(testlog.Logger(t, log.LevelInfo)),
+			WithJWTSecret(make([]byte, 32)),
+			WithRPCRecorder(m.NewRecorder("main")),
+		},
+		Host:       "127.0.0.1",
+		Port:       0,
+		AppVersion: "test",
+	})
+	require.NoError(t, server.Start())
+	t.Cleanup(func() { require.NoError(t, server.Stop()) })
+
+	resp, err := http.Post("http://"+server.Endpoint(), "application/json",
+		strings.NewReader(`{"jsonrpc":"2.0","id":1,"method":"evil_method"}`))
+	require.NoError(t, err)
+	require.NoError(t, resp.Body.Close())
+	require.Equal(t, http.StatusUnauthorized, resp.StatusCode)
+	require.Empty(t, gatherValues(t, reg))
 }

@@ -9,8 +9,8 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/jsonrpc"
 )
 
-// maxRequestBodySize matches the go-ethereum server's default request body limit, which it
-// cannot serve beyond. Larger requests are served unrecorded.
+// maxRequestBodySize is the go-ethereum server's default request body limit. The server rejects
+// or truncates larger requests, so they pass through unrecorded.
 const maxRequestBodySize = 5 * 1024 * 1024
 
 // envelope holds the JSON-RPC message fields that recording reads, of a request or a response.
@@ -120,6 +120,11 @@ func (w *firstWriteRecorder) Write(b []byte) (int, error) {
 		w.record(b)
 	}
 	return w.ResponseWriter.Write(b)
+}
+
+// Flush passes flushes on, as the go-ethereum server flushes its timeout error response.
+func (w *firstWriteRecorder) Flush() {
+	_ = http.NewResponseController(w.ResponseWriter).Flush()
 }
 
 func (w *firstWriteRecorder) Unwrap() http.ResponseWriter {
