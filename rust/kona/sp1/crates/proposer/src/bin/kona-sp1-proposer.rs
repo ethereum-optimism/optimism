@@ -16,7 +16,7 @@ use kona_sp1_proposer::{
     ENV_VAR_PREFIX,
     config::{ProofProviderKind, ProposerConfig, redacted_url},
     contract::DisputeGameFactory,
-    metrics::{ProposerGauge, register_metrics},
+    metrics::{ProposerGauge, record_spn_requester, register_metrics},
     proposer::Proposer,
     prover::{MockProofProvider, NetworkProofProvider, ProofProvider},
     signer::{Signer, SignerLock},
@@ -75,6 +75,7 @@ async fn main() -> Result<()> {
     );
 
     // Mock deployments need no SPN credentials.
+    let mut spn_requester = None;
     let proof_provider = match config.proof_provider {
         ProofProviderKind::Network => {
             let provider_config = config.proof_provider_config.clone();
@@ -82,11 +83,12 @@ async fn main() -> Result<()> {
                 provider_config.range_proof_strategy,
                 provider_config.agg_proof_strategy,
             )?;
-            let prover =
+            let network_prover =
                 build_network_prover_from_env(ENV_VAR_PREFIX, provider_config.range_proof_strategy)
                     .await?;
+            spn_requester = Some(network_prover.requester);
             ProofProvider::Network(NetworkProofProvider::new(
-                Arc::new(prover),
+                Arc::new(network_prover.prover),
                 provider_config,
                 network_mode,
             ))
@@ -115,6 +117,9 @@ async fn main() -> Result<()> {
     let metrics_addr = init_metrics(config.metrics_listen).await?;
     if metrics_addr.is_some() {
         register_metrics(!proof_provider.is_mock());
+        if let Some(requester) = spn_requester {
+            record_spn_requester(requester);
+        }
     }
 
     let proposer = Arc::new(Proposer::new(config, signer, factory, proof_provider).await?);

@@ -43,7 +43,7 @@ use crate::{
         BondDistributionMode, DisputeGameFactory::DisputeGameFactoryInstance, GameStatus,
         ProposalStatus,
     },
-    metrics::{ProposerGauge, record_deadline_passed, token_balance},
+    metrics::{ProposerGauge, record_deadline_passed, record_proof_requests, token_balance},
     ports::{
         ActionExecutor, BondState, ClaimPreflight, GameLifecycle, L1View, ProofEngine, ProofInputs,
         QueryTime, SuperRootSource,
@@ -3053,6 +3053,7 @@ impl Proposer {
         if let Some(anchor_game) = anchor_game {
             ProposerGauge::AnchorGameL2SequenceNumber.set(anchor_game.l2_sequence_number as f64);
         }
+        record_proof_requests(&self.proof_engine.request_counts());
 
         tokio::join!(
             self.collect_gauge(ProposerGauge::MaxProposableSequenceNumber, async {
@@ -3062,6 +3063,13 @@ impl Proposer {
                 let balance = self.l1_view.signer_balance(self.proposer_address).await?;
                 Ok(Some(token_balance(balance)))
             }),
+            self.collect_gauges(
+                [ProposerGauge::SignerNonce, ProposerGauge::SignerPendingNonce],
+                async {
+                    let nonces = self.l1_view.nonce_state(self.proposer_address).await?;
+                    Ok(Some([nonces.latest as f64, nonces.pending as f64]))
+                }
+            ),
             async {
                 if self.config.proof_provider == ProofProviderKind::Network {
                     self.collect_gauge(
@@ -3079,17 +3087,33 @@ impl Proposer {
         gauge: ProposerGauge,
         sample: impl Future<Output = Result<Option<f64>>>,
     ) {
+        self.collect_gauges([gauge], async { Ok(sample.await?.map(|value| [value])) }).await;
+    }
+
+    /// Sets gauges read together from one observation; a failed observation marks all of them
+    /// `NaN`.
+    async fn collect_gauges<const N: usize>(
+        &self,
+        gauges: [ProposerGauge; N],
+        sample: impl Future<Output = Result<Option<[f64; N]>>>,
+    ) {
         let timeout = Duration::from_secs(self.config.proof_provider_config.network_calls_timeout);
         match time::timeout(timeout, sample)
             .await
             .context("metric observation timed out")
             .and_then(|result| result)
         {
-            Ok(Some(value)) => gauge.set(value),
+            Ok(Some(values)) => {
+                for (gauge, value) in gauges.into_iter().zip(values) {
+                    gauge.set(value);
+                }
+            }
             Ok(None) => {}
             Err(error) => {
-                gauge.set(f64::NAN);
-                tracing::warn!(?gauge, %error, "Failed to fetch metric");
+                for gauge in gauges {
+                    gauge.set(f64::NAN);
+                }
+                tracing::warn!(?gauges, %error, "Failed to fetch metric");
                 ProposerGauge::MetricsError.increment(1.0);
             }
         }
@@ -4900,6 +4924,10 @@ mod tests {
             self.retried.lock().push(game_address);
             0
         }
+
+        fn request_counts(&self) -> crate::proving::ProofRequestCounts {
+            crate::proving::ProofRequestCounts::new()
+        }
     }
 
     #[derive(Clone, Debug, PartialEq, Eq)]
@@ -5291,7 +5319,9 @@ mod tests {
         }
 
         async fn nonce_state(&self, _proposer: Address) -> anyhow::Result<NonceState> {
-            panic!("unexpected L1 call: nonce_state")
+            self.record("nonce_state");
+            self.fail_if_configured("nonce_state")?;
+            Ok(NonceState { pending: 0, latest: 0 })
         }
 
         async fn respected_game_type(&self, _block: BlockId) -> anyhow::Result<u32> {
@@ -5657,7 +5687,9 @@ mod tests {
             }
             let calls_before = view.calls().len();
             proposer.fetch_proposer_metrics().await;
-            assert_eq!(&view.calls()[calls_before..], ["signer_balance"]);
+            let mut metric_calls = view.calls()[calls_before..].to_vec();
+            metric_calls.sort_unstable();
+            assert_eq!(metric_calls, ["nonce_state", "signer_balance"]);
             let scrape = recorder.handle().render();
             assert!(scrape.contains("kona_sp1_proposer_defense_deadline_remaining_seconds -5"));
             assert!(

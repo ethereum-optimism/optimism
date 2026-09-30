@@ -59,8 +59,12 @@ Docker `just build-elfs` recipe and compares only its `super-aggregation` vkey t
 
 Host-toolchain workspace builds need neither ELFs nor `vkeys.toml`. Host binaries load guest
 artifacts at runtime from `KONA_SP1_ELF_DIR`; a missing or empty artifact fails as an
-infrastructure error. Release automation will eventually publish per-version aggregation vkeys
-from the generated manifest into `superchain-registry/validation/standard/standard-prestates.toml`.
+infrastructure error. `kona-sp1-publish-prestates{,-on-tag}` publishes develop and tag ELFs
+(see [Releases](#releases)).
+
+TODO(ethereum-optimism/optimism#21424): pin the `super-aggregation` vkey of each
+`kona-sp1-program` release in superchain-registry
+`validation/standard/standard-prestates.toml` for the daily comparison.
 
 #### Build provenance
 
@@ -100,6 +104,57 @@ KONA_CUSTOM_CONFIGS_DIR=/path/to/custom/configs just build-elfs
 The directory must contain `chainList.json`, `configs.json`, and `depsets.json`.
 Those files are compiled into the kona crates used by the guest programs, so
 custom configs produce different ELFs and verification-key hashes.
+
+## Releases
+
+The two guest programs (`super-range` and `super-aggregation`) are released as ELFs under the
+`kona-sp1-program/vX.Y.Z` monorepo tag family, with `kona-sp1-program/vX.Y.Z-rc.N` for release
+candidates. The prefix mirrors `kona-client/v*`. It publishes ELFs and builds no Docker image: the
+guests are RISC-V zkVM programs with no native entrypoint to containerize, so the apko image
+workflow, which does fire on `*/v*` tags, builds nothing for it. The native host binaries that run
+the guests ship separately; `kona-sp1-proposer` has its own image and tag family. It is to
+`kona-sp1-program` what `kona-host` is to `kona-client`, and must be compatible with the
+`kona-sp1-program` version it runs against.
+
+- **RC to final**: a final release tags the same commit as its last RC, so the vkeys are identical
+  across the RC and the final release.
+- **Tandem with `kona-sp1-proposer`**: release `kona-sp1-program` and `kona-sp1-proposer`
+  together whenever possible. The proposer embeds kona-host, which collects the witness these
+  programs execute. Tag both on the same commit; a proposer-only release with no program change is
+  fine.
+- **Release paths**: like `kona-client`, a release covers the whole `rust/kona/` tree.
+- **Every new commit rotates the vkeys**: both guests embed the commit they were built from (see
+  [Build provenance](#build-provenance)), so a release tagged on a different commit from the
+  previous one always has new vkeys, even if no guest code changed, and every consumer must repin.
+  Only a final release, which re-tags its last RC's commit, keeps that RC's vkeys.
+
+CircleCI publishes the standard ELFs, built with the Docker recipe `just build-elfs` and no custom
+configs, to `gs://oplabs-network-data/proofs/kona/sp1/`, served publicly under
+<https://storage.googleapis.com/oplabs-network-data/proofs/kona/sp1/>. The publish job refuses to
+upload unless `elf/vkeys.toml` records exactly the pipeline commit as `git_sha`, with no `-dirty`
+or `-custom` suffix, and both vkeys are nonzero.
+
+| Trigger | Workflow | Objects |
+|---|---|---|
+| `kona-sp1-program/v*` tag | `kona-sp1-publish-prestates-on-tag` | `<vkey>.range.bin.gz`, `<vkey>.agg.bin.gz` |
+| Push to `develop` | `kona-sp1-publish-prestates` | `develop.range.bin.gz`, `develop.agg.bin.gz`, `develop.bin.gz.txt` |
+
+- **Tag objects** are content-addressed by the lowercase `0x`-prefixed super-aggregation vkey.
+  That is the layout `KONA_SP1_PROPOSER_PRESTATES_URL` resolves through `absolutePrestate()`, and
+  the vkey is printed in the workflow log. Keep them published for as long as games created under
+  that vkey can be live; see the operational requirement under
+  [Ownership](#ownership-which-games-it-defends).
+- **Develop objects** are branch-named, overwritten on every push, and served with
+  `Cache-Control: no-cache`. `develop.bin.gz.txt` uses the same format as kona-client's pointer
+  files: `Commit=<sha>` and `Prestate: <super-aggregation vkey>`. The zkvm canary consumes
+  `KONA_ZKVM_CANARY_PRESTATES_URL=https://storage.googleapis.com/oplabs-network-data/proofs/kona/sp1/develop.range.bin.gz`.
+- **Metadata**: every ELF object carries `x-goog-meta-prestate-type: konaSP1` and
+  `x-goog-meta-kona-sp1-version`, set to the tag or, on develop, the commit. `chain-ids` is left
+  out: a standard build covers every chain in the embedded registry config, not one devnet's
+  chain set.
+
+Devnet ELFs built with custom configs (`git_sha` ends in `-custom`) never share vkeys with the
+published ones.
 
 ## Acceptance coverage
 
@@ -279,11 +334,14 @@ Names below use the `kona_sp1_proposer_` prefix.
 |---|---|---|
 | `up` | Gauge | `1` after the process starts. This does not imply chain-dependent startup validation has completed. Use Prometheus scrape availability to detect process loss. |
 | `signer_balance_eth` | Gauge | L1 transaction signer's balance in ETH. |
+| `signer_nonce` / `signer_pending_nonce` | Gauge | L1 signer's latest mined and pending nonces. Pending stays above latest while proposer transactions wait in the mempool; a gap that does not close means a stuck transaction. |
 | `prove_balance` | Gauge | Configured SP1 network account's spendable balance in PROVE, not the signer's ERC-20 wallet balance. Absent in mock mode. |
 | `deadline_passed_total` | Counter | Missed game windows observed by this process, with `window="defense"` or `window="fast_finality"`. Defense expiry and missed fast-finality acceleration have different consequences. |
 | `defense_deadline_remaining_seconds` | Gauge | Minimum observed defense deadline minus L1 block time, including queued and active games. Zero is the deadline boundary; negative values indicate expiry. |
+| `proof_requests` | Gauge | SPN requests of games still being proven, by `kind` (`range`, `consolidation`, `aggregation`) and `state` (`submitting`, `submitted`, `fulfilled`, `terminal`). A game's requests drop out once its proof is submitted or its progress is discarded. `terminal` requests wait for a retry signal. |
+| `spn_requester_info` | Gauge | `1`, with the SPN requester address in the `address` label. Absent in mock mode. |
 
-Balances refresh every 15 seconds. Failed balance reads return `NaN`
+Balances and nonces refresh every 15 seconds. Failed reads return `NaN`
 without blocking other metrics. Deadline metrics update during game sync
 using the confirmed L1 timestamp.
 
