@@ -405,33 +405,6 @@ func TestZKGetProposal(t *testing.T) {
 	}
 }
 
-func TestZKGetStartingProposal(t *testing.T) {
-	for _, version := range zkVersions {
-		t.Run(version.String(), func(t *testing.T) {
-			root := common.Hash{0xaa}
-			timestamp := big.NewInt(1236)
-			stubRpc, game := setupZKDisputeGameTest(t, version)
-			stubRpc.SetResponse(zkGameAddr, methodStartingRootHash, rpcblock.Latest, nil, []interface{}{root})
-			stubRpc.SetResponse(zkGameAddr, methodStartingSequenceNumber, rpcblock.Latest, nil, []interface{}{timestamp})
-
-			actualRoot, actualTimestamp, err := game.GetStartingProposal(context.Background())
-			require.NoError(t, err)
-			require.Equal(t, root, actualRoot)
-			require.Equal(t, bigs.Uint64Strict(timestamp), actualTimestamp)
-		})
-	}
-}
-
-func TestZKGetStartingProposalError(t *testing.T) {
-	fetchErr := errors.New("connection refused")
-	caller := batching.NewMultiCaller(&erroringRPC{err: fetchErr}, batching.DefaultBatchSize)
-	game, err := NewZKDisputeGameContract(contractMetrics.NoopContractMetrics, zkGameAddr, caller)
-	require.NoError(t, err)
-
-	_, _, err = game.GetStartingProposal(context.Background())
-	require.ErrorIs(t, err, fetchErr)
-}
-
 func TestZKGame_GetCredit(t *testing.T) {
 	for _, version := range zkVersions {
 		version := version

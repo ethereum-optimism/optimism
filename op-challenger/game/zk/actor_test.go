@@ -109,15 +109,15 @@ func TestActor(t *testing.T) {
 			},
 		},
 		{
-			// Behind the game L1 head: the challenge is sync-skipped, but ungated resolution still
-			// fires off the invalid parent.
-			name: "ResolveWhileNotSyncedPastGameL1Head",
+			// A resolved invalid parent justifies challenging and resolving despite a stale source.
+			name: "ChallengeAndResolveInvalidParentWhileSourceIsStale",
 			setup: func(t *testing.T, stubs *zkTestStubs) {
 				stubs.contract.proposalHash = common.Hash{0xba, 0xd0}
 				stubs.rootProvider.currentL1 = eth.BlockID{Number: zkTestL1Head}
 				stubs.contract.setParentStatus(types.GameStatusChallengerWon)
 			},
-			resolve: true,
+			challenge: true,
+			resolve:   true,
 		},
 		{
 			name: "ChallengeUnresolvableGameWithNoParent",
@@ -242,7 +242,7 @@ func TestActor(t *testing.T) {
 	}
 }
 
-func TestActorStartingProposal(t *testing.T) {
+func TestActorParentProposal(t *testing.T) {
 	tests := []struct {
 		name      string
 		setup     func(*zkTestStubs)
@@ -259,15 +259,7 @@ func TestActorStartingProposal(t *testing.T) {
 		{
 			name: "DoNotChallengeCanonicalChildWithCanonicalUnresolvedParent",
 		},
-		{
-			name: "ChallengeParentWithNoSuperRootData",
-			setup: func(stubs *zkTestStubs) {
-				resp := stubs.rootProvider.responses[stubs.contract.startingTimestamp]
-				resp.Data = nil
-				stubs.rootProvider.responses[stubs.contract.startingTimestamp] = resp
-			},
-			challenge: true,
-		},
+
 		{
 			name: "WaitWhenParentSourceNotSyncedPastChildL1Head",
 			setup: func(stubs *zkTestStubs) {
@@ -278,11 +270,11 @@ func TestActorStartingProposal(t *testing.T) {
 			},
 		},
 		{
-			name: "ErrorFetchingStartingProposal",
+			name: "ErrorFetchingParentMetadata",
 			setup: func(stubs *zkTestStubs) {
-				stubs.contract.startingErr = errors.New("starting proposal unavailable")
+				stubs.contract.startingErr = errors.New("parent metadata unavailable")
 			},
-			expectErr: "starting proposal unavailable",
+			expectErr: "parent metadata unavailable",
 		},
 		{
 			name: "ErrorFetchingParentSuperRoot",
@@ -337,6 +329,192 @@ func TestActorStartingProposal(t *testing.T) {
 	}
 }
 
+func TestActorAncestry(t *testing.T) {
+	tests := []struct {
+		name      string
+		setup     func(*zkTestStubs)
+		challenge bool
+		resolve   bool
+	}{
+		{
+			name:      "ChallengeCanonicalChildOfParentThatLostOnChain",
+			setup:     func(stubs *zkTestStubs) { stubs.contract.parentStatus = types.GameStatusChallengerWon },
+			challenge: true,
+			resolve:   true,
+		},
+		{
+			name: "ChallengeParentThatLostOnChainEvenWhenSourceIsStale",
+			setup: func(stubs *zkTestStubs) {
+				stubs.contract.parentStatus = types.GameStatusChallengerWon
+				stubs.rootProvider.currentL1.Number = zkTestL1Head
+			},
+			challenge: true,
+			resolve:   true,
+		},
+		{
+			name: "ChallengeLostParentWhenChildSuperRootRPCFails",
+			setup: func(stubs *zkTestStubs) {
+				stubs.contract.parentStatus = types.GameStatusChallengerWon
+				stubs.rootProvider.outputErr = errors.New("source unavailable")
+			},
+			challenge: true,
+			resolve:   true,
+		},
+		{
+			name: "ChallengeLostGrandparentDespiteStaleParentSuperRoot",
+			setup: func(stubs *zkTestStubs) {
+				stubs.addInvalidGrandparent()
+				idx := uint64(stubs.contract.parentIndex - 1)
+				grandparent := stubs.contract.parentGames[idx]
+				grandparent.status = types.GameStatusChallengerWon
+				stubs.contract.parentGames[idx] = grandparent
+				resp := stubs.rootProvider.responses[stubs.contract.startingTimestamp]
+				resp.CurrentL1.Number = zkTestL1Head
+				stubs.rootProvider.responses[stubs.contract.startingTimestamp] = resp
+			},
+			challenge: true,
+		},
+		{
+			name: "TrustParentThatWonOnChainDespiteNonCanonicalRoot",
+			setup: func(stubs *zkTestStubs) {
+				stubs.contract.parentStatus = types.GameStatusDefenderWon
+				stubs.contract.startingRoot = common.Hash{0xba, 0xd0}
+			},
+		},
+		{
+			name: "WaitForNonCanonicalUnchallengedParentToBeChallenged",
+			setup: func(stubs *zkTestStubs) {
+				parent := stubs.contract.parentGame()
+				parent.metadata.ProposedRoot = common.Hash{0xba, 0xd0}
+				parent.metadata.ProposalStatus = contracts.ProposalStatusUnchallenged
+				stubs.contract.parentGames[uint64(stubs.contract.parentIndex)] = parent
+			},
+		},
+		{
+			name: "DoNotChallengeForUnchallengedExpiredParent",
+			setup: func(stubs *zkTestStubs) {
+				parent := stubs.contract.parentGame()
+				parent.metadata.ProposalStatus = contracts.ProposalStatusUnchallenged
+				parent.metadata.ProposedRoot = common.Hash{0xba, 0xd0}
+				parent.metadata.Deadline = l1Time.Add(-time.Second)
+				stubs.contract.parentGames[uint64(stubs.contract.parentIndex)] = parent
+				stubs.contract.startingRoot = parent.metadata.ProposedRoot
+			},
+		},
+		{
+			name: "DoNotChallengeForProvenParent",
+			setup: func(stubs *zkTestStubs) {
+				parent := stubs.contract.parentGame()
+				parent.metadata.ProposedRoot = common.Hash{0xba, 0xd0}
+				parent.metadata.ProposalStatus = contracts.ProposalStatusChallengedAndValidProofProvided
+				stubs.contract.parentGames[uint64(stubs.contract.parentIndex)] = parent
+				stubs.contract.startingRoot = parent.metadata.ProposedRoot
+			},
+		},
+		{
+			name: "DoNotChallengeForUnchallengedProvenParent",
+			setup: func(stubs *zkTestStubs) {
+				parent := stubs.contract.parentGame()
+				parent.metadata.ProposedRoot = common.Hash{0xba, 0xd0}
+				parent.metadata.ProposalStatus = contracts.ProposalStatusUnchallengedAndValidProofProvided
+				stubs.contract.parentGames[uint64(stubs.contract.parentIndex)] = parent
+				stubs.contract.startingRoot = parent.metadata.ProposedRoot
+			},
+		},
+		{
+			name: "ChallengeCanonicalChildOfExpiredUnprovenChallengedParent",
+			setup: func(stubs *zkTestStubs) {
+				parent := stubs.contract.parentGame()
+				parent.metadata.ProposalStatus = contracts.ProposalStatusChallenged
+				parent.metadata.Deadline = l1Time.Add(-time.Second)
+				stubs.contract.parentGames[uint64(stubs.contract.parentIndex)] = parent
+			},
+			challenge: true,
+		},
+		{
+			name:      "ChallengeCanonicalChildAndParentOfInvalidGrandparent",
+			setup:     func(stubs *zkTestStubs) { stubs.addInvalidGrandparent() },
+			challenge: true,
+		},
+		{
+			name: "ChallengeThroughProvenParentOfInvalidGrandparent",
+			setup: func(stubs *zkTestStubs) {
+				stubs.addInvalidGrandparent()
+				parent := stubs.contract.parentGames[uint64(stubs.contract.parentIndex)]
+				parent.metadata.ProposalStatus = contracts.ProposalStatusUnchallengedAndValidProofProvided
+				stubs.contract.parentGames[uint64(stubs.contract.parentIndex)] = parent
+			},
+			challenge: true,
+		},
+		{
+			name: "ChallengeThroughExpiredUnchallengedParentOfInvalidGrandparent",
+			setup: func(stubs *zkTestStubs) {
+				stubs.addInvalidGrandparent()
+				parent := stubs.contract.parentGames[uint64(stubs.contract.parentIndex)]
+				parent.metadata.ProposalStatus = contracts.ProposalStatusUnchallenged
+				parent.metadata.Deadline = l1Time.Add(-time.Second)
+				stubs.contract.parentGames[uint64(stubs.contract.parentIndex)] = parent
+			},
+			challenge: true,
+		},
+		{
+			name: "StopAtDefenderWonParentBeforeInvalidGrandparent",
+			setup: func(stubs *zkTestStubs) {
+				stubs.addInvalidGrandparent()
+				parent := stubs.contract.parentGames[uint64(stubs.contract.parentIndex)]
+				parent.status = types.GameStatusDefenderWon
+				stubs.contract.parentGames[uint64(stubs.contract.parentIndex)] = parent
+			},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			actor, stubs := setupActorTest(t)
+			stubs.contract.parentStatus = types.GameStatusInProgress
+			tt.setup(stubs)
+			err := actor.Act(context.Background())
+			require.NoError(t, err)
+			var expected []string
+			if tt.challenge {
+				expected = append(expected, challengeData)
+			}
+			if tt.resolve {
+				expected = append(expected, resolveData)
+			}
+			require.Equal(t, expected, stubs.sender.sentData)
+		})
+	}
+}
+
+func TestActorParentDeadlineClockAdvance(t *testing.T) {
+	actor, stubs := setupActorTest(t)
+	stubs.contract.parentStatus = types.GameStatusInProgress
+	parent := stubs.contract.parentGame()
+	parent.metadata.ProposalStatus = contracts.ProposalStatusChallenged
+	stubs.contract.parentGames[uint64(stubs.contract.parentIndex)] = parent
+	// Metadata predates a possible proof at the deadline; the monitor advances during the RPC.
+	l1Clock := actor.l1Clock.(*clock.DeterministicClock)
+	stubs.contract.onGetZKGameMetadata = func() { l1Clock.AdvanceTime(2 * time.Second) }
+	require.NoError(t, actor.Act(context.Background()))
+	require.Empty(t, stubs.sender.sentData, "clock advancement must not turn older metadata into a loss")
+}
+
+func (s *zkTestStubs) addInvalidGrandparent() {
+	parent := s.contract.parentGame()
+	grandparentIndex := s.contract.parentIndex - 1
+	parent.metadata.ParentIndex = grandparentIndex
+	s.contract.parentGames[uint64(s.contract.parentIndex)] = parent
+	grandparent := parent
+	grandparent.metadata.ParentIndex = math.MaxUint32
+	grandparent.metadata.L2SequenceNumber--
+	grandparent.metadata.ProposedRoot = common.Hash{0xba, 0xd0}
+	s.contract.parentGames[uint64(grandparentIndex)] = grandparent
+	s.rootProvider.responses[grandparent.metadata.L2SequenceNumber] = eth.SuperRootAtTimestampResponse{
+		CurrentL1: s.rootProvider.currentL1,
+		Data:      &eth.SuperRootResponseData{SuperRoot: eth.Bytes32{0x33}},
+	}
+}
+
 func setupActorTest(t *testing.T) (*Actor, *zkTestStubs) {
 	return newZKActor(t, testlog.Logger(t, log.LevelInfo))
 }
@@ -361,6 +539,7 @@ func newZKActor(t *testing.T, logger log.Logger) (*Actor, *zkTestStubs) {
 		parentStatus:     types.GameStatusDefenderWon,
 		parentIndex:      482,
 	}
+	contract.parentGames = make(map[uint64]stubZKGame)
 	contract.startingRoot = common.Hash{0x22}
 	contract.startingTimestamp = rootTimestamp - 1
 	rootProvider.responses = map[uint64]eth.SuperRootAtTimestampResponse{
@@ -417,17 +596,24 @@ func (s *stubSuperRootProvider) SuperRootAtTimestamp(_ context.Context, timestam
 	return resp, nil
 }
 
+type stubZKGame struct {
+	metadata contracts.ChallengerMetadata
+	status   types.GameStatus
+}
+
 type stubContract struct {
-	startingRoot      common.Hash
-	startingTimestamp uint64
-	startingErr       error
-	parentIndex       uint32
-	parentStatus      types.GameStatus
-	proposalStatus    contracts.ProposalStatus
-	deadline          time.Time
-	txCreated         bool
-	proposalHash      common.Hash
-	l2SequenceNumber  uint64
+	onGetZKGameMetadata func()
+	parentGames         map[uint64]stubZKGame
+	startingRoot        common.Hash
+	startingTimestamp   uint64
+	startingErr         error
+	parentIndex         uint32
+	parentStatus        types.GameStatus
+	proposalStatus      contracts.ProposalStatus
+	deadline            time.Time
+	txCreated           bool
+	proposalHash        common.Hash
+	l2SequenceNumber    uint64
 }
 
 func (s *stubContract) Addr() common.Address {
@@ -501,8 +687,34 @@ func (s *stubContract) GetProposal(_ context.Context) (common.Hash, uint64, erro
 	return s.proposalHash, s.l2SequenceNumber, nil
 }
 
-func (s *stubContract) GetStartingProposal(_ context.Context) (common.Hash, uint64, error) {
-	return s.startingRoot, s.startingTimestamp, s.startingErr
+func (s *stubContract) parentGame() stubZKGame {
+	return stubZKGame{
+		metadata: contracts.ChallengerMetadata{
+			ParentIndex:      math.MaxUint32,
+			ProposalStatus:   contracts.ProposalStatusChallenged,
+			ProposedRoot:     s.startingRoot,
+			L2SequenceNumber: s.startingTimestamp,
+			Deadline:         l1Time.Add(time.Second),
+		},
+		status: s.parentStatus,
+	}
+}
+
+func (s *stubContract) GetZKGameMetadata(_ context.Context, idx uint64) (contracts.ChallengerMetadata, types.GameStatus, error) {
+	if s.onGetZKGameMetadata != nil {
+		s.onGetZKGameMetadata()
+	}
+	if s.startingErr != nil {
+		return contracts.ChallengerMetadata{}, 0, s.startingErr
+	}
+	if game, ok := s.parentGames[idx]; ok {
+		return game.metadata, game.status, nil
+	}
+	if idx != uint64(s.parentIndex) || idx == math.MaxUint32 {
+		return contracts.ChallengerMetadata{}, 0, errors.New("unexpected ancestor index")
+	}
+	game := s.parentGame()
+	return game.metadata, game.status, nil
 }
 
 type stubTxSender struct {

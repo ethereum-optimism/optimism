@@ -3,10 +3,12 @@ package contracts
 import (
 	"context"
 	"encoding/binary"
+	"errors"
 	"fmt"
 	"math/big"
 	"slices"
 	"testing"
+	"time"
 
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/contracts/gameargs"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/contracts/metrics"
@@ -186,6 +188,45 @@ func TestGetGameStatus(t *testing.T) {
 			})
 		}
 	}
+}
+
+func TestGetZKGameMetadata(t *testing.T) {
+	for _, version := range factoryVersions {
+		t.Run(version.String(), func(t *testing.T) {
+			stubRpc, factory := setupDisputeGameFactoryTest(t, version)
+			game := gameTypes.GameMetadata{Index: 321, GameType: uint32(gameTypes.ZKDisputeGameType), Proxy: zkGameAddr}
+			expectGetGame(stubRpc, 321, rpcblock.Latest, game)
+			stubRpc.AddContract(zkGameAddr, snapshots.LoadZKDisputeGameABI())
+			expected := ChallengerMetadata{
+				ParentIndex:      123,
+				ProposalStatus:   ProposalStatusChallenged,
+				Challenger:       common.Address{0xab},
+				Prover:           common.Address{0xcd},
+				ProposedRoot:     common.Hash{0x11},
+				L2SequenceNumber: 28492,
+				Deadline:         time.Unix(100, 0),
+			}
+			stubRpc.SetResponse(zkGameAddr, methodClaimData, rpcblock.Latest, nil, []interface{}{
+				expected.ParentIndex, uint8(expected.ProposalStatus), expected.Challenger, expected.Prover,
+				uint64(expected.Deadline.Unix()), expected.ProposedRoot,
+			})
+			stubRpc.SetResponse(zkGameAddr, methodL2SequenceNumber, rpcblock.Latest, nil, []interface{}{big.NewInt(28492)})
+			stubRpc.SetResponse(zkGameAddr, methodStatus, rpcblock.Latest, nil, []interface{}{uint8(gameTypes.GameStatusInProgress)})
+
+			metadata, status, err := factory.GetZKGameMetadata(context.Background(), 321)
+			require.NoError(t, err)
+			require.Equal(t, expected, metadata)
+			require.Equal(t, gameTypes.GameStatusInProgress, status)
+		})
+	}
+}
+
+func TestGetZKGameMetadataError(t *testing.T) {
+	fetchErr := errors.New("connection refused")
+	caller := batching.NewMultiCaller(&erroringRPC{err: fetchErr}, batching.DefaultBatchSize)
+	factory := newDisputeGameFactoryContract(metrics.NoopContractMetrics, factoryAddr, caller, snapshots.LoadDisputeGameFactoryABI(), getGameArgsLatest)
+	_, _, err := factory.GetZKGameMetadata(context.Background(), 321)
+	require.ErrorIs(t, err, fetchErr)
 }
 
 func TestGetAllGames(t *testing.T) {

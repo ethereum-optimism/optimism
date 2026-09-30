@@ -25,39 +25,39 @@ type SuperRootProvider interface {
 	SuperRootAtTimestamp(ctx context.Context, timestamp uint64) (eth.SuperRootAtTimestampResponse, error)
 }
 
-type GameStatusProvider interface {
+type GameProvider interface {
 	GetGameStatus(ctx context.Context, idx uint64) (gameTypes.GameStatus, error)
+	GetZKGameMetadata(ctx context.Context, idx uint64) (contracts.ChallengerMetadata, gameTypes.GameStatus, error)
 }
 
 type ChallengableContract interface {
 	Addr() common.Address
 	ChallengeTx(ctx context.Context) (txmgr.TxCandidate, error)
 	GetProposal(ctx context.Context) (common.Hash, uint64, error)
-	GetStartingProposal(ctx context.Context) (common.Hash, uint64, error)
 	GetChallengerMetadata(ctx context.Context, block rpcblock.Block) (contracts.ChallengerMetadata, error)
 	ResolveTx() (txmgr.TxCandidate, error)
 }
 
 type Actor struct {
-	logger             log.Logger
-	l1Clock            ClockReader
-	l1Head             eth.BlockID
-	superRootProvider  SuperRootProvider
-	gameStatusProvider GameStatusProvider
-	contract           ChallengableContract
-	txSender           TxSender
+	logger            log.Logger
+	l1Clock           ClockReader
+	l1Head            eth.BlockID
+	superRootProvider SuperRootProvider
+	gameProvider      GameProvider
+	contract          ChallengableContract
+	txSender          TxSender
 }
 
-func ActorCreator(l1Clock ClockReader, superRootProvider SuperRootProvider, gameStatusProvider GameStatusProvider, contract ChallengableContract, txSender TxSender) generic.ActorCreator {
+func ActorCreator(l1Clock ClockReader, superRootProvider SuperRootProvider, gameProvider GameProvider, contract ChallengableContract, txSender TxSender) generic.ActorCreator {
 	return func(_ context.Context, logger log.Logger, l1Head eth.BlockID) (generic.Actor, error) {
 		return &Actor{
-			logger:             logger,
-			l1Clock:            l1Clock,
-			l1Head:             l1Head,
-			superRootProvider:  superRootProvider,
-			gameStatusProvider: gameStatusProvider,
-			contract:           contract,
-			txSender:           txSender,
+			logger:            logger,
+			l1Clock:           l1Clock,
+			l1Head:            l1Head,
+			superRootProvider: superRootProvider,
+			gameProvider:      gameProvider,
+			contract:          contract,
+			txSender:          txSender,
 		}, nil
 	}
 }
@@ -121,14 +121,47 @@ func (a *Actor) isValidProposal(ctx context.Context, parentIndex uint32) (bool, 
 		return false, fmt.Errorf("failed to get zk game proposal: %w", err)
 	}
 	valid, err := a.isValidSuperRoot(ctx, proposalHash, proposalTimestamp)
-	if err != nil || !valid || parentIndex == math.MaxUint32 {
-		return valid, err
+	if err == nil && !valid {
+		return false, nil
 	}
-	startingHash, startingTimestamp, err := a.contract.GetStartingProposal(ctx)
-	if err != nil {
-		return false, fmt.Errorf("failed to get zk game starting proposal: %w", err)
+	parentValid, parentErr := a.isValidAncestry(ctx, parentIndex)
+	if parentErr != nil || !parentValid {
+		return parentValid, parentErr
 	}
-	return a.isValidSuperRoot(ctx, startingHash, startingTimestamp)
+	return valid, err
+}
+
+func (a *Actor) isValidAncestry(ctx context.Context, parentIndex uint32) (bool, error) {
+	// Capture time before reading metadata so a newer head cannot expire an older proof state.
+	now := a.l1Clock.Now()
+	var validationErr error
+	for parentIndex != math.MaxUint32 {
+		parent, status, err := a.gameProvider.GetZKGameMetadata(ctx, uint64(parentIndex))
+		if err != nil {
+			return false, fmt.Errorf("failed to get ancestor game %v: %w", parentIndex, err)
+		}
+		if status == gameTypes.GameStatusChallengerWon {
+			return false, nil
+		}
+		if status == gameTypes.GameStatusDefenderWon {
+			return validationErr == nil, validationErr
+		}
+		expired := parent.Deadline.Before(now)
+		if parent.ProposalStatus == contracts.ProposalStatusChallenged && expired {
+			return false, nil
+		}
+		// An unchallenged parent may still win; wait for its own challenge before risking a bond.
+		if parent.ProposalStatus == contracts.ProposalStatusChallenged {
+			valid, err := a.isValidSuperRoot(ctx, parent.ProposedRoot, parent.L2SequenceNumber)
+			if err != nil {
+				validationErr = err
+			} else if !valid {
+				return false, nil
+			}
+		}
+		parentIndex = parent.ParentIndex
+	}
+	return validationErr == nil, validationErr
 }
 
 func (a *Actor) isValidSuperRoot(ctx context.Context, proposalHash common.Hash, proposalTimestamp uint64) (bool, error) {
@@ -157,7 +190,7 @@ func (a *Actor) createResolveTx(ctx context.Context, gameState contracts.Challen
 	deadlineExpired := gameState.Deadline.Before(a.l1Clock.Now())
 
 	if gameState.ParentIndex != math.MaxUint32 {
-		parentStatus, err := a.gameStatusProvider.GetGameStatus(ctx, uint64(gameState.ParentIndex))
+		parentStatus, err := a.gameProvider.GetGameStatus(ctx, uint64(gameState.ParentIndex))
 		if err != nil {
 			return txmgr.TxCandidate{}, fmt.Errorf("failed to get parent game status: %w", err)
 		}

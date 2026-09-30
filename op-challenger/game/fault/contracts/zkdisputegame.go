@@ -73,7 +73,6 @@ type ZKDisputeGameContract interface {
 	DisputeGameContract
 	ChallengeTx(ctx context.Context) (txmgr.TxCandidate, error)
 	GetProposal(ctx context.Context) (common.Hash, uint64, error)
-	GetStartingProposal(ctx context.Context) (common.Hash, uint64, error)
 	GetChallengerMetadata(ctx context.Context, block rpcblock.Block) (ChallengerMetadata, error)
 	GetAnchorStateRegistry(ctx context.Context, block rpcblock.Block) (common.Address, error)
 	GetBondMetadata(ctx context.Context, block rpcblock.Block) (ZKBondMetadata, error)
@@ -382,21 +381,6 @@ func (g *ZKDisputeGameContractLatest) GetProposal(ctx context.Context) (common.H
 	results, err := g.multiCaller.Call(ctx, rpcblock.Latest, g.contract.Call(methodRootClaim), g.contract.Call(methodL2SequenceNumber))
 	if err != nil {
 		return common.Hash{}, 0, fmt.Errorf("failed to retrieve proposal: %w", err)
-	}
-	if len(results) != 2 {
-		return common.Hash{}, 0, fmt.Errorf("expected 2 results but got %v", len(results))
-	}
-	return results[0].GetHash(0), getBlockNumber(results[1], 0), nil
-}
-
-// GetStartingProposal returns the starting super root and timestamp.
-func (g *ZKDisputeGameContractLatest) GetStartingProposal(ctx context.Context) (common.Hash, uint64, error) {
-	defer g.metrics.StartContractRequest("GetStartingProposal")()
-	results, err := g.multiCaller.Call(ctx, rpcblock.Latest,
-		g.contract.Call(methodStartingRootHash),
-		g.contract.Call(methodStartingSequenceNumber))
-	if err != nil {
-		return common.Hash{}, 0, fmt.Errorf("failed to retrieve starting proposal: %w", err)
 	}
 	if len(results) != 2 {
 		return common.Hash{}, 0, fmt.Errorf("expected 2 results but got %v", len(results))

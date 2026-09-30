@@ -215,13 +215,14 @@ func TestZK_HonestChallenger_UnsafeProposal_ChallengerWins(gt *testing.T) {
 	})
 }
 
-// TestZK_HonestChallenger_ChildOfInvalidParent_ChallengerWins checks resolution ordering: a child
-// game referencing an invalid parent resolves CHALLENGER_WINS by inheritance only after the honest
-// challenger has resolved the parent CHALLENGER_WINS. Resolution ordering is source-agnostic, so it
-// runs against the op-node source only.
+// TestZK_HonestChallenger_ChildOfInvalidParent_ChallengerWins pins descendant challenges and bond credits.
 func TestZK_HonestChallenger_ChildOfInvalidParent_ChallengerWins(gt *testing.T) {
 	t := devtest.ParallelT(gt)
-	sys := newOpNodeSystem(t)
+	// Keep credit observable until the assertions, before the challenger can claim it.
+	sys := newSupernodeSystem(t,
+		presets.WithoutHonestProposer(),
+		presets.WithDisputeGameFinalityDelaySeconds(uint64(presets.DefaultZKChallengeDuration/time.Second)),
+	)
 	factory := sys.DisputeGameFactory()
 	proposer := sys.FunderL1.NewFundedEOA(eth.OneEther)
 	registry := sys.AnchorStateRegistry(sys.L2ChainA)
@@ -235,9 +236,24 @@ func TestZK_HonestChallenger_ChildOfInvalidParent_ChallengerWins(gt *testing.T) 
 		proofs.WithSuperRootFrom(outputRoots...),
 	)
 	child := factory.StartZKGame(proposer, proofs.WithZKParent(parent.FactoryIndex()))
+	grandchild := factory.StartZKGame(proposer, proofs.WithZKParent(child.FactoryIndex()))
 
 	parent.WaitForProposalStatus(proofs.ZKProposalChallenged)
+	child.WaitForProposalStatus(proofs.ZKProposalChallenged)
+	grandchild.WaitForProposalStatus(proofs.ZKProposalChallenged)
+	t.Require().Equal(gameTypes.GameStatusInProgress, parent.GameStatus(),
+		"descendants must be challenged before the invalid ancestor resolves")
+	honestChallenger := zkChallengerAddress(t, sys.L2ChainA.ChainID())
+	t.Require().NotEqual(common.Address{}, honestChallenger, "honest challenger must not be the zero address")
+	t.Require().Equal(honestChallenger, child.ClaimData().Challenger)
+	t.Require().Equal(honestChallenger, grandchild.ClaimData().Challenger)
+
 	advanceL1To(sys, parent.ClaimData().Deadline+1)
 	parent.WaitForGameStatus(gameTypes.GameStatusChallengerWon)
 	child.WaitForGameStatus(gameTypes.GameStatusChallengerWon)
+	t.Require().Equal(child.TotalBonds(), child.Credit(honestChallenger),
+		"honest challenger must receive the child's full bond credit")
+	grandchild.WaitForGameStatus(gameTypes.GameStatusChallengerWon)
+	t.Require().Equal(grandchild.TotalBonds(), grandchild.Credit(honestChallenger),
+		"honest challenger must receive the grandchild's full bond credit")
 }
