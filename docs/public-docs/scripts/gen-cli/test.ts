@@ -7,7 +7,7 @@ import { execFileSync } from "child_process";
 import * as fs from "fs";
 import * as os from "os";
 import * as path from "path";
-import { findComponent } from "./components";
+import { findComponent, parseTag } from "./components";
 import { emitPages, hoistedSections, slugify, stripHoistedFromHelp } from "./emit";
 import { compareLines, spliceNav, versionGroups } from "./nav";
 import { parseClapHelp } from "./parse-clap";
@@ -30,6 +30,16 @@ function check(name: string, cond: boolean, detail = ""): void {
   else {
     failures++;
     console.error(`FAIL ${name}${detail ? `: ${detail}` : ""}`);
+  }
+}
+
+// ─── tags ─────────────────────────────────────────────────────────────────────
+{
+  check("parseTag: finalized tag", JSON.stringify(parseTag("op-node", "op-node/v1.19.7")) === JSON.stringify({ version: "v1.19.7", line: "v1.19" }));
+  for (const bad of ["op-node/v1.19.7-rc.1", "op-reth/v1.19.7", "op-node/1.19.7", "op-node/v1.19", "x/op-node/v1.19.7", "op-node/v1.19.7/../x"]) {
+    let threw = false;
+    try { parseTag("op-node", bad); } catch { threw = true; }
+    check(`parseTag: rejects ${bad}`, threw);
   }
 }
 

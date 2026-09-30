@@ -170,11 +170,15 @@ export function findComponent(name: string): Component {
   return c;
 }
 
-/** "op-node/v1.19.7" → { version: "v1.19.7", line: "v1.19" }. */
+const FINALIZED_VERSION_RE = /^v(\d+)\.(\d+)\.(\d+)$/;
+
+/** "op-node/v1.19.7" → { version: "v1.19.7", line: "v1.19" }. Only finalized tags of the named component are accepted. */
 export function parseTag(component: string, tag: string): { version: string; line: string } {
-  const m = new RegExp(`^${component.replace(/[-/]/g, "\\$&")}/(v(\\d+)\\.(\\d+)\\.(\\d+))$`).exec(tag);
-  if (!m) {
+  const prefix = `${component}/`;
+  const version = tag.startsWith(prefix) ? tag.slice(prefix.length) : null;
+  const m = version === null ? null : FINALIZED_VERSION_RE.exec(version);
+  if (!m || version === null) {
     throw new Error(`--tag must be a finalized ${component} release tag (${component}/vX.Y.Z), got: ${tag}`);
   }
-  return { version: m[1], line: `v${m[2]}.${m[3]}` };
+  return { version, line: `v${m[1]}.${m[2]}` };
 }

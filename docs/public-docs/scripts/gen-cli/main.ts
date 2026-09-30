@@ -90,7 +90,7 @@ function parseArgs(argv: string[]): Args {
       case "--help-json": a.helpJson = next(); break;
       case "--dump-help-json": a.dumpHelpJson = next(); break;
       case "--page-map": a.pageMap = next(); break;
-      case "--docs-dir": a.docsRoot = path.resolve(next()); break;
+      case "--docs-dir": a.docsRoot = fs.realpathSync(path.resolve(next())); break;
       case "--check": a.check = true; break;
       default: usage(`unknown argument: ${x}`);
     }
@@ -116,13 +116,31 @@ function sha256Tree(pages: Page[]): string {
   return h.digest("hex");
 }
 
-function readTree(dir: string): Map<string, string> {
+/**
+ * Resolve `segments` under `root` and require the result to stay inside it.
+ * Every path the generator reads or writes goes through here: the docs root
+ * comes from --docs-dir, page names from a component's --help output (already
+ * validated against SUBCOMMAND_NAME), and the version line from a validated
+ * tag, so nothing can escape the docs tree even if one of those inputs is
+ * hostile. Same containment rule as scripts/lint/common.ts resolveInside.
+ */
+function inside(root: string, ...segments: string[]): string {
+  const resolved = path.resolve(root, ...segments);
+  if (resolved !== root && !resolved.startsWith(root + path.sep)) {
+    throw new Error(`refusing path outside ${root}: ${path.join(...segments)}`);
+  }
+  return resolved;
+}
+
+const PAGE_FILE_RE = /^[a-z0-9][a-z0-9._-]*\.mdx$/;
+
+/** The generated pages committed in a version directory, by file name. Only well-formed page names are read. */
+function readTree(docsRoot: string, dir: string): Map<string, string> {
   const out = new Map<string, string>();
   if (!fs.existsSync(dir)) return out;
   for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
-    if (entry.isFile() && entry.name.endsWith(".mdx")) {
-      out.set(entry.name, fs.readFileSync(path.join(dir, entry.name), "utf8"));
-    }
+    if (!entry.isFile() || !PAGE_FILE_RE.test(entry.name)) continue;
+    out.set(entry.name, fs.readFileSync(inside(docsRoot, dir, entry.name), "utf8"));
   }
   return out;
 }
@@ -184,14 +202,15 @@ function main(): void {
   const sha256 = sha256Tree(pages);
 
   const docsRoot = args.docsRoot;
-  const versionDir = path.join(docsRoot, "reference", component.name, line);
-  const existing = readTree(versionDir);
+  if (!fs.existsSync(path.join(docsRoot, "docs.json"))) usage(`${docsRoot} is not a docs root (no docs.json)`);
+  const versionDir = inside(docsRoot, "reference", component.name, line);
+  const existing = readTree(docsRoot, versionDir);
   const generated = new Map(pages.map((p) => [p.relPath, p.content]));
   const added = [...generated.keys()].filter((k) => !existing.has(k)).sort();
   const removed = [...existing.keys()].filter((k) => !generated.has(k)).sort();
   const changed = [...generated.keys()].filter((k) => existing.has(k) && existing.get(k) !== generated.get(k)).sort();
 
-  const docsJsonPath = path.join(docsRoot, "docs.json");
+  const docsJsonPath = inside(docsRoot, "docs.json");
   const docsJson = JSON.parse(fs.readFileSync(docsJsonPath, "utf8"));
   const groups = versionGroups(pages);
   // The nav check compares the whole navigation after a splice into a clone,
@@ -199,7 +218,7 @@ function main(): void {
   // tab's position is caught, not only the page list.
   const navChanged = spliceNav(JSON.parse(JSON.stringify(docsJson)), component, line, groups);
 
-  const manifestPath = path.join(docsRoot, "scripts", "gen-cli", "manifest.json");
+  const manifestPath = inside(docsRoot, "scripts", "gen-cli", "manifest.json");
   // A release line records its tag; the develop line records the commit it
   // was generated from (never under a `tag` key: the reference lint checks
   // every manifest `tag` against git tags).
@@ -235,12 +254,9 @@ function main(): void {
 
   // Write pages, contained to the version directory.
   fs.mkdirSync(versionDir, { recursive: true });
-  for (const p of pages) {
-    const abs = path.resolve(versionDir, p.relPath);
-    if (!abs.startsWith(versionDir + path.sep)) throw new Error(`refusing to write outside ${versionDir}: ${p.relPath}`);
-    fs.writeFileSync(abs, p.content);
-  }
-  for (const k of removed) fs.rmSync(path.resolve(versionDir, k));
+  for (const p of pages) fs.writeFileSync(inside(versionDir, p.relPath), p.content);
+  for (const k of removed) fs.rmSync(inside(versionDir, k));
+  fs.mkdirSync(path.dirname(manifestPath), { recursive: true });
 
   const navReallyChanged = spliceNav(docsJson, component, line, groups);
   if (navReallyChanged) fs.writeFileSync(docsJsonPath, `${JSON.stringify(docsJson, null, 2)}\n`);
