@@ -6,8 +6,9 @@ parses it (clap for the Rust components, urfave/cli for the Go services), and
 emits the pages, the `docs.json` version entry, and the manifest for one
 release line of one component, exactly as the
 [Component reference](../../op-stack/contribute/content-guide.mdx#component-reference)
-section of the content guide (ethereum-optimism/optimism#23091) specifies. It replaces `gen-flags` and
-`gen-op-reth-cli`, which stay until every component has migrated.
+section of the content guide (ethereum-optimism/optimism#23091) specifies. It replaced
+`gen-op-reth-cli` when op-reth migrated, and replaces `gen-flags` as each Go
+service migrates.
 
 ## What it emits
 

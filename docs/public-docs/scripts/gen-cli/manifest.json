@@ -1,0 +1,10 @@
+{
+  "op-reth": {
+    "v2.4": {
+      "artifact": "image us-docker.pkg.dev/oplabs-tools-artifacts/images/op-reth:v2.4.4",
+      "sha256": "324cb50c12154d1da26b42afaae35347b34f76662ace679b3b271e8aad89d039",
+      "tag": "op-reth/v2.4.4",
+      "version": "op-reth Version: 2.4.4"
+    }
+  }
+}
