@@ -191,8 +191,8 @@ func TestServerRPCMetrics(t *testing.T) {
 		"server_responses_total error=<nil> method=test_echo rpc=main":         4,
 		"server_responses_total error=rpc_-39001 method=test_fail rpc=main":    3,
 		"server_responses_total error=rpc_-32601 method=test_unknown rpc=main": 1,
-		"server_params_size_total method=test_echo rpc=main":                   12, // [3]
-		"server_results_size_total method=test_echo rpc=main":                  4,  // 3
+		"server_params_size_total method=test_echo rpc=main":                   12, // 4 calls × len("[3]")
+		"server_results_size_total method=test_echo rpc=main":                  4,  // 4 calls × len("3")
 		"server_requests_total method=test_big rpc=main":                       1,
 		"server_responses_total error=<nil> method=test_big rpc=main":          1,
 		"client_notifications_received_total method=test_fail rpc=main":        1,
