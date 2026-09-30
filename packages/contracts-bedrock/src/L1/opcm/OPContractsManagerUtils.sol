@@ -554,13 +554,18 @@ contract OPContractsManagerUtils {
 
         // We have three permitted cases:
         // 1. Address of the last used OPCM is identical to the address of this OPCM (re-running).
-        // 2. This OPCM version is the same major version but a greater minor version (patch).
+        // 2. This OPCM is a later release within the same major version, by minor or by patch.
+        //    Patch releases have to count: a patch bump is normal development work, so requiring
+        //    a minor bump would leave a chain unable to take any later release of its own major.
         // 3. This OPCM version is the next major version (sequential upgrade).
         bool isNextMajor = thisSemver.major == lastUsedSemver.major + 1;
-        bool isSameMajorHigherMinor =
-            thisSemver.major == lastUsedSemver.major && thisSemver.minor > lastUsedSemver.minor;
+        bool isSameMajorLaterRelease = thisSemver.major == lastUsedSemver.major
+            && (
+                thisSemver.minor > lastUsedSemver.minor
+                    || (thisSemver.minor == lastUsedSemver.minor && thisSemver.patch > lastUsedSemver.patch)
+            );
 
-        return isSameOPCM || isSameMajorHigherMinor || isNextMajor;
+        return isSameOPCM || isSameMajorLaterRelease || isNextMajor;
     }
 
     /// @notice Returns whether a chain is on the given OPCM's release and may be
