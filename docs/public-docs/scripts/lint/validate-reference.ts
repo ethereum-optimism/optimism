@@ -151,7 +151,8 @@ for (const rel of mdxFiles) {
   let i = 0;
   while (i < lines.length && (lines[i].trim() === "" || /^import\s/.test(lines[i]))) i++;
   const rest = lines.slice(i).join("\n").trimStart();
-  const firstBlock = rest.startsWith("{/*") ? rest.slice(0, rest.indexOf("*/}") + 3) : "";
+  const endIdx = rest.indexOf("*/}");
+  const firstBlock = rest.startsWith("{/*") && endIdx !== -1 ? rest.slice(0, endIdx + 3) : "";
   if (!GENERATED_MARKER.test(firstBlock)) {
     errors.push(
       `hand-written page under reference/: "${rel}" does not open with a generated DO NOT EDIT header — ` +
