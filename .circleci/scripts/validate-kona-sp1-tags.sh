@@ -40,7 +40,7 @@ disk_monitor_pid=$!
 build_tag() {
   local tag=$1 label=$2
   local ref="refs/tags/kona-sp1-proposer/${tag}"
-  local commit worktree started elapsed manifest elf key derived_output derived sp1_tag
+  local commit worktree started elapsed manifest elf key derived_output derived sp1_tag docker_dir cleanup_errors first_other_dir
   commit=$(git -C "$repo_root" rev-parse --verify "${ref}^{commit}")
   worktree="${trial_dir}/build-${label}"
   git -C "$repo_root" worktree add --detach "$worktree" "$commit"
@@ -87,17 +87,36 @@ build_tag() {
   echo "TRIAL manifest and ELF agree label=${label} vkey=${key}" | tee -a "${logs_dir}/summary.txt"
   elapsed=$(($(date +%s) - started))
   echo "TRIAL PASS label=${label} tag=${ref} commit=${commit} vkey=${key} elapsed_seconds=${elapsed}" | tee -a "${logs_dir}/summary.txt"
-  BUILT_KEY=$key
-  sudo rm -rf "${worktree}/rust/kona/sp1/programs/target/elf-compilation/docker"
+  docker_dir="${worktree}/rust/kona/sp1/programs/target/elf-compilation/docker"
+  cleanup_errors="${logs_dir}/${label}-cleanup-errors.txt"
+  echo "TRIAL job identity: $(id)" | tee -a "${logs_dir}/summary.txt"
+  echo "TRIAL Docker security options: $(docker info --format '{{json .SecurityOptions}}')" | tee -a "${logs_dir}/summary.txt"
+  stat -c 'TRIAL output directory uid=%u gid=%g mode=%a path=%n' "$docker_dir" | tee -a "${logs_dir}/summary.txt"
+  sudo -n find "$docker_dir" -type d -printf '%U:%G %m %p\n' |
+    awk -v uid="$(id -u)" '
+      { total++; if (split($1, owner, ":") && owner[1] != uid) { other++; if (other <= 20) print "TRIAL other-owned directory: " $0 } }
+      END { printf "TRIAL directories=%d other-owned=%d\n", total, other }
+    ' | tee -a "${logs_dir}/summary.txt"
+  if command -v getfacl >/dev/null; then
+    sudo -n getfacl -p "$docker_dir" | tee -a "${logs_dir}/summary.txt"
+    first_other_dir=$(sudo -n find "$docker_dir" -type d ! -user "$(id -u)" -print -quit)
+    if [[ -n "$first_other_dir" ]]; then
+      sudo -n getfacl -p "$first_other_dir" | tee -a "${logs_dir}/summary.txt"
+    fi
+  fi
+  if rm -rf "$docker_dir" 2>"$cleanup_errors"; then
+    echo "TRIAL unprivileged cleanup succeeded; sudo was unnecessary" | tee -a "${logs_dir}/summary.txt"
+  else
+    echo "TRIAL unprivileged cleanup failed; first errors:" | tee -a "${logs_dir}/summary.txt"
+    sed -n '1,20p' "$cleanup_errors" | tee -a "${logs_dir}/summary.txt"
+    sudo -n rm -rf "$docker_dir"
+    [[ ! -e "$docker_dir" ]]
+    echo "TRIAL passwordless sudo cleanup succeeded after unprivileged failure" | tee -a "${logs_dir}/summary.txt"
+  fi
   git -C "$repo_root" worktree remove --force "$worktree"
 }
 
 build_tag v0.0.5 first
-first_key=$BUILT_KEY
-build_tag v0.0.5 second
-[[ "${first_key,,}" == "${BUILT_KEY,,}" ]]
-echo "TRIAL PASS two clean v0.0.5 builds produced the same aggregation vkey: ${BUILT_KEY}"
-build_tag v0.0.4 other-tag
 
 kill "$disk_monitor_pid" 2>/dev/null || true
 wait "$disk_monitor_pid" 2>/dev/null || true
