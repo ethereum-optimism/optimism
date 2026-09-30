@@ -7,6 +7,7 @@ import (
 	"net"
 	"net/http"
 	"strconv"
+	"sync"
 	"testing"
 	"time"
 
@@ -15,9 +16,25 @@ import (
 	"github.com/ethereum/go-ethereum/node"
 	"github.com/ethereum/go-ethereum/rpc"
 
+	"github.com/ethereum-optimism/optimism/op-service/httputil"
 	"github.com/ethereum-optimism/optimism/op-service/log"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
 )
+
+// trackServedRequests wraps the HTTP handler of the server, so the test can wait for all request handlers to return.
+// http.Server.Shutdown does not wait for hijacked (websocket) connections, whose handlers would otherwise
+// log through the test logger after the test has completed.
+func trackServedRequests(wg *sync.WaitGroup) httputil.Option {
+	return httputil.WithHTTPOptions(func(srv *http.Server) error {
+		inner := srv.Handler
+		srv.Handler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			wg.Add(1)
+			defer wg.Done()
+			inner.ServeHTTP(w, r)
+		})
+		return nil
+	})
+}
 
 type testAPI struct{}
 
@@ -28,8 +45,9 @@ func (t *testAPI) Frobnicate(n int) int {
 func TestBaseServer(t *testing.T) {
 	appVersion := "test"
 	logger := testlog.Logger(t, log.LevelTrace)
+	var handlers sync.WaitGroup
 	server := ServerFromConfig(&ServerConfig{
-		HttpOptions: nil,
+		HttpOptions: []httputil.Option{trackServedRequests(&handlers)},
 		RpcOptions: []Option{
 			WithLogger(logger),
 			WithWebsocketEnabled(),
@@ -49,6 +67,7 @@ func TestBaseServer(t *testing.T) {
 		if err != nil {
 			panic(err)
 		}
+		handlers.Wait()
 	})
 
 	t.Run("supports 0 port", func(t *testing.T) {
@@ -171,8 +190,9 @@ func TestAuthServer(t *testing.T) {
 
 	appVersion := "test"
 	logger := testlog.Logger(t, log.LevelTrace)
+	var handlers sync.WaitGroup
 	server := ServerFromConfig(&ServerConfig{
-		HttpOptions: nil,
+		HttpOptions: []httputil.Option{trackServedRequests(&handlers)},
 		RpcOptions: []Option{
 			WithLogger(logger),
 			WithWebsocketEnabled(),
@@ -200,6 +220,7 @@ func TestAuthServer(t *testing.T) {
 		if err != nil {
 			panic(err)
 		}
+		handlers.Wait()
 	})
 
 	testAuth := func(t *testing.T, endpoint string) {
