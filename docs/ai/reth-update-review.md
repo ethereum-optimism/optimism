@@ -167,7 +167,24 @@ does not hold.
 before `evm.transact`. Upstream invariants of the form "every transaction in a block was
 executed" do not hold.
 
+**6. A per-account storage root is consensus.**
+Upstream precondition: provider storage-root reads serve only RPC, so upstream tolerates
+divergence there that it would never accept in the state root. Since Isthmus the header's
+`withdrawalsRoot` is the L2ToL1MessagePasser storage root, which op-reth computes through
+`StorageRootProvider::storage_root` (`rust/op-reth/crates/consensus/src/validation/isthmus.rs`)
+when building (`rust/op-reth/crates/evm/src/build.rs`) and validating
+(`rust/op-reth/crates/node/src/engine.rs`) a block. Any upstream change to that method, to
+the providers that implement it (including overlay code it shares with `storage_proof` and
+`storage_multiproof`), or to how trie tables are persisted (partial persistence, state
+masking, overlay construction) is consensus-affecting for OP even when every upstream
+state-root test passes. Test it with persistence and state masking both engaged: a low
+persistence threshold, a nonzero `num_state_masking_blocks`, and enough blocks to trigger
+persistence. `with_persistence_threshold(0)` turns masking off, and under the default
+threshold a short test never persists at all.
+
 ### How to check one
+
+For preconditions 1–5:
 
 1. From the upstream diff, name the assumption in one sentence
    ("this branch was unreachable because L1 rejects `gas_limit > cap` pre-execution").
@@ -265,6 +282,7 @@ our override, leaving OP-specific branches byte-identical.
 - Encoding / serialization (`reth-codecs` compact, RLP/SSZ) for shared types.
 - Fork-activation mapping (`OpHardfork::activates_l1_fork`, the revm spec mapping).
 - Precompile address set.
+- Trie persistence layout and state-provider storage-root reads — see precondition 6.
 
 ### F. Downstream-consumer risks (our published versions are an API)
 
