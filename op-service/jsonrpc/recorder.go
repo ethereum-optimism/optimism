@@ -26,8 +26,8 @@ type RecordDone func(ctx context.Context, resp Response)
 
 // Recorder observes JSON-RPC traffic: RecordIncoming for received messages, RecordOutgoing for
 // sent ones. Both are called before the message is handled or sent, and may return nil when the
-// response is of no interest; notifications get no response. Implementations must be safe for
-// concurrent use.
+// response is of no interest. The returned RecordDone is never called for a notification.
+// Implementations must be safe for concurrent use.
 type Recorder interface {
 	RecordIncoming(ctx context.Context, msg Message) RecordDone
 	RecordOutgoing(ctx context.Context, msg Message) RecordDone

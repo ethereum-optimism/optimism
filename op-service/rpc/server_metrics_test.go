@@ -2,7 +2,9 @@ package rpc
 
 import (
 	"context"
+	"net/http"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -136,4 +138,44 @@ func TestServerRPCMetrics(t *testing.T) {
 	} {
 		require.Equal(t, want, values[key], key)
 	}
+}
+
+type notificationRecorder struct {
+	dones atomic.Int32
+}
+
+func (r *notificationRecorder) RecordIncoming(context.Context, jsonrpc.Message) jsonrpc.RecordDone {
+	return func(context.Context, jsonrpc.Response) { r.dones.Add(1) }
+}
+
+func (r *notificationRecorder) RecordOutgoing(context.Context, jsonrpc.Message) jsonrpc.RecordDone {
+	return nil
+}
+
+// TestServerRecordDoneNotCalledForNotifications checks that a RecordDone returned for a
+// notification is never called, as notifications get no response.
+func TestServerRecordDoneNotCalledForNotifications(t *testing.T) {
+	rec := new(notificationRecorder)
+	server := ServerFromConfig(&ServerConfig{
+		RpcOptions: []Option{
+			WithLogger(testlog.Logger(t, log.LevelInfo)),
+			WithRPCRecorder(rec),
+		},
+		Host:       "127.0.0.1",
+		Port:       0,
+		AppVersion: "test",
+	})
+	server.AddAPI(rpc.API{Namespace: "test", Service: new(metricsTestAPI)})
+	require.NoError(t, server.Start())
+	t.Cleanup(func() { require.NoError(t, server.Stop()) })
+
+	for _, body := range []string{
+		`{"jsonrpc":"2.0","method":"test_echo","params":[1]}`,
+		`{"jsonrpc":"2.0","id":1,"method":"test_echo","params":[1]}`,
+	} {
+		resp, err := http.Post("http://"+server.Endpoint(), "application/json", strings.NewReader(body))
+		require.NoError(t, err)
+		require.NoError(t, resp.Body.Close())
+	}
+	require.EqualValues(t, 1, rec.dones.Load(), "only the call's response is recorded")
 }

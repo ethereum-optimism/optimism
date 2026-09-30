@@ -22,11 +22,11 @@ type serverRecorder struct {
 }
 
 func (s serverRecorder) RecordIncoming(ctx context.Context, msg gethrpc.RecordedMsg) gethrpc.RecordDone {
-	return adaptRecordDone(s.rec.RecordIncoming(ctx, toMessage(msg)))
+	return adaptRecordDone(msg, s.rec.RecordIncoming(ctx, toMessage(msg)))
 }
 
 func (s serverRecorder) RecordOutgoing(ctx context.Context, msg gethrpc.RecordedMsg) gethrpc.RecordDone {
-	return adaptRecordDone(s.rec.RecordOutgoing(ctx, toMessage(msg)))
+	return adaptRecordDone(msg, s.rec.RecordOutgoing(ctx, toMessage(msg)))
 }
 
 func toMessage(msg gethrpc.RecordedMsg) jsonrpc.Message {
@@ -37,14 +37,13 @@ func toMessage(msg gethrpc.RecordedMsg) jsonrpc.Message {
 	return jsonrpc.Message{Method: msg.MsgMethod(), Params: msg.MsgParams()}
 }
 
-func adaptRecordDone(done jsonrpc.RecordDone) gethrpc.RecordDone {
-	if done == nil {
+// adaptRecordDone never returns a RecordDone for a notification: op-geth calls it with a typed nil
+// output for one, which a nil check cannot catch.
+func adaptRecordDone(msg gethrpc.RecordedMsg, done jsonrpc.RecordDone) gethrpc.RecordDone {
+	if done == nil || msg.MsgIsNotification() {
 		return nil
 	}
 	return func(ctx context.Context, _, output gethrpc.RecordedMsg) {
-		if output == nil { // no response, as for a notification
-			return
-		}
 		resp := jsonrpc.Response{Result: output.MsgResult()}
 		if err := output.MsgError(); err != nil {
 			resp.Error = &jsonrpc.Error{Code: err.Code, Message: err.Message, Data: err.Data}
