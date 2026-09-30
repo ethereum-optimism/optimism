@@ -13,7 +13,7 @@ use crate::{
     OpEthApiError, SequencerClient,
     eth::{receipt::OpReceiptConverter, transaction::OpTxInfoMapper},
 };
-use alloy_consensus::Header;
+use alloy_consensus::{Header, TxReceipt};
 use alloy_primitives::U256;
 use alloy_rpc_types_eth::Filter;
 use eyre::WrapErr;
@@ -28,7 +28,7 @@ use reth_evm::ConfigureEvm;
 use reth_node_api::{FullNodeComponents, FullNodeTypes, HeaderTy, NodeTypes};
 use reth_node_builder::rpc::{EthApiBuilder, EthApiCtx};
 use reth_optimism_flashblocks::{
-    FlashBlockBuildInfo, FlashBlockCompleteSequence, FlashBlockCompleteSequenceRx,
+    FlashBlock, FlashBlockBuildInfo, FlashBlockCompleteSequence, FlashBlockCompleteSequenceRx,
     FlashBlockConsensusClient, FlashBlockRx, FlashBlockService, FlashblockCachedReceipt,
     FlashblocksListeners, PendingBlockRx, PendingFlashBlock, WsFlashBlockStream,
 };
@@ -169,32 +169,13 @@ impl<N: RpcNodeCore, Rpc: RpcConvert> OpEthApi<N, Rpc> {
                             return futures::future::ready(Some(Vec::new()));
                         };
 
-                        let receipts =
-                            fb.metadata.receipts.iter().map(|(tx, receipt)| (*tx, receipt));
-
-                        // A flashblock is a payload, not a sealed block: only the number,
-                        // hash and timestamp the log fields need are known here, so the header
-                        // handed to the converter carries exactly those. Everything else is
-                        // zeroed and must not be read.
-                        let header = SealedHeader::new(
-                            Header { number: block_number, timestamp, ..Default::default() },
-                            fb.diff.block_hash,
-                        );
-
-                        let all_logs = match matching_block_logs_with_tx_hashes(
+                        let all_logs = flashblock_matching_logs(
                             &converter,
                             &filter,
-                            &header,
-                            receipts,
-                            false,
-                        ) {
-                            Ok(logs) => logs,
-                            // Unreachable with the current OP converter: `convert_log` always returns `Ok`.
-                            Err(err) => {
-                                warn!(target: "rpc::eth", %err, "failed to convert flashblock logs");
-                                Vec::new()
-                            }
-                        };
+                            &fb,
+                            block_number,
+                            timestamp,
+                        );
 
                         futures::future::ready(Some(all_logs))
                     },
@@ -481,6 +462,44 @@ impl<N: RpcNodeCore, Rpc: RpcConvert> OpEthApiInner<N, Rpc> {
     }
 }
 
+/// Returns the logs of `fb`'s receipts that match `filter`, converted to RPC logs.
+///
+/// `block_number` and `timestamp` come from the base flashblock of `fb`'s sequence.
+fn flashblock_matching_logs<Rpc>(
+    converter: &Rpc,
+    filter: &Filter,
+    fb: &FlashBlock,
+    block_number: u64,
+    timestamp: u64,
+) -> Vec<RpcLog<Rpc::Network>>
+where
+    Rpc: RpcConvert<Error = OpEthApiError>,
+    Rpc::Primitives: NodePrimitives<BlockHeader = Header, Receipt = OpReceipt>,
+{
+    let receipts = fb.metadata.receipts.iter().map(|(tx, receipt)| (*tx, receipt));
+
+    // A flashblock is a payload, not a sealed block, so the header handed to the log matcher
+    // carries only the fields it reads: number, hash and timestamp for the log fields, and a
+    // bloom over this flashblock's own logs for the bloom pre-filter (a zero bloom would reject
+    // every address or topic filter). Everything else is zeroed and must not be read.
+    let logs_bloom = alloy_primitives::logs_bloom(
+        fb.metadata.receipts.values().flat_map(|receipt| receipt.logs()),
+    );
+    let header = SealedHeader::new(
+        Header { number: block_number, timestamp, logs_bloom, ..Default::default() },
+        fb.diff.block_hash,
+    );
+
+    match matching_block_logs_with_tx_hashes(converter, filter, &header, receipts, false) {
+        Ok(logs) => logs,
+        // Unreachable with the current OP converter: `convert_log` always returns `Ok`.
+        Err(err) => {
+            warn!(target: "rpc::eth", %err, "failed to convert flashblock logs");
+            Vec::new()
+        }
+    }
+}
+
 /// Converter for OP RPC types.
 pub type OpRpcConvert<N, NetworkT> = RpcConverter<
     NetworkT,
@@ -684,5 +703,70 @@ where
             flashblocks,
             retain_forwarded_txs,
         ))
+    }
+}
+
+#[cfg(test)]
+mod flashblock_logs_tests {
+    use super::*;
+    use alloy_consensus::{Eip658Value, Receipt};
+    use alloy_primitives::{Address, B256, Log as PrimitiveLog, LogData};
+    use op_alloy_rpc_types_engine::OpFlashblockPayloadDelta;
+    use reth_optimism_chainspec::{OP_MAINNET, OpChainSpec};
+    use reth_optimism_evm::{OpEvmConfig, tx::OpTxEnvConverter};
+    use reth_optimism_primitives::OpPrimitives;
+    use reth_storage_api::noop::NoopProvider;
+    use rstest::rstest;
+
+    const EMITTER: Address = Address::repeat_byte(0xaa);
+    const OTHER: Address = Address::repeat_byte(0xbb);
+    const TOPIC: B256 = B256::repeat_byte(0x11);
+    const TX_HASH: B256 = B256::repeat_byte(0x22);
+    const BLOCK_HASH: B256 = B256::repeat_byte(0x33);
+
+    /// A non-base flashblock with a single receipt carrying one log emitted by `EMITTER` with topic
+    /// `TOPIC`.
+    fn flashblock_with_log() -> FlashBlock {
+        let log = PrimitiveLog {
+            address: EMITTER,
+            data: LogData::new_unchecked(vec![TOPIC], Default::default()),
+        };
+        let receipt = OpReceipt::Eip1559(Receipt {
+            status: Eip658Value::Eip658(true),
+            cumulative_gas_used: 21_000,
+            logs: vec![log],
+        });
+        let mut fb = FlashBlock {
+            index: 1,
+            diff: OpFlashblockPayloadDelta { block_hash: BLOCK_HASH, ..Default::default() },
+            ..Default::default()
+        };
+        fb.metadata.receipts.insert(TX_HASH, receipt);
+        fb
+    }
+
+    #[rstest]
+    #[case::empty_filter(Filter::new(), 1)]
+    #[case::matching_address(Filter::new().address(EMITTER), 1)]
+    #[case::matching_topic(Filter::new().event_signature(TOPIC), 1)]
+    #[case::other_address(Filter::new().address(OTHER), 0)]
+    fn flashblock_matching_logs_applies_filter(#[case] filter: Filter, #[case] expected: usize) {
+        let provider = NoopProvider::<OpChainSpec, OpPrimitives>::new(OP_MAINNET.clone());
+        let converter = RpcConverter::<Optimism, OpEvmConfig, _>::new(OpReceiptConverter::new(
+            provider.clone(),
+        ))
+        .with_mapper(OpTxInfoMapper::new(provider))
+        .with_tx_env_converter(OpTxEnvConverter);
+
+        let logs = flashblock_matching_logs(&converter, &filter, &flashblock_with_log(), 7, 1_000);
+
+        assert_eq!(logs.len(), expected, "filter {filter:?}");
+        for log in logs {
+            assert_eq!(log.address(), EMITTER);
+            assert_eq!(log.block_number, Some(7));
+            assert_eq!(log.block_hash, Some(BLOCK_HASH));
+            assert_eq!(log.transaction_hash, Some(TX_HASH));
+            assert_eq!(log.block_timestamp, Some(1_000));
+        }
     }
 }
