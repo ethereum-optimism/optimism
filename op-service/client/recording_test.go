@@ -26,14 +26,6 @@ type recordedCall struct {
 type capturingRecorder struct {
 	mu       sync.Mutex
 	outgoing []*recordedCall
-	incoming []jsonrpc.Message
-}
-
-func (r *capturingRecorder) RecordIncoming(_ context.Context, msg jsonrpc.Message) jsonrpc.RecordDone {
-	r.mu.Lock()
-	defer r.mu.Unlock()
-	r.incoming = append(r.incoming, msg)
-	return nil
 }
 
 func (r *capturingRecorder) RecordOutgoing(_ context.Context, msg jsonrpc.Message) jsonrpc.RecordDone {
@@ -55,12 +47,6 @@ func (r *capturingRecorder) calls() []*recordedCall {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	return append([]*recordedCall(nil), r.outgoing...)
-}
-
-func (r *capturingRecorder) notifications() []jsonrpc.Message {
-	r.mu.Lock()
-	defer r.mu.Unlock()
-	return append([]jsonrpc.Message(nil), r.incoming...)
 }
 
 type echoResult struct {
@@ -215,7 +201,6 @@ func TestRecordingSubscriptionNotRecorded(t *testing.T) {
 		}
 	}
 	require.Empty(t, rec.calls())
-	require.Empty(t, rec.notifications())
 }
 
 func TestRecordingCallNonPointerResult(t *testing.T) {
