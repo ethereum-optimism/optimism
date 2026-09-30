@@ -87,18 +87,14 @@ When a new finalized (non-rc) `op-reth/vX.Y.Z` tag is published:
 
 Running the generator twice in a row against the same binary is a no-op.
 
-## Automation registration
+## Regeneration in CI
 
-Regeneration runs as a review-gated Mintlify docs automation (the same
-mechanism as the nav and redirect lints in `DOCS_CONTRIBUTING.md` — content
-updates proposed for human review, never CI): on its weekly schedule it
-compares the newest finalized `op-reth/v*` tag against the tag in
-`manifest.json` and, when a newer release exists, regenerates per the steps
-above and proposes the change for human review, including the redirect
-entries for any deleted pages. Local `--check` runs cover the gap between
-scheduled runs. The automation prompt is recorded in the docs automation
-registry alongside the gen-flags and gen-deploy-config entries, not held as
-tribal knowledge.
+Regeneration is not yet automated. A monorepo CI job triggered by each
+finalized `op-reth/v*` tag will build the binary, regenerate, and open the
+pull request with the redirect entries for any deleted pages
+(ethereum-optimism/solutions#1518, Phase 2). Until it exists, regenerate
+locally per the steps above when a release is published; `--check` against a
+binary built at the manifest tag verifies the committed tree at any time.
 
 ## Ownership
 
@@ -110,15 +106,15 @@ model in the Solutions repo's
 
 | Artifact | Author of record | Reviewer | Stale-reference triage |
 | --- | --- | --- | --- |
-| Generator code + docs automation (this directory, the Mintlify automation config) | Matthew Cruz (@sbvegan), docs owner — proposed, pending confirmation | @ethereum-optimism/solutions (via the `/docs/public-docs/scripts/` CODEOWNERS rule) | Author of record |
-| Generated pages (`node-operators/op-reth/cli/op-reth*`) and the nav fragment | The pipeline — nobody hand-edits; `--check` fails on hand edits by construction | @ethereum-optimism/solutions review the automation's regeneration PRs | A tree that cannot be regenerated cleanly is filed as an `accuracy`-labelled issue on the Solutions board |
+| Generator code + its CI job (this directory, the regeneration workflow) | Matthew Cruz (@sbvegan), docs owner — proposed, pending confirmation | @ethereum-optimism/solutions (via the `/docs/public-docs/scripts/` CODEOWNERS rule) | Author of record |
+| Generated pages (`node-operators/op-reth/cli/op-reth*`) and the nav fragment | The pipeline — nobody hand-edits; `--check` fails on hand edits by construction | @ethereum-optimism/solutions review the regeneration PRs | A tree that cannot be regenerated cleanly is filed as an `accuracy`-labelled issue on the Solutions board |
 | CLI facts (`rust/op-reth` and the pinned upstream reth crates) | Component engineers | Component team | Component team; the docs tree follows at the next finalized release |
 
 Known residual gaps (accepted, by design):
 
 - The tree documents the manifest release tag, not `develop`. CLI changes
   merged after a release are intentionally not reflected until the next
-  finalized tag is published and the automation (or a maintainer)
+  finalized tag is published and the CI job (or a maintainer)
   regenerates.
 - `--check` needs a binary, so it cannot run as a pure content lint; the
   redirect and nav lints still guard the generated pages' URLs and nav
