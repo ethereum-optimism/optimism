@@ -8,7 +8,7 @@ use super::{
     tasks::{ExecuteBlockTask, IndexBlockTask, ReorgTask, SyncToTask, UnwindTask},
 };
 use crate::{OpProofStoragePruner, OpProofsStore};
-use alloy_eips::eip1898::BlockWithParent;
+use alloy_eips::{NumHash, eip1898::BlockWithParent};
 use crossbeam_channel::{Sender, bounded};
 use reth_evm::ConfigureEvm;
 use reth_primitives_traits::{NodePrimitives, RecoveredBlock};
@@ -17,15 +17,17 @@ use reth_provider::{
 };
 use reth_trie_common::{HashedPostStateSorted, updates::TrieUpdatesSorted};
 use std::{panic, sync::Arc, thread};
+use tokio::sync::watch;
 use tracing::error;
 
 /// A thin, cloneable handle used to communicate with the collector engine.
 ///
-/// Every public method (except [`Self::sync_to`]) sends an engine action to the
-/// engine thread and blocks on a one-shot reply channel.
+/// Mutation methods (except [`Self::sync_to`]) send an engine action to the engine thread and
+/// block on a one-shot reply channel.
 #[derive(Debug, Clone)]
 pub struct EngineHandle<Block: reth_primitives_traits::Block> {
     sender: Sender<EngineAction<Block>>,
+    indexed_height: watch::Receiver<Option<NumHash>>,
     _service_guard: Arc<ServiceGuard>,
 }
 
@@ -79,7 +81,8 @@ impl<Block: reth_primitives_traits::Block + Send + 'static> EngineHandle<Block> 
         Store: OpProofsStore + Clone + 'static,
     {
         let (tx, rx) = bounded(10);
-        let engine = Engine::new(evm_config, provider, storage, pruner, rx)
+        let (indexed_height_tx, indexed_height) = watch::channel(None);
+        let engine = Engine::new(evm_config, provider, storage, pruner, rx, indexed_height_tx)
             .with_persistence_threshold(persistence_threshold)
             .with_backpressure_threshold(backpressure_threshold);
 
@@ -97,7 +100,11 @@ impl<Block: reth_primitives_traits::Block + Send + 'static> EngineHandle<Block> 
             })
             .expect("failed to spawn live-trie-collector thread");
 
-        Self { sender: tx, _service_guard: Arc::new(ServiceGuard::new(join_handle)) }
+        Self {
+            sender: tx,
+            indexed_height,
+            _service_guard: Arc::new(ServiceGuard::new(join_handle)),
+        }
     }
 
     fn send_and_recv(
@@ -147,6 +154,11 @@ impl<Block: reth_primitives_traits::Block + Send + 'static> EngineHandle<Block> 
     /// Unwind indexed data back to `to` (first block number removed, inclusive).
     pub fn unwind(&self, to: BlockWithParent) -> Result<(), EngineError> {
         self.send_and_recv(|reply| EngineAction::Unwind(UnwindTask { to, reply }))
+    }
+
+    /// Subscribe to heights after they have been indexed by the engine.
+    pub fn subscribe_indexed_height(&self) -> watch::Receiver<Option<NumHash>> {
+        self.indexed_height.clone()
     }
 
     /// Update the sync catch-up target (fire-and-forget).
