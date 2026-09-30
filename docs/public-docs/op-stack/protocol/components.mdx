@@ -5,7 +5,7 @@ diataxis: explanation
 ---
 
 <Info>
-  **Learn the OP Stack — stop 4 of 13.**
+  **Learn the OP Stack — stop 5 of 14.**
   You know how OP Stack chains relate to Ethereum. This page names the
   conceptual layers of the stack and the software modules that fill them:
   the components you deploy in the next stop. When you're done, continue
@@ -13,6 +13,11 @@ diataxis: explanation
 </Info>
 
 **The OP Stack is a common development stack for building L2 blockchain ecosystems, built by the Optimism Collective to power Optimism.**
+
+This page is the canonical layer taxonomy: the six layers named here are the
+ones the rest of the documentation uses. For how the components interact at
+runtime, see [OP Stack architecture](/op-stack/architecture); for the hub page
+of each individual component, see [Stack Components](/op-stack/components/index).
 
 The OP Stack is best thought of as a collection of software components maintained by the Optimism Collective that either help to define new layers of the stack or fit in as modules within the stack.
 
@@ -25,6 +30,36 @@ Layers are generally more tightly defined towards the bottom of the stack (like 
   Please note that not all of the modules described on this page already exist in a production state — these are explicitly marked as either "**in development**" or "**proposed**."
 </Info>
 
+```mermaid
+graph TB
+  classDef chain fill:#FFE
+
+  subgraph stack[OP Stack layers]
+    direction TB
+    gov[Governance<br/>upgrades and parameters]
+    set[Settlement<br/>convinces L1 of L2 state]
+    exe[Execution<br/>state and the state transition]
+    der[Derivation<br/>compressed data to Engine API inputs]
+    seq[Sequencing<br/>collects and publishes transactions]
+    da[Data availability<br/>where the posted data lives]
+  end
+
+  seq -->|compresses and posts batches| da
+  da -->|compressed batches read by| der
+  der -->|block inputs via Engine API| exe
+  exe -->|state committed by| set
+  gov -.->|configures| set
+
+  class stack chain
+```
+
+The diagram follows the data rather than stacking the layers, so it does not
+match the bottom-to-top ordering the section above describes. Sequencing
+compresses L2 blocks into batches and posts them to the data
+availability layer; derivation reads those compressed batches back out and
+turns them into the inputs that rebuild the L2 chain. Each layer is a swap
+point: a chain picks one module per layer.
+
 ## Layers
 
 ### Data availability
@@ -36,7 +71,7 @@ The Data Availability Layer defines where the raw inputs to an OP Stack based ch
 Ethereum DA is currently the most widely used Data Availability module for the OP Stack. When using the Ethereum DA module, source data can be derived from any piece of information accessible on the Ethereum blockchain. This includes Ethereum calldata, events, and 4844 data blobs.
 
 *   [Specifications](https://specs.optimism.io/protocol/derivation.html?utm_source=op-docs&utm_medium=docs#batch-submission-wire-format)
-*   [Source code](https://github.com/ethereum-optimism/optimism/tree/v1.1.4/op-batcher) (as of `v1.1.4`)
+*   [Source code](https://github.com/ethereum-optimism/optimism/tree/develop/op-batcher)
 
 ### Sequencing
 
@@ -59,7 +94,7 @@ The Derivation Layer defines how the raw data in the Data Availability Layer is 
 The Rollup module derives Engine API inputs from Ethereum block data, Sequencer transaction batches, Deposited transaction events, and more.
 
 *   [Specifications](https://specs.optimism.io/protocol/derivation.html?utm_source=op-docs&utm_medium=docs#l2-chain-derivation-pipeline)
-*   [Source code](https://github.com/ethereum-optimism/optimism/tree/v1.1.4/op-node) (as of `v1.1.4`)
+*   [Source code](https://github.com/ethereum-optimism/optimism/tree/develop/op-node)
 
 #### Indexer
 
@@ -85,14 +120,21 @@ Once a transaction is published and finalized on the corresponding Data Availabi
 
 #### Attestation-based fault proof
 
+<Note>
+  **Superseded.** OP Mainnet settled this way until fault proofs activated on
+  June 10, 2024. It is described here because the Settlement Layer is a swap
+  point, and this is the module the OP Stack swapped out.
+</Note>
+
 An Attestation-based Fault Proof mechanism uses an optimistic protocol to establish a view of an OP Stack chain. In optimistic settlement mechanisms generally, **Proposer** entities can propose what they believe to be the current valid state of the OP Stack chain. If these proposals are not invalidated within a certain period of time (the "challenge period"), then the proposals are assumed by the mechanism to be correct. In the Attestation Proof mechanism in particular, a proposal can be invalidated if some threshold of pre-defined parties provide attestations to a valid state that is different than the state in the proposal. This places a trust assumption on the honesty of at least a threshold number of the pre-defined participants.
 
-*   [Specifications](https://specs.optimism.io/protocol/withdrawals.html?utm_source=op-docs&utm_medium=docs) (called [withdrawal transactions](/app-developers/guides/bridging/messaging))
-*   [Source code](https://github.com/ethereum-optimism/optimism/tree/v1.1.4/packages/contracts-bedrock/src) (as of `v1.1.4`)
+#### Fault proof optimistic settlement
 
-#### Fault Proof Optimistic Settlement
+**This is the Settlement Layer module OP Mainnet uses today**, activated on June 10, 2024. It replaces the attestation mechanism's MultiSig challenger with a permissionless fault proving process: anyone can propose the state of the chain, and anyone can challenge a proposal they believe is wrong. A correctly constructed fault proof invalidates an incorrect proposal within the challenge period, which moves the trust assumption off the honesty of a named set of participants and onto the correctness of the fault proof construction. The Optimism Security Council, acting as the [Guardian](/op-stack/protocol/privileged-roles#guardian), is the backstop if that construction fails.
 
-A Fault Proof Optimistic Settlement mechanism is mostly identical to the Attestation-based Fault Proof mechanism used today but it replaces the MultiSig challenger with a permissionless fault proving process. A correctly constructed fault proof should be able to invalidate any incorrect proposals during the allocated challenge period. This places a trust assumption on the correctness of the fault proof construction. At this time, work on the development of a Fault Proof mechanism is well underway.
+*   [Specifications](https://specs.optimism.io/fault-proof/index.html?utm_source=op-docs&utm_medium=docs)
+*   [Fault proofs explainer](/op-stack/fault-proofs/explainer)
+*   [Source code](https://github.com/ethereum-optimism/optimism/tree/develop/packages/contracts-bedrock/src/dispute)
 
 #### Validity Proof Settlement 
 

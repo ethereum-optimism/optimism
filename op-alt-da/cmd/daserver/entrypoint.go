@@ -7,7 +7,7 @@ import (
 
 	altda "github.com/ethereum-optimism/optimism/op-alt-da"
 	"github.com/ethereum-optimism/optimism/op-service/ctxinterrupt"
-	oplog "github.com/ethereum-optimism/optimism/op-service/log"
+	"github.com/ethereum-optimism/optimism/op-service/log/logcli"
 )
 
 func StartDAServer(cliCtx *cli.Context) error {
@@ -20,10 +20,10 @@ func StartDAServer(cliCtx *cli.Context) error {
 		return err
 	}
 
-	logCfg := oplog.ReadCLIConfig(cliCtx)
+	logCfg := logcli.ReadCLIConfig(cliCtx)
 
-	l := oplog.NewLogger(oplog.AppOut(cliCtx), logCfg)
-	oplog.SetGlobalLogHandler(l.Handler())
+	l := logcli.NewLogger(logcli.AppOut(cliCtx), logCfg)
+	logcli.SetGlobalLogHandler(l.Handler())
 
 	l.Info("Initializing AltDA server...")
 

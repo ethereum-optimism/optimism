@@ -8,11 +8,11 @@ import (
 	opnodecfg "github.com/ethereum-optimism/optimism/op-node/config"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
+	oplog "github.com/ethereum-optimism/optimism/op-service/log"
 	opmetrics "github.com/ethereum-optimism/optimism/op-service/metrics"
 	"github.com/ethereum-optimism/optimism/op-service/sources"
 	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/common"
-	gethlog "github.com/ethereum/go-ethereum/log"
 )
 
 // EngineController abstracts access to the L2 execution layer
@@ -60,16 +60,16 @@ type l2Provider interface {
 type simpleEngineController struct {
 	l2     l2Provider
 	rollup *rollup.Config
-	log    gethlog.Logger
+	log    oplog.Logger
 }
 
 // NewEngineControllerWithL2 wraps an existing L2 provider.
 func NewEngineControllerWithL2(l2 l2Provider) EngineController {
-	return &simpleEngineController{l2: l2, log: gethlog.New()}
+	return &simpleEngineController{l2: l2, log: oplog.New()}
 }
 
 func NewEngineControllerWithL2AndRollup(l2 l2Provider, rollup *rollup.Config) EngineController {
-	return &simpleEngineController{l2: l2, rollup: rollup, log: gethlog.New()}
+	return &simpleEngineController{l2: l2, rollup: rollup, log: oplog.New()}
 }
 
 // NewEngineControllerFromConfig builds an engine client from the op-node L2 endpoint config.
@@ -80,7 +80,7 @@ func NewEngineControllerWithL2AndRollup(l2 l2Provider, rollup *rollup.Config) En
 // first use and reconnects on demand, which is what lets interop recover once the EL comes up
 // without restarting the virtual node. Lazy is applied to a copy of the endpoint config so the
 // virtual node, which shares vncfg.L2, keeps its eager-dial behavior.
-func NewEngineControllerFromConfig(ctx context.Context, log gethlog.Logger, vncfg *opnodecfg.Config) (EngineController, error) {
+func NewEngineControllerFromConfig(ctx context.Context, log oplog.Logger, vncfg *opnodecfg.Config) (EngineController, error) {
 	l2Setup := vncfg.L2
 	if l2cfg, ok := l2Setup.(*opnodecfg.L2EndpointConfig); ok {
 		lazyCfg := *l2cfg

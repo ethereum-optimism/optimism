@@ -36,12 +36,7 @@ pub struct TxDeposit {
     /// Field indicating if this transaction is exempt from the L2 gas limit.
     #[cfg_attr(
         feature = "serde",
-        serde(
-            default,
-            with = "alloy_serde::quantity",
-            rename = "isSystemTx",
-            skip_serializing_if = "core::ops::Not::not"
-        )
+        serde(default, rename = "isSystemTx", skip_serializing_if = "core::ops::Not::not")
     )]
     pub is_system_transaction: bool,
     /// Input has two uses depending if transaction is Create or Call (if `to` field is None or

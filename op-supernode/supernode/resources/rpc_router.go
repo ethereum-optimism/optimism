@@ -8,7 +8,7 @@ import (
 	"sync"
 	"time"
 
-	gethlog "github.com/ethereum/go-ethereum/log"
+	oplog "github.com/ethereum-optimism/optimism/op-service/log"
 )
 
 const (
@@ -30,7 +30,7 @@ type chainRoute struct {
 
 // Router multiplexes JSON-RPC requests by the first path segment which represents the chainID.
 type Router struct {
-	log          gethlog.Logger
+	log          oplog.Logger
 	cfg          RouterConfig
 	mu           sync.RWMutex
 	routes       map[string]*chainRoute // chainID -> route
@@ -41,7 +41,7 @@ type Router struct {
 }
 
 // NewRouter constructs an empty Router. Handlers can be added later via SetHandler.
-func NewRouter(log gethlog.Logger, cfg RouterConfig) *Router {
+func NewRouter(log oplog.Logger, cfg RouterConfig) *Router {
 	gateTimeout := cfg.GateTimeout
 	if gateTimeout == 0 {
 		gateTimeout = defaultGateTimeout

@@ -5,7 +5,6 @@ import (
 	"time"
 
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/log"
 	"github.com/stretchr/testify/require"
 
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
@@ -15,6 +14,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/clock"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/eth/safety"
+	"github.com/ethereum-optimism/optimism/op-service/log"
 	"github.com/ethereum-optimism/optimism/op-service/txplan"
 )
 
@@ -231,7 +231,7 @@ func (s *TwoL2SupernodeInterop) ForSameTimestampTesting(t devtest.T) *SameTimest
 	// Sync chains and pause interop
 	s.L2B.CatchUpTo(s.L2A)
 	s.L2A.CatchUpTo(s.L2B)
-	s.Supernode.EnsureInteropPaused(s.L2ACL, s.L2BCL, 10)
+	s.Supernode.EnsureInteropPaused(10, s.L2ACL, s.L2BCL)
 
 	// Stop sequencers
 	s.L2ACL.StopSequencer()

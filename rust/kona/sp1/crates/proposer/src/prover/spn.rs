@@ -2,6 +2,7 @@
 
 use std::{future::Future, num::NonZeroU64, sync::Arc, time::Duration};
 
+use alloy_primitives::U256;
 use anyhow::{Result, bail};
 use async_trait::async_trait;
 use kona_sp1_host_utils::metrics::MetricsGauge;
@@ -20,7 +21,10 @@ use sp1_sdk::{
 use tokio::time::sleep;
 
 use super::{ProofId, ProofKeys, ProofTerminalState, ProofWaitError};
-use crate::{config::ProofProviderConfig, metrics::ProposerGauge};
+use crate::{
+    config::ProofProviderConfig,
+    metrics::{ProposerGauge, token_balance},
+};
 
 #[cfg(test)]
 use alloy_primitives::B256;
@@ -38,6 +42,8 @@ fn current_timestamp() -> u64 {
 }
 #[async_trait]
 trait NetworkProverApi: Send + Sync {
+    async fn get_balance(&self) -> Result<U256>;
+
     async fn request_range_proof(
         &self,
         proving_key: &SP1ProvingKey,
@@ -74,6 +80,10 @@ struct Sp1NetworkProverApi {
 
 #[async_trait]
 impl NetworkProverApi for Sp1NetworkProverApi {
+    async fn get_balance(&self) -> Result<U256> {
+        self.prover.get_balance().await
+    }
+
     async fn request_range_proof(
         &self,
         proving_key: &SP1ProvingKey,
@@ -180,6 +190,14 @@ impl NetworkProofProvider {
         network_mode: NetworkMode,
     ) -> Self {
         Self { api, config, network_mode }
+    }
+
+    pub(super) async fn balance(&self) -> Result<f64> {
+        // This trusts SP1's balance encoding. The SDK returns transport errors,
+        // but panics on a malformed successful response.
+        let balance =
+            self.network_call_with_timeout(self.api.get_balance(), "get_balance", None).await?;
+        Ok(token_balance(balance))
     }
 
     pub(super) async fn request_range_proof(
@@ -315,7 +333,7 @@ impl NetworkProofProvider {
         self.network_call_with_timeout(
             self.api.get_proof_status(proof_id),
             "get_proof_status",
-            proof_id,
+            Some(proof_id),
         )
         .await
     }
@@ -324,7 +342,7 @@ impl NetworkProofProvider {
         self.network_call_with_timeout(
             self.api.get_proof_request(proof_id),
             "get_proof_request",
-            proof_id,
+            Some(proof_id),
         )
         .await
     }
@@ -383,7 +401,7 @@ impl NetworkProofProvider {
         self.network_call_with_timeout(
             self.api.cancel_request(proof_id),
             "cancel_request",
-            proof_id,
+            Some(proof_id),
         )
         .await
         .map_err(|err| {
@@ -454,7 +472,7 @@ impl NetworkProofProvider {
         &self,
         future: F,
         operation: &str,
-        proof_id: ProofId,
+        proof_id: Option<ProofId>,
     ) -> Result<T>
     where
         F: Future<Output = Result<T, anyhow::Error>>,
@@ -463,14 +481,14 @@ impl NetworkProofProvider {
         match tokio::time::timeout(Duration::from_secs(timeout_secs), future).await {
             Ok(Ok(result)) => Ok(result),
             Ok(Err(err)) => {
-                tracing::warn!(proof_id = %proof_id, operation, error = %err, "Network error");
+                tracing::warn!(?proof_id, operation, error = %err, "Network error");
                 Err(err)
             }
             Err(_) => {
-                tracing::warn!(proof_id = %proof_id, operation, timeout_secs, "Network call timed out");
+                tracing::warn!(?proof_id, operation, timeout_secs, "Network call timed out");
                 ProposerGauge::NetworkCallTimeout.increment(1.0);
                 bail!(
-                    "Network timeout after {}s for {} (proof_id={})",
+                    "Network timeout after {}s for {} (proof_id={:?})",
                     timeout_secs,
                     operation,
                     proof_id
@@ -479,6 +497,7 @@ impl NetworkProofProvider {
         }
     }
 }
+
 /// Client-side proof request timeout status.
 #[derive(Debug, PartialEq, Eq)]
 enum ProvingTimeout {
@@ -638,6 +657,10 @@ mod tests {
 
     #[async_trait]
     impl NetworkProverApi for ScriptedNetworkApi {
+        async fn get_balance(&self) -> Result<U256> {
+            bail!("unexpected balance request")
+        }
+
         async fn request_range_proof(
             &self,
             _proving_key: &SP1ProvingKey,

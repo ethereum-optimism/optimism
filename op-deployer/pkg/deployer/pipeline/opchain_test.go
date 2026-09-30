@@ -452,6 +452,18 @@ func TestBuildContinuationDCI_PermissionedInputs(t *testing.T) {
 	require.Nil(t, st.SuperchainDeployment)
 }
 
+func TestBuildContinuationDCI_RejectsInvalidCommittedPermissionedAnchor(t *testing.T) {
+	chainID := common.HexToHash("0x0300")
+	for _, gameType := range []embedded.GameType{embedded.GameTypePermissionedCannon, embedded.GameTypeSuperPermissioned} {
+		t.Run(fmt.Sprint(gameType), func(t *testing.T) {
+			_, _, st := continuationDCITestInputs(chainID, gameType)
+			st.Chains[0].StartingAnchorRoot.Root = common.Hash{}
+			_, err := BuildContinuationDCI(chainID, st)
+			require.ErrorContains(t, err, "no valid starting anchor")
+		})
+	}
+}
+
 func TestBuildContinuationDCI_FailClosedGates(t *testing.T) {
 	chainID := common.HexToHash("0x0300")
 	otherChainID := common.HexToHash("0x0301")
@@ -988,7 +1000,7 @@ func TestIsSuperGameType(t *testing.T) {
 		{name: "SUPER_CANNON_KONA", gameType: embedded.GameTypeSuperCannonKona, expected: true},
 		{name: "CANNON_KONA", gameType: embedded.GameTypeCannonKona, expected: false},
 		{name: "PERMISSIONED_CANNON", gameType: embedded.GameTypePermissionedCannon, expected: false},
-		{name: "SUPER_PERMISSIONED", gameType: embedded.GameTypeSuperPermissioned, expected: false},
+		{name: "SUPER_PERMISSIONED", gameType: embedded.GameTypeSuperPermissioned, expected: true},
 	}
 
 	for _, tt := range tests {

@@ -5,7 +5,7 @@ version: 2.1
 # It is merged with main.yml and rust-ci.yml when rust/** changes are detected.
 # Shared orbs, commands, and jobs come from main.yml and rust-ci.yml during merge.
 orbs:
-  utils: ethereum-optimism/circleci-utils@1.0.31
+  utils: ethereum-optimism/circleci-utils@1.0.32
 
 parameters:
   c-default_docker_image:
@@ -463,6 +463,8 @@ workflows:
           directory: rust
           profile: release
           persist_to_workspace: true
+          # Release-build linking OOMs xlarge.gen2.
+          resource_class: 2xlarge.gen2
           context:
             - circleci-repo-readonly-authenticated-github-token
             - sccache-gcs-optimism
@@ -500,21 +502,24 @@ workflows:
             - contracts-bedrock-build
           context:
             - circleci-repo-readonly-authenticated-github-token
-      - kona-build-sp1-elfs:
-          context:
-            - circleci-repo-readonly-authenticated-github-token
-            - sccache-gcs-optimism
+      # No kona-build-sp1-elfs here on purpose: main runs the identical job
+      # (same template, no parameters, same contexts) and gates it through
+      # ci-gate, and main runs in every case rust-e2e-ci does, so a copy in
+      # this workflow is duplicated work.
       # -----------------------------------------------------------------------
       # Required gate — fans in on all E2E test jobs
       # -----------------------------------------------------------------------
       - required-rust-e2e:
           requires:
+            # Gated directly, not just through the e2e jobs below: a failed
+            # build leaves them unrun rather than failed, and this workflow is
+            # now the only place the release build happens.
+            - rust-workspace-release: terminal
             - rust-e2e-simple-kona: terminal
             - rust-e2e-simple-kona-sequencer: terminal
             - rust-e2e-restart: terminal
             - op-reth-e2e-sysgo-tests: terminal
             - kona-proof-action-single: terminal
-            - kona-build-sp1-elfs: terminal
           context:
             - circleci-api-token
   rust-e2e-gate-skip:
@@ -547,6 +552,8 @@ workflows:
           directory: rust
           profile: release
           persist_to_workspace: true
+          # Release-build linking OOMs xlarge.gen2.
+          resource_class: 2xlarge.gen2
           context:
             - circleci-repo-readonly-authenticated-github-token
             - sccache-gcs-optimism

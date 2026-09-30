@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/hashicorp/raft"
 	"github.com/stretchr/testify/require"
 
 	"github.com/ethereum-optimism/optimism/op-service/eth"
@@ -717,4 +718,64 @@ func TestPersistence_AfterClear(t *testing.T) {
 	latest, ok := db2.LatestSealedBlock()
 	require.True(t, ok)
 	require.Equal(t, fresh, latest)
+}
+
+// sealTwoBlocksThenDropEntry1 seals blocks 0 and 1, then removes the stored entry
+// for block 1. A read of block 1 then fails inside the WAL.
+func sealTwoBlocksThenDropEntry1(t *testing.T) *DB {
+	t.Helper()
+	db := tempDB(t)
+	parent := blockID(0, 0xA0)
+	require.NoError(t, db.SealBlock(common.Hash{}, parent, 100))
+	require.NoError(t, db.SealBlock(parent.Hash, blockID(1, 0x01), 200))
+	require.NoError(t, db.w.DeleteRange(indexFor(1), indexFor(1)))
+	return db
+}
+
+// TestReadsMarkDatabaseFailure proves that every read method marks an infrastructure
+// fault with interop.ErrDatabaseFailure. A data verdict must stay unmarked.
+func TestReadsMarkDatabaseFailure(t *testing.T) {
+	t.Run("MissingEntry", func(t *testing.T) {
+		db := sealTwoBlocksThenDropEntry1(t)
+		requireReadsMarkDatabaseFailure(t, db)
+	})
+
+	t.Run("CorruptRecord", func(t *testing.T) {
+		db := sealTwoBlocksThenDropEntry1(t)
+		// Write a payload that is too short to decode as a block record.
+		require.NoError(t, db.w.StoreLogs([]*raft.Log{{Index: indexFor(1), Data: []byte{0x01, 0x02}}}))
+		requireReadsMarkDatabaseFailure(t, db)
+	})
+
+	t.Run("DataVerdictStaysUnmarked", func(t *testing.T) {
+		db := tempDB(t)
+		parent := blockID(0, 0xA0)
+		require.NoError(t, db.SealBlock(common.Hash{}, parent, 100))
+
+		_, err := db.FindSealedBlock(99)
+		require.ErrorIs(t, err, interop.ErrFuture)
+		require.NotErrorIs(t, err, interop.ErrDatabaseFailure)
+
+		_, err = db.Contains(messages.ContainsQuery{BlockNum: 99, Timestamp: 100})
+		require.ErrorIs(t, err, interop.ErrFuture)
+		require.NotErrorIs(t, err, interop.ErrDatabaseFailure)
+	})
+}
+
+// requireReadsMarkDatabaseFailure asserts that each read of block 1 reports an
+// infrastructure fault.
+func requireReadsMarkDatabaseFailure(t *testing.T, db *DB) {
+	t.Helper()
+
+	_, err := db.Contains(messages.ContainsQuery{BlockNum: 1, Timestamp: 200})
+	require.ErrorIs(t, err, interop.ErrDatabaseFailure, "Contains")
+
+	_, err = db.FindSealedBlock(1)
+	require.ErrorIs(t, err, interop.ErrDatabaseFailure, "FindSealedBlock")
+
+	_, _, _, err = db.OpenBlock(1)
+	require.ErrorIs(t, err, interop.ErrDatabaseFailure, "OpenBlock")
+
+	err = db.Rewind(blockID(1, 0x01))
+	require.ErrorIs(t, err, interop.ErrDatabaseFailure, "Rewind")
 }

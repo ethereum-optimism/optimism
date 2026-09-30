@@ -21,7 +21,6 @@ type Metricer interface {
 	RecordLoopExecutionTime(duration float64)
 	RecordRollupBoostConnectionAttempts(success bool, source string)
 	RecordWebSocketClientCount(count int)
-	opmetrics.RPCMetricer
 }
 
 // Metrics implementation must implement RegistryMetricer to allow the metrics server to work.
@@ -31,8 +30,6 @@ type Metrics struct {
 	ns       string
 	registry *prometheus.Registry
 	factory  opmetrics.Factory
-
-	opmetrics.RPCMetrics
 
 	info prometheus.GaugeVec
 	up   prometheus.Gauge
@@ -62,8 +59,6 @@ func NewMetrics() *Metrics {
 		ns:       Namespace,
 		registry: registry,
 		factory:  factory,
-
-		RPCMetrics: opmetrics.MakeRPCMetrics(Namespace, factory),
 
 		info: *factory.NewGaugeVec(prometheus.GaugeOpts{
 			Namespace: Namespace,

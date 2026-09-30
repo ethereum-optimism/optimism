@@ -73,7 +73,7 @@ func runInteropInvalidMessageReplacementScenario(t devtest.T, sys *presets.TwoL2
 
 	// Pause interop and verify it has stopped
 	// Uses max local safe timestamp from both chains, pauses at +10, awaits validation at +9
-	paused := sys.Supernode.EnsureInteropPaused(sys.L2ACL, sys.L2BCL, 10)
+	paused := sys.Supernode.EnsureInteropPaused(10, sys.L2ACL, sys.L2BCL)
 	t.Logger().Info("interop paused", "paused", paused)
 
 	rng := rand.New(rand.NewSource(12345))

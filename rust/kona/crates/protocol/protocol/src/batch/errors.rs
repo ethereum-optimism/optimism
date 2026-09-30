@@ -94,4 +94,8 @@ pub enum SpanDecodingError {
     /// Invalid transaction signature
     #[error("Invalid transaction signature")]
     InvalidTransactionSignature,
+    /// A post-exec (`0x7D`) transaction does not carry the span batch slot values the Lagoon
+    /// spec fixes for it.
+    #[error("Invalid post-exec transaction span batch slots")]
+    InvalidPostExecSlots,
 }

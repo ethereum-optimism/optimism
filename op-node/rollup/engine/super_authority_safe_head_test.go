@@ -337,3 +337,47 @@ func TestFinalizedHead_HoldPrevious_NoCache_ReturnsZero(t *testing.T) {
 	require.Equal(t, common.Hash{}, got.Hash,
 		"resulting ForkchoiceUpdate sends a zero finalized hash, preserving the EL's own label")
 }
+
+// TestSafeL2Head_VerifiedAheadOfLocalSafe_UsesCrossSafeCache checks that the
+// stale verified head window still keeps the last verified block, as long as
+// that block is canonical and at or below local-safe.
+func TestSafeL2Head_VerifiedAheadOfLocalSafe_UsesCrossSafeCache(t *testing.T) {
+	localSafe := eth.L2BlockRef{Hash: common.Hash{0xaa}, Number: 100}
+	localFinalized := eth.L2BlockRef{Hash: common.Hash{0xbb}, Number: 40}
+	cached := eth.L2BlockRef{Hash: common.Hash{0xcc}, Number: 80}
+	staleVerified := eth.BlockID{Hash: common.Hash{0xff}, Number: 200}
+
+	mockEngine := &testutils.MockEngine{}
+	emitter := &testutils.MockEmitter{}
+	sa := &mockSuperAuthority{
+		fullyVerifiedL2Head:       cached.ID(),
+		fullyVerifiedL2HeadSource: rollup.VerifierHeadVerified,
+		finalizedL2HeadSource:     rollup.VerifierHeadPreActivation,
+	}
+	ec := NewEngineController(
+		context.Background(),
+		mockEngine,
+		testlog.Logger(t, 0),
+		metrics.NoopMetrics,
+		&rollup.Config{},
+		&sync.Config{},
+		&testutils.MockL1Source{},
+		emitter,
+		sa,
+	)
+	ec.SetLocalSafeHead(localSafe)
+	ec.SetFinalizedHead(localFinalized)
+	defer mockEngine.AssertExpectations(t)
+
+	// First round fills the cross-safe cache with the verified block.
+	mockEngine.ExpectL2BlockRefByHash(cached.Hash, cached, nil)
+	mockEngine.ExpectL2BlockRefByNumber(cached.Number, cached, nil)
+	require.Equal(t, cached, ec.SafeL2Head())
+
+	// The verified head then jumps ahead of local-safe.
+	sa.fullyVerifiedL2Head = staleVerified
+	mockEngine.ExpectL2BlockRefByNumber(cached.Number, cached, nil)
+
+	got := ec.SafeL2Head()
+	require.Equal(t, cached, got, "the controller must reuse the cached verified block")
+}

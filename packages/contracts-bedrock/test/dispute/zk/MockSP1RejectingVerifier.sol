@@ -11,6 +11,11 @@ contract MockSP1RejectingVerifier is ISP1Verifier {
         return "v6.0.0";
     }
 
+    /// @notice Returns a fixed sentinel hash.
+    function VERIFIER_HASH() external pure returns (bytes32) {
+        return keccak256("MockSP1RejectingVerifier");
+    }
+
     /// @notice Always reverts.
     function verifyProof(bytes32, bytes calldata, bytes calldata) external pure {
         revert("SP1Verifier: invalid proof");

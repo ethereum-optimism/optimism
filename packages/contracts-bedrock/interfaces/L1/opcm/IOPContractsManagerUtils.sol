@@ -7,8 +7,8 @@ import { IAddressManager } from "interfaces/legacy/IAddressManager.sol";
 import { IDisputeGame } from "interfaces/dispute/IDisputeGame.sol";
 import { IAnchorStateRegistry } from "interfaces/dispute/IAnchorStateRegistry.sol";
 import { IDelayedWETH } from "interfaces/dispute/IDelayedWETH.sol";
-import { ISystemConfig } from "interfaces/L1/ISystemConfig.sol";
 import { Claim, Duration, GameType } from "src/dispute/lib/Types.sol";
+import { ISystemConfig } from "interfaces/L1/ISystemConfig.sol";
 
 interface IOPContractsManagerUtils {
     struct ProxyDeployArgs {
@@ -164,7 +164,9 @@ interface IOPContractsManagerUtils {
         view
         returns (bytes memory);
 
-    function systemConfigFor(ISystemConfig _default, address _target) external view returns (ISystemConfig);
+    function isPermittedUpgradeSequence(ISystemConfig _systemConfig, address _opcm) external view returns (bool);
+
+    function isPermittedMigrateSequence(ISystemConfig _systemConfig, address _opcm) external view returns (bool);
 
     function __constructor__(IOPContractsManagerContainer _contractsContainer) external;
 }

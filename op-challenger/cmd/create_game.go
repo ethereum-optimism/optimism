@@ -10,7 +10,7 @@ import (
 	gameTypes "github.com/ethereum-optimism/optimism/op-challenger/game/types"
 	"github.com/ethereum-optimism/optimism/op-challenger/tools"
 	opservice "github.com/ethereum-optimism/optimism/op-service"
-	oplog "github.com/ethereum-optimism/optimism/op-service/log"
+	"github.com/ethereum-optimism/optimism/op-service/log/logcli"
 	"github.com/ethereum-optimism/optimism/op-service/sources/batching"
 	"github.com/ethereum-optimism/optimism/op-service/txmgr"
 	"github.com/ethereum/go-ethereum/common"
@@ -75,7 +75,7 @@ func createGameFlags() []cli.Flag {
 		L2ChainIDFlag,
 	}
 	cliFlags = append(cliFlags, txmgr.CLIFlagsWithDefaults(flags.EnvVarPrefix, txmgr.DefaultChallengerFlagValues)...)
-	cliFlags = append(cliFlags, oplog.CLIFlags(flags.EnvVarPrefix)...)
+	cliFlags = append(cliFlags, logcli.CLIFlags(flags.EnvVarPrefix)...)
 	return cliFlags
 }
 

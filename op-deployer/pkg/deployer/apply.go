@@ -23,10 +23,10 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/bigs"
 	opcrypto "github.com/ethereum-optimism/optimism/op-service/crypto"
 	"github.com/ethereum-optimism/optimism/op-service/ctxinterrupt"
-	oplog "github.com/ethereum-optimism/optimism/op-service/log"
+	"github.com/ethereum-optimism/optimism/op-service/log"
+	"github.com/ethereum-optimism/optimism/op-service/log/logcli"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/ethclient"
-	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/rpc"
 	"github.com/urfave/cli/v2"
 )
@@ -80,9 +80,9 @@ func (a *ApplyConfig) Check() error {
 
 func ApplyCLI() func(cliCtx *cli.Context) error {
 	return func(cliCtx *cli.Context) error {
-		logCfg := oplog.ReadCLIConfig(cliCtx)
-		l := oplog.NewLogger(oplog.AppOut(cliCtx), logCfg)
-		oplog.SetGlobalLogHandler(l.Handler())
+		logCfg := logcli.ReadCLIConfig(cliCtx)
+		l := logcli.NewLogger(logcli.AppOut(cliCtx), logCfg)
+		logcli.SetGlobalLogHandler(l.Handler())
 
 		l1RPCUrl := cliCtx.String(L1RPCURLFlagName)
 		workdir := cliCtx.String(WorkdirFlagName)
@@ -202,9 +202,12 @@ type ApplyPipelineOpts struct {
 	UseForge           bool
 	// DeployMockSP1Verifier is a test-only opt-in for development environments.
 	DeployMockSP1Verifier bool
-	PrivateKey            string
-	Workdir               string
-	ReceiptQueryInterval  time.Duration
+	// AllowUnoptimizedContracts is a test-only opt-in that lets oversized dev-profile
+	// artifacts build an L2 genesis. A genesis deployment always allows them.
+	AllowUnoptimizedContracts bool
+	PrivateKey                string
+	Workdir                   string
+	ReceiptQueryInterval      time.Duration
 }
 
 func ApplyPipeline(
@@ -330,7 +333,7 @@ func ApplyPipeline(
 		UseForge:                  opts.UseForge,
 		IsGenesis:                 opts.DeploymentTarget == DeploymentTargetGenesis,
 		DeployMockSP1Verifier:     opts.DeployMockSP1Verifier,
-		AllowUnoptimizedContracts: opts.DeploymentTarget == DeploymentTargetGenesis,
+		AllowUnoptimizedContracts: opts.DeploymentTarget == DeploymentTargetGenesis || opts.AllowUnoptimizedContracts,
 		L1RPCUrl:                  opts.L1RPCUrl,
 		PrivateKey:                opts.PrivateKey,
 		Context:                   ctx,

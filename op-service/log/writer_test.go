@@ -7,8 +7,6 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"github.com/ethereum/go-ethereum/log"
-
 	. "github.com/ethereum-optimism/optimism/op-service/log"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
 )
@@ -23,23 +21,23 @@ func TestLogWriter(t *testing.T) {
 	}
 
 	t.Run("LogSingleLine", func(t *testing.T) {
-		writer, logs := setup(t, log.LevelInfo)
+		writer, logs := setup(t, LevelInfo)
 		line := []byte("Test line\n")
 		count, err := writer.Write(line)
 		require.NoError(t, err)
 		require.Equal(t, len(line), count)
-		levelFilter := testlog.NewLevelFilter(log.LevelInfo)
+		levelFilter := testlog.NewLevelFilter(LevelInfo)
 		msgFilter := testlog.NewMessageFilter("Test line")
 		require.NotNil(t, logs.FindLog(levelFilter, msgFilter))
 	})
 
 	t.Run("LogMultipleLines", func(t *testing.T) {
-		writer, logs := setup(t, log.LevelInfo)
+		writer, logs := setup(t, LevelInfo)
 		line := []byte("Line 1\nLine 2\n")
 		count, err := writer.Write(line)
 		require.NoError(t, err)
 		require.Equal(t, len(line), count)
-		levelFilter := testlog.NewLevelFilter(log.LevelInfo)
+		levelFilter := testlog.NewLevelFilter(LevelInfo)
 		lineOneFilter := testlog.NewMessageFilter("Line 1")
 		lineTwoFilter := testlog.NewMessageFilter("Line 2")
 		require.NotNil(t, logs.FindLog(levelFilter, lineOneFilter))
@@ -47,12 +45,12 @@ func TestLogWriter(t *testing.T) {
 	})
 
 	t.Run("LogLineAcrossMultipleCalls", func(t *testing.T) {
-		writer, logs := setup(t, log.LevelInfo)
+		writer, logs := setup(t, LevelInfo)
 		line := []byte("First line\nSplit ")
 		count, err := writer.Write(line)
 		require.NoError(t, err)
 		require.Equal(t, len(line), count)
-		levelFilter := testlog.NewLevelFilter(log.LevelInfo)
+		levelFilter := testlog.NewLevelFilter(LevelInfo)
 		msgFilter := testlog.NewMessageFilter("First line")
 		require.NotNil(t, logs.FindLog(levelFilter, msgFilter))
 
@@ -60,7 +58,7 @@ func TestLogWriter(t *testing.T) {
 		count, err = writer.Write(line)
 		require.NoError(t, err)
 		require.Equal(t, len(line), count)
-		levelFilter = testlog.NewLevelFilter(log.LevelInfo)
+		levelFilter = testlog.NewLevelFilter(LevelInfo)
 		splitLineFilter := testlog.NewMessageFilter("Split Line")
 		lastLineFilter := testlog.NewMessageFilter("Last Line")
 		require.NotNil(t, logs.FindLog(levelFilter, splitLineFilter))
@@ -68,7 +66,7 @@ func TestLogWriter(t *testing.T) {
 	})
 
 	// Can't test LevelCrit or it will call os.Exit
-	for _, lvl := range []slog.Level{log.LevelTrace, log.LevelDebug, log.LevelInfo, log.LevelWarn, log.LevelError} {
+	for _, lvl := range []slog.Level{LevelTrace, LevelDebug, LevelInfo, LevelWarn, LevelError} {
 		lvl := lvl
 		t.Run("LogLevel_"+lvl.String(), func(t *testing.T) {
 			writer, logs := setup(t, lvl)
@@ -83,13 +81,13 @@ func TestLogWriter(t *testing.T) {
 	}
 
 	t.Run("UseErrorForUnknownLevels", func(t *testing.T) {
-		logger, logs := testlog.CaptureLogger(t, log.LevelInfo)
+		logger, logs := testlog.CaptureLogger(t, LevelInfo)
 		writer := NewWriter(logger, 60027)
 		line := []byte("Log line\n")
 		count, err := writer.Write(line)
 		require.NoError(t, err)
 		require.Equal(t, len(line), count)
-		levelFilter := testlog.NewLevelFilter(log.LevelError)
+		levelFilter := testlog.NewLevelFilter(LevelError)
 		unknownFilter := testlog.NewMessageFilter("Unknown log level. Using Error")
 		logLineFilter := testlog.NewMessageFilter("Log line")
 		require.NotNil(t, logs.FindLog(levelFilter, unknownFilter))

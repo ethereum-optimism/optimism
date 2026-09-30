@@ -344,8 +344,7 @@ impl InteropFilterClient {
 
         let mut replied = 0usize;
         let mut enabled = false;
-        // First failure, so the returned error names a real cause. Every request shares one
-        // deadline, so a transport failure always lands before any timeout fires.
+        // Preserve the first observed failure.
         let mut failure: Option<InteropTxValidatorError> = None;
         while let Some(res) = futs.next().await {
             match res {

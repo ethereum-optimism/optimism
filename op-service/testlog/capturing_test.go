@@ -1,10 +1,13 @@
 package testlog_test
 
 import (
+	"io"
+	"log/slog"
+	"sync"
 	"testing"
 
+	"github.com/ethereum-optimism/optimism/op-service/log"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
-	"github.com/ethereum/go-ethereum/log"
 	"github.com/stretchr/testify/require"
 )
 
@@ -85,4 +88,60 @@ func TestCaptureLoggerNested(t *testing.T) {
 
 	require.Len(t, logs.FindLogs(
 		testlog.NewAttributesFilter("a", "test")), 1, "root logger logged 'a' once")
+}
+
+func TestCaptureLoggerConcurrent(t *testing.T) {
+	lgr, logs := testlog.CaptureLogger(t, log.LevelInfo)
+	// testlog's logger serialises its own calls, so most writers log through the
+	// bare handler, as services do when they build their own logger from it.
+	raw := log.NewLogger(lgr.Handler())
+	loggers := []log.Logger{
+		lgr,
+		raw,
+		raw.With("name", "childX"),
+		raw.New("name", "childY"),
+		raw.With("name", "childZ").With("nested", true),
+	}
+
+	const writersPerLogger, perWriter = 4, 200
+	var wg sync.WaitGroup
+	for _, l := range loggers {
+		for range writersPerLogger {
+			wg.Add(1)
+			go func() {
+				defer wg.Done()
+				for i := range perWriter {
+					l.Info("concurrent", "i", i)
+				}
+			}()
+		}
+		// Read concurrently with the writers.
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			for range perWriter {
+				logs.FindLogs(testlog.NewAttributesFilter("name", "childX"))
+			}
+		}()
+	}
+	wg.Wait()
+
+	want := len(loggers) * writersPerLogger * perWriter
+	require.Equal(t, want, len(logs.FindLogs(testlog.NewMessageFilter("concurrent"))), "no records may be lost")
+	require.Equal(t, writersPerLogger*perWriter, len(logs.FindLogs(testlog.NewAttributesFilter("name", "childX"))))
+}
+
+// TestCaptureLoggerWithGroup checks that a handler derived with WithGroup keeps
+// the attributes it inherited, so filters still see them on captured records.
+func TestCaptureLoggerWithGroup(t *testing.T) {
+	h := testlog.WrapCaptureLogger(slog.NewTextHandler(io.Discard, nil))
+	logs := h.(*testlog.CapturingHandler)
+	grouped := slog.New(h.WithAttrs([]slog.Attr{slog.String("parent", "x")}).WithGroup("g"))
+	grouped.Info("grouped", "own", "y")
+
+	rec := logs.FindLog(testlog.NewMessageFilter("grouped"))
+	require.NotNil(t, rec)
+	require.Equal(t, "x", rec.AttrValue("parent"))
+	require.Equal(t, "y", rec.AttrValue("own"))
+	require.NotNil(t, logs.FindLog(testlog.NewAttributesFilter("parent", "x")))
 }

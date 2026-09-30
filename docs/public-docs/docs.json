@@ -1413,7 +1413,7 @@
     },
     {
       "source": "/stack/rollup",
-      "destination": "/op-stack/protocol/overview"
+      "destination": "/op-stack/architecture"
     },
     {
       "source": "/stack/rollup/derivation-pipeline",
@@ -1433,7 +1433,7 @@
     },
     {
       "source": "/stack/rollup/overview",
-      "destination": "/op-stack/protocol/overview"
+      "destination": "/op-stack/architecture"
     },
     {
       "source": "/stack/security",
@@ -1721,11 +1721,11 @@
     },
     {
       "source": "/concepts/architecture/rollup/overview",
-      "destination": "/op-stack/protocol/overview"
+      "destination": "/op-stack/architecture"
     },
     {
       "source": "/concepts/architecture/rollups/overview",
-      "destination": "/op-stack/protocol/overview"
+      "destination": "/op-stack/architecture"
     },
     {
       "source": "/concepts/architecture/rollup/derivation-pipeline",
@@ -2690,6 +2690,10 @@
     {
       "source": "/node-operators/op-reth/cli/op-reth/db/settings/set/transaction_senders",
       "destination": "/node-operators/op-reth/cli/op-reth/db/settings/set"
+    },
+    {
+      "source": "/op-stack/protocol/overview",
+      "destination": "/op-stack/architecture"
     }
   ],
   "interaction": {
@@ -2701,13 +2705,12 @@
         "tab": "Get Started",
         "groups": [
           {
-            "group": "Get started",
+            "group": "Start here",
             "pages": [
               "index",
               "ai-docs",
               "chain-operators/quickstart",
-              "chain-operators/launch-paths",
-              "op-stack/reference/glossary"
+              "chain-operators/launch-paths"
             ]
           },
           {
@@ -2750,7 +2753,7 @@
         "tab": "Chain Operators",
         "groups": [
           {
-            "group": "Get started",
+            "group": "Launch a chain",
             "pages": [
               "chain-operators/index"
             ]
@@ -2776,6 +2779,7 @@
                   "chain-operators/guides/features/setting-operator-fee",
                   "chain-operators/guides/features/setting-da-footprint",
                   "chain-operators/guides/features/subblocks-guide",
+                  "chain-operators/guides/features/sequencer-defined-metering",
                   "chain-operators/guides/features/alt-da-mode-guide",
                   "chain-operators/guides/features/blobs",
                   "chain-operators/guides/features/enable-span-batches",
@@ -2924,7 +2928,7 @@
         "tab": "Node Operators",
         "groups": [
           {
-            "group": "Get started",
+            "group": "Run a node",
             "pages": [
               "node-operators/overview"
             ]
@@ -3218,7 +3222,7 @@
         "tab": "App Developers",
         "groups": [
           {
-            "group": "Get started",
+            "group": "Build an app",
             "pages": [
               "app-developers/index",
               "app-developers/quickstarts/get-started",
@@ -3386,17 +3390,111 @@
         "tab": "Protocol",
         "groups": [
           {
-            "group": "Introduction",
+            "group": "Get started",
             "pages": [
               "op-stack/introduction/op-stack",
+              "op-stack/architecture",
               "op-stack/introduction/fact-sheet",
               "op-stack/learn/index"
+            ]
+          },
+          {
+            "group": "How the protocol works",
+            "pages": [
+              "op-stack/protocol/index",
+              "op-stack/protocol/design-principles",
+              "op-stack/protocol/differences",
+              "op-stack/protocol/components",
+              "op-stack/protocol/derivation-pipeline",
+              "op-stack/protocol/smart-contracts",
+              "op-stack/protocol/blockspace-charter",
+              "op-stack/protocol/outages",
+              "op-stack/research/block-time-research",
+              {
+                "group": "Transactions",
+                "pages": [
+                  "op-stack/transactions/fees",
+                  "op-stack/transactions/fee-vaults",
+                  "op-stack/transactions/forced-transaction",
+                  "op-stack/transactions/transaction-finality",
+                  "op-stack/transactions/transaction-flow"
+                ]
+              },
+              {
+                "group": "Bridging",
+                "pages": [
+                  "op-stack/bridging/cross-domain",
+                  "op-stack/bridging/deposit-flow",
+                  "op-stack/bridging/withdrawal-flow"
+                ]
+              },
+              {
+                "group": "Fault Proofs",
+                "pages": [
+                  "op-stack/fault-proofs/index",
+                  "op-stack/fault-proofs/explainer",
+                  "op-stack/fault-proofs/fp-security",
+                  "op-stack/fault-proofs/fp-components",
+                  "op-stack/fault-proofs/cannon",
+                  "op-stack/fault-proofs/mips",
+                  "op-stack/fault-proofs/challenger",
+                  "op-stack/fault-proofs/reference",
+                  {
+                    "group": "Kona",
+                    "pages": [
+                      {
+                        "group": "Fault Proof Program Development",
+                        "pages": [
+                          "op-stack/fault-proofs/kona/fpp-dev/intro",
+                          "op-stack/fault-proofs/kona/fpp-dev/env",
+                          "op-stack/fault-proofs/kona/fpp-dev/targets",
+                          "op-stack/fault-proofs/kona/fpp-dev/prologue",
+                          "op-stack/fault-proofs/kona/fpp-dev/execution",
+                          "op-stack/fault-proofs/kona/fpp-dev/epilogue"
+                        ]
+                      },
+                      {
+                        "group": "Proof SDK",
+                        "pages": [
+                          "op-stack/fault-proofs/kona/proof/intro",
+                          "op-stack/fault-proofs/kona/proof/stf",
+                          "op-stack/fault-proofs/kona/proof/fpvm-backend",
+                          "op-stack/fault-proofs/kona/proof/custom-backend",
+                          "op-stack/fault-proofs/kona/proof/exec-ext"
+                        ]
+                      }
+                    ]
+                  }
+                ]
+              },
+              {
+                "group": "Interoperability",
+                "pages": [
+                  "op-stack/interop/index",
+                  "op-stack/interop/explainer",
+                  "op-stack/interop/supernode",
+                  "op-stack/interop/reorg",
+                  "op-stack/interop/superchain-eth-bridge"
+                ]
+              }
+            ]
+          },
+          {
+            "group": "Security",
+            "pages": [
+              "op-stack/protocol/privileged-roles",
+              "op-stack/security/faq-sec-model",
+              "op-stack/security/security-policy",
+              "op-stack/security/audit-reports",
+              "op-stack/security/pause",
+              "op-stack/security/interop-security"
             ]
           },
           {
             "group": "Features",
             "pages": [
               "op-stack/features/subblocks",
+              "op-stack/features/sdm",
               "op-stack/features/custom-gas-token",
               "op-stack/features/bridged-usdc-standard",
               "op-stack/features/span-batches",
@@ -3408,17 +3506,49 @@
             ]
           },
           {
-            "group": "Protocol Information",
+            "group": "Reference",
             "pages": [
-              "op-stack/protocol/index",
-              "op-stack/protocol/overview",
-              "op-stack/protocol/design-principles",
-              "op-stack/protocol/differences",
-              "op-stack/protocol/components",
-              "op-stack/protocol/derivation-pipeline",
-              "op-stack/protocol/outages",
               {
-                "group": "Network upgrade explainers",
+                "group": "Stack Components",
+                "pages": [
+                  "op-stack/components/index",
+                  {
+                    "group": "Sequencing",
+                    "pages": [
+                      "op-stack/components/op-batcher",
+                      "op-stack/components/op-conductor"
+                    ]
+                  },
+                  {
+                    "group": "Derivation & Execution",
+                    "pages": [
+                      "op-stack/components/op-node",
+                      "op-stack/components/kona-node",
+                      "op-stack/components/op-reth"
+                    ]
+                  },
+                  {
+                    "group": "Settlement & Proofs",
+                    "pages": [
+                      "op-stack/components/op-proposer",
+                      "op-stack/components/op-challenger",
+                      "op-stack/components/cannon",
+                      "op-stack/components/kona-client",
+                      "op-stack/components/kona-host",
+                      "op-stack/components/op-contracts"
+                    ]
+                  },
+                  {
+                    "group": "Deployment & Infrastructure",
+                    "pages": [
+                      "op-stack/components/op-deployer",
+                      "op-stack/components/proxyd"
+                    ]
+                  }
+                ]
+              },
+              {
+                "group": "Network upgrades",
                 "pages": [
                   "op-stack/protocol/network-upgrades",
                   "op-stack/protocol/hardforks/lagoon",
@@ -3434,132 +3564,8 @@
                   "op-stack/protocol/hardforks/regolith"
                 ]
               },
-              "op-stack/protocol/blockspace-charter",
-              "op-stack/research/block-time-research",
-              {
-                "group": "Reference",
-                "pages": [
-                  "op-stack/protocol/smart-contracts",
-                  "op-stack/protocol/superchain-registry",
-                  "op-stack/protocol/privileged-roles"
-                ]
-              }
-            ]
-          },
-          {
-            "group": "Stack Components",
-            "pages": [
-              "op-stack/components/index",
-              {
-                "group": "Sequencing",
-                "pages": [
-                  "op-stack/components/op-batcher",
-                  "op-stack/components/op-conductor"
-                ]
-              },
-              {
-                "group": "Derivation & Execution",
-                "pages": [
-                  "op-stack/components/op-node",
-                  "op-stack/components/kona-node",
-                  "op-stack/components/op-reth"
-                ]
-              },
-              {
-                "group": "Settlement & Proofs",
-                "pages": [
-                  "op-stack/components/op-proposer",
-                  "op-stack/components/op-challenger",
-                  "op-stack/components/cannon",
-                  "op-stack/components/kona-client",
-                  "op-stack/components/kona-host",
-                  "op-stack/components/op-contracts"
-                ]
-              },
-              {
-                "group": "Deployment & Infrastructure",
-                "pages": [
-                  "op-stack/components/op-deployer",
-                  "op-stack/components/proxyd"
-                ]
-              }
-            ]
-          },
-          {
-            "group": "Bridging",
-            "pages": [
-              "op-stack/bridging/cross-domain",
-              "op-stack/bridging/deposit-flow",
-              "op-stack/bridging/withdrawal-flow"
-            ]
-          },
-          {
-            "group": "Transactions",
-            "pages": [
-              "op-stack/transactions/fees",
-              "op-stack/transactions/fee-vaults",
-              "op-stack/transactions/forced-transaction",
-              "op-stack/transactions/transaction-finality",
-              "op-stack/transactions/transaction-flow"
-            ]
-          },
-          {
-            "group": "Fault Proofs",
-            "pages": [
-              "op-stack/fault-proofs/index",
-              "op-stack/fault-proofs/explainer",
-              "op-stack/fault-proofs/fp-security",
-              "op-stack/fault-proofs/fp-components",
-              "op-stack/fault-proofs/cannon",
-              "op-stack/fault-proofs/mips",
-              "op-stack/fault-proofs/challenger",
-              "op-stack/fault-proofs/reference",
-              {
-                "group": "Kona",
-                "pages": [
-                  {
-                    "group": "Fault Proof Program Development",
-                    "pages": [
-                      "op-stack/fault-proofs/kona/fpp-dev/intro",
-                      "op-stack/fault-proofs/kona/fpp-dev/env",
-                      "op-stack/fault-proofs/kona/fpp-dev/targets",
-                      "op-stack/fault-proofs/kona/fpp-dev/prologue",
-                      "op-stack/fault-proofs/kona/fpp-dev/execution",
-                      "op-stack/fault-proofs/kona/fpp-dev/epilogue"
-                    ]
-                  },
-                  {
-                    "group": "Proof SDK",
-                    "pages": [
-                      "op-stack/fault-proofs/kona/proof/intro",
-                      "op-stack/fault-proofs/kona/proof/stf",
-                      "op-stack/fault-proofs/kona/proof/fpvm-backend",
-                      "op-stack/fault-proofs/kona/proof/custom-backend",
-                      "op-stack/fault-proofs/kona/proof/exec-ext"
-                    ]
-                  }
-                ]
-              }
-            ]
-          },
-          {
-            "group": "Security",
-            "pages": [
-              "op-stack/security/security-policy",
-              "op-stack/security/audit-reports",
-              "op-stack/security/faq-sec-model",
-              "op-stack/security/pause",
-              "op-stack/security/interop-security"
-            ]
-          },
-          {
-            "group": "Interoperability",
-            "pages": [
-              "op-stack/interop/index",
-              "op-stack/interop/explainer",
-              "op-stack/interop/supernode",
-              "op-stack/interop/reorg",
-              "op-stack/interop/superchain-eth-bridge"
+              "op-stack/protocol/superchain-registry",
+              "op-stack/reference/glossary"
             ]
           }
         ]
@@ -3568,7 +3574,7 @@
         "tab": "OP Mainnet",
         "groups": [
           {
-            "group": "Get started",
+            "group": "About OP Mainnet",
             "pages": [
               "op-mainnet/index"
             ]

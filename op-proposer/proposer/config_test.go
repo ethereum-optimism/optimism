@@ -4,7 +4,7 @@ import (
 	"testing"
 
 	proposerFlags "github.com/ethereum-optimism/optimism/op-proposer/flags"
-	oplog "github.com/ethereum-optimism/optimism/op-service/log"
+	"github.com/ethereum-optimism/optimism/op-service/log/logcli"
 	opmetrics "github.com/ethereum-optimism/optimism/op-service/metrics"
 	"github.com/ethereum-optimism/optimism/op-service/oppprof"
 	oprpc "github.com/ethereum-optimism/optimism/op-service/rpc"
@@ -164,7 +164,7 @@ func validConfig() *CLIConfig {
 		AllowNonFinalized:            false,
 		TxMgrConfig:                  txmgr.NewCLIConfig("http://localhost:8888/l1", txmgr.DefaultBatcherFlagValues),
 		RPCConfig:                    oprpc.DefaultCLIConfig(),
-		LogConfig:                    oplog.DefaultCLIConfig(),
+		LogConfig:                    logcli.DefaultCLIConfig(),
 		MetricsConfig:                opmetrics.DefaultCLIConfig(),
 		PprofConfig:                  oppprof.DefaultCLIConfig(),
 		DGFAddress:                   common.Address{0xaa, 0xbb, 0xcc}.Hex(),

@@ -7,7 +7,7 @@
 //! discriminants are pinned here (and by unit tests) against the contract
 //! sources instead:
 //! - `packages/contracts-bedrock/src/dispute/zk/ZKDisputeGame.sol` (`ProposalStatus`)
-//! - `packages/contracts-bedrock/src/dispute/lib/Types.sol` (`GameStatus`)
+//! - `packages/contracts-bedrock/src/dispute/lib/Types.sol` (`GameStatus`, `BondDistributionMode`)
 
 use alloy_primitives::U256;
 use alloy_sol_types::sol;
@@ -44,6 +44,25 @@ sol!(
     DelayedWETH,
     "../../../../../packages/contracts-bedrock/snapshots/abi/DelayedWETH.json"
 );
+
+sol!(
+    #[allow(missing_docs)]
+    #[derive(Debug, PartialEq, Eq)]
+    #[sol(rpc)]
+    SP1PlonkAdapter,
+    "../../../../../packages/contracts-bedrock/snapshots/abi/SP1PlonkAdapter.json"
+);
+
+// Vendor interfaces under `packages/contracts-bedrock/interfaces/vendor` have no ABI
+// snapshot, so the one function the proposer needs from Succinct's SP1 verifier is bound
+// inline. It mirrors `interfaces/vendor/ISP1Verifier.sol`.
+sol! {
+    #[allow(missing_docs)]
+    #[sol(rpc)]
+    interface ISP1Verifier {
+        function VERIFIER_HASH() external pure returns (bytes32);
+    }
+}
 
 /// Proposal lifecycle status, mirroring ZKDisputeGame.sol `ProposalStatus`.
 /// Hand-written: enums are `uint8` in the ABI, so the variant order is pinned
@@ -104,6 +123,32 @@ impl TryFrom<u8> for GameStatus {
     }
 }
 
+/// Bond distribution state, mirroring
+/// `packages/contracts-bedrock/src/dispute/lib/Types.sol` `BondDistributionMode`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[repr(u8)]
+pub enum BondDistributionMode {
+    /// The game has not selected a distribution mode yet.
+    Undecided = 0,
+    /// Bonds are distributed according to the resolved game outcome.
+    Normal = 1,
+    /// Bonds are refunded because the game was invalidated.
+    Refund = 2,
+}
+
+impl TryFrom<u8> for BondDistributionMode {
+    type Error = Error;
+
+    fn try_from(value: u8) -> Result<Self, Self::Error> {
+        match value {
+            0 => Ok(Self::Undecided),
+            1 => Ok(Self::Normal),
+            2 => Ok(Self::Refund),
+            _ => Err(anyhow!("invalid bond distribution mode: {value}")),
+        }
+    }
+}
+
 /// Decoded ZK game args (140-byte packed layout from `LibGameArgs.sol`;
 /// mirrors `op-challenger/game/fault/contracts/gameargs` `ZKGameArgs`).
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -159,6 +204,14 @@ mod tests {
         assert_eq!(GameStatus::ChallengerWins as u8, 1);
         assert_eq!(GameStatus::DefenderWins as u8, 2);
         assert!(GameStatus::try_from(3).is_err());
+    }
+
+    #[test]
+    fn bond_distribution_mode_values_match_types_sol() {
+        assert_eq!(BondDistributionMode::Undecided as u8, 0);
+        assert_eq!(BondDistributionMode::Normal as u8, 1);
+        assert_eq!(BondDistributionMode::Refund as u8, 2);
+        assert!(BondDistributionMode::try_from(3).is_err());
     }
 
     #[test]

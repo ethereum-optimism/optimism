@@ -15,12 +15,11 @@ import { IProxyAdmin } from "interfaces/universal/IProxyAdmin.sol";
 import { IAddressManager } from "interfaces/legacy/IAddressManager.sol";
 import { IStorageSetter } from "interfaces/universal/IStorageSetter.sol";
 import { ISemver } from "interfaces/universal/ISemver.sol";
+import { ISystemConfig } from "interfaces/L1/ISystemConfig.sol";
 import { IDisputeGame } from "interfaces/dispute/IDisputeGame.sol";
 import { IAnchorStateRegistry } from "interfaces/dispute/IAnchorStateRegistry.sol";
 import { IDelayedWETH } from "interfaces/dispute/IDelayedWETH.sol";
 import { IProxyAdminOwnedBase } from "interfaces/universal/IProxyAdminOwnedBase.sol";
-import { ISystemConfig } from "interfaces/L1/ISystemConfig.sol";
-import { IETHLockbox } from "interfaces/L1/IETHLockbox.sol";
 
 /// @title OPContractsManagerUtils
 /// @notice OPContractsManagerUtils is a contract that provides utility functions for the OPContractsManager.
@@ -351,7 +350,8 @@ contract OPContractsManagerUtils {
         }
 
         // Upgrade to StorageSetter.
-        _proxyAdmin.upgrade(payable(_target), address(implementations().storageSetterImpl));
+        address storageSetter = implementations().storageSetterImpl;
+        _proxyAdmin.upgrade(payable(_target), storageSetter);
 
         // OpenZeppelin Contracts v5 Initializable uses an ERC-7201 namespaced slot instead of
         // the v4 one-byte `_initialized` field. OPCM does not support the v5 layout, so abort
@@ -376,7 +376,7 @@ contract OPContractsManagerUtils {
         // Re-point at StorageSetter to read what the initializer wrote and revert the whole upgrade
         // if v5 state is now present, which keeps an unsupported implementation from being installed.
         // TODO: This should be removed when the OPCM has proper support for upgrading a v5 Initializable contract.
-        _proxyAdmin.upgrade(payable(_target), address(implementations().storageSetterImpl));
+        _proxyAdmin.upgrade(payable(_target), storageSetter);
         if (IStorageSetter(_target).getBytes32(OZ_V5_INITIALIZABLE_SLOT) != bytes32(0)) {
             revert OPContractsManagerUtils_OZv5InitializableUnsupported();
         }
@@ -399,26 +399,6 @@ contract OPContractsManagerUtils {
             return address(admin_) == address(0) ? _defaultAdmin : admin_;
         } catch {
             return _defaultAdmin;
-        }
-    }
-
-    /// @notice Resolves the SystemConfig a proxy is already bound to, so an upgrade driven by one
-    ///         member of an interop set does not re-point the shared contracts (ETHLockbox,
-    ///         AnchorStateRegistry, DelayedWETH) at the caller's SystemConfig. migrate() binds those
-    ///         to the first member chain's SystemConfig. Per-chain contracts report the caller's own
-    ///         SystemConfig, so behavior is unchanged for them. Falls back to _default for a
-    ///         freshly-deployed proxy that can't report one yet. Ref: #21731.
-    /// @dev The contracts exposing systemConfig() share no common base interface; IETHLockbox is
-    ///      only the source of the (identical) selector.
-    /// @param _default Fallback SystemConfig for not-yet-initialized proxies.
-    /// @param _target The proxy whose bound SystemConfig should be resolved.
-    /// @return The bound SystemConfig.
-    function systemConfigFor(ISystemConfig _default, address _target) external view returns (ISystemConfig) {
-        // eip150-safe
-        try IETHLockbox(_target).systemConfig() returns (ISystemConfig systemConfig_) {
-            return address(systemConfig_) == address(0) ? _default : systemConfig_;
-        } catch {
-            return _default;
         }
     }
 
@@ -526,5 +506,79 @@ contract OPContractsManagerUtils {
         } else {
             revert IOPContractsManagerUtils.OPContractsManagerUtils_UnsupportedGameType();
         }
+    }
+
+    /// @notice Reads a chain's last used OPCM and parses it alongside the calling OPCM's version.
+    ///         Shared by the upgrade and migrate sequence checks.
+    /// @param _systemConfig The SystemConfig of the chain to compare.
+    /// @param _opcm The OPCM performing the action.
+    /// @return isSameOPCM_ Whether _opcm is the OPCM that last touched the chain.
+    /// @return lastUsedSemver_ The parsed version of the chain's last used OPCM.
+    /// @return thisSemver_ The parsed version of _opcm.
+    function _compareToLastUsedOPCM(
+        ISystemConfig _systemConfig,
+        address _opcm
+    )
+        private
+        view
+        returns (bool isSameOPCM_, SemverComp.Semver memory lastUsedSemver_, SemverComp.Semver memory thisSemver_)
+    {
+        ISemver lastUsedOPCM = ISemver(address(_systemConfig.lastUsedOPCM()));
+        isSameOPCM_ = address(lastUsedOPCM) == _opcm;
+        lastUsedSemver_ = SemverComp.parse(lastUsedOPCM.version());
+        thisSemver_ = SemverComp.parse(ISemver(_opcm).version());
+    }
+
+    /// @notice Returns whether a chain may be upgraded by the given OPCM.
+    /// @param _systemConfig The SystemConfig of the chain to check.
+    /// @param _opcm The OPCM performing the upgrade.
+    /// @return True if the upgrade sequence is permitted.
+    function isPermittedUpgradeSequence(ISystemConfig _systemConfig, address _opcm) external view returns (bool) {
+        // If the SystemConfig is not initialized, this is an initial deployment, which is always
+        // permitted. Initial deployments can use any OPCM version.
+        if (address(_systemConfig) == address(0)) {
+            return true;
+        }
+
+        // Chains prior to OPCMv2 (version 7.0.0) don't have a functional lastUsedOPCM function on
+        // the SystemConfig contract. The first deployment of OPCMv2 which makes this available is
+        // version 7.0.0. We need to skip the check for 7.x.x OPCM versions because they can't
+        // guarantee that the lastUsedOPCM function will be available on the incoming SystemConfig.
+        // 8.0.0 and later will always have this function available.
+        if (SemverComp.lt(ISemver(_opcm).version(), "8.0.0")) {
+            return true;
+        }
+
+        (bool isSameOPCM, SemverComp.Semver memory lastUsedSemver, SemverComp.Semver memory thisSemver) =
+            _compareToLastUsedOPCM(_systemConfig, _opcm);
+
+        // We have three permitted cases:
+        // 1. Address of the last used OPCM is identical to the address of this OPCM (re-running).
+        // 2. This OPCM version is the same major version but a greater minor version (patch).
+        // 3. This OPCM version is the next major version (sequential upgrade).
+        bool isNextMajor = thisSemver.major == lastUsedSemver.major + 1;
+        bool isSameMajorHigherMinor =
+            thisSemver.major == lastUsedSemver.major && thisSemver.minor > lastUsedSemver.minor;
+
+        return isSameOPCM || isSameMajorHigherMinor || isNextMajor;
+    }
+
+    /// @notice Returns whether a chain is on the given OPCM's release and may be
+    ///         migrated. Unlike isPermittedUpgradeSequence this refuses the next-major case.
+    /// @param _systemConfig The SystemConfig of the chain to check.
+    /// @param _opcm The OPCM performing the migration.
+    /// @return True if the chain may be migrated.
+    function isPermittedMigrateSequence(ISystemConfig _systemConfig, address _opcm) external view returns (bool) {
+        (bool isSameOPCM, SemverComp.Semver memory lastUsedSemver, SemverComp.Semver memory thisSemver) =
+            _compareToLastUsedOPCM(_systemConfig, _opcm);
+
+        // Two permitted cases:
+        // 1. This is the same OPCM that last touched the chain.
+        // 2. A replacement OPCM for the same release. The minor must be at least as new, so an
+        //    older OPCM cannot migrate a chain that a newer one already upgraded.
+        bool isSameMajorAndAtLeastMinor =
+            thisSemver.major == lastUsedSemver.major && thisSemver.minor >= lastUsedSemver.minor;
+
+        return isSameOPCM || isSameMajorAndAtLeastMinor;
     }
 }

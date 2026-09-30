@@ -22,14 +22,14 @@ type spanBatchTxs struct {
 	totalBlockTxCount uint64
 
 	// 8 fields
-	contractCreationBits *big.Int // standard span-batch bitlist
-	yParityBits          *big.Int // standard span-batch bitlist
-	txSigs               []spanBatchSignature
-	txNonces             []uint64
-	txGases              []uint64
-	txTos                []common.Address
-	txDatas              []hexutil.Bytes
-	protectedBits        *big.Int // standard span-batch bitlist
+	zeroToBits    *big.Int // standard span-batch bitlist
+	yParityBits   *big.Int // standard span-batch bitlist
+	txSigs        []spanBatchSignature
+	txNonces      []uint64
+	txGases       []uint64
+	txTos         []common.Address
+	txDatas       []hexutil.Bytes
+	protectedBits *big.Int // standard span-batch bitlist
 
 	// intermediate variables which can be recovered
 	txTypes            []int
@@ -42,22 +42,22 @@ type spanBatchSignature struct {
 	s *uint256.Int
 }
 
-func (btx *spanBatchTxs) encodeContractCreationBits(w io.Writer) error {
-	if err := encodeSpanBatchBits(w, btx.totalBlockTxCount, btx.contractCreationBits); err != nil {
-		return fmt.Errorf("failed to encode contract creation bits: %w", err)
+func (btx *spanBatchTxs) encodeZeroToBits(w io.Writer) error {
+	if err := encodeSpanBatchBits(w, btx.totalBlockTxCount, btx.zeroToBits); err != nil {
+		return fmt.Errorf("failed to encode zero-to bits: %w", err)
 	}
 	return nil
 }
 
-func (btx *spanBatchTxs) decodeContractCreationBits(r *bytes.Reader) error {
+func (btx *spanBatchTxs) decodeZeroToBits(r *bytes.Reader) error {
 	if btx.totalBlockTxCount > MaxSpanBatchElementCount {
 		return ErrTooBigSpanBatchSize
 	}
 	bits, err := decodeSpanBatchBits(r, btx.totalBlockTxCount)
 	if err != nil {
-		return fmt.Errorf("failed to decode contract creation bits: %w", err)
+		return fmt.Errorf("failed to decode zero-to bits: %w", err)
 	}
-	btx.contractCreationBits = bits
+	btx.zeroToBits = bits
 	return nil
 }
 
@@ -80,13 +80,13 @@ func (btx *spanBatchTxs) decodeProtectedBits(r *bytes.Reader) error {
 	return nil
 }
 
-func (btx *spanBatchTxs) contractCreationCount() (uint64, error) {
-	if btx.contractCreationBits == nil {
-		return 0, errors.New("dev error: contract creation bits not set")
+func (btx *spanBatchTxs) zeroToCount() (uint64, error) {
+	if btx.zeroToBits == nil {
+		return 0, errors.New("dev error: zero-to bits not set")
 	}
 	var result uint64 = 0
 	for i := 0; i < int(btx.totalBlockTxCount); i++ {
-		bit := btx.contractCreationBits.Bit(i)
+		bit := btx.zeroToBits.Bit(i)
 		if bit == 1 {
 			result++
 		}
@@ -214,11 +214,11 @@ func (btx *spanBatchTxs) decodeTxGases(r *bytes.Reader) error {
 func (btx *spanBatchTxs) decodeTxTos(r *bytes.Reader) error {
 	var txTos []common.Address
 	txToBuffer := make([]byte, common.AddressLength)
-	contractCreationCount, err := btx.contractCreationCount()
+	zeroToCount, err := btx.zeroToCount()
 	if err != nil {
 		return err
 	}
-	for i := 0; i < int(btx.totalBlockTxCount-contractCreationCount); i++ {
+	for i := 0; i < int(btx.totalBlockTxCount-zeroToCount); i++ {
 		_, err := io.ReadFull(r, txToBuffer)
 		if err != nil {
 			return fmt.Errorf("failed to read tx to address: %w", err)
@@ -288,7 +288,7 @@ func (btx *spanBatchTxs) recoverV(chainID *big.Int) error {
 }
 
 func (btx *spanBatchTxs) encode(w io.Writer) error {
-	if err := btx.encodeContractCreationBits(w); err != nil {
+	if err := btx.encodeZeroToBits(w); err != nil {
 		return err
 	}
 	if err := btx.encodeYParityBits(w); err != nil {
@@ -316,7 +316,7 @@ func (btx *spanBatchTxs) encode(w io.Writer) error {
 }
 
 func (btx *spanBatchTxs) decode(r *bytes.Reader) error {
-	if err := btx.decodeContractCreationBits(r); err != nil {
+	if err := btx.decodeZeroToBits(r); err != nil {
 		return err
 	}
 	if err := btx.decodeYParityBits(r); err != nil {
@@ -354,7 +354,7 @@ func (btx *spanBatchTxs) fullTxs(chainID *big.Int) ([][]byte, error) {
 		nonce := btx.txNonces[idx]
 		gas := btx.txGases[idx]
 		var to *common.Address
-		bit := btx.contractCreationBits.Bit(idx)
+		bit := btx.zeroToBits.Bit(idx)
 		if bit == 0 {
 			if len(btx.txTos) <= toIdx {
 				return nil, errors.New("tx to not enough")
@@ -407,15 +407,15 @@ func isProtectedV(v *big.Int, txType int) bool {
 
 func newSpanBatchTxs(txs [][]byte, chainID *big.Int) (*spanBatchTxs, error) {
 	sbtxs := &spanBatchTxs{
-		contractCreationBits: big.NewInt(0),
-		yParityBits:          big.NewInt(0),
-		txSigs:               []spanBatchSignature{},
-		txNonces:             []uint64{},
-		txGases:              []uint64{},
-		txTos:                []common.Address{},
-		txDatas:              []hexutil.Bytes{},
-		txTypes:              []int{},
-		protectedBits:        big.NewInt(0),
+		zeroToBits:    big.NewInt(0),
+		yParityBits:   big.NewInt(0),
+		txSigs:        []spanBatchSignature{},
+		txNonces:      []uint64{},
+		txGases:       []uint64{},
+		txTos:         []common.Address{},
+		txDatas:       []hexutil.Bytes{},
+		txTypes:       []int{},
+		protectedBits: big.NewInt(0),
 	}
 
 	if err := sbtxs.AddTxs(txs, chainID); err != nil {
@@ -456,12 +456,12 @@ func (sbtx *spanBatchTxs) AddTxs(txs [][]byte, chainID *big.Int) error {
 		txSig.r = R
 		txSig.s = S
 		sbtx.txSigs = append(sbtx.txSigs, txSig)
-		contractCreationBit := uint(1)
+		zeroToBit := uint(1)
 		if tx.To() != nil {
 			sbtx.txTos = append(sbtx.txTos, *tx.To())
-			contractCreationBit = uint(0)
+			zeroToBit = uint(0)
 		}
-		sbtx.contractCreationBits.SetBit(sbtx.contractCreationBits, idx+int(offset), contractCreationBit)
+		sbtx.zeroToBits.SetBit(sbtx.zeroToBits, idx+int(offset), zeroToBit)
 		yParityBit, err := convertVToYParity(txSig.v, int(tx.Type()))
 		if err != nil {
 			return err
@@ -484,6 +484,48 @@ func (sbtx *spanBatchTxs) AddTxs(txs [][]byte, chainID *big.Int) error {
 	return nil
 }
 
+// checkPostExecSlots enforces the span batch slot values the Lagoon spec fixes for a
+// post-exec (0x7D) transaction: the zero-to bit is set, so no tx_tos entry is
+// consumed, and the signature, nonce and gas slots are zero, because a post-exec
+// transaction has no such fields to transpose.
+//
+// This is a decode-side rule and it has to live here. The slots are discarded when the
+// transaction is reconstructed, so no later stage can notice a batcher that filled them
+// with something else, and a block that derives identically either way would have more
+// than one valid span batch encoding. Contrast the block-level structural rules (at most
+// one post-exec transaction, last in its block): those are checked when the derived block
+// is validated, and this decoder deliberately leaves them alone, because rejecting them
+// here would skip the deposit-only replacement and derive a different chain.
+//
+// A violation invalidates the whole span batch: these slots are positional across the
+// span, so it cannot be attributed to the one block whose transaction carries it.
+func (btx *spanBatchTxs) checkPostExecSlots() error {
+	for idx, txType := range btx.txTypes {
+		if txType != optypes.PostExecTxType {
+			continue
+		}
+		if idx >= len(btx.txSigs) || idx >= len(btx.txNonces) || idx >= len(btx.txGases) {
+			return fmt.Errorf("post-exec tx at index %d: span batch slot arrays are short", idx)
+		}
+		if btx.zeroToBits.Bit(idx) != 1 {
+			return fmt.Errorf("post-exec tx at index %d must set the zero-to bit", idx)
+		}
+		if btx.yParityBits.Bit(idx) != 0 {
+			return fmt.Errorf("post-exec tx at index %d must have a zero y parity bit", idx)
+		}
+		if !btx.txSigs[idx].r.IsZero() || !btx.txSigs[idx].s.IsZero() {
+			return fmt.Errorf("post-exec tx at index %d must have a zero signature", idx)
+		}
+		if btx.txNonces[idx] != 0 {
+			return fmt.Errorf("post-exec tx at index %d must have a zero nonce", idx)
+		}
+		if btx.txGases[idx] != 0 {
+			return fmt.Errorf("post-exec tx at index %d must have a zero gas limit", idx)
+		}
+	}
+	return nil
+}
+
 // addPostExecTx appends the span batch fields of a post-exec (0x7D) transaction
 // at position idx of the span. Post-exec transactions are synthetic and unsigned:
 // they carry no signature, nonce, gas or recipient, so every transposed envelope
@@ -501,8 +543,8 @@ func (sbtx *spanBatchTxs) addPostExecTx(rawTx []byte, idx int) error {
 		return err
 	}
 	sbtx.txSigs = append(sbtx.txSigs, spanBatchSignature{v: new(big.Int), r: new(uint256.Int), s: new(uint256.Int)})
-	// No recipient: the contract creation bit is set and no address is stored.
-	sbtx.contractCreationBits.SetBit(sbtx.contractCreationBits, idx, 1)
+	// No recipient: the zero-to bit is set and no address is stored.
+	sbtx.zeroToBits.SetBit(sbtx.zeroToBits, idx, 1)
 	sbtx.yParityBits.SetBit(sbtx.yParityBits, idx, 0)
 	sbtx.txNonces = append(sbtx.txNonces, 0)
 	sbtx.txGases = append(sbtx.txGases, 0)

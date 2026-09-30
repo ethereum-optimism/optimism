@@ -9,9 +9,9 @@ import (
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/trace/split"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/types"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
+	"github.com/ethereum-optimism/optimism/op-service/log"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/log"
 	"github.com/stretchr/testify/require"
 )
 
@@ -117,7 +117,7 @@ func setupSplitAdapterTest(t *testing.T, depth types.Depth, prestateTimestamp ui
 	creator := &capturingCreator{}
 	rootProvider := &stubSuperNodeRootProvider{}
 	prestateProvider := NewSuperNodePrestateProvider(rootProvider, prestateTimestamp)
-	traceProvider := NewSuperNodeTraceProvider(testlog.Logger(t, log.LvlInfo), prestateProvider, rootProvider, eth.BlockID{}, depth, prestateTimestamp, poststateTimestamp)
+	traceProvider := NewSuperNodeTraceProvider(testlog.Logger(t, log.LevelInfo), prestateProvider, rootProvider, eth.BlockID{}, depth, prestateTimestamp, poststateTimestamp)
 	adapter := SuperRootSplitAdapter(traceProvider, creator.Create)
 	return creator, rootProvider, adapter
 }

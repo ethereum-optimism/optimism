@@ -10,13 +10,14 @@ import (
 
 	"github.com/ethereum/go-ethereum/common"
 	gethTypes "github.com/ethereum/go-ethereum/core/types"
-	"github.com/ethereum/go-ethereum/log"
 	"github.com/stretchr/testify/require"
 
 	"github.com/ethereum-optimism/optimism/op-interop-filter/metrics"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-service/clock"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
+	"github.com/ethereum-optimism/optimism/op-service/log"
+	"github.com/ethereum-optimism/optimism/op-service/ptr"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
 
 	"github.com/ethereum-optimism/optimism/op-core/interop"
@@ -341,6 +342,35 @@ func TestLogsDBChainIngester_Ready(t *testing.T) {
 
 	// Now ready - latestTimestamp (1200) >= startTimestamp (1200)
 	require.True(t, ingester.Ready())
+}
+
+func TestLogsDBChainIngester_IsValidInitiatingTimestamp(t *testing.T) {
+	tests := []struct {
+		name        string
+		lagoonTime  *uint64
+		timestamp   uint64
+		expectValid bool
+	}{
+		{name: "no activation", timestamp: 104},
+		{name: "before activation", lagoonTime: ptr.New(uint64(101)), timestamp: 100},
+		{name: "activation block", lagoonTime: ptr.New(uint64(101)), timestamp: 102},
+		{name: "after activation block", lagoonTime: ptr.New(uint64(101)), timestamp: 104, expectValid: true},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			cfg := testRollupConfig(901, 0, 100)
+			cfg.LagoonTime = test.lagoonTime
+			ingester := newTestLogsDBChainIngester(t, testIngesterConfig{
+				chainID:   eth.ChainIDFromUInt64(901),
+				dataDir:   t.TempDir(),
+				ethClient: NewMockEthClient(),
+				rollupCfg: cfg,
+			})
+
+			require.Equal(t, test.expectValid, ingester.IsValidInitiatingTimestamp(test.timestamp))
+		})
+	}
 }
 
 func TestLogsDBChainIngester_ErrorState(t *testing.T) {

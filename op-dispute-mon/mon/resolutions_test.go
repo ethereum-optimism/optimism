@@ -8,8 +8,8 @@ import (
 	"github.com/ethereum-optimism/optimism/op-dispute-mon/metrics"
 	"github.com/ethereum-optimism/optimism/op-dispute-mon/mon/types"
 	"github.com/ethereum-optimism/optimism/op-service/clock"
+	"github.com/ethereum-optimism/optimism/op-service/log"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
-	"github.com/ethereum/go-ethereum/log"
 	"github.com/stretchr/testify/require"
 )
 
@@ -27,7 +27,7 @@ func TestResolutionMonitor_CheckResolutions(t *testing.T) {
 }
 
 func newTestResolutionMonitor(t *testing.T) (*ResolutionMonitor, *clock.DeterministicClock, *stubResolutionMetrics) {
-	logger := testlog.Logger(t, log.LvlInfo)
+	logger := testlog.Logger(t, log.LevelInfo)
 	cl := clock.NewDeterministicClock(time.Unix(int64(time.Hour.Seconds()), 0))
 	metrics := &stubResolutionMetrics{}
 	return NewResolutionMonitor(logger, metrics, cl), cl, metrics

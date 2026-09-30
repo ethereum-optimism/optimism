@@ -79,6 +79,13 @@ where
         Ok(hash)
     }
 
+    /// UPSTREAM-MIRROR(override): reth@rev:0fbe428
+    /// `reth_rpc_eth_api::helpers::EthTransactions::send_raw_transaction_sync`
+    ///
+    /// Derived from the upstream default: the timeout computation is taken verbatim and the
+    /// wait loop is extended to also resolve the receipt from a flashblock. Re-derive on any
+    /// change to the default body.
+    ///
     /// Decodes and recovers the transaction and submits it to the pool.
     ///
     /// And awaits the receipt, checking both canonical blocks and flashblocks for faster
@@ -164,6 +171,10 @@ where
     ///
     /// With flashblocks, we should also lookup the pending block for the transaction
     /// because this is considered confirmed/mined.
+    /// UPSTREAM-MIRROR(override): reth@rev:0fbe428
+    /// `reth_rpc_eth_api::helpers::EthTransactions::transaction_receipt`
+    ///
+    /// Extends the upstream default with a flashblock receipt lookup.
     fn transaction_receipt(
         &self,
         hash: B256,
@@ -183,8 +194,10 @@ where
                     return Ok(Some(receipt));
                 }
             }
-            let Some((tx, meta, receipt, all_receipts)) = tx_receipt else { return Ok(None) };
-            self.build_transaction_receipt(tx, meta, receipt, all_receipts).await.map(Some)
+            let Some((tx, meta, receipt, all_receipts, block)) = tx_receipt else {
+                return Ok(None);
+            };
+            self.build_transaction_receipt(tx, meta, receipt, all_receipts, block).await.map(Some)
         }
     }
 }
@@ -195,6 +208,11 @@ where
     OpEthApiError: FromEvmError<N::Evm>,
     Rpc: RpcConvert<Primitives = N::Primitives, Error = OpEthApiError>,
 {
+    /// UPSTREAM-MIRROR(override): reth@rev:0fbe428
+    /// `reth_rpc_eth_api::helpers::LoadTransaction::transaction_by_hash`
+    ///
+    /// Inserts a flashblock lookup between upstream's disk and pool lookups, and does not
+    /// reproduce upstream's leading RPC-cache lookup.
     async fn transaction_by_hash(
         &self,
         hash: B256,

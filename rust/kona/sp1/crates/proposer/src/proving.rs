@@ -6,7 +6,13 @@
 //! aggregation-input validation. The mock provider then returns placeholder bytes; the network
 //! provider proves each chunk in compressed mode and aggregates them with PLONK.
 
-use std::{collections::HashMap, future::Future, num::NonZeroUsize, ops::AsyncFnOnce, sync::Arc};
+use std::{
+    collections::{BTreeMap, HashMap},
+    future::Future,
+    num::NonZeroUsize,
+    ops::AsyncFnOnce,
+    sync::Arc,
+};
 
 use alloy_primitives::{Address, B256, U256, keccak256};
 use alloy_sol_types::SolValue;
@@ -236,6 +242,27 @@ enum RequestState {
     Terminal(ProofTerminalState),
 }
 
+/// SPN request kinds of one game proof, as named by [`GameProgress::requests`].
+pub(crate) const PROOF_REQUEST_KINDS: [&str; 3] = ["range", "consolidation", "aggregation"];
+/// Request states reported by [`InMemoryProofProgress::request_counts`].
+pub(crate) const PROOF_REQUEST_STATES: [&str; 4] =
+    ["submitting", "submitted", "fulfilled", "terminal"];
+/// Request counts keyed by `(kind, state)`; absent keys are zero.
+pub(crate) type ProofRequestCounts = BTreeMap<(&'static str, &'static str), usize>;
+
+impl RequestState {
+    /// State label for request metrics; `None` for slots with no request yet.
+    const fn metric_state(&self) -> Option<&'static str> {
+        match self {
+            Self::Missing => None,
+            Self::Submitting => Some("submitting"),
+            Self::Submitted(_) => Some("submitted"),
+            Self::Fulfilled(_) => Some("fulfilled"),
+            Self::Terminal(_) => Some("terminal"),
+        }
+    }
+}
+
 #[derive(Debug, Default, PartialEq, Eq)]
 struct RequestSummary {
     submitted_ids: Vec<ProofId>,
@@ -378,6 +405,20 @@ impl InMemoryProofProgress {
             }
         }
         reset
+    }
+
+    /// Counts request slots of every game with retained progress, by kind and state. Progress is
+    /// cleared once a game's proof is submitted, so these are the games still being proven.
+    pub(crate) fn request_counts(&self) -> ProofRequestCounts {
+        let mut counts = ProofRequestCounts::new();
+        for progress in self.games.lock().values() {
+            for (_, kind, request) in progress.requests() {
+                if let Some(state) = request.lock().metric_state() {
+                    *counts.entry((kind, state)).or_default() += 1;
+                }
+            }
+        }
+        counts
     }
 }
 

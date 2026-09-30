@@ -28,7 +28,7 @@ func TestFastInit_ResumesFromVerifiedDB(t *testing.T) {
 	}))
 	require.NoError(t, db.Close())
 
-	interop := New(testLogger(), 100, 0, nil, dataDir, nil, 0, nil)
+	interop := New(testLogger(), 100, nil, nil, dataDir, nil, 0, nil)
 	require.NotNil(t, interop)
 	defer func() { require.NoError(t, interop.Stop(context.Background())) }()
 
@@ -54,7 +54,7 @@ func TestFastInit_ResumeBelowActivationIsAllowed(t *testing.T) {
 	}))
 	require.NoError(t, db.Close())
 
-	interop := New(testLogger(), 1000, 0, nil, dataDir, nil, 0, nil)
+	interop := New(testLogger(), 1000, nil, nil, dataDir, nil, 0, nil)
 	require.NotNil(t, interop)
 	defer func() { require.NoError(t, interop.Stop(context.Background())) }()
 
@@ -70,7 +70,7 @@ func TestFastInit_ColdStartDefersToLoop(t *testing.T) {
 
 	dataDir := t.TempDir()
 
-	interop := New(testLogger(), 1000, 0, nil, dataDir, nil, 0, nil)
+	interop := New(testLogger(), 1000, nil, nil, dataDir, nil, 0, nil)
 	require.NotNil(t, interop)
 	defer func() { require.NoError(t, interop.Stop(context.Background())) }()
 
@@ -540,7 +540,7 @@ func TestFirstVerifiableTimestamp_PrefersVerifiedDB(t *testing.T) {
 	}))
 	require.NoError(t, db.Close())
 
-	interop := New(testLogger(), 100, 0, nil, dataDir, nil, 0, nil)
+	interop := New(testLogger(), 100, nil, nil, dataDir, nil, 0, nil)
 	require.NotNil(t, interop)
 	defer func() { require.NoError(t, interop.Stop(context.Background())) }()
 
@@ -559,7 +559,7 @@ func TestFirstVerifiableTimestamp_PrefersVerifiedDB(t *testing.T) {
 func TestFirstVerifiableTimestamp_ErrNotStartedBeforeInit(t *testing.T) {
 
 	dataDir := t.TempDir()
-	interop := New(testLogger(), 1000, 0, nil, dataDir, nil, 0, nil)
+	interop := New(testLogger(), 1000, nil, nil, dataDir, nil, 0, nil)
 	require.NotNil(t, interop)
 	defer func() { require.NoError(t, interop.Stop(context.Background())) }()
 

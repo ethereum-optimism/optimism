@@ -43,7 +43,7 @@ func TestSupernodeInterop_SafeHeadProgression(gt *testing.T) {
 
 	// Pause interop and verify it has stopped
 	// Uses max local safe timestamp from both chains, pauses at +10, awaits validation at +9
-	pausedTimestamp := sys.Supernode.EnsureInteropPaused(sys.L2ACL, sys.L2BCL, 10)
+	pausedTimestamp := sys.Supernode.EnsureInteropPaused(10, sys.L2ACL, sys.L2BCL)
 	t.Logger().Info("interop paused", "paused", pausedTimestamp)
 
 	// Compute the initial target block number for each chain based on the paused timestamp

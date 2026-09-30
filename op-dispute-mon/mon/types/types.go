@@ -179,6 +179,10 @@ type ZKGameData struct {
 	Prover         common.Address
 	TotalBonds     *big.Int
 	ChallengerBond *big.Int
+	// Finalized reports AnchorStateRegistry.isGameFinalized at the snapshot block, which closeGame
+	// requires before it can decide the bond distribution mode. The extractor reads it only for
+	// resolved games whose bond distribution mode is still undecided.
+	Finalized bool
 }
 
 // SuperPermissionedGameData is the common snapshot of a SuperPermissioned game.

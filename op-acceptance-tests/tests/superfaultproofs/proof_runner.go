@@ -17,13 +17,18 @@ import (
 // ProofRunner executes the proof checks attached to one shared interop scenario.
 // Implementations are constructed here so scenario internals remain private.
 type ProofRunner interface {
-	run(t devtest.T, sys *presets.SingleChainInterop, chains []*chain, data *scenarioProofData)
+	run(t devtest.T, sys *presets.SingleChainInterop, chains []proofChain, data *scenarioProofData)
 }
 
 type scenarioProofData struct {
 	fpvmTransitions    []*transitionTest
 	fpvmStartTimestamp uint64
 	zkCheckpoint       *zkCheckpoint
+}
+
+type proofChain struct {
+	id            eth.ChainID
+	l2NodeAddress string
 }
 
 type zkCheckpoint struct {
@@ -56,6 +61,33 @@ func NewSP1FullProofRunner(executorPath string) ProofRunner {
 }
 
 func runScenarioProofs(t devtest.T, sys *presets.SingleChainInterop, chains []*chain, data *scenarioProofData, runners ...ProofRunner) {
+	proofChains := make([]proofChain, len(chains))
+	for i, chain := range chains {
+		proofChains[i] = proofChain{id: chain.ID, l2NodeAddress: chain.EL.UserRPC()}
+	}
+	runProofs(t, sys, proofChains, data, runners...)
+}
+
+func runThreeChainScenarioProofs(
+	t devtest.T,
+	sys *presets.ThreeChainInterop,
+	data *scenarioProofData,
+	runners ...ProofRunner,
+) {
+	runProofs(t, &sys.SingleChainInterop, []proofChain{
+		{id: sys.L2ChainA.ChainID(), l2NodeAddress: sys.L2ELA.UserRPC()},
+		{id: sys.L2ChainB.ChainID(), l2NodeAddress: sys.L2ELB.UserRPC()},
+		{id: sys.L2ChainC.ChainID(), l2NodeAddress: sys.L2ELC.UserRPC()},
+	}, data, runners...)
+}
+
+func runProofs(
+	t devtest.T,
+	sys *presets.SingleChainInterop,
+	chains []proofChain,
+	data *scenarioProofData,
+	runners ...ProofRunner,
+) {
 	if len(runners) == 0 {
 		runners = []ProofRunner{NewKonaProofRunner()}
 	}
@@ -73,7 +105,7 @@ func hasSP1Runner(runners []ProofRunner) bool {
 	return false
 }
 
-func (konaProofRunner) run(t devtest.T, sys *presets.SingleChainInterop, _ []*chain, data *scenarioProofData) {
+func (konaProofRunner) run(t devtest.T, sys *presets.SingleChainInterop, _ []proofChain, data *scenarioProofData) {
 	t.Require().NotEmpty(data.fpvmTransitions, "Kona runner requires FPVM transition cases")
 	challengerCfg := sys.L2ChainA.Escape().L2Challengers()[0].Config()
 	gameDepth := sys.DisputeGameFactory().GameImpl(gameTypes.SuperCannonKonaGameType).SplitDepth()
@@ -90,7 +122,7 @@ func (konaProofRunner) run(t devtest.T, sys *presets.SingleChainInterop, _ []*ch
 	}
 }
 
-func (r sp1ProofRunner) run(t devtest.T, sys *presets.SingleChainInterop, chains []*chain, data *scenarioProofData) {
+func (r sp1ProofRunner) run(t devtest.T, sys *presets.SingleChainInterop, chains []proofChain, data *scenarioProofData) {
 	executorPath := r.executorPath
 	if r.nativeCore {
 		var err error
@@ -149,14 +181,14 @@ func newZKCheckpointForRunners(
 	return newZKCheckpoint(t, sys, endTimestamp, expectReplacement)
 }
 
-func validateZKCheckpoint(t devtest.T, sys *presets.SingleChainInterop, chains []*chain, checkpoint *zkCheckpoint) {
+func validateZKCheckpoint(t devtest.T, sys *presets.SingleChainInterop, chains []proofChain, checkpoint *zkCheckpoint) {
 	resp := sys.SuperRoots.SuperRootAtTimestamp(checkpoint.endTimestamp)
 	t.Require().NotNil(resp.Data, "expected verified super-root data at timestamp %d", checkpoint.endTimestamp)
 	t.Require().Equal(checkpoint.trustedL1Head, resp.Data.VerifiedRequiredL1,
 		"verified required L1 changed for timestamp %d", checkpoint.endTimestamp)
 	expectedChainIDs := make([]eth.ChainID, len(chains))
 	for i, chain := range chains {
-		expectedChainIDs[i] = chain.ID
+		expectedChainIDs[i] = chain.id
 	}
 	t.Require().NotEmpty(expectedChainIDs, "dependency set must contain at least one chain")
 	t.Require().Equal(expectedChainIDs, resp.ChainIDs,
@@ -216,7 +248,7 @@ func validateZKCheckpoint(t devtest.T, sys *presets.SingleChainInterop, chains [
 func superRangeExecutorArgs(
 	t devtest.T,
 	sys *presets.SingleChainInterop,
-	chains []*chain,
+	chains []proofChain,
 	cfg vm.Config,
 	l1Head eth.BlockID,
 	endTimestamp uint64,
@@ -226,7 +258,7 @@ func superRangeExecutorArgs(
 	t.Require().NotEmpty(cfg.DepsetConfigPath, "SP1 super-range requires a dependency-set config")
 	l2NodeAddresses := make([]string, len(chains))
 	for i, chain := range chains {
-		l2NodeAddresses[i] = chain.EL.Escape().UserRPC()
+		l2NodeAddresses[i] = chain.l2NodeAddress
 	}
 	args := []string{
 		"--supernode-address", sys.SuperRoots.UserRPC(),

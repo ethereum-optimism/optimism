@@ -7,7 +7,7 @@ import (
 	"github.com/urfave/cli/v2"
 
 	"github.com/ethereum-optimism/optimism/op-dripper/flags"
-	oplog "github.com/ethereum-optimism/optimism/op-service/log"
+	"github.com/ethereum-optimism/optimism/op-service/log/logcli"
 	opmetrics "github.com/ethereum-optimism/optimism/op-service/metrics"
 	"github.com/ethereum-optimism/optimism/op-service/oppprof"
 	oprpc "github.com/ethereum-optimism/optimism/op-service/rpc"
@@ -20,7 +20,7 @@ type CLIConfig struct {
 	PollInterval   time.Duration
 	TxMgrConfig    txmgr.CLIConfig
 	RPCConfig      oprpc.CLIConfig
-	LogConfig      oplog.CLIConfig
+	LogConfig      logcli.CLIConfig
 	MetricsConfig  opmetrics.CLIConfig
 	PprofConfig    oppprof.CLIConfig
 }
@@ -53,7 +53,7 @@ func NewConfig(ctx *cli.Context) *CLIConfig {
 
 		// Optional Flags
 		RPCConfig:     oprpc.ReadCLIConfig(ctx),
-		LogConfig:     oplog.ReadCLIConfig(ctx),
+		LogConfig:     logcli.ReadCLIConfig(ctx),
 		MetricsConfig: opmetrics.ReadCLIConfig(ctx),
 		PprofConfig:   oppprof.ReadCLIConfig(ctx),
 	}

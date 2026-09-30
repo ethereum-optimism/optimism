@@ -5,7 +5,7 @@ diataxis: explanation
 ---
 
 <Info>
-  **Learn the OP Stack — stop 9 of 13.**
+  **Learn the OP Stack — stop 10 of 14.**
   You know how transactions enter L2 from L1. This page adds the return
   direction: the initiate, prove, and finalize steps a withdrawal takes
   back to L1. When you're done, continue to
@@ -19,6 +19,32 @@ Withdrawals require the user to submit three transactions:
 1.  **Withdrawal initiating transaction**, which the user submits on L2.
 2.  **Withdrawal proving transaction**, which the user submits on L1 to prove that the withdrawal is legitimate (based on a Merkle-Patricia trie root that commits to the state of the `L2ToL1MessagePasser`'s storage on L2)
 3.  **Withdrawal finalizing transaction**, which the user submits on L1 after the fault challenge period has passed, to actually run the transaction on L1.
+
+```mermaid
+sequenceDiagram
+    participant User
+    participant L2 as L2 (L2ToL1MessagePasser)
+    participant Prop as op-proposer
+    participant DGF as L1 (DisputeGameFactory)
+    participant Portal as L1 (OptimismPortal)
+
+    User->>L2: 1. Initiate withdrawal
+    Note over L2: Message recorded in the<br/>message passer's storage
+    Prop->>DGF: Output root proposed,<br/>dispute game created
+    User->>Portal: 2. Prove withdrawal<br/>against that output root
+    Note over Portal: Fault challenge period<br/>game must resolve in the<br/>proposal's favor
+    User->>Portal: 3. Finalize withdrawal
+    Note over Portal: Transaction runs on L1
+```
+
+The three transactions are separated by waiting, not by work. Step 2 cannot
+happen until a proposal covering the withdrawal's block reaches L1. Step 3 then
+waits on three independent conditions, not one: the proof must post-date the
+game's creation, the proof must itself have aged past the proof maturity delay
+measured from your own proving transaction, and the game must have resolved in
+the proposal's favor and cleared the dispute game finality delay. Proving late
+against an already-resolved game does not let you finalize immediately; the
+proof maturity delay still runs from your prove transaction.
 
 You can read the full [withdrawal specifications here](https://specs.optimism.io/protocol/withdrawals.html?utm_source=op-docs&utm_medium=docs).
 

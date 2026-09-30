@@ -1,12 +1,53 @@
-//! Prometheus gauges for the proposer.
+//! Prometheus metrics for the proposer.
 
+use alloy_primitives::{Address, U256};
 use kona_sp1_host_utils::metrics::MetricsGauge;
-use strum::EnumMessage;
+use metrics::{counter, describe_counter, describe_gauge, gauge};
+use strum::{EnumMessage, IntoEnumIterator};
 use strum_macros::{Display, EnumIter};
+
+use crate::proving::{PROOF_REQUEST_KINDS, PROOF_REQUEST_STATES, ProofRequestCounts};
 
 /// All proposer metrics gauges.
 #[derive(Debug, Clone, Copy, Display, EnumIter, EnumMessage)]
 pub enum ProposerGauge {
+    /// Whether the proposer process has started.
+    #[strum(
+        serialize = "kona_sp1_proposer_up",
+        message = "Whether the proposer process has started"
+    )]
+    Up,
+    /// Signer balance in ETH; `NaN` when the balance cannot be read.
+    #[strum(
+        serialize = "kona_sp1_proposer_signer_balance_eth",
+        message = "Signer balance in ETH; NaN when unavailable"
+    )]
+    SignerBalanceEth,
+    /// Latest (mined) nonce of the L1 transaction signer; `NaN` when it cannot be read.
+    #[strum(
+        serialize = "kona_sp1_proposer_signer_nonce",
+        message = "Latest mined nonce of the L1 signer; NaN when unavailable"
+    )]
+    SignerNonce,
+    /// Pending nonce of the L1 transaction signer. Above `signer_nonce` while transactions wait
+    /// in the mempool; `NaN` when it cannot be read.
+    #[strum(
+        serialize = "kona_sp1_proposer_signer_pending_nonce",
+        message = "Pending nonce of the L1 signer, including mempool transactions; NaN when unavailable"
+    )]
+    SignerPendingNonce,
+    /// Spendable prover-network balance in PROVE; absent in mock mode.
+    #[strum(
+        serialize = "kona_sp1_proposer_prove_balance",
+        message = "Spendable prover-network balance in PROVE; NaN when unavailable"
+    )]
+    ProveBalance,
+    /// Minimum defense deadline minus L1 time; positive infinity with no outstanding defense.
+    #[strum(
+        serialize = "kona_sp1_proposer_defense_deadline_remaining_seconds",
+        message = "Minimum outstanding defense time in seconds; +Inf with no defense, NaN when unavailable"
+    )]
+    DefenseDeadlineRemainingSeconds,
     // Proposer metrics
     /// Highest super-root timestamp proposable under the configured safety level.
     #[strum(
@@ -212,3 +253,62 @@ pub enum ProposerGauge {
 }
 
 impl MetricsGauge for ProposerGauge {}
+
+const DEADLINE_PASSED: &str = "kona_sp1_proposer_deadline_passed_total";
+const PROOF_REQUESTS: &str = "kona_sp1_proposer_proof_requests";
+const SPN_REQUESTER: &str = "kona_sp1_proposer_spn_requester_info";
+
+/// Registers metrics after installing the recorder, without treating unread balances as zero.
+pub fn register_metrics(network: bool) {
+    ProposerGauge::register_all();
+    for metric in ProposerGauge::iter() {
+        let initial = match metric {
+            ProposerGauge::ProveBalance if !network => continue,
+            ProposerGauge::SignerBalanceEth |
+            ProposerGauge::SignerNonce |
+            ProposerGauge::SignerPendingNonce |
+            ProposerGauge::ProveBalance |
+            ProposerGauge::DefenseDeadlineRemainingSeconds => f64::NAN,
+            _ => 0.0,
+        };
+        metric.set(initial);
+    }
+    describe_counter!(
+        DEADLINE_PASSED,
+        "Missed game deadlines observed once per game window while tracked by this process"
+    );
+    for window in ["defense", "fast_finality"] {
+        counter!(DEADLINE_PASSED, "window" => window).increment(0);
+    }
+    describe_gauge!(
+        PROOF_REQUESTS,
+        "SPN proof requests of games being proven, by request kind and state"
+    );
+    record_proof_requests(&ProofRequestCounts::new());
+}
+
+/// Publishes the SPN requester address as a label so dashboards can link to its requests.
+pub fn record_spn_requester(requester: Address) {
+    describe_gauge!(SPN_REQUESTER, "SPN requester address the proposer signs proof requests as");
+    gauge!(SPN_REQUESTER, "address" => format!("{requester:#x}")).set(1.0);
+}
+
+/// Sets every kind and state series, so a state that empties reads 0 instead of its last value.
+pub(crate) fn record_proof_requests(counts: &ProofRequestCounts) {
+    for kind in PROOF_REQUEST_KINDS {
+        for state in PROOF_REQUEST_STATES {
+            let count = counts.get(&(kind, state)).copied().unwrap_or_default();
+            gauge!(PROOF_REQUESTS, "kind" => kind, "state" => state).set(count as f64);
+        }
+    }
+}
+
+pub(crate) fn record_deadline_passed(is_defense: bool) {
+    let window = if is_defense { "defense" } else { "fast_finality" };
+    counter!(DEADLINE_PASSED, "window" => window).increment(1);
+}
+
+/// Converts an 18-decimal ETH or PROVE balance to whole tokens.
+pub(crate) fn token_balance(balance: U256) -> f64 {
+    f64::from(balance) / 1e18
+}

@@ -29,10 +29,6 @@
     "publish_tag": "${version}",
     "source_ref": "${ref_name}"
   },
-  "default_runners": {
-    "x86_64": "ubuntu-24.04",
-    "aarch64": "ubuntu-24.04-arm"
-  },
   "smoke_runners": {
     "amd64": "ubuntu-24.04",
     "arm64": "ubuntu-24.04-arm"
@@ -48,14 +44,11 @@
         "path": "."
       },
       "source_submodules": "recursive",
-      "runners": {
-        "x86_64": "oplabs-ubuntu-x86",
-        "aarch64": "oplabs-ubuntu-arm"
-      },
       "use_gha_cache": true,
       "cache_key_files": [
         "rust/Cargo.lock"
-      ]
+      ],
+      "runner_profile": "large"
     },
     "multicannon": {
       "config": "melange/multicannon.yaml"

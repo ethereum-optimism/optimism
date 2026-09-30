@@ -1,7 +1,7 @@
 # Updating the reth dependency
 
-The Rust workspace pins ~70 `reth-*` crates from `paradigmxyz/reth` to a single
-git ref in [`rust/Cargo.toml`](Cargo.toml) — `tag = "vX.Y.Z"` when tracking a
+The Rust workspace pins ~70 `reth-*` crates to a single git ref, from upstream
+`paradigmxyz/reth` or from an OP-maintained fork of it, in [`rust/Cargo.toml`](Cargo.toml) — `tag = "vX.Y.Z"` when tracking a
 release (the normal case; self-documenting), or `rev = "<sha>"` when pinning a
 non-release commit. This guide describes how to bump that pin safely and keep
 the shared `revm`/`alloy` versions in sync with it.
@@ -22,9 +22,10 @@ main's CI actually validated.
 
 ## Procedure
 
-1. Pick the new rev. For a specific upstream PR, take its merge commit (see
-   `gh pr view <N> --repo paradigmxyz/reth --json mergeCommit`). Otherwise take
-   the current head of `paradigmxyz/reth` `main`.
+1. Pick the target revision. Honor an explicit release tag, commit SHA, or
+   merged upstream PR first. Otherwise prefer the latest suitable upstream
+   release. For a PR, use its merge commit; use current `main` only when no
+   release contains the needed change and no specific stable target was given.
 
 2. Audit what the current pin carries before moving off it. If the current pin
    is **not an ancestor of the target** (e.g. it was an unmerged-PR commit),
@@ -34,20 +35,64 @@ main's CI actually validated.
    carried change is contained in, or explicitly superseded by, the target.
    Never silently drop a fix the pin was carrying.
 
+   The same audit applies to the fork itself. In a checkout of the reth fork
+   (not the monorepo), fetch its upstream remote, find the pinned commit's
+   upstream base, and list its cherry-picks:
+
+   ```bash
+   git fetch <upstream-remote> main
+   OLD_PIN=<old-pin>
+   OLD_BASE=$(git merge-base "$OLD_PIN" <upstream-remote>/main)
+   git log --reverse --oneline "$OLD_BASE..$OLD_PIN"
+   ```
+
+   For each commit, decide whether the selected target contains it or an
+   equivalent. Drop patches already present there; preserve every other patch.
+   If a rewritten or squashed equivalent makes that unclear, ask rather than
+   guess.
+
 3. Update the pin in `rust/Cargo.toml`.
 
-   When moving to a release tag (the normal case):
+   If no fork cherry-picks survive, prefer the upstream release tag. For an
+   existing upstream tag pin, replace the tag. For a fork rev pin, replace both
+   the source and ref:
 
    ```bash
    cd rust
-   sed -i 's/tag = "<OLD_TAG>"/tag = "<NEW_TAG>"/g' Cargo.toml
+   perl -pi -e 's/tag = "<OLD_TAG>"/tag = "<NEW_TAG>"/g' Cargo.toml
+   perl -pi -e 's#git = "https://github.com/<OLD_OWNER>/reth", rev = "<OLD_REV>"#git = "https://github.com/paradigmxyz/reth", tag = "<NEW_TAG>"#g' Cargo.toml
+   grep -nE '<OLD_TAG>|<OLD_REV>|github.com/<OLD_OWNER>/reth' Cargo.toml  # no matches
    ```
 
-   When pinning a non-release commit instead, use `rev = "<sha>"` in the same
-   way (and switch back to `tag = ...` at the next release catch-up). Find any
-   stragglers with `grep -rl '<OLD_TAG_OR_REV>' rust --include='Cargo.toml'`.
-   The lockfiles record the resolved commit either way, so builds stay
-   reproducible even if an upstream tag were to move.
+   If patches must survive, replay and publish them in the reth fork checkout
+   before changing the monorepo pin:
+
+   ```bash
+   git switch -c <fork-branch> <new-upstream-rev>
+   git cherry-pick <retained-sha>...  # oldest first
+   git push <fork-remote> HEAD:<fork-branch>
+   git rev-parse HEAD                 # use this as the monorepo rev pin
+   ```
+
+   Pin that commit with `rev = "<sha>"`. Verify every reth workspace dependency
+   uses the same repository and ref; the mirror checker rejects split pins.
+
+   Use `ethereum-optimism/reth`'s `optimism` branch for maintenance backports.
+   Rebuild it from the selected upstream release, replay the required runtime
+   patches, then replay the fork's CircleCI/Actions support as one final commit.
+   Keep those CI changes squashed so subsequent rebuilds need only one CI
+   cherry-pick. Preserve the original branch tip locally and use an explicit
+   force-with-lease when publishing a rebuilt branch.
+   Update the maintenance-push compact-codec comparison base in the fork's
+   `.github/workflows/compact.yml` to the selected release too; comparing against
+   `main` can test unsupported future formats. Check the fork's own lockfile
+   advisories separately: downstream lockfile fixes do not repair the fork's CI.
+
+   Merging a fix into upstream `main` does not establish that a patch release
+   contains it. Check the selected tag's ancestry or patch equivalence before
+   removing any backport; a newer tag can still omit the required fix.
+
+   The lockfiles record the resolved commit, so builds remain reproducible.
 
 4. Sync shared dependency versions to the new rev's pins. reth and the OP Stack
    share the `revm`/`revm-*`, `alloy-*` (core and main), `alloy-eip7928`, and
@@ -82,6 +127,26 @@ main's CI actually validated.
    `Cargo.lock` diff is often empty. Update the declared versions anyway: it
    keeps the manifest honest about what we actually build against and signals
    the sync to downstream consumers (e.g. Hardhat tracking `op-revm`).
+
+   Conversely, do **not** bump the `version` of our own published crates
+   (`op-revm`, `alloy-op-evm`, `alloy-op-hardforks`, `op-alloy*`) as a side
+   effect of a pin bump. Downstream consumers pin them by version requirement
+   and redirect the source with `[patch.crates-io]` — Flashbots' `op-rbuilder`
+   does this for eight of them, against a monorepo tag. If our version stops
+   satisfying their requirement, cargo only *warns* that the patch went unused
+   and silently resolves the crates.io version instead. Note the 0.x crates are
+   the fragile ones: `alloy-op-evm` at `0.32.x` breaks on a **minor** bump,
+   while `op-revm` at `20.x` only breaks on a major. If a bump genuinely needs
+   one, call it out in the PR description so the downstream pin can move with
+   it.
+
+   When a bump is genuinely needed, **version in-tree crate families as a
+   group.** Upstream reth versions every crate from one workspace version; two
+   in-tree families follow the same rule: the published op-reth crates
+   (`op-reth`, `reth-optimism-*`, `reth-op`) and the `op-alloy*` crates. When
+   any crate of a family needs a new version, bump the whole family to the
+   same version. A lone bump leaves siblings whose API also changed at a
+   version that downstream requirements still accept.
 
 5. Refresh both lockfiles — the main workspace and the SP1 guest programs
    workspace each have their own. `cargo update -p reth` does **not** work —
@@ -133,6 +198,18 @@ main's CI actually validated.
    today) gets a unit test, verified red against a deliberately broken variant
    and green against the real code.
 
+   The compiler will not point you at the overrides that *should* have changed
+   but didn't. Two things to do by hand:
+
+   - From `rust/`, `just mirrors stale` lists mirrors that still record an older
+     pin. Work every entry and advance a tag only after checking its named
+     upstream symbol. See `docs/ai/reth-upstream-mirrors.md`.
+   - For anything touching validation or gas, ask which upstream precondition
+     makes the change safe and whether the OP Stack holds it. Deposits skip
+     `validate_env` outright, which exempts them from a long list of checks
+     upstream may treat as guaranteed. `docs/ai/reth-update-review.md`,
+     "The precondition question", has the list and the procedure.
+
 8. Build, format, and test before pushing:
 
    ```bash
@@ -160,6 +237,12 @@ main's CI actually validated.
    the node. Upstream flags op-reth deliberately rejects (the `DENIED_ARGS`
    deny-list in `op-reth/crates/cli/src/lib.rs`, e.g. `--minimal`) must stay
    rejected — they render with a `[hidden]` marker in the snapshot.
+
+   Report removed flags and changed defaults in the PR's migration notes. The
+   [published CLI reference](../docs/public-docs/scripts/gen-op-reth-cli/README.md)
+   intentionally documents a finalized release, not `develop`. Do not regenerate
+   it from an unreleased dependency bump; update it through the release generator
+   after the next finalized tag.
 
 ## Expect upstream churn beyond your target change
 
@@ -205,8 +288,8 @@ In order of preference:
    merge commit is stable (PR rebases no longer affect it) and is the version
    main's CI actually validated.
 
-3. **Current `main` HEAD** — for periodic catch-up bumps when no specific PR
-   is the trigger.
+3. **Current `main` HEAD** — for periodic catch-up only when no suitable
+   release exists.
 
 Avoid pinning to an unmerged PR branch tip for anything we want to land. It
 moves under us when the PR rebases, may sit on a much newer main than our
@@ -220,8 +303,15 @@ onto an older base, or accept the broader catch-up work as part of the bump.
 ## See also
 
 - `docs/ai/reth-update-review.md` — the review guide for these bumps: the risk
-  taxonomy and the `reth-update-reviewer` agent that surfaces upstream changes
-  which should have forced an op- change but didn't.
+  taxonomy, the deliberately-broken upstream preconditions to check against, and
+  the `reth-update-reviewer` agent that surfaces upstream changes which should
+  have forced an op- change but didn't.
+- `docs/ai/reth-upstream-mirrors.md` — the `UPSTREAM-MIRROR` tags marking OP code
+  that reproduces upstream logic instead of calling it, each recording the
+  upstream version it was last verified against. `just mirrors stale` turns them
+  into the worklist for a bump.
+- `rust/scripts/upstream-mirrors.py` — the tag checker behind `just mirrors` and
+  `just check-upstream-mirrors` (the latter runs as part of `just lint`).
 - `docs/ai/rust-dev.md` — broader Rust workflow (build, test, lint).
 - `rust/Cargo.toml` — where the pin lives (~70 occurrences).
 - `rust/kona/sp1/programs/Cargo.lock` — the second lockfile; refresh it when

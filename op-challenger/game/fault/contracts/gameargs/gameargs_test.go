@@ -2,6 +2,7 @@ package gameargs
 
 import (
 	"encoding/binary"
+	"fmt"
 	"math/big"
 	"math/rand"
 	"testing"
@@ -113,6 +114,41 @@ func TestParseZK(t *testing.T) {
 		require.NoError(t, err)
 		require.Equal(t, expected, actual)
 	})
+}
+
+func TestAnchorStateRegistry(t *testing.T) {
+	rng := rand.New(rand.NewSource(2))
+	registry := testutils.RandomAddress(rng)
+
+	permissionless := fullGameArgs()
+	permissionless.AnchorStateRegistry = registry
+	permissioned := fullGameArgs()
+	permissioned.AnchorStateRegistry = registry
+	zk := ZKGameArgs{ChallengerBond: big.NewInt(1), AnchorStateRegistry: registry}
+	superPermissioned := append(registry.Bytes(), testutils.RandomAddress(rng).Bytes()...)
+
+	for _, test := range []struct {
+		name string
+		args []byte
+	}{
+		{"SuperPermissioned", superPermissioned},
+		{"Permissionless", permissionless.PackPermissionless()},
+		{"Permissioned", permissioned.PackPermissioned()},
+		{"ZK", zk.Pack()},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			actual, err := AnchorStateRegistry(test.args)
+			require.NoError(t, err)
+			require.Equal(t, registry, actual)
+		})
+	}
+
+	for _, length := range []int{0, SuperPermissionedArgsLength - 1, SuperPermissionedArgsLength + 1, ZKArgsLength + 1} {
+		t.Run(fmt.Sprintf("Invalid-Length-%d", length), func(t *testing.T) {
+			_, err := AnchorStateRegistry(make([]byte, length))
+			require.ErrorIs(t, err, ErrInvalidGameArgs)
+		})
+	}
 }
 
 func fullGameArgs() GameArgs {

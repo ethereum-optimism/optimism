@@ -9,15 +9,16 @@ import (
 	"testing"
 	"time"
 
+	"github.com/ethereum-optimism/optimism/op-core/interop/depset"
 	messages "github.com/ethereum-optimism/optimism/op-core/interop/messages"
 	optypes "github.com/ethereum-optimism/optimism/op-core/types"
 	"github.com/ethereum-optimism/optimism/op-service/bigs"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
+	oplog "github.com/ethereum-optimism/optimism/op-service/log"
 	"github.com/ethereum-optimism/optimism/op-supernode/supernode/activity"
 	cc "github.com/ethereum-optimism/optimism/op-supernode/supernode/chain_container"
 	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/common"
-	gethlog "github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/params"
 	"github.com/stretchr/testify/require"
 )
@@ -49,6 +50,22 @@ func newInteropTestHarness(t *testing.T) *interopTestHarness {
 		activationTime: 1000,
 		dataDir:        t.TempDir(),
 	}
+}
+
+func dependencySetForChains(t *testing.T, chains map[eth.ChainID]cc.InteropChain, expiry uint64) depset.DependencySet {
+	t.Helper()
+	dependencies := make(map[eth.ChainID]*depset.StaticConfigDependency, len(chains))
+	for chainID := range chains {
+		dependencies[chainID] = &depset.StaticConfigDependency{}
+	}
+	if expiry == 0 {
+		dependencySet, err := depset.NewStaticConfigDependencySet(dependencies)
+		require.NoError(t, err)
+		return dependencySet
+	}
+	dependencySet, err := depset.NewStaticConfigDependencySetWithMessageExpiryOverride(dependencies, expiry)
+	require.NoError(t, err)
+	return dependencySet
 }
 
 // WithActivation sets the interop activation timestamp.
@@ -100,7 +117,7 @@ func (h *interopTestHarness) Build() *interopTestHarness {
 		}
 		chains[id] = mock
 	}
-	h.interop = New(testLogger(), h.activationTime, 0, chains, h.dataDir, nil, h.logBackfillDepth, nil)
+	h.interop = New(testLogger(), h.activationTime, dependencySetForChains(h.t, chains, 0), chains, h.dataDir, nil, h.logBackfillDepth, nil)
 	if h.interop != nil {
 		h.interop.l1Checker = noopL1Checker{}
 		h.interop.ctx = context.Background()
@@ -183,12 +200,19 @@ func TestNew(t *testing.T) {
 				return h.WithChain(10, nil).WithChain(8453, nil).SkipBuild()
 			},
 			run: func(t *testing.T, h *interopTestHarness) {
-				interop := New(testLogger(), h.activationTime, 0, h.Chains(), h.dataDir, nil, 0, nil)
+				dependencySet := dependencySetForChains(t, h.Chains(), 1234)
+				interop := New(testLogger(), h.activationTime, dependencySet, h.Chains(), h.dataDir, nil, 0, nil)
 				require.NotNil(t, interop)
 				interop.l1Checker = noopL1Checker{}
 				t.Cleanup(func() { _ = interop.Stop(context.Background()) })
 
 				require.Equal(t, uint64(1000), interop.activationTimestamp)
+				execMsg := &messages.ExecutingMessage{
+					ChainID:   eth.ChainIDFromUInt64(10),
+					Timestamp: 2000,
+				}
+				err := interop.verifyExecutingMessage(eth.ChainIDFromUInt64(8453), 3235, 0, execMsg, nil)
+				require.ErrorIs(t, err, ErrMessageExpired)
 				require.NotNil(t, interop.verifiedDB)
 				require.Len(t, interop.chains, 2)
 				require.Len(t, interop.logsDBs, 2)
@@ -207,7 +231,7 @@ func TestNew(t *testing.T) {
 				return h.WithDataDir("/nonexistent/path").SkipBuild()
 			},
 			run: func(t *testing.T, h *interopTestHarness) {
-				interop := New(testLogger(), h.activationTime, 0, h.Chains(), h.dataDir, nil, 0, nil)
+				interop := New(testLogger(), h.activationTime, nil, h.Chains(), h.dataDir, nil, 0, nil)
 				require.Nil(t, interop)
 			},
 		},
@@ -1012,7 +1036,7 @@ func TestFirstVerifiableTimestampRestoresSafeHeadHandoffAfterRestart(t *testing.
 	}))
 	require.NoError(t, db.Close())
 
-	interop := New(testLogger(), 100, 0, nil, dataDir, nil, 0, nil)
+	interop := New(testLogger(), 100, nil, nil, dataDir, nil, 0, nil)
 	require.NotNil(t, interop)
 	defer func() { require.NoError(t, interop.Stop(context.Background())) }()
 
@@ -1437,7 +1461,7 @@ func TestInterop_FullCycle(t *testing.T) {
 	}
 
 	chains := map[eth.ChainID]cc.InteropChain{mock.id: mock}
-	interop := New(testLogger(), 100, 0, chains, dataDir, nil, 0, nil)
+	interop := New(testLogger(), 100, dependencySetForChains(t, chains, 0), chains, dataDir, nil, 0, nil)
 	require.NotNil(t, interop)
 	interop.l1Checker = noopL1Checker{}
 	interop.ctx = context.Background()
@@ -2101,8 +2125,8 @@ func (m *mockChainContainer) SetResetCallback(cb cc.ResetCallback) {}
 
 var _ cc.InteropChain = (*mockChainContainer)(nil)
 
-func testLogger() gethlog.Logger {
-	return gethlog.New()
+func testLogger() oplog.Logger {
+	return oplog.New()
 }
 
 // =============================================================================
@@ -3274,4 +3298,58 @@ func TestFreezeAllBeforeRewind(t *testing.T) {
 			require.NotEqual(t, "Resume", e.method, "no Resume calls expected when all chains are invalidated")
 		}
 	})
+}
+
+// TestInterop_ProgressAndRecord_L1InconsistencyRewindsWhenChainsNotReady checks
+// the accepted L1 inclusion even when the next frontier is not ready.
+//
+// An L1 reorg resets local-safe below the last verified timestamp. The next
+// round then asks for a timestamp beyond local-safe, so checkChainsReady
+// returns ethereum.NotFound. Before the fix, observeRound returned early on
+// that error and never checked the accepted L1 inclusion. The stale verified
+// head stayed in the database and the engine controller promoted unverified
+// local-safe blocks. See ethereum-optimism/optimism#22845.
+func TestInterop_ProgressAndRecord_L1InconsistencyRewindsWhenChainsNotReady(t *testing.T) {
+	h := newInteropTestHarness(t). // newInteropTestHarness calls t.Parallel()
+					WithActivation(100).
+					WithChain(10, func(m *mockChainContainer) {
+			m.currentL1 = eth.BlockRef{Number: 1000, Hash: common.HexToHash("0xL1")}
+			m.blockAtTimestamp = eth.L2BlockRef{Number: 500, Hash: common.HexToHash("0xL2")}
+		}).
+		Build()
+
+	mock := h.Mock(10)
+	h.interop.verifyFn = func(ts uint64, blocks map[eth.ChainID]eth.BlockID, _ map[eth.ChainID]eth.BlockID, _ *frontierVerificationView) (Result, error) {
+		return Result{Timestamp: ts, L1Inclusion: eth.BlockID{Number: 100}, L2Heads: blocks}, nil
+	}
+	h.interop.cycleVerifyFn = func(ts uint64, blocks map[eth.ChainID]eth.BlockID, _ *frontierVerificationView) (Result, error) {
+		return Result{}, nil
+	}
+
+	for i := 0; i < 2; i++ {
+		_, err := h.interop.progressAndRecord()
+		require.NoError(t, err)
+	}
+	lastTS, ok := h.interop.verifiedDB.LastTimestamp()
+	require.True(t, ok)
+	require.Equal(t, uint64(102), lastTS)
+
+	// The L1 reorg drops the accepted L1 inclusion and pulls local-safe back
+	// below the next frontier timestamp.
+	h.interop.l1Checker = inconsistentL1Checker{}
+	mock.blockAtTimestampErr = ethereum.NotFound
+
+	made, err := h.interop.progressAndRecord()
+	require.NoError(t, err)
+	require.False(t, made, "rewind does not advance the verified timestamp")
+
+	lastTS, ok = h.interop.verifiedDB.LastTimestamp()
+	require.True(t, ok)
+	require.Equal(t, uint64(101), lastTS, "the stale verified entry must be removed")
+
+	pending, err := h.interop.verifiedDB.GetPendingTransition()
+	require.NoError(t, err)
+	require.Nil(t, pending, "WAL cleared after successful rewind")
+
+	require.Empty(t, mock.rewindEngineCalls, "L1 drift rewinds accepted Supernode state only")
 }

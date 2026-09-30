@@ -7,11 +7,11 @@ import (
 	"testing"
 	"time"
 
-	"github.com/ethereum/go-ethereum/log"
 	"github.com/stretchr/testify/require"
 
 	"github.com/ethereum-optimism/optimism/op-interop-filter/metrics"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
+	"github.com/ethereum-optimism/optimism/op-service/log"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
 
 	messages "github.com/ethereum-optimism/optimism/op-core/interop/messages"
@@ -22,6 +22,7 @@ import (
 const (
 	testExpiryWindow = uint64(100)
 	testChainA       = uint64(900)
+	testChainB       = uint64(901)
 )
 
 // =============================================================================

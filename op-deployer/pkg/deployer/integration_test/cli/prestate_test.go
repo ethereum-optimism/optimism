@@ -1,8 +1,6 @@
 package cli
 
 import (
-	"bytes"
-	"context"
 	"os"
 	"path/filepath"
 	"testing"
@@ -53,7 +51,6 @@ func TestPrestateCLICommandSources(t *testing.T) {
 			workdir, chainID := writePreparedPrestateCLIWorkdir(t)
 			args := []string{
 				"op-deployer",
-				"--cache-dir", filepath.Join(workdir, "cache"),
 				"prestate",
 				"--workdir", workdir,
 			}
@@ -61,10 +58,9 @@ func TestPrestateCLICommandSources(t *testing.T) {
 				args = append(args, "--dispute-absolute-prestate", tt.cliSelected.Hex())
 			}
 
-			var stdout bytes.Buffer
-			var stderr bytes.Buffer
-			err := RunCLI(context.Background(), &stdout, &stderr, args)
-			require.NoError(t, err, stderr.String())
+			runner := NewCLITestRunner(t)
+			output, err := runner.Run(t.Context(), args, nil)
+			require.NoError(t, err, output)
 
 			persisted, err := pipeline.ReadState(workdir)
 			require.NoError(t, err)
@@ -77,16 +73,14 @@ func TestPrestateCLICommandSources(t *testing.T) {
 
 func TestPrestateCLIRemovedFallbackFlagIsUnknown(t *testing.T) {
 	workdir, _ := writePreparedPrestateCLIWorkdir(t)
-	var stdout bytes.Buffer
-	var stderr bytes.Buffer
-	err := RunCLI(context.Background(), &stdout, &stderr, []string{
-		"op-deployer",
-		"--cache-dir", filepath.Join(workdir, "cache"),
+	runner := NewCLITestRunner(t)
+	output, err := runner.Run(t.Context(), []string{
 		"prestate",
 		"--workdir", workdir,
 		"--cannon-fallback-prestate", common.HexToHash("0x22").Hex(),
-	})
-	require.ErrorContains(t, err, "flag provided but not defined")
+	}, nil)
+	require.Error(t, err)
+	require.Contains(t, output, "flag provided but not defined")
 }
 
 func writePreparedPrestateCLIWorkdir(t *testing.T) (string, common.Hash) {

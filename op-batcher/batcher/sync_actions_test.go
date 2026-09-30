@@ -5,10 +5,10 @@ import (
 	"testing"
 
 	"github.com/ethereum-optimism/optimism/op-service/eth"
+	"github.com/ethereum-optimism/optimism/op-service/log"
 	"github.com/ethereum-optimism/optimism/op-service/queue"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
 	"github.com/ethereum/go-ethereum/core/types"
-	"github.com/ethereum/go-ethereum/log"
 	"github.com/stretchr/testify/require"
 )
 
@@ -336,7 +336,7 @@ func TestBatchSubmitter_computeSyncActions(t *testing.T) {
 			require.Equal(t, tc.expected, result, "unexpected actions")
 			require.Equal(t, tc.expectedSeqOutOfSync, outOfSync)
 			if tc.expectedLogs == nil {
-				require.Empty(t, h.Logs, "expected no logs but found some", "logs", h.Logs)
+				require.Empty(t, h.FindLogs(), "expected no logs but found some")
 			} else {
 				for _, e := range tc.expectedLogs {
 					r := h.FindLog(testlog.NewMessageContainsFilter(e))

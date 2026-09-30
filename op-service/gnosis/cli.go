@@ -6,7 +6,7 @@ import (
 	"strings"
 
 	"github.com/ethereum-optimism/optimism/op-service/ctxinterrupt"
-	oplog "github.com/ethereum-optimism/optimism/op-service/log"
+	"github.com/ethereum-optimism/optimism/op-service/log/logcli"
 	"github.com/ethereum-optimism/optimism/op-service/txmgr"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/urfave/cli/v2"
@@ -19,7 +19,7 @@ var operationMap = map[string]uint8{
 }
 
 func SendGnosisTransactionCLI(cliCtx *cli.Context) error {
-	lgr := oplog.NewLogger(oplog.AppOut(cliCtx), oplog.ReadCLIConfig(cliCtx))
+	lgr := logcli.NewLogger(logcli.AppOut(cliCtx), logcli.ReadCLIConfig(cliCtx))
 
 	// Parse CLI args
 	calldataHex := cliCtx.String(CalldataFlag.Name)

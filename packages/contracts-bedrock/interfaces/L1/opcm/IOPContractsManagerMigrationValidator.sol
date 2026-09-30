@@ -3,17 +3,52 @@ pragma solidity ^0.8.0;
 
 // Interfaces
 import { IDisputeGameFactory } from "interfaces/dispute/IDisputeGameFactory.sol";
+import { IAnchorStateRegistry } from "interfaces/dispute/IAnchorStateRegistry.sol";
+import { IETHLockbox } from "interfaces/L1/IETHLockbox.sol";
+import { IDelayedWETH } from "interfaces/dispute/IDelayedWETH.sol";
+import { GameType, Proposal } from "src/dispute/lib/Types.sol";
 import { IOPContractsManagerStandardValidator } from "interfaces/L1/IOPContractsManagerStandardValidator.sol";
 import { IStandardValidatorUtils } from "interfaces/L1/opcm/IStandardValidatorUtils.sol";
 import { ISystemConfig } from "interfaces/L1/ISystemConfig.sol";
+import { ISuperchainConfig } from "interfaces/L1/ISuperchainConfig.sol";
 
 interface IOPContractsManagerMigrationValidator {
     error InvalidGameArgsLength();
 
+    /// @notice A chain's pre-migration contracts.
+    struct LegacyChainContracts {
+        IDisputeGameFactory disputeGameFactory;
+        IETHLockbox ethLockbox;
+        IDelayedWETH delayedWETH;
+        IAnchorStateRegistry anchorStateRegistry;
+    }
+
+    /// @notice Addresses of the shared contracts the migration was meant to produce.
+    struct ExpectedSharedContracts {
+        IAnchorStateRegistry anchorStateRegistry;
+        IETHLockbox ethLockbox;
+        address delayedWETH;
+    }
+
+    /// @notice A game type's intended init bond on the shared DisputeGameFactory.
+    struct ExpectedInitBond {
+        GameType gameType;
+        uint256 initBond;
+    }
+
     struct MigrationValidationInput {
+        /// @notice Should be sourced in the same way as expectedShared below.
         IDisputeGameFactory dgf;
         ISystemConfig[] chainSystemConfigs;
-        bytes32 cannonPrestate;
+        /// @notice Each chain's pre-migration contracts, must be in the same order as chainSystemConfigs.
+        LegacyChainContracts[] legacyChainContracts;
+        /// @notice The caller MUST source these independently of the migration's resulting state,
+        ///         otherwise the validation is meaningless as it would validate the contracts
+        ///         against their own state.
+        ExpectedSharedContracts expectedShared;
+        ExpectedInitBond[] expectedInitBonds;
+        Proposal startingAnchorRoot;
+        GameType startingRespectedGameType;
         bytes32 cannonKonaPrestate;
         address proposer;
     }
@@ -34,8 +69,8 @@ interface IOPContractsManagerMigrationValidator {
     /// @notice Shared roles and config values used during migration validation.
     struct SharedConfig {
         address l1PAOMultisig;
-        address challenger;
         uint256 withdrawalDelaySeconds;
+        ISuperchainConfig superchainConfig;
     }
 
     function validateMigration(

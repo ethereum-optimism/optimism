@@ -1,8 +1,11 @@
 package standard
 
 import (
+	_ "embed"
+	"encoding/json"
 	"fmt"
 	"reflect"
+	"strconv"
 	"strings"
 	"sync"
 
@@ -56,7 +59,8 @@ const (
 	ContractsV500Tag        = "op-contracts/v5.0.0"
 	ContractsV600Tag        = "op-contracts/v6.0.0-rc.2"
 	ContractsV700Tag        = "op-contracts/v7.0.0-rc.4"
-	CurrentTag              = ContractsV700Tag
+	ContractsV800Tag        = "op-contracts/v8.0.0"
+	CurrentTag              = ContractsV800Tag
 )
 
 var DisputeAbsolutePrestate = common.HexToHash("0x038512e02c4c3f7bdaec27d00edf55b7155e0905301e1a88083e4e0a6764d54c")
@@ -112,9 +116,29 @@ const (
 	sepoliaSP1VerifierV610 = "0xc3c6dDDAc8829b233Dc6536Ec024775a57b0AF2A"
 )
 
+// sp1VerifierHashJSON maps each L1 chain ID to the VERIFIER_HASH() of the verifier from
+// SP1VerifierFor, i.e. the PLONK circuit it accepts proofs for. Proofs carry the first four bytes
+// of that value as their selector, so the linked sp1-sdk must prove for the same circuit;
+// kona-sp1-proposer's release-pin test reads the same file and holds the SDK to it.
+// Source: succinctlabs/sp1-contracts@2ac5ecbbe473421a963d67e55f182e9a36576f7c,
+// contracts/src/v6.1.0/SP1VerifierPlonk.sol, VERIFIER_HASH().
+// DO NOT MODIFY THIS FILE WITHOUT CLEARING IT WITH THE EVM SAFETY TEAM.
+//
+//go:embed sp1-verifier.json
+var sp1VerifierHashJSON []byte
+
+var sp1VerifierHashes = func() map[string]common.Hash {
+	var hashes map[string]common.Hash
+	if err := json.Unmarshal(sp1VerifierHashJSON, &hashes); err != nil {
+		panic(fmt.Sprintf("sp1-verifier.json: %v", err))
+	}
+	return hashes
+}()
+
 // SP1VerifierFor returns the raw SP1 verifier approved for the current OPCM release on the given L1
 // chain ID. Both `bootstrap implementations` and `apply` default to it when ZK dispute games are
-// enabled and the operator did not pin a verifier explicitly.
+// enabled and the operator did not pin a verifier explicitly. Change it together with
+// SP1VerifierHashFor and the sp1-sdk pin in rust/Cargo.toml.
 // DO NOT MODIFY THIS METHOD WITHOUT CLEARING IT WITH THE EVM SAFETY TEAM.
 func SP1VerifierFor(chainID uint64) (common.Address, error) {
 	switch chainID {
@@ -125,6 +149,18 @@ func SP1VerifierFor(chainID uint64) (common.Address, error) {
 	default:
 		return common.Address{}, fmt.Errorf("unsupported chain ID: %d", chainID)
 	}
+}
+
+// SP1VerifierHashFor returns the VERIFIER_HASH() the verifier from SP1VerifierFor implements on
+// the given L1 chain ID, from sp1-verifier.json. TestApplyDefaultsSP1VerifierOnSepolia holds it to
+// the chain, and the EVM Safety release runbook passes it to VerifyOPCM as
+// EXPECTED_SP1_VERIFIER_HASH.
+func SP1VerifierHashFor(chainID uint64) (common.Hash, error) {
+	hash, ok := sp1VerifierHashes[strconv.FormatUint(chainID, 10)]
+	if !ok {
+		return common.Hash{}, fmt.Errorf("unsupported chain ID: %d", chainID)
+	}
+	return hash, nil
 }
 
 func SuperchainFor(chainID uint64) (superchain.Superchain, error) {

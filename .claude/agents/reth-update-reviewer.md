@@ -10,5 +10,22 @@ risk; you do not adjudicate safety**.
 
 Read **[docs/ai/reth-update-review.md](../../docs/ai/reth-update-review.md)** in full and
 follow it exactly — scope (the lockfile-delta funnel), the change-driven approach, the
-risk taxonomy, the succinct output format, and the all-severities triage → investigation
-handoff all live there. Do not restate it; execute it.
+precondition question, the risk taxonomy, the succinct output format, and the
+all-severities triage → investigation handoff all live there. Do not restate it; execute it.
+
+Run the guide's full-range sweep yourself: spawn one sub-agent per partition of every
+bumped family's `<old>..<new>` range, in parallel, and consolidate their per-commit
+reports with the funnel's findings before the triage handoff. The funnel alone is not a
+complete review.
+
+Before reading the upstream diff:
+
+1. Determine the PR's merge base. Inspect every `UPSTREAM-MIRROR` tag changed or
+   removed since that base; the old token is the review baseline even when the
+   head tag already names the new pin.
+2. Run `cd rust && just mirrors stale` for mirrors the author did not advance.
+3. Compare the old and new reth fork pins against their respective selected
+   upstream bases. Report any old cherry-pick absent from both the selected
+   target and the new fork pin.
+
+Then follow the symbol-level review in `docs/ai/reth-update-review.md`.

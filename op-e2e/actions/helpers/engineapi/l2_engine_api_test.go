@@ -9,6 +9,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-core/forks"
 	"github.com/ethereum-optimism/optimism/op-service/bigs"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
+	"github.com/ethereum-optimism/optimism/op-service/log"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
 	"github.com/ethereum/go-ethereum/beacon/engine"
 	"github.com/ethereum/go-ethereum/common"
@@ -18,7 +19,6 @@ import (
 	"github.com/ethereum/go-ethereum/core/types"
 	geth "github.com/ethereum/go-ethereum/eth"
 	"github.com/ethereum/go-ethereum/eth/ethconfig"
-	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/node"
 	"github.com/stretchr/testify/require"
 )
@@ -36,7 +36,7 @@ func TestNewPayloadV4(t *testing.T) {
 		{6, 8, "", false},                  // after isthmus
 		{6, 8, "Invalid parameters", true}, // after isthmus, nil withdrawal root
 	}
-	logger, _ := testlog.CaptureLogger(t, log.LvlInfo)
+	logger, _ := testlog.CaptureLogger(t, log.LevelInfo)
 
 	for _, c := range cases {
 		genesis := createGenesisWithIsthmusTimeOffset(c.isthmusTime)
@@ -85,7 +85,7 @@ func TestNewPayloadV4(t *testing.T) {
 }
 
 func TestCreatedBlocksAreCached(t *testing.T) {
-	logger, logs := testlog.CaptureLogger(t, log.LvlInfo)
+	logger, logs := testlog.CaptureLogger(t, log.LevelInfo)
 
 	backend := newStubBackend(t)
 	engineAPI := NewL2EngineAPI(logger, backend, nil)

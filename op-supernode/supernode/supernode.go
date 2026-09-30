@@ -9,6 +9,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/ethereum-optimism/optimism/op-core/interop/depset"
 	opnodecfg "github.com/ethereum-optimism/optimism/op-node/config"
 	rollupNode "github.com/ethereum-optimism/optimism/op-node/node"
 	"github.com/ethereum-optimism/optimism/op-service/apis"
@@ -24,14 +25,14 @@ import (
 	"github.com/ethereum-optimism/optimism/op-supernode/supernode/activity/superroot"
 	cc "github.com/ethereum-optimism/optimism/op-supernode/supernode/chain_container"
 	"github.com/ethereum-optimism/optimism/op-supernode/supernode/resources"
-	gethlog "github.com/ethereum/go-ethereum/log"
 	rpc "github.com/ethereum/go-ethereum/rpc"
 
+	oplog "github.com/ethereum-optimism/optimism/op-service/log"
 	"github.com/ethereum-optimism/optimism/op-supernode/config"
 )
 
 type Supernode struct {
-	log         gethlog.Logger
+	log         oplog.Logger
 	version     string
 	requestStop context.CancelCauseFunc
 	stopped     atomic.Bool
@@ -55,7 +56,7 @@ type Supernode struct {
 	rpcAddr string
 }
 
-func New(ctx context.Context, log gethlog.Logger, version string, commit string, requestStop context.CancelCauseFunc, cfg *config.CLIConfig, vnCfgs map[eth.ChainID]*opnodecfg.Config) (*Supernode, error) {
+func New(ctx context.Context, log oplog.Logger, version string, commit string, requestStop context.CancelCauseFunc, cfg *config.CLIConfig, vnCfgs map[eth.ChainID]*opnodecfg.Config) (*Supernode, error) {
 	s := &Supernode{log: log, version: version, requestStop: requestStop, cfg: cfg, chains: make(map[eth.ChainID]cc.InteropChain)}
 
 	// Initialize L1 client
@@ -118,14 +119,14 @@ func New(ctx context.Context, log gethlog.Logger, version string, commit string,
 	var verifiedReader interop.VerifiedResultReader = interop.NoopVerifiedResultReader{}
 	var interopActivity *interop.Interop
 	if interopActivationTimestamp != nil {
-		var msgExpiryWindow uint64
+		var dependencySet depset.DependencySet
 		for _, vnCfg := range vnCfgs {
-			if vnCfg.DependencySet != nil {
-				msgExpiryWindow = vnCfg.DependencySet.MessageExpiryWindow()
+			if vnCfg != nil && vnCfg.DependencySet != nil {
+				dependencySet = vnCfg.DependencySet
 				break
 			}
 		}
-		interopActivity = interop.New(log.New("activity", "interop"), *interopActivationTimestamp, msgExpiryWindow, s.chains, cfg.DataDir, s.l1Client, cfg.InteropLogBackfillDepth, s.supernodeMetrics)
+		interopActivity = interop.New(log.New("activity", "interop"), *interopActivationTimestamp, dependencySet, s.chains, cfg.DataDir, s.l1Client, cfg.InteropLogBackfillDepth, s.supernodeMetrics)
 		verifiedReader = interopActivity
 	}
 

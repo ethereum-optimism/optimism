@@ -9,7 +9,7 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-node/chaincfg"
 	opservice "github.com/ethereum-optimism/optimism/op-service"
-	oplog "github.com/ethereum-optimism/optimism/op-service/log"
+	"github.com/ethereum-optimism/optimism/op-service/log/logcli"
 	opmetrics "github.com/ethereum-optimism/optimism/op-service/metrics"
 	"github.com/ethereum-optimism/optimism/op-service/oppprof"
 )
@@ -48,9 +48,9 @@ var (
 	}
 	BackfillDurationFlag = &cli.DurationFlag{
 		Name:    "backfill-duration",
-		Usage:   "Duration to backfill on startup (e.g., 24h, 30m, 1h30m)",
+		Usage:   "Duration to backfill on startup (e.g., 168h, 30m, 1h30m)",
 		EnvVars: prefixEnvVars("BACKFILL_DURATION"),
-		Value:   24 * time.Hour,
+		Value:   168 * time.Hour,
 	}
 	MessageExpiryWindowFlag = &cli.DurationFlag{
 		Name:    "message-expiry-window",
@@ -165,7 +165,7 @@ var optionalFlags = []cli.Flag{
 }
 
 func init() {
-	optionalFlags = append(optionalFlags, oplog.CLIFlags(EnvVarPrefix)...)
+	optionalFlags = append(optionalFlags, logcli.CLIFlags(EnvVarPrefix)...)
 	optionalFlags = append(optionalFlags, opmetrics.CLIFlags(EnvVarPrefix)...)
 	optionalFlags = append(optionalFlags, oppprof.CLIFlags(EnvVarPrefix)...)
 

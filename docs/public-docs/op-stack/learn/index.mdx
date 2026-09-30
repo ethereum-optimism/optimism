@@ -8,7 +8,7 @@ last-reviewed: 2026-07-21
 
 This track is a guided path through the OP Stack documentation for readers
 who want to learn the stack from the beginning. It sequences existing pages
-into thirteen ordered stops: blocks of concept pages punctuated by three
+into fourteen ordered stops: blocks of concept pages punctuated by three
 hands-on projects, so you consolidate each idea by using it before moving on.
 
 **Scope: this track takes you from newcomer to comfortable.** When you
@@ -36,52 +36,55 @@ The track's design rationale, ownership, and change history live in the
 
 *   **Stop 1.** [The OP Stack](/op-stack/introduction/op-stack): what the
     stack is and what you can build with it.
-*   **Stop 2.** [Design philosophy & principles](/op-stack/protocol/design-principles):
+*   **Stop 2.** [OP Stack architecture](/op-stack/architecture): the system
+    view, covering the components, who runs each, and how a transaction moves
+    through them.
+*   **Stop 3.** [Design philosophy & principles](/op-stack/protocol/design-principles):
     the four pillars that explain why the stack is built the way it is.
-*   **Stop 3.** [Differences from Ethereum](/op-stack/protocol/differences):
+*   **Stop 4.** [Differences from Ethereum](/op-stack/protocol/differences):
     what "EVM equivalent" means in practice and the small set of behaviors
     that differ.
-*   **Stop 4.** [OP Stack components](/op-stack/protocol/components): the
+*   **Stop 5.** [OP Stack components](/op-stack/protocol/components): the
     conceptual layers of the stack and the software modules that fill them.
 
 ## Project 1: Deploy your own chain
 
-*   **Stop 5.** [Creating your own L2 rollup testnet](/chain-operators/tutorials/create-l2-rollup):
+*   **Stop 6.** [Creating your own L2 rollup testnet](/chain-operators/tutorials/create-l2-rollup):
     deploy a rollup testnet with op-deployer and start each component
     yourself. A multi-part series; work through every part before
     continuing.
 
 ## Part 2: Transactions and bridging
 
-*   **Stop 6.** [Transaction flow](/op-stack/transactions/transaction-flow):
+*   **Stop 7.** [Transaction flow](/op-stack/transactions/transaction-flow):
     how a transaction moves through the components you just ran, from
     submission to finality on Ethereum.
-*   **Stop 7.** [Transaction fees on OP Mainnet](/op-stack/transactions/fees):
+*   **Stop 8.** [Transaction fees on OP Mainnet](/op-stack/transactions/fees):
     the fee components of an OP Stack transaction and what determines each
     one.
-*   **Stop 8.** [Deposit flow](/op-stack/bridging/deposit-flow): how a
+*   **Stop 9.** [Deposit flow](/op-stack/bridging/deposit-flow): how a
     transaction triggered on L1 becomes an L2 transaction.
-*   **Stop 9.** [Withdrawal flow](/op-stack/bridging/withdrawal-flow): the
+*   **Stop 10.** [Withdrawal flow](/op-stack/bridging/withdrawal-flow): the
     initiate, prove, and finalize steps that move a transaction from L2
     back to L1.
 
 ## Project 2: Bridge in both directions
 
-*   **Stop 10.** [Submitting transactions from L1](/app-developers/tutorials/bridging/cross-dom-bridge-eth):
+*   **Stop 11.** [Submitting transactions from L1](/app-developers/tutorials/bridging/cross-dom-bridge-eth):
     walk a deposit and a withdrawal end to end from code, using Viem.
 
 ## Part 3: Security and the Superchain
 
-*   **Stop 11.** [Fault proofs explainer](/op-stack/fault-proofs/explainer):
+*   **Stop 12.** [Fault proofs explainer](/op-stack/fault-proofs/explainer):
     how anyone can permissionlessly propose and challenge the state
     proposals that withdrawals depend on.
-*   **Stop 12.** [OP Stack interoperability explainer](/op-stack/interop/explainer):
+*   **Stop 13.** [OP Stack interoperability explainer](/op-stack/interop/explainer):
     how the OP Stack is evolving so a network of chains can feel like a
     single blockchain.
 
 ## Capstone: Run a node
 
-*   **Stop 13.** [Running a node with Docker](/node-operators/tutorials/node-from-docker):
+*   **Stop 14.** [Running a node with Docker](/node-operators/tutorials/node-from-docker):
     run an OP Stack node with the official Docker images and watch it sync
     a live network.
 

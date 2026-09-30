@@ -9,10 +9,12 @@ import (
 	"github.com/holiman/uint256"
 	"github.com/stretchr/testify/require"
 
+	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/core/types"
 
 	optypes "github.com/ethereum-optimism/optimism/op-core/types"
+	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-service/testutils"
 )
 
@@ -22,69 +24,69 @@ type txTypeTest struct {
 	signer types.Signer
 }
 
-func TestSpanBatchTxsContractCreationBits(t *testing.T) {
+func TestSpanBatchTxsZeroToBits(t *testing.T) {
 	rng := rand.New(rand.NewSource(0x1234567))
 	chainID := big.NewInt(rng.Int63n(1000))
 
 	rawSpanBatch := RandomRawSpanBatch(rng, chainID)
-	contractCreationBits := rawSpanBatch.txs.contractCreationBits
+	zeroToBits := rawSpanBatch.txs.zeroToBits
 	totalBlockTxCount := rawSpanBatch.txs.totalBlockTxCount
 
 	var sbt spanBatchTxs
-	sbt.contractCreationBits = contractCreationBits
+	sbt.zeroToBits = zeroToBits
 	sbt.totalBlockTxCount = totalBlockTxCount
 
 	var buf bytes.Buffer
-	err := sbt.encodeContractCreationBits(&buf)
+	err := sbt.encodeZeroToBits(&buf)
 	require.NoError(t, err)
 
-	// contractCreationBit field is fixed length: single bit
-	contractCreationBitBufferLen := totalBlockTxCount / 8
+	// zeroToBit field is fixed length: single bit
+	zeroToBitBufferLen := totalBlockTxCount / 8
 	if totalBlockTxCount%8 != 0 {
-		contractCreationBitBufferLen++
+		zeroToBitBufferLen++
 	}
-	require.Equal(t, buf.Len(), int(contractCreationBitBufferLen))
+	require.Equal(t, buf.Len(), int(zeroToBitBufferLen))
 
 	result := buf.Bytes()
-	sbt.contractCreationBits = nil
+	sbt.zeroToBits = nil
 
 	r := bytes.NewReader(result)
-	err = sbt.decodeContractCreationBits(r)
+	err = sbt.decodeZeroToBits(r)
 	require.NoError(t, err)
 
-	require.Equal(t, contractCreationBits, sbt.contractCreationBits)
+	require.Equal(t, zeroToBits, sbt.zeroToBits)
 }
 
-func TestSpanBatchTxsContractCreationCount(t *testing.T) {
+func TestSpanBatchTxsZeroToCount(t *testing.T) {
 	rng := rand.New(rand.NewSource(0x1337))
 	chainID := big.NewInt(rng.Int63n(1000))
 
 	rawSpanBatch := RandomRawSpanBatch(rng, chainID)
 
-	contractCreationBits := rawSpanBatch.txs.contractCreationBits
-	contractCreationCount, err := rawSpanBatch.txs.contractCreationCount()
+	zeroToBits := rawSpanBatch.txs.zeroToBits
+	zeroToCount, err := rawSpanBatch.txs.zeroToCount()
 	require.NoError(t, err)
 	totalBlockTxCount := rawSpanBatch.txs.totalBlockTxCount
 
 	var sbt spanBatchTxs
-	sbt.contractCreationBits = contractCreationBits
+	sbt.zeroToBits = zeroToBits
 	sbt.totalBlockTxCount = totalBlockTxCount
 
 	var buf bytes.Buffer
-	err = sbt.encodeContractCreationBits(&buf)
+	err = sbt.encodeZeroToBits(&buf)
 	require.NoError(t, err)
 
 	result := buf.Bytes()
-	sbt.contractCreationBits = nil
+	sbt.zeroToBits = nil
 
 	r := bytes.NewReader(result)
-	err = sbt.decodeContractCreationBits(r)
+	err = sbt.decodeZeroToBits(r)
 	require.NoError(t, err)
 
-	contractCreationCount2, err := sbt.contractCreationCount()
+	zeroToCount2, err := sbt.zeroToCount()
 	require.NoError(t, err)
 
-	require.Equal(t, contractCreationCount, contractCreationCount2)
+	require.Equal(t, zeroToCount, zeroToCount2)
 }
 
 func TestSpanBatchTxsYParityBits(t *testing.T) {
@@ -249,13 +251,13 @@ func TestSpanBatchTxsTxTos(t *testing.T) {
 
 	rawSpanBatch := RandomRawSpanBatch(rng, chainID)
 	txTos := rawSpanBatch.txs.txTos
-	contractCreationBits := rawSpanBatch.txs.contractCreationBits
+	zeroToBits := rawSpanBatch.txs.zeroToBits
 	totalBlockTxCount := rawSpanBatch.txs.totalBlockTxCount
 
 	var sbt spanBatchTxs
 	sbt.txTos = txTos
 	// creation bits and block tx count must be se to decode tos
-	sbt.contractCreationBits = contractCreationBits
+	sbt.zeroToBits = zeroToBits
 	sbt.totalBlockTxCount = totalBlockTxCount
 
 	var buf bytes.Buffer
@@ -502,7 +504,7 @@ func TestSpanBatchTxsPostExecFieldsMatchGeth(t *testing.T) {
 
 	require.Nil(t, gethTx.To())
 	require.Empty(t, sbt.txTos, "a tx without recipient stores no address")
-	require.Equal(t, uint(1), sbt.contractCreationBits.Bit(0))
+	require.Equal(t, uint(1), sbt.zeroToBits.Bit(0))
 
 	require.Equal(t, gethTx.Data(), testPostExecTx().Data, "op-geth carries the payload verbatim")
 	require.Equal(t, hexutil.Bytes(raw), sbt.txDatas[0])
@@ -617,12 +619,12 @@ func TestSpanBatchTxsFullTxNotEnoughTxTos(t *testing.T) {
 	}
 }
 
-func TestSpanBatchTxsMaxContractCreationBitsLength(t *testing.T) {
+func TestSpanBatchTxsMaxZeroToBitsLength(t *testing.T) {
 	var sbt spanBatchTxs
 	sbt.totalBlockTxCount = 0xFFFFFFFFFFFFFFFF
 
 	r := bytes.NewReader([]byte{})
-	err := sbt.decodeContractCreationBits(r)
+	err := sbt.decodeZeroToBits(r)
 	require.ErrorIs(t, err, ErrTooBigSpanBatchSize)
 }
 
@@ -643,4 +645,122 @@ func TestSpanBatchTxsMaxProtectedBitsLength(t *testing.T) {
 	r := bytes.NewReader([]byte{})
 	err := sb.txs.decodeProtectedBits(r)
 	require.ErrorIs(t, err, ErrTooBigSpanBatchSize)
+}
+
+// TestSpanBatchTxsCheckPostExecSlots covers the Lagoon rule that a decoder rejects a
+// span batch whose post-exec transaction does not carry the fixed slot values. Each
+// case mutates one slot of an otherwise honest encoding, which is what a batcher would
+// have to do deliberately: AddTxs never produces any of them.
+func TestSpanBatchTxsCheckPostExecSlots(t *testing.T) {
+	chainID := big.NewInt(901)
+	rawPostExecTx, err := testPostExecTx().MarshalBinary()
+	require.NoError(t, err)
+
+	honest := func(t *testing.T) *spanBatchTxs {
+		sbt, err := newSpanBatchTxs([][]byte{rawPostExecTx}, chainID)
+		require.NoError(t, err)
+		return sbt
+	}
+
+	// The unmodified encoding is accepted, so each failure below is caused by the
+	// mutation and not by the fixture.
+	require.NoError(t, honest(t).checkPostExecSlots())
+
+	for _, tc := range []struct {
+		name   string
+		mutate func(*spanBatchTxs)
+		expect string
+	}{
+		{
+			name:   "zero-to bit cleared",
+			mutate: func(s *spanBatchTxs) { s.zeroToBits.SetBit(s.zeroToBits, 0, 0) },
+			expect: "must set the zero-to bit",
+		},
+		{
+			name:   "y parity bit set",
+			mutate: func(s *spanBatchTxs) { s.yParityBits.SetBit(s.yParityBits, 0, 1) },
+			expect: "must have a zero y parity bit",
+		},
+		{
+			name:   "signature r non-zero",
+			mutate: func(s *spanBatchTxs) { s.txSigs[0].r = uint256.NewInt(1) },
+			expect: "must have a zero signature",
+		},
+		{
+			name:   "signature s non-zero",
+			mutate: func(s *spanBatchTxs) { s.txSigs[0].s = uint256.NewInt(1) },
+			expect: "must have a zero signature",
+		},
+		{
+			name:   "nonce non-zero",
+			mutate: func(s *spanBatchTxs) { s.txNonces[0] = 1 },
+			expect: "must have a zero nonce",
+		},
+		{
+			name:   "gas non-zero",
+			mutate: func(s *spanBatchTxs) { s.txGases[0] = 1 },
+			expect: "must have a zero gas limit",
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			sbt := honest(t)
+			tc.mutate(sbt)
+			err := sbt.checkPostExecSlots()
+			require.ErrorContains(t, err, tc.expect)
+		})
+	}
+}
+
+// TestSpanBatchTxsCheckPostExecSlotsIgnoresOtherTypes pins that the rule is scoped to
+// post-exec transactions: an ordinary transaction carries a real signature, nonce and
+// gas, and must not be rejected for it.
+func TestSpanBatchTxsCheckPostExecSlotsIgnoresOtherTypes(t *testing.T) {
+	rng := rand.New(rand.NewSource(0x7d515))
+	chainID := big.NewInt(901)
+	signer := types.NewPragueSigner(chainID)
+
+	rawNormalTx, err := testutils.RandomDynamicFeeTx(rng, signer).MarshalBinary()
+	require.NoError(t, err)
+	rawPostExecTx, err := testPostExecTx().MarshalBinary()
+	require.NoError(t, err)
+
+	sbt, err := newSpanBatchTxs([][]byte{rawNormalTx, rawPostExecTx}, chainID)
+	require.NoError(t, err)
+	require.NoError(t, sbt.checkPostExecSlots())
+}
+
+// TestSpanBatchDeriveRejectsPostExecSlots pins the wiring: a span batch whose post-exec
+// slots were tampered with reaches derive and is rejected there, rather than being
+// reconstructed into the same blocks it would have produced with the slots zeroed.
+// Without the check derive succeeds, because the slots are discarded on reconstruction.
+func TestSpanBatchDeriveRejectsPostExecSlots(t *testing.T) {
+	chainID := big.NewInt(901)
+	l2BlockTime := uint64(2)
+	genesisTimeStamp := uint64(1000)
+
+	rawPostExecTx, err := testPostExecTx().MarshalBinary()
+	require.NoError(t, err)
+
+	newRaw := func(t *testing.T) *RawSpanBatch {
+		singularBatch := &SingularBatch{
+			ParentHash:   common.HexToHash("0x0102"),
+			EpochNum:     rollup.Epoch(8),
+			EpochHash:    common.HexToHash("0x0304"),
+			Timestamp:    genesisTimeStamp + l2BlockTime,
+			Transactions: []hexutil.Bytes{rawPostExecTx},
+		}
+		spanBatch := initializedSpanBatch([]*SingularBatch{singularBatch}, genesisTimeStamp, chainID)
+		rawSpanBatch, err := spanBatch.ToRawSpanBatch()
+		require.NoError(t, err)
+		return rawSpanBatch
+	}
+
+	// Untampered, the same batch derives cleanly.
+	_, err = newRaw(t).derive(l2BlockTime, genesisTimeStamp, chainID)
+	require.NoError(t, err)
+
+	rawSpanBatch := newRaw(t)
+	rawSpanBatch.txs.txNonces[0] = 7
+	_, err = rawSpanBatch.derive(l2BlockTime, genesisTimeStamp, chainID)
+	require.ErrorContains(t, err, "must have a zero nonce")
 }

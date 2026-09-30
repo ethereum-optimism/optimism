@@ -32,7 +32,7 @@ func TestSupernodeInteropRPCGatedDuringReorg(gt *testing.T) {
 	sys.L2B.CatchUpTo(sys.L2A)
 	sys.L2A.CatchUpTo(sys.L2B)
 
-	paused := sys.Supernode.EnsureInteropPaused(sys.L2ACL, sys.L2BCL, 10)
+	paused := sys.Supernode.EnsureInteropPaused(10, sys.L2ACL, sys.L2BCL)
 	t.Logger().Info("interop paused", "paused", paused)
 
 	rng := rand.New(rand.NewSource(12345))

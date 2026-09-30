@@ -98,6 +98,57 @@ func (s *SuperRootQuerier) AwaitValidatedTimestamp(timestamp uint64) {
 	s.require.NoError(err, "super-root at timestamp %d was not validated in time", timestamp)
 }
 
+// AwaitOptimisticBlockAtTimestamp waits for one chain's optimistic output to become available.
+func (s *SuperRootQuerier) AwaitOptimisticBlockAtTimestamp(
+	chainID eth.ChainID,
+	timestamp uint64,
+) eth.OptimisticBlock {
+	ctx, cancel := context.WithTimeout(s.ctx, 5*DefaultTimeout)
+	defer cancel()
+
+	var result eth.OptimisticBlock
+	var lastErr error
+	var lastCurrentL1 eth.BlockID
+	var chainPresent bool
+	var outputPresent bool
+	err := wait.For(ctx, time.Second, func() (bool, error) {
+		resp, err := s.api.SuperRootAtTimestamp(ctx, timestamp)
+		if err != nil {
+			lastErr = err
+			s.log.Warn("optimistic output query failed",
+				"chain_id", chainID,
+				"timestamp", timestamp,
+				"error", err,
+			)
+			return false, nil
+		}
+		lastErr = nil
+		lastCurrentL1 = resp.CurrentL1
+		out, ok := resp.OptimisticAtTimestamp[chainID]
+		chainPresent = ok
+		outputPresent = ok && out.Output != nil
+		s.log.Info("checked optimistic output",
+			"chain_id", chainID,
+			"timestamp", timestamp,
+			"chain_present", chainPresent,
+			"output_present", outputPresent,
+			"current_l1", lastCurrentL1,
+		)
+		if !outputPresent {
+			return false, nil
+		}
+		result = eth.OptimisticBlock{
+			BlockHash:  out.Output.BlockHash,
+			OutputRoot: out.OutputRoot,
+		}
+		return true, nil
+	})
+	s.require.NoErrorf(err,
+		"optimistic output for chain %s at timestamp %d was not available in time; last error: %v, chain present: %t, output present: %t, current L1: %s",
+		chainID, timestamp, lastErr, chainPresent, outputPresent, lastCurrentL1)
+	return result
+}
+
 // AwaitFullyProcessedL1 waits until the source has fully processed the given L1 block
 // number. SuperRootAtTimestamp's CurrentL1 names the block currently being processed
 // (L1[<CurrentL1] is fully processed), so this returns once CurrentL1.Number > targetL1.

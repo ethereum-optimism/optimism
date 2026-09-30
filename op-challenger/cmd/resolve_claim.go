@@ -7,7 +7,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-challenger/flags"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/contracts"
 	opservice "github.com/ethereum-optimism/optimism/op-service"
-	oplog "github.com/ethereum-optimism/optimism/op-service/log"
+	"github.com/ethereum-optimism/optimism/op-service/log/logcli"
 	"github.com/ethereum-optimism/optimism/op-service/txmgr"
 	"github.com/urfave/cli/v2"
 )
@@ -58,7 +58,7 @@ func resolveClaimFlags() []cli.Flag {
 		ClaimIdxFlag,
 	}
 	cliFlags = append(cliFlags, txmgr.CLIFlagsWithDefaults(flags.EnvVarPrefix, txmgr.DefaultChallengerFlagValues)...)
-	cliFlags = append(cliFlags, oplog.CLIFlags(flags.EnvVarPrefix)...)
+	cliFlags = append(cliFlags, logcli.CLIFlags(flags.EnvVarPrefix)...)
 	return cliFlags
 }
 

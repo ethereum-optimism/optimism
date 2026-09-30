@@ -11,8 +11,8 @@ import (
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/flags"
 	"github.com/ethereum-optimism/optimism/op-service/bigs"
 	"github.com/ethereum-optimism/optimism/op-service/ctxinterrupt"
-	oplog "github.com/ethereum-optimism/optimism/op-service/log"
-	"github.com/ethereum/go-ethereum/log"
+	"github.com/ethereum-optimism/optimism/op-service/log"
+	"github.com/ethereum-optimism/optimism/op-service/log/logcli"
 )
 
 func printVerificationSummary(logger log.Logger, verified, skipped, partiallyVerified, failed, unavailable int, partiallyVerifiedContracts, failedContracts map[string][]string) {
@@ -56,9 +56,9 @@ func printVerificationSummary(logger log.Logger, verified, skipped, partiallyVer
 }
 
 func VerifyCLI(cliCtx *cli.Context) error {
-	logCfg := oplog.ReadCLIConfig(cliCtx)
-	l := oplog.NewLogger(oplog.AppOut(cliCtx), logCfg)
-	oplog.SetGlobalLogHandler(l.Handler())
+	logCfg := logcli.ReadCLIConfig(cliCtx)
+	l := logcli.NewLogger(logcli.AppOut(cliCtx), logCfg)
+	logcli.SetGlobalLogHandler(l.Handler())
 
 	l1RPCUrl := cliCtx.String(flags.L1RPCURLFlagName)
 	verifierAPIKey := cliCtx.String(flags.VerifierAPIKeyFlagName)

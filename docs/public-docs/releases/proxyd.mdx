@@ -15,7 +15,18 @@ diataxis: reference
 
 **proxyd** is an RPC request router and proxy with method whitelisting, backend load balancing, automatic retries, and consensus state tracking across multiple backend nodes.
 
-<Update label="August 31, 2026" description="v4.32.1" tags={["Latest", "Stable"]}>
+<Update label="September 18, 2026" description="v4.32.2" tags={["Latest", "Stable"]}>
+
+## Changelog
+* 5fd90249bbdd1122f29a80d7e28af7ec322b2db3 fix(proxyd): expand env vars in consensus_ha_redis.url (#744)
+* 560f17f545c6ac5a3ba53eb8f76d348056a71b87 proxyd: send optional x-api-key header from tx validation middleware (#737)
+* 78c825b5362987377fe56aeead913b674234bbd0 security: Update module golang.org/x/crypto to v0.56.0 [SECURITY] (#734)
+
+[View full release on GitHub →](https://github.com/ethereum-optimism/infra/releases/tag/proxyd/v4.32.2)
+
+</Update>
+
+<Update label="August 31, 2026" description="v4.32.1" tags={["Stable"]}>
 
 ## Changelog
 * 9b893d1c50aa9d6dd3ae00bb741d010d8cc6e6fb proxyd: start tx_monitor inclusion clock at request receipt (#727)

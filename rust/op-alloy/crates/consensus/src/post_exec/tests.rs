@@ -1,6 +1,8 @@
 //! Tests for post-exec transaction types and the shared post-exec payload structure check.
 
 use super::*;
+use rstest::rstest;
+use std::collections::BTreeSet;
 
 #[test]
 fn post_exec_payload_rlp_roundtrip_preserves_block_number() {
@@ -43,6 +45,26 @@ fn post_exec_payload_rlp_decode_rejects_trailing_bytes() {
 
     let err = PostExecPayload::from_rlp_bytes(&encoded).expect_err("reject trailing bytes");
     assert_eq!(err, alloy_rlp::Error::UnexpectedLength);
+}
+
+fn payload_with_refunds(refunds: &[u64]) -> PostExecPayload {
+    PostExecPayload {
+        gas_refund_entries: refunds
+            .iter()
+            .enumerate()
+            .map(|(index, gas_refund)| SDMGasEntry { index: index as u64, gas_refund: *gas_refund })
+            .collect(),
+        ..Default::default()
+    }
+}
+
+#[rstest]
+#[case::no_entries(&[], 0)]
+#[case::single_entry(&[5], 5)]
+#[case::sums_entries(&[5, 7], 12)]
+#[case::saturates(&[u64::MAX, 1], u64::MAX)]
+fn total_gas_refund_sums_entries(#[case] refunds: &[u64], #[case] expected: u64) {
+    assert_eq!(payload_with_refunds(refunds).total_gas_refund(), expected);
 }
 
 #[test]
@@ -138,6 +160,48 @@ fn post_exec_tx_rlp_decode_rejects_unknown_version() {
     let err = TxPostExec::decode(&mut buf.as_slice())
         .expect_err("rlp decode must reject unknown version");
     assert_eq!(err, alloy_rlp::Error::Custom("unsupported post-exec payload version"));
+}
+
+#[test]
+fn encoded_entry_count_preflight_uses_block_transaction_count() {
+    let post_exec = build_post_exec_tx(
+        1,
+        vec![SDMGasEntry { index: 0, gas_refund: 1 }, SDMGasEntry { index: 1, gas_refund: 1 }],
+    );
+    let filler = Bytes::from_static(&[0x01]);
+
+    validate_post_exec_entry_count(&[
+        filler.clone(),
+        filler.clone(),
+        post_exec.encoded_2718().into(),
+    ])
+    .expect("two entries fit two preceding transactions");
+
+    let err = validate_post_exec_entry_count(&[filler, post_exec.encoded_2718().into()])
+        .expect_err("two entries cannot target one other block transaction");
+    assert_eq!(
+        err,
+        alloy_rlp::Error::Custom("post-exec gas refund entries exceed block transaction count")
+    );
+}
+
+#[test]
+fn encoded_entry_count_preflight_rejects_non_final_post_exec_before_decoding() {
+    let malformed_post_exec = Bytes::from_static(&[POST_EXEC_TX_TYPE_ID]);
+    let filler = Bytes::from_static(&[0x01]);
+
+    let err = validate_post_exec_entry_count(&[malformed_post_exec, filler])
+        .expect_err("post-exec transaction must be final");
+    assert_eq!(err, alloy_rlp::Error::Custom("post-exec transaction must be final"));
+}
+
+#[test]
+fn encoded_entry_count_preflight_rejects_multiple_post_exec_txs_before_decoding() {
+    let malformed_post_exec = Bytes::from_static(&[POST_EXEC_TX_TYPE_ID]);
+
+    let err = validate_post_exec_entry_count(&[malformed_post_exec.clone(), malformed_post_exec])
+        .expect_err("multiple post-exec transactions must fail preflight");
+    assert_eq!(err, alloy_rlp::Error::Custom("multiple post-exec transactions"));
 }
 
 #[test]
@@ -249,6 +313,28 @@ fn parse_accepts_trailing_post_exec_tx() {
 }
 
 #[test]
+fn parse_rejects_more_entries_than_preceding_transactions() {
+    let post_exec = crate::OpTxEnvelope::PostExec(
+        build_post_exec_tx(
+            PARSE_BLOCK,
+            vec![SDMGasEntry { index: 0, gas_refund: 1 }, SDMGasEntry { index: 1, gas_refund: 1 }],
+        )
+        .seal_slow(),
+    );
+    let txs = vec![filler_tx(), post_exec];
+
+    let err = parse_post_exec_payload_from_transactions(&txs, PARSE_BLOCK, true)
+        .expect_err("entries cannot outnumber preceding block transactions");
+    assert_eq!(
+        err,
+        PostExecPayloadValidationError::TooManyGasRefundEntries {
+            entry_count: 2,
+            preceding_transaction_count: 1,
+        },
+    );
+}
+
+#[test]
 fn parse_returns_none_without_post_exec_tx() {
     let txs = vec![filler_tx(), filler_tx()];
 
@@ -315,4 +401,43 @@ fn parse_rejects_payload_anchored_to_wrong_block() {
             block_number: PARSE_BLOCK,
         },
     );
+}
+
+const UNEXPECTED: PostExecPayloadValidationError =
+    PostExecPayloadValidationError::UnexpectedPostExecTx { tx_index: 0 };
+const MULTIPLE: PostExecPayloadValidationError =
+    PostExecPayloadValidationError::MultiplePostExecTxs { first_index: 0, duplicate_index: 1 };
+const NOT_LAST: PostExecPayloadValidationError =
+    PostExecPayloadValidationError::PostExecTxNotLast { tx_index: 0, last_index: 1 };
+const MISMATCH: PostExecPayloadValidationError =
+    PostExecPayloadValidationError::BlockNumberMismatch {
+        payload_block_number: 1,
+        block_number: 2,
+    };
+const TOO_MANY: PostExecPayloadValidationError =
+    PostExecPayloadValidationError::TooManyGasRefundEntries {
+        entry_count: 2,
+        preceding_transaction_count: 1,
+    };
+
+#[rstest]
+#[case::unexpected(UNEXPECTED, "unexpected_post_exec_tx")]
+#[case::multiple(MULTIPLE, "multiple_post_exec_txs")]
+#[case::not_last(NOT_LAST, "post_exec_tx_not_last")]
+#[case::mismatch(MISMATCH, "block_number_mismatch")]
+#[case::too_many(TOO_MANY, "too_many_gas_refund_entries")]
+fn as_reason_names_the_failed_rule(
+    #[case] error: PostExecPayloadValidationError,
+    #[case] expected: &str,
+) {
+    assert_eq!(error.as_reason(), expected);
+}
+
+/// Two rules sharing a label would merge two failure modes into one metric series.
+#[test]
+fn as_reason_is_distinct_per_rule() {
+    let reasons = [UNEXPECTED, MULTIPLE, NOT_LAST, MISMATCH, TOO_MANY]
+        .map(PostExecPayloadValidationError::as_reason);
+    let distinct: BTreeSet<&str> = reasons.iter().copied().collect();
+    assert_eq!(distinct.len(), reasons.len(), "{reasons:?}");
 }

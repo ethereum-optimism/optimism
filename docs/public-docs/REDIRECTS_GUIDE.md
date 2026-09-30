@@ -22,7 +22,7 @@ Redirects are essential when restructuring documentation (IA refactor) to ensure
 - User bookmarks continue to work
 - External links remain valid
 
-**Location**: All Mintlify redirects are configured in `/docs.json`
+**Location**: All Mintlify redirects are configured in `docs/public-docs/docs.json`
 
 ---
 
@@ -30,11 +30,11 @@ Redirects are essential when restructuring documentation (IA refactor) to ensure
 
 ### Step 1: Open `docs.json`
 
-Navigate to the root of the project and open `/docs.json`.
+Navigate to the Mintlify docs root and open `docs/public-docs/docs.json`.
 
 ### Step 2: Find the `redirects` array
 
-Look for the `redirects` section (around line 33):
+Look for the `redirects` array / key:
 
 ```json
 {

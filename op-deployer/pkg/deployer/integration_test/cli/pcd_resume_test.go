@@ -65,6 +65,7 @@ func TestCLIPCDResume(t *testing.T) {
 
 	for _, boundary := range boundaries {
 		t.Run(boundary.String(), func(t *testing.T) {
+			t.Parallel()
 			prestate := requirePCDPrestate(t, pcdPrestateArtifactPath(t))
 			journey := newPCDResumeJourney(t, boundary, prestate)
 			probe := pcdL1Probe{client: journey.l1Client, deployer: journey.deployer}
@@ -100,6 +101,7 @@ func TestCLIPCDResume(t *testing.T) {
 	}
 
 	t.Run("elapsed-genesis", func(t *testing.T) {
+		t.Parallel()
 		prestate := requirePCDPrestate(t, pcdPrestateArtifactPath(t))
 		journey := newPCDResumeJourney(t, pcdAfterPrestate, prestate)
 		committedWorkdir := journey.cloneCommittedWorkdir()
@@ -122,6 +124,7 @@ func TestCLIPCDResume(t *testing.T) {
 	})
 
 	t.Run("reprepare-invalidates-prestate", func(t *testing.T) {
+		t.Parallel()
 		prestate := requirePCDPrestate(t, pcdPrestateArtifactPath(t))
 		journey := newPCDResumeJourney(t, pcdAfterPrestate, prestate)
 		committedWorkdir := journey.cloneCommittedWorkdir()
@@ -163,6 +166,7 @@ func TestCLIPCDResume(t *testing.T) {
 	})
 
 	t.Run("post-checkpoint-reorg", func(t *testing.T) {
+		t.Parallel()
 		prestate := requirePCDPrestate(t, pcdPrestateArtifactPath(t))
 		journey := newPCDResumeJourney(t, pcdAfterPrestate, prestate)
 		probe := pcdL1Probe{client: journey.l1Client, deployer: journey.deployer}
@@ -250,6 +254,7 @@ func TestCLIPCDResume(t *testing.T) {
 	})
 
 	t.Run("live-validation-failure", func(t *testing.T) {
+		t.Parallel()
 		prestate := requirePCDPrestate(t, pcdPrestateArtifactPath(t))
 		journey := newPCDResumeJourney(t, pcdAfterPrestate, prestate)
 		probe := pcdL1Probe{client: journey.l1Client, deployer: journey.deployer}

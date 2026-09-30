@@ -13,8 +13,7 @@ import (
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/trace"
 
-	"github.com/ethereum/go-ethereum/log"
-
+	"github.com/ethereum-optimism/optimism/op-service/log"
 	"github.com/ethereum-optimism/optimism/op-service/log/logfilter"
 	"github.com/ethereum-optimism/optimism/op-service/logmods"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
@@ -246,8 +245,7 @@ func (t *testingT) WithCtx(ctx context.Context) T {
 	expected := TestScope(t.ctx)
 	got := TestScope(ctx)
 	t.req.Equal(expected, got, "cannot replace context with different test-scope")
-	logger := t.logger.New()
-	logger.SetContext(ctx)
+	logger := t.logger.WithContext(ctx)
 	out := &testingT{
 		t:      t.t,
 		logger: logger,
@@ -294,8 +292,7 @@ func (t *testingT) Run(name string, fn func(T)) {
 		subGoT.Cleanup(func() {
 			span.End()
 		})
-		logger := t.logger.New()
-		logger.SetContext(ctx) // attach the sub-test context as default log-context
+		logger := t.logger.WithContext(ctx) // attach the sub-test context as default log-context
 
 		subT := &testingT{
 			t:      subGoT,
@@ -402,14 +399,14 @@ func SerialT(t *testing.T) T {
 	})
 
 	// Set the lowest default log-level, so the log-filters on top can apply correctly
-	logger := testlog.LoggerWithHandlerMod(t, log.LevelTrace,
+	baseLogger := testlog.LoggerWithHandlerMod(t, log.LevelTrace,
 		wrapTracingHandler, logfilter.WrapFilterHandler, logfilter.WrapContextHandler)
-	h, ok := logmods.FindHandler[logfilter.FilterHandler](logger.Handler())
+	h, ok := logmods.FindHandler[logfilter.FilterHandler](baseLogger.Handler())
 	if ok {
 		// Apply default log level. This may be overridden later.
 		h.Set(logfilter.DefaultMute(logfilter.Level(log.LevelInfo).Show()))
 	}
-	logger.SetContext(ctx) // Set the default context; any log call without context will use this
+	logger := baseLogger.WithContext(ctx) // Set the default context; any log call without context will use this
 
 	out := &testingT{
 		t:      t,

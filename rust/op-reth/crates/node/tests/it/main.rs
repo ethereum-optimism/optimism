@@ -18,4 +18,6 @@ mod estimate_gas_7825;
 
 mod p2p_version;
 
+mod payload_handoff;
+
 const fn main() {}
