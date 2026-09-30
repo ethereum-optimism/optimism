@@ -130,6 +130,18 @@ pub enum PostExecPayloadValidationError {
 }
 
 impl PostExecPayloadValidationError {
+    /// Every label value [`Self::as_reason`] can return, one per variant, derived from
+    /// [`Self::as_reason`] itself so the strings cannot drift. A new variant still has to be
+    /// added here by hand; the fixed length is the reminder.
+    pub const ALL_REASONS: [&'static str; 5] = [
+        Self::UnexpectedPostExecTx { tx_index: 0 }.as_reason(),
+        Self::MultiplePostExecTxs { first_index: 0, duplicate_index: 0 }.as_reason(),
+        Self::PostExecTxNotLast { tx_index: 0, last_index: 0 }.as_reason(),
+        Self::BlockNumberMismatch { payload_block_number: 0, block_number: 0 }.as_reason(),
+        Self::TooManyGasRefundEntries { entry_count: 0, preceding_transaction_count: 0 }
+            .as_reason(),
+    ];
+
     /// Returns this error as an owned string.
     #[must_use]
     pub fn into_string(self) -> String {
