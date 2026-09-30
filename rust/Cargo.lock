@@ -7322,6 +7322,7 @@ dependencies = [
  "alloy-chains",
  "alloy-consensus 2.4.2",
  "alloy-eips 2.5.0",
+ "alloy-json-rpc 2.5.0",
  "alloy-primitives",
  "alloy-provider",
  "alloy-rpc-client",
