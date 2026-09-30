@@ -56,13 +56,11 @@ native manifest with the generated ELFs. Native ELF hashes may differ across bui
 because paths and other environment details are embedded. The daily reproducibility job
 rebuilds each `kona-sp1` registry version from `kona-sp1-program/v<version>` using that tag's
 Docker `just build-elfs` recipe and compares only its `super-aggregation` vkey to the registry.
-The `super-range` vkey is built first and embedded in the aggregation guest.
 
 Host-toolchain workspace builds need neither ELFs nor `vkeys.toml`. Host binaries load guest
 artifacts at runtime from `KONA_SP1_ELF_DIR`; a missing or empty artifact fails as an
 infrastructure error. Release automation will eventually publish per-version aggregation vkeys
 from the generated manifest into `superchain-registry/validation/standard/standard-prestates.toml`.
-Once published, the daily reproducibility job checks each registered release.
 
 #### Build provenance
 

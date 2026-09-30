@@ -9,11 +9,20 @@ WORKTREE_DIR="${TMP_DIR}/optimism"
 
 function cleanup() {
   local docker_target="${WORKTREE_DIR}/rust/kona/sp1/programs/target/elf-compilation/docker"
-  if [[ -d "$docker_target" ]] && ! rm -rf "$docker_target" 2>/dev/null; then
-    sudo -n rm -rf "$docker_target"
+  if [[ -d "$docker_target" ]]; then
+    local worktree_real docker_parent
+    if worktree_real=$(cd -P "$WORKTREE_DIR" && pwd) &&
+      docker_parent=$(cd -P "$(dirname "$docker_target")" && pwd) &&
+      [[ "$docker_parent" == "$worktree_real"/* ]]; then
+      if ! rm -rf "$docker_target" 2>/dev/null && ! sudo -n rm -rf "$docker_target"; then
+        echo "warning: could not remove ${docker_target}" >&2
+      fi
+    else
+      echo "warning: refusing to remove ${docker_target} outside the worktree" >&2
+    fi
   fi
   git -C "${REPO_ROOT}" worktree remove "${WORKTREE_DIR}" --force 2> /dev/null || true
-  rm -rf "${TMP_DIR}"
+  rm -rf "${TMP_DIR}" || echo "warning: could not remove ${TMP_DIR}" >&2
 }
 trap cleanup EXIT
 
@@ -106,7 +115,7 @@ function build_kona_sp1() {
     fail_kona_sp1 "$version" "failed to install tag-pinned tools"
     return 1
   fi
-  if ! (cd rust/kona/sp1 && mise exec -- just install-sp1-toolchain && mise exec -- just build-elfs) 2>&1 | tee -a "$log_file"; then
+  if ! (cd rust/kona/sp1 && mise exec -- just build-elfs) 2>&1 | tee -a "$log_file"; then
     fail_kona_sp1 "$version" "tagged Docker build failed"
     return 1
   fi
@@ -119,7 +128,7 @@ function build_kona_sp1() {
     return 1
   }
   line=$(grep -E '^[[:space:]]*super-aggregation[[:space:]]*=' "$manifest" || true)
-  if [[ ! "$line" =~ ^[[:space:]]*super-aggregation[[:space:]]*=[[:space:]]*\"(0x[0-9a-fA-F]{64})\"[[:space:]]*$ ]]; then
+  if [[ ! "$line" =~ ^[[:space:]]*super-aggregation[[:space:]]*=[[:space:]]*\"(0x[0-9a-f]{64})\"[[:space:]]*$ ]]; then
     fail_kona_sp1 "$version" "missing, duplicate, or malformed super-aggregation vkey"
     return 1
   fi
@@ -168,12 +177,12 @@ for i in "${!VERSIONS[@]}"; do
 done
 
 kona_count=0
-while IFS= read -r version; do
+while IFS= read -r -u 3 version; do
   [[ -n "$version" ]] || continue
   kona_count=$((kona_count + 1))
   log_file="${LOGS_DIR}/build-kona-sp1-program-v${version}.txt"
   build_kona_sp1 "$version" "$log_file"
-done < "$KONA_SP1_VERSIONS_FILE"
+done 3< "$KONA_SP1_VERSIONS_FILE"
 if [[ "$kona_count" -eq 0 ]]; then
   echo "Kona SP1 registry selection: 0 entries; Cannon checks completed"
 fi

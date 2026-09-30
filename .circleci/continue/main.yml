@@ -1646,6 +1646,9 @@ jobs:
           name: run Go linter
           command: |
             just lint-go
+      - run:
+          name: Test prestate build driver
+          command: mise exec -- ./ops/prestate-reproducibility/test-build-prestates.sh
       - go-save-cache:
           namespace: go-lint
       - save_cache:

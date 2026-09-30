@@ -12,7 +12,7 @@ import (
 )
 
 var versionPattern = regexp.MustCompile(`^[0-9]+\.[0-9]+\.[0-9]+(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?$`)
-var hashPattern = regexp.MustCompile(`^0x[0-9a-fA-F]{64}$`)
+var hashPattern = regexp.MustCompile(`^0x[0-9a-f]{64}$`)
 
 func main() {
 	output := flag.String("output", "", "Write the fetched registry snapshot here")
@@ -31,7 +31,7 @@ func main() {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
 	}
-	if err := os.WriteFile(*output, data, 0o644); err != nil {
+	if err := os.WriteFile(*output, data, 0o600); err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
 	}

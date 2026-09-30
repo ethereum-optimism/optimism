@@ -6,6 +6,8 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/stretchr/testify/require"
 )
 
 func TestKonaSP1ReleaseComparison(t *testing.T) {
@@ -19,6 +21,9 @@ type = "cannon64-kona"
 hash = "cannon-hash"
 `
 	dir := t.TempDir()
+	binary := filepath.Join(dir, "verify")
+	buildOutput, err := exec.Command("go", "build", "-o", binary, "./verify.go").CombinedOutput()
+	require.NoError(t, err, string(buildOutput))
 	expected := filepath.Join(dir, "registry.toml")
 	if err := os.WriteFile(expected, []byte(registry), 0o644); err != nil {
 		t.Fatal(err)
@@ -39,11 +44,15 @@ hash = "cannon-hash"
 			if err := os.WriteFile(actual, []byte(tc.actual), 0o644); err != nil {
 				t.Fatal(err)
 			}
-			cmd := exec.Command("go", "run", "./verify.go", "--input", actual, "--expected", expected)
+			cmd := exec.Command(binary, "--input", actual, "--expected", expected)
 			output, err := cmd.CombinedOutput()
-			if (err == nil) != tc.succeeds {
-				t.Fatalf("unexpected result: %v\n%s", err, output)
+			if tc.succeeds {
+				require.NoError(t, err, string(output))
+				return
 			}
+			var exitErr *exec.ExitError
+			require.ErrorAs(t, err, &exitErr, string(output))
+			require.Equal(t, 1, exitErr.ExitCode(), string(output))
 		})
 	}
 }
