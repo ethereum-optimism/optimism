@@ -21,7 +21,7 @@ case "$1 $2" in
   "worktree remove") ;;
   "tag --list") ;;
   "rev-parse --verify")
-    [[ "$3" == refs/tags/kona-sp1-proposer/v*'^{commit}' ]] || exit 1
+    [[ "$3" == refs/tags/kona-sp1-program/v*'^{commit}' ]] || exit 1
     [[ "$TEST_SCENARIO" != "missing-tag" ]] || exit 1
     printf '%040d\n' 1 ;;
   "checkout --detach") [[ "$3" == "--force" && "$4" == "$(printf '%040d' 1)" ]] ;;
@@ -87,7 +87,7 @@ STUB
     grep -q "Kona SP1 version 0.0.5: rebuilt super-aggregation vkey $HASH" "$root/output"
     jq -e --arg hash "$HASH" 'length == 1 and .[0] == {version:"0.0.5",hash:$hash,type:"kona-sp1"}' \
       "$root/ops/prestate-reproducibility/temp/states/versions.json" > /dev/null
-    grep -Fq 'rev-parse --verify refs/tags/kona-sp1-proposer/v0.0.5^{commit}' "$root/git.calls"
+    grep -Fq 'rev-parse --verify refs/tags/kona-sp1-program/v0.0.5^{commit}' "$root/git.calls"
   else
     [[ "$status" -ne 0 ]] || { echo "$scenario unexpectedly passed" >&2; exit 1; }
     grep -q "Kona SP1 version 0.0.5:" "$root/output" || { cat "$root/output"; exit 1; }

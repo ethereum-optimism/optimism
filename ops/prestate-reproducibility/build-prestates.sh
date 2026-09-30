@@ -82,7 +82,7 @@ function fail_kona_sp1() {
 function build_kona_sp1() {
   local version=$1
   local log_file=$2
-  local ref="refs/tags/kona-sp1-proposer/v${version}"
+  local ref="refs/tags/kona-sp1-program/v${version}"
   local commit
   commit=$(git rev-parse --verify "${ref}^{commit}" 2>/dev/null) || {
     fail_kona_sp1 "$version" "missing tag ${ref}"
@@ -171,7 +171,7 @@ kona_count=0
 while IFS= read -r version; do
   [[ -n "$version" ]] || continue
   kona_count=$((kona_count + 1))
-  log_file="${LOGS_DIR}/build-kona-sp1-proposer-v${version}.txt"
+  log_file="${LOGS_DIR}/build-kona-sp1-program-v${version}.txt"
   build_kona_sp1 "$version" "$log_file"
 done < "$KONA_SP1_VERSIONS_FILE"
 if [[ "$kona_count" -eq 0 ]]; then

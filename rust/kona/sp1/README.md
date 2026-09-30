@@ -54,7 +54,7 @@ and then builds `super-aggregation` with that vkey embedded through `kona-sp1-ra
 `just build-elfs-native` for local iteration and the fast per-PR compile check; CI persists the
 native manifest with the generated ELFs. Native ELF hashes may differ across build environments
 because paths and other environment details are embedded. The daily reproducibility job
-rebuilds each `kona-sp1` registry version from `kona-sp1-proposer/v<version>` using that tag's
+rebuilds each `kona-sp1` registry version from `kona-sp1-program/v<version>` using that tag's
 Docker `just build-elfs` recipe and compares only its `super-aggregation` vkey to the registry.
 The `super-range` vkey is built first and embedded in the aggregation guest.
 
