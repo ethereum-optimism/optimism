@@ -33,6 +33,7 @@ use reth_node_builder::{
         RethRpcMiddleware, RethRpcServerHandles, RpcAddOns, RpcContext, RpcHandle,
     },
 };
+use reth_node_core::args::RpcStateCacheArgs;
 use reth_optimism_chainspec::{OpChainSpec, OpHardfork};
 use reth_optimism_consensus::OpBeaconConsensus;
 use reth_optimism_evm::{ConfigurePostExecEvm, OpEvmConfig, OpRethReceiptBuilder};
@@ -677,19 +678,44 @@ where
 ///
 /// UPSTREAM-MIRROR(set): reth@rev:4553cf1 `reth_rpc_eth_api::EthApi`
 ///
-/// Upstream installs these methods as part of the full `eth` API. `eth_getMultiProof` has no OP
-/// users and a proofs-history node could not answer it consistently from its pruned state window.
-/// The block access list methods are explicitly disabled because OP execution data does not carry
-/// EIP-7928 BALs and reconstruction has not been tested against OP-specific state transitions.
-/// Do not expose them until that behavior is tested; re-check this list whenever upstream changes
-/// the `EthApi` method set.
+/// UPSTREAM-MIRROR(set): reth@rev:4553cf1 `reth_rpc_api::DebugApi`
+///
+/// Upstream installs these methods as part of the full `eth` and `debug` APIs.
+/// `eth_getMultiProof` has no OP users and a proofs-history node could not answer it consistently
+/// from its pruned state window. The block access list methods are explicitly disabled because OP
+/// execution data does not carry EIP-7928 BALs and reconstruction has not been tested against
+/// OP-specific state transitions. Do not expose them until that behavior is tested; re-check this
+/// list whenever upstream changes the `EthApi` or `DebugApi` method set, and keep it in step with
+/// [`ensure_no_computed_bals`].
 const UNSERVED_RPC_METHODS: &[&str] = &[
     "eth_getMultiProof",
     "eth_getBlockAccessListByBlockHash",
     "eth_getBlockAccessListByBlockNumber",
     "eth_getBlockAccessList",
     "eth_getBlockAccessListRaw",
+    "debug_getRawBlockAccessList",
 ];
+
+/// Rejects the RPC cache options that compute EIP-7928 block access lists by re-executing blocks.
+///
+/// UPSTREAM-MIRROR(set): reth@rev:4553cf1 `reth_node_core::args::RpcStateCacheArgs`
+///
+/// Upstream replays every new canonical block to compute its BAL with `--rpc-cache.prewarm-bals`
+/// until a block carries a `block_access_list_hash`, which OP blocks never do, and transaction
+/// tracing positions its replay state from computed BALs cached with
+/// `--rpc-cache.cache-computed-bals`. Both rely on the BAL reconstruction that
+/// [`UNSERVED_RPC_METHODS`] withholds, so an OP node refuses to start with either.
+fn ensure_no_computed_bals(cache: &RpcStateCacheArgs) -> eyre::Result<()> {
+    eyre::ensure!(
+        cache.prewarm_bals.is_none(),
+        "--rpc-cache.prewarm-bals is not supported on OP chains: OP blocks carry no EIP-7928 block access lists"
+    );
+    eyre::ensure!(
+        !cache.cache_computed_bals,
+        "--rpc-cache.cache-computed-bals is not supported on OP chains: OP blocks carry no EIP-7928 block access lists"
+    );
+    Ok(())
+}
 
 /// Removes [`UNSERVED_RPC_METHODS`] from the http/ws/ipc modules and from the auth module.
 fn remove_unserved_rpc_methods(modules: &mut TransportRpcModules, auth_module: &mut AuthRpcModule) {
@@ -730,6 +756,8 @@ where
         self,
         ctx: reth_node_api::AddOnsContext<'_, N>,
     ) -> eyre::Result<Self::Handle> {
+        ensure_no_computed_bals(&ctx.config.rpc.rpc_state_cache)?;
+
         let Self {
             rpc_add_ons,
             da_config,
@@ -1817,9 +1845,24 @@ mod tests {
             "eth_getBlockAccessListByBlockNumber",
             "eth_getBlockAccessList",
             "eth_getBlockAccessListRaw",
+            "debug_getRawBlockAccessList",
         ] {
-            assert!(UNSERVED_RPC_METHODS.contains(&method));
+            assert!(UNSERVED_RPC_METHODS.contains(&method), "{method} is served");
         }
+    }
+
+    #[test]
+    fn computed_bal_cache_options_are_rejected() {
+        ensure_no_computed_bals(&RpcStateCacheArgs::default()).unwrap();
+
+        for prewarm_bals in [0, 64] {
+            let cache =
+                RpcStateCacheArgs { prewarm_bals: Some(prewarm_bals), ..Default::default() };
+            assert!(ensure_no_computed_bals(&cache).is_err(), "prewarm {prewarm_bals} accepted");
+        }
+
+        let cache = RpcStateCacheArgs { cache_computed_bals: true, ..Default::default() };
+        assert!(ensure_no_computed_bals(&cache).is_err());
     }
 
     #[test]
