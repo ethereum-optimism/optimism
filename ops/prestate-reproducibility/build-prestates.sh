@@ -8,6 +8,10 @@ TMP_DIR=$(mktemp -d)
 WORKTREE_DIR="${TMP_DIR}/optimism"
 
 function cleanup() {
+  local docker_target="${WORKTREE_DIR}/rust/kona/sp1/programs/target/elf-compilation/docker"
+  if [[ -d "$docker_target" ]] && ! rm -rf "$docker_target" 2>/dev/null; then
+    sudo -n rm -rf "$docker_target"
+  fi
   git -C "${REPO_ROOT}" worktree remove "${WORKTREE_DIR}" --force 2> /dev/null || true
   rm -rf "${TMP_DIR}"
 }
