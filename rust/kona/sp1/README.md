@@ -53,16 +53,18 @@ on linux/amd64 with `just build-elfs`; it builds the `super-range` leaf first, g
 and then builds `super-aggregation` with that vkey embedded through `kona-sp1-range-vkeys`. Use
 `just build-elfs-native` for local iteration and the fast per-PR compile check; CI persists the
 native manifest with the generated ELFs. Native ELF hashes may differ across build environments
-because paths and other environment details are embedded.
+because paths and other environment details are embedded. The daily reproducibility job
+rebuilds each `kona-sp1` registry version from `kona-sp1-program/v<version>` using that tag's
+Docker `just build-elfs` recipe and compares only its `super-aggregation` vkey to the registry.
 
 Host-toolchain workspace builds need neither ELFs nor `vkeys.toml`. Host binaries load guest
 artifacts at runtime from `KONA_SP1_ELF_DIR`; a missing or empty artifact fails as an
-infrastructure error.
+infrastructure error. `kona-sp1-publish-prestates{,-on-tag}` publishes develop and tag ELFs
+(see [Releases](#releases)).
 
-TODO(ethereum-optimism/optimism#21424): pin each kona-sp1-program release's vkeys into
-superchain-registry `validation/standard/standard-prestates.toml` and add the Docker-based
-reproducibility check. Tags and develop are already published by
-`kona-sp1-publish-prestates{,-on-tag}` (see [Releases](#releases)).
+TODO(ethereum-optimism/optimism#21424): pin the `super-aggregation` vkey of each
+`kona-sp1-program` release in superchain-registry
+`validation/standard/standard-prestates.toml` for the daily comparison.
 
 #### Build provenance
 
