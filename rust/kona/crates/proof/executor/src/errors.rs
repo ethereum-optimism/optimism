@@ -5,7 +5,7 @@
 //! database operation errors.
 
 use alloc::string::String;
-use alloy_evm::block::{BlockExecutionError, BlockValidationError};
+use alloy_evm::block::{BlockExecutionError, BlockValidationError, InternalBlockExecutionError};
 use alloy_op_evm::block::OpBlockExecutionError;
 use kona_mpt::TrieNodeError;
 use op_alloy_consensus::EIP1559ParamError;
@@ -206,9 +206,11 @@ impl ExecutorError {
     /// missing witnesses, database access, or executor state must propagate instead.
     pub fn is_invalid_payload(&self) -> bool {
         match self {
-            Self::BlockGasLimitExceeded | Self::InvalidPostExecPayload(_) | Self::Recovery(_) => {
-                true
-            }
+            Self::BlockGasLimitExceeded |
+            Self::InvalidPostExecPayload(_) |
+            Self::Recovery(_) |
+            Self::UnsupportedTransactionType(_) |
+            Self::RLPError(_) => true,
             Self::ExecutionError(error) => match error {
                 BlockExecutionError::Validation(validation) => match validation {
                     BlockValidationError::InvalidTx { .. } |
@@ -217,6 +219,8 @@ impl ExecutorError {
                     } |
                     BlockValidationError::BlockGasExceeded => true,
                     BlockValidationError::Other(error) => {
+                        // `OpBlockExecutionError` is the only type boxed into `Other` on the proof
+                        // path. Any other type is unclassified and propagates.
                         error.downcast_ref::<OpBlockExecutionError>().is_some_and(|error| {
                             match error {
                                 OpBlockExecutionError::TransactionDaFootprintAboveGasLimit { .. } |
@@ -236,18 +240,20 @@ impl ExecutorError {
                     BlockValidationError::BlockHashContractCall { .. } |
                     BlockValidationError::WithdrawalRequestsContractCall { .. } |
                     BlockValidationError::ConsolidationRequestsContractCall { .. } |
+                    BlockValidationError::BuilderDepositRequestsContractCall { .. } |
+                    BlockValidationError::BuilderExitRequestsContractCall { .. } |
                     BlockValidationError::DepositRequestDecode(_) => false,
                 },
-                BlockExecutionError::Internal(_) => false,
+                BlockExecutionError::Internal(
+                    InternalBlockExecutionError::EVM { .. } | InternalBlockExecutionError::Other(_),
+                ) => false,
             },
             Self::MissingGasLimit |
             Self::MissingTransactions |
             Self::MissingEIP1559Params |
             Self::MissingParentBeaconBlockRoot |
             Self::InvalidExtraData(_) |
-            Self::UnsupportedTransactionType(_) |
             Self::TrieDBError(_) |
-            Self::RLPError(_) |
             Self::MissingExecutor => false,
         }
     }
@@ -262,10 +268,11 @@ mod classification_tests {
     fn only_invalid_payload_errors_allow_deposit_only_replacement() {
         let cases = [
             ("block gas", ExecutorError::BlockGasLimitExceeded, true),
+            ("unsupported transaction type", ExecutorError::UnsupportedTransactionType(0xff), true),
             (
-                "unsupported transaction type",
-                ExecutorError::UnsupportedTransactionType(0xff),
-                false,
+                "malformed transaction RLP",
+                ExecutorError::RLPError(alloy_rlp::Error::InputTooShort.into()),
+                true,
             ),
             (
                 "transaction gas",
@@ -301,6 +308,41 @@ mod classification_tests {
             (
                 "internal execution",
                 ExecutorError::ExecutionError(BlockExecutionError::msg("database failure")),
+                false,
+            ),
+            (
+                "internal EVM",
+                ExecutorError::ExecutionError(BlockExecutionError::Internal(
+                    InternalBlockExecutionError::EVM {
+                        hash: Default::default(),
+                        error: "internal EVM failure".into(),
+                    },
+                )),
+                false,
+            ),
+            (
+                "builder deposit requests",
+                ExecutorError::ExecutionError(BlockExecutionError::Validation(
+                    BlockValidationError::BuilderDepositRequestsContractCall {
+                        message: "system call failure".into(),
+                    },
+                )),
+                false,
+            ),
+            (
+                "builder exit requests",
+                ExecutorError::ExecutionError(BlockExecutionError::Validation(
+                    BlockValidationError::BuilderExitRequestsContractCall {
+                        message: "system call failure".into(),
+                    },
+                )),
+                false,
+            ),
+            (
+                "unclassified validation",
+                ExecutorError::ExecutionError(BlockExecutionError::Validation(
+                    BlockValidationError::msg("unclassified failure"),
+                )),
                 false,
             ),
         ];

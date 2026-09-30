@@ -162,6 +162,17 @@ async fn invalid_payload_triggers_deposit_only_fallback() {
 }
 
 #[tokio::test]
+async fn unsupported_transaction_triggers_deposit_only_fallback() {
+    let (mut driver, config) = driver_with_error(ExecutorError::UnsupportedTransactionType(0xff));
+    let result = driver.advance_to_target(&config, Some(1)).await;
+
+    assert!(matches!(result, Err(DriverError::Executor(ExecutorError::MissingExecutor))));
+    assert_eq!(driver.pipeline.flushes, 1);
+    assert_eq!(driver.executor.calls.len(), 2);
+    assert_eq!(driver.executor.calls[1], vec![Bytes::from_static(&[0x7e])]);
+}
+
+#[tokio::test]
 async fn invalid_evm_validation_triggers_deposit_only_fallback() {
     let error = ExecutorError::ExecutionError(BlockExecutionError::Validation(
         BlockValidationError::TransactionGasLimitMoreThanAvailableBlockGas {
