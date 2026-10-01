@@ -136,27 +136,6 @@ func (f *DisputeGameFactoryContract) GetGameStatus(ctx context.Context, idx uint
 	return gameContract.GetStatus(ctx)
 }
 
-// GetZKGameMetadata returns the claim metadata and status of a ZK game by factory index.
-func (f *DisputeGameFactoryContract) GetZKGameMetadata(ctx context.Context, idx uint64) (ChallengerMetadata, gameTypes.GameStatus, error) {
-	game, err := f.GetGame(ctx, idx, rpcblock.Latest)
-	if err != nil {
-		return ChallengerMetadata{}, 0, err
-	}
-	contract, err := NewZKDisputeGameContract(f.metrics, game.Proxy, f.multiCaller)
-	if err != nil {
-		return ChallengerMetadata{}, 0, fmt.Errorf("failed to create ZK game bindings: %w", err)
-	}
-	metadata, err := contract.GetChallengerMetadata(ctx, rpcblock.Latest)
-	if err != nil {
-		return ChallengerMetadata{}, 0, err
-	}
-	status, err := contract.GetStatus(ctx)
-	if err != nil {
-		return ChallengerMetadata{}, 0, err
-	}
-	return metadata, status, nil
-}
-
 // GetGameStatusAtBlock returns a game's status from a snapshot pinned to block.
 func (f *DisputeGameFactoryContract) GetGameStatusAtBlock(ctx context.Context, idx uint64, block rpcblock.Block) (gameTypes.GameStatus, error) {
 	defer f.metrics.StartContractRequest("GetGameStatus")()

@@ -215,12 +215,13 @@ func TestZK_HonestChallenger_UnsafeProposal_ChallengerWins(gt *testing.T) {
 	})
 }
 
-// TestZK_HonestChallenger_ChildOfInvalidParent_ChallengerWins pins descendant challenges and bond credits.
+// TestZK_HonestChallenger_ChildOfInvalidParent_ChallengerWins pins bond credits after parent resolution.
 func TestZK_HonestChallenger_ChildOfInvalidParent_ChallengerWins(gt *testing.T) {
 	t := devtest.ParallelT(gt)
 	// Keep credit observable until the assertions, before the challenger can claim it.
 	sys := newSupernodeSystem(t,
 		presets.WithoutHonestProposer(),
+		presets.WithZKChallengeDuration(2*presets.DefaultZKProveDuration),
 		presets.WithDisputeGameFinalityDelaySeconds(uint64(presets.DefaultZKChallengeDuration/time.Second)),
 	)
 	factory := sys.DisputeGameFactory()
@@ -239,21 +240,53 @@ func TestZK_HonestChallenger_ChildOfInvalidParent_ChallengerWins(gt *testing.T) 
 	grandchild := factory.StartZKGame(proposer, proofs.WithZKParent(child.FactoryIndex()))
 
 	parent.WaitForProposalStatus(proofs.ZKProposalChallenged)
-	child.WaitForProposalStatus(proofs.ZKProposalChallenged)
-	grandchild.WaitForProposalStatus(proofs.ZKProposalChallenged)
-	t.Require().Equal(gameTypes.GameStatusInProgress, parent.GameStatus(),
-		"descendants must be challenged before the invalid ancestor resolves")
+	t.Require().Equal(uint8(proofs.ZKProposalUnchallenged), child.ClaimData().Status)
+	t.Require().Equal(uint8(proofs.ZKProposalUnchallenged), grandchild.ClaimData().Status)
 	honestChallenger := zkChallengerAddress(t, sys.L2ChainA.ChainID())
 	t.Require().NotEqual(common.Address{}, honestChallenger, "honest challenger must not be the zero address")
-	t.Require().Equal(honestChallenger, child.ClaimData().Challenger)
-	t.Require().Equal(honestChallenger, grandchild.ClaimData().Challenger)
 
 	advanceL1To(sys, parent.ClaimData().Deadline+1)
 	parent.WaitForGameStatus(gameTypes.GameStatusChallengerWon)
 	child.WaitForGameStatus(gameTypes.GameStatusChallengerWon)
+	t.Require().Equal(honestChallenger, child.ClaimData().Challenger)
 	t.Require().Equal(child.TotalBonds(), child.Credit(honestChallenger),
 		"honest challenger must receive the child's full bond credit")
 	grandchild.WaitForGameStatus(gameTypes.GameStatusChallengerWon)
+	t.Require().Equal(honestChallenger, grandchild.ClaimData().Challenger)
 	t.Require().Equal(grandchild.TotalBonds(), grandchild.Credit(honestChallenger),
 		"honest challenger must receive the grandchild's full bond credit")
+}
+
+// TestZK_HonestChallenger_ChildOfInvalidParent_ExpiredChallengeWindow pins the proposer's lost bond.
+func TestZK_HonestChallenger_ChildOfInvalidParent_ExpiredChallengeWindow(gt *testing.T) {
+	t := devtest.ParallelT(gt)
+	sys := newSupernodeSystem(t,
+		presets.WithoutHonestProposer(),
+		presets.WithDisputeGameFinalityDelaySeconds(uint64(presets.DefaultZKChallengeDuration/time.Second)),
+	)
+	factory := sys.DisputeGameFactory()
+	proposer := sys.FunderL1.NewFundedEOA(eth.OneEther)
+	registry := sys.AnchorStateRegistry(sys.L2ChainA)
+	_, anchorSequence := registry.AnchorRoot()
+
+	timestamp, outputRoots := factory.WaitForSafeSuperRootAfter(anchorSequence)
+	t.Require().NotEmpty(outputRoots)
+	outputRoots[0][0] ^= 0xff
+	parent := factory.StartZKGame(proposer,
+		proofs.WithL2SequenceNumber(timestamp),
+		proofs.WithSuperRootFrom(outputRoots...),
+	)
+	child := factory.StartZKGame(proposer, proofs.WithZKParent(parent.FactoryIndex()))
+	parent.WaitForProposalStatus(proofs.ZKProposalChallenged)
+	t.Require().Equal(uint8(proofs.ZKProposalUnchallenged), child.ClaimData().Status)
+
+	deadline := max(parent.ClaimData().Deadline, child.ClaimData().Deadline)
+	advanceL1To(sys, deadline+1)
+	parent.WaitForGameStatus(gameTypes.GameStatusChallengerWon)
+	child.WaitForGameStatus(gameTypes.GameStatusChallengerWon)
+	t.Require().Equal(common.Address{}, child.ClaimData().Challenger)
+	t.Require().Equal(child.TotalBonds(), child.Credit(common.Address{}),
+		"an unchallenged child's bond must be credited to address(0)")
+	t.Require().Equal(eth.ZeroWei, child.Credit(proposer.Address()),
+		"the proposer must not recover an invalid child's bond")
 }
