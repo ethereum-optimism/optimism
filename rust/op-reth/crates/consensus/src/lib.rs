@@ -285,9 +285,10 @@ mod tests {
     use op_alloy_consensus::{
         OpTypedTransaction, encode_holocene_extra_data, encode_jovian_extra_data,
     };
-    use reth_chainspec::{BaseFeeParams, EthChainSpec};
+    use reth_chainspec::{BaseFeeParams, EthChainSpec, ForkCondition};
     use reth_consensus::{Consensus, ConsensusError, FullConsensus, HeaderValidator};
     use reth_optimism_chainspec::{OP_MAINNET, OpChainSpec, OpChainSpecBuilder};
+    use reth_optimism_forks::OpHardfork;
     use reth_optimism_primitives::{OpPrimitives, OpReceipt, OpTransactionSigned};
     use reth_primitives_traits::{RecoveredBlock, SealedBlock, SealedHeader, proofs};
     use reth_provider::BlockExecutionResult;
@@ -324,10 +325,18 @@ mod tests {
         chain_spec: &OpChainSpec,
         extra_data: Bytes,
     ) -> SealedHeader<Header> {
+        header_at(chain_spec, chain_spec.genesis_header().timestamp + 2, extra_data)
+    }
+
+    fn header_at(
+        chain_spec: &OpChainSpec,
+        timestamp: u64,
+        extra_data: Bytes,
+    ) -> SealedHeader<Header> {
         let mut header = chain_spec.genesis_header().clone();
         header.number += 1;
         header.parent_hash = chain_spec.genesis_hash();
-        header.timestamp += 2;
+        header.timestamp = timestamp;
         header.extra_data = extra_data;
         SealedHeader::seal_slow(header)
     }
@@ -356,6 +365,37 @@ mod tests {
                 .validate_header(&bedrock_block(105_235_064, Bytes::from_static(b"BEDROCK")))
                 .is_err()
         );
+    }
+
+    #[test]
+    fn header_extra_data_at_fork_boundaries() {
+        const HOLOCENE: u64 = 10;
+        const JOVIAN: u64 = 20;
+        let chain_spec = test_chain_spec(
+            OpChainSpecBuilder::default()
+                .granite_activated()
+                .with_fork(OpHardfork::Holocene, ForkCondition::Timestamp(HOLOCENE))
+                .with_fork(OpHardfork::Jovian, ForkCondition::Timestamp(JOVIAN)),
+            Bytes::new(),
+        );
+        let consensus = OpBeaconConsensus::new(chain_spec.clone());
+        let holocene = encode_holocene_extra_data(B64::ZERO, BaseFeeParams::optimism()).unwrap();
+        let jovian =
+            encode_jovian_extra_data(B64::ZERO, BaseFeeParams::optimism(), 1_000_000_000).unwrap();
+
+        for (timestamp, valid, invalid) in [
+            (HOLOCENE - 1, Bytes::new(), holocene.clone()),
+            (HOLOCENE, holocene.clone(), Bytes::new()),
+            (JOVIAN - 1, holocene.clone(), jovian.clone()),
+            (JOVIAN, jovian, holocene),
+        ] {
+            let result = consensus.validate_header(&header_at(&chain_spec, timestamp, valid));
+            assert!(result.is_ok(), "timestamp {timestamp}: {result:?}");
+            assert!(
+                consensus.validate_header(&header_at(&chain_spec, timestamp, invalid)).is_err(),
+                "timestamp {timestamp}"
+            );
+        }
     }
 
     #[test]
@@ -399,6 +439,7 @@ mod tests {
 
         for invalid in [
             Bytes::new(),
+            encode_jovian_extra_data(B64::ZERO, BaseFeeParams::optimism(), 1_000_000_000).unwrap(),
             Bytes::from(vec![0; 8]),
             Bytes::from(vec![1, 0, 0, 0, 1, 0, 0, 0, 1]),
             Bytes::from(vec![0, 0, 0, 0, 0, 0, 0, 0, 1]),
