@@ -27,6 +27,7 @@ type SuperRootProvider interface {
 
 type GameStatusProvider interface {
 	GetGameStatus(ctx context.Context, idx uint64) (gameTypes.GameStatus, error)
+	GetGameStatusAtBlock(ctx context.Context, idx uint64, block rpcblock.Block) (gameTypes.GameStatus, error)
 }
 
 type ChallengableContract interface {
@@ -79,6 +80,16 @@ func (a *Actor) Act(ctx context.Context) error {
 		parentStatus, err = a.gameStatusProvider.GetGameStatus(ctx, uint64(gameState.ParentIndex))
 		if err != nil {
 			return fmt.Errorf("failed to get parent game status: %w", err)
+		}
+	}
+
+	if parentStatus == gameTypes.GameStatusChallengerWon &&
+		gameState.ProposalStatus == contracts.ProposalStatusUnchallenged &&
+		!gameState.Deadline.Before(a.l1Clock.Now()) {
+		// Wait for parent finality before challenging or resolving an unchallenged child in its window.
+		parentStatus, err = a.gameStatusProvider.GetGameStatusAtBlock(ctx, uint64(gameState.ParentIndex), rpcblock.Finalized)
+		if err != nil {
+			return fmt.Errorf("failed to get finalized parent game status: %w", err)
 		}
 	}
 

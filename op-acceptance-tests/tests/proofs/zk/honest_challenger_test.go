@@ -218,7 +218,7 @@ func TestZK_HonestChallenger_UnsafeProposal_ChallengerWins(gt *testing.T) {
 // TestZK_HonestChallenger_ChildOfInvalidParent_ChallengerWins pins bond credits after parent resolution.
 func TestZK_HonestChallenger_ChildOfInvalidParent_ChallengerWins(gt *testing.T) {
 	t := devtest.ParallelT(gt)
-	// Keep credit observable until the assertions, before the challenger can claim it.
+	// The child window must outlast parent proof expiry and finalization; keep credit unclaimed for assertions.
 	sys := newSupernodeSystem(t,
 		presets.WithoutHonestProposer(),
 		presets.WithZKChallengeDuration(2*presets.DefaultZKProveDuration),
@@ -247,10 +247,12 @@ func TestZK_HonestChallenger_ChildOfInvalidParent_ChallengerWins(gt *testing.T) 
 
 	advanceL1To(sys, parent.ClaimData().Deadline+1)
 	parent.WaitForGameStatus(gameTypes.GameStatusChallengerWon)
+	sys.L1EL.WaitForFinalization()
 	child.WaitForGameStatus(gameTypes.GameStatusChallengerWon)
 	t.Require().Equal(honestChallenger, child.ClaimData().Challenger)
 	t.Require().Equal(child.TotalBonds(), child.Credit(honestChallenger),
 		"honest challenger must receive the child's full bond credit")
+	sys.L1EL.WaitForFinalization()
 	grandchild.WaitForGameStatus(gameTypes.GameStatusChallengerWon)
 	t.Require().Equal(honestChallenger, grandchild.ClaimData().Challenger)
 	t.Require().Equal(grandchild.TotalBonds(), grandchild.Credit(honestChallenger),
