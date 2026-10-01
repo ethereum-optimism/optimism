@@ -9,6 +9,11 @@
 
 mod signer;
 pub use signer::{
-    BlockSigner, BlockSignerError, BlockSignerHandler, BlockSignerStartError, CertificateError,
-    ClientCert, RemoteSigner, RemoteSignerError, RemoteSignerHandler, RemoteSignerStartError,
+    BlockSigner, BlockSignerError, BlockSignerHandler, BlockSignerStartError, RemoteSigner,
+    RemoteSignerError, RemoteSignerHandler, RemoteSignerStartError,
+};
+
+mod tls;
+pub use tls::{
+    CertificateError, ClientCert, ReloadingRpcClient, ReloadingRpcClientError, TlsPaths,
 };
