@@ -199,7 +199,7 @@ impl AttributesMatch {
             }
             Some((0, attr_denominator)) if attr_denominator != 0 => {
                 error!(
-                    "Holocene EIP1559 params cannot have a 0 denominator unless elasticity is also 0. This is a bug"
+                    "Holocene EIP1559 params cannot have a 0 elasticity unless denominator is also 0. This is a bug"
                 );
                 return AttributesMismatch::InvalidEIP1559ParamsCombination.into();
             }
@@ -393,7 +393,7 @@ pub enum AttributesMismatch {
     InvalidExtraDataVersion,
     /// An unknown extra data decoding error occurred.
     UnknownExtraDataDecodingError(EIP1559ParamError),
-    /// Holocene EIP1559 params cannot have a 0 denominator unless elasticity is also 0
+    /// Holocene EIP1559 params cannot have a 0 elasticity unless denominator is also 0
     InvalidEIP1559ParamsCombination,
     /// The EIP1559 base fee parameters of the attributes and the block don't match
     EIP1559Parameters(BaseFeeParams, BaseFeeParams),
@@ -940,7 +940,7 @@ mod tests {
         assert!(check.is_mismatch());
     }
 
-    /// Edge case: if the elasticity multiplier is 0, the max change denominator cannot be 0 as well
+    /// A nonzero denominator with a zero elasticity multiplier is invalid.
     #[test]
     fn test_eip1559_parameters_combination_mismatch() {
         let (cfg, mut attributes, mut block) = eip1559_test_setup();
