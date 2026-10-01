@@ -849,6 +849,7 @@ jobs:
           root: "."
           paths:
             - "rust/target/release/kona-*"
+            - "rust/target/release/op-zk-proposer"
 
   rust-op-reth-binary:
     docker:
