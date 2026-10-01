@@ -58,6 +58,12 @@ var (
 		EnvVars: prefixEnvVars("MESSAGE_EXPIRY_WINDOW"),
 		Value:   168 * time.Hour, // 7 days default for interop message expiry
 	}
+	AssumeValidBeforeFlag = &cli.DurationFlag{
+		Name:    "assume-valid-before",
+		Usage:   "On startup, history older than this duration before now is assumed valid. Newer history is cross-validated before it counts as cross-unsafe (e.g., 1h, 30m)",
+		EnvVars: prefixEnvVars("ASSUME_VALID_BEFORE"),
+		Value:   time.Hour,
+	}
 	JWTSecretFlag = &cli.StringFlag{
 		Name: "admin.jwt-secret",
 		Usage: "Path to JWT secret key for admin RPC authentication. " +
@@ -149,6 +155,7 @@ var optionalFlags = []cli.Flag{
 	DataDirFlag,
 	BackfillDurationFlag,
 	MessageExpiryWindowFlag,
+	AssumeValidBeforeFlag,
 	JWTSecretFlag,
 	AdminRPCAddrFlag,
 	AdminRPCPortFlag,
