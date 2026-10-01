@@ -563,7 +563,7 @@ release-paths component:
         op-reth)
             specs=("rust/{{ component }}/" "rust/Cargo.toml" "rust/op-alloy/" "rust/alloy-op-evm/" "rust/alloy-op-hardforks/")
             ;;
-        kona-*)
+        kona-*|op-zk-proposer)
             specs=("rust/kona/" "rust/Cargo.toml" "rust/op-alloy/" "rust/alloy-op-evm/" "rust/alloy-op-hardforks/" "rust/op-revm/")
             ;;
         op-deployer)
@@ -573,7 +573,7 @@ release-paths component:
             specs=("packages/contracts-bedrock/")
             ;;
         *)
-            echo "error: component must be one of: op-node, op-batcher, op-proposer, op-challenger, op-dispute-mon, op-reth, op-deployer, op-contracts, op-supernode, kona-*; is {{ component }}" >&2
+            echo "error: component must be one of: op-node, op-batcher, op-proposer, op-challenger, op-dispute-mon, op-reth, op-deployer, op-contracts, op-supernode, kona-*, op-zk-proposer; is {{ component }}" >&2
             exit 1
             ;;
     esac
