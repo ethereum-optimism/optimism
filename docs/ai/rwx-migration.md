@@ -51,6 +51,46 @@ comparing providers. For automatic pushes, an organization administrator must
 connect the repository using the [RWX GitHub App](https://www.rwx.com/docs/getting-started/github).
 Account/app setup and remote execution must be verified separately from local lint.
 
+## Go rollup shadow
+
+`.rwx/go-rollup.yml` adds the optional GitHub push status
+`RWX: optimism-go-rollup-shadow` and accepts authenticated CLI execution, which
+does not post a VCS status. Both paths use the existing `run-main` routing value.
+It runs every package under `./op-node/rollup/...` with `-tags=ci`, without `-short` or a
+test-name filter. This is a complete component workload, not a replacement for
+the aggregate Go gate or its dependent acceptance, Cannon, contract and Rust jobs.
+
+`ops/ci/go-rollup-tests.sh prepare` builds one sorted package manifest and two
+round-robin shards. `go-package-shards.py` rejects empty discovery, Go package or
+dependency errors, invalid shard inputs, and any assignment that omits or repeats
+a package. Each shard validates that manifest before running the existing
+gotestsum wrapper, retaining its three failure retries, JUnit, JSON and per-test
+logs. The log artifact also includes the file logger's output under `tmp/testlogs`.
+`-count=1` and `cache: false` ensure comparison runs execute tests; terminal
+tasks disable filesystem output and publish reports as explicit
+[artifacts](https://www.rwx.com/docs/artifacts) and
+[test results](https://www.rwx.com/docs/test-results). Go JSON workflows should set
+parser options `language: Go` and `framework: go test`, as this shadow does.
+Parallel tasks translate
+[RWX shard metadata](https://www.rwx.com/docs/parallelism) into provider-neutral
+`CI_SHARD_INDEX` and `CI_SHARD_TOTAL`.
+
+The new run reuses the pilot's pinned checkout, full Git history, tool bootstrap
+and routing adapter. A component-specific task installs the existing gotestsum
+pin; a lockfile-filtered module download task feeds both shards. Source inputs
+remain unfiltered because tests also import other Go components and embed NUT
+bundle files. This scope needs no RPC credentials, cloud identity, publishers,
+Docker, contract artifacts or Rust binaries. GitHub App setup remains necessary
+for automatic pushes; authenticated CLI runs can exercise the workload beforehand.
+
+From a trusted checkout, validate and run it with:
+
+```bash
+mise exec -- python ops/ci/test_go_package_shards.py
+mise exec -- rwx lint .rwx/go-rollup.yml --warnings-as-errors
+mise exec -- rwx run .rwx/go-rollup.yml --wait
+```
+
 ## Migration contract
 
 Preserve the existing routing and test coverage before tuning performance:
@@ -181,7 +221,7 @@ including access to secrets or writable trusted caches. See
 | Metadata | Branch, PR, repository, workflow ID, and run URL in CircleCI variables | Explicit shared metadata; preserve true PR base lookup and merge-group SHA |
 | Workspaces | Contract outputs, binaries, prestates, and gitignored `superchain-configs.zip` | Explicit producer/consumer dependencies and retained outputs |
 | Reporting | JUnit uploads, log/artifact paths, CircleCI Insights flake API | Accessible failed-run artifacts and a replacement for flake history/reporting |
-| Cloud identity | `CIRCLE_OIDC_TOKEN` and GCP workload identity | RWX issuer/audience/claim bindings with equivalent ref restrictions |
+| Cloud identity | `CIRCLE_OIDC_TOKEN` and GCP workload identity | Separate RWX vault subjects and exact-sub GCP bindings; prove equivalent ref restrictions before writer cutover |
 | Rust compile cache | sccache GCS reader for all refs; writer only for `develop` | Enforced reader/writer identity split or a separately validated RWX cache design |
 | Release and publish | GoReleaser, contract artifacts, Cannon/SP1 prestates | One active publisher per destination, preserving component tag/ref filters |
 | Maintenance | TODO/Cannon every four hours; daily suites; weekly nightly PR; labels and stale automation | Explicit ownership, cadence, permissions, and one active trigger |
@@ -190,8 +230,17 @@ Audit `justfile`, `ops/scripts/shard-tests.sh`, acceptance/Kona justfiles, and c
 target-branch/semver scripts. Compatibility variables do not replace Circle's CLI
 or timing history. `CIRCLECI` also changes dependency builds and Docker pruning.
 
-GCP must enforce the sccache writer restriction using signed claims. Test denied
-writer impersonation from PR/merge-queue/tag refs before enabling RWX cloud access.
+[RWX OIDC](https://www.rwx.com/docs/oidc) documents issuer
+`https://cloud.rwx.com/mint`, a vault-identifying `sub`, audience and run/task IDs;
+the documented claims contain no signed repository, ref or trigger identity.
+Reader and writer identities need separate vault subjects and exact-sub GCP
+bindings. These enforce vault identity without independently verifying GitHub refs.
+[Locked vaults](https://www.rwx.com/docs/vaults) restrict repository/ref access but
+also permit user/service-account grants. Keep the current CircleCI sccache writer
+until denial tests prove CLI runs, local patches and unauthorized refs cannot
+access the writer vault, or signed VCS claims/external attestation restores that
+policy.
+
 Preserve op-deployer's release settings for fresh tools/modules and disabled caches.
 
 Tests must execute on comparison runs; retain retries/flaky-result reporting.

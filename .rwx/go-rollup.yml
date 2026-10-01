@@ -1,0 +1,137 @@
+# Complete Go rollup tests in an optional shadow status; CircleCI keeps its gates.
+on:
+  github:
+    push:
+      init:
+        commit-sha: ${{ event.git.sha }}
+        branch: ${{ event.git.branch }}
+        tag: ${{ event.git.tag }}
+      status-checks:
+        name: optimism-go-rollup-shadow
+  cli:
+    init:
+      commit-sha: ${{ event.git.sha }}
+      branch: ${{ event.git.branch }}
+      tag: ""
+
+base:
+  image: ubuntu:24.04@sha256:008173c23f95b170204355c12626cb5a965d779a7e1283b09e9cffbb1bf33ca3
+  config: rwx/base 1.2.0
+  arch: x86_64
+
+defaults:
+  runner:
+    cpus: 2
+    memory: 8gb
+
+tasks:
+  - key: code
+    call: git/clone 2.2.0
+    with:
+      repository: https://github.com/ethereum-optimism/optimism.git
+      ref: ${{ init.commit-sha }}
+      preserve-git-dir: true
+      fetch-full-depth: true
+      submodules: false
+
+  - key: mise
+    call: mise/install 1.1.0
+    with:
+      mise-version: "2026.2.2"
+      install: "false"
+
+  - key: tools
+    use: [code, mise]
+    run: bash ops/ci/rwx-prepare.sh
+    filter: [mise.toml, ops/ci/rwx-prepare.sh, .circleci/scripts/apt-install.sh]
+    timeout: 30m
+
+  # Install the existing gotestsum pin only for this component's test tasks.
+  - key: go-test-tools
+    use: [code, tools]
+    run: |
+      mise install gotestsum
+      printf '%s:%s\n' "$(mise bin-paths | paste -sd: -)" "$PATH" >"$RWX_ENV/PATH"
+    filter: [mise.toml]
+    timeout: 15m
+
+  - key: route
+    use: [code, tools]
+    run: bash ops/ci/rwx-metadata.sh
+    env:
+      CI_EVENT: push
+      CI_BRANCH: ${{ init.branch }}
+      CI_TAG: ${{ init.tag }}
+      CI_COMMIT_SHA: ${{ init.commit-sha }}
+    cache: false
+    timeout: 10m
+    outputs:
+      filesystem: false
+      artifacts:
+        - key: routing
+          path: .ci/pipeline-parameters.json
+
+  # Downloaded modules are a reusable layer keyed on the tool pin and lockfiles.
+  - key: go-modules
+    use: [code, go-test-tools]
+    if: ${{ tasks.route.values.run-main == 'true' }}
+    run: |
+      n=0
+      until mise exec -- go mod download; do
+        n=$((n + 1))
+        if [ "$n" -ge 5 ]; then exit 1; fi
+        sleep "$((5 * 2 ** (n - 1)))"
+      done
+    filter: [mise.toml, go.mod, go.sum]
+    timeout: 15m
+
+  - key: shard-tests
+    use: [code, tools]
+    run: mise exec -- python ops/ci/test_go_package_shards.py
+    cache: false
+    timeout: 10m
+    outputs:
+      filesystem: false
+
+  # One authoritative manifest is consumed by both shards at the same revision.
+  - key: go-packages
+    use: [code, go-modules]
+    if: ${{ tasks.route.values.run-main == 'true' }}
+    run: mise exec -- bash ops/ci/go-rollup-tests.sh prepare
+    env:
+      CI_SHARD_TOTAL: "2"
+    cache: false
+    timeout: 10m
+    outputs:
+      artifacts:
+        - key: package-manifest
+          path: .ci/go-rollup/manifest.json
+
+  - key: go-rollup
+    use: go-packages
+    if: ${{ tasks.route.values.run-main == 'true' }}
+    parallel: 2
+    run: mise exec -- bash ops/ci/go-rollup-tests.sh
+    env:
+      CI_SHARD_INDEX: ${{ parallel.index }}
+      CI_SHARD_TOTAL: ${{ parallel.total }}
+      TEST_TIMEOUT: 40m
+    cache: false
+    timeout: 50m
+    runner:
+      cpus: 8
+      memory: 16gb
+    outputs:
+      filesystem: false
+      test-results:
+        - path: tmp/testlogs/log-${{ parallel.index }}.json
+          options:
+            language: Go
+            framework: go test
+      artifacts:
+        - key: junit
+          path: tmp/test-results
+        - key: go-json
+          path: tmp/testlogs/log-${{ parallel.index }}.json
+        - key: test-logs
+          path: tmp/testlogs
