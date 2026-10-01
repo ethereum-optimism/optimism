@@ -17,6 +17,7 @@ use alloy_primitives::{Address, B256};
 use alloy_transport_http::reqwest::{self, Url};
 use anyhow::{Context, Result, anyhow, bail};
 use kona_registry::{CHAINS, OPCHAINS};
+use kona_sources::redacted_url;
 use kona_sp1_host_utils::{metrics::MetricsListen, network::parse_fulfillment_strategy};
 use sp1_sdk::network::FulfillmentStrategy;
 
@@ -361,14 +362,6 @@ impl ProposerConfig {
     }
 }
 
-/// Renders a URL for logging with any userinfo stripped.
-pub fn redacted_url(url: &Url) -> String {
-    let mut url = url.clone();
-    let _ = url.set_username("");
-    let _ = url.set_password(None);
-    url.to_string()
-}
-
 fn parse_url_list(value: &str) -> Result<Vec<Url>> {
     let urls = value
         .split(',')
@@ -673,20 +666,6 @@ mod tests {
         assert_eq!(ProposalSafety::from_str("safe").unwrap(), ProposalSafety::Safe);
         assert_eq!(ProposalSafety::from_str("Finalized").unwrap(), ProposalSafety::Finalized);
         assert!(ProposalSafety::from_str("latest").is_err());
-    }
-
-    #[test]
-    fn redacted_url_strips_userinfo() {
-        let url: Url = "https://user:secret@rpc.example.com/key".parse().unwrap();
-        assert_eq!(redacted_url(&url), "https://rpc.example.com/key");
-        let plain: Url = "http://127.0.0.1:8545/".parse().unwrap();
-        assert_eq!(redacted_url(&plain), "http://127.0.0.1:8545/");
-        // file:// URLs cannot carry userinfo: set_username/set_password return
-        // Err, which redacted_url ignores. This pins that choice (panicking on
-        // Err would break file:// prestate URLs) and that the URL renders
-        // unchanged.
-        let file: Url = "file:///data/prestates".parse().unwrap();
-        assert_eq!(redacted_url(&file), "file:///data/prestates");
     }
 
     mod prestates {

@@ -6,6 +6,7 @@ import (
 
 	gameTypes "github.com/ethereum-optimism/optimism/op-challenger/game/types"
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
+	"github.com/ethereum-optimism/optimism/op-devstack/dsl"
 	"github.com/ethereum-optimism/optimism/op-devstack/dsl/proofs"
 	"github.com/ethereum-optimism/optimism/op-devstack/presets"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
@@ -215,13 +216,7 @@ func TestZK_HonestChallenger_UnsafeProposal_ChallengerWins(gt *testing.T) {
 	})
 }
 
-// TestZK_HonestChallenger_ChildOfInvalidParent_ChallengerWins checks resolution ordering: a child
-// game referencing an invalid parent resolves CHALLENGER_WINS by inheritance only after the honest
-// challenger has resolved the parent CHALLENGER_WINS. Resolution ordering is source-agnostic, so it
-// runs against the op-node source only.
-func TestZK_HonestChallenger_ChildOfInvalidParent_ChallengerWins(gt *testing.T) {
-	t := devtest.ParallelT(gt)
-	sys := newOpNodeSystem(t)
+func startInvalidParentWithChild(t devtest.T, sys *presets.SingleChainInterop) (*proofs.ZKGame, *proofs.ZKGame, *dsl.EOA) {
 	factory := sys.DisputeGameFactory()
 	proposer := sys.FunderL1.NewFundedEOA(eth.OneEther)
 	registry := sys.AnchorStateRegistry(sys.L2ChainA)
@@ -235,9 +230,58 @@ func TestZK_HonestChallenger_ChildOfInvalidParent_ChallengerWins(gt *testing.T) 
 		proofs.WithSuperRootFrom(outputRoots...),
 	)
 	child := factory.StartZKGame(proposer, proofs.WithZKParent(parent.FactoryIndex()))
+	return parent, child, proposer
+}
+
+// TestZK_HonestChallenger_ChildOfInvalidParent_ChallengerWins pins bond credits after parent resolution.
+func TestZK_HonestChallenger_ChildOfInvalidParent_ChallengerWins(gt *testing.T) {
+	t := devtest.ParallelT(gt)
+	// The child window must outlast parent proof expiry and finalization; keep credit unclaimed for assertions.
+	sys := newSupernodeSystem(t,
+		presets.WithoutHonestProposer(),
+		presets.WithZKChallengeDuration(2*presets.DefaultZKProveDuration),
+		presets.WithDisputeGameFinalityDelaySeconds(uint64(presets.DefaultZKChallengeDuration/time.Second)),
+	)
+	parent, child, proposer := startInvalidParentWithChild(t, sys)
+	grandchild := sys.DisputeGameFactory().StartZKGame(proposer, proofs.WithZKParent(child.FactoryIndex()))
 
 	parent.WaitForProposalStatus(proofs.ZKProposalChallenged)
+	t.Require().Equal(uint8(proofs.ZKProposalUnchallenged), child.ClaimData().Status)
+	t.Require().Equal(uint8(proofs.ZKProposalUnchallenged), grandchild.ClaimData().Status)
+	honestChallenger := zkChallengerAddress(t, sys.L2ChainA.ChainID())
+
 	advanceL1To(sys, parent.ClaimData().Deadline+1)
 	parent.WaitForGameStatus(gameTypes.GameStatusChallengerWon)
+	sys.L1EL.WaitForFinalization()
 	child.WaitForGameStatus(gameTypes.GameStatusChallengerWon)
+	t.Require().Equal(honestChallenger, child.ClaimData().Challenger)
+	t.Require().Equal(child.TotalBonds(), child.Credit(honestChallenger),
+		"honest challenger must receive the child's full bond credit")
+	sys.L1EL.WaitForFinalization()
+	grandchild.WaitForGameStatus(gameTypes.GameStatusChallengerWon)
+	t.Require().Equal(honestChallenger, grandchild.ClaimData().Challenger)
+	t.Require().Equal(grandchild.TotalBonds(), grandchild.Credit(honestChallenger),
+		"honest challenger must receive the grandchild's full bond credit")
+}
+
+// TestZK_HonestChallenger_ChildOfInvalidParent_ExpiredChallengeWindow pins the proposer's lost bond.
+func TestZK_HonestChallenger_ChildOfInvalidParent_ExpiredChallengeWindow(gt *testing.T) {
+	t := devtest.ParallelT(gt)
+	sys := newSupernodeSystem(t,
+		presets.WithoutHonestProposer(),
+		presets.WithDisputeGameFinalityDelaySeconds(uint64(presets.DefaultZKChallengeDuration/time.Second)),
+	)
+	parent, child, proposer := startInvalidParentWithChild(t, sys)
+	parent.WaitForProposalStatus(proofs.ZKProposalChallenged)
+	t.Require().Equal(uint8(proofs.ZKProposalUnchallenged), child.ClaimData().Status)
+
+	deadline := max(parent.ClaimData().Deadline, child.ClaimData().Deadline)
+	advanceL1To(sys, deadline+1)
+	parent.WaitForGameStatus(gameTypes.GameStatusChallengerWon)
+	child.WaitForGameStatus(gameTypes.GameStatusChallengerWon)
+	t.Require().Equal(common.Address{}, child.ClaimData().Challenger)
+	t.Require().Equal(child.TotalBonds(), child.Credit(common.Address{}),
+		"an unchallenged child's bond must be credited to address(0)")
+	t.Require().Equal(eth.ZeroWei, child.Credit(proposer.Address()),
+		"the proposer must not recover an invalid child's bond")
 }
