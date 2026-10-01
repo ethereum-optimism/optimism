@@ -535,6 +535,12 @@ Nothing on-chain retires the old contracts. Each chain's old `ETHLockbox` still 
 
 Both chains run on the same shared contracts, so they upgrade as a pair. Once the shared contracts are on a newer release, running an older OPCM on either chain fails with `OPContractsManagerUtils_DowngradeNotAllowed`.
 
+Upgrading one chain also reconfigures the other. `upgrade` registers every game type on the shared `DisputeGameFactory` again from that upgrade's `disputeGameConfigs`. So a task scoped to one chain sets the implementations, prestates, bonds, and respected game type for the whole set. Follow three rules when authoring an upgrade task:
+
+* Read each member's `disputeGameConfigs` from the shared factory and copy them. **Never write them per chain.**
+* Don't decide whether `SUPER_CANNON_KONA` is enabled by checking for a `CANNON_KONA` implementation on the factory. A shared factory never has `CANNON_KONA`, so with `startingRespectedGameType = 5` that check disables the set's permissionless game for both chains.
+* After upgrading both chains, run the `StandardValidator` against each one, not only the chain the task named, and confirm both pass.
+
 ### Treat INTEROP and the ProxyAdmin Owner as Fixed
 
 `Features.INTEROP` can't be turned off, and `SystemConfig.setFeature` reverts if you try. That closes the obvious way out of a set. It also means a chain whose `INTEROP` was enabled by hand before migration needs an administrative upgrade to clear the dev flag before it can be migrated.
