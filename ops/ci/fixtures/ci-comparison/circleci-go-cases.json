@@ -1,0 +1,30 @@
+{
+  "sha": "cb48622213e9aa8408de9904baafac784441ecc6",
+  "provenance": {
+    "url": "https://circleci.com/gh/ethereum-optimism/optimism/5622514",
+    "source": "CircleCI test metadata API, selected real records; intentionally incomplete fixture, not a full runtime report"
+  },
+  "cases": [
+    {
+      "classname": "github.com/ethereum-optimism/optimism/op-node/rollup",
+      "name": "TestChainSpec_CanyonForkActivation/Genesis",
+      "result": "success",
+      "run_time": 0,
+      "message": ""
+    },
+    {
+      "classname": "github.com/ethereum-optimism/optimism/op-node/rollup/derive",
+      "name": "TestBatchStages/BatchQueue/SingularBatch/OverlappingSpanBatch",
+      "result": "skipped",
+      "run_time": 0,
+      "message": "=== RUN   TestBatchStages/BatchQueue/SingularBatch/OverlappingSpanBatch\n    batch_queue_test.go:569: only applicable to span batches\n--- SKIP: TestBatchStages/BatchQueue/SingularBatch/OverlappingSpanBatch (0.00s)\n"
+    },
+    {
+      "classname": "github.com/ethereum-optimism/optimism/op-node/rollup/derive",
+      "name": "TestBatchStages/BatchStage/SingularBatch/OverlappingSpanBatch",
+      "result": "skipped",
+      "run_time": 0,
+      "message": "=== RUN   TestBatchStages/BatchStage/SingularBatch/OverlappingSpanBatch\n    batch_queue_test.go:569: only applicable to span batches\n--- SKIP: TestBatchStages/BatchStage/SingularBatch/OverlappingSpanBatch (0.00s)\n"
+    }
+  ]
+}

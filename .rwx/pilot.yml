@@ -74,6 +74,7 @@ tasks:
     run: |
       mise exec -- bash ops/ci/test-decision-tree.sh
       mise exec -- python -m unittest ops/ci/test_rwx_metadata.py
+      mise exec -- python ops/ci/test_compare_ci.py
     cache: false
     timeout: 10m
     outputs:

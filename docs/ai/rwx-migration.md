@@ -133,6 +133,29 @@ mise exec -- rwx lint .rwx/contracts.yml --warnings-as-errors
 mise exec -- rwx run .rwx/contracts.yml --wait
 ```
 
+## Compare retained test evidence
+
+Use [ci-comparison.md](ci-comparison.md) to collect reports from both providers
+on the same pushed commit, compare test identities, outcomes and skips, and report
+observed retry history. The report distinguishes missing or different cases
+from evidence that is incomplete or belongs to a different revision, profile or
+routing context.
+
+An initial automatic push on October 1, 2026 completed all three optional checks
+at commit `02d29aa13f9da3d8e51a1f52a987eb69e1b6bda0`: [pilot](https://cloud.rwx.com/optimism/runs/f8d83016615a4dcabd89b0e79c055610),
+[Go rollup](https://cloud.rwx.com/optimism/runs/fbd271ef52184767a0bf8f2c03e1b393),
+and [standard contracts](https://cloud.rwx.com/optimism/runs/d10bf0a7eb65404aac0782d41d386ea7). CircleCI's project setting
+`build-prs-only` is enabled: a branch-only push starts RWX, while an open PR is
+needed for the CircleCI baseline. Keep the actual provider trigger in the
+collection; compare the verified shared routing context rather than relabeling
+an event. GitHub status details link to the corresponding native RWX run.
+
+Cached RWX tasks may expose execution timestamps and durations from the run that
+created the cache entry. Exclude those historical execution values from current
+compute totals. Retain cache hits separately, use run start/end timestamps for
+elapsed time, and leave billed time and price unknown when the provider does not
+return them. A warm run alone does not establish cold-cache performance.
+
 ## Migration contract
 
 Preserve the existing routing and test coverage before tuning performance:
