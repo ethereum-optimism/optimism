@@ -45,6 +45,10 @@ type LockstepCrossValidator struct {
 	crossValidatedTs atomic.Uint64
 	crossValidatedOK atomic.Bool
 
+	// advanceMu serializes validation passes with resets, so a pass that read
+	// pre-rewind ingester state cannot store its watermark after a reset.
+	advanceMu sync.Mutex
+
 	// Error state for validation failures
 	errMu sync.RWMutex
 	err   *ValidatorError
@@ -142,18 +146,17 @@ func (v *LockstepCrossValidator) CrossValidatedTimestamp() (uint64, bool) {
 }
 
 // ResetCrossValidatedTimestamp rewinds validation progress after a logs DB rewind.
+// It waits for any in-flight validation pass, which may have read pre-rewind state.
 func (v *LockstepCrossValidator) ResetCrossValidatedTimestamp(timestamp uint64) {
-	for {
-		current := v.crossValidatedTs.Load()
-		if v.crossValidatedOK.Load() && current <= timestamp {
-			return
-		}
-		if v.crossValidatedTs.CompareAndSwap(current, timestamp) {
-			v.crossValidatedOK.Store(true)
-			v.log.Info("Reset cross-validated timestamp", "timestamp", timestamp)
-			return
-		}
+	v.advanceMu.Lock()
+	defer v.advanceMu.Unlock()
+
+	if v.crossValidatedOK.Load() && v.crossValidatedTs.Load() <= timestamp {
+		return
 	}
+	v.crossValidatedTs.Store(timestamp)
+	v.crossValidatedOK.Store(true)
+	v.log.Info("Reset cross-validated timestamp", "timestamp", timestamp)
 }
 
 // validateMessageTiming validates temporal constraints for cross-chain messages.
@@ -299,6 +302,9 @@ func (v *LockstepCrossValidator) runValidationLoop() {
 
 // advanceValidation tries to advance the cross-validated timestamp one step at a time.
 func (v *LockstepCrossValidator) advanceValidation() {
+	v.advanceMu.Lock()
+	defer v.advanceMu.Unlock()
+
 	// Stop if we've already hit a validation error
 	if v.Error() != nil {
 		return
