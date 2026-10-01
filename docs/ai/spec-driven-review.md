@@ -10,7 +10,7 @@ Mapped paths are strong signals, not a complete trigger list.
 
 Use the current published OP Stack specification as the protocol source of truth.
 Resolve published pages to source files in the `ethereum-optimism/specs` repository.
-Make sure the specification source is the latest commit on `origin/main` before the review.
+Before the review, make sure the specification source is the latest `origin/main` commit of `ethereum-optimism/specs`.
 Record the exact specification commit used by the review.
 
 Report each verified difference against that commit.
