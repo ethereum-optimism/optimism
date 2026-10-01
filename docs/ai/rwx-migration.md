@@ -162,6 +162,114 @@ compute totals. Retain cache hits separately, use run start/end timestamps for
 elapsed time, and leave billed time and price unknown when the provider does not
 return them. A warm run alone does not establish cold-cache performance.
 
+## Op-reth shadow and cache measurements
+
+`.rwx/op-reth.yml` adds `RWX: optimism-op-reth-shadow`. The release producer uses
+`run-main`; integration, compact-codec and superchain-snapshot checks use
+`run-rust-ci`. The four workloads retain CircleCI's package selection and features:
+
+| CircleCI job | RWX producer and fresh verdict |
+| --- | --- |
+| `rust-op-reth-binary` | Release `op-reth` and `op-reth-sdm-fixture`, default features; export and verify both binaries |
+| `op-reth-integration-tests` | Archive every `reth-optimism-node` test with nextest; run the archive using the committed default nextest configuration |
+| `op-reth-compact-codec` | Compile pinned `develop` and the PR with `dev` features in parallel; generate fresh baseline vectors and read them with the PR binary |
+| `op-reth-superchain-snapshot-check` | Compile chainspec with `superchain-configs` and sync flag `0`; switch to `1` to regenerate and compare both committed snapshots |
+
+Builds use `--locked`, the repository's Rust/mold/protoc/nextest pins, and
+sccache 0.18.0 with a verified release checksum. `CARGO_INCREMENTAL=0` keeps
+sccache enabled. Build helpers live in the reusable tool layer so the baseline
+checkout can use them without receiving PR Rust source. Public
+`superchain-registry` initialization uses each checkout's own gitlink; compilers
+remove any inherited generated tar before letting `build.rs` regenerate it.
+
+Release and each codec compiler use 8 CPUs / 16 GB; integration compilation and
+execution use 16 CPUs / 32 GB; snapshot compilation and regeneration use
+4 CPUs / 8 GB. These match CircleCI's job allocations. Codec's two compilers run
+concurrently, so its peak allocation is twice that of the serial CircleCI job;
+retain total usage as well as elapsed time when comparing it.
+
+The cache layers serve different purposes:
+
+- Content caching reuses an identical compiler output. Full source, Git state,
+  pins, profiles, features, runner and commands remain inputs.
+- A shared Rust dependency download layer feeds all producers. It retains the
+  complete Rust manifest/source tree for Cargo discovery and uses `cargo fetch
+  --locked`; the base can download any additional dependencies its lock requires.
+- Separate native [tool caches](https://www.rwx.com/docs/tool-caches) preserve
+  Cargo registry/git downloads, `rust/target`, and local sccache entries across
+  compiler input changes. Each producer has its own cache to avoid concurrent
+  writers. Filesystem output filters exclude unrelated source and system changes.
+- Nextest archives transfer compiled tests, metadata, dynamic libraries and build
+  outputs. Running them does not recompile or cache test verdicts.
+
+The cache-only vault `optimism-op-reth-shadow` has no secrets, OIDC credentials
+or production GCS writer. Its write permissions currently cover `develop` and
+the temporary `codex/rwx-ci-pilot` branch. Remove the pilot permission and evict
+its test caches before promoting this shadow or sharing protected cache entries.
+Other branches can read the tool caches but cannot write them. These tool caches
+expire after 48 hours; content caching is independent of that lifetime.
+The vault must also opt into access from public repositories: repository/branch
+permissions alone do not enable writes for this public monorepo. The pilot has
+that toggle enabled and one-day access for the authenticated benchmark user.
+CLI runs need a user grant; setting an init `branch` does not establish native
+GitHub trigger identity or grant vault write access.
+
+Every verdict and baseline vector generation has `cache: false`. This also
+disables tool caching on that task, so compilation lives in separate cached
+producers. The snapshot producer records sync flag `0`; `build.rs` declares the
+flag as an environment input, so the uncached `1` invocation regenerates even
+when the target directory is restored. Baseline vectors retain CircleCI's random
+100 values per type on every run. Only the immutable baseline executable is
+eligible for reuse; its cache inputs omit the unrelated PR SHA.
+
+Artifacts include SHA-bound binary/archive checksums, the pinned base revision,
+vector checksums, original nextest JUnit, full discovery, explicit ignored-test identities/reasons, per-case coverage and
+retry evidence, logs, compiler cache statistics and elapsed time. Missing or
+duplicate verdicts, unexpected filters/skips, empty discovery, stale revisions
+and corrupted build outputs fail verification. Diagnostic failures preserve the
+original test/build failure. Nextest keeps its existing single-test retry
+exception; RWX records retries in the report rather than sending Slack messages.
+
+Validate with:
+
+```bash
+python3 ops/ci/test_op_reth_shadow.py
+shellcheck ops/ci/op-reth-shadow.sh ops/ci/rwx-rust-prepare.sh
+rwx lint .rwx/op-reth.yml --warnings-as-errors
+rwx run .rwx/op-reth.yml --wait
+```
+
+For measurements, use a clean pushed checkout and pin the same `develop` SHA
+for every sample. CLI runs remain separate from native GitHub check evidence.
+The following examples target the release path; omit `--target release` to run
+all four workloads:
+
+```bash
+# Cold compiler caches, with tool installation measured separately.
+rwx run .rwx/op-reth.yml --target release --init cache-epoch=measurement-1 \
+  --init codec-base-sha=<develop-sha> --title 'op-reth cold' --wait
+# Identical inputs: content-cache reuse, while the binary verdict executes.
+rwx run .rwx/op-reth.yml --target release --init cache-epoch=measurement-1 \
+  --init codec-base-sha=<develop-sha> --title 'op-reth content warm' --wait
+# Force a compiler content miss; retain Cargo targets and sccache entries.
+rwx run .rwx/op-reth.yml --target release --init cache-epoch=measurement-1 \
+  --init build-probe=target-warm-1 --title 'op-reth target warm' --wait
+# Clear only targets; restored sccache entries must carry the compilation.
+rwx run .rwx/op-reth.yml --target release --init cache-epoch=measurement-1 \
+  --init build-probe=sccache-warm-1 --init target-cache-mode=sccache-only \
+  --title 'op-reth sccache warm' --wait
+```
+
+`build-probe` changes a compiler input, rather than setting `cache: false`, which
+would disable the tool cache under measurement. A new epoch creates fresh tool
+cache entries without evicting other workloads. These knobs measure compiler
+cache state; they do not make the image/tool layer cold. Preserve task preparation,
+execution and output-upload time separately. Verify actual tool-cache reads and
+writes from RWX task metadata, not the requested epoch alone. Retain source-change
+and failing-verdict probes before claiming cache correctness across revisions.
+Compare repeated same-SHA CircleCI samples, test counts, CPU/memory allocations
+and billed usage before making a provider-wide speed or cost claim.
+
 ## Migration contract
 
 Preserve the existing routing and test coverage before tuning performance:

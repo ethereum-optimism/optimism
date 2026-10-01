@@ -15,9 +15,9 @@ SCRIPTS = Path(__file__).resolve().parent
 SHA = "1" * 40
 DISCOVERY = {"rust-suites": {"reth-optimism-node::e2e": {"testcases": {
     "passes": {"ignored": False, "filter-match": {"status": "matches"}},
-    "ignored": {"ignored": True, "filter-match": {"status": "matches"}},
+    "ignored": {"ignored": True, "filter-match": {"status": "mismatch", "reason": "ignored"}},
 }}}}
-JUNIT = '<testsuites><testsuite><testcase classname="reth-optimism-node::e2e" name="passes"/><testcase classname="reth-optimism-node::e2e" name="ignored"><skipped/></testcase></testsuite></testsuites>'
+JUNIT = '<testsuites><testsuite><testcase classname="reth-optimism-node::e2e" name="passes"/></testsuite></testsuites>'
 
 STUB = r'''#!/usr/bin/env python3
 import json
@@ -71,7 +71,7 @@ elif command == "cargo":
     elif args[:2] == ["nextest", "list"]:
         print(os.environ["DISCOVERY_JSON"])
     elif args[:2] == ["nextest", "run"]:
-        target = Path(args[args.index("--target-dir-remap") + 1])
+        target = Path(args[args.index("--workspace-remap") + 1]) / "target"
         junit = target / "nextest/default/junit.xml"
         junit.parent.mkdir(parents=True, exist_ok=True)
         if os.environ.get("OMIT_JUNIT") != "true":
@@ -211,6 +211,31 @@ class ShadowTest(unittest.TestCase):
         self.assertNotEqual(self.run_job("integration", DISCOVERY_JSON=json.dumps(discovery)).returncode, 0)
         junit = JUNIT.replace('name="passes"/>', 'name="passes"><skipped/></testcase>')
         self.assertNotEqual(self.run_job("integration", JUNIT_XML=junit).returncode, 0)
+
+    def test_only_authoritative_ignored_cases_may_omit_verdicts(self):
+        self.build_integration()
+        result = self.run_job("integration")
+        self.assertEqual(result.returncode, 0, result.stdout)
+        coverage = self.report("integration", "coverage")
+        self.assertEqual((coverage["discovered"], coverage["reported"]), (2, 1))
+        self.assertEqual(coverage["ignored_cases"], [{"suite": "reth-optimism-node::e2e", "name": "ignored", "reason": "ignored"}])
+        discovery = copy.deepcopy(DISCOVERY)
+        discovery["rust-suites"]["reth-optimism-node::e2e"]["testcases"]["ignored"]["filter-match"]["reason"] = "expression"
+        self.assertNotEqual(self.run_job("integration", DISCOVERY_JSON=json.dumps(discovery)).returncode, 0)
+
+    def test_reported_ignored_case_must_be_skipped(self):
+        self.build_integration()
+        reported = '<testcase classname="reth-optimism-node::e2e" name="ignored"><skipped/></testcase>'
+        junit = JUNIT.replace("</testsuite>", reported + "</testsuite>")
+        self.assertEqual(self.run_job("integration", JUNIT_XML=junit).returncode, 0)
+        self.assertNotEqual(self.run_job("integration", JUNIT_XML=junit.replace("<skipped/>", "")).returncode, 0)
+
+    def test_extracted_binaries_are_not_duplicated_in_verdict_artifacts(self):
+        self.build_integration()
+        self.assertEqual(self.run_job("integration").returncode, 0)
+        report = self.root / ".ci/op-reth/integration"
+        self.assertTrue((report / "junit.xml").is_file())
+        self.assertFalse((report / "unpacked").exists())
 
     def test_retried_failure_is_visible(self):
         self.build_integration()

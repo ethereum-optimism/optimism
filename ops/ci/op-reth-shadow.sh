@@ -76,14 +76,20 @@ case "$job" in
     nextest_args=(--binaries-metadata "$unpacked/target/nextest/binaries-metadata.json"
       --cargo-metadata "$unpacked/target/nextest/cargo-metadata.json"
       --target-dir-remap "$unpacked/target" --workspace-remap "$REPO_ROOT/rust")
+    # Nextest's report store is relative to the remapped workspace, not the
+    # binary target-dir remap. Keep the committed config and collect its path.
+    junit="$REPO_ROOT/rust/target/nextest/default/junit.xml"
+    rm -f "$junit"
     (cd rust && cargo nextest list "${nextest_args[@]}" --message-format json) >"$report_dir/discovery.json"
     status=0
     (cd rust && RUST_BACKTRACE=1 cargo nextest run "${nextest_args[@]}") \
       2>&1 | tee "$report_dir/tests.log" || status=$?
-    junit="$unpacked/target/nextest/default/junit.xml"
     if [[ -s "$junit" ]]; then cp "$junit" "$report_dir/junit.xml"; fi
     report_status=0
     python3 "$REPORT" integration "$report_dir" || report_status=$?
+    # The reusable archive is a producer artifact; verdict artifacts only need
+    # discovery, original JUnit, coverage and logs, not a second copy of binaries.
+    rm -rf "$unpacked"
     # A reporting failure must never replace the original failing verdict.
     if [[ "$status" != 0 ]]; then exit "$status"; fi
     exit "$report_status"

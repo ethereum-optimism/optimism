@@ -66,14 +66,16 @@ case "${MODE}" in
         result=false
       elif [[ "${MODE}" == "detect_all" ]]; then
         # True iff every changed file matches the pattern (i.e., no file fails to match).
-        if echo "${CHANGED}" | grep -qvE "${pattern}"; then
+        if grep -qvE "${pattern}" <<<"${CHANGED}"; then
           result=false
         else
           result=true
         fi
       else
         # detect: true iff at least one changed file matches the pattern.
-        if echo "${CHANGED}" | grep -qE "${pattern}"; then
+        # A pipe plus grep -q can SIGPIPE the writer after an early match.
+        # With pipefail that incorrectly reports a non-match on large diffs.
+        if grep -qE "${pattern}" <<<"${CHANGED}"; then
           result=true
         else
           result=false

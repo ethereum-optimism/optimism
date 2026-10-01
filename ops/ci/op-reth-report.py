@@ -77,14 +77,20 @@ def integration_report(directory):
     directory = Path(directory)
     discovery = json.loads((directory / "discovery.json").read_text())
     expected = {}
+    ignored = set()
     for suite_id, suite in discovery["rust-suites"].items():
         for name, case in suite["testcases"].items():
             key = (suite_id, name)
-            if case.get("filter-match", {}).get("status") != "matches":
+            match = case.get("filter-match", {})
+            if case["ignored"] is True and match == {"status": "mismatch", "reason": "ignored"}:
+                ignored.add(key)
+            elif case["ignored"] is not False or match != {"status": "matches"}:
                 raise ValueError(f"Unexpected test filter: {key}")
-            expected[key] = case["ignored"]
+            expected[key] = key in ignored
     if not expected:
         raise ValueError("Empty integration test discovery")
+    if discovery.get("test-count", len(expected)) != len(expected):
+        raise ValueError("Integration discovery count differs from its case inventory")
     actual = {}
     flaky = []
     for case in ET.parse(directory / "junit.xml").iter("testcase"):
@@ -99,16 +105,23 @@ def integration_report(directory):
         actual[key] = outcome
         if case.find("flakyFailure") is not None or case.find("flakyError") is not None:
             flaky.append(key)
-    missing, extra = set(expected) - set(actual), set(actual) - set(expected)
+    # Pinned nextest omits ignored tests from JUnit. Their authoritative list
+    # entry must explicitly say "ignored"; every runnable test still needs one
+    # verdict. Never infer a skip merely because a verdict is missing.
+    missing = set(expected) - ignored - set(actual)
+    extra = set(actual) - set(expected)
     summary = {"discovered": len(expected), "reported": len(actual),
                "missing": sorted(missing), "extra": sorted(extra),
                "outcomes": {s: list(actual.values()).count(s) for s in ("pass", "skip", "fail")},
+               "ignored_cases": [{"suite": s, "name": n, "reason": "ignored"}
+                                 for s, n in sorted(ignored)],
                "retried_cases": sorted(flaky)}
+    summary["outcomes"]["skip"] += len(ignored - set(actual))
     write(directory, "coverage.json", summary)
     if missing or extra:
         raise ValueError(f"Incomplete integration evidence: {len(missing)} missing, {len(extra)} extra")
-    for key, ignored in expected.items():
-        if (actual[key] == "skip") != ignored:
+    for key, outcome in actual.items():
+        if (outcome == "skip") != expected[key]:
             raise ValueError(f"Unexpected integration skip status: {key}")
     print(json.dumps(summary, sort_keys=True))
 
@@ -127,6 +140,10 @@ def metadata(directory, job, started, status):
         "target_cache_mode": os.environ.get("TARGET_CACHE_MODE", "keep"),
         "cargo_incremental": os.environ.get("CARGO_INCREMENTAL"),
     }
+    for key, name in (("cpu_quota", "/sys/fs/cgroup/cpu.max"),
+                      ("memory_limit", "/sys/fs/cgroup/memory.max")):
+        if Path(name).is_file():
+            data[key] = Path(name).read_text().strip()
     write(directory, "metadata.json", data)
 
 

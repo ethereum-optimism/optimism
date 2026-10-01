@@ -177,8 +177,8 @@ tasks:
     tool-cache: op-reth-release-${{ init.cache-epoch }}
     timeout: 60m
     runner: &build-runner
-      cpus: 16
-      memory: 64gb
+      cpus: 8
+      memory: 16gb
     outputs:
       filesystem:
         filter:
@@ -210,7 +210,9 @@ tasks:
     env: *build-env
     tool-cache: op-reth-integration-${{ init.cache-epoch }}
     timeout: 60m
-    runner: *build-runner
+    runner: &integration-runner
+      cpus: 16
+      memory: 32gb
     outputs:
       filesystem:
         filter:
@@ -229,16 +231,12 @@ tasks:
     filter: ['!rust/target', '!.ci/rust-cache']
     cache: false
     timeout: 60m
-    runner:
-      cpus: 16
-      memory: 64gb
+    runner: *integration-runner
     outputs:
       filesystem: false
       test-results:
+        # Captain has no nextest-specific parser. Infer its generic JUnit parser.
         - path: .ci/op-reth/integration/junit.xml
-          options:
-            language: Rust
-            framework: nextest
       artifacts:
         - key: integration-reports
           path: .ci/op-reth/integration
@@ -248,7 +246,11 @@ tasks:
     if: ${{ tasks.route.values.run-rust-ci == 'true' }}
     run: bash /usr/local/lib/optimism-ci/op-reth-shadow.sh codec-base-build
     env:
-      <<: *build-env
+      # The PR SHA is deliberately absent: an unchanged pinned develop build
+      # can content-hit when only the PR changes.
+      CACHE_EPOCH: ${{ init.cache-epoch }}
+      BUILD_PROBE: ${{ init.build-probe }}
+      TARGET_CACHE_MODE: ${{ init.target-cache-mode }}
       CODEC_BASE_SHA: ${{ tasks.codec-base-revision.values.sha }}
     tool-cache: op-reth-codec-base-${{ init.cache-epoch }}
     timeout: 60m
@@ -326,8 +328,8 @@ tasks:
     tool-cache: op-reth-snapshot-${{ init.cache-epoch }}
     timeout: 30m
     runner:
-      cpus: 8
-      memory: 32gb
+      cpus: 4
+      memory: 8gb
     outputs:
       filesystem:
         filter:
@@ -344,8 +346,8 @@ tasks:
     cache: false
     timeout: 30m
     runner:
-      cpus: 8
-      memory: 32gb
+      cpus: 4
+      memory: 8gb
     outputs:
       filesystem: false
       artifacts:

@@ -328,6 +328,25 @@ else
   PASS=$((PASS + 1))
 fi
 
+# An early match followed by more than a pipe buffer must not turn into a
+# false detection under pipefail. Cover both any-match and all-match modes.
+large_changes="${TEST_DIR}/large-changes.txt"
+{
+  echo 'ops/ci/probe.sh'
+  for ((i = 0; i < 10000; i++)); do echo "docs/public-docs/page-${i}.md"; done
+} >"${large_changes}"
+echo '{}' >"${OUTPUT}"
+for mode in detect detect_all; do
+  CHANGED_FILES_FILE="${large_changes}" bash "${SCRIPT_DIR}/collect-params.sh" "${mode}" >/dev/null
+done
+if jq -e '."c-rust_changes_detected" == true and ."c-only_docs_changes" == false' "${OUTPUT}" >/dev/null; then
+  echo 'PASS: large changed-file list retains early matches and nonmatches'
+  PASS=$((PASS + 1))
+else
+  echo 'FAIL: large changed-file list routing'
+  FAIL=$((FAIL + 1))
+fi
+
 # --- Summary ---
 echo ""
 echo "=== Results: ${PASS} passed, ${FAIL} failed ==="
