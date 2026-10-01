@@ -211,16 +211,17 @@ impl AttributesMatch {
         };
 
         let extra_data_decoded = if config.is_jovian_active(block.header.timestamp) {
-            decode_jovian_extra_data(&block.header.extra_data).map(|(be, bd, _)| (be, bd))
+            decode_jovian_extra_data(&block.header.extra_data)
+                .map(|(be, bd, bm)| (be, bd, Some(bm)))
         } else if config.is_holocene_active(block.header.timestamp) {
-            decode_holocene_extra_data(&block.header.extra_data)
+            decode_holocene_extra_data(&block.header.extra_data).map(|(be, bd)| (be, bd, None))
         } else {
             return AttributesMismatch::MissingBlockEIP1559.into();
         };
 
         // We decode the extra data stemming from the block header.
-        let (be, bd): (u128, u128) = match extra_data_decoded {
-            Ok((be, bd)) => (be.into(), bd.into()),
+        let (be, bd, bm): (u128, u128, Option<u64>) = match extra_data_decoded {
+            Ok((be, bd, bm)) => (be.into(), bd.into(), bm),
             Err(EIP1559ParamError::NoEIP1559Params) => {
                 error!(
                     "EIP1559 parameters for the block not set while holocene is active. This is a bug"
@@ -248,6 +249,13 @@ impl AttributesMatch {
                 BaseFeeParams { max_change_denominator: bd, elasticity_multiplier: be },
             )
             .into();
+        }
+
+        // Presence must match too: Jovian attributes carry a minimum base fee and pre-Jovian ones
+        // don't, exactly like the block's extraData.
+        let am = attributes.attributes().min_base_fee;
+        if am != bm {
+            return AttributesMismatch::MinBaseFee(am, bm).into();
         }
 
         Self::Match
@@ -368,6 +376,9 @@ pub enum AttributesMismatch {
     InvalidEIP1559ParamsCombination,
     /// The EIP1559 base fee parameters of the attributes and the block don't match
     EIP1559Parameters(BaseFeeParams, BaseFeeParams),
+    /// The minimum base fee of the attributes and the one encoded in the block's extraData don't
+    /// match. A block without one (before Jovian) is represented as `None`.
+    MinBaseFee(Option<u64>, Option<u64>),
     /// Transactions mismatch.
     Transactions(u64, u64),
     /// The gas limit of the block does not match the gas limit of the attributes.
@@ -403,7 +414,7 @@ mod tests {
     use arbitrary::{Arbitrary, Unstructured};
     use kona_protocol::{BlockInfo, L2BlockInfo};
     use kona_registry::ROLLUP_CONFIGS;
-    use op_alloy_consensus::encode_holocene_extra_data;
+    use op_alloy_consensus::{encode_holocene_extra_data, encode_jovian_extra_data};
     use op_alloy_rpc_types_engine::OpPayloadAttributes;
 
     fn default_attributes() -> OpAttributesWithParent {
@@ -982,6 +993,84 @@ mod tests {
             ))
         );
         assert!(check.is_mismatch());
+    }
+
+    /// Returns a Jovian setup whose attributes and block agree on the EIP-1559 parameters, with
+    /// the given minimum base fees in the attributes and in the block's extraData.
+    fn jovian_min_base_fee_setup(
+        attr_min_base_fee: Option<u64>,
+        block_min_base_fee: u64,
+    ) -> (RollupConfig, OpAttributesWithParent, Block<Transaction>) {
+        let (mut cfg, mut attributes, mut block) = eip1559_test_setup();
+        cfg.hardforks.jovian_time = Some(0);
+
+        let extra_data = encode_jovian_extra_data(
+            Default::default(),
+            BaseFeeParams { max_change_denominator: 100, elasticity_multiplier: 2 },
+            block_min_base_fee,
+        )
+        .unwrap();
+        attributes.attributes.eip_1559_params = Some(FixedBytes::from_slice(&extra_data[1..9]));
+        attributes.attributes.min_base_fee = attr_min_base_fee;
+        block.header.extra_data = extra_data;
+
+        (cfg, attributes, block)
+    }
+
+    #[test]
+    fn test_jovian_min_base_fee_mismatch() {
+        let (cfg, attributes, block) =
+            jovian_min_base_fee_setup(Some(1_000_000_000), 2_000_000_000);
+
+        let check = AttributesMatch::check(&cfg, &attributes, &block);
+        assert_eq!(
+            check,
+            AttributesMatch::Mismatch(AttributesMismatch::MinBaseFee(
+                Some(1_000_000_000),
+                Some(2_000_000_000)
+            ))
+        );
+    }
+
+    #[test]
+    fn test_jovian_min_base_fee_match() {
+        let (cfg, attributes, block) =
+            jovian_min_base_fee_setup(Some(1_000_000_000), 1_000_000_000);
+
+        let check = AttributesMatch::check(&cfg, &attributes, &block);
+        assert_eq!(check, AttributesMatch::Match);
+    }
+
+    /// Jovian attributes without a minimum base fee don't match a block whose extraData carries
+    /// one, even a zero one.
+    #[test]
+    fn test_jovian_min_base_fee_missing_from_attributes() {
+        let (cfg, attributes, block) = jovian_min_base_fee_setup(None, 0);
+
+        let check = AttributesMatch::check(&cfg, &attributes, &block);
+        assert_eq!(check, AttributesMatch::Mismatch(AttributesMismatch::MinBaseFee(None, Some(0))));
+    }
+
+    /// A pre-Jovian block carries no minimum base fee, so attributes that set one don't match it.
+    #[test]
+    fn test_holocene_min_base_fee_set_in_attributes() {
+        let (cfg, mut attributes, mut block) = eip1559_test_setup();
+
+        let extra_data = encode_holocene_extra_data(
+            Default::default(),
+            BaseFeeParams { max_change_denominator: 100, elasticity_multiplier: 2 },
+        )
+        .unwrap();
+        attributes.attributes.eip_1559_params = Some(FixedBytes::from_slice(&extra_data[1..9]));
+        block.header.extra_data = extra_data;
+        assert_eq!(AttributesMatch::check(&cfg, &attributes, &block), AttributesMatch::Match);
+
+        attributes.attributes.min_base_fee = Some(1_000_000_000);
+        let check = AttributesMatch::check(&cfg, &attributes, &block);
+        assert_eq!(
+            check,
+            AttributesMatch::Mismatch(AttributesMismatch::MinBaseFee(Some(1_000_000_000), None))
+        );
     }
 
     /// The default parameters can't overflow the u32 byte representation of the base fee params!
