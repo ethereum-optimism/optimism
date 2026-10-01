@@ -7,6 +7,7 @@ use std::sync::Arc;
 use alloy_provider::ProviderBuilder;
 use anyhow::Result;
 use clap::Parser;
+use kona_sources::redacted_url;
 use kona_sp1_host_utils::{
     logger::setup_logger,
     metrics::{MetricsGauge, init_metrics},
@@ -14,7 +15,7 @@ use kona_sp1_host_utils::{
 };
 use kona_sp1_proposer::{
     ENV_VAR_PREFIX,
-    config::{ProofProviderKind, ProposerConfig, redacted_url},
+    config::{ProofProviderKind, ProposerConfig},
     contract::DisputeGameFactory,
     metrics::{ProposerGauge, record_spn_requester, register_metrics},
     proposer::Proposer,

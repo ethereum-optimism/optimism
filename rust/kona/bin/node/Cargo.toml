@@ -70,7 +70,7 @@ tokio-util.workspace = true
 serde_json = { workspace = true, features = ["std"] }
 jsonrpsee = { workspace = true, features = ["server"] }
 clap = { workspace = true, features = ["derive", "env"] }
-tokio = { workspace = true, features = ["rt-multi-thread", "macros"] }
+tokio = { workspace = true, features = ["rt-multi-thread", "macros", "signal"] }
 backon = { workspace = true, features = ["std", "tokio", "tokio-sleep"] }
 tracing-subscriber = { workspace = true, features = ["fmt", "env-filter"] }
 
