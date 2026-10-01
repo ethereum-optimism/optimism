@@ -50,7 +50,7 @@ fn build_env_filter() -> EnvFilter {
 /// Set up the logger with optional `OpenTelemetry` export.
 ///
 /// # Environment variables
-/// - `<PREFIX>_LOGGER_NAME`: service name (default `kona-sp1`)
+/// - `<PREFIX>_LOGGER_NAME`: service name (default `op-zk-proposer`)
 /// - `<PREFIX>_OTLP_ENDPOINT`: export endpoint (default <http://localhost:4317>)
 /// - `<PREFIX>_OTLP_ENABLED`: enable export (default `false`)
 /// - `<PREFIX>_LOG_FORMAT`: `pretty` or `json` (default `pretty`)
@@ -59,7 +59,7 @@ fn build_env_filter() -> EnvFilter {
 pub fn setup_logger(prefix: &str) {
     INIT.get_or_init(|| {
         let service_name = env::var(prefixed_env_var(prefix, "LOGGER_NAME"))
-            .unwrap_or_else(|_| "kona-sp1".to_string());
+            .unwrap_or_else(|_| "op-zk-proposer".to_string());
         let otlp_endpoint = env::var(prefixed_env_var(prefix, "OTLP_ENDPOINT"))
             .unwrap_or_else(|_| "http://localhost:4317".to_string());
         let otlp_enabled = env::var(prefixed_env_var(prefix, "OTLP_ENABLED"))
