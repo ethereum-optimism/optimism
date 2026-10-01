@@ -1,9 +1,10 @@
-//! Utilities for configuring mutual TLS clients.
+//! Utilities for configuring mutual TLS clients that reload their material when it changes on disk.
 
 use std::{env, path::PathBuf, sync::Arc};
 
-use alloy_transport_http::reqwest;
+use alloy_transport_http::reqwest::{self, Url, header::HeaderMap};
 use anyhow::{Context, Result, bail, ensure};
+use kona_sources::{ClientCert, ReloadingRpcClient, TlsPaths};
 use rustls::{
     ClientConfig,
     pki_types::{CertificateDer, PrivateKeyDer, pem::PemObject},
@@ -44,6 +45,21 @@ impl ClientTls {
             (Some(ca), Some(cert), Some(key)) => Ok(Some(Self { ca, cert, key })),
             _ => bail!("{ca_name}, {cert_name}, and {key_name} must all be set together"),
         }
+    }
+
+    /// Builds a JSON-RPC client over mutual TLS that reloads this material when it changes on disk.
+    ///
+    /// Only the configured CA is trusted to verify the server.
+    pub fn rpc_client(&self, endpoint: Url) -> Result<ReloadingRpcClient> {
+        ReloadingRpcClient::new(
+            endpoint,
+            TlsPaths {
+                ca_cert: Some(self.ca.clone()),
+                client_cert: Some(ClientCert { cert: self.cert.clone(), key: self.key.clone() }),
+            },
+            HeaderMap::new(),
+        )
+        .context("failed to build mTLS RPC client")
     }
 
     /// Builds a rustls client configuration that trusts platform roots and the configured CA.
@@ -152,24 +168,24 @@ mod tests {
     }
 
     #[test]
-    fn client_config_accepts_valid_pem_material() {
+    fn rpc_client_accepts_valid_pem_material() {
         let tls = ClientTls {
             ca: fixture("ca.crt"),
             cert: fixture("client.crt"),
             key: fixture("client.key"),
         };
 
-        tls.client_config().unwrap();
+        tls.rpc_client("https://localhost:1".parse().unwrap()).unwrap();
     }
 
     #[test]
-    fn client_config_rejects_non_pem_material() {
+    fn rpc_client_rejects_non_pem_material() {
         let tls = ClientTls {
             ca: Path::new(env!("CARGO_MANIFEST_DIR")).join("Cargo.toml"),
             cert: fixture("client.crt"),
             key: fixture("client.key"),
         };
 
-        assert!(tls.client_config().is_err());
+        assert!(tls.rpc_client("https://localhost:1".parse().unwrap()).is_err());
     }
 }

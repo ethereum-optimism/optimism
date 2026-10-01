@@ -1,19 +1,21 @@
 //! Remote SPN requester backed by op-signer.
 
 use alloy_primitives::{Address, B256, Bytes, ChainId, Signature};
-use alloy_rpc_client::{ClientBuilder, RpcClient};
-use alloy_transport_http::{Http, reqwest::Url};
+use alloy_transport_http::reqwest::Url;
 use anyhow::{Result, ensure};
 use async_trait::async_trait;
+use kona_sources::ReloadingRpcClient;
 use serde::Serialize;
 use sp1_alloy_signer::{Error, Signer, UnsupportedSignerOperation};
 
 use crate::tls::ClientTls;
 
 /// An SPN requester that delegates EIP-191 message signing to op-signer over mTLS.
+///
+/// The client reloads its certificates when they rotate on disk.
 #[derive(Clone, Debug)]
 pub struct OpSignerRequester {
-    client: RpcClient,
+    client: ReloadingRpcClient,
     address: Address,
 }
 
@@ -28,9 +30,7 @@ impl OpSignerRequester {
     /// Builds a requester using the configured client certificate and server CA.
     pub fn new(endpoint: Url, address: Address, tls: ClientTls) -> Result<Self> {
         ensure!(endpoint.scheme() == "https", "SPN op-signer endpoint must use https");
-        let transport = Http::with_client(tls.http_client()?, endpoint);
-        let client = ClientBuilder::default().transport(transport, false);
-        Ok(Self { client, address })
+        Ok(Self { client: tls.rpc_client(endpoint)?, address })
     }
 }
 
@@ -45,8 +45,12 @@ impl Signer for OpSignerRequester {
             message: Bytes::copy_from_slice(message),
             sender_address: self.address,
         };
-        let response: Bytes =
-            self.client.request("opsigner_signMessage", (args,)).await.map_err(Error::message)?;
+        let response: Bytes = self
+            .client
+            .client()
+            .request("opsigner_signMessage", (args,))
+            .await
+            .map_err(Error::message)?;
         if response.len() != 65 {
             return Err(Error::message(format!(
                 "op-signer returned a {}-byte signature",
