@@ -189,7 +189,9 @@ impl AttributesMatch {
                     return AttributesMismatch::MissingAttributesEIP1559.into();
                 }
 
-                // If the attributes are not specified, that means we can just early return.
+                if !block.header.extra_data.is_empty() {
+                    return AttributesMismatch::NonEmptyPreHoloceneExtraData.into();
+                }
                 return Self::Match;
             }
             Some((0, e)) if e != 0 => {
@@ -379,6 +381,8 @@ pub enum AttributesMismatch {
     /// The minimum base fee of the attributes and the one encoded in the block's extraData don't
     /// match. A block without one (before Jovian) is represented as `None`.
     MinBaseFee(Option<u64>, Option<u64>),
+    /// Before Holocene, the block's extraData must be empty.
+    NonEmptyPreHoloceneExtraData,
     /// Transactions mismatch.
     Transactions(u64, u64),
     /// The gas limit of the block does not match the gas limit of the attributes.
@@ -1070,6 +1074,24 @@ mod tests {
         assert_eq!(
             check,
             AttributesMatch::Mismatch(AttributesMismatch::MinBaseFee(Some(1_000_000_000), None))
+        );
+    }
+
+    #[test]
+    fn test_pre_holocene_non_empty_extra_data() {
+        let cfg = default_rollup_config();
+        let mut attributes = default_attributes();
+        attributes.attributes.gas_limit = Some(0);
+        let mut block = Block::<Transaction>::default();
+        assert!(!cfg.is_holocene_active(block.header.timestamp));
+
+        assert_eq!(AttributesMatch::check(cfg, &attributes, &block), AttributesMatch::Match);
+
+        block.header.extra_data = Bytes::from_static(&[1]);
+        let check = AttributesMatch::check(cfg, &attributes, &block);
+        assert_eq!(
+            check,
+            AttributesMatch::Mismatch(AttributesMismatch::NonEmptyPreHoloceneExtraData)
         );
     }
 
