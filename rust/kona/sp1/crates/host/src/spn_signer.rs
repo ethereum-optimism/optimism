@@ -12,7 +12,7 @@ use crate::tls::ClientTls;
 
 /// An SPN requester that delegates EIP-191 message signing to op-signer over mTLS.
 ///
-/// The client reloads its certificates when they rotate on disk.
+/// Certificates are reloaded when they rotate on disk; see [`ReloadingRpcClient`].
 #[derive(Clone, Debug)]
 pub struct OpSignerRequester {
     client: ReloadingRpcClient,

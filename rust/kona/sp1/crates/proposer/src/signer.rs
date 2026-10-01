@@ -66,7 +66,7 @@ pub enum Signer {
         url: Url,
         /// Address op-signer uses for L1 transactions.
         address: Address,
-        /// op-signer client over mutual TLS; reloads certificates when they rotate on disk.
+        /// op-signer client over mutual TLS; see [`ReloadingRpcClient`] for reloading.
         mtls: Option<ReloadingRpcClient>,
     },
     /// The local signer.
@@ -123,7 +123,7 @@ impl Signer {
                     .with_context(|| format!("Failed to parse {signer_address_name}"))?;
                 let tls = ClientTls::from_env(crate::ENV_VAR_PREFIX, "SIGNER")?;
                 tracing::info!(
-                    url = %crate::config::redacted_url(&signer_url),
+                    url = %kona_sources::redacted_url(&signer_url),
                     address = %signer_address,
                     mtls = tls.is_some(),
                     "Using Web3Signer ({signer_url_name} + {signer_address_name})"

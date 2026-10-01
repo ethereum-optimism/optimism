@@ -20,9 +20,7 @@ use crate::{
 /// - PEM format for all certificates and keys
 /// - Certificates should be provided as file paths.
 ///
-/// When a client certificate or CA is configured, the process watches the directories that contain
-/// them and reloads the client automatically when they change, including Kubernetes Secret volume
-/// updates that swap the `..data` symlink.
+/// TLS material is reloaded when it changes on disk; see [`ReloadingRpcClient`].
 #[derive(Debug, Clone)]
 pub struct RemoteSigner {
     /// The URL of the remote signer endpoint
@@ -49,27 +47,9 @@ pub enum RemoteSignerStartError {
 }
 
 impl RemoteSigner {
-    /// Creates a new remote signer with the given configuration
+    /// Builds the signer client and checks that the signer is reachable.
     ///
-    /// If a client certificate or CA is configured, this will automatically start a certificate
-    /// watcher. When certificates are updated (e.g., by cert-manager in Kubernetes), the TLS client
-    /// will be automatically reloaded with the new certificates without requiring a restart.
-    ///
-    /// # Certificate Watching
-    ///
-    /// The watcher monitors the directories containing:
-    /// - the client certificate file (if mTLS is configured)
-    /// - the client private key file (if mTLS is configured)
-    /// - the CA certificate file (if a custom CA is configured)
-    ///
-    /// Changes to any of these files, or to the Kubernetes `..data` symlink in those directories,
-    /// cause the watcher to:
-    /// 1. Log the certificate change event
-    /// 2. Wait two seconds for further changes to settle
-    /// 3. Reload the certificate files from disk and rebuild the HTTP client
-    /// 4. Replace the existing client atomically, keeping it if the reload fails
-    ///
-    /// This enables zero-downtime certificate rotation in production environments.
+    /// TLS material is reloaded when it changes on disk; see [`ReloadingRpcClient`].
     pub async fn start(self) -> Result<RemoteSignerHandler, RemoteSignerStartError> {
         let client = ReloadingRpcClient::new(
             self.endpoint,

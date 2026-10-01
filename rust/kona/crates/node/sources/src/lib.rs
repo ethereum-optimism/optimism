@@ -16,4 +16,5 @@ pub use signer::{
 mod tls;
 pub use tls::{
     CertificateError, ClientCert, ReloadingRpcClient, ReloadingRpcClientError, TlsPaths,
+    redacted_url,
 };

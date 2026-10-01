@@ -43,7 +43,7 @@ impl ClientTls {
         }
     }
 
-    /// Builds a JSON-RPC client over mutual TLS that reloads this material when it changes on disk.
+    /// Builds a JSON-RPC client over mutual TLS; see [`ReloadingRpcClient`] for reloading.
     ///
     /// Only the configured CA is trusted to verify the server.
     pub fn rpc_client(&self, endpoint: Url) -> Result<ReloadingRpcClient> {
