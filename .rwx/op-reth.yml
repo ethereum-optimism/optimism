@@ -1,0 +1,327 @@
+# Four complete op-reth workloads. CircleCI retains the required checks.
+on:
+  github:
+    push:
+      init:
+        commit-sha: ${{ event.git.sha }}
+        branch: ${{ event.git.branch }}
+        tag: ${{ event.git.tag }}
+        cache-epoch: v1
+        build-probe: ""
+        target-cache-mode: keep
+        codec-base-sha: ""
+      status-checks:
+        name: optimism-op-reth-shadow
+  cli:
+    init:
+      commit-sha: ${{ event.git.sha }}
+      branch: ${{ event.git.branch }}
+      tag: ""
+      cache-epoch: v1
+      build-probe: ""
+      target-cache-mode: keep
+      codec-base-sha: ""
+
+base:
+  image: ubuntu:24.04@sha256:008173c23f95b170204355c12626cb5a965d779a7e1283b09e9cffbb1bf33ca3
+  config: rwx/base 1.2.0
+  arch: x86_64
+
+# Cache-only vault: no publishing credentials. During the pilot, only develop
+# and codex/rwx-ci-pilot may write. Remove the temporary pilot grant at promotion.
+tool-cache:
+  vault: optimism-op-reth-shadow
+
+defaults:
+  runner:
+    cpus: 2
+    memory: 8gb
+
+tasks:
+  - key: code
+    call: git/clone 2.2.0
+    with:
+      repository: https://github.com/ethereum-optimism/optimism.git
+      ref: ${{ init.commit-sha }}
+      preserve-git-dir: true
+      fetch-full-depth: true
+      submodules: false
+
+  - key: mise
+    call: mise/install 1.1.0
+    with:
+      mise-version: "2026.2.2"
+      install: "false"
+
+  - key: tools
+    use: [code, mise]
+    run: bash ops/ci/rwx-prepare.sh
+    filter: [mise.toml, ops/ci/rwx-prepare.sh, .circleci/scripts/apt-install.sh]
+    timeout: 30m
+
+  - key: route
+    use: [code, tools]
+    run: bash ops/ci/rwx-metadata.sh
+    env:
+      CI_EVENT: push
+      CI_BRANCH: ${{ init.branch }}
+      CI_TAG: ${{ init.tag }}
+      CI_COMMIT_SHA: ${{ init.commit-sha }}
+    cache: false
+    timeout: 10m
+    outputs:
+      filesystem: false
+      artifacts:
+        - key: routing
+          path: .ci/pipeline-parameters.json
+
+  - key: helper-tests
+    use: [code, tools]
+    run: python3 ops/ci/test_op_reth_shadow.py
+    cache: false
+    timeout: 10m
+    outputs:
+      filesystem: false
+
+  - key: rust-tools
+    use: [code, tools]
+    if: ${{ tasks.route.values.run-main == 'true' || tasks.route.values.run-rust-ci == 'true' }}
+    run: mise exec -- bash ops/ci/rwx-rust-prepare.sh
+    filter: [mise.toml, ops/ci/rwx-rust-prepare.sh, ops/ci/op-reth-shadow.sh, ops/ci/op-reth-report.py, .circleci/scripts/apt-install.sh]
+    timeout: 30m
+
+  # Keep full source, Git metadata and the pinned submodule as build inputs.
+  - key: head-source
+    use: [code, rust-tools]
+    if: ${{ tasks.route.values.run-main == 'true' || tasks.route.values.run-rust-ci == 'true' }}
+    run: bash /usr/local/lib/optimism-ci/op-reth-shadow.sh source
+    timeout: 15m
+
+  - key: codec-base-revision
+    use: [code, tools]
+    if: ${{ tasks.route.values.run-rust-ci == 'true' }}
+    run: |
+      revision="$CODEC_BASE_SHA"
+      if [[ -z "$revision" ]]; then
+        revision="$(git ls-remote --exit-code origin refs/heads/develop | cut -f1)"
+      fi
+      [[ "$revision" =~ ^[0-9a-f]{40}$ ]] || { echo 'Expected an immutable develop SHA.' >&2; exit 1; }
+      printf '%s\n' "$revision" >"$RWX_VALUES/sha"
+      printf '%s\n' "$revision" >.ci/op-reth-codec-base-sha.txt
+    env:
+      CODEC_BASE_SHA: ${{ init.codec-base-sha }}
+    cache: false
+    timeout: 5m
+    outputs:
+      filesystem: false
+      artifacts:
+        - key: codec-base-revision
+          path: .ci/op-reth-codec-base-sha.txt
+
+  - key: codec-base-code
+    if: ${{ tasks.route.values.run-rust-ci == 'true' }}
+    call: git/clone 2.2.0
+    with:
+      repository: https://github.com/ethereum-optimism/optimism.git
+      ref: ${{ tasks.codec-base-revision.values.sha }}
+      preserve-git-dir: true
+      fetch-full-depth: true
+      submodules: false
+
+  - key: codec-base-source
+    use: [codec-base-code, rust-tools]
+    if: ${{ tasks.route.values.run-rust-ci == 'true' }}
+    run: bash /usr/local/lib/optimism-ci/op-reth-shadow.sh source
+    timeout: 15m
+
+  # Each producer has its own mutable cache, avoiding concurrent writers. RWX
+  # content hits skip compilation; misses restore Cargo targets and local
+  # sccache entries, then Cargo checks source, flags, profiles and lockfiles.
+  # BUILD_PROBE forces a content miss for measurements without disabling the
+  # tool cache. A new CACHE_EPOCH gives genuinely cold build/compile caches.
+  - key: release-build
+    use: head-source
+    if: ${{ tasks.route.values.run-main == 'true' }}
+    run: bash /usr/local/lib/optimism-ci/op-reth-shadow.sh release-build
+    env: &build-env
+      CI_COMMIT_SHA: ${{ init.commit-sha }}
+      CACHE_EPOCH: ${{ init.cache-epoch }}
+      BUILD_PROBE: ${{ init.build-probe }}
+      TARGET_CACHE_MODE: ${{ init.target-cache-mode }}
+    tool-cache: op-reth-release-${{ init.cache-epoch }}
+    timeout: 60m
+    runner: &build-runner
+      cpus: 16
+      memory: 64gb
+    outputs:
+      filesystem:
+        filter:
+          workspace: [rust/target, .ci/rust-cache, .ci/op-reth/release-build]
+          system: []
+      artifacts:
+        - key: release-binaries
+          path: .ci/op-reth/release-build
+
+  - key: release
+    use: release-build
+    if: ${{ tasks.route.values.run-main == 'true' }}
+    run: bash /usr/local/lib/optimism-ci/op-reth-shadow.sh release
+    env:
+      CI_COMMIT_SHA: ${{ init.commit-sha }}
+    filter: ['!rust/target', '!.ci/rust-cache']
+    cache: false
+    timeout: 10m
+    outputs:
+      filesystem: false
+      artifacts:
+        - key: release-verification
+          path: .ci/op-reth/release
+
+  - key: integration-build
+    use: head-source
+    if: ${{ tasks.route.values.run-rust-ci == 'true' }}
+    run: bash /usr/local/lib/optimism-ci/op-reth-shadow.sh integration-build
+    env: *build-env
+    tool-cache: op-reth-integration-${{ init.cache-epoch }}
+    timeout: 60m
+    runner: *build-runner
+    outputs:
+      filesystem:
+        filter:
+          workspace: [rust/target, .ci/rust-cache, .ci/op-reth/integration-build]
+          system: []
+      artifacts:
+        - key: integration-build-report
+          path: .ci/op-reth/integration-build
+
+  - key: integration
+    use: integration-build
+    if: ${{ tasks.route.values.run-rust-ci == 'true' }}
+    run: bash /usr/local/lib/optimism-ci/op-reth-shadow.sh integration
+    env:
+      CI_COMMIT_SHA: ${{ init.commit-sha }}
+    filter: ['!rust/target', '!.ci/rust-cache']
+    cache: false
+    timeout: 60m
+    runner:
+      cpus: 16
+      memory: 64gb
+    outputs:
+      filesystem: false
+      test-results:
+        - path: .ci/op-reth/integration/junit.xml
+          options:
+            language: Rust
+            framework: nextest
+      artifacts:
+        - key: integration-reports
+          path: .ci/op-reth/integration
+
+  - key: codec-base-build
+    use: codec-base-source
+    if: ${{ tasks.route.values.run-rust-ci == 'true' }}
+    run: bash /usr/local/lib/optimism-ci/op-reth-shadow.sh codec-base-build
+    env:
+      <<: *build-env
+      CODEC_BASE_SHA: ${{ tasks.codec-base-revision.values.sha }}
+    tool-cache: op-reth-codec-base-${{ init.cache-epoch }}
+    timeout: 60m
+    runner: *build-runner
+    outputs:
+      filesystem:
+        filter:
+          workspace: [rust/target, .ci/rust-cache, .ci/op-reth/codec-base-build]
+          system: []
+      artifacts:
+        - key: codec-base-build-report
+          path: .ci/op-reth/codec-base-build
+
+  - key: codec-head-build
+    use: head-source
+    if: ${{ tasks.route.values.run-rust-ci == 'true' }}
+    run: bash /usr/local/lib/optimism-ci/op-reth-shadow.sh codec-head-build
+    env: *build-env
+    tool-cache: op-reth-codec-head-${{ init.cache-epoch }}
+    timeout: 60m
+    runner: *build-runner
+    outputs:
+      filesystem:
+        filter:
+          workspace: [rust/target, .ci/rust-cache, .ci/op-reth/codec-head-build]
+          system: []
+      artifacts:
+        - key: codec-head-build-report
+          path: .ci/op-reth/codec-head-build
+
+  # Generate random baseline vectors afresh on every run. Only the immutable
+  # baseline compiler output is reusable, preserving CircleCI's sample cadence.
+  - key: codec-vectors
+    use: codec-base-build
+    if: ${{ tasks.route.values.run-rust-ci == 'true' }}
+    run: bash /usr/local/lib/optimism-ci/op-reth-shadow.sh codec-vectors
+    env:
+      CODEC_BASE_SHA: ${{ tasks.codec-base-revision.values.sha }}
+    filter: ['!rust/target', '!.ci/rust-cache']
+    cache: false
+    timeout: 10m
+    outputs:
+      filesystem:
+        filter:
+          workspace: [testdata/micro/compact, .ci/op-reth/codec-vectors]
+          system: []
+      artifacts:
+        - key: codec-vectors
+          path: testdata/micro/compact
+        - key: codec-vector-provenance
+          path: .ci/op-reth/codec-vectors
+
+  - key: codec
+    # The head checkout is last; only prebuilt binaries execute after merging.
+    use: [codec-vectors, codec-head-build]
+    if: ${{ tasks.route.values.run-rust-ci == 'true' }}
+    run: bash /usr/local/lib/optimism-ci/op-reth-shadow.sh codec
+    env:
+      CI_COMMIT_SHA: ${{ init.commit-sha }}
+      CODEC_BASE_SHA: ${{ tasks.codec-base-revision.values.sha }}
+    filter: ['!rust/target', '!.ci/rust-cache']
+    cache: false
+    timeout: 10m
+    outputs:
+      filesystem: false
+      artifacts:
+        - key: codec-verification
+          path: .ci/op-reth/codec
+
+  - key: snapshot-build
+    use: head-source
+    if: ${{ tasks.route.values.run-rust-ci == 'true' }}
+    run: bash /usr/local/lib/optimism-ci/op-reth-shadow.sh snapshot-build
+    env: *build-env
+    tool-cache: op-reth-snapshot-${{ init.cache-epoch }}
+    timeout: 30m
+    runner:
+      cpus: 8
+      memory: 32gb
+    outputs:
+      filesystem:
+        filter:
+          workspace: [rust/target, .ci/rust-cache, .ci/op-reth/snapshot-build]
+          system: []
+      artifacts:
+        - key: snapshot-build-report
+          path: .ci/op-reth/snapshot-build
+
+  - key: snapshot
+    use: snapshot-build
+    if: ${{ tasks.route.values.run-rust-ci == 'true' }}
+    run: bash /usr/local/lib/optimism-ci/op-reth-shadow.sh snapshot
+    cache: false
+    timeout: 30m
+    runner:
+      cpus: 8
+      memory: 32gb
+    outputs:
+      filesystem: false
+      artifacts:
+        - key: snapshot-verification
+          path: .ci/op-reth/snapshot
