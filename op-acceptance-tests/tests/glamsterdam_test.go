@@ -83,7 +83,7 @@ func TestSuperFaultProofsAfterGlamsterdam(gt *testing.T) {
 
 	l1Config := sys.L1Network.Escape().ChainConfig()
 	t.Require().NotNil(l1Config.AmsterdamTime)
-	postForkL1 := sys.L1EL.BlockRefByLabel(eth.Unsafe)
+	postForkL1 := sys.L1EL.WaitForTime(sys.L1EL.BlockRefByNumber(0).Time + 1)
 	t.Require().GreaterOrEqual(postForkL1.Time, *l1Config.AmsterdamTime)
 	postForkHeader, err := sys.L1EL.EthClient().HeaderByHash(t.Ctx(), postForkL1.Hash)
 	t.Require().NoError(err)
