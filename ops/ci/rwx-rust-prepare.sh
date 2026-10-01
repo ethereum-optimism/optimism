@@ -6,7 +6,8 @@ cd "$(dirname "${BASH_SOURCE[0]}")/../.."
 
 bash .circleci/scripts/apt-install.sh clang llvm-dev libclang-dev libssl-dev cmake zstd
 mise install mold protoc github:nextest-rs/nextest
-export PATH="$(mise bin-paths | paste -sd: -):${PATH}"
+PATH="$(mise bin-paths | paste -sd: -):${PATH}"
+export PATH
 
 # Separate from CircleCI's GCS cache: no cloud credentials or production writer.
 SCCACHE_VERSION=0.18.0
@@ -26,7 +27,7 @@ sudo mkdir -p /usr/local/lib/optimism-ci
 sudo install -m 0755 ops/ci/op-reth-shadow.sh /usr/local/lib/optimism-ci/op-reth-shadow.sh
 sudo install -m 0755 ops/ci/op-reth-report.py /usr/local/lib/optimism-ci/op-reth-report.py
 printf '%s\n' "$PATH" >"$RWX_ENV/PATH"
-printf '%s\n' "${MISE_RUSTUP_HOME:?mise must export its Rust toolchain directory}" >"$RWX_ENV/RUSTUP_HOME"
+printf '%s\n' "${RUSTUP_HOME:?mise exec must export its Rust toolchain directory}" >"$RWX_ENV/RUSTUP_HOME"
 python3 - <<'PY' >"$RWX_ENV/RUSTUP_TOOLCHAIN"
 import tomllib
 with open('mise.toml', 'rb') as source:

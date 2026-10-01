@@ -2,7 +2,6 @@
 """Exercise cache invalidation, artifact provenance and fresh failing verdicts."""
 
 import copy
-import importlib.util
 import json
 import os
 from pathlib import Path

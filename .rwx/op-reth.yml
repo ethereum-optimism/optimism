@@ -90,9 +90,33 @@ tasks:
     filter: [mise.toml, ops/ci/rwx-rust-prepare.sh, ops/ci/op-reth-shadow.sh, ops/ci/op-reth-report.py, .circleci/scripts/apt-install.sh]
     timeout: 30m
 
+  # Download once for all producers. The manifest tree is kept intact for
+  # Cargo's workspace discovery; source changes can incrementally refresh this
+  # layer, while unrelated Go/contract/docs changes do not invalidate it.
+  - key: rust-dependencies
+    use: [code, rust-tools]
+    if: ${{ tasks.route.values.run-main == 'true' || tasks.route.values.run-rust-ci == 'true' }}
+    run: |
+      export CARGO_HOME="$PWD/.ci/rust-cache/cargo"
+      cd rust
+      attempt=0
+      until cargo fetch --locked; do
+        attempt=$((attempt + 1))
+        if [[ "$attempt" -ge 5 ]]; then exit 1; fi
+        sleep "$((2 ** attempt))"
+      done
+    filter: [rust, mise.toml]
+    tool-cache: op-reth-dependencies-${{ init.cache-epoch }}
+    timeout: 30m
+    outputs:
+      filesystem:
+        filter:
+          workspace: [.ci/rust-cache/cargo]
+          system: []
+
   # Keep full source, Git metadata and the pinned submodule as build inputs.
   - key: head-source
-    use: [code, rust-tools]
+    use: [code, rust-dependencies]
     if: ${{ tasks.route.values.run-main == 'true' || tasks.route.values.run-rust-ci == 'true' }}
     run: bash /usr/local/lib/optimism-ci/op-reth-shadow.sh source
     timeout: 15m
@@ -106,6 +130,7 @@ tasks:
         revision="$(git ls-remote --exit-code origin refs/heads/develop | cut -f1)"
       fi
       [[ "$revision" =~ ^[0-9a-f]{40}$ ]] || { echo 'Expected an immutable develop SHA.' >&2; exit 1; }
+      mkdir -p .ci
       printf '%s\n' "$revision" >"$RWX_VALUES/sha"
       printf '%s\n' "$revision" >.ci/op-reth-codec-base-sha.txt
     env:
@@ -129,7 +154,8 @@ tasks:
       submodules: false
 
   - key: codec-base-source
-    use: [codec-base-code, rust-tools]
+    # Baseline checkout wins over the PR manifest tree in the dependency layer.
+    use: [rust-dependencies, codec-base-code]
     if: ${{ tasks.route.values.run-rust-ci == 'true' }}
     run: bash /usr/local/lib/optimism-ci/op-reth-shadow.sh source
     timeout: 15m
