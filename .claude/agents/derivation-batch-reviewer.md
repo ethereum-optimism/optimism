@@ -1,6 +1,6 @@
 ---
 name: derivation-batch-reviewer
-description: "Reviews OP derivation batch decoding and validation against the protocol specification. Use for affected changes or Kona client releases."
+description: "Reviews OP derivation batch handling against the protocol specification: channel decompression and size limits, singular and span batch decoding, span batch conversion and Holocene decomposition, fork-gated batch rules, and batch validation outcomes. Use for any change that can alter these behaviors, wherever the code is. Changes in op-node/rollup/derive batch code or the Kona derive and protocol batch code almost always need it. Also use for Kona client releases."
 model: opus
 ---
 

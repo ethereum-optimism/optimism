@@ -1,6 +1,6 @@
 ---
 name: interop-reviewer
-description: "Reviews interop message verification and safety promotion against the protocol specification. Use for affected changes or Kona releases."
+description: "Reviews interop behavior against the protocol specification: message extraction and validation, dependency set, timing and expiry, cycle detection, cross-unsafe and safe promotion, invalidation and replacement, and Lagoon activation. Use for any change that can alter these behaviors, wherever the code is. Changes in op-interop-filter, op-supernode interop, op-core/interop, or the Kona interop crates almost always need it. Also use for Kona releases."
 model: opus
 ---
 

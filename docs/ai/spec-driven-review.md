@@ -2,11 +2,15 @@
 
 Use this method for every specification-driven area reviewer.
 Each area guide defines its scope, code mapping, domain checks, and run triggers.
+Each agent description states the reviewer scope, so that a selector can match a change to it.
+Select a reviewer when a change can alter behavior in its scope, wherever the changed code is.
+Mapped paths are strong signals, not a complete trigger list.
 
 ## Authority
 
 Use the current published OP Stack specification as the protocol source of truth.
 Resolve published pages to source files in the `ethereum-optimism/specs` repository.
+Make sure the specification source is the latest commit on `origin/main` before the review.
 Record the exact specification commit used by the review.
 
 Report each verified difference against that commit.
