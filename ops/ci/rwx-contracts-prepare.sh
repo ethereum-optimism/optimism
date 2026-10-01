@@ -30,7 +30,7 @@ case "${1:-}" in
       fi
     done
     mkdir -p "${RWX_ENV}"
-    printf '%s\n' "${PATH}" >"${RWX_ENV}/PATH"
+    printf '%s\n' "${PATH}" > "${RWX_ENV}/PATH"
     ;;
   source)
     mkdir -p .ci/contracts-prepare
@@ -39,7 +39,7 @@ case "${1:-}" in
     git submodule sync --recursive
     retry_download git -c protocol.file.allow=never submodule update --init --recursive --jobs 8 \
       2>&1 | tee .ci/contracts-prepare/submodules.log
-    git submodule status --recursive >.ci/contracts-prepare/submodule-status.txt
+    git submodule status --recursive > .ci/contracts-prepare/submodule-status.txt
     retry_download go mod download 2>&1 | tee .ci/contracts-prepare/go-modules.log
     (cd packages/contracts-bedrock && just build-go-ffi) \
       2>&1 | tee .ci/contracts-prepare/go-ffi-build.log

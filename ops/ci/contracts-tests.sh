@@ -11,14 +11,17 @@ case "${CONTRACT_FEATURE}" in
   CUSTOM_GAS_TOKEN) FEATURE_ENV=SYS_FEATURE__CUSTOM_GAS_TOKEN ;;
   OPTIMISM_PORTAL_INTEROP) FEATURE_ENV=DEV_FEATURE__OPTIMISM_PORTAL_INTEROP ;;
   ZK_DISPUTE_GAME) FEATURE_ENV=DEV_FEATURE__ZK_DISPUTE_GAME ;;
-  *) echo "Unknown standard contract feature: ${CONTRACT_FEATURE}" >&2; exit 1 ;;
+  *)
+    echo "Unknown standard contract feature: ${CONTRACT_FEATURE}" >&2
+    exit 1
+    ;;
 esac
 
 # A previous task's or local CLI environment must not silently filter tests,
 # lower fuzzing, or enable another feature. Unset feature overrides so the
 # checked-in Config.sol defaults remain authoritative for other features.
 for name in $(compgen -e); do
-  case "${name}" in FOUNDRY_*|DAPP_*|DEV_FEATURE__*|SYS_FEATURE__*) unset "${name}" ;; esac
+  case "${name}" in FOUNDRY_* | DAPP_* | DEV_FEATURE__* | SYS_FEATURE__*) unset "${name}" ;; esac
 done
 export CONTRACT_FEATURE
 if [[ "${CI_BRANCH}" == develop ]]; then export FOUNDRY_PROFILE=ci; else export FOUNDRY_PROFILE=liteci; fi
@@ -33,9 +36,9 @@ rm -rf results/reports
 mkdir -p results/reports
 rm -f results/results.xml cache/test-failures
 export JUNIT_TEST_PATH=results/results.xml
-forge config --json >results/reports/foundry-config.json 2>results/reports/config.stderr.log
+forge config --json > results/reports/foundry-config.json 2> results/reports/config.stderr.log
 python3 "${REPO_ROOT}/ops/ci/contracts-test-report.py" prepare results/reports/foundry-config.json
-forge --version >results/reports/forge-version.txt
+forge --version > results/reports/forge-version.txt
 
 status=0
 just test 2>&1 | tee results/reports/test.log || status=$?
@@ -45,7 +48,7 @@ if [[ "${status}" -ne 0 ]]; then
 fi
 report_status=0
 python3 "${REPO_ROOT}/ops/ci/contracts-test-report.py" verdict results/results.xml \
-  >results/reports/report-validation.log 2>&1 || report_status=$?
+  > results/reports/report-validation.log 2>&1 || report_status=$?
 cat results/reports/report-validation.log
 if [[ "${status}" == 0 && "${report_status}" != 0 ]]; then status="${report_status}"; fi
 if [[ "${status}" == 0 ]]; then
