@@ -36,7 +36,8 @@ func TestSafeHeadAdvancesAcrossGlamsterdam(gt *testing.T) {
 	sys := presets.NewMinimal(t,
 		glamsterdamL1Geth(t),
 		presets.WithDeployerOptions(
-			sysgo.WithForkAtL1Genesis(forks.BPO5),
+			// Released geth's Engine API treats BPO3+ as post-Amsterdam forks.
+			sysgo.WithForkAtL1Genesis(forks.BPO2),
 			// Leave enough time for the devstack to start, fund the load generators, and
 			// produce a loaded block before activating Glamsterdam.
 			sysgo.WithForkAtL1Offset(forks.Amsterdam, 120),
@@ -103,7 +104,7 @@ func TestAutoDASwitchesFromCalldataToBlobsAtGlamsterdam(gt *testing.T) {
 		glamsterdamL1Geth(t),
 		presets.WithDeployerOptions(
 			// Activate the stable test blob schedule before setting the large excess blob gas.
-			sysgo.WithForkAtL1Genesis(forks.BPO5),
+			sysgo.WithForkAtL1Genesis(forks.BPO2),
 			// Leave enough time to submit a pre-Amsterdam batch before exercising the fork.
 			sysgo.WithForkAtL1Offset(forks.Amsterdam, 120),
 			withGlamsterdamAutoDABlobFee,
@@ -236,14 +237,13 @@ func withGlamsterdamAutoDABlobFee(_ devtest.T, _ devkeys.Keys, builder intentbui
 	}
 	builder.L1().
 		WithL1BlobSchedule(&params.BlobScheduleConfig{
-			Cancun:    params.DefaultCancunBlobConfig,
-			Prague:    params.DefaultPragueBlobConfig,
-			Osaka:     params.DefaultOsakaBlobConfig,
-			BPO1:      params.DefaultBPO1BlobConfig,
-			BPO2:      params.DefaultBPO2BlobConfig,
-			BPO3:      params.DefaultBPO3BlobConfig,
-			BPO4:      params.DefaultBPO4BlobConfig,
-			BPO5:      stableBlobConfig,
+			Cancun: params.DefaultCancunBlobConfig,
+			Prague: params.DefaultPragueBlobConfig,
+			Osaka:  params.DefaultOsakaBlobConfig,
+			BPO1:   params.DefaultBPO1BlobConfig,
+			// BPO3-5 are unscheduled, so BPO2 sets the blob fee both before and after Amsterdam.
+			BPO2: stableBlobConfig,
+			// Geth requires an entry for every scheduled fork, but does not price blobs with it.
 			Amsterdam: stableBlobConfig,
 		}).
 		WithExcessBlobGas(genesisExcessBlobGas)
