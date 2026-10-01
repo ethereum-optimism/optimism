@@ -67,6 +67,10 @@ func (c *Config) Check() error {
 	if c.AssumeValidBefore < 0 {
 		result = errors.Join(result, errors.New("assume-valid-before must not be negative"))
 	}
+	// Keeps the validation anchor inside the backfilled history of any logs DB.
+	if c.AssumeValidBefore >= c.BackfillDuration {
+		result = errors.Join(result, errors.New("assume-valid-before must be less than backfill-duration"))
+	}
 	if c.MessageExpiryWindow == 0 {
 		result = errors.Join(result, errors.New("message-expiry-window must be positive"))
 	}
@@ -107,8 +111,9 @@ func NewConfig(ctx *cli.Context, version string) (*Config, error) {
 	if assumeValidBefore < 0 {
 		return nil, fmt.Errorf("assume-valid-before must not be negative, got %s", assumeValidBefore)
 	}
-	if uint64(assumeValidBefore.Seconds()) > uint64(time.Now().Unix()) {
-		return nil, fmt.Errorf("assume-valid-before (%s) exceeds current timestamp", assumeValidBefore)
+	// Keeps the validation anchor inside the backfilled history of any logs DB.
+	if assumeValidBefore >= backfillDuration {
+		return nil, fmt.Errorf("assume-valid-before (%s) must be less than backfill-duration (%s)", assumeValidBefore, backfillDuration)
 	}
 
 	messageExpiryWindow := ctx.Duration(flags.MessageExpiryWindowFlag.Name)
