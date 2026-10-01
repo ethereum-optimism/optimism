@@ -31,7 +31,7 @@ Supporting libraries for the SP1 fault proof system:
 - **`range-vkeys`**: Compile-time `super-range` guest verification key, embedded from generated
   `elf/vkeys.toml` and used by `super-aggregation`. The crate retains its historical name because
   it authenticates the shipping super-range child program.
-- **`op-zk-proposer`**: The `op-zk-proposer` service: creates super-root ZK dispute games,
+- **`proposer`**: The `op-zk-proposer` service: creates super-root ZK dispute games,
   defends challenged ones with SP1 super-aggregation proofs, resolves finished games, and
   claims bonds (see the Proposer section below)
 - **`super-range-executor`**: Witness synthesis and execution engine for the super-root
