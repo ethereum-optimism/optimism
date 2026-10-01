@@ -12,11 +12,11 @@ use alloy_eips::Decodable2718;
 use alloy_network::{Ethereum, EthereumWallet, TransactionBuilder};
 use alloy_primitives::{Address, Bytes};
 use alloy_provider::{Provider, ProviderBuilder, Web3Signer};
-use alloy_rpc_client::ClientBuilder;
 use alloy_rpc_types_eth::{TransactionReceipt, TransactionRequest};
 use alloy_signer_local::PrivateKeySigner;
-use alloy_transport_http::{Http, reqwest::Url};
+use alloy_transport_http::reqwest::Url;
 use anyhow::{Context, Result};
+use kona_sources::ReloadingRpcClient;
 use kona_sp1_host_utils::tls::ClientTls;
 use tokio::{sync::Mutex, time::Duration};
 
@@ -60,14 +60,14 @@ pub const fn clamp_fee_caps(request: &mut TransactionRequest, caps: FeeCaps) {
 /// The type of signer to use for signing transactions.
 #[derive(Clone, Debug)]
 pub enum Signer {
-    /// The op-signer endpoint, address it signs for, and optional mTLS material.
+    /// The op-signer endpoint, address it signs for, and optional mTLS client.
     Web3Signer {
         /// op-signer JSON-RPC endpoint.
         url: Url,
         /// Address op-signer uses for L1 transactions.
         address: Address,
-        /// Client identity and server CA for mutual TLS.
-        tls: Option<ClientTls>,
+        /// op-signer client over mutual TLS; reloads certificates when they rotate on disk.
+        mtls: Option<ReloadingRpcClient>,
     },
     /// The local signer.
     LocalSigner(PrivateKeySigner),
@@ -88,7 +88,8 @@ impl Signer {
             tls.is_none() || url.scheme() == "https",
             "Web3Signer URL must use HTTPS when TLS material is configured"
         );
-        Ok(Self::Web3Signer { url, address, tls })
+        let mtls = tls.map(|tls| tls.rpc_client(url.clone())).transpose()?;
+        Ok(Self::Web3Signer { url, address, mtls })
     }
 
     /// Creates a new local signer from a private key string.
@@ -177,7 +178,7 @@ impl Signer {
         fee_caps: FeeCaps,
     ) -> Result<TransactionReceipt> {
         match self {
-            Self::Web3Signer { url, address, tls } => {
+            Self::Web3Signer { url, address, mtls } => {
                 // Set the from address to the signer address.
                 transaction_request.set_from(*address);
 
@@ -186,14 +187,12 @@ impl Signer {
                 let filled_tx = provider.fill(transaction_request).await?;
 
                 // Sign the transaction request using the Web3Signer.
-                let signer_provider = match tls {
-                    Some(tls) => {
-                        let transport = Http::with_client(tls.http_client()?, url.clone());
-                        let rpc = ClientBuilder::default().transport(transport, false);
-                        ProviderBuilder::new().network::<Ethereum>().connect_client(rpc)
-                    }
-                    None => ProviderBuilder::new().network::<Ethereum>().connect_http(url.clone()),
-                };
+                let signer_provider = mtls.as_ref().map_or_else(
+                    || ProviderBuilder::new().network::<Ethereum>().connect_http(url.clone()),
+                    |mtls| {
+                        ProviderBuilder::new().network::<Ethereum>().connect_client(mtls.client())
+                    },
+                );
                 let signer = Web3Signer::new(signer_provider, *address);
 
                 let mut tx = filled_tx.as_builder().unwrap().clone();
@@ -347,12 +346,12 @@ mod tests {
         set_signer_env("SIGNER_TLS_KEY", fixtures.join("client.key"));
 
         let signer = Signer::from_env().await.unwrap();
-        let Signer::Web3Signer { url, address, tls } = signer else {
+        let Signer::Web3Signer { url, address, mtls } = signer else {
             panic!("expected Web3Signer")
         };
         assert_eq!(url.as_str(), "https://localhost:8545/");
         assert_eq!(address, Address::ZERO);
-        assert!(tls.is_some());
+        assert!(mtls.is_some());
         clear_signer_env();
     }
 
