@@ -98,9 +98,9 @@ impl Signer {
         Ok(Self::LocalSigner(private_key))
     }
 
-    /// Builds a signer from the environment. `KONA_SP1_PROPOSER_SIGNER_URL` and
-    /// `KONA_SP1_PROPOSER_SIGNER_ADDRESS` select [`Signer::Web3Signer`]; optional signer
-    /// TLS variables configure mutual TLS. Otherwise, `KONA_SP1_PROPOSER_PRIVATE_KEY`
+    /// Builds a signer from the environment. `OP_ZK_PROPOSER_SIGNER_URL` and
+    /// `OP_ZK_PROPOSER_SIGNER_ADDRESS` select [`Signer::Web3Signer`]; optional signer
+    /// TLS variables configure mutual TLS. Otherwise, `OP_ZK_PROPOSER_PRIVATE_KEY`
     /// selects [`Signer::LocalSigner`]. Setting only one `Web3Signer` variable, or setting
     /// the local key alongside the `Web3Signer`, is an error.
     pub async fn from_env() -> Result<Self> {

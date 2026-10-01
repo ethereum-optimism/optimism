@@ -7803,49 +7803,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "kona-sp1-proposer"
-version = "0.1.0"
-dependencies = [
- "alloy-consensus 2.4.2",
- "alloy-contract",
- "alloy-eips 2.5.0",
- "alloy-network 2.4.2",
- "alloy-primitives",
- "alloy-provider",
- "alloy-rpc-client",
- "alloy-rpc-types-eth 2.4.2",
- "alloy-signer-local 2.4.2",
- "alloy-sol-types",
- "alloy-transport-http",
- "anyhow",
- "async-trait",
- "bincode 2.0.1",
- "clap",
- "flate2",
- "futures",
- "jsonrpsee",
- "kona-registry",
- "kona-sp1-client-utils",
- "kona-sp1-host-utils",
- "kona-sp1-super-range-executor",
- "metrics",
- "metrics-exporter-prometheus",
- "parking_lot",
- "serde",
- "serde_json",
- "serial_test",
- "sha2 0.10.9",
- "sp1-sdk",
- "sp1-verifier",
- "strum",
- "strum_macros",
- "tempfile",
- "thiserror 2.0.18",
- "tokio",
- "tracing",
-]
-
-[[package]]
 name = "kona-sp1-super-range-executor"
 version = "0.0.1"
 dependencies = [
@@ -9637,6 +9594,49 @@ dependencies = [
 [[package]]
 name = "op-version"
 version = "0.1.0"
+
+[[package]]
+name = "op-zk-proposer"
+version = "0.1.0"
+dependencies = [
+ "alloy-consensus 2.4.2",
+ "alloy-contract",
+ "alloy-eips 2.5.0",
+ "alloy-network 2.4.2",
+ "alloy-primitives",
+ "alloy-provider",
+ "alloy-rpc-client",
+ "alloy-rpc-types-eth 2.4.2",
+ "alloy-signer-local 2.4.2",
+ "alloy-sol-types",
+ "alloy-transport-http",
+ "anyhow",
+ "async-trait",
+ "bincode 2.0.1",
+ "clap",
+ "flate2",
+ "futures",
+ "jsonrpsee",
+ "kona-registry",
+ "kona-sp1-client-utils",
+ "kona-sp1-host-utils",
+ "kona-sp1-super-range-executor",
+ "metrics",
+ "metrics-exporter-prometheus",
+ "parking_lot",
+ "serde",
+ "serde_json",
+ "serial_test",
+ "sha2 0.10.9",
+ "sp1-sdk",
+ "sp1-verifier",
+ "strum",
+ "strum_macros",
+ "tempfile",
+ "thiserror 2.0.18",
+ "tokio",
+ "tracing",
+]
 
 [[package]]
 name = "opaque-debug"

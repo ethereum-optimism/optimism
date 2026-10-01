@@ -400,7 +400,7 @@ const AUCTION_ASSIGNMENT_MARGIN_SECONDS: u64 = 30;
 /// SP1 proof-provider settings (timeouts, strategies, limits, prices).
 ///
 /// Parsed in mock mode too, but all values have defaults and require no credentials.
-/// `KONA_SP1_PROPOSER_NETWORK_PRIVATE_KEY` is read only when the network provider is built.
+/// `OP_ZK_PROPOSER_NETWORK_PRIVATE_KEY` is read only when the network provider is built.
 #[derive(Debug, Clone)]
 pub struct ProofProviderConfig {
     /// Per-proof timeout in seconds: the server-side deadline for proof
@@ -822,7 +822,7 @@ mod tests {
         #[test]
         fn missing_factory_source_is_rejected() {
             let err = resolve_factory_address(None, None).unwrap_err().to_string();
-            assert!(err.contains("KONA_SP1_PROPOSER_FACTORY_ADDRESS"), "unexpected error: {err}");
+            assert!(err.contains("OP_ZK_PROPOSER_FACTORY_ADDRESS"), "unexpected error: {err}");
             assert!(err.contains("--network"), "unexpected error: {err}");
         }
     }
@@ -909,8 +909,8 @@ mod tests {
             for crowding in ["300", "290"] {
                 set_proposer_env("MIN_AUCTION_PERIOD", crowding);
                 let err = ProofProviderConfig::from_env().unwrap_err().to_string();
-                assert!(err.contains("KONA_SP1_PROPOSER_MIN_AUCTION_PERIOD"), "unexpected: {err}");
-                assert!(err.contains("KONA_SP1_PROPOSER_AUCTION_TIMEOUT"), "unexpected: {err}");
+                assert!(err.contains("OP_ZK_PROPOSER_MIN_AUCTION_PERIOD"), "unexpected: {err}");
+                assert!(err.contains("OP_ZK_PROPOSER_AUCTION_TIMEOUT"), "unexpected: {err}");
             }
 
             set_proposer_env("MIN_AUCTION_PERIOD", "270");
@@ -928,15 +928,15 @@ mod tests {
 
             // The proof provider has no default.
             let err = ProposerConfig::from_env(None).unwrap_err().to_string();
-            assert!(err.contains("KONA_SP1_PROPOSER_PROOF_PROVIDER"), "unexpected error: {err}");
+            assert!(err.contains("OP_ZK_PROPOSER_PROOF_PROVIDER"), "unexpected error: {err}");
 
             set_proposer_env("PROOF_PROVIDER", "mock");
             let err = ProposerConfig::from_env(None).unwrap_err().to_string();
-            assert!(err.contains("KONA_SP1_PROPOSER_L2_RPCS"), "unexpected error: {err}");
+            assert!(err.contains("OP_ZK_PROPOSER_L2_RPCS"), "unexpected error: {err}");
 
             set_proposer_env("L2_RPCS", "http://127.0.0.1:8646,http://127.0.0.1:8647");
             let err = ProposerConfig::from_env(None).unwrap_err().to_string();
-            assert!(err.contains("KONA_SP1_PROPOSER_L1_BEACON_RPC"), "unexpected error: {err}");
+            assert!(err.contains("OP_ZK_PROPOSER_L1_BEACON_RPC"), "unexpected error: {err}");
 
             // Mock mode requires no SPN credentials.
             set_proposer_env("L1_BEACON_RPC", "http://127.0.0.1:5052");
@@ -1004,7 +1004,7 @@ mod tests {
             set_proposer_env("MAX_CONCURRENT_DEFENSE_TASKS", "0");
             let err = ProposerConfig::from_env(None).unwrap_err().to_string();
             assert!(
-                err.contains("KONA_SP1_PROPOSER_MAX_CONCURRENT_DEFENSE_TASKS"),
+                err.contains("OP_ZK_PROPOSER_MAX_CONCURRENT_DEFENSE_TASKS"),
                 "unexpected error: {err}"
             );
         }
