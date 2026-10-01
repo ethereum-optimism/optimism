@@ -62,7 +62,7 @@ var (
 		Name:    "assume-valid-before",
 		Usage:   "On startup, history older than this duration before now is assumed valid. Newer history is cross-validated before it counts as cross-unsafe (e.g., 1h, 30m)",
 		EnvVars: prefixEnvVars("ASSUME_VALID_BEFORE"),
-		Value:   time.Hour,
+		Value:   30 * time.Minute,
 	}
 	JWTSecretFlag = &cli.StringFlag{
 		Name: "admin.jwt-secret",
