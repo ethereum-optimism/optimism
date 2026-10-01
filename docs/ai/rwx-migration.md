@@ -1,0 +1,171 @@
+# CircleCI to RWX migration
+
+CircleCI remains the merge-gating CI provider. The RWX pilot is for comparing
+execution, caching, and feedback before moving required checks. It does not change
+GitHub rulesets, fork authorization, schedules, or publishing credentials.
+
+## Run the pilot
+
+`.rwx/pilot.yml` runs shared routing tests plus policy-selected Go lint (with the
+superchain bundle) and Rust formatting/upstream-mirror checks. Verdict tasks use
+`cache: false`; tool setup can be reused. This is partial coverage, with the
+optional push status `RWX: optimism-pilot`. No fork PR trigger or vault/token is
+configured. Authorized `external-fork/*` pushes follow the existing Bailiff path.
+
+Install repo tools using [dev-workflow.md](dev-workflow.md). RWX is initially a
+standalone pinned CLI, outside the mise toolset. On Linux x86_64, install v3.32.1
+into `~/.local/bin` following the [official CLI installation](https://www.rwx.com/docs/cli#pinning-a-version-for-scripts):
+
+```bash
+set -euo pipefail
+RWX_CLI_DOWNLOAD=$(mktemp)
+curl -fsSL --retry 5 --retry-delay 2 -o "$RWX_CLI_DOWNLOAD" https://github.com/rwx-cloud/rwx/releases/download/v3.32.1/rwx-linux-x86_64
+printf '%s  %s\n' b67326b892b301f6c0abaaa69287fb9f53869c766216cb568e861131311991ef "$RWX_CLI_DOWNLOAD" | sha256sum -c - && {
+  mkdir -p "$HOME/.local/bin"
+  install -m 0755 "$RWX_CLI_DOWNLOAD" "$HOME/.local/bin/rwx"
+}
+rm -f "$RWX_CLI_DOWNLOAD"
+export PATH="$HOME/.local/bin:$PATH"
+```
+
+The [linter](https://www.rwx.com/docs/cli-reference/rwx-lint) needs an installed
+Node.js on `PATH` (22 or newer recommended). From the repository root:
+
+```bash
+mise exec -- bash ops/ci/test-decision-tree.sh
+mise exec -- bash .circleci/scripts/test-decision-tree.sh
+mise exec -- python -m unittest ops/ci/test_rwx_metadata.py
+rwx --version
+mise exec -- rwx lint .rwx/pilot.yml --warnings-as-errors
+rwx login
+rwx whoami
+mise exec -- rwx run .rwx/pilot.yml --wait
+```
+
+Lint does not need an RWX login. A remote run requires an RWX organization and
+authenticated CLI. [CLI runs](https://www.rwx.com/docs/cli-reference/rwx-run)
+include local changes through Git patching; use a clean, pushed commit when
+comparing providers. For automatic pushes, an organization administrator must
+connect the repository using the [RWX GitHub App](https://www.rwx.com/docs/getting-started/github).
+Account/app setup and remote execution must be verified separately from local lint.
+
+## Migration contract
+
+Preserve the existing routing and test coverage before tuning performance:
+
+- PRs run the main workflow, with contract and Rust suites selected by changed
+  paths. Only changes entirely inside `docs/public-docs/` take the docs fast path.
+- Merge queue runs the main and contract suites, with Rust selected by changed
+  paths. Docs-only merge groups still emit all required gates.
+- `develop` runs the full post-merge set unconditionally. Diffing `develop`
+  against itself cannot select post-merge suites correctly.
+- Tags retain component-specific release filters. Schedules and manual dispatches
+  retain their current workload selection.
+- Changes to `.circleci/`, `.rwx/`, and `ops/ci/` select CI, contract, and Rust
+  validation. A new or otherwise unclassified code path must not take a docs skip.
+
+`ops/ci/routing.yml` and `ops/ci/compute-workflow-conditions.sh` hold shared policy;
+CircleCI retains adapters in `.circleci/scripts/` and a routing-data symlink.
+`ops/ci/rwx-metadata.sh` maps push/CLI metadata into that policy and exports
+`run-main`/`run-rust-ci` values. Extend the shared routing tests for new selection
+rules, retaining adapter parity and real changed-file fixtures.
+
+## Inventory before cutover
+
+For each workload, capture commands, dependencies, shards, resources, timeouts,
+caches, output files/results, credentials and merge-blocking status. Compare
+coverage, cold/warm duration, critical-path time, cost and failures on the same
+commit/event.
+
+Checked-in configuration does not contain all operational state. Export and
+review these separately:
+
+- GitHub ruleset contexts, provider identities, branch patterns, and bypass rules.
+- CircleCI context variable names and restrictions, project settings, concurrency,
+  scheduled trigger cadence/timezone/branch, and API dispatch clients.
+- GCP workload identity providers, claim conditions, service accounts and bucket
+  permissions; Bailiff's deployed version, team configuration, and webhook setup.
+
+Inventory secret names and permissions without exporting their values into the
+repository or run artifacts.
+
+## Required checks and fork authorization
+
+The `develop` ruleset currently requires CircleCI contexts for `ci-gate`,
+`required-contracts-ci`, `required-rust-ci`, and `required-rust-e2e`.
+`dependency-review` is a separate GitHub Actions requirement. Match both the
+context and its provider when reviewing a proposed ruleset change; preserving a
+display name alone does not transfer a requirement to RWX.
+
+The CircleCI gates use terminal dependencies and the private
+`ethereum-optimism/circleci-utils` orb to inspect upstream results. RWX replacements
+must report a failure after a failed/canceled build or test, even when descendants
+never ran. An intentional safe skip must still produce every required context.
+Gate coverage includes exact matrix names, not just job templates.
+
+Test reporting on actual PR/merge-group commits, superseded runs and cancellation
+before changing requirements. Keep distinct, non-required RWX checks meanwhile.
+
+Legacy rulesets `enforce-circleci-check-old-backports` and
+`enforce-circleci-check-porposal-v3` cover `backports/op-deployer/v*` and
+`proposal/op-contracts/v*` with older CircleCI and image checks. Backport replacement
+config/requirements or retain CircleCI for those branches. Re-read live rulesets
+before cutover; these names describe the audited baseline.
+
+Keep human authorization of exact fork commits through Bailiff's internal
+`external-fork/*` pushes. New commits require new authorization. Verify check
+association with the approved SHA and prevent privileged direct fork execution,
+including access to secrets or writable trusted caches. See
+[PR authorization](../../ops/book/src/ci/pr-authorization.md) and
+[the human-only authorization rule](../handbook/pr-guidelines.md#triggering-ci-on-prs-from-external-forks).
+
+## Integration blockers
+
+| Area | Current dependency | Required replacement |
+| --- | --- | --- |
+| Toolchain and checkout | Private orb installs mise, warms tools, and handles checkout | Explicit pinned toolchain and checkout tasks, including submodules and required Git history |
+| Shards | `circleci tests split`, `CIRCLE_NODE_*`, and CircleCI JUnit timing history | RWX sharding with complete test-set coverage and provider-neutral shard inputs |
+| Metadata | Branch, PR, repository, workflow ID, and run URL in CircleCI variables | Explicit shared metadata; preserve true PR base lookup and merge-group SHA |
+| Workspaces | Contract outputs, binaries, prestates, and gitignored `superchain-configs.zip` | Explicit producer/consumer dependencies and retained outputs |
+| Reporting | JUnit uploads, log/artifact paths, CircleCI Insights flake API | Accessible failed-run artifacts and a replacement for flake history/reporting |
+| Cloud identity | `CIRCLE_OIDC_TOKEN` and GCP workload identity | RWX issuer/audience/claim bindings with equivalent ref restrictions |
+| Rust compile cache | sccache GCS reader for all refs; writer only for `develop` | Enforced reader/writer identity split or a separately validated RWX cache design |
+| Release and publish | GoReleaser, contract artifacts, Cannon/SP1 prestates | One active publisher per destination, preserving component tag/ref filters |
+| Maintenance | TODO/Cannon every four hours; daily suites; weekly nightly PR; labels and stale automation | Explicit ownership, cadence, permissions, and one active trigger |
+
+Audit `justfile`, `ops/scripts/shard-tests.sh`, acceptance/Kona justfiles, and contract
+target-branch/semver scripts. Compatibility variables do not replace Circle's CLI
+or timing history. `CIRCLECI` also changes dependency builds and Docker pruning.
+
+GCP must enforce the sccache writer restriction using signed claims. Test denied
+writer impersonation from PR/merge-queue/tag refs before enabling RWX cloud access.
+Preserve op-deployer's release settings for fresh tools/modules and disabled caches.
+
+Tests must execute on comparison runs; retain retries/flaky-result reporting.
+Dependency/build cache reuse must include its real inputs.
+
+## Rollout and rollback
+
+1. **Pilot:** run the small workload above on an exact commit; compare results.
+2. **Shadow:** add Go/contract/Rust suites with equivalent shards and dependencies,
+   then compare PRs and merge groups using distinct, non-required RWX checks.
+3. **Gates:** inject failures, cancellations and safe skips; exercise internal PRs,
+   authorized forks and merge groups. Verify all gates and legacy branches before
+   changing requirements.
+4. **Post-merge:** validate full `develop`, schedules, dispatches and governance
+   writes. Transfer each trigger to one provider.
+5. **Publishers:** validate release-candidate artifacts/provenance and identity
+   restrictions without publishing, then transfer each destination to one provider.
+6. **Retirement:** remove obsolete config/tokens/identities after the rollback window
+   and legacy branch obligations. Keep unrelated GitHub Actions workflows.
+
+Keep the CircleCI config runnable, preserve exported rulesets/trigger settings, and
+retain its required identities during comparison. A rollback restores previous
+required contexts and transfers trigger/publisher ownership back; it must not
+activate duplicate publishing or maintenance runs.
+
+Before retirement, update `ci-ops.md`, `ci-config-review.md`, the CI reviewer agent,
+the TODO repair skill, authorization/runner runbooks, feature-matrix documentation,
+and Kona SP1 publishing guidance. The image-provenance GitHub Action currently
+parses the Rust image pin from `.circleci/config.yml`; move its source and path
+triggers together if that pin moves.

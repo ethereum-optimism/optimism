@@ -4,6 +4,10 @@ This document provides guidance for AI agents working with CI/CD operational tas
 
 For Docker image build failures — especially flaky `apt`/`apk`/`curl` downloads from package registries and CDNs — see [docker.md](docker.md).
 
+The optional RWX pilot and migration checklist are documented in
+[rwx-migration.md](rwx-migration.md). CircleCI remains the required CI provider;
+an RWX pilot result does not replace watching the existing merge gates.
+
 ## Watching CI after a push
 
 Watch every push to a terminal state — `AGENTS.md` requires it. Most jobs run on

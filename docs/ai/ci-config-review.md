@@ -1,8 +1,9 @@
 # CI Config Review
 
-Checklist for reviewing changes to `.circleci/` and `.github/workflows/`. The
-repo-specific items are the high-priority ones — they're where the real bugs
-hide. For each changed file, walk the relevant items and look for the bad pattern.
+Checklist for reviewing changes to `.circleci/`, `.rwx/`, `ops/ci/`, and
+`.github/workflows/`. The repo-specific items are the high-priority ones — they're
+where the real bugs hide. For each changed file, walk the relevant items and look
+for the bad pattern.
 
 ## How CI is wired here
 
@@ -13,10 +14,12 @@ hide. For each changed file, walk the relevant items and look for the bad patter
   toolset (`utils/install-mise`): it always finishes before any continuation job
   starts, so on a cold cache it is the only job that installs over the network —
   continuation jobs restore the mise cache it saved.
-- **Routing is data + logic split**: `routing.yml` holds the declarative data
+- **Routing is data + logic split**: `ops/ci/routing.yml` holds the declarative data
   (schedule→workflows, API dispatch flag→workflows, change-detection patterns,
-  passthrough params); `compute-workflow-conditions.sh` holds the conditions that
-  decide which entries fire. Add a schedule/dispatch/pattern by editing `routing.yml`.
+  passthrough params); `ops/ci/compute-workflow-conditions.sh` holds the conditions
+  that decide which entries fire. CircleCI scripts adapt its pipeline metadata;
+  `.circleci/routing.yml` points to the shared data. Add a schedule/dispatch/pattern
+  by editing the shared `routing.yml`, and validate the CircleCI adapter too.
 - **The real config is merged from fragments** under `.circleci/continue/`
   (`helpers.yml` → `main.yml` → `rust-ci.yml` → `rust-e2e.yml` →
   `rust-nightly-bump.yml`) by `merge-configs.sh`. **Merge is later-wins**: a key
@@ -26,7 +29,9 @@ hide. For each changed file, walk the relevant items and look for the bad patter
   params; `detect`/`detect_all` match the `routing.yml` change patterns against the
   changed files (`detect` true if *any* file matches, `detect_all` only if *every*
   file matches). `workflow-helpers.sh` sets the `c-run_*` flags;
-  `test-decision-tree.sh` asserts the routing policy.
+  `ops/ci/test-decision-tree.sh` asserts the routing policy, real changed-file
+  fixtures, and CircleCI adapter parity. `.rwx/` and `ops/ci/` changes select the
+  same CI, contract and Rust validation as `.circleci/` changes.
 - **The gate**: the GitHub `enforce-ci-checks-develop` ruleset requires exactly
   four checks — `ci-gate`, `required-contracts-ci`, `required-rust-ci`,
   `required-rust-e2e`. These are fan-in jobs (no work, just `requires:`). A merge
@@ -37,6 +42,11 @@ hide. For each changed file, walk the relevant items and look for the bad patter
   different defaults fails with "Conflicting pipeline parameters".
 
 ## Validating a change locally
+
+For the RWX pilot, use [rwx-migration.md](rwx-migration.md). The pilot must keep
+distinct check names and must not silently remove a CircleCI gate dependency or
+enable an additional publisher. Validate shared routing changes through both the
+shared tests and the existing CircleCI entrypoints.
 
 Because the real config is merged from fragments, validate the **merged** file, not a
 single fragment:
