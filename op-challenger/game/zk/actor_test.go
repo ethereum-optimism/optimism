@@ -318,6 +318,13 @@ func TestActorDirectParentStatus(t *testing.T) {
 			},
 		},
 		{
+			name: "ResolvedChildWithoutParentLookup",
+			setup: func(stubs *zkTestStubs) {
+				stubs.contract.markResolved()
+				stubs.contract.parentStatusErr = errors.New("must not request resolved child's parent")
+			},
+		},
+		{
 			name: "ParentStatusRPCFailure",
 			setup: func(stubs *zkTestStubs) {
 				stubs.contract.parentStatusErr = errors.New("parent status unavailable")
@@ -332,6 +339,11 @@ func TestActorDirectParentStatus(t *testing.T) {
 				tt.setup(stubs)
 			}
 			err := actor.Act(context.Background())
+			expectedParentReads := 1
+			if stubs.contract.parentIndex == math.MaxUint32 || stubs.contract.proposalStatus == contracts.ProposalStatusResolved {
+				expectedParentReads = 0
+			}
+			require.Equal(t, expectedParentReads, stubs.contract.parentStatusCalls)
 			if tt.expectErr != "" {
 				require.ErrorContains(t, err, tt.expectErr)
 				require.Empty(t, stubs.sender.sentData)
@@ -348,6 +360,22 @@ func TestActorDirectParentStatus(t *testing.T) {
 			require.Equal(t, expected, stubs.sender.sentData)
 		})
 	}
+}
+
+func TestActorParentLossDuringProposalValidation(t *testing.T) {
+	actor, stubs := setupActorTest(t)
+	stubs.contract.parentStatus = types.GameStatusInProgress
+	stubs.rootProvider.onSuperRoot = func() {
+		stubs.contract.parentStatus = types.GameStatusChallengerWon
+	}
+
+	require.NoError(t, actor.Act(context.Background()))
+	require.Empty(t, stubs.sender.sentData, "a parent loss observed mid-act must not resolve before challenging")
+	require.Equal(t, 1, stubs.contract.parentStatusCalls)
+
+	require.NoError(t, actor.Act(context.Background()))
+	require.Equal(t, []string{challengeData, resolveData}, stubs.sender.sentData)
+	require.Equal(t, 2, stubs.contract.parentStatusCalls)
 }
 
 func setupActorTest(t *testing.T) (*Actor, *zkTestStubs) {
@@ -391,6 +419,7 @@ func newZKActor(t *testing.T, logger log.Logger) (*Actor, *zkTestStubs) {
 }
 
 type stubSuperRootProvider struct {
+	onSuperRoot        func()
 	outputErr          error
 	rootTimestamp      uint64
 	root               common.Hash
@@ -400,6 +429,9 @@ type stubSuperRootProvider struct {
 }
 
 func (s *stubSuperRootProvider) SuperRootAtTimestamp(_ context.Context, timestamp uint64) (eth.SuperRootAtTimestampResponse, error) {
+	if s.onSuperRoot != nil {
+		s.onSuperRoot()
+	}
 	if s.outputErr != nil {
 		return eth.SuperRootAtTimestampResponse{}, s.outputErr
 	}
@@ -419,14 +451,15 @@ func (s *stubSuperRootProvider) SuperRootAtTimestamp(_ context.Context, timestam
 }
 
 type stubContract struct {
-	parentStatusErr  error
-	parentIndex      uint32
-	parentStatus     types.GameStatus
-	proposalStatus   contracts.ProposalStatus
-	deadline         time.Time
-	txCreated        bool
-	proposalHash     common.Hash
-	l2SequenceNumber uint64
+	parentStatusCalls int
+	parentStatusErr   error
+	parentIndex       uint32
+	parentStatus      types.GameStatus
+	proposalStatus    contracts.ProposalStatus
+	deadline          time.Time
+	txCreated         bool
+	proposalHash      common.Hash
+	l2SequenceNumber  uint64
 }
 
 func (s *stubContract) Addr() common.Address {
@@ -464,6 +497,7 @@ func (s *stubContract) setParentStatus(status types.GameStatus) {
 }
 
 func (s *stubContract) GetGameStatus(_ context.Context, idx uint64) (types.GameStatus, error) {
+	s.parentStatusCalls++
 	if s.parentStatusErr != nil {
 		return 0, s.parentStatusErr
 	}
