@@ -9,7 +9,7 @@ This guide is for teams that move value off an OP Stack chain based on what happ
 It covers two requirements that the protocol cannot enforce for you:
 
 *   Only take off-chain actions, such as crediting a user's incoming transfer or filling a bridge order, once the transaction is in a **safe** block, and wait for a **finalized** block for high-value actions.
-*   Monitor the chain's withdrawal pause on Layer 1 (L1), and stop moving assets to and from the chain while it is paused.
+*   Monitor the chain's withdrawal pause on Layer 1 (L1), and stop taking those off-chain actions like crediting a user's account while the L2's withdrawals are paused.
 
 This guide uses "incoming transfers" for funds your users send to you on the OP Stack chain, and "outgoing transfers" for funds you send to the chain.
 In OP Stack protocol terms, a deposit moves from L1 to Layer 2 (L2), and a withdrawal moves from L2 to L1.
@@ -27,7 +27,7 @@ You need the following to use the examples in this guide:
 
 Crediting an exchange balance, filling a bridge order, or releasing funds on another chain are hard to undo.
 If the transaction you acted on is later removed from the chain because of a chain reorg, you absorb the loss.
-Wait until that transaction is in a safe block before you act.
+Depending on your risk tolerance and how high-value the action is, wait until that transaction is in a safe or finalized block before you act.
 
 ### Understand the risk of unsafe blocks
 
@@ -48,7 +48,7 @@ The following table lists the minimum block tag to wait for, by type of action.
 
 | Action                                                                     | Minimum block tag | What you are trusting                                                   |
 | -------------------------------------------------------------------------- | ----------------- | ----------------------------------------------------------------------- |
-| Filling a bridge order or crediting a low-value incoming transfer          | `safe`            | Ethereum's ordering; the L1 block can still reorg until it is finalized |
+| Filling a bridge order or crediting a low-value incoming transfer          | `safe`            | Ethereum's ordering. The L1 block can still reorg until it is finalized |
 | Crediting a high-value incoming transfer or releasing high-value liquidity | `finalized`       | Ethereum's consensus and finality guarantees                            |
 
 Where you draw the line between low and high value is a business decision.
