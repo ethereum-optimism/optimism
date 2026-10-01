@@ -1,0 +1,146 @@
+# Complete standard contracts in an optional shadow; CircleCI keeps its gates.
+on:
+  github:
+    push:
+      init:
+        commit-sha: ${{ event.git.sha }}
+        branch: ${{ event.git.branch }}
+        tag: ${{ event.git.tag }}
+      status-checks:
+        name: optimism-contracts-shadow
+  cli:
+    init:
+      commit-sha: ${{ event.git.sha }}
+      branch: ${{ event.git.branch }}
+      tag: ""
+
+base:
+  image: ubuntu:24.04@sha256:008173c23f95b170204355c12626cb5a965d779a7e1283b09e9cffbb1bf33ca3
+  config: rwx/base 1.2.0
+  arch: x86_64
+
+defaults:
+  runner:
+    cpus: 2
+    memory: 8gb
+
+tasks:
+  - key: code
+    call: git/clone 2.2.0
+    with:
+      repository: https://github.com/ethereum-optimism/optimism.git
+      ref: ${{ init.commit-sha }}
+      preserve-git-dir: true
+      fetch-full-depth: true
+      submodules: false
+
+  - key: mise
+    call: mise/install 1.1.0
+    with:
+      mise-version: "2026.2.2"
+      install: "false"
+
+  - key: tools
+    use: [code, mise]
+    run: bash ops/ci/rwx-prepare.sh
+    filter: [mise.toml, ops/ci/rwx-prepare.sh, .circleci/scripts/apt-install.sh]
+    timeout: 30m
+
+  - key: route
+    use: [code, tools]
+    run: |
+      bash ops/ci/rwx-metadata.sh
+      jq -er '."c-run_contracts_feature_tests" | if type == "boolean" then tostring else error("missing contract routing flag") end' \
+        .ci/pipeline-parameters.json >"$RWX_VALUES/run-contracts"
+    env:
+      CI_EVENT: push
+      CI_BRANCH: ${{ init.branch }}
+      CI_TAG: ${{ init.tag }}
+      CI_COMMIT_SHA: ${{ init.commit-sha }}
+    cache: false
+    timeout: 10m
+    outputs:
+      filesystem: false
+      artifacts:
+        - key: routing
+          path: .ci/pipeline-parameters.json
+
+  - key: contract-tools
+    use: [code, tools]
+    if: ${{ tasks.route.values.run-main == 'true' || tasks.route.values.run-contracts == 'true' }}
+    run: bash ops/ci/rwx-contracts-prepare.sh tools
+    filter: [mise.toml, ops/ci/rwx-contracts-prepare.sh]
+    timeout: 30m
+
+  - key: helper-tests
+    use: [code, tools]
+    run: mise exec -- python ops/ci/test_contracts_shadow.py
+    cache: false
+    timeout: 10m
+    outputs:
+      filesystem: false
+
+  # Full source and Git state feed submodule setup and Go FFI. Do not filter
+  # this producer: nested gitlinks and Go imports outside contracts are inputs.
+  - key: contracts-source
+    use: [code, contract-tools]
+    if: ${{ tasks.route.values.run-main == 'true' || tasks.route.values.run-contracts == 'true' }}
+    run: mise exec -- bash ops/ci/rwx-contracts-prepare.sh source
+    timeout: 30m
+    outputs:
+      artifacts:
+        - key: preparation-logs
+          path: .ci/contracts-prepare
+
+  - key: contracts-main
+    use: contracts-source
+    if: ${{ tasks.route.values.run-main == 'true' }}
+    run: mise exec -- bash ops/ci/contracts-tests.sh
+    env:
+      CI_BRANCH: ${{ init.branch }}
+      CONTRACT_FEATURE: main
+    cache: false
+    timeout: 60m
+    runner:
+      cpus: 16
+      memory: 32gb
+    outputs:
+      filesystem: false
+      test-results:
+        - path: packages/contracts-bedrock/results/results.xml
+          options:
+            language: Solidity
+            framework: Foundry
+      artifacts:
+        - key: junit
+          path: packages/contracts-bedrock/results/results.xml
+        - key: test-reports
+          path: packages/contracts-bedrock/results/reports
+
+  - key: contracts-features
+    use: contracts-source
+    if: ${{ tasks.route.values.run-contracts == 'true' }}
+    parallel:
+      matrix:
+        feature: [CUSTOM_GAS_TOKEN, OPTIMISM_PORTAL_INTEROP, ZK_DISPUTE_GAME]
+    run: mise exec -- bash ops/ci/contracts-tests.sh
+    env:
+      CI_BRANCH: ${{ init.branch }}
+      CONTRACT_FEATURE: ${{ parallel.feature }}
+    cache: false
+    timeout: 60m
+    runner:
+      cpus: 16
+      memory: 32gb
+    outputs:
+      filesystem: false
+      test-results:
+        - path: packages/contracts-bedrock/results/results.xml
+          options:
+            language: Solidity
+            framework: Foundry
+      artifacts:
+        - key: junit
+          path: packages/contracts-bedrock/results/results.xml
+        - key: test-reports
+          path: packages/contracts-bedrock/results/reports

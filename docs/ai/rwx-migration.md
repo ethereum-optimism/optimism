@@ -93,6 +93,46 @@ mise exec -- rwx lint .rwx/go-rollup.yml --warnings-as-errors
 mise exec -- rwx run .rwx/go-rollup.yml --wait
 ```
 
+## Standard contracts shadow
+
+`.rwx/contracts.yml` adds the optional GitHub push status
+`RWX: optimism-contracts-shadow` and accepts authenticated CLI execution without
+posting a VCS status. The complete standard `contracts-bedrock-tests` workload
+runs once without feature overrides and in the existing `CUSTOM_GAS_TOKEN`,
+`OPTIMISM_PORTAL_INTEROP` and `ZK_DISPUTE_GAME` configurations. The main variant
+uses `run-main`; the feature matrix uses shared `c-run_contracts_feature_tests`.
+There is no path, test-name or shard filter. `develop` uses `ci`, other branches
+use `liteci`; both retain 128 fuzz runs and 64 invariant runs at depth 32.
+Fork and activation test flags remain disabled, retaining their existing
+conditional skips.
+
+A component bootstrap installs the repository's Forge/Cast 1.2.3 and svm-rs
+0.5.19 pins, with solc 0.8.15, 0.8.19, 0.8.25 and 0.8.28. An unfiltered source
+producer explicitly initializes public submodules, downloads Go modules and
+builds Go FFI through Just. Keep its full source and Git state until narrower
+cache inputs have been proved safe. Contract tool, compiler, submodule and Go
+module downloads retry.
+
+Each uncached verdict runs `just test` and the existing Go test-convention check.
+The runner validates effective Foundry settings and a complete test-file
+inventory, removes inherited filters/feature overrides, and preserves the first
+test failure while collecting `just test-rerun` traces. Terminal tasks disable
+filesystem output and export literal-path JUnit with `Solidity`/`Foundry` parser
+labels, compiler output, configuration, inventory, traces and generated
+counterexamples/file reports. Verify native parsed counts and failed-run artifact
+collection in hosted runs before promoting any check.
+This shadow needs no RPC credentials, vault, publisher, Docker or Rust producer.
+Coverage, upgrade/fork, heavy-fuzz, snapshot and semver jobs remain outside this
+bounded workload; the existing required contracts gate stays in CircleCI.
+
+From a trusted checkout:
+
+```bash
+mise exec -- python ops/ci/test_contracts_shadow.py
+mise exec -- rwx lint .rwx/contracts.yml --warnings-as-errors
+mise exec -- rwx run .rwx/contracts.yml --wait
+```
+
 ## Migration contract
 
 Preserve the existing routing and test coverage before tuning performance:
