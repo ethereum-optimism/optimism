@@ -470,7 +470,7 @@ Logging and telemetry:
 
 | Variable | Purpose |
 |---|---|
-| `OP_ZK_PROPOSER_LOGGER_NAME` | OpenTelemetry service name (default `op-zk-proposer`) |
+| `OP_ZK_PROPOSER_LOGGER_NAME` | OpenTelemetry service name (default `kona-sp1`) |
 | `OP_ZK_PROPOSER_OTLP_ENDPOINT` | OpenTelemetry endpoint (default `http://localhost:4317`) |
 | `OP_ZK_PROPOSER_OTLP_ENABLED` | enable OpenTelemetry export (default `false`) |
 | `OP_ZK_PROPOSER_LOG_FORMAT` | `pretty` or `json` (default `pretty`) |
