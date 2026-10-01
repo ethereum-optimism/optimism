@@ -2588,6 +2588,134 @@ contract OPContractsManagerStandardValidator_ZKValidation_Test is
     }
 }
 
+/// @title OPContractsManagerStandardValidator_ValidateInterop_Test
+/// @notice Tests ordinary validation of members with distinct chain admins and shared interop contracts.
+contract OPContractsManagerStandardValidator_ValidateInterop_Test is OPContractsManagerMigrationValidator_TestInit {
+    /// @notice Both members must validate immediately after migration, including the non-first member.
+    function test_validate_interopMembersAfterMigration_succeeds() public view {
+        assertNotEq(address(chainContracts1.proxyAdmin), address(chainContracts2.proxyAdmin));
+        assertEq(chainContracts1.proxyAdmin.owner(), chainContracts2.proxyAdmin.owner());
+        assertEq(sharedProxyAdmin, address(chainContracts1.proxyAdmin));
+        _assertMembersValidated();
+    }
+
+    /// @notice An upgrade through either member must leave both members valid.
+    function test_validate_interopMembersAfterUpgrade_succeeds() public {
+        _upgradeMember(chainContracts2.systemConfig);
+        _assertMembersValidated();
+        _upgradeMember(chainContracts1.systemConfig);
+        _assertMembersValidated();
+    }
+
+    /// @notice Discovering the shared admin must still check its expected PAO owner.
+    function test_validate_sharedProxyAdminWrongOwner_succeeds() public {
+        vm.mockCall(sharedProxyAdmin, abi.encodeCall(IProxyAdmin.owner, ()), abi.encode(makeAddr("wrongSharedOwner")));
+        // Isolate the shared ProxyAdmin check from the separate DelayedWETH owner check.
+        vm.mockCall(
+            sharedWETH,
+            abi.encodeCall(IProxyAdminOwnedBase.proxyAdminOwner, ()),
+            abi.encode(standardValidator.l1PAOMultisig())
+        );
+        IOPContractsManagerStandardValidator.ValidationInputDev memory input =
+            _validationInput(chainContracts2.systemConfig);
+        assertEq(standardValidator.validate(input, true), "SHARED-PROXYA-10");
+        vm.expectRevert(bytes("OPContractsManagerStandardValidator: SHARED-PROXYA-10"));
+        standardValidator.validate(input, false);
+    }
+
+    /// @notice Shared implementation checks must still reject a non-standard implementation.
+    function test_validate_sharedFactoryWrongImplementation_succeeds() public {
+        vm.mockCall(
+            sharedProxyAdmin,
+            abi.encodeCall(IProxyAdmin.getProxyImplementation, (address(sharedDGF))),
+            abi.encode(address(0xbad))
+        );
+        assertEq(standardValidator.validate(_validationInput(chainContracts2.systemConfig), true), "DF-20");
+    }
+
+    /// @notice A different shared lockbox admin is invalid even when its owner is the same PAO.
+    function test_validate_sharedLockboxWrongAdmin_succeeds() public {
+        _assertWrongSharedAdmin(address(sharedLockbox), "LOCKBOX-30");
+    }
+
+    /// @notice A different shared WETH admin is invalid even when its owner is the same PAO.
+    function test_validate_sharedWethWrongAdmin_succeeds() public {
+        _assertWrongSharedAdmin(sharedWETH, "SCKDG-DWETH-60");
+    }
+
+    /// @notice A different shared registry admin is invalid even when its owner is the same PAO.
+    function test_validate_sharedRegistryWrongAdmin_succeeds() public {
+        _assertWrongSharedAdmin(sharedASR, "SPDG-ANCHORP-50,SCKDG-ANCHORP-50");
+    }
+
+    /// @notice Per-chain portals must retain their own chain's admin after migration.
+    function test_validate_interopPortalWrongAdmin_succeeds() public {
+        vm.mockCall(
+            address(chainContracts2.optimismPortal),
+            abi.encodeCall(IProxyAdminOwnedBase.proxyAdmin, ()),
+            abi.encode(sharedProxyAdmin)
+        );
+        assertEq(standardValidator.validate(_validationInput(chainContracts2.systemConfig), true), "PORTAL-90");
+    }
+
+    /// @notice Checks exact shared-admin equality without changing the proxy's real admin slot.
+    function _assertWrongSharedAdmin(address _contract, string memory _expectedErrors) internal {
+        vm.mockCall(
+            _contract,
+            abi.encodeCall(IProxyAdminOwnedBase.proxyAdmin, ()),
+            abi.encode(address(chainContracts2.proxyAdmin))
+        );
+        assertEq(standardValidator.validate(_validationInput(chainContracts2.systemConfig), true), _expectedErrors);
+    }
+
+    /// @notice Checks ordinary validation and the allowFailure/override path used by upgrade tasks.
+    function _assertMembersValidated() internal view {
+        ISystemConfig[2] memory members = [chainContracts1.systemConfig, chainContracts2.systemConfig];
+        IOPContractsManagerStandardValidator.ValidationOverrides memory overrides = IOPContractsManagerStandardValidator
+            .ValidationOverrides({ l1PAOMultisig: standardValidator.l1PAOMultisig(), challenger: address(0) });
+        for (uint256 i; i < members.length; i++) {
+            IOPContractsManagerStandardValidator.ValidationInputDev memory input = _validationInput(members[i]);
+            assertEq(standardValidator.validate(input, false), "");
+            assertEq(standardValidator.validateWithOverrides(input, true, overrides), "OVERRIDES-L1PAOMULTISIG");
+        }
+    }
+
+    /// @notice Builds ordinary validation input from the migrated chain and migration game parameters.
+    function _validationInput(ISystemConfig _sysCfg)
+        internal
+        view
+        returns (IOPContractsManagerStandardValidator.ValidationInputDev memory)
+    {
+        return IOPContractsManagerStandardValidator.ValidationInputDev({
+            sysCfg: _sysCfg,
+            cannonPrestate: cannonPrestate.raw(),
+            cannonKonaPrestate: cannonKonaPrestate.raw(),
+            l2ChainID: _sysCfg.l2ChainId(),
+            proposer: proposer
+        });
+    }
+
+    /// @notice Re-applies both super games through a member's ordinary OPCM upgrade path.
+    function _upgradeMember(ISystemConfig _sysCfg) internal {
+        IOPContractsManagerUtils.DisputeGameConfig[] memory configs =
+            new IOPContractsManagerUtils.DisputeGameConfig[](6);
+        configs[0].gameType = GameTypes.CANNON;
+        configs[1].gameType = GameTypes.PERMISSIONED_CANNON;
+        configs[2].gameType = GameTypes.CANNON_KONA;
+        IOPContractsManagerUtils.DisputeGameConfig[] memory migratedGames = _getDefaultMigrateInput().disputeGameConfigs;
+        configs[3] = migratedGames[0];
+        configs[4] = migratedGames[1];
+        configs[5].gameType = GameTypes.ZK_DISPUTE_GAME;
+
+        IOPContractsManagerV2.UpgradeInput memory input;
+        input.systemConfig = _sysCfg;
+        input.disputeGameConfigs = configs;
+        prankDelegateCall(_sysCfg.proxyAdmin().owner());
+        (bool success,) = address(opcmV2).delegatecall(abi.encodeCall(IOPContractsManagerV2.upgrade, (input)));
+        assertTrue(success, "interop member upgrade failed");
+    }
+}
+
 /// @title OPContractsManagerStandardValidator_ValidateMigratedChain_Test
 /// @notice Tests the validateMigratedChain entrypoint on the StandardValidator, which delegates to
 ///         the MigrationValidator with SharedImplementations built from the StandardValidator's state.
