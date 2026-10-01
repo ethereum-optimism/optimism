@@ -9,24 +9,30 @@
 # wrong question. The right one is "is the changed package in this binary's transitive
 # dependency set", which `go list -deps` and `cargo tree` answer exactly.
 #
+# A component's image does not always ship one binary. `just release-paths <component>`
+# names every unit that ships, and linkage is the union across all of them: op-challenger's
+# image carries the Go op-challenger and cannon binaries alongside the Rust kona-host, so
+# resolving only the Go side tags every kona-only PR '--' and silently drops derivation and
+# interop changes from the notes.
+#
 # Usage: pr-facts.sh <draft-file> [component]
 #
 # Output, one row per PR in draft order, tab-separated:
 #   <tag>  #<number>  <author>  <n> files  <title>  <paths>
 #
-#   LINKED  changed a package compiled into the binary; <paths> lists just those
-#           packages — that is the reason the PR may belong in the notes
+#   LINKED  changed a package compiled into one of the component's binaries; <paths> lists
+#           just those packages — that is the reason the PR may belong in the notes
 #   CONFIG  moved the embedded superchain registry (submodule pin, generated archive
 #           checksum, or kona's registry snapshots); read it by hand, a new activation time
 #           can make the release required. Appears as LINKED+CONFIG when the same PR also
 #           changed a compiled package
 #   DEPS    changed the dependency manifests (go.mod/go.sum, Cargo.toml/Cargo.lock) without
 #           touching a compiled package
-#   --      touched nothing the binary compiles; <paths> shows what it did touch
+#   --      touched nothing the binaries compile; <paths> shows what it did touch
 #   ?       no component given, dependencies could not be resolved, or the PR could not be
 #           fetched; <paths> shows everything touched and the call is yours
 #
-# Resolving the Rust dependency set takes ~2 minutes, so it is cached per component under
+# Resolving a Rust dependency set takes ~2 minutes, so it is cached per artifact under
 # $TMPDIR and reused until rust/Cargo.lock changes.
 set -euo pipefail
 
@@ -46,15 +52,17 @@ workdir=$(mktemp -d)
 trap 'rm -rf "$workdir"' EXIT
 : > "$workdir/deps"
 : > "$workdir/pkgmap"
-mode=none
+have_go=0
+have_rust=0
 
 # --- dependency sets -------------------------------------------------------------------
-# Which units of code end up in the component's binary. Empty leaves every row tagged '?'.
+# Which units of code end up in the component's binaries. Empty leaves every row tagged '?'.
 
 resolve_go() {
-    for target in "./$component/cmd" "./$component/..."; do
+    local artifact=$1 out=$2 target
+    for target in "./$artifact/cmd" "./$artifact/..."; do
         if (cd "$root" && go list -deps "$target" 2>/dev/null) |
-            sed -n "s|^$MODULE/||p" | sort -u > "$workdir/deps" && [ -s "$workdir/deps" ]; then
+            sed -n "s|^$MODULE/||p" | sort -u > "$out" && [ -s "$out" ]; then
             return 0
         fi
     done
@@ -62,17 +70,20 @@ resolve_go() {
 }
 
 resolve_rust() {
-    local cache="${TMPDIR:-/tmp}/pr-facts-deps-$component.txt"
+    local artifact=$1 out=$2
+    local cache="${TMPDIR:-/tmp}/pr-facts-deps-$artifact.txt"
     if [ ! -s "$cache" ] || [ "$root/rust/Cargo.lock" -nt "$cache" ]; then
-        echo "resolving Rust dependencies for '$component' (~2 min, cached afterwards)..." >&2
-        (cd "$root/rust" && cargo tree -p "$component" -e normal --prefix none 2>/dev/null) |
+        echo "resolving Rust dependencies for '$artifact' (~2 min, cached afterwards)..." >&2
+        (cd "$root/rust" && cargo tree -p "$artifact" -e normal --prefix none 2>/dev/null) |
             awk 'NF {print $1}' | sort -u > "$cache" || return 1
     fi
     [ -s "$cache" ] || return 1
-    cp "$cache" "$workdir/deps"
+    cp "$cache" "$out"
+}
 
-    # Crate names are what cargo reports, so map each workspace member's directory back to
-    # its crate to classify changed file paths.
+# Crate names are what cargo reports, so map each workspace member's directory back to
+# its crate to classify changed file paths.
+build_pkgmap() {
     (cd "$root/rust" && cargo metadata --no-deps --format-version 1 2>/dev/null) |
         jq -r '.packages[] | [.manifest_path, .name] | @tsv' |
         awk -F'\t' -v root="$root/" 'BEGIN { OFS = "\t" }
@@ -80,15 +91,63 @@ resolve_rust() {
     [ -s "$workdir/pkgmap" ]
 }
 
-case "$component" in
+# The shipping units, from the monorepo's own list. `shared` is infrastructure every
+# component links, not an artifact. Falling back to the component name keeps this working
+# for an artifact that release-paths does not name, such as kona-host or op-reth.
+artifacts_of() {
+    (cd "$root" && just release-paths "$1" 2>/dev/null) |
+        awk -F'\t' '$1 != "shared" && $1 != "" { print $1 }' | awk '!seen[$0]++'
+}
+
+case "${component:-}" in
     '') ;;
     kona-*|op-reth)
-        if resolve_rust; then mode=rust; fi ;;
+        # Rust-native: release-paths labels these by path (rust/kona, rust/op-alloy), not
+        # by artifact, so the crate is the component itself.
+        if resolve_rust "$component" "$workdir/one"; then
+            cat "$workdir/one" >> "$workdir/deps"
+            have_rust=1
+        fi ;;
     *)
-        if resolve_go; then mode=go; fi ;;
+        if resolve_go "$component" "$workdir/one"; then
+            cat "$workdir/one" >> "$workdir/deps"
+            have_go=1
+        fi
+        # An image can ship binaries of both languages. release-paths names every unit that
+        # ships, so a label that is also a workspace crate is a bundled Rust binary --
+        # kona-host in op-challenger's image -- and a label naming another directory is a
+        # second Go binary, such as cannon.
+        workspace_crates=$( (cd "$root/rust" && cargo metadata --no-deps --format-version 1 2>/dev/null) |
+            jq -r '.packages[].name' | sort -u )
+        while IFS= read -r artifact; do
+            [ -n "$artifact" ] || continue
+            [ "$artifact" != "$component" ] || continue
+            case "$artifact" in rust/*) continue ;; esac
+            if printf '%s\n' "$workspace_crates" | grep -qxF "$artifact"; then
+                if resolve_rust "$artifact" "$workdir/one"; then
+                    cat "$workdir/one" >> "$workdir/deps"
+                    have_rust=1
+                fi
+            elif [ -d "$root/$artifact" ]; then
+                if resolve_go "$artifact" "$workdir/one"; then
+                    cat "$workdir/one" >> "$workdir/deps"
+                    have_go=1
+                fi
+            fi
+        done <<ARTIFACTS
+$(artifacts_of "$component")
+ARTIFACTS
+        ;;
 esac
 
-if [ -n "$component" ] && [ "$mode" = none ]; then
+if [ "$have_rust" = 1 ]; then
+    build_pkgmap || have_rust=0
+fi
+if [ -s "$workdir/deps" ]; then
+    sort -u -o "$workdir/deps" "$workdir/deps"
+fi
+
+if [ -n "$component" ] && [ "$have_go" = 0 ] && [ "$have_rust" = 0 ]; then
     echo "warning: could not resolve dependencies for '$component'; rows will be tagged '?'" >&2
 fi
 
@@ -124,36 +183,44 @@ fi
 xargs -P "$JOBS" -n 2 bash -c 'fetch "$0" "$1"' < "$workdir/work"
 
 for f in "$workdir"/pr-*; do
-    awk -F'\t' -v depfile="$workdir/deps" -v pkgfile="$workdir/pkgmap" -v mode="$mode" '
+    awk -F'\t' -v depfile="$workdir/deps" -v pkgfile="$workdir/pkgmap" \
+        -v have_go="$have_go" -v have_rust="$have_rust" '
         BEGIN {
             while ((getline dep < depfile) > 0) linked[dep] = 1
             while ((getline line < pkgfile) > 0) {
                 split(line, kv, "\t")
                 pkgdir[kv[1]] = kv[2]
             }
+            resolved = (have_go == 1 || have_rust == 1)
         }
-        # The compilation unit a changed file belongs to: its package directory for Go,
-        # its owning workspace crate (longest matching member directory) for Rust.
+        # The compilation unit a changed file belongs to: its owning workspace crate
+        # (longest matching member directory) for Rust, its package directory for Go.
+        # Both are tried, because one image can ship binaries of each language; workspace
+        # crates all live under rust/, so the two mappings cannot claim the same path.
         function unit(path,   d, best, rest) {
-            if (mode == "go") {
+            if (have_rust == 1) {
+                best = ""
+                for (d in pkgdir)
+                    if (index(path, d "/") == 1 && length(d) > length(best)) best = d
+                if (best != "") {
+                    # Drop what the crate does not compile. A denylist, not an allowlist of
+                    # src/: crates here compile plenty from outside it -- kona embeds its
+                    # registry snapshots from etc/, op-reth its dev genesis from res/, and
+                    # the hardforks build script includes build_helpers.rs beside itself.
+                    rest = substr(path, length(best) + 2)
+                    if (rest ~ /^(tests|benches|examples|scripts|testdata|proof-bench)\//) return ""
+                    if (rest ~ /^(README|CHANGELOG)/) return ""
+                    return pkgdir[best]
+                }
+            }
+            if (have_go == 1) {
                 # Test files are not compiled into the binary, so a PR that only adds
                 # coverage to a linked package does not change what ships.
                 if (path !~ /\.go$/ || path ~ /_test\.go$/) return ""
                 d = path; sub(/\/[^\/]*$/, "", d)
                 return d
             }
-            best = ""
-            for (d in pkgdir)
-                if (index(path, d "/") == 1 && length(d) > length(best)) best = d
-            if (best == "") return ""
-            # Drop what the crate does not compile. A denylist, not an allowlist of src/:
-            # crates here compile plenty from outside it -- kona embeds its registry
-            # snapshots from etc/, op-reth its dev genesis from res/, and the hardforks
-            # build script includes build_helpers.rs beside itself.
-            rest = substr(path, length(best) + 2)
-            if (rest ~ /^(tests|benches|examples|scripts|testdata|proof-bench)\//) return ""
-            if (rest ~ /^(README|CHANGELOG)/) return ""
-            return pkgdir[best]
+            return ""
         }
         NR == 1 { num = $1; author = $2; count = $3; title = $4; next }
         {
@@ -168,7 +235,7 @@ for f in "$workdir"/pr-*; do
                 $0 ~ /^rust\/kona\/crates\/protocol\/registry\/etc\//) registry = 1
             if ($0 ~ /^(go\.(mod|sum)|rust\/Cargo\.(toml|lock))$/) { manifest = 1; next }
             other_files++
-            if (mode == "none") next
+            if (!resolved) next
             u = unit($0)
             if (u != "" && u in linked) hits[u] = 1
         }
@@ -179,7 +246,7 @@ for f in "$workdir"/pr-*; do
                 shorts[(n > 1) ? seg[1] "/" seg[2] : seg[1]] = 1
             }
             if (title ~ /^\(could not fetch/)   { tag = "?" }
-            else if (mode == "none")            { tag = "?";      for (p in shorts) out = out " " p }
+            else if (!resolved)                 { tag = "?";      for (p in shorts) out = out " " p }
             # CONFIG is additive, not an alternative to LINKED: a registry bump landing
             # alongside compiled code is common, and the row must still say the chain
             # configs moved.
