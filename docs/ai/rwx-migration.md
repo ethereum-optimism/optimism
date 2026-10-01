@@ -153,6 +153,8 @@ CircleCI retains adapters in `.circleci/scripts/` and a routing-data symlink.
 `ops/ci/rwx-metadata.sh` maps push/CLI metadata into that policy and exports
 `run-main`/`run-rust-ci` values. Extend the shared routing tests for new selection
 rules, retaining adapter parity and real changed-file fixtures.
+CircleCI's per-job `ops/check-changed/main.py` rebuild policy also includes `.rwx/`
+and `ops/ci/`, so selected contract jobs execute on CI changes in stacked PRs.
 
 ## Inventory before cutover
 

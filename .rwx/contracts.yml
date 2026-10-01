@@ -74,7 +74,9 @@ tasks:
 
   - key: helper-tests
     use: [code, tools]
-    run: mise exec -- python ops/ci/test_contracts_shadow.py
+    run: |
+      mise exec -- python ops/ci/test_contracts_shadow.py
+      mise exec -- python ops/ci/test_check_changed.py
     cache: false
     timeout: 10m
     outputs:

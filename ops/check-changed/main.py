@@ -9,6 +9,8 @@ import sys
 REBUILD_ALL_PATTERNS = [
     r'^\.circleci/\.*',
     r'^\.github/\.*',
+    r'^\.rwx/',
+    r'^ops/ci/',
     r'^package\.json',
     r'ops/check-changed/.*',
     r'^mise.toml',
