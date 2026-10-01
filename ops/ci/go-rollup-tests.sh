@@ -35,7 +35,7 @@ case "${1:-run}" in
     export PARALLEL OP_TESTLOG_FILE_LOGGER_OUTDIR
     ./ops/scripts/gotestsum-split.sh --format=standard-verbose \
       --junitfile="tmp/test-results/results-${CI_SHARD_INDEX}.xml" \
-      --jsonfile="tmp/testlogs/log-${CI_SHARD_INDEX}.json" \
+      --jsonfile="tmp/testlogs/log.json" \
       --rerun-fails=3 --rerun-fails-max-failures=50 --packages="${PACKAGES}" \
       -- -count=1 -p=4 -parallel="${PARALLEL}" -timeout="${TEST_TIMEOUT:-40m}" -tags=ci
     ;;

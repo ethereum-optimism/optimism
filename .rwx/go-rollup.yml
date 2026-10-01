@@ -124,7 +124,7 @@ tasks:
     outputs:
       filesystem: false
       test-results:
-        - path: tmp/testlogs/log-${{ parallel.index }}.json
+        - path: tmp/testlogs/log.json
           options:
             language: Go
             framework: go test
@@ -132,6 +132,6 @@ tasks:
         - key: junit
           path: tmp/test-results
         - key: go-json
-          path: tmp/testlogs/log-${{ parallel.index }}.json
+          path: tmp/testlogs/log.json
         - key: test-logs
           path: tmp/testlogs

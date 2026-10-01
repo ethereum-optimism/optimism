@@ -71,6 +71,8 @@ tasks disable filesystem output and publish reports as explicit
 [artifacts](https://www.rwx.com/docs/artifacts) and
 [test results](https://www.rwx.com/docs/test-results). Go JSON workflows should set
 parser options `language: Go` and `framework: go test`, as this shadow does.
+Each isolated shard uses a literal JSON report path; RWX associates it with the
+parallel task. Test-result paths do not expand filename expressions.
 Parallel tasks translate
 [RWX shard metadata](https://www.rwx.com/docs/parallelism) into provider-neutral
 `CI_SHARD_INDEX` and `CI_SHARD_TOTAL`.
