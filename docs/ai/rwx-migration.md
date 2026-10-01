@@ -4,6 +4,12 @@ CircleCI remains the merge-gating CI provider. The RWX pilot is for comparing
 execution, caching, and feedback before moving required checks. It does not change
 GitHub rulesets, fork authorization, schedules, or publishing credentials.
 
+Track the full PR workload and remaining validation in
+[rwx-parity-todos.md](rwx-parity-todos.md). Implementation and evidence updates
+stay in the single draft
+[PR #23151](https://github.com/ethereum-optimism/optimism/pull/23151)
+against `develop`.
+
 ## Run the pilot
 
 `.rwx/pilot.yml` runs shared routing tests plus policy-selected Go lint (with the
@@ -177,7 +183,7 @@ CircleCI retains adapters in `.circleci/scripts/` and a routing-data symlink.
 `run-main`/`run-rust-ci` values. Extend the shared routing tests for new selection
 rules, retaining adapter parity and real changed-file fixtures.
 CircleCI's per-job `ops/check-changed/main.py` rebuild policy also includes `.rwx/`
-and `ops/ci/`, so selected contract jobs execute on CI changes in stacked PRs.
+and `ops/ci/`, so selected contract jobs execute on CI changes.
 
 ## Inventory before cutover
 
