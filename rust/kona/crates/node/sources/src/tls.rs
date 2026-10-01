@@ -346,3 +346,262 @@ fn reload_loop(
         }
     }
 }
+
+#[cfg(all(test, target_os = "linux"))]
+mod tests {
+    use std::{
+        fs,
+        io::{self, Read, Write},
+        net::{TcpListener, TcpStream},
+        os::unix::fs::symlink,
+        time::Instant,
+    };
+
+    use rustls::{ServerConfig, ServerConnection, StreamOwned, server::WebPkiClientVerifier};
+
+    use super::*;
+
+    fn fixture(name: &str) -> PathBuf {
+        Path::new(env!("CARGO_MANIFEST_DIR")).join("testdata/mtls").join(name)
+    }
+
+    fn certs(name: &str) -> Vec<CertificateDer<'static>> {
+        CertificateDer::pem_file_iter(fixture(name)).unwrap().collect::<Result<_, _>>().unwrap()
+    }
+
+    /// Starts an mTLS JSON-RPC server that answers every request with the name of the client
+    /// certificate that authenticated the connection. Returns its port.
+    fn spawn_identity_server() -> u16 {
+        let provider = Arc::new(rustls::crypto::aws_lc_rs::default_provider());
+        let mut roots = RootCertStore::empty();
+        for cert in certs("ca.crt") {
+            roots.add(cert).unwrap();
+        }
+        let verifier =
+            WebPkiClientVerifier::builder_with_provider(Arc::new(roots), Arc::clone(&provider))
+                .build()
+                .unwrap();
+        let config = Arc::new(
+            ServerConfig::builder_with_provider(provider)
+                .with_safe_default_protocol_versions()
+                .unwrap()
+                .with_client_cert_verifier(verifier)
+                .with_single_cert(
+                    certs("server.crt"),
+                    PrivateKeyDer::from_pem_file(fixture("server.key")).unwrap(),
+                )
+                .unwrap(),
+        );
+        let identities = [
+            ("client-a", certs("client-a.crt").remove(0)),
+            ("client-b", certs("client-b.crt").remove(0)),
+        ];
+
+        let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+        let port = listener.local_addr().unwrap().port();
+        std::thread::spawn(move || {
+            for tcp in listener.incoming().flatten() {
+                // Failed handshakes and malformed requests are skipped; the test sees them as
+                // request errors.
+                let _ = serve_identity(&config, &identities, tcp);
+            }
+        });
+        port
+    }
+
+    fn serve_identity(
+        config: &Arc<ServerConfig>,
+        identities: &[(&str, CertificateDer<'static>)],
+        tcp: TcpStream,
+    ) -> io::Result<()> {
+        tcp.set_read_timeout(Some(Duration::from_secs(5)))?;
+        let conn = ServerConnection::new(Arc::clone(config)).map_err(io::Error::other)?;
+        let mut stream = StreamOwned::new(conn, tcp);
+
+        let mut buf = Vec::new();
+        let mut chunk = [0u8; 4096];
+        let mut read_more = |stream: &mut StreamOwned<ServerConnection, TcpStream>,
+                             buf: &mut Vec<u8>| {
+            let n = stream.read(&mut chunk)?;
+            if n == 0 {
+                return Err(io::Error::from(io::ErrorKind::UnexpectedEof));
+            }
+            buf.extend_from_slice(&chunk[..n]);
+            Ok(())
+        };
+        let body_start = loop {
+            if let Some(i) = buf.windows(4).position(|w| w == b"\r\n\r\n") {
+                break i + 4;
+            }
+            read_more(&mut stream, &mut buf)?;
+        };
+        let headers = String::from_utf8_lossy(&buf[..body_start]).to_ascii_lowercase();
+        let content_length: usize = headers
+            .lines()
+            .find_map(|line| line.strip_prefix("content-length:"))
+            .and_then(|value| value.trim().parse().ok())
+            .unwrap_or(0);
+        while buf.len() < body_start + content_length {
+            read_more(&mut stream, &mut buf)?;
+        }
+        let request: serde_json::Value =
+            serde_json::from_slice(&buf[body_start..body_start + content_length])?;
+
+        let peer = stream.conn.peer_certificates().and_then(|certs| certs.first());
+        let identity = identities
+            .iter()
+            .find(|(_, cert)| Some(cert) == peer)
+            .map_or("unknown", |(name, _)| *name);
+        let body = serde_json::json!({ "jsonrpc": "2.0", "id": request["id"], "result": identity })
+            .to_string();
+        write!(
+            stream,
+            "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{body}",
+            body.len()
+        )?;
+        stream.conn.send_close_notify();
+        stream.flush()
+    }
+
+    /// Publishes `client`'s certificate into `mount` the way kubelet updates a Secret volume:
+    /// write a new `..<generation>` directory, atomically swap the `..data` symlink to it, then
+    /// delete the `previous` generation. `key` replaces the client key's contents when set.
+    fn publish(
+        mount: &Path,
+        generation: &str,
+        client: &str,
+        key: Option<&str>,
+        previous: Option<&str>,
+    ) {
+        let dir = mount.join(format!("..{generation}"));
+        fs::create_dir(&dir).unwrap();
+        fs::copy(fixture("ca.crt"), dir.join("ca.crt")).unwrap();
+        fs::copy(fixture(&format!("{client}.crt")), dir.join("tls.crt")).unwrap();
+        match key {
+            Some(key) => fs::write(dir.join("tls.key"), key).unwrap(),
+            None => {
+                fs::copy(fixture(&format!("{client}.key")), dir.join("tls.key")).unwrap();
+            }
+        }
+
+        let tmp = mount.join("..data_tmp");
+        symlink(format!("..{generation}"), &tmp).unwrap();
+        fs::rename(&tmp, mount.join(KUBERNETES_DATA_DIR)).unwrap();
+
+        for name in ["ca.crt", "tls.crt", "tls.key"] {
+            let link = mount.join(name);
+            if fs::symlink_metadata(&link).is_err() {
+                symlink(Path::new(KUBERNETES_DATA_DIR).join(name), &link).unwrap();
+            }
+        }
+
+        if let Some(previous) = previous {
+            fs::remove_dir_all(mount.join(format!("..{previous}"))).unwrap();
+        }
+    }
+
+    /// Returns the identity the server saw, giving up after five seconds so that a stuck request
+    /// cannot outlast the caller's deadline.
+    async fn identity(client: &ReloadingRpcClient) -> Result<String, String> {
+        let request = client.client().request::<_, String>("health_status", ());
+        tokio::time::timeout(Duration::from_secs(5), request)
+            .await
+            .map_err(|_| "request timed out".to_string())?
+            .map_err(|e| e.to_string())
+    }
+
+    async fn wait_for_identity(client: &ReloadingRpcClient, expected: &str) {
+        let deadline = Instant::now() + Duration::from_secs(15);
+        loop {
+            let last = identity(client).await;
+            if last.as_deref() == Ok(expected) {
+                return;
+            }
+            assert!(
+                Instant::now() < deadline,
+                "timed out waiting for the server to see {expected}; last result: {last:?}"
+            );
+            tokio::time::sleep(Duration::from_millis(200)).await;
+        }
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn reloads_client_certificate_across_repeated_secret_rotations() {
+        let port = spawn_identity_server();
+        let mount = tempfile::tempdir().unwrap();
+        let mount = mount.path();
+        publish(mount, "gen1", "client-a", None, None);
+
+        let client = ReloadingRpcClient::new(
+            format!("https://127.0.0.1:{port}").parse().unwrap(),
+            TlsPaths {
+                ca_cert: Some(mount.join("ca.crt")),
+                client_cert: Some(ClientCert {
+                    cert: mount.join("tls.crt"),
+                    key: mount.join("tls.key"),
+                }),
+            },
+            HeaderMap::new(),
+        )
+        .unwrap();
+        assert!(client.is_watching());
+        wait_for_identity(&client, "client-a").await;
+
+        publish(mount, "gen2", "client-b", None, Some("gen1"));
+        wait_for_identity(&client, "client-b").await;
+
+        // A watch on the file paths is dropped once kubelet deletes the first generation, so this
+        // second rotation is the one such a watcher misses.
+        publish(mount, "gen3", "client-a", None, Some("gen2"));
+        wait_for_identity(&client, "client-a").await;
+
+        // A rotation that cannot be loaded keeps the current client.
+        publish(mount, "gen4", "client-b", Some("not a key"), Some("gen3"));
+        tokio::time::sleep(RELOAD_DEBOUNCE * 2).await;
+        assert_eq!(identity(&client).await.as_deref(), Ok("client-a"));
+
+        // Repairing the key inside the generation directory produces no event in the watched
+        // directory, so only the retry of the failed reload can pick it up.
+        fs::copy(fixture("client-b.key"), mount.join("..gen4/tls.key")).unwrap();
+        wait_for_identity(&client, "client-b").await;
+    }
+
+    #[test]
+    fn reload_trigger_matches_configured_names_and_ignores_reads() {
+        use notify::event::{CreateKind, Flag, ModifyKind};
+
+        let tls = TlsPaths {
+            ca_cert: Some("/mnt/ca.crt".into()),
+            client_cert: Some(ClientCert {
+                cert: "/mnt/tls.crt".into(),
+                key: "/mnt/tls.key".into(),
+            }),
+        };
+        let names = tls.watched_names();
+        let event = |kind, path: &str| Event::new(kind).add_path(path.into());
+
+        for (kind, path, expected) in [
+            (EventKind::Create(CreateKind::Any), "/mnt/..data", true),
+            (EventKind::Modify(ModifyKind::Any), "/mnt/tls.key", true),
+            (EventKind::Access(AccessKind::Close(AccessMode::Write)), "/mnt/tls.crt", true),
+            (EventKind::Access(AccessKind::Open(AccessMode::Any)), "/mnt/tls.crt", false),
+            (EventKind::Access(AccessKind::Close(AccessMode::Read)), "/mnt/ca.crt", false),
+            (EventKind::Modify(ModifyKind::Any), "/mnt/other.crt", false),
+        ] {
+            assert_eq!(is_reload_trigger(&event(kind, path), &names), expected, "{kind:?} {path}");
+        }
+        assert!(is_reload_trigger(&Event::new(EventKind::Other).set_flag(Flag::Rescan), &names));
+    }
+
+    #[test]
+    fn watch_dirs_uses_current_dir_for_bare_file_names() {
+        let tls = TlsPaths {
+            ca_cert: Some("ca.crt".into()),
+            client_cert: Some(ClientCert { cert: "/a/tls.crt".into(), key: "/b/tls.key".into() }),
+        };
+        assert_eq!(
+            tls.watch_dirs(),
+            BTreeSet::from([PathBuf::from("."), PathBuf::from("/a"), PathBuf::from("/b")])
+        );
+    }
+}
