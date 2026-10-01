@@ -180,7 +180,7 @@ async fn post_exec_rejects_entries_exceeding_block_transaction_count() {
     append_post_exec_tx(transactions, block_number, entries);
 
     let err = execute_loaded_fixture(loaded, Some(true)).unwrap_err();
-    assert_post_exec_validation_failure(err, "entries exceed block transaction count");
+    assert_post_exec_validation_failure(err, "gas refund entries but only");
 }
 
 #[tokio::test]
