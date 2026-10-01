@@ -16,6 +16,7 @@ use reth_db::{
     transaction::DbTx,
 };
 use reth_primitives_traits::{Account, StorageEntry};
+use reth_stages_types::StageId;
 use reth_trie_common::{
     BranchNodeCompact, Nibbles, PackedStorageTrieEntry, PackedStoredNibbles,
     PackedStoredNibblesSubKey, StorageTrieEntry, StoredNibbles, StoredNibblesSubKey,
@@ -28,6 +29,14 @@ const INITIALIZE_STORAGE_THRESHOLD: usize = 100000;
 
 /// Threshold for logging progress during initialization
 const INITIALIZE_LOG_THRESHOLD: usize = 100000;
+
+/// Metadata key under which reth records a partial state trie repair unwind in progress.
+///
+/// UPSTREAM-MIRROR(copy): reth@rev:fe5a0dd
+/// `reth_node_builder::launch::common::PARTIAL_STATE_TRIE_UNWIND_METADATA_KEY`
+///
+/// Private upstream; only its presence is read here, not the marker's contents.
+const PARTIAL_STATE_TRIE_UNWIND_METADATA_KEY: &str = "partial_state_trie_unwind";
 
 /// Controls which reth DB table codec is used when reading trie data during initialization.
 ///
@@ -425,6 +434,38 @@ impl<Tx: DbTx + Sync, S: OpProofsStore + Send> InitializationJob<Tx, S> {
         Ok(())
     }
 
+    /// Refuses a source database whose hashed-state/trie frontier lags its Finish checkpoint.
+    ///
+    /// With state masking, reth persists block data through the Finish checkpoint while the
+    /// hashed-state and trie tables hold a merge that omits updates later overwritten by the
+    /// in-memory masking suffix. Only `op-reth node` launch repairs this (by unwinding to the
+    /// partial frontier), so copying the tables before that would seed a state that matches no
+    /// block. An interrupted repair leaves Finish at the unwind target but the hashed-state and
+    /// trie tables half-unwound; reth records that with a metadata marker until the unwind
+    /// completes.
+    fn ensure_source_state_trie_durable(&self) -> Result<(), OpProofsStorageError> {
+        if self
+            .tx
+            .get::<tables::Metadata>(PARTIAL_STATE_TRIE_UNWIND_METADATA_KEY.to_string())?
+            .is_some()
+        {
+            return Err(OpProofsStorageError::InitializeSourceStateTrieUnwindPending);
+        }
+        let Some(finish) = self.tx.get::<tables::StageCheckpoints>(StageId::Finish.to_string())?
+        else {
+            return Ok(());
+        };
+        match finish.finish_stage_checkpoint().and_then(|finish| finish.partial_state_trie()) {
+            Some(partial_state_trie) if partial_state_trie < finish.block_number => {
+                Err(OpProofsStorageError::InitializeSourceStateTrieLagging {
+                    db_tip: finish.block_number,
+                    partial_state_trie,
+                })
+            }
+            _ => Ok(()),
+        }
+    }
+
     /// Run the initialization job.
     pub fn run(&self, best_number: u64, best_hash: B256) -> Result<(), OpProofsStorageError> {
         let provider = self.storage.initialization_provider()?;
@@ -433,10 +474,12 @@ impl<Tx: DbTx + Sync, S: OpProofsStore + Send> InitializationJob<Tx, S> {
         match anchor.status {
             InitialStateStatus::Completed => return Ok(()),
             InitialStateStatus::NotStarted => {
+                self.ensure_source_state_trie_durable()?;
                 provider.set_initial_state_anchor(BlockNumHash::new(best_number, best_hash))?;
                 provider.commit()?;
             }
             InitialStateStatus::InProgress => {
+                self.ensure_source_state_trie_durable()?;
                 self.validate_anchor_block(&anchor, best_number, best_hash)?;
                 drop(provider); // Release the RW transaction before initialize_trie opens a new one
             }
@@ -1630,5 +1673,135 @@ mod tests {
 
         let addresses = store.storage_branch_addresses.lock().unwrap();
         assert_eq!(*addresses, vec![a, b, c], "addresses must be flushed in sorted (cursor) order");
+    }
+
+    // ── Source DB with a lagging hashed-state/trie frontier ─────────────
+
+    mod partial_state_trie {
+        use super::*;
+        use crate::{
+            OpProofsHashedAccountCursorFactory, OpProofsTrieCursorFactory,
+            test_utils::{
+                build_chain_with_partial_state_trie, create_storage, storage_contract_slot0,
+            },
+        };
+        use reth_db::Database;
+        use reth_primitives_traits::AlloyBlockHeader;
+        use reth_provider::{HeaderProvider, StorageSettingsCache};
+        use reth_trie::StateRoot;
+
+        /// Returns the proofs storage's slot-0 value and state root at `block`, and the header's
+        /// state root.
+        fn seeded_state(
+            factory: &reth_provider::ProviderFactory<
+                reth_provider::test_utils::MockNodeTypesWithDB,
+            >,
+            storage: &Arc<crate::MdbxProofsStorageV2>,
+            block: u64,
+        ) -> (Option<U256>, B256, B256) {
+            let (hashed_address, hashed_slot) = storage_contract_slot0();
+            let ro = storage.provider_ro().unwrap();
+            let mut cursor = ro.storage_hashed_cursor(hashed_address, block).unwrap();
+            let slot0 = cursor.seek(hashed_slot).unwrap().filter(|(k, _)| *k == hashed_slot);
+            let root = StateRoot::new(
+                OpProofsTrieCursorFactory::new(&ro, block),
+                OpProofsHashedAccountCursorFactory::new(&ro, block),
+            )
+            .root()
+            .unwrap();
+            let header_root =
+                factory.header_by_number(block).unwrap().expect("header").state_root();
+            (slot0.map(|(_, v)| v), root, header_root)
+        }
+
+        fn layout(
+            factory: &reth_provider::ProviderFactory<
+                reth_provider::test_utils::MockNodeTypesWithDB,
+            >,
+        ) -> RethTrieStorageLayout {
+            if factory.cached_storage_settings().is_v2() {
+                RethTrieStorageLayout::Packed
+            } else {
+                RethTrieStorageLayout::Legacy
+            }
+        }
+
+        /// Control: a fully flushed source seeds exactly the tip's state.
+        #[test]
+        fn run_seeds_tip_state_when_state_trie_is_durable() {
+            let (factory, tip, tip_hash) = build_chain_with_partial_state_trie(6, 6);
+            let storage = create_storage();
+            let tx = factory.db_ref().tx().unwrap();
+            InitializationJob::new(storage.clone(), tx, layout(&factory))
+                .run(tip, tip_hash)
+                .unwrap();
+
+            let (slot0, root, header_root) = seeded_state(&factory, &storage, tip);
+            assert_eq!(slot0, Some(U256::from(tip)));
+            assert_eq!(root, header_root);
+        }
+
+        /// State masking leaves the hashed-state/trie tables behind the Finish checkpoint until
+        /// `op-reth node` repairs them on launch. Initialization must refuse such a source
+        /// instead of anchoring a state that matches no block at the tip.
+        #[test]
+        fn run_refuses_lagging_state_trie() {
+            let (factory, tip, tip_hash) = build_chain_with_partial_state_trie(6, 3);
+            let storage = create_storage();
+            let tx = factory.db_ref().tx().unwrap();
+            let result =
+                InitializationJob::new(storage.clone(), tx, layout(&factory)).run(tip, tip_hash);
+
+            match result {
+                Err(OpProofsStorageError::InitializeSourceStateTrieLagging {
+                    db_tip: 6,
+                    partial_state_trie: 3,
+                }) => {}
+                Ok(()) => {
+                    let (slot0, root, header_root) = seeded_state(&factory, &storage, tip);
+                    panic!(
+                        "initialization anchored at #{tip} from a lagging state trie: \
+                         seeded slot0 = {slot0:?} (tip value {tip}), \
+                         seeded state root {root} vs header #{tip} state root {header_root}"
+                    );
+                }
+                Err(err) => panic!("unexpected error: {err:?}"),
+            }
+            assert!(matches!(
+                storage.provider_ro().unwrap().get_earliest_block(),
+                Err(OpProofsStorageError::NoBlocksFound)
+            ));
+        }
+
+        /// reth's repair unwind moves Finish to the partial frontier first and unwinds the
+        /// hashing and trie stages after it, so an interrupted repair shows a plain Finish
+        /// checkpoint over half-unwound tables. Only the unwind marker reveals it.
+        #[test]
+        fn run_refuses_interrupted_repair_unwind() {
+            let (factory, _, _) = build_chain_with_partial_state_trie(6, 3);
+            let tx = factory.db_ref().tx_mut().unwrap();
+            tx.put::<tables::StageCheckpoints>(
+                StageId::Finish.to_string(),
+                reth_stages_types::StageCheckpoint::new(3),
+            )
+            .unwrap();
+            tx.put::<tables::Metadata>(PARTIAL_STATE_TRIE_UNWIND_METADATA_KEY.to_string(), vec![])
+                .unwrap();
+            tx.commit().unwrap();
+
+            let hash = reth_provider::BlockHashReader::block_hash(&factory, 3).unwrap().unwrap();
+            let storage = create_storage();
+            let tx = factory.db_ref().tx().unwrap();
+            let result = InitializationJob::new(storage.clone(), tx, layout(&factory)).run(3, hash);
+
+            assert!(
+                matches!(result, Err(OpProofsStorageError::InitializeSourceStateTrieUnwindPending)),
+                "unexpected result: {result:?}"
+            );
+            assert!(matches!(
+                storage.provider_ro().unwrap().get_earliest_block(),
+                Err(OpProofsStorageError::NoBlocksFound)
+            ));
+        }
     }
 }

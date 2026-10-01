@@ -286,7 +286,7 @@ impl<'a, P> HashedPostStateProvider for MemoryOverlayOpProofsStateProviderRef<'a
 where
     P: OpProofsProviderRO + Clone,
 {
-    /// UPSTREAM-MIRROR(copy): reth@rev:4553cf1
+    /// UPSTREAM-MIRROR(copy): reth@rev:fe5a0dd
     /// `reth_chain_state::MemoryOverlayStateProviderRef::hashed_post_state`
     ///
     /// Uses the OP proofs-buffer trie input instead of upstream's executed-block overlay.

@@ -47,6 +47,9 @@ reth-optimism-chainspec.workspace = true
 [dev-dependencies]
 reth-optimism-chainspec = { workspace = true, features = ["superchain-configs"] }
 reth-provider = { workspace = true, features = ["test-utils"] }
+reth-chain-state = { workspace = true, features = ["test-utils"] }
+reth-stages-types.workspace = true
+reth-storage-overlay.workspace = true
 reth-db-common.workspace = true
 reth-revm.workspace = true
 reth-trie.workspace = true
