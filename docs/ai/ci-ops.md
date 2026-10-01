@@ -42,9 +42,10 @@ Notes that matter in practice:
   run on fast paths; for every other suite, look for an open flake issue instead. A rerun
   that hides a real regression costs more than the minutes it saved, and a confirmed
   flake needs an issue, not a silent retry. Reruns through the CircleCI v2 API need a
-  personal API token in `CIRCLE_TOKEN` — not the `CIRCLECI_CLI_TOKEN` the CLI reads for
-  [ci-config-review.md](ci-config-review.md)'s `circleci config validate --org-slug`, and
-  not the `CIRCLE_API_TOKEN` in `.circleci/`, which is the in-job context token. For
+  personal API token in `CIRCLE_TOKEN`, also read by CircleCI CLI 1.x for
+  [ci-config-review.md](ci-config-review.md)'s `circleci config validate --org`.
+  Older CLI 0.x uses `CIRCLECI_CLI_TOKEN` and `--org-slug`. The `CIRCLE_API_TOKEN`
+  in `.circleci/` is the in-job context token. For
   flakes in `op-acceptance-tests/`/`op-devstack/`,
   [flake-prevention.md](flake-prevention.md) catalogues the recurring causes.
 

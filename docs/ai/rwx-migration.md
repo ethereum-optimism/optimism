@@ -11,6 +11,8 @@ superchain bundle) and Rust formatting/upstream-mirror checks. Verdict tasks use
 `cache: false`; tool setup can be reused. This is partial coverage, with the
 optional push status `RWX: optimism-pilot`. No fork PR trigger or vault/token is
 configured. Authorized `external-fork/*` pushes follow the existing Bailiff path.
+Terminal verdict tasks disable filesystem output to avoid uploading unused state;
+logs remain available. Export any future test reports as explicit artifacts.
 
 Install repo tools using [dev-workflow.md](dev-workflow.md). RWX is initially a
 standalone pinned CLI, outside the mise toolset. On Linux x86_64, install v3.32.1
@@ -88,6 +90,57 @@ review these separately:
 
 Inventory secret names and permissions without exporting their values into the
 repository or run artifacts.
+
+### Historical CircleCI baseline
+
+A read-only API snapshot collected on October 1, 2026 sampled five successful
+`develop` pipelines created between `2026-09-30T16:23:15.165Z` and
+`2026-10-01T13:43:39.973Z` (UTC). All four core workflows
+succeeded in each sample; 435 job records include executor classes and parallelism.
+
+| Scope | Median elapsed time | CircleCI executor / shards |
+| --- | --- | --- |
+| Main workflow | 25.77 min | Multiple |
+| Rust CI workflow | 17.48 min | Multiple |
+| Rust E2E workflow | 19.78 min | Multiple |
+| Contracts workflow | 16.50 min | Multiple |
+| Setup workflow | 47 sec | Single setup job |
+| Go lint job | 5.07 min | Docker `large-gen2` / 1 |
+| Rust formatting job | 1.37 min | Docker `medium-gen2` / 1 |
+
+Sampled commit SHAs, oldest first:
+
+```text
+5686e957e7456831d8891356e6a8ab145f0439c4
+031adbfb268906396306a41ffde0d78f0120bf81
+777fc39a9220814391ee1fdf99f56b923ad487ca
+da6d3252491754837a778061db0cc47236ec13c6
+a271fd6b3feb76e49f3453e5a27be4b33a3c7211
+```
+
+The main execution path consistently passed through op-reth compilation, sysgo
+binary aggregation, and acceptance tests. These successful-run medians are
+historical orientation, not performance targets or failure-rate estimates. RWX
+uses different CPUs, caches, and checkout history; compare equivalent workloads
+on the same commit/event before attributing timing differences to the provider.
+Job elapsed time is not total billed time across shards.
+
+The live schedule inventory had five definitions targeting `develop`, while
+routing mapped three. `build_sunday_early` (Sunday hour 01 UTC) and `build_mon_thu`
+(Monday/Thursday hour 07 UTC) had no routing entry and therefore selected no
+continuation workflows under the current policy. Confirm their owners and intent
+before carrying them over or removing them. The mapped schedules used four-hourly
+hours 00/04/08/12/16/20, daily hour 04, and Sunday hour 00. CircleCI schedules run
+within the specified UTC hour rather than guaranteeing its exact start. See
+[scheduled trigger timing](https://circleci.com/docs/guides/orchestrate/schedule-triggers/).
+
+All nine referenced contexts were accessible through the restriction API. Six
+exposed only the organization-wide All members group. The repository write-token
+context additionally had project and branch-expression restrictions; the sccache
+context restricted access to the two Optimism repositories; the release context
+required the release-managers group. Preserve these restrictions when transferring
+credentials. GCP federation and bucket authorization still need a separate audit;
+CircleCI context restrictions alone do not establish those permissions.
 
 ## Required checks and fork authorization
 

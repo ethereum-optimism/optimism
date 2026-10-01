@@ -55,15 +55,19 @@ single fragment:
 # 1. Merge the fragments into /tmp/merged-config.yml (uses mise's yq; resolves anchors).
 mise exec -- bash .circleci/scripts/merge-configs.sh
 
-# 2. Validate it. --org-slug is REQUIRED: the private org orb
+# 2. Validate it. --org is REQUIRED: the private org orb
 #    ethereum-optimism/circleci-utils won't resolve without it (and the CLI
-#    needs CIRCLECI_CLI_TOKEN set to resolve --org-slug).
-export CIRCLECI_CLI_TOKEN="<your token>"
-circleci config validate --org-slug gh/ethereum-optimism /tmp/merged-config.yml
+#    needs CIRCLE_TOKEN set to resolve the organization).
+export CIRCLE_TOKEN="<your token>"
+circleci config validate --org gh/ethereum-optimism /tmp/merged-config.yml
 
 # 3. The setup config imports the private orb too, so it needs the same flag.
-circleci config validate --org-slug gh/ethereum-optimism .circleci/config.yml
+circleci config validate --org gh/ethereum-optimism .circleci/config.yml
 ```
+
+These commands use CircleCI CLI 1.x. With the older 0.x CLI, use `--org-slug`
+and `CIRCLECI_CLI_TOKEN` instead. Do not confuse a shell-profile variable name
+with the environment variable the selected CLI actually reads.
 
 Install the CLI without sudo:
 `curl -fLSs https://raw.githubusercontent.com/CircleCI-Public/circleci-cli/main/install.sh | DESTDIR="$HOME/.local/bin" bash`.

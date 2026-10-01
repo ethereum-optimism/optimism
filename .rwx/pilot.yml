@@ -76,6 +76,8 @@ tasks:
       mise exec -- python -m unittest ops/ci/test_rwx_metadata.py
     cache: false
     timeout: 10m
+    outputs:
+      filesystem: false
 
   # Preserve the superchain bundle's existing verification before Go consumes it.
   - key: prep-superchain
@@ -96,6 +98,8 @@ tasks:
     runner:
       cpus: 8
       memory: 32gb
+    outputs:
+      filesystem: false
 
   - key: rust-fmt
     use: [code, tools]
@@ -107,3 +111,5 @@ tasks:
       mise exec -- just check-upstream-mirrors
     cache: false
     timeout: 20m
+    outputs:
+      filesystem: false
