@@ -20,7 +20,7 @@ func newOpNodeSystem(t devtest.T) *presets.SingleChainInterop {
 }
 
 // newSupernodeSystem starts a supernode-backed interop system whose honest op-challenger sources
-// super roots from the supernode (with the honest kona-sp1-proposer also running unless disabled
+// super roots from the supernode (with the honest op-zk-proposer also running unless disabled
 // via extra options). It is returned as the shared *SingleChainInterop base so the same scenario
 // bodies run against either super-root source.
 func newSupernodeSystem(t devtest.T, extra ...presets.Option) *presets.SingleChainInterop {
@@ -99,7 +99,7 @@ func TestZK_HonestChallenger_ValidProposal_DefenderWins(gt *testing.T) {
 	gt.Run("op-node", func(gt *testing.T) {
 		t := devtest.ParallelT(gt)
 		sys := newOpNodeSystem(t)
-		// The op-node preset runs no kona-sp1-proposer; seed the proposal manually.
+		// The op-node preset runs no op-zk-proposer; seed the proposal manually.
 		game := sys.DisputeGameFactory().StartZKGame(sys.FunderL1.NewFundedEOA(eth.OneEther))
 		honestChallengerResolvesValidProposal(t, sys, game)
 	})

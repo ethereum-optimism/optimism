@@ -14,9 +14,9 @@ For the Go services:
 (`op-devstack`, `op-e2e`, `op-acceptance-tests`) and by tools that ship separately
 (`op-deployer`, `op-chain-ops`). So a draft picks up many commits that never reach the
 binary — the op-batcher v1.16.13 draft listed 21 PRs, of which 8 touched nothing op-batcher
-compiles. The kona-* components filter on all of `rust/kona/**`, `rust/op-alloy/**` and
-`rust/alloy-op*/**`, so a kona-node draft picks up kona-client, kona-host and kona-sp1 work
-too.
+compiles. The `kona-*` components and `op-zk-proposer` filter on all of `rust/kona/**`,
+`rust/op-alloy/**` and `rust/alloy-op*/**`, so a kona-node draft picks up kona-client,
+kona-host and kona-sp1 work too.
 
 ## The test that matters
 
