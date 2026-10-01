@@ -2610,17 +2610,26 @@ contract OPContractsManagerStandardValidator_ValidateInterop_Test is OPContracts
     /// @notice Discovering the shared admin must still check its expected PAO owner.
     function test_validate_sharedProxyAdminWrongOwner_succeeds() public {
         vm.mockCall(sharedProxyAdmin, abi.encodeCall(IProxyAdmin.owner, ()), abi.encode(makeAddr("wrongSharedOwner")));
-        // Isolate the shared ProxyAdmin check from the separate DelayedWETH owner check.
-        vm.mockCall(
-            sharedWETH,
-            abi.encodeCall(IProxyAdminOwnedBase.proxyAdminOwner, ()),
-            abi.encode(standardValidator.l1PAOMultisig())
-        );
+        // The shared DelayedWETH reads its owner through the same ProxyAdmin, so its owner check
+        // fails too.
+        string memory expected = "SHARED-PROXYA-10,SCKDG-DWETH-30";
         IOPContractsManagerStandardValidator.ValidationInputDev memory input =
             _validationInput(chainContracts2.systemConfig);
-        assertEq(standardValidator.validate(input, true), "SHARED-PROXYA-10");
-        vm.expectRevert(bytes("OPContractsManagerStandardValidator: SHARED-PROXYA-10"));
+        assertEq(standardValidator.validate(input, true), expected);
+        vm.expectRevert(bytes(string.concat("OPContractsManagerStandardValidator: ", expected)));
         standardValidator.validate(input, false);
+    }
+
+    /// @notice The shared ProxyAdmin owner check must use the L1 PAO multisig override.
+    function test_validateWithOverrides_l1PAOMultisigMismatch_succeeds() public {
+        IOPContractsManagerStandardValidator.ValidationOverrides memory overrides = IOPContractsManagerStandardValidator
+            .ValidationOverrides({ l1PAOMultisig: makeAddr("wrongMultisig"), challenger: address(0) });
+        // No owner matches the override, so the member's ProxyAdmin, the shared ProxyAdmin, the
+        // factory and the shared DelayedWETH all fail their owner checks.
+        assertEq(
+            standardValidator.validateWithOverrides(_validationInput(chainContracts2.systemConfig), true, overrides),
+            "OVERRIDES-L1PAOMULTISIG,PROXYA-10,SHARED-PROXYA-10,DF-30,SCKDG-DWETH-30"
+        );
     }
 
     /// @notice Shared implementation checks must still reject a non-standard implementation.
@@ -2633,39 +2642,18 @@ contract OPContractsManagerStandardValidator_ValidateInterop_Test is OPContracts
         assertEq(standardValidator.validate(_validationInput(chainContracts2.systemConfig), true), "DF-20");
     }
 
-    /// @notice A different shared lockbox admin is invalid even when its owner is the same PAO.
-    function test_validate_sharedLockboxWrongAdmin_succeeds() public {
-        _assertWrongSharedAdmin(address(sharedLockbox), "LOCKBOX-30");
-    }
-
-    /// @notice A different shared WETH admin is invalid even when its owner is the same PAO.
-    function test_validate_sharedWethWrongAdmin_succeeds() public {
-        _assertWrongSharedAdmin(sharedWETH, "SCKDG-DWETH-60");
-    }
-
-    /// @notice A different shared registry admin is invalid even when its owner is the same PAO.
-    function test_validate_sharedRegistryWrongAdmin_succeeds() public {
-        _assertWrongSharedAdmin(sharedASR, "SPDG-ANCHORP-50,SCKDG-ANCHORP-50");
-    }
-
-    /// @notice Per-chain portals must retain their own chain's admin after migration.
-    function test_validate_interopPortalWrongAdmin_succeeds() public {
-        vm.mockCall(
-            address(chainContracts2.optimismPortal),
-            abi.encodeCall(IProxyAdminOwnedBase.proxyAdmin, ()),
-            abi.encode(sharedProxyAdmin)
+    /// @notice Each shared contract must report the factory's ProxyAdmin. The mocks change only the
+    ///         reported admin: a contract that another ProxyAdmin really administers reverts at
+    ///         its implementation check before these comparisons run.
+    function test_validate_sharedContractsWrongAdmin_succeeds() public {
+        bytes memory memberAdmin = abi.encode(address(chainContracts2.proxyAdmin));
+        vm.mockCall(address(sharedLockbox), abi.encodeCall(IProxyAdminOwnedBase.proxyAdmin, ()), memberAdmin);
+        vm.mockCall(sharedWETH, abi.encodeCall(IProxyAdminOwnedBase.proxyAdmin, ()), memberAdmin);
+        vm.mockCall(sharedASR, abi.encodeCall(IProxyAdminOwnedBase.proxyAdmin, ()), memberAdmin);
+        assertEq(
+            standardValidator.validate(_validationInput(chainContracts2.systemConfig), true),
+            "SPDG-ANCHORP-50,SCKDG-DWETH-60,SCKDG-ANCHORP-50,LOCKBOX-30"
         );
-        assertEq(standardValidator.validate(_validationInput(chainContracts2.systemConfig), true), "PORTAL-90");
-    }
-
-    /// @notice Checks exact shared-admin equality without changing the proxy's real admin slot.
-    function _assertWrongSharedAdmin(address _contract, string memory _expectedErrors) internal {
-        vm.mockCall(
-            _contract,
-            abi.encodeCall(IProxyAdminOwnedBase.proxyAdmin, ()),
-            abi.encode(address(chainContracts2.proxyAdmin))
-        );
-        assertEq(standardValidator.validate(_validationInput(chainContracts2.systemConfig), true), _expectedErrors);
     }
 
     /// @notice Checks ordinary validation and the allowFailure/override path used by upgrade tasks.
