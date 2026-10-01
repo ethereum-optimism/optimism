@@ -14,6 +14,7 @@ import (
 	"github.com/ethereum/go-ethereum/params/forks"
 
 	"github.com/ethereum-optimism/optimism/op-acceptance-tests/tests/interop/loadtest"
+	sfp "github.com/ethereum-optimism/optimism/op-acceptance-tests/tests/superfaultproofs"
 	"github.com/ethereum-optimism/optimism/op-batcher/batcher"
 	batcherflags "github.com/ethereum-optimism/optimism/op-batcher/flags"
 	"github.com/ethereum-optimism/optimism/op-chain-ops/devkeys"
@@ -64,6 +65,35 @@ func TestSafeHeadAdvancesAcrossGlamsterdam(gt *testing.T) {
 
 	sys.L2EL.WaitL1OriginReached(eth.Safe, postForkL1.Number, 120)
 	sys.L2EL.WaitForGasUsed(eth.Safe, threshold, 2*time.Minute)
+}
+
+func TestSuperFaultProofsAfterGlamsterdam(gt *testing.T) {
+	t := devtest.SerialT(gt)
+	prepareGlamsterdamOpReth(t)
+	// OP Sepolia uses super-root proofs with a singleton dependency set, while Lagoon is inactive.
+	sys := presets.NewSingleChainInteropIsthmusSuper(t,
+		glamsterdamL1Geth(t),
+		presets.WithDeployerOptions(
+			sysgo.WithForkAtL1Genesis(forks.Amsterdam),
+			sysgo.WithKarstAtGenesis,
+		),
+	)
+	t.Require().Nil(sys.L2ChainA.Escape().RollupConfig().LagoonTime,
+		"super-root proofs must run without activating Lagoon, as on OP Sepolia")
+
+	l1Config := sys.L1Network.Escape().ChainConfig()
+	t.Require().NotNil(l1Config.AmsterdamTime)
+	postForkL1 := sys.L1EL.BlockRefByLabel(eth.Unsafe)
+	t.Require().GreaterOrEqual(postForkL1.Time, *l1Config.AmsterdamTime)
+	postForkHeader, err := sys.L1EL.EthClient().HeaderByHash(t.Ctx(), postForkL1.Hash)
+	t.Require().NoError(err)
+	t.Require().NotNil(postForkHeader.SlotNumber, "post-Glamsterdam L1 block must include a slot number")
+	t.Require().NotNil(postForkHeader.BlockAccessListHash,
+		"post-Glamsterdam L1 block must include a block access list hash")
+
+	// Anchor the proof scenario beyond a post-fork L1 origin, not just a post-fork wall clock.
+	sys.L2ELA.WaitL1OriginReached(eth.Safe, postForkL1.Number, 120)
+	sfp.RunSingleChainSuperFaultProofSmokeTest(t, sys)
 }
 
 func TestAutoDASwitchesFromCalldataToBlobsAtGlamsterdam(gt *testing.T) {
