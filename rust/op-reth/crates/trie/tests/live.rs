@@ -20,7 +20,7 @@ use reth_optimism_trie::{
 use reth_primitives_traits::{Block as _, RecoveredBlock};
 use reth_provider::{
     BlockWriter as _, ExecutionOutcome, HashedPostStateProvider, LatestStateProviderRef,
-    ProviderFactory, StateRootProvider, StorageSettingsCache,
+    ProviderFactory, StateProvider, StateRootProvider, StorageSettingsCache, TrieWriter,
     providers::{BlockchainProvider, ProviderNodeTypes},
     test_utils::create_test_provider_factory_with_chain_spec,
 };
@@ -176,7 +176,9 @@ where
         > + NodeTypesWithDB,
 {
     let provider = provider_factory.provider()?;
-    let db = StateProviderDatabase::new(LatestStateProviderRef::new(&provider));
+    let db = StateProviderDatabase::new(
+        LatestStateProviderRef::new(&provider).into_evm_state_provider(),
+    );
     let evm_config = EthEvmConfig::ethereum(chain_spec.clone());
     let block_executor = evm_config.batch_executor(db);
 
@@ -215,6 +217,8 @@ where
         &LatestStateProviderRef::new(&state_provider),
         &execution_output.state,
     )?;
+    let (_, trie_updates) = LatestStateProviderRef::new(&state_provider)
+        .state_root_with_updates(hashed_state.clone())?;
 
     let provider_rw = provider_factory.provider_rw()?;
     provider_rw.append_blocks_with_state(
@@ -222,6 +226,8 @@ where
         &execution_outcome,
         hashed_state.into_sorted(),
     )?;
+    // Reth's append helper leaves trie persistence to the caller (reth#27307).
+    provider_rw.write_trie_updates(trie_updates)?;
     provider_rw.commit()?;
 
     Ok(())

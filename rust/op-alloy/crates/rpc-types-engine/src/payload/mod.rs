@@ -14,7 +14,7 @@ use alloy_rpc_types_engine::{
     ExecutionPayloadV3,
 };
 
-/// UPSTREAM-MIRROR(copy): alloy-rpc-types-engine@2.4.2 `alloy_rpc_types_engine::ExecutionPayload`
+/// UPSTREAM-MIRROR(copy): alloy-rpc-types-engine@2.5.0 `alloy_rpc_types_engine::ExecutionPayload`
 ///
 /// Same versioned enum and the same field-sniffing `Deserialize`, but V4 is the OP Isthmus
 /// payload selected by `withdrawalsRoot` where upstream's V4 is Amsterdam, and this type also

@@ -41,7 +41,7 @@ pub trait DebugExecutionWitnessApi<Attributes> {
     ) -> RpcResult<ExecutionWitness>;
 }
 use reth_storage_api::{
-    BlockReaderIdExt, NodePrimitivesProvider, StateProviderFactory, TransactionVariant,
+    BlockReaderIdExt, StateProvider, StateProviderFactory, TransactionVariant,
     errors::{ProviderError, ProviderResult},
 };
 use reth_tasks::Runtime;
@@ -93,7 +93,7 @@ impl<Pool, Provider, EvmConfig, Attrs> OpDebugWitnessApi<Pool, Provider, EvmConf
 
 impl<Pool, Provider, EvmConfig, Attrs> OpDebugWitnessApi<Pool, Provider, EvmConfig, Attrs>
 where
-    Provider: NodePrimitivesProvider<Primitives: NodePrimitives<BlockHeader = Provider::Header>>
+    Provider: StateProviderFactory<Primitives: NodePrimitives<BlockHeader = Provider::Header>>
         + BlockReaderIdExt,
 {
     /// Fetches the parent header by hash.
@@ -116,7 +116,7 @@ where
                 <Provider::Primitives as OpPayloadPrimitives>::_Header,
             >,
             Header = <Provider::Primitives as NodePrimitives>::BlockHeader,
-        > + NodePrimitivesProvider<Primitives: OpPayloadPrimitives>,
+        > + StateProviderFactory<Primitives: OpPayloadPrimitives>,
 {
     fn replay_block_by_request(
         &self,
@@ -149,8 +149,7 @@ where
             Transaction: OpPooledTx<Consensus = <Provider::Primitives as NodePrimitives>::SignedTx>,
         > + 'static,
     Provider: BlockReaderIdExt<Header = <Provider::Primitives as NodePrimitives>::BlockHeader>
-        + NodePrimitivesProvider<Primitives: OpPayloadPrimitives>
-        + StateProviderFactory
+        + StateProviderFactory<Primitives: OpPayloadPrimitives>
         + ChainSpecProvider<ChainSpec: OpHardforks>
         + Clone
         + 'static,
@@ -209,8 +208,7 @@ where
                 <Provider::Primitives as OpPayloadPrimitives>::_Header,
             >,
             Header = <Provider::Primitives as NodePrimitives>::BlockHeader,
-        > + NodePrimitivesProvider
-        + StateProviderFactory
+        > + StateProviderFactory
         + ChainSpecProvider<ChainSpec: OpHardforks>
         + Clone
         + 'static,
@@ -239,7 +237,7 @@ where
                     .provider
                     .state_by_block_hash(block.header().parent_hash())
                     .to_rpc_result()?;
-                let db = StateProviderDatabase::new(&state_provider);
+                let db = StateProviderDatabase::new((&state_provider).into_evm_state_provider());
                 replay_block(&this.inner.evm_config, db, &block, config)
                     .map_err(|err| internal_rpc_err(err.to_string()))
             };

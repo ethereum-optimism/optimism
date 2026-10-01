@@ -74,7 +74,7 @@ just test-docs
 
 ### Running op-reth E2E Tests
 
-The op-reth E2E tests (`rust/op-reth/tests/proofs/`) run a full devnet with op-reth as both the sequencer and the validator EL by default; `OP_DEVSTACK_PROOF_SEQUENCER_EL` and `OP_DEVSTACK_PROOF_VALIDATOR_EL` override either role (`rust/op-reth/tests/proofs/utils/preset.go`). They require two build prerequisites:
+The op-reth E2E tests (`rust/op-reth/tests/proofs/`) run a full devnet with op-reth as both the sequencer and the validator EL by default; `OP_DEVSTACK_PROOF_SEQUENCER_EL` and `OP_DEVSTACK_PROOF_VALIDATOR_EL` override either role (`rust/op-reth/tests/proofs/utils/preset.go`). They require three build prerequisites:
 
 1. **Forge artifacts** — the devnet deploys contracts from compiled artifacts:
    ```bash
@@ -82,7 +82,13 @@ The op-reth E2E tests (`rust/op-reth/tests/proofs/`) run a full devnet with op-r
    mise exec -- just build-no-tests
    ```
 
-2. **op-reth binary** — the test harness (`op-devstack/shared/rustbin/rust_binary.go`) uses the most recently built binary under `target/release/` or `target/debug/`. Options:
+2. **Proof-test contract artifacts** — storage-proof tests also deploy their own fixtures:
+   ```bash
+   cd rust/op-reth/tests
+   mise exec -- just build-contracts
+   ```
+
+3. **op-reth binary** — the test harness (`op-devstack/shared/rustbin/rust_binary.go`) uses the most recently built binary under `target/release/` or `target/debug/`. Options:
    ```bash
    # Option A: let the test build it (slow first run, cached after)
    RUST_JIT_BUILD=1 go test -v -run TestName ./rust/op-reth/tests/proofs/core/

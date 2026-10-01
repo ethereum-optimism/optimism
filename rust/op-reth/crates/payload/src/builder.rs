@@ -43,13 +43,11 @@ use reth_payload_util::{BestPayloadTransactions, NoopPayloadTransactions, Payloa
 use reth_primitives_traits::{
     HeaderTy, NodePrimitives, SealedHeader, SealedHeaderFor, SignedTransaction, TxTy,
 };
-use reth_revm::{
-    cancelled::CancelOnDrop, database::StateProviderDatabase, db::State,
-    witness::ExecutionWitnessRecord,
-};
+use reth_revm::{database::StateProviderDatabase, db::State, witness::ExecutionWitnessRecord};
 use reth_storage_api::{
     HeaderProvider, StateProvider, StateProviderFactory, errors::ProviderError,
 };
+use reth_tasks::CancelOnDrop;
 use reth_transaction_pool::{BestTransactionsAttributes, PoolTransaction, TransactionPool};
 use revm::context::{Block, BlockEnv};
 use std::{marker::PhantomData, sync::Arc};
@@ -266,7 +264,7 @@ where
         let builder = OpBuilder::new(best);
 
         let state_provider = self.client.state_by_block_hash(ctx.parent().hash())?;
-        let state = StateProviderDatabase::new(&state_provider);
+        let state = StateProviderDatabase::new((&state_provider).into_evm_state_provider());
 
         if ctx.attributes().no_tx_pool() {
             builder.build(state, &state_provider, ctx)
@@ -589,7 +587,7 @@ impl<Txs> OpBuilder<'_, Txs> {
         Attrs: OpAttributes<Transaction = N::SignedTx>,
     {
         let mut db = State::builder()
-            .with_database(StateProviderDatabase::new(&state_provider))
+            .with_database(StateProviderDatabase::new((&state_provider).into_evm_state_provider()))
             .with_bundle_update()
             .build();
         let mut builder = ctx.block_builder(&mut db)?;

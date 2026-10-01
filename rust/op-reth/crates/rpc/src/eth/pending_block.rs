@@ -1,9 +1,9 @@
 //! Loads OP pending block for a RPC response.
 
+use super::pending_state::PendingStateProvider;
 use crate::{OpEthApi, OpEthApiError};
 use alloy_eips::BlockNumberOrTag;
 use alloy_primitives::B256;
-use reth_chain_state::BlockState;
 use reth_optimism_flashblocks::PendingFlashBlock;
 use reth_rpc_eth_api::{
     FromEvmError, RpcConvert, RpcNodeCore, RpcNodeCoreExt,
@@ -52,14 +52,15 @@ where
             return Ok(None);
         };
         let canonical_anchor_hash = pending_state_history_lookup_hash(&pending_block);
-        let state = BlockState::from(pending_block.pending);
-
         let anchor_historical = self
             .provider()
             .history_by_block_hash(canonical_anchor_hash)
             .map_err(Self::Error::from_eth_err)?;
 
-        Ok(Some(Box::new(state.state_provider(anchor_historical)) as StateProviderBox))
+        Ok(Some(Box::new(PendingStateProvider::new(
+            anchor_historical,
+            vec![pending_block.pending.executed_block],
+        )) as StateProviderBox))
     }
 
     /// Returns the locally built pending block
@@ -81,7 +82,7 @@ where
             .get_block_and_receipts(latest.hash())
             .await
             .map_err(Self::Error::from_eth_err)?
-            .map(|(block, receipts)| BlockAndReceipts { block, receipts });
+            .map(|(block, receipts)| BlockAndReceipts { block, receipts: receipts.into() });
         Ok(latest)
     }
 }

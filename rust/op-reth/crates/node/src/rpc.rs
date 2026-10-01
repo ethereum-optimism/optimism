@@ -75,6 +75,7 @@
 //!         components: node.node_adapter(),
 //!         config,
 //!         cache,
+//!         sender_recovery_cache: node.sender_recovery_cache().cloned(),
 //!         engine_handle: ConsensusEngineHandle::new(tx),
 //!     };
 //!     let eth_api = OpEthApiBuilder::<Optimism>::default().build_eth_api(ctx).await.unwrap();

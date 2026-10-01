@@ -8,6 +8,7 @@ pub mod transaction;
 mod block;
 mod call;
 mod pending_block;
+mod pending_state;
 
 use crate::{
     OpEthApiError, SequencerClient,

@@ -35,6 +35,7 @@ use reth_payload_builder_primitives::PayloadBuilderError;
 use reth_payload_util::PayloadTransactionsFixed;
 use reth_primitives_traits::{Account, InMemorySize, SealedHeader};
 use reth_revm::{database::StateProviderDatabase, db::State, test_utils::StateProviderTest};
+use reth_storage_api::StateProvider;
 use reth_transaction_pool::PoolTransaction;
 use std::{borrow::Cow, cell::Cell, sync::Arc};
 
@@ -258,7 +259,7 @@ where
     let best_txs = PayloadTransactionsFixed::new(txs);
 
     let mut db = State::builder()
-        .with_database(StateProviderDatabase::new(&state_provider))
+        .with_database(StateProviderDatabase::new((&state_provider).into_evm_state_provider()))
         .with_bundle_update()
         .build();
     let mut builder = ctx.block_builder(&mut db).expect("block builder can be created");
@@ -336,7 +337,7 @@ fn rebuilds_derived_block_with_embedded_post_exec_tx_regardless_of_opt_in() {
 
         let state_provider = StateProviderTest::default();
         let mut db = State::builder()
-            .with_database(StateProviderDatabase::new(&state_provider))
+            .with_database(StateProviderDatabase::new((&state_provider).into_evm_state_provider()))
             .with_bundle_update()
             .build();
         let mut builder = ctx.block_builder(&mut db).expect("block builder can be created");
@@ -364,7 +365,7 @@ fn block_builder_with_mode_honors_snapshot_over_live_opt_in() {
     let produce_ctx = interop_ctx(false, false, Some(Vec::new()));
     let provider = StateProviderTest::default();
     let mut db = State::builder()
-        .with_database(StateProviderDatabase::new(&provider))
+        .with_database(StateProviderDatabase::new((&provider).into_evm_state_provider()))
         .with_bundle_update()
         .build();
     let mut builder = produce_ctx
@@ -378,7 +379,7 @@ fn block_builder_with_mode_honors_snapshot_over_live_opt_in() {
     let disabled_ctx = interop_ctx(false, true, Some(Vec::new()));
     let provider = StateProviderTest::default();
     let mut db = State::builder()
-        .with_database(StateProviderDatabase::new(&provider))
+        .with_database(StateProviderDatabase::new((&provider).into_evm_state_provider()))
         .with_bundle_update()
         .build();
     let mut builder = disabled_ctx
@@ -523,7 +524,7 @@ fn execute_best_transactions_on_commit_hook_execution() {
     // Re-execute each tx that should be committed so we know the gas passed to on_commit.
     let expected_committed_gas: Vec<ReportedGas> = {
         let mut oracle_db = State::builder()
-            .with_database(StateProviderDatabase::new(&state_provider))
+            .with_database(StateProviderDatabase::new((&state_provider).into_evm_state_provider()))
             .with_bundle_update()
             .build();
         let mut oracle = ctx.block_builder(&mut oracle_db).expect("oracle block builder");
@@ -547,7 +548,7 @@ fn execute_best_transactions_on_commit_hook_execution() {
     };
 
     let mut db = State::builder()
-        .with_database(StateProviderDatabase::new(&state_provider))
+        .with_database(StateProviderDatabase::new((&state_provider).into_evm_state_provider()))
         .with_bundle_update()
         .build();
     let mut builder = ctx.block_builder(&mut db).expect("block builder can be created");
@@ -643,7 +644,7 @@ fn on_commit_reports_canonical_and_pre_refund_gas_separately_under_sdm_refund() 
     };
 
     let mut db = State::builder()
-        .with_database(StateProviderDatabase::new(&state_provider))
+        .with_database(StateProviderDatabase::new((&state_provider).into_evm_state_provider()))
         .with_bundle_update()
         .build();
     let mut builder = ctx
