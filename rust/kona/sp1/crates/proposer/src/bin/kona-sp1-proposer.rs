@@ -1,7 +1,6 @@
 //! Proposer service binary for the super-root ZK dispute game.
 //!
 //! Derived from op-succinct's `fault-proof/bin/proposer.rs` (@ 13716c2c).
-//! Configuration is environment-only; see `ProposerConfig::from_env`.
 
 use std::sync::Arc;
 
@@ -17,25 +16,33 @@ use kona_sp1_proposer::{
     ENV_VAR_PREFIX,
     config::{ProofProviderKind, ProposerConfig, redacted_url},
     contract::DisputeGameFactory,
-    metrics::{ProposerGauge, register_metrics},
+    metrics::{ProposerGauge, record_spn_requester, register_metrics},
     proposer::Proposer,
     prover::{MockProofProvider, NetworkProofProvider, ProofProvider},
     signer::{Signer, SignerLock},
 };
 
-/// Command-line interface for process metadata; runtime configuration remains environment-only.
 #[derive(Debug, Parser)]
 #[command(version, about = env!("CARGO_PKG_DESCRIPTION"))]
-struct Cli {}
+struct Cli {
+    /// Predefined network name recognized by OP Stack services, such as `op-mainnet`.
+    ///
+    /// Required unless `KONA_SP1_PROPOSER_FACTORY_ADDRESS` is set. An explicit
+    /// factory address takes precedence.
+    #[arg(long, env = "KONA_SP1_PROPOSER_NETWORK")]
+    network: Option<String>,
+}
 
 #[tokio::main]
 async fn main() -> Result<()> {
-    Cli::parse();
+    let cli = Cli::parse();
     setup_logger(ENV_VAR_PREFIX);
 
-    let config = ProposerConfig::from_env()?;
+    let network = cli.network.as_deref().filter(|network| !network.is_empty());
+    let config = ProposerConfig::from_env(network)?;
 
     tracing::info!(
+        network = ?network,
         l1_rpc = %redacted_url(&config.l1_rpc),
         superroot_rpcs = &config.superroot_rpcs.iter().map(redacted_url).collect::<Vec<_>>().join(","),
         factory_address = %config.factory_address,
@@ -68,6 +75,7 @@ async fn main() -> Result<()> {
     );
 
     // Mock deployments need no SPN credentials.
+    let mut spn_requester = None;
     let proof_provider = match config.proof_provider {
         ProofProviderKind::Network => {
             let provider_config = config.proof_provider_config.clone();
@@ -75,11 +83,12 @@ async fn main() -> Result<()> {
                 provider_config.range_proof_strategy,
                 provider_config.agg_proof_strategy,
             )?;
-            let prover =
+            let network_prover =
                 build_network_prover_from_env(ENV_VAR_PREFIX, provider_config.range_proof_strategy)
                     .await?;
+            spn_requester = Some(network_prover.requester);
             ProofProvider::Network(NetworkProofProvider::new(
-                Arc::new(prover),
+                Arc::new(network_prover.prover),
                 provider_config,
                 network_mode,
             ))
@@ -108,6 +117,9 @@ async fn main() -> Result<()> {
     let metrics_addr = init_metrics(config.metrics_listen).await?;
     if metrics_addr.is_some() {
         register_metrics(!proof_provider.is_mock());
+        if let Some(requester) = spn_requester {
+            record_spn_requester(requester);
+        }
     }
 
     let proposer = Arc::new(Proposer::new(config, signer, factory, proof_provider).await?);

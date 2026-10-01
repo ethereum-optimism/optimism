@@ -98,6 +98,7 @@ More detailed guidance for AI agents can be found in:
 - [docs/ai/contract-dev.md](docs/ai/contract-dev.md) - Smart contract development
 - [docs/ai/standard-validator-review.md](docs/ai/standard-validator-review.md) - Reviewing `StandardValidator` for assertions it should make but doesn't: cross-game symmetry, diff-driven coverage, read-versus-assert, plus the false-positive traps (pass-through getters, implementation-pinned immutables) that make naive gap-hunting noisy. Pairs with the `standard-validator-reviewer` agent
 - [docs/ai/deletion-review.md](docs/ai/deletion-review.md) - Reviewing diffs that delete externally observable names or state writes: the whole-tree reference sweep (docs examples, dashboards, CI config) and proving *when* surviving writers of shared state fire, not just that they exist. Pairs with the `deletion-reviewer` agent
+- [docs/ai/safedb-review.md](docs/ai/safedb-review.md) - Reviewing changes to a safe head database (op-node's or kona's): the behaviour contract both must keep, the six invariants, why a gap in recorded history returns a later L1 block instead of an error, and why local-safe and cross-safe being equal in most test modes hides a label error. Pairs with the `safedb-reviewer` agent
 - [docs/ai/dispute-game-investigation.md](docs/ai/dispute-game-investigation.md) - Investigating fault dispute games: challenger disagreements, excessive moves, self-contradiction, proposal validity, diagnosing the responsible op-node, and the bond outcome (read-only)
 - [docs/ai/flake-prevention.md](docs/ai/flake-prevention.md) - Guidance for preventing flaky tests
 - [docs/ai/dev-workflow.md](docs/ai/dev-workflow.md) - General development workflow: pinned tools via mise, Just usage, pre-PR checks, and CI caveats
@@ -107,6 +108,7 @@ More detailed guidance for AI agents can be found in:
 - [docs/ai/derivation.md](docs/ai/derivation.md) - Derivation pipeline development (op-node, kona-node)
 - [docs/ai/spec-driven-review.md](docs/ai/spec-driven-review.md) - Shared method and evidence contract for specification-driven reviewer agents
 - [docs/ai/derivation-batch-review.md](docs/ai/derivation-batch-review.md) - Reviewing batch decoding and validation against protocol specifications. Pairs with the `derivation-batch-reviewer` agent
+- [docs/ai/interop-review.md](docs/ai/interop-review.md) - Reviewing interop message verification and safety promotion. Pairs with the `interop-reviewer` agent
 - [docs/ai/execution-layer.md](docs/ai/execution-layer.md) - Execution layer development (op-reth / EVM, fees, deposits)
 - [docs/ai/fault-proofs.md](docs/ai/fault-proofs.md) - Fault proof system (Cannon, kona-client, dispute games)
 - [docs/ai/devfeatures.md](docs/ai/devfeatures.md) - The `DevFeatures` bitmap system gating in-development smart contract features: where the bitmap is supplied, composed, propagated, and read. Only relevant for contract development and op-deployer — not needed for client (op-node / op-reth / kona) work

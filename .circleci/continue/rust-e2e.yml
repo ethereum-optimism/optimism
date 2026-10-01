@@ -5,7 +5,7 @@ version: 2.1
 # It is merged with main.yml and rust-ci.yml when rust/** changes are detected.
 # Shared orbs, commands, and jobs come from main.yml and rust-ci.yml during merge.
 orbs:
-  utils: ethereum-optimism/circleci-utils@1.0.31
+  utils: ethereum-optimism/circleci-utils@1.0.32
 
 parameters:
   c-default_docker_image:
@@ -463,6 +463,8 @@ workflows:
           directory: rust
           profile: release
           persist_to_workspace: true
+          # Release-build linking OOMs xlarge.gen2.
+          resource_class: 2xlarge.gen2
           context:
             - circleci-repo-readonly-authenticated-github-token
             - sccache-gcs-optimism
@@ -550,6 +552,8 @@ workflows:
           directory: rust
           profile: release
           persist_to_workspace: true
+          # Release-build linking OOMs xlarge.gen2.
+          resource_class: 2xlarge.gen2
           context:
             - circleci-repo-readonly-authenticated-github-token
             - sccache-gcs-optimism

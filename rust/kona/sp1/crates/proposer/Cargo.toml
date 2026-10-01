@@ -18,9 +18,11 @@ workspace = true
 kona-sp1-client-utils.workspace = true
 kona-sp1-host-utils.workspace = true
 kona-sp1-super-range-executor.workspace = true
+kona-registry.workspace = true
 
 # sp1
 sp1-sdk.workspace = true
+sp1-verifier.workspace = true
 
 # alloy
 alloy-consensus.workspace = true
@@ -28,21 +30,23 @@ alloy-eips.workspace = true
 alloy-network.workspace = true
 alloy-primitives.workspace = true
 alloy-provider = { workspace = true, features = ["reqwest"] }
+alloy-rpc-client.workspace = true
 alloy-rpc-types-eth.workspace = true
 alloy-signer-local.workspace = true
 alloy-sol-types = { workspace = true, features = ["json"] }
-alloy-transport-http.workspace = true
+alloy-transport-http = { workspace = true, features = ["reqwest", "reqwest-rustls-tls"] }
 alloy-contract.workspace = true
 
 # general
 anyhow.workspace = true
 bincode.workspace = true
 parking_lot.workspace = true
+sha2.workspace = true
 metrics.workspace = true
 serde = { workspace = true, features = ["derive", "std"] }
 futures.workspace = true
 async-trait.workspace = true
-clap = { workspace = true, features = ["derive"] }
+clap = { workspace = true, features = ["derive", "env"] }
 strum.workspace = true
 strum_macros.workspace = true
 tokio = { workspace = true, features = ["full"] }
@@ -54,7 +58,9 @@ jsonrpsee = { workspace = true, features = ["http-client"] }
 [dev-dependencies]
 kona-sp1-client-utils = { workspace = true, features = ["aggregation-test-utils"] }
 metrics-exporter-prometheus.workspace = true
+serde_json = { workspace = true, features = ["std"] }
 tempfile.workspace = true
+serial_test.workspace = true
 tokio = { workspace = true, features = ["test-util"] }
 
 [[bin]]

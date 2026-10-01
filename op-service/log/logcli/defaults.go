@@ -1,9 +1,9 @@
-package log
+package logcli
 
 import (
 	"os"
 
-	"github.com/ethereum/go-ethereum/log"
+	"github.com/ethereum-optimism/optimism/op-service/log"
 )
 
 func SetupDefaults() {

@@ -15,16 +15,16 @@ import (
 	"github.com/ethereum-optimism/optimism/op-chain-ops/cmd/check-prestate/registry"
 	"github.com/ethereum-optimism/optimism/op-chain-ops/cmd/check-prestate/types"
 	"github.com/ethereum-optimism/optimism/op-core/superchain"
-	oplog "github.com/ethereum-optimism/optimism/op-service/log"
+	"github.com/ethereum-optimism/optimism/op-service/log"
+	"github.com/ethereum-optimism/optimism/op-service/log/logcli"
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/log"
 	"golang.org/x/term"
 )
 
 func main() {
 	color := term.IsTerminal(int(os.Stderr.Fd()))
 	handler := log.NewTerminalHandler(os.Stderr, color)
-	oplog.SetGlobalLogHandler(handler)
+	logcli.SetGlobalLogHandler(handler)
 	log := log.NewLogger(handler)
 
 	// Define the flag variables
@@ -90,7 +90,10 @@ func main() {
 	if prestateType != "cannon64-kona" && prestateType != "cannon64-kona-interop" {
 		log.Crit("Unsupported prestate type; only kona prestates are supported", "type", prestateType)
 	}
-	elCommitInfo, fppCommitInfo, commit, prestateConfigs := prestate.NewKonaPrestate().FindVersions(log, prestateVersion)
+	elCommitInfo, fppCommitInfo, commit, prestateConfigs, err := prestate.NewKonaPrestate().FindVersions(log, prestateVersion)
+	if err != nil {
+		log.Crit("Failed to find prestate versions", "err", err)
+	}
 
 	prestateNames := prestateConfigs.ChainNames()
 

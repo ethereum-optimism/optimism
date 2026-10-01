@@ -120,7 +120,7 @@ interface IOPContractsManagerV2 {
     function version() external view returns (string memory);
 
     /// @notice Upgrades Superchain-wide contracts.
-    function upgradeSuperchain(SuperchainUpgradeInput memory _inp) external returns (SuperchainContracts memory);
+    function upgradeSuperchain(SuperchainUpgradeInput calldata _inp) external returns (SuperchainContracts memory);
 
     /// @notice Deploys and wires a complete OP Chain per the provided configuration.
     function deploy(FullConfig memory _cfg) external returns (ChainContracts memory);
@@ -137,6 +137,8 @@ interface IOPContractsManagerV2 {
 
     /// @notice Checks if the upgrade sequence from the last used OPCM to this OPCM is permitted.
     function isPermittedUpgradeSequence(ISystemConfig _systemConfig) external view returns (bool);
+
+    function isPermittedMigrateSequence(ISystemConfig _systemConfig) external view returns (bool);
 
     /// @notice Returns the development feature bitmap.
     function devFeatureBitmap() external view returns (bytes32);

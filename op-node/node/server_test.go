@@ -13,7 +13,6 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/core/types"
-	"github.com/ethereum/go-ethereum/log"
 
 	"github.com/ethereum-optimism/optimism/op-core/interop/depset"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
@@ -21,7 +20,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/bigs"
 	rpcclient "github.com/ethereum-optimism/optimism/op-service/client"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
-	opmetrics "github.com/ethereum-optimism/optimism/op-service/metrics"
+	"github.com/ethereum-optimism/optimism/op-service/log"
 	oprpc "github.com/ethereum-optimism/optimism/op-service/rpc"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
 	"github.com/ethereum-optimism/optimism/op-service/testutils"
@@ -105,8 +104,7 @@ func TestOutputAtBlock(t *testing.T) {
 	safeReader := &mockSafeDBReader{}
 	status := randomSyncStatus(rand.New(rand.NewSource(123)))
 	drClient.ExpectBlockRefWithStatus(0xdcdc89, ref, status, nil)
-	m := &opmetrics.NoopRPCMetrics{}
-	server := newRPCServer(rpcCfg, rollupCfg, nil, l2Client, drClient, safeReader, log, m, "0.0")
+	server := newRPCServer(rpcCfg, rollupCfg, nil, l2Client, drClient, safeReader, log, "0.0")
 	require.NoError(t, server.Start())
 	defer func() {
 		require.NoError(t, server.Stop())
@@ -141,8 +139,7 @@ func TestVersion(t *testing.T) {
 	rollupCfg := &rollup.Config{
 		// ignore other rollup config info in this test
 	}
-	m := &opmetrics.NoopRPCMetrics{}
-	server := newRPCServer(rpcCfg, rollupCfg, nil, l2Client, drClient, safeReader, log, m, "0.0")
+	server := newRPCServer(rpcCfg, rollupCfg, nil, l2Client, drClient, safeReader, log, "0.0")
 	assert.NoError(t, server.Start())
 	defer func() {
 		require.NoError(t, server.Stop())
@@ -169,13 +166,12 @@ func TestDependencySet(t *testing.T) {
 	rollupCfg := &rollup.Config{
 		// ignore other rollup config info in this test
 	}
-	m := &opmetrics.NoopRPCMetrics{}
 	depSet, err := depset.NewStaticConfigDependencySet(map[eth.ChainID]*depset.StaticConfigDependency{
 		eth.ChainIDFromUInt64(1): {},
 		eth.ChainIDFromUInt64(2): {},
 	})
 	require.NoError(t, err)
-	server := newRPCServer(rpcCfg, rollupCfg, depSet, l2Client, drClient, safeReader, log, m, "0.0")
+	server := newRPCServer(rpcCfg, rollupCfg, depSet, l2Client, drClient, safeReader, log, "0.0")
 	assert.NoError(t, server.Start())
 	defer func() {
 		require.NoError(t, server.Stop())
@@ -220,8 +216,7 @@ func TestSyncStatus(t *testing.T) {
 	rollupCfg := &rollup.Config{
 		// ignore other rollup config info in this test
 	}
-	m := &opmetrics.NoopRPCMetrics{}
-	server := newRPCServer(rpcCfg, rollupCfg, nil, l2Client, drClient, safeReader, log, m, "0.0")
+	server := newRPCServer(rpcCfg, rollupCfg, nil, l2Client, drClient, safeReader, log, "0.0")
 	assert.NoError(t, server.Start())
 	defer func() {
 		require.NoError(t, server.Stop())
@@ -263,8 +258,7 @@ func TestSafeHeadAtL1Block(t *testing.T) {
 	rollupCfg := &rollup.Config{
 		// ignore other rollup config info in this test
 	}
-	m := &opmetrics.NoopRPCMetrics{}
-	server := newRPCServer(rpcCfg, rollupCfg, nil, l2Client, drClient, safeReader, log, m, "0.0")
+	server := newRPCServer(rpcCfg, rollupCfg, nil, l2Client, drClient, safeReader, log, "0.0")
 	require.NoError(t, server.Start())
 	defer func() {
 		require.NoError(t, server.Stop())

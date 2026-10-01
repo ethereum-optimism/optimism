@@ -15,7 +15,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-node/node/safedb"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
-	gethlog "github.com/ethereum/go-ethereum/log"
+	oplog "github.com/ethereum-optimism/optimism/op-service/log"
 	"github.com/stretchr/testify/require"
 )
 
@@ -183,12 +183,12 @@ func createTestConfig() *opnodecfg.Config {
 	}
 }
 
-func createTestLogger() gethlog.Logger {
-	return gethlog.New()
+func createTestLogger() oplog.Logger {
+	return oplog.New()
 }
 
 func createMockFactory(mock *mockInnerNode) innerNodeFactory {
-	return func(ctx context.Context, cfg *opnodecfg.Config, log gethlog.Logger, appVersion string, m *opmetrics.Metrics, initOverload *rollupNode.InitializationOverrides) (innerNode, error) {
+	return func(ctx context.Context, cfg *opnodecfg.Config, log oplog.Logger, appVersion string, m *opmetrics.Metrics, initOverload *rollupNode.InitializationOverrides) (innerNode, error) {
 		return mock, nil
 	}
 }
@@ -743,7 +743,7 @@ func TestVirtualNode_SyncStatusDuringShutdown(t *testing.T) {
 
 	vn := NewVirtualNode(cfg, log, initOverload, "test")
 	vn.innerNodeFactory = func(ctx context.Context, cfg *opnodecfg.Config,
-		log gethlog.Logger, appVersion string, m *opmetrics.Metrics,
+		log oplog.Logger, appVersion string, m *opmetrics.Metrics,
 		initOverload *rollupNode.InitializationOverrides) (innerNode, error) {
 		return blocking, nil
 	}

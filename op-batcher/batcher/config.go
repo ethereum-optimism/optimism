@@ -13,7 +13,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-batcher/config"
 	"github.com/ethereum-optimism/optimism/op-batcher/flags"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
-	oplog "github.com/ethereum-optimism/optimism/op-service/log"
+	"github.com/ethereum-optimism/optimism/op-service/log/logcli"
 	opmetrics "github.com/ethereum-optimism/optimism/op-service/metrics"
 	"github.com/ethereum-optimism/optimism/op-service/oppprof"
 	oprpc "github.com/ethereum-optimism/optimism/op-service/rpc"
@@ -147,7 +147,7 @@ type CLIConfig struct {
 	ThrottleConfig ThrottleConfig
 
 	TxMgrConfig   txmgr.CLIConfig
-	LogConfig     oplog.CLIConfig
+	LogConfig     logcli.CLIConfig
 	MetricsConfig opmetrics.CLIConfig
 	PprofConfig   oppprof.CLIConfig
 	RPC           oprpc.CLIConfig
@@ -243,7 +243,7 @@ func NewConfig(ctx *cli.Context) *CLIConfig {
 		DataAvailabilityType:         flags.DataAvailabilityType(ctx.String(flags.DataAvailabilityTypeFlag.Name)),
 		ActiveSequencerCheckDuration: ctx.Duration(flags.ActiveSequencerCheckDurationFlag.Name),
 		TxMgrConfig:                  txmgr.ReadCLIConfig(ctx),
-		LogConfig:                    oplog.ReadCLIConfig(ctx),
+		LogConfig:                    logcli.ReadCLIConfig(ctx),
 		MetricsConfig:                opmetrics.ReadCLIConfig(ctx),
 		PprofConfig:                  oppprof.ReadCLIConfig(ctx),
 		RPC:                          oprpc.ReadCLIConfig(ctx),

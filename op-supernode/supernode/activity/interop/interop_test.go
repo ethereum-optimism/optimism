@@ -14,11 +14,11 @@ import (
 	optypes "github.com/ethereum-optimism/optimism/op-core/types"
 	"github.com/ethereum-optimism/optimism/op-service/bigs"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
+	oplog "github.com/ethereum-optimism/optimism/op-service/log"
 	"github.com/ethereum-optimism/optimism/op-supernode/supernode/activity"
 	cc "github.com/ethereum-optimism/optimism/op-supernode/supernode/chain_container"
 	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/common"
-	gethlog "github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/params"
 	"github.com/stretchr/testify/require"
 )
@@ -2125,8 +2125,8 @@ func (m *mockChainContainer) SetResetCallback(cb cc.ResetCallback) {}
 
 var _ cc.InteropChain = (*mockChainContainer)(nil)
 
-func testLogger() gethlog.Logger {
-	return gethlog.New()
+func testLogger() oplog.Logger {
+	return oplog.New()
 }
 
 // =============================================================================
@@ -3298,4 +3298,58 @@ func TestFreezeAllBeforeRewind(t *testing.T) {
 			require.NotEqual(t, "Resume", e.method, "no Resume calls expected when all chains are invalidated")
 		}
 	})
+}
+
+// TestInterop_ProgressAndRecord_L1InconsistencyRewindsWhenChainsNotReady checks
+// the accepted L1 inclusion even when the next frontier is not ready.
+//
+// An L1 reorg resets local-safe below the last verified timestamp. The next
+// round then asks for a timestamp beyond local-safe, so checkChainsReady
+// returns ethereum.NotFound. Before the fix, observeRound returned early on
+// that error and never checked the accepted L1 inclusion. The stale verified
+// head stayed in the database and the engine controller promoted unverified
+// local-safe blocks. See ethereum-optimism/optimism#22845.
+func TestInterop_ProgressAndRecord_L1InconsistencyRewindsWhenChainsNotReady(t *testing.T) {
+	h := newInteropTestHarness(t). // newInteropTestHarness calls t.Parallel()
+					WithActivation(100).
+					WithChain(10, func(m *mockChainContainer) {
+			m.currentL1 = eth.BlockRef{Number: 1000, Hash: common.HexToHash("0xL1")}
+			m.blockAtTimestamp = eth.L2BlockRef{Number: 500, Hash: common.HexToHash("0xL2")}
+		}).
+		Build()
+
+	mock := h.Mock(10)
+	h.interop.verifyFn = func(ts uint64, blocks map[eth.ChainID]eth.BlockID, _ map[eth.ChainID]eth.BlockID, _ *frontierVerificationView) (Result, error) {
+		return Result{Timestamp: ts, L1Inclusion: eth.BlockID{Number: 100}, L2Heads: blocks}, nil
+	}
+	h.interop.cycleVerifyFn = func(ts uint64, blocks map[eth.ChainID]eth.BlockID, _ *frontierVerificationView) (Result, error) {
+		return Result{}, nil
+	}
+
+	for i := 0; i < 2; i++ {
+		_, err := h.interop.progressAndRecord()
+		require.NoError(t, err)
+	}
+	lastTS, ok := h.interop.verifiedDB.LastTimestamp()
+	require.True(t, ok)
+	require.Equal(t, uint64(102), lastTS)
+
+	// The L1 reorg drops the accepted L1 inclusion and pulls local-safe back
+	// below the next frontier timestamp.
+	h.interop.l1Checker = inconsistentL1Checker{}
+	mock.blockAtTimestampErr = ethereum.NotFound
+
+	made, err := h.interop.progressAndRecord()
+	require.NoError(t, err)
+	require.False(t, made, "rewind does not advance the verified timestamp")
+
+	lastTS, ok = h.interop.verifiedDB.LastTimestamp()
+	require.True(t, ok)
+	require.Equal(t, uint64(101), lastTS, "the stale verified entry must be removed")
+
+	pending, err := h.interop.verifiedDB.GetPendingTransition()
+	require.NoError(t, err)
+	require.Nil(t, pending, "WAL cleared after successful rewind")
+
+	require.Empty(t, mock.rewindEngineCalls, "L1 drift rewinds accepted Supernode state only")
 }

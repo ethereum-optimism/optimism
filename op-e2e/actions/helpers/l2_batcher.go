@@ -15,7 +15,6 @@ import (
 	"github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto"
-	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/params"
 
 	altda "github.com/ethereum-optimism/optimism/op-alt-da"
@@ -27,6 +26,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
 	derive_params "github.com/ethereum-optimism/optimism/op-node/rollup/derive/params"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
+	"github.com/ethereum-optimism/optimism/op-service/log"
 	"github.com/ethereum-optimism/optimism/op-service/txmgr"
 )
 

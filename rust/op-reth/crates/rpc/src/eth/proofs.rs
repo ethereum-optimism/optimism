@@ -14,6 +14,14 @@ use reth_provider::StateProofProvider;
 use reth_rpc_api::eth::helpers::FullEthApi;
 use std::time::Instant;
 
+/// The `eth_` proof methods served from the historical proofs storage.
+///
+/// UPSTREAM-MIRROR(set): reth@rev:0fbe428 `reth_rpc_eth_api::EthApi`
+///
+/// Re-declares the proof methods that are answered from historical proofs rather than live state.
+/// A proof method added to upstream's `EthApi` produces no diff here, so diff the two method sets
+/// on each bump: every new one must either be declared here or dropped from the served surface in
+/// `reth_optimism_node::node`, so that a proofs-history node never answers it from live state.
 #[cfg_attr(not(test), rpc(server, namespace = "eth"))]
 #[cfg_attr(test, rpc(server, client, namespace = "eth"))]
 pub trait EthApiOverride {

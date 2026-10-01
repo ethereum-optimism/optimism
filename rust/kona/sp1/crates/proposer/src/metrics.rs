@@ -1,10 +1,12 @@
 //! Prometheus metrics for the proposer.
 
-use alloy_primitives::U256;
+use alloy_primitives::{Address, U256};
 use kona_sp1_host_utils::metrics::MetricsGauge;
-use metrics::{counter, describe_counter};
+use metrics::{counter, describe_counter, describe_gauge, gauge};
 use strum::{EnumMessage, IntoEnumIterator};
 use strum_macros::{Display, EnumIter};
+
+use crate::proving::{PROOF_REQUEST_KINDS, PROOF_REQUEST_STATES, ProofRequestCounts};
 
 /// All proposer metrics gauges.
 #[derive(Debug, Clone, Copy, Display, EnumIter, EnumMessage)]
@@ -21,6 +23,19 @@ pub enum ProposerGauge {
         message = "Signer balance in ETH; NaN when unavailable"
     )]
     SignerBalanceEth,
+    /// Latest (mined) nonce of the L1 transaction signer; `NaN` when it cannot be read.
+    #[strum(
+        serialize = "kona_sp1_proposer_signer_nonce",
+        message = "Latest mined nonce of the L1 signer; NaN when unavailable"
+    )]
+    SignerNonce,
+    /// Pending nonce of the L1 transaction signer. Above `signer_nonce` while transactions wait
+    /// in the mempool; `NaN` when it cannot be read.
+    #[strum(
+        serialize = "kona_sp1_proposer_signer_pending_nonce",
+        message = "Pending nonce of the L1 signer, including mempool transactions; NaN when unavailable"
+    )]
+    SignerPendingNonce,
     /// Spendable prover-network balance in PROVE; absent in mock mode.
     #[strum(
         serialize = "kona_sp1_proposer_prove_balance",
@@ -240,6 +255,8 @@ pub enum ProposerGauge {
 impl MetricsGauge for ProposerGauge {}
 
 const DEADLINE_PASSED: &str = "kona_sp1_proposer_deadline_passed_total";
+const PROOF_REQUESTS: &str = "kona_sp1_proposer_proof_requests";
+const SPN_REQUESTER: &str = "kona_sp1_proposer_spn_requester_info";
 
 /// Registers metrics after installing the recorder, without treating unread balances as zero.
 pub fn register_metrics(network: bool) {
@@ -248,6 +265,8 @@ pub fn register_metrics(network: bool) {
         let initial = match metric {
             ProposerGauge::ProveBalance if !network => continue,
             ProposerGauge::SignerBalanceEth |
+            ProposerGauge::SignerNonce |
+            ProposerGauge::SignerPendingNonce |
             ProposerGauge::ProveBalance |
             ProposerGauge::DefenseDeadlineRemainingSeconds => f64::NAN,
             _ => 0.0,
@@ -260,6 +279,27 @@ pub fn register_metrics(network: bool) {
     );
     for window in ["defense", "fast_finality"] {
         counter!(DEADLINE_PASSED, "window" => window).increment(0);
+    }
+    describe_gauge!(
+        PROOF_REQUESTS,
+        "SPN proof requests of games being proven, by request kind and state"
+    );
+    record_proof_requests(&ProofRequestCounts::new());
+}
+
+/// Publishes the SPN requester address as a label so dashboards can link to its requests.
+pub fn record_spn_requester(requester: Address) {
+    describe_gauge!(SPN_REQUESTER, "SPN requester address the proposer signs proof requests as");
+    gauge!(SPN_REQUESTER, "address" => format!("{requester:#x}")).set(1.0);
+}
+
+/// Sets every kind and state series, so a state that empties reads 0 instead of its last value.
+pub(crate) fn record_proof_requests(counts: &ProofRequestCounts) {
+    for kind in PROOF_REQUEST_KINDS {
+        for state in PROOF_REQUEST_STATES {
+            let count = counts.get(&(kind, state)).copied().unwrap_or_default();
+            gauge!(PROOF_REQUESTS, "kind" => kind, "state" => state).set(count as f64);
+        }
     }
 }
 

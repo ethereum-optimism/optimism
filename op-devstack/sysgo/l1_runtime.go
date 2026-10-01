@@ -5,6 +5,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strconv"
 	"strings"
 
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
@@ -168,6 +169,7 @@ func startSubprocessL1WithClock(t devtest.T, l1Net *L1Network, jwtPath string, l
 		"--ws", "--ws.addr", "127.0.0.1", "--ws.port", "0", "--ws.origins", "*", "--ws.api", "admin,debug,eth,net,txpool",
 		"--authrpc.addr", "127.0.0.1", "--authrpc.port", "0", "--authrpc.jwtsecret", jwtPath,
 		"--ipcdisable",
+		"--rpc.gascap", strconv.FormatUint(l1Net.genesis.GasLimit, 10),
 		"--port", "0",
 		"--nodiscover",
 		"--verbosity", "5",

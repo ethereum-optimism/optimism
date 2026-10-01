@@ -12,14 +12,30 @@ import (
 )
 
 const (
-	PermissionlessArgsLength = 124
-	PermissionedArgsLength   = 164
-	ZKArgsLength             = 140
+	PermissionlessArgsLength    = 124
+	PermissionedArgsLength      = 164
+	SuperPermissionedArgsLength = 40
+	ZKArgsLength                = 140
 )
 
 var (
 	ErrInvalidGameArgs = errors.New("invalid game args")
 )
+
+// AnchorStateRegistry reads the registry address out of any packed game args layout
+// defined in LibGameArgs.sol.
+func AnchorStateRegistry(args []byte) (common.Address, error) {
+	switch len(args) {
+	case SuperPermissionedArgsLength:
+		return common.BytesToAddress(args[0:20]), nil
+	case PermissionlessArgsLength, PermissionedArgsLength:
+		return common.BytesToAddress(args[52:72]), nil
+	case ZKArgsLength:
+		return common.BytesToAddress(args[100:120]), nil
+	default:
+		return common.Address{}, fmt.Errorf("%w: invalid length (%v)", ErrInvalidGameArgs, len(args))
+	}
+}
 
 type GameArgs struct {
 	AbsolutePrestate    common.Hash

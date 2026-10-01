@@ -107,6 +107,11 @@
   },
   {
     "inputs": [],
+    "name": "OPContractsManagerMigrator_ChainAlreadyMigrated",
+    "type": "error"
+  },
+  {
+    "inputs": [],
     "name": "OPContractsManagerMigrator_ChainIdsNotAscending",
     "type": "error"
   },
@@ -147,6 +152,11 @@
   },
   {
     "inputs": [],
+    "name": "OPContractsManagerMigrator_InvalidStartingAnchorRoot",
+    "type": "error"
+  },
+  {
+    "inputs": [],
     "name": "OPContractsManagerMigrator_InvalidStartingRespectedGameType",
     "type": "error"
   },
@@ -167,6 +177,11 @@
   },
   {
     "inputs": [],
+    "name": "OPContractsManagerMigrator_SuperchainConfigNeedsUpgrade",
+    "type": "error"
+  },
+  {
+    "inputs": [],
     "name": "OPContractsManagerMigrator_SystemPaused",
     "type": "error"
   },
@@ -178,6 +193,11 @@
   {
     "inputs": [],
     "name": "OPContractsManagerMigrator_ZeroL2ChainId",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "SemverComp_InvalidSemverParts",
     "type": "error"
   }
 ]

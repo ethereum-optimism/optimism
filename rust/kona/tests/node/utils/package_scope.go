@@ -4,11 +4,11 @@ import (
 	"context"
 	"time"
 
-	"github.com/ethereum/go-ethereum/log"
 	"go.opentelemetry.io/otel/trace"
 
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
 	"github.com/ethereum-optimism/optimism/op-devstack/sysgo"
+	"github.com/ethereum-optimism/optimism/op-service/log"
 	"github.com/ethereum-optimism/optimism/op-service/testreq"
 )
 

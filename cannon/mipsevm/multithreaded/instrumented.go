@@ -4,11 +4,11 @@ import (
 	"io"
 
 	"github.com/ethereum/go-ethereum/common/hexutil"
-	"github.com/ethereum/go-ethereum/log"
 
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm"
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm/arch"
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm/exec"
+	"github.com/ethereum-optimism/optimism/op-service/log"
 )
 
 type InstructionDetails struct {

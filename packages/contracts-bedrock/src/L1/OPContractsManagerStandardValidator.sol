@@ -46,8 +46,8 @@ import { IBigStepper } from "interfaces/dispute/IBigStepper.sol";
 /// before and after an upgrade.
 contract OPContractsManagerStandardValidator is ISemver {
     /// @notice The semantic version of the OPContractsManagerStandardValidator contract.
-    /// @custom:semver 3.7.0
-    string public constant version = "3.7.0";
+    /// @custom:semver 4.0.0
+    string public constant version = "4.0.0";
 
     /// @notice The SuperchainConfig contract.
     ISuperchainConfig public superchainConfig;
@@ -856,7 +856,6 @@ contract OPContractsManagerStandardValidator is ISemver {
     function _buildSharedConfig() private view returns (IOPContractsManagerMigrationValidator.SharedConfig memory) {
         return IOPContractsManagerMigrationValidator.SharedConfig({
             l1PAOMultisig: l1PAOMultisig,
-            challenger: challenger,
             withdrawalDelaySeconds: withdrawalDelaySeconds,
             superchainConfig: superchainConfig
         });

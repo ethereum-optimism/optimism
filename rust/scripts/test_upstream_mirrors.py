@@ -241,11 +241,12 @@ class ClassificationTests(unittest.TestCase):
     def mirror(version: str, *, crate: str = "revm-handler", kind: str = "override"):
         return mirrors.Mirror(kind, crate, version, "upstream::symbol", "src/file.rs", 10)
 
-    def classify(self, mirror, locked=None):
+    def classify(self, mirror, locked=None, requirements=None):
         mirrors.classify(
             [mirror],
             locked=locked or {"revm-handler": {"41.0.0"}},
             reth_info=self.RETH_INFO,
+            requirements=requirements or {},
         )
         return mirror
 
@@ -259,6 +260,27 @@ class ClassificationTests(unittest.TestCase):
             self.classify(mirror, {"alloy-consensus": {"1.8.3", "2.1.1"}}).status,
             "ambiguous-version",
         )
+
+    def test_duplicate_locked_versions_resolve_to_the_workspace_range(self) -> None:
+        locked = {"alloy-consensus": {"1.8.3", "2.1.1"}}
+        # `1.8` selects the 1.x line, which the 2.1.1 tag is then ahead of.
+        for requirement, expected in (("2.0.0", "current"), ("1.8", "ahead")):
+            with self.subTest(requirement=requirement):
+                mirror = self.classify(
+                    self.mirror("2.1.1", crate="alloy-consensus"),
+                    locked,
+                    {"alloy-consensus": requirement},
+                )
+                self.assertEqual(mirror.status, expected)
+
+    def test_unselective_workspace_requirements_stay_ambiguous(self) -> None:
+        locked = {"tiny": {"0.1.0", "0.2.0"}}
+        for requirement in ("0", "*", ">=0.1, <0.3", "3.0.0"):
+            with self.subTest(requirement=requirement):
+                mirror = self.classify(
+                    self.mirror("0.2.0", crate="tiny"), locked, {"tiny": requirement}
+                )
+                self.assertEqual(mirror.status, "ambiguous-version")
 
     def test_semver_statuses(self) -> None:
         for version, expected in (

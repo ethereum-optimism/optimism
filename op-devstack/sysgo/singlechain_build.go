@@ -14,7 +14,6 @@ import (
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/ethclient"
-	"github.com/ethereum/go-ethereum/log"
 
 	"github.com/ethereum-optimism/optimism/op-chain-ops/devkeys"
 	"github.com/ethereum-optimism/optimism/op-core/interop/depset"
@@ -30,7 +29,8 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/dial"
 	"github.com/ethereum-optimism/optimism/op-service/endpoint"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
-	oplog "github.com/ethereum-optimism/optimism/op-service/log"
+	"github.com/ethereum-optimism/optimism/op-service/log"
+	"github.com/ethereum-optimism/optimism/op-service/log/logcli"
 	opmetrics "github.com/ethereum-optimism/optimism/op-service/metrics"
 	"github.com/ethereum-optimism/optimism/op-service/oppprof"
 	"github.com/ethereum-optimism/optimism/op-service/retry"
@@ -60,45 +60,6 @@ type testSequencer struct {
 	jwtSecret  [32]byte
 	controlRPC map[eth.ChainID]string
 	service    *sequencer.Service
-}
-
-func buildSingleChainWorld(t devtest.T, keys devkeys.Keys, localContractArtifactsPath string, deployerOpts ...DeployerOption) (*L1Network, *L2Network) {
-	wb := &worldBuilder{
-		p:       t,
-		logger:  t.Logger(),
-		require: t.Require(),
-		keys:    keys,
-		builder: intentbuilder.New(),
-	}
-
-	applyConfigLocalContractSources(t, keys, wb.builder, localContractArtifactsPath)
-	applyConfigCommons(t, keys, DefaultL1ID, wb.builder)
-	applyConfigPrefundedL2(t, keys, DefaultL1ID, DefaultL2AID, wb.builder)
-	applyConfigDeployerOptions(t, keys, wb.builder, deployerOpts)
-	wb.Build()
-
-	t.Require().Len(wb.l2Chains, 1, "expected exactly one L2 chain in single-chain world")
-	l2ID := wb.l2Chains[0]
-	l1ID := eth.ChainIDFromUInt64(wb.output.AppliedIntent.L1ChainID)
-
-	l1Net := &L1Network{
-		name:      "l1",
-		chainID:   l1ID,
-		genesis:   wb.outL1Genesis,
-		blockTime: 6,
-	}
-	l2Net := &L2Network{
-		name:       "l2a",
-		chainID:    l2ID,
-		l1ChainID:  l1ID,
-		genesis:    wb.outL2Genesis[l2ID],
-		rollupCfg:  wb.outL2RollupCfg[l2ID],
-		deployment: wb.outL2Deployment[l2ID],
-		opcmImpl:   wb.output.ImplementationsDeployment.OpcmV2Impl,
-		mipsImpl:   wb.output.ImplementationsDeployment.MipsImpl,
-		keys:       keys,
-	}
-	return l1Net, l2Net
 }
 
 func applyConfigLocalContractSources(t devtest.T, _ devkeys.Keys, builder intentbuilder.Builder, artifactsPath string) {
@@ -605,9 +566,9 @@ func startTestSequencer(
 		PprofConfig: oppprof.CLIConfig{
 			ListenEnabled: false,
 		},
-		LogConfig: oplog.CLIConfig{
+		LogConfig: logcli.CLIConfig{
 			Level:  log.LevelDebug,
-			Format: oplog.FormatText,
+			Format: log.FormatText,
 		},
 		RPC: oprpc.CLIConfig{
 			ListenAddr:  "127.0.0.1",

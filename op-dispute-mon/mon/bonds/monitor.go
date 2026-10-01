@@ -6,8 +6,8 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-dispute-mon/metrics"
 	"github.com/ethereum-optimism/optimism/op-dispute-mon/mon/types"
+	"github.com/ethereum-optimism/optimism/op-service/log"
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/log"
 )
 
 type RClock interface {

@@ -403,15 +403,21 @@ func TestEngineController_SafeL2Head(t *testing.T) {
 			expectResult:   &eth.L2BlockRef{Hash: common.Hash{0xdd}, Number: 300},
 		},
 		{
-			name: "falls back to local safe when SuperAuthority block ahead of local safe",
+			// An L1 reorg can drop local-safe below the verified head. The
+			// current local-safe blocks are then unverified, so the controller
+			// floors at finalized instead of promoting them
+			// (ethereum-optimism/optimism#22845).
+			name: "floors at finalized when SuperAuthority block ahead of local safe",
 			setupSuperAuth: func() *mockSuperAuthority {
 				return &mockSuperAuthority{
 					fullyVerifiedL2Head:       eth.BlockID{Hash: common.Hash{0xff}, Number: 200},
 					fullyVerifiedL2HeadSource: rollup.VerifierHeadVerified,
+					finalizedL2HeadSource:     rollup.VerifierHeadPreActivation,
 				}
 			},
 			setupLocalSafe: &eth.L2BlockRef{Hash: common.Hash{0xaa}, Number: 100},
-			expectResult:   &eth.L2BlockRef{Hash: common.Hash{0xaa}, Number: 100},
+			setupFinalized: &eth.L2BlockRef{Hash: common.Hash{0xdd}, Number: 40},
+			expectResult:   &eth.L2BlockRef{Hash: common.Hash{0xdd}, Number: 40},
 		},
 		{
 			name: "floors at finalized when SuperAuthority block unknown to engine (reorg signal)",

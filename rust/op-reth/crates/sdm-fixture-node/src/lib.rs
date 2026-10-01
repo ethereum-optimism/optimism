@@ -4,7 +4,10 @@
 //! payload service's EVM configuration and assigns one gas of refund to every committed normal
 //! transaction. It is deliberately not an implementation of a production SDM policy.
 
-use std::{borrow::Cow, sync::Arc};
+use std::{
+    borrow::Cow,
+    sync::{Arc, OnceLock},
+};
 
 use alloy_op_evm::{
     OpEvmFactory, OpTx,
@@ -61,13 +64,18 @@ use revm::{
 };
 use tracing::{info, warn};
 
+const EXCESSIVE_REFUND_TARGET_ENV: &str = "OP_RETH_SDM_FIXTURE_EXCESSIVE_REFUND_TARGET";
+static EXCESSIVE_REFUND_TARGET: OnceLock<Option<Address>> = OnceLock::new();
+
 /// A deterministic fixture policy that refunds one gas per committed normal transaction.
 ///
-/// Deposits and the synthetic post-exec transaction receive no refund. The policy is stateless,
-/// observes no opcode or account activity, and exposes no configurable refund amount.
+/// Deposits and the synthetic post-exec transaction receive no refund. For acceptance-test fault
+/// injection only, `EXCESSIVE_REFUND_TARGET_ENV` selects a call target whose transaction receives
+/// `u64::MAX`; this exercises producer containment of a faulty policy.
 #[derive(Debug, Clone, Copy, Default)]
 pub struct FixedRefundPolicy {
     current_kind: Option<PostExecTxKind>,
+    excessive_refund: bool,
 }
 
 impl PostExecRefundInspector for FixedRefundPolicy {
@@ -75,12 +83,17 @@ impl PostExecRefundInspector for FixedRefundPolicy {
 
     fn begin_tx(&mut self, ctx: PostExecTxContext) {
         self.current_kind = Some(ctx.kind);
+        self.excessive_refund = false;
     }
 
     fn note_account_touch(&mut self, _address: Address) {}
 
     fn finish_tx(&mut self) -> PostExecExecutedTx {
-        let refund_total = u64::from(self.current_kind.take() == Some(PostExecTxKind::Normal));
+        let refund_total = if self.current_kind.take() == Some(PostExecTxKind::Normal) {
+            if self.excessive_refund { u64::MAX } else { 1 }
+        } else {
+            0
+        };
         PostExecExecutedTx { refund_total, refund_events: Vec::new() }
     }
 
@@ -90,10 +103,18 @@ impl PostExecRefundInspector for FixedRefundPolicy {
     {
     }
 
-    fn inspect_call<CTX>(&mut self, _context: &mut CTX, _inputs: &mut CallInputs)
+    fn inspect_call<CTX>(&mut self, _context: &mut CTX, inputs: &mut CallInputs)
     where
         CTX: ContextTr<Journal: JournalExt>,
     {
+        if EXCESSIVE_REFUND_TARGET
+            .get()
+            .copied()
+            .flatten()
+            .is_some_and(|target| target == inputs.bytecode_address)
+        {
+            self.excessive_refund = true;
+        }
     }
 
     fn inspect_call_end<CTX>(
@@ -349,6 +370,16 @@ where
     handle.node_exit_future.await
 }
 
+fn configure_excessive_refund_target() -> eyre::Result<Option<Address>> {
+    match std::env::var(EXCESSIVE_REFUND_TARGET_ENV) {
+        Ok(raw) => raw.parse::<Address>().map(Some).map_err(|err| {
+            eyre::eyre!("invalid {EXCESSIVE_REFUND_TARGET_ENV} value {raw:?}: {err}")
+        }),
+        Err(std::env::VarError::NotPresent) => Ok(None),
+        Err(err) => Err(eyre::eyre!("failed to read {EXCESSIVE_REFUND_TARGET_ENV}: {err}")),
+    }
+}
+
 /// Launches the test-only SDM fixture binary.
 pub fn run() -> ! {
     const CLIENT_NAME: &str = "op-reth-sdm-fixture";
@@ -376,10 +407,22 @@ pub fn run() -> ! {
         eprintln!("Error: build info is already embedded. This is a bug.")
     }
 
+    let excessive_refund_target = match configure_excessive_refund_target() {
+        Ok(target) => target,
+        Err(err) => {
+            eprintln!("Error: {err:?}");
+            std::process::exit(1);
+        }
+    };
+    EXCESSIVE_REFUND_TARGET
+        .set(excessive_refund_target)
+        .expect("fixture refund target configured only once");
+
     let result = Cli::<OpChainSpecParser, RollupArgs>::parse().run(async move |builder, args| {
         warn!(
             target: "op-reth-sdm-fixture::cli",
-            "TEST-ONLY FIXTURE POLICY: fixed one-gas refunds; never use this binary in production"
+            ?excessive_refund_target,
+            "TEST-ONLY FIXTURE POLICY: fixed refunds with optional fault injection; never use this binary in production"
         );
         info!(target: "op-reth-sdm-fixture::cli", "Launching SDM fixture node");
         launch_fixture_node(builder, args).await
@@ -410,11 +453,6 @@ mod tests {
             policy.note_account_touch(Address::ZERO);
             assert_eq!(policy.finish_tx().refund_total, expected);
         }
-    }
-
-    #[test]
-    fn fixture_policy_has_no_refund_configuration() {
-        assert_eq!(std::mem::size_of::<FixedRefundPolicy>(), 1);
     }
 
     #[test]

@@ -14,13 +14,13 @@ import (
 	e2ecfg "github.com/ethereum-optimism/optimism/op-e2e/config"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
+	"github.com/ethereum-optimism/optimism/op-service/log"
 	"github.com/ethereum-optimism/optimism/op-service/sources"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto"
-	"github.com/ethereum/go-ethereum/log"
 	"github.com/stretchr/testify/require"
 )
 
@@ -49,7 +49,16 @@ func NewL2FaultProofEnv[c any](t helpers.Testing, testCfg *TestCfg[c], tp *e2eut
 		if testCfg.Hardfork == nil {
 			t.Fatalf("HF not set")
 		}
-		dp.DeployConfig.ActivateForkAtGenesis(forks.Name(testCfg.Hardfork.Name))
+		hardfork := forks.Name(testCfg.Hardfork.Name)
+		if hardfork == forks.Bedrock {
+			// Bedrock is implicit and has no activation offset. Disable only the
+			// schedulable mainline L2 forks, preserving independent fork settings.
+			for _, fork := range forks.From(forks.Regolith) {
+				dp.DeployConfig.SetForkTimeOffset(fork, nil)
+			}
+		} else {
+			dp.DeployConfig.ActivateForkAtGenesis(hardfork)
+		}
 
 		for _, override := range deployConfigOverrides {
 			override(dp.DeployConfig)

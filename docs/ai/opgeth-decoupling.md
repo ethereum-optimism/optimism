@@ -428,35 +428,46 @@ hooks to geth's infrastructure packages, and op-service foundations grew to depe
 sit under every service, so they break the whole tree at cutover, and two of them are *features*
 rather than symbols. (Found by the 2026-07 upstream-build spike; §19 keeps finding such uses.)
 
-**This section is now the gating item for the whole tree, and for downstream repos too**
-(see §20). With the §1/§3/§4/§5/§11 swaps landed and the cutover scaffolding removed,
-`op-core/types`, `op-core/params`, `op-core/predeploys`, `op-service/eth` and `op-service/signer`
-all compile against upstream go-ethereum today, and `op-service/log` needs only the logfilter
-feature re-homed. What still fails to compile is `op-service/metrics`, `op-service/client` and
-`op-service/rpc` on the RPC recording hooks below, plus `op-service/testlog` on the log context
-methods.
+**§15's seams are owned; what keeps most of op-service on op-geth is the `op-core/types`
+deposit edge** (see §20). `op-core/params`, `op-core/predeploys` and
+`op-service/{log,testlog,jsonrpc,client}` build against upstream go-ethereum today.
+`op-core/types` still fails where `FromGethReceipt` and the other receipt wrappers copy op-geth's
+deposit fields (`Receipt.DepositNonce`, `DepositReceiptVersion`). Those assignments are removed at
+the final cutover (#20266). Until then `op-core/types` and every package importing it, including
+`op-service/{eth,signer,metrics,rpc}`, build only against op-geth.
 
 **Log context extensions** — fork adds `Logger.SetContext`, `WriteCtx`, `LogAttrs`, and the
 `Trace/…/ErrorContext` methods; `op-service/log`'s logfilter feature and `op-service/testlog`
-build on them. Strategy: **own the log layer** — depending on an internal log API is better
-layering than importing `geth/log` everywhere anyway.
+build on them. **Done: the monorepo owns the log layer.**
 
-- *Phase 1 (pre-cutover, mechanical, per-component):* `oplog.Logger` becomes a **type alias** of
-  geth `log.Logger`, plus re-exports of the package-level API in use (`Root`, `SetDefault`,
-  `NewLogger`, level parsing). Sweep every `go-ethereum/log` import to `op-service/log` — a
-  no-op rename while the alias holds.
-- *Phase 2 (at cutover):* flip the alias to an owned interface (upstream's method set + the
-  context methods) with an slog-backed implementation. Implement over `slog` — don't copy
-  upstream's LGPL log package; the fork's context-extension logic is OP-authored and ports. The
-  owned interface is a superset of upstream's, so our loggers still satisfy `log.Logger` where we
-  hand one into geth code (e.g. the in-process L1 geth in op-e2e).
+- `op-service/log` is the monorepo's logging API. It owns the `Logger` interface, its
+  slog-backed implementation (`NewLogger`), the global logger (`Root`, `SetDefault`, `New`) and
+  the package-level `Trace`…`Crit`. The interface is upstream's method set without `Write`, with
+  `With`/`New` returning `Logger`, plus `WithContext`, `LogAttrs` and the `…Context` methods. A
+  `Logger` is immutable: `WithContext` derives a logger whose records default to that context,
+  in place of the fork's mutating `SetContext`. The implementation is OP-authored over `slog`,
+  not a copy of upstream's LGPL log package, and attributes every record to the direct caller
+  of the logging method.
+- The handlers (`TerminalHandler`, JSON/logfmt, `GlogHandler`, `DiscardHandler`) and level
+  helpers stay re-exported from go-ethereum. `op-service/log/geth.go` is the only file that
+  imports `go-ethereum/log`; the `geth-log` depguard rule in `.golangci.yaml` enforces that.
+- Go has no covariant return types, so a `Logger` is not a geth `log.Logger`. `ToGeth` converts
+  one where a geth API takes a logger (today only discv5's `discover.Config.Log` in op-node);
+  the result shares the handler, attributes and default context, and implements geth's `Write`
+  so that geth's package-level functions attribute records to geth's call site. `SetDefault`
+  also installs the logger as geth's global logger, which is how geth code running in-process
+  (e.g. the L1 geth in op-e2e) reaches our handlers.
 
 **RPC recording hooks** — fork adds `rpc.Recorder`/`RecordedMsg`/`RecordDone`/`WithRecorder`
-inside the geth RPC client *and server*; `op-service/metrics` (RPC metrics), `op-service/rpc`,
-and `op-service/client` build on them. Client-side recording moves into our own client wrappers
-(a seam we own); server-side needs a new interception point (HTTP middleware or handler
-wrapping) — small design task, metric names/labels must be preserved. `rpc.JsonError`
-(op-test-sequencer) is the same family, trivially replaced by a local error type.
+and `Server.SetRecorder` inside the geth RPC client *and server*, and exports `rpc.JsonError`. Strategy: **own the seam**.
+
+- *Done:* `op-service/jsonrpc` (a leaf package) owns `Recorder`, `Message`, `Response`,
+  `RecordDone` and the JSON-RPC `Error`, which replaces `rpc.JsonError`. `RPCMetricer` returns
+  a `jsonrpc.Recorder`, and `op-service/client` records calls in its own wrapper around the geth
+  client; subscriptions are not recorded. There is no server-side RPC recording: nothing
+  consumed it. Code that embeds `op-service/rpc` can count and time HTTP requests with its
+  `WithHTTPRecorder` option. A `forbidigo` rule in `.golangci.yaml` rejects the fork-only symbols. The
+  `<ns>_rpc_client_*` metric names and labels are pinned by `TestRPCMetricsDescriptors`.
 
 **One-off fork symbols** in the same spirit ride the §2-style call-site swaps (#20263 family).
 `Transaction.SetBlobTxSidecar` and `types.LogForStorage` are **done** (no occurrences remain),
@@ -570,12 +581,14 @@ latest" as one change.
 
 Two qualifications, because that standard is not always satisfiable today.
 
-**For a module blocked only by §15, the two halves are currently mutually exclusive.** Its build
-closure reaches `op-service/log`, which calls the fork's `Logger.SetContext`, so a current
-monorepo pin *requires* op-geth. Such a module can run upstream go-ethereum on an older monorepo
-pin, or the latest monorepo pin on op-geth — not both, until §15 lands. Prefer upstream geth and
-accept the older monorepo pin: the geth half is the one carrying security relevance, and the
-monorepo pin catches up in one bump afterwards. Revisit these when §15 lands.
+**For a module blocked only by the §15 RPC hooks, the two halves are currently mutually
+exclusive.** Its build closure reaches `op-service/{rpc,metrics,client}`, which use the fork's RPC
+recorder, so a current monorepo pin *requires* op-geth. Such a module can run upstream
+go-ethereum on an older monorepo pin, or the latest monorepo pin on op-geth — not both, until the
+RPC hooks are re-homed. Prefer upstream geth and accept the older monorepo pin: the geth half is
+the one carrying security relevance, and the monorepo pin catches up in one bump afterwards.
+Revisit these when §15 lands. The log layer is not a blocker: `op-service/log` and
+`op-service/testlog` compile against upstream go-ethereum.
 
 **An edge into `op-core/superchain` caps a consumer's monorepo version.** Any package reaching
 the bundle cannot be built by a downstream module at all (#22678), so a consumer that reaches it
@@ -599,10 +612,12 @@ Compiling every Go module in those repos against upstream go-ethereum with the r
   several private service modules.
 - **Decoupled now** — the replace drops with no other change. A small number of private service
   modules, mostly ones that only ever used geth's `log` package.
-- **Blocked on §15** — everything else, which is most of them. Almost every service imports
-  `op-service/{rpc,metrics,client}` or `op-service/testlog`, so the RPC recorder hooks and log
-  context methods gate the whole fleet: `infra/{op-signer,op-conductor-mon,op-ufm,
-  peer-mgmt-service}`, `monitorism/op-monitorism`, and most private service modules.
+- **Waiting on the final cutover** — everything else, which is most of them. Almost every
+  service imports `op-service/{rpc,metrics}` or another importer of `op-core/types`, which
+  builds against upstream only once the deposit edge goes at the final cutover (#20266):
+  `infra/{op-signer,op-conductor-mon,op-ufm,peer-mgmt-service}`, `monitorism/op-monitorism`, and
+  most private service modules. A module that needs only `op-service/{log,testlog,jsonrpc,client}`
+  is unblocked on a monorepo pin that includes §15.
 
 One case is worth generalising because it is a trap rather than a blocker. A module pinned to a
 years-old op-geth pseudo-version compiled fine with the replace dropped, and dependency scanning
@@ -616,10 +631,10 @@ Some repos have coupling of their own on top of §15, and these need decisions r
 waiting:
 
 - **`infra/op-txproxy`** uses op-geth-only `rpc.JsonError` and
-  `params.TransactionConditional*ErrCode` directly — the transaction-conditional feature. Two
-  ways out: re-home the symbols in the monorepo (`op-service/rpc` and `op-core/params` or
-  similar) if other consumers are likely, or copy them into `infra` if op-txproxy is the only
-  user. Worth deciding before §15 lands, since the `rpc.JsonError` half rides the same work.
+  `params.TransactionConditional*ErrCode` directly — the transaction-conditional feature.
+  Replace `rpc.JsonError` with `op-service/jsonrpc.Error`. The error codes need a decision: re-home
+  them in the monorepo (`op-core/params` or similar) if other consumers are likely, or copy them
+  into `infra` if op-txproxy is the only user.
 - **`infra/proxyd`** imports `core/types/interoptypes`, which has no upstream equivalent. It
   should move to `op-core` — `op-core/interop/messages` already carries the access-list
   encoding — rather than inlining a local copy of `TxToInteropAccessList`.
@@ -665,13 +680,13 @@ monorepo has to fix on their behalf.
 | Genesis tooling (§14) | upstream geth as library + `opparams` | open (#21281) |
 | op-simulate / op-run-block (§14) | delete | **done** (#21282) |
 | op-sync-tester PayloadID hash | OP-aware `Id()` reimplementation | open (#21525) |
-| Log context extensions (§15) | owned `op-service/log` layer (alias sweep → owned interface) | open — **gating**, blocks `op-service/testlog` |
-| RPC recorder hooks + `JsonError` (§15) | client wrappers + server-side interception | open — **gating**, blocks `op-service/{metrics,client,rpc}` |
+| Log context extensions (§15) | owned `op-service/log` layer: owned `Logger` + slog implementation, `ToGeth` at geth boundaries | **done** |
+| RPC recorder hooks + `JsonError` (§15) | owned `op-service/jsonrpc` seam: client wrapper; server-side recording removed | **done** |
 | One-off fork symbols (§15) | per-symbol swaps, ride #20263 family | `SetBlobTxSidecar`/`LogForStorage` **done**; rest are test-only, ride §13 |
 | `op-chain-ops/script` + op-deployer (§16) | **Rust script engine** (foundry crates) | open |
 | In-process op-geth L2 EL in system tests + sysgo (§17) | op-reth-only; folds #21451 | open |
 | `cmd/check-*` (§18) | delete pre-Holocene; swap survivors to op-core | open |
 | `op-wheel/cheat` (§18) | delete (`engine` stays) | **done** (#21747) |
 | CI ratchet (§19) | scheduled upstream-build job + tightening baseline | open |
-| Downstream repos outside the monorepo (§20) | drop the `replace` **and** bump to latest geth + monorepo | a few modules unblocked; most blocked on §15 |
+| Downstream repos outside the monorepo (§20) | drop the `replace` **and** bump to latest geth + monorepo | a few modules unblocked; most wait for the final cutover (the `op-core/types` deposit edge) |
 | Final cutover: flip replace, shed `GethChainConfig` OP fields, delete differential tests + §2 scaffolding | go.mod | open (#20266) |

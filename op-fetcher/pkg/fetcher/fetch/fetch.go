@@ -11,9 +11,9 @@ import (
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/broadcaster"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/env"
 	"github.com/ethereum-optimism/optimism/op-fetcher/pkg/fetcher/fetch/script"
-	oplog "github.com/ethereum-optimism/optimism/op-service/log"
+	"github.com/ethereum-optimism/optimism/op-service/log"
+	"github.com/ethereum-optimism/optimism/op-service/log/logcli"
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/rpc"
 	"github.com/urfave/cli/v2"
 )
@@ -28,8 +28,8 @@ func FetchChainInfoCLI() func(ctx *cli.Context) error {
 		l1StandardBridge := common.HexToAddress(cliCtx.String(L1StandardBridgeProxyFlag.Name))
 		l1RPCURL := cliCtx.String(L1RPCURLFlag.Name)
 
-		logCfg := oplog.ReadCLIConfig(cliCtx)
-		lgr := oplog.NewLogger(oplog.AppOut(cliCtx), logCfg)
+		logCfg := logcli.ReadCLIConfig(cliCtx)
+		lgr := logcli.NewLogger(logcli.AppOut(cliCtx), logCfg)
 
 		fetcher, err := NewFetcher(lgr, l1RPCURL, systemConfigProxy, l1StandardBridge)
 		if err != nil {

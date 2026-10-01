@@ -53,14 +53,14 @@ on linux/amd64 with `just build-elfs`; it builds the `super-range` leaf first, g
 and then builds `super-aggregation` with that vkey embedded through `kona-sp1-range-vkeys`. Use
 `just build-elfs-native` for local iteration and the fast per-PR compile check; CI persists the
 native manifest with the generated ELFs. Native ELF hashes may differ across build environments
-because paths and other environment details are embedded. A Docker-based, uncached tag/release
-reproducibility CI check is intentionally left to a future follow-up.
+because paths and other environment details are embedded. The daily reproducibility job
+rebuilds each `kona-sp1` registry version from `kona-sp1-program/v<version>` using that tag's
+Docker `just build-elfs` recipe and compares only its `super-aggregation` vkey to the registry.
 
 Host-toolchain workspace builds need neither ELFs nor `vkeys.toml`. Host binaries load guest
 artifacts at runtime from `KONA_SP1_ELF_DIR`; a missing or empty artifact fails as an
-infrastructure error. Release automation will eventually pin per-version vkeys from the generated
-manifest into `superchain-registry/validation/standard/standard-prestates.toml` and verify
-reproducible builds.
+infrastructure error. `kona-sp1-publish-prestates{,-on-tag}` publishes develop and tag ELFs
+(see [Releases](#releases)).
 
 #### Build provenance
 
@@ -100,6 +100,57 @@ KONA_CUSTOM_CONFIGS_DIR=/path/to/custom/configs just build-elfs
 The directory must contain `chainList.json`, `configs.json`, and `depsets.json`.
 Those files are compiled into the kona crates used by the guest programs, so
 custom configs produce different ELFs and verification-key hashes.
+
+## Releases
+
+The two guest programs (`super-range` and `super-aggregation`) are released as ELFs under the
+`kona-sp1-program/vX.Y.Z` monorepo tag family, with `kona-sp1-program/vX.Y.Z-rc.N` for release
+candidates. The prefix mirrors `kona-client/v*`. It publishes ELFs and builds no Docker image: the
+guests are RISC-V zkVM programs with no native entrypoint to containerize, so the apko image
+workflow, which does fire on `*/v*` tags, builds nothing for it. The native host binaries that run
+the guests ship separately; `kona-sp1-proposer` has its own image and tag family. It is to
+`kona-sp1-program` what `kona-host` is to `kona-client`, and must be compatible with the
+`kona-sp1-program` version it runs against.
+
+- **RC to final**: a final release tags the same commit as its last RC, so the vkeys are identical
+  across the RC and the final release.
+- **Tandem with `kona-sp1-proposer`**: release `kona-sp1-program` and `kona-sp1-proposer`
+  together whenever possible. The proposer embeds kona-host, which collects the witness these
+  programs execute. Tag both on the same commit; a proposer-only release with no program change is
+  fine.
+- **Release paths**: like `kona-client`, a release covers the whole `rust/kona/` tree.
+- **Every new commit rotates the vkeys**: both guests embed the commit they were built from (see
+  [Build provenance](#build-provenance)), so a release tagged on a different commit from the
+  previous one always has new vkeys, even if no guest code changed, and every consumer must repin.
+  Only a final release, which re-tags its last RC's commit, keeps that RC's vkeys.
+
+CircleCI publishes the standard ELFs, built with the Docker recipe `just build-elfs` and no custom
+configs, to `gs://oplabs-network-data/proofs/kona/sp1/`, served publicly under
+<https://storage.googleapis.com/oplabs-network-data/proofs/kona/sp1/>. The publish job refuses to
+upload unless `elf/vkeys.toml` records exactly the pipeline commit as `git_sha`, with no `-dirty`
+or `-custom` suffix, and both vkeys are nonzero.
+
+| Trigger | Workflow | Objects |
+|---|---|---|
+| `kona-sp1-program/v*` tag | `kona-sp1-publish-prestates-on-tag` | `<vkey>.range.bin.gz`, `<vkey>.agg.bin.gz` |
+| Push to `develop` | `kona-sp1-publish-prestates` | `develop.range.bin.gz`, `develop.agg.bin.gz`, `develop.bin.gz.txt` |
+
+- **Tag objects** are content-addressed by the lowercase `0x`-prefixed super-aggregation vkey.
+  That is the layout `KONA_SP1_PROPOSER_PRESTATES_URL` resolves through `absolutePrestate()`, and
+  the vkey is printed in the workflow log. Keep them published for as long as games created under
+  that vkey can be live; see the operational requirement under
+  [Ownership](#ownership-which-games-it-defends).
+- **Develop objects** are branch-named, overwritten on every push, and served with
+  `Cache-Control: no-cache`. `develop.bin.gz.txt` uses the same format as kona-client's pointer
+  files: `Commit=<sha>` and `Prestate: <super-aggregation vkey>`. The zkvm canary consumes
+  `KONA_ZKVM_CANARY_PRESTATES_URL=https://storage.googleapis.com/oplabs-network-data/proofs/kona/sp1/develop.range.bin.gz`.
+- **Metadata**: every ELF object carries `x-goog-meta-prestate-type: konaSP1` and
+  `x-goog-meta-kona-sp1-version`, set to the tag or, on develop, the commit. `chain-ids` is left
+  out: a standard build covers every chain in the embedded registry config, not one devnet's
+  chain set.
+
+Devnet ELFs built with custom configs (`git_sha` ends in `-custom`) never share vkeys with the
+published ones.
 
 ## Acceptance coverage
 
@@ -208,6 +259,13 @@ proposer loses the ability to defend, resolve, and claim those games.
   prestate and remove its games from the owned set). The registered prestate's
   keys are verified BEFORE any game is created on it, so the proposer never
   bonds a game it has not proven it can defend.
+  The proposer also reads the verifier behind each `SP1PlonkAdapter` it is about to rely on
+  (`sp1Verifier().VERIFIER_HASH()`) and compares it with `sha256(sp1_verifier::PLONK_VK_BYTES)`,
+  the selector the linked sp1-sdk puts on every proof. The registered adapter is checked
+  every creation cycle, so a mismatched registration pauses creation; each game's own
+  immutable verifier is checked before a proof is requested, so a game on another circuit is
+  given up without proving spend. The ERROR log names both hashes and the SDK circuit; the fix
+  is a verifier re-pin or an SDK change. Defense of games on a compatible verifier continues.
 - `KONA_SP1_PROPOSER_PROOF_PROVIDER=mock`: dev-only. Runs the full pipeline natively (witness
   collection computes the real range/consolidation outputs and the aggregation
   inputs are validated), then submits placeholder proof bytes. Only a deployment
@@ -272,11 +330,14 @@ Names below use the `kona_sp1_proposer_` prefix.
 |---|---|---|
 | `up` | Gauge | `1` after the process starts. This does not imply chain-dependent startup validation has completed. Use Prometheus scrape availability to detect process loss. |
 | `signer_balance_eth` | Gauge | L1 transaction signer's balance in ETH. |
+| `signer_nonce` / `signer_pending_nonce` | Gauge | L1 signer's latest mined and pending nonces. Pending stays above latest while proposer transactions wait in the mempool; a gap that does not close means a stuck transaction. |
 | `prove_balance` | Gauge | Configured SP1 network account's spendable balance in PROVE, not the signer's ERC-20 wallet balance. Absent in mock mode. |
 | `deadline_passed_total` | Counter | Missed game windows observed by this process, with `window="defense"` or `window="fast_finality"`. Defense expiry and missed fast-finality acceleration have different consequences. |
 | `defense_deadline_remaining_seconds` | Gauge | Minimum observed defense deadline minus L1 block time, including queued and active games. Zero is the deadline boundary; negative values indicate expiry. |
+| `proof_requests` | Gauge | SPN requests of games still being proven, by `kind` (`range`, `consolidation`, `aggregation`) and `state` (`submitting`, `submitted`, `fulfilled`, `terminal`). A game's requests drop out once its proof is submitted or its progress is discarded. `terminal` requests wait for a retry signal. |
+| `spn_requester_info` | Gauge | `1`, with the SPN requester address in the `address` label. Absent in mock mode. |
 
-Balances refresh every 15 seconds. Failed balance reads return `NaN`
+Balances and nonces refresh every 15 seconds. Failed reads return `NaN`
 without blocking other metrics. Deadline metrics update during game sync
 using the confirmed L1 timestamp.
 
@@ -303,13 +364,22 @@ including the L1 transaction path. Use the task-stats log to investigate stuck w
 
 All proposer-owned variables use the `KONA_SP1_PROPOSER_` prefix.
 
+For a standard network, set `--network <name>` or `KONA_SP1_PROPOSER_NETWORK`
+to a predefined network name recognized by OP Stack services, such as `op-mainnet` or
+`op-sepolia`. The command-line
+value overrides the environment value. Custom deployments can set
+`KONA_SP1_PROPOSER_FACTORY_ADDRESS`; an explicit address overrides network lookup. Startup fails
+when neither source is set, the network name is unknown, or the selected registry chain has no
+`DisputeGameFactory` address.
+
 Required core configuration:
 
 | Variable | Purpose |
 |---|---|
-| `KONA_SP1_PROPOSER_L1_RPC` | L1 execution RPC |
+| `KONA_SP1_PROPOSER_L1_RPC` | L1 execution RPC; must support standard JSON-RPC batch requests (current proposer game-state batches contain at most 4 `eth_call` entries) |
 | `KONA_SP1_PROPOSER_SUPERROOT_RPCS` | op-supernode or single-chain op-node RPCs serving `superroot_atTimestamp`. Multiple comma-separated RPCs can be provided for redundancy |
-| `KONA_SP1_PROPOSER_FACTORY_ADDRESS` | `DisputeGameFactory` address |
+| `KONA_SP1_PROPOSER_NETWORK` | Predefined network name recognized by OP Stack services, such as `op-mainnet`; alternative to `KONA_SP1_PROPOSER_FACTORY_ADDRESS` |
+| `KONA_SP1_PROPOSER_FACTORY_ADDRESS` | Explicit `DisputeGameFactory` address; required when no network is selected and overrides network lookup |
 | `KONA_SP1_PROPOSER_PRESTATES_URL` | prestate artifact directory (`<vkey>.agg.bin.gz` + `<vkey>.range.bin.gz`) |
 | `KONA_SP1_PROPOSER_PROOF_PROVIDER` | `network` or `mock`; no default |
 | `KONA_SP1_PROPOSER_L1_BEACON_RPC` | L1 beacon API (blob sidecars for derivation witnesses) |
@@ -327,6 +397,7 @@ Optional core and operational configuration:
 | `KONA_SP1_PROPOSER_FETCH_INTERVAL` | loop interval in seconds (default `30`) |
 | `KONA_SP1_PROPOSER_METRICS_PORT` | `0` disables metrics; `auto` selects a free port (default `0`) |
 | `KONA_SP1_PROPOSER_SYNC_L1_CONFIRMATIONS` | L1 confirmation lag for pinned reads (default `0`) |
+| `KONA_SP1_PROPOSER_MAX_GAME_DEADLINE_LAG_SECONDS` | Startup discovery and pending-game eviction cutoff relative to the anchor deadline (default `1209600`, 14 days) |
 | `KONA_SP1_PROPOSER_TX_CONFIRMATION_TIMEOUT` | transaction confirmation timeout in seconds (default `180`) |
 | `KONA_SP1_PROPOSER_MAX_FEE_PER_GAS` | L1 max-fee cap in wei (default uncapped) |
 | `KONA_SP1_PROPOSER_MAX_PRIORITY_FEE_PER_GAS` | L1 priority-fee cap in wei (default uncapped) |
@@ -341,9 +412,13 @@ SP1 network configuration applies when `KONA_SP1_PROPOSER_PROOF_PROVIDER=network
 
 | Variable | Purpose |
 |---|---|
-| `KONA_SP1_PROPOSER_NETWORK_PRIVATE_KEY` | SPN requester private key, or AWS KMS key ARN when KMS is enabled |
+| `KONA_SP1_PROPOSER_NETWORK_PRIVATE_KEY` | local SPN requester private key; mutually exclusive with `KONA_SP1_PROPOSER_SPN_SIGNER_URL` |
 | `KONA_SP1_PROPOSER_NETWORK_RPC_URL` | SPN RPC override; absent or empty uses the SP1 SDK default for the selected network mode |
-| `KONA_SP1_PROPOSER_USE_KMS_REQUESTER` | use AWS KMS for request signing (default `false`) |
+| `KONA_SP1_PROPOSER_SPN_SIGNER_URL` | HTTPS op-signer endpoint for remote SPN request signing; mutually exclusive with `KONA_SP1_PROPOSER_NETWORK_PRIVATE_KEY` |
+| `KONA_SP1_PROPOSER_SPN_SIGNER_ADDRESS` | authorized op-signer address for SPN request signing |
+| `KONA_SP1_PROPOSER_SPN_SIGNER_TLS_CA` | server CA certificate path for the SPN op-signer connection |
+| `KONA_SP1_PROPOSER_SPN_SIGNER_TLS_CERT` | client certificate path for the SPN op-signer connection |
+| `KONA_SP1_PROPOSER_SPN_SIGNER_TLS_KEY` | client private-key path for the SPN op-signer connection |
 | `KONA_SP1_PROPOSER_RANGE_PROOF_STRATEGY` | range fulfillment strategy (default `auction`) |
 | `KONA_SP1_PROPOSER_AGG_PROOF_STRATEGY` | aggregation fulfillment strategy (default `auction`) |
 | `KONA_SP1_PROPOSER_SP1_TIMEOUT_SECONDS` | per-proof request deadline and client wait (default `7200`) |
@@ -379,13 +454,16 @@ increase witness collection, fixed proving overhead, SPN request count, and
 aggregation input size. `RANGE_GAS_LIMIT` limits each range request, not the
 total work of the defense.
 
-Transaction signing requires one of these configurations:
+Transaction signing requires exactly one of these configurations:
 
 | Variable | Purpose |
 |---|---|
-| `KONA_SP1_PROPOSER_PRIVATE_KEY` | local L1 transaction-signing key |
-| `KONA_SP1_PROPOSER_SIGNER_URL` | Web3Signer URL; requires `KONA_SP1_PROPOSER_SIGNER_ADDRESS` |
+| `KONA_SP1_PROPOSER_PRIVATE_KEY` | local L1 transaction-signing key; mutually exclusive with `KONA_SP1_PROPOSER_SIGNER_URL` |
+| `KONA_SP1_PROPOSER_SIGNER_URL` | Web3Signer URL; requires `KONA_SP1_PROPOSER_SIGNER_ADDRESS`; mutually exclusive with `KONA_SP1_PROPOSER_PRIVATE_KEY` |
 | `KONA_SP1_PROPOSER_SIGNER_ADDRESS` | Web3Signer address; requires `KONA_SP1_PROPOSER_SIGNER_URL` |
+| `KONA_SP1_PROPOSER_SIGNER_TLS_CA` | server CA PEM path; all three signer TLS paths are required together and enable mTLS to op-signer |
+| `KONA_SP1_PROPOSER_SIGNER_TLS_CERT` | client certificate PEM path; all three signer TLS paths are required together and enable mTLS to op-signer |
+| `KONA_SP1_PROPOSER_SIGNER_TLS_KEY` | client private-key PEM path; all three signer TLS paths are required together and enable mTLS to op-signer |
 
 Logging and telemetry:
 
@@ -397,7 +475,7 @@ Logging and telemetry:
 | `KONA_SP1_PROPOSER_LOG_FORMAT` | `pretty` or `json` (default `pretty`) |
 
 The proposer and its dependencies also observe the standard `RUST_LOG`, `NO_COLOR`,
-`SSL_CERT_DIR`, `SSL_CERT_FILE`, `OTEL_*`, proxy, AWS credential, and SP1 worker/debug
+`SSL_CERT_DIR`, `SSL_CERT_FILE`, `OTEL_*`, proxy, and SP1 worker/debug
 variables. `KONA_SP1_ELF_DIR` configures shared build/test infrastructure.
 
 ### Fast finality

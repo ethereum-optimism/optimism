@@ -9,7 +9,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-batcher/flags"
 	opservice "github.com/ethereum-optimism/optimism/op-service"
 	"github.com/ethereum-optimism/optimism/op-service/cliapp"
-	oplog "github.com/ethereum-optimism/optimism/op-service/log"
+	"github.com/ethereum-optimism/optimism/op-service/log/logcli"
 )
 
 // Main is the entrypoint into the Batch Submitter.
@@ -24,8 +24,8 @@ func Main(version string) cliapp.LifecycleAction {
 			return nil, fmt.Errorf("invalid CLI flags: %w", err)
 		}
 
-		l := oplog.NewLogger(oplog.AppOut(cliCtx), cfg.LogConfig)
-		oplog.SetGlobalLogHandler(l.Handler())
+		l := logcli.NewLogger(logcli.AppOut(cliCtx), cfg.LogConfig)
+		logcli.SetGlobalLogHandler(l.Handler())
 		opservice.ValidateEnvVars(flags.EnvVarPrefix, flags.Flags, l)
 
 		l.Info("Initializing Batch Submitter")

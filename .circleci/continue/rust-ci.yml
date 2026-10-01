@@ -4,7 +4,7 @@ version: 2.1
 # This file contains all Rust CI commands, parameterized jobs, crate-specific jobs, and workflows.
 
 orbs:
-  utils: ethereum-optimism/circleci-utils@1.0.31
+  utils: ethereum-optimism/circleci-utils@1.0.32
   gcp-cli: circleci/gcp-cli@3.0.1
 
 parameters:
@@ -763,6 +763,161 @@ jobs:
             echo "Successfully published ${#ENTRIES[@]} prestate artifacts to GCS"
       # No cache save: builds in Docker, host registry stays empty.
 
+  # Kona SP1 Publish Prestate Artifacts
+  #
+  # Publishes the standard SP1 guest ELFs (super-range, super-aggregation) built
+  # reproducibly in Docker. Like kona-publish-prestate-artifacts, one job serves
+  # both triggers and tells them apart by whether the pipeline branch is empty:
+  #   tag pipeline     -> vkey-addressed objects, the layout
+  #                       KONA_SP1_PROPOSER_PRESTATES_URL resolves
+  #   develop pipeline -> branch-named objects plus a .bin.gz.txt pointer,
+  #                       refetched by the zkvm canary
+  kona-sp1-publish-prestate-artifacts:
+    machine:
+      image: <<pipeline.parameters.c-base_image>>
+      docker_layer_caching: true
+    resource_class: xlarge.gen2
+    steps:
+      - utils/checkout-with-mise:
+          checkout-method: blobless
+      # utils/checkout-with-mise provides cargo-prove and just. rust-prepare
+      # puts cargo on PATH, which check-sp1-guest-lock and cargo-prove need.
+      # No sccache: the guests are built in Docker so the host never compiles,
+      # and the sccache-gcs-optimism context would define
+      # GCP_SERVICE_ACCOUNT_EMAIL, shadowing the oplabs-network-data publisher
+      # SA used by the upload below (same reason as the cannon prestate job).
+      - rust-prepare:
+          needs_clang: false
+          enable_sccache: false
+      - gcp-cli/install
+      - gcp-oidc-authenticate:
+          gcp_cred_config_file_path: /tmp/gcp_cred_config.json
+          oidc_token_file_path: /tmp/oidc_token.json
+      - run:
+          # Runs before build-elfs, which regenerates the guest lock in place and
+          # would mask drift. The tree state is logged so a dirty git_sha in the
+          # provenance check below can be traced to its cause.
+          name: Check SP1 guest lock
+          working_directory: rust
+          command: |
+            git status --porcelain
+            just check-sp1-guest-lock
+      - run:
+          # The Docker linux/amd64 recipe, never build-elfs-native: native ELF
+          # hashes vary by environment. Custom configs would embed devnet chains
+          # and mark the build -custom, so make sure none are set.
+          name: Build SP1 guest ELFs
+          working_directory: rust/kona/sp1
+          no_output_timeout: 60m
+          command: |
+            unset KONA_CUSTOM_CONFIGS_DIR
+            just build-elfs
+      - run:
+          # Refuse to publish anything but the plain build of the pipeline commit.
+          # A -dirty or -custom git_sha, or a missing or zero vkey, means the
+          # artifact does not describe this commit. Prints vkeys.toml for the
+          # log and exports the lowercase super-aggregation vkey for the upload.
+          name: Verify SP1 build provenance
+          working_directory: rust/kona/sp1
+          command: |
+            set -euo pipefail
+            VKEYS=elf/vkeys.toml
+            [ -s "${VKEYS}" ] || { echo "${VKEYS} is missing or empty" >&2; exit 1; }
+            cat "${VKEYS}"
+
+            # Value of a top-level string key. Zero or duplicate matches give an
+            # empty or multi-line value, which the checks below reject.
+            toml_string() {
+              sed -nE 's/^'"$1"' = "([^"]*)"$/\1/p' "${VKEYS}"
+            }
+
+            GIT_SHA=$(toml_string git_sha)
+            [ "${GIT_SHA}" = "<< pipeline.git.revision >>" ] || {
+              echo "vkeys.toml git_sha '${GIT_SHA}' is not the pipeline commit << pipeline.git.revision >> (a -dirty or -custom build must not be published)" >&2
+              exit 1
+            }
+
+            for KEY in super-range super-aggregation; do
+              VALUE=$(toml_string "${KEY}")
+              [[ "${VALUE}" =~ ^0x[0-9a-fA-F]{64}$ ]] || {
+                echo "${KEY} vkey '${VALUE}' is not a 0x-prefixed bytes32 hex value" >&2
+                exit 1
+              }
+              if [[ "${VALUE#0x}" =~ ^0*$ ]]; then
+                echo "${KEY} vkey is zero" >&2
+                exit 1
+              fi
+            done
+
+            AGG_VKEY=$(toml_string super-aggregation | tr '[:upper:]' '[:lower:]')
+            echo "export SP1_AGG_VKEY=${AGG_VKEY}" >> "${BASH_ENV}"
+      - run:
+          name: Upload SP1 prestates to GCS
+          working_directory: rust/kona/sp1
+          command: |
+            set -euo pipefail
+            : "${SP1_AGG_VKEY:?}"
+            BRANCH="<< pipeline.git.branch >>"
+            TAG="<< pipeline.git.tag >>"
+            GCS_DIR=gs://oplabs-network-data/proofs/kona/sp1
+            HTTP_DIR=https://storage.googleapis.com/oplabs-network-data/proofs/kona/sp1
+
+            # Object base name and the kona-sp1-version provenance value: the
+            # commit for a develop build, the tag for a release.
+            if [ -n "${BRANCH}" ]; then
+              [ -z "${TAG}" ] || { echo "pipeline has both branch '${BRANCH}' and tag '${TAG}'" >&2; exit 1; }
+              BASE=$(echo "${BRANCH}" | tr '/' '-')
+              VERSION="<< pipeline.git.revision >>"
+            else
+              case "${TAG}" in
+                kona-sp1-program/v?*) ;;
+                *) echo "expected a kona-sp1-program/v* tag, got '${TAG}'" >&2; exit 1 ;;
+              esac
+              BASE="${SP1_AGG_VKEY}"
+              VERSION="${TAG}"
+            fi
+            RANGE_OBJECT="${BASE}.range.bin.gz"
+            AGG_OBJECT="${BASE}.agg.bin.gz"
+
+            # Branch-named objects are overwritten in place and refetched by the
+            # canary every cycle, so they must not be served from a cache. Tag
+            # objects are content-addressed and immutable.
+            # x-goog-meta-chain-ids is not set: a standard build covers every
+            # chain in the embedded registry config, not a devnet chain set.
+            upload_elf() {
+              if [ -n "${BRANCH}" ]; then
+                gsutil -h "x-goog-meta-prestate-type:konaSP1" -h "x-goog-meta-kona-sp1-version:${VERSION}" -h "Cache-Control:no-cache" cp "$1" "${GCS_DIR}/$2"
+              else
+                gsutil -h "x-goog-meta-prestate-type:konaSP1" -h "x-goog-meta-kona-sp1-version:${VERSION}" cp "$1" "${GCS_DIR}/$2"
+              fi
+            }
+
+            WORK=$(mktemp -d)
+            trap 'rm -rf "${WORK}"' EXIT
+            gzip -9 -n -c elf/super-range-elf > "${WORK}/range.bin.gz"
+            gzip -9 -n -c elf/super-aggregation-elf > "${WORK}/agg.bin.gz"
+            [ -s "${WORK}/range.bin.gz" ] && [ -s "${WORK}/agg.bin.gz" ] || {
+              echo "empty gzip output" >&2; exit 1; }
+
+            echo "Publishing SP1 prestates ${SP1_AGG_VKEY} (${VERSION})"
+            # Range first, then aggregation: a vkey-addressed aggregation object
+            # never appears before the range object it depends on.
+            upload_elf "${WORK}/range.bin.gz" "${RANGE_OBJECT}"
+            upload_elf "${WORK}/agg.bin.gz" "${AGG_OBJECT}"
+
+            if [ -n "${BRANCH}" ]; then
+              echo "Publishing commit hash data"
+              INFO_FILE="${WORK}/info.txt"
+              (echo "Commit=<< pipeline.git.revision >>" && echo "Prestate: ${SP1_AGG_VKEY}") > "${INFO_FILE}"
+              gsutil -h "Cache-Control:no-cache" cp "${INFO_FILE}" "${GCS_DIR}/${BASE}.bin.gz.txt"
+              echo "${HTTP_DIR}/${BASE}.bin.gz.txt"
+            fi
+            echo "${HTTP_DIR}/${RANGE_OBJECT}"
+            echo "${HTTP_DIR}/${AGG_OBJECT}"
+            echo "Successfully published SP1 prestates to GCS"
+      - store_artifacts:
+          path: rust/kona/sp1/elf/
+
   required-rust-ci:
     docker:
       - image: <<pipeline.parameters.c-default_docker_image>>
@@ -1000,5 +1155,30 @@ workflows:
           filters:
             tags:
               only: /^kona-client\/v.*/
+            branches:
+              ignore: /.*/
+
+  # Kona SP1 publish prestate artifacts - on push to develop.
+  # Feeds the zkvm canary via
+  # https://storage.googleapis.com/oplabs-network-data/proofs/kona/sp1/develop.range.bin.gz
+  kona-sp1-publish-prestates:
+    when: << pipeline.parameters.c-run_kona_publish_prestates >>
+    jobs:
+      - kona-sp1-publish-prestate-artifacts:
+          context:
+            - circleci-repo-readonly-authenticated-github-token
+            - oplabs-network-optimism-io-bucket
+
+  # Kona SP1 publish prestate artifacts - on kona-sp1-program/v* tag push
+  kona-sp1-publish-prestates-on-tag:
+    when: << pipeline.parameters.c-run_release >>
+    jobs:
+      - kona-sp1-publish-prestate-artifacts:
+          context:
+            - circleci-repo-readonly-authenticated-github-token
+            - oplabs-network-optimism-io-bucket
+          filters:
+            tags:
+              only: /^kona-sp1-program\/v.*/
             branches:
               ignore: /.*/

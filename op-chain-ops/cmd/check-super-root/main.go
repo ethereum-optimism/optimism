@@ -5,12 +5,12 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/ethereum/go-ethereum/log"
 	"github.com/urfave/cli/v2"
 
 	"github.com/ethereum-optimism/optimism/op-chain-ops/script"
 	"github.com/ethereum-optimism/optimism/op-service/cliapp"
-	oplog "github.com/ethereum-optimism/optimism/op-service/log"
+	"github.com/ethereum-optimism/optimism/op-service/log"
+	"github.com/ethereum-optimism/optimism/op-service/log/logcli"
 )
 
 const (
@@ -41,7 +41,7 @@ func NewConfig(ctx *cli.Context) (*Config, error) {
 	}
 
 	return &Config{
-		Logger:          oplog.NewLogger(oplog.AppOut(ctx), oplog.ReadCLIConfig(ctx)),
+		Logger:          logcli.NewLogger(logcli.AppOut(ctx), logcli.ReadCLIConfig(ctx)),
 		RPCEndpoints:    rpcs,
 		TargetTimestamp: targetTimestamp,
 	}, nil
@@ -77,13 +77,13 @@ var Flags = []cli.Flag{
 }
 
 func main() {
-	oplog.SetupDefaults()
+	logcli.SetupDefaults()
 
 	app := cli.NewApp()
 	app.Name = "check-super-root"
 	app.Usage = "Calculates a super root from multiple L2 EL endpoints based on their common finalized state."
 	// Combine specific flags with log flags
-	app.Flags = append(Flags, oplog.CLIFlags("CHECK_SUPER_ROOT")...)
+	app.Flags = append(Flags, logcli.CLIFlags("CHECK_SUPER_ROOT")...)
 
 	app.Action = cliapp.LifecycleCmd(func(ctx *cli.Context, close context.CancelCauseFunc) (cliapp.Lifecycle, error) {
 		// Parse config from CLI flags

@@ -22,6 +22,7 @@ import { IOptimismPortal2 } from "interfaces/L1/IOptimismPortal2.sol";
 import { IAnchorStateRegistry } from "interfaces/dispute/IAnchorStateRegistry.sol";
 import { IMIPS64 } from "interfaces/cannon/IMIPS64.sol";
 import { ISP1PlonkAdapter } from "interfaces/dispute/zk/ISP1PlonkAdapter.sol";
+import { ISP1Verifier } from "interfaces/vendor/ISP1Verifier.sol";
 
 /// @title VerifyOPCM
 /// @notice Verifies the bytecode of an OPContractsManager instance and all associated blueprints
@@ -1404,7 +1405,11 @@ contract VerifyOPCM is Script {
         }
     }
 
-    /// @notice Verifies the raw SP1 verifier referenced by the release adapter.
+    /// @notice Verifies the raw SP1 verifier referenced by the release adapter: its address
+    ///         (`EXPECTED_SP1_VERIFIER`, network default) and its `VERIFIER_HASH()`
+    ///         (`EXPECTED_SP1_VERIFIER_HASH`, required; the release value is
+    ///         op-deployer's standard.SP1VerifierHashFor). The hash is only read once the
+    ///         address matches, so an unexpected address never reverts here.
     function _verifySP1Verifier(ISP1PlonkAdapter _adapter) internal view returns (bool) {
         // nosemgrep: sol-style-vm-env-only-in-config-sol
         address expectedVerifier = vm.envOr("EXPECTED_SP1_VERIFIER", _defaultSP1Verifier());
@@ -1420,6 +1425,25 @@ contract VerifyOPCM is Script {
             return false;
         }
         console.log("    [OK] SP1 verifier verified");
+
+        // nosemgrep: sol-style-vm-env-only-in-config-sol
+        bytes32 expectedHash = vm.envBytes32("EXPECTED_SP1_VERIFIER_HASH");
+        (bool ok, bytes memory data) = actualVerifier.staticcall(abi.encodeCall(ISP1Verifier.VERIFIER_HASH, ()));
+        if (!ok || data.length != 32) {
+            console.log("    [FAIL] SP1 verifier does not expose VERIFIER_HASH()");
+            return false;
+        }
+        bytes32 actualHash = abi.decode(data, (bytes32));
+
+        console.log("  Verifying SP1 verifier hash...");
+        console.log(string.concat("    Expected: ", vm.toString(expectedHash)));
+        console.log(string.concat("    Actual: ", vm.toString(actualHash)));
+
+        if (actualHash != expectedHash) {
+            console.log("    [FAIL] SP1 verifier hash mismatch");
+            return false;
+        }
+        console.log("    [OK] SP1 verifier hash verified");
         return true;
     }
 

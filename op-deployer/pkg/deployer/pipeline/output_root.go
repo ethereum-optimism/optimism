@@ -7,9 +7,9 @@ import (
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/state"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
+	"github.com/ethereum-optimism/optimism/op-service/log"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
-	"github.com/ethereum/go-ethereum/log"
 )
 
 // genesisOutput is one chain's own plain V0 genesis output root, and the L2
@@ -38,7 +38,7 @@ func ComputeGenesisOutputRoots(pEnv *Env, intent *state.Intent, st *state.State)
 			lgr.Info("chain already deployed, leaving its genesis output root alone", "id", chain.ID.Hex())
 			continue
 		}
-		out, err := computeGenesisOutput(lgr, intent, st, chain.ID)
+		out, err := computeGenesisOutput(lgr, intent, st, chain.ID, pEnv.IsGenesis)
 		if err != nil {
 			return err
 		}
@@ -58,7 +58,7 @@ func ComputeGenesisOutputRoots(pEnv *Env, intent *state.Intent, st *state.State)
 // computeGenesisOutput builds one chain's L2 genesis block from its generated allocs,
 // combined deploy config and pinned anchor/genesis time, persists the resulting block hash, and
 // returns the chain's own plain V0 output root.
-func computeGenesisOutput(lgr log.Logger, intent *state.Intent, st *state.State, chainID common.Hash) (genesisOutput, error) {
+func computeGenesisOutput(lgr log.Logger, intent *state.Intent, st *state.State, chainID common.Hash, isGenesis bool) (genesisOutput, error) {
 	thisIntent, err := intent.Chain(chainID)
 	if err != nil {
 		return genesisOutput{}, fmt.Errorf("failed to get chain intent: %w", err)
@@ -72,7 +72,7 @@ func computeGenesisOutput(lgr log.Logger, intent *state.Intent, st *state.State,
 	if thisChainState.Allocs == nil {
 		return genesisOutput{}, fmt.Errorf("cannot compute genesis output root for chain %s: L2 genesis allocs not yet generated", chainID.Hex())
 	}
-	if thisChainState.StartBlock == nil || thisChainState.GenesisTime == nil {
+	if thisChainState.StartBlock == nil || (!isGenesis && thisChainState.GenesisTime == nil) {
 		return genesisOutput{}, fmt.Errorf("cannot compute genesis output root for chain %s: anchor block and genesis time not yet pinned", chainID.Hex())
 	}
 
@@ -90,9 +90,10 @@ func computeGenesisOutput(lgr log.Logger, intent *state.Intent, st *state.State,
 
 	block := l2Genesis.ToBlock()
 	header := block.Header()
-	if header.WithdrawalsHash == nil {
+	isIsthmus := l2Genesis.Config.IsOptimismIsthmus(header.Time)
+	if !isIsthmus || header.WithdrawalsHash == nil {
 		return genesisOutput{}, fmt.Errorf(
-			"chain %s: L2 genesis block has no withdrawals root; genesis output root computation requires Isthmus to be active at genesis",
+			"chain %s: genesis output root computation requires an Isthmus withdrawals root",
 			chainID.Hex(),
 		)
 	}

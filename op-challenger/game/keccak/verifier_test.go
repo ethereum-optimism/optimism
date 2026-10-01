@@ -13,10 +13,10 @@ import (
 	"github.com/ethereum-optimism/optimism/op-challenger/game/keccak/fetcher"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/keccak/matrix"
 	keccakTypes "github.com/ethereum-optimism/optimism/op-challenger/game/keccak/types"
+	"github.com/ethereum-optimism/optimism/op-service/log"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
 	"github.com/ethereum-optimism/optimism/op-service/testutils"
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/log"
 	"github.com/stretchr/testify/require"
 )
 
@@ -97,7 +97,7 @@ func TestVerify(t *testing.T) {
 }
 
 func TestCacheValidRoots(t *testing.T) {
-	logger := testlog.Logger(t, log.LvlInfo)
+	logger := testlog.Logger(t, log.LevelInfo)
 	inputs := validInputs(t, 1)
 	fetcher := &stubFetcher{
 		inputs: inputs,

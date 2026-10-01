@@ -10,12 +10,10 @@ import (
 	"github.com/ethereum-optimism/optimism/op-chain-ops/devkeys"
 	gameTypes "github.com/ethereum-optimism/optimism/op-challenger/game/types"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/artifacts"
-	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/opcm"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/upgrade/embedded"
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
 	sharedchallenger "github.com/ethereum-optimism/optimism/op-devstack/shared/challenger"
 	op_service "github.com/ethereum-optimism/optimism/op-service"
-	"github.com/ethereum-optimism/optimism/op-service/bigs"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/ioutil"
 	"github.com/ethereum-optimism/optimism/op-service/retry"
@@ -90,16 +88,15 @@ func addGameTypesForRuntime(
 	keys devkeys.Keys,
 	enabledGameTypes []gameTypes.GameType,
 	l1ChainID eth.ChainID,
-	l1ELRPC string,
+	l1EL L1ELNode,
 	l2Net *L2Network,
-	l2CL L2CLNode,
 ) {
 	require := t.Require()
 	require.NotNil(l2Net, "l2 network must exist")
 	require.NotNil(l2Net.deployment, "l2 deployment must exist")
 	require.NotEqual(common.Address{}, l2Net.opcmImpl, "missing OPCM implementation address")
 
-	rpcClient, err := rpc.DialContext(t.Ctx(), l1ELRPC)
+	rpcClient, err := rpc.DialContext(t.Ctx(), l1EL.UserRPC())
 	require.NoError(err)
 	defer rpcClient.Close()
 	client := ethclient.NewClient(rpcClient)
@@ -122,23 +119,7 @@ func addGameTypesForRuntime(
 	cannonKonaPrestate := PrestateForGameType(t, gameTypes.CannonKonaGameType)
 	superCannonKonaPrestate := PrestateForGameType(t, gameTypes.SuperCannonKonaGameType)
 	dummyCannonPrestate := common.HexToHash(sharedchallenger.DummyPermissionedPrestate)
-	startingAnchorRoot := opcm.DefaultStartingAnchorRoot
-	if enabled[gameTypes.SuperCannonKonaGameType] {
-		superrootTime := awaitSuperrootTime(t, l2CL)
-		startingAnchorRoot = opcm.StartingAnchorRoot{
-			Root:          common.Hash(getSuperRoot(t, l2CL.UserRPC(), superrootTime)),
-			L2BlockNumber: new(big.Int).SetUint64(superrootTime),
-		}
-	}
 	extraInstructions := []embedded.ExtraInstruction{
-		{
-			Key: "overrides.cfg.startingAnchorRoot",
-			Data: encodeStartingAnchorRoot(
-				t,
-				eth.Bytes32(startingAnchorRoot.Root),
-				bigs.Uint64Strict(startingAnchorRoot.L2BlockNumber),
-			),
-		},
 		{
 			Key:  "overrides.cfg.startingRespectedGameType",
 			Data: encodeStartingRespectedGameType(t, superPermissionedGameType),

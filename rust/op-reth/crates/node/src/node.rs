@@ -7,7 +7,7 @@ use crate::{
     txpool::{OpCustomTransactionPool, OpTransactionValidator},
 };
 use alloy_primitives::Sealed;
-use op_alloy_consensus::{OpPooledTransaction, TxPostExec, interop::SafetyLevel};
+use op_alloy_consensus::{OpPooledTransaction, OpTransaction, TxPostExec, interop::SafetyLevel};
 use reth_chainspec::{
     BaseFeeParams, ChainSpecProvider, EthChainSpec, EthereumHardforks, ForkCondition, Hardforks,
 };
@@ -60,6 +60,7 @@ use reth_rpc_api::{
     DebugApiServer, EthConfigApiServer, L2EthApiExtServer,
     eth::{RpcTypes, helpers::config::EthConfigHandler},
 };
+use reth_rpc_builder::{TransportRpcModules, auth::AuthRpcModule};
 use reth_rpc_server_types::RethRpcModule;
 use reth_tracing::tracing::{debug, info};
 use reth_transaction_pool::{
@@ -191,7 +192,7 @@ where
 }
 
 /// Type configuration for a regular Optimism node.
-#[derive(Debug, Default, Clone)]
+#[derive(Debug, Clone)]
 #[non_exhaustive]
 pub struct OpNode {
     /// Additional Optimism args
@@ -225,11 +226,16 @@ pub type OpNodeComponentBuilder<Node, Payload = OpPayloadBuilder> = ComponentsBu
     OpConsensusBuilder,
 >;
 
+impl Default for OpNode {
+    fn default() -> Self {
+        Self::new(RollupArgs::default())
+    }
+}
+
 impl OpNode {
     /// Creates a new instance of the Optimism node type.
     pub fn new(args: RollupArgs) -> Self {
-        let operator_sdm_opt_in = OperatorSdmOptIn::default();
-        operator_sdm_opt_in.set(args.operator_sdm_opt_in);
+        let operator_sdm_opt_in = OperatorSdmOptIn::configured(args.operator_sdm_opt_in);
         Self {
             args,
             da_config: OpDAConfig::default(),
@@ -667,6 +673,21 @@ where
     }
 }
 
+/// RPC methods an OP node does not serve, on any transport.
+///
+/// Upstream installs `eth_getMultiProof` by default, no OP user has asked for it, and a
+/// proofs-history node could not answer it consistently from its pruned state window. Drop an
+/// entry from this list once there is a user for the method.
+const UNSERVED_RPC_METHODS: &[&str] = &["eth_getMultiProof"];
+
+/// Removes [`UNSERVED_RPC_METHODS`] from the http/ws/ipc modules and from the auth module.
+fn remove_unserved_rpc_methods(modules: &mut TransportRpcModules, auth_module: &mut AuthRpcModule) {
+    for &method in UNSERVED_RPC_METHODS {
+        modules.remove_method_from_configured(method);
+        auth_module.remove_auth_method(method);
+    }
+}
+
 impl<N, EthB, PVB, EB, EVB, RpcMiddleware> NodeAddOns<N>
     for OpAddOns<N, EthB, PVB, EB, EVB, RpcMiddleware>
 where
@@ -825,6 +846,11 @@ where
                         tx_conditional_ext.into_rpc(),
                     )?;
                 }
+
+                // Runs before the `extend_rpc_modules` hooks, so a method an override there
+                // re-declares — see `reth_optimism_rpc::eth::proofs::EthApiOverride` — is put
+                // back and stays served.
+                remove_unserved_rpc_methods(modules, auth_module);
 
                 Ok(())
             })
@@ -1704,7 +1730,7 @@ where
     Node: FullNodeTypes<
         Types: NodeTypes<
             ChainSpec: OpHardforks,
-            Primitives: NodePrimitives<Receipt: DepositReceipt>,
+            Primitives: NodePrimitives<Receipt: DepositReceipt, SignedTx: OpTransaction>,
         >,
     >,
 {
@@ -1746,6 +1772,66 @@ pub type OpNetworkPrimitives = BasicNetworkPrimitives<OpPrimitives, OpPooledTran
 #[cfg(test)]
 mod tests {
     use super::*;
+    use jsonrpsee::{RpcModule, types::ErrorObjectOwned};
+    use reth_rpc_api::IntoEngineApiRpcModule;
+
+    /// Lets a plain [`RpcModule`] stand in for the engine API when building an [`AuthRpcModule`].
+    struct TestEngineModule(RpcModule<()>);
+
+    impl IntoEngineApiRpcModule for TestEngineModule {
+        fn into_rpc_module(self) -> RpcModule<()> {
+            self.0
+        }
+    }
+
+    fn module_serving_unserved_methods() -> RpcModule<()> {
+        let mut module = RpcModule::new(());
+        for &method in UNSERVED_RPC_METHODS {
+            module.register_method(method, |_, _, _| Ok::<_, ErrorObjectOwned>(())).unwrap();
+        }
+        module
+    }
+
+    /// The methods reach an OP node only because upstream installs them, so pin which ones the
+    /// node drops rather than only that the removal runs.
+    #[test]
+    fn eth_get_multi_proof_is_unserved() {
+        assert!(UNSERVED_RPC_METHODS.contains(&"eth_getMultiProof"));
+    }
+
+    #[test]
+    fn unserved_methods_are_removed_from_every_transport() {
+        let mut modules = TransportRpcModules::default()
+            .with_http(module_serving_unserved_methods())
+            .with_ws(module_serving_unserved_methods())
+            .with_ipc(module_serving_unserved_methods());
+        let mut auth_module =
+            AuthRpcModule::new(TestEngineModule(module_serving_unserved_methods()));
+
+        remove_unserved_rpc_methods(&mut modules, &mut auth_module);
+
+        for (transport, methods) in [
+            ("http", modules.http_methods(|_| true)),
+            ("ws", modules.ws_methods(|_| true)),
+            ("ipc", modules.ipc_methods(|_| true)),
+        ] {
+            let served = methods.expect("transport is configured");
+            for &method in UNSERVED_RPC_METHODS {
+                assert!(
+                    !served.method_names().any(|name| name == method),
+                    "{method} is still served over {transport}"
+                );
+            }
+        }
+
+        let auth_methods = auth_module.module_mut();
+        for &method in UNSERVED_RPC_METHODS {
+            assert!(
+                !auth_methods.method_names().any(|name| name == method),
+                "{method} is still served over the auth server"
+            );
+        }
+    }
 
     #[test]
     fn standard_pool_builder_forwards_base_config() {

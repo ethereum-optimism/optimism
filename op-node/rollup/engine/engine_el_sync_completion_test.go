@@ -374,3 +374,93 @@ func TestInsertUnsafePayload_ELSync_clearsInconsistentSafeDB(t *testing.T) {
 	require.Equal(t, eth.L2BlockRef{}, *deriver.resetTo)
 	require.Equal(t, refA1, ec.localSafeHead)
 }
+
+// recordingCrossUpdateHandler captures the last cross-safe notification.
+type recordingCrossUpdateHandler struct {
+	crossSafe eth.L2BlockRef
+	localSafe eth.L2BlockRef
+	calls     int
+}
+
+func (r *recordingCrossUpdateHandler) OnCrossSafeUpdate(_ context.Context, crossSafe, localSafe eth.L2BlockRef) {
+	r.crossSafe = crossSafe
+	r.localSafe = localSafe
+	r.calls++
+}
+
+// With a SuperAuthority the resume point is only local-safe, so the published safe label
+// and cross-safe value must be SafeL2Head. Here the verifier has published nothing yet.
+func TestInsertUnsafePayload_ELSync_boundsSafeLabelByVerifiedHead(t *testing.T) {
+	cfg, refA0, refA1, _, refA3, payload := buildELSyncTipChain(t)
+
+	mockEngine := &testutils.MockEngine{}
+	mockEngine.ExpectL2BlockRefByLabel(eth.Finalized, refA1, nil)
+	mockEngine.ExpectNewPayload(payload.ExecutionPayload, nil, &eth.PayloadStatusV1{Status: eth.ExecutionValid}, nil)
+	// The safedb tip is on the synced chain, so derivation resumes from it.
+	mockEngine.ExpectL2BlockRefByHash(refA3.Hash, refA3, nil)
+	// The safe label stays at the authority-bounded head (refA0), not the resume point (refA3).
+	mockEngine.ExpectForkchoiceUpdate(&eth.ForkchoiceState{
+		HeadBlockHash:      refA3.Hash,
+		SafeBlockHash:      refA0.Hash,
+		FinalizedBlockHash: refA0.Hash,
+	}, nil, &eth.ForkchoiceUpdatedResult{PayloadStatus: eth.PayloadStatusV1{Status: eth.ExecutionValid}}, nil)
+
+	sa := &mockSuperAuthority{
+		holdPreviousVerified:  true,
+		finalizedL2HeadSource: rollup.VerifierHeadPreActivation,
+	}
+	ec := NewEngineController(context.Background(), mockEngine, testlog.Logger(t, 0), metrics.NoopMetrics, cfg,
+		&sync.Config{SyncMode: sync.ELSync, SupportsPostFinalizationELSync: true},
+		&testutils.MockL1Source{}, discardEmitter{}, sa)
+	ec.SyncDeriver = &fakeSyncDeriver{tip: refA3.ID(), hasTip: true}
+	rec := &recordingCrossUpdateHandler{}
+	ec.SetCrossUpdateHandler(rec)
+	ec.SetFinalizedHead(refA0)
+	ec.SetLocalSafeHead(refA0)
+
+	require.NoError(t, ec.InsertUnsafePayload(context.Background(), payload, refA3))
+	mockEngine.AssertExpectations(t)
+
+	require.Equal(t, refA3, ec.localSafeHead, "derivation must still resume from the safedb tip")
+	require.Equal(t, 1, rec.calls)
+	require.Equal(t, refA0, rec.crossSafe, "cross-safe must be the verified head, not the resume point")
+	require.Equal(t, refA3, rec.localSafe)
+}
+
+// The safe label falls back to finalized, so it must be read after finalized moves back to
+// the resume point. Reading it first would publish a safe head above local-safe.
+func TestInsertUnsafePayload_ELSync_safeLabelUsesNewFinalizedHead(t *testing.T) {
+	cfg, _, refA1, refA2, refA3, payload := buildELSyncTipChain(t)
+
+	mockEngine := &testutils.MockEngine{}
+	mockEngine.ExpectL2BlockRefByLabel(eth.Finalized, refA1, nil)
+	mockEngine.ExpectNewPayload(payload.ExecutionPayload, nil, &eth.PayloadStatusV1{Status: eth.ExecutionValid}, nil)
+	mockEngine.ExpectL2BlockRefByHash(refA1.Hash, refA1, nil)
+	// Safe is refA1, the new finalized head. Reading before the set would give refA2.
+	mockEngine.ExpectForkchoiceUpdate(&eth.ForkchoiceState{
+		HeadBlockHash:      refA3.Hash,
+		SafeBlockHash:      refA1.Hash,
+		FinalizedBlockHash: refA1.Hash,
+	}, nil, &eth.ForkchoiceUpdatedResult{PayloadStatus: eth.PayloadStatusV1{Status: eth.ExecutionValid}}, nil)
+
+	sa := &mockSuperAuthority{
+		holdPreviousVerified:  true,
+		finalizedL2HeadSource: rollup.VerifierHeadPreActivation,
+	}
+	ec := NewEngineController(context.Background(), mockEngine, testlog.Logger(t, 0), metrics.NoopMetrics, cfg,
+		&sync.Config{SyncMode: sync.ELSync, SupportsPostFinalizationELSync: true},
+		&testutils.MockL1Source{}, discardEmitter{}, sa)
+	// The safedb tip (refA1) is below the node's finalized head (refA2), so finalized moves back.
+	ec.SyncDeriver = &fakeSyncDeriver{tip: refA1.ID(), hasTip: true}
+	rec := &recordingCrossUpdateHandler{}
+	ec.SetCrossUpdateHandler(rec)
+	ec.SetFinalizedHead(refA2)
+	ec.SetLocalSafeHead(refA2)
+
+	require.NoError(t, ec.InsertUnsafePayload(context.Background(), payload, refA3))
+	mockEngine.AssertExpectations(t)
+
+	require.Equal(t, refA1, ec.FinalizedHead())
+	require.Equal(t, refA1, rec.crossSafe, "cross-safe must not exceed local-safe")
+	require.Equal(t, refA1, ec.localSafeHead)
+}

@@ -10,10 +10,10 @@ import (
 	"github.com/ethereum-optimism/optimism/op-challenger/game/generic"
 	gameTypes "github.com/ethereum-optimism/optimism/op-challenger/game/types"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
+	"github.com/ethereum-optimism/optimism/op-service/log"
 	"github.com/ethereum-optimism/optimism/op-service/sources/batching/rpcblock"
 	"github.com/ethereum-optimism/optimism/op-service/txmgr"
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/log"
 )
 
 var (
@@ -125,7 +125,7 @@ func (a *Actor) isValidProposal(ctx context.Context) (bool, error) {
 	}
 	if resp.CurrentL1.Number <= a.l1Head.Number {
 		// Source node hasn't fully processed the game's L1 head yet — can't decide on a stale view.
-		return false, gameTypes.ErrNotInSync
+		return false, gameTypes.NotInSyncError("super root source (superroot_atTimestamp)", resp.CurrentL1.Number, a.l1Head.Number)
 	}
 	if resp.Data == nil {
 		// Data is only populated once the timestamp is safe, so a nil here means the proposal is too

@@ -29,16 +29,19 @@ use crate::{
         AGGREGATION_ARTIFACT_SUFFIX, ProofProviderConfig, ProofProviderKind, ProposalSafety,
         ProposerConfig, RANGE_ARTIFACT_SUFFIX, RangeSplitCount,
     },
-    contract::{GameStatus, ProposalStatus, ZKGameArgs},
+    contract::{BondDistributionMode, GameStatus, ProposalStatus, ZKGameArgs},
     ports::{
         ActionExecutor, AnchorRoot, BondState, ClaimPreflight, FactoryGame, GameClaim,
         GameCreationReceipt, GameIdentity, GameLifecycle, GameStanding, GameValidity, L1BlockRef,
         L1View, NonceState, ProofEngine, ProofInputs, ProposalHorizon, QueryTime,
         SuperRootAtTimestamp, SuperRootSource, WithdrawalState,
     },
-    proposer::{CycleResult, OperationSummary, PrestateCache, Proposer, TaskCompletion, TaskId},
+    proposer::{
+        CycleResult, MAX_GAME_DEADLINE_LAG, OperationSummary, PrestateCache, Proposer,
+        TaskCompletion, TaskId,
+    },
     prover::ProofKeys,
-    proving::GameProofInputs,
+    proving::{GameProofInputs, ProofRequestCounts},
     signer::NUM_CONFIRMATIONS,
     superroot::{SuperRootAt, zk_extra_data},
 };
@@ -61,6 +64,7 @@ pub(super) struct GameTarget {
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub(super) enum L1ReadBoundary {
     LatestGameIndex,
+    GameType,
     FactoryGame,
     GameClaim,
     GameIdentity,
@@ -69,7 +73,9 @@ pub(super) enum L1ReadBoundary {
     ParentGameStatus,
     BondState,
     GameStatus,
+    ClaimDistributionMode,
     ClaimCredit,
+    ClaimRefundCredit,
     ClaimWithdrawal,
     WethDelay,
     GameStanding,
@@ -163,6 +169,7 @@ pub(super) enum ProofOutcome {
     Success,
     Failure,
     Panic,
+    Unprovable,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
@@ -264,6 +271,18 @@ struct ProofScript {
 
 impl ProofScript {
     const fn immediate(outcome: ProofOutcome) -> Self {
+        Self { outcome, barrier: None }
+    }
+}
+
+#[derive(Clone)]
+struct SuperRootScript {
+    outcome: SuperRootOutcome,
+    barrier: Option<NamedBarrier>,
+}
+
+impl SuperRootScript {
+    const fn immediate(outcome: SuperRootOutcome) -> Self {
         Self { outcome, barrier: None }
     }
 }
@@ -375,7 +394,9 @@ impl ScenarioGame {
             standing: GameStanding { blacklisted: false, retired: false },
             registered_parent_standing: None,
             bond: BondState {
+                bond_distribution_mode: BondDistributionMode::Undecided,
                 credit: U256::ZERO,
+                refund_mode_credit: U256::ZERO,
                 withdrawal_amount: U256::ZERO,
                 withdrawal_timestamp: U256::ZERO,
                 delay: U256::from(10),
@@ -387,6 +408,7 @@ impl ScenarioGame {
                 starting_sequence_number: sequence_number.saturating_sub(1),
                 root_claim: canonical_super_root(sequence_number),
                 sequence_number,
+                verifier: Address::ZERO,
             },
             resolved_at: None,
             prover: None,
@@ -410,6 +432,7 @@ impl ScenarioGame {
         self.status = GameStatus::DefenderWins;
         self.proposal_status = ProposalStatus::Resolved;
         self.finalized = true;
+        self.bond.bond_distribution_mode = BondDistributionMode::Normal;
         self.bond.credit = U256::from(credit);
         self
     }
@@ -461,6 +484,14 @@ impl ScenarioGame {
         }
     }
 
+    fn bond_state_view(&self) -> BondState {
+        let mut bond = self.bond;
+        if bond.bond_distribution_mode == BondDistributionMode::Refund {
+            bond.credit = bond.refund_mode_credit;
+        }
+        bond
+    }
+
     pub(super) fn target(&self) -> GameTarget {
         GameTarget { factory_index: self.factory_index, address: self.address }
     }
@@ -484,6 +515,7 @@ pub(super) enum CommittedEffect {
     Proven { game: Address },
     Resolved { game: Address },
     ClaimUnlocked { game: Address, amount: U256 },
+    Closed { game: Address },
     ClaimPaid { game: Address, amount: U256 },
 }
 
@@ -511,6 +543,7 @@ pub(super) enum ProofLifecycle {
     Succeeded,
     Failed,
     Panicked,
+    Unprovable,
 }
 
 const fn proof_lifecycle(outcome: ProofOutcome) -> ProofLifecycle {
@@ -518,6 +551,7 @@ const fn proof_lifecycle(outcome: ProofOutcome) -> ProofLifecycle {
         ProofOutcome::Success => ProofLifecycle::Succeeded,
         ProofOutcome::Failure => ProofLifecycle::Failed,
         ProofOutcome::Panic => ProofLifecycle::Panicked,
+        ProofOutcome::Unprovable => ProofLifecycle::Unprovable,
     }
 }
 
@@ -610,7 +644,7 @@ struct WorldData {
     pending_nonce: u64,
     l1_read_scripts: Scripts<(L1ReadBoundary, L1ReadTarget), L1ReadScript>,
     l1_read_records: Vec<L1ReadRecord>,
-    superroot_scripts: Scripts<u64, SuperRootOutcome>,
+    superroot_scripts: Scripts<u64, SuperRootScript>,
     proposal_horizon_attempts: HashMap<u64, u64>,
     superroot_records: Vec<SuperRootQueryRecord>,
     action_scripts: Scripts<ActionTarget, ActionScript>,
@@ -706,6 +740,9 @@ impl ScenarioWorld {
     }
 
     pub(super) fn add_game(&self, mut game: ScenarioGame) -> L1BlockRef {
+        if game.creator == Self::proposer_address() && game.bond.refund_mode_credit == U256::ZERO {
+            game.bond.refund_mode_credit = game.creation_bond;
+        }
         self.append_block(|state| {
             game.bind_proof_inputs(state);
             state.games.insert(game.factory_index, game);
@@ -855,11 +892,31 @@ impl ScenarioWorld {
     }
 
     pub(super) fn script_superroot(&self, timestamp: u64, attempt: u64, outcome: SuperRootOutcome) {
-        self.lock().superroot_scripts.script_exact(timestamp, attempt, outcome);
+        self.lock().superroot_scripts.script_exact(
+            timestamp,
+            attempt,
+            SuperRootScript::immediate(outcome),
+        );
     }
 
     pub(super) fn script_next_superroot(&self, timestamp: u64, outcome: SuperRootOutcome) {
-        self.lock().superroot_scripts.script_next(timestamp, outcome);
+        self.lock().superroot_scripts.script_next(timestamp, SuperRootScript::immediate(outcome));
+    }
+
+    pub(super) fn block_superroot(
+        &self,
+        timestamp: u64,
+        attempt: u64,
+        outcome: SuperRootOutcome,
+        name: &str,
+    ) -> NamedBarrier {
+        let barrier = NamedBarrier::new(name);
+        self.lock().superroot_scripts.script_exact(
+            timestamp,
+            attempt,
+            SuperRootScript { outcome, barrier: Some(barrier.clone()) },
+        );
+        barrier
     }
 
     pub(super) fn superroot_journal(&self) -> Vec<SuperRootQueryRecord> {
@@ -1001,6 +1058,7 @@ impl ScenarioWorld {
             .cloned()
             .map(|mut game| {
                 game.finalized = game.is_finalized_at(latest.block.timestamp);
+                game.bond = game.bond_state_view();
                 game
             })
             .collect::<Vec<_>>();
@@ -1327,6 +1385,7 @@ impl WorldData {
                         state.block.timestamp + state.registered_args.max_challenge_duration;
                     game.creation_bond = init_bond;
                     game.challenger_bond = state.registered_args.challenger_bond;
+                    game.bond.refund_mode_credit = init_bond;
                     game.bind_proof_inputs(state);
                     state.games.insert(index, game);
                     CommittedEffect::Created { factory_index: index, address }
@@ -1348,14 +1407,33 @@ impl WorldData {
                 }
                 PendingEffect::Resolve(address) => {
                     let resolved_at = state.block.timestamp;
+                    let parent_index = state
+                        .game(address)
+                        .expect("resolved scenario game must exist")
+                        .parent_index;
+                    let parent_status = if parent_index == u32::MAX {
+                        GameStatus::DefenderWins
+                    } else {
+                        state
+                            .games
+                            .get(&U256::from(parent_index))
+                            .expect("resolved scenario parent game must exist")
+                            .status
+                    };
                     let game = state
                         .games
                         .values_mut()
                         .find(|game| game.address == address)
                         .expect("resolved scenario game must exist");
                     let proposal_status = game.proposal_status;
-                    let proposer_credit = game.proposer_credit_on_resolution();
-                    game.status = if proposal_status == ProposalStatus::Challenged {
+                    game.bond.credit = if parent_status == GameStatus::ChallengerWins {
+                        U256::ZERO
+                    } else {
+                        game.proposer_credit_on_resolution()
+                    };
+                    game.status = if parent_status == GameStatus::ChallengerWins ||
+                        proposal_status == ProposalStatus::Challenged
+                    {
                         GameStatus::ChallengerWins
                     } else {
                         GameStatus::DefenderWins
@@ -1363,7 +1441,7 @@ impl WorldData {
                     game.proposal_status = ProposalStatus::Resolved;
                     game.finalized = false;
                     game.resolved_at = Some(resolved_at);
-                    game.bond.credit = proposer_credit;
+                    game.bond.bond_distribution_mode = BondDistributionMode::Undecided;
                     CommittedEffect::Resolved { game: address }
                 }
                 PendingEffect::Claim(address) => {
@@ -1372,16 +1450,35 @@ impl WorldData {
                         .values_mut()
                         .find(|game| game.address == address)
                         .expect("claimed scenario game must exist");
-                    if game.bond.credit == U256::ZERO {
+                    let was_open =
+                        game.bond.bond_distribution_mode == BondDistributionMode::Undecided;
+                    if was_open {
+                        game.bond.bond_distribution_mode = if game.standing.disallowed() {
+                            BondDistributionMode::Refund
+                        } else {
+                            BondDistributionMode::Normal
+                        };
+                    }
+                    let credit = match game.bond.bond_distribution_mode {
+                        BondDistributionMode::Refund => game.bond.refund_mode_credit,
+                        BondDistributionMode::Normal => game.bond.credit,
+                        BondDistributionMode::Undecided => {
+                            unreachable!("claim selects a scenario bond distribution mode")
+                        }
+                    };
+                    if credit == U256::ZERO && game.bond.withdrawal_amount == U256::ZERO && was_open
+                    {
+                        CommittedEffect::Closed { game: address }
+                    } else if credit == U256::ZERO {
                         let amount = game.bond.withdrawal_amount;
                         game.bond.withdrawal_amount = U256::ZERO;
                         CommittedEffect::ClaimPaid { game: address, amount }
                     } else {
-                        let amount = game.bond.credit;
+                        game.bond.refund_mode_credit = U256::ZERO;
                         game.bond.credit = U256::ZERO;
-                        game.bond.withdrawal_amount = amount;
+                        game.bond.withdrawal_amount = credit;
                         game.bond.withdrawal_timestamp = U256::from(state.block.timestamp);
-                        CommittedEffect::ClaimUnlocked { game: address, amount }
+                        CommittedEffect::ClaimUnlocked { game: address, amount: credit }
                     }
                 }
             };
@@ -1495,6 +1592,12 @@ impl L1View for FakeL1View {
         Ok(self.state(block)?.registered_anchor_game)
     }
 
+    async fn game_type(&self, game: Address, block: BlockId) -> Result<u32> {
+        let GameReadResult { state, .. } =
+            self.state_for_game(L1ReadBoundary::GameType, game, block)?;
+        Ok(state.game(game)?.game_type)
+    }
+
     async fn factory_game(&self, index: U256, block: BlockId) -> Result<FactoryGame> {
         let mut data = self.0.lock();
         let state = data.state_at(block)?;
@@ -1586,7 +1689,7 @@ impl L1View for FakeL1View {
             proposer == ScenarioWorld::proposer_address(),
             "bond state used unexpected proposer {proposer}"
         );
-        Ok(game.bond)
+        Ok(game.bond_state_view())
     }
 
     async fn init_bond(&self) -> Result<U256> {
@@ -1612,7 +1715,9 @@ impl L1View for FakeL1View {
             Err(error) => {
                 let message = error.to_string();
                 return ClaimPreflight {
+                    bond_distribution_mode: Err(anyhow::anyhow!(message.clone())),
                     credit: Err(anyhow::anyhow!(message.clone())),
+                    refund_mode_credit: Err(anyhow::anyhow!(message.clone())),
                     withdrawal: Err(anyhow::anyhow!(message)),
                 };
             }
@@ -1620,9 +1725,27 @@ impl L1View for FakeL1View {
         let game_state = state.game(game).expect("game was just resolved");
         let arguments_valid =
             game_state.weth == weth && proposer == ScenarioWorld::proposer_address();
+        let bond_distribution_mode = if arguments_valid {
+            data.record_l1_read(
+                L1ReadBoundary::ClaimDistributionMode,
+                L1ReadTarget::Game(target.clone()),
+            )
+            .map(|_| game_state.bond.bond_distribution_mode)
+        } else {
+            Err(anyhow::anyhow!("claim preflight used the wrong game WETH or proposer"))
+        };
         let credit = if arguments_valid {
             data.record_l1_read(L1ReadBoundary::ClaimCredit, L1ReadTarget::Game(target.clone()))
-                .map(|_| game_state.bond.credit)
+                .map(|_| game_state.bond_state_view().credit)
+        } else {
+            Err(anyhow::anyhow!("claim preflight used the wrong game WETH or proposer"))
+        };
+        let refund_mode_credit = if arguments_valid {
+            data.record_l1_read(
+                L1ReadBoundary::ClaimRefundCredit,
+                L1ReadTarget::Game(target.clone()),
+            )
+            .map(|_| game_state.bond.refund_mode_credit)
         } else {
             Err(anyhow::anyhow!("claim preflight used the wrong game WETH or proposer"))
         };
@@ -1636,7 +1759,7 @@ impl L1View for FakeL1View {
         } else {
             Err(anyhow::anyhow!("claim preflight used the wrong game WETH or proposer"))
         };
-        ClaimPreflight { credit, withdrawal }
+        ClaimPreflight { bond_distribution_mode, credit, refund_mode_credit, withdrawal }
     }
 
     async fn weth_delay(&self, weth: Address) -> Result<U256> {
@@ -1715,6 +1838,10 @@ impl L1View for FakeL1View {
         data.record_l1_read(L1ReadBoundary::LatestL1Timestamp, L1ReadTarget::Global)?;
         Ok(state.block.timestamp)
     }
+
+    async fn verifier_hash(&self, _verifier: Address) -> Result<B256> {
+        Ok(crate::verifier::expected_verifier_hash())
+    }
 }
 
 #[derive(Clone)]
@@ -1752,48 +1879,57 @@ impl SuperRootSource for FakeSuperRootSource {
     }
 
     async fn super_root_at_timestamp(&self, timestamp: u64) -> Result<SuperRootAtTimestamp> {
-        let mut data = self.0.lock();
-        let safe = data.safe_time;
-        let finalized = data.finalized_time;
-        let (attempt, scripted) = data.superroot_scripts.next(&timestamp);
-        let outcome = scripted.unwrap_or_else(|| {
-            if timestamp > safe {
-                SuperRootOutcome::Unavailable
-            } else {
-                SuperRootOutcome::Root {
-                    root: canonical_super_root(timestamp),
-                    current_l1: 2,
-                    required_l1: 1,
-                }
-            }
-        });
-        let (current_l1, required_l1, journal_outcome) = match outcome {
-            SuperRootOutcome::Root { root, current_l1, required_l1 } => (
-                Some(current_l1),
-                Some(required_l1),
-                if current_l1 > required_l1 {
-                    SuperRootQueryOutcome::Trusted(root)
+        let (safe, finalized, outcome, barrier) = {
+            let mut data = self.0.lock();
+            let safe = data.safe_time;
+            let finalized = data.finalized_time;
+            let (attempt, scripted) = data.superroot_scripts.next(&timestamp);
+            let script = scripted.unwrap_or_else(|| {
+                SuperRootScript::immediate(if timestamp > safe {
+                    SuperRootOutcome::Unavailable
                 } else {
-                    SuperRootQueryOutcome::Untrusted(root)
-                },
-            ),
-            SuperRootOutcome::Unavailable => (Some(2), None, SuperRootQueryOutcome::Unavailable),
-            SuperRootOutcome::TransportFailure => {
-                (None, None, SuperRootQueryOutcome::TransportFailure)
-            }
-            SuperRootOutcome::Malformed => (None, None, SuperRootQueryOutcome::Malformed),
+                    SuperRootOutcome::Root {
+                        root: canonical_super_root(timestamp),
+                        current_l1: 2,
+                        required_l1: 1,
+                    }
+                })
+            });
+            let outcome = script.outcome;
+            let (current_l1, required_l1, journal_outcome) = match outcome {
+                SuperRootOutcome::Root { root, current_l1, required_l1 } => (
+                    Some(current_l1),
+                    Some(required_l1),
+                    if current_l1 > required_l1 {
+                        SuperRootQueryOutcome::Trusted(root)
+                    } else {
+                        SuperRootQueryOutcome::Untrusted(root)
+                    },
+                ),
+                SuperRootOutcome::Unavailable => {
+                    (Some(2), None, SuperRootQueryOutcome::Unavailable)
+                }
+                SuperRootOutcome::TransportFailure => {
+                    (None, None, SuperRootQueryOutcome::TransportFailure)
+                }
+                SuperRootOutcome::Malformed => (None, None, SuperRootQueryOutcome::Malformed),
+            };
+            data.superroot_records.push(SuperRootQueryRecord {
+                kind: SuperRootQueryKind::AtTimestamp,
+                requested_timestamp: timestamp,
+                attempt,
+                safe_timestamp: safe,
+                finalized_timestamp: finalized,
+                current_l1,
+                required_l1,
+                outcome: journal_outcome,
+            });
+            (safe, finalized, outcome, script.barrier)
         };
-        data.superroot_records.push(SuperRootQueryRecord {
-            kind: SuperRootQueryKind::AtTimestamp,
-            requested_timestamp: timestamp,
-            attempt,
-            safe_timestamp: safe,
-            finalized_timestamp: finalized,
-            current_l1,
-            required_l1,
-            outcome: journal_outcome,
-        });
-        drop(data);
+
+        if let Some(barrier) = barrier {
+            barrier.park_unassigned().await;
+        }
 
         match outcome {
             SuperRootOutcome::Root { root, current_l1, required_l1 } => {
@@ -1896,6 +2032,9 @@ impl ProofEngine for FakeProofEngine {
                 bail!("scripted proof failure for {target:?} attempt {attempt}")
             }
             ProofOutcome::Panic => panic!("scripted proof panic for {target:?} attempt {attempt}"),
+            ProofOutcome::Unprovable => Err(anyhow::Error::new(crate::proving::GameUnprovable(
+                format!("scripted unprovable proof for {target:?} attempt {attempt}"),
+            ))),
         }
     }
 
@@ -1903,6 +2042,10 @@ impl ProofEngine for FakeProofEngine {
 
     fn retry_terminal_requests(&self, _game_address: Address) -> usize {
         0
+    }
+
+    fn request_counts(&self) -> ProofRequestCounts {
+        ProofRequestCounts::new()
     }
 }
 
@@ -2303,6 +2446,7 @@ pub(super) fn scenario_config() -> ProposerConfig {
         fetch_interval: 86_400,
         metrics_listen: MetricsListen::Disabled,
         sync_l1_confirmations: 0,
+        max_game_deadline_lag: MAX_GAME_DEADLINE_LAG,
         tx_confirmation_timeout: 60,
         max_fee_per_gas: None,
         max_priority_fee_per_gas: None,
