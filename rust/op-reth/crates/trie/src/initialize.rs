@@ -32,7 +32,7 @@ const INITIALIZE_LOG_THRESHOLD: usize = 100000;
 
 /// Metadata key under which reth records a partial state trie repair unwind in progress.
 ///
-/// UPSTREAM-MIRROR(copy): reth@rev:339cb63
+/// UPSTREAM-MIRROR(copy): reth@rev:fe5a0dd
 /// `reth_node_builder::launch::common::PARTIAL_STATE_TRIE_UNWIND_METADATA_KEY`
 ///
 /// Private upstream; only its presence is read here, not the marker's contents.
