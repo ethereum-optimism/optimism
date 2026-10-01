@@ -537,7 +537,7 @@ Both chains run on the same shared contracts, so they upgrade as a pair. Once th
 
 ### Treat INTEROP and the ProxyAdmin Owner as Fixed
 
-`Features.INTEROP` can't be turned off, and `SystemConfig.setFeature` reverts if you try. That closes the obvious way out of a set. It also means a chain whose `INTEROP` was enabled by hand before migration can never be migrated.
+`Features.INTEROP` can't be turned off, and `SystemConfig.setFeature` reverts if you try. That closes the obvious way out of a set. It also means a chain whose `INTEROP` was enabled by hand before migration needs an administrative upgrade to clear the dev flag before it can be migrated.
 
 Both chains also need the same `ProxyAdmin` owner. `ETHLockbox.authorizePortal`, `ETHLockbox.migrateLiquidity`, and upgrades that touch the shared contracts all check that the owner is shared. If you change the owner on one chain, those calls revert for that chain until the owners match again.
 
