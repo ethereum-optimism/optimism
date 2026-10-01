@@ -203,6 +203,12 @@ The cache layers serve different purposes:
   writers. Filesystem output filters exclude unrelated source and system changes.
 - Nextest archives transfer compiled tests, metadata, dynamic libraries and build
   outputs. Running them does not recompile or cache test verdicts.
+- [Artifact mounts](https://www.rwx.com/docs/artifacts) deliver the release/codec
+  binaries, nextest archive and fresh vectors to consumers independently of
+  compiler filesystem layers. Consumers use the PR checkout and tool layer;
+  artifact checksums and source revisions remain mandatory before execution.
+  Input file filters change cache keys; they do not remove inherited layer
+  downloads. Only snapshot regeneration needs the producer's Cargo targets.
 
 The cache-only vault `optimism-op-reth-shadow` has no secrets, OIDC credentials
 or production GCS writer. Its write permissions currently cover `develop` and
@@ -330,8 +336,22 @@ These samples exposed a missing generated-bundle cache output. Losing or deletin
 the tar forced chainspec regeneration and relinking even with restored targets.
 The producer now retains a checksum-matching tar, with a regression check for
 preserving its timestamp and invalidating it when the committed pin changes.
-Repeat the measurements for that change. Further work includes reducing large
-compiler-layer transfers, avoiding volatile Git inputs in compiler content keys
+At `99ccc76a`, all four workloads passed in
+[native run 442bd7b8](https://cloud.rwx.com/optimism/runs/442bd7b81c0044e1b41d0178a8c63a25),
+and the 50 original JUnit identities/outcomes matched CircleCI job 5625810.
+A [forced target-cache probe](https://cloud.rwx.com/optimism/runs/8545eb684d094e13abc4e91fdab645fe)
+executed snapshot preparation in 7s, with six Rust sccache hits and no misses;
+fresh regeneration still executed for 24s. A separate
+[identical-input release rerun](https://cloud.rwx.com/optimism/runs/be0b0006cd5044c88739ec46cd81f2d6)
+at `d2b90241` hit the compiler content cache and completed the release path in
+8s, including fresh binary verification.
+
+The `99ccc76a` native run took 8m30s. Its codec verifier spent 171s preparing,
+including downloading two 11,516 MiB compiler cache layers, before executing in
+9s. The consumers now mount artifacts instead of inheriting compiler caches;
+verify the resulting layer inventory and repeat elapsed-time measurements.
+Further work includes trimming reusable tool layers and compiler cache outputs,
+avoiding volatile Git inputs in compiler content keys
 while preserving version identity, representative Rust source-change probes,
 repeated samples and actual billed usage. Required checks remain on CircleCI.
 
