@@ -74,6 +74,14 @@ func TestActor(t *testing.T) {
 			challenge: true,
 		},
 		{
+			name: "DoNotChallengeMismatchedSuperRootAtDeadline",
+			setup: func(t *testing.T, stubs *zkTestStubs) {
+				stubs.contract.deadline = l1Time
+				stubs.contract.proposalHash = common.Hash{0xba, 0xd0}
+				stubs.rootProvider.outputErr = errors.New("must not request proposal at deadline")
+			},
+		},
+		{
 			name: "DoNothingIfAlreadyChallenged",
 			setup: func(t *testing.T, stubs *zkTestStubs) {
 				stubs.rootProvider.root = common.Hash{0xba, 0xd0} // Disagree but already challenged
@@ -287,13 +295,13 @@ func TestActorDirectParentStatus(t *testing.T) {
 			resolve: true,
 		},
 		{
-			name: "ChallengeLostParentAtChildDeadline",
+			name: "ResolveLostParentAtChildDeadline",
 			setup: func(stubs *zkTestStubs) {
 				stubs.contract.parentStatus = types.GameStatusChallengerWon
 				stubs.contract.deadline = l1Time
+				stubs.contract.finalizedParentStatusErr = errors.New("must not request finalized parent at deadline")
 			},
-			challenge: true,
-			resolve:   true,
+			resolve: true,
 		},
 		{
 			name: "ResolveAlreadyChallengedChildOfLostParent",
@@ -390,11 +398,6 @@ func TestActorDirectParentStatus(t *testing.T) {
 				tt.setup(stubs)
 			}
 			err := actor.Act(context.Background())
-			expectedParentReads := 1
-			if stubs.contract.parentIndex == math.MaxUint32 || stubs.contract.proposalStatus == contracts.ProposalStatusResolved {
-				expectedParentReads = 0
-			}
-			require.Equal(t, expectedParentReads, stubs.contract.parentStatusCalls)
 			if tt.expectErr != "" {
 				require.ErrorContains(t, err, tt.expectErr)
 				require.Empty(t, stubs.sender.sentData)

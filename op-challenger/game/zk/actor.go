@@ -85,7 +85,7 @@ func (a *Actor) Act(ctx context.Context) error {
 
 	if parentStatus == gameTypes.GameStatusChallengerWon &&
 		gameState.ProposalStatus == contracts.ProposalStatusUnchallenged &&
-		!gameState.Deadline.Before(a.l1Clock.Now()) {
+		gameState.Deadline.After(a.l1Clock.Now()) {
 		// Wait for parent finality before challenging or resolving an unchallenged child in its window.
 		parentStatus, err = a.gameStatusProvider.GetGameStatusAtBlock(ctx, uint64(gameState.ParentIndex), rpcblock.Finalized)
 		if err != nil {
@@ -119,7 +119,7 @@ func (a *Actor) Act(ctx context.Context) error {
 }
 
 func (a *Actor) createChallengeTx(ctx context.Context, gameState contracts.ChallengerMetadata, parentStatus gameTypes.GameStatus) (txmgr.TxCandidate, error) {
-	if gameState.ProposalStatus != contracts.ProposalStatusUnchallenged || gameState.Deadline.Before(a.l1Clock.Now()) {
+	if gameState.ProposalStatus != contracts.ProposalStatusUnchallenged || !gameState.Deadline.After(a.l1Clock.Now()) {
 		a.logger.Trace("Skipping unchallengeable zk game")
 		return txmgr.TxCandidate{}, errNoChallengeRequired
 	}
