@@ -67,8 +67,15 @@ func (a *Actor) Act(ctx context.Context) error {
 		return fmt.Errorf("failed to get zk game state: %w", err)
 	}
 
+	if gameState.ProposalStatus == contracts.ProposalStatusResolved {
+		a.logger.Trace("Skipping resolved zk game")
+		a.logger.Debug("No challenge required")
+		a.logger.Debug("No resolution required")
+		return nil
+	}
+
 	parentStatus := gameTypes.GameStatusDefenderWon
-	if gameState.ParentIndex != math.MaxUint32 && gameState.ProposalStatus != contracts.ProposalStatusResolved {
+	if gameState.ParentIndex != math.MaxUint32 {
 		parentStatus, err = a.gameStatusProvider.GetGameStatus(ctx, uint64(gameState.ParentIndex))
 		if err != nil {
 			return fmt.Errorf("failed to get parent game status: %w", err)
@@ -149,10 +156,6 @@ func (a *Actor) isValidProposal(ctx context.Context) (bool, error) {
 }
 
 func (a *Actor) createResolveTx(gameState contracts.ChallengerMetadata, parentStatus gameTypes.GameStatus) (txmgr.TxCandidate, error) {
-	if gameState.ProposalStatus == contracts.ProposalStatusResolved {
-		a.logger.Trace("Skipping resolution of resolved zk game")
-		return txmgr.TxCandidate{}, errNoResolutionRequired
-	}
 	deadlineExpired := gameState.Deadline.Before(a.l1Clock.Now())
 
 	if parentStatus == gameTypes.GameStatusInProgress {
