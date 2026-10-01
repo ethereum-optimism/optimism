@@ -180,7 +180,9 @@ sccache 0.18.0 with a verified release checksum. `CARGO_INCREMENTAL=0` keeps
 sccache enabled. Build helpers live in the reusable tool layer so the baseline
 checkout can use them without receiving PR Rust source. Public
 `superchain-registry` initialization uses each checkout's own gitlink; compilers
-remove any inherited generated tar before letting `build.rs` regenerate it.
+retain the generated tar only when its checksum matches the checkout's committed
+pin. A mismatching tar is removed so `build.rs` regenerates it. Keeping the matching
+tar and its timestamp avoids rebuilding chainspec and relinking its consumers.
 
 Release and each codec compiler use 8 CPUs / 16 GB; integration compilation and
 execution use 16 CPUs / 32 GB; snapshot compilation and regeneration use
@@ -269,6 +271,69 @@ writes from RWX task metadata, not the requested epoch alone. Retain source-chan
 and failing-verdict probes before claiming cache correctness across revisions.
 Compare repeated same-SHA CircleCI samples, test counts, CPU/memory allocations
 and billed usage before making a provider-wide speed or cost claim.
+
+### First hosted measurements
+
+At `d2b9024161341a61fa48dcfa2f177e92651d220d`, all four workloads passed in
+[native run b2a03116](https://cloud.rwx.com/optimism/runs/b2a0311680d04079ac335e1439e75a7e).
+The original integration JUnit matched
+[CircleCI job 5625702](https://circleci.com/gh/ethereum-optimism/optimism/5625702)
+for all 50 reported cases, with no missing, extra or changed verdicts. RWX's
+discovery retained the additional ignored `p2p::can_sync` case. RWX parsed all
+50 JUnit results in its UI. Both release binaries, fresh codec vectors at baseline
+`ea9cce9b1c5d86336da52e2346e666d6a21a956b`, and both regenerated snapshots passed.
+
+The first complete native run took 13m10s. The
+[complete warm CLI run](https://cloud.rwx.com/optimism/runs/2c7e09f8233541869ff6fa8771b3d372)
+took 5m58s with all verdicts and random vector generation executing again.
+Tool installation and dependency layers were reusable in both runs. The warm
+sample restored native tool caches; all five compiler producers still executed.
+These are single observations with different provider trigger contexts.
+
+| Build phase | Initial compiler state | Restored Cargo targets and sccache |
+| --- | ---: | ---: |
+| Release, both binaries | 517s | 237s |
+| Integration archive | 354s | 126s |
+| Codec baseline | 381s | 47s |
+| Codec PR | 379s | 48s |
+| Snapshot preparation | 65s | 24s |
+
+Separate snapshot probes forced compiler content misses. The
+[target-retaining probe](https://cloud.rwx.com/optimism/runs/8c3069f390034f8682b2695cbe01f927)
+compiled in 24s; the
+[empty-target/sccache probe](https://cloud.rwx.com/optimism/runs/8552f40db3314cf282583313806e0be6)
+compiled in 36s with 263 Rust hits, 72 C/C++ hits, two assembler hits and no cache
+misses. The initial 65s snapshot build had zero hits and 263 Rust misses.
+These are build-phase times, excluding preparation, output upload and the fresh
+snapshot verdict. Requested snapshot resources were 4 CPUs / 8 GB; metadata
+reported four CPUs and a 6 GiB container memory limit. Capture actual limits from
+both providers before treating declared resource classes as identical hardware.
+
+Same-SHA CircleCI jobs also passed: release
+[5625647](https://circleci.com/gh/ethereum-optimism/optimism/5625647) took 9m50s,
+integration took 5m55s, codec
+[5625720](https://circleci.com/gh/ethereum-optimism/optimism/5625720) took 7m39s,
+and snapshot
+[5625721](https://circleci.com/gh/ethereum-optimism/optimism/5625721) took 1m32s.
+Those are whole-job durations, including their own cache and setup behavior;
+they are not directly comparable to the RWX compiler-phase table. The cold RWX
+run still has substantial preparation and transfer overhead.
+
+An [intentional CLI-only verdict fault](https://cloud.rwx.com/optimism/runs/add6576e7432497a8a1e3f85a40a8313)
+failed one selected integration test after archive extraction and discovery. The
+task and run failed, retained original JUnit and coverage, and preserved nextest's
+exit 100 despite incomplete coverage caused by fail-fast cancellation. The
+committed Rust tests were unchanged. Successful warm execution subsequently
+passed all 50 cases.
+
+These samples exposed a missing generated-bundle cache output. Losing or deleting
+the tar forced chainspec regeneration and relinking even with restored targets.
+The producer now retains a checksum-matching tar, with a regression check for
+preserving its timestamp and invalidating it when the committed pin changes.
+Repeat the measurements for that change. Further work includes reducing large
+compiler-layer transfers, avoiding volatile Git inputs in compiler content keys
+while preserving version identity, representative Rust source-change probes,
+repeated samples and actual billed usage. Required checks remain on CircleCI.
 
 ## Migration contract
 

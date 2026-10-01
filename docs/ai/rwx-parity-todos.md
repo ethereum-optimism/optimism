@@ -17,13 +17,13 @@ at commit `587b4c3a73d3f16f15212b72e9a0ed0e8489a7c4`.
 
 | PR workflow | Expanded job instances | Implemented validation jobs |
 | --- | ---: | ---: |
-| Main | 32 | 1 |
+| Main | 32 | 2 |
 | Contracts | 23 | 4 |
-| Rust | 22 | 1 |
+| Rust | 22 | 4 |
 | Rust E2E | 9 | 0 |
-| Total | 86 | 6 |
+| Total | 86 | 10 |
 
-Conservative implementation coverage is **6 / 86 = 7%**. Each matrix entry and
+Conservative implementation coverage is **10 / 86 = 12%**. Each matrix entry and
 each occurrence in a different workflow counts separately; shards do not.
 The CircleCI setup and schedule-trigger-check workflows are outside this
 86-job denominator and have separate todos. This is job coverage, not runtime,
@@ -41,12 +41,21 @@ and executed as an optional RWX shadow. It does not close the evidence or
 operational requirements below. **No required gate has transferred to RWX.**
 Refresh the inventory and denominator when the PR workload changes.
 
+The complete op-reth shadow passed in
+[native RWX run b2a03116](https://cloud.rwx.com/optimism/runs/b2a0311680d04079ac335e1439e75a7e)
+at `d2b9024161341a61fa48dcfa2f177e92651d220d`. Both release binaries were
+verified; all 50 runnable integration cases passed, with one explicitly ignored
+case; fresh compact vectors and regenerated superchain snapshots passed. The
+original integration JUnit matched CircleCI job 5625702 for all 50 reported
+identities and outcomes. Cache measurements and their remaining limitations are
+in [rwx-migration.md](rwx-migration.md#op-reth-shadow-and-cache-measurements).
+
 ## Recommended order
 
 1. Close the existing comparison evidence gaps.
-2. Shadow `rust-op-reth-binary` and its integration checks with real outputs.
-   The observed CircleCI producer took 9m25s and was the final prerequisite
-   holding aggregate Go tests; this identifies a dependency, not a savings estimate.
+2. Validate op-reth cache behavior across representative Rust source changes and
+   collect repeated equivalent-resource timings and billed usage. The release
+   producer and all three associated checks now run as complete shadows.
 3. Complete the producers needed by aggregate Go and acceptance tests, then
    port their consumers with equivalent discovery and sharding.
 4. Complete the remaining Rust, contract and independent validation jobs.
@@ -115,7 +124,7 @@ CircleCI workflow: `main` (32 jobs).
 - [ ] `semgrep-test`
 - [ ] `semgrep-scan-local`
 - [ ] `rust-sp1-super-range-executor`
-- [ ] `rust-op-reth-binary`
+- [x] `rust-op-reth-binary`
 - [ ] `rust-kona-binaries`
 - [ ] `rust-binaries-for-sysgo`
 - [ ] `prep-superchain`
@@ -188,9 +197,9 @@ CircleCI workflow: `rust-ci` (22 jobs).
 - [ ] `rust-check-no-std`
 - [ ] `rust-cargo-hack`
 - [ ] `rust-build`
-- [ ] `op-reth-superchain-snapshot-check`
-- [ ] `op-reth-integration-tests`
-- [ ] `op-reth-compact-codec`
+- [x] `op-reth-superchain-snapshot-check`
+- [x] `op-reth-integration-tests`
+- [x] `op-reth-compact-codec`
 - [ ] `kona-registry-snapshot-check`
 - [ ] `kona-lint-cannon`
 - [ ] `kona-host-client-offline-cannon`

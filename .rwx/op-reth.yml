@@ -182,7 +182,7 @@ tasks:
     outputs:
       filesystem:
         filter:
-          workspace: [rust/target, .ci/rust-cache, .ci/op-reth/release-build]
+          workspace: [rust/target, rust/op-reth/crates/chainspec/res/superchain-configs.tar, .ci/rust-cache, .ci/op-reth/release-build]
           system: []
       artifacts:
         - key: release-binaries
@@ -216,7 +216,7 @@ tasks:
     outputs:
       filesystem:
         filter:
-          workspace: [rust/target, .ci/rust-cache, .ci/op-reth/integration-build]
+          workspace: [rust/target, rust/op-reth/crates/chainspec/res/superchain-configs.tar, .ci/rust-cache, .ci/op-reth/integration-build]
           system: []
       artifacts:
         - key: integration-build-report
@@ -258,7 +258,7 @@ tasks:
     outputs:
       filesystem:
         filter:
-          workspace: [rust/target, .ci/rust-cache, .ci/op-reth/codec-base-build]
+          workspace: [rust/target, rust/op-reth/crates/chainspec/res/superchain-configs.tar, .ci/rust-cache, .ci/op-reth/codec-base-build]
           system: []
       artifacts:
         - key: codec-base-build-report
@@ -275,7 +275,7 @@ tasks:
     outputs:
       filesystem:
         filter:
-          workspace: [rust/target, .ci/rust-cache, .ci/op-reth/codec-head-build]
+          workspace: [rust/target, rust/op-reth/crates/chainspec/res/superchain-configs.tar, .ci/rust-cache, .ci/op-reth/codec-head-build]
           system: []
       artifacts:
         - key: codec-head-build-report
@@ -333,7 +333,7 @@ tasks:
     outputs:
       filesystem:
         filter:
-          workspace: [rust/target, .ci/rust-cache, .ci/op-reth/snapshot-build]
+          workspace: [rust/target, rust/op-reth/crates/chainspec/res/superchain-configs.tar, .ci/rust-cache, .ci/op-reth/snapshot-build]
           system: []
       artifacts:
         - key: snapshot-build-report

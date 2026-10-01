@@ -4,6 +4,7 @@
 import hashlib
 import json
 import os
+import re
 from pathlib import Path
 import subprocess
 import sys
@@ -71,6 +72,16 @@ def vector_manifest(directory, expected, verify=False):
             raise ValueError("Compact vector source, checksum or inventory mismatch")
     else:
         write(directory, "vectors.json", manifest)
+
+
+def prepare_superchain():
+    directory = Path("rust/op-reth/crates/chainspec/res")
+    expected = (directory / "superchain-configs.tar.sha256").read_text().split()[0]
+    if not re.fullmatch(r"[0-9a-f]{64}", expected):
+        raise ValueError("Invalid committed superchain archive checksum")
+    archive = directory / "superchain-configs.tar"
+    if archive.exists() and digest(archive) != expected:
+        archive.unlink()
 
 
 def integration_report(directory):
@@ -157,6 +168,8 @@ def main(args):
         integration_report(directory)
     elif operation == "metadata":
         metadata(directory, *rest)
+    elif operation == "prepare-superchain":
+        prepare_superchain()
     else:
         raise ValueError(f"Unknown report operation: {operation}")
 

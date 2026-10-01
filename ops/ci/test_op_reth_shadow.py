@@ -2,6 +2,7 @@
 """Exercise cache invalidation, artifact provenance and fresh failing verdicts."""
 
 import copy
+import hashlib
 import json
 import os
 from pathlib import Path
@@ -98,6 +99,7 @@ class ShadowTest(unittest.TestCase):
         (self.root / ".git").mkdir()
         (self.root / "rust/op-reth/crates/chainspec/res").mkdir(parents=True)
         (self.root / "rust/Cargo.lock").write_text("pinned dependencies")
+        (self.root / "rust/op-reth/crates/chainspec/res/superchain-configs.tar.sha256").write_text("0" * 64 + "  superchain-configs.tar\n")
         self.scripts = self.root / "ops/ci"
         self.scripts.mkdir(parents=True)
         for name in ("op-reth-shadow.sh", "op-reth-report.py"):
@@ -170,6 +172,18 @@ class ShadowTest(unittest.TestCase):
     def test_invalid_cache_mode_fails(self):
         result = self.run_job("release-build", TARGET_CACHE_MODE="unknown")
         self.assertNotEqual(result.returncode, 0)
+
+    def test_matching_superchain_bundle_keeps_its_timestamp(self):
+        archive = self.root / "rust/op-reth/crates/chainspec/res/superchain-configs.tar"
+        archive.write_bytes(b"pinned bundle")
+        pin = archive.with_name(archive.name + ".sha256")
+        pin.write_text(hashlib.sha256(archive.read_bytes()).hexdigest() + "  superchain-configs.tar\n")
+        os.utime(archive, (1000, 1000))
+        self.assertEqual(self.run_job("release-build").returncode, 0)
+        self.assertEqual(archive.stat().st_mtime, 1000)
+        pin.write_text("1" * 64 + "  superchain-configs.tar\n")
+        self.assertEqual(self.run_job("release-build").returncode, 0)
+        self.assertFalse(archive.exists())
 
     def test_failed_compilation_retains_original_failure(self):
         result = self.run_job("release-build", BUILD_EXIT="23", STATS_EXIT="42")

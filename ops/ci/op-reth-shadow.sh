@@ -39,8 +39,10 @@ if [[ "$job" == *-build ]]; then
   mkdir -p "$CARGO_HOME" "$SCCACHE_DIR"
   sccache --start-server
   sccache --zero-stats
-  # Never let a tar restored from a prior source revision satisfy build.rs.
-  rm -f rust/op-reth/crates/chainspec/res/superchain-configs.tar
+  # Keep a checksum-matching bundle without touching its mtime. Removing it on
+  # every build dirties chainspec and forces downstream recompilation/relinking.
+  # A stale bundle is removed so build.rs regenerates from the pinned submodule.
+  python3 "$REPORT" prepare-superchain "$report_dir"
 fi
 
 case "$job" in
