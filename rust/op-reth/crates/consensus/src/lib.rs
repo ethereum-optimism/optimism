@@ -26,7 +26,7 @@ use reth_consensus_common::validation::{
     validate_header_extra_data, validate_header_gas,
 };
 use reth_execution_types::BlockExecutionResult;
-use reth_optimism_forks::OpHardforks;
+use reth_optimism_forks::{OpHardfork, OpHardforks};
 use reth_optimism_primitives::DepositReceipt;
 use reth_primitives_traits::{
     Block, BlockBody, BlockHeader, GotExpected, NodePrimitives, RecoveredBlock, SealedBlock,
@@ -45,19 +45,27 @@ pub use validation::{canyon, isthmus, validate_block_post_execution};
 pub mod error;
 pub use error::OpConsensusError;
 
+/// Validates that a header's `extraData` has the encoding required by the fork active at its
+/// timestamp: the Jovian or Holocene encoding, or empty before Holocene.
+///
+/// Before Holocene, the rollup genesis block may carry arbitrary `extraData`. That is the Bedrock
+/// transition block: block 0, or on chains migrated from a legacy chain (OP Mainnet) the first
+/// Bedrock block, whose chain-spec genesis is the legacy block 0.
 fn validate_op_header_extra_data<H, ChainSpec>(
-    header: &SealedHeader<H>,
+    header: &H,
     chain_spec: &ChainSpec,
 ) -> Result<(), ConsensusError>
 where
     H: BlockHeader,
-    ChainSpec: EthChainSpec<Header = H> + OpHardforks,
+    ChainSpec: OpHardforks,
 {
     if chain_spec.is_jovian_active_at_timestamp(header.timestamp()) {
         decode_jovian_extra_data(header.extra_data()).map_err(ConsensusError::other)?;
     } else if chain_spec.is_holocene_active_at_timestamp(header.timestamp()) {
         decode_holocene_extra_data(header.extra_data()).map_err(ConsensusError::other)?;
-    } else if header.hash() != chain_spec.genesis_hash() && !header.extra_data().is_empty() {
+    } else if !header.extra_data().is_empty() &&
+        !chain_spec.op_fork_activation(OpHardfork::Bedrock).transitions_at_block(header.number())
+    {
         return Err(ConsensusError::msg("extraData must be empty before Holocene"));
     }
 
@@ -188,8 +196,7 @@ where
     ChainSpec: EthChainSpec<Header = H> + OpHardforks + Debug + Send + Sync,
 {
     fn validate_header(&self, header: &SealedHeader<H>) -> Result<(), ConsensusError> {
-        let sealed_header = header;
-        let header = sealed_header.header();
+        let header = header.header();
         // with OP-stack Bedrock activation number determines when TTD (eth Merge) has been reached.
         debug_assert!(
             self.chain_spec.is_bedrock_active_at_block(header.number()),
@@ -214,7 +221,7 @@ where
 
         // validate header extra data for all networks post merge
         validate_header_extra_data(header, self.max_extra_data_size)?;
-        validate_op_header_extra_data(sealed_header, &self.chain_spec)?;
+        validate_op_header_extra_data(header, &self.chain_spec)?;
         validate_header_gas(header)?;
         validate_header_base_fee(header, &self.chain_spec)
     }
@@ -323,6 +330,32 @@ mod tests {
         header.timestamp += 2;
         header.extra_data = extra_data;
         SealedHeader::seal_slow(header)
+    }
+
+    /// OP Mainnet's chain spec genesis is the legacy block 0, while its rollup genesis is the
+    /// Bedrock transition block, which carries `BEDROCK` as `extraData`.
+    #[test]
+    fn header_extra_data_op_mainnet_bedrock_block() {
+        let consensus = OpBeaconConsensus::new(OP_MAINNET.clone());
+        let bedrock_block = |number, extra_data| {
+            SealedHeader::seal_slow(Header {
+                number,
+                timestamp: 1_686_068_903,
+                gas_limit: 30_000_000,
+                base_fee_per_gas: Some(1_000_000_000),
+                extra_data,
+                ..Default::default()
+            })
+        };
+
+        let result =
+            consensus.validate_header(&bedrock_block(105_235_063, Bytes::from_static(b"BEDROCK")));
+        assert!(result.is_ok(), "{result:?}");
+        assert!(
+            consensus
+                .validate_header(&bedrock_block(105_235_064, Bytes::from_static(b"BEDROCK")))
+                .is_err()
+        );
     }
 
     #[test]
