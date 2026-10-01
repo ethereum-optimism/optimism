@@ -3,6 +3,7 @@ package presets
 import (
 	"os"
 	"strings"
+	"time"
 
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	gn "github.com/ethereum/go-ethereum/node"
@@ -16,8 +17,22 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 )
 
+// rpcCallTimeout bounds each call of the RPC clients that presets give tests. It is longer than the
+// client default because op-node serves some calls from its driver loop, which can wait several
+// seconds on a disk sync when a CI host's disk is busy.
+const rpcCallTimeout = 30 * time.Second
+
+// rpcOpts returns the options of the RPC clients that presets give tests, followed by extra.
+func rpcOpts(extra ...client.RPCOption) []client.RPCOption {
+	return append([]client.RPCOption{
+		client.WithLazyDial(),
+		client.WithCallTimeout(rpcCallTimeout),
+		client.WithBatchCallTimeout(rpcCallTimeout),
+	}, extra...)
+}
+
 func newL1ELFrontend(t devtest.T, name string, chainID eth.ChainID, userRPC string) *l1ELFrontend {
-	rpcCl, err := client.NewRPC(t.Ctx(), t.Logger(), userRPC, client.WithLazyDial())
+	rpcCl, err := client.NewRPC(t.Ctx(), t.Logger(), userRPC, rpcOpts()...)
 	t.Require().NoError(err)
 	t.Cleanup(rpcCl.Close)
 	return newPresetL1ELNode(t, name, chainID, rpcCl, userRPC)
@@ -33,7 +48,7 @@ func newL1CLFrontend(t devtest.T, name string, chainID eth.ChainID, beaconHTTPAd
 }
 
 func newL2ELFrontend(t devtest.T, name string, chainID eth.ChainID, userRPC string, engineRPC string, jwtPath string, rollupCfg *rollup.Config, lifecycle ...stack.Lifecycle) *l2ELFrontend {
-	userRPCCl, err := client.NewRPC(t.Ctx(), t.Logger(), userRPC, client.WithLazyDial())
+	userRPCCl, err := client.NewRPC(t.Ctx(), t.Logger(), userRPC, rpcOpts()...)
 	t.Require().NoError(err)
 	t.Cleanup(userRPCCl.Close)
 	jwtSecret := readJWTSecret(t, jwtPath)
@@ -41,8 +56,7 @@ func newL2ELFrontend(t devtest.T, name string, chainID eth.ChainID, userRPC stri
 		t.Ctx(),
 		t.Logger(),
 		engineRPC,
-		client.WithLazyDial(),
-		client.WithGethRPCOptions(rpc.WithHTTPAuth(gn.NewJWTAuth(jwtSecret))),
+		rpcOpts(client.WithGethRPCOptions(rpc.WithHTTPAuth(gn.NewJWTAuth(jwtSecret))))...,
 	)
 	t.Require().NoError(err)
 	t.Cleanup(engineRPCCl.Close)
@@ -69,7 +83,7 @@ func readJWTSecret(t devtest.T, jwtPath string) [32]byte {
 }
 
 func newL2CLFrontend(t devtest.T, name string, chainID eth.ChainID, userRPC string, node sysgo.L2CLNode) *l2CLFrontend {
-	rpcCl, err := client.NewRPC(t.Ctx(), t.Logger(), userRPC, client.WithLazyDial())
+	rpcCl, err := client.NewRPC(t.Ctx(), t.Logger(), userRPC, rpcOpts()...)
 	t.Require().NoError(err)
 	t.Cleanup(rpcCl.Close)
 	_ = node // node accessed for lifecycle below
@@ -84,14 +98,14 @@ func newL2CLFrontend(t devtest.T, name string, chainID eth.ChainID, userRPC stri
 }
 
 func newL2BatcherFrontend(t devtest.T, name string, chainID eth.ChainID, rpcEndpoint string) *l2BatcherFrontend {
-	rpcCl, err := client.NewRPC(t.Ctx(), t.Logger(), rpcEndpoint, client.WithLazyDial())
+	rpcCl, err := client.NewRPC(t.Ctx(), t.Logger(), rpcEndpoint, rpcOpts()...)
 	t.Require().NoError(err)
 	t.Cleanup(rpcCl.Close)
 	return newPresetL2Batcher(t, name, chainID, rpcCl)
 }
 
 func newSupernodeFrontend(t devtest.T, name string, userRPC string, control ...stack.ControlledLifecycle) *supernodeFrontend {
-	rpcCl, err := client.NewRPC(t.Ctx(), t.Logger(), userRPC, client.WithLazyDial())
+	rpcCl, err := client.NewRPC(t.Ctx(), t.Logger(), userRPC, rpcOpts()...)
 	t.Require().NoError(err)
 	t.Cleanup(rpcCl.Close)
 	supernode := newPresetSupernode(t, name, userRPC, rpcCl)
@@ -109,10 +123,7 @@ func newConductorFrontend(t devtest.T, name string, chainID eth.ChainID, rpcEndp
 }
 
 func newTestSequencerFrontend(t devtest.T, name string, adminRPC string, controlRPCs map[eth.ChainID]string, jwtSecret [32]byte) *testSequencerFrontend {
-	opts := []client.RPCOption{
-		client.WithLazyDial(),
-		client.WithGethRPCOptions(rpc.WithHTTPAuth(gn.NewJWTAuth(jwtSecret))),
-	}
+	opts := rpcOpts(client.WithGethRPCOptions(rpc.WithHTTPAuth(gn.NewJWTAuth(jwtSecret))))
 
 	adminRPCCl, err := client.NewRPC(t.Ctx(), t.Logger(), adminRPC, opts...)
 	t.Require().NoError(err)
@@ -129,7 +140,7 @@ func newTestSequencerFrontend(t devtest.T, name string, adminRPC string, control
 }
 
 func newSyncTesterFrontend(t devtest.T, name string, chainID eth.ChainID, syncTesterRPC string) *syncTesterFrontend {
-	rpcCl, err := client.NewRPC(t.Ctx(), t.Logger(), syncTesterRPC, client.WithLazyDial())
+	rpcCl, err := client.NewRPC(t.Ctx(), t.Logger(), syncTesterRPC, rpcOpts()...)
 	t.Require().NoError(err)
 	t.Cleanup(rpcCl.Close)
 	return newPresetSyncTester(t, name, chainID, syncTesterRPC, rpcCl)
