@@ -3,18 +3,23 @@ use crate::{
     pending_state::PendingBlockState,
     tx_cache::{CachedExecutionMeta, TransactionCache},
 };
-use alloy_eips::{BlockNumberOrTag, eip2718::WithEncoded};
+use alloy_eips::{
+    BlockNumberOrTag,
+    eip2718::{Decodable2718, WithEncoded},
+};
 use alloy_primitives::B256;
+use op_alloy_consensus::{POST_EXEC_TX_TYPE_ID, TxPostExec};
 use op_alloy_rpc_types_engine::OpFlashblockPayloadBase;
 use reth_chain_state::ExecutedBlock;
 use reth_errors::RethError;
 use reth_evm::{
-    ConfigureEvm, Evm,
+    Evm,
     execute::{
         BlockAssembler, BlockAssemblerInput, BlockBuilder, BlockBuilderOutcome, BlockExecutor,
     },
 };
 use reth_execution_types::{BlockExecutionOutput, BlockExecutionResult};
+use reth_optimism_evm::{ConfigurePostExecEvm, PostExecMode};
 use reth_optimism_primitives::OpReceipt;
 use reth_primitives_traits::{
     AlloyBlockHeader, BlockTy, HeaderTy, NodePrimitives, ReceiptTy, Recovered, RecoveredBlock,
@@ -116,7 +121,7 @@ impl<N, EvmConfig, Provider> FlashBlockBuilder<EvmConfig, Provider>
 where
     N: NodePrimitives,
     N::Receipt: FlashblockCachedReceipt,
-    EvmConfig: ConfigureEvm<Primitives = N, NextBlockEnvCtx: From<OpFlashblockPayloadBase> + Unpin>,
+    EvmConfig: ConfigurePostExecEvm<Primitives = N, NextBlockEnvCtx: From<OpFlashblockPayloadBase> + Unpin>,
     Provider: StateProviderFactory
         + BlockReaderIdExt<
             Header = HeaderTy<N>,
@@ -169,6 +174,11 @@ where
         // Collect transactions and extract hashes for cache lookup
         let transactions: Vec<_> = args.transactions.into_iter().collect();
         let tx_hashes: Vec<B256> = transactions.iter().map(|tx| *tx.tx_hash()).collect();
+        let post_exec_mode = streamed_post_exec_mode(&transactions)?;
+        // The transaction cache resumes from a prefix with a fresh executor, which would index a
+        // `Verify` payload's refund entries from the suffix rather than the block start. Its
+        // entries are also built against a provisional 0x7D that the next subblock supersedes.
+        let use_tx_cache = matches!(post_exec_mode, PostExecMode::Disabled);
 
         // Get state provider and parent header context.
         // For speculative builds, use the canonical anchor hash (not the pending parent hash)
@@ -233,7 +243,7 @@ where
 
         // Check for resumable canonical execution state.
         let canonical_parent_hash = args.base.parent_hash;
-        let cached_prefix = if is_canonical {
+        let cached_prefix = if is_canonical && use_tx_cache {
             tx_cache.as_ref().and_then(|cache| {
                 cache
                     .get_resumable_state_with_execution_meta_for_parent(
@@ -368,7 +378,12 @@ where
         } else {
             let mut builder = self
                 .evm_config
-                .builder_for_next_block(&mut state, parent_header, args.base.clone().into())
+                .post_exec_builder_for_next_block(
+                    &mut state,
+                    parent_header,
+                    args.base.clone().into(),
+                    post_exec_mode,
+                )
                 .map_err(RethError::other)?;
 
             builder.apply_pre_execution_changes()?;
@@ -391,7 +406,8 @@ where
 
         // Update transaction cache if provided (only in canonical mode)
         if let Some(cache) = tx_cache &&
-            is_canonical
+            is_canonical &&
+            use_tx_cache
         {
             cache.update_with_execution_meta_for_parent(
                 args.base.block_number,
@@ -477,6 +493,24 @@ where
     }
 }
 
+/// Returns the post-exec mode for a streamed build.
+///
+/// A streamed sequence carries the in-progress block's 0x7D in its latest `diff.post_exec_tx`,
+/// which the sequence manager appends after the sequence's transactions. Verifying against it
+/// applies the sequencer's refunds, so the pending block matches what the sealed block will be.
+fn streamed_post_exec_mode<T>(
+    transactions: &[WithEncoded<Recovered<T>>],
+) -> eyre::Result<PostExecMode> {
+    let Some(encoded) = transactions
+        .last()
+        .map(WithEncoded::encoded_bytes)
+        .filter(|encoded| encoded.first() == Some(&POST_EXEC_TX_TYPE_ID))
+    else {
+        return Ok(PostExecMode::Disabled);
+    };
+    Ok(PostExecMode::Verify(TxPostExec::decode_2718_exact(encoded)?.payload))
+}
+
 #[inline]
 fn is_consistent_speculative_parent_hashes(
     incoming_parent_hash: B256,
@@ -494,22 +528,25 @@ impl<EvmConfig: Clone, Provider: Clone> Clone for FlashBlockBuilder<EvmConfig, P
 
 #[cfg(test)]
 mod tests {
-    use super::{BuildArgs, FlashBlockBuilder, is_consistent_speculative_parent_hashes};
+    use super::{
+        BuildArgs, BuildResult, FlashBlockBuilder, is_consistent_speculative_parent_hashes,
+    };
     use crate::{TransactionCache, tx_cache::CachedExecutionMeta};
-    use alloy_consensus::{SignableTransaction, TxEip1559};
+    use alloy_consensus::{Sealable, SignableTransaction, TxEip1559};
     use alloy_eips::eip2718::Encodable2718;
     use alloy_network::TxSignerSync;
     use alloy_primitives::{Address, B256, StorageKey, StorageValue, TxKind, U256};
     use alloy_signer_local::PrivateKeySigner;
+    use op_alloy_consensus::{SDMGasEntry, build_post_exec_tx};
     use op_alloy_rpc_types_engine::OpFlashblockPayloadBase;
     use op_revm::constants::L1_BLOCK_CONTRACT;
-    use reth_optimism_chainspec::OP_MAINNET;
+    use reth_optimism_chainspec::{OP_MAINNET, OpChainSpec};
     use reth_optimism_evm::OpEvmConfig;
     use reth_optimism_primitives::{OpPrimitives, OpTransactionSigned};
     use reth_primitives_traits::{AlloyBlockHeader, Recovered, SignerRecoverable};
     use reth_provider::test_utils::{ExtendedAccount, MockEthProvider};
     use reth_storage_api::BlockReaderIdExt;
-    use std::str::FromStr;
+    use std::{str::FromStr, sync::Arc};
 
     fn signed_transfer_tx(
         signer: &PrivateKeySigner,
@@ -555,18 +592,14 @@ mod tests {
         assert!(!is_consistent_speculative_parent_hashes(incoming, pending, pending));
     }
 
-    #[test]
-    fn canonical_build_reuses_cached_prefix_execution() {
+    /// Returns a provider at genesis that funds `signer`, plus the base of the block on top of it.
+    fn funded_provider(
+        signer: Address,
+        recipient: Address,
+    ) -> (MockEthProvider<OpPrimitives, Arc<OpChainSpec>>, OpFlashblockPayloadBase) {
         let provider = MockEthProvider::<OpPrimitives>::new()
             .with_chain_spec(OP_MAINNET.clone())
             .with_genesis_block();
-
-        let recipient = Address::repeat_byte(0x22);
-        let signer = PrivateKeySigner::random();
-        let tx_a = signed_transfer_tx(&signer, 0, recipient);
-        let tx_b = signed_transfer_tx(&signer, 1, recipient);
-        let tx_c = signed_transfer_tx(&signer, 2, recipient);
-        let signer = tx_a.recover_signer().expect("tx signer recovery succeeds");
 
         provider.add_account(signer, ExtendedAccount::new(0, U256::from(1_000_000_000_000_000u64)));
         provider.add_account(recipient, ExtendedAccount::new(0, U256::ZERO));
@@ -602,6 +635,18 @@ mod tests {
             extra_data: Default::default(),
             base_fee_per_gas: U256::from(1_000_000_000u64),
         };
+        (provider, base)
+    }
+
+    #[test]
+    fn canonical_build_reuses_cached_prefix_execution() {
+        let recipient = Address::repeat_byte(0x22);
+        let signer = PrivateKeySigner::random();
+        let tx_a = signed_transfer_tx(&signer, 0, recipient);
+        let tx_b = signed_transfer_tx(&signer, 1, recipient);
+        let tx_c = signed_transfer_tx(&signer, 2, recipient);
+        let signer = tx_a.recover_signer().expect("tx signer recovery succeeds");
+        let (provider, base) = funded_provider(signer, recipient);
         let base_parent_hash = base.parent_hash;
 
         let tx_a_hash = B256::from(*tx_a.tx_hash());
@@ -690,6 +735,83 @@ mod tests {
         assert!(
             receipts[2].as_receipt().cumulative_gas_used >
                 receipts[1].as_receipt().cumulative_gas_used
+        );
+    }
+
+    /// A 0x7D streamed in the latest diff must be executed in `Verify` mode: its refund lowers the
+    /// refunded transaction's gas, is credited back to the sender, and the 0x7D lands as the
+    /// pending block's last transaction, as it will in the sealed block.
+    #[test]
+    fn build_applies_streamed_post_exec_refund() {
+        const REFUND: u64 = 1_000;
+
+        let recipient = Address::repeat_byte(0x22);
+        let signer = PrivateKeySigner::random();
+        let transfer = signed_transfer_tx(&signer, 0, recipient);
+        let signer = transfer.recover_signer().expect("tx signer recovery succeeds");
+        let (provider, base) = funded_provider(signer, recipient);
+        let transfer = into_encoded_recovered(transfer, signer);
+        let post_exec = into_encoded_recovered(
+            OpTransactionSigned::PostExec(
+                build_post_exec_tx(
+                    base.block_number,
+                    vec![SDMGasEntry { index: 0, gas_refund: REFUND }],
+                )
+                .seal_slow(),
+            ),
+            Address::ZERO,
+        );
+
+        let builder = FlashBlockBuilder::new(OpEvmConfig::optimism(OP_MAINNET.clone()), provider);
+        let build = |transactions| {
+            builder
+                .execute(
+                    BuildArgs {
+                        base: base.clone(),
+                        transactions,
+                        cached_state: None,
+                        last_flashblock_index: 0,
+                        last_flashblock_hash: B256::ZERO,
+                        compute_state_root: false,
+                        pending_parent: None,
+                    },
+                    Some(&mut TransactionCache::<OpPrimitives>::new()),
+                )
+                .expect("build succeeds")
+                .expect("build is canonical")
+        };
+        let unrefunded = build(vec![transfer.clone()]);
+        let refunded = build(vec![transfer, post_exec]);
+
+        let result = |build: &BuildResult<OpPrimitives>| {
+            build.pending_state.execution_outcome.result.clone()
+        };
+        assert_eq!(result(&refunded).gas_used, result(&unrefunded).gas_used - REFUND);
+        let receipts = result(&refunded).receipts;
+        assert_eq!(receipts.len(), 2, "the 0x7D gets a receipt like any block transaction");
+        assert_eq!(
+            receipts[0].as_receipt().cumulative_gas_used,
+            result(&unrefunded).receipts[0].as_receipt().cumulative_gas_used - REFUND
+        );
+
+        let block = refunded.pending_flashblock.block();
+        assert!(block.body().transactions().last().is_some_and(|tx| tx.is_post_exec()));
+
+        let balance = |build: &BuildResult<OpPrimitives>| {
+            build
+                .pending_state
+                .execution_outcome
+                .state
+                .account(&signer)
+                .and_then(|account| account.info.as_ref())
+                .expect("sender is touched")
+                .balance
+        };
+        let base_fee = block.header().base_fee_per_gas().expect("post-London block") as u128;
+        let gas_price = (base_fee + 1_000_000_000).min(2_000_000_000);
+        assert_eq!(
+            balance(&refunded) - balance(&unrefunded),
+            U256::from(REFUND as u128 * gas_price)
         );
     }
 }
