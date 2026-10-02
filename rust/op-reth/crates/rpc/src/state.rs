@@ -24,6 +24,11 @@ where
     ErrorObject<'static>: From<Eth::Error>,
     P: OpProofsStore + Clone + 'a,
 {
+    /// Returns the eth API whose admission guard and task runtime this factory shares.
+    pub(crate) const fn eth_api(&self) -> &Eth {
+        &self.eth_api
+    }
+
     /// Creates a state provider for the given block id.
     pub async fn state_provider(
         &'a self,
