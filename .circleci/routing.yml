@@ -25,6 +25,7 @@ schedules:
     - circleci_schedule_trigger_check
   build_weekly:
     - scheduled_rust_nightly_bump
+    - scheduled_docs_release_pages
 
 # API triggers: dispatch flag -> workflows enabled when that flag is set.
 # Most flags fire on a simple "is the flag true?" check. main_dispatch and
@@ -56,6 +57,8 @@ api_dispatch:
     - rust_e2e_ci
   rust_nightly_bump_dispatch:
     - scheduled_rust_nightly_bump
+  docs_release_pages_dispatch:
+    - scheduled_docs_release_pages
   labeled_pr:
     - close_issue
 

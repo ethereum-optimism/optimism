@@ -58,7 +58,7 @@ run_scenario() {
 
   # Check expected workflows are enabled
   local all_pass=true
-  for wf in "${expected[@]}"; do
+  for wf in ${expected[@]+"${expected[@]}"}; do
     local val
     val=$(echo "${_json}" | jq -r ".\"c-run_${wf}\" // false")
     if [[ "${val}" != "true" ]]; then
@@ -66,7 +66,7 @@ run_scenario() {
       all_pass=false
     fi
   done
-  for wf in "${unexpected[@]}"; do
+  for wf in ${unexpected[@]+"${unexpected[@]}"}; do
     local val
     val=$(echo "${_json}" | jq -r ".\"c-run_${wf}\" // false")
     if [[ "${val}" != "false" ]]; then
@@ -111,7 +111,8 @@ run_scenario \
   "PR (feature branch), docs only" \
   "webhook" "feat/my-thing" "" "" \
   '{"c-rust_changes_detected": false, "c-contracts_changed": false, "c-docs_changes_detected": true, "c-only_docs_changes": true}' \
-  ci_gate_skip contracts_feature_tests_short rust_ci_gate_short rust_e2e_gate_skip
+  docs_only_ci contracts_feature_tests_short rust_ci_gate_short rust_e2e_gate_skip \
+  --not main
 
 run_scenario \
   "PR (feature branch), docs + rust changed" \
@@ -157,7 +158,7 @@ run_scenario \
   "Merge queue, docs only" \
   "webhook" "gh-readonly-queue/develop/pr-123" "" "" \
   '{"c-rust_changes_detected": false, "c-contracts_changed": false, "c-docs_changes_detected": true, "c-only_docs_changes": true}' \
-  ci_gate_skip contracts_feature_tests_short rust_ci_gate_short rust_e2e_gate_skip \
+  docs_only_ci contracts_feature_tests_short rust_ci_gate_short rust_e2e_gate_skip \
   --not main release contracts_feature_tests rust_ci rust_e2e_ci
 
 # Develop runs the full post-merge set unconditionally. The two scenarios below
@@ -170,14 +171,14 @@ run_scenario \
   "webhook" "develop" "" "" \
   '{"c-rust_changes_detected": false, "c-contracts_changed": false, "c-circleci_changed": false, "c-docs_changes_detected": false, "c-only_docs_changes": false}' \
   main release publish_contract_artifacts develop_fault_proofs develop_kontrol_tests contracts_feature_tests rust_ci rust_e2e_ci kona_publish_prestates circleci_schedule_trigger_check \
-  --not rust_ci_gate_short rust_e2e_gate_skip ci_gate_skip contracts_feature_tests_short
+  --not rust_ci_gate_short rust_e2e_gate_skip docs_only_ci contracts_feature_tests_short
 
 run_scenario \
   "After merge (develop), change detection must not alter routing" \
   "webhook" "develop" "" "" \
   '{"c-rust_changes_detected": true, "c-contracts_changed": true, "c-circleci_changed": true, "c-docs_changes_detected": true, "c-only_docs_changes": true}' \
   main release publish_contract_artifacts develop_fault_proofs develop_kontrol_tests contracts_feature_tests rust_ci rust_e2e_ci kona_publish_prestates circleci_schedule_trigger_check \
-  --not rust_ci_gate_short rust_e2e_gate_skip ci_gate_skip contracts_feature_tests_short
+  --not rust_ci_gate_short rust_e2e_gate_skip docs_only_ci contracts_feature_tests_short
 
 run_scenario \
   "Scheduled: build_four_hours" \
@@ -195,7 +196,7 @@ run_scenario \
   "Scheduled: build_weekly" \
   "scheduled_pipeline" "" "" "build_weekly" \
   '{}' \
-  scheduled_rust_nightly_bump
+  scheduled_rust_nightly_bump scheduled_docs_release_pages
 
 run_scenario \
   "API: main_dispatch (no github event)" \
@@ -214,6 +215,13 @@ run_scenario \
   "api" "" "" "" \
   '{"c-main_dispatch": false, "c-rust_nightly_bump_dispatch": true, "c-github-event-type": "__not_set__"}' \
   release scheduled_rust_nightly_bump
+
+run_scenario \
+  "API: docs_release_pages_dispatch" \
+  "api" "" "" "" \
+  '{"c-main_dispatch": false, "c-docs_release_pages_dispatch": true, "c-github-event-type": "__not_set__"}' \
+  release scheduled_docs_release_pages \
+  --not scheduled_rust_nightly_bump
 
 run_scenario \
   "API: publish_contract_artifacts_dispatch" \
