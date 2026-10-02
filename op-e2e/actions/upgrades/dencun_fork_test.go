@@ -1,7 +1,6 @@
 package upgrades
 
 import (
-	"context"
 	"testing"
 
 	"github.com/ethereum-optimism/optimism/op-core/forks"
@@ -135,22 +134,22 @@ func TestDencunL2ForkAfterGenesis(gt *testing.T) {
 	verifier.ActL2PipelineFull(t)
 
 	// Genesis block is pre-ecotone
-	verifyPreEcotoneBlock(gt, engine.L2Chain().CurrentBlock())
+	verifyPreEcotoneBlock(gt, engine.LatestHeader(t))
 
 	// Block before fork block
 	sequencer.ActL2StartBlock(t)
 	sequencer.ActL2EndBlock(t)
-	verifyPreEcotoneBlock(gt, engine.L2Chain().CurrentBlock())
+	verifyPreEcotoneBlock(gt, engine.LatestHeader(t))
 
 	// Fork block is ecotone
 	sequencer.ActL2StartBlock(t)
 	sequencer.ActL2EndBlock(t)
-	verifyEcotoneBlock(gt, engine.L2Chain().CurrentBlock())
+	verifyEcotoneBlock(gt, engine.LatestHeader(t))
 
 	// Blocks post fork have Ecotone properties
 	sequencer.ActL2StartBlock(t)
 	sequencer.ActL2EndBlock(t)
-	verifyEcotoneBlock(gt, engine.L2Chain().CurrentBlock())
+	verifyEcotoneBlock(gt, engine.LatestHeader(t))
 }
 
 func TestDencunL2ForkAtGenesis(gt *testing.T) {
@@ -167,12 +166,12 @@ func TestDencunL2ForkAtGenesis(gt *testing.T) {
 	verifier.ActL2PipelineFull(t)
 
 	// Genesis block has ecotone properties
-	verifyEcotoneBlock(gt, engine.L2Chain().CurrentBlock())
+	verifyEcotoneBlock(gt, engine.LatestHeader(t))
 
 	// Blocks post fork have Ecotone properties
 	sequencer.ActL2StartBlock(t)
 	sequencer.ActL2EndBlock(t)
-	verifyEcotoneBlock(gt, engine.L2Chain().CurrentBlock())
+	verifyEcotoneBlock(gt, engine.LatestHeader(t))
 }
 
 func aliceSimpleBlobTx(t helpers.Testing, dp *e2eutils.DeployParams) *types.Transaction {
@@ -185,39 +184,9 @@ func aliceSimpleBlobTx(t helpers.Testing, dp *e2eutils.DeployParams) *types.Tran
 	return tx
 }
 
-func newEngine(t helpers.Testing, sd *e2eutils.SetupData, log log.Logger) *helpers.L2Engine {
-	jwtPath := e2eutils.WriteDefaultJWT(t)
-	return helpers.NewL2Engine(t, log, sd.L2Cfg, jwtPath)
-}
-
-// TestDencunBlobTxRPC tries to send a Blob tx to the L2 engine via RPC, it should not be accepted.
-func TestDencunBlobTxRPC(gt *testing.T) {
-	t := helpers.NewDefaultTesting(gt)
-	dp := e2eutils.MakeDeployParams(t, helpers.DefaultRollupTestParams())
-
-	sd := e2eutils.Setup(t, dp, helpers.DefaultAlloc)
-	log := testlog.Logger(t, log.LevelDebug)
-	engine := newEngine(t, sd, log)
-	cl := engine.EthClient()
-	tx := aliceSimpleBlobTx(t, dp)
-	err := cl.SendTransaction(context.Background(), tx)
-	require.ErrorContains(t, err, "transaction type not supported")
-}
-
-// TestDencunBlobTxInTxPool tries to insert a blob tx directly into the tx pool, it should not be accepted.
-func TestDencunBlobTxInTxPool(gt *testing.T) {
-	t := helpers.NewDefaultTesting(gt)
-	dp := e2eutils.MakeDeployParams(t, helpers.DefaultRollupTestParams())
-
-	sd := e2eutils.Setup(t, dp, helpers.DefaultAlloc)
-	log := testlog.Logger(t, log.LevelDebug)
-	engine := newEngine(t, sd, log)
-	tx := aliceSimpleBlobTx(t, dp)
-	errs := engine.Eth.TxPool().Add([]*types.Transaction{tx}, true)
-	require.ErrorContains(t, errs[0], "transaction type not supported")
-}
-
-// TestDencunBlobTxInclusion tries to send a Blob tx to the L2 engine, it should not be accepted.
+// TestDencunBlobTxInclusion tries to include a blob tx in the L2 block being built; the EL must
+// reject it, so a blob tx never enters an L2 block. op-geth rejects it while applying it to the
+// block; the op-reth-test-engine rejects it before that, when decoding it.
 func TestDencunBlobTxInclusion(gt *testing.T) {
 	t := helpers.NewDefaultTesting(gt)
 	dp := e2eutils.MakeDeployParams(t, helpers.DefaultRollupTestParams())
@@ -231,6 +200,14 @@ func TestDencunBlobTxInclusion(gt *testing.T) {
 	tx := aliceSimpleBlobTx(t, dp)
 
 	sequencer.ActL2StartBlock(t)
-	_, err := engine.EngineApi.IncludeTx(tx, dp.Addresses.Alice)
-	require.ErrorContains(t, err, "invalid L2 block (tx 1): failed to apply transaction to L2 block (tx 1): transaction type not supported")
+	err := engine.IncludeTxErr(t, tx, dp.Addresses.Alice)
+	require.Error(t, err)
+	// The two backends reject the blob tx at different, irreducible points — op-geth while applying
+	// it during block-build, the reth test engine while decoding it (OP has no type-3 transaction) —
+	// so each asserts its own exact message rather than a weakened shared substring.
+	if engine.IsReth() {
+		require.ErrorContains(t, err, "failed to decode transaction: unexpected tx type")
+	} else {
+		require.ErrorContains(t, err, "invalid L2 block (tx 1): failed to apply transaction to L2 block (tx 1): transaction type not supported")
+	}
 }

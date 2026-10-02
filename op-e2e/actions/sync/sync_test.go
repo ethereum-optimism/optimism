@@ -14,6 +14,7 @@ import (
 
 	"github.com/ethereum/go-ethereum"
 	gethengine "github.com/ethereum/go-ethereum/beacon/engine"
+	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/core/types"
@@ -810,6 +811,12 @@ func TestELSyncTransitionstoCL(gt *testing.T) {
 	// would not be able to fetch the second range of blocks & it would wipe out the unsafe payloads queue because op-node thought that it had a
 	// higher unsafe block but op-geth did not.
 	VerifyBlock(t, verifier.Eng, 22, eth.Unsafe)
+	// CL sync inserted the blocks, so the verifier's engine has no head left to EL-sync towards.
+	if verEng.IsReth() {
+		var syncTarget common.Hash
+		require.NoError(t, verEng.RPCClient().CallContext(t.Ctx(), &syncTarget, "optest_syncTarget"))
+		require.Equal(t, common.Hash{}, syncTarget, "verifier engine is syncing in CL mode")
+	}
 
 	// Create 1 more block & batch submit everything
 	BatchSubmitBlock(t, miner, sequencer, verifier, batcher, dp, 12)
@@ -1004,7 +1011,7 @@ func TestInvalidPayloadInSpanBatch(gt *testing.T) {
 			data := make([]byte, rand.Intn(100))
 			gas, err := core.FloorDataGas(data)
 			require.NoError(t, err)
-			baseFee := seqEng.L2Chain().CurrentBlock().BaseFee
+			baseFee := seqEng.LatestHeader(t).BaseFee
 			tx := types.MustSignNewTx(dp.Secrets.Alice, signer, &types.DynamicFeeTx{
 				ChainID:   sd.L2Cfg.Config.ChainID,
 				Nonce:     aliceNonce,

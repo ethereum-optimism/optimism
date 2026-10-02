@@ -60,12 +60,19 @@ pub(crate) fn test_engine(funded: Address) -> TestEngine {
     TestEngine::from_chain(test_chain(funded))
 }
 
+/// [`test_engine`] with additional genesis accounts (e.g. pre-deployed contract code for
+/// `eth_call` tests).
+pub(crate) fn test_engine_with_accounts(
+    funded: Address,
+    extra: impl IntoIterator<Item = (Address, GenesisAccount)>,
+) -> TestEngine {
+    TestEngine::from_chain(karst_chain(funded, extra))
+}
+
 /// An ephemeral OP Mainnet chain with Karst active at genesis, the `L1Block` predeploy seeded, and
 /// `funded` given a spendable balance.
 pub(crate) fn test_chain(funded: Address) -> EphemeralChain {
-    let extra_data = encode_jovian_extra_data(B64::ZERO, BaseFeeParams::optimism_canyon(), 1)
-        .expect("encode extra data");
-    chain_with_forks(funded, OpChainSpecBuilder::optimism_mainnet().karst_activated(), extra_data)
+    karst_chain(funded, [])
 }
 
 /// An engine like [`test_engine`] but with Isthmus as the newest active fork, so Jovian (and its
@@ -74,17 +81,29 @@ pub(crate) fn isthmus_test_engine(funded: Address) -> TestEngine {
     let extra_data = encode_holocene_extra_data(B64::ZERO, BaseFeeParams::optimism_canyon())
         .expect("encode extra data");
     let forks = OpChainSpecBuilder::optimism_mainnet().isthmus_activated();
-    TestEngine::from_chain(chain_with_forks(funded, forks, extra_data))
+    TestEngine::from_chain(chain_with_forks(funded, [], forks, extra_data))
 }
 
-/// A chain under the hardforks `forks` activates, with a genesis carrying `extra_data` (whose
-/// encoding the forks active at genesis dictate).
+/// [`test_chain`] with the `extra` genesis accounts.
+fn karst_chain(
+    funded: Address,
+    extra: impl IntoIterator<Item = (Address, GenesisAccount)>,
+) -> EphemeralChain {
+    let extra_data = encode_jovian_extra_data(B64::ZERO, BaseFeeParams::optimism_canyon(), 1)
+        .expect("encode extra data");
+    let forks = OpChainSpecBuilder::optimism_mainnet().karst_activated();
+    chain_with_forks(funded, extra, forks, extra_data)
+}
+
+/// A chain under the hardforks `forks` activates, with the `extra` genesis accounts and a genesis
+/// `extra_data` (whose encoding the forks active at genesis dictate).
 fn chain_with_forks(
     funded: Address,
+    extra: impl IntoIterator<Item = (Address, GenesisAccount)>,
     forks: OpChainSpecBuilder,
     extra_data: Bytes,
 ) -> EphemeralChain {
-    let alloc = BTreeMap::from([
+    let mut alloc = BTreeMap::from([
         (
             L1_BLOCK_CONTRACT,
             GenesisAccount {
@@ -95,6 +114,7 @@ fn chain_with_forks(
         ),
         (funded, GenesisAccount { balance: FUNDED_BALANCE, ..Default::default() }),
     ]);
+    alloc.extend(extra);
 
     let genesis = Genesis {
         config: ChainConfig { chain_id: CHAIN_ID, ..Default::default() },
@@ -245,4 +265,51 @@ impl TestEngine {
 /// A forkchoice state pointing head/safe/finalized at `head`.
 pub(crate) fn fcu(head: B256) -> ForkchoiceState {
     ForkchoiceState { head_block_hash: head, safe_block_hash: head, finalized_block_hash: head }
+}
+
+/// A forkchoice state moving only the head; safe and finalized stay unset.
+pub(crate) fn head_only(head: B256) -> ForkchoiceState {
+    ForkchoiceState {
+        head_block_hash: head,
+        safe_block_hash: B256::ZERO,
+        finalized_block_hash: B256::ZERO,
+    }
+}
+
+/// Sequence a block on `parent` at `timestamp` holding `user_txs` — open, include, seal, import,
+/// and make it the head of `engine` — and return the sealed payload for other engines to import.
+pub(crate) fn sequence(
+    engine: &mut TestEngine,
+    parent: B256,
+    timestamp: u64,
+    user_txs: &[OpTransactionSigned],
+) -> OpExecutionData {
+    sequence_forced(engine, parent, timestamp, vec![], user_txs)
+}
+
+/// [`sequence`] with `forced_txs` in the payload attributes, ahead of `user_txs`.
+pub(crate) fn sequence_forced(
+    engine: &mut TestEngine,
+    parent: B256,
+    timestamp: u64,
+    forced_txs: Vec<Bytes>,
+    user_txs: &[OpTransactionSigned],
+) -> OpExecutionData {
+    let updated = engine
+        .forkchoice_updated_as_op_node(
+            head_only(parent),
+            Some(payload_attrs(timestamp, forced_txs, false)),
+        )
+        .expect("fcu with attrs");
+    let id = updated.payload_id.expect("payload id");
+    for tx in user_txs {
+        engine.include_tx(None, &encode(tx)).expect("include tx");
+    }
+    let data = engine.get_payload(id).expect("get payload");
+    assert!(engine.new_payload(data.clone()).expect("new payload").is_valid());
+    let head = head_only(data.payload.block_hash());
+    assert!(
+        engine.forkchoice_updated_as_op_node(head, None).expect("fcu to sealed block").is_valid()
+    );
+    data
 }
