@@ -54,13 +54,6 @@ fn main() {
     if let Err(err) = Cli::<OpChainSpecParser, RollupArgs>::parse_with_denied_args().run(
         async move |builder, args| {
             validate_testing_sdm_fixed_policy(&args, builder.config().chain.chain.id())?;
-            if let Some(excessive_refund_target) = args.testing_sdm_fixed_policy {
-                warn!(
-                    target: "reth::cli",
-                    ?excessive_refund_target,
-                    "TEST-ONLY SDM fixed-refund policy enabled; never use this policy in production"
-                );
-            }
 
             info!(target: "reth::cli", "Launching node");
             launch_node(builder, OpNode::new(args)).await
@@ -72,13 +65,22 @@ fn main() {
 }
 
 fn validate_testing_sdm_fixed_policy(args: &RollupArgs, chain_id: u64) -> eyre::Result<()> {
+    let Some(excessive_refund_target) = args.testing_sdm_fixed_policy else {
+        return Ok(());
+    };
+
     // Check the resolved chain ID, not how the chain was selected: a custom genesis can
     // still configure a registered chain. Unregistered chains are not necessarily dev chains.
-    if args.testing_sdm_fixed_policy.is_some() && is_superchain_chain_id(chain_id) {
+    if is_superchain_chain_id(chain_id) {
         eyre::bail!(
             "--testing.sdm-fixed-policy is not allowed for superchain registry chain ID {chain_id}"
         );
     }
+    warn!(
+        target: "reth::cli",
+        ?excessive_refund_target,
+        "TEST-ONLY SDM fixed-refund policy enabled; never use this policy in production"
+    );
     Ok(())
 }
 
