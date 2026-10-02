@@ -71,14 +71,17 @@ use reth_optimism_txpool::{
     OpPool, OpPooledTx, interop::InteropFailsafe, interop_filter::InteropFilterClient,
 };
 use reth_primitives_traits::header::HeaderMut;
-use reth_provider::{CanonStateSubscriptions, providers::ProviderFactoryBuilder};
+use reth_provider::{
+    CanonStateSubscriptions, DatabaseProviderFactory, StorageSettingsCache,
+    providers::ProviderFactoryBuilder,
+};
 use reth_rpc_api::{
     DebugApiServer, EthConfigApiServer, L2EthApiExtServer,
     eth::{RpcTypes, helpers::config::EthConfigHandler},
 };
 use reth_rpc_builder::{TransportRpcModules, auth::AuthRpcModule};
 use reth_rpc_server_types::RethRpcModule;
-use reth_tracing::tracing::{debug, info};
+use reth_tracing::tracing::{debug, info, warn};
 use reth_transaction_pool::{
     CoinbaseTipOrdering, EthPoolTransaction, PoolPooledTx, PoolTransaction, TransactionOrdering,
     TransactionPool, TransactionValidationTaskExecutor, TransactionValidator,
@@ -441,7 +444,20 @@ pub async fn launch_node(
         }
     };
 
-    builder.launch_with_debug_capabilities().await?.node_exit_future.await
+    let handle = builder.launch_with_debug_capabilities().await?;
+    match handle.node.provider.database_provider_ro() {
+        Ok(provider) if !provider.cached_storage_settings().is_v2() => {
+            warn!(
+                target: "reth::cli",
+                "Storage V1 is deprecated and will be removed on 2027-01-04. Stop the node, then migrate to Storage V2 with `op-reth db migrate-v2` using the same chain and data-directory arguments."
+            );
+        }
+        Ok(_) => {}
+        Err(err) => {
+            warn!(target: "reth::cli", %err, "Failed to check whether Storage V1 deprecation applies");
+        }
+    }
+    handle.node_exit_future.await
 }
 
 /// Installs the ExEx, RPC overrides, and metrics hook for proof history.
