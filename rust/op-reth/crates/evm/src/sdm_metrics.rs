@@ -4,11 +4,13 @@
 //! dashboard can show SDM validation activity rather than inferring it from generic block
 //! validation.
 //!
-//! Recorded from the execution-context builders. The RPC callers that reach them replay stored
-//! canonical blocks, which already passed this check at import, so replays cannot inflate the
-//! failure counters — but they do recount `ok`, so the `ok` series is an activity signal, not a
-//! canonical block count. Failures the executor raises while verifying the refunds themselves
-//! are a separate class and are not counted here.
+//! Recorded from the execution-context builders. Beyond live import, several paths re-execute
+//! stored canonical blocks that already passed this check: RPC replays, the proofs ExEx's
+//! periodic re-execution, and pipeline or backfill sync. Re-execution cannot inflate the
+//! failure counters, but every pass recounts `ok` — on a verifying proofs node `ok` runs at
+//! roughly twice the block rate and it spikes while a node syncs, so the `ok` series is an
+//! activity signal, not a canonical block count. Failures the executor raises while verifying
+//! the refunds themselves are a separate class and are not counted here.
 //!
 //! `new_with_labels` resolves the recorder on every call instead of caching it, so a report before
 //! the recorder is installed drops that one sample rather than silencing the counter. The same
