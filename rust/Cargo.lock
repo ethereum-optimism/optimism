@@ -9500,6 +9500,7 @@ dependencies = [
  "reth-optimism-payload-builder",
  "reth-optimism-primitives",
  "reth-optimism-rpc",
+ "tempfile",
  "tracing",
 ]
 
@@ -9517,43 +9518,6 @@ dependencies = [
  "serde",
  "serde_json",
  "tokio",
-]
-
-[[package]]
-name = "op-reth-sdm-fixture"
-version = "0.0.0"
-dependencies = [
- "alloy-consensus 2.4.2",
- "alloy-evm",
- "alloy-op-evm",
- "alloy-primitives",
- "clap",
- "eyre",
- "futures-util",
- "op-alloy-consensus",
- "op-revm",
- "op-version",
- "reth-basic-payload-builder",
- "reth-cli-util",
- "reth-db",
- "reth-db-api",
- "reth-node-api",
- "reth-node-builder",
- "reth-node-core",
- "reth-optimism-chainspec",
- "reth-optimism-cli",
- "reth-optimism-evm",
- "reth-optimism-exex",
- "reth-optimism-node",
- "reth-optimism-payload-builder",
- "reth-optimism-primitives",
- "reth-optimism-rpc",
- "reth-optimism-trie",
- "reth-payload-builder",
- "reth-payload-primitives",
- "reth-transaction-pool",
- "revm",
- "tracing",
 ]
 
 [[package]]
@@ -13606,7 +13570,6 @@ dependencies = [
  "serde",
  "serde_json",
  "tokio",
- "tracing",
  "url",
 ]
 
