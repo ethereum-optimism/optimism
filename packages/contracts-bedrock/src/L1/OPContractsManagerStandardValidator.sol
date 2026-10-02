@@ -46,8 +46,8 @@ import { IBigStepper } from "interfaces/dispute/IBigStepper.sol";
 /// before and after an upgrade.
 contract OPContractsManagerStandardValidator is ISemver {
     /// @notice The semantic version of the OPContractsManagerStandardValidator contract.
-    /// @custom:semver 4.0.0
-    string public constant version = "4.0.0";
+    /// @custom:semver 4.1.0
+    string public constant version = "4.1.0";
 
     /// @notice The SuperchainConfig contract.
     ISuperchainConfig public superchainConfig;
@@ -942,7 +942,18 @@ contract OPContractsManagerStandardValidator is ISemver {
         _errors = assertValidOptimismMintableERC20Factory(_errors, _input.sysCfg, _proxyAdmin);
         _errors = assertValidL1ERC721Bridge(_errors, _input.sysCfg, _proxyAdmin);
         _errors = assertValidOptimismPortal(_errors, _input.sysCfg, _proxyAdmin);
-        _errors = assertValidDisputeGameFactory(_errors, _input.sysCfg, _proxyAdmin, _overrides);
+
+        // Migrated interop chains retain their own ProxyAdmins, while the shared contracts use
+        // the first member's ProxyAdmin. Use the factory's admin for the shared contract checks,
+        // preserving both their common admin and the expected PAO owner.
+        IProxyAdmin _sharedProxyAdmin = _proxyAdmin;
+        if (_input.sysCfg.isFeatureEnabled(Features.INTEROP)) {
+            _sharedProxyAdmin = getProxyAdmin(_input.sysCfg.disputeGameFactory());
+            _errors = internalRequire(
+                _sharedProxyAdmin.owner() == expectedL1PAOMultisig(_overrides), "SHARED-PROXYA-10", _errors
+            );
+        }
+        _errors = assertValidDisputeGameFactory(_errors, _input.sysCfg, _sharedProxyAdmin, _overrides);
 
         GameType rgt =
             IOptimismPortal2(payable(_input.sysCfg.optimismPortal())).anchorStateRegistry().respectedGameType();
@@ -959,7 +970,7 @@ contract OPContractsManagerStandardValidator is ISemver {
                 GameTypes.SUPER_PERMISSIONED,
                 _input.cannonPrestate,
                 _input.l2ChainID,
-                _proxyAdmin,
+                _sharedProxyAdmin,
                 _input.proposer,
                 _overrides,
                 "SPDG"
@@ -970,7 +981,7 @@ contract OPContractsManagerStandardValidator is ISemver {
                 GameTypes.SUPER_CANNON_KONA,
                 _input.cannonKonaPrestate,
                 _input.l2ChainID,
-                _proxyAdmin,
+                _sharedProxyAdmin,
                 _overrides,
                 "SCKDG"
             );
@@ -983,7 +994,7 @@ contract OPContractsManagerStandardValidator is ISemver {
                 GameTypes.PERMISSIONED_CANNON,
                 _input.cannonPrestate,
                 _input.l2ChainID,
-                _proxyAdmin,
+                _sharedProxyAdmin,
                 _input.proposer,
                 _overrides,
                 "PDDG"
@@ -994,7 +1005,7 @@ contract OPContractsManagerStandardValidator is ISemver {
                 GameTypes.CANNON_KONA,
                 _input.cannonKonaPrestate,
                 _input.l2ChainID,
-                _proxyAdmin,
+                _sharedProxyAdmin,
                 _overrides,
                 "CKDG"
             );
@@ -1002,7 +1013,7 @@ contract OPContractsManagerStandardValidator is ISemver {
 
         // ZK dispute game validation: gated on the ZK_DISPUTE_GAME dev feature flag.
         if (DevFeatures.isDevFeatureEnabled(devFeatureBitmap, DevFeatures.ZK_DISPUTE_GAME)) {
-            _errors = assertValidZKDisputeGame(_errors, _input.sysCfg, _proxyAdmin, _overrides);
+            _errors = assertValidZKDisputeGame(_errors, _input.sysCfg, _sharedProxyAdmin, _overrides);
         } else {
             // ZK game type must not be registered when the ZK feature is not enabled.
             _errors = internalRequire(
@@ -1013,7 +1024,7 @@ contract OPContractsManagerStandardValidator is ISemver {
             );
         }
 
-        _errors = assertValidETHLockbox(_errors, _input.sysCfg, _proxyAdmin);
+        _errors = assertValidETHLockbox(_errors, _input.sysCfg, _sharedProxyAdmin);
 
         string memory overridesString = getOverridesString(_overrides);
         string memory finalErrors = _errors;
