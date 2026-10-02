@@ -8,6 +8,7 @@ import { GasBurner } from "test/mocks/GasBurner.sol";
 // Libraries
 import { AddressAliasHelper } from "src/vendor/AddressAliasHelper.sol";
 import { Encoding } from "src/libraries/Encoding.sol";
+import { Math } from "@openzeppelin/contracts/utils/math/Math.sol";
 
 /// @title L1CrossDomainMessenger_BaseGas_Test
 /// @notice Tests L1 message base gas against L2 execution costs.
@@ -138,6 +139,49 @@ contract L1CrossDomainMessenger_BaseGas_Test is CommonTest {
         bool inSuccessfulMessages = l2CrossDomainMessenger.successfulMessages(keccak256(encoded));
         assertTrue(
             inFailedMessages || inSuccessfulMessages, "message should be in either failed or successful messages"
+        );
+    }
+
+    /// @notice Tests that `baseGas` budgets the relay with the L2 relay constants.
+    function testFuzz_baseGas_usesRemoteRelayConstants_succeeds(
+        bytes calldata _message,
+        uint32 _minGasLimit
+    )
+        external
+        view
+    {
+        uint64 executionGas = l1CrossDomainMessenger.REMOTE_RELAY_CONSTANT_OVERHEAD()
+            + l1CrossDomainMessenger.REMOTE_RELAY_CALL_OVERHEAD() + l1CrossDomainMessenger.REMOTE_RELAY_RESERVED_GAS()
+            + l1CrossDomainMessenger.REMOTE_RELAY_GAS_CHECK_BUFFER()
+            + ((_minGasLimit * l1CrossDomainMessenger.MIN_GAS_DYNAMIC_OVERHEAD_NUMERATOR())
+                / l1CrossDomainMessenger.MIN_GAS_DYNAMIC_OVERHEAD_DENOMINATOR());
+        uint64 totalMessageSize = uint64(_message.length + l1CrossDomainMessenger.ENCODING_OVERHEAD());
+        uint64 expected = l1CrossDomainMessenger.TX_BASE_GAS()
+            + uint64(
+                Math.max(
+                    executionGas + totalMessageSize * l1CrossDomainMessenger.MIN_GAS_CALLDATA_OVERHEAD(),
+                    totalMessageSize * l1CrossDomainMessenger.FLOOR_CALLDATA_OVERHEAD()
+                )
+            );
+
+        assertEq(l1CrossDomainMessenger.baseGas(_message, _minGasLimit), expected);
+    }
+
+    /// @notice Tests the relay constant values and that the legacy relay getters return the L2 relay constants.
+    function test_baseGas_relayConstants_succeeds() external view {
+        assertEq(l1CrossDomainMessenger.LOCAL_RELAY_RESERVED_GAS(), 125_000);
+        assertEq(l1CrossDomainMessenger.LOCAL_RELAY_GAS_CHECK_BUFFER(), 5_000);
+        assertEq(l1CrossDomainMessenger.REMOTE_RELAY_CONSTANT_OVERHEAD(), 200_000);
+        assertEq(l1CrossDomainMessenger.REMOTE_RELAY_CALL_OVERHEAD(), 40_000);
+        assertEq(l1CrossDomainMessenger.REMOTE_RELAY_RESERVED_GAS(), 125_000);
+        assertEq(l1CrossDomainMessenger.REMOTE_RELAY_GAS_CHECK_BUFFER(), 5_000);
+        assertEq(
+            l1CrossDomainMessenger.RELAY_CONSTANT_OVERHEAD(), l1CrossDomainMessenger.REMOTE_RELAY_CONSTANT_OVERHEAD()
+        );
+        assertEq(l1CrossDomainMessenger.RELAY_CALL_OVERHEAD(), l1CrossDomainMessenger.REMOTE_RELAY_CALL_OVERHEAD());
+        assertEq(l1CrossDomainMessenger.RELAY_RESERVED_GAS(), l1CrossDomainMessenger.REMOTE_RELAY_RESERVED_GAS());
+        assertEq(
+            l1CrossDomainMessenger.RELAY_GAS_CHECK_BUFFER(), l1CrossDomainMessenger.REMOTE_RELAY_GAS_CHECK_BUFFER()
         );
     }
 }

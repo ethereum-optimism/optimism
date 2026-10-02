@@ -20,8 +20,46 @@ import { IL2ToL1MessagePasser } from "interfaces/L2/IL2ToL1MessagePasser.sol";
 ///         L2 on the L2 side. Users are generally encouraged to use this contract instead of lower
 ///         level message passing contracts.
 contract L2CrossDomainMessenger is ProxyAdminOwnedBase, CrossDomainMessenger, ISemver {
-    /// @custom:semver 2.3.0
-    string public constant version = "2.3.0";
+    /// @custom:semver 2.4.0
+    string public constant version = "2.4.0";
+
+    /// @notice Gas reserved on L2 for finalizing `relayMessage` after the safe call. Covers
+    ///         recording the outcome in a fresh storage slot, including EIP-8037 state gas.
+    uint64 public constant LOCAL_RELAY_RESERVED_GAS = 125_000;
+
+    /// @notice Gas reserved on L2 for the execution between the `hasMinGas` check and the
+    ///         external call in `relayMessage`.
+    uint64 public constant LOCAL_RELAY_GAS_CHECK_BUFFER = 5_000;
+
+    /// @notice Constant costs of `relayMessage` on L1, added to the base gas for a message.
+    uint64 public constant REMOTE_RELAY_CONSTANT_OVERHEAD = 200_000;
+
+    /// @notice Gas L1 needs for the dynamic parts of the CALL opcode in `relayMessage`.
+    uint64 public constant REMOTE_RELAY_CALL_OVERHEAD = 40_000;
+
+    /// @notice Gas reserved on L1 for finalizing `relayMessage` after the safe call. Covers
+    ///         recording the outcome in a fresh storage slot, including EIP-8037 state gas.
+    uint64 public constant REMOTE_RELAY_RESERVED_GAS = 125_000;
+
+    /// @notice Gas reserved on L1 for the execution between the `hasMinGas` check and the
+    ///         external call in `relayMessage`.
+    uint64 public constant REMOTE_RELAY_GAS_CHECK_BUFFER = 5_000;
+
+    /// @notice Legacy alias for `REMOTE_RELAY_CONSTANT_OVERHEAD`.
+    /// @custom:legacy
+    uint64 public constant RELAY_CONSTANT_OVERHEAD = REMOTE_RELAY_CONSTANT_OVERHEAD;
+
+    /// @notice Legacy alias for `REMOTE_RELAY_CALL_OVERHEAD`.
+    /// @custom:legacy
+    uint64 public constant RELAY_CALL_OVERHEAD = REMOTE_RELAY_CALL_OVERHEAD;
+
+    /// @notice Legacy alias for `REMOTE_RELAY_RESERVED_GAS`.
+    /// @custom:legacy
+    uint64 public constant RELAY_RESERVED_GAS = REMOTE_RELAY_RESERVED_GAS;
+
+    /// @notice Legacy alias for `REMOTE_RELAY_GAS_CHECK_BUFFER`.
+    /// @custom:legacy
+    uint64 public constant RELAY_GAS_CHECK_BUFFER = REMOTE_RELAY_GAS_CHECK_BUFFER;
 
     /// @notice Constructs the L2CrossDomainMessenger contract.
     constructor() {
@@ -44,6 +82,18 @@ contract L2CrossDomainMessenger is ProxyAdminOwnedBase, CrossDomainMessenger, IS
     }
 
     /// @inheritdoc CrossDomainMessenger
+    function baseGas(bytes memory _message, uint32 _minGasLimit) public pure override returns (uint64) {
+        return _baseGas({
+            _message: _message,
+            _minGasLimit: _minGasLimit,
+            _relayConstantOverhead: REMOTE_RELAY_CONSTANT_OVERHEAD,
+            _relayCallOverhead: REMOTE_RELAY_CALL_OVERHEAD,
+            _relayReservedGas: REMOTE_RELAY_RESERVED_GAS,
+            _relayGasCheckBuffer: REMOTE_RELAY_GAS_CHECK_BUFFER
+        });
+    }
+
+    /// @inheritdoc CrossDomainMessenger
     function _sendMessage(address _to, uint64 _gasLimit, uint256 _value, bytes memory _data) internal override {
         IL2ToL1MessagePasser(payable(Predeploys.L2_TO_L1_MESSAGE_PASSER)).initiateWithdrawal{ value: _value }(
             _to, _gasLimit, _data
@@ -58,5 +108,15 @@ contract L2CrossDomainMessenger is ProxyAdminOwnedBase, CrossDomainMessenger, IS
     /// @inheritdoc CrossDomainMessenger
     function _isUnsafeTarget(address _target) internal view override returns (bool) {
         return _target == address(this) || _target == address(Predeploys.L2_TO_L1_MESSAGE_PASSER);
+    }
+
+    /// @inheritdoc CrossDomainMessenger
+    function _localRelayReservedGas() internal pure override returns (uint64) {
+        return LOCAL_RELAY_RESERVED_GAS;
+    }
+
+    /// @inheritdoc CrossDomainMessenger
+    function _localRelayGasCheckBuffer() internal pure override returns (uint64) {
+        return LOCAL_RELAY_GAS_CHECK_BUFFER;
     }
 }

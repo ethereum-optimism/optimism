@@ -13,10 +13,6 @@ interface ICrossDomainMessenger {
     function MIN_GAS_DYNAMIC_OVERHEAD_DENOMINATOR() external view returns (uint64);
     function MIN_GAS_DYNAMIC_OVERHEAD_NUMERATOR() external view returns (uint64);
     function OTHER_MESSENGER() external view returns (ICrossDomainMessenger);
-    function RELAY_CALL_OVERHEAD() external view returns (uint64);
-    function RELAY_CONSTANT_OVERHEAD() external view returns (uint64);
-    function RELAY_GAS_CHECK_BUFFER() external view returns (uint64);
-    function RELAY_RESERVED_GAS() external view returns (uint64);
     function TX_BASE_GAS() external view returns (uint64);
     function FLOOR_CALLDATA_OVERHEAD() external view returns (uint64);
     function ENCODING_OVERHEAD() external view returns (uint64);
