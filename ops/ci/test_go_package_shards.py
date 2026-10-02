@@ -39,6 +39,24 @@ class PackageShardsTest(unittest.TestCase):
         self.assertEqual(packages, sorted(self.packages))
         self.assertEqual(SHARDS.create_manifest(packages, PREFIX, 2), SHARDS.create_manifest(list(reversed(packages)), PREFIX, 2))
 
+    def test_timings_balance_long_packages_and_retain_new_packages(self):
+        durations = {self.packages[0]: 30, self.packages[1]: 12, self.packages[2]: 6, self.packages[3]: 2}
+        manifest = SHARDS.create_manifest(self.packages, PREFIX, 4, durations)
+        shares = [SHARDS.select_packages(manifest, PREFIX, index, 4) for index in range(4)]
+        self.assertEqual(sorted(package for share in shares for package in share), sorted(self.packages))
+        self.assertEqual(manifest["durations"][self.packages[-1]], 9)
+        self.assertEqual(shares[0], [self.packages[0]])
+        self.assertEqual(manifest, SHARDS.create_manifest(list(reversed(self.packages)), PREFIX, 4, durations))
+
+    def test_invalid_or_changed_timings_cannot_hide_coverage(self):
+        for value in (True, -1, float("inf"), float("nan"), "1"):
+            with self.subTest(value=value), self.assertRaises(ValueError):
+                SHARDS.create_manifest(self.packages, PREFIX, 4, {self.packages[0]: value})
+        manifest = SHARDS.create_manifest(self.packages, PREFIX, 2, {self.packages[0]: 30})
+        manifest["shards"][0].clear()
+        with self.assertRaises(ValueError):
+            SHARDS.select_packages(manifest, PREFIX, 0, 2)
+
     def test_go_list_package_and_dependency_errors_fail_closed(self):
         for error in ({"Error": {"Err": "compile error"}}, {"DepsErrors": [{"Err": "missing embed"}]}):
             with self.subTest(error=error):
@@ -95,7 +113,7 @@ class RollupRunnerTest(unittest.TestCase):
         self.temp = tempfile.TemporaryDirectory()
         self.addCleanup(self.temp.cleanup)
         self.root = Path(self.temp.name)
-        for relative in ("ops/ci/go-rollup-tests.sh", "ops/ci/go-package-shards.py", "ops/scripts/gotestsum-split.sh", "ops/scripts/split-test-logs.sh"):
+        for relative in ("ops/ci/go-rollup-tests.sh", "ops/ci/go-package-shards.py", "ops/ci/go-rollup-timings.json", "ops/scripts/gotestsum-split.sh", "ops/scripts/split-test-logs.sh"):
             target = self.root / relative
             target.parent.mkdir(parents=True, exist_ok=True)
             shutil.copy2(REPO_ROOT / relative, target)

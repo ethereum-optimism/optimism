@@ -21,6 +21,22 @@ if [[ "$(git rev-parse HEAD)" != "${CI_COMMIT_SHA}" ]]; then
   echo "ERROR: checked-out HEAD differs from CI_COMMIT_SHA." >&2
   exit 1
 fi
+if [[ "${CI_CACHE_WARM:-false}" == true ]]; then
+  # A referenced task must succeed even when an `if` expression could bypass
+  # its value. Keep a real routing dependency for warm runs, but select no
+  # verdicts. Compiler tasks explicitly opt in through their warm flag.
+  case "${CI_BRANCH}" in
+    develop | codex/rwx-ci-pilot) ;;
+    *) echo 'ERROR: cache warming is restricted to develop and the pilot rehearsal.' >&2; exit 1 ;;
+  esac
+  mkdir -p .ci "${RWX_VALUES}"
+  printf '%s\n' '{"cache-rebuild":true,"c-run_main":false,"c-run_rust_ci":false,"c-run_contracts_feature_tests":false}' \
+    >.ci/pipeline-parameters.json
+  printf 'false\n' >"${RWX_VALUES}/run-main"
+  printf 'false\n' >"${RWX_VALUES}/run-rust-ci"
+  echo "Prepared compiler-only cache warming for ${CI_COMMIT_SHA}."
+  exit 0
+fi
 if [[ "${CI_EVENT}" == push && -z "${CI_BRANCH}" && -z "${CI_TAG}" ]]; then
   echo "ERROR: a push must identify its branch or tag." >&2
   exit 1

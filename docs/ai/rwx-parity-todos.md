@@ -80,6 +80,28 @@ in [rwx-migration.md](rwx-migration.md#op-reth-shadow-and-cache-measurements).
 5. Rehearse full pipeline routing and failure behavior before proposing gate
    changes. Validate post-merge and privileged work before transferring it.
 
+## RWX speed priorities
+
+Implementation stays in PR #23151. Measure the final shadow verdict from run
+start, and retain push/queue time separately when available. Cost is deferred.
+
+- [x] Split shared, Go, Go lint, Rust and Foundry tool layers. Bootstrap tools
+  through small artifacts instead of inheriting Git history.
+- [x] Separate Go and Foundry compilation from fresh tests. Add isolated native
+  compiler caches and transfer runtime artifacts without compiler cache layers.
+- [x] Balance the four Go shards using observed package durations. Preserve
+  exhaustive discovery, package working directories, retries and all test flags.
+- [x] Configure protected `develop` cache-rebuild targets for compilers/tool
+  preparation, with no verdicts or publishing side effects.
+- [ ] Finish repeated resource/locality trials and record whole-run medians on
+  the final pushed SHA, including required CircleCI gates.
+- [ ] Observe an actual native cache-rebuild event after these definitions reach
+  `develop`; a CLI warm-only rehearsal does not establish this.
+- [ ] Evaluate Captain for the larger aggregate Go/acceptance port. The current
+  duration-based package manifest is self-contained; Captain is not connected
+  as the partition provider. Its suite/timing configuration and test selection
+  must prove the same complete coverage before replacing this manifest.
+
 ## Close the current evidence gaps
 
 At `587b4c3a`, the retained comparison found matching Go results

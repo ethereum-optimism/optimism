@@ -95,6 +95,21 @@ class RwxMetadataTests(unittest.TestCase):
         params = self.assert_routes(False, False)
         self.assertTrue(params["c-run_ci_gate_skip"])
 
+    def test_cache_warming_has_a_successful_route_but_selects_no_verdicts(self):
+        self.write("op-node/rollup/example.go")
+        self.commit("op-node/rollup/example.go")
+        for branch in ("develop", "codex/rwx-ci-pilot"):
+            with self.subTest(branch=branch):
+                params = self.assert_routes(False, False, CI_CACHE_WARM="true", CI_BRANCH=branch)
+                self.assertTrue(params["cache-rebuild"])
+                self.assertFalse(params["c-run_contracts_feature_tests"])
+        self.assertNotEqual(self.run_metadata(CI_CACHE_WARM="true", CI_BRANCH="external-fork/untrusted").returncode, 0)
+
+    def test_cache_warming_still_rejects_a_different_checked_out_sha(self):
+        result = self.run_metadata(CI_CACHE_WARM="true", CI_BRANCH="develop", CI_COMMIT_SHA="a" * 40)
+        self.assertNotEqual(result.returncode, 0)
+        self.assertFalse((self.values / "run-main").exists())
+
     def test_docs_and_unclassified_code_run_main(self):
         self.write("docs/public-docs/example.md")
         self.write("new-component/main.go")

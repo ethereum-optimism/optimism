@@ -4,47 +4,38 @@ set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 cd "${REPO_ROOT}/packages/contracts-bedrock"
-: "${CI_BRANCH:?CI_BRANCH must name the tested branch}"
-CONTRACT_FEATURE="${CONTRACT_FEATURE:-main}"
-case "${CONTRACT_FEATURE}" in
-  main) FEATURE_ENV="" ;;
-  CUSTOM_GAS_TOKEN) FEATURE_ENV=SYS_FEATURE__CUSTOM_GAS_TOKEN ;;
-  OPTIMISM_PORTAL_INTEROP) FEATURE_ENV=DEV_FEATURE__OPTIMISM_PORTAL_INTEROP ;;
-  ZK_DISPUTE_GAME) FEATURE_ENV=DEV_FEATURE__ZK_DISPUTE_GAME ;;
-  *)
-    echo "Unknown standard contract feature: ${CONTRACT_FEATURE}" >&2
-    exit 1
-    ;;
-esac
-
 # A previous task's or local CLI environment must not silently filter tests,
 # lower fuzzing, or enable another feature. Unset feature overrides so the
 # checked-in Config.sol defaults remain authoritative for other features.
-for name in $(compgen -e); do
-  case "${name}" in FOUNDRY_* | DAPP_* | DEV_FEATURE__* | SYS_FEATURE__*) unset "${name}" ;; esac
-done
-export CONTRACT_FEATURE
-if [[ "${CI_BRANCH}" == develop ]]; then export FOUNDRY_PROFILE=ci; else export FOUNDRY_PROFILE=liteci; fi
-if [[ -n "${FEATURE_ENV}" ]]; then export "${FEATURE_ENV}=true"; fi
-export FORK_TEST=false L2_FORK_TEST=false L2CM_ACTIVATION_TEST=false
-unset ETH_RPC_URL ETH_RPC_JWT ETH_RPC_HEADERS ETHERSCAN_API_KEY MAINNET_RPC_URL \
-  FORK_RPC_URL FORK_BLOCK_NUMBER L2_FORK_RPC_URL L2_FORK_BLOCK_NUMBER
+source "${REPO_ROOT}/ops/ci/contracts-test-env.sh"
 
 # Fixed paths are per-task: each matrix child has its own isolated filesystem.
 # Do not reuse a stale verdict or failure cache from a prior task snapshot.
 rm -rf results/reports
 mkdir -p results/reports
-rm -f results/results.xml cache/test-failures
+rm -rf results/results.xml cache/test-failures cache/fuzz cache/invariant
 export JUNIT_TEST_PATH=results/results.xml
 forge config --json > results/reports/foundry-config.json 2> results/reports/config.stderr.log
 python3 "${REPO_ROOT}/ops/ci/contracts-test-report.py" prepare results/reports/foundry-config.json
 forge --version > results/reports/forge-version.txt
 
 status=0
-just test 2>&1 | tee results/reports/test.log || status=$?
+if [[ "${RWX_COMPILED_CONTRACTS:-false}" == true ]]; then
+  # The producer used the exact Just Go build and compiled the convention
+  # checker. Verify its provenance before consuming compilation state.
+  python3 "${REPO_ROOT}/ops/ci/rwx-contracts-build.py" verify
+  forge test --junit >"${JUNIT_TEST_PATH}" 2>results/reports/test.log || status=$?
+  cat results/reports/test.log
+else
+  just test 2>&1 | tee results/reports/test.log || status=$?
+fi
 if [[ "${status}" -ne 0 ]]; then
   # Diagnostic reruns must never replace the initial failure or its JUnit XML.
-  just test-rerun 2>&1 | tee results/reports/rerun-traces.log || true
+  if [[ "${RWX_COMPILED_CONTRACTS:-false}" == true ]]; then
+    forge test --rerun -vvv 2>&1 | tee results/reports/rerun-traces.log || true
+  else
+    just test-rerun 2>&1 | tee results/reports/rerun-traces.log || true
+  fi
 fi
 report_status=0
 python3 "${REPO_ROOT}/ops/ci/contracts-test-report.py" verdict results/results.xml \
@@ -52,7 +43,11 @@ python3 "${REPO_ROOT}/ops/ci/contracts-test-report.py" verdict results/results.x
 cat results/reports/report-validation.log
 if [[ "${status}" == 0 && "${report_status}" != 0 ]]; then status="${report_status}"; fi
 if [[ "${status}" == 0 ]]; then
-  just lint-forge-tests-check-no-build 2>&1 | tee results/reports/test-validation.log || status=$?
+  if [[ "${RWX_COMPILED_CONTRACTS:-false}" == true ]]; then
+    "${REPO_ROOT}/.ci/contracts-prepare/test-validation" 2>&1 | tee results/reports/test-validation.log || status=$?
+  else
+    just lint-forge-tests-check-no-build 2>&1 | tee results/reports/test-validation.log || status=$?
+  fi
 fi
 # Keep counterexamples and files emitted by Solidity tests available even when
 # the verdict fails. These are reports, not reusable compilation state.

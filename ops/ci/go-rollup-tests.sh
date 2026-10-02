@@ -6,7 +6,7 @@ REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 cd "${REPO_ROOT}"
 PACKAGE_PREFIX="github.com/ethereum-optimism/optimism/op-node/rollup"
 MANIFEST=".ci/go-rollup/manifest.json"
-CI_SHARD_TOTAL="${CI_SHARD_TOTAL:-2}"
+CI_SHARD_TOTAL="${CI_SHARD_TOTAL:-4}"
 
 case "${1:-run}" in
   prepare)
@@ -15,7 +15,22 @@ case "${1:-run}" in
     go list -e -tags=ci -json ./op-node/rollup/... >.ci/go-rollup/go-list.json
     python3 ops/ci/go-package-shards.py create \
       --prefix "${PACKAGE_PREFIX}" --total "${CI_SHARD_TOTAL}" \
+      --timings ops/ci/go-rollup-timings.json \
       --output "${MANIFEST}" <.ci/go-rollup/go-list.json
+    ;;
+  build)
+    export GOCACHE="${REPO_ROOT}/.ci/go-cache/rollup/build"
+    export GOMODCACHE="${REPO_ROOT}/.ci/go-cache/rollup/modules"
+    mkdir -p "${GOCACHE}" "${GOMODCACHE}"
+    attempt=0
+    until go mod download; do
+      attempt=$((attempt + 1))
+      if [[ "${attempt}" -ge 5 ]]; then exit 1; fi
+      sleep "$((2 ** attempt))"
+    done
+    bash ops/ci/go-rollup-tests.sh prepare
+    python3 ops/ci/go-compiled-tests.py build
+    bash ops/ci/rwx-source-archive.sh .ci/go-rollup/build/source.tar.gz
     ;;
   run)
     CI_SHARD_INDEX="${CI_SHARD_INDEX:-0}"
@@ -33,14 +48,23 @@ case "${1:-run}" in
     PARALLEL="$(nproc 2>/dev/null || sysctl -n hw.ncpu 2>/dev/null || echo 4)"
     OP_TESTLOG_FILE_LOGGER_OUTDIR="$(realpath tmp/testlogs)"
     export PARALLEL OP_TESTLOG_FILE_LOGGER_OUTDIR
-    ./ops/scripts/gotestsum-split.sh --format=standard-verbose \
+    if [[ "${RWX_COMPILED_GO:-false}" == true ]]; then
+      python3 ops/ci/go-compiled-tests.py verify
+      ./ops/scripts/gotestsum-split.sh --format=standard-verbose \
+        --junitfile="tmp/test-results/results-${CI_SHARD_INDEX}.xml" \
+        --jsonfile="tmp/testlogs/log.json" \
+        --rerun-fails=3 --rerun-fails-max-failures=50 --raw-command \
+        -- python3 ops/ci/go-compiled-tests.py run
+    else
+      ./ops/scripts/gotestsum-split.sh --format=standard-verbose \
       --junitfile="tmp/test-results/results-${CI_SHARD_INDEX}.xml" \
       --jsonfile="tmp/testlogs/log.json" \
       --rerun-fails=3 --rerun-fails-max-failures=50 --packages="${PACKAGES}" \
       -- -count=1 -p=4 -parallel="${PARALLEL}" -timeout="${TEST_TIMEOUT:-40m}" -tags=ci
+    fi
     ;;
   *)
-    echo "Usage: $0 [prepare|run]" >&2
+    echo "Usage: $0 [prepare|build|run]" >&2
     exit 1
     ;;
 esac

@@ -66,30 +66,39 @@ It runs every package under `./op-node/rollup/...` with `-tags=ci`, without `-sh
 test-name filter. This is a complete component workload, not a replacement for
 the aggregate Go gate or its dependent acceptance, Cannon, contract and Rust jobs.
 
-`ops/ci/go-rollup-tests.sh prepare` builds one sorted package manifest and two
-round-robin shards. `go-package-shards.py` rejects empty discovery, Go package or
-dependency errors, invalid shard inputs, and any assignment that omits or repeats
-a package. Each shard validates that manifest before running the existing
-gotestsum wrapper, retaining its three failure retries, JUnit, JSON and per-test
-logs. The log artifact also includes the file logger's output under `tmp/testlogs`.
-`-count=1` and `cache: false` ensure comparison runs execute tests; terminal
-tasks disable filesystem output and publish reports as explicit
-[artifacts](https://www.rwx.com/docs/artifacts) and
-[test results](https://www.rwx.com/docs/test-results). Go JSON workflows should set
-parser options `language: Go` and `framework: go test`, as this shadow does.
-Each isolated shard uses a literal JSON report path; RWX associates it with the
-parallel task. Test-result paths do not expand filename expressions.
-Parallel tasks translate
-[RWX shard metadata](https://www.rwx.com/docs/parallelism) into provider-neutral
-`CI_SHARD_INDEX` and `CI_SHARD_TOTAL`.
+`ops/ci/go-rollup-tests.sh prepare` builds one authoritative package manifest.
+Four native RWX shards use longest-package-first placement from the recorded
+package durations in `ops/ci/go-rollup-timings.json`. New packages receive a
+median estimate; timing data only affects placement. Discovery and every shard
+validate complete, duplicate-free assignment, including packages without tests.
+The timing seed names the original RWX run and commit; refresh it from retained
+Go JSON when package durations change.
 
-The new run reuses the pilot's pinned checkout, full Git history, tool bootstrap
-and routing adapter. A component-specific task installs the existing gotestsum
-pin; a lockfile-filtered module download task feeds both shards. Source inputs
-remain unfiltered because tests also import other Go components and embed NUT
-bundle files. This scope needs no RPC credentials, cloud identity, publishers,
-Docker, contract artifacts or Rust binaries. GitHub App setup remains necessary
-for automatic pushes; authenticated CLI runs can exercise the workload beforehand.
+A content-cached producer compiles each package with `go test -c -p=4 -tags=ci`.
+Its native [tool cache](https://www.rwx.com/docs/tool-caches) retains downloaded
+modules and Go compiler objects on source changes. Fresh verdict tasks consume
+compiled binaries and source/fixtures as [artifact dependencies](https://www.rwx.com/docs/artifacts),
+without inheriting the compiler object cache or Git history. They preserve the
+package working directory, `-count=1`, at most four concurrent packages,
+`-parallel=nproc`, `-timeout=40m`, and Go's panic-on-exit-zero behavior.
+The existing gotestsum wrapper retains three failure retries, original Go JSON,
+JUnit and per-test logs. Its raw-command reruns append `-test.run` plus a package;
+only those diagnostic retry calls may select individual tests.
+
+The import guards execute `go/packages` at runtime, so verdicts retain the pinned
+Go toolchain and an artifact with the root package's production module sources
+and downloaded module graph metadata. They do not bypass these tests or replace
+them with a precomputed result. Runtime source, reporter and binaries are bound
+to the compiler's authoritative package manifest and tested commit. `cache: false`
+keeps verdicts fresh; terminal tasks only publish reports and test results.
+
+The shared bootstrap installs Just, JQ, YQ and Python; Go, Go lint, Rust and
+Foundry add separate pinned tool layers. Small bootstrap artifacts avoid passing
+the checkout's Git history into tool preparation. Full source/Git state remain
+compiler and routing inputs. This scope needs no RPC credentials, publishing
+credentials, Docker, contract artifacts or Rust binaries. Mutable tool caches
+use the existing cache-only vault, writable by `develop` and the temporary pilot
+branch, with read-only access for other branches.
 
 From a trusted checkout, validate and run it with:
 
@@ -113,23 +122,34 @@ Fork and activation test flags remain disabled, retaining their existing
 conditional skips.
 
 A component bootstrap installs the repository's Forge/Cast 1.2.3 and svm-rs
-0.5.19 pins, with solc 0.8.15, 0.8.19, 0.8.25 and 0.8.28. An unfiltered source
-producer explicitly initializes public submodules, downloads Go modules and
-builds Go FFI through Just. Keep its full source and Git state until narrower
-cache inputs have been proved safe. Contract tool, compiler, submodule and Go
-module downloads retry.
+0.5.19 pins, with solc 0.8.15, 0.8.19, 0.8.25 and 0.8.28. A full-source producer
+initializes recursive public submodules, downloads Go modules, runs the exact
+Just Go FFI build and compiles the existing Go convention checker. Its native
+Go cache is isolated from the rollup producer. A source archive preserves the
+whole tree, populated submodules and the existing `.gitcommit` deployment
+identity fallback while excluding Git history and old
+compilation/test state. Contract source, tool, compiler and Go module downloads
+retry.
 
-Each uncached verdict runs `just test` and the existing Go test-convention check.
-The runner validates effective Foundry settings and a complete test-file
-inventory, removes inherited filters/feature overrides, and preserves the first
-test failure while collecting `just test-rerun` traces. Terminal tasks disable
-filesystem output and export literal-path JUnit with `Solidity`/`Foundry` parser
-labels, compiler output, configuration, inventory, traces and generated
-counterexamples/file reports. Verify native parsed counts and failed-run artifact
-collection in hosted runs before promoting any check.
-This shadow needs no RPC credentials, vault, publisher, Docker or Rust producer.
-Coverage, upgrade/fork, heavy-fuzz, snapshot and semver jobs remain outside this
-bounded workload; the existing required contracts gate stays in CircleCI.
+Each feature has a separate native Foundry tool cache for `forge-artifacts`,
+build-info and `solidity-files-cache.json`. Compiler and verdict tasks source the
+same profile/feature helper and validate effective settings. Compilation uses
+`forge build`, including tests; it does not execute a cached test verdict.
+Build artifacts contain source/fixtures, compiler outputs, the Go convention
+checker and SHA/profile/feature/configuration provenance with file hashes.
+
+Each uncached verdict executes the same `forge test --junit` command underlying
+`just test`, then runs the original convention checker against the resulting
+artifacts. The producer has already performed the Just Go FFI prerequisite.
+Verdicts reject mismatched provenance, clear old outcomes and fuzz/invariant
+counterexamples, and preserve the first failure while collecting the equivalent
+`forge test --rerun -vvv` diagnostic traces. They inherit neither a Go toolchain
+nor the Go module/compiler caches. Native JUnit, configuration, inventory,
+compiler output, traces and generated file reports remain explicit outputs.
+
+This shadow uses the cache-only vault, with no RPC or publishing credentials,
+Docker or Rust producer. Coverage, upgrade/fork, heavy-fuzz, snapshot and semver
+jobs remain outside this bounded workload; CircleCI still owns the required gate.
 
 From a trusted checkout:
 
@@ -138,6 +158,64 @@ mise exec -- python ops/ci/test_contracts_shadow.py
 mise exec -- rwx lint .rwx/contracts.yml --warnings-as-errors
 mise exec -- rwx run .rwx/contracts.yml --wait
 ```
+
+## Cache warming and resource trials
+
+All four definitions configure [cache-rebuild triggers](https://www.rwx.com/docs/cache-rebuild-triggers)
+restricted to `develop`. Go/Foundry/op-reth triggers target preparation and
+compiler tasks only; the pilot warms its independent language tool layers.
+Warm-only routing validates the checkout and emits false verdict flags without
+running PR change detection. Keep this routing task successful: RWX automatically
+skips a task when a referenced dependency was skipped, even if an `if` expression
+could bypass its value. Compiler tasks opt in explicitly through the warm flag.
+Warming does not run verdicts, publish check successes, or invoke publishers.
+A CLI `--init cache-warm=true --target <compiler>` rehearses task selection;
+it is not proof that the native protected-branch cache-rebuild event fired.
+The definitions must reach `develop` before protected-branch warming is active.
+RWX rebuild events reset the native cache's initial layer and 48-hour TTL.
+
+Use `--init build-probe=<label>` to force a compiler content-cache miss while
+retaining its native cache, or a new `--init cache-epoch=<label>` for cold mutable
+caches. Do not disable caching on a compiler to measure incremental tool reuse:
+RWX disables its tool cache too. Tests remain `cache: false` in every trial.
+The current organization accepts at most 16 CPUs per task: a 32-CPU/64-GB
+trial was rejected by the hosted service despite the broader public runner
+catalog. Use the supported 2/4/8/16-CPU combinations until availability changes.
+Record actual resources, all task preparation/execution/post-processing times,
+whole-run elapsed time, source revision/patch and retained reports. An old
+execution duration attached to a content-cache hit is historical, not time spent
+compiling during that run. Keep cold and warm measurements separate.
+
+### Speed implementation validation (October 2)
+
+CLI trials used `9e863c1546` with explicitly uploaded, uncommitted CI changes;
+they are configuration experiments, not a new same-SHA CircleCI comparison.
+Whole-run figures below are `CompletedAt - StartedAt`, including setup and
+waiting within the run. The API's `CompletedRuntimeSeconds` omits some waiting
+and must not be substituted for this wall-clock metric.
+
+| Workload | Earlier native run | Updated CLI observations | Retained outcomes |
+| --- | ---: | ---: | --- |
+| Go rollup | 140.8s | [121.3s](https://cloud.rwx.com/optimism/runs/bf4a4ca09cdf41d6aa8bde83e480b2eb), [107.2s](https://cloud.rwx.com/optimism/runs/0e86b64ca7df4af1a0bc994a0cfe7193) | 1,245 pass / 2 skip |
+| Standard contracts | 592.1s | [360.0s](https://cloud.rwx.com/optimism/runs/67de4a0549374b4482bf0c9f32afee02), [263.0s](https://cloud.rwx.com/optimism/runs/2b74a989bc2f49e7ad98e48f5c8e0362) | 9,503 pass / 638 skip |
+
+Both compiler cache state and runner-local layers differed between observations;
+collect repeated timings at the final pushed SHA before interpreting medians as
+an expected PR latency. The Rust release producer executed in 230s on 8 CPUs
+and 137s on the supported 16-CPU/32-GB runner. The latter
+[trial](https://cloud.rwx.com/optimism/runs/27513cd6d1c1428cbebd7ef5d3b1a962)
+verified both binaries; release/codec producers now share the integration
+runner specification. This is a producer measurement, not a whole-workload
+provider speed claim.
+
+The [Go source-change probe](https://cloud.rwx.com/optimism/runs/0520c39b016e44fc986399830a8ec2bf)
+missed the compiler content cache, restored its native cache, and reported an
+intentional new test failure through the initial attempt plus all three retries.
+All 1,247 original cases remained present; the probe was removed without being
+committed. Original Go JSON retained all four failing attempts. The
+[warm-only rehearsal](https://cloud.rwx.com/optimism/runs/1c7d233c758f4afeb8a185be9976cb0e)
+executed routing and compilation with zero tests and false verdict flags. Earlier
+warm rehearsals that skipped the compiler are excluded from this evidence.
 
 ## Compare retained test evidence
 
@@ -376,11 +454,12 @@ reused the clean compiler output and ran a fresh verdict: all 50 cases passed in
 48.8s whole run. For local source probes, omit an explicit `--init commit-sha`,
 which makes the CLI skip the local patch, and verify retained source hashes.
 
-Next, profile release compilation and linking, then test runner sizing and cache
-changes against repeated whole-run latency. Trim transfers and start independent
-consumers as soon as their inputs are ready. Preserve version identity and extend
-source-change invalidation probes while improving reuse across revisions.
-Required checks remain on CircleCI.
+The October 2 implementation above trims inherited layers, reuses Go/Foundry
+compilation, and increases the release producer to the measured 16-CPU runner.
+Continue collecting repeated whole-run latency on pushed revisions and extend
+source-change invalidation probes as shared producers and concurrent consumers
+are added for aggregate Go and acceptance tests. Required checks remain on
+CircleCI.
 
 ## Migration contract
 

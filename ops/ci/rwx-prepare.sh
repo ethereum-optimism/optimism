@@ -6,16 +6,23 @@ REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 cd "${REPO_ROOT}"
 : "${RWX_ENV:?RWX_ENV must name the exported-environment directory}"
 
-# Reuse the existing retrying installer until system preparation is migrated.
-bash .circleci/scripts/apt-install.sh \
-  build-essential ca-certificates pkg-config unzip zip
-
-# This is a distinct RWX task snapshot, not CircleCI's shared write-once mise
-# cache. Install only pilot tools while keeping all versions in mise.toml.
-# Bootstrap trust only inside the disposable RWX task (RWX_ENV is required
-# above). Local development continues to require the user-run mise trust step.
-mise trust --yes mise.toml
-mise install go golangci-lint just jq yq python rust
+# Language toolchains are independent layers. In particular, Go/Foundry tasks
+# must not download both Rust toolchains or the Go linter to run their tests.
+case "${1:-common}" in
+  common)
+    bash .circleci/scripts/apt-install.sh \
+      build-essential ca-certificates pkg-config unzip zip
+    # Trust only the disposable RWX checkout; local development is unchanged.
+    mise trust --yes mise.toml
+    mise install just jq yq python
+    ;;
+  go) mise install go gotestsum ;;
+  # depguard tests execute go list at runtime; keep the pinned Go toolchain.
+  go-runtime) mise install go gotestsum ;;
+  go-lint) mise install go golangci-lint ;;
+  rust) mise install rust ;;
+  *) echo "Usage: $0 [common|go|go-runtime|go-lint|rust]" >&2; exit 1 ;;
+esac
 mkdir -p "${RWX_ENV}"
 printf '%s:%s\n' "$(mise bin-paths | paste -sd: -)" "${PATH}" >"${RWX_ENV}/PATH"
 # Later mise exec calls must use this prepared toolset rather than installing

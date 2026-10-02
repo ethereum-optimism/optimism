@@ -3,7 +3,9 @@
 
 import argparse
 import json
+import math
 import re
+import statistics
 import sys
 from pathlib import Path
 
@@ -54,17 +56,37 @@ def read_go_packages(source, prefix):
     return sorted(packages)
 
 
-def create_manifest(packages, prefix, total):
+def create_manifest(packages, prefix, total, durations=None):
     total = shard_number(total, total=True)
     validate_packages(packages, prefix)
     packages = sorted(packages)
-    return {
+    manifest = {
         "version": 1,
         "prefix": prefix,
         "total": total,
         "packages": packages,
         "shards": [packages[index::total] for index in range(total)],
     }
+    if durations is not None:
+        if not isinstance(durations, dict):
+            raise ValueError("package durations must be an object")
+        for package, duration in durations.items():
+            validate_packages([package], prefix)
+            if type(duration) not in (int, float) or not math.isfinite(duration) or duration < 0:
+                raise ValueError("package durations must be finite nonnegative seconds")
+        known = [durations[package] for package in packages if package in durations]
+        fallback = max(0.001, statistics.median(known)) if known else 1.0
+        weights = {package: durations.get(package, fallback) for package in packages}
+        shards, loads = [[] for _ in range(total)], [0.0] * total
+        # Longest package first; unknown/new packages are retained and get a
+        # median estimate. Timings affect placement, never test eligibility.
+        for package in sorted(packages, key=lambda package: (-weights[package], package)):
+            index = min(range(total), key=lambda index: (loads[index], len(shards[index]), index))
+            shards[index].append(package)
+            loads[index] += weights[package]
+        manifest["durations"] = weights
+        manifest["shards"] = [sorted(shard) for shard in shards]
+    return manifest
 
 
 def select_packages(manifest, prefix, index, total):
@@ -78,7 +100,7 @@ def select_packages(manifest, prefix, index, total):
         raise ValueError("manifest scope or shard total does not match this task")
     packages = manifest.get("packages")
     validate_packages(packages, prefix)
-    expected = create_manifest(packages, prefix, total)
+    expected = create_manifest(packages, prefix, total, manifest.get("durations"))
     # Equality checks the exact union, duplicate-free assignment, and stable order.
     if manifest.get("shards") != expected["shards"] or packages != expected["packages"]:
         raise ValueError("shards must partition the complete sorted package manifest exactly once")
@@ -92,6 +114,7 @@ def main():
     create.add_argument("--prefix", required=True)
     create.add_argument("--total", required=True)
     create.add_argument("--output", type=Path, required=True)
+    create.add_argument("--timings", type=Path)
     select = commands.add_parser("select")
     select.add_argument("--prefix", required=True)
     select.add_argument("--total", required=True)
@@ -101,7 +124,8 @@ def main():
     try:
         if args.command == "create":
             packages = read_go_packages(sys.stdin.read(), args.prefix)
-            manifest = create_manifest(packages, args.prefix, args.total)
+            durations = json.loads(args.timings.read_text())["packages"] if args.timings else None
+            manifest = create_manifest(packages, args.prefix, args.total, durations)
             args.output.write_text(json.dumps(manifest, indent=2) + "\n")
         else:
             manifest = json.loads(args.manifest.read_text())

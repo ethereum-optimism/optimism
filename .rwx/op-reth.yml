@@ -1,5 +1,17 @@
 # Four complete op-reth workloads. CircleCI retains the required checks.
 on:
+  cache-rebuild:
+    if: ${{ event.git.branch == 'develop' }}
+    target: [release-build, integration-build, codec-base-build, codec-head-build, snapshot-build]
+    init:
+      commit-sha: ${{ event.git.sha }}
+      branch: ${{ event.git.branch }}
+      tag: ""
+      cache-epoch: v1
+      build-probe: ""
+      target-cache-mode: keep
+      codec-base-sha: ${{ event.git.sha }}
+      cache-warm: "true"
   github:
     push:
       init:
@@ -10,6 +22,7 @@ on:
         build-probe: ""
         target-cache-mode: keep
         codec-base-sha: ""
+        cache-warm: "false"
       status-checks:
         name: optimism-op-reth-shadow
   cli:
@@ -21,6 +34,7 @@ on:
       build-probe: ""
       target-cache-mode: keep
       codec-base-sha: ""
+      cache-warm: "false"
 
 base:
   image: ubuntu:24.04@sha256:008173c23f95b170204355c12626cb5a965d779a7e1283b09e9cffbb1bf33ca3
@@ -47,16 +61,42 @@ tasks:
       fetch-full-depth: true
       submodules: false
 
+  - key: bootstrap-inputs
+    use: code
+    run: 'true'
+    filter: [mise.toml, ops/ci, .circleci/scripts/apt-install.sh]
+    outputs:
+      filesystem: false
+      artifacts:
+        - key: mise-config
+          path: mise.toml
+        - key: ci-scripts
+          path: ops/ci
+        - key: apt-script
+          path: .circleci/scripts/apt-install.sh
+
   - key: mise
     call: mise/install 1.1.0
     with:
       mise-version: "2026.2.2"
       install: "false"
 
+  # Artifact dependencies avoid inheriting the checkout's Git history into
+  # reusable tools. Language toolchains are added only by their own workload.
   - key: tools
-    use: [code, mise]
-    run: bash ops/ci/rwx-prepare.sh
-    filter: [mise.toml, ops/ci/rwx-prepare.sh, .circleci/scripts/apt-install.sh]
+    use: mise
+    run: |
+      mkdir -p ops/ci .circleci/scripts
+      cp "$MISE_CONFIG" mise.toml
+      cp "$CI_SCRIPTS/rwx-prepare.sh" ops/ci/
+      cp "$APT_SCRIPT" .circleci/scripts/apt-install.sh
+      bash ops/ci/rwx-prepare.sh
+    env:
+      MISE_CONFIG: ${{ tasks.bootstrap-inputs.artifacts.mise-config }}
+      CI_SCRIPTS: ${{ tasks.bootstrap-inputs.artifacts.ci-scripts }}
+      APT_SCRIPT: ${{ tasks.bootstrap-inputs.artifacts.apt-script }}
+    filter:
+      ${{ tasks.bootstrap-inputs.artifacts.ci-scripts }}: [rwx-prepare.sh]
     timeout: 30m
 
   - key: route
@@ -64,6 +104,7 @@ tasks:
     run: bash ops/ci/rwx-metadata.sh
     env:
       CI_EVENT: push
+      CI_CACHE_WARM: ${{ init.cache-warm }}
       CI_BRANCH: ${{ init.branch }}
       CI_TAG: ${{ init.tag }}
       CI_COMMIT_SHA: ${{ init.commit-sha }}
@@ -84,10 +125,17 @@ tasks:
       filesystem: false
 
   - key: rust-tools
-    use: [code, tools]
-    if: ${{ tasks.route.values.run-main == 'true' || tasks.route.values.run-rust-ci == 'true' }}
-    run: mise exec -- bash ops/ci/rwx-rust-prepare.sh
-    filter: [mise.toml, ops/ci/rwx-rust-prepare.sh, ops/ci/op-reth-shadow.sh, ops/ci/op-reth-report.py, .circleci/scripts/apt-install.sh]
+    use: tools
+    if: ${{ init.cache-warm == 'true' || tasks.route.values.run-main == 'true' || tasks.route.values.run-rust-ci == 'true' }}
+    run: |
+      cp "$CI_SCRIPTS/rwx-rust-prepare.sh" "$CI_SCRIPTS/op-reth-shadow.sh" "$CI_SCRIPTS/op-reth-report.py" ops/ci/
+      bash ops/ci/rwx-prepare.sh rust
+      mise exec -- bash ops/ci/rwx-rust-prepare.sh
+    env:
+      CI_SCRIPTS: ${{ tasks.bootstrap-inputs.artifacts.ci-scripts }}
+    filter:
+      workspace: [mise.toml, ops/ci/rwx-prepare.sh, .circleci/scripts/apt-install.sh]
+      ${{ tasks.bootstrap-inputs.artifacts.ci-scripts }}: [rwx-rust-prepare.sh, op-reth-shadow.sh, op-reth-report.py]
     timeout: 30m
 
   # Download once for all producers. The manifest tree is kept intact for
@@ -95,7 +143,7 @@ tasks:
   # layer, while unrelated Go/contract/docs changes do not invalidate it.
   - key: rust-dependencies
     use: [code, rust-tools]
-    if: ${{ tasks.route.values.run-main == 'true' || tasks.route.values.run-rust-ci == 'true' }}
+    if: ${{ init.cache-warm == 'true' || tasks.route.values.run-main == 'true' || tasks.route.values.run-rust-ci == 'true' }}
     run: |
       export CARGO_HOME="$PWD/.ci/rust-cache/cargo"
       cd rust
@@ -117,13 +165,13 @@ tasks:
   # Keep full source, Git metadata and the pinned submodule as build inputs.
   - key: head-source
     use: [code, rust-dependencies]
-    if: ${{ tasks.route.values.run-main == 'true' || tasks.route.values.run-rust-ci == 'true' }}
+    if: ${{ init.cache-warm == 'true' || tasks.route.values.run-main == 'true' || tasks.route.values.run-rust-ci == 'true' }}
     run: bash /usr/local/lib/optimism-ci/op-reth-shadow.sh source
     timeout: 15m
 
   - key: codec-base-revision
     use: [code, tools]
-    if: ${{ tasks.route.values.run-rust-ci == 'true' }}
+    if: ${{ init.cache-warm == 'true' || tasks.route.values.run-rust-ci == 'true' }}
     run: |
       revision="$CODEC_BASE_SHA"
       if [[ -z "$revision" ]]; then
@@ -144,7 +192,7 @@ tasks:
           path: .ci/op-reth-codec-base-sha.txt
 
   - key: codec-base-code
-    if: ${{ tasks.route.values.run-rust-ci == 'true' }}
+    if: ${{ init.cache-warm == 'true' || tasks.route.values.run-rust-ci == 'true' }}
     call: git/clone 2.2.0
     with:
       repository: https://github.com/ethereum-optimism/optimism.git
@@ -156,7 +204,7 @@ tasks:
   - key: codec-base-source
     # Baseline checkout wins over the PR manifest tree in the dependency layer.
     use: [rust-dependencies, codec-base-code]
-    if: ${{ tasks.route.values.run-rust-ci == 'true' }}
+    if: ${{ init.cache-warm == 'true' || tasks.route.values.run-rust-ci == 'true' }}
     run: bash /usr/local/lib/optimism-ci/op-reth-shadow.sh source
     timeout: 15m
 
@@ -167,7 +215,7 @@ tasks:
   # tool cache. A new CACHE_EPOCH gives genuinely cold build/compile caches.
   - key: release-build
     use: head-source
-    if: ${{ tasks.route.values.run-main == 'true' }}
+    if: ${{ init.cache-warm == 'true' || tasks.route.values.run-main == 'true' }}
     run: bash /usr/local/lib/optimism-ci/op-reth-shadow.sh release-build
     env: &build-env
       CI_COMMIT_SHA: ${{ init.commit-sha }}
@@ -176,9 +224,11 @@ tasks:
       TARGET_CACHE_MODE: ${{ init.target-cache-mode }}
     tool-cache: op-reth-release-${{ init.cache-epoch }}
     timeout: 60m
+    # The supported 16-CPU trial shortened the release producer; share this
+    # specification with integration and codec producers for warm locality.
     runner: &build-runner
-      cpus: 8
-      memory: 16gb
+      cpus: 16
+      memory: 32gb
     outputs:
       filesystem:
         filter:
@@ -210,7 +260,7 @@ tasks:
 
   - key: integration-build
     use: head-source
-    if: ${{ tasks.route.values.run-rust-ci == 'true' }}
+    if: ${{ init.cache-warm == 'true' || tasks.route.values.run-rust-ci == 'true' }}
     run: bash /usr/local/lib/optimism-ci/op-reth-shadow.sh integration-build
     env: *build-env
     tool-cache: op-reth-integration-${{ init.cache-epoch }}
@@ -251,7 +301,7 @@ tasks:
 
   - key: codec-base-build
     use: codec-base-source
-    if: ${{ tasks.route.values.run-rust-ci == 'true' }}
+    if: ${{ init.cache-warm == 'true' || tasks.route.values.run-rust-ci == 'true' }}
     run: bash /usr/local/lib/optimism-ci/op-reth-shadow.sh codec-base-build
     env:
       # The PR SHA is deliberately absent: an unchanged pinned develop build
@@ -274,7 +324,7 @@ tasks:
 
   - key: codec-head-build
     use: head-source
-    if: ${{ tasks.route.values.run-rust-ci == 'true' }}
+    if: ${{ init.cache-warm == 'true' || tasks.route.values.run-rust-ci == 'true' }}
     run: bash /usr/local/lib/optimism-ci/op-reth-shadow.sh codec-head-build
     env: *build-env
     tool-cache: op-reth-codec-head-${{ init.cache-epoch }}
@@ -339,7 +389,7 @@ tasks:
 
   - key: snapshot-build
     use: head-source
-    if: ${{ tasks.route.values.run-rust-ci == 'true' }}
+    if: ${{ init.cache-warm == 'true' || tasks.route.values.run-rust-ci == 'true' }}
     run: bash /usr/local/lib/optimism-ci/op-reth-shadow.sh snapshot-build
     env: *build-env
     tool-cache: op-reth-snapshot-${{ init.cache-epoch }}

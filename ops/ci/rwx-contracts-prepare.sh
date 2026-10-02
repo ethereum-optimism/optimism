@@ -34,6 +34,9 @@ case "${1:-}" in
     ;;
   source)
     mkdir -p .ci/contracts-prepare
+    export GOCACHE="${REPO_ROOT}/.ci/go-cache/contracts/build"
+    export GOMODCACHE="${REPO_ROOT}/.ci/go-cache/contracts/modules"
+    mkdir -p "${GOCACHE}" "${GOMODCACHE}"
     # Keep the full source and Git state in this producer. In particular, do not
     # hide the gitlinks or nested Git directories behind a file-filter cache.
     git submodule sync --recursive
@@ -43,6 +46,16 @@ case "${1:-}" in
     retry_download go mod download 2>&1 | tee .ci/contracts-prepare/go-modules.log
     (cd packages/contracts-bedrock && just build-go-ffi) \
       2>&1 | tee .ci/contracts-prepare/go-ffi-build.log
+    # The verdict runs this same checker against fresh Forge artifacts. Ship
+    # the binary so it need not inherit a Go toolchain or the entire module cache.
+    (cd packages/contracts-bedrock && go build -buildvcs=false \
+      -o "${REPO_ROOT}/.ci/contracts-prepare/test-validation" ./scripts/checks/test-validation) \
+      2>&1 | tee .ci/contracts-prepare/test-validation-build.log
+    git rev-parse HEAD >.ci/contracts-prepare/commit-sha.txt
+    # Deployer.gitCommit() explicitly supports this fallback when Git history
+    # is absent (also used by packaged contract builds). Preserve the exact SHA.
+    cp .ci/contracts-prepare/commit-sha.txt packages/contracts-bedrock/.gitcommit
+    bash ops/ci/rwx-source-archive.sh .ci/contracts-prepare/source.tar.gz
     ;;
   *)
     echo "Usage: $0 tools|source" >&2

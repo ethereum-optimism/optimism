@@ -2,6 +2,13 @@
 # Pushes include Bailiff's human-authorized external-fork branches and GitHub's
 # gh-readonly-queue branches. Avoid a second pull_request trigger for those SHAs.
 on:
+  cache-rebuild:
+    if: ${{ event.git.branch == 'develop' }}
+    target: [go-lint-tools, rust-fmt-tools]
+    init:
+      commit-sha: ${{ event.git.sha }}
+      branch: ${{ event.git.branch }}
+      tag: ""
   github:
     push:
       init:
@@ -37,6 +44,20 @@ tasks:
       fetch-full-depth: true
       submodules: false
 
+  - key: bootstrap-inputs
+    use: code
+    run: 'true'
+    filter: [mise.toml, ops/ci, .circleci/scripts/apt-install.sh]
+    outputs:
+      filesystem: false
+      artifacts:
+        - key: mise-config
+          path: mise.toml
+        - key: ci-scripts
+          path: ops/ci
+        - key: apt-script
+          path: .circleci/scripts/apt-install.sh
+
   # Pin mise itself separately from the language/tool versions in mise.toml.
   # Bootstrap in an empty workspace: mise/install 1.1.0 exports tool-version
   # keys verbatim and cannot read this repo's namespaced tool aliases safely.
@@ -46,12 +67,32 @@ tasks:
       mise-version: "2026.2.2"
       install: "false"
 
-  # A content-cached filesystem layer shared by every check below. Keep only
-  # tool installation inputs in its cache key, not unrelated source changes.
+  # Artifact dependencies avoid inheriting the checkout's Git history into
+  # reusable tools. Language toolchains are added only by their own workload.
   - key: tools
-    use: [code, mise]
-    run: bash ops/ci/rwx-prepare.sh
-    filter: [mise.toml, ops/ci/rwx-prepare.sh, .circleci/scripts/apt-install.sh]
+    use: mise
+    run: |
+      mkdir -p ops/ci .circleci/scripts
+      cp "$MISE_CONFIG" mise.toml
+      cp "$CI_SCRIPTS/rwx-prepare.sh" ops/ci/
+      cp "$APT_SCRIPT" .circleci/scripts/apt-install.sh
+      bash ops/ci/rwx-prepare.sh
+    env:
+      MISE_CONFIG: ${{ tasks.bootstrap-inputs.artifacts.mise-config }}
+      CI_SCRIPTS: ${{ tasks.bootstrap-inputs.artifacts.ci-scripts }}
+      APT_SCRIPT: ${{ tasks.bootstrap-inputs.artifacts.apt-script }}
+    filter:
+      ${{ tasks.bootstrap-inputs.artifacts.ci-scripts }}: [rwx-prepare.sh]
+    timeout: 30m
+
+  - key: go-lint-tools
+    use: tools
+    run: bash ops/ci/rwx-prepare.sh go-lint
+    timeout: 30m
+
+  - key: rust-fmt-tools
+    use: tools
+    run: bash ops/ci/rwx-prepare.sh rust
     timeout: 30m
 
   - key: route
@@ -82,7 +123,7 @@ tasks:
 
   # Preserve the superchain bundle's existing verification before Go consumes it.
   - key: prep-superchain
-    use: [code, tools]
+    use: [code, go-lint-tools]
     if: ${{ tasks.route.values.run-main == 'true' }}
     run: mise exec -- just build-superchain-go
     cache: false
@@ -103,7 +144,7 @@ tasks:
       filesystem: false
 
   - key: rust-fmt
-    use: [code, tools]
+    use: [code, rust-fmt-tools]
     if: ${{ tasks.route.values.run-rust-ci == 'true' }}
     run: |
       mise exec -- just update-superchain-registry-submodule

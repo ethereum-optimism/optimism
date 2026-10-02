@@ -45,6 +45,22 @@ with Path(env["CALL_LOG"]).open("a") as log:
     log.write(json.dumps(record) + "\n")
 
 if command == "forge":
+    if args == ["build"]:
+        Path('forge-artifacts').mkdir(exist_ok=True)
+        Path('forge-artifacts/A.t.sol').mkdir(exist_ok=True)
+        Path('forge-artifacts/A.t.sol/A.json').write_text('{}')
+        Path('cache').mkdir(exist_ok=True)
+        Path('cache/solidity-files-cache.json').write_text('{}')
+        sys.exit(int(env.get('FORGE_BUILD_EXIT', '0')))
+    if args == ["test", "--junit"]:
+        if env.get("OMIT_JUNIT") != "true":
+            print(env["JUNIT_XML"])
+        Path("cache/fuzz").mkdir(parents=True, exist_ok=True)
+        Path("cache/fuzz/counterexample").write_text("fresh counterexample\n")
+        sys.exit(int(env.get("TEST_EXIT", "0")))
+    if args == ["test", "--rerun", "-vvv"]:
+        print("Failing test trace")
+        sys.exit(int(env.get("RERUN_EXIT", "0")))
     if args == ["config", "--json"]:
         config = json.loads(env["CONFIG_JSON"])
         if env.get("FOUNDRY_PROFILE") == "ci":
@@ -73,8 +89,13 @@ elif command == "just":
         sys.exit(int(env.get("LINT_EXIT", "0")))
     if args == ["build-go-ffi"]:
         print("Go FFI build")
+        Path('scripts/go-ffi').mkdir(parents=True, exist_ok=True)
+        Path('scripts/go-ffi/go-ffi').write_text('compiled FFI')
         sys.exit(int(env.get("FFI_EXIT", "0")))
 elif command == "git":
+    if args == ["rev-parse", "HEAD"]:
+        print("a" * 40)
+        sys.exit(0)
     if args[:2] == ["submodule", "sync"]:
         sys.exit(0)
     if args[:2] == ["submodule", "status"]:
@@ -86,6 +107,11 @@ elif command == "git":
         sys.exit("Unexpected Git command")
 elif command == "go" and args == ["mod", "download"]:
     label = "go"
+elif command == "go" and args[:2] == ["build", "-buildvcs=false"]:
+    target = Path(args[args.index("-o") + 1])
+    target.write_text('#!/bin/sh\necho "Go test convention validation"\nexit "${LINT_EXIT:-0}"\n')
+    target.chmod(0o755)
+    sys.exit(int(env.get("CHECKER_BUILD_EXIT", "0")))
 elif command == "mise":
     if args == ["bin-paths"]:
         print(env["STUB_BIN"])
@@ -122,7 +148,7 @@ class ContractsShadowTest(unittest.TestCase):
         self.root = Path(self.temp.name)
         scripts = self.root / "ops/ci"
         scripts.mkdir(parents=True)
-        for name in ("contracts-tests.sh", "contracts-test-report.py", "rwx-contracts-prepare.sh"):
+        for name in ("contracts-tests.sh", "contracts-test-env.sh", "contracts-test-report.py", "rwx-contracts-prepare.sh", "rwx-source-archive.sh", "rwx-contracts-build.py", "rwx-contracts-build.sh"):
             shutil.copyfile(SCRIPTS / name, scripts / name)
         self.contracts = self.root / "packages/contracts-bedrock"
         for name in ("test/A.t.sol", "test/nested/B.t.sol", "test/invariants/C.t.sol", "test/Support.sol"):
@@ -276,8 +302,11 @@ class ContractsShadowTest(unittest.TestCase):
         updates = [call for call in calls if call["command"] == "git" and "update" in call["args"]]
         self.assertEqual(len(updates), 2)
         self.assertEqual(updates[0]["args"], ["-c", "protocol.file.allow=never", "submodule", "update", "--init", "--recursive", "--jobs", "8"])
-        self.assertEqual(len([call for call in calls if call["command"] == "go"]), 3)
-        self.assertEqual(calls[-1]["args"], ["build-go-ffi"])
+        self.assertEqual(len([call for call in calls if call["command"] == "go" and call["args"] == ["mod", "download"]]), 3)
+        self.assertTrue(any(call["args"] == ["build-go-ffi"] for call in calls))
+        self.assertTrue((self.root / ".ci/contracts-prepare/test-validation").is_file())
+        self.assertTrue((self.root / ".ci/contracts-prepare/source.tar.gz").is_file())
+        self.assertEqual((self.contracts / ".gitcommit").read_text().strip(), "a" * 40)
         self.assertTrue((self.root / ".ci/contracts-prepare/go-ffi-build.log").is_file())
 
     def test_failed_download_or_ffi_build_is_not_hidden_by_tee(self):
@@ -316,6 +345,57 @@ class ContractsShadowTest(unittest.TestCase):
                 downloads = [call for call in self.calls() if call["command"] == expected_command and call["args"][0] == "install"]
                 self.assertEqual(len(downloads), 5)
                 self.assertFalse((self.root / "rwx-env/PATH").exists())
+
+    def prepare_compilation(self, **overrides):
+        self.assert_success(self.run_helper("rwx-contracts-prepare.sh", ("source",)))
+        prerequisites = self.root / "mounted-prerequisites"
+        shutil.copytree(self.root / ".ci/contracts-prepare", prerequisites)
+        self.assert_success(self.run_helper("rwx-contracts-build.sh", (),
+            CI_COMMIT_SHA="a" * 40, CONTRACT_PREREQUISITES=str(prerequisites), **overrides))
+
+    def test_compiled_verdict_runs_the_full_suite_and_fresh_convention_check(self):
+        self.prepare_compilation()
+        self.log.unlink()
+        self.assert_success(self.run_helper(RWX_COMPILED_CONTRACTS="true", CI_COMMIT_SHA="a" * 40))
+        calls = self.calls()
+        self.assertTrue(any(call["command"] == "forge" and call["args"] == ["test", "--junit"] for call in calls))
+        self.assertFalse(any(call["command"] == "go" or call["command"] == "just" for call in calls))
+        self.assertIn("Go test convention validation", self.report("test-validation.log").read_text())
+        self.assertEqual(json.loads(self.report("summary.json").read_text())["tests"], 2)
+
+    def test_compiled_profile_feature_sha_or_artifact_mismatch_cannot_run_tests(self):
+        self.prepare_compilation()
+        for overrides in ({"CI_BRANCH": "develop"}, {"CONTRACT_FEATURE": "CUSTOM_GAS_TOKEN"}, {"CI_COMMIT_SHA": "b" * 40}):
+            self.log.unlink(missing_ok=True)
+            result = self.run_helper(RWX_COMPILED_CONTRACTS="true", **{"CI_COMMIT_SHA": "a" * 40, **overrides})
+            with self.subTest(overrides=overrides):
+                self.assertNotEqual(result.returncode, 0)
+                self.assertFalse(any(call["command"] == "forge" and call["args"][0] == "test" for call in self.calls()))
+        with (self.root / ".ci/contracts-build/compilation.tar.gz").open("ab") as artifact:
+            artifact.write(b"changed")
+        self.assertNotEqual(self.run_helper(RWX_COMPILED_CONTRACTS="true", CI_COMMIT_SHA="a" * 40).returncode, 0)
+
+    def test_compiled_verdict_keeps_first_failure_and_clears_stale_fuzz(self):
+        self.prepare_compilation()
+        stale = self.contracts / "cache/fuzz/stale"
+        stale.parent.mkdir(parents=True, exist_ok=True)
+        stale.write_text("old outcome")
+        result = self.run_helper(RWX_COMPILED_CONTRACTS="true", CI_COMMIT_SHA="a" * 40, TEST_EXIT="29")
+        self.assertEqual(result.returncode, 29, result.stdout + result.stderr)
+        self.assertFalse(stale.exists())
+        self.assertTrue(self.report("rerun-traces.log").is_file())
+        self.assertTrue((self.contracts / "results/results.xml").is_file())
+
+    def test_compiler_and_checker_build_failures_are_not_test_success(self):
+        self.assert_success(self.run_helper("rwx-contracts-prepare.sh", ("source",)))
+        prerequisites = self.root / "mounted-prerequisites"
+        shutil.copytree(self.root / ".ci/contracts-prepare", prerequisites)
+        result = self.run_helper("rwx-contracts-build.sh", (), CI_COMMIT_SHA="a" * 40,
+                                 CONTRACT_PREREQUISITES=str(prerequisites), FORGE_BUILD_EXIT="7")
+        self.assertEqual(result.returncode, 7, result.stdout + result.stderr)
+        self.assertFalse((self.root / ".ci/contracts-build/compilation.tar.gz").exists())
+        result = self.run_helper("rwx-contracts-prepare.sh", ("source",), CHECKER_BUILD_EXIT="8")
+        self.assertEqual(result.returncode, 8)
 
 
 if __name__ == "__main__":
