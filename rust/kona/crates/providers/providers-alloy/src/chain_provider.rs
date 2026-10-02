@@ -2,7 +2,10 @@
 
 #[cfg(feature = "metrics")]
 use crate::Metrics;
-use alloy_consensus::{Header, Receipt, TxEnvelope};
+use alloy_consensus::{
+    Header, Receipt, TxEnvelope,
+    proofs::{calculate_receipt_root, calculate_transaction_root},
+};
 use alloy_eips::BlockId;
 use alloy_primitives::B256;
 use alloy_provider::{Provider, RootProvider};
@@ -104,6 +107,18 @@ impl AlloyChainProvider {
 
         Ok(())
     }
+}
+
+/// Verifies that a root computed from RPC data matches the one committed to in the header.
+fn verify_root(name: &str, expected: B256, actual: B256) -> Result<(), AlloyChainProviderError> {
+    if actual != expected {
+        return Err(AlloyChainProviderError::Transport(RpcError::Transport(
+            TransportErrorKind::Custom(
+                format!("{name} root mismatch: expected {expected:?}, got {actual:?}").into(),
+            ),
+        )));
+    }
+    Ok(())
 }
 
 /// An error for the [`AlloyChainProvider`].
@@ -222,9 +237,17 @@ impl ChainProvider for AlloyChainProvider {
                 kona_macros::inc!(gauge, Metrics::CHAIN_PROVIDER_RPC_ERRORS, "method" => "receipts_by_hash");
             })?
             .ok_or(AlloyChainProviderError::BlockNotFound(hash.into()))?;
+        let receipts =
+            receipts.into_iter().map(|r| r.inner.into_primitives_receipt()).collect::<Vec<_>>();
+
+        if !self.trust_rpc {
+            let header = self.header_by_hash(hash).await?;
+            verify_root("Receipts", header.receipts_root, calculate_receipt_root(&receipts))?;
+        }
+
         let consensus_receipts = receipts
-            .into_iter()
-            .map(|r| r.inner.into_primitives_receipt().as_receipt().cloned())
+            .iter()
+            .map(|r| r.as_receipt().cloned())
             .collect::<Option<Vec<_>>>()
             .ok_or(AlloyChainProviderError::ReceiptsConversion(hash))?;
 
@@ -263,6 +286,13 @@ impl ChainProvider for AlloyChainProvider {
 
         // Verify the block hash matches what we requested
         self.verify_header_hash(&block.header, hash)?;
+        if !self.trust_rpc {
+            verify_root(
+                "Transactions",
+                block.header.transactions_root,
+                calculate_transaction_root(&block.body.transactions),
+            )?;
+        }
 
         let block_info = BlockInfo {
             hash, // Use the already verified hash instead of recomputing
@@ -283,6 +313,75 @@ impl ChainProvider for AlloyChainProvider {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use alloy_consensus::{BlockBody, EMPTY_ROOT_HASH};
+    use httpmock::{Method::POST, MockServer};
+    use serde_json::json;
+
+    /// Serves `header` with an empty body and no receipts.
+    fn mock_rpc(server: &MockServer, header: Header) {
+        let block = alloy_rpc_types_eth::Block::<TxEnvelope>::from_consensus(
+            alloy_consensus::Block::new(header, BlockBody::default()),
+            None,
+        );
+        server.mock(|when, then| {
+            when.method(POST).body_includes("eth_getBlockByHash");
+            then.status(200).json_body(json!({"jsonrpc": "2.0", "id": 0, "result": block}));
+        });
+        server.mock(|when, then| {
+            when.method(POST).body_includes("eth_getBlockReceipts");
+            then.status(200).json_body(json!({"jsonrpc": "2.0", "id": 0, "result": []}));
+        });
+    }
+
+    fn provider(server: &MockServer, trust_rpc: bool) -> AlloyChainProvider {
+        AlloyChainProvider::new_with_trust(
+            RootProvider::new_http(server.base_url().parse().unwrap()),
+            8,
+            trust_rpc,
+        )
+    }
+
+    #[tokio::test]
+    async fn test_untrusted_rpc_checks_body_against_header() {
+        // The header commits to transactions and receipts that the RPC leaves out.
+        let header = Header {
+            number: 1,
+            transactions_root: B256::repeat_byte(1),
+            receipts_root: B256::repeat_byte(2),
+            ..Default::default()
+        };
+        let hash = header.hash_slow();
+        let server = MockServer::start();
+        mock_rpc(&server, header);
+
+        let mut untrusted = provider(&server, false);
+        let err = untrusted.block_info_and_transactions_by_hash(hash).await.unwrap_err();
+        assert!(err.to_string().contains("Transactions root mismatch"), "{err}");
+        let err = untrusted.receipts_by_hash(hash).await.unwrap_err();
+        assert!(err.to_string().contains("Receipts root mismatch"), "{err}");
+
+        let mut trusted = provider(&server, true);
+        assert!(trusted.block_info_and_transactions_by_hash(hash).await.is_ok());
+        assert!(trusted.receipts_by_hash(hash).await.is_ok());
+    }
+
+    #[tokio::test]
+    async fn test_untrusted_rpc_accepts_consistent_body() {
+        let header = Header {
+            number: 1,
+            transactions_root: EMPTY_ROOT_HASH,
+            receipts_root: EMPTY_ROOT_HASH,
+            ..Default::default()
+        };
+        let hash = header.hash_slow();
+        let server = MockServer::start();
+        mock_rpc(&server, header);
+
+        let mut untrusted = provider(&server, false);
+        let (_, txs) = untrusted.block_info_and_transactions_by_hash(hash).await.unwrap();
+        assert!(txs.is_empty());
+        assert!(untrusted.receipts_by_hash(hash).await.unwrap().is_empty());
+    }
 
     #[test]
     fn test_from_alloy_chain_provider_error() {
