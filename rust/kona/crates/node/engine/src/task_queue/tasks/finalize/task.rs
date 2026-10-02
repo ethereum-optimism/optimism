@@ -47,10 +47,7 @@ impl<EngineClient_: EngineClient> EngineTaskExt for FinalizeTask<EngineClient_> 
         };
 
         let block_fetch_start = Instant::now();
-        let block = self
-            .client
-            .get_l2_block(lookup)
-            .full()
+        let block = crate::client::rpc_timeout(self.client.get_l2_block(lookup).full())
             .await
             .map_err(FinalizeTaskError::TransportError)?
             .ok_or(FinalizeTaskError::BlockNotFound(block_number))?
