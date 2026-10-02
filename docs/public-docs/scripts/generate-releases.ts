@@ -229,11 +229,15 @@ async function fetchReleasesForRepo(repo: string): Promise<GitHubRelease[]> {
 
 // ─── MDX helpers ─────────────────────────────────────────────────────────────
 
+// Dates are rendered in UTC so the output is identical on every machine and
+// in CI; a local-timezone rendering shifts labels by a day for releases
+// published near midnight and makes the generated pages non-reproducible.
 function formatDate(iso: string): string {
   return new Date(iso).toLocaleDateString("en-US", {
     year: "numeric",
     month: "long",
     day: "numeric",
+    timeZone: "UTC",
   });
 }
 
@@ -318,10 +322,7 @@ function badgePinnedSourceLinks(text: string): string {
       }
       if (refs.length === 0) return line;
       const badge = ` (as of ${refs.map((r) => `\`${r}\``).join(", ")})`;
-      // Bodies from the GitHub API use CRLF; keep the badge before the CR.
-      return line.endsWith("\r")
-        ? `${line.slice(0, -1)}${badge}\r`
-        : `${line}${badge}`;
+      return `${line}${badge}`;
     })
     .join("\n");
 }
@@ -329,8 +330,12 @@ function badgePinnedSourceLinks(text: string): string {
 function processBody(body: string | null): string {
   if (!body || body.trim() === "") return "";
 
+  // GitHub returns bodies with CRLF line endings; the committed pages are LF.
+  // Normalize first so regeneration never flips line endings.
+  let out = body.replace(/\r\n?/g, "\n");
+
   // Remove <details>...</details> blocks (common in auto-generated GH notes)
-  let out = body.replace(/<details[\s\S]*?<\/details>/gi, "");
+  out = out.replace(/<details[\s\S]*?<\/details>/gi, "");
 
   // Remove HTML comments
   out = out.replace(/<!--[\s\S]*?-->/g, "");
@@ -366,10 +371,47 @@ function versionOnly(tagName: string, prefix: string): string {
   return tagName.startsWith(prefix) ? tagName.slice(prefix.length - 1) : tagName;
 }
 
-// Treat as a release candidate if GitHub marked it as prerelease OR if the
-// tag name contains a pre-release qualifier (-rc., -alpha., -beta.).
+// Semver pre-release suffix of a tag ("op-deployer/v0.8.0-rc.2" → "rc.2"),
+// or null for a finalized release. GitHub's `prerelease` flag is not reliable
+// here: internal builds such as op-deployer/v0.9.0-dev-test.1 and
+// op-deployer/v0.8.0-pr.22965.1 are published with prerelease=false, so the
+// suffix is what identifies them.
+// `v\.?` tolerates the one historical tag with a stray dot after the v
+// (op-contracts/v.1.7.0-beta.1+l2-contracts). Build metadata after `+` is
+// not part of the suffix.
+function prereleaseSuffix(tagName: string): string | null {
+  const m = /\/?v\.?\d+\.\d+\.\d+-([0-9A-Za-z.-]+)(?:\+|$)/.exec(tagName);
+  return m ? m[1] : null;
+}
+
+// A release is a pre-release if GitHub says so or its tag carries a semver
+// pre-release suffix.
+function isPrerelease(release: GitHubRelease): boolean {
+  return release.prerelease || prereleaseSuffix(release.tag_name) !== null;
+}
+
+// A release candidate is a pre-release whose suffix is exactly rc, alpha or
+// beta plus a number (rc.2, rc2, beta.1). Anything longer (rc.2-synctest.0,
+// rc.1-pr20770.0, hotfix-rc.1) is a one-off build cut from a candidate and
+// is internal. Release candidates are user-relevant and are listed with the
+// "Release Candidate" tag; internal builds (dev-test, pr.<n>, pcd-test, …)
+// are left off the pages entirely.
+//
+// A release that GitHub flags as a pre-release but whose tag carries no
+// suffix (op-contracts/v5.0.0+l2-rev-share-contracts) was marked by a human
+// with nothing in the tag to say otherwise, so it is shown as a candidate
+// rather than hidden.
+const RC_SUFFIX_RE = /^(rc|alpha|beta)\.?\d+$/i;
+
 function isRC(release: GitHubRelease): boolean {
-  return release.prerelease || /-(rc|alpha|beta)\.\d/i.test(release.tag_name);
+  if (!isPrerelease(release)) return false;
+  const suffix = prereleaseSuffix(release.tag_name);
+  if (suffix === null) return true;
+  return RC_SUFFIX_RE.test(suffix);
+}
+
+function isInternalBuild(release: GitHubRelease): boolean {
+  return isPrerelease(release) && !isRC(release);
 }
 
 const AUTO_GENERATED_HEADER = `{/*
@@ -387,7 +429,9 @@ function generateComponentMdx(
   component: Component,
   releases: GitHubRelease[]
 ): string {
-  const all = releases.filter((r) => r.tag_name.startsWith(component.prefix));
+  const all = releases.filter(
+    (r) => r.tag_name.startsWith(component.prefix) && !isInternalBuild(r),
+  );
   const filtered = all.slice(0, MAX_RELEASES_PER_COMPONENT);
 
   // Always include the most recent RC so the Release Candidate filter renders
@@ -506,10 +550,14 @@ async function main(): Promise<void> {
   // Merge into a flat array; each component only sees its own repo's releases.
   const releases = (repo: string) => releasesByRepo.get(repo) ?? [];
 
-  // Find the most recent release for each component
+  // Find the most recent finalized release for each component. The index
+  // page's cards advertise what to run, so release candidates and internal
+  // builds never appear there even when they are the newest tag.
   const latestByComponent = new Map<string, GitHubRelease>();
   for (const component of COMPONENTS) {
-    const latest = releases(component.repo).find((r: GitHubRelease) => r.tag_name.startsWith(component.prefix));
+    const latest = releases(component.repo).find(
+      (r: GitHubRelease) => r.tag_name.startsWith(component.prefix) && !isPrerelease(r),
+    );
     if (latest) {
       latestByComponent.set(component.slug, latest);
     }
@@ -521,7 +569,7 @@ async function main(): Promise<void> {
     const outPath = path.join(OUTPUT_DIR, `${component.slug}.mdx`);
     fs.writeFileSync(outPath, mdx, "utf-8");
     const latest = latestByComponent.get(component.slug);
-    const tag = latest ? ` (latest: ${latest.tag_name})` : " (no releases found)";
+    const tag = latest ? ` (latest: ${latest.tag_name})` : " (no finalized release; no index card)";
     console.log(`  ✓ ${component.slug}${tag}`);
   }
 

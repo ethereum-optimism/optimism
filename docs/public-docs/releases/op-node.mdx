@@ -56,7 +56,7 @@ Note: the Lagoon (interop) hardfork is not yet live in production. Changes to th
 > **Optional upgrade.** Sequencer and interop correctness fixes, plus an operator-facing compatibility improvement.
 
 > [!IMPORTANT]
-> **APKO Docker images:** Starting with this release, the Docker URL contains an additional `/nexus` in its path, see full Docker image path below. Our Docker builds are now APKO based and during a transition period, the APKO-based images for any component will be available at `https://us-docker.pkg.dev/oplabs-tools-artifacts/images/nexus/<component>:<version>`. When we migrate to APKO-only images, we may remove the `/nexus` again from our image paths and will give another notice in this case.
+> **APKO migration** we are migrating our docker builds to [apko](https://github.com/chainguard-dev/apko). We distribute 2 images here: one built with docker and one built with apko. This change lets us improve the security of our images in terms of lower CVEs and improved posture against supply chain attacks. The APKO builds for any component will be available at `https://us-docker.pkg.dev/oplabs-tools-artifacts/images/nexus/:` (notice the `nexus` subpath). Docker builds use the traditional paths. In this release (and only in this release) all apko builds ship without `apk-tools` so it's not possible to easily install APK packages in them. If you need to install tools in these images, for instance for debugging, please use the docker builds. The `nexus` subpath is temporary and will go away when we stop building with docker.
 
 > [!IMPORTANT]
 > The SuperAuthority deny-list check is now applied on the consolidation path ([#21970](https://github.com/ethereum-optimism/optimism/pull/21970)),
@@ -284,59 +284,6 @@ This is a maintenance release.
   🚢 Docker Image: https://us-docker.pkg.dev/oplabs-tools-artifacts/images/op-node:v1.16.6
 
 [View full release on GitHub →](https://github.com/ethereum-optimism/optimism/releases/tag/op-node/v1.16.6)
-
-</Update>
-
-<Update label="January 13, 2026" description="v1.16.5" tags={["Stable"]}>
-
-> [!WARNING]
-> **The corresponding release for op-geth includes security fixes and thus this an essential release for all chains.**
-
-🤝 The corresponding op-geth release is [v1.101605.0](https://github.com/ethereum-optimism/op-geth/releases/tag/v1.101605.0).
-
-[View full release on GitHub →](https://github.com/ethereum-optimism/optimism/releases/tag/op-node/v1.16.5)
-
-</Update>
-
-<Update label="December 20, 2025" description="v1.16.4" tags={["Stable"]}>
-
-> [!WARNING]
-> **This is an essential release for chains impacted by recent superchain registry updates: [Cyber](https://github.com/ethereum-optimism/superchain-registry/commit/8fadc870f1da03dd176cde2f618ba4d1d424d423), [Funki](https://github.com/ethereum-optimism/superchain-registry/commit/d317982f8a46d385d94dcbd57aa88ffc78cbfa3e)**
-
-🤝 The corresponding op-geth release is [v1.101604.0](https://github.com/ethereum-optimism/op-geth/releases/tag/v1.101604.0) (required for the chains impacted by superchain registry changes).
-
-[View full release on GitHub →](https://github.com/ethereum-optimism/optimism/releases/tag/op-node/v1.16.4)
-
-</Update>
-
-<Update label="December 4, 2025" description="v1.16.3" tags={["Stable"]}>
-
-> [!IMPORTANT]
-> **This is an essential release for all OP stack chains**
-
-This release contains an important fix of the blob fetching logic to handle the case where multiple blobs with the same content (but different indices in the block) are requested. Without this fix, a *safe head stall* is possible, due to an error triggered if the batcher submits multiple blobs with the same content (#18492).
-
-Another edge case in the derivation pipeline is fixed where an overlapping span batch has a first singular batch after the current safe head with an outdated origin. This can happen if a large span batch is posted which overlaps with an auto-derived chain (due to sequencing window elapse). Such a span batch should be dropped, but the derivation pipeline stalled instead. This was recently triggered on an OP Stack testnet and hasn't been observed before (#18283).
-
-The sequencer's L1 origin selection got fixed to properly handle L1 reorgs (#18233).
-
-[View full release on GitHub →](https://github.com/ethereum-optimism/optimism/releases/tag/op-node/v1.16.3)
-
-</Update>
-
-<Update label="November 14, 2025" description="v1.16.2" tags={["Stable"]}>
-
-> [!WARNING]
-> **This is an essential release for the following chains due to [Jovian timestamp changes](https://github.com/ethereum-optimism/superchain-registry/commit/59e22d265b7a423b7f51a67a722471a6f3c3cc39): Bob, Lyra, Mint, Orderly, and Polynomial**
-
-> [!NOTE] 
-> This release also contains World Chain Mainnet's [Isthmus activation timestamp](https://github.com/ethereum-optimism/superchain-registry/pull/1149)
-
-This release updates Jovian timestamps for the chains listed above. It is optional for all other chains.
-
-🤝 The corresponding op-geth release is [v1.101603.5](https://github.com/ethereum-optimism/op-geth/releases/tag/v1.101603.5).
-
-[View full release on GitHub →](https://github.com/ethereum-optimism/optimism/releases/tag/op-node/v1.16.2)
 
 </Update>
 
