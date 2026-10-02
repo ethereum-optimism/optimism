@@ -177,7 +177,10 @@ impl AttributesMatch {
     ) -> Self {
         // We can assume that the EIP-1559 params are set iff holocene is active.
         // Note here that we don't need to check for the attributes length because of type-safety.
-        let (ae, ad): (u128, u128) = match attributes.attributes().decode_eip_1559_params() {
+        let (attr_elasticity, attr_denominator): (u128, u128) = match attributes
+            .attributes()
+            .decode_eip_1559_params()
+        {
             None => {
                 // Holocene is active but the eip1559 are not set. This is a bug!
                 // Note: we checked the timestamp match above, so we can assume that both the
@@ -194,9 +197,9 @@ impl AttributesMatch {
                 }
                 return Self::Match;
             }
-            Some((0, e)) if e != 0 => {
+            Some((0, attr_denominator)) if attr_denominator != 0 => {
                 error!(
-                    "Holocene EIP1559 params cannot have a 0 denominator unless elasticity is also 0. This is a bug"
+                    "Holocene EIP1559 params cannot have a 0 elasticity unless denominator is also 0. This is a bug"
                 );
                 return AttributesMismatch::InvalidEIP1559ParamsCombination.into();
             }
@@ -209,55 +212,71 @@ impl AttributesMatch {
 
                 (elasticity_multiplier, max_change_denominator)
             }
-            Some((ae, ad)) => (ae.into(), ad.into()),
+            Some((attr_elasticity, attr_denominator)) => {
+                (attr_elasticity.into(), attr_denominator.into())
+            }
         };
 
         let extra_data_decoded = if config.is_jovian_active(block.header.timestamp) {
-            decode_jovian_extra_data(&block.header.extra_data)
-                .map(|(be, bd, bm)| (be, bd, Some(bm)))
+            decode_jovian_extra_data(&block.header.extra_data).map(
+                |(block_elasticity, block_denominator, block_min_base_fee)| {
+                    (block_elasticity, block_denominator, Some(block_min_base_fee))
+                },
+            )
         } else if config.is_holocene_active(block.header.timestamp) {
-            decode_holocene_extra_data(&block.header.extra_data).map(|(be, bd)| (be, bd, None))
+            decode_holocene_extra_data(&block.header.extra_data).map(
+                |(block_elasticity, block_denominator)| (block_elasticity, block_denominator, None),
+            )
         } else {
             return AttributesMismatch::MissingBlockEIP1559.into();
         };
 
         // We decode the extra data stemming from the block header.
-        let (be, bd, bm): (u128, u128, Option<u64>) = match extra_data_decoded {
-            Ok((be, bd, bm)) => (be.into(), bd.into(), bm),
-            Err(EIP1559ParamError::NoEIP1559Params) => {
-                error!(
-                    "EIP1559 parameters for the block not set while holocene is active. This is a bug"
-                );
-                return AttributesMismatch::MissingBlockEIP1559.into();
-            }
-            Err(EIP1559ParamError::InvalidVersion(v)) => {
-                error!(
-                    version = v,
-                    "The version in the extra data EIP1559 payload is incorrect. Should be 0. This is a bug",
-                );
-                return AttributesMismatch::InvalidExtraDataVersion.into();
-            }
-            Err(e) => {
-                error!(err = ?e, "An unknown extra data decoding error occurred. This is a bug",);
+        let (block_elasticity, block_denominator, block_min_base_fee): (u128, u128, Option<u64>) =
+            match extra_data_decoded {
+                Ok((block_elasticity, block_denominator, block_min_base_fee)) => {
+                    (block_elasticity.into(), block_denominator.into(), block_min_base_fee)
+                }
+                Err(EIP1559ParamError::NoEIP1559Params) => {
+                    error!(
+                        "EIP1559 parameters for the block not set while holocene is active. This is a bug"
+                    );
+                    return AttributesMismatch::MissingBlockEIP1559.into();
+                }
+                Err(EIP1559ParamError::InvalidVersion(v)) => {
+                    error!(
+                        version = v,
+                        "The version in the extra data EIP1559 payload is incorrect. Should be 0. This is a bug",
+                    );
+                    return AttributesMismatch::InvalidExtraDataVersion.into();
+                }
+                Err(e) => {
+                    error!(err = ?e, "An unknown extra data decoding error occurred. This is a bug",);
 
-                return AttributesMismatch::UnknownExtraDataDecodingError(e).into();
-            }
-        };
+                    return AttributesMismatch::UnknownExtraDataDecodingError(e).into();
+                }
+            };
 
         // We now have to check that both parameters match
-        if ae != be || ad != bd {
+        if attr_elasticity != block_elasticity || attr_denominator != block_denominator {
             return AttributesMismatch::EIP1559Parameters(
-                BaseFeeParams { max_change_denominator: ad, elasticity_multiplier: ae },
-                BaseFeeParams { max_change_denominator: bd, elasticity_multiplier: be },
+                BaseFeeParams {
+                    max_change_denominator: attr_denominator,
+                    elasticity_multiplier: attr_elasticity,
+                },
+                BaseFeeParams {
+                    max_change_denominator: block_denominator,
+                    elasticity_multiplier: block_elasticity,
+                },
             )
             .into();
         }
 
         // Presence must match too: Jovian attributes carry a minimum base fee and pre-Jovian ones
         // don't, exactly like the block's extraData.
-        let am = attributes.attributes().min_base_fee;
-        if am != bm {
-            return AttributesMismatch::MinBaseFee(am, bm).into();
+        let attr_min_base_fee = attributes.attributes().min_base_fee;
+        if attr_min_base_fee != block_min_base_fee {
+            return AttributesMismatch::MinBaseFee(attr_min_base_fee, block_min_base_fee).into();
         }
 
         Self::Match
@@ -374,7 +393,7 @@ pub enum AttributesMismatch {
     InvalidExtraDataVersion,
     /// An unknown extra data decoding error occurred.
     UnknownExtraDataDecodingError(EIP1559ParamError),
-    /// Holocene EIP1559 params cannot have a 0 denominator unless elasticity is also 0
+    /// Holocene EIP1559 params cannot have a 0 elasticity unless denominator is also 0
     InvalidEIP1559ParamsCombination,
     /// The EIP1559 base fee parameters of the attributes and the block don't match
     EIP1559Parameters(BaseFeeParams, BaseFeeParams),
@@ -921,7 +940,7 @@ mod tests {
         assert!(check.is_mismatch());
     }
 
-    /// Edge case: if the elasticity multiplier is 0, the max change denominator cannot be 0 as well
+    /// A nonzero denominator with a zero elasticity multiplier is invalid.
     #[test]
     fn test_eip1559_parameters_combination_mismatch() {
         let (cfg, mut attributes, mut block) = eip1559_test_setup();
