@@ -216,27 +216,12 @@ tasks:
   - key: release-build
     use: head-source
     if: ${{ init.cache-warm == 'true' || tasks.route.values.run-main == 'true' }}
-    run: bash /usr/local/lib/optimism-ci/op-reth-shadow.sh release-build
-    env: &build-env
-      CI_COMMIT_SHA: ${{ init.commit-sha }}
-      CACHE_EPOCH: ${{ init.cache-epoch }}
-      BUILD_PROBE: ${{ init.build-probe }}
-      TARGET_CACHE_MODE: ${{ init.target-cache-mode }}
-    tool-cache: op-reth-release-${{ init.cache-epoch }}
-    timeout: 60m
-    # The supported 16-CPU trial shortened the release producer; share this
-    # specification with integration and codec producers for warm locality.
-    runner: &build-runner
-      cpus: 16
-      memory: 32gb
-    outputs:
-      filesystem:
-        filter:
-          workspace: [rust/target, rust/op-reth/crates/chainspec/res/superchain-configs.tar, .ci/rust-cache, .ci/op-reth/release-build]
-          system: []
-      artifacts:
-        - key: release-binaries
-          path: .ci/op-reth/release-build
+    call: ${{ run.dir }}/packages/go-op-reth.yml
+    with:
+      commit-sha: ${{ init.commit-sha }}
+      cache-epoch: ${{ init.cache-epoch }}
+      build-probe: ${{ init.build-probe }}
+      target-cache-mode: ${{ init.target-cache-mode }}
 
   - key: release
     # Artifact references create dependencies without inheriting Cargo/sccache
@@ -249,7 +234,7 @@ tasks:
       bash /usr/local/lib/optimism-ci/op-reth-shadow.sh release
     env:
       CI_COMMIT_SHA: ${{ init.commit-sha }}
-      RELEASE_ARTIFACT: ${{ tasks.release-build.artifacts.release-binaries }}
+      RELEASE_ARTIFACT: ${{ tasks.release-build.build.artifacts.release-binaries }}
     cache: false
     timeout: 10m
     outputs:
@@ -262,10 +247,14 @@ tasks:
     use: head-source
     if: ${{ init.cache-warm == 'true' || tasks.route.values.run-rust-ci == 'true' }}
     run: bash /usr/local/lib/optimism-ci/op-reth-shadow.sh integration-build
-    env: *build-env
+    env: &build-env
+      CI_COMMIT_SHA: ${{ init.commit-sha }}
+      CACHE_EPOCH: ${{ init.cache-epoch }}
+      BUILD_PROBE: ${{ init.build-probe }}
+      TARGET_CACHE_MODE: ${{ init.target-cache-mode }}
     tool-cache: op-reth-integration-${{ init.cache-epoch }}
     timeout: 60m
-    runner: &integration-runner
+    runner: &build-runner
       cpus: 16
       memory: 32gb
     outputs:
@@ -289,7 +278,7 @@ tasks:
       INTEGRATION_ARTIFACT: ${{ tasks.integration-build.artifacts.integration-build-report }}
     cache: false
     timeout: 60m
-    runner: *integration-runner
+    runner: *build-runner
     outputs:
       filesystem: false
       test-results:

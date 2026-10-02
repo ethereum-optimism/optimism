@@ -2,7 +2,6 @@
 """Retain authoritative Go discovery and effective CI settings without secrets."""
 
 import argparse
-import hashlib
 import importlib.util
 import json
 import os
@@ -67,10 +66,6 @@ def record_circle(flags):
                 "settings": settings(fresh=os.environ.get("CI_GO_FRESH_TESTS", "false") in ("1", "true"),
                                      short=flags == "-short")}
     (output / "selection.json").write_text(json.dumps(metadata, indent=2) + "\n")
-
-
-def source_digest(path):
-    return hashlib.sha256(path.read_bytes()).hexdigest()
 
 
 def main():

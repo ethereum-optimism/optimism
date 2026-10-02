@@ -23,12 +23,6 @@ parameters:
   c-go_fresh_tests_effective:
     type: boolean
     default: false
-  c-rwx_rpc_provision_effective:
-    type: boolean
-    default: false
-  c-rwx_rpc_provision:
-    type: boolean
-    default: false
   c-publish_contract_artifacts_ref:
     type: string
     default: ""
@@ -727,17 +721,6 @@ commands:
                 features: << parameters.features >>
 
 jobs:
-  rwx-rpc-provision:
-    docker:
-      - image: <<pipeline.parameters.c-default_docker_image>>
-    resource_class: small.gen2
-    steps:
-      - checkout
-      - run:
-          name: Encrypt CI-only RPC inputs to the local pilot recipient
-          command: python3 ops/ci/rwx-rpc-export.py
-      - store_artifacts:
-          path: tmp/rwx-rpc-encrypted
   ci-gate:
     docker:
       - image: <<pipeline.parameters.c-default_docker_image>>
@@ -2516,14 +2499,6 @@ jobs:
           destination: flaky-test-reports
 
 workflows:
-  rwx-rpc-provision:
-    when:
-      and:
-        - <<pipeline.parameters.c-rwx_rpc_provision>>
-        - equal: [codex/rwx-ci-pilot, <<pipeline.git.branch>>]
-    jobs:
-      - rwx-rpc-provision:
-          context: circleci-repo-rpc-secrets
   main:
     when: << pipeline.parameters.c-run_main >>
     jobs:

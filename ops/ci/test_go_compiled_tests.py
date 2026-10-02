@@ -23,7 +23,7 @@ class CompiledGoTest(unittest.TestCase):
     def setUp(self):
         self.temp = tempfile.TemporaryDirectory()
         self.addCleanup(self.temp.cleanup)
-        self.root = Path(self.temp.name)
+        self.root = Path(self.temp.name).resolve()
         scripts = self.root / "ops/ci"
         scripts.mkdir(parents=True)
         for name in ("go-compiled-tests.py", "go-package-shards.py"):
@@ -139,7 +139,7 @@ sys.exit(1 if failed else 0)
         junit = self.root / "junit.xml"
         result = subprocess.run(["gotestsum", "--rerun-fails=3", "--rerun-fails-max-failures=50",
                                  "--jsonfile=" + str(report), "--junitfile=" + str(junit), "--raw-command", "--",
-                                 "python3", str(self.root / "ops/ci/go-compiled-tests.py"), "run"],
+                                 "python3", str(self.root / "ops/ci/go-compiled-tests.py"), "run", *getattr(self, "suite_args", ())],
                                 env={**self.env, "FAIL_PACKAGE": self.packages[1]}, text=True, capture_output=True)
         self.assertNotEqual(result.returncode, 0, result.stdout + result.stderr)
         calls = [json.loads(line) for line in self.calls.read_text().splitlines()]
@@ -151,6 +151,54 @@ sys.exit(1 if failed else 0)
         failures = [event for event in events if event.get("Test") == "TestFresh" and event["Action"] == "fail"]
         self.assertEqual(len(failures), 4)
         self.assertTrue(junit.is_file())
+
+
+class FullCompiledGoTest(CompiledGoTest):
+    def setUp(self):
+        super().setUp()
+        parent = self.root / ".ci/go-tests"
+        self.build.parent.rename(parent)
+        self.build = parent / "build"
+        self.manifest["prefix"] = "github.com/ethereum-optimism/optimism"
+        self.settings = {"tags": ["ci"], "short": False, "count": 1, "package_parallelism": 4,
+                         "parallel": 8, "timeout": "40m", "rerun_fails": 3, "rerun_fails_max_failures": 50}
+        self.manifest.update(suite="go-tests", commit_sha="a"*40, settings=self.settings)
+        manifest = parent / "manifest.json"
+        manifest.write_text(json.dumps(self.manifest))
+        (parent / "go-list.json").write_text("\n".join(json.dumps({"ImportPath": p, "TestGoFiles": [] if p.endswith('/mocks') else ['test.go']}) for p in self.packages))
+        self.metadata.update(suite="go-tests", settings=self.settings, shard_index=0, shard_total=1,
+                             manifest_sha256=self.digest(manifest), compile_root=str(self.root), go_version="go version fixture")
+        self.save_metadata()
+        tools = self.root / "bin"
+        tools.mkdir()
+        self.executable(tools / "go", "#!/bin/sh\necho 'go version fixture'\n")
+        self.env['PATH'] = str(tools) + os.pathsep + self.env['PATH']
+        self.suite_args = ("--suite", "go-tests")
+
+    def run_helper(self, command, *args, **env):
+        return super().run_helper(command, *self.suite_args, *args, **env)
+
+    def test_full_suite_rejects_settings_root_shard_and_manifest_mismatch(self):
+        for key, value in [('suite', 'go-rollup'), ('settings', {}), ('shard_index', 1),
+                           ('shard_total', 2), ('compile_root', '/other'), ('manifest_sha256', 'bad'), ('go_version','old')]:
+            original = self.metadata[key]
+            self.metadata[key] = value
+            self.save_metadata()
+            with self.subTest(key=key):
+                self.assertNotEqual(self.run_helper('run').returncode, 0)
+                self.assertFalse(self.calls.exists())
+            self.metadata[key] = original
+        self.save_metadata()
+
+    def test_full_suite_rejects_missing_binary_and_unsafe_path(self):
+        for filename in [None, '../0.test', '/tmp/0.test']:
+            original = self.metadata['packages'][self.packages[0]]['file']
+            self.metadata['packages'][self.packages[0]]['file'] = filename
+            self.save_metadata()
+            with self.subTest(filename=filename):
+                self.assertNotEqual(self.run_helper('run').returncode, 0)
+                self.assertFalse(self.calls.exists())
+            self.metadata['packages'][self.packages[0]]['file'] = original
 
 
 if __name__ == "__main__":

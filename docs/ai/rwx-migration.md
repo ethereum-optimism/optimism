@@ -662,3 +662,7 @@ the TODO repair skill, authorization/runner runbooks, feature-matrix documentati
 and Kona SP1 publishing guidance. The image-provenance GitHub Action currently
 parses the Rust image pin from `.circleci/config.yml`; move its source and path
 triggers together if that pin moves.
+
+The aggregate Go stage and its remaining hosted validation are tracked in
+[rwx-go-parity.md](rwx-go-parity.md). It expands coverage to Circle's complete
+`go-tests` selector while preserving required gates and fresh-test evidence.

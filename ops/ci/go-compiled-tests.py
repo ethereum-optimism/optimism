@@ -8,6 +8,8 @@ import hashlib
 import importlib.util
 import json
 import os
+import re
+import signal
 from pathlib import Path
 import subprocess
 import sys
@@ -23,11 +25,34 @@ SPEC = importlib.util.spec_from_file_location("shards", Path(__file__).with_name
 SHARDS = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(SHARDS)
 PRINT_LOCK = threading.Lock()
+PROCESSES = set()
+PROCESS_LOCK = threading.Lock()
 
 
 def digest(path):
     with path.open("rb") as source:
         return hashlib.file_digest(source, "sha256").hexdigest()
+
+
+def go_objects():
+    source = (ROOT / ".ci" / SUITE / "go-list.json").read_text()
+    decoder, offset, objects = json.JSONDecoder(), 0, {}
+    while offset < len(source):
+        if source[offset].isspace():
+            offset += 1
+            continue
+        item, offset = decoder.raw_decode(source, offset)
+        if item.get("Error") or item.get("DepsErrors") or item["ImportPath"] in objects:
+            raise ValueError("Invalid tagged package discovery")
+        objects[item["ImportPath"]] = item
+    return objects
+
+
+def full_settings():
+    return {"tags": ["ci"], "short": False, "count": 1,
+            "package_parallelism": 4, "parallel": int(os.environ.get("PARALLEL", "8")),
+            "timeout": os.environ.get("TEST_TIMEOUT", "40m"),
+            "rerun_fails": 3, "rerun_fails_max_failures": 50}
 
 
 def build():
@@ -36,17 +61,15 @@ def build():
     packages = manifest["packages"]
     if SUITE == "go-tests":
         packages = SHARDS.select_packages(manifest, PREFIX, os.environ["CI_SHARD_INDEX"], manifest["total"])
+    if SUITE == "go-tests" and (manifest.get("suite") != SUITE or manifest.get("settings") != full_settings()
+                                or manifest.get("commit_sha") != os.environ["CI_COMMIT_SHA"]):
+        raise ValueError("Invalid compilation suite settings or revision")
     BUILD.mkdir(parents=True, exist_ok=True)
     subprocess.run(["go", "build", "-o", str(BUILD / "test2json"), "cmd/test2json"], cwd=ROOT, check=True)
     # go test -c compiles only. TestMain and init functions never run here.
-    source = (ROOT / ".ci" / SUITE / "go-list.json").read_text()
-    decoder, offset, objects = json.JSONDecoder(), 0, {}
-    while offset < len(source):
-        if source[offset].isspace():
-            offset += 1
-            continue
-        item, offset = decoder.raw_decode(source, offset)
-        objects[item["ImportPath"]] = item
+    objects = go_objects()
+    if sorted(objects) != manifest["packages"]:
+        raise ValueError("Tagged discovery differs from compilation selection")
 
     def compile_package(item):
         index, package = item
@@ -111,10 +134,7 @@ def verify():
     if sorted(metadata["packages"]) != sorted(expected_packages):
         raise ValueError("Compiled Go package coverage differs from the authoritative manifest")
     if SUITE == "go-tests":
-        expected_settings = {"tags": ["ci"], "short": False, "count": 1,
-                             "package_parallelism": 4, "parallel": int(os.environ["PARALLEL"]),
-                             "timeout": os.environ.get("TEST_TIMEOUT", "40m"),
-                             "rerun_fails": 3, "rerun_fails_max_failures": 50}
+        expected_settings = full_settings()
         if (metadata.get("suite") != SUITE or metadata.get("settings") != expected_settings
                 or manifest.get("settings") != expected_settings
                 or manifest.get("commit_sha") != os.environ["CI_COMMIT_SHA"]
@@ -123,10 +143,19 @@ def verify():
                 or metadata.get("manifest_sha256") != digest(manifest_path)
                 or metadata.get("compile_root") != str(ROOT)):
             raise ValueError("Go suite settings, shard, source paths or manifest differ from this verdict")
+    if SUITE == "go-tests" and metadata.get("go_version") != subprocess.check_output(["go", "version"], text=True).strip():
+        raise ValueError("Go verdict toolchain differs from compilation")
     if digest(BUILD / "test2json") != metadata["test2json_sha256"]:
         raise ValueError("Go JSON reporter changed")
+    objects = go_objects() if SUITE == "go-tests" else {}
     for package in selected:
         binary = metadata["packages"][package]
+        if binary["file"] is not None and not re.fullmatch(r"[0-9]+\.test", binary["file"]):
+            raise ValueError("Unsafe compiled binary filename")
+        if SUITE == "go-tests":
+            item = objects[package]
+            if bool(item.get("TestGoFiles") or item.get("XTestGoFiles")) != (binary["file"] is not None):
+                raise ValueError("Missing test binary or invalid no-test marker")
         if binary["file"] is not None and digest(BUILD / binary["file"]) != binary["sha256"]:
             raise ValueError(f"Go test binary changed: {package}")
     return metadata, selected
@@ -136,6 +165,16 @@ def emit(line):
     with PRINT_LOCK:
         sys.stdout.write(line)
         sys.stdout.flush()
+
+
+def cancel(signum, _frame):
+    with PROCESS_LOCK:
+        for process in PROCESSES:
+            try:
+                os.killpg(process.pid, signal.SIGTERM)
+            except ProcessLookupError:
+                pass
+    raise SystemExit(128 + signum)
 
 
 def run(args):
@@ -163,10 +202,17 @@ def run(args):
                    "-test.timeout=" + os.environ.get("TEST_TIMEOUT", "40m"), "-test.paniconexit0"]
         if run_filter is not None:
             command.append("-test.run=" + run_filter)
-        process = subprocess.Popen(command, cwd=directory, stdout=subprocess.PIPE, text=True)
-        for line in process.stdout:
-            emit(line)
-        return process.wait()
+        with PROCESS_LOCK:
+            process = subprocess.Popen(command, cwd=directory, stdout=subprocess.PIPE, text=True, start_new_session=True)
+            PROCESSES.add(process)
+        try:
+            for line in process.stdout:
+                emit(line)
+            return process.wait()
+        finally:
+            process.stdout.close()
+            with PROCESS_LOCK:
+                PROCESSES.discard(process)
 
     with ThreadPoolExecutor(max_workers=4) as pool:
         statuses = list(pool.map(run_package, selected))
@@ -183,6 +229,10 @@ if __name__ == "__main__":
         BUILD = ROOT / ".ci" / SUITE / "build"
         if SUITE == "go-tests":
             PREFIX = "github.com/ethereum-optimism/optimism"
+        if command != "run" and arguments:
+            raise ValueError("Unexpected compilation or verification arguments")
+        signal.signal(signal.SIGTERM, cancel)
+        signal.signal(signal.SIGINT, cancel)
         if command == "build":
             build()
         elif command == "verify":
