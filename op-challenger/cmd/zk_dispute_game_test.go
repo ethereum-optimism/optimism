@@ -81,9 +81,10 @@ func TestZKCreditRecipients(t *testing.T) {
 	require.ElementsMatch(t, []common.Address{gameCreator, challenger, prover}, recipients)
 }
 
-// An unchallenged ZK proposal has no challenger, so only the creator and prover can
-// hold credit. The zero address must not be reported as a recipient.
-func TestZKCreditRecipientsOmitsZeroAddress(t *testing.T) {
+// An unchallenged ZK proposal has challenger == address(0), but resolve() still
+// credits normalModeCredit[claimData.challenger] when the parent resolved
+// CHALLENGER_WINS, so the zero address is a real recipient here.
+func TestZKCreditRecipientsIncludesZeroChallenger(t *testing.T) {
 	gameAddr := common.Address{0xaa}
 	gameCreator := common.Address{0x01}
 	prover := common.Address{0x03}
@@ -92,6 +93,9 @@ func TestZKCreditRecipientsOmitsZeroAddress(t *testing.T) {
 	stubRPC.SetResponse(gameAddr, "totalBonds", rpcblock.Latest, nil, []interface{}{big.NewInt(100)})
 	stubRPC.SetResponse(gameAddr, "challengerBond", rpcblock.Latest, nil, []interface{}{big.NewInt(0)})
 	stubRPC.SetResponse(gameAddr, "l2SequenceNumber", rpcblock.Latest, nil, []interface{}{big.NewInt(5)})
+	// An unchallenged game has challenger == address(0). When the parent resolved
+	// CHALLENGER_WINS, resolve() credits normalModeCredit[claimData.challenger],
+	// so address(0) is a genuine recipient and must not be filtered out.
 	stubRPC.SetResponse(gameAddr, "claimData", rpcblock.Latest, nil, []interface{}{
 		uint32(0), uint8(0), common.Address{}, prover, uint64(0), common.Hash{},
 	})
@@ -102,8 +106,7 @@ func TestZKCreditRecipientsOmitsZeroAddress(t *testing.T) {
 
 	recipients, err := zkCreditRecipients(context.Background(), contract)
 	require.NoError(t, err)
-	require.ElementsMatch(t, []common.Address{gameCreator, prover}, recipients)
-	require.NotContains(t, recipients, common.Address{})
+	require.ElementsMatch(t, []common.Address{gameCreator, prover, {}}, recipients)
 }
 
 // listCredits must produce the DelayedWETH report for a ZK game, which means the ZK
@@ -129,6 +132,10 @@ func TestListCreditsZK(t *testing.T) {
 	stubRPC.SetResponse(wethAddr, "withdrawals", rpcblock.Latest, []interface{}{gameAddr, gameCreator},
 		[]interface{}{big.NewInt(0), big.NewInt(0)})
 	stubRPC.SetResponse(wethAddr, "withdrawals", rpcblock.Latest, []interface{}{gameAddr, prover},
+		[]interface{}{big.NewInt(0), big.NewInt(0)})
+	// address(0) is a recipient whenever the challenger is unset: resolve() credits
+	// normalModeCredit[claimData.challenger] in every CHALLENGER_WINS branch.
+	stubRPC.SetResponse(wethAddr, "withdrawals", rpcblock.Latest, []interface{}{gameAddr, common.Address{}},
 		[]interface{}{big.NewInt(0), big.NewInt(0)})
 	caller := batching.NewMultiCaller(stubRPC, batching.DefaultBatchSize)
 

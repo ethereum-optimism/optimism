@@ -50,11 +50,17 @@ func ListCredits(ctx *cli.Context) error {
 	if err != nil {
 		return err
 	}
-	creditGameContract, ok := contract.(creditGame)
-	if !ok {
+	// Dispatch on the concrete contract type so each branch is checked at compile
+	// time, mirroring createMoveTx in move.go. Every type NewDisputeGameContract can
+	// return satisfies creditGame, so there is no assertion that can fail.
+	switch contract := contract.(type) {
+	case contracts.ZKDisputeGameContract:
+		return listCredits(ctx.Context, contract)
+	case contracts.FaultDisputeGameContract:
+		return listCredits(ctx.Context, contract)
+	default:
 		return fmt.Errorf("%w: cannot list credits for game type %s", contracts.ErrUnsupportedGameType, gameType)
 	}
-	return listCredits(ctx.Context, creditGameContract)
 }
 
 // listCredits prints the DelayedWETH credits of any supported dispute game type.
@@ -68,14 +74,29 @@ func listCredits(ctx context.Context, game creditGame) error {
 	return printCredits(ctx, game, recipients)
 }
 
+// creditRecipients returns the set of addresses that can hold DelayedWETH credit for
+// the game. ZK games have no claim tree, so their recipients are the game creator,
+// the challenger and the prover rather than the claim participants.
 func creditRecipients(ctx context.Context, game creditGame) ([]common.Address, error) {
-	if zkGame, ok := game.(contracts.ZKDisputeGameContract); ok {
-		return zkCreditRecipients(ctx, zkGame)
-	}
-	faultGame, ok := game.(contracts.FaultDisputeGameContract)
-	if !ok {
+	var recipients []common.Address
+	var err error
+	switch game := game.(type) {
+	case contracts.ZKDisputeGameContract:
+		recipients, err = zkCreditRecipients(ctx, game)
+	case contracts.FaultDisputeGameContract:
+		recipients, err = faultCreditRecipients(ctx, game)
+	default:
 		return nil, fmt.Errorf("%w: cannot list credits for game type %T", contracts.ErrUnsupportedGameType, game)
 	}
+	if err != nil {
+		return nil, err
+	}
+	return recipients, nil
+}
+
+// faultCreditRecipients returns every address a fault dispute game can credit: the
+// participants in the claim tree plus the L2 block number challenger.
+func faultCreditRecipients(ctx context.Context, faultGame contracts.FaultDisputeGameContract) ([]common.Address, error) {
 	claims, err := faultGame.GetAllClaims(ctx, rpcblock.Latest)
 	if err != nil {
 		return nil, fmt.Errorf("failed to load claims: %w", err)
@@ -98,8 +119,14 @@ func creditRecipients(ctx context.Context, game creditGame) ([]common.Address, e
 }
 
 // zkCreditRecipients returns the only addresses a ZK game can credit. This mirrors
-// ZKDisputeGame.sol, which assigns credit to the game creator in every case and to
-// the challenger or prover for the proposal, and never to any other address.
+// ZKDisputeGame.sol, which assigns credit to the game creator, to
+// claimData.challenger and to claimData.prover, and never to any other address.
+//
+// The zero challenger is deliberately kept. When the parent resolved
+// CHALLENGER_WINS and this game was never challenged, resolve() credits
+// normalModeCredit[claimData.challenger], which is address(0) (see
+// ZKDisputeGame.sol). That bond is recoverable by the DelayedWETH owner, so it is
+// a real credit that op-dispute-mon reports and list-credits should show.
 func zkCreditRecipients(ctx context.Context, game contracts.ZKDisputeGameContract) ([]common.Address, error) {
 	bonds, err := game.GetBondMetadata(ctx, rpcblock.Latest)
 	if err != nil {
@@ -113,9 +140,7 @@ func zkCreditRecipients(ctx context.Context, game contracts.ZKDisputeGameContrac
 	if err != nil {
 		return nil, fmt.Errorf("failed to load challenger metadata: %w", err)
 	}
-	if metadata.Challenger != (common.Address{}) {
-		recipients[metadata.Challenger] = true
-	}
+	recipients[metadata.Challenger] = true
 	if metadata.Prover != (common.Address{}) {
 		recipients[metadata.Prover] = true
 	}
