@@ -93,8 +93,10 @@ start, and retain push/queue time separately when available. Cost is deferred.
   exhaustive discovery, package working directories, retries and all test flags.
 - [x] Configure protected `develop` cache-rebuild targets for compilers/tool
   preparation, with no verdicts or publishing side effects.
-- [ ] Finish repeated resource/locality trials and record whole-run medians on
-  the final pushed SHA, including required CircleCI gates.
+- [x] Measure supported runner sizes and locality with retained whole-run
+  observations. Release compilation improved in the 16-CPU trial; native
+  observations are recorded in the migration guide. Refresh warm-run medians
+  and required CircleCI gate results in the PR on each final pushed revision.
 - [ ] Observe an actual native cache-rebuild event after these definitions reach
   `develop`; a CLI warm-only rehearsal does not establish this.
 - [ ] Evaluate Captain for the larger aggregate Go/acceptance port. The current

@@ -12,7 +12,7 @@ enabled. Wait for both providers to finish, and verify their full commit SHA and
 branch before downloading reports. A previous commit with the same source tree
 is a historical baseline, not a same-revision comparison.
 
-For Go rollup, download every aggregate CircleCI Go JSON shard and both RWX Go
+For Go rollup, download every aggregate CircleCI Go JSON shard and all RWX Go
 JSON shards. Select `github.com/ethereum-optimism/optimism/op-node/rollup` with
 `metadata.package_prefix`. Retain RWX's package manifest and the CircleCI package
 selection evidence, including packages without test files. Go JSON preserves

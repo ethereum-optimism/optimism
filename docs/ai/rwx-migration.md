@@ -217,6 +217,25 @@ committed. Original Go JSON retained all four failing attempts. The
 executed routing and compilation with zero tests and false verdict flags. Earlier
 warm rehearsals that skipped the compiler are excluded from this evidence.
 
+The native GitHub push at `6eecce7cb4` passed all four optional RWX checks:
+
+| Workload | Run-start to completion | Retained outcomes |
+| --- | ---: | --- |
+| [Pilot](https://cloud.rwx.com/optimism/runs/1b92ee67b3f34c838ec9ff335aff7172) | 189.7s | Go lint and Rust formatting passed |
+| [Go rollup](https://cloud.rwx.com/optimism/runs/773d558c04fb4659a9583098c3f0ad58) | 124.9s | 1,247 outcomes, no failures |
+| [Standard contracts](https://cloud.rwx.com/optimism/runs/ffcb42f9f4d04931ba1b31ec36a8fe4f) | 260.8s | 10,141 outcomes, no failures |
+| [Op-reth](https://cloud.rwx.com/optimism/runs/e14f9ddf23234958b3b34dda5015a981) | 289.1s | Both binaries, 50 runnable tests, codec and snapshots passed |
+
+The earliest run start to the last shadow completion was 289.2s (4m49s),
+compared with the earlier 592.1s (9m52s) observation. These are individual
+observations with different cache/local-layer states. The codec baseline resolved
+to develop `055562c9186c70fa01bb548e83fe6b06f47e7b29`; retain this SHA when
+repeating the workload. Release compilation executed in 121s; its original
+metadata reported 16 CPUs, no CPU quota, and a 30-GiB cgroup memory limit for
+the requested 32-GB runner. Push/queue time before run start is unavailable.
+Required CircleCI gates and current warm-run medians are refreshed in PR #23151;
+these RWX observations do not establish a provider speed comparison.
+
 ## Compare retained test evidence
 
 Use [ci-comparison.md](ci-comparison.md) to collect reports from both providers
