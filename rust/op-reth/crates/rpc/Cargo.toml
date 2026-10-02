@@ -35,7 +35,7 @@ reth-payload-util.workspace = true
 reth-provider.workspace = true
 
 # op-reth
-reth-optimism-evm.workspace = true
+reth-optimism-evm = { workspace = true, features = ["rpc"] }
 reth-optimism-flashblocks.workspace = true
 reth-optimism-payload-builder.workspace = true
 reth-optimism-post-exec-replay.workspace = true
