@@ -60,10 +60,12 @@ producers and compilation only, executing zero tests.
 Dispatch Circle with public parameter `c-go_fresh_tests: true`. Its default is
 false. Setup forwards it as `c-go_fresh_tests_effective` to avoid Circle's conflict
 when a nondefault setup parameter is also passed to continuation under the same
-name. The shared Go runner adds `-count=1` and pins fresh benchmark concurrency
-to `-parallel=8`. Normal runs retain their existing `nproc` behavior. An
-exploratory fresh run exposed `nproc=32` inside the 8-CPU Circle container;
-that run is not a comparable benchmark against RWX's explicit parallelism.
+name. The shared Go runner adds `-count=1` while retaining Circle's existing
+`nproc` concurrency. An exploratory fresh run exposed `nproc=32` inside the
+8-CPU Circle container. RWX concurrency is independently tunable through
+`test-parallel` (initially 8), with 16 and 32 as candidates on the same
+8 CPU / 16 GiB verdict workers. Preserve the complete workload, fresh execution,
+timeout and retry limits; record execution-setting differences explicitly.
 Circle retains tagged discovery,
 complete selection, effective settings, per-node assignments, original Go JSON,
 JUnit and per-test logs. Benchmark both providers at the same immutable SHA.
@@ -71,7 +73,9 @@ JUnit and per-test logs. Benchmark both providers at the same immutable SHA.
 RWX CLI accepts `shard-total=12` or `shard-total=24`. Keep all six samples (three
 warm runs of each), resources, cache classifications, queue time, setup time,
 compilation, artifact transfers and fresh execution. Select the lower median
-among parity-passing configurations, retaining 12 on a tie. Compare with three
+among parity-passing configurations that do not increase measured runner cost,
+retaining 12 on a tie. Higher concurrency is eligible only after its outcomes,
+retry history, memory use and aggregate runner usage have been checked. Compare with three
 fresh Circle samples measured from pipeline creation to the last Go verdict.
 Do not sum concurrent task durations to claim an end-to-end speed.
 

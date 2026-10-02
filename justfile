@@ -346,9 +346,7 @@ _go-tests-ci-internal go_test_flags="": build-superchain-go
   ALL_PACKAGES="$(just list-test-packages | tr '\n' ' ')"
   FRESH_FLAGS=()
   case "${CI_GO_FRESH_TESTS:-false}" in
-    # Fresh benchmarks use the same explicit test concurrency as the RWX pilot.
-    # nproc can expose host CPUs beyond a Circle container's allocation.
-    1|true) FRESH_FLAGS=(-count=1); export PARALLEL=8 ;;
+    1|true) FRESH_FLAGS=(-count=1) ;;
     0|false) ;;
     *) echo "CI_GO_FRESH_TESTS must be true/false or 1/0" >&2; exit 1 ;;
   esac

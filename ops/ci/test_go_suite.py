@@ -29,6 +29,11 @@ class GoSuiteTest(unittest.TestCase):
         with self.assertRaises(ValueError):
             SUITE.validate_discovery(self.packages[:1], broken, SUITE.MODULE)
 
+    def test_independent_test_concurrency_is_retained(self):
+        for parallel in (8, 16, 32):
+            with patch.dict(os.environ, {"PARALLEL": str(parallel)}):
+                self.assertEqual(SUITE.settings()["parallel"], parallel)
+
     def test_circle_retains_complete_selection_settings_and_no_secret_values(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)

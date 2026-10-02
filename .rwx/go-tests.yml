@@ -12,6 +12,7 @@ on:
       build-probe: ""
       target-cache-mode: keep
       shard-total: "12"
+      test-parallel: "8"
   github:
     push:
       init:
@@ -23,6 +24,7 @@ on:
         build-probe: ""
         target-cache-mode: keep
         shard-total: "12"
+        test-parallel: "8"
       status-checks:
         name: optimism-go-tests-shadow
   cli:
@@ -35,6 +37,7 @@ on:
       build-probe: ""
       target-cache-mode: keep
       shard-total: "12"
+      test-parallel: "8"
 
 # Cache-only vault, writable by develop and the temporary pilot branch.
 tool-cache:
@@ -239,6 +242,7 @@ tasks:
       CI_BRANCH: ${{ init.branch }}
       CI_COMMIT_SHA: ${{ init.commit-sha }}
       CI_SHARD_TOTAL: ${{ init.shard-total }}
+      PARALLEL: ${{ init.test-parallel }}
       GO_ARTIFACT: ${{ tasks.go.tasks.build.artifacts.dependency }}
       CONTRACT_ARTIFACT: ${{ tasks.contracts.tasks.build.artifacts.dependency }}
     outputs:
@@ -258,6 +262,7 @@ tasks:
       CI_COMMIT_SHA: ${{ init.commit-sha }}
       CI_SHARD_INDEX: "0"
       CI_SHARD_TOTAL: ${{ init.shard-total }}
+      PARALLEL: ${{ init.test-parallel }}
       BUILD_PROBE: ${{ init.build-probe }}
     tool-cache: go-full-compile-0-${{ init.cache-epoch }}
     timeout: 60m
@@ -298,6 +303,7 @@ tasks:
       CIRCLE_BRANCH: ${{ init.branch }}
       CI_SHARD_INDEX: "0"
       CI_SHARD_TOTAL: ${{ init.shard-total }}
+      PARALLEL: ${{ init.test-parallel }}
       GO_BINARIES: ${{ tasks.compile-0.artifacts.binaries }}
       DISCOVERY: ${{ tasks.discovery.artifacts.discovery }}
       GO_ARTIFACT: ${{ tasks.go.tasks.build.artifacts.dependency }}
@@ -339,6 +345,7 @@ tasks:
       CI_COMMIT_SHA: ${{ init.commit-sha }}
       CI_SHARD_INDEX: "1"
       CI_SHARD_TOTAL: ${{ init.shard-total }}
+      PARALLEL: ${{ init.test-parallel }}
       BUILD_PROBE: ${{ init.build-probe }}
     tool-cache: go-full-compile-1-${{ init.cache-epoch }}
     timeout: 60m
@@ -379,6 +386,7 @@ tasks:
       CIRCLE_BRANCH: ${{ init.branch }}
       CI_SHARD_INDEX: "1"
       CI_SHARD_TOTAL: ${{ init.shard-total }}
+      PARALLEL: ${{ init.test-parallel }}
       GO_BINARIES: ${{ tasks.compile-1.artifacts.binaries }}
       DISCOVERY: ${{ tasks.discovery.artifacts.discovery }}
       GO_ARTIFACT: ${{ tasks.go.tasks.build.artifacts.dependency }}
@@ -420,6 +428,7 @@ tasks:
       CI_COMMIT_SHA: ${{ init.commit-sha }}
       CI_SHARD_INDEX: "2"
       CI_SHARD_TOTAL: ${{ init.shard-total }}
+      PARALLEL: ${{ init.test-parallel }}
       BUILD_PROBE: ${{ init.build-probe }}
     tool-cache: go-full-compile-2-${{ init.cache-epoch }}
     timeout: 60m
@@ -460,6 +469,7 @@ tasks:
       CIRCLE_BRANCH: ${{ init.branch }}
       CI_SHARD_INDEX: "2"
       CI_SHARD_TOTAL: ${{ init.shard-total }}
+      PARALLEL: ${{ init.test-parallel }}
       GO_BINARIES: ${{ tasks.compile-2.artifacts.binaries }}
       DISCOVERY: ${{ tasks.discovery.artifacts.discovery }}
       GO_ARTIFACT: ${{ tasks.go.tasks.build.artifacts.dependency }}
@@ -501,6 +511,7 @@ tasks:
       CI_COMMIT_SHA: ${{ init.commit-sha }}
       CI_SHARD_INDEX: "3"
       CI_SHARD_TOTAL: ${{ init.shard-total }}
+      PARALLEL: ${{ init.test-parallel }}
       BUILD_PROBE: ${{ init.build-probe }}
     tool-cache: go-full-compile-3-${{ init.cache-epoch }}
     timeout: 60m
@@ -541,6 +552,7 @@ tasks:
       CIRCLE_BRANCH: ${{ init.branch }}
       CI_SHARD_INDEX: "3"
       CI_SHARD_TOTAL: ${{ init.shard-total }}
+      PARALLEL: ${{ init.test-parallel }}
       GO_BINARIES: ${{ tasks.compile-3.artifacts.binaries }}
       DISCOVERY: ${{ tasks.discovery.artifacts.discovery }}
       GO_ARTIFACT: ${{ tasks.go.tasks.build.artifacts.dependency }}
@@ -582,6 +594,7 @@ tasks:
       CI_COMMIT_SHA: ${{ init.commit-sha }}
       CI_SHARD_INDEX: "4"
       CI_SHARD_TOTAL: ${{ init.shard-total }}
+      PARALLEL: ${{ init.test-parallel }}
       BUILD_PROBE: ${{ init.build-probe }}
     tool-cache: go-full-compile-4-${{ init.cache-epoch }}
     timeout: 60m
@@ -622,6 +635,7 @@ tasks:
       CIRCLE_BRANCH: ${{ init.branch }}
       CI_SHARD_INDEX: "4"
       CI_SHARD_TOTAL: ${{ init.shard-total }}
+      PARALLEL: ${{ init.test-parallel }}
       GO_BINARIES: ${{ tasks.compile-4.artifacts.binaries }}
       DISCOVERY: ${{ tasks.discovery.artifacts.discovery }}
       GO_ARTIFACT: ${{ tasks.go.tasks.build.artifacts.dependency }}
@@ -663,6 +677,7 @@ tasks:
       CI_COMMIT_SHA: ${{ init.commit-sha }}
       CI_SHARD_INDEX: "5"
       CI_SHARD_TOTAL: ${{ init.shard-total }}
+      PARALLEL: ${{ init.test-parallel }}
       BUILD_PROBE: ${{ init.build-probe }}
     tool-cache: go-full-compile-5-${{ init.cache-epoch }}
     timeout: 60m
@@ -703,6 +718,7 @@ tasks:
       CIRCLE_BRANCH: ${{ init.branch }}
       CI_SHARD_INDEX: "5"
       CI_SHARD_TOTAL: ${{ init.shard-total }}
+      PARALLEL: ${{ init.test-parallel }}
       GO_BINARIES: ${{ tasks.compile-5.artifacts.binaries }}
       DISCOVERY: ${{ tasks.discovery.artifacts.discovery }}
       GO_ARTIFACT: ${{ tasks.go.tasks.build.artifacts.dependency }}
@@ -744,6 +760,7 @@ tasks:
       CI_COMMIT_SHA: ${{ init.commit-sha }}
       CI_SHARD_INDEX: "6"
       CI_SHARD_TOTAL: ${{ init.shard-total }}
+      PARALLEL: ${{ init.test-parallel }}
       BUILD_PROBE: ${{ init.build-probe }}
     tool-cache: go-full-compile-6-${{ init.cache-epoch }}
     timeout: 60m
@@ -784,6 +801,7 @@ tasks:
       CIRCLE_BRANCH: ${{ init.branch }}
       CI_SHARD_INDEX: "6"
       CI_SHARD_TOTAL: ${{ init.shard-total }}
+      PARALLEL: ${{ init.test-parallel }}
       GO_BINARIES: ${{ tasks.compile-6.artifacts.binaries }}
       DISCOVERY: ${{ tasks.discovery.artifacts.discovery }}
       GO_ARTIFACT: ${{ tasks.go.tasks.build.artifacts.dependency }}
@@ -825,6 +843,7 @@ tasks:
       CI_COMMIT_SHA: ${{ init.commit-sha }}
       CI_SHARD_INDEX: "7"
       CI_SHARD_TOTAL: ${{ init.shard-total }}
+      PARALLEL: ${{ init.test-parallel }}
       BUILD_PROBE: ${{ init.build-probe }}
     tool-cache: go-full-compile-7-${{ init.cache-epoch }}
     timeout: 60m
@@ -865,6 +884,7 @@ tasks:
       CIRCLE_BRANCH: ${{ init.branch }}
       CI_SHARD_INDEX: "7"
       CI_SHARD_TOTAL: ${{ init.shard-total }}
+      PARALLEL: ${{ init.test-parallel }}
       GO_BINARIES: ${{ tasks.compile-7.artifacts.binaries }}
       DISCOVERY: ${{ tasks.discovery.artifacts.discovery }}
       GO_ARTIFACT: ${{ tasks.go.tasks.build.artifacts.dependency }}
@@ -906,6 +926,7 @@ tasks:
       CI_COMMIT_SHA: ${{ init.commit-sha }}
       CI_SHARD_INDEX: "8"
       CI_SHARD_TOTAL: ${{ init.shard-total }}
+      PARALLEL: ${{ init.test-parallel }}
       BUILD_PROBE: ${{ init.build-probe }}
     tool-cache: go-full-compile-8-${{ init.cache-epoch }}
     timeout: 60m
@@ -946,6 +967,7 @@ tasks:
       CIRCLE_BRANCH: ${{ init.branch }}
       CI_SHARD_INDEX: "8"
       CI_SHARD_TOTAL: ${{ init.shard-total }}
+      PARALLEL: ${{ init.test-parallel }}
       GO_BINARIES: ${{ tasks.compile-8.artifacts.binaries }}
       DISCOVERY: ${{ tasks.discovery.artifacts.discovery }}
       GO_ARTIFACT: ${{ tasks.go.tasks.build.artifacts.dependency }}
@@ -987,6 +1009,7 @@ tasks:
       CI_COMMIT_SHA: ${{ init.commit-sha }}
       CI_SHARD_INDEX: "9"
       CI_SHARD_TOTAL: ${{ init.shard-total }}
+      PARALLEL: ${{ init.test-parallel }}
       BUILD_PROBE: ${{ init.build-probe }}
     tool-cache: go-full-compile-9-${{ init.cache-epoch }}
     timeout: 60m
@@ -1027,6 +1050,7 @@ tasks:
       CIRCLE_BRANCH: ${{ init.branch }}
       CI_SHARD_INDEX: "9"
       CI_SHARD_TOTAL: ${{ init.shard-total }}
+      PARALLEL: ${{ init.test-parallel }}
       GO_BINARIES: ${{ tasks.compile-9.artifacts.binaries }}
       DISCOVERY: ${{ tasks.discovery.artifacts.discovery }}
       GO_ARTIFACT: ${{ tasks.go.tasks.build.artifacts.dependency }}
@@ -1068,6 +1092,7 @@ tasks:
       CI_COMMIT_SHA: ${{ init.commit-sha }}
       CI_SHARD_INDEX: "10"
       CI_SHARD_TOTAL: ${{ init.shard-total }}
+      PARALLEL: ${{ init.test-parallel }}
       BUILD_PROBE: ${{ init.build-probe }}
     tool-cache: go-full-compile-10-${{ init.cache-epoch }}
     timeout: 60m
@@ -1108,6 +1133,7 @@ tasks:
       CIRCLE_BRANCH: ${{ init.branch }}
       CI_SHARD_INDEX: "10"
       CI_SHARD_TOTAL: ${{ init.shard-total }}
+      PARALLEL: ${{ init.test-parallel }}
       GO_BINARIES: ${{ tasks.compile-10.artifacts.binaries }}
       DISCOVERY: ${{ tasks.discovery.artifacts.discovery }}
       GO_ARTIFACT: ${{ tasks.go.tasks.build.artifacts.dependency }}
@@ -1149,6 +1175,7 @@ tasks:
       CI_COMMIT_SHA: ${{ init.commit-sha }}
       CI_SHARD_INDEX: "11"
       CI_SHARD_TOTAL: ${{ init.shard-total }}
+      PARALLEL: ${{ init.test-parallel }}
       BUILD_PROBE: ${{ init.build-probe }}
     tool-cache: go-full-compile-11-${{ init.cache-epoch }}
     timeout: 60m
@@ -1189,6 +1216,7 @@ tasks:
       CIRCLE_BRANCH: ${{ init.branch }}
       CI_SHARD_INDEX: "11"
       CI_SHARD_TOTAL: ${{ init.shard-total }}
+      PARALLEL: ${{ init.test-parallel }}
       GO_BINARIES: ${{ tasks.compile-11.artifacts.binaries }}
       DISCOVERY: ${{ tasks.discovery.artifacts.discovery }}
       GO_ARTIFACT: ${{ tasks.go.tasks.build.artifacts.dependency }}
@@ -1230,6 +1258,7 @@ tasks:
       CI_COMMIT_SHA: ${{ init.commit-sha }}
       CI_SHARD_INDEX: "12"
       CI_SHARD_TOTAL: ${{ init.shard-total }}
+      PARALLEL: ${{ init.test-parallel }}
       BUILD_PROBE: ${{ init.build-probe }}
     tool-cache: go-full-compile-12-${{ init.cache-epoch }}
     timeout: 60m
@@ -1270,6 +1299,7 @@ tasks:
       CIRCLE_BRANCH: ${{ init.branch }}
       CI_SHARD_INDEX: "12"
       CI_SHARD_TOTAL: ${{ init.shard-total }}
+      PARALLEL: ${{ init.test-parallel }}
       GO_BINARIES: ${{ tasks.compile-12.artifacts.binaries }}
       DISCOVERY: ${{ tasks.discovery.artifacts.discovery }}
       GO_ARTIFACT: ${{ tasks.go.tasks.build.artifacts.dependency }}
@@ -1311,6 +1341,7 @@ tasks:
       CI_COMMIT_SHA: ${{ init.commit-sha }}
       CI_SHARD_INDEX: "13"
       CI_SHARD_TOTAL: ${{ init.shard-total }}
+      PARALLEL: ${{ init.test-parallel }}
       BUILD_PROBE: ${{ init.build-probe }}
     tool-cache: go-full-compile-13-${{ init.cache-epoch }}
     timeout: 60m
@@ -1351,6 +1382,7 @@ tasks:
       CIRCLE_BRANCH: ${{ init.branch }}
       CI_SHARD_INDEX: "13"
       CI_SHARD_TOTAL: ${{ init.shard-total }}
+      PARALLEL: ${{ init.test-parallel }}
       GO_BINARIES: ${{ tasks.compile-13.artifacts.binaries }}
       DISCOVERY: ${{ tasks.discovery.artifacts.discovery }}
       GO_ARTIFACT: ${{ tasks.go.tasks.build.artifacts.dependency }}
@@ -1392,6 +1424,7 @@ tasks:
       CI_COMMIT_SHA: ${{ init.commit-sha }}
       CI_SHARD_INDEX: "14"
       CI_SHARD_TOTAL: ${{ init.shard-total }}
+      PARALLEL: ${{ init.test-parallel }}
       BUILD_PROBE: ${{ init.build-probe }}
     tool-cache: go-full-compile-14-${{ init.cache-epoch }}
     timeout: 60m
@@ -1432,6 +1465,7 @@ tasks:
       CIRCLE_BRANCH: ${{ init.branch }}
       CI_SHARD_INDEX: "14"
       CI_SHARD_TOTAL: ${{ init.shard-total }}
+      PARALLEL: ${{ init.test-parallel }}
       GO_BINARIES: ${{ tasks.compile-14.artifacts.binaries }}
       DISCOVERY: ${{ tasks.discovery.artifacts.discovery }}
       GO_ARTIFACT: ${{ tasks.go.tasks.build.artifacts.dependency }}
@@ -1473,6 +1507,7 @@ tasks:
       CI_COMMIT_SHA: ${{ init.commit-sha }}
       CI_SHARD_INDEX: "15"
       CI_SHARD_TOTAL: ${{ init.shard-total }}
+      PARALLEL: ${{ init.test-parallel }}
       BUILD_PROBE: ${{ init.build-probe }}
     tool-cache: go-full-compile-15-${{ init.cache-epoch }}
     timeout: 60m
@@ -1513,6 +1548,7 @@ tasks:
       CIRCLE_BRANCH: ${{ init.branch }}
       CI_SHARD_INDEX: "15"
       CI_SHARD_TOTAL: ${{ init.shard-total }}
+      PARALLEL: ${{ init.test-parallel }}
       GO_BINARIES: ${{ tasks.compile-15.artifacts.binaries }}
       DISCOVERY: ${{ tasks.discovery.artifacts.discovery }}
       GO_ARTIFACT: ${{ tasks.go.tasks.build.artifacts.dependency }}
@@ -1554,6 +1590,7 @@ tasks:
       CI_COMMIT_SHA: ${{ init.commit-sha }}
       CI_SHARD_INDEX: "16"
       CI_SHARD_TOTAL: ${{ init.shard-total }}
+      PARALLEL: ${{ init.test-parallel }}
       BUILD_PROBE: ${{ init.build-probe }}
     tool-cache: go-full-compile-16-${{ init.cache-epoch }}
     timeout: 60m
@@ -1594,6 +1631,7 @@ tasks:
       CIRCLE_BRANCH: ${{ init.branch }}
       CI_SHARD_INDEX: "16"
       CI_SHARD_TOTAL: ${{ init.shard-total }}
+      PARALLEL: ${{ init.test-parallel }}
       GO_BINARIES: ${{ tasks.compile-16.artifacts.binaries }}
       DISCOVERY: ${{ tasks.discovery.artifacts.discovery }}
       GO_ARTIFACT: ${{ tasks.go.tasks.build.artifacts.dependency }}
@@ -1635,6 +1673,7 @@ tasks:
       CI_COMMIT_SHA: ${{ init.commit-sha }}
       CI_SHARD_INDEX: "17"
       CI_SHARD_TOTAL: ${{ init.shard-total }}
+      PARALLEL: ${{ init.test-parallel }}
       BUILD_PROBE: ${{ init.build-probe }}
     tool-cache: go-full-compile-17-${{ init.cache-epoch }}
     timeout: 60m
@@ -1675,6 +1714,7 @@ tasks:
       CIRCLE_BRANCH: ${{ init.branch }}
       CI_SHARD_INDEX: "17"
       CI_SHARD_TOTAL: ${{ init.shard-total }}
+      PARALLEL: ${{ init.test-parallel }}
       GO_BINARIES: ${{ tasks.compile-17.artifacts.binaries }}
       DISCOVERY: ${{ tasks.discovery.artifacts.discovery }}
       GO_ARTIFACT: ${{ tasks.go.tasks.build.artifacts.dependency }}
@@ -1716,6 +1756,7 @@ tasks:
       CI_COMMIT_SHA: ${{ init.commit-sha }}
       CI_SHARD_INDEX: "18"
       CI_SHARD_TOTAL: ${{ init.shard-total }}
+      PARALLEL: ${{ init.test-parallel }}
       BUILD_PROBE: ${{ init.build-probe }}
     tool-cache: go-full-compile-18-${{ init.cache-epoch }}
     timeout: 60m
@@ -1756,6 +1797,7 @@ tasks:
       CIRCLE_BRANCH: ${{ init.branch }}
       CI_SHARD_INDEX: "18"
       CI_SHARD_TOTAL: ${{ init.shard-total }}
+      PARALLEL: ${{ init.test-parallel }}
       GO_BINARIES: ${{ tasks.compile-18.artifacts.binaries }}
       DISCOVERY: ${{ tasks.discovery.artifacts.discovery }}
       GO_ARTIFACT: ${{ tasks.go.tasks.build.artifacts.dependency }}
@@ -1797,6 +1839,7 @@ tasks:
       CI_COMMIT_SHA: ${{ init.commit-sha }}
       CI_SHARD_INDEX: "19"
       CI_SHARD_TOTAL: ${{ init.shard-total }}
+      PARALLEL: ${{ init.test-parallel }}
       BUILD_PROBE: ${{ init.build-probe }}
     tool-cache: go-full-compile-19-${{ init.cache-epoch }}
     timeout: 60m
@@ -1837,6 +1880,7 @@ tasks:
       CIRCLE_BRANCH: ${{ init.branch }}
       CI_SHARD_INDEX: "19"
       CI_SHARD_TOTAL: ${{ init.shard-total }}
+      PARALLEL: ${{ init.test-parallel }}
       GO_BINARIES: ${{ tasks.compile-19.artifacts.binaries }}
       DISCOVERY: ${{ tasks.discovery.artifacts.discovery }}
       GO_ARTIFACT: ${{ tasks.go.tasks.build.artifacts.dependency }}
@@ -1878,6 +1922,7 @@ tasks:
       CI_COMMIT_SHA: ${{ init.commit-sha }}
       CI_SHARD_INDEX: "20"
       CI_SHARD_TOTAL: ${{ init.shard-total }}
+      PARALLEL: ${{ init.test-parallel }}
       BUILD_PROBE: ${{ init.build-probe }}
     tool-cache: go-full-compile-20-${{ init.cache-epoch }}
     timeout: 60m
@@ -1918,6 +1963,7 @@ tasks:
       CIRCLE_BRANCH: ${{ init.branch }}
       CI_SHARD_INDEX: "20"
       CI_SHARD_TOTAL: ${{ init.shard-total }}
+      PARALLEL: ${{ init.test-parallel }}
       GO_BINARIES: ${{ tasks.compile-20.artifacts.binaries }}
       DISCOVERY: ${{ tasks.discovery.artifacts.discovery }}
       GO_ARTIFACT: ${{ tasks.go.tasks.build.artifacts.dependency }}
@@ -1959,6 +2005,7 @@ tasks:
       CI_COMMIT_SHA: ${{ init.commit-sha }}
       CI_SHARD_INDEX: "21"
       CI_SHARD_TOTAL: ${{ init.shard-total }}
+      PARALLEL: ${{ init.test-parallel }}
       BUILD_PROBE: ${{ init.build-probe }}
     tool-cache: go-full-compile-21-${{ init.cache-epoch }}
     timeout: 60m
@@ -1999,6 +2046,7 @@ tasks:
       CIRCLE_BRANCH: ${{ init.branch }}
       CI_SHARD_INDEX: "21"
       CI_SHARD_TOTAL: ${{ init.shard-total }}
+      PARALLEL: ${{ init.test-parallel }}
       GO_BINARIES: ${{ tasks.compile-21.artifacts.binaries }}
       DISCOVERY: ${{ tasks.discovery.artifacts.discovery }}
       GO_ARTIFACT: ${{ tasks.go.tasks.build.artifacts.dependency }}
@@ -2040,6 +2088,7 @@ tasks:
       CI_COMMIT_SHA: ${{ init.commit-sha }}
       CI_SHARD_INDEX: "22"
       CI_SHARD_TOTAL: ${{ init.shard-total }}
+      PARALLEL: ${{ init.test-parallel }}
       BUILD_PROBE: ${{ init.build-probe }}
     tool-cache: go-full-compile-22-${{ init.cache-epoch }}
     timeout: 60m
@@ -2080,6 +2129,7 @@ tasks:
       CIRCLE_BRANCH: ${{ init.branch }}
       CI_SHARD_INDEX: "22"
       CI_SHARD_TOTAL: ${{ init.shard-total }}
+      PARALLEL: ${{ init.test-parallel }}
       GO_BINARIES: ${{ tasks.compile-22.artifacts.binaries }}
       DISCOVERY: ${{ tasks.discovery.artifacts.discovery }}
       GO_ARTIFACT: ${{ tasks.go.tasks.build.artifacts.dependency }}
@@ -2121,6 +2171,7 @@ tasks:
       CI_COMMIT_SHA: ${{ init.commit-sha }}
       CI_SHARD_INDEX: "23"
       CI_SHARD_TOTAL: ${{ init.shard-total }}
+      PARALLEL: ${{ init.test-parallel }}
       BUILD_PROBE: ${{ init.build-probe }}
     tool-cache: go-full-compile-23-${{ init.cache-epoch }}
     timeout: 60m
@@ -2161,6 +2212,7 @@ tasks:
       CIRCLE_BRANCH: ${{ init.branch }}
       CI_SHARD_INDEX: "23"
       CI_SHARD_TOTAL: ${{ init.shard-total }}
+      PARALLEL: ${{ init.test-parallel }}
       GO_BINARIES: ${{ tasks.compile-23.artifacts.binaries }}
       DISCOVERY: ${{ tasks.discovery.artifacts.discovery }}
       GO_ARTIFACT: ${{ tasks.go.tasks.build.artifacts.dependency }}
