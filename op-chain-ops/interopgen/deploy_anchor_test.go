@@ -79,7 +79,6 @@ func TestInProcessAnchorProposalTransport(t *testing.T) {
 			DisputeGameType:              l2Cfg.DisputeGameType,
 			DisputeAbsolutePrestate:      l2Cfg.DisputeAbsolutePrestate,
 			StartingAnchorRoot:           proposal,
-			CannonAbsolutePrestate:       l2Cfg.DisputeAbsolutePrestate,
 			DisputeMaxGameDepth:          new(big.Int).SetUint64(l2Cfg.DisputeMaxGameDepth),
 			DisputeSplitDepth:            new(big.Int).SetUint64(l2Cfg.DisputeSplitDepth),
 			DisputeClockExtension:        l2Cfg.DisputeClockExtension,

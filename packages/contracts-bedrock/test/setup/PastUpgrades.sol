@@ -109,10 +109,9 @@ library PastUpgrades {
     )
         internal
     {
-        bool needsSuperRootGamesMigration = Config.devFeatureSuperRootGamesMigration()
-            && !_isSuperGameType(
-                IOptimismPortal2(payable(_systemConfig.optimismPortal())).anchorStateRegistry().respectedGameType()
-            );
+        bool needsSuperRootGamesMigration = !_isSuperGameType(
+            IOptimismPortal2(payable(_systemConfig.optimismPortal())).anchorStateRegistry().respectedGameType()
+        );
 
         // Fetch OPCMs from registry via FFI
         OPCMInfo[] memory opcms = fetchOPCMs(block.chainid);
@@ -213,7 +212,7 @@ library PastUpgrades {
 
         IAnchorStateRegistry asr = IOptimismPortal2(payable(_systemConfig.optimismPortal())).anchorStateRegistry();
         GameType respectedGameType = asr.respectedGameType();
-        bool migrateSuperRootGames = Config.devFeatureSuperRootGamesMigration() && !_isSuperGameType(respectedGameType);
+        bool migrateSuperRootGames = !_isSuperGameType(respectedGameType);
         IOPContractsManagerUtils.ExtraInstruction[] memory instructions =
             new IOPContractsManagerUtils.ExtraInstruction[](migrateSuperRootGames ? 2 : 0);
         Proposal memory anchor;

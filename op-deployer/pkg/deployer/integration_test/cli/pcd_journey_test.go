@@ -18,8 +18,8 @@ import (
 func TestCLIPCDJourney(t *testing.T) {
 	prestate := requirePCDPrestate(t, pcdPrestateArtifactPath(t))
 
-	// The OPCM created by this test enables SUPER_ROOT_GAMES_MIGRATION. The `prepare` command
-	// rejects non-super game types for this OPCM, so this table contains only super-root cases.
+	// The `prepare` command dry-runs and freezes super-game deployments, so this table contains only
+	// super-root cases.
 	rows := []struct {
 		name                       string
 		chainIDs                   []common.Hash

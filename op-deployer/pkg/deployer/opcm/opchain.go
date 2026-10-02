@@ -52,13 +52,9 @@ type DeployOPChainInput struct {
 	SaltMixer         string
 	GasLimit          uint64
 
-	DisputeGameType         uint32
-	DisputeAbsolutePrestate common.Hash // Selected game prestate.
-	StartingAnchorRoot      Proposal
-	// CannonAbsolutePrestate configures the CANNON_KONA guardian fallback.
-	// PERMISSIONED_CANNON mirrors the selected prestate. The super types (SUPER_CANNON_KONA,
-	// SUPER_PERMISSIONED) leave it zero.
-	CannonAbsolutePrestate       common.Hash
+	DisputeGameType              uint32
+	DisputeAbsolutePrestate      common.Hash // Selected game prestate.
+	StartingAnchorRoot           Proposal
 	DisputeMaxGameDepth          *big.Int
 	DisputeSplitDepth            *big.Int
 	DisputeClockExtension        uint64

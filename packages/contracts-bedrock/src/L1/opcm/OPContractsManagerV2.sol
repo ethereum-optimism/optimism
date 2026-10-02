@@ -166,9 +166,9 @@ contract OPContractsManagerV2 is ISemver, OPContractsManagerUtilsCaller {
     ///         - Major bump: New required sequential upgrade
     ///         - Minor bump: Replacement OPCM for same upgrade
     ///         - Patch bump: Development changes (expected for normal dev work)
-    /// @custom:semver 9.0.2
+    /// @custom:semver 9.0.3
     function version() public pure returns (string memory) {
-        return "9.0.2";
+        return "9.0.3";
     }
 
     /// @param _standardValidator The standard validator for this OPCM release.
@@ -705,15 +705,12 @@ contract OPContractsManagerV2 is ISemver, OPContractsManagerUtilsCaller {
             revert OPContractsManagerV2_InvalidGameConfigs();
         }
 
-        bool superRootGamesMigrationEnabled = isDevFeatureEnabled(DevFeatures.SUPER_ROOT_GAMES_MIGRATION);
-
         // Iterate over each provided config and confirm that it matches the expected game type.
         // This places a requirement on the user to order the configs properly but that's
         // probably a good thing, keeps the config consistent.
         for (uint256 i = 0; i < _cfg.disputeGameConfigs.length; i++) {
             uint32 rawGameType = uint32(VALID_GAME_TYPES >> (i * 32));
             bool isCannonGame = rawGameType == GameTypes.CANNON.raw();
-            bool isPermissionedCannonGame = rawGameType == GameTypes.PERMISSIONED_CANNON.raw();
             bool isCannonKonaGame = rawGameType == GameTypes.CANNON_KONA.raw();
             bool isSuperPermissionedGame = rawGameType == GameTypes.SUPER_PERMISSIONED.raw();
             bool isSuperCannonKonaGame = rawGameType == GameTypes.SUPER_CANNON_KONA.raw();
@@ -744,9 +741,7 @@ contract OPContractsManagerV2 is ISemver, OPContractsManagerUtilsCaller {
             // Initial deployments must select game types compatible with the active mode.
             // Upgrade inputs define their game types. Super root migration removes output root support.
             // DeployOPChain adds the permissioned fallback. StandardValidator checks it. OPCM does not require it.
-            bool validForInitialDeploy = superRootGamesMigrationEnabled
-                ? (isSuperPermissionedGame || isSuperCannonKonaGame)
-                : (isPermissionedCannonGame || isCannonKonaGame);
+            bool validForInitialDeploy = isSuperPermissionedGame || isSuperCannonKonaGame;
             if (_isInitialDeployment && _cfg.disputeGameConfigs[i].enabled && !validForInitialDeploy) {
                 revert OPContractsManagerV2_InvalidGameConfigs();
             }

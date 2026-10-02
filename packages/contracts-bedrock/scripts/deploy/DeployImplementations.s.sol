@@ -122,13 +122,8 @@ contract DeployImplementations is Script {
         deployAnchorStateRegistryImpl(_input, output_);
         deployFaultDisputeGameImpl(_input, output_);
         deployPermissionedDisputeGameImpl(_input, output_);
-        if (
-            DevFeatures.isDevFeatureEnabled(_input.devFeatureBitmap, DevFeatures.OPTIMISM_PORTAL_INTEROP)
-                || DevFeatures.isDevFeatureEnabled(_input.devFeatureBitmap, DevFeatures.SUPER_ROOT_GAMES_MIGRATION)
-        ) {
-            deploySuperFaultDisputeGameImpl(_input, output_);
-            deploySuperPermissionedDisputeGameImpl(output_);
-        }
+        deploySuperFaultDisputeGameImpl(_input, output_);
+        deploySuperPermissionedDisputeGameImpl(output_);
         if (DevFeatures.isDevFeatureEnabled(_input.devFeatureBitmap, DevFeatures.ZK_DISPUTE_GAME)) {
             deployZKDisputeGameImpl(output_);
             deploySP1PlonkAdapter(_input, output_);
@@ -760,15 +755,10 @@ contract DeployImplementations is Script {
             address(_output.permissionedDisputeGameImpl)
         );
 
-        if (
-            DevFeatures.isDevFeatureEnabled(_input.devFeatureBitmap, DevFeatures.OPTIMISM_PORTAL_INTEROP)
-                || DevFeatures.isDevFeatureEnabled(_input.devFeatureBitmap, DevFeatures.SUPER_ROOT_GAMES_MIGRATION)
-        ) {
-            address[] memory superGameAddrs = Solarray.addresses(
-                address(_output.superFaultDisputeGameImpl), address(_output.superPermissionedDisputeGameImpl)
-            );
-            addrs2 = Solarray.extend(addrs2, superGameAddrs);
-        }
+        address[] memory superGameAddrs = Solarray.addresses(
+            address(_output.superFaultDisputeGameImpl), address(_output.superPermissionedDisputeGameImpl)
+        );
+        addrs2 = Solarray.extend(addrs2, superGameAddrs);
 
         if (DevFeatures.isDevFeatureEnabled(_input.devFeatureBitmap, DevFeatures.ZK_DISPUTE_GAME)) {
             addrs2 = Solarray.extend(
@@ -780,20 +770,6 @@ contract DeployImplementations is Script {
         DeployUtils.assertValidContractAddresses(Solarray.extend(addrs1, addrs2));
 
         require(address(_output.opcmV2) != address(0), "DeployImplementations: OPCM V2 not deployed");
-
-        if (
-            !DevFeatures.isDevFeatureEnabled(_input.devFeatureBitmap, DevFeatures.OPTIMISM_PORTAL_INTEROP)
-                && !DevFeatures.isDevFeatureEnabled(_input.devFeatureBitmap, DevFeatures.SUPER_ROOT_GAMES_MIGRATION)
-        ) {
-            require(
-                address(_output.superFaultDisputeGameImpl) == address(0),
-                "DeployImplementations: super game flag disabled but SuperFaultDisputeGame was deployed"
-            );
-            require(
-                address(_output.superPermissionedDisputeGameImpl) == address(0),
-                "DeployImplementations: super game flag disabled but SuperPermissionedDisputeGame was deployed"
-            );
-        }
 
         if (DevFeatures.isDevFeatureEnabled(_input.devFeatureBitmap, DevFeatures.ZK_DISPUTE_GAME)) {
             require(
@@ -822,11 +798,8 @@ contract DeployImplementations is Script {
         Types.ContractSet memory impls = ChainAssertions.dioToContractSet(_output);
 
         ChainAssertions.checkDelayedWETHImpl(_output.delayedWETHImpl, _input.withdrawalDelaySeconds);
-        GameType permGameType = DevFeatures.isDevFeatureEnabled(
-            _input.devFeatureBitmap, DevFeatures.SUPER_ROOT_GAMES_MIGRATION
-        ) ? GameTypes.SUPER_PERMISSIONED : GameTypes.PERMISSIONED_CANNON;
         ChainAssertions.checkDisputeGameFactory(
-            _output.disputeGameFactoryImpl, address(0), address(0), false, permGameType
+            _output.disputeGameFactoryImpl, address(0), address(0), false, GameTypes.SUPER_PERMISSIONED
         );
         DeployUtils.assertInitialized({
             _contractAddress: address(_output.anchorStateRegistryImpl),

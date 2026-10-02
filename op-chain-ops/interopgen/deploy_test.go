@@ -10,7 +10,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestInitialDisputeAbsolutePrestates(t *testing.T) {
+func TestInitialDisputeAbsolutePrestate(t *testing.T) {
 	cannonPrestate := common.HexToHash("0x01")
 	cannonKonaPrestate := common.HexToHash("0x02")
 	tests := []struct {
@@ -36,12 +36,7 @@ func TestInitialDisputeAbsolutePrestates(t *testing.T) {
 				DisputeAbsolutePrestate:     cannonPrestate,
 				DisputeKonaAbsolutePrestate: cannonKonaPrestate,
 			}
-			selectedPrestate, fallbackPrestate := initialDisputeAbsolutePrestates(cfg)
-			require.Equal(t, test.selectedPrestate, selectedPrestate)
-			require.Equal(t, cannonPrestate, fallbackPrestate)
-			if test.gameType == gameTypes.CannonKonaGameType {
-				require.NotEqual(t, selectedPrestate, fallbackPrestate)
-			}
+			require.Equal(t, test.selectedPrestate, initialDisputeAbsolutePrestate(cfg))
 		})
 	}
 }
