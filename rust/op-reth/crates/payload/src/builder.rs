@@ -1011,7 +1011,9 @@ where
                 Err(BlockExecutionError::Validation(BlockValidationError::InvalidTx {
                     error,
                     ..
-                })) => {
+                })) if !self.force_empty() => {
+                    // Derived attributes fix the exact transaction list: rejecting one must
+                    // fail the rebuild, not silently produce a shorter block.
                     trace!(target: "payload_builder", %error, ?sequencer_tx, "Error in sequencer transaction, skipping.");
                     continue;
                 }

@@ -20,7 +20,7 @@ use op_alloy_consensus::{
 };
 use reth_basic_payload_builder::PayloadConfig;
 use reth_chainspec::MIN_TRANSACTION_GAS;
-use reth_evm::execute::{BlockBuilder, BlockExecutionError};
+use reth_evm::execute::{BlockBuilder, BlockExecutionError, BlockValidationError};
 use reth_optimism_chainspec::{OpChainSpec, OpChainSpecBuilder};
 use reth_optimism_evm::{OpEvmConfig, PostExecMode, PreRefundGasUsed};
 use reth_optimism_primitives::{OpPrimitives, OpTransactionSigned};
@@ -37,6 +37,49 @@ use reth_primitives_traits::{Account, InMemorySize, SealedHeader};
 use reth_revm::{database::StateProviderDatabase, db::State, test_utils::StateProviderTest};
 use reth_transaction_pool::PoolTransaction;
 use std::{borrow::Cow, cell::Cell, sync::Arc};
+
+/// A derived rebuild must reject invalid input instead of changing its transaction list.
+/// Local sequencing retains the existing behavior of skipping invalid candidates.
+#[test]
+fn derived_rebuild_rejects_invalid_sequencer_tx() {
+    // Nonce 5 for an absent sender produces InvalidTx (nonce too high).
+    let tx: OpTransactionSigned =
+        base_pooled_tx(5, Address::repeat_byte(0xbb), MIN_TRANSACTION_GAS)
+            .into_signed(Signature::test_signature())
+            .into();
+    let bad = WithEncoded::new(Bytes::from(tx.encoded_2718()), tx);
+
+    let run = |no_tx_pool: bool| {
+        let mut ctx = interop_ctx(no_tx_pool, false, None);
+        ctx.config.attributes.transactions = vec![deposit_with_encoded(), bad.clone()];
+        let state_provider = StateProviderTest::default();
+        let mut db = State::builder()
+            .with_database(StateProviderDatabase::new(&state_provider))
+            .with_bundle_update()
+            .build();
+        let mut builder = ctx.block_builder(&mut db).expect("block builder can be created");
+        let mut committed = Vec::new();
+        let result = ctx.execute_sequencer_transactions(&mut builder, Some(&mut committed));
+        (result, committed.len())
+    };
+
+    let (result, committed) = run(true);
+    let Err(PayloadBuilderError::EvmExecutionError(err)) = result else {
+        panic!("derived rebuild must fail on invalid input; got {result:?}");
+    };
+    assert!(
+        matches!(
+            err.downcast_ref::<BlockExecutionError>(),
+            Some(BlockExecutionError::Validation(BlockValidationError::InvalidTx { .. }))
+        ),
+        "expected InvalidTx, got {err:?}"
+    );
+    assert_eq!(committed, 1, "the invalid transaction must not be committed");
+
+    let (result, committed) = run(false);
+    assert!(result.is_ok(), "sequencing must skip the invalid tx; got {result:?}");
+    assert_eq!(committed, 1, "only the deposit is committed when sequencing");
+}
 
 fn entries(specs: &[(u64, u64)]) -> Vec<SDMGasEntry> {
     specs.iter().map(|&(index, gas_refund)| SDMGasEntry { index, gas_refund }).collect()
