@@ -39,7 +39,7 @@ op-alloy-rpc-types-engine.workspace = true
 
 # general
 serde.workspace = true
-tokio.workspace = true
+tokio = { workspace = true, features = ["time"] }
 tracing.workspace = true
 async-trait.workspace = true
 thiserror.workspace = true

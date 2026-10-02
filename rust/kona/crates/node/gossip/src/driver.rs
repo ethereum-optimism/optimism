@@ -62,6 +62,8 @@ pub struct GossipDriver<G: ConnectionGate> {
     pub connection_gate: G,
     /// Tracks ping times for peers.
     pub ping: Arc<Mutex<HashMap<PeerId, Duration>>>,
+    /// Peers found by discovery are only dialed while fewer than this many peers are connected.
+    pub peers_lo: Option<usize>,
 }
 
 impl<G> GossipDriver<G>
@@ -98,6 +100,7 @@ where
             sync_protocol: Some(sync_protocol),
             connection_gate: gate,
             ping: Arc::new(Mutex::new(Default::default())),
+            peers_lo: None,
         }
     }
 
@@ -228,8 +231,14 @@ where
         self.swarm.connected_peers().count()
     }
 
-    /// Dials the given [`Enr`].
+    /// Dials the given [`Enr`], unless enough peers are already connected.
     pub fn dial(&mut self, enr: Enr) {
+        if let Some(lo) = self.peers_lo &&
+            self.connected_peers() >= lo
+        {
+            trace!(target: "gossip", peers = lo, "Enough peers connected, not dialing discovered peer");
+            return;
+        }
         let validation = EnrValidation::validate(&enr, self.handler.rollup_config.l2_chain_id.id());
         if validation.is_invalid() {
             trace!(target: "gossip", "Invalid OP Stack ENR for chain id {}: {}", self.handler.rollup_config.l2_chain_id.id(), validation);
@@ -460,5 +469,51 @@ where
         };
 
         None
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use alloy_rlp::Encodable;
+    use discv5::enr::CombinedKey;
+    use kona_peers::OpStackEnr;
+    use std::net::Ipv4Addr;
+
+    fn op_stack_enr(chain_id: u64) -> Enr {
+        let key = CombinedKey::generate_secp256k1();
+        let mut enr = Enr::builder().ip4(Ipv4Addr::LOCALHOST).tcp4(9876).build(&key).unwrap();
+        let mut op_stack_bytes = Vec::new();
+        OpStackEnr::from_chain_id(chain_id).encode(&mut op_stack_bytes);
+        enr.insert_raw_rlp(OpStackEnr::OP_CL_KEY, op_stack_bytes.into(), &key).unwrap();
+        enr
+    }
+
+    fn driver(peers_lo: Option<u32>) -> GossipDriver<ConnectionGater> {
+        let addr = "/ip4/127.0.0.1/tcp/0".parse().unwrap();
+        let (driver, _) = GossipDriverBuilder::new(
+            RollupConfig::default(),
+            Address::ZERO,
+            addr,
+            Keypair::generate_secp256k1(),
+        )
+        .with_peer_limits(peers_lo, None)
+        .build()
+        .unwrap();
+        driver
+    }
+
+    #[tokio::test]
+    async fn test_dial_respects_peers_lo() {
+        let enr = op_stack_enr(RollupConfig::default().l2_chain_id.id());
+
+        // No peers are connected, so a low tide of zero is already reached.
+        let mut limited = driver(Some(0));
+        limited.dial(enr.clone());
+        assert!(limited.connection_gate.dialed_peers.is_empty());
+
+        let mut unlimited = driver(None);
+        unlimited.dial(enr);
+        assert_eq!(unlimited.connection_gate.dialed_peers.len(), 1);
     }
 }

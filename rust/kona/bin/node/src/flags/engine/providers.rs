@@ -1,6 +1,6 @@
 use alloy_rpc_types_engine::JwtSecret;
 use kona_node_service::DerivationDelegateConfig;
-use std::path::PathBuf;
+use std::{path::PathBuf, time::Duration};
 use url::Url;
 
 const DEFAULT_L2_ENGINE_TIMEOUT: u64 = 30_000;
@@ -91,6 +91,13 @@ impl Default for L2ClientArgs {
             l2_engine_timeout: DEFAULT_L2_ENGINE_TIMEOUT,
             l2_trust_rpc: DEFAULT_L2_TRUST_RPC,
         }
+    }
+}
+
+impl L2ClientArgs {
+    /// Returns the timeout for requests to the L2 engine API.
+    pub const fn engine_timeout(&self) -> Duration {
+        Duration::from_millis(self.l2_engine_timeout)
     }
 }
 

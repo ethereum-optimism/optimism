@@ -239,6 +239,7 @@ impl NodeCommand {
         let engine = OpEngineClient::<RootProvider, RootProvider<Optimism>>::rpc_client::<Optimism>(
             self.l2_client_args.l2_engine_rpc.clone(),
             jwt_secret,
+            self.l2_client_args.engine_timeout(),
         );
 
         let exchange = || async {
@@ -314,6 +315,7 @@ impl NodeCommand {
             config: Arc::new(cfg.clone()),
             l2_url: self.l2_client_args.l2_engine_rpc.clone(),
             l2_jwt_secret: jwt_secret,
+            l2_timeout: self.l2_client_args.engine_timeout(),
             l1_url: self.l1_rpc_args.l1_eth_rpc.clone(),
             mode: self.node_mode,
         };

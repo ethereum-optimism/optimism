@@ -14,6 +14,8 @@ use tokio::time::Duration;
 pub struct NetworkConfig {
     /// Discovery Config.
     pub discovery_config: discv5::Config,
+    /// Whether to disable discv5 peer discovery.
+    pub disable_discovery: bool,
     /// The local node's advertised address to external peers.
     /// Note: This may be different from the node's discovery listen address.
     pub discovery_address: LocalNode,
@@ -37,6 +39,10 @@ pub struct NetworkConfig {
     pub topic_scoring: bool,
     /// Peer score monitoring config.
     pub monitor_peers: Option<PeerMonitoring>,
+    /// Peers found by discovery are only dialed while fewer than this many peers are connected.
+    pub peers_lo: Option<u32>,
+    /// The maximum number of established connections.
+    pub peers_hi: Option<u32>,
     /// An optional path to the bootstore.
     pub bootstore: Option<BootStoreFile>,
     /// The configuration for the connection gater.
@@ -80,6 +86,7 @@ impl NetworkConfig {
         Self {
             rollup_config,
             discovery_config: discv5::ConfigBuilder::new((&discovery_listen).into()).build(),
+            disable_discovery: false,
             discovery_address: discovery_listen,
             discovery_interval: Self::DEFAULT_DISCOVERY_INTERVAL,
             discovery_randomize: Self::DEFAULT_DISCOVERY_RANDOMIZE,
@@ -94,6 +101,8 @@ impl NetworkConfig {
             scoring: Default::default(),
             topic_scoring: Default::default(),
             monitor_peers: Default::default(),
+            peers_lo: None,
+            peers_hi: None,
             gossip_signer: Default::default(),
         }
     }
