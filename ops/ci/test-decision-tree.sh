@@ -310,9 +310,9 @@ run_changed_scenario docs-and-unknown gh-readonly-queue/develop/pr-123 \
 
 run_scenario "Passthrough parameters survive, detection and dispatch parameters do not" \
   push feat/routing "" "" \
-  '{"c-default_docker_image":"example/image:1","c-go-cache-version":"test","c-go_fresh_tests":true,"c-main_dispatch":true,"c-only_docs_changes":true}' \
+  '{"c-default_docker_image":"example/image:1","c-go-cache-version":"test","c-go_fresh_tests_effective":true,"c-main_dispatch":true,"c-only_docs_changes":true}' \
   ci_gate_skip contracts_feature_tests_short rust_ci_gate_short rust_e2e_gate_skip
-if jq -e '."c-default_docker_image" == "example/image:1" and ."c-go-cache-version" == "test" and ."c-go_fresh_tests" == true and (has("c-main_dispatch") | not) and (has("c-only_docs_changes") | not)' "${OUTPUT}" >/dev/null; then
+if jq -e '."c-default_docker_image" == "example/image:1" and ."c-go-cache-version" == "test" and ."c-go_fresh_tests_effective" == true and (has("c-main_dispatch") | not) and (has("c-only_docs_changes") | not)' "${OUTPUT}" >/dev/null; then
   echo "PASS: parameter JSON contract"
   PASS=$((PASS + 1))
 else

@@ -20,6 +20,12 @@ parameters:
   c-go_fresh_tests:
     type: boolean
     default: false
+  c-go_fresh_tests_effective:
+    type: boolean
+    default: false
+  c-rwx_rpc_provision_effective:
+    type: boolean
+    default: false
   c-rwx_rpc_provision:
     type: boolean
     default: false
@@ -1888,7 +1894,7 @@ jobs:
             export TEST_TIMEOUT=<<parameters.test_timeout>>
             just <<parameters.rule>>
           environment:
-            CI_GO_FRESH_TESTS: << pipeline.parameters.c-go_fresh_tests >>
+            CI_GO_FRESH_TESTS: << pipeline.parameters.c-go_fresh_tests_effective >>
       - go-save-cache:
           namespace: go-tests
       - store_test_results:
