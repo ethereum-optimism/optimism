@@ -344,6 +344,14 @@ func (v *LockstepCrossValidator) advanceValidation() {
 			return
 		}
 
+		// Stop if an ingester hit an error (e.g. a reorg) mid-pass, so recovery
+		// waiting on advanceMu is not held up by work on a DB it will rewind.
+		for _, ingester := range v.chains {
+			if ingester.Error() != nil {
+				return
+			}
+		}
+
 		// Validate all messages at this timestamp across all chains
 		if err := v.validateTimestamp(nextTs); err != nil {
 			v.log.Error("Cross-validation failed", "timestamp", nextTs, "err", err)

@@ -200,7 +200,11 @@ func TestBackend_ReorgRecovery_DuringValidationPassDoesNotKeepStaleWatermark(t *
 		defer close(passDone)
 		cv.advanceValidation()
 	}()
-	<-mock.paused
+	select {
+	case <-mock.paused:
+	case <-time.After(5 * time.Second):
+		t.Fatal("validation pass never reached timestamp 102")
+	}
 
 	// The ingester detects a reorg; recovery rewinds the logs DB to finalized (100).
 	mock.SetError(ErrorReorg, "reorg")
@@ -210,8 +214,7 @@ func TestBackend_ReorgRecovery_DuringValidationPassDoesNotKeepStaleWatermark(t *
 		defer close(recovered)
 		backend.tryResolveReorgs(context.Background())
 	}()
-	// Give recovery the chance to finish while the pass is paused. With the fix
-	// it waits for the pass instead, so the outcome does not depend on this delay.
+	// Recovery blocks on the in-flight pass, so this delay does not change the outcome.
 	select {
 	case <-recovered:
 	case <-time.After(100 * time.Millisecond):
@@ -222,9 +225,19 @@ func TestBackend_ReorgRecovery_DuringValidationPassDoesNotKeepStaleWatermark(t *
 	<-recovered
 
 	require.Nil(t, mock.Error())
+	require.Nil(t, cv.Error())
+	require.False(t, backend.FailsafeEnabled())
 	ts, ok := cv.CrossValidatedTimestamp()
 	require.True(t, ok)
 	require.Equal(t, uint64(100), ts, "watermark must not keep progress from before the rewind")
+
+	// Canonical blocks are re-ingested; validation resumes from the reset watermark.
+	mock.pauseAt = 0
+	mock.SetLatestTimestamp(101)
+	cv.advanceValidation()
+	ts, ok = cv.CrossValidatedTimestamp()
+	require.True(t, ok)
+	require.Equal(t, uint64(101), ts, "validation must resume from 100")
 }
 
 func TestBackend_Ready(t *testing.T) {
