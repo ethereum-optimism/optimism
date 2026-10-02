@@ -59,6 +59,8 @@ derive_more.workspace = true
 
 [dev-dependencies]
 test-case.workspace = true
+# `start_paused` test runtimes, for the websocket idle-timeout tests.
+tokio = { workspace = true, features = ["test-util"] }
 alloy-consensus.workspace = true
 alloy-network.workspace = true
 alloy-signer-local.workspace = true

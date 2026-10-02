@@ -21,6 +21,7 @@ use futures::StreamExt;
 use op_alloy_consensus::OpReceipt;
 use op_alloy_network::Optimism;
 use op_alloy_rpc_types_engine::OpFlashblockPayloadBase;
+use pending_block::unsuperseded_pending_flashblock;
 pub use receipt::{OpReceiptBuilder, OpReceiptFieldsBuilder};
 use reqwest::Url;
 use reth_chainspec::{EthereumHardforks, Hardforks};
@@ -28,9 +29,10 @@ use reth_evm::ConfigureEvm;
 use reth_node_api::{FullNodeComponents, FullNodeTypes, HeaderTy, NodeTypes};
 use reth_node_builder::rpc::{EthApiBuilder, EthApiCtx};
 use reth_optimism_flashblocks::{
-    FlashBlockBuildInfo, FlashBlockCompleteSequence, FlashBlockCompleteSequenceRx,
-    FlashBlockConsensusClient, FlashBlockRx, FlashBlockService, FlashblockCachedReceipt,
-    FlashblocksListeners, PendingBlockRx, PendingFlashBlock, WsFlashBlockStream,
+    DEFAULT_IDLE_TIMEOUT, FlashBlockBuildInfo, FlashBlockCompleteSequence,
+    FlashBlockCompleteSequenceRx, FlashBlockConsensusClient, FlashBlockRx, FlashBlockService,
+    FlashblockCachedReceipt, FlashblocksListeners, PendingBlockRx, PendingFlashBlock,
+    WsFlashBlockStream,
 };
 use reth_primitives_traits::{NodePrimitives, SealedHeader};
 use reth_rpc::eth::core::EthApiInner;
@@ -45,7 +47,7 @@ use reth_rpc_eth_api::{
 use reth_rpc_eth_types::{
     EthStateCache, FeeHistoryCache, GasPriceOracle, logs_utils::matching_block_logs_with_tx_hashes,
 };
-use reth_storage_api::ProviderHeader;
+use reth_storage_api::{BlockNumReader, ProviderHeader};
 use reth_tasks::{
     Runtime,
     pool::{BlockingTaskGuard, BlockingTaskPool},
@@ -207,14 +209,6 @@ impl<N: RpcNodeCore, Rpc: RpcConvert> OpEthApi<N, Rpc> {
         self.inner.flashblocks.as_ref().and_then(|f| *f.in_progress_rx.borrow())
     }
 
-    /// Extracts the latest pending flashblock from flashblocks state, if available.
-    fn extract_pending_flashblock(
-        &self,
-        block: Option<&PendingFlashBlock<N::Primitives>>,
-    ) -> Option<PendingFlashBlock<N::Primitives>> {
-        block.cloned()
-    }
-
     /// Awaits a fresh flashblock if one is being built, otherwise returns current.
     async fn flashblock(&self) -> eyre::Result<Option<PendingFlashBlock<N::Primitives>>> {
         let Some(rx) = self.inner.flashblocks.as_ref().map(|f| &f.pending_block_rx) else {
@@ -236,8 +230,10 @@ impl<N: RpcNodeCore, Rpc: RpcConvert> OpEthApi<N, Rpc> {
             }
         }
 
-        // Fall back to current block
-        Ok(self.extract_pending_flashblock(rx.borrow().as_ref()))
+        // Fall back to the current block, unless the canonical chain has already passed it.
+        let latest_block_number = self.inner.eth_api().provider().best_block_number()?;
+
+        Ok(unsuperseded_pending_flashblock(rx.borrow().as_ref(), latest_block_number))
     }
 
     /// Returns a [`PendingFlashBlock`] that is built out of flashblocks.
@@ -506,6 +502,10 @@ pub struct OpEthApiBuilder<NetworkT = Optimism> {
     /// `newPayload` and `forkchoiceUpdated` calls, advancing the canonical chain state.
     /// Requires `flashblocks_url` to be set.
     flashblock_consensus: bool,
+    /// How long the subblocks websocket may stay silent before it is reconnected.
+    ///
+    /// `None` disables the check.
+    flashblocks_idle_timeout: Option<Duration>,
     /// Whether to retain forwarded transactions in the local pool after
     /// forwarding to the configured sequencer if it exists.
     retain_forwarded_txs: bool,
@@ -521,6 +521,7 @@ impl<NetworkT> Default for OpEthApiBuilder<NetworkT> {
             min_suggested_priority_fee: 1_000_000,
             flashblocks_url: None,
             flashblock_consensus: false,
+            flashblocks_idle_timeout: Some(DEFAULT_IDLE_TIMEOUT),
             retain_forwarded_txs: false,
             _nt: PhantomData,
         }
@@ -536,6 +537,7 @@ impl<NetworkT> OpEthApiBuilder<NetworkT> {
             min_suggested_priority_fee: 1_000_000,
             flashblocks_url: None,
             flashblock_consensus: false,
+            flashblocks_idle_timeout: Some(DEFAULT_IDLE_TIMEOUT),
             retain_forwarded_txs: false,
             _nt: PhantomData,
         }
@@ -568,6 +570,17 @@ impl<NetworkT> OpEthApiBuilder<NetworkT> {
     /// With flashblock consensus client enabled to drive chain forward
     pub const fn with_flashblock_consensus(mut self, flashblock_consensus: bool) -> Self {
         self.flashblock_consensus = flashblock_consensus;
+        self
+    }
+
+    /// With how long the subblocks websocket may stay silent before it is reconnected.
+    ///
+    /// `None` disables the check.
+    pub const fn with_flashblocks_idle_timeout(
+        mut self,
+        flashblocks_idle_timeout: Option<Duration>,
+    ) -> Self {
+        self.flashblocks_idle_timeout = flashblocks_idle_timeout;
         self
     }
 
@@ -612,6 +625,7 @@ where
             min_suggested_priority_fee,
             flashblocks_url,
             flashblock_consensus,
+            flashblocks_idle_timeout,
             retain_forwarded_txs,
             ..
         } = self;
@@ -634,7 +648,8 @@ where
             info!(target: "reth:cli", %ws_url, "Launching flashblocks service");
 
             let (tx, pending_rx) = watch::channel(None);
-            let stream = WsFlashBlockStream::new(ws_url);
+            let stream =
+                WsFlashBlockStream::new(ws_url).with_idle_timeout(flashblocks_idle_timeout);
             let service = FlashBlockService::new(
                 stream,
                 ctx.components.evm_config().clone(),
