@@ -19,15 +19,15 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
 )
 
-// TestOpNodeVerifiesRethProofs is the GoSwitch round-2 gate for the account-state read surface, and
-// specifically the highest-risk piece of it: historical eth_getProof over the engine's in-memory
-// overlay. It proves that op-node's real client stack can:
+// TestOpNodeVerifiesRethProofs covers the engine's account-state read surface, and specifically the
+// highest-risk piece of it: historical eth_getProof over the engine's in-memory overlay. It proves
+// that op-node's real client stack can:
 //
 //   - fetch eth_getProof at a HISTORICAL block and cryptographically verify the returned account +
 //     storage proof against that block's state root (op-node's TrustRPC=false discipline, and the
 //     exact computation L2Client.outputV0 runs to derive the L2 withdrawals/output root); and
 //   - read balance/nonce/code/storage at a historical block through the go-ethereum ethclient (the
-//     client the switch's L2Engine.EthClient() will hand op-node and the action tests).
+//     client L2Engine.EthClient() hands op-node and the action tests).
 //
 // A wrong overlay — e.g. answering a historical tag from the tip state — is caught two ways: the
 // per-block nonce assertions diverge, and proof.Verify fails against the historical state root.

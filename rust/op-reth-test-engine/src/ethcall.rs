@@ -2,9 +2,9 @@
 //!
 //! The estimator reproduces op-geth's `eth/gasestimator.Estimate` control flow (initial bounds,
 //! balance allowance, plain-transfer shortcut, optimistic limit, `lo*2`-clamped bisection with the
-//! 1.5% error ratio) rather than reth's variant: the estimate lands in the signed transaction's
-//! gas field, so any deviation from what the in-process geth backend would return changes the
-//! transaction — and hence block — hashes across the two execution layers.
+//! 1.5% error ratio) rather than reth's variant, so the action tests sign the gas limits op-geth
+//! would estimate: the estimate lands in the signed transaction's gas field, and so in the
+//! transaction's and its block's hash.
 
 use alloy_evm::rpc::TryIntoTxEnv;
 use alloy_op_evm::error::OpTxError;
@@ -22,8 +22,7 @@ use reth_storage_api::StateProvider;
 
 use crate::{EphemeralChain, Error};
 
-/// geth's default RPC gas cap (`ethconfig.Defaults.RPCGasCap`) — the in-process geth backend the
-/// action tests compare against runs with this default.
+/// geth's default RPC gas cap (`ethconfig.Defaults.RPCGasCap`), which op-geth's estimator applies.
 const RPC_GAS_CAP: u64 = 50_000_000;
 /// geth `params.TxGas`: the intrinsic cost of a plain transfer.
 const TX_GAS: u64 = 21_000;

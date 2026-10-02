@@ -66,7 +66,7 @@ members = [
   # Revm execution-environment integration tests
   "revm-ee-tests/",
 
-  # In-test OP execution layer for op-e2e/actions parity
+  # Ephemeral OP execution layer the op-e2e action tests run against
   "op-reth-test-engine/",
 
   # Shared build/version metadata (op-reth + kona-node)

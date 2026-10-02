@@ -18,16 +18,15 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 )
 
-// EL sync emulation for the reth backend.
+// EL sync emulation.
 //
-// In the op-geth action tests, EL (snap) sync works because the sequencer's and verifier's op-geth
-// nodes peer over devp2p: op-node points the verifier's engine at an unsafe head it lacks, the
-// engine answers SYNCING and backfills the missing blocks from its peer, and the test waits for the
-// blocks to appear. The ephemeral reth engines are out-of-process subprocesses with no networking,
-// so there is no devp2p to carry that backfill.
+// In EL sync, op-node points the verifier's engine at an unsafe head it lacks, the engine answers
+// SYNCING and backfills the missing blocks from its devp2p peers, and the test waits for the blocks
+// to appear. The engines are out-of-process subprocesses with no networking, so there is no devp2p
+// to carry that backfill.
 //
 // This file supplies an in-process stand-in: `AddPeers`/`Enode`/`PeerCount` are wired against a
-// registry that maps a synthetic enode to the reth backend it identifies, and each peering starts a
+// registry that maps a synthetic enode to the engine it identifies, and each peering starts a
 // sync pump on both engines. The pump watches the engine's sync target (`optest_syncTarget`, the
 // head a forkchoice update reported SYNCING for) and, while one is set and the peer has it, copies
 // the peer's blocks from where the two chains diverge up to the target, one validated
@@ -337,11 +336,11 @@ func (b *rethBackend) importBlock(ctx context.Context, payload json.RawMessage) 
 
 // --- "Forkchoice requested sync to new head" log reproduction ---
 //
-// The in-process op-geth engine API logs "Forkchoice requested sync to new head" (with the head's
-// block number) synchronously inside forkchoiceUpdated when the target head is one it only learned
-// of via a prior newPayload it could not connect. The EL-sync tests assert on that exact line, and
-// it must appear by the time the forkchoice call returns — so it is emitted here, in op-node's own
-// call path via elSyncLogRPC, rather than from the asynchronous sync pump.
+// op-geth's engine API logs "Forkchoice requested sync to new head" (with the head's block number)
+// synchronously inside forkchoiceUpdated when the target head is one it only learned of via a prior
+// newPayload it could not connect. The EL-sync tests assert on that exact line, and it must appear
+// by the time the forkchoice call returns — so it is emitted here, in op-node's own call path via
+// elSyncLogRPC, rather than from the asynchronous sync pump.
 
 // elSyncLogRPC wraps the op-node -> reth engine RPC. It records the number of every payload op-node
 // submits (engine_newPayload) and, when a forkchoice update (engine_forkchoiceUpdated) reports
