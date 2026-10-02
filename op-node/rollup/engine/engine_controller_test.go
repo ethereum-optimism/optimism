@@ -3,6 +3,7 @@ package engine
 import (
 	"context"
 	"errors"
+	"fmt"
 	"math/big"
 	mrand "math/rand"
 	"testing"
@@ -1090,6 +1091,143 @@ func TestFollowSource_VerifierDivergenceStaysSoft(t *testing.T) {
 
 	require.Equal(t, extBlock5, ec.unsafeHead, "soft path still advances the unsafe head toward upstream")
 	require.Equal(t, extBlock5, ec.localSafeHead, "soft path advances local safe toward upstream")
+	mockEngine.AssertExpectations(t)
+}
+
+// followSourceLagTestController builds a follow-source controller whose unsafe head (block3) lags
+// the chain, with safe/finalized at block1. Returns the chain blocks 1..5.
+func followSourceLagTestController(t *testing.T, seed int64, mockEngine *testutils.MockEngine, emitter *testutils.MockEmitter) (*EngineController, []eth.L2BlockRef) {
+	rng := mrand.New(mrand.NewSource(seed))
+	l1Origin := testutils.RandomBlockRef(rng)
+	mk := func(num uint64, parent common.Hash) eth.L2BlockRef {
+		return eth.L2BlockRef{
+			Hash: testutils.RandomHash(rng), Number: num,
+			ParentHash: parent, Time: l1Origin.Time + num,
+			L1Origin: l1Origin.ID(), SequenceNumber: num,
+		}
+	}
+	blocks := make([]eth.L2BlockRef, 6)
+	blocks[1] = mk(1, testutils.RandomHash(rng))
+	for i := uint64(2); i <= 5; i++ {
+		blocks[i] = mk(i, blocks[i-1].Hash)
+	}
+
+	interopTime := uint64(0)
+	cfg := &rollup.Config{LagoonTime: &interopTime}
+	ec := NewEngineController(context.Background(), mockEngine, testlog.Logger(t, 0),
+		metrics.NoopMetrics, cfg, &sync.Config{SyncMode: sync.CLSync, L2FollowSourceEndpoint: "http://localhost"},
+		&testutils.MockL1Source{}, emitter, nil)
+	ec.unsafeHead = blocks[3]
+	ec.SetLocalSafeHead(blocks[1])
+	ec.SetDeprecatedSafeHead(blocks[1])
+	ec.SetFinalizedHead(blocks[1])
+	ec.lastForkchoice = eth.ForkchoiceState{
+		HeadBlockHash:      blocks[3].Hash,
+		SafeBlockHash:      blocks[1].Hash,
+		FinalizedBlockHash: blocks[1].Hash,
+	}
+	return ec, blocks
+}
+
+func emittedEventTypes(emitter *testutils.MockEmitter) []string {
+	var out []string
+	for _, c := range emitter.Mock.Calls {
+		if c.Method == "Emit" {
+			out = append(out, fmt.Sprintf("%T", c.Arguments[0]))
+		}
+	}
+	return out
+}
+
+// TestFollowSource_CLSyncSyncingTargetIsTemporary verifies that in consensus-layer sync mode,
+// when upstream local-safe is ahead of the local unsafe head, FollowSource still retargets the
+// EL (the EL fetches the block over devp2p; this is the only progress path without CL P2P),
+// and that the resulting SYNCING forkchoice status is a temporary error, not a reset. A reset
+// re-runs FindL2Heads on every follow-source tick (a full walk back to genesis while the EL's
+// safe/finalized are still at genesis) and never lets the EL catch up (#23167).
+func TestFollowSource_CLSyncSyncingTargetIsTemporary(t *testing.T) {
+	mockEngine := &testutils.MockEngine{}
+	emitter := &testutils.MockEmitter{}
+	emitter.Mock.On("Emit", mock.Anything).Maybe()
+	ec, b := followSourceLagTestController(t, 9191, mockEngine, emitter)
+
+	// Follow-source retargets unsafe to block5. In CL mode the controller is not in initial
+	// EL sync, so finalized is included in the FCU. The EL does not have block5 yet.
+	mockEngine.ExpectForkchoiceUpdate(
+		&eth.ForkchoiceState{
+			HeadBlockHash:      b[5].Hash,
+			SafeBlockHash:      b[5].Hash,
+			FinalizedBlockHash: b[4].Hash,
+		}, nil,
+		&eth.ForkchoiceUpdatedResult{PayloadStatus: eth.PayloadStatusV1{Status: eth.ExecutionSyncing}}, nil,
+	)
+	ec.FollowSource(b[5], b[5], b[4])
+
+	require.Equal(t, b[5], ec.unsafeHead, "follow source still retargets unsafe in CL mode")
+	require.Equal(t, b[5], ec.localSafeHead)
+	require.Equal(t, b[5], ec.deprecatedSafeHead)
+	require.Equal(t, b[4], ec.deprecatedFinalizedHead)
+	events := emittedEventTypes(emitter)
+	require.Contains(t, events, "rollup.EngineTemporaryErrorEvent", "SYNCING on the follow-source target is temporary")
+	require.NotContains(t, events, "rollup.ResetEvent", "SYNCING on the follow-source target must not reset")
+	require.Equal(t, eth.ForkchoiceState{
+		HeadBlockHash:      b[3].Hash,
+		SafeBlockHash:      b[1].Hash,
+		FinalizedBlockHash: b[1].Hash,
+	}, ec.lastForkchoice, "a SYNCING forkchoice is not recorded, so the next tick retries it")
+	mockEngine.AssertExpectations(t)
+
+	// Next follow-source tick, upstream unchanged: the EL head has not moved while it syncs, so
+	// the local lookup of block5 is NotFound and the consolidation path re-sends the same FCU.
+	// Still SYNCING: still temporary.
+	fc5 := eth.ForkchoiceState{
+		HeadBlockHash:      b[5].Hash,
+		SafeBlockHash:      b[5].Hash,
+		FinalizedBlockHash: b[4].Hash,
+	}
+	mockEngine.ExpectL2BlockRefByNumber(5, eth.L2BlockRef{}, ethereum.NotFound)
+	mockEngine.ExpectForkchoiceUpdate(&fc5, nil,
+		&eth.ForkchoiceUpdatedResult{PayloadStatus: eth.PayloadStatusV1{Status: eth.ExecutionSyncing}}, nil)
+	ec.FollowSource(b[5], b[5], b[4])
+	require.NotContains(t, emittedEventTypes(emitter), "rollup.ResetEvent")
+	require.NotEqual(t, b[5].Hash, ec.lastForkchoice.HeadBlockHash)
+	mockEngine.AssertExpectations(t)
+
+	// Next tick: the EL has synced to block5 and accepts the forkchoice.
+	mockEngine.ExpectL2BlockRefByNumber(5, eth.L2BlockRef{}, ethereum.NotFound)
+	mockEngine.ExpectForkchoiceUpdate(&fc5, nil,
+		&eth.ForkchoiceUpdatedResult{PayloadStatus: eth.PayloadStatusV1{Status: eth.ExecutionValid}}, nil)
+	ec.FollowSource(b[5], b[5], b[4])
+	require.Equal(t, b[5].Hash, ec.lastForkchoice.HeadBlockHash)
+	require.Equal(t, common.Hash{}, ec.followSourceSyncTarget, "target is cleared once the EL accepts a forkchoice")
+	require.NotContains(t, emittedEventTypes(emitter), "rollup.ResetEvent")
+	mockEngine.AssertExpectations(t)
+}
+
+// TestFollowSource_CLSyncSyncingOtherHeadStillResets pins #20310: a SYNCING forkchoice status
+// in CL mode for a head that follow source did not set (e.g. an EL restart that lost its
+// in-memory state) still triggers a reset.
+func TestFollowSource_CLSyncSyncingOtherHeadStillResets(t *testing.T) {
+	mockEngine := &testutils.MockEngine{}
+	emitter := &testutils.MockEmitter{}
+	emitter.Mock.On("Emit", mock.Anything).Maybe()
+	ec, b := followSourceLagTestController(t, 9292, mockEngine, emitter)
+
+	// Follow source set block5 as the target earlier, then the head moved to a different block.
+	ec.followSourceSyncTarget = b[5].Hash
+	ec.SetUnsafeHead(b[4])
+	require.Equal(t, common.Hash{}, ec.followSourceSyncTarget, "moving the head elsewhere drops the target")
+	mockEngine.ExpectForkchoiceUpdate(
+		&eth.ForkchoiceState{
+			HeadBlockHash:      b[4].Hash,
+			SafeBlockHash:      b[1].Hash,
+			FinalizedBlockHash: b[1].Hash,
+		}, nil,
+		&eth.ForkchoiceUpdatedResult{PayloadStatus: eth.PayloadStatusV1{Status: eth.ExecutionSyncing}}, nil,
+	)
+	ec.TryUpdateEngine(context.Background())
+
+	require.Contains(t, emittedEventTypes(emitter), "rollup.ResetEvent")
 	mockEngine.AssertExpectations(t)
 }
 
