@@ -19,15 +19,14 @@ import (
 )
 
 // TestSequencerBuildsOnRethEngine runs the op-node sequencer from helpers.SetupSequencerTest against
-// the op-reth-test-engine, selected through helpers.ELSelectorEnv. It drives the action-test
-// block-building loop (ActL2StartBlock, ActL2IncludeTx, ActL2EndBlock) and checks that the engine
-// builds, seals, imports and advances L2 blocks, including one with a user transaction, reading
-// the chain back through the engine's eth client.
+// the op-reth-test-engine. It drives the action-test block-building loop (ActL2StartBlock,
+// ActL2IncludeTx, ActL2EndBlock) and checks that the engine builds, seals, imports and advances L2
+// blocks, including one with a user transaction, reading the chain back through the engine's eth
+// client.
 func TestSequencerBuildsOnRethEngine(gt *testing.T) {
 	// Holocene keeps the fork surface simple: post-Cancun eip1559Params extraData, but no Isthmus
 	// withdrawals-root or requests-hash.
 	gt.Setenv(e2eutils.EnvUseHolocene, "true")
-	gt.Setenv(helpers.ELSelectorEnv, helpers.ELRethTestEngine)
 
 	// SubTest (not NewDefaultTesting) avoids t.Parallel, which t.Setenv forbids.
 	t := helpers.SubTest(gt)

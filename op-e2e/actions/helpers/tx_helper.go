@@ -13,10 +13,10 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// firstValidTx finds the first transaction that is valid for inclusion from the specified address.
+// FirstValidTx finds the first transaction that is valid for inclusion from the specified address.
 // It uses a waiter and filtering of already included transactions to avoid race conditions with the async
 // updates to the transaction pool.
-func firstValidTx(
+func FirstValidTx(
 	t Testing,
 	from common.Address,
 	pendingIndices func(common.Address) uint64,

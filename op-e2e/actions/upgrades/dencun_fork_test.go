@@ -185,8 +185,7 @@ func aliceSimpleBlobTx(t helpers.Testing, dp *e2eutils.DeployParams) *types.Tran
 }
 
 // TestDencunBlobTxInclusion tries to include a blob tx in the L2 block being built; the EL must
-// reject it, so a blob tx never enters an L2 block. op-geth rejects it while applying it to the
-// block; the op-reth-test-engine rejects it before that, when decoding it.
+// reject it, so a blob tx never enters an L2 block.
 func TestDencunBlobTxInclusion(gt *testing.T) {
 	t := helpers.NewDefaultTesting(gt)
 	dp := e2eutils.MakeDeployParams(t, helpers.DefaultRollupTestParams())
@@ -202,12 +201,6 @@ func TestDencunBlobTxInclusion(gt *testing.T) {
 	sequencer.ActL2StartBlock(t)
 	err := engine.IncludeTxErr(t, tx, dp.Addresses.Alice)
 	require.Error(t, err)
-	// The two backends reject the blob tx at different, irreducible points — op-geth while applying
-	// it during block-build, the reth test engine while decoding it (OP has no type-3 transaction) —
-	// so each asserts its own exact message rather than a weakened shared substring.
-	if engine.IsReth() {
-		require.ErrorContains(t, err, "failed to decode transaction: unexpected tx type")
-	} else {
-		require.ErrorContains(t, err, "invalid L2 block (tx 1): failed to apply transaction to L2 block (tx 1): transaction type not supported")
-	}
+	// The engine rejects the blob tx while decoding it: OP has no type-3 transaction.
+	require.ErrorContains(t, err, "failed to decode transaction: unexpected tx type")
 }
