@@ -11,7 +11,7 @@
 
 extern crate alloc;
 
-use alloc::sync::Arc;
+use alloc::{string::ToString, sync::Arc};
 use alloy_consensus::{BlockHeader, Header};
 use alloy_evm::{EvmFactory, FromRecoveredTx, FromTxWithEncoded, block::BlockExecutorFactory};
 use alloy_op_evm::{
@@ -21,7 +21,7 @@ use alloy_op_evm::{
 use core::fmt::Debug;
 use op_alloy_consensus::{
     EIP1559ParamError, OpTransaction as OpConsensusTransaction,
-    parse_post_exec_payload_from_transactions, validate_post_exec_entry_count,
+    parse_post_exec_payload_from_transactions,
 };
 use op_revm::OpSpecId;
 use reth_chainspec::EthChainSpec;
@@ -45,6 +45,7 @@ use {
 #[cfg(feature = "std")]
 use {
     alloy_op_evm::evm_env_for_op_payload,
+    op_alloy_consensus::validate_post_exec_entry_count,
     reth_evm::{ConfigureEngineEvm, ExecutableTxIterator},
 };
 
@@ -158,17 +159,20 @@ fn post_exec_mode_from_transactions<'a, I, T>(
     transactions: I,
     block_number: u64,
     sdm_active: bool,
-) -> Result<PostExecMode, EIP1559ParamError>
+) -> PostExecMode
 where
     I: IntoIterator<Item = &'a T>,
     T: OpConsensusTransaction + 'a,
 {
-    parse_post_exec_payload_from_transactions(transactions, block_number, sdm_active)
-        .inspect_err(|error| sdm_metrics::report_post_exec_validation_failure(block_number, *error))
-        .map_err(|_| EIP1559ParamError::InvalidPostExecPayload)
-        .map(|parsed| {
+    match parse_post_exec_payload_from_transactions(transactions, block_number, sdm_active) {
+        Ok(parsed) => {
             parsed.map_or_else(PostExecMode::default, |parsed| PostExecMode::Verify(parsed.payload))
-        })
+        }
+        Err(error) => {
+            sdm_metrics::report_post_exec_validation_failure(block_number, error);
+            PostExecMode::Invalid(error.to_string())
+        }
+    }
 }
 
 impl<ChainSpec, N, R, EvmFactory> OpEvmConfig<ChainSpec, N, R, EvmFactory>
@@ -306,7 +310,7 @@ where
             block.body().transactions(),
             block.header().number(),
             self.is_sdm_active_at_timestamp(block.header().timestamp()),
-        )?;
+        );
 
         Ok(self.context_for_block_with_post_exec_mode(block, Some(post_exec_mode)))
     }
@@ -364,27 +368,34 @@ where
         &self,
         payload: &'a OpExecutionData,
     ) -> Result<ExecutionCtxFor<'a, Self>, Self::Error> {
-        validate_post_exec_entry_count(payload.payload.transactions())
-            .map_err(|_| EIP1559ParamError::InvalidPostExecPayload)?;
-        let transactions = payload
-            .payload
-            .transactions()
-            .iter()
-            .map(|encoded| TxTy::<Self::Primitives>::decode_2718_exact(encoded.as_ref()))
-            .collect::<Result<Vec<_>, _>>()
-            .inspect_err(|error| {
-                tracing::warn!(
-                    block_number = payload.payload.block_number(),
-                    %error,
-                    "payload rejected: transaction failed to decode"
-                );
-            })
-            .map_err(|_| EIP1559ParamError::InvalidPostExecPayload)?;
-        let post_exec_mode = post_exec_mode_from_transactions(
-            transactions.iter(),
-            payload.payload.block_number(),
-            self.is_sdm_active_at_timestamp(payload.payload.timestamp()),
-        )?;
+        let post_exec_mode = match validate_post_exec_entry_count(payload.payload.transactions()) {
+            Ok(()) => {
+                let transactions = payload
+                    .payload
+                    .transactions()
+                    .iter()
+                    .map(|encoded| TxTy::<Self::Primitives>::decode_2718_exact(encoded.as_ref()))
+                    .collect::<Result<Vec<_>, _>>()
+                    .inspect_err(|error| {
+                        tracing::warn!(
+                            block_number = payload.payload.block_number(),
+                            %error,
+                            "payload rejected: transaction failed to decode"
+                        );
+                    });
+                // Envelope decoding can itself reject malformed PostExec (e.g. an unsupported
+                // payload version). That is invalid block input, not an EVM configuration error.
+                match transactions {
+                    Ok(transactions) => post_exec_mode_from_transactions(
+                        transactions.iter(),
+                        payload.payload.block_number(),
+                        self.is_sdm_active_at_timestamp(payload.payload.timestamp()),
+                    ),
+                    Err(error) => PostExecMode::Invalid(error.to_string()),
+                }
+            }
+            Err(error) => PostExecMode::Invalid(error.to_string()),
+        };
 
         Ok(OpBlockExecutionCtx {
             parent_hash: payload.payload.parent_hash(),
@@ -401,8 +412,6 @@ where
         &self,
         payload: &OpExecutionData,
     ) -> Result<impl ExecutableTxIterator<Self>, Self::Error> {
-        validate_post_exec_entry_count(payload.payload.transactions())
-            .map_err(|_| EIP1559ParamError::InvalidPostExecPayload)?;
         let transactions = payload.payload.transactions().clone();
         let convert = |encoded: Bytes| {
             let tx = TxTy::<Self::Primitives>::decode_2718_exact(encoded.as_ref())
@@ -427,6 +436,7 @@ mod tests {
         map::{AddressMap, B256Map, HashMap},
     };
     use op_alloy_consensus::{SDMGasEntry, TxDeposit, build_post_exec_tx};
+    use op_alloy_rpc_types_engine::OpExecutionPayload;
     use op_revm::OpSpecId;
     use reth_chainspec::ChainSpec;
     use reth_evm::execute::ProviderError;
@@ -511,14 +521,14 @@ mod tests {
         })
     }
 
-    // Covers Interop-driven SDM activation for imported blocks: pre-Interop blocks reject 0x7d,
-    // Lagoon-active blocks enter Verify mode, and malformed payload anchors are rejected.
+    // Covers Lagoon-driven SDM activation for imported blocks. Valid payloads enter Verify mode;
+    // parser failures are carried to the executor so the engine classifies them as invalid blocks.
     #[test]
     fn context_for_block_applies_sdm_post_exec_mode() {
-        let disabled_err = test_evm_config()
+        let disabled_ctx = test_evm_config()
             .context_for_block(&block_with_post_exec_tx(7, 123, 7))
-            .expect_err("SDM disabled rejects 0x7d");
-        assert!(matches!(disabled_err, EIP1559ParamError::InvalidPostExecPayload));
+            .expect("post-exec parse failures are deferred to the block executor");
+        assert!(matches!(disabled_ctx.post_exec_mode, PostExecMode::Invalid(_)));
 
         let evm_config = OpEvmConfig::optimism(lagoon_at_timestamp_chain_spec(0));
         let ctx = evm_config
@@ -530,10 +540,50 @@ mod tests {
         assert_eq!(payload.block_number, 7);
         assert_eq!(payload.gas_refund_entries, vec![SDMGasEntry { index: 0, gas_refund: 1 }]);
 
-        let mismatch_err = evm_config
+        let mismatch_ctx = evm_config
             .context_for_block(&block_with_post_exec_tx(7, 123, 8))
-            .expect_err("payload block number mismatch is invalid");
-        assert!(matches!(mismatch_err, EIP1559ParamError::InvalidPostExecPayload));
+            .expect("post-exec parse failures are deferred to the block executor");
+        assert!(matches!(mismatch_ctx.post_exec_mode, PostExecMode::Invalid(_)));
+    }
+
+    #[test]
+    fn sdm_m1_new_payload_parse_failure_reaches_the_executor() {
+        let block = block_with_post_exec_tx(7, 123, 8).into_block();
+        let (payload, sidecar) = OpExecutionPayload::from_block_slow(&block);
+        let execution_data = OpExecutionData::new(payload, sidecar);
+        let context = OpEvmConfig::optimism(lagoon_at_timestamp_chain_spec(0))
+            .context_for_payload(&execution_data)
+            .expect("post-exec parse failures are deferred to the block executor");
+
+        assert!(matches!(context.post_exec_mode, PostExecMode::Invalid(_)));
+    }
+
+    #[test]
+    fn sdm_m1_malformed_post_exec_bytes_reach_the_executor() {
+        let block = block_with_post_exec_tx(7, 123, 7).into_block();
+        let (payload, sidecar) = OpExecutionPayload::from_block_slow(&block);
+        let evm_config = OpEvmConfig::optimism(lagoon_at_timestamp_chain_spec(0));
+
+        let unsupported_version = op_alloy_consensus::PostExecPayload {
+            version: op_alloy_consensus::POST_EXEC_PAYLOAD_VERSION + 1,
+            block_number: 7,
+            gas_refund_entries: vec![SDMGasEntry { index: 0, gas_refund: 1 }],
+        };
+        let mut encoded_version = vec![op_alloy_consensus::POST_EXEC_TX_TYPE_ID];
+        encoded_version.extend_from_slice(&unsupported_version.to_rlp_bytes());
+        for encoded in [bytes!("7dc0"), encoded_version.into()] {
+            let mut payload = payload.clone();
+            *payload.as_v1_mut().transactions.last_mut().expect("block includes PostExec") =
+                encoded;
+            let execution_data = OpExecutionData::new(payload, sidecar.clone());
+            let context = evm_config
+                .context_for_payload(&execution_data)
+                .expect("malformed block input must not become a configuration error");
+            assert!(matches!(context.post_exec_mode, PostExecMode::Invalid(_)));
+            // Obtaining the lazy tx iterator must not re-introduce a configuration error before
+            // the executor's pre-execution validation rejects the block.
+            assert!(evm_config.tx_iterator_for_payload(&execution_data).is_ok());
+        }
     }
 
     #[test]

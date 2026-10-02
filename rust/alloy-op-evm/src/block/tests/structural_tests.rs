@@ -62,6 +62,20 @@ fn assert_invalid_post_exec(err: BlockExecutionError, expected_reason: &str) {
     }
 }
 
+#[test]
+fn sdm_m1_parsed_post_exec_failure_is_a_block_validation_error() {
+    let reason = "payload block number 8 does not match block number 7";
+    let mut fixture =
+        JovianExecutorFixture::new(DEFAULT_DA_FOOTPRINT_GAS_SCALAR, 500_000, JOVIAN_TIMESTAMP);
+    let mut executor =
+        fixture.executor_with_post_exec_mode(PostExecMode::Invalid(reason.to_string()));
+
+    let err = executor
+        .apply_pre_execution_changes()
+        .expect_err("invalid post-exec mode must reject the block before execution");
+    assert_invalid_post_exec(err, reason);
+}
+
 #[derive(Debug, Clone, Default)]
 struct FixedRefundPolicy {
     kind: Option<PostExecTxKind>,

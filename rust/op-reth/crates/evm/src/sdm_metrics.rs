@@ -46,7 +46,7 @@ pub(crate) fn report_post_exec_validation_failure(
 
 #[cfg(all(test, feature = "std"))]
 mod tests {
-    use crate::OpEvmConfig;
+    use crate::{OpEvmConfig, PostExecMode};
     use alloy_consensus::{Block, BlockBody, Header, Sealable};
     use alloy_genesis::Genesis;
     use metrics_exporter_prometheus::{PrometheusBuilder, PrometheusHandle, PrometheusRecorder};
@@ -107,11 +107,13 @@ mod tests {
     }
 
     /// Builds the execution context for `block` against a recorder private to this test and
-    /// returns the rendered exposition alongside the result.
-    fn import(block: SealedBlock<OpBlock>) -> (Result<(), ()>, String) {
+    /// returns whether the executor will reject it alongside the rendered exposition.
+    fn import(block: SealedBlock<OpBlock>) -> (bool, String) {
         let (recorder, handle) = recorder();
-        let result = with_local_recorder(&recorder, || evm_config().context_for_block(&block));
-        (result.map(drop).map_err(drop), handle.render())
+        let context = with_local_recorder(&recorder, || {
+            evm_config().context_for_block(&block).expect("context construction is infallible")
+        });
+        (matches!(context.post_exec_mode, PostExecMode::Invalid(_)), handle.render())
     }
 
     /// Reads the counter for one `reason` out of the exposition. `None` distinguishes a series that
@@ -136,9 +138,9 @@ mod tests {
         #[case] transactions: Vec<OpTransactionSigned>,
         #[case] reason: &str,
     ) {
-        let (result, exposition) = import(block(timestamp, transactions));
+        let (rejected, exposition) = import(block(timestamp, transactions));
 
-        assert!(result.is_err(), "block is rejected");
+        assert!(rejected, "block is rejected");
         assert_eq!(failures(&exposition, reason), Some(1.0), "{exposition}");
         assert_eq!(failure_series(&exposition), 1, "only the failed rule registers: {exposition}");
     }
@@ -150,9 +152,9 @@ mod tests {
         #[case] timestamp: u64,
         #[case] transactions: Vec<OpTransactionSigned>,
     ) {
-        let (result, exposition) = import(block(timestamp, transactions));
+        let (rejected, exposition) = import(block(timestamp, transactions));
 
-        assert!(result.is_ok(), "block parses");
+        assert!(!rejected, "block parses");
         assert_eq!(failure_series(&exposition), 0, "{exposition}");
     }
 }

@@ -101,8 +101,13 @@ pub enum PostExecMode {
     Disabled,
     /// Produce canonical post-exec refunds locally and append them to the block later.
     Produce,
-    /// Verify canonical gas accounting using an post-exec payload embedded in the block.
+    /// Verify canonical gas accounting using a post-exec payload embedded in the block.
     Verify(PostExecPayload),
+    /// Reject the block during pre-execution because its embedded post-exec payload is invalid.
+    ///
+    /// Carrying parser failures into the executor ensures every block-ingress path classifies them
+    /// as consensus validation errors rather than fatal EVM-configuration errors.
+    Invalid(String),
 }
 
 impl From<bool> for PostExecMode {
@@ -121,6 +126,11 @@ pub enum PostExecState {
     Producing {
         /// Accumulated per-tx refunds for post-exec tx assembly.
         entries: Vec<SDMGasEntry>,
+    },
+    /// Reject the block before executing any transactions.
+    Invalid {
+        /// Validation failure reported by the post-exec parser.
+        reason: String,
     },
     /// Verify canonical gas accounting using a post-exec payload embedded in the block.
     Verifying {
@@ -178,6 +188,7 @@ impl PostExecState {
                 let invalid_reason = validate_verifier_entries(&payload.gas_refund_entries).err();
                 Self::Verifying { payload, next_entry: 0, invalid_reason, saw_post_exec_tx: false }
             }
+            PostExecMode::Invalid(reason) => Self::Invalid { reason },
         }
     }
 
@@ -191,7 +202,9 @@ impl PostExecState {
 
     const fn invalid_reason(&self) -> Option<&str> {
         match self {
-            Self::Verifying { invalid_reason: Some(reason), .. } => Some(reason.as_str()),
+            Self::Invalid { reason } | Self::Verifying { invalid_reason: Some(reason), .. } => {
+                Some(reason.as_str())
+            }
             _ => None,
         }
     }
@@ -272,6 +285,7 @@ impl PostExecState {
             Self::Disabled => Err(format!(
                 "unexpected post-exec tx at index {tx_index}: SDM not active for this block"
             )),
+            Self::Invalid { reason } => Err(reason.clone()),
         }
     }
 
