@@ -1212,6 +1212,36 @@ jobs:
       - notify-failures-on-develop:
           mentions: "<!subteam^S07K486JEH4>"
 
+  # Applies the latest fork's committed NUT bundle to a fresh L2 genesis. Fails when a predeploy
+  # has been bumped since the bundle was snapshotted and the fork needs `just nut-snapshot-for`.
+  contracts-bedrock-nut-bundle-drift:
+    docker:
+      - image: <<pipeline.parameters.c-default_docker_image>>
+    resource_class: xlarge.gen2
+    steps:
+      - utils/checkout-with-mise:
+          checkout-method: full
+          enable-mise-cache: true
+      - install-contracts-dependencies
+      - go-restore-cache:
+          namespace: contracts-bedrock-nut-bundle-drift
+      - run:
+          name: Build go-ffi
+          command: just build-go-ffi
+          working_directory: packages/contracts-bedrock
+      - run:
+          name: Run committed NUT bundle drift test
+          command: forge test --match-path test/L2/L2GenesisCommittedNUTBundle.t.sol -vvv
+          environment:
+            FOUNDRY_PROFILE: ci
+            NUT_BUNDLE_DRIFT_TEST: "true"
+          working_directory: packages/contracts-bedrock
+          no_output_timeout: 30m
+      - go-save-cache:
+          namespace: contracts-bedrock-nut-bundle-drift
+      - notify-failures-on-develop:
+          mentions: "<!subteam^S07K486JEH4>"
+
   contracts-bedrock-coverage:
     docker:
       - image: <<pipeline.parameters.c-default_docker_image>>
@@ -2988,6 +3018,10 @@ workflows:
       - prep-go-modules:
           context:
             - circleci-repo-readonly-authenticated-github-token
+      - contracts-bedrock-nut-bundle-drift:
+          context:
+            - circleci-repo-readonly-authenticated-github-token
+            - slack
       - contracts-bedrock-tests-l2-fork:
           requires:
             - prep-go-modules

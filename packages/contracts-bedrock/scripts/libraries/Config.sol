@@ -294,6 +294,11 @@ library Config {
         return vm.envOr("L2CM_ACTIVATION_TEST", false);
     }
 
+    /// @notice Returns true if the committed NUT bundle drift test should run.
+    function nutBundleDriftTest() internal view returns (bool) {
+        return vm.envOr("NUT_BUNDLE_DRIFT_TEST", false);
+    }
+
     /// @notice Returns the L2 RPC URL for forking.
     function l2ForkRpcUrl() internal view returns (string memory) {
         return vm.envString("L2_FORK_RPC_URL");
