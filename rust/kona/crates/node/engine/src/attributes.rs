@@ -203,6 +203,12 @@ impl AttributesMatch {
                 );
                 return AttributesMismatch::InvalidEIP1559ParamsCombination.into();
             }
+            Some((attr_elasticity, 0)) if attr_elasticity != 0 => {
+                error!(
+                    "Holocene EIP1559 params cannot have a 0 denominator unless elasticity is also 0. This is a bug"
+                );
+                return AttributesMismatch::InvalidEIP1559ParamsCombination.into();
+            }
             // We need to translate (0, 0) parameters to pre-holocene protocol constants.
             // Since holocene is supposed to be active, canyon should be as well. We take the canyon
             // base fee params.
@@ -246,7 +252,7 @@ impl AttributesMatch {
                 Err(EIP1559ParamError::InvalidVersion(v)) => {
                     error!(
                         version = v,
-                        "The version in the extra data EIP1559 payload is incorrect. Should be 0. This is a bug",
+                        "The version in the extra data EIP1559 payload is incorrect. This is a bug",
                     );
                     return AttributesMismatch::InvalidExtraDataVersion.into();
                 }
@@ -389,11 +395,11 @@ pub enum AttributesMismatch {
     MissingAttributesEIP1559,
     /// The EIP1559 payload for the block is missing when holocene is active.
     MissingBlockEIP1559,
-    /// The version in the extra data EIP1559 payload is incorrect. Should be 0.
+    /// The version in the extra data EIP1559 payload is incorrect.
     InvalidExtraDataVersion,
     /// An unknown extra data decoding error occurred.
     UnknownExtraDataDecodingError(EIP1559ParamError),
-    /// Holocene EIP1559 params cannot have a 0 elasticity unless denominator is also 0
+    /// Exactly one of the Holocene EIP1559 elasticity and denominator params is 0.
     InvalidEIP1559ParamsCombination,
     /// The EIP1559 base fee parameters of the attributes and the block don't match
     EIP1559Parameters(BaseFeeParams, BaseFeeParams),
@@ -964,7 +970,27 @@ mod tests {
         assert!(check.is_mismatch());
     }
 
-    /// Check that the version of the extra block data must be zero.
+    /// A nonzero elasticity multiplier with a zero denominator is invalid.
+    #[test]
+    fn test_eip1559_parameters_zero_denominator_combination_mismatch() {
+        let (cfg, mut attributes, mut block) = eip1559_test_setup();
+
+        block.header.extra_data = encode_holocene_extra_data(
+            Default::default(),
+            BaseFeeParams { max_change_denominator: 100, elasticity_multiplier: 2 },
+        )
+        .unwrap();
+        // Denominator 0, elasticity 2.
+        attributes.attributes.eip_1559_params = Some(FixedBytes([0, 0, 0, 0, 0, 0, 0, 2]));
+
+        let check = AttributesMatch::check(&cfg, &attributes, &block);
+        assert_eq!(
+            check,
+            AttributesMatch::Mismatch(AttributesMismatch::InvalidEIP1559ParamsCombination)
+        );
+    }
+
+    /// Check that the version of the extra block data must match the active fork.
     #[test]
     fn test_eip1559_parameters_invalid_version() {
         let (cfg, mut attributes, mut block) = eip1559_test_setup();
