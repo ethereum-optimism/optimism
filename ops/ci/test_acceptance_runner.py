@@ -66,6 +66,14 @@ sys.exit(int(os.environ.get('VERDICT_STATUS','0')))
         return subprocess.run(['just', 'acceptance-test'], cwd=self.root / 'op-acceptance-tests',
                               env={**self.env, **env}, text=True, capture_output=True)
 
+    def test_static_workflow_rejects_an_unsupported_shard_total(self):
+        shutil.copyfile(ROOT / 'ops/ci/acceptance-tests.sh', self.root / 'ops/ci/acceptance-tests.sh')
+        result = subprocess.run(['bash', str(self.root / 'ops/ci/acceptance-tests.sh'), 'discover'],
+                                env={**self.env, 'CI_SHARD_TOTAL': '9'}, text=True, capture_output=True)
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn('exactly eight shards', result.stderr)
+        self.assertFalse((self.root / '.ci/acceptance/discovery').exists())
+
     def test_circle_retains_actual_selection_and_fresh_flags(self):
         result = self.run_entrypoint()
         self.assertEqual(result.returncode, 0, result.stderr + result.stdout)

@@ -177,6 +177,11 @@ acceptance-test:
     set -e
 
     cp "$LOG_DIR/all.log" "$LOG_DIR/summary.log"
+    if [[ ! -s "$JUNIT_FILE" || ! -s "$JSON_FILE" ]]; then
+        echo "error: acceptance runner did not retain original JSON and JUnit" >&2
+        exit 1
+    fi
+    cp "$JUNIT_FILE" "$LOG_DIR/$(basename "$JUNIT_FILE")"
     exit "$TEST_STATUS"
 
 clean:

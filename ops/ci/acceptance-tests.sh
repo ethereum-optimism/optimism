@@ -3,6 +3,7 @@
 set -euo pipefail
 cd "$(dirname "${BASH_SOURCE[0]}")/../.."
 phase="${1:?Pass discover or run}"
+[[ "$CI_SHARD_TOTAL" == 8 ]] || { echo "Acceptance workflow requires exactly eight shards" >&2; exit 1; }
 export ACCEPTANCE_TEST_JOBS=8 ACCEPTANCE_TEST_PARALLEL=1 ACCEPTANCE_TEST_TIMEOUT=30m LOG_LEVEL=info
 export GOMODCACHE="$PWD/.ci/go-cache/full/modules"
 export GOCACHE="$PWD/.ci/go-cache/acceptance/$phase"
