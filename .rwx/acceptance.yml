@@ -226,7 +226,7 @@ tasks:
     use: [go-build-tools, contract-tools]
     run: |
       bash .circleci/scripts/apt-install.sh --no-install-recommends eatmydata
-      mise install geth
+      mise install go:github.com/ethereum/go-ethereum/cmd/geth
       printf '%s\n' "$(mise bin-paths | paste -sd: -):$PATH" >"$RWX_ENV/PATH"
     timeout: 30m
 

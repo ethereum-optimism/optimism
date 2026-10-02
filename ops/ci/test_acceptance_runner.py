@@ -74,6 +74,41 @@ sys.exit(int(os.environ.get('VERDICT_STATUS','0')))
         self.assertIn('exactly eight shards', result.stderr)
         self.assertFalse((self.root / '.ci/acceptance/discovery').exists())
 
+    def test_runtime_supplies_verified_rust_paths_and_pinned_geth(self):
+        shutil.copyfile(ROOT / 'ops/ci/acceptance-tests.sh', self.root / 'ops/ci/acceptance-tests.sh')
+        (self.root / 'ops/ci/acceptance-report.py').write_text('')
+        for binary in ['kona-host', 'kona-client', 'kona-node', 'kona-sp1-proposer',
+                       'op-reth', 'op-reth-sdm-fixture']:
+            path = self.root / 'rust/target/release' / binary
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_text('#!/bin/sh\nexit 0\n'); path.chmod(0o755)
+        executor = self.root / '.circleci-cache/rust-binaries/kona-sp1-super-range-executor'
+        executor.parent.mkdir(parents=True)
+        executor.write_text('#!/bin/sh\nexit 0\n'); executor.chmod(0o755)
+        self.script('go', "print('/fixture/go')")
+        self.script('geth', "print('Geth fixture pinned version')")
+        self.script('mise', "import os; print(os.environ['FIXTURE_GETH'])")
+        self.script('just', "import json, os; from pathlib import Path; Path(os.environ['FIXTURE_ARGS']).write_text(json.dumps({k:v for k,v in os.environ.items() if k.startswith('RUST_BINARY_PATH_')}))")
+        result = subprocess.run(['bash', str(self.root / 'ops/ci/acceptance-tests.sh'), 'run'],
+                                env={**self.env, 'CI_SHARD_TOTAL':'8',
+                                     'FIXTURE_GETH':str(self.root / 'bin/geth')},
+                                text=True, capture_output=True)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        paths = json.loads((self.root / 'args.json').read_text())
+        self.assertEqual(len(paths), 7)
+        self.assertTrue(all(Path(value).is_file() for value in paths.values()))
+        tools = json.loads((self.root / 'tmp/testlogs/dependencies/runtime-tools.json').read_text())
+        self.assertEqual(len(tools['geth_sha256']), 64)
+        self.assertIn('pinned version', tools['geth_version'])
+        (self.root / 'args.json').unlink()
+        (self.root / 'bin/geth').unlink()
+        missing = subprocess.run(['bash', str(self.root / 'ops/ci/acceptance-tests.sh'), 'run'],
+                                 env={**self.env, 'CI_SHARD_TOTAL':'8',
+                                      'FIXTURE_GETH':str(self.root / 'bin/geth')},
+                                 text=True, capture_output=True)
+        self.assertNotEqual(missing.returncode, 0)
+        self.assertFalse((self.root / 'args.json').exists())
+
     def test_circle_retains_actual_selection_and_fresh_flags(self):
         result = self.run_entrypoint()
         self.assertEqual(result.returncode, 0, result.stderr + result.stdout)
