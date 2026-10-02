@@ -80,6 +80,12 @@ build-op-reth:
 build-op-reth-debug:
   cargo build --bin op-reth
 
+# Build op-reth-test-engine, the execution engine the Go engine tests spawn (they find the build
+# in the target directory, or set RUST_BINARY_PATH_OP_RETH_TEST_ENGINE to it). The package is not
+# a workspace default member, so `-p` is required for `cargo` to resolve the binary.
+build-op-reth-test-engine:
+  cargo build --release -p op-reth-test-engine
+
 # Build lokahi. The package is not a workspace default member, so `-p`
 # is required for `cargo` to resolve the binary.
 build-lokahi:
