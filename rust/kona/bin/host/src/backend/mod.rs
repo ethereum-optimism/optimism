@@ -4,6 +4,6 @@ mod offline;
 pub use offline::OfflineHostBackend;
 
 mod online;
-pub use online::{HintHandler, OnlineHostBackend, OnlineHostBackendCfg};
+pub use online::{HintHandler, NonRetryableHintError, OnlineHostBackend, OnlineHostBackendCfg};
 
 pub(crate) mod util;
