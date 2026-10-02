@@ -21,6 +21,7 @@ reth-optimism-primitives.workspace = true
 reth-optimism-evm.workspace = true
 reth-optimism-payload-builder.workspace = true
 reth-optimism-consensus.workspace = true
+reth-optimism-rpc.workspace = true
 
 # reth payload
 reth-payload-primitives.workspace = true
@@ -37,7 +38,11 @@ reth-revm.workspace = true
 reth-chain-state.workspace = true
 reth-execution-types.workspace = true
 reth-trie.workspace = true
+reth-trie-common = { workspace = true, features = ["eip1186"] }
 reth-primitives-traits.workspace = true
+reth-rpc-eth-api.workspace = true
+reth-rpc-eth-types.workspace = true
+reth-rpc-engine-api.workspace = true
 
 # ethereum / alloy / op-alloy
 alloy-genesis.workspace = true
@@ -46,8 +51,12 @@ alloy-consensus = { workspace = true, features = ["serde"] }
 alloy-eips = { workspace = true, features = ["serde"] }
 alloy-rpc-types-engine = { workspace = true, features = ["serde"] }
 alloy-rpc-types-eth = { workspace = true, features = ["serde"] }
+op-alloy-consensus = { workspace = true, features = ["serde"] }
+op-alloy-rpc-types = { workspace = true, features = ["serde"] }
 op-alloy-rpc-types-engine = { workspace = true, features = ["serde"] }
-op-alloy-consensus.workspace = true
+alloy-serde = { workspace = true, features = ["std"] }
+alloy-evm = { workspace = true, features = ["std", "rpc"] }
+alloy-op-evm = { workspace = true, features = ["std"] }
 op-revm.workspace = true
 
 # rpc / transport / cli (used by the library RPC module and the binary)

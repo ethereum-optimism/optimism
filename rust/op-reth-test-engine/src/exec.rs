@@ -1,10 +1,13 @@
 //! The `engine_newPayload` import path.
 //!
-//! [`import_payload`] validates a complete payload against the OP consensus rules, executes it
-//! against its parent state with OP semantics, verifies the execution results and post-state root,
-//! and—on success—commits it as the new canonical head.
+//! [`import_payload`] validates a complete payload against the OP consensus rules and executes it
+//! against its parent state with OP semantics, verifying the execution results and post-state root.
+//! It does *not* touch the canonical chain: the caller
+//! ([`new_payload`](crate::TestEngine::new_payload)) records the returned block, and only a later
+//! forkchoice update canonicalizes it. A parent that is not canonical yet is executed on through
+//! the side blocks the caller passes in.
 
-use std::sync::Arc;
+use std::{collections::HashMap, sync::Arc};
 
 use alloy_consensus::BlockHeader as _;
 use alloy_primitives::{B256, keccak256};
@@ -29,53 +32,71 @@ use reth_trie::ComputedTrieData;
 
 use crate::{Error, chain::EphemeralChain};
 
-/// Import a complete execution payload as the new canonical head (`engine_newPayload`).
+/// The result of validating and executing a payload, before it is committed to any chain.
+#[derive(Debug)]
+pub(crate) enum ImportOutcome {
+    /// The payload validated and executed cleanly. The executed block is ready for the caller to
+    /// commit as a linear head extension or to buffer as an alternate-fork block.
+    Valid(ExecutedBlock<OpPrimitives>),
+    /// The block is already known, on the chain or among the side blocks; it was validated when
+    /// first imported and is not executed again.
+    Known(B256),
+    /// The payload violates a consensus rule or does not execute to its declared state root.
+    /// Carries the `INVALID` status (with `latestValidHash`) to return verbatim.
+    Invalid(PayloadStatus),
+    /// The parent block is unknown, so the payload cannot be executed. The caller reports
+    /// `SYNCING`.
+    Syncing,
+}
+
+/// Validate and execute a complete execution payload (`engine_newPayload`) without committing it.
 ///
 /// Runs the checks op-reth's engine tree runs on a new payload: the payload layout and block hash,
 /// the header on its own and against its parent, the body pre-execution, then — after executing
 /// the block — the receipts root, logs bloom, gas used and Jovian DA footprint, the Isthmus
-/// withdrawals root, and the state root. A violated rule yields `INVALID` pointing at the parent;
-/// a provider or internal execution failure is an error, not a verdict on the block. A block that
-/// is already known is `VALID` without being executed again.
+/// withdrawals root, and the state root. On success the executed block is returned for the caller
+/// to canonicalize; a violated rule yields [`ImportOutcome::Invalid`] pointing at the parent, and
+/// an unknown parent [`ImportOutcome::Syncing`]. A provider or internal execution failure is an
+/// error, not a verdict on the block.
 pub(crate) fn import_payload(
     chain: &EphemeralChain,
     payload: OpExecutionData,
-) -> crate::Result<PayloadStatus> {
+    side_blocks: &HashMap<B256, ExecutedBlock<OpPrimitives>>,
+) -> crate::Result<ImportOutcome> {
     let chain_spec = chain.chain_spec();
     let validator = OpExecutionPayloadValidator::new(chain_spec.clone());
 
     // Structural validation + payload -> block. No execution happens here.
     let sealed = match validator.ensure_well_formed_payload::<OpTransactionSigned>(payload) {
         Ok(block) => block,
-        Err(err) => return Ok(invalid(None, err.to_string())),
+        Err(err) => return Ok(ImportOutcome::Invalid(invalid(None, err.to_string()))),
     };
     let block_hash = sealed.hash();
     let parent_hash = sealed.header().parent_hash;
     let expected_state_root = sealed.header().state_root;
 
-    // A block already on the chain was validated when it was first imported; re-executing and
-    // re-committing it would move the head back onto it.
-    if chain.sealed_header(block_hash)?.is_some() {
-        return Ok(PayloadStatus::new(PayloadStatusEnum::Valid, Some(block_hash)));
+    if side_blocks.contains_key(&block_hash) || chain.sealed_header(block_hash)?.is_some() {
+        return Ok(ImportOutcome::Known(block_hash));
     }
 
     // The parent must be known; without its state we cannot execute, so we report SYNCING rather
     // than guessing.
-    let (Some(parent), Some(state)) =
-        (chain.sealed_header(parent_hash)?, chain.state_at(parent_hash)?)
-    else {
-        return Ok(PayloadStatus::from_status(PayloadStatusEnum::Syncing));
+    let Some((parent, state)) = chain.block_state(parent_hash, side_blocks)? else {
+        return Ok(ImportOutcome::Syncing);
     };
 
     let consensus = OpBeaconConsensus::new(chain_spec.clone());
     if let Err(err) = validate_pre_execution(&consensus, &chain_spec, &sealed, &parent) {
-        return Ok(invalid(Some(parent_hash), err.to_string()));
+        return Ok(ImportOutcome::Invalid(invalid(Some(parent_hash), err.to_string())));
     }
 
     let recovered = match sealed.try_recover() {
         Ok(recovered) => recovered,
         Err(_) => {
-            return Ok(invalid(Some(parent_hash), "failed to recover transaction senders".into()));
+            return Ok(ImportOutcome::Invalid(invalid(
+                Some(parent_hash),
+                "failed to recover transaction senders".to_string(),
+            )));
         }
     };
 
@@ -85,7 +106,7 @@ pub(crate) fn import_payload(
     let output: BlockExecutionOutput<OpReceipt> = match executor.execute(&recovered) {
         Ok(output) => output,
         Err(BlockExecutionError::Validation(err)) => {
-            return Ok(invalid(Some(parent_hash), err.to_string()));
+            return Ok(ImportOutcome::Invalid(invalid(Some(parent_hash), err.to_string())));
         }
         Err(err) => return Err(Error::Execution(err.to_string())),
     };
@@ -97,7 +118,7 @@ pub(crate) fn import_payload(
         None,
         None,
     ) {
-        return Ok(invalid(Some(parent_hash), err.to_string()));
+        return Ok(ImportOutcome::Invalid(invalid(Some(parent_hash), err.to_string())));
     }
 
     let hashed_state = state.hashed_post_state(&output.state)?;
@@ -116,19 +137,21 @@ pub(crate) fn import_payload(
         ) {
             Ok(()) => {}
             Err(OpConsensusError::L2WithdrawalsRootCalculationFail(err)) => return Err(err.into()),
-            Err(err) => return Ok(invalid(Some(parent_hash), err.to_string())),
+            Err(err) => {
+                return Ok(ImportOutcome::Invalid(invalid(Some(parent_hash), err.to_string())));
+            }
         }
     }
 
     // Verify the post-state root matches the header before accepting the block.
     let (computed_root, trie_updates) = state.state_root_with_updates(hashed_state.clone())?;
     if computed_root != expected_state_root {
-        return Ok(invalid(
+        return Ok(ImportOutcome::Invalid(invalid(
             Some(parent_hash),
             format!(
                 "state root mismatch: computed {computed_root}, expected {expected_state_root}"
             ),
-        ));
+        )));
     }
 
     let executed = ExecutedBlock::new(
@@ -139,9 +162,7 @@ pub(crate) fn import_payload(
             Arc::new(trie_updates.into_sorted()),
         ),
     );
-    chain.commit_block(executed);
-
-    Ok(PayloadStatus::new(PayloadStatusEnum::Valid, Some(block_hash)))
+    Ok(ImportOutcome::Valid(executed))
 }
 
 /// The consensus checks that need no execution: the header on its own and against `parent`, the
@@ -184,7 +205,7 @@ mod tests {
 
     use alloy_consensus::{SignableTransaction, TxReceipt, proofs::calculate_transaction_root};
     use alloy_eips::eip1559::BaseFeeParams;
-    use alloy_primitives::{B64, Signature, U256};
+    use alloy_primitives::{B64, Bloom, Signature, U256};
     use alloy_rpc_types_engine::ForkchoiceState;
     use op_alloy_consensus::{OpTxEnvelope, encode_holocene_extra_data};
     use reth_optimism_primitives::{OpBlock, OpReceipt};
@@ -213,10 +234,15 @@ mod tests {
         // Produce a valid block (deposit first, then the user tx) and round-trip it as a payload.
         let block = block_on_genesis(&chain, &[deposit_tx(depositor()), user_tx(0)]);
         let block_hash = block.header.hash_slow();
-        let status = import_payload(&chain, payload_of(&block)).expect("import payload");
+        let outcome =
+            import_payload(&chain, payload_of(&block), &HashMap::new()).expect("import payload");
 
-        assert!(status.is_valid(), "expected VALID, got {status:?}");
-        assert_eq!(status.latest_valid_hash, Some(block_hash));
+        let ImportOutcome::Valid(executed) = outcome else {
+            panic!("expected VALID, got {outcome:?}");
+        };
+        assert_eq!(executed.recovered_block().hash(), block_hash);
+        // import_payload does not touch the chain; committing is the caller's job.
+        chain.commit_block(executed);
 
         let receipts =
             chain.receipts_by_block_hash(block_hash).expect("query").expect("receipts present");
@@ -260,8 +286,12 @@ mod tests {
         let parent_hash = block.header.parent_hash;
         block.header.state_root = B256::repeat_byte(0xff);
 
-        let status = import_payload(&chain, payload_of(&block)).expect("import payload");
+        let outcome =
+            import_payload(&chain, payload_of(&block), &HashMap::new()).expect("import payload");
 
+        let ImportOutcome::Invalid(status) = outcome else {
+            panic!("expected INVALID, got {outcome:?}");
+        };
         assert!(status.is_invalid(), "expected INVALID, got {status:?}");
         // INVALID points at the last valid block (the parent), not the rejected block.
         assert_eq!(status.latest_valid_hash, Some(parent_hash));
@@ -269,25 +299,46 @@ mod tests {
         assert!(chain.block_by_number(1).expect("query").is_none());
     }
 
+    /// Import `block` and commit it, as `new_payload` does for a linear head extension.
+    fn import_and_commit(chain: &EphemeralChain, block: &OpBlock) {
+        let outcome =
+            import_payload(chain, payload_of(block), &HashMap::new()).expect("import payload");
+        let ImportOutcome::Valid(executed) = outcome else {
+            panic!("expected VALID, got {outcome:?}");
+        };
+        chain.commit_block(executed);
+    }
+
     #[test]
-    fn reimporting_a_known_block_is_valid_and_moves_nothing() {
+    fn reimporting_a_known_block_is_not_executed_again() {
         let chain = test_chain(user_sender());
         let b1 = block_on_genesis(&chain, &[deposit_tx(depositor())]);
         let b1_hash = b1.header.hash_slow();
-        assert!(import_payload(&chain, payload_of(&b1)).unwrap().is_valid());
+        import_and_commit(&chain, &b1);
 
         let env = next_env(4, b1.header.extra_data.clone());
         let b2 = chain.assemble_block(b1_hash, env, &[]).expect("assemble b2");
-        let b2 = b2.block.clone_sealed_block().into_block();
-        let b2_hash = b2.header.hash_slow();
-        assert!(import_payload(&chain, payload_of(&b2)).unwrap().is_valid());
-        assert_eq!(chain.latest_header().hash(), b2_hash);
+        import_and_commit(&chain, &b2.block.clone_sealed_block().into_block());
 
-        // Re-importing b1 reports it VALID without re-committing it over its descendant.
-        let status = import_payload(&chain, payload_of(&b1)).expect("re-import b1");
-        assert!(status.is_valid(), "expected VALID, got {status:?}");
-        assert_eq!(status.latest_valid_hash, Some(b1_hash));
-        assert_eq!(chain.latest_header().hash(), b2_hash, "re-import moved the head");
+        let outcome =
+            import_payload(&chain, payload_of(&b1), &HashMap::new()).expect("re-import b1");
+        assert!(matches!(outcome, ImportOutcome::Known(hash) if hash == b1_hash), "{outcome:?}");
+    }
+
+    #[test]
+    fn reimporting_a_known_side_block_is_not_executed_again() {
+        let chain = test_chain(user_sender());
+        let b1 = block_on_genesis(&chain, &[deposit_tx(depositor())]);
+        let b1_hash = b1.header.hash_slow();
+        let ImportOutcome::Valid(executed) =
+            import_payload(&chain, payload_of(&b1), &HashMap::new()).expect("import b1")
+        else {
+            panic!("b1 valid");
+        };
+        let side = HashMap::from([(b1_hash, executed)]);
+
+        let outcome = import_payload(&chain, payload_of(&b1), &side).expect("re-import b1");
+        assert!(matches!(outcome, ImportOutcome::Known(hash) if hash == b1_hash), "{outcome:?}");
     }
 
     /// Import a deposit-only block 1 whose header `tamper` corrupts (the block hash is recomputed),
@@ -304,7 +355,11 @@ mod tests {
         let mut block = block_on_genesis(&chain, &[deposit_tx(depositor())]);
         tamper(&mut block.header);
 
-        let status = import_payload(&chain, payload_of(&block)).expect("import payload");
+        let outcome =
+            import_payload(&chain, payload_of(&block), &HashMap::new()).expect("import payload");
+        let ImportOutcome::Invalid(status) = outcome else {
+            panic!("expected INVALID, got {outcome:?}");
+        };
         let PayloadStatusEnum::Invalid { validation_error } = &status.status else {
             panic!("expected INVALID, got {status:?}");
         };
@@ -317,6 +372,22 @@ mod tests {
     fn rejects_receipts_root_mismatch() {
         assert_tampered_block_rejected("receipt root mismatch", |header| {
             header.receipts_root = B256::repeat_byte(0x11)
+        });
+    }
+
+    #[test]
+    fn rejects_logs_bloom_mismatch() {
+        assert_tampered_block_rejected("header bloom filter mismatch", |header| {
+            header.logs_bloom = Bloom::repeat_byte(0x01);
+        });
+    }
+
+    #[test]
+    fn rejects_da_footprint_mismatch() {
+        // The test chain runs Karst, so Jovian is active and the header's blob gas used carries
+        // the block's DA footprint.
+        assert_tampered_block_rejected("blob gas used mismatch", |header| {
+            header.blob_gas_used = header.blob_gas_used.map(|used| used + 1);
         });
     }
 
@@ -364,10 +435,12 @@ mod tests {
             unsigned.into_signed(Signature::new(U256::ZERO, U256::ZERO, false)).into();
         block.header.transactions_root = calculate_transaction_root(&block.body.transactions);
 
-        let status = import_payload(&chain, payload_of(&block)).expect("import payload");
-        assert!(status.is_invalid(), "expected INVALID, got {status:?}");
+        let outcome =
+            import_payload(&chain, payload_of(&block), &HashMap::new()).expect("import payload");
+        let ImportOutcome::Invalid(status) = outcome else {
+            panic!("expected INVALID, got {outcome:?}");
+        };
         assert_eq!(status.latest_valid_hash, Some(chain.genesis_hash()));
-        assert!(chain.block_by_number(1).expect("query").is_none(), "rejected block committed");
     }
 
     #[test]

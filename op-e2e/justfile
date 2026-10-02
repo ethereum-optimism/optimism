@@ -31,9 +31,18 @@ test-external NAME: pre-test
 test-ws: pre-test
     {{_go_test}} {{_go_test_flags}} ./system/... ./e2eutils/... ./opgeth/... ./interop/...
 
-# Run action tests
+# Run action tests. They spawn op-reth-test-engine: unless RUST_BINARY_PATH_OP_RETH_TEST_ENGINE
+# names a prebuilt binary, build it in release mode and point the tests at it (honouring the cargo
+# target directory).
 test-actions: pre-test
-    {{_go_test}} {{_go_test_flags}} ./actions/...
+    #!/usr/bin/env bash
+    set -euo pipefail
+    if [ -z "${RUST_BINARY_PATH_OP_RETH_TEST_ENGINE:-}" ]; then
+        just ../rust/build-op-reth-test-engine
+        target_dir="$(cd ../rust && cargo metadata --no-deps --format-version 1 | jq -r .target_directory)"
+        export RUST_BINARY_PATH_OP_RETH_TEST_ENGINE="$target_dir/release/op-reth-test-engine"
+    fi
+    {{_go_test}} -timeout=30m {{_go_test_flags}} ./actions/...
 
 # Run tests over HTTP
 test-http: pre-test
