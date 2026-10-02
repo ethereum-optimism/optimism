@@ -2,8 +2,8 @@
 
 The next port stays in draft PR #23151. `.rwx/acceptance.yml` introduces optional
 `optimism-acceptance-shadow` using shared `run-main` routing. Circle retains all
-required gates. Inventory coverage remains 16/86 until the new workloads execute
-and their evidence is checked.
+required gates. The five new job/dependency edges advance
+implementation coverage to 21/86 (24%); main-workflow coverage is 13/32 (41%).
 
 ## Workload and dependencies
 
@@ -64,19 +64,52 @@ warming targets producers and discovery only, running no acceptance verdicts.
       failed discovery and a failing verdict with retained original reports.
 - [x] Original failure retention and execution-coverage validation tests.
 - [x] ShellCheck and RWX definition/package lint.
-- [ ] Hosted SP1 producer and all sixteen acceptance verdicts reach terminal states.
-- [ ] Compare both variants' complete original reports on the same SHA with Circle;
+- [x] Hosted SP1 producer and all sixteen acceptance verdicts reach terminal states.
+- [x] Compare both variants' complete original reports on the same SHA with Circle;
       investigate every missing, extra, changed or unexplained skipped identity.
-- [ ] Retain hosted failures and attribute test flakes using source/history evidence.
-- [ ] Final required Circle gates and optional RWX checks reach terminal states.
+- [x] Retain hosted failures and attribute the observed setup failures using originals and source evidence.
+- [x] Comparison revision's required Circle gates and optional RWX checks reach terminal states.
 
 Native/protected warming after merge and broader gate/fork/merge-group rehearsals
-remain separate operational follow-ups. Mark the five inventory jobs only when
-hosted execution supports their completion.
+remain separate operational follow-ups. Protected warming includes the pinned
+geth tool layer and executes no acceptance verdicts.
 
 The first clean hosted attempt at `fb8f75b685` retained complete failure reports
 and exposed two port-specific runtime gaps: Kona host/client lookup fell back to
 unavailable Cargo, and the selective tool layer omitted pinned Glamsterdam geth.
+All sixteen original report bundles are retained; their coverage summaries show
+zero missing, extra or duplicated assigned identities. See the compact
+[first-failure index](rwx-acceptance-evidence/first-failure.json).
 Explicit verified binary paths and geth installation address those gaps; no test
-expectations or skip rules were changed. Hosted validation must pass on the fix
-before the inventory advances.
+expectations or skip rules were changed. The corrected hosted run and same-revision comparison passed before advancing
+the inventory.
+
+The corrected clean native run at `236df44cad` passed all six producer packages,
+both discoveries and all sixteen fresh verdict workers:
+[RWX run 92831490](https://cloud.rwx.com/optimism/runs/9283149078084d80a1cbaba1eb917b69).
+Same-revision [Circle job 5632121](https://circleci.com/gh/ethereum-optimism/optimism/5632121)
+(Kona) and [5632123](https://circleci.com/gh/ethereum-optimism/optimism/5632123)
+(op-node) passed too. Complete original-report comparison verifies the same 80
+packages, 243 top-level identities and 780 reported case identities per variant.
+All initial assignments occur exactly once. Both providers report 770 pass / 10
+skip for op-node and 742 pass / 38 skip for Kona, with zero failures or retries.
+There are no missing, extra or unknown skipped cases, unhealthy sources or
+incomplete evidence. All sixteen native verdict tasks executed; none reused a
+verdict result.
+
+Strict skip-text comparison remains `different`: nine op-node and 37 Kona
+messages contain different structured logger timestamps. Each was checked after
+replacing only that recognized timestamp field: severity, message, scope and test
+identity match exactly. The unchanged originals, both reasons and each resolution
+are retained in [the compact parity index](rwx-acceptance-evidence/parity.json).
+Other skips preserve existing client-support limits, the disabled batcher test
+and full SP1 ELF opt-in behavior; real guest ELFs remain outside this stage.
+All four required Circle gates and the five optional RWX shadows passed on the
+comparison revision. Full JSON, JUnit, selection, provenance and per-test logs
+remain in provider artifacts and downloaded evidence archives.
+
+The final closeout synchronizes `develop`, including its newly added ZK
+acceptance case. Exhaustive discovery includes that case automatically. Final
+combined-revision execution, original-report comparison and required checks are
+tracked in PR #23151; the immutable comparison above remains tied to its stated
+source revision. No performance matrix or speed claim is part of this stage.

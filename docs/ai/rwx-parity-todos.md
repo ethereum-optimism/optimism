@@ -34,13 +34,13 @@ at commit `587b4c3a73d3f16f15212b72e9a0ed0e8489a7c4`.
 
 | PR workflow | Expanded job instances | Implemented validation jobs |
 | --- | ---: | ---: |
-| Main | 32 | 8 |
+| Main | 32 | 13 |
 | Contracts | 23 | 4 |
 | Rust | 22 | 4 |
 | Rust E2E | 9 | 0 |
-| Total | 86 | 16 |
+| Total | 86 | 21 |
 
-Conservative implementation coverage is **16 / 86 = 19%**. Each matrix entry and
+Conservative implementation coverage is **21 / 86 = 24%**. Each matrix entry and
 each occurrence in a different workflow counts separately; shards do not.
 The CircleCI setup and schedule-trigger-check workflows are outside this
 86-job denominator and have separate todos. This is job coverage, not runtime,
@@ -49,6 +49,9 @@ cost, proven equivalence or gate ownership.
 The full aggregate Go shadow now covers all 459 selected packages and 11,613
 case identities, with fresh same-SHA Circle/RWX parity verified. Its Go,
 superchain, contracts, Kona and prestate producers are implemented and executed.
+The full Fusaka acceptance variants and their remaining SP1/Cannon dependency
+edges have now executed successfully on both providers. See the
+[acceptance closeout](rwx-acceptance-parity.md) for exact original-report evidence.
 The narrower rollup mode remains CLI-only. See [the stage closeout](rwx-go-parity.md)
 for original-report comparison, selected resources, caches and limitations.
 
@@ -68,12 +71,10 @@ in [rwx-migration.md](rwx-migration.md#op-reth-shadow-and-cache-measurements).
 
 ## Recommended order
 
-1. Complete the [acceptance shadow](rwx-acceptance-parity.md) using the validated
-   shared producers: both client variants and the remaining SP1/Cannon edges.
+1. Retain the [completed acceptance shadow](rwx-acceptance-parity.md), including
+   both Fusaka client variants and the SP1/Cannon dependency edges.
 2. Close remaining contract evidence gaps and operational failure/routing rehearsals.
-3. Reuse the completed aggregate Go producers for acceptance consumers, with
-   equivalent discovery and isolated fresh verdicts. Defer additional performance
-   work until workload porting makes further progress.
+3. Defer additional performance work until workload porting makes further progress.
 4. Complete the remaining Rust, contract and independent validation jobs.
 5. Rehearse full pipeline routing and failure behavior before proposing gate
    changes. Validate post-merge and privileged work before transferring it.
@@ -168,10 +169,10 @@ CircleCI workflow: `main` (32 jobs).
 - [ ] `shell-check`
 - [ ] `semgrep-test`
 - [ ] `semgrep-scan-local`
-- [ ] `rust-sp1-super-range-executor`
+- [x] `rust-sp1-super-range-executor`
 - [x] `rust-op-reth-binary`
 - [x] `rust-kona-binaries`
-- [ ] `rust-binaries-for-sysgo`
+- [x] `rust-binaries-for-sysgo`
 - [x] `prep-superchain`
 - [x] `prep-go-modules`
 - [ ] `op-deployer-forge-version`
@@ -179,7 +180,7 @@ CircleCI workflow: `main` (32 jobs).
 - [ ] `l2-chains-sync-check`
 - [ ] `kona-build-sp1-elfs`
 - [x] `go-lint`
-- [ ] `go-binaries-for-sysgo`
+- [x] `go-binaries-for-sysgo`
 - [ ] `generate-flaky-tests-report`
 - [x] `contracts-bedrock-build-1`
 - [ ] `contracts-bedrock-upload`
@@ -192,8 +193,8 @@ CircleCI workflow: `main` (32 jobs).
 - [ ] `check-generated-mocks-op-node`
 - [x] `cannon-prestate`
 - [x] `go-tests`
-- [ ] `memory-all-kona-op-reth-fusaka`
-- [ ] `memory-all-opn-op-reth-fusaka`
+- [x] `memory-all-kona-op-reth-fusaka`
+- [x] `memory-all-opn-op-reth-fusaka`
 - [ ] `cannon-go-lint-and-test`
 - [ ] `ci-gate`
 

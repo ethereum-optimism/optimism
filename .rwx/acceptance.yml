@@ -2,7 +2,7 @@
 on:
   cache-rebuild:
     if: ${{ event.git.branch == 'develop' }}
-    target: [go, contracts, kona, op-reth, prestate, sp1-executor, discovery-opn, discovery-kona]
+    target: [go, contracts, kona, op-reth, prestate, sp1-executor, acceptance-tools, discovery-opn, discovery-kona]
     init:
       commit-sha: ${{ event.git.sha }}
       branch: ${{ event.git.branch }}
