@@ -812,11 +812,9 @@ func TestELSyncTransitionstoCL(gt *testing.T) {
 	// higher unsafe block but op-geth did not.
 	VerifyBlock(t, verifier.Eng, 22, eth.Unsafe)
 	// CL sync inserted the blocks, so the verifier's engine has no head left to EL-sync towards.
-	if verEng.IsReth() {
-		var syncTarget common.Hash
-		require.NoError(t, verEng.RPCClient().CallContext(t.Ctx(), &syncTarget, "optest_syncTarget"))
-		require.Equal(t, common.Hash{}, syncTarget, "verifier engine is syncing in CL mode")
-	}
+	var syncTarget common.Hash
+	require.NoError(t, verEng.RPCClient().CallContext(t.Ctx(), &syncTarget, "optest_syncTarget"))
+	require.Equal(t, common.Hash{}, syncTarget, "verifier engine is syncing in CL mode")
 
 	// Create 1 more block & batch submit everything
 	BatchSubmitBlock(t, miner, sequencer, verifier, batcher, dp, 12)

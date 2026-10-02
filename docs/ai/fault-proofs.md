@@ -67,11 +67,21 @@ mise x -- just forge-build --skip test
 mise x -- just copy-contract-artifacts
 ```
 
-**Plain Go action tests** (`op-e2e/actions/...`) then run directly:
+**Plain Go action tests** (`op-e2e/actions/...`) run their L2 execution engine as an
+`op-reth-test-engine` subprocess, so they also need that binary. `just test-actions` (from
+`op-e2e`) builds it and points the tests at it. Run directly, `go test` uses
+`RUST_BINARY_PATH_OP_RETH_TEST_ENGINE` if set, otherwise the newest release or debug build in the
+cargo target directory, and otherwise fails with instructions. Build it once:
 
 ```bash
+# from rust/ — release build, lands in rust/target/release/ (or under CARGO_TARGET_DIR)
+mise x -- just build-op-reth-test-engine
+# from the repo root
 go test ./op-e2e/actions/upgrades/ -run TestName -count=1
 ```
+
+Alternatively `RUST_JIT_BUILD=1` has the tests run the release build themselves; a cold build
+takes long, so give `go test` a `-timeout` that covers it (e.g. `-timeout 60m`).
 
 **Kona fault-proof action tests** (`rust/kona/tests/proofs/...`, e.g.
 `TestActivationBlockNUTBundle`) additionally run kona-client through the native `kona-host`

@@ -27,8 +27,7 @@ type rethSyncFixture struct {
 }
 
 func newRethSyncFixture(gt *testing.T, blocks int) *rethSyncFixture {
-	gt.Setenv(ELSelectorEnv, elRethTestEngine)
-	t := SubTest(gt)
+	t := NewDefaultTesting(gt)
 	dp := e2eutils.MakeDeployParams(t, DefaultRollupTestParams())
 	sd := e2eutils.Setup(t, dp, DefaultAlloc)
 	logger, logs := testlog.CaptureLogger(t, log.LevelInfo)

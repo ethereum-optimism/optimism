@@ -1,13 +1,12 @@
 //! JSON-RPC surface for the test engine, served over a Unix socket (reth-ipc, go-ethereum
 //! `rpc.DialIPC`-compatible) by the companion binary.
 //!
-//! Three namespaces mirror what `op-e2e/actions` drives against the in-process op-geth engine:
-//! `engine_*` (the versioned newPayload/forkchoiceUpdated/getPayload trio), `eth_*` (chain and
-//! state reads, `eth_call`/`eth_estimateGas`, and `eth_sendRawTransaction` into a parking
-//! buffer), and `optest_*` — the sequencing hooks that replace the direct `L2EngineAPI` method
-//! calls (`includeTx`, `includeNextTx`, `remainingBlockGas`, `forcedEmpty`, `setForceEmpty`) and
-//! the sync-backfill hooks that stand in for devp2p sync (`syncTarget`, `blockPayloadByNumber`,
-//! `importBlock`).
+//! Three namespaces serve what the `op-e2e/actions` harness drives: `engine_*` (the versioned
+//! newPayload/forkchoiceUpdated/getPayload trio), `eth_*` (chain and state reads,
+//! `eth_call`/`eth_estimateGas`, and `eth_sendRawTransaction` into a parking buffer), and
+//! `optest_*` — the sequencing hooks that let a test choose a block's transactions (`includeTx`,
+//! `includeNextTx`, `remainingBlockGas`, `forcedEmpty`, `setForceEmpty`) and the sync-backfill
+//! hooks that stand in for devp2p sync (`syncTarget`, `blockPayloadByNumber`, `importBlock`).
 //!
 //! The engine's methods take `&mut self`, so the module context is an `Arc<Mutex<TestEngine>>` and
 //! requests are served one at a time; a poisoned lock is recovered rather than propagated so one
