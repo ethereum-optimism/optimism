@@ -34,8 +34,9 @@ pub enum EngineQueries {
     OutputAtBlock {
         /// The block number or tag to retrieve the output for.
         block: BlockNumberOrTag,
-        /// Response channel for (`block_info`, `output_root`, `engine_state`).
-        sender: Sender<(L2BlockInfo, OutputRoot, EngineState)>,
+        /// Response channel for (`block_info`, `output_root`, `engine_state`), or `None` if the
+        /// block is not known.
+        sender: Sender<Option<(L2BlockInfo, OutputRoot, EngineState)>>,
     },
     /// Subscribe to engine state updates via a watch channel receiver.
     StateReceiver(Sender<tokio::sync::watch::Receiver<EngineState>>),
@@ -84,8 +85,9 @@ impl EngineQueries {
                 sender.send(state).map_err(|_| EngineQueriesError::OutputChannelClosed)
             }
             Self::OutputAtBlock { block, sender } => {
-                let output_block = client.l2_block_by_label(block).await?;
-                let output_block = output_block.ok_or(EngineQueriesError::NoL2BlockFound(block))?;
+                let Some(output_block) = client.l2_block_by_label(block).await? else {
+                    return sender.send(None).map_err(|_| EngineQueriesError::OutputChannelClosed);
+                };
                 // Cloning the l2 block below is cheaper than sending a network request to get the
                 // l2 block info. Querying the `L2BlockInfo` from the client ends up
                 // fetching the full l2 block again.
@@ -119,7 +121,7 @@ impl EngineQueries {
                 );
 
                 sender
-                    .send((output_block_info, output_response_v0, state))
+                    .send(Some((output_block_info, output_response_v0, state)))
                     .map_err(|_| EngineQueriesError::OutputChannelClosed)
             }
             Self::StateReceiver(subscription) => subscription
@@ -136,5 +138,26 @@ impl EngineQueries {
                 Ok(())
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::test_utils::test_engine_client_builder;
+
+    #[tokio::test]
+    async fn test_output_at_unknown_block() {
+        let client = Arc::new(test_engine_client_builder().build());
+        let (_, state_recv) = tokio::sync::watch::channel(EngineState::default());
+        let (_, queue_length_recv) = tokio::sync::watch::channel(0);
+        let (sender, receiver) = tokio::sync::oneshot::channel();
+
+        EngineQueries::OutputAtBlock { block: BlockNumberOrTag::Number(100), sender }
+            .handle(&state_recv, &queue_length_recv, &client, &Arc::new(RollupConfig::default()))
+            .await
+            .unwrap();
+
+        assert!(receiver.await.unwrap().is_none());
     }
 }

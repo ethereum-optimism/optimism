@@ -65,10 +65,19 @@ impl EngineRpcClient for QueuedEngineRpcClient {
             .await
             .map_err(|_| ErrorObject::from(ErrorCode::InternalError))?;
 
-        output_rx.await.map_err(|_| {
-            error!(target: "block_engine", "Failed to receive output at block from engine rpc");
-            ErrorObject::from(ErrorCode::InternalError)
-        })
+        output_rx
+            .await
+            .map_err(|_| {
+                error!(target: "block_engine", "Failed to receive output at block from engine rpc");
+                ErrorObject::from(ErrorCode::InternalError)
+            })?
+            .ok_or_else(|| {
+                ErrorObject::owned(
+                    ErrorCode::ServerError(-32000).code(),
+                    format!("L2 block {block} not found"),
+                    None::<()>,
+                )
+            })
     }
 
     async fn dev_get_task_queue_length(&self) -> RpcResult<usize> {
@@ -110,5 +119,29 @@ impl EngineRpcClient for QueuedEngineRpcClient {
             error!(target: "block_engine", "Failed to receive state receiver from engine rpc");
             ErrorObject::from(ErrorCode::InternalError)
         })
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[tokio::test]
+    async fn test_output_at_unknown_block() {
+        let (tx, mut rx) = mpsc::channel(1);
+        tokio::spawn(async move {
+            let EngineRpcRequest(query) = rx.recv().await.unwrap();
+            let EngineQueries::OutputAtBlock { sender, .. } = *query else {
+                panic!("unexpected query");
+            };
+            sender.send(None).unwrap();
+        });
+
+        let err = QueuedEngineRpcClient::new(tx)
+            .output_at_block(BlockNumberOrTag::Number(100))
+            .await
+            .unwrap_err();
+        assert_eq!(err.code(), -32000);
+        assert!(err.message().contains("not found"), "{}", err.message());
     }
 }
