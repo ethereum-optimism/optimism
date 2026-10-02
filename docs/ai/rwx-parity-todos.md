@@ -9,6 +9,22 @@ This checklist covers the full PR workflow. Post-merge, scheduled and release
 work appears separately below. Use [rwx-migration.md](rwx-migration.md) for the
 migration contract and [ci-comparison.md](ci-comparison.md) for evidence collection.
 
+## Optimization target
+
+Optimize wall-clock time from a push to the final CI verdict, with the existing
+coverage and fresh test execution preserved. During shadowing, measure completion
+of all selected shadow workloads. Include queueing, setup, cache restoration,
+artifact transfers, builds and the slowest test shard. Label run-start timings
+explicitly when push or queue timestamps are unavailable.
+
+Use repeated samples to track median latency and slow runs. Compiler execution
+and summed task time explain bottlenecks; they are not the headline metric.
+Prioritize the measured critical path: reuse valid producer outputs, restore
+targets and sccache, run independent work in parallel, minimize transfers and
+increase runner resources where that reduces elapsed time. Record actual resource
+allocations and cache state; equal resource allocations are not a pilot constraint.
+Cost and billed-usage analysis are deferred and do not block porting or tuning.
+
 ## Baseline and progress
 
 The October 1, 2026 inventory is
@@ -53,11 +69,13 @@ in [rwx-migration.md](rwx-migration.md#op-reth-shadow-and-cache-measurements).
 ## Recommended order
 
 1. Close the existing comparison evidence gaps.
-2. Validate op-reth cache behavior across representative Rust source changes and
-   collect repeated equivalent-resource timings and billed usage. The release
-   producer and all three associated checks now run as complete shadows.
+2. Profile and shorten the op-reth critical path, especially release compilation,
+   linking and artifact transfers. Collect repeated whole-workload timings and
+   extend source-change cache probes. The release producer and all three
+   associated checks now run as complete shadows.
 3. Complete the producers needed by aggregate Go and acceptance tests, then
-   port their consumers with equivalent discovery and sharding.
+   port their consumers with equivalent discovery and sharding. Share producer
+   outputs and start independent consumers as soon as their inputs are ready.
 4. Complete the remaining Rust, contract and independent validation jobs.
 5. Rehearse full pipeline routing and failure behavior before proposing gate
    changes. Validate post-merge and privileged work before transferring it.
@@ -80,8 +98,11 @@ the existing shadows:
   streams reused cached results for 17 rollup cases.
 - [ ] Preserve per-case retry evidence where available. Foundry reports currently
   lack attempt histories; document unknown histories rather than reporting zero.
-- [ ] Collect repeated cold and warm samples on equivalent commits and workloads,
-  with actual billed data. Current RWX timings establish only warm observations.
+- [ ] Collect repeated whole-workload CircleCI and RWX timings on the same commit
+  and workload, including routing, queueing and setup. Snapshot probes already
+  include three cold-compiler and three restored-target samples: median whole-run
+  wall time was 126.3s versus 55.6s, with fresh regeneration. Common image/tool
+  layers were warm; these samples establish a cache benefit within RWX.
 
 ## Completion requirements for every ported workload
 
@@ -102,8 +123,9 @@ the existing shadows:
   Successful diagnostic reruns must not replace the original failed verdict.
 - [ ] Exercise build/test failure, cancellation and a dependency that never ran;
   verify the workflow and proposed gate cannot report success for those cases.
-- [ ] Record repeated elapsed time, critical path, resources, cache state and
-  billing separately before making performance or cost claims.
+- [ ] Record repeated end-to-end wall time, critical path, actual resources and
+  cache state before making speed claims. Keep phase timings separate; cost
+  analysis is deferred for the pilot.
 
 Apply these requirements to each inventory item. Record run/job links and
 remaining limitations in PR #23151 when checking an item.

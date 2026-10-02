@@ -121,10 +121,14 @@ Equivalence compares final case verdicts; it can coexist with observed retries.
 Review retry history separately before judging reliability. Unavailable attempt
 history is reported as unknown rather than as zero retries.
 
-Report wall time, setup, longest shard, summed task time, CPU time, billed time,
-cache state, resources and price as separate observations with explicit units
-and scope. Leave unavailable values null. RWX cached tasks can retain historical
-execution fields; exclude them from current compute totals. An aggregate
+For the pilot, the primary metric is push-to-final-verdict wall time for the same
+selected workload and coverage. Include queueing, setup and transfers; label
+run-start timings when earlier timestamps are unavailable. Report setup, longest
+shard, summed task time, CPU time, cache state and actual resources separately with
+explicit units and scope. Runner sizes may differ when optimizing wall time.
+Cost and billed-usage analysis are deferred; leave those values null until needed.
+RWX cached tasks can retain historical execution fields; exclude them from current
+compute totals. An aggregate
 CircleCI Go job's duration includes other packages and dependency builds, so it
 cannot measure only the rollup slice. Separate warm-cache observations from cold
 runs, and compare multiple samples before drawing performance conclusions.

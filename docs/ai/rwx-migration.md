@@ -275,8 +275,12 @@ cache state; they do not make the image/tool layer cold. Preserve task preparati
 execution and output-upload time separately. Verify actual tool-cache reads and
 writes from RWX task metadata, not the requested epoch alone. Retain source-change
 and failing-verdict probes before claiming cache correctness across revisions.
-Compare repeated same-SHA CircleCI samples, test counts, CPU/memory allocations
-and billed usage before making a provider-wide speed or cost claim.
+The pilot optimizes push-to-final-verdict wall time, including queueing, setup,
+cache restoration, transfers, builds and fresh tests. Label run-start timings when
+earlier timestamps are unavailable. Compare repeated same-SHA, same-workload
+CircleCI samples and retain test counts, actual CPU/memory allocations and cache
+state. Runner sizes may differ: choose resources for wall-clock speed. Cost and
+billed-usage analysis are deferred.
 
 ### First hosted measurements
 
@@ -348,12 +352,35 @@ at `d2b90241` hit the compiler content cache and completed the release path in
 
 The `99ccc76a` native run took 8m30s. Its codec verifier spent 171s preparing,
 including downloading two 11,516 MiB compiler cache layers, before executing in
-9s. The consumers now mount artifacts instead of inheriting compiler caches;
-verify the resulting layer inventory and repeat elapsed-time measurements.
-Further work includes trimming reusable tool layers and compiler cache outputs,
-avoiding volatile Git inputs in compiler content keys
-while preserving version identity, representative Rust source-change probes,
-repeated samples and actual billed usage. Required checks remain on CircleCI.
+9s. The consumers now mount artifacts instead of inheriting compiler caches.
+At `0b7935e7`, [native run 0d4989f8](https://cloud.rwx.com/optimism/runs/0d4989f8fc044b48888ba7cdda9e9b2a)
+passed all four workloads in 6m20s. The codec verifier prepared in 2s and executed
+in 5s without inheriting op-reth compiler layers. These are single observations
+with different runner-local layer states.
+
+At the same revision, three cold-compiler snapshot probes and three restored-target
+probes passed fresh regeneration. Median whole-run wall time was **126.3s versus
+55.6s**; median compiler execution was 65s versus 6s. Images, tools and dependency
+layers were warm, and cold samples 2/3 ran concurrently. The
+[empty-target/sccache sample](https://cloud.rwx.com/optimism/runs/636452ced9274d0d9b7c211bd6611cb3)
+took 63.6s for the whole run, including 17s compiling with 263 Rust and 74 C/assembly hits
+and no misses. All samples reported 4 CPUs and a 6 GiB container limit. These
+measurements show cache benefits within RWX; a full provider comparison remains open.
+
+An [uploaded Rust assertion mutation](https://cloud.rwx.com/optimism/runs/11d82d12b2cf4635a8c8b2c22cac734b)
+invalidated compiler content reuse, executed with restored targets and failed the
+intended case with nextest exit 100. Original reports, discovery and the actual
+source patch/hash remained downloadable. A
+[clean recovery](https://cloud.rwx.com/optimism/runs/198aad232de64004af4938d485336d6a)
+reused the clean compiler output and ran a fresh verdict: all 50 cases passed in a
+48.8s whole run. For local source probes, omit an explicit `--init commit-sha`,
+which makes the CLI skip the local patch, and verify retained source hashes.
+
+Next, profile release compilation and linking, then test runner sizing and cache
+changes against repeated whole-run latency. Trim transfers and start independent
+consumers as soon as their inputs are ready. Preserve version identity and extend
+source-change invalidation probes while improving reuse across revisions.
+Required checks remain on CircleCI.
 
 ## Migration contract
 
