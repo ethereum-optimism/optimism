@@ -12,10 +12,7 @@ use op_alloy_rpc_types_engine::PayloadHash;
 use std::fmt::Debug;
 
 mod remote;
-pub use remote::{
-    CertificateError, ClientCert, RemoteSigner, RemoteSignerError, RemoteSignerHandler,
-    RemoteSignerStartError,
-};
+pub use remote::{RemoteSigner, RemoteSignerError, RemoteSignerHandler, RemoteSignerStartError};
 
 /// A builder for a block signer.
 #[derive(Debug, Clone, From)]

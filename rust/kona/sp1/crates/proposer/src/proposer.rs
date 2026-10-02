@@ -281,7 +281,7 @@ impl ProposerIdentity {
     pub fn log_startup_info(&self, prestates_url: &Url) {
         tracing::info!(
             version = %self.version,
-            prestates_url = %crate::config::redacted_url(prestates_url),
+            prestates_url = %kona_sources::redacted_url(prestates_url),
             "proposer identity",
         );
     }
