@@ -234,11 +234,11 @@ pub struct OpNode {
 }
 
 /// The component builder used by the stock node configuration.
-pub type OpNodeComponentBuilder<Node, PayloadServiceB = OpPayloadServiceBuilder> =
+pub type OpNodeComponentBuilder<Node, PayloadServiceBuilder = OpPayloadServiceBuilder> =
     ComponentsBuilder<
         Node,
         OpPoolBuilder,
-        PayloadServiceB,
+        PayloadServiceBuilder,
         OpNetworkBuilder,
         OpExecutorBuilder,
         OpConsensusBuilder,
