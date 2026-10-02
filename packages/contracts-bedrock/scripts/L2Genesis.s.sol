@@ -232,11 +232,9 @@ contract L2Genesis is Script {
             vm.etch(addr, code);
             EIP1967Helper.setAdmin(addr, Predeploys.PROXY_ADMIN);
 
-            if (
-                Predeploys.isSupportedPredeploy(
+            if (Predeploys.isSupportedPredeploy(
                     addr, _input.fork, _input.useCustomGasToken, _input.useInterop, _input.devFeatureBitmap
-                )
-            ) {
+                )) {
                 address implementation = Predeploys.predeployToCodeNamespace(addr);
                 EIP1967Helper.setImplementation(addr, implementation);
             }
@@ -333,15 +331,15 @@ contract L2Genesis is Script {
         config_.crossDomainMessenger = L2ContractsManagerTypes.CrossDomainMessengerConfig({
             otherMessenger: ICrossDomainMessenger(_input.l1CrossDomainMessengerProxy)
         });
-        config_.standardBridge =
-            L2ContractsManagerTypes.StandardBridgeConfig({ otherBridge: IStandardBridge(_input.l1StandardBridgeProxy) });
+        config_.standardBridge = L2ContractsManagerTypes.StandardBridgeConfig({
+            otherBridge: IStandardBridge(_input.l1StandardBridgeProxy)
+        });
         config_.erc721Bridge =
             L2ContractsManagerTypes.ERC721BridgeConfig({ otherBridge: IERC721Bridge(_input.l1ERC721BridgeProxy) });
         config_.mintableERC20Factory =
             L2ContractsManagerTypes.MintableERC20FactoryConfig({ bridge: Predeploys.L2_STANDARD_BRIDGE });
         config_.mintableERC721Factory = L2ContractsManagerTypes.MintableERC721FactoryConfig({
-            bridge: Predeploys.L2_ERC721_BRIDGE,
-            remoteChainID: _input.l1ChainID
+            bridge: Predeploys.L2_ERC721_BRIDGE, remoteChainID: _input.l1ChainID
         });
         config_.sequencerFeeVault = L2ContractsManagerTypes.FeeVaultConfig({
             recipient: _input.sequencerFeeVaultRecipient,
@@ -639,9 +637,7 @@ contract L2Genesis is Script {
         address impl = _setImplementationCode(Predeploys.LIQUIDITY_CONTROLLER);
 
         ILiquidityController(impl).initialize({
-            _owner: _input.liquidityControllerOwner,
-            _gasPayingTokenName: "",
-            _gasPayingTokenSymbol: ""
+            _owner: _input.liquidityControllerOwner, _gasPayingTokenName: "", _gasPayingTokenSymbol: ""
         });
     }
 

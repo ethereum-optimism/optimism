@@ -52,15 +52,14 @@ case "$job" in
     ;;
   release-build)
     (cd rust && mold -run cargo build --locked --profile release \
-      --package op-reth --package op-reth-sdm-fixture --features default) \
+      --package op-reth --features default) \
       2>&1 | tee "$report_dir/build.log"
-    cp rust/target/release/{op-reth,op-reth-sdm-fixture} "$report_dir/"
-    python3 "$REPORT" binaries "$report_dir" "${CI_COMMIT_SHA:?}" op-reth op-reth-sdm-fixture
+    cp rust/target/release/op-reth "$report_dir/"
+    python3 "$REPORT" binaries "$report_dir" "${CI_COMMIT_SHA:?}" op-reth
     ;;
   release)
-    python3 "$REPORT" verify-binaries .ci/op-reth/release-build "${CI_COMMIT_SHA:?}" op-reth op-reth-sdm-fixture
+    python3 "$REPORT" verify-binaries .ci/op-reth/release-build "${CI_COMMIT_SHA:?}" op-reth
     .ci/op-reth/release-build/op-reth --version | tee "$report_dir/op-reth-version.txt"
-    .ci/op-reth/release-build/op-reth-sdm-fixture --version | tee "$report_dir/fixture-version.txt"
     ;;
   integration-build)
     (cd rust && mold -run cargo nextest archive --locked -p reth-optimism-node \

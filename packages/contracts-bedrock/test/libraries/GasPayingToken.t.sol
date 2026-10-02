@@ -147,7 +147,8 @@ contract GasPayingToken_Uncategorized_Test is GasPayingToken_TestInit {
         assertEq(_token, token);
         assertEq(_decimals, decimals);
 
-        assertEq(_name, GasPayingToken.getName());
-        assertEq(_symbol, GasPayingToken.getSymbol());
+        // Small strings end at the first null byte.
+        assertEq(LibString.slice(_name, 0, LibString.indexOf(_name, "\x00")), GasPayingToken.getName());
+        assertEq(LibString.slice(_symbol, 0, LibString.indexOf(_symbol, "\x00")), GasPayingToken.getSymbol());
     }
 }

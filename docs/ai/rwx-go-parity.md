@@ -37,8 +37,8 @@ package balancer while RWX consumes native Go JSON reports.
 
 Local packages produce Go modules, the verified superchain ZIP, Cannon binaries
 and embeds, hello ELF (Go 1.24.13), contracts with the Circle `ci` profile and
-script preparation, the embedded deployer artifact archive, four Kona release
-binaries, op-reth plus its SDM fixture, and all configured reproducible prestates.
+script preparation, the embedded deployer artifact archive, Kona host/client/node and op-zk-proposer release
+binaries, plus op-reth, and all configured reproducible prestates.
 The existing op-reth shadow calls the same release package.
 
 Native Go objects, Foundry state, Cargo targets and sccache use isolated tool

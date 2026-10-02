@@ -6,7 +6,15 @@ import { DisputeGameFactory_TestInit } from "test/dispute/DisputeGameFactory.t.s
 
 // Libraries
 import { DevFeatures } from "src/libraries/DevFeatures.sol";
-import { BondDistributionMode, Claim, Duration, GameStatus, GameType, Hash, Timestamp } from "src/dispute/lib/Types.sol";
+import {
+    BondDistributionMode,
+    Claim,
+    Duration,
+    GameStatus,
+    GameType,
+    Hash,
+    Timestamp
+} from "src/dispute/lib/Types.sol";
 import { Types } from "src/libraries/Types.sol";
 import { Encoding } from "src/libraries/Encoding.sol";
 import {
@@ -185,9 +193,9 @@ abstract contract ZKDisputeGame_TestInit is DisputeGameFactory_TestInit {
     {
         (bytes memory ed, Claim rc) = _makeZKExtraDataAndClaim(_parentIndex, _timestamp, _pairs);
         game_ = ZKDisputeGame(
-            payable(
-                address(disputeGameFactory.create{ value: disputeGameFactory.initBonds(gameType) }(gameType, rc, ed))
-            )
+            payable(address(
+                    disputeGameFactory.create{ value: disputeGameFactory.initBonds(gameType) }(gameType, rc, ed)
+                ))
         );
     }
 }
@@ -786,13 +794,11 @@ contract ZKDisputeGame_Prove_Test is ZKDisputeGame_TestInit {
         (bytes memory ed, Claim rc) =
             _makeZKExtraDataAndClaim(type(uint32).max, uint64(parentL2SequenceNumber), keccak256("reject-claim"));
         ZKDisputeGame rejectGame = ZKDisputeGame(
-            payable(
-                address(
+            payable(address(
                     disputeGameFactory.create{ value: disputeGameFactory.initBonds(rejectGameType) }(
                         rejectGameType, rc, ed
                     )
-                )
-            )
+                ))
         );
         vm.stopPrank();
 
@@ -1431,7 +1437,9 @@ contract ZKDisputeGame_RootClaim_Test is ZKDisputeGame_TestInit {
     ///         rootClaim pairs.
     function test_initialize_rootClaimMismatch_reverts() public {
         // Build valid extraData but pair it with the wrong rootClaim (any unrelated hash).
-        (bytes memory ed, /* Claim */ ) = _makeZKExtraDataAndClaim(
+        (
+            bytes memory ed, /* Claim */
+        ) = _makeZKExtraDataAndClaim(
             childGameIndex, uint64(childL2SequenceNumber + grandchildOffset1), keccak256("genuine")
         );
         Claim wrongRootClaim = Claim.wrap(keccak256("not-the-binding-hash"));

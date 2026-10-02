@@ -769,7 +769,7 @@ jobs:
   # reproducibly in Docker. Like kona-publish-prestate-artifacts, one job serves
   # both triggers and tells them apart by whether the pipeline branch is empty:
   #   tag pipeline     -> vkey-addressed objects, the layout
-  #                       KONA_SP1_PROPOSER_PRESTATES_URL resolves
+  #                       OP_ZK_PROPOSER_PRESTATES_URL resolves
   #   develop pipeline -> branch-named objects plus a .bin.gz.txt pointer,
   #                       refetched by the zkvm canary
   kona-sp1-publish-prestate-artifacts:

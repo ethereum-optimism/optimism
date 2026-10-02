@@ -39,9 +39,9 @@ case "$job" in
     sccache --zero-stats
     trap 'sccache --show-stats --stats-format json >.ci/go-tests/dependencies/kona/sccache.json; sccache --stop-server' EXIT
     (cd rust && mold -run cargo build --locked --profile release --features default \
-      --package kona-host --package kona-client --package kona-node --package kona-sp1-proposer)
+      --package kona-host --package kona-client --package kona-node --package op-zk-proposer)
     python3 ops/ci/go-artifacts.py pack kona rust/target/release/kona-host rust/target/release/kona-client \
-      rust/target/release/kona-node rust/target/release/kona-sp1-proposer
+      rust/target/release/kona-node rust/target/release/op-zk-proposer
     ;;
   sp1-executor)
     export CARGO_HOME="$PWD/.ci/rust-cache/cargo" CARGO_TARGET_DIR="$PWD/rust/target"
@@ -60,7 +60,7 @@ case "$job" in
   op-reth)
     bash /usr/local/lib/optimism-ci/op-reth-shadow.sh source
     bash /usr/local/lib/optimism-ci/op-reth-shadow.sh release-build
-    python3 ops/ci/go-artifacts.py pack op-reth rust/target/release/op-reth rust/target/release/op-reth-sdm-fixture
+    python3 ops/ci/go-artifacts.py pack op-reth rust/target/release/op-reth
     ;;
   prestate)
     just reproducible-prestate

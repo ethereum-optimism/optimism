@@ -61,7 +61,7 @@ elif command == "cargo":
         target = Path(os.environ["CARGO_TARGET_DIR"])
         profile = "release" if "release" in args else "debug"
         (target / profile).mkdir(parents=True, exist_ok=True)
-        for binary in ("op-reth", "op-reth-sdm-fixture"):
+        for binary in ("op-reth",):
             output = target / profile / binary
             output.write_text("#!/bin/sh\necho compiled-version\n")
             output.chmod(0o755)
@@ -130,10 +130,10 @@ class ShadowTest(unittest.TestCase):
         result = self.run_job("integration-build")
         self.assertEqual(result.returncode, 0, result.stdout)
 
-    def test_release_exports_both_verified_binaries(self):
+    def test_release_exports_verified_current_binary(self):
         result = self.run_job("release-build")
         self.assertEqual(result.returncode, 0, result.stdout)
-        self.assertEqual(set(self.report("release-build", "binaries")["files"]), {"op-reth", "op-reth-sdm-fixture"})
+        self.assertEqual(set(self.report("release-build", "binaries")["files"]), {"op-reth"})
         self.assertEqual(self.run_job("release").returncode, 0)
 
     def test_changed_binary_fails_verification(self):

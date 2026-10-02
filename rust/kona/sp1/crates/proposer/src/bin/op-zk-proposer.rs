@@ -13,7 +13,7 @@ use kona_sp1_host_utils::{
     metrics::{MetricsGauge, init_metrics},
     network::{build_network_prover_from_env, determine_network_mode},
 };
-use kona_sp1_proposer::{
+use op_zk_proposer::{
     ENV_VAR_PREFIX,
     config::{ProofProviderKind, ProposerConfig},
     contract::DisputeGameFactory,
@@ -28,9 +28,9 @@ use kona_sp1_proposer::{
 struct Cli {
     /// Predefined network name recognized by OP Stack services, such as `op-mainnet`.
     ///
-    /// Required unless `KONA_SP1_PROPOSER_FACTORY_ADDRESS` is set. An explicit
+    /// Required unless `OP_ZK_PROPOSER_FACTORY_ADDRESS` is set. An explicit
     /// factory address takes precedence.
-    #[arg(long, env = "KONA_SP1_PROPOSER_NETWORK")]
+    #[arg(long, env = "OP_ZK_PROPOSER_NETWORK")]
     network: Option<String>,
 }
 
@@ -131,8 +131,8 @@ async fn main() -> Result<()> {
     // initialization so a deriving supernode does not stall process readiness.
     ProposerGauge::Up.set(1.0);
     match metrics_addr {
-        Some(addr) => tracing::info!(metrics_addr = %addr, "kona-sp1-proposer started"),
-        None => tracing::info!("kona-sp1-proposer started"),
+        Some(addr) => tracing::info!(metrics_addr = %addr, "op-zk-proposer started"),
+        None => tracing::info!("op-zk-proposer started"),
     }
 
     proposer.run().await

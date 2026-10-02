@@ -14,7 +14,7 @@ matching the current Circle acceptance command. Shared Just execution preserves
 client-specific skips and all subtests. Assignment groups identical test names
 across packages, so a global run regexp cannot duplicate their execution.
 
-The Go/Cannon/superchain, ci-profile contracts, four Kona binaries, op-reth/SDM
+The Go/Cannon/superchain, ci-profile contracts, Kona host/client/node plus op-zk-proposer, op-reth
 and reproducible prestates reuse the full Go port's verified producer packages.
 A new isolated SP1 producer builds `kona-sp1-super-range-executor` with Circle's
 release profile and all features, staging the binary at the same dedicated path.
@@ -22,7 +22,7 @@ Cargo target and sccache caches are retained; source SHA, pins, settings and fil
 hashes bind every restored dependency. There are no publisher or notification
 side effects.
 
-Runtime exports all seven Rust binary paths and checks each executable before tests.
+Runtime exports all six Rust binary paths and checks each executable before tests.
 `KONA_SP1_ELF_DIR` stays unset, preserving Circle's stub artifacts and mock verifier.
 Real SP1 guest ELFs remain a separate Circle gate. Runtime Go builds use an
 isolated native compiler cache. Go, Forge, Cast, Anvil and Docker are available;
@@ -113,3 +113,10 @@ acceptance case. Exhaustive discovery includes that case automatically. Final
 combined-revision execution, original-report comparison and required checks are
 tracked in PR #23151; the immutable comparison above remains tied to its stated
 source revision. No performance matrix or speed claim is part of this stage.
+
+The final develop synchronization follows current Circle dependencies: the
+proposer package/binary is `op-zk-proposer`, and the removed standalone
+`op-reth-sdm-fixture` is no longer built, exported or restored. Producer settings,
+artifact validation, the op-reth shadow and runtime fixtures follow those changes.
+The immutable earlier comparison above predates that upstream rename/removal;
+final same-revision evidence is recorded in the PR.

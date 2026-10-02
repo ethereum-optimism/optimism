@@ -1,6 +1,11 @@
 package eth
 
-import "github.com/ethereum/go-ethereum/common/hexutil"
+import (
+	"errors"
+	"fmt"
+
+	"github.com/ethereum/go-ethereum/common/hexutil"
+)
 
 type BlobSidecar struct {
 	Blob          Blob         `json:"blob"`
@@ -59,7 +64,24 @@ type APIGenesisResponse struct {
 }
 
 type ReducedConfigData struct {
-	SecondsPerSlot Uint64String `json:"SECONDS_PER_SLOT"`
+	SecondsPerSlot Uint64String `json:"SECONDS_PER_SLOT,omitempty"`
+	SlotDurationMs Uint64String `json:"SLOT_DURATION_MS,omitempty"`
+}
+
+// SlotDurationSeconds returns the slot duration in seconds from SLOT_DURATION_MS, falling back to
+// SECONDS_PER_SLOT. A zero value counts as absent. SLOT_DURATION_MS must be a whole number of
+// seconds, because callers map L1 block timestamps, which have second granularity, to slots.
+func (d ReducedConfigData) SlotDurationSeconds() (uint64, error) {
+	if ms := uint64(d.SlotDurationMs); ms != 0 {
+		if ms%1000 != 0 {
+			return 0, fmt.Errorf("beacon spec SLOT_DURATION_MS %d is not a whole number of seconds", ms)
+		}
+		return ms / 1000, nil
+	}
+	if d.SecondsPerSlot != 0 {
+		return uint64(d.SecondsPerSlot), nil
+	}
+	return 0, errors.New("beacon spec has neither SLOT_DURATION_MS nor SECONDS_PER_SLOT")
 }
 
 type APIConfigResponse struct {

@@ -267,7 +267,7 @@ return them. A warm run alone does not establish cold-cache performance.
 
 | CircleCI job | RWX producer and fresh verdict |
 | --- | --- |
-| `rust-op-reth-binary` | Release `op-reth` and `op-reth-sdm-fixture`, default features; export and verify both binaries |
+| `rust-op-reth-binary` | Release `op-reth`, default features; export and verify the binary (the standalone SDM fixture was removed upstream) |
 | `op-reth-integration-tests` | Archive every `reth-optimism-node` test with nextest; run the archive using the committed default nextest configuration |
 | `op-reth-compact-codec` | Compile pinned `develop` and the PR with `dev` features in parallel; generate fresh baseline vectors and read them with the PR binary |
 | `op-reth-superchain-snapshot-check` | Compile chainspec with `superchain-configs` and sync flag `0`; switch to `1` to regenerate and compare both committed snapshots |

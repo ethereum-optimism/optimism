@@ -115,7 +115,7 @@ func WithDisputeGameFinalityDelaySeconds(seconds uint64) Option {
 }
 
 // WithZK installs a shared ZK dispute game after the interop migration and
-// starts the honest kona-sp1-proposer and op-challenger for it, sourcing super
+// starts the honest op-zk-proposer and op-challenger for it, sourcing super
 // roots from the supernode. The SP1 super-aggregation vkey is loaded from
 // KONA_SP1_ELF_DIR when the system starts. It also enables time travel and the
 // timing defaults used by devstack ZK tests.

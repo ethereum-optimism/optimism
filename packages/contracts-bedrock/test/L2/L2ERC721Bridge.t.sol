@@ -25,10 +25,7 @@ contract L2ERC721Bridge_TestERC721_Harness is ERC721 {
 /// @title TestMintableERC721
 /// @notice A test OptimismMintableERC721 token used for `L2ERC721Bridge` tests.
 contract L2ERC721Bridge_TestMintableERC721_Harness is OptimismMintableERC721 {
-    constructor(
-        address _bridge,
-        address _remoteToken
-    )
+    constructor(address _bridge, address _remoteToken)
         OptimismMintableERC721(_bridge, 1, _remoteToken, "Test", "TST")
     { }
 

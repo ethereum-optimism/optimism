@@ -12,8 +12,8 @@ import time
 
 ROOT = Path(__file__).resolve().parents[2]
 SETTINGS = {"go": {"hello_toolchain": "go1.24.13"}, "contracts": {"profile": "ci"},
-            "kona": {"profile": "release", "features": ["default"], "packages": ["kona-host", "kona-client", "kona-node", "kona-sp1-proposer"]},
-            "op-reth": {"profile": "release", "features": ["default"], "packages": ["op-reth", "op-reth-sdm-fixture"]},
+            "kona": {"profile": "release", "features": ["default"], "packages": ["kona-host", "kona-client", "kona-node", "op-zk-proposer"]},
+            "op-reth": {"profile": "release", "features": ["default"], "packages": ["op-reth"]},
             "prestate": {"recipe": "just reproducible-prestate"},
             "sp1-executor": {"profile": "release", "features": ["all"], "packages": ["kona-sp1-super-range-executor"]}}
 

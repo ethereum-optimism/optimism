@@ -462,28 +462,16 @@ contract DeployOPChain is Script {
 
         // Proxies initialized checks
         DeployUtils.assertInitialized({
-            _contractAddress: address(_o.l1ERC721BridgeProxy),
-            _isProxy: true,
-            _slot: 0,
-            _offset: 0
+            _contractAddress: address(_o.l1ERC721BridgeProxy), _isProxy: true, _slot: 0, _offset: 0
         });
         DeployUtils.assertInitialized({
-            _contractAddress: address(_o.l1StandardBridgeProxy),
-            _isProxy: true,
-            _slot: 0,
-            _offset: 0
+            _contractAddress: address(_o.l1StandardBridgeProxy), _isProxy: true, _slot: 0, _offset: 0
         });
         DeployUtils.assertInitialized({
-            _contractAddress: address(_o.optimismMintableERC20FactoryProxy),
-            _isProxy: true,
-            _slot: 0,
-            _offset: 0
+            _contractAddress: address(_o.optimismMintableERC20FactoryProxy), _isProxy: true, _slot: 0, _offset: 0
         });
         DeployUtils.assertInitialized({
-            _contractAddress: address(_o.ethLockboxProxy),
-            _isProxy: true,
-            _slot: 0,
-            _offset: 0
+            _contractAddress: address(_o.ethLockboxProxy), _isProxy: true, _slot: 0, _offset: 0
         });
 
         require(_o.addressManager.owner() == address(_o.opChainProxyAdmin), "AM-10");

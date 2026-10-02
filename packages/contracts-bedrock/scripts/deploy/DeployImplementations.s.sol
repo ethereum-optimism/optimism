@@ -159,28 +159,28 @@ contract DeployImplementations is Script {
         private
         returns (IOPContractsManagerV2 opcmV2_)
     {
-        IOPContractsManagerContainer.Implementations memory implementations = IOPContractsManagerContainer
-            .Implementations({
-            superchainConfigImpl: address(_output.superchainConfigImpl),
-            l1ERC721BridgeImpl: address(_output.l1ERC721BridgeImpl),
-            optimismPortalImpl: address(_output.optimismPortalImpl),
-            ethLockboxImpl: address(_output.ethLockboxImpl),
-            systemConfigImpl: address(_output.systemConfigImpl),
-            optimismMintableERC20FactoryImpl: address(_output.optimismMintableERC20FactoryImpl),
-            l1CrossDomainMessengerImpl: address(_output.l1CrossDomainMessengerImpl),
-            l1StandardBridgeImpl: address(_output.l1StandardBridgeImpl),
-            disputeGameFactoryImpl: address(_output.disputeGameFactoryImpl),
-            anchorStateRegistryImpl: address(_output.anchorStateRegistryImpl),
-            delayedWETHImpl: address(_output.delayedWETHImpl),
-            mipsImpl: address(_output.mipsSingleton),
-            faultDisputeGameImpl: address(_output.faultDisputeGameImpl),
-            permissionedDisputeGameImpl: address(_output.permissionedDisputeGameImpl),
-            superFaultDisputeGameImpl: address(_output.superFaultDisputeGameImpl),
-            superPermissionedDisputeGameImpl: address(_output.superPermissionedDisputeGameImpl),
-            zkDisputeGameImpl: address(_output.zkDisputeGameImpl),
-            storageSetterImpl: address(_output.storageSetterImpl),
-            sp1PlonkAdapterImpl: address(_output.sp1PlonkAdapterSingleton)
-        });
+        IOPContractsManagerContainer.Implementations memory implementations =
+            IOPContractsManagerContainer.Implementations({
+                superchainConfigImpl: address(_output.superchainConfigImpl),
+                l1ERC721BridgeImpl: address(_output.l1ERC721BridgeImpl),
+                optimismPortalImpl: address(_output.optimismPortalImpl),
+                ethLockboxImpl: address(_output.ethLockboxImpl),
+                systemConfigImpl: address(_output.systemConfigImpl),
+                optimismMintableERC20FactoryImpl: address(_output.optimismMintableERC20FactoryImpl),
+                l1CrossDomainMessengerImpl: address(_output.l1CrossDomainMessengerImpl),
+                l1StandardBridgeImpl: address(_output.l1StandardBridgeImpl),
+                disputeGameFactoryImpl: address(_output.disputeGameFactoryImpl),
+                anchorStateRegistryImpl: address(_output.anchorStateRegistryImpl),
+                delayedWETHImpl: address(_output.delayedWETHImpl),
+                mipsImpl: address(_output.mipsSingleton),
+                faultDisputeGameImpl: address(_output.faultDisputeGameImpl),
+                permissionedDisputeGameImpl: address(_output.permissionedDisputeGameImpl),
+                superFaultDisputeGameImpl: address(_output.superFaultDisputeGameImpl),
+                superPermissionedDisputeGameImpl: address(_output.superPermissionedDisputeGameImpl),
+                zkDisputeGameImpl: address(_output.zkDisputeGameImpl),
+                storageSetterImpl: address(_output.storageSetterImpl),
+                sp1PlonkAdapterImpl: address(_output.sp1PlonkAdapterSingleton)
+            });
 
         // Deploy OPCM V2 components
         deployOPCMContainer(_input, _output, _blueprints, implementations);
@@ -360,7 +360,9 @@ contract DeployImplementations is Script {
         IDelayedWETH impl = IDelayedWETH(
             DeployUtils.createDeterministic({
                 _name: "DelayedWETH",
-                _args: DeployUtils.encodeConstructor(abi.encodeCall(IDelayedWETH.__constructor__, (withdrawalDelaySeconds))),
+                _args: DeployUtils.encodeConstructor(
+                    abi.encodeCall(IDelayedWETH.__constructor__, (withdrawalDelaySeconds))
+                ),
                 _salt: _salt
             })
         );
@@ -398,7 +400,9 @@ contract DeployImplementations is Script {
         IMIPS64 singleton = IMIPS64(
             DeployUtils.createDeterministic({
                 _name: "MIPS64",
-                _args: DeployUtils.encodeConstructor(abi.encodeCall(IMIPS64.__constructor__, (preimageOracle, mipsVersion))),
+                _args: DeployUtils.encodeConstructor(
+                    abi.encodeCall(IMIPS64.__constructor__, (preimageOracle, mipsVersion))
+                ),
                 _salt: DeployUtils.DEFAULT_SALT
             })
         );
@@ -461,7 +465,9 @@ contract DeployImplementations is Script {
         IPermissionedDisputeGame impl = IPermissionedDisputeGame(
             DeployUtils.createDeterministic({
                 _name: "PermissionedDisputeGame",
-                _args: DeployUtils.encodeConstructor(abi.encodeCall(IPermissionedDisputeGame.__constructor__, (params))),
+                _args: DeployUtils.encodeConstructor(
+                    abi.encodeCall(IPermissionedDisputeGame.__constructor__, (params))
+                ),
                 _salt: _salt
             })
         );
@@ -516,7 +522,9 @@ contract DeployImplementations is Script {
         ISP1PlonkAdapter impl = ISP1PlonkAdapter(
             DeployUtils.createDeterministic({
                 _name: "SP1PlonkAdapter",
-                _args: DeployUtils.encodeConstructor(abi.encodeCall(ISP1PlonkAdapter.__constructor__, (_input.sp1Verifier))),
+                _args: DeployUtils.encodeConstructor(
+                    abi.encodeCall(ISP1PlonkAdapter.__constructor__, (_input.sp1Verifier))
+                ),
                 _salt: _salt
             })
         );
@@ -824,15 +832,14 @@ contract DeployImplementations is Script {
         ChainAssertions.checkDelayedWETHImpl(_output.delayedWETHImpl, _input.withdrawalDelaySeconds);
         GameType permGameType = DevFeatures.isDevFeatureEnabled(
             _input.devFeatureBitmap, DevFeatures.SUPER_ROOT_GAMES_MIGRATION
-        ) ? GameTypes.SUPER_PERMISSIONED : GameTypes.PERMISSIONED_CANNON;
+        )
+            ? GameTypes.SUPER_PERMISSIONED
+            : GameTypes.PERMISSIONED_CANNON;
         ChainAssertions.checkDisputeGameFactory(
             _output.disputeGameFactoryImpl, address(0), address(0), false, permGameType
         );
         DeployUtils.assertInitialized({
-            _contractAddress: address(_output.anchorStateRegistryImpl),
-            _isProxy: false,
-            _slot: 0,
-            _offset: 0
+            _contractAddress: address(_output.anchorStateRegistryImpl), _isProxy: false, _slot: 0, _offset: 0
         });
         ChainAssertions.checkL1CrossDomainMessenger(IL1CrossDomainMessenger(impls.L1CrossDomainMessenger), vm, false);
         ChainAssertions.checkL1ERC721BridgeImpl(_output.l1ERC721BridgeImpl);

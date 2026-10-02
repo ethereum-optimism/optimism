@@ -77,8 +77,8 @@ sys.exit(int(os.environ.get('VERDICT_STATUS','0')))
     def test_runtime_supplies_verified_rust_paths_and_pinned_geth(self):
         shutil.copyfile(ROOT / 'ops/ci/acceptance-tests.sh', self.root / 'ops/ci/acceptance-tests.sh')
         (self.root / 'ops/ci/acceptance-report.py').write_text('')
-        for binary in ['kona-host', 'kona-client', 'kona-node', 'kona-sp1-proposer',
-                       'op-reth', 'op-reth-sdm-fixture']:
+        for binary in ['kona-host', 'kona-client', 'kona-node', 'op-zk-proposer',
+                       'op-reth']:
             path = self.root / 'rust/target/release' / binary
             path.parent.mkdir(parents=True, exist_ok=True)
             path.write_text('#!/bin/sh\nexit 0\n'); path.chmod(0o755)
@@ -95,7 +95,7 @@ sys.exit(int(os.environ.get('VERDICT_STATUS','0')))
                                 text=True, capture_output=True)
         self.assertEqual(result.returncode, 0, result.stderr)
         paths = json.loads((self.root / 'args.json').read_text())
-        self.assertEqual(len(paths), 7)
+        self.assertEqual(len(paths), 6)
         self.assertTrue(all(Path(value).is_file() for value in paths.values()))
         tools = json.loads((self.root / 'tmp/testlogs/dependencies/runtime-tools.json').read_text())
         self.assertEqual(len(tools['geth_sha256']), 64)

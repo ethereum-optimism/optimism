@@ -34,22 +34,13 @@ abstract contract SuperGameTestInit is CommonTest {
 
         // Legacy types (all disabled).
         disputeGameConfigs[0] = IOPContractsManagerUtils.DisputeGameConfig({
-            enabled: false,
-            initBond: 0,
-            gameType: GameTypes.CANNON,
-            gameArgs: hex""
+            enabled: false, initBond: 0, gameType: GameTypes.CANNON, gameArgs: hex""
         });
         disputeGameConfigs[1] = IOPContractsManagerUtils.DisputeGameConfig({
-            enabled: false,
-            initBond: 0,
-            gameType: GameTypes.PERMISSIONED_CANNON,
-            gameArgs: hex""
+            enabled: false, initBond: 0, gameType: GameTypes.PERMISSIONED_CANNON, gameArgs: hex""
         });
         disputeGameConfigs[2] = IOPContractsManagerUtils.DisputeGameConfig({
-            enabled: false,
-            initBond: 0,
-            gameType: GameTypes.CANNON_KONA,
-            gameArgs: hex""
+            enabled: false, initBond: 0, gameType: GameTypes.CANNON_KONA, gameArgs: hex""
         });
 
         // Super types (enabled).
@@ -63,35 +54,32 @@ abstract contract SuperGameTestInit is CommonTest {
             enabled: true,
             initBond: 0.08 ether,
             gameType: GameTypes.SUPER_CANNON_KONA,
-            gameArgs: abi.encode(IOPContractsManagerUtils.FaultDisputeGameConfig({ absolutePrestate: cannonKonaPrestate }))
+            gameArgs: abi.encode(
+                IOPContractsManagerUtils.FaultDisputeGameConfig({ absolutePrestate: cannonKonaPrestate })
+            )
         });
         disputeGameConfigs[5] = IOPContractsManagerUtils.DisputeGameConfig({
-            enabled: false,
-            initBond: 0,
-            gameType: GameTypes.ZK_DISPUTE_GAME,
-            gameArgs: hex""
+            enabled: false, initBond: 0, gameType: GameTypes.ZK_DISPUTE_GAME, gameArgs: hex""
         });
 
         IOPContractsManagerUtils.ExtraInstruction[] memory extraInstructions =
             new IOPContractsManagerUtils.ExtraInstruction[](1);
         extraInstructions[0] = IOPContractsManagerUtils.ExtraInstruction({
-            key: "overrides.cfg.startingRespectedGameType",
-            data: abi.encode(GameTypes.SUPER_PERMISSIONED)
+            key: "overrides.cfg.startingRespectedGameType", data: abi.encode(GameTypes.SUPER_PERMISSIONED)
         });
 
         prankDelegateCall(owner);
-        (bool success,) = address(opcmV2).delegatecall(
-            abi.encodeCall(
-                IOPContractsManagerV2.upgrade,
-                (
-                    IOPContractsManagerV2.UpgradeInput({
-                        systemConfig: systemConfig,
-                        disputeGameConfigs: disputeGameConfigs,
-                        extraInstructions: extraInstructions
-                    })
+        (bool success,) = address(opcmV2)
+            .delegatecall(
+                abi.encodeCall(
+                    IOPContractsManagerV2.upgrade,
+                    (IOPContractsManagerV2.UpgradeInput({
+                            systemConfig: systemConfig,
+                            disputeGameConfigs: disputeGameConfigs,
+                            extraInstructions: extraInstructions
+                        }))
                 )
-            )
-        );
+            );
         assertTrue(success, "super mode upgrade failed");
     }
 }
