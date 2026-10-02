@@ -33,7 +33,7 @@ For the best experience with correct tool versions, we recommend installing [mis
 curl https://mise.jdx.dev/install.sh | bash
 
 # Install all required tools with correct versions
-cd docs/create-l2-rollup-example
+cd docs/public-docs/create-l2-rollup-example
 mise install
 ```
 
@@ -49,7 +49,7 @@ mise install
 
 1. **Navigate to this code directory**:
    ```bash
-   cd docs/create-l2-rollup-example
+   cd docs/public-docs/create-l2-rollup-example
    ```
 
 2. **Configure environment variables**:
