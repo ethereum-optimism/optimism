@@ -130,6 +130,19 @@ pub enum PostExecPayloadValidationError {
 }
 
 impl PostExecPayloadValidationError {
+    /// Every label value [`Self::as_reason`] can return, one per variant, derived from
+    /// [`Self::as_reason`] itself so the strings cannot drift. Nothing checks this array is
+    /// complete — a new variant compiles without touching it; the reminder to extend it lives
+    /// on [`Self::as_reason`], the match a new variant cannot skip.
+    pub const ALL_REASONS: [&'static str; 5] = [
+        Self::UnexpectedPostExecTx { tx_index: 0 }.as_reason(),
+        Self::MultiplePostExecTxs { first_index: 0, duplicate_index: 0 }.as_reason(),
+        Self::PostExecTxNotLast { tx_index: 0, last_index: 0 }.as_reason(),
+        Self::BlockNumberMismatch { payload_block_number: 0, block_number: 0 }.as_reason(),
+        Self::TooManyGasRefundEntries { entry_count: 0, preceding_transaction_count: 0 }
+            .as_reason(),
+    ];
+
     /// Returns this error as an owned string.
     #[must_use]
     pub fn into_string(self) -> String {
@@ -137,6 +150,9 @@ impl PostExecPayloadValidationError {
     }
 
     /// The failed rule as a stable label value, independent of the display text.
+    ///
+    /// Adding an arm here? Add the variant to [`Self::ALL_REASONS`] too — nothing else
+    /// enforces that the new reason gets registered at zero.
     #[must_use]
     pub const fn as_reason(self) -> &'static str {
         match self {

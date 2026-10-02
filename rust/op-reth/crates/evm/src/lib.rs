@@ -122,6 +122,7 @@ impl<ChainSpec, N: NodePrimitives, R, EvmFactory> OpEvmConfig<ChainSpec, N, R, E
         receipt_builder: R,
         evm_factory: EvmFactory,
     ) -> Self {
+        sdm_metrics::register_sdm_metrics_at_zero();
         Self {
             block_assembler: OpBlockAssembler::new(chain_spec.clone()),
             executor_factory: OpBlockExecutorFactory::new(receipt_builder, chain_spec, evm_factory),
@@ -167,7 +168,9 @@ where
         .inspect_err(|error| sdm_metrics::report_post_exec_validation_failure(block_number, *error))
         .map_err(|_| EIP1559ParamError::InvalidPostExecPayload)
         .map(|parsed| {
-            parsed.map_or_else(PostExecMode::default, |parsed| PostExecMode::Verify(parsed.payload))
+            parsed
+                .inspect(|_| sdm_metrics::report_post_exec_validation_ok())
+                .map_or_else(PostExecMode::default, |parsed| PostExecMode::Verify(parsed.payload))
         })
 }
 
