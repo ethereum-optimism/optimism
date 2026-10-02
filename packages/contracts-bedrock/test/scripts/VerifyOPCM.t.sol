@@ -91,6 +91,10 @@ contract VerifyOPCM_Harness is VerifyOPCM {
         return _defaultSP1Verifier();
     }
 
+    function isValidConstructorArgs(string memory _contractName, bytes memory _constructorArgs) public returns (bool) {
+        return _isValidConstructorArgs(_contractName, _constructorArgs);
+    }
+
     function verifyPortalDelays(IOptimismPortal2 _portal) public view returns (bool) {
         return _verifyPortalDelays(_portal);
     }
@@ -722,6 +726,28 @@ contract VerifyOPCM_Run_Test is VerifyOPCM_TestInit {
         expectedUnaccounted[0] = "blueprints";
         vm.expectRevert(abi.encodeWithSelector(VerifyOPCM.VerifyOPCM_UnaccountedGetters.selector, expectedUnaccounted));
         harness.validateAllGettersAccounted();
+    }
+}
+
+/// @title VerifyOPCM_isValidConstructorArgs_Test
+/// @notice Tests for the constructor argument round-trip check.
+contract VerifyOPCM_isValidConstructorArgs_Test is VerifyOPCM_TestInit {
+    /// @notice Tests that well-formed arguments for an address-only constructor are accepted.
+    function test_isValidConstructorArgs_addresses_succeeds() public {
+        bytes memory args = abi.encode(address(0x1111), address(0x2222), address(0x3333));
+        assertTrue(harness.isValidConstructorArgs("OPContractsManagerV2", args));
+    }
+
+    /// @notice Tests that well-formed arguments for a tuple constructor are accepted.
+    function test_isValidConstructorArgs_tuple_succeeds() public {
+        bytes memory args = abi.encode(uint256(10), uint256(20), uint64(30), uint64(40));
+        assertTrue(harness.isValidConstructorArgs("FaultDisputeGame", args));
+    }
+
+    /// @notice Tests that arguments with trailing bytes are rejected.
+    function test_isValidConstructorArgs_trailingBytes_fails() public {
+        bytes memory args = bytes.concat(abi.encode(uint256(10), uint256(20), uint64(30), uint64(40)), hex"00");
+        assertFalse(harness.isValidConstructorArgs("FaultDisputeGame", args));
     }
 }
 

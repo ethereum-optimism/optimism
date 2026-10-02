@@ -124,7 +124,9 @@ library LibGameArgs {
         pure
         returns (SuperPermissionedGameArgs memory args_)
     {
-        if (_args.length != SUPER_PERMISSIONED_ARGS_LENGTH) revert InvalidGameArgsLength();
+        if (_args.length != SUPER_PERMISSIONED_ARGS_LENGTH) {
+            revert InvalidGameArgsLength();
+        }
         address asr;
         address proposer;
         assembly {
