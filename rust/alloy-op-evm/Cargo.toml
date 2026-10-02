@@ -30,15 +30,19 @@ thiserror = { workspace = true }
 
 auto_impl = { workspace = true }
 metrics = { workspace = true, optional = true }
+tracing = { workspace = true, optional = true }
+reth-optimism-parallel = { workspace = true, optional = true }
 
 [dev-dependencies]
 alloy-hardforks = { workspace = true }
+alloy-trie = { workspace = true, features = ["ethereum"] }
 metrics-util = { workspace = true, features = ["debugging"] }
 revm-inspectors.workspace = true
 test-case.workspace = true
 
 [features]
 default = ["std"]
+parallel = ["std", "dep:reth-optimism-parallel", "dep:tracing"]
 std = [
 	"alloy-primitives/std",
 	"revm/std",
@@ -48,6 +52,7 @@ std = [
 	"alloy-eips/std",
 	"op-alloy/std",
 	"thiserror/std",
+	"tracing?/std",
 ]
 gmp = ["alloy-evm/gmp"]
 metrics = ["std", "dep:metrics"]

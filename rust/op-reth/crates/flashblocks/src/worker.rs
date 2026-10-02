@@ -229,7 +229,38 @@ where
                 args.pending_parent.as_ref().map(|p| p.cached_reads.clone()).unwrap_or_default()
             });
 
-        let cached_db = request_cache.as_db_mut(StateProviderDatabase::new(&state_provider));
+        let mut initial_cache = None;
+        let mut evm_config = self.evm_config.clone();
+        if evm_config.wants_execution_state_source() {
+            match self.provider.pinned_state_by_block_hash(canonical_anchor) {
+                Ok(Some(source)) => {
+                    let cache = Arc::new(core::mem::take(&mut request_cache));
+                    initial_cache = Some(cache.clone());
+                    evm_config = evm_config.with_execution_state_source(
+                        reth_evm::state_source::ExecutionStateSource(Arc::new(move || {
+                            Ok(Box::new(reth_revm::cached::SharedCachedReads {
+                                cache: cache.clone(),
+                                database: StateProviderDatabase::new(source()?),
+                            })
+                                as Box<
+                                    dyn reth_revm::Database<
+                                            Error = reth_storage_api::errors::ProviderError,
+                                        >,
+                                >)
+                        })),
+                    );
+                }
+                Err(error) => {
+                    trace!(target: "flashblocks", %error, "Independent state source unavailable");
+                    metrics::counter!("optimism_parallel.source_fallbacks", "reason" => "factory_initialization").increment(1);
+                }
+                Ok(None) => {}
+            }
+        }
+        let cached_db = request_cache.as_db_mut(reth_revm::cached::SharedCachedReads {
+            cache: initial_cache.clone().unwrap_or_default(),
+            database: StateProviderDatabase::new(&state_provider),
+        });
 
         // Check for resumable canonical execution state.
         let canonical_parent_hash = args.base.parent_hash;
@@ -306,14 +337,13 @@ where
             //   withdrawals passed), so finish() only seals execution state.
             let attrs = args.base.clone().into();
             let evm_env =
-                self.evm_config.next_evm_env(parent_header, &attrs).map_err(RethError::other)?;
-            let execution_ctx = self
-                .evm_config
+                evm_config.next_evm_env(parent_header, &attrs).map_err(RethError::other)?;
+            let execution_ctx = evm_config
                 .context_for_next_block(parent_header, attrs)
                 .map_err(RethError::other)?;
 
-            let evm = self.evm_config.evm_with_env(&mut state, evm_env);
-            let mut executor = self.evm_config.create_executor(evm, execution_ctx.clone());
+            let evm = evm_config.evm_with_env(&mut state, evm_env);
+            let mut executor = evm_config.create_executor(evm, execution_ctx.clone());
 
             for tx in transactions.iter().skip(cached_prefix.cached_tx_count).cloned() {
                 let _gas_used = executor.execute_transaction(tx)?;
@@ -347,8 +377,7 @@ where
 
             let (block_transactions, senders): (Vec<_>, Vec<_>) =
                 transactions.iter().map(|tx| tx.1.clone().into_parts()).unzip();
-            let block = self
-                .evm_config
+            let block = evm_config
                 .block_assembler()
                 .assemble_block(BlockAssemblerInput::new(
                     evm_env,
@@ -366,8 +395,7 @@ where
 
             (execution_result, block, hashed_state, bundle)
         } else {
-            let mut builder = self
-                .evm_config
+            let mut builder = evm_config
                 .builder_for_next_block(&mut state, parent_header, args.base.clone().into())
                 .map_err(RethError::other)?;
 
@@ -388,6 +416,25 @@ where
 
             (execution_result, block, hashed_state, bundle)
         };
+
+        // Workers have drained. Release the source and canonical reader before returning the
+        // original physical cache with newly discovered slots merged into it.
+        drop(state);
+        drop(evm_config);
+        if let Some(initial_cache) = initial_cache {
+            let mut initial =
+                Arc::try_unwrap(initial_cache).unwrap_or_else(|cache| (*cache).clone());
+            for (address, account) in request_cache.accounts {
+                if let Some(entry) = initial.accounts.get_mut(&address) {
+                    entry.storage.extend(account.storage);
+                } else {
+                    initial.accounts.insert(address, account);
+                }
+            }
+            initial.contracts.extend(request_cache.contracts);
+            initial.block_hashes.extend(request_cache.block_hashes);
+            request_cache = initial;
+        }
 
         // Update transaction cache if provided (only in canonical mode)
         if let Some(cache) = tx_cache &&

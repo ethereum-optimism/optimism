@@ -1,0 +1,17 @@
+[package]
+name = "reth-optimism-parallel"
+version = "1.11.3"
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+description = "Bounded optimistic execution and dependency tracking for OP"
+
+[lints]
+workspace = true
+
+[dependencies]
+revm = { workspace = true, features = ["std"] }
+rayon.workspace = true
+thiserror.workspace = true
+metrics.workspace = true
+imbl.workspace = true

@@ -5,6 +5,7 @@ use crate::{
     constants::{BASE_FEE_RECIPIENT, L1_FEE_RECIPIENT, OPERATOR_FEE_RECIPIENT},
     transaction::{OpTransactionError, OpTxTr, deposit::DEPOSIT_TRANSACTION_TYPE},
 };
+use core::cell::RefCell;
 use op_alloy_consensus::OpTxType;
 use revm::{
     context::{
@@ -29,9 +30,22 @@ use revm::{
     interpreter::{
         GasTracker, InitialAndFloorGas, interpreter::EthInterpreter, interpreter_action::FrameInit,
     },
-    primitives::U256,
+    primitives::{Address, U256, hardfork::SpecId},
 };
 use std::{boxed::Box, vec::Vec};
+
+/// A protocol fee credit postponed until an execution coordinator commits the transaction.
+///
+/// Apply these in order using the journal's checked-add semantics (overflow leaves the balance
+/// unchanged), touching the account even for a zero credit. They are never emitted for accounts
+/// already loaded by the transaction: those accesses must remain ordinary state dependencies.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct DeferredFeeCredit {
+    /// Recipient of the protocol fee.
+    pub recipient: Address,
+    /// Amount to add to the recipient's balance.
+    pub amount: U256,
+}
 
 /// Optimism handler extends the [`Handler`] with Optimism specific logic.
 #[derive(Debug, Clone)]
@@ -39,12 +53,29 @@ pub struct OpHandler<EVM, ERROR, FRAME> {
     /// Mainnet handler allows us to use functions from the mainnet handler inside optimism
     /// handler. So we dont duplicate the logic
     pub mainnet: MainnetHandler<EVM, ERROR, FRAME>,
+    deferred_fee_credits: Option<RefCell<Vec<DeferredFeeCredit>>>,
 }
 
 impl<EVM, ERROR, FRAME> OpHandler<EVM, ERROR, FRAME> {
     /// Create a new Optimism handler.
     pub fn new() -> Self {
-        Self { mainnet: MainnetHandler::default() }
+        Self { mainnet: MainnetHandler::default(), deferred_fee_credits: None }
+    }
+
+    /// Creates a handler that defers protocol credits to accounts not accessed by the EVM.
+    pub fn with_deferred_fees() -> Self {
+        Self {
+            mainnet: MainnetHandler::default(),
+            deferred_fee_credits: Some(RefCell::new(Vec::new())),
+        }
+    }
+
+    /// Takes the protocol credits after successful execution.
+    pub fn take_deferred_fees(&mut self) -> Vec<DeferredFeeCredit> {
+        self.deferred_fee_credits
+            .as_mut()
+            .map(|credits| core::mem::take(credits.get_mut()))
+            .unwrap_or_default()
     }
 }
 
@@ -363,7 +394,32 @@ where
             return Ok(());
         }
 
-        self.mainnet.reward_beneficiary(evm, frame_result)?;
+        if let Some(credits) = &self.deferred_fee_credits {
+            let (block, tx, cfg, journal, _, _) = evm.ctx().all_mut();
+            // UPSTREAM-MIRROR(copy): revm-handler@42.0.1
+            // `revm_handler::Handler::reward_beneficiary` Keep the beneficiary
+            // calculation and optional-fee gate aligned with the sequential call below.
+            // Only the recipient load/credit is deferred.
+            if !cfg.is_fee_charge_disabled() {
+                let basefee = u128::from(block.basefee());
+                let effective_price = tx.effective_gas_price(basefee);
+                let price = if SpecId::from(cfg.spec()).is_enabled_in(SpecId::LONDON) {
+                    effective_price.saturating_sub(basefee)
+                } else {
+                    effective_price
+                };
+                let used = frame_result.gas().used().saturating_sub(frame_result.gas().reservoir());
+                let recipient = block.beneficiary();
+                let amount = U256::from(price * u128::from(used));
+                if journal.evm_state().contains_key(&recipient) {
+                    journal.load_account_mut(recipient)?.incr_balance(amount);
+                } else {
+                    credits.borrow_mut().push(DeferredFeeCredit { recipient, amount });
+                }
+            }
+        } else {
+            self.mainnet.reward_beneficiary(evm, frame_result)?;
+        }
         let basefee = evm.ctx().block().basefee() as u128;
 
         // If the transaction is not a deposit transaction, fees are paid out
@@ -394,7 +450,13 @@ where
             (BASE_FEE_RECIPIENT, base_fee_amount),
             (OPERATOR_FEE_RECIPIENT, operator_fee_cost),
         ] {
-            journal.balance_incr(recipient, amount)?;
+            if let Some(credits) = &self.deferred_fee_credits &&
+                !journal.evm_state().contains_key(&recipient)
+            {
+                credits.borrow_mut().push(DeferredFeeCredit { recipient, amount });
+            } else {
+                journal.balance_incr(recipient, amount)?;
+            }
         }
 
         Ok(())

@@ -28,6 +28,36 @@ use revm_inspectors::tracing::{TracingInspector, TracingInspectorConfig};
 
 use super::*;
 
+#[test]
+fn stock_precompile_provenance_tracks_mutable_access_and_hardfork() {
+    use crate::post_exec::PostExecEvm;
+    let mut evm = OpEvmFactory::<OpTx>::default().create_evm(
+        InMemoryDB::default(),
+        EvmEnv::new(CfgEnv::new_with_spec(OpSpecId::JOVIAN), BlockEnv::default()),
+    );
+    let warm: Vec<_> = evm.precompiles().addresses().copied().collect();
+    let calls = [Address::with_last_byte(8)];
+    assert!(evm.parallel_precompiles_compatible(&warm, &calls));
+    let _ = evm.db_mut();
+    let _ = evm.inspector_mut();
+    assert!(evm.parallel_precompiles_compatible(&warm, &calls));
+
+    // Jovian and Karst have the same warm addresses but different implementations/gas rules.
+    evm.ctx_mut().cfg.spec = OpSpecId::KARST;
+    assert!(!evm.parallel_precompiles_compatible(&warm, &calls));
+    evm.ctx_mut().cfg.spec = OpSpecId::JOVIAN;
+    assert!(evm.parallel_precompiles_compatible(&warm, &calls));
+
+    let _ = evm.components_mut();
+    assert!(!evm.parallel_precompiles_compatible(&warm, &calls));
+    let mut evm = OpEvmFactory::<OpTx>::default().create_evm(
+        InMemoryDB::default(),
+        EvmEnv::new(CfgEnv::new_with_spec(OpSpecId::JOVIAN), BlockEnv::default()),
+    );
+    let _ = evm.precompiles_mut();
+    assert!(!evm.parallel_precompiles_compatible(&warm, &calls));
+}
+
 /// Runtime of a contract that reads (warms) storage slot 0: `PUSH1 0x00; SLOAD; POP; STOP`.
 #[derive(Debug, Default)]
 struct TestRefundPolicy {

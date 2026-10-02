@@ -2,7 +2,11 @@
 
 mod inspector;
 mod null;
+mod parallel;
 mod refund;
+pub use parallel::{
+    ObservedRefundPolicy, ParallelObservation, ParallelRefundPolicy, TransactionObserver,
+};
 
 pub use null::NullRefundPolicy;
 pub use refund::PostExecRefundInspector;
@@ -54,6 +58,72 @@ pub trait PostExecEvm: alloy_evm::Evm {
     /// Opaque block-scoped refund state.
     type Snapshot: Clone;
 
+    /// Whether this EVM's producer policy can observe transactions independently.
+    fn supports_parallel_observation(&self) -> bool {
+        false
+    }
+
+    /// Captures the policy state staged for the next commit without publishing it.
+    fn prepared_refund_snapshot(&self) -> Self::Snapshot {
+        self.refund_snapshot()
+    }
+
+    /// Compares the currently prepared policy state with a shadow attempt's prepared state.
+    fn matches_prepared_refund_snapshot(&self, _snapshot: &Self::Snapshot) -> bool {
+        false
+    }
+
+    /// Enables isolated speculation with deferred protocol fees. Returns false when unsupported.
+    fn set_parallel_execution(&mut self, _enabled: bool) -> bool {
+        false
+    }
+
+    /// Takes the last transaction's ordered protocol fee operations.
+    fn take_deferred_fees(&mut self) -> Vec<op_revm::handler::DeferredFeeCredit> {
+        Vec::new()
+    }
+
+    /// Takes the last speculative transaction's policy observations.
+    fn take_parallel_observation(&mut self) -> Option<ParallelObservation> {
+        None
+    }
+
+    /// Evaluates validated observations against canonical policy state.
+    fn evaluate_parallel_observation(
+        &mut self,
+        _context: PostExecTxContext,
+        _observation: &ParallelObservation,
+    ) -> Option<PostExecExecutedTx> {
+        None
+    }
+
+    /// Snapshot the EVM's block-scoped L1 fee context for isolated execution.
+    fn execution_l1_block_info(&self) -> Option<op_revm::L1BlockInfo> {
+        None
+    }
+
+    /// Carry forward the context produced by a dependency-validated execution attempt.
+    fn seed_execution_l1_block_info(&mut self, _info: op_revm::L1BlockInfo) {}
+
+    /// Current execution environment. Workers must use it rather than a cached factory default.
+    fn parallel_environment(&self) -> Option<alloy_evm::EvmEnv<op_revm::OpSpecId>> {
+        None
+    }
+
+    /// Checks that worker warmth and called precompile implementations match the canonical EVM.
+    /// Stock maps are known at construction; customized maps require canonical execution for
+    /// precompile calls because implementations may be thread-affine or have different behavior.
+    fn parallel_precompiles_compatible(
+        &self,
+        _warm: &[alloy_primitives::Address],
+        _calls: &[alloy_primitives::Address],
+    ) -> bool {
+        false
+    }
+
+    /// Publishes a prepared policy update after canonical transaction acceptance.
+    fn commit_post_exec_tx(&mut self) {}
+
     /// Begin post-exec tracking for the next transaction.
     fn begin_post_exec_tx(&mut self, ctx: PostExecTxContext);
 
@@ -74,6 +144,14 @@ pub trait PostExecEvm: alloy_evm::Evm {
 pub trait PostExecEvmFactoryHooks: EvmFactory {
     /// Opaque block-scoped refund state produced by this factory.
     type Snapshot: Clone;
+
+    /// Publishes a prepared policy update, when the factory supports staged decisions.
+    fn commit_post_exec_tx<DB, I>(_evm: &mut Self::Evm<DB, I>)
+    where
+        DB: Database,
+        I: Inspector<Self::Context<DB>>,
+    {
+    }
 
     /// Begin post-exec tracking for the next transaction.
     fn begin_post_exec_tx<DB, I>(evm: &mut Self::Evm<DB, I>, ctx: PostExecTxContext)
@@ -201,6 +279,10 @@ where
 {
     type Snapshot = F::Snapshot;
 
+    fn commit_post_exec_tx(&mut self) {
+        F::commit_post_exec_tx(&mut self.inner);
+    }
+
     fn begin_post_exec_tx(&mut self, ctx: PostExecTxContext) {
         F::begin_post_exec_tx(&mut self.inner, ctx);
     }
@@ -284,6 +366,23 @@ pub trait PostExecExecutorExt {
     /// Opaque block-scoped refund state.
     type Snapshot: Clone;
 
+    /// Supplies non-authoritative candidate previews without advancing a transaction selector.
+    fn set_parallel_candidates(&mut self, _candidates: Vec<crate::block::ParallelCandidate>) {}
+
+    /// Retires a skipped candidate and, when requested, all invalid sender descendants.
+    fn reject_parallel_candidate(
+        &mut self,
+        _hash: alloy_primitives::B256,
+        _descendants: Option<(alloy_primitives::Address, u64)>,
+    ) {
+    }
+
+    /// Drains a subblock or selection phase while retaining the execution configuration.
+    fn drain_parallel_work(&mut self) {}
+
+    /// Invalidates all speculative output when a build is cancelled or its parent changes.
+    fn invalidate_parallel_work(&mut self) {}
+
     /// Returns the accumulated post-exec entries for the current block without clearing them.
     fn post_exec_entries(&self) -> &[SDMGasEntry];
 
@@ -307,6 +406,39 @@ where
     Spec: alloy_op_hardforks::OpHardforks + Clone,
 {
     type Snapshot = E::Snapshot;
+
+    fn drain_parallel_work(&mut self) {
+        #[cfg(feature = "parallel")]
+        if let Some(parallel) = &mut self.parallel {
+            parallel.clear();
+        }
+    }
+
+    fn invalidate_parallel_work(&mut self) {
+        #[cfg(feature = "parallel")]
+        {
+            self.parallel = None;
+        }
+    }
+
+    fn reject_parallel_candidate(
+        &mut self,
+        _hash: alloy_primitives::B256,
+        _descendants: Option<(alloy_primitives::Address, u64)>,
+    ) {
+        #[cfg(feature = "parallel")]
+        if let Some(parallel) = &mut self.parallel {
+            parallel.rejected(_hash, _descendants);
+        }
+    }
+
+    fn set_parallel_candidates(&mut self, candidates: Vec<crate::block::ParallelCandidate>) {
+        #[cfg(feature = "parallel")]
+        if let Some(parallel) = self.parallel.as_mut() {
+            parallel.candidates_changed(&candidates);
+        }
+        self.ctx.parallel_candidates = candidates;
+    }
 
     fn post_exec_entries(&self) -> &[SDMGasEntry] {
         Self::post_exec_entries(self)

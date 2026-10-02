@@ -39,6 +39,7 @@ members = [
   "op-reth/crates/cli/",
   "op-reth/crates/consensus/",
   "op-reth/crates/evm/",
+  "op-reth/crates/parallel/",
   "op-reth/crates/flashblocks/",
   "op-reth/crates/hardforks/",
   "op-reth/crates/node/",
@@ -328,6 +329,7 @@ reth-optimism-flashblocks = { path = "op-reth/crates/flashblocks/" }
 reth-optimism-forks = { path = "op-reth/crates/hardforks/", default-features = false }
 reth-optimism-node = { path = "op-reth/crates/node/" }
 reth-optimism-payload-builder = { path = "op-reth/crates/payload/" }
+reth-optimism-parallel = { path = "op-reth/crates/parallel/" }
 reth-optimism-post-exec-replay = { path = "op-reth/crates/post-exec-replay/" }
 reth-optimism-primitives = { path = "op-reth/crates/primitives/", default-features = false }
 reth-op = { path = "op-reth/crates/reth/", default-features = false }
@@ -359,77 +361,77 @@ reth-rpc-traits = { version = "0.6.0", default-features = false }
 reth-zstd-compressors = { version = "0.6.0", default-features = false }
 
 # ==================== RETH CRATES (git) ====================
-reth = { git = "https://github.com/ethereum-optimism/reth", rev = "0fbe428518594611bdd3fdd822eb5968823c8e66" }
-reth-basic-payload-builder = { git = "https://github.com/ethereum-optimism/reth", rev = "0fbe428518594611bdd3fdd822eb5968823c8e66" }
-reth-chain-state = { git = "https://github.com/ethereum-optimism/reth", rev = "0fbe428518594611bdd3fdd822eb5968823c8e66" }
-reth-chainspec = { git = "https://github.com/ethereum-optimism/reth", rev = "0fbe428518594611bdd3fdd822eb5968823c8e66", default-features = false }
-reth-cli = { git = "https://github.com/ethereum-optimism/reth", rev = "0fbe428518594611bdd3fdd822eb5968823c8e66" }
-reth-cli-commands = { git = "https://github.com/ethereum-optimism/reth", rev = "0fbe428518594611bdd3fdd822eb5968823c8e66" }
-reth-cli-runner = { git = "https://github.com/ethereum-optimism/reth", rev = "0fbe428518594611bdd3fdd822eb5968823c8e66" }
-reth-cli-util = { git = "https://github.com/ethereum-optimism/reth", rev = "0fbe428518594611bdd3fdd822eb5968823c8e66" }
-reth-consensus = { git = "https://github.com/ethereum-optimism/reth", rev = "0fbe428518594611bdd3fdd822eb5968823c8e66", default-features = false }
-reth-consensus-common = { git = "https://github.com/ethereum-optimism/reth", rev = "0fbe428518594611bdd3fdd822eb5968823c8e66", default-features = false }
-reth-db = { git = "https://github.com/ethereum-optimism/reth", rev = "0fbe428518594611bdd3fdd822eb5968823c8e66", default-features = false }
-reth-db-api = { git = "https://github.com/ethereum-optimism/reth", rev = "0fbe428518594611bdd3fdd822eb5968823c8e66" }
-reth-db-common = { git = "https://github.com/ethereum-optimism/reth", rev = "0fbe428518594611bdd3fdd822eb5968823c8e66" }
-reth-downloaders = { git = "https://github.com/ethereum-optimism/reth", rev = "0fbe428518594611bdd3fdd822eb5968823c8e66" }
-reth-e2e-test-utils = { git = "https://github.com/ethereum-optimism/reth", rev = "0fbe428518594611bdd3fdd822eb5968823c8e66" }
-reth-engine-local = { git = "https://github.com/ethereum-optimism/reth", rev = "0fbe428518594611bdd3fdd822eb5968823c8e66" }
-reth-engine-primitives = { git = "https://github.com/ethereum-optimism/reth", rev = "0fbe428518594611bdd3fdd822eb5968823c8e66", default-features = false }
-reth-errors = { git = "https://github.com/ethereum-optimism/reth", rev = "0fbe428518594611bdd3fdd822eb5968823c8e66" }
-reth-eth-wire = { git = "https://github.com/ethereum-optimism/reth", rev = "0fbe428518594611bdd3fdd822eb5968823c8e66" }
-reth-eth-wire-types = { git = "https://github.com/ethereum-optimism/reth", rev = "0fbe428518594611bdd3fdd822eb5968823c8e66" }
-reth-ethereum = { git = "https://github.com/ethereum-optimism/reth", rev = "0fbe428518594611bdd3fdd822eb5968823c8e66" }
-reth-ethereum-cli = { git = "https://github.com/ethereum-optimism/reth", rev = "0fbe428518594611bdd3fdd822eb5968823c8e66" }
-reth-ethereum-consensus = { git = "https://github.com/ethereum-optimism/reth", rev = "0fbe428518594611bdd3fdd822eb5968823c8e66" }
-reth-ethereum-forks = { git = "https://github.com/ethereum-optimism/reth", rev = "0fbe428518594611bdd3fdd822eb5968823c8e66", default-features = false }
-reth-ethereum-primitives = { git = "https://github.com/ethereum-optimism/reth", rev = "0fbe428518594611bdd3fdd822eb5968823c8e66" }
-reth-evm = { git = "https://github.com/ethereum-optimism/reth", rev = "0fbe428518594611bdd3fdd822eb5968823c8e66", default-features = false }
-reth-evm-ethereum = { git = "https://github.com/ethereum-optimism/reth", rev = "0fbe428518594611bdd3fdd822eb5968823c8e66" }
-reth-exex = { git = "https://github.com/ethereum-optimism/reth", rev = "0fbe428518594611bdd3fdd822eb5968823c8e66" }
-reth-exex-test-utils = { git = "https://github.com/ethereum-optimism/reth", rev = "0fbe428518594611bdd3fdd822eb5968823c8e66" }
-reth-execution-errors = { git = "https://github.com/ethereum-optimism/reth", rev = "0fbe428518594611bdd3fdd822eb5968823c8e66", default-features = false }
-reth-execution-types = { git = "https://github.com/ethereum-optimism/reth", rev = "0fbe428518594611bdd3fdd822eb5968823c8e66", default-features = false }
-reth-fs-util = { git = "https://github.com/ethereum-optimism/reth", rev = "0fbe428518594611bdd3fdd822eb5968823c8e66" }
-reth-metrics = { git = "https://github.com/ethereum-optimism/reth", rev = "0fbe428518594611bdd3fdd822eb5968823c8e66" }
-reth-network = { git = "https://github.com/ethereum-optimism/reth", rev = "0fbe428518594611bdd3fdd822eb5968823c8e66" }
-reth-network-api = { git = "https://github.com/ethereum-optimism/reth", rev = "0fbe428518594611bdd3fdd822eb5968823c8e66" }
-reth-network-peers = { git = "https://github.com/ethereum-optimism/reth", rev = "0fbe428518594611bdd3fdd822eb5968823c8e66", default-features = false }
-reth-node-api = { git = "https://github.com/ethereum-optimism/reth", rev = "0fbe428518594611bdd3fdd822eb5968823c8e66" }
-reth-node-builder = { git = "https://github.com/ethereum-optimism/reth", rev = "0fbe428518594611bdd3fdd822eb5968823c8e66" }
-reth-node-core = { git = "https://github.com/ethereum-optimism/reth", rev = "0fbe428518594611bdd3fdd822eb5968823c8e66" }
-reth-node-ethereum = { git = "https://github.com/ethereum-optimism/reth", rev = "0fbe428518594611bdd3fdd822eb5968823c8e66" }
-reth-node-events = { git = "https://github.com/ethereum-optimism/reth", rev = "0fbe428518594611bdd3fdd822eb5968823c8e66" }
-reth-node-metrics = { git = "https://github.com/ethereum-optimism/reth", rev = "0fbe428518594611bdd3fdd822eb5968823c8e66" }
-reth-payload-builder = { git = "https://github.com/ethereum-optimism/reth", rev = "0fbe428518594611bdd3fdd822eb5968823c8e66" }
-reth-payload-builder-primitives = { git = "https://github.com/ethereum-optimism/reth", rev = "0fbe428518594611bdd3fdd822eb5968823c8e66" }
-reth-payload-primitives = { git = "https://github.com/ethereum-optimism/reth", rev = "0fbe428518594611bdd3fdd822eb5968823c8e66" }
-reth-payload-util = { git = "https://github.com/ethereum-optimism/reth", rev = "0fbe428518594611bdd3fdd822eb5968823c8e66" }
-reth-payload-validator = { git = "https://github.com/ethereum-optimism/reth", rev = "0fbe428518594611bdd3fdd822eb5968823c8e66" }
-reth-provider = { git = "https://github.com/ethereum-optimism/reth", rev = "0fbe428518594611bdd3fdd822eb5968823c8e66" }
-reth-prune = { git = "https://github.com/ethereum-optimism/reth", rev = "0fbe428518594611bdd3fdd822eb5968823c8e66" }
-reth-prune-types = { git = "https://github.com/ethereum-optimism/reth", rev = "0fbe428518594611bdd3fdd822eb5968823c8e66", default-features = false }
-reth-revm = { git = "https://github.com/ethereum-optimism/reth", rev = "0fbe428518594611bdd3fdd822eb5968823c8e66", default-features = false }
-reth-rpc = { git = "https://github.com/ethereum-optimism/reth", rev = "0fbe428518594611bdd3fdd822eb5968823c8e66" }
-reth-rpc-api = { git = "https://github.com/ethereum-optimism/reth", rev = "0fbe428518594611bdd3fdd822eb5968823c8e66" }
-reth-rpc-builder = { git = "https://github.com/ethereum-optimism/reth", rev = "0fbe428518594611bdd3fdd822eb5968823c8e66" }
-reth-rpc-engine-api = { git = "https://github.com/ethereum-optimism/reth", rev = "0fbe428518594611bdd3fdd822eb5968823c8e66" }
-reth-rpc-eth-api = { git = "https://github.com/ethereum-optimism/reth", rev = "0fbe428518594611bdd3fdd822eb5968823c8e66" }
-reth-rpc-eth-types = { git = "https://github.com/ethereum-optimism/reth", rev = "0fbe428518594611bdd3fdd822eb5968823c8e66", default-features = false }
-reth-rpc-server-types = { git = "https://github.com/ethereum-optimism/reth", rev = "0fbe428518594611bdd3fdd822eb5968823c8e66" }
-reth-stages = { git = "https://github.com/ethereum-optimism/reth", rev = "0fbe428518594611bdd3fdd822eb5968823c8e66" }
-reth-stages-types = { git = "https://github.com/ethereum-optimism/reth", rev = "0fbe428518594611bdd3fdd822eb5968823c8e66", default-features = false }
-reth-static-file = { git = "https://github.com/ethereum-optimism/reth", rev = "0fbe428518594611bdd3fdd822eb5968823c8e66" }
-reth-static-file-types = { git = "https://github.com/ethereum-optimism/reth", rev = "0fbe428518594611bdd3fdd822eb5968823c8e66", default-features = false }
-reth-storage-api = { git = "https://github.com/ethereum-optimism/reth", rev = "0fbe428518594611bdd3fdd822eb5968823c8e66", default-features = false }
-reth-storage-errors = { git = "https://github.com/ethereum-optimism/reth", rev = "0fbe428518594611bdd3fdd822eb5968823c8e66", default-features = false }
-reth-storage-overlay = { git = "https://github.com/ethereum-optimism/reth", rev = "0fbe428518594611bdd3fdd822eb5968823c8e66" }
-reth-tasks = { git = "https://github.com/ethereum-optimism/reth", rev = "0fbe428518594611bdd3fdd822eb5968823c8e66" }
-reth-tracing = { git = "https://github.com/ethereum-optimism/reth", rev = "0fbe428518594611bdd3fdd822eb5968823c8e66", default-features = false }
-reth-transaction-pool = { git = "https://github.com/ethereum-optimism/reth", rev = "0fbe428518594611bdd3fdd822eb5968823c8e66" }
-reth-trie = { git = "https://github.com/ethereum-optimism/reth", rev = "0fbe428518594611bdd3fdd822eb5968823c8e66" }
-reth-trie-common = { git = "https://github.com/ethereum-optimism/reth", rev = "0fbe428518594611bdd3fdd822eb5968823c8e66", default-features = false }
-reth-trie-db = { git = "https://github.com/ethereum-optimism/reth", rev = "0fbe428518594611bdd3fdd822eb5968823c8e66" }
+reth = { git = "https://github.com/ethereum-optimism/reth", rev = "a643e0989ffc0c225dc5925031e5870bcfbb6e0d" }
+reth-basic-payload-builder = { git = "https://github.com/ethereum-optimism/reth", rev = "a643e0989ffc0c225dc5925031e5870bcfbb6e0d" }
+reth-chain-state = { git = "https://github.com/ethereum-optimism/reth", rev = "a643e0989ffc0c225dc5925031e5870bcfbb6e0d" }
+reth-chainspec = { git = "https://github.com/ethereum-optimism/reth", rev = "a643e0989ffc0c225dc5925031e5870bcfbb6e0d", default-features = false }
+reth-cli = { git = "https://github.com/ethereum-optimism/reth", rev = "a643e0989ffc0c225dc5925031e5870bcfbb6e0d" }
+reth-cli-commands = { git = "https://github.com/ethereum-optimism/reth", rev = "a643e0989ffc0c225dc5925031e5870bcfbb6e0d" }
+reth-cli-runner = { git = "https://github.com/ethereum-optimism/reth", rev = "a643e0989ffc0c225dc5925031e5870bcfbb6e0d" }
+reth-cli-util = { git = "https://github.com/ethereum-optimism/reth", rev = "a643e0989ffc0c225dc5925031e5870bcfbb6e0d" }
+reth-consensus = { git = "https://github.com/ethereum-optimism/reth", rev = "a643e0989ffc0c225dc5925031e5870bcfbb6e0d", default-features = false }
+reth-consensus-common = { git = "https://github.com/ethereum-optimism/reth", rev = "a643e0989ffc0c225dc5925031e5870bcfbb6e0d", default-features = false }
+reth-db = { git = "https://github.com/ethereum-optimism/reth", rev = "a643e0989ffc0c225dc5925031e5870bcfbb6e0d", default-features = false }
+reth-db-api = { git = "https://github.com/ethereum-optimism/reth", rev = "a643e0989ffc0c225dc5925031e5870bcfbb6e0d" }
+reth-db-common = { git = "https://github.com/ethereum-optimism/reth", rev = "a643e0989ffc0c225dc5925031e5870bcfbb6e0d" }
+reth-downloaders = { git = "https://github.com/ethereum-optimism/reth", rev = "a643e0989ffc0c225dc5925031e5870bcfbb6e0d" }
+reth-e2e-test-utils = { git = "https://github.com/ethereum-optimism/reth", rev = "a643e0989ffc0c225dc5925031e5870bcfbb6e0d" }
+reth-engine-local = { git = "https://github.com/ethereum-optimism/reth", rev = "a643e0989ffc0c225dc5925031e5870bcfbb6e0d" }
+reth-engine-primitives = { git = "https://github.com/ethereum-optimism/reth", rev = "a643e0989ffc0c225dc5925031e5870bcfbb6e0d", default-features = false }
+reth-errors = { git = "https://github.com/ethereum-optimism/reth", rev = "a643e0989ffc0c225dc5925031e5870bcfbb6e0d" }
+reth-eth-wire = { git = "https://github.com/ethereum-optimism/reth", rev = "a643e0989ffc0c225dc5925031e5870bcfbb6e0d" }
+reth-eth-wire-types = { git = "https://github.com/ethereum-optimism/reth", rev = "a643e0989ffc0c225dc5925031e5870bcfbb6e0d" }
+reth-ethereum = { git = "https://github.com/ethereum-optimism/reth", rev = "a643e0989ffc0c225dc5925031e5870bcfbb6e0d" }
+reth-ethereum-cli = { git = "https://github.com/ethereum-optimism/reth", rev = "a643e0989ffc0c225dc5925031e5870bcfbb6e0d" }
+reth-ethereum-consensus = { git = "https://github.com/ethereum-optimism/reth", rev = "a643e0989ffc0c225dc5925031e5870bcfbb6e0d" }
+reth-ethereum-forks = { git = "https://github.com/ethereum-optimism/reth", rev = "a643e0989ffc0c225dc5925031e5870bcfbb6e0d", default-features = false }
+reth-ethereum-primitives = { git = "https://github.com/ethereum-optimism/reth", rev = "a643e0989ffc0c225dc5925031e5870bcfbb6e0d" }
+reth-evm = { git = "https://github.com/ethereum-optimism/reth", rev = "a643e0989ffc0c225dc5925031e5870bcfbb6e0d", default-features = false }
+reth-evm-ethereum = { git = "https://github.com/ethereum-optimism/reth", rev = "a643e0989ffc0c225dc5925031e5870bcfbb6e0d" }
+reth-exex = { git = "https://github.com/ethereum-optimism/reth", rev = "a643e0989ffc0c225dc5925031e5870bcfbb6e0d" }
+reth-exex-test-utils = { git = "https://github.com/ethereum-optimism/reth", rev = "a643e0989ffc0c225dc5925031e5870bcfbb6e0d" }
+reth-execution-errors = { git = "https://github.com/ethereum-optimism/reth", rev = "a643e0989ffc0c225dc5925031e5870bcfbb6e0d", default-features = false }
+reth-execution-types = { git = "https://github.com/ethereum-optimism/reth", rev = "a643e0989ffc0c225dc5925031e5870bcfbb6e0d", default-features = false }
+reth-fs-util = { git = "https://github.com/ethereum-optimism/reth", rev = "a643e0989ffc0c225dc5925031e5870bcfbb6e0d" }
+reth-metrics = { git = "https://github.com/ethereum-optimism/reth", rev = "a643e0989ffc0c225dc5925031e5870bcfbb6e0d" }
+reth-network = { git = "https://github.com/ethereum-optimism/reth", rev = "a643e0989ffc0c225dc5925031e5870bcfbb6e0d" }
+reth-network-api = { git = "https://github.com/ethereum-optimism/reth", rev = "a643e0989ffc0c225dc5925031e5870bcfbb6e0d" }
+reth-network-peers = { git = "https://github.com/ethereum-optimism/reth", rev = "a643e0989ffc0c225dc5925031e5870bcfbb6e0d", default-features = false }
+reth-node-api = { git = "https://github.com/ethereum-optimism/reth", rev = "a643e0989ffc0c225dc5925031e5870bcfbb6e0d" }
+reth-node-builder = { git = "https://github.com/ethereum-optimism/reth", rev = "a643e0989ffc0c225dc5925031e5870bcfbb6e0d" }
+reth-node-core = { git = "https://github.com/ethereum-optimism/reth", rev = "a643e0989ffc0c225dc5925031e5870bcfbb6e0d" }
+reth-node-ethereum = { git = "https://github.com/ethereum-optimism/reth", rev = "a643e0989ffc0c225dc5925031e5870bcfbb6e0d" }
+reth-node-events = { git = "https://github.com/ethereum-optimism/reth", rev = "a643e0989ffc0c225dc5925031e5870bcfbb6e0d" }
+reth-node-metrics = { git = "https://github.com/ethereum-optimism/reth", rev = "a643e0989ffc0c225dc5925031e5870bcfbb6e0d" }
+reth-payload-builder = { git = "https://github.com/ethereum-optimism/reth", rev = "a643e0989ffc0c225dc5925031e5870bcfbb6e0d" }
+reth-payload-builder-primitives = { git = "https://github.com/ethereum-optimism/reth", rev = "a643e0989ffc0c225dc5925031e5870bcfbb6e0d" }
+reth-payload-primitives = { git = "https://github.com/ethereum-optimism/reth", rev = "a643e0989ffc0c225dc5925031e5870bcfbb6e0d" }
+reth-payload-util = { git = "https://github.com/ethereum-optimism/reth", rev = "a643e0989ffc0c225dc5925031e5870bcfbb6e0d" }
+reth-payload-validator = { git = "https://github.com/ethereum-optimism/reth", rev = "a643e0989ffc0c225dc5925031e5870bcfbb6e0d" }
+reth-provider = { git = "https://github.com/ethereum-optimism/reth", rev = "a643e0989ffc0c225dc5925031e5870bcfbb6e0d" }
+reth-prune = { git = "https://github.com/ethereum-optimism/reth", rev = "a643e0989ffc0c225dc5925031e5870bcfbb6e0d" }
+reth-prune-types = { git = "https://github.com/ethereum-optimism/reth", rev = "a643e0989ffc0c225dc5925031e5870bcfbb6e0d", default-features = false }
+reth-revm = { git = "https://github.com/ethereum-optimism/reth", rev = "a643e0989ffc0c225dc5925031e5870bcfbb6e0d", default-features = false }
+reth-rpc = { git = "https://github.com/ethereum-optimism/reth", rev = "a643e0989ffc0c225dc5925031e5870bcfbb6e0d" }
+reth-rpc-api = { git = "https://github.com/ethereum-optimism/reth", rev = "a643e0989ffc0c225dc5925031e5870bcfbb6e0d" }
+reth-rpc-builder = { git = "https://github.com/ethereum-optimism/reth", rev = "a643e0989ffc0c225dc5925031e5870bcfbb6e0d" }
+reth-rpc-engine-api = { git = "https://github.com/ethereum-optimism/reth", rev = "a643e0989ffc0c225dc5925031e5870bcfbb6e0d" }
+reth-rpc-eth-api = { git = "https://github.com/ethereum-optimism/reth", rev = "a643e0989ffc0c225dc5925031e5870bcfbb6e0d" }
+reth-rpc-eth-types = { git = "https://github.com/ethereum-optimism/reth", rev = "a643e0989ffc0c225dc5925031e5870bcfbb6e0d", default-features = false }
+reth-rpc-server-types = { git = "https://github.com/ethereum-optimism/reth", rev = "a643e0989ffc0c225dc5925031e5870bcfbb6e0d" }
+reth-stages = { git = "https://github.com/ethereum-optimism/reth", rev = "a643e0989ffc0c225dc5925031e5870bcfbb6e0d" }
+reth-stages-types = { git = "https://github.com/ethereum-optimism/reth", rev = "a643e0989ffc0c225dc5925031e5870bcfbb6e0d", default-features = false }
+reth-static-file = { git = "https://github.com/ethereum-optimism/reth", rev = "a643e0989ffc0c225dc5925031e5870bcfbb6e0d" }
+reth-static-file-types = { git = "https://github.com/ethereum-optimism/reth", rev = "a643e0989ffc0c225dc5925031e5870bcfbb6e0d", default-features = false }
+reth-storage-api = { git = "https://github.com/ethereum-optimism/reth", rev = "a643e0989ffc0c225dc5925031e5870bcfbb6e0d", default-features = false }
+reth-storage-errors = { git = "https://github.com/ethereum-optimism/reth", rev = "a643e0989ffc0c225dc5925031e5870bcfbb6e0d", default-features = false }
+reth-storage-overlay = { git = "https://github.com/ethereum-optimism/reth", rev = "a643e0989ffc0c225dc5925031e5870bcfbb6e0d" }
+reth-tasks = { git = "https://github.com/ethereum-optimism/reth", rev = "a643e0989ffc0c225dc5925031e5870bcfbb6e0d" }
+reth-tracing = { git = "https://github.com/ethereum-optimism/reth", rev = "a643e0989ffc0c225dc5925031e5870bcfbb6e0d", default-features = false }
+reth-transaction-pool = { git = "https://github.com/ethereum-optimism/reth", rev = "a643e0989ffc0c225dc5925031e5870bcfbb6e0d" }
+reth-trie = { git = "https://github.com/ethereum-optimism/reth", rev = "a643e0989ffc0c225dc5925031e5870bcfbb6e0d" }
+reth-trie-common = { git = "https://github.com/ethereum-optimism/reth", rev = "a643e0989ffc0c225dc5925031e5870bcfbb6e0d", default-features = false }
+reth-trie-db = { git = "https://github.com/ethereum-optimism/reth", rev = "a643e0989ffc0c225dc5925031e5870bcfbb6e0d" }
 
 # ==================== REVM (latest: op-reth versions) ====================
 revm = { version = "42.0.1", default-features = false }
@@ -674,6 +676,7 @@ http-body = "1.0"
 http-body-util = "0.1.3"
 humantime = "2.3"
 humantime-serde = "1.1"
+imbl = "7.0.2"
 itertools = { version = "0.14", default-features = false }
 jsonwebtoken = "10"
 lazy_static = { version = "1.5.0", default-features = false }

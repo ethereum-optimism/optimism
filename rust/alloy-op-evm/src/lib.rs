@@ -8,6 +8,7 @@
 #![cfg_attr(not(feature = "std"), no_std)]
 
 extern crate alloc;
+use alloc::vec::Vec;
 
 pub mod env;
 #[cfg(feature = "engine")]
@@ -82,10 +83,19 @@ pub struct OpEvm<DB: Database, I, P = OpPrecompiles, Tx = OpTx, R = post_exec::N
     inspect: bool,
     post_exec_tracking_active: bool,
     last_tx_post_exec_result: post_exec::PostExecExecutedTx,
+    parallel_execution: bool,
+    deferred_fees: Vec<op_revm::handler::DeferredFeeCredit>,
+    // Provenance of the untouched stock map installed by from_env. Mutable access to the
+    // precompiles invalidates this proof, including access through components_mut.
+    stock_precompiles: Option<OpSpecId>,
     _tx: PhantomData<Tx>,
 }
 
 impl<DB: Database, I, P, Tx, R> OpEvm<DB, I, P, Tx, R> {
+    /// Whether this EVM has an external execution inspector (e.g. RPC tracing).
+    pub const fn is_inspecting(&self) -> bool {
+        self.inspect
+    }
     /// Consumes self and return the inner EVM instance.
     pub fn into_inner(
         self,
@@ -152,6 +162,9 @@ impl<DB: Database, I, P, Tx, R: Default> OpEvm<DB, I, P, Tx, R> {
             inspect,
             post_exec_tracking_active: false,
             last_tx_post_exec_result: Default::default(),
+            parallel_execution: false,
+            deferred_fees: Vec::new(),
+            stock_precompiles: None,
             _tx: PhantomData,
         }
     }
@@ -181,7 +194,9 @@ impl<DB: Database, I, Tx, R: Default> OpEvm<DB, I, PrecompilesMap, Tx, R> {
                 OpPrecompiles::new_with_spec(spec_id).precompiles(),
             ));
 
-        Self::new(inner, inspect)
+        let mut evm = Self::new(inner, inspect);
+        evm.stock_precompiles = Some(spec_id);
+        evm
     }
 }
 
@@ -218,9 +233,69 @@ where
 impl<DB: Database, I, P, Tx, R> post_exec::PostExecEvm for OpEvm<DB, I, P, Tx, R>
 where
     Self: Evm,
+    P: PrecompileProvider<OpEvmContext<DB>>,
     R: post_exec::PostExecRefundInspector,
 {
     type Snapshot = R::Snapshot;
+
+    fn commit_post_exec_tx(&mut self) {
+        self.inner.0.inspector.commit_post_exec_tx();
+    }
+
+    fn supports_parallel_observation(&self) -> bool {
+        self.inner.0.inspector.supports_parallel_observation()
+    }
+
+    fn prepared_refund_snapshot(&self) -> Self::Snapshot {
+        self.inner.0.inspector.prepared_refund_snapshot()
+    }
+
+    fn matches_prepared_refund_snapshot(&self, snapshot: &Self::Snapshot) -> bool {
+        self.inner.0.inspector.matches_prepared_refund_snapshot(snapshot)
+    }
+
+    fn set_parallel_execution(&mut self, enabled: bool) -> bool {
+        self.parallel_execution = enabled;
+        self.inner.0.inspector.set_parallel_observation(enabled);
+        true
+    }
+
+    fn take_deferred_fees(&mut self) -> Vec<op_revm::handler::DeferredFeeCredit> {
+        core::mem::take(&mut self.deferred_fees)
+    }
+
+    fn execution_l1_block_info(&self) -> Option<L1BlockInfo> {
+        Some(self.inner.0.ctx.chain.clone())
+    }
+
+    fn seed_execution_l1_block_info(&mut self, info: L1BlockInfo) {
+        self.inner.0.ctx.chain = info;
+    }
+
+    fn parallel_environment(&self) -> Option<EvmEnv<OpSpecId>> {
+        (!self.inspect)
+            .then(|| EvmEnv::new(self.inner.0.ctx.cfg.clone(), self.inner.0.ctx.block.clone()))
+    }
+
+    fn parallel_precompiles_compatible(&self, warm: &[Address], calls: &[Address]) -> bool {
+        let precompiles = &self.inner.0.precompiles;
+        warm.len() == precompiles.warm_addresses().len() &&
+            warm.iter().all(|address| precompiles.warm_addresses().contains(address)) &&
+            (self.stock_precompiles == Some(self.inner.0.ctx.cfg.spec) ||
+                calls.iter().all(|address| !precompiles.contains(address)))
+    }
+
+    fn take_parallel_observation(&mut self) -> Option<post_exec::ParallelObservation> {
+        self.inner.0.inspector.take_parallel_observation()
+    }
+
+    fn evaluate_parallel_observation(
+        &mut self,
+        context: post_exec::PostExecTxContext,
+        observation: &post_exec::ParallelObservation,
+    ) -> Option<post_exec::PostExecExecutedTx> {
+        self.inner.0.inspector.evaluate_parallel_observation(context, observation)
+    }
 
     fn begin_post_exec_tx(&mut self, ctx: post_exec::PostExecTxContext) {
         Self::begin_post_exec_tx(self, ctx);
@@ -245,6 +320,14 @@ where
     R: Default + post_exec::PostExecRefundInspector,
 {
     type Snapshot = R::Snapshot;
+
+    fn commit_post_exec_tx<DB, I>(evm: &mut Self::Evm<DB, I>)
+    where
+        DB: Database,
+        I: Inspector<Self::Context<DB>>,
+    {
+        evm.inner.0.inspector.commit_post_exec_tx();
+    }
 
     fn begin_post_exec_tx<DB, I>(evm: &mut Self::Evm<DB, I>, ctx: post_exec::PostExecTxContext)
     where
@@ -336,6 +419,7 @@ where
         tx: Self::Tx,
     ) -> Result<ResultAndState<Self::HaltReason>, Self::Error> {
         self.last_tx_post_exec_result = post_exec::PostExecExecutedTx::default();
+        self.deferred_fees.clear();
 
         let tx = OpTx(tx.into());
 
@@ -347,7 +431,14 @@ where
         }
 
         let track_post_exec = self.post_exec_tracking_active;
-        let result = if self.inspect || track_post_exec {
+        let result = if self.parallel_execution {
+            self.inner.transact_with_deferred_fees(tx, self.inspect || track_post_exec).map(
+                |(result, fees)| {
+                    self.deferred_fees = fees;
+                    result
+                },
+            )
+        } else if self.inspect || track_post_exec {
             self.inner.inspect_tx(tx)
         } else {
             self.inner.transact(tx)
@@ -399,11 +490,25 @@ where
     }
 
     fn components_mut(&mut self) -> (&mut Self::DB, &mut Self::Inspector, &mut Self::Precompiles) {
+        self.stock_precompiles = None;
         (
             &mut self.inner.0.ctx.journaled_state.database,
             self.inner.0.inspector.inner_mut(),
             &mut self.inner.0.precompiles,
         )
+    }
+
+    fn db_mut(&mut self) -> &mut Self::DB {
+        &mut self.inner.0.ctx.journaled_state.database
+    }
+
+    fn inspector_mut(&mut self) -> &mut Self::Inspector {
+        self.inner.0.inspector.inner_mut()
+    }
+
+    fn precompiles_mut(&mut self) -> &mut Self::Precompiles {
+        self.stock_precompiles = None;
+        &mut self.inner.0.precompiles
     }
 }
 

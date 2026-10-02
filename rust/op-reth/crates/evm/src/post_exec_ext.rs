@@ -1,8 +1,8 @@
 use alloc::{sync::Arc, vec::Vec};
-use alloy_consensus::Header;
+use alloy_consensus::{Header, transaction::TxHashRef};
 use alloy_evm::{FromRecoveredTx, FromTxWithEncoded, block::BlockExecutor};
 use alloy_op_evm::{
-    OpBlockExecutor, PreRefundGasUsed,
+    PreRefundGasUsed,
     block::{OpTxEnv, receipt_builder::OpReceiptBuilder},
     post_exec::{PostExecEvmFactoryAdapter, PostExecEvmFactoryHooks, PostExecExecutorExt},
 };
@@ -25,6 +25,21 @@ use crate::{OpBlockExecutorFactory, OpEvmConfig, OpEvmFactory, OpTx, PostExecMod
 /// Optimism-specific EVM helpers that expose post-exec-aware executors and builders.
 #[allow(clippy::type_complexity)]
 pub trait ConfigurePostExecEvm: ConfigureEvm {
+    /// Bounded preview capacity; zero disables speculative lookahead.
+    fn parallel_candidate_limit(&self) -> usize {
+        0
+    }
+
+    /// Converts a non-authoritative candidate into a worker environment when supported.
+    fn parallel_candidate(
+        &self,
+        _tx: &alloy_consensus::transaction::Recovered<
+            reth_primitives_traits::TxTy<Self::Primitives>,
+        >,
+    ) -> Option<crate::ParallelCandidate> {
+        None
+    }
+
     /// Opaque block-scoped carry-forward state of the refund inspector the produced executors run.
     /// Matches [`PostExecExecutorExt::Snapshot`] of those executors.
     type Snapshot: Clone;
@@ -72,7 +87,8 @@ pub trait ConfigurePostExecEvm: ConfigureEvm {
     >;
 }
 
-impl<ChainSpec, N, R> ConfigurePostExecEvm for OpEvmConfig<ChainSpec, N, R>
+impl<ChainSpec, N, R, Policy> ConfigurePostExecEvm
+    for OpEvmConfig<ChainSpec, N, R, OpEvmFactory<OpTx, Policy>>
 where
     ChainSpec: EthChainSpec<Header = Header> + OpHardforks + Send + Sync + Unpin + 'static,
     N: NodePrimitives<
@@ -91,9 +107,24 @@ where
         + Sync
         + Unpin
         + 'static,
+    Policy: alloy_op_evm::post_exec::PostExecRefundInspector + Default + Debug + 'static,
     Self: Send + Sync + Unpin + Clone + 'static,
 {
-    type Snapshot = ();
+    type Snapshot = Policy::Snapshot;
+
+    fn parallel_candidate_limit(&self) -> usize {
+        self.parallel_candidate_limit()
+    }
+
+    fn parallel_candidate(
+        &self,
+        tx: &alloy_consensus::transaction::Recovered<N::SignedTx>,
+    ) -> Option<crate::ParallelCandidate> {
+        Some(crate::ParallelCandidate {
+            hash: *tx.tx_hash(),
+            transaction: OpTx::from_recovered_tx(tx.inner(), tx.signer()),
+        })
+    }
 
     fn post_exec_executor_for_block<'a, DB: Database>(
         &'a self,
@@ -111,12 +142,7 @@ where
         let evm = self.evm_for_block(db, block.header())?;
         let ctx = self.context_for_block_with_post_exec_mode(block, Some(post_exec_mode));
 
-        Ok(OpBlockExecutor::new(
-            evm,
-            ctx,
-            self.executor_factory.spec(),
-            self.executor_factory.receipt_builder(),
-        ))
+        Ok(self.create_executor(evm, ctx))
     }
 
     fn post_exec_builder_for_next_block<'a, DB: Database + 'a>(
@@ -140,16 +166,11 @@ where
         let evm = self.evm_with_env(db, evm_env);
         let ctx =
             self.context_for_next_block_with_post_exec_mode(parent, attributes, post_exec_mode);
-        let executor = OpBlockExecutor::new(
-            evm,
-            ctx.clone(),
-            self.executor_factory.spec(),
-            self.executor_factory.receipt_builder(),
-        );
+        let executor = self.create_executor(evm, ctx.clone());
 
         Ok(BasicBlockBuilder::<
             'a,
-            OpBlockExecutorFactory<R, Arc<ChainSpec>, OpEvmFactory<OpTx>>,
+            OpBlockExecutorFactory<R, Arc<ChainSpec>, OpEvmFactory<OpTx, Policy>>,
             _,
             _,
             N,
@@ -217,12 +238,7 @@ where
         let evm = self.evm_for_block(db, block.header())?;
         let ctx = self.context_for_block_with_post_exec_mode(block, Some(post_exec_mode));
 
-        Ok(OpBlockExecutor::new(
-            evm,
-            ctx,
-            self.executor_factory.spec(),
-            self.executor_factory.receipt_builder(),
-        ))
+        Ok(self.create_executor(evm, ctx))
     }
 
     fn post_exec_builder_for_next_block<'a, DB: Database + 'a>(
@@ -246,12 +262,7 @@ where
         let evm = self.evm_with_env(db, evm_env);
         let ctx =
             self.context_for_next_block_with_post_exec_mode(parent, attributes, post_exec_mode);
-        let executor = OpBlockExecutor::new(
-            evm,
-            ctx.clone(),
-            self.executor_factory.spec(),
-            self.executor_factory.receipt_builder(),
-        );
+        let executor = self.create_executor(evm, ctx.clone());
 
         Ok(BasicBlockBuilder::<
             'a,

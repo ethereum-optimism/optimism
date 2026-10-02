@@ -50,6 +50,8 @@ thiserror.workspace = true
 tracing.workspace = true
 
 [dev-dependencies]
+alloy-signer.workspace = true
+alloy-signer-local.workspace = true
 reth-evm = { workspace = true, features = ["test-utils"] }
 reth-revm = { workspace = true, features = ["test-utils"] }
 alloy-genesis.workspace = true
@@ -83,6 +85,7 @@ std = [
 	"reth-execution-types/std",
 	"alloy-evm/std",
 	"alloy-op-evm/std",
+	"alloy-op-evm/parallel",
 	"alloy-op-evm/engine",
 	"alloy-op-evm/metrics",
 	"op-revm/std",

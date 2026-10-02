@@ -20,7 +20,10 @@ use op_alloy_consensus::{
 };
 use reth_basic_payload_builder::PayloadConfig;
 use reth_chainspec::MIN_TRANSACTION_GAS;
-use reth_evm::execute::{BlockBuilder, BlockExecutionError};
+use reth_evm::{
+    ConfigureEvm,
+    execute::{BlockBuilder, BlockExecutionError},
+};
 use reth_optimism_chainspec::{OpChainSpec, OpChainSpecBuilder};
 use reth_optimism_evm::{OpEvmConfig, PostExecMode, PreRefundGasUsed};
 use reth_optimism_primitives::{OpPrimitives, OpTransactionSigned};
@@ -450,8 +453,20 @@ fn execute_best_transactions_committed_txs_preserves_execution() {
 /// pre-refund gas — never for a skipped one. Both figures are pinned to the executor's own values
 /// via an oracle re-execution, and an over-gas-limit tx between the committed ones is skipped yet
 /// still yielded, exercising both halves of the contract.
-#[test]
-fn execute_best_transactions_on_commit_hook_execution() {
+#[rstest::rstest]
+#[case(reth_optimism_evm::ExecutionMode::Sequential)]
+#[case(reth_optimism_evm::ExecutionMode::Shadow)]
+#[case(reth_optimism_evm::ExecutionMode::Parallel)]
+fn execute_best_transactions_on_commit_hook_execution(
+    #[case] mode: reth_optimism_evm::ExecutionMode,
+    #[values(false, true)] direct: bool,
+    #[values(false, true)] independent_senders: bool,
+    #[values(
+        reth_optimism_evm::ExecutionScheduler::Window,
+        reth_optimism_evm::ExecutionScheduler::Rolling
+    )]
+    scheduler: reth_optimism_evm::ExecutionScheduler,
+) {
     use reth_payload_util::PayloadTransactions;
     use std::{cell::RefCell, rc::Rc};
 
@@ -467,6 +482,7 @@ fn execute_best_transactions_on_commit_hook_execution() {
     /// reported gas to the most-recently-yielded hash.
     struct TestPayloadTxsImpl {
         inner: PayloadTransactionsFixed<OpPooledTransaction>,
+        hints: Vec<reth_optimism_evm::ParallelCandidate>,
         yielded_hashes: Rc<RefCell<Vec<TxHash>>>,
         committed_txs_gas: Rc<RefCell<Vec<ReportedGas>>>,
     }
@@ -486,6 +502,14 @@ fn execute_best_transactions_on_commit_hook_execution() {
     }
 
     impl PayloadTransactionsWithCommitHook for TestPayloadTxsImpl {
+        fn preview(&self, limit: usize) -> Vec<reth_optimism_evm::ParallelCandidate> {
+            self.hints
+                .iter()
+                .filter(|hint| !self.yielded_hashes.borrow().contains(&hint.hash))
+                .take(limit)
+                .cloned()
+                .collect()
+        }
         fn on_commit(&mut self, gas: CommittedTxGas) {
             let tx_hash = *self.yielded_hashes.borrow().last().expect("on_commit after a next()");
             self.committed_txs_gas.borrow_mut().push(ReportedGas { gas, tx_hash });
@@ -497,8 +521,18 @@ fn execute_best_transactions_on_commit_hook_execution() {
     let recipient = Address::repeat_byte(0x22);
     // Distinct calldata gives each committed tx distinct gas to verify.
     let committed_tx0 = op_pooled_tx_with_input(0, signer, recipient, Bytes::from(vec![0x11; 4]));
-    let committed_tx1 = op_pooled_tx_with_input(1, signer, recipient, Bytes::from(vec![0x22; 400]));
-    let committed_tx2 = op_pooled_tx_with_input(2, signer, recipient, Bytes::from(vec![0x33; 200]));
+    let committed_tx1 = op_pooled_tx_with_input(
+        if independent_senders { 0 } else { 1 },
+        if independent_senders { Address::repeat_byte(0x12) } else { signer },
+        recipient,
+        Bytes::from(vec![0x22; 400]),
+    );
+    let committed_tx2 = op_pooled_tx_with_input(
+        if independent_senders { 0 } else { 2 },
+        if independent_senders { Address::repeat_byte(0x13) } else { signer },
+        recipient,
+        Bytes::from(vec![0x33; 200]),
+    );
     let not_committed_tx = op_pooled_tx_from(signer, base_pooled_tx(3, recipient, gas_limit + 1));
 
     let committed_order = [committed_tx0.clone(), committed_tx1.clone(), committed_tx2.clone()];
@@ -510,15 +544,38 @@ fn execute_best_transactions_on_commit_hook_execution() {
     let txs = vec![committed_tx0, committed_tx1, not_committed_tx, committed_tx2];
 
     let chain_spec = Arc::new(OpChainSpecBuilder::optimism_mainnet().regolith_activated().build());
-    let ctx = payload_builder_ctx(chain_spec, gas_limit);
+    let mut ctx = payload_builder_ctx(chain_spec, gas_limit);
+    ctx.evm_config = ctx
+        .evm_config
+        .with_parallel_execution(reth_optimism_evm::ParallelExecutionConfig {
+            mode,
+            scheduler,
+            workers: 2,
+            ..Default::default()
+        })
+        .unwrap();
 
     let mut state_provider = StateProviderTest::default();
-    state_provider.insert_account(
-        signer,
-        Account { balance: U256::MAX, ..Default::default() },
-        None,
-        Default::default(),
-    );
+    for tx in &committed_order {
+        state_provider.insert_account(
+            tx.sender(),
+            Account { balance: U256::MAX, ..Default::default() },
+            None,
+            Default::default(),
+        );
+    }
+
+    if direct {
+        let source = state_provider.clone();
+        ctx.evm_config = ctx.evm_config.with_execution_state_source(
+            reth_evm::state_source::ExecutionStateSource(Arc::new(move || {
+                Ok(Box::new(StateProviderDatabase::new(source.clone()))
+                    as Box<
+                        dyn reth_revm::Database<Error = reth_storage_api::errors::ProviderError>,
+                    >)
+            })),
+        );
+    }
 
     // Re-execute each tx that should be committed so we know the gas passed to on_commit.
     let expected_committed_gas: Vec<ReportedGas> = {
@@ -555,14 +612,33 @@ fn execute_best_transactions_on_commit_hook_execution() {
 
     let yielded_hashes = Rc::new(RefCell::new(Vec::<TxHash>::new()));
     let committed_txs_gas = Rc::new(RefCell::new(Vec::<ReportedGas>::new()));
+    let hints = txs
+        .iter()
+        .filter_map(|tx| {
+            reth_optimism_evm::ConfigurePostExecEvm::parallel_candidate(
+                &ctx.evm_config,
+                &tx.clone().into_consensus(),
+            )
+        })
+        .collect();
     let best_txs = TestPayloadTxsImpl {
+        hints,
         inner: PayloadTransactionsFixed::new(txs),
         yielded_hashes: yielded_hashes.clone(),
         committed_txs_gas: committed_txs_gas.clone(),
     };
 
+    let runtime = ctx.evm_config.block_executor_factory().parallel_runtime();
+    let reused_before = runtime.map_or(0, |runtime| runtime.statistics().reused);
     ctx.execute_best_transactions(&mut info, &mut builder, best_txs, None, None)
         .expect("best transactions execute");
+    if independent_senders && mode == reth_optimism_evm::ExecutionMode::Parallel {
+        assert_eq!(
+            runtime.unwrap().statistics().reused - reused_before,
+            3,
+            "refreshing lookahead must retain the transaction just selected"
+        );
+    }
 
     let distinct_gas: std::collections::HashSet<u64> =
         expected_committed_gas.iter().map(|a| a.gas.canonical_gas_used).collect();
@@ -578,6 +654,78 @@ fn execute_best_transactions_on_commit_hook_execution() {
         expected_committed_gas,
         "committed txs and gas do not match expected"
     );
+}
+
+#[test]
+fn cancellation_during_preview_does_not_publish_a_prepared_transaction() {
+    use reth_payload_util::PayloadTransactions;
+    use reth_revm::cancelled::CancelOnDrop;
+    use std::cell::RefCell;
+    struct CancelInPreview {
+        inner: PayloadTransactionsFixed<OpPooledTransaction>,
+        cancel: RefCell<Option<CancelOnDrop>>,
+    }
+    impl PayloadTransactions for CancelInPreview {
+        type Transaction = OpPooledTransaction;
+        fn next(&mut self, ctx: ()) -> Option<Self::Transaction> {
+            self.inner.next(ctx)
+        }
+        fn mark_invalid(&mut self, sender: Address, nonce: u64) {
+            self.inner.mark_invalid(sender, nonce);
+        }
+    }
+    impl PayloadTransactionsWithCommitHook for CancelInPreview {
+        fn preview(&self, _: usize) -> Vec<reth_optimism_evm::ParallelCandidate> {
+            drop(self.cancel.borrow_mut().take());
+            Vec::new()
+        }
+        fn on_commit(&mut self, _: CommittedTxGas) {
+            panic!("cancelled transaction must not commit");
+        }
+    }
+    let signer = Address::repeat_byte(0x11);
+    let chain_spec = Arc::new(OpChainSpecBuilder::optimism_mainnet().regolith_activated().build());
+    let mut ctx = payload_builder_ctx(chain_spec, 1_000_000);
+    ctx.evm_config = ctx
+        .evm_config
+        .with_parallel_execution(reth_optimism_evm::ParallelExecutionConfig {
+            mode: reth_optimism_evm::ExecutionMode::Parallel,
+            workers: 2,
+            ..Default::default()
+        })
+        .unwrap();
+    let tx = op_pooled_tx_with_input(0, signer, Address::repeat_byte(0x22), Bytes::new());
+    let selector = CancelInPreview {
+        inner: PayloadTransactionsFixed::new(vec![tx]),
+        cancel: RefCell::new(Some(ctx.cancel.clone())),
+    };
+    let mut provider = StateProviderTest::default();
+    provider.insert_account(
+        signer,
+        Account { balance: U256::MAX, ..Default::default() },
+        None,
+        Default::default(),
+    );
+    let mut db = State::builder()
+        .with_database(StateProviderDatabase::new(&provider))
+        .with_bundle_update()
+        .build();
+    let mut builder = ctx.block_builder(&mut db).unwrap();
+    let mut info = ExecutionInfo::new();
+    let mut committed = Vec::new();
+    assert!(
+        ctx.execute_best_transactions(
+            &mut info,
+            &mut builder,
+            selector,
+            None,
+            Some(&mut committed)
+        )
+        .unwrap()
+        .is_some()
+    );
+    assert!(committed.is_empty());
+    assert_eq!(info.cumulative_gas_used, 0);
 }
 
 /// With an SDM refund applied, the two figures `on_commit` reports must actually differ, and each

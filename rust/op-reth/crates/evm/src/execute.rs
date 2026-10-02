@@ -285,4 +285,215 @@ mod tests {
             "Recipient balance should equal the transferred value"
         );
     }
+
+    #[rstest::rstest]
+    fn historical_and_engine_execution_match_across_modes_and_parents(
+        #[values(crate::ExecutionScheduler::Window, crate::ExecutionScheduler::Rolling)] scheduler: crate::ExecutionScheduler,
+    ) {
+        use crate::{ExecutionMode, ParallelExecutionConfig};
+        use alloy_signer::SignerSync;
+        use alloy_signer_local::PrivateKeySigner;
+        let sign = |i: u8, tx: TxEip1559| -> OpTransactionSigned {
+            let signer =
+                PrivateKeySigner::from_bytes(&alloy_primitives::B256::repeat_byte(i)).unwrap();
+            let signature = signer.sign_hash_sync(&tx.signature_hash()).unwrap();
+            tx.into_signed(signature).into()
+        };
+        use alloy_evm::block::BlockExecutor;
+        use op_alloy_rpc_types_engine::{OpExecutionData, OpExecutionPayload};
+        use reth_evm::{ConfigureEngineEvm, ConfigureEvm, ConvertTx, ExecutableTxTuple};
+        use reth_primitives_traits::SignedTransaction;
+        use revm::database::{State, states::bundle_state::BundleRetention};
+        let chain_spec =
+            Arc::new(OpChainSpecBuilder::optimism_mainnet().regolith_activated().build());
+        let transactions: Vec<OpTransactionSigned> = (1..=4u8)
+            .map(|i| {
+                sign(
+                    i,
+                    TxEip1559 {
+                        chain_id: chain_spec.chain.id(),
+                        gas_limit: 150_000,
+                        max_fee_per_gas: 10,
+                        // SHA256, identity and pairing must reuse worker results through both
+                        // historical execution and the Engine environment/converter path.
+                        to: if i < 4 {
+                            Address::with_last_byte(1 << i)
+                        } else {
+                            Address::repeat_byte(i + 10)
+                        }
+                        .into(),
+                        ..Default::default()
+                    },
+                )
+            })
+            .collect();
+        let senders: Vec<_> = transactions.iter().map(|tx| tx.try_recover().unwrap()).collect();
+        for parent in [1, 2] {
+            let mut db = create_op_state_provider();
+            for sender in &senders {
+                db.insert_account(
+                    *sender,
+                    Account {
+                        balance: U256::from(10_000_000_000_000u64 + parent),
+                        ..Default::default()
+                    },
+                    None,
+                    Default::default(),
+                );
+            }
+            let header = Header {
+                timestamp: 1,
+                number: 1,
+                gas_limit: 1_000_000,
+                parent_hash: alloy_primitives::B256::with_last_byte(parent as u8),
+                base_fee_per_gas: Some(1),
+                ..Default::default()
+            };
+            let reference = execute_block(
+                chain_spec.clone(),
+                &db,
+                header.clone(),
+                transactions.clone(),
+                senders.clone(),
+            );
+            let block = Block {
+                header,
+                body: BlockBody { transactions: transactions.clone(), ..Default::default() },
+            };
+            let (payload, sidecar) = OpExecutionPayload::from_block_slow(&block);
+            let payload = OpExecutionData::new(payload, sidecar);
+            for mode in [ExecutionMode::Shadow, ExecutionMode::Parallel] {
+                for direct in [false, true] {
+                    let mut config = evm_config(chain_spec.clone())
+                        .with_parallel_execution(ParallelExecutionConfig {
+                            mode,
+                            scheduler,
+                            workers: 2,
+                            ..Default::default()
+                        })
+                        .unwrap();
+                    let source_db = db.clone();
+                    let source =
+                        reth_evm::state_source::ExecutionStateSource(Arc::new(move || {
+                            Ok(Box::new(StateProviderDatabase::new(source_db.clone()))
+                                as Box<
+                                    dyn revm::Database<
+                                            Error = reth_storage_errors::provider::ProviderError,
+                                        >,
+                                >)
+                        }));
+                    if direct {
+                        config = config.with_execution_state_source(source.clone());
+                    }
+                    let mut historical =
+                        BasicBlockExecutor::new(config.clone(), StateProviderDatabase::new(&db));
+                    let first = RecoveredBlock::new_unhashed(block.clone(), senders.clone());
+                    let actual = historical.execute_one(&first).unwrap();
+                    assert_eq!(actual.receipts, reference.receipts);
+                    assert_eq!(actual.gas_used, reference.gas_used);
+                    // All changes remain unpersisted across a second block in the same batch.
+                    let next_txs = (1..=4u8)
+                        .map(|i| {
+                            sign(
+                                i,
+                                TxEip1559 {
+                                    chain_id: chain_spec.chain.id(),
+                                    nonce: 1,
+                                    gas_limit: 150_000,
+                                    max_fee_per_gas: 10,
+                                    to: if i < 4 {
+                                        Address::with_last_byte(1 << i)
+                                    } else {
+                                        Address::repeat_byte(i + 10)
+                                    }
+                                    .into(),
+                                    ..Default::default()
+                                },
+                            )
+                        })
+                        .collect();
+                    let second = RecoveredBlock::new_unhashed(
+                        Block {
+                            header: Header { number: 2, ..block.header.clone() },
+                            body: BlockBody { transactions: next_txs, ..Default::default() },
+                        },
+                        senders.clone(),
+                    );
+                    let second_result = historical
+                        .execute_one_with_state_hook(&second, |_: revm::state::EvmState| {})
+                        .unwrap();
+                    let mut oracle = BasicBlockExecutor::new(
+                        evm_config(chain_spec.clone()),
+                        StateProviderDatabase::new(&db),
+                    );
+                    oracle.execute_one(&first).unwrap();
+                    assert_eq!(second_result, oracle.execute_one(&second).unwrap());
+                    assert_eq!(
+                        historical.into_state().take_bundle(),
+                        oracle.into_state().take_bundle()
+                    );
+
+                    if direct {
+                        config = config.with_execution_state_source(source);
+                    }
+                    let mut state = State::builder()
+                        .with_database(StateProviderDatabase::new(&db))
+                        .with_bundle_update()
+                        .build();
+                    let env = config.evm_env_for_payload(&payload).unwrap();
+                    let ctx = config.context_for_payload(&payload).unwrap();
+                    assert_eq!(ctx.parallel_candidates.len(), 4);
+                    let evm = config.evm_with_env(&mut state, env);
+                    let mut executor = config.create_executor(evm, ctx);
+                    executor.apply_pre_execution_changes().unwrap();
+                    let (transactions, convert) =
+                        config.tx_iterator_for_payload(&payload).unwrap().into_parts();
+                    for encoded in transactions {
+                        executor.execute_transaction(convert.convert(encoded).unwrap()).unwrap();
+                    }
+                    let (_, result) = executor.finish().unwrap();
+                    state.merge_transitions(BundleRetention::Reverts);
+                    assert_eq!(state.take_bundle(), reference.state);
+                    assert_eq!(result.receipts, reference.receipts);
+                    assert_eq!(result.gas_used, reference.gas_used);
+                    let statistics =
+                        config.executor_factory.parallel_runtime().unwrap().statistics();
+                    assert!(statistics.completed >= 12);
+                    if direct {
+                        assert_eq!(statistics.broker_reads, 0);
+                        assert!(statistics.direct_reads > 0);
+                    } else {
+                        assert_eq!(statistics.direct_reads, 0);
+                    }
+                    assert_eq!(statistics.shadow_mismatches, 0);
+                    if mode == ExecutionMode::Parallel {
+                        assert!(statistics.reused >= 12);
+                    }
+                    if direct && mode == ExecutionMode::Parallel {
+                        let failed = config.clone().with_parallel_execution(ParallelExecutionConfig {
+                            mode, scheduler, workers: 2, max_in_flight: 2, ..Default::default()
+                        }).unwrap().with_execution_state_source(reth_evm::state_source::ExecutionStateSource(Arc::new(|| {
+                            Err(reth_storage_errors::provider::ProviderError::StateForHashNotFound(alloy_primitives::B256::ZERO))
+                        })));
+                        let actual = BasicBlockExecutor::new(
+                            failed.clone(),
+                            StateProviderDatabase::new(&db),
+                        )
+                        .execute(&first)
+                        .unwrap();
+                        assert_eq!(actual.state, reference.state);
+                        assert_eq!(actual.receipts, reference.receipts);
+                        let stats =
+                            failed.executor_factory.parallel_runtime().unwrap().statistics();
+                        assert_eq!(stats.provider_opens, 0);
+                        assert!(
+                            stats.broker_reads > 0,
+                            "later windows use the broker after a source failure"
+                        );
+                        assert_eq!(stats.completed, 2);
+                    }
+                }
+            }
+        }
+    }
 }

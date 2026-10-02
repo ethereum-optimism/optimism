@@ -115,6 +115,44 @@ impl<I, R> PostExecCompositeInspector<I, R> {
 }
 
 impl<I, R: super::PostExecRefundInspector> PostExecCompositeInspector<I, R> {
+    /// Captures prepared policy state without publishing it.
+    pub fn prepared_refund_snapshot(&self) -> R::Snapshot {
+        self.post_exec.prepared_snapshot()
+    }
+
+    /// Compares prepared state with a shadow attempt, including future refund dependencies.
+    pub fn matches_prepared_refund_snapshot(&self, snapshot: &R::Snapshot) -> bool {
+        self.post_exec.matches_prepared_snapshot(snapshot)
+    }
+
+    /// Whether the embedded policy supports isolated parallel observation.
+    pub fn supports_parallel_observation(&self) -> bool {
+        self.post_exec.supports_parallel_observation()
+    }
+
+    /// Selects transaction-local observation without evaluating shared policy state.
+    pub fn set_parallel_observation(&mut self, enabled: bool) {
+        self.post_exec.set_parallel_observation(enabled);
+    }
+
+    /// Takes the latest speculative observation.
+    pub fn take_parallel_observation(&mut self) -> Option<super::ParallelObservation> {
+        self.post_exec.take_parallel_observation()
+    }
+
+    /// Evaluates observations against the current committed policy state.
+    pub fn evaluate_parallel_observation(
+        &mut self,
+        context: PostExecTxContext,
+        observation: &super::ParallelObservation,
+    ) -> Option<PostExecExecutedTx> {
+        self.post_exec.evaluate_parallel_observation(context, observation)
+    }
+    /// Publishes a prepared policy decision after canonical acceptance.
+    pub fn commit_post_exec_tx(&mut self) {
+        self.post_exec.commit_tx();
+    }
+
     /// Begin tracking the next transaction.
     pub fn begin_post_exec_tx(&mut self, ctx: PostExecTxContext) {
         self.post_exec.begin_tx(ctx);

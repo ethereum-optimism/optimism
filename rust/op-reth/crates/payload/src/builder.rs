@@ -5,7 +5,7 @@ use crate::{
 };
 use alloy_consensus::{BlockHeader, Sealable, Transaction, Typed2718, transaction::Recovered};
 use alloy_eips::eip2718::Encodable2718;
-use alloy_evm::Evm as AlloyEvm;
+use alloy_evm::{Evm as AlloyEvm, block::CommitChanges};
 use alloy_primitives::{Address, B256, Sealed, U256};
 use alloy_rpc_types_debug::ExecutionWitness;
 use alloy_rpc_types_engine::PayloadId;
@@ -28,7 +28,7 @@ use reth_metrics::{
     metrics::{self, Counter, Gauge},
 };
 use reth_optimism_evm::{
-    ConfigurePostExecEvm, PostExecExecutorExt, PostExecMode, PreRefundGasUsed,
+    ConfigurePostExecEvm, ParallelCandidate, PostExecExecutorExt, PostExecMode, PreRefundGasUsed,
 };
 use reth_optimism_forks::OpHardforks;
 use reth_optimism_primitives::{L2_TO_L1_MESSAGE_PASSER_ADDRESS, OpTransaction};
@@ -247,6 +247,7 @@ where
         &self,
         args: BuildArguments<Attrs, OpBuiltPayload<N>>,
         best: impl FnOnce(BestTransactionsAttributes) -> Txs + Send + Sync + 'a,
+        preview: impl FnOnce(BestTransactionsAttributes, usize) -> Vec<ParallelCandidate> + 'a,
     ) -> Result<BuildOutcome<OpBuiltPayload<N>>, PayloadBuilderError>
     where
         Txs:
@@ -254,7 +255,7 @@ where
     {
         let BuildArguments { mut cached_reads, config, cancel, best_payload, .. } = args;
 
-        let ctx = OpPayloadBuilderCtx {
+        let mut ctx = OpPayloadBuilderCtx {
             evm_config: self.evm_config.clone(),
             builder_config: self.config.clone(),
             chain_spec: self.client.chain_spec(),
@@ -263,18 +264,75 @@ where
             best_payload,
         };
 
-        let builder = OpBuilder::new(best);
+        let builder = OpBuilder::new(best).with_candidate_preview(preview);
 
-        let state_provider = self.client.state_by_block_hash(ctx.parent().hash())?;
-        let state = StateProviderDatabase::new(&state_provider);
-
-        if ctx.attributes().no_tx_pool() {
+        let mut source = if ctx.evm_config.wants_execution_state_source() {
+            self.client.pinned_state_by_block_hash(ctx.parent().hash()).unwrap_or_else(|error| {
+                debug!(target: "payload_builder", %error, "Independent state source unavailable");
+                metrics::counter!("optimism_parallel.source_fallbacks", "reason" => "factory_initialization").increment(1);
+                None
+            })
+        } else {
+            None
+        };
+        let state_provider = match source.as_ref().map(|source| source()).transpose() {
+            Ok(Some(provider)) => provider,
+            result => {
+                if let Err(error) = result {
+                    debug!(target: "payload_builder", %error, "Independent state source failed to open");
+                    metrics::counter!("optimism_parallel.source_fallbacks", "reason" => "initial_reader_open").increment(1);
+                    source = None;
+                }
+                self.client.state_by_block_hash(ctx.parent().hash())?
+            }
+        };
+        let Some(source) = source else {
+            let state = StateProviderDatabase::new(&state_provider);
+            let result = if ctx.attributes().no_tx_pool() {
+                builder.build(state, &state_provider, ctx)
+            } else {
+                builder.build(cached_reads.as_db_mut(state), &state_provider, ctx)
+            };
+            return result.map(|out| out.with_cached_reads(cached_reads));
+        };
+        // Move the initial cache into one immutable view, shared with worker factories. The
+        // canonical cache continues recording misses and is merged back after the build drains.
+        let initial_cache = Arc::new(if ctx.attributes().no_tx_pool() {
+            Default::default()
+        } else {
+            core::mem::take(&mut cached_reads)
+        });
+        let cache = initial_cache.clone();
+        ctx.evm_config = ctx.evm_config.with_execution_state_source(
+            reth_evm::state_source::ExecutionStateSource(Arc::new(move || {
+                Ok(Box::new(reth_revm::cached::SharedCachedReads {
+                    cache: cache.clone(),
+                    database: StateProviderDatabase::new(source()?),
+                }) as Box<dyn reth_revm::Database<Error = ProviderError>>)
+            })),
+        );
+        let state = reth_revm::cached::SharedCachedReads {
+            cache: initial_cache.clone(),
+            database: StateProviderDatabase::new(&state_provider),
+        };
+        let result = if ctx.attributes().no_tx_pool() {
             builder.build(state, &state_provider, ctx)
         } else {
-            // sequencer mode we can reuse cachedreads from previous runs
             builder.build(cached_reads.as_db_mut(state), &state_provider, ctx)
+        };
+        let mut initial = Arc::try_unwrap(initial_cache).unwrap_or_else(|cache| (*cache).clone());
+        // Existing cache values are from this same parent. Keep cached slots when new misses
+        // added another slot of an already cached account.
+        for (address, account) in cached_reads.accounts {
+            if let Some(entry) = initial.accounts.get_mut(&address) {
+                entry.storage.extend(account.storage);
+            } else {
+                initial.accounts.insert(address, account);
+            }
         }
-        .map(|out| out.with_cached_reads(cached_reads))
+        initial.contracts.extend(cached_reads.contracts);
+        initial.block_hashes.extend(cached_reads.block_hashes);
+        result.map(|out| out.with_cached_reads(initial))
     }
 
     /// Computes the witness for the payload.
@@ -341,9 +399,17 @@ where
     ) -> Result<BuildOutcome<Self::BuiltPayload>, PayloadBuilderError> {
         let pool = self.pool.clone();
         let converted_args = convert_build_args::<N>(args)?;
-        self.build_payload(converted_args, |attrs| {
-            self.best_transactions.best_transactions(pool, attrs)
-        })
+        self.build_payload(
+            converted_args,
+            |attrs| self.best_transactions.best_transactions(pool, attrs),
+            |attrs, limit| {
+                self.best_transactions
+                    .preview_transactions(self.pool.clone(), attrs, limit)
+                    .into_iter()
+                    .filter_map(|tx| self.evm_config.parallel_candidate(&tx.into_consensus()))
+                    .collect()
+            },
+        )
     }
 
     fn on_missing_payload(
@@ -370,9 +436,11 @@ where
             best_payload: None,
         };
         let converted_args = convert_build_args::<N>(args)?;
-        self.build_payload(converted_args, |_| {
-            NoopPayloadTransactions::<Pool::Transaction>::default()
-        })?
+        self.build_payload(
+            converted_args,
+            |_| NoopPayloadTransactions::<Pool::Transaction>::default(),
+            |_, _| Vec::new(),
+        )?
         .into_payload()
         .ok_or_else(|| PayloadBuilderError::MissingPayload)
     }
@@ -414,6 +482,9 @@ fn convert_build_args<N: OpPayloadPrimitives>(
     })
 }
 
+type CandidatePreview<'a> =
+    dyn FnOnce(BestTransactionsAttributes, usize) -> Vec<ParallelCandidate> + 'a;
+
 /// The type that builds the payload.
 ///
 /// Payload building for optimism is composed of several steps.
@@ -434,12 +505,23 @@ pub struct OpBuilder<'a, Txs> {
     /// Yields the best transaction to include if transactions from the mempool are allowed.
     #[debug(skip)]
     best: Box<dyn FnOnce(BestTransactionsAttributes) -> Txs + 'a>,
+    #[debug(skip)]
+    preview: Option<Box<CandidatePreview<'a>>>,
 }
 
 impl<'a, Txs> OpBuilder<'a, Txs> {
     /// Creates a new [`OpBuilder`].
     pub fn new(best: impl FnOnce(BestTransactionsAttributes) -> Txs + Send + Sync + 'a) -> Self {
-        Self { best: Box::new(best) }
+        Self { best: Box::new(best), preview: None }
+    }
+
+    /// Adds independent, non-authoritative lookahead without advancing the selector.
+    pub fn with_candidate_preview(
+        mut self,
+        preview: impl FnOnce(BestTransactionsAttributes, usize) -> Vec<ParallelCandidate> + 'a,
+    ) -> Self {
+        self.preview = Some(Box::new(preview));
+        self
     }
 }
 
@@ -463,7 +545,7 @@ impl<Txs> OpBuilder<'_, Txs> {
             PayloadTransactions<Transaction: PoolTransaction<Consensus = N::SignedTx> + OpPooledTx>,
         Attrs: OpAttributes<Transaction = N::SignedTx>,
     {
-        let Self { best } = self;
+        let Self { best, preview } = self;
         debug!(target: "payload_builder", id=%ctx.payload_id(), parent_header = ?ctx.parent().hash(), parent_number = ctx.parent().number(), "building new payload");
 
         let mut db = State::builder().with_database(db).with_bundle_update().build();
@@ -494,6 +576,18 @@ impl<Txs> OpBuilder<'_, Txs> {
 
         // 3. if mem pool transactions are requested we execute them
         if !ctx.attributes().no_tx_pool() {
+            let preview_limit = ctx.evm_config.parallel_candidate_limit();
+            if preview_limit > 0 &&
+                let Some(preview) = preview
+            {
+                let candidates = preview(
+                    ctx.best_transaction_attributes(builder.evm_mut().block()),
+                    preview_limit,
+                );
+                builder
+                    .executor_mut()
+                    .set_parallel_candidates(candidates.into_iter().take(preview_limit).collect());
+            }
             let best_txs = best(ctx.best_transaction_attributes(builder.evm_mut().block()));
             if ctx
                 .execute_best_transactions(
@@ -643,6 +737,12 @@ pub struct CommittedTxGas {
 /// A plain [`PayloadTransactions`] that doesn't care about inclusions can be
 /// adapted with [`RethPayloadTransactions`], whose `on_commit` is a no-op.
 pub trait PayloadTransactionsWithCommitHook: PayloadTransactions {
+    /// Non-mutating scheduling hints. The next authoritative `next()` still decides inclusion.
+    /// Custom selectors may return no hints and retain their existing behavior.
+    fn preview(&self, _limit: usize) -> Vec<ParallelCandidate> {
+        Vec::new()
+    }
+
     /// Invoked exactly once for the transaction most recently returned by `next()`,
     /// after it is successfully executed and committed to the block, and BEFORE any
     /// subsequent `next()` call, with the gas that transaction used. It is NOT invoked
@@ -679,6 +779,16 @@ impl<T: PayloadTransactions> PayloadTransactionsWithCommitHook for RethPayloadTr
 
 /// A type that returns a the [`PayloadTransactions`] that should be included in the pool.
 pub trait OpPayloadTransactions<Transaction>: Clone + Send + Sync + Unpin + 'static {
+    /// Independently previews pool candidates without advancing the authoritative selector.
+    fn preview_transactions<Pool: TransactionPool<Transaction = Transaction>>(
+        &self,
+        _pool: Pool,
+        _attr: BestTransactionsAttributes,
+        _limit: usize,
+    ) -> Vec<Transaction> {
+        Vec::new()
+    }
+
     /// Returns an iterator that yields the transaction in the order they should get included in the
     /// new payload.
     fn best_transactions<Pool: TransactionPool<Transaction = Transaction>>(
@@ -689,6 +799,17 @@ pub trait OpPayloadTransactions<Transaction>: Clone + Send + Sync + Unpin + 'sta
 }
 
 impl<T: PoolTransaction + MaybeInteropTransaction> OpPayloadTransactions<T> for () {
+    fn preview_transactions<Pool: TransactionPool<Transaction = T>>(
+        &self,
+        pool: Pool,
+        attr: BestTransactionsAttributes,
+        limit: usize,
+    ) -> Vec<T> {
+        let mut preview =
+            BestPayloadTransactions::new(pool.best_transactions_with_attributes(attr));
+        core::iter::from_fn(|| preview.next(())).take(limit).collect()
+    }
+
     fn best_transactions<Pool: TransactionPool<Transaction = T>>(
         &self,
         pool: Pool,
@@ -985,14 +1106,27 @@ where
     /// capacity and lifecycle.
     pub fn execute_sequencer_transactions(
         &self,
-        builder: &mut impl BlockBuilder<Primitives = Evm::Primitives>,
+        builder: &mut impl BlockBuilder<Primitives = Evm::Primitives, Executor: PostExecExecutorExt>,
         mut committed_txs: Option<&mut Vec<Recovered<TxTy<Evm::Primitives>>>>,
     ) -> Result<ExecutionInfo, PayloadBuilderError> {
         let mut info = ExecutionInfo::new();
+        let limit = self.evm_config.parallel_candidate_limit();
+        if limit > 0 {
+            let candidates = self
+                .attributes()
+                .sequencer_transactions()
+                .iter()
+                .take(limit)
+                .filter_map(|tx| tx.value().try_clone_into_recovered().ok())
+                .filter_map(|tx| self.evm_config.parallel_candidate(&tx))
+                .collect();
+            builder.executor_mut().set_parallel_candidates(candidates);
+        }
 
         for sequencer_tx in self.attributes().sequencer_transactions() {
             // A sequencer's block should never contain blob transactions.
             if sequencer_tx.value().is_eip4844() {
+                builder.executor_mut().drain_parallel_work();
                 return Err(PayloadBuilderError::other(
                     OpPayloadBuilderError::BlobTransactionRejected,
                 ));
@@ -1003,6 +1137,7 @@ where
             // Deposit transactions do not have signatures, so if the tx is a deposit, this
             // will just pull in its `from` address.
             let sequencer_tx = sequencer_tx.value().try_clone_into_recovered().map_err(|_| {
+                builder.executor_mut().drain_parallel_work();
                 PayloadBuilderError::other(OpPayloadBuilderError::TransactionEcRecoverFailed)
             })?;
 
@@ -1013,10 +1148,14 @@ where
                     ..
                 })) => {
                     trace!(target: "payload_builder", %error, ?sequencer_tx, "Error in sequencer transaction, skipping.");
+                    builder
+                        .executor_mut()
+                        .reject_parallel_candidate(sequencer_tx.trie_hash(), None);
                     continue;
                 }
                 Err(err) => {
                     // this is an error that we should treat as fatal for this attempt
+                    builder.executor_mut().drain_parallel_work();
                     return Err(PayloadBuilderError::EvmExecutionError(Box::new(err)));
                 }
             };
@@ -1037,6 +1176,7 @@ where
             }
         }
 
+        builder.executor_mut().drain_parallel_work();
         Ok(info)
     }
 
@@ -1069,7 +1209,7 @@ where
         mut committed_txs: Option<&mut Vec<Recovered<TxTy<Evm::Primitives>>>>,
     ) -> Result<Option<()>, PayloadBuilderError>
     where
-        Builder: BlockBuilder<Primitives = Evm::Primitives>,
+        Builder: BlockBuilder<Primitives = Evm::Primitives, Executor: PostExecExecutorExt>,
         <<Builder::Executor as BlockExecutor>::Evm as AlloyEvm>::DB: Database,
         <Builder::Executor as BlockExecutor>::Result: PreRefundGasUsed,
     {
@@ -1127,18 +1267,27 @@ where
                 // we can't fit this transaction into the block, so we need to mark it as
                 // invalid which also removes all dependent transaction from
                 // the iterator before we can continue
+                builder
+                    .executor_mut()
+                    .reject_parallel_candidate(tx.trie_hash(), Some((tx.signer(), tx.nonce())));
                 best_txs.mark_invalid(tx.signer(), tx.nonce());
                 continue;
             }
 
             // A sequencer's block should never contain blob or deposit transactions from the pool.
             if tx.is_eip4844() || tx.is_deposit() {
+                builder
+                    .executor_mut()
+                    .reject_parallel_candidate(tx.trie_hash(), Some((tx.signer(), tx.nonce())));
                 best_txs.mark_invalid(tx.signer(), tx.nonce());
                 continue;
             }
 
             // While the failsafe is active, exclude every interop tx regardless of its deadline.
             if interop_failsafe_active && is_interop_tx(&*tx) {
+                builder
+                    .executor_mut()
+                    .reject_parallel_candidate(tx.trie_hash(), Some((tx.signer(), tx.nonce())));
                 best_txs.mark_invalid(tx.signer(), tx.nonce());
                 continue;
             }
@@ -1148,20 +1297,47 @@ where
             if let Some(interop) = interop &&
                 !is_valid_interop(interop, self.config.attributes.timestamp())
             {
+                builder
+                    .executor_mut()
+                    .reject_parallel_candidate(tx.trie_hash(), Some((tx.signer(), tx.nonce())));
                 best_txs.mark_invalid(tx.signer(), tx.nonce());
                 continue;
             }
             // check if the job was cancelled, if so we can exit early
             if self.cancel.is_cancelled() {
+                builder.executor_mut().invalidate_parallel_work();
                 return Ok(Some(()));
             }
 
+            let preview_limit = self.evm_config.parallel_candidate_limit();
+            if preview_limit > 0 {
+                let hints = best_txs.preview(preview_limit);
+                if !hints.is_empty() {
+                    // The selector has already advanced past `tx`. Preserve its admitted
+                    // attempt when replacing the remaining non-authoritative hints.
+                    let candidates = self
+                        .evm_config
+                        .parallel_candidate(&tx)
+                        .into_iter()
+                        .chain(hints)
+                        .take(preview_limit)
+                        .collect();
+                    builder.executor_mut().set_parallel_candidates(candidates);
+                }
+            }
             let mut evm_gas_used = 0;
-            let gas_used = match builder
-                .execute_transaction_with_result_closure(tx.clone(), |result| {
-                    evm_gas_used = result.evm_gas_used()
-                }) {
-                Ok(gas_used) => gas_used,
+            let gas_used = match builder.execute_transaction_with_commit_condition(
+                tx.clone(),
+                |result| {
+                    evm_gas_used = result.evm_gas_used();
+                    if self.cancel.is_cancelled() { CommitChanges::No } else { CommitChanges::Yes }
+                },
+            ) {
+                Ok(Some(gas_used)) => gas_used,
+                Ok(None) => {
+                    builder.executor_mut().invalidate_parallel_work();
+                    return Ok(Some(()));
+                }
                 Err(BlockExecutionError::Validation(BlockValidationError::InvalidTx {
                     error,
                     ..
@@ -1169,16 +1345,22 @@ where
                     if error.is_nonce_too_low() {
                         // if the nonce is too low, we can skip this transaction
                         trace!(target: "payload_builder", %error, ?tx, "skipping nonce too low transaction");
+                        builder.executor_mut().reject_parallel_candidate(tx.trie_hash(), None);
                     } else {
                         // if the transaction is invalid, we can skip it and all of its
                         // descendants
                         trace!(target: "payload_builder", %error, ?tx, "skipping invalid transaction and its descendants");
+                        builder.executor_mut().reject_parallel_candidate(
+                            tx.trie_hash(),
+                            Some((tx.signer(), tx.nonce())),
+                        );
                         best_txs.mark_invalid(tx.signer(), tx.nonce());
                     }
                     continue;
                 }
                 Err(err) => {
                     // this is an error that we should treat as fatal for this attempt
+                    builder.executor_mut().drain_parallel_work();
                     return Err(PayloadBuilderError::EvmExecutionError(Box::new(err)));
                 }
             };
@@ -1205,6 +1387,7 @@ where
             }
         }
 
+        builder.executor_mut().drain_parallel_work();
         Ok(None)
     }
 }

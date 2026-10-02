@@ -861,3 +861,6 @@ fn declined_candidate_restores_refund_policy_snapshot() {
 }
 
 mod structural_tests;
+
+#[cfg(feature = "parallel")]
+mod parallel_tests;

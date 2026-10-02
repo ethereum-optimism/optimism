@@ -46,7 +46,23 @@ use crate::post_exec::{
 };
 
 mod canyon;
+#[cfg(feature = "parallel")]
+mod parallel;
 pub mod receipt_builder;
+#[cfg(feature = "parallel")]
+pub use reth_optimism_parallel::{
+    ExecutionMode, ExecutionScheduler, ParallelExecutionConfig, ParallelRuntime, SnapshotSession,
+    SpeculationError as ParallelConfigurationError, StateReadFactory, StateReads,
+};
+
+/// A non-authoritative transaction preview. Inclusion and commit order remain with the caller.
+#[derive(Debug, Clone)]
+pub struct ParallelCandidate {
+    /// Hash used to match this preview with the subsequently selected transaction.
+    pub hash: B256,
+    /// Complete transaction environment, checked again before a speculative result is reused.
+    pub transaction: crate::OpTx,
+}
 
 /// Wraps an [`OpBlockExecutionError`] as a block-execution validation error.
 fn validation_error(err: OpBlockExecutionError) -> BlockExecutionError {
@@ -82,12 +98,17 @@ fn sanitize_producer_refund(refund: u64, evm_gas_used: u64, is_deposit: bool) ->
 
 /// Trait for OP transaction environments. Allows to recover the transaction encoded bytes if
 /// they're available.
-pub trait OpTxEnv {
+pub trait OpTxEnv: Clone {
     /// Returns the encoded bytes of the transaction.
     fn encoded_bytes(&self) -> Option<&Bytes>;
+
+    /// Opts into the standard OP worker execution path. Custom environments default to serial.
+    fn parallel_transaction(&self) -> Option<crate::OpTx> {
+        None
+    }
 }
 
-impl<T: revm::context::Transaction> OpTxEnv for OpTransaction<T> {
+impl<T: revm::context::Transaction + Clone> OpTxEnv for OpTransaction<T> {
     fn encoded_bytes(&self) -> Option<&Bytes> {
         self.enveloped_tx.as_ref()
     }
@@ -311,6 +332,8 @@ pub struct OpBlockExecutionCtx {
     pub extra_data: Bytes,
     /// Canonical post-exec execution mode for this block.
     pub post_exec_mode: PostExecMode,
+    /// Candidate previews for validation or builder lookahead; never an inclusion instruction.
+    pub parallel_candidates: Vec<ParallelCandidate>,
 }
 
 /// Balance patch that reconciles fee distribution with the post-refund gas used.
@@ -319,7 +342,7 @@ pub struct OpBlockExecutionCtx {
 /// receipt isn't enough — the sender, beneficiary, base-fee recipient, and operator-fee recipient
 /// all need their balances rolled back to match the canonical gas. This struct carries the
 /// per-recipient debits, plus the matching credit to the sender (which equals their sum).
-#[derive(Debug, Default, Clone)]
+#[derive(Debug, Default, Clone, PartialEq, Eq)]
 pub struct PostExecAdjustment {
     /// Refund amount subtracted from `evm_gas_used` to produce `canonical_gas_used`.
     pub refund: u64,
@@ -335,6 +358,28 @@ pub struct PostExecAdjustment {
     /// Exact policy-provided attribution events that produced the refund.
     pub refund_events: Vec<PostExecRefundEvent>,
 }
+
+/// Isolated EVM output before block admission, ordered policy evaluation, and fee settlement.
+///
+/// An execution coordinator must validate all state dependencies and the transaction identity
+/// before passing this to [`OpBlockExecutor::prepare_transaction_result`]. It must never commit
+/// `result.state` directly: deferred protocol fees and canonical SDM refunds are still missing.
+#[derive(Debug, Clone)]
+pub struct RawTransactionOutput<H> {
+    /// EVM execution result and transaction-local state changes.
+    pub result: ResultAndState<H>,
+    /// Result from a sequential producer policy, if one was run.
+    pub producer_result: Option<PostExecExecutedTx>,
+    /// Isolated producer observations, evaluated only after dependency validation.
+    pub observation: Option<crate::post_exec::ParallelObservation>,
+    /// Protocol credits in their original application order.
+    pub deferred_fees: Vec<op_revm::handler::DeferredFeeCredit>,
+    /// Block-scoped L1 fee cache after execution, carried forward just like sequential execution.
+    pub l1_block_info: Option<L1BlockInfo>,
+}
+
+/// Canonical transaction output ready for the existing infallible commit operation.
+pub type PreparedCommit<H, T> = OpTxResult<H, T>;
 
 /// The result of executing an OP transaction.
 #[derive(Debug)]
@@ -392,13 +437,16 @@ where
 
 /// Block executor for Optimism.
 #[derive(Debug)]
-pub struct OpBlockExecutor<Evm, R: OpReceiptBuilder, Spec> {
+pub struct OpBlockExecutor<Evm: alloy_evm::Evm, R: OpReceiptBuilder, Spec> {
     /// Spec.
     pub spec: Spec,
     /// Receipt builder.
     pub receipt_builder: R,
     /// Context for block execution.
     pub ctx: OpBlockExecutionCtx,
+    // Declared before the EVM so dropping the executor drains readers before its database.
+    #[cfg(feature = "parallel")]
+    pub(crate) parallel: Option<parallel::ParallelBlockState<Evm::HaltReason>>,
     /// The EVM used by executor.
     pub evm: Evm,
     /// Receipts of executed transactions.
@@ -424,6 +472,10 @@ pub struct OpBlockExecutor<Evm, R: OpReceiptBuilder, Spec> {
     pub post_exec: PostExecState,
     /// Per-transaction exact policy-provided refund attribution events aligned with receipts.
     pub refund_events_by_tx: Vec<Vec<PostExecRefundEvent>>,
+    #[cfg(feature = "parallel")]
+    parallel_snapshot: Option<parallel::SnapshotCapture<Evm::DB>>,
+    #[cfg(feature = "parallel")]
+    parallel_configuration_error: Option<&'static str>,
 }
 
 impl<E, R, Spec> OpBlockExecutor<E, R, Spec>
@@ -450,6 +502,12 @@ where
             l1_block_info: None,
             post_exec,
             refund_events_by_tx: Vec::new(),
+            #[cfg(feature = "parallel")]
+            parallel: None,
+            #[cfg(feature = "parallel")]
+            parallel_snapshot: None,
+            #[cfg(feature = "parallel")]
+            parallel_configuration_error: None,
         }
     }
 
@@ -465,6 +523,10 @@ where
     /// This is primarily intended for tests and replay tooling that need to override the
     /// block-context default after construction.
     pub fn set_post_exec_mode(&mut self, post_exec_mode: PostExecMode) {
+        #[cfg(feature = "parallel")]
+        if let Some(parallel) = self.parallel.as_mut() {
+            parallel.clear();
+        }
         self.post_exec = PostExecState::new(post_exec_mode);
     }
 
@@ -832,15 +894,7 @@ fn validate_block_gas(
     Ok(())
 }
 
-/// UPSTREAM-MIRROR(copy): alloy-evm@0.38.0 `alloy_evm::eth::block::EthBlockExecutor`
-///
-/// Mirrors upstream's `BlockExecutor` impl, reusing its `EthTxResult` for the inner result
-/// but reimplementing every method. Known divergences to re-confirm on each bump: upstream
-/// tracks regular and state block gas separately and returns `GasOutput::with_state_gas`,
-/// this tracks `gas_used`/`evm_gas_used` and returns `GasOutput::new`; upstream's admission
-/// check clamps the transaction gas limit by `cfg.tx_gas_limit_cap`, `validate_block_gas`
-/// does not.
-impl<E, R, Spec> BlockExecutor for OpBlockExecutor<E, R, Spec>
+impl<E, R, Spec> OpBlockExecutor<E, R, Spec>
 where
     E: PostExecEvm<
             DB: Database + DatabaseCommit + StateDB,
@@ -853,79 +907,71 @@ where
         >,
     Spec: OpHardforks,
 {
-    type Transaction = R::Transaction;
-    type Receipt = R::Receipt;
-    type Evm = E;
-    type Result = OpTxResult<E::HaltReason, <R::Transaction as TransactionEnvelope>::TxType>;
-
-    fn apply_pre_execution_changes(&mut self) -> Result<(), BlockExecutionError> {
-        if let Some(reason) = self.post_exec.invalid_reason() {
-            return Err(Self::invalid_post_exec_payload(String::from(reason)));
-        }
-        let block_number = self.evm.block().number().saturating_to::<u64>();
-        if let Some(reason) = self.post_exec.verify_block_number(block_number) {
-            return Err(Self::invalid_post_exec_payload(reason));
-        }
-
-        self.system_caller.apply_blockhashes_contract_call(self.ctx.parent_hash, &mut self.evm)?;
-        self.system_caller
-            .apply_beacon_root_contract_call(self.ctx.parent_beacon_block_root, &mut self.evm)?;
-
-        // Ensure that the create2deployer is force-deployed at the canyon transition. Optimism
-        // blocks will always have at least a single transaction in them (the L1 info transaction),
-        // so we can safely assume that this will always be triggered upon the transition and that
-        // the above check for empty blocks will never be hit on OP chains.
-        ensure_create2_deployer(
-            &self.spec,
-            self.evm.block().timestamp().saturating_to(),
-            self.evm.db_mut(),
-        )
-        .map_err(BlockExecutionError::other)?;
-
-        Ok(())
-    }
-
-    fn execute_transaction_with_commit_condition(
+    /// Finalizes dependency-validated worker output against the canonical committed prefix.
+    ///
+    /// Producer policy state is staged during preparation. Callers that can reject the result
+    /// must restore their policy snapshot, including when this method returns an error.
+    pub fn prepare_transaction_result(
         &mut self,
         tx: impl ExecutableTx<Self>,
-        f: impl FnOnce(&Self::Result) -> CommitChanges,
-    ) -> Result<Option<GasOutput>, BlockExecutionError> {
-        // Producer policy state is updated during EVM execution (before the commit decision) and
-        // is not journaled with EVM state. A declined candidate must not affect a later committed
-        // transaction, or the producer's payload can diverge from commit-only derivation paths.
-        // Snapshot only in Produce mode and restore on decline or execution error.
-        let refund_snapshot = self.post_exec.is_producing().then(|| self.refund_snapshot());
+        raw: RawTransactionOutput<E::HaltReason>,
+    ) -> Result<
+        PreparedCommit<E::HaltReason, <R::Transaction as TransactionEnvelope>::TxType>,
+        BlockExecutionError,
+    > {
+        self.prepare_transaction_with(tx, |_, _, _, _| Ok(raw))
+    }
 
-        let output = match self.execute_transaction_without_commit(tx) {
-            Ok(output) => output,
-            Err(err) => {
-                if let Some(snapshot) = refund_snapshot {
+    /// Finalizes and conditionally commits validated worker output, rolling policy state back
+    /// whenever admission, settlement, or the caller's inclusion decision rejects the candidate.
+    pub fn commit_transaction_result(
+        &mut self,
+        tx: impl ExecutableTx<Self>,
+        raw: RawTransactionOutput<E::HaltReason>,
+        commit: impl FnOnce(
+            &OpTxResult<E::HaltReason, <R::Transaction as TransactionEnvelope>::TxType>,
+        ) -> CommitChanges,
+    ) -> Result<Option<GasOutput>, BlockExecutionError> {
+        let snapshot = self.post_exec.is_producing().then(|| self.refund_snapshot());
+        let prepared = match self.prepare_transaction_result(tx, raw) {
+            Ok(prepared) => prepared,
+            Err(error) => {
+                if let Some(snapshot) = snapshot {
                     self.seed_refund_snapshot(snapshot);
                 }
-                return Err(err);
+                #[cfg(feature = "parallel")]
+                if let Some(parallel) = &mut self.parallel {
+                    parallel.retire_authoritative();
+                }
+                return Err(error);
             }
         };
-
-        if !f(&output).should_commit() {
-            if let Some(snapshot) = refund_snapshot {
+        if !commit(&prepared).should_commit() {
+            if let Some(snapshot) = snapshot {
                 self.seed_refund_snapshot(snapshot);
+            }
+            #[cfg(feature = "parallel")]
+            if let Some(parallel) = &mut self.parallel {
+                parallel.retire_authoritative();
             }
             return Ok(None);
         }
-
-        Ok(Some(self.commit_transaction(output)))
+        Ok(Some(self.commit_transaction(prepared)))
     }
 
-    /// In Produce mode, this method does not snapshot or restore producer-policy state. A failing
-    /// transaction still records its fee-vault touches on the `transact_raw` error path, and a
-    /// successfully executed transaction does the same even if its commit is later declined.
-    /// Callers that may discard a candidate must snapshot and restore the policy themselves or use
-    /// [`execute_transaction_with_commit_condition`](Self::execute_transaction_with_commit_condition),
-    /// which restores the per-candidate snapshot on execution error and declined commit.
-    fn execute_transaction_without_commit(
+    fn prepare_transaction_with(
         &mut self,
         tx: impl ExecutableTx<Self>,
-    ) -> Result<Self::Result, BlockExecutionError> {
+        execute: impl FnOnce(
+            &mut E,
+            E::Tx,
+            PostExecTxContext,
+            bool,
+        ) -> Result<RawTransactionOutput<E::HaltReason>, E::Error>,
+    ) -> Result<
+        OpTxResult<E::HaltReason, <R::Transaction as TransactionEnvelope>::TxType>,
+        BlockExecutionError,
+    > {
         let (tx_env, tx) = tx.into_parts();
         let is_deposit = tx.tx().ty() == DEPOSIT_TRANSACTION_TYPE;
         let is_post_exec = tx.tx().ty() == POST_EXEC_TX_TYPE_ID;
@@ -1001,23 +1047,60 @@ where
             0
         };
 
-        if self.post_exec.is_producing() {
-            self.evm.begin_post_exec_tx(PostExecTxContext {
-                tx_index,
-                kind: if is_deposit { PostExecTxKind::Deposit } else { PostExecTxKind::Normal },
-            });
+        let context = PostExecTxContext {
+            tx_index,
+            kind: if is_deposit { PostExecTxKind::Deposit } else { PostExecTxKind::Normal },
+        };
+        let raw = execute(&mut self.evm, tx_env, context, self.post_exec.is_producing())
+            .map_err(|err| BlockExecutionError::evm(err, tx.tx().trie_hash()))?;
+        #[cfg(feature = "parallel")]
+        let finalization_started = std::time::Instant::now();
+        let RawTransactionOutput {
+            mut result,
+            producer_result,
+            observation,
+            deferred_fees,
+            l1_block_info,
+        } = raw;
+        if let Some(info) = l1_block_info {
+            self.evm.seed_execution_l1_block_info(info);
         }
-
-        // Execute transaction and return the result
-        let mut result = self.evm.transact(tx_env).map_err(|err| {
-            let hash = tx.tx().trie_hash();
-            BlockExecutionError::evm(err, hash)
-        })?;
+        for credit in deferred_fees {
+            use revm::primitives::hash_map::Entry;
+            let account = match result.state.entry(credit.recipient) {
+                Entry::Occupied(entry) => entry.into_mut(),
+                Entry::Vacant(entry) => {
+                    let account = self
+                        .evm
+                        .db_mut()
+                        .basic(credit.recipient)
+                        .map_err(BlockExecutionError::other)?
+                        .map(Account::from)
+                        .unwrap_or_else(|| Account::new_not_existing(Default::default()));
+                    entry.insert(account)
+                }
+            };
+            account.mark_touch();
+            // JournaledAccount::incr_balance touches on overflow but leaves the balance intact.
+            if let Some(balance) = account.info.balance.checked_add(credit.amount) {
+                account.info.balance = balance;
+            }
+        }
 
         let evm_gas_used = result.result.tx_gas_used();
         let (post_exec_refund, refund_events) = if self.post_exec.is_producing() {
-            let PostExecExecutedTx { refund_total: refund, refund_events } =
-                self.evm.take_last_post_exec_tx_result();
+            let policy_result = if let Some(observation) = observation {
+                self.evm.evaluate_parallel_observation(context, &observation).ok_or_else(|| {
+                    BlockExecutionError::msg(
+                        "parallel refund observation does not match producer policy",
+                    )
+                })?
+            } else {
+                producer_result.ok_or_else(|| {
+                    BlockExecutionError::msg("missing producer refund observation")
+                })?
+            };
+            let PostExecExecutedTx { refund_total: refund, refund_events } = policy_result;
             // The policy is advisory. Contain a faulty policy here, before its output changes gas,
             // settlement, receipts, or the trailing payload: excessive normal-tx refunds are
             // discarded, and deposits never receive a refund.
@@ -1063,6 +1146,11 @@ where
             self.apply_post_exec_refund_to_state(&mut result.state, sender, deltas)?;
         }
 
+        #[cfg(all(feature = "parallel", feature = "metrics"))]
+        metrics::histogram!("optimism_parallel.finalization_seconds")
+            .record(finalization_started.elapsed().as_secs_f64());
+        #[cfg(all(feature = "parallel", not(feature = "metrics")))]
+        let _ = finalization_started;
         Ok(OpTxResult {
             inner: EthTxResult {
                 result,
@@ -1077,8 +1165,268 @@ where
             depositor_nonce,
         })
     }
+}
+
+/// UPSTREAM-MIRROR(copy): alloy-evm@0.38.0 `alloy_evm::eth::block::EthBlockExecutor`
+///
+/// Mirrors upstream's `BlockExecutor` impl, reusing its `EthTxResult` for the inner result
+/// but reimplementing every method. Known divergences to re-confirm on each bump: upstream
+/// tracks regular and state block gas separately and returns `GasOutput::with_state_gas`,
+/// this tracks `gas_used`/`evm_gas_used` and returns `GasOutput::new`; upstream's admission
+/// check clamps the transaction gas limit by `cfg.tx_gas_limit_cap`, `validate_block_gas`
+/// does not.
+impl<E, R, Spec> BlockExecutor for OpBlockExecutor<E, R, Spec>
+where
+    E: PostExecEvm<
+            DB: Database + DatabaseCommit + StateDB,
+            Tx: FromRecoveredTx<R::Transaction> + FromTxWithEncoded<R::Transaction> + OpTxEnv,
+            HaltReason: Send + 'static,
+        >,
+    R: OpReceiptBuilder<
+            Transaction: Transaction + Encodable2718 + OpConsensusTransaction,
+            Receipt: TxReceipt,
+        >,
+    Spec: OpHardforks,
+{
+    type Transaction = R::Transaction;
+    type Receipt = R::Receipt;
+    type Evm = E;
+    type Result = OpTxResult<E::HaltReason, <R::Transaction as TransactionEnvelope>::TxType>;
+
+    fn apply_pre_execution_changes(&mut self) -> Result<(), BlockExecutionError> {
+        #[cfg(feature = "parallel")]
+        if let Some(parallel) = &mut self.parallel {
+            parallel.clear();
+        }
+        #[cfg(feature = "parallel")]
+        if let Some(error) = self.parallel_configuration_error {
+            return Err(BlockExecutionError::msg(error));
+        }
+        if let Some(reason) = self.post_exec.invalid_reason() {
+            return Err(Self::invalid_post_exec_payload(String::from(reason)));
+        }
+        let block_number = self.evm.block().number().saturating_to::<u64>();
+        if let Some(reason) = self.post_exec.verify_block_number(block_number) {
+            return Err(Self::invalid_post_exec_payload(reason));
+        }
+
+        self.system_caller.apply_blockhashes_contract_call(self.ctx.parent_hash, &mut self.evm)?;
+        self.system_caller
+            .apply_beacon_root_contract_call(self.ctx.parent_beacon_block_root, &mut self.evm)?;
+
+        // Ensure that the create2deployer is force-deployed at the canyon transition. Optimism
+        // blocks will always have at least a single transaction in them (the L1 info transaction),
+        // so we can safely assume that this will always be triggered upon the transition and that
+        // the above check for empty blocks will never be hit on OP chains.
+        ensure_create2_deployer(
+            &self.spec,
+            self.evm.block().timestamp().saturating_to(),
+            self.evm.db_mut(),
+        )
+        .map_err(BlockExecutionError::other)?;
+
+        Ok(())
+    }
+
+    fn execute_transaction_with_commit_condition(
+        &mut self,
+        tx: impl ExecutableTx<Self>,
+        f: impl FnOnce(&Self::Result) -> CommitChanges,
+    ) -> Result<Option<GasOutput>, BlockExecutionError> {
+        // Producer policy state is updated during EVM execution (before the commit decision) and
+        // is not journaled with EVM state. A declined candidate must not affect a later committed
+        // transaction, or the producer's payload can diverge from commit-only derivation paths.
+        // Snapshot only in Produce mode and restore on decline or execution error.
+        let refund_snapshot = self.post_exec.is_producing().then(|| self.refund_snapshot());
+
+        let output = match self.execute_transaction_without_commit(tx) {
+            Ok(output) => output,
+            Err(err) => {
+                if let Some(snapshot) = refund_snapshot {
+                    self.seed_refund_snapshot(snapshot);
+                }
+                #[cfg(feature = "parallel")]
+                if let Some(parallel) = &mut self.parallel {
+                    parallel.retire_authoritative();
+                }
+                return Err(err);
+            }
+        };
+
+        if !f(&output).should_commit() {
+            if let Some(snapshot) = refund_snapshot {
+                self.seed_refund_snapshot(snapshot);
+            }
+            #[cfg(feature = "parallel")]
+            if let Some(parallel) = &mut self.parallel {
+                parallel.retire_authoritative();
+            }
+            return Ok(None);
+        }
+
+        Ok(Some(self.commit_transaction(output)))
+    }
+
+    /// In Produce mode, this method does not snapshot or restore producer-policy state. Opaque
+    /// policies can mutate during execution, including on failure; adapted parallel policies keep
+    /// their updates private until commit.
+    /// Callers that may discard a candidate must snapshot and restore the policy themselves or use
+    /// [`execute_transaction_with_commit_condition`](Self::execute_transaction_with_commit_condition),
+    /// which restores the per-candidate snapshot on execution error and declined commit.
+    fn execute_transaction_without_commit(
+        &mut self,
+        tx: impl ExecutableTx<Self>,
+    ) -> Result<Self::Result, BlockExecutionError> {
+        #[cfg(feature = "parallel")]
+        if let Some(error) = self.parallel_configuration_error {
+            return Err(BlockExecutionError::msg(error));
+        }
+        #[cfg(feature = "parallel")]
+        if self.parallel.is_some() &&
+            self.post_exec.is_producing() &&
+            !self.evm.supports_parallel_observation()
+        {
+            return Err(BlockExecutionError::msg(
+                "parallel SDM production requires an observation/evaluation refund policy",
+            ));
+        }
+        let (tx_env, tx) = tx.into_parts();
+        #[cfg(feature = "parallel")]
+        let speculative = {
+            let context =
+                self.evm.parallel_environment().map(|environment| parallel::ExecutionContext {
+                    environment,
+                    l1_block_info: self.evm.execution_l1_block_info(),
+                    producing: self.post_exec.is_producing(),
+                });
+            if let Some(parallel) = self.parallel.as_mut() {
+                if tx.tx().ty() == DEPOSIT_TRANSACTION_TYPE || tx.tx().ty() == POST_EXEC_TX_TYPE_ID
+                {
+                    parallel.clear();
+                    parallel.selected(tx.tx().trie_hash());
+                    None
+                } else if let Some(worker_tx) = tx_env.parallel_transaction() {
+                    parallel
+                        .take(
+                            tx.tx().trie_hash(),
+                            &worker_tx,
+                            &self.ctx.parallel_candidates,
+                            context,
+                            self.evm.db_mut(),
+                            self.parallel_snapshot.as_ref(),
+                        )
+                        .map_err(BlockExecutionError::other)?
+                } else {
+                    None
+                }
+            } else {
+                None
+            }
+        };
+
+        #[cfg(feature = "parallel")]
+        let speculative = speculative
+            .filter(|output| {
+                self.evm
+                    .parallel_precompiles_compatible(&output.warm_precompiles, &output.call_targets)
+            })
+            .map(|output| output.raw);
+
+        #[cfg(feature = "parallel")]
+        if self
+            .parallel
+            .as_ref()
+            .is_some_and(|state| state.runtime.config().mode == ExecutionMode::Parallel)
+        {
+            if let Some(raw) = speculative {
+                if let Some(parallel) = &self.parallel {
+                    parallel.runtime.record_reuse();
+                }
+                return self.prepare_transaction_result((tx_env, tx), raw);
+            }
+        }
+
+        #[cfg(feature = "parallel")]
+        let shadow = speculative.map(|raw| {
+            let policy = self.refund_snapshot();
+            let l1_info = self.evm.execution_l1_block_info();
+            let result = self.prepare_transaction_result((tx_env.clone(), &tx), raw);
+            let prepared_policy = self.evm.prepared_refund_snapshot();
+            self.seed_refund_snapshot(policy);
+            if let Some(info) = l1_info {
+                self.evm.seed_execution_l1_block_info(info);
+            }
+            (result, prepared_policy)
+        });
+        #[cfg(all(feature = "parallel", feature = "metrics"))]
+        let retry_started = self
+            .parallel
+            .as_ref()
+            .is_some_and(|parallel| {
+                parallel.runtime.config().mode == ExecutionMode::Parallel &&
+                    parallel.attempted(tx.tx().trie_hash())
+            })
+            .then(std::time::Instant::now);
+        let output =
+            self.prepare_transaction_with((tx_env, &tx), |evm, tx_env, context, producing| {
+                if producing {
+                    evm.begin_post_exec_tx(context);
+                }
+                let result = evm.transact(tx_env)?;
+                Ok(RawTransactionOutput {
+                    result,
+                    producer_result: producing.then(|| evm.take_last_post_exec_tx_result()),
+                    observation: None,
+                    deferred_fees: evm.take_deferred_fees(),
+                    l1_block_info: evm.execution_l1_block_info(),
+                })
+            });
+        #[cfg(all(feature = "parallel", feature = "metrics"))]
+        if let Some(started) = retry_started {
+            metrics::histogram!("optimism_parallel.canonical_retry_seconds")
+                .record(started.elapsed().as_secs_f64());
+            if let Ok(result) = &output {
+                metrics::counter!("optimism_parallel.canonical_retry_gas")
+                    .increment(result.evm_gas_used);
+            }
+        }
+        #[cfg(feature = "parallel")]
+        if let Some((shadow, prepared_policy)) = shadow {
+            let equal = match (&output, &shadow) {
+                (Ok(reference), Ok(candidate)) => {
+                    reference.inner.result.result == candidate.inner.result.result &&
+                        parallel::equal_state(
+                            &reference.inner.result.state,
+                            &candidate.inner.result.state,
+                        ) &&
+                        reference.inner.blob_gas_used == candidate.inner.blob_gas_used &&
+                        reference.evm_gas_used == candidate.evm_gas_used &&
+                        reference.canonical_gas_used == candidate.canonical_gas_used &&
+                        reference.post_exec == candidate.post_exec &&
+                        reference.depositor_nonce == candidate.depositor_nonce &&
+                        (!self.post_exec.is_producing() ||
+                            self.evm.matches_prepared_refund_snapshot(&prepared_policy))
+                }
+                (Err(reference), Err(candidate)) => reference.to_string() == candidate.to_string(),
+                _ => false,
+            };
+            if let Some(parallel) = &self.parallel {
+                parallel.runtime.record_shadow(equal);
+            }
+            // A mismatch disables speculation for the rest of this block; the reference output
+            // remains authoritative. Never convert a shadow mismatch into a consensus rejection.
+            if !equal {
+                tracing::error!(target: "optimism::parallel", tx = ?tx.tx().trie_hash(), "shadow execution mismatch; using sequential result and disabling speculation for this block");
+                self.parallel = None;
+            }
+        }
+        output
+    }
 
     fn commit_transaction(&mut self, output: Self::Result) -> GasOutput {
+        if self.post_exec.is_producing() {
+            self.evm.commit_post_exec_tx();
+        }
         let tx_index = self.receipts.len() as u64;
         let OpTxResult {
             inner: EthTxResult { result: ResultAndState { result, state }, blob_gas_used, tx_type },
@@ -1160,12 +1508,32 @@ where
 
         self.evm.db_mut().commit(state);
 
+        #[cfg(feature = "parallel")]
+        if let Some(parallel) = &mut self.parallel {
+            let context =
+                self.evm.parallel_environment().map(|environment| parallel::ExecutionContext {
+                    environment,
+                    l1_block_info: self.evm.execution_l1_block_info(),
+                    producing: self.post_exec.is_producing(),
+                });
+            parallel.committed(
+                &self.ctx.parallel_candidates,
+                context,
+                self.evm.db_mut(),
+                self.parallel_snapshot.as_ref(),
+            );
+        }
+
         GasOutput::new(canonical_gas_used)
     }
 
     fn finish(
         mut self,
     ) -> Result<(Self::Evm, BlockExecutionResult<R::Receipt>), BlockExecutionError> {
+        #[cfg(feature = "parallel")]
+        if let Some(parallel) = &mut self.parallel {
+            parallel.clear();
+        }
         let indexes = self.post_exec.remaining_verifier_indexes();
         if !indexes.is_empty() {
             return Err(Self::invalid_post_exec_payload(format!(
@@ -1214,7 +1582,7 @@ where
 }
 
 /// Ethereum block executor factory.
-#[derive(Debug, Clone, Default, Copy)]
+#[derive(Debug, Clone, Default)]
 pub struct OpBlockExecutorFactory<
     R = OpAlloyReceiptBuilder,
     Spec = OpChainHardforks,
@@ -1226,13 +1594,58 @@ pub struct OpBlockExecutorFactory<
     spec: Spec,
     /// EVM factory.
     evm_factory: EvmFactory,
+    #[cfg(feature = "parallel")]
+    parallel_runtime: Option<alloc::sync::Arc<ParallelRuntime>>,
+    #[cfg(feature = "parallel")]
+    snapshot_session: Option<alloc::sync::Arc<SnapshotSession>>,
 }
 
 impl<R, Spec, EvmFactory> OpBlockExecutorFactory<R, Spec, EvmFactory> {
     /// Creates a new [`OpBlockExecutorFactory`] with the given spec, [`EvmFactory`], and
     /// [`OpReceiptBuilder`].
     pub const fn new(receipt_builder: R, spec: Spec, evm_factory: EvmFactory) -> Self {
-        Self { receipt_builder, spec, evm_factory }
+        Self {
+            receipt_builder,
+            spec,
+            evm_factory,
+            #[cfg(feature = "parallel")]
+            parallel_runtime: None,
+            #[cfg(feature = "parallel")]
+            snapshot_session: None,
+        }
+    }
+
+    /// Installs a node-shared worker pool. No workers are created by default.
+    #[cfg(feature = "parallel")]
+    pub fn with_parallel_runtime(
+        mut self,
+        runtime: impl Into<Option<alloc::sync::Arc<ParallelRuntime>>>,
+    ) -> Self {
+        self.parallel_runtime = runtime.into();
+        self.snapshot_session = None;
+        self
+    }
+
+    /// Returns the optional node-shared speculative runtime.
+    #[cfg(feature = "parallel")]
+    pub const fn parallel_runtime(&self) -> Option<&alloc::sync::Arc<ParallelRuntime>> {
+        self.parallel_runtime.as_ref()
+    }
+
+    /// Associates an execution-local snapshot session with this factory clone.
+    #[cfg(feature = "parallel")]
+    pub fn with_snapshot_session(
+        mut self,
+        session: Option<alloc::sync::Arc<SnapshotSession>>,
+    ) -> Self {
+        self.snapshot_session = session;
+        self
+    }
+
+    /// Returns the execution-local snapshot session, when an exact base source was supplied.
+    #[cfg(feature = "parallel")]
+    pub const fn snapshot_session(&self) -> Option<&alloc::sync::Arc<SnapshotSession>> {
+        self.snapshot_session.as_ref()
     }
 
     /// Exposes the receipt builder.
@@ -1290,7 +1703,21 @@ where
         DB: StateDB,
         I: Inspector<<PostExecEvmFactoryAdapter<F> as EvmFactory>::Context<DB>>,
     {
-        OpBlockExecutor::new(evm, ctx, &self.spec, &self.receipt_builder)
+        let executor = OpBlockExecutor::new(evm, ctx, &self.spec, &self.receipt_builder);
+        #[cfg(feature = "parallel")]
+        let executor = {
+            let mut executor = executor;
+            if self
+                .parallel_runtime
+                .as_ref()
+                .is_some_and(|runtime| runtime.config().mode != ExecutionMode::Sequential)
+            {
+                executor.parallel_configuration_error =
+                    Some("this custom EVM factory does not support parallel execution");
+            }
+            executor
+        };
+        executor
     }
 }
 
@@ -1345,7 +1772,190 @@ where
         DB: StateDB,
         I: Inspector<<OpEvmFactory<Tx, RefundPolicy> as EvmFactory>::Context<DB>>,
     {
-        OpBlockExecutor::new(evm, ctx, &self.spec, &self.receipt_builder)
+        let executor = OpBlockExecutor::new(evm, ctx, &self.spec, &self.receipt_builder);
+        #[cfg(feature = "parallel")]
+        let executor = {
+            use alloc::{string::ToString, sync::Arc};
+            use reth_optimism_parallel::SpeculationError;
+            let mut executor = executor;
+            if let Some(runtime) = self
+                .parallel_runtime
+                .as_ref()
+                .filter(|runtime| runtime.config().mode != ExecutionMode::Sequential)
+            {
+                let producing = executor.post_exec.is_producing();
+                if producing && !executor.evm.supports_parallel_observation() {
+                    executor.parallel_configuration_error = Some(
+                        "parallel SDM production requires an observation/evaluation refund policy",
+                    );
+                } else {
+                    let output_limit = runtime.config().max_output_bytes;
+                    let worker: Arc<parallel::Worker<op_revm::OpHaltReason>> =
+                        Arc::new(move |(tx, context), db| {
+                            let parallel::ExecutionContext {
+                                l1_block_info: l1_info,
+                                producing,
+                                environment: env,
+                            } = context;
+                            let mut evm = OpEvmFactory::<crate::OpTx, RefundPolicy>::default()
+                                .create_evm_with_inspector(
+                                    db,
+                                    env.clone(),
+                                    parallel::CallTargets::default(),
+                                );
+                            let warm_precompiles = evm.precompiles().addresses().copied().collect();
+                            evm.set_parallel_execution(true);
+                            if let Some(info) = l1_info {
+                                evm.seed_execution_l1_block_info(info);
+                            }
+                            if producing {
+                                evm.begin_post_exec_tx(PostExecTxContext {
+                                    tx_index: 0,
+                                    kind: PostExecTxKind::Normal,
+                                });
+                            }
+                            let result = evm
+                                .transact(tx)
+                                .map_err(|error| SpeculationError::Worker(error.to_string()))?;
+                            let observation =
+                                producing.then(|| evm.take_parallel_observation()).flatten();
+                            let state_bytes =
+                                result.state.values().fold(0usize, |size, account| {
+                                    size.saturating_add(512)
+                                        .saturating_add(account.storage.len().saturating_mul(128))
+                                        .saturating_add(
+                                            account.info.code.as_ref().map_or(0, |code| code.len()),
+                                        )
+                                });
+                            let logs_bytes =
+                                result.result.logs().iter().fold(0usize, |size, log| {
+                                    size.saturating_add(log.data.data.len())
+                                        .saturating_add(log.data.topics().len().saturating_mul(32))
+                                        .saturating_add(128)
+                                });
+                            let bytes = state_bytes
+                                .saturating_add(logs_bytes)
+                                .saturating_add(
+                                    evm.components().1.addresses.len().saturating_mul(64),
+                                )
+                                .saturating_add(1024)
+                                .saturating_add(
+                                    result.result.output().map_or(0, |bytes| bytes.len()),
+                                )
+                                .saturating_add(
+                                    observation
+                                        .as_ref()
+                                        .map_or(0, |observation| observation.size_bytes()),
+                                );
+                            #[cfg(feature = "metrics")]
+                            metrics::histogram!("optimism_parallel.output_bytes")
+                                .record(bytes as f64);
+                            if bytes > output_limit {
+                                return Err(SpeculationError::Limit);
+                            }
+                            if evm.components().1.exceeded {
+                                return Err(SpeculationError::Limit);
+                            }
+                            let call_targets =
+                                evm.components().1.addresses.iter().copied().collect();
+                            Ok(parallel::WorkerOutput {
+                                environment: env,
+                                warm_precompiles,
+                                call_targets,
+                                raw: RawTransactionOutput {
+                                    result,
+                                    producer_result: None,
+                                    observation,
+                                    deferred_fees: evm.take_deferred_fees(),
+                                    l1_block_info: evm.execution_l1_block_info(),
+                                },
+                            })
+                        });
+                    executor.parallel =
+                        Some(parallel::ParallelBlockState::new(runtime.clone(), worker));
+                }
+            }
+            executor
+        };
+        executor
+    }
+}
+
+/// Factory integration for independent reads from a canonical revm State.
+/// Custom factories retain the broker unless they explicitly install a capture adapter.
+pub trait SnapshotExecutorFactory: BlockExecutorFactory {
+    /// Constructs an executor with an optional operation-local snapshot session.
+    #[cfg(feature = "parallel")]
+    fn create_executor_with_snapshot<'a, 'db, DB, I>(
+        &'a self,
+        evm: <Self::EvmFactory as EvmFactory>::Evm<&'db mut revm::database::State<DB>, I>,
+        ctx: Self::ExecutionCtx<'a>,
+        _session: Option<alloc::sync::Arc<reth_optimism_parallel::SnapshotSession>>,
+    ) -> Self::Executor<'a, &'db mut revm::database::State<DB>, I>
+    where
+        DB: alloy_evm::Database,
+        I: Inspector<<Self::EvmFactory as EvmFactory>::Context<&'db mut revm::database::State<DB>>>,
+    {
+        self.create_executor(evm, ctx)
+    }
+}
+
+impl<R, Spec, F> SnapshotExecutorFactory
+    for OpBlockExecutorFactory<R, Spec, PostExecEvmFactoryAdapter<F>>
+where
+    R: OpReceiptBuilder<
+            Transaction: Transaction + Encodable2718 + OpConsensusTransaction,
+            Receipt: TxReceipt,
+        > + 'static,
+    Spec: OpHardforks + 'static,
+    F: PostExecEvmFactoryHooks + 'static,
+    F::Tx: FromRecoveredTx<R::Transaction> + FromTxWithEncoded<R::Transaction> + OpTxEnv,
+    Self: 'static,
+{
+}
+
+impl<ReceiptBuilder, Spec, Tx, RefundPolicy> SnapshotExecutorFactory
+    for OpBlockExecutorFactory<ReceiptBuilder, Spec, OpEvmFactory<Tx, RefundPolicy>>
+where
+    ReceiptBuilder: OpReceiptBuilder<
+            Transaction: Transaction + Encodable2718 + OpConsensusTransaction,
+            Receipt: TxReceipt,
+        > + 'static,
+    Spec: OpHardforks + 'static,
+    Tx: IntoTxEnv<Tx>
+        + Into<OpTransaction<TxEnv>>
+        + Default
+        + Clone
+        + core::fmt::Debug
+        + FromRecoveredTx<ReceiptBuilder::Transaction>
+        + FromTxWithEncoded<ReceiptBuilder::Transaction>
+        + OpTxEnv
+        + 'static,
+    RefundPolicy: Default + PostExecRefundInspector + 'static,
+    Self: 'static,
+{
+    #[cfg(feature = "parallel")]
+    fn create_executor_with_snapshot<'a, 'db, DB, I>(
+        &'a self,
+        evm: <Self::EvmFactory as EvmFactory>::Evm<&'db mut revm::database::State<DB>, I>,
+        ctx: Self::ExecutionCtx<'a>,
+        session: Option<alloc::sync::Arc<reth_optimism_parallel::SnapshotSession>>,
+    ) -> Self::Executor<'a, &'db mut revm::database::State<DB>, I>
+    where
+        DB: alloy_evm::Database,
+        I: Inspector<<Self::EvmFactory as EvmFactory>::Context<&'db mut revm::database::State<DB>>>,
+    {
+        let mut executor = self.create_executor(evm, ctx);
+        if let Some(session) = session.filter(|_| {
+            executor.parallel.as_ref().is_some_and(|state| {
+                state.runtime.config().state_reads == reth_optimism_parallel::StateReads::Auto
+            })
+        }) {
+            // Capture now so pre-execution system changes and deposits reach the collector.
+            let _ = session.capture(executor.evm.db_mut());
+            executor.parallel_snapshot = Some((session, |state, session| session.capture(*state)));
+        }
+        executor
     }
 }
 

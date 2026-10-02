@@ -311,7 +311,7 @@ impl OpNode {
         let RollupArgs { disable_txpool_gossip, discovery_v4, .. } = self.args;
         ComponentsBuilder::default()
             .node_types::<Node>()
-            .executor(OpExecutorBuilder::default())
+            .executor(OpExecutorBuilder { parallel_execution: (&self.args.execution).into() })
             .pool(self.standard_pool_builder())
             .payload(BasicPayloadServiceBuilder::new(self.payload_builder()))
             .network(OpNetworkBuilder::new(disable_txpool_gossip, !discovery_v4))
@@ -1137,9 +1137,12 @@ impl<NetworkT, RpcMiddleware> OpAddOnsBuilder<NetworkT, RpcMiddleware> {
 }
 
 /// A regular optimism evm and executor builder.
-#[derive(Debug, Copy, Clone, Default)]
+#[derive(Debug, Clone, Default)]
 #[non_exhaustive]
-pub struct OpExecutorBuilder {}
+pub struct OpExecutorBuilder {
+    /// Opt-in optimistic execution configuration shared by validation and payload builds.
+    pub parallel_execution: reth_optimism_evm::ParallelExecutionConfig,
+}
 
 impl<Node> ExecutorBuilder<Node> for OpExecutorBuilder
 where
@@ -1149,7 +1152,18 @@ where
         OpEvmConfig<<Node::Types as NodeTypes>::ChainSpec, <Node::Types as NodeTypes>::Primitives>;
 
     async fn build_evm(self, ctx: &BuilderContext<Node>) -> eyre::Result<Self::EVM> {
-        Ok(OpEvmConfig::new(ctx.chain_spec(), OpRethReceiptBuilder::default()))
+        let mut evm = OpEvmConfig::new(ctx.chain_spec(), OpRethReceiptBuilder::default());
+        if self.parallel_execution.mode != reth_optimism_evm::ExecutionMode::Sequential {
+            let tasks = ctx.task_executor().clone();
+            let workers = tasks.prewarming_pool().current_num_threads();
+            let runtime = reth_optimism_evm::ParallelRuntime::with_spawner(
+                self.parallel_execution,
+                workers,
+                move |job| tasks.prewarming_pool().spawn(job),
+            )?;
+            evm.executor_factory = evm.executor_factory.with_parallel_runtime(Arc::new(runtime));
+        }
+        Ok(evm)
     }
 }
 

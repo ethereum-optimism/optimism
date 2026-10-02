@@ -132,10 +132,78 @@ impl Default for ProofsHistoryBackfillArgs {
     }
 }
 
+/// Resource bounds shared by optimistic validation and payload building.
+#[derive(Debug, Clone, PartialEq, Eq, clap::Args)]
+pub struct ParallelExecutionArgs {
+    /// Execution mode: sequential (default), shadow, or parallel.
+    #[arg(long = "execution.mode", default_value = "sequential")]
+    pub mode: reth_optimism_evm::ExecutionMode,
+    /// Speculative scheduling: drained windows (default), or rolling independent reads.
+    #[arg(long = "execution.scheduler", default_value = "window")]
+    pub scheduler: reth_optimism_evm::ExecutionScheduler,
+    /// Prefer independent worker reads where supported, or force coordinator reads.
+    #[arg(long = "execution.state-reads", default_value = "auto")]
+    pub state_reads: reth_optimism_evm::StateReads,
+    /// Estimated retained snapshot and dirty-key budget per build or historical batch, in bytes.
+    #[arg(long = "execution.max-snapshot-bytes", default_value_t = 64 * 1024 * 1024)]
+    pub max_snapshot_bytes: usize,
+    /// Shared speculative workers. Zero reserves half the available CPUs for execution.
+    #[arg(long = "execution.workers", default_value_t = 0)]
+    pub workers: usize,
+    /// Maximum retained speculative transactions per executor.
+    #[arg(long = "execution.max-in-flight", default_value_t = 16)]
+    pub max_in_flight: usize,
+    /// Maximum additional declared gas speculated per block/build.
+    #[arg(long = "execution.max-speculative-gas", default_value_t = 30_000_000)]
+    pub max_speculative_gas: u64,
+    /// Retained read-set budget per speculative transaction, in bytes.
+    #[arg(long = "execution.max-read-bytes", default_value_t = 4 * 1024 * 1024)]
+    pub max_read_bytes: usize,
+    /// Retained output and policy-observation budget per speculative transaction, in bytes.
+    #[arg(long = "execution.max-output-bytes", default_value_t = 4 * 1024 * 1024)]
+    pub max_output_bytes: usize,
+}
+
+impl Default for ParallelExecutionArgs {
+    fn default() -> Self {
+        let config = reth_optimism_evm::ParallelExecutionConfig::default();
+        Self {
+            mode: config.mode,
+            scheduler: config.scheduler,
+            state_reads: config.state_reads,
+            max_snapshot_bytes: config.max_snapshot_bytes,
+            workers: config.workers,
+            max_in_flight: config.max_in_flight,
+            max_speculative_gas: config.max_speculative_gas,
+            max_read_bytes: config.max_read_bytes,
+            max_output_bytes: config.max_output_bytes,
+        }
+    }
+}
+
+impl From<&ParallelExecutionArgs> for reth_optimism_evm::ParallelExecutionConfig {
+    fn from(args: &ParallelExecutionArgs) -> Self {
+        Self {
+            mode: args.mode,
+            scheduler: args.scheduler,
+            state_reads: args.state_reads,
+            max_snapshot_bytes: args.max_snapshot_bytes,
+            workers: args.workers,
+            max_in_flight: args.max_in_flight,
+            max_speculative_gas: args.max_speculative_gas,
+            max_read_bytes: args.max_read_bytes,
+            max_output_bytes: args.max_output_bytes,
+        }
+    }
+}
+
 /// Parameters for rollup configuration
 #[derive(Debug, Clone, PartialEq, Eq, clap::Args)]
 #[command(next_help_heading = "Rollup")]
 pub struct RollupArgs {
+    /// Optimistic execution is disabled unless explicitly selected.
+    #[command(flatten)]
+    pub execution: ParallelExecutionArgs,
     /// Endpoint for the sequencer mempool (can be both HTTP and WS)
     #[arg(long = "rollup.sequencer", visible_aliases = ["rollup.sequencer-http", "rollup.sequencer-ws"])]
     pub sequencer: Option<String>,
@@ -299,6 +367,7 @@ pub struct RollupArgs {
 impl Default for RollupArgs {
     fn default() -> Self {
         Self {
+            execution: ParallelExecutionArgs::default(),
             sequencer: None,
             disable_txpool_gossip: false,
             compute_pending_block: false,
