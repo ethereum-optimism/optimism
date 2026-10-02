@@ -25,6 +25,7 @@ alloy-primitives = { workspace = true, features = ["k256", "getrandom"] }
 
 # Networking
 discv5 = { workspace = true, features = ["libp2p"] }
+enr = { workspace = true, features = ["k256", "ed25519"] }
 libp2p-identity = { workspace = true, features = ["secp256k1"] }
 libp2p = { workspace = true, features = ["macros", "tokio", "tcp", "noise", "gossipsub", "ping", "yamux", "identify"] }
 

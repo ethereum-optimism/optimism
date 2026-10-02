@@ -64,7 +64,10 @@ impl TestNetworkBuilder {
         let secp256k1_key = keypair.clone().try_into_secp256k1()
         .map_err(|e| anyhow::anyhow!("Impossible to convert keypair to secp256k1. This is a bug since we only support secp256k1 keys: {e}")).unwrap()
         .secret().to_bytes();
-        let local_node_key = k256::ecdsa::SigningKey::from_bytes(&secp256k1_key.into())
+        // discv5 and alloy pin different k256 majors, so the same secret backs one key of each.
+        let local_node_key = enr::k256::ecdsa::SigningKey::from_slice(&secp256k1_key)
+        .map_err(|e| anyhow::anyhow!("Impossible to convert keypair to k256 signing key. This is a bug since we only support secp256k1 keys: {e}")).unwrap();
+        let block_signer_key = k256::ecdsa::SigningKey::from_bytes(&secp256k1_key.into())
         .map_err(|e| anyhow::anyhow!("Impossible to convert keypair to k256 signing key. This is a bug since we only support secp256k1 keys: {e}")).unwrap();
 
         let node_addr = IpAddr::V4(Ipv4Addr::UNSPECIFIED);
@@ -90,9 +93,9 @@ impl TestNetworkBuilder {
             self.unsafe_block_signer,
             gossip_multiaddr,
             keypair,
-            LocalNode::new(local_node_key.clone(), node_addr, 0, 0),
+            LocalNode::new(local_node_key, node_addr, 0, 0),
             discovery_config,
-            Some(BlockSigner::Local(local_node_key.into())),
+            Some(BlockSigner::Local(block_signer_key.into())),
         )
         .with_bootnodes(bootnodes.into_iter().map(Into::into).collect::<Vec<BootNode>>().into());
 

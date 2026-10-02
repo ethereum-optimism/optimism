@@ -10,7 +10,7 @@ use alloy_provider::Provider;
 use alloy_signer_local::PrivateKeySigner;
 use anyhow::Result;
 use clap::Parser;
-use discv5::enr::k256;
+use enr::k256;
 use kona_derive::ChainProvider;
 use kona_disc::LocalNode;
 use kona_genesis::RollupConfig;
