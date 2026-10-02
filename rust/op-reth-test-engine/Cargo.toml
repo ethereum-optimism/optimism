@@ -4,7 +4,7 @@ version = "0.1.0"
 edition.workspace = true
 rust-version.workspace = true
 license.workspace = true
-description = "Library-first, ephemeral, OP-flavored execution layer for op-e2e/actions parity tests."
+description = "Library-first, ephemeral, OP-flavored execution layer for the op-e2e action tests."
 
 [lints]
 workspace = true

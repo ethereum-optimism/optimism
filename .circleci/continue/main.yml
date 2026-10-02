@@ -1869,10 +1869,10 @@ jobs:
           command: |
             ROOT_DIR="$(pwd)"
             echo "export RUST_BINARY_PATH_OP_RETH=$ROOT_DIR/rust/target/release/op-reth" >> "$BASH_ENV"
-            # The op-e2e/e2eutils/testengine and op-e2e/actions tests spawn the prebuilt engine from
-            # the attached rust-op-reth-binary workspace. REQUIRE_RUST_ENGINE makes a missing path a
-            # hard failure rather than a build (which needs libclang, absent from this image) or a
-            # stray local binary.
+            # op-e2e/e2eutils/testengine's tests spawn the prebuilt engine from the attached
+            # rust-op-reth-binary workspace (op-e2e/actions, which also does, runs in its own job).
+            # REQUIRE_RUST_ENGINE makes a missing path a hard failure rather than a build (which
+            # needs libclang, absent from this image) or a stray local binary.
             echo "export RUST_BINARY_PATH_OP_RETH_TEST_ENGINE=$ROOT_DIR/rust/target/release/op-reth-test-engine" >> "$BASH_ENV"
             echo "export REQUIRE_RUST_ENGINE=1" >> "$BASH_ENV"
       - go-restore-cache:
@@ -1907,7 +1907,8 @@ jobs:
                 mentions: "<<parameters.mentions>>"
 
   # Runs the op-e2e action tests against the out-of-process op-reth-test-engine
-  # execution layer (the go-tests jobs above cover the in-process op-geth EL).
+  # execution layer, their only EL. go-tests excludes the packages so the suite
+  # runs once, here, on a resource class and timeout of its own.
   # The engine binary comes prebuilt from the rust-op-reth-binary workspace;
   # REQUIRE_RUST_ENGINE turns a missing binary into a hard failure so a
   # provisioning bug cannot silently skip the reth coverage.

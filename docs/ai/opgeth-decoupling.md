@@ -27,8 +27,9 @@ of three fates:
    op-service layers (§15).
 2. **Migrate execution to op-reth / Rust** — anything that builds or executes blocks, or needs
    fork-only EVM hooks. op-acceptance-tests sequences op-reth-only for Karst+ (#21182);
-   op-e2e/actions moves onto an op-reth-test-engine subprocess EL (#20415, #21196); op-e2e system
-   tests and op-devstack/sysgo retire their in-process op-geth L2 EL (§17); and
+   op-e2e/actions runs on an op-reth-test-engine subprocess EL (#20415, #21196); the kona proof
+   tests' in-process op-geth L2 EL, `op-e2e/e2eutils/gethengine`, moves onto it too (#21905);
+   op-e2e system tests and op-devstack/sysgo retire their in-process op-geth L2 EL (§17); and
    `op-chain-ops/script` + op-deployer move to a Rust script engine (§16).
 3. **Delete** — geth-as-library tools with no remaining need, to be reimplemented in Rust against
    op-reth if ever needed again: op-simulate and op-run-block (#21282), `op-wheel/cheat` and the
@@ -406,9 +407,10 @@ upstream-stable APIs.
 ## 14. Genesis tooling — op-geth as a *library*, not an engine — open (#21281)
 
 Removing op-geth has two parts: op-geth as the execution *engine* (in-process ELs — deleted or
-replaced by op-reth; §17, #21196) and op-geth as a *library* in offline tooling. The genuine
-in-scope library consumer is **`op-chain-ops/genesis`** (`BuildL2Genesis`: genesis state-root +
-`genesis.json`). `op-simulate`/`op-run-block` were deleted instead (#21282, closed — no importers).
+replaced by op-reth; §17, #21196, #21905) and op-geth as a *library* in offline tooling. The
+genuine in-scope library consumer is **`op-chain-ops/genesis`** (`BuildL2Genesis`: genesis
+state-root + `genesis.json`). `op-simulate`/`op-run-block` were deleted instead (#21282, closed —
+no importers).
 
 The only op-geth *diff* the genesis path relies on: for Isthmus+ chains the genesis block's
 `WithdrawalsHash` is the storage root of the `L2ToL1MessagePasser` predeploy (via the upstream
@@ -522,7 +524,7 @@ stop maintaining the op-geth fork entirely — any in-repo module still dependin
 fork alive. (The same lens applies to the superchain-registry repo's `ops` module, which pins its
 own op-geth — outside this repo, flagged to that team.)
 
-This is a hard blocker of #20266 and the longest pole alongside #20415/#21196.
+This is a hard blocker of #20266.
 
 ---
 
@@ -689,7 +691,8 @@ monorepo has to fix on their behalf.
 | OP-aware eth client: class-partitioned accessors, `optypes.Receipt` returns, op-batcher + txinclude migration (§11) | `op-service/sources` / `apis.EthClient` | **done** (#20264) |
 | op-proposer / op-challenger / op-supernode / cannon (§12) | — | audited, no work |
 | Test migration: wait.go split, L2 call sites, `L2Client` type, sysgo audit, delete op-e2e/opgeth (§13) | `apis.EthClient` + header-only variants | open (#20265 + subs) |
-| op-e2e/actions in-process EL | `op-reth-test-engine` subprocess | open (#20415 Rust, #21196 Go) |
+| op-e2e/actions in-process EL | `op-reth-test-engine` subprocess | **done** (#20415 Rust, #21196 Go) |
+| Kona proof tests' in-process EL (`op-e2e/e2eutils/gethengine`, `rust/kona/tests/proofs`) | `op-reth-test-engine` subprocess | open (#21905) |
 | Genesis tooling (§14) | upstream geth as library + `opparams` | open (#21281) |
 | op-simulate / op-run-block (§14) | delete | **done** (#21282) |
 | op-sync-tester PayloadID hash | OP-aware `Id()` reimplementation | open (#21525) |
