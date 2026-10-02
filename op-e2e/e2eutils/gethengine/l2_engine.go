@@ -1,17 +1,17 @@
-package helpers
+package gethengine
 
 import (
 	"errors"
 	"os"
 
-	"github.com/ethereum-optimism/optimism/op-e2e/actions/helpers/engineapi"
+	"github.com/ethereum-optimism/optimism/op-e2e/actions/helpers"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils"
+	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/gethengine/engineapi"
 	"github.com/ethereum/go-ethereum/core/rawdb"
 	"github.com/stretchr/testify/require"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core"
-	"github.com/ethereum/go-ethereum/core/types"
 	geth "github.com/ethereum/go-ethereum/eth"
 	"github.com/ethereum/go-ethereum/eth/ethconfig"
 	"github.com/ethereum/go-ethereum/eth/tracers"
@@ -28,9 +28,9 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/sources"
 )
 
-// L2GethEngine is an in-process op-geth L2 execution engine serving a custom Engine API that lets
+// L2Engine is an in-process op-geth L2 execution engine serving a custom Engine API that lets
 // tests choose the transactions of each block, without support for snap-sync.
-type L2GethEngine struct {
+type L2Engine struct {
 	log log.Logger
 
 	node *node.Node
@@ -42,13 +42,11 @@ type L2GethEngine struct {
 	EngineApi *engineapi.L2EngineAPI
 }
 
-type EngineOption func(ethCfg *ethconfig.Config, nodeCfg *node.Config) error
-
-func NewL2GethEngine(t Testing, log log.Logger, genesis *core.Genesis, jwtPath string, options ...EngineOption) *L2GethEngine {
-	n, ethBackend, apiBackend := newBackend(t, genesis, jwtPath, options)
+func NewL2Engine(t helpers.Testing, log log.Logger, genesis *core.Genesis, jwtPath string) *L2Engine {
+	n, ethBackend, apiBackend := newBackend(t, genesis, jwtPath)
 	engineApi := engineapi.NewL2EngineAPI(log, apiBackend, ethBackend.Downloader())
 	chain := ethBackend.BlockChain()
-	eng := &L2GethEngine{
+	eng := &L2Engine{
 		log:       log,
 		node:      n,
 		Eth:       ethBackend,
@@ -69,7 +67,7 @@ func NewL2GethEngine(t Testing, log log.Logger, genesis *core.Genesis, jwtPath s
 	return eng
 }
 
-func newBackend(t e2eutils.TestingBase, genesis *core.Genesis, jwtPath string, options []EngineOption) (*node.Node, *geth.Ethereum, *engineApiBackend) {
+func newBackend(t e2eutils.TestingBase, genesis *core.Genesis, jwtPath string) (*node.Node, *geth.Ethereum, *engineApiBackend) {
 	ethCfg := &ethconfig.Config{
 		NetworkId:   bigs.Uint64Strict(genesis.Config.ChainID),
 		Genesis:     genesis,
@@ -91,9 +89,6 @@ func newBackend(t e2eutils.TestingBase, genesis *core.Genesis, jwtPath string, o
 		WSModules:   []string{"debug", "admin", "eth", "txpool", "net", "rpc", "web3", "personal"},
 		HTTPModules: []string{"debug", "admin", "eth", "txpool", "net", "rpc", "web3", "personal"},
 		JWTSecret:   jwtPath,
-	}
-	for i, opt := range options {
-		require.NoError(t, opt(ethCfg, nodeCfg), "engine option %d failed", i)
 	}
 	n, err := node.New(nodeCfg)
 	require.NoError(t, err)
@@ -128,57 +123,44 @@ func (e *engineApiBackend) Genesis() *core.Genesis {
 	return e.genesis
 }
 
-func (s *L2GethEngine) L2Chain() *core.BlockChain {
+func (s *L2Engine) L2Chain() *core.BlockChain {
 	return s.l2Chain
 }
 
-func (s *L2GethEngine) HTTPEndpoint() string {
+func (s *L2Engine) HTTPEndpoint() string {
 	return s.node.HTTPEndpoint()
 }
 
-func (s *L2GethEngine) EthClient() *ethclient.Client {
+func (s *L2Engine) EthClient() *ethclient.Client {
 	cl := s.node.Attach()
 	return ethclient.NewClient(cl)
 }
 
-func (s *L2GethEngine) GethClient() *gethclient.Client {
+func (s *L2Engine) GethClient() *gethclient.Client {
 	cl := s.node.Attach()
 	return gethclient.New(cl)
 }
 
-func (e *L2GethEngine) RPCClient() client.RPC {
+func (e *L2Engine) RPCClient() client.RPC {
 	return client.NewBaseRPCClient(e.node.Attach())
 }
 
-func (e *L2GethEngine) EngineClient(t Testing, cfg *rollup.Config) *sources.EngineClient {
+func (e *L2Engine) EngineClient(t helpers.Testing, cfg *rollup.Config) *sources.EngineClient {
 	l2Cl, err := sources.NewEngineClient(e.RPCClient(), e.log, nil, sources.EngineClientDefaultConfig(cfg))
 	require.NoError(t, err)
 	return l2Cl
 }
 
-func (e *L2GethEngine) RemainingBlockGas(Testing) uint64 {
-	return e.EngineApi.RemainingBlockGas()
-}
-
-func (e *L2GethEngine) ForcedEmpty(Testing) bool {
-	return e.EngineApi.ForcedEmpty()
-}
-
-func (e *L2GethEngine) IncludeTxErr(_ Testing, tx *types.Transaction, from common.Address) error {
-	_, err := e.EngineApi.IncludeTx(tx, from)
-	return err
-}
-
 // ActL2IncludeTxIgnoreForcedEmpty includes the next transaction from the given address in the block that is being built,
 // skipping the usual check for e.EngineApi.ForcedEmpty()
-func (e *L2GethEngine) ActL2IncludeTxIgnoreForcedEmpty(from common.Address) Action {
-	return func(t Testing) {
+func (e *L2Engine) ActL2IncludeTxIgnoreForcedEmpty(from common.Address) helpers.Action {
+	return func(t helpers.Testing) {
 		if e.EngineApi.ForcedEmpty() {
 			e.log.Info("Ignoring e.L2ForceEmpty=true")
 		}
 
 		require.NoError(t, e.Eth.TxPool().Sync(), "must sync tx-pool to get accurate pending txs")
-		tx := firstValidTx(t, from, e.EngineApi.PendingIndices, e.Eth.TxPool().ContentFrom, e.EthClient().NonceAt)
+		tx := helpers.FirstValidTx(t, from, e.EngineApi.PendingIndices, e.Eth.TxPool().ContentFrom, e.EthClient().NonceAt)
 		prevState := e.EngineApi.ForcedEmpty()
 		e.EngineApi.SetForceEmpty(false) // ensure the engine API can include it
 		_, err := e.EngineApi.IncludeTx(tx, from)
@@ -194,15 +176,16 @@ func (e *L2GethEngine) ActL2IncludeTxIgnoreForcedEmpty(from common.Address) Acti
 }
 
 // ActL2IncludeTx includes the next transaction from the given address in the block that is being built
-func (e *L2GethEngine) ActL2IncludeTx(from common.Address) Action {
-	return func(t Testing) {
+func (e *L2Engine) ActL2IncludeTx(from common.Address) helpers.Action {
+	return func(t helpers.Testing) {
+
 		if e.EngineApi.ForcedEmpty() {
 			e.log.Info("Skipping including a transaction because e.L2ForceEmpty is true")
 			return
 		}
 
 		require.NoError(t, e.Eth.TxPool().Sync(), "must sync tx-pool to get accurate pending txs")
-		tx := firstValidTx(t, from, e.EngineApi.PendingIndices, e.Eth.TxPool().ContentFrom, e.EthClient().NonceAt)
+		tx := helpers.FirstValidTx(t, from, e.EngineApi.PendingIndices, e.Eth.TxPool().ContentFrom, e.EthClient().NonceAt)
 		_, err := e.EngineApi.IncludeTx(tx, from)
 		if errors.Is(err, engineapi.ErrNotBuildingBlock) {
 			t.InvalidAction(err.Error())
@@ -212,8 +195,4 @@ func (e *L2GethEngine) ActL2IncludeTx(from common.Address) Action {
 			require.NoError(t, err, "include tx")
 		}
 	}
-}
-
-func (e *L2GethEngine) Close() error {
-	return e.node.Close()
 }

@@ -50,13 +50,12 @@ var (
 	messagePasserAddr = predeploys.L2ToL1MessagePasserAddr
 )
 
-// TestOpNodeDecodesRethBlocks is the round-1 de-risk gate for the op-e2e/actions EL switch: it
-// proves that op-node's real client stack (op-service/sources.EthClient) can reconstruct an
-// ExecutionPayload and re-derive the block hash from the full-transaction blocks the Rust engine
-// serves over the socket. Because DefaultEthClientConfig sets TrustRPC=false, a successful
-// PayloadByNumber/PayloadByHash reconstructs the payload from the RPC JSON (header + every full
-// transaction re-encoded to RLP, deposits included) and verifies the recomputed block hash against
-// the engine's — the exact round-trip the switch relies on.
+// TestOpNodeDecodesRethBlocks proves that op-node's real client stack (op-service/sources.EthClient)
+// can reconstruct an ExecutionPayload and re-derive the block hash from the full-transaction blocks
+// the Rust engine serves over the socket. Because DefaultEthClientConfig sets TrustRPC=false, a
+// successful PayloadByNumber/PayloadByHash reconstructs the payload from the RPC JSON (header +
+// every full transaction re-encoded to RLP, deposits included) and verifies the recomputed block
+// hash against the engine's — the round-trip every action test relies on.
 func TestOpNodeDecodesRethBlocks(t *testing.T) {
 	key, err := crypto.HexToECDSA("b71c71a67e1177ad4e901695e1b4b9ee17ae16c6668d313eac2f96dbcda3f291")
 	require.NoError(t, err)

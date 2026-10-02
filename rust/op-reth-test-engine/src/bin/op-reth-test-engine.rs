@@ -12,7 +12,7 @@ use clap::Parser;
 use op_reth_test_engine::{TestEngine, rpc::build_module};
 
 #[derive(Parser, Debug)]
-#[command(about = "Ephemeral OP execution engine for op-e2e/actions parity tests")]
+#[command(about = "Ephemeral OP execution engine for the op-e2e action tests")]
 struct Args {
     /// Unix socket path to listen on.
     #[arg(long)]
