@@ -25,7 +25,6 @@ reth-db.workspace = true
 
 op-version.workspace = true
 
-alloy-primitives.workspace = true
 tracing.workspace = true
 eyre.workspace = true
 

@@ -1,6 +1,5 @@
 #![allow(missing_docs, rustdoc::missing_crate_level_docs)]
 
-use alloy_primitives::Address;
 use reth_node_core::version::{RethCliVersionConsts, try_init_version_metadata};
 use reth_optimism_chainspec::is_superchain_chain_id;
 use reth_optimism_cli::{Cli, chainspec::OpChainSpecParser};
@@ -54,11 +53,8 @@ fn main() {
 
     if let Err(err) = Cli::<OpChainSpecParser, RollupArgs>::parse_with_denied_args().run(
         async move |builder, args| {
-            if let Some(excessive_refund_target) = args.testing_sdm_fixed_policy {
-                validate_testing_sdm_fixed_policy(
-                    excessive_refund_target,
-                    builder.config().chain.chain.id(),
-                )?;
+            if args.testing_sdm_fixed_policy.is_some() {
+                validate_testing_sdm_fixed_policy(builder.config().chain.chain.id())?;
             }
 
             info!(target: "reth::cli", "Launching node");
@@ -70,10 +66,7 @@ fn main() {
     }
 }
 
-fn validate_testing_sdm_fixed_policy(
-    excessive_refund_target: Option<Address>,
-    chain_id: u64,
-) -> eyre::Result<()> {
+fn validate_testing_sdm_fixed_policy(chain_id: u64) -> eyre::Result<()> {
     // Check the resolved chain ID, not how the chain was selected: a custom genesis can
     // still configure a registered chain. Unregistered chains are not necessarily dev chains.
     if is_superchain_chain_id(chain_id) {
@@ -83,7 +76,6 @@ fn validate_testing_sdm_fixed_policy(
     }
     warn!(
         target: "reth::cli",
-        ?excessive_refund_target,
         "TEST-ONLY SDM fixed-refund policy enabled; never use this policy in production"
     );
     Ok(())
@@ -106,8 +98,8 @@ mod tests {
         let Commands::Node(node) = cli.command else {
             panic!("expected node command");
         };
-        if let Some(excessive_refund_target) = node.ext.testing_sdm_fixed_policy {
-            validate_testing_sdm_fixed_policy(excessive_refund_target, node.chain.chain.id())?;
+        if node.ext.testing_sdm_fixed_policy.is_some() {
+            validate_testing_sdm_fixed_policy(node.chain.chain.id())?;
         }
         Ok(())
     }

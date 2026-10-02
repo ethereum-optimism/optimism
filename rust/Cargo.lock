@@ -9520,7 +9520,6 @@ dependencies = [
 name = "op-reth"
 version = "1.11.3"
 dependencies = [
- "alloy-primitives",
  "eyre",
  "op-version",
  "reth-cli-util",
