@@ -1,5 +1,6 @@
 #![allow(missing_docs, rustdoc::missing_crate_level_docs)]
 
+use alloy_primitives::Address;
 use reth_node_core::version::{RethCliVersionConsts, try_init_version_metadata};
 use reth_optimism_chainspec::is_superchain_chain_id;
 use reth_optimism_cli::{Cli, chainspec::OpChainSpecParser};
@@ -53,7 +54,12 @@ fn main() {
 
     if let Err(err) = Cli::<OpChainSpecParser, RollupArgs>::parse_with_denied_args().run(
         async move |builder, args| {
-            validate_testing_sdm_fixed_policy(&args, builder.config().chain.chain.id())?;
+            if let Some(excessive_refund_target) = args.testing_sdm_fixed_policy {
+                validate_testing_sdm_fixed_policy(
+                    excessive_refund_target,
+                    builder.config().chain.chain.id(),
+                )?;
+            }
 
             info!(target: "reth::cli", "Launching node");
             launch_node(builder, OpNode::new(args)).await
@@ -64,11 +70,10 @@ fn main() {
     }
 }
 
-fn validate_testing_sdm_fixed_policy(args: &RollupArgs, chain_id: u64) -> eyre::Result<()> {
-    let Some(excessive_refund_target) = args.testing_sdm_fixed_policy else {
-        return Ok(());
-    };
-
+fn validate_testing_sdm_fixed_policy(
+    excessive_refund_target: Option<Address>,
+    chain_id: u64,
+) -> eyre::Result<()> {
     // Check the resolved chain ID, not how the chain was selected: a custom genesis can
     // still configure a registered chain. Unregistered chains are not necessarily dev chains.
     if is_superchain_chain_id(chain_id) {
@@ -101,7 +106,10 @@ mod tests {
         let Commands::Node(node) = cli.command else {
             panic!("expected node command");
         };
-        validate_testing_sdm_fixed_policy(&node.ext, node.chain.chain.id())
+        if let Some(excessive_refund_target) = node.ext.testing_sdm_fixed_policy {
+            validate_testing_sdm_fixed_policy(excessive_refund_target, node.chain.chain.id())?;
+        }
+        Ok(())
     }
 
     fn custom_genesis(chain_id: u64) -> String {
