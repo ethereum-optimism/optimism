@@ -89,6 +89,7 @@ pub struct Cli<
 const DENIED_ARGS: &[(&str, &str, &str)] = &[
     ("node", "minimal", MINIMAL_REMOVED_HELP),
     ("node", "max_bals", BAL_ARGS_UNSUPPORTED_HELP),
+    ("node", "max_bals_bytes", BAL_ARGS_UNSUPPORTED_HELP),
     ("node", "cache_computed_bals", BAL_ARGS_UNSUPPORTED_HELP),
     ("node", "prewarm_bals", BAL_ARGS_UNSUPPORTED_HELP),
     ("node", "balstore_cache_size", BAL_ARGS_UNSUPPORTED_HELP),
@@ -250,6 +251,25 @@ mod test {
             .to_string();
         assert!(!help.contains("--minimal"), "--minimal must be hidden from node help:\n{help}");
         assert!(help.contains("--full"), "other pruning args must stay visible:\n{help}");
+    }
+
+    #[test]
+    fn deny_bal_cache_byte_limit_on_parse_and_help() {
+        let err = Cli::<OpChainSpecParser, RollupArgs>::try_parse_with_denied_args_from([
+            "op-reth",
+            "node",
+            "--rpc-cache.max-bals-bytes",
+            "1GB",
+        ])
+        .unwrap_err();
+        assert_eq!(err.kind(), clap::error::ErrorKind::ValueValidation);
+        assert!(err.to_string().contains("Block access list options are not supported"));
+
+        let mut cmd = Cli::<OpChainSpecParser, RollupArgs>::command_with_denied_args_hidden();
+        let help = cmd.find_subcommand_mut("node").unwrap().render_long_help().to_string();
+        assert!(!help.contains("--rpc-cache.max-bals-bytes"));
+        assert!(help.contains("--rpc-cache.max-blocks-bytes"));
+        assert!(help.contains("--rpc-cache.max-receipts-bytes"));
     }
 
     #[test]

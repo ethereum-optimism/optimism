@@ -27,8 +27,8 @@ use reth_revm::{
 };
 use reth_rpc_eth_types::{EthApiError, PendingBlock};
 use reth_storage_api::{
-    BlockReaderIdExt, HashedPostStateProvider, StateProviderFactory, StateRootProvider,
-    noop::NoopProvider,
+    BlockReaderIdExt, HashedPostStateProvider, StateProvider, StateProviderFactory,
+    StateRootProvider, noop::NoopProvider,
 };
 use reth_trie_common::ComputedTrieData;
 use std::{
@@ -229,7 +229,8 @@ where
                 args.pending_parent.as_ref().map(|p| p.cached_reads.clone()).unwrap_or_default()
             });
 
-        let cached_db = request_cache.as_db_mut(StateProviderDatabase::new(&state_provider));
+        let cached_db = request_cache
+            .as_db_mut(StateProviderDatabase::new((&state_provider).into_evm_state_provider()));
 
         // Check for resumable canonical execution state.
         let canonical_parent_hash = args.base.parent_hash;

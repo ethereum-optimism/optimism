@@ -132,7 +132,7 @@ arg: --rpc.max-blocking-io-requests <COUNT> [action: Set] [num-args: 1] [aliases
 arg: --rpc.max-trace-filter-blocks <COUNT> [action: Set] [num-args: 1] [aliases: rpc-max-trace-filter-blocks] [default: 100] help: Maximum number of blocks for `trace_filter` requests
 arg: --rpc.max-blocks-per-filter <COUNT> [action: Set] [num-args: 1] [aliases: rpc-max-blocks-per-filter] [default: 100000] help: Maximum number of blocks that could be scanned per filter request. (0 = entire chain)
 arg: --rpc.max-logs-per-response <COUNT> [action: Set] [num-args: 1] [aliases: rpc-max-logs-per-response] [default: 20000] help: Maximum number of logs that can be returned in a single response. (0 = no limit)
-arg: --rpc.gascap <GAS_CAP> [action: Set] [num-args: 1] [aliases: rpc-gascap] [default: 50000000] help: Maximum gas limit for `eth_call` and call tracing RPC methods
+arg: --rpc.gascap <GAS_CAP> [action: Set] [num-args: 1] [aliases: rpc-gascap] [default: 50000000] help: Maximum gas limit for `eth_call`, `eth_estimateGas`, and call tracing RPC methods
 arg: --rpc.evm-memory-limit <MEMORY_LIMIT> [action: Set] [num-args: 1] [aliases: rpc-evm-memory-limit] [default: 4294967295] help: Maximum memory the EVM can allocate per RPC request
 arg: --rpc.txfeecap <TX_FEE_CAP> [action: Set] [num-args: 1] [aliases: rpc-txfeecap] [default: 1.0] help: Maximum eth transaction fee (in ether) that can be sent via the RPC APIs (0 = no cap)
 arg: --rpc.max-simulate-blocks <BLOCKS_COUNT> [action: Set] [num-args: 1] [default: 256] help: Maximum number of blocks for `eth_simulateV1` call
@@ -142,10 +142,14 @@ arg: --rpc.proof-permits <COUNT> [action: Set] [num-args: 1] [aliases: rpc-proof
 arg: --rpc.pending-block <KIND> [action: Set] [num-args: 1] [default: full] help: Configures the pending block behavior for RPC responses
 arg: --rpc.forwarder <FORWARDER> [action: Set] [num-args: 1] [aliases: rpc-forwarder] help: Endpoint to forward transactions to
 arg: --builder.disallow <PATH> [action: Set] [num-args: 1] help: Path to file containing disallowed addresses, json-encoded list of strings. Block validation API will reject blocks containing transactions from these addresses
-arg: --rpc-cache.max-blocks <MAX_BLOCKS> [action: Set] [num-args: 1] [default: 5000] help: Max number of blocks in cache
-arg: --rpc-cache.max-receipts <MAX_RECEIPTS> [action: Set] [num-args: 1] [default: 2000] help: Max number receipts in cache
+arg: --rpc-cache.max-blocks <MAX_BLOCKS> [action: Set] [num-args: 1] [default: 1000] help: Max number of blocks in cache
+arg: --rpc-cache.max-receipts <MAX_RECEIPTS> [action: Set] [num-args: 1] [default: 500] help: Max number receipts in cache
 arg: --rpc-cache.max-headers <MAX_HEADERS> [action: Set] [num-args: 1] [aliases: rpc-cache.max-envs] [default: 1000] [hidden] help: Legacy no-op retained for CLI compatibility
 arg: --rpc-cache.max-bals <MAX_BALS> [action: Set] [num-args: 1] [default: 1000] [hidden] help: Max number of block access lists in cache
+arg: --rpc-cache.max-blocks-bytes <BYTES> [action: Set] [num-args: 1] [default: 2147483648] help: Maximum estimated block cache memory in bytes or with a unit (e.g. 1GB, 500MB). Units use powers of 1024. Zero disables caching. The entry count limit also applies
+arg: --rpc-cache.max-receipts-bytes <BYTES> [action: Set] [num-args: 1] [default: 1073741824] help: Maximum estimated receipts cache memory in bytes or with a unit (e.g. 1GB, 500MB). Units use powers of 1024. Zero disables caching. The entry count limit also applies
+arg: --rpc-cache.max-bals-bytes <BYTES> [action: Set] [num-args: 1] [default: 524288000] [hidden] help: Maximum estimated block access list cache memory in bytes or with a unit (e.g. 1GB, 500MB). Units use powers of 1024. Zero disables caching. The entry count limit also applies
+arg: --rpc-cache.idle-timeout <DURATION> [action: Set] [num-args: 1] [default: 1h] help: Evict blocks, receipts, and block access lists after this duration without a cache hit (e.g. 5m, 30s). Zero disables expiration. Cleanup starts every 1 to 60 seconds and removes at most five entries per cache per poll
 arg: --rpc-cache.cache-computed-bals [action: SetTrue] [num-args: 0] [hidden] help: Cache block access lists computed by RPC requests for transaction tracing
 arg: --rpc-cache.prewarm-bals <BLOCKS> [action: Set] [num-args: 0..=1] [default-missing-values: ["0"]] [hidden] [require-equals] help: Replay new canonical blocks to cache block access lists until native BAL support
 arg: --rpc-cache.max-concurrent-db-requests <MAX_CONCURRENT_DB_REQUESTS> [action: Set] [num-args: 1] [default: 512] help: Max number of concurrent database requests
@@ -256,13 +260,14 @@ arg: --engine.persistence-threshold <PERSISTENCE_THRESHOLD> [action: Set] [num-a
 arg: --engine.persistence-backpressure-threshold <PERSISTENCE_BACKPRESSURE_THRESHOLD> [action: Set] [num-args: 1] help: Configure the maximum number of blocks beyond the in-memory buffer target that may await persistence before engine API processing stalls
 arg: --engine.num-state-masking-blocks <NUM_STATE_MASKING_BLOCKS> [action: Set] [num-args: 1] [env: RETH_ENGINE_NUM_STATE_MASKING_BLOCKS] [default: 30] help: Configure how many of the blocks being persisted should only mask state/trie writes instead of durably persisting their state/trie updates in the current cycle
 arg: --engine.memory-block-buffer-target <MEMORY_BLOCK_BUFFER_TARGET> [action: Set] [num-args: 1] help: Configure the target number of blocks to keep in memory
+arg: --engine.backfill-threshold <BACKFILL_RUN_THRESHOLD> [action: Set] [num-args: 1] [env: RETH_ENGINE_BACKFILL_THRESHOLD] [default: 32] help: Configure the largest gap, in blocks, between the local head and the forkchoice head that is closed by downloading the missing blocks directly. Larger gaps trigger a full pipeline (backfill) run instead
 arg: --engine.invalid-header-cache-hit-eviction-threshold <INVALID_HEADER_HIT_EVICTION_THRESHOLD> [action: Set] [num-args: 1] [default: 128] help: Configure how many cache hits an invalid header can accumulate before it is evicted and reprocessed
 arg: --engine.legacy-state-root [action: SetTrue] [num-args: 0] [default: false] [hidden] help: CAUTION: This CLI flag has no effect anymore, use --engine.state-root-fallback if you want to force synchronous state root computation
 arg: --engine.caching-and-prewarming [action: SetTrue] [num-args: 0] [default: true] [hidden] help: CAUTION: This CLI flag has no effect anymore, use --engine.disable-caching-and-prewarming if you want to disable caching and prewarming
 arg: --engine.disable-state-cache [action: SetTrue] [num-args: 0] [default: false] help: Disable state cache
 arg: --engine.disable-prewarming [action: SetTrue] [num-args: 0] [aliases: engine.disable-caching-and-prewarming] [default: false] help: Disable parallel prewarming
 arg: --engine.txpool-prewarming [action: SetTrue] [num-args: 0] [env: RETH_ENGINE_TXPOOL_PREWARMING] [default: false] help: Enable best-effort txpool transaction prewarming between payloads
-arg: --engine.sender-recovery-cache [action: SetTrue] [num-args: 0] [env: RETH_ENGINE_SENDER_RECOVERY_CACHE] [default: false] help: Enable caching recovered transaction senders across transaction ingress and payload execution
+arg: --engine.sender-recovery-cache <SENDER_RECOVERY_CACHE_ENABLED> [action: SetTrue] [num-args: 0..=1] [env: RETH_ENGINE_SENDER_RECOVERY_CACHE] [default: true] [default-missing-values: ["true"]] [possible: true, false] help: Cache recovered transaction senders across transaction ingress and payload execution
 arg: --engine.parallel-sparse-trie [action: SetTrue] [num-args: 0] [default: true] [hidden] help: CAUTION: This CLI flag has no effect anymore. The parallel sparse trie is always enabled
 arg: --engine.disable-parallel-sparse-trie [action: SetTrue] [num-args: 0] [default: false] [hidden] help: CAUTION: This CLI flag has no effect anymore. The parallel sparse trie is always enabled
 arg: --engine.state-provider-metrics [action: SetTrue] [num-args: 0] [default: false] help: Enable state provider latency metrics. This allows the engine to collect and report stats about how long state provider calls took during execution, but this does introduce slight overhead to state provider calls

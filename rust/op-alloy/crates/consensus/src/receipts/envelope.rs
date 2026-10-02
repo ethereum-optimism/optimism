@@ -10,7 +10,7 @@ use alloy_eips::{
 use alloy_primitives::{Bloom, Log, logs_bloom};
 use alloy_rlp::{BufMut, Decodable, Encodable, length_of_length};
 
-/// UPSTREAM-MIRROR(copy): alloy-consensus@2.4.2 `alloy_consensus::ReceiptEnvelope`
+/// UPSTREAM-MIRROR(copy): alloy-consensus@2.5.0 `alloy_consensus::ReceiptEnvelope`
 ///
 /// Same per-transaction-type envelope over [`ReceiptWithBloom`], with the OP `PostExec` (0x7d)
 /// and `Deposit` (0x7e) variants added and EIP-4844 dropped. The shared Ethereum variants must
@@ -21,10 +21,8 @@ use alloy_rlp::{BufMut, Decodable, Encodable, length_of_length};
 ///
 /// Receipt envelope, as defined in [EIP-2718], modified for OP Stack chains.
 ///
-/// This enum distinguishes between tagged and untagged legacy receipts, as the
-/// in-protocol merkle tree may commit to EITHER 0-prefixed or raw. Therefore
-/// we must ensure that encoding returns the precise byte-array that was
-/// decoded, preserving the presence or absence of the `TransactionType` flag.
+/// Legacy receipts are untagged RLP lists. Typed receipts retain their transaction type
+/// prefix, so decoding and encoding preserve the canonical receipt bytes.
 ///
 /// Transaction receipt payloads are specified in their respective EIPs.
 ///

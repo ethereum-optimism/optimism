@@ -286,10 +286,12 @@ impl<'a, P> HashedPostStateProvider for MemoryOverlayOpProofsStateProviderRef<'a
 where
     P: OpProofsProviderRO + Clone,
 {
-    /// UPSTREAM-MIRROR(copy): reth@rev:4553cf1
+    /// UPSTREAM-MIRROR(port): reth@pre-26923
     /// `reth_chain_state::MemoryOverlayStateProviderRef::hashed_post_state`
     ///
-    /// Uses the OP proofs-buffer trie input instead of upstream's executed-block overlay.
+    /// Ported from the provider removed in paradigmxyz/reth#26923. Uses the OP proofs-buffer
+    /// trie input instead of upstream's executed-block overlay; the storage-zeroing behavior
+    /// remains covered by the destroyed-account tests below.
     fn hashed_post_state(&self, bundle_state: &BundleState) -> ProviderResult<HashedPostState> {
         let mut hashed_state = self.inner.hashed_post_state(bundle_state)?;
 

@@ -22,8 +22,8 @@ use reth_node_api::{NodePrimitives, NodeTypesWithDB};
 use reth_primitives_traits::{AlloyBlockHeader, Block as _, RecoveredBlock};
 use reth_provider::{
     BlockWriter as _, ExecutionOutcome, HashedPostStateProvider, LatestStateProviderRef,
-    ProviderFactory, StateRootProvider, StorageSettingsCache, providers::ProviderNodeTypes,
-    test_utils::create_test_provider_factory_with_chain_spec,
+    ProviderFactory, StateProvider, StateRootProvider, StorageSettingsCache, TrieWriter,
+    providers::ProviderNodeTypes, test_utils::create_test_provider_factory_with_chain_spec,
 };
 use reth_revm::database::StateProviderDatabase;
 use secp256k1::{Keypair, Secp256k1, SecretKey};
@@ -150,7 +150,9 @@ where
         > + NodeTypesWithDB,
 {
     let provider = provider_factory.provider().unwrap();
-    let db = StateProviderDatabase::new(LatestStateProviderRef::new(&provider));
+    let db = StateProviderDatabase::new(
+        LatestStateProviderRef::new(&provider).into_evm_state_provider(),
+    );
     let evm_config = EthEvmConfig::ethereum(chain_spec.clone());
     let block_executor = evm_config.batch_executor(db);
     let execution_result = block_executor.execute(block).unwrap();
@@ -183,6 +185,9 @@ pub(crate) fn commit_block_to_database<N>(
         &execution_output.state,
     )
     .unwrap();
+    let (_, trie_updates) = LatestStateProviderRef::new(&state_provider)
+        .state_root_with_updates(hashed_state.clone())
+        .unwrap();
     let provider_rw = provider_factory.provider_rw().unwrap();
     provider_rw
         .append_blocks_with_state(
@@ -191,6 +196,8 @@ pub(crate) fn commit_block_to_database<N>(
             hashed_state.into_sorted(),
         )
         .unwrap();
+    // Reth's append helper leaves trie persistence to the caller (reth#27307).
+    provider_rw.write_trie_updates(trie_updates).unwrap();
     provider_rw.commit().unwrap();
 }
 
@@ -329,6 +336,47 @@ pub(crate) fn build_chain_with_storage_writes_and_initialize_storage(
     }
 
     (provider_factory, storage, last_number, last_hash)
+}
+
+#[test]
+fn committed_fixture_persists_trie_nodes() {
+    use reth_trie::trie_cursor::{TrieCursor, TrieCursorFactory};
+    use reth_trie_db::DatabaseTrieCursorFactory;
+
+    let key_pair = deterministic_keypair();
+    let sender = public_key_to_address(key_pair.public_key());
+    let chain_spec = chain_spec_with_address(sender);
+    let factory = create_test_provider_factory_with_chain_spec(chain_spec.clone());
+    init_genesis(&factory).unwrap();
+    let mut parent = chain_spec.genesis_hash();
+
+    for number in 1..=2 {
+        let mut block = build_storage_call_block(number, parent, &chain_spec, key_pair, number - 1);
+        let output = execute_block(&mut block, &factory, &chain_spec);
+        let expected_nodes: Vec<_> = {
+            let provider = factory.provider().unwrap();
+            let state = LatestStateProviderRef::new(&provider);
+            let hashed = state.hashed_post_state(&output.state).unwrap();
+            let (_, updates) = state.state_root_with_updates(hashed).unwrap();
+            // The writer deliberately omits the root node; check actual persisted branches.
+            updates.account_nodes.into_iter().filter(|(path, _)| !path.is_empty()).collect()
+        };
+        assert!(!expected_nodes.is_empty(), "fixture must update stored account branches");
+        commit_block_to_database(&block, &output, &factory);
+        let provider = factory.provider().unwrap();
+        reth_trie_db::with_adapter!(provider, |A| {
+            let cursors = DatabaseTrieCursorFactory::<_, A>::new(provider.tx_ref());
+            let mut cursor = cursors.account_trie_cursor().unwrap();
+            for (path, node) in expected_nodes {
+                assert_eq!(
+                    cursor.seek_exact(path).unwrap().map(|(_, stored)| stored),
+                    Some(node),
+                    "fixture block {number} must persist its updated trie branches",
+                );
+            }
+        });
+        parent = block.hash();
+    }
 }
 
 /// Fixtures for `HashedPostStateProvider` tests over the proofs storage: persisted storage

@@ -175,7 +175,7 @@ impl OpHardfork {
         *self as usize
     }
 
-    /// UPSTREAM-MIRROR(set): alloy-hardforks@0.4.8 `alloy_hardforks::EthereumHardfork`
+    /// UPSTREAM-MIRROR(set): alloy-hardforks@0.4.9 `alloy_hardforks::EthereumHardfork`
     ///
     /// A new upstream variant needs an explicit decision here. The `VARIANTS` loop below
     /// only smoke-tests lookup; semantic mappings remain explicit assertions.

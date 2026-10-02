@@ -52,6 +52,7 @@ tracing.workspace = true
 [dev-dependencies]
 reth-evm = { workspace = true, features = ["test-utils"] }
 reth-revm = { workspace = true, features = ["test-utils"] }
+reth-storage-api.workspace = true
 alloy-genesis.workspace = true
 metrics-exporter-prometheus.workspace = true
 metrics-util.workspace = true
@@ -89,6 +90,7 @@ std = [
 	"reth-evm/std",
 	"op-alloy-rpc-types-engine/std",
 	"reth-storage-errors/std",
+	"reth-storage-api/std",
 	"op-alloy-rpc-types?/std",
 	"alloy-rpc-types-eth?/std"
 ]

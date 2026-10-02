@@ -13,7 +13,7 @@ use alloy_eips::eip2718::{Eip2718Error, Eip2718Result, IsTyped2718};
 use alloy_primitives::{Bloom, Log};
 use alloy_rlp::{Buf, BufMut, Decodable, Encodable, Header};
 
-/// UPSTREAM-MIRROR(copy): alloy-consensus@2.4.2 `alloy_consensus::ReceiptEnvelope`
+/// UPSTREAM-MIRROR(copy): alloy-consensus@2.5.0 `alloy_consensus::EthereumReceipt`
 ///
 /// Mirrors the envelope's per-transaction-type payload split, holding a bare [`Receipt`] rather
 /// than a [`ReceiptWithBloom`] — upstream has no unbloomed counterpart — and adding the OP
@@ -309,6 +309,10 @@ impl<T: Encodable> Eip2718EncodableReceipt for OpReceipt<T> {
 
 impl<T: Decodable> Eip2718DecodableReceipt for OpReceipt<T> {
     fn typed_decode_with_bloom(ty: u8, buf: &mut &[u8]) -> Eip2718Result<ReceiptWithBloom<Self>> {
+        // Legacy receipts are untagged; only the fallback decoder accepts them.
+        if ty == 0 {
+            return Err(Eip2718Error::UnexpectedType(ty));
+        }
         let tx_type = OpTxType::try_from(ty).map_err(|_| Eip2718Error::UnexpectedType(ty))?;
         Ok(Self::rlp_decode_inner(buf, tx_type)?)
     }
@@ -356,6 +360,10 @@ impl<T: Decodable> RlpDecodableReceipt for OpReceipt<T> {
 
         let remaining = buf.len();
         let tx_type = OpTxType::decode(buf)?;
+        // An RLP string can only wrap a typed receipt, never a legacy receipt.
+        if tx_type.is_legacy() {
+            return Err(Eip2718Error::UnexpectedType(tx_type as u8).into());
+        }
         let this = Self::rlp_decode_inner(buf, tx_type)?;
 
         if buf.len() + header.payload_length != remaining {
@@ -800,6 +808,55 @@ mod tests {
             legacy_receipt.encode_2718_len(),
             "Encoded length for legacy receipt should match the actual encoded data length"
         );
+    }
+
+    #[test]
+    fn legacy_receipt_decode_paths_reject_type_prefix() {
+        let receipt: ReceiptWithBloom<OpReceipt> = ReceiptWithBloom {
+            receipt: OpReceipt::Legacy(Receipt {
+                status: Eip658Value::Eip658(true),
+                cumulative_gas_used: 21_000,
+                logs: vec![],
+            }),
+            logs_bloom: Bloom::default(),
+        };
+        let encoded = receipt.encoded_2718();
+        assert!(encoded[0] >= 0xc0);
+        assert_eq!(ReceiptWithBloom::<OpReceipt>::decode_2718_exact(&encoded).unwrap(), receipt);
+        assert_eq!(
+            ReceiptWithBloom::<OpReceipt>::network_decode(&mut encoded.as_slice()).unwrap(),
+            receipt
+        );
+        assert_eq!(
+            ReceiptWithBloom::<OpReceipt>::decode(&mut encoded.as_slice()).unwrap(),
+            receipt
+        );
+
+        let mut tagged = vec![0x00];
+        tagged.extend_from_slice(&encoded);
+        assert!(ReceiptWithBloom::<OpReceipt>::decode_2718_exact(&tagged).is_err());
+        assert!(
+            ReceiptWithBloom::<OpReceipt>::network_decode(&mut network_framed(&tagged).as_slice())
+                .is_err()
+        );
+        assert!(
+            ReceiptWithBloom::<OpReceipt>::decode(&mut network_framed(&tagged).as_slice()).is_err()
+        );
+
+        // The RLP type decoder reads zero as 0x80, not the literal 0x00 type byte.
+        let mut rlp_zero_tagged = vec![0x80];
+        rlp_zero_tagged.extend_from_slice(&encoded);
+        assert!(
+            ReceiptWithBloom::<OpReceipt>::decode(&mut network_framed(&rlp_zero_tagged).as_slice())
+                .is_err()
+        );
+    }
+
+    fn network_framed(payload: &[u8]) -> Vec<u8> {
+        let mut out = Vec::new();
+        Header { list: false, payload_length: payload.len() }.encode(&mut out);
+        out.extend_from_slice(payload);
+        out
     }
 
     #[test]

@@ -236,6 +236,35 @@ main's CI actually validated.
    it from an unreleased dependency bump; update it through the release generator
    after the next finalized tag.
 
+## v2.7.0 adaptation notes
+
+- `StateProviderDatabase` now requires an EVM-state provider. Adapt a storage
+  `StateProvider` with `.into_evm_state_provider()` before constructing the
+  database, including in test fixtures; account/block reader traits alone are
+  not the new interface.
+- `CancelOnDrop` moved from `reth_revm::cancelled` to `reth_tasks`.
+  The e2e `setup_engine` helper was replaced by `E2ETestSetupBuilder`.
+  `EthApiCtx` also gained `sender_recovery_cache`; forward the launch context's
+  cache when constructing it manually, including in doctest examples.
+- Multi-block database fixtures must persist trie updates explicitly after
+  `append_blocks_with_state`: compute `state_root_with_updates` before appending
+  and call `write_trie_updates` before committing, as in reth#27307. Otherwise
+  subsequent blocks can read stale stored trie nodes despite current hashed state.
+  Derive updates from the execution state, not the header's root: negative tests
+  deliberately corrupt that header while retaining valid execution state.
+- Reth removed `MemoryOverlayStateProviderRef` in paradigmxyz/reth#26923.
+  Its `state_with_block_appended` replacement assumes the historical provider
+  is at the appended block's immediate parent. Flashblocks instead overlay an
+  accumulated speculative bundle on its **canonical anchor**, which need not
+  equal that parent. Preserve this distinction in pending RPC state; use the
+  local owned `PendingStateProvider` port rather than looking up the speculative
+  parent in canonical storage. The proofs-buffer `hashed_post_state` port also
+  retains storage-zeroing behavior from the removed upstream provider.
+- Alloy 2.5.0's canonical-receipt guards must also reach `OpReceipt`, not just
+  `OpReceiptEnvelope`: reth's network receipt type is
+  `ReceiptWithBloom<OpReceipt>`. Its EIP-2718 and RLP string decoders both reject
+  type-tagged legacy receipts; untagged legacy lists remain valid.
+
 ## Expect upstream churn beyond your target change
 
 A rev bump is rarely "just a rev change." Upstream reth iterates trait
