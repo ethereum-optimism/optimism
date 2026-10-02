@@ -51,6 +51,7 @@ url.workspace = true
 libp2p.workspace = true
 libp2p-stream.workspace = true
 discv5.workspace = true
+enr = { workspace = true, features = ["k256", "ed25519"] }
 futures.workspace = true
 tracing.workspace = true
 thiserror.workspace = true

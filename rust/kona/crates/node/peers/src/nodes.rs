@@ -110,7 +110,8 @@ pub static OP_RAW_TESTNET_BOOTNODES: &[&str] = &[
 
 #[cfg(test)]
 mod tests {
-    use discv5::{Enr, enr::EnrPublicKey};
+    use discv5::Enr;
+    use enr::EnrPublicKey;
     use std::str::FromStr;
 
     use kona_genesis::{BASE_MAINNET_CHAIN_ID, OP_MAINNET_CHAIN_ID, OP_SEPOLIA_CHAIN_ID};
