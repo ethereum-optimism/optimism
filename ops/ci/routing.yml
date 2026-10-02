@@ -87,4 +87,6 @@ passthrough_params:
   - c-base_image
   - c-github-event-base64
   - c-go-cache-version
+  - c-go_fresh_tests
+  - c-rwx_rpc_provision
   - c-publish_contract_artifacts_ref

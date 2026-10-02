@@ -2,6 +2,7 @@
 """Run freshly executed Go tests from cached, source-bound test binaries."""
 
 from concurrent.futures import ThreadPoolExecutor
+import argparse
 from datetime import datetime, timezone
 import hashlib
 import importlib.util
@@ -17,6 +18,7 @@ import tarfile
 ROOT = Path(__file__).resolve().parents[2]
 BUILD = ROOT / ".ci/go-rollup/build"
 PREFIX = "github.com/ethereum-optimism/optimism/op-node/rollup"
+SUITE = "go-rollup"
 SPEC = importlib.util.spec_from_file_location("shards", Path(__file__).with_name("go-package-shards.py"))
 SHARDS = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(SHARDS)
@@ -29,12 +31,15 @@ def digest(path):
 
 
 def build():
-    manifest = json.loads((ROOT / ".ci/go-rollup/manifest.json").read_text())
+    manifest = json.loads((ROOT / ".ci" / SUITE / "manifest.json").read_text())
     SHARDS.select_packages(manifest, PREFIX, 0, manifest["total"])
+    packages = manifest["packages"]
+    if SUITE == "go-tests":
+        packages = SHARDS.select_packages(manifest, PREFIX, os.environ["CI_SHARD_INDEX"], manifest["total"])
     BUILD.mkdir(parents=True, exist_ok=True)
     subprocess.run(["go", "build", "-o", str(BUILD / "test2json"), "cmd/test2json"], cwd=ROOT, check=True)
     # go test -c compiles only. TestMain and init functions never run here.
-    source = (ROOT / ".ci/go-rollup/go-list.json").read_text()
+    source = (ROOT / ".ci" / SUITE / "go-list.json").read_text()
     decoder, offset, objects = json.JSONDecoder(), 0, {}
     while offset < len(source):
         if source[offset].isspace():
@@ -55,15 +60,24 @@ def build():
                          "sha256": digest(output) if has_tests else None}
 
     with ThreadPoolExecutor(max_workers=4) as pool:
-        binaries = dict(pool.map(compile_package, enumerate(manifest["packages"])))
+        binaries = dict(pool.map(compile_package, enumerate(packages)))
     metadata = {"commit_sha": os.environ["CI_COMMIT_SHA"], "tags": ["ci"],
                 "go_version": subprocess.check_output(["go", "version"], text=True).strip(),
                 "test2json_sha256": digest(BUILD / "test2json"), "packages": binaries}
+    if SUITE == "go-tests":
+        metadata.update(suite=SUITE, settings=manifest["settings"],
+                        shard_index=int(os.environ["CI_SHARD_INDEX"]), shard_total=manifest["total"],
+                        manifest_sha256=digest(ROOT / ".ci" / SUITE / "manifest.json"),
+                        compile_root=str(ROOT))
     head = subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=ROOT, text=True).strip()
     if head != metadata["commit_sha"]:
         raise ValueError("Go compilation belongs to a different commit")
     (BUILD / "metadata.json").write_text(json.dumps(metadata, indent=2) + "\n")
     (BUILD / "manifest.json").write_text(json.dumps(manifest, indent=2) + "\n")
+    if SUITE == "go-tests":
+        # Runtime modules come from the shared preparation artifact. Do not
+        # duplicate the entire module set into every shard's binary artifact.
+        return
     # The production-import guards load the root package with go/packages at
     # runtime. Retain its real module sources and all downloaded graph metadata,
     # while excluding unrelated modules and all compiler object caches.
@@ -88,12 +102,27 @@ def build():
 
 def verify():
     metadata = json.loads((BUILD / "metadata.json").read_text())
-    manifest = json.loads((ROOT / ".ci/go-rollup/manifest.json").read_text())
+    manifest_path = ROOT / ".ci" / SUITE / "manifest.json"
+    manifest = json.loads(manifest_path.read_text())
     selected = SHARDS.select_packages(manifest, PREFIX, os.environ["CI_SHARD_INDEX"], os.environ["CI_SHARD_TOTAL"])
     if metadata.get("commit_sha") != os.environ["CI_COMMIT_SHA"] or metadata.get("tags") != ["ci"]:
         raise ValueError("Go compilation revision or tags differ from this verdict")
-    if sorted(metadata["packages"]) != manifest["packages"]:
+    expected_packages = selected if SUITE == "go-tests" else manifest["packages"]
+    if sorted(metadata["packages"]) != sorted(expected_packages):
         raise ValueError("Compiled Go package coverage differs from the authoritative manifest")
+    if SUITE == "go-tests":
+        expected_settings = {"tags": ["ci"], "short": False, "count": 1,
+                             "package_parallelism": 4, "parallel": int(os.environ["PARALLEL"]),
+                             "timeout": os.environ.get("TEST_TIMEOUT", "40m"),
+                             "rerun_fails": 3, "rerun_fails_max_failures": 50}
+        if (metadata.get("suite") != SUITE or metadata.get("settings") != expected_settings
+                or manifest.get("settings") != expected_settings
+                or manifest.get("commit_sha") != os.environ["CI_COMMIT_SHA"]
+                or metadata.get("shard_index") != int(os.environ["CI_SHARD_INDEX"])
+                or metadata.get("shard_total") != int(os.environ["CI_SHARD_TOTAL"])
+                or metadata.get("manifest_sha256") != digest(manifest_path)
+                or metadata.get("compile_root") != str(ROOT)):
+            raise ValueError("Go suite settings, shard, source paths or manifest differ from this verdict")
     if digest(BUILD / "test2json") != metadata["test2json_sha256"]:
         raise ValueError("Go JSON reporter changed")
     for package in selected:
@@ -146,7 +175,14 @@ def run(args):
 
 if __name__ == "__main__":
     try:
-        command, *arguments = sys.argv[1:]
+        parser = argparse.ArgumentParser(description=__doc__)
+        parser.add_argument("command", choices=["build", "verify", "run"])
+        parser.add_argument("--suite", choices=["go-rollup", "go-tests"], default="go-rollup")
+        options, arguments = parser.parse_known_args()
+        command, SUITE = options.command, options.suite
+        BUILD = ROOT / ".ci" / SUITE / "build"
+        if SUITE == "go-tests":
+            PREFIX = "github.com/ethereum-optimism/optimism"
         if command == "build":
             build()
         elif command == "verify":

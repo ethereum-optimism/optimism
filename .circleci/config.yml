@@ -84,6 +84,12 @@ parameters:
   go-cache-version:
     type: string
     default: "v0.1"
+  c-go_fresh_tests:
+    type: boolean
+    default: false
+  c-rwx_rpc_provision:
+    type: boolean
+    default: false
 
 orbs:
   continuation: circleci/continuation@2.0.1
@@ -166,6 +172,8 @@ jobs:
           name: Store boolean pipeline parameters in JSON file
           command: .circleci/scripts/collect-params.sh bool
           environment:
+            c-go_fresh_tests: << pipeline.parameters.c-go_fresh_tests >>
+            c-rwx_rpc_provision: << pipeline.parameters.c-rwx_rpc_provision >>
             c-main_dispatch: << pipeline.parameters.main_dispatch >>
             c-fault_proofs_dispatch: << pipeline.parameters.fault_proofs_dispatch >>
             c-reproducibility_dispatch: << pipeline.parameters.reproducibility_dispatch >>
