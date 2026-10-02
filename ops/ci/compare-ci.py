@@ -56,8 +56,8 @@ def number(value, label):
     return value
 
 
-def unique_list(values, label):
-    if not isinstance(values, list) or not values:
+def unique_list(values, label, *, allow_empty=False):
+    if not isinstance(values, list) or (not values and not allow_empty):
         raise ValueError(f"{label} must be a nonempty list")
     for value in values:
         required_text(value, label)
@@ -305,6 +305,24 @@ def validate_discovery(value):
         raise ValueError("discovery.complete must be boolean or null")
     if result.get("complete") is True:
         required_text(result.get("provenance"), "complete discovery provenance")
+    partition = result.get('partition', 'package')
+    if partition not in ('package', 'test'):
+        raise ValueError('unsupported discovery partition')
+    if partition == 'test':
+        tests = unique_list(result.get('tests'), 'discovery.tests')
+        for identity in tests:
+            parts = identity.split('::')
+            if len(parts) != 2 or parts[0] not in result.get('packages', []) or not re.fullmatch(r'Test\w*', parts[1]):
+                raise ValueError('invalid discovered Go test identity')
+        result['tests'] = tests
+        total, groups = result.get('total'), result.get('test_shards')
+        if type(total) is not int or total < 1 or not isinstance(groups, list) or len(groups) != total:
+            raise ValueError('test discovery shards do not match total')
+        assigned = []
+        for group in groups:
+            assigned.extend(unique_list(group, 'test shard', allow_empty=True))
+        if sorted(assigned) != tests or len(assigned) != len(set(assigned)):
+            raise ValueError('test discovery shards must cover every identity exactly once')
     if "shards" in result:
         total = result.get("total")
         if type(total) is not int or total < 1 or not isinstance(result["shards"], list) or len(result["shards"]) != total:
@@ -329,7 +347,7 @@ def measurements(value):
     return result
 
 
-def validate_package_coverage(sources, discovery):
+def validate_package_coverage(sources, discovery, cases=None):
     go_sources = [source for source in sources if source["role"] == "verdict" and source.get("format") == "go-json"]
     observed = []
     for source in go_sources:
@@ -339,6 +357,27 @@ def validate_package_coverage(sources, discovery):
         if len(packages) != len(set(packages)):
             raise ValueError("duplicated observed package within a source")
         observed.extend(packages)
+    if discovery and discovery.get('partition') == 'test':
+        # Test-level sharding deliberately invokes every package on each node.
+        # Validate exact case ownership instead of weakening package partitions.
+        if not go_sources or cases is None or any(source.get('format') != 'go-json'
+                                                 for source in sources if source['role'] == 'verdict'):
+            raise ValueError('test partition coverage requires original Go events')
+        for source in go_sources:
+            if sorted(source['observed_packages']) != discovery['packages']:
+                raise ValueError('test shard does not retain every selected terminal package')
+            index = source.get('shard_index')
+            if type(index) is not int or source.get('shard_total') != discovery['total']:
+                raise ValueError('test source lacks its declared shard identity')
+            expected = set(discovery['test_shards'][index])
+            actual = {case['suite'] + '::' + case['name'] for case in cases
+                      if case['source_id'] == source['id'] and '/' not in case['name']}
+            if actual != expected:
+                raise ValueError('test source verdicts differ from its assigned top-level identities')
+            if any(case['suite'] + '::' + case['name'].split('/')[0] not in expected
+                   for case in cases if case['source_id'] == source['id']):
+                raise ValueError('subtest belongs to an unassigned top-level identity')
+        return
     if len(observed) != len(set(observed)):
         raise ValueError("duplicated package across Go shard sources")
     if go_sources and discovery and discovery.get("complete") is True and "packages" in discovery:
@@ -467,7 +506,10 @@ def normalize(collection, base_path):
         # component. Require explicit shard metadata and valid out-of-scope
         # evidence before accepting that empty share; the collection itself
         # must still have executed cases for every feature.
-        if not parsed and metadata.get("package_prefix") and "shard_index" in source:
+        if not parsed and source['format'] == 'go-json' and (collection.get('discovery') or {}).get('partition') == 'test':
+            # Exact identity/package checks below reject missing nonempty shares.
+            pass
+        elif not parsed and metadata.get("package_prefix") and "shard_index" in source:
             unfiltered = {**metadata, "package_prefix": None}
             if source["format"] == "go-json":
                 outside, _ = go_cases(path, dict(source), unfiltered)
@@ -489,7 +531,7 @@ def normalize(collection, base_path):
     if discovery and "packages" in discovery:
         if any(case["suite"] not in discovery["packages"] for case in cases):
             raise ValueError("reported case package is absent from discovery")
-    validate_package_coverage(sources, discovery)
+    validate_package_coverage(sources, discovery, cases)
     return {"version": 1, "metadata": metadata, "sources": sources,
             "cases": sorted(cases, key=identity), "package_failures": failures,
             "discovery": discovery,
@@ -526,7 +568,7 @@ def validate_normalized(data):
     validate_shards(sources, metadata)
     validate_cases(data.get("cases"), metadata, sources)
     validate_discovery(data.get("discovery"))
-    validate_package_coverage(sources, data.get("discovery"))
+    validate_package_coverage(sources, data.get("discovery"), data['cases'])
     measurements(data.get("measurements"))
     if not isinstance(data.get("package_failures"), list):
         raise ValueError("normalized package_failures must be a list")
@@ -603,7 +645,7 @@ def compare(baseline, candidate):
         report["status"] = "different"
     if baseline.get("discovery") is not None and candidate.get("discovery") is not None:
         # Compare discovered sets, not provider-specific shard packing.
-        for field in ("packages", "test_files"):
+        for field in ("packages", "test_files", "tests"):
             if baseline["discovery"].get(field) != candidate["discovery"].get(field):
                 report.setdefault("discovery_differences", []).append(field)
                 report["status"] = "different"

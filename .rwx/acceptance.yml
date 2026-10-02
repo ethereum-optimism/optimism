@@ -224,8 +224,11 @@ tasks:
 
   - key: acceptance-tools
     use: [go-build-tools, contract-tools]
-    run: bash .circleci/scripts/apt-install.sh --no-install-recommends eatmydata
-    timeout: 15m
+    run: |
+      bash .circleci/scripts/apt-install.sh --no-install-recommends eatmydata
+      mise install geth
+      printf '%s\n' "$(mise bin-paths | paste -sd: -):$PATH" >"$RWX_ENV/PATH"
+    timeout: 30m
 
   - key: discovery-opn
     use: [source, go-build-tools]
@@ -1132,4 +1135,3 @@ tasks:
       artifacts:
         - key: reports
           path: .ci/acceptance/reports
-

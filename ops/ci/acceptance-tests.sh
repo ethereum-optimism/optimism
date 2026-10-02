@@ -19,18 +19,33 @@ case "$phase" in
     python3 ops/ci/acceptance-manifest.py create --directory .ci/acceptance/discovery --total "$CI_SHARD_TOTAL"
     ;;
   run)
+    export RUST_BINARY_PATH_KONA_HOST="$PWD/rust/target/release/kona-host"
+    export RUST_BINARY_PATH_KONA_CLIENT="$PWD/rust/target/release/kona-client"
     export RUST_BINARY_PATH_KONA_NODE="$PWD/rust/target/release/kona-node"
     export RUST_BINARY_PATH_KONA_SP1_PROPOSER="$PWD/rust/target/release/kona-sp1-proposer"
     export RUST_BINARY_PATH_OP_RETH="$PWD/rust/target/release/op-reth"
     export RUST_BINARY_PATH_OP_RETH_SDM_FIXTURE="$PWD/rust/target/release/op-reth-sdm-fixture"
     export RUST_BINARY_PATH_KONA_SP1_SUPER_RANGE_EXECUTOR="$PWD/.circleci-cache/rust-binaries/kona-sp1-super-range-executor"
-    for binary in "$RUST_BINARY_PATH_KONA_NODE" "$RUST_BINARY_PATH_KONA_SP1_PROPOSER" \
+    for binary in "$RUST_BINARY_PATH_KONA_HOST" "$RUST_BINARY_PATH_KONA_CLIENT" \
+      "$RUST_BINARY_PATH_KONA_NODE" "$RUST_BINARY_PATH_KONA_SP1_PROPOSER" \
       "$RUST_BINARY_PATH_OP_RETH" "$RUST_BINARY_PATH_OP_RETH_SDM_FIXTURE" \
       "$RUST_BINARY_PATH_KONA_SP1_SUPER_RANGE_EXECUTOR"; do
       test -x "$binary" || { echo "Missing executable runtime dependency: $binary" >&2; exit 1; }
     done
     # Match Circle's mock verifier setup; real SP1 ELFs are a separate gate.
     unset KONA_SP1_ELF_DIR RUST_JIT_BUILD
+    geth_binary="$(mise which geth)"
+    test -x "$geth_binary"
+    mkdir -p tmp/testlogs/dependencies
+    python3 - "$geth_binary" <<'PYCODE'
+import hashlib, json, subprocess, sys
+from pathlib import Path
+binary = Path(sys.argv[1])
+metadata = {'geth_sha256': hashlib.sha256(binary.read_bytes()).hexdigest(),
+            'geth_version': subprocess.check_output([str(binary), 'version'], text=True).strip()}
+Path('tmp/testlogs/dependencies/runtime-tools.json').write_text(json.dumps(metadata, indent=2) + '\n')
+PYCODE
+    export ACCEPTANCE_TEST_HIDE_FAILURE_OUTPUT=true
     export LD_PRELOAD=libeatmydata.so
     mkdir -p .ci/acceptance/reports
     finish() {

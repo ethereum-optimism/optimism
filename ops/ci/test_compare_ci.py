@@ -64,6 +64,60 @@ class ComparisonTest(unittest.TestCase):
         right["metadata"]["trigger"] = {"type": "push", "evidence": "synthetic unit fixture"}
         return left, right
 
+    def partition_collection(self, *, empty=False):
+        names = ['TestOne', 'TestTwo']
+        groups = [names, []] if empty else [[name] for name in names]
+        sources = []
+        for index, assigned in enumerate(groups):
+            events = [{'Action': 'start', 'Package': PREFIX}]
+            for name in assigned:
+                events.extend({'Action': action, 'Package': PREFIX, 'Test': name} for action in ('run', 'pass'))
+            events.append({'Action': 'pass', 'Package': PREFIX})
+            path = self.root / f'go-{index}.json'
+            path.write_text('\n'.join(json.dumps(event) for event in events))
+            sources.append(self.source(path.name, 'go-json', shard_index=index, shard_total=2))
+        discovery = {'packages': [PREFIX], 'complete': True, 'provenance': 'synthetic exhaustive test listing',
+                     'partition': 'test', 'total': 2, 'tests': [PREFIX + '::' + name for name in names],
+                     'test_shards': [[PREFIX + '::' + name for name in group] for group in groups]}
+        return self.collection(sources, discovery=discovery)
+
+    def test_test_partitions_allow_shared_packages_but_preserve_exact_case_ownership(self):
+        collection = self.partition_collection()
+        normalized = CI.normalize(collection, self.root)
+        self.assertEqual(len(normalized['cases']), 2)
+        CI.validate_normalized(normalized)
+        collection['discovery'] = {'packages': [PREFIX], 'complete': True, 'provenance': 'fixture'}
+        with self.assertRaisesRegex(ValueError, 'duplicated package'):
+            CI.normalize(collection, self.root)
+
+    def test_test_partition_rejects_missing_duplicate_or_wrong_source_assignments(self):
+        original = self.partition_collection()
+        for kind in ('missing', 'duplicate', 'wrong_source'):
+            collection = copy.deepcopy(original)
+            groups = collection['discovery']['test_shards']
+            if kind == 'missing': groups[0] = []
+            elif kind == 'duplicate': groups[1] += groups[0]
+            else: groups.reverse()
+            with self.assertRaises(ValueError): CI.normalize(collection, self.root)
+
+    def test_empty_test_partition_keeps_terminal_package_evidence(self):
+        normalized = CI.normalize(self.partition_collection(empty=True), self.root)
+        self.assertEqual(len(normalized['cases']), 2)
+        CI.validate_normalized(normalized)
+        normalized['sources'][1]['observed_packages'] = []
+        with self.assertRaises(ValueError): CI.validate_normalized(normalized)
+
+    def test_different_discovered_test_sets_are_compared(self):
+        left = CI.normalize(self.partition_collection(), self.root)
+        right = copy.deepcopy(left)
+        right['metadata']['provider'] = 'rwx'
+        right['cases'][1]['name'] = 'TestThree'
+        right['discovery']['tests'][1] = PREFIX + '::TestThree'
+        right['discovery']['test_shards'][1] = [PREFIX + '::TestThree']
+        report = CI.compare(left, right)
+        self.assertEqual(report['status'], 'different')
+        self.assertIn('tests', report['discovery_differences'])
+
     def test_real_circleci_go_fixture_preserves_full_subtest_identity_and_skip_reasons(self):
         path = SCRIPTS / "fixtures/ci-comparison/circleci-go-cases.json"
         fixture = CI.read_json(path)

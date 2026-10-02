@@ -161,8 +161,13 @@ acceptance-test:
     fi
 
     set +e
+    SUMMARY_FLAG=""
+    if [[ "${ACCEPTANCE_TEST_HIDE_FAILURE_OUTPUT:-false}" == true ]]; then
+        SUMMARY_FLAG=--hide-summary=output
+    fi
     LOG_LEVEL="${LOG_LEVEL}" "{{REPO_ROOT}}/ops/scripts/gotestsum-split.sh" \
         --format testname \
+        ${SUMMARY_FLAG:+"$SUMMARY_FLAG"} \
         --junitfile "$JUNIT_FILE" \
         --jsonfile "$JSON_FILE" \
         -- \

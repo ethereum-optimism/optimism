@@ -22,11 +22,12 @@ Cargo target and sccache caches are retained; source SHA, pins, settings and fil
 hashes bind every restored dependency. There are no publisher or notification
 side effects.
 
-Runtime exports all five Rust binary paths and checks each executable before tests.
+Runtime exports all seven Rust binary paths and checks each executable before tests.
 `KONA_SP1_ELF_DIR` stays unset, preserving Circle's stub artifacts and mock verifier.
 Real SP1 guest ELFs remain a separate Circle gate. Runtime Go builds use an
 isolated native compiler cache. Go, Forge, Cast, Anvil and Docker are available;
-`eatmydata` preserves Circle's fsync behavior. Archive RPC credentials are not
+The pinned Glamsterdam geth tool is installed, checked before execution and retained
+with its file hash and version. `eatmydata` preserves Circle's fsync behavior. Archive RPC credentials are not
 needed by these suites and are not added to the acceptance workflow.
 
 Initial workers are 16 CPU / 64 GiB for op-node and 16 CPU / 32 GiB for Kona.
@@ -72,3 +73,10 @@ warming targets producers and discovery only, running no acceptance verdicts.
 Native/protected warming after merge and broader gate/fork/merge-group rehearsals
 remain separate operational follow-ups. Mark the five inventory jobs only when
 hosted execution supports their completion.
+
+The first clean hosted attempt at `fb8f75b685` retained complete failure reports
+and exposed two port-specific runtime gaps: Kona host/client lookup fell back to
+unavailable Cargo, and the selective tool layer omitted pinned Glamsterdam geth.
+Explicit verified binary paths and geth installation address those gaps; no test
+expectations or skip rules were changed. Hosted validation must pass on the fix
+before the inventory advances.
