@@ -9500,6 +9500,7 @@ dependencies = [
  "reth-optimism-payload-builder",
  "reth-optimism-primitives",
  "reth-optimism-rpc",
+ "tempfile",
  "tracing",
 ]
 
