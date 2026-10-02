@@ -43,6 +43,20 @@ case "$job" in
     python3 ops/ci/go-artifacts.py pack kona rust/target/release/kona-host rust/target/release/kona-client \
       rust/target/release/kona-node rust/target/release/kona-sp1-proposer
     ;;
+  sp1-executor)
+    export CARGO_HOME="$PWD/.ci/rust-cache/cargo" CARGO_TARGET_DIR="$PWD/rust/target"
+    export CARGO_INCREMENTAL=0 RUSTC_WRAPPER=sccache SCCACHE_DIR="$PWD/.ci/rust-cache/sccache"
+    export SCCACHE_BASEDIRS="$PWD" SCCACHE_CACHE_SIZE=10G SCCACHE_IDLE_TIMEOUT=0
+    mkdir -p "$CARGO_HOME" "$SCCACHE_DIR" .ci/go-tests/dependencies/sp1-executor
+    sccache --start-server
+    sccache --zero-stats
+    trap 'sccache --show-stats --stats-format json >.ci/go-tests/dependencies/sp1-executor/sccache.json; sccache --stop-server' EXIT
+    (cd rust && mold -run cargo build --locked --profile release --all-features \
+      --package kona-sp1-super-range-executor --bin kona-sp1-super-range-executor)
+    mkdir -p .circleci-cache/rust-binaries
+    cp rust/target/release/kona-sp1-super-range-executor .circleci-cache/rust-binaries/
+    python3 ops/ci/go-artifacts.py pack sp1-executor .circleci-cache/rust-binaries/kona-sp1-super-range-executor
+    ;;
   op-reth)
     bash /usr/local/lib/optimism-ci/op-reth-shadow.sh source
     bash /usr/local/lib/optimism-ci/op-reth-shadow.sh release-build

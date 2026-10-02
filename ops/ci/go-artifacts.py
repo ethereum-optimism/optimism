@@ -14,7 +14,8 @@ ROOT = Path(__file__).resolve().parents[2]
 SETTINGS = {"go": {"hello_toolchain": "go1.24.13"}, "contracts": {"profile": "ci"},
             "kona": {"profile": "release", "features": ["default"], "packages": ["kona-host", "kona-client", "kona-node", "kona-sp1-proposer"]},
             "op-reth": {"profile": "release", "features": ["default"], "packages": ["op-reth", "op-reth-sdm-fixture"]},
-            "prestate": {"recipe": "just reproducible-prestate"}}
+            "prestate": {"recipe": "just reproducible-prestate"},
+            "sp1-executor": {"profile": "release", "features": ["all"], "packages": ["kona-sp1-super-range-executor"]}}
 
 def digest(path):
     with path.open('rb') as stream:
@@ -47,7 +48,7 @@ def pack(kind, paths):
     metadata.update(files=files, archive_sha256=digest(archive),
                     tool_versions={tool: subprocess.check_output([tool, 'version' if tool == 'go' else '--version'], text=True).strip()
                                    for tool in {'go': ['go'], 'contracts': ['go', 'forge'], 'kona': ['rustc', 'cargo'],
-                                                'op-reth': ['rustc', 'cargo'], 'prestate': ['docker']}[kind]})
+                                                'op-reth': ['rustc', 'cargo'], 'sp1-executor': ['rustc', 'cargo'], 'prestate': ['docker']}[kind]})
     (output / 'metadata.json').write_text(json.dumps(metadata, indent=2) + '\n')
 
 def restore(kind, artifact):

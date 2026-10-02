@@ -68,7 +68,8 @@ in [rwx-migration.md](rwx-migration.md#op-reth-shadow-and-cache-measurements).
 
 ## Recommended order
 
-1. Port acceptance suites using the validated shared producers.
+1. Complete the [acceptance shadow](rwx-acceptance-parity.md) using the validated
+   shared producers: both client variants and the remaining SP1/Cannon edges.
 2. Close remaining contract evidence gaps and operational failure/routing rehearsals.
 3. Reuse the completed aggregate Go producers for acceptance consumers, with
    equivalent discovery and isolated fresh verdicts. Defer additional performance

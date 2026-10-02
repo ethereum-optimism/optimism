@@ -1,0 +1,1135 @@
+# Full acceptance variants. CircleCI retains all required gates.
+on:
+  cache-rebuild:
+    if: ${{ event.git.branch == 'develop' }}
+    target: [go, contracts, kona, op-reth, prestate, sp1-executor, discovery-opn, discovery-kona]
+    init:
+      commit-sha: ${{ event.git.sha }}
+      branch: ${{ event.git.branch }}
+      tag: ""
+      cache-warm: "true"
+      cache-epoch: v1
+      build-probe: ""
+      target-cache-mode: keep
+      shard-total: "8"
+  github:
+    push:
+      init:
+        commit-sha: ${{ event.git.sha }}
+        branch: ${{ event.git.branch }}
+        tag: ${{ event.git.tag }}
+        cache-warm: "false"
+        cache-epoch: v1
+        build-probe: ""
+        target-cache-mode: keep
+        shard-total: "8"
+      status-checks:
+        name: optimism-acceptance-shadow
+  cli:
+    init:
+      commit-sha: ${{ event.git.sha }}
+      branch: ${{ event.git.branch }}
+      tag: ""
+      cache-warm: "false"
+      cache-epoch: v1
+      build-probe: ""
+      target-cache-mode: keep
+      shard-total: "8"
+
+# Cache-only vault, writable by develop and the temporary pilot branch.
+tool-cache:
+  vault: optimism-op-reth-shadow
+
+base:
+  image: ubuntu:24.04@sha256:008173c23f95b170204355c12626cb5a965d779a7e1283b09e9cffbb1bf33ca3
+  config: rwx/base 1.2.0
+  arch: x86_64
+
+defaults:
+  runner:
+    cpus: 2
+    memory: 8gb
+
+tasks:
+  - key: code
+    call: git/clone 2.2.0
+    with:
+      repository: https://github.com/ethereum-optimism/optimism.git
+      ref: ${{ init.commit-sha }}
+      preserve-git-dir: true
+      fetch-full-depth: true
+      submodules: false
+
+  - key: bootstrap-inputs
+    use: code
+    run: 'true'
+    filter: [mise.toml, ops/ci, .circleci/scripts/apt-install.sh]
+    outputs:
+      filesystem: false
+      artifacts:
+        - key: mise-config
+          path: mise.toml
+        - key: ci-scripts
+          path: ops/ci
+        - key: apt-script
+          path: .circleci/scripts/apt-install.sh
+
+  - key: mise
+    call: mise/install 1.1.0
+    with:
+      mise-version: "2026.2.2"
+      install: "false"
+
+  # Artifact dependencies avoid inheriting the checkout's Git history into
+  # reusable tools. Language toolchains are added only by their own workload.
+  - key: tools
+    use: mise
+    run: |
+      mkdir -p ops/ci .circleci/scripts
+      cp "$MISE_CONFIG" mise.toml
+      cp "$CI_SCRIPTS/rwx-prepare.sh" ops/ci/
+      cp "$APT_SCRIPT" .circleci/scripts/apt-install.sh
+      bash ops/ci/rwx-prepare.sh
+    env:
+      MISE_CONFIG: ${{ tasks.bootstrap-inputs.artifacts.mise-config }}
+      CI_SCRIPTS: ${{ tasks.bootstrap-inputs.artifacts.ci-scripts }}
+      APT_SCRIPT: ${{ tasks.bootstrap-inputs.artifacts.apt-script }}
+    filter:
+      ${{ tasks.bootstrap-inputs.artifacts.ci-scripts }}: [rwx-prepare.sh]
+    timeout: 30m
+
+  - key: go-build-tools
+    use: tools
+    run: bash ops/ci/rwx-prepare.sh go
+    timeout: 30m
+
+  - key: route
+    use: [code, tools]
+    run: bash ops/ci/rwx-metadata.sh
+    env:
+      CI_EVENT: push
+      CI_CACHE_WARM: ${{ init.cache-warm }}
+      CI_BRANCH: ${{ init.branch }}
+      CI_TAG: ${{ init.tag }}
+      CI_COMMIT_SHA: ${{ init.commit-sha }}
+    cache: false
+    timeout: 10m
+    outputs:
+      filesystem: false
+      artifacts:
+        - key: routing
+          path: .ci/pipeline-parameters.json
+
+  - key: contract-tools
+    use: tools
+    run: |
+      cp "$CI_SCRIPTS/rwx-contracts-prepare.sh" ops/ci/
+      bash ops/ci/rwx-contracts-prepare.sh tools
+      mise install anvil
+    env:
+      CI_SCRIPTS: ${{ tasks.bootstrap-inputs.artifacts.ci-scripts }}
+    filter:
+      ${{ tasks.bootstrap-inputs.artifacts.ci-scripts }}: [rwx-contracts-prepare.sh]
+    timeout: 30m
+
+  - key: rust-tools
+    use: tools
+    run: |
+      cp "$CI_SCRIPTS/rwx-rust-prepare.sh" "$CI_SCRIPTS/op-reth-shadow.sh" "$CI_SCRIPTS/op-reth-report.py" ops/ci/
+      bash ops/ci/rwx-prepare.sh rust
+      mise exec -- bash ops/ci/rwx-rust-prepare.sh
+    env:
+      CI_SCRIPTS: ${{ tasks.bootstrap-inputs.artifacts.ci-scripts }}
+    filter:
+      ${{ tasks.bootstrap-inputs.artifacts.ci-scripts }}: [rwx-rust-prepare.sh, op-reth-shadow.sh, op-reth-report.py]
+    timeout: 30m
+
+  - key: helper-tests
+    use: [code, go-build-tools]
+    if: ${{ init.cache-warm != 'true' }}
+    run: mise exec -- python3 -m unittest discover -s ops/ci -p 'test_acceptance*.py'
+    cache: false
+    timeout: 10m
+    outputs:
+      filesystem: false
+
+  - key: source
+    use: [code, tools]
+    if: ${{ init.cache-warm == 'true' || tasks.route.values.run-main == 'true' }}
+    run: |
+      git submodule sync --recursive
+      git submodule update --init --recursive --jobs 8
+      git rev-parse HEAD >packages/contracts-bedrock/.gitcommit
+    timeout: 20m
+
+  - key: go
+    use: [source, go-build-tools]
+    if: ${{ init.cache-warm == 'true' || tasks.route.values.run-main == 'true' }}
+    call: ${{ run.dir }}/packages/go-go.yml
+    with:
+      commit-sha: ${{ init.commit-sha }}
+      cache-epoch: ${{ init.cache-epoch }}
+      build-probe: ${{ init.build-probe }}
+      target-cache-mode: ${{ init.target-cache-mode }}
+
+  - key: contracts
+    use: [source, contract-tools, go-build-tools]
+    if: ${{ init.cache-warm == 'true' || tasks.route.values.run-main == 'true' }}
+    call: ${{ run.dir }}/packages/go-contracts.yml
+    with:
+      commit-sha: ${{ init.commit-sha }}
+      cache-epoch: ${{ init.cache-epoch }}
+      build-probe: ${{ init.build-probe }}
+      target-cache-mode: ${{ init.target-cache-mode }}
+
+  - key: kona
+    use: [source, rust-tools]
+    if: ${{ init.cache-warm == 'true' || tasks.route.values.run-main == 'true' }}
+    call: ${{ run.dir }}/packages/go-kona.yml
+    with:
+      commit-sha: ${{ init.commit-sha }}
+      cache-epoch: ${{ init.cache-epoch }}
+      build-probe: ${{ init.build-probe }}
+      target-cache-mode: ${{ init.target-cache-mode }}
+
+  - key: op-reth
+    use: [source, rust-tools]
+    if: ${{ init.cache-warm == 'true' || tasks.route.values.run-main == 'true' }}
+    call: ${{ run.dir }}/packages/go-op-reth.yml
+    with:
+      commit-sha: ${{ init.commit-sha }}
+      cache-epoch: ${{ init.cache-epoch }}
+      build-probe: ${{ init.build-probe }}
+      target-cache-mode: ${{ init.target-cache-mode }}
+
+  - key: prestate
+    use: [source, go-build-tools]
+    if: ${{ init.cache-warm == 'true' || tasks.route.values.run-main == 'true' }}
+    call: ${{ run.dir }}/packages/go-prestate.yml
+    with:
+      commit-sha: ${{ init.commit-sha }}
+      cache-epoch: ${{ init.cache-epoch }}
+      build-probe: ${{ init.build-probe }}
+      target-cache-mode: ${{ init.target-cache-mode }}
+
+  - key: sp1-executor
+    use: [source, rust-tools]
+    if: ${{ init.cache-warm == 'true' || tasks.route.values.run-main == 'true' }}
+    call: ${{ run.dir }}/packages/go-sp1-executor.yml
+    with:
+      commit-sha: ${{ init.commit-sha }}
+      cache-epoch: ${{ init.cache-epoch }}
+      build-probe: ${{ init.build-probe }}
+      target-cache-mode: ${{ init.target-cache-mode }}
+
+  - key: acceptance-tools
+    use: [go-build-tools, contract-tools]
+    run: bash .circleci/scripts/apt-install.sh --no-install-recommends eatmydata
+    timeout: 15m
+
+  - key: discovery-opn
+    use: [source, go-build-tools]
+    if: ${{ init.cache-warm == 'true' || tasks.route.values.run-main == 'true' }}
+    run: |
+      python3 ops/ci/go-artifacts.py restore go "$GO_ARTIFACT"
+      python3 ops/ci/go-artifacts.py restore contracts "$CONTRACT_ARTIFACT"
+      mise exec -- bash ops/ci/acceptance-tests.sh discover
+    env:
+      CI_COMMIT_SHA: ${{ init.commit-sha }}
+      CI_SHARD_TOTAL: ${{ init.shard-total }}
+      DEVSTACK_L1_FORK: fusaka
+      DEVSTACK_L2CL_KIND: op-node
+      DEVSTACK_L2EL_KIND: op-reth
+      GO_ARTIFACT: ${{ tasks.go.tasks.build.artifacts.dependency }}
+      CONTRACT_ARTIFACT: ${{ tasks.contracts.tasks.build.artifacts.dependency }}
+    tool-cache: acceptance-discovery-opn-${{ init.cache-epoch }}
+    timeout: 60m
+    runner:
+      cpus: 16
+      memory: 32gb
+    outputs:
+      filesystem:
+        filter:
+          workspace: [.ci/go-cache/acceptance/discover]
+          system: []
+      artifacts:
+        - key: discovery
+          path: .ci/acceptance/discovery
+
+  - key: verdict-opn-0
+    use: [source, acceptance-tools]
+    if: ${{ init.cache-warm != 'true' && tasks.route.values.run-main == 'true' }}
+    docker: true
+    run: |
+      for dependency in go contracts kona op-reth prestate sp1-executor; do
+        case "$dependency" in
+          go) artifact="$GO_ARTIFACT" ;;
+          contracts) artifact="$CONTRACT_ARTIFACT" ;;
+          kona) artifact="$KONA_ARTIFACT" ;;
+          op-reth) artifact="$RETH_ARTIFACT" ;;
+          prestate) artifact="$PRESTATE_ARTIFACT" ;;
+          sp1-executor) artifact="$SP1_ARTIFACT" ;;
+        esac
+        python3 ops/ci/go-artifacts.py restore "$dependency" "$artifact"
+      done
+      mise exec -- bash ops/ci/acceptance-tests.sh run
+    env:
+      CI_COMMIT_SHA: ${{ init.commit-sha }}
+      CI_BRANCH: ${{ init.branch }}
+      CIRCLE_BRANCH: ${{ init.branch }}
+      CI_SHARD_INDEX: "0"
+      CI_SHARD_TOTAL: ${{ init.shard-total }}
+      DEVSTACK_L1_FORK: fusaka
+      DEVSTACK_L2CL_KIND: op-node
+      DEVSTACK_L2EL_KIND: op-reth
+      CI_ACCEPTANCE_MANIFEST: ${{ tasks.discovery-opn.artifacts.discovery }}
+      GO_ARTIFACT: ${{ tasks.go.tasks.build.artifacts.dependency }}
+      CONTRACT_ARTIFACT: ${{ tasks.contracts.tasks.build.artifacts.dependency }}
+      KONA_ARTIFACT: ${{ tasks.kona.tasks.build.artifacts.dependency }}
+      RETH_ARTIFACT: ${{ tasks.op-reth.tasks.build.artifacts.dependency }}
+      PRESTATE_ARTIFACT: ${{ tasks.prestate.tasks.build.artifacts.dependency }}
+      SP1_ARTIFACT: ${{ tasks.sp1-executor.tasks.build.artifacts.dependency }}
+    cache: false
+    tool-cache: acceptance-runtime-opn-0-${{ init.cache-epoch }}
+    timeout: 120m
+    runner:
+      cpus: 16
+      memory: 64gb
+    outputs:
+      filesystem:
+        filter:
+          workspace: [.ci/go-cache/acceptance/run]
+          system: []
+      test-results:
+        - path: .ci/acceptance/reports/native.json
+          options:
+            language: Go
+            framework: go test
+      artifacts:
+        - key: reports
+          path: .ci/acceptance/reports
+
+  - key: verdict-opn-1
+    use: [source, acceptance-tools]
+    if: ${{ init.cache-warm != 'true' && tasks.route.values.run-main == 'true' }}
+    docker: true
+    run: |
+      for dependency in go contracts kona op-reth prestate sp1-executor; do
+        case "$dependency" in
+          go) artifact="$GO_ARTIFACT" ;;
+          contracts) artifact="$CONTRACT_ARTIFACT" ;;
+          kona) artifact="$KONA_ARTIFACT" ;;
+          op-reth) artifact="$RETH_ARTIFACT" ;;
+          prestate) artifact="$PRESTATE_ARTIFACT" ;;
+          sp1-executor) artifact="$SP1_ARTIFACT" ;;
+        esac
+        python3 ops/ci/go-artifacts.py restore "$dependency" "$artifact"
+      done
+      mise exec -- bash ops/ci/acceptance-tests.sh run
+    env:
+      CI_COMMIT_SHA: ${{ init.commit-sha }}
+      CI_BRANCH: ${{ init.branch }}
+      CIRCLE_BRANCH: ${{ init.branch }}
+      CI_SHARD_INDEX: "1"
+      CI_SHARD_TOTAL: ${{ init.shard-total }}
+      DEVSTACK_L1_FORK: fusaka
+      DEVSTACK_L2CL_KIND: op-node
+      DEVSTACK_L2EL_KIND: op-reth
+      CI_ACCEPTANCE_MANIFEST: ${{ tasks.discovery-opn.artifacts.discovery }}
+      GO_ARTIFACT: ${{ tasks.go.tasks.build.artifacts.dependency }}
+      CONTRACT_ARTIFACT: ${{ tasks.contracts.tasks.build.artifacts.dependency }}
+      KONA_ARTIFACT: ${{ tasks.kona.tasks.build.artifacts.dependency }}
+      RETH_ARTIFACT: ${{ tasks.op-reth.tasks.build.artifacts.dependency }}
+      PRESTATE_ARTIFACT: ${{ tasks.prestate.tasks.build.artifacts.dependency }}
+      SP1_ARTIFACT: ${{ tasks.sp1-executor.tasks.build.artifacts.dependency }}
+    cache: false
+    tool-cache: acceptance-runtime-opn-1-${{ init.cache-epoch }}
+    timeout: 120m
+    runner:
+      cpus: 16
+      memory: 64gb
+    outputs:
+      filesystem:
+        filter:
+          workspace: [.ci/go-cache/acceptance/run]
+          system: []
+      test-results:
+        - path: .ci/acceptance/reports/native.json
+          options:
+            language: Go
+            framework: go test
+      artifacts:
+        - key: reports
+          path: .ci/acceptance/reports
+
+  - key: verdict-opn-2
+    use: [source, acceptance-tools]
+    if: ${{ init.cache-warm != 'true' && tasks.route.values.run-main == 'true' }}
+    docker: true
+    run: |
+      for dependency in go contracts kona op-reth prestate sp1-executor; do
+        case "$dependency" in
+          go) artifact="$GO_ARTIFACT" ;;
+          contracts) artifact="$CONTRACT_ARTIFACT" ;;
+          kona) artifact="$KONA_ARTIFACT" ;;
+          op-reth) artifact="$RETH_ARTIFACT" ;;
+          prestate) artifact="$PRESTATE_ARTIFACT" ;;
+          sp1-executor) artifact="$SP1_ARTIFACT" ;;
+        esac
+        python3 ops/ci/go-artifacts.py restore "$dependency" "$artifact"
+      done
+      mise exec -- bash ops/ci/acceptance-tests.sh run
+    env:
+      CI_COMMIT_SHA: ${{ init.commit-sha }}
+      CI_BRANCH: ${{ init.branch }}
+      CIRCLE_BRANCH: ${{ init.branch }}
+      CI_SHARD_INDEX: "2"
+      CI_SHARD_TOTAL: ${{ init.shard-total }}
+      DEVSTACK_L1_FORK: fusaka
+      DEVSTACK_L2CL_KIND: op-node
+      DEVSTACK_L2EL_KIND: op-reth
+      CI_ACCEPTANCE_MANIFEST: ${{ tasks.discovery-opn.artifacts.discovery }}
+      GO_ARTIFACT: ${{ tasks.go.tasks.build.artifacts.dependency }}
+      CONTRACT_ARTIFACT: ${{ tasks.contracts.tasks.build.artifacts.dependency }}
+      KONA_ARTIFACT: ${{ tasks.kona.tasks.build.artifacts.dependency }}
+      RETH_ARTIFACT: ${{ tasks.op-reth.tasks.build.artifacts.dependency }}
+      PRESTATE_ARTIFACT: ${{ tasks.prestate.tasks.build.artifacts.dependency }}
+      SP1_ARTIFACT: ${{ tasks.sp1-executor.tasks.build.artifacts.dependency }}
+    cache: false
+    tool-cache: acceptance-runtime-opn-2-${{ init.cache-epoch }}
+    timeout: 120m
+    runner:
+      cpus: 16
+      memory: 64gb
+    outputs:
+      filesystem:
+        filter:
+          workspace: [.ci/go-cache/acceptance/run]
+          system: []
+      test-results:
+        - path: .ci/acceptance/reports/native.json
+          options:
+            language: Go
+            framework: go test
+      artifacts:
+        - key: reports
+          path: .ci/acceptance/reports
+
+  - key: verdict-opn-3
+    use: [source, acceptance-tools]
+    if: ${{ init.cache-warm != 'true' && tasks.route.values.run-main == 'true' }}
+    docker: true
+    run: |
+      for dependency in go contracts kona op-reth prestate sp1-executor; do
+        case "$dependency" in
+          go) artifact="$GO_ARTIFACT" ;;
+          contracts) artifact="$CONTRACT_ARTIFACT" ;;
+          kona) artifact="$KONA_ARTIFACT" ;;
+          op-reth) artifact="$RETH_ARTIFACT" ;;
+          prestate) artifact="$PRESTATE_ARTIFACT" ;;
+          sp1-executor) artifact="$SP1_ARTIFACT" ;;
+        esac
+        python3 ops/ci/go-artifacts.py restore "$dependency" "$artifact"
+      done
+      mise exec -- bash ops/ci/acceptance-tests.sh run
+    env:
+      CI_COMMIT_SHA: ${{ init.commit-sha }}
+      CI_BRANCH: ${{ init.branch }}
+      CIRCLE_BRANCH: ${{ init.branch }}
+      CI_SHARD_INDEX: "3"
+      CI_SHARD_TOTAL: ${{ init.shard-total }}
+      DEVSTACK_L1_FORK: fusaka
+      DEVSTACK_L2CL_KIND: op-node
+      DEVSTACK_L2EL_KIND: op-reth
+      CI_ACCEPTANCE_MANIFEST: ${{ tasks.discovery-opn.artifacts.discovery }}
+      GO_ARTIFACT: ${{ tasks.go.tasks.build.artifacts.dependency }}
+      CONTRACT_ARTIFACT: ${{ tasks.contracts.tasks.build.artifacts.dependency }}
+      KONA_ARTIFACT: ${{ tasks.kona.tasks.build.artifacts.dependency }}
+      RETH_ARTIFACT: ${{ tasks.op-reth.tasks.build.artifacts.dependency }}
+      PRESTATE_ARTIFACT: ${{ tasks.prestate.tasks.build.artifacts.dependency }}
+      SP1_ARTIFACT: ${{ tasks.sp1-executor.tasks.build.artifacts.dependency }}
+    cache: false
+    tool-cache: acceptance-runtime-opn-3-${{ init.cache-epoch }}
+    timeout: 120m
+    runner:
+      cpus: 16
+      memory: 64gb
+    outputs:
+      filesystem:
+        filter:
+          workspace: [.ci/go-cache/acceptance/run]
+          system: []
+      test-results:
+        - path: .ci/acceptance/reports/native.json
+          options:
+            language: Go
+            framework: go test
+      artifacts:
+        - key: reports
+          path: .ci/acceptance/reports
+
+  - key: verdict-opn-4
+    use: [source, acceptance-tools]
+    if: ${{ init.cache-warm != 'true' && tasks.route.values.run-main == 'true' }}
+    docker: true
+    run: |
+      for dependency in go contracts kona op-reth prestate sp1-executor; do
+        case "$dependency" in
+          go) artifact="$GO_ARTIFACT" ;;
+          contracts) artifact="$CONTRACT_ARTIFACT" ;;
+          kona) artifact="$KONA_ARTIFACT" ;;
+          op-reth) artifact="$RETH_ARTIFACT" ;;
+          prestate) artifact="$PRESTATE_ARTIFACT" ;;
+          sp1-executor) artifact="$SP1_ARTIFACT" ;;
+        esac
+        python3 ops/ci/go-artifacts.py restore "$dependency" "$artifact"
+      done
+      mise exec -- bash ops/ci/acceptance-tests.sh run
+    env:
+      CI_COMMIT_SHA: ${{ init.commit-sha }}
+      CI_BRANCH: ${{ init.branch }}
+      CIRCLE_BRANCH: ${{ init.branch }}
+      CI_SHARD_INDEX: "4"
+      CI_SHARD_TOTAL: ${{ init.shard-total }}
+      DEVSTACK_L1_FORK: fusaka
+      DEVSTACK_L2CL_KIND: op-node
+      DEVSTACK_L2EL_KIND: op-reth
+      CI_ACCEPTANCE_MANIFEST: ${{ tasks.discovery-opn.artifacts.discovery }}
+      GO_ARTIFACT: ${{ tasks.go.tasks.build.artifacts.dependency }}
+      CONTRACT_ARTIFACT: ${{ tasks.contracts.tasks.build.artifacts.dependency }}
+      KONA_ARTIFACT: ${{ tasks.kona.tasks.build.artifacts.dependency }}
+      RETH_ARTIFACT: ${{ tasks.op-reth.tasks.build.artifacts.dependency }}
+      PRESTATE_ARTIFACT: ${{ tasks.prestate.tasks.build.artifacts.dependency }}
+      SP1_ARTIFACT: ${{ tasks.sp1-executor.tasks.build.artifacts.dependency }}
+    cache: false
+    tool-cache: acceptance-runtime-opn-4-${{ init.cache-epoch }}
+    timeout: 120m
+    runner:
+      cpus: 16
+      memory: 64gb
+    outputs:
+      filesystem:
+        filter:
+          workspace: [.ci/go-cache/acceptance/run]
+          system: []
+      test-results:
+        - path: .ci/acceptance/reports/native.json
+          options:
+            language: Go
+            framework: go test
+      artifacts:
+        - key: reports
+          path: .ci/acceptance/reports
+
+  - key: verdict-opn-5
+    use: [source, acceptance-tools]
+    if: ${{ init.cache-warm != 'true' && tasks.route.values.run-main == 'true' }}
+    docker: true
+    run: |
+      for dependency in go contracts kona op-reth prestate sp1-executor; do
+        case "$dependency" in
+          go) artifact="$GO_ARTIFACT" ;;
+          contracts) artifact="$CONTRACT_ARTIFACT" ;;
+          kona) artifact="$KONA_ARTIFACT" ;;
+          op-reth) artifact="$RETH_ARTIFACT" ;;
+          prestate) artifact="$PRESTATE_ARTIFACT" ;;
+          sp1-executor) artifact="$SP1_ARTIFACT" ;;
+        esac
+        python3 ops/ci/go-artifacts.py restore "$dependency" "$artifact"
+      done
+      mise exec -- bash ops/ci/acceptance-tests.sh run
+    env:
+      CI_COMMIT_SHA: ${{ init.commit-sha }}
+      CI_BRANCH: ${{ init.branch }}
+      CIRCLE_BRANCH: ${{ init.branch }}
+      CI_SHARD_INDEX: "5"
+      CI_SHARD_TOTAL: ${{ init.shard-total }}
+      DEVSTACK_L1_FORK: fusaka
+      DEVSTACK_L2CL_KIND: op-node
+      DEVSTACK_L2EL_KIND: op-reth
+      CI_ACCEPTANCE_MANIFEST: ${{ tasks.discovery-opn.artifacts.discovery }}
+      GO_ARTIFACT: ${{ tasks.go.tasks.build.artifacts.dependency }}
+      CONTRACT_ARTIFACT: ${{ tasks.contracts.tasks.build.artifacts.dependency }}
+      KONA_ARTIFACT: ${{ tasks.kona.tasks.build.artifacts.dependency }}
+      RETH_ARTIFACT: ${{ tasks.op-reth.tasks.build.artifacts.dependency }}
+      PRESTATE_ARTIFACT: ${{ tasks.prestate.tasks.build.artifacts.dependency }}
+      SP1_ARTIFACT: ${{ tasks.sp1-executor.tasks.build.artifacts.dependency }}
+    cache: false
+    tool-cache: acceptance-runtime-opn-5-${{ init.cache-epoch }}
+    timeout: 120m
+    runner:
+      cpus: 16
+      memory: 64gb
+    outputs:
+      filesystem:
+        filter:
+          workspace: [.ci/go-cache/acceptance/run]
+          system: []
+      test-results:
+        - path: .ci/acceptance/reports/native.json
+          options:
+            language: Go
+            framework: go test
+      artifacts:
+        - key: reports
+          path: .ci/acceptance/reports
+
+  - key: verdict-opn-6
+    use: [source, acceptance-tools]
+    if: ${{ init.cache-warm != 'true' && tasks.route.values.run-main == 'true' }}
+    docker: true
+    run: |
+      for dependency in go contracts kona op-reth prestate sp1-executor; do
+        case "$dependency" in
+          go) artifact="$GO_ARTIFACT" ;;
+          contracts) artifact="$CONTRACT_ARTIFACT" ;;
+          kona) artifact="$KONA_ARTIFACT" ;;
+          op-reth) artifact="$RETH_ARTIFACT" ;;
+          prestate) artifact="$PRESTATE_ARTIFACT" ;;
+          sp1-executor) artifact="$SP1_ARTIFACT" ;;
+        esac
+        python3 ops/ci/go-artifacts.py restore "$dependency" "$artifact"
+      done
+      mise exec -- bash ops/ci/acceptance-tests.sh run
+    env:
+      CI_COMMIT_SHA: ${{ init.commit-sha }}
+      CI_BRANCH: ${{ init.branch }}
+      CIRCLE_BRANCH: ${{ init.branch }}
+      CI_SHARD_INDEX: "6"
+      CI_SHARD_TOTAL: ${{ init.shard-total }}
+      DEVSTACK_L1_FORK: fusaka
+      DEVSTACK_L2CL_KIND: op-node
+      DEVSTACK_L2EL_KIND: op-reth
+      CI_ACCEPTANCE_MANIFEST: ${{ tasks.discovery-opn.artifacts.discovery }}
+      GO_ARTIFACT: ${{ tasks.go.tasks.build.artifacts.dependency }}
+      CONTRACT_ARTIFACT: ${{ tasks.contracts.tasks.build.artifacts.dependency }}
+      KONA_ARTIFACT: ${{ tasks.kona.tasks.build.artifacts.dependency }}
+      RETH_ARTIFACT: ${{ tasks.op-reth.tasks.build.artifacts.dependency }}
+      PRESTATE_ARTIFACT: ${{ tasks.prestate.tasks.build.artifacts.dependency }}
+      SP1_ARTIFACT: ${{ tasks.sp1-executor.tasks.build.artifacts.dependency }}
+    cache: false
+    tool-cache: acceptance-runtime-opn-6-${{ init.cache-epoch }}
+    timeout: 120m
+    runner:
+      cpus: 16
+      memory: 64gb
+    outputs:
+      filesystem:
+        filter:
+          workspace: [.ci/go-cache/acceptance/run]
+          system: []
+      test-results:
+        - path: .ci/acceptance/reports/native.json
+          options:
+            language: Go
+            framework: go test
+      artifacts:
+        - key: reports
+          path: .ci/acceptance/reports
+
+  - key: verdict-opn-7
+    use: [source, acceptance-tools]
+    if: ${{ init.cache-warm != 'true' && tasks.route.values.run-main == 'true' }}
+    docker: true
+    run: |
+      for dependency in go contracts kona op-reth prestate sp1-executor; do
+        case "$dependency" in
+          go) artifact="$GO_ARTIFACT" ;;
+          contracts) artifact="$CONTRACT_ARTIFACT" ;;
+          kona) artifact="$KONA_ARTIFACT" ;;
+          op-reth) artifact="$RETH_ARTIFACT" ;;
+          prestate) artifact="$PRESTATE_ARTIFACT" ;;
+          sp1-executor) artifact="$SP1_ARTIFACT" ;;
+        esac
+        python3 ops/ci/go-artifacts.py restore "$dependency" "$artifact"
+      done
+      mise exec -- bash ops/ci/acceptance-tests.sh run
+    env:
+      CI_COMMIT_SHA: ${{ init.commit-sha }}
+      CI_BRANCH: ${{ init.branch }}
+      CIRCLE_BRANCH: ${{ init.branch }}
+      CI_SHARD_INDEX: "7"
+      CI_SHARD_TOTAL: ${{ init.shard-total }}
+      DEVSTACK_L1_FORK: fusaka
+      DEVSTACK_L2CL_KIND: op-node
+      DEVSTACK_L2EL_KIND: op-reth
+      CI_ACCEPTANCE_MANIFEST: ${{ tasks.discovery-opn.artifacts.discovery }}
+      GO_ARTIFACT: ${{ tasks.go.tasks.build.artifacts.dependency }}
+      CONTRACT_ARTIFACT: ${{ tasks.contracts.tasks.build.artifacts.dependency }}
+      KONA_ARTIFACT: ${{ tasks.kona.tasks.build.artifacts.dependency }}
+      RETH_ARTIFACT: ${{ tasks.op-reth.tasks.build.artifacts.dependency }}
+      PRESTATE_ARTIFACT: ${{ tasks.prestate.tasks.build.artifacts.dependency }}
+      SP1_ARTIFACT: ${{ tasks.sp1-executor.tasks.build.artifacts.dependency }}
+    cache: false
+    tool-cache: acceptance-runtime-opn-7-${{ init.cache-epoch }}
+    timeout: 120m
+    runner:
+      cpus: 16
+      memory: 64gb
+    outputs:
+      filesystem:
+        filter:
+          workspace: [.ci/go-cache/acceptance/run]
+          system: []
+      test-results:
+        - path: .ci/acceptance/reports/native.json
+          options:
+            language: Go
+            framework: go test
+      artifacts:
+        - key: reports
+          path: .ci/acceptance/reports
+
+  - key: discovery-kona
+    use: [source, go-build-tools]
+    if: ${{ init.cache-warm == 'true' || tasks.route.values.run-main == 'true' }}
+    run: |
+      python3 ops/ci/go-artifacts.py restore go "$GO_ARTIFACT"
+      python3 ops/ci/go-artifacts.py restore contracts "$CONTRACT_ARTIFACT"
+      mise exec -- bash ops/ci/acceptance-tests.sh discover
+    env:
+      CI_COMMIT_SHA: ${{ init.commit-sha }}
+      CI_SHARD_TOTAL: ${{ init.shard-total }}
+      DEVSTACK_L1_FORK: fusaka
+      DEVSTACK_L2CL_KIND: kona-node
+      DEVSTACK_L2EL_KIND: op-reth
+      GO_ARTIFACT: ${{ tasks.go.tasks.build.artifacts.dependency }}
+      CONTRACT_ARTIFACT: ${{ tasks.contracts.tasks.build.artifacts.dependency }}
+    tool-cache: acceptance-discovery-kona-${{ init.cache-epoch }}
+    timeout: 60m
+    runner:
+      cpus: 16
+      memory: 32gb
+    outputs:
+      filesystem:
+        filter:
+          workspace: [.ci/go-cache/acceptance/discover]
+          system: []
+      artifacts:
+        - key: discovery
+          path: .ci/acceptance/discovery
+
+  - key: verdict-kona-0
+    use: [source, acceptance-tools]
+    if: ${{ init.cache-warm != 'true' && tasks.route.values.run-main == 'true' }}
+    docker: true
+    run: |
+      for dependency in go contracts kona op-reth prestate sp1-executor; do
+        case "$dependency" in
+          go) artifact="$GO_ARTIFACT" ;;
+          contracts) artifact="$CONTRACT_ARTIFACT" ;;
+          kona) artifact="$KONA_ARTIFACT" ;;
+          op-reth) artifact="$RETH_ARTIFACT" ;;
+          prestate) artifact="$PRESTATE_ARTIFACT" ;;
+          sp1-executor) artifact="$SP1_ARTIFACT" ;;
+        esac
+        python3 ops/ci/go-artifacts.py restore "$dependency" "$artifact"
+      done
+      mise exec -- bash ops/ci/acceptance-tests.sh run
+    env:
+      CI_COMMIT_SHA: ${{ init.commit-sha }}
+      CI_BRANCH: ${{ init.branch }}
+      CIRCLE_BRANCH: ${{ init.branch }}
+      CI_SHARD_INDEX: "0"
+      CI_SHARD_TOTAL: ${{ init.shard-total }}
+      DEVSTACK_L1_FORK: fusaka
+      DEVSTACK_L2CL_KIND: kona-node
+      DEVSTACK_L2EL_KIND: op-reth
+      CI_ACCEPTANCE_MANIFEST: ${{ tasks.discovery-kona.artifacts.discovery }}
+      GO_ARTIFACT: ${{ tasks.go.tasks.build.artifacts.dependency }}
+      CONTRACT_ARTIFACT: ${{ tasks.contracts.tasks.build.artifacts.dependency }}
+      KONA_ARTIFACT: ${{ tasks.kona.tasks.build.artifacts.dependency }}
+      RETH_ARTIFACT: ${{ tasks.op-reth.tasks.build.artifacts.dependency }}
+      PRESTATE_ARTIFACT: ${{ tasks.prestate.tasks.build.artifacts.dependency }}
+      SP1_ARTIFACT: ${{ tasks.sp1-executor.tasks.build.artifacts.dependency }}
+    cache: false
+    tool-cache: acceptance-runtime-kona-0-${{ init.cache-epoch }}
+    timeout: 120m
+    runner:
+      cpus: 16
+      memory: 32gb
+    outputs:
+      filesystem:
+        filter:
+          workspace: [.ci/go-cache/acceptance/run]
+          system: []
+      test-results:
+        - path: .ci/acceptance/reports/native.json
+          options:
+            language: Go
+            framework: go test
+      artifacts:
+        - key: reports
+          path: .ci/acceptance/reports
+
+  - key: verdict-kona-1
+    use: [source, acceptance-tools]
+    if: ${{ init.cache-warm != 'true' && tasks.route.values.run-main == 'true' }}
+    docker: true
+    run: |
+      for dependency in go contracts kona op-reth prestate sp1-executor; do
+        case "$dependency" in
+          go) artifact="$GO_ARTIFACT" ;;
+          contracts) artifact="$CONTRACT_ARTIFACT" ;;
+          kona) artifact="$KONA_ARTIFACT" ;;
+          op-reth) artifact="$RETH_ARTIFACT" ;;
+          prestate) artifact="$PRESTATE_ARTIFACT" ;;
+          sp1-executor) artifact="$SP1_ARTIFACT" ;;
+        esac
+        python3 ops/ci/go-artifacts.py restore "$dependency" "$artifact"
+      done
+      mise exec -- bash ops/ci/acceptance-tests.sh run
+    env:
+      CI_COMMIT_SHA: ${{ init.commit-sha }}
+      CI_BRANCH: ${{ init.branch }}
+      CIRCLE_BRANCH: ${{ init.branch }}
+      CI_SHARD_INDEX: "1"
+      CI_SHARD_TOTAL: ${{ init.shard-total }}
+      DEVSTACK_L1_FORK: fusaka
+      DEVSTACK_L2CL_KIND: kona-node
+      DEVSTACK_L2EL_KIND: op-reth
+      CI_ACCEPTANCE_MANIFEST: ${{ tasks.discovery-kona.artifacts.discovery }}
+      GO_ARTIFACT: ${{ tasks.go.tasks.build.artifacts.dependency }}
+      CONTRACT_ARTIFACT: ${{ tasks.contracts.tasks.build.artifacts.dependency }}
+      KONA_ARTIFACT: ${{ tasks.kona.tasks.build.artifacts.dependency }}
+      RETH_ARTIFACT: ${{ tasks.op-reth.tasks.build.artifacts.dependency }}
+      PRESTATE_ARTIFACT: ${{ tasks.prestate.tasks.build.artifacts.dependency }}
+      SP1_ARTIFACT: ${{ tasks.sp1-executor.tasks.build.artifacts.dependency }}
+    cache: false
+    tool-cache: acceptance-runtime-kona-1-${{ init.cache-epoch }}
+    timeout: 120m
+    runner:
+      cpus: 16
+      memory: 32gb
+    outputs:
+      filesystem:
+        filter:
+          workspace: [.ci/go-cache/acceptance/run]
+          system: []
+      test-results:
+        - path: .ci/acceptance/reports/native.json
+          options:
+            language: Go
+            framework: go test
+      artifacts:
+        - key: reports
+          path: .ci/acceptance/reports
+
+  - key: verdict-kona-2
+    use: [source, acceptance-tools]
+    if: ${{ init.cache-warm != 'true' && tasks.route.values.run-main == 'true' }}
+    docker: true
+    run: |
+      for dependency in go contracts kona op-reth prestate sp1-executor; do
+        case "$dependency" in
+          go) artifact="$GO_ARTIFACT" ;;
+          contracts) artifact="$CONTRACT_ARTIFACT" ;;
+          kona) artifact="$KONA_ARTIFACT" ;;
+          op-reth) artifact="$RETH_ARTIFACT" ;;
+          prestate) artifact="$PRESTATE_ARTIFACT" ;;
+          sp1-executor) artifact="$SP1_ARTIFACT" ;;
+        esac
+        python3 ops/ci/go-artifacts.py restore "$dependency" "$artifact"
+      done
+      mise exec -- bash ops/ci/acceptance-tests.sh run
+    env:
+      CI_COMMIT_SHA: ${{ init.commit-sha }}
+      CI_BRANCH: ${{ init.branch }}
+      CIRCLE_BRANCH: ${{ init.branch }}
+      CI_SHARD_INDEX: "2"
+      CI_SHARD_TOTAL: ${{ init.shard-total }}
+      DEVSTACK_L1_FORK: fusaka
+      DEVSTACK_L2CL_KIND: kona-node
+      DEVSTACK_L2EL_KIND: op-reth
+      CI_ACCEPTANCE_MANIFEST: ${{ tasks.discovery-kona.artifacts.discovery }}
+      GO_ARTIFACT: ${{ tasks.go.tasks.build.artifacts.dependency }}
+      CONTRACT_ARTIFACT: ${{ tasks.contracts.tasks.build.artifacts.dependency }}
+      KONA_ARTIFACT: ${{ tasks.kona.tasks.build.artifacts.dependency }}
+      RETH_ARTIFACT: ${{ tasks.op-reth.tasks.build.artifacts.dependency }}
+      PRESTATE_ARTIFACT: ${{ tasks.prestate.tasks.build.artifacts.dependency }}
+      SP1_ARTIFACT: ${{ tasks.sp1-executor.tasks.build.artifacts.dependency }}
+    cache: false
+    tool-cache: acceptance-runtime-kona-2-${{ init.cache-epoch }}
+    timeout: 120m
+    runner:
+      cpus: 16
+      memory: 32gb
+    outputs:
+      filesystem:
+        filter:
+          workspace: [.ci/go-cache/acceptance/run]
+          system: []
+      test-results:
+        - path: .ci/acceptance/reports/native.json
+          options:
+            language: Go
+            framework: go test
+      artifacts:
+        - key: reports
+          path: .ci/acceptance/reports
+
+  - key: verdict-kona-3
+    use: [source, acceptance-tools]
+    if: ${{ init.cache-warm != 'true' && tasks.route.values.run-main == 'true' }}
+    docker: true
+    run: |
+      for dependency in go contracts kona op-reth prestate sp1-executor; do
+        case "$dependency" in
+          go) artifact="$GO_ARTIFACT" ;;
+          contracts) artifact="$CONTRACT_ARTIFACT" ;;
+          kona) artifact="$KONA_ARTIFACT" ;;
+          op-reth) artifact="$RETH_ARTIFACT" ;;
+          prestate) artifact="$PRESTATE_ARTIFACT" ;;
+          sp1-executor) artifact="$SP1_ARTIFACT" ;;
+        esac
+        python3 ops/ci/go-artifacts.py restore "$dependency" "$artifact"
+      done
+      mise exec -- bash ops/ci/acceptance-tests.sh run
+    env:
+      CI_COMMIT_SHA: ${{ init.commit-sha }}
+      CI_BRANCH: ${{ init.branch }}
+      CIRCLE_BRANCH: ${{ init.branch }}
+      CI_SHARD_INDEX: "3"
+      CI_SHARD_TOTAL: ${{ init.shard-total }}
+      DEVSTACK_L1_FORK: fusaka
+      DEVSTACK_L2CL_KIND: kona-node
+      DEVSTACK_L2EL_KIND: op-reth
+      CI_ACCEPTANCE_MANIFEST: ${{ tasks.discovery-kona.artifacts.discovery }}
+      GO_ARTIFACT: ${{ tasks.go.tasks.build.artifacts.dependency }}
+      CONTRACT_ARTIFACT: ${{ tasks.contracts.tasks.build.artifacts.dependency }}
+      KONA_ARTIFACT: ${{ tasks.kona.tasks.build.artifacts.dependency }}
+      RETH_ARTIFACT: ${{ tasks.op-reth.tasks.build.artifacts.dependency }}
+      PRESTATE_ARTIFACT: ${{ tasks.prestate.tasks.build.artifacts.dependency }}
+      SP1_ARTIFACT: ${{ tasks.sp1-executor.tasks.build.artifacts.dependency }}
+    cache: false
+    tool-cache: acceptance-runtime-kona-3-${{ init.cache-epoch }}
+    timeout: 120m
+    runner:
+      cpus: 16
+      memory: 32gb
+    outputs:
+      filesystem:
+        filter:
+          workspace: [.ci/go-cache/acceptance/run]
+          system: []
+      test-results:
+        - path: .ci/acceptance/reports/native.json
+          options:
+            language: Go
+            framework: go test
+      artifacts:
+        - key: reports
+          path: .ci/acceptance/reports
+
+  - key: verdict-kona-4
+    use: [source, acceptance-tools]
+    if: ${{ init.cache-warm != 'true' && tasks.route.values.run-main == 'true' }}
+    docker: true
+    run: |
+      for dependency in go contracts kona op-reth prestate sp1-executor; do
+        case "$dependency" in
+          go) artifact="$GO_ARTIFACT" ;;
+          contracts) artifact="$CONTRACT_ARTIFACT" ;;
+          kona) artifact="$KONA_ARTIFACT" ;;
+          op-reth) artifact="$RETH_ARTIFACT" ;;
+          prestate) artifact="$PRESTATE_ARTIFACT" ;;
+          sp1-executor) artifact="$SP1_ARTIFACT" ;;
+        esac
+        python3 ops/ci/go-artifacts.py restore "$dependency" "$artifact"
+      done
+      mise exec -- bash ops/ci/acceptance-tests.sh run
+    env:
+      CI_COMMIT_SHA: ${{ init.commit-sha }}
+      CI_BRANCH: ${{ init.branch }}
+      CIRCLE_BRANCH: ${{ init.branch }}
+      CI_SHARD_INDEX: "4"
+      CI_SHARD_TOTAL: ${{ init.shard-total }}
+      DEVSTACK_L1_FORK: fusaka
+      DEVSTACK_L2CL_KIND: kona-node
+      DEVSTACK_L2EL_KIND: op-reth
+      CI_ACCEPTANCE_MANIFEST: ${{ tasks.discovery-kona.artifacts.discovery }}
+      GO_ARTIFACT: ${{ tasks.go.tasks.build.artifacts.dependency }}
+      CONTRACT_ARTIFACT: ${{ tasks.contracts.tasks.build.artifacts.dependency }}
+      KONA_ARTIFACT: ${{ tasks.kona.tasks.build.artifacts.dependency }}
+      RETH_ARTIFACT: ${{ tasks.op-reth.tasks.build.artifacts.dependency }}
+      PRESTATE_ARTIFACT: ${{ tasks.prestate.tasks.build.artifacts.dependency }}
+      SP1_ARTIFACT: ${{ tasks.sp1-executor.tasks.build.artifacts.dependency }}
+    cache: false
+    tool-cache: acceptance-runtime-kona-4-${{ init.cache-epoch }}
+    timeout: 120m
+    runner:
+      cpus: 16
+      memory: 32gb
+    outputs:
+      filesystem:
+        filter:
+          workspace: [.ci/go-cache/acceptance/run]
+          system: []
+      test-results:
+        - path: .ci/acceptance/reports/native.json
+          options:
+            language: Go
+            framework: go test
+      artifacts:
+        - key: reports
+          path: .ci/acceptance/reports
+
+  - key: verdict-kona-5
+    use: [source, acceptance-tools]
+    if: ${{ init.cache-warm != 'true' && tasks.route.values.run-main == 'true' }}
+    docker: true
+    run: |
+      for dependency in go contracts kona op-reth prestate sp1-executor; do
+        case "$dependency" in
+          go) artifact="$GO_ARTIFACT" ;;
+          contracts) artifact="$CONTRACT_ARTIFACT" ;;
+          kona) artifact="$KONA_ARTIFACT" ;;
+          op-reth) artifact="$RETH_ARTIFACT" ;;
+          prestate) artifact="$PRESTATE_ARTIFACT" ;;
+          sp1-executor) artifact="$SP1_ARTIFACT" ;;
+        esac
+        python3 ops/ci/go-artifacts.py restore "$dependency" "$artifact"
+      done
+      mise exec -- bash ops/ci/acceptance-tests.sh run
+    env:
+      CI_COMMIT_SHA: ${{ init.commit-sha }}
+      CI_BRANCH: ${{ init.branch }}
+      CIRCLE_BRANCH: ${{ init.branch }}
+      CI_SHARD_INDEX: "5"
+      CI_SHARD_TOTAL: ${{ init.shard-total }}
+      DEVSTACK_L1_FORK: fusaka
+      DEVSTACK_L2CL_KIND: kona-node
+      DEVSTACK_L2EL_KIND: op-reth
+      CI_ACCEPTANCE_MANIFEST: ${{ tasks.discovery-kona.artifacts.discovery }}
+      GO_ARTIFACT: ${{ tasks.go.tasks.build.artifacts.dependency }}
+      CONTRACT_ARTIFACT: ${{ tasks.contracts.tasks.build.artifacts.dependency }}
+      KONA_ARTIFACT: ${{ tasks.kona.tasks.build.artifacts.dependency }}
+      RETH_ARTIFACT: ${{ tasks.op-reth.tasks.build.artifacts.dependency }}
+      PRESTATE_ARTIFACT: ${{ tasks.prestate.tasks.build.artifacts.dependency }}
+      SP1_ARTIFACT: ${{ tasks.sp1-executor.tasks.build.artifacts.dependency }}
+    cache: false
+    tool-cache: acceptance-runtime-kona-5-${{ init.cache-epoch }}
+    timeout: 120m
+    runner:
+      cpus: 16
+      memory: 32gb
+    outputs:
+      filesystem:
+        filter:
+          workspace: [.ci/go-cache/acceptance/run]
+          system: []
+      test-results:
+        - path: .ci/acceptance/reports/native.json
+          options:
+            language: Go
+            framework: go test
+      artifacts:
+        - key: reports
+          path: .ci/acceptance/reports
+
+  - key: verdict-kona-6
+    use: [source, acceptance-tools]
+    if: ${{ init.cache-warm != 'true' && tasks.route.values.run-main == 'true' }}
+    docker: true
+    run: |
+      for dependency in go contracts kona op-reth prestate sp1-executor; do
+        case "$dependency" in
+          go) artifact="$GO_ARTIFACT" ;;
+          contracts) artifact="$CONTRACT_ARTIFACT" ;;
+          kona) artifact="$KONA_ARTIFACT" ;;
+          op-reth) artifact="$RETH_ARTIFACT" ;;
+          prestate) artifact="$PRESTATE_ARTIFACT" ;;
+          sp1-executor) artifact="$SP1_ARTIFACT" ;;
+        esac
+        python3 ops/ci/go-artifacts.py restore "$dependency" "$artifact"
+      done
+      mise exec -- bash ops/ci/acceptance-tests.sh run
+    env:
+      CI_COMMIT_SHA: ${{ init.commit-sha }}
+      CI_BRANCH: ${{ init.branch }}
+      CIRCLE_BRANCH: ${{ init.branch }}
+      CI_SHARD_INDEX: "6"
+      CI_SHARD_TOTAL: ${{ init.shard-total }}
+      DEVSTACK_L1_FORK: fusaka
+      DEVSTACK_L2CL_KIND: kona-node
+      DEVSTACK_L2EL_KIND: op-reth
+      CI_ACCEPTANCE_MANIFEST: ${{ tasks.discovery-kona.artifacts.discovery }}
+      GO_ARTIFACT: ${{ tasks.go.tasks.build.artifacts.dependency }}
+      CONTRACT_ARTIFACT: ${{ tasks.contracts.tasks.build.artifacts.dependency }}
+      KONA_ARTIFACT: ${{ tasks.kona.tasks.build.artifacts.dependency }}
+      RETH_ARTIFACT: ${{ tasks.op-reth.tasks.build.artifacts.dependency }}
+      PRESTATE_ARTIFACT: ${{ tasks.prestate.tasks.build.artifacts.dependency }}
+      SP1_ARTIFACT: ${{ tasks.sp1-executor.tasks.build.artifacts.dependency }}
+    cache: false
+    tool-cache: acceptance-runtime-kona-6-${{ init.cache-epoch }}
+    timeout: 120m
+    runner:
+      cpus: 16
+      memory: 32gb
+    outputs:
+      filesystem:
+        filter:
+          workspace: [.ci/go-cache/acceptance/run]
+          system: []
+      test-results:
+        - path: .ci/acceptance/reports/native.json
+          options:
+            language: Go
+            framework: go test
+      artifacts:
+        - key: reports
+          path: .ci/acceptance/reports
+
+  - key: verdict-kona-7
+    use: [source, acceptance-tools]
+    if: ${{ init.cache-warm != 'true' && tasks.route.values.run-main == 'true' }}
+    docker: true
+    run: |
+      for dependency in go contracts kona op-reth prestate sp1-executor; do
+        case "$dependency" in
+          go) artifact="$GO_ARTIFACT" ;;
+          contracts) artifact="$CONTRACT_ARTIFACT" ;;
+          kona) artifact="$KONA_ARTIFACT" ;;
+          op-reth) artifact="$RETH_ARTIFACT" ;;
+          prestate) artifact="$PRESTATE_ARTIFACT" ;;
+          sp1-executor) artifact="$SP1_ARTIFACT" ;;
+        esac
+        python3 ops/ci/go-artifacts.py restore "$dependency" "$artifact"
+      done
+      mise exec -- bash ops/ci/acceptance-tests.sh run
+    env:
+      CI_COMMIT_SHA: ${{ init.commit-sha }}
+      CI_BRANCH: ${{ init.branch }}
+      CIRCLE_BRANCH: ${{ init.branch }}
+      CI_SHARD_INDEX: "7"
+      CI_SHARD_TOTAL: ${{ init.shard-total }}
+      DEVSTACK_L1_FORK: fusaka
+      DEVSTACK_L2CL_KIND: kona-node
+      DEVSTACK_L2EL_KIND: op-reth
+      CI_ACCEPTANCE_MANIFEST: ${{ tasks.discovery-kona.artifacts.discovery }}
+      GO_ARTIFACT: ${{ tasks.go.tasks.build.artifacts.dependency }}
+      CONTRACT_ARTIFACT: ${{ tasks.contracts.tasks.build.artifacts.dependency }}
+      KONA_ARTIFACT: ${{ tasks.kona.tasks.build.artifacts.dependency }}
+      RETH_ARTIFACT: ${{ tasks.op-reth.tasks.build.artifacts.dependency }}
+      PRESTATE_ARTIFACT: ${{ tasks.prestate.tasks.build.artifacts.dependency }}
+      SP1_ARTIFACT: ${{ tasks.sp1-executor.tasks.build.artifacts.dependency }}
+    cache: false
+    tool-cache: acceptance-runtime-kona-7-${{ init.cache-epoch }}
+    timeout: 120m
+    runner:
+      cpus: 16
+      memory: 32gb
+    outputs:
+      filesystem:
+        filter:
+          workspace: [.ci/go-cache/acceptance/run]
+          system: []
+      test-results:
+        - path: .ci/acceptance/reports/native.json
+          options:
+            language: Go
+            framework: go test
+      artifacts:
+        - key: reports
+          path: .ci/acceptance/reports
+
