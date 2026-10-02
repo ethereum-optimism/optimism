@@ -1057,7 +1057,7 @@ tasks:
 
   - key: compile-10
     use: [source, go-build-tools, discovery]
-    if: ${{ (init.cache-warm == 'true' || tasks.route.values.run-main == 'true')0 }}
+    if: ${{ (init.cache-warm == 'true' || tasks.route.values.run-main == 'true') }}
     run: mise exec -- bash ops/ci/go-full-tests.sh build
     env:
       CI_COMMIT_SHA: ${{ init.commit-sha }}
@@ -1080,7 +1080,7 @@ tasks:
 
   - key: verdict-10
     use: [source, go-build-tools, contract-tools]
-    if: ${{ init.cache-warm != 'true' && tasks.route.values.run-main == 'true'0 }}
+    if: ${{ init.cache-warm != 'true' && tasks.route.values.run-main == 'true' }}
     docker: true
     run: |
       mkdir -p .ci/go-tests/build
@@ -1138,7 +1138,7 @@ tasks:
 
   - key: compile-11
     use: [source, go-build-tools, discovery]
-    if: ${{ (init.cache-warm == 'true' || tasks.route.values.run-main == 'true')1 }}
+    if: ${{ (init.cache-warm == 'true' || tasks.route.values.run-main == 'true') }}
     run: mise exec -- bash ops/ci/go-full-tests.sh build
     env:
       CI_COMMIT_SHA: ${{ init.commit-sha }}
@@ -1161,7 +1161,7 @@ tasks:
 
   - key: verdict-11
     use: [source, go-build-tools, contract-tools]
-    if: ${{ init.cache-warm != 'true' && tasks.route.values.run-main == 'true'1 }}
+    if: ${{ init.cache-warm != 'true' && tasks.route.values.run-main == 'true' }}
     docker: true
     run: |
       mkdir -p .ci/go-tests/build
@@ -1219,7 +1219,7 @@ tasks:
 
   - key: compile-12
     use: [source, go-build-tools, discovery]
-    if: ${{ (init.cache-warm == 'true' || tasks.route.values.run-main == 'true')2 }}
+    if: ${{ (init.cache-warm == 'true' || tasks.route.values.run-main == 'true') && init.shard-total == '24' }}
     run: mise exec -- bash ops/ci/go-full-tests.sh build
     env:
       CI_COMMIT_SHA: ${{ init.commit-sha }}
@@ -1242,7 +1242,7 @@ tasks:
 
   - key: verdict-12
     use: [source, go-build-tools, contract-tools]
-    if: ${{ init.cache-warm != 'true' && tasks.route.values.run-main == 'true'2 }}
+    if: ${{ init.cache-warm != 'true' && tasks.route.values.run-main == 'true' && init.shard-total == '24' }}
     docker: true
     run: |
       mkdir -p .ci/go-tests/build
@@ -1300,7 +1300,7 @@ tasks:
 
   - key: compile-13
     use: [source, go-build-tools, discovery]
-    if: ${{ (init.cache-warm == 'true' || tasks.route.values.run-main == 'true')3 }}
+    if: ${{ (init.cache-warm == 'true' || tasks.route.values.run-main == 'true') && init.shard-total == '24' }}
     run: mise exec -- bash ops/ci/go-full-tests.sh build
     env:
       CI_COMMIT_SHA: ${{ init.commit-sha }}
@@ -1323,7 +1323,7 @@ tasks:
 
   - key: verdict-13
     use: [source, go-build-tools, contract-tools]
-    if: ${{ init.cache-warm != 'true' && tasks.route.values.run-main == 'true'3 }}
+    if: ${{ init.cache-warm != 'true' && tasks.route.values.run-main == 'true' && init.shard-total == '24' }}
     docker: true
     run: |
       mkdir -p .ci/go-tests/build
@@ -1381,7 +1381,7 @@ tasks:
 
   - key: compile-14
     use: [source, go-build-tools, discovery]
-    if: ${{ (init.cache-warm == 'true' || tasks.route.values.run-main == 'true')4 }}
+    if: ${{ (init.cache-warm == 'true' || tasks.route.values.run-main == 'true') && init.shard-total == '24' }}
     run: mise exec -- bash ops/ci/go-full-tests.sh build
     env:
       CI_COMMIT_SHA: ${{ init.commit-sha }}
@@ -1404,7 +1404,7 @@ tasks:
 
   - key: verdict-14
     use: [source, go-build-tools, contract-tools]
-    if: ${{ init.cache-warm != 'true' && tasks.route.values.run-main == 'true'4 }}
+    if: ${{ init.cache-warm != 'true' && tasks.route.values.run-main == 'true' && init.shard-total == '24' }}
     docker: true
     run: |
       mkdir -p .ci/go-tests/build
@@ -1462,7 +1462,7 @@ tasks:
 
   - key: compile-15
     use: [source, go-build-tools, discovery]
-    if: ${{ (init.cache-warm == 'true' || tasks.route.values.run-main == 'true')5 }}
+    if: ${{ (init.cache-warm == 'true' || tasks.route.values.run-main == 'true') && init.shard-total == '24' }}
     run: mise exec -- bash ops/ci/go-full-tests.sh build
     env:
       CI_COMMIT_SHA: ${{ init.commit-sha }}
@@ -1485,7 +1485,7 @@ tasks:
 
   - key: verdict-15
     use: [source, go-build-tools, contract-tools]
-    if: ${{ init.cache-warm != 'true' && tasks.route.values.run-main == 'true'5 }}
+    if: ${{ init.cache-warm != 'true' && tasks.route.values.run-main == 'true' && init.shard-total == '24' }}
     docker: true
     run: |
       mkdir -p .ci/go-tests/build
@@ -1543,7 +1543,7 @@ tasks:
 
   - key: compile-16
     use: [source, go-build-tools, discovery]
-    if: ${{ (init.cache-warm == 'true' || tasks.route.values.run-main == 'true')6 }}
+    if: ${{ (init.cache-warm == 'true' || tasks.route.values.run-main == 'true') && init.shard-total == '24' }}
     run: mise exec -- bash ops/ci/go-full-tests.sh build
     env:
       CI_COMMIT_SHA: ${{ init.commit-sha }}
@@ -1566,7 +1566,7 @@ tasks:
 
   - key: verdict-16
     use: [source, go-build-tools, contract-tools]
-    if: ${{ init.cache-warm != 'true' && tasks.route.values.run-main == 'true'6 }}
+    if: ${{ init.cache-warm != 'true' && tasks.route.values.run-main == 'true' && init.shard-total == '24' }}
     docker: true
     run: |
       mkdir -p .ci/go-tests/build
@@ -1624,7 +1624,7 @@ tasks:
 
   - key: compile-17
     use: [source, go-build-tools, discovery]
-    if: ${{ (init.cache-warm == 'true' || tasks.route.values.run-main == 'true')7 }}
+    if: ${{ (init.cache-warm == 'true' || tasks.route.values.run-main == 'true') && init.shard-total == '24' }}
     run: mise exec -- bash ops/ci/go-full-tests.sh build
     env:
       CI_COMMIT_SHA: ${{ init.commit-sha }}
@@ -1647,7 +1647,7 @@ tasks:
 
   - key: verdict-17
     use: [source, go-build-tools, contract-tools]
-    if: ${{ init.cache-warm != 'true' && tasks.route.values.run-main == 'true'7 }}
+    if: ${{ init.cache-warm != 'true' && tasks.route.values.run-main == 'true' && init.shard-total == '24' }}
     docker: true
     run: |
       mkdir -p .ci/go-tests/build
@@ -1705,7 +1705,7 @@ tasks:
 
   - key: compile-18
     use: [source, go-build-tools, discovery]
-    if: ${{ (init.cache-warm == 'true' || tasks.route.values.run-main == 'true')8 }}
+    if: ${{ (init.cache-warm == 'true' || tasks.route.values.run-main == 'true') && init.shard-total == '24' }}
     run: mise exec -- bash ops/ci/go-full-tests.sh build
     env:
       CI_COMMIT_SHA: ${{ init.commit-sha }}
@@ -1728,7 +1728,7 @@ tasks:
 
   - key: verdict-18
     use: [source, go-build-tools, contract-tools]
-    if: ${{ init.cache-warm != 'true' && tasks.route.values.run-main == 'true'8 }}
+    if: ${{ init.cache-warm != 'true' && tasks.route.values.run-main == 'true' && init.shard-total == '24' }}
     docker: true
     run: |
       mkdir -p .ci/go-tests/build
@@ -1786,7 +1786,7 @@ tasks:
 
   - key: compile-19
     use: [source, go-build-tools, discovery]
-    if: ${{ (init.cache-warm == 'true' || tasks.route.values.run-main == 'true')9 }}
+    if: ${{ (init.cache-warm == 'true' || tasks.route.values.run-main == 'true') && init.shard-total == '24' }}
     run: mise exec -- bash ops/ci/go-full-tests.sh build
     env:
       CI_COMMIT_SHA: ${{ init.commit-sha }}
@@ -1809,7 +1809,7 @@ tasks:
 
   - key: verdict-19
     use: [source, go-build-tools, contract-tools]
-    if: ${{ init.cache-warm != 'true' && tasks.route.values.run-main == 'true'9 }}
+    if: ${{ init.cache-warm != 'true' && tasks.route.values.run-main == 'true' && init.shard-total == '24' }}
     docker: true
     run: |
       mkdir -p .ci/go-tests/build
@@ -1867,7 +1867,7 @@ tasks:
 
   - key: compile-20
     use: [source, go-build-tools, discovery]
-    if: ${{ (init.cache-warm == 'true' || tasks.route.values.run-main == 'true')0 }}
+    if: ${{ (init.cache-warm == 'true' || tasks.route.values.run-main == 'true') && init.shard-total == '24' }}
     run: mise exec -- bash ops/ci/go-full-tests.sh build
     env:
       CI_COMMIT_SHA: ${{ init.commit-sha }}
@@ -1890,7 +1890,7 @@ tasks:
 
   - key: verdict-20
     use: [source, go-build-tools, contract-tools]
-    if: ${{ init.cache-warm != 'true' && tasks.route.values.run-main == 'true'0 }}
+    if: ${{ init.cache-warm != 'true' && tasks.route.values.run-main == 'true' && init.shard-total == '24' }}
     docker: true
     run: |
       mkdir -p .ci/go-tests/build
@@ -1948,7 +1948,7 @@ tasks:
 
   - key: compile-21
     use: [source, go-build-tools, discovery]
-    if: ${{ (init.cache-warm == 'true' || tasks.route.values.run-main == 'true')1 }}
+    if: ${{ (init.cache-warm == 'true' || tasks.route.values.run-main == 'true') && init.shard-total == '24' }}
     run: mise exec -- bash ops/ci/go-full-tests.sh build
     env:
       CI_COMMIT_SHA: ${{ init.commit-sha }}
@@ -1971,7 +1971,7 @@ tasks:
 
   - key: verdict-21
     use: [source, go-build-tools, contract-tools]
-    if: ${{ init.cache-warm != 'true' && tasks.route.values.run-main == 'true'1 }}
+    if: ${{ init.cache-warm != 'true' && tasks.route.values.run-main == 'true' && init.shard-total == '24' }}
     docker: true
     run: |
       mkdir -p .ci/go-tests/build
@@ -2029,7 +2029,7 @@ tasks:
 
   - key: compile-22
     use: [source, go-build-tools, discovery]
-    if: ${{ (init.cache-warm == 'true' || tasks.route.values.run-main == 'true')2 }}
+    if: ${{ (init.cache-warm == 'true' || tasks.route.values.run-main == 'true') && init.shard-total == '24' }}
     run: mise exec -- bash ops/ci/go-full-tests.sh build
     env:
       CI_COMMIT_SHA: ${{ init.commit-sha }}
@@ -2052,7 +2052,7 @@ tasks:
 
   - key: verdict-22
     use: [source, go-build-tools, contract-tools]
-    if: ${{ init.cache-warm != 'true' && tasks.route.values.run-main == 'true'2 }}
+    if: ${{ init.cache-warm != 'true' && tasks.route.values.run-main == 'true' && init.shard-total == '24' }}
     docker: true
     run: |
       mkdir -p .ci/go-tests/build
@@ -2110,7 +2110,7 @@ tasks:
 
   - key: compile-23
     use: [source, go-build-tools, discovery]
-    if: ${{ (init.cache-warm == 'true' || tasks.route.values.run-main == 'true')3 }}
+    if: ${{ (init.cache-warm == 'true' || tasks.route.values.run-main == 'true') && init.shard-total == '24' }}
     run: mise exec -- bash ops/ci/go-full-tests.sh build
     env:
       CI_COMMIT_SHA: ${{ init.commit-sha }}
@@ -2133,7 +2133,7 @@ tasks:
 
   - key: verdict-23
     use: [source, go-build-tools, contract-tools]
-    if: ${{ init.cache-warm != 'true' && tasks.route.values.run-main == 'true'3 }}
+    if: ${{ init.cache-warm != 'true' && tasks.route.values.run-main == 'true' && init.shard-total == '24' }}
     docker: true
     run: |
       mkdir -p .ci/go-tests/build
