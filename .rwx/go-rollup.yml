@@ -1,0 +1,175 @@
+# CLI-only rollup regression mode; the full go-tests shadow owns native routing.
+on:
+  cli:
+    init:
+      commit-sha: ${{ event.git.sha }}
+      branch: ${{ event.git.branch }}
+      tag: ""
+      cache-warm: "false"
+      cache-epoch: v1
+      build-probe: ""
+
+# Cache-only vault, writable by develop and the temporary pilot branch.
+tool-cache:
+  vault: optimism-op-reth-shadow
+
+base:
+  image: ubuntu:24.04@sha256:008173c23f95b170204355c12626cb5a965d779a7e1283b09e9cffbb1bf33ca3
+  config: rwx/base 1.2.0
+  arch: x86_64
+
+defaults:
+  runner:
+    cpus: 2
+    memory: 8gb
+
+tasks:
+  - key: code
+    call: git/clone 2.2.0
+    with:
+      repository: https://github.com/ethereum-optimism/optimism.git
+      ref: ${{ init.commit-sha }}
+      preserve-git-dir: true
+      fetch-full-depth: true
+      submodules: false
+
+  - key: bootstrap-inputs
+    use: code
+    run: 'true'
+    filter: [mise.toml, ops/ci, .circleci/scripts/apt-install.sh]
+    outputs:
+      filesystem: false
+      artifacts:
+        - key: mise-config
+          path: mise.toml
+        - key: ci-scripts
+          path: ops/ci
+        - key: apt-script
+          path: .circleci/scripts/apt-install.sh
+
+  - key: mise
+    call: mise/install 1.1.0
+    with:
+      mise-version: "2026.2.2"
+      install: "false"
+
+  # Artifact dependencies avoid inheriting the checkout's Git history into
+  # reusable tools. Language toolchains are added only by their own workload.
+  - key: tools
+    use: mise
+    run: |
+      mkdir -p ops/ci .circleci/scripts
+      cp "$MISE_CONFIG" mise.toml
+      cp "$CI_SCRIPTS/rwx-prepare.sh" ops/ci/
+      cp "$APT_SCRIPT" .circleci/scripts/apt-install.sh
+      bash ops/ci/rwx-prepare.sh
+    env:
+      MISE_CONFIG: ${{ tasks.bootstrap-inputs.artifacts.mise-config }}
+      CI_SCRIPTS: ${{ tasks.bootstrap-inputs.artifacts.ci-scripts }}
+      APT_SCRIPT: ${{ tasks.bootstrap-inputs.artifacts.apt-script }}
+    filter:
+      ${{ tasks.bootstrap-inputs.artifacts.ci-scripts }}: [rwx-prepare.sh]
+    timeout: 30m
+
+  - key: go-build-tools
+    use: tools
+    run: bash ops/ci/rwx-prepare.sh go
+    timeout: 30m
+
+  # The import guards still invoke go list; retain Go with a narrow module artifact.
+  - key: go-runtime
+    use: tools
+    run: bash ops/ci/rwx-prepare.sh go-runtime
+    timeout: 15m
+
+  - key: route
+    use: [code, tools]
+    run: bash ops/ci/rwx-metadata.sh
+    env:
+      CI_EVENT: push
+      CI_CACHE_WARM: ${{ init.cache-warm }}
+      CI_BRANCH: ${{ init.branch }}
+      CI_TAG: ${{ init.tag }}
+      CI_COMMIT_SHA: ${{ init.commit-sha }}
+    cache: false
+    timeout: 10m
+    outputs:
+      filesystem: false
+      artifacts:
+        - key: routing
+          path: .ci/pipeline-parameters.json
+
+  - key: shard-tests
+    use: [code, go-build-tools]
+    run: |
+      mise exec -- python ops/ci/test_go_package_shards.py
+      mise exec -- python ops/ci/test_go_compiled_tests.py
+    cache: false
+    timeout: 10m
+    outputs:
+      filesystem: false
+
+  # Full source and Git metadata are compiler inputs. Native tool caches restore
+  # downloaded modules and compiled Go objects only on a content-cache miss.
+  - key: go-build
+    use: [code, go-build-tools]
+    if: ${{ init.cache-warm == 'true' || tasks.route.values.run-main == 'true' }}
+    run: mise exec -- bash ops/ci/go-rollup-tests.sh build
+    env:
+      CI_COMMIT_SHA: ${{ init.commit-sha }}
+      CI_SHARD_TOTAL: "4"
+      BUILD_PROBE: ${{ init.build-probe }}
+    tool-cache: go-rollup-build-${{ init.cache-epoch }}
+    runner:
+      cpus: 16
+      memory: 32gb
+    timeout: 40m
+    outputs:
+      filesystem:
+        filter:
+          workspace: [.ci/go-cache/rollup, .ci/go-rollup/build]
+          system: []
+      artifacts:
+        - key: compilation
+          path: .ci/go-rollup/build
+
+  - key: go-rollup
+    use: go-runtime
+    if: ${{ tasks.route.values.run-main == 'true' }}
+    parallel: 4
+    run: |
+      mkdir -p .ci/go-rollup/build
+      cp -a "$GO_BUILD_ARTIFACT/." .ci/go-rollup/build/
+      tar -xzf .ci/go-rollup/build/source.tar.gz
+      cp .ci/go-rollup/build/manifest.json .ci/go-rollup/manifest.json
+      export GOMODCACHE="$PWD/.ci/go-runtime/modules"
+      export GOCACHE="$PWD/.ci/go-runtime/build"
+      mkdir -p "$GOMODCACHE" "$GOCACHE"
+      tar -xzf .ci/go-rollup/build/runtime-modules.tar.gz -C "$GOMODCACHE"
+      mise exec -- bash ops/ci/go-rollup-tests.sh
+    env:
+      CI_COMMIT_SHA: ${{ init.commit-sha }}
+      GO_BUILD_ARTIFACT: ${{ tasks.go-build.artifacts.compilation }}
+      RWX_COMPILED_GO: "true"
+      CI_SHARD_INDEX: ${{ parallel.index }}
+      CI_SHARD_TOTAL: ${{ parallel.total }}
+      TEST_TIMEOUT: 40m
+    cache: false
+    timeout: 50m
+    runner:
+      cpus: 8
+      memory: 16gb
+    outputs:
+      filesystem: false
+      test-results:
+        - path: tmp/testlogs/log.json
+          options:
+            language: Go
+            framework: go test
+      artifacts:
+        - key: junit
+          path: tmp/test-results
+        - key: go-json
+          path: tmp/testlogs/log.json
+        - key: test-logs
+          path: tmp/testlogs

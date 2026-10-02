@@ -11,7 +11,7 @@ build-deps:
     if [[ -n "${CIRCLECI:-}" ]]; then exit 0; fi
 
     echo "Building contracts (local build)..."
-    cd {{REPO_ROOT}}
+    cd "{{REPO_ROOT}}"
     echo " - Installing mise..."
     mise install
     cd packages/contracts-bedrock
@@ -19,14 +19,14 @@ build-deps:
     just install
     echo " - Forge build..."
     just build-no-tests
-    cd {{REPO_ROOT}}
+    cd "{{REPO_ROOT}}"
 
     echo "Building cannon dependencies..."
-    cd {{REPO_ROOT}}
+    cd "{{REPO_ROOT}}"
     just cannon-prestates
 
     echo "Building Rust binaries (kona-node, kona-host, op-reth)..."
-    cd {{REPO_ROOT}}
+    cd "{{REPO_ROOT}}"
     just build-rust-release
 
 # Run specific acceptance tests. Builds dependencies first, then passes all arguments to go test.
@@ -40,7 +40,7 @@ build-deps:
 test *args: build-deps
     #!/usr/bin/env bash
     set -euo pipefail
-    cd {{REPO_ROOT}}
+    cd "{{REPO_ROOT}}"
     flags=()
     case " $* " in
         *" -count="*|*" -count "*) ;;
@@ -95,8 +95,10 @@ acceptance-test:
     echo "PACKAGE JOBS: $JOBS"
     echo "TEST PARALLELISM: $TEST_PARALLEL"
     echo "PACKAGE TIMEOUT: $TEST_TIMEOUT"
+    export ACCEPTANCE_TEST_JOBS="$JOBS" ACCEPTANCE_TEST_PARALLEL="$TEST_PARALLEL"
+    export ACCEPTANCE_TEST_TIMEOUT="$TEST_TIMEOUT" LOG_LEVEL
 
-    cd {{REPO_ROOT}}
+    cd "{{REPO_ROOT}}"
     if ! command -v gotestsum >/dev/null; then
         echo "error: gotestsum is required for acceptance-test runs." >&2
         exit 1
@@ -125,30 +127,47 @@ acceptance-test:
     RUN_FLAG=""
     JUNIT_FILE="$RESULTS_DIR/results.xml"
     JSON_FILE="$LOG_DIR/raw_go_events.log"
-    if [ -n "${CIRCLE_NODE_TOTAL:-}" ] && [ "$CIRCLE_NODE_TOTAL" -gt 1 ]; then
-        NODE_INDEX=${CIRCLE_NODE_INDEX:-0}
-        NODE_TOTAL=${CIRCLE_NODE_TOTAL:-1}
-
-        go test -list '^Test' "${TEST_PACKAGES[@]}" \
-            | {{REPO_ROOT}}/ops/scripts/shard-tests.sh > /tmp/tests_shard.txt
-
-        SHARD_COUNT=$(wc -l < /tmp/tests_shard.txt | tr -d ' ')
+    NODE_INDEX=${CI_SHARD_INDEX:-${CIRCLE_NODE_INDEX:-0}}
+    NODE_TOTAL=${CI_SHARD_TOTAL:-${CIRCLE_NODE_TOTAL:-1}}
+    DISCOVERY_DIR="$LOG_DIR/discovery"
+    mkdir -p "$DISCOVERY_DIR"
+    ASSIGNED="$DISCOVERY_DIR/assigned.txt"
+    if [[ -n "${CI_ACCEPTANCE_MANIFEST:-}" ]]; then
+        cp "$CI_ACCEPTANCE_MANIFEST/"{manifest.json,packages.json,listing.json} "$DISCOVERY_DIR/"
+        python3 ops/ci/acceptance-manifest.py select --directory "$DISCOVERY_DIR" \
+            --total "$NODE_TOTAL" --index "$NODE_INDEX" > "$ASSIGNED"
+    else
+        # Retain and reject errors from both commands before invoking a splitter.
+        go list -e -json "${TEST_PACKAGES[@]}" > "$DISCOVERY_DIR/packages.json"
+        go test -list '^Test' -json "${TEST_PACKAGES[@]}" > "$DISCOVERY_DIR/listing.json"
+        python3 ops/ci/acceptance-manifest.py names --directory "$DISCOVERY_DIR" \
+            --total "$NODE_TOTAL" > "$DISCOVERY_DIR/names.txt"
+        "{{REPO_ROOT}}/ops/scripts/shard-tests.sh" < "$DISCOVERY_DIR/names.txt" > "$ASSIGNED"
+    fi
+    python3 ops/ci/acceptance-manifest.py record --directory "$DISCOVERY_DIR" \
+        --total "$NODE_TOTAL" --index "$NODE_INDEX" --assigned "$ASSIGNED"
+    if [[ "$NODE_TOTAL" -gt 1 ]]; then
+        SHARD_COUNT=$(wc -l < "$ASSIGNED" | tr -d ' ')
         echo "Node $NODE_INDEX/$NODE_TOTAL running $SHARD_COUNT tests:"
-        cat /tmp/tests_shard.txt
-
-        if [ "$SHARD_COUNT" -eq 0 ]; then
-            echo "No tests assigned to this node, skipping."
-            exit 0
+        cat "$ASSIGNED"
+        if [[ "$SHARD_COUNT" -eq 0 ]]; then
+            # Still produce a fresh package report for valid empty shards.
+            RUN_FLAG='-run=a^'
+        else
+            RUN_FLAG="-run=^($(paste -sd '|' "$ASSIGNED"))$"
         fi
-
-        RUN_FLAG="-run=^($(paste -sd '|' /tmp/tests_shard.txt))$"
         JUNIT_FILE="$RESULTS_DIR/results-${NODE_INDEX}.xml"
         JSON_FILE="$LOG_DIR/raw_go_events-${NODE_INDEX}.log"
     fi
 
     set +e
-    LOG_LEVEL="${LOG_LEVEL}" {{REPO_ROOT}}/ops/scripts/gotestsum-split.sh \
+    SUMMARY_FLAG=""
+    if [[ "${ACCEPTANCE_TEST_HIDE_FAILURE_OUTPUT:-false}" == true ]]; then
+        SUMMARY_FLAG=--hide-summary=output
+    fi
+    LOG_LEVEL="${LOG_LEVEL}" "{{REPO_ROOT}}/ops/scripts/gotestsum-split.sh" \
         --format testname \
+        ${SUMMARY_FLAG:+"$SUMMARY_FLAG"} \
         --junitfile "$JUNIT_FILE" \
         --jsonfile "$JSON_FILE" \
         -- \
@@ -163,6 +182,11 @@ acceptance-test:
     set -e
 
     cp "$LOG_DIR/all.log" "$LOG_DIR/summary.log"
+    if [[ ! -s "$JUNIT_FILE" || ! -s "$JSON_FILE" ]]; then
+        echo "error: acceptance runner did not retain original JSON and JUnit" >&2
+        exit 1
+    fi
+    cp "$JUNIT_FILE" "$LOG_DIR/$(basename "$JUNIT_FILE")"
     exit "$TEST_STATUS"
 
 clean:

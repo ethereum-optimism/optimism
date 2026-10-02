@@ -1,0 +1,2248 @@
+# Full aggregate Go workload. CircleCI retains all required gates.
+on:
+  cache-rebuild:
+    if: ${{ event.git.branch == 'develop' }}
+    target: [go, contracts, kona, op-reth, prestate, compile-0, compile-1, compile-2, compile-3, compile-4, compile-5, compile-6, compile-7, compile-8, compile-9, compile-10, compile-11]
+    init:
+      commit-sha: ${{ event.git.sha }}
+      branch: ${{ event.git.branch }}
+      tag: ""
+      cache-warm: "true"
+      cache-epoch: v1
+      build-probe: ""
+      target-cache-mode: keep
+      shard-total: "12"
+      test-parallel: "8"
+  github:
+    push:
+      init:
+        commit-sha: ${{ event.git.sha }}
+        branch: ${{ event.git.branch }}
+        tag: ${{ event.git.tag }}
+        cache-warm: "false"
+        cache-epoch: v1
+        build-probe: ""
+        target-cache-mode: keep
+        shard-total: "12"
+        test-parallel: "8"
+      status-checks:
+        name: optimism-go-tests-shadow
+  cli:
+    init:
+      commit-sha: ${{ event.git.sha }}
+      branch: ${{ event.git.branch }}
+      tag: ""
+      cache-warm: "false"
+      cache-epoch: v1
+      build-probe: ""
+      target-cache-mode: keep
+      shard-total: "12"
+      test-parallel: "8"
+
+# Cache-only vault, writable by develop and the temporary pilot branch.
+tool-cache:
+  vault: optimism-op-reth-shadow
+
+base:
+  image: ubuntu:24.04@sha256:008173c23f95b170204355c12626cb5a965d779a7e1283b09e9cffbb1bf33ca3
+  config: rwx/base 1.2.0
+  arch: x86_64
+
+defaults:
+  runner:
+    cpus: 2
+    memory: 8gb
+
+tasks:
+  - key: code
+    call: git/clone 2.2.0
+    with:
+      repository: https://github.com/ethereum-optimism/optimism.git
+      ref: ${{ init.commit-sha }}
+      preserve-git-dir: true
+      fetch-full-depth: true
+      submodules: false
+
+  - key: bootstrap-inputs
+    use: code
+    run: 'true'
+    filter: [mise.toml, ops/ci, .circleci/scripts/apt-install.sh]
+    outputs:
+      filesystem: false
+      artifacts:
+        - key: mise-config
+          path: mise.toml
+        - key: ci-scripts
+          path: ops/ci
+        - key: apt-script
+          path: .circleci/scripts/apt-install.sh
+
+  - key: mise
+    call: mise/install 1.1.0
+    with:
+      mise-version: "2026.2.2"
+      install: "false"
+
+  # Artifact dependencies avoid inheriting the checkout's Git history into
+  # reusable tools. Language toolchains are added only by their own workload.
+  - key: tools
+    use: mise
+    run: |
+      mkdir -p ops/ci .circleci/scripts
+      cp "$MISE_CONFIG" mise.toml
+      cp "$CI_SCRIPTS/rwx-prepare.sh" ops/ci/
+      cp "$APT_SCRIPT" .circleci/scripts/apt-install.sh
+      bash ops/ci/rwx-prepare.sh
+    env:
+      MISE_CONFIG: ${{ tasks.bootstrap-inputs.artifacts.mise-config }}
+      CI_SCRIPTS: ${{ tasks.bootstrap-inputs.artifacts.ci-scripts }}
+      APT_SCRIPT: ${{ tasks.bootstrap-inputs.artifacts.apt-script }}
+    filter:
+      ${{ tasks.bootstrap-inputs.artifacts.ci-scripts }}: [rwx-prepare.sh]
+    timeout: 30m
+
+  - key: go-build-tools
+    use: tools
+    run: bash ops/ci/rwx-prepare.sh go
+    timeout: 30m
+
+  - key: route
+    use: [code, tools]
+    run: bash ops/ci/rwx-metadata.sh
+    env:
+      CI_EVENT: push
+      CI_CACHE_WARM: ${{ init.cache-warm }}
+      CI_BRANCH: ${{ init.branch }}
+      CI_TAG: ${{ init.tag }}
+      CI_COMMIT_SHA: ${{ init.commit-sha }}
+    cache: false
+    timeout: 10m
+    outputs:
+      filesystem: false
+      artifacts:
+        - key: routing
+          path: .ci/pipeline-parameters.json
+
+  - key: contract-tools
+    use: tools
+    run: |
+      cp "$CI_SCRIPTS/rwx-contracts-prepare.sh" ops/ci/
+      bash ops/ci/rwx-contracts-prepare.sh tools
+      mise install anvil
+    env:
+      CI_SCRIPTS: ${{ tasks.bootstrap-inputs.artifacts.ci-scripts }}
+    filter:
+      ${{ tasks.bootstrap-inputs.artifacts.ci-scripts }}: [rwx-contracts-prepare.sh]
+    timeout: 30m
+
+  - key: rust-tools
+    use: tools
+    run: |
+      cp "$CI_SCRIPTS/rwx-rust-prepare.sh" "$CI_SCRIPTS/op-reth-shadow.sh" "$CI_SCRIPTS/op-reth-report.py" "$CI_SCRIPTS/rust-target-cache.py" ops/ci/
+      bash ops/ci/rwx-prepare.sh rust
+      mise exec -- bash ops/ci/rwx-rust-prepare.sh
+    env:
+      CI_SCRIPTS: ${{ tasks.bootstrap-inputs.artifacts.ci-scripts }}
+    filter:
+      ${{ tasks.bootstrap-inputs.artifacts.ci-scripts }}: [rwx-rust-prepare.sh, op-reth-shadow.sh, op-reth-report.py, rust-target-cache.py]
+    timeout: 30m
+
+  - key: helper-tests
+    use: [code, go-build-tools]
+    if: ${{ init.cache-warm != 'true' }}
+    run: mise exec -- python3 -m unittest discover -s ops/ci -p 'test_go*.py'
+    cache: false
+    timeout: 10m
+    outputs:
+      filesystem: false
+
+  # This is a runtime preflight: only it and fresh verdicts receive RPC inputs.
+  - key: rpc-preflight
+    use: tools
+    if: ${{ init.cache-warm != 'true' && tasks.route.values.run-main == 'true' }}
+    run: python3 "$CI_SCRIPTS/go-rpc-preflight.py"
+    filter:
+      ${{ tasks.bootstrap-inputs.artifacts.ci-scripts }}: [go-rpc-preflight.py]
+    env:
+      CI_SCRIPTS: ${{ tasks.bootstrap-inputs.artifacts.ci-scripts }}
+      OP_CI_MAINNET_L1_ARCHIVE_RPC_URL: ${{ vaults.optimism-go-tests-rpc-shadow.secrets.OP_CI_MAINNET_L1_ARCHIVE_RPC_URL }}
+      OP_CI_SEPOLIA_L1_ARCHIVE_RPC_URL: ${{ vaults.optimism-go-tests-rpc-shadow.secrets.OP_CI_SEPOLIA_L1_ARCHIVE_RPC_URL }}
+    cache: false
+    outputs:
+      filesystem: false
+
+  - key: source
+    use: [code, tools]
+    after: ${{ rpc-preflight.succeeded || rpc-preflight.skipped }}
+    if: ${{ init.cache-warm == 'true' || tasks.route.values.run-main == 'true' }}
+    run: |
+      git submodule sync --recursive
+      git submodule update --init --recursive --jobs 8
+      git rev-parse HEAD >packages/contracts-bedrock/.gitcommit
+    timeout: 20m
+
+  - key: go
+    use: [source, go-build-tools]
+    if: ${{ init.cache-warm == 'true' || tasks.route.values.run-main == 'true' }}
+    call: ${{ run.dir }}/packages/go-go.yml
+    with:
+      commit-sha: ${{ init.commit-sha }}
+      cache-epoch: ${{ init.cache-epoch }}
+      build-probe: ${{ init.build-probe }}
+      target-cache-mode: ${{ init.target-cache-mode }}
+
+  - key: contracts
+    use: [source, contract-tools, go-build-tools]
+    if: ${{ init.cache-warm == 'true' || tasks.route.values.run-main == 'true' }}
+    call: ${{ run.dir }}/packages/go-contracts.yml
+    with:
+      commit-sha: ${{ init.commit-sha }}
+      cache-epoch: ${{ init.cache-epoch }}
+      build-probe: ${{ init.build-probe }}
+      target-cache-mode: ${{ init.target-cache-mode }}
+
+  - key: kona
+    use: [source, rust-tools]
+    if: ${{ init.cache-warm == 'true' || tasks.route.values.run-main == 'true' }}
+    call: ${{ run.dir }}/packages/go-kona.yml
+    with:
+      commit-sha: ${{ init.commit-sha }}
+      cache-epoch: ${{ init.cache-epoch }}
+      build-probe: ${{ init.build-probe }}
+      target-cache-mode: ${{ init.target-cache-mode }}
+
+  - key: op-reth
+    use: [source, rust-tools]
+    if: ${{ init.cache-warm == 'true' || tasks.route.values.run-main == 'true' }}
+    call: ${{ run.dir }}/packages/go-op-reth.yml
+    with:
+      commit-sha: ${{ init.commit-sha }}
+      cache-epoch: ${{ init.cache-epoch }}
+      build-probe: ${{ init.build-probe }}
+      target-cache-mode: ${{ init.target-cache-mode }}
+
+  - key: prestate
+    use: [source, go-build-tools]
+    if: ${{ init.cache-warm == 'true' || tasks.route.values.run-main == 'true' }}
+    call: ${{ run.dir }}/packages/go-prestate.yml
+    with:
+      commit-sha: ${{ init.commit-sha }}
+      cache-epoch: ${{ init.cache-epoch }}
+      build-probe: ${{ init.build-probe }}
+      target-cache-mode: ${{ init.target-cache-mode }}
+
+  - key: discovery
+    use: [source, go-build-tools]
+    if: ${{ init.cache-warm == 'true' || tasks.route.values.run-main == 'true' }}
+    run: |
+      python3 ops/ci/go-artifacts.py restore go "$GO_ARTIFACT"
+      python3 ops/ci/go-artifacts.py restore contracts "$CONTRACT_ARTIFACT"
+      mise exec -- bash ops/ci/go-full-tests.sh discover
+    env:
+      CI_BRANCH: ${{ init.branch }}
+      CI_COMMIT_SHA: ${{ init.commit-sha }}
+      CI_SHARD_TOTAL: ${{ init.shard-total }}
+      PARALLEL: ${{ init.test-parallel }}
+      GO_ARTIFACT: ${{ tasks.go.tasks.build.artifacts.dependency }}
+      CONTRACT_ARTIFACT: ${{ tasks.contracts.tasks.build.artifacts.dependency }}
+    outputs:
+      filesystem:
+        filter:
+          workspace: [.ci/go-tests/manifest.json, .ci/go-tests/go-list.json, .ci/go-tests/all-packages.txt, .ci/go-cache/full/modules, cannon/bin, cannon/multicannon/embeds, cannon/testdata/bin, op-core/superchain/superchain-configs.zip, packages/contracts-bedrock/cache, packages/contracts-bedrock/artifacts, packages/contracts-bedrock/forge-artifacts, op-deployer/pkg/deployer/artifacts/forge-artifacts]
+          system: []
+      artifacts:
+        - key: discovery
+          path: .ci/go-tests
+
+  - key: compile-0
+    use: [source, go-build-tools, discovery]
+    if: ${{ (init.cache-warm == 'true' || tasks.route.values.run-main == 'true') }}
+    run: mise exec -- bash ops/ci/go-full-tests.sh build
+    env:
+      CI_COMMIT_SHA: ${{ init.commit-sha }}
+      CI_SHARD_INDEX: "0"
+      CI_SHARD_TOTAL: ${{ init.shard-total }}
+      PARALLEL: ${{ init.test-parallel }}
+      BUILD_PROBE: ${{ init.build-probe }}
+    tool-cache: go-full-compile-0-${{ init.cache-epoch }}
+    timeout: 60m
+    runner:
+      cpus: 16
+      memory: 32gb
+    outputs:
+      filesystem:
+        filter:
+          workspace: [.ci/go-cache/full/build, .ci/go-tests/build]
+          system: []
+      artifacts:
+        - key: binaries
+          path: .ci/go-tests/build
+
+  - key: verdict-0
+    use: [source, go-build-tools, contract-tools]
+    if: ${{ init.cache-warm != 'true' && tasks.route.values.run-main == 'true' }}
+    docker: true
+    run: |
+      mkdir -p .ci/go-tests/build
+      cp -a "$GO_BINARIES/." .ci/go-tests/build/
+      cp "$DISCOVERY/manifest.json" "$DISCOVERY/go-list.json" "$DISCOVERY/all-packages.txt" .ci/go-tests/
+      for dependency in go contracts kona op-reth prestate; do
+        case "$dependency" in
+          go) artifact="$GO_ARTIFACT" ;;
+          contracts) artifact="$CONTRACT_ARTIFACT" ;;
+          kona) artifact="$KONA_ARTIFACT" ;;
+          op-reth) artifact="$RETH_ARTIFACT" ;;
+          prestate) artifact="$PRESTATE_ARTIFACT" ;;
+        esac
+        python3 ops/ci/go-artifacts.py restore "$dependency" "$artifact"
+      done
+      export RUST_BINARY_PATH_OP_RETH="$PWD/rust/target/release/op-reth"
+      mise exec -- bash ops/ci/go-full-tests.sh run
+    env:
+      CI_COMMIT_SHA: ${{ init.commit-sha }}
+      CIRCLE_BRANCH: ${{ init.branch }}
+      CI_SHARD_INDEX: "0"
+      CI_SHARD_TOTAL: ${{ init.shard-total }}
+      PARALLEL: ${{ init.test-parallel }}
+      GO_BINARIES: ${{ tasks.compile-0.artifacts.binaries }}
+      DISCOVERY: ${{ tasks.discovery.artifacts.discovery }}
+      GO_ARTIFACT: ${{ tasks.go.tasks.build.artifacts.dependency }}
+      CONTRACT_ARTIFACT: ${{ tasks.contracts.tasks.build.artifacts.dependency }}
+      KONA_ARTIFACT: ${{ tasks.kona.tasks.build.artifacts.dependency }}
+      RETH_ARTIFACT: ${{ tasks.op-reth.tasks.build.artifacts.dependency }}
+      PRESTATE_ARTIFACT: ${{ tasks.prestate.tasks.build.artifacts.dependency }}
+      OP_CI_MAINNET_L1_ARCHIVE_RPC_URL: ${{ vaults.optimism-go-tests-rpc-shadow.secrets.OP_CI_MAINNET_L1_ARCHIVE_RPC_URL }}
+      OP_CI_SEPOLIA_L1_ARCHIVE_RPC_URL: ${{ vaults.optimism-go-tests-rpc-shadow.secrets.OP_CI_SEPOLIA_L1_ARCHIVE_RPC_URL }}
+    cache: false
+    tool-cache: go-full-runtime-0-${{ init.cache-epoch }}
+    timeout: 60m
+    runner:
+      cpus: 8
+      memory: 16gb
+    outputs:
+      filesystem:
+        filter:
+          workspace: [.ci/go-cache/full/run]
+          system: []
+      test-results:
+        - path: tmp/testlogs/native.json
+          options:
+            language: Go
+            framework: go test
+      artifacts:
+        - key: junit
+          path: tmp/test-results
+        - key: go-json
+          path: tmp/testlogs/log.json
+        - key: test-logs
+          path: tmp/testlogs
+
+  - key: compile-1
+    use: [source, go-build-tools, discovery]
+    if: ${{ (init.cache-warm == 'true' || tasks.route.values.run-main == 'true') }}
+    run: mise exec -- bash ops/ci/go-full-tests.sh build
+    env:
+      CI_COMMIT_SHA: ${{ init.commit-sha }}
+      CI_SHARD_INDEX: "1"
+      CI_SHARD_TOTAL: ${{ init.shard-total }}
+      PARALLEL: ${{ init.test-parallel }}
+      BUILD_PROBE: ${{ init.build-probe }}
+    tool-cache: go-full-compile-1-${{ init.cache-epoch }}
+    timeout: 60m
+    runner:
+      cpus: 16
+      memory: 32gb
+    outputs:
+      filesystem:
+        filter:
+          workspace: [.ci/go-cache/full/build, .ci/go-tests/build]
+          system: []
+      artifacts:
+        - key: binaries
+          path: .ci/go-tests/build
+
+  - key: verdict-1
+    use: [source, go-build-tools, contract-tools]
+    if: ${{ init.cache-warm != 'true' && tasks.route.values.run-main == 'true' }}
+    docker: true
+    run: |
+      mkdir -p .ci/go-tests/build
+      cp -a "$GO_BINARIES/." .ci/go-tests/build/
+      cp "$DISCOVERY/manifest.json" "$DISCOVERY/go-list.json" "$DISCOVERY/all-packages.txt" .ci/go-tests/
+      for dependency in go contracts kona op-reth prestate; do
+        case "$dependency" in
+          go) artifact="$GO_ARTIFACT" ;;
+          contracts) artifact="$CONTRACT_ARTIFACT" ;;
+          kona) artifact="$KONA_ARTIFACT" ;;
+          op-reth) artifact="$RETH_ARTIFACT" ;;
+          prestate) artifact="$PRESTATE_ARTIFACT" ;;
+        esac
+        python3 ops/ci/go-artifacts.py restore "$dependency" "$artifact"
+      done
+      export RUST_BINARY_PATH_OP_RETH="$PWD/rust/target/release/op-reth"
+      mise exec -- bash ops/ci/go-full-tests.sh run
+    env:
+      CI_COMMIT_SHA: ${{ init.commit-sha }}
+      CIRCLE_BRANCH: ${{ init.branch }}
+      CI_SHARD_INDEX: "1"
+      CI_SHARD_TOTAL: ${{ init.shard-total }}
+      PARALLEL: ${{ init.test-parallel }}
+      GO_BINARIES: ${{ tasks.compile-1.artifacts.binaries }}
+      DISCOVERY: ${{ tasks.discovery.artifacts.discovery }}
+      GO_ARTIFACT: ${{ tasks.go.tasks.build.artifacts.dependency }}
+      CONTRACT_ARTIFACT: ${{ tasks.contracts.tasks.build.artifacts.dependency }}
+      KONA_ARTIFACT: ${{ tasks.kona.tasks.build.artifacts.dependency }}
+      RETH_ARTIFACT: ${{ tasks.op-reth.tasks.build.artifacts.dependency }}
+      PRESTATE_ARTIFACT: ${{ tasks.prestate.tasks.build.artifacts.dependency }}
+      OP_CI_MAINNET_L1_ARCHIVE_RPC_URL: ${{ vaults.optimism-go-tests-rpc-shadow.secrets.OP_CI_MAINNET_L1_ARCHIVE_RPC_URL }}
+      OP_CI_SEPOLIA_L1_ARCHIVE_RPC_URL: ${{ vaults.optimism-go-tests-rpc-shadow.secrets.OP_CI_SEPOLIA_L1_ARCHIVE_RPC_URL }}
+    cache: false
+    tool-cache: go-full-runtime-1-${{ init.cache-epoch }}
+    timeout: 60m
+    runner:
+      cpus: 8
+      memory: 16gb
+    outputs:
+      filesystem:
+        filter:
+          workspace: [.ci/go-cache/full/run]
+          system: []
+      test-results:
+        - path: tmp/testlogs/native.json
+          options:
+            language: Go
+            framework: go test
+      artifacts:
+        - key: junit
+          path: tmp/test-results
+        - key: go-json
+          path: tmp/testlogs/log.json
+        - key: test-logs
+          path: tmp/testlogs
+
+  - key: compile-2
+    use: [source, go-build-tools, discovery]
+    if: ${{ (init.cache-warm == 'true' || tasks.route.values.run-main == 'true') }}
+    run: mise exec -- bash ops/ci/go-full-tests.sh build
+    env:
+      CI_COMMIT_SHA: ${{ init.commit-sha }}
+      CI_SHARD_INDEX: "2"
+      CI_SHARD_TOTAL: ${{ init.shard-total }}
+      PARALLEL: ${{ init.test-parallel }}
+      BUILD_PROBE: ${{ init.build-probe }}
+    tool-cache: go-full-compile-2-${{ init.cache-epoch }}
+    timeout: 60m
+    runner:
+      cpus: 16
+      memory: 32gb
+    outputs:
+      filesystem:
+        filter:
+          workspace: [.ci/go-cache/full/build, .ci/go-tests/build]
+          system: []
+      artifacts:
+        - key: binaries
+          path: .ci/go-tests/build
+
+  - key: verdict-2
+    use: [source, go-build-tools, contract-tools]
+    if: ${{ init.cache-warm != 'true' && tasks.route.values.run-main == 'true' }}
+    docker: true
+    run: |
+      mkdir -p .ci/go-tests/build
+      cp -a "$GO_BINARIES/." .ci/go-tests/build/
+      cp "$DISCOVERY/manifest.json" "$DISCOVERY/go-list.json" "$DISCOVERY/all-packages.txt" .ci/go-tests/
+      for dependency in go contracts kona op-reth prestate; do
+        case "$dependency" in
+          go) artifact="$GO_ARTIFACT" ;;
+          contracts) artifact="$CONTRACT_ARTIFACT" ;;
+          kona) artifact="$KONA_ARTIFACT" ;;
+          op-reth) artifact="$RETH_ARTIFACT" ;;
+          prestate) artifact="$PRESTATE_ARTIFACT" ;;
+        esac
+        python3 ops/ci/go-artifacts.py restore "$dependency" "$artifact"
+      done
+      export RUST_BINARY_PATH_OP_RETH="$PWD/rust/target/release/op-reth"
+      mise exec -- bash ops/ci/go-full-tests.sh run
+    env:
+      CI_COMMIT_SHA: ${{ init.commit-sha }}
+      CIRCLE_BRANCH: ${{ init.branch }}
+      CI_SHARD_INDEX: "2"
+      CI_SHARD_TOTAL: ${{ init.shard-total }}
+      PARALLEL: ${{ init.test-parallel }}
+      GO_BINARIES: ${{ tasks.compile-2.artifacts.binaries }}
+      DISCOVERY: ${{ tasks.discovery.artifacts.discovery }}
+      GO_ARTIFACT: ${{ tasks.go.tasks.build.artifacts.dependency }}
+      CONTRACT_ARTIFACT: ${{ tasks.contracts.tasks.build.artifacts.dependency }}
+      KONA_ARTIFACT: ${{ tasks.kona.tasks.build.artifacts.dependency }}
+      RETH_ARTIFACT: ${{ tasks.op-reth.tasks.build.artifacts.dependency }}
+      PRESTATE_ARTIFACT: ${{ tasks.prestate.tasks.build.artifacts.dependency }}
+      OP_CI_MAINNET_L1_ARCHIVE_RPC_URL: ${{ vaults.optimism-go-tests-rpc-shadow.secrets.OP_CI_MAINNET_L1_ARCHIVE_RPC_URL }}
+      OP_CI_SEPOLIA_L1_ARCHIVE_RPC_URL: ${{ vaults.optimism-go-tests-rpc-shadow.secrets.OP_CI_SEPOLIA_L1_ARCHIVE_RPC_URL }}
+    cache: false
+    tool-cache: go-full-runtime-2-${{ init.cache-epoch }}
+    timeout: 60m
+    runner:
+      cpus: 8
+      memory: 16gb
+    outputs:
+      filesystem:
+        filter:
+          workspace: [.ci/go-cache/full/run]
+          system: []
+      test-results:
+        - path: tmp/testlogs/native.json
+          options:
+            language: Go
+            framework: go test
+      artifacts:
+        - key: junit
+          path: tmp/test-results
+        - key: go-json
+          path: tmp/testlogs/log.json
+        - key: test-logs
+          path: tmp/testlogs
+
+  - key: compile-3
+    use: [source, go-build-tools, discovery]
+    if: ${{ (init.cache-warm == 'true' || tasks.route.values.run-main == 'true') }}
+    run: mise exec -- bash ops/ci/go-full-tests.sh build
+    env:
+      CI_COMMIT_SHA: ${{ init.commit-sha }}
+      CI_SHARD_INDEX: "3"
+      CI_SHARD_TOTAL: ${{ init.shard-total }}
+      PARALLEL: ${{ init.test-parallel }}
+      BUILD_PROBE: ${{ init.build-probe }}
+    tool-cache: go-full-compile-3-${{ init.cache-epoch }}
+    timeout: 60m
+    runner:
+      cpus: 16
+      memory: 32gb
+    outputs:
+      filesystem:
+        filter:
+          workspace: [.ci/go-cache/full/build, .ci/go-tests/build]
+          system: []
+      artifacts:
+        - key: binaries
+          path: .ci/go-tests/build
+
+  - key: verdict-3
+    use: [source, go-build-tools, contract-tools]
+    if: ${{ init.cache-warm != 'true' && tasks.route.values.run-main == 'true' }}
+    docker: true
+    run: |
+      mkdir -p .ci/go-tests/build
+      cp -a "$GO_BINARIES/." .ci/go-tests/build/
+      cp "$DISCOVERY/manifest.json" "$DISCOVERY/go-list.json" "$DISCOVERY/all-packages.txt" .ci/go-tests/
+      for dependency in go contracts kona op-reth prestate; do
+        case "$dependency" in
+          go) artifact="$GO_ARTIFACT" ;;
+          contracts) artifact="$CONTRACT_ARTIFACT" ;;
+          kona) artifact="$KONA_ARTIFACT" ;;
+          op-reth) artifact="$RETH_ARTIFACT" ;;
+          prestate) artifact="$PRESTATE_ARTIFACT" ;;
+        esac
+        python3 ops/ci/go-artifacts.py restore "$dependency" "$artifact"
+      done
+      export RUST_BINARY_PATH_OP_RETH="$PWD/rust/target/release/op-reth"
+      mise exec -- bash ops/ci/go-full-tests.sh run
+    env:
+      CI_COMMIT_SHA: ${{ init.commit-sha }}
+      CIRCLE_BRANCH: ${{ init.branch }}
+      CI_SHARD_INDEX: "3"
+      CI_SHARD_TOTAL: ${{ init.shard-total }}
+      PARALLEL: ${{ init.test-parallel }}
+      GO_BINARIES: ${{ tasks.compile-3.artifacts.binaries }}
+      DISCOVERY: ${{ tasks.discovery.artifacts.discovery }}
+      GO_ARTIFACT: ${{ tasks.go.tasks.build.artifacts.dependency }}
+      CONTRACT_ARTIFACT: ${{ tasks.contracts.tasks.build.artifacts.dependency }}
+      KONA_ARTIFACT: ${{ tasks.kona.tasks.build.artifacts.dependency }}
+      RETH_ARTIFACT: ${{ tasks.op-reth.tasks.build.artifacts.dependency }}
+      PRESTATE_ARTIFACT: ${{ tasks.prestate.tasks.build.artifacts.dependency }}
+      OP_CI_MAINNET_L1_ARCHIVE_RPC_URL: ${{ vaults.optimism-go-tests-rpc-shadow.secrets.OP_CI_MAINNET_L1_ARCHIVE_RPC_URL }}
+      OP_CI_SEPOLIA_L1_ARCHIVE_RPC_URL: ${{ vaults.optimism-go-tests-rpc-shadow.secrets.OP_CI_SEPOLIA_L1_ARCHIVE_RPC_URL }}
+    cache: false
+    tool-cache: go-full-runtime-3-${{ init.cache-epoch }}
+    timeout: 60m
+    runner:
+      cpus: 8
+      memory: 16gb
+    outputs:
+      filesystem:
+        filter:
+          workspace: [.ci/go-cache/full/run]
+          system: []
+      test-results:
+        - path: tmp/testlogs/native.json
+          options:
+            language: Go
+            framework: go test
+      artifacts:
+        - key: junit
+          path: tmp/test-results
+        - key: go-json
+          path: tmp/testlogs/log.json
+        - key: test-logs
+          path: tmp/testlogs
+
+  - key: compile-4
+    use: [source, go-build-tools, discovery]
+    if: ${{ (init.cache-warm == 'true' || tasks.route.values.run-main == 'true') }}
+    run: mise exec -- bash ops/ci/go-full-tests.sh build
+    env:
+      CI_COMMIT_SHA: ${{ init.commit-sha }}
+      CI_SHARD_INDEX: "4"
+      CI_SHARD_TOTAL: ${{ init.shard-total }}
+      PARALLEL: ${{ init.test-parallel }}
+      BUILD_PROBE: ${{ init.build-probe }}
+    tool-cache: go-full-compile-4-${{ init.cache-epoch }}
+    timeout: 60m
+    runner:
+      cpus: 16
+      memory: 32gb
+    outputs:
+      filesystem:
+        filter:
+          workspace: [.ci/go-cache/full/build, .ci/go-tests/build]
+          system: []
+      artifacts:
+        - key: binaries
+          path: .ci/go-tests/build
+
+  - key: verdict-4
+    use: [source, go-build-tools, contract-tools]
+    if: ${{ init.cache-warm != 'true' && tasks.route.values.run-main == 'true' }}
+    docker: true
+    run: |
+      mkdir -p .ci/go-tests/build
+      cp -a "$GO_BINARIES/." .ci/go-tests/build/
+      cp "$DISCOVERY/manifest.json" "$DISCOVERY/go-list.json" "$DISCOVERY/all-packages.txt" .ci/go-tests/
+      for dependency in go contracts kona op-reth prestate; do
+        case "$dependency" in
+          go) artifact="$GO_ARTIFACT" ;;
+          contracts) artifact="$CONTRACT_ARTIFACT" ;;
+          kona) artifact="$KONA_ARTIFACT" ;;
+          op-reth) artifact="$RETH_ARTIFACT" ;;
+          prestate) artifact="$PRESTATE_ARTIFACT" ;;
+        esac
+        python3 ops/ci/go-artifacts.py restore "$dependency" "$artifact"
+      done
+      export RUST_BINARY_PATH_OP_RETH="$PWD/rust/target/release/op-reth"
+      mise exec -- bash ops/ci/go-full-tests.sh run
+    env:
+      CI_COMMIT_SHA: ${{ init.commit-sha }}
+      CIRCLE_BRANCH: ${{ init.branch }}
+      CI_SHARD_INDEX: "4"
+      CI_SHARD_TOTAL: ${{ init.shard-total }}
+      PARALLEL: ${{ init.test-parallel }}
+      GO_BINARIES: ${{ tasks.compile-4.artifacts.binaries }}
+      DISCOVERY: ${{ tasks.discovery.artifacts.discovery }}
+      GO_ARTIFACT: ${{ tasks.go.tasks.build.artifacts.dependency }}
+      CONTRACT_ARTIFACT: ${{ tasks.contracts.tasks.build.artifacts.dependency }}
+      KONA_ARTIFACT: ${{ tasks.kona.tasks.build.artifacts.dependency }}
+      RETH_ARTIFACT: ${{ tasks.op-reth.tasks.build.artifacts.dependency }}
+      PRESTATE_ARTIFACT: ${{ tasks.prestate.tasks.build.artifacts.dependency }}
+      OP_CI_MAINNET_L1_ARCHIVE_RPC_URL: ${{ vaults.optimism-go-tests-rpc-shadow.secrets.OP_CI_MAINNET_L1_ARCHIVE_RPC_URL }}
+      OP_CI_SEPOLIA_L1_ARCHIVE_RPC_URL: ${{ vaults.optimism-go-tests-rpc-shadow.secrets.OP_CI_SEPOLIA_L1_ARCHIVE_RPC_URL }}
+    cache: false
+    tool-cache: go-full-runtime-4-${{ init.cache-epoch }}
+    timeout: 60m
+    runner:
+      cpus: 8
+      memory: 16gb
+    outputs:
+      filesystem:
+        filter:
+          workspace: [.ci/go-cache/full/run]
+          system: []
+      test-results:
+        - path: tmp/testlogs/native.json
+          options:
+            language: Go
+            framework: go test
+      artifacts:
+        - key: junit
+          path: tmp/test-results
+        - key: go-json
+          path: tmp/testlogs/log.json
+        - key: test-logs
+          path: tmp/testlogs
+
+  - key: compile-5
+    use: [source, go-build-tools, discovery]
+    if: ${{ (init.cache-warm == 'true' || tasks.route.values.run-main == 'true') }}
+    run: mise exec -- bash ops/ci/go-full-tests.sh build
+    env:
+      CI_COMMIT_SHA: ${{ init.commit-sha }}
+      CI_SHARD_INDEX: "5"
+      CI_SHARD_TOTAL: ${{ init.shard-total }}
+      PARALLEL: ${{ init.test-parallel }}
+      BUILD_PROBE: ${{ init.build-probe }}
+    tool-cache: go-full-compile-5-${{ init.cache-epoch }}
+    timeout: 60m
+    runner:
+      cpus: 16
+      memory: 32gb
+    outputs:
+      filesystem:
+        filter:
+          workspace: [.ci/go-cache/full/build, .ci/go-tests/build]
+          system: []
+      artifacts:
+        - key: binaries
+          path: .ci/go-tests/build
+
+  - key: verdict-5
+    use: [source, go-build-tools, contract-tools]
+    if: ${{ init.cache-warm != 'true' && tasks.route.values.run-main == 'true' }}
+    docker: true
+    run: |
+      mkdir -p .ci/go-tests/build
+      cp -a "$GO_BINARIES/." .ci/go-tests/build/
+      cp "$DISCOVERY/manifest.json" "$DISCOVERY/go-list.json" "$DISCOVERY/all-packages.txt" .ci/go-tests/
+      for dependency in go contracts kona op-reth prestate; do
+        case "$dependency" in
+          go) artifact="$GO_ARTIFACT" ;;
+          contracts) artifact="$CONTRACT_ARTIFACT" ;;
+          kona) artifact="$KONA_ARTIFACT" ;;
+          op-reth) artifact="$RETH_ARTIFACT" ;;
+          prestate) artifact="$PRESTATE_ARTIFACT" ;;
+        esac
+        python3 ops/ci/go-artifacts.py restore "$dependency" "$artifact"
+      done
+      export RUST_BINARY_PATH_OP_RETH="$PWD/rust/target/release/op-reth"
+      mise exec -- bash ops/ci/go-full-tests.sh run
+    env:
+      CI_COMMIT_SHA: ${{ init.commit-sha }}
+      CIRCLE_BRANCH: ${{ init.branch }}
+      CI_SHARD_INDEX: "5"
+      CI_SHARD_TOTAL: ${{ init.shard-total }}
+      PARALLEL: ${{ init.test-parallel }}
+      GO_BINARIES: ${{ tasks.compile-5.artifacts.binaries }}
+      DISCOVERY: ${{ tasks.discovery.artifacts.discovery }}
+      GO_ARTIFACT: ${{ tasks.go.tasks.build.artifacts.dependency }}
+      CONTRACT_ARTIFACT: ${{ tasks.contracts.tasks.build.artifacts.dependency }}
+      KONA_ARTIFACT: ${{ tasks.kona.tasks.build.artifacts.dependency }}
+      RETH_ARTIFACT: ${{ tasks.op-reth.tasks.build.artifacts.dependency }}
+      PRESTATE_ARTIFACT: ${{ tasks.prestate.tasks.build.artifacts.dependency }}
+      OP_CI_MAINNET_L1_ARCHIVE_RPC_URL: ${{ vaults.optimism-go-tests-rpc-shadow.secrets.OP_CI_MAINNET_L1_ARCHIVE_RPC_URL }}
+      OP_CI_SEPOLIA_L1_ARCHIVE_RPC_URL: ${{ vaults.optimism-go-tests-rpc-shadow.secrets.OP_CI_SEPOLIA_L1_ARCHIVE_RPC_URL }}
+    cache: false
+    tool-cache: go-full-runtime-5-${{ init.cache-epoch }}
+    timeout: 60m
+    runner:
+      cpus: 8
+      memory: 16gb
+    outputs:
+      filesystem:
+        filter:
+          workspace: [.ci/go-cache/full/run]
+          system: []
+      test-results:
+        - path: tmp/testlogs/native.json
+          options:
+            language: Go
+            framework: go test
+      artifacts:
+        - key: junit
+          path: tmp/test-results
+        - key: go-json
+          path: tmp/testlogs/log.json
+        - key: test-logs
+          path: tmp/testlogs
+
+  - key: compile-6
+    use: [source, go-build-tools, discovery]
+    if: ${{ (init.cache-warm == 'true' || tasks.route.values.run-main == 'true') }}
+    run: mise exec -- bash ops/ci/go-full-tests.sh build
+    env:
+      CI_COMMIT_SHA: ${{ init.commit-sha }}
+      CI_SHARD_INDEX: "6"
+      CI_SHARD_TOTAL: ${{ init.shard-total }}
+      PARALLEL: ${{ init.test-parallel }}
+      BUILD_PROBE: ${{ init.build-probe }}
+    tool-cache: go-full-compile-6-${{ init.cache-epoch }}
+    timeout: 60m
+    runner:
+      cpus: 16
+      memory: 32gb
+    outputs:
+      filesystem:
+        filter:
+          workspace: [.ci/go-cache/full/build, .ci/go-tests/build]
+          system: []
+      artifacts:
+        - key: binaries
+          path: .ci/go-tests/build
+
+  - key: verdict-6
+    use: [source, go-build-tools, contract-tools]
+    if: ${{ init.cache-warm != 'true' && tasks.route.values.run-main == 'true' }}
+    docker: true
+    run: |
+      mkdir -p .ci/go-tests/build
+      cp -a "$GO_BINARIES/." .ci/go-tests/build/
+      cp "$DISCOVERY/manifest.json" "$DISCOVERY/go-list.json" "$DISCOVERY/all-packages.txt" .ci/go-tests/
+      for dependency in go contracts kona op-reth prestate; do
+        case "$dependency" in
+          go) artifact="$GO_ARTIFACT" ;;
+          contracts) artifact="$CONTRACT_ARTIFACT" ;;
+          kona) artifact="$KONA_ARTIFACT" ;;
+          op-reth) artifact="$RETH_ARTIFACT" ;;
+          prestate) artifact="$PRESTATE_ARTIFACT" ;;
+        esac
+        python3 ops/ci/go-artifacts.py restore "$dependency" "$artifact"
+      done
+      export RUST_BINARY_PATH_OP_RETH="$PWD/rust/target/release/op-reth"
+      mise exec -- bash ops/ci/go-full-tests.sh run
+    env:
+      CI_COMMIT_SHA: ${{ init.commit-sha }}
+      CIRCLE_BRANCH: ${{ init.branch }}
+      CI_SHARD_INDEX: "6"
+      CI_SHARD_TOTAL: ${{ init.shard-total }}
+      PARALLEL: ${{ init.test-parallel }}
+      GO_BINARIES: ${{ tasks.compile-6.artifacts.binaries }}
+      DISCOVERY: ${{ tasks.discovery.artifacts.discovery }}
+      GO_ARTIFACT: ${{ tasks.go.tasks.build.artifacts.dependency }}
+      CONTRACT_ARTIFACT: ${{ tasks.contracts.tasks.build.artifacts.dependency }}
+      KONA_ARTIFACT: ${{ tasks.kona.tasks.build.artifacts.dependency }}
+      RETH_ARTIFACT: ${{ tasks.op-reth.tasks.build.artifacts.dependency }}
+      PRESTATE_ARTIFACT: ${{ tasks.prestate.tasks.build.artifacts.dependency }}
+      OP_CI_MAINNET_L1_ARCHIVE_RPC_URL: ${{ vaults.optimism-go-tests-rpc-shadow.secrets.OP_CI_MAINNET_L1_ARCHIVE_RPC_URL }}
+      OP_CI_SEPOLIA_L1_ARCHIVE_RPC_URL: ${{ vaults.optimism-go-tests-rpc-shadow.secrets.OP_CI_SEPOLIA_L1_ARCHIVE_RPC_URL }}
+    cache: false
+    tool-cache: go-full-runtime-6-${{ init.cache-epoch }}
+    timeout: 60m
+    runner:
+      cpus: 8
+      memory: 16gb
+    outputs:
+      filesystem:
+        filter:
+          workspace: [.ci/go-cache/full/run]
+          system: []
+      test-results:
+        - path: tmp/testlogs/native.json
+          options:
+            language: Go
+            framework: go test
+      artifacts:
+        - key: junit
+          path: tmp/test-results
+        - key: go-json
+          path: tmp/testlogs/log.json
+        - key: test-logs
+          path: tmp/testlogs
+
+  - key: compile-7
+    use: [source, go-build-tools, discovery]
+    if: ${{ (init.cache-warm == 'true' || tasks.route.values.run-main == 'true') }}
+    run: mise exec -- bash ops/ci/go-full-tests.sh build
+    env:
+      CI_COMMIT_SHA: ${{ init.commit-sha }}
+      CI_SHARD_INDEX: "7"
+      CI_SHARD_TOTAL: ${{ init.shard-total }}
+      PARALLEL: ${{ init.test-parallel }}
+      BUILD_PROBE: ${{ init.build-probe }}
+    tool-cache: go-full-compile-7-${{ init.cache-epoch }}
+    timeout: 60m
+    runner:
+      cpus: 16
+      memory: 32gb
+    outputs:
+      filesystem:
+        filter:
+          workspace: [.ci/go-cache/full/build, .ci/go-tests/build]
+          system: []
+      artifacts:
+        - key: binaries
+          path: .ci/go-tests/build
+
+  - key: verdict-7
+    use: [source, go-build-tools, contract-tools]
+    if: ${{ init.cache-warm != 'true' && tasks.route.values.run-main == 'true' }}
+    docker: true
+    run: |
+      mkdir -p .ci/go-tests/build
+      cp -a "$GO_BINARIES/." .ci/go-tests/build/
+      cp "$DISCOVERY/manifest.json" "$DISCOVERY/go-list.json" "$DISCOVERY/all-packages.txt" .ci/go-tests/
+      for dependency in go contracts kona op-reth prestate; do
+        case "$dependency" in
+          go) artifact="$GO_ARTIFACT" ;;
+          contracts) artifact="$CONTRACT_ARTIFACT" ;;
+          kona) artifact="$KONA_ARTIFACT" ;;
+          op-reth) artifact="$RETH_ARTIFACT" ;;
+          prestate) artifact="$PRESTATE_ARTIFACT" ;;
+        esac
+        python3 ops/ci/go-artifacts.py restore "$dependency" "$artifact"
+      done
+      export RUST_BINARY_PATH_OP_RETH="$PWD/rust/target/release/op-reth"
+      mise exec -- bash ops/ci/go-full-tests.sh run
+    env:
+      CI_COMMIT_SHA: ${{ init.commit-sha }}
+      CIRCLE_BRANCH: ${{ init.branch }}
+      CI_SHARD_INDEX: "7"
+      CI_SHARD_TOTAL: ${{ init.shard-total }}
+      PARALLEL: ${{ init.test-parallel }}
+      GO_BINARIES: ${{ tasks.compile-7.artifacts.binaries }}
+      DISCOVERY: ${{ tasks.discovery.artifacts.discovery }}
+      GO_ARTIFACT: ${{ tasks.go.tasks.build.artifacts.dependency }}
+      CONTRACT_ARTIFACT: ${{ tasks.contracts.tasks.build.artifacts.dependency }}
+      KONA_ARTIFACT: ${{ tasks.kona.tasks.build.artifacts.dependency }}
+      RETH_ARTIFACT: ${{ tasks.op-reth.tasks.build.artifacts.dependency }}
+      PRESTATE_ARTIFACT: ${{ tasks.prestate.tasks.build.artifacts.dependency }}
+      OP_CI_MAINNET_L1_ARCHIVE_RPC_URL: ${{ vaults.optimism-go-tests-rpc-shadow.secrets.OP_CI_MAINNET_L1_ARCHIVE_RPC_URL }}
+      OP_CI_SEPOLIA_L1_ARCHIVE_RPC_URL: ${{ vaults.optimism-go-tests-rpc-shadow.secrets.OP_CI_SEPOLIA_L1_ARCHIVE_RPC_URL }}
+    cache: false
+    tool-cache: go-full-runtime-7-${{ init.cache-epoch }}
+    timeout: 60m
+    runner:
+      cpus: 8
+      memory: 16gb
+    outputs:
+      filesystem:
+        filter:
+          workspace: [.ci/go-cache/full/run]
+          system: []
+      test-results:
+        - path: tmp/testlogs/native.json
+          options:
+            language: Go
+            framework: go test
+      artifacts:
+        - key: junit
+          path: tmp/test-results
+        - key: go-json
+          path: tmp/testlogs/log.json
+        - key: test-logs
+          path: tmp/testlogs
+
+  - key: compile-8
+    use: [source, go-build-tools, discovery]
+    if: ${{ (init.cache-warm == 'true' || tasks.route.values.run-main == 'true') }}
+    run: mise exec -- bash ops/ci/go-full-tests.sh build
+    env:
+      CI_COMMIT_SHA: ${{ init.commit-sha }}
+      CI_SHARD_INDEX: "8"
+      CI_SHARD_TOTAL: ${{ init.shard-total }}
+      PARALLEL: ${{ init.test-parallel }}
+      BUILD_PROBE: ${{ init.build-probe }}
+    tool-cache: go-full-compile-8-${{ init.cache-epoch }}
+    timeout: 60m
+    runner:
+      cpus: 16
+      memory: 32gb
+    outputs:
+      filesystem:
+        filter:
+          workspace: [.ci/go-cache/full/build, .ci/go-tests/build]
+          system: []
+      artifacts:
+        - key: binaries
+          path: .ci/go-tests/build
+
+  - key: verdict-8
+    use: [source, go-build-tools, contract-tools]
+    if: ${{ init.cache-warm != 'true' && tasks.route.values.run-main == 'true' }}
+    docker: true
+    run: |
+      mkdir -p .ci/go-tests/build
+      cp -a "$GO_BINARIES/." .ci/go-tests/build/
+      cp "$DISCOVERY/manifest.json" "$DISCOVERY/go-list.json" "$DISCOVERY/all-packages.txt" .ci/go-tests/
+      for dependency in go contracts kona op-reth prestate; do
+        case "$dependency" in
+          go) artifact="$GO_ARTIFACT" ;;
+          contracts) artifact="$CONTRACT_ARTIFACT" ;;
+          kona) artifact="$KONA_ARTIFACT" ;;
+          op-reth) artifact="$RETH_ARTIFACT" ;;
+          prestate) artifact="$PRESTATE_ARTIFACT" ;;
+        esac
+        python3 ops/ci/go-artifacts.py restore "$dependency" "$artifact"
+      done
+      export RUST_BINARY_PATH_OP_RETH="$PWD/rust/target/release/op-reth"
+      mise exec -- bash ops/ci/go-full-tests.sh run
+    env:
+      CI_COMMIT_SHA: ${{ init.commit-sha }}
+      CIRCLE_BRANCH: ${{ init.branch }}
+      CI_SHARD_INDEX: "8"
+      CI_SHARD_TOTAL: ${{ init.shard-total }}
+      PARALLEL: ${{ init.test-parallel }}
+      GO_BINARIES: ${{ tasks.compile-8.artifacts.binaries }}
+      DISCOVERY: ${{ tasks.discovery.artifacts.discovery }}
+      GO_ARTIFACT: ${{ tasks.go.tasks.build.artifacts.dependency }}
+      CONTRACT_ARTIFACT: ${{ tasks.contracts.tasks.build.artifacts.dependency }}
+      KONA_ARTIFACT: ${{ tasks.kona.tasks.build.artifacts.dependency }}
+      RETH_ARTIFACT: ${{ tasks.op-reth.tasks.build.artifacts.dependency }}
+      PRESTATE_ARTIFACT: ${{ tasks.prestate.tasks.build.artifacts.dependency }}
+      OP_CI_MAINNET_L1_ARCHIVE_RPC_URL: ${{ vaults.optimism-go-tests-rpc-shadow.secrets.OP_CI_MAINNET_L1_ARCHIVE_RPC_URL }}
+      OP_CI_SEPOLIA_L1_ARCHIVE_RPC_URL: ${{ vaults.optimism-go-tests-rpc-shadow.secrets.OP_CI_SEPOLIA_L1_ARCHIVE_RPC_URL }}
+    cache: false
+    tool-cache: go-full-runtime-8-${{ init.cache-epoch }}
+    timeout: 60m
+    runner:
+      cpus: 8
+      memory: 16gb
+    outputs:
+      filesystem:
+        filter:
+          workspace: [.ci/go-cache/full/run]
+          system: []
+      test-results:
+        - path: tmp/testlogs/native.json
+          options:
+            language: Go
+            framework: go test
+      artifacts:
+        - key: junit
+          path: tmp/test-results
+        - key: go-json
+          path: tmp/testlogs/log.json
+        - key: test-logs
+          path: tmp/testlogs
+
+  - key: compile-9
+    use: [source, go-build-tools, discovery]
+    if: ${{ (init.cache-warm == 'true' || tasks.route.values.run-main == 'true') }}
+    run: mise exec -- bash ops/ci/go-full-tests.sh build
+    env:
+      CI_COMMIT_SHA: ${{ init.commit-sha }}
+      CI_SHARD_INDEX: "9"
+      CI_SHARD_TOTAL: ${{ init.shard-total }}
+      PARALLEL: ${{ init.test-parallel }}
+      BUILD_PROBE: ${{ init.build-probe }}
+    tool-cache: go-full-compile-9-${{ init.cache-epoch }}
+    timeout: 60m
+    runner:
+      cpus: 16
+      memory: 32gb
+    outputs:
+      filesystem:
+        filter:
+          workspace: [.ci/go-cache/full/build, .ci/go-tests/build]
+          system: []
+      artifacts:
+        - key: binaries
+          path: .ci/go-tests/build
+
+  - key: verdict-9
+    use: [source, go-build-tools, contract-tools]
+    if: ${{ init.cache-warm != 'true' && tasks.route.values.run-main == 'true' }}
+    docker: true
+    run: |
+      mkdir -p .ci/go-tests/build
+      cp -a "$GO_BINARIES/." .ci/go-tests/build/
+      cp "$DISCOVERY/manifest.json" "$DISCOVERY/go-list.json" "$DISCOVERY/all-packages.txt" .ci/go-tests/
+      for dependency in go contracts kona op-reth prestate; do
+        case "$dependency" in
+          go) artifact="$GO_ARTIFACT" ;;
+          contracts) artifact="$CONTRACT_ARTIFACT" ;;
+          kona) artifact="$KONA_ARTIFACT" ;;
+          op-reth) artifact="$RETH_ARTIFACT" ;;
+          prestate) artifact="$PRESTATE_ARTIFACT" ;;
+        esac
+        python3 ops/ci/go-artifacts.py restore "$dependency" "$artifact"
+      done
+      export RUST_BINARY_PATH_OP_RETH="$PWD/rust/target/release/op-reth"
+      mise exec -- bash ops/ci/go-full-tests.sh run
+    env:
+      CI_COMMIT_SHA: ${{ init.commit-sha }}
+      CIRCLE_BRANCH: ${{ init.branch }}
+      CI_SHARD_INDEX: "9"
+      CI_SHARD_TOTAL: ${{ init.shard-total }}
+      PARALLEL: ${{ init.test-parallel }}
+      GO_BINARIES: ${{ tasks.compile-9.artifacts.binaries }}
+      DISCOVERY: ${{ tasks.discovery.artifacts.discovery }}
+      GO_ARTIFACT: ${{ tasks.go.tasks.build.artifacts.dependency }}
+      CONTRACT_ARTIFACT: ${{ tasks.contracts.tasks.build.artifacts.dependency }}
+      KONA_ARTIFACT: ${{ tasks.kona.tasks.build.artifacts.dependency }}
+      RETH_ARTIFACT: ${{ tasks.op-reth.tasks.build.artifacts.dependency }}
+      PRESTATE_ARTIFACT: ${{ tasks.prestate.tasks.build.artifacts.dependency }}
+      OP_CI_MAINNET_L1_ARCHIVE_RPC_URL: ${{ vaults.optimism-go-tests-rpc-shadow.secrets.OP_CI_MAINNET_L1_ARCHIVE_RPC_URL }}
+      OP_CI_SEPOLIA_L1_ARCHIVE_RPC_URL: ${{ vaults.optimism-go-tests-rpc-shadow.secrets.OP_CI_SEPOLIA_L1_ARCHIVE_RPC_URL }}
+    cache: false
+    tool-cache: go-full-runtime-9-${{ init.cache-epoch }}
+    timeout: 60m
+    runner:
+      cpus: 8
+      memory: 16gb
+    outputs:
+      filesystem:
+        filter:
+          workspace: [.ci/go-cache/full/run]
+          system: []
+      test-results:
+        - path: tmp/testlogs/native.json
+          options:
+            language: Go
+            framework: go test
+      artifacts:
+        - key: junit
+          path: tmp/test-results
+        - key: go-json
+          path: tmp/testlogs/log.json
+        - key: test-logs
+          path: tmp/testlogs
+
+  - key: compile-10
+    use: [source, go-build-tools, discovery]
+    if: ${{ (init.cache-warm == 'true' || tasks.route.values.run-main == 'true') }}
+    run: mise exec -- bash ops/ci/go-full-tests.sh build
+    env:
+      CI_COMMIT_SHA: ${{ init.commit-sha }}
+      CI_SHARD_INDEX: "10"
+      CI_SHARD_TOTAL: ${{ init.shard-total }}
+      PARALLEL: ${{ init.test-parallel }}
+      BUILD_PROBE: ${{ init.build-probe }}
+    tool-cache: go-full-compile-10-${{ init.cache-epoch }}
+    timeout: 60m
+    runner:
+      cpus: 16
+      memory: 32gb
+    outputs:
+      filesystem:
+        filter:
+          workspace: [.ci/go-cache/full/build, .ci/go-tests/build]
+          system: []
+      artifacts:
+        - key: binaries
+          path: .ci/go-tests/build
+
+  - key: verdict-10
+    use: [source, go-build-tools, contract-tools]
+    if: ${{ init.cache-warm != 'true' && tasks.route.values.run-main == 'true' }}
+    docker: true
+    run: |
+      mkdir -p .ci/go-tests/build
+      cp -a "$GO_BINARIES/." .ci/go-tests/build/
+      cp "$DISCOVERY/manifest.json" "$DISCOVERY/go-list.json" "$DISCOVERY/all-packages.txt" .ci/go-tests/
+      for dependency in go contracts kona op-reth prestate; do
+        case "$dependency" in
+          go) artifact="$GO_ARTIFACT" ;;
+          contracts) artifact="$CONTRACT_ARTIFACT" ;;
+          kona) artifact="$KONA_ARTIFACT" ;;
+          op-reth) artifact="$RETH_ARTIFACT" ;;
+          prestate) artifact="$PRESTATE_ARTIFACT" ;;
+        esac
+        python3 ops/ci/go-artifacts.py restore "$dependency" "$artifact"
+      done
+      export RUST_BINARY_PATH_OP_RETH="$PWD/rust/target/release/op-reth"
+      mise exec -- bash ops/ci/go-full-tests.sh run
+    env:
+      CI_COMMIT_SHA: ${{ init.commit-sha }}
+      CIRCLE_BRANCH: ${{ init.branch }}
+      CI_SHARD_INDEX: "10"
+      CI_SHARD_TOTAL: ${{ init.shard-total }}
+      PARALLEL: ${{ init.test-parallel }}
+      GO_BINARIES: ${{ tasks.compile-10.artifacts.binaries }}
+      DISCOVERY: ${{ tasks.discovery.artifacts.discovery }}
+      GO_ARTIFACT: ${{ tasks.go.tasks.build.artifacts.dependency }}
+      CONTRACT_ARTIFACT: ${{ tasks.contracts.tasks.build.artifacts.dependency }}
+      KONA_ARTIFACT: ${{ tasks.kona.tasks.build.artifacts.dependency }}
+      RETH_ARTIFACT: ${{ tasks.op-reth.tasks.build.artifacts.dependency }}
+      PRESTATE_ARTIFACT: ${{ tasks.prestate.tasks.build.artifacts.dependency }}
+      OP_CI_MAINNET_L1_ARCHIVE_RPC_URL: ${{ vaults.optimism-go-tests-rpc-shadow.secrets.OP_CI_MAINNET_L1_ARCHIVE_RPC_URL }}
+      OP_CI_SEPOLIA_L1_ARCHIVE_RPC_URL: ${{ vaults.optimism-go-tests-rpc-shadow.secrets.OP_CI_SEPOLIA_L1_ARCHIVE_RPC_URL }}
+    cache: false
+    tool-cache: go-full-runtime-10-${{ init.cache-epoch }}
+    timeout: 60m
+    runner:
+      cpus: 8
+      memory: 16gb
+    outputs:
+      filesystem:
+        filter:
+          workspace: [.ci/go-cache/full/run]
+          system: []
+      test-results:
+        - path: tmp/testlogs/native.json
+          options:
+            language: Go
+            framework: go test
+      artifacts:
+        - key: junit
+          path: tmp/test-results
+        - key: go-json
+          path: tmp/testlogs/log.json
+        - key: test-logs
+          path: tmp/testlogs
+
+  - key: compile-11
+    use: [source, go-build-tools, discovery]
+    if: ${{ (init.cache-warm == 'true' || tasks.route.values.run-main == 'true') }}
+    run: mise exec -- bash ops/ci/go-full-tests.sh build
+    env:
+      CI_COMMIT_SHA: ${{ init.commit-sha }}
+      CI_SHARD_INDEX: "11"
+      CI_SHARD_TOTAL: ${{ init.shard-total }}
+      PARALLEL: ${{ init.test-parallel }}
+      BUILD_PROBE: ${{ init.build-probe }}
+    tool-cache: go-full-compile-11-${{ init.cache-epoch }}
+    timeout: 60m
+    runner:
+      cpus: 16
+      memory: 32gb
+    outputs:
+      filesystem:
+        filter:
+          workspace: [.ci/go-cache/full/build, .ci/go-tests/build]
+          system: []
+      artifacts:
+        - key: binaries
+          path: .ci/go-tests/build
+
+  - key: verdict-11
+    use: [source, go-build-tools, contract-tools]
+    if: ${{ init.cache-warm != 'true' && tasks.route.values.run-main == 'true' }}
+    docker: true
+    run: |
+      mkdir -p .ci/go-tests/build
+      cp -a "$GO_BINARIES/." .ci/go-tests/build/
+      cp "$DISCOVERY/manifest.json" "$DISCOVERY/go-list.json" "$DISCOVERY/all-packages.txt" .ci/go-tests/
+      for dependency in go contracts kona op-reth prestate; do
+        case "$dependency" in
+          go) artifact="$GO_ARTIFACT" ;;
+          contracts) artifact="$CONTRACT_ARTIFACT" ;;
+          kona) artifact="$KONA_ARTIFACT" ;;
+          op-reth) artifact="$RETH_ARTIFACT" ;;
+          prestate) artifact="$PRESTATE_ARTIFACT" ;;
+        esac
+        python3 ops/ci/go-artifacts.py restore "$dependency" "$artifact"
+      done
+      export RUST_BINARY_PATH_OP_RETH="$PWD/rust/target/release/op-reth"
+      mise exec -- bash ops/ci/go-full-tests.sh run
+    env:
+      CI_COMMIT_SHA: ${{ init.commit-sha }}
+      CIRCLE_BRANCH: ${{ init.branch }}
+      CI_SHARD_INDEX: "11"
+      CI_SHARD_TOTAL: ${{ init.shard-total }}
+      PARALLEL: ${{ init.test-parallel }}
+      GO_BINARIES: ${{ tasks.compile-11.artifacts.binaries }}
+      DISCOVERY: ${{ tasks.discovery.artifacts.discovery }}
+      GO_ARTIFACT: ${{ tasks.go.tasks.build.artifacts.dependency }}
+      CONTRACT_ARTIFACT: ${{ tasks.contracts.tasks.build.artifacts.dependency }}
+      KONA_ARTIFACT: ${{ tasks.kona.tasks.build.artifacts.dependency }}
+      RETH_ARTIFACT: ${{ tasks.op-reth.tasks.build.artifacts.dependency }}
+      PRESTATE_ARTIFACT: ${{ tasks.prestate.tasks.build.artifacts.dependency }}
+      OP_CI_MAINNET_L1_ARCHIVE_RPC_URL: ${{ vaults.optimism-go-tests-rpc-shadow.secrets.OP_CI_MAINNET_L1_ARCHIVE_RPC_URL }}
+      OP_CI_SEPOLIA_L1_ARCHIVE_RPC_URL: ${{ vaults.optimism-go-tests-rpc-shadow.secrets.OP_CI_SEPOLIA_L1_ARCHIVE_RPC_URL }}
+    cache: false
+    tool-cache: go-full-runtime-11-${{ init.cache-epoch }}
+    timeout: 60m
+    runner:
+      cpus: 8
+      memory: 16gb
+    outputs:
+      filesystem:
+        filter:
+          workspace: [.ci/go-cache/full/run]
+          system: []
+      test-results:
+        - path: tmp/testlogs/native.json
+          options:
+            language: Go
+            framework: go test
+      artifacts:
+        - key: junit
+          path: tmp/test-results
+        - key: go-json
+          path: tmp/testlogs/log.json
+        - key: test-logs
+          path: tmp/testlogs
+
+  - key: compile-12
+    use: [source, go-build-tools, discovery]
+    if: ${{ (init.cache-warm == 'true' || tasks.route.values.run-main == 'true') && init.shard-total == '24' }}
+    run: mise exec -- bash ops/ci/go-full-tests.sh build
+    env:
+      CI_COMMIT_SHA: ${{ init.commit-sha }}
+      CI_SHARD_INDEX: "12"
+      CI_SHARD_TOTAL: ${{ init.shard-total }}
+      PARALLEL: ${{ init.test-parallel }}
+      BUILD_PROBE: ${{ init.build-probe }}
+    tool-cache: go-full-compile-12-${{ init.cache-epoch }}
+    timeout: 60m
+    runner:
+      cpus: 16
+      memory: 32gb
+    outputs:
+      filesystem:
+        filter:
+          workspace: [.ci/go-cache/full/build, .ci/go-tests/build]
+          system: []
+      artifacts:
+        - key: binaries
+          path: .ci/go-tests/build
+
+  - key: verdict-12
+    use: [source, go-build-tools, contract-tools]
+    if: ${{ init.cache-warm != 'true' && tasks.route.values.run-main == 'true' && init.shard-total == '24' }}
+    docker: true
+    run: |
+      mkdir -p .ci/go-tests/build
+      cp -a "$GO_BINARIES/." .ci/go-tests/build/
+      cp "$DISCOVERY/manifest.json" "$DISCOVERY/go-list.json" "$DISCOVERY/all-packages.txt" .ci/go-tests/
+      for dependency in go contracts kona op-reth prestate; do
+        case "$dependency" in
+          go) artifact="$GO_ARTIFACT" ;;
+          contracts) artifact="$CONTRACT_ARTIFACT" ;;
+          kona) artifact="$KONA_ARTIFACT" ;;
+          op-reth) artifact="$RETH_ARTIFACT" ;;
+          prestate) artifact="$PRESTATE_ARTIFACT" ;;
+        esac
+        python3 ops/ci/go-artifacts.py restore "$dependency" "$artifact"
+      done
+      export RUST_BINARY_PATH_OP_RETH="$PWD/rust/target/release/op-reth"
+      mise exec -- bash ops/ci/go-full-tests.sh run
+    env:
+      CI_COMMIT_SHA: ${{ init.commit-sha }}
+      CIRCLE_BRANCH: ${{ init.branch }}
+      CI_SHARD_INDEX: "12"
+      CI_SHARD_TOTAL: ${{ init.shard-total }}
+      PARALLEL: ${{ init.test-parallel }}
+      GO_BINARIES: ${{ tasks.compile-12.artifacts.binaries }}
+      DISCOVERY: ${{ tasks.discovery.artifacts.discovery }}
+      GO_ARTIFACT: ${{ tasks.go.tasks.build.artifacts.dependency }}
+      CONTRACT_ARTIFACT: ${{ tasks.contracts.tasks.build.artifacts.dependency }}
+      KONA_ARTIFACT: ${{ tasks.kona.tasks.build.artifacts.dependency }}
+      RETH_ARTIFACT: ${{ tasks.op-reth.tasks.build.artifacts.dependency }}
+      PRESTATE_ARTIFACT: ${{ tasks.prestate.tasks.build.artifacts.dependency }}
+      OP_CI_MAINNET_L1_ARCHIVE_RPC_URL: ${{ vaults.optimism-go-tests-rpc-shadow.secrets.OP_CI_MAINNET_L1_ARCHIVE_RPC_URL }}
+      OP_CI_SEPOLIA_L1_ARCHIVE_RPC_URL: ${{ vaults.optimism-go-tests-rpc-shadow.secrets.OP_CI_SEPOLIA_L1_ARCHIVE_RPC_URL }}
+    cache: false
+    tool-cache: go-full-runtime-12-${{ init.cache-epoch }}
+    timeout: 60m
+    runner:
+      cpus: 8
+      memory: 16gb
+    outputs:
+      filesystem:
+        filter:
+          workspace: [.ci/go-cache/full/run]
+          system: []
+      test-results:
+        - path: tmp/testlogs/native.json
+          options:
+            language: Go
+            framework: go test
+      artifacts:
+        - key: junit
+          path: tmp/test-results
+        - key: go-json
+          path: tmp/testlogs/log.json
+        - key: test-logs
+          path: tmp/testlogs
+
+  - key: compile-13
+    use: [source, go-build-tools, discovery]
+    if: ${{ (init.cache-warm == 'true' || tasks.route.values.run-main == 'true') && init.shard-total == '24' }}
+    run: mise exec -- bash ops/ci/go-full-tests.sh build
+    env:
+      CI_COMMIT_SHA: ${{ init.commit-sha }}
+      CI_SHARD_INDEX: "13"
+      CI_SHARD_TOTAL: ${{ init.shard-total }}
+      PARALLEL: ${{ init.test-parallel }}
+      BUILD_PROBE: ${{ init.build-probe }}
+    tool-cache: go-full-compile-13-${{ init.cache-epoch }}
+    timeout: 60m
+    runner:
+      cpus: 16
+      memory: 32gb
+    outputs:
+      filesystem:
+        filter:
+          workspace: [.ci/go-cache/full/build, .ci/go-tests/build]
+          system: []
+      artifacts:
+        - key: binaries
+          path: .ci/go-tests/build
+
+  - key: verdict-13
+    use: [source, go-build-tools, contract-tools]
+    if: ${{ init.cache-warm != 'true' && tasks.route.values.run-main == 'true' && init.shard-total == '24' }}
+    docker: true
+    run: |
+      mkdir -p .ci/go-tests/build
+      cp -a "$GO_BINARIES/." .ci/go-tests/build/
+      cp "$DISCOVERY/manifest.json" "$DISCOVERY/go-list.json" "$DISCOVERY/all-packages.txt" .ci/go-tests/
+      for dependency in go contracts kona op-reth prestate; do
+        case "$dependency" in
+          go) artifact="$GO_ARTIFACT" ;;
+          contracts) artifact="$CONTRACT_ARTIFACT" ;;
+          kona) artifact="$KONA_ARTIFACT" ;;
+          op-reth) artifact="$RETH_ARTIFACT" ;;
+          prestate) artifact="$PRESTATE_ARTIFACT" ;;
+        esac
+        python3 ops/ci/go-artifacts.py restore "$dependency" "$artifact"
+      done
+      export RUST_BINARY_PATH_OP_RETH="$PWD/rust/target/release/op-reth"
+      mise exec -- bash ops/ci/go-full-tests.sh run
+    env:
+      CI_COMMIT_SHA: ${{ init.commit-sha }}
+      CIRCLE_BRANCH: ${{ init.branch }}
+      CI_SHARD_INDEX: "13"
+      CI_SHARD_TOTAL: ${{ init.shard-total }}
+      PARALLEL: ${{ init.test-parallel }}
+      GO_BINARIES: ${{ tasks.compile-13.artifacts.binaries }}
+      DISCOVERY: ${{ tasks.discovery.artifacts.discovery }}
+      GO_ARTIFACT: ${{ tasks.go.tasks.build.artifacts.dependency }}
+      CONTRACT_ARTIFACT: ${{ tasks.contracts.tasks.build.artifacts.dependency }}
+      KONA_ARTIFACT: ${{ tasks.kona.tasks.build.artifacts.dependency }}
+      RETH_ARTIFACT: ${{ tasks.op-reth.tasks.build.artifacts.dependency }}
+      PRESTATE_ARTIFACT: ${{ tasks.prestate.tasks.build.artifacts.dependency }}
+      OP_CI_MAINNET_L1_ARCHIVE_RPC_URL: ${{ vaults.optimism-go-tests-rpc-shadow.secrets.OP_CI_MAINNET_L1_ARCHIVE_RPC_URL }}
+      OP_CI_SEPOLIA_L1_ARCHIVE_RPC_URL: ${{ vaults.optimism-go-tests-rpc-shadow.secrets.OP_CI_SEPOLIA_L1_ARCHIVE_RPC_URL }}
+    cache: false
+    tool-cache: go-full-runtime-13-${{ init.cache-epoch }}
+    timeout: 60m
+    runner:
+      cpus: 8
+      memory: 16gb
+    outputs:
+      filesystem:
+        filter:
+          workspace: [.ci/go-cache/full/run]
+          system: []
+      test-results:
+        - path: tmp/testlogs/native.json
+          options:
+            language: Go
+            framework: go test
+      artifacts:
+        - key: junit
+          path: tmp/test-results
+        - key: go-json
+          path: tmp/testlogs/log.json
+        - key: test-logs
+          path: tmp/testlogs
+
+  - key: compile-14
+    use: [source, go-build-tools, discovery]
+    if: ${{ (init.cache-warm == 'true' || tasks.route.values.run-main == 'true') && init.shard-total == '24' }}
+    run: mise exec -- bash ops/ci/go-full-tests.sh build
+    env:
+      CI_COMMIT_SHA: ${{ init.commit-sha }}
+      CI_SHARD_INDEX: "14"
+      CI_SHARD_TOTAL: ${{ init.shard-total }}
+      PARALLEL: ${{ init.test-parallel }}
+      BUILD_PROBE: ${{ init.build-probe }}
+    tool-cache: go-full-compile-14-${{ init.cache-epoch }}
+    timeout: 60m
+    runner:
+      cpus: 16
+      memory: 32gb
+    outputs:
+      filesystem:
+        filter:
+          workspace: [.ci/go-cache/full/build, .ci/go-tests/build]
+          system: []
+      artifacts:
+        - key: binaries
+          path: .ci/go-tests/build
+
+  - key: verdict-14
+    use: [source, go-build-tools, contract-tools]
+    if: ${{ init.cache-warm != 'true' && tasks.route.values.run-main == 'true' && init.shard-total == '24' }}
+    docker: true
+    run: |
+      mkdir -p .ci/go-tests/build
+      cp -a "$GO_BINARIES/." .ci/go-tests/build/
+      cp "$DISCOVERY/manifest.json" "$DISCOVERY/go-list.json" "$DISCOVERY/all-packages.txt" .ci/go-tests/
+      for dependency in go contracts kona op-reth prestate; do
+        case "$dependency" in
+          go) artifact="$GO_ARTIFACT" ;;
+          contracts) artifact="$CONTRACT_ARTIFACT" ;;
+          kona) artifact="$KONA_ARTIFACT" ;;
+          op-reth) artifact="$RETH_ARTIFACT" ;;
+          prestate) artifact="$PRESTATE_ARTIFACT" ;;
+        esac
+        python3 ops/ci/go-artifacts.py restore "$dependency" "$artifact"
+      done
+      export RUST_BINARY_PATH_OP_RETH="$PWD/rust/target/release/op-reth"
+      mise exec -- bash ops/ci/go-full-tests.sh run
+    env:
+      CI_COMMIT_SHA: ${{ init.commit-sha }}
+      CIRCLE_BRANCH: ${{ init.branch }}
+      CI_SHARD_INDEX: "14"
+      CI_SHARD_TOTAL: ${{ init.shard-total }}
+      PARALLEL: ${{ init.test-parallel }}
+      GO_BINARIES: ${{ tasks.compile-14.artifacts.binaries }}
+      DISCOVERY: ${{ tasks.discovery.artifacts.discovery }}
+      GO_ARTIFACT: ${{ tasks.go.tasks.build.artifacts.dependency }}
+      CONTRACT_ARTIFACT: ${{ tasks.contracts.tasks.build.artifacts.dependency }}
+      KONA_ARTIFACT: ${{ tasks.kona.tasks.build.artifacts.dependency }}
+      RETH_ARTIFACT: ${{ tasks.op-reth.tasks.build.artifacts.dependency }}
+      PRESTATE_ARTIFACT: ${{ tasks.prestate.tasks.build.artifacts.dependency }}
+      OP_CI_MAINNET_L1_ARCHIVE_RPC_URL: ${{ vaults.optimism-go-tests-rpc-shadow.secrets.OP_CI_MAINNET_L1_ARCHIVE_RPC_URL }}
+      OP_CI_SEPOLIA_L1_ARCHIVE_RPC_URL: ${{ vaults.optimism-go-tests-rpc-shadow.secrets.OP_CI_SEPOLIA_L1_ARCHIVE_RPC_URL }}
+    cache: false
+    tool-cache: go-full-runtime-14-${{ init.cache-epoch }}
+    timeout: 60m
+    runner:
+      cpus: 8
+      memory: 16gb
+    outputs:
+      filesystem:
+        filter:
+          workspace: [.ci/go-cache/full/run]
+          system: []
+      test-results:
+        - path: tmp/testlogs/native.json
+          options:
+            language: Go
+            framework: go test
+      artifacts:
+        - key: junit
+          path: tmp/test-results
+        - key: go-json
+          path: tmp/testlogs/log.json
+        - key: test-logs
+          path: tmp/testlogs
+
+  - key: compile-15
+    use: [source, go-build-tools, discovery]
+    if: ${{ (init.cache-warm == 'true' || tasks.route.values.run-main == 'true') && init.shard-total == '24' }}
+    run: mise exec -- bash ops/ci/go-full-tests.sh build
+    env:
+      CI_COMMIT_SHA: ${{ init.commit-sha }}
+      CI_SHARD_INDEX: "15"
+      CI_SHARD_TOTAL: ${{ init.shard-total }}
+      PARALLEL: ${{ init.test-parallel }}
+      BUILD_PROBE: ${{ init.build-probe }}
+    tool-cache: go-full-compile-15-${{ init.cache-epoch }}
+    timeout: 60m
+    runner:
+      cpus: 16
+      memory: 32gb
+    outputs:
+      filesystem:
+        filter:
+          workspace: [.ci/go-cache/full/build, .ci/go-tests/build]
+          system: []
+      artifacts:
+        - key: binaries
+          path: .ci/go-tests/build
+
+  - key: verdict-15
+    use: [source, go-build-tools, contract-tools]
+    if: ${{ init.cache-warm != 'true' && tasks.route.values.run-main == 'true' && init.shard-total == '24' }}
+    docker: true
+    run: |
+      mkdir -p .ci/go-tests/build
+      cp -a "$GO_BINARIES/." .ci/go-tests/build/
+      cp "$DISCOVERY/manifest.json" "$DISCOVERY/go-list.json" "$DISCOVERY/all-packages.txt" .ci/go-tests/
+      for dependency in go contracts kona op-reth prestate; do
+        case "$dependency" in
+          go) artifact="$GO_ARTIFACT" ;;
+          contracts) artifact="$CONTRACT_ARTIFACT" ;;
+          kona) artifact="$KONA_ARTIFACT" ;;
+          op-reth) artifact="$RETH_ARTIFACT" ;;
+          prestate) artifact="$PRESTATE_ARTIFACT" ;;
+        esac
+        python3 ops/ci/go-artifacts.py restore "$dependency" "$artifact"
+      done
+      export RUST_BINARY_PATH_OP_RETH="$PWD/rust/target/release/op-reth"
+      mise exec -- bash ops/ci/go-full-tests.sh run
+    env:
+      CI_COMMIT_SHA: ${{ init.commit-sha }}
+      CIRCLE_BRANCH: ${{ init.branch }}
+      CI_SHARD_INDEX: "15"
+      CI_SHARD_TOTAL: ${{ init.shard-total }}
+      PARALLEL: ${{ init.test-parallel }}
+      GO_BINARIES: ${{ tasks.compile-15.artifacts.binaries }}
+      DISCOVERY: ${{ tasks.discovery.artifacts.discovery }}
+      GO_ARTIFACT: ${{ tasks.go.tasks.build.artifacts.dependency }}
+      CONTRACT_ARTIFACT: ${{ tasks.contracts.tasks.build.artifacts.dependency }}
+      KONA_ARTIFACT: ${{ tasks.kona.tasks.build.artifacts.dependency }}
+      RETH_ARTIFACT: ${{ tasks.op-reth.tasks.build.artifacts.dependency }}
+      PRESTATE_ARTIFACT: ${{ tasks.prestate.tasks.build.artifacts.dependency }}
+      OP_CI_MAINNET_L1_ARCHIVE_RPC_URL: ${{ vaults.optimism-go-tests-rpc-shadow.secrets.OP_CI_MAINNET_L1_ARCHIVE_RPC_URL }}
+      OP_CI_SEPOLIA_L1_ARCHIVE_RPC_URL: ${{ vaults.optimism-go-tests-rpc-shadow.secrets.OP_CI_SEPOLIA_L1_ARCHIVE_RPC_URL }}
+    cache: false
+    tool-cache: go-full-runtime-15-${{ init.cache-epoch }}
+    timeout: 60m
+    runner:
+      cpus: 8
+      memory: 16gb
+    outputs:
+      filesystem:
+        filter:
+          workspace: [.ci/go-cache/full/run]
+          system: []
+      test-results:
+        - path: tmp/testlogs/native.json
+          options:
+            language: Go
+            framework: go test
+      artifacts:
+        - key: junit
+          path: tmp/test-results
+        - key: go-json
+          path: tmp/testlogs/log.json
+        - key: test-logs
+          path: tmp/testlogs
+
+  - key: compile-16
+    use: [source, go-build-tools, discovery]
+    if: ${{ (init.cache-warm == 'true' || tasks.route.values.run-main == 'true') && init.shard-total == '24' }}
+    run: mise exec -- bash ops/ci/go-full-tests.sh build
+    env:
+      CI_COMMIT_SHA: ${{ init.commit-sha }}
+      CI_SHARD_INDEX: "16"
+      CI_SHARD_TOTAL: ${{ init.shard-total }}
+      PARALLEL: ${{ init.test-parallel }}
+      BUILD_PROBE: ${{ init.build-probe }}
+    tool-cache: go-full-compile-16-${{ init.cache-epoch }}
+    timeout: 60m
+    runner:
+      cpus: 16
+      memory: 32gb
+    outputs:
+      filesystem:
+        filter:
+          workspace: [.ci/go-cache/full/build, .ci/go-tests/build]
+          system: []
+      artifacts:
+        - key: binaries
+          path: .ci/go-tests/build
+
+  - key: verdict-16
+    use: [source, go-build-tools, contract-tools]
+    if: ${{ init.cache-warm != 'true' && tasks.route.values.run-main == 'true' && init.shard-total == '24' }}
+    docker: true
+    run: |
+      mkdir -p .ci/go-tests/build
+      cp -a "$GO_BINARIES/." .ci/go-tests/build/
+      cp "$DISCOVERY/manifest.json" "$DISCOVERY/go-list.json" "$DISCOVERY/all-packages.txt" .ci/go-tests/
+      for dependency in go contracts kona op-reth prestate; do
+        case "$dependency" in
+          go) artifact="$GO_ARTIFACT" ;;
+          contracts) artifact="$CONTRACT_ARTIFACT" ;;
+          kona) artifact="$KONA_ARTIFACT" ;;
+          op-reth) artifact="$RETH_ARTIFACT" ;;
+          prestate) artifact="$PRESTATE_ARTIFACT" ;;
+        esac
+        python3 ops/ci/go-artifacts.py restore "$dependency" "$artifact"
+      done
+      export RUST_BINARY_PATH_OP_RETH="$PWD/rust/target/release/op-reth"
+      mise exec -- bash ops/ci/go-full-tests.sh run
+    env:
+      CI_COMMIT_SHA: ${{ init.commit-sha }}
+      CIRCLE_BRANCH: ${{ init.branch }}
+      CI_SHARD_INDEX: "16"
+      CI_SHARD_TOTAL: ${{ init.shard-total }}
+      PARALLEL: ${{ init.test-parallel }}
+      GO_BINARIES: ${{ tasks.compile-16.artifacts.binaries }}
+      DISCOVERY: ${{ tasks.discovery.artifacts.discovery }}
+      GO_ARTIFACT: ${{ tasks.go.tasks.build.artifacts.dependency }}
+      CONTRACT_ARTIFACT: ${{ tasks.contracts.tasks.build.artifacts.dependency }}
+      KONA_ARTIFACT: ${{ tasks.kona.tasks.build.artifacts.dependency }}
+      RETH_ARTIFACT: ${{ tasks.op-reth.tasks.build.artifacts.dependency }}
+      PRESTATE_ARTIFACT: ${{ tasks.prestate.tasks.build.artifacts.dependency }}
+      OP_CI_MAINNET_L1_ARCHIVE_RPC_URL: ${{ vaults.optimism-go-tests-rpc-shadow.secrets.OP_CI_MAINNET_L1_ARCHIVE_RPC_URL }}
+      OP_CI_SEPOLIA_L1_ARCHIVE_RPC_URL: ${{ vaults.optimism-go-tests-rpc-shadow.secrets.OP_CI_SEPOLIA_L1_ARCHIVE_RPC_URL }}
+    cache: false
+    tool-cache: go-full-runtime-16-${{ init.cache-epoch }}
+    timeout: 60m
+    runner:
+      cpus: 8
+      memory: 16gb
+    outputs:
+      filesystem:
+        filter:
+          workspace: [.ci/go-cache/full/run]
+          system: []
+      test-results:
+        - path: tmp/testlogs/native.json
+          options:
+            language: Go
+            framework: go test
+      artifacts:
+        - key: junit
+          path: tmp/test-results
+        - key: go-json
+          path: tmp/testlogs/log.json
+        - key: test-logs
+          path: tmp/testlogs
+
+  - key: compile-17
+    use: [source, go-build-tools, discovery]
+    if: ${{ (init.cache-warm == 'true' || tasks.route.values.run-main == 'true') && init.shard-total == '24' }}
+    run: mise exec -- bash ops/ci/go-full-tests.sh build
+    env:
+      CI_COMMIT_SHA: ${{ init.commit-sha }}
+      CI_SHARD_INDEX: "17"
+      CI_SHARD_TOTAL: ${{ init.shard-total }}
+      PARALLEL: ${{ init.test-parallel }}
+      BUILD_PROBE: ${{ init.build-probe }}
+    tool-cache: go-full-compile-17-${{ init.cache-epoch }}
+    timeout: 60m
+    runner:
+      cpus: 16
+      memory: 32gb
+    outputs:
+      filesystem:
+        filter:
+          workspace: [.ci/go-cache/full/build, .ci/go-tests/build]
+          system: []
+      artifacts:
+        - key: binaries
+          path: .ci/go-tests/build
+
+  - key: verdict-17
+    use: [source, go-build-tools, contract-tools]
+    if: ${{ init.cache-warm != 'true' && tasks.route.values.run-main == 'true' && init.shard-total == '24' }}
+    docker: true
+    run: |
+      mkdir -p .ci/go-tests/build
+      cp -a "$GO_BINARIES/." .ci/go-tests/build/
+      cp "$DISCOVERY/manifest.json" "$DISCOVERY/go-list.json" "$DISCOVERY/all-packages.txt" .ci/go-tests/
+      for dependency in go contracts kona op-reth prestate; do
+        case "$dependency" in
+          go) artifact="$GO_ARTIFACT" ;;
+          contracts) artifact="$CONTRACT_ARTIFACT" ;;
+          kona) artifact="$KONA_ARTIFACT" ;;
+          op-reth) artifact="$RETH_ARTIFACT" ;;
+          prestate) artifact="$PRESTATE_ARTIFACT" ;;
+        esac
+        python3 ops/ci/go-artifacts.py restore "$dependency" "$artifact"
+      done
+      export RUST_BINARY_PATH_OP_RETH="$PWD/rust/target/release/op-reth"
+      mise exec -- bash ops/ci/go-full-tests.sh run
+    env:
+      CI_COMMIT_SHA: ${{ init.commit-sha }}
+      CIRCLE_BRANCH: ${{ init.branch }}
+      CI_SHARD_INDEX: "17"
+      CI_SHARD_TOTAL: ${{ init.shard-total }}
+      PARALLEL: ${{ init.test-parallel }}
+      GO_BINARIES: ${{ tasks.compile-17.artifacts.binaries }}
+      DISCOVERY: ${{ tasks.discovery.artifacts.discovery }}
+      GO_ARTIFACT: ${{ tasks.go.tasks.build.artifacts.dependency }}
+      CONTRACT_ARTIFACT: ${{ tasks.contracts.tasks.build.artifacts.dependency }}
+      KONA_ARTIFACT: ${{ tasks.kona.tasks.build.artifacts.dependency }}
+      RETH_ARTIFACT: ${{ tasks.op-reth.tasks.build.artifacts.dependency }}
+      PRESTATE_ARTIFACT: ${{ tasks.prestate.tasks.build.artifacts.dependency }}
+      OP_CI_MAINNET_L1_ARCHIVE_RPC_URL: ${{ vaults.optimism-go-tests-rpc-shadow.secrets.OP_CI_MAINNET_L1_ARCHIVE_RPC_URL }}
+      OP_CI_SEPOLIA_L1_ARCHIVE_RPC_URL: ${{ vaults.optimism-go-tests-rpc-shadow.secrets.OP_CI_SEPOLIA_L1_ARCHIVE_RPC_URL }}
+    cache: false
+    tool-cache: go-full-runtime-17-${{ init.cache-epoch }}
+    timeout: 60m
+    runner:
+      cpus: 8
+      memory: 16gb
+    outputs:
+      filesystem:
+        filter:
+          workspace: [.ci/go-cache/full/run]
+          system: []
+      test-results:
+        - path: tmp/testlogs/native.json
+          options:
+            language: Go
+            framework: go test
+      artifacts:
+        - key: junit
+          path: tmp/test-results
+        - key: go-json
+          path: tmp/testlogs/log.json
+        - key: test-logs
+          path: tmp/testlogs
+
+  - key: compile-18
+    use: [source, go-build-tools, discovery]
+    if: ${{ (init.cache-warm == 'true' || tasks.route.values.run-main == 'true') && init.shard-total == '24' }}
+    run: mise exec -- bash ops/ci/go-full-tests.sh build
+    env:
+      CI_COMMIT_SHA: ${{ init.commit-sha }}
+      CI_SHARD_INDEX: "18"
+      CI_SHARD_TOTAL: ${{ init.shard-total }}
+      PARALLEL: ${{ init.test-parallel }}
+      BUILD_PROBE: ${{ init.build-probe }}
+    tool-cache: go-full-compile-18-${{ init.cache-epoch }}
+    timeout: 60m
+    runner:
+      cpus: 16
+      memory: 32gb
+    outputs:
+      filesystem:
+        filter:
+          workspace: [.ci/go-cache/full/build, .ci/go-tests/build]
+          system: []
+      artifacts:
+        - key: binaries
+          path: .ci/go-tests/build
+
+  - key: verdict-18
+    use: [source, go-build-tools, contract-tools]
+    if: ${{ init.cache-warm != 'true' && tasks.route.values.run-main == 'true' && init.shard-total == '24' }}
+    docker: true
+    run: |
+      mkdir -p .ci/go-tests/build
+      cp -a "$GO_BINARIES/." .ci/go-tests/build/
+      cp "$DISCOVERY/manifest.json" "$DISCOVERY/go-list.json" "$DISCOVERY/all-packages.txt" .ci/go-tests/
+      for dependency in go contracts kona op-reth prestate; do
+        case "$dependency" in
+          go) artifact="$GO_ARTIFACT" ;;
+          contracts) artifact="$CONTRACT_ARTIFACT" ;;
+          kona) artifact="$KONA_ARTIFACT" ;;
+          op-reth) artifact="$RETH_ARTIFACT" ;;
+          prestate) artifact="$PRESTATE_ARTIFACT" ;;
+        esac
+        python3 ops/ci/go-artifacts.py restore "$dependency" "$artifact"
+      done
+      export RUST_BINARY_PATH_OP_RETH="$PWD/rust/target/release/op-reth"
+      mise exec -- bash ops/ci/go-full-tests.sh run
+    env:
+      CI_COMMIT_SHA: ${{ init.commit-sha }}
+      CIRCLE_BRANCH: ${{ init.branch }}
+      CI_SHARD_INDEX: "18"
+      CI_SHARD_TOTAL: ${{ init.shard-total }}
+      PARALLEL: ${{ init.test-parallel }}
+      GO_BINARIES: ${{ tasks.compile-18.artifacts.binaries }}
+      DISCOVERY: ${{ tasks.discovery.artifacts.discovery }}
+      GO_ARTIFACT: ${{ tasks.go.tasks.build.artifacts.dependency }}
+      CONTRACT_ARTIFACT: ${{ tasks.contracts.tasks.build.artifacts.dependency }}
+      KONA_ARTIFACT: ${{ tasks.kona.tasks.build.artifacts.dependency }}
+      RETH_ARTIFACT: ${{ tasks.op-reth.tasks.build.artifacts.dependency }}
+      PRESTATE_ARTIFACT: ${{ tasks.prestate.tasks.build.artifacts.dependency }}
+      OP_CI_MAINNET_L1_ARCHIVE_RPC_URL: ${{ vaults.optimism-go-tests-rpc-shadow.secrets.OP_CI_MAINNET_L1_ARCHIVE_RPC_URL }}
+      OP_CI_SEPOLIA_L1_ARCHIVE_RPC_URL: ${{ vaults.optimism-go-tests-rpc-shadow.secrets.OP_CI_SEPOLIA_L1_ARCHIVE_RPC_URL }}
+    cache: false
+    tool-cache: go-full-runtime-18-${{ init.cache-epoch }}
+    timeout: 60m
+    runner:
+      cpus: 8
+      memory: 16gb
+    outputs:
+      filesystem:
+        filter:
+          workspace: [.ci/go-cache/full/run]
+          system: []
+      test-results:
+        - path: tmp/testlogs/native.json
+          options:
+            language: Go
+            framework: go test
+      artifacts:
+        - key: junit
+          path: tmp/test-results
+        - key: go-json
+          path: tmp/testlogs/log.json
+        - key: test-logs
+          path: tmp/testlogs
+
+  - key: compile-19
+    use: [source, go-build-tools, discovery]
+    if: ${{ (init.cache-warm == 'true' || tasks.route.values.run-main == 'true') && init.shard-total == '24' }}
+    run: mise exec -- bash ops/ci/go-full-tests.sh build
+    env:
+      CI_COMMIT_SHA: ${{ init.commit-sha }}
+      CI_SHARD_INDEX: "19"
+      CI_SHARD_TOTAL: ${{ init.shard-total }}
+      PARALLEL: ${{ init.test-parallel }}
+      BUILD_PROBE: ${{ init.build-probe }}
+    tool-cache: go-full-compile-19-${{ init.cache-epoch }}
+    timeout: 60m
+    runner:
+      cpus: 16
+      memory: 32gb
+    outputs:
+      filesystem:
+        filter:
+          workspace: [.ci/go-cache/full/build, .ci/go-tests/build]
+          system: []
+      artifacts:
+        - key: binaries
+          path: .ci/go-tests/build
+
+  - key: verdict-19
+    use: [source, go-build-tools, contract-tools]
+    if: ${{ init.cache-warm != 'true' && tasks.route.values.run-main == 'true' && init.shard-total == '24' }}
+    docker: true
+    run: |
+      mkdir -p .ci/go-tests/build
+      cp -a "$GO_BINARIES/." .ci/go-tests/build/
+      cp "$DISCOVERY/manifest.json" "$DISCOVERY/go-list.json" "$DISCOVERY/all-packages.txt" .ci/go-tests/
+      for dependency in go contracts kona op-reth prestate; do
+        case "$dependency" in
+          go) artifact="$GO_ARTIFACT" ;;
+          contracts) artifact="$CONTRACT_ARTIFACT" ;;
+          kona) artifact="$KONA_ARTIFACT" ;;
+          op-reth) artifact="$RETH_ARTIFACT" ;;
+          prestate) artifact="$PRESTATE_ARTIFACT" ;;
+        esac
+        python3 ops/ci/go-artifacts.py restore "$dependency" "$artifact"
+      done
+      export RUST_BINARY_PATH_OP_RETH="$PWD/rust/target/release/op-reth"
+      mise exec -- bash ops/ci/go-full-tests.sh run
+    env:
+      CI_COMMIT_SHA: ${{ init.commit-sha }}
+      CIRCLE_BRANCH: ${{ init.branch }}
+      CI_SHARD_INDEX: "19"
+      CI_SHARD_TOTAL: ${{ init.shard-total }}
+      PARALLEL: ${{ init.test-parallel }}
+      GO_BINARIES: ${{ tasks.compile-19.artifacts.binaries }}
+      DISCOVERY: ${{ tasks.discovery.artifacts.discovery }}
+      GO_ARTIFACT: ${{ tasks.go.tasks.build.artifacts.dependency }}
+      CONTRACT_ARTIFACT: ${{ tasks.contracts.tasks.build.artifacts.dependency }}
+      KONA_ARTIFACT: ${{ tasks.kona.tasks.build.artifacts.dependency }}
+      RETH_ARTIFACT: ${{ tasks.op-reth.tasks.build.artifacts.dependency }}
+      PRESTATE_ARTIFACT: ${{ tasks.prestate.tasks.build.artifacts.dependency }}
+      OP_CI_MAINNET_L1_ARCHIVE_RPC_URL: ${{ vaults.optimism-go-tests-rpc-shadow.secrets.OP_CI_MAINNET_L1_ARCHIVE_RPC_URL }}
+      OP_CI_SEPOLIA_L1_ARCHIVE_RPC_URL: ${{ vaults.optimism-go-tests-rpc-shadow.secrets.OP_CI_SEPOLIA_L1_ARCHIVE_RPC_URL }}
+    cache: false
+    tool-cache: go-full-runtime-19-${{ init.cache-epoch }}
+    timeout: 60m
+    runner:
+      cpus: 8
+      memory: 16gb
+    outputs:
+      filesystem:
+        filter:
+          workspace: [.ci/go-cache/full/run]
+          system: []
+      test-results:
+        - path: tmp/testlogs/native.json
+          options:
+            language: Go
+            framework: go test
+      artifacts:
+        - key: junit
+          path: tmp/test-results
+        - key: go-json
+          path: tmp/testlogs/log.json
+        - key: test-logs
+          path: tmp/testlogs
+
+  - key: compile-20
+    use: [source, go-build-tools, discovery]
+    if: ${{ (init.cache-warm == 'true' || tasks.route.values.run-main == 'true') && init.shard-total == '24' }}
+    run: mise exec -- bash ops/ci/go-full-tests.sh build
+    env:
+      CI_COMMIT_SHA: ${{ init.commit-sha }}
+      CI_SHARD_INDEX: "20"
+      CI_SHARD_TOTAL: ${{ init.shard-total }}
+      PARALLEL: ${{ init.test-parallel }}
+      BUILD_PROBE: ${{ init.build-probe }}
+    tool-cache: go-full-compile-20-${{ init.cache-epoch }}
+    timeout: 60m
+    runner:
+      cpus: 16
+      memory: 32gb
+    outputs:
+      filesystem:
+        filter:
+          workspace: [.ci/go-cache/full/build, .ci/go-tests/build]
+          system: []
+      artifacts:
+        - key: binaries
+          path: .ci/go-tests/build
+
+  - key: verdict-20
+    use: [source, go-build-tools, contract-tools]
+    if: ${{ init.cache-warm != 'true' && tasks.route.values.run-main == 'true' && init.shard-total == '24' }}
+    docker: true
+    run: |
+      mkdir -p .ci/go-tests/build
+      cp -a "$GO_BINARIES/." .ci/go-tests/build/
+      cp "$DISCOVERY/manifest.json" "$DISCOVERY/go-list.json" "$DISCOVERY/all-packages.txt" .ci/go-tests/
+      for dependency in go contracts kona op-reth prestate; do
+        case "$dependency" in
+          go) artifact="$GO_ARTIFACT" ;;
+          contracts) artifact="$CONTRACT_ARTIFACT" ;;
+          kona) artifact="$KONA_ARTIFACT" ;;
+          op-reth) artifact="$RETH_ARTIFACT" ;;
+          prestate) artifact="$PRESTATE_ARTIFACT" ;;
+        esac
+        python3 ops/ci/go-artifacts.py restore "$dependency" "$artifact"
+      done
+      export RUST_BINARY_PATH_OP_RETH="$PWD/rust/target/release/op-reth"
+      mise exec -- bash ops/ci/go-full-tests.sh run
+    env:
+      CI_COMMIT_SHA: ${{ init.commit-sha }}
+      CIRCLE_BRANCH: ${{ init.branch }}
+      CI_SHARD_INDEX: "20"
+      CI_SHARD_TOTAL: ${{ init.shard-total }}
+      PARALLEL: ${{ init.test-parallel }}
+      GO_BINARIES: ${{ tasks.compile-20.artifacts.binaries }}
+      DISCOVERY: ${{ tasks.discovery.artifacts.discovery }}
+      GO_ARTIFACT: ${{ tasks.go.tasks.build.artifacts.dependency }}
+      CONTRACT_ARTIFACT: ${{ tasks.contracts.tasks.build.artifacts.dependency }}
+      KONA_ARTIFACT: ${{ tasks.kona.tasks.build.artifacts.dependency }}
+      RETH_ARTIFACT: ${{ tasks.op-reth.tasks.build.artifacts.dependency }}
+      PRESTATE_ARTIFACT: ${{ tasks.prestate.tasks.build.artifacts.dependency }}
+      OP_CI_MAINNET_L1_ARCHIVE_RPC_URL: ${{ vaults.optimism-go-tests-rpc-shadow.secrets.OP_CI_MAINNET_L1_ARCHIVE_RPC_URL }}
+      OP_CI_SEPOLIA_L1_ARCHIVE_RPC_URL: ${{ vaults.optimism-go-tests-rpc-shadow.secrets.OP_CI_SEPOLIA_L1_ARCHIVE_RPC_URL }}
+    cache: false
+    tool-cache: go-full-runtime-20-${{ init.cache-epoch }}
+    timeout: 60m
+    runner:
+      cpus: 8
+      memory: 16gb
+    outputs:
+      filesystem:
+        filter:
+          workspace: [.ci/go-cache/full/run]
+          system: []
+      test-results:
+        - path: tmp/testlogs/native.json
+          options:
+            language: Go
+            framework: go test
+      artifacts:
+        - key: junit
+          path: tmp/test-results
+        - key: go-json
+          path: tmp/testlogs/log.json
+        - key: test-logs
+          path: tmp/testlogs
+
+  - key: compile-21
+    use: [source, go-build-tools, discovery]
+    if: ${{ (init.cache-warm == 'true' || tasks.route.values.run-main == 'true') && init.shard-total == '24' }}
+    run: mise exec -- bash ops/ci/go-full-tests.sh build
+    env:
+      CI_COMMIT_SHA: ${{ init.commit-sha }}
+      CI_SHARD_INDEX: "21"
+      CI_SHARD_TOTAL: ${{ init.shard-total }}
+      PARALLEL: ${{ init.test-parallel }}
+      BUILD_PROBE: ${{ init.build-probe }}
+    tool-cache: go-full-compile-21-${{ init.cache-epoch }}
+    timeout: 60m
+    runner:
+      cpus: 16
+      memory: 32gb
+    outputs:
+      filesystem:
+        filter:
+          workspace: [.ci/go-cache/full/build, .ci/go-tests/build]
+          system: []
+      artifacts:
+        - key: binaries
+          path: .ci/go-tests/build
+
+  - key: verdict-21
+    use: [source, go-build-tools, contract-tools]
+    if: ${{ init.cache-warm != 'true' && tasks.route.values.run-main == 'true' && init.shard-total == '24' }}
+    docker: true
+    run: |
+      mkdir -p .ci/go-tests/build
+      cp -a "$GO_BINARIES/." .ci/go-tests/build/
+      cp "$DISCOVERY/manifest.json" "$DISCOVERY/go-list.json" "$DISCOVERY/all-packages.txt" .ci/go-tests/
+      for dependency in go contracts kona op-reth prestate; do
+        case "$dependency" in
+          go) artifact="$GO_ARTIFACT" ;;
+          contracts) artifact="$CONTRACT_ARTIFACT" ;;
+          kona) artifact="$KONA_ARTIFACT" ;;
+          op-reth) artifact="$RETH_ARTIFACT" ;;
+          prestate) artifact="$PRESTATE_ARTIFACT" ;;
+        esac
+        python3 ops/ci/go-artifacts.py restore "$dependency" "$artifact"
+      done
+      export RUST_BINARY_PATH_OP_RETH="$PWD/rust/target/release/op-reth"
+      mise exec -- bash ops/ci/go-full-tests.sh run
+    env:
+      CI_COMMIT_SHA: ${{ init.commit-sha }}
+      CIRCLE_BRANCH: ${{ init.branch }}
+      CI_SHARD_INDEX: "21"
+      CI_SHARD_TOTAL: ${{ init.shard-total }}
+      PARALLEL: ${{ init.test-parallel }}
+      GO_BINARIES: ${{ tasks.compile-21.artifacts.binaries }}
+      DISCOVERY: ${{ tasks.discovery.artifacts.discovery }}
+      GO_ARTIFACT: ${{ tasks.go.tasks.build.artifacts.dependency }}
+      CONTRACT_ARTIFACT: ${{ tasks.contracts.tasks.build.artifacts.dependency }}
+      KONA_ARTIFACT: ${{ tasks.kona.tasks.build.artifacts.dependency }}
+      RETH_ARTIFACT: ${{ tasks.op-reth.tasks.build.artifacts.dependency }}
+      PRESTATE_ARTIFACT: ${{ tasks.prestate.tasks.build.artifacts.dependency }}
+      OP_CI_MAINNET_L1_ARCHIVE_RPC_URL: ${{ vaults.optimism-go-tests-rpc-shadow.secrets.OP_CI_MAINNET_L1_ARCHIVE_RPC_URL }}
+      OP_CI_SEPOLIA_L1_ARCHIVE_RPC_URL: ${{ vaults.optimism-go-tests-rpc-shadow.secrets.OP_CI_SEPOLIA_L1_ARCHIVE_RPC_URL }}
+    cache: false
+    tool-cache: go-full-runtime-21-${{ init.cache-epoch }}
+    timeout: 60m
+    runner:
+      cpus: 8
+      memory: 16gb
+    outputs:
+      filesystem:
+        filter:
+          workspace: [.ci/go-cache/full/run]
+          system: []
+      test-results:
+        - path: tmp/testlogs/native.json
+          options:
+            language: Go
+            framework: go test
+      artifacts:
+        - key: junit
+          path: tmp/test-results
+        - key: go-json
+          path: tmp/testlogs/log.json
+        - key: test-logs
+          path: tmp/testlogs
+
+  - key: compile-22
+    use: [source, go-build-tools, discovery]
+    if: ${{ (init.cache-warm == 'true' || tasks.route.values.run-main == 'true') && init.shard-total == '24' }}
+    run: mise exec -- bash ops/ci/go-full-tests.sh build
+    env:
+      CI_COMMIT_SHA: ${{ init.commit-sha }}
+      CI_SHARD_INDEX: "22"
+      CI_SHARD_TOTAL: ${{ init.shard-total }}
+      PARALLEL: ${{ init.test-parallel }}
+      BUILD_PROBE: ${{ init.build-probe }}
+    tool-cache: go-full-compile-22-${{ init.cache-epoch }}
+    timeout: 60m
+    runner:
+      cpus: 16
+      memory: 32gb
+    outputs:
+      filesystem:
+        filter:
+          workspace: [.ci/go-cache/full/build, .ci/go-tests/build]
+          system: []
+      artifacts:
+        - key: binaries
+          path: .ci/go-tests/build
+
+  - key: verdict-22
+    use: [source, go-build-tools, contract-tools]
+    if: ${{ init.cache-warm != 'true' && tasks.route.values.run-main == 'true' && init.shard-total == '24' }}
+    docker: true
+    run: |
+      mkdir -p .ci/go-tests/build
+      cp -a "$GO_BINARIES/." .ci/go-tests/build/
+      cp "$DISCOVERY/manifest.json" "$DISCOVERY/go-list.json" "$DISCOVERY/all-packages.txt" .ci/go-tests/
+      for dependency in go contracts kona op-reth prestate; do
+        case "$dependency" in
+          go) artifact="$GO_ARTIFACT" ;;
+          contracts) artifact="$CONTRACT_ARTIFACT" ;;
+          kona) artifact="$KONA_ARTIFACT" ;;
+          op-reth) artifact="$RETH_ARTIFACT" ;;
+          prestate) artifact="$PRESTATE_ARTIFACT" ;;
+        esac
+        python3 ops/ci/go-artifacts.py restore "$dependency" "$artifact"
+      done
+      export RUST_BINARY_PATH_OP_RETH="$PWD/rust/target/release/op-reth"
+      mise exec -- bash ops/ci/go-full-tests.sh run
+    env:
+      CI_COMMIT_SHA: ${{ init.commit-sha }}
+      CIRCLE_BRANCH: ${{ init.branch }}
+      CI_SHARD_INDEX: "22"
+      CI_SHARD_TOTAL: ${{ init.shard-total }}
+      PARALLEL: ${{ init.test-parallel }}
+      GO_BINARIES: ${{ tasks.compile-22.artifacts.binaries }}
+      DISCOVERY: ${{ tasks.discovery.artifacts.discovery }}
+      GO_ARTIFACT: ${{ tasks.go.tasks.build.artifacts.dependency }}
+      CONTRACT_ARTIFACT: ${{ tasks.contracts.tasks.build.artifacts.dependency }}
+      KONA_ARTIFACT: ${{ tasks.kona.tasks.build.artifacts.dependency }}
+      RETH_ARTIFACT: ${{ tasks.op-reth.tasks.build.artifacts.dependency }}
+      PRESTATE_ARTIFACT: ${{ tasks.prestate.tasks.build.artifacts.dependency }}
+      OP_CI_MAINNET_L1_ARCHIVE_RPC_URL: ${{ vaults.optimism-go-tests-rpc-shadow.secrets.OP_CI_MAINNET_L1_ARCHIVE_RPC_URL }}
+      OP_CI_SEPOLIA_L1_ARCHIVE_RPC_URL: ${{ vaults.optimism-go-tests-rpc-shadow.secrets.OP_CI_SEPOLIA_L1_ARCHIVE_RPC_URL }}
+    cache: false
+    tool-cache: go-full-runtime-22-${{ init.cache-epoch }}
+    timeout: 60m
+    runner:
+      cpus: 8
+      memory: 16gb
+    outputs:
+      filesystem:
+        filter:
+          workspace: [.ci/go-cache/full/run]
+          system: []
+      test-results:
+        - path: tmp/testlogs/native.json
+          options:
+            language: Go
+            framework: go test
+      artifacts:
+        - key: junit
+          path: tmp/test-results
+        - key: go-json
+          path: tmp/testlogs/log.json
+        - key: test-logs
+          path: tmp/testlogs
+
+  - key: compile-23
+    use: [source, go-build-tools, discovery]
+    if: ${{ (init.cache-warm == 'true' || tasks.route.values.run-main == 'true') && init.shard-total == '24' }}
+    run: mise exec -- bash ops/ci/go-full-tests.sh build
+    env:
+      CI_COMMIT_SHA: ${{ init.commit-sha }}
+      CI_SHARD_INDEX: "23"
+      CI_SHARD_TOTAL: ${{ init.shard-total }}
+      PARALLEL: ${{ init.test-parallel }}
+      BUILD_PROBE: ${{ init.build-probe }}
+    tool-cache: go-full-compile-23-${{ init.cache-epoch }}
+    timeout: 60m
+    runner:
+      cpus: 16
+      memory: 32gb
+    outputs:
+      filesystem:
+        filter:
+          workspace: [.ci/go-cache/full/build, .ci/go-tests/build]
+          system: []
+      artifacts:
+        - key: binaries
+          path: .ci/go-tests/build
+
+  - key: verdict-23
+    use: [source, go-build-tools, contract-tools]
+    if: ${{ init.cache-warm != 'true' && tasks.route.values.run-main == 'true' && init.shard-total == '24' }}
+    docker: true
+    run: |
+      mkdir -p .ci/go-tests/build
+      cp -a "$GO_BINARIES/." .ci/go-tests/build/
+      cp "$DISCOVERY/manifest.json" "$DISCOVERY/go-list.json" "$DISCOVERY/all-packages.txt" .ci/go-tests/
+      for dependency in go contracts kona op-reth prestate; do
+        case "$dependency" in
+          go) artifact="$GO_ARTIFACT" ;;
+          contracts) artifact="$CONTRACT_ARTIFACT" ;;
+          kona) artifact="$KONA_ARTIFACT" ;;
+          op-reth) artifact="$RETH_ARTIFACT" ;;
+          prestate) artifact="$PRESTATE_ARTIFACT" ;;
+        esac
+        python3 ops/ci/go-artifacts.py restore "$dependency" "$artifact"
+      done
+      export RUST_BINARY_PATH_OP_RETH="$PWD/rust/target/release/op-reth"
+      mise exec -- bash ops/ci/go-full-tests.sh run
+    env:
+      CI_COMMIT_SHA: ${{ init.commit-sha }}
+      CIRCLE_BRANCH: ${{ init.branch }}
+      CI_SHARD_INDEX: "23"
+      CI_SHARD_TOTAL: ${{ init.shard-total }}
+      PARALLEL: ${{ init.test-parallel }}
+      GO_BINARIES: ${{ tasks.compile-23.artifacts.binaries }}
+      DISCOVERY: ${{ tasks.discovery.artifacts.discovery }}
+      GO_ARTIFACT: ${{ tasks.go.tasks.build.artifacts.dependency }}
+      CONTRACT_ARTIFACT: ${{ tasks.contracts.tasks.build.artifacts.dependency }}
+      KONA_ARTIFACT: ${{ tasks.kona.tasks.build.artifacts.dependency }}
+      RETH_ARTIFACT: ${{ tasks.op-reth.tasks.build.artifacts.dependency }}
+      PRESTATE_ARTIFACT: ${{ tasks.prestate.tasks.build.artifacts.dependency }}
+      OP_CI_MAINNET_L1_ARCHIVE_RPC_URL: ${{ vaults.optimism-go-tests-rpc-shadow.secrets.OP_CI_MAINNET_L1_ARCHIVE_RPC_URL }}
+      OP_CI_SEPOLIA_L1_ARCHIVE_RPC_URL: ${{ vaults.optimism-go-tests-rpc-shadow.secrets.OP_CI_SEPOLIA_L1_ARCHIVE_RPC_URL }}
+    cache: false
+    tool-cache: go-full-runtime-23-${{ init.cache-epoch }}
+    timeout: 60m
+    runner:
+      cpus: 8
+      memory: 16gb
+    outputs:
+      filesystem:
+        filter:
+          workspace: [.ci/go-cache/full/run]
+          system: []
+      test-results:
+        - path: tmp/testlogs/native.json
+          options:
+            language: Go
+            framework: go test
+      artifacts:
+        - key: junit
+          path: tmp/test-results
+        - key: go-json
+          path: tmp/testlogs/log.json
+        - key: test-logs
+          path: tmp/testlogs
+

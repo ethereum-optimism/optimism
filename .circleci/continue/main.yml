@@ -17,6 +17,12 @@ parameters:
   c-go-cache-version:
     type: string
     default: "v0.1"
+  c-go_fresh_tests:
+    type: boolean
+    default: false
+  c-go_fresh_tests_effective:
+    type: boolean
+    default: false
   c-publish_contract_artifacts_ref:
     type: string
     default: ""
@@ -1872,6 +1878,12 @@ jobs:
             <<parameters.environment_overrides>>
             export TEST_TIMEOUT=<<parameters.test_timeout>>
             just <<parameters.rule>>
+          environment:
+            CI_GO_FRESH_TESTS: << pipeline.parameters.c-go_fresh_tests_effective >>
+      - store_artifacts:
+          path: ./tmp/test-results
+          destination: go-junit
+          when: always
       - go-save-cache:
           namespace: go-tests
       - store_test_results:
