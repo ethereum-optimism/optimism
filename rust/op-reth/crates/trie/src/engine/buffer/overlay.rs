@@ -10,8 +10,9 @@ use reth_provider::{
 };
 use reth_revm::db::BundleState;
 use reth_trie::{
-    AccountProof, ExecutionWitnessMode, HashedPostState, HashedStorage, MultiProof,
-    MultiProofTargets, StorageMultiProof, TrieInput, updates::TrieUpdates,
+    AccountProof, DecodedMultiProofV2, ExecutionWitnessMode, HashedPostState, HashedStorage,
+    MultiProof, MultiProofTargets, MultiProofTargetsV2, StorageMultiProof, TrieInput,
+    updates::TrieUpdates,
 };
 use std::{
     fmt::Debug,
@@ -97,16 +98,11 @@ where
         // Check buffer via trie_input cache
         let state = &self.trie_input().state;
 
-        // Check for storage updates or wipes in the overlay
-        if let Some(account_storage) = state.storages.get(&hashed_address) {
-            // Check specific slot
-            if let Some(value) = account_storage.storage.get(&hashed_slot) {
-                return Ok(Some(*value));
-            }
-            // If the whole storage was wiped in the overlay (e.g. reused address), we return 0
-            if account_storage.wiped {
-                return Ok(Some(StorageValue::ZERO));
-            }
+        // Check for storage updates in the overlay
+        if let Some(account_storage) = state.storages.get(&hashed_address) &&
+            let Some(value) = account_storage.storage.get(&hashed_slot)
+        {
+            return Ok(Some(*value));
         }
 
         // Check if account was destroyed in the overlay (implicit storage wipe)
@@ -220,6 +216,15 @@ where
         self.inner.multiproof(input, targets)
     }
 
+    fn multiproof_v2(
+        &self,
+        mut input: TrieInput,
+        targets: MultiProofTargetsV2,
+    ) -> ProviderResult<DecodedMultiProofV2> {
+        input.prepend_self(self.trie_input().clone());
+        self.inner.multiproof_v2(input, targets)
+    }
+
     fn witness(
         &self,
         mut input: TrieInput,
@@ -281,7 +286,7 @@ impl<'a, P> HashedPostStateProvider for MemoryOverlayOpProofsStateProviderRef<'a
 where
     P: OpProofsProviderRO + Clone,
 {
-    /// UPSTREAM-MIRROR(copy): reth@rev:0fbe428
+    /// UPSTREAM-MIRROR(copy): reth@rev:4553cf1
     /// `reth_chain_state::MemoryOverlayStateProviderRef::hashed_post_state`
     ///
     /// Uses the OP proofs-buffer trie input instead of upstream's executed-block overlay.

@@ -12,7 +12,7 @@ use std::{
 };
 
 use alloy_consensus::Transaction;
-use alloy_eips::eip7594::BlobTransactionSidecarVariant;
+use alloy_eips::eip7594::{BlobCellMask, BlobTransactionSidecarVariant};
 use alloy_primitives::{Address, B256, TxHash};
 use metrics::Counter;
 use reth_eth_wire_types::HandleMempoolData;
@@ -362,6 +362,7 @@ where
     delegate!(fn queued_transactions(&self) -> Vec<Arc<ValidPoolTransaction<Self::Transaction>>>);
     delegate!(fn pending_and_queued_txn_count(&self) -> (usize, usize));
     delegate!(fn all_transactions(&self) -> AllPoolTransactions<Self::Transaction>);
+    delegate!(fn all_transactions_by_sender(&self, sender: Address) -> AllPoolTransactions<Self::Transaction>);
     delegate!(fn all_transaction_hashes(&self) -> Vec<TxHash>);
     delegate!(fn remove_transactions(&self, hashes: Vec<TxHash>) -> Vec<Arc<ValidPoolTransaction<Self::Transaction>>>);
     delegate!(fn remove_transactions_and_descendants(&self, hashes: Vec<TxHash>) -> Vec<Arc<ValidPoolTransaction<Self::Transaction>>>);
@@ -403,7 +404,7 @@ where
     delegate!(fn get_blobs_for_versioned_hashes_v1(&self, versioned_hashes: &[B256]) -> Result<Vec<Option<alloy_eips::eip4844::BlobAndProofV1>>, BlobStoreError>);
     delegate!(fn get_blobs_for_versioned_hashes_v2(&self, versioned_hashes: &[B256]) -> Result<Option<Vec<alloy_eips::eip4844::BlobAndProofV2>>, BlobStoreError>);
     delegate!(fn get_blobs_for_versioned_hashes_v3(&self, versioned_hashes: &[B256]) -> Result<Vec<Option<alloy_eips::eip4844::BlobAndProofV2>>, BlobStoreError>);
-    delegate!(fn get_blobs_for_versioned_hashes_v4(&self, versioned_hashes: &[B256], indices_bitarray: alloy_primitives::B128) -> Result<Vec<Option<alloy_eips::eip4844::BlobCellsAndProofsV1>>, BlobStoreError>);
+    delegate!(fn get_blobs_for_versioned_hashes_v4(&self, versioned_hashes: &[B256], cell_mask: BlobCellMask) -> Result<Vec<Option<alloy_eips::eip4844::BlobCellsAndProofsV1>>, BlobStoreError>);
     delegate!(fn has_blobs_for_versioned_hashes(&self, versioned_hashes: &[B256]) -> Result<Vec<bool>, BlobStoreError>);
 }
 

@@ -18,6 +18,7 @@ reth-execution-types.workspace = true
 reth-node-api.workspace = true
 reth-trie.workspace = true
 reth-provider.workspace = true
+reth-stages-types.workspace = true
 
 # op-reth
 # proofs exex handles `TrieUpdates` in notifications
@@ -54,7 +55,8 @@ test-utils = [
 	"reth-provider/test-utils",
 	"reth-ethereum-primitives/test-utils",
 	"reth-primitives-traits/test-utils",
-	"reth-optimism-trie/test-utils"
+	"reth-optimism-trie/test-utils",
+	"reth-stages-types/test-utils"
 ]
 metrics = [
 	"reth-optimism-trie/metrics",

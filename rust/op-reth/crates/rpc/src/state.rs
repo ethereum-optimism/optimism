@@ -2,7 +2,6 @@
 
 use alloy_eips::BlockId;
 use derive_more::Constructor;
-use jsonrpsee_types::error::ErrorObject;
 use reth_optimism_trie::{
     OpProofsStorage, OpProofsStorageError, OpProofsStore, api::OpProofsProviderRO,
     provider::OpProofsStateProviderRef,
@@ -20,16 +19,14 @@ pub struct OpStateProviderFactory<Eth, P> {
 
 impl<'a, Eth, P> OpStateProviderFactory<Eth, P>
 where
-    Eth: FullEthApi + Send + Sync + 'static,
-    ErrorObject<'static>: From<Eth::Error>,
+    Eth: FullEthApi + 'static,
     P: OpProofsStore + Clone + 'a,
 {
     /// Creates a state provider for the given block id.
     pub async fn state_provider(
         &'a self,
-        block_id: Option<BlockId>,
+        block_id: BlockId,
     ) -> ProviderResult<Box<dyn StateProvider + 'a>> {
-        let block_id = block_id.unwrap_or_default();
         // Check whether the distance to the block exceeds the maximum configured window.
         let block_number = self
             .eth_api
