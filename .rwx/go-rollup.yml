@@ -1,26 +1,5 @@
-# Complete Go rollup tests in an optional shadow status; CircleCI keeps its gates.
+# CLI-only rollup regression mode; the full go-tests shadow owns native routing.
 on:
-  cache-rebuild:
-    if: ${{ event.git.branch == 'develop' }}
-    target: [go-build]
-    init:
-      commit-sha: ${{ event.git.sha }}
-      branch: ${{ event.git.branch }}
-      tag: ""
-      cache-warm: "true"
-      cache-epoch: v1
-      build-probe: ""
-  github:
-    push:
-      init:
-        commit-sha: ${{ event.git.sha }}
-        branch: ${{ event.git.branch }}
-        tag: ${{ event.git.tag }}
-        cache-warm: "false"
-        cache-epoch: v1
-        build-probe: ""
-      status-checks:
-        name: optimism-go-rollup-shadow
   cli:
     init:
       commit-sha: ${{ event.git.sha }}

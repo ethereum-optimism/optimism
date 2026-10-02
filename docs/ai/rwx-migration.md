@@ -663,6 +663,8 @@ and Kona SP1 publishing guidance. The image-provenance GitHub Action currently
 parses the Rust image pin from `.circleci/config.yml`; move its source and path
 triggers together if that pin moves.
 
-The aggregate Go stage and its remaining hosted validation are tracked in
+The completed aggregate Go stage and deferred follow-ups are tracked in
 [rwx-go-parity.md](rwx-go-parity.md). It expands coverage to Circle's complete
 `go-tests` selector while preserving required gates and fresh-test evidence.
+
+Full fresh Go parity is verified at `cf7f3f2d51ea5e75b9eb21adcb4cf7a860a15bce`: 459 packages, 11,490 passes, 123 skips and zero retries on both providers. The selected configuration is 12 shards / parallel 8, with 16 CPU / 32 GiB compile and 8 CPU / 16 GiB verdict workers. Native Go routing now uses the full suite; rollup remains CLI-only. Repeated performance tuning is deferred, and single-run timing observations do not establish a speed win. Circle retains all required gates.

@@ -70,28 +70,71 @@ Circle retains tagged discovery,
 complete selection, effective settings, per-node assignments, original Go JSON,
 JUnit and per-test logs. Benchmark both providers at the same immutable SHA.
 
-RWX CLI accepts `shard-total=12` or `shard-total=24`. Keep all six samples (three
-warm runs of each), resources, cache classifications, queue time, setup time,
-compilation, artifact transfers and fresh execution. Select the lower median
-among parity-passing configurations that do not increase measured runner cost,
-retaining 12 on a tie. Higher concurrency is eligible only after its outcomes,
-retry history, memory use and aggregate runner usage have been checked. Compare with three
-fresh Circle samples measured from pipeline creation to the last Go verdict.
-Do not sum concurrent task durations to claim an end-to-end speed.
+## Stage closeout (October 2, 2026)
 
-## Remaining validation
+The selected configuration is **12 duration-balanced shards, `-parallel=8`,
+`-p=4`, 16 CPU / 32 GiB compilation and 8 CPU / 16 GiB verdict workers**.
+The full native rollup trigger is retired; its CLI mode and regression coverage
+remain. Circle continues to own required gates.
 
-- [ ] Hosted full-suite parity at the benchmark SHA, including complete original
-      reports, skips, outcomes and retry histories; investigate each discrepancy.
-- [ ] Relevant Go, Rust, contract, toolchain and prestate invalidation probes;
-      unchanged reuse, empty-target sccache, and Circle prestate hash comparison.
-- [ ] Runtime Go/Forge fixtures, RPC availability, failure reports, intentional
-      fresh failure/retry/cancellation behavior, and failing shadow status.
-- [ ] Three warm Circle samples, three RWX 12-shard samples, and three RWX
-      24-shard samples with phase measurements and runner resources.
-- [ ] Replace the narrower native rollup trigger after full-suite validation;
-      retain its CLI mode and regression tests.
-- [ ] Final PR checks reach terminal states; update the PR with measured results
-      and explicit remaining speed bottlenecks.
+Same-revision fresh parity is verified at
+`cf7f3f2d51ea5e75b9eb21adcb4cf7a860a15bce` between
+[RWX](https://cloud.rwx.com/optimism/runs/fee5ce5d0613477397c69755dded1950)
+and [Circle job 5629727](https://circleci.com/gh/ethereum-optimism/optimism/5629727).
+Both selected all 459 packages exactly once, including packages without tests,
+and reported 11,613 identities: 11,490 passes, 123 skips and zero retries.
+No identities are missing or extra. The strict comparison reports seven differing
+skip messages in flaky-handling self-tests. Each has identical annotations and
+source-relative traces; provider log routing and absolute workspace paths account
+for the differences. All seven are investigated, with zero unresolved differences.
+The retained [comparison evidence](rwx-go-evidence/parity.json) records each resolution;
+it does not change the original reports or claim strict textual equivalence.
 
-Implementation alone does not establish hosted parity or a speed improvement.
+| Observation at that SHA | Configuration | Wall time | Measurement boundary |
+| --- | --- | ---: | --- |
+| RWX native default | 12 shards, parallel 8 | 1,075s | RWX run start through completion |
+| RWX concurrency trial | 12 shards, parallel 32 | 1,054s | RWX run start through completion |
+| Circle fresh validation | 12 nodes, effective parallel 32 | 1,222.7s | Pipeline creation through final Go job |
+
+The [default run](https://cloud.rwx.com/optimism/runs/3fbfa393c684449eb73f3d6372943f5f)
+passed all 11,613 cases. These are individual observations with different provider
+creation boundaries and variable producer cache state, not repeated warm medians
+or a proven speed win. The 21-second concurrency difference does not establish
+a repeatable improvement at no greater whole-run cost. At the user's request,
+performance experimentation ends here: repeated three-run benchmarks and 24-shard
+selection are deferred. The CLI retains both shard configurations for later use.
+
+Validated evidence includes:
+
+- Full hosted runtime Go/Forge fixtures and RPC preflight, alongside helper tests
+  for unavailable RPC inputs, stale settings/SHA, corrupt binaries, discovery,
+  assignments, runtime paths, report collection, signals and cancellation.
+- [Isolated intentional failure](https://cloud.rwx.com/optimism/runs/c8144a8d36614520a3274f78d50a78b0):
+  initial execution plus three fresh retries, original failures and a failed CLI
+  run. A native GitHub webhook failure rehearsal remains an operational follow-up.
+- [Empty-target Kona sccache](https://cloud.rwx.com/optimism/runs/ea88798123de459686653de6b95e96d4):
+  1,568 Rust hits and eight misses; complete statistics retain other compiler
+  feature probes and cache errors rather than presenting them as all hits.
+- Isolated dirty-snapshot invalidation probes for
+  [Go/prestate](https://cloud.rwx.com/optimism/runs/5e980f4644f84328b2cc4b89e9ff070e),
+  [Rust/prestate](https://cloud.rwx.com/optimism/runs/b9569fc31bcb48958df03508c5240e59),
+  [contracts](https://cloud.rwx.com/optimism/runs/47b445bedeb44b3891cae01ed00e6910), and
+  [toolchain](https://cloud.rwx.com/optimism/runs/91ce4d1927294bea9e4dbd912c589f47).
+  These ran zero tests and are cache diagnostics, not clean-SHA benchmarks.
+- Unchanged Go/contract artifact reuse, native compiler caches, and zero-test
+  warming rehearsals. An actual protected `develop` cache-rebuild event requires
+  merge and remains unobserved.
+- Both configured prestate hashes matched Circle job 5629322:
+  `kona-client=0x03e384aad91052e86a9912ad763cd32027586d99b5e8e2024115c606f35b6afa`,
+  `kona-client-int=0x03d56f7fd7d39b381efc142e127f41109709812d788c436ebad8f6de0633bc39`.
+
+Original JSON, JUnit, per-test logs, effective settings and manifests remain in
+provider artifacts and retained comparison archives. The checked-in comparison
+is a compact evidence index; provider retention is finite. Preserve downloaded
+archives before provider retention expires when auditing or resuming benchmarks.
+
+Follow-up work is acceptance-suite parity, operational webhook/gate rehearsals,
+and optional performance work. Current bottlenecks are the longest Go packages
+and Docker prestate cache transfer (about 5.6 GB and 138–143 seconds despite an
+approximately two-second warm build). Full producer output reuse across CLI/native
+contexts also needs investigation before making stronger cache or cost claims.

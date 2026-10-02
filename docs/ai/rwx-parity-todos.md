@@ -23,7 +23,8 @@ Prioritize the measured critical path: reuse valid producer outputs, restore
 targets and sccache, run independent work in parallel, minimize transfers and
 increase runner resources where that reduces elapsed time. Record actual resource
 allocations and cache state; equal resource allocations are not a pilot constraint.
-Cost and billed-usage analysis are deferred and do not block porting or tuning.
+Cost analysis is deferred. Future concurrency changes need evidence of faster
+execution without greater cost; performance tuning is outside this closeout.
 
 ## Baseline and progress
 
@@ -33,24 +34,23 @@ at commit `587b4c3a73d3f16f15212b72e9a0ed0e8489a7c4`.
 
 | PR workflow | Expanded job instances | Implemented validation jobs |
 | --- | ---: | ---: |
-| Main | 32 | 2 |
+| Main | 32 | 8 |
 | Contracts | 23 | 4 |
 | Rust | 22 | 4 |
 | Rust E2E | 9 | 0 |
-| Total | 86 | 10 |
+| Total | 86 | 16 |
 
-Conservative implementation coverage is **10 / 86 = 12%**. Each matrix entry and
+Conservative implementation coverage is **16 / 86 = 19%**. Each matrix entry and
 each occurrence in a different workflow counts separately; shards do not.
 The CircleCI setup and schedule-trigger-check workflows are outside this
 86-job denominator and have separate todos. This is job coverage, not runtime,
 cost, proven equivalence or gate ownership.
 
-The complete `op-node/rollup/...` shadow covers 16 packages and 1,247 cases,
-about 11% of the 11,613 case identities observed in the retained aggregate Go
-streams. It is partial coverage of `go-tests`, so that job remains unchecked.
-RWX already has checkout, tool and module preparation, routing, and contract
-bootstrap tasks; these do not establish complete producer/consumer parity for
-the remaining jobs.
+The full aggregate Go shadow now covers all 459 selected packages and 11,613
+case identities, with fresh same-SHA Circle/RWX parity verified. Its Go,
+superchain, contracts, Kona and prestate producers are implemented and executed.
+The narrower rollup mode remains CLI-only. See [the stage closeout](rwx-go-parity.md)
+for original-report comparison, selected resources, caches and limitations.
 
 A checked inventory item means its complete PR workload has been implemented
 and executed as an optional RWX shadow. It does not close the evidence or
@@ -68,14 +68,11 @@ in [rwx-migration.md](rwx-migration.md#op-reth-shadow-and-cache-measurements).
 
 ## Recommended order
 
-1. Close the existing comparison evidence gaps.
-2. Profile and shorten the op-reth critical path, especially release compilation,
-   linking and artifact transfers. Collect repeated whole-workload timings and
-   extend source-change cache probes. The release producer and all three
-   associated checks now run as complete shadows.
-3. Complete the producers needed by aggregate Go and acceptance tests, then
-   port their consumers with equivalent discovery and sharding. Share producer
-   outputs and start independent consumers as soon as their inputs are ready.
+1. Port acceptance suites using the validated shared producers.
+2. Close remaining contract evidence gaps and operational failure/routing rehearsals.
+3. Reuse the completed aggregate Go producers for acceptance consumers, with
+   equivalent discovery and isolated fresh verdicts. Defer additional performance
+   work until workload porting makes further progress.
 4. Complete the remaining Rust, contract and independent validation jobs.
 5. Rehearse full pipeline routing and failure behavior before proposing gate
    changes. Validate post-merge and privileged work before transferring it.
@@ -89,7 +86,7 @@ start, and retain push/queue time separately when available. Cost is deferred.
   through small artifacts instead of inheriting Git history.
 - [x] Separate Go and Foundry compilation from fresh tests. Add isolated native
   compiler caches and transfer runtime artifacts without compiler cache layers.
-- [x] Balance the four Go shards using observed package durations. Preserve
+- [x] Balance the twelve aggregate Go shards using observed package durations. Preserve
   exhaustive discovery, package working directories, retries and all test flags.
 - [x] Configure protected `develop` cache-rebuild targets for compilers/tool
   preparation, with no verdicts or publishing side effects.
@@ -99,10 +96,10 @@ start, and retain push/queue time separately when available. Cost is deferred.
   and required CircleCI gate results in the PR on each final pushed revision.
 - [ ] Observe an actual native cache-rebuild event after these definitions reach
   `develop`; a CLI warm-only rehearsal does not establish this.
-- [ ] Evaluate Captain for the larger aggregate Go/acceptance port. The current
-  duration-based package manifest is self-contained; Captain is not connected
-  as the partition provider. Its suite/timing configuration and test selection
-  must prove the same complete coverage before replacing this manifest.
+- [x] Document Captain's current lack of Go partitioning support; retain the
+  exhaustive duration-balanced manifest and native RWX reporting.
+- [x] Close full Go parity with 12 shards / parallel 8. Repeated performance
+  samples and 24-shard selection are deferred at the user's request.
 
 ## Close the current evidence gaps
 
@@ -118,8 +115,9 @@ the existing shadows:
 - [ ] Add stable reasons for the 178 contract skips whose reasons are unavailable,
   preserving the existing guards. Source inspection suggests 116 originate in
   `skipIfUnoptimized()`; verify that inference through original reports.
-- [ ] Repeat the Go baseline with fresh test execution. The retained CircleCI
-  streams reused cached results for 17 rollup cases.
+- [x] Repeat the complete Go baseline with fresh execution at the same SHA.
+  All 11,613 identities match; seven environmental skip-message differences
+  were investigated. The earlier cached rollup baseline is superseded.
 - [ ] Preserve per-case retry evidence where available. Foundry reports currently
   lack attempt histories; document unknown histories rather than reporting zero.
 - [ ] Collect repeated whole-workload CircleCI and RWX timings on the same commit
@@ -171,10 +169,10 @@ CircleCI workflow: `main` (32 jobs).
 - [ ] `semgrep-scan-local`
 - [ ] `rust-sp1-super-range-executor`
 - [x] `rust-op-reth-binary`
-- [ ] `rust-kona-binaries`
+- [x] `rust-kona-binaries`
 - [ ] `rust-binaries-for-sysgo`
-- [ ] `prep-superchain`
-- [ ] `prep-go-modules`
+- [x] `prep-superchain`
+- [x] `prep-go-modules`
 - [ ] `op-deployer-forge-version`
 - [ ] `nut-provenance-verify`
 - [ ] `l2-chains-sync-check`
@@ -182,7 +180,7 @@ CircleCI workflow: `main` (32 jobs).
 - [x] `go-lint`
 - [ ] `go-binaries-for-sysgo`
 - [ ] `generate-flaky-tests-report`
-- [ ] `contracts-bedrock-build-1`
+- [x] `contracts-bedrock-build-1`
 - [ ] `contracts-bedrock-upload`
 - [ ] `diff-fetcher-forge-artifacts`
 - [ ] `check-op-geth-version`
@@ -191,8 +189,8 @@ CircleCI workflow: `main` (32 jobs).
 - [ ] `check-kontrol-build`
 - [ ] `check-generated-mocks-op-service`
 - [ ] `check-generated-mocks-op-node`
-- [ ] `cannon-prestate`
-- [ ] `go-tests`
+- [x] `cannon-prestate`
+- [x] `go-tests`
 - [ ] `memory-all-kona-op-reth-fusaka`
 - [ ] `memory-all-opn-op-reth-fusaka`
 - [ ] `cannon-go-lint-and-test`
