@@ -8,6 +8,7 @@ from pathlib import Path
 import subprocess
 import tarfile
 import sys
+import time
 
 ROOT = Path(__file__).resolve().parents[2]
 SETTINGS = {"go": {"hello_toolchain": "go1.24.13"}, "contracts": {"profile": "ci"},
@@ -44,12 +45,13 @@ def pack(kind, paths):
             stream.add(ROOT / name, arcname=name)
     metadata = provenance(kind)
     metadata.update(files=files, archive_sha256=digest(archive),
-                    tool_versions={tool: subprocess.check_output([tool, '--version'], text=True).strip()
+                    tool_versions={tool: subprocess.check_output([tool, 'version' if tool == 'go' else '--version'], text=True).strip()
                                    for tool in {'go': ['go'], 'contracts': ['go', 'forge'], 'kona': ['rustc', 'cargo'],
                                                 'op-reth': ['rustc', 'cargo'], 'prestate': ['docker']}[kind]})
     (output / 'metadata.json').write_text(json.dumps(metadata, indent=2) + '\n')
 
 def restore(kind, artifact):
+    started = time.monotonic()
     metadata = json.loads((artifact / 'metadata.json').read_text())
     if any(metadata.get(key) != value for key, value in provenance(kind).items()):
         raise ValueError('Dependency revision, toolchain pins or settings mismatch')
@@ -67,6 +69,7 @@ def restore(kind, artifact):
             raise ValueError('Missing or corrupt dependency file')
     output = ROOT / 'tmp/testlogs/dependencies'
     output.mkdir(parents=True, exist_ok=True)
+    metadata['restore_seconds'] = time.monotonic() - started
     (output / f'{kind}.json').write_text(json.dumps(metadata, indent=2) + '\n')
 
 if __name__ == '__main__':

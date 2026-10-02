@@ -148,16 +148,11 @@ tasks:
   - key: rpc-preflight
     use: tools
     if: ${{ init.cache-warm != 'true' && tasks.route.values.run-main == 'true' }}
-    run: |
-      python3 - <<'PYCODE'
-      import os, urllib.parse
-      for name in ['OP_CI_MAINNET_L1_ARCHIVE_RPC_URL', 'OP_CI_SEPOLIA_L1_ARCHIVE_RPC_URL']:
-          url = urllib.parse.urlparse(os.environ[name])
-          if url.scheme not in ('http', 'https') or not url.netloc:
-              raise SystemExit('An archive RPC input is unavailable or invalid')
-      print('Both archive RPC inputs are available')
-      PYCODE
+    run: python3 "$CI_SCRIPTS/go-rpc-preflight.py"
+    filter:
+      ${{ tasks.bootstrap-inputs.artifacts.ci-scripts }}: [go-rpc-preflight.py]
     env:
+      CI_SCRIPTS: ${{ tasks.bootstrap-inputs.artifacts.ci-scripts }}
       OP_CI_MAINNET_L1_ARCHIVE_RPC_URL: ${{ vaults.optimism-go-tests-rpc-shadow.secrets.OP_CI_MAINNET_L1_ARCHIVE_RPC_URL }}
       OP_CI_SEPOLIA_L1_ARCHIVE_RPC_URL: ${{ vaults.optimism-go-tests-rpc-shadow.secrets.OP_CI_SEPOLIA_L1_ARCHIVE_RPC_URL }}
     cache: false
@@ -166,7 +161,7 @@ tasks:
 
   - key: source
     use: [code, tools]
-    after: rpc-preflight
+    after: ${{ rpc-preflight.succeeded || rpc-preflight.skipped }}
     if: ${{ init.cache-warm == 'true' || tasks.route.values.run-main == 'true' }}
     run: |
       git submodule sync --recursive

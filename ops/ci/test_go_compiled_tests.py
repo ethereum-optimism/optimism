@@ -8,6 +8,8 @@ import os
 from pathlib import Path
 import shutil
 import subprocess
+import signal
+import time
 import tempfile
 import unittest
 
@@ -132,6 +134,32 @@ sys.exit(1 if failed else 0)
         (self.build.parent / "manifest.json").write_text(json.dumps(self.manifest))
         self.assertNotEqual(self.run_helper("run").returncode, 0)
         self.assertFalse(self.calls.exists())
+
+    def test_cancellation_terminates_active_binary_process_group(self):
+        pidfile = self.root / "binary.pid"
+        self.executable(self.build / "0.test", "#!/usr/bin/env python3\nimport os,time,pathlib\npathlib.Path(" + repr(str(pidfile)) + ").write_text(str(os.getpid()))\ntime.sleep(300)\n")
+        self.metadata['packages'][self.packages[0]]['sha256'] = self.digest(self.build / '0.test')
+        self.save_metadata()
+        command = ['python3', str(self.root / 'ops/ci/go-compiled-tests.py'), 'run', *getattr(self, 'suite_args', ())]
+        process = subprocess.Popen(command, env=self.env, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+        try:
+            deadline = time.monotonic() + 10
+            while not pidfile.exists() and process.poll() is None and time.monotonic() < deadline:
+                time.sleep(0.02)
+            self.assertTrue(pidfile.exists())
+            child = int(pidfile.read_text())
+            process.send_signal(signal.SIGTERM)
+            _, stderr = process.communicate(timeout=10)
+            self.assertEqual(process.returncode, 143, stderr)
+            with self.assertRaises(ProcessLookupError):
+                os.kill(child, 0)
+        finally:
+            if process.poll() is None:
+                process.kill()
+                process.communicate()
+            if pidfile.exists():
+                try: os.kill(int(pidfile.read_text()), signal.SIGKILL)
+                except ProcessLookupError: pass
 
     @unittest.skipUnless(shutil.which("gotestsum"), "Pinned gotestsum is exercised in the hosted Go helper task")
     def test_actual_gotestsum_preserves_three_failed_reruns_and_reports(self):
