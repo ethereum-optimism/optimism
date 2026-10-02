@@ -243,7 +243,8 @@ require (
 	lukechampine.com/blake3 v1.4.1 // indirect
 )
 
-replace github.com/ethereum/go-ethereum => github.com/ethereum-optimism/op-geth v1.101702.3-rc.7
+// EIP-8282 system contract constants: https://github.com/ethereum-optimism/op-geth/pull/814
+replace github.com/ethereum/go-ethereum => github.com/ethereum-optimism/op-geth v1.101702.4-0.20261002001634-b5424f6a623f
 
 // replace github.com/ethereum/go-ethereum => ../op-geth
 
