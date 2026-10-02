@@ -103,7 +103,10 @@ contract ExecuteNUTBundle is Script {
 
         (success_, returnData_) = _txn.to.call{ gas: _txn.gasLimit - intrinsicGas_ }(_txn.data);
         VmSafe.Gas memory gasResult = vm.lastFrameGas();
-        bodyGasUsed_ = uint64(gasResult.gasTotalUsed);
+        // gasTotalUsed excludes EIP-8037 state gas, which is reported separately as a signed net
+        // value. Add it, but clamp it at zero so a net refund can never lower the regular gas used.
+        int64 stateGasUsed = gasResult.gasStateUsed > 0 ? gasResult.gasStateUsed : int64(0);
+        bodyGasUsed_ = gasResult.gasTotalUsed + uint64(stateGasUsed);
     }
 
     /// @notice Executes all transactions in the bundle sequentially.
