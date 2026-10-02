@@ -88,9 +88,29 @@ pub(crate) fn lagoon_test_engine(funded: Address) -> TestEngine {
     TestEngine::from_chain(chain_with_forks(funded, forks, extra_data))
 }
 
+/// An engine with Ecotone as the newest active fork, so neither Isthmus nor Prague, which it
+/// rides, is in force.
+pub(crate) fn ecotone_test_engine(funded: Address) -> TestEngine {
+    let forks = OpChainSpecBuilder::optimism_mainnet().ecotone_activated();
+    TestEngine::from_chain(chain_with_exact_forks(funded, forks, Bytes::new()))
+}
+
 /// A chain under the hardforks `forks` activates, with a genesis carrying `extra_data` (whose
 /// encoding the forks active at genesis dictate).
 fn chain_with_forks(
+    funded: Address,
+    forks: OpChainSpecBuilder,
+    extra_data: Bytes,
+) -> EphemeralChain {
+    // The fork helpers activate the OP hardforks but not the Ethereum forks they ride; Isthmus
+    // rides Prague, which they omit, so add it for a consistent spec.
+    // See ethereum-optimism/optimism#21239.
+    let forks = forks.with_fork(EthereumHardfork::Prague, ForkCondition::Timestamp(0));
+    chain_with_exact_forks(funded, forks, extra_data)
+}
+
+/// Like [`chain_with_forks`], but activating exactly the hardforks `forks` does.
+fn chain_with_exact_forks(
     funded: Address,
     forks: OpChainSpecBuilder,
     extra_data: Bytes,
@@ -118,14 +138,7 @@ fn chain_with_forks(
         ..Default::default()
     };
 
-    // The fork helpers activate the OP hardforks but not the Ethereum forks they ride; Isthmus
-    // rides Prague, which they omit, so add it for a consistent spec.
-    // See ethereum-optimism/optimism#21239.
-    let spec = forks
-        .chain(Chain::from_id(CHAIN_ID))
-        .with_fork(EthereumHardfork::Prague, ForkCondition::Timestamp(0))
-        .genesis(genesis)
-        .build();
+    let spec = forks.chain(Chain::from_id(CHAIN_ID)).genesis(genesis).build();
     EphemeralChain::from_chain_spec(Arc::new(spec)).expect("build ephemeral chain")
 }
 
