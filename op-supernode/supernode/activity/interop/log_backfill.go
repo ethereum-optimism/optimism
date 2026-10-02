@@ -12,9 +12,10 @@ import (
 
 // advanceColdStartInit runs one best-effort pass at cold-start initialization:
 // it collects every chain's first SafeDB entry timestamp, picks
-// verificationStartTimestamp = max(activation, max_c T_c), runs backfill, and
-// signals advance=true on success. Returns advance=false when any chain's
-// SafeDB is still empty (caller backs off and retries). Errors from the
+// verificationStartTimestamp = max(activation, max_c T_c), waits for that
+// first verification block to be finalized when backfill is enabled, runs
+// backfill, and signals advance=true on success. Returns advance=false when
+// any chain is not ready (caller backs off and retries). Errors from the
 // backfill phase are fatal.
 func (i *Interop) advanceColdStartInit() (bool, error) {
 	i.backfillAttempts.Add(1)
@@ -33,6 +34,15 @@ func (i *Interop) advanceColdStartInit() (bool, error) {
 			verificationStart = ts
 		}
 	}
+	if i.logBackfillDepth > 0 {
+		finalized, err := i.firstVerificationBlocksFinalized(verificationStart)
+		if err != nil {
+			return false, err
+		}
+		if !finalized {
+			return false, nil
+		}
+	}
 	i.verificationStartTimestamp = verificationStart
 	// Flip initialized before backfill: backfill seals into logsDB, and
 	// sealBlockDataIntoLogsDB queries firstVerifiableTimestamp to validate
@@ -44,6 +54,30 @@ func (i *Interop) advanceColdStartInit() (bool, error) {
 		return false, fmt.Errorf("backfill: %w", err)
 	}
 	i.backfillCompleted.Store(true)
+	return true, nil
+}
+
+// firstVerificationBlocksFinalized ensures a cold-start backfill cannot anchor
+// verification to reorgable L2 history.
+func (i *Interop) firstVerificationBlocksFinalized(timestamp uint64) (bool, error) {
+	for _, chain := range i.chains {
+		target, err := chain.TimestampToBlockNumber(i.ctx, timestamp)
+		if err != nil {
+			return false, fmt.Errorf("chain %s: first verification block: %w", chain.ID(), err)
+		}
+		status, err := chain.SyncStatus(i.ctx)
+		if err != nil {
+			return false, fmt.Errorf("chain %s: sync status: %w", chain.ID(), err)
+		}
+		if status == nil {
+			return false, fmt.Errorf("chain %s: nil sync status", chain.ID())
+		}
+		if status.FinalizedL2.Number < target {
+			i.log.Debug("interop cold start: waiting for first verification block to finalize",
+				"chain", chain.ID(), "target", target, "finalized", status.FinalizedL2.Number)
+			return false, nil
+		}
+	}
 	return true, nil
 }
 
