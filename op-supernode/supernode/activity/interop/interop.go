@@ -1344,6 +1344,25 @@ func (i *Interop) VerifiedBlockAtL1(chainID eth.ChainID, l1Block eth.L1BlockRef)
 		return eth.BlockID{}, i.activationCap(), nil
 	}
 
+	i.mu.RLock()
+	ctx := i.ctx
+	i.mu.RUnlock()
+	if ctx == nil || i.l1Checker == nil {
+		return eth.BlockID{}, 0, ErrNotStarted
+	}
+	canonical, err := i.l1Checker.SameL1Chain(ctx, []eth.BlockID{l1Block.ID()})
+	if err != nil {
+		return eth.BlockID{}, 0, fmt.Errorf("check finality L1 boundary: %w", err)
+	}
+	if !canonical {
+		return eth.BlockID{}, 0, fmt.Errorf("finality L1 boundary %s is not canonical", l1Block)
+	}
+	// Rewind may not yet have removed records from an abandoned L1 branch.
+	// Height alone cannot make those records eligible for finalization when
+	// the replacement branch reaches that height. Share lookups across the
+	// many L2 timestamps that a single L1 inclusion can cover.
+	canonicalInclusions := make(map[eth.BlockID]bool)
+
 	// activationTimestamp is the floor: no verified results exist before activation.
 	lowerBound := i.activationTimestamp
 	for ts := lastTs; ts >= lowerBound && ts <= lastTs; ts-- {
@@ -1358,6 +1377,19 @@ func (i *Interop) VerifiedBlockAtL1(chainID eth.ChainID, l1Block eth.L1BlockRef)
 		}
 
 		if result.L1Inclusion.Number <= l1Block.Number {
+			canonical, checked := canonicalInclusions[result.L1Inclusion]
+			if !checked {
+				var err error
+				canonical, err = i.l1Checker.SameL1Chain(ctx, []eth.BlockID{result.L1Inclusion})
+				if err != nil {
+					return eth.BlockID{}, 0, fmt.Errorf("check verified L1 inclusion %s: %w", result.L1Inclusion, err)
+				}
+				canonicalInclusions[result.L1Inclusion] = canonical
+			}
+			if !canonical {
+				continue
+			}
+
 			head, ok := result.L2Heads[chainID]
 			if !ok {
 				return eth.BlockID{}, i.activationCap(), nil
