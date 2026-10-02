@@ -67,10 +67,6 @@ func (c *PrepareConfig) Check() error {
 		return fmt.Errorf("l1 RPC URL must be specified")
 	}
 
-	if c.GenesisTimeOffset < standard.MinGenesisTimeOffsetSeconds {
-		return fmt.Errorf("genesis time offset must be at least %d seconds", standard.MinGenesisTimeOffsetSeconds)
-	}
-
 	return nil
 }
 
@@ -415,13 +411,12 @@ func predictChains(
 			)
 		}
 
-		// The deployment must land after the current safe head, so a genesis time at or
-		// below its timestamp can no longer be met.
-		if uint64(genesisTime) <= uint64(safe.Time) {
-			return fmt.Errorf(
-				"chain %s: the committed genesis time (%d) is not after the current L1 safe head timestamp (%d), the deployment window has elapsed; "+
-					"use a newer anchor block or a larger --%s (for a pin from a previous run, clear the chain's state to re-pin)",
-				chain.ID.Hex(), uint64(genesisTime), uint64(safe.Time), GenesisTimeOffsetFlagName,
+		if genesisTime <= safe.Time {
+			lgr.Warn(
+				"committed genesis time has elapsed; nodes will produce catch-up blocks after deployment",
+				"chain", chain.ID.Hex(),
+				"genesisTime", uint64(genesisTime),
+				"l1SafeHeadTime", uint64(safe.Time),
 			)
 		}
 

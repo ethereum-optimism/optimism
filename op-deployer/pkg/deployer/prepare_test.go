@@ -71,8 +71,8 @@ func TestNewPrepareConfig_FlagsPassed(t *testing.T) {
 	cfg := newPrepareConfig(newPrepareCtx(t, testPrivKey), log.NewLogger(log.DiscardHandler()))
 	require.Equal(t, testPrivKey, cfg.PrivateKey)
 	require.Equal(t, testL1RPCUrl, cfg.L1RPCUrl)
-	require.Equal(t, standard.DefaultGenesisTimeOffsetSeconds, cfg.GenesisTimeOffset,
-		"genesis time offset must default when the flag is not passed")
+	require.Zero(t, cfg.GenesisTimeOffset,
+		"genesis time offset must default to the anchor timestamp when the flag is not passed")
 }
 
 func TestNewPrepareConfig_GenesisTimeOffsetOverride(t *testing.T) {
@@ -399,21 +399,12 @@ func TestResolveSuperchainConfigProxy(t *testing.T) {
 
 func TestPrepareConfigCheck(t *testing.T) {
 	valid := PrepareConfig{
-		Workdir:           "/tmp",
-		Logger:            log.NewLogger(log.DiscardHandler()),
-		PrivateKey:        testPrivKey,
-		L1RPCUrl:          testL1RPCUrl,
-		GenesisTimeOffset: standard.DefaultGenesisTimeOffsetSeconds,
+		Workdir:    "/tmp",
+		Logger:     log.NewLogger(log.DiscardHandler()),
+		PrivateKey: testPrivKey,
+		L1RPCUrl:   testL1RPCUrl,
 	}
 	require.NoError(t, valid.Check())
-
-	atMinimumOffset := valid
-	atMinimumOffset.GenesisTimeOffset = standard.MinGenesisTimeOffsetSeconds
-	require.NoError(t, atMinimumOffset.Check())
-
-	belowMinimumOffset := valid
-	belowMinimumOffset.GenesisTimeOffset = standard.MinGenesisTimeOffsetSeconds - 1
-	require.ErrorContains(t, belowMinimumOffset.Check(), "genesis time offset must be at least")
 
 	missingKey := valid
 	missingKey.PrivateKey = ""
@@ -1205,7 +1196,7 @@ func TestPredictChains_ReusesPinnedAnchor(t *testing.T) {
 	})
 }
 
-func TestPredictChains_StaleGenesisTime(t *testing.T) {
+func TestPredictChains_ElapsedGenesisTime(t *testing.T) {
 	chainID := common.HexToHash("0x0b")
 	opcmAddr := common.HexToAddress("0xaaaa000000000000000000000000000000000001")
 	superchainConfig := common.HexToAddress("0xbbbb000000000000000000000000000000000002")
@@ -1219,7 +1210,6 @@ func TestPredictChains_StaleGenesisTime(t *testing.T) {
 		}
 	}
 	run := func(in opcm.DeployOPChainInput) (opcm.DeployOPChainOutput, error) {
-		t.Fatal("prediction must not run for a stale genesis time")
 		return opcm.DeployOPChainOutput{
 			OpChainProxyAdmin:                  common.Address{},
 			AddressManager:                     common.Address{},
@@ -1242,23 +1232,28 @@ func TestPredictChains_StaleGenesisTime(t *testing.T) {
 	pinnedGenesisTime := hexutil.Uint64(5600)
 	lgr := testlog.Logger(t, slog.LevelInfo)
 
-	t.Run("a reused pin whose genesis time has elapsed errors", func(t *testing.T) {
+	t.Run("reused elapsed pin", func(t *testing.T) {
 		st := &state.State{Create2Salt: common.HexToHash("0x03")}
 		st.PinChainAnchor(chainID, pinnedAnchor, pinnedGenesisTime)
 
 		// The re-run happens long after the pin. The safe head has passed the
-		// committed genesis time, so the deployment can no longer land before it.
+		// committed genesis time, but catch-up blocks make the deployment valid.
 		lateSafe := &state.L1BlockRefJSON{Hash: common.HexToHash("0x5afe"), Number: 500, Time: 9000}
 		selectAnchor := func(overrideHash *common.Hash) (*state.L1BlockRefJSON, error) {
 			return pinnedAnchor, nil
 		}
+		lgr, logs := testlog.CaptureLogger(t, slog.LevelInfo)
 
-		err := predictChains(lgr, newIntent(), st, run, selectAnchor, lateSafe, 600)
-		require.ErrorContains(t, err, "the deployment window has elapsed")
-		require.ErrorContains(t, err, "clear the chain's state to re-pin")
+		require.NoError(t, predictChains(lgr, newIntent(), st, run, selectAnchor, lateSafe, 600))
+		logs.RequireMessageContainedOnce(
+			t,
+			"committed genesis time has elapsed",
+			testlog.NewLevelFilter(slog.LevelWarn),
+			testlog.NewAttributesFilter("chain", chainID.Hex()),
+		)
 	})
 
-	t.Run("a genesis time equal to the safe head timestamp errors", func(t *testing.T) {
+	t.Run("genesis equal to safe head", func(t *testing.T) {
 		st := &state.State{Create2Salt: common.HexToHash("0x03")}
 		st.PinChainAnchor(chainID, pinnedAnchor, pinnedGenesisTime)
 
@@ -1267,11 +1262,10 @@ func TestPredictChains_StaleGenesisTime(t *testing.T) {
 			return pinnedAnchor, nil
 		}
 
-		err := predictChains(lgr, newIntent(), st, run, selectAnchor, boundarySafe, 600)
-		require.ErrorContains(t, err, "the deployment window has elapsed")
+		require.NoError(t, predictChains(lgr, newIntent(), st, run, selectAnchor, boundarySafe, 600))
 	})
 
-	t.Run("a fresh pin from an old anchor override errors", func(t *testing.T) {
+	t.Run("fresh pin from old anchor override", func(t *testing.T) {
 		st := &state.State{Create2Salt: common.HexToHash("0x03")}
 		intent := newIntent()
 		oldAnchor := &state.L1BlockRefJSON{Hash: common.HexToHash("0x01d"), Number: 10, Time: 1000}
@@ -1282,10 +1276,22 @@ func TestPredictChains_StaleGenesisTime(t *testing.T) {
 			return oldAnchor, nil
 		}
 
-		// The override anchor is valid but so old that
-		// anchor time + offset is already in the past.
-		err := predictChains(lgr, intent, st, run, selectAnchor, safe, 600)
-		require.ErrorContains(t, err, "the deployment window has elapsed")
+		// The override anchor is valid even though anchor time + offset is already in the past.
+		require.NoError(t, predictChains(lgr, intent, st, run, selectAnchor, safe, 600))
+	})
+
+	t.Run("zero offset pins genesis to safe anchor", func(t *testing.T) {
+		st := &state.State{Create2Salt: common.HexToHash("0x03")}
+		safe := &state.L1BlockRefJSON{Hash: common.HexToHash("0x5afe"), Number: 500, Time: 9000}
+		selectAnchor := func(overrideHash *common.Hash) (*state.L1BlockRefJSON, error) {
+			return safe, nil
+		}
+
+		require.NoError(t, predictChains(lgr, newIntent(), st, run, selectAnchor, safe, 0))
+		chain, err := st.Chain(chainID)
+		require.NoError(t, err)
+		require.Equal(t, safe, chain.StartBlock)
+		require.EqualValues(t, safe.Time, *chain.GenesisTime)
 	})
 }
 
@@ -1307,11 +1313,10 @@ func TestPrepare_RejectsAppliedWorkdir(t *testing.T) {
 	require.NoError(t, st.WriteToFile(filepath.Join(workdir, "state.json")))
 
 	err := Prepare(context.Background(), PrepareConfig{
-		Workdir:           workdir,
-		Logger:            testlog.Logger(t, slog.LevelWarn),
-		PrivateKey:        testPrivKey,
-		L1RPCUrl:          testL1RPCUrl,
-		GenesisTimeOffset: standard.DefaultGenesisTimeOffsetSeconds,
+		Workdir:    workdir,
+		Logger:     testlog.Logger(t, slog.LevelWarn),
+		PrivateKey: testPrivKey,
+		L1RPCUrl:   testL1RPCUrl,
 	})
 	require.ErrorContains(t, err, "cannot be prepared")
 }
