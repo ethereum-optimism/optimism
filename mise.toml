@@ -60,9 +60,15 @@ protoc = "35.1"
 # Foundry dependencies
 # Foundry is a special case because it supplies multiple binaries at the same
 # GitHub release, so we need to use the aliasing trick to get mise to not error
-forge = "1.8.3"
-cast = "1.8.3"
-anvil = "1.8.3"
+
+# TODO: switch back to the 1.8.5 release once it is published. This nightly includes the
+# Anvil pool fix (foundry-rs/foundry#17266), which landed after v1.8.4.
+# forge = "1.8.5"
+# cast = "1.8.5"
+# anvil = "1.8.5"
+forge = "nightly-328811cbb4a9b9b7115d234a097053474601296a"
+cast = "nightly-328811cbb4a9b9b7115d234a097053474601296a"
+anvil = "nightly-328811cbb4a9b9b7115d234a097053474601296a"
 
 # Other dependencies
 goreleaser-pro = "2.11.2"
