@@ -1271,14 +1271,6 @@ func (e *EngineController) forceReset(ctx context.Context, localUnsafe, localSaf
 
 	ForceEngineReset(e, localUnsafe, localSafe, crossSafe, finalized)
 	e.crossSafeCache.Store(crossSafe)
-	// The reset finalized head is what this node last published (sync-start reads
-	// it from the engine's finalized label). Seed the SuperAuthority finalized
-	// cache from it so a fresh controller, e.g. after a supernode virtual-node
-	// restart, cannot regress the published finalized head to the Anchor while
-	// the verifier has no entry yet. Finalized is monotonic, so only ever raise.
-	if e.superAuthority != nil && finalized.Number > e.superAuthorityFinalizedHead.Number {
-		e.superAuthorityFinalizedHead = finalized
-	}
 
 	if e.pipelineResetter != nil {
 		e.emitter.Emit(ctx, derive.ConfirmPipelineResetEvent{})
@@ -1445,7 +1437,24 @@ func (e *EngineController) onResetEngineRequest(ctx context.Context) {
 		})
 		return
 	}
+	e.seedSuperAuthorityFinalizedCache(result)
 	e.forceReset(ctx, result.Unsafe, result.Safe, result.Safe, result.Finalized, false)
+}
+
+// seedSuperAuthorityFinalizedCache seeds the SuperAuthority finalized cache from
+// sync-start heads, so a fresh controller (e.g. after a supernode virtual-node
+// restart) cannot regress the published finalized head to the Anchor while the
+// verifier has no entry yet. Only the engine's own finalized label is trusted:
+// the EL-sync recovery branches of FindL2Heads synthesize Finalized from the
+// unsafe tip, and the cache is trusted without re-validation, so seeding from
+// them would publish unverified finality. Finalized is monotonic, so only ever raise.
+func (e *EngineController) seedSuperAuthorityFinalizedCache(heads *sync.FindHeadsResult) {
+	if e.superAuthority == nil || !heads.FinalizedFromEngine {
+		return
+	}
+	if heads.Finalized.Number > e.superAuthorityFinalizedHead.Number {
+		e.superAuthorityFinalizedHead = heads.Finalized
+	}
 }
 
 // TryInitialResetEngineForSequencer resets engine controller with the info from FindL2Heads and only propagates
@@ -1466,6 +1475,7 @@ func (e *EngineController) TryInitialResetEngineForSequencer(ctx context.Context
 		// Because the engine controller failed to initialize, the next SyncStep will retry this method
 		return
 	}
+	e.seedSuperAuthorityFinalizedCache(result)
 	e.forceReset(ctx, result.Unsafe, result.Safe, result.Safe, result.Finalized, true)
 }
 

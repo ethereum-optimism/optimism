@@ -89,6 +89,9 @@ func (c *syncStartTestCase) Run(t *testing.T) {
 
 	gotSafeHead := refToRune(result.Safe.ID())
 	require.Equal(t, string(c.SafeL2Head), string(gotSafeHead), "Safe L2 Head not equal")
+
+	require.True(t, result.FinalizedFromEngine, "walk-back keeps the engine's finalized label")
+	require.Equal(t, string(c.PreFinalizedL2), string(refToRune(result.Finalized.ID())), "Finalized L2 Head not equal")
 }
 
 func TestFindSyncStart(t *testing.T) {
@@ -473,6 +476,7 @@ func TestL2HeadsForELSyncWithOffset(t *testing.T) {
 			require.Equal(t, tt.tip, result.Unsafe, "unsafe head should always be the tip")
 			require.Equal(t, tt.wantSafe, result.Safe, "safe head")
 			require.Equal(t, tt.wantSafe, result.Finalized, "finalized head")
+			require.False(t, result.FinalizedFromEngine, "EL-sync finalized head is synthesized")
 		})
 	}
 }
