@@ -120,3 +120,13 @@ proposer package/binary is `op-zk-proposer`, and the removed standalone
 artifact validation, the op-reth shadow and runtime fixtures follow those changes.
 The immutable earlier comparison above predates that upstream rename/removal;
 final same-revision evidence is recorded in the PR.
+
+The current-source validation exposed Cargo reusing older workspace dependency
+metadata from restored targets when checkout timestamps did not advance. Circle
+compiled op-reth successfully on the same SHA. The live two-crate Cargo fixture
+reproduces the missing-trait failure, then passes after the timestamp correction
+and proves unchanged targets remain reusable. All Rust producers now fingerprint
+source content, restore a stable timestamp for each content version and commit
+that fingerprint only after successful compilation. Registry targets and sccache
+remain intact. See the [failure attribution](rwx-acceptance-evidence/cargo-freshness-failure.json).
+The expanded pinned Linux helper suite passes all 153 tests.

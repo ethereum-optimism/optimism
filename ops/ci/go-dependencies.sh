@@ -38,8 +38,10 @@ case "$job" in
     sccache --start-server
     sccache --zero-stats
     trap 'sccache --show-stats --stats-format json >.ci/go-tests/dependencies/kona/sccache.json; sccache --stop-server' EXIT
+    python3 ops/ci/rust-target-cache.py prepare
     (cd rust && mold -run cargo build --locked --profile release --features default \
       --package kona-host --package kona-client --package kona-node --package op-zk-proposer)
+    python3 ops/ci/rust-target-cache.py commit
     python3 ops/ci/go-artifacts.py pack kona rust/target/release/kona-host rust/target/release/kona-client \
       rust/target/release/kona-node rust/target/release/op-zk-proposer
     ;;
@@ -51,8 +53,10 @@ case "$job" in
     sccache --start-server
     sccache --zero-stats
     trap 'sccache --show-stats --stats-format json >.ci/go-tests/dependencies/sp1-executor/sccache.json; sccache --stop-server' EXIT
+    python3 ops/ci/rust-target-cache.py prepare
     (cd rust && mold -run cargo build --locked --profile release --all-features \
       --package kona-sp1-super-range-executor --bin kona-sp1-super-range-executor)
+    python3 ops/ci/rust-target-cache.py commit
     mkdir -p .circleci-cache/rust-binaries
     cp rust/target/release/kona-sp1-super-range-executor .circleci-cache/rust-binaries/
     python3 ops/ci/go-artifacts.py pack sp1-executor .circleci-cache/rust-binaries/kona-sp1-super-range-executor

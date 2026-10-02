@@ -36,6 +36,8 @@ if command == "mold":
 elif command == "git":
     if args == ["rev-parse", "HEAD"]:
         print(os.environ["SOURCE_SHA"])
+    elif args[:1] == ["ls-files"]:
+        sys.stdout.buffer.write(b"rust/Cargo.lock\0mise.toml\0")
     elif args[:2] == ["submodule", "status"]:
         print("pinned public submodule")
     elif args[:2] == ["diff", "--exit-code"]:
@@ -102,7 +104,7 @@ class ShadowTest(unittest.TestCase):
         (self.root / "rust/op-reth/crates/chainspec/res/superchain-configs.tar.sha256").write_text("0" * 64 + "  superchain-configs.tar\n")
         self.scripts = self.root / "ops/ci"
         self.scripts.mkdir(parents=True)
-        for name in ("op-reth-shadow.sh", "op-reth-report.py"):
+        for name in ("op-reth-shadow.sh", "op-reth-report.py", "rust-target-cache.py"):
             shutil.copyfile(SCRIPTS / name, self.scripts / name)
         self.bin = self.root / "bin"
         self.bin.mkdir()

@@ -118,7 +118,9 @@ tasks:
 
   - key: helper-tests
     use: [code, tools]
-    run: python3 ops/ci/test_op_reth_shadow.py
+    run: |
+      python3 ops/ci/test_op_reth_shadow.py
+      python3 -m unittest discover -s ops/ci -p 'test_rust_target_cache.py'
     cache: false
     timeout: 10m
     outputs:
@@ -128,14 +130,14 @@ tasks:
     use: tools
     if: ${{ init.cache-warm == 'true' || tasks.route.values.run-main == 'true' || tasks.route.values.run-rust-ci == 'true' }}
     run: |
-      cp "$CI_SCRIPTS/rwx-rust-prepare.sh" "$CI_SCRIPTS/op-reth-shadow.sh" "$CI_SCRIPTS/op-reth-report.py" ops/ci/
+      cp "$CI_SCRIPTS/rwx-rust-prepare.sh" "$CI_SCRIPTS/op-reth-shadow.sh" "$CI_SCRIPTS/op-reth-report.py" "$CI_SCRIPTS/rust-target-cache.py" ops/ci/
       bash ops/ci/rwx-prepare.sh rust
       mise exec -- bash ops/ci/rwx-rust-prepare.sh
     env:
       CI_SCRIPTS: ${{ tasks.bootstrap-inputs.artifacts.ci-scripts }}
     filter:
       workspace: [mise.toml, ops/ci/rwx-prepare.sh, .circleci/scripts/apt-install.sh]
-      ${{ tasks.bootstrap-inputs.artifacts.ci-scripts }}: [rwx-rust-prepare.sh, op-reth-shadow.sh, op-reth-report.py]
+      ${{ tasks.bootstrap-inputs.artifacts.ci-scripts }}: [rwx-rust-prepare.sh, op-reth-shadow.sh, op-reth-report.py, rust-target-cache.py]
     timeout: 30m
 
   # Download once for all producers. The manifest tree is kept intact for

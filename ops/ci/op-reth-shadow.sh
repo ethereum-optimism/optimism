@@ -24,6 +24,9 @@ finish() {
     sccache --show-stats --stats-format json >"$report_dir/sccache.json" || diagnostics=$?
     sccache --stop-server >"$report_dir/sccache-stop.log" 2>&1 || diagnostics=$?
   fi
+  if [[ "$job" == *-build && "$status" == 0 ]]; then
+    python3 "$(dirname "$REPORT")/rust-target-cache.py" commit || diagnostics=$?
+  fi
   python3 "$REPORT" metadata "$report_dir" "$job" "$started" "$status" || diagnostics=$?
   if [[ "$status" == 0 && "$diagnostics" != 0 ]]; then status=$diagnostics; fi
   exit "$status"
@@ -43,6 +46,7 @@ if [[ "$job" == *-build ]]; then
   # every build dirties chainspec and forces downstream recompilation/relinking.
   # A stale bundle is removed so build.rs regenerates from the pinned submodule.
   python3 "$REPORT" prepare-superchain "$report_dir"
+  python3 "$(dirname "$REPORT")/rust-target-cache.py" prepare
 fi
 
 case "$job" in

@@ -25,6 +25,7 @@ sudo install -m 0755 "$download/sccache-v${SCCACHE_VERSION}-x86_64-unknown-linux
 # the same implementation without overlaying PR source onto the baseline.
 sudo mkdir -p /usr/local/lib/optimism-ci
 sudo install -m 0755 ops/ci/op-reth-shadow.sh /usr/local/lib/optimism-ci/op-reth-shadow.sh
+sudo install -m 0755 ops/ci/rust-target-cache.py /usr/local/lib/optimism-ci/rust-target-cache.py
 sudo install -m 0755 ops/ci/op-reth-report.py /usr/local/lib/optimism-ci/op-reth-report.py
 printf '%s\n' "$PATH" >"$RWX_ENV/PATH"
 printf '%s\n' "${RUSTUP_HOME:?mise exec must export its Rust toolchain directory}" >"$RWX_ENV/RUSTUP_HOME"
