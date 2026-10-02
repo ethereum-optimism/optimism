@@ -2,7 +2,7 @@ name: Renovate
 
 on:
   schedule:
-    - cron: "0 6 * * *" # daily 06:00 UTC
+    - cron: "27 * * * *" # hourly, staggered minute to avoid org-wide thundering herd
   workflow_dispatch:
     inputs:
       logLevel:
