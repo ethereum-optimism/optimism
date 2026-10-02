@@ -32,6 +32,20 @@ PROCESSES = set()
 PROCESS_LOCK = threading.Lock()
 
 
+def backup_timeout(value):
+    # go test grants at least one extra minute beyond the testing package's
+    # alarm, bounding TestMain cleanup and inherited output pipes as well.
+    units = {'ns': 1e-9, 'us': 1e-6, 'µs': 1e-6, 'ms': 1e-3, 's': 1, 'm': 60, 'h': 3600}
+    if value == '0':
+        return None
+    pattern = r'(\d+(?:\.\d*)?|\.\d+)(ns|us|µs|ms|s|m|h)'
+    pieces = re.findall(pattern, value)
+    if not pieces or ''.join(number + unit for number, unit in pieces) != value:
+        raise ValueError('Invalid Go package timeout')
+    seconds = sum(float(number) * units[unit] for number, unit in pieces)
+    return seconds + 60 if seconds else None
+
+
 def digest(path):
     with path.open("rb") as source:
         return hashlib.file_digest(source, "sha256").hexdigest()
@@ -197,6 +211,7 @@ def run(args):
         if len(args) != 2 or not args[0].startswith("-test.run=") or args[1] not in selected:
             raise ValueError("Unexpected gotestsum rerun arguments")
         run_filter, selected = args[0][len("-test.run="):], [args[1]]
+    delay = backup_timeout(os.environ.get('TEST_TIMEOUT', '40m'))
 
     def run_package(package):
         binary = metadata["packages"][package]["file"]
@@ -208,7 +223,11 @@ def run(args):
         # go test runs each binary in its package directory. Preserve fixtures,
         # -count=1, -parallel=nproc, -timeout=40m, and at most four packages.
         directory = ROOT / package.removeprefix("github.com/ethereum-optimism/optimism/")
-        command = [str(BUILD / "test2json"), "-t", "-p", package, str(BUILD / binary),
+        # test2json command mode ignores INT/QUIT before spawning its child.
+        # Reset those dispositions before exec, as ordinary go test does;
+        # otherwise subprocess fixtures inherit SIG_IGN and cannot stop.
+        launch = 'import os,signal,sys; signal.signal(signal.SIGINT,signal.SIG_DFL); signal.signal(signal.SIGQUIT,signal.SIG_DFL); os.execv(sys.argv[1],sys.argv[1:])'
+        command = [str(BUILD / "test2json"), "-t", "-p", package, sys.executable, "-c", launch, str(BUILD / binary),
                    "-test.v=test2json", "-test.count=1", "-test.parallel=" + os.environ["PARALLEL"],
                    "-test.timeout=" + os.environ.get("TEST_TIMEOUT", "40m"), "-test.paniconexit0"]
         if run_filter is not None:
@@ -216,11 +235,24 @@ def run(args):
         with PROCESS_LOCK:
             process = subprocess.Popen(command, cwd=directory, stdout=subprocess.PIPE, text=True, start_new_session=True)
             PROCESSES.add(process)
+        def expire():
+            emit(json.dumps({'Time': datetime.now(timezone.utc).isoformat(), 'Action': 'output', 'Package': package,
+                             'Output': '*** Test process exceeded the package timeout plus one-minute cleanup grace.\n'}) + '\n')
+            try:
+                os.killpg(process.pid, signal.SIGKILL)
+            except ProcessLookupError:
+                pass
+        watchdog = threading.Timer(delay, expire) if delay is not None else None
+        if watchdog:
+            watchdog.daemon = True
+            watchdog.start()
         try:
             for line in process.stdout:
                 emit(line)
             return process.wait()
         finally:
+            if watchdog:
+                watchdog.cancel()
             process.stdout.close()
             with PROCESS_LOCK:
                 PROCESSES.discard(process)

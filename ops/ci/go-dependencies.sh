@@ -34,10 +34,10 @@ case "$job" in
     export SCCACHE_BASEDIRS="$PWD" SCCACHE_CACHE_SIZE=10G SCCACHE_IDLE_TIMEOUT=0
     mkdir -p "$CARGO_HOME" "$SCCACHE_DIR"
     if [[ "${TARGET_CACHE_MODE:-keep}" == sccache-only ]]; then rm -rf rust/target; fi
-    mkdir -p .ci/go-tests
+    mkdir -p .ci/go-tests/dependencies/kona
     sccache --start-server
     sccache --zero-stats
-    trap 'sccache --show-stats --stats-format json >.ci/go-tests/kona-sccache.json; sccache --stop-server' EXIT
+    trap 'sccache --show-stats --stats-format json >.ci/go-tests/dependencies/kona/sccache.json; sccache --stop-server' EXIT
     (cd rust && mold -run cargo build --locked --profile release --features default \
       --package kona-host --package kona-client --package kona-node --package kona-sp1-proposer)
     python3 ops/ci/go-artifacts.py pack kona rust/target/release/kona-host rust/target/release/kona-client \

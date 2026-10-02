@@ -319,7 +319,7 @@ tasks:
           workspace: [.ci/go-cache/full/run]
           system: []
       test-results:
-        - path: tmp/testlogs/log.json
+        - path: tmp/testlogs/native.json
           options:
             language: Go
             framework: go test
@@ -400,7 +400,7 @@ tasks:
           workspace: [.ci/go-cache/full/run]
           system: []
       test-results:
-        - path: tmp/testlogs/log.json
+        - path: tmp/testlogs/native.json
           options:
             language: Go
             framework: go test
@@ -481,7 +481,7 @@ tasks:
           workspace: [.ci/go-cache/full/run]
           system: []
       test-results:
-        - path: tmp/testlogs/log.json
+        - path: tmp/testlogs/native.json
           options:
             language: Go
             framework: go test
@@ -562,7 +562,7 @@ tasks:
           workspace: [.ci/go-cache/full/run]
           system: []
       test-results:
-        - path: tmp/testlogs/log.json
+        - path: tmp/testlogs/native.json
           options:
             language: Go
             framework: go test
@@ -643,7 +643,7 @@ tasks:
           workspace: [.ci/go-cache/full/run]
           system: []
       test-results:
-        - path: tmp/testlogs/log.json
+        - path: tmp/testlogs/native.json
           options:
             language: Go
             framework: go test
@@ -724,7 +724,7 @@ tasks:
           workspace: [.ci/go-cache/full/run]
           system: []
       test-results:
-        - path: tmp/testlogs/log.json
+        - path: tmp/testlogs/native.json
           options:
             language: Go
             framework: go test
@@ -805,7 +805,7 @@ tasks:
           workspace: [.ci/go-cache/full/run]
           system: []
       test-results:
-        - path: tmp/testlogs/log.json
+        - path: tmp/testlogs/native.json
           options:
             language: Go
             framework: go test
@@ -886,7 +886,7 @@ tasks:
           workspace: [.ci/go-cache/full/run]
           system: []
       test-results:
-        - path: tmp/testlogs/log.json
+        - path: tmp/testlogs/native.json
           options:
             language: Go
             framework: go test
@@ -967,7 +967,7 @@ tasks:
           workspace: [.ci/go-cache/full/run]
           system: []
       test-results:
-        - path: tmp/testlogs/log.json
+        - path: tmp/testlogs/native.json
           options:
             language: Go
             framework: go test
@@ -1048,7 +1048,7 @@ tasks:
           workspace: [.ci/go-cache/full/run]
           system: []
       test-results:
-        - path: tmp/testlogs/log.json
+        - path: tmp/testlogs/native.json
           options:
             language: Go
             framework: go test
@@ -1129,7 +1129,7 @@ tasks:
           workspace: [.ci/go-cache/full/run]
           system: []
       test-results:
-        - path: tmp/testlogs/log.json
+        - path: tmp/testlogs/native.json
           options:
             language: Go
             framework: go test
@@ -1210,7 +1210,7 @@ tasks:
           workspace: [.ci/go-cache/full/run]
           system: []
       test-results:
-        - path: tmp/testlogs/log.json
+        - path: tmp/testlogs/native.json
           options:
             language: Go
             framework: go test
@@ -1291,7 +1291,7 @@ tasks:
           workspace: [.ci/go-cache/full/run]
           system: []
       test-results:
-        - path: tmp/testlogs/log.json
+        - path: tmp/testlogs/native.json
           options:
             language: Go
             framework: go test
@@ -1372,7 +1372,7 @@ tasks:
           workspace: [.ci/go-cache/full/run]
           system: []
       test-results:
-        - path: tmp/testlogs/log.json
+        - path: tmp/testlogs/native.json
           options:
             language: Go
             framework: go test
@@ -1453,7 +1453,7 @@ tasks:
           workspace: [.ci/go-cache/full/run]
           system: []
       test-results:
-        - path: tmp/testlogs/log.json
+        - path: tmp/testlogs/native.json
           options:
             language: Go
             framework: go test
@@ -1534,7 +1534,7 @@ tasks:
           workspace: [.ci/go-cache/full/run]
           system: []
       test-results:
-        - path: tmp/testlogs/log.json
+        - path: tmp/testlogs/native.json
           options:
             language: Go
             framework: go test
@@ -1615,7 +1615,7 @@ tasks:
           workspace: [.ci/go-cache/full/run]
           system: []
       test-results:
-        - path: tmp/testlogs/log.json
+        - path: tmp/testlogs/native.json
           options:
             language: Go
             framework: go test
@@ -1696,7 +1696,7 @@ tasks:
           workspace: [.ci/go-cache/full/run]
           system: []
       test-results:
-        - path: tmp/testlogs/log.json
+        - path: tmp/testlogs/native.json
           options:
             language: Go
             framework: go test
@@ -1777,7 +1777,7 @@ tasks:
           workspace: [.ci/go-cache/full/run]
           system: []
       test-results:
-        - path: tmp/testlogs/log.json
+        - path: tmp/testlogs/native.json
           options:
             language: Go
             framework: go test
@@ -1858,7 +1858,7 @@ tasks:
           workspace: [.ci/go-cache/full/run]
           system: []
       test-results:
-        - path: tmp/testlogs/log.json
+        - path: tmp/testlogs/native.json
           options:
             language: Go
             framework: go test
@@ -1939,7 +1939,7 @@ tasks:
           workspace: [.ci/go-cache/full/run]
           system: []
       test-results:
-        - path: tmp/testlogs/log.json
+        - path: tmp/testlogs/native.json
           options:
             language: Go
             framework: go test
@@ -2020,7 +2020,7 @@ tasks:
           workspace: [.ci/go-cache/full/run]
           system: []
       test-results:
-        - path: tmp/testlogs/log.json
+        - path: tmp/testlogs/native.json
           options:
             language: Go
             framework: go test
@@ -2101,7 +2101,7 @@ tasks:
           workspace: [.ci/go-cache/full/run]
           system: []
       test-results:
-        - path: tmp/testlogs/log.json
+        - path: tmp/testlogs/native.json
           options:
             language: Go
             framework: go test
@@ -2182,7 +2182,7 @@ tasks:
           workspace: [.ci/go-cache/full/run]
           system: []
       test-results:
-        - path: tmp/testlogs/log.json
+        - path: tmp/testlogs/native.json
           options:
             language: Go
             framework: go test

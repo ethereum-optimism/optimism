@@ -36,7 +36,9 @@ class CompiledGoTest(unittest.TestCase):
         self.manifest = SHARDS.create_manifest(self.packages, PREFIX, 1)
         (self.build.parent / "manifest.json").write_text(json.dumps(self.manifest))
         self.executable(self.build / "test2json", '''#!/usr/bin/env python3
-import os, sys
+import os, signal, sys
+signal.signal(signal.SIGINT, signal.SIG_IGN)
+signal.signal(signal.SIGQUIT, signal.SIG_IGN)
 os.environ['REPORT_PACKAGE'] = sys.argv[3]
 os.execv(sys.argv[4], sys.argv[4:])
 ''')
@@ -135,6 +137,11 @@ sys.exit(1 if failed else 0)
         self.assertNotEqual(self.run_helper("run").returncode, 0)
         self.assertFalse(self.calls.exists())
 
+    def test_invalid_package_timeout_fails_before_spawning_binaries(self):
+        result = self.run_helper('run', TEST_TIMEOUT='invalid')
+        self.assertNotEqual(result.returncode, 0)
+        self.assertFalse(self.calls.exists())
+
     def test_cancellation_terminates_active_binary_process_group(self):
         pidfile = self.root / "binary.pid"
         self.executable(self.build / "0.test", "#!/usr/bin/env python3\nimport os,time,pathlib\npathlib.Path(" + repr(str(pidfile)) + ").write_text(str(os.getpid()))\ntime.sleep(300)\n")
@@ -160,6 +167,22 @@ sys.exit(1 if failed else 0)
             if pidfile.exists():
                 try: os.kill(int(pidfile.read_text()), signal.SIGKILL)
                 except ProcessLookupError: pass
+
+    def test_subprocess_interrupt_disposition_matches_go_test(self):
+        self.executable(self.build / '0.test', '''#!/usr/bin/env python3
+import json, signal, subprocess
+p = subprocess.Popen(['/bin/sleep', '30'])
+try:
+    p.send_signal(signal.SIGINT)
+    p.wait(timeout=2)
+    assert p.returncode == -signal.SIGINT
+finally:
+    if p.poll() is None: p.kill(); p.wait()
+''')
+        self.metadata['packages'][self.packages[0]]['sha256'] = self.digest(self.build / '0.test')
+        self.save_metadata()
+        result = self.run_helper('run')
+        self.assertEqual(result.returncode, 0, result.stderr)
 
     @unittest.skipUnless(shutil.which("gotestsum"), "Pinned gotestsum is exercised on Linux")
     def test_actual_gotestsum_stops_retries_above_fifty_failures(self):
@@ -202,7 +225,7 @@ class FullCompiledGoTest(CompiledGoTest):
         self.manifest["prefix"] = "github.com/ethereum-optimism/optimism"
         self.settings = {"tags": ["ci"], "short": False, "count": 1, "package_parallelism": 4,
                          "parallel": 8, "timeout": "40m", "rerun_fails": 3, "rerun_fails_max_failures": 50}
-        environment = {'ENABLE_KURTOSIS':'true', 'OP_E2E_CANNON_ENABLED':'false', 'OP_E2E_USE_HTTP':'true',
+        environment = {'CI':'true', 'ENABLE_KURTOSIS':'true', 'OP_E2E_CANNON_ENABLED':'false', 'OP_E2E_USE_HTTP':'true',
                        'ENABLE_ANVIL':'true', 'NAT_INTEROP_LOADTEST_TARGET':'10', 'NAT_INTEROP_LOADTEST_TIMEOUT':'30s'}
         self.env.update(environment)
         self.manifest.update(suite="go-tests", commit_sha="a"*40, settings=self.settings,

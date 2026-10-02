@@ -8,11 +8,21 @@ export NAT_INTEROP_LOADTEST_TARGET=10 NAT_INTEROP_LOADTEST_TIMEOUT=30s
 export GOMODCACHE="$PWD/.ci/go-cache/full/modules"
 export GOCACHE="$PWD/.ci/go-cache/full/${1:-run}"
 mkdir -p "$GOMODCACHE" "$GOCACHE"
+# Unlike `go test`, invoking compiled binaries does not replace mise's GOROOT
+# when GOTOOLCHAIN selects the newer version required by go.mod.
+export GOROOT
+GOROOT="$(go env GOROOT)"
+export PATH="$GOROOT/bin:$PATH"
 phase="${1:-run}"
 phase_started="$(date +%s)"
 finish_phase() {
   local status=$?
   trap - EXIT
+  if [[ "$phase" == run && -f tmp/testlogs/log.json ]]; then
+    if ! python3 ops/ci/go-report.py tmp/testlogs/log.json tmp/testlogs/native.json; then
+      [[ "$status" -ne 0 ]] || status=1
+    fi
+  fi
   python3 - "$phase" "$phase_started" "$status" <<'PYCODE'
 import json, os, sys, time
 from pathlib import Path
@@ -47,7 +57,8 @@ case "${1:-run}" in
     source ops/scripts/source-ci-archive-rpcs.sh
     (cd cannon && just diff-hello-elf)
     python3 ops/ci/go-compiled-tests.py verify --suite go-tests
-    ./ops/scripts/gotestsum-split.sh --format=standard-verbose \
+    # Keep full output in JSON/per-test artifacts without exhausting live-log quotas.
+    ./ops/scripts/gotestsum-split.sh --format=pkgname \
       --junitfile="tmp/test-results/results-${CI_SHARD_INDEX}.xml" --jsonfile=tmp/testlogs/log.json \
       --rerun-fails=3 --rerun-fails-max-failures=50 --raw-command \
       -- python3 ops/ci/go-compiled-tests.py run --suite go-tests

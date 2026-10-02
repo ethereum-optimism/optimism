@@ -25,7 +25,7 @@ def settings(*, fresh=True, short=False):
             "rerun_fails": 3, "rerun_fails_max_failures": 50}
 
 
-TEST_ENVIRONMENT = ('ENABLE_KURTOSIS', 'OP_E2E_CANNON_ENABLED', 'OP_E2E_USE_HTTP',
+TEST_ENVIRONMENT = ('CI', 'ENABLE_KURTOSIS', 'OP_E2E_CANNON_ENABLED', 'OP_E2E_USE_HTTP',
                     'ENABLE_ANVIL', 'NAT_INTEROP_LOADTEST_TARGET', 'NAT_INTEROP_LOADTEST_TIMEOUT')
 
 

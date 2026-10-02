@@ -21,6 +21,12 @@ Compilation never invokes TestMain. The runner executes verified binaries in
 the original package working directories with `-test.count=1`, `-parallel=8`,
 a 40-minute package timeout, and at most four concurrent packages. Gotestsum
 retains the original events and permits three retries with a 50-failure ceiling.
+Native reporting consumes a compact projection that preserves every verdict and
+retry event, and bounded failure/skip output. Its metadata hashes the unchanged
+complete original JSON, which remains available with JUnit and per-test logs.
+The runner restores default interrupt/quit signal dispositions before executing
+each binary: `test2json` command mode otherwise leaks ignored signals into
+subprocess fixtures. It also retains Go's one-minute backup cleanup grace.
 The CLI retains `--suite go-rollup` compatibility.
 
 [Captain's Go support](https://www.rwx.com/docs/captain/test-frameworks/go/go-test)
@@ -54,7 +60,11 @@ producers and compilation only, executing zero tests.
 Dispatch Circle with public parameter `c-go_fresh_tests: true`. Its default is
 false. Setup forwards it as `c-go_fresh_tests_effective` to avoid Circle's conflict
 when a nondefault setup parameter is also passed to continuation under the same
-name. The shared Go runner adds `-count=1`. Circle retains tagged discovery,
+name. The shared Go runner adds `-count=1` and pins fresh benchmark concurrency
+to `-parallel=8`. Normal runs retain their existing `nproc` behavior. An
+exploratory fresh run exposed `nproc=32` inside the 8-CPU Circle container;
+that run is not a comparable benchmark against RWX's explicit parallelism.
+Circle retains tagged discovery,
 complete selection, effective settings, per-node assignments, original Go JSON,
 JUnit and per-test logs. Benchmark both providers at the same immutable SHA.
 
