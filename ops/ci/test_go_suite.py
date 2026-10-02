@@ -37,7 +37,7 @@ class GoSuiteTest(unittest.TestCase):
             (logs / "all-packages.txt").write_text("\n".join(self.packages) + "\n")
             (logs / "discovery.json").write_text("\n".join(json.dumps({"ImportPath": p}) for p in self.packages))
             for fresh, expected in (("false", None), ("0", None), ("true", 1), ("1", 1)):
-                with patch.object(SUITE, "ROOT", root), patch.dict(os.environ, {
+                with patch.object(SUITE, "ROOT", root), patch.object(SUITE, "go_environment", return_value={"GOOS":"linux"}), patch.object(SUITE.subprocess, "check_output", return_value="go version fixture"), patch.dict(os.environ, {
                     "CIRCLE_SHA1": "a" * 40, "CIRCLE_BRANCH": "codex/pilot",
                     "CIRCLE_NODE_TOTAL": "12", "CIRCLE_NODE_INDEX": "4",
                     "CI_GO_FRESH_TESTS": fresh, "PARALLEL": "8", "TEST_TIMEOUT": "40m",

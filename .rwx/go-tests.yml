@@ -146,6 +146,7 @@ tasks:
 
   - key: helper-tests
     use: [code, go-build-tools]
+    if: ${{ init.cache-warm != 'true' }}
     run: mise exec -- python3 -m unittest discover -s ops/ci -p 'test_go*.py'
     cache: false
     timeout: 10m
@@ -235,10 +236,11 @@ tasks:
       python3 ops/ci/go-artifacts.py restore contracts "$CONTRACT_ARTIFACT"
       mise exec -- bash ops/ci/go-full-tests.sh discover
     env:
+      CI_BRANCH: ${{ init.branch }}
       CI_COMMIT_SHA: ${{ init.commit-sha }}
       CI_SHARD_TOTAL: ${{ init.shard-total }}
-      GO_ARTIFACT: ${{ tasks.go.build.artifacts.dependency }}
-      CONTRACT_ARTIFACT: ${{ tasks.contracts.build.artifacts.dependency }}
+      GO_ARTIFACT: ${{ tasks.go.tasks.build.artifacts.dependency }}
+      CONTRACT_ARTIFACT: ${{ tasks.contracts.tasks.build.artifacts.dependency }}
     outputs:
       filesystem:
         filter:
@@ -298,11 +300,11 @@ tasks:
       CI_SHARD_TOTAL: ${{ init.shard-total }}
       GO_BINARIES: ${{ tasks.compile-0.artifacts.binaries }}
       DISCOVERY: ${{ tasks.discovery.artifacts.discovery }}
-      GO_ARTIFACT: ${{ tasks.go.build.artifacts.dependency }}
-      CONTRACT_ARTIFACT: ${{ tasks.contracts.build.artifacts.dependency }}
-      KONA_ARTIFACT: ${{ tasks.kona.build.artifacts.dependency }}
-      RETH_ARTIFACT: ${{ tasks.op-reth.build.artifacts.dependency }}
-      PRESTATE_ARTIFACT: ${{ tasks.prestate.build.artifacts.dependency }}
+      GO_ARTIFACT: ${{ tasks.go.tasks.build.artifacts.dependency }}
+      CONTRACT_ARTIFACT: ${{ tasks.contracts.tasks.build.artifacts.dependency }}
+      KONA_ARTIFACT: ${{ tasks.kona.tasks.build.artifacts.dependency }}
+      RETH_ARTIFACT: ${{ tasks.op-reth.tasks.build.artifacts.dependency }}
+      PRESTATE_ARTIFACT: ${{ tasks.prestate.tasks.build.artifacts.dependency }}
       OP_CI_MAINNET_L1_ARCHIVE_RPC_URL: ${{ vaults.optimism-go-tests-rpc-shadow.secrets.OP_CI_MAINNET_L1_ARCHIVE_RPC_URL }}
       OP_CI_SEPOLIA_L1_ARCHIVE_RPC_URL: ${{ vaults.optimism-go-tests-rpc-shadow.secrets.OP_CI_SEPOLIA_L1_ARCHIVE_RPC_URL }}
     cache: false
@@ -379,11 +381,11 @@ tasks:
       CI_SHARD_TOTAL: ${{ init.shard-total }}
       GO_BINARIES: ${{ tasks.compile-1.artifacts.binaries }}
       DISCOVERY: ${{ tasks.discovery.artifacts.discovery }}
-      GO_ARTIFACT: ${{ tasks.go.build.artifacts.dependency }}
-      CONTRACT_ARTIFACT: ${{ tasks.contracts.build.artifacts.dependency }}
-      KONA_ARTIFACT: ${{ tasks.kona.build.artifacts.dependency }}
-      RETH_ARTIFACT: ${{ tasks.op-reth.build.artifacts.dependency }}
-      PRESTATE_ARTIFACT: ${{ tasks.prestate.build.artifacts.dependency }}
+      GO_ARTIFACT: ${{ tasks.go.tasks.build.artifacts.dependency }}
+      CONTRACT_ARTIFACT: ${{ tasks.contracts.tasks.build.artifacts.dependency }}
+      KONA_ARTIFACT: ${{ tasks.kona.tasks.build.artifacts.dependency }}
+      RETH_ARTIFACT: ${{ tasks.op-reth.tasks.build.artifacts.dependency }}
+      PRESTATE_ARTIFACT: ${{ tasks.prestate.tasks.build.artifacts.dependency }}
       OP_CI_MAINNET_L1_ARCHIVE_RPC_URL: ${{ vaults.optimism-go-tests-rpc-shadow.secrets.OP_CI_MAINNET_L1_ARCHIVE_RPC_URL }}
       OP_CI_SEPOLIA_L1_ARCHIVE_RPC_URL: ${{ vaults.optimism-go-tests-rpc-shadow.secrets.OP_CI_SEPOLIA_L1_ARCHIVE_RPC_URL }}
     cache: false
@@ -460,11 +462,11 @@ tasks:
       CI_SHARD_TOTAL: ${{ init.shard-total }}
       GO_BINARIES: ${{ tasks.compile-2.artifacts.binaries }}
       DISCOVERY: ${{ tasks.discovery.artifacts.discovery }}
-      GO_ARTIFACT: ${{ tasks.go.build.artifacts.dependency }}
-      CONTRACT_ARTIFACT: ${{ tasks.contracts.build.artifacts.dependency }}
-      KONA_ARTIFACT: ${{ tasks.kona.build.artifacts.dependency }}
-      RETH_ARTIFACT: ${{ tasks.op-reth.build.artifacts.dependency }}
-      PRESTATE_ARTIFACT: ${{ tasks.prestate.build.artifacts.dependency }}
+      GO_ARTIFACT: ${{ tasks.go.tasks.build.artifacts.dependency }}
+      CONTRACT_ARTIFACT: ${{ tasks.contracts.tasks.build.artifacts.dependency }}
+      KONA_ARTIFACT: ${{ tasks.kona.tasks.build.artifacts.dependency }}
+      RETH_ARTIFACT: ${{ tasks.op-reth.tasks.build.artifacts.dependency }}
+      PRESTATE_ARTIFACT: ${{ tasks.prestate.tasks.build.artifacts.dependency }}
       OP_CI_MAINNET_L1_ARCHIVE_RPC_URL: ${{ vaults.optimism-go-tests-rpc-shadow.secrets.OP_CI_MAINNET_L1_ARCHIVE_RPC_URL }}
       OP_CI_SEPOLIA_L1_ARCHIVE_RPC_URL: ${{ vaults.optimism-go-tests-rpc-shadow.secrets.OP_CI_SEPOLIA_L1_ARCHIVE_RPC_URL }}
     cache: false
@@ -541,11 +543,11 @@ tasks:
       CI_SHARD_TOTAL: ${{ init.shard-total }}
       GO_BINARIES: ${{ tasks.compile-3.artifacts.binaries }}
       DISCOVERY: ${{ tasks.discovery.artifacts.discovery }}
-      GO_ARTIFACT: ${{ tasks.go.build.artifacts.dependency }}
-      CONTRACT_ARTIFACT: ${{ tasks.contracts.build.artifacts.dependency }}
-      KONA_ARTIFACT: ${{ tasks.kona.build.artifacts.dependency }}
-      RETH_ARTIFACT: ${{ tasks.op-reth.build.artifacts.dependency }}
-      PRESTATE_ARTIFACT: ${{ tasks.prestate.build.artifacts.dependency }}
+      GO_ARTIFACT: ${{ tasks.go.tasks.build.artifacts.dependency }}
+      CONTRACT_ARTIFACT: ${{ tasks.contracts.tasks.build.artifacts.dependency }}
+      KONA_ARTIFACT: ${{ tasks.kona.tasks.build.artifacts.dependency }}
+      RETH_ARTIFACT: ${{ tasks.op-reth.tasks.build.artifacts.dependency }}
+      PRESTATE_ARTIFACT: ${{ tasks.prestate.tasks.build.artifacts.dependency }}
       OP_CI_MAINNET_L1_ARCHIVE_RPC_URL: ${{ vaults.optimism-go-tests-rpc-shadow.secrets.OP_CI_MAINNET_L1_ARCHIVE_RPC_URL }}
       OP_CI_SEPOLIA_L1_ARCHIVE_RPC_URL: ${{ vaults.optimism-go-tests-rpc-shadow.secrets.OP_CI_SEPOLIA_L1_ARCHIVE_RPC_URL }}
     cache: false
@@ -622,11 +624,11 @@ tasks:
       CI_SHARD_TOTAL: ${{ init.shard-total }}
       GO_BINARIES: ${{ tasks.compile-4.artifacts.binaries }}
       DISCOVERY: ${{ tasks.discovery.artifacts.discovery }}
-      GO_ARTIFACT: ${{ tasks.go.build.artifacts.dependency }}
-      CONTRACT_ARTIFACT: ${{ tasks.contracts.build.artifacts.dependency }}
-      KONA_ARTIFACT: ${{ tasks.kona.build.artifacts.dependency }}
-      RETH_ARTIFACT: ${{ tasks.op-reth.build.artifacts.dependency }}
-      PRESTATE_ARTIFACT: ${{ tasks.prestate.build.artifacts.dependency }}
+      GO_ARTIFACT: ${{ tasks.go.tasks.build.artifacts.dependency }}
+      CONTRACT_ARTIFACT: ${{ tasks.contracts.tasks.build.artifacts.dependency }}
+      KONA_ARTIFACT: ${{ tasks.kona.tasks.build.artifacts.dependency }}
+      RETH_ARTIFACT: ${{ tasks.op-reth.tasks.build.artifacts.dependency }}
+      PRESTATE_ARTIFACT: ${{ tasks.prestate.tasks.build.artifacts.dependency }}
       OP_CI_MAINNET_L1_ARCHIVE_RPC_URL: ${{ vaults.optimism-go-tests-rpc-shadow.secrets.OP_CI_MAINNET_L1_ARCHIVE_RPC_URL }}
       OP_CI_SEPOLIA_L1_ARCHIVE_RPC_URL: ${{ vaults.optimism-go-tests-rpc-shadow.secrets.OP_CI_SEPOLIA_L1_ARCHIVE_RPC_URL }}
     cache: false
@@ -703,11 +705,11 @@ tasks:
       CI_SHARD_TOTAL: ${{ init.shard-total }}
       GO_BINARIES: ${{ tasks.compile-5.artifacts.binaries }}
       DISCOVERY: ${{ tasks.discovery.artifacts.discovery }}
-      GO_ARTIFACT: ${{ tasks.go.build.artifacts.dependency }}
-      CONTRACT_ARTIFACT: ${{ tasks.contracts.build.artifacts.dependency }}
-      KONA_ARTIFACT: ${{ tasks.kona.build.artifacts.dependency }}
-      RETH_ARTIFACT: ${{ tasks.op-reth.build.artifacts.dependency }}
-      PRESTATE_ARTIFACT: ${{ tasks.prestate.build.artifacts.dependency }}
+      GO_ARTIFACT: ${{ tasks.go.tasks.build.artifacts.dependency }}
+      CONTRACT_ARTIFACT: ${{ tasks.contracts.tasks.build.artifacts.dependency }}
+      KONA_ARTIFACT: ${{ tasks.kona.tasks.build.artifacts.dependency }}
+      RETH_ARTIFACT: ${{ tasks.op-reth.tasks.build.artifacts.dependency }}
+      PRESTATE_ARTIFACT: ${{ tasks.prestate.tasks.build.artifacts.dependency }}
       OP_CI_MAINNET_L1_ARCHIVE_RPC_URL: ${{ vaults.optimism-go-tests-rpc-shadow.secrets.OP_CI_MAINNET_L1_ARCHIVE_RPC_URL }}
       OP_CI_SEPOLIA_L1_ARCHIVE_RPC_URL: ${{ vaults.optimism-go-tests-rpc-shadow.secrets.OP_CI_SEPOLIA_L1_ARCHIVE_RPC_URL }}
     cache: false
@@ -784,11 +786,11 @@ tasks:
       CI_SHARD_TOTAL: ${{ init.shard-total }}
       GO_BINARIES: ${{ tasks.compile-6.artifacts.binaries }}
       DISCOVERY: ${{ tasks.discovery.artifacts.discovery }}
-      GO_ARTIFACT: ${{ tasks.go.build.artifacts.dependency }}
-      CONTRACT_ARTIFACT: ${{ tasks.contracts.build.artifacts.dependency }}
-      KONA_ARTIFACT: ${{ tasks.kona.build.artifacts.dependency }}
-      RETH_ARTIFACT: ${{ tasks.op-reth.build.artifacts.dependency }}
-      PRESTATE_ARTIFACT: ${{ tasks.prestate.build.artifacts.dependency }}
+      GO_ARTIFACT: ${{ tasks.go.tasks.build.artifacts.dependency }}
+      CONTRACT_ARTIFACT: ${{ tasks.contracts.tasks.build.artifacts.dependency }}
+      KONA_ARTIFACT: ${{ tasks.kona.tasks.build.artifacts.dependency }}
+      RETH_ARTIFACT: ${{ tasks.op-reth.tasks.build.artifacts.dependency }}
+      PRESTATE_ARTIFACT: ${{ tasks.prestate.tasks.build.artifacts.dependency }}
       OP_CI_MAINNET_L1_ARCHIVE_RPC_URL: ${{ vaults.optimism-go-tests-rpc-shadow.secrets.OP_CI_MAINNET_L1_ARCHIVE_RPC_URL }}
       OP_CI_SEPOLIA_L1_ARCHIVE_RPC_URL: ${{ vaults.optimism-go-tests-rpc-shadow.secrets.OP_CI_SEPOLIA_L1_ARCHIVE_RPC_URL }}
     cache: false
@@ -865,11 +867,11 @@ tasks:
       CI_SHARD_TOTAL: ${{ init.shard-total }}
       GO_BINARIES: ${{ tasks.compile-7.artifacts.binaries }}
       DISCOVERY: ${{ tasks.discovery.artifacts.discovery }}
-      GO_ARTIFACT: ${{ tasks.go.build.artifacts.dependency }}
-      CONTRACT_ARTIFACT: ${{ tasks.contracts.build.artifacts.dependency }}
-      KONA_ARTIFACT: ${{ tasks.kona.build.artifacts.dependency }}
-      RETH_ARTIFACT: ${{ tasks.op-reth.build.artifacts.dependency }}
-      PRESTATE_ARTIFACT: ${{ tasks.prestate.build.artifacts.dependency }}
+      GO_ARTIFACT: ${{ tasks.go.tasks.build.artifacts.dependency }}
+      CONTRACT_ARTIFACT: ${{ tasks.contracts.tasks.build.artifacts.dependency }}
+      KONA_ARTIFACT: ${{ tasks.kona.tasks.build.artifacts.dependency }}
+      RETH_ARTIFACT: ${{ tasks.op-reth.tasks.build.artifacts.dependency }}
+      PRESTATE_ARTIFACT: ${{ tasks.prestate.tasks.build.artifacts.dependency }}
       OP_CI_MAINNET_L1_ARCHIVE_RPC_URL: ${{ vaults.optimism-go-tests-rpc-shadow.secrets.OP_CI_MAINNET_L1_ARCHIVE_RPC_URL }}
       OP_CI_SEPOLIA_L1_ARCHIVE_RPC_URL: ${{ vaults.optimism-go-tests-rpc-shadow.secrets.OP_CI_SEPOLIA_L1_ARCHIVE_RPC_URL }}
     cache: false
@@ -946,11 +948,11 @@ tasks:
       CI_SHARD_TOTAL: ${{ init.shard-total }}
       GO_BINARIES: ${{ tasks.compile-8.artifacts.binaries }}
       DISCOVERY: ${{ tasks.discovery.artifacts.discovery }}
-      GO_ARTIFACT: ${{ tasks.go.build.artifacts.dependency }}
-      CONTRACT_ARTIFACT: ${{ tasks.contracts.build.artifacts.dependency }}
-      KONA_ARTIFACT: ${{ tasks.kona.build.artifacts.dependency }}
-      RETH_ARTIFACT: ${{ tasks.op-reth.build.artifacts.dependency }}
-      PRESTATE_ARTIFACT: ${{ tasks.prestate.build.artifacts.dependency }}
+      GO_ARTIFACT: ${{ tasks.go.tasks.build.artifacts.dependency }}
+      CONTRACT_ARTIFACT: ${{ tasks.contracts.tasks.build.artifacts.dependency }}
+      KONA_ARTIFACT: ${{ tasks.kona.tasks.build.artifacts.dependency }}
+      RETH_ARTIFACT: ${{ tasks.op-reth.tasks.build.artifacts.dependency }}
+      PRESTATE_ARTIFACT: ${{ tasks.prestate.tasks.build.artifacts.dependency }}
       OP_CI_MAINNET_L1_ARCHIVE_RPC_URL: ${{ vaults.optimism-go-tests-rpc-shadow.secrets.OP_CI_MAINNET_L1_ARCHIVE_RPC_URL }}
       OP_CI_SEPOLIA_L1_ARCHIVE_RPC_URL: ${{ vaults.optimism-go-tests-rpc-shadow.secrets.OP_CI_SEPOLIA_L1_ARCHIVE_RPC_URL }}
     cache: false
@@ -1027,11 +1029,11 @@ tasks:
       CI_SHARD_TOTAL: ${{ init.shard-total }}
       GO_BINARIES: ${{ tasks.compile-9.artifacts.binaries }}
       DISCOVERY: ${{ tasks.discovery.artifacts.discovery }}
-      GO_ARTIFACT: ${{ tasks.go.build.artifacts.dependency }}
-      CONTRACT_ARTIFACT: ${{ tasks.contracts.build.artifacts.dependency }}
-      KONA_ARTIFACT: ${{ tasks.kona.build.artifacts.dependency }}
-      RETH_ARTIFACT: ${{ tasks.op-reth.build.artifacts.dependency }}
-      PRESTATE_ARTIFACT: ${{ tasks.prestate.build.artifacts.dependency }}
+      GO_ARTIFACT: ${{ tasks.go.tasks.build.artifacts.dependency }}
+      CONTRACT_ARTIFACT: ${{ tasks.contracts.tasks.build.artifacts.dependency }}
+      KONA_ARTIFACT: ${{ tasks.kona.tasks.build.artifacts.dependency }}
+      RETH_ARTIFACT: ${{ tasks.op-reth.tasks.build.artifacts.dependency }}
+      PRESTATE_ARTIFACT: ${{ tasks.prestate.tasks.build.artifacts.dependency }}
       OP_CI_MAINNET_L1_ARCHIVE_RPC_URL: ${{ vaults.optimism-go-tests-rpc-shadow.secrets.OP_CI_MAINNET_L1_ARCHIVE_RPC_URL }}
       OP_CI_SEPOLIA_L1_ARCHIVE_RPC_URL: ${{ vaults.optimism-go-tests-rpc-shadow.secrets.OP_CI_SEPOLIA_L1_ARCHIVE_RPC_URL }}
     cache: false
@@ -1108,11 +1110,11 @@ tasks:
       CI_SHARD_TOTAL: ${{ init.shard-total }}
       GO_BINARIES: ${{ tasks.compile-10.artifacts.binaries }}
       DISCOVERY: ${{ tasks.discovery.artifacts.discovery }}
-      GO_ARTIFACT: ${{ tasks.go.build.artifacts.dependency }}
-      CONTRACT_ARTIFACT: ${{ tasks.contracts.build.artifacts.dependency }}
-      KONA_ARTIFACT: ${{ tasks.kona.build.artifacts.dependency }}
-      RETH_ARTIFACT: ${{ tasks.op-reth.build.artifacts.dependency }}
-      PRESTATE_ARTIFACT: ${{ tasks.prestate.build.artifacts.dependency }}
+      GO_ARTIFACT: ${{ tasks.go.tasks.build.artifacts.dependency }}
+      CONTRACT_ARTIFACT: ${{ tasks.contracts.tasks.build.artifacts.dependency }}
+      KONA_ARTIFACT: ${{ tasks.kona.tasks.build.artifacts.dependency }}
+      RETH_ARTIFACT: ${{ tasks.op-reth.tasks.build.artifacts.dependency }}
+      PRESTATE_ARTIFACT: ${{ tasks.prestate.tasks.build.artifacts.dependency }}
       OP_CI_MAINNET_L1_ARCHIVE_RPC_URL: ${{ vaults.optimism-go-tests-rpc-shadow.secrets.OP_CI_MAINNET_L1_ARCHIVE_RPC_URL }}
       OP_CI_SEPOLIA_L1_ARCHIVE_RPC_URL: ${{ vaults.optimism-go-tests-rpc-shadow.secrets.OP_CI_SEPOLIA_L1_ARCHIVE_RPC_URL }}
     cache: false
@@ -1189,11 +1191,11 @@ tasks:
       CI_SHARD_TOTAL: ${{ init.shard-total }}
       GO_BINARIES: ${{ tasks.compile-11.artifacts.binaries }}
       DISCOVERY: ${{ tasks.discovery.artifacts.discovery }}
-      GO_ARTIFACT: ${{ tasks.go.build.artifacts.dependency }}
-      CONTRACT_ARTIFACT: ${{ tasks.contracts.build.artifacts.dependency }}
-      KONA_ARTIFACT: ${{ tasks.kona.build.artifacts.dependency }}
-      RETH_ARTIFACT: ${{ tasks.op-reth.build.artifacts.dependency }}
-      PRESTATE_ARTIFACT: ${{ tasks.prestate.build.artifacts.dependency }}
+      GO_ARTIFACT: ${{ tasks.go.tasks.build.artifacts.dependency }}
+      CONTRACT_ARTIFACT: ${{ tasks.contracts.tasks.build.artifacts.dependency }}
+      KONA_ARTIFACT: ${{ tasks.kona.tasks.build.artifacts.dependency }}
+      RETH_ARTIFACT: ${{ tasks.op-reth.tasks.build.artifacts.dependency }}
+      PRESTATE_ARTIFACT: ${{ tasks.prestate.tasks.build.artifacts.dependency }}
       OP_CI_MAINNET_L1_ARCHIVE_RPC_URL: ${{ vaults.optimism-go-tests-rpc-shadow.secrets.OP_CI_MAINNET_L1_ARCHIVE_RPC_URL }}
       OP_CI_SEPOLIA_L1_ARCHIVE_RPC_URL: ${{ vaults.optimism-go-tests-rpc-shadow.secrets.OP_CI_SEPOLIA_L1_ARCHIVE_RPC_URL }}
     cache: false
@@ -1270,11 +1272,11 @@ tasks:
       CI_SHARD_TOTAL: ${{ init.shard-total }}
       GO_BINARIES: ${{ tasks.compile-12.artifacts.binaries }}
       DISCOVERY: ${{ tasks.discovery.artifacts.discovery }}
-      GO_ARTIFACT: ${{ tasks.go.build.artifacts.dependency }}
-      CONTRACT_ARTIFACT: ${{ tasks.contracts.build.artifacts.dependency }}
-      KONA_ARTIFACT: ${{ tasks.kona.build.artifacts.dependency }}
-      RETH_ARTIFACT: ${{ tasks.op-reth.build.artifacts.dependency }}
-      PRESTATE_ARTIFACT: ${{ tasks.prestate.build.artifacts.dependency }}
+      GO_ARTIFACT: ${{ tasks.go.tasks.build.artifacts.dependency }}
+      CONTRACT_ARTIFACT: ${{ tasks.contracts.tasks.build.artifacts.dependency }}
+      KONA_ARTIFACT: ${{ tasks.kona.tasks.build.artifacts.dependency }}
+      RETH_ARTIFACT: ${{ tasks.op-reth.tasks.build.artifacts.dependency }}
+      PRESTATE_ARTIFACT: ${{ tasks.prestate.tasks.build.artifacts.dependency }}
       OP_CI_MAINNET_L1_ARCHIVE_RPC_URL: ${{ vaults.optimism-go-tests-rpc-shadow.secrets.OP_CI_MAINNET_L1_ARCHIVE_RPC_URL }}
       OP_CI_SEPOLIA_L1_ARCHIVE_RPC_URL: ${{ vaults.optimism-go-tests-rpc-shadow.secrets.OP_CI_SEPOLIA_L1_ARCHIVE_RPC_URL }}
     cache: false
@@ -1351,11 +1353,11 @@ tasks:
       CI_SHARD_TOTAL: ${{ init.shard-total }}
       GO_BINARIES: ${{ tasks.compile-13.artifacts.binaries }}
       DISCOVERY: ${{ tasks.discovery.artifacts.discovery }}
-      GO_ARTIFACT: ${{ tasks.go.build.artifacts.dependency }}
-      CONTRACT_ARTIFACT: ${{ tasks.contracts.build.artifacts.dependency }}
-      KONA_ARTIFACT: ${{ tasks.kona.build.artifacts.dependency }}
-      RETH_ARTIFACT: ${{ tasks.op-reth.build.artifacts.dependency }}
-      PRESTATE_ARTIFACT: ${{ tasks.prestate.build.artifacts.dependency }}
+      GO_ARTIFACT: ${{ tasks.go.tasks.build.artifacts.dependency }}
+      CONTRACT_ARTIFACT: ${{ tasks.contracts.tasks.build.artifacts.dependency }}
+      KONA_ARTIFACT: ${{ tasks.kona.tasks.build.artifacts.dependency }}
+      RETH_ARTIFACT: ${{ tasks.op-reth.tasks.build.artifacts.dependency }}
+      PRESTATE_ARTIFACT: ${{ tasks.prestate.tasks.build.artifacts.dependency }}
       OP_CI_MAINNET_L1_ARCHIVE_RPC_URL: ${{ vaults.optimism-go-tests-rpc-shadow.secrets.OP_CI_MAINNET_L1_ARCHIVE_RPC_URL }}
       OP_CI_SEPOLIA_L1_ARCHIVE_RPC_URL: ${{ vaults.optimism-go-tests-rpc-shadow.secrets.OP_CI_SEPOLIA_L1_ARCHIVE_RPC_URL }}
     cache: false
@@ -1432,11 +1434,11 @@ tasks:
       CI_SHARD_TOTAL: ${{ init.shard-total }}
       GO_BINARIES: ${{ tasks.compile-14.artifacts.binaries }}
       DISCOVERY: ${{ tasks.discovery.artifacts.discovery }}
-      GO_ARTIFACT: ${{ tasks.go.build.artifacts.dependency }}
-      CONTRACT_ARTIFACT: ${{ tasks.contracts.build.artifacts.dependency }}
-      KONA_ARTIFACT: ${{ tasks.kona.build.artifacts.dependency }}
-      RETH_ARTIFACT: ${{ tasks.op-reth.build.artifacts.dependency }}
-      PRESTATE_ARTIFACT: ${{ tasks.prestate.build.artifacts.dependency }}
+      GO_ARTIFACT: ${{ tasks.go.tasks.build.artifacts.dependency }}
+      CONTRACT_ARTIFACT: ${{ tasks.contracts.tasks.build.artifacts.dependency }}
+      KONA_ARTIFACT: ${{ tasks.kona.tasks.build.artifacts.dependency }}
+      RETH_ARTIFACT: ${{ tasks.op-reth.tasks.build.artifacts.dependency }}
+      PRESTATE_ARTIFACT: ${{ tasks.prestate.tasks.build.artifacts.dependency }}
       OP_CI_MAINNET_L1_ARCHIVE_RPC_URL: ${{ vaults.optimism-go-tests-rpc-shadow.secrets.OP_CI_MAINNET_L1_ARCHIVE_RPC_URL }}
       OP_CI_SEPOLIA_L1_ARCHIVE_RPC_URL: ${{ vaults.optimism-go-tests-rpc-shadow.secrets.OP_CI_SEPOLIA_L1_ARCHIVE_RPC_URL }}
     cache: false
@@ -1513,11 +1515,11 @@ tasks:
       CI_SHARD_TOTAL: ${{ init.shard-total }}
       GO_BINARIES: ${{ tasks.compile-15.artifacts.binaries }}
       DISCOVERY: ${{ tasks.discovery.artifacts.discovery }}
-      GO_ARTIFACT: ${{ tasks.go.build.artifacts.dependency }}
-      CONTRACT_ARTIFACT: ${{ tasks.contracts.build.artifacts.dependency }}
-      KONA_ARTIFACT: ${{ tasks.kona.build.artifacts.dependency }}
-      RETH_ARTIFACT: ${{ tasks.op-reth.build.artifacts.dependency }}
-      PRESTATE_ARTIFACT: ${{ tasks.prestate.build.artifacts.dependency }}
+      GO_ARTIFACT: ${{ tasks.go.tasks.build.artifacts.dependency }}
+      CONTRACT_ARTIFACT: ${{ tasks.contracts.tasks.build.artifacts.dependency }}
+      KONA_ARTIFACT: ${{ tasks.kona.tasks.build.artifacts.dependency }}
+      RETH_ARTIFACT: ${{ tasks.op-reth.tasks.build.artifacts.dependency }}
+      PRESTATE_ARTIFACT: ${{ tasks.prestate.tasks.build.artifacts.dependency }}
       OP_CI_MAINNET_L1_ARCHIVE_RPC_URL: ${{ vaults.optimism-go-tests-rpc-shadow.secrets.OP_CI_MAINNET_L1_ARCHIVE_RPC_URL }}
       OP_CI_SEPOLIA_L1_ARCHIVE_RPC_URL: ${{ vaults.optimism-go-tests-rpc-shadow.secrets.OP_CI_SEPOLIA_L1_ARCHIVE_RPC_URL }}
     cache: false
@@ -1594,11 +1596,11 @@ tasks:
       CI_SHARD_TOTAL: ${{ init.shard-total }}
       GO_BINARIES: ${{ tasks.compile-16.artifacts.binaries }}
       DISCOVERY: ${{ tasks.discovery.artifacts.discovery }}
-      GO_ARTIFACT: ${{ tasks.go.build.artifacts.dependency }}
-      CONTRACT_ARTIFACT: ${{ tasks.contracts.build.artifacts.dependency }}
-      KONA_ARTIFACT: ${{ tasks.kona.build.artifacts.dependency }}
-      RETH_ARTIFACT: ${{ tasks.op-reth.build.artifacts.dependency }}
-      PRESTATE_ARTIFACT: ${{ tasks.prestate.build.artifacts.dependency }}
+      GO_ARTIFACT: ${{ tasks.go.tasks.build.artifacts.dependency }}
+      CONTRACT_ARTIFACT: ${{ tasks.contracts.tasks.build.artifacts.dependency }}
+      KONA_ARTIFACT: ${{ tasks.kona.tasks.build.artifacts.dependency }}
+      RETH_ARTIFACT: ${{ tasks.op-reth.tasks.build.artifacts.dependency }}
+      PRESTATE_ARTIFACT: ${{ tasks.prestate.tasks.build.artifacts.dependency }}
       OP_CI_MAINNET_L1_ARCHIVE_RPC_URL: ${{ vaults.optimism-go-tests-rpc-shadow.secrets.OP_CI_MAINNET_L1_ARCHIVE_RPC_URL }}
       OP_CI_SEPOLIA_L1_ARCHIVE_RPC_URL: ${{ vaults.optimism-go-tests-rpc-shadow.secrets.OP_CI_SEPOLIA_L1_ARCHIVE_RPC_URL }}
     cache: false
@@ -1675,11 +1677,11 @@ tasks:
       CI_SHARD_TOTAL: ${{ init.shard-total }}
       GO_BINARIES: ${{ tasks.compile-17.artifacts.binaries }}
       DISCOVERY: ${{ tasks.discovery.artifacts.discovery }}
-      GO_ARTIFACT: ${{ tasks.go.build.artifacts.dependency }}
-      CONTRACT_ARTIFACT: ${{ tasks.contracts.build.artifacts.dependency }}
-      KONA_ARTIFACT: ${{ tasks.kona.build.artifacts.dependency }}
-      RETH_ARTIFACT: ${{ tasks.op-reth.build.artifacts.dependency }}
-      PRESTATE_ARTIFACT: ${{ tasks.prestate.build.artifacts.dependency }}
+      GO_ARTIFACT: ${{ tasks.go.tasks.build.artifacts.dependency }}
+      CONTRACT_ARTIFACT: ${{ tasks.contracts.tasks.build.artifacts.dependency }}
+      KONA_ARTIFACT: ${{ tasks.kona.tasks.build.artifacts.dependency }}
+      RETH_ARTIFACT: ${{ tasks.op-reth.tasks.build.artifacts.dependency }}
+      PRESTATE_ARTIFACT: ${{ tasks.prestate.tasks.build.artifacts.dependency }}
       OP_CI_MAINNET_L1_ARCHIVE_RPC_URL: ${{ vaults.optimism-go-tests-rpc-shadow.secrets.OP_CI_MAINNET_L1_ARCHIVE_RPC_URL }}
       OP_CI_SEPOLIA_L1_ARCHIVE_RPC_URL: ${{ vaults.optimism-go-tests-rpc-shadow.secrets.OP_CI_SEPOLIA_L1_ARCHIVE_RPC_URL }}
     cache: false
@@ -1756,11 +1758,11 @@ tasks:
       CI_SHARD_TOTAL: ${{ init.shard-total }}
       GO_BINARIES: ${{ tasks.compile-18.artifacts.binaries }}
       DISCOVERY: ${{ tasks.discovery.artifacts.discovery }}
-      GO_ARTIFACT: ${{ tasks.go.build.artifacts.dependency }}
-      CONTRACT_ARTIFACT: ${{ tasks.contracts.build.artifacts.dependency }}
-      KONA_ARTIFACT: ${{ tasks.kona.build.artifacts.dependency }}
-      RETH_ARTIFACT: ${{ tasks.op-reth.build.artifacts.dependency }}
-      PRESTATE_ARTIFACT: ${{ tasks.prestate.build.artifacts.dependency }}
+      GO_ARTIFACT: ${{ tasks.go.tasks.build.artifacts.dependency }}
+      CONTRACT_ARTIFACT: ${{ tasks.contracts.tasks.build.artifacts.dependency }}
+      KONA_ARTIFACT: ${{ tasks.kona.tasks.build.artifacts.dependency }}
+      RETH_ARTIFACT: ${{ tasks.op-reth.tasks.build.artifacts.dependency }}
+      PRESTATE_ARTIFACT: ${{ tasks.prestate.tasks.build.artifacts.dependency }}
       OP_CI_MAINNET_L1_ARCHIVE_RPC_URL: ${{ vaults.optimism-go-tests-rpc-shadow.secrets.OP_CI_MAINNET_L1_ARCHIVE_RPC_URL }}
       OP_CI_SEPOLIA_L1_ARCHIVE_RPC_URL: ${{ vaults.optimism-go-tests-rpc-shadow.secrets.OP_CI_SEPOLIA_L1_ARCHIVE_RPC_URL }}
     cache: false
@@ -1837,11 +1839,11 @@ tasks:
       CI_SHARD_TOTAL: ${{ init.shard-total }}
       GO_BINARIES: ${{ tasks.compile-19.artifacts.binaries }}
       DISCOVERY: ${{ tasks.discovery.artifacts.discovery }}
-      GO_ARTIFACT: ${{ tasks.go.build.artifacts.dependency }}
-      CONTRACT_ARTIFACT: ${{ tasks.contracts.build.artifacts.dependency }}
-      KONA_ARTIFACT: ${{ tasks.kona.build.artifacts.dependency }}
-      RETH_ARTIFACT: ${{ tasks.op-reth.build.artifacts.dependency }}
-      PRESTATE_ARTIFACT: ${{ tasks.prestate.build.artifacts.dependency }}
+      GO_ARTIFACT: ${{ tasks.go.tasks.build.artifacts.dependency }}
+      CONTRACT_ARTIFACT: ${{ tasks.contracts.tasks.build.artifacts.dependency }}
+      KONA_ARTIFACT: ${{ tasks.kona.tasks.build.artifacts.dependency }}
+      RETH_ARTIFACT: ${{ tasks.op-reth.tasks.build.artifacts.dependency }}
+      PRESTATE_ARTIFACT: ${{ tasks.prestate.tasks.build.artifacts.dependency }}
       OP_CI_MAINNET_L1_ARCHIVE_RPC_URL: ${{ vaults.optimism-go-tests-rpc-shadow.secrets.OP_CI_MAINNET_L1_ARCHIVE_RPC_URL }}
       OP_CI_SEPOLIA_L1_ARCHIVE_RPC_URL: ${{ vaults.optimism-go-tests-rpc-shadow.secrets.OP_CI_SEPOLIA_L1_ARCHIVE_RPC_URL }}
     cache: false
@@ -1918,11 +1920,11 @@ tasks:
       CI_SHARD_TOTAL: ${{ init.shard-total }}
       GO_BINARIES: ${{ tasks.compile-20.artifacts.binaries }}
       DISCOVERY: ${{ tasks.discovery.artifacts.discovery }}
-      GO_ARTIFACT: ${{ tasks.go.build.artifacts.dependency }}
-      CONTRACT_ARTIFACT: ${{ tasks.contracts.build.artifacts.dependency }}
-      KONA_ARTIFACT: ${{ tasks.kona.build.artifacts.dependency }}
-      RETH_ARTIFACT: ${{ tasks.op-reth.build.artifacts.dependency }}
-      PRESTATE_ARTIFACT: ${{ tasks.prestate.build.artifacts.dependency }}
+      GO_ARTIFACT: ${{ tasks.go.tasks.build.artifacts.dependency }}
+      CONTRACT_ARTIFACT: ${{ tasks.contracts.tasks.build.artifacts.dependency }}
+      KONA_ARTIFACT: ${{ tasks.kona.tasks.build.artifacts.dependency }}
+      RETH_ARTIFACT: ${{ tasks.op-reth.tasks.build.artifacts.dependency }}
+      PRESTATE_ARTIFACT: ${{ tasks.prestate.tasks.build.artifacts.dependency }}
       OP_CI_MAINNET_L1_ARCHIVE_RPC_URL: ${{ vaults.optimism-go-tests-rpc-shadow.secrets.OP_CI_MAINNET_L1_ARCHIVE_RPC_URL }}
       OP_CI_SEPOLIA_L1_ARCHIVE_RPC_URL: ${{ vaults.optimism-go-tests-rpc-shadow.secrets.OP_CI_SEPOLIA_L1_ARCHIVE_RPC_URL }}
     cache: false
@@ -1999,11 +2001,11 @@ tasks:
       CI_SHARD_TOTAL: ${{ init.shard-total }}
       GO_BINARIES: ${{ tasks.compile-21.artifacts.binaries }}
       DISCOVERY: ${{ tasks.discovery.artifacts.discovery }}
-      GO_ARTIFACT: ${{ tasks.go.build.artifacts.dependency }}
-      CONTRACT_ARTIFACT: ${{ tasks.contracts.build.artifacts.dependency }}
-      KONA_ARTIFACT: ${{ tasks.kona.build.artifacts.dependency }}
-      RETH_ARTIFACT: ${{ tasks.op-reth.build.artifacts.dependency }}
-      PRESTATE_ARTIFACT: ${{ tasks.prestate.build.artifacts.dependency }}
+      GO_ARTIFACT: ${{ tasks.go.tasks.build.artifacts.dependency }}
+      CONTRACT_ARTIFACT: ${{ tasks.contracts.tasks.build.artifacts.dependency }}
+      KONA_ARTIFACT: ${{ tasks.kona.tasks.build.artifacts.dependency }}
+      RETH_ARTIFACT: ${{ tasks.op-reth.tasks.build.artifacts.dependency }}
+      PRESTATE_ARTIFACT: ${{ tasks.prestate.tasks.build.artifacts.dependency }}
       OP_CI_MAINNET_L1_ARCHIVE_RPC_URL: ${{ vaults.optimism-go-tests-rpc-shadow.secrets.OP_CI_MAINNET_L1_ARCHIVE_RPC_URL }}
       OP_CI_SEPOLIA_L1_ARCHIVE_RPC_URL: ${{ vaults.optimism-go-tests-rpc-shadow.secrets.OP_CI_SEPOLIA_L1_ARCHIVE_RPC_URL }}
     cache: false
@@ -2080,11 +2082,11 @@ tasks:
       CI_SHARD_TOTAL: ${{ init.shard-total }}
       GO_BINARIES: ${{ tasks.compile-22.artifacts.binaries }}
       DISCOVERY: ${{ tasks.discovery.artifacts.discovery }}
-      GO_ARTIFACT: ${{ tasks.go.build.artifacts.dependency }}
-      CONTRACT_ARTIFACT: ${{ tasks.contracts.build.artifacts.dependency }}
-      KONA_ARTIFACT: ${{ tasks.kona.build.artifacts.dependency }}
-      RETH_ARTIFACT: ${{ tasks.op-reth.build.artifacts.dependency }}
-      PRESTATE_ARTIFACT: ${{ tasks.prestate.build.artifacts.dependency }}
+      GO_ARTIFACT: ${{ tasks.go.tasks.build.artifacts.dependency }}
+      CONTRACT_ARTIFACT: ${{ tasks.contracts.tasks.build.artifacts.dependency }}
+      KONA_ARTIFACT: ${{ tasks.kona.tasks.build.artifacts.dependency }}
+      RETH_ARTIFACT: ${{ tasks.op-reth.tasks.build.artifacts.dependency }}
+      PRESTATE_ARTIFACT: ${{ tasks.prestate.tasks.build.artifacts.dependency }}
       OP_CI_MAINNET_L1_ARCHIVE_RPC_URL: ${{ vaults.optimism-go-tests-rpc-shadow.secrets.OP_CI_MAINNET_L1_ARCHIVE_RPC_URL }}
       OP_CI_SEPOLIA_L1_ARCHIVE_RPC_URL: ${{ vaults.optimism-go-tests-rpc-shadow.secrets.OP_CI_SEPOLIA_L1_ARCHIVE_RPC_URL }}
     cache: false
@@ -2161,11 +2163,11 @@ tasks:
       CI_SHARD_TOTAL: ${{ init.shard-total }}
       GO_BINARIES: ${{ tasks.compile-23.artifacts.binaries }}
       DISCOVERY: ${{ tasks.discovery.artifacts.discovery }}
-      GO_ARTIFACT: ${{ tasks.go.build.artifacts.dependency }}
-      CONTRACT_ARTIFACT: ${{ tasks.contracts.build.artifacts.dependency }}
-      KONA_ARTIFACT: ${{ tasks.kona.build.artifacts.dependency }}
-      RETH_ARTIFACT: ${{ tasks.op-reth.build.artifacts.dependency }}
-      PRESTATE_ARTIFACT: ${{ tasks.prestate.build.artifacts.dependency }}
+      GO_ARTIFACT: ${{ tasks.go.tasks.build.artifacts.dependency }}
+      CONTRACT_ARTIFACT: ${{ tasks.contracts.tasks.build.artifacts.dependency }}
+      KONA_ARTIFACT: ${{ tasks.kona.tasks.build.artifacts.dependency }}
+      RETH_ARTIFACT: ${{ tasks.op-reth.tasks.build.artifacts.dependency }}
+      PRESTATE_ARTIFACT: ${{ tasks.prestate.tasks.build.artifacts.dependency }}
       OP_CI_MAINNET_L1_ARCHIVE_RPC_URL: ${{ vaults.optimism-go-tests-rpc-shadow.secrets.OP_CI_MAINNET_L1_ARCHIVE_RPC_URL }}
       OP_CI_SEPOLIA_L1_ARCHIVE_RPC_URL: ${{ vaults.optimism-go-tests-rpc-shadow.secrets.OP_CI_SEPOLIA_L1_ARCHIVE_RPC_URL }}
     cache: false

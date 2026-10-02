@@ -234,7 +234,7 @@ tasks:
       bash /usr/local/lib/optimism-ci/op-reth-shadow.sh release
     env:
       CI_COMMIT_SHA: ${{ init.commit-sha }}
-      RELEASE_ARTIFACT: ${{ tasks.release-build.build.artifacts.release-binaries }}
+      RELEASE_ARTIFACT: ${{ tasks.release-build.tasks.build.artifacts.release-binaries }}
     cache: false
     timeout: 10m
     outputs:

@@ -1878,6 +1878,10 @@ jobs:
             just <<parameters.rule>>
           environment:
             CI_GO_FRESH_TESTS: << pipeline.parameters.c-go_fresh_tests_effective >>
+      - store_artifacts:
+          path: ./tmp/test-results
+          destination: go-junit
+          when: always
       - go-save-cache:
           namespace: go-tests
       - store_test_results:

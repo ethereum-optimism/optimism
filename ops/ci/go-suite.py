@@ -25,6 +25,19 @@ def settings(*, fresh=True, short=False):
             "rerun_fails": 3, "rerun_fails_max_failures": 50}
 
 
+TEST_ENVIRONMENT = ('ENABLE_KURTOSIS', 'OP_E2E_CANNON_ENABLED', 'OP_E2E_USE_HTTP',
+                    'ENABLE_ANVIL', 'NAT_INTEROP_LOADTEST_TARGET', 'NAT_INTEROP_LOADTEST_TIMEOUT')
+
+
+def environment():
+    return {name: os.environ.get(name) for name in TEST_ENVIRONMENT}
+
+
+def go_environment():
+    return json.loads(subprocess.check_output(['go', 'env', '-json', 'GOOS', 'GOARCH', 'GOAMD64',
+                                               'CGO_ENABLED', 'GOFLAGS', 'GOTOOLCHAIN'], cwd=ROOT, text=True))
+
+
 def validate_discovery(selected, source, prefix):
     SHARDS.validate_packages(selected, prefix)
     discovered = SHARDS.read_go_packages(source, prefix)
@@ -46,7 +59,10 @@ def discover(suite, total, timings):
     (output / "go-list.json").write_text(source)
     durations = json.loads(timings.read_text())["packages"] if timings else None
     manifest = SHARDS.create_manifest(packages, SUITES[suite], total, durations)
-    manifest.update(suite=suite, commit_sha=os.environ["CI_COMMIT_SHA"], settings=settings())
+    manifest.update(suite=suite, commit_sha=os.environ["CI_COMMIT_SHA"],
+                    branch=os.environ.get("CI_BRANCH") or os.environ.get("CIRCLE_BRANCH"), settings=settings(),
+                    environment=environment(), go_environment=go_environment(),
+                    go_version=subprocess.check_output(["go", "version"], cwd=ROOT, text=True).strip())
     (output / "manifest.json").write_text(json.dumps(manifest, indent=2) + "\n")
     (output / "all-packages.txt").write_text("\n".join(packages) + "\n")
 
@@ -60,7 +76,9 @@ def record_circle(flags):
     branch = os.environ.get("CIRCLE_BRANCH") or os.environ.get("CI_BRANCH") or subprocess.check_output(
         ["git", "rev-parse", "--abbrev-ref", "HEAD"], cwd=ROOT, text=True).strip()
     metadata = {"version": 1, "suite": "go-tests", "commit_sha": sha,
-                "branch": branch, "packages": packages,
+                "branch": branch, "packages": packages, "environment": environment(),
+                "go_environment": go_environment(),
+                "go_version": subprocess.check_output(["go", "version"], cwd=ROOT, text=True).strip(),
                 "shard_index": int(os.environ.get("CIRCLE_NODE_INDEX", "0")),
                 "shard_total": int(os.environ.get("CIRCLE_NODE_TOTAL", "1")),
                 "settings": settings(fresh=os.environ.get("CI_GO_FRESH_TESTS", "false") in ("1", "true"),

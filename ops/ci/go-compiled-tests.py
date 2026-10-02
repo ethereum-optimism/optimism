@@ -24,6 +24,9 @@ SUITE = "go-rollup"
 SPEC = importlib.util.spec_from_file_location("shards", Path(__file__).with_name("go-package-shards.py"))
 SHARDS = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(SHARDS)
+SUITE_SPEC = importlib.util.spec_from_file_location("suite_helper", Path(__file__).with_name("go-suite.py"))
+SUITE_HELPER = importlib.util.module_from_spec(SUITE_SPEC)
+SUITE_SPEC.loader.exec_module(SUITE_HELPER)
 PRINT_LOCK = threading.Lock()
 PROCESSES = set()
 PROCESS_LOCK = threading.Lock()
@@ -49,10 +52,12 @@ def go_objects():
 
 
 def full_settings():
-    return {"tags": ["ci"], "short": False, "count": 1,
-            "package_parallelism": 4, "parallel": int(os.environ.get("PARALLEL", "8")),
-            "timeout": os.environ.get("TEST_TIMEOUT", "40m"),
-            "rerun_fails": 3, "rerun_fails_max_failures": 50}
+    return SUITE_HELPER.settings()
+
+
+def check_environment(manifest):
+    if manifest.get('environment') != SUITE_HELPER.environment() or manifest.get('go_environment') != SUITE_HELPER.go_environment():
+        raise ValueError('Go compiler flags or test environment differ from discovery')
 
 
 def build():
@@ -64,6 +69,8 @@ def build():
     if SUITE == "go-tests" and (manifest.get("suite") != SUITE or manifest.get("settings") != full_settings()
                                 or manifest.get("commit_sha") != os.environ["CI_COMMIT_SHA"]):
         raise ValueError("Invalid compilation suite settings or revision")
+    if SUITE == "go-tests":
+        check_environment(manifest)
     BUILD.mkdir(parents=True, exist_ok=True)
     subprocess.run(["go", "build", "-o", str(BUILD / "test2json"), "cmd/test2json"], cwd=ROOT, check=True)
     # go test -c compiles only. TestMain and init functions never run here.
@@ -89,6 +96,7 @@ def build():
                 "test2json_sha256": digest(BUILD / "test2json"), "packages": binaries}
     if SUITE == "go-tests":
         metadata.update(suite=SUITE, settings=manifest["settings"],
+                        environment=manifest["environment"], go_environment=manifest["go_environment"],
                         shard_index=int(os.environ["CI_SHARD_INDEX"]), shard_total=manifest["total"],
                         manifest_sha256=digest(ROOT / ".ci" / SUITE / "manifest.json"),
                         compile_root=str(ROOT))
@@ -134,8 +142,11 @@ def verify():
     if sorted(metadata["packages"]) != sorted(expected_packages):
         raise ValueError("Compiled Go package coverage differs from the authoritative manifest")
     if SUITE == "go-tests":
+        check_environment(manifest)
         expected_settings = full_settings()
         if (metadata.get("suite") != SUITE or metadata.get("settings") != expected_settings
+                or metadata.get("environment") != manifest["environment"]
+                or metadata.get("go_environment") != manifest["go_environment"]
                 or manifest.get("settings") != expected_settings
                 or manifest.get("commit_sha") != os.environ["CI_COMMIT_SHA"]
                 or metadata.get("shard_index") != int(os.environ["CI_SHARD_INDEX"])

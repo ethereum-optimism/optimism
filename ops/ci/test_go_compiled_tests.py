@@ -28,7 +28,7 @@ class CompiledGoTest(unittest.TestCase):
         self.root = Path(self.temp.name).resolve()
         scripts = self.root / "ops/ci"
         scripts.mkdir(parents=True)
-        for name in ("go-compiled-tests.py", "go-package-shards.py"):
+        for name in ("go-compiled-tests.py", "go-package-shards.py", "go-suite.py"):
             shutil.copy2(SCRIPTS / name, scripts / name)
         self.build = self.root / ".ci/go-rollup/build"
         self.build.mkdir(parents=True)
@@ -202,16 +202,20 @@ class FullCompiledGoTest(CompiledGoTest):
         self.manifest["prefix"] = "github.com/ethereum-optimism/optimism"
         self.settings = {"tags": ["ci"], "short": False, "count": 1, "package_parallelism": 4,
                          "parallel": 8, "timeout": "40m", "rerun_fails": 3, "rerun_fails_max_failures": 50}
-        self.manifest.update(suite="go-tests", commit_sha="a"*40, settings=self.settings)
+        environment = {'ENABLE_KURTOSIS':'true', 'OP_E2E_CANNON_ENABLED':'false', 'OP_E2E_USE_HTTP':'true',
+                       'ENABLE_ANVIL':'true', 'NAT_INTEROP_LOADTEST_TARGET':'10', 'NAT_INTEROP_LOADTEST_TIMEOUT':'30s'}
+        self.env.update(environment)
+        self.manifest.update(suite="go-tests", commit_sha="a"*40, settings=self.settings,
+                             environment=environment, go_environment={'GOOS':'linux'})
         manifest = parent / "manifest.json"
         manifest.write_text(json.dumps(self.manifest))
         (parent / "go-list.json").write_text("\n".join(json.dumps({"ImportPath": p, "TestGoFiles": [] if p.endswith('/mocks') else ['test.go']}) for p in self.packages))
-        self.metadata.update(suite="go-tests", settings=self.settings, shard_index=0, shard_total=1,
+        self.metadata.update(suite="go-tests", settings=self.settings, environment=environment, go_environment={"GOOS":"linux"}, shard_index=0, shard_total=1,
                              manifest_sha256=self.digest(manifest), compile_root=str(self.root), go_version="go version fixture")
         self.save_metadata()
         tools = self.root / "bin"
         tools.mkdir()
-        self.executable(tools / "go", "#!/bin/sh\necho 'go version fixture'\n")
+        self.executable(tools / "go", "#!/bin/sh\nif [ \"$1\" = version ]; then echo 'go version fixture'; else echo '{\"GOOS\":\"linux\"}'; fi\n")
         self.env['PATH'] = str(tools) + os.pathsep + self.env['PATH']
         self.suite_args = ("--suite", "go-tests")
 
@@ -219,7 +223,7 @@ class FullCompiledGoTest(CompiledGoTest):
         return super().run_helper(command, *self.suite_args, *args, **env)
 
     def test_full_suite_rejects_settings_root_shard_and_manifest_mismatch(self):
-        for key, value in [('suite', 'go-rollup'), ('settings', {}), ('shard_index', 1),
+        for key, value in [('suite', 'go-rollup'), ('settings', {}), ('environment', {}), ('go_environment', {}), ('shard_index', 1),
                            ('shard_total', 2), ('compile_root', '/other'), ('manifest_sha256', 'bad'), ('go_version','old')]:
             original = self.metadata[key]
             self.metadata[key] = value

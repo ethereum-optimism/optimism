@@ -3,6 +3,8 @@
 set -euo pipefail
 cd "$(dirname "${BASH_SOURCE[0]}")/../.."
 export PARALLEL="${PARALLEL:-8}" TEST_TIMEOUT="${TEST_TIMEOUT:-40m}"
+export ENABLE_KURTOSIS=true OP_E2E_CANNON_ENABLED=false OP_E2E_USE_HTTP=true ENABLE_ANVIL=true
+export NAT_INTEROP_LOADTEST_TARGET=10 NAT_INTEROP_LOADTEST_TIMEOUT=30s
 export GOMODCACHE="$PWD/.ci/go-cache/full/modules"
 export GOCACHE="$PWD/.ci/go-cache/full/${1:-run}"
 mkdir -p "$GOMODCACHE" "$GOCACHE"
