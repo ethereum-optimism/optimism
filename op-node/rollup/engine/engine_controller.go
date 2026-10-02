@@ -1271,6 +1271,14 @@ func (e *EngineController) forceReset(ctx context.Context, localUnsafe, localSaf
 
 	ForceEngineReset(e, localUnsafe, localSafe, crossSafe, finalized)
 	e.crossSafeCache.Store(crossSafe)
+	// The reset finalized head is what this node last published (sync-start reads
+	// it from the engine's finalized label). Seed the SuperAuthority finalized
+	// cache from it so a fresh controller, e.g. after a supernode virtual-node
+	// restart, cannot regress the published finalized head to the Anchor while
+	// the verifier has no entry yet. Finalized is monotonic, so only ever raise.
+	if e.superAuthority != nil && finalized.Number > e.superAuthorityFinalizedHead.Number {
+		e.superAuthorityFinalizedHead = finalized
+	}
 
 	if e.pipelineResetter != nil {
 		e.emitter.Emit(ctx, derive.ConfirmPipelineResetEvent{})
