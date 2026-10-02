@@ -7,7 +7,7 @@ mkdir -p .ci/contracts-prepare .ci/contracts-build
 cp -a "${CONTRACT_PREREQUISITES}/." .ci/contracts-prepare/
 tar -xzf .ci/contracts-prepare/source.tar.gz
 cd packages/contracts-bedrock
-# shellcheck source=ops/ci/contracts-test-env.sh
+# shellcheck disable=SC1091  # shared helper is checked separately and resolved at runtime
 source ../../ops/ci/contracts-test-env.sh
 # Native tool caches hold only compiler outputs. Inherited test outcomes and
 # fuzz counterexamples cannot be used by either compilation or verdict tasks.

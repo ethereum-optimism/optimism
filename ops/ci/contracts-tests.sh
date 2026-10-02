@@ -7,6 +7,7 @@ cd "${REPO_ROOT}/packages/contracts-bedrock"
 # A previous task's or local CLI environment must not silently filter tests,
 # lower fuzzing, or enable another feature. Unset feature overrides so the
 # checked-in Config.sol defaults remain authoritative for other features.
+# shellcheck disable=SC1091  # shared helper is checked separately and resolved at runtime
 source "${REPO_ROOT}/ops/ci/contracts-test-env.sh"
 
 # Fixed paths are per-task: each matrix child has its own isolated filesystem.
