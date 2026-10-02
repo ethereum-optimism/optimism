@@ -144,6 +144,14 @@ tasks:
       ${{ tasks.bootstrap-inputs.artifacts.ci-scripts }}: [rwx-rust-prepare.sh, op-reth-shadow.sh, op-reth-report.py]
     timeout: 30m
 
+  - key: helper-tests
+    use: [code, go-build-tools]
+    run: mise exec -- python3 -m unittest discover -s ops/ci -p 'test_go*.py'
+    cache: false
+    timeout: 10m
+    outputs:
+      filesystem: false
+
   # This is a runtime preflight: only it and fresh verdicts receive RPC inputs.
   - key: rpc-preflight
     use: tools

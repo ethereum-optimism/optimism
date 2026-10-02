@@ -161,6 +161,18 @@ sys.exit(1 if failed else 0)
                 try: os.kill(int(pidfile.read_text()), signal.SIGKILL)
                 except ProcessLookupError: pass
 
+    @unittest.skipUnless(shutil.which("gotestsum"), "Pinned gotestsum is exercised on Linux")
+    def test_actual_gotestsum_stops_retries_above_fifty_failures(self):
+        self.executable(self.build / "0.test", "#!/usr/bin/env python3\nimport json,os\np=os.environ['REPORT_PACKAGE']\nwith open(os.environ['BINARY_CALLS'],'a') as f:f.write(p+'\\n')\nfor i in range(51):\n for action in ['run','fail']: print(json.dumps({'Action':action,'Package':p,'Test':'TestFailure'+str(i)}))\nprint(json.dumps({'Action':'fail','Package':p,'Elapsed':0.01}))\nraise SystemExit(1)\n")
+        self.metadata['packages'][self.packages[0]]['sha256'] = self.digest(self.build / '0.test')
+        self.save_metadata()
+        command = ['gotestsum', '--rerun-fails=3', '--rerun-fails-max-failures=50',
+                   '--jsonfile='+str(self.root/'many-failures.json'), '--raw-command', '--',
+                   'python3', str(self.root/'ops/ci/go-compiled-tests.py'), 'run', *getattr(self, 'suite_args', ())]
+        result = subprocess.run(command, env=self.env, capture_output=True, text=True)
+        self.assertNotEqual(result.returncode, 0)
+        self.assertEqual(self.calls.read_text().splitlines().count(self.packages[0]), 1, result.stdout + result.stderr)
+
     @unittest.skipUnless(shutil.which("gotestsum"), "Pinned gotestsum is exercised in the hosted Go helper task")
     def test_actual_gotestsum_preserves_three_failed_reruns_and_reports(self):
         report = self.root / "attempts.json"

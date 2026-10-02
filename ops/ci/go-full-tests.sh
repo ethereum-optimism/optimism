@@ -6,6 +6,25 @@ export PARALLEL="${PARALLEL:-8}" TEST_TIMEOUT="${TEST_TIMEOUT:-40m}"
 export GOMODCACHE="$PWD/.ci/go-cache/full/modules"
 export GOCACHE="$PWD/.ci/go-cache/full/${1:-run}"
 mkdir -p "$GOMODCACHE" "$GOCACHE"
+phase="${1:-run}"
+phase_started="$(date +%s)"
+finish_phase() {
+  local status=$?
+  trap - EXIT
+  python3 - "$phase" "$phase_started" "$status" <<'PYCODE'
+import json, os, sys, time
+from pathlib import Path
+phase, started, status = sys.argv[1], int(sys.argv[2]), int(sys.argv[3])
+output = Path('tmp/testlogs') if phase == 'run' else Path('.ci/go-tests') / phase
+output.mkdir(parents=True, exist_ok=True)
+metadata = {'phase': phase, 'started_at_unix': started, 'finished_at_unix': time.time(),
+            'exit_code': status, 'commit_sha': os.environ['CI_COMMIT_SHA'],
+            'shard_index': os.environ.get('CI_SHARD_INDEX'), 'shard_total': os.environ.get('CI_SHARD_TOTAL')}
+(output / 'phase.json').write_text(json.dumps(metadata, indent=2) + '\n')
+PYCODE
+  exit "$status"
+}
+trap finish_phase EXIT
 case "${1:-run}" in
   discover)
     case "${CI_SHARD_TOTAL:-12}" in 12|24) ;; *) echo "Full suite requires 12 or 24 shards" >&2; exit 1 ;; esac
