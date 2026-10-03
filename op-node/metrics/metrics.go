@@ -74,6 +74,7 @@ type Metricer interface {
 	// P2P Metrics
 	SetPeerScores(allScores []store.PeerScores)
 	ServerPayloadByNumberEvent(num uint64, resultCode byte, duration time.Duration)
+	RecordPeerBan()
 	RecordPeerUnban()
 	RecordIPUnban()
 	RecordDial(allow bool)
@@ -165,6 +166,7 @@ type Metrics struct {
 	StreamCount       prometheus.Gauge
 	GossipEventsTotal *prometheus.CounterVec
 	BandwidthTotal    *prometheus.GaugeVec
+	PeerBans          prometheus.Counter
 	PeerUnbans        prometheus.Counter
 	IPUnbans          prometheus.Counter
 	Dials             *prometheus.CounterVec
@@ -312,6 +314,12 @@ func NewMetrics(procName string, labels prometheus.Labels) *Metrics {
 			Help:      "P2P bandwidth by direction",
 		}, []string{
 			"direction",
+		}),
+		PeerBans: factory.NewCounter(prometheus.CounterOpts{
+			Namespace: ns,
+			Subsystem: "p2p",
+			Name:      "peer_bans",
+			Help:      "Count of temporary peer ban registrations, including renewals",
 		}),
 		PeerUnbans: factory.NewCounter(prometheus.CounterOpts{
 			Namespace: ns,
@@ -728,6 +736,10 @@ func (m *Metrics) RecordFrame() {
 	m.frameAddedEvent.Record()
 }
 
+func (m *Metrics) RecordPeerBan() {
+	m.PeerBans.Inc()
+}
+
 func (m *Metrics) RecordPeerUnban() {
 	m.PeerUnbans.Inc()
 }
@@ -884,6 +896,9 @@ func (n *noopMetricer) RecordChannelTimedOut() {
 }
 
 func (n *noopMetricer) RecordFrame() {
+}
+
+func (n *noopMetricer) RecordPeerBan() {
 }
 
 func (n *noopMetricer) RecordPeerUnban() {

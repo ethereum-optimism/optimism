@@ -128,3 +128,53 @@ func waitForChan(t *testing.T, ch chan struct{}, msg string) {
 		// Ok
 	}
 }
+
+func TestCheckNextPeerBanObservability(t *testing.T) {
+	banErr := errors.New("ban failure")
+	for _, test := range []struct {
+		name      string
+		score     float64
+		protected bool
+		ban       bool
+		banErr    error
+	}{
+		{name: "healthy", score: 1},
+		{name: "at threshold", score: -100},
+		{name: "protected", score: -101, protected: true},
+		{name: "low score", score: -101, ban: true},
+		{name: "ban failure", score: -101, ban: true, banErr: banErr},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+			monitor, clock, manager := peerMonitorSetup(t)
+			logger, logs := testlog.CaptureLogger(t, log.LevelDebug)
+			monitor.l = logger
+			id := peer.ID("test-peer")
+			expiry := clock.Now().Add(testBanDuration)
+			manager.EXPECT().Peers().Return([]peer.ID{id}).Once()
+			manager.EXPECT().GetPeerScore(id).Return(test.score, nil).Once()
+			if test.score < monitor.minScore {
+				manager.EXPECT().IsStatic(id).Return(test.protected).Once()
+			}
+			if test.ban {
+				manager.EXPECT().BanPeer(id, expiry).Return(test.banErr).Once()
+			}
+			err := monitor.checkNextPeer()
+			if test.banErr != nil {
+				require.ErrorIs(t, err, test.banErr)
+			} else {
+				require.NoError(t, err)
+			}
+			events := logs.FindLogs(testlog.NewLevelFilter(log.LevelDebug))
+			if !test.ban || test.banErr != nil {
+				require.Empty(t, events)
+				return
+			}
+			require.Len(t, events, 1)
+			require.Equal(t, id, events[0].AttrValue("peer"))
+			require.Equal(t, test.score, events[0].AttrValue("score"))
+			require.Equal(t, monitor.minScore, events[0].AttrValue("threshold"))
+			require.Equal(t, expiry, events[0].AttrValue("expiry"))
+		})
+	}
+}
