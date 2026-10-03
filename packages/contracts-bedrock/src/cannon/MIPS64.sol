@@ -66,8 +66,8 @@ contract MIPS64 is ISemver {
     }
 
     /// @notice The semantic version of the MIPS64 contract.
-    /// @custom:semver 1.10.1
-    string public constant version = "1.10.1";
+    /// @custom:semver 1.10.2
+    string public constant version = "1.10.2";
 
     /// @notice The preimage oracle contract.
     IPreimageOracle internal immutable ORACLE;
@@ -524,7 +524,12 @@ contract MIPS64 is ISemver {
                         secs = uint64(state.step / sys.HZ);
                         nsecs = uint64((state.step % sys.HZ) * (1_000_000_000 / sys.HZ));
                     }
-                    uint64 effAddr = a1 & arch.ADDRESS_MASK;
+                    // Use the address as supplied rather than aligning it. The `timespec` written
+                    // below is two consecutive 64-bit words, so a misaligned pointer is invalid,
+                    // and `MIPS64Memory` reverts on a misaligned address. Masking here would clear
+                    // exactly the bits that check inspects, so the misalignment would be hidden and
+                    // the write would land at a different address than the guest asked for.
+                    uint64 effAddr = a1;
                     // First verify the effAddr path
                     if (!MIPS64Memory.isValidProof(
                             state.memRoot, effAddr, MIPS64Memory.memoryProofOffset(MEM_PROOF_OFFSET, 1)

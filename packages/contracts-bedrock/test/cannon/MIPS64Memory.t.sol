@@ -2,6 +2,7 @@
 pragma solidity 0.8.15;
 
 import { CommonTest } from "test/setup/CommonTest.sol";
+import { MIPS64Arch } from "src/cannon/libraries/MIPS64Arch.sol";
 import { MIPS64Memory } from "src/cannon/libraries/MIPS64Memory.sol";
 import { InvalidMemoryProof } from "src/cannon/libraries/CannonErrors.sol";
 
@@ -280,6 +281,29 @@ contract MIPS64Memory_IsValidProof_Test is MIPS64Memory_TestInit {
         bytes32 wrongRoot = bytes32(uint256(root) ^ 1);
         bool valid = mem.isValidProof(wrongRoot, addr, 0, proof);
         assertFalse(valid);
+    }
+
+    /// @notice Static unit test asserting that a misaligned address is rejected. `MIPS64` relies
+    ///         on this for syscall pointers, such as the `clock_gettime` `timespec`, which is two
+    ///         consecutive 64-bit words and so must be word aligned.
+    function test_isValidProof_misalignedAddress_reverts() external {
+        uint64 addr = 0x100;
+        uint64 word = 0x11_22_33_44_55_66_77_88;
+        bytes32 root;
+        bytes memory proof;
+        (root, proof) = ffi.getCannonMemory64Proof(addr, word);
+        vm.expectRevert(InvalidAddress.selector);
+        mem.isValidProof(root, addr + 1, 0, proof);
+    }
+
+    /// @notice Static unit test asserting that masking an address with `ADDRESS_MASK` hides a
+    ///         misalignment, because it clears exactly the low bits the check inspects. This is
+    ///         why `MIPS64` does not align syscall pointers before passing them to this function.
+    function test_addressMaskHidesMisalignment_succeeds() external pure {
+        uint64 addr = 0x100;
+        uint64 misaligned = addr + 1;
+        assertTrue(misaligned & MIPS64Arch.EXT_MASK != 0, "address is misaligned");
+        assertEq(misaligned & MIPS64Arch.ADDRESS_MASK, addr, "masking yields an aligned address");
     }
 }
 
