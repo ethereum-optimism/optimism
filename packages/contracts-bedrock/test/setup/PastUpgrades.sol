@@ -199,12 +199,10 @@ library PastUpgrades {
             (bool scSuccess,) = _opcm.delegatecall(
                 abi.encodeCall(
                     IOPContractsManagerV2.upgradeSuperchain,
-                    (
-                        IOPContractsManagerV2.SuperchainUpgradeInput({
+                    (IOPContractsManagerV2.SuperchainUpgradeInput({
                             superchainConfig: _superchainConfig,
                             extraInstructions: new IOPContractsManagerUtils.ExtraInstruction[](0)
-                        })
-                    )
+                        }))
                 )
             );
             // Acceptable to fail if already up to date
@@ -231,12 +229,10 @@ library PastUpgrades {
                 : GameTypes.SUPER_CANNON_KONA;
             anchor = _superRootAnchor(_systemConfig, asr);
             instructions[0] = IOPContractsManagerUtils.ExtraInstruction({
-                key: "overrides.cfg.startingAnchorRoot",
-                data: abi.encode(anchor)
+                key: "overrides.cfg.startingAnchorRoot", data: abi.encode(anchor)
             });
             instructions[1] = IOPContractsManagerUtils.ExtraInstruction({
-                key: "overrides.cfg.startingRespectedGameType",
-                data: abi.encode(targetGameType)
+                key: "overrides.cfg.startingRespectedGameType", data: abi.encode(targetGameType)
             });
         } else {
             (anchor.root, anchor.l2SequenceNumber) = asr.getAnchorRoot();
@@ -250,13 +246,11 @@ library PastUpgrades {
         (bool upgradeSuccess, bytes memory reason) = _opcm.delegatecall(
             abi.encodeCall(
                 IOPContractsManagerV2.upgrade,
-                (
-                    IOPContractsManagerV2.UpgradeInput({
+                (IOPContractsManagerV2.UpgradeInput({
                         systemConfig: _systemConfig,
                         disputeGameConfigs: disputeGameConfigs,
                         extraInstructions: instructions
-                    })
-                )
+                    }))
             )
         );
         if (!upgradeSuccess) {
@@ -357,7 +351,8 @@ library PastUpgrades {
 
     function _isSuperGameType(GameType _gameType) private pure returns (bool) {
         return _gameType.raw() == GameTypes.SUPER_PERMISSIONED.raw()
-            || _gameType.raw() == GameTypes.SUPER_CANNON_KONA.raw() || _gameType.raw() == GameTypes.ZK_DISPUTE_GAME.raw();
+            || _gameType.raw() == GameTypes.SUPER_CANNON_KONA.raw()
+            || _gameType.raw() == GameTypes.ZK_DISPUTE_GAME.raw();
     }
 
     /// @notice Commits the live anchor output root at its canonical L2 timestamp.

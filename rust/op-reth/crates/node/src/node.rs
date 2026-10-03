@@ -2,15 +2,20 @@
 
 use crate::{
     OpEngineApiBuilder, OpEngineTypes,
-    args::RollupArgs,
+    args::{ProofsStorageVersion, RollupArgs},
     engine::OpEngineValidator,
+    payload_service::OpPayloadServiceBuilder,
     txpool::{OpCustomTransactionPool, OpTransactionValidator},
 };
 use alloy_primitives::Sealed;
+use eyre::ErrReport;
+use futures_util::FutureExt;
 use op_alloy_consensus::{OpPooledTransaction, OpTransaction, TxPostExec, interop::SafetyLevel};
 use reth_chainspec::{
     BaseFeeParams, ChainSpecProvider, EthChainSpec, EthereumHardforks, ForkCondition, Hardforks,
 };
+use reth_db::DatabaseEnv;
+use reth_db_api::database_metrics::DatabaseMetrics;
 use reth_evm::ConfigureEvm;
 use reth_network::{
     NetworkConfig, NetworkHandle, NetworkManager, NetworkPrimitives, PeersInfo,
@@ -21,10 +26,11 @@ use reth_node_api::{
     NodePrimitives, PayloadAttributesBuilder, PayloadTypes, PrimitivesTy, TxTy,
 };
 use reth_node_builder::{
-    BuilderContext, DebugNode, Node, NodeAdapter, NodeComponentsBuilder,
+    BuilderContext, DebugNode, Node, NodeAdapter, NodeBuilder, NodeBuilderWithComponents,
+    NodeComponentsBuilder, RethFullAdapter, WithLaunchContext,
     components::{
-        BasicPayloadServiceBuilder, ComponentsBuilder, ConsensusBuilder, ExecutorBuilder,
-        NetworkBuilder, PayloadBuilderBuilder, PoolBuilder, PoolBuilderConfigOverrides,
+        ComponentsBuilder, ConsensusBuilder, ExecutorBuilder, NetworkBuilder,
+        PayloadBuilderBuilder, PoolBuilder, PoolBuilderConfigOverrides,
     },
     node::{FullNodeTypes, NodeTypes},
     rpc::{
@@ -36,6 +42,7 @@ use reth_node_builder::{
 use reth_optimism_chainspec::{OpChainSpec, OpHardfork};
 use reth_optimism_consensus::OpBeaconConsensus;
 use reth_optimism_evm::{ConfigurePostExecEvm, OpEvmConfig, OpRethReceiptBuilder};
+use reth_optimism_exex::OpProofsExEx;
 use reth_optimism_forks::OpHardforks;
 use reth_optimism_payload_builder::{
     OpBuiltPayload, OpExecData, OpPayloadBuilderAttributes, OpPayloadPrimitives,
@@ -45,24 +52,36 @@ use reth_optimism_payload_builder::{
 use reth_optimism_primitives::{DepositReceipt, OpPrimitives};
 use reth_optimism_rpc::{
     SequencerClient,
-    eth::{OpEthApiBuilder, ext::OpEthExtApi},
+    debug::{DebugApiExt, DebugApiOverrideServer},
+    eth::{
+        OpEthApiBuilder,
+        ext::OpEthExtApi,
+        proofs::{EthApiExt, EthApiOverrideServer},
+    },
     historical::{HistoricalRpc, HistoricalRpcClient},
     miner::{MinerApiExtServer, OpMinerExtApi},
     witness::{DebugExecutionWitnessApiServer, OpDebugPostExecApiServer, OpDebugWitnessApi},
 };
 use reth_optimism_storage::OpStorage;
+use reth_optimism_trie::{
+    OpProofsStorage, OpProofsStore,
+    db::{MdbxProofsStorage, MdbxProofsStorageV2},
+};
 use reth_optimism_txpool::{
     OpPool, OpPooledTx, interop::InteropFailsafe, interop_filter::InteropFilterClient,
 };
 use reth_primitives_traits::header::HeaderMut;
-use reth_provider::{CanonStateSubscriptions, providers::ProviderFactoryBuilder};
+use reth_provider::{
+    CanonStateSubscriptions, DatabaseProviderFactory, StorageSettingsCache,
+    providers::ProviderFactoryBuilder,
+};
 use reth_rpc_api::{
     DebugApiServer, EthConfigApiServer, L2EthApiExtServer,
     eth::{RpcTypes, helpers::config::EthConfigHandler},
 };
 use reth_rpc_builder::{TransportRpcModules, auth::AuthRpcModule};
 use reth_rpc_server_types::RethRpcModule;
-use reth_tracing::tracing::{debug, info};
+use reth_tracing::tracing::{debug, info, warn};
 use reth_transaction_pool::{
     CoinbaseTipOrdering, EthPoolTransaction, PoolPooledTx, PoolTransaction, TransactionOrdering,
     TransactionPool, TransactionValidationTaskExecutor, TransactionValidator,
@@ -70,6 +89,7 @@ use reth_transaction_pool::{
 };
 use reth_trie_common::KeccakKeyHasher;
 use std::{marker::PhantomData, sync::Arc};
+use tokio::time::sleep;
 use url::Url;
 
 use reth_optimism_payload_builder::OpPayloadAttrs;
@@ -216,15 +236,16 @@ pub struct OpNode {
     pub interop_failsafe: InteropFailsafe,
 }
 
-/// A [`ComponentsBuilder`] with its generic arguments set to a stack of Optimism specific builders.
-pub type OpNodeComponentBuilder<Node, Payload = OpPayloadBuilder> = ComponentsBuilder<
-    Node,
-    OpPoolBuilder,
-    BasicPayloadServiceBuilder<Payload>,
-    OpNetworkBuilder,
-    OpExecutorBuilder,
-    OpConsensusBuilder,
->;
+/// The component builder used by the stock node configuration.
+pub type OpNodeComponentBuilder<Node, PayloadServiceBuilder = OpPayloadServiceBuilder> =
+    ComponentsBuilder<
+        Node,
+        OpPoolBuilder,
+        PayloadServiceBuilder,
+        OpNetworkBuilder,
+        OpExecutorBuilder,
+        OpConsensusBuilder,
+    >;
 
 impl Default for OpNode {
     fn default() -> Self {
@@ -313,7 +334,10 @@ impl OpNode {
             .node_types::<Node>()
             .executor(OpExecutorBuilder::default())
             .pool(self.standard_pool_builder())
-            .payload(BasicPayloadServiceBuilder::new(self.payload_builder()))
+            .payload(OpPayloadServiceBuilder::new(
+                self.payload_builder(),
+                self.args.testing_sdm_fixed_policy,
+            ))
             .network(OpNetworkBuilder::new(disable_txpool_gossip, !discovery_v4))
             .consensus(OpConsensusBuilder::default())
     }
@@ -374,18 +398,133 @@ impl OpNode {
     }
 }
 
+type ConfiguredOpNodeBuilder = WithLaunchContext<
+    NodeBuilderWithComponents<
+        RethFullAdapter<DatabaseEnv, OpNode>,
+        <OpNode as Node<RethFullAdapter<DatabaseEnv, OpNode>>>::ComponentsBuilder,
+        <OpNode as Node<RethFullAdapter<DatabaseEnv, OpNode>>>::AddOns,
+    >,
+>;
+
+/// Launches an OP node, optionally installing proof history, then waits for it to exit.
+pub async fn launch_node(
+    builder: WithLaunchContext<NodeBuilder<DatabaseEnv, OpChainSpec>>,
+    node: OpNode,
+) -> eyre::Result<(), ErrReport> {
+    let args = &node.args;
+    let proof_history = args.proofs_history.then(|| {
+        (
+            // Defaults to `<reth-data-dir>/historical-proofs` when not supplied — see
+            // [`ProofsHistoryStorageArgs::resolve_storage_path`].
+            args.history.resolve_storage_path(builder.config().datadir().as_ref()),
+            args.history.storage_version,
+            args.proofs_history_window.window,
+            args.proofs_history_verification_interval,
+        )
+    });
+
+    let builder = builder.node(node);
+    let builder = match proof_history {
+        None => builder,
+        Some((path, ProofsStorageVersion::V1, window, verification_interval)) => {
+            info!(target: "reth::cli", "Using on-disk storage for proofs history (v1)");
+            let mdbx = Arc::new(
+                MdbxProofsStorage::new(&path)
+                    .map_err(|e| eyre::eyre!("Failed to create MdbxProofsStorage: {e}"))?,
+            );
+            configure_proof_history(builder, mdbx, window, verification_interval)
+        }
+        Some((path, ProofsStorageVersion::V2, window, verification_interval)) => {
+            info!(target: "reth::cli", "Using on-disk storage for proofs history (v2)");
+            let mdbx = Arc::new(
+                MdbxProofsStorageV2::new(&path)
+                    .map_err(|e| eyre::eyre!("Failed to create MdbxProofsStorageV2: {e}"))?,
+            );
+            configure_proof_history(builder, mdbx, window, verification_interval)
+        }
+    };
+
+    let handle = builder.launch_with_debug_capabilities().await?;
+    match handle.node.provider.database_provider_ro() {
+        Ok(provider) if !provider.cached_storage_settings().is_v2() => {
+            warn!(
+                target: "reth::cli",
+                "Storage V1 is deprecated and will be removed on 2027-01-04. Stop the node, then migrate to Storage V2 with `op-reth db migrate-v2` using the same chain and data-directory arguments."
+            );
+        }
+        Ok(_) => {}
+        Err(err) => {
+            warn!(target: "reth::cli", %err, "Failed to check whether Storage V1 deprecation applies");
+        }
+    }
+    handle.node_exit_future.await
+}
+
+/// Installs the ExEx, RPC overrides, and metrics hook for proof history.
+fn configure_proof_history<S>(
+    builder: ConfiguredOpNodeBuilder,
+    mdbx: Arc<S>,
+    proofs_history_window: u64,
+    proofs_history_verification_interval: u64,
+) -> ConfiguredOpNodeBuilder
+where
+    S: OpProofsStore + DatabaseMetrics + Send + Sync + 'static,
+{
+    let storage: OpProofsStorage<Arc<S>> = mdbx.clone().into();
+    let storage_exec = storage.clone();
+
+    builder
+        .on_node_started(move |node| {
+            let metrics_report_interval = node.config.metrics.push_gateway_interval;
+            node.task_executor.spawn_critical_task(
+                "op-proofs-storage-metrics",
+                async move {
+                    info!(
+                        target: "reth::cli",
+                        ?metrics_report_interval,
+                        "Starting op-proofs-storage metrics task"
+                    );
+
+                    loop {
+                        sleep(metrics_report_interval).await;
+                        mdbx.report_metrics();
+                    }
+                },
+            );
+            Ok(())
+        })
+        .install_exex("proofs-history", async move |exex_context| {
+            Ok(OpProofsExEx::builder(exex_context, storage_exec)
+                .with_proofs_history_window(proofs_history_window)
+                .with_verification_interval(proofs_history_verification_interval)
+                .build()
+                .run()
+                .boxed())
+        })
+        .extend_rpc_modules(move |ctx| {
+            info!(target: "reth::cli", "Installing proofs-history RPC overrides (eth_getProof, debug_executePayload)");
+            let api_ext = EthApiExt::new(ctx.registry.eth_api().clone(), storage.clone());
+            let auth_api_ext = EthApiExt::new(ctx.registry.eth_api().clone(), storage.clone());
+            let debug_ext = DebugApiExt::new(
+                ctx.node().provider().clone(),
+                ctx.registry.eth_api().clone(),
+                storage,
+                ctx.node().task_executor().clone(),
+                ctx.node().evm_config().clone(),
+            );
+            let eth_replaced = ctx.modules.replace_configured(api_ext.into_rpc())?;
+            let auth_eth_replaced = ctx.auth_module.replace_auth_methods(auth_api_ext.into_rpc())?;
+            let debug_replaced = ctx.modules.replace_configured(debug_ext.into_rpc())?;
+            info!(target: "reth::cli", eth_replaced, auth_eth_replaced, debug_replaced, "Proofs-history RPC overrides installed");
+            Ok(())
+        })
+}
+
 impl<N> Node<N> for OpNode
 where
     N: FullNodeTypes<Types: OpFullNodeTypes + OpNodeTypes>,
 {
-    type ComponentsBuilder = ComponentsBuilder<
-        N,
-        OpPoolBuilder,
-        BasicPayloadServiceBuilder<OpPayloadBuilder>,
-        OpNetworkBuilder,
-        OpExecutorBuilder,
-        OpConsensusBuilder,
-    >;
+    type ComponentsBuilder = OpNodeComponentBuilder<N>;
 
     type AddOns = OpAddOns<
         NodeAdapter<N, <Self::ComponentsBuilder as NodeComponentsBuilder<N>>::Components>,

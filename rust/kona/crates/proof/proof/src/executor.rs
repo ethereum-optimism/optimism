@@ -119,6 +119,10 @@ where
         )
     }
 
+    fn is_invalid_payload_error(error: &Self::Error) -> bool {
+        error.is_invalid_payload()
+    }
+
     /// Computes the output root.
     fn compute_output_root(&mut self) -> Result<B256, Self::Error> {
         self.inner.as_mut().map_or_else(

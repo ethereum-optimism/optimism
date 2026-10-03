@@ -1,15 +1,10 @@
 use alloy_primitives::Address;
-use alloy_rpc_client::ClientBuilder;
-use alloy_transport_http::{Http, reqwest};
-use reqwest::header::HeaderMap;
-use std::sync::Arc;
+use alloy_transport_http::reqwest::header::HeaderMap;
 use thiserror::Error;
-use tokio::sync::RwLock;
 use url::Url;
 
 use crate::{
-    RemoteSignerHandler,
-    signer::remote::cert::{CertificateError, ClientCert},
+    ClientCert, ReloadingRpcClient, ReloadingRpcClientError, RemoteSignerHandler, TlsPaths,
 };
 
 /// Configuration for the remote signer client
@@ -25,8 +20,7 @@ use crate::{
 /// - PEM format for all certificates and keys
 /// - Certificates should be provided as file paths.
 ///
-/// By default, the process will watch for changes in the client certificate files and reload the
-/// client automatically.
+/// TLS material is reloaded when it changes on disk; see [`ReloadingRpcClient`].
 #[derive(Debug, Clone)]
 pub struct RemoteSigner {
     /// The URL of the remote signer endpoint
@@ -47,71 +41,31 @@ pub enum RemoteSignerStartError {
     /// Failed to ping signer
     #[error("Failed to ping signer: {0}")]
     Ping(alloy_transport::TransportError),
-    /// HTTP client build error
-    #[error("HTTP client build error: {0}")]
-    HTTPClientBuild(#[from] reqwest::Error),
-    /// Invalid certificate error
-    #[error("Invalid certificate: {0}")]
-    Certificate(#[from] CertificateError),
-    /// Certificate watcher error
-    #[error("Certificate watcher error: {0}")]
-    CertificateWatcher(#[from] notify::Error),
+    /// Failed to build the signer client
+    #[error("Failed to build signer client: {0}")]
+    Client(#[from] ReloadingRpcClientError),
 }
 
 impl RemoteSigner {
-    /// Creates a new remote signer with the given configuration
+    /// Builds the signer client and checks that the signer is reachable.
     ///
-    /// If client certificates are configured, this will automatically start a certificate watcher
-    /// that monitors the certificate files for changes. When certificates are updated (e.g., by
-    /// cert-manager in Kubernetes), the TLS client will be automatically reloaded with the new
-    /// certificates without requiring a restart.
-    ///
-    /// # Certificate Watching
-    ///
-    /// The certificate watcher monitors:
-    /// - Client certificate file (if mTLS is configured)
-    /// - Client private key file (if mTLS is configured)
-    /// - CA certificate file (if custom CA is configured)
-    ///
-    /// When any of these files are modified, the watcher will:
-    /// 1. Log the certificate change event
-    /// 2. Reload the certificate files from disk
-    /// 3. Rebuild the HTTP client with the new TLS configuration
-    /// 4. Replace the existing client atomically
-    ///
-    /// This enables zero-downtime certificate rotation in production environments.
+    /// TLS material is reloaded when it changes on disk; see [`ReloadingRpcClient`].
     pub async fn start(self) -> Result<RemoteSignerHandler, RemoteSignerStartError> {
-        let http_client = self.build_http_client()?;
-        let transport = Http::with_client(http_client, self.endpoint.clone());
-        let client = ClientBuilder::default().transport(transport, true);
+        let client = ReloadingRpcClient::new(
+            self.endpoint,
+            TlsPaths { ca_cert: self.ca_cert, client_cert: self.client_cert },
+            self.headers,
+        )?;
 
         // Try to ping the signer to check if it's reachable
-        let version: String =
-            client.request("health_status", ()).await.map_err(RemoteSignerStartError::Ping)?;
+        let version: String = client
+            .client()
+            .request("health_status", ())
+            .await
+            .map_err(RemoteSignerStartError::Ping)?;
 
         tracing::info!(target: "signer", version, "Connected to op-signer server");
 
-        let client = Arc::new(RwLock::new(client));
-
-        // Start certificate watcher if client certificates are configured
-        let watcher_handle = self.start_certificate_watcher(client.clone()).await?;
-
-        Ok(RemoteSignerHandler { client, watcher_handle, address: self.address })
-    }
-
-    /// Builds an HTTP client with certificate handling for the remote signer
-    pub(super) fn build_http_client(&self) -> Result<reqwest::Client, RemoteSignerStartError> {
-        let mut client_builder = reqwest::Client::builder();
-
-        // Configure TLS if certificates are provided
-        if self.client_cert.is_some() || self.ca_cert.is_some() {
-            let tls_config = self.build_tls_config()?;
-            client_builder = client_builder.use_preconfigured_tls(tls_config);
-        }
-
-        // Set headers
-        client_builder = client_builder.default_headers(self.headers.clone());
-
-        client_builder.build().map_err(RemoteSignerStartError::HTTPClientBuild)
+        Ok(RemoteSignerHandler { client, address: self.address })
     }
 }

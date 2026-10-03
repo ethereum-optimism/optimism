@@ -82,7 +82,7 @@ resolve_rust() {
 
 case "$component" in
     '') ;;
-    kona-*|op-reth)
+    kona-*|op-reth|op-zk-proposer)
         if resolve_rust; then mode=rust; fi ;;
     *)
         if resolve_go; then mode=go; fi ;;

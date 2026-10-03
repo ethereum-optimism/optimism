@@ -74,14 +74,15 @@ library RLPReader {
         uint256 offset = listOffset;
         while (offset < _in.length) {
             (uint256 itemOffset, uint256 itemLength,) = _decodeLength(
-                RLPItem({ length: _in.length - offset, ptr: MemoryPointer.wrap(MemoryPointer.unwrap(_in.ptr) + offset) })
+                RLPItem({
+                    length: _in.length - offset, ptr: MemoryPointer.wrap(MemoryPointer.unwrap(_in.ptr) + offset)
+                })
             );
 
             // We don't need to check itemCount < out.length explicitly because Solidity already
             // handles this check on our behalf, we'd just be wasting gas.
             out_[itemCount] = RLPItem({
-                length: itemLength + itemOffset,
-                ptr: MemoryPointer.wrap(MemoryPointer.unwrap(_in.ptr) + offset)
+                length: itemLength + itemOffset, ptr: MemoryPointer.wrap(MemoryPointer.unwrap(_in.ptr) + offset)
             });
 
             itemCount += 1;

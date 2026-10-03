@@ -925,9 +925,7 @@ contract VerifyOPCM is Script {
 
         // Put together the artifact info struct.
         return ArtifactInfo({
-            bytecode: bytecode,
-            deployedBytecode: deployedBytecode,
-            immutableRefs: _parseImmutableRefs(artifactJson)
+            bytecode: bytecode, deployedBytecode: deployedBytecode, immutableRefs: _parseImmutableRefs(artifactJson)
         });
     }
 
@@ -1202,7 +1200,7 @@ contract VerifyOPCM is Script {
                     types,
                     ")\" ",
                     vm.toString(_constructorArgs),
-                    " --json | jq -r 'map(if type == \"string\" and startswith(\"(\") then gsub(\", \"; \",\") else . end) | join(\" \")')"
+                    " --json | jq -r '(if type == \"object\" and has(\"data\") then .data else . end) | map(if type == \"array\" then \"(\" + (map(tostring) | join(\",\")) + \")\" elif type == \"string\" and startswith(\"(\") then gsub(\", \"; \",\") else tostring end) | join(\" \")')"
                 )
             )
         );

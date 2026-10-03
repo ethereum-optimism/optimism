@@ -299,7 +299,7 @@ contract MIPS64Memory_IsValidProof_Test is MIPS64Memory_TestInit {
     /// @notice Static unit test asserting that masking an address with `ADDRESS_MASK` hides a
     ///         misalignment, because it clears exactly the low bits the check inspects. This is
     ///         why `MIPS64` does not align syscall pointers before passing them to this function.
-    function test_addressMaskHidesMisalignment_succeeds() external {
+    function test_addressMaskHidesMisalignment_succeeds() external pure {
         uint64 addr = 0x100;
         uint64 misaligned = addr + 1;
         assertTrue(misaligned & MIPS64Arch.EXT_MASK != 0, "address is misaligned");

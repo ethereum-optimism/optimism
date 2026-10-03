@@ -31,7 +31,7 @@ Supporting libraries for the SP1 fault proof system:
 - **`range-vkeys`**: Compile-time `super-range` guest verification key, embedded from generated
   `elf/vkeys.toml` and used by `super-aggregation`. The crate retains its historical name because
   it authenticates the shipping super-range child program.
-- **`proposer`**: The `kona-sp1-proposer` service: creates super-root ZK dispute games,
+- **`proposer`**: The `op-zk-proposer` service: creates super-root ZK dispute games,
   defends challenged ones with SP1 super-aggregation proofs, resolves finished games, and
   claims bonds (see the Proposer section below)
 - **`super-range-executor`**: Witness synthesis and execution engine for the super-root
@@ -53,14 +53,14 @@ on linux/amd64 with `just build-elfs`; it builds the `super-range` leaf first, g
 and then builds `super-aggregation` with that vkey embedded through `kona-sp1-range-vkeys`. Use
 `just build-elfs-native` for local iteration and the fast per-PR compile check; CI persists the
 native manifest with the generated ELFs. Native ELF hashes may differ across build environments
-because paths and other environment details are embedded. A Docker-based, uncached tag/release
-reproducibility CI check is intentionally left to a future follow-up.
+because paths and other environment details are embedded. The daily reproducibility job
+rebuilds each `kona-sp1` registry version from `kona-sp1-program/v<version>` using that tag's
+Docker `just build-elfs` recipe and compares only its `super-aggregation` vkey to the registry.
 
 Host-toolchain workspace builds need neither ELFs nor `vkeys.toml`. Host binaries load guest
 artifacts at runtime from `KONA_SP1_ELF_DIR`; a missing or empty artifact fails as an
-infrastructure error. Release automation will eventually pin per-version vkeys from the generated
-manifest into `superchain-registry/validation/standard/standard-prestates.toml` and verify
-reproducible builds.
+infrastructure error. `kona-sp1-publish-prestates{,-on-tag}` publishes develop and tag ELFs
+(see [Releases](#releases)).
 
 #### Build provenance
 
@@ -100,6 +100,58 @@ KONA_CUSTOM_CONFIGS_DIR=/path/to/custom/configs just build-elfs
 The directory must contain `chainList.json`, `configs.json`, and `depsets.json`.
 Those files are compiled into the kona crates used by the guest programs, so
 custom configs produce different ELFs and verification-key hashes.
+
+## Releases
+
+The two guest programs (`super-range` and `super-aggregation`) are released as ELFs under the
+`kona-sp1-program/vX.Y.Z` monorepo tag family, with `kona-sp1-program/vX.Y.Z-rc.N` for release
+candidates. The prefix mirrors `kona-client/v*`. It publishes ELFs and builds no Docker image: the
+guests are RISC-V zkVM programs with no native entrypoint to containerize, so the apko image
+workflow, which does fire on `*/v*` tags, builds nothing for it. The native host binaries that run
+the guests ship separately; `op-zk-proposer` has its own image and `op-zk-proposer/vX.Y.Z` tag
+family, with `op-zk-proposer/vX.Y.Z-rc.N` for release candidates. It is to
+`kona-sp1-program` what `kona-host` is to `kona-client`, and must be compatible with the
+`kona-sp1-program` version it runs against.
+
+- **RC to final**: a final release tags the same commit as its last RC, so the vkeys are identical
+  across the RC and the final release.
+- **Tandem with `op-zk-proposer`**: release `kona-sp1-program` and `op-zk-proposer`
+  together whenever possible. The proposer embeds kona-host, which collects the witness these
+  programs execute. Tag both on the same commit; a proposer-only release with no program change is
+  fine.
+- **Release paths**: like `kona-client`, a release covers the whole `rust/kona/` tree.
+- **Every new commit rotates the vkeys**: both guests embed the commit they were built from (see
+  [Build provenance](#build-provenance)), so a release tagged on a different commit from the
+  previous one always has new vkeys, even if no guest code changed, and every consumer must repin.
+  Only a final release, which re-tags its last RC's commit, keeps that RC's vkeys.
+
+CircleCI publishes the standard ELFs, built with the Docker recipe `just build-elfs` and no custom
+configs, to `gs://oplabs-network-data/proofs/kona/sp1/`, served publicly under
+<https://storage.googleapis.com/oplabs-network-data/proofs/kona/sp1/>. The publish job refuses to
+upload unless `elf/vkeys.toml` records exactly the pipeline commit as `git_sha`, with no `-dirty`
+or `-custom` suffix, and both vkeys are nonzero.
+
+| Trigger | Workflow | Objects |
+|---|---|---|
+| `kona-sp1-program/v*` tag | `kona-sp1-publish-prestates-on-tag` | `<vkey>.range.bin.gz`, `<vkey>.agg.bin.gz` |
+| Push to `develop` | `kona-sp1-publish-prestates` | `develop.range.bin.gz`, `develop.agg.bin.gz`, `develop.bin.gz.txt` |
+
+- **Tag objects** are content-addressed by the lowercase `0x`-prefixed super-aggregation vkey.
+  That is the layout `OP_ZK_PROPOSER_PRESTATES_URL` resolves through `absolutePrestate()`, and
+  the vkey is printed in the workflow log. Keep them published for as long as games created under
+  that vkey can be live; see the operational requirement under
+  [Ownership](#ownership-which-games-it-defends).
+- **Develop objects** are branch-named, overwritten on every push, and served with
+  `Cache-Control: no-cache`. `develop.bin.gz.txt` uses the same format as kona-client's pointer
+  files: `Commit=<sha>` and `Prestate: <super-aggregation vkey>`. The zkvm canary consumes
+  `KONA_ZKVM_CANARY_PRESTATES_URL=https://storage.googleapis.com/oplabs-network-data/proofs/kona/sp1/develop.range.bin.gz`.
+- **Metadata**: every ELF object carries `x-goog-meta-prestate-type: konaSP1` and
+  `x-goog-meta-kona-sp1-version`, set to the tag or, on develop, the commit. `chain-ids` is left
+  out: a standard build covers every chain in the embedded registry config, not one devnet's
+  chain set.
+
+Devnet ELFs built with custom configs (`git_sha` ends in `-custom`) never share vkeys with the
+published ones.
 
 ## Acceptance coverage
 
@@ -154,7 +206,7 @@ The shipping SP1 integration proves super roots over a non-empty dependency set:
    public values expected by `ZKDisputeGame`.
 3. **Onchain verification**: The aggregated proof is submitted to the dispute game on L1.
 
-## Proposer (`kona-sp1-proposer`)
+## Proposer (`op-zk-proposer`)
 
 The proposer service (ported from op-succinct's fault-proof proposer) plays the
 super-root `ZKDisputeGame` (game type 10) end to end:
@@ -189,7 +241,7 @@ anchor validation is not repeated after startup.
 Defense, resolution, and bond claims use prestate-based ownership. The proposer
 handles every game whose `absolutePrestate()` artifacts it can load, regardless
 of creator. Games whose prestate is unknown are skipped with the
-`kona_sp1_proposer_unknown_prestate_challenged` gauge as the alarm.
+`op_zk_proposer_unknown_prestate_challenged` gauge as the alarm.
 
 Fast finality uses a narrower spend policy. It proves only unchallenged games
 created by the configured proposer signer and owned by prestate. After a signer
@@ -197,12 +249,12 @@ rotation, old-signer games stay eligible for defense, resolution, and claims,
 but the restart scan does not fast-finalize them.
 
 **Operational requirement**: rotated-out prestate artifacts must remain published
-under `KONA_SP1_PROPOSER_PRESTATES_URL` for as long as games created under them can be live, or the
+under `OP_ZK_PROPOSER_PRESTATES_URL` for as long as games created under them can be live, or the
 proposer loses the ability to defend, resolve, and claim those games.
 
 ### Proof providers
 
-- `KONA_SP1_PROPOSER_PROOF_PROVIDER=network`: real SP1 proving via the Succinct Prover Network.
+- `OP_ZK_PROPOSER_PROOF_PROVIDER=network`: real SP1 proving via the Succinct Prover Network.
   Proving keys are set up per prestate on first use, and the aggregation
   verifying key must hash to the on-chain prestate (mismatches poison the
   prestate and remove its games from the owned set). The registered prestate's
@@ -215,7 +267,7 @@ proposer loses the ability to defend, resolve, and claim those games.
   immutable verifier is checked before a proof is requested, so a game on another circuit is
   given up without proving spend. The ERROR log names both hashes and the SDK circuit; the fix
   is a verifier re-pin or an SDK change. Defense of games on a compatible verifier continues.
-- `KONA_SP1_PROPOSER_PROOF_PROVIDER=mock`: dev-only. Runs the full pipeline natively (witness
+- `OP_ZK_PROPOSER_PROOF_PROVIDER=mock`: dev-only. Runs the full pipeline natively (witness
   collection computes the real range/consolidation outputs and the aggregation
   inputs are validated), then submits placeholder proof bytes. Only a deployment
   with a mock game verifier (devstack) accepts them. No ELFs, no SPN credentials.
@@ -244,13 +296,13 @@ the proposer to retry terminal proof requests without restarting it. This
 applies to all tracked games. The proposer keeps pending requests, finished
 proofs, and completed chunks. Normal scheduling decides when retries run.
 
-Check that the running build supports SIGUSR1 and has logged `kona-sp1-proposer started`.
+Check that the running build supports SIGUSR1 and has logged `op-zk-proposer started`.
 Older builds may exit when they receive this signal.
 
 Find the proposer's process ID (PID):
 
 ```bash
-pgrep -fl kona-sp1-proposer
+pgrep -fl op-zk-proposer
 ```
 
 Replace `12345` below with that PID. Check that it is the right process before
@@ -273,7 +325,7 @@ sent together may count as one request.
 ### Operator alarms
 
 The following metrics support availability, funding, and defense-deadline alerts.
-Names below use the `kona_sp1_proposer_` prefix.
+Names below use the `op_zk_proposer_` prefix.
 
 | Metric | Type | Meaning |
 |---|---|---|
@@ -301,23 +353,23 @@ A missed fast-finality window does not by itself mean a lost game.
 Set defense alerts early enough to allow proving, L1 inclusion, and operator
 response. Use the error metrics below for diagnosis, not separate alerts.
 
-`kona_sp1_proposer_game_proving_error` counts failed attempts; retries may buy
-replacement proofs. `kona_sp1_proposer_proving_timeout_error` means polling
+`op_zk_proposer_game_proving_error` counts failed attempts; retries may buy
+replacement proofs. `op_zk_proposer_proving_timeout_error` means polling
 timed out; the next attempt can reuse the request.
-`kona_sp1_proposer_game_unprovable` counts games the proposer cannot prove.
+`op_zk_proposer_game_unprovable` counts games the proposer cannot prove.
 
-`kona_sp1_proposer_proving_duration_seconds` records only successful runs,
+`op_zk_proposer_proving_duration_seconds` records only successful runs,
 including the L1 transaction path. Use the task-stats log to investigate stuck work.
 
 ### Environment
 
-All proposer-owned variables use the `KONA_SP1_PROPOSER_` prefix.
+All proposer-owned variables use the `OP_ZK_PROPOSER_` prefix.
 
-For a standard network, set `--network <name>` or `KONA_SP1_PROPOSER_NETWORK`
+For a standard network, set `--network <name>` or `OP_ZK_PROPOSER_NETWORK`
 to a predefined network name recognized by OP Stack services, such as `op-mainnet` or
 `op-sepolia`. The command-line
 value overrides the environment value. Custom deployments can set
-`KONA_SP1_PROPOSER_FACTORY_ADDRESS`; an explicit address overrides network lookup. Startup fails
+`OP_ZK_PROPOSER_FACTORY_ADDRESS`; an explicit address overrides network lookup. Startup fails
 when neither source is set, the network name is unknown, or the selected registry chain has no
 `DisputeGameFactory` address.
 
@@ -325,60 +377,60 @@ Required core configuration:
 
 | Variable | Purpose |
 |---|---|
-| `KONA_SP1_PROPOSER_L1_RPC` | L1 execution RPC; must support standard JSON-RPC batch requests (current proposer game-state batches contain at most 4 `eth_call` entries) |
-| `KONA_SP1_PROPOSER_SUPERROOT_RPCS` | op-supernode or single-chain op-node RPCs serving `superroot_atTimestamp`. Multiple comma-separated RPCs can be provided for redundancy |
-| `KONA_SP1_PROPOSER_NETWORK` | Predefined network name recognized by OP Stack services, such as `op-mainnet`; alternative to `KONA_SP1_PROPOSER_FACTORY_ADDRESS` |
-| `KONA_SP1_PROPOSER_FACTORY_ADDRESS` | Explicit `DisputeGameFactory` address; required when no network is selected and overrides network lookup |
-| `KONA_SP1_PROPOSER_PRESTATES_URL` | prestate artifact directory (`<vkey>.agg.bin.gz` + `<vkey>.range.bin.gz`) |
-| `KONA_SP1_PROPOSER_PROOF_PROVIDER` | `network` or `mock`; no default |
-| `KONA_SP1_PROPOSER_L1_BEACON_RPC` | L1 beacon API (blob sidecars for derivation witnesses) |
-| `KONA_SP1_PROPOSER_L2_RPCS` | comma-separated L2 EL RPCs, one per chain (order-irrelevant) |
+| `OP_ZK_PROPOSER_L1_RPC` | L1 execution RPC; must support standard JSON-RPC batch requests (current proposer game-state batches contain at most 4 `eth_call` entries) |
+| `OP_ZK_PROPOSER_SUPERROOT_RPCS` | op-supernode or single-chain op-node RPCs serving `superroot_atTimestamp`. Multiple comma-separated RPCs can be provided for redundancy |
+| `OP_ZK_PROPOSER_NETWORK` | Predefined network name recognized by OP Stack services, such as `op-mainnet`; alternative to `OP_ZK_PROPOSER_FACTORY_ADDRESS` |
+| `OP_ZK_PROPOSER_FACTORY_ADDRESS` | Explicit `DisputeGameFactory` address; required when no network is selected and overrides network lookup |
+| `OP_ZK_PROPOSER_PRESTATES_URL` | prestate artifact directory (`<vkey>.agg.bin.gz` + `<vkey>.range.bin.gz`) |
+| `OP_ZK_PROPOSER_PROOF_PROVIDER` | `network` or `mock`; no default |
+| `OP_ZK_PROPOSER_L1_BEACON_RPC` | L1 beacon API (blob sidecars for derivation witnesses) |
+| `OP_ZK_PROPOSER_L2_RPCS` | comma-separated L2 EL RPCs, one per chain (order-irrelevant) |
 
 Optional core and operational configuration:
 
 | Variable | Purpose |
 |---|---|
-| `KONA_SP1_PROPOSER_ROLLUP_CONFIG_PATHS` | comma-separated rollup config files; absent = registry fallback |
-| `KONA_SP1_PROPOSER_L1_CONFIG_PATH` | L1 chain config file; absent = registry fallback |
-| `KONA_SP1_PROPOSER_DEPENDENCY_SET_PATH` | dependency-set config file; absent = registry fallback |
-| `KONA_SP1_PROPOSER_PROPOSAL_INTERVAL_SECONDS` | proposal interval (default `3600`) |
-| `KONA_SP1_PROPOSER_PROPOSAL_SAFETY` | `safe` or `finalized` (default `finalized`) |
-| `KONA_SP1_PROPOSER_FETCH_INTERVAL` | loop interval in seconds (default `30`) |
-| `KONA_SP1_PROPOSER_METRICS_PORT` | `0` disables metrics; `auto` selects a free port (default `0`) |
-| `KONA_SP1_PROPOSER_SYNC_L1_CONFIRMATIONS` | L1 confirmation lag for pinned reads (default `0`) |
-| `KONA_SP1_PROPOSER_MAX_GAME_DEADLINE_LAG_SECONDS` | Startup discovery and pending-game eviction cutoff relative to the anchor deadline (default `1209600`, 14 days) |
-| `KONA_SP1_PROPOSER_TX_CONFIRMATION_TIMEOUT` | transaction confirmation timeout in seconds (default `180`) |
-| `KONA_SP1_PROPOSER_MAX_FEE_PER_GAS` | L1 max-fee cap in wei (default uncapped) |
-| `KONA_SP1_PROPOSER_MAX_PRIORITY_FEE_PER_GAS` | L1 priority-fee cap in wei (default uncapped) |
-| `KONA_SP1_PROPOSER_RANGE_SPLIT_COUNT` | chunks per defended span (default `16`, maximum `128`) |
-| `KONA_SP1_PROPOSER_MAX_CONCURRENT_RANGE_PROOFS` | child-proof concurrency per game (default `1`) |
-| `KONA_SP1_PROPOSER_MAX_CONCURRENT_DEFENSE_TASKS` | concurrent defended games (default `8`, minimum `1`) |
-| `KONA_SP1_PROPOSER_FAST_FINALITY_MODE` | prove signer-created owned games while unchallenged (default `false`) |
-| `KONA_SP1_PROPOSER_FAST_FINALITY_PROVING_LIMIT` | total in-flight proving tasks before creation pauses (default `1`) |
+| `OP_ZK_PROPOSER_ROLLUP_CONFIG_PATHS` | comma-separated rollup config files; absent = registry fallback |
+| `OP_ZK_PROPOSER_L1_CONFIG_PATH` | L1 chain config file; absent = registry fallback |
+| `OP_ZK_PROPOSER_DEPENDENCY_SET_PATH` | dependency-set config file; absent = registry fallback |
+| `OP_ZK_PROPOSER_PROPOSAL_INTERVAL_SECONDS` | proposal interval (default `3600`) |
+| `OP_ZK_PROPOSER_PROPOSAL_SAFETY` | `safe` or `finalized` (default `finalized`) |
+| `OP_ZK_PROPOSER_FETCH_INTERVAL` | loop interval in seconds (default `30`) |
+| `OP_ZK_PROPOSER_METRICS_PORT` | `0` disables metrics; `auto` selects a free port (default `0`) |
+| `OP_ZK_PROPOSER_SYNC_L1_CONFIRMATIONS` | L1 confirmation lag for pinned reads (default `0`) |
+| `OP_ZK_PROPOSER_MAX_GAME_DEADLINE_LAG_SECONDS` | Startup discovery and pending-game eviction cutoff relative to the anchor deadline (default `1209600`, 14 days) |
+| `OP_ZK_PROPOSER_TX_CONFIRMATION_TIMEOUT` | transaction confirmation timeout in seconds (default `180`) |
+| `OP_ZK_PROPOSER_MAX_FEE_PER_GAS` | L1 max-fee cap in wei (default uncapped) |
+| `OP_ZK_PROPOSER_MAX_PRIORITY_FEE_PER_GAS` | L1 priority-fee cap in wei (default uncapped) |
+| `OP_ZK_PROPOSER_RANGE_SPLIT_COUNT` | chunks per defended span (default `16`, maximum `128`) |
+| `OP_ZK_PROPOSER_MAX_CONCURRENT_RANGE_PROOFS` | child-proof concurrency per game (default `1`) |
+| `OP_ZK_PROPOSER_MAX_CONCURRENT_DEFENSE_TASKS` | concurrent defended games (default `8`, minimum `1`) |
+| `OP_ZK_PROPOSER_FAST_FINALITY_MODE` | prove signer-created owned games while unchallenged (default `false`) |
+| `OP_ZK_PROPOSER_FAST_FINALITY_PROVING_LIMIT` | total in-flight proving tasks before creation pauses (default `1`) |
 
-SP1 network configuration applies when `KONA_SP1_PROPOSER_PROOF_PROVIDER=network`.
-`KONA_SP1_PROPOSER_NETWORK_CALLS_TIMEOUT` also bounds metric observations in mock mode.
+SP1 network configuration applies when `OP_ZK_PROPOSER_PROOF_PROVIDER=network`.
+`OP_ZK_PROPOSER_NETWORK_CALLS_TIMEOUT` also bounds metric observations in mock mode.
 
 | Variable | Purpose |
 |---|---|
-| `KONA_SP1_PROPOSER_NETWORK_PRIVATE_KEY` | local SPN requester private key; mutually exclusive with `KONA_SP1_PROPOSER_SPN_SIGNER_URL` |
-| `KONA_SP1_PROPOSER_NETWORK_RPC_URL` | SPN RPC override; absent or empty uses the SP1 SDK default for the selected network mode |
-| `KONA_SP1_PROPOSER_SPN_SIGNER_URL` | HTTPS op-signer endpoint for remote SPN request signing; mutually exclusive with `KONA_SP1_PROPOSER_NETWORK_PRIVATE_KEY` |
-| `KONA_SP1_PROPOSER_SPN_SIGNER_ADDRESS` | authorized op-signer address for SPN request signing |
-| `KONA_SP1_PROPOSER_SPN_SIGNER_TLS_CA` | server CA certificate path for the SPN op-signer connection |
-| `KONA_SP1_PROPOSER_SPN_SIGNER_TLS_CERT` | client certificate path for the SPN op-signer connection |
-| `KONA_SP1_PROPOSER_SPN_SIGNER_TLS_KEY` | client private-key path for the SPN op-signer connection |
-| `KONA_SP1_PROPOSER_RANGE_PROOF_STRATEGY` | range fulfillment strategy (default `auction`) |
-| `KONA_SP1_PROPOSER_AGG_PROOF_STRATEGY` | aggregation fulfillment strategy (default `auction`) |
-| `KONA_SP1_PROPOSER_SP1_TIMEOUT_SECONDS` | per-proof request deadline and client wait (default `7200`) |
-| `KONA_SP1_PROPOSER_NETWORK_CALLS_TIMEOUT` | SP1 API and metric observation timeout, including L1 balance and super-root queries (default `15` seconds) |
-| `KONA_SP1_PROPOSER_AUCTION_TIMEOUT` | unassigned mainnet request timeout (default `300`) |
-| `KONA_SP1_PROPOSER_RANGE_CYCLE_LIMIT` | range request cycle limit (default `1e12`) |
-| `KONA_SP1_PROPOSER_RANGE_GAS_LIMIT` | range request gas limit (default `200000000000`) |
-| `KONA_SP1_PROPOSER_AGG_CYCLE_LIMIT` | aggregation request cycle limit (default `1e12`) |
-| `KONA_SP1_PROPOSER_AGG_GAS_LIMIT` | aggregation request gas limit (default `1000000000`) |
-| `KONA_SP1_PROPOSER_MAX_PRICE_PER_PGU` | optional maximum price per proving gas unit; unset, empty, or `0` uses mainnet auction pricing |
-| `KONA_SP1_PROPOSER_MIN_AUCTION_PERIOD` | minimum auction period in seconds (default `30`) |
+| `OP_ZK_PROPOSER_NETWORK_PRIVATE_KEY` | local SPN requester private key; mutually exclusive with `OP_ZK_PROPOSER_SPN_SIGNER_URL` |
+| `OP_ZK_PROPOSER_NETWORK_RPC_URL` | SPN RPC override; absent or empty uses the SP1 SDK default for the selected network mode |
+| `OP_ZK_PROPOSER_SPN_SIGNER_URL` | HTTPS op-signer endpoint for remote SPN request signing; mutually exclusive with `OP_ZK_PROPOSER_NETWORK_PRIVATE_KEY` |
+| `OP_ZK_PROPOSER_SPN_SIGNER_ADDRESS` | authorized op-signer address for SPN request signing |
+| `OP_ZK_PROPOSER_SPN_SIGNER_TLS_CA` | server CA certificate path for the SPN op-signer connection |
+| `OP_ZK_PROPOSER_SPN_SIGNER_TLS_CERT` | client certificate path for the SPN op-signer connection |
+| `OP_ZK_PROPOSER_SPN_SIGNER_TLS_KEY` | client private-key path for the SPN op-signer connection |
+| `OP_ZK_PROPOSER_RANGE_PROOF_STRATEGY` | range fulfillment strategy (default `auction`) |
+| `OP_ZK_PROPOSER_AGG_PROOF_STRATEGY` | aggregation fulfillment strategy (default `auction`) |
+| `OP_ZK_PROPOSER_SP1_TIMEOUT_SECONDS` | per-proof request deadline and client wait (default `7200`) |
+| `OP_ZK_PROPOSER_NETWORK_CALLS_TIMEOUT` | SP1 API and metric observation timeout, including L1 balance and super-root queries (default `15` seconds) |
+| `OP_ZK_PROPOSER_AUCTION_TIMEOUT` | unassigned mainnet request timeout (default `300`) |
+| `OP_ZK_PROPOSER_RANGE_CYCLE_LIMIT` | range request cycle limit (default `1e12`) |
+| `OP_ZK_PROPOSER_RANGE_GAS_LIMIT` | range request gas limit (default `200000000000`) |
+| `OP_ZK_PROPOSER_AGG_CYCLE_LIMIT` | aggregation request cycle limit (default `1e12`) |
+| `OP_ZK_PROPOSER_AGG_GAS_LIMIT` | aggregation request gas limit (default `1000000000`) |
+| `OP_ZK_PROPOSER_MAX_PRICE_PER_PGU` | optional maximum price per proving gas unit; unset, empty, or `0` uses mainnet auction pricing |
+| `OP_ZK_PROPOSER_MIN_AUCTION_PERIOD` | minimum auction period in seconds (default `30`) |
 
 For mainnet auctions, the SP1 SDK derives the request ceiling from the network's
 published price with its 120% buffer and auction-tick rounding. A positive
@@ -407,21 +459,21 @@ Transaction signing requires exactly one of these configurations:
 
 | Variable | Purpose |
 |---|---|
-| `KONA_SP1_PROPOSER_PRIVATE_KEY` | local L1 transaction-signing key; mutually exclusive with `KONA_SP1_PROPOSER_SIGNER_URL` |
-| `KONA_SP1_PROPOSER_SIGNER_URL` | Web3Signer URL; requires `KONA_SP1_PROPOSER_SIGNER_ADDRESS`; mutually exclusive with `KONA_SP1_PROPOSER_PRIVATE_KEY` |
-| `KONA_SP1_PROPOSER_SIGNER_ADDRESS` | Web3Signer address; requires `KONA_SP1_PROPOSER_SIGNER_URL` |
-| `KONA_SP1_PROPOSER_SIGNER_TLS_CA` | server CA PEM path; all three signer TLS paths are required together and enable mTLS to op-signer |
-| `KONA_SP1_PROPOSER_SIGNER_TLS_CERT` | client certificate PEM path; all three signer TLS paths are required together and enable mTLS to op-signer |
-| `KONA_SP1_PROPOSER_SIGNER_TLS_KEY` | client private-key PEM path; all three signer TLS paths are required together and enable mTLS to op-signer |
+| `OP_ZK_PROPOSER_PRIVATE_KEY` | local L1 transaction-signing key; mutually exclusive with `OP_ZK_PROPOSER_SIGNER_URL` |
+| `OP_ZK_PROPOSER_SIGNER_URL` | Web3Signer URL; requires `OP_ZK_PROPOSER_SIGNER_ADDRESS`; mutually exclusive with `OP_ZK_PROPOSER_PRIVATE_KEY` |
+| `OP_ZK_PROPOSER_SIGNER_ADDRESS` | Web3Signer address; requires `OP_ZK_PROPOSER_SIGNER_URL` |
+| `OP_ZK_PROPOSER_SIGNER_TLS_CA` | server CA PEM path; all three signer TLS paths are required together and enable mTLS to op-signer |
+| `OP_ZK_PROPOSER_SIGNER_TLS_CERT` | client certificate PEM path; all three signer TLS paths are required together and enable mTLS to op-signer |
+| `OP_ZK_PROPOSER_SIGNER_TLS_KEY` | client private-key PEM path; all three signer TLS paths are required together and enable mTLS to op-signer |
 
 Logging and telemetry:
 
 | Variable | Purpose |
 |---|---|
-| `KONA_SP1_PROPOSER_LOGGER_NAME` | OpenTelemetry service name (default `kona-sp1`) |
-| `KONA_SP1_PROPOSER_OTLP_ENDPOINT` | OpenTelemetry endpoint (default `http://localhost:4317`) |
-| `KONA_SP1_PROPOSER_OTLP_ENABLED` | enable OpenTelemetry export (default `false`) |
-| `KONA_SP1_PROPOSER_LOG_FORMAT` | `pretty` or `json` (default `pretty`) |
+| `OP_ZK_PROPOSER_LOGGER_NAME` | OpenTelemetry service name (default `kona-sp1`) |
+| `OP_ZK_PROPOSER_OTLP_ENDPOINT` | OpenTelemetry endpoint (default `http://localhost:4317`) |
+| `OP_ZK_PROPOSER_OTLP_ENABLED` | enable OpenTelemetry export (default `false`) |
+| `OP_ZK_PROPOSER_LOG_FORMAT` | `pretty` or `json` (default `pretty`) |
 
 The proposer and its dependencies also observe the standard `RUST_LOG`, `NO_COLOR`,
 `SSL_CERT_DIR`, `SSL_CERT_FILE`, `OTEL_*`, proxy, and SP1 worker/debug
@@ -429,7 +481,7 @@ variables. `KONA_SP1_ELF_DIR` configures shared build/test infrastructure.
 
 ### Fast finality
 
-With `KONA_SP1_PROPOSER_FAST_FINALITY_MODE=true` the proposer proves every signer-created owned
+With `OP_ZK_PROPOSER_FAST_FINALITY_MODE=true` the proposer proves every signer-created owned
 game while it is still unchallenged, spawned by the per-tick scan one fetch
 interval after creation. A proven game is over immediately, so it resolves as
 soon as its parent does instead of waiting out `maxChallengeDuration`: proof
@@ -439,7 +491,7 @@ Off by default.
 Spend framing: in network mode this proves every game created by this signer
 whose prestate artifacts are available. At a one-hour proposal interval that is
 a baseline of 24 aggregation proofs per day; the default
-`KONA_SP1_PROPOSER_FAST_FINALITY_PROVING_LIMIT=1` serializes them. An unchallenged game created by
+`OP_ZK_PROPOSER_FAST_FINALITY_PROVING_LIMIT=1` serializes them. An unchallenged game created by
 another proposer is not proven, even when it uses a known prestate. Enabling the
 mode on a chain with an existing unchallenged backlog proves the signer-created
 owned backlog.
@@ -450,9 +502,9 @@ Concurrency interaction:
 |---|---|
 | active proving tasks (defense + fast finality) >= limit | no new fast-finality proving; game creation paused this tick |
 | defense tasks alone >= limit | same: defense load pauses creation (upstream parity) |
-| fast-finality tasks in flight | never count against `KONA_SP1_PROPOSER_MAX_CONCURRENT_DEFENSE_TASKS` |
+| fast-finality tasks in flight | never count against `OP_ZK_PROPOSER_MAX_CONCURRENT_DEFENSE_TASKS` |
 | game challenged while a fast-finality proof is in flight | the proof stays valid; per-game dedup prevents a second task |
-| a fast-finality proof keeps failing at the limit | creation stays paused until it succeeds or is classified unprovable; watch `kona_sp1_proposer_game_proving_error` |
+| a fast-finality proof keeps failing at the limit | creation stays paused until it succeeds or is classified unprovable; watch `op_zk_proposer_game_proving_error` |
 
 ## Live execution canary (`kona-zkvm-canary`)
 

@@ -311,7 +311,6 @@ func (ms *InteropMonitorService) initRPCServer(cfg *CLIConfig) error {
 		cfg.RPCConfig.ListenPort,
 		ms.Version,
 		oprpc.WithLogger(ms.Log),
-		oprpc.WithRPCRecorder(ms.Metrics.NewRecorder("main")),
 	)
 	if cfg.RPCConfig.EnableAdmin {
 		ms.Log.Info("admin rpc enabled, but no admin APIs are available")

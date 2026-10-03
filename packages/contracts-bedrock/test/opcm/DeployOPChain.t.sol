@@ -79,8 +79,7 @@ contract DeployOPChain_TestBase is Test, FeatureFlags {
     Claim cannonKonaAbsolutePrestate = Claim.wrap(0x035ef680a6fa34c50d8d8169075b5d133ecd7b38fe2b2a83cc76fc81ae5d7c52);
     // Arbitrary non-placeholder anchor root for the permissionless deploy tests.
     Proposal permissionlessAnchorRoot = Proposal({
-        root: Hash.wrap(0x02f4397b2de6fce03b3f9982378c2b4c4deff9c92c662dcc6f9643267aeb5e47),
-        l2SequenceNumber: 1234
+        root: Hash.wrap(0x02f4397b2de6fce03b3f9982378c2b4c4deff9c92c662dcc6f9643267aeb5e47), l2SequenceNumber: 1234
     });
     uint256 disputeMaxGameDepth = 73;
     uint256 disputeSplitDepth = 30;
@@ -103,9 +102,7 @@ contract DeployOPChain_TestBase is Test, FeatureFlags {
         // 1) DeploySuperchain
         DeploySuperchain.Output memory dso = deploySuperchain.run(
             DeploySuperchain.Input({
-                superchainProxyAdminOwner: superchainProxyAdminOwner,
-                guardian: guardian,
-                paused: paused
+                superchainProxyAdminOwner: superchainProxyAdminOwner, guardian: guardian, paused: paused
             })
         );
 
@@ -378,11 +375,12 @@ contract DeployOPChain_Test is DeployOPChain_TestBase {
             Types.SuperRootProof({ version: bytes1(uint8(1)), timestamp: type(uint64).max, outputRoots: outputRoots });
 
         vm.prank(proposer, proposer);
-        IDisputeGame game = doo.disputeGameFactoryProxy.create(
-            GameTypes.SUPER_PERMISSIONED,
-            Claim.wrap(Hashing.hashSuperRootProof(proof)),
-            Encoding.encodeSuperRootProof(proof)
-        );
+        IDisputeGame game = doo.disputeGameFactoryProxy
+            .create(
+                GameTypes.SUPER_PERMISSIONED,
+                Claim.wrap(Hashing.hashSuperRootProof(proof)),
+                Encoding.encodeSuperRootProof(proof)
+            );
         assertTrue(asr.isGameRespected(game), "fallback game must be respected");
     }
 
@@ -485,8 +483,7 @@ contract DeployOPChain_Test is DeployOPChain_TestBase {
             }),
             false,
             IOPContractsManagerStandardValidator.ValidationOverrides({
-                l1PAOMultisig: opChainProxyAdminOwner,
-                challenger: challenger
+                l1PAOMultisig: opChainProxyAdminOwner, challenger: challenger
             })
         );
     }

@@ -189,8 +189,7 @@ abstract contract OPContractsManagerUtilsCaller {
         internal
         returns (address payable)
     {
-        return payable(
-            abi.decode(
+        return payable(abi.decode(
                 _delegatecall(
                     abi.encodeCall(
                         IOPContractsManagerUtils.loadOrDeployProxy,
@@ -198,8 +197,7 @@ abstract contract OPContractsManagerUtilsCaller {
                     )
                 ),
                 (address)
-            )
-        );
+            ));
     }
 
     /// @notice Upgrades a contract by resetting the initialized slot and calling the initializer.

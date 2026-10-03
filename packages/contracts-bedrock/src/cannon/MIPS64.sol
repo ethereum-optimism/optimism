@@ -147,11 +147,7 @@ contract MIPS64 is ISemver {
         }
     }
 
-    function doStep(
-        bytes calldata _stateData,
-        bytes calldata _proof,
-        bytes32 _localContext
-    )
+    function doStep(bytes calldata _stateData, bytes calldata _proof, bytes32 _localContext)
         internal
         returns (bytes32)
     {
@@ -535,11 +531,9 @@ contract MIPS64 is ISemver {
                     // the write would land at a different address than the guest asked for.
                     uint64 effAddr = a1;
                     // First verify the effAddr path
-                    if (
-                        !MIPS64Memory.isValidProof(
+                    if (!MIPS64Memory.isValidProof(
                             state.memRoot, effAddr, MIPS64Memory.memoryProofOffset(MEM_PROOF_OFFSET, 1)
-                        )
-                    ) {
+                        )) {
                         revert InvalidMemoryProof();
                     }
                     // Recompute the new root after updating effAddr
@@ -547,11 +541,9 @@ contract MIPS64 is ISemver {
                         MIPS64Memory.writeMem(effAddr, MIPS64Memory.memoryProofOffset(MEM_PROOF_OFFSET, 1), secs);
                     handleMemoryUpdate(state, effAddr);
                     // Verify the second memory proof against the newly computed root
-                    if (
-                        !MIPS64Memory.isValidProof(
+                    if (!MIPS64Memory.isValidProof(
                             state.memRoot, effAddr + 8, MIPS64Memory.memoryProofOffset(MEM_PROOF_OFFSET, 2)
-                        )
-                    ) {
+                        )) {
                         revert InvalidSecondMemoryProof();
                     }
                     state.memRoot =

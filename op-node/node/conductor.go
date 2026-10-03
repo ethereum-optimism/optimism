@@ -6,12 +6,11 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/ethereum/go-ethereum/rpc"
-
 	conductorRpc "github.com/ethereum-optimism/optimism/op-conductor/rpc"
 	"github.com/ethereum-optimism/optimism/op-node/config"
 	"github.com/ethereum-optimism/optimism/op-node/metrics"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/conductor"
+	"github.com/ethereum-optimism/optimism/op-service/client"
 	"github.com/ethereum-optimism/optimism/op-service/dial"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/locks"
@@ -57,12 +56,13 @@ func (c *ConductorClient) initialize(ctx context.Context) error {
 	if err != nil {
 		return fmt.Errorf("no conductor RPC endpoint available: %w", err)
 	}
-	metricsOpt := rpc.WithRecorder(c.metrics.NewRecorder("conductor"))
-	conductorRpcClient, err := dial.DialRPCClientWithTimeout(context.Background(), c.log, endpoint, metricsOpt)
+	conductorRpcClient, err := dial.DialRPCClientWithTimeout(context.Background(), c.log, endpoint)
 	if err != nil {
 		return fmt.Errorf("failed to dial conductor RPC: %w", err)
 	}
-	c.apiClient.Value = conductorRpc.NewAPIClient(conductorRpcClient)
+	c.apiClient.Value = conductorRpc.NewAPIClient(client.NewBaseRPCClient(conductorRpcClient,
+		client.WithCallTimeout(c.cfg.ConductorRpcTimeout),
+		client.WithRPCRecorder(c.metrics.NewRecorder("conductor"))))
 	return nil
 }
 
