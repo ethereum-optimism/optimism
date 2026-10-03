@@ -76,7 +76,27 @@ func TestCrossValidator_CrossUnsafe_Boundary(t *testing.T) {
 	access = makeAccess(testChainA, 101, 10, 0, checksum)
 	err = cv.ValidateAccessEntry(access, safety.CrossUnsafe, exec)
 	require.Error(t, err)
-	require.ErrorIs(t, err, interop.ErrOutOfScope)
+	require.ErrorIs(t, err, interop.ErrFuture)
+}
+
+func TestCrossValidator_CrossUnsafe_NotYetValidated(t *testing.T) {
+	mock := newMockChainIngester()
+	checksum := messages.MessageChecksum{0x01}
+	mock.AddLog(100, 10, 0, checksum, messages.BlockSeal{})
+	mock.SetLatestTimestamp(100)
+
+	chains := map[eth.ChainID]ChainIngester{
+		eth.ChainIDFromUInt64(testChainA): mock,
+	}
+	cv := newTestCrossValidator(chains, testExpiryWindow, 100)
+
+	// No validation pass has run yet, so there is no cross-validated timestamp
+	access := makeAccess(testChainA, 100, 10, 0, checksum)
+	exec := makeExecDescriptor(testChainA, 150, 0)
+	err := cv.ValidateAccessEntry(access, safety.CrossUnsafe, exec)
+	require.Error(t, err)
+	require.ErrorIs(t, err, interop.ErrFuture)
+	require.Contains(t, err.Error(), "cross-validated timestamp not available")
 }
 
 // =============================================================================
@@ -372,7 +392,7 @@ func TestValidateAccessEntry_TimestampNotIngested(t *testing.T) {
 
 	err := cv.ValidateAccessEntry(access, safety.LocalUnsafe, exec)
 	require.Error(t, err)
-	require.ErrorIs(t, err, interop.ErrOutOfScope)
+	require.ErrorIs(t, err, interop.ErrFuture)
 	require.Contains(t, err.Error(), "not yet ingested")
 }
 
