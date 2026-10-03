@@ -76,6 +76,10 @@ just cannon
 # Also see `./bin/cannon run --help` for more options
 ```
 
+Each preimage request or hint acknowledgement has a 10-minute timeout. Use
+`cannon run --oracle-timeout <duration>` to increase it for slow hosts. The timeout
+applies to each request, rather than the total VM execution time.
+
 ## Contracts
 
 The Cannon contracts:

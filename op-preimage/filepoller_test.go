@@ -84,3 +84,59 @@ func TestFilePoller_WriteCancel(t *testing.T) {
 	_, err = chanAPoller.Write(buf)
 	require.ErrorIs(t, err, context.Canceled)
 }
+
+func TestFilePoller_ContextDeadline(t *testing.T) {
+	for _, expired := range []bool{false, true} {
+		for _, write := range []bool{false, true} {
+			name := "read"
+			if write {
+				name = "write"
+			}
+			if expired {
+				name += " expired"
+			}
+			t.Run(name, func(t *testing.T) {
+				t.Parallel()
+				client, host, err := CreateBidirectionalChannel()
+				require.NoError(t, err)
+				t.Cleanup(func() {
+					_ = client.Close()
+					_ = host.Close()
+				})
+				timeout := 100 * time.Millisecond
+				if expired {
+					timeout = -time.Second
+				}
+				ctx, cancel := context.WithTimeout(t.Context(), timeout)
+				defer cancel()
+				poller := NewFilePoller(ctx, client, time.Hour)
+				type result struct {
+					n   int
+					err error
+				}
+				done := make(chan result, 1)
+				go func() {
+					if write {
+						n, err := poller.Write(make([]byte, 1024*1024))
+						done <- result{n, err}
+					} else {
+						n, err := poller.Read(make([]byte, 1))
+						done <- result{n, err}
+					}
+				}()
+				select {
+				case got := <-done:
+					require.ErrorIs(t, got.err, context.DeadlineExceeded)
+					if expired || !write {
+						require.Zero(t, got.n)
+					} else {
+						require.GreaterOrEqual(t, got.n, 0)
+						require.Less(t, got.n, 1024*1024)
+					}
+				case <-time.After(5 * time.Second):
+					t.Fatal("context deadline did not interrupt file IO")
+				}
+			})
+		}
+	}
+}

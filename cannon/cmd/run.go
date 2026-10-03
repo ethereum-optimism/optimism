@@ -116,6 +116,11 @@ var (
 		TakesFile: true,
 		Required:  false,
 	}
+	RunOracleTimeoutFlag = &cli.DurationFlag{
+		Name:  "oracle-timeout",
+		Usage: "maximum duration of each preimage request or hint acknowledgement",
+		Value: defaultOracleTimeout,
+	}
 
 	OutFilePerm = os.FileMode(0o755)
 )
@@ -148,17 +153,29 @@ func (rk rawKey) PreimageKey() [32]byte {
 
 type ProcessPreimageOracle struct {
 	log       log.Logger
-	pCl       *preimage.OracleClient
-	hCl       *preimage.HintWriter
+	pIO       preimage.FileChannel
+	hIO       preimage.FileChannel
+	ioCtx     context.Context
+	timeout   time.Duration
 	cmd       *exec.Cmd
 	waitErr   chan error
 	cancelIO  context.CancelCauseFunc
 	ioClosers ioutil.MultiCloser
 }
 
-const clientPollTimeout = time.Second * 15
+const (
+	clientPollTimeout    = time.Second * 15
+	defaultOracleTimeout = time.Minute * 10
+)
 
 func NewProcessPreimageOracle(logger log.Logger, name string, args []string, stdout log.Logger, stderr log.Logger) (*ProcessPreimageOracle, error) {
+	return newProcessPreimageOracle(logger, name, args, stdout, stderr, defaultOracleTimeout)
+}
+
+func newProcessPreimageOracle(logger log.Logger, name string, args []string, stdout log.Logger, stderr log.Logger, timeout time.Duration) (*ProcessPreimageOracle, error) {
+	if timeout <= 0 {
+		return nil, errors.New("oracle timeout must be positive")
+	}
 	if name == "" {
 		return &ProcessPreimageOracle{}, nil
 	}
@@ -187,33 +204,38 @@ func NewProcessPreimageOracle(logger log.Logger, name string, args []string, std
 	// Note that the client file descriptors are not closed when the pre-image server exits.
 	// So we use the FilePoller to ensure that we don't get stuck in a blocking read/write.
 	ctx, cancelIO := context.WithCancelCause(context.Background())
-	preimageClientIO := preimage.NewFilePoller(ctx, pClientRW, clientPollTimeout)
-	hostClientIO := preimage.NewFilePoller(ctx, hClientRW, clientPollTimeout)
 	out := &ProcessPreimageOracle{
 		log:      logger,
-		pCl:      preimage.NewOracleClient(preimageClientIO),
-		hCl:      preimage.NewHintWriter(hostClientIO),
+		pIO:      pClientRW,
+		hIO:      hClientRW,
+		ioCtx:    ctx,
+		timeout:  timeout,
 		cmd:      cmd,
 		waitErr:  make(chan error),
 		cancelIO: cancelIO,
 		// We only close our side of the channels, the client program owns the side we pass through as extra files
-		ioClosers: ioutil.MultiCloser{preimageClientIO, hostClientIO},
+		ioClosers: ioutil.MultiCloser{pClientRW, hClientRW},
 	}
 	return out, nil
 }
 
 func (p *ProcessPreimageOracle) Hint(v []byte) {
-	if p.hCl == nil { // no hint processor
+	if p.hIO == nil { // no hint processor
 		return
 	}
-	p.hCl.Hint(rawHint(v))
+	ctx, cancel := context.WithTimeout(p.ioCtx, p.timeout)
+	defer cancel()
+	preimage.NewHintWriter(preimage.NewFilePoller(ctx, p.hIO, clientPollTimeout)).Hint(rawHint(v))
 }
 
 func (p *ProcessPreimageOracle) GetPreimage(k [32]byte) []byte {
-	if p.pCl == nil {
+	if p.pIO == nil {
 		panic("no pre-image retriever available")
 	}
-	return p.pCl.Get(rawKey(k))
+	// One deadline covers the key write, length read, and payload read together.
+	ctx, cancel := context.WithTimeout(p.ioCtx, p.timeout)
+	defer cancel()
+	return preimage.NewOracleClient(preimage.NewFilePoller(ctx, p.pIO, clientPollTimeout)).Get(rawKey(k))
 }
 
 func (p *ProcessPreimageOracle) Start() error {
@@ -288,19 +310,23 @@ func Guard(proc *os.ProcessState, fn StepFn) StepFn {
 	return func(proof bool) (wit *mipsevm.StepWitness, err error) {
 		defer func() {
 			if r := recover(); r != nil {
+				panicErr, ok := r.(error)
+				if !ok {
+					panicErr = fmt.Errorf("%v", r)
+				}
 				const size = 64 << 10
 				buf := make([]byte, size)
 				buf = buf[:runtime.Stack(buf, false)]
-				if proc.Exited() {
-					err = fmt.Errorf("pre-image server exited with code %d, resulting in panic %s", proc.ExitCode(), string(buf))
+				if proc != nil && proc.Exited() {
+					err = fmt.Errorf("pre-image server exited with code %d, resulting in panic %s: %w", proc.ExitCode(), string(buf), panicErr)
 				} else {
-					err = fmt.Errorf("pre-image server resulted in panic %s", string(buf))
+					err = fmt.Errorf("pre-image server resulted in panic %s: %w", string(buf), panicErr)
 				}
 			}
 		}()
 		wit, err = fn(proof)
 		if err != nil {
-			if proc.Exited() {
+			if proc != nil && proc.Exited() {
 				return nil, fmt.Errorf("pre-image server exited with code %d, resulting in err %w", proc.ExitCode(), err)
 			} else {
 				return nil, err
@@ -313,6 +339,9 @@ func Guard(proc *os.ProcessState, fn StepFn) StepFn {
 var _ mipsevm.PreimageOracle = (*ProcessPreimageOracle)(nil)
 
 func Run(ctx *cli.Context) error {
+	if ctx.Duration(RunOracleTimeoutFlag.Name) <= 0 {
+		return errors.New("oracle timeout must be positive")
+	}
 	if ctx.Bool(RunPProfCPU.Name) {
 		stopProfile, err := startCPUProfile("cpu.pprof")
 		if err != nil {
@@ -391,7 +420,7 @@ func Run(ctx *cli.Context) error {
 
 	poOut := Logger(os.Stdout, log.LevelInfo).With("module", "host")
 	poErr := Logger(os.Stderr, log.LevelInfo).With("module", "host")
-	po, err := NewProcessPreimageOracle(l, args[0], args[1:], poOut, poErr)
+	po, err := newProcessPreimageOracle(l, args[0], args[1:], poOut, poErr, ctx.Duration(RunOracleTimeoutFlag.Name))
 	if err != nil {
 		return fmt.Errorf("failed to create pre-image oracle process: %w", err)
 	}
@@ -600,6 +629,7 @@ func CreateRunCommand(action cli.ActionFunc) *cli.Command {
 			RunPProfCPU,
 			RunDebugFlag,
 			RunDebugInfoFlag,
+			RunOracleTimeoutFlag,
 		},
 	}
 }
