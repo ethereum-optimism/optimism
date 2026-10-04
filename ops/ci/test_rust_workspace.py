@@ -186,6 +186,27 @@ class StageTests(unittest.TestCase):
                 process.wait()
 
 
+class ConfigurationTests(unittest.TestCase):
+    @unittest.skipUnless(shutil.which('yq'), 'requires the pinned yq tool')
+    def test_fresh_verdicts_keep_compiler_caches_enabled(self):
+        definition = SCRIPTS.parent.parent / '.rwx/rust.yml'
+        tasks = json.loads(subprocess.check_output(['yq', '-o=json', '.tasks', str(definition)], text=True))
+        selected = {'tests', 'doctest', 'build', 'docs', 'clippy', 'no-std', 'udeps'}
+        selected.update(f'features-{i}' for i in range(10))
+        actual = {t['key']: t for t in tasks if t['key'] in selected}
+        self.assertEqual(set(actual), selected)
+        for name, task in actual.items():
+            with self.subTest(task=name):
+                self.assertNotEqual(task.get('cache'), False, 'cache:false disables tool caches')
+                self.assertTrue(task.get('tool-cache'))
+                for nonce in ('RWX_RUN_ID', 'RWX_TASK_ATTEMPT_NUMBER'):
+                    self.assertEqual(task['env'][nonce]['cache-key'], 'included')
+                output = task['outputs']['filesystem']['filter']['workspace']
+                self.assertIn('rust/target', output)
+                self.assertNotIn('.ci/rust-workspace', output)
+        self.assertIn('head-source', actual['tests']['use'])
+
+
 @unittest.skipUnless(os.environ.get('RWX_LIVE_RUST_FIXTURE') == '1', 'opt-in pinned Linux Rust fixture')
 class LiveRunnerTests(unittest.TestCase):
     def test_archived_tests_are_fresh_and_failure_reports_survive(self):

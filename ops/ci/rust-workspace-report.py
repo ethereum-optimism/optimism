@@ -42,6 +42,8 @@ def begin(directory, job):
         'workspace_root': str(Path.cwd()),
         'cargo_home': os.environ.get('CARGO_HOME', str(Path.home() / '.cargo')),
         'provider': os.environ.get('CI_RUST_PROVIDER', 'circleci'),
+        'rwx_run_id': os.environ.get('RWX_RUN_ID'),
+        'rwx_task_attempt': os.environ.get('RWX_TASK_ATTEMPT_NUMBER'),
         'input_sha256': inputs(), 'rustc': command('rustc', '--version'),
         'cargo': command('cargo', '--version'), 'nextest': command('cargo', 'nextest', '--version'),
         'feature_seed': sha, 'feature_partitions': 10,

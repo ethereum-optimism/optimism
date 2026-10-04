@@ -38,8 +38,10 @@ the full feature and test-target workload and all ten partitions.
 Tool preparation and Cargo downloads are shared. Each compilation profile and
 feature partition has its own native target/sccache cache. The source-freshness
 helper restores stable timestamps per content revision and trusts a cache only
-after successful compilation. Verdict tasks disable result caching, and their
-logs/results are excluded from reusable filesystem outputs. Protected develop
+after successful compilation. Verdict tasks include RWX run/attempt identities in their cache keys, forcing
+fresh execution while preserving tool caches. `cache: false` would also disable
+tool caches ([RWX caching documentation](https://www.rwx.com/docs/caching)).
+Logs/results are excluded from reusable filesystem outputs. Protected develop
 warming targets only compilers and command discovery; it executes zero tests.
 An actual develop warming event remains a post-merge follow-up.
 

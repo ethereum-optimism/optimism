@@ -200,20 +200,25 @@ tasks:
         - key: report
           path: .ci/rust-workspace/tests-build
 
+  # cache:false also disables tool caches. Include run/attempt identity instead
+  # so every verdict executes while compiler-only layers remain reusable.
   - key: tests
-    use: [tests-build, code, rust-tools]
+    use: [tests-build, head-source]
     if: ${{ tasks.route.values.run-rust-ci == 'true' }}
     run: bash ops/ci/rust-workspace.sh tests
     env:
       CI_RUST_PROVIDER: rwx
       CI_COMMIT_SHA: ${{ init.commit-sha }}
       TEST_ARCHIVE: ${{ tasks.tests-build.artifacts.report }}
-    cache: false
+      RWX_RUN_ID:
+        cache-key: included
+      RWX_TASK_ATTEMPT_NUMBER:
+        cache-key: included
     tool-cache: rust-workspace-tests-runtime-${{ init.cache-epoch }}
     timeout: 90m
     runner: *build-runner
     outputs:
-      filesystem: false
+      filesystem: *compiler-output
       test-results:
         - path: .ci/rust-workspace/tests/junit.xml
         - path: .ci/rust-workspace/tests/beacon.junit.xml
@@ -226,13 +231,17 @@ tasks:
     use: head-source
     if: ${{ tasks.route.values.run-rust-ci == 'true' }}
     run: bash ops/ci/rust-workspace.sh doctest
-    env: *rust-env
-    cache: false
+    env: &fresh-rust-env
+      <<: *rust-env
+      RWX_RUN_ID:
+        cache-key: included
+      RWX_TASK_ATTEMPT_NUMBER:
+        cache-key: included
     tool-cache: rust-workspace-doctest-${{ init.cache-epoch }}
     timeout: 90m
     runner: *build-runner
     outputs:
-      filesystem: false
+      filesystem: *compiler-output
       test-results:
         - path: .ci/rust-workspace/doctest/doctests.junit.xml
       artifacts:
@@ -243,8 +252,7 @@ tasks:
     use: head-source
     if: ${{ init.cache-warm == 'true' || tasks.route.values.run-rust-ci == 'true' }}
     run: bash ops/ci/rust-workspace.sh build
-    env: *rust-env
-    cache: false
+    env: *fresh-rust-env
     tool-cache: rust-workspace-build-${{ init.cache-epoch }}
     timeout: 90m
     runner:
@@ -260,8 +268,7 @@ tasks:
     use: head-source
     if: ${{ init.cache-warm == 'true' || tasks.route.values.run-rust-ci == 'true' }}
     run: bash ops/ci/rust-workspace.sh docs
-    env: *rust-env
-    cache: false
+    env: *fresh-rust-env
     tool-cache: rust-workspace-docs-${{ init.cache-epoch }}
     timeout: 90m
     runner:
@@ -277,8 +284,7 @@ tasks:
     use: head-source
     if: ${{ init.cache-warm == 'true' || tasks.route.values.run-rust-ci == 'true' }}
     run: bash ops/ci/rust-workspace.sh clippy
-    env: *rust-env
-    cache: false
+    env: *fresh-rust-env
     tool-cache: rust-workspace-clippy-${{ init.cache-epoch }}
     timeout: 90m
     runner:
@@ -294,8 +300,7 @@ tasks:
     use: head-source
     if: ${{ init.cache-warm == 'true' || tasks.route.values.run-rust-ci == 'true' }}
     run: bash ops/ci/rust-workspace.sh no-std
-    env: *rust-env
-    cache: false
+    env: *fresh-rust-env
     tool-cache: rust-workspace-no-std-${{ init.cache-epoch }}
     timeout: 90m
     runner:
@@ -311,8 +316,7 @@ tasks:
     use: head-source
     if: ${{ init.cache-warm == 'true' || tasks.route.values.run-rust-ci == 'true' }}
     run: bash ops/ci/rust-workspace.sh udeps
-    env: *rust-env
-    cache: false
+    env: *fresh-rust-env
     tool-cache: rust-workspace-udeps-${{ init.cache-epoch }}
     timeout: 90m
     runner:
@@ -329,11 +333,9 @@ tasks:
     if: ${{ init.cache-warm == 'true' || tasks.route.values.run-rust-ci == 'true' }}
     run: bash ops/ci/rust-workspace.sh features
     env:
-      CI_RUST_PROVIDER: rwx
-      CI_COMMIT_SHA: ${{ init.commit-sha }}
+      <<: *fresh-rust-env
       CI_RUST_PARTITION_INDEX: "0"
       CI_RUST_PARTITION_TOTAL: "10"
-    cache: false
     tool-cache: rust-workspace-features-0-${{ init.cache-epoch }}
     timeout: 120m
     runner:
@@ -350,11 +352,9 @@ tasks:
     if: ${{ init.cache-warm == 'true' || tasks.route.values.run-rust-ci == 'true' }}
     run: bash ops/ci/rust-workspace.sh features
     env:
-      CI_RUST_PROVIDER: rwx
-      CI_COMMIT_SHA: ${{ init.commit-sha }}
+      <<: *fresh-rust-env
       CI_RUST_PARTITION_INDEX: "1"
       CI_RUST_PARTITION_TOTAL: "10"
-    cache: false
     tool-cache: rust-workspace-features-1-${{ init.cache-epoch }}
     timeout: 120m
     runner:
@@ -371,11 +371,9 @@ tasks:
     if: ${{ init.cache-warm == 'true' || tasks.route.values.run-rust-ci == 'true' }}
     run: bash ops/ci/rust-workspace.sh features
     env:
-      CI_RUST_PROVIDER: rwx
-      CI_COMMIT_SHA: ${{ init.commit-sha }}
+      <<: *fresh-rust-env
       CI_RUST_PARTITION_INDEX: "2"
       CI_RUST_PARTITION_TOTAL: "10"
-    cache: false
     tool-cache: rust-workspace-features-2-${{ init.cache-epoch }}
     timeout: 120m
     runner:
@@ -392,11 +390,9 @@ tasks:
     if: ${{ init.cache-warm == 'true' || tasks.route.values.run-rust-ci == 'true' }}
     run: bash ops/ci/rust-workspace.sh features
     env:
-      CI_RUST_PROVIDER: rwx
-      CI_COMMIT_SHA: ${{ init.commit-sha }}
+      <<: *fresh-rust-env
       CI_RUST_PARTITION_INDEX: "3"
       CI_RUST_PARTITION_TOTAL: "10"
-    cache: false
     tool-cache: rust-workspace-features-3-${{ init.cache-epoch }}
     timeout: 120m
     runner:
@@ -413,11 +409,9 @@ tasks:
     if: ${{ init.cache-warm == 'true' || tasks.route.values.run-rust-ci == 'true' }}
     run: bash ops/ci/rust-workspace.sh features
     env:
-      CI_RUST_PROVIDER: rwx
-      CI_COMMIT_SHA: ${{ init.commit-sha }}
+      <<: *fresh-rust-env
       CI_RUST_PARTITION_INDEX: "4"
       CI_RUST_PARTITION_TOTAL: "10"
-    cache: false
     tool-cache: rust-workspace-features-4-${{ init.cache-epoch }}
     timeout: 120m
     runner:
@@ -434,11 +428,9 @@ tasks:
     if: ${{ init.cache-warm == 'true' || tasks.route.values.run-rust-ci == 'true' }}
     run: bash ops/ci/rust-workspace.sh features
     env:
-      CI_RUST_PROVIDER: rwx
-      CI_COMMIT_SHA: ${{ init.commit-sha }}
+      <<: *fresh-rust-env
       CI_RUST_PARTITION_INDEX: "5"
       CI_RUST_PARTITION_TOTAL: "10"
-    cache: false
     tool-cache: rust-workspace-features-5-${{ init.cache-epoch }}
     timeout: 120m
     runner:
@@ -455,11 +447,9 @@ tasks:
     if: ${{ init.cache-warm == 'true' || tasks.route.values.run-rust-ci == 'true' }}
     run: bash ops/ci/rust-workspace.sh features
     env:
-      CI_RUST_PROVIDER: rwx
-      CI_COMMIT_SHA: ${{ init.commit-sha }}
+      <<: *fresh-rust-env
       CI_RUST_PARTITION_INDEX: "6"
       CI_RUST_PARTITION_TOTAL: "10"
-    cache: false
     tool-cache: rust-workspace-features-6-${{ init.cache-epoch }}
     timeout: 120m
     runner:
@@ -476,11 +466,9 @@ tasks:
     if: ${{ init.cache-warm == 'true' || tasks.route.values.run-rust-ci == 'true' }}
     run: bash ops/ci/rust-workspace.sh features
     env:
-      CI_RUST_PROVIDER: rwx
-      CI_COMMIT_SHA: ${{ init.commit-sha }}
+      <<: *fresh-rust-env
       CI_RUST_PARTITION_INDEX: "7"
       CI_RUST_PARTITION_TOTAL: "10"
-    cache: false
     tool-cache: rust-workspace-features-7-${{ init.cache-epoch }}
     timeout: 120m
     runner:
@@ -497,11 +485,9 @@ tasks:
     if: ${{ init.cache-warm == 'true' || tasks.route.values.run-rust-ci == 'true' }}
     run: bash ops/ci/rust-workspace.sh features
     env:
-      CI_RUST_PROVIDER: rwx
-      CI_COMMIT_SHA: ${{ init.commit-sha }}
+      <<: *fresh-rust-env
       CI_RUST_PARTITION_INDEX: "8"
       CI_RUST_PARTITION_TOTAL: "10"
-    cache: false
     tool-cache: rust-workspace-features-8-${{ init.cache-epoch }}
     timeout: 120m
     runner:
@@ -518,11 +504,9 @@ tasks:
     if: ${{ init.cache-warm == 'true' || tasks.route.values.run-rust-ci == 'true' }}
     run: bash ops/ci/rust-workspace.sh features
     env:
-      CI_RUST_PROVIDER: rwx
-      CI_COMMIT_SHA: ${{ init.commit-sha }}
+      <<: *fresh-rust-env
       CI_RUST_PARTITION_INDEX: "9"
       CI_RUST_PARTITION_TOTAL: "10"
-    cache: false
     tool-cache: rust-workspace-features-9-${{ init.cache-epoch }}
     timeout: 120m
     runner:
