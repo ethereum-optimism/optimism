@@ -87,6 +87,10 @@ jobs:
           environment:
             RUSTFLAGS: -Dwarnings
           command: <<parameters.command>>
+      - store_artifacts:
+          path: .ci/rust-workspace
+          destination: rust-workspace
+          when: always
       - rust-save-build-cache: *clippy-cache-args
 
   # Shared cargo deny job
@@ -188,6 +192,10 @@ jobs:
           working_directory: <<parameters.directory>>
           no_output_timeout: 30m
           command: <<parameters.command>>
+      - store_artifacts:
+          path: .ci/rust-workspace
+          destination: rust-workspace
+          when: always
       - rust-save-build-cache: *no-std-cache-args
 
   # Shared documentation build job
@@ -214,6 +222,10 @@ jobs:
           working_directory: <<parameters.directory>>
           no_output_timeout: 30m
           command: <<parameters.command>>
+      - store_artifacts:
+          path: .ci/rust-workspace
+          destination: rust-workspace
+          when: always
       - rust-save-build-cache: *docs-cache-args
 
   # Shared doc test job
@@ -239,6 +251,10 @@ jobs:
           working_directory: <<parameters.directory>>
           no_output_timeout: 30m
           command: <<parameters.command>>
+      - store_artifacts:
+          path: .ci/rust-workspace
+          destination: rust-workspace
+          when: always
       - rust-save-build-cache: *doctest-cache-args
 
   # Shared cargo tests job
@@ -272,7 +288,12 @@ jobs:
           name: Run cargo tests
           working_directory: <<parameters.directory>>
           no_output_timeout: 40m
-          command: just <<parameters.command>> <<parameters.flags>>
+          command: |
+            if [ "<<parameters.directory>>" = rust ] && [ "<<parameters.command>>" = test ] && [ -z "<<parameters.flags>>" ]; then
+              bash ../ops/ci/rust-workspace.sh tests
+            else
+              just <<parameters.command>> <<parameters.flags>>
+            fi
       # Surface individual test results in the CircleCI UI, including on failure.
       # nextest writes JUnit to <workspace>/target/nextest/default/junit.xml.
       - store_test_results:
@@ -332,6 +353,10 @@ jobs:
             echo "slack response: $resp"
             echo "$resp" | grep -q '"ok":true' || echo "SLACK POST FAILED (non-fatal) — check token/channel/mentions"
             exit 0
+      - store_artifacts:
+          path: .ci/rust-workspace
+          destination: rust-workspace
+          when: always
       - rust-save-build-cache: *tests-cache-args
 
   # Cross-language differential test: runs the Go and Rust dumps of the Interop
@@ -384,6 +409,10 @@ jobs:
           working_directory: <<parameters.directory>>
           no_output_timeout: 40m
           command: <<parameters.command>>
+      - store_artifacts:
+          path: .ci/rust-workspace
+          destination: rust-workspace
+          when: always
       - rust-save-build-cache: *udeps-cache-args
 
   # Shared cargo hack build job (cross-compile targets like WASM)
@@ -433,31 +462,14 @@ jobs:
           directory: rust
           features: "all"
       - run:
-          name: Run cargo hack
+          name: Run library features and isolated test targets
           working_directory: rust
           no_output_timeout: 60m
-          command: |
-            PARTITION_FLAG=""
-            if [ "$CIRCLE_NODE_TOTAL" -gt 1 ]; then
-              PARTITION_FLAG="$((CIRCLE_NODE_INDEX + 1))/$CIRCLE_NODE_TOTAL"
-            fi
-            just hack "$PARTITION_FLAG" "true" "$CIRCLE_WORKFLOW_ID"
-      # Check each crate's test targets in isolation with default features. The
-      # lib-only `hack` step above never compiles test code, so a crate whose
-      # tests rely on a feature only enabled via workspace feature unification
-      # passes the workspace test build yet fails when built alone. This step
-      # catches that class (whether the missing feature is a dependency's or the
-      # crate's own).
-      - run:
-          name: Run cargo hack (test targets)
-          working_directory: rust
-          no_output_timeout: 60m
-          command: |
-            PARTITION_FLAG=""
-            if [ "$CIRCLE_NODE_TOTAL" -gt 1 ]; then
-              PARTITION_FLAG="$((CIRCLE_NODE_INDEX + 1))/$CIRCLE_NODE_TOTAL"
-            fi
-            just hack-tests-default "$PARTITION_FLAG" "true" "$CIRCLE_WORKFLOW_ID"
+          command: bash ../ops/ci/rust-workspace.sh features
+      - store_artifacts:
+          path: .ci/rust-workspace
+          destination: rust-workspace
+          when: always
       - rust-save-build-cache: *hack-cache-args
 
   # --------------------------------------------------------------------------
@@ -957,7 +969,7 @@ workflows:
       - rust-ci-clippy:
           name: rust-clippy
           directory: rust
-          command: "cargo clippy --workspace --all-targets --all-features --locked"
+          command: "bash ../ops/ci/rust-workspace.sh clippy"
           context: *rust-ci-context
 
       - rust-ci-deny:
@@ -1002,16 +1014,19 @@ workflows:
       - rust-ci-doctest:
           name: rust-doctest
           directory: rust
+          command: "bash ../ops/ci/rust-workspace.sh doctest"
           context: *rust-ci-context
 
       - rust-ci-docs:
           name: rust-docs
           directory: rust
+          command: "bash ../ops/ci/rust-workspace.sh docs"
           context: *rust-ci-context
 
       - rust-ci-udeps:
           name: rust-udeps
           directory: rust
+          command: "bash ../ops/ci/rust-workspace.sh udeps"
           context: *rust-ci-context
 
       - rust-ci-cargo-hack:
@@ -1037,8 +1052,7 @@ workflows:
       - rust-ci-check-no-std:
           name: rust-check-no-std
           directory: rust
-          command: |
-            just check-no-std
+          command: bash ../ops/ci/rust-workspace.sh no-std
           context: *rust-ci-context
 
       - rust-ci-cargo-hack-build:

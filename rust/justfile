@@ -463,7 +463,7 @@ check-udeps:
 # Cheaper than the full powerset (~n checks per crate vs ~2^n).
 # shuffle: "true" to shuffle package order before partitioning (spreads heavy/light crates more evenly)
 # seed: deterministic seed for shuffle (all partition nodes must use the same seed)
-hack partition="" shuffle="false" seed="default":
+hack partition="" shuffle="false" seed="default" print_commands="false":
   #!/usr/bin/env bash
   set -euo pipefail
   if [ "{{partition}}" != "" ]; then
@@ -481,7 +481,7 @@ hack partition="" shuffle="false" seed="default":
     echo "Shuffled package order (seed={{seed}}): $PKGS"
   fi
 
-  cargo hack check --each-feature --no-dev-deps $PKG_FLAGS {{ if partition != "" { "--partition " + partition } else { "" } }}
+  cargo hack check --each-feature --no-dev-deps $PKG_FLAGS {{ if partition != "" { "--partition " + partition } else { "" } }} {{ if print_commands == "true" { "--print-command-list" } else { "" } }}
 
 # Check each crate's test targets in isolation with default features only.
 # Catches tests that only compile via workspace feature unification: a crate
@@ -489,7 +489,7 @@ hack partition="" shuffle="false" seed="default":
 # feature of the crate itself (enable it for the test build via a self
 # dev-dependency).
 # seed: deterministic seed for shuffle (all partition nodes must use the same seed)
-hack-tests-default partition="" shuffle="false" seed="default":
+hack-tests-default partition="" shuffle="false" seed="default" print_commands="false":
   #!/usr/bin/env bash
   set -euo pipefail
   if [ "{{partition}}" != "" ]; then
@@ -507,7 +507,7 @@ hack-tests-default partition="" shuffle="false" seed="default":
     echo "Shuffled package order (seed={{seed}}): $PKGS"
   fi
 
-  cargo hack check --tests $PKG_FLAGS {{ if partition != "" { "--partition " + partition } else { "" } }}
+  cargo hack check --tests $PKG_FLAGS {{ if partition != "" { "--partition " + partition } else { "" } }} {{ if print_commands == "true" { "--print-command-list" } else { "" } }}
 
 ########################### Release #################################
 

@@ -709,8 +709,16 @@ commands:
             # time, so it needs no RUSTFLAGS change and does not perturb the sccache
             # compile-cache key. The CI env is controlled, so a missing mold must
             # fail loudly rather than silently falling back to the default linker.
-            mold -run cargo build $PROFILE $TARGET $PACKAGE $FEATURES $BINARY
+            if [ "<< parameters.directory >>" = rust ] && [ "<< parameters.profile >>" = debug ] && [ -z "<< parameters.package >>" ] && [ -z "<< parameters.binary >>" ] && [ "<< parameters.features >>" = default ] && [ -z "$TARGET" ]; then
+              bash ../ops/ci/rust-workspace.sh build
+            else
+              mold -run cargo build $PROFILE $TARGET $PACKAGE $FEATURES $BINARY
+            fi
           no_output_timeout: 30m
+      - store_artifacts:
+          path: .ci/rust-workspace
+          destination: rust-workspace
+          when: always
       - when:
           condition: << parameters.save_cache >>
           steps:

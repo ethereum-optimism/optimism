@@ -1,0 +1,533 @@
+# Eight complete Rust workspace workloads. Circle retains required gates.
+on:
+  cache-rebuild:
+    if: ${{ event.git.branch == 'develop' }}
+    target: [tests-build, build, clippy, docs, no-std, udeps, feature-plan, features-0, features-1, features-2, features-3, features-4, features-5, features-6, features-7, features-8, features-9]
+    init:
+      commit-sha: ${{ event.git.sha }}
+      branch: ${{ event.git.branch }}
+      tag: ""
+      cache-epoch: v1
+      cache-warm: "true"
+  github:
+    push:
+      init:
+        commit-sha: ${{ event.git.sha }}
+        branch: ${{ event.git.branch }}
+        tag: ${{ event.git.tag }}
+        cache-epoch: v1
+        cache-warm: "false"
+      status-checks:
+        name: optimism-rust-shadow
+  cli:
+    init:
+      commit-sha: ${{ event.git.sha }}
+      branch: ${{ event.git.branch }}
+      tag: ""
+      cache-epoch: v1
+      cache-warm: "false"
+
+base:
+  image: ubuntu:24.04@sha256:008173c23f95b170204355c12626cb5a965d779a7e1283b09e9cffbb1bf33ca3
+  config: rwx/base 1.2.0
+  arch: x86_64
+
+# Cache-only vault: no publishing credentials. During the pilot, only develop
+# and codex/rwx-ci-pilot may write. Remove the temporary pilot grant at promotion.
+tool-cache:
+  vault: optimism-op-reth-shadow
+
+defaults:
+  runner:
+    cpus: 2
+    memory: 8gb
+
+tasks:
+  - key: code
+    call: git/clone 2.2.0
+    with:
+      repository: https://github.com/ethereum-optimism/optimism.git
+      ref: ${{ init.commit-sha }}
+      preserve-git-dir: true
+      fetch-full-depth: true
+      submodules: false
+
+  - key: bootstrap-inputs
+    use: code
+    run: 'true'
+    filter: [mise.toml, ops/ci, .circleci/scripts/apt-install.sh]
+    outputs:
+      filesystem: false
+      artifacts:
+        - key: mise-config
+          path: mise.toml
+        - key: ci-scripts
+          path: ops/ci
+        - key: apt-script
+          path: .circleci/scripts/apt-install.sh
+
+  - key: mise
+    call: mise/install 1.1.0
+    with:
+      mise-version: "2026.2.2"
+      install: "false"
+
+  # Artifact dependencies avoid inheriting the checkout's Git history into
+  # reusable tools. Language toolchains are added only by their own workload.
+  - key: tools
+    use: mise
+    run: |
+      mkdir -p ops/ci .circleci/scripts
+      cp "$MISE_CONFIG" mise.toml
+      cp "$CI_SCRIPTS/rwx-prepare.sh" ops/ci/
+      cp "$APT_SCRIPT" .circleci/scripts/apt-install.sh
+      bash ops/ci/rwx-prepare.sh
+    env:
+      MISE_CONFIG: ${{ tasks.bootstrap-inputs.artifacts.mise-config }}
+      CI_SCRIPTS: ${{ tasks.bootstrap-inputs.artifacts.ci-scripts }}
+      APT_SCRIPT: ${{ tasks.bootstrap-inputs.artifacts.apt-script }}
+    filter:
+      ${{ tasks.bootstrap-inputs.artifacts.ci-scripts }}: [rwx-prepare.sh]
+    timeout: 30m
+
+  - key: route
+    use: [code, tools]
+    run: bash ops/ci/rwx-metadata.sh
+    env:
+      CI_EVENT: push
+      CI_CACHE_WARM: ${{ init.cache-warm }}
+      CI_BRANCH: ${{ init.branch }}
+      CI_TAG: ${{ init.tag }}
+      CI_COMMIT_SHA: ${{ init.commit-sha }}
+    cache: false
+    timeout: 10m
+    outputs:
+      filesystem: false
+      artifacts:
+        - key: routing
+          path: .ci/pipeline-parameters.json
+
+  - key: helper-tests
+    use: [code, tools]
+    run: |
+      python3 -m unittest discover -s ops/ci -p 'test_rust_workspace.py'
+      python3 -m unittest discover -s ops/ci -p 'test_rust_target_cache.py'
+    cache: false
+    timeout: 10m
+    outputs:
+      filesystem: false
+
+  - key: rust-tools
+    use: tools
+    if: ${{ init.cache-warm == 'true' || tasks.route.values.run-rust-ci == 'true' }}
+    run: |
+      cp "$CI_SCRIPTS/rwx-rust-prepare.sh" "$CI_SCRIPTS/op-reth-shadow.sh" "$CI_SCRIPTS/op-reth-report.py" "$CI_SCRIPTS/rust-target-cache.py" ops/ci/
+      bash ops/ci/rwx-prepare.sh rust
+      mise exec -- bash ops/ci/rwx-rust-prepare.sh
+      mise install github:est31/cargo-udeps github:taiki-e/cargo-hack
+      printf '%s:%s\n' "$(mise bin-paths | paste -sd: -)" "$PATH" >"$RWX_ENV/PATH"
+    env:
+      CI_SCRIPTS: ${{ tasks.bootstrap-inputs.artifacts.ci-scripts }}
+    filter:
+      workspace: [mise.toml, ops/ci/rwx-prepare.sh, .circleci/scripts/apt-install.sh]
+      ${{ tasks.bootstrap-inputs.artifacts.ci-scripts }}: [rwx-rust-prepare.sh, op-reth-shadow.sh, op-reth-report.py, rust-target-cache.py]
+    timeout: 30m
+
+  # Download once for all producers. The manifest tree is kept intact for
+  # Cargo's workspace discovery; source changes can incrementally refresh this
+  # layer, while unrelated Go/contract/docs changes do not invalidate it.
+  - key: rust-dependencies
+    use: [code, rust-tools]
+    if: ${{ init.cache-warm == 'true' || tasks.route.values.run-rust-ci == 'true' }}
+    run: |
+      export CARGO_HOME="$PWD/.ci/rust-cache/cargo"
+      cd rust
+      attempt=0
+      until cargo fetch --locked; do
+        attempt=$((attempt + 1))
+        if [[ "$attempt" -ge 5 ]]; then exit 1; fi
+        sleep "$((2 ** attempt))"
+      done
+    filter: [rust, mise.toml]
+    tool-cache: op-reth-dependencies-${{ init.cache-epoch }}
+    timeout: 30m
+    outputs:
+      filesystem:
+        filter:
+          workspace: [.ci/rust-cache/cargo]
+          system: []
+
+  # Keep full source, Git metadata and the pinned submodule as build inputs.
+  - key: head-source
+    use: [code, rust-dependencies]
+    if: ${{ init.cache-warm == 'true' || tasks.route.values.run-rust-ci == 'true' }}
+    run: bash /usr/local/lib/optimism-ci/op-reth-shadow.sh source
+    timeout: 15m
+
+  - key: feature-plan
+    use: head-source
+    if: ${{ init.cache-warm == 'true' || tasks.route.values.run-rust-ci == 'true' }}
+    run: bash ops/ci/rust-workspace.sh feature-plan
+    env: &rust-env
+      CI_RUST_PROVIDER: rwx
+      CI_COMMIT_SHA: ${{ init.commit-sha }}
+    cache: false
+    timeout: 15m
+    outputs:
+      filesystem: false
+      artifacts:
+        - key: report
+          path: .ci/rust-workspace/feature-plan
+
+  - key: tests-build
+    use: head-source
+    if: ${{ init.cache-warm == 'true' || tasks.route.values.run-rust-ci == 'true' }}
+    run: bash ops/ci/rust-workspace.sh tests-build
+    env: *rust-env
+    tool-cache: rust-workspace-tests-build-${{ init.cache-epoch }}
+    timeout: 90m
+    runner: &build-runner
+      cpus: 16
+      memory: 32gb
+    outputs:
+      filesystem: &compiler-output
+        filter:
+          workspace: [rust/target, .ci/rust-cache, rust/op-reth/crates/chainspec/res/superchain-configs.tar]
+          system: []
+      artifacts:
+        - key: report
+          path: .ci/rust-workspace/tests-build
+
+  - key: tests
+    use: [tests-build, code, rust-tools]
+    if: ${{ tasks.route.values.run-rust-ci == 'true' }}
+    run: bash ops/ci/rust-workspace.sh tests
+    env:
+      CI_RUST_PROVIDER: rwx
+      CI_COMMIT_SHA: ${{ init.commit-sha }}
+      TEST_ARCHIVE: ${{ tasks.tests-build.artifacts.report }}
+    cache: false
+    tool-cache: rust-workspace-tests-runtime-${{ init.cache-epoch }}
+    timeout: 90m
+    runner: *build-runner
+    outputs:
+      filesystem: false
+      test-results:
+        - path: .ci/rust-workspace/tests/junit.xml
+        - path: .ci/rust-workspace/tests/beacon.junit.xml
+        - path: .ci/rust-workspace/tests/doctests.junit.xml
+      artifacts:
+        - key: report
+          path: .ci/rust-workspace/tests
+
+  - key: doctest
+    use: head-source
+    if: ${{ tasks.route.values.run-rust-ci == 'true' }}
+    run: bash ops/ci/rust-workspace.sh doctest
+    env: *rust-env
+    cache: false
+    tool-cache: rust-workspace-doctest-${{ init.cache-epoch }}
+    timeout: 90m
+    runner: *build-runner
+    outputs:
+      filesystem: false
+      test-results:
+        - path: .ci/rust-workspace/doctest/doctests.junit.xml
+      artifacts:
+        - key: report
+          path: .ci/rust-workspace/doctest
+
+  - key: build
+    use: head-source
+    if: ${{ init.cache-warm == 'true' || tasks.route.values.run-rust-ci == 'true' }}
+    run: bash ops/ci/rust-workspace.sh build
+    env: *rust-env
+    cache: false
+    tool-cache: rust-workspace-build-${{ init.cache-epoch }}
+    timeout: 90m
+    runner:
+      cpus: 16
+      memory: 32gb
+    outputs:
+      filesystem: *compiler-output
+      artifacts:
+        - key: report
+          path: .ci/rust-workspace/build
+
+  - key: docs
+    use: head-source
+    if: ${{ init.cache-warm == 'true' || tasks.route.values.run-rust-ci == 'true' }}
+    run: bash ops/ci/rust-workspace.sh docs
+    env: *rust-env
+    cache: false
+    tool-cache: rust-workspace-docs-${{ init.cache-epoch }}
+    timeout: 90m
+    runner:
+      cpus: 8
+      memory: 16gb
+    outputs:
+      filesystem: *compiler-output
+      artifacts:
+        - key: report
+          path: .ci/rust-workspace/docs
+
+  - key: clippy
+    use: head-source
+    if: ${{ init.cache-warm == 'true' || tasks.route.values.run-rust-ci == 'true' }}
+    run: bash ops/ci/rust-workspace.sh clippy
+    env: *rust-env
+    cache: false
+    tool-cache: rust-workspace-clippy-${{ init.cache-epoch }}
+    timeout: 90m
+    runner:
+      cpus: 4
+      memory: 8gb
+    outputs:
+      filesystem: *compiler-output
+      artifacts:
+        - key: report
+          path: .ci/rust-workspace/clippy
+
+  - key: no-std
+    use: head-source
+    if: ${{ init.cache-warm == 'true' || tasks.route.values.run-rust-ci == 'true' }}
+    run: bash ops/ci/rust-workspace.sh no-std
+    env: *rust-env
+    cache: false
+    tool-cache: rust-workspace-no-std-${{ init.cache-epoch }}
+    timeout: 90m
+    runner:
+      cpus: 4
+      memory: 8gb
+    outputs:
+      filesystem: *compiler-output
+      artifacts:
+        - key: report
+          path: .ci/rust-workspace/no-std
+
+  - key: udeps
+    use: head-source
+    if: ${{ init.cache-warm == 'true' || tasks.route.values.run-rust-ci == 'true' }}
+    run: bash ops/ci/rust-workspace.sh udeps
+    env: *rust-env
+    cache: false
+    tool-cache: rust-workspace-udeps-${{ init.cache-epoch }}
+    timeout: 90m
+    runner:
+      cpus: 4
+      memory: 8gb
+    outputs:
+      filesystem: *compiler-output
+      artifacts:
+        - key: report
+          path: .ci/rust-workspace/udeps
+
+  - key: features-0
+    use: head-source
+    if: ${{ init.cache-warm == 'true' || tasks.route.values.run-rust-ci == 'true' }}
+    run: bash ops/ci/rust-workspace.sh features
+    env:
+      CI_RUST_PROVIDER: rwx
+      CI_COMMIT_SHA: ${{ init.commit-sha }}
+      CI_RUST_PARTITION_INDEX: "0"
+      CI_RUST_PARTITION_TOTAL: "10"
+    cache: false
+    tool-cache: rust-workspace-features-0-${{ init.cache-epoch }}
+    timeout: 120m
+    runner:
+      cpus: 4
+      memory: 8gb
+    outputs:
+      filesystem: *compiler-output
+      artifacts:
+        - key: report
+          path: .ci/rust-workspace/features-0
+
+  - key: features-1
+    use: head-source
+    if: ${{ init.cache-warm == 'true' || tasks.route.values.run-rust-ci == 'true' }}
+    run: bash ops/ci/rust-workspace.sh features
+    env:
+      CI_RUST_PROVIDER: rwx
+      CI_COMMIT_SHA: ${{ init.commit-sha }}
+      CI_RUST_PARTITION_INDEX: "1"
+      CI_RUST_PARTITION_TOTAL: "10"
+    cache: false
+    tool-cache: rust-workspace-features-1-${{ init.cache-epoch }}
+    timeout: 120m
+    runner:
+      cpus: 4
+      memory: 8gb
+    outputs:
+      filesystem: *compiler-output
+      artifacts:
+        - key: report
+          path: .ci/rust-workspace/features-1
+
+  - key: features-2
+    use: head-source
+    if: ${{ init.cache-warm == 'true' || tasks.route.values.run-rust-ci == 'true' }}
+    run: bash ops/ci/rust-workspace.sh features
+    env:
+      CI_RUST_PROVIDER: rwx
+      CI_COMMIT_SHA: ${{ init.commit-sha }}
+      CI_RUST_PARTITION_INDEX: "2"
+      CI_RUST_PARTITION_TOTAL: "10"
+    cache: false
+    tool-cache: rust-workspace-features-2-${{ init.cache-epoch }}
+    timeout: 120m
+    runner:
+      cpus: 4
+      memory: 8gb
+    outputs:
+      filesystem: *compiler-output
+      artifacts:
+        - key: report
+          path: .ci/rust-workspace/features-2
+
+  - key: features-3
+    use: head-source
+    if: ${{ init.cache-warm == 'true' || tasks.route.values.run-rust-ci == 'true' }}
+    run: bash ops/ci/rust-workspace.sh features
+    env:
+      CI_RUST_PROVIDER: rwx
+      CI_COMMIT_SHA: ${{ init.commit-sha }}
+      CI_RUST_PARTITION_INDEX: "3"
+      CI_RUST_PARTITION_TOTAL: "10"
+    cache: false
+    tool-cache: rust-workspace-features-3-${{ init.cache-epoch }}
+    timeout: 120m
+    runner:
+      cpus: 4
+      memory: 8gb
+    outputs:
+      filesystem: *compiler-output
+      artifacts:
+        - key: report
+          path: .ci/rust-workspace/features-3
+
+  - key: features-4
+    use: head-source
+    if: ${{ init.cache-warm == 'true' || tasks.route.values.run-rust-ci == 'true' }}
+    run: bash ops/ci/rust-workspace.sh features
+    env:
+      CI_RUST_PROVIDER: rwx
+      CI_COMMIT_SHA: ${{ init.commit-sha }}
+      CI_RUST_PARTITION_INDEX: "4"
+      CI_RUST_PARTITION_TOTAL: "10"
+    cache: false
+    tool-cache: rust-workspace-features-4-${{ init.cache-epoch }}
+    timeout: 120m
+    runner:
+      cpus: 4
+      memory: 8gb
+    outputs:
+      filesystem: *compiler-output
+      artifacts:
+        - key: report
+          path: .ci/rust-workspace/features-4
+
+  - key: features-5
+    use: head-source
+    if: ${{ init.cache-warm == 'true' || tasks.route.values.run-rust-ci == 'true' }}
+    run: bash ops/ci/rust-workspace.sh features
+    env:
+      CI_RUST_PROVIDER: rwx
+      CI_COMMIT_SHA: ${{ init.commit-sha }}
+      CI_RUST_PARTITION_INDEX: "5"
+      CI_RUST_PARTITION_TOTAL: "10"
+    cache: false
+    tool-cache: rust-workspace-features-5-${{ init.cache-epoch }}
+    timeout: 120m
+    runner:
+      cpus: 4
+      memory: 8gb
+    outputs:
+      filesystem: *compiler-output
+      artifacts:
+        - key: report
+          path: .ci/rust-workspace/features-5
+
+  - key: features-6
+    use: head-source
+    if: ${{ init.cache-warm == 'true' || tasks.route.values.run-rust-ci == 'true' }}
+    run: bash ops/ci/rust-workspace.sh features
+    env:
+      CI_RUST_PROVIDER: rwx
+      CI_COMMIT_SHA: ${{ init.commit-sha }}
+      CI_RUST_PARTITION_INDEX: "6"
+      CI_RUST_PARTITION_TOTAL: "10"
+    cache: false
+    tool-cache: rust-workspace-features-6-${{ init.cache-epoch }}
+    timeout: 120m
+    runner:
+      cpus: 4
+      memory: 8gb
+    outputs:
+      filesystem: *compiler-output
+      artifacts:
+        - key: report
+          path: .ci/rust-workspace/features-6
+
+  - key: features-7
+    use: head-source
+    if: ${{ init.cache-warm == 'true' || tasks.route.values.run-rust-ci == 'true' }}
+    run: bash ops/ci/rust-workspace.sh features
+    env:
+      CI_RUST_PROVIDER: rwx
+      CI_COMMIT_SHA: ${{ init.commit-sha }}
+      CI_RUST_PARTITION_INDEX: "7"
+      CI_RUST_PARTITION_TOTAL: "10"
+    cache: false
+    tool-cache: rust-workspace-features-7-${{ init.cache-epoch }}
+    timeout: 120m
+    runner:
+      cpus: 4
+      memory: 8gb
+    outputs:
+      filesystem: *compiler-output
+      artifacts:
+        - key: report
+          path: .ci/rust-workspace/features-7
+
+  - key: features-8
+    use: head-source
+    if: ${{ init.cache-warm == 'true' || tasks.route.values.run-rust-ci == 'true' }}
+    run: bash ops/ci/rust-workspace.sh features
+    env:
+      CI_RUST_PROVIDER: rwx
+      CI_COMMIT_SHA: ${{ init.commit-sha }}
+      CI_RUST_PARTITION_INDEX: "8"
+      CI_RUST_PARTITION_TOTAL: "10"
+    cache: false
+    tool-cache: rust-workspace-features-8-${{ init.cache-epoch }}
+    timeout: 120m
+    runner:
+      cpus: 4
+      memory: 8gb
+    outputs:
+      filesystem: *compiler-output
+      artifacts:
+        - key: report
+          path: .ci/rust-workspace/features-8
+
+  - key: features-9
+    use: head-source
+    if: ${{ init.cache-warm == 'true' || tasks.route.values.run-rust-ci == 'true' }}
+    run: bash ops/ci/rust-workspace.sh features
+    env:
+      CI_RUST_PROVIDER: rwx
+      CI_COMMIT_SHA: ${{ init.commit-sha }}
+      CI_RUST_PARTITION_INDEX: "9"
+      CI_RUST_PARTITION_TOTAL: "10"
+    cache: false
+    tool-cache: rust-workspace-features-9-${{ init.cache-epoch }}
+    timeout: 120m
+    runner:
+      cpus: 4
+      memory: 8gb
+    outputs:
+      filesystem: *compiler-output
+      artifacts:
+        - key: report
+          path: .ci/rust-workspace/features-9
