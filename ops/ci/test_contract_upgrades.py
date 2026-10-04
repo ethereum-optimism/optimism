@@ -39,6 +39,36 @@ class UpgradeTests(unittest.TestCase):
                 p.write_text(value)
                 with self.subTest(value=value), self.assertRaises(ValueError): UP.junit(p, selected)
 
+    def test_setup_skip_expands_only_the_bound_contract_and_retains_original(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            p = Path(tmp) / 'junit.xml'
+            selected = [('test/A.t.sol:A', 'test_a()'), ('test/B.t.sol:B', 'test_one()'), ('test/B.t.sol:B', 'test_two()')]
+            original = '<testsuites><testsuite name="test/A.t.sol:A"><testcase name="test_a()"/></testsuite>' \
+                       '<testsuite name="test/B.t.sol:B"><testcase name="setUp()"><skipped message="fork disabled"/></testcase></testsuite></testsuites>'
+            p.write_text(original); result = UP.junit(p, selected)
+            self.assertEqual(result['outcomes'], {'pass': 1, 'skip': 2})
+            self.assertEqual(len(result['original_cases']), 2)
+            self.assertEqual([c['verdict_source'] for c in result['cases']], ['test_a()', 'setUp()', 'setUp()'])
+            for value in (original.replace('test/B.t.sol:B', 'test/Extra.t.sol:Extra'),
+                          original.replace('<skipped message="fork disabled"/>', '<failure>setup failed</failure>'),
+                          original.replace('<testcase name="setUp()">', '<testcase name="test_one()"/><testcase name="setUp()">')):
+                p.write_text(value)
+                with self.subTest(value=value), self.assertRaises(ValueError): UP.junit(p, selected)
+
+    def test_absent_verdict_requires_original_empty_creation_bytecode(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            p = Path(tmp) / 'junit.xml'; p.write_text('<testsuite name="test/A.t.sol:A"><testcase name="test_a()"/></testsuite>')
+            selected = [('test/A.t.sol:A', 'test_a()'), ('test/Parent.t.sol:Parent', 'test_inherited()')]
+            bindings = {identity: {'creation_bytecode': {'bytes': 1, 'sha256': UP.hashlib.sha256(b'00').hexdigest()}}
+                        for identity, _ in selected}
+            with self.assertRaises(ValueError): UP.junit(p, selected, bindings)
+            bindings['test/Parent.t.sol:Parent']['creation_bytecode'] = {'bytes': 0, 'sha256': UP.hashlib.sha256(b'').hexdigest()}
+            result = UP.junit(p, selected, bindings)
+            self.assertEqual(result['outcomes'], {'pass': 1}); self.assertEqual(len(result['non_executable']), 1)
+            self.assertEqual(result['non_executable'][0]['name'], 'test_inherited()')
+            bindings['test/Parent.t.sol:Parent']['creation_bytecode']['sha256'] = 'a' * 64
+            with self.assertRaisesRegex(ValueError, 'bytecode hash'): UP.junit(p, selected, bindings)
+
     def test_all_seven_occurrences_have_distinct_identity_including_both_op_main(self):
         self.assertEqual(len(UP.VARIANTS), 7)
         self.assertEqual(UP.VARIANTS['chain-op'], UP.VARIANTS['feature-main'])
@@ -190,15 +220,22 @@ class LiveForgeTests(unittest.TestCase):
                 'contract Fixture { function test_pass() public pure { assert(7==7); } '
                 'function testFuzz_fresh(uint256 a) public pure { assert(a==a); } '
                 'function testFuzz_fresh(address a) public pure { assert(a==a); } '
-                'function test_skip() public { Vm(address(uint160(uint256(keccak256("hevm cheat code"))))).skip(true); } }')
+                'function test_skip() public { Vm(address(uint160(uint256(keccak256("hevm cheat code"))))).skip(true); } } '
+                'abstract contract AbstractFixture { function test_inheritedA() public pure { assert(1==1); } '
+                'function test_inheritedB() public pure { assert(2==2); } } contract InheritedFixture is AbstractFixture {} '
+                'contract SetupSkippedFixture { function setUp() public { Vm(address(uint160(uint256(keccak256("hevm cheat code"))))).skip(true); } '
+                'function test_one() public pure { assert(3==3); } function test_two() public pure { assert(4==4); } }')
             args = ['forge', 'test', '--match-path', UP.MATCH]
             found = subprocess.check_output(args + ['--list', '--json'], cwd=root)
             actual = subprocess.check_output(args + ['--junit'], cwd=root)
             junit = root / 'original.xml'; junit.write_bytes(actual)
             with patch.object(UP, 'ROOT', root): signatures = UP.compiler_signatures(root / 'out')
             discovered = UP.selection(json.loads(found), signatures)
-            result = UP.junit(junit, discovered)
-            self.assertEqual(result['outcomes'], {'pass': 3, 'skip': 1}); self.assertEqual(len(result['cases']), 4)
+            result = UP.junit(junit, discovered, signatures)
+            self.assertEqual(len(discovered), 10)
+            self.assertEqual(result['outcomes'], {'pass': 5, 'skip': 3}); self.assertEqual(len(result['cases']), 8)
+            self.assertEqual(len(result['non_executable']), 2); self.assertEqual(len(result['original_cases']), 7)
+            self.assertEqual(list(result['suite_setup_skips']), ['test/L1/Fixture.t.sol:SetupSkippedFixture'])
 
 
 if __name__ == '__main__': unittest.main()

@@ -25,12 +25,13 @@ class ComparisonTests(unittest.TestCase):
             self.write(d/'settings.json',settings);self.write(d/'foundry-config.json',{'out':'out','root':workspace})
             discovery={'test/L1/Original.t.sol':{'Original':['test_a','test_skip']}};self.write(d/'discovery.json',discovery)
             methods={'test/L1/Original.t.sol:Original':{'methods':{'test_a()':'original','test_skip()':'original'},
+                         'creation_bytecode':{'bytes':1,'sha256':hashlib.sha256(b'00').hexdigest()},
                          'artifacts':{'packages/contracts-bedrock/out/Original.t.sol/Original.json':'artifact-hash'}}}
             self.write(d/'signature-bindings.json',methods);self.write(d/'compiled.json',methods['test/L1/Original.t.sol:Original']['artifacts'])
             selected=C.UP.selection(discovery,methods);self.write(d/'selection.json',selected)
             junit=d/'original.junit.xml';junit.write_text('<testsuites><testsuite name="test/L1/Original.t.sol:Original">'
                 '<testcase name="test_a()"/><testcase name="test_skip()"><skipped message="original">feature disabled</skipped></testcase></testsuite></testsuites>')
-            self.write(d/'coverage.json',C.UP.junit(junit,selected));(d/'submodules.txt').write_text(' ' + 'd' * 40 + ' original-submodule\n')
+            self.write(d/'coverage.json',C.UP.junit(junit,selected,methods));(d/'submodules.txt').write_text(' ' + 'd' * 40 + ' original-submodule\n')
             self.write(d/'block.json',{'source_sha':SHA,'chain_id':1,'number':66,'hash':'0x'+'b'*64,'timestamp':100,'policy':'Just current-day 00:00 UTC'})
             for name,argv in {'foundry-config':['forge','config','--json'],'go-ffi':['just','build-go-ffi'],
                               'contracts-build':['forge','build'],
@@ -81,7 +82,7 @@ class ComparisonTests(unittest.TestCase):
                 elif mode=='extra':v=v.replace('test_a()','extra()')
                 else:v=v.replace('feature disabled','different behavior')
                 p.write_text(v)
-                if mode=='skip':self.write(d/'coverage.json',C.UP.junit(p,json.loads((d/'selection.json').read_text())))
+                if mode=='skip':self.write(d/'coverage.json',C.UP.junit(p,json.loads((d/'selection.json').read_text()),json.loads((d/'signature-bindings.json').read_text())))
                 self.seal(d)
                 with self.assertRaises(ValueError):self.compare()
 

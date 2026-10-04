@@ -433,6 +433,628 @@
       }
     }
   ],
+  "report_adapter_failure": {
+    "circle_pipeline": 135561,
+    "correction": "Retain every original verdict and complete discovery. Expand only an explicit skipped setUp() for its own selected deployable contract, and bind non-executable declarations to verified empty compiler creation bytecode. All unexplained missing, extra, duplicate or conflicting verdicts still fail.",
+    "finding": "All seven original Just upgrade commands succeeded on both providers, and all complete raw JUnit identities, outcomes and skip reasons agree. The adapter incorrectly required individual verdicts for contracts skipped by setUp() and four signatures declared by an abstract, non-deployable test contract. These observations remain failed adapter runs and add zero verified occurrences.",
+    "native_run_id": "2676d02c2c7e4075b41666c0179f6039",
+    "providers": {
+      "circle": {
+        "chain-ink": {
+          "adapter_exit_code": 1,
+          "adapter_report_errors": [
+            "Missing or extra original upgrade verdict"
+          ],
+          "final_sha256": "9415956b9a5e551aa3d80de4af176f2efb7a0877e3f5aabb87423762324b9ae5",
+          "original_command": [
+            "just",
+            "test-upgrade"
+          ],
+          "original_command_exit_code": 0,
+          "original_junit_outcomes": {
+            "pass": 861,
+            "skip": 131
+          },
+          "original_sha256": {
+            "block.json": "5ef179c71593909d75ddd304144a97389de3d57649da63d56f7a10fbc8fd49ae",
+            "compiled.json": "14e6194fa83563eb221f2483bdfe50f3583cb2b882644b21d61afa1f16545022",
+            "contracts-build.log": "b8457d5a76d138e00ccb8ae7ae1f711e9a36898555a45fbedd170075b19803de",
+            "contracts-build.stage.json": "d41e1e8c95d2c8df245184ce571b758b2d5da3d4bf9d5b4a7e0c40ff2040a10d",
+            "contracts-build.stderr.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "discovery.json": "6e6d9afbeb0198dcf81d0e06818773940db65c3111b9ef8231a63a4db6a2cfac",
+            "discovery.stage.json": "b0b6108dc9267d63f8c4db692d0e8df4a8d3af2ba3caa4d412a9cec9a9677d4d",
+            "discovery.stderr.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "foundry-config.json": "dbae23b2a2089c0d95483be4131a52457c155e3dd94d5f48e71c238b352ec472",
+            "foundry-config.stage.json": "a47d732f485203763b3ce48a0f3604fbd942adadf75e390b932695f802984ac5",
+            "foundry-config.stderr.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "go-ffi.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "go-ffi.stage.json": "859d183d2eb59d07ac442fb4d2617323370ca8dfb7922181bac8c57831b5e7c6",
+            "go-ffi.stderr.log": "60809bcbf975a510064b28f4c25a40c795d9052d0079dcfcffb50b1f750031b5",
+            "original.junit.xml": "e4e8648ce9d148781a16fcba02d9b141716bc68bd87ae846c4a3458d3485c706",
+            "pinned-block.log": "52851e41c861449c3c1d17478cd9f9a494b89f415f09288345f6fff61b551af5",
+            "pinned-block.stage.json": "eff7c51e4d0c424aa1de17d676c6a7baea74b6e572bdb34b87f6b2a76d2266e2",
+            "pinned-block.stderr.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "selection.json": "b922afb73667dafa2eae85289bce8952032618ffae90ddb5e040c4019260eefa",
+            "settings.json": "4b745667773ab6bef426a7cbe90bb7cad24584cc6e5faf20702d612e352d2c2e",
+            "signature-bindings.json": "f1e1a75ff2ef52b95ba5dbfedeb23f51bef9a53f59a3ae6a8d8a6efa67f4ea57",
+            "submodules.txt": "552140171f2fb64aabf505d38086680d44492c18a14cb5e6afb73034bfd75ab1",
+            "tests.log": "8c5a3c897d9d730c6ec469ceb5d89f4d780cc3269a341a2c1c6f8e677d566516",
+            "tests.stage.json": "1d08f7e6ffcd8441828e189dc644b2092a6993234d935f335ee21e6233b55063",
+            "tests.stderr.log": "60809bcbf975a510064b28f4c25a40c795d9052d0079dcfcffb50b1f750031b5"
+          },
+          "selected_signatures": 1359,
+          "setup_skip_contracts": 77
+        },
+        "chain-op": {
+          "adapter_exit_code": 1,
+          "adapter_report_errors": [
+            "Missing or extra original upgrade verdict"
+          ],
+          "final_sha256": "5456763af89d2aa6483c9582f441ff83a39819fd75f36ead65294a000431c3d5",
+          "original_command": [
+            "just",
+            "test-upgrade"
+          ],
+          "original_command_exit_code": 0,
+          "original_junit_outcomes": {
+            "pass": 861,
+            "skip": 131
+          },
+          "original_sha256": {
+            "block.json": "5ef179c71593909d75ddd304144a97389de3d57649da63d56f7a10fbc8fd49ae",
+            "compiled.json": "706beaabeb4abb851188c2a471c8f2d59acd24a605b40b7ae99a3bcda4a1ea09",
+            "contracts-build.log": "6b8136d7e694af833455cc77e8b5b7a8922b4796b1fa3def4e3a1e843ac8b6b9",
+            "contracts-build.stage.json": "be0b41a5be23e78d987f0219310bb4d937a6d57326b701a26c572308dc702824",
+            "contracts-build.stderr.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "discovery.json": "6e6d9afbeb0198dcf81d0e06818773940db65c3111b9ef8231a63a4db6a2cfac",
+            "discovery.stage.json": "934861bf109ce2de9788b0e0048dd6b236c0ca2e2446253d3394ef8674e9e705",
+            "discovery.stderr.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "foundry-config.json": "dbae23b2a2089c0d95483be4131a52457c155e3dd94d5f48e71c238b352ec472",
+            "foundry-config.stage.json": "0cc75df18b05831c6635872c05d9e13b8abab6ac9fb2eae31b27b86fc09cd8f7",
+            "foundry-config.stderr.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "go-ffi.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "go-ffi.stage.json": "9fcf2325f57f5f04bad2488301f4296c706d5e2edc11855532d45aca08bde585",
+            "go-ffi.stderr.log": "60809bcbf975a510064b28f4c25a40c795d9052d0079dcfcffb50b1f750031b5",
+            "original.junit.xml": "5b64eb220b88fc3b76025339c64e9fe66a5c9a0a064260b638d2507686602886",
+            "pinned-block.log": "52851e41c861449c3c1d17478cd9f9a494b89f415f09288345f6fff61b551af5",
+            "pinned-block.stage.json": "8744e5a9c2860a6668d19291b196e714b3cdaadbd1f85b70d51f027413c80b3d",
+            "pinned-block.stderr.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "selection.json": "b922afb73667dafa2eae85289bce8952032618ffae90ddb5e040c4019260eefa",
+            "settings.json": "a08a6f0dffd4a9597c07f7b292bc688be9149ef950314210197e08d08177b407",
+            "signature-bindings.json": "f1e1a75ff2ef52b95ba5dbfedeb23f51bef9a53f59a3ae6a8d8a6efa67f4ea57",
+            "submodules.txt": "552140171f2fb64aabf505d38086680d44492c18a14cb5e6afb73034bfd75ab1",
+            "tests.log": "59000e1cd40f616139e36429d345baf486b71945b1ba5bd792e9d9146ff81fde",
+            "tests.stage.json": "ebbcd48311d15f440d922ed78ce344913152bcd40e4feb7c12464d5ce457f59e",
+            "tests.stderr.log": "60809bcbf975a510064b28f4c25a40c795d9052d0079dcfcffb50b1f750031b5"
+          },
+          "selected_signatures": 1359,
+          "setup_skip_contracts": 77
+        },
+        "chain-unichain": {
+          "adapter_exit_code": 1,
+          "adapter_report_errors": [
+            "Missing or extra original upgrade verdict"
+          ],
+          "final_sha256": "065435b59057d81d1f5a1668f255d9dd8d5fba5f2f2eb72445c3c88609446d8d",
+          "original_command": [
+            "just",
+            "test-upgrade"
+          ],
+          "original_command_exit_code": 0,
+          "original_junit_outcomes": {
+            "pass": 861,
+            "skip": 131
+          },
+          "original_sha256": {
+            "block.json": "5ef179c71593909d75ddd304144a97389de3d57649da63d56f7a10fbc8fd49ae",
+            "compiled.json": "315d3c830cfdb28a804a1ed78b167ca705d86c4749b59b8dc7aa6bcdb1d78d59",
+            "contracts-build.log": "4b4295d3b845bc0dd7d5abf8bfa29ce9e26a170f629fddfc65b3ac825ccca441",
+            "contracts-build.stage.json": "dc775d6c08e82bcf67034c3ecb32410f33d63d520d21822c86f37eeeb31ea874",
+            "contracts-build.stderr.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "discovery.json": "6e6d9afbeb0198dcf81d0e06818773940db65c3111b9ef8231a63a4db6a2cfac",
+            "discovery.stage.json": "318b24efb6fe7a5070b48122d9f24140acb244b7e01b4430e66251d957853460",
+            "discovery.stderr.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "foundry-config.json": "dbae23b2a2089c0d95483be4131a52457c155e3dd94d5f48e71c238b352ec472",
+            "foundry-config.stage.json": "554ecdc10243c56f68fc07475c96d1ff99e1951b6d0c16043c23045ff250295f",
+            "foundry-config.stderr.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "go-ffi.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "go-ffi.stage.json": "bc07e4d80c81abd8453a351472b40489dc5a48c4d74aa94309dabf5abdcc7767",
+            "go-ffi.stderr.log": "60809bcbf975a510064b28f4c25a40c795d9052d0079dcfcffb50b1f750031b5",
+            "original.junit.xml": "cd53beb77ce4ca493dfb6f8da6802ad8d66ad87ab28c4f2721c1bb40180c6425",
+            "pinned-block.log": "52851e41c861449c3c1d17478cd9f9a494b89f415f09288345f6fff61b551af5",
+            "pinned-block.stage.json": "472f68959031542dcddf0b321611dd9369b9d38a3265e3a0cd94486381fd4cbc",
+            "pinned-block.stderr.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "selection.json": "b922afb73667dafa2eae85289bce8952032618ffae90ddb5e040c4019260eefa",
+            "settings.json": "eb4056597e7eb926f4599c7c6d6fec8b8424c513c6f7f5f63e2820f397816995",
+            "signature-bindings.json": "f1e1a75ff2ef52b95ba5dbfedeb23f51bef9a53f59a3ae6a8d8a6efa67f4ea57",
+            "submodules.txt": "552140171f2fb64aabf505d38086680d44492c18a14cb5e6afb73034bfd75ab1",
+            "tests.log": "2b86119e4b6010cb2870a1296a3873321275bdae077e8a0993b683c9a92587e2",
+            "tests.stage.json": "492e5b1b8af878c17861eaab96caa18be60a3f5e238d8d85411727ecd8c0409f",
+            "tests.stderr.log": "60809bcbf975a510064b28f4c25a40c795d9052d0079dcfcffb50b1f750031b5"
+          },
+          "selected_signatures": 1359,
+          "setup_skip_contracts": 77
+        },
+        "feature-CUSTOM_GAS_TOKEN": {
+          "adapter_exit_code": 1,
+          "adapter_report_errors": [
+            "Missing or extra original upgrade verdict"
+          ],
+          "final_sha256": "44abd56f75037fbc6a2bd4dd4007c5428f0b8d5dd1a1f1c2110e018063d4d122",
+          "original_command": [
+            "just",
+            "test-upgrade"
+          ],
+          "original_command_exit_code": 0,
+          "original_junit_outcomes": {
+            "pass": 861,
+            "skip": 131
+          },
+          "original_sha256": {
+            "block.json": "5ef179c71593909d75ddd304144a97389de3d57649da63d56f7a10fbc8fd49ae",
+            "compiled.json": "79ca86c6d04dd39ac8507f47e9490c5454c59aabd36c4f3a80b22ef704f5f603",
+            "contracts-build.log": "43b4f716a0d46609ba6fe36ab39a754fba2e2de8f50a6b1517cc3f6f31532ab3",
+            "contracts-build.stage.json": "38b51cae38fc08ba1dbf0cba796481ee74880d4a1f127dc03b82e51c3a169286",
+            "contracts-build.stderr.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "discovery.json": "6e6d9afbeb0198dcf81d0e06818773940db65c3111b9ef8231a63a4db6a2cfac",
+            "discovery.stage.json": "0b68dc42786fd281f5f81aee3c730eeb80e10d58eaaa16e527a6e3f790355b7e",
+            "discovery.stderr.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "foundry-config.json": "dbae23b2a2089c0d95483be4131a52457c155e3dd94d5f48e71c238b352ec472",
+            "foundry-config.stage.json": "79feb3334da9471fb65720677f13c8d549ab242a36077e69a18d81989bb6bb10",
+            "foundry-config.stderr.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "go-ffi.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "go-ffi.stage.json": "4be03a6afa27be477b3283a46d561f2176542ceb9437b5d82f41f1432a057ade",
+            "go-ffi.stderr.log": "60809bcbf975a510064b28f4c25a40c795d9052d0079dcfcffb50b1f750031b5",
+            "original.junit.xml": "5f228a8ed677ec81c91dc95cf3656af5d81c237c442dfbce23bb1358d62feebd",
+            "pinned-block.log": "52851e41c861449c3c1d17478cd9f9a494b89f415f09288345f6fff61b551af5",
+            "pinned-block.stage.json": "beeaabd7b61678ac04aff121c8b1ccb2866ae9458fa1982040d83d3f2ef3c556",
+            "pinned-block.stderr.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "selection.json": "b922afb73667dafa2eae85289bce8952032618ffae90ddb5e040c4019260eefa",
+            "settings.json": "6124f22498c43f92d93862df8b58f4c289b981888be63cc5b8f8c2378f02f4b2",
+            "signature-bindings.json": "f1e1a75ff2ef52b95ba5dbfedeb23f51bef9a53f59a3ae6a8d8a6efa67f4ea57",
+            "submodules.txt": "552140171f2fb64aabf505d38086680d44492c18a14cb5e6afb73034bfd75ab1",
+            "tests.log": "08ca112f3f2c013db8587a61f6a30eb1d7423457ec6de2711b5f7fc893953a44",
+            "tests.stage.json": "c7b16f79cdeb977627582de5c026e8be86f935dab8324d04684188bb2492b79c",
+            "tests.stderr.log": "60809bcbf975a510064b28f4c25a40c795d9052d0079dcfcffb50b1f750031b5"
+          },
+          "selected_signatures": 1359,
+          "setup_skip_contracts": 77
+        },
+        "feature-OPTIMISM_PORTAL_INTEROP": {
+          "adapter_exit_code": 1,
+          "adapter_report_errors": [
+            "Missing or extra original upgrade verdict"
+          ],
+          "final_sha256": "b515f44b229aa259a0a365123b2099daccba2cc9a190166092c04c9b975af8b1",
+          "original_command": [
+            "just",
+            "test-upgrade"
+          ],
+          "original_command_exit_code": 0,
+          "original_junit_outcomes": {
+            "pass": 983,
+            "skip": 120
+          },
+          "original_sha256": {
+            "block.json": "5ef179c71593909d75ddd304144a97389de3d57649da63d56f7a10fbc8fd49ae",
+            "compiled.json": "eb1d6a5043221bcd5e489b4340f35aa42af9fedcc6ef04499f9abf53eff47b13",
+            "contracts-build.log": "67fe0ed95f2f19e24b2b0cc945bfe59083f9597ba36ff830993aae865dc1d77c",
+            "contracts-build.stage.json": "6842c8410c500d87965a04afb937c3366abfe535248c84dc8c7154974b019d93",
+            "contracts-build.stderr.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "discovery.json": "6e6d9afbeb0198dcf81d0e06818773940db65c3111b9ef8231a63a4db6a2cfac",
+            "discovery.stage.json": "e12f6ea72f41e2c35b60cad66bb6e39d103c0947ca9f60d3239c55b52048bec7",
+            "discovery.stderr.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "foundry-config.json": "dbae23b2a2089c0d95483be4131a52457c155e3dd94d5f48e71c238b352ec472",
+            "foundry-config.stage.json": "eed9caf0d305454738dda194875a9521c81edcde60cc8294060334341ca55065",
+            "foundry-config.stderr.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "go-ffi.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "go-ffi.stage.json": "3b1bcc166af8b2224a7ee757c9cb3d0d18505551febc563023278bc024e2515c",
+            "go-ffi.stderr.log": "60809bcbf975a510064b28f4c25a40c795d9052d0079dcfcffb50b1f750031b5",
+            "original.junit.xml": "f4887aae60856dccdaf99b1c3449a923463cd93348df07f70a9e9f1699ac37fb",
+            "pinned-block.log": "52851e41c861449c3c1d17478cd9f9a494b89f415f09288345f6fff61b551af5",
+            "pinned-block.stage.json": "473cdd8832bb144f1d9c521c8aead5e4dd0f72810a4c3db0eeac9123dcc33027",
+            "pinned-block.stderr.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "selection.json": "b922afb73667dafa2eae85289bce8952032618ffae90ddb5e040c4019260eefa",
+            "settings.json": "78f4cb4a7b58ee593fe85e092bf93ed36f9387d9a55d4e7a8b8edafc8bef3e6d",
+            "signature-bindings.json": "f1e1a75ff2ef52b95ba5dbfedeb23f51bef9a53f59a3ae6a8d8a6efa67f4ea57",
+            "submodules.txt": "552140171f2fb64aabf505d38086680d44492c18a14cb5e6afb73034bfd75ab1",
+            "tests.log": "946bc6fad5199e5f3a8d434cc4b40e19071bc2b0baf7c9eb50b3e200220bf22a",
+            "tests.stage.json": "0d2441e898b56775b02028b00a73ec66b12b1d64b1a0800fafb9afddfe5cf3f1",
+            "tests.stderr.log": "60809bcbf975a510064b28f4c25a40c795d9052d0079dcfcffb50b1f750031b5"
+          },
+          "selected_signatures": 1359,
+          "setup_skip_contracts": 63
+        },
+        "feature-ZK_DISPUTE_GAME": {
+          "adapter_exit_code": 1,
+          "adapter_report_errors": [
+            "Missing or extra original upgrade verdict"
+          ],
+          "final_sha256": "adacec454b50369ceb3aaabb753b46e26cb6d79f1588dd23d2f965353f447547",
+          "original_command": [
+            "just",
+            "test-upgrade"
+          ],
+          "original_command_exit_code": 0,
+          "original_junit_outcomes": {
+            "pass": 986,
+            "skip": 102
+          },
+          "original_sha256": {
+            "block.json": "5ef179c71593909d75ddd304144a97389de3d57649da63d56f7a10fbc8fd49ae",
+            "compiled.json": "fa3259aa5fd8885355a33afb8492618d9b5a30d3270740a19661d81041e57b97",
+            "contracts-build.log": "e16166fb0fc35b31abcc307ff5535cf2c8ec6ef3632def9253537764ee7214ad",
+            "contracts-build.stage.json": "ca36ab5528bb8f9abc22c7a81c580332db249ae0ca67138b49ee9a8d1484317f",
+            "contracts-build.stderr.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "discovery.json": "6e6d9afbeb0198dcf81d0e06818773940db65c3111b9ef8231a63a4db6a2cfac",
+            "discovery.stage.json": "ac35401e19ad890612b028249b3c8d8e8cac8a633b43b7628f89dfb4d6f981f7",
+            "discovery.stderr.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "foundry-config.json": "dbae23b2a2089c0d95483be4131a52457c155e3dd94d5f48e71c238b352ec472",
+            "foundry-config.stage.json": "3fc499cc054d3af6e6f422596e1fc5c5f8d2bd4690e0bebdcadbd4a8f755a4e9",
+            "foundry-config.stderr.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "go-ffi.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "go-ffi.stage.json": "2a4da5b74455258b905e2e474ec00ff7d0571a5fea2041dd2be5ebeb18db67aa",
+            "go-ffi.stderr.log": "60809bcbf975a510064b28f4c25a40c795d9052d0079dcfcffb50b1f750031b5",
+            "original.junit.xml": "435f36ab5380c4c14df6314883861aa2b6fb8904b3d5348f45d4aa2b4c54eaae",
+            "pinned-block.log": "52851e41c861449c3c1d17478cd9f9a494b89f415f09288345f6fff61b551af5",
+            "pinned-block.stage.json": "69778e43feed3c435d141e2c18dc5c26a3e3fd181b56a3f7ed91e22924227119",
+            "pinned-block.stderr.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "selection.json": "b922afb73667dafa2eae85289bce8952032618ffae90ddb5e040c4019260eefa",
+            "settings.json": "0ad2d42351da0e61595a998beaf5f5853d6a60bb50e2bf8c8ebc310f2a6fc419",
+            "signature-bindings.json": "f1e1a75ff2ef52b95ba5dbfedeb23f51bef9a53f59a3ae6a8d8a6efa67f4ea57",
+            "submodules.txt": "552140171f2fb64aabf505d38086680d44492c18a14cb5e6afb73034bfd75ab1",
+            "tests.log": "549117a7147f3376a80edad332f56144df2a542d8593195b47b5efed6cb64f50",
+            "tests.stage.json": "0c56dd25a9a863b3c5c72517c0663345d1046c8160bf5f239d5175eda5600397",
+            "tests.stderr.log": "60809bcbf975a510064b28f4c25a40c795d9052d0079dcfcffb50b1f750031b5"
+          },
+          "selected_signatures": 1359,
+          "setup_skip_contracts": 57
+        },
+        "feature-main": {
+          "adapter_exit_code": 1,
+          "adapter_report_errors": [
+            "Missing or extra original upgrade verdict"
+          ],
+          "final_sha256": "c7b91338025c44ed4aecd72100bdff0d31b2a58e1987aa73cb4b49af4787b596",
+          "original_command": [
+            "just",
+            "test-upgrade"
+          ],
+          "original_command_exit_code": 0,
+          "original_junit_outcomes": {
+            "pass": 861,
+            "skip": 131
+          },
+          "original_sha256": {
+            "block.json": "5ef179c71593909d75ddd304144a97389de3d57649da63d56f7a10fbc8fd49ae",
+            "compiled.json": "b70c1371f006788d1a333abac91cca7e57d1f06ef7ab60863fec366748f091e9",
+            "contracts-build.log": "0f801e08a0a80ff3c0a7223226be55bc4825ed158c46e27b595dc9214de9ff5f",
+            "contracts-build.stage.json": "40ad60aac4603f8c44958fbb78fd26aad49440568dccc57b756f9ae95597cc6c",
+            "contracts-build.stderr.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "discovery.json": "6e6d9afbeb0198dcf81d0e06818773940db65c3111b9ef8231a63a4db6a2cfac",
+            "discovery.stage.json": "e535daa9b2c3a360219658a5beef9292347f26698e67da68928d8fe526536367",
+            "discovery.stderr.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "foundry-config.json": "dbae23b2a2089c0d95483be4131a52457c155e3dd94d5f48e71c238b352ec472",
+            "foundry-config.stage.json": "5d550bb162b7b725daf64e4d1aab5d3288745cad1bae8d3335bcdbff6f1e378a",
+            "foundry-config.stderr.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "go-ffi.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "go-ffi.stage.json": "163d7b070ed5b63513ec2d14ea93640c7ab919f91337c1f0f9352a95f2aa0a11",
+            "go-ffi.stderr.log": "60809bcbf975a510064b28f4c25a40c795d9052d0079dcfcffb50b1f750031b5",
+            "original.junit.xml": "12b2ba537c52e9dda65e6691c46f94deab15d62f0f2d1b84b1400fceb582ab28",
+            "pinned-block.log": "52851e41c861449c3c1d17478cd9f9a494b89f415f09288345f6fff61b551af5",
+            "pinned-block.stage.json": "b04052bab3005943dfb3d1728bb5f3737647976fcf5eadecb1b8c9d2b98b7db8",
+            "pinned-block.stderr.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "selection.json": "b922afb73667dafa2eae85289bce8952032618ffae90ddb5e040c4019260eefa",
+            "settings.json": "b321df286e8b2fb8be8bb4b63d3107fd47c1244a6fe5ffb62c3c852a53be39f2",
+            "signature-bindings.json": "f1e1a75ff2ef52b95ba5dbfedeb23f51bef9a53f59a3ae6a8d8a6efa67f4ea57",
+            "submodules.txt": "552140171f2fb64aabf505d38086680d44492c18a14cb5e6afb73034bfd75ab1",
+            "tests.log": "e77719855c6012272e3aab51cf80cec3903817f353abcb0796f4779b485846be",
+            "tests.stage.json": "665173abbe05a18be521d32103ee33c2d92fee13fed70c811b39aadc12ddcba3",
+            "tests.stderr.log": "60809bcbf975a510064b28f4c25a40c795d9052d0079dcfcffb50b1f750031b5"
+          },
+          "selected_signatures": 1359,
+          "setup_skip_contracts": 77
+        }
+      },
+      "rwx": {
+        "chain-ink": {
+          "adapter_exit_code": 1,
+          "adapter_report_errors": [
+            "Missing or extra original upgrade verdict"
+          ],
+          "final_sha256": "2b4add223e6154196814bab5dc9f5ec53c5a96e37bfd0345706523098a3d46d0",
+          "original_command": [
+            "just",
+            "test-upgrade"
+          ],
+          "original_command_exit_code": 0,
+          "original_junit_outcomes": {
+            "pass": 861,
+            "skip": 131
+          },
+          "original_sha256": {
+            "block.json": "5ef179c71593909d75ddd304144a97389de3d57649da63d56f7a10fbc8fd49ae",
+            "compiled.json": "c79f1984b5fdc29d4473b1cec9c9dbacb84b635075472f40a7cb70e106d4b6bd",
+            "contracts-build.log": "cbe323c660cac557fd5d78f5ae4ddce9a0fb007bb74b3bec14aa7c88dd77055e",
+            "contracts-build.stage.json": "a9d701f85ac0301575d206e90521a1c9d51e2866db7dcc77c9580350e736d97d",
+            "contracts-build.stderr.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "discovery.json": "6e6d9afbeb0198dcf81d0e06818773940db65c3111b9ef8231a63a4db6a2cfac",
+            "discovery.stage.json": "9c92ecb82bf35050205f24d2c998bb6a6ae020b642628e22ad02cb0e6c23d62e",
+            "discovery.stderr.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "foundry-config.json": "dbae23b2a2089c0d95483be4131a52457c155e3dd94d5f48e71c238b352ec472",
+            "foundry-config.stage.json": "9ba2adadb5c8c8a9fa68ce48937f36eb67a6cb4e3da8b048a9956fae844195fe",
+            "foundry-config.stderr.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "go-ffi.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "go-ffi.stage.json": "690be0d9ce868da7fe5d77d48b1b52fc157c205442c3673aaac80f8e1def0058",
+            "go-ffi.stderr.log": "60809bcbf975a510064b28f4c25a40c795d9052d0079dcfcffb50b1f750031b5",
+            "original.junit.xml": "419260597527ca88257baf0559c505fa443d61c1181bd71a9050a52dd03b7eb5",
+            "selection.json": "b922afb73667dafa2eae85289bce8952032618ffae90ddb5e040c4019260eefa",
+            "settings.json": "6b89b628af53497d3bc7c3ac1d06e829debf8c02c909a018529438672c3d0a1e",
+            "signature-bindings.json": "591311563b119ab196c37104976f6f4b9a53ee10b2c65f0ad7b0fcf9eb6152f4",
+            "submodules.txt": "c0ac39468ad46aa0d1fb027dd91df079b2e1b0be168745116156e1a26bc60463",
+            "tests.log": "a8a343b6bbe8f04279f935f14cd6fdf8f5c0ad62c68005fd565773059552444e",
+            "tests.stage.json": "b27d7c144397f97823d114a3310dc71ca545411dbed7b04edaaf860632af79f3",
+            "tests.stderr.log": "60809bcbf975a510064b28f4c25a40c795d9052d0079dcfcffb50b1f750031b5"
+          },
+          "selected_signatures": 1359,
+          "setup_skip_contracts": 77
+        },
+        "chain-op": {
+          "adapter_exit_code": 1,
+          "adapter_report_errors": [
+            "Missing or extra original upgrade verdict"
+          ],
+          "final_sha256": "ea808534a8ba5055275f43d5ac40dd57d662b7321657ac00ccfb83e76fa4a806",
+          "original_command": [
+            "just",
+            "test-upgrade"
+          ],
+          "original_command_exit_code": 0,
+          "original_junit_outcomes": {
+            "pass": 861,
+            "skip": 131
+          },
+          "original_sha256": {
+            "block.json": "5ef179c71593909d75ddd304144a97389de3d57649da63d56f7a10fbc8fd49ae",
+            "compiled.json": "762eb24a99ddd3504d6371ecdfd41876ea087a7970bbd6a313cd5b684c24797b",
+            "contracts-build.log": "c49dda8a0c755492b296015bce96916b0dc940b2f4d77263879c26605e3531b7",
+            "contracts-build.stage.json": "c4f491fc6d67124e5d882f7be70eecf9c1fe93b785560a56ef32ed72924e067c",
+            "contracts-build.stderr.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "discovery.json": "6e6d9afbeb0198dcf81d0e06818773940db65c3111b9ef8231a63a4db6a2cfac",
+            "discovery.stage.json": "13277a7564d1f1b0ad757f4f0c9b842b2fd050c418beb5fd850d3816f7c7b04e",
+            "discovery.stderr.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "foundry-config.json": "dbae23b2a2089c0d95483be4131a52457c155e3dd94d5f48e71c238b352ec472",
+            "foundry-config.stage.json": "c4f5fa8c3f8cc6cee1d1c78a0d987fbf2ce5088c02e299ada840d04a27fbcee7",
+            "foundry-config.stderr.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "go-ffi.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "go-ffi.stage.json": "bf152440e6663747ca3e708afd28900ebab5981af0084adf3224f060eb497d3b",
+            "go-ffi.stderr.log": "60809bcbf975a510064b28f4c25a40c795d9052d0079dcfcffb50b1f750031b5",
+            "original.junit.xml": "be472f663247e323952eac52603518ad68c2ab5ac74fd1226d7dff81a33ba8d3",
+            "selection.json": "b922afb73667dafa2eae85289bce8952032618ffae90ddb5e040c4019260eefa",
+            "settings.json": "b7628bdf7680967a05916e1bd3fd1d13840b437c9802cf1debfcc87a446d3e0e",
+            "signature-bindings.json": "591311563b119ab196c37104976f6f4b9a53ee10b2c65f0ad7b0fcf9eb6152f4",
+            "submodules.txt": "c0ac39468ad46aa0d1fb027dd91df079b2e1b0be168745116156e1a26bc60463",
+            "tests.log": "2fb0e52ff29cade59dcc651a8cc8b2e6447f67457f4c48fb4d2b03e554b90a00",
+            "tests.stage.json": "c2060b3a968576826de1983b565858d636a204d069185f4603df021b7a9be4a3",
+            "tests.stderr.log": "60809bcbf975a510064b28f4c25a40c795d9052d0079dcfcffb50b1f750031b5"
+          },
+          "selected_signatures": 1359,
+          "setup_skip_contracts": 77
+        },
+        "chain-unichain": {
+          "adapter_exit_code": 1,
+          "adapter_report_errors": [
+            "Missing or extra original upgrade verdict"
+          ],
+          "final_sha256": "a5ba0a8fea169d5c6024a81c19b3006a0018ab7671267971703e66d0c9dd1571",
+          "original_command": [
+            "just",
+            "test-upgrade"
+          ],
+          "original_command_exit_code": 0,
+          "original_junit_outcomes": {
+            "pass": 861,
+            "skip": 131
+          },
+          "original_sha256": {
+            "block.json": "5ef179c71593909d75ddd304144a97389de3d57649da63d56f7a10fbc8fd49ae",
+            "compiled.json": "bd466fcd465c2738332a0a6325ff502fec76fbe5c2d86e70bf47423c1e1a71aa",
+            "contracts-build.log": "e3f4b14663a1f0388c8a97447cb7dec2e62852a60830ebe071b4fd6684907ac7",
+            "contracts-build.stage.json": "60e8d7b35986440fbb9efbcdd516ad7c951461dca8d7f801c39e74a478cbe962",
+            "contracts-build.stderr.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "discovery.json": "6e6d9afbeb0198dcf81d0e06818773940db65c3111b9ef8231a63a4db6a2cfac",
+            "discovery.stage.json": "b04aaff1cfe7bd7aff9e1303dc427502b172d2fed9fa27c3948b45493e4ab72c",
+            "discovery.stderr.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "foundry-config.json": "dbae23b2a2089c0d95483be4131a52457c155e3dd94d5f48e71c238b352ec472",
+            "foundry-config.stage.json": "5bc5888dab899c253ef4b00570e271045d069b99baae9984eb258ae4a196fbc1",
+            "foundry-config.stderr.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "go-ffi.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "go-ffi.stage.json": "f9304e245b5af086e204baf1962c340ebdce93be5baf23ff2b19a368cc50c027",
+            "go-ffi.stderr.log": "60809bcbf975a510064b28f4c25a40c795d9052d0079dcfcffb50b1f750031b5",
+            "original.junit.xml": "25a1fa6fc113100f483d396447514b663f0e01d61a694ca937c7669e81b2bb51",
+            "selection.json": "b922afb73667dafa2eae85289bce8952032618ffae90ddb5e040c4019260eefa",
+            "settings.json": "3999db0fc609abeaed0abd10875e482d1996a42110e3ffb48b49dbef130fafe0",
+            "signature-bindings.json": "591311563b119ab196c37104976f6f4b9a53ee10b2c65f0ad7b0fcf9eb6152f4",
+            "submodules.txt": "c0ac39468ad46aa0d1fb027dd91df079b2e1b0be168745116156e1a26bc60463",
+            "tests.log": "5fb2c9949eadd05f1938ddf597ea2c3c7e79b23b1ade865dfc9dc9c54130fe06",
+            "tests.stage.json": "b4fd57059b2da31fecfb7903a4e2e174f70e884d9b7a1234f1f721f2879cbd74",
+            "tests.stderr.log": "60809bcbf975a510064b28f4c25a40c795d9052d0079dcfcffb50b1f750031b5"
+          },
+          "selected_signatures": 1359,
+          "setup_skip_contracts": 77
+        },
+        "feature-CUSTOM_GAS_TOKEN": {
+          "adapter_exit_code": 1,
+          "adapter_report_errors": [
+            "Missing or extra original upgrade verdict"
+          ],
+          "final_sha256": "30f8ac3eb56e4c432be61d842a3ba10fe7047ff65a4dfd5ca93cc453a519317b",
+          "original_command": [
+            "just",
+            "test-upgrade"
+          ],
+          "original_command_exit_code": 0,
+          "original_junit_outcomes": {
+            "pass": 861,
+            "skip": 131
+          },
+          "original_sha256": {
+            "block.json": "5ef179c71593909d75ddd304144a97389de3d57649da63d56f7a10fbc8fd49ae",
+            "compiled.json": "01f6c66ca6be68d98420b8ca86f5b243582b2f1f15c2f89616c64b5b18d9bed6",
+            "contracts-build.log": "414415c1caab7c1933765507197d20ece72e6fcb44526203ad98f969d4135c1c",
+            "contracts-build.stage.json": "b55437b06ad4d656d9b69d441ae69550d5dfbc309178eb195bbd413fd36e6a30",
+            "contracts-build.stderr.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "discovery.json": "6e6d9afbeb0198dcf81d0e06818773940db65c3111b9ef8231a63a4db6a2cfac",
+            "discovery.stage.json": "972ec8c89f1a2952a7802715aec7c309044ac10aa043f08e86a5c479852ae03e",
+            "discovery.stderr.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "foundry-config.json": "dbae23b2a2089c0d95483be4131a52457c155e3dd94d5f48e71c238b352ec472",
+            "foundry-config.stage.json": "0c0eaaa1f92072b5de84053d09605663061a1306406cb5a90652cf408ebd55f7",
+            "foundry-config.stderr.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "go-ffi.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "go-ffi.stage.json": "88568149c445ece987a440bfc7fa7d485cf8c9e6074bab70801d2d1cdc739439",
+            "go-ffi.stderr.log": "60809bcbf975a510064b28f4c25a40c795d9052d0079dcfcffb50b1f750031b5",
+            "original.junit.xml": "6225f5d386ebeb2dea122405713181d85a115dd924a37e27059a0f914231fc40",
+            "selection.json": "b922afb73667dafa2eae85289bce8952032618ffae90ddb5e040c4019260eefa",
+            "settings.json": "db58bceab905417c5b86684ecfb2a8ddfb34d656cfa03cc2a86416c10b792bb7",
+            "signature-bindings.json": "591311563b119ab196c37104976f6f4b9a53ee10b2c65f0ad7b0fcf9eb6152f4",
+            "submodules.txt": "c0ac39468ad46aa0d1fb027dd91df079b2e1b0be168745116156e1a26bc60463",
+            "tests.log": "98d08388f9da8776835625fc79c892ab712986aa40276ea22c7c6775034cfc77",
+            "tests.stage.json": "2b7f476e8fbb3db41b43c459ab58f5df53a7ae250bed1b8139b830d98756dc9a",
+            "tests.stderr.log": "60809bcbf975a510064b28f4c25a40c795d9052d0079dcfcffb50b1f750031b5"
+          },
+          "selected_signatures": 1359,
+          "setup_skip_contracts": 77
+        },
+        "feature-OPTIMISM_PORTAL_INTEROP": {
+          "adapter_exit_code": 1,
+          "adapter_report_errors": [
+            "Missing or extra original upgrade verdict"
+          ],
+          "final_sha256": "978ad738511348cf612597ed71583b7f6134a1d843a5a7e922b5f1cba0d7311c",
+          "original_command": [
+            "just",
+            "test-upgrade"
+          ],
+          "original_command_exit_code": 0,
+          "original_junit_outcomes": {
+            "pass": 983,
+            "skip": 120
+          },
+          "original_sha256": {
+            "block.json": "5ef179c71593909d75ddd304144a97389de3d57649da63d56f7a10fbc8fd49ae",
+            "compiled.json": "312fb66e7c8ce53d127c6deb1a8f6ef359de6e8d90023a38f178672b76b5ae82",
+            "contracts-build.log": "6de7c23d83856a2337e56572bd02f115e58d09b6b9788729d3cf745a1f60eb2f",
+            "contracts-build.stage.json": "4eb91638366a0a20f46fb317bc9a622010798c318daa882c4b6a662ef4747983",
+            "contracts-build.stderr.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "discovery.json": "6e6d9afbeb0198dcf81d0e06818773940db65c3111b9ef8231a63a4db6a2cfac",
+            "discovery.stage.json": "d632509303053aee9badbde09c6e98de8c137a5233c54296b2e600eef9df87ff",
+            "discovery.stderr.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "foundry-config.json": "dbae23b2a2089c0d95483be4131a52457c155e3dd94d5f48e71c238b352ec472",
+            "foundry-config.stage.json": "a500724071e1b49db6ac68cfbe7cb621b58c1846e2aadaa68aacbf8e1c0a67aa",
+            "foundry-config.stderr.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "go-ffi.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "go-ffi.stage.json": "c0e0cf602f80929449cdad870593b0a8aedfeeec718d8f514cad48812e257edb",
+            "go-ffi.stderr.log": "60809bcbf975a510064b28f4c25a40c795d9052d0079dcfcffb50b1f750031b5",
+            "original.junit.xml": "709b5ae3a5626f5cb928ca3b451e9c8f3149c06f14a4f6efc32637e6abddff2a",
+            "selection.json": "b922afb73667dafa2eae85289bce8952032618ffae90ddb5e040c4019260eefa",
+            "settings.json": "72780b3fe92def60d7fb7fff2269a7e1b1a1b1642dcd4e907c85f311b04b0a5a",
+            "signature-bindings.json": "591311563b119ab196c37104976f6f4b9a53ee10b2c65f0ad7b0fcf9eb6152f4",
+            "submodules.txt": "c0ac39468ad46aa0d1fb027dd91df079b2e1b0be168745116156e1a26bc60463",
+            "tests.log": "1b90f0d82baab3015422e720db2583ad4daab302a58d31b22ea6cfa52b436b2e",
+            "tests.stage.json": "3fc277c6a44f96deba1b506945db9210543393764f9d0ec630a33138e3c36956",
+            "tests.stderr.log": "60809bcbf975a510064b28f4c25a40c795d9052d0079dcfcffb50b1f750031b5"
+          },
+          "selected_signatures": 1359,
+          "setup_skip_contracts": 63
+        },
+        "feature-ZK_DISPUTE_GAME": {
+          "adapter_exit_code": 1,
+          "adapter_report_errors": [
+            "Missing or extra original upgrade verdict"
+          ],
+          "final_sha256": "2abb5603977d762be6a41e86a21ce7a781ef1398735e8b99afa8a5a90aafd6d0",
+          "original_command": [
+            "just",
+            "test-upgrade"
+          ],
+          "original_command_exit_code": 0,
+          "original_junit_outcomes": {
+            "pass": 986,
+            "skip": 102
+          },
+          "original_sha256": {
+            "block.json": "5ef179c71593909d75ddd304144a97389de3d57649da63d56f7a10fbc8fd49ae",
+            "compiled.json": "ad7c671f4b445c64728230e32ab4bc3f300b9e8e44c0fb4a6564f7807c851553",
+            "contracts-build.log": "2564cd2e1c262f740abe164d5493cab8b91102c605a6d3843f239505cb818316",
+            "contracts-build.stage.json": "fdb9a858211dc266c0c936a1eb9af41263dd91a603c79f144b50099c17fd27a4",
+            "contracts-build.stderr.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "discovery.json": "6e6d9afbeb0198dcf81d0e06818773940db65c3111b9ef8231a63a4db6a2cfac",
+            "discovery.stage.json": "94c962efd8d5d4173d09748894b0bad81e02b9aaa9627496fb54c7c69ba418ad",
+            "discovery.stderr.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "foundry-config.json": "dbae23b2a2089c0d95483be4131a52457c155e3dd94d5f48e71c238b352ec472",
+            "foundry-config.stage.json": "8ad302f523de597101b688e6ebe7045317343fff2a318fe5b9f590599d92052c",
+            "foundry-config.stderr.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "go-ffi.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "go-ffi.stage.json": "ebd39a9bdcf94487acb9684a97de2e7908791144e63ee60c077571dda31bca4c",
+            "go-ffi.stderr.log": "60809bcbf975a510064b28f4c25a40c795d9052d0079dcfcffb50b1f750031b5",
+            "original.junit.xml": "d287991809f9bfd9c1663574ae1edaeb1bcab53d577b4e97f8ff3a07db05b291",
+            "selection.json": "b922afb73667dafa2eae85289bce8952032618ffae90ddb5e040c4019260eefa",
+            "settings.json": "3e64351c13689297d40a5af145fc1e3e003611d30ee7387ae41614b5a22f6bdf",
+            "signature-bindings.json": "591311563b119ab196c37104976f6f4b9a53ee10b2c65f0ad7b0fcf9eb6152f4",
+            "submodules.txt": "c0ac39468ad46aa0d1fb027dd91df079b2e1b0be168745116156e1a26bc60463",
+            "tests.log": "8618e01f1e70e89e0b09c26b47691977ec30ddbdbc5d5f69e1bff697fd418bc1",
+            "tests.stage.json": "989b724b5f7c947feeb7575f3bcb1faa4ef0142204fdf6479f9f22e581dc5a60",
+            "tests.stderr.log": "60809bcbf975a510064b28f4c25a40c795d9052d0079dcfcffb50b1f750031b5"
+          },
+          "selected_signatures": 1359,
+          "setup_skip_contracts": 57
+        },
+        "feature-main": {
+          "adapter_exit_code": 1,
+          "adapter_report_errors": [
+            "Missing or extra original upgrade verdict"
+          ],
+          "final_sha256": "4831bb7bdf69884726d29ecc4ff98e89ad8f7b88604c3d2b61a2b604ab5677f9",
+          "original_command": [
+            "just",
+            "test-upgrade"
+          ],
+          "original_command_exit_code": 0,
+          "original_junit_outcomes": {
+            "pass": 861,
+            "skip": 131
+          },
+          "original_sha256": {
+            "block.json": "5ef179c71593909d75ddd304144a97389de3d57649da63d56f7a10fbc8fd49ae",
+            "compiled.json": "31626fc596aae290369f123ae5f4e1e9f08149c4eb5891e643293efff882f79f",
+            "contracts-build.log": "942d4274646364cfbfc745df52c030aed18d90108d08283146746de5a1d5f3a2",
+            "contracts-build.stage.json": "3fdb8e462ffadb21ee77dfbac748bcb324753a4ab6a60bd86cd9400a51b10337",
+            "contracts-build.stderr.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "discovery.json": "6e6d9afbeb0198dcf81d0e06818773940db65c3111b9ef8231a63a4db6a2cfac",
+            "discovery.stage.json": "75220632d6e79abb1b39086105925cd21ee6ecff823c0bc4e37aa560a3b27601",
+            "discovery.stderr.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "foundry-config.json": "dbae23b2a2089c0d95483be4131a52457c155e3dd94d5f48e71c238b352ec472",
+            "foundry-config.stage.json": "88a48bed7073f52434a2a548aceb62d2e47497d8064a4c6acbdcba6d1fa37e71",
+            "foundry-config.stderr.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "go-ffi.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "go-ffi.stage.json": "8e5a75d3bb8c714a290c03c532972dff23eb479c5c2199ff5a6ae12521578b1e",
+            "go-ffi.stderr.log": "60809bcbf975a510064b28f4c25a40c795d9052d0079dcfcffb50b1f750031b5",
+            "original.junit.xml": "7d9ad3ebc564d379020725568273085288b6cff35ac7fe0fc94ee9ac7ebb08b7",
+            "selection.json": "b922afb73667dafa2eae85289bce8952032618ffae90ddb5e040c4019260eefa",
+            "settings.json": "3ef2a8a138ccce7e1423a1cb814a1c85aab58045af5a3b0acea150b434a04ef8",
+            "signature-bindings.json": "591311563b119ab196c37104976f6f4b9a53ee10b2c65f0ad7b0fcf9eb6152f4",
+            "submodules.txt": "c0ac39468ad46aa0d1fb027dd91df079b2e1b0be168745116156e1a26bc60463",
+            "tests.log": "62b393a2729068ebf3864f8978f69aa0ced8164274c603d68f4effb873d469f1",
+            "tests.stage.json": "fda57b1c14a90580879764d46ccaa447c7468490e473a48c0de937d1f963573b",
+            "tests.stderr.log": "60809bcbf975a510064b28f4c25a40c795d9052d0079dcfcffb50b1f750031b5"
+          },
+          "selected_signatures": 1359,
+          "setup_skip_contracts": 77
+        }
+      }
+    },
+    "source_sha": "59f3f33f72354f2521525a26a331fa771b6c1edc"
+  },
   "reports": {
     "circle/chain-ink/run": {
       "exit_code": 1,
@@ -1140,5 +1762,469 @@
       }
     }
   },
-  "source_sha": "1e809d54e06eb3d24fb1f7777823d1a30191401f"
+  "source_sha": "1e809d54e06eb3d24fb1f7777823d1a30191401f",
+  "warm_only_failure": {
+    "corrected_hosted_proofs": {
+      "compiler_only": {
+        "CommitSha": null,
+        "DefinitionPath": ".rwx/contract-upgrades.yml",
+        "Init": {
+          "branch": "codex/rwx-ci-pilot",
+          "cache-epoch": "v1",
+          "cache-warm": "true",
+          "commit-sha": "59f3f33f72354f2521525a26a331fa771b6c1edc",
+          "tag": ""
+        },
+        "RunID": "fc258ff02eac4a789174f1bddfc40857",
+        "Status": {
+          "AbortedSubStatus": "not_applicable",
+          "Execution": "finished",
+          "FinishedSubStatus": "not_applicable",
+          "Result": "succeeded",
+          "WaitingSubStatus": "not_applicable"
+        },
+        "TargetedTaskKeys": [
+          "compile-feature-main",
+          "compile-feature-CUSTOM_GAS_TOKEN",
+          "compile-feature-OPTIMISM_PORTAL_INTEROP",
+          "compile-feature-ZK_DISPUTE_GAME",
+          "compile-chain-op",
+          "compile-chain-ink",
+          "compile-chain-unichain"
+        ],
+        "tasks": [
+          {
+            "Agent": {
+              "Cpus": 2,
+              "DiskSizeGigabytes": 50,
+              "MemoryGb": 8
+            },
+            "CompletedAt": "2026-10-01T16:15:14.461Z",
+            "CompletedRuntimeSeconds": 8,
+            "ID": "762e4b1f8944a0a95558fa7afc075bb0",
+            "Key": "~base-image",
+            "StartedAt": "2026-10-01T16:15:06.909Z",
+            "Status": {
+              "AbortedSubStatus": "not_applicable",
+              "Execution": "finished",
+              "FinishedSubStatus": "cache_hit",
+              "Result": "succeeded",
+              "WaitingSubStatus": "not_applicable"
+            }
+          },
+          {
+            "Agent": null,
+            "CompletedAt": "2026-10-04T21:16:58.020Z",
+            "CompletedRuntimeSeconds": 0,
+            "ID": "e06f91fc07fd983e1f632ec32d153591",
+            "Key": "~base-config",
+            "StartedAt": "2026-10-04T21:16:57.986Z",
+            "Status": {
+              "AbortedSubStatus": "not_applicable",
+              "Execution": "finished",
+              "FinishedSubStatus": "cache_hit",
+              "Result": "succeeded",
+              "WaitingSubStatus": "not_applicable"
+            }
+          },
+          {
+            "Agent": null,
+            "CompletedAt": "2026-10-04T21:16:58.177Z",
+            "CompletedRuntimeSeconds": 0,
+            "ID": "34989e2debab963b026fe364d2b70996",
+            "Key": "code",
+            "StartedAt": "2026-10-04T21:16:58.031Z",
+            "Status": {
+              "AbortedSubStatus": "not_applicable",
+              "Execution": "finished",
+              "FinishedSubStatus": "cache_hit",
+              "Result": "succeeded",
+              "WaitingSubStatus": "not_applicable"
+            }
+          },
+          {
+            "Agent": null,
+            "CompletedAt": "2026-10-04T21:16:58.183Z",
+            "CompletedRuntimeSeconds": 0,
+            "ID": "b0093c69986693abec6b59b68e97d5bb",
+            "Key": "mise",
+            "StartedAt": "2026-10-04T21:16:58.039Z",
+            "Status": {
+              "AbortedSubStatus": "not_applicable",
+              "Execution": "finished",
+              "FinishedSubStatus": "cache_hit",
+              "Result": "succeeded",
+              "WaitingSubStatus": "not_applicable"
+            }
+          },
+          {
+            "Agent": {
+              "Cpus": 2,
+              "DiskSizeGigabytes": 50,
+              "MemoryGb": 8
+            },
+            "CompletedAt": "2026-10-04T21:02:01.636Z",
+            "CompletedRuntimeSeconds": 1,
+            "ID": "13d835fc7f195ae1dc9b66058009f617",
+            "Key": "bootstrap-inputs",
+            "StartedAt": "2026-10-04T21:02:00.822Z",
+            "Status": {
+              "AbortedSubStatus": "not_applicable",
+              "Execution": "finished",
+              "FinishedSubStatus": "cache_hit",
+              "Result": "succeeded",
+              "WaitingSubStatus": "not_applicable"
+            }
+          },
+          {
+            "Agent": {
+              "Cpus": 2,
+              "DiskSizeGigabytes": 50,
+              "MemoryGb": 8
+            },
+            "CompletedAt": "2026-10-02T22:37:35.537Z",
+            "CompletedRuntimeSeconds": 11,
+            "ID": "d07fb4cf2047841aefe110d20fed1939",
+            "Key": "tools",
+            "StartedAt": "2026-10-02T22:37:24.848Z",
+            "Status": {
+              "AbortedSubStatus": "not_applicable",
+              "Execution": "finished",
+              "FinishedSubStatus": "cache_hit",
+              "Result": "succeeded",
+              "WaitingSubStatus": "not_applicable"
+            }
+          },
+          {
+            "Agent": {
+              "Cpus": 2,
+              "DiskSizeGigabytes": 50,
+              "MemoryGb": 8
+            },
+            "CompletedAt": "2026-10-04T21:17:05.363Z",
+            "CompletedRuntimeSeconds": 8,
+            "ID": "7c23b4500bcd05b070d196758227979c",
+            "Key": "route",
+            "StartedAt": "2026-10-04T21:16:58.279Z",
+            "Status": {
+              "AbortedSubStatus": "not_applicable",
+              "Execution": "finished",
+              "FinishedSubStatus": "executed",
+              "Result": "succeeded",
+              "WaitingSubStatus": "not_applicable"
+            }
+          },
+          {
+            "Agent": {
+              "Cpus": 2,
+              "DiskSizeGigabytes": 50,
+              "MemoryGb": 8
+            },
+            "CompletedAt": "2026-10-02T22:37:39.386Z",
+            "CompletedRuntimeSeconds": 4,
+            "ID": "cf92b95785ea15771ad448126ed8cbc7",
+            "Key": "go-tools",
+            "StartedAt": "2026-10-02T22:37:35.795Z",
+            "Status": {
+              "AbortedSubStatus": "not_applicable",
+              "Execution": "finished",
+              "FinishedSubStatus": "cache_hit",
+              "Result": "succeeded",
+              "WaitingSubStatus": "not_applicable"
+            }
+          },
+          {
+            "Agent": {
+              "Cpus": 2,
+              "DiskSizeGigabytes": 50,
+              "MemoryGb": 8
+            },
+            "CompletedAt": "2026-10-04T20:53:35.302Z",
+            "CompletedRuntimeSeconds": 11,
+            "ID": "9154030772c0fdf96020d040d9f094e0",
+            "Key": "contract-tools",
+            "StartedAt": "2026-10-04T20:53:25.292Z",
+            "Status": {
+              "AbortedSubStatus": "not_applicable",
+              "Execution": "finished",
+              "FinishedSubStatus": "cache_hit",
+              "Result": "succeeded",
+              "WaitingSubStatus": "not_applicable"
+            }
+          },
+          {
+            "Agent": null,
+            "CompletedAt": null,
+            "CompletedRuntimeSeconds": 0,
+            "ID": "f6369e04f88db1f62d64636941122940",
+            "Key": "rpc-check",
+            "StartedAt": null,
+            "Status": {
+              "AbortedSubStatus": "not_applicable",
+              "Execution": "skipped",
+              "FinishedSubStatus": "not_applicable",
+              "Result": "no_result",
+              "WaitingSubStatus": "not_applicable"
+            }
+          },
+          {
+            "Agent": {
+              "Cpus": 4,
+              "DiskSizeGigabytes": 50,
+              "MemoryGb": 8
+            },
+            "CompletedAt": "2026-10-04T21:17:17.585Z",
+            "CompletedRuntimeSeconds": 8,
+            "ID": "db56bd1043474871b55972824d2389bc",
+            "Key": "go-modules",
+            "StartedAt": "2026-10-04T21:17:10.532Z",
+            "Status": {
+              "AbortedSubStatus": "not_applicable",
+              "Execution": "finished",
+              "FinishedSubStatus": "executed",
+              "Result": "succeeded",
+              "WaitingSubStatus": "not_applicable"
+            }
+          },
+          {
+            "Agent": {
+              "Cpus": 16,
+              "DiskSizeGigabytes": 50,
+              "MemoryGb": 32
+            },
+            "CompletedAt": "2026-10-04T21:17:53.556Z",
+            "CompletedRuntimeSeconds": 24,
+            "ID": "d60123593fa6202adf5345bcf17909a7",
+            "Key": "compile-feature-main",
+            "StartedAt": "2026-10-04T21:17:29.583Z",
+            "Status": {
+              "AbortedSubStatus": "not_applicable",
+              "Execution": "finished",
+              "FinishedSubStatus": "executed",
+              "Result": "succeeded",
+              "WaitingSubStatus": "not_applicable"
+            }
+          },
+          {
+            "Agent": {
+              "Cpus": 16,
+              "DiskSizeGigabytes": 50,
+              "MemoryGb": 32
+            },
+            "CompletedAt": "2026-10-04T21:18:04.033Z",
+            "CompletedRuntimeSeconds": 33,
+            "ID": "4a393d3f14384f9e0c8c5760fb843268",
+            "Key": "compile-feature-CUSTOM_GAS_TOKEN",
+            "StartedAt": "2026-10-04T21:17:31.231Z",
+            "Status": {
+              "AbortedSubStatus": "not_applicable",
+              "Execution": "finished",
+              "FinishedSubStatus": "executed",
+              "Result": "succeeded",
+              "WaitingSubStatus": "not_applicable"
+            }
+          },
+          {
+            "Agent": {
+              "Cpus": 16,
+              "DiskSizeGigabytes": 50,
+              "MemoryGb": 32
+            },
+            "CompletedAt": "2026-10-04T21:18:03.924Z",
+            "CompletedRuntimeSeconds": 33,
+            "ID": "e661fa4d9485a5007156cebc30f6a995",
+            "Key": "compile-feature-OPTIMISM_PORTAL_INTEROP",
+            "StartedAt": "2026-10-04T21:17:31.614Z",
+            "Status": {
+              "AbortedSubStatus": "not_applicable",
+              "Execution": "finished",
+              "FinishedSubStatus": "executed",
+              "Result": "succeeded",
+              "WaitingSubStatus": "not_applicable"
+            }
+          },
+          {
+            "Agent": {
+              "Cpus": 16,
+              "DiskSizeGigabytes": 50,
+              "MemoryGb": 32
+            },
+            "CompletedAt": "2026-10-04T21:18:04.650Z",
+            "CompletedRuntimeSeconds": 33,
+            "ID": "9fb8d27067e8b8ea8a367f4303479bf5",
+            "Key": "compile-feature-ZK_DISPUTE_GAME",
+            "StartedAt": "2026-10-04T21:17:32.065Z",
+            "Status": {
+              "AbortedSubStatus": "not_applicable",
+              "Execution": "finished",
+              "FinishedSubStatus": "executed",
+              "Result": "succeeded",
+              "WaitingSubStatus": "not_applicable"
+            }
+          },
+          {
+            "Agent": {
+              "Cpus": 16,
+              "DiskSizeGigabytes": 50,
+              "MemoryGb": 32
+            },
+            "CompletedAt": "2026-10-04T21:18:05.096Z",
+            "CompletedRuntimeSeconds": 33,
+            "ID": "c4db3369a13a48622b0fe16116c5843a",
+            "Key": "compile-chain-op",
+            "StartedAt": "2026-10-04T21:17:32.150Z",
+            "Status": {
+              "AbortedSubStatus": "not_applicable",
+              "Execution": "finished",
+              "FinishedSubStatus": "executed",
+              "Result": "succeeded",
+              "WaitingSubStatus": "not_applicable"
+            }
+          },
+          {
+            "Agent": {
+              "Cpus": 16,
+              "DiskSizeGigabytes": 50,
+              "MemoryGb": 32
+            },
+            "CompletedAt": "2026-10-04T21:18:05.035Z",
+            "CompletedRuntimeSeconds": 33,
+            "ID": "6da788d332210fda64018684aa79820a",
+            "Key": "compile-chain-ink",
+            "StartedAt": "2026-10-04T21:17:32.164Z",
+            "Status": {
+              "AbortedSubStatus": "not_applicable",
+              "Execution": "finished",
+              "FinishedSubStatus": "executed",
+              "Result": "succeeded",
+              "WaitingSubStatus": "not_applicable"
+            }
+          },
+          {
+            "Agent": {
+              "Cpus": 16,
+              "DiskSizeGigabytes": 50,
+              "MemoryGb": 32
+            },
+            "CompletedAt": "2026-10-04T21:18:05.689Z",
+            "CompletedRuntimeSeconds": 33,
+            "ID": "c73e3f81131266765f9acd8a7858ff0c",
+            "Key": "compile-chain-unichain",
+            "StartedAt": "2026-10-04T21:17:33.053Z",
+            "Status": {
+              "AbortedSubStatus": "not_applicable",
+              "Execution": "finished",
+              "FinishedSubStatus": "executed",
+              "Result": "succeeded",
+              "WaitingSubStatus": "not_applicable"
+            }
+          }
+        ]
+      },
+      "failed_preflight": {
+        "CommitSha": null,
+        "DefinitionPath": "../rwx-upgrade-failed-preflight-probe-23151.json",
+        "Init": {},
+        "RunID": "fd104316c25c4066a51669d9d337ed2d",
+        "Status": {
+          "AbortedSubStatus": "not_applicable",
+          "Execution": "finished",
+          "FinishedSubStatus": "not_applicable",
+          "Result": "failed",
+          "WaitingSubStatus": "not_applicable"
+        },
+        "TargetedTaskKeys": null,
+        "tasks": [
+          {
+            "Agent": {
+              "Cpus": 2,
+              "DiskSizeGigabytes": 50,
+              "MemoryGb": 8
+            },
+            "CompletedAt": "2026-10-04T21:18:18.274Z",
+            "CompletedRuntimeSeconds": 1,
+            "ID": "08f4efb080bde86c5ff1c043dde0a699",
+            "Key": "rpc-check",
+            "StartedAt": "2026-10-04T21:18:17.886Z",
+            "Status": {
+              "AbortedSubStatus": "not_applicable",
+              "Execution": "finished",
+              "FinishedSubStatus": "executed",
+              "Result": "failed",
+              "WaitingSubStatus": "not_applicable"
+            }
+          },
+          {
+            "Agent": null,
+            "CompletedAt": null,
+            "CompletedRuntimeSeconds": 0,
+            "ID": "0b5bc200cd8fb20d4e4b3dc8ceaf9469",
+            "Key": "go-modules",
+            "StartedAt": null,
+            "Status": {
+              "AbortedSubStatus": "not_applicable",
+              "Execution": "skipped",
+              "FinishedSubStatus": "not_applicable",
+              "Result": "no_result",
+              "WaitingSubStatus": "not_applicable"
+            }
+          },
+          {
+            "Agent": null,
+            "CompletedAt": null,
+            "CompletedRuntimeSeconds": 0,
+            "ID": "1f49aec0efb3b6d45ba7d0601ff2c439",
+            "Key": "verdict",
+            "StartedAt": null,
+            "Status": {
+              "AbortedSubStatus": "not_applicable",
+              "Execution": "skipped",
+              "FinishedSubStatus": "not_applicable",
+              "Result": "no_result",
+              "WaitingSubStatus": "not_applicable"
+            }
+          },
+          {
+            "Agent": {
+              "Cpus": 2,
+              "DiskSizeGigabytes": 50,
+              "MemoryGb": 8
+            },
+            "CompletedAt": "2026-10-01T16:15:14.461Z",
+            "CompletedRuntimeSeconds": 8,
+            "ID": "3d7189f51ed76b8613fd20ee75108c21",
+            "Key": "~base-image",
+            "StartedAt": "2026-10-01T16:15:06.909Z",
+            "Status": {
+              "AbortedSubStatus": "not_applicable",
+              "Execution": "finished",
+              "FinishedSubStatus": "cache_hit",
+              "Result": "succeeded",
+              "WaitingSubStatus": "not_applicable"
+            }
+          },
+          {
+            "Agent": null,
+            "CompletedAt": "2026-10-04T21:18:17.859Z",
+            "CompletedRuntimeSeconds": 0,
+            "ID": "d52e6fa55f60624da9ab6252e93c00b8",
+            "Key": "~base-config",
+            "StartedAt": "2026-10-04T21:18:17.844Z",
+            "Status": {
+              "AbortedSubStatus": "not_applicable",
+              "Execution": "finished",
+              "FinishedSubStatus": "cache_hit",
+              "Result": "succeeded",
+              "WaitingSubStatus": "not_applicable"
+            }
+          }
+        ]
+      }
+    },
+    "correction": "Use the status-only after expression rpc-check.succeeded || rpc-check.skipped; keep producer if conditions restricted to contract routing or compiler-only warming. A failed preflight cannot start producers.",
+    "finding": "RPC preflight correctly skipped, but referring to its absent value also skipped module preparation and all seven compilers. This successful run performed no valid warming.",
+    "rejected_correction": "The after expression cannot reference init.cache-warm: RWX interpreted init as a missing task, so no corrected run was created.",
+    "run_id": "bb7654f75dc2465ba32d0adf55bd124f",
+    "source_sha": "59f3f33f72354f2521525a26a331fa771b6c1edc"
+  }
 }

@@ -147,7 +147,9 @@ tasks:
 
   - key: go-modules
     use: [code, go-tools]
-    if: ${{ init.cache-warm == 'true' || tasks.rpc-check.values.ready == 'true' }}
+    # Allow an intentionally skipped preflight only for compiler-only warming.
+    after: ${{ rpc-check.succeeded || rpc-check.skipped }}
+    if: ${{ init.cache-warm == 'true' || tasks.route.values.run-contracts == 'true' }}
     run: |
       export GOMODCACHE="$PWD/.ci/go-cache/contract-upgrades/modules"
       mkdir -p "$GOMODCACHE"
@@ -184,7 +186,7 @@ tasks:
   # Explicit producer/verdict pairs keep each variant's filesystem isolated.
   - key: compile-feature-main
     use: [code, go-tools, contract-tools, go-modules]
-    if: ${{ init.cache-warm == 'true' || tasks.rpc-check.values.ready == 'true' }}
+    if: ${{ init.cache-warm == 'true' || tasks.route.values.run-contracts == 'true' }}
     run: |
       export GOMODCACHE="$PWD/.ci/go-cache/contract-upgrades/modules"
       export GOCACHE="$PWD/.ci/go-cache/contract-upgrades/build"
@@ -249,7 +251,7 @@ tasks:
   # Explicit producer/verdict pairs keep each variant's filesystem isolated.
   - key: compile-feature-CUSTOM_GAS_TOKEN
     use: [code, go-tools, contract-tools, go-modules]
-    if: ${{ init.cache-warm == 'true' || tasks.rpc-check.values.ready == 'true' }}
+    if: ${{ init.cache-warm == 'true' || tasks.route.values.run-contracts == 'true' }}
     run: |
       export GOMODCACHE="$PWD/.ci/go-cache/contract-upgrades/modules"
       export GOCACHE="$PWD/.ci/go-cache/contract-upgrades/build"
@@ -314,7 +316,7 @@ tasks:
   # Explicit producer/verdict pairs keep each variant's filesystem isolated.
   - key: compile-feature-OPTIMISM_PORTAL_INTEROP
     use: [code, go-tools, contract-tools, go-modules]
-    if: ${{ init.cache-warm == 'true' || tasks.rpc-check.values.ready == 'true' }}
+    if: ${{ init.cache-warm == 'true' || tasks.route.values.run-contracts == 'true' }}
     run: |
       export GOMODCACHE="$PWD/.ci/go-cache/contract-upgrades/modules"
       export GOCACHE="$PWD/.ci/go-cache/contract-upgrades/build"
@@ -379,7 +381,7 @@ tasks:
   # Explicit producer/verdict pairs keep each variant's filesystem isolated.
   - key: compile-feature-ZK_DISPUTE_GAME
     use: [code, go-tools, contract-tools, go-modules]
-    if: ${{ init.cache-warm == 'true' || tasks.rpc-check.values.ready == 'true' }}
+    if: ${{ init.cache-warm == 'true' || tasks.route.values.run-contracts == 'true' }}
     run: |
       export GOMODCACHE="$PWD/.ci/go-cache/contract-upgrades/modules"
       export GOCACHE="$PWD/.ci/go-cache/contract-upgrades/build"
@@ -444,7 +446,7 @@ tasks:
   # Explicit producer/verdict pairs keep each variant's filesystem isolated.
   - key: compile-chain-op
     use: [code, go-tools, contract-tools, go-modules]
-    if: ${{ init.cache-warm == 'true' || tasks.rpc-check.values.ready == 'true' }}
+    if: ${{ init.cache-warm == 'true' || tasks.route.values.run-contracts == 'true' }}
     run: |
       export GOMODCACHE="$PWD/.ci/go-cache/contract-upgrades/modules"
       export GOCACHE="$PWD/.ci/go-cache/contract-upgrades/build"
@@ -509,7 +511,7 @@ tasks:
   # Explicit producer/verdict pairs keep each variant's filesystem isolated.
   - key: compile-chain-ink
     use: [code, go-tools, contract-tools, go-modules]
-    if: ${{ init.cache-warm == 'true' || tasks.rpc-check.values.ready == 'true' }}
+    if: ${{ init.cache-warm == 'true' || tasks.route.values.run-contracts == 'true' }}
     run: |
       export GOMODCACHE="$PWD/.ci/go-cache/contract-upgrades/modules"
       export GOCACHE="$PWD/.ci/go-cache/contract-upgrades/build"
@@ -574,7 +576,7 @@ tasks:
   # Explicit producer/verdict pairs keep each variant's filesystem isolated.
   - key: compile-chain-unichain
     use: [code, go-tools, contract-tools, go-modules]
-    if: ${{ init.cache-warm == 'true' || tasks.rpc-check.values.ready == 'true' }}
+    if: ${{ init.cache-warm == 'true' || tasks.route.values.run-contracts == 'true' }}
     run: |
       export GOMODCACHE="$PWD/.ci/go-cache/contract-upgrades/modules"
       export GOCACHE="$PWD/.ci/go-cache/contract-upgrades/build"

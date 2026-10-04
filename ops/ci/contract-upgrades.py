@@ -151,9 +151,15 @@ def compiler_signatures(out):
             if not source.startswith('test/'): continue
             methods = value.get('methodIdentifiers')
             if not isinstance(methods, dict): raise ValueError('Missing compiler test method identifiers')
+            bytecode = value.get('bytecode', {}).get('object')
+            if not isinstance(bytecode, str): raise ValueError('Missing compiler test creation bytecode')
+            bytecode = bytecode.removeprefix('0x')
+            if len(bytecode) % 2: raise ValueError('Invalid compiler test creation bytecode')
+            creation = {'bytes': len(bytecode) // 2, 'sha256': hashlib.sha256(bytecode.encode()).hexdigest()}
             key = source + ':' + contract
-            row = bindings.setdefault(key, {'methods': methods, 'artifacts': {}})
-            if row['methods'] != methods: raise ValueError('Conflicting compiler test signatures')
+            row = bindings.setdefault(key, {'methods': methods, 'creation_bytecode': creation, 'artifacts': {}})
+            if row['methods'] != methods or row['creation_bytecode'] != creation:
+                raise ValueError('Conflicting compiler test signatures or creation bytecode')
             row['artifacts'][str(path.relative_to(ROOT))] = digest(path)
     return bindings
 
@@ -180,8 +186,19 @@ def selection(value, bindings=None):
     return sorted(cases)
 
 
-def junit(path, discovered):
-    actual = {}; outcomes = {}
+def junit(path, discovered, bindings=None):
+    selected = {tuple(r) for r in discovered}
+    if not selected or len(selected) != len(discovered): raise ValueError('Empty or duplicate upgrade selection')
+    non_executable = set()
+    if bindings is not None:
+        for identity, _ in selected:
+            creation = bindings[identity]['creation_bytecode']
+            if type(creation['bytes']) is not int or creation['bytes'] < 0 or not re.fullmatch('[0-9a-f]{64}', creation['sha256']):
+                raise ValueError('Invalid compiler creation bytecode binding')
+            if creation['bytes'] == 0:
+                if creation['sha256'] != hashlib.sha256(b'').hexdigest(): raise ValueError('Empty compiler bytecode hash differs')
+                non_executable.update(r for r in selected if r[0] == identity)
+    actual = {}; outcomes = {}; setup_skips = {}
     for suite in ET.parse(path).iter('testsuite'):
         for case in suite.findall('testcase'):
             key = (case.get('classname') or suite.get('name', ''), case.attrib['name'])
@@ -189,10 +206,23 @@ def junit(path, discovered):
             state = 'fail' if case.find('failure') is not None or case.find('error') is not None else 'skip' if case.find('skipped') is not None else 'pass'
             skipped = case.find('skipped')
             actual[key] = {'outcome': state, 'skip_reason': {'attributes': skipped.attrib, 'text': ''.join(skipped.itertext())} if state == 'skip' else None}
-            outcomes[state] = outcomes.get(state, 0) + 1
-    if set(actual) != {tuple(r) for r in discovered}: raise ValueError('Missing or extra original upgrade verdict')
+    original = [{'class': c, 'name': n, **actual[c, n]} for c, n in sorted(actual)]
+    # Forge records one skipped setUp() instead of individual test verdicts
+    # when a feature or fork guard skips the whole deployable contract.
+    for key in set(actual) - selected:
+        identity, name = key
+        members = {r for r in selected - non_executable if r[0] == identity}
+        if name != 'setUp()' or actual[key]['outcome'] != 'skip' or not members or any(r in actual for r in members):
+            raise ValueError('Extra, failed or conflicting original upgrade setup verdict')
+        value = actual.pop(key); setup_skips[identity] = value
+        for member in members: actual[member] = value
+    if set(actual) != selected - non_executable: raise ValueError('Missing or extra original upgrade verdict')
+    for value in actual.values(): outcomes[value['outcome']] = outcomes.get(value['outcome'], 0) + 1
     if not outcomes.get('pass') or outcomes.get('fail'): raise ValueError('No successful complete upgrade execution')
-    return {'cases': [{'class': c, 'name': n, **actual[c, n]} for c, n in sorted(actual)], 'outcomes': outcomes, 'retries': 0}
+    return {'cases': [{'class': c, 'name': n, 'verdict_source': 'setUp()' if c in setup_skips else n,
+                       **actual[c, n]} for c, n in sorted(actual)],
+            'non_executable': [{'class': c, 'name': n, 'reason': 'empty compiler creation bytecode'} for c, n in sorted(non_executable)],
+            'original_cases': original, 'suite_setup_skips': setup_skips, 'outcomes': outcomes, 'retries': 0}
 
 
 def inputs():
@@ -305,7 +335,8 @@ def main():
                 if status and status < 128:
                     os.environ['JUNIT_TEST_PATH'] = str(directory / 'diagnostic.junit.xml')
                     stage(directory, 'rerun', ['just', 'test-upgrade-rerun'], redactor)
-                elif status == 0: write(directory / 'coverage.json', junit(directory / 'original.junit.xml', json.loads((directory / 'selection.json').read_text())))
+                elif status == 0: write(directory / 'coverage.json', junit(directory / 'original.junit.xml',
+                    json.loads((directory / 'selection.json').read_text()), json.loads((directory / 'signature-bindings.json').read_text())))
             for xml in directory.glob('*.xml'): xml.write_bytes(redactor(xml.read_bytes()))
             settings = json.loads((directory / 'settings.json').read_text())
             if settings['input_sha256'] != inputs(): raise ValueError('Contract upgrade source changed during execution')

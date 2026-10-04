@@ -32,7 +32,7 @@ def report(directory, variant, sha, provider, empty):
     selected = UP.selection(json.loads((directory / 'discovery.json').read_text()), methods)
     if selected != [tuple(r) for r in json.loads((directory / 'selection.json').read_text())]:
         raise ValueError('Upgrade selection differs from original discovery and signatures')
-    original = UP.junit(directory / 'original.junit.xml', selected)
+    original = UP.junit(directory / 'original.junit.xml', selected, methods)
     if original != json.loads((directory / 'coverage.json').read_text()): raise ValueError('Upgrade coverage differs from original JUnit')
     block = json.loads((directory / 'block.json').read_text())
     if block['source_sha'] != sha or block['chain_id'] != 1 or block['policy'] != 'Just current-day 00:00 UTC' or \
@@ -56,7 +56,8 @@ def report(directory, variant, sha, provider, empty):
             raise ValueError('Original archive block discovery differs')
     return {'settings': settings, 'selection': selected, 'coverage': original, 'block': block,
             'config': UP.ORIGINALS.normalize(json.loads((directory / 'foundry-config.json').read_text()), settings['workspace_root']),
-            'submodules': UP.SUBMODULES.revisions((directory / 'submodules.txt').read_text()), 'methods': {k:v['methods'] for k,v in methods.items()},
+            'submodules': UP.SUBMODULES.revisions((directory / 'submodules.txt').read_text()),
+            'methods': {k:{field:v[field] for field in ('methods','creation_bytecode')} for k,v in methods.items()},
             'commands': commands, 'original_sha256': hashes, 'compiled_sha256': compiled}
 
 
