@@ -58,7 +58,8 @@ class E2ETests(unittest.TestCase):
         manifest = {'version': 1, **current, 'tests': ['TestNew', 'TestOld'], 'excluded_listing': [],
                     'durations': None, 'shards': E2E.partition(['TestNew', 'TestOld'], 8)}
         names = ['packages.json', 'packages.stage.json', 'packages.log', 'compile.log', 'compile.stage.json',
-                 'reporter.stage.json', 'reporter.log', 'listing.stage.json', 'listing.log', 'manifest.json', 'suite.test', 'test2json']
+                 'reporter.stage.json', 'reporter.log', 'listing.stage.json', 'listing.log', 'manifest.json', 'suite.test', 'test2json',
+                 'runtime-defaults.go', 'runtime-defaults', 'defaults.log', 'defaults.stage.json']
         for name in names:
             path = self.root / name
             if not path.exists(): path.write_text('{"exit_code":0}' if name.endswith('.stage.json') else 'artifact')
@@ -98,6 +99,12 @@ class E2ETests(unittest.TestCase):
         self.assertEqual(a['OP_VALIDATOR_WITH_RETH'], '1'); self.assertEqual(b['OP_VALIDATOR_WITH_RETH'], '0')
         self.assertEqual(E2E.environment('op-reth')['OP_DEVSTACK_PROOF_VALIDATOR_EL'], 'op-reth-proof-v1')
         self.assertEqual(E2E.settings('proof')['timeout'], '60m')
+
+    def test_only_proofs_use_explicit_host_parallelism(self):
+        with patch.dict(os.environ, PARALLEL='32'), patch.object(E2E.subprocess, 'check_output', return_value='{"gomaxprocs":8,"num_cpu":32}'):
+            self.assertEqual(E2E.parallel_setting('proof', self.root)[:2], (32, 32))
+            for job in ('restart', 'simple-kona', 'simple-kona-sequencer', 'op-reth'):
+                self.assertEqual(E2E.parallel_setting(job, self.root)[:2], (None, 8))
 
 
 @unittest.skipUnless(os.environ.get('RWX_LIVE_GO_FIXTURE') == '1', 'Opt-in real Go/gotestsum fixture')

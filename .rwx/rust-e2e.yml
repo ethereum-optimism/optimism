@@ -148,6 +148,7 @@ tasks:
       RWX_LIVE_GO_FIXTURE=1 python3 -m unittest discover -s ops/ci -p 'test_rust_e2e.py'
       python3 -m unittest discover -s ops/ci -p 'test_rust_e2e_release.py'
       python3 -m unittest discover -s ops/ci -p 'test_rust_e2e_gate.py'
+      python3 -m unittest discover -s ops/ci -p 'test_compare_rust_e2e.py'
       python3 -m unittest discover -s ops/ci -p 'test_go_artifacts.py'
     cache: false
     timeout: 10m
@@ -210,7 +211,7 @@ tasks:
       target-cache-mode: ${{ init.target-cache-mode }}
 
   - key: release
-    use: [head-source, rust-tools]
+    use: [rust-tools, head-source]
     if: ${{ init.cache-warm == 'true' || tasks.route.values.run-rust-e2e-ci == 'true' }}
     call: ${{ run.dir }}/packages/rust-e2e-release.yml
     with:

@@ -27,6 +27,72 @@
       ],
       "boundary": "Local package parsing failed before the full release compiler started; no release or E2E workload counted.",
       "correction": "Use the existing automatic JUnit parser and lint each local package as well as its caller."
+    },
+    {
+      "source_sha": "7fa1ed2ce5cdc8fa424a93a82d8dc5ce175f0907",
+      "rwx_run_id": "1867fd3af834489c8fa2e17960be7096",
+      "rwx_run_result_at_observation": "failed",
+      "task_id": "9467bbebbbc8e4aaebec7fbd74f0b5cf",
+      "task_key": "release.build",
+      "status": {
+        "AbortedSubStatus": "not_applicable",
+        "Execution": "finished",
+        "FinishedSubStatus": "executed",
+        "Result": "failed",
+        "WaitingSubStatus": "not_applicable"
+      },
+      "original_stage_exit_codes": {
+        "workspace": 0,
+        "build": 0
+      },
+      "workspace_packages": 76,
+      "original_workspace_compiler_units": 88,
+      "original_report_sha256": {
+        "build.json": "f579733d84b52031564582376c1eb31e526e2bb44421e5579d769d361cad00a3",
+        "build.log": "3f1c8eec602029ef1850f1f0c056afc56b5bf300f65a9986ecf3ba43031f0550",
+        "build.stage.json": "dbf16fdf5d5cc6d6c6fbdc2d9e6d8b1c7d07b8c3f7cfe97f6bf501a11d2536be",
+        "cache-source.json": "c1dc18a624932a3d57ea87c74af993f9e48c34807f8436fdbad48b3fbf22d570",
+        "checks.junit.xml": "cc1b94f7d7d5ee6f1dfc0105bb650fd7bee4afd38c1017cf68b4f37f16b2c6dd",
+        "sccache-stop.log": "9813714c5eb33c547ee128f93a0143bd652c54be542cd3a1f0f2133fe89e46b2",
+        "sccache.json": "8c40ab93e6686280bfb577b1effc38e1a2153af737bb1f669e181f3305a96a13",
+        "settings.json": "a10456527fff983136e02e40e24e9b4b6e57821369df097de4e7fbc0a20ce7b4",
+        "workspace.json": "9276b9f5a27f928c5807a5b4306d6bc3e2335af249238ff0916adc4d344e70b8",
+        "workspace.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "workspace.stage.json": "7ee31875959c9a9c6d78e401ef8cc426bd32dd97f73fee087cb22a673e206854"
+      },
+      "final": {
+        "exit_code": 1,
+        "report_errors": []
+      },
+      "failure_gate": {
+        "ID": "e98ed6ef433c47560b768706a85c416c",
+        "Key": "required-rust-e2e-failure",
+        "Status": {
+          "AbortedSubStatus": "not_applicable",
+          "Execution": "finished",
+          "FinishedSubStatus": "executed",
+          "Result": "failed",
+          "WaitingSubStatus": "not_applicable"
+        }
+      },
+      "skipped_verdict_tasks": [
+        "verdict-proof-0",
+        "verdict-proof-1",
+        "verdict-proof-2",
+        "verdict-proof-3",
+        "verdict-proof-4",
+        "verdict-proof-5",
+        "verdict-proof-6",
+        "verdict-proof-7",
+        "verdict-restart-0",
+        "verdict-restart-1",
+        "verdict-restart-2",
+        "verdict-simple-kona-0",
+        "verdict-simple-kona-sequencer-0",
+        "verdict-op-reth-0"
+      ],
+      "boundary": "The original full workspace Cargo compilation completed successfully. Report validation rejected five legitimate build-dependency units, so no release or E2E workload was counted.",
+      "correction": "Retain distinct workspace and build-dependency artifact units, require every optimized workspace target, and exercise a real Cargo crate built for both roles."
     }
   ]
 }

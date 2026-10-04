@@ -66,6 +66,12 @@ The Rust E2E definition is now implemented for the full workspace release build,
 its separate `ci --skip test` contract artifacts, all reproducible prestates and
 the five fresh Go test workloads. Hosted execution and complete same-SHA original
 report comparison remain pending, so none of its nine occurrences is counted yet.
+The first hosted failures are retained in the [E2E evidence index](rwx-rust-e2e-evidence/first-failures.json).
+The full Rust compiler completed, but reporting rejected valid Cargo build-dependency
+units; the corrected validator retains these alongside every workspace target.
+Node and reth verdicts preserve Go's default parallelism, while proof verdicts
+retain their explicit setting. Real Go/Cargo fixtures and original-invocation
+validation pass; complete hosted verdicts remain the coverage boundary.
 The narrower rollup mode remains CLI-only. See [the stage closeout](rwx-go-parity.md)
 for original-report comparison, selected resources, caches and limitations.
 

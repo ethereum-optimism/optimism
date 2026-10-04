@@ -202,19 +202,27 @@ def cancel(signum, _frame):
     raise SystemExit(128 + signum)
 
 
-def execute_binary(reporter, binary, package, directory, parallel, timeout, run_filter=None, extra_args=()):
-    """Run a fresh binary with ordinary Go signal handling and cleanup bounds."""
-    delay = backup_timeout(timeout)
+def binary_command(reporter, binary, package, parallel, timeout, run_filter=None, extra_args=()):
+    """Use one argument builder for execution and retained command provenance."""
     # test2json command mode ignores INT/QUIT before spawning its child.
     # Reset those dispositions before exec, as ordinary go test does;
     # otherwise subprocess fixtures inherit SIG_IGN and cannot stop.
     launch = 'import os,signal,sys; signal.signal(signal.SIGINT,signal.SIG_DFL); signal.signal(signal.SIGQUIT,signal.SIG_DFL); os.execv(sys.argv[1],sys.argv[1:])'
     command = [str(reporter), "-t", "-p", package, sys.executable, "-c", launch, str(binary),
-               "-test.v=test2json", "-test.count=1", "-test.parallel=" + str(parallel),
+               "-test.v=test2json", "-test.count=1",
                "-test.timeout=" + timeout, "-test.paniconexit0"]
+    if parallel is not None:
+        command.append("-test.parallel=" + str(parallel))
     if run_filter is not None:
         command.append("-test.run=" + run_filter)
     command.extend(extra_args)
+    return command
+
+
+def execute_binary(reporter, binary, package, directory, parallel, timeout, run_filter=None, extra_args=()):
+    """Run a fresh binary with ordinary Go signal handling and cleanup bounds."""
+    delay = backup_timeout(timeout)
+    command = binary_command(reporter, binary, package, parallel, timeout, run_filter, extra_args)
     with PROCESS_LOCK:
         process = subprocess.Popen(command, cwd=directory, stdout=subprocess.PIPE, text=True, start_new_session=True)
         PROCESSES.add(process)

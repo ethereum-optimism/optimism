@@ -122,10 +122,15 @@ def compile_suite(job):
     directory = ROOT / '.ci/rust-e2e/compiled' / job
     shutil.rmtree(directory, ignore_errors=True); directory.mkdir(parents=True)
     current = binding(job)
+    # Query defaults in the verdict container using the same Go toolchain and
+    # module language version, without invoking any test package's TestMain.
+    (directory / 'runtime-defaults.go').write_text('package main\nimport ("encoding/json"; "os"; "runtime")\n'
+        'func main() { json.NewEncoder(os.Stdout).Encode(map[string]int{"gomaxprocs":runtime.GOMAXPROCS(0),"num_cpu":runtime.NumCPU()}) }\n')
     for name, command, is_json, cwd in (
         ('packages', ['go', 'list', '-e', '-json', './' + JOBS[job]['package']], True, str(ROOT)),
         ('compile', ['go', 'test', '-c', '-o', str(directory / 'suite.test'), './' + JOBS[job]['package']], False, str(ROOT)),
         ('reporter', ['go', 'build', '-o', str(directory / 'test2json'), 'cmd/test2json'], False, str(ROOT)),
+        ('defaults', ['go', 'build', '-o', str(directory / 'runtime-defaults'), str(directory / 'runtime-defaults.go')], False, str(ROOT)),
         ('listing', [str(directory / 'suite.test'), '-test.list=.', '-test.timeout=5m'], False, str(ROOT / JOBS[job]['package']))):
         status = STAGE.stage(directory, name, command, stdout_json=is_json, cwd=cwd)
         if status: return status
@@ -149,7 +154,7 @@ def verify(job, directory):
             raise ValueError('E2E compilation source, paths, toolchain or settings differ')
     names = {'packages.json', 'packages.stage.json', 'packages.log', 'compile.log', 'compile.stage.json',
              'reporter.stage.json', 'reporter.log', 'listing.stage.json', 'listing.log',
-             'manifest.json', 'suite.test', 'test2json'}
+             'manifest.json', 'suite.test', 'test2json', 'runtime-defaults.go', 'runtime-defaults', 'defaults.log', 'defaults.stage.json'}
     if set(metadata['files']) != names: raise ValueError('Incomplete E2E compilation artifact')
     for name, sha in metadata['files'].items():
         if GO.digest(directory / name) != sha: raise ValueError('Corrupt E2E compilation or discovery artifact')
@@ -157,9 +162,20 @@ def verify(job, directory):
     if (manifest['tests'] != selected or manifest['excluded_listing'] != excluded
             or manifest['shards'] != partition(selected, JOBS[job]['shards'], manifest['durations'])):
         raise ValueError('E2E shards do not partition complete discovery exactly once')
-    for name in ('compile', 'reporter'):
+    for name in ('compile', 'reporter', 'defaults'):
         if read(directory / (name + '.stage.json'))['exit_code'] != 0: raise ValueError('E2E compilation failed')
     return manifest
+
+
+def parallel_setting(job, directory):
+    defaults = json.loads(subprocess.check_output([directory / 'runtime-defaults'], text=True))
+    if job == 'proof':
+        parallel = int(os.environ['PARALLEL'])
+        if parallel <= 0: raise ValueError('Invalid explicit E2E test parallelism')
+        return parallel, parallel, defaults
+    # The original node/reth recipes omit -parallel. Keep Go's actual default;
+    # nproc can see the host instead of the container's GOMAXPROCS quota.
+    return None, defaults['gomaxprocs'], defaults
 
 
 def select(job, directory, reports, index, provider):
@@ -176,9 +192,11 @@ def select(job, directory, reports, index, provider):
     else: selected = manifest['shards'][index]
     if len(set(selected)) != len(selected) or not set(selected) <= set(manifest['tests']):
         raise ValueError('Invalid effective E2E selection')
+    parallel, effective, defaults = parallel_setting(job, directory)
     record = {**manifest, 'provider': provider, 'shard_index': index, 'assigned_tests': selected,
               'compiled_metadata_sha256': GO.digest(directory / 'metadata.json'),
-              'environment': environment(job), 'effective_parallel': int(os.environ['PARALLEL']),
+              'binaries_sha256': {name: GO.digest(directory / name) for name in ('suite.test', 'test2json')},
+              'environment': environment(job), 'parallel_flag': parallel, 'effective_parallel': effective, 'go_runtime_defaults': defaults,
               'branch': os.environ.get('CI_BRANCH') or os.environ.get('CIRCLE_BRANCH'),
               'runtime_settings': {k: os.environ.get(k) for k in ('CI', 'GOMAXPROCS', 'GODEBUG', 'FOUNDRY_PROFILE',
                                     'LOG_LEVEL', 'OP_E2E_CANNON_ENABLED', 'ENABLE_ANVIL', 'ENABLE_KURTOSIS')},
@@ -195,11 +213,56 @@ def execute(job, directory, reports, names):
     if record['compiled_metadata_sha256'] != GO.digest(directory / 'metadata.json'): raise ValueError('E2E compilation changed after selection')
     if record['environment'] != environment(job) or any(os.environ.get(k) != v for k, v in environment(job).items()):
         raise ValueError('E2E runtime environment differs')
-    if int(os.environ['PARALLEL']) != record['effective_parallel']: raise ValueError('E2E runtime parallelism differs')
+    parallel, effective, defaults = parallel_setting(job, directory)
+    if parallel != record['parallel_flag'] or effective != record['effective_parallel'] or defaults != record['go_runtime_defaults']:
+        raise ValueError('E2E runtime parallelism differs')
     if not names: return 0
     pattern = '^(' + '|'.join(re.escape(n) for n in names) + ')$'
-    return GO.execute_binary(directory / 'test2json', directory / 'suite.test', PREFIX + JOBS[job]['package'],
-                             ROOT / JOBS[job]['package'], record['effective_parallel'], JOBS[job]['timeout'], pattern)
+    invocation_dir = reports / 'invocations'; invocation_dir.mkdir(exist_ok=True)
+    invocation_path = invocation_dir / ((names[0] if JOBS[job]['per_test'] else 'package') + '.json')
+    if invocation_path.exists(): raise ValueError('Duplicate E2E binary invocation')
+    args = (directory / 'test2json', directory / 'suite.test', PREFIX + JOBS[job]['package'])
+    invocation = {'source_sha': manifest['source_sha'], 'assigned_tests': names,
+                  'argv': GO.binary_command(*args, parallel, JOBS[job]['timeout'], pattern),
+                  'cwd': str(ROOT / JOBS[job]['package']), 'started_at': time.time(), 'exit_code': None,
+                  'binary_sha256': GO.digest(directory / 'suite.test'), 'reporter_sha256': GO.digest(directory / 'test2json')}
+    write(invocation_path, invocation)
+    try:
+        status = GO.execute_binary(*args, ROOT / JOBS[job]['package'], parallel, JOBS[job]['timeout'], pattern)
+        invocation['exit_code'] = status
+        return status
+    finally:
+        exception = sys.exception()
+        if isinstance(exception, SystemExit): invocation['exit_code'] = exception.code
+        invocation['finished_at'] = time.time(); write(invocation_path, invocation)
+
+
+def invocations(record, directory):
+    """Check actual process provenance independently of projected test results."""
+    job = record['settings']['job']
+    rows = [read(path) for path in sorted((directory / 'invocations').glob('*.json'))]
+    expected = len(record['assigned_tests']) if JOBS[job]['per_test'] else int(bool(record['assigned_tests']))
+    if len(rows) != expected or any(i['exit_code'] != 0 or i['source_sha'] != record['source_sha'] for i in rows):
+        raise ValueError('Missing, duplicate or failed original E2E binary invocation')
+    if Counter(n for i in rows for n in i['assigned_tests']) != Counter(record['assigned_tests']):
+        raise ValueError('Original binary invocations do not cover the complete E2E assignment')
+    if job != 'proof' and record['parallel_flag'] is not None:
+        raise ValueError('Node/reth E2E must preserve default Go parallelism')
+    for row in rows:
+        if row['cwd'] != str(Path(record['workspace_root']) / JOBS[job]['package']):
+            raise ValueError('E2E binary working directory differs')
+        if (row['binary_sha256'] != record['binaries_sha256']['suite.test']
+                or row['reporter_sha256'] != record['binaries_sha256']['test2json']):
+            raise ValueError('Original E2E invocation binaries differ from verified selection')
+        expected_flags = {'-test.v=test2json', '-test.count=1', '-test.timeout=' + JOBS[job]['timeout'], '-test.paniconexit0',
+                          '-test.run=^(' + '|'.join(re.escape(n) for n in row['assigned_tests']) + ')$'}
+        if record['parallel_flag'] is not None: expected_flags.add('-test.parallel=' + str(record['parallel_flag']))
+        flags = [a for a in row['argv'] if a.startswith('-test.')]
+        if len(flags) != len(set(flags)) or set(flags) != expected_flags:
+            raise ValueError('Original E2E execution flags differ')
+        if JOBS[job]['per_test'] and len(row['assigned_tests']) != 1:
+            raise ValueError('Proof E2E tests must use separate processes')
+    return rows
 
 
 def report(job, reports, status):
@@ -224,6 +287,7 @@ def report(job, reports, status):
         write(reports / 'coverage.json', coverage)
         if coverage['missing'] or coverage['extra'] or coverage['duplicates']: raise ValueError('Incomplete or duplicate E2E test verdicts')
         if status == 0 and any(c['outcome'] == 'fail' for c in cases.values()): raise ValueError('Successful E2E command contains failed verdicts')
+        if status == 0: invocations(record, reports)
         junit_cases = {}
         import xml.etree.ElementTree as ET
         for path in (reports / 'junit').glob('*.xml'):

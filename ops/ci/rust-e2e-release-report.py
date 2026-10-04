@@ -74,7 +74,7 @@ def artifacts(directory):
             if not set(target.get('required-features', [])) <= enabled:
                 excluded.append({'package': p['name'], 'target': target['name'], 'reason': 'default feature set does not enable required target features'})
             else: expected[key] = target
-    found, binaries, complete = {}, {}, False
+    found, units, binaries, complete = {}, {}, {}, False
     root = Path(settings['workspace_root'])
     for line in (directory / 'build.json').read_text().splitlines():
         m = json.loads(line)
@@ -84,16 +84,27 @@ def artifacts(directory):
         if m['reason'] != 'compiler-artifact' or m['package_id'] not in members: continue
         target = m['target']; key = (m['package_id'], target['name'], tuple(target['kind']))
         if 'custom-build' in target['kind']: continue
-        if key not in expected or key in found: raise ValueError('Duplicate or unexpected compiled release target')
+        if key not in expected: raise ValueError('Unexpected compiled release target')
         files = {}
         for filename in m['filenames']:
             path = Path(filename)
             if not path.is_relative_to(root / 'rust/target') or not path.is_file(): raise ValueError('Missing or unsafe compiled workspace artifact')
             files[str(path.relative_to(root))] = {'sha256': digest(path), 'size': path.stat().st_size}
-        if not files or m['profile']['test'] is not False or m['profile']['opt_level'] != '3':
+        # Cargo may emit a workspace crate again as an unoptimized build
+        # dependency, with different features and hashed outputs under deps/.
+        # Keep both original units; only the top-level optimized artifact
+        # establishes that the selected workspace target was built.
+        primary = any(Path(filename).parent == root / 'rust/target/release' for filename in m['filenames'])
+        role = 'workspace' if primary else 'build-dependency'
+        if (not files or m['profile']['test'] is not False
+                or m['profile']['opt_level'] != ('3' if primary else '0')
+                or (not primary and not any(k in target['kind'] for k in ('lib', 'proc-macro')))):
             raise ValueError('Incomplete target artifacts or unexpected release profile')
-        found[key] = {'package': packages[m['package_id']]['name'], 'target': target['name'], 'kind': target['kind'],
-                      'features': sorted(m['features']), 'profile': m['profile'], 'files': files, 'fresh': m['fresh']}
+        unit = (key, tuple(sorted(m['features'])), json.dumps(m['profile'], sort_keys=True), tuple(sorted(files)))
+        if unit in units or (primary and key in found): raise ValueError('Duplicate compiled release target unit')
+        units[unit] = {'package': packages[m['package_id']]['name'], 'target': target['name'], 'kind': target['kind'],
+                       'role': role, 'features': sorted(m['features']), 'profile': m['profile'], 'files': files, 'fresh': m['fresh']}
+        if primary: found[key] = unit
         if m.get('executable'):
             path = Path(m['executable'])
             if str(path.relative_to(root)) not in files or 'bin' not in target['kind']: raise ValueError('Invalid workspace release executable')
@@ -104,7 +115,7 @@ def artifacts(directory):
     required = {'kona-host', 'kona-node', 'op-reth'}
     if not required <= binaries.keys(): raise ValueError('Missing E2E runtime release binaries')
     write(directory / 'coverage.json', {'packages': sorted(packages[p]['name'] for p in members),
-          'targets': sorted(found.values(), key=lambda t: (t['package'], t['target'], t['kind'])),
+          'targets': sorted(units.values(), key=lambda t: (t['package'], t['target'], t['kind'], t['role'], t['features'])),
           'excluded_feature_gated_targets': excluded, 'binaries': binaries, 'binding': binding()})
     return binaries
 

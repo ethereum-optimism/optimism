@@ -41,11 +41,13 @@ def validate(release, reports, sha, *, provider='rwx'):
         if record['provider'] != provider: raise ValueError('E2E provider mismatch')
         if provider == 'rwx' and (not record['rwx_run_id'] or str(record['rwx_task_attempt']) != '1'):
             raise ValueError('Missing fresh E2E run identity or uninvestigated task retry')
+        E2E.invocations(record, directory)
         if observed['missing'] or observed['extra'] or observed['duplicates'] or observed['assigned'] != record['assigned_tests']:
             raise ValueError('Incomplete E2E test coverage')
         cases, terminal = {}, Counter()
         for event in E2E.PROJECT.events(directory / 'original.json'):
             if event.get('Package') != E2E.PREFIX + E2E.JOBS[job]['package']: raise ValueError('Unexpected original E2E package')
+            if event['Action'] == 'fail': raise ValueError('Failed original E2E package or test verdict')
             name = event.get('Test')
             if name and event['Action'] in ('pass', 'skip', 'fail'):
                 if name in cases or event['Action'] == 'fail': raise ValueError('Failed or duplicate original E2E verdict')

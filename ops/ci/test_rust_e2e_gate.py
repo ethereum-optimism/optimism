@@ -29,7 +29,18 @@ class GateTests(unittest.TestCase):
                 report = self.root / f'{job}-{index}'; report.mkdir(); self.reports.append(report)
                 E2E.write(report / 'selection.json', {'source_sha': self.sha, 'settings': E2E.settings(job),
                     'provider': 'rwx', 'shard_index': index, 'assigned_tests': assigned, 'tests': names,
-                    'excluded_listing': [], 'rwx_run_id': 'native-run', 'rwx_task_attempt': '1'})
+                    'excluded_listing': [], 'rwx_run_id': 'native-run', 'rwx_task_attempt': '1',
+                    'workspace_root': '/workspace', 'parallel_flag': 2 if job == 'proof' else None,
+                    'binaries_sha256': {'suite.test': 'b' * 64, 'test2json': 'c' * 64}})
+                (report / 'invocations').mkdir()
+                for invocation in ([[name] for name in assigned] if config['per_test'] else [assigned] if assigned else []):
+                    pattern = '^(' + '|'.join(invocation) + ')$'
+                    E2E.write(report / 'invocations' / ((invocation[0] if config['per_test'] else 'package') + '.json'),
+                        {'source_sha': self.sha, 'assigned_tests': invocation,
+                         'argv': E2E.GO.binary_command('/compiled/test2json', '/compiled/suite.test', E2E.PREFIX + config['package'],
+                                                     2 if job == 'proof' else None, config['timeout'], pattern),
+                         'cwd': '/workspace/' + config['package'], 'exit_code': 0,
+                         'binary_sha256': 'b' * 64, 'reporter_sha256': 'c' * 64})
                 E2E.write(report / 'coverage.json', {'assigned': assigned, 'missing': [], 'extra': [], 'duplicates': [],
                     'cases': {name: {'outcome': 'pass', 'elapsed': None} for name in assigned}})
                 (report / 'original.json').write_text(''.join(json.dumps({'Action': 'pass', 'Test': name,
@@ -83,6 +94,14 @@ class GateTests(unittest.TestCase):
         (report / 'original.json').write_text('')
         self.seal(report)
         with self.assertRaisesRegex(ValueError, 'original verdicts'): self.validate()
+
+    def test_missing_invocation_changed_flags_and_wrong_binary_cannot_pass(self):
+        path = self.reports[-1] / 'invocations/package.json'; original = E2E.read(path)
+        for data in (original | {'binary_sha256': 'stale'}, original | {'argv': original['argv'] + ['-test.count=2']}):
+            E2E.write(path, data); self.seal(self.reports[-1])
+            with self.assertRaises(ValueError): self.validate()
+        path.unlink(); self.seal(self.reports[-1])
+        with self.assertRaisesRegex(ValueError, 'invocation'): self.validate()
 
 
 if __name__ == '__main__': unittest.main()

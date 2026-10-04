@@ -51,6 +51,24 @@ class ReleaseTests(unittest.TestCase):
         self.assertEqual(set(self.validate()), {'kona-host', 'kona-node', 'op-reth', 'utility'})
         self.assertEqual(len(REPORT.read(self.report / 'coverage.json')['targets']), 4)
 
+    def test_build_dependency_unit_is_retained_without_replacing_workspace_target(self):
+        target = {'name': 'shared', 'kind': ['lib']}
+        self.packages.append({'id': 'shared', 'name': 'shared', 'features': {}, 'targets': [target]})
+        primary = self.root / 'rust/target/release/libshared.rlib'; primary.write_bytes(b'workspace')
+        build = self.root / 'rust/target/release/deps/libshared-build.rlib'
+        build.parent.mkdir(); build.write_bytes(b'build dependency')
+        base = {'reason': 'compiler-artifact', 'package_id': 'shared', 'target': target,
+                'features': [], 'executable': None, 'fresh': False}
+        primary_unit = base | {'filenames': [str(primary)], 'profile': {'test': False, 'opt_level': '3'}}
+        build_unit = base | {'filenames': [str(build)], 'profile': {'test': False, 'opt_level': '0'}}
+        self.messages += [build_unit, primary_unit]; self.files(); self.validate()
+        coverage = REPORT.read(self.report / 'coverage.json')
+        self.assertEqual({t['role'] for t in coverage['targets'] if t['target'] == 'shared'}, {'workspace', 'build-dependency'})
+        self.messages.remove(primary_unit); self.files()
+        with self.assertRaisesRegex(ValueError, 'coverage'): self.validate()
+        self.messages += [primary_unit, build_unit]; self.files()
+        with self.assertRaisesRegex(ValueError, 'Duplicate'): self.validate()
+
     def test_missing_extra_duplicate_target_or_completion_rejected(self):
         original = list(self.messages)
         for mode in ('missing', 'extra', 'duplicate', 'completion'):
@@ -112,12 +130,21 @@ class LiveReleaseTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp); rust = root / 'rust'; rust.mkdir()
             names = ['kona-host', 'kona-node', 'op-reth', 'utility']
-            (rust / 'Cargo.toml').write_text('[workspace]\nresolver="2"\nmembers=' + json.dumps(names) +
+            (rust / 'Cargo.toml').write_text('[workspace]\nresolver="2"\nmembers=' + json.dumps(names + ['shared']) +
                 '\n[profile.release]\nopt-level=3\n')
             for name in names:
                 crate = rust / name; (crate / 'src').mkdir(parents=True)
                 (crate / 'Cargo.toml').write_text(f'[package]\nname="{name}"\nversion="0.1.0"\nedition="2021"\n[features]\ndefault=[]\n')
                 (crate / 'src/main.rs').write_text('fn main() { println!("fresh executable"); }\n')
+            shared = rust / 'shared'; (shared / 'src').mkdir(parents=True)
+            (shared / 'Cargo.toml').write_text('[package]\nname="shared"\nversion="0.1.0"\nedition="2021"\n'
+                '[features]\ndefault=["normal"]\nnormal=[]\n')
+            (shared / 'src/lib.rs').write_text('pub fn build() {}\n')
+            with (rust / 'utility/Cargo.toml').open('a') as manifest:
+                manifest.write('[dependencies]\nshared={path="../shared"}\n'
+                    '[build-dependencies]\nshared={path="../shared",default-features=false}\n')
+            (rust / 'utility/build.rs').write_text('fn main() { shared::build(); }\n')
+            (rust / 'utility/src/main.rs').write_text('fn main() { shared::build(); println!("fresh executable"); }\n')
             report = root / 'report'; report.mkdir()
             metadata = subprocess.check_output(['cargo', 'metadata', '--no-deps', '--format-version', '1'], cwd=rust)
             (report / 'workspace.json').write_bytes(metadata)
@@ -130,6 +157,8 @@ class LiveReleaseTests(unittest.TestCase):
                 with patch.object(REPORT, 'binding', return_value={'source_sha': 'fixture'}):
                     binaries = REPORT.artifacts(report)
                 self.assertEqual(set(binaries), set(names))
+                targets = REPORT.read(report / 'coverage.json')['targets']
+                self.assertEqual({t['role'] for t in targets if t['package'] == 'shared'}, {'workspace', 'build-dependency'})
                 if attempt == 1: self.assertTrue(all(t['fresh'] for t in REPORT.read(report / 'coverage.json')['targets']))
                 for info in binaries.values():
                     self.assertEqual(subprocess.check_output([root / info['path']], text=True).strip(), 'fresh executable')
