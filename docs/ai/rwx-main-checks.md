@@ -30,11 +30,27 @@ every configured bundle/state file and the fetched protected `develop` revision
 used by the original ancestry validator. Version and L2 matrix checks retain
 their complete module/configuration inputs.
 
+The initial hosted observation at `7c547ece` passes complete original-report
+parity for the five non-generator validators. Both mock discoveries fail at the
+missing gitignored superchain ZIP, before their original commands. The preceding
+Circle mock jobs passed at `58a81fbd`; this is a new discovery dependency gap.
+[First-failure evidence](rwx-main-checks-evidence/first-failure.json) retains all
+fourteen original reports and both diagnostics. These observations add zero
+occurrences pending the corrected complete Main stage.
+
+A minimal native producer now builds the bundle from the exact registry gitlink
+and verifies its committed checksum. Both adapters verify the bundle before
+discovery and retain complete original bytes. Runtime also validates the native
+producer's source, settings and file hashes before consuming it. Fixtures use
+the production sync script and Just submodule recipe with a local fixture
+registry, reproduce cold missing-embed discovery, and reject a corrupt reused
+ZIP before generation. The producer emits no JUnit and records zero tests.
+
 Every Main verdict has `cache: false` and records run/attempt identity. Go
 compilation caches are isolated by validator; shared modules are downloaded and
 verified by the existing producer. Compiler state is reusable, while reports
 and verdicts are excluded from filesystem outputs. Protected warming prepares
-tools/modules and executes zero Main verdicts. An observed CLI rehearsal does
+tools/modules/bundle and executes zero Main verdicts. An observed CLI rehearsal does
 not establish a protected `develop` cache-rebuild event.
 
 Fixtures execute real Go/Mockery generation twice, including a test-file

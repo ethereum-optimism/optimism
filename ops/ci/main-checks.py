@@ -29,6 +29,8 @@ COMMANDS = {
 }
 GO_JOBS = {'check-op-geth-version', 'check-nut-locks', *MOCKS}
 GO_FIELDS = ('GoFiles', 'CgoFiles', 'TestGoFiles', 'XTestGoFiles')
+BUNDLE = 'op-core/superchain/superchain-configs.zip'
+BUNDLE_INPUTS = ('mise.toml', 'justfile', 'op-core/superchain/sync-superchain.sh', BUNDLE + '.sha256')
 TODO_GLOBS = ['-g', '!ops/scripts/todo-checker.sh', '-g', '!packages/contracts-bedrock/lib']
 TODO_DISCOVERY = {
     'files': ['rg', '--files', *TODO_GLOBS],
@@ -128,6 +130,45 @@ def stage(directory, name, argv, cwd=None, json_output=False, allowed=(0,)):
     return status
 
 
+def superchain():
+    expected = (ROOT / (BUNDLE + '.sha256')).read_text().split()[0]
+    actual = STAGES.digest(ROOT / BUNDLE)
+    if not re.fullmatch('[0-9a-f]{64}', expected) or actual != expected:
+        raise ValueError('Superchain bundle differs from committed checksum')
+    return {'source_sha':command('git','rev-parse','HEAD'),
+            'registry_revision':command('git','rev-parse','HEAD:superchain-registry'),
+            'sha256':actual, 'expected_sha256':expected,
+            'input_sha256':{name:STAGES.digest(ROOT / name) for name in BUNDLE_INPUTS},
+            'tools':{name:command(*argv) for name,argv in
+                [('go',['go','version']),('just',['just','--version']),('jq',['jq','--version']),('yq',['yq','--version'])]}}
+
+
+def configure_superchain():
+    for name in ('OP_CORE_SYNC_SUPERCHAIN','SUPERCHAIN_REGISTRY_DIR','SUPERCHAIN_CONFIGS_OUT'):
+        os.environ.pop(name, None)
+
+
+def prepare_superchain():
+    directory = ROOT / '.ci/main-checks/prep-superchain'
+    shutil.rmtree(directory, ignore_errors=True); directory.mkdir(parents=True)
+    status, errors = 1, []
+    try:
+        sha = command('git','rev-parse','HEAD')
+        if sha != (os.environ.get('CI_COMMIT_SHA') or sha): raise ValueError('Wrong superchain producer revision')
+        configure_superchain(); before = inputs()
+        stage(directory, 'superchain', ['just','build-superchain-go'])
+        if before != inputs() or command('git','rev-parse','HEAD') != sha:
+            raise ValueError('Superchain preparation changed source inputs')
+        STAGES.write(directory / 'bundle.json', superchain())
+        STAGES.write(directory / 'coverage.json', {'tests':0,'verified_bundle':True})
+        status = 0
+    except (OSError, ValueError, subprocess.CalledProcessError) as error:
+        errors.append(str(error)); print(error, file=sys.stderr)
+    STAGES.write(directory / 'final.json', {'exit_code':status,'report_errors':errors,
+        'original_sha256':{str(p.relative_to(directory)):STAGES.digest(p) for p in directory.iterdir() if p.is_file() and p.name != 'final.json'}})
+    return status
+
+
 def discovery(directory, job):
     if job == 'todo-issues-check':
         for name, argv in TODO_DISCOVERY.items():
@@ -156,16 +197,42 @@ def discovery(directory, job):
         retain_sources(directory, ['op-core/nuts/fork_lock.toml', *selected['bundles'], *selected['states']])
         return selected
     component = MOCKS[job]
+    configure_superchain()
+    prepared = os.environ.get('SUPERCHAIN_PREPARED')
+    if prepared:
+        path = Path(prepared); final = json.loads((path / 'final.json').read_text())
+        if final['exit_code'] or final['report_errors'] or 'bundle.json' not in final['original_sha256']:
+            raise ValueError('Failed or missing superchain producer')
+        for name, value in final['original_sha256'].items():
+            if Path(name).is_absolute() or '..' in Path(name).parts or STAGES.digest(path / name) != value:
+                raise ValueError('Corrupt original superchain producer')
+        if json.loads((path / 'bundle.json').read_text()) != superchain():
+            raise ValueError('Stale, mismatched or corrupt reusable superchain bundle')
+        destination = directory / 'producer'; destination.mkdir()
+        for name in final['original_sha256']: shutil.copyfile(path / name, destination / name)
+        STAGES.write(destination / 'manifest.json', final)
+    # The shared script verifies an existing zip and regenerates a missing one;
+    # Go list validates embeds even though go generate itself ignores them.
+    stage(directory, 'superchain', ['just','build-superchain-go'])
+    bundle = superchain(); dependencies = directory / 'dependencies'; dependencies.mkdir()
+    shutil.copyfile(ROOT / BUNDLE, dependencies / 'superchain-configs.zip')
+    shutil.copyfile(ROOT / (BUNDLE + '.sha256'), dependencies / 'superchain-configs.zip.sha256')
     stage(directory, 'packages', ['go', 'list', '-tags=generate', '-json', './...'], ROOT / component, True)
     selected = packages((directory / 'packages.json').read_text(), component)
     retain_sources(directory, command('git', 'ls-files', component + '/**/*.go', component + '/*.go').splitlines())
     stage(directory, 'generators', ['go', 'generate', '-n', '-v', './...'], ROOT / component)
-    return {'component': component, 'packages': selected, 'generated_before': tracked_generated(component)}
+    return {'component': component, 'packages': selected, 'generated_before': tracked_generated(component), 'superchain':bundle}
 
 
 def main():
     os.chdir(ROOT); parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('job', choices=COMMANDS); args = parser.parse_args(); job = args.job
+    parser.add_argument('job', choices=COMMANDS, nargs='?')
+    parser.add_argument('--prepare-superchain', action='store_true'); args = parser.parse_args()
+    if args.prepare_superchain:
+        if args.job: parser.error('Superchain preparation does not run a validator')
+        return prepare_superchain()
+    if not args.job: parser.error('A Main validator is required')
+    job = args.job
     directory = ROOT / '.ci/main-checks' / job
     shutil.rmtree(directory, ignore_errors=True); directory.mkdir(parents=True)
     status, errors, settings = 1, [], None

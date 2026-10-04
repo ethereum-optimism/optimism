@@ -31,7 +31,7 @@ class OriginalMainTests(unittest.TestCase):
         for provider in ('circle','rwx'):
             directory = self.root / provider; directory.mkdir(); self.directories[provider] = directory
             settings = {'source_sha':SHA,'job':job,'provider':'circleci' if provider == 'circle' else 'rwx',
-                'branch':'pilot','workspace_root':'/' + provider,'tools':{'go':'go1.26.6'},
+                'branch':'pilot','workspace_root':'/' + provider,'tools':{'go':'go1.26.6','just':'pinned','jq':'pinned','yq':'pinned'},
                 'input_sha256':{'ops/ci/main-checks.py':'b' * 64},
                 'rwx_run_id':'fresh-original','rwx_task_attempt':'1'}
             selection, source, commands = {}, {}, {'check':COMPARE.MAIN.COMMANDS[job]}
@@ -59,6 +59,24 @@ class OriginalMainTests(unittest.TestCase):
                 original('packages', commands['packages'], '\n'.join(json.dumps(r) for r in rows))
                 original('generators', commands['generators'])
                 (directory / 'generators.log').write_text('input.go\nmockery --name Input\ninput_test.go\necho test-input\n')
+                dependencies = directory / 'dependencies'; dependencies.mkdir()
+                bundle = dependencies / 'superchain-configs.zip'; bundle.write_bytes(b'original pinned bundle')
+                digest = COMPARE.MAIN.STAGES.digest(bundle); pin = dependencies / 'superchain-configs.zip.sha256'
+                pin.write_text(digest + '  superchain-configs.zip\n')
+                settings['input_sha256'].update({name:'d'*64 for name in COMPARE.MAIN.BUNDLE_INPUTS})
+                settings['input_sha256'][COMPARE.MAIN.BUNDLE + '.sha256'] = COMPARE.MAIN.STAGES.digest(pin)
+                settings['input_sha256']['superchain-registry'] = {'gitlink':'e'*40}
+                binding = {'source_sha':SHA,'registry_revision':'e'*40,'sha256':digest,'expected_sha256':digest,
+                           'input_sha256':{name:settings['input_sha256'][name] for name in COMPARE.MAIN.BUNDLE_INPUTS},
+                           'tools':settings['tools']}
+                commands['superchain'] = ['just','build-superchain-go']; original('superchain',commands['superchain'])
+                if provider == 'rwx':
+                    prep = directory / 'producer'; prep.mkdir()
+                    self.write(prep / 'bundle.json', binding); self.write(prep / 'coverage.json', {'tests':0,'verified_bundle':True})
+                    self.write(prep / 'superchain.stage.json',json.loads((directory / 'superchain.stage.json').read_text()))
+                    (prep / 'superchain.log').write_text('verified bundle')
+                    self.write(prep / 'manifest.json', {'exit_code':0,'report_errors':[],
+                        'original_sha256':{p.name:COMPARE.MAIN.STAGES.digest(p) for p in prep.iterdir()}})
             elif job == 'l2-chains-sync-check':
                 source = {'.circleci/continue/main.yml':'original yaml\n','.circleci/l2-rpcs.json':'{"op-mainnet":{}}\n'}
                 config = {'workflows':{'scheduled-daily-tests':{'jobs':[{'contracts-bedrock-tests-l2-fork':{'matrix':{'parameters':{'fork_op_chain':['op-mainnet']}}}}]}}}
@@ -91,7 +109,7 @@ class OriginalMainTests(unittest.TestCase):
             if job in COMPARE.MAIN.MOCKS:
                 selected = COMPARE.MAIN.packages((directory / 'packages.json').read_text(),component,settings['workspace_root'],directory / 'source')
                 before = {component + '/mocks/input.go':settings['input_sha256'][component + '/mocks/input.go']}
-                selection = {'component':component,'packages':selected,'generated_before':before}
+                selection = {'component':component,'packages':selected,'generated_before':before,'superchain':binding}
                 self.write(directory / 'generated.json', before)
             elif job == 'check-nut-locks': selection = COMPARE.MAIN.nut_selection(directory / 'source','c' * 40)
             original('check',commands['check'])
@@ -190,6 +208,22 @@ class OriginalMainTests(unittest.TestCase):
         row['cwd']='/rwx/op-deployer';self.write(p,row)
         self.write(d/'retry.stage.json',row);self.seal(d)
         with self.assertRaisesRegex(ValueError,'retry'): self.compare()
+
+    def test_corrupt_original_superchain_cannot_be_resealed_as_passing(self):
+        self.fixture('check-generated-mocks-op-node')
+        d=self.directories['rwx'];(d/'dependencies/superchain-configs.zip').write_bytes(b'corrupt bundle');self.seal(d)
+        with self.assertRaisesRegex(ValueError,'pinned superchain'):self.compare()
+
+    def test_stale_producer_binding_and_nonzero_warm_tests_are_rejected(self):
+        self.fixture('check-generated-mocks-op-node')
+        d=self.directories['rwx'];p=d/'producer/bundle.json';row=json.loads(p.read_text());row['source_sha']='b'*40;self.write(p,row)
+        manifest=json.loads((d/'producer/manifest.json').read_text());manifest['original_sha256']['bundle.json']=COMPARE.MAIN.STAGES.digest(p)
+        self.write(d/'producer/manifest.json',manifest);self.seal(d)
+        with self.assertRaisesRegex(ValueError,'reusable superchain binding'):self.compare()
+        row['source_sha']=SHA;self.write(p,row);manifest['original_sha256']['bundle.json']=COMPARE.MAIN.STAGES.digest(p)
+        p=d/'producer/coverage.json';self.write(p,{'tests':1,'verified_bundle':True});manifest['original_sha256']['coverage.json']=COMPARE.MAIN.STAGES.digest(p)
+        self.write(d/'producer/manifest.json',manifest);self.seal(d)
+        with self.assertRaisesRegex(ValueError,'reusable superchain binding'):self.compare()
 
 
 if __name__ == '__main__': unittest.main()

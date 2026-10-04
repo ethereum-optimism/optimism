@@ -117,21 +117,31 @@ class MainTests(unittest.TestCase):
             component = root / 'op-node'; component.mkdir()
             shutil.copyfile(MAIN.ROOT / 'op-node/justfile', component / 'justfile')
             source = component / 'input.go'
-            source.write_text('package input\n//go:generate mockery --name Greeter --output ./mocks --outpkg mocks\ntype Greeter interface { Greet(string) string }\n')
+            source.write_text('package input\nimport _ "fixture.invalid/main/op-core/superchain"\n//go:generate mockery --name Greeter --output ./mocks --outpkg mocks\ntype Greeter interface { Greet(string) string }\n')
             (component / 'input_test.go').write_text('package input\n//go:generate sh -c "printf run\\\\n >> ../generation-runs"\n')
             (root / 'go.mod').write_text('module fixture.invalid/main\n\ngo 1.26.0\n\nrequire github.com/stretchr/testify v1.11.1\n')
             (root / 'go.sum').write_text('')
             (root / 'justfile').write_text('generate-mocks-op-node:\n  cd op-node && just generate-mocks\n')
-            (root / '.gitignore').write_text('.ci/\ngeneration-runs\n')
-            self.commit(root)
+            (root / '.gitignore').write_text('.ci/\ngeneration-runs\nop-core/superchain/superchain-configs.zip\n')
+            self.install_bundle(root)
             initial = subprocess.run(['just','generate-mocks-op-node'], cwd=root, capture_output=True, text=True)
             self.assertEqual(initial.returncode, 0, initial.stdout + initial.stderr)
             tidy = subprocess.run(['go','mod','tidy'], cwd=root, capture_output=True, text=True)
             self.assertEqual(tidy.returncode, 0, tidy.stdout + tidy.stderr)
             sha = self.commit(root); previous = (root / 'generation-runs').read_bytes()
+            bundle = root / MAIN.BUNDLE; bundle.unlink()
+            missing = subprocess.run(['go','list','-tags=generate','-json','./...'],cwd=component,capture_output=True,text=True)
+            self.assertNotEqual(missing.returncode,0); self.assertIn('superchain-configs.zip',missing.stderr)
             originals = {}
             for provider in ('circleci','rwx'):
-                result, report = self.run_adapter(root, 'check-generated-mocks-op-node', sha, provider)
+                prepared = None
+                if provider == 'rwx':
+                    result = subprocess.run([sys.executable,'ops/ci/main-checks.py','--prepare-superchain'],cwd=root,
+                        env={**os.environ,'CI_COMMIT_SHA':sha},capture_output=True,text=True)
+                    self.assertEqual(result.returncode,0,result.stdout + result.stderr)
+                    prepared = root / '.ci/main-checks/prep-superchain'
+                    self.assertFalse(list(prepared.glob('*.xml')))
+                result, report = self.run_adapter(root, 'check-generated-mocks-op-node', sha, provider, prepared)
                 self.assertEqual(result.returncode, 0, result.stdout)
                 self.assertEqual(json.loads((report / 'check.stage.json').read_text())['argv'], MAIN.COMMANDS['check-generated-mocks-op-node'])
                 self.assertGreater(len((root / 'generation-runs').read_bytes()), len(previous))
@@ -143,6 +153,10 @@ class MainTests(unittest.TestCase):
             spec = importlib.util.spec_from_file_location('comparison', Path(__file__).with_name('compare-main-checks.py'))
             comparison = importlib.util.module_from_spec(spec); spec.loader.exec_module(comparison)
             self.assertTrue(comparison.compare(originals, 'check-generated-mocks-op-node', sha)['verified_parity'])
+            saved = bundle.read_bytes(); bundle.write_bytes(b'corrupt reusable zip')
+            result, report = self.run_adapter(root, 'check-generated-mocks-op-node', sha, 'rwx', prepared)
+            self.assertNotEqual(result.returncode,0); self.assertFalse((report / 'check.stage.json').exists())
+            self.assertIn('Superchain bundle differs', result.stdout); bundle.write_bytes(saved)
             source.write_text(source.read_text().replace('Greet(string)', 'NewMethod(string)')); sha = self.commit(root)
             result, report = self.run_adapter(root, 'check-generated-mocks-op-node', sha)
             self.assertNotEqual(result.returncode, 0)
@@ -163,6 +177,28 @@ class MainTests(unittest.TestCase):
         for name in ('go.just','git.just','default.just'):
             shutil.copyfile(MAIN.ROOT / 'justfiles' / name, directory / name)
 
+    def install_bundle(self, root):
+        directory = root / 'op-core/superchain'; directory.mkdir(parents=True)
+        shutil.copyfile(MAIN.ROOT / 'op-core/superchain/sync-superchain.sh',directory / 'sync-superchain.sh')
+        (directory / 'superchain-configs.zip.sha256').write_text('0'*64+'\n')
+        (directory / 'bundle.go').write_text('package superchain\nimport _ "embed"\n//go:embed superchain-configs.zip\nvar Data []byte\n')
+        (root / 'mise.toml').write_text('')
+        original = (MAIN.ROOT / 'justfile').read_text()
+        start = original.index("[script('bash')]\nupdate-superchain-registry-submodule ref=")
+        end = original.index('# Builds op-core/superchain/superchain-configs.zip',start)
+        with (root / 'justfile').open('a') as file:
+            file.write('\n'+original[start:end]+'\nbuild-superchain-go: update-superchain-registry-submodule\n  bash op-core/superchain/sync-superchain.sh\n')
+        self.commit(root)
+        origin = root / '.ci/origin'; origin.mkdir(parents=True)
+        for name,text in [('configs/dev/example.toml','chain_id = 123\n'),('extra/genesis/dev/example.json','{}\n'),('extra/dictionary/example','fixture\n')]:
+            path = origin / 'superchain' / name;path.parent.mkdir(parents=True,exist_ok=True);path.write_text(text)
+        self.commit(origin)
+        subprocess.run(['git','-c','protocol.file.allow=always','submodule','add','-q',str(origin),'superchain-registry'],cwd=root,check=True)
+        self.commit(root)
+        refresh = subprocess.run(['just','build-superchain-go'],cwd=root,env={**os.environ,'OP_CORE_SYNC_SUPERCHAIN':'1'},
+                                 capture_output=True,text=True)
+        self.assertEqual(refresh.returncode,0,refresh.stdout+refresh.stderr)
+
     def commit(self, root):
         if not (root / '.git').exists():
             for args in (['init','-q'], ['config','user.email','fixture@example.invalid'], ['config','user.name','fixture']):
@@ -171,10 +207,13 @@ class MainTests(unittest.TestCase):
         subprocess.run(['git','commit','--allow-empty','-qm','fixture'], cwd=root, check=True)
         return subprocess.check_output(['git','rev-parse','HEAD'], cwd=root, text=True).strip()
 
-    def run_adapter(self, root, job, sha, provider='circleci'):
+    def run_adapter(self, root, job, sha, provider='circleci', prepared=None):
+        env = {**os.environ,'CI_COMMIT_SHA':sha,'CI_BRANCH':'fixture','CI_CHECK_PROVIDER':provider,
+               'RWX_RUN_ID':'fresh-fixture','RWX_TASK_ATTEMPT_NUMBER':'1'}
+        env.pop('SUPERCHAIN_PREPARED',None)
+        if prepared: env['SUPERCHAIN_PREPARED'] = str(prepared)
         result = subprocess.run([sys.executable,'ops/ci/main-checks.py',job], cwd=root,
-            env={**os.environ,'CI_COMMIT_SHA':sha,'CI_BRANCH':'fixture','CI_CHECK_PROVIDER':provider,
-                 'RWX_RUN_ID':'fresh-fixture','RWX_TASK_ATTEMPT_NUMBER':'1'}, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
+            env=env, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
         return result, root / '.ci/main-checks' / job
 
 

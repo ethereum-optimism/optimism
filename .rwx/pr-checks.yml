@@ -2,7 +2,7 @@
 on:
   cache-rebuild:
     if: ${{ event.git.branch == 'develop' }}
-    target: [go-modules, contract-tools, main-tools]
+    target: [go-modules, contract-tools, main-tools, main-superchain]
     init:
       commit-sha: ${{ event.git.sha }}
       branch: ${{ event.git.branch }}
@@ -218,6 +218,22 @@ tasks:
     outputs:
       filesystem: false
 
+  - key: main-superchain
+    use: [code, go-tools]
+    if: ${{ init.cache-warm == 'true' || tasks.route.values.run-main == 'true' }}
+    run: python3 ops/ci/main-checks.py --prepare-superchain
+    env:
+      CI_COMMIT_SHA: ${{ init.commit-sha }}
+    timeout: 15m
+    outputs:
+      filesystem:
+        filter:
+          workspace: [op-core/superchain/superchain-configs.zip]
+          system: []
+      artifacts:
+        - key: reports
+          path: .ci/main-checks/prep-superchain
+
   - key: todo-issues-check
     use: [code, main-tools]
     if: ${{ init.cache-warm != 'true' && tasks.route.values.run-main == 'true' }}
@@ -361,7 +377,7 @@ tasks:
           path: .ci/main-checks/check-nut-locks
 
   - key: check-generated-mocks-op-node
-    use: [code, main-tools, go-modules]
+    use: [code, main-tools, go-modules, main-superchain]
     if: ${{ init.cache-warm != 'true' && tasks.route.values.run-main == 'true' }}
     run: |
       export GOMODCACHE="$PWD/.ci/go-cache/pr-checks/modules"
@@ -371,6 +387,7 @@ tasks:
       CI_COMMIT_SHA: ${{ init.commit-sha }}
       CI_BRANCH: ${{ init.branch }}
       CI_CHECK_PROVIDER: rwx
+      SUPERCHAIN_PREPARED: ${{ tasks.main-superchain.artifacts.reports }}
       RWX_RUN_ID:
         cache-key: included
       RWX_TASK_ATTEMPT_NUMBER:
@@ -393,7 +410,7 @@ tasks:
           path: .ci/main-checks/check-generated-mocks-op-node
 
   - key: check-generated-mocks-op-service
-    use: [code, main-tools, go-modules]
+    use: [code, main-tools, go-modules, main-superchain]
     if: ${{ init.cache-warm != 'true' && tasks.route.values.run-main == 'true' }}
     run: |
       export GOMODCACHE="$PWD/.ci/go-cache/pr-checks/modules"
@@ -403,6 +420,7 @@ tasks:
       CI_COMMIT_SHA: ${{ init.commit-sha }}
       CI_BRANCH: ${{ init.branch }}
       CI_CHECK_PROVIDER: rwx
+      SUPERCHAIN_PREPARED: ${{ tasks.main-superchain.artifacts.reports }}
       RWX_RUN_ID:
         cache-key: included
       RWX_TASK_ATTEMPT_NUMBER:

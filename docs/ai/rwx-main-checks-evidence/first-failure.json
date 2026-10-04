@@ -1,0 +1,520 @@
+{
+  "cause": "The new strict go-list discovery validates a missing gitignored superchain-configs.zip embed. Both providers fail before the original mock generation command. This is an adapter dependency gap, not evidence of a regression in the original mock validators.",
+  "circle_jobs": [
+    {
+      "job_number": 5634456,
+      "name": "op-deployer-forge-version",
+      "started_at": "2026-10-04T22:08:28.672Z",
+      "status": "success",
+      "stopped_at": "2026-10-04T22:09:24.89Z"
+    },
+    {
+      "job_number": 5634459,
+      "name": "todo-issues-check",
+      "started_at": "2026-10-04T22:08:31.179Z",
+      "status": "success",
+      "stopped_at": "2026-10-04T22:09:04.901Z"
+    },
+    {
+      "job_number": 5634460,
+      "name": "l2-chains-sync-check",
+      "started_at": "2026-10-04T22:08:28.917Z",
+      "status": "success",
+      "stopped_at": "2026-10-04T22:09:33.089Z"
+    },
+    {
+      "job_number": 5634468,
+      "name": "check-generated-mocks-op-service",
+      "started_at": "2026-10-04T22:08:28.204Z",
+      "status": "failed",
+      "stopped_at": "2026-10-04T22:09:40.363Z"
+    },
+    {
+      "job_number": 5634483,
+      "name": "check-op-geth-version",
+      "started_at": "2026-10-04T22:08:28.738Z",
+      "status": "success",
+      "stopped_at": "2026-10-04T22:09:48.359Z"
+    },
+    {
+      "job_number": 5634485,
+      "name": "check-generated-mocks-op-node",
+      "started_at": "2026-10-04T22:08:28.254Z",
+      "status": "failed",
+      "stopped_at": "2026-10-04T22:09:27.899Z"
+    },
+    {
+      "job_number": 5634471,
+      "name": "check-nut-locks",
+      "started_at": "2026-10-04T22:09:36.341Z",
+      "status": "success",
+      "stopped_at": "2026-10-04T22:11:06.663Z"
+    }
+  ],
+  "circle_pipeline": 135564,
+  "correction": "Prepare and verify the committed bundle from the exact superchain-registry gitlink before strict discovery. Native uses a reusable minimal producer; runtime checks its source/tool/input/file bindings, and both adapters retain complete original bundle bytes.",
+  "five_complete_comparisons": {
+    "check-nut-locks": "8f2b131bb5160f20b24deef286a0a14e3ce9ade85049b09946e7934642f3d660",
+    "check-op-geth-version": "52e6784afede1a19d6a90be356abde988f9e256fa7e1d50c8a198b45e71e585a",
+    "l2-chains-sync-check": "4e2359a753956a50a86313f028028b6f8674cc2d3c49d353f269421e6acb551f",
+    "op-deployer-forge-version": "d8dde03ec2ca01acc4ce7f6f834d9803afbeaa7b78e86726d3afd17fceb9834b",
+    "todo-issues-check": "1875f43daba20f7d7598541ac44a97159c4952973e6faf3cc219fd69de79aea6"
+  },
+  "native_run_id": "985b0af8e0dc4075bddd418cd0e14561",
+  "native_tasks": [
+    {
+      "Agent": {
+        "Cpus": 2,
+        "DiskSizeGigabytes": 50,
+        "MemoryGb": 8
+      },
+      "ID": "5b77bbeb267cf407509b9b4da8496f65",
+      "Key": "todo-issues-check",
+      "Status": {
+        "AbortedSubStatus": "not_applicable",
+        "Execution": "finished",
+        "FinishedSubStatus": "executed",
+        "Result": "succeeded",
+        "WaitingSubStatus": "not_applicable"
+      }
+    },
+    {
+      "Agent": {
+        "Cpus": 2,
+        "DiskSizeGigabytes": 50,
+        "MemoryGb": 8
+      },
+      "ID": "b84f286715b4f3d934d00cdc5cf6d344",
+      "Key": "l2-chains-sync-check",
+      "Status": {
+        "AbortedSubStatus": "not_applicable",
+        "Execution": "finished",
+        "FinishedSubStatus": "executed",
+        "Result": "succeeded",
+        "WaitingSubStatus": "not_applicable"
+      }
+    },
+    {
+      "Agent": {
+        "Cpus": 2,
+        "DiskSizeGigabytes": 50,
+        "MemoryGb": 8
+      },
+      "ID": "8d5eb8ae27d2e850d7ab6278a27c5f1c",
+      "Key": "op-deployer-forge-version",
+      "Status": {
+        "AbortedSubStatus": "not_applicable",
+        "Execution": "finished",
+        "FinishedSubStatus": "executed",
+        "Result": "succeeded",
+        "WaitingSubStatus": "not_applicable"
+      }
+    },
+    {
+      "Agent": {
+        "Cpus": 4,
+        "DiskSizeGigabytes": 50,
+        "MemoryGb": 8
+      },
+      "ID": "0dc514fd076715f9457e283960478300",
+      "Key": "check-op-geth-version",
+      "Status": {
+        "AbortedSubStatus": "not_applicable",
+        "Execution": "finished",
+        "FinishedSubStatus": "executed",
+        "Result": "succeeded",
+        "WaitingSubStatus": "not_applicable"
+      }
+    },
+    {
+      "Agent": {
+        "Cpus": 4,
+        "DiskSizeGigabytes": 50,
+        "MemoryGb": 8
+      },
+      "ID": "09fdd7035739fea32c7469fe0854e654",
+      "Key": "check-nut-locks",
+      "Status": {
+        "AbortedSubStatus": "not_applicable",
+        "Execution": "finished",
+        "FinishedSubStatus": "executed",
+        "Result": "succeeded",
+        "WaitingSubStatus": "not_applicable"
+      }
+    },
+    {
+      "Agent": {
+        "Cpus": 8,
+        "DiskSizeGigabytes": 50,
+        "MemoryGb": 16
+      },
+      "ID": "fea91bfcfa4664085820b86919accb31",
+      "Key": "check-generated-mocks-op-node",
+      "Status": {
+        "AbortedSubStatus": "not_applicable",
+        "Execution": "finished",
+        "FinishedSubStatus": "executed",
+        "Result": "failed",
+        "WaitingSubStatus": "not_applicable"
+      }
+    },
+    {
+      "Agent": {
+        "Cpus": 8,
+        "DiskSizeGigabytes": 50,
+        "MemoryGb": 16
+      },
+      "ID": "9da486988d734e3c879bd457fbfe9c64",
+      "Key": "check-generated-mocks-op-service",
+      "Status": {
+        "AbortedSubStatus": "not_applicable",
+        "Execution": "finished",
+        "FinishedSubStatus": "executed",
+        "Result": "failed",
+        "WaitingSubStatus": "not_applicable"
+      }
+    }
+  ],
+  "new_occurrences": 0,
+  "preceding_original_circle_success": {
+    "jobs": [
+      5634381,
+      5634386
+    ],
+    "source_sha": "58a81fbdb7f1c6184b881417f4d74c50c73f13d6"
+  },
+  "reports": {
+    "circle": {
+      "check-generated-mocks-op-node": {
+        "exit_code": 1,
+        "first_failed_stage": {
+          "argv": [
+            "go",
+            "list",
+            "-tags=generate",
+            "-json",
+            "./..."
+          ],
+          "cwd": "/home/circleci/project/op-node",
+          "elapsed_seconds": 1.2049248218536377,
+          "exit_code": 1,
+          "log_sha256": "2872b32be2e65adea68b3fce9d5f9a21c4b62b6ccc8443223e13f49b4923455f",
+          "started_at": 1791151765.6311274,
+          "stdin": "devnull"
+        },
+        "original_diagnostic": "../op-core/superchain/chain.go:21:12: pattern superchain-configs.zip: no matching files found\n",
+        "original_sha256": {
+          "check.junit.xml": "5cc6878399237303aa5c37c92737f555247d68ab0fe04a0962ee4bf11079a056",
+          "go-env.json": "0da58a0a09288523c7475e9cbd97c449e87b6eace981b69c1438059caef10af6",
+          "go-env.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "go-env.stage.json": "24fc60d36a167061426fa72c673e0a76aa98e6d1f9e77ab435dae2b8a72856be",
+          "packages.json": "d58868fc47f11978417b5636796dc9fcad8ef7fe30002a79053d7a133f56bf69",
+          "packages.log": "2872b32be2e65adea68b3fce9d5f9a21c4b62b6ccc8443223e13f49b4923455f",
+          "packages.stage.json": "c33e88a214b0b44d7c4942f3ad2e2c2b9cb03334cfc915f4096d66d1bb5f8c73",
+          "settings.json": "b76d3a488f031ce040377ac9778fb9b07a71a194a835ce8203470ff87d6a3440"
+        },
+        "report_errors": [
+          "Original Main stage failed: packages (exit 1)"
+        ]
+      },
+      "check-generated-mocks-op-service": {
+        "exit_code": 1,
+        "first_failed_stage": {
+          "argv": [
+            "go",
+            "list",
+            "-tags=generate",
+            "-json",
+            "./..."
+          ],
+          "cwd": "/home/circleci/project/op-service",
+          "elapsed_seconds": 0.23916840553283691,
+          "exit_code": 1,
+          "log_sha256": "2872b32be2e65adea68b3fce9d5f9a21c4b62b6ccc8443223e13f49b4923455f",
+          "started_at": 1791151779.0900328,
+          "stdin": "devnull"
+        },
+        "original_diagnostic": "../op-core/superchain/chain.go:21:12: pattern superchain-configs.zip: no matching files found\n",
+        "original_sha256": {
+          "check.junit.xml": "6d4cb095eefae96241e6f887bf1e9436a53de2b3749d8014c32fe1518ef60dc9",
+          "go-env.json": "0da58a0a09288523c7475e9cbd97c449e87b6eace981b69c1438059caef10af6",
+          "go-env.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "go-env.stage.json": "f440bce1dd650d7300880dcf1c412691090a23d5b2b55013dce3727fae8420c4",
+          "packages.json": "68acec496fc37bf60e43a135bb247e1dbedcbcbd91747cb1e2721451b0e4cdbf",
+          "packages.log": "2872b32be2e65adea68b3fce9d5f9a21c4b62b6ccc8443223e13f49b4923455f",
+          "packages.stage.json": "0fcb2dac7b7034946dfd23dce245406871ed528ba64ebf0b66b881440e3b9909",
+          "settings.json": "3acfee2b79df90b4fb1d8bcf69bd71dc03100461d73d8060df2eb84e30a1544d"
+        },
+        "report_errors": [
+          "Original Main stage failed: packages (exit 1)"
+        ]
+      },
+      "check-nut-locks": {
+        "exit_code": 0,
+        "original_sha256": {
+          "check.junit.xml": "58d534936288652d87e43e6a2e4566b2398ca3eb5af3faa940cba76644e66331",
+          "check.log": "60e4d304e36dd8a5577734a317e2b9f3b8c185afc155f3cc18bf1075f97672cc",
+          "check.stage.json": "952b009726fb3ec602d383214ae6384f2fcdaa8fce19c6d01e66ec1525a68627",
+          "coverage.json": "eededd1f53e96f53739e8899976b20c23b0a98ae37af9c053beda72b646257c4",
+          "fetch-develop.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "fetch-develop.stage.json": "ad8d1ee11e9c8c90183620deabd5317d45b79af57e5025ff91f7a664535934b3",
+          "go-env.json": "0da58a0a09288523c7475e9cbd97c449e87b6eace981b69c1438059caef10af6",
+          "go-env.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "go-env.stage.json": "f2ffa61eaac1820f35bfcd86258fa2aa3ff99cd64fb8182808ba9b8ffecb267c",
+          "inputs-after.json": "7fd192fd49a990bedef4408d6890a3b8d10c0f62bed13f481c7a003f40c30ed2",
+          "selection.json": "28b53c566f613a921870c59817ac476984e4cdbec962dfc6b0bd8604e59709c0",
+          "settings.json": "456255f92c7c4040720395a9f68f55293b868cbe1e361d20494c491659a50ee0",
+          "source/op-core/nuts/bundles/karst_nut_bundle.json": "08f5df36f7ff29a9421ab84beebe96684a7455df9a5d234a2468613a4008ad91",
+          "source/op-core/nuts/bundles/lagoon_nut_bundle.json": "2124ce31c0947cac15f00114214dd4354848f7b4642ff2d12ebb3f94b28cc989",
+          "source/op-core/nuts/fork_lock.toml": "e9cec834e0c53a9496e9fedf4cd4bab2cc623518ca440fc29669243051839276",
+          "source/op-core/nuts/state/jovian_state.json": "32c27eb93054837bcdcee91498d1befc542692a3db9427a90477444870b31a16",
+          "source/op-core/nuts/state/karst_state.json": "f616fc4e089051b59f95db7216e7f6438c94bcfdcade79ee8c93ea5e5239ad02",
+          "source/op-core/nuts/state/lagoon_state.json": "653fe3b583d3160c8201aea66e76714be982f461dd0ab5aeb455d3ff34f83751"
+        },
+        "report_errors": []
+      },
+      "check-op-geth-version": {
+        "exit_code": 0,
+        "original_sha256": {
+          "check.junit.xml": "f55d5e2e079559f71b536e96fbd781ce4eb27659b76aa54a52147168c2b47a00",
+          "check.log": "7c7a97d9ee5af61428650822a6d9ef9bf1da57ab6c5159236cfdb11d3754dad5",
+          "check.stage.json": "382af2ff60b791943fad2505aa85dd00ecdfeb856522de33bdb67a46f8ade483",
+          "coverage.json": "a1e307f7a7a973fd777c5819b275f8be6d6deacb485a76152b5a3e8469a6a260",
+          "go-env.json": "0da58a0a09288523c7475e9cbd97c449e87b6eace981b69c1438059caef10af6",
+          "go-env.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "go-env.stage.json": "c06788e1711b43451532187c4c9d809d0fb10e675f8245f82823150f71d10338",
+          "go-mod.json": "fd8ac05b7bf70bc317f0cc46fc21da0df5a4bcbb9c4794dd4358819e9a5ab38e",
+          "go-mod.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "go-mod.stage.json": "36484bdd578aca99cb96f80dc6d7f2a00e3d6069105419646d2de939f10ae1b5",
+          "inputs-after.json": "7fd192fd49a990bedef4408d6890a3b8d10c0f62bed13f481c7a003f40c30ed2",
+          "selection.json": "174ad254b0c3aebae86621721234cf2f840c2978340d4444f9e555f1c11f9a78",
+          "settings.json": "df5bcdc629911dbc7c8eae769acbabd024d71e0b111c2cea9600a86df344b38c",
+          "source/go.mod": "7f218bd78bc8519a81a7ed3ca8b932409ee21164511f189a7ba3d25c33e95014"
+        },
+        "report_errors": []
+      },
+      "l2-chains-sync-check": {
+        "exit_code": 0,
+        "original_sha256": {
+          "check.junit.xml": "e80c7feff55b9274c86d396f54ebd6f6b10ae751a63590bff0bd6c5ea0600597",
+          "check.log": "0d84769750a99d4f08c8920b2e854715bc06722fee3870fbadb397bb3dde9176",
+          "check.stage.json": "ddc38b607bdb91357fd7b2a2bd9e69c1875702ae5569afd7cf5b5c8be0b39e4f",
+          "configuration.json": "d29b962e1b8e3f5dd5c1450ddeff3d73a270af87f8c8005b56b749be2acb05aa",
+          "configuration.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "configuration.stage.json": "f03018230a51af66a9fa7cedde7d836bfb6398e81cc7bf0eb313d5626de22e3b",
+          "coverage.json": "fc48f9db4df653861b763903135b8b4fdf22d281d438f4ae7edf6bd13ee0a107",
+          "inputs-after.json": "7fd192fd49a990bedef4408d6890a3b8d10c0f62bed13f481c7a003f40c30ed2",
+          "selection.json": "d5c95dd4ad4bd739f28cde83926c604d08a0a0a4709b7667f944c5990c45f17a",
+          "settings.json": "e32a495073dc1d5b3e64e178d2c94d8c1f049eba4562e344383035426d7f9548",
+          "source/.circleci/continue/main.yml": "371362ec3cdeb8c230a2d8386e853a4ad43d23ffa25bb6a225b060e0e3d27479",
+          "source/.circleci/l2-rpcs.json": "1a0accf70e41416bab1b4332e3aa98bd3df977ef2c15dd64945a0b3b7885aff7"
+        },
+        "report_errors": []
+      },
+      "op-deployer-forge-version": {
+        "exit_code": 0,
+        "original_sha256": {
+          "check.junit.xml": "7922dd4e2251ce6bc2a44dc1d08460fd247b493013855b14a462156d8bd713b7",
+          "check.log": "7f96994827f458ff7ffc392b71746081a7087e26ca26eb2ed2aa11be4fd62daf",
+          "check.stage.json": "05c16e5edbe1a3abfef2bf4b308fcc2fa9eadc8538f6317c22aa9f619ac48a0b",
+          "coverage.json": "b7a3bf51dbcce3c0359c3604f7cabbe01edeeaa42d85aef99b623600ed0c5fe4",
+          "inputs-after.json": "7fd192fd49a990bedef4408d6890a3b8d10c0f62bed13f481c7a003f40c30ed2",
+          "mise-config.json": "6c6e00415388e38af67b022fabb2d33ff2d70633e161a0576335a486e0bb898c",
+          "mise-config.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "mise-config.stage.json": "b1eaa47ab0c085097f282f05ae2b4f431e5e786d7a5890724d457a4940c6e518",
+          "selection.json": "dbd9983253ab663a1c08be449b6aaf0f83e459cf9333dc29612dab76c603b23b",
+          "settings.json": "61bce6799727809eed50f4eb76cb471ec2d6802b3c7862a31dbac0fbd2690825",
+          "source/mise.toml": "0b557a308b0cd91fd3db80af744520053106924fca7dad9ef682175930280e9a",
+          "source/op-deployer/pkg/deployer/forge/version.json": "fa7e2c9e50b2693fde89d6a7925a52a9405151c904b082863a3063ddbd079892"
+        },
+        "report_errors": []
+      },
+      "todo-issues-check": {
+        "exit_code": 0,
+        "original_sha256": {
+          "check.junit.xml": "02ccd6c74155d3d912ee4a61f4a5bee001f4699727e446de73926d9233ee0acf",
+          "check.log": "d51eda6a3e4d94fa3f62dffe808eb53fb628d5f88d3f3468b3d07029cdfa46d8",
+          "check.stage.json": "944a2f4c5c31cfedcdf18b127e19855755fc81887c431368e8c1ec72fc6f32ed",
+          "coverage.json": "49fd9a44372b5927258e0bf50b14a61da2fe4af19af9a288a8d607f33258b267",
+          "files.log": "efa45df7fd59a5cacee4623f17864c0251dee27a9daa3c5bd392aecc6d4ad311",
+          "files.stage.json": "edb1d5d44910fe2f79170c18b59e0b79a7708acc5849c1265bea5e6133bb9646",
+          "inputs-after.json": "7fd192fd49a990bedef4408d6890a3b8d10c0f62bed13f481c7a003f40c30ed2",
+          "near-misses.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "near-misses.stage.json": "66b23051e7f6dcac391117347105bf382538cafef838dca05d7bf91812e0c0ae",
+          "selection.json": "121a38883897fe748069f80ab4141d3bcc4f836b9e25679b7dda1ad53f899e3c",
+          "settings.json": "253a8ed9dc0fec68c3d823e0a92244a3b9b541c0f70c74f282ac188a5e9cb717",
+          "todos.log": "5fc818c5c2e4de1a678b7c9560738c6e525f47d12d7eaeb1001fa6f7124f5dcb",
+          "todos.stage.json": "a0d2fcd5691c510cb331a34d43d2918f7397a9c7ff64681c2e79aa17b8ec5943"
+        },
+        "report_errors": []
+      }
+    },
+    "rwx": {
+      "check-generated-mocks-op-node": {
+        "exit_code": 1,
+        "first_failed_stage": {
+          "argv": [
+            "go",
+            "list",
+            "-tags=generate",
+            "-json",
+            "./..."
+          ],
+          "cwd": "/var/mint-workspace/op-node",
+          "elapsed_seconds": 0.815692663192749,
+          "exit_code": 1,
+          "log_sha256": "2872b32be2e65adea68b3fce9d5f9a21c4b62b6ccc8443223e13f49b4923455f",
+          "started_at": 1791151706.2789066,
+          "stdin": "devnull"
+        },
+        "original_diagnostic": "../op-core/superchain/chain.go:21:12: pattern superchain-configs.zip: no matching files found\n",
+        "original_sha256": {
+          "check.junit.xml": "5cc6878399237303aa5c37c92737f555247d68ab0fe04a0962ee4bf11079a056",
+          "go-env.json": "0da58a0a09288523c7475e9cbd97c449e87b6eace981b69c1438059caef10af6",
+          "go-env.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "go-env.stage.json": "dbea458585ecc591d1035c319406db5ebb89eb3c3ef6778ac9c33bdf88772dda",
+          "packages.json": "eaaf86ece781723453fac0fbe454ec3cc941b45c894e74b8f9e766a857dd1d7a",
+          "packages.log": "2872b32be2e65adea68b3fce9d5f9a21c4b62b6ccc8443223e13f49b4923455f",
+          "packages.stage.json": "7c4a7e71a6f9f08b8620ef43e60fb36b1f37e5ab2fa6d1d445a35aceef6ef839",
+          "settings.json": "dd2a3d8f24af22ea384f5f02d417908c83543cb8674ece364ceb792aad63fdd3"
+        },
+        "report_errors": [
+          "Original Main stage failed: packages (exit 1)"
+        ]
+      },
+      "check-generated-mocks-op-service": {
+        "exit_code": 1,
+        "first_failed_stage": {
+          "argv": [
+            "go",
+            "list",
+            "-tags=generate",
+            "-json",
+            "./..."
+          ],
+          "cwd": "/var/mint-workspace/op-service",
+          "elapsed_seconds": 0.3886702060699463,
+          "exit_code": 1,
+          "log_sha256": "2872b32be2e65adea68b3fce9d5f9a21c4b62b6ccc8443223e13f49b4923455f",
+          "started_at": 1791151706.7299404,
+          "stdin": "devnull"
+        },
+        "original_diagnostic": "../op-core/superchain/chain.go:21:12: pattern superchain-configs.zip: no matching files found\n",
+        "original_sha256": {
+          "check.junit.xml": "6d4cb095eefae96241e6f887bf1e9436a53de2b3749d8014c32fe1518ef60dc9",
+          "go-env.json": "0da58a0a09288523c7475e9cbd97c449e87b6eace981b69c1438059caef10af6",
+          "go-env.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "go-env.stage.json": "616b49cce34d6962eca81042c88c8a2346d103ea637e900b0cd8204ac3b45ec2",
+          "packages.json": "eaf78d1a4361e327b504a968a85011c76f07e8a70874c672a4bf2c1c0389b5dc",
+          "packages.log": "2872b32be2e65adea68b3fce9d5f9a21c4b62b6ccc8443223e13f49b4923455f",
+          "packages.stage.json": "2c69fd4208d85256013e698911859bb6e8800576a81167df10fe924ef8c4b32e",
+          "settings.json": "90d4e46c5cf0d3fa6358182d061e9212ab83cdeb2696a97be40047527309a703"
+        },
+        "report_errors": [
+          "Original Main stage failed: packages (exit 1)"
+        ]
+      },
+      "check-nut-locks": {
+        "exit_code": 0,
+        "original_sha256": {
+          "check.junit.xml": "58d534936288652d87e43e6a2e4566b2398ca3eb5af3faa940cba76644e66331",
+          "check.log": "60e4d304e36dd8a5577734a317e2b9f3b8c185afc155f3cc18bf1075f97672cc",
+          "check.stage.json": "39bed609bdaaf82a6404ef00606ff0ea75766443f8e9329fb7e5f688de543b51",
+          "coverage.json": "eededd1f53e96f53739e8899976b20c23b0a98ae37af9c053beda72b646257c4",
+          "fetch-develop.log": "c9e46193d19077e2c181cfdd3c955fb5af4f71b8cbfe92e16e1d4ffac0bb5220",
+          "fetch-develop.stage.json": "5a1375fdac4f5b48d00da4e285e00c8071585ce88ffe24ec79adf9858fcc8b14",
+          "go-env.json": "0da58a0a09288523c7475e9cbd97c449e87b6eace981b69c1438059caef10af6",
+          "go-env.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "go-env.stage.json": "c30ec0eb74d036e64bb51f76dab09ab56b97b52a8271f99e8c3cf11b024f1087",
+          "inputs-after.json": "7fd192fd49a990bedef4408d6890a3b8d10c0f62bed13f481c7a003f40c30ed2",
+          "selection.json": "28b53c566f613a921870c59817ac476984e4cdbec962dfc6b0bd8604e59709c0",
+          "settings.json": "f936326919cf96dea714984aa1ce739ee1d7f60d1fd1b6bcff7380f90cdfd03d",
+          "source/op-core/nuts/bundles/karst_nut_bundle.json": "08f5df36f7ff29a9421ab84beebe96684a7455df9a5d234a2468613a4008ad91",
+          "source/op-core/nuts/bundles/lagoon_nut_bundle.json": "2124ce31c0947cac15f00114214dd4354848f7b4642ff2d12ebb3f94b28cc989",
+          "source/op-core/nuts/fork_lock.toml": "e9cec834e0c53a9496e9fedf4cd4bab2cc623518ca440fc29669243051839276",
+          "source/op-core/nuts/state/jovian_state.json": "32c27eb93054837bcdcee91498d1befc542692a3db9427a90477444870b31a16",
+          "source/op-core/nuts/state/karst_state.json": "f616fc4e089051b59f95db7216e7f6438c94bcfdcade79ee8c93ea5e5239ad02",
+          "source/op-core/nuts/state/lagoon_state.json": "653fe3b583d3160c8201aea66e76714be982f461dd0ab5aeb455d3ff34f83751"
+        },
+        "report_errors": []
+      },
+      "check-op-geth-version": {
+        "exit_code": 0,
+        "original_sha256": {
+          "check.junit.xml": "f55d5e2e079559f71b536e96fbd781ce4eb27659b76aa54a52147168c2b47a00",
+          "check.log": "cb9e972c47ac2f21d92efdf0db60dde369745bb70a0b6ac2e44e5897fb8a8af4",
+          "check.stage.json": "fd9e2b6d53e00eafe173acf8191eb06fad968a786be5a2978d3f71e42bd3a45c",
+          "coverage.json": "a1e307f7a7a973fd777c5819b275f8be6d6deacb485a76152b5a3e8469a6a260",
+          "go-env.json": "0da58a0a09288523c7475e9cbd97c449e87b6eace981b69c1438059caef10af6",
+          "go-env.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "go-env.stage.json": "ace0041e8ca8bc18e28747211fc3ba29995ea733668bf3c1f6f82ec014ae12b0",
+          "go-mod.json": "fd8ac05b7bf70bc317f0cc46fc21da0df5a4bcbb9c4794dd4358819e9a5ab38e",
+          "go-mod.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "go-mod.stage.json": "f9d4b73fa4546a2d31c495c228d461a5d7448a6b3ca07cd1f4b0e04ecbe7e6c3",
+          "inputs-after.json": "7fd192fd49a990bedef4408d6890a3b8d10c0f62bed13f481c7a003f40c30ed2",
+          "selection.json": "174ad254b0c3aebae86621721234cf2f840c2978340d4444f9e555f1c11f9a78",
+          "settings.json": "f946afb676a4ec05527d5b69308572aaf22f9f2b6579821f06e3a1aeac94e420",
+          "source/go.mod": "7f218bd78bc8519a81a7ed3ca8b932409ee21164511f189a7ba3d25c33e95014"
+        },
+        "report_errors": []
+      },
+      "l2-chains-sync-check": {
+        "exit_code": 0,
+        "original_sha256": {
+          "check.junit.xml": "e80c7feff55b9274c86d396f54ebd6f6b10ae751a63590bff0bd6c5ea0600597",
+          "check.log": "0d84769750a99d4f08c8920b2e854715bc06722fee3870fbadb397bb3dde9176",
+          "check.stage.json": "d5c68dbbca885d07aaa5dc4ccada214f52a3bfd8ed73bd95205be325ce29b0cf",
+          "configuration.json": "d29b962e1b8e3f5dd5c1450ddeff3d73a270af87f8c8005b56b749be2acb05aa",
+          "configuration.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "configuration.stage.json": "0a41d19d314a4fec474800636cba9d99d781b86423b75c6d45d7e2532e7ca79e",
+          "coverage.json": "fc48f9db4df653861b763903135b8b4fdf22d281d438f4ae7edf6bd13ee0a107",
+          "inputs-after.json": "7fd192fd49a990bedef4408d6890a3b8d10c0f62bed13f481c7a003f40c30ed2",
+          "selection.json": "d5c95dd4ad4bd739f28cde83926c604d08a0a0a4709b7667f944c5990c45f17a",
+          "settings.json": "d9fd7295980d87a18e00748fdd70b78e01e0a9b285339e3818f5aa1ba2fb561d",
+          "source/.circleci/continue/main.yml": "371362ec3cdeb8c230a2d8386e853a4ad43d23ffa25bb6a225b060e0e3d27479",
+          "source/.circleci/l2-rpcs.json": "1a0accf70e41416bab1b4332e3aa98bd3df977ef2c15dd64945a0b3b7885aff7"
+        },
+        "report_errors": []
+      },
+      "op-deployer-forge-version": {
+        "exit_code": 0,
+        "original_sha256": {
+          "check.junit.xml": "7922dd4e2251ce6bc2a44dc1d08460fd247b493013855b14a462156d8bd713b7",
+          "check.log": "7f96994827f458ff7ffc392b71746081a7087e26ca26eb2ed2aa11be4fd62daf",
+          "check.stage.json": "8620d13f6c44d59bb63b6c0f4c2853293d414d285a1fa39e5cc15fe31287bcd5",
+          "coverage.json": "b7a3bf51dbcce3c0359c3604f7cabbe01edeeaa42d85aef99b623600ed0c5fe4",
+          "inputs-after.json": "7fd192fd49a990bedef4408d6890a3b8d10c0f62bed13f481c7a003f40c30ed2",
+          "mise-config.json": "6c6e00415388e38af67b022fabb2d33ff2d70633e161a0576335a486e0bb898c",
+          "mise-config.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "mise-config.stage.json": "8184349846070f51ab0e81f03147826f10a83253442774d0405795499d72abdc",
+          "selection.json": "dbd9983253ab663a1c08be449b6aaf0f83e459cf9333dc29612dab76c603b23b",
+          "settings.json": "eb8d31c48bd42ca48401d864f7602fed34c7c0063115a98adbf1ca80ca961fe8",
+          "source/mise.toml": "0b557a308b0cd91fd3db80af744520053106924fca7dad9ef682175930280e9a",
+          "source/op-deployer/pkg/deployer/forge/version.json": "fa7e2c9e50b2693fde89d6a7925a52a9405151c904b082863a3063ddbd079892"
+        },
+        "report_errors": []
+      },
+      "todo-issues-check": {
+        "exit_code": 0,
+        "original_sha256": {
+          "check.junit.xml": "02ccd6c74155d3d912ee4a61f4a5bee001f4699727e446de73926d9233ee0acf",
+          "check.log": "d51eda6a3e4d94fa3f62dffe808eb53fb628d5f88d3f3468b3d07029cdfa46d8",
+          "check.stage.json": "2b205c23c9c3392b22be3e667ca04bad07c26de29fb74c3520020ac37f768b80",
+          "coverage.json": "49fd9a44372b5927258e0bf50b14a61da2fe4af19af9a288a8d607f33258b267",
+          "files.log": "053e642223756995eeff65f03e9ceaf6c667cadfb5f1fb95cf6bb423271f17fe",
+          "files.stage.json": "7d954b60268570e143107927dd0a7cf7ac3a4eda2e14855cd190b15f8e5fc351",
+          "inputs-after.json": "7fd192fd49a990bedef4408d6890a3b8d10c0f62bed13f481c7a003f40c30ed2",
+          "near-misses.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "near-misses.stage.json": "a00a4c49008c8c273271325b87e42971c07c69a4ee368b2c8e9d33e30306b11a",
+          "selection.json": "121a38883897fe748069f80ab4141d3bcc4f836b9e25679b7dda1ad53f899e3c",
+          "settings.json": "fd3b23cd3efa740e2cd0d7894b6cbb09abe989c50e4a5c63243d8586f6e085b5",
+          "todos.log": "391d9f339583f8166f1929420106416450036c73b9f35fed928c7a86b2165dc1",
+          "todos.stage.json": "aff314894fd135313e5f9211c33edbd0238f09604707b0d51a0cfe30411f7d55"
+        },
+        "report_errors": []
+      }
+    }
+  },
+  "source_sha": "7c547ece54dfbe598abe08cf26326e0764912a33",
+  "verified_parity": false
+}

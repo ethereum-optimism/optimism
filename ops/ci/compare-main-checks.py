@@ -28,6 +28,34 @@ def source_files(directory, settings, expected):
     return root
 
 
+def superchain(directory, selected, settings, provider):
+    root = directory / 'dependencies'
+    bundle = root / 'superchain-configs.zip'; pin = root / 'superchain-configs.zip.sha256'
+    expected = pin.read_text().split()[0]
+    if not re.fullmatch('[0-9a-f]{64}', expected) or MAIN.STAGES.digest(bundle) != expected or \
+       MAIN.STAGES.digest(pin) != settings['input_sha256'][MAIN.BUNDLE + '.sha256']:
+        raise ValueError('Missing or corrupt original pinned superchain bundle')
+    identity = {'source_sha':settings['source_sha'], 'registry_revision':settings['input_sha256']['superchain-registry']['gitlink'],
+                'sha256':expected,'expected_sha256':expected,
+                'input_sha256':{name:settings['input_sha256'][name] for name in MAIN.BUNDLE_INPUTS},
+                'tools':{name:settings['tools'][name] for name in ('go','just','jq','yq')}}
+    if selected != identity: raise ValueError('Wrong superchain source, inputs or tools')
+    if provider == 'rwx':
+        root = directory / 'producer'; manifest = json.loads((root / 'manifest.json').read_text())
+        if manifest['exit_code'] or manifest['report_errors'] or set(manifest['original_sha256']) != \
+           {'bundle.json','coverage.json','superchain.log','superchain.stage.json'}:
+            raise ValueError('Failed or incomplete reusable superchain producer')
+        for name, value in manifest['original_sha256'].items():
+            if MAIN.STAGES.digest(root / name) != value: raise ValueError('Corrupt original superchain producer')
+        if json.loads((root / 'bundle.json').read_text()) != identity or \
+           json.loads((root / 'coverage.json').read_text()) != {'tests':0,'verified_bundle':True}:
+            raise ValueError('Wrong original reusable superchain binding')
+        stage = json.loads((root / 'superchain.stage.json').read_text())
+        if (stage['argv'],stage['cwd'],stage['exit_code'],stage.get('stdin')) != \
+           (['just','build-superchain-go'],settings['workspace_root'],0,'devnull'):
+            raise ValueError('Wrong original reusable superchain command')
+
+
 def report(directory, job, sha, provider, empty):
     required = {'settings.json', 'selection.json', 'coverage.json', 'check.stage.json', 'check.log', 'check.junit.xml', 'inputs-after.json'}
     hashes = ORIGINALS.originals(directory, required, empty, provider + '/' + job)
@@ -53,7 +81,8 @@ def report(directory, job, sha, provider, empty):
     expected = {'check': MAIN.COMMANDS[job]}
     if job in MAIN.GO_JOBS: expected['go-env'] = ['go', 'env', '-json', 'GOOS', 'GOARCH', 'CGO_ENABLED', 'GOFLAGS', 'GOTOOLCHAIN']
     if job in MAIN.MOCKS:
-        expected.update(packages=['go', 'list', '-tags=generate', '-json', './...'], generators=['go', 'generate', '-n', '-v', './...'])
+        expected.update(superchain=['just','build-superchain-go'], packages=['go', 'list', '-tags=generate', '-json', './...'], generators=['go', 'generate', '-n', '-v', './...'])
+        superchain(directory, selected['superchain'], settings, provider)
         component = MAIN.MOCKS[job]
         rows = MAIN.PR.objects((directory / 'packages.json').read_text())
         names = {name for name in settings['input_sha256'] if name.startswith(component + '/') and name.endswith('.go')}
