@@ -33,7 +33,10 @@ Cargo-hack's shared Just recipes have an optional command-list mode. Both
 providers retain exact plans and executed commands. They use the source SHA as
 the shuffle seed, replacing Circle's workflow-ID seed so partitions are stable
 and directly comparable across providers. This changes assignment, preserving
-the full feature and test-target workload and all ten partitions.
+the full feature and test-target workload and all ten partitions. Discovery uses
+an unpartitioned plan: pinned cargo-hack 0.6.44 does not advance partition progress
+while printing dry commands. Live global indices establish each command's owner.
+Circle's reusable template also retains its default single-node mode.
 
 Tool preparation and Cargo downloads are shared. Each compilation profile and
 feature partition has its own native target/sccache cache. The source-freshness
@@ -53,13 +56,70 @@ An actual develop warming event remains a post-merge follow-up.
   retains an intentional failure and verifies fresh success on rerun.
 - [x] Helper tests, routing/Circle adapter fixtures, ShellCheck, RWX lint and
   merged/activated Circle config validation.
-- [ ] Native execution of all eight workloads and all ten feature partitions.
-- [ ] Complete same-SHA Circle/RWX original-report comparison, including ignored
+- [x] Native execution of all eight workloads and all ten feature partitions.
+- [x] Complete same-SHA Circle/RWX original-report comparison, including ignored
   and online cases, doctests, the beacon regression and observed retry histories.
-- [ ] Exactly-once combined feature-plan coverage on each provider.
-- [ ] Retain cache reuse observations and final terminal PR checks.
+- [x] Exactly-once combined feature-plan coverage on each provider.
+- [x] Retain cache reuse observations and final terminal PR checks.
 
-The parity inventory remains 21/86 until hosted execution is verified. Completing
-these eight jobs would bring the baseline inventory to 29/86 (34%). WASM,
-Cannon-specific Rust jobs, Rust E2E, remaining contract jobs and operational gate
-rehearsals remain outside this stage.
+## Hosted closeout
+
+The benchmark revision is `68ad71e05f212ac925a01df72e8dda703c0385fa`:
+[RWX run 49dc4302](https://cloud.rwx.com/optimism/runs/49dc43026d3e4364b2f17e0a1bba4a1e)
+and [Circle pipeline 135545](https://app.circleci.com/pipelines/github/ethereum-optimism/optimism/135545).
+Both providers passed every workload. Complete package/features/target manifests,
+input hashes, tool versions, selections, outcomes, exclusions and observed
+retry histories agree. The [evidence index](rwx-rust-evidence/parity.json) records
+all job/task IDs and original-file hashes.
+
+| Evidence | CircleCI | RWX |
+| --- | ---: | ---: |
+| Workspace packages, including packages without tests | 76 | 76 |
+| Selected unit cases passed | 3,386 | 3,386 |
+| Explicit unit exclusions | 10 | 10 |
+| Beacon bounded-stack regression passed | 1 | 1 |
+| Doctests per occurrence: passed / ignored | 23 / 17 | 23 / 17 |
+| no_std packages completed | 19 | 19 |
+| Library feature commands, exactly once across 10 partitions | 352 | 352 |
+| Isolated default-feature test-target commands, exactly once | 76 | 76 |
+| Observed test retries | 0 | 0 |
+
+The independently scheduled doctest occurrence and the one within `rust-tests`
+are both retained. Compile-only `no_run` cases remain distinguished from executed
+cases. Coverage files for unit, beacon, both doctest occurrences and no_std are
+byte-identical. Rustdoc's annotation and Cargo-home path are normalized while
+original discovery/output logs remain unchanged. Circle omits 17 zero-byte
+workspace stderr logs from its artifact API; original final manifests declare
+SHA256(empty) for those files. All nonempty original inputs are retained.
+
+The 170-test pinned Linux helper suite passes (one opt-in live fixture skipped); the
+separate real Rust fixture passes all 17 tests, including archived intentional
+failure/fresh rerun, compile-only doctests, empty feature assignment and Circle's
+single-node compatibility mode. All 35 routing/Circle adapter fixtures pass.
+ShellCheck, RWX lint, merged Circle validation and activated Rust config processing
+pass. The benchmark revision's four required Circle gates, dependency review and
+six optional RWX checks are terminal and successful.
+
+A targeted [same-SHA native repeat](https://cloud.rwx.com/optimism/runs/54b164d7362c4cc986ecc105cde6d390)
+restored `rust-workspace-no-std-v1`, preserved the source fingerprint and executed
+all 19 checks freshly with a new run identity. Its command execution was 14s
+versus 249s on the initial compiler-cold task. These are functional cache
+observations; they exclude setup/transfers and establish no pipeline speed win.
+
+The [first-failure index](rwx-rust-evidence/first-failures.json) preserves the
+initial cwd/tool-preparation failures and original report-collector failures.
+Their successful corrections do not replace those failed verdicts.
+
+## Remaining work
+
+Coverage is **29/86 = 34%** of the baseline PR inventory, including **12/22 = 55%**
+of Rust workflow jobs. Circle retains all required gates. WASM, Cannon-specific
+Rust jobs, Rust E2E, remaining contracts and operational gate rehearsals remain
+outside this stage.
+
+Further performance tuning is deferred. The initial test target layer was about
+39 GiB and the archive about 5.5 GiB; runtime transfers and uneven feature
+partitions remain explicit bottlenecks. No runner/shard performance matrix or
+RWX-versus-Circle speed claim was made. Observe actual protected-develop warming
+after these definitions reach develop; the configured warm-only targets execute
+zero workload tests.

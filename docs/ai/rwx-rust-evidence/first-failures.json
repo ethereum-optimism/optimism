@@ -1,0 +1,156 @@
+{
+  "failed_runs": [
+    {
+      "sha": "a5aff51d31933ab72b539a7165ae8ac4afc449d9",
+      "rwx_run": "https://cloud.rwx.com/optimism/runs/9277d3752d6a45a89bff120b6f80de71",
+      "circle_pipeline": "https://app.circleci.com/pipelines/github/ethereum-optimism/optimism/135542",
+      "attribution": "Port-specific helper path resolution after changing cwd and missing m4/file for GMP. No parity claim for this failed revision.",
+      "retained_circle_log_sha256": {
+        "rwx-rust-circle-5632759-failure.log": "e1e528e451c806d45817c926de0fa065026db409ae685f6b98a8997d004bc192",
+        "rwx-rust-circle-5632760-failure.log": "e1e528e451c806d45817c926de0fa065026db409ae685f6b98a8997d004bc192"
+      }
+    },
+    {
+      "sha": "6a3016f78ebf75d887d460e7eb8526861aa333c3",
+      "rwx_run": "https://cloud.rwx.com/optimism/runs/7ef704090d9c452eaf406266391d3cef",
+      "circle_pipeline": "https://app.circleci.com/pipelines/github/ethereum-optimism/optimism/135543",
+      "attribution": "Primary commands passed; the first reporting collector rejected compile-only doctests and misunderstood pinned cargo-hack dry-run partition progress. The remaining native partition was explicitly canceled after supersession; no full-stage parity claim."
+    }
+  ],
+  "original_failure_reports": [
+    {
+      "revision": "6a3016f78ebf75d887d460e7eb8526861aa333c3",
+      "provider": "circle",
+      "job": "tests",
+      "primary_exit_code": 0,
+      "report_errors": [
+        "doctests: Incomplete doctests coverage"
+      ],
+      "attribution": "Rust execution passed; report collection rejected rustdoc compile-only annotations.",
+      "original_final_sha256": "933bb82acab7fcba88fd669cd8caa5aa115bfc9771d3ac7ae55cf43180fbc175",
+      "original_sha256": {
+        "beacon-coverage.json": "c3dd65380327d3271fb52c048c2a62d69a88ca69bd0336ccbaaf5f792b420cc3",
+        "beacon-list.log": "901a1abc6bfeaceb632fd86ac4382ecadfa28388069e1173229f1a6bcfd17b93",
+        "beacon-list.stage.json": "3dded80e5c1780c7b10fdf3e12e0b00a7a8634ad6778de1fe47f394974690995",
+        "beacon.junit.xml": "e46ee3725467e41a69570e40f55714629b210f259c2ac5ed1ae06a75db2c4a8c",
+        "beacon.log": "f41590a231fdeefa8b0934b45b9fb7b1edaf0f4dfe398df1c3293c1edb9834f5",
+        "beacon.stage.json": "e89544dd442cd59ed97f5eae89cd2850ddcb7c12252fdddaffcdc5cde246def8",
+        "doctests-coverage.json": "0d0283fb884981032a86e0c0665555b5f0c2e183abb0bec3443726513379565a",
+        "doctests-list.log": "27375f7577592ddb57f2477b440be08095b61dc84450ba11b26331a7c8e62fa4",
+        "doctests-list.stage.json": "1f71f0bf09e219369ca98c0d3e5f98cdc239638ebc6a3332a027f3631cb5f636",
+        "doctests.junit.xml": "9134a8bd3c2ffec2cad4dcadff0db07f9b63a8fd15202bcd3f202f70e9df21a8",
+        "doctests.log": "88543be4cfc494db11bdc102271c57cc7a2fca7b6da39b148b6ad9a7fab1fdd4",
+        "doctests.stage.json": "1b52fb328974516ddbe69c0abacf7f6c94aa6e6e0531eef0a5de2780cac9fcc5",
+        "junit.xml": "7cf63557cd4510e1a1a158f6a5204b3425bb33534297caebc8ab9919e566c182",
+        "settings.json": "792748fcc2de50fd079f05d6713dc8155f7407a97b3a45d63623314b36b937b0",
+        "unit-coverage.json": "12b468f439a91c020ba655d981762282dcd78c246cbf53956202011ad54cbce8",
+        "unit-list.json": "832462ca2798a0aaeb307c9bfd08559525cae68ca5000f97b6b480a4612073c4",
+        "unit-list.log": "a7f0ee59a188f59e18d057e1ebc4e8ddf95382ba8e5d6a3fa768eec2942a8acd",
+        "unit-list.stage.json": "dae5c609fad01000c657d1e107553c2cb1bcea01feebc7ebfdcdf5051188ee49",
+        "unit.log": "7b567afd4c32fc97e2a1d911f3c9307658d5b942411be13270f87368bfc25e4a",
+        "unit.stage.json": "963185d7fb886401516d1f0d2803c601902ed8cdfadda8456833a50de40f0ace",
+        "workspace.json": "556ef68198f35c24a40e16c40532d1e7eae41c0009eeb48ca7a87585f35d7592",
+        "workspace.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "workspace.stage.json": "e9a41607c6b905873be475fb87b4e98434efa537d5e7b6d9554d5e27f617249b"
+      }
+    },
+    {
+      "revision": "6a3016f78ebf75d887d460e7eb8526861aa333c3",
+      "provider": "rwx",
+      "job": "tests",
+      "primary_exit_code": 0,
+      "report_errors": [
+        "doctests: Incomplete doctests coverage"
+      ],
+      "attribution": "Rust execution passed; report collection rejected rustdoc compile-only annotations.",
+      "original_final_sha256": "986eae4414c4ecb517bfee6e1eebfc17fff1caeb153a889655fb659336647935",
+      "original_sha256": {
+        "beacon-coverage.json": "c3dd65380327d3271fb52c048c2a62d69a88ca69bd0336ccbaaf5f792b420cc3",
+        "beacon-list.log": "1f0d9ccae324f181cf90d23aaeae76947c8fb18751b5e1183471e85e2c121838",
+        "beacon-list.stage.json": "d53e521a8bc10175b303b3d88aca76964b1365b06ff74269d1fa7d453f67e9d1",
+        "beacon.junit.xml": "e46ee3725467e41a69570e40f55714629b210f259c2ac5ed1ae06a75db2c4a8c",
+        "beacon.log": "564b042d69501037509009a6817b82fdb38ba332c27e495028e74780c683eafc",
+        "beacon.stage.json": "05e65ffa730688d9b469da868b840ac4988e7bc49885fbc056c6cf319adeaa1f",
+        "cache-source.json": "6aca28550304c48aa2b4940b31c01735aef5ad433fccc3ab8c8b70892f1b3cb6",
+        "doctests-coverage.json": "3de8df27b6e07749aab93ccdd5d9bd2dc5aac3e30e9e69b0b3f739652713469d",
+        "doctests-list.log": "04f55055025b3fdc34d060c18d08a8d74495866c10339837a71cbb0f30bd02df",
+        "doctests-list.stage.json": "730979a6b1c97c7789ab7933e031526f4a990c2f9e6b4014b1ca6d36d8426c69",
+        "doctests.junit.xml": "b6f7733bba24b67fef5930b94d1a82f8098f397542ad046124281ada40177f97",
+        "doctests.log": "3df8fa4785c0539768546d47243a8222706b0a38525ad28010a37a01f8c9f82a",
+        "doctests.stage.json": "0696cc153e25e8a33c2c0f5fcd069a264581e189796bc6e39c82fcb252ace542",
+        "junit.xml": "b66d6ba007ab9168c20a4363143480af8ca5a54d72564a42c2225e9b6ba8ef70",
+        "sccache-stop.log": "cbce68bfc01501247ab46cbff446061f1bc3a31bb472636862818a496584f06a",
+        "sccache.json": "b6282d74ab66d0acf9f7861ed107537ac8eeba27a9c9c95f70f031800a3d5bd7",
+        "settings.json": "2a4c2947312d1a5b5832e7976ef4c04cbbe04ff6e970b59f89532e07e3d8203a",
+        "unit-coverage.json": "12b468f439a91c020ba655d981762282dcd78c246cbf53956202011ad54cbce8",
+        "unit-list.json": "9627530e2caa6751c3d09bc568a54528c3fdec8fc6f02e5406f5f85cbcc2de4a",
+        "unit-list.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "unit-list.stage.json": "87398f98e9653aa7c417399a97b50c4e61b080120673d2b1a955d2dfa09c37a3",
+        "unit.log": "d2f64a7f1f34eb68b7114d6a4361913ddae3d08958956ce42ca8712bfcf26dae",
+        "unit.stage.json": "22fb50baf843ec819e943c17abce5f20240488b0f34896a41e7706b052d67657",
+        "workspace.json": "9276b9f5a27f928c5807a5b4306d6bc3e2335af249238ff0916adc4d344e70b8",
+        "workspace.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "workspace.stage.json": "2fa01fa4c9d5e24a0915dc37e653b0f7ecd49aae7e092fde5971e9cb630d6275"
+      }
+    },
+    {
+      "revision": "6a3016f78ebf75d887d460e7eb8526861aa333c3",
+      "provider": "circle",
+      "job": "features-0",
+      "primary_exit_code": 0,
+      "report_errors": [
+        "Incomplete feature command execution"
+      ],
+      "attribution": "Cargo-hack execution passed; the report collector incorrectly compared partitioned dry commands with live commands.",
+      "original_final_sha256": "de7e61efa57190b1f6fd883b0cc6f829033f6f3542da1a24c2eb269e7d655092",
+      "original_sha256": {
+        "feature-coverage.json": "ba5e25b2768bbb19ac34fd1cbd34265636df4ae34e97f75f57de22b03fd22fbd",
+        "feature-tests-list.log": "450fff1db7e7d2d6d9dcef8e0a721fb8e9ee1fa9d440df19744fd8723af43e03",
+        "feature-tests-list.stage.json": "c1e04da63ae6d9ed1ccdb0a82d8a1895b63dc2e9f2333710c5111e7574649a66",
+        "feature-tests.log": "b42067413c340dd28ef3d247c1c180acc72d2f3904ba4cea5bc331fcf153aa8d",
+        "feature-tests.stage.json": "985bc9c183e77cc4b9001549be58e506a5f675acf0cfc06201145a9581189cbf",
+        "features-list.log": "7dfef75591c3c3a40b5123a7cabd5a4b16aa4c0a83694d29d7c4fe0bcfbdaa48",
+        "features-list.stage.json": "d08469f7c93fa3b236978a7c8953779097695abad686f7665e19047840a65696",
+        "features.log": "3b3601d94dfa69c177c00e753b7b2859a855a5c90ed7b38ae72e5c54334f2c2a",
+        "features.stage.json": "863450a448fc2649f601d764d029f62f346813f477e043b70d3083170a0caa67",
+        "settings.json": "7ed8f8bfc6100c255d6adef3b51fd68db35e02e1cdca3952d41c3756949451dc",
+        "workspace.json": "556ef68198f35c24a40e16c40532d1e7eae41c0009eeb48ca7a87585f35d7592",
+        "workspace.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "workspace.stage.json": "e6b169f966153b808a4de886f934d61eebd304a59d684859b4f8f6c422c4f79a"
+      }
+    },
+    {
+      "revision": "6a3016f78ebf75d887d460e7eb8526861aa333c3",
+      "provider": "rwx",
+      "job": "features-0",
+      "primary_exit_code": 0,
+      "report_errors": [
+        "Incomplete feature command execution"
+      ],
+      "attribution": "Cargo-hack execution passed; the report collector incorrectly compared partitioned dry commands with live commands.",
+      "original_final_sha256": "3dd7ca0ba8b8da16918fff41c30485d3d958fb6b64b813a9abac7b79171f5bc2",
+      "original_sha256": {
+        "cache-source.json": "ca2078b709017cd668e9fa70d0906282e962a1274cbbc02db9dadb6278099d1c",
+        "feature-coverage.json": "ba5e25b2768bbb19ac34fd1cbd34265636df4ae34e97f75f57de22b03fd22fbd",
+        "feature-tests-list.log": "450fff1db7e7d2d6d9dcef8e0a721fb8e9ee1fa9d440df19744fd8723af43e03",
+        "feature-tests-list.stage.json": "2723d3b9bdad5be40663d5b31e3ecd3b512d06c863edff118cf1728c766e8bb4",
+        "feature-tests.log": "b74a8681af78686a2c81ac28cfa4198bc8765f09569a4abb96709640d5081021",
+        "feature-tests.stage.json": "e87890a34151f8abe3ace4645f10835d9e317e494603a826dddbda294d522eee",
+        "features-list.log": "7dfef75591c3c3a40b5123a7cabd5a4b16aa4c0a83694d29d7c4fe0bcfbdaa48",
+        "features-list.stage.json": "cda9e8e166b58f1fc7f7a68a17ccd64f4aa402c167fa4cc09bda660650a58e69",
+        "features.log": "e47a9cf12d282faf829eabda37d844683a91e1e349cf6681c895f1b2e1a5573f",
+        "features.stage.json": "5b2a1a03ee471b0574521675490e33d8472a8b259b3b37d65dd8092b60bc5e2a",
+        "sccache-stop.log": "f7c1d5301dffe26c8c2c7c8c9149197b09c355b39c391bbf27e1047b393f4103",
+        "sccache.json": "54436a3ab6337ef7d6deefdd6cea2233c9456776e7798c3b2bac093b6a26a44f",
+        "settings.json": "159397cb5fec132f12e395b9f0429771597ca0017160c01d1b0cdfe26826c206",
+        "workspace.json": "9276b9f5a27f928c5807a5b4306d6bc3e2335af249238ff0916adc4d344e70b8",
+        "workspace.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "workspace.stage.json": "23d5fe963bbd6550a8438466e24c97cf33e8d0bfaffe5f56239371970bafd552"
+      }
+    }
+  ],
+  "later_configuration_fix": {
+    "sha": "68ad71e05f212ac925a01df72e8dda703c0385fa",
+    "attribution": "cache:false disabled tool caches on fresh checks. Run/attempt cache keys now force fresh execution while keeping compiler-only tool caches enabled. A same-SHA native repeat verifies restoration and fresh reports."
+  }
+}

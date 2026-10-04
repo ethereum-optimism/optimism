@@ -279,6 +279,11 @@ pub fn compile_only() {}
             for index in ('0', '9'):
                 feature = run('features', {'CI_RUST_PARTITION_INDEX': index})
                 self.assertEqual(feature.returncode, 0, feature.stdout + feature.stderr)
+            # Circle's reusable template defaults to a single unpartitioned node.
+            single = run('features', {'CI_RUST_PARTITION_INDEX': '0', 'CI_RUST_PARTITION_TOTAL': '1'})
+            self.assertEqual(single.returncode, 0, single.stdout + single.stderr)
+            coverage = json.loads((root / '.ci/rust-workspace/features-0/feature-coverage.json').read_text())
+            self.assertTrue(all(c['command_count'] == len(c['executed']) for c in coverage.values()))
 
 
 if __name__ == '__main__':

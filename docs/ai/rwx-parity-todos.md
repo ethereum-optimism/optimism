@@ -36,11 +36,11 @@ at commit `587b4c3a73d3f16f15212b72e9a0ed0e8489a7c4`.
 | --- | ---: | ---: |
 | Main | 32 | 13 |
 | Contracts | 23 | 4 |
-| Rust | 22 | 4 |
+| Rust | 22 | 12 |
 | Rust E2E | 9 | 0 |
-| Total | 86 | 21 |
+| Total | 86 | 29 |
 
-Conservative implementation coverage is **21 / 86 = 24%**. Each matrix entry and
+Conservative implementation coverage is **29 / 86 = 34%**. Each matrix entry and
 each occurrence in a different workflow counts separately; shards do not.
 The CircleCI setup and schedule-trigger-check workflows are outside this
 86-job denominator and have separate todos. This is job coverage, not runtime,
@@ -52,7 +52,10 @@ superchain, contracts, Kona and prestate producers are implemented and executed.
 The full Fusaka acceptance variants and their remaining SP1/Cannon dependency
 edges have now executed successfully on both providers. See the
 [acceptance closeout](rwx-acceptance-parity.md) for exact original-report evidence.
-The narrower rollup mode remains CLI-only. See [the stage closeout](rwx-go-parity.md)
+The eight core Rust workspace jobs now have complete same-SHA parity, including
+all 76 workspace packages and exactly-once coverage across ten feature partitions.
+See the [Rust closeout](rwx-rust-parity.md) for original reports, cache evidence and
+remaining limits. The narrower rollup mode remains CLI-only. See [the stage closeout](rwx-go-parity.md)
 for original-report comparison, selected resources, caches and limitations.
 
 A checked inventory item means its complete PR workload has been implemented
@@ -71,11 +74,11 @@ in [rwx-migration.md](rwx-migration.md#op-reth-shadow-and-cache-measurements).
 
 ## Recommended order
 
-1. Retain the [completed acceptance shadow](rwx-acceptance-parity.md), including
-   both Fusaka client variants and the SP1/Cannon dependency edges.
-2. Close remaining contract evidence gaps and operational failure/routing rehearsals.
-3. Defer additional performance work until workload porting makes further progress.
-4. Complete the remaining Rust, contract and independent validation jobs.
+1. Retain the completed [acceptance](rwx-acceptance-parity.md) and
+   [core Rust workspace](rwx-rust-parity.md) shadows and their original-report evidence.
+2. Port the remaining WASM/Cannon Rust workloads, then the Rust E2E workflow.
+3. Close remaining contract evidence gaps and operational failure/routing rehearsals.
+4. Keep additional performance tuning deferred while porting remaining workloads.
 5. Rehearse full pipeline routing and failure behavior before proposing gate
    changes. Validate post-merge and privileged work before transferring it.
 
@@ -234,15 +237,15 @@ CircleCI workflow: `rust-ci` (22 jobs).
 - [ ] `rust-zepter`
 - [ ] `rust-wasm-wasi`
 - [ ] `rust-wasm-unknown`
-- [ ] `rust-udeps`
+- [x] `rust-udeps`
 - [ ] `rust-typos`
-- [ ] `rust-tests`
-- [ ] `rust-doctest`
-- [ ] `rust-docs`
-- [ ] `rust-clippy`
-- [ ] `rust-check-no-std`
-- [ ] `rust-cargo-hack`
-- [ ] `rust-build`
+- [x] `rust-tests`
+- [x] `rust-doctest`
+- [x] `rust-docs`
+- [x] `rust-clippy`
+- [x] `rust-check-no-std`
+- [x] `rust-cargo-hack`
+- [x] `rust-build`
 - [x] `op-reth-superchain-snapshot-check`
 - [x] `op-reth-integration-tests`
 - [x] `op-reth-compact-codec`
@@ -270,7 +273,7 @@ CircleCI workflow: `rust-e2e-ci` (9 jobs).
 ## Routing and required gates
 
 Shared routing policy and its regression tests are implemented. Automatic
-GitHub App push reporting is verified for all three shadows. Earlier Go and
+GitHub App push reporting is verified for all six optional checks. Earlier Go and
 contract failure probes verified bounded failure reporting; the full native
 pipeline still needs the rehearsals below.
 

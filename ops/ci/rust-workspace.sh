@@ -11,9 +11,10 @@ esac
 index="${CI_RUST_PARTITION_INDEX:-${CIRCLE_NODE_INDEX:-0}}"
 total="${CI_RUST_PARTITION_TOTAL:-${CIRCLE_NODE_TOTAL:-10}}"
 if [[ "$job" == features ]]; then
-  [[ "$index" =~ ^[0-9]$ && "$total" == 10 ]] || {
-    echo 'Expected an index from 0 to 9 in ten feature partitions.' >&2; exit 1;
-  }
+  if ! [[ "$index" =~ ^(0|[1-9][0-9]*)$ && "$total" =~ ^[1-9][0-9]*$ ]] || (( index >= total )); then
+    echo 'Expected a nonnegative feature index below a positive partition total.' >&2
+    exit 1
+  fi
   report="$ROOT/.ci/rust-workspace/features-$index"
 else
   report="$ROOT/.ci/rust-workspace/$job"
@@ -116,7 +117,9 @@ case "$job" in
   docs) stage docs just lint-docs ;;
   clippy) stage clippy cargo clippy --workspace --all-targets --all-features --locked ;;
   build) stage build mold -run cargo build --profile dev --workspace --features default ;;
-  features) features "$((index + 1))/$total" ;;
+  features)
+    if [[ "$total" == 1 ]]; then features ""; else features "$((index + 1))/$total"; fi
+    ;;
   feature-plan) features "" ;;
   no-std) stage no-std just check-no-std ;;
   udeps) stage udeps just check-udeps ;;

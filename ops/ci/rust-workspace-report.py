@@ -46,7 +46,9 @@ def begin(directory, job):
         'rwx_task_attempt': os.environ.get('RWX_TASK_ATTEMPT_NUMBER'),
         'input_sha256': inputs(), 'rustc': command('rustc', '--version'),
         'cargo': command('cargo', '--version'), 'nextest': command('cargo', 'nextest', '--version'),
-        'feature_seed': sha, 'feature_partitions': 10,
+        'feature_seed': sha, 'feature_partitions':
+            int(os.environ.get('CI_RUST_PARTITION_TOTAL', os.environ.get('CIRCLE_NODE_TOTAL', '10')))
+            if job == 'features' else 10,
         'feature_partition_index': int(os.environ.get('CI_RUST_PARTITION_INDEX', os.environ.get('CIRCLE_NODE_INDEX', '0'))),
         'test_filter': '!test(test_online)', 'incremental': os.environ.get('CARGO_INCREMENTAL'),
         'rustflags': os.environ.get('RUSTFLAGS', ''), 'rustdocflags': os.environ.get('RUSTDOCFLAGS', ''),
