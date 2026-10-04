@@ -17,6 +17,7 @@ def helper(name):
 E2E = helper('rust-e2e')
 COMPARE = helper('compare-ci')
 EXTRA = helper('compare-rust-extra')
+CONTRACTS = helper('compare-contract-artifacts')
 EMPTY = __import__('hashlib').sha256(b'').hexdigest()
 RELEASE_BINDING = ('source_sha', 'profile', 'features', 'scope', 'input_sha256', 'source_trees',
                    'rustc', 'cargo', 'mold', 'rustflags', 'incremental')
@@ -159,6 +160,8 @@ def compare(root, sha):
             if a[field] != b[field] or (field == 'commit_sha' and a[field] != sha): raise ValueError(kind + ': dependency input binding differs')
         if kind == 'prestate' and a['files'] != b['files']: raise ValueError('Complete reproducible prestate file hashes differ')
         result['jobs'][kind] = {'metadata': {'circle': a, 'rwx': b}, 'file_hashes_equal': a['files'] == b['files']}
+    result['jobs']['contracts']['complete_artifact_comparison'] = CONTRACTS.compare(
+        {p: root / p / 'contracts' for p in ('circle', 'rwx')}, sha)
     # Setting differences remain explicit; they are not textual setting parity.
     result['verified_parity'] = True
     return result

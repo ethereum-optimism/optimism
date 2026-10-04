@@ -41,7 +41,7 @@ python3 ops/ci/rust-e2e.py env "$job" >"$report/environment.nul"
 while IFS= read -r -d '' key && IFS= read -r -d '' value; do export "$key=$value"; done <"$report/environment.nul"
 python3 ops/ci/rust-e2e.py select "$job"
 if [[ "$job" == op-reth ]]; then
-  python3 ops/ci/rust-workspace-report.py stage-at rust/op-reth/tests "$report" proof-contracts just build-contracts
+  python3 ops/ci/rust-workspace-report.py stage-at "$report" rust/op-reth/tests proof-contracts just build-contracts
 fi
 if [[ -d tmp/testlogs/dependencies ]]; then cp -R tmp/testlogs/dependencies "$report/"; fi
 if [[ ! -s "$report/assigned.txt" ]]; then

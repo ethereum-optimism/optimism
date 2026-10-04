@@ -160,6 +160,37 @@ func TestSlow(t *testing.T) { if os.Getenv("E2E_WAIT")=="1" { time.Sleep(time.Mi
         self.assertIn('original failure', (report / 'original.json').read_text())
         self.assertIn('<failure', (report / 'junit/package.xml').read_text())
 
+    @unittest.skipUnless(os.environ.get('RWX_LIVE_FORGE_FIXTURE') == '1', 'Opt-in real runtime Forge fixture')
+    def test_op_reth_builds_the_nested_Forge_fixture(self):
+        tests = self.root / 'rust/op-reth/tests'; package = tests / 'proofs/core'; package.mkdir(parents=True)
+        contracts = tests / 'proofs/contracts'; (contracts / 'src').mkdir(parents=True)
+        (self.root / 'justfile').write_text('build-contracts:\n  @echo Wrong root recipe >&2; exit 17\n')
+        (tests / 'justfile').write_text('SOURCE_DIR := justfile_directory()\nbuild-contracts:\n'
+            '  cd "{{SOURCE_DIR}}/proofs/contracts" && forge build\n')
+        (contracts / 'foundry.toml').write_text('[profile.default]\nsrc="src"\nout="artifacts"\n')
+        (contracts / 'src/Fixture.sol').write_text('// SPDX-License-Identifier: MIT\npragma solidity 0.8.15;\n'
+            'contract Fixture { function value() public pure returns (uint256) { return 42; } }\n')
+        (package / 'fixture_test.go').write_text('''package core
+import ("testing"; "os"; "encoding/json")
+func TestRuntimeForge(t *testing.T) {
+ b,e:=os.ReadFile("../contracts/artifacts/Fixture.sol/Fixture.json"); if e!=nil { t.Fatal(e) }
+ var artifact struct { Bytecode struct { Object string } }; if e=json.Unmarshal(b,&artifact); e!=nil { t.Fatal(e) }
+ if len(artifact.Bytecode.Object)<4 { t.Fatal("Missing actual compiled fixture bytecode") }
+}
+''')
+        for args in (['add', '.'], ['commit', '-qm', 'nested Forge fixture']):
+            subprocess.run(['git', *args], cwd=self.root, check=True)
+        self.env['CI_COMMIT_SHA'] = subprocess.check_output(['git', 'rev-parse', 'HEAD'], cwd=self.root, text=True).strip()
+        for mode in ('compile', 'run'):
+            result = subprocess.run(['bash', 'ops/ci/rust-e2e.sh', mode, 'op-reth'], cwd=self.root,
+                                    env=self.env, text=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+            self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        report = self.root / '.ci/rust-e2e/reports/op-reth'
+        stage = E2E.read(report / 'proof-contracts.stage.json')
+        self.assertEqual(stage['cwd'], 'rust/op-reth/tests')
+        self.assertEqual(stage['argv'], ['just', 'build-contracts'])
+        self.assertEqual(E2E.read(report / 'coverage.json')['cases']['TestRuntimeForge']['outcome'], 'pass')
+
     def test_cancellation_preserves_partial_reports_and_cannot_pass(self):
         process = subprocess.Popen(['bash', 'ops/ci/rust-e2e.sh', 'run', 'simple-kona'], cwd=self.root,
             env={**self.env, 'E2E_WAIT': '1'}, start_new_session=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)

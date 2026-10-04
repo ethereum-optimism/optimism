@@ -143,12 +143,13 @@ tasks:
     timeout: 30m
 
   - key: helper-tests
-    use: [code, go-build-tools]
+    use: [code, go-build-tools, contract-tools]
     run: |
-      RWX_LIVE_GO_FIXTURE=1 python3 -m unittest discover -s ops/ci -p 'test_rust_e2e.py'
+      RWX_LIVE_GO_FIXTURE=1 RWX_LIVE_FORGE_FIXTURE=1 python3 -m unittest discover -s ops/ci -p 'test_rust_e2e.py'
       python3 -m unittest discover -s ops/ci -p 'test_rust_e2e_release.py'
       python3 -m unittest discover -s ops/ci -p 'test_rust_e2e_gate.py'
       python3 -m unittest discover -s ops/ci -p 'test_compare_rust_e2e.py'
+      python3 -m unittest discover -s ops/ci -p 'test_compare_contract_artifacts.py'
       python3 -m unittest discover -s ops/ci -p 'test_go_artifacts.py'
     cache: false
     timeout: 10m

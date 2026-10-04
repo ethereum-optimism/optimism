@@ -1,0 +1,193 @@
+{
+  "boundary": "Isolated real Go fixtures use their own committed fixture revisions. Both tasks intentionally fail. Cancellation terminates the test process group; it is not an RWX engine cancellation. No GitHub status publisher is configured and these fixtures do not count toward workload coverage.",
+  "parent_source_sha": "6562c285b53ed374d90fbaa4de98217d499fa39b",
+  "probes": {
+    "isolated-cancel": {
+      "final": {
+        "exit_code": 143,
+        "finished_at": 1791141550.1210222,
+        "original_sha256": {
+          "assigned.txt": "4227a721c9ab40ad3fcff8dec817acfd8bd812f3a16a27a5ad40ce9b72080450",
+          "coverage.json": "a3c98308fec0b0fb8570191f7073124295f168be38b2650c38ba627d809639a3",
+          "environment.nul": "62957dd2e0e9c4c39cfa293c80acb68fbef17fdb0f1898d61d08e73a0df0902a",
+          "events/package.json": "f2bc7745a73f27437aa1f21d6a4abe0518f9f37a5669ceffe22c1fe2c5fd4176",
+          "invocations/package.json": "405ec32d4951d7e2fb68c22e0df00c445b37be8b1a0ae5ceb000e7eae7fbe7b8",
+          "original.json": "f2bc7745a73f27437aa1f21d6a4abe0518f9f37a5669ceffe22c1fe2c5fd4176",
+          "selection.json": "b7aded9e3afb9ebd5f1065524a168e612176c14a97f8a3a8b461260d448ed76e"
+        },
+        "report_errors": [
+          "Incomplete or duplicate E2E test verdicts"
+        ]
+      },
+      "original_sha256": {
+        "command.stderr": "9978af2eb82c982589f1b53ad8e1907a5c9034570269560293083e7592e6e8c0",
+        "command.stdout": "2f5ae2b72edafe447d055b36a515f972cd00912c59ca080b0e5f060c48737743",
+        "compiled/compile.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "compiled/compile.stage.json": "6196f5ef9ab5bd38b12e7dccfb291a38530437f7cfb2bb58fac0f20f4f49a3f2",
+        "compiled/defaults.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "compiled/defaults.stage.json": "d0520afbe100b524bf274d9a4ba93d61c2a4389421341b7ed4c789ac16f9a163",
+        "compiled/listing.log": "d4a4df61fff8f20c0981932a2fcb5ac6a93144c1c071ffe294512744a8299584",
+        "compiled/listing.stage.json": "588d385dfd754f1f3c86f7a29805ae05ced5cc3b6b3afbb0d8e0ff68d5407fdb",
+        "compiled/manifest.json": "8ebf1f16edf75c929d276c0518f8edcdeedd97c7ee37ab44fb68ba7406086e8a",
+        "compiled/metadata.json": "899a28e03d38945ee3796b3ed2dd14e1807a0b01666b70b3e61a377e8a599ee6",
+        "compiled/packages.json": "c6e599dc662d1b64e20d5204954f63be0f144875cacd0440493831af858356b5",
+        "compiled/packages.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "compiled/packages.stage.json": "0facf3fa4425a1abac42d65435826901baddf6b0ca9e59837aec558d963530e7",
+        "compiled/reporter.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "compiled/reporter.stage.json": "4bca1f19661a1638f3e749a1a3e0e90eccb2d4968e6434e190cdba5a10985e85",
+        "compiled/runtime-defaults": "17c7794878d53a1d3e8a7a9fcb613fd948adb101b86ca5a8ab0570f040abb8c9",
+        "compiled/runtime-defaults.go": "7f87d2b919e809eb56d630667b1c4db399934d89b169d10d53b54e1b8124898f",
+        "compiled/suite.test": "f13342c1812baeef0254d2b29bddd585022867d3430dc3d12005013011e996eb",
+        "compiled/test2json": "cdf44b4871089c72efc37be6fd5693b0f05d07635b3df33259869f22760d5a5b",
+        "download.log": "767d21ebe978719b3e75e755251f9e13a3efd1563e8ba7ebfa93f8c6ca510333",
+        "fixture-go.mod": "54f7d8bd811d05493e77521bba94a924e6ca97fde35c767e279568b88b74be22",
+        "fixture-source/fixture.txt": "8ea1d0f942e2a08be4095246ec2f75c1c7e10a8f1224aa27bc90a35731e00464",
+        "fixture-source/fixture_test.go": "6b23c6e81a8180f1b5462eabf2f9a49a7ffedf8957a6c9c8223ff6f0c5e38d2e",
+        "probe.json": "dc92cd741f9d49b58415cd3f60168a73cc86d912f41807a075996b684c034c8d",
+        "report/assigned.txt": "4227a721c9ab40ad3fcff8dec817acfd8bd812f3a16a27a5ad40ce9b72080450",
+        "report/coverage.json": "a3c98308fec0b0fb8570191f7073124295f168be38b2650c38ba627d809639a3",
+        "report/environment.nul": "62957dd2e0e9c4c39cfa293c80acb68fbef17fdb0f1898d61d08e73a0df0902a",
+        "report/events/package.json": "f2bc7745a73f27437aa1f21d6a4abe0518f9f37a5669ceffe22c1fe2c5fd4176",
+        "report/final.json": "cb125b1f3803b72e97af9b8821050d2431f635b4c854bc2c137015f0d882340d",
+        "report/invocations/package.json": "405ec32d4951d7e2fb68c22e0df00c445b37be8b1a0ae5ceb000e7eae7fbe7b8",
+        "report/original.json": "f2bc7745a73f27437aa1f21d6a4abe0518f9f37a5669ceffe22c1fe2c5fd4176",
+        "report/selection.json": "b7aded9e3afb9ebd5f1065524a168e612176c14a97f8a3a8b461260d448ed76e"
+      },
+      "probe": {
+        "command_exit_code": 143,
+        "final": {
+          "exit_code": 143,
+          "finished_at": 1791141550.1210222,
+          "original_sha256": {
+            "assigned.txt": "4227a721c9ab40ad3fcff8dec817acfd8bd812f3a16a27a5ad40ce9b72080450",
+            "coverage.json": "a3c98308fec0b0fb8570191f7073124295f168be38b2650c38ba627d809639a3",
+            "environment.nul": "62957dd2e0e9c4c39cfa293c80acb68fbef17fdb0f1898d61d08e73a0df0902a",
+            "events/package.json": "f2bc7745a73f27437aa1f21d6a4abe0518f9f37a5669ceffe22c1fe2c5fd4176",
+            "invocations/package.json": "405ec32d4951d7e2fb68c22e0df00c445b37be8b1a0ae5ceb000e7eae7fbe7b8",
+            "original.json": "f2bc7745a73f27437aa1f21d6a4abe0518f9f37a5669ceffe22c1fe2c5fd4176",
+            "selection.json": "b7aded9e3afb9ebd5f1065524a168e612176c14a97f8a3a8b461260d448ed76e"
+          },
+          "report_errors": [
+            "Incomplete or duplicate E2E test verdicts"
+          ]
+        },
+        "fixture_source_sha": "5f662920e394351cc0e2861ea354907396418c81",
+        "mode": "cancel",
+        "native_run_id": "1c4f432c3d8b427996f5694ca7ab4576",
+        "native_task_attempt": "1",
+        "parent_source_sha": "6562c285b53ed374d90fbaa4de98217d499fa39b"
+      },
+      "status": {
+        "AbortedSubStatus": "not_applicable",
+        "Execution": "finished",
+        "FinishedSubStatus": "executed",
+        "Result": "failed",
+        "WaitingSubStatus": "not_applicable"
+      },
+      "task_id": "2e9b883bbd6b615c6ae5503081b62e27"
+    },
+    "isolated-failure": {
+      "final": {
+        "exit_code": 1,
+        "finished_at": 1791141550.0145102,
+        "original_sha256": {
+          "assigned.txt": "4227a721c9ab40ad3fcff8dec817acfd8bd812f3a16a27a5ad40ce9b72080450",
+          "coverage.json": "2cb724f3715359d9dcc0c491a280d0977e93c8a08dda8fba7e624c380a5e93cf",
+          "environment.nul": "b8566684d41b0d4d07affcf8d1add6cd7dd65113bd4ee06b4592aa9b3b32de97",
+          "events/package.json": "aeaec2bcff3c9a9ed3c8c52c9925caa0220ce294be1e36b888ba3344ca71e15f",
+          "events/per-test/github.com.ethereum-optimism.optimism.rust.kona.tests.node.common/TestFailure.log": "532f5b90078b45630f51843934d5e7f76d5bfd1e5ae69172cee96e1e965cc38d",
+          "events/per-test/github.com.ethereum-optimism.optimism.rust.kona.tests.node.common/TestFresh.log": "01acfbc46c6c8f26d69dc10dc22419dd810e12c5e462dbf4b052c323562ba0f7",
+          "events/per-test/github.com.ethereum-optimism.optimism.rust.kona.tests.node.common/TestSkip.log": "150f35cb0e42870323f28b0945b5a00aa971a5b66e423c4a2a5d3d91ab7390e4",
+          "events/per-test/github.com.ethereum-optimism.optimism.rust.kona.tests.node.common/TestSlow.log": "efbf173c491ea7144ee4054bdfca8896f851098237f88656eee319816f95961e",
+          "invocations/package.json": "cc9a272264a5f77d71c6cef18d11b7cb74a46db628ec0f5f42b328e09ee2b952",
+          "junit/package.xml": "5bd4662190cc4f5c6ecca392043c58098bf7846a8c39838f410b1c07b6bcc6aa",
+          "native.json": "6d96f8b4157246f393bbdae7ce18e2239281bb58eff3367488ae69d621dd1b22",
+          "native.metadata.json": "8071e5221e98ad7f61aa65fd0b38f06bb5f9d3c24c4febbddbc1982a8abcca0d",
+          "original.json": "aeaec2bcff3c9a9ed3c8c52c9925caa0220ce294be1e36b888ba3344ca71e15f",
+          "selection.json": "b13cbfb59be747ffb0c18f27b31a57463f1faf9960a35d8eec591d47fd161745"
+        },
+        "report_errors": []
+      },
+      "original_sha256": {
+        "command.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "command.stdout": "ba457089a6f0529f58b71e50faa9c16029ac76247286c9eafd17d2af28b507cb",
+        "compiled/compile.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "compiled/compile.stage.json": "de7452a9e2444195e11890a8c6b34038da8610b96c0955d6515aadbe1335592a",
+        "compiled/defaults.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "compiled/defaults.stage.json": "627ce57e6cb06f4034de8991665180c146c06dea7680840272d6073482a4f800",
+        "compiled/listing.log": "d4a4df61fff8f20c0981932a2fcb5ac6a93144c1c071ffe294512744a8299584",
+        "compiled/listing.stage.json": "78bfd8327c5a21916f1b4c86854054829c00e4b3636bb98368a256fc67aada4d",
+        "compiled/manifest.json": "d09beab4bc25e3a566bd1b1b0130cb1f7b7b9cf5231c884797497362533172f9",
+        "compiled/metadata.json": "3e975fd34a0432d94e71856495422531eea1855029f46b8fd2336adfb7e5cd1c",
+        "compiled/packages.json": "606058c9ae263256ba02bb08fbe62d8451b8d447b66a857d926101171a549205",
+        "compiled/packages.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "compiled/packages.stage.json": "6856b53d7100e17b7dc3ee82c12622dd4ab98872ed9b2c62aeb9e12b50ad4ba1",
+        "compiled/reporter.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "compiled/reporter.stage.json": "5b509aae3be34d5301e3461cecfa1d8f992e1616aa32fe2ec3a9bbb027511cd1",
+        "compiled/runtime-defaults": "cacaf7bb235cd698a3f5e3d5781de9d391015a41f3973a48383db9a8042394a6",
+        "compiled/runtime-defaults.go": "7f87d2b919e809eb56d630667b1c4db399934d89b169d10d53b54e1b8124898f",
+        "compiled/suite.test": "6d4053ff381ee818dfb5a5f4a52d16fc0802efc6ce243c4c7d03f0b21067b65d",
+        "compiled/test2json": "cdf44b4871089c72efc37be6fd5693b0f05d07635b3df33259869f22760d5a5b",
+        "download.log": "58c2bbb5a26575c785ad655f5cc997705d9a920d7d413b953500cc97c3833517",
+        "fixture-go.mod": "54f7d8bd811d05493e77521bba94a924e6ca97fde35c767e279568b88b74be22",
+        "fixture-source/fixture.txt": "8ea1d0f942e2a08be4095246ec2f75c1c7e10a8f1224aa27bc90a35731e00464",
+        "fixture-source/fixture_test.go": "6b23c6e81a8180f1b5462eabf2f9a49a7ffedf8957a6c9c8223ff6f0c5e38d2e",
+        "probe.json": "748422176fada25df5d5319f1d012cdd2073efb2a8a9ec2e28b5c4b9eba330b0",
+        "report/assigned.txt": "4227a721c9ab40ad3fcff8dec817acfd8bd812f3a16a27a5ad40ce9b72080450",
+        "report/coverage.json": "2cb724f3715359d9dcc0c491a280d0977e93c8a08dda8fba7e624c380a5e93cf",
+        "report/environment.nul": "b8566684d41b0d4d07affcf8d1add6cd7dd65113bd4ee06b4592aa9b3b32de97",
+        "report/events/package.json": "aeaec2bcff3c9a9ed3c8c52c9925caa0220ce294be1e36b888ba3344ca71e15f",
+        "report/events/per-test/github.com.ethereum-optimism.optimism.rust.kona.tests.node.common/TestFailure.log": "532f5b90078b45630f51843934d5e7f76d5bfd1e5ae69172cee96e1e965cc38d",
+        "report/events/per-test/github.com.ethereum-optimism.optimism.rust.kona.tests.node.common/TestFresh.log": "01acfbc46c6c8f26d69dc10dc22419dd810e12c5e462dbf4b052c323562ba0f7",
+        "report/events/per-test/github.com.ethereum-optimism.optimism.rust.kona.tests.node.common/TestSkip.log": "150f35cb0e42870323f28b0945b5a00aa971a5b66e423c4a2a5d3d91ab7390e4",
+        "report/events/per-test/github.com.ethereum-optimism.optimism.rust.kona.tests.node.common/TestSlow.log": "efbf173c491ea7144ee4054bdfca8896f851098237f88656eee319816f95961e",
+        "report/final.json": "3c6fb1e03b05d2bde87ecb449559738d6ab42f31f3bb00d8ff87e8f5d6fd4ef9",
+        "report/invocations/package.json": "cc9a272264a5f77d71c6cef18d11b7cb74a46db628ec0f5f42b328e09ee2b952",
+        "report/junit/package.xml": "5bd4662190cc4f5c6ecca392043c58098bf7846a8c39838f410b1c07b6bcc6aa",
+        "report/native.json": "6d96f8b4157246f393bbdae7ce18e2239281bb58eff3367488ae69d621dd1b22",
+        "report/native.metadata.json": "8071e5221e98ad7f61aa65fd0b38f06bb5f9d3c24c4febbddbc1982a8abcca0d",
+        "report/original.json": "aeaec2bcff3c9a9ed3c8c52c9925caa0220ce294be1e36b888ba3344ca71e15f",
+        "report/selection.json": "b13cbfb59be747ffb0c18f27b31a57463f1faf9960a35d8eec591d47fd161745"
+      },
+      "probe": {
+        "command_exit_code": 1,
+        "final": {
+          "exit_code": 1,
+          "finished_at": 1791141550.0145102,
+          "original_sha256": {
+            "assigned.txt": "4227a721c9ab40ad3fcff8dec817acfd8bd812f3a16a27a5ad40ce9b72080450",
+            "coverage.json": "2cb724f3715359d9dcc0c491a280d0977e93c8a08dda8fba7e624c380a5e93cf",
+            "environment.nul": "b8566684d41b0d4d07affcf8d1add6cd7dd65113bd4ee06b4592aa9b3b32de97",
+            "events/package.json": "aeaec2bcff3c9a9ed3c8c52c9925caa0220ce294be1e36b888ba3344ca71e15f",
+            "events/per-test/github.com.ethereum-optimism.optimism.rust.kona.tests.node.common/TestFailure.log": "532f5b90078b45630f51843934d5e7f76d5bfd1e5ae69172cee96e1e965cc38d",
+            "events/per-test/github.com.ethereum-optimism.optimism.rust.kona.tests.node.common/TestFresh.log": "01acfbc46c6c8f26d69dc10dc22419dd810e12c5e462dbf4b052c323562ba0f7",
+            "events/per-test/github.com.ethereum-optimism.optimism.rust.kona.tests.node.common/TestSkip.log": "150f35cb0e42870323f28b0945b5a00aa971a5b66e423c4a2a5d3d91ab7390e4",
+            "events/per-test/github.com.ethereum-optimism.optimism.rust.kona.tests.node.common/TestSlow.log": "efbf173c491ea7144ee4054bdfca8896f851098237f88656eee319816f95961e",
+            "invocations/package.json": "cc9a272264a5f77d71c6cef18d11b7cb74a46db628ec0f5f42b328e09ee2b952",
+            "junit/package.xml": "5bd4662190cc4f5c6ecca392043c58098bf7846a8c39838f410b1c07b6bcc6aa",
+            "native.json": "6d96f8b4157246f393bbdae7ce18e2239281bb58eff3367488ae69d621dd1b22",
+            "native.metadata.json": "8071e5221e98ad7f61aa65fd0b38f06bb5f9d3c24c4febbddbc1982a8abcca0d",
+            "original.json": "aeaec2bcff3c9a9ed3c8c52c9925caa0220ce294be1e36b888ba3344ca71e15f",
+            "selection.json": "b13cbfb59be747ffb0c18f27b31a57463f1faf9960a35d8eec591d47fd161745"
+          },
+          "report_errors": []
+        },
+        "fixture_source_sha": "5f662920e394351cc0e2861ea354907396418c81",
+        "mode": "failure",
+        "native_run_id": "1c4f432c3d8b427996f5694ca7ab4576",
+        "native_task_attempt": "1",
+        "parent_source_sha": "6562c285b53ed374d90fbaa4de98217d499fa39b"
+      },
+      "status": {
+        "AbortedSubStatus": "not_applicable",
+        "Execution": "finished",
+        "FinishedSubStatus": "executed",
+        "Result": "failed",
+        "WaitingSubStatus": "not_applicable"
+      },
+      "task_id": "7547de9592cce9d7dffe63a4c11ed5df"
+    }
+  },
+  "result": "failed",
+  "rwx_run_id": "1c4f432c3d8b427996f5694ca7ab4576"
+}
