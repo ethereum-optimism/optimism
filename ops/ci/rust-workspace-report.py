@@ -40,10 +40,12 @@ def begin(directory, job):
     write(directory / 'settings.json', {
         'suite': 'rust-workspace', 'job': job, 'source_sha': sha,
         'workspace_root': str(Path.cwd()),
+        'cargo_home': os.environ.get('CARGO_HOME', str(Path.home() / '.cargo')),
         'provider': os.environ.get('CI_RUST_PROVIDER', 'circleci'),
         'input_sha256': inputs(), 'rustc': command('rustc', '--version'),
         'cargo': command('cargo', '--version'), 'nextest': command('cargo', 'nextest', '--version'),
         'feature_seed': sha, 'feature_partitions': 10,
+        'feature_partition_index': int(os.environ.get('CI_RUST_PARTITION_INDEX', os.environ.get('CIRCLE_NODE_INDEX', '0'))),
         'test_filter': '!test(test_online)', 'incremental': os.environ.get('CARGO_INCREMENTAL'),
         'rustflags': os.environ.get('RUSTFLAGS', ''), 'rustdocflags': os.environ.get('RUSTDOCFLAGS', ''),
         'started_at': time.time(), 'cpus': os.cpu_count(),
@@ -128,24 +130,37 @@ def unit_report(directory):
 def libtest_report(directory, phase):
     listing = (directory / (phase + '-list.log')).read_text()
     log = (directory / (phase + '.log')).read_text()
+    settings_path = directory / 'settings.json'
+    settings = json.loads(settings_path.read_text()) if settings_path.exists() else {}
+    def identity(name):
+        # Rustdoc decorates no_run verdicts but not their --list identities.
+        name = re.sub(r'(\(line \d+\)) - compile$', r'\1', name)
+        home = settings.get('cargo_home')
+        if home and name.startswith(home + '/'):
+            name = '<cargo>/' + name[len(home) + 1:]
+        return name
     expected = []
     for line in listing.splitlines():
         match = re.fullmatch(r'(.+): test', line)
         if match:
-            expected.append(match[1])
+            expected.append(identity(match[1]))
     if not expected or len(expected) != len(set(expected)):
         raise ValueError(f'Empty or duplicate {phase} discovery')
-    actual = {}
+    actual, compile_only = {}, set()
     for line in log.splitlines():
         match = re.fullmatch(r'test (.+) \.\.\. (ok|FAILED|ignored.*)', line)
         if match:
-            name, result = match.groups()
+            original, result = match.groups()
+            name = identity(original)
+            if re.search(r'\(line \d+\) - compile$', original):
+                compile_only.add(name)
             if name in actual:
                 raise ValueError(f'Duplicate {phase} verdict: {name}')
             actual[name] = 'pass' if result == 'ok' else 'fail' if result == 'FAILED' else 'skip'
     missing, extra = set(expected) - actual.keys(), actual.keys() - set(expected)
     report = {'selected': len(expected), 'missing': sorted(missing), 'extra': sorted(extra),
-              'cases': [dict(suite=phase, name=k, outcome=v, retries=0) for k, v in sorted(actual.items())],
+              'cases': [dict(suite=phase, name=k, outcome=v, retries=0, compile_only=k in compile_only)
+                        for k, v in sorted(actual.items())],
               'outcomes': dict(collections.Counter(actual.values()))}
     write(directory / (phase + '-coverage.json'), report)
     suite = ET.Element('testsuite', name=phase, tests=str(len(actual)))
@@ -160,22 +175,50 @@ def libtest_report(directory, phase):
 
 
 def commands(text):
-    # cargo-hack 0.6.44 prints the same Cargo commands in dry-run and live mode.
+    # Authoritative unpartitioned cargo-hack dry-run output, including manifests.
     return [m.group(1) for m in re.finditer(r'(?:^|running `)(cargo (?:check|build) [^\n`]+)', text, re.M)]
 
 
 def feature_report(directory):
     report = {}
+    settings = json.loads((directory / 'settings.json').read_text())
+    workspace = json.loads((directory / 'workspace.json').read_text())
+    root = Path(settings['workspace_root']) / 'rust'
+    packages = {str(Path(p['manifest_path']).relative_to(root)): p['name'] for p in workspace['packages']}
+    index, total = settings['feature_partition_index'], settings['feature_partitions']
     for phase in ('features', 'feature-tests'):
-        plan = commands((directory / (phase + '-list.log')).read_text())
-        actual = commands((directory / (phase + '.log')).read_text())
-        if not plan or len(plan) != len(set(plan)):
+        plan = []
+        for line in commands((directory / (phase + '-list.log')).read_text()):
+            args = shlex.split(line)
+            location = args.index('--manifest-path')
+            package = packages[args[location + 1]]
+            del args[location:location + 2]
+            plan.append({'crate': package, 'argv': args})
+        identities = [json.dumps(c, sort_keys=True) for c in plan]
+        if not plan or len(identities) != len(set(identities)):
             raise ValueError(f'Empty or duplicate {phase} commands')
-        report[phase] = {'planned': plan, 'executed': actual,
-                         'missing': sorted((collections.Counter(plan) - collections.Counter(actual)).elements()),
-                         'extra': sorted((collections.Counter(actual) - collections.Counter(plan)).elements())}
+        width = (len(plan) + total - 1) // total
+        expected = set(range(index * width + 1, min((index + 1) * width, len(plan)) + 1))
+        actual, seen, errors = [], set(), []
+        pattern = r'info: (running|skipping) `(cargo (?:check|build)(?: [^`]+)?)` on ([^\s]+) \((\d+)/(\d+)\)'
+        for match in re.finditer(pattern, (directory / (phase + '.log')).read_text()):
+            action, cargo, package, number, count = match.groups()
+            number = int(number)
+            identity = {'crate': package, 'argv': shlex.split(cargo)}
+            if number in seen or int(count) != len(plan) or not 1 <= number <= len(plan):
+                errors.append(f'Duplicate or invalid command index: {number}/{count}')
+                continue
+            seen.add(number)
+            if identity != plan[number - 1] or (action == 'running') != (number in expected):
+                errors.append(f'Wrong command or partition ownership at {number}')
+            if action == 'running':
+                actual.append({'index': number, **identity})
+        missing = sorted(set(range(1, len(plan) + 1)) - seen)
+        report[phase] = {'command_count': len(plan), 'partition_index': index, 'partitions': total,
+                         'planned': [{'index': n, **plan[n - 1]} for n in sorted(expected)],
+                         'executed': actual, 'missing': missing, 'errors': errors}
     write(directory / 'feature-coverage.json', report)
-    if any(v['missing'] or v['extra'] for v in report.values()):
+    if any(v['missing'] or v['errors'] for v in report.values()):
         raise ValueError('Incomplete feature command execution')
 
 

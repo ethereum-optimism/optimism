@@ -64,7 +64,9 @@ features() {
   for phase in features feature-tests; do
     local recipe=hack
     if [[ "$phase" == feature-tests ]]; then recipe=hack-tests-default; fi
-    stage "$phase-list" just "$recipe" "$partition" true "$seed" true
+    # In the pinned cargo-hack, dry-run printing does not advance partition
+    # progress. Discover the whole plan, then verify live global indices.
+    stage "$phase-list" just "$recipe" "" true "$seed" true
     if [[ "$job" != feature-plan ]]; then
       stage "$phase" just "$recipe" "$partition" true "$seed"
     fi

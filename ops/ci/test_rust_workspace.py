@@ -82,12 +82,38 @@ class ReportTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, 'Empty'):
             REPORT.libtest_report(self.root, 'doctests')
 
+    def test_compile_only_doctest_and_dependency_path(self):
+        (self.root / 'settings.json').write_text('{"cargo_home":"/provider/cargo"}')
+        (self.root / 'doctests-list.log').write_text('/provider/cargo/git/pin/src/lib.rs - Thing (line 4): test\n')
+        (self.root / 'doctests.log').write_text('test /provider/cargo/git/pin/src/lib.rs - Thing (line 4) - compile ... ok\n')
+        report = REPORT.libtest_report(self.root, 'doctests')
+        self.assertEqual(report['missing'], [])
+        self.assertEqual(report['cases'][0]['name'], '<cargo>/git/pin/src/lib.rs - Thing (line 4)')
+        self.assertTrue(report['cases'][0]['compile_only'])
+
     def test_feature_plan_must_execute_exactly_once(self):
+        (self.root / 'settings.json').write_text(json.dumps({'workspace_root': str(self.root),
+            'feature_partition_index': 0, 'feature_partitions': 10}))
+        (self.root / 'workspace.json').write_text(json.dumps({'packages': [
+            {'name': 'crate', 'manifest_path': str(self.root / 'rust/crate/Cargo.toml')}]}))
         for phase in ('features', 'feature-tests'):
             (self.root / (phase + '-list.log')).write_text('cargo check --manifest-path crate/Cargo.toml --all-features\n')
-            (self.root / (phase + '.log')).write_text('info: running `cargo check --manifest-path crate/Cargo.toml --all-features` on crate (1/1)\n')
+            (self.root / (phase + '.log')).write_text('info: running `cargo check --all-features` on crate (1/1)\n')
         REPORT.feature_report(self.root)
         (self.root / 'features.log').write_text('')
+        with self.assertRaisesRegex(ValueError, 'Incomplete'):
+            REPORT.feature_report(self.root)
+
+    def test_feature_partitions_validate_skips_and_empty_assignments(self):
+        (self.root / 'workspace.json').write_text(json.dumps({'packages': [
+            {'name': 'crate', 'manifest_path': str(self.root / 'rust/crate/Cargo.toml')}]}))
+        (self.root / 'settings.json').write_text(json.dumps({'workspace_root': str(self.root),
+            'feature_partition_index': 1, 'feature_partitions': 10}))
+        for phase in ('features', 'feature-tests'):
+            (self.root / (phase + '-list.log')).write_text('cargo check --manifest-path crate/Cargo.toml\n')
+            (self.root / (phase + '.log')).write_text('info: skipping `cargo check` on crate (1/1)\n')
+        REPORT.feature_report(self.root)
+        (self.root / 'features.log').write_text('info: running `cargo check` on crate (1/1)\n')
         with self.assertRaisesRegex(ValueError, 'Incomplete'):
             REPORT.feature_report(self.root)
 
@@ -182,6 +208,10 @@ class LiveRunnerTests(unittest.TestCase):
 /// assert_eq!(2 + 2, 4);
 /// ```
 pub fn example() {}
+/// ```no_run
+/// assert_eq!(2 + 2, 4);
+/// ```
+pub fn compile_only() {}
 #[test] fn fresh() { assert!(std::env::var("RWX_FIXTURE_FAIL").is_err(), "intentional original failure"); }
 #[test] fn test_filtered_beacon_blobs_deserializes_on_small_stack() {}
 #[test] #[ignore] fn ignored() {}
@@ -225,6 +255,9 @@ pub fn example() {}
                                     cwd=root / 'rust', env={**env, 'CI_RUST_PROVIDER': 'circleci'},
                                     capture_output=True, text=True, timeout=180)
             self.assertEqual(circle.returncode, 0, circle.stdout + circle.stderr)
+            for index in ('0', '9'):
+                feature = run('features', {'CI_RUST_PARTITION_INDEX': index})
+                self.assertEqual(feature.returncode, 0, feature.stdout + feature.stderr)
 
 
 if __name__ == '__main__':
