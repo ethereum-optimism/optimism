@@ -1,0 +1,1549 @@
+{
+  "cache_repeat_parity": {
+    "jobs": {
+      "build": {
+        "elfs": {
+          "elfs.json": {
+            "binding": {
+              "build_std": "core,alloc",
+              "custom_configs": false,
+              "go_pin": "1.26.5",
+              "input_sha256": {
+                ".dockerignore": "3e3c26099595be81ec13cc008051da5896d1d369d04c4d7f98c9709e9462d74a",
+                "cannon/justfile": "06886d81853e97e1733c8b1c551a3a28fefaecc9030ae9137b4923b4e068653e",
+                "go.mod": "7f218bd78bc8519a81a7ed3ca8b932409ee21164511f189a7ba3d25c33e95014",
+                "go.sum": "4e23266b996fddcf3f8805f55e03329cf53fcb165aaf1d79f2111eab0ac38f76",
+                "justfiles/git.just": "09c77a7d0d25a492fb6fb5ac4a773cdf282a354cf0f7333ec6943607638a2d65",
+                "justfiles/go.just": "e6cf0e03db5d6c725900f4cc3dfa354b071e86da0d8dc2bfa775f79a122c16cd",
+                "mise.toml": "0b557a308b0cd91fd3db80af744520053106924fca7dad9ef682175930280e9a",
+                "ops/ci/cannon-witness.json": "4457faf60ff72e6235e11db8b9c7e8386c7f54acf51f447bffba289b56c4846f",
+                "ops/ci/rust-cannon-report.py": "e155ac159406849d0443cdb1ff24f39ac72721b153525e1e31329d9353f3c88d",
+                "ops/ci/rust-cannon.sh": "e522e56642ad721df608011ebb079806f94b86a74c717ba2f537cffe10395675",
+                "ops/ci/rust-target-cache.py": "e3abc022fb13a5738624029983028bf90a3ad91958ca6933f198184b261a8b48",
+                "ops/ci/rust-workspace-report.py": "3f5079c33798cf8cf7d8ba369b6b9aec2e0a9998d5298c51f3b9b1b2eb52960d",
+                "ops/scripts/install_mise.sh": "d427ef1337a400ac0700d65c18272bda4253cf30e6383210d8e9a05043abfa91",
+                "rust/.cargo/config.toml": "70e5283948d65db55a30eb030ee5c576b1c8f26e7880664b81b2d2c0a5d34c87",
+                "rust/Cargo.lock": "c24777a8b83e0f4243b0960bd7003efac26a9bfe2708a6a626db96668a2706dc",
+                "rust/Cargo.toml": "d7e0ae6c66d2a3ca29917d30897712274021da2e4cbdc7171546a929c2982c60",
+                "rust/justfile": "f948f0bd2e00b38d994a3c5ab28e33dee7b7d9155bfe619eb6371442c4c160b4",
+                "rust/kona/bin/client/justfile": "aca89fca51db96ed0bac087d53a908bdbf65add329f95bd02f45e06fd4133ca5",
+                "rust/kona/bin/client/scripts/fetch-witness-tar.sh": "be8dbaad35e8b2eed6e05d360ff1075c2617370af281d735602fc5d88456a981",
+                "rust/kona/docker/cannon/mips64-unknown-none.json": "cf22e520821869967452019d3524c19830424c2c7eed8791e1a483a22f855194",
+                "rust/kona/docker/fpvm-prestates/cannon-repro.dockerfile": "8b0593bec18836ddb472321b2f883224d75af4676695f9c8498f8c22d33f5319",
+                "rust/kona/justfile": "acbf89f0c25ef4fcb9c9e4398eea12ffcaba578f8be6c0185916e832a1f9b697"
+              },
+              "nightly": "nightly-2026-08-22",
+              "profile": "release-client-lto",
+              "rustflags": "-Clink-arg=-e_start -Cllvm-args=-mno-check-zero-division",
+              "source_sha": "2c68e86760cbf76fa9cfb78f58aee5e130ef45a7",
+              "source_trees": {
+                "cannon": "80178c5ca5b3db1e214496a4aa41d5ecd8cc2cbd",
+                "op-core/nuts/bundles": "f5337bea0ee7e4d6ca4dc3e93dcbccaa9986a3eb",
+                "op-preimage": "16c406ce2498a9f001536e3b0249cd0039521ec8",
+                "op-service": "aa68d45108f84db90b9f21074dd52c1be433d355",
+                "rust": "1688daa88747ef0db4dfd9bb4a589a00d57d9505"
+              },
+              "stable_rust": "1.95.0",
+              "target": "mips64-unknown-none",
+              "witness": {
+                "block_number": "47600000",
+                "filename": "op-sepolia-47600000-witness.tar.zst",
+                "l1_head": "0xf82badb3d56a53c373b501ec24e1e9ab2797feaab552c0d683849b1234308a2d",
+                "l2_chain_id": "11155420",
+                "l2_claim": "0x6ac07d241d170ddd504532a2c8127bb85426e604a360f8ba2d976be3cc0aa7f0",
+                "l2_head": "0x0084ac82023844b6f286783f3ea0ffddb8e597211ffbe01b56d8873f36a8bacb",
+                "l2_output_root": "0x9c799a1b767f43d6c654f83e18ae20bfc2953e94e5093ef59664ae8244ffdc96",
+                "release_url": "https://github.com/ethereum-optimism/chain-test-data/releases/download/kona-2026-08-13-op-sepolia-47600000-v2",
+                "sha256": "2ac1e74305ef1e62b0ca7ef90f193c680dc03c0b7c3db3af4c3a5c810cdc0b67"
+              }
+            },
+            "files": {
+              "kona-client": {
+                "sha256": "58bdf1ed712c077c3dae262b47c9e7071544eaecaed5f469f2da76fa9d53a9d0",
+                "size": 5388160
+              },
+              "kona-client-int": {
+                "sha256": "1c56637344d18caa8b4be10a800931265c0e2486d81f2fba595bc5d1843d7862",
+                "size": 5663056
+              }
+            },
+            "variants": [
+              {
+                "binary": "kona-client",
+                "prestate_directory": "prestate-artifacts-cannon"
+              },
+              {
+                "binary": "kona-client-int",
+                "prestate_directory": "prestate-artifacts-cannon-interop"
+              }
+            ]
+          },
+          "image-elfs.json": {
+            "binding": {
+              "build_std": "core,alloc",
+              "custom_configs": false,
+              "go_pin": "1.26.5",
+              "input_sha256": {
+                ".dockerignore": "3e3c26099595be81ec13cc008051da5896d1d369d04c4d7f98c9709e9462d74a",
+                "cannon/justfile": "06886d81853e97e1733c8b1c551a3a28fefaecc9030ae9137b4923b4e068653e",
+                "go.mod": "7f218bd78bc8519a81a7ed3ca8b932409ee21164511f189a7ba3d25c33e95014",
+                "go.sum": "4e23266b996fddcf3f8805f55e03329cf53fcb165aaf1d79f2111eab0ac38f76",
+                "justfiles/git.just": "09c77a7d0d25a492fb6fb5ac4a773cdf282a354cf0f7333ec6943607638a2d65",
+                "justfiles/go.just": "e6cf0e03db5d6c725900f4cc3dfa354b071e86da0d8dc2bfa775f79a122c16cd",
+                "mise.toml": "0b557a308b0cd91fd3db80af744520053106924fca7dad9ef682175930280e9a",
+                "ops/ci/cannon-witness.json": "4457faf60ff72e6235e11db8b9c7e8386c7f54acf51f447bffba289b56c4846f",
+                "ops/ci/rust-cannon-report.py": "e155ac159406849d0443cdb1ff24f39ac72721b153525e1e31329d9353f3c88d",
+                "ops/ci/rust-cannon.sh": "e522e56642ad721df608011ebb079806f94b86a74c717ba2f537cffe10395675",
+                "ops/ci/rust-target-cache.py": "e3abc022fb13a5738624029983028bf90a3ad91958ca6933f198184b261a8b48",
+                "ops/ci/rust-workspace-report.py": "3f5079c33798cf8cf7d8ba369b6b9aec2e0a9998d5298c51f3b9b1b2eb52960d",
+                "ops/scripts/install_mise.sh": "d427ef1337a400ac0700d65c18272bda4253cf30e6383210d8e9a05043abfa91",
+                "rust/.cargo/config.toml": "70e5283948d65db55a30eb030ee5c576b1c8f26e7880664b81b2d2c0a5d34c87",
+                "rust/Cargo.lock": "c24777a8b83e0f4243b0960bd7003efac26a9bfe2708a6a626db96668a2706dc",
+                "rust/Cargo.toml": "d7e0ae6c66d2a3ca29917d30897712274021da2e4cbdc7171546a929c2982c60",
+                "rust/justfile": "f948f0bd2e00b38d994a3c5ab28e33dee7b7d9155bfe619eb6371442c4c160b4",
+                "rust/kona/bin/client/justfile": "aca89fca51db96ed0bac087d53a908bdbf65add329f95bd02f45e06fd4133ca5",
+                "rust/kona/bin/client/scripts/fetch-witness-tar.sh": "be8dbaad35e8b2eed6e05d360ff1075c2617370af281d735602fc5d88456a981",
+                "rust/kona/docker/cannon/mips64-unknown-none.json": "cf22e520821869967452019d3524c19830424c2c7eed8791e1a483a22f855194",
+                "rust/kona/docker/fpvm-prestates/cannon-repro.dockerfile": "8b0593bec18836ddb472321b2f883224d75af4676695f9c8498f8c22d33f5319",
+                "rust/kona/justfile": "acbf89f0c25ef4fcb9c9e4398eea12ffcaba578f8be6c0185916e832a1f9b697"
+              },
+              "nightly": "nightly-2026-08-22",
+              "profile": "release-client-lto",
+              "rustflags": "-Clink-arg=-e_start -Cllvm-args=-mno-check-zero-division",
+              "source_sha": "2c68e86760cbf76fa9cfb78f58aee5e130ef45a7",
+              "source_trees": {
+                "cannon": "80178c5ca5b3db1e214496a4aa41d5ecd8cc2cbd",
+                "op-core/nuts/bundles": "f5337bea0ee7e4d6ca4dc3e93dcbccaa9986a3eb",
+                "op-preimage": "16c406ce2498a9f001536e3b0249cd0039521ec8",
+                "op-service": "aa68d45108f84db90b9f21074dd52c1be433d355",
+                "rust": "1688daa88747ef0db4dfd9bb4a589a00d57d9505"
+              },
+              "stable_rust": "1.95.0",
+              "target": "mips64-unknown-none",
+              "witness": {
+                "block_number": "47600000",
+                "filename": "op-sepolia-47600000-witness.tar.zst",
+                "l1_head": "0xf82badb3d56a53c373b501ec24e1e9ab2797feaab552c0d683849b1234308a2d",
+                "l2_chain_id": "11155420",
+                "l2_claim": "0x6ac07d241d170ddd504532a2c8127bb85426e604a360f8ba2d976be3cc0aa7f0",
+                "l2_head": "0x0084ac82023844b6f286783f3ea0ffddb8e597211ffbe01b56d8873f36a8bacb",
+                "l2_output_root": "0x9c799a1b767f43d6c654f83e18ae20bfc2953e94e5093ef59664ae8244ffdc96",
+                "release_url": "https://github.com/ethereum-optimism/chain-test-data/releases/download/kona-2026-08-13-op-sepolia-47600000-v2",
+                "sha256": "2ac1e74305ef1e62b0ca7ef90f193c680dc03c0b7c3db3af4c3a5c810cdc0b67"
+              }
+            },
+            "files": {
+              "kona-client": {
+                "sha256": "58bdf1ed712c077c3dae262b47c9e7071544eaecaed5f469f2da76fa9d53a9d0",
+                "size": 5388160
+              },
+              "kona-client-int": {
+                "sha256": "1c56637344d18caa8b4be10a800931265c0e2486d81f2fba595bc5d1843d7862",
+                "size": 5663056
+              }
+            },
+            "variants": [
+              {
+                "binary": "kona-client",
+                "prestate_directory": "prestate-artifacts-cannon"
+              },
+              {
+                "binary": "kona-client-int",
+                "prestate_directory": "prestate-artifacts-cannon-interop"
+              }
+            ]
+          }
+        },
+        "images": {
+          "circle": {
+            "base": "us-docker.pkg.dev/oplabs-tools-artifacts/images/cannon-builder:v2.0.0",
+            "base_digests": [
+              "us-docker.pkg.dev/oplabs-tools-artifacts/images/cannon-builder@sha256:2a1db1d75502b7ce479c49e448b061b2b1810fa0e0c9c692186ff9e4bd7fe4f6"
+            ],
+            "binding": {
+              "build_std": "core,alloc",
+              "custom_configs": false,
+              "go_pin": "1.26.5",
+              "input_sha256": {
+                ".dockerignore": "3e3c26099595be81ec13cc008051da5896d1d369d04c4d7f98c9709e9462d74a",
+                "cannon/justfile": "06886d81853e97e1733c8b1c551a3a28fefaecc9030ae9137b4923b4e068653e",
+                "go.mod": "7f218bd78bc8519a81a7ed3ca8b932409ee21164511f189a7ba3d25c33e95014",
+                "go.sum": "4e23266b996fddcf3f8805f55e03329cf53fcb165aaf1d79f2111eab0ac38f76",
+                "justfiles/git.just": "09c77a7d0d25a492fb6fb5ac4a773cdf282a354cf0f7333ec6943607638a2d65",
+                "justfiles/go.just": "e6cf0e03db5d6c725900f4cc3dfa354b071e86da0d8dc2bfa775f79a122c16cd",
+                "mise.toml": "0b557a308b0cd91fd3db80af744520053106924fca7dad9ef682175930280e9a",
+                "ops/ci/cannon-witness.json": "4457faf60ff72e6235e11db8b9c7e8386c7f54acf51f447bffba289b56c4846f",
+                "ops/ci/rust-cannon-report.py": "e155ac159406849d0443cdb1ff24f39ac72721b153525e1e31329d9353f3c88d",
+                "ops/ci/rust-cannon.sh": "e522e56642ad721df608011ebb079806f94b86a74c717ba2f537cffe10395675",
+                "ops/ci/rust-target-cache.py": "e3abc022fb13a5738624029983028bf90a3ad91958ca6933f198184b261a8b48",
+                "ops/ci/rust-workspace-report.py": "3f5079c33798cf8cf7d8ba369b6b9aec2e0a9998d5298c51f3b9b1b2eb52960d",
+                "ops/scripts/install_mise.sh": "d427ef1337a400ac0700d65c18272bda4253cf30e6383210d8e9a05043abfa91",
+                "rust/.cargo/config.toml": "70e5283948d65db55a30eb030ee5c576b1c8f26e7880664b81b2d2c0a5d34c87",
+                "rust/Cargo.lock": "c24777a8b83e0f4243b0960bd7003efac26a9bfe2708a6a626db96668a2706dc",
+                "rust/Cargo.toml": "d7e0ae6c66d2a3ca29917d30897712274021da2e4cbdc7171546a929c2982c60",
+                "rust/justfile": "f948f0bd2e00b38d994a3c5ab28e33dee7b7d9155bfe619eb6371442c4c160b4",
+                "rust/kona/bin/client/justfile": "aca89fca51db96ed0bac087d53a908bdbf65add329f95bd02f45e06fd4133ca5",
+                "rust/kona/bin/client/scripts/fetch-witness-tar.sh": "be8dbaad35e8b2eed6e05d360ff1075c2617370af281d735602fc5d88456a981",
+                "rust/kona/docker/cannon/mips64-unknown-none.json": "cf22e520821869967452019d3524c19830424c2c7eed8791e1a483a22f855194",
+                "rust/kona/docker/fpvm-prestates/cannon-repro.dockerfile": "8b0593bec18836ddb472321b2f883224d75af4676695f9c8498f8c22d33f5319",
+                "rust/kona/justfile": "acbf89f0c25ef4fcb9c9e4398eea12ffcaba578f8be6c0185916e832a1f9b697"
+              },
+              "nightly": "nightly-2026-08-22",
+              "profile": "release-client-lto",
+              "rustflags": "-Clink-arg=-e_start -Cllvm-args=-mno-check-zero-division",
+              "source_sha": "2c68e86760cbf76fa9cfb78f58aee5e130ef45a7",
+              "source_trees": {
+                "cannon": "80178c5ca5b3db1e214496a4aa41d5ecd8cc2cbd",
+                "op-core/nuts/bundles": "f5337bea0ee7e4d6ca4dc3e93dcbccaa9986a3eb",
+                "op-preimage": "16c406ce2498a9f001536e3b0249cd0039521ec8",
+                "op-service": "aa68d45108f84db90b9f21074dd52c1be433d355",
+                "rust": "1688daa88747ef0db4dfd9bb4a589a00d57d9505"
+              },
+              "stable_rust": "1.95.0",
+              "target": "mips64-unknown-none",
+              "witness": {
+                "block_number": "47600000",
+                "filename": "op-sepolia-47600000-witness.tar.zst",
+                "l1_head": "0xf82badb3d56a53c373b501ec24e1e9ab2797feaab552c0d683849b1234308a2d",
+                "l2_chain_id": "11155420",
+                "l2_claim": "0x6ac07d241d170ddd504532a2c8127bb85426e604a360f8ba2d976be3cc0aa7f0",
+                "l2_head": "0x0084ac82023844b6f286783f3ea0ffddb8e597211ffbe01b56d8873f36a8bacb",
+                "l2_output_root": "0x9c799a1b767f43d6c654f83e18ae20bfc2953e94e5093ef59664ae8244ffdc96",
+                "release_url": "https://github.com/ethereum-optimism/chain-test-data/releases/download/kona-2026-08-13-op-sepolia-47600000-v2",
+                "sha256": "2ac1e74305ef1e62b0ca7ef90f193c680dc03c0b7c3db3af4c3a5c810cdc0b67"
+              }
+            },
+            "image_id": "sha256:d63e3d7d9b15378a8ce491a990bcae74d18f00fb80fb6ab6cf1eb3f429542e51",
+            "tools": "rustc 1.100.0-nightly (c656540d6 2026-08-21)\ncargo 1.100.0-nightly (514c56dd7 2026-08-19)\nmips64-linux-gnuabi64-gcc (Ubuntu 10.3.0-1ubuntu1) 10.3.0\nCopyright (C) 2020 Free Software Foundation, Inc.\nThis is free software; see the source for copying conditions.  There is NO\nwarranty; not even for MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE."
+          },
+          "rwx": {
+            "base": "us-docker.pkg.dev/oplabs-tools-artifacts/images/cannon-builder:v2.0.0",
+            "base_digests": [
+              "us-docker.pkg.dev/oplabs-tools-artifacts/images/cannon-builder@sha256:2a1db1d75502b7ce479c49e448b061b2b1810fa0e0c9c692186ff9e4bd7fe4f6"
+            ],
+            "binding": {
+              "build_std": "core,alloc",
+              "custom_configs": false,
+              "go_pin": "1.26.5",
+              "input_sha256": {
+                ".dockerignore": "3e3c26099595be81ec13cc008051da5896d1d369d04c4d7f98c9709e9462d74a",
+                "cannon/justfile": "06886d81853e97e1733c8b1c551a3a28fefaecc9030ae9137b4923b4e068653e",
+                "go.mod": "7f218bd78bc8519a81a7ed3ca8b932409ee21164511f189a7ba3d25c33e95014",
+                "go.sum": "4e23266b996fddcf3f8805f55e03329cf53fcb165aaf1d79f2111eab0ac38f76",
+                "justfiles/git.just": "09c77a7d0d25a492fb6fb5ac4a773cdf282a354cf0f7333ec6943607638a2d65",
+                "justfiles/go.just": "e6cf0e03db5d6c725900f4cc3dfa354b071e86da0d8dc2bfa775f79a122c16cd",
+                "mise.toml": "0b557a308b0cd91fd3db80af744520053106924fca7dad9ef682175930280e9a",
+                "ops/ci/cannon-witness.json": "4457faf60ff72e6235e11db8b9c7e8386c7f54acf51f447bffba289b56c4846f",
+                "ops/ci/rust-cannon-report.py": "e155ac159406849d0443cdb1ff24f39ac72721b153525e1e31329d9353f3c88d",
+                "ops/ci/rust-cannon.sh": "e522e56642ad721df608011ebb079806f94b86a74c717ba2f537cffe10395675",
+                "ops/ci/rust-target-cache.py": "e3abc022fb13a5738624029983028bf90a3ad91958ca6933f198184b261a8b48",
+                "ops/ci/rust-workspace-report.py": "3f5079c33798cf8cf7d8ba369b6b9aec2e0a9998d5298c51f3b9b1b2eb52960d",
+                "ops/scripts/install_mise.sh": "d427ef1337a400ac0700d65c18272bda4253cf30e6383210d8e9a05043abfa91",
+                "rust/.cargo/config.toml": "70e5283948d65db55a30eb030ee5c576b1c8f26e7880664b81b2d2c0a5d34c87",
+                "rust/Cargo.lock": "c24777a8b83e0f4243b0960bd7003efac26a9bfe2708a6a626db96668a2706dc",
+                "rust/Cargo.toml": "d7e0ae6c66d2a3ca29917d30897712274021da2e4cbdc7171546a929c2982c60",
+                "rust/justfile": "f948f0bd2e00b38d994a3c5ab28e33dee7b7d9155bfe619eb6371442c4c160b4",
+                "rust/kona/bin/client/justfile": "aca89fca51db96ed0bac087d53a908bdbf65add329f95bd02f45e06fd4133ca5",
+                "rust/kona/bin/client/scripts/fetch-witness-tar.sh": "be8dbaad35e8b2eed6e05d360ff1075c2617370af281d735602fc5d88456a981",
+                "rust/kona/docker/cannon/mips64-unknown-none.json": "cf22e520821869967452019d3524c19830424c2c7eed8791e1a483a22f855194",
+                "rust/kona/docker/fpvm-prestates/cannon-repro.dockerfile": "8b0593bec18836ddb472321b2f883224d75af4676695f9c8498f8c22d33f5319",
+                "rust/kona/justfile": "acbf89f0c25ef4fcb9c9e4398eea12ffcaba578f8be6c0185916e832a1f9b697"
+              },
+              "nightly": "nightly-2026-08-22",
+              "profile": "release-client-lto",
+              "rustflags": "-Clink-arg=-e_start -Cllvm-args=-mno-check-zero-division",
+              "source_sha": "2c68e86760cbf76fa9cfb78f58aee5e130ef45a7",
+              "source_trees": {
+                "cannon": "80178c5ca5b3db1e214496a4aa41d5ecd8cc2cbd",
+                "op-core/nuts/bundles": "f5337bea0ee7e4d6ca4dc3e93dcbccaa9986a3eb",
+                "op-preimage": "16c406ce2498a9f001536e3b0249cd0039521ec8",
+                "op-service": "aa68d45108f84db90b9f21074dd52c1be433d355",
+                "rust": "1688daa88747ef0db4dfd9bb4a589a00d57d9505"
+              },
+              "stable_rust": "1.95.0",
+              "target": "mips64-unknown-none",
+              "witness": {
+                "block_number": "47600000",
+                "filename": "op-sepolia-47600000-witness.tar.zst",
+                "l1_head": "0xf82badb3d56a53c373b501ec24e1e9ab2797feaab552c0d683849b1234308a2d",
+                "l2_chain_id": "11155420",
+                "l2_claim": "0x6ac07d241d170ddd504532a2c8127bb85426e604a360f8ba2d976be3cc0aa7f0",
+                "l2_head": "0x0084ac82023844b6f286783f3ea0ffddb8e597211ffbe01b56d8873f36a8bacb",
+                "l2_output_root": "0x9c799a1b767f43d6c654f83e18ae20bfc2953e94e5093ef59664ae8244ffdc96",
+                "release_url": "https://github.com/ethereum-optimism/chain-test-data/releases/download/kona-2026-08-13-op-sepolia-47600000-v2",
+                "sha256": "2ac1e74305ef1e62b0ca7ef90f193c680dc03c0b7c3db3af4c3a5c810cdc0b67"
+              }
+            },
+            "image_id": "sha256:eb2039e15c5fab191f0f12db73a5a3db2492c7ee71528d48d4dcf07fd9d883e5",
+            "tools": "rustc 1.100.0-nightly (c656540d6 2026-08-21)\ncargo 1.100.0-nightly (514c56dd7 2026-08-19)\nmips64-linux-gnuabi64-gcc (Ubuntu 10.3.0-1ubuntu1) 10.3.0\nCopyright (C) 2020 Free Software Foundation, Inc.\nThis is free software; see the source for copying conditions.  There is NO\nwarranty; not even for MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE."
+          }
+        },
+        "outcome": "pass",
+        "retries": 0,
+        "stages": {
+          "build": {
+            "argv": [
+              "just",
+              "build-cannon-client"
+            ],
+            "cwd": "rust/kona",
+            "exit_code": 0
+          },
+          "variants": {
+            "argv": [
+              "just",
+              "kona-prestate-variants"
+            ],
+            "cwd": "rust",
+            "exit_code": 0
+          }
+        },
+        "variants": [
+          {
+            "binary": "kona-client",
+            "prestate_directory": "prestate-artifacts-cannon"
+          },
+          {
+            "binary": "kona-client-int",
+            "prestate_directory": "prestate-artifacts-cannon-interop"
+          }
+        ]
+      },
+      "lint": {
+        "elfs": {
+          "image-elfs.json": {
+            "binding": {
+              "build_std": "core,alloc",
+              "custom_configs": false,
+              "go_pin": "1.26.5",
+              "input_sha256": {
+                ".dockerignore": "3e3c26099595be81ec13cc008051da5896d1d369d04c4d7f98c9709e9462d74a",
+                "cannon/justfile": "06886d81853e97e1733c8b1c551a3a28fefaecc9030ae9137b4923b4e068653e",
+                "go.mod": "7f218bd78bc8519a81a7ed3ca8b932409ee21164511f189a7ba3d25c33e95014",
+                "go.sum": "4e23266b996fddcf3f8805f55e03329cf53fcb165aaf1d79f2111eab0ac38f76",
+                "justfiles/git.just": "09c77a7d0d25a492fb6fb5ac4a773cdf282a354cf0f7333ec6943607638a2d65",
+                "justfiles/go.just": "e6cf0e03db5d6c725900f4cc3dfa354b071e86da0d8dc2bfa775f79a122c16cd",
+                "mise.toml": "0b557a308b0cd91fd3db80af744520053106924fca7dad9ef682175930280e9a",
+                "ops/ci/cannon-witness.json": "4457faf60ff72e6235e11db8b9c7e8386c7f54acf51f447bffba289b56c4846f",
+                "ops/ci/rust-cannon-report.py": "e155ac159406849d0443cdb1ff24f39ac72721b153525e1e31329d9353f3c88d",
+                "ops/ci/rust-cannon.sh": "e522e56642ad721df608011ebb079806f94b86a74c717ba2f537cffe10395675",
+                "ops/ci/rust-target-cache.py": "e3abc022fb13a5738624029983028bf90a3ad91958ca6933f198184b261a8b48",
+                "ops/ci/rust-workspace-report.py": "3f5079c33798cf8cf7d8ba369b6b9aec2e0a9998d5298c51f3b9b1b2eb52960d",
+                "ops/scripts/install_mise.sh": "d427ef1337a400ac0700d65c18272bda4253cf30e6383210d8e9a05043abfa91",
+                "rust/.cargo/config.toml": "70e5283948d65db55a30eb030ee5c576b1c8f26e7880664b81b2d2c0a5d34c87",
+                "rust/Cargo.lock": "c24777a8b83e0f4243b0960bd7003efac26a9bfe2708a6a626db96668a2706dc",
+                "rust/Cargo.toml": "d7e0ae6c66d2a3ca29917d30897712274021da2e4cbdc7171546a929c2982c60",
+                "rust/justfile": "f948f0bd2e00b38d994a3c5ab28e33dee7b7d9155bfe619eb6371442c4c160b4",
+                "rust/kona/bin/client/justfile": "aca89fca51db96ed0bac087d53a908bdbf65add329f95bd02f45e06fd4133ca5",
+                "rust/kona/bin/client/scripts/fetch-witness-tar.sh": "be8dbaad35e8b2eed6e05d360ff1075c2617370af281d735602fc5d88456a981",
+                "rust/kona/docker/cannon/mips64-unknown-none.json": "cf22e520821869967452019d3524c19830424c2c7eed8791e1a483a22f855194",
+                "rust/kona/docker/fpvm-prestates/cannon-repro.dockerfile": "8b0593bec18836ddb472321b2f883224d75af4676695f9c8498f8c22d33f5319",
+                "rust/kona/justfile": "acbf89f0c25ef4fcb9c9e4398eea12ffcaba578f8be6c0185916e832a1f9b697"
+              },
+              "nightly": "nightly-2026-08-22",
+              "profile": "release-client-lto",
+              "rustflags": "-Clink-arg=-e_start -Cllvm-args=-mno-check-zero-division",
+              "source_sha": "2c68e86760cbf76fa9cfb78f58aee5e130ef45a7",
+              "source_trees": {
+                "cannon": "80178c5ca5b3db1e214496a4aa41d5ecd8cc2cbd",
+                "op-core/nuts/bundles": "f5337bea0ee7e4d6ca4dc3e93dcbccaa9986a3eb",
+                "op-preimage": "16c406ce2498a9f001536e3b0249cd0039521ec8",
+                "op-service": "aa68d45108f84db90b9f21074dd52c1be433d355",
+                "rust": "1688daa88747ef0db4dfd9bb4a589a00d57d9505"
+              },
+              "stable_rust": "1.95.0",
+              "target": "mips64-unknown-none",
+              "witness": {
+                "block_number": "47600000",
+                "filename": "op-sepolia-47600000-witness.tar.zst",
+                "l1_head": "0xf82badb3d56a53c373b501ec24e1e9ab2797feaab552c0d683849b1234308a2d",
+                "l2_chain_id": "11155420",
+                "l2_claim": "0x6ac07d241d170ddd504532a2c8127bb85426e604a360f8ba2d976be3cc0aa7f0",
+                "l2_head": "0x0084ac82023844b6f286783f3ea0ffddb8e597211ffbe01b56d8873f36a8bacb",
+                "l2_output_root": "0x9c799a1b767f43d6c654f83e18ae20bfc2953e94e5093ef59664ae8244ffdc96",
+                "release_url": "https://github.com/ethereum-optimism/chain-test-data/releases/download/kona-2026-08-13-op-sepolia-47600000-v2",
+                "sha256": "2ac1e74305ef1e62b0ca7ef90f193c680dc03c0b7c3db3af4c3a5c810cdc0b67"
+              }
+            },
+            "files": {
+              "kona-client": {
+                "sha256": "58bdf1ed712c077c3dae262b47c9e7071544eaecaed5f469f2da76fa9d53a9d0",
+                "size": 5388160
+              },
+              "kona-client-int": {
+                "sha256": "1c56637344d18caa8b4be10a800931265c0e2486d81f2fba595bc5d1843d7862",
+                "size": 5663056
+              }
+            },
+            "variants": [
+              {
+                "binary": "kona-client",
+                "prestate_directory": "prestate-artifacts-cannon"
+              },
+              {
+                "binary": "kona-client-int",
+                "prestate_directory": "prestate-artifacts-cannon-interop"
+              }
+            ]
+          }
+        },
+        "images": {
+          "circle": {
+            "base": "us-docker.pkg.dev/oplabs-tools-artifacts/images/cannon-builder:v2.0.0",
+            "base_digests": [
+              "us-docker.pkg.dev/oplabs-tools-artifacts/images/cannon-builder@sha256:2a1db1d75502b7ce479c49e448b061b2b1810fa0e0c9c692186ff9e4bd7fe4f6"
+            ],
+            "binding": {
+              "build_std": "core,alloc",
+              "custom_configs": false,
+              "go_pin": "1.26.5",
+              "input_sha256": {
+                ".dockerignore": "3e3c26099595be81ec13cc008051da5896d1d369d04c4d7f98c9709e9462d74a",
+                "cannon/justfile": "06886d81853e97e1733c8b1c551a3a28fefaecc9030ae9137b4923b4e068653e",
+                "go.mod": "7f218bd78bc8519a81a7ed3ca8b932409ee21164511f189a7ba3d25c33e95014",
+                "go.sum": "4e23266b996fddcf3f8805f55e03329cf53fcb165aaf1d79f2111eab0ac38f76",
+                "justfiles/git.just": "09c77a7d0d25a492fb6fb5ac4a773cdf282a354cf0f7333ec6943607638a2d65",
+                "justfiles/go.just": "e6cf0e03db5d6c725900f4cc3dfa354b071e86da0d8dc2bfa775f79a122c16cd",
+                "mise.toml": "0b557a308b0cd91fd3db80af744520053106924fca7dad9ef682175930280e9a",
+                "ops/ci/cannon-witness.json": "4457faf60ff72e6235e11db8b9c7e8386c7f54acf51f447bffba289b56c4846f",
+                "ops/ci/rust-cannon-report.py": "e155ac159406849d0443cdb1ff24f39ac72721b153525e1e31329d9353f3c88d",
+                "ops/ci/rust-cannon.sh": "e522e56642ad721df608011ebb079806f94b86a74c717ba2f537cffe10395675",
+                "ops/ci/rust-target-cache.py": "e3abc022fb13a5738624029983028bf90a3ad91958ca6933f198184b261a8b48",
+                "ops/ci/rust-workspace-report.py": "3f5079c33798cf8cf7d8ba369b6b9aec2e0a9998d5298c51f3b9b1b2eb52960d",
+                "ops/scripts/install_mise.sh": "d427ef1337a400ac0700d65c18272bda4253cf30e6383210d8e9a05043abfa91",
+                "rust/.cargo/config.toml": "70e5283948d65db55a30eb030ee5c576b1c8f26e7880664b81b2d2c0a5d34c87",
+                "rust/Cargo.lock": "c24777a8b83e0f4243b0960bd7003efac26a9bfe2708a6a626db96668a2706dc",
+                "rust/Cargo.toml": "d7e0ae6c66d2a3ca29917d30897712274021da2e4cbdc7171546a929c2982c60",
+                "rust/justfile": "f948f0bd2e00b38d994a3c5ab28e33dee7b7d9155bfe619eb6371442c4c160b4",
+                "rust/kona/bin/client/justfile": "aca89fca51db96ed0bac087d53a908bdbf65add329f95bd02f45e06fd4133ca5",
+                "rust/kona/bin/client/scripts/fetch-witness-tar.sh": "be8dbaad35e8b2eed6e05d360ff1075c2617370af281d735602fc5d88456a981",
+                "rust/kona/docker/cannon/mips64-unknown-none.json": "cf22e520821869967452019d3524c19830424c2c7eed8791e1a483a22f855194",
+                "rust/kona/docker/fpvm-prestates/cannon-repro.dockerfile": "8b0593bec18836ddb472321b2f883224d75af4676695f9c8498f8c22d33f5319",
+                "rust/kona/justfile": "acbf89f0c25ef4fcb9c9e4398eea12ffcaba578f8be6c0185916e832a1f9b697"
+              },
+              "nightly": "nightly-2026-08-22",
+              "profile": "release-client-lto",
+              "rustflags": "-Clink-arg=-e_start -Cllvm-args=-mno-check-zero-division",
+              "source_sha": "2c68e86760cbf76fa9cfb78f58aee5e130ef45a7",
+              "source_trees": {
+                "cannon": "80178c5ca5b3db1e214496a4aa41d5ecd8cc2cbd",
+                "op-core/nuts/bundles": "f5337bea0ee7e4d6ca4dc3e93dcbccaa9986a3eb",
+                "op-preimage": "16c406ce2498a9f001536e3b0249cd0039521ec8",
+                "op-service": "aa68d45108f84db90b9f21074dd52c1be433d355",
+                "rust": "1688daa88747ef0db4dfd9bb4a589a00d57d9505"
+              },
+              "stable_rust": "1.95.0",
+              "target": "mips64-unknown-none",
+              "witness": {
+                "block_number": "47600000",
+                "filename": "op-sepolia-47600000-witness.tar.zst",
+                "l1_head": "0xf82badb3d56a53c373b501ec24e1e9ab2797feaab552c0d683849b1234308a2d",
+                "l2_chain_id": "11155420",
+                "l2_claim": "0x6ac07d241d170ddd504532a2c8127bb85426e604a360f8ba2d976be3cc0aa7f0",
+                "l2_head": "0x0084ac82023844b6f286783f3ea0ffddb8e597211ffbe01b56d8873f36a8bacb",
+                "l2_output_root": "0x9c799a1b767f43d6c654f83e18ae20bfc2953e94e5093ef59664ae8244ffdc96",
+                "release_url": "https://github.com/ethereum-optimism/chain-test-data/releases/download/kona-2026-08-13-op-sepolia-47600000-v2",
+                "sha256": "2ac1e74305ef1e62b0ca7ef90f193c680dc03c0b7c3db3af4c3a5c810cdc0b67"
+              }
+            },
+            "image_id": "sha256:83391a1cb372c4f1afee57ee67ba5fa525c90caff34835105ea42d747e62af80",
+            "tools": "rustc 1.100.0-nightly (c656540d6 2026-08-21)\ncargo 1.100.0-nightly (514c56dd7 2026-08-19)\nmips64-linux-gnuabi64-gcc (Ubuntu 10.3.0-1ubuntu1) 10.3.0\nCopyright (C) 2020 Free Software Foundation, Inc.\nThis is free software; see the source for copying conditions.  There is NO\nwarranty; not even for MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE."
+          },
+          "rwx": {
+            "base": "us-docker.pkg.dev/oplabs-tools-artifacts/images/cannon-builder:v2.0.0",
+            "base_digests": [
+              "us-docker.pkg.dev/oplabs-tools-artifacts/images/cannon-builder@sha256:2a1db1d75502b7ce479c49e448b061b2b1810fa0e0c9c692186ff9e4bd7fe4f6"
+            ],
+            "binding": {
+              "build_std": "core,alloc",
+              "custom_configs": false,
+              "go_pin": "1.26.5",
+              "input_sha256": {
+                ".dockerignore": "3e3c26099595be81ec13cc008051da5896d1d369d04c4d7f98c9709e9462d74a",
+                "cannon/justfile": "06886d81853e97e1733c8b1c551a3a28fefaecc9030ae9137b4923b4e068653e",
+                "go.mod": "7f218bd78bc8519a81a7ed3ca8b932409ee21164511f189a7ba3d25c33e95014",
+                "go.sum": "4e23266b996fddcf3f8805f55e03329cf53fcb165aaf1d79f2111eab0ac38f76",
+                "justfiles/git.just": "09c77a7d0d25a492fb6fb5ac4a773cdf282a354cf0f7333ec6943607638a2d65",
+                "justfiles/go.just": "e6cf0e03db5d6c725900f4cc3dfa354b071e86da0d8dc2bfa775f79a122c16cd",
+                "mise.toml": "0b557a308b0cd91fd3db80af744520053106924fca7dad9ef682175930280e9a",
+                "ops/ci/cannon-witness.json": "4457faf60ff72e6235e11db8b9c7e8386c7f54acf51f447bffba289b56c4846f",
+                "ops/ci/rust-cannon-report.py": "e155ac159406849d0443cdb1ff24f39ac72721b153525e1e31329d9353f3c88d",
+                "ops/ci/rust-cannon.sh": "e522e56642ad721df608011ebb079806f94b86a74c717ba2f537cffe10395675",
+                "ops/ci/rust-target-cache.py": "e3abc022fb13a5738624029983028bf90a3ad91958ca6933f198184b261a8b48",
+                "ops/ci/rust-workspace-report.py": "3f5079c33798cf8cf7d8ba369b6b9aec2e0a9998d5298c51f3b9b1b2eb52960d",
+                "ops/scripts/install_mise.sh": "d427ef1337a400ac0700d65c18272bda4253cf30e6383210d8e9a05043abfa91",
+                "rust/.cargo/config.toml": "70e5283948d65db55a30eb030ee5c576b1c8f26e7880664b81b2d2c0a5d34c87",
+                "rust/Cargo.lock": "c24777a8b83e0f4243b0960bd7003efac26a9bfe2708a6a626db96668a2706dc",
+                "rust/Cargo.toml": "d7e0ae6c66d2a3ca29917d30897712274021da2e4cbdc7171546a929c2982c60",
+                "rust/justfile": "f948f0bd2e00b38d994a3c5ab28e33dee7b7d9155bfe619eb6371442c4c160b4",
+                "rust/kona/bin/client/justfile": "aca89fca51db96ed0bac087d53a908bdbf65add329f95bd02f45e06fd4133ca5",
+                "rust/kona/bin/client/scripts/fetch-witness-tar.sh": "be8dbaad35e8b2eed6e05d360ff1075c2617370af281d735602fc5d88456a981",
+                "rust/kona/docker/cannon/mips64-unknown-none.json": "cf22e520821869967452019d3524c19830424c2c7eed8791e1a483a22f855194",
+                "rust/kona/docker/fpvm-prestates/cannon-repro.dockerfile": "8b0593bec18836ddb472321b2f883224d75af4676695f9c8498f8c22d33f5319",
+                "rust/kona/justfile": "acbf89f0c25ef4fcb9c9e4398eea12ffcaba578f8be6c0185916e832a1f9b697"
+              },
+              "nightly": "nightly-2026-08-22",
+              "profile": "release-client-lto",
+              "rustflags": "-Clink-arg=-e_start -Cllvm-args=-mno-check-zero-division",
+              "source_sha": "2c68e86760cbf76fa9cfb78f58aee5e130ef45a7",
+              "source_trees": {
+                "cannon": "80178c5ca5b3db1e214496a4aa41d5ecd8cc2cbd",
+                "op-core/nuts/bundles": "f5337bea0ee7e4d6ca4dc3e93dcbccaa9986a3eb",
+                "op-preimage": "16c406ce2498a9f001536e3b0249cd0039521ec8",
+                "op-service": "aa68d45108f84db90b9f21074dd52c1be433d355",
+                "rust": "1688daa88747ef0db4dfd9bb4a589a00d57d9505"
+              },
+              "stable_rust": "1.95.0",
+              "target": "mips64-unknown-none",
+              "witness": {
+                "block_number": "47600000",
+                "filename": "op-sepolia-47600000-witness.tar.zst",
+                "l1_head": "0xf82badb3d56a53c373b501ec24e1e9ab2797feaab552c0d683849b1234308a2d",
+                "l2_chain_id": "11155420",
+                "l2_claim": "0x6ac07d241d170ddd504532a2c8127bb85426e604a360f8ba2d976be3cc0aa7f0",
+                "l2_head": "0x0084ac82023844b6f286783f3ea0ffddb8e597211ffbe01b56d8873f36a8bacb",
+                "l2_output_root": "0x9c799a1b767f43d6c654f83e18ae20bfc2953e94e5093ef59664ae8244ffdc96",
+                "release_url": "https://github.com/ethereum-optimism/chain-test-data/releases/download/kona-2026-08-13-op-sepolia-47600000-v2",
+                "sha256": "2ac1e74305ef1e62b0ca7ef90f193c680dc03c0b7c3db3af4c3a5c810cdc0b67"
+              }
+            },
+            "image_id": "sha256:eb2039e15c5fab191f0f12db73a5a3db2492c7ee71528d48d4dcf07fd9d883e5",
+            "tools": "rustc 1.100.0-nightly (c656540d6 2026-08-21)\ncargo 1.100.0-nightly (514c56dd7 2026-08-19)\nmips64-linux-gnuabi64-gcc (Ubuntu 10.3.0-1ubuntu1) 10.3.0\nCopyright (C) 2020 Free Software Foundation, Inc.\nThis is free software; see the source for copying conditions.  There is NO\nwarranty; not even for MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE."
+          }
+        },
+        "outcome": "pass",
+        "retries": 0,
+        "stages": {
+          "lint": {
+            "argv": [
+              "just",
+              "lint-cannon"
+            ],
+            "cwd": "rust/kona",
+            "exit_code": 0
+          },
+          "variants": {
+            "argv": [
+              "just",
+              "kona-prestate-variants"
+            ],
+            "cwd": "rust",
+            "exit_code": 0
+          }
+        },
+        "variants": [
+          {
+            "binary": "kona-client",
+            "prestate_directory": "prestate-artifacts-cannon"
+          },
+          {
+            "binary": "kona-client-int",
+            "prestate_directory": "prestate-artifacts-cannon-interop"
+          }
+        ]
+      },
+      "offline": {
+        "elfs": {
+          "elfs.json": {
+            "binding": {
+              "build_std": "core,alloc",
+              "custom_configs": false,
+              "go_pin": "1.26.5",
+              "input_sha256": {
+                ".dockerignore": "3e3c26099595be81ec13cc008051da5896d1d369d04c4d7f98c9709e9462d74a",
+                "cannon/justfile": "06886d81853e97e1733c8b1c551a3a28fefaecc9030ae9137b4923b4e068653e",
+                "go.mod": "7f218bd78bc8519a81a7ed3ca8b932409ee21164511f189a7ba3d25c33e95014",
+                "go.sum": "4e23266b996fddcf3f8805f55e03329cf53fcb165aaf1d79f2111eab0ac38f76",
+                "justfiles/git.just": "09c77a7d0d25a492fb6fb5ac4a773cdf282a354cf0f7333ec6943607638a2d65",
+                "justfiles/go.just": "e6cf0e03db5d6c725900f4cc3dfa354b071e86da0d8dc2bfa775f79a122c16cd",
+                "mise.toml": "0b557a308b0cd91fd3db80af744520053106924fca7dad9ef682175930280e9a",
+                "ops/ci/cannon-witness.json": "4457faf60ff72e6235e11db8b9c7e8386c7f54acf51f447bffba289b56c4846f",
+                "ops/ci/rust-cannon-report.py": "e155ac159406849d0443cdb1ff24f39ac72721b153525e1e31329d9353f3c88d",
+                "ops/ci/rust-cannon.sh": "e522e56642ad721df608011ebb079806f94b86a74c717ba2f537cffe10395675",
+                "ops/ci/rust-target-cache.py": "e3abc022fb13a5738624029983028bf90a3ad91958ca6933f198184b261a8b48",
+                "ops/ci/rust-workspace-report.py": "3f5079c33798cf8cf7d8ba369b6b9aec2e0a9998d5298c51f3b9b1b2eb52960d",
+                "ops/scripts/install_mise.sh": "d427ef1337a400ac0700d65c18272bda4253cf30e6383210d8e9a05043abfa91",
+                "rust/.cargo/config.toml": "70e5283948d65db55a30eb030ee5c576b1c8f26e7880664b81b2d2c0a5d34c87",
+                "rust/Cargo.lock": "c24777a8b83e0f4243b0960bd7003efac26a9bfe2708a6a626db96668a2706dc",
+                "rust/Cargo.toml": "d7e0ae6c66d2a3ca29917d30897712274021da2e4cbdc7171546a929c2982c60",
+                "rust/justfile": "f948f0bd2e00b38d994a3c5ab28e33dee7b7d9155bfe619eb6371442c4c160b4",
+                "rust/kona/bin/client/justfile": "aca89fca51db96ed0bac087d53a908bdbf65add329f95bd02f45e06fd4133ca5",
+                "rust/kona/bin/client/scripts/fetch-witness-tar.sh": "be8dbaad35e8b2eed6e05d360ff1075c2617370af281d735602fc5d88456a981",
+                "rust/kona/docker/cannon/mips64-unknown-none.json": "cf22e520821869967452019d3524c19830424c2c7eed8791e1a483a22f855194",
+                "rust/kona/docker/fpvm-prestates/cannon-repro.dockerfile": "8b0593bec18836ddb472321b2f883224d75af4676695f9c8498f8c22d33f5319",
+                "rust/kona/justfile": "acbf89f0c25ef4fcb9c9e4398eea12ffcaba578f8be6c0185916e832a1f9b697"
+              },
+              "nightly": "nightly-2026-08-22",
+              "profile": "release-client-lto",
+              "rustflags": "-Clink-arg=-e_start -Cllvm-args=-mno-check-zero-division",
+              "source_sha": "2c68e86760cbf76fa9cfb78f58aee5e130ef45a7",
+              "source_trees": {
+                "cannon": "80178c5ca5b3db1e214496a4aa41d5ecd8cc2cbd",
+                "op-core/nuts/bundles": "f5337bea0ee7e4d6ca4dc3e93dcbccaa9986a3eb",
+                "op-preimage": "16c406ce2498a9f001536e3b0249cd0039521ec8",
+                "op-service": "aa68d45108f84db90b9f21074dd52c1be433d355",
+                "rust": "1688daa88747ef0db4dfd9bb4a589a00d57d9505"
+              },
+              "stable_rust": "1.95.0",
+              "target": "mips64-unknown-none",
+              "witness": {
+                "block_number": "47600000",
+                "filename": "op-sepolia-47600000-witness.tar.zst",
+                "l1_head": "0xf82badb3d56a53c373b501ec24e1e9ab2797feaab552c0d683849b1234308a2d",
+                "l2_chain_id": "11155420",
+                "l2_claim": "0x6ac07d241d170ddd504532a2c8127bb85426e604a360f8ba2d976be3cc0aa7f0",
+                "l2_head": "0x0084ac82023844b6f286783f3ea0ffddb8e597211ffbe01b56d8873f36a8bacb",
+                "l2_output_root": "0x9c799a1b767f43d6c654f83e18ae20bfc2953e94e5093ef59664ae8244ffdc96",
+                "release_url": "https://github.com/ethereum-optimism/chain-test-data/releases/download/kona-2026-08-13-op-sepolia-47600000-v2",
+                "sha256": "2ac1e74305ef1e62b0ca7ef90f193c680dc03c0b7c3db3af4c3a5c810cdc0b67"
+              }
+            },
+            "files": {
+              "kona-client": {
+                "sha256": "58bdf1ed712c077c3dae262b47c9e7071544eaecaed5f469f2da76fa9d53a9d0",
+                "size": 5388160
+              },
+              "kona-client-int": {
+                "sha256": "1c56637344d18caa8b4be10a800931265c0e2486d81f2fba595bc5d1843d7862",
+                "size": 5663056
+              }
+            },
+            "variants": [
+              {
+                "binary": "kona-client",
+                "prestate_directory": "prestate-artifacts-cannon"
+              },
+              {
+                "binary": "kona-client-int",
+                "prestate_directory": "prestate-artifacts-cannon-interop"
+              }
+            ]
+          },
+          "image-elfs.json": {
+            "binding": {
+              "build_std": "core,alloc",
+              "custom_configs": false,
+              "go_pin": "1.26.5",
+              "input_sha256": {
+                ".dockerignore": "3e3c26099595be81ec13cc008051da5896d1d369d04c4d7f98c9709e9462d74a",
+                "cannon/justfile": "06886d81853e97e1733c8b1c551a3a28fefaecc9030ae9137b4923b4e068653e",
+                "go.mod": "7f218bd78bc8519a81a7ed3ca8b932409ee21164511f189a7ba3d25c33e95014",
+                "go.sum": "4e23266b996fddcf3f8805f55e03329cf53fcb165aaf1d79f2111eab0ac38f76",
+                "justfiles/git.just": "09c77a7d0d25a492fb6fb5ac4a773cdf282a354cf0f7333ec6943607638a2d65",
+                "justfiles/go.just": "e6cf0e03db5d6c725900f4cc3dfa354b071e86da0d8dc2bfa775f79a122c16cd",
+                "mise.toml": "0b557a308b0cd91fd3db80af744520053106924fca7dad9ef682175930280e9a",
+                "ops/ci/cannon-witness.json": "4457faf60ff72e6235e11db8b9c7e8386c7f54acf51f447bffba289b56c4846f",
+                "ops/ci/rust-cannon-report.py": "e155ac159406849d0443cdb1ff24f39ac72721b153525e1e31329d9353f3c88d",
+                "ops/ci/rust-cannon.sh": "e522e56642ad721df608011ebb079806f94b86a74c717ba2f537cffe10395675",
+                "ops/ci/rust-target-cache.py": "e3abc022fb13a5738624029983028bf90a3ad91958ca6933f198184b261a8b48",
+                "ops/ci/rust-workspace-report.py": "3f5079c33798cf8cf7d8ba369b6b9aec2e0a9998d5298c51f3b9b1b2eb52960d",
+                "ops/scripts/install_mise.sh": "d427ef1337a400ac0700d65c18272bda4253cf30e6383210d8e9a05043abfa91",
+                "rust/.cargo/config.toml": "70e5283948d65db55a30eb030ee5c576b1c8f26e7880664b81b2d2c0a5d34c87",
+                "rust/Cargo.lock": "c24777a8b83e0f4243b0960bd7003efac26a9bfe2708a6a626db96668a2706dc",
+                "rust/Cargo.toml": "d7e0ae6c66d2a3ca29917d30897712274021da2e4cbdc7171546a929c2982c60",
+                "rust/justfile": "f948f0bd2e00b38d994a3c5ab28e33dee7b7d9155bfe619eb6371442c4c160b4",
+                "rust/kona/bin/client/justfile": "aca89fca51db96ed0bac087d53a908bdbf65add329f95bd02f45e06fd4133ca5",
+                "rust/kona/bin/client/scripts/fetch-witness-tar.sh": "be8dbaad35e8b2eed6e05d360ff1075c2617370af281d735602fc5d88456a981",
+                "rust/kona/docker/cannon/mips64-unknown-none.json": "cf22e520821869967452019d3524c19830424c2c7eed8791e1a483a22f855194",
+                "rust/kona/docker/fpvm-prestates/cannon-repro.dockerfile": "8b0593bec18836ddb472321b2f883224d75af4676695f9c8498f8c22d33f5319",
+                "rust/kona/justfile": "acbf89f0c25ef4fcb9c9e4398eea12ffcaba578f8be6c0185916e832a1f9b697"
+              },
+              "nightly": "nightly-2026-08-22",
+              "profile": "release-client-lto",
+              "rustflags": "-Clink-arg=-e_start -Cllvm-args=-mno-check-zero-division",
+              "source_sha": "2c68e86760cbf76fa9cfb78f58aee5e130ef45a7",
+              "source_trees": {
+                "cannon": "80178c5ca5b3db1e214496a4aa41d5ecd8cc2cbd",
+                "op-core/nuts/bundles": "f5337bea0ee7e4d6ca4dc3e93dcbccaa9986a3eb",
+                "op-preimage": "16c406ce2498a9f001536e3b0249cd0039521ec8",
+                "op-service": "aa68d45108f84db90b9f21074dd52c1be433d355",
+                "rust": "1688daa88747ef0db4dfd9bb4a589a00d57d9505"
+              },
+              "stable_rust": "1.95.0",
+              "target": "mips64-unknown-none",
+              "witness": {
+                "block_number": "47600000",
+                "filename": "op-sepolia-47600000-witness.tar.zst",
+                "l1_head": "0xf82badb3d56a53c373b501ec24e1e9ab2797feaab552c0d683849b1234308a2d",
+                "l2_chain_id": "11155420",
+                "l2_claim": "0x6ac07d241d170ddd504532a2c8127bb85426e604a360f8ba2d976be3cc0aa7f0",
+                "l2_head": "0x0084ac82023844b6f286783f3ea0ffddb8e597211ffbe01b56d8873f36a8bacb",
+                "l2_output_root": "0x9c799a1b767f43d6c654f83e18ae20bfc2953e94e5093ef59664ae8244ffdc96",
+                "release_url": "https://github.com/ethereum-optimism/chain-test-data/releases/download/kona-2026-08-13-op-sepolia-47600000-v2",
+                "sha256": "2ac1e74305ef1e62b0ca7ef90f193c680dc03c0b7c3db3af4c3a5c810cdc0b67"
+              }
+            },
+            "files": {
+              "kona-client": {
+                "sha256": "58bdf1ed712c077c3dae262b47c9e7071544eaecaed5f469f2da76fa9d53a9d0",
+                "size": 5388160
+              },
+              "kona-client-int": {
+                "sha256": "1c56637344d18caa8b4be10a800931265c0e2486d81f2fba595bc5d1843d7862",
+                "size": 5663056
+              }
+            },
+            "variants": [
+              {
+                "binary": "kona-client",
+                "prestate_directory": "prestate-artifacts-cannon"
+              },
+              {
+                "binary": "kona-client-int",
+                "prestate_directory": "prestate-artifacts-cannon-interop"
+              }
+            ]
+          }
+        },
+        "guest": {
+          "circle": {
+            "boundary": {
+              "block_number": "47600000",
+              "filename": "op-sepolia-47600000-witness.tar.zst",
+              "l1_head": "0xf82badb3d56a53c373b501ec24e1e9ab2797feaab552c0d683849b1234308a2d",
+              "l2_chain_id": "11155420",
+              "l2_claim": "0x6ac07d241d170ddd504532a2c8127bb85426e604a360f8ba2d976be3cc0aa7f0",
+              "l2_head": "0x0084ac82023844b6f286783f3ea0ffddb8e597211ffbe01b56d8873f36a8bacb",
+              "l2_output_root": "0x9c799a1b767f43d6c654f83e18ae20bfc2953e94e5093ef59664ae8244ffdc96",
+              "release_url": "https://github.com/ethereum-optimism/chain-test-data/releases/download/kona-2026-08-13-op-sepolia-47600000-v2",
+              "sha256": "2ac1e74305ef1e62b0ca7ef90f193c680dc03c0b7c3db3af4c3a5c810cdc0b67"
+            },
+            "final": {
+              "exitCode": 0,
+              "exited": true,
+              "stateVersion": 8,
+              "step": 1402053869,
+              "witness": "0xfba5ceb112c655c4832923a05302249f6f67c5a60aae3cb3e8b36163fa06d3160209eaf2b2de3ab2a8431e64ca60ee97129eb9b5c2d56ba118c7430eb885fac3000000000000007a000011000000000000000000000000000000000000000000000001000000005391a4ed0000000000009ba900e63d971179eca27d566d345cbf122598f6b35aa9951da71669592e04c0f4b963ad3228b676f7d3cd4284a5443f17f1962b36e491b30a40b2405849e597ba5fb50000000000000001",
+              "witnessHash": "0x000de5302bda8d18e60286416f073a828962ffdef39a9645a699b41592946cf2"
+            },
+            "final_state_sha256": "be9e2b13b112ac1ca4354e2988aea5d51732cc13bc8602c3f9ececb4238dd0b4",
+            "fresh_execution": true
+          },
+          "complete_state_byte_identical": true,
+          "compressed_state_byte_identical": true,
+          "rwx": {
+            "boundary": {
+              "block_number": "47600000",
+              "filename": "op-sepolia-47600000-witness.tar.zst",
+              "l1_head": "0xf82badb3d56a53c373b501ec24e1e9ab2797feaab552c0d683849b1234308a2d",
+              "l2_chain_id": "11155420",
+              "l2_claim": "0x6ac07d241d170ddd504532a2c8127bb85426e604a360f8ba2d976be3cc0aa7f0",
+              "l2_head": "0x0084ac82023844b6f286783f3ea0ffddb8e597211ffbe01b56d8873f36a8bacb",
+              "l2_output_root": "0x9c799a1b767f43d6c654f83e18ae20bfc2953e94e5093ef59664ae8244ffdc96",
+              "release_url": "https://github.com/ethereum-optimism/chain-test-data/releases/download/kona-2026-08-13-op-sepolia-47600000-v2",
+              "sha256": "2ac1e74305ef1e62b0ca7ef90f193c680dc03c0b7c3db3af4c3a5c810cdc0b67"
+            },
+            "final": {
+              "exitCode": 0,
+              "exited": true,
+              "stateVersion": 8,
+              "step": 1402053869,
+              "witness": "0xfba5ceb112c655c4832923a05302249f6f67c5a60aae3cb3e8b36163fa06d3160209eaf2b2de3ab2a8431e64ca60ee97129eb9b5c2d56ba118c7430eb885fac3000000000000007a000011000000000000000000000000000000000000000000000001000000005391a4ed0000000000009ba900e63d971179eca27d566d345cbf122598f6b35aa9951da71669592e04c0f4b963ad3228b676f7d3cd4284a5443f17f1962b36e491b30a40b2405849e597ba5fb50000000000000001",
+              "witnessHash": "0x000de5302bda8d18e60286416f073a828962ffdef39a9645a699b41592946cf2"
+            },
+            "final_state_sha256": "be9e2b13b112ac1ca4354e2988aea5d51732cc13bc8602c3f9ececb4238dd0b4",
+            "fresh_execution": true
+          }
+        },
+        "images": {
+          "circle": {
+            "base": "us-docker.pkg.dev/oplabs-tools-artifacts/images/cannon-builder:v2.0.0",
+            "base_digests": [
+              "us-docker.pkg.dev/oplabs-tools-artifacts/images/cannon-builder@sha256:2a1db1d75502b7ce479c49e448b061b2b1810fa0e0c9c692186ff9e4bd7fe4f6"
+            ],
+            "binding": {
+              "build_std": "core,alloc",
+              "custom_configs": false,
+              "go_pin": "1.26.5",
+              "input_sha256": {
+                ".dockerignore": "3e3c26099595be81ec13cc008051da5896d1d369d04c4d7f98c9709e9462d74a",
+                "cannon/justfile": "06886d81853e97e1733c8b1c551a3a28fefaecc9030ae9137b4923b4e068653e",
+                "go.mod": "7f218bd78bc8519a81a7ed3ca8b932409ee21164511f189a7ba3d25c33e95014",
+                "go.sum": "4e23266b996fddcf3f8805f55e03329cf53fcb165aaf1d79f2111eab0ac38f76",
+                "justfiles/git.just": "09c77a7d0d25a492fb6fb5ac4a773cdf282a354cf0f7333ec6943607638a2d65",
+                "justfiles/go.just": "e6cf0e03db5d6c725900f4cc3dfa354b071e86da0d8dc2bfa775f79a122c16cd",
+                "mise.toml": "0b557a308b0cd91fd3db80af744520053106924fca7dad9ef682175930280e9a",
+                "ops/ci/cannon-witness.json": "4457faf60ff72e6235e11db8b9c7e8386c7f54acf51f447bffba289b56c4846f",
+                "ops/ci/rust-cannon-report.py": "e155ac159406849d0443cdb1ff24f39ac72721b153525e1e31329d9353f3c88d",
+                "ops/ci/rust-cannon.sh": "e522e56642ad721df608011ebb079806f94b86a74c717ba2f537cffe10395675",
+                "ops/ci/rust-target-cache.py": "e3abc022fb13a5738624029983028bf90a3ad91958ca6933f198184b261a8b48",
+                "ops/ci/rust-workspace-report.py": "3f5079c33798cf8cf7d8ba369b6b9aec2e0a9998d5298c51f3b9b1b2eb52960d",
+                "ops/scripts/install_mise.sh": "d427ef1337a400ac0700d65c18272bda4253cf30e6383210d8e9a05043abfa91",
+                "rust/.cargo/config.toml": "70e5283948d65db55a30eb030ee5c576b1c8f26e7880664b81b2d2c0a5d34c87",
+                "rust/Cargo.lock": "c24777a8b83e0f4243b0960bd7003efac26a9bfe2708a6a626db96668a2706dc",
+                "rust/Cargo.toml": "d7e0ae6c66d2a3ca29917d30897712274021da2e4cbdc7171546a929c2982c60",
+                "rust/justfile": "f948f0bd2e00b38d994a3c5ab28e33dee7b7d9155bfe619eb6371442c4c160b4",
+                "rust/kona/bin/client/justfile": "aca89fca51db96ed0bac087d53a908bdbf65add329f95bd02f45e06fd4133ca5",
+                "rust/kona/bin/client/scripts/fetch-witness-tar.sh": "be8dbaad35e8b2eed6e05d360ff1075c2617370af281d735602fc5d88456a981",
+                "rust/kona/docker/cannon/mips64-unknown-none.json": "cf22e520821869967452019d3524c19830424c2c7eed8791e1a483a22f855194",
+                "rust/kona/docker/fpvm-prestates/cannon-repro.dockerfile": "8b0593bec18836ddb472321b2f883224d75af4676695f9c8498f8c22d33f5319",
+                "rust/kona/justfile": "acbf89f0c25ef4fcb9c9e4398eea12ffcaba578f8be6c0185916e832a1f9b697"
+              },
+              "nightly": "nightly-2026-08-22",
+              "profile": "release-client-lto",
+              "rustflags": "-Clink-arg=-e_start -Cllvm-args=-mno-check-zero-division",
+              "source_sha": "2c68e86760cbf76fa9cfb78f58aee5e130ef45a7",
+              "source_trees": {
+                "cannon": "80178c5ca5b3db1e214496a4aa41d5ecd8cc2cbd",
+                "op-core/nuts/bundles": "f5337bea0ee7e4d6ca4dc3e93dcbccaa9986a3eb",
+                "op-preimage": "16c406ce2498a9f001536e3b0249cd0039521ec8",
+                "op-service": "aa68d45108f84db90b9f21074dd52c1be433d355",
+                "rust": "1688daa88747ef0db4dfd9bb4a589a00d57d9505"
+              },
+              "stable_rust": "1.95.0",
+              "target": "mips64-unknown-none",
+              "witness": {
+                "block_number": "47600000",
+                "filename": "op-sepolia-47600000-witness.tar.zst",
+                "l1_head": "0xf82badb3d56a53c373b501ec24e1e9ab2797feaab552c0d683849b1234308a2d",
+                "l2_chain_id": "11155420",
+                "l2_claim": "0x6ac07d241d170ddd504532a2c8127bb85426e604a360f8ba2d976be3cc0aa7f0",
+                "l2_head": "0x0084ac82023844b6f286783f3ea0ffddb8e597211ffbe01b56d8873f36a8bacb",
+                "l2_output_root": "0x9c799a1b767f43d6c654f83e18ae20bfc2953e94e5093ef59664ae8244ffdc96",
+                "release_url": "https://github.com/ethereum-optimism/chain-test-data/releases/download/kona-2026-08-13-op-sepolia-47600000-v2",
+                "sha256": "2ac1e74305ef1e62b0ca7ef90f193c680dc03c0b7c3db3af4c3a5c810cdc0b67"
+              }
+            },
+            "image_id": "sha256:25e55bf0e78d3c23a43d707bfa57b720e1bc51195b3099e56ede37a4e085d799",
+            "tools": "rustc 1.100.0-nightly (c656540d6 2026-08-21)\ncargo 1.100.0-nightly (514c56dd7 2026-08-19)\nmips64-linux-gnuabi64-gcc (Ubuntu 10.3.0-1ubuntu1) 10.3.0\nCopyright (C) 2020 Free Software Foundation, Inc.\nThis is free software; see the source for copying conditions.  There is NO\nwarranty; not even for MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE."
+          },
+          "rwx": {
+            "base": "us-docker.pkg.dev/oplabs-tools-artifacts/images/cannon-builder:v2.0.0",
+            "base_digests": [
+              "us-docker.pkg.dev/oplabs-tools-artifacts/images/cannon-builder@sha256:2a1db1d75502b7ce479c49e448b061b2b1810fa0e0c9c692186ff9e4bd7fe4f6"
+            ],
+            "binding": {
+              "build_std": "core,alloc",
+              "custom_configs": false,
+              "go_pin": "1.26.5",
+              "input_sha256": {
+                ".dockerignore": "3e3c26099595be81ec13cc008051da5896d1d369d04c4d7f98c9709e9462d74a",
+                "cannon/justfile": "06886d81853e97e1733c8b1c551a3a28fefaecc9030ae9137b4923b4e068653e",
+                "go.mod": "7f218bd78bc8519a81a7ed3ca8b932409ee21164511f189a7ba3d25c33e95014",
+                "go.sum": "4e23266b996fddcf3f8805f55e03329cf53fcb165aaf1d79f2111eab0ac38f76",
+                "justfiles/git.just": "09c77a7d0d25a492fb6fb5ac4a773cdf282a354cf0f7333ec6943607638a2d65",
+                "justfiles/go.just": "e6cf0e03db5d6c725900f4cc3dfa354b071e86da0d8dc2bfa775f79a122c16cd",
+                "mise.toml": "0b557a308b0cd91fd3db80af744520053106924fca7dad9ef682175930280e9a",
+                "ops/ci/cannon-witness.json": "4457faf60ff72e6235e11db8b9c7e8386c7f54acf51f447bffba289b56c4846f",
+                "ops/ci/rust-cannon-report.py": "e155ac159406849d0443cdb1ff24f39ac72721b153525e1e31329d9353f3c88d",
+                "ops/ci/rust-cannon.sh": "e522e56642ad721df608011ebb079806f94b86a74c717ba2f537cffe10395675",
+                "ops/ci/rust-target-cache.py": "e3abc022fb13a5738624029983028bf90a3ad91958ca6933f198184b261a8b48",
+                "ops/ci/rust-workspace-report.py": "3f5079c33798cf8cf7d8ba369b6b9aec2e0a9998d5298c51f3b9b1b2eb52960d",
+                "ops/scripts/install_mise.sh": "d427ef1337a400ac0700d65c18272bda4253cf30e6383210d8e9a05043abfa91",
+                "rust/.cargo/config.toml": "70e5283948d65db55a30eb030ee5c576b1c8f26e7880664b81b2d2c0a5d34c87",
+                "rust/Cargo.lock": "c24777a8b83e0f4243b0960bd7003efac26a9bfe2708a6a626db96668a2706dc",
+                "rust/Cargo.toml": "d7e0ae6c66d2a3ca29917d30897712274021da2e4cbdc7171546a929c2982c60",
+                "rust/justfile": "f948f0bd2e00b38d994a3c5ab28e33dee7b7d9155bfe619eb6371442c4c160b4",
+                "rust/kona/bin/client/justfile": "aca89fca51db96ed0bac087d53a908bdbf65add329f95bd02f45e06fd4133ca5",
+                "rust/kona/bin/client/scripts/fetch-witness-tar.sh": "be8dbaad35e8b2eed6e05d360ff1075c2617370af281d735602fc5d88456a981",
+                "rust/kona/docker/cannon/mips64-unknown-none.json": "cf22e520821869967452019d3524c19830424c2c7eed8791e1a483a22f855194",
+                "rust/kona/docker/fpvm-prestates/cannon-repro.dockerfile": "8b0593bec18836ddb472321b2f883224d75af4676695f9c8498f8c22d33f5319",
+                "rust/kona/justfile": "acbf89f0c25ef4fcb9c9e4398eea12ffcaba578f8be6c0185916e832a1f9b697"
+              },
+              "nightly": "nightly-2026-08-22",
+              "profile": "release-client-lto",
+              "rustflags": "-Clink-arg=-e_start -Cllvm-args=-mno-check-zero-division",
+              "source_sha": "2c68e86760cbf76fa9cfb78f58aee5e130ef45a7",
+              "source_trees": {
+                "cannon": "80178c5ca5b3db1e214496a4aa41d5ecd8cc2cbd",
+                "op-core/nuts/bundles": "f5337bea0ee7e4d6ca4dc3e93dcbccaa9986a3eb",
+                "op-preimage": "16c406ce2498a9f001536e3b0249cd0039521ec8",
+                "op-service": "aa68d45108f84db90b9f21074dd52c1be433d355",
+                "rust": "1688daa88747ef0db4dfd9bb4a589a00d57d9505"
+              },
+              "stable_rust": "1.95.0",
+              "target": "mips64-unknown-none",
+              "witness": {
+                "block_number": "47600000",
+                "filename": "op-sepolia-47600000-witness.tar.zst",
+                "l1_head": "0xf82badb3d56a53c373b501ec24e1e9ab2797feaab552c0d683849b1234308a2d",
+                "l2_chain_id": "11155420",
+                "l2_claim": "0x6ac07d241d170ddd504532a2c8127bb85426e604a360f8ba2d976be3cc0aa7f0",
+                "l2_head": "0x0084ac82023844b6f286783f3ea0ffddb8e597211ffbe01b56d8873f36a8bacb",
+                "l2_output_root": "0x9c799a1b767f43d6c654f83e18ae20bfc2953e94e5093ef59664ae8244ffdc96",
+                "release_url": "https://github.com/ethereum-optimism/chain-test-data/releases/download/kona-2026-08-13-op-sepolia-47600000-v2",
+                "sha256": "2ac1e74305ef1e62b0ca7ef90f193c680dc03c0b7c3db3af4c3a5c810cdc0b67"
+              }
+            },
+            "image_id": "sha256:eb2039e15c5fab191f0f12db73a5a3db2492c7ee71528d48d4dcf07fd9d883e5",
+            "tools": "rustc 1.100.0-nightly (c656540d6 2026-08-21)\ncargo 1.100.0-nightly (514c56dd7 2026-08-19)\nmips64-linux-gnuabi64-gcc (Ubuntu 10.3.0-1ubuntu1) 10.3.0\nCopyright (C) 2020 Free Software Foundation, Inc.\nThis is free software; see the source for copying conditions.  There is NO\nwarranty; not even for MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE."
+          }
+        },
+        "native_go": {
+          "byte_identical": false,
+          "circle": {
+            "binding": {
+              "build_std": "core,alloc",
+              "custom_configs": false,
+              "go_pin": "1.26.5",
+              "input_sha256": {
+                ".dockerignore": "3e3c26099595be81ec13cc008051da5896d1d369d04c4d7f98c9709e9462d74a",
+                "cannon/justfile": "06886d81853e97e1733c8b1c551a3a28fefaecc9030ae9137b4923b4e068653e",
+                "go.mod": "7f218bd78bc8519a81a7ed3ca8b932409ee21164511f189a7ba3d25c33e95014",
+                "go.sum": "4e23266b996fddcf3f8805f55e03329cf53fcb165aaf1d79f2111eab0ac38f76",
+                "justfiles/git.just": "09c77a7d0d25a492fb6fb5ac4a773cdf282a354cf0f7333ec6943607638a2d65",
+                "justfiles/go.just": "e6cf0e03db5d6c725900f4cc3dfa354b071e86da0d8dc2bfa775f79a122c16cd",
+                "mise.toml": "0b557a308b0cd91fd3db80af744520053106924fca7dad9ef682175930280e9a",
+                "ops/ci/cannon-witness.json": "4457faf60ff72e6235e11db8b9c7e8386c7f54acf51f447bffba289b56c4846f",
+                "ops/ci/rust-cannon-report.py": "e155ac159406849d0443cdb1ff24f39ac72721b153525e1e31329d9353f3c88d",
+                "ops/ci/rust-cannon.sh": "e522e56642ad721df608011ebb079806f94b86a74c717ba2f537cffe10395675",
+                "ops/ci/rust-target-cache.py": "e3abc022fb13a5738624029983028bf90a3ad91958ca6933f198184b261a8b48",
+                "ops/ci/rust-workspace-report.py": "3f5079c33798cf8cf7d8ba369b6b9aec2e0a9998d5298c51f3b9b1b2eb52960d",
+                "ops/scripts/install_mise.sh": "d427ef1337a400ac0700d65c18272bda4253cf30e6383210d8e9a05043abfa91",
+                "rust/.cargo/config.toml": "70e5283948d65db55a30eb030ee5c576b1c8f26e7880664b81b2d2c0a5d34c87",
+                "rust/Cargo.lock": "c24777a8b83e0f4243b0960bd7003efac26a9bfe2708a6a626db96668a2706dc",
+                "rust/Cargo.toml": "d7e0ae6c66d2a3ca29917d30897712274021da2e4cbdc7171546a929c2982c60",
+                "rust/justfile": "f948f0bd2e00b38d994a3c5ab28e33dee7b7d9155bfe619eb6371442c4c160b4",
+                "rust/kona/bin/client/justfile": "aca89fca51db96ed0bac087d53a908bdbf65add329f95bd02f45e06fd4133ca5",
+                "rust/kona/bin/client/scripts/fetch-witness-tar.sh": "be8dbaad35e8b2eed6e05d360ff1075c2617370af281d735602fc5d88456a981",
+                "rust/kona/docker/cannon/mips64-unknown-none.json": "cf22e520821869967452019d3524c19830424c2c7eed8791e1a483a22f855194",
+                "rust/kona/docker/fpvm-prestates/cannon-repro.dockerfile": "8b0593bec18836ddb472321b2f883224d75af4676695f9c8498f8c22d33f5319",
+                "rust/kona/justfile": "acbf89f0c25ef4fcb9c9e4398eea12ffcaba578f8be6c0185916e832a1f9b697"
+              },
+              "nightly": "nightly-2026-08-22",
+              "profile": "release-client-lto",
+              "rustflags": "-Clink-arg=-e_start -Cllvm-args=-mno-check-zero-division",
+              "source_sha": "2c68e86760cbf76fa9cfb78f58aee5e130ef45a7",
+              "source_trees": {
+                "cannon": "80178c5ca5b3db1e214496a4aa41d5ecd8cc2cbd",
+                "op-core/nuts/bundles": "f5337bea0ee7e4d6ca4dc3e93dcbccaa9986a3eb",
+                "op-preimage": "16c406ce2498a9f001536e3b0249cd0039521ec8",
+                "op-service": "aa68d45108f84db90b9f21074dd52c1be433d355",
+                "rust": "1688daa88747ef0db4dfd9bb4a589a00d57d9505"
+              },
+              "stable_rust": "1.95.0",
+              "target": "mips64-unknown-none",
+              "witness": {
+                "block_number": "47600000",
+                "filename": "op-sepolia-47600000-witness.tar.zst",
+                "l1_head": "0xf82badb3d56a53c373b501ec24e1e9ab2797feaab552c0d683849b1234308a2d",
+                "l2_chain_id": "11155420",
+                "l2_claim": "0x6ac07d241d170ddd504532a2c8127bb85426e604a360f8ba2d976be3cc0aa7f0",
+                "l2_head": "0x0084ac82023844b6f286783f3ea0ffddb8e597211ffbe01b56d8873f36a8bacb",
+                "l2_output_root": "0x9c799a1b767f43d6c654f83e18ae20bfc2953e94e5093ef59664ae8244ffdc96",
+                "release_url": "https://github.com/ethereum-optimism/chain-test-data/releases/download/kona-2026-08-13-op-sepolia-47600000-v2",
+                "sha256": "2ac1e74305ef1e62b0ca7ef90f193c680dc03c0b7c3db3af4c3a5c810cdc0b67"
+              }
+            },
+            "files": {
+              "cannon/bin/cannon": {
+                "sha256": "079fb5665197a269a330d0e3140bd985a2a22b77cbc234fd0190fb631f0de69c",
+                "size": 20649392
+              },
+              "cannon/bin/cannon64-impl": {
+                "sha256": "14d35f3a0b41b41ab66d8e0eecfc3a999196ffe54f1c78ee86902eb030cd7cb9",
+                "size": 10851720
+              },
+              "cannon/multicannon/embeds/cannon-8": {
+                "sha256": "14d35f3a0b41b41ab66d8e0eecfc3a999196ffe54f1c78ee86902eb030cd7cb9",
+                "size": 10851720
+              }
+            },
+            "go": "go version go1.26.6 linux/amd64"
+          },
+          "comparison": "Pinned Go, complete source inputs and original build coverage; native host debug paths may differ.",
+          "rwx": {
+            "binding": {
+              "build_std": "core,alloc",
+              "custom_configs": false,
+              "go_pin": "1.26.5",
+              "input_sha256": {
+                ".dockerignore": "3e3c26099595be81ec13cc008051da5896d1d369d04c4d7f98c9709e9462d74a",
+                "cannon/justfile": "06886d81853e97e1733c8b1c551a3a28fefaecc9030ae9137b4923b4e068653e",
+                "go.mod": "7f218bd78bc8519a81a7ed3ca8b932409ee21164511f189a7ba3d25c33e95014",
+                "go.sum": "4e23266b996fddcf3f8805f55e03329cf53fcb165aaf1d79f2111eab0ac38f76",
+                "justfiles/git.just": "09c77a7d0d25a492fb6fb5ac4a773cdf282a354cf0f7333ec6943607638a2d65",
+                "justfiles/go.just": "e6cf0e03db5d6c725900f4cc3dfa354b071e86da0d8dc2bfa775f79a122c16cd",
+                "mise.toml": "0b557a308b0cd91fd3db80af744520053106924fca7dad9ef682175930280e9a",
+                "ops/ci/cannon-witness.json": "4457faf60ff72e6235e11db8b9c7e8386c7f54acf51f447bffba289b56c4846f",
+                "ops/ci/rust-cannon-report.py": "e155ac159406849d0443cdb1ff24f39ac72721b153525e1e31329d9353f3c88d",
+                "ops/ci/rust-cannon.sh": "e522e56642ad721df608011ebb079806f94b86a74c717ba2f537cffe10395675",
+                "ops/ci/rust-target-cache.py": "e3abc022fb13a5738624029983028bf90a3ad91958ca6933f198184b261a8b48",
+                "ops/ci/rust-workspace-report.py": "3f5079c33798cf8cf7d8ba369b6b9aec2e0a9998d5298c51f3b9b1b2eb52960d",
+                "ops/scripts/install_mise.sh": "d427ef1337a400ac0700d65c18272bda4253cf30e6383210d8e9a05043abfa91",
+                "rust/.cargo/config.toml": "70e5283948d65db55a30eb030ee5c576b1c8f26e7880664b81b2d2c0a5d34c87",
+                "rust/Cargo.lock": "c24777a8b83e0f4243b0960bd7003efac26a9bfe2708a6a626db96668a2706dc",
+                "rust/Cargo.toml": "d7e0ae6c66d2a3ca29917d30897712274021da2e4cbdc7171546a929c2982c60",
+                "rust/justfile": "f948f0bd2e00b38d994a3c5ab28e33dee7b7d9155bfe619eb6371442c4c160b4",
+                "rust/kona/bin/client/justfile": "aca89fca51db96ed0bac087d53a908bdbf65add329f95bd02f45e06fd4133ca5",
+                "rust/kona/bin/client/scripts/fetch-witness-tar.sh": "be8dbaad35e8b2eed6e05d360ff1075c2617370af281d735602fc5d88456a981",
+                "rust/kona/docker/cannon/mips64-unknown-none.json": "cf22e520821869967452019d3524c19830424c2c7eed8791e1a483a22f855194",
+                "rust/kona/docker/fpvm-prestates/cannon-repro.dockerfile": "8b0593bec18836ddb472321b2f883224d75af4676695f9c8498f8c22d33f5319",
+                "rust/kona/justfile": "acbf89f0c25ef4fcb9c9e4398eea12ffcaba578f8be6c0185916e832a1f9b697"
+              },
+              "nightly": "nightly-2026-08-22",
+              "profile": "release-client-lto",
+              "rustflags": "-Clink-arg=-e_start -Cllvm-args=-mno-check-zero-division",
+              "source_sha": "2c68e86760cbf76fa9cfb78f58aee5e130ef45a7",
+              "source_trees": {
+                "cannon": "80178c5ca5b3db1e214496a4aa41d5ecd8cc2cbd",
+                "op-core/nuts/bundles": "f5337bea0ee7e4d6ca4dc3e93dcbccaa9986a3eb",
+                "op-preimage": "16c406ce2498a9f001536e3b0249cd0039521ec8",
+                "op-service": "aa68d45108f84db90b9f21074dd52c1be433d355",
+                "rust": "1688daa88747ef0db4dfd9bb4a589a00d57d9505"
+              },
+              "stable_rust": "1.95.0",
+              "target": "mips64-unknown-none",
+              "witness": {
+                "block_number": "47600000",
+                "filename": "op-sepolia-47600000-witness.tar.zst",
+                "l1_head": "0xf82badb3d56a53c373b501ec24e1e9ab2797feaab552c0d683849b1234308a2d",
+                "l2_chain_id": "11155420",
+                "l2_claim": "0x6ac07d241d170ddd504532a2c8127bb85426e604a360f8ba2d976be3cc0aa7f0",
+                "l2_head": "0x0084ac82023844b6f286783f3ea0ffddb8e597211ffbe01b56d8873f36a8bacb",
+                "l2_output_root": "0x9c799a1b767f43d6c654f83e18ae20bfc2953e94e5093ef59664ae8244ffdc96",
+                "release_url": "https://github.com/ethereum-optimism/chain-test-data/releases/download/kona-2026-08-13-op-sepolia-47600000-v2",
+                "sha256": "2ac1e74305ef1e62b0ca7ef90f193c680dc03c0b7c3db3af4c3a5c810cdc0b67"
+              }
+            },
+            "files": {
+              "cannon/bin/cannon": {
+                "sha256": "487a2c67a244d8d6ed6087a9f287d345eab0fb5dd0c884e77249c8fa6cbf30be",
+                "size": 20674536
+              },
+              "cannon/bin/cannon64-impl": {
+                "sha256": "cd3fb888b8db44277fc4584eb9cdba80a7a1300784cec8feec59aaf9589a7e63",
+                "size": 10864496
+              },
+              "cannon/multicannon/embeds/cannon-8": {
+                "sha256": "cd3fb888b8db44277fc4584eb9cdba80a7a1300784cec8feec59aaf9589a7e63",
+                "size": 10864496
+              }
+            },
+            "go": "go version go1.26.6 linux/amd64"
+          }
+        },
+        "outcome": "pass",
+        "retries": 0,
+        "stages": {
+          "guest": {
+            "argv": [
+              "<repo>/cannon/bin/cannon",
+              "witness",
+              "--input",
+              "<repo>/rust/kona/out.bin.gz"
+            ],
+            "cwd": "rust",
+            "exit_code": 0
+          },
+          "offline": {
+            "argv": [
+              "just",
+              "run-client-cannon-offline",
+              "47600000",
+              "0x6ac07d241d170ddd504532a2c8127bb85426e604a360f8ba2d976be3cc0aa7f0",
+              "0x9c799a1b767f43d6c654f83e18ae20bfc2953e94e5093ef59664ae8244ffdc96",
+              "0x0084ac82023844b6f286783f3ea0ffddb8e597211ffbe01b56d8873f36a8bacb",
+              "0xf82badb3d56a53c373b501ec24e1e9ab2797feaab552c0d683849b1234308a2d",
+              "11155420",
+              "op-sepolia-47600000-witness.tar.zst",
+              "https://github.com/ethereum-optimism/chain-test-data/releases/download/kona-2026-08-13-op-sepolia-47600000-v2"
+            ],
+            "cwd": "rust/kona/bin/client",
+            "exit_code": 0
+          },
+          "variants": {
+            "argv": [
+              "just",
+              "kona-prestate-variants"
+            ],
+            "cwd": "rust",
+            "exit_code": 0
+          }
+        },
+        "variants": [
+          {
+            "binary": "kona-client",
+            "prestate_directory": "prestate-artifacts-cannon"
+          },
+          {
+            "binary": "kona-client-int",
+            "prestate_directory": "prestate-artifacts-cannon-interop"
+          }
+        ]
+      }
+    },
+    "manifest_declared_empty_logs": [
+      {
+        "job": "offline",
+        "name": "guest.log",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      }
+    ],
+    "original_sha256": {
+      "circle": {
+        "build": {
+          "base-pull.log": "57dc2e017034fc63057e0359c24ec23cf65abd3f94a8e47571db2c687f29c35f",
+          "base-pull.stage.json": "e99d2bfe5c19e387baf6a87b90da20bc355c6eb6061a68ad83b01efe582bcc06",
+          "build.log": "fbb123a8f33870cfeb7ca88b61da2825659c3ce34629ef27db85c0d7e1504564",
+          "build.stage.json": "74946b7d72a06fb3bb86276f842604699d51954e724ee9f9211eaed6f43ed5d5",
+          "checks.junit.xml": "991a6b90b9821ce1f1716774c6e8da69d4e1496d3208b09bb77dddbfe762f784",
+          "elfs.json": "7b7adce498852719581da279b0c056f8f9cf1dfa7af8227da7f719f604f85ec3",
+          "elfs/kona-client": "58bdf1ed712c077c3dae262b47c9e7071544eaecaed5f469f2da76fa9d53a9d0",
+          "elfs/kona-client-int": "1c56637344d18caa8b4be10a800931265c0e2486d81f2fba595bc5d1843d7862",
+          "image-elfs.json": "7b7adce498852719581da279b0c056f8f9cf1dfa7af8227da7f719f604f85ec3",
+          "image-elfs/kona-client": "58bdf1ed712c077c3dae262b47c9e7071544eaecaed5f469f2da76fa9d53a9d0",
+          "image-elfs/kona-client-int": "1c56637344d18caa8b4be10a800931265c0e2486d81f2fba595bc5d1843d7862",
+          "image.json": "54336c13162e41737400c092fdb1f4d91f8fea663d9f2b7a0f466c1c60fcde62",
+          "settings.json": "c637e6aa91a2cd33ee0ca5fdc6c3fa249f881b1938544d6d786073057bce1c70",
+          "variants.log": "5d3b62247db72baeb0c3c36db3696a615c5cf66bb0f7fcb8f1709e4eac0f1adc",
+          "variants.stage.json": "c67453f57f031995b6c03e38d6ba65c566519176ea0a6b52916dbb72d1c59c23"
+        },
+        "lint": {
+          "base-pull.log": "57dc2e017034fc63057e0359c24ec23cf65abd3f94a8e47571db2c687f29c35f",
+          "base-pull.stage.json": "1fb09c74c6f12f29e4d0684599ad24003fd00a1b82cb938299f432d371a89644",
+          "checks.junit.xml": "00d9c37f62270fbb0aa0fb96b9248088b0dbc40eefa987897c7a61f869daf90c",
+          "image-elfs.json": "7b7adce498852719581da279b0c056f8f9cf1dfa7af8227da7f719f604f85ec3",
+          "image-elfs/kona-client": "58bdf1ed712c077c3dae262b47c9e7071544eaecaed5f469f2da76fa9d53a9d0",
+          "image-elfs/kona-client-int": "1c56637344d18caa8b4be10a800931265c0e2486d81f2fba595bc5d1843d7862",
+          "image.json": "521ea2755171eeae3c38cbe4bc8848a1935f0f8cdcc5d11bea2c37947bccbbfb",
+          "lint.log": "5427751e6346803055008e73476514f62bd058f5c17764e9b265fab70446a2bf",
+          "lint.stage.json": "6e7422851e9ebcb15f84c3eaa76cf7bd8a98c437c9493386b2ae081c84985cf8",
+          "settings.json": "8a198ff4847c1490c8c4eb7d76f4792c139074eb03f4c510dbd2c4d94fc4313d",
+          "variants.log": "5d3b62247db72baeb0c3c36db3696a615c5cf66bb0f7fcb8f1709e4eac0f1adc",
+          "variants.stage.json": "44de14da9c17c821e342d13d423e1fbbe7d25e9cb2c13bfed487c406d12543b9"
+        },
+        "offline": {
+          "base-pull.log": "57dc2e017034fc63057e0359c24ec23cf65abd3f94a8e47571db2c687f29c35f",
+          "base-pull.stage.json": "916c38f9c36a387330314ea0a2e92f1dd23660eab6caeca5ad72f256e50c69f7",
+          "checks.junit.xml": "70f64ed2ae2e63be6783880a89940a3a4df3897565777276c63d1bbe32cc153c",
+          "elfs.json": "7b7adce498852719581da279b0c056f8f9cf1dfa7af8227da7f719f604f85ec3",
+          "elfs/kona-client": "58bdf1ed712c077c3dae262b47c9e7071544eaecaed5f469f2da76fa9d53a9d0",
+          "elfs/kona-client-int": "1c56637344d18caa8b4be10a800931265c0e2486d81f2fba595bc5d1843d7862",
+          "go-binaries.json": "a4910f3e8ff4462d6cab5adf0a1987ef259ed141a75302874a67af249812e501",
+          "go.log": "529a14b95028e2813f4c0232074eb943bb1807cedf2aead1696f70313f5b4dfe",
+          "go.stage.json": "5a6dc933a89e19d1df4d5ec0234d9ae1aa99c98218be13e0a13029a122ec65da",
+          "guest-coverage.json": "5dd40077943fe48c278cf36a5fbdd3f34e35365213246b8a0abf9cc08a09c108",
+          "guest.json": "e42098635eb46258a2a87839bd9cfd9b2a4e1c376f2105a9bb793778b2d6c694",
+          "guest.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "guest.stage.json": "acc858fe50901448ec70ac9b2add778268926c43e0e23662a258f57118a5199e",
+          "image-elfs.json": "7b7adce498852719581da279b0c056f8f9cf1dfa7af8227da7f719f604f85ec3",
+          "image-elfs/kona-client": "58bdf1ed712c077c3dae262b47c9e7071544eaecaed5f469f2da76fa9d53a9d0",
+          "image-elfs/kona-client-int": "1c56637344d18caa8b4be10a800931265c0e2486d81f2fba595bc5d1843d7862",
+          "image.json": "a05f9a90844f32332da84b8504c2221b2319d3bbc15f383d0e8bb91369c4f3a2",
+          "offline.log": "0a2ceedcdec401d450fe261a73922ea2e4ba3df4c3a7b0c64f6f19171a5e2568",
+          "offline.stage.json": "729d09bf939e7f06f45eb956be9c9e36233f409f24169c5eb7046f57f9ceea73",
+          "out.bin.gz": "be9e2b13b112ac1ca4354e2988aea5d51732cc13bc8602c3f9ececb4238dd0b4",
+          "settings.json": "8ff94a51000afe55471a2094cfe4092229aed74baceab79cd31ee00057dd61d6",
+          "variants.log": "5d3b62247db72baeb0c3c36db3696a615c5cf66bb0f7fcb8f1709e4eac0f1adc",
+          "variants.stage.json": "b3e5cc3d9aa2116d12c572d01da47dc9d08aba45216120df5b76cbba9c292617",
+          "witness.json": "52450634f5e54b48e4b8400efa7f8abf10a9c7c01ab4c318949065e4f6d6afbe",
+          "witness.log": "9f107d1eaa9fa5a655569c362bfda2d0d9368a66d5e98e4540b444d5d924fc0b",
+          "witness.stage.json": "a900e55845975ad27e3bc83ec6b55d1c19e904ca8b3e5a68f7ce0d962a5dcba5"
+        }
+      },
+      "rwx": {
+        "build": {
+          "build.log": "b297945fe467d2c4123c6477b46d8e5a5ea799cdbd98fb2cc9f872382aba83d7",
+          "build.stage.json": "9fa79a5b9182c966b415e43b39689e4ee0a6e766ef67e772b2339b2b767781bd",
+          "cache-source.json": "7b261c198341c82ad46bb9fa2490a6c0401a82cba947392aafcb595763e0a14e",
+          "checks.junit.xml": "991a6b90b9821ce1f1716774c6e8da69d4e1496d3208b09bb77dddbfe762f784",
+          "elfs.json": "7b7adce498852719581da279b0c056f8f9cf1dfa7af8227da7f719f604f85ec3",
+          "elfs/kona-client": "58bdf1ed712c077c3dae262b47c9e7071544eaecaed5f469f2da76fa9d53a9d0",
+          "elfs/kona-client-int": "1c56637344d18caa8b4be10a800931265c0e2486d81f2fba595bc5d1843d7862",
+          "image-elfs.json": "7b7adce498852719581da279b0c056f8f9cf1dfa7af8227da7f719f604f85ec3",
+          "image-elfs/kona-client": "58bdf1ed712c077c3dae262b47c9e7071544eaecaed5f469f2da76fa9d53a9d0",
+          "image-elfs/kona-client-int": "1c56637344d18caa8b4be10a800931265c0e2486d81f2fba595bc5d1843d7862",
+          "image.json": "091d3a8b81fb6ee60d60277ade536bc759e617f3f37863fe44dafdf79a27d9ca",
+          "settings.json": "60757347fdd531384c0fe69c17e5a575ba3e67016b3fb188e9b2703e864d53d7",
+          "variants.log": "5d3b62247db72baeb0c3c36db3696a615c5cf66bb0f7fcb8f1709e4eac0f1adc",
+          "variants.stage.json": "45d433c5d062c6c3e4f4c07aade539c2b7fc631b935cd4cf97c022db8b1bc158",
+          "verified-env.json": "64f99e550991a47a0801b19ba07a9f55ef79518b9597210bbeced0ab284bb8ac"
+        },
+        "lint": {
+          "cache-source.json": "7b261c198341c82ad46bb9fa2490a6c0401a82cba947392aafcb595763e0a14e",
+          "checks.junit.xml": "00d9c37f62270fbb0aa0fb96b9248088b0dbc40eefa987897c7a61f869daf90c",
+          "image-elfs.json": "7b7adce498852719581da279b0c056f8f9cf1dfa7af8227da7f719f604f85ec3",
+          "image-elfs/kona-client": "58bdf1ed712c077c3dae262b47c9e7071544eaecaed5f469f2da76fa9d53a9d0",
+          "image-elfs/kona-client-int": "1c56637344d18caa8b4be10a800931265c0e2486d81f2fba595bc5d1843d7862",
+          "image.json": "091d3a8b81fb6ee60d60277ade536bc759e617f3f37863fe44dafdf79a27d9ca",
+          "lint.log": "d3ff43900572191459afb319200810b962047143ace2adb4bfd272e6afd0e6c5",
+          "lint.stage.json": "c2c5406843429d3f4c281878afa2995cc718011d90b2957a4d77b5a192985b62",
+          "settings.json": "54768aae3482711fc4cee869e941555853705fa0e9ec57e63a3915fdb6105eb7",
+          "variants.log": "5d3b62247db72baeb0c3c36db3696a615c5cf66bb0f7fcb8f1709e4eac0f1adc",
+          "variants.stage.json": "90bc565d0d122aa899d1a61ec9611ec35df560c5d48eb1de8878e088419e9f2b",
+          "verified-env.json": "64f99e550991a47a0801b19ba07a9f55ef79518b9597210bbeced0ab284bb8ac"
+        },
+        "offline": {
+          "cache-source.json": "7b261c198341c82ad46bb9fa2490a6c0401a82cba947392aafcb595763e0a14e",
+          "checks.junit.xml": "70f64ed2ae2e63be6783880a89940a3a4df3897565777276c63d1bbe32cc153c",
+          "elfs.json": "7b7adce498852719581da279b0c056f8f9cf1dfa7af8227da7f719f604f85ec3",
+          "elfs/kona-client": "58bdf1ed712c077c3dae262b47c9e7071544eaecaed5f469f2da76fa9d53a9d0",
+          "elfs/kona-client-int": "1c56637344d18caa8b4be10a800931265c0e2486d81f2fba595bc5d1843d7862",
+          "go-binaries.json": "6ebd99ff85f8dd8468ae7daab7d2c3b57f100fac5cdf5fc94d88be088d3041de",
+          "guest-coverage.json": "5dd40077943fe48c278cf36a5fbdd3f34e35365213246b8a0abf9cc08a09c108",
+          "guest.json": "e42098635eb46258a2a87839bd9cfd9b2a4e1c376f2105a9bb793778b2d6c694",
+          "guest.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "guest.stage.json": "35d6f9cc17f355254491f705313e28b4f63b71c479d999012ba7b56923387797",
+          "image-elfs.json": "7b7adce498852719581da279b0c056f8f9cf1dfa7af8227da7f719f604f85ec3",
+          "image-elfs/kona-client": "58bdf1ed712c077c3dae262b47c9e7071544eaecaed5f469f2da76fa9d53a9d0",
+          "image-elfs/kona-client-int": "1c56637344d18caa8b4be10a800931265c0e2486d81f2fba595bc5d1843d7862",
+          "image.json": "091d3a8b81fb6ee60d60277ade536bc759e617f3f37863fe44dafdf79a27d9ca",
+          "offline.log": "521cbce69afebe73efab74162fb93acd3c0bacf95ae757012054e0486e4a42b3",
+          "offline.stage.json": "e6798b7ed7e090aee3009e45cc5734dc81d6603dc9fbfe99f06aa5e0dded995b",
+          "out.bin.gz": "be9e2b13b112ac1ca4354e2988aea5d51732cc13bc8602c3f9ececb4238dd0b4",
+          "sccache-stop.log": "216354203acacf8f60ca1daefd877ff4355cbccbaf364500ee008443bed9c222",
+          "sccache.json": "2b655ec2c3a2a7314544cd8d226bb75c39fe24c3217dae89916611715fe189ba",
+          "settings.json": "d56023b272772af99c1aeab4816cea115df75a6c312837e11392b49676c0e56f",
+          "variants.log": "5d3b62247db72baeb0c3c36db3696a615c5cf66bb0f7fcb8f1709e4eac0f1adc",
+          "variants.stage.json": "c79f7d848057aed535f421bbefa458107e20178a66b2e6103cb9bee70124c263",
+          "verified-build.json": "75f53a9910ee35425f623554a736d4aa39e0b80b2ef7847c749ae8d41350c132",
+          "verified-env.json": "64f99e550991a47a0801b19ba07a9f55ef79518b9597210bbeced0ab284bb8ac",
+          "verified-go.json": "ab617b3941d754e9b599a38f3d30d107192ba6c57fe8a10216f125ec701b349f",
+          "verified-witness.json": "42a96fc3ae228ddea6b9d0795fb75661938decee2dfc01aa537940140ef82ace",
+          "witness.json": "52450634f5e54b48e4b8400efa7f8abf10a9c7c01ab4c318949065e4f6d6afbe"
+        }
+      }
+    },
+    "source_sha": "2c68e86760cbf76fa9cfb78f58aee5e130ef45a7",
+    "verified_parity": true
+  },
+  "definition": "isolated diagnostic definition; push shadow unchanged",
+  "definition_sha256": "66eb03d5b4b8c6bbb30636ac9cf33f1c54c2af3cd60ceb24769b89378ad49749",
+  "intentional_failure": {
+    "actual_task_result": "failed",
+    "diagnostic": "Intentional wrong L2 claim: 0x0000000000000000000000000000000000000000000000000000000000000001",
+    "expected_verdict": "failed",
+    "original_sha256": {
+      "cache-source.json": "7b261c198341c82ad46bb9fa2490a6c0401a82cba947392aafcb595763e0a14e",
+      "checks.junit.xml": "4243816c008de87cfa6ef76363add35eed725334493b4a1255206d9dafec24ab",
+      "diagnostic.txt": "7f4a840e929303b6e7887d585b80dabd52251f5ea0a1ad12f08f50ee866d4377",
+      "elfs.json": "7b7adce498852719581da279b0c056f8f9cf1dfa7af8227da7f719f604f85ec3",
+      "elfs/kona-client": "58bdf1ed712c077c3dae262b47c9e7071544eaecaed5f469f2da76fa9d53a9d0",
+      "elfs/kona-client-int": "1c56637344d18caa8b4be10a800931265c0e2486d81f2fba595bc5d1843d7862",
+      "go-binaries.json": "6ebd99ff85f8dd8468ae7daab7d2c3b57f100fac5cdf5fc94d88be088d3041de",
+      "guest.json": "9441e061d5949fb6ee45f621bb9fa3becd1a424df68d5f18cdb9c5529aa65a1c",
+      "guest.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "guest.stage.json": "24c3abf31d9b1b31e93ff9f503d63c6c274ad7a500783d07a83cf77ffc42d0e6",
+      "image-elfs.json": "7b7adce498852719581da279b0c056f8f9cf1dfa7af8227da7f719f604f85ec3",
+      "image-elfs/kona-client": "58bdf1ed712c077c3dae262b47c9e7071544eaecaed5f469f2da76fa9d53a9d0",
+      "image-elfs/kona-client-int": "1c56637344d18caa8b4be10a800931265c0e2486d81f2fba595bc5d1843d7862",
+      "image.json": "091d3a8b81fb6ee60d60277ade536bc759e617f3f37863fe44dafdf79a27d9ca",
+      "offline.log": "6a443437f5a13d3ccba37f5f9d0b5ecbb037a4765606ef4a5ce2a1b0630d0523",
+      "offline.stage.json": "ce5ecfd5309295cfb6079f169740b05e86019ad58f8e73648147bf7b505d5850",
+      "out.bin.gz": "23e5090c8583c27b0a88039a8932367a60ce9c4c9061a0e76d1be1bacd28542b",
+      "settings.json": "043cc6b0f175474368941b344e5b3091044d3beeb2c6af21fd9a01e9beedf6aa",
+      "variants.log": "5d3b62247db72baeb0c3c36db3696a615c5cf66bb0f7fcb8f1709e4eac0f1adc",
+      "variants.stage.json": "fe3ce9dac19d69bd651cbcc98c9f23f51a63fdae465b9fe206a044e6626bcd73",
+      "verified-build.json": "75f53a9910ee35425f623554a736d4aa39e0b80b2ef7847c749ae8d41350c132",
+      "verified-env.json": "64f99e550991a47a0801b19ba07a9f55ef79518b9597210bbeced0ab284bb8ac",
+      "verified-go.json": "ab617b3941d754e9b599a38f3d30d107192ba6c57fe8a10216f125ec701b349f",
+      "verified-witness.json": "42a96fc3ae228ddea6b9d0795fb75661938decee2dfc01aa537940140ef82ace",
+      "witness.json": "52450634f5e54b48e4b8400efa7f8abf10a9c7c01ab4c318949065e4f6d6afbe"
+    },
+    "raw_guest": {
+      "exitCode": 1,
+      "exited": true,
+      "stateVersion": 8,
+      "step": 1402060522,
+      "witness": "0xb3113d4e9617a97573a32d76dcadb6e952af9789899f1cb2d7c45be5633bfed10209eaf2b2de3ab2a8431e64ca60ee97129eb9b5c2d56ba118c7430eb885fac3000000000000007a000011000000000000000000000000000000000000000000000101000000005391beea000000000000b5a600d93e0e881de09e6bf55b5a394acf3e155e20813425a1fdc1f47f54015d76ce7aad3228b676f7d3cd4284a5443f17f1962b36e491b30a40b2405849e597ba5fb50000000000000001",
+      "witnessHash": "0x015cbe907d3b6b877ca550d8c1979fc7151a1882553e599bedd2e48c484f7e08"
+    },
+    "report_errors": [
+      "Cannon guest did not exit successfully"
+    ],
+    "reported_command_exit_code": 0,
+    "stages": {
+      "guest": {
+        "argv": [
+          "/var/mint-workspace/cannon/bin/cannon",
+          "witness",
+          "--input",
+          "/var/mint-workspace/rust/kona/out.bin.gz"
+        ],
+        "cwd": "rust",
+        "elapsed_seconds": 0.7845497131347656,
+        "exit_code": 0,
+        "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "started_at": 1791138020.2884212
+      },
+      "offline": {
+        "argv": [
+          "just",
+          "run-client-cannon-offline",
+          "47600000",
+          "0x0000000000000000000000000000000000000000000000000000000000000001",
+          "0x9c799a1b767f43d6c654f83e18ae20bfc2953e94e5093ef59664ae8244ffdc96",
+          "0x0084ac82023844b6f286783f3ea0ffddb8e597211ffbe01b56d8873f36a8bacb",
+          "0xf82badb3d56a53c373b501ec24e1e9ab2797feaab552c0d683849b1234308a2d",
+          "11155420",
+          "op-sepolia-47600000-witness.tar.zst",
+          "https://github.com/ethereum-optimism/chain-test-data/releases/download/kona-2026-08-13-op-sepolia-47600000-v2"
+        ],
+        "cwd": "rust/kona/bin/client",
+        "elapsed_seconds": 93.37432646751404,
+        "exit_code": 0,
+        "log_sha256": "6a443437f5a13d3ccba37f5f9d0b5ecbb037a4765606ef4a5ce2a1b0630d0523",
+        "started_at": 1791137926.8863597
+      },
+      "variants": {
+        "argv": [
+          "just",
+          "kona-prestate-variants"
+        ],
+        "cwd": "rust",
+        "elapsed_seconds": 0.006342172622680664,
+        "exit_code": 0,
+        "log_sha256": "5d3b62247db72baeb0c3c36db3696a615c5cf66bb0f7fcb8f1709e4eac0f1adc",
+        "started_at": 1791137922.6348555
+      }
+    }
+  },
+  "run_id": "0e52b2257bb545e992ea227728c12864",
+  "scope": "Functional cache reuse and fresh guest verdicts, not a pipeline speed comparison.",
+  "source_sha": "2c68e86760cbf76fa9cfb78f58aee5e130ef45a7",
+  "tasks": {
+    "cannon-bad-claim": {
+      "CacheHitFromTaskID": null,
+      "CompletedRuntimeSeconds": 149,
+      "ExecutionRuntimeSeconds": 100,
+      "ID": "9052cbd9ceb35bbf30e0c8969b05ab5d",
+      "Messages": [
+        {
+          "Advice": "Move `cannon-offline` after `cannon-build` in `use`.\nSee https://www.rwx.com/docs/use to learn about `use`.",
+          "Column": null,
+          "FileName": null,
+          "Frame": null,
+          "Line": null,
+          "Message": "The dependency `cannon-offline` was specified before `cannon-build`, but `cannon-build` must be specified before `cannon-offline` to support other dependencies.",
+          "StackTrace": null,
+          "Type": "warning"
+        }
+      ],
+      "PostProcessingRuntimeSeconds": 35,
+      "PreparingRuntimeSeconds": 16,
+      "Status": {
+        "AbortedSubStatus": "not_applicable",
+        "Execution": "finished",
+        "FinishedSubStatus": "executed",
+        "Result": "failed",
+        "WaitingSubStatus": "not_applicable"
+      }
+    },
+    "cannon-build": {
+      "CacheHitFromTaskID": null,
+      "CompletedRuntimeSeconds": 64,
+      "ExecutionRuntimeSeconds": 9,
+      "ID": "6a63c3ec880f16ef9864f65da42a476c",
+      "Messages": [
+        {
+          "Advice": "Move `cannon-env` after `head-source` in `use`.\nSee https://www.rwx.com/docs/use to learn about `use`.",
+          "Column": null,
+          "FileName": null,
+          "Frame": null,
+          "Line": null,
+          "Message": "The dependency `cannon-env` was specified before `head-source`, but `head-source` must be specified before `cannon-env` to support other dependencies.",
+          "StackTrace": null,
+          "Type": "warning"
+        }
+      ],
+      "PostProcessingRuntimeSeconds": 35,
+      "PreparingRuntimeSeconds": 21,
+      "Status": {
+        "AbortedSubStatus": "not_applicable",
+        "Execution": "finished",
+        "FinishedSubStatus": "executed",
+        "Result": "succeeded",
+        "WaitingSubStatus": "not_applicable"
+      },
+      "cache_source": {
+        "restored_source_files": 1343,
+        "source_changed": false,
+        "source_sha256": "a88b2828e0cc62317a68adf1be952f27ffababd661c2755109fc912ddb03bb02"
+      },
+      "original_sha256": {
+        "build.log": "b297945fe467d2c4123c6477b46d8e5a5ea799cdbd98fb2cc9f872382aba83d7",
+        "build.stage.json": "9fa79a5b9182c966b415e43b39689e4ee0a6e766ef67e772b2339b2b767781bd",
+        "cache-source.json": "7b261c198341c82ad46bb9fa2490a6c0401a82cba947392aafcb595763e0a14e",
+        "checks.junit.xml": "991a6b90b9821ce1f1716774c6e8da69d4e1496d3208b09bb77dddbfe762f784",
+        "elfs.json": "7b7adce498852719581da279b0c056f8f9cf1dfa7af8227da7f719f604f85ec3",
+        "elfs/kona-client": "58bdf1ed712c077c3dae262b47c9e7071544eaecaed5f469f2da76fa9d53a9d0",
+        "elfs/kona-client-int": "1c56637344d18caa8b4be10a800931265c0e2486d81f2fba595bc5d1843d7862",
+        "image-elfs.json": "7b7adce498852719581da279b0c056f8f9cf1dfa7af8227da7f719f604f85ec3",
+        "image-elfs/kona-client": "58bdf1ed712c077c3dae262b47c9e7071544eaecaed5f469f2da76fa9d53a9d0",
+        "image-elfs/kona-client-int": "1c56637344d18caa8b4be10a800931265c0e2486d81f2fba595bc5d1843d7862",
+        "image.json": "091d3a8b81fb6ee60d60277ade536bc759e617f3f37863fe44dafdf79a27d9ca",
+        "settings.json": "60757347fdd531384c0fe69c17e5a575ba3e67016b3fb188e9b2703e864d53d7",
+        "variants.log": "5d3b62247db72baeb0c3c36db3696a615c5cf66bb0f7fcb8f1709e4eac0f1adc",
+        "variants.stage.json": "45d433c5d062c6c3e4f4c07aade539c2b7fc631b935cd4cf97c022db8b1bc158",
+        "verified-env.json": "64f99e550991a47a0801b19ba07a9f55ef79518b9597210bbeced0ab284bb8ac"
+      }
+    },
+    "cannon-env": {
+      "CacheHitFromTaskID": null,
+      "CompletedRuntimeSeconds": 79,
+      "ExecutionRuntimeSeconds": 5,
+      "ID": "a375cb59fe96e0889f37d235a3ff21d0",
+      "Messages": [],
+      "PostProcessingRuntimeSeconds": 28,
+      "PreparingRuntimeSeconds": 47,
+      "Status": {
+        "AbortedSubStatus": "not_applicable",
+        "Execution": "finished",
+        "FinishedSubStatus": "executed",
+        "Result": "succeeded",
+        "WaitingSubStatus": "not_applicable"
+      },
+      "cache_source": {
+        "restored_source_files": 1343,
+        "source_changed": false,
+        "source_sha256": "a88b2828e0cc62317a68adf1be952f27ffababd661c2755109fc912ddb03bb02"
+      },
+      "original_sha256": {
+        "base-pull.log": "87cbeb0cba0ccefff1c4c9e62cf5bf71707d716b4360b28025cfe4ae67350364",
+        "base-pull.stage.json": "b761319a9fbbe1f306db6f559f1c85b6eb1ea3cf66109a5a3d7f48c8f4c6710a",
+        "cache-source.json": "7b261c198341c82ad46bb9fa2490a6c0401a82cba947392aafcb595763e0a14e",
+        "checks.junit.xml": "2fa64985e01d518baec7b6ddc4067a87fa1630b78e58e95b685d896744aa6df6",
+        "env.log": "5678b23f2f3ad10d7f745c3f211723912b077a9d083f80488b3da723e01b384b",
+        "env.stage.json": "e6434359acb14d930c7b65d6b4ba618c0739efdcdcb5d854bfecbbecedd1ce6a",
+        "image-elfs.json": "7b7adce498852719581da279b0c056f8f9cf1dfa7af8227da7f719f604f85ec3",
+        "image-elfs/kona-client": "58bdf1ed712c077c3dae262b47c9e7071544eaecaed5f469f2da76fa9d53a9d0",
+        "image-elfs/kona-client-int": "1c56637344d18caa8b4be10a800931265c0e2486d81f2fba595bc5d1843d7862",
+        "image.json": "091d3a8b81fb6ee60d60277ade536bc759e617f3f37863fe44dafdf79a27d9ca",
+        "settings.json": "1a4bfc1ab0d89875bde1ba48e105d71191d3492d42bcccf50398a267d282cca8",
+        "variants.log": "5d3b62247db72baeb0c3c36db3696a615c5cf66bb0f7fcb8f1709e4eac0f1adc",
+        "variants.stage.json": "2ab8fb1881760c2498c89e6034bfcf83382880496b720243ea2a2d0de198f609"
+      }
+    },
+    "cannon-go": {
+      "CacheHitFromTaskID": null,
+      "CompletedRuntimeSeconds": 21,
+      "ExecutionRuntimeSeconds": 4,
+      "ID": "2c9f4434801a8c741bb7058f3c4f0d65",
+      "Messages": [],
+      "PostProcessingRuntimeSeconds": 6,
+      "PreparingRuntimeSeconds": 12,
+      "Status": {
+        "AbortedSubStatus": "not_applicable",
+        "Execution": "finished",
+        "FinishedSubStatus": "executed",
+        "Result": "succeeded",
+        "WaitingSubStatus": "not_applicable"
+      }
+    },
+    "cannon-lint": {
+      "CacheHitFromTaskID": null,
+      "CompletedRuntimeSeconds": 123,
+      "ExecutionRuntimeSeconds": 11,
+      "ID": "267615d089d04f2419474e81d8191367",
+      "Messages": [
+        {
+          "Advice": "Move `cannon-env` after `head-source` in `use`.\nSee https://www.rwx.com/docs/use to learn about `use`.",
+          "Column": null,
+          "FileName": null,
+          "Frame": null,
+          "Line": null,
+          "Message": "The dependency `cannon-env` was specified before `head-source`, but `head-source` must be specified before `cannon-env` to support other dependencies.",
+          "StackTrace": null,
+          "Type": "warning"
+        }
+      ],
+      "PostProcessingRuntimeSeconds": 38,
+      "PreparingRuntimeSeconds": 75,
+      "Status": {
+        "AbortedSubStatus": "not_applicable",
+        "Execution": "finished",
+        "FinishedSubStatus": "executed",
+        "Result": "succeeded",
+        "WaitingSubStatus": "not_applicable"
+      },
+      "cache_source": {
+        "restored_source_files": 1343,
+        "source_changed": false,
+        "source_sha256": "a88b2828e0cc62317a68adf1be952f27ffababd661c2755109fc912ddb03bb02"
+      },
+      "original_sha256": {
+        "cache-source.json": "7b261c198341c82ad46bb9fa2490a6c0401a82cba947392aafcb595763e0a14e",
+        "checks.junit.xml": "00d9c37f62270fbb0aa0fb96b9248088b0dbc40eefa987897c7a61f869daf90c",
+        "image-elfs.json": "7b7adce498852719581da279b0c056f8f9cf1dfa7af8227da7f719f604f85ec3",
+        "image-elfs/kona-client": "58bdf1ed712c077c3dae262b47c9e7071544eaecaed5f469f2da76fa9d53a9d0",
+        "image-elfs/kona-client-int": "1c56637344d18caa8b4be10a800931265c0e2486d81f2fba595bc5d1843d7862",
+        "image.json": "091d3a8b81fb6ee60d60277ade536bc759e617f3f37863fe44dafdf79a27d9ca",
+        "lint.log": "d3ff43900572191459afb319200810b962047143ace2adb4bfd272e6afd0e6c5",
+        "lint.stage.json": "c2c5406843429d3f4c281878afa2995cc718011d90b2957a4d77b5a192985b62",
+        "settings.json": "54768aae3482711fc4cee869e941555853705fa0e9ec57e63a3915fdb6105eb7",
+        "variants.log": "5d3b62247db72baeb0c3c36db3696a615c5cf66bb0f7fcb8f1709e4eac0f1adc",
+        "variants.stage.json": "90bc565d0d122aa899d1a61ec9611ec35df560c5d48eb1de8878e088419e9f2b",
+        "verified-env.json": "64f99e550991a47a0801b19ba07a9f55ef79518b9597210bbeced0ab284bb8ac"
+      }
+    },
+    "cannon-offline": {
+      "CacheHitFromTaskID": null,
+      "CompletedRuntimeSeconds": 141,
+      "ExecutionRuntimeSeconds": 72,
+      "ID": "6c93dc45efef7060c2b12ce783b32b70",
+      "Messages": [
+        {
+          "Advice": "Move `cannon-build` after `cannon-witness` in `use`.\nSee https://www.rwx.com/docs/use to learn about `use`.",
+          "Column": null,
+          "FileName": null,
+          "Frame": null,
+          "Line": null,
+          "Message": "The dependency `cannon-build` was specified before `cannon-witness`, but `cannon-witness` must be specified before `cannon-build` to support other dependencies.",
+          "StackTrace": null,
+          "Type": "warning"
+        }
+      ],
+      "PostProcessingRuntimeSeconds": 38,
+      "PreparingRuntimeSeconds": 32,
+      "Status": {
+        "AbortedSubStatus": "not_applicable",
+        "Execution": "finished",
+        "FinishedSubStatus": "executed",
+        "Result": "succeeded",
+        "WaitingSubStatus": "not_applicable"
+      },
+      "cache_source": {
+        "restored_source_files": 1343,
+        "source_changed": false,
+        "source_sha256": "a88b2828e0cc62317a68adf1be952f27ffababd661c2755109fc912ddb03bb02"
+      },
+      "original_sha256": {
+        "cache-source.json": "7b261c198341c82ad46bb9fa2490a6c0401a82cba947392aafcb595763e0a14e",
+        "checks.junit.xml": "70f64ed2ae2e63be6783880a89940a3a4df3897565777276c63d1bbe32cc153c",
+        "elfs.json": "7b7adce498852719581da279b0c056f8f9cf1dfa7af8227da7f719f604f85ec3",
+        "elfs/kona-client": "58bdf1ed712c077c3dae262b47c9e7071544eaecaed5f469f2da76fa9d53a9d0",
+        "elfs/kona-client-int": "1c56637344d18caa8b4be10a800931265c0e2486d81f2fba595bc5d1843d7862",
+        "go-binaries.json": "6ebd99ff85f8dd8468ae7daab7d2c3b57f100fac5cdf5fc94d88be088d3041de",
+        "guest-coverage.json": "5dd40077943fe48c278cf36a5fbdd3f34e35365213246b8a0abf9cc08a09c108",
+        "guest.json": "e42098635eb46258a2a87839bd9cfd9b2a4e1c376f2105a9bb793778b2d6c694",
+        "guest.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "guest.stage.json": "35d6f9cc17f355254491f705313e28b4f63b71c479d999012ba7b56923387797",
+        "image-elfs.json": "7b7adce498852719581da279b0c056f8f9cf1dfa7af8227da7f719f604f85ec3",
+        "image-elfs/kona-client": "58bdf1ed712c077c3dae262b47c9e7071544eaecaed5f469f2da76fa9d53a9d0",
+        "image-elfs/kona-client-int": "1c56637344d18caa8b4be10a800931265c0e2486d81f2fba595bc5d1843d7862",
+        "image.json": "091d3a8b81fb6ee60d60277ade536bc759e617f3f37863fe44dafdf79a27d9ca",
+        "offline.log": "521cbce69afebe73efab74162fb93acd3c0bacf95ae757012054e0486e4a42b3",
+        "offline.stage.json": "e6798b7ed7e090aee3009e45cc5734dc81d6603dc9fbfe99f06aa5e0dded995b",
+        "out.bin.gz": "be9e2b13b112ac1ca4354e2988aea5d51732cc13bc8602c3f9ececb4238dd0b4",
+        "sccache-stop.log": "216354203acacf8f60ca1daefd877ff4355cbccbaf364500ee008443bed9c222",
+        "sccache.json": "2b655ec2c3a2a7314544cd8d226bb75c39fe24c3217dae89916611715fe189ba",
+        "settings.json": "d56023b272772af99c1aeab4816cea115df75a6c312837e11392b49676c0e56f",
+        "variants.log": "5d3b62247db72baeb0c3c36db3696a615c5cf66bb0f7fcb8f1709e4eac0f1adc",
+        "variants.stage.json": "c79f7d848057aed535f421bbefa458107e20178a66b2e6103cb9bee70124c263",
+        "verified-build.json": "75f53a9910ee35425f623554a736d4aa39e0b80b2ef7847c749ae8d41350c132",
+        "verified-env.json": "64f99e550991a47a0801b19ba07a9f55ef79518b9597210bbeced0ab284bb8ac",
+        "verified-go.json": "ab617b3941d754e9b599a38f3d30d107192ba6c57fe8a10216f125ec701b349f",
+        "verified-witness.json": "42a96fc3ae228ddea6b9d0795fb75661938decee2dfc01aa537940140ef82ace",
+        "witness.json": "52450634f5e54b48e4b8400efa7f8abf10a9c7c01ab4c318949065e4f6d6afbe"
+      }
+    },
+    "cannon-witness": {
+      "CacheHitFromTaskID": null,
+      "CompletedRuntimeSeconds": 2,
+      "ExecutionRuntimeSeconds": 1,
+      "ID": "2c5d87bdffdc2dc7ef1ebd09d91fd04f",
+      "Messages": [],
+      "PostProcessingRuntimeSeconds": 1,
+      "PreparingRuntimeSeconds": 1,
+      "Status": {
+        "AbortedSubStatus": "not_applicable",
+        "Execution": "finished",
+        "FinishedSubStatus": "executed",
+        "Result": "succeeded",
+        "WaitingSubStatus": "not_applicable"
+      }
+    }
+  },
+  "trigger": "cli"
+}

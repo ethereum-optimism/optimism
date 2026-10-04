@@ -114,6 +114,7 @@ tasks:
       python3 -m unittest discover -s ops/ci -p 'test_rust_target_cache.py'
       python3 -m unittest discover -s ops/ci -p 'test_compare_rust_extra.py'
       python3 -m unittest discover -s ops/ci -p 'test_rust_cannon.py'
+      python3 -m unittest discover -s ops/ci -p 'test_compare_rust_cannon.py'
     cache: false
     timeout: 10m
     outputs:
@@ -704,7 +705,7 @@ tasks:
           path: .ci/rust-workspace/cannon-witness
 
   - key: cannon-lint
-    use: [cannon-env, head-source]
+    use: [head-source, cannon-env]
     if: ${{ tasks.route.values.run-rust-ci == 'true' }}
     run: bash ops/ci/rust-cannon.sh lint
     env:
@@ -725,7 +726,7 @@ tasks:
           path: .ci/rust-workspace/cannon-lint
 
   - key: cannon-build
-    use: [cannon-env, head-source]
+    use: [head-source, cannon-env]
     if: ${{ init.cache-warm == 'true' || tasks.route.values.run-rust-ci == 'true' }}
     run: bash ops/ci/rust-cannon.sh build
     env:
@@ -744,7 +745,7 @@ tasks:
           path: .ci/rust-workspace/cannon-build
 
   - key: cannon-offline
-    use: [cannon-build, cannon-go, cannon-witness, head-source, go-tools]
+    use: [head-source, go-tools, cannon-witness, cannon-go, cannon-build]
     if: ${{ tasks.route.values.run-rust-ci == 'true' }}
     run: bash ops/ci/rust-cannon.sh offline
     env:

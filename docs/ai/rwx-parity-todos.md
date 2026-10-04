@@ -36,11 +36,11 @@ at commit `587b4c3a73d3f16f15212b72e9a0ed0e8489a7c4`.
 | --- | ---: | ---: |
 | Main | 32 | 13 |
 | Contracts | 23 | 4 |
-| Rust | 22 | 18 |
+| Rust | 22 | 21 |
 | Rust E2E | 9 | 0 |
-| Total | 86 | 35 |
+| Total | 86 | 38 |
 
-Conservative implementation coverage is **35 / 86 = 41%**. Each matrix entry and
+Conservative implementation coverage is **38 / 86 = 44%**. Each matrix entry and
 each occurrence in a different workflow counts separately; shards do not.
 The CircleCI setup and schedule-trigger-check workflows are outside this
 86-job denominator and have separate todos. This is job coverage, not runtime,
@@ -59,9 +59,9 @@ remaining limits. Both WASM package sets, Zepter, Typos, the Kona registry
 snapshot check and the full Interop differential test now pass complete
 same-SHA original-report parity. See the
 [remaining Rust stage](rwx-rust-extra-parity.md) for retained evidence.
-The three Cannon adapters and dependency producers are implemented and locally
-validated, with [hosted Cannon parity](rwx-cannon-parity.md) pending. They remain
-outside the verified coverage count until their full native runs complete.
+All three Cannon Rust workloads now pass complete same-SHA original-report
+parity, including both MIPS client binaries and the complete final VM state.
+See the [Cannon evidence](rwx-cannon-parity.md).
 The narrower rollup mode remains CLI-only. See [the stage closeout](rwx-go-parity.md)
 for original-report comparison, selected resources, caches and limitations.
 
@@ -83,7 +83,7 @@ in [rwx-migration.md](rwx-migration.md#op-reth-shadow-and-cache-measurements).
 
 1. Retain the completed [acceptance](rwx-acceptance-parity.md) and
    [core Rust workspace](rwx-rust-parity.md) shadows and their original-report evidence.
-2. Port the remaining Cannon Rust workloads, then the Rust E2E workflow.
+2. Port the Rust E2E workflow and retain the completed Cannon workload evidence.
 3. Close remaining contract evidence gaps and operational failure/routing rehearsals.
 4. Keep additional performance tuning deferred while porting remaining workloads.
 5. Rehearse full pipeline routing and failure behavior before proposing gate
@@ -257,9 +257,9 @@ CircleCI workflow: `rust-ci` (22 jobs).
 - [x] `op-reth-integration-tests`
 - [x] `op-reth-compact-codec`
 - [x] `kona-registry-snapshot-check`
-- [ ] `kona-lint-cannon`
-- [ ] `kona-host-client-offline-cannon`
-- [ ] `kona-build-fpvm-cannon-client`
+- [x] `kona-lint-cannon`
+- [x] `kona-host-client-offline-cannon`
+- [x] `kona-build-fpvm-cannon-client`
 - [x] `interop-deposits-diff`
 - [ ] `required-rust-ci`
 
