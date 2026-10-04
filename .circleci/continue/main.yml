@@ -1171,7 +1171,8 @@ jobs:
       - run:
           name: Print failed dependency traces
           command: |
-            if [ ! -f "../../.ci/contract-suites/<<parameters.parity_suite>>-${CI_CONTRACT_FEATURE:-main}/run/tests.stage.json" ]; then
+            if [ ! -f "../../.ci/contract-suites/<<parameters.parity_suite>>-${CI_CONTRACT_FEATURE:-main}/run/tests.stage.json" ] \
+               && [ -s cache/test-failures ]; then
               just test-rerun
             fi
           environment:

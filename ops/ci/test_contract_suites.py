@@ -15,6 +15,38 @@ CS = importlib.util.module_from_spec(SPEC); SPEC.loader.exec_module(CS)
 
 
 class SuiteTests(unittest.TestCase):
+    def test_input_mutation_retains_exact_before_and_after_evidence(self):
+        before = {'test/Fixture.t.sol': 'a'*64, 'go.sum': 'b'*64}
+        after = dict(before, **{'go.sum': 'c'*64})
+        with tempfile.TemporaryDirectory() as tmp, patch.object(CS, 'inputs', return_value=after):
+            directory = Path(tmp)
+            with self.assertRaisesRegex(ValueError, 'verdict changed source inputs: go.sum'):
+                CS.verify_inputs(directory, before, 'verdict')
+            self.assertEqual(json.loads((directory / 'source-after-verdict.json').read_text()), after)
+            self.assertEqual(json.loads((directory / 'source-changes-verdict.json').read_text()),
+                             {'go.sum': {'before': 'b'*64, 'after': 'c'*64}})
+
+    def test_only_selected_writers_declare_outputs_and_changed_fixtures_are_retained(self):
+        self.assertEqual(CS.runtime_outputs(['test/unrelated.t.sol']), [])
+        self.assertEqual(CS.runtime_outputs(list(CS.TRACKED_OUTPUTS)), sorted(CS.TRACKED_OUTPUTS.values()))
+        name = next(iter(CS.TRACKED_OUTPUTS.values()))
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp) / 'repo'; directory = Path(tmp) / 'report'; directory.mkdir()
+            original = directory / 'tracked-fixtures/before' / name; original.parent.mkdir(parents=True); original.write_text('original')
+            source = root / name; source.parent.mkdir(parents=True); source.write_text('generated')
+            before = {name: CS.UP.digest(original), 'source.sol': 'a'*64}
+            after = {name: CS.UP.digest(source), 'source.sol': 'a'*64}
+            with patch.object(CS, 'ROOT', root), patch.object(CS, 'inputs', return_value=after):
+                CS.verify_inputs(directory, before, 'verdict', [name])
+                self.assertEqual((directory / 'tracked-fixtures/after' / name).read_text(), 'generated')
+                self.assertEqual(json.loads((directory / 'runtime-fixtures.json').read_text()),
+                                 {name: {'before_sha256': before[name], 'after_sha256': after[name]}})
+                after['source.sol'] = 'b'*64
+                with self.assertRaisesRegex(ValueError, 'changed source inputs: source.sol'):
+                    CS.verify_inputs(directory, before, 'verdict', [name])
+                with self.assertRaisesRegex(ValueError, 'Compilation cannot change'):
+                    CS.verify_inputs(directory, before, 'preparation', [name])
+
     def test_files_include_new_nested_tests_and_reject_duplicates_or_unsafe_filters(self):
         self.assertEqual(CS.file_selection('test/New.t.sol\ntest/nested/Old.t.sol\n'), ['test/New.t.sol', 'test/nested/Old.t.sol'])
         self.assertEqual(CS.match_path(['test/New.t.sol', 'test/nested/Old.t.sol']), './test/{New.t.sol,nested/Old.t.sol}')
@@ -81,15 +113,23 @@ class LiveSuiteTests(unittest.TestCase):
                 '[profile.liteci.invariant]\nruns=64\ndepth=32\n[profile.ciheavy]\noptimizer=false\n'
                 '[profile.ciheavy.fuzz]\nruns=20000\ntimeout=300\n[profile.ciheavy.invariant]\nruns=128\ndepth=512\ntimeout=300\n')
             (contracts / 'src/unit/Fixture.sol').write_text('// SPDX-License-Identifier: MIT\npragma solidity 0.8.15; '
-                'interface Vm {function skip(bool) external;function ffi(string[] calldata) external returns(bytes memory);}'
-                'contract Fixture {function runtime(uint256 a) public pure returns(uint256){return a;}}')
+                'interface Vm {function skip(bool,string calldata) external;function ffi(string[] calldata) external returns(bytes memory);}'
+                'contract Fixture {uint256 public value;uint256 public copied;'
+                'function runtime(uint256 a) public returns(uint256){value=a;copied=a;return a;}}')
             (contracts / 'test/unit/Fixture.t.sol').write_text('// SPDX-License-Identifier: MIT\npragma solidity 0.8.15; '
                 'import {Fixture,Vm} from "../../src/unit/Fixture.sol";contract Fixture_Runtime_Test {'
                 'Vm constant vm=Vm(address(uint160(uint256(keccak256("hevm cheat code")))));'
                 'function test_runtime_succeeds() public {string[] memory args=new string[](1);'
                 'args[0]="./scripts/go-ffi/go-ffi";assert(abi.decode(vm.ffi(args),(uint256))==1);}'
                 'function testFuzz_runtime_succeeds(uint256 a) public {assert(new Fixture().runtime(a)==a);}'
-                'function test_runtime_disabled_succeeds() public {vm.skip(true);}}')
+                'function test_runtime_disabled_succeeds() public {vm.skip(true,"fixture disabled");}}')
+            (contracts / 'src/unit/InvariantFixture.sol').write_text('// SPDX-License-Identifier: MIT\npragma solidity 0.8.15; '
+                'import {Fixture} from "./Fixture.sol";contract InvariantFixture is Fixture {}')
+            (contracts / 'test/unit/InvariantFixture.t.sol').write_text('// SPDX-License-Identifier: MIT\npragma solidity 0.8.15; '
+                'import {InvariantFixture} from "../../src/unit/InvariantFixture.sol";contract InvariantFixture_Runtime_Test {'
+                'InvariantFixture fixture;function setUp() public {fixture=new InvariantFixture();}'
+                'function targetContracts() public view returns(address[] memory targets){targets=new address[](1);targets[0]=address(fixture);}'
+                'function invariant_runtime_succeeds() public view {assert(fixture.value()==fixture.copied());}}')
             def git(*args, directory=root):
                 return subprocess.check_output(['git', '-c', 'user.name=Fixture', '-c', 'user.email=fixture@example.invalid', *args],
                                                cwd=directory, text=True, stderr=subprocess.DEVNULL).strip()
@@ -113,10 +153,21 @@ class LiveSuiteTests(unittest.TestCase):
                 argv = ['python3', str(root / 'ops/ci/contract-suites.py'), mode, '--suite', suite, '--feature', 'main']
                 if prepared: argv += ['--prepared', str(prepared)]
                 settings = dict(env, CI_CONTRACT_PROVIDER=provider, RWX_RUN_ID='f'*32, RWX_TASK_ATTEMPT_NUMBER='1')
-                return subprocess.run(argv, cwd=root, env=settings, text=True, capture_output=True, timeout=180)
+                child = subprocess.Popen(argv, cwd=root, env=settings, text=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+                try:
+                    stdout, stderr = child.communicate(timeout=180)
+                except subprocess.TimeoutExpired:
+                    # Give the runner's signal handler a chance to terminate
+                    # Forge and seal cancellation evidence before cleanup.
+                    child.terminate()
+                    try: child.communicate(timeout=30)
+                    except subprocess.TimeoutExpired: child.kill(); child.communicate(timeout=30)
+                    raise
+                return subprocess.CompletedProcess(argv, child.returncode, stdout, stderr)
             for suite in CS.SUITES:
                 directories = {}
                 for provider in ('circleci', 'rwx'):
+                    if suite == 'standard' and provider == 'circleci': git('submodule', 'deinit', '-f', 'modules/original')
                     if provider == 'rwx':
                         result = invoke('prepare', suite, provider); self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
                         prepared = root / '.ci/contract-suites' / (suite + '-main') / 'prepare'
@@ -128,13 +179,26 @@ class LiveSuiteTests(unittest.TestCase):
                     self.assertEqual(len(marker.read_text()), before + 1)
                     report = root / '.ci/contract-suites' / (suite + '-main') / 'run'
                     destination = Path(tmp) / (suite + '-' + provider); shutil.copytree(report, destination); directories[provider] = destination
-                    coverage = json.loads((report / 'coverage.json').read_text()); self.assertEqual(coverage['outcomes'], {'pass': 2, 'skip': 1})
+                    coverage = json.loads((report / 'coverage.json').read_text())
+                    self.assertEqual(coverage['outcomes'], {'pass': 3 if suite == 'standard' else 2, 'skip': 1})
+                    self.assertEqual('invariant_runtime_succeeds()' in [row['name'] for row in coverage['cases']], suite == 'standard')
+                    skipped = [row for row in coverage['cases'] if row['outcome'] == 'skip']
+                    self.assertEqual(skipped[0]['skip_reason'], {'attributes': {'message': 'fixture disabled'}, 'text': ''})
+                    self.assertFalse(any(line.startswith('-') for line in (report / 'submodules.txt').read_text().splitlines()))
                     self.assertIn('All contract test validations passed', (report / 'lint-test-names.log').read_text())
                 result = subprocess.run(['python3', str(root / 'ops/ci/compare-contract-suites.py'), '--circle', str(directories['circleci']),
                     '--rwx', str(directories['rwx']), '--sha', sha, '--suite', suite, '--feature', 'main', '--output', str(Path(tmp) / (suite + '.json'))],
                     text=True, capture_output=True)
                 self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
             prepared = root / '.ci/contract-suites/standard-main/prepare'
+            settings_path, manifest_path = prepared / 'settings.json', prepared / 'final.json'
+            original_settings, original_manifest = settings_path.read_bytes(), manifest_path.read_bytes()
+            value = json.loads(original_settings); value['runtime_output_paths'] = ['go.sum']; CS.UP.write(settings_path, value)
+            value = json.loads(original_manifest); value['original_sha256']['settings.json'] = CS.UP.digest(settings_path); CS.UP.write(manifest_path, value)
+            result = invoke('run', 'standard', 'rwx', prepared)
+            self.assertNotEqual(result.returncode, 0); self.assertIn('Unexpected compiled tracked runtime output role', result.stderr)
+            self.assertFalse((root / '.ci/contract-suites/standard-main/run/tests.stage.json').exists())
+            settings_path.write_bytes(original_settings); manifest_path.write_bytes(original_manifest)
             binary = contracts / 'scripts/go-ffi/go-ffi'; binary.write_bytes(binary.read_bytes() + b'corrupt')
             result = invoke('run', 'standard', 'rwx', prepared)
             self.assertNotEqual(result.returncode, 0); self.assertIn('corrupt', result.stderr)

@@ -12,7 +12,8 @@ UP = CS.UP
 
 
 def report(directory, suite, feature, sha, provider, empty):
-    required = CS.PREPARED | {'original.junit.xml', 'coverage.json', 'tests.stage.json', 'junit-nonempty.stage.json', 'lint-test-names.stage.json'}
+    required = CS.PREPARED | {'original.junit.xml', 'coverage.json', 'tests.stage.json', 'junit-nonempty.stage.json',
+                              'lint-test-names.stage.json', 'source-after-verdict.json', 'runtime-fixtures.json'}
     if provider == 'rwx': required |= {'runtime-config.json', 'runtime-config.stage.json', 'runtime-files.log', 'runtime-files.stage.json',
                                        'preparation-manifest.json', 'preparation-settings.json'}
     else: required |= {'split.log', 'split.stage.json'}
@@ -28,6 +29,8 @@ def report(directory, suite, feature, sha, provider, empty):
         raise ValueError('Wrong contract suite source, occurrence or provider')
     profile = 'ciheavy' if suite == 'modified' else 'ci' if settings['branch'] == 'develop' else 'liteci'
     if settings['profile'] != profile or not settings['input_sha256']: raise ValueError('Wrong effective contract branch profile or missing source inputs')
+    if json.loads((directory / 'source-after-preparation.json').read_text()) != settings['input_sha256']:
+        raise ValueError('Contract source inputs changed during preparation')
     test_list = 'find test -name "*.t.sol"' if suite == 'standard' else CS.FILE_COMMANDS[suite][-1]
     if settings['test_list'] != test_list: raise ValueError('Wrong original Circle contract test-list parameter')
     if provider == 'rwx' and (not settings['rwx_run_id'] or str(settings['rwx_task_attempt']) != '1'):
@@ -35,6 +38,23 @@ def report(directory, suite, feature, sha, provider, empty):
     files = CS.file_selection((directory / 'files.log').read_text())
     if not files: raise ValueError('Empty original contract selection cannot establish coverage')
     chosen = {'files': files, 'partitions': [{'index': 0, 'files': files}], 'match_path': CS.match_path(files)}
+    outputs = CS.runtime_outputs(files)
+    if settings.get('runtime_output_paths') != outputs: raise ValueError('Unexpected tracked runtime output role')
+    after = json.loads((directory / 'source-after-verdict.json').read_text())
+    changes = {name: {'before': settings['input_sha256'].get(name), 'after': after.get(name)}
+               for name in sorted(set(settings['input_sha256']) | set(after))
+               if settings['input_sha256'].get(name) != after.get(name)}
+    if set(changes) - set(outputs): raise ValueError('Contract source inputs changed during verdict')
+    if changes and json.loads((directory / 'source-changes-verdict.json').read_text()) != changes:
+        raise ValueError('Tracked runtime fixture change evidence differs')
+    fixtures = {}
+    for name in outputs:
+        for phase, expected in [('before', settings['input_sha256'].get(name)), ('after', after.get(name))]:
+            if not isinstance(expected, str) or UP.digest(directory / 'tracked-fixtures' / phase / name) != expected:
+                raise ValueError('Corrupt original tracked runtime fixture')
+        fixtures[name] = {'before_sha256': settings['input_sha256'][name], 'after_sha256': after[name]}
+    if json.loads((directory / 'runtime-fixtures.json').read_text()) != fixtures:
+        raise ValueError('Runtime fixture hashes differ from originals')
     if json.loads((directory / 'file-selection.json').read_text()) != chosen: raise ValueError('Missing, duplicate or wrong contract file assignment')
     if provider == 'circle' and CS.file_selection((directory / 'split.log').read_text()) != files:
         raise ValueError('Original Circle timing split differs from complete file selection')
@@ -73,6 +93,9 @@ def report(directory, suite, feature, sha, provider, empty):
         raise ValueError('Contract producer did not retain a compile-only observation')
     root = settings['workspace_root']; cwd = root + '/packages/contracts-bedrock'
     commands = {'files': CS.FILE_COMMANDS[suite], 'foundry-config': ['forge', 'config', '--json'],
+                'submodules-sync': ['git', '-C', root, 'submodule', 'sync', '--recursive'],
+                'submodules-init': ['git', '-C', root, '-c', 'protocol.file.allow=never', 'submodule',
+                                    'update', '--init', '--recursive', '--jobs', '8'],
                 'go-ffi': ['just', 'build-go-ffi'], 'contracts-build': ['forge', 'build'],
                 'discovery': ['forge', 'test', '--list', '--json', '--match-path', chosen['match_path']],
                 'tests': ['forge', 'test', '--match-path', chosen['match_path'], '--junit'],
@@ -98,6 +121,7 @@ def report(directory, suite, feature, sha, provider, empty):
         if (row['argv'], row['cwd'], row['exit_code']) != (argv, cwd, 0): raise ValueError('Wrong or failed original contract command')
     return {'settings': settings, 'files': chosen, 'selection': selected, 'coverage': coverage,
             'config': UP.ORIGINALS.normalize(config, root), 'original_sha256': hashes, 'compiled_sha256': compiled,
+            'source_after_verdict': after, 'runtime_fixtures': fixtures,
             'submodules': UP.SUBMODULES.revisions((directory / 'submodules.txt').read_text()),
             'methods': {name: {'methods': row['methods'], 'deployable': UP.deployable(row)} for name, row in methods.items()}}
 
@@ -105,14 +129,17 @@ def report(directory, suite, feature, sha, provider, empty):
 def compare(directories, suite, feature, sha):
     if not re.fullmatch('[0-9a-f]{40}', sha): raise ValueError('Expected full contract suite benchmark SHA')
     empty = []; data = {p: report(d, suite, feature, sha, p, empty) for p, d in directories.items()}; a, b = data['circle'], data['rwx']
-    for key in ('source_sha', 'suite', 'feature', 'branch', 'profile', 'test_list', 'forge', 'go', 'just', 'input_sha256', 'target_sha', 'merge_base_sha'):
+    for key in ('source_sha', 'suite', 'feature', 'branch', 'profile', 'test_list', 'forge', 'go', 'just', 'input_sha256',
+                'runtime_output_paths', 'target_sha', 'merge_base_sha'):
         if a['settings'].get(key) != b['settings'].get(key): raise ValueError('Contract settings differ at ' + key)
-    for key in ('files', 'selection', 'coverage', 'config', 'submodules', 'methods'):
+    for key in ('files', 'selection', 'coverage', 'config', 'submodules', 'methods', 'source_after_verdict', 'runtime_fixtures'):
         if a[key] != b[key]: raise ValueError('Complete original contract parity differs at ' + key)
     return {'source_sha': sha, 'suite': suite, 'feature': feature, 'verified_parity': True,
             'file_selection': a['files'], 'selection': a['selection'], 'coverage': a['coverage'],
             'settings': {p: d['settings'] for p, d in data.items()}, 'original_sha256': {p: d['original_sha256'] for p, d in data.items()},
-            'compiled_sha256': {p: d['compiled_sha256'] for p, d in data.items()}, 'manifest_declared_empty_logs': empty}
+            'compiled_sha256': {p: d['compiled_sha256'] for p, d in data.items()},
+            'source_after_verdict': a['source_after_verdict'], 'runtime_fixtures': a['runtime_fixtures'],
+            'manifest_declared_empty_logs': empty}
 
 
 if __name__ == '__main__':

@@ -5,6 +5,7 @@ import json
 from pathlib import Path
 import tempfile
 import unittest
+from unittest.mock import patch
 
 SPEC = importlib.util.spec_from_file_location('compare', Path(__file__).with_name('compare-contract-suites.py'))
 C = importlib.util.module_from_spec(SPEC); SPEC.loader.exec_module(C)
@@ -22,8 +23,10 @@ class ComparisonTests(unittest.TestCase):
                         'provider': 'circleci' if provider == 'circle' else 'rwx', 'workspace_root': root,
                         'forge': 'pinned', 'go': 'pinned', 'just': 'pinned',
                         'input_sha256': {'packages/contracts-bedrock/test/Fixture.t.sol': 'b' * 64},
+                        'runtime_output_paths': [],
                         'rwx_run_id': 'c' * 32 if provider == 'rwx' else None, 'rwx_task_attempt': '1'}
             self.write(d / 'settings.json', settings)
+            self.write(d / 'source-after-preparation.json', settings['input_sha256'])
             config = {'out': 'out', 'root': root, 'fuzz': {'runs': 128}, 'invariant': {'runs': 64, 'depth': 32}}
             self.write(d / 'foundry-config.json', config); (d / 'files.log').write_text('test/Fixture.t.sol\n')
             self.write(d / 'file-selection.json', {'files': files, 'partitions': [{'index': 0, 'files': files}], 'match_path': match})
@@ -36,6 +39,9 @@ class ComparisonTests(unittest.TestCase):
             self.write(d / 'compile-only.json', {'tests': 0, 'selected_cases': 2, 'suite': 'standard', 'feature': 'main'})
             (d / 'submodules.txt').write_text(' ' + 'd' * 40 + ' original-module\n')
             commands = {'files': C.CS.FILE_COMMANDS['standard'], 'foundry-config': ['forge', 'config', '--json'],
+                        'submodules-sync': ['git', '-C', root, 'submodule', 'sync', '--recursive'],
+                        'submodules-init': ['git', '-C', root, '-c', 'protocol.file.allow=never', 'submodule',
+                                            'update', '--init', '--recursive', '--jobs', '8'],
                         'go-ffi': ['just', 'build-go-ffi'], 'contracts-build': ['forge', 'build'],
                         'discovery': ['forge', 'test', '--list', '--json', '--match-path', match]}
             for name, argv in commands.items(): self.stage(d, name, argv, root)
@@ -49,6 +55,8 @@ class ComparisonTests(unittest.TestCase):
                 (d / 'split.log').write_text('test/Fixture.t.sol\n'); self.stage(d, 'split', C.CS.SPLIT_COMMAND, root)
             (d / 'original.junit.xml').write_text('<testsuites><testsuite name="test/Fixture.t.sol:Fixture">'
                 '<testcase name="test_a()"/><testcase name="test_skip()"><skipped>original guard</skipped></testcase></testsuite></testsuites>')
+            self.write(d / 'source-after-verdict.json', settings['input_sha256'])
+            self.write(d / 'runtime-fixtures.json', {})
             self.write(d / 'coverage.json', C.UP.junit(d / 'original.junit.xml', selected, methods))
             self.stage(d, 'tests', ['forge', 'test', '--match-path', match, '--junit'], root)
             self.stage(d, 'junit-nonempty', ['./scripts/checks/check-junit-tests-ran.sh', root + '/.ci/contract-suites/standard-main/run/original.junit.xml'], root)
@@ -66,8 +74,46 @@ class ComparisonTests(unittest.TestCase):
         self.assertTrue(self.compare()['verified_parity'])
 
     def test_omitted_new_file_is_rejected_even_when_both_providers_omit_it(self):
-        for d in self.dirs.values(): self.mutate(d, 'settings.json', lambda v: v['input_sha256'].update({'packages/contracts-bedrock/test/New.t.sol': 'f' * 64}))
+        for d in self.dirs.values():
+            self.mutate(d, 'settings.json', lambda v: v['input_sha256'].update({'packages/contracts-bedrock/test/New.t.sol': 'f' * 64}))
+            for phase in ('preparation', 'verdict'):
+                self.mutate(d, 'source-after-' + phase + '.json', lambda v: v.update({'packages/contracts-bedrock/test/New.t.sol': 'f' * 64}))
         with self.assertRaisesRegex(ValueError, 'discovery'): self.compare()
+
+    def test_matching_source_mutations_are_rejected(self):
+        for d in self.dirs.values():
+            self.mutate(d, 'source-after-verdict.json', lambda v: v.update({'go.sum': 'f' * 64}))
+        with self.assertRaisesRegex(ValueError, 'source inputs changed during verdict'): self.compare()
+
+    def tracked_fixture(self, d, name):
+        before = d / 'tracked-fixtures/before' / name; before.parent.mkdir(parents=True); before.write_text('original')
+        after = d / 'tracked-fixtures/after' / name; after.parent.mkdir(parents=True); after.write_text('generated')
+        settings = json.loads((d / 'settings.json').read_text())
+        settings['input_sha256'][name] = C.UP.digest(before); settings['runtime_output_paths'] = [name]
+        self.write(d / 'settings.json', settings); self.write(d / 'source-after-preparation.json', settings['input_sha256'])
+        final_inputs = dict(settings['input_sha256'], **{name: C.UP.digest(after)})
+        self.write(d / 'source-after-verdict.json', final_inputs)
+        self.write(d / 'runtime-fixtures.json', {name: {'before_sha256': C.UP.digest(before), 'after_sha256': C.UP.digest(after)}})
+        self.write(d / 'source-changes-verdict.json', {name: {'before': C.UP.digest(before), 'after': C.UP.digest(after)}})
+        if d == self.dirs['rwx']:
+            self.write(d / 'preparation-settings.json', settings)
+            manifest = json.loads((d / 'preparation-manifest.json').read_text())
+            for file in ['settings.json', 'source-after-preparation.json', 'tracked-fixtures/before/' + name]:
+                manifest['original_sha256'][file] = C.UP.digest(d / file)
+            self.write(d / 'preparation-manifest.json', manifest)
+        self.seal(d)
+
+    def test_selected_tracked_runtime_fixture_requires_original_payload_hashes(self):
+        name = 'packages/contracts-bedrock/snapshots/upgrades/current-upgrade-bundle.json'
+        with patch.dict(C.CS.TRACKED_OUTPUTS, {'test/Fixture.t.sol': name}, clear=True):
+            for d in self.dirs.values(): self.tracked_fixture(d, name)
+            result = self.compare(); self.assertIn(name, result['runtime_fixtures'])
+            d = self.dirs['rwx']; (d / 'tracked-fixtures/after' / name).write_text('corrupt'); self.seal(d)
+            with self.assertRaisesRegex(ValueError, 'Corrupt original tracked runtime fixture'): self.compare()
+
+    def test_matching_undeclared_runtime_output_role_is_rejected(self):
+        for d in self.dirs.values(): self.mutate(d, 'settings.json', lambda v: v.update(runtime_output_paths=['go.sum']))
+        with self.assertRaisesRegex(ValueError, 'Unexpected tracked runtime output role'): self.compare()
 
     def test_duplicate_partition_or_missing_original_is_rejected(self):
         d = self.dirs['rwx']; self.mutate(d, 'file-selection.json', lambda v: v['partitions'].append(v['partitions'][0]))

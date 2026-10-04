@@ -29,9 +29,15 @@ FILE_COMMANDS = {
                  "git diff origin/develop...HEAD --name-only --diff-filter=AM -- './test/**/*.t.sol' | sed 's|packages/contracts-bedrock/||'"],
 }
 SPLIT_COMMAND = ['bash', '-eo', 'pipefail', '-c', 'circleci tests split --split-by=timings < "$CI_CONTRACT_FILE_LIST"']
+# GenerateNUTBundleTest calls the real script's run() and verifies the JSON it
+# writes at Constants.CURRENT_BUNDLE_PATH. This tracked snapshot is both an
+# initial fixture and an intentional runtime output, never a reusable verdict.
+TRACKED_OUTPUTS = {'test/scripts/GenerateNUTBundle.t.sol':
+                   'packages/contracts-bedrock/snapshots/upgrades/current-upgrade-bundle.json'}
 PREPARED = {'settings.json', 'files.log', 'files.stage.json', 'file-selection.json', 'foundry-config.json',
             'foundry-config.stage.json', 'go-ffi.stage.json', 'contracts-build.stage.json', 'discovery.json',
-            'discovery.stage.json', 'selection.json', 'signature-bindings.json', 'compiled.json', 'submodules.txt', 'compile-only.json'}
+            'discovery.stage.json', 'selection.json', 'signature-bindings.json', 'compiled.json', 'submodules.txt',
+            'compile-only.json', 'source-after-preparation.json', 'submodules-sync.stage.json', 'submodules-init.stage.json'}
 
 
 def inputs():
@@ -49,6 +55,34 @@ def inputs():
                  'compare-rust-e2e.py', 'compare-contract-artifacts.py'):
         path = ROOT / 'ops/ci' / name; result[str(path.relative_to(ROOT))] = UP.digest(path)
     return result
+
+
+def runtime_outputs(files):
+    return sorted({path for writer, path in TRACKED_OUTPUTS.items() if writer in files})
+
+
+def verify_inputs(directory, before, phase, outputs=()):
+    if outputs and phase != 'verdict': raise ValueError('Compilation cannot change tracked fixtures')
+    after = inputs()
+    UP.write(directory / ('source-after-' + phase + '.json'), after)
+    changes = {name: {'before': before.get(name), 'after': after.get(name)}
+               for name in sorted(set(before) | set(after)) if before.get(name) != after.get(name)}
+    if changes:
+        UP.write(directory / ('source-changes-' + phase + '.json'), changes)
+    if phase == 'verdict':
+        fixtures = {}
+        for name in outputs:
+            original = directory / 'tracked-fixtures/before' / name
+            if not isinstance(before.get(name), str) or UP.digest(original) != before[name] or \
+               not isinstance(after.get(name), str) or UP.digest(ROOT / name) != after[name]:
+                raise ValueError('Missing or corrupt original tracked runtime fixture: ' + name)
+            target = directory / 'tracked-fixtures/after' / name; target.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(ROOT / name, target)
+            fixtures[name] = {'before_sha256': before[name], 'after_sha256': after[name]}
+        UP.write(directory / 'runtime-fixtures.json', fixtures)
+    unexpected = set(changes) - set(outputs)
+    if unexpected:
+        raise ValueError('Contract ' + phase + ' changed source inputs: ' + ', '.join(sorted(unexpected)))
 
 
 def configure(suite, feature):
@@ -129,7 +163,16 @@ def begin(directory, suite, feature):
         settings.update(target_sha=UP.command('git', 'rev-parse', 'origin/develop'),
                         merge_base_sha=UP.command('git', 'merge-base', 'origin/develop', 'HEAD'))
         UP.write(directory / 'settings.json', settings)
-    selected_files(directory, suite, settings['provider'])
+    chosen = selected_files(directory, suite, settings['provider'])
+    settings['runtime_output_paths'] = runtime_outputs(chosen['files'])
+    UP.write(directory / 'settings.json', settings)
+    for name in settings['runtime_output_paths']:
+        source = ROOT / name
+        if source.is_symlink() or not isinstance(settings['input_sha256'].get(name), str) or \
+           UP.digest(source) != settings['input_sha256'][name]:
+            raise ValueError('Unbound tracked runtime fixture: ' + name)
+        target = directory / 'tracked-fixtures/before' / name; target.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(source, target)
     return settings
 
 
@@ -139,6 +182,11 @@ def prepare(directory, suite, feature):
     if not chosen['files']:
         UP.write(directory / 'coverage.json', {'tests': 0, 'eligible': False, 'reason': 'original changed-file selection is empty'})
         return 0
+    for name, argv in [('submodules-sync', ['git', '-C', str(ROOT), 'submodule', 'sync', '--recursive']),
+                       ('submodules-init', ['git', '-C', str(ROOT), '-c', 'protocol.file.allow=never', 'submodule',
+                                            'update', '--init', '--recursive', '--jobs', '8'])]:
+        status = UP.stage(directory, name, argv)
+        if status: return status
     (directory / 'submodules.txt').write_text(UP.command('git', 'submodule', 'status', '--recursive') + '\n')
     UP.SUBMODULES.revisions((directory / 'submodules.txt').read_text())
     for name, argv, as_json in [('foundry-config', ['forge', 'config', '--json'], True),
@@ -162,13 +210,16 @@ def prepare(directory, suite, feature):
         raise ValueError('Missing complete contract compiler outputs')
     UP.write(directory / 'compiled.json', compiled)
     UP.write(directory / 'compile-only.json', {'tests': 0, 'selected_cases': len(discovered), 'suite': suite, 'feature': feature})
-    if settings['input_sha256'] != inputs(): raise ValueError('Contract preparation changed source inputs')
+    verify_inputs(directory, settings['input_sha256'], 'preparation')
     return 0
 
 
 def restore(directory, prepared, suite, feature):
     UP.ORIGINALS.originals(prepared, PREPARED, [], 'rwx/contract-suites-prepare')
     old = json.loads((prepared / 'settings.json').read_text()); branch, profile = configure(suite, feature)
+    chosen = json.loads((prepared / 'file-selection.json').read_text())
+    if old.get('runtime_output_paths') != runtime_outputs(chosen['files']):
+        raise ValueError('Unexpected compiled tracked runtime output role')
     if (old['source_sha'], old['suite'], old['feature'], old['branch'], old['profile'], old['workspace_root'], old['input_sha256']) != \
        (UP.revision(), suite, feature, branch, profile, str(ROOT), inputs()):
         raise ValueError('Stale contract compilation source or effective settings')
@@ -181,6 +232,7 @@ def restore(directory, prepared, suite, feature):
             raise ValueError('Missing or corrupt contract compiled output')
     for p in prepared.iterdir():
         if p.is_file() and p.name != 'final.json': shutil.copy2(p, directory / p.name)
+        elif p.is_dir(): shutil.copytree(p, directory / p.name, dirs_exist_ok=True)
     shutil.copy2(prepared / 'final.json', directory / 'preparation-manifest.json')
     shutil.copy2(prepared / 'settings.json', directory / 'preparation-settings.json')
     old.update(rwx_run_id=os.environ.get('RWX_RUN_ID'), rwx_task_attempt=os.environ.get('RWX_TASK_ATTEMPT_NUMBER'))
@@ -232,7 +284,8 @@ def main():
         else: status = prepare(directory, a.suite, a.feature)
         if a.mode == 'run' and status == 0: status = run(directory)
         settings = json.loads((directory / 'settings.json').read_text())
-        if settings['input_sha256'] != inputs(): raise ValueError('Contract verdict changed source inputs')
+        verify_inputs(directory, settings['input_sha256'], 'verdict' if a.mode == 'run' else 'preparation',
+                      settings.get('runtime_output_paths', []) if a.mode == 'run' else [])
         if a.mode == 'prepare' and status == 0 and os.environ.get('RWX_VALUES'):
             chosen = json.loads((directory / 'file-selection.json').read_text())
             (Path(os.environ['RWX_VALUES']) / 'eligible').write_text('true\n' if chosen['files'] else 'false\n')
