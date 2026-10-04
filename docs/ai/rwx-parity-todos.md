@@ -55,7 +55,10 @@ edges have now executed successfully on both providers. See the
 The eight core Rust workspace jobs now have complete same-SHA parity, including
 all 76 workspace packages and exactly-once coverage across ten feature partitions.
 See the [Rust closeout](rwx-rust-parity.md) for original reports, cache evidence and
-remaining limits. The narrower rollup mode remains CLI-only. See [the stage closeout](rwx-go-parity.md)
+remaining limits. Six additional WASM/source checks are implemented and await
+hosted parity; they are not counted above. See the
+[remaining Rust stage](rwx-rust-extra-parity.md) for its validation boundary.
+The narrower rollup mode remains CLI-only. See [the stage closeout](rwx-go-parity.md)
 for original-report comparison, selected resources, caches and limitations.
 
 A checked inventory item means its complete PR workload has been implemented

@@ -1,8 +1,8 @@
-# Eight complete Rust workspace workloads. Circle retains required gates.
+# Rust workspace builds, tests, cross-compilation and source checks. Circle retains required gates.
 on:
   cache-rebuild:
     if: ${{ event.git.branch == 'develop' }}
-    target: [tests-build, build, clippy, docs, no-std, udeps, feature-plan, features-0, features-1, features-2, features-3, features-4, features-5, features-6, features-7, features-8, features-9]
+    target: [tests-build, build, clippy, docs, no-std, udeps, feature-plan, features-0, features-1, features-2, features-3, features-4, features-5, features-6, features-7, features-8, features-9, wasm-unknown, wasm-wasi, registry]
     init:
       commit-sha: ${{ event.git.sha }}
       branch: ${{ event.git.branch }}
@@ -133,6 +133,26 @@ tasks:
     filter:
       workspace: [mise.toml, ops/ci/rwx-prepare.sh, .circleci/scripts/apt-install.sh]
       ${{ tasks.bootstrap-inputs.artifacts.ci-scripts }}: [rwx-rust-prepare.sh, op-reth-shadow.sh, op-reth-report.py, rust-target-cache.py]
+    timeout: 30m
+
+  - key: wasm-tools
+    use: rust-tools
+    if: ${{ init.cache-warm == 'true' || tasks.route.values.run-rust-ci == 'true' }}
+    run: rustup target add wasm32-unknown-unknown wasm32-wasip1
+    timeout: 30m
+
+  - key: lint-tools
+    use: rust-tools
+    if: ${{ tasks.route.values.run-rust-ci == 'true' }}
+    run: |
+      mise install github:ggwpez/zepter github:crate-ci/typos
+      printf '%s:%s\n' "$(mise bin-paths | paste -sd: -)" "$PATH" >"$RWX_ENV/PATH"
+    timeout: 30m
+
+  - key: interop-go-tools
+    use: rust-tools
+    if: ${{ tasks.route.values.run-rust-ci == 'true' }}
+    run: bash ops/ci/rwx-prepare.sh go
     timeout: 30m
 
   # Download once for all producers. The manifest tree is kept intact for
@@ -517,3 +537,114 @@ tasks:
       artifacts:
         - key: report
           path: .ci/rust-workspace/features-9
+
+  - key: wasm-unknown
+    use: [head-source, wasm-tools]
+    if: ${{ init.cache-warm == 'true' || tasks.route.values.run-rust-ci == 'true' }}
+    run: bash ops/ci/rust-workspace.sh wasm-unknown
+    env: *fresh-rust-env
+    tool-cache: rust-workspace-wasm-unknown-${{ init.cache-epoch }}
+    timeout: 90m
+    runner:
+      cpus: 4
+      memory: 8gb
+    outputs:
+      filesystem: *compiler-output
+      test-results:
+        - path: .ci/rust-workspace/wasm-unknown/checks.junit.xml
+      artifacts:
+        - key: report
+          path: .ci/rust-workspace/wasm-unknown
+
+  - key: wasm-wasi
+    use: [head-source, wasm-tools]
+    if: ${{ init.cache-warm == 'true' || tasks.route.values.run-rust-ci == 'true' }}
+    run: bash ops/ci/rust-workspace.sh wasm-wasi
+    env: *fresh-rust-env
+    tool-cache: rust-workspace-wasm-wasi-${{ init.cache-epoch }}
+    timeout: 90m
+    runner:
+      cpus: 4
+      memory: 8gb
+    outputs:
+      filesystem: *compiler-output
+      test-results:
+        - path: .ci/rust-workspace/wasm-wasi/checks.junit.xml
+      artifacts:
+        - key: report
+          path: .ci/rust-workspace/wasm-wasi
+
+  - key: zepter
+    use: [head-source, lint-tools]
+    if: ${{ tasks.route.values.run-rust-ci == 'true' }}
+    run: bash ops/ci/rust-workspace.sh zepter
+    env: *fresh-rust-env
+    tool-cache: rust-workspace-zepter-${{ init.cache-epoch }}
+    timeout: 90m
+    runner:
+      cpus: 2
+      memory: 8gb
+    outputs:
+      filesystem: *compiler-output
+      test-results:
+        - path: .ci/rust-workspace/zepter/checks.junit.xml
+      artifacts:
+        - key: report
+          path: .ci/rust-workspace/zepter
+
+  - key: typos
+    use: [head-source, lint-tools]
+    if: ${{ tasks.route.values.run-rust-ci == 'true' }}
+    run: bash ops/ci/rust-workspace.sh typos
+    env: *fresh-rust-env
+    tool-cache: rust-workspace-typos-${{ init.cache-epoch }}
+    timeout: 90m
+    runner:
+      cpus: 2
+      memory: 8gb
+    outputs:
+      filesystem: *compiler-output
+      test-results:
+        - path: .ci/rust-workspace/typos/checks.junit.xml
+      artifacts:
+        - key: report
+          path: .ci/rust-workspace/typos
+
+  - key: registry
+    use: head-source
+    if: ${{ init.cache-warm == 'true' || tasks.route.values.run-rust-ci == 'true' }}
+    run: bash ops/ci/rust-workspace.sh registry
+    env: *fresh-rust-env
+    tool-cache: rust-workspace-registry-${{ init.cache-epoch }}
+    timeout: 90m
+    runner:
+      cpus: 4
+      memory: 8gb
+    outputs:
+      filesystem: *compiler-output
+      test-results:
+        - path: .ci/rust-workspace/registry/checks.junit.xml
+      artifacts:
+        - key: report
+          path: .ci/rust-workspace/registry
+
+  - key: interop
+    use: [head-source, interop-go-tools]
+    if: ${{ tasks.route.values.run-rust-ci == 'true' }}
+    run: bash ops/ci/rust-workspace.sh interop
+    env: *fresh-rust-env
+    tool-cache: rust-workspace-interop-${{ init.cache-epoch }}
+    timeout: 90m
+    runner:
+      cpus: 4
+      memory: 8gb
+    outputs:
+      filesystem:
+        filter:
+          workspace: [rust/target, .ci/rust-cache, .ci/interop-go, rust/op-reth/crates/chainspec/res/superchain-configs.tar]
+          system: []
+      test-results:
+        - path: .ci/rust-workspace/interop/checks.junit.xml
+      artifacts:
+        - key: report
+          path: .ci/rust-workspace/interop

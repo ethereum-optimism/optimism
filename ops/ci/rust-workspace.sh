@@ -5,7 +5,7 @@ HELPERS="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ROOT="$(git rev-parse --show-toplevel)"
 cd "$ROOT"
 job="${1:?Pass a Rust workspace job}"
-case "$job" in tests|tests-build|doctest|docs|clippy|build|features|feature-plan|no-std|udeps) ;;
+case "$job" in tests|tests-build|doctest|docs|clippy|build|features|feature-plan|no-std|udeps|wasm-unknown|wasm-wasi|zepter|typos|registry|interop) ;;
   *) echo "Unknown Rust workspace job: $job" >&2; exit 1;;
 esac
 index="${CI_RUST_PARTITION_INDEX:-${CIRCLE_NODE_INDEX:-0}}"
@@ -54,6 +54,7 @@ trap finish EXIT
 trap 'exit 130' INT
 trap 'exit 143' TERM
 stage() { python3 "$HELPERS/rust-workspace-report.py" stage "$report" "$@"; }
+stage_at() { python3 "$HELPERS/rust-workspace-report.py" stage-at "$report" "$@"; }
 json_stage() { python3 "$HELPERS/rust-workspace-report.py" json-stage "$report" "$@"; }
 json_stage workspace cargo metadata --no-deps --locked --all-features --format-version 1
 docs() {
@@ -123,4 +124,37 @@ case "$job" in
   feature-plan) features "" ;;
   no-std) stage no-std just check-no-std ;;
   udeps) stage udeps just check-udeps ;;
+  wasm-unknown|wasm-wasi)
+    target=wasm32-wasip1
+    packages=(-p op-alloy-consensus -p op-alloy-rpc-types-engine -p alloy-op-evm)
+    if [[ "$job" == wasm-unknown ]]; then
+      target=wasm32-unknown-unknown
+      packages=(-p op-alloy-consensus -p op-alloy-rpc-types -p op-alloy-rpc-types-engine -p alloy-op-evm --no-default-features)
+    fi
+    stage wasm-target rustup target add "$target"
+    stage wasm-list cargo hack build --target "$target" "${packages[@]}" --print-command-list
+    stage wasm cargo hack build --target "$target" "${packages[@]}"
+    ;;
+  zepter) stage zepter zepter run check ;;
+  typos) stage typos typos ;;
+  registry)
+    python3 "$HELPERS/rust-workspace-report.py" registry-snapshot "$report" before
+    # A restored target may already have KONA_SYNC_SUPERCHAIN=true. Cleaning
+    # just this crate forces its build script to regenerate all three snapshots.
+    stage registry-clean cargo clean -p kona-registry
+    status=0
+    stage_at rust/kona registry env KONA_SYNC_SUPERCHAIN=true cargo build -p kona-registry || status=$?
+    python3 "$HELPERS/rust-workspace-report.py" registry-snapshot "$report" after
+    if [[ "$status" != 0 ]]; then exit "$status"; fi
+    stage_at . registry-diff git diff --exit-code -- rust/kona/crates/protocol/registry/etc/
+    ;;
+  interop)
+    if [[ "${CI_RUST_PROVIDER:-circleci}" == rwx ]]; then
+      export GOPATH="$ROOT/.ci/interop-go/gopath" GOCACHE="$ROOT/.ci/interop-go/build"
+      mkdir -p "$GOPATH" "$GOCACHE"
+    fi
+    export CI_INTEROP_REPORT_DIR="$report"
+    stage_at . superchain-go just build-superchain-go
+    stage_at . interop bash ops/scripts/test-interop-deposits-diff.sh
+    ;;
 esac

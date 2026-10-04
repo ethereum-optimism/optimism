@@ -27,9 +27,25 @@ def command(*args):
     return subprocess.check_output(args, text=True).strip()
 
 
-def inputs():
-    return {p: digest(p) for p in ('mise.toml', 'rust/Cargo.lock', 'rust/justfile',
-                                  'rust/.config/nextest.toml', 'rust/.cargo/config.toml')}
+def inputs(job=None):
+    paths = ['mise.toml', 'rust/Cargo.lock', 'rust/justfile',
+             'rust/.config/nextest.toml', 'rust/.cargo/config.toml']
+    if job in ('wasm-unknown', 'wasm-wasi', 'zepter', 'typos', 'registry', 'interop'):
+        # Bind every workspace manifest as well as the shared commands. Source
+        # identity is the Git SHA; these hashes make settings drift explicit.
+        paths += ['rust/Cargo.toml', 'ops/ci/rust-workspace.sh', 'ops/ci/rust-workspace-report.py']
+        paths += sorted(command('git', 'ls-files', 'rust/**/Cargo.toml').splitlines())
+    if job == 'zepter':
+        paths += ['rust/.config/zepter.yaml']
+    if job == 'typos':
+        paths += sorted(command('git', 'ls-files', '*typos*').splitlines())
+    if job == 'registry':
+        paths += ['rust/kona/crates/protocol/registry/build.rs']
+    if job == 'interop':
+        paths += ['go.mod', 'go.sum', 'ops/scripts/test-interop-deposits-diff.sh',
+                  'op-node/cmd/interop-deposits-dump/main.go',
+                  'rust/kona/crates/protocol/hardforks/examples/interop-deposits-dump.rs']
+    return {p: digest(p) for p in paths}
 
 
 def begin(directory, job):
@@ -44,7 +60,7 @@ def begin(directory, job):
         'provider': os.environ.get('CI_RUST_PROVIDER', 'circleci'),
         'rwx_run_id': os.environ.get('RWX_RUN_ID'),
         'rwx_task_attempt': os.environ.get('RWX_TASK_ATTEMPT_NUMBER'),
-        'input_sha256': inputs(), 'rustc': command('rustc', '--version'),
+        'input_sha256': inputs(job), 'rustc': command('rustc', '--version'),
         'cargo': command('cargo', '--version'), 'nextest': command('cargo', 'nextest', '--version'),
         'feature_seed': sha, 'feature_partitions':
             int(os.environ.get('CI_RUST_PARTITION_TOTAL', os.environ.get('CIRCLE_NODE_TOTAL', '10')))
@@ -54,18 +70,25 @@ def begin(directory, job):
         'rustflags': os.environ.get('RUSTFLAGS', ''), 'rustdocflags': os.environ.get('RUSTDOCFLAGS', ''),
         'started_at': time.time(), 'cpus': os.cpu_count(),
         'superchain_revision': command('git', 'rev-parse', 'HEAD:superchain-registry')})
+    tools = {'zepter': ('zepter', '--version'), 'typos': ('typos', '--version'),
+             'wasm-unknown': ('cargo', 'hack', '--version'),
+             'wasm-wasi': ('cargo', 'hack', '--version'), 'interop': ('go', 'version')}
+    if job in tools:
+        settings = json.loads((directory / 'settings.json').read_text())
+        settings['extra_tool'] = command(*tools[job])
+        write(directory / 'settings.json', settings)
 
 
-def stage(directory, name, args, stdout_json=False):
+def stage(directory, name, args, stdout_json=False, cwd='rust'):
     """Keep the real exit and signal, including when a subprocess is canceled."""
     started = time.time()
-    data = {'argv': args, 'started_at': started, 'exit_code': None}
+    data = {'argv': args, 'cwd': cwd, 'started_at': started, 'exit_code': None}
     record = directory / (name + '.stage.json')
     write(record, data)
     with (directory / (name + '.log')).open('wb') as log:
         # JSON discovery needs stdout separate from compiler diagnostics.
         with (directory / (name + '.json')).open('wb') if stdout_json else open(os.devnull, 'wb') as out:
-            child = subprocess.Popen(args, cwd='rust', start_new_session=True,
+            child = subprocess.Popen(args, cwd=cwd, start_new_session=True,
                                      stdout=out if stdout_json else subprocess.PIPE,
                                      stderr=log if stdout_json else subprocess.STDOUT)
             previous = {}
@@ -240,6 +263,130 @@ def no_std_report(directory):
         raise ValueError('Incomplete no_std package coverage')
 
 
+WASM = {
+    'wasm-unknown': ('wasm32-unknown-unknown',
+                     ['op-alloy-consensus', 'op-alloy-rpc-types', 'op-alloy-rpc-types-engine', 'alloy-op-evm'], True),
+    'wasm-wasi': ('wasm32-wasip1', ['op-alloy-consensus', 'op-alloy-rpc-types-engine', 'alloy-op-evm'], False),
+}
+
+
+def wasm_report(directory, job):
+    target, selected, no_defaults = WASM[job]
+    settings = json.loads((directory / 'settings.json').read_text())
+    workspace = json.loads((directory / 'workspace.json').read_text())
+    root = Path(settings['workspace_root']) / 'rust'
+    packages = {str(Path(p['manifest_path']).relative_to(root)): p['name'] for p in workspace['packages']}
+    plan = []
+    for line in commands((directory / 'wasm-list.log').read_text()):
+        args = shlex.split(line)
+        location = args.index('--manifest-path')
+        package = packages[args[location + 1]]
+        del args[location:location + 2]
+        if args[args.index('--target') + 1] != target or ('--no-default-features' in args) != no_defaults:
+            raise ValueError('WASM discovery target or default features mismatch')
+        plan.append({'crate': package, 'argv': args})
+    if sorted(p['crate'] for p in plan) != sorted(selected):
+        raise ValueError('Missing, extra or duplicate WASM package selection')
+    actual = []
+    pattern = r'info: running `(cargo build(?: [^`]+)?)` on ([^\s]+) \((\d+)/(\d+)\)'
+    for match in re.finditer(pattern, (directory / 'wasm.log').read_text()):
+        cargo, package, index, count = match.groups()
+        if int(index) != len(actual) + 1 or int(count) != len(plan):
+            raise ValueError('Duplicate or invalid WASM command index')
+        actual.append({'crate': package, 'argv': shlex.split(cargo)})
+    write(directory / 'wasm-coverage.json', {'target': target, 'no_default_features': no_defaults,
+                                           'selected': selected, 'planned': plan, 'executed': actual})
+    if actual != plan:
+        raise ValueError('Incomplete or mismatched WASM command execution')
+    artifacts = {}
+    for package in selected:
+        path = Path(workspace['target_directory']) / target / 'debug' / ('lib' + package.replace('-', '_') + '.rlib')
+        with path.open('rb') as source:
+            if source.read(8) != b'!<arch>\n':
+                raise ValueError(f'Corrupt WASM library archive: {package}')
+        artifacts[path.name] = {'sha256': digest(path), 'size': path.stat().st_size}
+    write(directory / 'wasm-artifacts.json', {'source_sha': settings['source_sha'], 'target': target,
+                                             'rustc': settings['rustc'], 'artifacts': artifacts})
+    return selected
+
+
+REGISTRY = 'rust/kona/crates/protocol/registry/etc'
+
+
+def registry_snapshot(directory, phase):
+    for name in ('chainList.json', 'configs.json', 'depsets.json'):
+        path = Path(REGISTRY) / name
+        data = json.loads(path.read_text())
+        if not isinstance(data, (list, dict)) or not data:
+            raise ValueError(f'Empty or invalid registry snapshot: {name}')
+        (directory / f'registry-{phase}-{name}').write_bytes(path.read_bytes())
+
+
+def registry_report(directory):
+    pairs = {}
+    for name in ('chainList.json', 'configs.json', 'depsets.json'):
+        pairs[name] = {phase: digest(directory / f'registry-{phase}-{name}') for phase in ('before', 'after')}
+    write(directory / 'registry-coverage.json', {'snapshots': pairs, 'sync_superchain': True,
+                                               'fresh_build_script': True})
+    if any(p['before'] != p['after'] for p in pairs.values()):
+        raise ValueError('Regenerated registry snapshots differ from committed inputs')
+
+
+def interop_report(directory):
+    for language in ('go', 'rust'):
+        if (directory / f'interop-{language}.exit').read_text().strip() != '0':
+            raise ValueError(f'Interop {language} dumper did not succeed')
+        # Retain stderr even when it contains no diagnostics.
+        digest(directory / f'interop-{language}.stderr')
+    go = (directory / 'interop-go.stdout').read_bytes()
+    rust = (directory / 'interop-rust.stdout').read_bytes()
+    if not go or go != rust:
+        raise ValueError('Interop dump outputs are empty or differ')
+    cases, variants = [], []
+    current, index, fields = None, None, []
+    required = ['source_hash', 'from', 'to', 'mint', 'value', 'gas_limit', 'is_system_tx', 'data']
+    def complete_tx():
+        if index is not None and fields != required:
+            raise ValueError('Missing or extra Interop deposit fields')
+    for line in go.decode().splitlines():
+        if line.startswith('activate='):
+            complete_tx()
+            current = line.removeprefix('activate=')
+            variants.append(current)
+            index, fields = None, []
+        elif line.startswith('gas='):
+            if not re.fullmatch(r'gas=0x[0-9a-f]{16}', line) or index is not None:
+                raise ValueError('Invalid Interop activation gas')
+            cases.append(f'activate={current}/gas')
+        elif re.fullmatch(r'--- tx \d+ ---', line):
+            complete_tx()
+            next_index = int(line.split()[2])
+            if next_index != (0 if index is None else index + 1):
+                raise ValueError('Missing or duplicate Interop deposit')
+            index, fields = next_index, []
+            cases.append(f'activate={current}/tx={index}')
+        elif '=' in line and index is not None:
+            fields.append(line.split('=', 1)[0])
+        else:
+            raise ValueError('Unrecognized Interop dump record')
+    complete_tx()
+    if variants != ['false', 'true'] or any(f'activate={v}/gas' not in cases or
+        f'activate={v}/tx=0' not in cases for v in variants) or len(cases) != len(set(cases)):
+        raise ValueError('Incomplete Interop activation selection')
+    write(directory / 'interop-coverage.json', {'cases': cases, 'byte_identical': True,
+                                               'stdout_sha256': digest(directory / 'interop-go.stdout')})
+    return cases
+
+
+def check_junit(directory, job, cases, passed):
+    suite = ET.Element('testsuite', name=job, tests=str(len(cases)))
+    for name in cases:
+        case = ET.SubElement(suite, 'testcase', classname=job, name=name)
+        if not passed:
+            ET.SubElement(case, 'failure', message='See original stage logs and final.json')
+    ET.ElementTree(suite).write(directory / 'checks.junit.xml', encoding='utf-8', xml_declaration=True)
+
+
 def artifact(directory, verify=False):
     path = directory / 'tests.tar.zst'
     expected = {'source_sha': command('git', 'rev-parse', 'HEAD'), 'input_sha256': inputs(),
@@ -276,17 +423,35 @@ def finish(directory, status):
             no_std_report(directory)
         except (ValueError, OSError) as error:
             errors.append(str(error))
+    cases = [job]
+    extra_jobs = (*WASM, 'zepter', 'typos', 'registry', 'interop')
+    if job in extra_jobs:
+        try:
+            if job in WASM:
+                cases = wasm_report(directory, job)
+            elif job == 'registry':
+                registry_report(directory)
+            elif job == 'interop':
+                cases = interop_report(directory)
+        except (ValueError, KeyError, OSError) as error:
+            errors.append(str(error))
     stages = {p.stem.removesuffix('.stage'): json.loads(p.read_text()) for p in directory.glob('*.stage.json')}
     required = {
         'tests-build': ['archive', 'beacon-build'],
         'tests': ['unit-list', 'unit', 'beacon-list', 'beacon', 'doctests-list', 'doctests'],
         'doctest': ['doctests-list', 'doctests'], 'docs': ['docs'], 'clippy': ['clippy'],
         'build': ['build'], 'features': ['features-list', 'features', 'feature-tests-list', 'feature-tests'],
-        'feature-plan': ['features-list', 'feature-tests-list'], 'no-std': ['no-std'], 'udeps': ['udeps']}
+        'feature-plan': ['features-list', 'feature-tests-list'], 'no-std': ['no-std'], 'udeps': ['udeps'],
+        'wasm-unknown': ['wasm-target', 'wasm-list', 'wasm'], 'wasm-wasi': ['wasm-target', 'wasm-list', 'wasm'],
+        'zepter': ['zepter'], 'typos': ['typos'],
+        'registry': ['registry-clean', 'registry', 'registry-diff'],
+        'interop': ['superchain-go', 'interop']}
     if status == 0:
         for name in ['workspace'] + required[job]:
             if stages.get(name, {}).get('exit_code') != 0:
                 errors.append(f'Missing or unsuccessful stage: {name}')
+    if job in extra_jobs:
+        check_junit(directory, job, cases, status == 0 and not errors)
     files = {p.name: digest(p) for p in directory.iterdir() if p.is_file() and p.name != 'final.json'}
     write(directory / 'final.json', {'exit_code': status, 'report_errors': errors, 'stages': stages,
                                      'original_sha256': files, 'reports': reports})
@@ -302,6 +467,10 @@ if __name__ == '__main__':
         begin(directory, sys.argv[3])
     elif mode in ('stage', 'json-stage'):
         sys.exit(stage(directory, sys.argv[3], sys.argv[4:], mode == 'json-stage'))
+    elif mode == 'stage-at':
+        sys.exit(stage(directory, sys.argv[4], sys.argv[5:], cwd=sys.argv[3]))
+    elif mode == 'registry-snapshot':
+        registry_snapshot(directory, sys.argv[3])
     elif mode in ('artifact', 'verify-artifact'):
         artifact(directory, mode == 'verify-artifact')
     elif mode == 'finish':

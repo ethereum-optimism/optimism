@@ -144,6 +144,150 @@ class ReportTests(unittest.TestCase):
         self.assertTrue(REPORT.finish(self.root, 0))
 
 
+class ExtraReportTests(unittest.TestCase):
+    def setUp(self):
+        self.temp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.temp.cleanup)
+        self.root = Path(self.temp.name)
+
+    def wasm_files(self, job='wasm-unknown'):
+        target, packages, no_defaults = REPORT.WASM[job]
+        (self.root / 'settings.json').write_text(json.dumps({'workspace_root': str(self.root),
+            'source_sha': 'a' * 40, 'rustc': 'pinned'}))
+        (self.root / 'workspace.json').write_text(json.dumps({'packages': [
+            {'name': p, 'manifest_path': str(self.root / f'rust/{p}/Cargo.toml')} for p in packages],
+            'target_directory': str(self.root / 'target')}))
+        plan, actual = [], []
+        for i, p in enumerate(packages, 1):
+            argv = f'cargo build {"--no-default-features " if no_defaults else ""}--target {target}'
+            plan.append(f'{argv} --manifest-path {p}/Cargo.toml')
+            actual.append(f'info: running `{argv}` on {p} ({i}/{len(packages)})')
+            output = self.root / 'target' / target / 'debug' / f'lib{p.replace("-", "_")}.rlib'
+            output.parent.mkdir(parents=True, exist_ok=True)
+            output.write_bytes(b'!<arch>\ncompiled')
+        (self.root / 'wasm-list.log').write_text('\n'.join(plan) + '\n')
+        (self.root / 'wasm.log').write_text('\n'.join(actual) + '\n')
+
+    def test_wasm_both_complete_plans_and_outputs(self):
+        for job in REPORT.WASM:
+            self.wasm_files(job)
+            self.assertEqual(REPORT.wasm_report(self.root, job), REPORT.WASM[job][1])
+            artifacts = json.loads((self.root / 'wasm-artifacts.json').read_text())
+            self.assertEqual(len(artifacts['artifacts']), len(REPORT.WASM[job][1]))
+
+    def test_wasm_missing_duplicate_or_wrong_target_rejected(self):
+        for change in ('missing', 'duplicate', 'target', 'defaults'):
+            self.wasm_files()
+            path = self.root / 'wasm-list.log'
+            lines = path.read_text().splitlines()
+            if change == 'missing': lines.pop()
+            if change == 'duplicate': lines.append(lines[0])
+            if change == 'target': lines[0] = lines[0].replace('wasm32-unknown-unknown', 'wasm32-wasip1')
+            if change == 'defaults': lines[0] = lines[0].replace('--no-default-features ', '')
+            path.write_text('\n'.join(lines))
+            with self.subTest(change=change), self.assertRaises(ValueError):
+                REPORT.wasm_report(self.root, 'wasm-unknown')
+
+    def test_wasm_original_failure_and_corrupt_outputs_rejected(self):
+        self.wasm_files()
+        (self.root / 'wasm.log').write_text('info: running `cargo build` on op-alloy-consensus (1/4)\nerror: original\n')
+        with self.assertRaisesRegex(ValueError, 'Incomplete'):
+            REPORT.wasm_report(self.root, 'wasm-unknown')
+        self.wasm_files()
+        next((self.root / 'target').rglob('*.rlib')).write_bytes(b'corrupt')
+        with self.assertRaisesRegex(ValueError, 'Corrupt'):
+            REPORT.wasm_report(self.root, 'wasm-unknown')
+        self.wasm_files()
+        next((self.root / 'target/wasm32-unknown-unknown').rglob('*.rlib')).unlink()
+        with self.assertRaises(FileNotFoundError):
+            REPORT.wasm_report(self.root, 'wasm-unknown')
+
+    def test_registry_all_three_snapshots_are_compared(self):
+        for name in ('chainList.json', 'configs.json', 'depsets.json'):
+            for phase in ('before', 'after'):
+                (self.root / f'registry-{phase}-{name}').write_text('[1]\n')
+        REPORT.registry_report(self.root)
+        (self.root / 'registry-after-depsets.json').write_text('[2]\n')
+        with self.assertRaisesRegex(ValueError, 'differ'):
+            REPORT.registry_report(self.root)
+        (self.root / 'registry-after-chainList.json').unlink()
+        with self.assertRaises(FileNotFoundError):
+            REPORT.registry_report(self.root)
+
+    def interop_files(self):
+        dump = ''
+        for variant in ('false', 'true'):
+            dump += f'activate={variant}\ngas=0x0000000000000001\n--- tx 0 ---\n'
+            dump += ''.join(f'{field}=original\n' for field in
+                ('source_hash', 'from', 'to', 'mint', 'value', 'gas_limit', 'is_system_tx', 'data'))
+        for language in ('go', 'rust'):
+            (self.root / f'interop-{language}.stdout').write_text(dump)
+            (self.root / f'interop-{language}.stderr').write_text('original diagnostic\n')
+            (self.root / f'interop-{language}.exit').write_text('0\n')
+
+    def test_interop_requires_byte_equality_and_complete_cases(self):
+        self.interop_files()
+        self.assertEqual(len(REPORT.interop_report(self.root)), 4)
+        (self.root / 'interop-rust.stdout').write_text('different\n')
+        with self.assertRaisesRegex(ValueError, 'differ'):
+            REPORT.interop_report(self.root)
+        self.interop_files()
+        for language in ('go', 'rust'):
+            path = self.root / f'interop-{language}.stdout'
+            path.write_text(path.read_text().replace('data=original\n', ''))
+        with self.assertRaisesRegex(ValueError, 'fields'):
+            REPORT.interop_report(self.root)
+
+    def test_interop_dumper_failure_is_not_an_empty_match(self):
+        self.interop_files()
+        (self.root / 'interop-go.exit').write_text('7\n')
+        with self.assertRaisesRegex(ValueError, 'did not succeed'):
+            REPORT.interop_report(self.root)
+        self.interop_files()
+        for language in ('go', 'rust'):
+            (self.root / f'interop-{language}.stdout').write_text('')
+        with self.assertRaisesRegex(ValueError, 'empty'):
+            REPORT.interop_report(self.root)
+
+
+class InteropScriptTests(unittest.TestCase):
+    def setUp(self):
+        self.temp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.temp.cleanup)
+        self.root = Path(self.temp.name)
+        (self.root / 'go.mod').touch()
+        (self.root / 'rust/kona').mkdir(parents=True)
+        (self.root / 'ops/scripts').mkdir(parents=True)
+        self.script = self.root / 'ops/scripts/test-interop-deposits-diff.sh'
+        shutil.copyfile(SCRIPTS.parent / 'scripts/test-interop-deposits-diff.sh', self.script)
+        self.bin = self.root / 'bin'
+        self.bin.mkdir()
+
+    def run_diff(self, go_status=0, rust_status=0, different=False):
+        for name, status in (('go', go_status), ('cargo', rust_status)):
+            path = self.bin / name
+            text = 'different' if name == 'cargo' and different else 'original stdout'
+            path.write_text(f'#!/usr/bin/env bash\nprintf "%s\\n" "{text}"\nprintf "%s\\n" "{name} original stderr" >&2\nexit {status}\n')
+            path.chmod(0o755)
+        return subprocess.run(['bash', str(self.script)], env=os.environ | {
+            'PATH': str(self.bin) + os.pathsep + os.environ['PATH'],
+            'CI_INTEROP_REPORT_DIR': str(self.root / 'report')}, capture_output=True, text=True)
+
+    def test_complete_original_streams_survive_success_and_diff_failure(self):
+        self.assertEqual(self.run_diff().returncode, 0)
+        self.assertEqual(self.run_diff(different=True).returncode, 1)
+        for language in ('go', 'rust'):
+            self.assertIn('original stderr', (self.root / f'report/interop-{language}.stderr').read_text())
+            self.assertEqual((self.root / f'report/interop-{language}.exit').read_text(), '0\n')
+        self.assertEqual((self.root / 'report/interop-rust.stdout').read_text(), 'different\n')
+
+    def test_original_dumper_exit_is_retained(self):
+        self.assertEqual(self.run_diff(go_status=7).returncode, 2)
+        self.assertEqual((self.root / 'report/interop-go.exit').read_text(), '7\n')
+        self.assertEqual(self.run_diff(rust_status=9).returncode, 2)
+        self.assertEqual((self.root / 'report/interop-rust.exit').read_text(), '9\n')
+
+
 class StageTests(unittest.TestCase):
     def setUp(self):
         self.temp = tempfile.TemporaryDirectory()
@@ -163,6 +307,14 @@ class StageTests(unittest.TestCase):
         self.assertEqual(result.returncode, 7)
         self.assertIn('original failure', (self.report / 'failure.log').read_text())
         self.assertEqual(json.loads((self.report / 'failure.stage.json').read_text())['exit_code'], 7)
+
+    def test_explicit_working_directory_is_used_and_recorded(self):
+        result = subprocess.run([sys.executable, str(SCRIPTS / 'rust-workspace-report.py'),
+            'stage-at', str(self.report), '.', 'root', sys.executable, '-c',
+            'import os; print(os.getcwd())'], cwd=self.root, capture_output=True)
+        self.assertEqual(result.returncode, 0)
+        self.assertEqual((self.report / 'root.log').read_text().strip(), str(self.root.resolve()))
+        self.assertEqual(json.loads((self.report / 'root.stage.json').read_text())['cwd'], '.')
 
     def test_cancellation_reaches_child_group(self):
         process = subprocess.Popen([sys.executable, str(SCRIPTS / 'rust-workspace-report.py'),
@@ -188,10 +340,57 @@ class StageTests(unittest.TestCase):
 
 class ConfigurationTests(unittest.TestCase):
     @unittest.skipUnless(shutil.which('yq'), 'requires the pinned yq tool')
+    def test_circle_adapters_preserve_generic_fallbacks(self):
+        definition = SCRIPTS.parent.parent / '.circleci/continue/rust-ci.yml'
+        config = json.loads(subprocess.check_output(['yq', '-o=json', '.', str(definition)], text=True))
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            (root / 'rust').mkdir()
+            (root / 'other').mkdir()
+            (root / 'ops/ci').mkdir(parents=True)
+            helper = root / 'ops/ci/rust-workspace.sh'
+            helper.write_text('#!/usr/bin/env bash\nprintf "shared:%s\\n" "$1"\n')
+            binaries = root / 'bin'
+            binaries.mkdir()
+            for name in ('cargo', 'rustup', 'typos', 'zepter'):
+                path = binaries / name
+                path.write_text(f'#!/usr/bin/env bash\nprintf "{name}:%s\\n" "$*"\n')
+                path.chmod(0o755)
+            env = os.environ | {'PATH': str(binaries) + os.pathsep + os.environ['PATH']}
+            def run(job, params):
+                step = next(s['run'] for s in config['jobs'][job]['steps'] if isinstance(s, dict) and 'run' in s)
+                command = step['command']
+                for key, value in params.items():
+                    command = command.replace(f'<<parameters.{key}>>', value)
+                result = subprocess.run(['bash', '-e', '-c', command], cwd=root / params['directory'],
+                                        env=env, capture_output=True, text=True)
+                self.assertEqual(result.returncode, 0, result.stderr)
+                return result.stdout
+            for job, params, expected in (
+                ('rust-ci-typos', {'directory': 'rust'}, 'shared:typos'),
+                ('rust-ci-typos', {'directory': 'other'}, 'typos:'),
+                ('rust-ci-zepter', {'directory': 'rust', 'command': 'zepter run check'}, 'shared:zepter'),
+                ('rust-ci-zepter', {'directory': 'rust', 'command': 'zepter run custom'}, 'zepter:run custom'),
+            ):
+                with self.subTest(job=job, params=params):
+                    self.assertEqual(run(job, params).strip(), expected)
+            invocations = config['workflows']['rust-ci']['jobs']
+            for mode, name in (('wasm-unknown', 'rust-wasm-unknown'), ('wasm-wasi', 'rust-wasm-wasi')):
+                params = next(i['rust-ci-cargo-hack-build'] for i in invocations if isinstance(i, dict)
+                              and i.get('rust-ci-cargo-hack-build', {}).get('name') == name)
+                params = {k: params[k] for k in ('directory', 'target', 'flags')}
+                self.assertEqual(run('rust-ci-cargo-hack-build', params).strip(), 'shared:' + mode)
+                params['flags'] = '--workspace'
+                self.assertEqual(run('rust-ci-cargo-hack-build', params).splitlines(), [
+                    'rustup:target add ' + params['target'],
+                    'cargo:hack build --target ' + params['target'] + ' --workspace'])
+
+    @unittest.skipUnless(shutil.which('yq'), 'requires the pinned yq tool')
     def test_fresh_verdicts_keep_compiler_caches_enabled(self):
         definition = SCRIPTS.parent.parent / '.rwx/rust.yml'
         tasks = json.loads(subprocess.check_output(['yq', '-o=json', '.tasks', str(definition)], text=True))
         selected = {'tests', 'doctest', 'build', 'docs', 'clippy', 'no-std', 'udeps'}
+        selected.update({'wasm-unknown', 'wasm-wasi', 'zepter', 'typos', 'registry', 'interop'})
         selected.update(f'features-{i}' for i in range(10))
         actual = {t['key']: t for t in tasks if t['key'] in selected}
         self.assertEqual(set(actual), selected)
