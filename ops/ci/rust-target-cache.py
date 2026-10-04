@@ -11,11 +11,12 @@ import time
 
 def sources(root):
     listing = subprocess.check_output(['git', 'ls-files', '-z', '--cached', '--others',
-                                      '--exclude-standard', '--', 'rust', 'mise.toml'], cwd=root)
+                                      '--exclude-standard', '--', 'rust', 'mise.toml',
+                                      'op-core/nuts/bundles'], cwd=root)
     paths = sorted(set(name.decode() for name in listing.split(b'\0') if name))
     files = [root / name for name in paths if (root / name).is_file()
              and not name.startswith('rust/target/')]
-    digest = hashlib.sha256(b'rwx-cargo-source-v1\0')
+    digest = hashlib.sha256(b'rwx-cargo-source-v2\0')
     for path in files:
         digest.update(str(path.relative_to(root)).encode() + b'\0')
         digest.update(hashlib.sha256(path.read_bytes()).digest())

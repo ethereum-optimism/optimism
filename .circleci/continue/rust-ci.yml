@@ -574,37 +574,15 @@ jobs:
           extra_flags: "--no-install-recommends"
       - rust-prepare
       - run:
-          name: Build cannon
-          command: |
-            cd cannon && just cannon
-            sudo mv ./bin/cannon /usr/local/bin/
-      - run:
-          name: Set run environment
-          command: |
-            echo 'export BLOCK_NUMBER=47600000' >> $BASH_ENV
-            echo 'export L2_CLAIM=0x6ac07d241d170ddd504532a2c8127bb85426e604a360f8ba2d976be3cc0aa7f0' >> $BASH_ENV
-            echo 'export L2_OUTPUT_ROOT=0x9c799a1b767f43d6c654f83e18ae20bfc2953e94e5093ef59664ae8244ffdc96' >> $BASH_ENV
-            echo 'export L2_HEAD=0x0084ac82023844b6f286783f3ea0ffddb8e597211ffbe01b56d8873f36a8bacb' >> $BASH_ENV
-            echo 'export L1_HEAD=0xf82badb3d56a53c373b501ec24e1e9ab2797feaab552c0d683849b1234308a2d' >> $BASH_ENV
-            echo 'export L2_CHAIN_ID=11155420' >> $BASH_ENV
-      - run:
-          name: Run host + client offline
-          working_directory: rust/kona/bin/client
+          name: Full Cannon host/client offline run and fresh guest-state verdict
           no_output_timeout: 40m
-          command: |
-            # Pre-create the workspace target dir as the circleci user. Without
-            # this, `just build-cannon-client` (invoked inside run-client-cannon-offline)
-            # runs Docker as root and creates `rust/target/` with root ownership,
-            # which then breaks the subsequent native `cargo build --bin kona-host`
-            # with EACCES when it tries to create `target/debug`.
-            mkdir -p ../../../target
-            just run-client-cannon-offline \
-              $BLOCK_NUMBER \
-              $L2_CLAIM \
-              $L2_OUTPUT_ROOT \
-              $L2_HEAD \
-              $L1_HEAD \
-              $L2_CHAIN_ID
+          command: bash ops/ci/rust-cannon.sh offline
+      - store_test_results:
+          path: .ci/rust-workspace/cannon-offline/checks.junit.xml
+      - store_artifacts:
+          path: .ci/rust-workspace
+          destination: rust-workspace
+          when: always
 
   # Kona Rust CI - Lint (cannon target)
   kona-cargo-lint:
@@ -628,7 +606,18 @@ jobs:
           working_directory: rust/kona
           no_output_timeout: 40m
           command: |
-            just lint-<<parameters.target>>
+            if [[ "<<parameters.target>>" == cannon ]]; then
+              bash ../../ops/ci/rust-cannon.sh lint
+            else
+              just lint-<<parameters.target>>
+            fi
+
+      - store_test_results:
+          path: .ci/rust-workspace/cannon-lint/checks.junit.xml
+      - store_artifacts:
+          path: .ci/rust-workspace
+          destination: rust-workspace
+          when: always
 
   # Kona Build FPVM targets
   kona-build-fpvm:
@@ -650,7 +639,18 @@ jobs:
           working_directory: rust/kona
           no_output_timeout: 40m
           command: |
-            just build-<<parameters.target>>
+            if [[ "<<parameters.target>>" == cannon-client ]]; then
+              bash ../../ops/ci/rust-cannon.sh build
+            else
+              just build-<<parameters.target>>
+            fi
+
+      - store_test_results:
+          path: .ci/rust-workspace/cannon-build/checks.junit.xml
+      - store_artifacts:
+          path: .ci/rust-workspace
+          destination: rust-workspace
+          when: always
 
   # Verifies that the committed `etc/{chainList,configs,depsets}.json` snapshots
   # in `kona-registry` match what `KONA_SYNC_SUPERCHAIN=true cargo build -p kona-registry`

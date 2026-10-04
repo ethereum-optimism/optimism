@@ -2,7 +2,7 @@
 on:
   cache-rebuild:
     if: ${{ event.git.branch == 'develop' }}
-    target: [tests-build, build, clippy, docs, no-std, udeps, feature-plan, features-0, features-1, features-2, features-3, features-4, features-5, features-6, features-7, features-8, features-9, wasm-unknown, wasm-wasi, registry]
+    target: [tests-build, build, clippy, docs, no-std, udeps, feature-plan, features-0, features-1, features-2, features-3, features-4, features-5, features-6, features-7, features-8, features-9, wasm-unknown, wasm-wasi, registry, cannon-env, cannon-go, cannon-witness, cannon-build]
     init:
       commit-sha: ${{ event.git.sha }}
       branch: ${{ event.git.branch }}
@@ -113,6 +113,7 @@ tasks:
       python3 -m unittest discover -s ops/ci -p 'test_rust_workspace.py'
       python3 -m unittest discover -s ops/ci -p 'test_rust_target_cache.py'
       python3 -m unittest discover -s ops/ci -p 'test_compare_rust_extra.py'
+      python3 -m unittest discover -s ops/ci -p 'test_rust_cannon.py'
     cache: false
     timeout: 10m
     outputs:
@@ -150,9 +151,9 @@ tasks:
       printf '%s:%s\n' "$(mise bin-paths | paste -sd: -)" "$PATH" >"$RWX_ENV/PATH"
     timeout: 30m
 
-  - key: interop-go-tools
+  - key: go-tools
     use: rust-tools
-    if: ${{ tasks.route.values.run-rust-ci == 'true' }}
+    if: ${{ init.cache-warm == 'true' || tasks.route.values.run-rust-ci == 'true' }}
     run: bash ops/ci/rwx-prepare.sh go
     timeout: 30m
 
@@ -630,7 +631,7 @@ tasks:
           path: .ci/rust-workspace/registry
 
   - key: interop
-    use: [head-source, interop-go-tools]
+    use: [head-source, go-tools]
     if: ${{ tasks.route.values.run-rust-ci == 'true' }}
     run: bash ops/ci/rust-workspace.sh interop
     env: *fresh-rust-env
@@ -649,3 +650,120 @@ tasks:
       artifacts:
         - key: report
           path: .ci/rust-workspace/interop
+
+  # Preserve Docker/BuildKit data through the normal use dependency, without
+  # exporting image tarballs. The original recipe builds all configured ELFs.
+  - key: cannon-env
+    use: [head-source, cannon-witness]
+    if: ${{ init.cache-warm == 'true' || tasks.route.values.run-rust-ci == 'true' }}
+    run: bash ops/ci/rust-cannon.sh env
+    env: *rust-env
+    docker: preserve-data
+    tool-cache: rust-cannon-env-${{ init.cache-epoch }}
+    timeout: 90m
+    runner: *build-runner
+    outputs:
+      filesystem: *compiler-output
+      artifacts:
+        - key: report
+          path: .ci/rust-workspace/cannon-env
+
+  - key: cannon-go
+    use: [head-source, go-tools]
+    if: ${{ init.cache-warm == 'true' || tasks.route.values.run-rust-ci == 'true' }}
+    run: bash ops/ci/rust-cannon.sh go
+    env: *rust-env
+    tool-cache: rust-cannon-go-${{ init.cache-epoch }}
+    timeout: 30m
+    runner:
+      cpus: 8
+      memory: 16gb
+    outputs:
+      filesystem:
+        filter:
+          workspace: [cannon/bin, cannon/multicannon/embeds, .ci/cannon-cache/go]
+          system: []
+      artifacts:
+        - key: report
+          path: .ci/rust-workspace/cannon-go
+
+  # Fail a missing/corrupt public fixture before the expensive environment build.
+  - key: cannon-witness
+    use: head-source
+    if: ${{ init.cache-warm == 'true' || tasks.route.values.run-rust-ci == 'true' }}
+    run: bash ops/ci/rust-cannon.sh witness
+    env: *rust-env
+    timeout: 15m
+    outputs:
+      filesystem:
+        filter:
+          workspace: [rust/kona/bin/client/testdata/*.tar.zst, rust/kona/bin/client/testdata/*.etag]
+          system: []
+      artifacts:
+        - key: report
+          path: .ci/rust-workspace/cannon-witness
+
+  - key: cannon-lint
+    use: [cannon-env, head-source]
+    if: ${{ tasks.route.values.run-rust-ci == 'true' }}
+    run: bash ops/ci/rust-cannon.sh lint
+    env:
+      <<: *fresh-rust-env
+      CANNON_ENV_ARTIFACT: ${{ tasks.cannon-env.artifacts.report }}
+    docker: preserve-data
+    tool-cache: rust-cannon-lint-${{ init.cache-epoch }}
+    timeout: 90m
+    runner:
+      cpus: 8
+      memory: 16gb
+    outputs:
+      filesystem: *compiler-output
+      test-results:
+        - path: .ci/rust-workspace/cannon-lint/checks.junit.xml
+      artifacts:
+        - key: report
+          path: .ci/rust-workspace/cannon-lint
+
+  - key: cannon-build
+    use: [cannon-env, head-source]
+    if: ${{ init.cache-warm == 'true' || tasks.route.values.run-rust-ci == 'true' }}
+    run: bash ops/ci/rust-cannon.sh build
+    env:
+      <<: *fresh-rust-env
+      CANNON_ENV_ARTIFACT: ${{ tasks.cannon-env.artifacts.report }}
+    docker: preserve-data
+    tool-cache: rust-cannon-build-${{ init.cache-epoch }}
+    timeout: 90m
+    runner: *build-runner
+    outputs:
+      filesystem: *compiler-output
+      test-results:
+        - path: .ci/rust-workspace/cannon-build/checks.junit.xml
+      artifacts:
+        - key: report
+          path: .ci/rust-workspace/cannon-build
+
+  - key: cannon-offline
+    use: [cannon-build, cannon-go, cannon-witness, head-source, go-tools]
+    if: ${{ tasks.route.values.run-rust-ci == 'true' }}
+    run: bash ops/ci/rust-cannon.sh offline
+    env:
+      <<: *fresh-rust-env
+      CANNON_ENV_ARTIFACT: ${{ tasks.cannon-env.artifacts.report }}
+      CANNON_GO_ARTIFACT: ${{ tasks.cannon-go.artifacts.report }}
+      CANNON_WITNESS_ARTIFACT: ${{ tasks.cannon-witness.artifacts.report }}
+      CANNON_BUILD_ARTIFACT: ${{ tasks.cannon-build.artifacts.report }}
+    docker: preserve-data
+    tool-cache: rust-cannon-offline-${{ init.cache-epoch }}
+    timeout: 90m
+    runner: *build-runner
+    outputs:
+      filesystem:
+        filter:
+          workspace: [rust/target, .ci/rust-cache, .ci/cannon-cache]
+          system: []
+      test-results:
+        - path: .ci/rust-workspace/cannon-offline/checks.junit.xml
+      artifacts:
+        - key: report
+          path: .ci/rust-workspace/cannon-offline

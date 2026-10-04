@@ -59,6 +59,9 @@ remaining limits. Both WASM package sets, Zepter, Typos, the Kona registry
 snapshot check and the full Interop differential test now pass complete
 same-SHA original-report parity. See the
 [remaining Rust stage](rwx-rust-extra-parity.md) for retained evidence.
+The three Cannon adapters and dependency producers are implemented and locally
+validated, with [hosted Cannon parity](rwx-cannon-parity.md) pending. They remain
+outside the verified coverage count until their full native runs complete.
 The narrower rollup mode remains CLI-only. See [the stage closeout](rwx-go-parity.md)
 for original-report comparison, selected resources, caches and limitations.
 

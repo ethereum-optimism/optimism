@@ -20,3 +20,12 @@ build/_bin
 tests/testdata
 
 rust/target
+
+# CI caches/reports and offline runtime witnesses are never build inputs.
+.ci
+rust/kona/data
+rust/kona/state.bin.gz
+rust/kona/out.bin.gz
+rust/kona/meta.json
+rust/kona/bin/client/testdata/*.tar.zst
+rust/kona/bin/client/testdata/*.etag

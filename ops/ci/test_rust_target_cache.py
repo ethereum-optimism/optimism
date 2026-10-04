@@ -71,6 +71,45 @@ class RustTargetCacheTest(unittest.TestCase):
         self.run_phase('prepare'); self.run_phase('commit')
         self.assertNotEqual(before, json.loads((self.target / '.rwx-source-fingerprint.json').read_text()))
 
+    def test_embedded_nut_bundle_refreshes_sources_and_rejects_mid_build_change(self):
+        bundle = self.root / 'op-core/nuts/bundles/fixture.json'
+        bundle.parent.mkdir(parents=True); bundle.write_text('old embedded payload')
+        self.run_phase('prepare'); self.run_phase('commit')
+        old = bundle.stat().st_mtime_ns
+        before = json.loads((self.target / '.rwx-source-fingerprint.json').read_text())['source_sha256']
+        bundle.write_text('new embedded payload'); os.utime(bundle, ns=(old, old))
+        self.run_phase('prepare')
+        self.assertGreater(bundle.stat().st_mtime_ns, old)
+        self.assertGreater(self.source.stat().st_mtime_ns, old)
+        self.assertNotEqual(before, json.loads((self.target / '.rwx-source-pending.json').read_text())['source_sha256'])
+        bundle.write_text('changed while building')
+        with self.assertRaises(ValueError): self.run_phase('commit')
+
+    @unittest.skipUnless(shutil.which('cargo'), 'Cargo required for embedded bundle freshness reproduction')
+    def test_cargo_rebuilds_external_embedded_bundle_and_reuses_unchanged_target(self):
+        bundle = self.root / 'op-core/nuts/bundles/fixture.txt'
+        bundle.parent.mkdir(parents=True); bundle.write_text('old bundle')
+        (self.root / 'rust/Cargo.toml').write_text('[package]\nname="external-bundle"\nversion="0.1.0"\nedition="2021"\n')
+        self.source.write_text('')
+        (self.source.parent / 'main.rs').write_text('fn main() { print!("{}", include_str!("../../op-core/nuts/bundles/fixture.txt")); }')
+        env = {**os.environ, 'CARGO_TARGET_DIR': str(self.target)}
+        def build(): return subprocess.run(['cargo', 'build', '--offline'], cwd=self.root / 'rust', env=env, text=True, capture_output=True)
+        subprocess.run(['cargo', 'generate-lockfile', '--offline'], cwd=self.root / 'rust', env=env, check=True, capture_output=True)
+        self.run_phase('prepare')
+        first = build(); self.assertEqual(first.returncode, 0, first.stderr); self.run_phase('commit')
+        binary = self.target / 'debug/external-bundle'
+        self.assertEqual(subprocess.check_output([str(binary)], text=True), 'old bundle')
+        old = bundle.stat().st_mtime_ns
+        bundle.write_text('new bundle'); os.utime(bundle, ns=(old, old))
+        stale = build(); self.assertEqual(stale.returncode, 0, stale.stderr)
+        self.assertEqual(subprocess.check_output([str(binary)], text=True), 'old bundle')
+        self.run_phase('prepare')
+        fresh = build(); self.assertEqual(fresh.returncode, 0, fresh.stderr); self.run_phase('commit')
+        self.assertEqual(subprocess.check_output([str(binary)], text=True), 'new bundle')
+        self.run_phase('prepare')
+        reused = build(); self.assertEqual(reused.returncode, 0, reused.stderr)
+        self.assertNotIn('Compiling external-bundle', reused.stderr)
+
     @unittest.skipUnless(shutil.which('cargo'), 'Cargo required for cache freshness reproduction')
     def test_cargo_rebuilds_changed_dependency_with_older_checkout_mtime(self):
         for name in ['provider','consumer']:
