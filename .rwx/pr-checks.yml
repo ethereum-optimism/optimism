@@ -2,7 +2,7 @@
 on:
   cache-rebuild:
     if: ${{ event.git.branch == 'develop' }}
-    target: [go-modules, contract-tools]
+    target: [go-modules, contract-tools, main-tools]
     init:
       commit-sha: ${{ event.git.sha }}
       branch: ${{ event.git.branch }}
@@ -119,7 +119,8 @@ tasks:
       cp "$CI_SCRIPTS/rwx-contracts-prepare.sh" ops/ci/
       bash ops/ci/rwx-contracts-prepare.sh tools
       mise install uv
-      export PATH="$(mise bin-paths | paste -sd: -):$PATH"
+      PATH="$(mise bin-paths | paste -sd: -):$PATH"
+      export PATH
       mise install pipx:semgrep
       printf '%s:%s\n' "$(mise bin-paths | paste -sd: -)" "$PATH" >"$RWX_ENV/PATH"
     env:
@@ -127,6 +128,14 @@ tasks:
     filter:
       workspace: [mise.toml, ops/ci/rwx-prepare.sh]
       ${{ tasks.bootstrap-inputs.artifacts.ci-scripts }}: [rwx-contracts-prepare.sh]
+    timeout: 30m
+
+  - key: main-tools
+    use: go-tools
+    if: ${{ init.cache-warm == 'true' || tasks.route.values.run-main == 'true' }}
+    run: |
+      mise install ripgrep mockery
+      printf '%s:%s\n' "$(mise bin-paths | paste -sd: -)" "$PATH" >"$RWX_ENV/PATH"
     timeout: 30m
 
   - key: helper-tests
@@ -197,3 +206,220 @@ tasks:
       artifacts:
         - key: reports
           path: .ci/pr-checks/contracts-fast
+
+  - key: main-helper-tests
+    use: [code, main-tools]
+    if: ${{ init.cache-warm != 'true' && tasks.route.values.run-main == 'true' }}
+    run: |
+      RWX_LIVE_MAIN_FIXTURE=1 python3 -m unittest discover -s ops/ci -p 'test_main_checks.py'
+      python3 -m unittest discover -s ops/ci -p 'test_compare_main_checks.py'
+    cache: false
+    timeout: 15m
+    outputs:
+      filesystem: false
+
+  - key: todo-issues-check
+    use: [code, main-tools]
+    if: ${{ init.cache-warm != 'true' && tasks.route.values.run-main == 'true' }}
+    run: |
+      python3 ops/ci/main-checks.py todo-issues-check
+    env:
+      CI_COMMIT_SHA: ${{ init.commit-sha }}
+      CI_BRANCH: ${{ init.branch }}
+      CI_CHECK_PROVIDER: rwx
+      RWX_RUN_ID:
+        cache-key: included
+      RWX_TASK_ATTEMPT_NUMBER:
+        cache-key: included
+    cache: false
+    timeout: 30m
+    runner:
+      cpus: 2
+      memory: 8gb
+    outputs:
+      filesystem: false
+      test-results:
+        - path: .ci/main-checks/todo-issues-check/check.junit.xml
+      artifacts:
+        - key: reports
+          path: .ci/main-checks/todo-issues-check
+
+  - key: l2-chains-sync-check
+    use: [code, main-tools]
+    if: ${{ init.cache-warm != 'true' && tasks.route.values.run-main == 'true' }}
+    run: |
+      python3 ops/ci/main-checks.py l2-chains-sync-check
+    env:
+      CI_COMMIT_SHA: ${{ init.commit-sha }}
+      CI_BRANCH: ${{ init.branch }}
+      CI_CHECK_PROVIDER: rwx
+      RWX_RUN_ID:
+        cache-key: included
+      RWX_TASK_ATTEMPT_NUMBER:
+        cache-key: included
+    cache: false
+    timeout: 30m
+    runner:
+      cpus: 2
+      memory: 8gb
+    outputs:
+      filesystem: false
+      test-results:
+        - path: .ci/main-checks/l2-chains-sync-check/check.junit.xml
+      artifacts:
+        - key: reports
+          path: .ci/main-checks/l2-chains-sync-check
+
+  - key: op-deployer-forge-version
+    use: [code, main-tools]
+    if: ${{ init.cache-warm != 'true' && tasks.route.values.run-main == 'true' }}
+    run: |
+      python3 ops/ci/main-checks.py op-deployer-forge-version
+    env:
+      CI_COMMIT_SHA: ${{ init.commit-sha }}
+      CI_BRANCH: ${{ init.branch }}
+      CI_CHECK_PROVIDER: rwx
+      RWX_RUN_ID:
+        cache-key: included
+      RWX_TASK_ATTEMPT_NUMBER:
+        cache-key: included
+    cache: false
+    timeout: 30m
+    runner:
+      cpus: 2
+      memory: 8gb
+    outputs:
+      filesystem: false
+      test-results:
+        - path: .ci/main-checks/op-deployer-forge-version/check.junit.xml
+      artifacts:
+        - key: reports
+          path: .ci/main-checks/op-deployer-forge-version
+
+  - key: check-op-geth-version
+    use: [code, main-tools, go-modules]
+    if: ${{ init.cache-warm != 'true' && tasks.route.values.run-main == 'true' }}
+    run: |
+      export GOMODCACHE="$PWD/.ci/go-cache/pr-checks/modules"
+      export GOCACHE="$PWD/.ci/go-cache/main-checks/check-op-geth-version"
+      python3 ops/ci/main-checks.py check-op-geth-version
+    env:
+      CI_COMMIT_SHA: ${{ init.commit-sha }}
+      CI_BRANCH: ${{ init.branch }}
+      CI_CHECK_PROVIDER: rwx
+      RWX_RUN_ID:
+        cache-key: included
+      RWX_TASK_ATTEMPT_NUMBER:
+        cache-key: included
+    cache: false
+    tool-cache: main-checks-check-op-geth-version-${{ init.cache-epoch }}
+    timeout: 30m
+    runner:
+      cpus: 4
+      memory: 8gb
+    outputs:
+      filesystem:
+        filter:
+          workspace: [.ci/go-cache/main-checks/check-op-geth-version]
+          system: []
+      test-results:
+        - path: .ci/main-checks/check-op-geth-version/check.junit.xml
+      artifacts:
+        - key: reports
+          path: .ci/main-checks/check-op-geth-version
+
+  - key: check-nut-locks
+    use: [code, main-tools, go-modules]
+    if: ${{ init.cache-warm != 'true' && tasks.route.values.run-main == 'true' }}
+    run: |
+      export GOMODCACHE="$PWD/.ci/go-cache/pr-checks/modules"
+      export GOCACHE="$PWD/.ci/go-cache/main-checks/check-nut-locks"
+      python3 ops/ci/main-checks.py check-nut-locks
+    env:
+      CI_COMMIT_SHA: ${{ init.commit-sha }}
+      CI_BRANCH: ${{ init.branch }}
+      CI_CHECK_PROVIDER: rwx
+      RWX_RUN_ID:
+        cache-key: included
+      RWX_TASK_ATTEMPT_NUMBER:
+        cache-key: included
+    cache: false
+    tool-cache: main-checks-check-nut-locks-${{ init.cache-epoch }}
+    timeout: 30m
+    runner:
+      cpus: 4
+      memory: 8gb
+    outputs:
+      filesystem:
+        filter:
+          workspace: [.ci/go-cache/main-checks/check-nut-locks]
+          system: []
+      test-results:
+        - path: .ci/main-checks/check-nut-locks/check.junit.xml
+      artifacts:
+        - key: reports
+          path: .ci/main-checks/check-nut-locks
+
+  - key: check-generated-mocks-op-node
+    use: [code, main-tools, go-modules]
+    if: ${{ init.cache-warm != 'true' && tasks.route.values.run-main == 'true' }}
+    run: |
+      export GOMODCACHE="$PWD/.ci/go-cache/pr-checks/modules"
+      export GOCACHE="$PWD/.ci/go-cache/main-checks/check-generated-mocks-op-node"
+      python3 ops/ci/main-checks.py check-generated-mocks-op-node
+    env:
+      CI_COMMIT_SHA: ${{ init.commit-sha }}
+      CI_BRANCH: ${{ init.branch }}
+      CI_CHECK_PROVIDER: rwx
+      RWX_RUN_ID:
+        cache-key: included
+      RWX_TASK_ATTEMPT_NUMBER:
+        cache-key: included
+    cache: false
+    tool-cache: main-checks-check-generated-mocks-op-node-${{ init.cache-epoch }}
+    timeout: 30m
+    runner:
+      cpus: 8
+      memory: 16gb
+    outputs:
+      filesystem:
+        filter:
+          workspace: [.ci/go-cache/main-checks/check-generated-mocks-op-node]
+          system: []
+      test-results:
+        - path: .ci/main-checks/check-generated-mocks-op-node/check.junit.xml
+      artifacts:
+        - key: reports
+          path: .ci/main-checks/check-generated-mocks-op-node
+
+  - key: check-generated-mocks-op-service
+    use: [code, main-tools, go-modules]
+    if: ${{ init.cache-warm != 'true' && tasks.route.values.run-main == 'true' }}
+    run: |
+      export GOMODCACHE="$PWD/.ci/go-cache/pr-checks/modules"
+      export GOCACHE="$PWD/.ci/go-cache/main-checks/check-generated-mocks-op-service"
+      python3 ops/ci/main-checks.py check-generated-mocks-op-service
+    env:
+      CI_COMMIT_SHA: ${{ init.commit-sha }}
+      CI_BRANCH: ${{ init.branch }}
+      CI_CHECK_PROVIDER: rwx
+      RWX_RUN_ID:
+        cache-key: included
+      RWX_TASK_ATTEMPT_NUMBER:
+        cache-key: included
+    cache: false
+    tool-cache: main-checks-check-generated-mocks-op-service-${{ init.cache-epoch }}
+    timeout: 30m
+    runner:
+      cpus: 8
+      memory: 16gb
+    outputs:
+      filesystem:
+        filter:
+          workspace: [.ci/go-cache/main-checks/check-generated-mocks-op-service]
+          system: []
+      test-results:
+        - path: .ci/main-checks/check-generated-mocks-op-service/check.junit.xml
+      artifacts:
+        - key: reports
+          path: .ci/main-checks/check-generated-mocks-op-service

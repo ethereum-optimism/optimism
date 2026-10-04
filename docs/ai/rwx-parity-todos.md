@@ -35,12 +35,12 @@ at commit `587b4c3a73d3f16f15212b72e9a0ed0e8489a7c4`.
 | PR workflow | Expanded job instances | Implemented validation jobs |
 | --- | ---: | ---: |
 | Main | 32 | 13 |
-| Contracts | 23 | 6 |
+| Contracts | 23 | 13 |
 | Rust | 22 | 21 |
 | Rust E2E | 9 | 9 |
-| Total | 86 | 49 |
+| Total | 86 | 56 |
 
-Verified implementation coverage is **49 / 86 = 57%**. Each matrix entry and
+Verified implementation coverage is **56 / 86 = 65%**. Each matrix entry and
 each occurrence in a different workflow counts separately; shards do not.
 The CircleCI setup and schedule-trigger-check workflows are outside this
 86-job denominator and have separate todos. This is job coverage, not runtime,
@@ -72,8 +72,11 @@ Complete module preparation and all sixteen contract-fast checks now pass
 same-SHA original-report parity. Both prep occurrences cover all 463 modules;
 the Main occurrence was already counted. See the [PR-check closeout](rwx-pr-checks-parity.md)
 for the two additional contract occurrences and retained first failures.
-The seven L1 upgrade occurrences now have shared adapters and local fixture
-coverage; their hosted execution and same-SHA comparison remain pending.
+All seven L1 upgrade occurrences now pass complete same-SHA original-report
+parity. Their full 1,359-signature selection retains four abstract declarations
+with empty compiler bytecode and accounts for every one of the 1,355 executable
+cases. See the [upgrade closeout](rwx-contract-upgrades.md) for original hashes,
+whole-contract setup skips, pinned archive blocks and retained first failures.
 The narrower rollup mode remains CLI-only. See [the stage closeout](rwx-go-parity.md)
 for original-report comparison, selected resources, caches and limitations.
 
@@ -237,13 +240,13 @@ CircleCI workflow: `contracts-feature-tests` (23 jobs).
 - [ ] `contracts-bedrock-coverage CUSTOM_GAS_TOKEN`
 - [ ] `contracts-bedrock-coverage OPTIMISM_PORTAL_INTEROP`
 - [ ] `contracts-bedrock-coverage ZK_DISPUTE_GAME`
-- [ ] `contracts-bedrock-tests-upgrade op-mainnet main`
-- [ ] `contracts-bedrock-tests-upgrade op-mainnet CUSTOM_GAS_TOKEN`
-- [ ] `contracts-bedrock-tests-upgrade op-mainnet OPTIMISM_PORTAL_INTEROP`
-- [ ] `contracts-bedrock-tests-upgrade op-mainnet ZK_DISPUTE_GAME`
-- [ ] `contracts-bedrock-tests-upgrade op-mainnet`
-- [ ] `contracts-bedrock-tests-upgrade ink-mainnet`
-- [ ] `contracts-bedrock-tests-upgrade unichain-mainnet`
+- [x] `contracts-bedrock-tests-upgrade op-mainnet main`
+- [x] `contracts-bedrock-tests-upgrade op-mainnet CUSTOM_GAS_TOKEN`
+- [x] `contracts-bedrock-tests-upgrade op-mainnet OPTIMISM_PORTAL_INTEROP`
+- [x] `contracts-bedrock-tests-upgrade op-mainnet ZK_DISPUTE_GAME`
+- [x] `contracts-bedrock-tests-upgrade op-mainnet`
+- [x] `contracts-bedrock-tests-upgrade ink-mainnet`
+- [x] `contracts-bedrock-tests-upgrade unichain-mainnet`
 - [ ] `contracts-bedrock-tests-l2-fork op-mainnet`
 - [x] `contracts-bedrock-checks-fast-feature-tests`
 - [ ] `required-contracts-ci`

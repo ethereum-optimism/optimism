@@ -53,10 +53,15 @@ class Redactor:
         parts += [v for _, v in urllib.parse.parse_qsl(parsed.query) if len(v) >= 8]
         parts += [v for v in (parsed.username, parsed.password) if v and len(v) >= 8]
         parts += [v for v in parsed.path.split('/') if len(v) >= 16]
+        parts += [html.escape(v, quote=True) for v in parts] + [urllib.parse.quote(v, safe="") for v in parts]
         self.values = sorted({v.encode() for v in parts}, key=len, reverse=True)
-    def __call__(self, data):
-        for value in self.values: data = data.replace(value, b'<test-only-rpc>')
+    def __call__(self, data, replacement=b'<test-only-rpc>'):
+        for value in self.values: data = data.replace(value, replacement)
         return data
+    def xml(self, data):
+        # XML text and attributes must remain parseable after authentication is
+        # removed. The plain-log marker would introduce an unclosed XML tag.
+        return self(data, b'&lt;test-only-rpc&gt;')
 
 
 def stage(directory, name, argv, redactor=lambda x: x, json_output=False):
@@ -296,6 +301,7 @@ def main():
     try:
         url = os.environ.get('OP_CI_MAINNET_L1_ARCHIVE_RPC_URL')
         redactor = Redactor(url) if url else lambda x: x
+        redact_xml = redactor.xml if url else lambda x: x
         if args.mode == 'preflight':
             if not url: raise ValueError('Missing test-only archive RPC')
             os.environ['ETH_RPC_URL'] = url; write(directory / 'block.json', pinned_block(directory, url, redactor)); status = 0
@@ -339,13 +345,13 @@ def main():
                     elif p.exists(): p.unlink()
                 status = stage(directory, 'tests', ['just', 'test-upgrade'], redactor)
                 # Authentication strings can occur in failing test reasons.
-                if (p := directory / 'original.junit.xml').exists(): p.write_bytes(redactor(p.read_bytes()))
+                if (p := directory / 'original.junit.xml').exists(): p.write_bytes(redact_xml(p.read_bytes()))
                 if status and status < 128:
                     os.environ['JUNIT_TEST_PATH'] = str(directory / 'diagnostic.junit.xml')
                     stage(directory, 'rerun', ['just', 'test-upgrade-rerun'], redactor)
                 elif status == 0: write(directory / 'coverage.json', junit(directory / 'original.junit.xml',
                     json.loads((directory / 'selection.json').read_text()), json.loads((directory / 'signature-bindings.json').read_text())))
-            for xml in directory.glob('*.xml'): xml.write_bytes(redactor(xml.read_bytes()))
+            for xml in directory.glob('*.xml'): xml.write_bytes(redact_xml(xml.read_bytes()))
             settings = json.loads((directory / 'settings.json').read_text())
             if settings['input_sha256'] != inputs(): raise ValueError('Contract upgrade source changed during execution')
     except (OSError, ValueError, KeyError, ET.ParseError, subprocess.CalledProcessError) as error:

@@ -79,16 +79,18 @@ def begin(directory, job):
         write(directory / 'settings.json', settings)
 
 
-def stage(directory, name, args, stdout_json=False, cwd='rust'):
+def stage(directory, name, args, stdout_json=False, cwd='rust', stdin=None):
     """Keep the real exit and signal, including when a subprocess is canceled."""
     started = time.time()
     data = {'argv': args, 'cwd': cwd, 'started_at': started, 'exit_code': None}
+    if stdin == subprocess.DEVNULL: data['stdin'] = 'devnull'
     record = directory / (name + '.stage.json')
     write(record, data)
     with (directory / (name + '.log')).open('wb') as log:
         # JSON discovery needs stdout separate from compiler diagnostics.
         with (directory / (name + '.json')).open('wb') if stdout_json else open(os.devnull, 'wb') as out:
             child = subprocess.Popen(args, cwd=cwd, start_new_session=True,
+                                     stdin=stdin,
                                      stdout=out if stdout_json else subprocess.PIPE,
                                      stderr=log if stdout_json else subprocess.STDOUT)
             previous = {}

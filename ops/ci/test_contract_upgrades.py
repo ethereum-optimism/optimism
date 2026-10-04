@@ -130,9 +130,21 @@ class UpgradeTests(unittest.TestCase):
                 self.assertNotIn(url, p.read_text()); self.assertIn('<test-only-rpc>', p.read_text())
             self.assertEqual(json.loads((d / 'intentional.stage.json').read_text())['stdout_sha256'], UP.digest(d / 'intentional.json'))
             self.assertEqual(UP.finish(d, status, []), 17)
-            # Stage argv can never include an RPC URL in the production adapter.
             self.assertEqual(json.loads((d / 'final.json').read_text())['exit_code'], 17)
+            # Stage argv can never include an RPC URL in the production adapter.
             for file in d.iterdir(): self.assertNotIn(url.encode(), file.read_bytes())
+
+    def test_redacted_xml_preserves_original_failure_text_and_valid_attributes(self):
+        url = 'https://example.invalid/secret-token-of-32-characters?key=query-token-value&chain=1'
+        root = UP.ET.Element('testsuite')
+        case = UP.ET.SubElement(root, 'testcase', name='failed()')
+        UP.ET.SubElement(case, 'failure', message='connection failed: ' + url).text = 'original failure: ' + url
+        masked = UP.Redactor(url).xml(UP.ET.tostring(root))
+        original = UP.ET.fromstring(masked).find('testcase/failure')
+        self.assertEqual(original.get('message'), 'connection failed: <test-only-rpc>')
+        self.assertEqual(original.text, 'original failure: <test-only-rpc>')
+        for private in ('secret-token-of-32-characters', 'query-token-value'):
+            self.assertNotIn(private.encode(), masked)
 
     def test_real_process_group_cancellation_retains_signal_and_partial_original(self):
         with tempfile.TemporaryDirectory() as tmp:

@@ -1,9 +1,8 @@
 # L1 upgrade shadow
 
 The seven Circle PR upgrade occurrences are implemented by
-`.rwx/contract-upgrades.yml` and `ops/ci/contract-upgrades.py`. They remain
-unchecked in the parity inventory until hosted, same-revision original reports
-agree. The optional check is `optimism-contract-upgrades-shadow`; Circle keeps
+`.rwx/contract-upgrades.yml` and `ops/ci/contract-upgrades.py`. All seven pass complete hosted, same-revision original-report parity at
+`58a81fbdb7f1c6184b881417f4d74c50c73f13d6`. The optional check is `optimism-contract-upgrades-shadow`; Circle keeps
 its required contract gate.
 
 | Occurrence | Chain | Feature |
@@ -99,3 +98,26 @@ can have distinct creation bytecodes. Every artifact now retains its own size
 and hash. Only a contract whose complete bound artifact set has empty creation
 bytecode is non-executable. Cross-provider comparison requires equal signatures
 and deployability while preserving each provider's compiler artifact hashes.
+
+The successful benchmark is [native run bcab8b6f](https://cloud.rwx.com/optimism/runs/bcab8b6f456b42da908aefb5d4867773)
+and [Circle pipeline 135563](https://app.circleci.com/pipelines/github/ethereum-optimism/optimism/135563).
+The [parity index](rwx-contract-upgrades-evidence/parity.json) retains complete
+selection, original outcomes, skip reasons, settings, source/tool/compile
+bindings, block identities and original-report hashes. Every variant has
+1,359 discovered signatures: 1,355 executable and four non-executable abstract
+declarations. Main, CGT and each chain occurrence report 861 passes / 494 skips;
+Interop reports 983 / 372 and ZK reports 986 / 369. All seven original commands
+succeeded with no diagnostic rerun or task retry. This adds seven verified
+implementation occurrences, reaching 56/86 (65%); thirty remain.
+
+The compiler-only rehearsal completed all seven targets with zero tests. A
+separate intentional preflight failure kept producers and verdicts skipped.
+Protected `develop` cache-rebuild events remain unobserved until these
+definitions reach that branch. The complete compiler-context rehearsal verified
+the executed helper hash: an explicit CLI `commit-sha` override suppresses
+uncommitted helper patches, so patched rehearsals must omit that override.
+These rehearsals do not substitute for source-matched hosted verdicts.
+
+All four required Circle gates, dependency review and all nine optional RWX
+checks passed at the benchmark revision: 146 successful checks, one neutral,
+zero unfinished or failed checks. Later pushes require their own observations.

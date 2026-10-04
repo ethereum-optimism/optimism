@@ -1662,7 +1662,13 @@ jobs:
           enable-mise-cache: false
       - run:
           name: Check l2-rpcs.json and daily matrix are in sync
-          command: bash .circleci/scripts/check-l2-chains-sync.sh
+          command: python3 ops/ci/main-checks.py l2-chains-sync-check
+      - store_artifacts:
+          path: .ci/main-checks/l2-chains-sync-check
+          when: always
+      - store_test_results:
+          path: .ci/main-checks/l2-chains-sync-check
+          when: always
 
   todo-issues:
     parameters:
@@ -1677,9 +1683,18 @@ jobs:
           enable-mise-cache: true
       - run:
           name: Check TODO issues
-          command: ./ops/scripts/todo-checker.sh --verbose --strict
-            <<#parameters.check_closed>> --check-closed
-            <</parameters.check_closed>>
+          command: |
+            if [ "<<parameters.check_closed>>" = "true" ]; then
+              ./ops/scripts/todo-checker.sh --verbose --strict --check-closed
+            else
+              python3 ops/ci/main-checks.py todo-issues-check
+            fi
+      - store_artifacts:
+          path: .ci/main-checks/todo-issues-check
+          when: always
+      - store_test_results:
+          path: .ci/main-checks/todo-issues-check
+          when: always
       - notify-failures-on-develop
 
   go-lint:
@@ -1747,8 +1762,7 @@ jobs:
           enable-mise-cache: true
       - run:
           name: check op-geth version
-          command: |
-            just check-op-geth-version
+          command: python3 ops/ci/main-checks.py check-op-geth-version
 
   # Builds op-core/superchain/superchain-configs.zip from the pinned commit and
   # makes it available to downstream Go-build jobs via persist_to_workspace.
@@ -1760,6 +1774,13 @@ jobs:
   # ~10s) and most of the job's wall-clock is mise restore anyway. Always
   # rebuilding gives strong consistency (every run validates the committed
   # .sha256 against a freshly-built zip) without cache-key complexity.
+      - store_artifacts:
+          path: .ci/main-checks/check-op-geth-version
+          when: always
+      - store_test_results:
+          path: .ci/main-checks/check-op-geth-version
+          when: always
+
   prep-superchain:
     docker:
       - image: <<pipeline.parameters.c-default_docker_image>>
@@ -1826,8 +1847,13 @@ jobs:
           namespace: check-nut-locks
       - run:
           name: check nut locks
-          command: |
-            go run ./ops/scripts/check-nut-locks
+          command: python3 ops/ci/main-checks.py check-nut-locks
+      - store_artifacts:
+          path: .ci/main-checks/check-nut-locks
+          when: always
+      - store_test_results:
+          path: .ci/main-checks/check-nut-locks
+          when: always
       - go-save-cache:
           namespace: check-nut-locks
 
@@ -2283,7 +2309,13 @@ jobs:
           namespace: check-generated-mocks-op-node
       - run:
           name: check-generated-mocks
-          command: just generate-mocks-op-node && git diff --exit-code
+          command: python3 ops/ci/main-checks.py check-generated-mocks-op-node
+      - store_artifacts:
+          path: .ci/main-checks/check-generated-mocks-op-node
+          when: always
+      - store_test_results:
+          path: .ci/main-checks/check-generated-mocks-op-node
+          when: always
       - go-save-cache:
           namespace: check-generated-mocks-op-node
 
@@ -2301,7 +2333,13 @@ jobs:
           namespace: check-generated-mocks-op-service
       - run:
           name: check-generated-mocks
-          command: just generate-mocks-op-service && git diff --exit-code
+          command: python3 ops/ci/main-checks.py check-generated-mocks-op-service
+      - store_artifacts:
+          path: .ci/main-checks/check-generated-mocks-op-service
+          when: always
+      - store_test_results:
+          path: .ci/main-checks/check-generated-mocks-op-service
+          when: always
       - go-save-cache:
           namespace: check-generated-mocks-op-service
 
@@ -2313,8 +2351,13 @@ jobs:
           checkout-method: blobless
           enable-mise-cache: true
       - run:
-          command: just check-forge-version
-          working_directory: op-deployer
+          command: python3 ops/ci/main-checks.py op-deployer-forge-version
+      - store_artifacts:
+          path: .ci/main-checks/op-deployer-forge-version
+          when: always
+      - store_test_results:
+          path: .ci/main-checks/op-deployer-forge-version
+          when: always
 
   kontrol-tests:
     docker:
