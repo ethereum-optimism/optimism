@@ -1,0 +1,28 @@
+{
+  "cause": "The new isolated contract tool layer installed pinned Semgrep without first installing its pinned uv bootstrap. Mise fell back to missing pipx; this failed before any fast-check verdict.",
+  "diagnostic": {
+    "definition": "CLI-only modified bootstrap definition, clone source 0aef6f4e696d63013a56b2673d304201a11a47f9; no suite verdict or GitHub publisher, not counted as coverage.",
+    "execution_seconds": 14,
+    "run_id": "72f7795a5a544ec29fd45e854526d739",
+    "status": {
+      "AbortedSubStatus": "not_applicable",
+      "Execution": "finished",
+      "FinishedSubStatus": "executed",
+      "Result": "succeeded",
+      "WaitingSubStatus": "not_applicable"
+    },
+    "task_id": "b27c983b7b3fb6a2b3cc77ed40768e79"
+  },
+  "failed_task_id": "a906032bf13e9ad894ddace78354f952",
+  "fix": "Install the existing mise.toml uv=0.5.5 pin and expose its bin path before pipx:semgrep=1.137.0.",
+  "original_log_sha256": "7aea10ec28611620a0d114ae448e3508f0d0b3fdcc6ad09c9ae6f9db5f88bbfc",
+  "rwx_run_id": "c693468f802a4a22a1661cc994861c0d",
+  "source_sha": "0aef6f4e696d63013a56b2673d304201a11a47f9",
+  "status": {
+    "AbortedSubStatus": "not_applicable",
+    "Execution": "finished",
+    "FinishedSubStatus": "executed",
+    "Result": "failed",
+    "WaitingSubStatus": "not_applicable"
+  }
+}

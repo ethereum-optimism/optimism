@@ -118,6 +118,8 @@ tasks:
     run: |
       cp "$CI_SCRIPTS/rwx-contracts-prepare.sh" ops/ci/
       bash ops/ci/rwx-contracts-prepare.sh tools
+      mise install uv
+      export PATH="$(mise bin-paths | paste -sd: -):$PATH"
       mise install pipx:semgrep
       printf '%s:%s\n' "$(mise bin-paths | paste -sd: -)" "$PATH" >"$RWX_ENV/PATH"
     env:
