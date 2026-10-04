@@ -365,6 +365,7 @@ tasks:
         - key: compiled
           path: .ci/rust-e2e/compiled/op-reth
 
+  # Run/attempt identity forces fresh verdicts while preserving runtime Go caches.
   - key: verdict-proof-0
     use: [source, runtime-tools]
     if: ${{ init.cache-warm != 'true' && tasks.route.values.run-rust-e2e-ci == 'true' }}
@@ -380,11 +381,14 @@ tasks:
       CI_E2E_PROVIDER: rwx
       CI_SHARD_INDEX: "0"
       PARALLEL: "8"
+      RWX_RUN_ID:
+        cache-key: included
+      RWX_TASK_ATTEMPT_NUMBER:
+        cache-key: included
       CI_E2E_COMPILED: ${{ tasks.compile-proof.artifacts.compiled }}
       GO_ARTIFACT: ${{ tasks.go.tasks.build.artifacts.dependency }}
       CONTRACT_ARTIFACT: ${{ tasks.contracts.tasks.build.artifacts.dependency }}
       RELEASE_ARTIFACT: ${{ tasks.release.tasks.build.artifacts.dependency }}
-    cache: false
     tool-cache: rust-e2e-runtime-proof-${{ init.cache-epoch }}
     timeout: 90m
     runner:
@@ -419,11 +423,14 @@ tasks:
       CI_E2E_PROVIDER: rwx
       CI_SHARD_INDEX: "1"
       PARALLEL: "8"
+      RWX_RUN_ID:
+        cache-key: included
+      RWX_TASK_ATTEMPT_NUMBER:
+        cache-key: included
       CI_E2E_COMPILED: ${{ tasks.compile-proof.artifacts.compiled }}
       GO_ARTIFACT: ${{ tasks.go.tasks.build.artifacts.dependency }}
       CONTRACT_ARTIFACT: ${{ tasks.contracts.tasks.build.artifacts.dependency }}
       RELEASE_ARTIFACT: ${{ tasks.release.tasks.build.artifacts.dependency }}
-    cache: false
     tool-cache: rust-e2e-runtime-proof-${{ init.cache-epoch }}
     timeout: 90m
     runner:
@@ -458,11 +465,14 @@ tasks:
       CI_E2E_PROVIDER: rwx
       CI_SHARD_INDEX: "2"
       PARALLEL: "8"
+      RWX_RUN_ID:
+        cache-key: included
+      RWX_TASK_ATTEMPT_NUMBER:
+        cache-key: included
       CI_E2E_COMPILED: ${{ tasks.compile-proof.artifacts.compiled }}
       GO_ARTIFACT: ${{ tasks.go.tasks.build.artifacts.dependency }}
       CONTRACT_ARTIFACT: ${{ tasks.contracts.tasks.build.artifacts.dependency }}
       RELEASE_ARTIFACT: ${{ tasks.release.tasks.build.artifacts.dependency }}
-    cache: false
     tool-cache: rust-e2e-runtime-proof-${{ init.cache-epoch }}
     timeout: 90m
     runner:
@@ -497,11 +507,14 @@ tasks:
       CI_E2E_PROVIDER: rwx
       CI_SHARD_INDEX: "3"
       PARALLEL: "8"
+      RWX_RUN_ID:
+        cache-key: included
+      RWX_TASK_ATTEMPT_NUMBER:
+        cache-key: included
       CI_E2E_COMPILED: ${{ tasks.compile-proof.artifacts.compiled }}
       GO_ARTIFACT: ${{ tasks.go.tasks.build.artifacts.dependency }}
       CONTRACT_ARTIFACT: ${{ tasks.contracts.tasks.build.artifacts.dependency }}
       RELEASE_ARTIFACT: ${{ tasks.release.tasks.build.artifacts.dependency }}
-    cache: false
     tool-cache: rust-e2e-runtime-proof-${{ init.cache-epoch }}
     timeout: 90m
     runner:
@@ -536,11 +549,14 @@ tasks:
       CI_E2E_PROVIDER: rwx
       CI_SHARD_INDEX: "4"
       PARALLEL: "8"
+      RWX_RUN_ID:
+        cache-key: included
+      RWX_TASK_ATTEMPT_NUMBER:
+        cache-key: included
       CI_E2E_COMPILED: ${{ tasks.compile-proof.artifacts.compiled }}
       GO_ARTIFACT: ${{ tasks.go.tasks.build.artifacts.dependency }}
       CONTRACT_ARTIFACT: ${{ tasks.contracts.tasks.build.artifacts.dependency }}
       RELEASE_ARTIFACT: ${{ tasks.release.tasks.build.artifacts.dependency }}
-    cache: false
     tool-cache: rust-e2e-runtime-proof-${{ init.cache-epoch }}
     timeout: 90m
     runner:
@@ -575,11 +591,14 @@ tasks:
       CI_E2E_PROVIDER: rwx
       CI_SHARD_INDEX: "5"
       PARALLEL: "8"
+      RWX_RUN_ID:
+        cache-key: included
+      RWX_TASK_ATTEMPT_NUMBER:
+        cache-key: included
       CI_E2E_COMPILED: ${{ tasks.compile-proof.artifacts.compiled }}
       GO_ARTIFACT: ${{ tasks.go.tasks.build.artifacts.dependency }}
       CONTRACT_ARTIFACT: ${{ tasks.contracts.tasks.build.artifacts.dependency }}
       RELEASE_ARTIFACT: ${{ tasks.release.tasks.build.artifacts.dependency }}
-    cache: false
     tool-cache: rust-e2e-runtime-proof-${{ init.cache-epoch }}
     timeout: 90m
     runner:
@@ -614,11 +633,14 @@ tasks:
       CI_E2E_PROVIDER: rwx
       CI_SHARD_INDEX: "6"
       PARALLEL: "8"
+      RWX_RUN_ID:
+        cache-key: included
+      RWX_TASK_ATTEMPT_NUMBER:
+        cache-key: included
       CI_E2E_COMPILED: ${{ tasks.compile-proof.artifacts.compiled }}
       GO_ARTIFACT: ${{ tasks.go.tasks.build.artifacts.dependency }}
       CONTRACT_ARTIFACT: ${{ tasks.contracts.tasks.build.artifacts.dependency }}
       RELEASE_ARTIFACT: ${{ tasks.release.tasks.build.artifacts.dependency }}
-    cache: false
     tool-cache: rust-e2e-runtime-proof-${{ init.cache-epoch }}
     timeout: 90m
     runner:
@@ -653,11 +675,14 @@ tasks:
       CI_E2E_PROVIDER: rwx
       CI_SHARD_INDEX: "7"
       PARALLEL: "8"
+      RWX_RUN_ID:
+        cache-key: included
+      RWX_TASK_ATTEMPT_NUMBER:
+        cache-key: included
       CI_E2E_COMPILED: ${{ tasks.compile-proof.artifacts.compiled }}
       GO_ARTIFACT: ${{ tasks.go.tasks.build.artifacts.dependency }}
       CONTRACT_ARTIFACT: ${{ tasks.contracts.tasks.build.artifacts.dependency }}
       RELEASE_ARTIFACT: ${{ tasks.release.tasks.build.artifacts.dependency }}
-    cache: false
     tool-cache: rust-e2e-runtime-proof-${{ init.cache-epoch }}
     timeout: 90m
     runner:
@@ -693,12 +718,15 @@ tasks:
       CI_E2E_PROVIDER: rwx
       CI_SHARD_INDEX: "0"
       PARALLEL: "8"
+      RWX_RUN_ID:
+        cache-key: included
+      RWX_TASK_ATTEMPT_NUMBER:
+        cache-key: included
       CI_E2E_COMPILED: ${{ tasks.compile-restart.artifacts.compiled }}
       GO_ARTIFACT: ${{ tasks.go.tasks.build.artifacts.dependency }}
       CONTRACT_ARTIFACT: ${{ tasks.contracts.tasks.build.artifacts.dependency }}
       RELEASE_ARTIFACT: ${{ tasks.release.tasks.build.artifacts.dependency }}
       PRESTATE_ARTIFACT: ${{ tasks.prestate.tasks.build.artifacts.dependency }}
-    cache: false
     tool-cache: rust-e2e-runtime-restart-${{ init.cache-epoch }}
     timeout: 60m
     runner:
@@ -734,12 +762,15 @@ tasks:
       CI_E2E_PROVIDER: rwx
       CI_SHARD_INDEX: "1"
       PARALLEL: "8"
+      RWX_RUN_ID:
+        cache-key: included
+      RWX_TASK_ATTEMPT_NUMBER:
+        cache-key: included
       CI_E2E_COMPILED: ${{ tasks.compile-restart.artifacts.compiled }}
       GO_ARTIFACT: ${{ tasks.go.tasks.build.artifacts.dependency }}
       CONTRACT_ARTIFACT: ${{ tasks.contracts.tasks.build.artifacts.dependency }}
       RELEASE_ARTIFACT: ${{ tasks.release.tasks.build.artifacts.dependency }}
       PRESTATE_ARTIFACT: ${{ tasks.prestate.tasks.build.artifacts.dependency }}
-    cache: false
     tool-cache: rust-e2e-runtime-restart-${{ init.cache-epoch }}
     timeout: 60m
     runner:
@@ -775,12 +806,15 @@ tasks:
       CI_E2E_PROVIDER: rwx
       CI_SHARD_INDEX: "2"
       PARALLEL: "8"
+      RWX_RUN_ID:
+        cache-key: included
+      RWX_TASK_ATTEMPT_NUMBER:
+        cache-key: included
       CI_E2E_COMPILED: ${{ tasks.compile-restart.artifacts.compiled }}
       GO_ARTIFACT: ${{ tasks.go.tasks.build.artifacts.dependency }}
       CONTRACT_ARTIFACT: ${{ tasks.contracts.tasks.build.artifacts.dependency }}
       RELEASE_ARTIFACT: ${{ tasks.release.tasks.build.artifacts.dependency }}
       PRESTATE_ARTIFACT: ${{ tasks.prestate.tasks.build.artifacts.dependency }}
-    cache: false
     tool-cache: rust-e2e-runtime-restart-${{ init.cache-epoch }}
     timeout: 60m
     runner:
@@ -816,12 +850,15 @@ tasks:
       CI_E2E_PROVIDER: rwx
       CI_SHARD_INDEX: "0"
       PARALLEL: "8"
+      RWX_RUN_ID:
+        cache-key: included
+      RWX_TASK_ATTEMPT_NUMBER:
+        cache-key: included
       CI_E2E_COMPILED: ${{ tasks.compile-simple-kona.artifacts.compiled }}
       GO_ARTIFACT: ${{ tasks.go.tasks.build.artifacts.dependency }}
       CONTRACT_ARTIFACT: ${{ tasks.contracts.tasks.build.artifacts.dependency }}
       RELEASE_ARTIFACT: ${{ tasks.release.tasks.build.artifacts.dependency }}
       PRESTATE_ARTIFACT: ${{ tasks.prestate.tasks.build.artifacts.dependency }}
-    cache: false
     tool-cache: rust-e2e-runtime-simple-kona-${{ init.cache-epoch }}
     timeout: 60m
     runner:
@@ -857,12 +894,15 @@ tasks:
       CI_E2E_PROVIDER: rwx
       CI_SHARD_INDEX: "0"
       PARALLEL: "8"
+      RWX_RUN_ID:
+        cache-key: included
+      RWX_TASK_ATTEMPT_NUMBER:
+        cache-key: included
       CI_E2E_COMPILED: ${{ tasks.compile-simple-kona-sequencer.artifacts.compiled }}
       GO_ARTIFACT: ${{ tasks.go.tasks.build.artifacts.dependency }}
       CONTRACT_ARTIFACT: ${{ tasks.contracts.tasks.build.artifacts.dependency }}
       RELEASE_ARTIFACT: ${{ tasks.release.tasks.build.artifacts.dependency }}
       PRESTATE_ARTIFACT: ${{ tasks.prestate.tasks.build.artifacts.dependency }}
-    cache: false
     tool-cache: rust-e2e-runtime-simple-kona-sequencer-${{ init.cache-epoch }}
     timeout: 60m
     runner:
@@ -897,11 +937,14 @@ tasks:
       CI_E2E_PROVIDER: rwx
       CI_SHARD_INDEX: "0"
       PARALLEL: "8"
+      RWX_RUN_ID:
+        cache-key: included
+      RWX_TASK_ATTEMPT_NUMBER:
+        cache-key: included
       CI_E2E_COMPILED: ${{ tasks.compile-op-reth.artifacts.compiled }}
       GO_ARTIFACT: ${{ tasks.go.tasks.build.artifacts.dependency }}
       CONTRACT_ARTIFACT: ${{ tasks.contracts.tasks.build.artifacts.dependency }}
       RELEASE_ARTIFACT: ${{ tasks.release.tasks.build.artifacts.dependency }}
-    cache: false
     tool-cache: rust-e2e-runtime-op-reth-${{ init.cache-epoch }}
     timeout: 60m
     runner:

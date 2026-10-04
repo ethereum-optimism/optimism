@@ -21,8 +21,6 @@ tasks:
           system: []
       test-results:
         - path: .ci/rust-workspace/e2e-release/checks.junit.xml
-          options:
-            framework: cargo
       artifacts:
         - key: reports
           path: .ci/rust-workspace/e2e-release
