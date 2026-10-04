@@ -1100,6 +1100,9 @@ jobs:
       - image: <<pipeline.parameters.c-default_docker_image>>
     resource_class: 2xlarge.gen2
     parameters:
+      parity_suite:
+        type: string
+        default: standard
       test_list:
         description: List of test files to run
         type: string
@@ -1155,34 +1158,34 @@ jobs:
       - setup-features:
           features: <<parameters.features>>
       - run:
-          name: Run tests
+          name: Run tests with complete original parity reports
           command: |
-            TEST_FILES=$(<<parameters.test_list>>)
-            TEST_FILES=$(echo "$TEST_FILES" | circleci tests split --split-by=timings)
-            TEST_FILES=$(echo "$TEST_FILES" | sed 's|^test/||')
-            MATCH_PATH="./test/{$(echo "$TEST_FILES" | paste -sd "," -)}"
-            mkdir -p results
-            forge test --match-path "$MATCH_PATH" --junit > results/results.xml
-            # Forge exits 0 when the filter matches nothing; fail if no tests ran.
-            ./scripts/checks/check-junit-tests-ran.sh results/results.xml
+            python3 ops/ci/contract-suites.py run \
+              --suite "<<parameters.parity_suite>>" --feature "${CI_CONTRACT_FEATURE:-main}"
           environment:
-            FOUNDRY_PROFILE: <<parameters.test_profile>>
-          working_directory: packages/contracts-bedrock
+            CI_CONTRACT_FEATURE: "<<parameters.features>>"
+            CI_CONTRACT_PROFILE: <<parameters.test_profile>>
+            CI_CONTRACT_TEST_LIST: <<parameters.test_list>>
+            CI_CONTRACT_PROVIDER: circleci
           no_output_timeout: <<parameters.test_timeout>>
       - run:
-          name: Print failed test traces
-          command: just test-rerun
+          name: Print failed dependency traces
+          command: |
+            if [ ! -f "../../.ci/contract-suites/<<parameters.parity_suite>>-${CI_CONTRACT_FEATURE:-main}/run/tests.stage.json" ]; then
+              just test-rerun
+            fi
           environment:
+            CI_CONTRACT_FEATURE: "<<parameters.features>>"
             FOUNDRY_PROFILE: <<parameters.test_profile>>
           working_directory: packages/contracts-bedrock
           when: on_fail
       - store_test_results:
           path: packages/contracts-bedrock/results
           when: always
-      - run:
-          name: Lint forge test names
-          command: just lint-forge-tests-check-no-build
-          working_directory: packages/contracts-bedrock
+      - store_artifacts:
+          path: .ci/contract-suites
+          destination: contract-suites
+          when: always
       - notify-failures-on-develop:
           mentions: "<!subteam^S07K486JEH4>"
 
@@ -3131,6 +3134,7 @@ workflows:
             './test/**/*.t.sol' | sed 's|packages/contracts-bedrock/||'
           test_timeout: 1h
           test_profile: ciheavy
+          parity_suite: modified
           features: <<matrix.features>>
           matrix:
             parameters:

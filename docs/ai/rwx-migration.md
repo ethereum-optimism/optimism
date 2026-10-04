@@ -112,49 +112,34 @@ mise exec -- rwx run .rwx/go-rollup.yml --wait
 
 `.rwx/contracts.yml` adds the optional GitHub push status
 `RWX: optimism-contracts-shadow` and accepts authenticated CLI execution without
-posting a VCS status. The complete standard `contracts-bedrock-tests` workload
-runs once without feature overrides and in the existing `CUSTOM_GAS_TOKEN`,
-`OPTIMISM_PORTAL_INTEROP` and `ZK_DISPUTE_GAME` configurations. The main variant
-uses `run-main`; the feature matrix uses shared `c-run_contracts_feature_tests`.
-There is no path, test-name or shard filter. `develop` uses `ci`, other branches
-use `liteci`; both retain 128 fuzz runs and 64 invariant runs at depth 32.
-Fork and activation test flags remain disabled, retaining their existing
-conditional skips.
+posting a VCS status. Its standard and changed-file feature matrices now use the
+shared contract-suite adapter described in [rwx-contract-suites.md](rwx-contract-suites.md).
+All four variants use the shared `c-run_contracts_feature_tests` route. Circle's
+complete test-file discovery and actual timing split are retained; native selects
+each file exactly once. Standard PR/develop profiles remain `liteci`/`ci`, with
+128 fuzz runs and 64 invariant runs at depth 32. Changed-file tests retain
+`ciheavy`: 20,000 fuzz runs, 128 invariant runs, depth 512 and 300-second fuzz
+and invariant timeouts.
 
-A component bootstrap installs the repository's Forge/Cast 1.2.3 and svm-rs
-0.5.19 pins, with solc 0.8.15, 0.8.19, 0.8.25 and 0.8.28. A full-source producer
-initializes recursive public submodules, downloads Go modules, runs the exact
-Just Go FFI build and compiles the existing Go convention checker. Its native
-Go cache is isolated from the rollup producer. A source archive preserves the
-whole tree, populated submodules and the existing `.gitcommit` deployment
-identity fallback while excluding Git history and old
-compilation/test state. Contract source, tool, compiler and Go module downloads
-retry.
+Compilation and fresh verdicts use full Git/source/submodule state, the Mise
+Go/Forge/Cast pins, and the same four solc versions as Circle. Each suite/feature
+has its own native Foundry/compiler cache. Artifacts bind complete tracked inputs,
+source SHA, branch/profile, effective configuration, compiler signatures, bytecode
+and file hashes. Runtime validates every input before consuming compilation,
+keeps Go available for the original convention checker and fixtures, and uses a
+separate Go compiler cache. Initial JUnit, diagnostic reruns, source selection,
+commands, settings, logs and generated fixtures remain explicit evidence.
 
-Each feature has a separate native Foundry tool cache for `forge-artifacts`,
-build-info and `solidity-files-cache.json`. Compiler and verdict tasks source the
-same profile/feature helper and validate effective settings. Compilation uses
-`forge build`, including tests; it does not execute a cached test verdict.
-Build artifacts contain source/fixtures, compiler outputs, the Go convention
-checker and SHA/profile/feature/configuration provenance with file hashes.
-
-Each uncached verdict executes the same `forge test --junit` command underlying
-`just test`, then runs the original convention checker against the resulting
-artifacts. The producer has already performed the Just Go FFI prerequisite.
-Verdicts reject mismatched provenance, clear old outcomes and fuzz/invariant
-counterexamples, and preserve the first failure while collecting the equivalent
-`forge test --rerun -vvv` diagnostic traces. They inherit neither a Go toolchain
-nor the Go module/compiler caches. Native JUnit, configuration, inventory,
-compiler output, traces and generated file reports remain explicit outputs.
-
-This shadow uses the cache-only vault, with no RPC or publishing credentials,
-Docker or Rust producer. Coverage, upgrade/fork, heavy-fuzz, snapshot and semver
-jobs remain outside this bounded workload; CircleCI still owns the required gate.
+This definition uses the cache-only vault with no RPC or publishing credentials.
+Its protected compiler warming executes zero verdicts. Coverage and L2 fork jobs
+remain separate pending ports; L1 upgrades and contract-fast checks have their
+own completed definitions and evidence. Circle continues to own the required gate.
 
 From a trusted checkout:
 
 ```bash
-mise exec -- python ops/ci/test_contracts_shadow.py
+RWX_LIVE_CONTRACT_SUITE_FIXTURE=1 mise exec -- python ops/ci/test_contract_suites.py
+mise exec -- python ops/ci/test_compare_contract_suites.py
 mise exec -- rwx lint .rwx/contracts.yml --warnings-as-errors
 mise exec -- rwx run .rwx/contracts.yml --wait
 ```

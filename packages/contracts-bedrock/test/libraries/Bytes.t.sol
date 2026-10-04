@@ -104,6 +104,7 @@ contract Bytes_Slice_Test is Bytes_TestInit {
     /// @notice Tests that the `slice` function correctly updates the free memory pointer depending
     ///         on the length of the slice.
     ///         The calls to `bound` are to reduce the number of times that `assume` is triggered.
+    /// @dev Includes empty slices and lengths that cross 32-byte memory boundaries.
     function testFuzz_slice_memorySafety_succeeds(bytes memory _input, uint256 _start, uint256 _length) public {
         vm.assume(_input.length > 0);
 

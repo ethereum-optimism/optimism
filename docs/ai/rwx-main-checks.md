@@ -1,8 +1,15 @@
 # Main validator shadows
 
-Seven additional Main occurrences use the existing optional
-`optimism-pr-checks-shadow` and shared `run-main` route. They remain uncounted
-until their complete hosted originals pass same-revision comparison.
+Seven additional Main occurrences now pass complete original-report parity at
+`c2d2b810ad429a0c8f62e6f8d76b077b50b8a631`, using the existing optional
+`optimism-pr-checks-shadow` and shared `run-main` route. Total implementation
+coverage is 63/86 (73%); 23 occurrences remain.
+
+[Complete parity evidence](rwx-main-checks-evidence/parity.json) retains every
+selection, effective setting, source input and original file hash. Circle pipeline
+[135565](https://app.circleci.com/pipelines/github/ethereum-optimism/optimism/135565)
+and native run [a883f061](https://cloud.rwx.com/optimism/runs/a883f061b373443196e5e91902d97ccf)
+passed all seven original validators, with one initial native attempt each.
 
 | Occurrence | Original command | Native resources |
 | --- | --- | --- |
@@ -35,8 +42,9 @@ parity for the five non-generator validators. Both mock discoveries fail at the
 missing gitignored superchain ZIP, before their original commands. The preceding
 Circle mock jobs passed at `58a81fbd`; this is a new discovery dependency gap.
 [First-failure evidence](rwx-main-checks-evidence/first-failure.json) retains all
-fourteen original reports and both diagnostics. These observations add zero
-occurrences pending the corrected complete Main stage.
+fourteen original reports and both diagnostics. Those first observations added
+zero occurrences. The corrected stage closes all seven comparisons and retains
+these failures without replacing their evidence.
 
 A minimal native producer now builds the bundle from the exact registry gitlink
 and verifies its committed checksum. Both adapters verify the bundle before
@@ -50,8 +58,12 @@ Every Main verdict has `cache: false` and records run/attempt identity. Go
 compilation caches are isolated by validator; shared modules are downloaded and
 verified by the existing producer. Compiler state is reusable, while reports
 and verdicts are excluded from filesystem outputs. Protected warming prepares
-tools/modules/bundle and executes zero Main verdicts. An observed CLI rehearsal does
-not establish a protected `develop` cache-rebuild event.
+tools/modules/bundle and executes zero Main verdicts. CLI rehearsal
+[4e241bd3](https://cloud.rwx.com/optimism/runs/4e241bd36cd546fa9b5e4e2abf53d99f)
+passed preparation of the exact benchmark SHA, with zero test executions and
+zero Main verdict tasks. Its bundle producer binds the registry revision, ZIP
+checksum, complete inputs and tools. This does not establish a protected
+`develop` cache-rebuild event.
 
 Fixtures execute real Go/Mockery generation twice, including a test-file
 directive, then commit a changed interface and verify the stale mock fails the
@@ -65,3 +77,7 @@ stale revision/tools, reused verdicts, unexplained retries and target drift.
 
 Circle remains the required provider. Production publishers, rulesets and the
 single PR's draft state are unchanged.
+
+All four required Circle gates, dependency review and all nine optional RWX
+checks pass at the benchmark revision: 146 successes, one neutral, zero
+unfinished or failed checks. Later observations stay bound to their own SHA.

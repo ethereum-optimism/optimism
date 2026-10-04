@@ -34,13 +34,13 @@ at commit `587b4c3a73d3f16f15212b72e9a0ed0e8489a7c4`.
 
 | PR workflow | Expanded job instances | Implemented validation jobs |
 | --- | ---: | ---: |
-| Main | 32 | 13 |
+| Main | 32 | 20 |
 | Contracts | 23 | 13 |
 | Rust | 22 | 21 |
 | Rust E2E | 9 | 9 |
-| Total | 86 | 56 |
+| Total | 86 | 63 |
 
-Verified implementation coverage is **56 / 86 = 65%**. Each matrix entry and
+Verified implementation coverage is **63 / 86 = 73%**. Each matrix entry and
 each occurrence in a different workflow counts separately; shards do not.
 The CircleCI setup and schedule-trigger-check workflows are outside this
 86-job denominator and have separate todos. This is job coverage, not runtime,
@@ -77,6 +77,10 @@ parity. Their full 1,359-signature selection retains four abstract declarations
 with empty compiler bytecode and accounts for every one of the 1,355 executable
 cases. See the [upgrade closeout](rwx-contract-upgrades.md) for original hashes,
 whole-contract setup skips, pinned archive blocks and retained first failures.
+All seven additional Main validators now pass complete same-SHA original-report
+parity, including both fresh mock generators and their verified pinned superchain
+bundle. See the [Main closeout](rwx-main-checks.md) for original hashes, complete
+selection and preparation-only evidence.
 The narrower rollup mode remains CLI-only. See [the stage closeout](rwx-go-parity.md)
 for original-report comparison, selected resources, caches and limitations.
 
@@ -190,7 +194,7 @@ names and feature suffixes.
 
 CircleCI workflow: `main` (32 jobs).
 
-- [ ] `todo-issues-check`
+- [x] `todo-issues-check`
 - [ ] `shell-check`
 - [ ] `semgrep-test`
 - [ ] `semgrep-scan-local`
@@ -200,9 +204,9 @@ CircleCI workflow: `main` (32 jobs).
 - [x] `rust-binaries-for-sysgo`
 - [x] `prep-superchain`
 - [x] `prep-go-modules`
-- [ ] `op-deployer-forge-version`
+- [x] `op-deployer-forge-version`
 - [ ] `nut-provenance-verify`
-- [ ] `l2-chains-sync-check`
+- [x] `l2-chains-sync-check`
 - [ ] `kona-build-sp1-elfs`
 - [x] `go-lint`
 - [x] `go-binaries-for-sysgo`
@@ -210,12 +214,12 @@ CircleCI workflow: `main` (32 jobs).
 - [x] `contracts-bedrock-build-1`
 - [ ] `contracts-bedrock-upload`
 - [ ] `diff-fetcher-forge-artifacts`
-- [ ] `check-op-geth-version`
+- [x] `check-op-geth-version`
 - [ ] `check-nut-prefork-states`
-- [ ] `check-nut-locks`
+- [x] `check-nut-locks`
 - [ ] `check-kontrol-build`
-- [ ] `check-generated-mocks-op-service`
-- [ ] `check-generated-mocks-op-node`
+- [x] `check-generated-mocks-op-service`
+- [x] `check-generated-mocks-op-node`
 - [x] `cannon-prestate`
 - [x] `go-tests`
 - [x] `memory-all-kona-op-reth-fusaka`
