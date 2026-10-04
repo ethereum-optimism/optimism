@@ -93,12 +93,19 @@ def rpc(url, method, params):
     body = json.dumps({'jsonrpc': '2.0', 'id': 1, 'method': method, 'params': params}).encode()
     for attempt in range(3):
         try:
-            request = urllib.request.Request(url, data=body, headers={'Content-Type': 'application/json'})
-            data = json.load(urllib.request.urlopen(request, timeout=30))
-            if data.get('error') or 'result' not in data: raise ValueError('Archive RPC returned an unsuccessful response')
+            request = urllib.request.Request(url, data=body, headers={'Content-Type': 'application/json', 'User-Agent': 'Go-http-client/1.1'})
+            with urllib.request.urlopen(request, timeout=30) as response: data = json.load(response)
+            if data.get('error'):
+                code = data['error'].get('code')
+                raise ValueError('RPC error ' + str(code) if isinstance(code, int) else 'Invalid JSON-RPC response')
+            if data.get('id') != 1 or 'result' not in data: raise ValueError('Invalid JSON-RPC response')
             return data['result']
-        except (OSError, urllib.error.URLError, ValueError):
-            if attempt == 2: raise ValueError('Test-only archive RPC unavailable') from None
+        except (OSError, urllib.error.URLError, ValueError) as error:
+            # Provider exceptions can include the URL or response body. Keep
+            # only fixed categories and numeric codes, as in Go preflight.
+            reason = 'HTTP ' + str(error.code) if isinstance(error, urllib.error.HTTPError) else str(error) if \
+                isinstance(error, ValueError) and str(error).startswith(('RPC error ', 'Invalid JSON-RPC')) else type(error).__name__
+            if attempt == 2: raise ValueError('Test-only archive RPC unavailable: ' + reason) from None
             time.sleep(2 ** attempt)
 
 

@@ -2,6 +2,7 @@
 """Exercise authoritative discovery, original failures, credentials and forks."""
 import importlib.util
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+import io
 import json
 import os
 from pathlib import Path
@@ -56,7 +57,16 @@ class UpgradeTests(unittest.TestCase):
         for responses in (['0xa', correct], ['0x1', None], ['0x1', correct | {'number': '0x43'}], ['0x1', correct | {'hash': 'corrupt'}]):
             with patch.object(UP, 'rpc', side_effect=responses), self.assertRaises(ValueError): UP.block('not exposed', 66)
         with patch.object(UP.urllib.request, 'urlopen', side_effect=OSError('secret-url-in-exception')), patch.object(UP.time, 'sleep'):
-            with self.assertRaisesRegex(ValueError, '^Test-only archive RPC unavailable$'): UP.rpc('https://example.invalid/private', 'test', [])
+            with self.assertRaisesRegex(ValueError, '^Test-only archive RPC unavailable: OSError$'): UP.rpc('https://example.invalid/private', 'test', [])
+
+    def test_rpc_uses_working_archive_client_headers_and_safe_error_categories(self):
+        url = 'https://example.invalid/private-secret'
+        with patch.object(UP.urllib.request, 'urlopen', return_value=io.BytesIO(b'{"id":1,"result":"0x1"}')) as opened:
+            self.assertEqual(UP.rpc(url, 'eth_chainId', []), '0x1')
+            self.assertEqual(opened.call_args.args[0].get_header('User-agent'), 'Go-http-client/1.1')
+        error = UP.urllib.error.HTTPError(url, 403, 'private-secret response', {}, None)
+        with patch.object(UP.urllib.request, 'urlopen', side_effect=error), patch.object(UP.time, 'sleep'):
+            with self.assertRaisesRegex(ValueError, '^Test-only archive RPC unavailable: HTTP 403$'): UP.rpc(url, 'eth_chainId', [])
 
     def test_rpc_redaction_covers_url_xml_encoded_credentials_and_fragments(self):
         value = 'https://user:password-token@example.invalid/api/path-token-of-32-characters?key=query-token-value&chain=1'
@@ -136,6 +146,8 @@ class LiveForgeTests(unittest.TestCase):
             shutil.rmtree(module); git(root, 'add', '.'); git(root, 'commit', '-qm', 'complete fixture'); sha = git(root, 'rev-parse', 'HEAD')
             class Rpc(BaseHTTPRequestHandler):
                 def do_POST(self):
+                    if self.headers.get('User-Agent') != 'Go-http-client/1.1':
+                        self.send_error(403); return
                     data = json.loads(self.rfile.read(int(self.headers['Content-Length'])))
                     values = {'eth_chainId': '0x1', 'eth_getBlockByNumber': {'number': '0x42', 'hash': '0x' + 'a' * 64, 'timestamp': '0x64'}}
                     response = json.dumps({'jsonrpc':'2.0', 'id':data['id'], 'result':values[data['method']]}).encode()

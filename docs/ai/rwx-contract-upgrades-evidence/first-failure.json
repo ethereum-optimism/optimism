@@ -1,0 +1,1144 @@
+{
+  "circle": {
+    "files_sha256": {
+      "circle/chain-ink/run/compiled.json": "eb1978312828a15cbfde8a62d0dca33ef21be6bfd6bc26b149bbcb95a7d242fd",
+      "circle/chain-ink/run/contracts-build.log": "7f0f020b76beb45bbaceb1451e9bdc746335a1c6da8afcc8ae0db564f6a2fe29",
+      "circle/chain-ink/run/contracts-build.stage.json": "7efd9cc8b9b982fafa1635d997ac479de584328c14531da77123c351f67d6ad8",
+      "circle/chain-ink/run/discovery.json": "6e6d9afbeb0198dcf81d0e06818773940db65c3111b9ef8231a63a4db6a2cfac",
+      "circle/chain-ink/run/discovery.stage.json": "666cf69e352a9a3ae52e3ff1d77a9f19071ae8eba769d54908de345373212885",
+      "circle/chain-ink/run/final.json": "c84537f102f279b4a434477153635cf869449de96e06e6d03ecf51ab4bd0c883",
+      "circle/chain-ink/run/foundry-config.json": "dbae23b2a2089c0d95483be4131a52457c155e3dd94d5f48e71c238b352ec472",
+      "circle/chain-ink/run/foundry-config.stage.json": "e346c81c03f04f5687bb3e880ce2e9d3810d41ba5b261e3f52a29b6d28bd7163",
+      "circle/chain-ink/run/go-ffi.stage.json": "a3b923890ecc8943f22b048a1712b73e206dedf7e659cbc0d6071934149ce387",
+      "circle/chain-ink/run/go-ffi.stderr.log": "60809bcbf975a510064b28f4c25a40c795d9052d0079dcfcffb50b1f750031b5",
+      "circle/chain-ink/run/pinned-block.log": "52851e41c861449c3c1d17478cd9f9a494b89f415f09288345f6fff61b551af5",
+      "circle/chain-ink/run/pinned-block.stage.json": "acda2c26e7920dee5d89da07c73e91ae529bf53b49f19df7c94f566b93c88090",
+      "circle/chain-ink/run/selection.json": "b922afb73667dafa2eae85289bce8952032618ffae90ddb5e040c4019260eefa",
+      "circle/chain-ink/run/settings.json": "931a309af398b89d6c779b6fc500e7f76f947f5d0549de602351ed5b63779533",
+      "circle/chain-ink/run/signature-bindings.json": "f1e1a75ff2ef52b95ba5dbfedeb23f51bef9a53f59a3ae6a8d8a6efa67f4ea57",
+      "circle/chain-ink/run/submodules.txt": "552140171f2fb64aabf505d38086680d44492c18a14cb5e6afb73034bfd75ab1",
+      "circle/chain-op/run/compiled.json": "64795efa13c0b9517e571775c70dde4267d4af9dace3832a0cf5bbaa0d7cecfe",
+      "circle/chain-op/run/contracts-build.log": "e2c7113600a59a0e61da6024d8a80113712351ba552f32d94d43b56083d08eef",
+      "circle/chain-op/run/contracts-build.stage.json": "763c53f391b0207c846c738e3beaca40cbbce55bcfab2d898b2400b352ac056b",
+      "circle/chain-op/run/discovery.json": "6e6d9afbeb0198dcf81d0e06818773940db65c3111b9ef8231a63a4db6a2cfac",
+      "circle/chain-op/run/discovery.stage.json": "944ff005f3eaa1ad308059c21c6ae37f9f6d7a2753b75d96de6862e8128d3dcb",
+      "circle/chain-op/run/final.json": "31a6642066dca864e9a37930e070186e9d3965c3354e12a9116366be97187fa6",
+      "circle/chain-op/run/foundry-config.json": "dbae23b2a2089c0d95483be4131a52457c155e3dd94d5f48e71c238b352ec472",
+      "circle/chain-op/run/foundry-config.stage.json": "785cadf8306b7ddaa884bcbd85b6a15e9aadb25cd75f3f1c121a9aa54188bb1a",
+      "circle/chain-op/run/go-ffi.stage.json": "ec9335f9d0e588c6425d9b8c5305a27447c27ce4b6ff89b4e5857862f06379d3",
+      "circle/chain-op/run/go-ffi.stderr.log": "60809bcbf975a510064b28f4c25a40c795d9052d0079dcfcffb50b1f750031b5",
+      "circle/chain-op/run/pinned-block.log": "52851e41c861449c3c1d17478cd9f9a494b89f415f09288345f6fff61b551af5",
+      "circle/chain-op/run/pinned-block.stage.json": "8aa5ed9156b81259babca35978d3826d5b1f42fd04681ae4348a2fdc8f6a886c",
+      "circle/chain-op/run/selection.json": "b922afb73667dafa2eae85289bce8952032618ffae90ddb5e040c4019260eefa",
+      "circle/chain-op/run/settings.json": "a8fba66277de2615277f6ee61f1f4e872e520eafe06599614f0357f89c8730ab",
+      "circle/chain-op/run/signature-bindings.json": "f1e1a75ff2ef52b95ba5dbfedeb23f51bef9a53f59a3ae6a8d8a6efa67f4ea57",
+      "circle/chain-op/run/submodules.txt": "552140171f2fb64aabf505d38086680d44492c18a14cb5e6afb73034bfd75ab1",
+      "circle/chain-unichain/run/compiled.json": "f96bc698bc549400888c4c1510fe51173287ee50bba2338439fe64238cb2d117",
+      "circle/chain-unichain/run/contracts-build.log": "85905a45632a546a9ab100be5c515f523abd7f0c4c994963e3d8b7e37683941a",
+      "circle/chain-unichain/run/contracts-build.stage.json": "d653199faddb8aacfb3fb63b00404532544869f9bf2cafa6ed9fc5730f1ef923",
+      "circle/chain-unichain/run/discovery.json": "6e6d9afbeb0198dcf81d0e06818773940db65c3111b9ef8231a63a4db6a2cfac",
+      "circle/chain-unichain/run/discovery.stage.json": "3ed40a32e38eb132c53602e67ff8aaf63c9567c4bdebb1f66322764c9ffbd97e",
+      "circle/chain-unichain/run/final.json": "cc132b8058aaa82463ca0c0b6a387558de55db1fc2dad1ae12d264be68480a74",
+      "circle/chain-unichain/run/foundry-config.json": "dbae23b2a2089c0d95483be4131a52457c155e3dd94d5f48e71c238b352ec472",
+      "circle/chain-unichain/run/foundry-config.stage.json": "dd1d24fada58fc53e2cd8b6f13f346280c2181267e17064a46e72f81e9ad9654",
+      "circle/chain-unichain/run/go-ffi.stage.json": "c7512165c86ef5c74745ba5e60a1c81694c5765ffefebaadab20d409cb91dcbd",
+      "circle/chain-unichain/run/go-ffi.stderr.log": "60809bcbf975a510064b28f4c25a40c795d9052d0079dcfcffb50b1f750031b5",
+      "circle/chain-unichain/run/pinned-block.log": "52851e41c861449c3c1d17478cd9f9a494b89f415f09288345f6fff61b551af5",
+      "circle/chain-unichain/run/pinned-block.stage.json": "a8e5d6697671aecaf46d34c5826043c2ec44959e6d647354d10a454075cf776d",
+      "circle/chain-unichain/run/selection.json": "b922afb73667dafa2eae85289bce8952032618ffae90ddb5e040c4019260eefa",
+      "circle/chain-unichain/run/settings.json": "80ea93a133c992cf33db0fa36cf055016b490878d26ab4963f0ed3bb95880711",
+      "circle/chain-unichain/run/signature-bindings.json": "f1e1a75ff2ef52b95ba5dbfedeb23f51bef9a53f59a3ae6a8d8a6efa67f4ea57",
+      "circle/chain-unichain/run/submodules.txt": "552140171f2fb64aabf505d38086680d44492c18a14cb5e6afb73034bfd75ab1",
+      "circle/feature-CUSTOM_GAS_TOKEN/run/compiled.json": "6f1364e05f8746817bd34ef0457ee57dda1a94083232d66ce89894284d1bb6f8",
+      "circle/feature-CUSTOM_GAS_TOKEN/run/contracts-build.log": "88331cd16636a01b0187b0c955e57ac4828e447f68baf52159236eb2b8d24a8b",
+      "circle/feature-CUSTOM_GAS_TOKEN/run/contracts-build.stage.json": "f36a3b6f26c72c6c50a0e352095fee3fc1af9987a7b86a7403894491ae20956c",
+      "circle/feature-CUSTOM_GAS_TOKEN/run/discovery.json": "6e6d9afbeb0198dcf81d0e06818773940db65c3111b9ef8231a63a4db6a2cfac",
+      "circle/feature-CUSTOM_GAS_TOKEN/run/discovery.stage.json": "9f164ff1717e751a92fe9d96b993c72d872451ecf474113720ad3652e5c87cee",
+      "circle/feature-CUSTOM_GAS_TOKEN/run/final.json": "58fe78a7f8ae6fadea2edc5ac4f9ff4cb506b2b9f161449171b45863ca554646",
+      "circle/feature-CUSTOM_GAS_TOKEN/run/foundry-config.json": "dbae23b2a2089c0d95483be4131a52457c155e3dd94d5f48e71c238b352ec472",
+      "circle/feature-CUSTOM_GAS_TOKEN/run/foundry-config.stage.json": "c787d6faf860fed27c2c454f9b992fa70dd2203f4c9cb14b56ed492aa46614f2",
+      "circle/feature-CUSTOM_GAS_TOKEN/run/go-ffi.stage.json": "f8323478407877617c3664eb0073aa50398f54bcfed214d1f148df972911ebaf",
+      "circle/feature-CUSTOM_GAS_TOKEN/run/go-ffi.stderr.log": "60809bcbf975a510064b28f4c25a40c795d9052d0079dcfcffb50b1f750031b5",
+      "circle/feature-CUSTOM_GAS_TOKEN/run/pinned-block.log": "52851e41c861449c3c1d17478cd9f9a494b89f415f09288345f6fff61b551af5",
+      "circle/feature-CUSTOM_GAS_TOKEN/run/pinned-block.stage.json": "ab3942d8424dbdb2d25efc97551b88979745ed1c557f346203f51b46f49cf137",
+      "circle/feature-CUSTOM_GAS_TOKEN/run/selection.json": "b922afb73667dafa2eae85289bce8952032618ffae90ddb5e040c4019260eefa",
+      "circle/feature-CUSTOM_GAS_TOKEN/run/settings.json": "1d47e1c94ad8c6662cc555467dc32ac2ea492cd90cfd210fe89ef9e15ed6ed63",
+      "circle/feature-CUSTOM_GAS_TOKEN/run/signature-bindings.json": "f1e1a75ff2ef52b95ba5dbfedeb23f51bef9a53f59a3ae6a8d8a6efa67f4ea57",
+      "circle/feature-CUSTOM_GAS_TOKEN/run/submodules.txt": "552140171f2fb64aabf505d38086680d44492c18a14cb5e6afb73034bfd75ab1",
+      "circle/feature-OPTIMISM_PORTAL_INTEROP/run/compiled.json": "48938a29b4949eaf573d123fbf72a211e3ed8e5bcbb063cf09f359d77acdbf8c",
+      "circle/feature-OPTIMISM_PORTAL_INTEROP/run/contracts-build.log": "e2af407135fbea4834d50792b764448f08a1352c5f8adfe0ff839ee3f2535879",
+      "circle/feature-OPTIMISM_PORTAL_INTEROP/run/contracts-build.stage.json": "4356f6f03db1c129dfb68776752165151535290c535bb500222d9a48ebf6a4fa",
+      "circle/feature-OPTIMISM_PORTAL_INTEROP/run/discovery.json": "6e6d9afbeb0198dcf81d0e06818773940db65c3111b9ef8231a63a4db6a2cfac",
+      "circle/feature-OPTIMISM_PORTAL_INTEROP/run/discovery.stage.json": "e982fd682e1b9d73560ddc049118a3256e3ee373ded625dcd32960199d20dc81",
+      "circle/feature-OPTIMISM_PORTAL_INTEROP/run/final.json": "d86468a564eed1c33c525eb748437a2b2a14833a9ed2566c998126bbb34e5010",
+      "circle/feature-OPTIMISM_PORTAL_INTEROP/run/foundry-config.json": "dbae23b2a2089c0d95483be4131a52457c155e3dd94d5f48e71c238b352ec472",
+      "circle/feature-OPTIMISM_PORTAL_INTEROP/run/foundry-config.stage.json": "d41cef8bdacad6c4cef16af36acfb3065498cdfeff708996addfb387b53ba6d7",
+      "circle/feature-OPTIMISM_PORTAL_INTEROP/run/go-ffi.stage.json": "c7e53e2b93d93305ddfc9fb1b9e7dc66251bbbee51051668639c4e76f9accab0",
+      "circle/feature-OPTIMISM_PORTAL_INTEROP/run/go-ffi.stderr.log": "60809bcbf975a510064b28f4c25a40c795d9052d0079dcfcffb50b1f750031b5",
+      "circle/feature-OPTIMISM_PORTAL_INTEROP/run/pinned-block.log": "52851e41c861449c3c1d17478cd9f9a494b89f415f09288345f6fff61b551af5",
+      "circle/feature-OPTIMISM_PORTAL_INTEROP/run/pinned-block.stage.json": "2c4cc916485d826f86f1899ac8664d5c8e29a7a9906ba4b216c0c87902d90c36",
+      "circle/feature-OPTIMISM_PORTAL_INTEROP/run/selection.json": "b922afb73667dafa2eae85289bce8952032618ffae90ddb5e040c4019260eefa",
+      "circle/feature-OPTIMISM_PORTAL_INTEROP/run/settings.json": "4842a0c2baf2eb55bb648a4620bb5bc9a75a744a6e9d4aa16f152c258a17c4d6",
+      "circle/feature-OPTIMISM_PORTAL_INTEROP/run/signature-bindings.json": "f1e1a75ff2ef52b95ba5dbfedeb23f51bef9a53f59a3ae6a8d8a6efa67f4ea57",
+      "circle/feature-OPTIMISM_PORTAL_INTEROP/run/submodules.txt": "552140171f2fb64aabf505d38086680d44492c18a14cb5e6afb73034bfd75ab1",
+      "circle/feature-ZK_DISPUTE_GAME/run/compiled.json": "3cef0cef3c17705a30d2bfc068de560aee3b4d3b309bfcfc0b67fbddccefa354",
+      "circle/feature-ZK_DISPUTE_GAME/run/contracts-build.log": "fc4f59d8eb7d452752e755779e4b15b9156da45adffcb6bbf84fac4b4579df16",
+      "circle/feature-ZK_DISPUTE_GAME/run/contracts-build.stage.json": "2a1fdd288d526c7e0bf7337033c1df0f133e39ed840d54538f88867288bcbd43",
+      "circle/feature-ZK_DISPUTE_GAME/run/discovery.json": "6e6d9afbeb0198dcf81d0e06818773940db65c3111b9ef8231a63a4db6a2cfac",
+      "circle/feature-ZK_DISPUTE_GAME/run/discovery.stage.json": "92a2adac1167e6e892b003dac42eb9961c11505690f0fc2bb0aa40e2cc5b8524",
+      "circle/feature-ZK_DISPUTE_GAME/run/final.json": "3685817c821ffc7a8361d19a405bbb8c6fa9b517a31c3998502636a83a218967",
+      "circle/feature-ZK_DISPUTE_GAME/run/foundry-config.json": "dbae23b2a2089c0d95483be4131a52457c155e3dd94d5f48e71c238b352ec472",
+      "circle/feature-ZK_DISPUTE_GAME/run/foundry-config.stage.json": "ba219303efa1aa7fce96783d780e49d211a1698d9beb53b7373f60ecc9a4325b",
+      "circle/feature-ZK_DISPUTE_GAME/run/go-ffi.stage.json": "1e1285eac44f413dd644f7547f330f48f19c285ff8dd98c1f2d2da2b0a67de45",
+      "circle/feature-ZK_DISPUTE_GAME/run/go-ffi.stderr.log": "60809bcbf975a510064b28f4c25a40c795d9052d0079dcfcffb50b1f750031b5",
+      "circle/feature-ZK_DISPUTE_GAME/run/pinned-block.log": "52851e41c861449c3c1d17478cd9f9a494b89f415f09288345f6fff61b551af5",
+      "circle/feature-ZK_DISPUTE_GAME/run/pinned-block.stage.json": "eaa3554e9541199b49aa887342037a5da1903079310e3849324a6be64eec6cbe",
+      "circle/feature-ZK_DISPUTE_GAME/run/selection.json": "b922afb73667dafa2eae85289bce8952032618ffae90ddb5e040c4019260eefa",
+      "circle/feature-ZK_DISPUTE_GAME/run/settings.json": "321376eb0b5d02d5717237c2de72e33ab31b51577416438c546bb99dcc13ad44",
+      "circle/feature-ZK_DISPUTE_GAME/run/signature-bindings.json": "f1e1a75ff2ef52b95ba5dbfedeb23f51bef9a53f59a3ae6a8d8a6efa67f4ea57",
+      "circle/feature-ZK_DISPUTE_GAME/run/submodules.txt": "552140171f2fb64aabf505d38086680d44492c18a14cb5e6afb73034bfd75ab1",
+      "circle/feature-main/run/compiled.json": "5758151599adb11013dad2294a2b4043f10f5ac784f95fc5e9d2a1a66ba276ba",
+      "circle/feature-main/run/contracts-build.log": "ba12ef978f27d3dfb463c369268a23aac9a7ef916d0102e9086dd9a3e4744bff",
+      "circle/feature-main/run/contracts-build.stage.json": "da96b45ab14de4108b4a506d76b564da57de4cbb16e45415bb1d66994408acd8",
+      "circle/feature-main/run/discovery.json": "6e6d9afbeb0198dcf81d0e06818773940db65c3111b9ef8231a63a4db6a2cfac",
+      "circle/feature-main/run/discovery.stage.json": "9f6f44a36fc819e38a8dd200c5c513515833191865b8e3d2e87c9c2fb359efb0",
+      "circle/feature-main/run/final.json": "3458022026c6f7eeabf177a0ae476bcbfe6e5b8b49a5c9bec976fe9cc054ac41",
+      "circle/feature-main/run/foundry-config.json": "dbae23b2a2089c0d95483be4131a52457c155e3dd94d5f48e71c238b352ec472",
+      "circle/feature-main/run/foundry-config.stage.json": "6c7b99b68943a4e4e524fce12797cc78563cf6d53404f05451dbf9a4003c51ec",
+      "circle/feature-main/run/go-ffi.stage.json": "4b7f34e338631ce0cea978e7c7049e5816a831757e0e14cf4f9fef1bdf6c941f",
+      "circle/feature-main/run/go-ffi.stderr.log": "60809bcbf975a510064b28f4c25a40c795d9052d0079dcfcffb50b1f750031b5",
+      "circle/feature-main/run/pinned-block.log": "52851e41c861449c3c1d17478cd9f9a494b89f415f09288345f6fff61b551af5",
+      "circle/feature-main/run/pinned-block.stage.json": "ce14875521fb6d14b0285612f49f78920a6aa439b96963a8ef3cf025ca1d30a8",
+      "circle/feature-main/run/selection.json": "b922afb73667dafa2eae85289bce8952032618ffae90ddb5e040c4019260eefa",
+      "circle/feature-main/run/settings.json": "030db9f1dc00081ea4964cbe1d11ffc0acfe9263e8894e268980d31619f366d0",
+      "circle/feature-main/run/signature-bindings.json": "f1e1a75ff2ef52b95ba5dbfedeb23f51bef9a53f59a3ae6a8d8a6efa67f4ea57",
+      "circle/feature-main/run/submodules.txt": "552140171f2fb64aabf505d38086680d44492c18a14cb5e6afb73034bfd75ab1"
+    },
+    "jobs": [
+      {
+        "job_number": 5634143,
+        "name": "contracts-bedrock-tests-upgrade op-mainnet ZK_DISPUTE_GAME",
+        "started_at": "2026-10-04T20:54:51.59Z",
+        "status": "failed",
+        "stopped_at": "2026-10-04T20:58:19.8Z"
+      },
+      {
+        "job_number": 5634146,
+        "name": "contracts-bedrock-tests-upgrade op-mainnet",
+        "started_at": "2026-10-04T20:54:51.404Z",
+        "status": "failed",
+        "stopped_at": "2026-10-04T20:58:23.163Z"
+      },
+      {
+        "job_number": 5634148,
+        "name": "contracts-bedrock-tests-upgrade unichain-mainnet",
+        "started_at": "2026-10-04T20:54:51.38Z",
+        "status": "failed",
+        "stopped_at": "2026-10-04T20:58:34.488Z"
+      },
+      {
+        "job_number": 5634150,
+        "name": "contracts-bedrock-tests-upgrade op-mainnet main",
+        "started_at": "2026-10-04T20:54:51.454Z",
+        "status": "failed",
+        "stopped_at": "2026-10-04T20:58:26.129Z"
+      },
+      {
+        "job_number": 5634155,
+        "name": "contracts-bedrock-tests-upgrade ink-mainnet",
+        "started_at": "2026-10-04T20:54:51.595Z",
+        "status": "failed",
+        "stopped_at": "2026-10-04T20:58:21.172Z"
+      },
+      {
+        "job_number": 5634156,
+        "name": "contracts-bedrock-tests-upgrade op-mainnet CUSTOM_GAS_TOKEN",
+        "started_at": "2026-10-04T20:54:51.6Z",
+        "status": "failed",
+        "stopped_at": "2026-10-04T20:58:20.693Z"
+      },
+      {
+        "job_number": 5634157,
+        "name": "contracts-bedrock-tests-upgrade op-mainnet OPTIMISM_PORTAL_INTEROP",
+        "started_at": "2026-10-04T20:54:51.593Z",
+        "status": "failed",
+        "stopped_at": "2026-10-04T20:58:24.89Z"
+      }
+    ],
+    "pipeline": 135560,
+    "source_sha": "1e809d54e06eb3d24fb1f7777823d1a30191401f"
+  },
+  "cli_negative_probe": {
+    "finding": "The archive vault correctly denied the CLI identity. No credential permission or allowed reference was broadened. This probe executed no RPC call or suite verdict.",
+    "result": "user_error",
+    "run_id": "0b0f8aba7fdb48dfbed60f9f002be8de",
+    "task_id": "732bf5613c373182a4e155a73114a83b"
+  },
+  "correction": "Use the existing passing Go archive probe client headers, close responses, and retain only safe numeric HTTP/RPC error categories.",
+  "finding": "Both providers resolved the original daily block 26115260 with Cast. The new shared urllib client failed before tests. Circle completed all seven preparations; native preflight stopped all expensive compilers and verdicts. No new occurrence is counted.",
+  "manifest_declared_empty_logs_restored": [
+    "circle/chain-ink/run/contracts-build.stderr.log",
+    "circle/chain-ink/run/discovery.stderr.log",
+    "circle/chain-ink/run/foundry-config.stderr.log",
+    "circle/chain-ink/run/go-ffi.log",
+    "circle/chain-ink/run/pinned-block.stderr.log",
+    "circle/chain-op/run/contracts-build.stderr.log",
+    "circle/chain-op/run/discovery.stderr.log",
+    "circle/chain-op/run/foundry-config.stderr.log",
+    "circle/chain-op/run/go-ffi.log",
+    "circle/chain-op/run/pinned-block.stderr.log",
+    "circle/chain-unichain/run/contracts-build.stderr.log",
+    "circle/chain-unichain/run/discovery.stderr.log",
+    "circle/chain-unichain/run/foundry-config.stderr.log",
+    "circle/chain-unichain/run/go-ffi.log",
+    "circle/chain-unichain/run/pinned-block.stderr.log",
+    "circle/feature-CUSTOM_GAS_TOKEN/run/contracts-build.stderr.log",
+    "circle/feature-CUSTOM_GAS_TOKEN/run/discovery.stderr.log",
+    "circle/feature-CUSTOM_GAS_TOKEN/run/foundry-config.stderr.log",
+    "circle/feature-CUSTOM_GAS_TOKEN/run/go-ffi.log",
+    "circle/feature-CUSTOM_GAS_TOKEN/run/pinned-block.stderr.log",
+    "circle/feature-OPTIMISM_PORTAL_INTEROP/run/contracts-build.stderr.log",
+    "circle/feature-OPTIMISM_PORTAL_INTEROP/run/discovery.stderr.log",
+    "circle/feature-OPTIMISM_PORTAL_INTEROP/run/foundry-config.stderr.log",
+    "circle/feature-OPTIMISM_PORTAL_INTEROP/run/go-ffi.log",
+    "circle/feature-OPTIMISM_PORTAL_INTEROP/run/pinned-block.stderr.log",
+    "circle/feature-ZK_DISPUTE_GAME/run/contracts-build.stderr.log",
+    "circle/feature-ZK_DISPUTE_GAME/run/discovery.stderr.log",
+    "circle/feature-ZK_DISPUTE_GAME/run/foundry-config.stderr.log",
+    "circle/feature-ZK_DISPUTE_GAME/run/go-ffi.log",
+    "circle/feature-ZK_DISPUTE_GAME/run/pinned-block.stderr.log",
+    "circle/feature-main/run/contracts-build.stderr.log",
+    "circle/feature-main/run/discovery.stderr.log",
+    "circle/feature-main/run/foundry-config.stderr.log",
+    "circle/feature-main/run/go-ffi.log",
+    "circle/feature-main/run/pinned-block.stderr.log"
+  ],
+  "native_original_log_sha256": "2d3f89286f935b98f8d3630bf32e54f618713c2f9e5cdee97b2560e0628188c4",
+  "native_run_id": "b0c427d582164bd2a59c9b6cb2792532",
+  "native_tasks": [
+    {
+      "Agent": {
+        "Cpus": 2,
+        "DiskSizeGigabytes": 50,
+        "MemoryGb": 8
+      },
+      "ExecutionRuntimeSeconds": 5,
+      "ID": "b616d6673e8ae9c9b6ea1a199107fd1a",
+      "Key": "rpc-check",
+      "Status": {
+        "AbortedSubStatus": "not_applicable",
+        "Execution": "finished",
+        "FinishedSubStatus": "executed",
+        "Result": "failed",
+        "WaitingSubStatus": "not_applicable"
+      }
+    },
+    {
+      "Agent": {
+        "Cpus": 2,
+        "DiskSizeGigabytes": 50,
+        "MemoryGb": 8
+      },
+      "ExecutionRuntimeSeconds": 6,
+      "ID": "3dcf9e3b958f4f06c636779753aff5c2",
+      "Key": "helper-tests",
+      "Status": {
+        "AbortedSubStatus": "not_applicable",
+        "Execution": "finished",
+        "FinishedSubStatus": "executed",
+        "Result": "succeeded",
+        "WaitingSubStatus": "not_applicable"
+      }
+    },
+    {
+      "Agent": null,
+      "ExecutionRuntimeSeconds": null,
+      "ID": "95ea848c7012695653e23d04cf39c221",
+      "Key": "compile-feature-main",
+      "Status": {
+        "AbortedSubStatus": "not_applicable",
+        "Execution": "skipped",
+        "FinishedSubStatus": "not_applicable",
+        "Result": "no_result",
+        "WaitingSubStatus": "not_applicable"
+      }
+    },
+    {
+      "Agent": null,
+      "ExecutionRuntimeSeconds": null,
+      "ID": "e093b1f2e565227e9753d634c5f427fa",
+      "Key": "verdict-feature-main",
+      "Status": {
+        "AbortedSubStatus": "not_applicable",
+        "Execution": "skipped",
+        "FinishedSubStatus": "not_applicable",
+        "Result": "no_result",
+        "WaitingSubStatus": "not_applicable"
+      }
+    },
+    {
+      "Agent": null,
+      "ExecutionRuntimeSeconds": null,
+      "ID": "b11be1d80947dc9e7a0ee72706cbfa8d",
+      "Key": "compile-feature-CUSTOM_GAS_TOKEN",
+      "Status": {
+        "AbortedSubStatus": "not_applicable",
+        "Execution": "skipped",
+        "FinishedSubStatus": "not_applicable",
+        "Result": "no_result",
+        "WaitingSubStatus": "not_applicable"
+      }
+    },
+    {
+      "Agent": null,
+      "ExecutionRuntimeSeconds": null,
+      "ID": "eeae732f4e7c550be0d6c20e858f57f9",
+      "Key": "verdict-feature-CUSTOM_GAS_TOKEN",
+      "Status": {
+        "AbortedSubStatus": "not_applicable",
+        "Execution": "skipped",
+        "FinishedSubStatus": "not_applicable",
+        "Result": "no_result",
+        "WaitingSubStatus": "not_applicable"
+      }
+    },
+    {
+      "Agent": null,
+      "ExecutionRuntimeSeconds": null,
+      "ID": "b371320c825e5f716d60e02cb5d2ee31",
+      "Key": "compile-feature-OPTIMISM_PORTAL_INTEROP",
+      "Status": {
+        "AbortedSubStatus": "not_applicable",
+        "Execution": "skipped",
+        "FinishedSubStatus": "not_applicable",
+        "Result": "no_result",
+        "WaitingSubStatus": "not_applicable"
+      }
+    },
+    {
+      "Agent": null,
+      "ExecutionRuntimeSeconds": null,
+      "ID": "e36d25c4c1b14f815d4c502dc258c8ba",
+      "Key": "verdict-feature-OPTIMISM_PORTAL_INTEROP",
+      "Status": {
+        "AbortedSubStatus": "not_applicable",
+        "Execution": "skipped",
+        "FinishedSubStatus": "not_applicable",
+        "Result": "no_result",
+        "WaitingSubStatus": "not_applicable"
+      }
+    },
+    {
+      "Agent": null,
+      "ExecutionRuntimeSeconds": null,
+      "ID": "94e9bf6904ed9a45244c232b6a5521ed",
+      "Key": "compile-feature-ZK_DISPUTE_GAME",
+      "Status": {
+        "AbortedSubStatus": "not_applicable",
+        "Execution": "skipped",
+        "FinishedSubStatus": "not_applicable",
+        "Result": "no_result",
+        "WaitingSubStatus": "not_applicable"
+      }
+    },
+    {
+      "Agent": null,
+      "ExecutionRuntimeSeconds": null,
+      "ID": "3169c4f53057723354742b2de4eb7cbd",
+      "Key": "verdict-feature-ZK_DISPUTE_GAME",
+      "Status": {
+        "AbortedSubStatus": "not_applicable",
+        "Execution": "skipped",
+        "FinishedSubStatus": "not_applicable",
+        "Result": "no_result",
+        "WaitingSubStatus": "not_applicable"
+      }
+    },
+    {
+      "Agent": null,
+      "ExecutionRuntimeSeconds": null,
+      "ID": "a461673c2cb0dd7ceaecf699e1ff2848",
+      "Key": "compile-chain-op",
+      "Status": {
+        "AbortedSubStatus": "not_applicable",
+        "Execution": "skipped",
+        "FinishedSubStatus": "not_applicable",
+        "Result": "no_result",
+        "WaitingSubStatus": "not_applicable"
+      }
+    },
+    {
+      "Agent": null,
+      "ExecutionRuntimeSeconds": null,
+      "ID": "731adcaac6e2ac289e8715d32dc44977",
+      "Key": "verdict-chain-op",
+      "Status": {
+        "AbortedSubStatus": "not_applicable",
+        "Execution": "skipped",
+        "FinishedSubStatus": "not_applicable",
+        "Result": "no_result",
+        "WaitingSubStatus": "not_applicable"
+      }
+    },
+    {
+      "Agent": null,
+      "ExecutionRuntimeSeconds": null,
+      "ID": "a36420c2b36b600b7f729c144f44984c",
+      "Key": "compile-chain-ink",
+      "Status": {
+        "AbortedSubStatus": "not_applicable",
+        "Execution": "skipped",
+        "FinishedSubStatus": "not_applicable",
+        "Result": "no_result",
+        "WaitingSubStatus": "not_applicable"
+      }
+    },
+    {
+      "Agent": null,
+      "ExecutionRuntimeSeconds": null,
+      "ID": "5bb9ce04083b0de92fb1b7022015125a",
+      "Key": "verdict-chain-ink",
+      "Status": {
+        "AbortedSubStatus": "not_applicable",
+        "Execution": "skipped",
+        "FinishedSubStatus": "not_applicable",
+        "Result": "no_result",
+        "WaitingSubStatus": "not_applicable"
+      }
+    },
+    {
+      "Agent": null,
+      "ExecutionRuntimeSeconds": null,
+      "ID": "03b6a6ce7a187b0b8eb8057c4d29d95d",
+      "Key": "compile-chain-unichain",
+      "Status": {
+        "AbortedSubStatus": "not_applicable",
+        "Execution": "skipped",
+        "FinishedSubStatus": "not_applicable",
+        "Result": "no_result",
+        "WaitingSubStatus": "not_applicable"
+      }
+    },
+    {
+      "Agent": null,
+      "ExecutionRuntimeSeconds": null,
+      "ID": "a3eb2c553534f6b7cfa2b7c5c4931e57",
+      "Key": "verdict-chain-unichain",
+      "Status": {
+        "AbortedSubStatus": "not_applicable",
+        "Execution": "skipped",
+        "FinishedSubStatus": "not_applicable",
+        "Result": "no_result",
+        "WaitingSubStatus": "not_applicable"
+      }
+    }
+  ],
+  "reports": {
+    "circle/chain-ink/run": {
+      "exit_code": 1,
+      "final_sha256": "c84537f102f279b4a434477153635cf869449de96e06e6d03ecf51ab4bd0c883",
+      "original_sha256": {
+        "compiled.json": "eb1978312828a15cbfde8a62d0dca33ef21be6bfd6bc26b149bbcb95a7d242fd",
+        "contracts-build.log": "7f0f020b76beb45bbaceb1451e9bdc746335a1c6da8afcc8ae0db564f6a2fe29",
+        "contracts-build.stage.json": "7efd9cc8b9b982fafa1635d997ac479de584328c14531da77123c351f67d6ad8",
+        "contracts-build.stderr.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "discovery.json": "6e6d9afbeb0198dcf81d0e06818773940db65c3111b9ef8231a63a4db6a2cfac",
+        "discovery.stage.json": "666cf69e352a9a3ae52e3ff1d77a9f19071ae8eba769d54908de345373212885",
+        "discovery.stderr.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "foundry-config.json": "dbae23b2a2089c0d95483be4131a52457c155e3dd94d5f48e71c238b352ec472",
+        "foundry-config.stage.json": "e346c81c03f04f5687bb3e880ce2e9d3810d41ba5b261e3f52a29b6d28bd7163",
+        "foundry-config.stderr.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "go-ffi.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "go-ffi.stage.json": "a3b923890ecc8943f22b048a1712b73e206dedf7e659cbc0d6071934149ce387",
+        "go-ffi.stderr.log": "60809bcbf975a510064b28f4c25a40c795d9052d0079dcfcffb50b1f750031b5",
+        "pinned-block.log": "52851e41c861449c3c1d17478cd9f9a494b89f415f09288345f6fff61b551af5",
+        "pinned-block.stage.json": "acda2c26e7920dee5d89da07c73e91ae529bf53b49f19df7c94f566b93c88090",
+        "pinned-block.stderr.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "selection.json": "b922afb73667dafa2eae85289bce8952032618ffae90ddb5e040c4019260eefa",
+        "settings.json": "931a309af398b89d6c779b6fc500e7f76f947f5d0549de602351ed5b63779533",
+        "signature-bindings.json": "f1e1a75ff2ef52b95ba5dbfedeb23f51bef9a53f59a3ae6a8d8a6efa67f4ea57",
+        "submodules.txt": "552140171f2fb64aabf505d38086680d44492c18a14cb5e6afb73034bfd75ab1"
+      },
+      "report_errors": [
+        "Test-only archive RPC unavailable"
+      ],
+      "selected_tests": 1359,
+      "stages": {
+        "contracts-build.stage.json": {
+          "argv": [
+            "forge",
+            "build"
+          ],
+          "cwd": "/home/circleci/project/packages/contracts-bedrock",
+          "elapsed_seconds": 132.29399490356445,
+          "exit_code": 0,
+          "started_at": 1791147351.08636,
+          "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "stdout_sha256": "7f0f020b76beb45bbaceb1451e9bdc746335a1c6da8afcc8ae0db564f6a2fe29"
+        },
+        "discovery.stage.json": {
+          "argv": [
+            "forge",
+            "test",
+            "--list",
+            "--json",
+            "--match-path",
+            "test/{L1,dispute,cannon}/**"
+          ],
+          "cwd": "/home/circleci/project/packages/contracts-bedrock",
+          "elapsed_seconds": 3.516735792160034,
+          "exit_code": 0,
+          "started_at": 1791147483.380814,
+          "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "stdout_sha256": "6e6d9afbeb0198dcf81d0e06818773940db65c3111b9ef8231a63a4db6a2cfac"
+        },
+        "foundry-config.stage.json": {
+          "argv": [
+            "forge",
+            "config",
+            "--json"
+          ],
+          "cwd": "/home/circleci/project/packages/contracts-bedrock",
+          "elapsed_seconds": 0.023125171661376953,
+          "exit_code": 0,
+          "started_at": 1791147349.9211183,
+          "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "stdout_sha256": "dbae23b2a2089c0d95483be4131a52457c155e3dd94d5f48e71c238b352ec472"
+        },
+        "go-ffi.stage.json": {
+          "argv": [
+            "just",
+            "build-go-ffi"
+          ],
+          "cwd": "/home/circleci/project/packages/contracts-bedrock",
+          "elapsed_seconds": 1.1415400505065918,
+          "exit_code": 0,
+          "started_at": 1791147349.9445155,
+          "stderr_sha256": "60809bcbf975a510064b28f4c25a40c795d9052d0079dcfcffb50b1f750031b5",
+          "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        },
+        "pinned-block.stage.json": {
+          "argv": [
+            "just",
+            "print-pinned-block-number"
+          ],
+          "cwd": "/home/circleci/project/packages/contracts-bedrock",
+          "elapsed_seconds": 1.0939483642578125,
+          "exit_code": 0,
+          "started_at": 1791147495.6008341,
+          "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "stdout_sha256": "52851e41c861449c3c1d17478cd9f9a494b89f415f09288345f6fff61b551af5"
+        }
+      }
+    },
+    "circle/chain-op/run": {
+      "exit_code": 1,
+      "final_sha256": "31a6642066dca864e9a37930e070186e9d3965c3354e12a9116366be97187fa6",
+      "original_sha256": {
+        "compiled.json": "64795efa13c0b9517e571775c70dde4267d4af9dace3832a0cf5bbaa0d7cecfe",
+        "contracts-build.log": "e2c7113600a59a0e61da6024d8a80113712351ba552f32d94d43b56083d08eef",
+        "contracts-build.stage.json": "763c53f391b0207c846c738e3beaca40cbbce55bcfab2d898b2400b352ac056b",
+        "contracts-build.stderr.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "discovery.json": "6e6d9afbeb0198dcf81d0e06818773940db65c3111b9ef8231a63a4db6a2cfac",
+        "discovery.stage.json": "944ff005f3eaa1ad308059c21c6ae37f9f6d7a2753b75d96de6862e8128d3dcb",
+        "discovery.stderr.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "foundry-config.json": "dbae23b2a2089c0d95483be4131a52457c155e3dd94d5f48e71c238b352ec472",
+        "foundry-config.stage.json": "785cadf8306b7ddaa884bcbd85b6a15e9aadb25cd75f3f1c121a9aa54188bb1a",
+        "foundry-config.stderr.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "go-ffi.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "go-ffi.stage.json": "ec9335f9d0e588c6425d9b8c5305a27447c27ce4b6ff89b4e5857862f06379d3",
+        "go-ffi.stderr.log": "60809bcbf975a510064b28f4c25a40c795d9052d0079dcfcffb50b1f750031b5",
+        "pinned-block.log": "52851e41c861449c3c1d17478cd9f9a494b89f415f09288345f6fff61b551af5",
+        "pinned-block.stage.json": "8aa5ed9156b81259babca35978d3826d5b1f42fd04681ae4348a2fdc8f6a886c",
+        "pinned-block.stderr.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "selection.json": "b922afb73667dafa2eae85289bce8952032618ffae90ddb5e040c4019260eefa",
+        "settings.json": "a8fba66277de2615277f6ee61f1f4e872e520eafe06599614f0357f89c8730ab",
+        "signature-bindings.json": "f1e1a75ff2ef52b95ba5dbfedeb23f51bef9a53f59a3ae6a8d8a6efa67f4ea57",
+        "submodules.txt": "552140171f2fb64aabf505d38086680d44492c18a14cb5e6afb73034bfd75ab1"
+      },
+      "report_errors": [
+        "Test-only archive RPC unavailable"
+      ],
+      "selected_tests": 1359,
+      "stages": {
+        "contracts-build.stage.json": {
+          "argv": [
+            "forge",
+            "build"
+          ],
+          "cwd": "/home/circleci/project/packages/contracts-bedrock",
+          "elapsed_seconds": 132.39554166793823,
+          "exit_code": 0,
+          "started_at": 1791147352.6896124,
+          "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "stdout_sha256": "e2c7113600a59a0e61da6024d8a80113712351ba552f32d94d43b56083d08eef"
+        },
+        "discovery.stage.json": {
+          "argv": [
+            "forge",
+            "test",
+            "--list",
+            "--json",
+            "--match-path",
+            "test/{L1,dispute,cannon}/**"
+          ],
+          "cwd": "/home/circleci/project/packages/contracts-bedrock",
+          "elapsed_seconds": 3.50445818901062,
+          "exit_code": 0,
+          "started_at": 1791147485.0855982,
+          "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "stdout_sha256": "6e6d9afbeb0198dcf81d0e06818773940db65c3111b9ef8231a63a4db6a2cfac"
+        },
+        "foundry-config.stage.json": {
+          "argv": [
+            "forge",
+            "config",
+            "--json"
+          ],
+          "cwd": "/home/circleci/project/packages/contracts-bedrock",
+          "elapsed_seconds": 0.023302078247070312,
+          "exit_code": 0,
+          "started_at": 1791147351.5462441,
+          "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "stdout_sha256": "dbae23b2a2089c0d95483be4131a52457c155e3dd94d5f48e71c238b352ec472"
+        },
+        "go-ffi.stage.json": {
+          "argv": [
+            "just",
+            "build-go-ffi"
+          ],
+          "cwd": "/home/circleci/project/packages/contracts-bedrock",
+          "elapsed_seconds": 1.1195094585418701,
+          "exit_code": 0,
+          "started_at": 1791147351.5697925,
+          "stderr_sha256": "60809bcbf975a510064b28f4c25a40c795d9052d0079dcfcffb50b1f750031b5",
+          "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        },
+        "pinned-block.stage.json": {
+          "argv": [
+            "just",
+            "print-pinned-block-number"
+          ],
+          "cwd": "/home/circleci/project/packages/contracts-bedrock",
+          "elapsed_seconds": 1.1200895309448242,
+          "exit_code": 0,
+          "started_at": 1791147497.5211673,
+          "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "stdout_sha256": "52851e41c861449c3c1d17478cd9f9a494b89f415f09288345f6fff61b551af5"
+        }
+      }
+    },
+    "circle/chain-unichain/run": {
+      "exit_code": 1,
+      "final_sha256": "cc132b8058aaa82463ca0c0b6a387558de55db1fc2dad1ae12d264be68480a74",
+      "original_sha256": {
+        "compiled.json": "f96bc698bc549400888c4c1510fe51173287ee50bba2338439fe64238cb2d117",
+        "contracts-build.log": "85905a45632a546a9ab100be5c515f523abd7f0c4c994963e3d8b7e37683941a",
+        "contracts-build.stage.json": "d653199faddb8aacfb3fb63b00404532544869f9bf2cafa6ed9fc5730f1ef923",
+        "contracts-build.stderr.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "discovery.json": "6e6d9afbeb0198dcf81d0e06818773940db65c3111b9ef8231a63a4db6a2cfac",
+        "discovery.stage.json": "3ed40a32e38eb132c53602e67ff8aaf63c9567c4bdebb1f66322764c9ffbd97e",
+        "discovery.stderr.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "foundry-config.json": "dbae23b2a2089c0d95483be4131a52457c155e3dd94d5f48e71c238b352ec472",
+        "foundry-config.stage.json": "dd1d24fada58fc53e2cd8b6f13f346280c2181267e17064a46e72f81e9ad9654",
+        "foundry-config.stderr.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "go-ffi.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "go-ffi.stage.json": "c7512165c86ef5c74745ba5e60a1c81694c5765ffefebaadab20d409cb91dcbd",
+        "go-ffi.stderr.log": "60809bcbf975a510064b28f4c25a40c795d9052d0079dcfcffb50b1f750031b5",
+        "pinned-block.log": "52851e41c861449c3c1d17478cd9f9a494b89f415f09288345f6fff61b551af5",
+        "pinned-block.stage.json": "a8e5d6697671aecaf46d34c5826043c2ec44959e6d647354d10a454075cf776d",
+        "pinned-block.stderr.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "selection.json": "b922afb73667dafa2eae85289bce8952032618ffae90ddb5e040c4019260eefa",
+        "settings.json": "80ea93a133c992cf33db0fa36cf055016b490878d26ab4963f0ed3bb95880711",
+        "signature-bindings.json": "f1e1a75ff2ef52b95ba5dbfedeb23f51bef9a53f59a3ae6a8d8a6efa67f4ea57",
+        "submodules.txt": "552140171f2fb64aabf505d38086680d44492c18a14cb5e6afb73034bfd75ab1"
+      },
+      "report_errors": [
+        "Test-only archive RPC unavailable"
+      ],
+      "selected_tests": 1359,
+      "stages": {
+        "contracts-build.stage.json": {
+          "argv": [
+            "forge",
+            "build"
+          ],
+          "cwd": "/home/circleci/project/packages/contracts-bedrock",
+          "elapsed_seconds": 140.74904990196228,
+          "exit_code": 0,
+          "started_at": 1791147354.8436136,
+          "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "stdout_sha256": "85905a45632a546a9ab100be5c515f523abd7f0c4c994963e3d8b7e37683941a"
+        },
+        "discovery.stage.json": {
+          "argv": [
+            "forge",
+            "test",
+            "--list",
+            "--json",
+            "--match-path",
+            "test/{L1,dispute,cannon}/**"
+          ],
+          "cwd": "/home/circleci/project/packages/contracts-bedrock",
+          "elapsed_seconds": 3.986523389816284,
+          "exit_code": 0,
+          "started_at": 1791147495.5930882,
+          "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "stdout_sha256": "6e6d9afbeb0198dcf81d0e06818773940db65c3111b9ef8231a63a4db6a2cfac"
+        },
+        "foundry-config.stage.json": {
+          "argv": [
+            "forge",
+            "config",
+            "--json"
+          ],
+          "cwd": "/home/circleci/project/packages/contracts-bedrock",
+          "elapsed_seconds": 0.026480674743652344,
+          "exit_code": 0,
+          "started_at": 1791147353.5303757,
+          "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "stdout_sha256": "dbae23b2a2089c0d95483be4131a52457c155e3dd94d5f48e71c238b352ec472"
+        },
+        "go-ffi.stage.json": {
+          "argv": [
+            "just",
+            "build-go-ffi"
+          ],
+          "cwd": "/home/circleci/project/packages/contracts-bedrock",
+          "elapsed_seconds": 1.2858991622924805,
+          "exit_code": 0,
+          "started_at": 1791147353.5572598,
+          "stderr_sha256": "60809bcbf975a510064b28f4c25a40c795d9052d0079dcfcffb50b1f750031b5",
+          "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        },
+        "pinned-block.stage.json": {
+          "argv": [
+            "just",
+            "print-pinned-block-number"
+          ],
+          "cwd": "/home/circleci/project/packages/contracts-bedrock",
+          "elapsed_seconds": 1.1156682968139648,
+          "exit_code": 0,
+          "started_at": 1791147508.9192195,
+          "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "stdout_sha256": "52851e41c861449c3c1d17478cd9f9a494b89f415f09288345f6fff61b551af5"
+        }
+      }
+    },
+    "circle/feature-CUSTOM_GAS_TOKEN/run": {
+      "exit_code": 1,
+      "final_sha256": "58fe78a7f8ae6fadea2edc5ac4f9ff4cb506b2b9f161449171b45863ca554646",
+      "original_sha256": {
+        "compiled.json": "6f1364e05f8746817bd34ef0457ee57dda1a94083232d66ce89894284d1bb6f8",
+        "contracts-build.log": "88331cd16636a01b0187b0c955e57ac4828e447f68baf52159236eb2b8d24a8b",
+        "contracts-build.stage.json": "f36a3b6f26c72c6c50a0e352095fee3fc1af9987a7b86a7403894491ae20956c",
+        "contracts-build.stderr.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "discovery.json": "6e6d9afbeb0198dcf81d0e06818773940db65c3111b9ef8231a63a4db6a2cfac",
+        "discovery.stage.json": "9f164ff1717e751a92fe9d96b993c72d872451ecf474113720ad3652e5c87cee",
+        "discovery.stderr.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "foundry-config.json": "dbae23b2a2089c0d95483be4131a52457c155e3dd94d5f48e71c238b352ec472",
+        "foundry-config.stage.json": "c787d6faf860fed27c2c454f9b992fa70dd2203f4c9cb14b56ed492aa46614f2",
+        "foundry-config.stderr.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "go-ffi.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "go-ffi.stage.json": "f8323478407877617c3664eb0073aa50398f54bcfed214d1f148df972911ebaf",
+        "go-ffi.stderr.log": "60809bcbf975a510064b28f4c25a40c795d9052d0079dcfcffb50b1f750031b5",
+        "pinned-block.log": "52851e41c861449c3c1d17478cd9f9a494b89f415f09288345f6fff61b551af5",
+        "pinned-block.stage.json": "ab3942d8424dbdb2d25efc97551b88979745ed1c557f346203f51b46f49cf137",
+        "pinned-block.stderr.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "selection.json": "b922afb73667dafa2eae85289bce8952032618ffae90ddb5e040c4019260eefa",
+        "settings.json": "1d47e1c94ad8c6662cc555467dc32ac2ea492cd90cfd210fe89ef9e15ed6ed63",
+        "signature-bindings.json": "f1e1a75ff2ef52b95ba5dbfedeb23f51bef9a53f59a3ae6a8d8a6efa67f4ea57",
+        "submodules.txt": "552140171f2fb64aabf505d38086680d44492c18a14cb5e6afb73034bfd75ab1"
+      },
+      "report_errors": [
+        "Test-only archive RPC unavailable"
+      ],
+      "selected_tests": 1359,
+      "stages": {
+        "contracts-build.stage.json": {
+          "argv": [
+            "forge",
+            "build"
+          ],
+          "cwd": "/home/circleci/project/packages/contracts-bedrock",
+          "elapsed_seconds": 131.12752652168274,
+          "exit_code": 0,
+          "started_at": 1791147351.997353,
+          "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "stdout_sha256": "88331cd16636a01b0187b0c955e57ac4828e447f68baf52159236eb2b8d24a8b"
+        },
+        "discovery.stage.json": {
+          "argv": [
+            "forge",
+            "test",
+            "--list",
+            "--json",
+            "--match-path",
+            "test/{L1,dispute,cannon}/**"
+          ],
+          "cwd": "/home/circleci/project/packages/contracts-bedrock",
+          "elapsed_seconds": 3.4377870559692383,
+          "exit_code": 0,
+          "started_at": 1791147483.1252732,
+          "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "stdout_sha256": "6e6d9afbeb0198dcf81d0e06818773940db65c3111b9ef8231a63a4db6a2cfac"
+        },
+        "foundry-config.stage.json": {
+          "argv": [
+            "forge",
+            "config",
+            "--json"
+          ],
+          "cwd": "/home/circleci/project/packages/contracts-bedrock",
+          "elapsed_seconds": 0.024060726165771484,
+          "exit_code": 0,
+          "started_at": 1791147350.8437462,
+          "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "stdout_sha256": "dbae23b2a2089c0d95483be4131a52457c155e3dd94d5f48e71c238b352ec472"
+        },
+        "go-ffi.stage.json": {
+          "argv": [
+            "just",
+            "build-go-ffi"
+          ],
+          "cwd": "/home/circleci/project/packages/contracts-bedrock",
+          "elapsed_seconds": 1.1289021968841553,
+          "exit_code": 0,
+          "started_at": 1791147350.868113,
+          "stderr_sha256": "60809bcbf975a510064b28f4c25a40c795d9052d0079dcfcffb50b1f750031b5",
+          "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        },
+        "pinned-block.stage.json": {
+          "argv": [
+            "just",
+            "print-pinned-block-number"
+          ],
+          "cwd": "/home/circleci/project/packages/contracts-bedrock",
+          "elapsed_seconds": 1.0705060958862305,
+          "exit_code": 0,
+          "started_at": 1791147495.187758,
+          "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "stdout_sha256": "52851e41c861449c3c1d17478cd9f9a494b89f415f09288345f6fff61b551af5"
+        }
+      }
+    },
+    "circle/feature-OPTIMISM_PORTAL_INTEROP/run": {
+      "exit_code": 1,
+      "final_sha256": "d86468a564eed1c33c525eb748437a2b2a14833a9ed2566c998126bbb34e5010",
+      "original_sha256": {
+        "compiled.json": "48938a29b4949eaf573d123fbf72a211e3ed8e5bcbb063cf09f359d77acdbf8c",
+        "contracts-build.log": "e2af407135fbea4834d50792b764448f08a1352c5f8adfe0ff839ee3f2535879",
+        "contracts-build.stage.json": "4356f6f03db1c129dfb68776752165151535290c535bb500222d9a48ebf6a4fa",
+        "contracts-build.stderr.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "discovery.json": "6e6d9afbeb0198dcf81d0e06818773940db65c3111b9ef8231a63a4db6a2cfac",
+        "discovery.stage.json": "e982fd682e1b9d73560ddc049118a3256e3ee373ded625dcd32960199d20dc81",
+        "discovery.stderr.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "foundry-config.json": "dbae23b2a2089c0d95483be4131a52457c155e3dd94d5f48e71c238b352ec472",
+        "foundry-config.stage.json": "d41cef8bdacad6c4cef16af36acfb3065498cdfeff708996addfb387b53ba6d7",
+        "foundry-config.stderr.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "go-ffi.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "go-ffi.stage.json": "c7e53e2b93d93305ddfc9fb1b9e7dc66251bbbee51051668639c4e76f9accab0",
+        "go-ffi.stderr.log": "60809bcbf975a510064b28f4c25a40c795d9052d0079dcfcffb50b1f750031b5",
+        "pinned-block.log": "52851e41c861449c3c1d17478cd9f9a494b89f415f09288345f6fff61b551af5",
+        "pinned-block.stage.json": "2c4cc916485d826f86f1899ac8664d5c8e29a7a9906ba4b216c0c87902d90c36",
+        "pinned-block.stderr.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "selection.json": "b922afb73667dafa2eae85289bce8952032618ffae90ddb5e040c4019260eefa",
+        "settings.json": "4842a0c2baf2eb55bb648a4620bb5bc9a75a744a6e9d4aa16f152c258a17c4d6",
+        "signature-bindings.json": "f1e1a75ff2ef52b95ba5dbfedeb23f51bef9a53f59a3ae6a8d8a6efa67f4ea57",
+        "submodules.txt": "552140171f2fb64aabf505d38086680d44492c18a14cb5e6afb73034bfd75ab1"
+      },
+      "report_errors": [
+        "Test-only archive RPC unavailable"
+      ],
+      "selected_tests": 1359,
+      "stages": {
+        "contracts-build.stage.json": {
+          "argv": [
+            "forge",
+            "build"
+          ],
+          "cwd": "/home/circleci/project/packages/contracts-bedrock",
+          "elapsed_seconds": 134.04657697677612,
+          "exit_code": 0,
+          "started_at": 1791147352.9134386,
+          "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "stdout_sha256": "e2af407135fbea4834d50792b764448f08a1352c5f8adfe0ff839ee3f2535879"
+        },
+        "discovery.stage.json": {
+          "argv": [
+            "forge",
+            "test",
+            "--list",
+            "--json",
+            "--match-path",
+            "test/{L1,dispute,cannon}/**"
+          ],
+          "cwd": "/home/circleci/project/packages/contracts-bedrock",
+          "elapsed_seconds": 3.6162142753601074,
+          "exit_code": 0,
+          "started_at": 1791147486.9604392,
+          "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "stdout_sha256": "6e6d9afbeb0198dcf81d0e06818773940db65c3111b9ef8231a63a4db6a2cfac"
+        },
+        "foundry-config.stage.json": {
+          "argv": [
+            "forge",
+            "config",
+            "--json"
+          ],
+          "cwd": "/home/circleci/project/packages/contracts-bedrock",
+          "elapsed_seconds": 0.023972749710083008,
+          "exit_code": 0,
+          "started_at": 1791147351.7381265,
+          "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "stdout_sha256": "dbae23b2a2089c0d95483be4131a52457c155e3dd94d5f48e71c238b352ec472"
+        },
+        "go-ffi.stage.json": {
+          "argv": [
+            "just",
+            "build-go-ffi"
+          ],
+          "cwd": "/home/circleci/project/packages/contracts-bedrock",
+          "elapsed_seconds": 1.1506500244140625,
+          "exit_code": 0,
+          "started_at": 1791147351.7624228,
+          "stderr_sha256": "60809bcbf975a510064b28f4c25a40c795d9052d0079dcfcffb50b1f750031b5",
+          "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        },
+        "pinned-block.stage.json": {
+          "argv": [
+            "just",
+            "print-pinned-block-number"
+          ],
+          "cwd": "/home/circleci/project/packages/contracts-bedrock",
+          "elapsed_seconds": 1.117797613143921,
+          "exit_code": 0,
+          "started_at": 1791147499.347708,
+          "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "stdout_sha256": "52851e41c861449c3c1d17478cd9f9a494b89f415f09288345f6fff61b551af5"
+        }
+      }
+    },
+    "circle/feature-ZK_DISPUTE_GAME/run": {
+      "exit_code": 1,
+      "final_sha256": "3685817c821ffc7a8361d19a405bbb8c6fa9b517a31c3998502636a83a218967",
+      "original_sha256": {
+        "compiled.json": "3cef0cef3c17705a30d2bfc068de560aee3b4d3b309bfcfc0b67fbddccefa354",
+        "contracts-build.log": "fc4f59d8eb7d452752e755779e4b15b9156da45adffcb6bbf84fac4b4579df16",
+        "contracts-build.stage.json": "2a1fdd288d526c7e0bf7337033c1df0f133e39ed840d54538f88867288bcbd43",
+        "contracts-build.stderr.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "discovery.json": "6e6d9afbeb0198dcf81d0e06818773940db65c3111b9ef8231a63a4db6a2cfac",
+        "discovery.stage.json": "92a2adac1167e6e892b003dac42eb9961c11505690f0fc2bb0aa40e2cc5b8524",
+        "discovery.stderr.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "foundry-config.json": "dbae23b2a2089c0d95483be4131a52457c155e3dd94d5f48e71c238b352ec472",
+        "foundry-config.stage.json": "ba219303efa1aa7fce96783d780e49d211a1698d9beb53b7373f60ecc9a4325b",
+        "foundry-config.stderr.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "go-ffi.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "go-ffi.stage.json": "1e1285eac44f413dd644f7547f330f48f19c285ff8dd98c1f2d2da2b0a67de45",
+        "go-ffi.stderr.log": "60809bcbf975a510064b28f4c25a40c795d9052d0079dcfcffb50b1f750031b5",
+        "pinned-block.log": "52851e41c861449c3c1d17478cd9f9a494b89f415f09288345f6fff61b551af5",
+        "pinned-block.stage.json": "eaa3554e9541199b49aa887342037a5da1903079310e3849324a6be64eec6cbe",
+        "pinned-block.stderr.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "selection.json": "b922afb73667dafa2eae85289bce8952032618ffae90ddb5e040c4019260eefa",
+        "settings.json": "321376eb0b5d02d5717237c2de72e33ab31b51577416438c546bb99dcc13ad44",
+        "signature-bindings.json": "f1e1a75ff2ef52b95ba5dbfedeb23f51bef9a53f59a3ae6a8d8a6efa67f4ea57",
+        "submodules.txt": "552140171f2fb64aabf505d38086680d44492c18a14cb5e6afb73034bfd75ab1"
+      },
+      "report_errors": [
+        "Test-only archive RPC unavailable"
+      ],
+      "selected_tests": 1359,
+      "stages": {
+        "contracts-build.stage.json": {
+          "argv": [
+            "forge",
+            "build"
+          ],
+          "cwd": "/home/circleci/project/packages/contracts-bedrock",
+          "elapsed_seconds": 130.66269636154175,
+          "exit_code": 0,
+          "started_at": 1791147351.5554917,
+          "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "stdout_sha256": "fc4f59d8eb7d452752e755779e4b15b9156da45adffcb6bbf84fac4b4579df16"
+        },
+        "discovery.stage.json": {
+          "argv": [
+            "forge",
+            "test",
+            "--list",
+            "--json",
+            "--match-path",
+            "test/{L1,dispute,cannon}/**"
+          ],
+          "cwd": "/home/circleci/project/packages/contracts-bedrock",
+          "elapsed_seconds": 3.456394910812378,
+          "exit_code": 0,
+          "started_at": 1791147482.218575,
+          "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "stdout_sha256": "6e6d9afbeb0198dcf81d0e06818773940db65c3111b9ef8231a63a4db6a2cfac"
+        },
+        "foundry-config.stage.json": {
+          "argv": [
+            "forge",
+            "config",
+            "--json"
+          ],
+          "cwd": "/home/circleci/project/packages/contracts-bedrock",
+          "elapsed_seconds": 0.023355722427368164,
+          "exit_code": 0,
+          "started_at": 1791147350.4207716,
+          "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "stdout_sha256": "dbae23b2a2089c0d95483be4131a52457c155e3dd94d5f48e71c238b352ec472"
+        },
+        "go-ffi.stage.json": {
+          "argv": [
+            "just",
+            "build-go-ffi"
+          ],
+          "cwd": "/home/circleci/project/packages/contracts-bedrock",
+          "elapsed_seconds": 1.1107513904571533,
+          "exit_code": 0,
+          "started_at": 1791147350.44439,
+          "stderr_sha256": "60809bcbf975a510064b28f4c25a40c795d9052d0079dcfcffb50b1f750031b5",
+          "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        },
+        "pinned-block.stage.json": {
+          "argv": [
+            "just",
+            "print-pinned-block-number"
+          ],
+          "cwd": "/home/circleci/project/packages/contracts-bedrock",
+          "elapsed_seconds": 1.1283907890319824,
+          "exit_code": 0,
+          "started_at": 1791147494.2694318,
+          "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "stdout_sha256": "52851e41c861449c3c1d17478cd9f9a494b89f415f09288345f6fff61b551af5"
+        }
+      }
+    },
+    "circle/feature-main/run": {
+      "exit_code": 1,
+      "final_sha256": "3458022026c6f7eeabf177a0ae476bcbfe6e5b8b49a5c9bec976fe9cc054ac41",
+      "original_sha256": {
+        "compiled.json": "5758151599adb11013dad2294a2b4043f10f5ac784f95fc5e9d2a1a66ba276ba",
+        "contracts-build.log": "ba12ef978f27d3dfb463c369268a23aac9a7ef916d0102e9086dd9a3e4744bff",
+        "contracts-build.stage.json": "da96b45ab14de4108b4a506d76b564da57de4cbb16e45415bb1d66994408acd8",
+        "contracts-build.stderr.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "discovery.json": "6e6d9afbeb0198dcf81d0e06818773940db65c3111b9ef8231a63a4db6a2cfac",
+        "discovery.stage.json": "9f6f44a36fc819e38a8dd200c5c513515833191865b8e3d2e87c9c2fb359efb0",
+        "discovery.stderr.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "foundry-config.json": "dbae23b2a2089c0d95483be4131a52457c155e3dd94d5f48e71c238b352ec472",
+        "foundry-config.stage.json": "6c7b99b68943a4e4e524fce12797cc78563cf6d53404f05451dbf9a4003c51ec",
+        "foundry-config.stderr.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "go-ffi.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "go-ffi.stage.json": "4b7f34e338631ce0cea978e7c7049e5816a831757e0e14cf4f9fef1bdf6c941f",
+        "go-ffi.stderr.log": "60809bcbf975a510064b28f4c25a40c795d9052d0079dcfcffb50b1f750031b5",
+        "pinned-block.log": "52851e41c861449c3c1d17478cd9f9a494b89f415f09288345f6fff61b551af5",
+        "pinned-block.stage.json": "ce14875521fb6d14b0285612f49f78920a6aa439b96963a8ef3cf025ca1d30a8",
+        "pinned-block.stderr.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "selection.json": "b922afb73667dafa2eae85289bce8952032618ffae90ddb5e040c4019260eefa",
+        "settings.json": "030db9f1dc00081ea4964cbe1d11ffc0acfe9263e8894e268980d31619f366d0",
+        "signature-bindings.json": "f1e1a75ff2ef52b95ba5dbfedeb23f51bef9a53f59a3ae6a8d8a6efa67f4ea57",
+        "submodules.txt": "552140171f2fb64aabf505d38086680d44492c18a14cb5e6afb73034bfd75ab1"
+      },
+      "report_errors": [
+        "Test-only archive RPC unavailable"
+      ],
+      "selected_tests": 1359,
+      "stages": {
+        "contracts-build.stage.json": {
+          "argv": [
+            "forge",
+            "build"
+          ],
+          "cwd": "/home/circleci/project/packages/contracts-bedrock",
+          "elapsed_seconds": 134.88879919052124,
+          "exit_code": 0,
+          "started_at": 1791147352.9696438,
+          "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "stdout_sha256": "ba12ef978f27d3dfb463c369268a23aac9a7ef916d0102e9086dd9a3e4744bff"
+        },
+        "discovery.stage.json": {
+          "argv": [
+            "forge",
+            "test",
+            "--list",
+            "--json",
+            "--match-path",
+            "test/{L1,dispute,cannon}/**"
+          ],
+          "cwd": "/home/circleci/project/packages/contracts-bedrock",
+          "elapsed_seconds": 3.5199296474456787,
+          "exit_code": 0,
+          "started_at": 1791147487.8588808,
+          "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "stdout_sha256": "6e6d9afbeb0198dcf81d0e06818773940db65c3111b9ef8231a63a4db6a2cfac"
+        },
+        "foundry-config.stage.json": {
+          "argv": [
+            "forge",
+            "config",
+            "--json"
+          ],
+          "cwd": "/home/circleci/project/packages/contracts-bedrock",
+          "elapsed_seconds": 0.0237119197845459,
+          "exit_code": 0,
+          "started_at": 1791147351.7043984,
+          "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "stdout_sha256": "dbae23b2a2089c0d95483be4131a52457c155e3dd94d5f48e71c238b352ec472"
+        },
+        "go-ffi.stage.json": {
+          "argv": [
+            "just",
+            "build-go-ffi"
+          ],
+          "cwd": "/home/circleci/project/packages/contracts-bedrock",
+          "elapsed_seconds": 1.2408885955810547,
+          "exit_code": 0,
+          "started_at": 1791147351.7284374,
+          "stderr_sha256": "60809bcbf975a510064b28f4c25a40c795d9052d0079dcfcffb50b1f750031b5",
+          "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        },
+        "pinned-block.stage.json": {
+          "argv": [
+            "just",
+            "print-pinned-block-number"
+          ],
+          "cwd": "/home/circleci/project/packages/contracts-bedrock",
+          "elapsed_seconds": 1.046583890914917,
+          "exit_code": 0,
+          "started_at": 1791147500.535175,
+          "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "stdout_sha256": "52851e41c861449c3c1d17478cd9f9a494b89f415f09288345f6fff61b551af5"
+        }
+      }
+    },
+    "rwx/preflight": {
+      "exit_code": 1,
+      "final_sha256": "477e518974689d2fd0b48418a1a6e8f1dbecfb53097457ab2e8885db229bfa00",
+      "original_sha256": {
+        "pinned-block.log": "52851e41c861449c3c1d17478cd9f9a494b89f415f09288345f6fff61b551af5",
+        "pinned-block.stage.json": "79f0b97fe9f621a24df706fcd267dad003f609faf080302497ac82026bd8157c",
+        "pinned-block.stderr.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "report_errors": [
+        "Test-only archive RPC unavailable"
+      ],
+      "stages": {
+        "pinned-block.stage.json": {
+          "argv": [
+            "just",
+            "print-pinned-block-number"
+          ],
+          "cwd": "/var/mint-workspace/packages/contracts-bedrock",
+          "elapsed_seconds": 1.3679471015930176,
+          "exit_code": 0,
+          "started_at": 1791147216.0055854,
+          "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "stdout_sha256": "52851e41c861449c3c1d17478cd9f9a494b89f415f09288345f6fff61b551af5"
+        }
+      }
+    }
+  },
+  "source_sha": "1e809d54e06eb3d24fb1f7777823d1a30191401f"
+}

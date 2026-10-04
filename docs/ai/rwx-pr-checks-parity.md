@@ -51,5 +51,7 @@ comparison tool hashes. Complete originals remain under
 `.ci/rwx-pr-checks-stage-evidence/3aff/` and immutable provider artifacts. This
 closes two additional contract occurrences. Main module preparation was already
 counted; it receives stronger evidence without being counted twice. Overall
-coverage is **49/86 (57%)**. Other checks on this SHA are still being watched to
-terminal states; these three workload comparisons do not claim final-gate readiness.
+coverage is **49/86 (57%)**. All four required Circle gates, dependency review and all seven optional RWX
+checks passed at this exact benchmark SHA: 145 successful checks, one neutral,
+no unfinished or failed checks. This checkpoint does not establish readiness
+for a later revision.

@@ -40,7 +40,7 @@ Circle uses the same adapter and retains the original JUnit plus separate
 failed-test diagnostics; a passing diagnostic cannot replace a failed verdict.
 Cancellation preserves the process signal and partial original output.
 
-Seventeen execution/comparison fixtures pass with pinned Linux Go, Forge and
+Eighteen execution/comparison fixtures pass with pinned Linux Go, Forge and
 Just. The complete adapter fixture uses the production build/runtime recipes,
 real Go FFI compilation, real Solidity tests and a local read-only RPC server.
 Two runs from the same compiled manifest each execute the FFI test afresh;
@@ -57,3 +57,12 @@ seven occurrences on the same SHA. `ops/ci/compare-contract-upgrades.py` rejects
 missing, extra, corrupt, failed or different inputs and outcomes. A date-boundary
 block difference requires a new comparable observation. No workload has been
 added to the verified count by these local fixtures.
+
+[First-failure evidence](rwx-contract-upgrades-evidence/first-failure.json)
+retains the initial shared-client RPC error on both providers. All seven
+Circle preparations discovered 1,359 complete test signatures each, while the
+native preflight prevented compilation and verdict execution. Archive-client
+headers now match the passing Go preflight, with safe numeric error categories.
+The CLI identity correctly remains unable to unlock this test-only archive
+vault; original reports are retrieved through the existing authorized user
+access without changing credential permissions.
