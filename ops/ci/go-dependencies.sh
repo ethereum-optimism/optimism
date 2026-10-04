@@ -19,12 +19,14 @@ case "$job" in
     python3 ops/ci/go-artifacts.py pack go \
       op-core/superchain/superchain-configs.zip cannon/bin cannon/multicannon/embeds cannon/testdata/bin .ci/go-cache/full/modules
     ;;
-  contracts)
+  contracts|contracts-e2e)
     git submodule update --init --recursive -- packages/contracts-bedrock/lib
     export FOUNDRY_PROFILE=ci
-    (cd packages/contracts-bedrock && just forge-build)
+    args=()
+    if [[ "$job" == contracts-e2e ]]; then args=(--skip test); fi
+    (cd packages/contracts-bedrock && just forge-build "${args[@]}")
     (cd op-deployer && just copy-contract-artifacts)
-    python3 ops/ci/go-artifacts.py pack contracts packages/contracts-bedrock/cache \
+    python3 ops/ci/go-artifacts.py pack "$job" packages/contracts-bedrock/cache \
       packages/contracts-bedrock/artifacts packages/contracts-bedrock/forge-artifacts \
       op-deployer/pkg/deployer/artifacts/forge-artifacts
     ;;

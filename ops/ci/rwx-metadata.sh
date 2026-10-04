@@ -30,10 +30,11 @@ if [[ "${CI_CACHE_WARM:-false}" == true ]]; then
     *) echo 'ERROR: cache warming is restricted to develop and the pilot rehearsal.' >&2; exit 1 ;;
   esac
   mkdir -p .ci "${RWX_VALUES}"
-  printf '%s\n' '{"cache-rebuild":true,"c-run_main":false,"c-run_rust_ci":false,"c-run_contracts_feature_tests":false}' \
+  printf '%s\n' '{"cache-rebuild":true,"c-run_main":false,"c-run_rust_ci":false,"c-run_rust_e2e_ci":false,"c-run_contracts_feature_tests":false}' \
     >.ci/pipeline-parameters.json
   printf 'false\n' >"${RWX_VALUES}/run-main"
   printf 'false\n' >"${RWX_VALUES}/run-rust-ci"
+  printf 'false\n' >"${RWX_VALUES}/run-rust-e2e-ci"
   echo "Prepared compiler-only cache warming for ${CI_COMMIT_SHA}."
   exit 0
 fi
@@ -71,3 +72,4 @@ bash ops/ci/compute-workflow-conditions.sh
 
 jq -r '."c-run_main" // false' "${OUTPUT}" >"${RWX_VALUES}/run-main"
 jq -r '."c-run_rust_ci" // false' "${OUTPUT}" >"${RWX_VALUES}/run-rust-ci"
+jq -r '."c-run_rust_e2e_ci" // false' "${OUTPUT}" >"${RWX_VALUES}/run-rust-e2e-ci"

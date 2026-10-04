@@ -62,6 +62,10 @@ same-SHA original-report parity. See the
 All three Cannon Rust workloads now pass complete same-SHA original-report
 parity, including both MIPS client binaries and the complete final VM state.
 See the [Cannon evidence](rwx-cannon-parity.md).
+The Rust E2E definition is now implemented for the full workspace release build,
+its separate `ci --skip test` contract artifacts, all reproducible prestates and
+the five fresh Go test workloads. Hosted execution and complete same-SHA original
+report comparison remain pending, so none of its nine occurrences is counted yet.
 The narrower rollup mode remains CLI-only. See [the stage closeout](rwx-go-parity.md)
 for original-report comparison, selected resources, caches and limitations.
 

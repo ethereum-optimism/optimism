@@ -711,6 +711,8 @@ commands:
             # fail loudly rather than silently falling back to the default linker.
             if [ "<< parameters.directory >>" = rust ] && [ "<< parameters.profile >>" = debug ] && [ -z "<< parameters.package >>" ] && [ -z "<< parameters.binary >>" ] && [ "<< parameters.features >>" = default ] && [ -z "$TARGET" ]; then
               bash ../ops/ci/rust-workspace.sh build
+            elif [ "<< parameters.directory >>" = rust ] && [ "<< parameters.profile >>" = release ] && [ -z "<< parameters.package >>" ] && [ -z "<< parameters.binary >>" ] && [ "<< parameters.features >>" = default ] && [ -z "$TARGET" ]; then
+              bash ../ops/ci/rust-e2e-release.sh
             else
               mold -run cargo build $PROFILE $TARGET $PACKAGE $FEATURES $BINARY
             fi
@@ -1041,6 +1043,18 @@ jobs:
           command: |
             just copy-contract-artifacts
           working_directory: op-deployer
+      - run:
+          name: Bind E2E contract dependency evidence
+          command: |
+            if [[ "<<parameters.profile>>" == ci && "<<parameters.build_args>>" == "--skip test" ]]; then
+              export CI_COMMIT_SHA="$CIRCLE_SHA1"
+              python3 ops/ci/go-artifacts.py pack contracts-e2e packages/contracts-bedrock/cache \
+                packages/contracts-bedrock/artifacts packages/contracts-bedrock/forge-artifacts \
+                op-deployer/pkg/deployer/artifacts/forge-artifacts
+            fi
+      - store_artifacts:
+          path: .ci/go-tests/dependencies/contracts-e2e
+          when: always
       - when:
           condition: << parameters.use_caches >>
           steps:
@@ -2124,6 +2138,14 @@ jobs:
       - run:
           name: Build prestates
           command: just reproducible-prestate
+      - run:
+          name: Bind original prestate hashes
+          command: |
+            export CI_COMMIT_SHA="$CIRCLE_SHA1"
+            python3 ops/ci/go-artifacts.py pack prestate rust/kona/prestate-artifacts-*
+      - store_artifacts:
+          path: .ci/go-tests/dependencies/prestate
+          when: always
       - persist_to_workspace:
           root: .
           paths:

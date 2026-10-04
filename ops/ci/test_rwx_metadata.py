@@ -87,7 +87,9 @@ class RwxMetadataTests(unittest.TestCase):
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
         self.assertEqual((self.values / "run-main").read_text().strip(), str(main).lower())
         self.assertEqual((self.values / "run-rust-ci").read_text().strip(), str(rust).lower())
-        return json.loads((self.checkout / ".ci/pipeline-parameters.json").read_text())
+        params = json.loads((self.checkout / ".ci/pipeline-parameters.json").read_text())
+        self.assertEqual((self.values / "run-rust-e2e-ci").read_text().strip(), str(params.get('c-run_rust_e2e_ci', False)).lower())
+        return params
 
     def test_docs_only(self):
         self.write("docs/public-docs/example.md")
@@ -103,6 +105,7 @@ class RwxMetadataTests(unittest.TestCase):
                 params = self.assert_routes(False, False, CI_CACHE_WARM="true", CI_BRANCH=branch)
                 self.assertTrue(params["cache-rebuild"])
                 self.assertFalse(params["c-run_contracts_feature_tests"])
+                self.assertFalse(params["c-run_rust_e2e_ci"])
         self.assertNotEqual(self.run_metadata(CI_CACHE_WARM="true", CI_BRANCH="external-fork/untrusted").returncode, 0)
 
     def test_cache_warming_still_rejects_a_different_checked_out_sha(self):

@@ -1,0 +1,27 @@
+package:
+  parameters:
+    commit-sha:
+    cache-epoch:
+    build-probe:
+    target-cache-mode:
+tasks:
+  - key: build
+    use: package.use
+    run: mise exec -- bash ops/ci/go-dependencies.sh contracts-e2e
+    env:
+      CI_COMMIT_SHA: ${{ params.commit-sha }}
+      BUILD_PROBE: ${{ params.build-probe }}
+      TARGET_CACHE_MODE: ${{ params.target-cache-mode }}
+    tool-cache: go-rust-e2e-contracts-ci-${{ params.cache-epoch }}
+    timeout: 90m
+    runner:
+      cpus: 16
+      memory: 32gb
+    outputs:
+      filesystem:
+        filter:
+          workspace: [packages/contracts-bedrock/cache, packages/contracts-bedrock/artifacts, packages/contracts-bedrock/forge-artifacts, .ci/go-cache/full, .ci/go-tests/dependencies/contracts-e2e]
+          system: []
+      artifacts:
+        - key: dependency
+          path: .ci/go-tests/dependencies/contracts-e2e

@@ -64,7 +64,7 @@ jobs:
             echo "Running tests..."
             export RUST_BINARY_PATH_OP_RETH="$WD/rust/target/release/op-reth"
             export RUST_BINARY_PATH_KONA_NODE="$WD/rust/target/release/kona-node"
-            cd rust/kona && just test-e2e-sysgo-run node node/common "<<parameters.devnet_config>>"
+            bash ops/ci/rust-e2e.sh circle "<<parameters.devnet_config>>"
       - when:
           condition:
             equal: [true, <<parameters.reorg_tests>>]
@@ -81,10 +81,18 @@ jobs:
       - go-save-cache:
           namespace: kona-ci
       - store_test_results:
-          path: rust/kona/tests/tmp/test-results
+          path: .ci/rust-e2e/reports
       - store_artifacts:
-          path: rust/kona/tests/tmp/testlogs
+          path: .ci/rust-e2e
           when: always
+      - when:
+          condition: <<parameters.reorg_tests>>
+          steps:
+            - store_test_results:
+                path: rust/kona/tests/tmp/test-results
+            - store_artifacts:
+                path: rust/kona/tests/tmp/testlogs
+                when: always
 
   # Kona Node Restart Tests (from node_e2e_sysgo_tests.yaml)
   rust-restart-sysgo-tests:
@@ -115,13 +123,13 @@ jobs:
             WD=$(pwd)
             export RUST_BINARY_PATH_OP_RETH="$WD/rust/target/release/op-reth"
             export RUST_BINARY_PATH_KONA_NODE="$WD/rust/target/release/kona-node"
-            cd rust/kona && just test-e2e-sysgo-run node node/restart
+            bash ops/ci/rust-e2e.sh circle restart
       - go-save-cache:
           namespace: kona-ci
       - store_test_results:
-          path: rust/kona/tests/tmp/test-results
+          path: .ci/rust-e2e/reports
       - store_artifacts:
-          path: rust/kona/tests/tmp/testlogs
+          path: .ci/rust-e2e
           when: always
 
   # op-reth E2E Sysgo Tests
@@ -146,13 +154,13 @@ jobs:
           no_output_timeout: 60m
           command: |
             export RUST_BINARY_PATH_OP_RETH="$(pwd)/../../target/release/op-reth"
-            just test-e2e-sysgo
+            bash ../../../ops/ci/rust-e2e.sh circle op-reth
       - go-save-cache:
           namespace: op-reth-e2e
       - store_test_results:
-          path: rust/op-reth/tests/tmp/test-results
+          path: .ci/rust-e2e/reports
       - store_artifacts:
-          path: rust/op-reth/tests/tmp/testlogs
+          path: .ci/rust-e2e
           when: always
 
   # Kona Proof Action Tests (from proof.yaml)
@@ -185,13 +193,14 @@ jobs:
           command: |
             echo "Running action tests"
             export KONA_HOST_PATH=$(pwd)/../target/release/kona-host
-            just action-tests-<<parameters.kind>>-run
+            if [[ "<<parameters.kind>>" != single ]]; then echo "Unsupported shared proof kind" >&2; exit 1; fi
+            bash ../../ops/ci/rust-e2e.sh circle proof
       - go-save-cache:
           namespace: kona-ci
       - store_test_results:
-          path: rust/kona/tests/proofs/tmp/test-results
+          path: .ci/rust-e2e/reports
       - store_artifacts:
-          path: rust/kona/tests/proofs/tmp/testlogs
+          path: .ci/rust-e2e
           when: always
 
   # Build SP1 guest ELFs and persist them for future rust-e2e consumers.
