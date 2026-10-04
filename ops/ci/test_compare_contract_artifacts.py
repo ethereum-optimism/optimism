@@ -7,6 +7,7 @@ import io
 import json
 from pathlib import Path
 import tarfile
+import subprocess
 import tempfile
 import unittest
 
@@ -81,6 +82,30 @@ class ContractComparisonTests(unittest.TestCase):
                     if mode == 'correct': self.assertEqual(COMPARE.archive(path, metadata), {'A.json': data})
                     else:
                         with self.assertRaises(ValueError): COMPARE.archive(path, metadata)
+
+    def test_actual_zstd_archive_works_with_the_pinned_python_reader(self):
+        raw = io.BytesIO()
+        with tarfile.open(fileobj=raw, mode='w') as stream:
+            for name, data in [('src/A.sol', b'pragma solidity 0.8.15;'),
+                               ('forge-artifacts/A.json', b'{"bytecode":"0x1234"}')]:
+                member = tarfile.TarInfo(name); member.size = len(data)
+                stream.addfile(member, io.BytesIO(data))
+        compressed = subprocess.run(['zstd', '--compress', '--stdout'], input=raw.getvalue(),
+                                    capture_output=True, check=True).stdout
+        files, links = COMPARE.embedded(compressed)
+        self.assertEqual(files, {'src/A.sol': COMPARE.digest(b'pragma solidity 0.8.15;'),
+                                'forge-artifacts/A.json': COMPARE.digest(b'{"bytecode":"0x1234"}')})
+        self.assertEqual(links, {})
+        with self.assertRaises((ValueError, tarfile.ReadError)):
+            COMPARE.embedded(compressed[:-8])
+
+    def test_embedded_file_link_aliases_cannot_hide_duplicate_members(self):
+        raw = io.BytesIO()
+        with tarfile.open(fileobj=raw, mode='w:gz') as stream:
+            file = tarfile.TarInfo('src/A.sol'); file.size = 1; stream.addfile(file, io.BytesIO(b'A'))
+            link = tarfile.TarInfo('src/A.sol'); link.type = tarfile.SYMTYPE; link.linkname = 'elsewhere.sol'
+            stream.addfile(link)
+        with self.assertRaisesRegex(ValueError, 'Duplicate'): COMPARE.embedded(raw.getvalue())
 
 
 if __name__ == '__main__': unittest.main()

@@ -1,5 +1,179 @@
 {
   "boundary": "Isolated real Go fixtures use their own committed fixture revisions. Both tasks intentionally fail. Cancellation terminates the test process group; it is not an RWX engine cancellation. No GitHub status publisher is configured and these fixtures do not count toward workload coverage.",
+  "gate_and_release_cache_rehearsal": {
+    "boundary": "The complete release producer passed and reused 71 of 88 original Cargo units with unchanged source fingerprint. The real gate then rejected an intentionally unsuccessful fixture verdict. Both fixture tasks and the gate are failed terminal states. This CLI-only diagnostic does not replace a GitHub push verdict or establish a pipeline speed advantage.",
+    "gate": {
+      "error": "Unsuccessful E2E dependency or verdict",
+      "passed": false,
+      "source_sha": "6562c285b53ed374d90fbaa4de98217d499fa39b"
+    },
+    "gate_status": {
+      "AbortedSubStatus": "not_applicable",
+      "Execution": "finished",
+      "FinishedSubStatus": "executed",
+      "Result": "failed",
+      "WaitingSubStatus": "not_applicable"
+    },
+    "gate_task_id": "51aa51f86e09497557433c3292ddb3c1",
+    "original_sha256": {
+      "gate/isolated-gate.json": "011cf80e874e4d86a9695424da8f958c26f4e4b5b02f061c1230759d86d9015a",
+      "isolated-cancel/command.stderr": "9978af2eb82c982589f1b53ad8e1907a5c9034570269560293083e7592e6e8c0",
+      "isolated-cancel/command.stdout": "2f5ae2b72edafe447d055b36a515f972cd00912c59ca080b0e5f060c48737743",
+      "isolated-cancel/compiled/compile.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "isolated-cancel/compiled/compile.stage.json": "19c594536a34462ad06101f6e84b722221b280b8c9045df96a7209c8ebc02821",
+      "isolated-cancel/compiled/defaults.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "isolated-cancel/compiled/defaults.stage.json": "4e098699917b83102bca0c8c58b39eb622b5715f983aaa00e0d7a5b82a8c33b2",
+      "isolated-cancel/compiled/listing.log": "d4a4df61fff8f20c0981932a2fcb5ac6a93144c1c071ffe294512744a8299584",
+      "isolated-cancel/compiled/listing.stage.json": "ea00eefd09c87aa3589caa719af9a040d51da6ad65be655118e26d18142d1880",
+      "isolated-cancel/compiled/manifest.json": "91748c625b1a6b206c098ba2a5ebfb6495129e3e0cf1b41771d16e92c17149f8",
+      "isolated-cancel/compiled/metadata.json": "54543e920e04d78ba54c5dcfaed01e2ab02ef6cb16f88240b2963424cc43b6e4",
+      "isolated-cancel/compiled/packages.json": "e6977c9e1062c455ef9ebaa3622eb0baefe1651811cc25ea711b24f95d24b86b",
+      "isolated-cancel/compiled/packages.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "isolated-cancel/compiled/packages.stage.json": "d04652a0d1ce9af872bab098616ff519692e300876656cece7cd084535ed98a8",
+      "isolated-cancel/compiled/reporter.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "isolated-cancel/compiled/reporter.stage.json": "66a4071e6f1ecc7d138ef54c4202a0dbc41fa198cd9a2e756914bad4ece3a7cb",
+      "isolated-cancel/compiled/runtime-defaults": "287019d954e8756e5a40ae965582ee3471aefacb1c1ecab2b980db8282319b15",
+      "isolated-cancel/compiled/runtime-defaults.go": "7f87d2b919e809eb56d630667b1c4db399934d89b169d10d53b54e1b8124898f",
+      "isolated-cancel/compiled/suite.test": "bce913a6df27de75ba517ceb020f2f61c9df1ae201ebbd029b2859d727357f8e",
+      "isolated-cancel/compiled/test2json": "cdf44b4871089c72efc37be6fd5693b0f05d07635b3df33259869f22760d5a5b",
+      "isolated-cancel/fixture-go.mod": "54f7d8bd811d05493e77521bba94a924e6ca97fde35c767e279568b88b74be22",
+      "isolated-cancel/fixture-source/fixture.txt": "8ea1d0f942e2a08be4095246ec2f75c1c7e10a8f1224aa27bc90a35731e00464",
+      "isolated-cancel/fixture-source/fixture_test.go": "6b23c6e81a8180f1b5462eabf2f9a49a7ffedf8957a6c9c8223ff6f0c5e38d2e",
+      "isolated-cancel/probe.json": "667fcd9099180d0adaa12dac7c3d71e09c6d10ee7927e88c728da37b7f8b4ecc",
+      "isolated-cancel/report/assigned.txt": "4227a721c9ab40ad3fcff8dec817acfd8bd812f3a16a27a5ad40ce9b72080450",
+      "isolated-cancel/report/coverage.json": "a3c98308fec0b0fb8570191f7073124295f168be38b2650c38ba627d809639a3",
+      "isolated-cancel/report/environment.nul": "18416976e3f9b444f44cdd76323697d8ccb3e0b989660689bc1b7a660af3a598",
+      "isolated-cancel/report/events/package.json": "f30a7baa9cbc6ed4bdfeed5eb1bf6bc2643e9fe14e8fd92a19733ac825303835",
+      "isolated-cancel/report/final.json": "60360b7274fc4be10ccd4b9bb09ee6fe4ed8e8a81a17b5b48c30812dacc77ac8",
+      "isolated-cancel/report/invocations/package.json": "6ce1211b63f8e4f0d478beeee180b06fcd601a7059979c13e84046c22d75d137",
+      "isolated-cancel/report/original.json": "f30a7baa9cbc6ed4bdfeed5eb1bf6bc2643e9fe14e8fd92a19733ac825303835",
+      "isolated-cancel/report/selection.json": "57dc5565641212b8de18343843b8521fd533e8b800039292f42a427678d77993",
+      "isolated-failure/command.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "isolated-failure/command.stdout": "d6ee68b61ccd9211c4ac762d7ad4500bb12f6aad139eca6dbcf93a228bacbae8",
+      "isolated-failure/compiled/compile.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "isolated-failure/compiled/compile.stage.json": "35c3b562af6961ae5e4e85891c214b0cece71f2d422b479576f5174fcb83c23a",
+      "isolated-failure/compiled/defaults.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "isolated-failure/compiled/defaults.stage.json": "e1488100e90f5f9e041fea52da22479824b291a19d994ec7888d2d67fbe54deb",
+      "isolated-failure/compiled/listing.log": "d4a4df61fff8f20c0981932a2fcb5ac6a93144c1c071ffe294512744a8299584",
+      "isolated-failure/compiled/listing.stage.json": "e768c0cdf33542738b14be6f3c07ee4d6d1b1145f109be32550555a6446f91f9",
+      "isolated-failure/compiled/manifest.json": "2535fdc376ecd230162f537860f2a77412278dd0b3ae88e4cde75fc5e7020c65",
+      "isolated-failure/compiled/metadata.json": "9df7bfe2304f00873d2b4ea26183512beaa8c1cf998fb50bdc87d2787975de96",
+      "isolated-failure/compiled/packages.json": "4c51571c40ee9f348c369f99292a73a03f684107bfab27c2fac64cfdac2653df",
+      "isolated-failure/compiled/packages.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "isolated-failure/compiled/packages.stage.json": "175b64cc9dca205f9b936984772e7d7d4f9d88e85306b71421cfcfe12121fac5",
+      "isolated-failure/compiled/reporter.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "isolated-failure/compiled/reporter.stage.json": "9bd7b1237e84c4c8a2cca35e8ec309fa12ab56f93f201dcdcdbee8bfd81e786b",
+      "isolated-failure/compiled/runtime-defaults": "537e241d89b784008894e574d4ee030309781534893d13e8fc373fd9178e792e",
+      "isolated-failure/compiled/runtime-defaults.go": "7f87d2b919e809eb56d630667b1c4db399934d89b169d10d53b54e1b8124898f",
+      "isolated-failure/compiled/suite.test": "f2dedcb8a7594fbfa80ba7c21d57c3baab4215cf92afab936d8ba56705eb2b41",
+      "isolated-failure/compiled/test2json": "cdf44b4871089c72efc37be6fd5693b0f05d07635b3df33259869f22760d5a5b",
+      "isolated-failure/fixture-go.mod": "54f7d8bd811d05493e77521bba94a924e6ca97fde35c767e279568b88b74be22",
+      "isolated-failure/fixture-source/fixture.txt": "8ea1d0f942e2a08be4095246ec2f75c1c7e10a8f1224aa27bc90a35731e00464",
+      "isolated-failure/fixture-source/fixture_test.go": "6b23c6e81a8180f1b5462eabf2f9a49a7ffedf8957a6c9c8223ff6f0c5e38d2e",
+      "isolated-failure/probe.json": "1f92da329ecaef553a712141c9e9ce18171f69333cc0e648f7285918640cf894",
+      "isolated-failure/report/assigned.txt": "4227a721c9ab40ad3fcff8dec817acfd8bd812f3a16a27a5ad40ce9b72080450",
+      "isolated-failure/report/coverage.json": "2cb724f3715359d9dcc0c491a280d0977e93c8a08dda8fba7e624c380a5e93cf",
+      "isolated-failure/report/environment.nul": "7b3fd38f83a7b6062c89a2ae379de5c41611579f278dddb0b997a96adca71345",
+      "isolated-failure/report/events/package.json": "0ccd430db1a25c1c2462ff3c7751c6dfce154229ac80c6abd9f7560ad6ebd43e",
+      "isolated-failure/report/events/per-test/github.com.ethereum-optimism.optimism.rust.kona.tests.node.common/TestFailure.log": "532f5b90078b45630f51843934d5e7f76d5bfd1e5ae69172cee96e1e965cc38d",
+      "isolated-failure/report/events/per-test/github.com.ethereum-optimism.optimism.rust.kona.tests.node.common/TestFresh.log": "01acfbc46c6c8f26d69dc10dc22419dd810e12c5e462dbf4b052c323562ba0f7",
+      "isolated-failure/report/events/per-test/github.com.ethereum-optimism.optimism.rust.kona.tests.node.common/TestSkip.log": "150f35cb0e42870323f28b0945b5a00aa971a5b66e423c4a2a5d3d91ab7390e4",
+      "isolated-failure/report/events/per-test/github.com.ethereum-optimism.optimism.rust.kona.tests.node.common/TestSlow.log": "efbf173c491ea7144ee4054bdfca8896f851098237f88656eee319816f95961e",
+      "isolated-failure/report/final.json": "c213ae552b969c9b4d901db2b5bea8ae3039d7cdd81d794e887306ec4e7bd6fd",
+      "isolated-failure/report/invocations/package.json": "0a795c4ad78c37a5cf78464e75d4d2d31fec9fdf0ef12fbdc97b82057e5113e9",
+      "isolated-failure/report/junit/package.xml": "d4b7425e8bb4dced2bae323feeb616f88f1baf27484b827a2056106f4712b1dd",
+      "isolated-failure/report/native.json": "26bb81b551c482f288286d83c3e26963beacf513502895fcbcc05eb19091fc14",
+      "isolated-failure/report/native.metadata.json": "b012b86a0c8b66fcf20e7f80f2e953389052938764050c7ff8422adb9f8e8027",
+      "isolated-failure/report/original.json": "0ccd430db1a25c1c2462ff3c7751c6dfce154229ac80c6abd9f7560ad6ebd43e",
+      "isolated-failure/report/selection.json": "3ddb1c089309c2c13768391521a9a71132e4d3d4a8d328828057e704f2718d26",
+      "release/build.json": "7206189b4c945ad3b5ad09bc07903a2d51f058688f3dcfbbddd5f80f67cb2a3e",
+      "release/build.log": "e9279c4e29de8b3867d68ea6c14f076db8a1f01bff49a864c02e33453c1e9c61",
+      "release/build.stage.json": "82dc3620144a22b32f5573b8890c53613b6252931b91c51dfc8395dcf289d98a",
+      "release/cache-source.json": "7b261c198341c82ad46bb9fa2490a6c0401a82cba947392aafcb595763e0a14e",
+      "release/checks.junit.xml": "a3491293b0c71af6ee4d73a4b9c1eb698a9fb54f25866849a8fa622c21ee8c84",
+      "release/coverage.json": "87b920b95a5b1d5bd015bf8469eef92615f6a4f094dc6791bbe52993d370378c",
+      "release/dependency.json": "229b35e203b778b8da6957e5e041dac7a5a84fe525ddfba4d794008f4eda5ed9",
+      "release/final.json": "430ffe637448e99d480117cecfe68de38359bc39b9649d7e01070226b2710155",
+      "release/sccache-stop.log": "b99f90923df6b4e61d920f6c19fdabe34ba346767b189dedcbb694e1704fad78",
+      "release/sccache.json": "c6d054e275e45846a50c8301185a9377c0b48fb2cdbd1d80ce5ba005e61c339e",
+      "release/settings.json": "b0c195228401a740ab23b8c0d95031280597833e1dfbe1d53e189b37e807750e",
+      "release/workspace.json": "9276b9f5a27f928c5807a5b4306d6bc3e2335af249238ff0916adc4d344e70b8",
+      "release/workspace.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "release/workspace.stage.json": "a5f62bdff25d9d9aac9a9e07300859a89fbf2840a433aa952db9955c49dbc1ca"
+    },
+    "parent_source_sha": "6562c285b53ed374d90fbaa4de98217d499fa39b",
+    "release_binaries": 16,
+    "release_cache_source": {
+      "restored_source_files": 1343,
+      "source_changed": false,
+      "source_sha256": "a88b2828e0cc62317a68adf1be952f27ffababd661c2755109fc912ddb03bb02"
+    },
+    "release_execution_seconds": 246,
+    "release_packages": 76,
+    "release_status": {
+      "AbortedSubStatus": "not_applicable",
+      "Execution": "finished",
+      "FinishedSubStatus": "executed",
+      "Result": "succeeded",
+      "WaitingSubStatus": "not_applicable"
+    },
+    "release_task_id": "c103f14d55d4c9996ddcd342560cd5d5",
+    "release_units": 88,
+    "result": "failed",
+    "rwx_run_id": "fa98ff0a08e2473b8737152c2598cbbc",
+    "sccache_stats": {
+      "cache_errors": {
+        "adv_counts": {},
+        "counts": {}
+      },
+      "cache_hits": {
+        "adv_counts": {
+          "rust": 13
+        },
+        "counts": {
+          "Rust": 13
+        }
+      },
+      "cache_misses": {
+        "adv_counts": {},
+        "counts": {}
+      },
+      "cache_read_errors": 0,
+      "cache_read_hit_duration": {
+        "nanos": 53557970,
+        "secs": 0
+      },
+      "cache_timeouts": 0,
+      "cache_write_duration": {
+        "nanos": 0,
+        "secs": 0
+      },
+      "cache_write_errors": 0,
+      "cache_writes": 0,
+      "compilations": 0,
+      "compile_fails": 0,
+      "compile_requests": 20,
+      "compiler_write_duration": {
+        "nanos": 0,
+        "secs": 0
+      },
+      "dist_compiles": {},
+      "dist_errors": 0,
+      "forced_recaches": 0,
+      "multi_level": null,
+      "non_cacheable_compilations": 0,
+      "not_cached": {
+        "-": 1,
+        "crate-type": 4,
+        "missing input": 2
+      },
+      "requests_executed": 13,
+      "requests_not_cacheable": 7,
+      "requests_not_compile": 0,
+      "requests_unsupported_compiler": 0
+    },
+    "units_reused": 71
+  },
   "parent_source_sha": "6562c285b53ed374d90fbaa4de98217d499fa39b",
   "probes": {
     "isolated-cancel": {

@@ -145,6 +145,7 @@ tasks:
   - key: helper-tests
     use: [code, go-build-tools, contract-tools]
     run: |
+      bash .circleci/scripts/apt-install.sh zstd
       RWX_LIVE_GO_FIXTURE=1 RWX_LIVE_FORGE_FIXTURE=1 python3 -m unittest discover -s ops/ci -p 'test_rust_e2e.py'
       python3 -m unittest discover -s ops/ci -p 'test_rust_e2e_release.py'
       python3 -m unittest discover -s ops/ci -p 'test_rust_e2e_gate.py'

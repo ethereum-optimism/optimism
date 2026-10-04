@@ -37,10 +37,10 @@ at commit `587b4c3a73d3f16f15212b72e9a0ed0e8489a7c4`.
 | Main | 32 | 13 |
 | Contracts | 23 | 4 |
 | Rust | 22 | 21 |
-| Rust E2E | 9 | 0 |
-| Total | 86 | 38 |
+| Rust E2E | 9 | 9 |
+| Total | 86 | 47 |
 
-Conservative implementation coverage is **38 / 86 = 44%**. Each matrix entry and
+Verified implementation coverage is **47 / 86 = 55%**. Each matrix entry and
 each occurrence in a different workflow counts separately; shards do not.
 The CircleCI setup and schedule-trigger-check workflows are outside this
 86-job denominator and have separate todos. This is job coverage, not runtime,
@@ -62,20 +62,14 @@ same-SHA original-report parity. See the
 All three Cannon Rust workloads now pass complete same-SHA original-report
 parity, including both MIPS client binaries and the complete final VM state.
 See the [Cannon evidence](rwx-cannon-parity.md).
-The Rust E2E definition is now implemented for the full workspace release build,
-its separate `ci --skip test` contract artifacts, all reproducible prestates and
-the five fresh Go test workloads. Hosted execution and complete same-SHA original
-report comparison remain pending, so none of its nine occurrences is counted yet.
-The first hosted failures are retained in the [E2E evidence index](rwx-rust-e2e-evidence/first-failures.json).
-The full release producer now validates all 76 workspace packages, 88 compiler units
-and 16 binaries. Thirteen native verdict tasks passed. The remaining op-reth task
-ran the wrong root contract recipe because its adapter reversed working-directory
-arguments; RWX reported memory exhaustion before tests. The corrected nested
-Just/Forge fixture compiles Solidity and runs a Go test against its bytecode.
-Full hosted execution on the corrected revision remains pending.
-Node and reth verdicts preserve Go's default parallelism, while proof verdicts
-retain their explicit setting. Real Go/Forge/Cargo fixtures and original-invocation
-validation pass; complete hosted verdicts remain the coverage boundary.
+All nine Rust E2E occurrences now pass complete same-SHA original-report parity:
+76 release packages, 88 compiler units, 16 binaries, contract/prestate runtime
+inputs and 410 test identities (405 passes, five skips, no retries). All fourteen
+native verdict shards and the aggregate passed. See the
+[E2E closeout](rwx-rust-e2e-parity.md) for original hashes, the two narrowly resolved
+logger-timestamp differences, retained first failures, and compile-only warming.
+The module-preparation and complete contract-fast adapters are implemented and
+locally validated; their three inventory occurrences await hosted parity.
 The narrower rollup mode remains CLI-only. See [the stage closeout](rwx-go-parity.md)
 for original-report comparison, selected resources, caches and limitations.
 
@@ -97,7 +91,7 @@ in [rwx-migration.md](rwx-migration.md#op-reth-shadow-and-cache-measurements).
 
 1. Retain the completed [acceptance](rwx-acceptance-parity.md) and
    [core Rust workspace](rwx-rust-parity.md) shadows and their original-report evidence.
-2. Port the Rust E2E workflow and retain the completed Cannon workload evidence.
+2. Retain the completed Rust E2E and Cannon workload evidence.
 3. Close remaining contract evidence gaps and operational failure/routing rehearsals.
 4. Keep additional performance tuning deferred while porting remaining workloads.
 5. Rehearse full pipeline routing and failure behavior before proposing gate
@@ -281,20 +275,20 @@ CircleCI workflow: `rust-ci` (22 jobs).
 
 CircleCI workflow: `rust-e2e-ci` (9 jobs).
 
-- [ ] `rust-workspace-release`
-- [ ] `contracts-bedrock-build-2`
-- [ ] `cannon-prestate`
-- [ ] `kona-proof-action-single`
-- [ ] `op-reth-e2e-sysgo-tests`
-- [ ] `rust-e2e-restart`
-- [ ] `rust-e2e-simple-kona`
-- [ ] `rust-e2e-simple-kona-sequencer`
-- [ ] `required-rust-e2e`
+- [x] `rust-workspace-release`
+- [x] `contracts-bedrock-build-2`
+- [x] `cannon-prestate`
+- [x] `kona-proof-action-single`
+- [x] `op-reth-e2e-sysgo-tests`
+- [x] `rust-e2e-restart`
+- [x] `rust-e2e-simple-kona`
+- [x] `rust-e2e-simple-kona-sequencer`
+- [x] `required-rust-e2e`
 
 ## Routing and required gates
 
 Shared routing policy and its regression tests are implemented. Automatic
-GitHub App push reporting is verified for all six optional checks. Earlier Go and
+GitHub App push reporting is verified for all seven existing optional checks. Earlier Go and
 contract failure probes verified bounded failure reporting; the full native
 pipeline still needs the rehearsals below.
 

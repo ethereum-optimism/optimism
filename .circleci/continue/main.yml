@@ -1621,8 +1621,14 @@ jobs:
           command: forge --version
       - run:
           name: Run checks
-          command: just check-fast
+          command: python3 ../../ops/ci/pr-checks.py contracts-fast
           working_directory: packages/contracts-bedrock
+      - store_test_results:
+          path: .ci/pr-checks/contracts-fast
+          when: always
+      - store_artifacts:
+          path: .ci/pr-checks/contracts-fast
+          when: always
       - notify-failures-on-develop:
           mentions: "<!subteam^S07K486JEH4>"
 
@@ -1775,21 +1781,15 @@ jobs:
       - run:
           name: Download Go modules
           command: |
-            # proxy.golang.org intermittently returns transient stream errors
-            # (INTERNAL_ERROR). Retry with exponential backoff so a flaky
-            # download doesn't fail this shared prep job and everything behind
-            # it.
-            n=0
-            until go mod download; do
-              n=$((n+1))
-              if [ "$n" -ge 5 ]; then
-                echo "go mod download failed after $n attempts" >&2
-                exit 1
-              fi
-              backoff=$((5 * 2 ** (n - 1)))
-              echo "go mod download failed (attempt $n); retrying in ${backoff}s..." >&2
-              sleep "$backoff"
-            done
+            # Preserve the five downloads and exponential backoff, verify all
+            # downloaded modules, and retain the complete original module graph.
+            python3 ops/ci/pr-checks.py go-modules
+      - store_test_results:
+          path: .ci/pr-checks/go-modules
+          when: always
+      - store_artifacts:
+          path: .ci/pr-checks/go-modules
+          when: always
       - save-go-mod-cache
 
   check-nut-locks:

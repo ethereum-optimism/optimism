@@ -2,6 +2,7 @@
 """Compare complete original Rust E2E selection, builds and fresh Go verdicts."""
 import argparse
 from collections import Counter
+from datetime import datetime
 import importlib.util
 import json
 from pathlib import Path
@@ -45,6 +46,30 @@ def normalize(value, root):
     if isinstance(value, dict): return {k: normalize(v, root) for k, v in value.items()}
     if isinstance(value, list): return [normalize(v, root) for v in value]
     return value
+
+
+def skip_comparison(job, key, circle, rwx, source=None):
+    if circle is None or rwx is None: raise ValueError('Unknown original E2E skip reason')
+    if circle == rwx: return {'package': key[0], 'name': key[1], 'reason': circle, 'comparison': 'strict'}
+    # Resolve the observed difference only for this unconditional in-tree skip.
+    # Keep severity, messages, scope and both original reasons; no general log
+    # or timestamp stripping can conceal a different test outcome or reason.
+    if (job not in ('simple-kona', 'simple-kona-sequencer') or key[1] != 'TestL2FinalizedSync'
+            or key[0] != E2E.PREFIX + E2E.JOBS[job]['package']):
+        raise ValueError('Original E2E skip reason differs: ' + str(key))
+    declaration = r'func TestL2FinalizedSync\(gt \*testing\.T\) \{\s+t := devtest\.ParallelT\(gt\)\s+t\.Skip\("Skipping finalized sync test"\)'
+    if not source or not re.search(declaration, source): raise ValueError('Finalized-sync skip source changed')
+    timestamp = r'(\d{2}-\d{2}\|\d{2}:\d{2}:\d{2}\.\d{3})'
+    pattern = r'INFO \[' + timestamp + r'\] Running test in parallel scope=/TestL2FinalizedSync INFO \[' + timestamp + r'\] Skipping finalized sync test scope=/TestL2FinalizedSync'
+    for value in (circle, rwx):
+        match = re.fullmatch(pattern, value)
+        if not match: raise ValueError('Unresolved finalized-sync skip message, severity or scope difference')
+        for stamp in match.groups(): datetime.strptime('2000-' + stamp, '%Y-%m-%d|%H:%M:%S.%f')
+    normalized = re.sub(r'(?<=INFO )\[' + timestamp + r'\]', '[<timestamp>]', circle)
+    return {'package': key[0], 'name': key[1], 'reason': normalized,
+            'original_reasons': {'circle': circle, 'rwx': rwx}, 'comparison': 'logger timestamps only',
+            'source': 'rust/kona/tests/node/common/sync_test.go',
+            'source_sha256': __import__('hashlib').sha256(source.encode()).hexdigest()}
 
 
 def test_report(directory, job, sha, provider, empty, originals_index):
@@ -148,8 +173,9 @@ def compare(root, sha):
             if ac[key]['outcome'] != bc[key]['outcome']: raise ValueError(job + ': E2E case outcome differs: ' + str(key))
             if ac[key]['outcome'] == 'skip':
                 sa, sb = (normalize(c[key]['skip_reason'], selections[p][0]['workspace_root']) for p, c in [('circle', ac), ('rwx', bc)])
-                if sa is None or sa != sb: raise ValueError(job + ': Original E2E skip reason differs or is unknown: ' + str(key))
-                skips.append({'package': key[0], 'name': key[1], 'reason': sa})
+                source = E2E.subprocess.check_output(['git', 'show', sha + ':rust/kona/tests/node/common/sync_test.go'],
+                    cwd=E2E.ROOT, text=True) if sa != sb and key[1] == 'TestL2FinalizedSync' else None
+                skips.append(skip_comparison(job, key, sa, sb, source))
         result['jobs'][job] = {'settings': a['settings'], 'top_level_selection': a['tests'], 'cases': len(ac),
             'outcomes': dict(Counter(c['outcome'] for c in ac.values())), 'skips': skips, 'retries': 0,
             'shard_assignments': {p: [{'index': r['shard_index'], 'tests': r['assigned_tests']} for r in rows] for p, rows in selections.items()},

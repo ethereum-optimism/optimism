@@ -90,5 +90,22 @@ class CompareTests(unittest.TestCase):
         (self.directory / 'original.json').unlink()
         with self.assertRaises(OSError): COMPARE.originals(self.directory, {'original.json'}, [], 'circle/report')
 
+    def test_observed_finalized_skip_preserves_both_reasons_and_only_resolves_logger_time(self):
+        source = 'func TestL2FinalizedSync(gt *testing.T) {\n t := devtest.ParallelT(gt)\n t.Skip("Skipping finalized sync test")\n}'
+        circle = 'INFO [10-04|19:54:11.285] Running test in parallel scope=/TestL2FinalizedSync INFO [10-04|19:55:06.892] Skipping finalized sync test scope=/TestL2FinalizedSync'
+        rwx = circle.replace('19:54:11.285', '19:45:45.854').replace('19:55:06.892', '19:47:03.335')
+        key = (self.package, 'TestL2FinalizedSync')
+        result = COMPARE.skip_comparison('simple-kona', key, circle, rwx, source)
+        self.assertEqual(result['original_reasons'], {'circle': circle, 'rwx': rwx})
+        self.assertEqual(result['comparison'], 'logger timestamps only')
+        for invalid in (rwx.replace('INFO', 'WARN'), rwx.replace('Skipping finalized sync test', 'Different skip'),
+                        rwx.replace('scope=/TestL2FinalizedSync', 'scope=/OtherTest'), rwx.replace('10-04', '99-99')):
+            with self.subTest(invalid=invalid), self.assertRaises(ValueError):
+                COMPARE.skip_comparison('simple-kona', key, circle, invalid, source)
+        with self.assertRaisesRegex(ValueError, 'source'):
+            COMPARE.skip_comparison('simple-kona', key, circle, rwx, source.replace('t.Skip(', 'if changed { t.Skip('))
+        with self.assertRaises(ValueError): COMPARE.skip_comparison('proof', key, circle, rwx, source)
+        with self.assertRaises(ValueError): COMPARE.skip_comparison('simple-kona', (self.package, 'OtherTest'), circle, rwx, source)
+
 
 if __name__ == '__main__': unittest.main()

@@ -1,12 +1,15 @@
 #!/usr/bin/env python3
 """Compare every bound contract input while retaining compiler metadata differences."""
 from collections import Counter
+from contextlib import contextmanager
 import hashlib
 import io
 import json
 from pathlib import Path
 import re
+import subprocess
 import tarfile
+import tempfile
 
 AST_IDS = {'id', 'scope', 'referencedDeclaration', 'functionReturnParameters', 'declaration', 'sourceUnit',
            'linearizedBaseContracts', 'usedErrors', 'usedEvents', 'contractDependencies', 'baseFunctions',
@@ -94,19 +97,35 @@ def build_info(files, prefix):
     return sorted(result, key=lambda r: json.dumps(r, sort_keys=True))
 
 
+@contextmanager
+def embedded_stream(data):
+    # Python 3.12 has no native zstd tar reader. Stream through the same zstd
+    # tool used to create the deployer archive, without repeatedly seeking it.
+    if data.startswith(b'\x28\xb5\x2f\xfd'):
+        with tempfile.NamedTemporaryFile(suffix='.tzst') as source:
+            source.write(data); source.flush()
+            with subprocess.Popen(['zstd', '--decompress', '--stdout', source.name],
+                                  stdout=subprocess.PIPE, stderr=subprocess.PIPE) as child:
+                try:
+                    with tarfile.open(fileobj=child.stdout, mode='r|') as stream: yield stream
+                    child.stdout.read(); child.stderr.read()
+                    if child.wait() != 0: raise ValueError('Corrupt embedded zstd archive')
+                finally:
+                    if child.poll() is None: child.kill()
+    else:
+        with tarfile.open(fileobj=io.BytesIO(data), mode='r|*') as stream: yield stream
+
+
 def embedded(data):
-    # The pinned Python toolchain supports zstd tar streams. Read once: repeated
-    # seeking inside a compressed stream would decompress the archive per file.
     files, links = {}, {}
-    with tarfile.open(fileobj=io.BytesIO(data), mode='r|*') as stream:
+    with embedded_stream(data) as stream:
         for member in stream:
             name = member.name; relative = Path(name)
             if relative.is_absolute() or '..' in relative.parts: raise ValueError('Unsafe embedded contract archive')
+            if not member.isdir() and (name in files or name in links): raise ValueError('Duplicate embedded contract member')
             if member.isfile():
-                if name in files: raise ValueError('Duplicate embedded contract file')
                 files[name] = digest(stream.extractfile(member).read())
             elif member.issym() or member.islnk():
-                if name in links: raise ValueError('Duplicate embedded contract link')
                 links[name] = member.linkname
             elif not member.isdir(): raise ValueError('Unexpected embedded contract member')
     return files, links
