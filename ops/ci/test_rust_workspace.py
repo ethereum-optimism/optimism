@@ -221,6 +221,10 @@ pub fn example() {}
             self.assertEqual(fresh.returncode, 0, fresh.stdout + fresh.stderr)
             doc = run('doctest')
             self.assertEqual(doc.returncode, 0, doc.stdout + doc.stderr)
+            circle = subprocess.run(['bash', '../ops/ci/rust-workspace.sh', 'doctest'],
+                                    cwd=root / 'rust', env={**env, 'CI_RUST_PROVIDER': 'circleci'},
+                                    capture_output=True, text=True, timeout=180)
+            self.assertEqual(circle.returncode, 0, circle.stdout + circle.stderr)
 
 
 if __name__ == '__main__':

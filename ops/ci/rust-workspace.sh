@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
 # Shared Circle/RWX commands and evidence. Run from the monorepo root.
 set -euo pipefail
+HELPERS="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ROOT="$(git rev-parse --show-toplevel)"
 cd "$ROOT"
-HELPERS="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 job="${1:?Pass a Rust workspace job}"
 case "$job" in tests|tests-build|doctest|docs|clippy|build|features|feature-plan|no-std|udeps) ;;
   *) echo "Unknown Rust workspace job: $job" >&2; exit 1;;
@@ -37,6 +37,8 @@ finish() {
   local status=$? diagnostics=0
   trap - EXIT
   if [[ "${CI_RUST_PROVIDER:-circleci}" == rwx ]]; then
+    # Original verdicts are copied into the report artifact, never compiler caches.
+    rm -rf "$ROOT/rust/target/nextest/default"
     sccache --show-stats --stats-format json >"$report/sccache.json" || diagnostics=$?
     sccache --stop-server >"$report/sccache-stop.log" 2>&1 || diagnostics=$?
     if [[ "$status" == 0 ]]; then
