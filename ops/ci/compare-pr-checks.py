@@ -20,13 +20,16 @@ ORIGINALS = helper('compare-rust-e2e')
 def report(directory, job, sha, provider, empty):
     required = {'settings.json', 'coverage.json', 'checks.junit.xml'}
     required |= {'discovery.json', 'discovery.stage.json', 'verify.stage.json', 'verify.log', 'download-0.stage.json', 'download-0.log'} if job == 'go-modules' else {
-        'checks.log', 'checks.stage.json', 'selection.json', 'submodules.txt', 'foundry-config.json', 'foundry-config.stage.json'}
+        'checks.log', 'checks.stage.json', 'selection.json', 'submodules.txt', 'foundry-config.json', 'foundry-config.stage.json', 'fetch-target.stage.json'}
     hashes = ORIGINALS.originals(directory, required, empty, provider + '/' + job)
     settings = json.loads((directory / 'settings.json').read_text()); coverage = json.loads((directory / 'coverage.json').read_text())
     if settings['source_sha'] != sha or settings['job'] != job or settings['provider'] != {'circle': 'circleci', 'rwx': 'rwx'}[provider]:
         raise ValueError('PR check source, job or provider differs')
     if provider == 'rwx' and job == 'contracts-fast' and (not settings['rwx_run_id'] or str(settings['rwx_task_attempt']) != '1'):
         raise ValueError('Missing fresh native check identity or uninvestigated task retry')
+    if job == 'contracts-fast' and (not settings.get('target_branch') or any(
+        not re.fullmatch('[0-9a-f]{40}', settings.get(field, '')) for field in ('target_sha', 'merge_base_sha'))):
+        raise ValueError('Invalid bound contract target history')
     stages = {}
     for path in directory.glob('*.stage.json'):
         row = json.loads(path.read_text()); name = path.name.removesuffix('.stage.json')
@@ -44,7 +47,7 @@ def report(directory, job, sha, provider, empty):
         if coverage['selected'] != len(manifest): raise ValueError('Incomplete module count')
         cases = {job}
     else:
-        expected = {'checks', 'foundry-config'}
+        expected = {'checks', 'foundry-config', 'fetch-target'}
         configuration = json.loads((directory / 'selection.json').read_text())
         if CHECKS.check_verdicts((directory / 'checks.log').read_text(), configuration) != coverage:
             raise ValueError('Check coverage differs from original command output')
@@ -53,8 +56,10 @@ def report(directory, job, sha, provider, empty):
     for name, row in stages.items():
         command = ['go', 'mod', 'download'] if name.startswith('download-') else {
             'verify': ['go', 'mod', 'verify'], 'discovery': ['go', 'list', '-m', '-json', 'all'],
-            'checks': ['just', 'check-fast', '-verbose'], 'foundry-config': ['forge', 'config', '--json']}[name]
-        cwd = '<repo>/packages/contracts-bedrock' if job == 'contracts-fast' else '<repo>'
+            'checks': ['just', 'check-fast', '-verbose'], 'foundry-config': ['forge', 'config', '--json'],
+            'fetch-target': ['git', 'fetch', '--no-tags', 'origin', '+refs/heads/' + settings.get('target_branch', '') +
+                             ':refs/remotes/origin/' + settings.get('target_branch', '')]}[name]
+        cwd = '<repo>/packages/contracts-bedrock' if job == 'contracts-fast' and name != 'fetch-target' else '<repo>'
         if row['argv'] != command or row['cwd'] != cwd: raise ValueError('Unexpected original PR check command or directory')
     junit = list(ET.parse(directory / 'checks.junit.xml').iter('testcase'))
     if len(junit) != len(cases) or {c.attrib['name'] for c in junit} != cases or any(
@@ -68,7 +73,8 @@ def compare(directories, job, sha):
     empty, data = [], {}
     for provider, directory in directories.items(): data[provider] = report(directory, job, sha, provider, empty)
     a, b = data['circle'], data['rwx']
-    settings_fields = ('source_sha', 'job', 'branch', 'go', 'just', 'input_sha256') + (('forge', 'semgrep') if job == 'contracts-fast' else ())
+    settings_fields = ('source_sha', 'job', 'branch', 'go', 'just', 'input_sha256') + (
+        ('forge', 'semgrep', 'target_branch', 'target_sha', 'merge_base_sha') if job == 'contracts-fast' else ())
     for field in settings_fields:
         if a[0][field] != b[0][field]: raise ValueError('PR check binding differs at ' + field)
     if a[2] != b[2]: raise ValueError('PR check original commands or retry history differs')

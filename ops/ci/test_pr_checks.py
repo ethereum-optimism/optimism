@@ -10,6 +10,7 @@ import subprocess
 import sys
 import tempfile
 import unittest
+from unittest.mock import patch
 
 SPEC = importlib.util.spec_from_file_location('checks', Path(__file__).with_name('pr-checks.py'))
 CHECKS = importlib.util.module_from_spec(SPEC); SPEC.loader.exec_module(CHECKS)
@@ -90,6 +91,29 @@ class CheckTests(unittest.TestCase):
             self.assertEqual(report['retries'], ['new-check'])
             self.assertEqual((root / 'marker').read_text(), 'original')
 
+    def test_actual_single_branch_clone_fetches_missing_protected_semver_target(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp); origin = root / 'origin'; origin.mkdir()
+            def git(*args, cwd=origin):
+                return subprocess.check_output(['git', *args], cwd=cwd, stderr=subprocess.DEVNULL, text=True).strip()
+            git('init', '-b', 'develop'); git('config', 'user.email', 'fixture@example.invalid'); git('config', 'user.name', 'fixture')
+            (origin / 'proof.txt').write_text('authoritative protected target'); git('add', 'proof.txt'); git('commit', '-m', 'target')
+            target_sha = git('rev-parse', 'HEAD'); git('checkout', '-b', 'pilot')
+            (origin / 'proof.txt').write_text('pilot source'); git('commit', '-am', 'pilot')
+            clone = root / 'clone'; git('clone', '--single-branch', '--branch', 'pilot', str(origin), str(clone))
+            absent = subprocess.run(['git', 'rev-parse', '--verify', 'origin/develop'], cwd=clone, capture_output=True)
+            self.assertNotEqual(absent.returncode, 0)
+            contracts = clone / 'packages/contracts-bedrock'; (contracts / 'scripts/ops').mkdir(parents=True)
+            shutil.copy2(CHECKS.CONTRACTS / 'scripts/ops/get-target-branch.sh', contracts / 'scripts/ops/get-target-branch.sh')
+            report = clone / 'report'; report.mkdir(); previous = Path.cwd()
+            try:
+                os.chdir(clone)
+                with patch.object(CHECKS, 'ROOT', clone), patch.object(CHECKS, 'CONTRACTS', contracts), patch.dict(os.environ, {'PATH': os.environ['PATH']}, clear=True):
+                    bound = CHECKS.target(report)
+            finally: os.chdir(previous)
+            self.assertEqual(bound, {'target_branch': 'develop', 'target_sha': target_sha, 'merge_base_sha': target_sha})
+            self.assertEqual(git('show', 'origin/develop:proof.txt', cwd=clone), 'authoritative protected target')
+
     @unittest.skipUnless(os.environ.get('RWX_LIVE_GO_FIXTURE') == '1', 'Opt-in actual Circle module adapter')
     def test_relative_circle_adapter_downloads_verifies_and_discovers_actual_modules(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -109,7 +133,7 @@ class CheckTests(unittest.TestCase):
             self.assertEqual(json.loads((report / 'coverage.json').read_text())['selected'], 1)
             self.assertIn('all modules verified', (report / 'verify.log').read_text())
             self.assertEqual(json.loads((report / 'settings.json').read_text())['source_sha'], sha)
-            self.assertEqual(json.loads((report / 'discovery.stage.json').read_text())['cwd'], str(root))
+            self.assertEqual(json.loads((report / 'discovery.stage.json').read_text())['cwd'], str(root.resolve()))
 
 
 if __name__ == '__main__': unittest.main()

@@ -50,14 +50,16 @@ class OriginalCheckTests(unittest.TestCase):
             settings = json.loads((d / 'settings.json').read_text())
             for p in d.iterdir(): p.unlink()
             settings.update(job='contracts-fast', forge='pinned Forge', semgrep='1.137.0',
-                            rwx_run_id='c' * 32 if provider == 'rwx' else None, rwx_task_attempt='1')
+                            rwx_run_id='c' * 32 if provider == 'rwx' else None, rwx_task_attempt='1',
+                            target_branch='develop', target_sha='d' * 40, merge_base_sha='e' * 40)
             self.write(d / 'settings.json', settings); self.write(d / 'selection.json', configuration)
             (d / 'checks.log').write_text('✓ first 1.0s\n✓ second 2.0s\n✓ All checks passed (2/2)\n')
             self.write(d / 'coverage.json', COMPARE.CHECKS.check_verdicts((d / 'checks.log').read_text(), configuration))
             (d / 'submodules.txt').write_text(' original-revision contract-library\n')
             self.write(d / 'foundry-config.json', {'optimizer': True, 'root': settings['workspace_root']})
-            for name, argv in [('checks', ['just', 'check-fast', '-verbose']), ('foundry-config', ['forge', 'config', '--json'])]:
-                self.write(d / (name + '.stage.json'), {'argv': argv, 'cwd': settings['workspace_root'] + '/packages/contracts-bedrock', 'exit_code': 0})
+            for name, argv in [('checks', ['just', 'check-fast', '-verbose']), ('foundry-config', ['forge', 'config', '--json']),
+                               ('fetch-target', ['git', 'fetch', '--no-tags', 'origin', '+refs/heads/develop:refs/remotes/origin/develop'])]:
+                self.write(d / (name + '.stage.json'), {'argv': argv, 'cwd': settings['workspace_root'] + ('/packages/contracts-bedrock' if name != 'fetch-target' else ''), 'exit_code': 0})
             suite = ET.Element('testsuite')
             for name in ('first', 'second'): ET.SubElement(suite, 'testcase', name=name, classname='contracts-fast')
             ET.ElementTree(suite).write(d / 'checks.junit.xml'); self.seal(d)
@@ -114,6 +116,11 @@ class OriginalCheckTests(unittest.TestCase):
         self.write(d / 'coverage.json', COMPARE.CHECKS.check_verdicts(p.read_text(), json.loads((d / 'selection.json').read_text())))
         self.seal(d)
         with self.assertRaisesRegex(ValueError, 'retry'): self.compare_fast()
+
+    def test_target_revision_drift_remains_a_parity_error(self):
+        self.fast(); d = self.directories['rwx']; p = d / 'settings.json'
+        row = json.loads(p.read_text()); row['target_sha'] = 'f' * 40; self.write(p, row); self.seal(d)
+        with self.assertRaisesRegex(ValueError, 'target_sha'): self.compare_fast()
 
     def test_reused_native_verdict_or_different_submodule_is_rejected(self):
         self.fast(); d = self.directories['rwx']; p = d / 'settings.json'; settings = json.loads(p.read_text()); settings['rwx_run_id'] = None

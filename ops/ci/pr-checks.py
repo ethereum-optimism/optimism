@@ -99,7 +99,8 @@ def begin(directory, job):
     if not re.fullmatch('[0-9a-f]{40}', expected) or sha != expected: raise ValueError('PR check source revision differs')
     paths = ['go.mod', 'go.sum', 'mise.toml', 'ops/ci/pr-checks.py', 'ops/ci/rust-workspace-report.py']
     if job == 'contracts-fast': paths += ['packages/contracts-bedrock/checks.yaml', 'packages/contracts-bedrock/justfile',
-                                        'packages/contracts-bedrock/scripts/check-runner/main.go']
+                                        'packages/contracts-bedrock/scripts/check-runner/main.go',
+                                        'packages/contracts-bedrock/scripts/ops/get-target-branch.sh']
     settings = {'source_sha': sha, 'job': job, 'provider': os.environ.get('CI_CHECK_PROVIDER', 'circleci'),
                 'workspace_root': str(ROOT), 'branch': os.environ.get('CI_BRANCH', os.environ.get('CIRCLE_BRANCH')),
                 'go': STAGES.command('go', 'version'), 'just': STAGES.command('just', '--version'),
@@ -107,8 +108,23 @@ def begin(directory, job):
                 'rwx_run_id': os.environ.get('RWX_RUN_ID'), 'rwx_task_attempt': os.environ.get('RWX_TASK_ATTEMPT_NUMBER')}
     if job == 'contracts-fast':
         settings.update(forge=STAGES.command('forge', '--version'), semgrep=STAGES.command('semgrep', '--version'))
+        settings.update(target(directory))
     STAGES.write(directory / 'settings.json', settings)
     return settings
+
+
+def target(directory):
+    # Resolve through the original helper. The isolated clone contains HEAD's
+    # full history, but can lack the protected remote ref used by semver-diff.
+    branch = subprocess.check_output(['bash', '-c',
+        'source ./scripts/ops/get-target-branch.sh; printf "%s\\n" "$TARGET_BRANCH"'], cwd=CONTRACTS, text=True).strip()
+    subprocess.check_call(['git', 'check-ref-format', '--branch', branch], cwd=ROOT, stdout=subprocess.DEVNULL)
+    ref = 'origin/' + branch
+    status = STAGES.stage(directory, 'fetch-target', ['git', 'fetch', '--no-tags', 'origin',
+                           '+refs/heads/' + branch + ':refs/remotes/' + ref], cwd=str(ROOT))
+    if status: raise ValueError('Authoritative contract target history unavailable')
+    return {'target_branch': branch, 'target_sha': STAGES.command('git', 'rev-parse', ref),
+            'merge_base_sha': STAGES.command('git', 'merge-base', ref, 'HEAD')}
 
 
 def execute(directory, job):
@@ -172,6 +188,8 @@ def main():
         settings = begin(directory, args.job); status = execute(directory, args.job)
         if any(STAGES.digest(ROOT / name) != digest for name, digest in settings['input_sha256'].items()):
             raise ValueError('PR check source changed during execution')
+        if args.job == 'contracts-fast' and STAGES.command('git', 'rev-parse', 'origin/' + settings['target_branch']) != settings['target_sha']:
+            raise ValueError('Contract target revision changed during execution')
     except (OSError, ValueError, KeyError, subprocess.CalledProcessError) as error: errors.append(str(error)); print(error, file=sys.stderr)
     return finish(directory, args.job, status, errors)
 

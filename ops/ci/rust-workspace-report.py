@@ -107,6 +107,8 @@ def stage(directory, name, args, stdout_json=False, cwd='rust'):
             finally:
                 for signum, handler in previous.items():
                     signal.signal(signum, handler)
+                if child.stdout is not None:
+                    child.stdout.close()
     data.update(exit_code=status, elapsed_seconds=time.time() - started,
                 log_sha256=digest(directory / (name + '.log')))
     write(record, data)
