@@ -15,6 +15,7 @@ def helper(name):
 
 CHECKS = helper('pr-checks')
 ORIGINALS = helper('compare-rust-e2e')
+SUBMODULES = helper('git-submodule-report')
 
 
 def report(directory, job, sha, provider, empty):
@@ -84,7 +85,7 @@ def compare(directories, job, sha):
         for provider, directory in directories.items():
             config = json.loads((directory / 'foundry-config.json').read_text())
             data[provider] += (ORIGINALS.normalize(config, data[provider][0]['workspace_root']),
-                              (directory / 'submodules.txt').read_text())
+                              SUBMODULES.revisions((directory / 'submodules.txt').read_text()))
         a, b = data['circle'], data['rwx']
         if a[4:] != b[4:]: raise ValueError('PR check Foundry configuration or submodule revisions differ')
         def outcomes(coverage):
@@ -92,7 +93,9 @@ def compare(directories, job, sha):
                 'checks': [{**r, 'attempts': [{k: v for k, v in t.items() if k != 'elapsed_seconds'} for t in r['attempts']]} for r in coverage['checks']]}
         if outcomes(a[1]) != outcomes(b[1]): raise ValueError('Full original check outcomes or retry histories differ')
     return {'source_sha': sha, 'job': job, 'verified_parity': True, 'coverage': a[1], 'commands': a[2],
-            'original_sha256': {p: data[p][3] for p in data}, 'manifest_declared_empty_logs': empty}
+            'original_sha256': {p: data[p][3] for p in data}, 'manifest_declared_empty_logs': empty,
+            'original_submodule_status': {p: (d / 'submodules.txt').read_text() for p,d in directories.items()} if job == 'contracts-fast' else None,
+            'submodule_revisions': a[5] if job == 'contracts-fast' else None}
 
 
 if __name__ == '__main__':

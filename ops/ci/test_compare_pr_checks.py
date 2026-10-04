@@ -55,7 +55,7 @@ class OriginalCheckTests(unittest.TestCase):
             self.write(d / 'settings.json', settings); self.write(d / 'selection.json', configuration)
             (d / 'checks.log').write_text('✓ first 1.0s\n✓ second 2.0s\n✓ All checks passed (2/2)\n')
             self.write(d / 'coverage.json', COMPARE.CHECKS.check_verdicts((d / 'checks.log').read_text(), configuration))
-            (d / 'submodules.txt').write_text(' original-revision contract-library\n')
+            (d / 'submodules.txt').write_text(' ' + 'd' * 40 + ' contract-library (original-description)\n')
             self.write(d / 'foundry-config.json', {'optimizer': True, 'root': settings['workspace_root']})
             for name, argv in [('checks', ['just', 'check-fast', '-verbose']), ('foundry-config', ['forge', 'config', '--json']),
                                ('fetch-target', ['git', 'fetch', '--no-tags', 'origin', '+refs/heads/develop:refs/remotes/origin/develop'])]:
@@ -116,6 +116,16 @@ class OriginalCheckTests(unittest.TestCase):
         self.write(d / 'coverage.json', COMPARE.CHECKS.check_verdicts(p.read_text(), json.loads((d / 'selection.json').read_text())))
         self.seal(d)
         with self.assertRaisesRegex(ValueError, 'retry'): self.compare_fast()
+
+    def test_descriptive_git_refs_may_differ_only_with_identical_complete_pointers(self):
+        self.fast(); d = self.directories['rwx']; p = d / 'submodules.txt'
+        p.write_text(p.read_text().replace('original-description', 'other-tag-description')); self.seal(d)
+        result = self.compare_fast(); self.assertTrue(result['verified_parity'])
+        self.assertEqual(result['submodule_revisions'], [{'path': 'contract-library', 'sha': 'd' * 40}])
+        for text in ['+' + 'd' * 40 + ' contract-library\n', ' ' + 'e' * 40 + ' contract-library\n',
+                     ' ' + 'd' * 40 + ' different-path\n', ' ' + 'd' * 40 + ' contract-library\n ' + 'd' * 40 + ' contract-library\n']:
+            p.write_text(text); self.seal(d)
+            with self.subTest(original=text), self.assertRaises(ValueError): self.compare_fast()
 
     def test_target_revision_drift_remains_a_parity_error(self):
         self.fast(); d = self.directories['rwx']; p = d / 'settings.json'

@@ -1351,6 +1351,10 @@ jobs:
         description: Profile to use for testing
         type: string
         default: ci
+      parity_variant:
+        description: Shared full-workload parity identity; empty preserves the generic adapter
+        type: string
+        default: ""
       features:
         description: Comma-separated list of features to enable (e.g.,
           "OPTIMISM_PORTAL_INTEROP", "CUSTOM_GAS_TOKEN")
@@ -1397,9 +1401,14 @@ jobs:
       - run:
           name: Run tests
           command: |
-            mkdir -p results
-            just test-upgrade
+            if [ -n "$CI_CONTRACT_UPGRADE_VARIANT" ]; then
+              python3 ../../ops/ci/contract-upgrades.py run --variant "$CI_CONTRACT_UPGRADE_VARIANT"
+            else
+              mkdir -p results
+              just test-upgrade
+            fi
           environment:
+            CI_CONTRACT_UPGRADE_VARIANT: <<parameters.parity_variant>>
             JUNIT_TEST_PATH: results/results.xml
             FOUNDRY_FUZZ_SEED: 42424242
             FOUNDRY_FUZZ_RUNS: 1
@@ -1410,8 +1419,15 @@ jobs:
           no_output_timeout: 15m
       - run:
           name: Print failed test traces
-          command: just test-upgrade-rerun | tee failed-test-traces.log
+          command: |
+            if [ -n "$CI_CONTRACT_UPGRADE_VARIANT" ]; then
+              # The shared runner retains the original verdict and separate traces.
+              cat ../../.ci/contract-upgrades/"$CI_CONTRACT_UPGRADE_VARIANT"/run/rerun.log 2>/dev/null || true
+            else
+              just test-upgrade-rerun | tee failed-test-traces.log
+            fi
           environment:
+            CI_CONTRACT_UPGRADE_VARIANT: <<parameters.parity_variant>>
             FOUNDRY_FUZZ_SEED: 42424242
             FOUNDRY_FUZZ_RUNS: 1
             FOUNDRY_PROFILE: <<parameters.test_profile>>
@@ -1439,6 +1455,12 @@ jobs:
           when: always
       - store_test_results:
           path: packages/contracts-bedrock/results
+          when: always
+      - store_artifacts:
+          path: .ci/contract-upgrades
+          when: always
+      - store_test_results:
+          path: .ci/contract-upgrades
           when: always
       - notify-failures-on-develop:
           mentions: "<!subteam^S07K486JEH4>"
@@ -3129,6 +3151,7 @@ workflows:
       # On PRs, run upgrade tests with lite profile for better build times.
       - contracts-bedrock-tests-upgrade:
           name: contracts-bedrock-tests-upgrade op-mainnet <<matrix.features>>
+          parity_variant: feature-<<matrix.features>>
           requires:
             - prep-go-modules
           fork_op_chain: op
@@ -3148,6 +3171,7 @@ workflows:
       # On develop, run upgrade tests with ci profile to mirror production.
       - contracts-bedrock-tests-upgrade:
           name: contracts-bedrock-tests-upgrade-develop op-mainnet <<matrix.features>>
+          parity_variant: feature-<<matrix.features>>
           requires:
             - prep-go-modules
           fork_op_chain: op
@@ -3167,6 +3191,7 @@ workflows:
       # On PRs, run chain-specific upgrade tests with lite profile for better build times.
       - contracts-bedrock-tests-upgrade:
           name: contracts-bedrock-tests-upgrade <<matrix.fork_op_chain>>-mainnet
+          parity_variant: chain-<<matrix.fork_op_chain>>
           requires:
             - prep-go-modules
           fork_op_chain: <<matrix.fork_op_chain>>
@@ -3185,6 +3210,7 @@ workflows:
       # On develop, run chain-specific upgrade tests with ci profile to mirror production.
       - contracts-bedrock-tests-upgrade:
           name: contracts-bedrock-tests-upgrade-develop <<matrix.fork_op_chain>>-mainnet
+          parity_variant: chain-<<matrix.fork_op_chain>>
           requires:
             - prep-go-modules
           fork_op_chain: <<matrix.fork_op_chain>>

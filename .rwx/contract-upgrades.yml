@@ -1,0 +1,637 @@
+# Complete L1 upgrade matrices; Circle retains its required gates.
+on:
+  cache-rebuild:
+    if: ${{ event.git.branch == 'develop' }}
+    target: [compile-feature-main, compile-feature-CUSTOM_GAS_TOKEN, compile-feature-OPTIMISM_PORTAL_INTEROP, compile-feature-ZK_DISPUTE_GAME, compile-chain-op, compile-chain-ink, compile-chain-unichain]
+    init:
+      commit-sha: ${{ event.git.sha }}
+      branch: ${{ event.git.branch }}
+      tag: ""
+      cache-warm: "true"
+      cache-epoch: v1
+  github:
+    push:
+      init:
+        commit-sha: ${{ event.git.sha }}
+        branch: ${{ event.git.branch }}
+        tag: ${{ event.git.tag }}
+        cache-warm: "false"
+        cache-epoch: v1
+      status-checks:
+        name: optimism-contract-upgrades-shadow
+  cli:
+    init:
+      commit-sha: ${{ event.git.sha }}
+      branch: ${{ event.git.branch }}
+      tag: ""
+      cache-warm: "false"
+      cache-epoch: v1
+
+tool-cache:
+  vault: optimism-op-reth-shadow
+
+base:
+  image: ubuntu:24.04@sha256:008173c23f95b170204355c12626cb5a965d779a7e1283b09e9cffbb1bf33ca3
+  config: rwx/base 1.2.0
+  arch: x86_64
+
+defaults:
+  runner:
+    cpus: 2
+    memory: 8gb
+
+tasks:
+  - key: code
+    call: git/clone 2.2.0
+    with:
+      repository: https://github.com/ethereum-optimism/optimism.git
+      ref: ${{ init.commit-sha }}
+      preserve-git-dir: true
+      fetch-full-depth: true
+      submodules: false
+
+  - key: bootstrap-inputs
+    use: code
+    run: 'true'
+    filter: [mise.toml, ops/ci, .circleci/scripts/apt-install.sh]
+    outputs:
+      filesystem: false
+      artifacts:
+        - key: mise-config
+          path: mise.toml
+        - key: ci-scripts
+          path: ops/ci
+        - key: apt-script
+          path: .circleci/scripts/apt-install.sh
+
+  - key: mise
+    call: mise/install 1.1.0
+    with:
+      mise-version: "2026.2.2"
+      install: "false"
+
+  - key: tools
+    use: mise
+    run: |
+      mkdir -p ops/ci .circleci/scripts
+      cp "$MISE_CONFIG" mise.toml
+      cp "$CI_SCRIPTS/rwx-prepare.sh" ops/ci/
+      cp "$APT_SCRIPT" .circleci/scripts/apt-install.sh
+      bash ops/ci/rwx-prepare.sh
+    env:
+      MISE_CONFIG: ${{ tasks.bootstrap-inputs.artifacts.mise-config }}
+      CI_SCRIPTS: ${{ tasks.bootstrap-inputs.artifacts.ci-scripts }}
+      APT_SCRIPT: ${{ tasks.bootstrap-inputs.artifacts.apt-script }}
+    filter:
+      ${{ tasks.bootstrap-inputs.artifacts.ci-scripts }}: [rwx-prepare.sh]
+    timeout: 30m
+
+  - key: route
+    use: [code, tools]
+    run: |
+      bash ops/ci/rwx-metadata.sh
+      jq -er '."c-run_contracts_feature_tests" | if type == "boolean" then tostring else error("missing contracts route") end' \
+        .ci/pipeline-parameters.json >"$RWX_VALUES/run-contracts"
+    env:
+      CI_EVENT: push
+      CI_CACHE_WARM: ${{ init.cache-warm }}
+      CI_BRANCH: ${{ init.branch }}
+      CI_TAG: ${{ init.tag }}
+      CI_COMMIT_SHA: ${{ init.commit-sha }}
+    cache: false
+    timeout: 10m
+    outputs:
+      filesystem: false
+      artifacts:
+        - key: routing
+          path: .ci/pipeline-parameters.json
+
+  - key: go-tools
+    use: tools
+    if: ${{ init.cache-warm == 'true' || tasks.route.values.run-contracts == 'true' }}
+    run: bash ops/ci/rwx-prepare.sh go
+    timeout: 30m
+
+  - key: contract-tools
+    use: tools
+    if: ${{ init.cache-warm == 'true' || tasks.route.values.run-contracts == 'true' }}
+    run: |
+      cp "$CI_SCRIPTS/rwx-contracts-prepare.sh" ops/ci/
+      bash ops/ci/rwx-contracts-prepare.sh tools
+    env:
+      CI_SCRIPTS: ${{ tasks.bootstrap-inputs.artifacts.ci-scripts }}
+    filter:
+      workspace: [mise.toml, ops/ci/rwx-prepare.sh]
+      ${{ tasks.bootstrap-inputs.artifacts.ci-scripts }}: [rwx-contracts-prepare.sh]
+    timeout: 30m
+
+  - key: rpc-check
+    use: [code, contract-tools]
+    if: ${{ init.cache-warm != 'true' && tasks.route.values.run-contracts == 'true' }}
+    run: |
+      python3 ops/ci/contract-upgrades.py preflight
+      printf 'true\n' >"$RWX_VALUES/ready"
+    env:
+      CI_COMMIT_SHA: ${{ init.commit-sha }}
+      CI_BRANCH: ${{ init.branch }}
+      OP_CI_MAINNET_L1_ARCHIVE_RPC_URL: ${{ vaults.optimism-go-tests-rpc-shadow.secrets.OP_CI_MAINNET_L1_ARCHIVE_RPC_URL }}
+    cache: false
+    timeout: 10m
+    outputs:
+      filesystem: false
+      artifacts:
+        - key: block
+          path: .ci/contract-upgrades/preflight/block.json
+        - key: reports
+          path: .ci/contract-upgrades/preflight
+
+  - key: go-modules
+    use: [code, go-tools]
+    if: ${{ init.cache-warm == 'true' || tasks.rpc-check.values.ready == 'true' }}
+    run: |
+      export GOMODCACHE="$PWD/.ci/go-cache/contract-upgrades/modules"
+      mkdir -p "$GOMODCACHE"
+      python3 ops/ci/pr-checks.py go-modules
+    env:
+      CI_COMMIT_SHA: ${{ init.commit-sha }}
+      CI_BRANCH: ${{ init.branch }}
+      CI_CHECK_PROVIDER: rwx
+    tool-cache: contract-upgrades-modules-${{ init.cache-epoch }}
+    timeout: 30m
+    runner:
+      cpus: 4
+      memory: 8gb
+    outputs:
+      filesystem:
+        filter:
+          workspace: [.ci/go-cache/contract-upgrades/modules]
+          system: []
+      artifacts:
+        - key: reports
+          path: .ci/pr-checks/go-modules
+
+  - key: helper-tests
+    use: [code, go-tools, contract-tools]
+    if: ${{ init.cache-warm != 'true' && tasks.route.values.run-contracts == 'true' }}
+    run: |
+      RWX_LIVE_FORGE_FIXTURE=1 python3 -m unittest discover -s ops/ci -p 'test_contract_upgrades.py'
+      python3 -m unittest discover -s ops/ci -p 'test_compare_contract_upgrades.py'
+    cache: false
+    timeout: 10m
+    outputs:
+      filesystem: false
+
+  # Explicit producer/verdict pairs keep each variant's filesystem isolated.
+  - key: compile-feature-main
+    use: [code, go-tools, contract-tools, go-modules]
+    if: ${{ init.cache-warm == 'true' || tasks.rpc-check.values.ready == 'true' }}
+    run: |
+      export GOMODCACHE="$PWD/.ci/go-cache/contract-upgrades/modules"
+      export GOCACHE="$PWD/.ci/go-cache/contract-upgrades/build"
+      git submodule sync --recursive
+      git -c protocol.file.allow=never submodule update --init --recursive --jobs 8
+      python3 ops/ci/contract-upgrades.py prepare --variant feature-main
+    env:
+      CI_COMMIT_SHA: ${{ init.commit-sha }}
+      CI_BRANCH: ${{ init.branch }}
+      CI_CONTRACT_PROVIDER: rwx
+    tool-cache: contract-upgrades-feature-main-${{ init.cache-epoch }}
+    timeout: 40m
+    runner:
+      cpus: 16
+      memory: 32gb
+    outputs:
+      filesystem:
+        filter:
+          workspace: [packages/contracts-bedrock/forge-artifacts, packages/contracts-bedrock/cache/solidity-files-cache.json, packages/contracts-bedrock/artifacts/build-info, packages/contracts-bedrock/scripts/go-ffi/go-ffi, .ci/go-cache/contract-upgrades/build]
+          system: []
+      artifacts:
+        - key: compiled
+          path: .ci/contract-upgrades/feature-main/prepare
+
+  - key: verdict-feature-main
+    use: [code, go-tools, contract-tools, go-modules, compile-feature-main]
+    if: ${{ init.cache-warm != 'true' && tasks.rpc-check.values.ready == 'true' }}
+    run: |
+      export GOMODCACHE="$PWD/.ci/go-cache/contract-upgrades/modules"
+      export GOCACHE="$PWD/.ci/go-cache/contract-upgrades/build"
+      git submodule sync --recursive
+      git -c protocol.file.allow=never submodule update --init --recursive --jobs 8
+      python3 ops/ci/contract-upgrades.py run --variant feature-main \
+        --prepared "$COMPILED" --block "$PINNED_BLOCK"
+    env:
+      CI_COMMIT_SHA: ${{ init.commit-sha }}
+      CI_BRANCH: ${{ init.branch }}
+      CI_CONTRACT_PROVIDER: rwx
+      COMPILED: ${{ tasks.compile-feature-main.artifacts.compiled }}
+      PINNED_BLOCK: ${{ tasks.rpc-check.artifacts.block }}
+      OP_CI_MAINNET_L1_ARCHIVE_RPC_URL: ${{ vaults.optimism-go-tests-rpc-shadow.secrets.OP_CI_MAINNET_L1_ARCHIVE_RPC_URL }}
+    cache: false
+    tool-cache: contract-upgrades-rpc-feature-main-${{ init.cache-epoch }}
+    timeout: 60m
+    runner:
+      cpus: 16
+      memory: 32gb
+    outputs:
+      filesystem:
+        filter:
+          workspace: []
+          system: [~/.foundry/cache/rpc]
+      test-results:
+        - path: .ci/contract-upgrades/feature-main/run/original.junit.xml
+          options:
+            language: Solidity
+            framework: Foundry
+      artifacts:
+        - key: reports
+          path: .ci/contract-upgrades/feature-main/run
+
+  # Explicit producer/verdict pairs keep each variant's filesystem isolated.
+  - key: compile-feature-CUSTOM_GAS_TOKEN
+    use: [code, go-tools, contract-tools, go-modules]
+    if: ${{ init.cache-warm == 'true' || tasks.rpc-check.values.ready == 'true' }}
+    run: |
+      export GOMODCACHE="$PWD/.ci/go-cache/contract-upgrades/modules"
+      export GOCACHE="$PWD/.ci/go-cache/contract-upgrades/build"
+      git submodule sync --recursive
+      git -c protocol.file.allow=never submodule update --init --recursive --jobs 8
+      python3 ops/ci/contract-upgrades.py prepare --variant feature-CUSTOM_GAS_TOKEN
+    env:
+      CI_COMMIT_SHA: ${{ init.commit-sha }}
+      CI_BRANCH: ${{ init.branch }}
+      CI_CONTRACT_PROVIDER: rwx
+    tool-cache: contract-upgrades-feature-CUSTOM_GAS_TOKEN-${{ init.cache-epoch }}
+    timeout: 40m
+    runner:
+      cpus: 16
+      memory: 32gb
+    outputs:
+      filesystem:
+        filter:
+          workspace: [packages/contracts-bedrock/forge-artifacts, packages/contracts-bedrock/cache/solidity-files-cache.json, packages/contracts-bedrock/artifacts/build-info, packages/contracts-bedrock/scripts/go-ffi/go-ffi, .ci/go-cache/contract-upgrades/build]
+          system: []
+      artifacts:
+        - key: compiled
+          path: .ci/contract-upgrades/feature-CUSTOM_GAS_TOKEN/prepare
+
+  - key: verdict-feature-CUSTOM_GAS_TOKEN
+    use: [code, go-tools, contract-tools, go-modules, compile-feature-CUSTOM_GAS_TOKEN]
+    if: ${{ init.cache-warm != 'true' && tasks.rpc-check.values.ready == 'true' }}
+    run: |
+      export GOMODCACHE="$PWD/.ci/go-cache/contract-upgrades/modules"
+      export GOCACHE="$PWD/.ci/go-cache/contract-upgrades/build"
+      git submodule sync --recursive
+      git -c protocol.file.allow=never submodule update --init --recursive --jobs 8
+      python3 ops/ci/contract-upgrades.py run --variant feature-CUSTOM_GAS_TOKEN \
+        --prepared "$COMPILED" --block "$PINNED_BLOCK"
+    env:
+      CI_COMMIT_SHA: ${{ init.commit-sha }}
+      CI_BRANCH: ${{ init.branch }}
+      CI_CONTRACT_PROVIDER: rwx
+      COMPILED: ${{ tasks.compile-feature-CUSTOM_GAS_TOKEN.artifacts.compiled }}
+      PINNED_BLOCK: ${{ tasks.rpc-check.artifacts.block }}
+      OP_CI_MAINNET_L1_ARCHIVE_RPC_URL: ${{ vaults.optimism-go-tests-rpc-shadow.secrets.OP_CI_MAINNET_L1_ARCHIVE_RPC_URL }}
+    cache: false
+    tool-cache: contract-upgrades-rpc-feature-CUSTOM_GAS_TOKEN-${{ init.cache-epoch }}
+    timeout: 60m
+    runner:
+      cpus: 16
+      memory: 32gb
+    outputs:
+      filesystem:
+        filter:
+          workspace: []
+          system: [~/.foundry/cache/rpc]
+      test-results:
+        - path: .ci/contract-upgrades/feature-CUSTOM_GAS_TOKEN/run/original.junit.xml
+          options:
+            language: Solidity
+            framework: Foundry
+      artifacts:
+        - key: reports
+          path: .ci/contract-upgrades/feature-CUSTOM_GAS_TOKEN/run
+
+  # Explicit producer/verdict pairs keep each variant's filesystem isolated.
+  - key: compile-feature-OPTIMISM_PORTAL_INTEROP
+    use: [code, go-tools, contract-tools, go-modules]
+    if: ${{ init.cache-warm == 'true' || tasks.rpc-check.values.ready == 'true' }}
+    run: |
+      export GOMODCACHE="$PWD/.ci/go-cache/contract-upgrades/modules"
+      export GOCACHE="$PWD/.ci/go-cache/contract-upgrades/build"
+      git submodule sync --recursive
+      git -c protocol.file.allow=never submodule update --init --recursive --jobs 8
+      python3 ops/ci/contract-upgrades.py prepare --variant feature-OPTIMISM_PORTAL_INTEROP
+    env:
+      CI_COMMIT_SHA: ${{ init.commit-sha }}
+      CI_BRANCH: ${{ init.branch }}
+      CI_CONTRACT_PROVIDER: rwx
+    tool-cache: contract-upgrades-feature-OPTIMISM_PORTAL_INTEROP-${{ init.cache-epoch }}
+    timeout: 40m
+    runner:
+      cpus: 16
+      memory: 32gb
+    outputs:
+      filesystem:
+        filter:
+          workspace: [packages/contracts-bedrock/forge-artifacts, packages/contracts-bedrock/cache/solidity-files-cache.json, packages/contracts-bedrock/artifacts/build-info, packages/contracts-bedrock/scripts/go-ffi/go-ffi, .ci/go-cache/contract-upgrades/build]
+          system: []
+      artifacts:
+        - key: compiled
+          path: .ci/contract-upgrades/feature-OPTIMISM_PORTAL_INTEROP/prepare
+
+  - key: verdict-feature-OPTIMISM_PORTAL_INTEROP
+    use: [code, go-tools, contract-tools, go-modules, compile-feature-OPTIMISM_PORTAL_INTEROP]
+    if: ${{ init.cache-warm != 'true' && tasks.rpc-check.values.ready == 'true' }}
+    run: |
+      export GOMODCACHE="$PWD/.ci/go-cache/contract-upgrades/modules"
+      export GOCACHE="$PWD/.ci/go-cache/contract-upgrades/build"
+      git submodule sync --recursive
+      git -c protocol.file.allow=never submodule update --init --recursive --jobs 8
+      python3 ops/ci/contract-upgrades.py run --variant feature-OPTIMISM_PORTAL_INTEROP \
+        --prepared "$COMPILED" --block "$PINNED_BLOCK"
+    env:
+      CI_COMMIT_SHA: ${{ init.commit-sha }}
+      CI_BRANCH: ${{ init.branch }}
+      CI_CONTRACT_PROVIDER: rwx
+      COMPILED: ${{ tasks.compile-feature-OPTIMISM_PORTAL_INTEROP.artifacts.compiled }}
+      PINNED_BLOCK: ${{ tasks.rpc-check.artifacts.block }}
+      OP_CI_MAINNET_L1_ARCHIVE_RPC_URL: ${{ vaults.optimism-go-tests-rpc-shadow.secrets.OP_CI_MAINNET_L1_ARCHIVE_RPC_URL }}
+    cache: false
+    tool-cache: contract-upgrades-rpc-feature-OPTIMISM_PORTAL_INTEROP-${{ init.cache-epoch }}
+    timeout: 60m
+    runner:
+      cpus: 16
+      memory: 32gb
+    outputs:
+      filesystem:
+        filter:
+          workspace: []
+          system: [~/.foundry/cache/rpc]
+      test-results:
+        - path: .ci/contract-upgrades/feature-OPTIMISM_PORTAL_INTEROP/run/original.junit.xml
+          options:
+            language: Solidity
+            framework: Foundry
+      artifacts:
+        - key: reports
+          path: .ci/contract-upgrades/feature-OPTIMISM_PORTAL_INTEROP/run
+
+  # Explicit producer/verdict pairs keep each variant's filesystem isolated.
+  - key: compile-feature-ZK_DISPUTE_GAME
+    use: [code, go-tools, contract-tools, go-modules]
+    if: ${{ init.cache-warm == 'true' || tasks.rpc-check.values.ready == 'true' }}
+    run: |
+      export GOMODCACHE="$PWD/.ci/go-cache/contract-upgrades/modules"
+      export GOCACHE="$PWD/.ci/go-cache/contract-upgrades/build"
+      git submodule sync --recursive
+      git -c protocol.file.allow=never submodule update --init --recursive --jobs 8
+      python3 ops/ci/contract-upgrades.py prepare --variant feature-ZK_DISPUTE_GAME
+    env:
+      CI_COMMIT_SHA: ${{ init.commit-sha }}
+      CI_BRANCH: ${{ init.branch }}
+      CI_CONTRACT_PROVIDER: rwx
+    tool-cache: contract-upgrades-feature-ZK_DISPUTE_GAME-${{ init.cache-epoch }}
+    timeout: 40m
+    runner:
+      cpus: 16
+      memory: 32gb
+    outputs:
+      filesystem:
+        filter:
+          workspace: [packages/contracts-bedrock/forge-artifacts, packages/contracts-bedrock/cache/solidity-files-cache.json, packages/contracts-bedrock/artifacts/build-info, packages/contracts-bedrock/scripts/go-ffi/go-ffi, .ci/go-cache/contract-upgrades/build]
+          system: []
+      artifacts:
+        - key: compiled
+          path: .ci/contract-upgrades/feature-ZK_DISPUTE_GAME/prepare
+
+  - key: verdict-feature-ZK_DISPUTE_GAME
+    use: [code, go-tools, contract-tools, go-modules, compile-feature-ZK_DISPUTE_GAME]
+    if: ${{ init.cache-warm != 'true' && tasks.rpc-check.values.ready == 'true' }}
+    run: |
+      export GOMODCACHE="$PWD/.ci/go-cache/contract-upgrades/modules"
+      export GOCACHE="$PWD/.ci/go-cache/contract-upgrades/build"
+      git submodule sync --recursive
+      git -c protocol.file.allow=never submodule update --init --recursive --jobs 8
+      python3 ops/ci/contract-upgrades.py run --variant feature-ZK_DISPUTE_GAME \
+        --prepared "$COMPILED" --block "$PINNED_BLOCK"
+    env:
+      CI_COMMIT_SHA: ${{ init.commit-sha }}
+      CI_BRANCH: ${{ init.branch }}
+      CI_CONTRACT_PROVIDER: rwx
+      COMPILED: ${{ tasks.compile-feature-ZK_DISPUTE_GAME.artifacts.compiled }}
+      PINNED_BLOCK: ${{ tasks.rpc-check.artifacts.block }}
+      OP_CI_MAINNET_L1_ARCHIVE_RPC_URL: ${{ vaults.optimism-go-tests-rpc-shadow.secrets.OP_CI_MAINNET_L1_ARCHIVE_RPC_URL }}
+    cache: false
+    tool-cache: contract-upgrades-rpc-feature-ZK_DISPUTE_GAME-${{ init.cache-epoch }}
+    timeout: 60m
+    runner:
+      cpus: 16
+      memory: 32gb
+    outputs:
+      filesystem:
+        filter:
+          workspace: []
+          system: [~/.foundry/cache/rpc]
+      test-results:
+        - path: .ci/contract-upgrades/feature-ZK_DISPUTE_GAME/run/original.junit.xml
+          options:
+            language: Solidity
+            framework: Foundry
+      artifacts:
+        - key: reports
+          path: .ci/contract-upgrades/feature-ZK_DISPUTE_GAME/run
+
+  # Explicit producer/verdict pairs keep each variant's filesystem isolated.
+  - key: compile-chain-op
+    use: [code, go-tools, contract-tools, go-modules]
+    if: ${{ init.cache-warm == 'true' || tasks.rpc-check.values.ready == 'true' }}
+    run: |
+      export GOMODCACHE="$PWD/.ci/go-cache/contract-upgrades/modules"
+      export GOCACHE="$PWD/.ci/go-cache/contract-upgrades/build"
+      git submodule sync --recursive
+      git -c protocol.file.allow=never submodule update --init --recursive --jobs 8
+      python3 ops/ci/contract-upgrades.py prepare --variant chain-op
+    env:
+      CI_COMMIT_SHA: ${{ init.commit-sha }}
+      CI_BRANCH: ${{ init.branch }}
+      CI_CONTRACT_PROVIDER: rwx
+    tool-cache: contract-upgrades-chain-op-${{ init.cache-epoch }}
+    timeout: 40m
+    runner:
+      cpus: 16
+      memory: 32gb
+    outputs:
+      filesystem:
+        filter:
+          workspace: [packages/contracts-bedrock/forge-artifacts, packages/contracts-bedrock/cache/solidity-files-cache.json, packages/contracts-bedrock/artifacts/build-info, packages/contracts-bedrock/scripts/go-ffi/go-ffi, .ci/go-cache/contract-upgrades/build]
+          system: []
+      artifacts:
+        - key: compiled
+          path: .ci/contract-upgrades/chain-op/prepare
+
+  - key: verdict-chain-op
+    use: [code, go-tools, contract-tools, go-modules, compile-chain-op]
+    if: ${{ init.cache-warm != 'true' && tasks.rpc-check.values.ready == 'true' }}
+    run: |
+      export GOMODCACHE="$PWD/.ci/go-cache/contract-upgrades/modules"
+      export GOCACHE="$PWD/.ci/go-cache/contract-upgrades/build"
+      git submodule sync --recursive
+      git -c protocol.file.allow=never submodule update --init --recursive --jobs 8
+      python3 ops/ci/contract-upgrades.py run --variant chain-op \
+        --prepared "$COMPILED" --block "$PINNED_BLOCK"
+    env:
+      CI_COMMIT_SHA: ${{ init.commit-sha }}
+      CI_BRANCH: ${{ init.branch }}
+      CI_CONTRACT_PROVIDER: rwx
+      COMPILED: ${{ tasks.compile-chain-op.artifacts.compiled }}
+      PINNED_BLOCK: ${{ tasks.rpc-check.artifacts.block }}
+      OP_CI_MAINNET_L1_ARCHIVE_RPC_URL: ${{ vaults.optimism-go-tests-rpc-shadow.secrets.OP_CI_MAINNET_L1_ARCHIVE_RPC_URL }}
+    cache: false
+    tool-cache: contract-upgrades-rpc-chain-op-${{ init.cache-epoch }}
+    timeout: 60m
+    runner:
+      cpus: 16
+      memory: 32gb
+    outputs:
+      filesystem:
+        filter:
+          workspace: []
+          system: [~/.foundry/cache/rpc]
+      test-results:
+        - path: .ci/contract-upgrades/chain-op/run/original.junit.xml
+          options:
+            language: Solidity
+            framework: Foundry
+      artifacts:
+        - key: reports
+          path: .ci/contract-upgrades/chain-op/run
+
+  # Explicit producer/verdict pairs keep each variant's filesystem isolated.
+  - key: compile-chain-ink
+    use: [code, go-tools, contract-tools, go-modules]
+    if: ${{ init.cache-warm == 'true' || tasks.rpc-check.values.ready == 'true' }}
+    run: |
+      export GOMODCACHE="$PWD/.ci/go-cache/contract-upgrades/modules"
+      export GOCACHE="$PWD/.ci/go-cache/contract-upgrades/build"
+      git submodule sync --recursive
+      git -c protocol.file.allow=never submodule update --init --recursive --jobs 8
+      python3 ops/ci/contract-upgrades.py prepare --variant chain-ink
+    env:
+      CI_COMMIT_SHA: ${{ init.commit-sha }}
+      CI_BRANCH: ${{ init.branch }}
+      CI_CONTRACT_PROVIDER: rwx
+    tool-cache: contract-upgrades-chain-ink-${{ init.cache-epoch }}
+    timeout: 40m
+    runner:
+      cpus: 16
+      memory: 32gb
+    outputs:
+      filesystem:
+        filter:
+          workspace: [packages/contracts-bedrock/forge-artifacts, packages/contracts-bedrock/cache/solidity-files-cache.json, packages/contracts-bedrock/artifacts/build-info, packages/contracts-bedrock/scripts/go-ffi/go-ffi, .ci/go-cache/contract-upgrades/build]
+          system: []
+      artifacts:
+        - key: compiled
+          path: .ci/contract-upgrades/chain-ink/prepare
+
+  - key: verdict-chain-ink
+    use: [code, go-tools, contract-tools, go-modules, compile-chain-ink]
+    if: ${{ init.cache-warm != 'true' && tasks.rpc-check.values.ready == 'true' }}
+    run: |
+      export GOMODCACHE="$PWD/.ci/go-cache/contract-upgrades/modules"
+      export GOCACHE="$PWD/.ci/go-cache/contract-upgrades/build"
+      git submodule sync --recursive
+      git -c protocol.file.allow=never submodule update --init --recursive --jobs 8
+      python3 ops/ci/contract-upgrades.py run --variant chain-ink \
+        --prepared "$COMPILED" --block "$PINNED_BLOCK"
+    env:
+      CI_COMMIT_SHA: ${{ init.commit-sha }}
+      CI_BRANCH: ${{ init.branch }}
+      CI_CONTRACT_PROVIDER: rwx
+      COMPILED: ${{ tasks.compile-chain-ink.artifacts.compiled }}
+      PINNED_BLOCK: ${{ tasks.rpc-check.artifacts.block }}
+      OP_CI_MAINNET_L1_ARCHIVE_RPC_URL: ${{ vaults.optimism-go-tests-rpc-shadow.secrets.OP_CI_MAINNET_L1_ARCHIVE_RPC_URL }}
+    cache: false
+    tool-cache: contract-upgrades-rpc-chain-ink-${{ init.cache-epoch }}
+    timeout: 60m
+    runner:
+      cpus: 16
+      memory: 32gb
+    outputs:
+      filesystem:
+        filter:
+          workspace: []
+          system: [~/.foundry/cache/rpc]
+      test-results:
+        - path: .ci/contract-upgrades/chain-ink/run/original.junit.xml
+          options:
+            language: Solidity
+            framework: Foundry
+      artifacts:
+        - key: reports
+          path: .ci/contract-upgrades/chain-ink/run
+
+  # Explicit producer/verdict pairs keep each variant's filesystem isolated.
+  - key: compile-chain-unichain
+    use: [code, go-tools, contract-tools, go-modules]
+    if: ${{ init.cache-warm == 'true' || tasks.rpc-check.values.ready == 'true' }}
+    run: |
+      export GOMODCACHE="$PWD/.ci/go-cache/contract-upgrades/modules"
+      export GOCACHE="$PWD/.ci/go-cache/contract-upgrades/build"
+      git submodule sync --recursive
+      git -c protocol.file.allow=never submodule update --init --recursive --jobs 8
+      python3 ops/ci/contract-upgrades.py prepare --variant chain-unichain
+    env:
+      CI_COMMIT_SHA: ${{ init.commit-sha }}
+      CI_BRANCH: ${{ init.branch }}
+      CI_CONTRACT_PROVIDER: rwx
+    tool-cache: contract-upgrades-chain-unichain-${{ init.cache-epoch }}
+    timeout: 40m
+    runner:
+      cpus: 16
+      memory: 32gb
+    outputs:
+      filesystem:
+        filter:
+          workspace: [packages/contracts-bedrock/forge-artifacts, packages/contracts-bedrock/cache/solidity-files-cache.json, packages/contracts-bedrock/artifacts/build-info, packages/contracts-bedrock/scripts/go-ffi/go-ffi, .ci/go-cache/contract-upgrades/build]
+          system: []
+      artifacts:
+        - key: compiled
+          path: .ci/contract-upgrades/chain-unichain/prepare
+
+  - key: verdict-chain-unichain
+    use: [code, go-tools, contract-tools, go-modules, compile-chain-unichain]
+    if: ${{ init.cache-warm != 'true' && tasks.rpc-check.values.ready == 'true' }}
+    run: |
+      export GOMODCACHE="$PWD/.ci/go-cache/contract-upgrades/modules"
+      export GOCACHE="$PWD/.ci/go-cache/contract-upgrades/build"
+      git submodule sync --recursive
+      git -c protocol.file.allow=never submodule update --init --recursive --jobs 8
+      python3 ops/ci/contract-upgrades.py run --variant chain-unichain \
+        --prepared "$COMPILED" --block "$PINNED_BLOCK"
+    env:
+      CI_COMMIT_SHA: ${{ init.commit-sha }}
+      CI_BRANCH: ${{ init.branch }}
+      CI_CONTRACT_PROVIDER: rwx
+      COMPILED: ${{ tasks.compile-chain-unichain.artifacts.compiled }}
+      PINNED_BLOCK: ${{ tasks.rpc-check.artifacts.block }}
+      OP_CI_MAINNET_L1_ARCHIVE_RPC_URL: ${{ vaults.optimism-go-tests-rpc-shadow.secrets.OP_CI_MAINNET_L1_ARCHIVE_RPC_URL }}
+    cache: false
+    tool-cache: contract-upgrades-rpc-chain-unichain-${{ init.cache-epoch }}
+    timeout: 60m
+    runner:
+      cpus: 16
+      memory: 32gb
+    outputs:
+      filesystem:
+        filter:
+          workspace: []
+          system: [~/.foundry/cache/rpc]
+      test-results:
+        - path: .ci/contract-upgrades/chain-unichain/run/original.junit.xml
+          options:
+            language: Solidity
+            framework: Foundry
+      artifacts:
+        - key: reports
+          path: .ci/contract-upgrades/chain-unichain/run

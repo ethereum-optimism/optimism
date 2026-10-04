@@ -35,12 +35,12 @@ at commit `587b4c3a73d3f16f15212b72e9a0ed0e8489a7c4`.
 | PR workflow | Expanded job instances | Implemented validation jobs |
 | --- | ---: | ---: |
 | Main | 32 | 13 |
-| Contracts | 23 | 4 |
+| Contracts | 23 | 6 |
 | Rust | 22 | 21 |
 | Rust E2E | 9 | 9 |
-| Total | 86 | 47 |
+| Total | 86 | 49 |
 
-Verified implementation coverage is **47 / 86 = 55%**. Each matrix entry and
+Verified implementation coverage is **49 / 86 = 57%**. Each matrix entry and
 each occurrence in a different workflow counts separately; shards do not.
 The CircleCI setup and schedule-trigger-check workflows are outside this
 86-job denominator and have separate todos. This is job coverage, not runtime,
@@ -68,8 +68,12 @@ inputs and 410 test identities (405 passes, five skips, no retries). All fourtee
 native verdict shards and the aggregate passed. See the
 [E2E closeout](rwx-rust-e2e-parity.md) for original hashes, the two narrowly resolved
 logger-timestamp differences, retained first failures, and compile-only warming.
-The module-preparation and complete contract-fast adapters are implemented and
-locally validated; their three inventory occurrences await hosted parity.
+Complete module preparation and all sixteen contract-fast checks now pass
+same-SHA original-report parity. Both prep occurrences cover all 463 modules;
+the Main occurrence was already counted. See the [PR-check closeout](rwx-pr-checks-parity.md)
+for the two additional contract occurrences and retained first failures.
+The seven L1 upgrade occurrences now have shared adapters and local fixture
+coverage; their hosted execution and same-SHA comparison remain pending.
 The narrower rollup mode remains CLI-only. See [the stage closeout](rwx-go-parity.md)
 for original-report comparison, selected resources, caches and limitations.
 
@@ -220,7 +224,7 @@ CircleCI workflow: `main` (32 jobs).
 
 CircleCI workflow: `contracts-feature-tests` (23 jobs).
 
-- [ ] `prep-go-modules`
+- [x] `prep-go-modules`
 - [x] `contracts-bedrock-tests main`
 - [x] `contracts-bedrock-tests CUSTOM_GAS_TOKEN`
 - [x] `contracts-bedrock-tests OPTIMISM_PORTAL_INTEROP`
@@ -241,7 +245,7 @@ CircleCI workflow: `contracts-feature-tests` (23 jobs).
 - [ ] `contracts-bedrock-tests-upgrade ink-mainnet`
 - [ ] `contracts-bedrock-tests-upgrade unichain-mainnet`
 - [ ] `contracts-bedrock-tests-l2-fork op-mainnet`
-- [ ] `contracts-bedrock-checks-fast-feature-tests`
+- [x] `contracts-bedrock-checks-fast-feature-tests`
 - [ ] `required-contracts-ci`
 
 ### Rust workflow
@@ -288,7 +292,7 @@ CircleCI workflow: `rust-e2e-ci` (9 jobs).
 ## Routing and required gates
 
 Shared routing policy and its regression tests are implemented. Automatic
-GitHub App push reporting is verified for all seven existing optional checks. Earlier Go and
+GitHub App push reporting is verified for all eight existing optional checks. Earlier Go and
 contract failure probes verified bounded failure reporting; the full native
 pipeline still needs the rehearsals below.
 
