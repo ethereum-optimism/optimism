@@ -59,15 +59,31 @@ class UpgradeTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             p = Path(tmp) / 'junit.xml'; p.write_text('<testsuite name="test/A.t.sol:A"><testcase name="test_a()"/></testsuite>')
             selected = [('test/A.t.sol:A', 'test_a()'), ('test/Parent.t.sol:Parent', 'test_inherited()')]
-            bindings = {identity: {'creation_bytecode': {'bytes': 1, 'sha256': UP.hashlib.sha256(b'00').hexdigest()}}
+            bindings = {identity: {'creation_bytecode': {'artifact': {'bytes': 1, 'sha256': UP.hashlib.sha256(b'00').hexdigest()}}, 'artifacts': {'artifact': 'bound'}}
                         for identity, _ in selected}
             with self.assertRaises(ValueError): UP.junit(p, selected, bindings)
-            bindings['test/Parent.t.sol:Parent']['creation_bytecode'] = {'bytes': 0, 'sha256': UP.hashlib.sha256(b'').hexdigest()}
+            bindings['test/Parent.t.sol:Parent']['creation_bytecode']['artifact'] = {'bytes': 0, 'sha256': UP.hashlib.sha256(b'').hexdigest()}
             result = UP.junit(p, selected, bindings)
             self.assertEqual(result['outcomes'], {'pass': 1}); self.assertEqual(len(result['non_executable']), 1)
             self.assertEqual(result['non_executable'][0]['name'], 'test_inherited()')
-            bindings['test/Parent.t.sol:Parent']['creation_bytecode']['sha256'] = 'a' * 64
+            bindings['test/Parent.t.sol:Parent']['creation_bytecode']['artifact']['sha256'] = 'a' * 64
             with self.assertRaisesRegex(ValueError, 'bytecode hash'): UP.junit(p, selected, bindings)
+
+    def test_multiple_compiler_contexts_retain_distinct_bytecodes_without_hiding_tests(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp); out = root / 'out'; out.mkdir()
+            for filename, bytecode in [('Fixture.json', '00'), ('Fixture.0.8.15.json', '0011')]:
+                value = {'metadata': {'settings': {'compilationTarget': {'test/L1/Fixture.t.sol': 'Fixture'}}},
+                         'methodIdentifiers': {'test_required()': '12345678'}, 'bytecode': {'object': '0x' + bytecode}}
+                (out / filename).write_text(json.dumps(value))
+            with patch.object(UP, 'ROOT', root): bindings = UP.compiler_signatures(out)
+            row = bindings['test/L1/Fixture.t.sol:Fixture']
+            self.assertEqual(len(row['artifacts']), 2); self.assertEqual(len(row['creation_bytecode']), 2)
+            self.assertTrue(UP.deployable(row))
+            p = root / 'junit.xml'; p.write_text('<testsuite name="test/Other.t.sol:Other"><testcase name="test_pass()"/></testsuite>')
+            with self.assertRaises(ValueError): UP.junit(p, [('test/L1/Fixture.t.sol:Fixture', 'test_required()')], bindings)
+            row['creation_bytecode'].pop('out/Fixture.json')
+            with self.assertRaisesRegex(ValueError, 'artifact binding'): UP.deployable(row)
 
     def test_all_seven_occurrences_have_distinct_identity_including_both_op_main(self):
         self.assertEqual(len(UP.VARIANTS), 7)

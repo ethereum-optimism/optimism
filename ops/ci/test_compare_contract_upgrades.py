@@ -25,7 +25,8 @@ class ComparisonTests(unittest.TestCase):
             self.write(d/'settings.json',settings);self.write(d/'foundry-config.json',{'out':'out','root':workspace})
             discovery={'test/L1/Original.t.sol':{'Original':['test_a','test_skip']}};self.write(d/'discovery.json',discovery)
             methods={'test/L1/Original.t.sol:Original':{'methods':{'test_a()':'original','test_skip()':'original'},
-                         'creation_bytecode':{'bytes':1,'sha256':hashlib.sha256(b'00').hexdigest()},
+                         'creation_bytecode':{'packages/contracts-bedrock/out/Original.t.sol/Original.json':
+                             {'bytes':1,'sha256':hashlib.sha256(b'00').hexdigest()}},
                          'artifacts':{'packages/contracts-bedrock/out/Original.t.sol/Original.json':'artifact-hash'}}}
             self.write(d/'signature-bindings.json',methods);self.write(d/'compiled.json',methods['test/L1/Original.t.sol:Original']['artifacts'])
             selected=C.UP.selection(discovery,methods);self.write(d/'selection.json',selected)

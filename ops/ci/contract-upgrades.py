@@ -157,10 +157,11 @@ def compiler_signatures(out):
             if len(bytecode) % 2: raise ValueError('Invalid compiler test creation bytecode')
             creation = {'bytes': len(bytecode) // 2, 'sha256': hashlib.sha256(bytecode.encode()).hexdigest()}
             key = source + ':' + contract
-            row = bindings.setdefault(key, {'methods': methods, 'creation_bytecode': creation, 'artifacts': {}})
-            if row['methods'] != methods or row['creation_bytecode'] != creation:
-                raise ValueError('Conflicting compiler test signatures or creation bytecode')
-            row['artifacts'][str(path.relative_to(ROOT))] = digest(path)
+            row = bindings.setdefault(key, {'methods': methods, 'creation_bytecode': {}, 'artifacts': {}})
+            if row['methods'] != methods: raise ValueError('Conflicting compiler test signatures: ' + key)
+            relative = str(path.relative_to(ROOT))
+            row['creation_bytecode'][relative] = creation
+            row['artifacts'][relative] = digest(path)
     return bindings
 
 
@@ -186,17 +187,24 @@ def selection(value, bindings=None):
     return sorted(cases)
 
 
+def deployable(binding):
+    creation = binding['creation_bytecode']
+    if not creation or set(creation) != set(binding['artifacts']): raise ValueError('Compiler bytecode artifact binding differs')
+    for row in creation.values():
+        if type(row['bytes']) is not int or row['bytes'] < 0 or not re.fullmatch('[0-9a-f]{64}', row['sha256']):
+            raise ValueError('Invalid compiler creation bytecode binding')
+        if row['bytes'] == 0 and row['sha256'] != hashlib.sha256(b'').hexdigest():
+            raise ValueError('Empty compiler bytecode hash differs')
+    return any(row['bytes'] > 0 for row in creation.values())
+
+
 def junit(path, discovered, bindings=None):
     selected = {tuple(r) for r in discovered}
     if not selected or len(selected) != len(discovered): raise ValueError('Empty or duplicate upgrade selection')
     non_executable = set()
     if bindings is not None:
         for identity, _ in selected:
-            creation = bindings[identity]['creation_bytecode']
-            if type(creation['bytes']) is not int or creation['bytes'] < 0 or not re.fullmatch('[0-9a-f]{64}', creation['sha256']):
-                raise ValueError('Invalid compiler creation bytecode binding')
-            if creation['bytes'] == 0:
-                if creation['sha256'] != hashlib.sha256(b'').hexdigest(): raise ValueError('Empty compiler bytecode hash differs')
+            if not deployable(bindings[identity]):
                 non_executable.update(r for r in selected if r[0] == identity)
     actual = {}; outcomes = {}; setup_skips = {}
     for suite in ET.parse(path).iter('testsuite'):

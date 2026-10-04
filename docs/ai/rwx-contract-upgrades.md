@@ -45,7 +45,7 @@ Circle uses the same adapter and retains the original JUnit plus separate
 failed-test diagnostics; a passing diagnostic cannot replace a failed verdict.
 Cancellation preserves the process signal and partial original output.
 
-Twenty execution/comparison fixtures pass with pinned Linux Go, Forge and
+Twenty-one execution/comparison fixtures pass with pinned Linux Go, Forge and
 Just. The complete adapter fixture uses the production build/runtime recipes,
 real Go FFI compilation, real Solidity tests and a local read-only RPC server.
 Two runs from the same compiled manifest each execute the FFI test afresh;
@@ -91,3 +91,11 @@ condition. Failed preflight cannot start producers. RWX's
 [task dependency documentation](https://www.rwx.com/docs/after) describes the
 status scope; run-initiation validation rejects initialization parameters
 inside that expression. A skipped-only run is not evidence of cache warming.
+
+The first hosted bytecode-classification attempt at `1926d60b` rejected multiple
+compiler contexts before verdicts. The original artifacts include twenty
+contracts compiled with more than one Solc version; identical method signatures
+can have distinct creation bytecodes. Every artifact now retains its own size
+and hash. Only a contract whose complete bound artifact set has empty creation
+bytecode is non-executable. Cross-provider comparison requires equal signatures
+and deployability while preserving each provider's compiler artifact hashes.

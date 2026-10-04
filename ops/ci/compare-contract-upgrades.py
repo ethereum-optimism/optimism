@@ -57,7 +57,7 @@ def report(directory, variant, sha, provider, empty):
     return {'settings': settings, 'selection': selected, 'coverage': original, 'block': block,
             'config': UP.ORIGINALS.normalize(json.loads((directory / 'foundry-config.json').read_text()), settings['workspace_root']),
             'submodules': UP.SUBMODULES.revisions((directory / 'submodules.txt').read_text()),
-            'methods': {k:{field:v[field] for field in ('methods','creation_bytecode')} for k,v in methods.items()},
+            'methods': {k:{'methods':v['methods'],'deployable':UP.deployable(v)} for k,v in methods.items()},
             'commands': commands, 'original_sha256': hashes, 'compiled_sha256': compiled}
 
 
