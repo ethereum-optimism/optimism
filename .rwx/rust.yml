@@ -112,6 +112,7 @@ tasks:
     run: |
       python3 -m unittest discover -s ops/ci -p 'test_rust_workspace.py'
       python3 -m unittest discover -s ops/ci -p 'test_rust_target_cache.py'
+      python3 -m unittest discover -s ops/ci -p 'test_compare_rust_extra.py'
     cache: false
     timeout: 10m
     outputs:

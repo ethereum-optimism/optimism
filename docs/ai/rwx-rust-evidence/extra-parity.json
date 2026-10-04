@@ -1,0 +1,1112 @@
+{
+  "circle": {
+    "jobs": {
+      "interop": {
+        "job_number": 5633198,
+        "name": "interop-deposits-diff",
+        "started_at": "2026-10-04T17:23:48.123Z",
+        "status": "success",
+        "stopped_at": "2026-10-04T17:26:33.608Z"
+      },
+      "registry": {
+        "job_number": 5633204,
+        "name": "kona-registry-snapshot-check",
+        "started_at": "2026-10-04T17:23:48.105Z",
+        "status": "success",
+        "stopped_at": "2026-10-04T17:25:23.688Z"
+      },
+      "typos": {
+        "job_number": 5633189,
+        "name": "rust-typos",
+        "started_at": "2026-10-04T17:23:47.563Z",
+        "status": "success",
+        "stopped_at": "2026-10-04T17:25:11.139Z"
+      },
+      "wasm-unknown": {
+        "job_number": 5633197,
+        "name": "rust-wasm-unknown",
+        "started_at": "2026-10-04T17:23:47.943Z",
+        "status": "success",
+        "stopped_at": "2026-10-04T17:25:38.156Z"
+      },
+      "wasm-wasi": {
+        "job_number": 5633190,
+        "name": "rust-wasm-wasi",
+        "started_at": "2026-10-04T17:23:48.07Z",
+        "status": "success",
+        "stopped_at": "2026-10-04T17:25:41.29Z"
+      },
+      "zepter": {
+        "job_number": 5633193,
+        "name": "rust-zepter",
+        "started_at": "2026-10-04T17:23:47.538Z",
+        "status": "success",
+        "stopped_at": "2026-10-04T17:25:17.728Z"
+      }
+    },
+    "pipeline_id": "dd309974-64c1-4fa2-bb6f-e306e4254047",
+    "pipeline_number": 135548
+  },
+  "jobs": {
+    "interop": {
+      "coverage": {
+        "byte_identical": true,
+        "cases": [
+          "activate=false/gas",
+          "activate=false/tx=0",
+          "activate=false/tx=1",
+          "activate=false/tx=2",
+          "activate=false/tx=3",
+          "activate=false/tx=4",
+          "activate=false/tx=5",
+          "activate=false/tx=6",
+          "activate=false/tx=7",
+          "activate=false/tx=8",
+          "activate=false/tx=9",
+          "activate=false/tx=10",
+          "activate=false/tx=11",
+          "activate=false/tx=12",
+          "activate=false/tx=13",
+          "activate=false/tx=14",
+          "activate=false/tx=15",
+          "activate=false/tx=16",
+          "activate=false/tx=17",
+          "activate=false/tx=18",
+          "activate=false/tx=19",
+          "activate=false/tx=20",
+          "activate=false/tx=21",
+          "activate=false/tx=22",
+          "activate=false/tx=23",
+          "activate=false/tx=24",
+          "activate=false/tx=25",
+          "activate=false/tx=26",
+          "activate=false/tx=27",
+          "activate=true/gas",
+          "activate=true/tx=0",
+          "activate=true/tx=1",
+          "activate=true/tx=2",
+          "activate=true/tx=3",
+          "activate=true/tx=4",
+          "activate=true/tx=5",
+          "activate=true/tx=6",
+          "activate=true/tx=7",
+          "activate=true/tx=8",
+          "activate=true/tx=9",
+          "activate=true/tx=10",
+          "activate=true/tx=11",
+          "activate=true/tx=12",
+          "activate=true/tx=13",
+          "activate=true/tx=14",
+          "activate=true/tx=15",
+          "activate=true/tx=16",
+          "activate=true/tx=17",
+          "activate=true/tx=18",
+          "activate=true/tx=19",
+          "activate=true/tx=20",
+          "activate=true/tx=21",
+          "activate=true/tx=22",
+          "activate=true/tx=23",
+          "activate=true/tx=24",
+          "activate=true/tx=25",
+          "activate=true/tx=26",
+          "activate=true/tx=27",
+          "activate=true/tx=28",
+          "activate=true/tx=29"
+        ],
+        "stdout_sha256": "c3f8b256b9e865074873f806243a48f2764a21af5ef024bc1f7a7629fd4ba42c"
+      },
+      "outcome": "pass",
+      "packages": 76,
+      "retries": 0,
+      "stages": {
+        "interop": {
+          "argv": [
+            "bash",
+            "ops/scripts/test-interop-deposits-diff.sh"
+          ],
+          "cwd": ".",
+          "exit_code": 0
+        },
+        "superchain-go": {
+          "argv": [
+            "just",
+            "build-superchain-go"
+          ],
+          "cwd": ".",
+          "exit_code": 0
+        },
+        "workspace": {
+          "argv": [
+            "cargo",
+            "metadata",
+            "--no-deps",
+            "--locked",
+            "--all-features",
+            "--format-version",
+            "1"
+          ],
+          "cwd": "rust",
+          "exit_code": 0
+        }
+      }
+    },
+    "registry": {
+      "coverage": {
+        "fresh_build_script": true,
+        "snapshots": {
+          "chainList.json": {
+            "after": "875a992e307248e4a4ad2d33d3d4b359313388f05db744594e1740961eeebada",
+            "before": "875a992e307248e4a4ad2d33d3d4b359313388f05db744594e1740961eeebada"
+          },
+          "configs.json": {
+            "after": "49c35b9c47764400491ca35d517328a7299c204b6b8ef54774d83f9b601c2433",
+            "before": "49c35b9c47764400491ca35d517328a7299c204b6b8ef54774d83f9b601c2433"
+          },
+          "depsets.json": {
+            "after": "c6c348555032a1cc16405c25857f149e86498a9e956a4ed44329ba4a84443b45",
+            "before": "c6c348555032a1cc16405c25857f149e86498a9e956a4ed44329ba4a84443b45"
+          }
+        },
+        "sync_superchain": true
+      },
+      "outcome": "pass",
+      "packages": 76,
+      "retries": 0,
+      "stages": {
+        "registry": {
+          "argv": [
+            "env",
+            "KONA_SYNC_SUPERCHAIN=true",
+            "cargo",
+            "build",
+            "-p",
+            "kona-registry"
+          ],
+          "cwd": "rust/kona",
+          "exit_code": 0
+        },
+        "registry-clean": {
+          "argv": [
+            "cargo",
+            "clean",
+            "-p",
+            "kona-registry"
+          ],
+          "cwd": "rust",
+          "exit_code": 0
+        },
+        "registry-diff": {
+          "argv": [
+            "git",
+            "diff",
+            "--exit-code",
+            "--",
+            "rust/kona/crates/protocol/registry/etc/"
+          ],
+          "cwd": ".",
+          "exit_code": 0
+        },
+        "workspace": {
+          "argv": [
+            "cargo",
+            "metadata",
+            "--no-deps",
+            "--locked",
+            "--all-features",
+            "--format-version",
+            "1"
+          ],
+          "cwd": "rust",
+          "exit_code": 0
+        }
+      }
+    },
+    "typos": {
+      "outcome": "pass",
+      "packages": 76,
+      "retries": 0,
+      "stages": {
+        "typos": {
+          "argv": [
+            "typos"
+          ],
+          "cwd": "rust",
+          "exit_code": 0
+        },
+        "workspace": {
+          "argv": [
+            "cargo",
+            "metadata",
+            "--no-deps",
+            "--locked",
+            "--all-features",
+            "--format-version",
+            "1"
+          ],
+          "cwd": "rust",
+          "exit_code": 0
+        }
+      }
+    },
+    "wasm-unknown": {
+      "coverage": {
+        "executed": [
+          {
+            "argv": [
+              "cargo",
+              "build",
+              "--no-default-features",
+              "--target",
+              "wasm32-unknown-unknown"
+            ],
+            "crate": "alloy-op-evm"
+          },
+          {
+            "argv": [
+              "cargo",
+              "build",
+              "--no-default-features",
+              "--target",
+              "wasm32-unknown-unknown"
+            ],
+            "crate": "op-alloy-consensus"
+          },
+          {
+            "argv": [
+              "cargo",
+              "build",
+              "--no-default-features",
+              "--target",
+              "wasm32-unknown-unknown"
+            ],
+            "crate": "op-alloy-rpc-types"
+          },
+          {
+            "argv": [
+              "cargo",
+              "build",
+              "--no-default-features",
+              "--target",
+              "wasm32-unknown-unknown"
+            ],
+            "crate": "op-alloy-rpc-types-engine"
+          }
+        ],
+        "no_default_features": true,
+        "planned": [
+          {
+            "argv": [
+              "cargo",
+              "build",
+              "--no-default-features",
+              "--target",
+              "wasm32-unknown-unknown"
+            ],
+            "crate": "alloy-op-evm"
+          },
+          {
+            "argv": [
+              "cargo",
+              "build",
+              "--no-default-features",
+              "--target",
+              "wasm32-unknown-unknown"
+            ],
+            "crate": "op-alloy-consensus"
+          },
+          {
+            "argv": [
+              "cargo",
+              "build",
+              "--no-default-features",
+              "--target",
+              "wasm32-unknown-unknown"
+            ],
+            "crate": "op-alloy-rpc-types"
+          },
+          {
+            "argv": [
+              "cargo",
+              "build",
+              "--no-default-features",
+              "--target",
+              "wasm32-unknown-unknown"
+            ],
+            "crate": "op-alloy-rpc-types-engine"
+          }
+        ],
+        "selected": [
+          "op-alloy-consensus",
+          "op-alloy-rpc-types",
+          "op-alloy-rpc-types-engine",
+          "alloy-op-evm"
+        ],
+        "target": "wasm32-unknown-unknown"
+      },
+      "library_artifacts": {
+        "byte_identical": false,
+        "circle": {
+          "artifacts": {
+            "liballoy_op_evm.rlib": {
+              "sha256": "aa3359b174a9f67fad99fb98786096780115efa19843c68183884a33cbc1aafd",
+              "size": 693704
+            },
+            "libop_alloy_consensus.rlib": {
+              "sha256": "f4a0c6dd5a50c16485ce57d169b7f5d9b52bdf26fd2f996dc0fdbd91ec58ba39",
+              "size": 1709788
+            },
+            "libop_alloy_rpc_types.rlib": {
+              "sha256": "39cb61a94dc1c566be9807f6e66e8ec7ae06dda95afc00f492af913bc0066916",
+              "size": 1182156
+            },
+            "libop_alloy_rpc_types_engine.rlib": {
+              "sha256": "fd19027f7677026b030fb8795770dc3e34ee09792eaa13b07d434b6864185fd0",
+              "size": 428144
+            }
+          },
+          "rustc": "rustc 1.95.0 (59807616e 2026-04-14)",
+          "source_sha": "a9df2def8a23e26b3e00bc4044ed009dd72f8cd7",
+          "target": "wasm32-unknown-unknown"
+        },
+        "comparison": "Inputs, settings, package execution and successful library production; host archive byte reproducibility is not required.",
+        "rwx": {
+          "artifacts": {
+            "liballoy_op_evm.rlib": {
+              "sha256": "4b5e2fb79db83f693d8c373001d3a0ba678536812881e928cb15cba76f2e9ba4",
+              "size": 693804
+            },
+            "libop_alloy_consensus.rlib": {
+              "sha256": "02668aea2b58d5bcbe4c9cb9681644f32c600e82efb8d913aa1957665cfdf9c6",
+              "size": 1710764
+            },
+            "libop_alloy_rpc_types.rlib": {
+              "sha256": "9a7502396105223e67fdad453070fcbbf9277096655f4a51941cebdc496740fb",
+              "size": 1182488
+            },
+            "libop_alloy_rpc_types_engine.rlib": {
+              "sha256": "c9ee40350d9bd41eb1e719b2a4277fa72e0282d79eae4668bc08d57f68660f49",
+              "size": 428366
+            }
+          },
+          "rustc": "rustc 1.95.0 (59807616e 2026-04-14)",
+          "source_sha": "a9df2def8a23e26b3e00bc4044ed009dd72f8cd7",
+          "target": "wasm32-unknown-unknown"
+        }
+      },
+      "outcome": "pass",
+      "packages": 76,
+      "retries": 0,
+      "stages": {
+        "wasm": {
+          "argv": [
+            "cargo",
+            "hack",
+            "build",
+            "--target",
+            "wasm32-unknown-unknown",
+            "-p",
+            "op-alloy-consensus",
+            "-p",
+            "op-alloy-rpc-types",
+            "-p",
+            "op-alloy-rpc-types-engine",
+            "-p",
+            "alloy-op-evm",
+            "--no-default-features"
+          ],
+          "cwd": "rust",
+          "exit_code": 0
+        },
+        "wasm-list": {
+          "argv": [
+            "cargo",
+            "hack",
+            "build",
+            "--target",
+            "wasm32-unknown-unknown",
+            "-p",
+            "op-alloy-consensus",
+            "-p",
+            "op-alloy-rpc-types",
+            "-p",
+            "op-alloy-rpc-types-engine",
+            "-p",
+            "alloy-op-evm",
+            "--no-default-features",
+            "--print-command-list"
+          ],
+          "cwd": "rust",
+          "exit_code": 0
+        },
+        "wasm-target": {
+          "argv": [
+            "rustup",
+            "target",
+            "add",
+            "wasm32-unknown-unknown"
+          ],
+          "cwd": "rust",
+          "exit_code": 0
+        },
+        "workspace": {
+          "argv": [
+            "cargo",
+            "metadata",
+            "--no-deps",
+            "--locked",
+            "--all-features",
+            "--format-version",
+            "1"
+          ],
+          "cwd": "rust",
+          "exit_code": 0
+        }
+      }
+    },
+    "wasm-wasi": {
+      "coverage": {
+        "executed": [
+          {
+            "argv": [
+              "cargo",
+              "build",
+              "--target",
+              "wasm32-wasip1"
+            ],
+            "crate": "alloy-op-evm"
+          },
+          {
+            "argv": [
+              "cargo",
+              "build",
+              "--target",
+              "wasm32-wasip1"
+            ],
+            "crate": "op-alloy-consensus"
+          },
+          {
+            "argv": [
+              "cargo",
+              "build",
+              "--target",
+              "wasm32-wasip1"
+            ],
+            "crate": "op-alloy-rpc-types-engine"
+          }
+        ],
+        "no_default_features": false,
+        "planned": [
+          {
+            "argv": [
+              "cargo",
+              "build",
+              "--target",
+              "wasm32-wasip1"
+            ],
+            "crate": "alloy-op-evm"
+          },
+          {
+            "argv": [
+              "cargo",
+              "build",
+              "--target",
+              "wasm32-wasip1"
+            ],
+            "crate": "op-alloy-consensus"
+          },
+          {
+            "argv": [
+              "cargo",
+              "build",
+              "--target",
+              "wasm32-wasip1"
+            ],
+            "crate": "op-alloy-rpc-types-engine"
+          }
+        ],
+        "selected": [
+          "op-alloy-consensus",
+          "op-alloy-rpc-types-engine",
+          "alloy-op-evm"
+        ],
+        "target": "wasm32-wasip1"
+      },
+      "library_artifacts": {
+        "byte_identical": false,
+        "circle": {
+          "artifacts": {
+            "liballoy_op_evm.rlib": {
+              "sha256": "b6bce9eee1be4656d46880d59826e595d72ba4f4444f0381d1a441047c771165",
+              "size": 694424
+            },
+            "libop_alloy_consensus.rlib": {
+              "sha256": "87690f79ecbac184a767502faba42f9215237d5d62a3248e636282a175d161e0",
+              "size": 1746196
+            },
+            "libop_alloy_rpc_types_engine.rlib": {
+              "sha256": "09bf7c74baedffecdd26c104a8336920febc216fc0f579b58f3fd7d8bc72b72a",
+              "size": 1060982
+            }
+          },
+          "rustc": "rustc 1.95.0 (59807616e 2026-04-14)",
+          "source_sha": "a9df2def8a23e26b3e00bc4044ed009dd72f8cd7",
+          "target": "wasm32-wasip1"
+        },
+        "comparison": "Inputs, settings, package execution and successful library production; host archive byte reproducibility is not required.",
+        "rwx": {
+          "artifacts": {
+            "liballoy_op_evm.rlib": {
+              "sha256": "064454c3a95ec3699c2097f765f97f70f5061a6beac62de427186b18ed7edeae",
+              "size": 694524
+            },
+            "libop_alloy_consensus.rlib": {
+              "sha256": "881ebd31cb3a9184faf15402c42ab8c60b43169871e8b38aa65e6bac6b71e5a5",
+              "size": 1747560
+            },
+            "libop_alloy_rpc_types_engine.rlib": {
+              "sha256": "7ae6f22539436b48405f2f4d9093821d8057f134080a85b25f3dba503da01035",
+              "size": 1061176
+            }
+          },
+          "rustc": "rustc 1.95.0 (59807616e 2026-04-14)",
+          "source_sha": "a9df2def8a23e26b3e00bc4044ed009dd72f8cd7",
+          "target": "wasm32-wasip1"
+        }
+      },
+      "outcome": "pass",
+      "packages": 76,
+      "retries": 0,
+      "stages": {
+        "wasm": {
+          "argv": [
+            "cargo",
+            "hack",
+            "build",
+            "--target",
+            "wasm32-wasip1",
+            "-p",
+            "op-alloy-consensus",
+            "-p",
+            "op-alloy-rpc-types-engine",
+            "-p",
+            "alloy-op-evm"
+          ],
+          "cwd": "rust",
+          "exit_code": 0
+        },
+        "wasm-list": {
+          "argv": [
+            "cargo",
+            "hack",
+            "build",
+            "--target",
+            "wasm32-wasip1",
+            "-p",
+            "op-alloy-consensus",
+            "-p",
+            "op-alloy-rpc-types-engine",
+            "-p",
+            "alloy-op-evm",
+            "--print-command-list"
+          ],
+          "cwd": "rust",
+          "exit_code": 0
+        },
+        "wasm-target": {
+          "argv": [
+            "rustup",
+            "target",
+            "add",
+            "wasm32-wasip1"
+          ],
+          "cwd": "rust",
+          "exit_code": 0
+        },
+        "workspace": {
+          "argv": [
+            "cargo",
+            "metadata",
+            "--no-deps",
+            "--locked",
+            "--all-features",
+            "--format-version",
+            "1"
+          ],
+          "cwd": "rust",
+          "exit_code": 0
+        }
+      }
+    },
+    "zepter": {
+      "outcome": "pass",
+      "packages": 76,
+      "retries": 0,
+      "stages": {
+        "workspace": {
+          "argv": [
+            "cargo",
+            "metadata",
+            "--no-deps",
+            "--locked",
+            "--all-features",
+            "--format-version",
+            "1"
+          ],
+          "cwd": "rust",
+          "exit_code": 0
+        },
+        "zepter": {
+          "argv": [
+            "zepter",
+            "run",
+            "check"
+          ],
+          "cwd": "rust",
+          "exit_code": 0
+        }
+      }
+    }
+  },
+  "manifest_declared_empty_logs": [
+    {
+      "job": "wasm-unknown",
+      "name": "workspace.log",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "job": "wasm-wasi",
+      "name": "workspace.log",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "job": "zepter",
+      "name": "workspace.log",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "job": "typos",
+      "name": "typos.log",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "job": "typos",
+      "name": "workspace.log",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "job": "registry",
+      "name": "registry-diff.log",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "job": "registry",
+      "name": "workspace.log",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "job": "interop",
+      "name": "interop-go.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "job": "interop",
+      "name": "interop-rust.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "job": "interop",
+      "name": "workspace.log",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    }
+  ],
+  "original_sha256": {
+    "circle": {
+      "interop": {
+        "checks.junit.xml": "1b84315784fd65d72092aa633f217f820eec8dfaa3ee8a2d6ce7d175af5fb5b0",
+        "interop-coverage.json": "948f9f8a01ef8e9851a86ba9c98fd030c6649e789fdf6e752e9f09d7e470e472",
+        "interop-go.exit": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+        "interop-go.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "interop-go.stdout": "c3f8b256b9e865074873f806243a48f2764a21af5ef024bc1f7a7629fd4ba42c",
+        "interop-rust.exit": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+        "interop-rust.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "interop-rust.stdout": "c3f8b256b9e865074873f806243a48f2764a21af5ef024bc1f7a7629fd4ba42c",
+        "interop.log": "783d1711094616d7a1972387febbaebc850701f4b4e67af9f46eaa37a0a4f049",
+        "interop.stage.json": "d7773ab2dee0d889c057433951f08d7928319873a6eda24d6d8e064983dfc8e4",
+        "settings.json": "d0d4edcea4dbfaebbfce66e1cd5bd6436061a01ae1985c0416cf5537e78d8ca9",
+        "superchain-go.log": "f055ee1a85e95230be235292e123c9c8af9a10a238dfcd722dd4030d0b517425",
+        "superchain-go.stage.json": "5f721f70dd46af4c5f253871a201fe2155c40a8b060393762b76d633e204d5c3",
+        "workspace.json": "556ef68198f35c24a40e16c40532d1e7eae41c0009eeb48ca7a87585f35d7592",
+        "workspace.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "workspace.stage.json": "cb11b24d13adff9ffc54dab841ee14e61d0a0746dd2dc74ec70ea97dffe40ec5"
+      },
+      "registry": {
+        "checks.junit.xml": "ea6d2aefcefefa961ea04a43fc846ecd6a347f1e4cb5e6d7dc682a252a3ac350",
+        "registry-after-chainList.json": "875a992e307248e4a4ad2d33d3d4b359313388f05db744594e1740961eeebada",
+        "registry-after-configs.json": "49c35b9c47764400491ca35d517328a7299c204b6b8ef54774d83f9b601c2433",
+        "registry-after-depsets.json": "c6c348555032a1cc16405c25857f149e86498a9e956a4ed44329ba4a84443b45",
+        "registry-before-chainList.json": "875a992e307248e4a4ad2d33d3d4b359313388f05db744594e1740961eeebada",
+        "registry-before-configs.json": "49c35b9c47764400491ca35d517328a7299c204b6b8ef54774d83f9b601c2433",
+        "registry-before-depsets.json": "c6c348555032a1cc16405c25857f149e86498a9e956a4ed44329ba4a84443b45",
+        "registry-clean.log": "0bdaeb2aa6a92a0fdfec2d2cc4d0ab71946de5d0654e08c526e4629130ae0f28",
+        "registry-clean.stage.json": "9f08142996584bf5a21f5bc85b2c316d55f832f043e01cf920fb919691c0380e",
+        "registry-coverage.json": "6257a95b8244a3b1b14ec27f2598a8906bb4d546b52fb4300d52f9a7a6c80553",
+        "registry-diff.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "registry-diff.stage.json": "3a0f9b85fcede9f80e28b31573c24a860a89c6fc4c82954679bd32bef7aa46b4",
+        "registry.log": "4083dc9696904200257350f0ab7d0eae584750cf948a00cb67a4604cf9ba4e93",
+        "registry.stage.json": "ef0977a87459e2f25edc660c30438faa9f20c688a526ea6b57b66a2710b76063",
+        "settings.json": "283ac55f25bba36d905932f4a0fd691aa8b780e45cc8a77ff190919cef9904b9",
+        "workspace.json": "556ef68198f35c24a40e16c40532d1e7eae41c0009eeb48ca7a87585f35d7592",
+        "workspace.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "workspace.stage.json": "9d29b9128c5c6f1d467f8be1366daf4d6909bbcbeb69af439ad182306fca193b"
+      },
+      "typos": {
+        "checks.junit.xml": "862523cb217cd7c3944838ee429fe42b3a4119f0952ee663ad985e3c12cbca93",
+        "settings.json": "2e4a1e320f6115fc7cfa6c23a4c2dd5c1113c7bce598335e3fd98feb9bfb3338",
+        "typos.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "typos.stage.json": "088ba3377cf769e2d842e7b0d8c359096a090139f9cb42a107744b543410a81c",
+        "workspace.json": "556ef68198f35c24a40e16c40532d1e7eae41c0009eeb48ca7a87585f35d7592",
+        "workspace.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "workspace.stage.json": "9b0040050840dccd7b203bb3a4c5c403c6ce7ca3aed323abfe3e547c363bbea3"
+      },
+      "wasm-unknown": {
+        "checks.junit.xml": "5000a02f99c89991638eb211e661c01bf111e94d54466e9cabcefe9d75db3824",
+        "settings.json": "c1233f3ab10d4590ecd3b9d72670b8f46491f9c886b55935fdcd5f7b990b8ab0",
+        "wasm-artifacts.json": "b9c2ab4b5a803f2e91fc6c16a590839e4fe81368d3fa15a718f534b68422c5e3",
+        "wasm-coverage.json": "f939dfeca77f4e029953387eda1ba287fdf67969ea0ca26e2430c3f8292182e4",
+        "wasm-list.log": "0cc95e6382e1df47414fc5ee2fc3f77d963ffde89db4037305fdddb3018b5d69",
+        "wasm-list.stage.json": "33ad0526a62e981d309f61049cb0b808f7c61e3a3f27bf0d4e8352cc7b53e66b",
+        "wasm-target.log": "2c90ce2f37a4e805799561f45e5eab35adbca700c521ce98f460e97aa5aa7d24",
+        "wasm-target.stage.json": "05e395bf2f6f64d9edda8de256410f230a8452e7b571d0968ecc9a48f92773d5",
+        "wasm.log": "15af92ce4cc3ec88fbdfc4ce917bc3f3b4f843889d9c8f99dbd6397c407a8160",
+        "wasm.stage.json": "0083b1681d0d3f99c26eaba455793108b2cc31b2e5a814fa0bf77243e58eba28",
+        "workspace.json": "556ef68198f35c24a40e16c40532d1e7eae41c0009eeb48ca7a87585f35d7592",
+        "workspace.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "workspace.stage.json": "d33d78aed4b6808be38979a9e24f301e278a65b115d5c3e445031346e75c8b4b"
+      },
+      "wasm-wasi": {
+        "checks.junit.xml": "2893e75a39e41b5d92be1ad692f79103f1209cae6eecce77cb6f32be201eb601",
+        "settings.json": "4310d3e285a0c697d66e10a0049cea26e54daae0ee525d803c6210c953fa7a2c",
+        "wasm-artifacts.json": "72b00f207ad778a00b0063da571eff088ed661d917916514246273f535d26eab",
+        "wasm-coverage.json": "a992c83c30e154fe85ee1201b64ad7f76884e7fd1f99db16431a5ead77b35ed9",
+        "wasm-list.log": "ed6e86f6219fbd0b120b2aec751856acc1dcad8ff9e8b15547d8f6d2222bf0ca",
+        "wasm-list.stage.json": "55efa9846cdbf432b1def6900df99aa7079c33f3fe1d8098ca773d23619801ae",
+        "wasm-target.log": "42b3f2638db0907339636ff8ad161ffad56b3e78c101dbd5e5423d1765bc264b",
+        "wasm-target.stage.json": "21e199a84363754f40869b592870dbc83a0a20acb7c98efeba3d9557c9536739",
+        "wasm.log": "d1fa5f22c7dd3f9228dfc5a7494ccc4fd461cee32ae6aa5d3d0fb2caa23577a3",
+        "wasm.stage.json": "bbb8dbe1dc6cf4c777c8d42195cdab265cde19bc16696fc701aa8fdadacd51b5",
+        "workspace.json": "556ef68198f35c24a40e16c40532d1e7eae41c0009eeb48ca7a87585f35d7592",
+        "workspace.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "workspace.stage.json": "6420a8e3ed40d7d0de22424078492eec9522bc938c81c17be92e199dfbfad811"
+      },
+      "zepter": {
+        "checks.junit.xml": "c281a8656d9622ef476547d75a42815b60dbf23966b08bef271976dd4fa13ee1",
+        "settings.json": "8f4ca71356843d77232430ff2255b03931e5c572b39c18aed9ed019b51202172",
+        "workspace.json": "556ef68198f35c24a40e16c40532d1e7eae41c0009eeb48ca7a87585f35d7592",
+        "workspace.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "workspace.stage.json": "9c075ab736afc8313887f22db10b73d19a7bed825104c2a1210bb7e436d7c238",
+        "zepter.log": "6c26c2b19cdff90e097bf8f71190d4e31c6dfb7002a0614877d937989ab93bab",
+        "zepter.stage.json": "fbbb02f69b290b76ce2518eefa1c734a69ab9bad9736299ba245afc8a26215b2"
+      }
+    },
+    "rwx": {
+      "interop": {
+        "cache-source.json": "ca2078b709017cd668e9fa70d0906282e962a1274cbbc02db9dadb6278099d1c",
+        "checks.junit.xml": "1b84315784fd65d72092aa633f217f820eec8dfaa3ee8a2d6ce7d175af5fb5b0",
+        "interop-coverage.json": "948f9f8a01ef8e9851a86ba9c98fd030c6649e789fdf6e752e9f09d7e470e472",
+        "interop-go.exit": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+        "interop-go.stderr": "0064d80b8db08c5488261a1c8a3d8b8d2578e14d6f58ca8bf2f338dfa9ac87fa",
+        "interop-go.stdout": "c3f8b256b9e865074873f806243a48f2764a21af5ef024bc1f7a7629fd4ba42c",
+        "interop-rust.exit": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+        "interop-rust.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "interop-rust.stdout": "c3f8b256b9e865074873f806243a48f2764a21af5ef024bc1f7a7629fd4ba42c",
+        "interop.log": "783d1711094616d7a1972387febbaebc850701f4b4e67af9f46eaa37a0a4f049",
+        "interop.stage.json": "1577fa2c724139d14ddefe83ec4d7852e0804b80d971459d903dbef19232c0fd",
+        "sccache-stop.log": "795245c29ff64fcd6e4ccb90abf73be2da36168862451b6c88af037483ecf952",
+        "sccache.json": "7e2804e709c642d3368dc589fe328cf464ed2e23f4de7aff2b56a74f14a62e15",
+        "settings.json": "0bbcdee0fb9361825d533691e31217e3907f5e30f92b3cfd2c5e4f3ee4b0af8f",
+        "superchain-go.log": "55f614247286e2e9d49a084f6c19f99b7b694efc2da3c1d41484e2c2f02927b9",
+        "superchain-go.stage.json": "94b11252de9de6a4937ecd27c4e2ec06ff92592c0ca2408d96ab4822db3915eb",
+        "workspace.json": "9276b9f5a27f928c5807a5b4306d6bc3e2335af249238ff0916adc4d344e70b8",
+        "workspace.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "workspace.stage.json": "52f2779e30bcde1896cbcb4a1b42383eb8dd86e9f0ff61162bb904457f63cf6b"
+      },
+      "registry": {
+        "cache-source.json": "ca2078b709017cd668e9fa70d0906282e962a1274cbbc02db9dadb6278099d1c",
+        "checks.junit.xml": "ea6d2aefcefefa961ea04a43fc846ecd6a347f1e4cb5e6d7dc682a252a3ac350",
+        "registry-after-chainList.json": "875a992e307248e4a4ad2d33d3d4b359313388f05db744594e1740961eeebada",
+        "registry-after-configs.json": "49c35b9c47764400491ca35d517328a7299c204b6b8ef54774d83f9b601c2433",
+        "registry-after-depsets.json": "c6c348555032a1cc16405c25857f149e86498a9e956a4ed44329ba4a84443b45",
+        "registry-before-chainList.json": "875a992e307248e4a4ad2d33d3d4b359313388f05db744594e1740961eeebada",
+        "registry-before-configs.json": "49c35b9c47764400491ca35d517328a7299c204b6b8ef54774d83f9b601c2433",
+        "registry-before-depsets.json": "c6c348555032a1cc16405c25857f149e86498a9e956a4ed44329ba4a84443b45",
+        "registry-clean.log": "0bdaeb2aa6a92a0fdfec2d2cc4d0ab71946de5d0654e08c526e4629130ae0f28",
+        "registry-clean.stage.json": "a53bf82bfcb9ff884c97c3e944523031520bcbbab94a72778817d6037dbbc90a",
+        "registry-coverage.json": "6257a95b8244a3b1b14ec27f2598a8906bb4d546b52fb4300d52f9a7a6c80553",
+        "registry-diff.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "registry-diff.stage.json": "6055bc09b5fbb12ea0398a5de913d91fd286a9cc068af61f489267c8282ad728",
+        "registry.log": "a41dfe90fa830efb32d36b794211f7e9affb7c27cd79044b1398e7ee70d29a75",
+        "registry.stage.json": "75042c118d0f4f190a20427f0cce572cf1da7baaad116ada5b59b67cd90176c1",
+        "sccache-stop.log": "4b9f161cdcb32b1a2dcb70e0c736bf8d8cda8bf81a753fe5fe2936171f60c308",
+        "sccache.json": "3554956c46845cef0658fdb158c1bd0030b2120396af93692a8dd90ad2815a18",
+        "settings.json": "891058880baf9b2ab96f844e252f0353fc8f5cd9734e47a2f22d9a726f56bda6",
+        "workspace.json": "9276b9f5a27f928c5807a5b4306d6bc3e2335af249238ff0916adc4d344e70b8",
+        "workspace.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "workspace.stage.json": "4106a510a8fcd4864f8ca38591342723aac012ddbd7352528a5974bf847a9186"
+      },
+      "typos": {
+        "cache-source.json": "ca2078b709017cd668e9fa70d0906282e962a1274cbbc02db9dadb6278099d1c",
+        "checks.junit.xml": "862523cb217cd7c3944838ee429fe42b3a4119f0952ee663ad985e3c12cbca93",
+        "sccache-stop.log": "be524c2866e8fb63a69fe24b5ee183e8cc090224a088cc937cf3338522a4e6bd",
+        "sccache.json": "399af4a3cd24eef56ceaad86356feee2106610b4e9fd781f17a5091641c6b72b",
+        "settings.json": "b145568341cfcea0de45ab117f7ea7d49db0cdea1c28c60d58cf51a059297293",
+        "typos.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "typos.stage.json": "1583e6f95aca975cf0d06d97130d2e7e2e825ccf303f3d2909cfc3c89bd88c50",
+        "workspace.json": "9276b9f5a27f928c5807a5b4306d6bc3e2335af249238ff0916adc4d344e70b8",
+        "workspace.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "workspace.stage.json": "1333d57b60c050de3efa7cd685044c25f339026be4b5f2aefdcd4fd10c4cb6f0"
+      },
+      "wasm-unknown": {
+        "cache-source.json": "ca2078b709017cd668e9fa70d0906282e962a1274cbbc02db9dadb6278099d1c",
+        "checks.junit.xml": "5000a02f99c89991638eb211e661c01bf111e94d54466e9cabcefe9d75db3824",
+        "sccache-stop.log": "3d2365d6725b2f54bf9d97112cdfe591f4e0d54c7a28ab75951317efe5cef196",
+        "sccache.json": "2732ad3f789544eb9e2dba531ae712a9743fb5fdef5111eb5fdfda55711bfb34",
+        "settings.json": "1bd1becad59b1e7f2d3a886c976283dfd5a771785f03138e6caefa2cd5fde0ee",
+        "wasm-artifacts.json": "f77aee111f44151226a2c3e4a3e55d887fc4d664097d518dc375d7ce7f9fec26",
+        "wasm-coverage.json": "f939dfeca77f4e029953387eda1ba287fdf67969ea0ca26e2430c3f8292182e4",
+        "wasm-list.log": "0cc95e6382e1df47414fc5ee2fc3f77d963ffde89db4037305fdddb3018b5d69",
+        "wasm-list.stage.json": "eb27593e6387cd54141f8e07cda31b2ddf8c20ace157afec1c584a2d21afcf1f",
+        "wasm-target.log": "2c90ce2f37a4e805799561f45e5eab35adbca700c521ce98f460e97aa5aa7d24",
+        "wasm-target.stage.json": "6e430afa2467c3de85c983926275cc02d532003f4a080732a6f14239e9693b05",
+        "wasm.log": "8525d1bd39e1737537ea693560296aa33cbeaaddb2a635aba6d462cd224f31cc",
+        "wasm.stage.json": "58f82218b69aea93896123820905fc6e348d87c11c9228de8fa9fc195695bcb4",
+        "workspace.json": "9276b9f5a27f928c5807a5b4306d6bc3e2335af249238ff0916adc4d344e70b8",
+        "workspace.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "workspace.stage.json": "ed926974fb3edfd2890be36c79f60e5e30131e1ac9847262007ad3452512c661"
+      },
+      "wasm-wasi": {
+        "cache-source.json": "ca2078b709017cd668e9fa70d0906282e962a1274cbbc02db9dadb6278099d1c",
+        "checks.junit.xml": "2893e75a39e41b5d92be1ad692f79103f1209cae6eecce77cb6f32be201eb601",
+        "sccache-stop.log": "fe36ecb15a1bf371ccb785587b5d37a6e99a223b0db05aae89150aa1132ea92c",
+        "sccache.json": "3c6cad55dbe63b33d36498e8cd42118efacae792ac3921666ff70e676951b3f2",
+        "settings.json": "613c0d9f6b694ab2fcbadfedbcd86eb1f408c1752ceaa16b3cd6deee1435e3a9",
+        "wasm-artifacts.json": "96488af0621a106de5d16230ab513aa1f8eea032b68a5b7b5d622a6a035b3a89",
+        "wasm-coverage.json": "a992c83c30e154fe85ee1201b64ad7f76884e7fd1f99db16431a5ead77b35ed9",
+        "wasm-list.log": "ed6e86f6219fbd0b120b2aec751856acc1dcad8ff9e8b15547d8f6d2222bf0ca",
+        "wasm-list.stage.json": "700c34eeb9250b4dceeeac536576f82f2ab222192f9a8d2acd1da71c1d05e39f",
+        "wasm-target.log": "42b3f2638db0907339636ff8ad161ffad56b3e78c101dbd5e5423d1765bc264b",
+        "wasm-target.stage.json": "fe55c0be11414f0518d72a5d28837f4ef722d00f0c04d25f15111fcafc859137",
+        "wasm.log": "6de1dd9f78dcf146ea0ae3ab0b2ef7d6d2a3769f4aa71b42b5e7afaf1b083c36",
+        "wasm.stage.json": "090e8d464e1f9520665979e23c01967ff2343121b5cad51cff7b92477795bef5",
+        "workspace.json": "9276b9f5a27f928c5807a5b4306d6bc3e2335af249238ff0916adc4d344e70b8",
+        "workspace.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "workspace.stage.json": "bfc51089d95ee20a5097265038e2d5bde137df1aecd15a1e3922009b349cfc35"
+      },
+      "zepter": {
+        "cache-source.json": "ca2078b709017cd668e9fa70d0906282e962a1274cbbc02db9dadb6278099d1c",
+        "checks.junit.xml": "c281a8656d9622ef476547d75a42815b60dbf23966b08bef271976dd4fa13ee1",
+        "sccache-stop.log": "b8c2dbfe712725f4d1c540de3c18f234ae188e07c3124a18ff9b0f0604e3fae5",
+        "sccache.json": "aa47bb6031cc9dacd20be74bcafb92016dcfcfd1b88271718d73bd796f4e0917",
+        "settings.json": "7dcc87cd2750e5e5e97511ac42d6e8cee66475c782307106b8c97d0a9f3b5bd1",
+        "workspace.json": "9276b9f5a27f928c5807a5b4306d6bc3e2335af249238ff0916adc4d344e70b8",
+        "workspace.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "workspace.stage.json": "5db60fe36684851039403bb1b1ccf52020e767689e255050226da358bb6c87bb",
+        "zepter.log": "6c26c2b19cdff90e097bf8f71190d4e31c6dfb7002a0614877d937989ab93bab",
+        "zepter.stage.json": "33e17794c5b2e12dac66587a4bc4698fcd32644b5681038675f7b3ede73e9ee2"
+      }
+    }
+  },
+  "rwx": {
+    "run_id": "a0011b4866814245821bd9bb1d5e9028",
+    "tasks": {
+      "interop": {
+        "Agent": {
+          "Cpus": 4,
+          "DiskSizeGigabytes": 50,
+          "MemoryGb": 8
+        },
+        "ExecutionRuntimeSeconds": 77,
+        "ID": "c46c96f288659a3950044230bfd33dbb",
+        "Status": {
+          "AbortedSubStatus": "not_applicable",
+          "Execution": "finished",
+          "FinishedSubStatus": "executed",
+          "Result": "succeeded",
+          "WaitingSubStatus": "not_applicable"
+        },
+        "ToolCaches": {
+          "DeclaredByTask": [],
+          "InheritedFromDependencies": [
+            {
+              "Name": "git-clone-665e3326a2446077bee92b14ccb2326bd9e2ad92e05bbfb908ffe7bb0fee7afe",
+              "ScopedTaskKey": "code.git-clone",
+              "TaskID": "5415b32739e7b4d629a76eeb49bf4aa0"
+            },
+            {
+              "Name": "op-reth-dependencies-v1",
+              "ScopedTaskKey": "rust-dependencies",
+              "TaskID": "2efebfaca0ff1dd85196b1f87dffb4c7"
+            }
+          ]
+        }
+      },
+      "registry": {
+        "Agent": {
+          "Cpus": 4,
+          "DiskSizeGigabytes": 50,
+          "MemoryGb": 8
+        },
+        "ExecutionRuntimeSeconds": 30,
+        "ID": "b785a1002e3656eebfcbf3f32fb4ea75",
+        "Status": {
+          "AbortedSubStatus": "not_applicable",
+          "Execution": "finished",
+          "FinishedSubStatus": "executed",
+          "Result": "succeeded",
+          "WaitingSubStatus": "not_applicable"
+        },
+        "ToolCaches": {
+          "DeclaredByTask": [],
+          "InheritedFromDependencies": [
+            {
+              "Name": "git-clone-665e3326a2446077bee92b14ccb2326bd9e2ad92e05bbfb908ffe7bb0fee7afe",
+              "ScopedTaskKey": "code.git-clone",
+              "TaskID": "5415b32739e7b4d629a76eeb49bf4aa0"
+            },
+            {
+              "Name": "op-reth-dependencies-v1",
+              "ScopedTaskKey": "rust-dependencies",
+              "TaskID": "2efebfaca0ff1dd85196b1f87dffb4c7"
+            }
+          ]
+        }
+      },
+      "typos": {
+        "Agent": {
+          "Cpus": 2,
+          "DiskSizeGigabytes": 50,
+          "MemoryGb": 8
+        },
+        "ExecutionRuntimeSeconds": 9,
+        "ID": "e90cc39ce9aee0d056565039937325f9",
+        "Status": {
+          "AbortedSubStatus": "not_applicable",
+          "Execution": "finished",
+          "FinishedSubStatus": "executed",
+          "Result": "succeeded",
+          "WaitingSubStatus": "not_applicable"
+        },
+        "ToolCaches": {
+          "DeclaredByTask": [],
+          "InheritedFromDependencies": [
+            {
+              "Name": "git-clone-665e3326a2446077bee92b14ccb2326bd9e2ad92e05bbfb908ffe7bb0fee7afe",
+              "ScopedTaskKey": "code.git-clone",
+              "TaskID": "5415b32739e7b4d629a76eeb49bf4aa0"
+            },
+            {
+              "Name": "op-reth-dependencies-v1",
+              "ScopedTaskKey": "rust-dependencies",
+              "TaskID": "2efebfaca0ff1dd85196b1f87dffb4c7"
+            }
+          ]
+        }
+      },
+      "wasm-unknown": {
+        "Agent": {
+          "Cpus": 4,
+          "DiskSizeGigabytes": 50,
+          "MemoryGb": 8
+        },
+        "ExecutionRuntimeSeconds": 50,
+        "ID": "d67d51c851a9f5b8dc0ce4ad6789a59c",
+        "Status": {
+          "AbortedSubStatus": "not_applicable",
+          "Execution": "finished",
+          "FinishedSubStatus": "executed",
+          "Result": "succeeded",
+          "WaitingSubStatus": "not_applicable"
+        },
+        "ToolCaches": {
+          "DeclaredByTask": [],
+          "InheritedFromDependencies": [
+            {
+              "Name": "git-clone-665e3326a2446077bee92b14ccb2326bd9e2ad92e05bbfb908ffe7bb0fee7afe",
+              "ScopedTaskKey": "code.git-clone",
+              "TaskID": "5415b32739e7b4d629a76eeb49bf4aa0"
+            },
+            {
+              "Name": "op-reth-dependencies-v1",
+              "ScopedTaskKey": "rust-dependencies",
+              "TaskID": "2efebfaca0ff1dd85196b1f87dffb4c7"
+            }
+          ]
+        }
+      },
+      "wasm-wasi": {
+        "Agent": {
+          "Cpus": 4,
+          "DiskSizeGigabytes": 50,
+          "MemoryGb": 8
+        },
+        "ExecutionRuntimeSeconds": 50,
+        "ID": "76b29d8549ac244f8eb39b8b5393b676",
+        "Status": {
+          "AbortedSubStatus": "not_applicable",
+          "Execution": "finished",
+          "FinishedSubStatus": "executed",
+          "Result": "succeeded",
+          "WaitingSubStatus": "not_applicable"
+        },
+        "ToolCaches": {
+          "DeclaredByTask": [],
+          "InheritedFromDependencies": [
+            {
+              "Name": "git-clone-665e3326a2446077bee92b14ccb2326bd9e2ad92e05bbfb908ffe7bb0fee7afe",
+              "ScopedTaskKey": "code.git-clone",
+              "TaskID": "5415b32739e7b4d629a76eeb49bf4aa0"
+            },
+            {
+              "Name": "op-reth-dependencies-v1",
+              "ScopedTaskKey": "rust-dependencies",
+              "TaskID": "2efebfaca0ff1dd85196b1f87dffb4c7"
+            }
+          ]
+        }
+      },
+      "zepter": {
+        "Agent": {
+          "Cpus": 2,
+          "DiskSizeGigabytes": 50,
+          "MemoryGb": 8
+        },
+        "ExecutionRuntimeSeconds": 13,
+        "ID": "8e7d5adc66a72d7d54fcac3fe74b3591",
+        "Status": {
+          "AbortedSubStatus": "not_applicable",
+          "Execution": "finished",
+          "FinishedSubStatus": "executed",
+          "Result": "succeeded",
+          "WaitingSubStatus": "not_applicable"
+        },
+        "ToolCaches": {
+          "DeclaredByTask": [],
+          "InheritedFromDependencies": [
+            {
+              "Name": "git-clone-665e3326a2446077bee92b14ccb2326bd9e2ad92e05bbfb908ffe7bb0fee7afe",
+              "ScopedTaskKey": "code.git-clone",
+              "TaskID": "5415b32739e7b4d629a76eeb49bf4aa0"
+            },
+            {
+              "Name": "op-reth-dependencies-v1",
+              "ScopedTaskKey": "rust-dependencies",
+              "TaskID": "2efebfaca0ff1dd85196b1f87dffb4c7"
+            }
+          ]
+        }
+      }
+    },
+    "url": "https://cloud.rwx.com/optimism/runs/a0011b4866814245821bd9bb1d5e9028"
+  },
+  "source_sha": "a9df2def8a23e26b3e00bc4044ed009dd72f8cd7",
+  "verified_parity": true
+}

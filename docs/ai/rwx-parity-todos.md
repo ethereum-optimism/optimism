@@ -36,11 +36,11 @@ at commit `587b4c3a73d3f16f15212b72e9a0ed0e8489a7c4`.
 | --- | ---: | ---: |
 | Main | 32 | 13 |
 | Contracts | 23 | 4 |
-| Rust | 22 | 12 |
+| Rust | 22 | 18 |
 | Rust E2E | 9 | 0 |
-| Total | 86 | 29 |
+| Total | 86 | 35 |
 
-Conservative implementation coverage is **29 / 86 = 34%**. Each matrix entry and
+Conservative implementation coverage is **35 / 86 = 41%**. Each matrix entry and
 each occurrence in a different workflow counts separately; shards do not.
 The CircleCI setup and schedule-trigger-check workflows are outside this
 86-job denominator and have separate todos. This is job coverage, not runtime,
@@ -55,9 +55,10 @@ edges have now executed successfully on both providers. See the
 The eight core Rust workspace jobs now have complete same-SHA parity, including
 all 76 workspace packages and exactly-once coverage across ten feature partitions.
 See the [Rust closeout](rwx-rust-parity.md) for original reports, cache evidence and
-remaining limits. Six additional WASM/source checks are implemented and await
-hosted parity; they are not counted above. See the
-[remaining Rust stage](rwx-rust-extra-parity.md) for its validation boundary.
+remaining limits. Both WASM package sets, Zepter, Typos, the Kona registry
+snapshot check and the full Interop differential test now pass complete
+same-SHA original-report parity. See the
+[remaining Rust stage](rwx-rust-extra-parity.md) for retained evidence.
 The narrower rollup mode remains CLI-only. See [the stage closeout](rwx-go-parity.md)
 for original-report comparison, selected resources, caches and limitations.
 
@@ -79,7 +80,7 @@ in [rwx-migration.md](rwx-migration.md#op-reth-shadow-and-cache-measurements).
 
 1. Retain the completed [acceptance](rwx-acceptance-parity.md) and
    [core Rust workspace](rwx-rust-parity.md) shadows and their original-report evidence.
-2. Port the remaining WASM/Cannon Rust workloads, then the Rust E2E workflow.
+2. Port the remaining Cannon Rust workloads, then the Rust E2E workflow.
 3. Close remaining contract evidence gaps and operational failure/routing rehearsals.
 4. Keep additional performance tuning deferred while porting remaining workloads.
 5. Rehearse full pipeline routing and failure behavior before proposing gate
@@ -237,11 +238,11 @@ CircleCI workflow: `contracts-feature-tests` (23 jobs).
 CircleCI workflow: `rust-ci` (22 jobs).
 
 - [x] `rust-fmt`
-- [ ] `rust-zepter`
-- [ ] `rust-wasm-wasi`
-- [ ] `rust-wasm-unknown`
+- [x] `rust-zepter`
+- [x] `rust-wasm-wasi`
+- [x] `rust-wasm-unknown`
 - [x] `rust-udeps`
-- [ ] `rust-typos`
+- [x] `rust-typos`
 - [x] `rust-tests`
 - [x] `rust-doctest`
 - [x] `rust-docs`
@@ -252,11 +253,11 @@ CircleCI workflow: `rust-ci` (22 jobs).
 - [x] `op-reth-superchain-snapshot-check`
 - [x] `op-reth-integration-tests`
 - [x] `op-reth-compact-codec`
-- [ ] `kona-registry-snapshot-check`
+- [x] `kona-registry-snapshot-check`
 - [ ] `kona-lint-cannon`
 - [ ] `kona-host-client-offline-cannon`
 - [ ] `kona-build-fpvm-cannon-client`
-- [ ] `interop-deposits-diff`
+- [x] `interop-deposits-diff`
 - [ ] `required-rust-ci`
 
 ### Rust E2E workflow

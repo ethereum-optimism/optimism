@@ -1,0 +1,102 @@
+{
+  "jobs": {
+    "registry": {
+      "coverage_matches": true,
+      "execution_seconds": 10,
+      "fresh_registry_build_script": true,
+      "original_sha256": {
+        "cache-source.json": "6aca28550304c48aa2b4940b31c01735aef5ad433fccc3ab8c8b70892f1b3cb6",
+        "checks.junit.xml": "ea6d2aefcefefa961ea04a43fc846ecd6a347f1e4cb5e6d7dc682a252a3ac350",
+        "registry-after-chainList.json": "875a992e307248e4a4ad2d33d3d4b359313388f05db744594e1740961eeebada",
+        "registry-after-configs.json": "49c35b9c47764400491ca35d517328a7299c204b6b8ef54774d83f9b601c2433",
+        "registry-after-depsets.json": "c6c348555032a1cc16405c25857f149e86498a9e956a4ed44329ba4a84443b45",
+        "registry-before-chainList.json": "875a992e307248e4a4ad2d33d3d4b359313388f05db744594e1740961eeebada",
+        "registry-before-configs.json": "49c35b9c47764400491ca35d517328a7299c204b6b8ef54774d83f9b601c2433",
+        "registry-before-depsets.json": "c6c348555032a1cc16405c25857f149e86498a9e956a4ed44329ba4a84443b45",
+        "registry-clean.log": "e00f49bd5db5170d5bac41aadcbc802ad7150ae2692109b0fbfe464950b1310e",
+        "registry-clean.stage.json": "a295c4d676851bc84f0e03745fb4341e2b73b9158c6c8fe30379457775d5b91d",
+        "registry-coverage.json": "6257a95b8244a3b1b14ec27f2598a8906bb4d546b52fb4300d52f9a7a6c80553",
+        "registry-diff.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "registry-diff.stage.json": "4b4e49d28cf6b2f6626baa2613016141ad040a6b083cbfd9ad10953b501b17ba",
+        "registry.log": "6e30ad7a6c155a48f749aa213052cf3da48db52c3b87226fbf31f8b5dee22776",
+        "registry.stage.json": "ae1ff761676d8cbfa041159aab41389f0436a529190eef56b624ddc3577d78f3",
+        "sccache-stop.log": "586215fb9ffac3ec7fb13c7400b1695010435914bbc3ba81203f01c68c70d343",
+        "sccache.json": "3d3b193cb3596fceee53dc61311fb9e3b7779104fedc5d6814d991c4d474a89a",
+        "settings.json": "3f241777fd4e5523adb20e8e2cbba4beac40876040bfaec3a5e461db503976b5",
+        "workspace.json": "9276b9f5a27f928c5807a5b4306d6bc3e2335af249238ff0916adc4d344e70b8",
+        "workspace.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "workspace.stage.json": "1d13142f53e6382a5f814b67f9af56b3b9f413a60e83c5013be53fc79ff586e7"
+      },
+      "source": {
+        "restored_source_files": 1341,
+        "source_changed": false,
+        "source_sha256": "5fcbc3425053b932d993fd58499e9fe2708cad787e2cb0ef3192e28f50d73789"
+      },
+      "task_id": "431bf29527e5f49c2cf8a9a25ea99d59",
+      "tool_caches": {
+        "DeclaredByTask": [
+          {
+            "Name": "rust-workspace-registry-v1",
+            "ScopedTaskKey": "registry",
+            "TaskID": "431bf29527e5f49c2cf8a9a25ea99d59"
+          }
+        ],
+        "InheritedFromDependencies": [
+          {
+            "Name": "op-reth-dependencies-v1",
+            "ScopedTaskKey": "rust-dependencies",
+            "TaskID": "c38dc291b2776409cea0fa7c7236d518"
+          }
+        ]
+      }
+    },
+    "wasm-unknown": {
+      "coverage_matches": true,
+      "execution_seconds": 9,
+      "fresh_registry_build_script": false,
+      "original_sha256": {
+        "cache-source.json": "6aca28550304c48aa2b4940b31c01735aef5ad433fccc3ab8c8b70892f1b3cb6",
+        "checks.junit.xml": "5000a02f99c89991638eb211e661c01bf111e94d54466e9cabcefe9d75db3824",
+        "sccache-stop.log": "e65831c558e62578139fa4f1bb78b14beb4b0ae3403bf781239d1892cec4cbf1",
+        "sccache.json": "c64899a2d9195ce97b08169c47e3bf252fcb7b979f62c17dd049eb53493d04e8",
+        "settings.json": "9fe61ca58fb89c62133ec75fb0ced658ddb5e3d10fdc448d43ab0073cbad5066",
+        "wasm-artifacts.json": "f77aee111f44151226a2c3e4a3e55d887fc4d664097d518dc375d7ce7f9fec26",
+        "wasm-coverage.json": "f939dfeca77f4e029953387eda1ba287fdf67969ea0ca26e2430c3f8292182e4",
+        "wasm-list.log": "0cc95e6382e1df47414fc5ee2fc3f77d963ffde89db4037305fdddb3018b5d69",
+        "wasm-list.stage.json": "e85f800d0ae9f538cd5b2be3ea8596d50db3bb27669fd08e638ee142101adf24",
+        "wasm-target.log": "2c90ce2f37a4e805799561f45e5eab35adbca700c521ce98f460e97aa5aa7d24",
+        "wasm-target.stage.json": "557f2c5f7d137cb9d8003eaf3f8c8de029ef234ee36fb9cff138d8775d8b7b60",
+        "wasm.log": "782a2e8cd32600008ff2c950266ff8613a857e156a977fde47eefe8159ac1bfa",
+        "wasm.stage.json": "2010d1680e7be6d6cffd8bda89b02895be9a98c6f80b3b44fcea1b4672574428",
+        "workspace.json": "9276b9f5a27f928c5807a5b4306d6bc3e2335af249238ff0916adc4d344e70b8",
+        "workspace.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "workspace.stage.json": "b7c895f1253e041491cf25dc0a546aa97fb11c0474284721ba9c222c7bf1b399"
+      },
+      "source": {
+        "restored_source_files": 1341,
+        "source_changed": false,
+        "source_sha256": "5fcbc3425053b932d993fd58499e9fe2708cad787e2cb0ef3192e28f50d73789"
+      },
+      "task_id": "e28ea8065f7712b079919d9f87206d91",
+      "tool_caches": {
+        "DeclaredByTask": [
+          {
+            "Name": "rust-workspace-wasm-unknown-v1",
+            "ScopedTaskKey": "wasm-unknown",
+            "TaskID": "e28ea8065f7712b079919d9f87206d91"
+          }
+        ],
+        "InheritedFromDependencies": [
+          {
+            "Name": "op-reth-dependencies-v1",
+            "ScopedTaskKey": "rust-dependencies",
+            "TaskID": "c38dc291b2776409cea0fa7c7236d518"
+          }
+        ]
+      }
+    }
+  },
+  "run_id": "1f389c2059204932a401ccc1c2e79bbc",
+  "source_sha": "a9df2def8a23e26b3e00bc4044ed009dd72f8cd7",
+  "url": "https://cloud.rwx.com/optimism/runs/1f389c2059204932a401ccc1c2e79bbc"
+}
