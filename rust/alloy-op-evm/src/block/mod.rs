@@ -103,10 +103,7 @@ pub enum PostExecMode {
     Produce,
     /// Verify canonical gas accounting using a post-exec payload embedded in the block.
     Verify(PostExecPayload),
-    /// Reject the block during pre-execution because its embedded post-exec payload is invalid.
-    ///
-    /// Carrying parser failures into the executor ensures every block-ingress path classifies them
-    /// as consensus validation errors rather than fatal EVM-configuration errors.
+    /// Reject the block in pre-execution, so the engine classifies it as invalid.
     Invalid(String),
 }
 
@@ -129,7 +126,7 @@ pub enum PostExecState {
     },
     /// Reject the block before executing any transactions.
     Invalid {
-        /// Validation failure reported by the post-exec parser.
+        /// Parser failure.
         reason: String,
     },
     /// Verify canonical gas accounting using a post-exec payload embedded in the block.

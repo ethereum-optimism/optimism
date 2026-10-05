@@ -382,37 +382,28 @@ where
         &self,
         payload: &'a OpExecutionData,
     ) -> Result<ExecutionCtxFor<'a, Self>, Self::Error> {
-        let post_exec_mode = match preflight_post_exec_payload(
-            payload.payload.transactions(),
-            payload.payload.block_number(),
-        ) {
-            Ok(()) => {
-                let transactions = payload
+        let block_number = payload.payload.block_number();
+        let post_exec_mode = preflight_post_exec_payload(payload.payload.transactions(), block_number)
+            .map_err(|error| error.to_string())
+            .and_then(|()| {
+                payload
                     .payload
                     .transactions()
                     .iter()
                     .map(|encoded| TxTy::<Self::Primitives>::decode_2718_exact(encoded.as_ref()))
                     .collect::<Result<Vec<_>, _>>()
-                    .inspect_err(|error| {
-                        tracing::warn!(
-                            block_number = payload.payload.block_number(),
-                            %error,
-                            "payload rejected: transaction failed to decode"
-                        );
-                    });
-                // Envelope decoding can itself reject malformed PostExec (e.g. an unsupported
-                // payload version). That is invalid block input, not an EVM configuration error.
-                match transactions {
-                    Ok(transactions) => post_exec_mode_from_transactions(
-                        transactions.iter(),
-                        payload.payload.block_number(),
-                        self.is_sdm_active_at_timestamp(payload.payload.timestamp()),
-                    ),
-                    Err(error) => PostExecMode::Invalid(error.to_string()),
-                }
-            }
-            Err(error) => PostExecMode::Invalid(error.to_string()),
-        };
+                    .map_err(|error| {
+                        tracing::warn!(block_number, %error, "payload rejected: transaction failed to decode");
+                        error.to_string()
+                    })
+            })
+            .map_or_else(PostExecMode::Invalid, |transactions| {
+                post_exec_mode_from_transactions(
+                    transactions.iter(),
+                    block_number,
+                    self.is_sdm_active_at_timestamp(payload.payload.timestamp()),
+                )
+            });
 
         Ok(OpBlockExecutionCtx {
             parent_hash: payload.payload.parent_hash(),
@@ -538,13 +529,12 @@ mod tests {
         })
     }
 
-    // Covers Lagoon-driven SDM activation for imported blocks. Valid payloads enter Verify mode;
-    // parser failures are carried to the executor so the engine classifies them as invalid blocks.
+    // Valid payloads enter Verify mode; parser failures become `Invalid` for the executor.
     #[test]
     fn context_for_block_applies_sdm_post_exec_mode() {
         let disabled_ctx = test_evm_config()
             .context_for_block(&block_with_post_exec_tx(7, 123, 7))
-            .expect("post-exec parse failures are deferred to the block executor");
+            .expect("infallible");
         assert!(matches!(disabled_ctx.post_exec_mode, PostExecMode::Invalid(_)));
 
         let evm_config = OpEvmConfig::optimism(lagoon_at_timestamp_chain_spec(0));
@@ -557,26 +547,25 @@ mod tests {
         assert_eq!(payload.block_number, 7);
         assert_eq!(payload.gas_refund_entries, vec![SDMGasEntry { index: 0, gas_refund: 1 }]);
 
-        let mismatch_ctx = evm_config
-            .context_for_block(&block_with_post_exec_tx(7, 123, 8))
-            .expect("post-exec parse failures are deferred to the block executor");
+        let mismatch_ctx =
+            evm_config.context_for_block(&block_with_post_exec_tx(7, 123, 8)).expect("infallible");
         assert!(matches!(mismatch_ctx.post_exec_mode, PostExecMode::Invalid(_)));
     }
 
     #[test]
-    fn sdm_m1_new_payload_parse_failure_reaches_the_executor() {
+    fn context_for_payload_defers_parse_failure() {
         let block = block_with_post_exec_tx(7, 123, 8).into_block();
         let (payload, sidecar) = OpExecutionPayload::from_block_slow(&block);
         let execution_data = OpExecutionData::new(payload, sidecar);
         let context = OpEvmConfig::optimism(lagoon_at_timestamp_chain_spec(0))
             .context_for_payload(&execution_data)
-            .expect("post-exec parse failures are deferred to the block executor");
+            .expect("infallible");
 
         assert!(matches!(context.post_exec_mode, PostExecMode::Invalid(_)));
     }
 
     #[test]
-    fn sdm_m1_malformed_post_exec_bytes_reach_the_executor() {
+    fn context_for_payload_defers_malformed_post_exec_bytes() {
         let block = block_with_post_exec_tx(7, 123, 7).into_block();
         let (payload, sidecar) = OpExecutionPayload::from_block_slow(&block);
         let evm_config = OpEvmConfig::optimism(lagoon_at_timestamp_chain_spec(0));
@@ -593,12 +582,8 @@ mod tests {
             *payload.as_v1_mut().transactions.last_mut().expect("block includes PostExec") =
                 encoded;
             let execution_data = OpExecutionData::new(payload, sidecar.clone());
-            let context = evm_config
-                .context_for_payload(&execution_data)
-                .expect("malformed block input must not become a configuration error");
+            let context = evm_config.context_for_payload(&execution_data).expect("infallible");
             assert!(matches!(context.post_exec_mode, PostExecMode::Invalid(_)));
-            // Obtaining the lazy tx iterator must not re-introduce a configuration error before
-            // the executor's pre-execution validation rejects the block.
             assert!(evm_config.tx_iterator_for_payload(&execution_data).is_ok());
         }
     }

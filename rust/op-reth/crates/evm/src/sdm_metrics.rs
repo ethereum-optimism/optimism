@@ -179,7 +179,7 @@ mod tests {
     fn import(block: SealedBlock<OpBlock>) -> (bool, String) {
         let (recorder, handle) = recorder();
         let context = with_local_recorder(&recorder, || {
-            evm_config().context_for_block(&block).expect("context construction is infallible")
+            evm_config().context_for_block(&block).expect("infallible")
         });
         (matches!(context.post_exec_mode, PostExecMode::Invalid(_)), handle.render())
     }
