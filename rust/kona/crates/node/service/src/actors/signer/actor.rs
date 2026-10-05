@@ -32,9 +32,8 @@ pub struct SignedPayload {
 ///
 /// A transient signer failure, such as a remote signer that is unreachable or does not answer in
 /// time, is retried until it succeeds, so no payload is skipped or reordered. While a payload
-/// waits, the sequencer's payload queue fills and then blocks block production: an outage that
-/// outlasts the queue halts the sequencer instead of letting gossip fall behind. Any other signing
-/// error is fatal.
+/// waits, the sequencer's payload queue fills, and then the sequencer stops building blocks until
+/// it drains, while still answering admin queries. Any other signing error is fatal.
 #[derive(Debug)]
 pub struct SignerActor {
     /// Signs the payloads.

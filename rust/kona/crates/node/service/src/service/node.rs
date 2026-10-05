@@ -513,7 +513,7 @@ impl RollupNode {
         let (p2p_rpc_tx, p2p_rpc_rx) = mpsc::channel::<P2pRpcRequest>(1024);
         let (network_admin_tx, network_admin_rx) = mpsc::channel::<NetworkAdminQuery>(1024);
         // Unsafe payloads to gossip flow from the sequencer to the signer actor and on to the
-        // network actor. While signing stalls, a full sequencer queue blocks block production.
+        // network actor. While signing stalls, a full sequencer queue pauses block production.
         let (gossip_payload_tx, gossip_payload_rx) =
             mpsc::channel::<OpExecutionPayloadEnvelope>(256);
         let (signed_payload_tx, signed_payload_rx) = mpsc::channel::<SignedPayload>(16);
