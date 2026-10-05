@@ -1,42 +1,100 @@
 ---
 title: Pausing the bridge
-description: Learn how the OP Stack bridge can be paused as backup safety mechanism.
+lang: en-US
+description: Learn how the Guardian can pause withdrawals from an OP Stack chain as a backup safety mechanism, and what a pause blocks.
 diataxis: explanation
 ---
 
-The [`OptimismPortal`](https://github.com/ethereum-optimism/optimism/blob/develop/packages/contracts-bedrock/src/L1/OptimismPortal2.sol) is the low-level L1 message passing contract present on all standard OP Stack chains.
+import { NormativeSpec } from "/snippets/normative-spec.mdx"
+
+<NormativeSpec
+  what="The pause mechanism"
+  title="Pause Mechanism specification"
+  href="https://specs.optimism.io/protocol/stage-1.html#pause-mechanism"
+  note="This page explains how the pause works in practice; it does not restate the spec."
+/>
+
+The [`OptimismPortal`](https://github.com/ethereum-optimism/optimism/blob/develop/packages/contracts-bedrock/src/L1/OptimismPortal2.sol) is the low-level Layer 1 (L1) message passing contract present on all standard OP Stack chains.
 This contract handles the L1 side of the communication channel between an OP Stack chain and its L1 parent chain.
 
-As a safety mechanism, a privileged `GUARDIAN` address can pause withdrawals.
-When paused, the `OptimismPortal` contract will prevent L2-to-L1 transactions from being executed.
-This is a backup safety mechanism that can be used to help mitigate potential active security concerns.
+As a safety mechanism, a privileged address called the Guardian can pause withdrawals.
+While withdrawals are paused, the `OptimismPortal` contract prevents Layer 2 (L2) to L1 transactions from being executed.
+This backup safety mechanism helps mitigate active security concerns.
 
-Pause functionality were introduced to the OP Stack to mitigate the risk of withdrawal bugs that have led to exploits in other bridging systems.
+The OP Stack introduced pause functionality to mitigate the risk of withdrawal bugs that have led to exploits in other bridging systems.
+
+<Info>
+  If you run a centralized exchange, a third-party bridge, or any other service that manages assets on an OP Stack chain, see [Security guidance for exchanges and bridges](/op-stack/security/exchanges-and-bridges) for how to monitor the pause and what to do when it is active.
+</Info>
 
 ## Pause functionality
 
-The `OptimismPortal` points to a `SuperchainConfig` smart contract which has a privileged `GUARDIAN` address that can pause and unpause L2-to-L1 transactions from being executed.
-The `SuperchainConfig` contract is a shared implementation across OP Stack chains. All Optimism-governed chains point to it, and any OP Stack chain can point its `SuperchainConfigProxy` to this shared implementation.
-L2-to-L1 transactions allow users and smart contracts on the OP Stack chain to send messages to the L1 parent chain.
-Pause functionality allows a `GUARDIAN` to halt L2-to-L1 transaction execution for the OP Stack chain in question.
-L1-to-L2 transactions are not affected by pause functionality.
+The `OptimismPortal` points to a [`SuperchainConfig`](https://github.com/ethereum-optimism/optimism/blob/develop/packages/contracts-bedrock/src/L1/SuperchainConfig.sol) smart contract, which holds the address of the Guardian that can pause and unpause L2-to-L1 transactions.
+The `SuperchainConfig` contract is a shared implementation across OP Stack chains.
+All Optimism-governed chains point to it, and any OP Stack chain can point its `SuperchainConfigProxy` to this shared implementation.
 
-Pauses by the `GUARDIAN` impact all L2-to-L1 transactions for the OP Stack chain in question and cannot be targeted to specific users, smart contracts, or transactions.
-Pauses are designed to be a backup safety mechanism and are expected to be used only in the event of an active pressing security concern.
+L2-to-L1 transactions allow users and smart contracts on the OP Stack chain to send messages to the L1 parent chain.
+Pause functionality allows the Guardian to halt L2-to-L1 transaction execution for the OP Stack chain in question.
+Pause functionality does not affect L1-to-L2 transactions, and the L2 chain keeps processing transactions and producing blocks while withdrawals are paused.
+
+The Guardian cannot target a pause to specific users, smart contracts, or transactions.
+Pauses are designed as a backup safety mechanism for a suspected or confirmed security issue, and the Guardian can trigger one as a precaution before an issue is confirmed.
+
+### What a pause blocks
+
+While a chain is paused, the following actions revert on L1:
+
+*   Proving and finalizing withdrawals in the `OptimismPortal`.
+*   Relaying messages through the `L1CrossDomainMessenger`.
+*   Finalizing ether and ERC-20 withdrawals through the `L1StandardBridge`, and ERC-721 withdrawals through the `L1ERC721Bridge`.
+*   Unlocking ETH from the `ETHLockbox`.
+*   Withdrawing dispute game bonds from `DelayedWETH`, and closing dispute games.
+
+A pause does not block deposits into the chain through the `OptimismPortal` or the bridges.
+
+### Global and chain-specific pauses
+
+The Guardian chooses the scope of a pause with a pause identifier:
+
+*   The zero address (`address(0)`) pauses every chain that uses the `SuperchainConfig`.
+*   A chain's `ETHLockbox` address pauses only that chain, or the group of chains that share the `ETHLockbox`.
+    A chain that does not have the `ETH_LOCKBOX` feature enabled on its `SystemConfig` uses its `OptimismPortal` address instead, even if its `OptimismPortal` has an `ETHLockbox` address set.
+
+A chain is paused when either its chain-specific pause or the global pause is active.
+To check both at once, call `paused()` on the chain's `OptimismPortal` or `SystemConfig`.
+
+### Pause expiry
+
+A pause expires automatically 7,884,000 seconds (about three months) after it is triggered.
+The Guardian can extend an active pause, which restarts the three-month timer.
+Once a pause expires, calling `pause` for the same identifier reverts until the Guardian resets it by calling `unpause`.
+The Guardian can also restart an expired pause by calling `extend`.
 
 ## Pause and unpause functions
 
-The `GUARDIAN` can pause and unpause L2-to-L1 transactions at any time by calling the [`pause`](https://github.com/ethereum-optimism/optimism/blob/develop/packages/contracts-bedrock/src/L1/SuperchainConfig.sol#L81-L94) and [`unpause`](https://github.com/ethereum-optimism/optimism/blob/develop/packages/contracts-bedrock/src/L1/SuperchainConfig.sol#L98-L105) functions on the `SuperchainConfig` contract.
+The Guardian manages the pause through the following functions on the `SuperchainConfig` contract:
+
+*   `pause(address identifier)` starts a pause for the identifier.
+*   `unpause(address identifier)` lifts a pause early and resets it so it can be used again.
+    Unpausing a chain-specific identifier does not lift an active global pause.
+*   `extend(address identifier)` restarts the expiry timer of an active pause.
+
+Anyone can read the pause state with `paused(address identifier)` and `expiration(address identifier)`.
+`paused()` with no arguments only reports the global pause.
+The contract emits `Paused(address identifier)` when a pause starts or is extended, and `Unpaused(address identifier)` when it is lifted.
+
+For more information, see the [SuperchainConfig specification](https://specs.optimism.io/protocol/superchain-config.html).
 
 ## Guardian address
 
-The `GUARDIAN` address is configured in the `SuperchainConfig` contract and can be modified by the network's administrative address or smart contract. To learn more about the privileged role, see [documentation](/op-stack/protocol/privileged-roles#guardian).
+The `SuperchainConfig` contract stores the Guardian address, which is set when the contract is initialized and has no setter function.
+To change it, the network's administrative address or smart contract must upgrade the `SuperchainConfig` proxy and re-initialize it with a new Guardian address.
+For more information, see [Privileged roles in OP Stack chains](/op-stack/protocol/privileged-roles#guardian).
 
-The `GUARDIAN` address is set as an `immutable` variable inside of the `SuperchainConfig` contract.
-To change the `GUARDIAN` address, the `SuperchainConfig` proxy contract must be upgraded to a new implementation contract that has a different `GUARDIAN` address. 
+## Next steps
 
-## Additional information
+Pause functionality protects the OP Stack's own bridge contracts.
+It does not cover the security of centralized exchanges and third-party bridges, which remain open while the canonical bridge is paused.
 
-While this functionality is available for the OP Stack protocol, it does not cover the security of centralized exchanges and third party bridges.
-If you operate a centralized exchange or third party bridge, you should monitor this contract and pause withdrawals from OP Stack chains if you see that it has been paused.
-If you'd like to learn more about the privileged roles in the OP Stack, see the [privileged roles](/op-stack/protocol/privileged-roles) documentation.
+*   If you operate an exchange or bridge, see [Security guidance for exchanges and bridges](/op-stack/security/exchanges-and-bridges) to monitor the pause and stop moving assets to and from a paused chain.
+*   For more information on all privileged roles, see [Privileged roles in OP Stack chains](/op-stack/protocol/privileged-roles).
