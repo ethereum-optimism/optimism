@@ -87,7 +87,7 @@ tasks:
           path: .ci/pipeline-parameters.json
 
   - key: rust-tools
-    use: [tools, bootstrap-inputs]
+    use: [bootstrap-inputs, tools]
     if: ${{ init.cache-warm == 'true' || tasks.route.values.run-main == 'true' }}
     call: ${{ run.dir }}/packages/toolchain-rust.yml
     with:

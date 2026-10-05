@@ -1,5 +1,6 @@
 """Check the chosen DAG and the native package input boundary caught by the probe."""
 import json
+import re
 from pathlib import Path
 import subprocess
 import shutil
@@ -64,6 +65,17 @@ class LocalPackageTests(unittest.TestCase):
                     with self.subTest(path=path.name, task=task['key']):
                         self.assertNotIn('.artifacts.', values)
                         self.assertNotIn('vaults.', values)
+
+    def test_nested_references_are_bound_to_calls_with_the_declared_child(self):
+        # The first hosted run caught a reference to a .build child on an
+        # unchanged Rust E2E command. Lint did not reject that reference.
+        for path in sorted((ROOT / '.rwx').glob('*.yml')):
+            graph = tasks(path.name)
+            for parent, child in set(re.findall(r'tasks\.([\w-]+)\.tasks\.([\w-]+)', path.read_text())):
+                with self.subTest(path=path.name, parent=parent, child=child):
+                    self.assertIn('call', graph[parent])
+                    called = graph[parent]['call'].removeprefix('${{ run.dir }}/')
+                    self.assertIn(child, tasks(called))
 
     def test_shared_tools_use_narrow_files_without_checkout_history(self):
         for path in sorted((ROOT / '.rwx').glob('*.yml')):

@@ -100,13 +100,13 @@ tasks:
           path: .ci/pipeline-parameters.json
 
   - key: contract-tools
-    use: [tools, bootstrap-inputs]
+    use: [bootstrap-inputs, tools]
     call: ${{ run.dir }}/packages/toolchain-foundry.yml
     with:
       mode: anvil
 
   - key: rust-tools
-    use: [tools, bootstrap-inputs]
+    use: [bootstrap-inputs, tools]
     call: ${{ run.dir }}/packages/toolchain-rust.yml
     with:
       mode: release
@@ -200,7 +200,7 @@ tasks:
     timeout: 30m
 
   - key: discovery-opn
-    use: [go.build, contracts.build, source, go-build-tools]
+    use: [source, go-build-tools, go.build, contracts.build]
     if: ${{ init.cache-warm == 'true' || tasks.route.values.run-main == 'true' }}
     call: ${{ run.dir }}/packages/acceptance-compile.yml
     with:
@@ -210,7 +210,7 @@ tasks:
       cache-key: acceptance-discovery-opn-${{ init.cache-epoch }}
 
   - key: verdict-opn-0
-    use: [go.build, contracts.build, kona.build, op-reth.build, prestate.build, sp1-executor.build, discovery-opn.build, source, acceptance-tools]
+    use: [source, acceptance-tools, go.build, contracts.build, kona.build, op-reth.build, prestate.build, sp1-executor.build, discovery-opn.build]
     if: ${{ init.cache-warm != 'true' && tasks.route.values.run-main == 'true' }}
     call: ${{ run.dir }}/packages/acceptance-verdict.yml
     with:
@@ -223,7 +223,7 @@ tasks:
       memory: 64gb
 
   - key: verdict-opn-1
-    use: [go.build, contracts.build, kona.build, op-reth.build, prestate.build, sp1-executor.build, discovery-opn.build, source, acceptance-tools]
+    use: [source, acceptance-tools, go.build, contracts.build, kona.build, op-reth.build, prestate.build, sp1-executor.build, discovery-opn.build]
     if: ${{ init.cache-warm != 'true' && tasks.route.values.run-main == 'true' }}
     call: ${{ run.dir }}/packages/acceptance-verdict.yml
     with:
@@ -236,7 +236,7 @@ tasks:
       memory: 64gb
 
   - key: verdict-opn-2
-    use: [go.build, contracts.build, kona.build, op-reth.build, prestate.build, sp1-executor.build, discovery-opn.build, source, acceptance-tools]
+    use: [source, acceptance-tools, go.build, contracts.build, kona.build, op-reth.build, prestate.build, sp1-executor.build, discovery-opn.build]
     if: ${{ init.cache-warm != 'true' && tasks.route.values.run-main == 'true' }}
     call: ${{ run.dir }}/packages/acceptance-verdict.yml
     with:
@@ -249,7 +249,7 @@ tasks:
       memory: 64gb
 
   - key: verdict-opn-3
-    use: [go.build, contracts.build, kona.build, op-reth.build, prestate.build, sp1-executor.build, discovery-opn.build, source, acceptance-tools]
+    use: [source, acceptance-tools, go.build, contracts.build, kona.build, op-reth.build, prestate.build, sp1-executor.build, discovery-opn.build]
     if: ${{ init.cache-warm != 'true' && tasks.route.values.run-main == 'true' }}
     call: ${{ run.dir }}/packages/acceptance-verdict.yml
     with:
@@ -262,7 +262,7 @@ tasks:
       memory: 64gb
 
   - key: verdict-opn-4
-    use: [go.build, contracts.build, kona.build, op-reth.build, prestate.build, sp1-executor.build, discovery-opn.build, source, acceptance-tools]
+    use: [source, acceptance-tools, go.build, contracts.build, kona.build, op-reth.build, prestate.build, sp1-executor.build, discovery-opn.build]
     if: ${{ init.cache-warm != 'true' && tasks.route.values.run-main == 'true' }}
     call: ${{ run.dir }}/packages/acceptance-verdict.yml
     with:
@@ -275,7 +275,7 @@ tasks:
       memory: 64gb
 
   - key: verdict-opn-5
-    use: [go.build, contracts.build, kona.build, op-reth.build, prestate.build, sp1-executor.build, discovery-opn.build, source, acceptance-tools]
+    use: [source, acceptance-tools, go.build, contracts.build, kona.build, op-reth.build, prestate.build, sp1-executor.build, discovery-opn.build]
     if: ${{ init.cache-warm != 'true' && tasks.route.values.run-main == 'true' }}
     call: ${{ run.dir }}/packages/acceptance-verdict.yml
     with:
@@ -288,7 +288,7 @@ tasks:
       memory: 64gb
 
   - key: verdict-opn-6
-    use: [go.build, contracts.build, kona.build, op-reth.build, prestate.build, sp1-executor.build, discovery-opn.build, source, acceptance-tools]
+    use: [source, acceptance-tools, go.build, contracts.build, kona.build, op-reth.build, prestate.build, sp1-executor.build, discovery-opn.build]
     if: ${{ init.cache-warm != 'true' && tasks.route.values.run-main == 'true' }}
     call: ${{ run.dir }}/packages/acceptance-verdict.yml
     with:
@@ -301,7 +301,7 @@ tasks:
       memory: 64gb
 
   - key: verdict-opn-7
-    use: [go.build, contracts.build, kona.build, op-reth.build, prestate.build, sp1-executor.build, discovery-opn.build, source, acceptance-tools]
+    use: [source, acceptance-tools, go.build, contracts.build, kona.build, op-reth.build, prestate.build, sp1-executor.build, discovery-opn.build]
     if: ${{ init.cache-warm != 'true' && tasks.route.values.run-main == 'true' }}
     call: ${{ run.dir }}/packages/acceptance-verdict.yml
     with:
@@ -314,7 +314,7 @@ tasks:
       memory: 64gb
 
   - key: discovery-kona
-    use: [go.build, contracts.build, source, go-build-tools]
+    use: [source, go-build-tools, go.build, contracts.build]
     if: ${{ init.cache-warm == 'true' || tasks.route.values.run-main == 'true' }}
     call: ${{ run.dir }}/packages/acceptance-compile.yml
     with:
@@ -324,7 +324,7 @@ tasks:
       cache-key: acceptance-discovery-kona-${{ init.cache-epoch }}
 
   - key: verdict-kona-0
-    use: [go.build, contracts.build, kona.build, op-reth.build, prestate.build, sp1-executor.build, discovery-kona.build, source, acceptance-tools]
+    use: [source, acceptance-tools, go.build, contracts.build, kona.build, op-reth.build, prestate.build, sp1-executor.build, discovery-kona.build]
     if: ${{ init.cache-warm != 'true' && tasks.route.values.run-main == 'true' }}
     call: ${{ run.dir }}/packages/acceptance-verdict.yml
     with:
@@ -337,7 +337,7 @@ tasks:
       memory: 32gb
 
   - key: verdict-kona-1
-    use: [go.build, contracts.build, kona.build, op-reth.build, prestate.build, sp1-executor.build, discovery-kona.build, source, acceptance-tools]
+    use: [source, acceptance-tools, go.build, contracts.build, kona.build, op-reth.build, prestate.build, sp1-executor.build, discovery-kona.build]
     if: ${{ init.cache-warm != 'true' && tasks.route.values.run-main == 'true' }}
     call: ${{ run.dir }}/packages/acceptance-verdict.yml
     with:
@@ -350,7 +350,7 @@ tasks:
       memory: 32gb
 
   - key: verdict-kona-2
-    use: [go.build, contracts.build, kona.build, op-reth.build, prestate.build, sp1-executor.build, discovery-kona.build, source, acceptance-tools]
+    use: [source, acceptance-tools, go.build, contracts.build, kona.build, op-reth.build, prestate.build, sp1-executor.build, discovery-kona.build]
     if: ${{ init.cache-warm != 'true' && tasks.route.values.run-main == 'true' }}
     call: ${{ run.dir }}/packages/acceptance-verdict.yml
     with:
@@ -363,7 +363,7 @@ tasks:
       memory: 32gb
 
   - key: verdict-kona-3
-    use: [go.build, contracts.build, kona.build, op-reth.build, prestate.build, sp1-executor.build, discovery-kona.build, source, acceptance-tools]
+    use: [source, acceptance-tools, go.build, contracts.build, kona.build, op-reth.build, prestate.build, sp1-executor.build, discovery-kona.build]
     if: ${{ init.cache-warm != 'true' && tasks.route.values.run-main == 'true' }}
     call: ${{ run.dir }}/packages/acceptance-verdict.yml
     with:
@@ -376,7 +376,7 @@ tasks:
       memory: 32gb
 
   - key: verdict-kona-4
-    use: [go.build, contracts.build, kona.build, op-reth.build, prestate.build, sp1-executor.build, discovery-kona.build, source, acceptance-tools]
+    use: [source, acceptance-tools, go.build, contracts.build, kona.build, op-reth.build, prestate.build, sp1-executor.build, discovery-kona.build]
     if: ${{ init.cache-warm != 'true' && tasks.route.values.run-main == 'true' }}
     call: ${{ run.dir }}/packages/acceptance-verdict.yml
     with:
@@ -389,7 +389,7 @@ tasks:
       memory: 32gb
 
   - key: verdict-kona-5
-    use: [go.build, contracts.build, kona.build, op-reth.build, prestate.build, sp1-executor.build, discovery-kona.build, source, acceptance-tools]
+    use: [source, acceptance-tools, go.build, contracts.build, kona.build, op-reth.build, prestate.build, sp1-executor.build, discovery-kona.build]
     if: ${{ init.cache-warm != 'true' && tasks.route.values.run-main == 'true' }}
     call: ${{ run.dir }}/packages/acceptance-verdict.yml
     with:
@@ -402,7 +402,7 @@ tasks:
       memory: 32gb
 
   - key: verdict-kona-6
-    use: [go.build, contracts.build, kona.build, op-reth.build, prestate.build, sp1-executor.build, discovery-kona.build, source, acceptance-tools]
+    use: [source, acceptance-tools, go.build, contracts.build, kona.build, op-reth.build, prestate.build, sp1-executor.build, discovery-kona.build]
     if: ${{ init.cache-warm != 'true' && tasks.route.values.run-main == 'true' }}
     call: ${{ run.dir }}/packages/acceptance-verdict.yml
     with:
@@ -415,7 +415,7 @@ tasks:
       memory: 32gb
 
   - key: verdict-kona-7
-    use: [go.build, contracts.build, kona.build, op-reth.build, prestate.build, sp1-executor.build, discovery-kona.build, source, acceptance-tools]
+    use: [source, acceptance-tools, go.build, contracts.build, kona.build, op-reth.build, prestate.build, sp1-executor.build, discovery-kona.build]
     if: ${{ init.cache-warm != 'true' && tasks.route.values.run-main == 'true' }}
     call: ${{ run.dir }}/packages/acceptance-verdict.yml
     with:
