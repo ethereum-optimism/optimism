@@ -2297,3 +2297,62 @@ fn prepend_block_overflows_history_shard_after_filling_sentinel() {
         assert!(stor_cur.next().expect("stor next2").is_none(), "exactly two stor shards");
     }
 }
+
+// ========================== Legacy v1 table tests ==========================
+
+/// Creates every [`LEGACY_V1_TABLES`] entry in the proofs database at `path` with the flags
+/// older releases used, inserting one entry into `populated` if given.
+fn create_legacy_tables(path: &Path, populated: Option<&str>) {
+    const DUP_SORT_TABLES: &[&str] = &[
+        "AccountTrieHistory",
+        "StorageTrieHistory",
+        "HashedAccountHistory",
+        "HashedStorageHistory",
+    ];
+
+    let env = init_db_for::<_, models::Tables>(path, DatabaseArguments::default()).unwrap();
+    let tx = env.begin_rw_txn().unwrap();
+    for &table in LEGACY_V1_TABLES {
+        let flags = if DUP_SORT_TABLES.contains(&table) {
+            mdbx::DatabaseFlags::DUP_SORT
+        } else {
+            mdbx::DatabaseFlags::default()
+        };
+        let db = tx.create_db(Some(table), flags).unwrap();
+        if populated == Some(table) {
+            tx.put(db.dbi(), [0u8], [1u8], Default::default()).unwrap();
+        }
+    }
+    tx.commit().unwrap();
+}
+
+fn table_exists(storage: &MdbxProofsStorage, table: &str) -> bool {
+    storage.env.begin_ro_txn().unwrap().open_db(Some(table)).is_ok()
+}
+
+#[test]
+fn test_new_drops_empty_legacy_v1_tables() {
+    let dir = TempDir::new().unwrap();
+    create_legacy_tables(dir.path(), None);
+
+    let storage = MdbxProofsStorage::new(dir.path()).unwrap();
+
+    for table in LEGACY_V1_TABLES {
+        assert!(!table_exists(&storage, table), "{table} was not dropped");
+    }
+}
+
+#[test]
+fn test_new_rejects_populated_legacy_v1_tables() {
+    for &populated in LEGACY_V1_TABLES {
+        let dir = TempDir::new().unwrap();
+        create_legacy_tables(dir.path(), Some(populated));
+
+        let err = MdbxProofsStorage::new(dir.path()).unwrap_err();
+
+        assert!(
+            matches!(&err, OpProofsStorageError::LegacyV1Database { path } if path == dir.path()),
+            "unexpected error for populated {populated}: {err:?}"
+        );
+    }
+}
