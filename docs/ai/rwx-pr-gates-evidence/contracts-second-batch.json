@@ -1,0 +1,72 @@
+{
+  "state": "native full batch passed; Circle L2 RPC rate limit and Cannon module transport failures investigated",
+  "coverage_credit": 0,
+  "source_sha": "a3a09108daba91bb59a84f8e7f0b3b73f3446430",
+  "circle_pipeline": 135633,
+  "circle_contracts_workflow": "f3e4c9d5-6cf5-4b25-bd4e-6480f9813fd5",
+  "circle_l2_job": 5638688,
+  "circle_contracts_gate_job": 5638696,
+  "circle_rust_workflow": "ff9fa15f-a370-41c7-a3d8-cfa3334b17fb",
+  "circle_cannon_job": 5638698,
+  "native_run": "81cab6c6875e44d2b017c908c55bfc38",
+  "native_root_result": "succeeded",
+  "native_l2_verdict": "ade63acbaad8b438bb4afadc4cd7ce06",
+  "native_l2_cases": 7,
+  "native_l2_verdict_seconds": 59,
+  "native_contracts_prerequisites": 21,
+  "native_contracts_aggregate": "7b2bd3ee39b3dc14c49dc09012a65425",
+  "native_contracts_status": "1c28147edb7edbf7fa86516da1695157",
+  "native_cannon_verdict": "f4f29932b54eb0f52c136022dcf99c98",
+  "selector_complete_same_sha_parity": true,
+  "circle_main_gate": "success",
+  "circle_rust_e2e_gate": "success",
+  "l2_failure": {
+    "initial_exit_code": 1,
+    "initial_passing_cases": 1,
+    "initial_failed_setup_cases": 5,
+    "error": "HTTP 429 for eth_getStorageAt(0x4200000000000000000000000000000000000010, slot 0), public OP Mainnet RPC IP request capacity exceeded",
+    "diagnostic_cases": 7,
+    "diagnostic_outcomes": {
+      "pass": 7
+    },
+    "diagnostic_exit_code": 0,
+    "job_result_remains": "failed",
+    "correction": {
+      "threads": 1,
+      "compute_units_per_second": 100,
+      "full_selection_and_test_settings_preserved": true
+    },
+    "complete_circle_original_files": 216,
+    "circle_truncated_log_events": 0
+  },
+  "cannon_failure": {
+    "phase": "original Go binary preparation, before verdict",
+    "error": "proxy.golang.org smetrics module ZIP fetch: HTTP/2 stream INTERNAL_ERROR",
+    "workload_changed_since_previous_circle_success": false,
+    "previous_circle_success_job": 5638553,
+    "isolated_http_zip_probe_status": 200,
+    "isolated_linux_go_download_sum": "h1:gEOO8jv9F4OT7lGCjxCBTO/36wtF6j2nSip77qHd4x4=",
+    "sum_matches_committed_go_sum": true,
+    "code_change": null,
+    "complete_circle_step_logs": 24,
+    "circle_truncated_log_events": 0
+  },
+  "other_observation": {
+    "github_apko_op_challenger_publish": "GitHub artifact download HTTP 502; existing publisher unchanged and outside this native PR-workflow port"
+  },
+  "retained_manifest_sha256": {
+    "circle_l2_originals": "47f46a66ca4bf9542413b505a946302ec1cc95d290ccc823901676cf04ab4ace",
+    "circle_contracts_gate": "462d30ba1a907579bfb954bc58694006864de04ed87bcc924a6227103a935a90",
+    "native_l2_originals": "dde1a82d61ac8bb7b8d2297efb3cf3f3a8511c9abde40adbf59d8b9464161611",
+    "native_contracts_gate": "ec1b9a5c8a1b341685bbd946fd79c3fd43c92868c2e65c24bbbc31b0f91c132f",
+    "native_contracts_status": "cc5582b1ed7767efbd930e6ec0d673ecbe3ed48fd06e47289ee1eceb6f81cc52",
+    "circle_cannon_originals": "cf9f4cf85a9980b71f86f56a544d496019cde1fe3c6f753a25d39adb8c7e6bc6",
+    "complete_selector_parity": "10860cf6e8d69f3a49c211f9a08fe66244a343de6cb52345bc0cc5fb440defc0",
+    "native_root_metadata": "5b6cc3da9fe44d86fb8e9f2c51598b88844647bf879f712c6a0b14eb2c872ec8"
+  },
+  "local_corrective_validation": {
+    "l2_helper_and_comparison_fixtures": 21,
+    "diff_check_passed": true
+  },
+  "next_verification": "one combined automatic batch after both current providers reached terminal states; no per-job Circle replay"
+}

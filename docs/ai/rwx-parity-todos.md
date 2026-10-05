@@ -43,6 +43,19 @@ ten-minute silence limit, before the verdict, so the last two occurrences still
 receive no verified parity credit. The complete first failure is retained; its
 preparation limit is corrected before another combined batch.
 
+The corrective combined batch at `a3a09108` completed native L2 and Contracts
+aggregation successfully again. Circle's L2 preparation completed, but five
+suite setups exhausted public RPC retries with HTTP 429. The diagnostic rerun
+passed all seven cases and correctly left the initial job and gate failed.
+The shared runner now serializes L2 suites with a 100 compute-unit-per-second
+RPC budget on both providers, preserving all cases and initial failure evidence.
+Selector original-report parity passed on this same SHA. Circle's Rust Cannon
+preparation separately encountered a Go module proxy HTTP/2 transport error;
+its unchanged native workload passed. The
+[second combined batch](rwx-pr-gates-evidence/contracts-second-batch.json)
+retains the complete originals and both investigated failures. Verified coverage
+remains 84/86 until a complete successful comparison closes L2 and its aggregate.
+
 | PR workflow | Expanded job instances | Implemented validation jobs |
 | --- | ---: | ---: |
 | Main | 32 | 32 |

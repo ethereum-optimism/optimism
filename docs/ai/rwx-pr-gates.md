@@ -160,3 +160,12 @@ genuine gate correctly failed because L2 preparation exceeded its ten-minute
 silence limit before the tests ran. The first failure, partial preparation and
 complete original gate evidence remain retained. Correcting that preparation
 limit precedes a further combined verification; no per-job replay is dispatched.
+
+The [second combined batch](rwx-pr-gates-evidence/contracts-second-batch.json)
+at `a3a09108` also passed every native group and aggregate. The genuine Circle
+Contracts gate failed on an initial L2 public RPC 429; its diagnostic success
+was retained without replacing that failure. Main and Rust E2E passed on both
+providers, and selector complete original-report parity passed. Circle's Rust
+gate failed on a module proxy HTTP/2 error before the unchanged Cannon verdict;
+the native workload passed. Complete original failures remain retained while
+the shared L2 concurrency/RPC correction is verified in a further combined batch.

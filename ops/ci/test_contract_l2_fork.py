@@ -23,15 +23,17 @@ class L2Tests(unittest.TestCase):
 
     def test_complete_ci_profile_clears_ambient_filters_features_and_rpc(self):
         with mock.patch.dict(os.environ, {'CI_BRANCH':'codex/rwx-ci-pilot','FOUNDRY_PROFILE':'liteci','FOUNDRY_FUZZ_RUNS':'1',
-             'FOUNDRY_MATCH_TEST':'partial','DEV_FEATURE__UNRELATED':'true','ETH_RPC_URL':'ambient','L2_FORK_CHAIN':'other'},clear=True):
+             'FOUNDRY_MATCH_TEST':'partial','FOUNDRY_NO_RPC_RATE_LIMIT':'true',
+             'DEV_FEATURE__UNRELATED':'true','ETH_RPC_URL':'ambient','L2_FORK_CHAIN':'other'},clear=True):
             self.assertEqual(L.configure(),'codex/rwx-ci-pilot')
             self.assertEqual(os.environ['FOUNDRY_PROFILE'],'ci');self.assertEqual(os.environ['L2_FORK_TEST'],'true')
-            for name in ('FOUNDRY_FUZZ_RUNS','FOUNDRY_MATCH_TEST','DEV_FEATURE__UNRELATED','ETH_RPC_URL','L2_FORK_CHAIN'):
+            for name in ('FOUNDRY_FUZZ_RUNS','FOUNDRY_MATCH_TEST','FOUNDRY_NO_RPC_RATE_LIMIT',
+                         'DEV_FEATURE__UNRELATED','ETH_RPC_URL','L2_FORK_CHAIN'):
                 self.assertNotIn(name,os.environ)
         config={'fuzz':{'runs':128},'invariant':{'runs':64,'depth':32}}
         L.effective(config)
         for changed in (config|{'match_test':'partial'},config|{'fuzz':{'runs':1}},config|{'skip':['required']},
-                        config|{'invariant':{'runs':64,'depth':1}}):
+                        config|{'invariant':{'runs':64,'depth':1}},config|{'no_rpc_rate_limit':True}):
             with self.subTest(config=changed),self.assertRaises(ValueError):L.effective(changed)
 
     def server(self, responses=None):
@@ -162,7 +164,9 @@ class L2Tests(unittest.TestCase):
              mock.patch.dict(os.environ,{},clear=True):
             self.assertEqual(L.verdict(runtime,preflight/'block.json'),(23,0))
         self.assertEqual([call.args[2] for call in stage.call_args_list],
-                         [['just','nut-bundle-check-no-build'],['just','test-l2-fork-upgrade'],['just','test-l2-fork-upgrade-rerun']])
+                         [['just','nut-bundle-check-no-build'],
+                          ['just','test-l2-fork-upgrade','--threads','1','--compute-units-per-second','100'],
+                          ['just','test-l2-fork-upgrade-rerun','--threads','1','--compute-units-per-second','100']])
 
     def test_real_child_failure_keeps_both_original_streams_and_a_failing_seal(self):
         with mock.patch.object(L.UP,'CONTRACTS',self.directory):

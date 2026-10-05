@@ -70,3 +70,22 @@ The complete partial preparation stream and all untruncated API logs remain
 retained in the [first combined batch](rwx-pr-gates-evidence/contracts-first-batch.json).
 The preparation step now allows 30 minutes without output while retaining its
 full original console archive. The failed Circle run adds no parity credit.
+
+The next combined batch at `a3a09108` completed preparation successfully.
+Circle job 5638688's initial verdict reported five failed `setUp()` cases, each
+with the same original public RPC HTTP 429 storage-fetch failure. No failing
+assertion was replaced: the separate diagnostic rerun passed all seven selected
+cases and the shared runner still exited 1. Native fresh execution passed all
+seven cases in 59 seconds. Complete initial and diagnostic JUnit, request frames,
+console streams and all untruncated Circle API logs are retained in the
+[second combined batch](rwx-pr-gates-evidence/contracts-second-batch.json).
+
+Both providers now run the complete verdict with `--threads 1` and
+`--compute-units-per-second 100`. The pinned Forge 1.8.3 binary and source support
+these native controls. Only L2 suite concurrency and RPC throughput change;
+the complete selection, profile, fuzz/invariant settings, fork height, original
+NUT check and ten transport retries remain intact. The shared runtime settings
+are recorded and compared, and changed/omitted limits fail verification.
+The diagnostic rerun uses the same controls and cannot make an initial failure
+pass. Twenty-one helper/comparison fixtures cover these boundaries and the
+existing failure, source, compiler, block and report checks. They add no coverage.

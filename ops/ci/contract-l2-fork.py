@@ -27,6 +27,11 @@ ROOT, CONTRACTS = UP.ROOT, UP.CONTRACTS
 check, digest, write = R.check, R.digest, R.write
 RPC = 'https://mainnet.optimism.io'
 MATCH = 'test/L2/fork/**'
+# Concurrent fork setup can burst public RPC requests before any assertion.
+# Keep every test, but serialize suites and bound the backend's RPC throughput.
+RUNTIME = {'threads': 1, 'compute_units_per_second': 100}
+TEST_ARGS = ['--threads', str(RUNTIME['threads']), '--compute-units-per-second',
+             str(RUNTIME['compute_units_per_second'])]
 IMPLEMENTATION = ('contract-l2-fork.py', 'contract-upgrades.py', 'selector-registry.py',
                   'git-submodule-report.py', 'compare-rust-e2e.py')
 ADDRESS = '0x4200000000000000000000000000000000000007'
@@ -138,7 +143,8 @@ def settings():
         tools[name] = {'sha256': digest(binary), 'version': UP.command(name, 'version' if name == 'go' else '--version')}
     sha = UP.revision()
     return {'source_sha': sha, 'branch': configure(), 'profile': 'ci', 'feature': 'main', 'chain': 'op-mainnet',
-            'match_path': MATCH, 'provider': os.environ.get('CI_CONTRACT_PROVIDER', 'circleci'), 'workspace_root': str(ROOT),
+            'match_path': MATCH, 'runtime': RUNTIME,
+            'provider': os.environ.get('CI_CONTRACT_PROVIDER', 'circleci'), 'workspace_root': str(ROOT),
             'tools': tools, 'inputs': R.source_inputs(ROOT, sha, True),
             'implementation': {name: digest(Path(__file__).with_name(name)) for name in IMPLEMENTATION},
             'rwx_run_id': os.environ.get('RWX_RUN_ID'), 'rwx_task_attempt': os.environ.get('RWX_TASK_ATTEMPT_NUMBER')}
@@ -146,6 +152,7 @@ def settings():
 
 def effective(config):
     check(config['fuzz']['runs'] == 128 and config['invariant']['runs'] == 64 and config['invariant']['depth'] == 32
+          and config.get('no_rpc_rate_limit', False) is False
           and all(not config.get(k) for k in ('match_test', 'no_match_test', 'match_contract', 'no_match_contract', 'match_path', 'no_match_path', 'skip')),
           'Changed complete original L2 workload settings')
 
@@ -214,10 +221,10 @@ def verdict(directory, pinned):
         elif path.exists(): path.unlink()
     status = UP.stage(directory, 'nut-bundle-check', ['just', 'nut-bundle-check-no-build'])
     if status: return status, 0
-    status = UP.stage(directory, 'tests', ['just', 'test-l2-fork-upgrade'])
+    status = UP.stage(directory, 'tests', ['just', 'test-l2-fork-upgrade'] + TEST_ARGS)
     if status and status < 128:
         os.environ['JUNIT_TEST_PATH'] = str(directory / 'diagnostic.junit.xml')
-        UP.stage(directory, 'rerun', ['just', 'test-l2-fork-upgrade-rerun'])
+        UP.stage(directory, 'rerun', ['just', 'test-l2-fork-upgrade-rerun'] + TEST_ARGS)
     if status: return status, 0
     coverage = UP.junit(directory / 'original.junit.xml', read(directory / 'selection.json'), read(directory / 'signature-bindings.json'))
     write(directory / 'coverage.json', coverage)

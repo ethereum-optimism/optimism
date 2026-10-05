@@ -26,7 +26,8 @@ class L2ParityTests(unittest.TestCase):
         directory=self.directory/provider;directory.mkdir()
         sha='a'*40;workspace='/fixture';identity='test/L2/fork/Portal.t.sol:Portal'
         settings={'source_sha':sha,'branch':'codex/rwx-ci-pilot','profile':'ci','feature':'main','chain':'op-mainnet',
-          'match_path':L.MATCH,'provider':provider,'workspace_root':workspace,'inputs':{},'implementation':{},
+          'match_path':L.MATCH,'runtime':dict(L.RUNTIME),
+          'provider':provider,'workspace_root':workspace,'inputs':{},'implementation':{},
           'tools':{name:{'sha256':'b'*64,'version':'fixture pinned tool'} for name in ('forge','cast','go','just')},
           'rwx_run_id':'c'*32 if provider=='rwx' else None,'rwx_task_attempt':'1' if provider=='rwx' else None}
         L.write(directory/'settings.json',settings)
@@ -52,7 +53,7 @@ class L2ParityTests(unittest.TestCase):
         L.write(directory/'coverage.json',L.UP.junit(directory/'original.junit.xml',selected,bindings))
         commands={'foundry-config':['forge','config','--json'],'go-ffi':['just','build-go-ffi'],'contracts-build':['forge','build'],
           'discovery':['forge','test','--list','--json','--match-path',L.MATCH],
-          'nut-bundle-check':['just','nut-bundle-check-no-build'],'tests':['just','test-l2-fork-upgrade']}
+          'nut-bundle-check':['just','nut-bundle-check-no-build'],'tests':['just','test-l2-fork-upgrade'] + L.TEST_ARGS}
         for name,argv in commands.items():
             stdout=directory/(name+('.json' if name in ('foundry-config','discovery') else '.log'))
             if not stdout.exists():stdout.write_text('fixture original '+name+'\n')
@@ -120,6 +121,17 @@ class L2ParityTests(unittest.TestCase):
     def test_resealed_diagnostic_pass_cannot_replace_original_failing_execution(self):
         L.write(self.native/'rerun.stage.json',{'argv':['just','test-l2-fork-upgrade-rerun'],'exit_code':0});self.reseal()
         with self.assertRaisesRegex(ValueError,'diagnostic rerun'):self.equal()
+
+    def test_resealed_unbounded_or_changed_rpc_concurrency_is_rejected(self):
+        settings=L.read(self.native/'settings.json');settings['runtime']['threads']=6
+        L.write(self.native/'settings.json',settings);self.reseal()
+        with self.assertRaisesRegex(ValueError,'RPC concurrency'):self.equal()
+
+    def test_resealed_original_command_cannot_omit_rpc_budget(self):
+        path=self.native/'tests.stage.json';stage=L.read(path)
+        stage['argv']=['just','test-l2-fork-upgrade','--threads','1']
+        L.write(path,stage);self.reseal()
+        with self.assertRaisesRegex(ValueError,'original L2 command'):self.equal()
 
     def test_runtime_original_block_and_retry_history_must_match_preflight(self):
         path=self.native/'rpc-1-attempt-1.json';value=L.read(path);value['result']['hash']='0x'+'f'*64;L.write(path,value)

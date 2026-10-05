@@ -103,7 +103,8 @@ def preflight(directory,sha):
 def report(directory,validate_authority=True):
     final=L.original(directory);s=read(directory/'settings.json')
     check(s['branch']=='codex/rwx-ci-pilot' and s['provider'] in ('circleci','rwx')
-          and (s['profile'],s['feature'],s['chain'],s['match_path'])==('ci','main','op-mainnet',L.MATCH), 'Changed complete L2 workload')
+          and (s['profile'],s['feature'],s['chain'],s['match_path'])==('ci','main','op-mainnet',L.MATCH)
+          and s['runtime']==L.RUNTIME, 'Changed complete L2 workload or RPC concurrency')
     if validate_authority:authority(s)
     check(set(s['tools'])=={'forge','cast','go','just'} and all(re.fullmatch('[0-9a-f]{64}',row['sha256'])
           and row['version'] for row in s['tools'].values()),'Missing pinned L2 tool identity')
@@ -129,7 +130,7 @@ def report(directory,validate_authority=True):
     check(coverage==read(directory/'coverage.json') and final['tests']==len(coverage['original_cases']), 'Incomplete original L2 verdicts')
     expected_commands={'foundry-config':['forge','config','--json'],'go-ffi':['just','build-go-ffi'],'contracts-build':['forge','build'],
        'discovery':['forge','test','--list','--json','--match-path',L.MATCH],
-       'nut-bundle-check':['just','nut-bundle-check-no-build'],'tests':['just','test-l2-fork-upgrade']}
+       'nut-bundle-check':['just','nut-bundle-check-no-build'],'tests':['just','test-l2-fork-upgrade'] + L.TEST_ARGS}
     check({p.name.removesuffix('.stage.json') for p in directory.glob('*.stage.json')}==set(expected_commands),
           'Missing L2 command or uninvestigated diagnostic rerun')
     for name,argv in expected_commands.items():
@@ -151,7 +152,7 @@ def report(directory,validate_authority=True):
 def equal(circle,native):
     c,n=report(circle),report(native)
     check(c['settings']['provider']=='circleci' and n['settings']['provider']=='rwx','Reversed L2 providers')
-    for key in ('source_sha','branch','profile','feature','chain','match_path','tools','inputs','implementation'):
+    for key in ('source_sha','branch','profile','feature','chain','match_path','runtime','tools','inputs','implementation'):
         check(c['settings'][key]==n['settings'][key],'L2 settings parity differs at '+key)
     for key in ('selection','coverage','config','submodules','compiler_methods','runtime_rpc','commands'):
         check(c[key]==n[key],'Complete original L2 parity differs at '+key)

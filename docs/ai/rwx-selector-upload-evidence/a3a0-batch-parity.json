@@ -1,0 +1,31 @@
+{
+  "circle_job": 5638640,
+  "circle_pipeline": 135633,
+  "compiled_sources": 601,
+  "complete_original_files": {
+    "circleci": 4520,
+    "rwx": 4517
+  },
+  "database_signatures": 1120,
+  "native_run": "30e63e6c286b461081feb388556b2852",
+  "normalizations": [
+    "workspace path prefixes",
+    "compiler source mtimes",
+    "profile completion dependent artifact IDs after exact unit validation",
+    "POST signature array ordering",
+    "database insertion timestamps",
+    "API result array ordering"
+  ],
+  "original_manifest_sha256": {
+    "circleci": "48f6926aa48d7e515d0a846f839de25425bc97ce46fcfd94c595815b8245ecd0",
+    "rwx": "47d29bd98bbf6efeea0a6c58ac9bab6d2ded823ecb19fc9968579ec42ea9bbcc"
+  },
+  "requests": 1,
+  "selected_declarations": 167,
+  "signatures": {
+    "event": 141,
+    "function": 979
+  },
+  "source_sha": "a3a09108daba91bb59a84f8e7f0b3b73f3446430",
+  "verified_parity": true
+}
