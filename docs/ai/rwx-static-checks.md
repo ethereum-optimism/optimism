@@ -4,8 +4,14 @@ The existing optional `optimism-pr-checks-shadow` now includes Main's
 `shell-check`, `semgrep-test` and `semgrep-scan-local`. All three occurrences
 pass complete hosted same-SHA original-report comparison and count toward
 74/86 (86%) verified job coverage. Circle's job names and required gates stay
-unchanged. The corrected native definition passed an isolated hosted rehearsal;
-its PATH fix still needs the final pushed PR check.
+unchanged. The corrected native definition passed an isolated hosted rehearsal.
+The pushed PATH fix also passed `optimism-pr-checks-shadow` on
+`d8e7d3ecab7e931032bb513819504f9be224b98d` in
+[native run 650e5e0d](https://cloud.rwx.com/optimism/runs/650e5e0d67e5441f801a6e1b3114b651).
+All checks on that pushed head reached successful terminal states: 154 successes
+and one neutral result, including all four Circle gates and dependency review.
+Every subsequent final PR head still needs every required and optional check
+to finish.
 
 ShellCheck runs the exact published `circleci/shellcheck@3.2.0` command, retained
 with its MIT license. The command's SHA-256 is

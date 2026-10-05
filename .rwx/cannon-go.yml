@@ -1,0 +1,204 @@
+# Complete Cannon Go PR workload; Circle still owns its required gate.
+on:
+  cache-rebuild:
+    if: ${{ event.git.branch == 'develop' }}
+    target: [modules, contracts]
+    init:
+      commit-sha: ${{ event.git.sha }}
+      branch: ${{ event.git.branch }}
+      tag: ""
+      cache-warm: "true"
+      cache-epoch: v1
+  github:
+    push:
+      init:
+        commit-sha: ${{ event.git.sha }}
+        branch: ${{ event.git.branch }}
+        tag: ${{ event.git.tag }}
+        cache-warm: "false"
+        cache-epoch: v1
+      status-checks:
+        name: optimism-cannon-go-shadow
+  cli:
+    init:
+      commit-sha: ${{ event.git.sha }}
+      branch: ${{ event.git.branch }}
+      tag: ""
+      cache-warm: "false"
+      cache-epoch: v1
+
+tool-cache:
+  vault: optimism-op-reth-shadow
+
+base:
+  image: ubuntu:24.04@sha256:008173c23f95b170204355c12626cb5a965d779a7e1283b09e9cffbb1bf33ca3
+  config: rwx/base 1.2.0
+  arch: x86_64
+
+defaults:
+  runner:
+    cpus: 2
+    memory: 8gb
+
+tasks:
+  - key: code
+    call: git/clone 2.2.0
+    with:
+      repository: https://github.com/ethereum-optimism/optimism.git
+      ref: ${{ init.commit-sha }}
+      preserve-git-dir: true
+      fetch-full-depth: true
+      submodules: false
+
+  - key: bootstrap-inputs
+    use: code
+    run: 'true'
+    filter: [mise.toml, ops/ci, .circleci/scripts/apt-install.sh]
+    outputs:
+      filesystem: false
+      artifacts:
+        - key: mise-config
+          path: mise.toml
+        - key: ci-scripts
+          path: ops/ci
+        - key: apt-script
+          path: .circleci/scripts/apt-install.sh
+
+  - key: mise
+    call: mise/install 1.1.0
+    with:
+      mise-version: "2026.2.2"
+      install: "false"
+
+  - key: tools
+    use: mise
+    run: |
+      mkdir -p ops/ci .circleci/scripts
+      cp "$MISE_CONFIG" mise.toml
+      cp "$CI_SCRIPTS/rwx-prepare.sh" ops/ci/
+      cp "$APT_SCRIPT" .circleci/scripts/apt-install.sh
+      bash ops/ci/rwx-prepare.sh
+    env:
+      MISE_CONFIG: ${{ tasks.bootstrap-inputs.artifacts.mise-config }}
+      CI_SCRIPTS: ${{ tasks.bootstrap-inputs.artifacts.ci-scripts }}
+      APT_SCRIPT: ${{ tasks.bootstrap-inputs.artifacts.apt-script }}
+    filter:
+      ${{ tasks.bootstrap-inputs.artifacts.ci-scripts }}: [rwx-prepare.sh]
+    timeout: 30m
+
+  - key: route
+    use: [code, tools]
+    run: bash ops/ci/rwx-metadata.sh
+    env:
+      CI_EVENT: push
+      CI_CACHE_WARM: ${{ init.cache-warm }}
+      CI_BRANCH: ${{ init.branch }}
+      CI_TAG: ${{ init.tag }}
+      CI_COMMIT_SHA: ${{ init.commit-sha }}
+    cache: false
+    timeout: 10m
+    outputs:
+      filesystem: false
+      artifacts:
+        - key: routing
+          path: .ci/pipeline-parameters.json
+
+  - key: go-tools
+    use: tools
+    if: ${{ init.cache-warm == 'true' || tasks.route.values.run-main == 'true' }}
+    run: bash ops/ci/rwx-prepare.sh go
+    timeout: 30m
+
+  - key: contract-tools
+    use: tools
+    if: ${{ init.cache-warm == 'true' || tasks.route.values.run-main == 'true' }}
+    run: |
+      cp "$CI_SCRIPTS/rwx-contracts-prepare.sh" ops/ci/
+      bash ops/ci/rwx-contracts-prepare.sh tools
+    env:
+      CI_SCRIPTS: ${{ tasks.bootstrap-inputs.artifacts.ci-scripts }}
+    filter:
+      ${{ tasks.bootstrap-inputs.artifacts.ci-scripts }}: [rwx-contracts-prepare.sh]
+    timeout: 30m
+
+  - key: source
+    use: [code, tools]
+    if: ${{ init.cache-warm == 'true' || tasks.route.values.run-main == 'true' }}
+    run: |
+      git submodule sync --recursive
+      git -c protocol.file.allow=never submodule update --init --recursive --jobs 8
+      git rev-parse HEAD >packages/contracts-bedrock/.gitcommit
+    timeout: 20m
+
+  - key: modules
+    use: [code, go-tools]
+    if: ${{ init.cache-warm == 'true' || tasks.route.values.run-main == 'true' }}
+    call: ${{ run.dir }}/packages/go-modules.yml
+    with:
+      commit-sha: ${{ init.commit-sha }}
+      branch: ${{ init.branch }}
+      cache-epoch: ${{ init.cache-epoch }}
+
+  - key: contracts
+    use: [source, go-tools, contract-tools]
+    if: ${{ init.cache-warm == 'true' || tasks.route.values.run-main == 'true' }}
+    call: ${{ run.dir }}/packages/go-contracts.yml
+    with:
+      commit-sha: ${{ init.commit-sha }}
+      cache-epoch: ${{ init.cache-epoch }}
+      build-probe: ""
+      target-cache-mode: keep
+
+  - key: helper-tests
+    use: [code, go-tools, contract-tools]
+    if: ${{ init.cache-warm != 'true' && tasks.route.values.run-main == 'true' }}
+    run: |
+      RWX_LIVE_CANNON_GO_FIXTURE=1 python3 -m unittest discover -s ops/ci -p 'test_cannon_go.py'
+      python3 -m unittest discover -s ops/ci -p 'test_compare_cannon_go.py'
+    cache: false
+    timeout: 15m
+    outputs:
+      filesystem: false
+
+      artifacts:
+        - key: fixtures
+          path: .ci/cannon-go/helper-fixtures
+
+  - key: tests
+    use: [source, go-tools, contract-tools]
+    if: ${{ init.cache-warm != 'true' && tasks.route.values.run-main == 'true' }}
+    run: |
+      export GOMODCACHE="$PWD/.ci/go-cache/pr-checks/modules"
+      export GOCACHE="$PWD/.ci/go-cache/cannon-go/build"
+      mkdir -p "$GOCACHE"
+      python3 ops/ci/cannon-go.py --provider rwx --skip-slow-tests true --fresh-tests true \
+        --module-artifact "$MODULE_ARTIFACT" --contract-artifact "$CONTRACT_ARTIFACT"
+    env:
+      CI: "true"
+      CI_COMMIT_SHA: ${{ init.commit-sha }}
+      CI_BRANCH: ${{ init.branch }}
+      MODULE_ARTIFACT: ${{ tasks.modules.tasks.build.artifacts.dependency }}
+      CONTRACT_ARTIFACT: ${{ tasks.contracts.tasks.build.artifacts.dependency }}
+      RWX_RUN_ID:
+        cache-key: included
+      RWX_TASK_ATTEMPT_NUMBER:
+        cache-key: included
+    cache: false
+    tool-cache: cannon-go-compiler-${{ init.cache-epoch }}
+    timeout: 30m
+    runner:
+      cpus: 8
+      memory: 16gb
+    outputs:
+      filesystem:
+        filter:
+          workspace: [.ci/go-cache/cannon-go/build]
+          system: []
+      test-results:
+        - path: .ci/cannon-go/run/native.json
+          options:
+            language: Go
+            framework: go test
+      artifacts:
+        - key: reports
+          path: .ci/cannon-go/run

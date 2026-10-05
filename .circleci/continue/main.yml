@@ -928,28 +928,32 @@ jobs:
             mkdir -p ./tmp/test-results
             mkdir -p ./tmp/testlogs
       - run:
-          name: Cannon Go lint
-          command: |
-            just lint
-          working_directory: cannon
-      - run:
-          name: Cannon Go 64-bit tests
+          name: Cannon Go lint and 64-bit tests
           no_output_timeout: <<parameters.no_output_timeout>>
+          environment:
+            CI_GO_FRESH_TESTS: << pipeline.parameters.c-go_fresh_tests_effective >>
           command: |
-            export SKIP_SLOW_TESTS="<<parameters.skip_slow_tests>>"
-            TIMEOUT="10m"
-            if [ "$SKIP_SLOW_TESTS" = "false" ]; then
-              TIMEOUT="45m"
+            python3 ops/ci/cannon-go.py --provider circleci --skip-slow-tests "<<parameters.skip_slow_tests>>"
+      - run:
+          name: Retain complete Cannon Go reports after failures
+          when: always
+          command: |
+            if [[ -f .ci/cannon-go/run/junit.xml ]]; then
+              cp .ci/cannon-go/run/junit.xml tmp/test-results/cannon-64.xml
             fi
-            ../ops/scripts/gotestsum-split.sh --format=testname --junitfile=../tmp/test-results/cannon-64.xml --jsonfile=../tmp/testlogs/log-64.json \
-            -- -timeout=$TIMEOUT -parallel=$(nproc) ./...
-          working_directory: cannon
+            if [[ -f .ci/cannon-go/run/original.json ]]; then
+              cp .ci/cannon-go/run/original.json tmp/testlogs/log-64.json
+            fi
+            cp -a .ci/cannon-go/run/. tmp/testlogs/
       - go-save-cache:
           namespace: cannon-go-lint-and-test
       - store_test_results:
           path: ./tmp/test-results
       - store_artifacts:
           path: ./tmp/testlogs
+          when: always
+      - store_artifacts:
+          path: .ci/cannon-go/run
           when: always
       - when:
           condition: <<parameters.notify>>

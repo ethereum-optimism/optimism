@@ -94,8 +94,10 @@ failure, source-bound corrections and full original hashes.
 ShellCheck and both Semgrep jobs now pass complete same-SHA comparison with
 exact original selections, pinned tools, baseline provenance, warnings and
 exclusions. Hosted real-tool failure fixtures pass. The original missing-PATH
-failure and corrected native definition rehearsal remain retained; the tested
-PATH fix must still pass the final pushed PR check. See the
+failure and corrected native definition rehearsal remain retained. The pushed
+PATH fix passed the native PR-check shadow on `d8e7d3ec`; all four Circle gates,
+dependency review and native checks also finished successfully on that head.
+Every subsequent final head needs terminal verification. See the
 [static-check closeout](rwx-static-checks.md).
 Twelve occurrences remain: nine Main jobs, L2 fork, and the Contracts and Rust
 aggregate equivalents. Circle continues to own every required gate.
@@ -246,7 +248,8 @@ CircleCI workflow: `main` (32 jobs).
 - [x] `go-tests`
 - [x] `memory-all-kona-op-reth-fusaka`
 - [x] `memory-all-opn-op-reth-fusaka`
-- [ ] `cannon-go-lint-and-test`
+- [ ] `cannon-go-lint-and-test` — [shared adapter and native job](rwx-cannon-go.md)
+  are implemented; full hosted same-SHA comparison is pending.
 - [ ] `ci-gate`
 
 ### Contract workflow
