@@ -76,6 +76,10 @@ This checks orb resolution and config structure, but **not** continuation-time p
 wiring — a param leak across fragment anchors still only surfaces when the pipeline
 actually continues.
 
+Run shared routing and Circle adapter fixtures with
+`mise exec yq jq -- bash ops/ci/test-decision-tree.sh` using Bash 4+ or Linux.
+macOS `/bin/bash` 3 is unsupported; the fixture entrypoint rejects it explicitly.
+
 ## Choosing where a new job runs
 
 When a diff adds a job, the first question is cadence, not correctness. Options

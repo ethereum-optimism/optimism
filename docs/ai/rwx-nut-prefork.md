@@ -70,3 +70,9 @@ reuses all three complete producer outputs, with zero suite verdicts or helper
 tests. The exact source and cached-from task identities are retained. Protected
 `develop` cache-rebuild execution remains unobserved. No median or speed win is
 claimed.
+
+The pushed definition at `6245472e` also succeeded in automatic native run
+`8487717c`, with all six tests displayed and zero failures. The
+[pushed reporting confirmation](rwx-nut-prefork-evidence/pushed-reporting-confirmation.json)
+retains exact task identity and snapshot seal. This confirms the reporting fix
+and adds no extra occurrence.

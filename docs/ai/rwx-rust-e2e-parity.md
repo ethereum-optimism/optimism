@@ -112,3 +112,13 @@ release coverage, original statistics and compile-only task evidence. Broader
 cache invalidation, engine cancellation, privileged/fork routing, protected warming
 and required-gate ownership still have separate todos. This stage adds nine
 verified jobs, taking overall inventory coverage to **47/86 (55%)**.
+
+At `6245472e`, every optional native shadow and three required Circle gates
+passed, but Circle job 5635823 failed `TestResyncing`. The restarted validator
+fatally exited after `UnexpectedStaticFileTxNumber(Transactions, 0, 1)`; the
+test then hit its five-minute resync deadline. Rust and sysgo sources are
+unchanged from the preceding fully green `fd426d87` head. The
+[complete original failure index](rwx-rust-e2e-evidence/6245-circle-sysgo-failure.json)
+retains every report seal and terminal check counts. Diagnosis remains open;
+no retry or test relaxation has been added. Earlier verified same-SHA parity
+remains bound to its documented revisions, and this head is not fully green.

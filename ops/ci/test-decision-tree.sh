@@ -5,10 +5,15 @@
 # set in the resulting JSON.
 #
 # Usage:
-#   bash ops/ci/test-decision-tree.sh
+#   mise exec yq jq -- bash ops/ci/test-decision-tree.sh
 #
-# Requires: jq, yq (same version used in CI)
+# Requires: Bash 4+, jq, yq (same versions used in CI)
 set -euo pipefail
+
+if (( BASH_VERSINFO[0] < 4 )); then
+  echo "Routing fixtures require Bash 4+ (CI uses Linux); macOS /bin/bash 3 is unsupported." >&2
+  exit 2
+fi
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ROUTING_SCRIPT="${SCRIPT_DIR}/compute-workflow-conditions.sh"

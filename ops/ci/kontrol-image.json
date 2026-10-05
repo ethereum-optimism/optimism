@@ -1,0 +1,7 @@
+{
+  "version": "1.0.255",
+  "tag": "runtimeverificationinc/kontrol:ubuntu-jammy-1.0.255",
+  "image": "runtimeverificationinc/kontrol@sha256:858f004144d61b005997f56bb8b7cd15673850286c96e0e5ec0502d9c9a9e204",
+  "platform": "linux/amd64",
+  "id": "sha256:858f004144d61b005997f56bb8b7cd15673850286c96e0e5ec0502d9c9a9e204"
+}

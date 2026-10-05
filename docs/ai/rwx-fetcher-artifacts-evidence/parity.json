@@ -1,0 +1,97 @@
+{
+  "circle_manifest_declared_empty": [
+    {
+      "path": "diff.log",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    }
+  ],
+  "compiler_metadata_differences": {
+    "workspace_path_metadata": 1428
+  },
+  "complete_compiler_contracts": 729,
+  "coverage": {
+    "artifact_files": 4,
+    "complete_clean_build": true,
+    "identical_portable_artifacts": true,
+    "tests": 0,
+    "unchanged_committed_artifacts": true
+  },
+  "native_run_id": "579ffecc8c844f919fec52f679bed77d",
+  "original_sha256": {
+    "circle": {
+      "build.log": "06fd5753a0f163c482bbc5155b2aae7ba699f34d6b9a31f87a953a66bed1aa96",
+      "build.stage.json": "f07281f9f89e42447ffa6e616f37cce20f26611e45e76068d4d8422fcf2e3ad7",
+      "committed/FetchChainInfo.json": "3dd7fdfccd4d7bfc50e6c1809fe8f5f96ddf7dd859a6a194a786d7365a01b554",
+      "committed/FetchChainInfoInput.json": "c8caf6f86fd04cd6aefed0902297a8c043a4458b828e9886c4011b37c98db7e4",
+      "committed/FetchChainInfoOutput.json": "54f97f7a8fbd7e8310144178b3d289d7114463f04682dd88efa178f7ec874dd3",
+      "committed/IFetcher.json": "22c352560588add9baecc9f5167d1314459b80362b3b55c8a16e36396b2cebb5",
+      "compiled.json": "a57e933f666bfd0ee056c288fb8284ea5953cc0c4667c4b801325de018f9ff57",
+      "compiled/FetchChainInfo.json": "8d0ca973d52c519edd4369a583e8c1e2bf037aca4a08b45d4a66d90ebdd05355",
+      "compiled/FetchChainInfoInput.json": "812a3c11b33a5c840f183dcb92c10808ad77336f965ac75e7cacaed0076f0b33",
+      "compiled/FetchChainInfoOutput.json": "439e23c938d9396595757fd6101801eeb7d2f8f9668083bd88f8df5d8427e7c0",
+      "compiled/IFetcher.json": "ca2bba58330197c5d10699361f52565fda617fe6b4ebb6d5ca80125b121d5cf4",
+      "compiler-files.json": "43a673ae6d54415c14774872a504746eec38f3c474df67cdda4c73aae328def7",
+      "compiler.tar.gz": "770bc72cfc34a670311d937d4c364f4d7ef39ecb1c6adf3ddb672d1cae5db4e9",
+      "coverage.json": "2ae6282068f94c35af71fa81c8dc5c0f4ca08895f23fb094b837b2c119606533",
+      "diff.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "diff.stage.json": "132adcfc24174d0fc8ff5cab6ca3c070dd14f5d15a8f0aaf9a725f6eb0128219",
+      "inputs-after.json": "5ffb7781f0c4aec08cc62e11783a4cbb322b25aceb8ba317bfc94eeccd99c118",
+      "portable.json": "9330fd70e4d85d413fe17de8dd660077194f6f51b545fbed2b488dd15fc5dc46",
+      "portable/FetchChainInfo.json": "3dd7fdfccd4d7bfc50e6c1809fe8f5f96ddf7dd859a6a194a786d7365a01b554",
+      "portable/FetchChainInfoInput.json": "c8caf6f86fd04cd6aefed0902297a8c043a4458b828e9886c4011b37c98db7e4",
+      "portable/FetchChainInfoOutput.json": "54f97f7a8fbd7e8310144178b3d289d7114463f04682dd88efa178f7ec874dd3",
+      "portable/IFetcher.json": "22c352560588add9baecc9f5167d1314459b80362b3b55c8a16e36396b2cebb5",
+      "selection.json": "b38cdce073edad5ef60e6e9108ea12445aa7aacb09a9df7ffff96991d92dade7",
+      "settings.json": "210fbc0027d4e7e7acdca8940fb5ee02c9c77be1438da35032c9115fa8cd0f69",
+      "source/op-fetcher/justfile": "fed8fce9598cfd75434bcce3fe2d8e1f962439c9a99d6acc89deb9c537307b57",
+      "source/packages/contracts-bedrock/foundry.toml": "2ac93cbeb67120dd8555c3c4632420fb0f8c6eb1cb1291a097d2a258611239c2",
+      "source/packages/contracts-bedrock/justfile": "9e49f2e4835fba195bb9c199be95a152d27ce78643730fecb8a5a974916a3475",
+      "source/packages/contracts-bedrock/scripts/FetchChainInfo.s.sol": "f89b923b778fe732a5cd4663942962122bdd5d23971219712afc2593eeb7b39c",
+      "submodules.txt": "552140171f2fb64aabf505d38086680d44492c18a14cb5e6afb73034bfd75ab1"
+    },
+    "rwx": {
+      "build.log": "cc4c86e076d6b19cca7a79787559871fb81341ae78b5d66f9956aa9445801db1",
+      "build.stage.json": "7466a974a1643f09f407d6db93413c6bb358f58765472d381ab407435a10af2c",
+      "committed/FetchChainInfo.json": "3dd7fdfccd4d7bfc50e6c1809fe8f5f96ddf7dd859a6a194a786d7365a01b554",
+      "committed/FetchChainInfoInput.json": "c8caf6f86fd04cd6aefed0902297a8c043a4458b828e9886c4011b37c98db7e4",
+      "committed/FetchChainInfoOutput.json": "54f97f7a8fbd7e8310144178b3d289d7114463f04682dd88efa178f7ec874dd3",
+      "committed/IFetcher.json": "22c352560588add9baecc9f5167d1314459b80362b3b55c8a16e36396b2cebb5",
+      "compiled.json": "810fe3d5707739f7410a675eb881572b82d24628dac6b26fd21be4fdf668f6c3",
+      "compiled/FetchChainInfo.json": "6d3ccda02a34195b458db906a6f22ae9a296fe44b4a3e224b964b9f39c28c3e7",
+      "compiled/FetchChainInfoInput.json": "c057be609e95b1c0535561e66e5a1e7da5044fc04cbfc05fbefba2a1f8acca02",
+      "compiled/FetchChainInfoOutput.json": "1f071d83155f5451dd2fd7989e2ace7f896939fcddf7b6e8823be2f97d9b2e0c",
+      "compiled/IFetcher.json": "49b2d8b7c37fd93c896bdc35f579ea84631d9684a4598100db276390c4c1344d",
+      "compiler-files.json": "537cbba69262722253cf69c4ea4bce2401c8089dcd2fec7c8e2824d3eb8f2913",
+      "compiler.tar.gz": "d88d54a3e2eec13d000d54471f531a9faf3e5ead41f48545d03f4867b939d1cd",
+      "coverage.json": "2ae6282068f94c35af71fa81c8dc5c0f4ca08895f23fb094b837b2c119606533",
+      "diff.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "diff.stage.json": "6b362a4a0ff68676905818ca2ea9b96ae6d75c16ff6b6c367152d2df46aeb5a4",
+      "inputs-after.json": "5ffb7781f0c4aec08cc62e11783a4cbb322b25aceb8ba317bfc94eeccd99c118",
+      "portable.json": "9330fd70e4d85d413fe17de8dd660077194f6f51b545fbed2b488dd15fc5dc46",
+      "portable/FetchChainInfo.json": "3dd7fdfccd4d7bfc50e6c1809fe8f5f96ddf7dd859a6a194a786d7365a01b554",
+      "portable/FetchChainInfoInput.json": "c8caf6f86fd04cd6aefed0902297a8c043a4458b828e9886c4011b37c98db7e4",
+      "portable/FetchChainInfoOutput.json": "54f97f7a8fbd7e8310144178b3d289d7114463f04682dd88efa178f7ec874dd3",
+      "portable/IFetcher.json": "22c352560588add9baecc9f5167d1314459b80362b3b55c8a16e36396b2cebb5",
+      "selection.json": "b38cdce073edad5ef60e6e9108ea12445aa7aacb09a9df7ffff96991d92dade7",
+      "settings.json": "4298a5c32669f8a7557e03412b603e49491d00b3b16bf0de791d531a704c072c",
+      "source/op-fetcher/justfile": "fed8fce9598cfd75434bcce3fe2d8e1f962439c9a99d6acc89deb9c537307b57",
+      "source/packages/contracts-bedrock/foundry.toml": "2ac93cbeb67120dd8555c3c4632420fb0f8c6eb1cb1291a097d2a258611239c2",
+      "source/packages/contracts-bedrock/justfile": "9e49f2e4835fba195bb9c199be95a152d27ce78643730fecb8a5a974916a3475",
+      "source/packages/contracts-bedrock/scripts/FetchChainInfo.s.sol": "f89b923b778fe732a5cd4663942962122bdd5d23971219712afc2593eeb7b39c",
+      "submodules.txt": "c0ac39468ad46aa0d1fb027dd91df079b2e1b0be168745116156e1a26bc60463"
+    }
+  },
+  "selection": {
+    "authority": "diff -qr",
+    "committed_directory": "op-fetcher/pkg/fetcher/fetch/forge-artifacts/FetchChainInfo.s.sol",
+    "committed_sha256": {
+      "FetchChainInfo.json": "3dd7fdfccd4d7bfc50e6c1809fe8f5f96ddf7dd859a6a194a786d7365a01b554",
+      "FetchChainInfoInput.json": "c8caf6f86fd04cd6aefed0902297a8c043a4458b828e9886c4011b37c98db7e4",
+      "FetchChainInfoOutput.json": "54f97f7a8fbd7e8310144178b3d289d7114463f04682dd88efa178f7ec874dd3",
+      "IFetcher.json": "22c352560588add9baecc9f5167d1314459b80362b3b55c8a16e36396b2cebb5"
+    },
+    "compiled_directory": "packages/contracts-bedrock/forge-artifacts/FetchChainInfo.s.sol"
+  },
+  "source_sha": "6245472e81405c62cf92a0a1668f467bc157b0f6",
+  "verified_parity": true
+}

@@ -2,8 +2,9 @@
 
 The optional `optimism-fetcher-artifacts-shadow` implements Main's
 `diff-fetcher-forge-artifacts` workload through shared `run-main` routing.
-Full hosted same-SHA original-report comparison remains pending, so this
-occurrence is uncounted. Verified coverage remains 76/86 (88%).
+Full hosted same-SHA original-report comparison passes at
+`6245472e81405c62cf92a0a1668f467bc157b0f6`. This completes one additional
+Main occurrence; verified coverage is 77/86 (90%).
 
 ## Correct comparison inputs
 
@@ -49,6 +50,19 @@ storage-layout, source-hash or compiler-setting differences are ignored.
 
 ## Evidence and validation
 
+Circle pipeline 135584, job 5635755 and native run
+[`579ffecc`](https://cloud.rwx.com/optimism/runs/579ffecc8c844f919fec52f679bed77d)
+both succeeded. The [complete parity index](rwx-fetcher-artifacts-evidence/parity.json)
+binds every original report file and validates all 729 compiler artifacts,
+complete compiler source graphs, and all four embedded outputs. The only
+cross-provider differences are 1,428 checkout paths in original metadata.
+Every executable field, source hash, compiler setting, cache input and selected
+portable artifact agrees. Both providers correctly report zero tests for this
+build and artifact job. The native helper ran nine actual fixtures; their
+[complete original hashes](rwx-fetcher-artifacts-evidence/fixture-originals.json)
+retain success, drift, missing artifacts, compiler failure and cancellation.
+
+
 Both providers retain original build/diff commands, cwd, logs, exit/signal,
 complete source/tool/environment/submodule settings, untouched committed inputs,
 raw compiled artifacts and a sealed archive of every compiler artifact/cache
@@ -71,3 +85,8 @@ the original clean compilation is preserved. Protected warming selects only
 tool installation and executes zero artifact verdicts or helper tests. Circle's
 job name, gate dependency, required ownership and production publishers remain
 unchanged.
+
+The exact-input [tool-only reuse rehearsal](rwx-fetcher-artifacts-evidence/tool-only-reuse.json)
+`a31e04c6` succeeded on the same SHA. Foundry and the pinned fetcher compiler
+were complete native cache hits; no verdict or helper ran and test count was
+zero. This is a CLI rehearsal; a protected `develop` event remains unobserved.

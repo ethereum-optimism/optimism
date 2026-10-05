@@ -34,13 +34,13 @@ at commit `587b4c3a73d3f16f15212b72e9a0ed0e8489a7c4`.
 
 | PR workflow | Expanded job instances | Implemented validation jobs |
 | --- | ---: | ---: |
-| Main | 32 | 25 |
+| Main | 32 | 26 |
 | Contracts | 23 | 21 |
 | Rust | 22 | 21 |
 | Rust E2E | 9 | 9 |
-| Total | 86 | 76 |
+| Total | 86 | 77 |
 
-Verified implementation coverage is **76 / 86 = 88%**. Each matrix entry and
+Verified implementation coverage is **77 / 86 = 90%**. Each matrix entry and
 each occurrence in a different workflow counts separately; shards do not.
 The CircleCI setup and schedule-trigger-check workflows are outside this
 86-job denominator and have separate todos. This is occurrence coverage backed
@@ -54,6 +54,10 @@ all 16 packages and 2,881 case identities at `5ee3311d`. See the
 [Cannon Go closeout](rwx-cannon-go.md). NUT pre-fork regeneration now passes full same-SHA original-report parity
 for karst and lagoon, with all six actual cases passing and native reporting
 correctly displaying six cases. See the [pre-fork closeout](rwx-nut-prefork.md).
+
+Fetcher artifact validation now passes full same-SHA original-report parity at
+`6245472e`, including all 729 compiler artifacts and all four untouched embedded
+artifacts. See the [fetcher closeout](rwx-fetcher-artifacts.md).
 
 The full Fusaka acceptance variants and their remaining SP1/Cannon dependency
 edges have now executed successfully on both providers. See the
@@ -105,7 +109,7 @@ PATH fix passed the native PR-check shadow on `d8e7d3ec`; all four Circle gates,
 dependency review and native checks also finished successfully on that head.
 Every subsequent final head needs terminal verification. See the
 [static-check closeout](rwx-static-checks.md).
-Ten occurrences remain: seven Main jobs, L2 fork, and the Contracts and Rust
+Nine occurrences remain: six Main jobs, L2 fork, and the Contracts and Rust
 aggregate equivalents. Circle continues to own every required gate.
 The narrower rollup mode remains CLI-only. See [the stage closeout](rwx-go-parity.md)
 for original-report comparison, selected resources, caches and limitations.
@@ -243,12 +247,12 @@ CircleCI workflow: `main` (32 jobs).
 - [ ] `generate-flaky-tests-report`
 - [x] `contracts-bedrock-build-1`
 - [ ] `contracts-bedrock-upload`
-- [ ] `diff-fetcher-forge-artifacts` — [fresh build and untouched artifact comparison](rwx-fetcher-artifacts.md)
+- [x] `diff-fetcher-forge-artifacts` — [fresh build and untouched artifact comparison](rwx-fetcher-artifacts.md)
 - [x] `check-op-geth-version`
 - [x] `check-nut-prefork-states` — [complete original-report parity](rwx-nut-prefork.md)
   is implemented; full hosted same-SHA validation is pending.
 - [x] `check-nut-locks`
-- [ ] `check-kontrol-build`
+- [ ] `check-kontrol-build` — [full summary generation and proof build](rwx-kontrol-build.md)
 - [x] `check-generated-mocks-op-service`
 - [x] `check-generated-mocks-op-node`
 - [x] `cannon-prestate`

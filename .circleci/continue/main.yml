@@ -1095,13 +1095,11 @@ jobs:
       - setup_remote_docker:
           docker_layer_caching: true
       - run:
-          name: Run Kontrol build
-          command: just kontrol-summary-full
-          working_directory: packages/contracts-bedrock
-      - run:
-          name: Build Kontrol summary files
-          command: just forge-build ./test/kontrol/proofs
-          working_directory: packages/contracts-bedrock
+          name: Run original Kontrol summary and proof build with complete evidence
+          command: python3 ops/ci/kontrol-build.py --provider circleci
+      - store_artifacts:
+          path: .ci/kontrol-build/run
+          when: always
       - notify-failures-on-develop:
           mentions: "<!subteam^S07K486JEH4>"
 
