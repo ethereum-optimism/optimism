@@ -1,0 +1,18 @@
+{
+  "abi_oracle": {
+    "description": "Complete original minimal Forge 1.8.3 ABI oracle; empty library and tuple parameter",
+    "run_id": "cf8fbfdbd435439a8f89d1f04ced60f7",
+    "task_id": "233ff1d64e88a74062ed22c440436717"
+  },
+  "coverage_added": 0,
+  "live_import": {
+    "description": "Unmodified Forge and real pinned Sourcify/PostgreSQL, isolated network; first, duplicate, denied writes",
+    "run_id": "72186e2fec614a798acb65a0f53f079e",
+    "task_id": "d90d05696fd000b27f67707eca629245"
+  },
+  "multi_profile_oracle": {
+    "description": "Complete original Forge 1.8.3 two-job ABI compilation, shared source with different job-local IDs",
+    "run_id": "4a9cf6529fc446eda40c28e188d2a830",
+    "task_id": "36c7cb85d93ff5c0b8dccaad21e5c60c"
+  }
+}

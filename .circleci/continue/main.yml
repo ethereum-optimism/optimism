@@ -38,6 +38,15 @@ parameters:
   c-run_nut_provenance_replay:
     type: boolean
     default: false
+  c-selector_upload_replay:
+    type: boolean
+    default: false
+  c-selector_upload_replay_effective:
+    type: boolean
+    default: false
+  c-run_selector_upload_replay:
+    type: boolean
+    default: false
   c-publish_contract_artifacts_ref:
     type: string
     default: ""
@@ -1628,6 +1637,10 @@ jobs:
           mentions: "<!subteam^S07K486JEH4>"
 
   contracts-bedrock-upload:
+    parameters:
+      selector_shadow:
+        type: boolean
+        default: false
     machine: true
     resource_class: large.gen2
     steps:
@@ -1638,10 +1651,38 @@ jobs:
       - check-changed:
           patterns: contracts-bedrock
       - get-target-branch
-      - run:
-          name: upload selectors
-          command: just update-selectors
-          working_directory: packages/contracts-bedrock
+      - unless:
+          condition: << parameters.selector_shadow >>
+          steps:
+            - run:
+                name: upload selectors
+                command: just update-selectors
+                working_directory: packages/contracts-bedrock
+      - when:
+          condition: << parameters.selector_shadow >>
+          steps:
+            - run:
+                name: Prepare private selector registry and complete ABI inventory
+                command: |
+                  test "$CIRCLE_BRANCH" = codex/rwx-ci-pilot
+                  git submodule sync --recursive
+                  git -c protocol.file.allow=never submodule update --init --recursive --jobs 8
+                  bash .circleci/scripts/apt-install.sh iproute2 openssl
+                  python3 ops/ci/selector-registry.py images .ci/selector-registry
+                  python3 ops/ci/selector-upload.py prepare .ci/selector-upload/prepare
+            - run:
+                name: Run original selector publisher against private official registry
+                command: |
+                  python3 ops/ci/selector-upload.py run .ci/selector-upload/run .ci/selector-upload/prepare \
+                    .ci/selector-registry/sourcify .ci/selector-registry/images.json
+            - store_artifacts:
+                path: .ci/selector-upload
+                destination: selector-upload-originals
+                when: always
+            - store_artifacts:
+                path: .ci/selector-registry
+                destination: selector-registry-originals
+                when: always
 
   required-contracts-ci:
     docker:
@@ -2662,6 +2703,14 @@ jobs:
           destination: flaky-test-reports
 
 workflows:
+  selector-upload-replay:
+    when: << pipeline.parameters.c-run_selector_upload_replay >>
+    jobs:
+      - contracts-bedrock-upload:
+          selector_shadow: true
+          context:
+            - circleci-repo-readonly-authenticated-github-token
+
   # Isolated full replay of the original job and original module dependency.
   # Shared routing selects this only for explicit pilot API benchmarks.
   nut-provenance-replay:

@@ -262,7 +262,7 @@ CircleCI workflow: `main` (32 jobs).
 - [x] `go-binaries-for-sysgo`
 - [ ] `generate-flaky-tests-report`
 - [x] `contracts-bedrock-build-1`
-- [ ] `contracts-bedrock-upload`
+- [ ] `contracts-bedrock-upload` — [complete isolated uploader](rwx-selector-upload.md) prototype passes real imports and complete database/API readback; pushed same-SHA Circle/native parity remains pending, so no coverage is added
 - [x] `diff-fetcher-forge-artifacts` — [fresh build and untouched artifact comparison](rwx-fetcher-artifacts.md)
 - [x] `check-op-geth-version`
 - [x] `check-nut-prefork-states` — [complete original-report parity](rwx-nut-prefork.md)

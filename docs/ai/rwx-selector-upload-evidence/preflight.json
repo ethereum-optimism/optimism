@@ -1,0 +1,63 @@
+{
+  "complete_originals": {
+    "files": 4531,
+    "full_file_manifest_sha256": "1ce41ebffe89b1d8f3655194638d6f963ec5351ef75a98ada4dadbd0aa27b97f",
+    "selected_original_sha256": {
+      "imports.json": "ba2bcd455ee5476d5ea102d2af0d6c66d5a9ae2e49b024564fc1b6b68943ed46",
+      "lookup.json": "ca0f5ad068c7dd7c376466631f4d0e874f636b182a18dbc48d95b8d33356aa88",
+      "prepared/expected.json": "426cdd6f9a3fa31ce6dd2078ce738bb3ad6228757236c4360dc98e41e99ccd62",
+      "prepared/final.json": "b44b96b439ccdf1beed168d1a88a249c919adfe136cd2e8c1e893b6cf54ee3ab",
+      "prepared/initial-discovery/selection.json": "dde16a8495d9578ddfaf94d4a7a4bd896256132da371b41ed43cba4db70650fc",
+      "prepared/selected-compilers.json": "746c87b808e7e63a673eb9edc9cb4c664e53998d3fee511dc2f28a1dc9914aec",
+      "prepared/selection.json": "0ef9233aa04033101c82d08934a06d8ba9b84d87da40b1de00fc99efff3e82ea",
+      "registry/lookup/execution.json": "c225ff14d3028ccf3a743d42d2a35933f0546f5dae8b68b9cdc5eee288681a98",
+      "registry/registry-source.json": "e5fb0745edc540f4c11e19eb423e9ecdc38fd9fced95f6c11c9356a53e8010e0",
+      "registry/service-content.json": "170ca811bde04fecd5566e693b227d7cca5060647518462ec0c9ee912cbdc523",
+      "registry/upload/database-rows.json": "d02ea031f064a524b62bb8ce56e1fcf916b1d0f74a7f8c496e62381acb09a967",
+      "registry/upload/execution.json": "e842349b6ca09a35960dcc2f6e684446c901ef315274baa0cf40c029dd96f468",
+      "registry/upload/isolation.json": "385cfa3e11a9de7b5966f3b0d7ecb2456e0fb165c330881fbc20ada515ffe35e",
+      "registry/upload/stderr.log": "58dc85172e1b99bb2fe1843e7b0043e0536ab0a88651a3cf003ca9c04a6f767c",
+      "registry/upload/stdout.log": "0e88230549c4d497ed074b2276e7738717b309b33120ccfc52862ec6febc5904",
+      "settings.json": "1be7b3f722b5a84854a4c67b5da1925b0e6b3ca5ee70f2265ab620805272b052"
+    }
+  },
+  "coverage_added": 0,
+  "injected_uncommitted_helpers": true,
+  "passing_run": "aec697d0cb08440d88f49ac515b19729",
+  "prepare_task": "cb3eb29993dd2a532b5c360fad36569f",
+  "remaining": "Actual pushed same-SHA Circle/native execution, full original comparison, cache reuse and compiler-only warming",
+  "retained_original_archive_sha256": "53c49c5748eb798dee2192c4d7958aac3acf3209a4458c75893251f1f48549de",
+  "runs": [
+    {
+      "id": "c4d45fff49814779948928f0663e712a",
+      "observation": "namespace isolation"
+    },
+    {
+      "id": "1b818cc235674ee798c7c1b467d02346",
+      "observation": "first failure: incomplete client PATH"
+    },
+    {
+      "id": "72186e2fec614a798acb65a0f53f079e",
+      "observation": "real import, duplicate and denied-write fixtures"
+    },
+    {
+      "id": "cf8fbfdbd435439a8f89d1f04ced60f7",
+      "observation": "first failure: unused registry gitlink; successful ABI oracle"
+    },
+    {
+      "id": "6e9374df6cc0471eb7326e4958be1a04",
+      "observation": "retained complete compiler evidence: profile-local source IDs"
+    },
+    {
+      "id": "4a9cf6529fc446eda40c28e188d2a830",
+      "observation": "successful upload; rejected status stream and compiler-resolution difference"
+    },
+    {
+      "id": "aec697d0cb08440d88f49ac515b19729",
+      "observation": "complete uploader and API/database readback passed"
+    }
+  ],
+  "source_sha": "4ae28fd902ad968ac38c835f0409b62cd035d6a0",
+  "state": "prototype-passed-hosted-parity-pending",
+  "upload_task": "8bf3ddd672584c82718326a4840aeb21"
+}

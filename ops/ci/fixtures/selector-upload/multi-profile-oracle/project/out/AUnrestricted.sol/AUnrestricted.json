@@ -1,0 +1,1 @@
+{"abi":[{"type":"function","name":"a","inputs":[{"name":"x","type":"uint256","internalType":"uint256"}],"outputs":[{"name":"","type":"uint256","internalType":"uint256"}],"stateMutability":"pure"}],"id":0}

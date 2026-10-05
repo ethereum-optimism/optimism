@@ -1,0 +1,8 @@
+Compiling 1 files with Solc 0.8.28
+Solc 0.8.28 finished in 1.86ms
+Compiler run successful!
+Imported: Function Problem(uint256): 0x75e81caa
+Imported: Function ping(uint256): 0x773acdef
+Imported: Function transform((uint256,address)): 0x3e46ec18
+Imported: Event Pong(uint256): 0x58b69f57828e6962d216502094c54f6562f3bf082ba758966c3454f9e37b1525
+Selectors successfully uploaded to OpenChain

@@ -136,11 +136,14 @@ case "${CI_EVENT:?CI_EVENT must be push, schedule, or dispatch}" in
 
   # API triggers: dispatch flags select workflows (routing.yml api_dispatch).
   dispatch)
-    # An explicit pilot-only full NUT replay runs its original verifier and
-    # module dependency alone, without selecting publisher workflows.
-    if is_true nut_provenance_full_effective && ! is_true main_dispatch && \
-      [[ "${CI_BRANCH}" == "codex/rwx-ci-pilot" && "$(param github-event-type)" == "__not_set__" ]]; then
-      run_group api_dispatch nut_provenance_full_effective
+    # Pilot API replays select their isolated original workload without
+    # selecting production publisher workflows.
+    if ! is_true main_dispatch && \
+      [[ "${CI_BRANCH}" == "codex/rwx-ci-pilot" && "$(param github-event-type)" == "__not_set__" ]] && \
+      { is_true nut_provenance_full_effective || is_true selector_upload_replay_effective; }; then
+      for flag in nut_provenance_full_effective selector_upload_replay_effective; do
+        if is_true "${flag}"; then run_group api_dispatch "${flag}"; fi
+      done
     else
       run release
     fi
@@ -153,7 +156,7 @@ case "${CI_EVENT:?CI_EVENT must be push, schedule, or dispatch}" in
     for flag in $(yq -r '.api_dispatch | keys | .[]' "${ROUTING}"); do
       # Keep this skip-list in sync with bespoke api_dispatch conditions.
       case "${flag}" in
-        main_dispatch | labeled_pr | nut_provenance_full_effective) continue ;;
+        main_dispatch | labeled_pr | nut_provenance_full_effective | selector_upload_replay_effective) continue ;;
       esac
       if is_true "${flag}"; then
         run_group api_dispatch "${flag}"
