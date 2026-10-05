@@ -36,8 +36,10 @@ The October 5 refresh observes `develop` at
 `b9ae98c8f1a6cef46576f48831a8e51c53f87023`, with no upstream Circle or GitHub
 workflow changes since the pilot's `c8e4ba85` base. The PR denominator remains 86.
 
-All 86 occurrences are implemented and verified. The combined batch at
-`3be585cb02466304dc1bd4b33a62ad2258f81ba4` closes the final two occurrences:
+All 86 occurrences are implemented. Verified coverage is 84/86 while the
+corrected L2 execution and dependent Contracts gate await combined verification.
+The prior successful batch at `3be585cb02466304dc1bd4b33a62ad2258f81ba4`
+retains complete original comparisons for:
 [OP Mainnet L2 fork](rwx-contract-l2-fork-evidence/parity.json) and the
 [Contracts aggregate](rwx-pr-gates-evidence/contracts-parity.json).
 Circle pipeline 135642 and automatic native run `d287cd4e` both passed all seven
@@ -52,24 +54,33 @@ The prior [preparation timeout](rwx-pr-gates-evidence/contracts-first-batch.json
 and [backoff-only failures](rwx-pr-gates-evidence/contracts-pacing-preflight.json)
 remain retained. The shared L2 relay proactively paces upstream requests.
 Native retained 407 requests with zero transport retries or rate-limit responses.
-Circle's existing Foundry state cache served every fork read; its sealed relay
-report correctly contains zero requests. Both providers executed fresh verdicts
-and independently rechecked the pinned block. These different cache states do
-not support a provider speed claim.
+Circle's sealed relay report contains zero requests. The next combined batch
+at `30a54d78` revealed that nested Bash shells reload Circle's `BASH_ENV` and
+restore the public RPC URL over the runner's loopback URL. The earlier warm-cache
+attribution was incorrect. The runner now retains the caller's initialized
+environment and its own runtime overrides. A real Bash regression and pinned
+Forge probe verify this fix locally. The [corrective preflight](rwx-pr-gates-evidence/contracts-shell-preflight.json)
+retains the failed batch and adds zero hosted coverage. These observations
+support no provider speed claim.
 
-The [completed PR verification batch](rwx-pr-gates-evidence/pr-closeout.json)
+The [prior PR verification batch](rwx-pr-gates-evidence/pr-closeout.json)
 records successful terminal states for all four required Circle gates, dependency
-review and all 23 optional RWX checks on this SHA.
+review and all 23 optional RWX checks at `3be585cb`. It is superseded for closeout
+by the discovered Circle runtime override failure. At `30a54d78`, the other
+three Circle gates passed; L2 and both Contracts gates failed. A native contract
+verdict also failed before tests on repeated GitHub HTTP 504 submodule clones.
+One shared source producer now supplies compilation and runtime, whose existing
+revision checks verify the retained submodule snapshot.
 
 | PR workflow | Expanded job instances | Verified job occurrences |
 | --- | ---: | ---: |
 | Main | 32 | 32 |
-| Contracts | 23 | 23 |
+| Contracts | 23 | 21 |
 | Rust | 22 | 22 |
 | Rust E2E | 9 | 9 |
-| Total | 86 | 86 |
+| Total | 86 | 84 |
 
-Verified implementation coverage is **86 / 86 = 100%**. Each matrix entry and
+Verified implementation coverage is **84 / 86 = 97.7%**. Each matrix entry and
 each occurrence in a different workflow counts separately; shards do not.
 The CircleCI setup and schedule-trigger-check workflows are outside this
 86-job denominator and have separate todos. This is occurrence coverage backed
@@ -333,9 +344,9 @@ CircleCI workflow: `contracts-feature-tests` (23 jobs).
 - [x] `contracts-bedrock-tests-upgrade op-mainnet`
 - [x] `contracts-bedrock-tests-upgrade ink-mainnet`
 - [x] `contracts-bedrock-tests-upgrade unichain-mainnet`
-- [x] `contracts-bedrock-tests-l2-fork op-mainnet` — [complete original parity](rwx-contract-l2-fork.md), all seven initial cases on both providers at `3be585cb`
+- [ ] `contracts-bedrock-tests-l2-fork op-mainnet` — [original evidence and corrective verification](rwx-contract-l2-fork.md); Circle runtime override fix awaits combined hosted verification
 - [x] `contracts-bedrock-checks-fast-feature-tests`
-- [x] `required-contracts-ci` — [complete original aggregate parity](rwx-pr-gates.md), all 21 exact prerequisites and fresh final status at `3be585cb`
+- [ ] `required-contracts-ci` — [original aggregate evidence](rwx-pr-gates.md); corrected complete prerequisites and fresh final status await combined hosted verification
 
 ### Rust workflow
 

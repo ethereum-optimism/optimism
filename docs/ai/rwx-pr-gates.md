@@ -4,8 +4,9 @@ Circle continues to own its four required gates. The native Rust aggregate has
 complete same-SHA original gate parity and successful terminal GitHub checks at
 `68f13331`. The complete Main aggregate now passes original gate parity and
 successful terminal GitHub checks at `4ae28fd9`. The Contracts aggregate passes
-complete original parity at `3be585cb`. All three optional aggregates are counted;
-Circle retains required-gate ownership.
+original gate parity at `3be585cb`, but its L2 dependency needs a corrected
+Circle runtime relay verification. Rust and Main remain counted; the Contracts
+occurrence awaits the combined corrected run. Circle retains required-gate ownership.
 
 `pr-gates.yml` embeds sixteen existing workload definitions in parallel. Each
 executes once, with its original source, tools, profiles, resources, caches and
@@ -190,7 +191,11 @@ and required Circle Contracts checks finish successfully on that SHA.
 The [complete original comparison](rwx-pr-gates-evidence/contracts-parity.json)
 binds every receipt, source/config/API/log hash and the actual engine and GitHub
 states. The aggregate and final-status archives were downloaded through the
-existing signed-in account. This closes one PR occurrence and adds zero tests.
-The [complete L2 comparison](rwx-contract-l2-fork-evidence/parity.json) closes
-its separate workload occurrence on the same SHA. Together these reach 86/86
-verified baseline PR job occurrences.
+existing signed-in account. This historical comparison adds zero tests. The
+next batch at `30a54d78` exposed Circle's nested-shell RPC override and a separate
+native GitHub HTTP 504 clone failure before tests. The L2 runner now keeps the
+initialized shell snapshot. A shared native Contracts source producer supplies
+all compilation and verdict workers; existing consumers verify source hashes
+and submodule revisions without cloning again. The [corrective preflight](rwx-pr-gates-evidence/contracts-shell-preflight.json)
+retains these first failures and local verification. Both the L2 and Contracts
+gate occurrences await one combined hosted run; verified coverage is 84/86.

@@ -7,7 +7,7 @@
     "retry_of": null,
     "workflow_id": "090b330c-310b-42c4-a656-4d0149c59014"
   },
-  "coverage_added": 1,
+  "coverage_added": 0,
   "dependencies": [
     "contracts-bedrock-tests main",
     "contracts-bedrock-tests CUSTOM_GAS_TOKEN",
@@ -105,6 +105,7 @@
   "tests": 0,
   "validation": {
     "four_required_circle_gates_dependency_review_and_native_checks_successful": true,
-    "original_comparison_log_sha256": "7c8ffe5a6bbb89e88a1fe04dc47a2ad1f816147b32a55240cedd553e0aeeb9dd"
+    "original_comparison_log_sha256": "7c8ffe5a6bbb89e88a1fe04dc47a2ad1f816147b32a55240cedd553e0aeeb9dd",
+    "superseded_for_closeout": "Circle nested Bash shells reloaded BASH_ENV and bypassed the runtime RPC relay; corrected combined verification is pending."
   }
 }

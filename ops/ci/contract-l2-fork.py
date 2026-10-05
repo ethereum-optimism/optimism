@@ -126,6 +126,10 @@ def preflight(directory, requested):
 
 
 def configure():
+    # The caller has already initialized the job environment. Nested Bash shells
+    # must retain that snapshot and the runner's overrides. Circle's BASH_ENV
+    # otherwise restores the public RPC URL over the runtime relay URL.
+    os.environ.pop('BASH_ENV', None)
     for name in list(os.environ):
         if name.startswith(('FOUNDRY_', 'DAPP_', 'DEV_FEATURE__', 'SYS_FEATURE__', 'FORK_', 'L2_FORK_', 'L2CM_')):
             del os.environ[name]

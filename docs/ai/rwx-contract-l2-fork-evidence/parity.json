@@ -147,7 +147,7 @@
     "retries": 0,
     "suite_setup_skips": {}
   },
-  "coverage_added": 1,
+  "coverage_added": 0,
   "hosted": {
     "circle_job": 5639658,
     "circle_pipeline": 135642,
@@ -164,7 +164,7 @@
     },
     "native_verdict_task_seconds": 240,
     "provider_speed_claim": false,
-    "rpc_state_cache_states_differ": true
+    "runtime_transport_paths_differ": true
   },
   "original_acquisition": {
     "circle_console_truncated": false,
@@ -2140,6 +2140,6 @@
     "comparison_log_sha256": "fda13b03a58b3e620d30373c27a088e58ae8497c57ea2d501c2b6c8790797a9b",
     "four_required_circle_gates_dependency_review_and_native_checks_successful": true,
     "original_comparison_log_sha256": "fda13b03a58b3e620d30373c27a088e58ae8497c57ea2d501c2b6c8790797a9b",
-    "warm_rpc_cache": "Zero runtime requests are valid only with the sealed transport policy; fresh complete verdict and pinned-block checks still apply."
+    "superseded_for_closeout": "Circle nested Bash shells reloaded BASH_ENV and bypassed the runtime RPC relay; corrected combined verification is pending."
   }
 }

@@ -7,10 +7,13 @@
     "l2": "8f55fa2041e33c82dfd2da06dd6fe44bb0a949a6b7f9682c38d6cbf9b45717e3",
     "selector": "515c77d24dbbd964a6494318d3c1a70e3b880c587f46649aa34ece4a3cfce4e7"
   },
+  "correction": "Historical check states and original comparisons remain retained. Circle runtime transport bypass invalidates the L2 and dependent gate closeout pending corrected verification.",
+  "current_verified_pr_occurrences": 84,
   "github_counts": {
     "neutral": 1,
     "success": 169
   },
+  "historical_comparison_artifact_commit": "30a54d783d47f8df58f1511b6ef387cace563815",
   "native_completed_at": "2026-10-05T15:59:12.686Z",
   "native_run": "d287cd4ef59b4c02b11cfbbf03d0e7f5",
   "observations_sha256": {
@@ -217,6 +220,7 @@
   "scope": "Complete baseline CircleCI PR workflow occurrence coverage. Circle retains required gates. Release, post-merge and operational cutover remain separate.",
   "source_sha": "3be585cb02466304dc1bd4b33a62ad2258f81ba4",
   "state": "passed",
+  "superseded_for_closeout": true,
   "verified_pr_occurrences": 86,
   "workflows": {
     "contracts": 23,

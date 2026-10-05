@@ -36,6 +36,26 @@ class L2Tests(unittest.TestCase):
                         config|{'invariant':{'runs':64,'depth':1}},config|{'no_rpc_rate_limit':True}):
             with self.subTest(config=changed),self.assertRaises(ValueError):L.effective(changed)
 
+    def test_circle_nested_shell_retains_the_initialized_job_and_runtime_relay(self):
+        upstream,_=self.server()
+        initialization=self.directory/'bash-env'
+        initialization.write_text('export L2_FORK_RPC_URL='+upstream+'\n')
+        code='''import json,os,urllib.request
+request=urllib.request.Request(os.environ['L2_FORK_RPC_URL'],data=b'{"jsonrpc":"2.0","id":1,"method":"eth_chainId","params":[]}',headers={'Content-Type':'application/json'})
+with urllib.request.urlopen(request,timeout=5) as response:chain=json.load(response)['result']
+print(json.dumps({'rpc':os.environ['L2_FORK_RPC_URL'],'chain':chain,'modules':os.environ['GOMODCACHE']}))'''
+        with mock.patch.dict(os.environ,{'CI_BRANCH':'codex/rwx-ci-pilot','BASH_ENV':str(initialization),
+             'L2_FORK_RPC_URL':upstream,'GOMODCACHE':'initialized job modules'}), \
+             mock.patch.object(L.UP,'CONTRACTS',self.directory):
+            L.configure()
+            with L.P.serve(self.directory/'runtime-rpc',upstream) as endpoint:
+                os.environ['L2_FORK_RPC_URL']=endpoint
+                argv=['bash','-c','exec "$1" -c "$2"','snapshot',sys.executable,code]
+                self.assertEqual(L.UP.stage(self.directory,'nested-shell',argv,json_output=True),0)
+            value=L.read(self.directory/'nested-shell.json')
+            self.assertEqual(value,{'rpc':endpoint,'chain':'0xa','modules':'initialized job modules'})
+            self.assertEqual(L.read(self.directory/'runtime-rpc/final.json')['requests'],1)
+
     def server(self, responses=None):
         observations=[]
         values={'eth_chainId':'0xa','eth_getBlockByNumber':{'number':'0x42','hash':'0x'+'a'*64,'timestamp':'0x64'},

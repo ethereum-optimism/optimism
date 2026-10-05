@@ -175,7 +175,16 @@ class LiveSuiteTests(unittest.TestCase):
                         self.assertEqual(json.loads((prepared / 'compile-only.json').read_text())['tests'], 0)
                     else: prepared = None
                     before = len(marker.read_text()) if marker.exists() else 0
-                    result = invoke('run', suite, provider, prepared); self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+                    # An initialized source snapshot must run when its submodule
+                    # upstream is unavailable. The verdict owns revision checks,
+                    # while its caller supplies source; it must not fetch again.
+                    unavailable = module.with_name('unavailable-module')
+                    if provider == 'rwx': module.rename(unavailable)
+                    try:
+                        result = invoke('run', suite, provider, prepared)
+                        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+                    finally:
+                        if provider == 'rwx': unavailable.rename(module)
                     self.assertEqual(len(marker.read_text()), before + 1)
                     report = root / '.ci/contract-suites' / (suite + '-main') / 'run'
                     destination = Path(tmp) / (suite + '-' + provider); shutil.copytree(report, destination); directories[provider] = destination
