@@ -28,9 +28,9 @@ native run URL. An older success cannot hide a newer pending/failing status;
 missing, foreign, malformed and timed-out statuses cannot pass. A final pass
 requires every original dependency's native group to pass.
 
-The GitHub installation token is available only to the waiting runtime tasks on
-the pilot branch or `develop`; the API client makes repository-specific GET
-requests. It never records authorization headers. Four fresh workers can wait
+The GitHub installation token is passed through a local package call parameter
+into only the waiting runtime tasks on the pilot branch or `develop`; the API
+client makes repository-specific GET requests. It never records authorization headers. Four fresh workers can wait
 40 minutes each, with sealed continuation reports between them and a final
 deadline. This limits individual worker/token lifetimes without dropping earlier
 observations. No compiler cache, test-result cache or credential is exported.
@@ -44,3 +44,18 @@ the run correctly fails while its terminal observer retains their engine states.
 These fixtures and probes add no workload coverage. Hosted gate validation,
 complete original Circle dependency/orb verdict evidence, and final PR checks
 remain required. Main and Contracts aggregates are still unimplemented.
+
+The [first automatic aggregate](rwx-pr-gates-evidence/first-hosted-failure.json)
+at `bb5896a5` failed before the waiter ran because RWX does not expose the
+GitHub-token context directly in a run task environment. The supported call
+parameter forwards that token into the uncached package task. An isolated native
+read-only API probe verifies this path without exporting credentials. The
+[complete continuation probe](rwx-pr-gates-evidence/hosted-correction-preflight.json)
+also verifies each fresh package task can read a prior report and observes
+the same parent native run identity. RWX runtime environments can mount artifact
+paths; `call.with` cannot resolve them. Fresh handoff tasks mount those originals
+and supply literal paths through each package call. The prior failed probes are
+retained. Custom receipts link to their exact task; the verifier checks that native task URL and
+integration actor. The original successful formatting receipt is accepted while
+other groups remain pending. The eight corrected fixtures pass. Full automatic
+validation after this correction remains pending.

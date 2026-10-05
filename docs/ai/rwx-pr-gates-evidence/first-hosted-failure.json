@@ -1,0 +1,28 @@
+{
+  "cause": "RWX makes the integration token available in call parameters, not directly in a run task environment. The wait never executed.",
+  "correction": "Pass the integration token through a local package parameter into the uncached waiting task; preserve original status/credential constraints.",
+  "coverage_added": 0,
+  "failed_task": {
+    "execution": "user_error",
+    "id": "c3a098160e81a4c7102370c7856d62a0",
+    "key": "wait-0",
+    "messages": [
+      {
+        "Advice": null,
+        "Column": null,
+        "FileName": null,
+        "Frame": null,
+        "Line": null,
+        "Message": "The context key \"github\" is not available in this expression",
+        "StackTrace": null,
+        "Type": "user_error"
+      }
+    ]
+  },
+  "native_run_id": "66765a69a4c6424797f06c673ebe3721",
+  "original_run_snapshot_sha256": "a768fe1af17d0ffc13bfa4ab38b28ff4019380ad1a604a3b927bdebde5036976",
+  "source_sha": "bb5896a5d2fe46b55d6530eccb6426640df66717",
+  "status": "failed",
+  "tests": 0,
+  "url": "https://cloud.rwx.com/optimism/runs/66765a69a4c6424797f06c673ebe3721"
+}

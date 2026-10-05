@@ -37,7 +37,7 @@ class GateTests(unittest.TestCase):
 
     def status(self,name,identity,state='success'):
         return {'id':identity,'context':name,'state':state,'creator':self.manifest['trusted_actor'],
-                'target_url':'https://cloud.rwx.com/optimism/runs/'+'b'*32}
+                'target_url':'https://cloud.rwx.com/optimism/runs/'+'b'*32+'/latest/rust-gate-receipt?external_source=github'}
 
     def server(self,rows,commit=None,shift=False):
         owner=self;requests=[]
@@ -89,6 +89,9 @@ class GateTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError,'Untrusted'):G.verdict(foreign,self.manifest,self.selection)
         invalid=copy.deepcopy(rows);invalid[0]['target_url']='https://cloud.rwx.com/another-org/runs/'+'b'*32
         with self.assertRaisesRegex(ValueError,'Untrusted'):G.verdict(invalid,self.manifest,self.selection)
+        for suffix in ('/latest/other-task?external_source=github','/latest/rust-gate-receipt?external_source=other',''):
+            invalid=copy.deepcopy(rows);invalid[0]['target_url']='https://cloud.rwx.com/optimism/runs/'+'b'*32+suffix
+            with self.assertRaisesRegex(ValueError,'Untrusted'):G.verdict(invalid,self.manifest,self.selection)
         with self.assertRaisesRegex(ValueError,'Duplicate'):G.verdict(rows+[rows[0]],self.manifest,self.selection)
 
     def test_actual_http_pagination_retains_every_original_page_and_rechecks_snapshot(self):

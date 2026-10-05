@@ -179,18 +179,19 @@ class Client:
 
 
 def verdict(rows,manifest,selection):
-    contexts={manifest['groups'][group]['status'] for group in selection['groups']};latest={};ids=set()
+    contexts={manifest['groups'][group]['status']:manifest['groups'][group] for group in selection['groups']};latest={};ids=set()
     for row in rows:
         if type(row.get('id')) is not int or row['id'] in ids:raise ValueError('Duplicate or invalid original commit status')
         ids.add(row['id'])
         if row['context'] in contexts and (row['context'] not in latest or row['id']>latest[row['context']]['id']):latest[row['context']]=row
     for name,row in latest.items():
+        expected_url=r'https://cloud\.rwx\.com/optimism/runs/[0-9a-f]{32}/latest/'+re.escape(contexts[name]['receipt_task'])+r'\?external_source=github'
         if (any(row.get('creator',{}).get(k)!=v for k,v in manifest['trusted_actor'].items())
-                or not re.fullmatch(r'https://cloud\.rwx\.com/optimism/runs/[0-9a-f]{32}',row.get('target_url') or '')
+                or not re.fullmatch(expected_url,row.get('target_url') or '')
                 or row['state'] not in ('pending','success','failure','error')):
             raise ValueError('Untrusted or malformed native gate prerequisite: '+name)
     if any(row['state'] in ('failure','error') for row in latest.values()):return 'failed',latest
-    if set(latest)==contexts and all(row['state']=='success' for row in latest.values()):return 'passed',latest
+    if set(latest)==set(contexts) and all(row['state']=='success' for row in latest.values()):return 'passed',latest
     return 'pending',latest
 
 

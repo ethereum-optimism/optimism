@@ -82,7 +82,6 @@ tasks:
     cache: false
     timeout: 10m
     outputs:
-      filesystem: false
       artifacts:
         - key: routing
           path: .ci/pipeline-parameters.json
@@ -97,91 +96,77 @@ tasks:
 
   - key: wait-0
     if: ${{ init.branch == 'codex/rwx-ci-pilot' || init.branch == 'develop' }}
-    use: [code, tools]
-    run: python3 ops/ci/pr-gate.py wait required-rust-ci --seconds 2400
+    use: route
+    call: ${{ run.dir }}/packages/pr-gate-wait.yml
+    with:
+      commit-sha: ${{ init.commit-sha }}
+      branch: ${{ init.branch }}
+      routing: .ci/pipeline-parameters.json
+      github-token: ${{ github['ethereum-optimism'].token }}
+      final-chunk: "false"
+
+  - key: handoff-1
+    if: ${{ init.branch == 'codex/rwx-ci-pilot' || init.branch == 'develop' }}
+    use: route
+    after: [wait-0]
+    run: cp -R "$PREVIOUS" .ci/pr-gate-previous
     env:
-      CI_COMMIT_SHA: ${{ init.commit-sha }}
-      CI_BRANCH: ${{ init.branch }}
-      GATE_ROUTING: ${{ tasks.route.artifacts.routing }}
-      GATE_GITHUB_TOKEN: ${{ github['ethereum-optimism'].token }}
-      RWX_RUN_ID:
-        cache-key: included
-      RWX_TASK_ATTEMPT_NUMBER:
-        cache-key: included
+      PREVIOUS: ${{ tasks.wait-0.tasks.wait.artifacts.report }}
     cache: false
-    timeout: 45m
-    outputs:
-      filesystem: false
-      artifacts:
-        - key: report
-          path: .ci/pr-gates/wait
+    timeout: 5m
 
   - key: wait-1
     if: ${{ init.branch == 'codex/rwx-ci-pilot' || init.branch == 'develop' }}
-    use: [code, tools]
-    after: [wait-0]
-    run: python3 ops/ci/pr-gate.py wait required-rust-ci --seconds 2400 --previous "$PREVIOUS"
+    use: handoff-1
+    call: ${{ run.dir }}/packages/pr-gate-wait.yml
+    with:
+      commit-sha: ${{ init.commit-sha }}
+      branch: ${{ init.branch }}
+      routing: .ci/pipeline-parameters.json
+      github-token: ${{ github['ethereum-optimism'].token }}
+      previous: .ci/pr-gate-previous
+      final-chunk: "false"
+
+  - key: handoff-2
+    if: ${{ init.branch == 'codex/rwx-ci-pilot' || init.branch == 'develop' }}
+    use: route
+    after: [wait-1]
+    run: cp -R "$PREVIOUS" .ci/pr-gate-previous
     env:
-      CI_COMMIT_SHA: ${{ init.commit-sha }}
-      CI_BRANCH: ${{ init.branch }}
-      GATE_ROUTING: ${{ tasks.route.artifacts.routing }}
-      GATE_GITHUB_TOKEN: ${{ github['ethereum-optimism'].token }}
-      RWX_RUN_ID:
-        cache-key: included
-      RWX_TASK_ATTEMPT_NUMBER:
-        cache-key: included
-      PREVIOUS: ${{ tasks.wait-0.artifacts.report }}
+      PREVIOUS: ${{ tasks.wait-1.tasks.wait.artifacts.report }}
     cache: false
-    timeout: 45m
-    outputs:
-      filesystem: false
-      artifacts:
-        - key: report
-          path: .ci/pr-gates/wait
+    timeout: 5m
 
   - key: wait-2
     if: ${{ init.branch == 'codex/rwx-ci-pilot' || init.branch == 'develop' }}
-    use: [code, tools]
-    after: [wait-1]
-    run: python3 ops/ci/pr-gate.py wait required-rust-ci --seconds 2400 --previous "$PREVIOUS"
+    use: handoff-2
+    call: ${{ run.dir }}/packages/pr-gate-wait.yml
+    with:
+      commit-sha: ${{ init.commit-sha }}
+      branch: ${{ init.branch }}
+      routing: .ci/pipeline-parameters.json
+      github-token: ${{ github['ethereum-optimism'].token }}
+      previous: .ci/pr-gate-previous
+      final-chunk: "false"
+
+  - key: handoff-3
+    if: ${{ init.branch == 'codex/rwx-ci-pilot' || init.branch == 'develop' }}
+    use: route
+    after: [wait-2]
+    run: cp -R "$PREVIOUS" .ci/pr-gate-previous
     env:
-      CI_COMMIT_SHA: ${{ init.commit-sha }}
-      CI_BRANCH: ${{ init.branch }}
-      GATE_ROUTING: ${{ tasks.route.artifacts.routing }}
-      GATE_GITHUB_TOKEN: ${{ github['ethereum-optimism'].token }}
-      RWX_RUN_ID:
-        cache-key: included
-      RWX_TASK_ATTEMPT_NUMBER:
-        cache-key: included
-      PREVIOUS: ${{ tasks.wait-1.artifacts.report }}
+      PREVIOUS: ${{ tasks.wait-2.tasks.wait.artifacts.report }}
     cache: false
-    timeout: 45m
-    outputs:
-      filesystem: false
-      artifacts:
-        - key: report
-          path: .ci/pr-gates/wait
+    timeout: 5m
 
   - key: wait-3
     if: ${{ init.branch == 'codex/rwx-ci-pilot' || init.branch == 'develop' }}
-    use: [code, tools]
-    after: [wait-2]
-    run: python3 ops/ci/pr-gate.py wait required-rust-ci --seconds 2400 --previous "$PREVIOUS" --final
-    env:
-      CI_COMMIT_SHA: ${{ init.commit-sha }}
-      CI_BRANCH: ${{ init.branch }}
-      GATE_ROUTING: ${{ tasks.route.artifacts.routing }}
-      GATE_GITHUB_TOKEN: ${{ github['ethereum-optimism'].token }}
-      RWX_RUN_ID:
-        cache-key: included
-      RWX_TASK_ATTEMPT_NUMBER:
-        cache-key: included
-      PREVIOUS: ${{ tasks.wait-2.artifacts.report }}
-    cache: false
-    timeout: 45m
-    outputs:
-      filesystem: false
-      artifacts:
-        - key: report
-          path: .ci/pr-gates/wait
-
+    use: handoff-3
+    call: ${{ run.dir }}/packages/pr-gate-wait.yml
+    with:
+      commit-sha: ${{ init.commit-sha }}
+      branch: ${{ init.branch }}
+      routing: .ci/pipeline-parameters.json
+      github-token: ${{ github['ethereum-optimism'].token }}
+      previous: .ci/pr-gate-previous
+      final-chunk: "true"
