@@ -119,10 +119,11 @@ pub enum PostExecPayloadValidationError {
     },
     /// The payload has more refund entries than preceding block transactions they could target.
     #[error(
-        "post-exec payload has {entry_count} gas refund entries but only {preceding_transaction_count} preceding transactions"
+        "post-exec payload has at least {entry_count} gas refund entries but only {preceding_transaction_count} preceding transactions"
     )]
     TooManyGasRefundEntries {
-        /// Number of refund entries in the payload.
+        /// Number of refund entries in the payload; a lower bound when the producer stopped
+        /// decoding at the first excess entry.
         entry_count: usize,
         /// Number of transactions preceding the final `PostExec` transaction.
         preceding_transaction_count: usize,
