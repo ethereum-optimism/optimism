@@ -35,6 +35,7 @@ reth-consensus.workspace = true
 reth-evm.workspace = true
 reth-revm.workspace = true
 reth-chain-state.workspace = true
+reth-engine-tree.workspace = true
 reth-execution-types.workspace = true
 reth-trie.workspace = true
 reth-storage-overlay.workspace = true

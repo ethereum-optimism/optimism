@@ -378,6 +378,7 @@ reth-downloaders = { git = "https://github.com/ethereum-optimism/reth", tag = "o
 reth-e2e-test-utils = { git = "https://github.com/ethereum-optimism/reth", tag = "op-v2.6.0-1" }
 reth-engine-local = { git = "https://github.com/ethereum-optimism/reth", tag = "op-v2.6.0-1" }
 reth-engine-primitives = { git = "https://github.com/ethereum-optimism/reth", tag = "op-v2.6.0-1", default-features = false }
+reth-engine-tree = { git = "https://github.com/ethereum-optimism/reth", tag = "op-v2.6.0-1" }
 reth-errors = { git = "https://github.com/ethereum-optimism/reth", tag = "op-v2.6.0-1" }
 reth-eth-wire = { git = "https://github.com/ethereum-optimism/reth", tag = "op-v2.6.0-1" }
 reth-eth-wire-types = { git = "https://github.com/ethereum-optimism/reth", tag = "op-v2.6.0-1" }
