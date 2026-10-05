@@ -171,7 +171,7 @@ func TestAltDADataSource(t *testing.T) {
 		}
 
 		// create a new data source for each block
-		src, err := factory.OpenData(ctx, ref, batcherAddr)
+		src, err := factory.OpenData(ctx, ref, batcherAddr, false)
 		require.NoError(t, err)
 
 		// first challenge expires
@@ -257,7 +257,7 @@ func TestAltDADataSource(t *testing.T) {
 		}
 
 		// create a new data source for each block
-		src, err := factory.OpenData(ctx, ref, batcherAddr)
+		src, err := factory.OpenData(ctx, ref, batcherAddr, false)
 		require.NoError(t, err)
 
 		// next challenge expires
@@ -379,7 +379,7 @@ func TestAltDADataSourceStall(t *testing.T) {
 	// next block is fetched to look ahead challenges but is not yet available
 	l1F.ExpectL1BlockRefByNumber(ref.Number+1, eth.L1BlockRef{}, ethereum.NotFound)
 
-	src, err := factory.OpenData(ctx, ref, batcherAddr)
+	src, err := factory.OpenData(ctx, ref, batcherAddr, false)
 	require.NoError(t, err)
 
 	// data is not found so we return a temporary error
@@ -525,7 +525,7 @@ func TestAltDADataSourceInvalidData(t *testing.T) {
 
 	l1F.ExpectInfoAndTxsByHash(ref.Hash, testutils.RandomBlockInfo(rng), txs, nil)
 
-	src, err := factory.OpenData(ctx, ref, batcherAddr)
+	src, err := factory.OpenData(ctx, ref, batcherAddr, false)
 	require.NoError(t, err)
 
 	// oversized input is skipped and returns input2 directly

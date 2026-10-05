@@ -192,7 +192,7 @@ func newEthClientWithCaches(metrics caching.Metrics, cacheSize int) *EthClient {
 func TestReceiptValidation(t *testing.T) {
 	require := require.New(t)
 	mrpc := new(mockRPC)
-	rp := NewRPCReceiptsFetcher(mrpc, nil, RPCReceiptsConfig{})
+	rp := NewRPCReceiptsFetcher(mrpc, nil, RPCReceiptsConfig{}, false)
 	const numTxs = 1
 	block, _ := randomRpcBlockAndReceipts(rand.New(rand.NewSource(420)), numTxs)
 	//txHashes := receiptTxHashes(receipts)
