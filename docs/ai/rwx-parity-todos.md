@@ -35,12 +35,12 @@ at commit `587b4c3a73d3f16f15212b72e9a0ed0e8489a7c4`.
 | PR workflow | Expanded job instances | Implemented validation jobs |
 | --- | ---: | ---: |
 | Main | 32 | 20 |
-| Contracts | 23 | 13 |
+| Contracts | 23 | 17 |
 | Rust | 22 | 21 |
 | Rust E2E | 9 | 9 |
-| Total | 86 | 63 |
+| Total | 86 | 67 |
 
-Verified implementation coverage is **63 / 86 = 73%**. Each matrix entry and
+Verified implementation coverage is **67 / 86 = 78%**. Each matrix entry and
 each occurrence in a different workflow counts separately; shards do not.
 The CircleCI setup and schedule-trigger-check workflows are outside this
 86-job denominator and have separate todos. This is job coverage, not runtime,
@@ -81,6 +81,13 @@ All seven additional Main validators now pass complete same-SHA original-report
 parity, including both fresh mock generators and their verified pinned superchain
 bundle. See the [Main closeout](rwx-main-checks.md) for original hashes, complete
 selection and preparation-only evidence.
+The four standard and four changed-file heavy-fuzz variants now pass complete
+same-SHA original-report parity. Standard discovery retains all 164 files and
+2,882 signatures; heavy discovery retains both actual modified files and all
+28 cases. See the [contract suite closeout](rwx-contract-suites.md) for exact
+originals, generated fixture evidence, compiler-only reuse and the two remaining
+skip-message observations. Coverage, L2 fork and contract gate equivalents remain
+uncounted pending hosted validation.
 The narrower rollup mode remains CLI-only. See [the stage closeout](rwx-go-parity.md)
 for original-report comparison, selected resources, caches and limitations.
 
@@ -139,13 +146,17 @@ At `587b4c3a`, the retained comparison found matching Go results
 Both comparisons remain incomplete. These are the tasks needed to strengthen
 the existing shadows:
 
-- [ ] Retain authoritative CircleCI Go package and contract test-file manifests,
-  including packages without test files, at the tested revision.
-- [ ] Retain effective CircleCI profile, feature, filter, fuzz and invariant
-  settings; distinguish runtime dumps from settings declared in configuration.
+- [x] Retain authoritative CircleCI Go package and contract test-file manifests,
+  including packages without test files, at the tested revision. Full Go and
+  standard/modified contract originals now retain complete manifests.
+- [x] Retain effective CircleCI profile, feature, filter, fuzz and invariant
+  settings for the implemented Go and standard/modified contract shadows.
+  Runtime dumps and original invocation histories are retained separately.
 - [ ] Add stable reasons for the 178 contract skips whose reasons are unavailable,
-  preserving the existing guards. Source inspection suggests 116 originate in
-  `skipIfUnoptimized()`; verify that inference through original reports.
+  preserving the existing guards. The full `c702cfb2` originals supersede the
+  older observation: only two Interop L1Block skips lack emitted reasons, and
+  their exact feature guard is retained. Explicit messages are added; verify
+  them in the next hosted originals before closing this item.
 - [x] Repeat the complete Go baseline with fresh execution at the same SHA.
   All 11,613 identities match; seven environmental skip-message differences
   were investigated. The earlier cached rollup baseline is superseded.
@@ -236,10 +247,10 @@ CircleCI workflow: `contracts-feature-tests` (23 jobs).
 - [x] `contracts-bedrock-tests CUSTOM_GAS_TOKEN`
 - [x] `contracts-bedrock-tests OPTIMISM_PORTAL_INTEROP`
 - [x] `contracts-bedrock-tests ZK_DISPUTE_GAME`
-- [ ] `contracts-bedrock-tests-heavy-fuzz-modified main`
-- [ ] `contracts-bedrock-tests-heavy-fuzz-modified CUSTOM_GAS_TOKEN`
-- [ ] `contracts-bedrock-tests-heavy-fuzz-modified OPTIMISM_PORTAL_INTEROP`
-- [ ] `contracts-bedrock-tests-heavy-fuzz-modified ZK_DISPUTE_GAME`
+- [x] `contracts-bedrock-tests-heavy-fuzz-modified main`
+- [x] `contracts-bedrock-tests-heavy-fuzz-modified CUSTOM_GAS_TOKEN`
+- [x] `contracts-bedrock-tests-heavy-fuzz-modified OPTIMISM_PORTAL_INTEROP`
+- [x] `contracts-bedrock-tests-heavy-fuzz-modified ZK_DISPUTE_GAME`
 - [ ] `contracts-bedrock-coverage main`
 - [ ] `contracts-bedrock-coverage CUSTOM_GAS_TOKEN`
 - [ ] `contracts-bedrock-coverage OPTIMISM_PORTAL_INTEROP`

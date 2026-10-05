@@ -119,11 +119,19 @@ def report(directory, suite, feature, sha, provider, empty):
             expected = root + '/.ci/contract-suites/' + suite + '-' + feature + '/run/original.junit.xml'
             argv = ['./scripts/checks/check-junit-tests-ran.sh', expected]
         if (row['argv'], row['cwd'], row['exit_code']) != (argv, cwd, 0): raise ValueError('Wrong or failed original contract command')
+    # Foundry leaves obsolete line-numbered VmContractHelper interfaces in a
+    # restored output directory. They have no creation bytecode and no test or
+    # invariant selectors. Retain their bindings, but compare all executable
+    # contracts and every test-bearing abstract declaration as workload inputs.
+    interfaces = {name: {'methods': row['methods'], 'deployable': False} for name, row in methods.items()
+                  if not UP.deployable(row) and not any(method.startswith(('test', 'invariant')) for method in row['methods'])}
     return {'settings': settings, 'files': chosen, 'selection': selected, 'coverage': coverage,
             'config': UP.ORIGINALS.normalize(config, root), 'original_sha256': hashes, 'compiled_sha256': compiled,
             'source_after_verdict': after, 'runtime_fixtures': fixtures,
             'submodules': UP.SUBMODULES.revisions((directory / 'submodules.txt').read_text()),
-            'methods': {name: {'methods': row['methods'], 'deployable': UP.deployable(row)} for name, row in methods.items()}}
+            'interfaces': interfaces,
+            'methods': {name: {'methods': row['methods'], 'deployable': UP.deployable(row)}
+                        for name, row in methods.items() if name not in interfaces}}
 
 
 def compare(directories, suite, feature, sha):
@@ -134,11 +142,15 @@ def compare(directories, suite, feature, sha):
         if a['settings'].get(key) != b['settings'].get(key): raise ValueError('Contract settings differ at ' + key)
     for key in ('files', 'selection', 'coverage', 'config', 'submodules', 'methods', 'source_after_verdict', 'runtime_fixtures'):
         if a[key] != b[key]: raise ValueError('Complete original contract parity differs at ' + key)
+    interface_differences = {name: {p: d['interfaces'].get(name) for p, d in data.items()}
+                             for name in sorted(set(a['interfaces']) | set(b['interfaces']))
+                             if a['interfaces'].get(name) != b['interfaces'].get(name)}
     return {'source_sha': sha, 'suite': suite, 'feature': feature, 'verified_parity': True,
             'file_selection': a['files'], 'selection': a['selection'], 'coverage': a['coverage'],
             'settings': {p: d['settings'] for p, d in data.items()}, 'original_sha256': {p: d['original_sha256'] for p, d in data.items()},
             'compiled_sha256': {p: d['compiled_sha256'] for p, d in data.items()},
             'source_after_verdict': a['source_after_verdict'], 'runtime_fixtures': a['runtime_fixtures'],
+            'non_test_interface_differences': interface_differences,
             'manifest_declared_empty_logs': empty}
 
 

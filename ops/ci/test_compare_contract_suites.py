@@ -73,6 +73,29 @@ class ComparisonTests(unittest.TestCase):
     def test_complete_original_settings_assignments_and_verdicts_match(self):
         self.assertTrue(self.compare()['verified_parity'])
 
+    def test_only_empty_non_test_interfaces_are_distinct_from_executable_workload(self):
+        d = self.dirs['rwx']; name = 'test/Fixture.t.sol:VmContractHelper123'
+        artifact = 'packages/contracts-bedrock/out/Fixture.t.sol/VmContractHelper123.json'
+        row = {'methods': {'getCode(string)': 'a'}, 'artifacts': {artifact: 'helper'},
+               'creation_bytecode': {artifact: {'bytes': 0, 'sha256': C.UP.hashlib.sha256(b'').hexdigest()}}}
+        self.mutate(d, 'signature-bindings.json', lambda v: v.update({name: row}))
+        self.mutate(d, 'compiled.json', lambda v: v.update({artifact: 'helper'}))
+        def seal_preparation():
+            manifest = json.loads((d / 'preparation-manifest.json').read_text())
+            for filename in ('signature-bindings.json', 'compiled.json'):
+                manifest['original_sha256'][filename] = C.UP.digest(d / filename)
+            self.write(d / 'preparation-manifest.json', manifest); self.seal(d)
+        seal_preparation()
+        result = self.compare()
+        self.assertEqual(result['non_test_interface_differences'][name]['rwx'],
+                         {'methods': {'getCode(string)': 'a'}, 'deployable': False})
+        for bytecode, method in [(1, 'getCode(string)'), (0, 'test_removed()'), (0, 'invariant_removed()')]:
+            row['methods'] = {method: 'a'}
+            row['creation_bytecode'][artifact] = {'bytes': bytecode, 'sha256': C.UP.hashlib.sha256(b'00' if bytecode else b'').hexdigest()}
+            self.mutate(d, 'signature-bindings.json', lambda v: v.update({name: row})); seal_preparation()
+            with self.subTest(bytecode=bytecode, method=method), self.assertRaisesRegex(ValueError, 'differs at methods'):
+                self.compare()
+
     def test_omitted_new_file_is_rejected_even_when_both_providers_omit_it(self):
         for d in self.dirs.values():
             self.mutate(d, 'settings.json', lambda v: v['input_sha256'].update({'packages/contracts-bedrock/test/New.t.sol': 'f' * 64}))

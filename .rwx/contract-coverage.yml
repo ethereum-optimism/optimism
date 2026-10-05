@@ -1,0 +1,465 @@
+# Complete contract coverage passes; Circle retains its required gates.
+on:
+  cache-rebuild:
+    if: ${{ event.git.branch == 'develop' }}
+    target: [compile-main, compile-CUSTOM_GAS_TOKEN, compile-OPTIMISM_PORTAL_INTEROP, compile-ZK_DISPUTE_GAME]
+    init:
+      commit-sha: ${{ event.git.sha }}
+      branch: ${{ event.git.branch }}
+      tag: ""
+      cache-warm: "true"
+      cache-epoch: v1
+  github:
+    push:
+      init:
+        commit-sha: ${{ event.git.sha }}
+        branch: ${{ event.git.branch }}
+        tag: ${{ event.git.tag }}
+        cache-warm: "false"
+        cache-epoch: v1
+      status-checks:
+        name: optimism-contract-coverage-shadow
+  cli:
+    init:
+      commit-sha: ${{ event.git.sha }}
+      branch: ${{ event.git.branch }}
+      tag: ""
+      cache-warm: "false"
+      cache-epoch: v1
+
+tool-cache:
+  vault: optimism-op-reth-shadow
+
+base:
+  image: ubuntu:24.04@sha256:008173c23f95b170204355c12626cb5a965d779a7e1283b09e9cffbb1bf33ca3
+  config: rwx/base 1.2.0
+  arch: x86_64
+
+defaults:
+  runner:
+    cpus: 2
+    memory: 8gb
+
+tasks:
+  - key: code
+    call: git/clone 2.2.0
+    with:
+      repository: https://github.com/ethereum-optimism/optimism.git
+      ref: ${{ init.commit-sha }}
+      preserve-git-dir: true
+      fetch-full-depth: true
+      submodules: false
+
+  - key: bootstrap-inputs
+    use: code
+    run: 'true'
+    filter: [mise.toml, ops/ci, .circleci/scripts/apt-install.sh]
+    outputs:
+      filesystem: false
+      artifacts:
+        - key: mise-config
+          path: mise.toml
+        - key: ci-scripts
+          path: ops/ci
+        - key: apt-script
+          path: .circleci/scripts/apt-install.sh
+
+  - key: mise
+    call: mise/install 1.1.0
+    with:
+      mise-version: "2026.2.2"
+      install: "false"
+
+  - key: tools
+    use: mise
+    run: |
+      mkdir -p ops/ci .circleci/scripts
+      cp "$MISE_CONFIG" mise.toml
+      cp "$CI_SCRIPTS/rwx-prepare.sh" ops/ci/
+      cp "$APT_SCRIPT" .circleci/scripts/apt-install.sh
+      bash ops/ci/rwx-prepare.sh
+    env:
+      MISE_CONFIG: ${{ tasks.bootstrap-inputs.artifacts.mise-config }}
+      CI_SCRIPTS: ${{ tasks.bootstrap-inputs.artifacts.ci-scripts }}
+      APT_SCRIPT: ${{ tasks.bootstrap-inputs.artifacts.apt-script }}
+    filter:
+      ${{ tasks.bootstrap-inputs.artifacts.ci-scripts }}: [rwx-prepare.sh]
+    timeout: 30m
+
+  - key: route
+    use: [code, tools]
+    run: |
+      bash ops/ci/rwx-metadata.sh
+      jq -er '."c-run_contracts_feature_tests" | if type == "boolean" then tostring else error("missing contracts route") end' \
+        .ci/pipeline-parameters.json >"$RWX_VALUES/run-contracts"
+    env:
+      CI_EVENT: push
+      CI_CACHE_WARM: ${{ init.cache-warm }}
+      CI_BRANCH: ${{ init.branch }}
+      CI_TAG: ${{ init.tag }}
+      CI_COMMIT_SHA: ${{ init.commit-sha }}
+    cache: false
+    timeout: 10m
+    outputs:
+      filesystem: false
+      artifacts:
+        - key: routing
+          path: .ci/pipeline-parameters.json
+
+  - key: go-tools
+    use: tools
+    if: ${{ init.cache-warm == 'true' || tasks.route.values.run-contracts == 'true' }}
+    run: bash ops/ci/rwx-prepare.sh go
+    timeout: 30m
+
+  - key: contract-tools
+    use: tools
+    if: ${{ init.cache-warm == 'true' || tasks.route.values.run-contracts == 'true' }}
+    run: |
+      cp "$CI_SCRIPTS/rwx-contracts-prepare.sh" ops/ci/
+      bash ops/ci/rwx-contracts-prepare.sh tools
+    env:
+      CI_SCRIPTS: ${{ tasks.bootstrap-inputs.artifacts.ci-scripts }}
+    filter:
+      workspace: [mise.toml, ops/ci/rwx-prepare.sh]
+      ${{ tasks.bootstrap-inputs.artifacts.ci-scripts }}: [rwx-contracts-prepare.sh]
+    timeout: 30m
+
+  - key: rpc-check
+    use: [code, contract-tools]
+    if: ${{ init.cache-warm != 'true' && tasks.route.values.run-contracts == 'true' }}
+    run: |
+      python3 ops/ci/contract-coverage.py preflight
+      printf 'true\n' >"$RWX_VALUES/ready"
+    env:
+      CI_COMMIT_SHA: ${{ init.commit-sha }}
+      CI_BRANCH: ${{ init.branch }}
+      OP_CI_MAINNET_L1_ARCHIVE_RPC_URL: ${{ vaults.optimism-go-tests-rpc-shadow.secrets.OP_CI_MAINNET_L1_ARCHIVE_RPC_URL }}
+    cache: false
+    timeout: 10m
+    outputs:
+      filesystem: false
+      artifacts:
+        - key: block
+          path: .ci/contract-coverage/preflight/block.json
+        - key: reports
+          path: .ci/contract-coverage/preflight
+
+  - key: go-modules
+    use: [code, go-tools]
+    # Allow an intentionally skipped preflight only for compiler-only warming.
+    after: ${{ rpc-check.succeeded || rpc-check.skipped }}
+    if: ${{ init.cache-warm == 'true' || tasks.route.values.run-contracts == 'true' }}
+    run: |
+      export GOMODCACHE="$PWD/.ci/go-cache/contract-coverage/modules"
+      mkdir -p "$GOMODCACHE"
+      python3 ops/ci/pr-checks.py go-modules
+    env:
+      CI_COMMIT_SHA: ${{ init.commit-sha }}
+      CI_BRANCH: ${{ init.branch }}
+      CI_CHECK_PROVIDER: rwx
+    tool-cache: contract-coverage-modules-${{ init.cache-epoch }}
+    timeout: 30m
+    runner:
+      cpus: 4
+      memory: 8gb
+    outputs:
+      filesystem:
+        filter:
+          workspace: [.ci/go-cache/contract-coverage/modules]
+          system: []
+      artifacts:
+        - key: reports
+          path: .ci/pr-checks/go-modules
+
+  - key: helper-tests
+    use: [code, go-tools, contract-tools]
+    if: ${{ init.cache-warm != 'true' && tasks.route.values.run-contracts == 'true' }}
+    run: |
+      RWX_LIVE_CONTRACT_COVERAGE_FIXTURE=1 python3 -m unittest discover -s ops/ci -p 'test_contract_coverage.py'
+      python3 -m unittest discover -s ops/ci -p 'test_compare_contract_coverage.py'
+    cache: false
+    timeout: 10m
+    outputs:
+      filesystem: false
+
+  # Coverage performs its instrumented compilation inside the fresh verdict.
+  # This producer builds the original source prerequisite and complete signatures.
+  - key: compile-main
+    use: [code, go-tools, contract-tools, go-modules]
+    if: ${{ init.cache-warm == 'true' || tasks.route.values.run-contracts == 'true' }}
+    run: |
+      export GOMODCACHE="$PWD/.ci/go-cache/contract-coverage/modules"
+      export GOCACHE="$PWD/.ci/go-cache/contract-coverage/build"
+      python3 ops/ci/contract-coverage.py prepare --feature main
+    env:
+      CI_COMMIT_SHA: ${{ init.commit-sha }}
+      CI_BRANCH: ${{ init.branch }}
+      CI_CONTRACT_PROVIDER: rwx
+      CI_CONTRACT_COVERAGE_REPLAY: "true"
+    tool-cache: contract-coverage-compile-main-${{ init.cache-epoch }}
+    timeout: 60m
+    runner:
+      cpus: 16
+      memory: 64gb
+    outputs:
+      filesystem:
+        filter:
+          workspace: [packages/contracts-bedrock/forge-artifacts, packages/contracts-bedrock/cache/solidity-files-cache.json, packages/contracts-bedrock/artifacts/build-info, packages/contracts-bedrock/scripts/go-ffi/go-ffi, .ci/go-cache/contract-coverage/build]
+          system: []
+      artifacts:
+        - key: compiled
+          path: .ci/contract-coverage/main/prepare
+
+  - key: verdict-main
+    use: [code, go-tools, contract-tools, go-modules, compile-main]
+    if: ${{ init.cache-warm != 'true' && tasks.rpc-check.values.ready == 'true' }}
+    run: |
+      export GOMODCACHE="$PWD/.ci/go-cache/contract-coverage/modules"
+      export GOCACHE="$PWD/.ci/go-cache/contract-coverage/runtime"
+      git submodule sync --recursive
+      git -c protocol.file.allow=never submodule update --init --recursive --jobs 8
+      python3 ops/ci/contract-coverage.py run --feature main \
+        --prepared "$COMPILED" --block "$ARCHIVE_PREFLIGHT/block.json"
+    env:
+      CI_COMMIT_SHA: ${{ init.commit-sha }}
+      CI_BRANCH: ${{ init.branch }}
+      CI_CONTRACT_PROVIDER: rwx
+      CI_CONTRACT_COVERAGE_REPLAY: "true"
+      COMPILED: ${{ tasks.compile-main.artifacts.compiled }}
+      ARCHIVE_PREFLIGHT: ${{ tasks.rpc-check.artifacts.reports }}
+      OP_CI_MAINNET_L1_ARCHIVE_RPC_URL: ${{ vaults.optimism-go-tests-rpc-shadow.secrets.OP_CI_MAINNET_L1_ARCHIVE_RPC_URL }}
+    cache: false
+    tool-cache: contract-coverage-runtime-main-${{ init.cache-epoch }}
+    timeout: 120m
+    runner:
+      cpus: 16
+      memory: 64gb
+    outputs:
+      filesystem:
+        filter:
+          workspace: [.ci/go-cache/contract-coverage/runtime]
+          system: [~/.foundry/cache/rpc]
+      test-results:
+        - path: .ci/contract-coverage/main/run/ordinary/derived.junit.xml
+          options:
+            language: Solidity
+            framework: Foundry
+        - path: .ci/contract-coverage/main/run/upgrade/derived.junit.xml
+          options:
+            language: Solidity
+            framework: Foundry
+      artifacts:
+        - key: reports
+          path: .ci/contract-coverage/main/run
+
+  # Coverage performs its instrumented compilation inside the fresh verdict.
+  # This producer builds the original source prerequisite and complete signatures.
+  - key: compile-CUSTOM_GAS_TOKEN
+    use: [code, go-tools, contract-tools, go-modules]
+    if: ${{ init.cache-warm == 'true' || tasks.route.values.run-contracts == 'true' }}
+    run: |
+      export GOMODCACHE="$PWD/.ci/go-cache/contract-coverage/modules"
+      export GOCACHE="$PWD/.ci/go-cache/contract-coverage/build"
+      python3 ops/ci/contract-coverage.py prepare --feature CUSTOM_GAS_TOKEN
+    env:
+      CI_COMMIT_SHA: ${{ init.commit-sha }}
+      CI_BRANCH: ${{ init.branch }}
+      CI_CONTRACT_PROVIDER: rwx
+      CI_CONTRACT_COVERAGE_REPLAY: "true"
+    tool-cache: contract-coverage-compile-CUSTOM_GAS_TOKEN-${{ init.cache-epoch }}
+    timeout: 60m
+    runner:
+      cpus: 16
+      memory: 64gb
+    outputs:
+      filesystem:
+        filter:
+          workspace: [packages/contracts-bedrock/forge-artifacts, packages/contracts-bedrock/cache/solidity-files-cache.json, packages/contracts-bedrock/artifacts/build-info, packages/contracts-bedrock/scripts/go-ffi/go-ffi, .ci/go-cache/contract-coverage/build]
+          system: []
+      artifacts:
+        - key: compiled
+          path: .ci/contract-coverage/CUSTOM_GAS_TOKEN/prepare
+
+  - key: verdict-CUSTOM_GAS_TOKEN
+    use: [code, go-tools, contract-tools, go-modules, compile-CUSTOM_GAS_TOKEN]
+    if: ${{ init.cache-warm != 'true' && tasks.rpc-check.values.ready == 'true' }}
+    run: |
+      export GOMODCACHE="$PWD/.ci/go-cache/contract-coverage/modules"
+      export GOCACHE="$PWD/.ci/go-cache/contract-coverage/runtime"
+      git submodule sync --recursive
+      git -c protocol.file.allow=never submodule update --init --recursive --jobs 8
+      python3 ops/ci/contract-coverage.py run --feature CUSTOM_GAS_TOKEN \
+        --prepared "$COMPILED" --block "$ARCHIVE_PREFLIGHT/block.json"
+    env:
+      CI_COMMIT_SHA: ${{ init.commit-sha }}
+      CI_BRANCH: ${{ init.branch }}
+      CI_CONTRACT_PROVIDER: rwx
+      CI_CONTRACT_COVERAGE_REPLAY: "true"
+      COMPILED: ${{ tasks.compile-CUSTOM_GAS_TOKEN.artifacts.compiled }}
+      ARCHIVE_PREFLIGHT: ${{ tasks.rpc-check.artifacts.reports }}
+      OP_CI_MAINNET_L1_ARCHIVE_RPC_URL: ${{ vaults.optimism-go-tests-rpc-shadow.secrets.OP_CI_MAINNET_L1_ARCHIVE_RPC_URL }}
+    cache: false
+    tool-cache: contract-coverage-runtime-CUSTOM_GAS_TOKEN-${{ init.cache-epoch }}
+    timeout: 120m
+    runner:
+      cpus: 16
+      memory: 64gb
+    outputs:
+      filesystem:
+        filter:
+          workspace: [.ci/go-cache/contract-coverage/runtime]
+          system: [~/.foundry/cache/rpc]
+      test-results:
+        - path: .ci/contract-coverage/CUSTOM_GAS_TOKEN/run/ordinary/derived.junit.xml
+          options:
+            language: Solidity
+            framework: Foundry
+        - path: .ci/contract-coverage/CUSTOM_GAS_TOKEN/run/upgrade/derived.junit.xml
+          options:
+            language: Solidity
+            framework: Foundry
+      artifacts:
+        - key: reports
+          path: .ci/contract-coverage/CUSTOM_GAS_TOKEN/run
+
+  # Coverage performs its instrumented compilation inside the fresh verdict.
+  # This producer builds the original source prerequisite and complete signatures.
+  - key: compile-OPTIMISM_PORTAL_INTEROP
+    use: [code, go-tools, contract-tools, go-modules]
+    if: ${{ init.cache-warm == 'true' || tasks.route.values.run-contracts == 'true' }}
+    run: |
+      export GOMODCACHE="$PWD/.ci/go-cache/contract-coverage/modules"
+      export GOCACHE="$PWD/.ci/go-cache/contract-coverage/build"
+      python3 ops/ci/contract-coverage.py prepare --feature OPTIMISM_PORTAL_INTEROP
+    env:
+      CI_COMMIT_SHA: ${{ init.commit-sha }}
+      CI_BRANCH: ${{ init.branch }}
+      CI_CONTRACT_PROVIDER: rwx
+      CI_CONTRACT_COVERAGE_REPLAY: "true"
+    tool-cache: contract-coverage-compile-OPTIMISM_PORTAL_INTEROP-${{ init.cache-epoch }}
+    timeout: 60m
+    runner:
+      cpus: 16
+      memory: 64gb
+    outputs:
+      filesystem:
+        filter:
+          workspace: [packages/contracts-bedrock/forge-artifacts, packages/contracts-bedrock/cache/solidity-files-cache.json, packages/contracts-bedrock/artifacts/build-info, packages/contracts-bedrock/scripts/go-ffi/go-ffi, .ci/go-cache/contract-coverage/build]
+          system: []
+      artifacts:
+        - key: compiled
+          path: .ci/contract-coverage/OPTIMISM_PORTAL_INTEROP/prepare
+
+  - key: verdict-OPTIMISM_PORTAL_INTEROP
+    use: [code, go-tools, contract-tools, go-modules, compile-OPTIMISM_PORTAL_INTEROP]
+    if: ${{ init.cache-warm != 'true' && tasks.rpc-check.values.ready == 'true' }}
+    run: |
+      export GOMODCACHE="$PWD/.ci/go-cache/contract-coverage/modules"
+      export GOCACHE="$PWD/.ci/go-cache/contract-coverage/runtime"
+      git submodule sync --recursive
+      git -c protocol.file.allow=never submodule update --init --recursive --jobs 8
+      python3 ops/ci/contract-coverage.py run --feature OPTIMISM_PORTAL_INTEROP \
+        --prepared "$COMPILED" --block "$ARCHIVE_PREFLIGHT/block.json"
+    env:
+      CI_COMMIT_SHA: ${{ init.commit-sha }}
+      CI_BRANCH: ${{ init.branch }}
+      CI_CONTRACT_PROVIDER: rwx
+      CI_CONTRACT_COVERAGE_REPLAY: "true"
+      COMPILED: ${{ tasks.compile-OPTIMISM_PORTAL_INTEROP.artifacts.compiled }}
+      ARCHIVE_PREFLIGHT: ${{ tasks.rpc-check.artifacts.reports }}
+      OP_CI_MAINNET_L1_ARCHIVE_RPC_URL: ${{ vaults.optimism-go-tests-rpc-shadow.secrets.OP_CI_MAINNET_L1_ARCHIVE_RPC_URL }}
+    cache: false
+    tool-cache: contract-coverage-runtime-OPTIMISM_PORTAL_INTEROP-${{ init.cache-epoch }}
+    timeout: 120m
+    runner:
+      cpus: 16
+      memory: 64gb
+    outputs:
+      filesystem:
+        filter:
+          workspace: [.ci/go-cache/contract-coverage/runtime]
+          system: [~/.foundry/cache/rpc]
+      test-results:
+        - path: .ci/contract-coverage/OPTIMISM_PORTAL_INTEROP/run/ordinary/derived.junit.xml
+          options:
+            language: Solidity
+            framework: Foundry
+        - path: .ci/contract-coverage/OPTIMISM_PORTAL_INTEROP/run/upgrade/derived.junit.xml
+          options:
+            language: Solidity
+            framework: Foundry
+      artifacts:
+        - key: reports
+          path: .ci/contract-coverage/OPTIMISM_PORTAL_INTEROP/run
+
+  # Coverage performs its instrumented compilation inside the fresh verdict.
+  # This producer builds the original source prerequisite and complete signatures.
+  - key: compile-ZK_DISPUTE_GAME
+    use: [code, go-tools, contract-tools, go-modules]
+    if: ${{ init.cache-warm == 'true' || tasks.route.values.run-contracts == 'true' }}
+    run: |
+      export GOMODCACHE="$PWD/.ci/go-cache/contract-coverage/modules"
+      export GOCACHE="$PWD/.ci/go-cache/contract-coverage/build"
+      python3 ops/ci/contract-coverage.py prepare --feature ZK_DISPUTE_GAME
+    env:
+      CI_COMMIT_SHA: ${{ init.commit-sha }}
+      CI_BRANCH: ${{ init.branch }}
+      CI_CONTRACT_PROVIDER: rwx
+      CI_CONTRACT_COVERAGE_REPLAY: "true"
+    tool-cache: contract-coverage-compile-ZK_DISPUTE_GAME-${{ init.cache-epoch }}
+    timeout: 60m
+    runner:
+      cpus: 16
+      memory: 64gb
+    outputs:
+      filesystem:
+        filter:
+          workspace: [packages/contracts-bedrock/forge-artifacts, packages/contracts-bedrock/cache/solidity-files-cache.json, packages/contracts-bedrock/artifacts/build-info, packages/contracts-bedrock/scripts/go-ffi/go-ffi, .ci/go-cache/contract-coverage/build]
+          system: []
+      artifacts:
+        - key: compiled
+          path: .ci/contract-coverage/ZK_DISPUTE_GAME/prepare
+
+  - key: verdict-ZK_DISPUTE_GAME
+    use: [code, go-tools, contract-tools, go-modules, compile-ZK_DISPUTE_GAME]
+    if: ${{ init.cache-warm != 'true' && tasks.rpc-check.values.ready == 'true' }}
+    run: |
+      export GOMODCACHE="$PWD/.ci/go-cache/contract-coverage/modules"
+      export GOCACHE="$PWD/.ci/go-cache/contract-coverage/runtime"
+      git submodule sync --recursive
+      git -c protocol.file.allow=never submodule update --init --recursive --jobs 8
+      python3 ops/ci/contract-coverage.py run --feature ZK_DISPUTE_GAME \
+        --prepared "$COMPILED" --block "$ARCHIVE_PREFLIGHT/block.json"
+    env:
+      CI_COMMIT_SHA: ${{ init.commit-sha }}
+      CI_BRANCH: ${{ init.branch }}
+      CI_CONTRACT_PROVIDER: rwx
+      CI_CONTRACT_COVERAGE_REPLAY: "true"
+      COMPILED: ${{ tasks.compile-ZK_DISPUTE_GAME.artifacts.compiled }}
+      ARCHIVE_PREFLIGHT: ${{ tasks.rpc-check.artifacts.reports }}
+      OP_CI_MAINNET_L1_ARCHIVE_RPC_URL: ${{ vaults.optimism-go-tests-rpc-shadow.secrets.OP_CI_MAINNET_L1_ARCHIVE_RPC_URL }}
+    cache: false
+    tool-cache: contract-coverage-runtime-ZK_DISPUTE_GAME-${{ init.cache-epoch }}
+    timeout: 120m
+    runner:
+      cpus: 16
+      memory: 64gb
+    outputs:
+      filesystem:
+        filter:
+          workspace: [.ci/go-cache/contract-coverage/runtime]
+          system: [~/.foundry/cache/rpc]
+      test-results:
+        - path: .ci/contract-coverage/ZK_DISPUTE_GAME/run/ordinary/derived.junit.xml
+          options:
+            language: Solidity
+            framework: Foundry
+        - path: .ci/contract-coverage/ZK_DISPUTE_GAME/run/upgrade/derived.junit.xml
+          options:
+            language: Solidity
+            framework: Foundry
+      artifacts:
+        - key: reports
+          path: .ci/contract-coverage/ZK_DISPUTE_GAME/run
+

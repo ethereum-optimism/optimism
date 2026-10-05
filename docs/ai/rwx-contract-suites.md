@@ -2,9 +2,9 @@
 
 The existing optional `optimism-contracts-shadow` now uses one shared adapter for
 the four standard feature variants and four changed-file heavy-fuzz variants.
-The latter remain uncounted until their complete hosted originals pass
-same-revision comparison. Total implementation coverage remains 63/86 (73%),
-with 23 occurrences remaining. Circle retains its required gate.
+All eight now pass complete same-revision original-report comparison.
+The four heavy occurrences bring implementation coverage to 67/86 (78%),
+with 19 remaining. Circle retains its required gate.
 
 `contract-suites.py` preserves Circle's original `find test -name "*.t.sol"`
 selection for standard tests, and the exact `git diff origin/develop...HEAD`
@@ -37,8 +37,9 @@ each command/log/exit/signal. Consumers reject stale settings/revisions,
 missing/corrupt binaries, changed target history, fixture selection or tools.
 Comparison revalidates each file assignment and signature against original
 discovery and accounts for deployable cases, abstract bytecode declarations and
-whole-contract setup skips. Original skip reasons remain untouched; unresolved
-reasonless skips still need diagnostic evidence before final migration closeout.
+whole-contract setup skips. Original skip reasons remain untouched. The benchmark retains two reasonless
+Interop L1Block skips with their exact source guard; explicit messages are added
+for subsequent hosted verification.
 
 Submodules are explicitly initialized recursively before provenance validation;
 the Circle checkout does not initialize them by itself. Preparation must leave
@@ -91,7 +92,51 @@ after preparation failure. These are retained first failures, not parity proof.
 The complete original file hashes, provider observations and exact diagnostic
 change are retained in [first-failures.json](rwx-contract-suites-evidence/first-failures.json).
 
-The next hosted observation will supersede the older standard runner's
-unfiltered Forge invocation and record the exact Circle file filter, settings,
-original skips and invocation histories. Coverage, L2 fork and gate equivalents
-remain separate work.
+At `c702cfb2d41a0220383cebdf9013530dd25d50c0`,
+[RWX run 96f1589c](https://cloud.rwx.com/optimism/runs/96f1589c68bc418eacd5d37bfc259585)
+and [Circle pipeline 135567](https://app.circleci.com/pipelines/github/ethereum-optimism/optimism/135567)
+passed all eight complete original comparisons. Standard selection contains all
+164 files and 2,882 signatures, including 23 non-executable abstract declarations.
+The 2,859 executable outcomes per feature are:
+
+| Feature | Pass | Skip |
+| --- | ---: | ---: |
+| main | 2,313 | 546 |
+| Custom gas token | 2,345 | 514 |
+| Interop | 2,419 | 440 |
+| ZK dispute game | 2,438 | 421 |
+
+Each heavy variant selects the actual modified Bytes and ResourceMetering files,
+with all 28 cases: 27 passes and one explicitly skipped manual CSV generator.
+All settings, file assignments, original XML/skip details, source/fixture hashes,
+selected compiler signatures and invocation histories agree. No diagnostic rerun
+or native task retry occurred in these successful verdicts. All 154 GitHub checks
+at this benchmark are terminal: 153 successful and one neutral, including the
+four required Circle gates and every optional RWX check.
+
+Restored Foundry outputs contain 25 additional obsolete line-numbered
+`VmContractHelper` interfaces. Every one has empty creation bytecode and no test
+or invariant selector. Complete original bindings are retained; comparison checks
+every executable contract and test-bearing abstract declaration and records these
+non-test interface differences explicitly. Regression coverage rejects any extra
+executable binding or test/invariant selector. The two original Interop L1Block
+skips lack emitted reasons; their exact existing feature condition is sealed in
+the evidence. All other original skip records have reasons. No original reason
+is invented or rewritten.
+
+[Compiler-only rehearsal ef8b816c](https://cloud.rwx.com/optimism/runs/ef8b816ca9fe470f8e34369cdc9d8fa7)
+passed all eight producers at the same source revision with zero tests and no
+verdict tasks. Every build reports unchanged compilation skipped. Every contract
+artifact and Go FFI binary is byte-identical; only
+`cache/solidity-files-cache.json` changes. These tasks executed and reused native
+compiler data; they were not filesystem task-cache hits. This is a CLI rehearsal,
+not an observed protected `develop` cache-rebuild event or a speed comparison.
+
+[parity.json](rwx-contract-suites-evidence/parity.json) retains the complete shared
+source hashes, authoritative selections, per-case outcomes and original skips,
+all provider report hashes, generated fixture changes, interface reconciliation,
+final checks and the eight preparation-only original inventories. Raw originals
+remain in both hosted runs and in `.ci/rwx-contract-suites-evidence/c702`.
+Case and skip-reason catalogs deduplicate repeated details; decoding is checked
+against every complete original comparison result without dropping fields.
+Coverage, L2 fork and gate equivalents remain separate work.

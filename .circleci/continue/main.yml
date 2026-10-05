@@ -23,6 +23,12 @@ parameters:
   c-go_fresh_tests_effective:
     type: boolean
     default: false
+  c-contract_coverage_replay:
+    type: boolean
+    default: false
+  c-contract_coverage_replay_effective:
+    type: boolean
+    default: false
   c-publish_contract_artifacts_ref:
     type: string
     default: ""
@@ -1289,9 +1295,12 @@ jobs:
       - run:
           name: Write pinned block number for cache key
           command: |
-            just print-pinned-block-number > ./pinnedBlockNumber.txt
-            cat pinnedBlockNumber.txt
-          working_directory: packages/contracts-bedrock
+            python3 ops/ci/contract-coverage.py preflight
+            jq -er '.number | if type == "number" and . >= 0 then tostring else error("invalid pinned block") end' \
+              .ci/contract-coverage/preflight/block.json > packages/contracts-bedrock/pinnedBlockNumber.txt
+            cat packages/contracts-bedrock/pinnedBlockNumber.txt
+          environment:
+            CI_CONTRACT_RPC_ENV_VAR: <<parameters.l1_archive_rpc_url_env_var>>
       - restore_cache:
           name: Restore forked state
           key: forked-state-contracts-bedrock-tests-upgrade-{{ checksum
@@ -1301,23 +1310,22 @@ jobs:
       - go-restore-cache:
           namespace: contracts-bedrock-coverage
       - run:
-          name: Build go-ffi
-          command: just build-go-ffi
-          working_directory: packages/contracts-bedrock
-      - run:
-          name: Build contract source
-          command: just build-source
-          working_directory: packages/contracts-bedrock
-      - run:
           name: Run coverage tests
-          command: just coverage-lcov-all
+          command: |
+            python3 ops/ci/contract-coverage.py run \
+              --feature "<<parameters.features>>" --block .ci/contract-coverage/preflight/block.json
           environment:
-            FOUNDRY_PROFILE: <<parameters.test_profile>>
-          working_directory: packages/contracts-bedrock
+            CI_CONTRACT_PROVIDER: circleci
+            CI_CONTRACT_PROFILE: <<parameters.test_profile>>
+            CI_CONTRACT_COVERAGE_REPLAY: << pipeline.parameters.c-contract_coverage_replay_effective >>
+            CI_CONTRACT_RPC_ENV_VAR: <<parameters.l1_archive_rpc_url_env_var>>
           no_output_timeout: <<parameters.test_timeout>>
       - run:
           name: Print failed test traces
-          command: just test-rerun | tee failed-test-traces.log
+          command: |
+            if [[ -s cache/test-failures && ! -f "../../.ci/contract-coverage/<<parameters.features>>/run/ordinary/tests.stage.json" ]]; then
+              just test-rerun | tee failed-test-traces.log
+            fi
           environment:
             FOUNDRY_PROFILE: <<parameters.test_profile>>
           working_directory: packages/contracts-bedrock
@@ -1334,6 +1342,13 @@ jobs:
       - store_artifacts:
           path: packages/contracts-bedrock/failed-test-traces.log
           when: on_fail
+      - store_artifacts:
+          path: .ci/contract-coverage
+          destination: contract-coverage
+          when: always
+      - store_test_results:
+          path: .ci/contract-coverage
+          when: always
       - notify-failures-on-develop:
           mentions: "<!subteam^S07K486JEH4>"
 

@@ -524,7 +524,7 @@ contract L1Block_SetFeature_Test is L1Block_TestInit {
     /// @notice Tests that setFeature succeeds when called by the depositor.
     function test_setFeature_succeeds() external {
         if (isDevFeatureEnabled(DevFeatures.OPTIMISM_PORTAL_INTEROP)) {
-            vm.skip(true);
+            vm.skip(true, "Interop is already enabled by the dev feature");
         }
         vm.expectEmit(Predeploys.L1_BLOCK_ATTRIBUTES);
         emit FeatureSet(Features.INTEROP, true);
@@ -563,7 +563,7 @@ contract L1Block_SetFeature_Test is L1Block_TestInit {
     function test_isFeatureEnabled_defaultFalse_succeeds() external {
         // If the interop dev feature is enabled, skip this test
         if (isDevFeatureEnabled(DevFeatures.OPTIMISM_PORTAL_INTEROP)) {
-            vm.skip(true);
+            vm.skip(true, "Interop is already enabled by the dev feature");
         }
         assertFalse(l1Block.isFeatureEnabled(Features.INTEROP));
     }
