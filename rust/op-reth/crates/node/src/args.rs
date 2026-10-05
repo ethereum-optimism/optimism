@@ -9,6 +9,23 @@ use reth_optimism_trie::DEFAULT_BACKFILL_BATCH_SIZE;
 use std::path::PathBuf;
 use url::Url;
 
+/// Storage format of the proofs-history database. v2 is the only supported format.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ProofsStorageVersion {
+    /// Storage format with changeset and history-bitmap tables.
+    V2,
+}
+
+/// Parses `--proofs-history.storage-version`, rejecting every format but v2.
+fn parse_proofs_storage_version(value: &str) -> Result<ProofsStorageVersion, String> {
+    match value {
+        "v2" => Ok(ProofsStorageVersion::V2),
+        _ => Err("only `v2` is supported; drop this flag or pass `v2`, then delete any v1 proofs \
+                  database and re-create it with `op-reth proofs init`"
+            .to_string()),
+    }
+}
+
 /// Default proofs history window in blocks: 30 days × 24h × 60min × 60s / 2s
 /// per block = `1_296_000`.
 pub const DEFAULT_PROOFS_HISTORY_WINDOW: u64 = 1_296_000;
@@ -28,6 +45,18 @@ pub struct ProofsHistoryStorageArgs {
     /// `--datadir`).
     #[arg(long = "proofs-history.storage-path", value_name = "PROOFS_HISTORY_STORAGE_PATH")]
     pub storage_path: Option<PathBuf>,
+
+    /// Deprecated: v2 is the only storage format, so `v2` is a no-op and any other value is
+    /// rejected.
+    ///
+    /// Kept so that deployments which still pass `--proofs-history.storage-version=v2` keep
+    /// working.
+    #[arg(
+        long = "proofs-history.storage-version",
+        value_name = "PROOFS_HISTORY_STORAGE_VERSION",
+        value_parser = parse_proofs_storage_version
+    )]
+    pub storage_version: Option<ProofsStorageVersion>,
 }
 
 impl ProofsHistoryStorageArgs {
@@ -305,7 +334,7 @@ impl Default for RollupArgs {
             flashblocks_url: None,
             flashblock_consensus: false,
             proofs_history: false,
-            history: ProofsHistoryStorageArgs { storage_path: None },
+            history: ProofsHistoryStorageArgs { storage_path: None, storage_version: None },
             proofs_history_window: ProofsHistoryWindowArg::default(),
             proofs_history_verification_interval: 0,
         }
@@ -329,6 +358,27 @@ mod tests {
         let default_args = RollupArgs::default();
         let args = CommandParser::<RollupArgs>::parse_from(["reth"]).args;
         assert_eq!(args, default_args);
+    }
+
+    #[test]
+    fn test_proofs_storage_version_accepts_only_v2() {
+        for args in [
+            &["reth", "--proofs-history.storage-version=v2"][..],
+            &["reth", "--proofs-history.storage-version", "v2"],
+        ] {
+            let args = CommandParser::<RollupArgs>::parse_from(args).args;
+            assert_eq!(args.history.storage_version, Some(ProofsStorageVersion::V2));
+        }
+
+        for version in ["v1", "V2", "v3"] {
+            let err = CommandParser::<RollupArgs>::try_parse_from([
+                "reth".to_string(),
+                format!("--proofs-history.storage-version={version}"),
+            ])
+            .err()
+            .unwrap_or_else(|| panic!("storage version {version} should be rejected"));
+            assert!(err.to_string().contains("only `v2` is supported"), "unexpected error: {err}");
+        }
     }
 
     #[test]
