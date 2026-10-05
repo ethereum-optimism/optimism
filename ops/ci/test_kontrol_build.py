@@ -106,7 +106,9 @@ contract FutureProof is DeploymentSummary { function futureProof() public pure r
         self.run_command(['git','init','-q'],self.root)
         for name,value in [('user.name','CI fixture'),('user.email','ci-fixture@example.invalid')]:
             self.run_command(['git','config',name,value],self.root)
-        self.run_command(['git','-c','protocol.file.allow=always','submodule','add','-q',str(K.CONTRACTS/'lib/forge-std'),
+        # File transport copies objects; a local-path clone uses hardlinks that
+        # RWX's snapshot filesystem cannot provide reliably. Keep the same gitlink.
+        self.run_command(['git','-c','protocol.file.allow=always','submodule','add','-q',(K.CONTRACTS/'lib/forge-std').as_uri(),
                           'packages/contracts-bedrock/lib/forge-std'],self.root)
         self.commit()
         self.image=self.root/'.ci/kontrol-build/image'

@@ -30,7 +30,7 @@ tasks:
     outputs:
       filesystem:
         filter:
-          workspace: [packages/contracts-bedrock/forge-artifacts, packages/contracts-bedrock/cache/solidity-files-cache.json, packages/contracts-bedrock/artifacts/build-info, packages/contracts-bedrock/scripts/go-ffi/go-ffi, .ci/go-cache/contract-upgrades/build, '.ci/contract-upgrades/${{ params.variant }}/prepare']
+          workspace: [packages/contracts-bedrock/forge-artifacts, packages/contracts-bedrock/cache/solidity-files-cache.json, packages/contracts-bedrock/artifacts/build-info, packages/contracts-bedrock/scripts/go-ffi/go-ffi, .ci/go-cache/contract-upgrades/build, '.ci/contract-upgrades']
           system: []
       artifacts:
         - key: compiled

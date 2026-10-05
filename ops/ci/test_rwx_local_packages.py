@@ -66,6 +66,18 @@ class LocalPackageTests(unittest.TestCase):
                         self.assertNotIn('.artifacts.', values)
                         self.assertNotIn('vaults.', values)
 
+    def test_output_filesystem_filters_retain_static_preparation_roots(self):
+        # Native output filters silently omitted parameterized paths. Each
+        # producer is isolated, so its static family root contains preparation
+        # evidence without including verdict results.
+        for name, root in [('contracts', '.ci/contract-suites'),
+                           ('contract-upgrades', '.ci/contract-upgrades'),
+                           ('contract-coverage', 'project/.ci/contract-coverage')]:
+            leaf = tasks('packages/' + name + '-compile.yml')['build']
+            filters = leaf['outputs']['filesystem']['filter']['workspace']
+            self.assertIn(root, filters)
+            self.assertNotIn('${{', json.dumps(filters))
+
     def test_nested_references_are_bound_to_calls_with_the_declared_child(self):
         # The first hosted run caught a reference to a .build child on an
         # unchanged Rust E2E command. Lint did not reject that reference.

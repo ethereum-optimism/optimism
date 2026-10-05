@@ -42,7 +42,10 @@ remain isolated. Moving a task into a package can invalidate its native task
 cache; this refactor does not claim that every prior task cache entry is reused.
 
 Contract consumers already require their producer's Foundry filesystem. The
-producer now includes its sealed preparation metadata in that snapshot.
+producer now includes its sealed preparation metadata in that snapshot. Output
+filesystem filters use static family roots: a native probe showed that parameter
+expressions in these filters silently omitted the metadata. Each isolated
+producer contains only its own preparation evidence.
 Coverage/upgrades also import their sealed preflight inputs. RPC values remain
 only in availability checks and executing runtime verdicts, outside package
 arguments, bootstrap setup and compilation.
@@ -71,6 +74,7 @@ Native verification retained outside Git:
 
 - [Successful filtered transfer](https://cloud.rwx.com/optimism/runs/2f3e90605eda4e7d94384c687840402d): the verdict executes, compiler state is absent, and the nested report reaches its consumer.
 - [Intentional failure](https://cloud.rwx.com/optimism/runs/72fa847783914af9956902dbe803a0fa): the executable leaf and caller both fail; the observer runs and the retained report records exit code 17.
+- [Static output filtering](https://cloud.rwx.com/optimism/runs/283698c71923491c9a46cd25342cd5eb): both parent and child consumers receive the prepared metadata after replacing the unsupported parameterized output filter.
 - [Warm-only run](https://cloud.rwx.com/optimism/runs/63c5909d32be4c198bf509c44c34248f): compilation is reused, verdicts/report consumers are skipped, and the observer confirms the skip.
 
 The five main definitions shrink from 5,380 to 2,122 lines. Including all 638
