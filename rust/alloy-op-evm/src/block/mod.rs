@@ -33,7 +33,7 @@ use revm::{
     Database as _, DatabaseCommit, Inspector,
     context::{
         Block, TxEnv,
-        result::{ExecutionResult, ResultAndState},
+        result::{ExecutionResult, ResultAndState, ResultGas},
     },
     database::DatabaseCommitExt,
     state::{Account, AccountStatus, EvmState},
@@ -53,20 +53,50 @@ fn validation_error(err: OpBlockExecutionError) -> BlockExecutionError {
     BlockExecutionError::Validation(BlockValidationError::Other(Box::new(err)))
 }
 
+/// Returns the gas a transaction would have used had execution spent `discount` less gas.
+///
+/// The EIP-3529 refund cap and the EIP-7623 floor are both functions of gas spent, so a discount on
+/// spent gas does not lower gas used one-for-one: the cap shrinks with it, and a binding floor
+/// absorbs it entirely.
+fn gas_used_with_spend_discount(gas: &ResultGas, discount: u64, max_refund_quotient: u64) -> u64 {
+    let spent = gas.total_gas_spent().saturating_sub(discount);
+    // `inner_refunded` is already capped at `total_gas_spent / quotient`, and the discounted cap is
+    // no larger, so this equals capping the raw refund counter at the discounted spend.
+    let refunded = gas.inner_refunded().min(spent / max_refund_quotient);
+    spent.saturating_sub(refunded).max(gas.floor_gas())
+}
+
 /// Returns a producer policy's consensus-safe refund for an executed transaction.
 ///
 /// A refund policy is advisory: malformed output must not reject an otherwise valid transaction or
 /// abort payload production. A normal-transaction refund that exceeds the gas the EVM actually used
 /// is discarded, while deposits are never refundable. Verifiers independently enforce these same
 /// bounds on the resulting post-exec payload.
+///
+/// A policy's refund is a discount on the gas execution spent (for block-level warming, the
+/// EIP-2929 surcharges on block-warm accesses). It is clipped to what that discount actually saves
+/// the transaction, so the refund never lowers canonical gas below the gas the transaction would
+/// have used had execution spent that much less. The clip is producer policy, not consensus:
+/// verifiers apply whatever refund the payload carries.
 #[cfg_attr(not(feature = "metrics"), allow(clippy::missing_const_for_fn))]
-fn sanitize_producer_refund(refund: u64, evm_gas_used: u64, is_deposit: bool) -> u64 {
+fn sanitize_producer_refund(
+    refund: u64,
+    gas: &ResultGas,
+    max_refund_quotient: u64,
+    is_deposit: bool,
+) -> u64 {
+    let evm_gas_used = gas.tx_gas_used();
     let (refund, correction) = if is_deposit && refund > 0 {
         (0, Some("ineligible_transaction"))
     } else if refund > evm_gas_used {
         (0, Some("exceeds_evm_gas"))
     } else {
-        (refund, None)
+        let net_saving = evm_gas_used.saturating_sub(gas_used_with_spend_discount(
+            gas,
+            refund,
+            max_refund_quotient,
+        ));
+        if refund > net_saving { (net_saving, Some("exceeds_net_saving")) } else { (refund, None) }
     };
 
     #[cfg(feature = "metrics")]
@@ -1020,8 +1050,15 @@ where
                 self.evm.take_last_post_exec_tx_result();
             // The policy is advisory. Contain a faulty policy here, before its output changes gas,
             // settlement, receipts, or the trailing payload: excessive normal-tx refunds are
-            // discarded, and deposits never receive a refund.
-            let refund = sanitize_producer_refund(refund, evm_gas_used, is_deposit);
+            // discarded, refunds are clipped to their net saving, and deposits never receive a
+            // refund.
+            let max_refund_quotient = self.evm.cfg_env().gas_params.max_refund_quotient();
+            let refund = sanitize_producer_refund(
+                refund,
+                result.result.gas(),
+                max_refund_quotient,
+                is_deposit,
+            );
             (refund, refund_events)
         } else {
             (
