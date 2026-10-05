@@ -111,7 +111,7 @@ pub(crate) fn report_post_exec_validation_failure(
 #[cfg(all(test, feature = "std"))]
 mod tests {
     use super::{RESULT_FAIL, RESULT_OK};
-    use crate::OpEvmConfig;
+    use crate::{OpEvmConfig, PostExecMode};
     use alloy_consensus::{Block, BlockBody, Header, Sealable};
     use alloy_genesis::Genesis;
     use metrics_exporter_prometheus::{PrometheusBuilder, PrometheusHandle, PrometheusRecorder};
@@ -175,11 +175,13 @@ mod tests {
     }
 
     /// Builds the execution context for `block` against a recorder private to this test and
-    /// returns the rendered exposition alongside the result.
-    fn import(block: SealedBlock<OpBlock>) -> (Result<(), ()>, String) {
+    /// returns whether the executor will reject it alongside the rendered exposition.
+    fn import(block: SealedBlock<OpBlock>) -> (bool, String) {
         let (recorder, handle) = recorder();
-        let result = with_local_recorder(&recorder, || evm_config().context_for_block(&block));
-        (result.map(drop).map_err(drop), handle.render())
+        let context = with_local_recorder(&recorder, || {
+            evm_config().context_for_block(&block).expect("context construction is infallible")
+        });
+        (matches!(context.post_exec_mode, PostExecMode::Invalid(_)), handle.render())
     }
 
     /// Reads one labeled series out of the exposition. `None` distinguishes a series that was
@@ -235,9 +237,9 @@ mod tests {
         #[case] transactions: Vec<OpTransactionSigned>,
         #[case] reason: &str,
     ) {
-        let (result, exposition) = import(block(timestamp, transactions));
+        let (rejected, exposition) = import(block(timestamp, transactions));
 
-        assert!(result.is_err(), "block is rejected");
+        assert!(rejected, "block is rejected");
         assert_failures(&exposition, Some(reason));
         assert_results(&exposition, /* ok */ 0.0, /* fail */ 1.0);
     }
@@ -320,9 +322,9 @@ mod tests {
         #[case] transactions: Vec<OpTransactionSigned>,
         #[case] expected_ok: f64,
     ) {
-        let (result, exposition) = import(block(timestamp, transactions));
+        let (rejected, exposition) = import(block(timestamp, transactions));
 
-        assert!(result.is_ok(), "block parses");
+        assert!(!rejected, "block parses");
         assert_failures(&exposition, None);
         assert_results(&exposition, expected_ok, /* fail */ 0.0);
     }
