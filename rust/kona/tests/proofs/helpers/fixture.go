@@ -15,7 +15,7 @@ type TestFixture struct {
 
 type FaultProofProgramL2Source struct {
 	Node        *helpers.L2Verifier
-	Engine      *helpers.L2Engine
+	Engine      *helpers.L2GethEngine
 	ChainConfig *params.ChainConfig
 }
 

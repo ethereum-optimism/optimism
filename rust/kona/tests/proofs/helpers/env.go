@@ -30,7 +30,7 @@ type L2FaultProofEnv struct {
 	Logs      *testlog.CapturingHandler
 	Batcher   *helpers.L2Batcher
 	Sequencer *helpers.L2Sequencer
-	Engine    *helpers.L2Engine
+	Engine    *helpers.L2GethEngine
 	engCl     *sources.EngineClient
 	Sd        *e2eutils.SetupData
 	Dp        *e2eutils.DeployParams
@@ -78,7 +78,7 @@ func NewL2FaultProofEnv[c any](t helpers.Testing, testCfg *TestCfg[c], tp *e2eut
 
 	l1Cl, err := sources.NewL1Client(miner.RPCClient(), log, nil, sources.L1ClientDefaultConfig(sd.RollupCfg, false, sources.RPCKindStandard))
 	require.NoError(t, err)
-	engine := helpers.NewL2Engine(t, log.New("role", "sequencer-engine"), sd.L2Cfg, jwtPath, helpers.EngineWithP2P())
+	engine := helpers.NewL2GethEngine(t, log.New("role", "sequencer-engine"), sd.L2Cfg, jwtPath)
 	l2EngineCl, err := sources.NewEngineClient(engine.RPCClient(), log, nil, sources.EngineClientDefaultConfig(sd.RollupCfg))
 	require.NoError(t, err)
 

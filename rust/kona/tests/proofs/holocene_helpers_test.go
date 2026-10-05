@@ -20,7 +20,7 @@ type holoceneExpectations struct {
 	preHolocene, holocene expectations
 }
 
-func (h holoceneExpectations) RequireExpectedProgressAndLogs(t actionsHelpers.StatefulTesting, actualSafeHead eth.L2BlockRef, isHolocene bool, engine *actionsHelpers.L2Engine, logs *testlog.CapturingHandler) {
+func (h holoceneExpectations) RequireExpectedProgressAndLogs(t actionsHelpers.StatefulTesting, actualSafeHead eth.L2BlockRef, isHolocene bool, engine *actionsHelpers.L2GethEngine, logs *testlog.CapturingHandler) {
 	t.Helper()
 
 	var exp expectations
