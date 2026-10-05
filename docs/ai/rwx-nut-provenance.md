@@ -64,13 +64,13 @@ excluded from reusable verdict outputs. Protected `develop` warming targets only
 the two producers; it executes no helpers or regeneration verdicts. This build
 validation job executes zero tests and creates no synthetic test results.
 
-The [preflight evidence](rwx-nut-provenance-evidence/preflight.json) records
+The [preflight evidence](https://github.com/ethereum-optimism/optimism/blob/a1aa49aaf3713a8172f3f615f094488fd8e39c3d/docs/ai/rwx-nut-provenance-evidence/preflight.json) records
 complete Linux regeneration, nine Git/discovery/report/failure/stream fixtures,
 fresh Go reporting tests, routing and Circle-adapter fixtures, ShellCheck,
 native lint and setup/merged/full-replay Circle compilation. These rehearsals
 establish implementation behavior; hosted parity is a separate acceptance step.
 
-The [first full hosted native run](rwx-nut-provenance-evidence/hosted-preflight.json)
+The [first full hosted native run](https://github.com/ethereum-optimism/optimism/blob/a1aa49aaf3713a8172f3f615f094488fd8e39c3d/docs/ai/rwx-nut-provenance-evidence/hosted-preflight.json)
 at `94481c20a3` passes both actual regenerations and all hosted helper fixtures.
 All 134 sealed originals validate, including 5,623 Karst and 5,930 Lagoon source
 entries and their complete compiler partitions. The replay's 37 routing fixtures,
@@ -80,7 +80,7 @@ both causes with `errors.Join`, verified by a real Git fixture and the configure
 custom Go linter. That native pass alone added no coverage; the later isolated
 cohort below resolves complete same-SHA parity.
 
-The [full hosted comparison](rwx-nut-provenance-evidence/parity.json) passes at
+The [full hosted comparison](https://github.com/ethereum-optimism/optimism/blob/a1aa49aaf3713a8172f3f615f094488fd8e39c3d/docs/ai/rwx-nut-provenance-evidence/parity.json) passes at
 `ad48c5ad07`: Circle pipeline 135598 / job 5636728 and native run `a8b24835`
 both execute every locked fork freshly with zero retries. All 105 sealed Circle
 originals and 134 native originals validate. The two complete historical Git and

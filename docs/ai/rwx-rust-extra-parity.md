@@ -61,7 +61,7 @@ dumps agree byte for byte across providers, covering both activation variants,
 58 deposits and their two gas records. Every fresh native task executed on
 attempt one, with zero observed retries.
 
-The [immutable evidence index](rwx-rust-evidence/extra-parity.json) retains complete
+The [immutable evidence index](https://github.com/ethereum-optimism/optimism/blob/a1aa49aaf3713a8172f3f615f094488fd8e39c3d/docs/ai/rwx-rust-evidence/extra-parity.json) retains complete
 coverage, original-file hashes, commands and artifact provenance. Complete
 provider reports are also retained under `.ci/rwx-rust-stage-evidence/a9df/`.
 Circle omits empty log/stderr artifacts; the index records each explicitly
@@ -80,7 +80,7 @@ The [unchanged-input cache repeat](https://cloud.rwx.com/optimism/runs/1f389c205
 restored the same Rust source fingerprint and executed both tasks freshly with
 new report identities. All four WASM builds reused their compiled targets;
 registry regeneration still compiled its build script after the crate-only clean.
-Both coverage reports remain identical. The [cache evidence index](rwx-rust-evidence/extra-cache-reuse.json)
+Both coverage reports remain identical. The [cache evidence index](https://github.com/ethereum-optimism/optimism/blob/a1aa49aaf3713a8172f3f615f094488fd8e39c3d/docs/ai/rwx-rust-evidence/extra-cache-reuse.json)
 retains original hashes, task identities and source/cache records. These are
 functional cache checks, not comparable pipeline speed measurements.
 

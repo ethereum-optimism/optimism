@@ -80,7 +80,7 @@ findings/errors, and retains four original size-limit exclusions. The exact
 baseline commit is `c8e4ba855d79ca56463909ef5a2c5830a1189401`; merge base,
 changed-file inventory, all source/rule/fixture hashes and complete diagnostics
 agree. All 54 original files verify against their seals.
-The [parity index](rwx-static-checks-evidence/parity.json) retains complete
+The [parity index](https://github.com/ethereum-optimism/optimism/blob/a1aa49aaf3713a8172f3f615f094488fd8e39c3d/docs/ai/rwx-static-checks-evidence/parity.json) retains complete
 selections, settings, report hashes and provider identities. Complete originals
 remain in `.ci/rwx-static-checks-evidence/ffef/` and the provider artifacts.
 
@@ -90,6 +90,6 @@ failed ShellCheck and its real-tool fixture because the producer appended an
 assumed `bin` directory to ShellCheck's installation path. The original error is
 `No such file or directory: 'shellcheck'`. The producer now exports Mise's actual
 resolved PATH. Commands, versions, selection and assertions remain unchanged.
-The [failure index](rwx-static-checks-evidence/first-failures.json) retains its
+The [failure index](https://github.com/ethereum-optimism/optimism/blob/a1aa49aaf3713a8172f3f615f094488fd8e39c3d/docs/ai/rwx-static-checks-evidence/first-failures.json) retains its
 original failed report/task logs and the corrected rehearsal's three intentional
 failure fixtures: SC2086, a new Semgrep finding and a missing baseline.

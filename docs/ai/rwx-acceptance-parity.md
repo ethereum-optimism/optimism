@@ -79,7 +79,7 @@ and exposed two port-specific runtime gaps: Kona host/client lookup fell back to
 unavailable Cargo, and the selective tool layer omitted pinned Glamsterdam geth.
 All sixteen original report bundles are retained; their coverage summaries show
 zero missing, extra or duplicated assigned identities. See the compact
-[first-failure index](rwx-acceptance-evidence/first-failure.json).
+[first-failure index](https://github.com/ethereum-optimism/optimism/blob/a1aa49aaf3713a8172f3f615f094488fd8e39c3d/docs/ai/rwx-acceptance-evidence/first-failure.json).
 Explicit verified binary paths and geth installation address those gaps; no test
 expectations or skip rules were changed. The corrected hosted run and same-revision comparison passed before advancing
 the inventory.
@@ -101,7 +101,7 @@ Strict skip-text comparison remains `different`: nine op-node and 37 Kona
 messages contain different structured logger timestamps. Each was checked after
 replacing only that recognized timestamp field: severity, message, scope and test
 identity match exactly. The unchanged originals, both reasons and each resolution
-are retained in [the compact parity index](rwx-acceptance-evidence/parity.json).
+are retained in [the compact parity index](https://github.com/ethereum-optimism/optimism/blob/a1aa49aaf3713a8172f3f615f094488fd8e39c3d/docs/ai/rwx-acceptance-evidence/parity.json).
 Other skips preserve existing client-support limits, the disabled batcher test
 and full SP1 ELF opt-in behavior; real guest ELFs remain outside this stage.
 All four required Circle gates and the five optional RWX shadows passed on the
@@ -128,5 +128,5 @@ reproduces the missing-trait failure, then passes after the timestamp correction
 and proves unchanged targets remain reusable. All Rust producers now fingerprint
 source content, restore a stable timestamp for each content version and commit
 that fingerprint only after successful compilation. Registry targets and sccache
-remain intact. See the [failure attribution](rwx-acceptance-evidence/cargo-freshness-failure.json).
+remain intact. See the [failure attribution](https://github.com/ethereum-optimism/optimism/blob/a1aa49aaf3713a8172f3f615f094488fd8e39c3d/docs/ai/rwx-acceptance-evidence/cargo-freshness-failure.json).
 The expanded pinned Linux helper suite passes all 153 tests.

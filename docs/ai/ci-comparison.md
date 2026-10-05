@@ -5,6 +5,12 @@ It runs locally without network access or credentials. Keep raw downloads outsid
 Git (for example, under `.ci/comparison/`); retain provider run/job URLs alongside
 the collection so another operator can audit it.
 
+The completed pilot's originals and generated summaries are retained outside the
+checkout in two private copies. See the [archive index](rwx-evidence-index.md)
+for checksums, restoration and the source bundle. A locally ignored `.ci/`
+directory is collection workspace, not durable evidence storage. Keep generated
+reports out of subsequent commits.
+
 ## Collect one revision
 
 Open a PR for the comparison branch: CircleCI currently has `build-prs-only`

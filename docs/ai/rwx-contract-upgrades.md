@@ -63,7 +63,7 @@ missing, extra, corrupt, failed or different inputs and outcomes. A date-boundar
 block difference requires a new comparable observation. No workload has been
 added to the verified count by these local fixtures.
 
-[First-failure evidence](rwx-contract-upgrades-evidence/first-failure.json)
+[First-failure evidence](https://github.com/ethereum-optimism/optimism/blob/a1aa49aaf3713a8172f3f615f094488fd8e39c3d/docs/ai/rwx-contract-upgrades-evidence/first-failure.json)
 retains the initial shared-client RPC error on both providers. All seven
 Circle preparations discovered 1,359 complete test signatures each, while the
 native preflight prevented compilation and verdict execution. Archive-client
@@ -101,7 +101,7 @@ and deployability while preserving each provider's compiler artifact hashes.
 
 The successful benchmark is [native run bcab8b6f](https://cloud.rwx.com/optimism/runs/bcab8b6f456b42da908aefb5d4867773)
 and [Circle pipeline 135563](https://app.circleci.com/pipelines/github/ethereum-optimism/optimism/135563).
-The [parity index](rwx-contract-upgrades-evidence/parity.json) retains complete
+The [parity index](https://github.com/ethereum-optimism/optimism/blob/a1aa49aaf3713a8172f3f615f094488fd8e39c3d/docs/ai/rwx-contract-upgrades-evidence/parity.json) retains complete
 selection, original outcomes, skip reasons, settings, source/tool/compile
 bindings, block identities and original-report hashes. Every variant has
 1,359 discovered signatures: 1,355 executable and four non-executable abstract

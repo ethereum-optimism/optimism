@@ -54,14 +54,14 @@ Both prestate hashes match Circle:
 and `0x03d56f7fd7d39b381efc142e127f41109709812d788c436ebad8f6de0633bc39`.
 All binary, metadata and proof file hashes are retained.
 
-[First failures](rwx-rust-e2e-evidence/first-failures.json) retain the JUnit option
+[First failures](https://github.com/ethereum-optimism/optimism/blob/a1aa49aaf3713a8172f3f615f094488fd8e39c3d/docs/ai/rwx-rust-e2e-evidence/first-failures.json) retain the JUnit option
 parser defect, the validator's incorrect rejection of valid dual-role Cargo units,
 and the reversed working-directory arguments that selected the root contract
 build for op-reth. RWX explicitly reported memory exhaustion on that wrong
 workload. The corrected adapter executes the nested fixture recipe and passed
 at the original 8 CPU / 16 GiB allocation. A real Forge/Go fixture verifies it.
 
-[Negative probes](rwx-rust-e2e-evidence/negative-probes.json) retain actual fresh
+[Negative probes](https://github.com/ethereum-optimism/optimism/blob/a1aa49aaf3713a8172f3f615f094488fd8e39c3d/docs/ai/rwx-rust-e2e-evidence/negative-probes.json) retain actual fresh
 failure and process-group cancellation reports, including original partial
 JSON and exit 143 completeness rejection. A separate full-release probe verifies
 the actual aggregate rejects failed/canceled verdicts. These were CLI rehearsals
@@ -94,7 +94,7 @@ existing optional RWX shadows reached successful terminal states. GitHub reporte
 
 ## Reproduction and remaining limits
 
-[Parity index](rwx-rust-e2e-evidence/parity.json) retains all original report hashes,
+[Parity index](https://github.com/ethereum-optimism/optimism/blob/a1aa49aaf3713a8172f3f615f094488fd8e39c3d/docs/ai/rwx-rust-e2e-evidence/parity.json) retains all original report hashes,
 selections, commands, settings, task/job IDs and terminal gates. Larger embedded
 file inventories are bound by canonical JSON digests. The complete 2.1 MB
 comparison and complete provider archives remain under
@@ -107,7 +107,7 @@ python3 ops/ci/compare-rust-e2e.py \
   --output .ci/rwx-e2e-stage-evidence/7d2/comparison.json
 ```
 
-[Cache/warming index](rwx-rust-e2e-evidence/cache-and-warming.json) retains complete
+[Cache/warming index](https://github.com/ethereum-optimism/optimism/blob/a1aa49aaf3713a8172f3f615f094488fd8e39c3d/docs/ai/rwx-rust-e2e-evidence/cache-and-warming.json) retains complete
 release coverage, original statistics and compile-only task evidence. Broader
 cache invalidation, engine cancellation, privileged/fork routing, protected warming
 and required-gate ownership still have separate todos. This stage adds nine
@@ -118,7 +118,7 @@ passed, but Circle job 5635823 failed `TestResyncing`. The restarted validator
 fatally exited after `UnexpectedStaticFileTxNumber(Transactions, 0, 1)`; the
 test then hit its five-minute resync deadline. Rust and sysgo sources are
 unchanged from the preceding fully green `fd426d87` head. The
-[complete original failure index](rwx-rust-e2e-evidence/6245-circle-sysgo-failure.json)
+[complete original failure index](https://github.com/ethereum-optimism/optimism/blob/a1aa49aaf3713a8172f3f615f094488fd8e39c3d/docs/ai/rwx-rust-e2e-evidence/6245-circle-sysgo-failure.json)
 retains every report seal and terminal check counts. Diagnosis remains open;
 no retry or test relaxation has been added. Earlier verified same-SHA parity
 remains bound to its documented revisions, and this head is not fully green.

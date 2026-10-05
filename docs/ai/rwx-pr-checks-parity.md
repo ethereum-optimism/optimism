@@ -34,7 +34,7 @@ attempt identity in its cache key. Reports and check-runner result caches are
 excluded from reusable outputs. Native warming prepares modules/tools with
 zero fast-check verdicts.
 
-[First-failure evidence](rwx-pr-checks-evidence/first-failure.json) retains the
+[First-failure evidence](https://github.com/ethereum-optimism/optimism/blob/a1aa49aaf3713a8172f3f615f094488fd8e39c3d/docs/ai/rwx-pr-checks-evidence/first-failure.json) retains the
 missing pinned uv bootstrap and missing protected Git ref. The bootstrap-only
 diagnostic passed without running checks. The second native run passed fifteen
 checks and failed semver comparison while Circle passed on the same SHA; the
@@ -45,7 +45,7 @@ module adapter. Ten execution/adapter fixtures and fourteen comparison fixtures
 pass; the shared stage's 27 Rust workspace regressions also pass (one separate
 opt-in live Rust fixture skipped).
 
-[Parity index](rwx-pr-checks-evidence/parity.json) retains complete selections,
+[Parity index](https://github.com/ethereum-optimism/optimism/blob/a1aa49aaf3713a8172f3f615f094488fd8e39c3d/docs/ai/rwx-pr-checks-evidence/parity.json) retains complete selections,
 commands, module graphs, all original report hashes, provider identities and
 comparison tool hashes. Complete originals remain under
 `.ci/rwx-pr-checks-stage-evidence/3aff/` and immutable provider artifacts. This

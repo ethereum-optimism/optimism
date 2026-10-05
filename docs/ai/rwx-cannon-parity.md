@@ -56,7 +56,7 @@ the compressed final-state hashes also agree. Native Go binaries retain both
 host hash sets; host debug paths may differ. Docker image IDs differ, while base
 digests, toolchains, inputs and ELF outputs agree.
 
-The [immutable parity index](rwx-rust-evidence/cannon-parity.json) retains complete
+The [immutable parity index](https://github.com/ethereum-optimism/optimism/blob/a1aa49aaf3713a8172f3f615f094488fd8e39c3d/docs/ai/rwx-rust-evidence/cannon-parity.json) retains complete
 original-file checksums, commands, producer bindings and guest-state evidence.
 Original archives are retained under `.ci/rwx-cannon-stage-evidence/2c68/` and in
 the provider artifacts. Circle omits only its zero-byte `guest.log`; its original
@@ -89,7 +89,7 @@ both the original Cannon run command and witness command returned zero. The
 shared final-state guard rejected it, emitted failing JUnit, retained original
 commands/logs/state and made the diagnostic task and CLI run fail as expected.
 This uses a separate diagnostic definition; it does not replace a passing push
-verdict or modify tests. The [cache and failure index](rwx-rust-evidence/cannon-cache-and-failure.json)
+verdict or modify tests. The [cache and failure index](https://github.com/ethereum-optimism/optimism/blob/a1aa49aaf3713a8172f3f615f094488fd8e39c3d/docs/ai/rwx-rust-evidence/cannon-cache-and-failure.json)
 retains both successful fresh repeats and the original failure, including the
 explicit wrong-claim override. Runtime dependency-order advisories from the
 benchmark are retained; the push definition now declares ancestor inputs before

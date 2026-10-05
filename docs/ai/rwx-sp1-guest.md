@@ -3,16 +3,16 @@
 The optional `optimism-sp1-guest-shadow` ports Main's `kona-build-sp1-elfs`
 through the shared `run-main` routing. Its complete hosted workload passes on both
 providers at `c6b294069888978775a3693a9a6ee35de37942f0`. The
-[complete hosted comparison](rwx-sp1-guest-evidence/hosted-parity.json) verifies
+[complete hosted comparison](https://github.com/ethereum-optimism/optimism/blob/a1aa49aaf3713a8172f3f615f094488fd8e39c3d/docs/ai/rwx-sp1-guest-evidence/hosted-parity.json) verifies
 both ELF binaries and CPU verification keys byte for byte, all six actual tests,
 complete dependency graphs, source/toolchain/settings, skips and retry histories.
 This occurrence is now counted.
 
-The [first complete hosted originals](rwx-sp1-guest-evidence/first-hosted-elf-discrepancy.json)
+The [first complete hosted originals](https://github.com/ethereum-optimism/optimism/blob/a1aa49aaf3713a8172f3f615f094488fd8e39c3d/docs/ai/rwx-sp1-guest-evidence/first-hosted-elf-discrepancy.json)
 retain every file hash, the actual keys and the embedded physical source paths.
 Both providers use the same source and verified compiler binaries, but the guest
 embeds different checkout and Cargo registry paths. The
-[complete canonical-path probe](rwx-sp1-guest-evidence/canonical-path-probe.json)
+[complete canonical-path probe](https://github.com/ethereum-optimism/optimism/blob/a1aa49aaf3713a8172f3f615f094488fd8e39c3d/docs/ai/rwx-sp1-guest-evidence/canonical-path-probe.json)
 reproduces both Circle ELFs and verification keys byte for byte, at the same SHA,
 using the same physical paths and original flags. Path-remapping flags produce
 different binaries and are not used. The probe executes zero tests. The subsequent full automatic run
@@ -73,9 +73,9 @@ byte for byte. Only physical checkout, Cargo home and compiler-output locations
 are normalized. Missing, extra, corrupt, stale, resealed false or mismatched
 inputs fail validation.
 
-The [complete preflight originals](rwx-sp1-guest-evidence/first-full-preflight.json),
-[latest manifest-discovery run](rwx-sp1-guest-evidence/latest-full-preflight.json)
-and [the original eight real-tool fixtures](rwx-sp1-guest-evidence/local-fixtures.json)
+The [complete preflight originals](https://github.com/ethereum-optimism/optimism/blob/a1aa49aaf3713a8172f3f615f094488fd8e39c3d/docs/ai/rwx-sp1-guest-evidence/first-full-preflight.json),
+[latest manifest-discovery run](https://github.com/ethereum-optimism/optimism/blob/a1aa49aaf3713a8172f3f615f094488fd8e39c3d/docs/ai/rwx-sp1-guest-evidence/latest-full-preflight.json)
+and [the original eight real-tool fixtures](https://github.com/ethereum-optimism/optimism/blob/a1aa49aaf3713a8172f3f615f094488fd8e39c3d/docs/ai/rwx-sp1-guest-evidence/local-fixtures.json)
 retain their full original file hashes and unpublished source revisions.
 
 The full local preflight executes four super-aggregation unit tests and two

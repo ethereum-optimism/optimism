@@ -49,7 +49,7 @@ and comparison pass; the next pushed definition still needs terminal PR checks.
 
 [Circle pipeline 135582, job 5635593](https://app.circleci.com/pipelines/github/ethereum-optimism/optimism/135582)
 and [RWX run e2952b8b](https://cloud.rwx.com/optimism/runs/e2952b8b619146b4ab1355a19e5e2804)
-pass the [full comparison](rwx-nut-prefork-evidence/parity.json), verifying 72
+pass the [full comparison](https://github.com/ethereum-optimism/optimism/blob/a1aa49aaf3713a8172f3f615f094488fd8e39c3d/docs/ai/rwx-nut-prefork-evidence/parity.json), verifying 72
 Circle and 79 RWX original file seals, identical complete selection, tools,
 commands, source inputs, generated state bytes and every original outcome.
 Go 1.26.6 actually executes the full suite. Native reporting displays six
@@ -59,10 +59,10 @@ The first native push run passed the actual generation but displayed zero
 cases because its XML report selected the Go JSON parser explicitly. The
 corrected full execution uses JUnit parser inference. Its source remains the
 exact fd42 commit; the CLI uploads only the retained
-[corrected definition](rwx-nut-prefork-evidence/verified-native-definition.yml).
+[corrected definition](https://github.com/ethereum-optimism/optimism/blob/a1aa49aaf3713a8172f3f615f094488fd8e39c3d/docs/ai/rwx-nut-prefork-evidence/verified-native-definition.yml).
 The exact three-line parser-option block removal, both native snapshots, first
 original report hashes and complete fixture seals are retained in the
-[run and cache index](rwx-nut-prefork-evidence/runs-cache-and-fixtures.json).
+[run and cache index](https://github.com/ethereum-optimism/optimism/blob/a1aa49aaf3713a8172f3f615f094488fd8e39c3d/docs/ai/rwx-nut-prefork-evidence/runs-cache-and-fixtures.json).
 The first reporting defect remains visible and contributes no extra coverage.
 
 The [dependency-only warm rehearsal b1076421](https://cloud.rwx.com/optimism/runs/b1076421c2454800a927edb471375298)
@@ -73,6 +73,6 @@ claimed.
 
 The pushed definition at `6245472e` also succeeded in automatic native run
 `8487717c`, with all six tests displayed and zero failures. The
-[pushed reporting confirmation](rwx-nut-prefork-evidence/pushed-reporting-confirmation.json)
+[pushed reporting confirmation](https://github.com/ethereum-optimism/optimism/blob/a1aa49aaf3713a8172f3f615f094488fd8e39c3d/docs/ai/rwx-nut-prefork-evidence/pushed-reporting-confirmation.json)
 retains exact task identity and snapshot seal. This confirms the reporting fix
 and adds no extra occurrence.

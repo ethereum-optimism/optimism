@@ -1,2 +1,0 @@
-# Original provider frames retain empty trailing tab fields and exact file hashes.
-f821-*-first-failure.txt -text whitespace=-blank-at-eol

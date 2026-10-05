@@ -87,7 +87,7 @@ No identities are missing or extra. The strict comparison reports seven differin
 skip messages in flaky-handling self-tests. Each has identical annotations and
 source-relative traces; provider log routing and absolute workspace paths account
 for the differences. All seven are investigated, with zero unresolved differences.
-The retained [comparison evidence](rwx-go-evidence/parity.json) records each resolution;
+The retained [comparison evidence](https://github.com/ethereum-optimism/optimism/blob/a1aa49aaf3713a8172f3f615f094488fd8e39c3d/docs/ai/rwx-go-evidence/parity.json) records each resolution;
 it does not change the original reports or claim strict textual equivalence.
 
 | Observation at that SHA | Configuration | Wall time | Measurement boundary |

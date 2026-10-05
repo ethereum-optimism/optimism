@@ -5,7 +5,7 @@ The optional `optimism-contract-l2-fork-shadow` implements the complete original
 original parity passes at `f821983dd56cbd7e488ab903d1ac386a330de7f6`. Both
 providers execute all seven initial cases and retain all 407 runtime relay
 requests, with zero diagnostic reruns, transport retries or HTTP 429s.
-The [complete comparison](rwx-contract-l2-fork-evidence/parity.json) retains
+The [complete comparison](https://github.com/ethereum-optimism/optimism/blob/a1aa49aaf3713a8172f3f615f094488fd8e39c3d/docs/ai/rwx-contract-l2-fork-evidence/parity.json) retains
 source, commands, compiler, selection, settings, block, RPC and original results.
 This closes the L2 fork occurrence in the 86-job baseline.
 
@@ -74,7 +74,7 @@ the compiler cache and executed in 23 seconds. These are task observations,
 not a provider speed comparison. Circle pipeline 135628/job 5638523 was killed
 after exactly ten minutes without console output during full preparation.
 The complete partial preparation stream and all untruncated API logs remain
-retained in the [first combined batch](rwx-pr-gates-evidence/contracts-first-batch.json).
+retained in the [first combined batch](https://github.com/ethereum-optimism/optimism/blob/a1aa49aaf3713a8172f3f615f094488fd8e39c3d/docs/ai/rwx-pr-gates-evidence/contracts-first-batch.json).
 The preparation step now allows 30 minutes without output while retaining its
 full original console archive. The failed Circle run adds no parity credit.
 
@@ -85,7 +85,7 @@ assertion was replaced: the separate diagnostic rerun passed all seven selected
 cases and the shared runner still exited 1. Native fresh execution passed all
 seven cases in 59 seconds. Complete initial and diagnostic JUnit, request frames,
 console streams and all untruncated Circle API logs are retained in the
-[second combined batch](rwx-pr-gates-evidence/contracts-second-batch.json).
+[second combined batch](https://github.com/ethereum-optimism/optimism/blob/a1aa49aaf3713a8172f3f615f094488fd8e39c3d/docs/ai/rwx-pr-gates-evidence/contracts-second-batch.json).
 
 Both providers now run the complete verdict with `--threads 1` and
 `--compute-units-per-second 100`. The pinned Forge 1.8.3 binary and source support
@@ -124,7 +124,7 @@ and attempts are retained, with zero 429s. Five unsupported `anvil_nodeInfo` or
 `eth_getAccountInfo` probes returned original HTTP 403 method-denial responses;
 Forge's normal fallback succeeded and the relay did not retry those denials.
 This integration probe and 30 helper/comparison fixtures add zero coverage.
-The [transport preflight](rwx-pr-gates-evidence/contracts-pacing-preflight.json)
+The [transport preflight](https://github.com/ethereum-optimism/optimism/blob/a1aa49aaf3713a8172f3f615f094488fd8e39c3d/docs/ai/rwx-pr-gates-evidence/contracts-pacing-preflight.json)
 binds those complete originals and the prior full-workload failures.
 
 The combined automatic batch at `3be585cb` passes the original result comparison;
@@ -152,7 +152,7 @@ through the relay. A pinned Forge 1.8.3 / Solc 0.8.15 probe runs through two
 nested Bash shells against the original pinned archive block: two tests pass,
 all 19 requests use the relay, and no request receives HTTP 429. Five original
 capability-denial HTTP 403 responses pass through once. Complete frames and
-implementation hashes remain in the [corrective preflight](rwx-pr-gates-evidence/contracts-shell-preflight.json).
+implementation hashes remain in the [corrective preflight](https://github.com/ethereum-optimism/optimism/blob/a1aa49aaf3713a8172f3f615f094488fd8e39c3d/docs/ai/rwx-pr-gates-evidence/contracts-shell-preflight.json).
 These local checks add zero hosted workload coverage.
 
 The reader still accepts sealed zero-request reports: a fully warm RPC cache
@@ -178,5 +178,5 @@ relay requests and attempts: 394 HTTP 200 responses and thirteen original HTTP
 neither denial. Both providers record zero HTTP 429s and zero transport retries.
 Complete original collections and sealed reports pass the strict reader. Both
 genuine Contracts gates also pass their 21 prerequisites. The historical
-[3be5 comparison](rwx-contract-l2-fork-evidence/3be5-batch-parity.json) and complete
+[3be5 comparison](https://github.com/ethereum-optimism/optimism/blob/a1aa49aaf3713a8172f3f615f094488fd8e39c3d/docs/ai/rwx-contract-l2-fork-evidence/3be5-batch-parity.json) and complete
 first failures remain retained; no original failed verdict was replaced.

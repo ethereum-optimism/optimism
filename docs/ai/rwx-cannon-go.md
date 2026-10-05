@@ -96,7 +96,7 @@ completed both producers and helpers, then failed before tests because archive
 restoration tried overwriting a materialized read-only Go toolchain cache file.
 The next head reproduced that preflight failure; neither run counts as test
 coverage. Complete original failure reports and task logs remain retained;
-[first-failure evidence](rwx-cannon-go-evidence/first-failures.json) records their
+[first-failure evidence](https://github.com/ethereum-optimism/optimism/blob/a1aa49aaf3713a8172f3f615f094488fd8e39c3d/docs/ai/rwx-cannon-go-evidence/first-failures.json) records their
 original hashes, settings and rejected setup request.
 The shared artifact restorer now verifies matching destination bytes and the
 corresponding archived payload before reusing an existing regular file. It
@@ -109,7 +109,7 @@ exercise this exact cache shape. The corrected full hosted comparison passes.
 and fresh [Circle pipeline 135579, job 5635468](https://app.circleci.com/pipelines/github/ethereum-optimism/optimism/135579)
 executed the same source revision. Both select all **16 packages, 112 initial
 tests and 2,881 case identities**, all passing without skips or retries. The
-[complete parity index](rwx-cannon-go-evidence/parity.json) verifies every selected
+[complete parity index](https://github.com/ethereum-optimism/optimism/blob/a1aa49aaf3713a8172f3f615f094488fd8e39c3d/docs/ai/rwx-cannon-go-evidence/parity.json) verifies every selected
 source file, initial assignment, original command, effective setting, package
 verdict, JUnit identity and split-log bytes. It seals **2,989 Circle and 2,991 RWX
 original files**. Circle's hash-manifest-declared empty files are explicitly
@@ -130,7 +130,7 @@ helper tests. The first [warm run 358c75a0](https://cloud.rwx.com/optimism/runs/
 executed the producers with reusable tool caches. The unchanged
 [replay b1ec0c4a](https://cloud.rwx.com/optimism/runs/b1ec0c4a5cc54e2ebd204d883fd0a84a)
 reused both complete module and contract producer task outputs. The
-[cache and fixture index](rwx-cannon-go-evidence/cache-and-fixtures.json) retains
+[cache and fixture index](https://github.com/ethereum-optimism/optimism/blob/a1aa49aaf3713a8172f3f615f094488fd8e39c3d/docs/ai/rwx-cannon-go-evidence/cache-and-fixtures.json) retains
 their original task/cache identities, tool-cache declarations, source parameters,
 zero-test selections and all eight original fixture report seals. Protected
 `develop` cache-rebuild events remain unobserved. These are cache correctness

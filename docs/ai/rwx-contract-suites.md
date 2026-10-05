@@ -91,7 +91,7 @@ provide no Circle heavy-suite verdict. The fallback now requires an actual
 test-failure cache, preventing an empty `--rerun` from executing the full suite
 after preparation failure. These are retained first failures, not parity proof.
 The complete original file hashes, provider observations and exact diagnostic
-change are retained in [first-failures.json](rwx-contract-suites-evidence/first-failures.json).
+change are retained in [first-failures.json](https://github.com/ethereum-optimism/optimism/blob/a1aa49aaf3713a8172f3f615f094488fd8e39c3d/docs/ai/rwx-contract-suites-evidence/first-failures.json).
 
 At `c702cfb2d41a0220383cebdf9013530dd25d50c0`,
 [RWX run 96f1589c](https://cloud.rwx.com/optimism/runs/96f1589c68bc418eacd5d37bfc259585)
@@ -131,7 +131,7 @@ All eight occurrences also pass complete original-report comparison at
 `ffefdb34638470dd1126cbf2aaebb4644400b6fb` on
 [native run ffab3bbe](https://cloud.rwx.com/optimism/runs/ffab3bbedad3416eb8424baef0d13abe)
 and [Circle pipeline 135572](https://app.circleci.com/pipelines/github/ethereum-optimism/optimism/135572).
-The [follow-up index](rwx-contract-suites-evidence/ffef-parity.json) retains every
+The [follow-up index](https://github.com/ethereum-optimism/optimism/blob/a1aa49aaf3713a8172f3f615f094488fd8e39c3d/docs/ai/rwx-contract-suites-evidence/ffef-parity.json) retains every
 selection, outcome, skip, source/tool setting, compiler binding, fixture mutation
 and original report hash. All 950 original files verify. Full originals remain
 under `.ci/rwx-contract-suites-evidence/ffef/` and the provider artifacts.
@@ -163,7 +163,7 @@ artifact and Go FFI binary is byte-identical; only
 compiler data; they were not filesystem task-cache hits. This is a CLI rehearsal,
 not an observed protected `develop` cache-rebuild event or a speed comparison.
 
-[parity.json](rwx-contract-suites-evidence/parity.json) retains the complete shared
+[parity.json](https://github.com/ethereum-optimism/optimism/blob/a1aa49aaf3713a8172f3f615f094488fd8e39c3d/docs/ai/rwx-contract-suites-evidence/parity.json) retains the complete shared
 source hashes, authoritative selections, per-case outcomes and original skips,
 all provider report hashes, generated fixture changes, interface reconciliation,
 final checks and the eight preparation-only original inventories. Raw originals

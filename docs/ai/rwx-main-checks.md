@@ -5,7 +5,7 @@ Seven additional Main occurrences now pass complete original-report parity at
 `optimism-pr-checks-shadow` and shared `run-main` route. Total implementation
 coverage is 63/86 (73%); 23 occurrences remain.
 
-[Complete parity evidence](rwx-main-checks-evidence/parity.json) retains every
+[Complete parity evidence](https://github.com/ethereum-optimism/optimism/blob/a1aa49aaf3713a8172f3f615f094488fd8e39c3d/docs/ai/rwx-main-checks-evidence/parity.json) retains every
 selection, effective setting, source input and original file hash. Circle pipeline
 [135565](https://app.circleci.com/pipelines/github/ethereum-optimism/optimism/135565)
 and native run [a883f061](https://cloud.rwx.com/optimism/runs/a883f061b373443196e5e91902d97ccf)
@@ -41,7 +41,7 @@ The initial hosted observation at `7c547ece` passes complete original-report
 parity for the five non-generator validators. Both mock discoveries fail at the
 missing gitignored superchain ZIP, before their original commands. The preceding
 Circle mock jobs passed at `58a81fbd`; this is a new discovery dependency gap.
-[First-failure evidence](rwx-main-checks-evidence/first-failure.json) retains all
+[First-failure evidence](https://github.com/ethereum-optimism/optimism/blob/a1aa49aaf3713a8172f3f615f094488fd8e39c3d/docs/ai/rwx-main-checks-evidence/first-failure.json) retains all
 fourteen original reports and both diagnostics. Those first observations added
 zero occurrences. The corrected stage closes all seven comparisons and retains
 these failures without replacing their evidence.

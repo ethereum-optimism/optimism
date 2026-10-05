@@ -4,7 +4,7 @@ The optional `optimism-flaky-report-shadow` executes the original acceptance
 reporting script through shared `run-main` routing. Complete same-SHA hosted
 parity passed at `b472a22e8374c797ecaee5a6ef5b735fcc979028`: native run
 `5620ba604af94bd38b1a710469ebbf4b`, Circle pipeline 135620/job 5637736.
-The [parity index](rwx-flaky-report-evidence/parity.json) binds all 16 original
+The [parity index](https://github.com/ethereum-optimism/optimism/blob/a1aa49aaf3713a8172f3f615f094488fd8e39c3d/docs/ai/rwx-flaky-report-evidence/parity.json) binds all 16 original
 files from each provider. This adds one verified Main occurrence.
 
 The workload requests the real Circle Insights flaky-test API for this public

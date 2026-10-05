@@ -60,7 +60,7 @@ The upgrade pass had not started at the first failure;
 this observation does not establish full coverage parity. Original first-failure
 reports remain under `.ci/rwx-contract-coverage-evidence/4639/` and immutable
 provider artifacts, including both complete ordinary attribution reports.
-The [first-failure index](rwx-contract-coverage-evidence/first-failure.json) retains
+The [first-failure index](https://github.com/ethereum-optimism/optimism/blob/a1aa49aaf3713a8172f3f615f094488fd8e39c3d/docs/ai/rwx-contract-coverage-evidence/first-failure.json) retains
 both complete original seals, canonical predicate events, full changed attribution
 items and the source-bound diagnosis. All 150 original files verify against their
 seals. Complete selection accounting agrees: 2,308 passes and 551 skips, including
@@ -152,7 +152,7 @@ fixtures, LCOV entries and complete per-test attribution fingerprints agree.
 Every raw LCOV hit and attribution item remains included. The full original
 attribution files are retained; comparison does not replace them with sampled
 items or aggregate totals. All 762 original files verify against their seals.
-The [parity index](rwx-contract-coverage-evidence/parity.json) retains complete
+The [parity index](https://github.com/ethereum-optimism/optimism/blob/a1aa49aaf3713a8172f3f615f094488fd8e39c3d/docs/ai/rwx-contract-coverage-evidence/parity.json) retains complete
 comparison views, original hashes, provider identities and immutable report links.
 Original reports remain under `.ci/rwx-contract-coverage-evidence/ffef/` and the
 provider artifacts. This controlled replay establishes parity for these exact
@@ -168,7 +168,7 @@ remain restricted to the preflight/runtime tasks and redacted from reports.
 reused every compile task directly from `aba3398e`, at the same source and settings.
 All four producers passed with zero tests, and the run selected no verdict,
 helper or RPC task. The
-[cache and failure index](rwx-contract-coverage-evidence/cache-and-fixtures.json)
+[cache and failure index](https://github.com/ethereum-optimism/optimism/blob/a1aa49aaf3713a8172f3f615f094488fd8e39c3d/docs/ai/rwx-contract-coverage-evidence/cache-and-fixtures.json)
 retains the task provenance, original prepared manifests and hosted intentional
 failure reports. The changed source/settings at `ffefdb3` invalidated the earlier
 producer outputs and all four compiled again. This is a CLI warm-only observation;

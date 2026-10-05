@@ -9,6 +9,11 @@ This checklist covers the full PR workflow. Post-merge, scheduled and release
 work appears separately below. Use [rwx-migration.md](rwx-migration.md) for the
 migration contract and [ci-comparison.md](ci-comparison.md) for evidence collection.
 
+The [evidence archive index](rwx-evidence-index.md) retains retrieval instructions,
+source provenance, checksums and historical limitations. Generated originals and
+summaries stay outside the repository's final tree; closeout links pin the
+captured source revision.
+
 ## Optimization target
 
 Optimize wall-clock time from a push to the final CI verdict, with the existing
@@ -39,16 +44,16 @@ workflow changes since the pilot's `c8e4ba85` base. The PR denominator remains 8
 All **86 / 86 baseline PR job occurrences** are implemented, fully executed on
 native RWX and supported by resolved same-SHA original-report parity. The last
 three jobs were verified together at `f821983dd56cbd7e488ab903d1ac386a330de7f6`:
-[OP Mainnet L2 fork](rwx-contract-l2-fork-evidence/parity.json),
-[Contracts aggregate](rwx-pr-gates-evidence/contracts-parity.json) and
-[selector uploader](rwx-selector-upload-evidence/f821-batch-parity.json).
+[OP Mainnet L2 fork](https://github.com/ethereum-optimism/optimism/blob/a1aa49aaf3713a8172f3f615f094488fd8e39c3d/docs/ai/rwx-contract-l2-fork-evidence/parity.json),
+[Contracts aggregate](https://github.com/ethereum-optimism/optimism/blob/a1aa49aaf3713a8172f3f615f094488fd8e39c3d/docs/ai/rwx-pr-gates-evidence/contracts-parity.json) and
+[selector uploader](https://github.com/ethereum-optimism/optimism/blob/a1aa49aaf3713a8172f3f615f094488fd8e39c3d/docs/ai/rwx-selector-upload-evidence/f821-batch-parity.json).
 
 Circle pipeline 135650 and the native coordinator pass all seven initial L2
 cases, with zero skips or diagnostic reruns. Both retain all 407 runtime relay
 requests, zero transport retries and zero HTTP 429s. Both genuine Contracts
 gates pass the same 21 exact prerequisites. The selector comparison verifies the
 complete compiler catalogues, all 1,120 fresh database rows and API readbacks.
-The [coverage closeout](rwx-pr-gates-evidence/f821-coverage-closeout.json) retains
+The [coverage closeout](https://github.com/ethereum-optimism/optimism/blob/a1aa49aaf3713a8172f3f615f094488fd8e39c3d/docs/ai/rwx-pr-gates-evidence/f821-coverage-closeout.json) retains
 complete original hashes, all four successful required Circle gates, dependency
 review and the remaining native check failures from this batch.
 
@@ -62,16 +67,16 @@ successful retry and later failing retry. Final head checks are tracked in the
 single draft PR; Circle remains responsible for required gates.
 
 Earlier combined failures remain retained in the
-[preparation timeout](rwx-pr-gates-evidence/contracts-first-batch.json),
-[public RPC and module-proxy failures](rwx-pr-gates-evidence/contracts-second-batch.json),
-[backoff-only failures](rwx-pr-gates-evidence/contracts-pacing-preflight.json) and
-[shell/source correction](rwx-pr-gates-evidence/contracts-shell-preflight.json).
+[preparation timeout](https://github.com/ethereum-optimism/optimism/blob/a1aa49aaf3713a8172f3f615f094488fd8e39c3d/docs/ai/rwx-pr-gates-evidence/contracts-first-batch.json),
+[public RPC and module-proxy failures](https://github.com/ethereum-optimism/optimism/blob/a1aa49aaf3713a8172f3f615f094488fd8e39c3d/docs/ai/rwx-pr-gates-evidence/contracts-second-batch.json),
+[backoff-only failures](https://github.com/ethereum-optimism/optimism/blob/a1aa49aaf3713a8172f3f615f094488fd8e39c3d/docs/ai/rwx-pr-gates-evidence/contracts-pacing-preflight.json) and
+[shell/source correction](https://github.com/ethereum-optimism/optimism/blob/a1aa49aaf3713a8172f3f615f094488fd8e39c3d/docs/ai/rwx-pr-gates-evidence/contracts-shell-preflight.json).
 Circle's zero-request relay report at `3be585cb` resulted from nested Bash
 reloading `BASH_ENV`, which restored the public endpoint over the loopback URL.
 The earlier warm-cache attribution was incorrect. Its corrected historical
-[L2 comparison](rwx-contract-l2-fork-evidence/3be5-batch-parity.json),
-[Contracts comparison](rwx-pr-gates-evidence/3be5-contracts-parity.json) and
-[check snapshot](rwx-pr-gates-evidence/pr-closeout.json) remain preserved.
+[L2 comparison](https://github.com/ethereum-optimism/optimism/blob/a1aa49aaf3713a8172f3f615f094488fd8e39c3d/docs/ai/rwx-contract-l2-fork-evidence/3be5-batch-parity.json),
+[Contracts comparison](https://github.com/ethereum-optimism/optimism/blob/a1aa49aaf3713a8172f3f615f094488fd8e39c3d/docs/ai/rwx-pr-gates-evidence/3be5-contracts-parity.json) and
+[check snapshot](https://github.com/ethereum-optimism/optimism/blob/a1aa49aaf3713a8172f3f615f094488fd8e39c3d/docs/ai/rwx-pr-gates-evidence/pr-closeout.json) remain preserved.
 The verified `f821983d` comparisons supersede that closeout. These task
 observations establish no provider speed claim.
 

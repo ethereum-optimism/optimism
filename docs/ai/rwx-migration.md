@@ -10,6 +10,10 @@ stay in the single draft
 [PR #23151](https://github.com/ethereum-optimism/optimism/pull/23151)
 against `develop`.
 
+Generated pilot evidence is retained outside Git. The
+[archive index](rwx-evidence-index.md) records its two private copies,
+checksums, restoration procedure and historical collection limitations.
+
 ## Run the pilot
 
 `.rwx/pilot.yml` runs shared routing tests plus policy-selected Go lint (with the

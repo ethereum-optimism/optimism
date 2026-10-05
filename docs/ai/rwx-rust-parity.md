@@ -69,7 +69,7 @@ The benchmark revision is `68ad71e05f212ac925a01df72e8dda703c0385fa`:
 and [Circle pipeline 135545](https://app.circleci.com/pipelines/github/ethereum-optimism/optimism/135545).
 Both providers passed every workload. Complete package/features/target manifests,
 input hashes, tool versions, selections, outcomes, exclusions and observed
-retry histories agree. The [evidence index](rwx-rust-evidence/parity.json) records
+retry histories agree. The [evidence index](https://github.com/ethereum-optimism/optimism/blob/a1aa49aaf3713a8172f3f615f094488fd8e39c3d/docs/ai/rwx-rust-evidence/parity.json) records
 all job/task IDs and original-file hashes.
 
 | Evidence | CircleCI | RWX |
@@ -106,7 +106,7 @@ all 19 checks freshly with a new run identity. Its command execution was 14s
 versus 249s on the initial compiler-cold task. These are functional cache
 observations; they exclude setup/transfers and establish no pipeline speed win.
 
-The [first-failure index](rwx-rust-evidence/first-failures.json) preserves the
+The [first-failure index](https://github.com/ethereum-optimism/optimism/blob/a1aa49aaf3713a8172f3f615f094488fd8e39c3d/docs/ai/rwx-rust-evidence/first-failures.json) preserves the
 initial cwd/tool-preparation failures and original report-collector failures.
 Their successful corrections do not replace those failed verdicts.
 

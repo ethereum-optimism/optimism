@@ -57,7 +57,7 @@ failed/never-started receipt collection, genuine zero-test safe skips, all Main
 dependencies and shards, changed shard modes, duplicate execution and an omitted
 Go shard. Rust verdicts remain fresh through engine-provided run/attempt cache
 keys, preserving their compiler tool caches. Other verdicts use `cache: false`.
-The [Main implementation preflight](rwx-pr-gates-evidence/main-preflight.json)
+The [Main implementation preflight](https://github.com/ethereum-optimism/optimism/blob/a1aa49aaf3713a8172f3f615f094488fd8e39c3d/docs/ai/rwx-pr-gates-evidence/main-preflight.json)
 retains local validation and clearly excludes unverified hosted coverage.
 Producer artifact names and paths must match their consumer bindings.
 One final status task waits for both mutually exclusive observers and executes
@@ -65,15 +65,15 @@ on every terminal outcome. It succeeds only when the aggregate actually passed
 and the failure observer was correctly skipped. Actual aggregate failure,
 cancellation, selected skip, contradictory observers or invalid engine values
 fail this final verdict. Its complete original states and provenance are retained.
-The [native embedded-run probes](rwx-pr-gates-evidence/embedded-preflight.json)
+The [native embedded-run probes](https://github.com/ethereum-optimism/optimism/blob/a1aa49aaf3713a8172f3f615f094488fd8e39c3d/docs/ai/rwx-pr-gates-evidence/embedded-preflight.json)
 exercise actual passes, intentional failures, skips, a Main-only failure with a
 passing Rust receipt, artifact mounting and matching parent/child run identities.
 Their runs correctly fail while their observers succeed. These fixtures and
 probes add no workload coverage.
 
 The earlier API-based design failed before execution in automatic runs
-[66765a69](rwx-pr-gates-evidence/first-hosted-failure.json) and
-[44bdd307](rwx-pr-gates-evidence/embedded-preflight.json). CLI probes exposed a
+[66765a69](https://github.com/ethereum-optimism/optimism/blob/a1aa49aaf3713a8172f3f615f094488fd8e39c3d/docs/ai/rwx-pr-gates-evidence/first-hosted-failure.json) and
+[44bdd307](https://github.com/ethereum-optimism/optimism/blob/a1aa49aaf3713a8172f3f615f094488fd8e39c3d/docs/ai/rwx-pr-gates-evidence/embedded-preflight.json). CLI probes exposed a
 GitHub token, but the automatic runs did not expose the `github` expression
 context. The original failures and CLI probes remain retained as diagnostic
 evidence. The native coordinator replaces that implementation and its wait helper.
@@ -106,7 +106,7 @@ aggregate and its one final verdict. Circle pipeline 135601, workflow
 [job 5636909](https://circleci.com/gh/ethereum-optimism/optimism/5636909) passed
 the genuine verifier for every one of its 21 dependencies. Both GitHub gate
 statuses finished successfully on that SHA. The
-[complete original comparison](rwx-pr-gates-evidence/rust-parity.json) retains
+[complete original comparison](https://github.com/ethereum-optimism/optimism/blob/a1aa49aaf3713a8172f3f615f094488fd8e39c3d/docs/ai/rwx-pr-gates-evidence/rust-parity.json) retains
 every source/API/config/log/receipt hash and both run and GitHub observations.
 This closes one Rust occurrence and adds zero tests.
 
@@ -118,7 +118,7 @@ pipeline 135603, workflow `05d7f444-5b78-4111-b847-97c7739a323f`, original
 [job 5637015](https://circleci.com/gh/ethereum-optimism/optimism/5637015) passed
 the genuine verifier for all 19 exact dependencies. All four required Circle
 gates, dependency review and optional native checks finished successfully on
-that head. The [complete original Main comparison](rwx-pr-gates-evidence/main-parity.json)
+that head. The [complete original Main comparison](https://github.com/ethereum-optimism/optimism/blob/a1aa49aaf3713a8172f3f615f094488fd8e39c3d/docs/ai/rwx-pr-gates-evidence/main-parity.json)
 retains all source/API/config/log/receipt hashes, actual engine states and
 terminal GitHub checks. Original aggregate and final-status archives were
 downloaded using the existing signed-in account after the CLI identity was
@@ -156,11 +156,11 @@ Local real Git/YQ tests cover complete Contracts authority, omission/failure of
 the L2 verdict, safe skips, checkout paths, independent Rust/Main gate scope and
 the complete original provider comparison. These fixtures add zero coverage.
 
-The [Contracts implementation preflight](rwx-pr-gates-evidence/contracts-preflight.json)
+The [Contracts implementation preflight](https://github.com/ethereum-optimism/optimism/blob/a1aa49aaf3713a8172f3f615f094488fd8e39c3d/docs/ai/rwx-pr-gates-evidence/contracts-preflight.json)
 retains all changed input hashes and local validation. The completed hosted
 comparison below closes the Contracts aggregate occurrence.
 
-The [first combined batch](rwx-pr-gates-evidence/contracts-first-batch.json) at
+The [first combined batch](https://github.com/ethereum-optimism/optimism/blob/a1aa49aaf3713a8172f3f615f094488fd8e39c3d/docs/ai/rwx-pr-gates-evidence/contracts-first-batch.json) at
 `936ef20e` passed all 21 native Contracts prerequisites, all five fresh receipts,
 the aggregate and its final status. Their complete original archives were
 downloaded through the existing signed-in account. Circle pipeline 135628's
@@ -169,7 +169,7 @@ silence limit before the tests ran. The first failure, partial preparation and
 complete original gate evidence remain retained. Correcting that preparation
 limit precedes a further combined verification; no per-job replay is dispatched.
 
-The [second combined batch](rwx-pr-gates-evidence/contracts-second-batch.json)
+The [second combined batch](https://github.com/ethereum-optimism/optimism/blob/a1aa49aaf3713a8172f3f615f094488fd8e39c3d/docs/ai/rwx-pr-gates-evidence/contracts-second-batch.json)
 at `a3a09108` also passed every native group and aggregate. The genuine Circle
 Contracts gate failed on an initial L2 public RPC 429; its diagnostic success
 was retained without replacing that failure. Main and Rust E2E passed on both
@@ -183,7 +183,7 @@ both providers despite the Forge backoff/concurrency controls. Their separate
 diagnostic passes correctly leave both Contracts gates failed. A shared proactive
 RPC relay is locally verified with complete frame validation and the pinned
 Forge/real-archive probe before a further combined verification. Its
-[preflight](rwx-pr-gates-evidence/contracts-pacing-preflight.json) clearly adds
+[preflight](https://github.com/ethereum-optimism/optimism/blob/a1aa49aaf3713a8172f3f615f094488fd8e39c3d/docs/ai/rwx-pr-gates-evidence/contracts-pacing-preflight.json) clearly adds
 zero hosted coverage.
 
 The complete automatic [run d287cd4e](https://cloud.rwx.com/optimism/runs/d287cd4ef59b4c02b11cfbbf03d0e7f5)
@@ -193,7 +193,7 @@ Circle pipeline 135642, workflow `090b330c-310b-42c4-a656-4d0149c59014`, origina
 [job 5639666](https://circleci.com/gh/ethereum-optimism/optimism/5639666) passes
 its genuine verifier with those same 21 dependency names. Both optional native
 and required Circle Contracts checks finish successfully on that SHA.
-The [historical original comparison](rwx-pr-gates-evidence/3be5-contracts-parity.json)
+The [historical original comparison](https://github.com/ethereum-optimism/optimism/blob/a1aa49aaf3713a8172f3f615f094488fd8e39c3d/docs/ai/rwx-pr-gates-evidence/3be5-contracts-parity.json)
 binds every receipt, source/config/API/log hash and the actual engine and GitHub
 states. The aggregate and final-status archives were downloaded through the
 existing signed-in account. This historical comparison adds zero tests. The
@@ -201,7 +201,7 @@ next batch at `30a54d78` exposed Circle's nested-shell RPC override and a separa
 native GitHub HTTP 504 clone failure before tests. The L2 runner now keeps the
 initialized shell snapshot. A shared native Contracts source producer supplies
 all compilation and verdict workers; existing consumers verify source hashes
-and submodule revisions without cloning again. The [corrective preflight](rwx-pr-gates-evidence/contracts-shell-preflight.json)
+and submodule revisions without cloning again. The [corrective preflight](https://github.com/ethereum-optimism/optimism/blob/a1aa49aaf3713a8172f3f615f094488fd8e39c3d/docs/ai/rwx-pr-gates-evidence/contracts-shell-preflight.json)
 retains these first failures and local verification. The corrected combined comparison below closes both occurrences.
 
 The combined batch at `f821983dd56cbd7e488ab903d1ac386a330de7f6` passes the
@@ -212,7 +212,7 @@ one final status. Circle pipeline 135650, workflow
 `f1d9e5b7-92bd-4029-93cc-652f0072c98a`, original
 [job 5639949](https://circleci.com/gh/ethereum-optimism/optimism/5639949) passes the
 genuine verifier for those same 21 dependencies. The
-[complete comparison](rwx-pr-gates-evidence/contracts-parity.json) retains every
+[complete comparison](https://github.com/ethereum-optimism/optimism/blob/a1aa49aaf3713a8172f3f615f094488fd8e39c3d/docs/ai/rwx-pr-gates-evidence/contracts-parity.json) retains every
 source/config/API/log/receipt hash, original engine state and successful GitHub
 gate observation. The aggregate and status archives were downloaded using the
 existing signed-in account; no credential scope changed. This closes one gate
@@ -224,7 +224,7 @@ hit a Go toolchain TLS download timeout; all six fixtures passed on the retained
 native-only retry. The observer's first-attempt-only identity check then rejected
 its own second attempt despite successful selected receipts. Gate decisions now
 follow the latest engine states, with independent attempt numbers retained as
-provenance. The [coverage closeout](rwx-pr-gates-evidence/f821-coverage-closeout.json)
+provenance. The [coverage closeout](https://github.com/ethereum-optimism/optimism/blob/a1aa49aaf3713a8172f3f615f094488fd8e39c3d/docs/ai/rwx-pr-gates-evidence/f821-coverage-closeout.json)
 retains these full first failure logs, the separate Rust E2E source clone timeout
 and all 27 local gate/comparison fixture results. Final head readiness is tracked
 in PR #23151; no per-job Circle replay was dispatched.

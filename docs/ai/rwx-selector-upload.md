@@ -2,7 +2,7 @@
 
 The complete native selector uploader now passes strict same-SHA original
 Circle/native parity at `63844aed622385299088d716152d8105d5f88b66`. This closes
-one Main occurrence. The [retained comparison](rwx-selector-upload-evidence/parity.json)
+one Main occurrence. The [retained comparison](https://github.com/ethereum-optimism/optimism/blob/a1aa49aaf3713a8172f3f615f094488fd8e39c3d/docs/ai/rwx-selector-upload-evidence/parity.json)
 binds every original compiler, HTTP, database and process report.
 
 The optional `optimism-selector-upload-shadow` follows shared `run-main` routing.
@@ -62,7 +62,7 @@ client timeout fixtures. Earlier failures remain retained: an incomplete client
 PATH, an unused registry gitlink, profile-local source IDs, and compiler
 resolution/status-stream validation. The prototype injected uncommitted helpers
 into source `4ae28fd9`, and therefore adds zero same-SHA coverage.
-The [preflight index](rwx-selector-upload-evidence/preflight.json) binds all 4,531
+The [preflight index](https://github.com/ethereum-optimism/optimism/blob/a1aa49aaf3713a8172f3f615f094488fd8e39c3d/docs/ai/rwx-selector-upload-evidence/preflight.json) binds all 4,531
 original files through their retained sealed manifest and archive hashes.
 
 Circle's `c-selector_upload_replay` parameter defaults to false. An explicit API
@@ -116,7 +116,7 @@ registry images and ABI preparation through actual native cache hits. Its exact
 source init remains `01150e71`; the CLI run's root commit metadata is null, so
 this adds no hosted same-SHA coverage. Only routing executed freshly. No helper,
 test or uploader task existed in the targeted run. The
-[warm index](rwx-selector-upload-evidence/compiler-warm.json) binds its complete
+[warm index](https://github.com/ethereum-optimism/optimism/blob/a1aa49aaf3713a8172f3f615f094488fd8e39c3d/docs/ai/rwx-selector-upload-evidence/compiler-warm.json) binds its complete
 original run metadata and source identities. Cached tasks' displayed execution
 durations belong to their original executions and are not warm-run timings.
 
@@ -138,7 +138,7 @@ Normal pilot pushes now select this same private replay alongside the full PR
 workflow. This permits one verification batch for the final selector, L2 fork
 and Contracts gate changes. Other branches and publishers retain their routing.
 
-The [combined-batch comparison](rwx-selector-upload-evidence/batch-parity.json)
+The [combined-batch comparison](https://github.com/ethereum-optimism/optimism/blob/a1aa49aaf3713a8172f3f615f094488fd8e39c3d/docs/ai/rwx-selector-upload-evidence/batch-parity.json)
 at `936ef20e` also passes every original compiler, protocol, process and database
 comparison. Circle pipeline 135628/job 5638486 and automatic native run
 `d8b29db74c964232a060ebb4362a9a78` retain all 4,520/4,517 report files with no
@@ -149,7 +149,7 @@ its actual isolated commands. It rejects a production binding or mismatched job.
 Twenty helper fixtures pass, and the prior complete `63844aed` comparison still
 passes through this reader.
 
-The [prior combined-batch comparison](rwx-selector-upload-evidence/3be5-batch-parity.json)
+The [prior combined-batch comparison](https://github.com/ethereum-optimism/optimism/blob/a1aa49aaf3713a8172f3f615f094488fd8e39c3d/docs/ai/rwx-selector-upload-evidence/3be5-batch-parity.json)
 also passes at `3be585cb`. Circle pipeline 135642, original job 5639610, and
 automatic native run `fd3c9c769af143d7a7180df658a2e42b` agree on both complete
 compiler catalogues, all 601 compiled sources, 167 declarations, 1,120 signatures,
@@ -158,7 +158,7 @@ All 4,520 Circle and 4,517 native report files remain retained. This comparison
 runs alongside the completed L2 fork and genuine Contracts gate in one full PR
 verification batch.
 
-The corrected final-workload [combined comparison](rwx-selector-upload-evidence/f821-batch-parity.json)
+The corrected final-workload [combined comparison](https://github.com/ethereum-optimism/optimism/blob/a1aa49aaf3713a8172f3f615f094488fd8e39c3d/docs/ai/rwx-selector-upload-evidence/f821-batch-parity.json)
 passes at `f821983dd56cbd7e488ab903d1ac386a330de7f6`. Circle pipeline 135650,
 original isolated job 5639893, and automatic native run
 `1dbb32daf79a44c7981048e7eac82d0d` agree on all compiler, request, process and

@@ -13,7 +13,7 @@ artifacts over the committed comparison inputs before `diff -qr`. The same
 behavior exists on protected baseline `c8e4ba85`. A real complete Linux build
 exposed stale compiler/source metadata that this copy hid; all four original
 ABIs, method identifiers, creation/runtime bytecode and link references still
-match exactly. The [preflight index](rwx-fetcher-artifacts-evidence/preflight.json)
+match exactly. The [preflight index](https://github.com/ethereum-optimism/optimism/blob/a1aa49aaf3713a8172f3f615f094488fd8e39c3d/docs/ai/rwx-fetcher-artifacts-evidence/preflight.json)
 retains that baseline, the real isolated revision and complete original hashes.
 This local preflight contributes no hosted coverage.
 
@@ -28,7 +28,7 @@ Both first hosted runs completed compilation but correctly failed the strict dif
 their available compiler sets selected 0.8.28, whereas the original stored artifacts
 and full Linux preflight used 0.8.30. The complete partial compiler archive and
 27 native original file seals and the Circle original report are retained in the
-[first-failure index](rwx-fetcher-artifacts-evidence/first-native-failure.json).
+[first-failure index](https://github.com/ethereum-optimism/optimism/blob/a1aa49aaf3713a8172f3f615f094488fd8e39c3d/docs/ai/rwx-fetcher-artifacts-evidence/first-native-failure.json).
 The script now requires exactly 0.8.30, installed with bounded retries before
 the build and verified in every original fetched artifact. Native installation
 is a reusable tool layer and is included in protected tool-only warming. This
@@ -52,14 +52,14 @@ storage-layout, source-hash or compiler-setting differences are ignored.
 
 Circle pipeline 135584, job 5635755 and native run
 [`579ffecc`](https://cloud.rwx.com/optimism/runs/579ffecc8c844f919fec52f679bed77d)
-both succeeded. The [complete parity index](rwx-fetcher-artifacts-evidence/parity.json)
+both succeeded. The [complete parity index](https://github.com/ethereum-optimism/optimism/blob/a1aa49aaf3713a8172f3f615f094488fd8e39c3d/docs/ai/rwx-fetcher-artifacts-evidence/parity.json)
 binds every original report file and validates all 729 compiler artifacts,
 complete compiler source graphs, and all four embedded outputs. The only
 cross-provider differences are 1,428 checkout paths in original metadata.
 Every executable field, source hash, compiler setting, cache input and selected
 portable artifact agrees. Both providers correctly report zero tests for this
 build and artifact job. The native helper ran nine actual fixtures; their
-[complete original hashes](rwx-fetcher-artifacts-evidence/fixture-originals.json)
+[complete original hashes](https://github.com/ethereum-optimism/optimism/blob/a1aa49aaf3713a8172f3f615f094488fd8e39c3d/docs/ai/rwx-fetcher-artifacts-evidence/fixture-originals.json)
 retain success, drift, missing artifacts, compiler failure and cancellation.
 
 
@@ -86,7 +86,7 @@ tool installation and executes zero artifact verdicts or helper tests. Circle's
 job name, gate dependency, required ownership and production publishers remain
 unchanged.
 
-The exact-input [tool-only reuse rehearsal](rwx-fetcher-artifacts-evidence/tool-only-reuse.json)
+The exact-input [tool-only reuse rehearsal](https://github.com/ethereum-optimism/optimism/blob/a1aa49aaf3713a8172f3f615f094488fd8e39c3d/docs/ai/rwx-fetcher-artifacts-evidence/tool-only-reuse.json)
 `a31e04c6` succeeded on the same SHA. Foundry and the pinned fetcher compiler
 were complete native cache hits; no verdict or helper ran and test count was
 zero. This is a CLI rehearsal; a protected `develop` event remains unobserved.
