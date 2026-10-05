@@ -316,15 +316,28 @@ func SystemConfigFromDeployConfig(deployConfig *genesis.DeployConfig) eth.System
 	return deployConfig.GenesisSystemConfig()
 }
 
+// Environment variables read by ApplyDeployConfigForks. Setting one to "true" activates that L2 fork
+// and every earlier one at genesis.
+const (
+	EnvUseDelta    = "OP_E2E_USE_DELTA"
+	EnvUseEcotone  = "OP_E2E_USE_ECOTONE"
+	EnvUseFjord    = "OP_E2E_USE_FJORD"
+	EnvUseGranite  = "OP_E2E_USE_GRANITE"
+	EnvUseHolocene = "OP_E2E_USE_HOLOCENE"
+	EnvUseIsthmus  = "OP_E2E_USE_ISTHMUS"
+	EnvUseJovian   = "OP_E2E_USE_JOVIAN"
+	EnvUseKarst    = "OP_E2E_USE_KARST"
+)
+
 func ApplyDeployConfigForks(deployConfig *genesis.DeployConfig) {
-	isKarst := os.Getenv("OP_E2E_USE_KARST") == "true"
-	isJovian := isKarst || os.Getenv("OP_E2E_USE_JOVIAN") == "true"
-	isIsthmus := isJovian || os.Getenv("OP_E2E_USE_ISTHMUS") == "true"
-	isHolocene := isIsthmus || os.Getenv("OP_E2E_USE_HOLOCENE") == "true"
-	isGranite := isHolocene || os.Getenv("OP_E2E_USE_GRANITE") == "true"
-	isFjord := isGranite || os.Getenv("OP_E2E_USE_FJORD") == "true"
-	isEcotone := isFjord || os.Getenv("OP_E2E_USE_ECOTONE") == "true"
-	isDelta := isEcotone || os.Getenv("OP_E2E_USE_DELTA") == "true"
+	isKarst := os.Getenv(EnvUseKarst) == "true"
+	isJovian := isKarst || os.Getenv(EnvUseJovian) == "true"
+	isIsthmus := isJovian || os.Getenv(EnvUseIsthmus) == "true"
+	isHolocene := isIsthmus || os.Getenv(EnvUseHolocene) == "true"
+	isGranite := isHolocene || os.Getenv(EnvUseGranite) == "true"
+	isFjord := isGranite || os.Getenv(EnvUseFjord) == "true"
+	isEcotone := isFjord || os.Getenv(EnvUseEcotone) == "true"
+	isDelta := isEcotone || os.Getenv(EnvUseDelta) == "true"
 	if isDelta {
 		deployConfig.L2GenesisDeltaTimeOffset = new(hexutil.Uint64)
 	}
