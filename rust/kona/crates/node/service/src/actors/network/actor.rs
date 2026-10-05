@@ -1,5 +1,4 @@
 use super::signing::{SignedBlock, sign_block};
-use alloy_primitives::Address;
 use async_trait::async_trait;
 use kona_gossip::P2pRpcRequest;
 use kona_rpc::NetworkAdminQuery;
@@ -27,8 +26,6 @@ use crate::{
 pub struct NetworkActor<NetworkEngineClient_: NetworkEngineClient> {
     /// The live libp2p [`NetworkHandler`].
     handler: NetworkHandler,
-    /// A channel to receive the unsafe block signer address.
-    unsafe_block_signer_rx: mpsc::Receiver<Address>,
     /// A channel to receive p2p RPC requests.
     p2p_rpc_rx: mpsc::Receiver<P2pRpcRequest>,
     /// A channel to receive admin RPC queries.
@@ -58,7 +55,6 @@ impl<NetworkEngineClient_: NetworkEngineClient> NetworkActor<NetworkEngineClient
     pub fn new(
         engine_client: NetworkEngineClient_,
         mut handler: NetworkHandler,
-        unsafe_block_signer_rx: mpsc::Receiver<Address>,
         p2p_rpc_rx: mpsc::Receiver<P2pRpcRequest>,
         admin_query_rx: mpsc::Receiver<NetworkAdminQuery>,
         publish_rx: mpsc::Receiver<OpExecutionPayloadEnvelope>,
@@ -69,7 +65,6 @@ impl<NetworkEngineClient_: NetworkEngineClient> NetworkActor<NetworkEngineClient
             signer,
             signing: tokio::task::JoinSet::new(),
             handler,
-            unsafe_block_signer_rx,
             p2p_rpc_rx,
             admin_query_rx,
             publish_rx,
@@ -129,36 +124,20 @@ impl<NetworkEngineClient_: NetworkEngineClient + 'static> NodeActor
                 }
                 Ok(())
             }
-            unsafe_block_signer = self.unsafe_block_signer_rx.recv() => {
-                let Some(unsafe_block_signer) = unsafe_block_signer else {
-                    warn!(
-                        target: "network",
-                        "Found no unsafe block signer on receive"
-                    );
-                    return Err(NetworkActorError::ChannelClosed);
-                };
-                if self.handler.unsafe_block_signer_sender.send(unsafe_block_signer).is_err() {
-                    warn!(
-                        target: "network",
-                        "Failed to send unsafe block signer to network handler",
-                    );
-                }
-                Ok(())
-            }
             Some(block) = self.publish_rx.recv(), if self.signing.is_empty() => {
                 let Some(signer) = self.signer.clone() else {
                     warn!(target: "net", "No local signer available to sign the payload");
                     return Ok(());
                 };
                 let chain_id = self.handler.discovery.chain_id;
-                let address = *self.handler.unsafe_block_signer_sender.borrow();
+                let address = *self.handler.gossip.handler.signer_recv.borrow();
                 self.signing.spawn(async move { sign_block(&signer, block, chain_id, address).await });
                 Ok(())
             }
             Some(result) = self.signing.join_next(), if !self.signing.is_empty() => {
                 if let Some(signed) = result?? {
                     // A signer rotation may have arrived while the remote RPC was pending.
-                    if signed.address != *self.handler.unsafe_block_signer_sender.borrow() {
+                    if signed.address != *self.handler.gossip.handler.signer_recv.borrow() {
                         return Ok(());
                     }
                     let timestamp = signed.block.timestamp();

@@ -1,13 +1,11 @@
 use std::net::{IpAddr, SocketAddr};
 
-use alloy_primitives::Address;
 use discv5::multiaddr::Protocol;
 use futures::future::OptionFuture;
 use kona_disc::Discv5Driver;
 use kona_gossip::{ConnectionGater, GossipDriver, PEER_SCORE_INSPECT_FREQUENCY};
 use kona_sources::{BlockSigner, BlockSignerStartError};
 use libp2p::{Multiaddr, TransportError};
-use tokio::sync::watch;
 
 use crate::actors::network::handler::NetworkHandler;
 
@@ -23,8 +21,6 @@ pub struct NetworkDriver {
     /// This may be set to false if the node is configured to use a static advertised address (when
     /// used with a nat for example).
     pub enr_update: bool,
-    /// The unsafe block signer sender.
-    pub unsafe_block_signer_sender: watch::Sender<Address>,
     /// A block signer. This is optional and should be set if the node is configured to sign blocks
     pub signer: Option<BlockSigner>,
 }
@@ -89,7 +85,6 @@ impl NetworkDriver {
             gossip: self.gossip,
             discovery: handler,
             enr_receiver,
-            unsafe_block_signer_sender: self.unsafe_block_signer_sender,
             peer_score_inspector,
             signer,
         })

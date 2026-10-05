@@ -158,9 +158,10 @@ impl RollupNode {
         self.engine_config.mode
     }
 
-    /// Creates a network builder for the node.
-    fn network_builder(&self) -> NetworkBuilder {
-        NetworkBuilder::from(self.p2p_config.clone())
+    /// Creates a network builder for the node whose gossip validation follows
+    /// `unsafe_block_signer`.
+    fn network_builder(&self, unsafe_block_signer: watch::Receiver<Address>) -> NetworkBuilder {
+        NetworkBuilder::from(self.p2p_config.clone()).with_unsafe_block_signer(unsafe_block_signer)
     }
 
     /// Returns an rpc builder for the node.
@@ -310,7 +311,7 @@ impl RollupNode {
     fn build_l1_watcher(
         &self,
         derivation_actor_request_tx: mpsc::Sender<DerivationActorRequest>,
-        signer_tx: mpsc::Sender<Address>,
+        signer_tx: watch::Sender<Address>,
         l1_query_rx: mpsc::Receiver<L1WatcherQueries>,
         l1_head_updates_tx: watch::Sender<Option<BlockInfo>>,
     ) -> Result<impl NodeActor<Error = crate::L1WatcherActorError<BlockInfo>> + 'static, String>
@@ -478,13 +479,15 @@ impl RollupNode {
         let (l1_query_tx, l1_query_rx) = mpsc::channel::<L1WatcherQueries>(1024);
         let (sequencer_admin_api_tx, sequencer_admin_api_rx) = mpsc::channel(1024);
         // Network actor inbound channels
-        let (signer_tx, signer_rx) = mpsc::channel::<Address>(16);
         let (p2p_rpc_tx, p2p_rpc_rx) = mpsc::channel::<P2pRpcRequest>(1024);
         let (network_admin_tx, network_admin_rx) = mpsc::channel::<NetworkAdminQuery>(1024);
         let (gossip_payload_tx, gossip_payload_rx) =
             mpsc::channel::<OpExecutionPayloadEnvelope>(256);
         // watch channels
         let (unsafe_head_tx, unsafe_head_rx) = watch::channel(L2BlockInfo::default());
+        // The unsafe block signer: the L1 watcher keeps it current from `SystemConfig`, starting
+        // from the value read at startup.
+        let (signer_tx, signer_rx) = watch::channel(self.p2p_config.unsafe_block_signer);
         let (l1_head_updates_tx, l1_head_updates_rx) = watch::channel::<Option<BlockInfo>>(None);
 
         // ─── actor construction ─────────────────────────────────────────────────────────────
@@ -502,7 +505,7 @@ impl RollupNode {
         // Build and start the libp2p swarm upstream of `NetworkActor::new` so the constructor
         // stays sync.
         let handler: NetworkHandler = self
-            .network_builder()
+            .network_builder(signer_rx)
             .build()
             .map_err(|e| format!("Failed to build network: {e:?}"))?
             .start()
@@ -512,7 +515,6 @@ impl RollupNode {
         let network = NetworkActor::new(
             QueuedNetworkEngineClient { engine_actor_request_tx: engine_actor_request_tx.clone() },
             handler,
-            signer_rx,
             p2p_rpc_rx,
             network_admin_rx,
             gossip_payload_rx,

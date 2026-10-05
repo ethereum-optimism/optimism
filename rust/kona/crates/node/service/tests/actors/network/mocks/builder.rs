@@ -99,7 +99,6 @@ impl TestNetworkBuilder {
         let handler = builder.build().expect("build network").start().await.expect("start network");
 
         let (blocks_tx, blocks_rx) = mpsc::channel(1024);
-        let (signer_tx, signer_rx) = mpsc::channel(16);
         let (p2p_rpc_tx, p2p_rpc_rx) = mpsc::channel(1024);
         let (admin_rpc_tx, admin_rpc_rx) = mpsc::channel(1024);
         let (gossip_payload_tx, gossip_payload_rx) = mpsc::channel(256);
@@ -107,7 +106,6 @@ impl TestNetworkBuilder {
         let mut actor = NetworkActor::new(
             ForwardingNetworkEngineClient { blocks_tx },
             handler,
-            signer_rx,
             p2p_rpc_rx,
             admin_rpc_rx,
             gossip_payload_rx,
@@ -122,7 +120,7 @@ impl TestNetworkBuilder {
             Ok(())
         });
 
-        TestNetwork { signer_tx, p2p_rpc_tx, admin_rpc_tx, gossip_payload_tx, blocks_rx, handle }
+        TestNetwork { p2p_rpc_tx, admin_rpc_tx, gossip_payload_tx, blocks_rx, handle }
     }
 }
 

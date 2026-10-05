@@ -9,6 +9,7 @@ use kona_peers::{BootNodes, BootStoreFile, PeerMonitoring, PeerScoreLevel};
 use kona_sources::BlockSigner;
 use libp2p::{Multiaddr, identity::Keypair};
 use std::time::Duration;
+use tokio::sync::watch;
 
 use crate::{
     NetworkBuilderError,
@@ -93,6 +94,13 @@ impl NetworkBuilder {
         Self { gossip: self.gossip.with_gater_config(config), ..self }
     }
 
+    /// Sets the receiver of the unsafe block signer [`Address`] that gossiped blocks must be signed
+    /// by, so that validation follows its current value instead of the address given to
+    /// [`Self::new`].
+    pub fn with_unsafe_block_signer(self, signer: watch::Receiver<Address>) -> Self {
+        Self { gossip: self.gossip.with_unsafe_block_signer_receiver(signer), ..self }
+    }
+
     /// Sets the signer for the [`NetworkBuilder`].
     pub fn with_signer(self, signer: Option<BlockSigner>) -> Self {
         Self { signer, ..self }
@@ -160,16 +168,10 @@ impl NetworkBuilder {
 
     /// Builds the [`NetworkDriver`].
     pub fn build(self) -> Result<NetworkDriver, NetworkBuilderError> {
-        let (gossip, unsafe_block_signer_sender) = self.gossip.build()?;
+        let gossip = self.gossip.build()?;
         let discovery = self.discovery.build()?;
 
-        Ok(NetworkDriver {
-            gossip,
-            discovery,
-            unsafe_block_signer_sender,
-            signer: self.signer,
-            enr_update: self.enr_update,
-        })
+        Ok(NetworkDriver { gossip, discovery, signer: self.signer, enr_update: self.enr_update })
     }
 }
 
