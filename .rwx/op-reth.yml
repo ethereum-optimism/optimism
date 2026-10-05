@@ -12,23 +12,7 @@ on:
       target-cache-mode: keep
       codec-base-sha: ${{ event.git.sha }}
       cache-warm: "true"
-  github:
-    push:
-      init:
-        commit-sha: ${{ event.git.sha }}
-        branch: ${{ event.git.branch }}
-        tag: ${{ event.git.tag }}
-        cache-epoch: v1
-        build-probe: ""
-        target-cache-mode: keep
-        codec-base-sha: ""
-        cache-warm: "false"
-      status-checks:
-        default:
-          name: optimism-op-reth-shadow
-        custom:
-          - name: optimism-gate-op-reth-rust
-            tasks: rust-gate-receipt
+  # Automatic pushes are coordinated by rust-gate.yml; CLI and warming remain.
   cli:
     init:
       commit-sha: ${{ event.git.sha }}

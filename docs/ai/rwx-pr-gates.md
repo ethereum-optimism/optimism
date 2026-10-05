@@ -1,61 +1,58 @@
 # Optional native PR gates
 
-Circle continues to own its four required gates. The first native aggregate,
-`optimism-rust-gate-shadow`, is implemented but remains uncounted until its full
-automatic execution and same-SHA original Circle comparison are verified.
+Circle continues to own its four required gates. The native Rust aggregate is
+implemented but remains uncounted until full automatic execution, complete
+same-SHA Circle dependency/verdict comparison and terminal checks are verified.
 
-`ops/ci/pr-gates.json` maps every original terminal dependency from
-`required-rust-ci` to its actual native workload tasks. Discovery checks the
-original Circle configuration with pinned YQ, requires all 21 names in their
-original order, and rejects changed dependencies, missing feature partitions,
-duplicate assignments or an always-successful gate. The existing native shadows
-retain their check names and publish additional receipts for Rust formatting,
-the complete Rust workspace, and the three op-reth Rust workloads. Main-only
-workloads remain outside Rust's dependency set.
+`rust-gate.yml` embeds the existing pilot, Rust workspace and op-reth definitions
+in parallel. Each executes once, with its original source, tools, profiles,
+resources, caches and fresh verdicts. The coordinator preserves their existing
+optional check names. Their standalone CLI modes and protected `develop` cache
+warming remain available.
 
-Each receipt waits for every selected task to finish or be skipped. Actual
-RWX task states supply its environment. Selected failed, canceled or skipped
+`ops/ci/pr-gates.json` maps Circle's exact 21 terminal dependency names to the
+actual native tasks. Discovery checks the original Circle configuration with
+pinned YQ and rejects changed dependencies, omitted feature partitions, duplicate
+assignments and always-successful gates. It also verifies each embedded call,
+source/branch/tag forwarding, fresh mode, existing check name and actual
+engine-bound receipt condition. Main-only workloads remain outside Rust's gate.
+
+Each group receipt waits for every selected task to finish or be skipped. Native
+engine states supply its environment. Selected failures, cancellations or skipped
 tasks fail the receipt; an unselected workload is a safe skip only when all its
-tasks were skipped. Receipts execute freshly, retain complete source/settings,
-task states and hashes, and perform zero tests. Warm-only runs do not select them.
-The original optional checks continue to report their complete workloads.
+tasks were skipped. Receipts execute freshly and retain source/settings, complete
+task states and file hashes. They perform zero tests and are absent from warming.
 
-The aggregate fetches the exact commit's complete original GitHub status pages,
-retains every response byte and request observation, and rechecks the first page
-to detect concurrent pagination shifts. It accepts only the newest status for
-each required receipt from the verified RWX integration actor and the Optimism
-native run URL. An older success cannot hide a newer pending/failing status;
-missing, foreign, malformed and timed-out statuses cannot pass. A final pass
-requires every original dependency's native group to pass.
+The aggregate waits for the embedded runs to reach terminal states, then evaluates
+their actual Rust receipts. It validates every original sealed report against its
+own exact source SHA, branch, complete inputs, native run identity, task attempt
+and selection. Missing, extra, duplicate, corrupt, resealed stale or foreign
+originals cannot pass. It records exactly one result for each original Circle
+dependency. A failed or never-started receipt uses a separate failure observer
+that retains the available engine states without requiring a nonexistent artifact.
 
-The GitHub installation token is passed through a local package call parameter
-into only the waiting runtime tasks on the pilot branch or `develop`; the API
-client makes repository-specific GET requests. It never records authorization headers. Four fresh workers can wait
-40 minutes each, with sealed continuation reports between them and a final
-deadline. This limits individual worker/token lifetimes without dropping earlier
-observations. No compiler cache, test-result cache or credential is exported.
+An enclosing pilot run can fail on a Main-only job while its Rust formatting
+receipt passes. The Rust aggregate follows that receipt, preserving the original
+Rust gate's scope. A successful enclosing run with all workload tasks skipped
+cannot stand in for an executed selected workload. Native embedded runs provide
+these dependencies directly; the gate requires no external status polling,
+installation token or extra credential.
 
-Eight fixtures exercise actual Git/YQ authority discovery and HTTP servers:
-complete pagination, a changing page boundary, latest statuses, engine-state
-receipt validation, pending continuation, stale/resealed or corrupt inputs,
-original failures and never-started prerequisites. All pass locally. An isolated
-native probe has also exercised genuine successful, failed and skipped tasks;
-the run correctly fails while its terminal observer retains their engine states.
-These fixtures and probes add no workload coverage. Hosted gate validation,
-complete original Circle dependency/orb verdict evidence, and final PR checks
-remain required. Main and Contracts aggregates are still unimplemented.
+Eight real Git/YQ fixtures pass: authoritative selection, exact coordinator
+bindings, selected failure/skip handling, complete original aggregation, resealed
+provenance, missing/corrupt/duplicate/extra and incorrectly typed originals,
+failed/never-started receipt collection, and genuine zero-test safe skips.
+The [native embedded-run probes](rwx-pr-gates-evidence/embedded-preflight.json)
+exercise actual passes, intentional failures, skips, a Main-only failure with a
+passing Rust receipt, artifact mounting and matching parent/child run identities.
+Their runs correctly fail while their observers succeed. These fixtures and
+probes add no workload coverage.
 
-The [first automatic aggregate](rwx-pr-gates-evidence/first-hosted-failure.json)
-at `bb5896a5` failed before the waiter ran because RWX does not expose the
-GitHub-token context directly in a run task environment. The supported call
-parameter forwards that token into the uncached package task. An isolated native
-read-only API probe verifies this path without exporting credentials. The
-[complete continuation probe](rwx-pr-gates-evidence/hosted-correction-preflight.json)
-also verifies each fresh package task can read a prior report and observes
-the same parent native run identity. RWX runtime environments can mount artifact
-paths; `call.with` cannot resolve them. Fresh handoff tasks mount those originals
-and supply literal paths through each package call. The prior failed probes are
-retained. Custom receipts link to their exact task; the verifier checks that native task URL and
-integration actor. The original successful formatting receipt is accepted while
-other groups remain pending. The eight corrected fixtures pass. Full automatic
-validation after this correction remains pending.
+The earlier API-based design failed before execution in automatic runs
+[66765a69](rwx-pr-gates-evidence/first-hosted-failure.json) and
+[44bdd307](rwx-pr-gates-evidence/embedded-preflight.json). CLI probes exposed a
+GitHub token, but the automatic runs did not expose the `github` expression
+context. The original failures and CLI probes remain retained as diagnostic
+evidence. The native coordinator replaces that implementation and its wait helper.
+Full automatic validation and complete original Circle gate evidence remain
+required. Main and Contracts aggregates are still unimplemented.

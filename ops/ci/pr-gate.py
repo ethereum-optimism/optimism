@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
 """Verify Circle's exact gate dependencies against native RWX terminal receipts."""
 import argparse
-import hashlib
 import importlib.util
 import json
 import os
@@ -10,9 +9,6 @@ import re
 import shutil
 import subprocess
 import sys
-import time
-import urllib.error
-import urllib.request
 
 ROOT = Path(__file__).resolve().parents[2]
 MANIFEST = ROOT/'ops/ci/pr-gates.json'
@@ -63,7 +59,7 @@ def terminal_expression(tasks):
 
 def configuration(gate=None):
     manifest=read(MANIFEST)
-    if manifest['version']!=1 or manifest['repository']!='ethereum-optimism/optimism':raise ValueError('Wrong native gate manifest')
+    if manifest['version']!=2 or manifest['repository']!='ethereum-optimism/optimism':raise ValueError('Wrong native gate manifest')
     selections={}
     for name,row in manifest['gates'].items():
         if gate is not None and name!=gate:continue
@@ -77,6 +73,11 @@ def configuration(gate=None):
                 or matches[0].get('always-succeed',False)):
             raise ValueError('Missing, duplicate, renamed or changed Circle gate dependency')
         selected_groups={d['group'] for d in dependencies}
+        caller=yaml(row['native_config']);caller_tasks={task['key']:task for task in caller['tasks']}
+        if len(caller_tasks)!=len(caller['tasks']):raise ValueError('Duplicate native coordinator task')
+        custom=caller['on']['github']['push']['status-checks']['custom']
+        if custom.count({'name':row['check_name'],'tasks':['aggregate','gate-failure']})!=1:
+            raise ValueError('Missing genuine native aggregate status binding')
         for group in selected_groups:
             definition=manifest['groups'][group];native=yaml(definition['config'])
             tasks=group_tasks(manifest,group);keys=[task['key'] for task in native['tasks']]
@@ -89,9 +90,34 @@ def configuration(gate=None):
                     key='TASK_'+task.upper().replace('-','_')+'_'+attribute.upper()
                     if env.get(key)!='${{ tasks.'+task+'.'+attribute+' }}':raise ValueError('Native gate task state is not engine-bound')
             if receipt[0].get('cache') is not False:raise ValueError('Native gate receipt must execute freshly')
-            statuses=native['on']['github']['push']['status-checks']['custom']
-            expected={'name':definition['status'].removeprefix('RWX: '),'tasks':definition['receipt_task']}
-            if statuses.count(expected)!=1:raise ValueError('Missing or duplicate native terminal status binding')
+            if 'github' in native['on']:raise ValueError('Native coordinator must execute each workload only once')
+            embedded=caller_tasks[definition['embedded_task']]
+            if embedded['call']!='${{ run.dir }}/'+definition['config'].removeprefix('.rwx/'):
+                raise ValueError('Native coordinator calls a different workload')
+            for param in ('commit-sha','branch','tag'):
+                if embedded['init'].get(param)!='${{ init.'+param+' }}':raise ValueError('Native coordinator changes workload provenance')
+            if embedded['init'].get('cache-warm','false')!='false':raise ValueError('Native gate must execute fresh workloads')
+            if custom.count({'name':definition['check_name'],'tasks':definition['embedded_task']})!=1:
+                raise ValueError('Native coordinator changes the existing workload check')
+        definitions=[manifest['groups'][group] for group in sorted(selected_groups)]
+        after=terminal_expression([definition['embedded_task'] for definition in definitions])
+        passed='${{ '+' && '.join('tasks.'+d['embedded_task']+'.tasks.'+d['receipt_task']+'.succeeded' for d in definitions)+' }}'
+        failed='${{ '+' || '.join('(tasks.'+d['embedded_task']+'.tasks.'+d['receipt_task']+'.failed || tasks.'+d['embedded_task']+'.tasks.'+d['receipt_task']+'.skipped)' for d in definitions)+' }}'
+        for key,condition in [('aggregate',passed),('gate-failure',failed)]:
+            observer=caller_tasks[key]
+            if observer['after']!=after or observer['if']!=condition or observer.get('cache') is not False:
+                raise ValueError('Native aggregate does not follow actual terminal receipts')
+            expected_run='python3 ops/ci/pr-gate.py aggregate '+name+(' --failed' if key=='gate-failure' else '')
+            if observer['run']!=expected_run or observer['use']!=['code','tools']:
+                raise ValueError('Native aggregate bypasses its original receipt validator')
+            for group in sorted(selected_groups):
+                definition=manifest['groups'][group];prefix='GROUP_'+group.upper().replace('-','_')
+                task='tasks.'+definition['embedded_task']+'.tasks.'+definition['receipt_task']
+                for attribute in ('succeeded','failed','skipped'):
+                    if observer['env'].get(prefix+'_'+attribute.upper())!='${{ '+task+'.'+attribute+' }}':
+                        raise ValueError('Native aggregate state is not engine-bound')
+                if key=='aggregate' and observer['env'].get(prefix+'_REPORT')!='${{ '+task+'.artifacts.report }}':
+                    raise ValueError('Native aggregate report is not engine-bound')
         selections[name]={'requires':names,'groups':sorted(selected_groups),**row}
     if not selections:raise ValueError('Unknown or empty native gate selection')
     return manifest,selections
@@ -133,113 +159,56 @@ def receipt(group):
     return status
 
 
-class Client:
-    def __init__(self,directory,token,base='https://api.github.com'):
-        self.directory=directory;self.token=token;self.base=base;self.requests=[]
-
-    def get(self,path):
-        url=self.base+path
-        headers={'Accept':'application/vnd.github+json','X-GitHub-Api-Version':'2022-11-28','User-Agent':'optimism-rwx-native-gate'}
-        if self.token:headers['Authorization']='Bearer '+self.token
-        for attempt in range(5):
-            try:
-                with urllib.request.urlopen(urllib.request.Request(url,headers=headers),timeout=30) as response:
-                    payload=response.read();code=response.status
-                break
-            except urllib.error.HTTPError as error:
-                payload=error.read();code=error.code
-                self.retain(url,payload,code)
-                if code not in (429,500,502,503,504) or attempt==4:raise ValueError('Gate status API failed with HTTP '+str(code)) from None
-                time.sleep(min(2**attempt,16))
-        self.retain(url,payload,code)
-        return json.loads(payload,object_pairs_hook=unique)
-
-    def retain(self,url,payload,code):
-        digest=hashlib.sha256(payload).hexdigest();path=self.directory/'responses'/digest
-        path.parent.mkdir(parents=True,exist_ok=True);path.write_bytes(payload)
-        self.requests.append({'url':url,'http_status':code,'response_sha256':digest,'observed_at':time.time()})
-
-    def statuses(self,repository,sha):
-        prefix='/repos/'+repository+'/commits/'+sha+'/statuses?per_page=100&page='
-        for attempt in range(5):
-            result=[];first=None
-            for page in range(1,101):
-                rows=self.get(prefix+str(page))
-                if not isinstance(rows,list):raise ValueError('Invalid original commit-status page')
-                if page==1:first=rows
-                result.extend(rows)
-                if len(rows)<100:break
-            else:raise ValueError('Incomplete native gate commit-status pagination')
-            # New statuses can shift page boundaries during collection. Retain
-            # those originals, then fetch a complete consistent view again.
-            ids=[row['id'] for row in result]
-            if len(ids)==len(set(ids)) and self.get(prefix+'1')==first:return result
-            if attempt<4:time.sleep(.25)
-        raise ValueError('Native gate commit statuses changed during every complete snapshot')
-
-
-def verdict(rows,manifest,selection):
-    contexts={manifest['groups'][group]['status']:manifest['groups'][group] for group in selection['groups']};latest={};ids=set()
-    for row in rows:
-        if type(row.get('id')) is not int or row['id'] in ids:raise ValueError('Duplicate or invalid original commit status')
-        ids.add(row['id'])
-        if row['context'] in contexts and (row['context'] not in latest or row['id']>latest[row['context']]['id']):latest[row['context']]=row
-    for name,row in latest.items():
-        expected_url=r'https://cloud\.rwx\.com/optimism/runs/[0-9a-f]{32}/latest/'+re.escape(contexts[name]['receipt_task'])+r'\?external_source=github'
-        if (any(row.get('creator',{}).get(k)!=v for k,v in manifest['trusted_actor'].items())
-                or not re.fullmatch(expected_url,row.get('target_url') or '')
-                or row['state'] not in ('pending','success','failure','error')):
-            raise ValueError('Untrusted or malformed native gate prerequisite: '+name)
-    if any(row['state'] in ('failure','error') for row in latest.values()):return 'failed',latest
-    if set(latest)==set(contexts) and all(row['state']=='success' for row in latest.values()):return 'passed',latest
-    return 'pending',latest
-
-
-def wait(gate,seconds,previous=None,final_chunk=False,poll=15):
-    output=ROOT/'.ci/pr-gates/wait';shutil.rmtree(output,ignore_errors=True)
-    output.mkdir(parents=True)
-    status,errors=1,[];client=None;record={}
+def aggregate(gate,failed_only=False):
+    output=ROOT/'.ci/pr-gates/aggregate'/gate;shutil.rmtree(output,ignore_errors=True);output.mkdir(parents=True)
+    status,errors,record=1,[],{}
     try:
-        if previous:
-            originals(previous);shutil.copytree(previous,output,dirs_exist_ok=True)
         manifest,selections=configuration(gate);selection=selections[gate];settings=binding()
-        if settings['branch'] not in ('codex/rwx-ci-pilot','develop'):
-            raise ValueError('Native gate API inputs are restricted to pilot/develop')
         route=read(Path(os.environ['GATE_ROUTING']))
         selected=route['c-'+selection['route'].replace('-','_')]
-        if type(selected) is not bool:raise ValueError('Missing authoritative gate routing')
-        if previous:
-            old=read(output/'settings.json')
-            if any(old[k]!=settings[k] for k in ('source_sha','branch','input_sha256','native_run_id')):raise ValueError('Stale native gate wait continuation')
-            record=read(output/'verdict.json')
+        if type(selected) is not bool:raise ValueError('Missing authoritative native aggregate routing')
         S.write(output/'settings.json',{**settings,'gate':gate,'selection':selection,'selected':selected})
         shutil.copyfile(MANIFEST,output/'manifest.json')
-        if not selected:record={'state':'safe_skip','requires':selection['requires'],'observed':{}}
-        if record.get('state') not in ('passed','safe_skip'):
-            client=Client(output,os.environ.get('GATE_GITHUB_TOKEN'))
-            repository=manifest['repository'];sha=settings['source_sha']
-            commit=client.get('/repos/'+repository+'/commits/'+sha)
-            if commit['sha']!=sha:raise ValueError('Wrong commit returned by gate status API')
-            deadline=time.monotonic()+seconds
-            while True:
-                state,observed=verdict(client.statuses(repository,sha),manifest,selection)
-                record={'state':state,'requires':selection['requires'],'observed':observed}
-                S.write(output/'verdict.json',record)
-                if state=='failed':raise ValueError('Native gate prerequisite failed')
-                if state=='passed':break
-                if time.monotonic()>=deadline:
-                    if final_chunk:raise ValueError('Native gate prerequisites missing or not terminal before timeout')
-                    break
-                time.sleep(min(poll,max(0,deadline-time.monotonic())))
-        if M.inputs()!=settings['input_sha256']:raise ValueError('Native gate changed revision inputs')
-        status=0
+        states={}
+        for group in selection['groups']:
+            prefix='GROUP_'+group.upper().replace('-','_');states[group]={}
+            for attribute in ('succeeded','failed','skipped'):
+                value=os.environ[prefix+'_'+attribute.upper()]
+                if value not in ('true','false'):raise ValueError('Missing native aggregate engine state')
+                states[group][attribute]=value=='true'
+            if sum(states[group].values())!=1:raise ValueError('Inconsistent native aggregate engine state')
+        S.write(output/'states.json',states)
+        record={'state':'failed','requires':selection['requires'],'groups':states,'dependencies':[]}
+        if failed_only or any(not state['succeeded'] for state in states.values()):
+            raise ValueError('Native gate receipt failed, was canceled or never ran')
+        for group in selection['groups']:
+            artifact=Path(os.environ['GROUP_'+group.upper().replace('-','_')+'_REPORT'])
+            final=originals(artifact);source=read(artifact/'settings.json');actual=read(artifact/'states.json')
+            if set(final['original_sha256'])!={'settings.json','states.json'}:
+                raise ValueError('Missing or extra native receipt original')
+            if (any(source[k]!=settings[k] for k in ('source_sha','branch','input_sha256','native_run_id'))
+                    or source['task_attempt']!='1' or source['group']!=group
+                    or source['definition']!=manifest['groups'][group] or type(source['selected']) is not bool or source['selected']!=selected):
+                raise ValueError('Stale, foreign or differently selected native aggregate receipt')
+            if set(actual)!=set(group_tasks(manifest,group)):
+                raise ValueError('Missing or duplicate original native aggregate workload')
+            for value in actual.values():
+                expected={'succeeded':selected,'failed':False,'skipped':not selected}
+                if value!=expected or any(type(v) is not bool for v in value.values()):
+                    raise ValueError('Failed or skipped original native aggregate workload')
+            target=output/'groups'/group;shutil.copytree(artifact,target)
+            for row in selection['dependencies']:
+                if row['group']==group:
+                    record['dependencies'].append({'name':row['name'],'group':group,'tasks':row['tasks'],
+                            'outcome':'passed' if selected else 'safe_skip'})
+        record['dependencies'].sort(key=lambda row:selection['requires'].index(row['name']))
+        if [row['name'] for row in record['dependencies']]!=selection['requires']:
+            raise ValueError('Incomplete original native aggregate dependency assignment')
+        if M.inputs()!=settings['input_sha256']:raise ValueError('Native aggregate changed source inputs')
+        record['state']='passed' if selected else 'safe_skip';status=0
     except Exception as error:errors.append(str(error));print(error,file=sys.stderr)
     finally:
-        if client:
-            history=read(output/'requests.json') if (output/'requests.json').exists() else []
-            S.write(output/'requests.json',history+client.requests)
         S.write(output/'verdict.json',record)
-        (output/'final.json').unlink(missing_ok=True)
         S.write(output/'final.json',{'exit_code':status,'report_errors':errors,'tests':0,'original_sha256':seal(output)})
     return status
 
@@ -247,7 +216,6 @@ def wait(gate,seconds,previous=None,final_chunk=False,poll=15):
 if __name__=='__main__':
     parser=argparse.ArgumentParser(description=__doc__);sub=parser.add_subparsers(dest='mode',required=True)
     group=sub.add_parser('receipt');group.add_argument('group')
-    gate=sub.add_parser('wait');gate.add_argument('gate');gate.add_argument('--seconds',type=int,default=2400)
-    gate.add_argument('--previous',type=Path);gate.add_argument('--final',action='store_true')
+    gate=sub.add_parser('aggregate');gate.add_argument('gate');gate.add_argument('--failed',action='store_true')
     args=parser.parse_args()
-    sys.exit(receipt(args.group) if args.mode=='receipt' else wait(args.gate,args.seconds,args.previous,args.final))
+    sys.exit(receipt(args.group) if args.mode=='receipt' else aggregate(args.gate,args.failed))

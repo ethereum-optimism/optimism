@@ -1,11 +1,6 @@
 {
-  "version": 1,
+  "version": 2,
   "repository": "ethereum-optimism/optimism",
-  "trusted_actor": {
-    "login": "rwx-integration[bot]",
-    "id": 141855219,
-    "type": "Bot"
-  },
   "gates": {
     "required-rust-ci": {
       "circle_config": ".circleci/continue/rust-ci.yml",
@@ -168,27 +163,32 @@
             "snapshot"
           ]
         }
-      ]
+      ],
+      "native_config": ".rwx/rust-gate.yml",
+      "check_name": "optimism-rust-gate-shadow"
     }
   },
   "groups": {
     "rust-fmt": {
       "config": ".rwx/pilot.yml",
       "receipt_task": "rust-gate-receipt",
-      "status": "RWX: optimism-gate-rust-fmt",
-      "route": "run-rust-ci"
+      "route": "run-rust-ci",
+      "embedded_task": "native-fmt",
+      "check_name": "optimism-pilot"
     },
     "rust-workspace": {
       "config": ".rwx/rust.yml",
       "receipt_task": "rust-gate-receipt",
-      "status": "RWX: optimism-gate-rust-workspace",
-      "route": "run-rust-ci"
+      "route": "run-rust-ci",
+      "embedded_task": "native-workspace",
+      "check_name": "optimism-rust-shadow"
     },
     "op-reth-rust": {
       "config": ".rwx/op-reth.yml",
       "receipt_task": "rust-gate-receipt",
-      "status": "RWX: optimism-gate-op-reth-rust",
-      "route": "run-rust-ci"
+      "route": "run-rust-ci",
+      "embedded_task": "native-op-reth",
+      "check_name": "optimism-op-reth-shadow"
     }
   }
 }

@@ -83,5 +83,6 @@
       "Prior original mounted through a fresh filesystem handoff, with no artifact path passed through call.with",
       "Both runtime tasks observed the same parent native run ID and exact source SHA"
     ]
-  }
+  },
+  "scope": "CLI diagnostic only. Automatic run 44bdd307 still lacks the github context; native embedded-run aggregation supersedes this implementation."
 }

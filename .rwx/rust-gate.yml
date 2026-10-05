@@ -8,7 +8,17 @@ on:
         branch: ${{ event.git.branch }}
         tag: ${{ event.git.tag }}
       status-checks:
-        name: optimism-rust-gate-shadow
+        default:
+          name: optimism-rwx-rust-coordinator
+        custom:
+          - name: optimism-pilot
+            tasks: native-fmt
+          - name: optimism-rust-shadow
+            tasks: native-workspace
+          - name: optimism-op-reth-shadow
+            tasks: native-op-reth
+          - name: optimism-rust-gate-shadow
+            tasks: [aggregate, gate-failure]
   cli:
     init:
       commit-sha: ${{ event.git.sha }}
@@ -82,6 +92,7 @@ tasks:
     cache: false
     timeout: 10m
     outputs:
+      filesystem: false
       artifacts:
         - key: routing
           path: .ci/pipeline-parameters.json
@@ -94,79 +105,93 @@ tasks:
     outputs:
       filesystem: false
 
-  - key: wait-0
-    if: ${{ init.branch == 'codex/rwx-ci-pilot' || init.branch == 'develop' }}
-    use: route
-    call: ${{ run.dir }}/packages/pr-gate-wait.yml
-    with:
+  - key: native-fmt
+    call: ${{ run.dir }}/pilot.yml
+    init:
       commit-sha: ${{ init.commit-sha }}
       branch: ${{ init.branch }}
-      routing: .ci/pipeline-parameters.json
-      github-token: ${{ github['ethereum-optimism'].token }}
-      final-chunk: "false"
+      tag: ${{ init.tag }}
 
-  - key: handoff-1
-    if: ${{ init.branch == 'codex/rwx-ci-pilot' || init.branch == 'develop' }}
-    use: route
-    after: [wait-0]
-    run: cp -R "$PREVIOUS" .ci/pr-gate-previous
+  - key: native-workspace
+    call: ${{ run.dir }}/rust.yml
+    init:
+      commit-sha: ${{ init.commit-sha }}
+      branch: ${{ init.branch }}
+      tag: ${{ init.tag }}
+      cache-warm: "false"
+      cache-epoch: v1
+
+  - key: native-op-reth
+    call: ${{ run.dir }}/op-reth.yml
+    init:
+      commit-sha: ${{ init.commit-sha }}
+      branch: ${{ init.branch }}
+      tag: ${{ init.tag }}
+      cache-warm: "false"
+      cache-epoch: v1
+      build-probe: ""
+      target-cache-mode: keep
+      codec-base-sha: ""
+
+  - key: aggregate
+    use: [code, tools]
+    after: ${{ (native-op-reth.succeeded || native-op-reth.failed || native-op-reth.skipped) && (native-fmt.succeeded || native-fmt.failed || native-fmt.skipped) && (native-workspace.succeeded || native-workspace.failed || native-workspace.skipped) }}
+    if: ${{ tasks.native-op-reth.tasks.rust-gate-receipt.succeeded && tasks.native-fmt.tasks.rust-gate-receipt.succeeded && tasks.native-workspace.tasks.rust-gate-receipt.succeeded }}
+    run: python3 ops/ci/pr-gate.py aggregate required-rust-ci
     env:
-      PREVIOUS: ${{ tasks.wait-0.tasks.wait.artifacts.report }}
+      CI_COMMIT_SHA: ${{ init.commit-sha }}
+      CI_BRANCH: ${{ init.branch }}
+      GATE_ROUTING: ${{ tasks.route.artifacts.routing }}
+      GROUP_RUST_FMT_REPORT: ${{ tasks.native-fmt.tasks.rust-gate-receipt.artifacts.report }}
+      GROUP_RUST_FMT_SUCCEEDED: ${{ tasks.native-fmt.tasks.rust-gate-receipt.succeeded }}
+      GROUP_RUST_FMT_FAILED: ${{ tasks.native-fmt.tasks.rust-gate-receipt.failed }}
+      GROUP_RUST_FMT_SKIPPED: ${{ tasks.native-fmt.tasks.rust-gate-receipt.skipped }}
+      GROUP_RUST_WORKSPACE_REPORT: ${{ tasks.native-workspace.tasks.rust-gate-receipt.artifacts.report }}
+      GROUP_RUST_WORKSPACE_SUCCEEDED: ${{ tasks.native-workspace.tasks.rust-gate-receipt.succeeded }}
+      GROUP_RUST_WORKSPACE_FAILED: ${{ tasks.native-workspace.tasks.rust-gate-receipt.failed }}
+      GROUP_RUST_WORKSPACE_SKIPPED: ${{ tasks.native-workspace.tasks.rust-gate-receipt.skipped }}
+      GROUP_OP_RETH_RUST_REPORT: ${{ tasks.native-op-reth.tasks.rust-gate-receipt.artifacts.report }}
+      GROUP_OP_RETH_RUST_SUCCEEDED: ${{ tasks.native-op-reth.tasks.rust-gate-receipt.succeeded }}
+      GROUP_OP_RETH_RUST_FAILED: ${{ tasks.native-op-reth.tasks.rust-gate-receipt.failed }}
+      GROUP_OP_RETH_RUST_SKIPPED: ${{ tasks.native-op-reth.tasks.rust-gate-receipt.skipped }}
+      RWX_RUN_ID:
+        cache-key: included
+      RWX_TASK_ATTEMPT_NUMBER:
+        cache-key: included
     cache: false
-    timeout: 5m
+    timeout: 10m
+    outputs:
+      filesystem: false
+      artifacts:
+        - key: report
+          path: .ci/pr-gates/aggregate
 
-  - key: wait-1
-    if: ${{ init.branch == 'codex/rwx-ci-pilot' || init.branch == 'develop' }}
-    use: handoff-1
-    call: ${{ run.dir }}/packages/pr-gate-wait.yml
-    with:
-      commit-sha: ${{ init.commit-sha }}
-      branch: ${{ init.branch }}
-      routing: .ci/pipeline-parameters.json
-      github-token: ${{ github['ethereum-optimism'].token }}
-      previous: .ci/pr-gate-previous
-      final-chunk: "false"
-
-  - key: handoff-2
-    if: ${{ init.branch == 'codex/rwx-ci-pilot' || init.branch == 'develop' }}
-    use: route
-    after: [wait-1]
-    run: cp -R "$PREVIOUS" .ci/pr-gate-previous
+  - key: gate-failure
+    use: [code, tools]
+    after: ${{ (native-op-reth.succeeded || native-op-reth.failed || native-op-reth.skipped) && (native-fmt.succeeded || native-fmt.failed || native-fmt.skipped) && (native-workspace.succeeded || native-workspace.failed || native-workspace.skipped) }}
+    if: ${{ (tasks.native-op-reth.tasks.rust-gate-receipt.failed || tasks.native-op-reth.tasks.rust-gate-receipt.skipped) || (tasks.native-fmt.tasks.rust-gate-receipt.failed || tasks.native-fmt.tasks.rust-gate-receipt.skipped) || (tasks.native-workspace.tasks.rust-gate-receipt.failed || tasks.native-workspace.tasks.rust-gate-receipt.skipped) }}
+    run: python3 ops/ci/pr-gate.py aggregate required-rust-ci --failed
     env:
-      PREVIOUS: ${{ tasks.wait-1.tasks.wait.artifacts.report }}
+      CI_COMMIT_SHA: ${{ init.commit-sha }}
+      CI_BRANCH: ${{ init.branch }}
+      GATE_ROUTING: ${{ tasks.route.artifacts.routing }}
+      GROUP_RUST_FMT_SUCCEEDED: ${{ tasks.native-fmt.tasks.rust-gate-receipt.succeeded }}
+      GROUP_RUST_FMT_FAILED: ${{ tasks.native-fmt.tasks.rust-gate-receipt.failed }}
+      GROUP_RUST_FMT_SKIPPED: ${{ tasks.native-fmt.tasks.rust-gate-receipt.skipped }}
+      GROUP_RUST_WORKSPACE_SUCCEEDED: ${{ tasks.native-workspace.tasks.rust-gate-receipt.succeeded }}
+      GROUP_RUST_WORKSPACE_FAILED: ${{ tasks.native-workspace.tasks.rust-gate-receipt.failed }}
+      GROUP_RUST_WORKSPACE_SKIPPED: ${{ tasks.native-workspace.tasks.rust-gate-receipt.skipped }}
+      GROUP_OP_RETH_RUST_SUCCEEDED: ${{ tasks.native-op-reth.tasks.rust-gate-receipt.succeeded }}
+      GROUP_OP_RETH_RUST_FAILED: ${{ tasks.native-op-reth.tasks.rust-gate-receipt.failed }}
+      GROUP_OP_RETH_RUST_SKIPPED: ${{ tasks.native-op-reth.tasks.rust-gate-receipt.skipped }}
+      RWX_RUN_ID:
+        cache-key: included
+      RWX_TASK_ATTEMPT_NUMBER:
+        cache-key: included
     cache: false
-    timeout: 5m
-
-  - key: wait-2
-    if: ${{ init.branch == 'codex/rwx-ci-pilot' || init.branch == 'develop' }}
-    use: handoff-2
-    call: ${{ run.dir }}/packages/pr-gate-wait.yml
-    with:
-      commit-sha: ${{ init.commit-sha }}
-      branch: ${{ init.branch }}
-      routing: .ci/pipeline-parameters.json
-      github-token: ${{ github['ethereum-optimism'].token }}
-      previous: .ci/pr-gate-previous
-      final-chunk: "false"
-
-  - key: handoff-3
-    if: ${{ init.branch == 'codex/rwx-ci-pilot' || init.branch == 'develop' }}
-    use: route
-    after: [wait-2]
-    run: cp -R "$PREVIOUS" .ci/pr-gate-previous
-    env:
-      PREVIOUS: ${{ tasks.wait-2.tasks.wait.artifacts.report }}
-    cache: false
-    timeout: 5m
-
-  - key: wait-3
-    if: ${{ init.branch == 'codex/rwx-ci-pilot' || init.branch == 'develop' }}
-    use: handoff-3
-    call: ${{ run.dir }}/packages/pr-gate-wait.yml
-    with:
-      commit-sha: ${{ init.commit-sha }}
-      branch: ${{ init.branch }}
-      routing: .ci/pipeline-parameters.json
-      github-token: ${{ github['ethereum-optimism'].token }}
-      previous: .ci/pr-gate-previous
-      final-chunk: "true"
+    timeout: 10m
+    outputs:
+      filesystem: false
+      artifacts:
+        - key: report
+          path: .ci/pr-gates/aggregate

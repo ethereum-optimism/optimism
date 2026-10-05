@@ -9,18 +9,7 @@ on:
       commit-sha: ${{ event.git.sha }}
       branch: ${{ event.git.branch }}
       tag: ""
-  github:
-    push:
-      init:
-        commit-sha: ${{ event.git.sha }}
-        branch: ${{ event.git.branch }}
-        tag: ${{ event.git.tag }}
-      status-checks:
-        default:
-          name: optimism-pilot
-        custom:
-          - name: optimism-gate-rust-fmt
-            tasks: rust-gate-receipt
+  # Automatic pushes are coordinated by rust-gate.yml; CLI and warming remain.
   cli:
     init:
       commit-sha: ${{ event.git.sha }}

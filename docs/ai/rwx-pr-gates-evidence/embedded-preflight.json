@@ -1,0 +1,77 @@
+{
+  "actual_native_probe": {
+    "definition_sha256": {
+      "failed.yml": "16abf6a6507f43a414d61c469e38453ef7c6ab145cd932a91948e32529b82d6b",
+      "mixed-probe.yml": "831ee3d1b4f523cc81b59ba6a4f7a029a37183b6a7b444e89f3cc538ce3ffc4d",
+      "mixed.yml": "8673ae3ee709e3c6b876c280751a434558ce6bc31226b10e9550797ff5008cf2",
+      "passed.yml": "04dac4885b2004f58bd2984f6798863ecc08fb0830cd3b62a27fbbbe153d5d85",
+      "probe.yml": "e15021fe934e34ee5ec670eff6e8e0ce6a1588d80e3a8280bf8f5ffb051a1cc0",
+      "skipped.yml": "25c151a6112c681608336711b57d1af104d4ccd410477180d38d9bcacddb0010"
+    },
+    "explicit_init_sha": "8b6e1d0b846ad96504595aba842fc2ca6d3e4ab8",
+    "intentional_exit_codes": [
+      17,
+      23
+    ],
+    "mixed_identity": {
+      "native_run_id": "0b92637eaecb42469d038b12a3978fdd",
+      "rust_workload_passed": true,
+      "tests": 0
+    },
+    "observer_result": "succeeded",
+    "observer_task": "f484b3af574f537788a12397ffc2ae7a",
+    "original_sha256": {
+      "mixed-identity.json": "091758b6a10f46a6c6b2b6ee82cc8a27580748cd70b01ec002cd289d414627f4",
+      "run.json": "b05967bf0786633032729f80a760c7c71106c1f321932b119bb28bc155a21c1a",
+      "states.json": "23c40d6406e6aec60460faa261204d7ace8f8897827a11a474952b1d9c8f5ee7"
+    },
+    "result": "failed",
+    "run_id": "0b92637eaecb42469d038b12a3978fdd",
+    "source_sha": null,
+    "states": {
+      "native_run_id": "0b92637eaecb42469d038b12a3978fdd",
+      "states": {
+        "STATE_FAILED_FAILED": "true",
+        "STATE_MIXED_FAILED": "true",
+        "STATE_MIXED_RECEIPT_SUCCEEDED": "true",
+        "STATE_PASSED_SUCCEEDED": "true",
+        "STATE_SKIPPED_SUCCEEDED": "true",
+        "STATE_SKIPPED_WORKLOAD_SKIPPED": "true"
+      },
+      "tests": 0
+    },
+    "tests": 0,
+    "url": "https://cloud.rwx.com/optimism/runs/0b92637eaecb42469d038b12a3978fdd"
+  },
+  "coverage_added": 0,
+  "first_embedded_probe": {
+    "observer_result": "succeeded",
+    "original_sha256": "6d43ca5b4f4ae807ed738b3ca845985c113b8eb2e41d70114c087f9fa5d0ef23",
+    "result": "failed",
+    "run_id": "1b4897c2b75848b3ad36b32323df79f6"
+  },
+  "full_hosted_gate_parity": false,
+  "local_fixtures": {
+    "count": 8,
+    "duration_seconds": 3.401,
+    "original_log_sha256": "111952414fdc8258efbd8efd9797a4577425ba93db4be2a10776114f07472e8e",
+    "passed": true
+  },
+  "rwx_lint": {
+    "files": [
+      ".rwx/rust-gate.yml",
+      ".rwx/pilot.yml",
+      ".rwx/rust.yml",
+      ".rwx/op-reth.yml"
+    ],
+    "original_log_sha256": "3d06221ff402a4b91ba4c0a68d6251f7fff83ce3464603bb938bb12d86b9d484",
+    "problems": 0
+  },
+  "second_automatic_api_failure": {
+    "original_sha256": "58e4f59b134e7ac96405af573fe28cddd023c4cc4d58d69d82f678ae81439e14",
+    "reason": "Automatic call.with also lacks the github context. CLI probe success did not establish automatic token availability. Native embedded dependency states replace external polling.",
+    "result": "failed",
+    "run_id": "44bdd307cdcd49d5b0e337aca429ec20",
+    "source_sha": "8b6e1d0b846ad96504595aba842fc2ca6d3e4ab8"
+  }
+}
