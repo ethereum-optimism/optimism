@@ -2569,23 +2569,11 @@ jobs:
           enable-mise-cache: true
       - install-contracts-dependencies
       - run:
-          name: Build contracts
-          command: |
-            just build-contracts
-          working_directory: op-fetcher
-      - run:
-          name: Compare forge artifacts
-          command: |
-            diff -qr "packages/contracts-bedrock/forge-artifacts/FetchChainInfo.s.sol" \
-                    "op-fetcher/pkg/fetcher/fetch/forge-artifacts/FetchChainInfo.s.sol"
-
-            if [ $? -ne 0 ]; then
-              echo "ERROR: The checked-in forge artifacts for FetchChainInfo.s.sol do not match the ci build."
-              echo "Please run 'just build-contracts' in the op-fetcher directory and commit the changes."
-              exit 1
-            fi
-
-            echo "✅ Checked-in forge artifacts match the ci build"
+          name: Compile contracts and compare untouched embedded artifacts
+          command: python3 ops/ci/fetcher-artifacts.py --provider circleci
+      - store_artifacts:
+          path: .ci/fetcher-artifacts/run
+          when: always
 
   stale-check:
     machine:

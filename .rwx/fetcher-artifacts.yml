@@ -1,8 +1,8 @@
-# Complete NUT pre-fork state regeneration; Circle still owns its required gate.
+# Fresh fetcher artifact comparison; Circle still owns its required gate.
 on:
   cache-rebuild:
     if: ${{ event.git.branch == 'develop' }}
-    target: [modules, contracts, superchain]
+    target: [tools, contract-tools]
     init:
       commit-sha: ${{ event.git.sha }}
       branch: ${{ event.git.branch }}
@@ -18,7 +18,7 @@ on:
         cache-warm: "false"
         cache-epoch: v1
       status-checks:
-        name: optimism-nut-prefork-shadow
+        name: optimism-fetcher-artifacts-shadow
   cli:
     init:
       commit-sha: ${{ event.git.sha }}
@@ -103,12 +103,6 @@ tasks:
         - key: routing
           path: .ci/pipeline-parameters.json
 
-  - key: go-tools
-    use: tools
-    if: ${{ init.cache-warm == 'true' || tasks.route.values.run-main == 'true' }}
-    run: bash ops/ci/rwx-prepare.sh go
-    timeout: 30m
-
   - key: contract-tools
     use: tools
     if: ${{ init.cache-warm == 'true' || tasks.route.values.run-main == 'true' }}
@@ -130,89 +124,37 @@ tasks:
       git rev-parse HEAD >packages/contracts-bedrock/.gitcommit
     timeout: 20m
 
-  - key: modules
-    use: [code, go-tools]
-    if: ${{ init.cache-warm == 'true' || tasks.route.values.run-main == 'true' }}
-    call: ${{ run.dir }}/packages/go-modules.yml
-    with:
-      commit-sha: ${{ init.commit-sha }}
-      branch: ${{ init.branch }}
-      cache-epoch: ${{ init.cache-epoch }}
-
-  - key: contracts
-    use: [source, go-tools, contract-tools]
-    if: ${{ init.cache-warm == 'true' || tasks.route.values.run-main == 'true' }}
-    call: ${{ run.dir }}/packages/go-contracts.yml
-    with:
-      commit-sha: ${{ init.commit-sha }}
-      cache-epoch: ${{ init.cache-epoch }}
-      build-probe: ""
-      target-cache-mode: keep
-
-  - key: superchain
-    use: [source, go-tools]
-    if: ${{ init.cache-warm == 'true' || tasks.route.values.run-main == 'true' }}
-    run: python3 ops/ci/main-checks.py --prepare-superchain
-    env:
-      CI_COMMIT_SHA: ${{ init.commit-sha }}
-    timeout: 15m
-    outputs:
-      filesystem:
-        filter:
-          workspace: [op-core/superchain/superchain-configs.zip]
-          system: []
-      artifacts:
-        - key: reports
-          path: .ci/main-checks/prep-superchain
-
   - key: helper-tests
-    use: [code, go-tools, contract-tools]
+    use: [code, contract-tools]
     if: ${{ init.cache-warm != 'true' && tasks.route.values.run-main == 'true' }}
-    run: |
-      RWX_LIVE_NUT_PREFORK_FIXTURE=1 python3 -m unittest discover -s ops/ci -p 'test_nut_prefork.py'
+    run: RWX_LIVE_FETCHER_FIXTURE=1 python3 -m unittest discover -s ops/ci -p 'test_fetcher_artifacts.py'
     cache: false
     timeout: 15m
     outputs:
       filesystem: false
-
       artifacts:
         - key: fixtures
-          path: .ci/nut-prefork/helper-fixtures
+          path: .ci/fetcher-artifacts/helper-fixtures
 
-  - key: tests
-    use: [source, go-tools, contract-tools, superchain]
+  - key: check
+    use: [source, contract-tools]
     if: ${{ init.cache-warm != 'true' && tasks.route.values.run-main == 'true' }}
-    run: |
-      export GOMODCACHE="$PWD/.ci/go-cache/pr-checks/modules"
-      export GOCACHE="$PWD/.ci/go-cache/nut-prefork/build"
-      mkdir -p "$GOCACHE"
-      python3 ops/ci/nut-prefork.py --provider rwx \
-        --module-artifact "$MODULE_ARTIFACT" --contract-artifact "$CONTRACT_ARTIFACT" \
-        --bundle-artifact "$BUNDLE_ARTIFACT"
+    run: python3 ops/ci/fetcher-artifacts.py --provider rwx
     env:
       CI: "true"
       CI_COMMIT_SHA: ${{ init.commit-sha }}
       CI_BRANCH: ${{ init.branch }}
-      MODULE_ARTIFACT: ${{ tasks.modules.tasks.build.artifacts.dependency }}
-      CONTRACT_ARTIFACT: ${{ tasks.contracts.tasks.build.artifacts.dependency }}
-      BUNDLE_ARTIFACT: ${{ tasks.superchain.artifacts.reports }}
       RWX_RUN_ID:
         cache-key: included
       RWX_TASK_ATTEMPT_NUMBER:
         cache-key: included
     cache: false
-    tool-cache: nut-prefork-compiler-${{ init.cache-epoch }}
-    timeout: 45m
+    timeout: 60m
     runner:
       cpus: 8
       memory: 16gb
     outputs:
-      filesystem:
-        filter:
-          workspace: [.ci/go-cache/nut-prefork/build]
-          system: []
-      test-results:
-        - path: .ci/nut-prefork/run/native.junit.xml
+      filesystem: false
       artifacts:
         - key: reports
-          path: .ci/nut-prefork/run
+          path: .ci/fetcher-artifacts/run

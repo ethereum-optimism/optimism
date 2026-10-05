@@ -1,9 +1,10 @@
 # NUT pre-fork state regeneration shadow
 
 The optional `optimism-nut-prefork-shadow` implements Main's
-`check-nut-prefork-states` through the existing `run-main` routing. Hosted
-same-SHA execution and comparison remain pending, so this occurrence is
-not counted in verified coverage. Current coverage is 75/86 (87%).
+`check-nut-prefork-states` through the existing `run-main` routing. Complete same-SHA original-report parity passes at
+`fd426d8724c4df4d968db0e986b92d9177b717f4`: both selected forks, karst and lagoon,
+execute all six original case identities successfully with no skips or retries.
+This occurrence is counted. Current coverage is 76/86 (88%).
 
 Both providers run the original `just _check-nut-prefork-states` loop, including
 its final Git diff. Discovery retains every `*_state.json` input and the
@@ -41,4 +42,31 @@ source-relative contract artifacts, state drift after successful Go tests,
 intentional failure, cancellation, and complete-report comparison. Resealed
 wrong commands, omissions, stale revisions/settings, false coverage and corrupt
 bundles still fail comparison. ShellCheck, RWX lint, and merged/activated Circle
-config validation pass. Full hosted execution and comparison remain pending.
+config validation pass. The hosted helper task passes all eight fixtures. Complete hosted execution
+and comparison pass; the next pushed definition still needs terminal PR checks.
+
+## Retained hosted evidence
+
+[Circle pipeline 135582, job 5635593](https://app.circleci.com/pipelines/github/ethereum-optimism/optimism/135582)
+and [RWX run e2952b8b](https://cloud.rwx.com/optimism/runs/e2952b8b619146b4ab1355a19e5e2804)
+pass the [full comparison](rwx-nut-prefork-evidence/parity.json), verifying 72
+Circle and 79 RWX original file seals, identical complete selection, tools,
+commands, source inputs, generated state bytes and every original outcome.
+Go 1.26.6 actually executes the full suite. Native reporting displays six
+passing cases.
+
+The first native push run passed the actual generation but displayed zero
+cases because its XML report selected the Go JSON parser explicitly. The
+corrected full execution uses JUnit parser inference. Its source remains the
+exact fd42 commit; the CLI uploads only the retained
+[corrected definition](rwx-nut-prefork-evidence/verified-native-definition.yml).
+The exact three-line parser-option block removal, both native snapshots, first
+original report hashes and complete fixture seals are retained in the
+[run and cache index](rwx-nut-prefork-evidence/runs-cache-and-fixtures.json).
+The first reporting defect remains visible and contributes no extra coverage.
+
+The [dependency-only warm rehearsal b1076421](https://cloud.rwx.com/optimism/runs/b1076421c2454800a927edb471375298)
+reuses all three complete producer outputs, with zero suite verdicts or helper
+tests. The exact source and cached-from task identities are retained. Protected
+`develop` cache-rebuild execution remains unobserved. No median or speed win is
+claimed.

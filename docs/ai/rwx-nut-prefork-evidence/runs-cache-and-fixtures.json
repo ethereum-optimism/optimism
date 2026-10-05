@@ -1,0 +1,1823 @@
+{
+  "circle": {
+    "files_sha256": {
+      "circle/check.log": "8513ad7e50ff41452b244da9263082f7ce29ccd5e7642672a12e8859f8e76502",
+      "circle/check.stage.json": "609253fcb572ee9c7b341bf6687f48eede121e4cd13abea3c29d145d81a73183",
+      "circle/coverage.json": "671564e1625bcaf508b342b28452c82abad0a962d5f11099bd45494b58d73b24",
+      "circle/dependencies/superchain-configs.zip": "a94b0232e9d3b52cf8c9bafeadce2985e7d16ab8fd920f90af040fb654081250",
+      "circle/dependencies/superchain-configs.zip.sha256": "3c95f818ef3cce71d51c79fee2fc6ac766f7866646e620e50a10d6967047250a",
+      "circle/final.json": "b7fd063ac4b16c5a01d2e8628bc82c5f9bf8311491c74eead15b07545992ae45",
+      "circle/forks/karst/junit.xml": "85eab9a05d0436a9c56adc892b53d69aeef92c162c8b4bc3ad844a7313840c79",
+      "circle/forks/karst/native.json": "cf91e9a8d4a7ac7707da556ae002a5701a03b11f45ec8457addf8d374511787f",
+      "circle/forks/karst/native.metadata.json": "a8d595a4ddebcf624f2c8f0b80350b67af73ad1544257ad50e63d227cd0ea948",
+      "circle/forks/karst/original.json": "9f0f1ced73b5b97181bcc7d6029ca0c992eccd4eac4474d0ad3451f6e3669476",
+      "circle/forks/karst/per-test/github.com.ethereum-optimism.optimism.rust.kona.tests.proofs/TestGenerateForkState.log": "175a5898e86fbbffe4dec0043a7abc8f027eddc4e66157bcc885f6b82fdcf4c1",
+      "circle/forks/karst/per-test/github.com.ethereum-optimism.optimism.rust.kona.tests.proofs/TestGenerateForkState/HonestClaim-karst-jovian.log": "cb4b55f93433921471176c736cedc1e2d5c8bf027aa473301507b177a3dd7d47",
+      "circle/forks/karst/per-test/github.com.ethereum-optimism.optimism.rust.kona.tests.proofs/TestGenerateForkState/JunkClaim-karst-jovian.log": "50af976d470973b36c1dc410f782029d88434a592ff0d25b031c36fbdb5d621d",
+      "circle/forks/karst/tests.log": "b9291fc35f30987ba96b81a3c31b300efce10ea8de7fa0ec2506bc258cbe529d",
+      "circle/forks/karst/tests.stage.json": "ea570e0a015383ebb90bfe026aff94f01ad5c17a60a1749aadc4e288cfcaaef1",
+      "circle/forks/lagoon/junit.xml": "485547792f9d2c7f83c378f1fa14440cda6550cde35e08eed8d8ddfdef7d52fe",
+      "circle/forks/lagoon/native.json": "888f72f886a3da7c75f5f6e1649d2d4696788814b6e107053e57ef77c864320d",
+      "circle/forks/lagoon/native.metadata.json": "be2c25a4e40fcaef0a51ccf287c88d9e23a41a13467e2042716905af59f62a3a",
+      "circle/forks/lagoon/original.json": "4fc20a3172c51ffe8646901c0eefda2a18777e28c55e891ed0a45be9b3e4f98f",
+      "circle/forks/lagoon/per-test/github.com.ethereum-optimism.optimism.rust.kona.tests.proofs/TestGenerateForkState.log": "175a5898e86fbbffe4dec0043a7abc8f027eddc4e66157bcc885f6b82fdcf4c1",
+      "circle/forks/lagoon/per-test/github.com.ethereum-optimism.optimism.rust.kona.tests.proofs/TestGenerateForkState/HonestClaim-lagoon-karst.log": "72945594a4666a1930d4834815d27af290a1313880f25fa315bc12ac0ca81f79",
+      "circle/forks/lagoon/per-test/github.com.ethereum-optimism.optimism.rust.kona.tests.proofs/TestGenerateForkState/JunkClaim-lagoon-karst.log": "bf96e23dffc647fecd9b723299f3432e0e4cde2b5f7822eeb782cfa4f743a192",
+      "circle/forks/lagoon/tests.log": "d11dc6dcdbc996d71fbf5d8f5ca5921231a7fa12e11aaf58e57314f3eddc9839",
+      "circle/forks/lagoon/tests.stage.json": "7a48a80847b28cb4e6d8e1ad71adaa336fdf17f69bd4370080da8e8fac1bdc83",
+      "circle/generated.json": "f4faa1e43dab74976f6ad8a83256f3ac72554ffdf0c6bb1bc231ee19f00644ef",
+      "circle/inputs-after.json": "8dd8696e5b1bd2167722dd544c84126d2991de23564bb651de940b76636e8fbd",
+      "circle/list.json": "93bcfeff30b661ccdd9e24789ebbdbe5fd90888327274fa701a7b0bfdeaedf5e",
+      "circle/list.stage.json": "0016a19f9dc23294dc530cf94a4641ca6202aca63aa8164ca9e76832083da55c",
+      "circle/native.junit.xml": "0d25180dde42202cd42f290c9e8530bdfee6612c52a81f07719c2480af47cd9a",
+      "circle/native.metadata.json": "c9010e371569263cf3a9fe5062d4e393cbc25a8524b3c4f16894afa090f4ed9a",
+      "circle/packages.json": "23904c6cc6a5f9819942d56ffe36288db4f0f97f9c4a34bd1232fd021eba0ddd",
+      "circle/packages.stage.json": "92a34289087371b3b052e4ff4fedf6fbd8055d8d8348e78586928e1da152ac78",
+      "circle/selection.json": "ee82c79d42f086588fa93b4943c1fcc93e4de460d4edc8c5d58efe1377b723f6",
+      "circle/settings.json": "5e2116a3ea96cdf9e7e834fdf579892a68718630bc4351f0e1d957e656c53f32",
+      "circle/source/justfile": "eb2341f906df75ed9581b6d3eabc57b89f11a3fe29172b09add977dbad3ed49c",
+      "circle/source/op-core/nuts/state/jovian_state.json": "32c27eb93054837bcdcee91498d1befc542692a3db9427a90477444870b31a16",
+      "circle/source/op-core/nuts/state/karst_state.json": "f616fc4e089051b59f95db7216e7f6438c94bcfdcade79ee8c93ea5e5239ad02",
+      "circle/source/op-core/nuts/state/lagoon_state.json": "653fe3b583d3160c8201aea66e76714be982f461dd0ab5aeb455d3ff34f83751",
+      "circle/source/ops/ci/nut-prefork-test.sh": "bade750784f1098febbbd81a755a4711017d8e576d7045da3058f59be4bc4dd3",
+      "circle/source/rust/kona/tests/proofs/activation_block_test.go": "0ce577c0f2f01a464d5fc35aa90365ca46a3c742f408a05729d3a400753abf2c",
+      "circle/source/rust/kona/tests/proofs/bad_tx_in_batch_test.go": "4b4aefcd1ff59a3698001bfc3f99bed90f64374987be98849c0d737038d7c05b",
+      "circle/source/rust/kona/tests/proofs/batcher_change_test.go": "15f32c9d07426333743fd77ce53ef3484fb5e481e73c5f050f6f26aa7406beaa",
+      "circle/source/rust/kona/tests/proofs/channel_timeout_test.go": "b313ad2d742f0b200ce40b6a02a355859809995bfd5458dc83797ffe8db5df9e",
+      "circle/source/rust/kona/tests/proofs/deposit_gas_test.go": "7fc19932d7faea1e3b957b83407ccd67f772d199814471c7d8446206572452f6",
+      "circle/source/rust/kona/tests/proofs/fixtures.go": "a09aacd9e508d6547aa745db42803cf6edf7d43cf0964c4c853b8b994edf2fad",
+      "circle/source/rust/kona/tests/proofs/garbage_channel_test.go": "dbc766762b50931f3bdcb9920d626e38b44c79b41f42d39d7111185ecce801e7",
+      "circle/source/rust/kona/tests/proofs/holocene_activation_test.go": "e04a4fe4a25c6e2885e8925b74cb35694243ca87a24fab7a192128c41f5033f7",
+      "circle/source/rust/kona/tests/proofs/holocene_batches_test.go": "97686cb69e32eff950f32c8dbb414bd7f637c147e6b6e5f4f8d327e4ab63662c",
+      "circle/source/rust/kona/tests/proofs/holocene_frame_test.go": "3e0b1cd5a9cc84de84608215c2b65d21acdb8fb6f0613c45b4661e090615b780",
+      "circle/source/rust/kona/tests/proofs/holocene_helpers_test.go": "89d564e7b56ae7c120dc21a3f82950140e9d6c47c6f8971a0da84bc469bf0d47",
+      "circle/source/rust/kona/tests/proofs/holocene_invalid_batch_test.go": "cee6d553859d418b0cd57bd309e39a74a1f60f38f8abcea77734d90e013a8fbf",
+      "circle/source/rust/kona/tests/proofs/isthmus_fork_test.go": "73c8ae622880a3df21d078e48e0ea127da092dbafa03f37bacf1660953cf3011",
+      "circle/source/rust/kona/tests/proofs/isthmus_requests_test.go": "80df18d8d4729abe2e36737b60568a3187b2b7b0aa92eccf9981af2bebd1e774",
+      "circle/source/rust/kona/tests/proofs/isthmus_setcode_tx_test.go": "3266afaa4bfe04059651e7180ad37d47b8726d8b19485d93b49382011afcbc8c",
+      "circle/source/rust/kona/tests/proofs/jovian_blobbasefee_test.go": "0cb9077dadce6fd3ae85d9f82a7b2cbf5404833e0547feceeb287244652334d6",
+      "circle/source/rust/kona/tests/proofs/jovian_dafootprint_test.go": "76c5f864bc6b912db41cd55dfa68de669a957880717b11d7b39f0d8459f56b10",
+      "circle/source/rust/kona/tests/proofs/jovian_minbasefee_test.go": "733742534591fc7152cf317489330a6df03159cbff066caf0e3cd374b298a20f",
+      "circle/source/rust/kona/tests/proofs/l1_blob_parameter_forks_test.go": "67cb772621f0ec301d2ce7be0df61ee7c7480de314d3c2ea23274f9a5391835b",
+      "circle/source/rust/kona/tests/proofs/l1_lookback_test.go": "64ff1999b58676a5507ec9d105d8624b786d3162c9146bf49e0b96887138ee81",
+      "circle/source/rust/kona/tests/proofs/l1_prague_fork_test.go": "0885d69e6c2c3412c72a31b44b9aca2116d1c6dfafcf4898fa8b6af384896c69",
+      "circle/source/rust/kona/tests/proofs/nut_bundle_activation_test.go": "eebc8248d9f2b7ee2411e986ef0dc264b1088728e6409f5f9f622655a1051dc6",
+      "circle/source/rust/kona/tests/proofs/operator_fee_fix_transition_test.go": "082ed467c660eec4967c0a39a9d800f176ded2bae4974ad3726a5b5405dd217f",
+      "circle/source/rust/kona/tests/proofs/operator_fee_test.go": "5b131f9d7d52698f1c77e9929db7f0018f6a16feb9cf2563996480919b2d76b9",
+      "circle/source/rust/kona/tests/proofs/pectra_blob_schedule_test.go": "55263d64a02d75905552246b0c4a4b61893572effb86d8d6980ec11571c6e493",
+      "circle/source/rust/kona/tests/proofs/precompile_test.go": "fb7deca66ad2b2f8815ca950003b8724c795a504564c2aa68d7cc84ca38d131e",
+      "circle/source/rust/kona/tests/proofs/prefork_state_gen_test.go": "60b4c7705803c61efd2dfc2fb91e5c74b189caca6358e000eb7e9a2571fab9e8",
+      "circle/source/rust/kona/tests/proofs/sequence_window_expiry_test.go": "4109699c67bcb27687a325e3e4f076c16cde2a6e670a50551f737e91c75c7438",
+      "circle/source/rust/kona/tests/proofs/simple_program_test.go": "dbecffc73f1e2ea0c569606a0c007372b7a955393868b50578fb2b9d7edc318a",
+      "circle/source/rust/kona/tests/proofs/sp1_simple_program_test.go": "fa4439ec7bbac61e87511aade9766299249b21fc12919e011c10efefd3749707",
+      "circle/source/rust/kona/tests/proofs/span_batch_overlap_test.go": "72566e9cfbb04885051b8c678a13b376374f92e0e41ea764ce461e72573e45d8",
+      "circle/source/rust/kona/tests/proofs/system_config_test.go": "d26cfa202229962b1933a86c9ff2d6f946c6076d2d4273aa7d46230b76e8a40c"
+    },
+    "job": 5635593,
+    "pipeline": 135582,
+    "source_sha": "fd426d8724c4df4d968db0e986b92d9177b717f4",
+    "status": "success",
+    "workflow": "e34639b5-dcc6-438d-a9f5-46f6e3e32f66"
+  },
+  "definition_overlay": {
+    "committed_definition_sha256": "b0b1c0621ccd2e8c662dd497f6eef83f5c0b01fbfed3fb02ea417d70587c6e70",
+    "diff": "--- committed-fd42\n+++ verified-CLI-definition\n@@ -213,9 +213,6 @@\n           system: []\n       test-results:\n         - path: .ci/nut-prefork/run/native.junit.xml\n-          options:\n-            language: Go\n-            framework: go test\n       artifacts:\n         - key: reports\n           path: .ci/nut-prefork/run\n",
+    "source_clone": "Exact unmodified fd42 source; only the uploaded RWX definition removes the incorrect Go JSON parser selection.",
+    "source_sha": "fd426d8724c4df4d968db0e986b92d9177b717f4",
+    "verified_definition_sha256": "08eb077ca74fc1c6d56c78120851b6461386c1a57e4f8abef031547e206e0690"
+  },
+  "first_reporting_attempt": {
+    "finding": "Explicit Go/go test parser options on a JUnit XML path produced zero native cases despite six passing original cases.",
+    "native": {
+      "Branch": "codex/rwx-ci-pilot",
+      "CommitSha": "fd426d8724c4df4d968db0e986b92d9177b717f4",
+      "CompletedAt": "2026-10-05T04:17:02.760Z",
+      "ID": "498aefaf4a6046b3afc9bb4e2c318a2e",
+      "Init": {
+        "branch": "codex/rwx-ci-pilot",
+        "cache-epoch": "v1",
+        "cache-warm": "false",
+        "commit-sha": "fd426d8724c4df4d968db0e986b92d9177b717f4",
+        "tag": ""
+      },
+      "StartedAt": "2026-10-05T04:13:51.337Z",
+      "Status": {
+        "AbortedSubStatus": "not_applicable",
+        "Execution": "finished",
+        "FinishedSubStatus": "not_applicable",
+        "Result": "succeeded",
+        "WaitingSubStatus": "not_applicable"
+      },
+      "TargetedTaskKeys": null,
+      "Tasks": [
+        {
+          "CacheHitFromTaskID": null,
+          "CompletedAt": "2026-10-05T04:14:08.524Z",
+          "ExecutionRuntimeSeconds": null,
+          "FailedTestCount": 0,
+          "ID": "67a90fb644a2eb040ee2f846afe2a6b2",
+          "Key": "code",
+          "StartedAt": "2026-10-05T04:13:52.432Z",
+          "Status": {
+            "AbortedSubStatus": "not_applicable",
+            "Execution": "finished",
+            "FinishedSubStatus": "executed",
+            "Result": "succeeded",
+            "WaitingSubStatus": "not_applicable"
+          },
+          "Subtasks": [
+            {
+              "CacheHitFromTaskID": "5708662a7f59a6227c84d4432645e296",
+              "CompletedAt": "2026-10-01T16:15:16.021Z",
+              "ExecutionRuntimeSeconds": 1,
+              "FailedTestCount": 0,
+              "ID": "87c6a1bfa09f80e429e0310e898f4afb",
+              "Key": "setup",
+              "StartedAt": "2026-10-01T16:15:15.223Z",
+              "Status": {
+                "AbortedSubStatus": "not_applicable",
+                "Execution": "finished",
+                "FinishedSubStatus": "cache_hit",
+                "Result": "succeeded",
+                "WaitingSubStatus": "not_applicable"
+              },
+              "Subtasks": [],
+              "TestCount": 0
+            },
+            {
+              "CacheHitFromTaskID": null,
+              "CompletedAt": "2026-10-05T04:14:00.086Z",
+              "ExecutionRuntimeSeconds": 2,
+              "FailedTestCount": 0,
+              "ID": "b95feff8323fab20174b033bdb5a4ea3",
+              "Key": "get-latest-sha-for-ref",
+              "StartedAt": "2026-10-05T04:13:57.374Z",
+              "Status": {
+                "AbortedSubStatus": "not_applicable",
+                "Execution": "finished",
+                "FinishedSubStatus": "executed",
+                "Result": "succeeded",
+                "WaitingSubStatus": "not_applicable"
+              },
+              "Subtasks": [],
+              "TestCount": 0
+            },
+            {
+              "CacheHitFromTaskID": "04d5b61cac79eb3badcbb3aa4cc8d2ba",
+              "CompletedAt": "2026-10-01T16:15:17.115Z",
+              "ExecutionRuntimeSeconds": 1,
+              "FailedTestCount": 0,
+              "ID": "05be18bd2e1304def7bc49d6a2fccfb3",
+              "Key": "install-lfs",
+              "StartedAt": "2026-10-01T16:15:15.279Z",
+              "Status": {
+                "AbortedSubStatus": "not_applicable",
+                "Execution": "finished",
+                "FinishedSubStatus": "cache_hit",
+                "Result": "succeeded",
+                "WaitingSubStatus": "not_applicable"
+              },
+              "Subtasks": [],
+              "TestCount": 0
+            },
+            {
+              "CacheHitFromTaskID": null,
+              "CompletedAt": "2026-10-05T04:14:07.697Z",
+              "ExecutionRuntimeSeconds": 2,
+              "FailedTestCount": 0,
+              "ID": "4c57bb66f9aed3a14b04fca05ab0c981",
+              "Key": "git-clone",
+              "StartedAt": "2026-10-05T04:14:00.226Z",
+              "Status": {
+                "AbortedSubStatus": "not_applicable",
+                "Execution": "finished",
+                "FinishedSubStatus": "executed",
+                "Result": "succeeded",
+                "WaitingSubStatus": "not_applicable"
+              },
+              "Subtasks": [],
+              "TestCount": 0
+            },
+            {
+              "CacheHitFromTaskID": null,
+              "CompletedAt": "2026-10-05T04:14:08.514Z",
+              "ExecutionRuntimeSeconds": 1,
+              "FailedTestCount": 0,
+              "ID": "bbe876b0b07fc44748775faa4fb43524",
+              "Key": "cleanup-git-dir",
+              "StartedAt": "2026-10-05T04:14:08.100Z",
+              "Status": {
+                "AbortedSubStatus": "not_applicable",
+                "Execution": "finished",
+                "FinishedSubStatus": "executed",
+                "Result": "succeeded",
+                "WaitingSubStatus": "not_applicable"
+              },
+              "Subtasks": [],
+              "TestCount": 0
+            }
+          ],
+          "TestCount": 0
+        },
+        {
+          "CacheHitFromTaskID": null,
+          "CompletedAt": "2026-10-05T04:14:09.511Z",
+          "ExecutionRuntimeSeconds": 1,
+          "FailedTestCount": 0,
+          "ID": "bed70e91b6f026826cd317acf888e7cc",
+          "Key": "bootstrap-inputs",
+          "StartedAt": "2026-10-05T04:14:08.737Z",
+          "Status": {
+            "AbortedSubStatus": "not_applicable",
+            "Execution": "finished",
+            "FinishedSubStatus": "executed",
+            "Result": "succeeded",
+            "WaitingSubStatus": "not_applicable"
+          },
+          "Subtasks": [],
+          "TestCount": 0
+        },
+        {
+          "CacheHitFromTaskID": null,
+          "CompletedAt": "2026-10-05T04:13:53.368Z",
+          "ExecutionRuntimeSeconds": null,
+          "FailedTestCount": 0,
+          "ID": "9affb06d0c0855fb8ed572e27754a447",
+          "Key": "mise",
+          "StartedAt": "2026-10-05T04:13:52.615Z",
+          "Status": {
+            "AbortedSubStatus": "not_applicable",
+            "Execution": "finished",
+            "FinishedSubStatus": "cache_hit",
+            "Result": "succeeded",
+            "WaitingSubStatus": "not_applicable"
+          },
+          "Subtasks": [
+            {
+              "CacheHitFromTaskID": "a24f388a70e756c09fdfaa5661f1589b",
+              "CompletedAt": "2026-10-01T16:26:25.257Z",
+              "ExecutionRuntimeSeconds": 1,
+              "FailedTestCount": 0,
+              "ID": "1f761ff7acea721f8ba9ac75421c0cc6",
+              "Key": "install",
+              "StartedAt": "2026-10-01T16:26:23.240Z",
+              "Status": {
+                "AbortedSubStatus": "not_applicable",
+                "Execution": "finished",
+                "FinishedSubStatus": "cache_hit",
+                "Result": "succeeded",
+                "WaitingSubStatus": "not_applicable"
+              },
+              "Subtasks": [],
+              "TestCount": 0
+            }
+          ],
+          "TestCount": 0
+        },
+        {
+          "CacheHitFromTaskID": "8f9c596c40eb5471ec025241a8316e8c",
+          "CompletedAt": "2026-10-02T22:37:35.537Z",
+          "ExecutionRuntimeSeconds": 9,
+          "FailedTestCount": 0,
+          "ID": "f3973db9ff1cda0f2c1d93c6139b826a",
+          "Key": "tools",
+          "StartedAt": "2026-10-02T22:37:24.848Z",
+          "Status": {
+            "AbortedSubStatus": "not_applicable",
+            "Execution": "finished",
+            "FinishedSubStatus": "cache_hit",
+            "Result": "succeeded",
+            "WaitingSubStatus": "not_applicable"
+          },
+          "Subtasks": [],
+          "TestCount": 0
+        },
+        {
+          "CacheHitFromTaskID": null,
+          "CompletedAt": "2026-10-05T04:14:13.960Z",
+          "ExecutionRuntimeSeconds": 2,
+          "FailedTestCount": 0,
+          "ID": "b870fe142bb3bc5a9ee13c6e5f088650",
+          "Key": "route",
+          "StartedAt": "2026-10-05T04:14:11.220Z",
+          "Status": {
+            "AbortedSubStatus": "not_applicable",
+            "Execution": "finished",
+            "FinishedSubStatus": "executed",
+            "Result": "succeeded",
+            "WaitingSubStatus": "not_applicable"
+          },
+          "Subtasks": [],
+          "TestCount": 0
+        },
+        {
+          "CacheHitFromTaskID": "9e4896d040dc5b3d6a5bf29cddc91e76",
+          "CompletedAt": "2026-10-02T22:37:39.386Z",
+          "ExecutionRuntimeSeconds": 2,
+          "FailedTestCount": 0,
+          "ID": "d753f5ffe82ba0302aa505ed93d0d280",
+          "Key": "go-tools",
+          "StartedAt": "2026-10-02T22:37:35.795Z",
+          "Status": {
+            "AbortedSubStatus": "not_applicable",
+            "Execution": "finished",
+            "FinishedSubStatus": "cache_hit",
+            "Result": "succeeded",
+            "WaitingSubStatus": "not_applicable"
+          },
+          "Subtasks": [],
+          "TestCount": 0
+        },
+        {
+          "CacheHitFromTaskID": "3bf74a4407abeb9c48e385d43634c4b1",
+          "CompletedAt": "2026-10-05T03:24:07.477Z",
+          "ExecutionRuntimeSeconds": 9,
+          "FailedTestCount": 0,
+          "ID": "e622c9d8cf55eca3cd798c8720532d09",
+          "Key": "contract-tools",
+          "StartedAt": "2026-10-05T03:23:57.714Z",
+          "Status": {
+            "AbortedSubStatus": "not_applicable",
+            "Execution": "finished",
+            "FinishedSubStatus": "cache_hit",
+            "Result": "succeeded",
+            "WaitingSubStatus": "not_applicable"
+          },
+          "Subtasks": [],
+          "TestCount": 0
+        },
+        {
+          "CacheHitFromTaskID": null,
+          "CompletedAt": "2026-10-05T04:14:32.402Z",
+          "ExecutionRuntimeSeconds": 12,
+          "FailedTestCount": 0,
+          "ID": "e335badd6089d2bd9b4b58e03b52aea8",
+          "Key": "source",
+          "StartedAt": "2026-10-05T04:14:16.758Z",
+          "Status": {
+            "AbortedSubStatus": "not_applicable",
+            "Execution": "finished",
+            "FinishedSubStatus": "executed",
+            "Result": "succeeded",
+            "WaitingSubStatus": "not_applicable"
+          },
+          "Subtasks": [],
+          "TestCount": 0
+        },
+        {
+          "CacheHitFromTaskID": null,
+          "CompletedAt": "2026-10-05T04:15:44.197Z",
+          "ExecutionRuntimeSeconds": null,
+          "FailedTestCount": 0,
+          "ID": "7d1ec2412fa38d8ff7df35b819605e78",
+          "Key": "modules",
+          "StartedAt": "2026-10-05T04:14:14.312Z",
+          "Status": {
+            "AbortedSubStatus": "not_applicable",
+            "Execution": "finished",
+            "FinishedSubStatus": "executed",
+            "Result": "succeeded",
+            "WaitingSubStatus": "not_applicable"
+          },
+          "Subtasks": [
+            {
+              "CacheHitFromTaskID": null,
+              "CompletedAt": "2026-10-05T04:15:44.172Z",
+              "ExecutionRuntimeSeconds": 69,
+              "FailedTestCount": 0,
+              "ID": "1c8c3ddba991aeab90f2957fbf5cedbb",
+              "Key": "build",
+              "StartedAt": "2026-10-05T04:14:28.210Z",
+              "Status": {
+                "AbortedSubStatus": "not_applicable",
+                "Execution": "finished",
+                "FinishedSubStatus": "executed",
+                "Result": "succeeded",
+                "WaitingSubStatus": "not_applicable"
+              },
+              "Subtasks": [],
+              "TestCount": 0
+            }
+          ],
+          "TestCount": 0
+        },
+        {
+          "CacheHitFromTaskID": null,
+          "CompletedAt": "2026-10-05T04:15:37.969Z",
+          "ExecutionRuntimeSeconds": null,
+          "FailedTestCount": 0,
+          "ID": "0358ba1d2c0b1c2ba369f2e1670e7125",
+          "Key": "contracts",
+          "StartedAt": "2026-10-05T04:14:33.098Z",
+          "Status": {
+            "AbortedSubStatus": "not_applicable",
+            "Execution": "finished",
+            "FinishedSubStatus": "executed",
+            "Result": "succeeded",
+            "WaitingSubStatus": "not_applicable"
+          },
+          "Subtasks": [
+            {
+              "CacheHitFromTaskID": null,
+              "CompletedAt": "2026-10-05T04:15:37.945Z",
+              "ExecutionRuntimeSeconds": 49,
+              "FailedTestCount": 0,
+              "ID": "98400eee368672d030ada79f86e61073",
+              "Key": "build",
+              "StartedAt": "2026-10-05T04:14:44.153Z",
+              "Status": {
+                "AbortedSubStatus": "not_applicable",
+                "Execution": "finished",
+                "FinishedSubStatus": "executed",
+                "Result": "succeeded",
+                "WaitingSubStatus": "not_applicable"
+              },
+              "Subtasks": [],
+              "TestCount": 0
+            }
+          ],
+          "TestCount": 0
+        },
+        {
+          "CacheHitFromTaskID": null,
+          "CompletedAt": "2026-10-05T04:14:38.504Z",
+          "ExecutionRuntimeSeconds": 4,
+          "FailedTestCount": 0,
+          "ID": "b59b00220b47152c537721f2cddbabcf",
+          "Key": "superchain",
+          "StartedAt": "2026-10-05T04:14:33.098Z",
+          "Status": {
+            "AbortedSubStatus": "not_applicable",
+            "Execution": "finished",
+            "FinishedSubStatus": "executed",
+            "Result": "succeeded",
+            "WaitingSubStatus": "not_applicable"
+          },
+          "Subtasks": [],
+          "TestCount": 0
+        },
+        {
+          "CacheHitFromTaskID": null,
+          "CompletedAt": "2026-10-05T04:14:52.686Z",
+          "ExecutionRuntimeSeconds": 32,
+          "FailedTestCount": 0,
+          "ID": "2e06fe92652f30db25450fdeb004f44e",
+          "Key": "helper-tests",
+          "StartedAt": "2026-10-05T04:14:16.893Z",
+          "Status": {
+            "AbortedSubStatus": "not_applicable",
+            "Execution": "finished",
+            "FinishedSubStatus": "executed",
+            "Result": "succeeded",
+            "WaitingSubStatus": "not_applicable"
+          },
+          "Subtasks": [],
+          "TestCount": 0
+        },
+        {
+          "CacheHitFromTaskID": null,
+          "CompletedAt": "2026-10-05T04:17:02.759Z",
+          "ExecutionRuntimeSeconds": 60,
+          "FailedTestCount": 0,
+          "ID": "8c1be42dc9d14b6fb76ed45f8dbb8cad",
+          "Key": "tests",
+          "StartedAt": "2026-10-05T04:15:55.901Z",
+          "Status": {
+            "AbortedSubStatus": "not_applicable",
+            "Execution": "finished",
+            "FinishedSubStatus": "executed",
+            "Result": "succeeded",
+            "WaitingSubStatus": "not_applicable"
+          },
+          "Subtasks": [],
+          "TestCount": 0
+        },
+        {
+          "CacheHitFromTaskID": "9672e7b0ac25ddb4c898ad4606433cc5",
+          "CompletedAt": "2026-10-01T16:15:14.461Z",
+          "ExecutionRuntimeSeconds": 5,
+          "FailedTestCount": 0,
+          "ID": "4c5b027e888f345205a5b651852b4bea",
+          "Key": "~base-image",
+          "StartedAt": "2026-10-01T16:15:06.909Z",
+          "Status": {
+            "AbortedSubStatus": "not_applicable",
+            "Execution": "finished",
+            "FinishedSubStatus": "cache_hit",
+            "Result": "succeeded",
+            "WaitingSubStatus": "not_applicable"
+          },
+          "Subtasks": [],
+          "TestCount": 0
+        },
+        {
+          "CacheHitFromTaskID": null,
+          "CompletedAt": "2026-10-05T04:13:52.142Z",
+          "ExecutionRuntimeSeconds": null,
+          "FailedTestCount": 0,
+          "ID": "6e80c3227704b7ae6ea6246d182b780c",
+          "Key": "~base-config",
+          "StartedAt": "2026-10-05T04:13:51.841Z",
+          "Status": {
+            "AbortedSubStatus": "not_applicable",
+            "Execution": "finished",
+            "FinishedSubStatus": "cache_hit",
+            "Result": "succeeded",
+            "WaitingSubStatus": "not_applicable"
+          },
+          "Subtasks": [
+            {
+              "CacheHitFromTaskID": "346d33674cd759784fd19623caeb4911",
+              "CompletedAt": "2026-10-01T15:54:04.635Z",
+              "ExecutionRuntimeSeconds": 13,
+              "FailedTestCount": 0,
+              "ID": "15320a8cb1e6166dcc41ce2e1f8b96cf",
+              "Key": "configure",
+              "StartedAt": "2026-10-01T15:53:49.990Z",
+              "Status": {
+                "AbortedSubStatus": "not_applicable",
+                "Execution": "finished",
+                "FinishedSubStatus": "cache_hit",
+                "Result": "succeeded",
+                "WaitingSubStatus": "not_applicable"
+              },
+              "Subtasks": [],
+              "TestCount": 0
+            },
+            {
+              "CacheHitFromTaskID": "f85a3ac2d7dfc5ca2134c727ebffc92c",
+              "CompletedAt": "2026-10-01T15:54:21.647Z",
+              "ExecutionRuntimeSeconds": 15,
+              "FailedTestCount": 0,
+              "ID": "6de3abb54047f67c9817324727ad04aa",
+              "Key": "docker",
+              "StartedAt": "2026-10-01T15:54:04.860Z",
+              "Status": {
+                "AbortedSubStatus": "not_applicable",
+                "Execution": "finished",
+                "FinishedSubStatus": "cache_hit",
+                "Result": "succeeded",
+                "WaitingSubStatus": "not_applicable"
+              },
+              "Subtasks": [],
+              "TestCount": 0
+            }
+          ],
+          "TestCount": 0
+        }
+      ],
+      "Trigger": "github.push"
+    },
+    "original_outcomes": {
+      "pass": 6
+    },
+    "original_sha256": {
+      "check.log": "7f2877f3fabbee6d0ba1c5bcc8c5babaea79738e34b5f83a448e1ab6e1aef962",
+      "check.stage.json": "299da5f47174554a7335b77ecf3e3cb75ba13cca8cf35c06db39f271b2410a91",
+      "coverage.json": "1e0b868f9117f44a168bfab5de617af877665c3fd740061502ecab55f7558678",
+      "dependencies/contracts.json": "c50f8e42a6568f1ce15f87e140acb98194f6d08e9891d54a982ff0e5e4bbb7b0",
+      "dependencies/go-modules.json": "4c096afe87ceac7309790a09775d883fdef4531c8667b165d56bf612894725c6",
+      "dependencies/superchain-configs.zip": "a94b0232e9d3b52cf8c9bafeadce2985e7d16ab8fd920f90af040fb654081250",
+      "dependencies/superchain-configs.zip.sha256": "3c95f818ef3cce71d51c79fee2fc6ac766f7866646e620e50a10d6967047250a",
+      "forks/karst/junit.xml": "cca1a3cc421585283528e9444f59c2f25d8335ae218aa363832bb0fdd0fcf853",
+      "forks/karst/native.json": "704ec4a6fefaa8742e6c5121c7f01698ac2a365ec782c174190c6dcb060579aa",
+      "forks/karst/native.metadata.json": "f8e19a0437e92c0b7ed17fb4ad70ed41752d845727d5d0192fd8e0a8aa425504",
+      "forks/karst/original.json": "2369dfeaa58d1bf3a8d9745f59641baaa0818bc011fcfc50d959750a0d243dc5",
+      "forks/karst/per-test/github.com.ethereum-optimism.optimism.rust.kona.tests.proofs/TestGenerateForkState.log": "175a5898e86fbbffe4dec0043a7abc8f027eddc4e66157bcc885f6b82fdcf4c1",
+      "forks/karst/per-test/github.com.ethereum-optimism.optimism.rust.kona.tests.proofs/TestGenerateForkState/HonestClaim-karst-jovian.log": "4d87889a114f95a47676e477629f1bdff29f9d9cfa4472726872d46953bd3dae",
+      "forks/karst/per-test/github.com.ethereum-optimism.optimism.rust.kona.tests.proofs/TestGenerateForkState/JunkClaim-karst-jovian.log": "6cbeafc79be957287b620cee2879b94d87756fd0a770b6e5badd8e1f8f3d5613",
+      "forks/karst/tests.log": "73470d2bf4e0751aee64bf396c7029f5734929bd69b943c12e6dd4cb61b8e61c",
+      "forks/karst/tests.stage.json": "e859ab2c3139bb2f4901399a8103fb17de0cbf1672f363792950ef1b569b1872",
+      "forks/lagoon/junit.xml": "6495f27fb3404197c6a68158783ea2062395bf51a1607164dbe53f646c1b1d4e",
+      "forks/lagoon/native.json": "0cd695519f800c0e5ffcda399c7d8751aa94a6371511de732c9fc422f10a1506",
+      "forks/lagoon/native.metadata.json": "80feca70329e3be9709aeaeddd129b1cb2e99c78ef353801ea30c262da779380",
+      "forks/lagoon/original.json": "eed9907329428629c05f1f8a3e916c9d944e3c6dcbbce99e65e0d68f574891ee",
+      "forks/lagoon/per-test/github.com.ethereum-optimism.optimism.rust.kona.tests.proofs/TestGenerateForkState.log": "175a5898e86fbbffe4dec0043a7abc8f027eddc4e66157bcc885f6b82fdcf4c1",
+      "forks/lagoon/per-test/github.com.ethereum-optimism.optimism.rust.kona.tests.proofs/TestGenerateForkState/HonestClaim-lagoon-karst.log": "1d20b070735fc72414479b6c2806ca70deb144e9b7fa1b627414062aa76d9926",
+      "forks/lagoon/per-test/github.com.ethereum-optimism.optimism.rust.kona.tests.proofs/TestGenerateForkState/JunkClaim-lagoon-karst.log": "2e12dd541c7d26e6bb0e1f92730df32672d12082d156fa07e6b4dfc3723019ac",
+      "forks/lagoon/tests.log": "727218d0cf0a79e39037fe3f854516e5bc570e3c9cef207fe093b92a0b5e1db8",
+      "forks/lagoon/tests.stage.json": "9de984f959fa257794fbe6e9bf2921c757015b7924af8cc35edb7ab3b82fb50a",
+      "generated.json": "f4faa1e43dab74976f6ad8a83256f3ac72554ffdf0c6bb1bc231ee19f00644ef",
+      "inputs-after.json": "8dd8696e5b1bd2167722dd544c84126d2991de23564bb651de940b76636e8fbd",
+      "list.json": "ce18f0c012430a06a8011c80c265524a3e694515ba7a7b885492b7ae35123171",
+      "list.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "list.stage.json": "da4113060092b8ddf8196f75602c30c49c1e3dacb411f765758005652a2daa40",
+      "native.junit.xml": "e0e8692e95980b89d1ce76dd87afa101449e08053790609a1999b59d5aea84e9",
+      "native.metadata.json": "b390223cdbf64281debc702b2a73637555e1f789975fed8b5c5ec829b303e500",
+      "packages.json": "387dd6bacff85b14da0910eeaf4bba2822b875ffb251168f55f185b63ca19055",
+      "packages.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "packages.stage.json": "ee252a2566d742d3fac03f453c142ee0e6ec6a97220b4ba50fc486b965c90964",
+      "producer/bundle.json": "d098730d7ce2552bdaea251d599fe9a3f023754b0a1105f5b019f32221087de9",
+      "producer/coverage.json": "4032f7cfe18b304ea3ea493afda869cbc366099e378bfc24f8479d6f71da8189",
+      "producer/manifest.json": "c74971a8a072b51f3cbf17602bcd00b142b9a7be1b3ff332d5446a937a971197",
+      "producer/superchain.log": "e71e2addef78da82ce94cc0773a130dddafa24cb3b498523a889c0c69ebc4898",
+      "producer/superchain.stage.json": "46cecb132b1ba05cf57f65837fce441371ca3c4407a186ebeed169cf5d3aceb9",
+      "selection.json": "ee82c79d42f086588fa93b4943c1fcc93e4de460d4edc8c5d58efe1377b723f6",
+      "settings.json": "b65dacd9e8848adcc4b312e934b3b35fddb3d39807ee2c612c80838fbeb37a2f",
+      "source/justfile": "eb2341f906df75ed9581b6d3eabc57b89f11a3fe29172b09add977dbad3ed49c",
+      "source/op-core/nuts/state/jovian_state.json": "32c27eb93054837bcdcee91498d1befc542692a3db9427a90477444870b31a16",
+      "source/op-core/nuts/state/karst_state.json": "f616fc4e089051b59f95db7216e7f6438c94bcfdcade79ee8c93ea5e5239ad02",
+      "source/op-core/nuts/state/lagoon_state.json": "653fe3b583d3160c8201aea66e76714be982f461dd0ab5aeb455d3ff34f83751",
+      "source/ops/ci/nut-prefork-test.sh": "bade750784f1098febbbd81a755a4711017d8e576d7045da3058f59be4bc4dd3",
+      "source/rust/kona/tests/proofs/activation_block_test.go": "0ce577c0f2f01a464d5fc35aa90365ca46a3c742f408a05729d3a400753abf2c",
+      "source/rust/kona/tests/proofs/bad_tx_in_batch_test.go": "4b4aefcd1ff59a3698001bfc3f99bed90f64374987be98849c0d737038d7c05b",
+      "source/rust/kona/tests/proofs/batcher_change_test.go": "15f32c9d07426333743fd77ce53ef3484fb5e481e73c5f050f6f26aa7406beaa",
+      "source/rust/kona/tests/proofs/channel_timeout_test.go": "b313ad2d742f0b200ce40b6a02a355859809995bfd5458dc83797ffe8db5df9e",
+      "source/rust/kona/tests/proofs/deposit_gas_test.go": "7fc19932d7faea1e3b957b83407ccd67f772d199814471c7d8446206572452f6",
+      "source/rust/kona/tests/proofs/fixtures.go": "a09aacd9e508d6547aa745db42803cf6edf7d43cf0964c4c853b8b994edf2fad",
+      "source/rust/kona/tests/proofs/garbage_channel_test.go": "dbc766762b50931f3bdcb9920d626e38b44c79b41f42d39d7111185ecce801e7",
+      "source/rust/kona/tests/proofs/holocene_activation_test.go": "e04a4fe4a25c6e2885e8925b74cb35694243ca87a24fab7a192128c41f5033f7",
+      "source/rust/kona/tests/proofs/holocene_batches_test.go": "97686cb69e32eff950f32c8dbb414bd7f637c147e6b6e5f4f8d327e4ab63662c",
+      "source/rust/kona/tests/proofs/holocene_frame_test.go": "3e0b1cd5a9cc84de84608215c2b65d21acdb8fb6f0613c45b4661e090615b780",
+      "source/rust/kona/tests/proofs/holocene_helpers_test.go": "89d564e7b56ae7c120dc21a3f82950140e9d6c47c6f8971a0da84bc469bf0d47",
+      "source/rust/kona/tests/proofs/holocene_invalid_batch_test.go": "cee6d553859d418b0cd57bd309e39a74a1f60f38f8abcea77734d90e013a8fbf",
+      "source/rust/kona/tests/proofs/isthmus_fork_test.go": "73c8ae622880a3df21d078e48e0ea127da092dbafa03f37bacf1660953cf3011",
+      "source/rust/kona/tests/proofs/isthmus_requests_test.go": "80df18d8d4729abe2e36737b60568a3187b2b7b0aa92eccf9981af2bebd1e774",
+      "source/rust/kona/tests/proofs/isthmus_setcode_tx_test.go": "3266afaa4bfe04059651e7180ad37d47b8726d8b19485d93b49382011afcbc8c",
+      "source/rust/kona/tests/proofs/jovian_blobbasefee_test.go": "0cb9077dadce6fd3ae85d9f82a7b2cbf5404833e0547feceeb287244652334d6",
+      "source/rust/kona/tests/proofs/jovian_dafootprint_test.go": "76c5f864bc6b912db41cd55dfa68de669a957880717b11d7b39f0d8459f56b10",
+      "source/rust/kona/tests/proofs/jovian_minbasefee_test.go": "733742534591fc7152cf317489330a6df03159cbff066caf0e3cd374b298a20f",
+      "source/rust/kona/tests/proofs/l1_blob_parameter_forks_test.go": "67cb772621f0ec301d2ce7be0df61ee7c7480de314d3c2ea23274f9a5391835b",
+      "source/rust/kona/tests/proofs/l1_lookback_test.go": "64ff1999b58676a5507ec9d105d8624b786d3162c9146bf49e0b96887138ee81",
+      "source/rust/kona/tests/proofs/l1_prague_fork_test.go": "0885d69e6c2c3412c72a31b44b9aca2116d1c6dfafcf4898fa8b6af384896c69",
+      "source/rust/kona/tests/proofs/nut_bundle_activation_test.go": "eebc8248d9f2b7ee2411e986ef0dc264b1088728e6409f5f9f622655a1051dc6",
+      "source/rust/kona/tests/proofs/operator_fee_fix_transition_test.go": "082ed467c660eec4967c0a39a9d800f176ded2bae4974ad3726a5b5405dd217f",
+      "source/rust/kona/tests/proofs/operator_fee_test.go": "5b131f9d7d52698f1c77e9929db7f0018f6a16feb9cf2563996480919b2d76b9",
+      "source/rust/kona/tests/proofs/pectra_blob_schedule_test.go": "55263d64a02d75905552246b0c4a4b61893572effb86d8d6980ec11571c6e493",
+      "source/rust/kona/tests/proofs/precompile_test.go": "fb7deca66ad2b2f8815ca950003b8724c795a504564c2aa68d7cc84ca38d131e",
+      "source/rust/kona/tests/proofs/prefork_state_gen_test.go": "60b4c7705803c61efd2dfc2fb91e5c74b189caca6358e000eb7e9a2571fab9e8",
+      "source/rust/kona/tests/proofs/sequence_window_expiry_test.go": "4109699c67bcb27687a325e3e4f076c16cde2a6e670a50551f737e91c75c7438",
+      "source/rust/kona/tests/proofs/simple_program_test.go": "dbecffc73f1e2ea0c569606a0c007372b7a955393868b50578fb2b9d7edc318a",
+      "source/rust/kona/tests/proofs/sp1_simple_program_test.go": "fa4439ec7bbac61e87511aade9766299249b21fc12919e011c10efefd3749707",
+      "source/rust/kona/tests/proofs/span_batch_overlap_test.go": "72566e9cfbb04885051b8c678a13b376374f92e0e41ea764ce461e72573e45d8",
+      "source/rust/kona/tests/proofs/system_config_test.go": "d26cfa202229962b1933a86c9ff2d6f946c6076d2d4273aa7d46230b76e8a40c"
+    }
+  },
+  "fixture_assertions": 8,
+  "fixture_original_sha256": {
+    "cancellation/check.log": "cbac803720fbdcf316c2d03a88cb897525e5c1663b9dde8c843f31fbdc3e0d9e",
+    "cancellation/check.stage.json": "e4a2f6d83c86226cd9a425a646efe89511d594c7670a3f88e03ad6dff18deb0d",
+    "cancellation/dependencies/superchain-configs.zip": "baa26ccde09d2bfd68eb989658eef13ed5396231d1386ad31de4d502cc276041",
+    "cancellation/dependencies/superchain-configs.zip.sha256": "eb297e27ffdc88fc13a80f0045a987449bdfd6a57851e5155da45a0ec51d5933",
+    "cancellation/final.json": "a9306e485d8481ae21c22971b9cef426e43e7ae8009f4d760c318533d7d1efbd",
+    "cancellation/forks/karst/native.json": "df08662cd6d206d6c79d30b600f843575a132d8131f07b1db6074c1632a299d0",
+    "cancellation/forks/karst/native.metadata.json": "350fc84edfeedec59fc0c156fc77ab9ada86283d04552a79a1453b9a7ad58c1f",
+    "cancellation/forks/karst/original.json": "c50d16369445c0eb4437fbf26e97d2274f5504bcbdc4fb29b9d6345868c54aa7",
+    "cancellation/forks/karst/tests.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "cancellation/forks/karst/tests.stage.json": "c8805c4a53323dd39cf887775363ba9764484583d4718e3bb6948a41ff7e2160",
+    "cancellation/list.json": "84edf0c17b71a39ebec211aecce24fa013fd4618b0ff96b48ac9b050cd005b5a",
+    "cancellation/list.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "cancellation/list.stage.json": "ca9583f06afddc86e329d0f66886adc6591563d45a7e6f4e31ffc59814c1b471",
+    "cancellation/native.junit.xml": "50b79c976aa0f8e8e6cae59da9d777ac4213b6c5c28a661f31eee886d16c665d",
+    "cancellation/native.metadata.json": "12ec3aee847e20d811a926ad531c589112485fe4adca230b59cc21af7da20d9d",
+    "cancellation/packages.json": "2a179cbced137c6580510423547dae24c50e5b83a4f8a84c9bcdd1617d7e2099",
+    "cancellation/packages.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "cancellation/packages.stage.json": "1cdb29b063eec203a3182d01fc9a61d4240e2d85b5cd26bb50b1f86e8c548e8d",
+    "cancellation/selection.json": "d0b85ca28574b08e1cc81c8d02464d053690a2f3e36f0fa3951f81e522c8641f",
+    "cancellation/settings.json": "19a801331d17038e618780d598bd27a80ae83c9d45f9f8497207269b77a9e4bd",
+    "cancellation/source/justfile": "3220628886951f4fbcbe26032e1fa346de0645fb8e502694e0f47cf6ccfa8efe",
+    "cancellation/source/op-core/nuts/state/jovian_state.json": "1bab25f023339594850ea63c182ae267217d512a90f127ead733bf34157ea56e",
+    "cancellation/source/op-core/nuts/state/karst_state.json": "c6e4ce9f614bbb25a0af208e2d32a632bb62f97685dc7cb42c4e4f7141e9ee8a",
+    "cancellation/source/op-core/nuts/state/lagoon_state.json": "56c07d8cb6d678dc58ecf1e08e2e48b67db63ffa6dfe11a463c9a9790fd9a3ac",
+    "cancellation/source/op-core/nuts/state/new-fork_state.json": "039971d20ae84f76c5193654edaf830f3650e2d03d50c87e2e665a0a08cc21b5",
+    "cancellation/source/ops/ci/nut-prefork-test.sh": "bade750784f1098febbbd81a755a4711017d8e576d7045da3058f59be4bc4dd3",
+    "cancellation/source/rust/kona/tests/proofs/state_test.go": "5c7805e44ab13f66534d158060f89e0667329a3007cc9125da0f33751bd6bf2b",
+    "fresh-circle/check.log": "a03434c2897a97c07c78917cb11d2e1fe37a06c88733dceb6d688ce2d20a962b",
+    "fresh-circle/check.stage.json": "0530c06d21db3ceeb1aaca7854bdd9518fc2922284898a9f13d8a840b2e11d19",
+    "fresh-circle/coverage.json": "42a345d3d43cbe3922b76b57060a103021314343253367e729d9d9da8164560a",
+    "fresh-circle/dependencies/superchain-configs.zip": "baa26ccde09d2bfd68eb989658eef13ed5396231d1386ad31de4d502cc276041",
+    "fresh-circle/dependencies/superchain-configs.zip.sha256": "eb297e27ffdc88fc13a80f0045a987449bdfd6a57851e5155da45a0ec51d5933",
+    "fresh-circle/final.json": "6a2819a7caadacc92d043149429dac241077eda99b3d89cf01abb2be5e6c3083",
+    "fresh-circle/forks/karst/junit.xml": "50ed1f6249c9b67b85014882858eafee921964fd452bc8f7506d8cdb43de1fb2",
+    "fresh-circle/forks/karst/native.json": "e4c0107dba2c952740d6752c7fc213d1418a9f49ffc79c52b2a53160effdd0ac",
+    "fresh-circle/forks/karst/native.metadata.json": "c1e47ac09249b51a8dbddce30456dbc3bdf82935f440d00d9b7997cc4e221d34",
+    "fresh-circle/forks/karst/original.json": "3d8de2def22445d2662643ceb5f6d5a8cfa5e1e933ef808d840d9aa12398f32f",
+    "fresh-circle/forks/karst/per-test/github.com.ethereum-optimism.optimism.rust.kona.tests.proofs/TestGenerateForkState.log": "175a5898e86fbbffe4dec0043a7abc8f027eddc4e66157bcc885f6b82fdcf4c1",
+    "fresh-circle/forks/karst/per-test/github.com.ethereum-optimism.optimism.rust.kona.tests.proofs/TestGenerateForkState/write/karst.log": "790bee40d205e73dfe93d00684ebacf2e81af585ff8e35f78f68d1e47c099cf9",
+    "fresh-circle/forks/karst/per-test/github.com.ethereum-optimism.optimism.rust.kona.tests.proofs/TestGenerateForkStateNew.log": "c7643e93bc4d154db863359cf10045369dd129d2aac6d109d60d82005248a0d3",
+    "fresh-circle/forks/karst/tests.log": "e9b4b7ad2f934afcad1311e2c36349bad60cd9a97163c37a7aa05b7827c63d22",
+    "fresh-circle/forks/karst/tests.stage.json": "583dd4a2dc7b678fcec7045e098e39f9a0ef96e4387b3b5703e474be79e0fa36",
+    "fresh-circle/forks/lagoon/junit.xml": "316ed832813d4e509eebb60e4d8fa292f7924a04dd0ff4ab604cb6887b3a6352",
+    "fresh-circle/forks/lagoon/native.json": "6af6caaf4b9c014ffad4c62567dfe1eff974064646a13405b066f0eede8df67d",
+    "fresh-circle/forks/lagoon/native.metadata.json": "464ce62223b42b041c7c653eedfacd22f1a39f82d34cb26e61aa59bfc03fcc42",
+    "fresh-circle/forks/lagoon/original.json": "85250cd11cda5be4f61bb3fad411ce89b4f3a40a8e6279928d09da13c7cf5d82",
+    "fresh-circle/forks/lagoon/per-test/github.com.ethereum-optimism.optimism.rust.kona.tests.proofs/TestGenerateForkState.log": "175a5898e86fbbffe4dec0043a7abc8f027eddc4e66157bcc885f6b82fdcf4c1",
+    "fresh-circle/forks/lagoon/per-test/github.com.ethereum-optimism.optimism.rust.kona.tests.proofs/TestGenerateForkState/write/lagoon.log": "8ae9c6eae27eda63ed3dcd81f4503ee2ee8ac1df39323e94c4ae03243e382de7",
+    "fresh-circle/forks/lagoon/per-test/github.com.ethereum-optimism.optimism.rust.kona.tests.proofs/TestGenerateForkStateNew.log": "c7643e93bc4d154db863359cf10045369dd129d2aac6d109d60d82005248a0d3",
+    "fresh-circle/forks/lagoon/tests.log": "d72b064f6c9498cb597683748e81f61a26fc2667adef97e637456ddc6af6dd96",
+    "fresh-circle/forks/lagoon/tests.stage.json": "415a5331f02f7d58ab39ef96d746ed5ef4f34688b70743bd77b1828643e1bab9",
+    "fresh-circle/forks/new-fork/junit.xml": "ea38ddbda37b10c56b76a2bd6d31d01485cb46de98152bf77ea8435161734ca4",
+    "fresh-circle/forks/new-fork/native.json": "68aa5e25acfc47c13d09b7aca16d0bb4e77686ecbd4c38e2943ab731ce3a5699",
+    "fresh-circle/forks/new-fork/native.metadata.json": "c465c02dd5267f4d2b96cc220a16ba68082f734e85acde433729e2ae7a556352",
+    "fresh-circle/forks/new-fork/original.json": "edd118639537af02890de6d4c9d9279761af7beccfcb9dd1b169ca1440a858fd",
+    "fresh-circle/forks/new-fork/per-test/github.com.ethereum-optimism.optimism.rust.kona.tests.proofs/TestGenerateForkState.log": "175a5898e86fbbffe4dec0043a7abc8f027eddc4e66157bcc885f6b82fdcf4c1",
+    "fresh-circle/forks/new-fork/per-test/github.com.ethereum-optimism.optimism.rust.kona.tests.proofs/TestGenerateForkState/write/new-fork.log": "925355aa9ee46bf3413d31f90fc5c06ec22ced23b9fb4a8459bab2dc6a8317ad",
+    "fresh-circle/forks/new-fork/per-test/github.com.ethereum-optimism.optimism.rust.kona.tests.proofs/TestGenerateForkStateNew.log": "c7643e93bc4d154db863359cf10045369dd129d2aac6d109d60d82005248a0d3",
+    "fresh-circle/forks/new-fork/tests.log": "7ac294b2c7d11ac59bca8cb8bbc38df05b1be66fc69df4f814b97cf69b4b57e7",
+    "fresh-circle/forks/new-fork/tests.stage.json": "febc8faba4b3dbca20478ebd2c53366dc047950f327a3c06a5f718de6d79804a",
+    "fresh-circle/generated.json": "6db965766de238d7d35e88166f0ec79d9c83fb217c9b59b807fb79e211ab2281",
+    "fresh-circle/inputs-after.json": "dce2f97c246dbc3c621f4ee60c5aa1b3f7712bd2747d71643e2ab4dd5de55983",
+    "fresh-circle/list.json": "88512287477c2895a766ab6bf4c1b0a88f51052c7614ba9a54feddcf65b254f9",
+    "fresh-circle/list.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "fresh-circle/list.stage.json": "758d068eed5a90e0f747cbc87155ddbbef14a05e3bb9b022eec152d611aa2f1b",
+    "fresh-circle/native.junit.xml": "b33bd1c375bb399719def2377721516051f0d9b4b47cf8444deca21cabc3ae90",
+    "fresh-circle/native.metadata.json": "cd6ba854a879c7130ace7cda01c50f14c46f8d453806cc4f33c598d4ac8c73a8",
+    "fresh-circle/packages.json": "daec04f352602eb1c439042ea3aa36975e2c305593f470b0b6406eccba376415",
+    "fresh-circle/packages.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "fresh-circle/packages.stage.json": "b5993e15e6fab9b158d3409db5c79453ab5792986e19e944070aa353c9a45926",
+    "fresh-circle/selection.json": "91f4f26c524a83b18ef4c5555174dc372ac12ccbe056132eb090e81766128a3e",
+    "fresh-circle/settings.json": "5251c8cddcd303af7304bce901d93572de198d026a54556901dfd47c4458f28f",
+    "fresh-circle/source/justfile": "3220628886951f4fbcbe26032e1fa346de0645fb8e502694e0f47cf6ccfa8efe",
+    "fresh-circle/source/op-core/nuts/state/jovian_state.json": "1bab25f023339594850ea63c182ae267217d512a90f127ead733bf34157ea56e",
+    "fresh-circle/source/op-core/nuts/state/karst_state.json": "c6e4ce9f614bbb25a0af208e2d32a632bb62f97685dc7cb42c4e4f7141e9ee8a",
+    "fresh-circle/source/op-core/nuts/state/lagoon_state.json": "56c07d8cb6d678dc58ecf1e08e2e48b67db63ffa6dfe11a463c9a9790fd9a3ac",
+    "fresh-circle/source/op-core/nuts/state/new-fork_state.json": "039971d20ae84f76c5193654edaf830f3650e2d03d50c87e2e665a0a08cc21b5",
+    "fresh-circle/source/ops/ci/nut-prefork-test.sh": "bade750784f1098febbbd81a755a4711017d8e576d7045da3058f59be4bc4dd3",
+    "fresh-circle/source/rust/kona/tests/proofs/state_test.go": "5c7805e44ab13f66534d158060f89e0667329a3007cc9125da0f33751bd6bf2b",
+    "fresh-rwx/check.log": "b200b8278184d9f126ed41df7c29c84ff25088a99b9b3655c390d6a6fe8000c3",
+    "fresh-rwx/check.stage.json": "5c2acfc6cbabd5380232672a7c30d084c25d0d0cddedcdb0115a398fafd751ef",
+    "fresh-rwx/coverage.json": "42a345d3d43cbe3922b76b57060a103021314343253367e729d9d9da8164560a",
+    "fresh-rwx/dependencies/contracts.json": "1fd9b4f3e7af1582e95765a94d2e88e4a37f4e6f421801d8cbaf9a1c0ae48472",
+    "fresh-rwx/dependencies/go-modules.json": "5f8aee1fe43bf47d7e825193ba8d3d21bcdf21c8f8f615abd74210a1a7cb2342",
+    "fresh-rwx/dependencies/superchain-configs.zip": "baa26ccde09d2bfd68eb989658eef13ed5396231d1386ad31de4d502cc276041",
+    "fresh-rwx/dependencies/superchain-configs.zip.sha256": "eb297e27ffdc88fc13a80f0045a987449bdfd6a57851e5155da45a0ec51d5933",
+    "fresh-rwx/final.json": "94633ecdb6da5cd65c46c6b9dabe9b93f0966e87db3aea451d31721f13bd7882",
+    "fresh-rwx/forks/karst/junit.xml": "f233831a15eede97ff155183c973ff537ec8be849f7145624e499120c51b4d6a",
+    "fresh-rwx/forks/karst/native.json": "50868725a95f285255b8c984715bfe11d86243a88b4212ef293ee8edbc271085",
+    "fresh-rwx/forks/karst/native.metadata.json": "86baa570fbe10e316b1935642c4d99bf7b9604c1313bcd958104b3192daf03f9",
+    "fresh-rwx/forks/karst/original.json": "5070e3051b750a773568081ff64b790eb9b62c3391435fabf4ee9496b29164ac",
+    "fresh-rwx/forks/karst/per-test/github.com.ethereum-optimism.optimism.rust.kona.tests.proofs/TestGenerateForkState.log": "175a5898e86fbbffe4dec0043a7abc8f027eddc4e66157bcc885f6b82fdcf4c1",
+    "fresh-rwx/forks/karst/per-test/github.com.ethereum-optimism.optimism.rust.kona.tests.proofs/TestGenerateForkState/write/karst.log": "790bee40d205e73dfe93d00684ebacf2e81af585ff8e35f78f68d1e47c099cf9",
+    "fresh-rwx/forks/karst/per-test/github.com.ethereum-optimism.optimism.rust.kona.tests.proofs/TestGenerateForkStateNew.log": "c7643e93bc4d154db863359cf10045369dd129d2aac6d109d60d82005248a0d3",
+    "fresh-rwx/forks/karst/tests.log": "e9b4b7ad2f934afcad1311e2c36349bad60cd9a97163c37a7aa05b7827c63d22",
+    "fresh-rwx/forks/karst/tests.stage.json": "71f3d453a108e0a4295355dfcb80c9bb8523a9b2bf22ac959a630d5c098c0db7",
+    "fresh-rwx/forks/lagoon/junit.xml": "27e2cdb111729e4a525366c68b955d450ef7d57aac15eb63cd1c77429a021475",
+    "fresh-rwx/forks/lagoon/native.json": "b095ec7bbe8600aaba1a0ed36edbc47e7de5b611aae65b6a3f6fba9b12ad2a3e",
+    "fresh-rwx/forks/lagoon/native.metadata.json": "0e68874b35e699fbaa75038c3e4815da959fa3bf043935654da64ac71947e9ca",
+    "fresh-rwx/forks/lagoon/original.json": "e83e420185ff09f6d71b26c28edfe2d9196544f5b1b91046ee92dd4ba69a221f",
+    "fresh-rwx/forks/lagoon/per-test/github.com.ethereum-optimism.optimism.rust.kona.tests.proofs/TestGenerateForkState.log": "175a5898e86fbbffe4dec0043a7abc8f027eddc4e66157bcc885f6b82fdcf4c1",
+    "fresh-rwx/forks/lagoon/per-test/github.com.ethereum-optimism.optimism.rust.kona.tests.proofs/TestGenerateForkState/write/lagoon.log": "8ae9c6eae27eda63ed3dcd81f4503ee2ee8ac1df39323e94c4ae03243e382de7",
+    "fresh-rwx/forks/lagoon/per-test/github.com.ethereum-optimism.optimism.rust.kona.tests.proofs/TestGenerateForkStateNew.log": "c7643e93bc4d154db863359cf10045369dd129d2aac6d109d60d82005248a0d3",
+    "fresh-rwx/forks/lagoon/tests.log": "d72b064f6c9498cb597683748e81f61a26fc2667adef97e637456ddc6af6dd96",
+    "fresh-rwx/forks/lagoon/tests.stage.json": "80d9f74ab04248536b6ec1c3ac450c73c3da666950a5014e3050bfbd3b389e0d",
+    "fresh-rwx/forks/new-fork/junit.xml": "ed474bcf4420f594a3c586b10f250cbe06ffb0bd98e50660a41f8c80551030b6",
+    "fresh-rwx/forks/new-fork/native.json": "0f9e89265bdf31e04a41499faf5f7e5eca0f5edb9c24c2e063ee183bb1853914",
+    "fresh-rwx/forks/new-fork/native.metadata.json": "11e10ed7b4fe4af1eb49d4ccbaa25995d5f0628d2afedf3de76d3286d4f76c79",
+    "fresh-rwx/forks/new-fork/original.json": "9cd17e67274f07e5d6a253db0de15a61b0ff5be6a87b874ca127ca70d1a0937c",
+    "fresh-rwx/forks/new-fork/per-test/github.com.ethereum-optimism.optimism.rust.kona.tests.proofs/TestGenerateForkState.log": "175a5898e86fbbffe4dec0043a7abc8f027eddc4e66157bcc885f6b82fdcf4c1",
+    "fresh-rwx/forks/new-fork/per-test/github.com.ethereum-optimism.optimism.rust.kona.tests.proofs/TestGenerateForkState/write/new-fork.log": "925355aa9ee46bf3413d31f90fc5c06ec22ced23b9fb4a8459bab2dc6a8317ad",
+    "fresh-rwx/forks/new-fork/per-test/github.com.ethereum-optimism.optimism.rust.kona.tests.proofs/TestGenerateForkStateNew.log": "c7643e93bc4d154db863359cf10045369dd129d2aac6d109d60d82005248a0d3",
+    "fresh-rwx/forks/new-fork/tests.log": "4b4c3edb650b48b5d4780a4bce8df0140afbee75805a3abad62f754f8b230dfc",
+    "fresh-rwx/forks/new-fork/tests.stage.json": "d9a3efbc67da2e9250de748791eaa2cd8f4141df7b5d986c55ffda3810fcdafb",
+    "fresh-rwx/generated.json": "6db965766de238d7d35e88166f0ec79d9c83fb217c9b59b807fb79e211ab2281",
+    "fresh-rwx/inputs-after.json": "dce2f97c246dbc3c621f4ee60c5aa1b3f7712bd2747d71643e2ab4dd5de55983",
+    "fresh-rwx/list.json": "dafb1ff013a2733ce3afab34d2245c79e28ecaed54aef1e6fe2862d117979551",
+    "fresh-rwx/list.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "fresh-rwx/list.stage.json": "0a9883d4e9b4eac56188e0ca1792cd4517542ce2796e9a7686005f94fb446f89",
+    "fresh-rwx/native.junit.xml": "b080392bf06ccdca7f5f8697e15fabf8d7561e414302f604158375443ae0b18b",
+    "fresh-rwx/native.metadata.json": "ab9582fde9762f9e43f2a33094ae57fde9225b00d6515bb9d9aceae5e60f8818",
+    "fresh-rwx/packages.json": "daec04f352602eb1c439042ea3aa36975e2c305593f470b0b6406eccba376415",
+    "fresh-rwx/packages.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "fresh-rwx/packages.stage.json": "f84a620a470f6f51f385fd6aca4a6ca4db84b4674e8af7e11e08a0638edcda35",
+    "fresh-rwx/producer/bundle.json": "4458843cacc42d79644363ecc047eeda08bc23977b9bd3af90876be9b38a7328",
+    "fresh-rwx/producer/coverage.json": "4032f7cfe18b304ea3ea493afda869cbc366099e378bfc24f8479d6f71da8189",
+    "fresh-rwx/producer/manifest.json": "1310460e4088833cf2bf6cf1960e134d17667e3f721961fa4704582f8469e0f0",
+    "fresh-rwx/producer/superchain.log": "35d536326cbc5c11afbc69ac9178c9677384e1c0d6086cb5e63bb0bc2ca89de3",
+    "fresh-rwx/producer/superchain.stage.json": "f8106e9860606ffe48fc983b68870514ff35c21d1daea0e8cfc6c164cab33aad",
+    "fresh-rwx/selection.json": "91f4f26c524a83b18ef4c5555174dc372ac12ccbe056132eb090e81766128a3e",
+    "fresh-rwx/settings.json": "f9a473a133bc062b9446bafe71c9957937ccd5ec1f2c538471154a74f78a027f",
+    "fresh-rwx/source/justfile": "3220628886951f4fbcbe26032e1fa346de0645fb8e502694e0f47cf6ccfa8efe",
+    "fresh-rwx/source/op-core/nuts/state/jovian_state.json": "1bab25f023339594850ea63c182ae267217d512a90f127ead733bf34157ea56e",
+    "fresh-rwx/source/op-core/nuts/state/karst_state.json": "c6e4ce9f614bbb25a0af208e2d32a632bb62f97685dc7cb42c4e4f7141e9ee8a",
+    "fresh-rwx/source/op-core/nuts/state/lagoon_state.json": "56c07d8cb6d678dc58ecf1e08e2e48b67db63ffa6dfe11a463c9a9790fd9a3ac",
+    "fresh-rwx/source/op-core/nuts/state/new-fork_state.json": "039971d20ae84f76c5193654edaf830f3650e2d03d50c87e2e665a0a08cc21b5",
+    "fresh-rwx/source/ops/ci/nut-prefork-test.sh": "bade750784f1098febbbd81a755a4711017d8e576d7045da3058f59be4bc4dd3",
+    "fresh-rwx/source/rust/kona/tests/proofs/state_test.go": "5c7805e44ab13f66534d158060f89e0667329a3007cc9125da0f33751bd6bf2b",
+    "intentional-failure/check.log": "6b48218a725d8023aad672502f1f3e9ffd55c1c745d92ba5b48769d7e45d4751",
+    "intentional-failure/check.stage.json": "adce31746e870ee2802319fd53c2f4638c2c654a8f59b98fb0fd37e7b0099266",
+    "intentional-failure/dependencies/superchain-configs.zip": "baa26ccde09d2bfd68eb989658eef13ed5396231d1386ad31de4d502cc276041",
+    "intentional-failure/dependencies/superchain-configs.zip.sha256": "eb297e27ffdc88fc13a80f0045a987449bdfd6a57851e5155da45a0ec51d5933",
+    "intentional-failure/final.json": "cb6e100b36c9204b15b740d346a4568d0f796a2008044799478b22d241233e30",
+    "intentional-failure/forks/karst/junit.xml": "de0bc7a6e75ac87834e43950be7e7ede37bf4a220ba5991fcc8f7cde7cd63fb1",
+    "intentional-failure/forks/karst/native.json": "e48c4683343996f8ffa351492624ed4d58e5172d8c79b28dd0ad0345d9ff621c",
+    "intentional-failure/forks/karst/native.metadata.json": "c9232fb70b6cb2ddb3d0694d1916729c4b2a0daec265aace5e35eb1adb80e391",
+    "intentional-failure/forks/karst/original.json": "46260c5d5389faf6125abd699bd36ece05b9d9e383c665c47fe26bb00f1be4cf",
+    "intentional-failure/forks/karst/per-test/github.com.ethereum-optimism.optimism.rust.kona.tests.proofs/TestGenerateForkState.log": "ab910a16f7793661e9bf489682e229e6a8bae18290e0f25744802527685afd3d",
+    "intentional-failure/forks/karst/per-test/github.com.ethereum-optimism.optimism.rust.kona.tests.proofs/TestGenerateForkStateNew.log": "c7643e93bc4d154db863359cf10045369dd129d2aac6d109d60d82005248a0d3",
+    "intentional-failure/forks/karst/tests.log": "8ccd049813e1abfb81245b5735b9e8d26872df7845d378008224a68630218d8c",
+    "intentional-failure/forks/karst/tests.stage.json": "399026526baf6f45a079e95e06e4b8efb35233ef8f3e823e0b47346c8e04d959",
+    "intentional-failure/list.json": "774ec49c4760122af77b0cab4f57be0b857f13edf00c7beb182ee95a8593abf3",
+    "intentional-failure/list.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "intentional-failure/list.stage.json": "bcfaf59fcd14f3dcd438ef251bfa5939d26a244ec7fab86a19453a38d791bca1",
+    "intentional-failure/native.junit.xml": "377b9a8dabf49e5e562b44c205ff523474f87d08ad4fea419a91f7dcae62bfcd",
+    "intentional-failure/native.metadata.json": "cb0aeb240e8d6916c7ba14e06dd23b3ecfc743dc8162433957c7767d50771314",
+    "intentional-failure/packages.json": "0dead7a8c221d5aef6cc29c2277d00b2015837902c579f4b333cd4199aacc4ce",
+    "intentional-failure/packages.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "intentional-failure/packages.stage.json": "3795ac1a1da3606113c18f8fed08de0db16e5b909c6bc8af2bb277120e2c4dda",
+    "intentional-failure/selection.json": "e5d80765a9062bb804f594427c36c3ef545b0c6038afca1c153bae19fb35d86a",
+    "intentional-failure/settings.json": "4873e4b0ed8a9d1ec54193d48674f2ffc66d44b307951676a5cd14c79c23338e",
+    "intentional-failure/source/justfile": "3220628886951f4fbcbe26032e1fa346de0645fb8e502694e0f47cf6ccfa8efe",
+    "intentional-failure/source/op-core/nuts/state/jovian_state.json": "1bab25f023339594850ea63c182ae267217d512a90f127ead733bf34157ea56e",
+    "intentional-failure/source/op-core/nuts/state/karst_state.json": "c6e4ce9f614bbb25a0af208e2d32a632bb62f97685dc7cb42c4e4f7141e9ee8a",
+    "intentional-failure/source/op-core/nuts/state/lagoon_state.json": "56c07d8cb6d678dc58ecf1e08e2e48b67db63ffa6dfe11a463c9a9790fd9a3ac",
+    "intentional-failure/source/op-core/nuts/state/new-fork_state.json": "039971d20ae84f76c5193654edaf830f3650e2d03d50c87e2e665a0a08cc21b5",
+    "intentional-failure/source/ops/ci/nut-prefork-test.sh": "bade750784f1098febbbd81a755a4711017d8e576d7045da3058f59be4bc4dd3",
+    "intentional-failure/source/rust/kona/tests/proofs/state_test.go": "5c7805e44ab13f66534d158060f89e0667329a3007cc9125da0f33751bd6bf2b",
+    "original-state-drift/check.log": "c39bd0f47d1f9ca1356bec5c05b33e8af78c99efafcd5650d2573c7859b78c2f",
+    "original-state-drift/check.stage.json": "9e5e61eb3a52442c3b3270b2b96d9f37b2c7c4a2f9e54f6d87d17eccf4b68424",
+    "original-state-drift/coverage.json": "42a345d3d43cbe3922b76b57060a103021314343253367e729d9d9da8164560a",
+    "original-state-drift/dependencies/superchain-configs.zip": "baa26ccde09d2bfd68eb989658eef13ed5396231d1386ad31de4d502cc276041",
+    "original-state-drift/dependencies/superchain-configs.zip.sha256": "eb297e27ffdc88fc13a80f0045a987449bdfd6a57851e5155da45a0ec51d5933",
+    "original-state-drift/final.json": "82f29fb1fe8294762fb461db9e976496286ef42a6c37d24df8abd871fddfc97f",
+    "original-state-drift/forks/karst/junit.xml": "da839eaa7a9e80aff4b0992d8712b36fc564ca4193a1a2bdc4d78951caea0fbf",
+    "original-state-drift/forks/karst/native.json": "c227129f2b548a212022516a530745e6193f4c9a37f6fc6f3dd8dcc2cb477d6c",
+    "original-state-drift/forks/karst/native.metadata.json": "4d3f10949e45853071008c4955f4e9907ee62a99ed06831177571c8b18068571",
+    "original-state-drift/forks/karst/original.json": "d80929d02a2fbe9456b943e23afc5002447d0262c5ffb1f4c3f1b0584d0c7ca4",
+    "original-state-drift/forks/karst/per-test/github.com.ethereum-optimism.optimism.rust.kona.tests.proofs/TestGenerateForkState.log": "175a5898e86fbbffe4dec0043a7abc8f027eddc4e66157bcc885f6b82fdcf4c1",
+    "original-state-drift/forks/karst/per-test/github.com.ethereum-optimism.optimism.rust.kona.tests.proofs/TestGenerateForkState/write/karst.log": "790bee40d205e73dfe93d00684ebacf2e81af585ff8e35f78f68d1e47c099cf9",
+    "original-state-drift/forks/karst/per-test/github.com.ethereum-optimism.optimism.rust.kona.tests.proofs/TestGenerateForkStateNew.log": "c7643e93bc4d154db863359cf10045369dd129d2aac6d109d60d82005248a0d3",
+    "original-state-drift/forks/karst/tests.log": "d98a7504214bb774365931424a5f55232db6eaf23a4e93802f51c2f0cd50c74d",
+    "original-state-drift/forks/karst/tests.stage.json": "7e229172bbbe705638fb8d98c35745a2f332f28959779e48fa225f98c28f94b3",
+    "original-state-drift/forks/lagoon/junit.xml": "69576c59185f22ec7d884764702520e3b8c32b126faeb34d4d8bc525a1efaf6f",
+    "original-state-drift/forks/lagoon/native.json": "e03ef99550d95734900c0895c3172212a1975d732f13762861f81dcb29d22c81",
+    "original-state-drift/forks/lagoon/native.metadata.json": "e7b240eb6b4de1350fadf8117574f8d4ed4599ca6e8d94c1ff3cb564f4eb3a83",
+    "original-state-drift/forks/lagoon/original.json": "c858bc7182f414679a2305cbe51d7cf2445eb9529ea48b99fbbf96cff5104dd4",
+    "original-state-drift/forks/lagoon/per-test/github.com.ethereum-optimism.optimism.rust.kona.tests.proofs/TestGenerateForkState.log": "175a5898e86fbbffe4dec0043a7abc8f027eddc4e66157bcc885f6b82fdcf4c1",
+    "original-state-drift/forks/lagoon/per-test/github.com.ethereum-optimism.optimism.rust.kona.tests.proofs/TestGenerateForkState/write/lagoon.log": "8ae9c6eae27eda63ed3dcd81f4503ee2ee8ac1df39323e94c4ae03243e382de7",
+    "original-state-drift/forks/lagoon/per-test/github.com.ethereum-optimism.optimism.rust.kona.tests.proofs/TestGenerateForkStateNew.log": "c7643e93bc4d154db863359cf10045369dd129d2aac6d109d60d82005248a0d3",
+    "original-state-drift/forks/lagoon/tests.log": "e613ac74c01e968ca107564aefff1f6f99b443c73a670b0fc07214650cccd371",
+    "original-state-drift/forks/lagoon/tests.stage.json": "c829147029ceda3c401e09f095f8e01d4e7fe3d2ad821a97fa6791fc7195d86f",
+    "original-state-drift/forks/new-fork/junit.xml": "1d7abf126f6936d65d5db6da12707cf3b9b6c5dd87768f6d9e90232b3720aebc",
+    "original-state-drift/forks/new-fork/native.json": "3c6f6015c548e81276a9381ffd2e8f877c6b328a6fb59de2cd94f875bfd22d30",
+    "original-state-drift/forks/new-fork/native.metadata.json": "d431ed17d86fda61d1eecbf9a4d9545e820a419fe36f9f6bec6708518342be18",
+    "original-state-drift/forks/new-fork/original.json": "0dcf3f8677a92cd00c9c29b1a433dc31e019c65be08e242f7cbc92d9f404c31f",
+    "original-state-drift/forks/new-fork/per-test/github.com.ethereum-optimism.optimism.rust.kona.tests.proofs/TestGenerateForkState.log": "175a5898e86fbbffe4dec0043a7abc8f027eddc4e66157bcc885f6b82fdcf4c1",
+    "original-state-drift/forks/new-fork/per-test/github.com.ethereum-optimism.optimism.rust.kona.tests.proofs/TestGenerateForkState/write/new-fork.log": "925355aa9ee46bf3413d31f90fc5c06ec22ced23b9fb4a8459bab2dc6a8317ad",
+    "original-state-drift/forks/new-fork/per-test/github.com.ethereum-optimism.optimism.rust.kona.tests.proofs/TestGenerateForkStateNew.log": "c7643e93bc4d154db863359cf10045369dd129d2aac6d109d60d82005248a0d3",
+    "original-state-drift/forks/new-fork/tests.log": "b59bc2a8001ebd137ca03b9660a4ef6c06c6c9851e6c9028e0a261c4b0df66ff",
+    "original-state-drift/forks/new-fork/tests.stage.json": "938e88a771ed2725293c9ccb562f20a28975cf47e25f6b1aed580c6e1c9bcffa",
+    "original-state-drift/generated.json": "2fc1bb08e022961d18353dc05a13f27e31e1e319313d1643fc206e52cdca7162",
+    "original-state-drift/list.json": "40d87feed0337d4315b8ca036cd472dc2383f3d90d2bca9f22eb433dc3cdf934",
+    "original-state-drift/list.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "original-state-drift/list.stage.json": "dc0e3b9a36ffcf22d243713b334cead4642bf6b1a1f9cbb4c4028d761e59ac2c",
+    "original-state-drift/native.junit.xml": "841a430dc833297b8e3da00af6c17f6950acb0b749ff56bcd6c012e7139ba78a",
+    "original-state-drift/native.metadata.json": "4c7ed5c0a7df926d15c18895fd6974589dbf46287951c70c7c955274747cdd1a",
+    "original-state-drift/packages.json": "e6b37683731e2df983220c74d72ced6553472ae448981132525213cf52f213fa",
+    "original-state-drift/packages.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "original-state-drift/packages.stage.json": "19f9b3cd86d93a91c20440315d1e801b27b7ae43c23143792a8231289e2d4d6f",
+    "original-state-drift/selection.json": "47a6bb60dfeb1328b2fb6e559b0b5d49d6f24de0b6ac0346adecb97c01cb3403",
+    "original-state-drift/settings.json": "1f2670419a4e5927453d78df5458b5ac1236e9542f17c29e640bfc88eb456e07",
+    "original-state-drift/source/justfile": "3220628886951f4fbcbe26032e1fa346de0645fb8e502694e0f47cf6ccfa8efe",
+    "original-state-drift/source/op-core/nuts/state/jovian_state.json": "1bab25f023339594850ea63c182ae267217d512a90f127ead733bf34157ea56e",
+    "original-state-drift/source/op-core/nuts/state/karst_state.json": "c6e4ce9f614bbb25a0af208e2d32a632bb62f97685dc7cb42c4e4f7141e9ee8a",
+    "original-state-drift/source/op-core/nuts/state/lagoon_state.json": "56c07d8cb6d678dc58ecf1e08e2e48b67db63ffa6dfe11a463c9a9790fd9a3ac",
+    "original-state-drift/source/op-core/nuts/state/new-fork_state.json": "039971d20ae84f76c5193654edaf830f3650e2d03d50c87e2e665a0a08cc21b5",
+    "original-state-drift/source/ops/ci/nut-prefork-test.sh": "bade750784f1098febbbd81a755a4711017d8e576d7045da3058f59be4bc4dd3",
+    "original-state-drift/source/rust/kona/tests/proofs/state_test.go": "5c7805e44ab13f66534d158060f89e0667329a3007cc9125da0f33751bd6bf2b",
+    "rejected-bundle/dependencies/contracts.json": "a4d4f9b937417a39508f5eec27fc80892bdc3d429df644693fba6710d85ff631",
+    "rejected-bundle/dependencies/go-modules.json": "8b10a98e4700596b90396e297a3b1e70b68275ce48d159deb24c91b0a8a04607",
+    "rejected-bundle/final.json": "f0613cf97e67e757ecdd24943cff09a42e318e3d806a8aa224227ff8aa7affb0",
+    "rejected-bundle/settings.json": "981a1dcf9f0efcba6ebdf1bfa5a638c35cb058714be9a4d4c11ab6bed3f05332",
+    "rejected-stale-settings/dependencies/go-modules.json": "a6e06d958d288a8b91d0ececedc1afee389743e43a3add23eb1d8bac141fbb7e",
+    "rejected-stale-settings/final.json": "428d2cc67018574a86643c7a54ad8c619513613ae962b835443430ceb9df210e",
+    "rejected-stale-settings/settings.json": "981a1dcf9f0efcba6ebdf1bfa5a638c35cb058714be9a4d4c11ab6bed3f05332",
+    "rejected-stale-source/dependencies/go-modules.json": "fa7eba2abe1fba1eb48ad244a08a5143c1681f33435c79da7c6fb11ee7d857ba",
+    "rejected-stale-source/final.json": "b32a88ab593db24a76ba6685442d6e611d29c823a464203212e2e94da1d5a852",
+    "rejected-stale-source/settings.json": "981a1dcf9f0efcba6ebdf1bfa5a638c35cb058714be9a4d4c11ab6bed3f05332",
+    "rejected-stale-tools/dependencies/contracts.json": "da49539a9a01159004ab427adad23a7194781dbdb8162943b54de705f366b400",
+    "rejected-stale-tools/dependencies/go-modules.json": "7662cf64dcb4ea8dd776b879eaaa452227c9f4cc9dac78c8001c78900d7bec3c",
+    "rejected-stale-tools/final.json": "3c94ea194a25a5fc28ebd817654820237fd0b729c487bb1935c12495a4fb188c",
+    "rejected-stale-tools/settings.json": "981a1dcf9f0efcba6ebdf1bfa5a638c35cb058714be9a4d4c11ab6bed3f05332"
+  },
+  "performance_claim": "No warm median or speed win claimed",
+  "producer_only_warm": {
+    "Branch": null,
+    "CommitSha": null,
+    "CompletedAt": "2026-10-05T04:35:19.812Z",
+    "ID": "b1076421c2454800a927edb471375298",
+    "Init": {
+      "branch": "codex/rwx-ci-pilot",
+      "cache-epoch": "v1",
+      "cache-warm": "true",
+      "commit-sha": "fd426d8724c4df4d968db0e986b92d9177b717f4",
+      "tag": ""
+    },
+    "StartedAt": "2026-10-05T04:35:05.675Z",
+    "Status": {
+      "AbortedSubStatus": "not_applicable",
+      "Execution": "finished",
+      "FinishedSubStatus": "not_applicable",
+      "Result": "succeeded",
+      "WaitingSubStatus": "not_applicable"
+    },
+    "TargetedTaskKeys": [
+      "modules",
+      "contracts",
+      "superchain"
+    ],
+    "Tasks": [
+      {
+        "CacheHitFromTaskID": "9672e7b0ac25ddb4c898ad4606433cc5",
+        "CompletedAt": "2026-10-01T16:15:14.461Z",
+        "ExecutionRuntimeSeconds": 5,
+        "FailedTestCount": 0,
+        "ID": "fd448e81fe8a240600e565c22a43c8e9",
+        "Key": "~base-image",
+        "StartedAt": "2026-10-01T16:15:06.909Z",
+        "Status": {
+          "AbortedSubStatus": "not_applicable",
+          "Execution": "finished",
+          "FinishedSubStatus": "cache_hit",
+          "Result": "succeeded",
+          "WaitingSubStatus": "not_applicable"
+        },
+        "Subtasks": [],
+        "TestCount": 0
+      },
+      {
+        "CacheHitFromTaskID": null,
+        "CompletedAt": "2026-10-05T04:35:05.738Z",
+        "ExecutionRuntimeSeconds": null,
+        "FailedTestCount": 0,
+        "ID": "08a16d5399c285c0ed85fff421dd6e29",
+        "Key": "~base-config",
+        "StartedAt": "2026-10-05T04:35:05.721Z",
+        "Status": {
+          "AbortedSubStatus": "not_applicable",
+          "Execution": "finished",
+          "FinishedSubStatus": "cache_hit",
+          "Result": "succeeded",
+          "WaitingSubStatus": "not_applicable"
+        },
+        "Subtasks": [
+          {
+            "CacheHitFromTaskID": "346d33674cd759784fd19623caeb4911",
+            "CompletedAt": "2026-10-01T15:54:04.635Z",
+            "ExecutionRuntimeSeconds": 13,
+            "FailedTestCount": 0,
+            "ID": "c9991522bda8f0b3d4b15ee8416e4347",
+            "Key": "configure",
+            "StartedAt": "2026-10-01T15:53:49.990Z",
+            "Status": {
+              "AbortedSubStatus": "not_applicable",
+              "Execution": "finished",
+              "FinishedSubStatus": "cache_hit",
+              "Result": "succeeded",
+              "WaitingSubStatus": "not_applicable"
+            },
+            "Subtasks": [],
+            "TestCount": 0
+          },
+          {
+            "CacheHitFromTaskID": "f85a3ac2d7dfc5ca2134c727ebffc92c",
+            "CompletedAt": "2026-10-01T15:54:21.647Z",
+            "ExecutionRuntimeSeconds": 15,
+            "FailedTestCount": 0,
+            "ID": "9cebe5c67378abd95c223b26851e5be4",
+            "Key": "docker",
+            "StartedAt": "2026-10-01T15:54:04.860Z",
+            "Status": {
+              "AbortedSubStatus": "not_applicable",
+              "Execution": "finished",
+              "FinishedSubStatus": "cache_hit",
+              "Result": "succeeded",
+              "WaitingSubStatus": "not_applicable"
+            },
+            "Subtasks": [],
+            "TestCount": 0
+          }
+        ],
+        "TestCount": 0
+      },
+      {
+        "CacheHitFromTaskID": null,
+        "CompletedAt": "2026-10-05T04:35:05.864Z",
+        "ExecutionRuntimeSeconds": null,
+        "FailedTestCount": 0,
+        "ID": "f8c682f941a32f90f1ec7fb0f2878605",
+        "Key": "code",
+        "StartedAt": "2026-10-05T04:35:05.755Z",
+        "Status": {
+          "AbortedSubStatus": "not_applicable",
+          "Execution": "finished",
+          "FinishedSubStatus": "cache_hit",
+          "Result": "succeeded",
+          "WaitingSubStatus": "not_applicable"
+        },
+        "Subtasks": [
+          {
+            "CacheHitFromTaskID": "5708662a7f59a6227c84d4432645e296",
+            "CompletedAt": "2026-10-01T16:15:16.021Z",
+            "ExecutionRuntimeSeconds": 1,
+            "FailedTestCount": 0,
+            "ID": "5fd9f456b5b2ff9f9799a518244fff9c",
+            "Key": "setup",
+            "StartedAt": "2026-10-01T16:15:15.223Z",
+            "Status": {
+              "AbortedSubStatus": "not_applicable",
+              "Execution": "finished",
+              "FinishedSubStatus": "cache_hit",
+              "Result": "succeeded",
+              "WaitingSubStatus": "not_applicable"
+            },
+            "Subtasks": [],
+            "TestCount": 0
+          },
+          {
+            "CacheHitFromTaskID": "8de976a96e8c25e8b3eadfa396764f9e",
+            "CompletedAt": "2026-10-05T04:14:01.385Z",
+            "ExecutionRuntimeSeconds": 1,
+            "FailedTestCount": 0,
+            "ID": "01339820028321d206ca45df15ca07c0",
+            "Key": "get-latest-sha-for-ref",
+            "StartedAt": "2026-10-05T04:13:59.024Z",
+            "Status": {
+              "AbortedSubStatus": "not_applicable",
+              "Execution": "finished",
+              "FinishedSubStatus": "cache_hit",
+              "Result": "succeeded",
+              "WaitingSubStatus": "not_applicable"
+            },
+            "Subtasks": [],
+            "TestCount": 0
+          },
+          {
+            "CacheHitFromTaskID": "04d5b61cac79eb3badcbb3aa4cc8d2ba",
+            "CompletedAt": "2026-10-01T16:15:17.115Z",
+            "ExecutionRuntimeSeconds": 1,
+            "FailedTestCount": 0,
+            "ID": "0856851c91eb0afa37b3e7a5feed3bf4",
+            "Key": "install-lfs",
+            "StartedAt": "2026-10-01T16:15:15.279Z",
+            "Status": {
+              "AbortedSubStatus": "not_applicable",
+              "Execution": "finished",
+              "FinishedSubStatus": "cache_hit",
+              "Result": "succeeded",
+              "WaitingSubStatus": "not_applicable"
+            },
+            "Subtasks": [],
+            "TestCount": 0
+          },
+          {
+            "CacheHitFromTaskID": "3ef9880a3f2eb158adf09f928dd366be",
+            "CompletedAt": "2026-10-05T04:14:21.038Z",
+            "ExecutionRuntimeSeconds": 19,
+            "FailedTestCount": 0,
+            "ID": "0db86326f3b388e13003bb878c04c1eb",
+            "Key": "git-clone",
+            "StartedAt": "2026-10-05T04:13:59.568Z",
+            "Status": {
+              "AbortedSubStatus": "not_applicable",
+              "Execution": "finished",
+              "FinishedSubStatus": "cache_hit",
+              "Result": "succeeded",
+              "WaitingSubStatus": "not_applicable"
+            },
+            "Subtasks": [],
+            "TestCount": 0
+          },
+          {
+            "CacheHitFromTaskID": "24c0dcc2697c54fe437ef6be17696599",
+            "CompletedAt": "2026-10-05T04:14:21.668Z",
+            "ExecutionRuntimeSeconds": 1,
+            "FailedTestCount": 0,
+            "ID": "947ad0535e98096cf719f9e9082c4719",
+            "Key": "cleanup-git-dir",
+            "StartedAt": "2026-10-05T04:14:21.258Z",
+            "Status": {
+              "AbortedSubStatus": "not_applicable",
+              "Execution": "finished",
+              "FinishedSubStatus": "cache_hit",
+              "Result": "succeeded",
+              "WaitingSubStatus": "not_applicable"
+            },
+            "Subtasks": [],
+            "TestCount": 0
+          }
+        ],
+        "TestCount": 0
+      },
+      {
+        "CacheHitFromTaskID": null,
+        "CompletedAt": "2026-10-05T04:35:05.871Z",
+        "ExecutionRuntimeSeconds": null,
+        "FailedTestCount": 0,
+        "ID": "591336728377a5aa48798ab6fac1ff0a",
+        "Key": "mise",
+        "StartedAt": "2026-10-05T04:35:05.773Z",
+        "Status": {
+          "AbortedSubStatus": "not_applicable",
+          "Execution": "finished",
+          "FinishedSubStatus": "cache_hit",
+          "Result": "succeeded",
+          "WaitingSubStatus": "not_applicable"
+        },
+        "Subtasks": [
+          {
+            "CacheHitFromTaskID": "a24f388a70e756c09fdfaa5661f1589b",
+            "CompletedAt": "2026-10-01T16:26:25.257Z",
+            "ExecutionRuntimeSeconds": 1,
+            "FailedTestCount": 0,
+            "ID": "5142c959c01ba280422c83d6ea27b390",
+            "Key": "install",
+            "StartedAt": "2026-10-01T16:26:23.240Z",
+            "Status": {
+              "AbortedSubStatus": "not_applicable",
+              "Execution": "finished",
+              "FinishedSubStatus": "cache_hit",
+              "Result": "succeeded",
+              "WaitingSubStatus": "not_applicable"
+            },
+            "Subtasks": [],
+            "TestCount": 0
+          }
+        ],
+        "TestCount": 0
+      },
+      {
+        "CacheHitFromTaskID": "bed70e91b6f026826cd317acf888e7cc",
+        "CompletedAt": "2026-10-05T04:14:09.511Z",
+        "ExecutionRuntimeSeconds": 1,
+        "FailedTestCount": 0,
+        "ID": "16d4b8bc86e84a963e2d6e051e5f376f",
+        "Key": "bootstrap-inputs",
+        "StartedAt": "2026-10-05T04:14:08.737Z",
+        "Status": {
+          "AbortedSubStatus": "not_applicable",
+          "Execution": "finished",
+          "FinishedSubStatus": "cache_hit",
+          "Result": "succeeded",
+          "WaitingSubStatus": "not_applicable"
+        },
+        "Subtasks": [],
+        "TestCount": 0
+      },
+      {
+        "CacheHitFromTaskID": "8f9c596c40eb5471ec025241a8316e8c",
+        "CompletedAt": "2026-10-02T22:37:35.537Z",
+        "ExecutionRuntimeSeconds": 9,
+        "FailedTestCount": 0,
+        "ID": "aa53363073fd7cc3681bf4f4c3f6b642",
+        "Key": "tools",
+        "StartedAt": "2026-10-02T22:37:24.848Z",
+        "Status": {
+          "AbortedSubStatus": "not_applicable",
+          "Execution": "finished",
+          "FinishedSubStatus": "cache_hit",
+          "Result": "succeeded",
+          "WaitingSubStatus": "not_applicable"
+        },
+        "Subtasks": [],
+        "TestCount": 0
+      },
+      {
+        "CacheHitFromTaskID": null,
+        "CompletedAt": "2026-10-05T04:35:19.713Z",
+        "ExecutionRuntimeSeconds": 1,
+        "FailedTestCount": 0,
+        "ID": "1968e40e468c855726ef0bc1c71e2bf5",
+        "Key": "route",
+        "StartedAt": "2026-10-05T04:35:11.653Z",
+        "Status": {
+          "AbortedSubStatus": "not_applicable",
+          "Execution": "finished",
+          "FinishedSubStatus": "executed",
+          "Result": "succeeded",
+          "WaitingSubStatus": "not_applicable"
+        },
+        "Subtasks": [],
+        "TestCount": 0
+      },
+      {
+        "CacheHitFromTaskID": "9e4896d040dc5b3d6a5bf29cddc91e76",
+        "CompletedAt": "2026-10-02T22:37:39.386Z",
+        "ExecutionRuntimeSeconds": 2,
+        "FailedTestCount": 0,
+        "ID": "1db8d43cf8a44afa6d841046c088b503",
+        "Key": "go-tools",
+        "StartedAt": "2026-10-02T22:37:35.795Z",
+        "Status": {
+          "AbortedSubStatus": "not_applicable",
+          "Execution": "finished",
+          "FinishedSubStatus": "cache_hit",
+          "Result": "succeeded",
+          "WaitingSubStatus": "not_applicable"
+        },
+        "Subtasks": [],
+        "TestCount": 0
+      },
+      {
+        "CacheHitFromTaskID": null,
+        "CompletedAt": "2026-10-05T04:35:19.788Z",
+        "ExecutionRuntimeSeconds": null,
+        "FailedTestCount": 0,
+        "ID": "9bf20fdf886b66b7ca96b6a06188735e",
+        "Key": "modules",
+        "StartedAt": "2026-10-05T04:35:19.741Z",
+        "Status": {
+          "AbortedSubStatus": "not_applicable",
+          "Execution": "finished",
+          "FinishedSubStatus": "cache_hit",
+          "Result": "succeeded",
+          "WaitingSubStatus": "not_applicable"
+        },
+        "Subtasks": [
+          {
+            "CacheHitFromTaskID": "0c6dc99ce9461c3c0d6b2a76c424daae",
+            "CompletedAt": "2026-10-05T04:23:18.895Z",
+            "ExecutionRuntimeSeconds": 69,
+            "FailedTestCount": 0,
+            "ID": "8281cb4527597e2ae127fd997af1c7d7",
+            "Key": "build",
+            "StartedAt": "2026-10-05T04:22:01.116Z",
+            "Status": {
+              "AbortedSubStatus": "not_applicable",
+              "Execution": "finished",
+              "FinishedSubStatus": "cache_hit",
+              "Result": "succeeded",
+              "WaitingSubStatus": "not_applicable"
+            },
+            "Subtasks": [],
+            "TestCount": 0
+          }
+        ],
+        "TestCount": 0
+      },
+      {
+        "CacheHitFromTaskID": "0c7028d083128809e506742172527af4",
+        "CompletedAt": "2026-10-05T04:22:05.622Z",
+        "ExecutionRuntimeSeconds": 8,
+        "FailedTestCount": 0,
+        "ID": "33b2142c1aeb374a6abc80c7416bf153",
+        "Key": "source",
+        "StartedAt": "2026-10-05T04:21:56.807Z",
+        "Status": {
+          "AbortedSubStatus": "not_applicable",
+          "Execution": "finished",
+          "FinishedSubStatus": "cache_hit",
+          "Result": "succeeded",
+          "WaitingSubStatus": "not_applicable"
+        },
+        "Subtasks": [],
+        "TestCount": 0
+      },
+      {
+        "CacheHitFromTaskID": "3bf74a4407abeb9c48e385d43634c4b1",
+        "CompletedAt": "2026-10-05T03:24:07.477Z",
+        "ExecutionRuntimeSeconds": 9,
+        "FailedTestCount": 0,
+        "ID": "439f1fa37bb9ebb36070f5b17c518f5f",
+        "Key": "contract-tools",
+        "StartedAt": "2026-10-05T03:23:57.714Z",
+        "Status": {
+          "AbortedSubStatus": "not_applicable",
+          "Execution": "finished",
+          "FinishedSubStatus": "cache_hit",
+          "Result": "succeeded",
+          "WaitingSubStatus": "not_applicable"
+        },
+        "Subtasks": [],
+        "TestCount": 0
+      },
+      {
+        "CacheHitFromTaskID": null,
+        "CompletedAt": "2026-10-05T04:35:19.812Z",
+        "ExecutionRuntimeSeconds": null,
+        "FailedTestCount": 0,
+        "ID": "8f85b6cc7870c129342c98db254337ba",
+        "Key": "contracts",
+        "StartedAt": "2026-10-05T04:35:19.744Z",
+        "Status": {
+          "AbortedSubStatus": "not_applicable",
+          "Execution": "finished",
+          "FinishedSubStatus": "cache_hit",
+          "Result": "succeeded",
+          "WaitingSubStatus": "not_applicable"
+        },
+        "Subtasks": [
+          {
+            "CacheHitFromTaskID": "62ee37b11fb06c22d9d449f5365af948",
+            "CompletedAt": "2026-10-05T04:30:19.786Z",
+            "ExecutionRuntimeSeconds": 476,
+            "FailedTestCount": 0,
+            "ID": "362ce12996c0a77d0de87a5508b239db",
+            "Key": "build",
+            "StartedAt": "2026-10-05T04:22:18.494Z",
+            "Status": {
+              "AbortedSubStatus": "not_applicable",
+              "Execution": "finished",
+              "FinishedSubStatus": "cache_hit",
+              "Result": "succeeded",
+              "WaitingSubStatus": "not_applicable"
+            },
+            "Subtasks": [],
+            "TestCount": 0
+          }
+        ],
+        "TestCount": 0
+      },
+      {
+        "CacheHitFromTaskID": "112020407b6d1a85100eb3a7f5639b3c",
+        "CompletedAt": "2026-10-05T04:22:11.237Z",
+        "ExecutionRuntimeSeconds": 4,
+        "FailedTestCount": 0,
+        "ID": "68313dc47cc31d5ec2d16c45b3bf3274",
+        "Key": "superchain",
+        "StartedAt": "2026-10-05T04:22:05.907Z",
+        "Status": {
+          "AbortedSubStatus": "not_applicable",
+          "Execution": "finished",
+          "FinishedSubStatus": "cache_hit",
+          "Result": "succeeded",
+          "WaitingSubStatus": "not_applicable"
+        },
+        "Subtasks": [],
+        "TestCount": 0
+      }
+    ],
+    "Trigger": "cli"
+  },
+  "protected_develop_cache_rebuild_observed": false,
+  "source_sha": "fd426d8724c4df4d968db0e986b92d9177b717f4",
+  "verified_native_attempt": {
+    "Branch": null,
+    "CommitSha": null,
+    "CompletedAt": "2026-10-05T04:31:37.319Z",
+    "ID": "e2952b8b619146b4ab1355a19e5e2804",
+    "Init": {
+      "branch": "codex/rwx-ci-pilot",
+      "cache-epoch": "v1",
+      "cache-warm": "false",
+      "commit-sha": "fd426d8724c4df4d968db0e986b92d9177b717f4",
+      "tag": ""
+    },
+    "StartedAt": "2026-10-05T04:21:42.404Z",
+    "Status": {
+      "AbortedSubStatus": "not_applicable",
+      "Execution": "finished",
+      "FinishedSubStatus": "not_applicable",
+      "Result": "succeeded",
+      "WaitingSubStatus": "not_applicable"
+    },
+    "TargetedTaskKeys": null,
+    "Tasks": [
+      {
+        "CacheHitFromTaskID": null,
+        "CompletedAt": "2026-10-05T04:21:42.583Z",
+        "ExecutionRuntimeSeconds": null,
+        "FailedTestCount": 0,
+        "ID": "6f4180569bcde3aea83f12ec670de5aa",
+        "Key": "code",
+        "StartedAt": "2026-10-05T04:21:42.455Z",
+        "Status": {
+          "AbortedSubStatus": "not_applicable",
+          "Execution": "finished",
+          "FinishedSubStatus": "cache_hit",
+          "Result": "succeeded",
+          "WaitingSubStatus": "not_applicable"
+        },
+        "Subtasks": [
+          {
+            "CacheHitFromTaskID": "5708662a7f59a6227c84d4432645e296",
+            "CompletedAt": "2026-10-01T16:15:16.021Z",
+            "ExecutionRuntimeSeconds": 1,
+            "FailedTestCount": 0,
+            "ID": "4f5e89db9b4ba2b82c438bf3aef12149",
+            "Key": "setup",
+            "StartedAt": "2026-10-01T16:15:15.223Z",
+            "Status": {
+              "AbortedSubStatus": "not_applicable",
+              "Execution": "finished",
+              "FinishedSubStatus": "cache_hit",
+              "Result": "succeeded",
+              "WaitingSubStatus": "not_applicable"
+            },
+            "Subtasks": [],
+            "TestCount": 0
+          },
+          {
+            "CacheHitFromTaskID": "8de976a96e8c25e8b3eadfa396764f9e",
+            "CompletedAt": "2026-10-05T04:14:01.385Z",
+            "ExecutionRuntimeSeconds": 1,
+            "FailedTestCount": 0,
+            "ID": "140fb9b424f998f469ad11882e25d3c0",
+            "Key": "get-latest-sha-for-ref",
+            "StartedAt": "2026-10-05T04:13:59.024Z",
+            "Status": {
+              "AbortedSubStatus": "not_applicable",
+              "Execution": "finished",
+              "FinishedSubStatus": "cache_hit",
+              "Result": "succeeded",
+              "WaitingSubStatus": "not_applicable"
+            },
+            "Subtasks": [],
+            "TestCount": 0
+          },
+          {
+            "CacheHitFromTaskID": "04d5b61cac79eb3badcbb3aa4cc8d2ba",
+            "CompletedAt": "2026-10-01T16:15:17.115Z",
+            "ExecutionRuntimeSeconds": 1,
+            "FailedTestCount": 0,
+            "ID": "41fffc7b92d319be3640195f7cca0ae3",
+            "Key": "install-lfs",
+            "StartedAt": "2026-10-01T16:15:15.279Z",
+            "Status": {
+              "AbortedSubStatus": "not_applicable",
+              "Execution": "finished",
+              "FinishedSubStatus": "cache_hit",
+              "Result": "succeeded",
+              "WaitingSubStatus": "not_applicable"
+            },
+            "Subtasks": [],
+            "TestCount": 0
+          },
+          {
+            "CacheHitFromTaskID": "3ef9880a3f2eb158adf09f928dd366be",
+            "CompletedAt": "2026-10-05T04:14:21.038Z",
+            "ExecutionRuntimeSeconds": 19,
+            "FailedTestCount": 0,
+            "ID": "76df868143d7b447e53e0f8483ae32f4",
+            "Key": "git-clone",
+            "StartedAt": "2026-10-05T04:13:59.568Z",
+            "Status": {
+              "AbortedSubStatus": "not_applicable",
+              "Execution": "finished",
+              "FinishedSubStatus": "cache_hit",
+              "Result": "succeeded",
+              "WaitingSubStatus": "not_applicable"
+            },
+            "Subtasks": [],
+            "TestCount": 0
+          },
+          {
+            "CacheHitFromTaskID": "24c0dcc2697c54fe437ef6be17696599",
+            "CompletedAt": "2026-10-05T04:14:21.668Z",
+            "ExecutionRuntimeSeconds": 1,
+            "FailedTestCount": 0,
+            "ID": "083b007d54f26d5d391fe1ae5c560bb0",
+            "Key": "cleanup-git-dir",
+            "StartedAt": "2026-10-05T04:14:21.258Z",
+            "Status": {
+              "AbortedSubStatus": "not_applicable",
+              "Execution": "finished",
+              "FinishedSubStatus": "cache_hit",
+              "Result": "succeeded",
+              "WaitingSubStatus": "not_applicable"
+            },
+            "Subtasks": [],
+            "TestCount": 0
+          }
+        ],
+        "TestCount": 0
+      },
+      {
+        "CacheHitFromTaskID": "bed70e91b6f026826cd317acf888e7cc",
+        "CompletedAt": "2026-10-05T04:14:09.511Z",
+        "ExecutionRuntimeSeconds": 1,
+        "FailedTestCount": 0,
+        "ID": "ddddd9cd22eef90fc199b6179591ad52",
+        "Key": "bootstrap-inputs",
+        "StartedAt": "2026-10-05T04:14:08.737Z",
+        "Status": {
+          "AbortedSubStatus": "not_applicable",
+          "Execution": "finished",
+          "FinishedSubStatus": "cache_hit",
+          "Result": "succeeded",
+          "WaitingSubStatus": "not_applicable"
+        },
+        "Subtasks": [],
+        "TestCount": 0
+      },
+      {
+        "CacheHitFromTaskID": null,
+        "CompletedAt": "2026-10-05T04:21:42.587Z",
+        "ExecutionRuntimeSeconds": null,
+        "FailedTestCount": 0,
+        "ID": "1de8d9e935f3e782b241593ee7d173fc",
+        "Key": "mise",
+        "StartedAt": "2026-10-05T04:21:42.476Z",
+        "Status": {
+          "AbortedSubStatus": "not_applicable",
+          "Execution": "finished",
+          "FinishedSubStatus": "cache_hit",
+          "Result": "succeeded",
+          "WaitingSubStatus": "not_applicable"
+        },
+        "Subtasks": [
+          {
+            "CacheHitFromTaskID": "a24f388a70e756c09fdfaa5661f1589b",
+            "CompletedAt": "2026-10-01T16:26:25.257Z",
+            "ExecutionRuntimeSeconds": 1,
+            "FailedTestCount": 0,
+            "ID": "01ded384cc080caba89ac6e5c6a559ab",
+            "Key": "install",
+            "StartedAt": "2026-10-01T16:26:23.240Z",
+            "Status": {
+              "AbortedSubStatus": "not_applicable",
+              "Execution": "finished",
+              "FinishedSubStatus": "cache_hit",
+              "Result": "succeeded",
+              "WaitingSubStatus": "not_applicable"
+            },
+            "Subtasks": [],
+            "TestCount": 0
+          }
+        ],
+        "TestCount": 0
+      },
+      {
+        "CacheHitFromTaskID": "8f9c596c40eb5471ec025241a8316e8c",
+        "CompletedAt": "2026-10-02T22:37:35.537Z",
+        "ExecutionRuntimeSeconds": 9,
+        "FailedTestCount": 0,
+        "ID": "b82cee57ce2628232a5c2de8db432121",
+        "Key": "tools",
+        "StartedAt": "2026-10-02T22:37:24.848Z",
+        "Status": {
+          "AbortedSubStatus": "not_applicable",
+          "Execution": "finished",
+          "FinishedSubStatus": "cache_hit",
+          "Result": "succeeded",
+          "WaitingSubStatus": "not_applicable"
+        },
+        "Subtasks": [],
+        "TestCount": 0
+      },
+      {
+        "CacheHitFromTaskID": null,
+        "CompletedAt": "2026-10-05T04:21:56.696Z",
+        "ExecutionRuntimeSeconds": 2,
+        "FailedTestCount": 0,
+        "ID": "ded8857039ad4cea1b769f974c060394",
+        "Key": "route",
+        "StartedAt": "2026-10-05T04:21:47.269Z",
+        "Status": {
+          "AbortedSubStatus": "not_applicable",
+          "Execution": "finished",
+          "FinishedSubStatus": "executed",
+          "Result": "succeeded",
+          "WaitingSubStatus": "not_applicable"
+        },
+        "Subtasks": [],
+        "TestCount": 0
+      },
+      {
+        "CacheHitFromTaskID": "9e4896d040dc5b3d6a5bf29cddc91e76",
+        "CompletedAt": "2026-10-02T22:37:39.386Z",
+        "ExecutionRuntimeSeconds": 2,
+        "FailedTestCount": 0,
+        "ID": "fd188a67f294c1634a35e290848293eb",
+        "Key": "go-tools",
+        "StartedAt": "2026-10-02T22:37:35.795Z",
+        "Status": {
+          "AbortedSubStatus": "not_applicable",
+          "Execution": "finished",
+          "FinishedSubStatus": "cache_hit",
+          "Result": "succeeded",
+          "WaitingSubStatus": "not_applicable"
+        },
+        "Subtasks": [],
+        "TestCount": 0
+      },
+      {
+        "CacheHitFromTaskID": "3bf74a4407abeb9c48e385d43634c4b1",
+        "CompletedAt": "2026-10-05T03:24:07.477Z",
+        "ExecutionRuntimeSeconds": 9,
+        "FailedTestCount": 0,
+        "ID": "0c10ad3048109176ff64fc6a3e17cf8c",
+        "Key": "contract-tools",
+        "StartedAt": "2026-10-05T03:23:57.714Z",
+        "Status": {
+          "AbortedSubStatus": "not_applicable",
+          "Execution": "finished",
+          "FinishedSubStatus": "cache_hit",
+          "Result": "succeeded",
+          "WaitingSubStatus": "not_applicable"
+        },
+        "Subtasks": [],
+        "TestCount": 0
+      },
+      {
+        "CacheHitFromTaskID": null,
+        "CompletedAt": "2026-10-05T04:22:05.622Z",
+        "ExecutionRuntimeSeconds": 8,
+        "FailedTestCount": 0,
+        "ID": "0c7028d083128809e506742172527af4",
+        "Key": "source",
+        "StartedAt": "2026-10-05T04:21:56.807Z",
+        "Status": {
+          "AbortedSubStatus": "not_applicable",
+          "Execution": "finished",
+          "FinishedSubStatus": "executed",
+          "Result": "succeeded",
+          "WaitingSubStatus": "not_applicable"
+        },
+        "Subtasks": [],
+        "TestCount": 0
+      },
+      {
+        "CacheHitFromTaskID": null,
+        "CompletedAt": "2026-10-05T04:23:18.902Z",
+        "ExecutionRuntimeSeconds": null,
+        "FailedTestCount": 0,
+        "ID": "015519af57e6f651bbc56d37f3b71e0b",
+        "Key": "modules",
+        "StartedAt": "2026-10-05T04:21:56.838Z",
+        "Status": {
+          "AbortedSubStatus": "not_applicable",
+          "Execution": "finished",
+          "FinishedSubStatus": "executed",
+          "Result": "succeeded",
+          "WaitingSubStatus": "not_applicable"
+        },
+        "Subtasks": [
+          {
+            "CacheHitFromTaskID": null,
+            "CompletedAt": "2026-10-05T04:23:18.895Z",
+            "ExecutionRuntimeSeconds": 69,
+            "FailedTestCount": 0,
+            "ID": "0c6dc99ce9461c3c0d6b2a76c424daae",
+            "Key": "build",
+            "StartedAt": "2026-10-05T04:22:01.116Z",
+            "Status": {
+              "AbortedSubStatus": "not_applicable",
+              "Execution": "finished",
+              "FinishedSubStatus": "executed",
+              "Result": "succeeded",
+              "WaitingSubStatus": "not_applicable"
+            },
+            "Subtasks": [],
+            "TestCount": 0
+          }
+        ],
+        "TestCount": 0
+      },
+      {
+        "CacheHitFromTaskID": null,
+        "CompletedAt": "2026-10-05T04:30:19.814Z",
+        "ExecutionRuntimeSeconds": null,
+        "FailedTestCount": 0,
+        "ID": "6354fd90004798d7665ce73836414884",
+        "Key": "contracts",
+        "StartedAt": "2026-10-05T04:22:05.823Z",
+        "Status": {
+          "AbortedSubStatus": "not_applicable",
+          "Execution": "finished",
+          "FinishedSubStatus": "executed",
+          "Result": "succeeded",
+          "WaitingSubStatus": "not_applicable"
+        },
+        "Subtasks": [
+          {
+            "CacheHitFromTaskID": null,
+            "CompletedAt": "2026-10-05T04:30:19.786Z",
+            "ExecutionRuntimeSeconds": 476,
+            "FailedTestCount": 0,
+            "ID": "62ee37b11fb06c22d9d449f5365af948",
+            "Key": "build",
+            "StartedAt": "2026-10-05T04:22:18.494Z",
+            "Status": {
+              "AbortedSubStatus": "not_applicable",
+              "Execution": "finished",
+              "FinishedSubStatus": "executed",
+              "Result": "succeeded",
+              "WaitingSubStatus": "not_applicable"
+            },
+            "Subtasks": [],
+            "TestCount": 0
+          }
+        ],
+        "TestCount": 0
+      },
+      {
+        "CacheHitFromTaskID": null,
+        "CompletedAt": "2026-10-05T04:22:11.237Z",
+        "ExecutionRuntimeSeconds": 4,
+        "FailedTestCount": 0,
+        "ID": "112020407b6d1a85100eb3a7f5639b3c",
+        "Key": "superchain",
+        "StartedAt": "2026-10-05T04:22:05.907Z",
+        "Status": {
+          "AbortedSubStatus": "not_applicable",
+          "Execution": "finished",
+          "FinishedSubStatus": "executed",
+          "Result": "succeeded",
+          "WaitingSubStatus": "not_applicable"
+        },
+        "Subtasks": [],
+        "TestCount": 0
+      },
+      {
+        "CacheHitFromTaskID": null,
+        "CompletedAt": "2026-10-05T04:22:33.328Z",
+        "ExecutionRuntimeSeconds": 33,
+        "FailedTestCount": 0,
+        "ID": "8f00f6f9da75b4254c7dea1afcdf9f2d",
+        "Key": "helper-tests",
+        "StartedAt": "2026-10-05T04:21:57.996Z",
+        "Status": {
+          "AbortedSubStatus": "not_applicable",
+          "Execution": "finished",
+          "FinishedSubStatus": "executed",
+          "Result": "succeeded",
+          "WaitingSubStatus": "not_applicable"
+        },
+        "Subtasks": [],
+        "TestCount": 0
+      },
+      {
+        "CacheHitFromTaskID": null,
+        "CompletedAt": "2026-10-05T04:31:37.317Z",
+        "ExecutionRuntimeSeconds": 60,
+        "FailedTestCount": 0,
+        "ID": "b5aaea8e292bbc8dcd72a4a99c0f9a1d",
+        "Key": "tests",
+        "StartedAt": "2026-10-05T04:30:31.039Z",
+        "Status": {
+          "AbortedSubStatus": "not_applicable",
+          "Execution": "finished",
+          "FinishedSubStatus": "executed",
+          "Result": "succeeded",
+          "WaitingSubStatus": "not_applicable"
+        },
+        "Subtasks": [],
+        "TestCount": 6
+      },
+      {
+        "CacheHitFromTaskID": "9672e7b0ac25ddb4c898ad4606433cc5",
+        "CompletedAt": "2026-10-01T16:15:14.461Z",
+        "ExecutionRuntimeSeconds": 5,
+        "FailedTestCount": 0,
+        "ID": "ac2f5aa408babe10635b6157a4a5750b",
+        "Key": "~base-image",
+        "StartedAt": "2026-10-01T16:15:06.909Z",
+        "Status": {
+          "AbortedSubStatus": "not_applicable",
+          "Execution": "finished",
+          "FinishedSubStatus": "cache_hit",
+          "Result": "succeeded",
+          "WaitingSubStatus": "not_applicable"
+        },
+        "Subtasks": [],
+        "TestCount": 0
+      },
+      {
+        "CacheHitFromTaskID": null,
+        "CompletedAt": "2026-10-05T04:21:42.445Z",
+        "ExecutionRuntimeSeconds": null,
+        "FailedTestCount": 0,
+        "ID": "5d65bc659740a17401f31d3177fdf76a",
+        "Key": "~base-config",
+        "StartedAt": "2026-10-05T04:21:42.428Z",
+        "Status": {
+          "AbortedSubStatus": "not_applicable",
+          "Execution": "finished",
+          "FinishedSubStatus": "cache_hit",
+          "Result": "succeeded",
+          "WaitingSubStatus": "not_applicable"
+        },
+        "Subtasks": [
+          {
+            "CacheHitFromTaskID": "346d33674cd759784fd19623caeb4911",
+            "CompletedAt": "2026-10-01T15:54:04.635Z",
+            "ExecutionRuntimeSeconds": 13,
+            "FailedTestCount": 0,
+            "ID": "a23ffd3d90b05e7f50aa2648a865a6e9",
+            "Key": "configure",
+            "StartedAt": "2026-10-01T15:53:49.990Z",
+            "Status": {
+              "AbortedSubStatus": "not_applicable",
+              "Execution": "finished",
+              "FinishedSubStatus": "cache_hit",
+              "Result": "succeeded",
+              "WaitingSubStatus": "not_applicable"
+            },
+            "Subtasks": [],
+            "TestCount": 0
+          },
+          {
+            "CacheHitFromTaskID": "f85a3ac2d7dfc5ca2134c727ebffc92c",
+            "CompletedAt": "2026-10-01T15:54:21.647Z",
+            "ExecutionRuntimeSeconds": 15,
+            "FailedTestCount": 0,
+            "ID": "00a0b7f869758328c2d49eb9b7bbbc63",
+            "Key": "docker",
+            "StartedAt": "2026-10-01T15:54:04.860Z",
+            "Status": {
+              "AbortedSubStatus": "not_applicable",
+              "Execution": "finished",
+              "FinishedSubStatus": "cache_hit",
+              "Result": "succeeded",
+              "WaitingSubStatus": "not_applicable"
+            },
+            "Subtasks": [],
+            "TestCount": 0
+          }
+        ],
+        "TestCount": 0
+      }
+    ],
+    "Trigger": "cli"
+  }
+}
