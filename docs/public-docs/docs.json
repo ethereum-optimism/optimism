@@ -1020,6 +1020,10 @@
       "destination": "/notices/archive/upgrade-19"
     },
     {
+      "source": "/notices/upgrade-20",
+      "destination": "/notices/archive/upgrade-20"
+    },
+    {
       "source": "/notices/op-geth-deprecation",
       "destination": "/notices/archive/op-geth-deprecation"
     },
@@ -3626,7 +3630,6 @@
               {
                 "group": "Network Upgrades",
                 "pages": [
-                  "notices/upgrade-20",
                   "notices/interop-prep"
                 ]
               },
