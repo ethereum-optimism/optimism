@@ -41,11 +41,12 @@ artifact to the exact build unit's own source map. The pinned compiler
 selects artifact IDs without considering their profile. Complete real two-job
 compiler originals cover this behavior; corrupt unit mappings still fail.
 
-The first complete discovery can install another solc version needed by a
-dependency. That changes which installed compatible compiler auto detection
-chooses on the following invocation. Preparation retains the complete initial
-pass, then repeats discovery with those compilers available and rejects further
-changes to their set or bytes. The passing prototype compiled 601 sources,
+The graph requires solc 0.8.30 in addition to Circle's four installed versions.
+Preparation now ensures all five are available before compiler auto detection,
+so a cold worker chooses the same versions as a restored SVM cache. Both complete
+discovery passes remain retained. Validation derives the used compiler set from
+every original unit, separately from the complete installed inventory, and
+rejects changed compiler bytes. The passing prototype compiled 601 sources,
 retained 2,173 declarations initially and selected 167 declarations after
 resolution stabilized. The actual publisher imported all 979 function/error
 and 141 event signatures; the fresh database and complete API readback contained
@@ -101,6 +102,13 @@ and directory-upload console logs at 400 kB, so strict hosted parity remains
 pending. The replay now stores the complete preparation stream inside its archive
 and uploads two single archives instead of thousands of duplicated directory
 artifacts. The first truncated originals remain retained.
+
+The next complete comparison at `b472a22e` retained untruncated Circle logs but
+caught a real compiler-cache difference: native preparation already had 0.8.30,
+while Circle's first pass installed it during discovery. Their initial compiler
+catalogues differed. Both complete originals remain retained and add no coverage.
+The pinned prerequisite above removes that cold/warm difference before a new
+same-SHA replay; it does not discard or normalize either compiler catalogue.
 
 The unchanged-input CLI warm run `c5f99254` reused tools, contract tools, source,
 registry images and ABI preparation through actual native cache hits. Its exact

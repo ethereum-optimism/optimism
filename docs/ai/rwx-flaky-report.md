@@ -1,8 +1,11 @@
 # Native flaky-test reporting
 
 The optional `optimism-flaky-report-shadow` executes the original acceptance
-reporting script through shared `run-main` routing. Same-SHA hosted parity is
-pending; this implementation adds zero verified occurrence coverage yet.
+reporting script through shared `run-main` routing. Complete same-SHA hosted
+parity passed at `b472a22e8374c797ecaee5a6ef5b735fcc979028`: native run
+`5620ba604af94bd38b1a710469ebbf4b`, Circle pipeline 135620/job 5637736.
+The [parity index](rwx-flaky-report-evidence/parity.json) binds all 16 original
+files from each provider. This adds one verified Main occurrence.
 
 The workload requests the real Circle Insights flaky-test API for this public
 repository. Circle retains its existing authenticated context; RWX uses the
@@ -45,5 +48,7 @@ mise exec yq@4.44.5 -- python3 ops/ci/compare-flaky-report.py \
 
 Comparison preserves every original API row, date, ordering and report cell.
 Only provider workspace prefixes in output paths are normalized. Both complete
-retry histories remain in the parity index. If the live API snapshots differ,
+retry histories remain in the parity index. Both actual requests succeeded on
+their first attempt with identical complete response bytes: 79 source
+observations and 12 acceptance rows. If future live API snapshots differ,
 investigate the original responses before adding coverage.

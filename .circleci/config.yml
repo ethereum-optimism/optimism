@@ -99,6 +99,12 @@ parameters:
   c-flaky_report_replay:
     type: boolean
     default: false
+  c-l2_fork_parity_replay:
+    type: boolean
+    default: false
+  c-l2_fork_parity_block:
+    type: string
+    default: ""
 
 orbs:
   continuation: circleci/continuation@2.0.1
@@ -172,6 +178,7 @@ jobs:
             c-github-event-base64: << pipeline.parameters.github-event-base64 >>
             c-go-cache-version: << pipeline.parameters.go-cache-version >>
             c-publish_contract_artifacts_ref: << pipeline.parameters.publish_contract_artifacts_ref >>
+            c-l2_fork_parity_block_effective: << pipeline.parameters.c-l2_fork_parity_block >>
       # Same as above but for booleans. Separate step because CircleCI renders
       # boolean pipeline params as 0/1 in environment blocks — the "bool" mode
       # normalizes them to JSON true/false.
@@ -186,6 +193,7 @@ jobs:
             c-nut_provenance_full_effective: << pipeline.parameters.c-nut_provenance_full >>
             c-selector_upload_replay_effective: << pipeline.parameters.c-selector_upload_replay >>
             c-flaky_report_replay_effective: << pipeline.parameters.c-flaky_report_replay >>
+            c-l2_fork_parity_replay_effective: << pipeline.parameters.c-l2_fork_parity_replay >>
             c-main_dispatch: << pipeline.parameters.main_dispatch >>
             c-fault_proofs_dispatch: << pipeline.parameters.fault_proofs_dispatch >>
             c-reproducibility_dispatch: << pipeline.parameters.reproducibility_dispatch >>

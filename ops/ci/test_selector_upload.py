@@ -9,6 +9,7 @@ import shutil
 import subprocess
 import tempfile
 import unittest
+from unittest import mock
 
 SPEC = importlib.util.spec_from_file_location('upload', Path(__file__).with_name('selector-upload.py'))
 UP = importlib.util.module_from_spec(SPEC)
@@ -33,6 +34,38 @@ def expectation():
 
 
 class SelectorTests(unittest.TestCase):
+    def test_cold_and_restored_compilers_share_the_complete_pinned_inventory(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            directory = Path(tmp); installed = set(); attempts = []
+            def which(*args):
+                self.assertEqual(args[:2], ('svm', 'which'))
+                if args[2] not in installed: raise subprocess.CalledProcessError(1, args)
+                return '/compiler/' + args[2]
+            def install(_directory, name, argv):
+                attempts.append((name, argv)); installed.add(argv[2]); return 0
+            with mock.patch.object(UP.UP, 'command', side_effect=which), mock.patch.object(UP.UP, 'stage', side_effect=install):
+                UP.prepare_compilers(directory)
+                self.assertEqual(installed, set(UP.COMPILERS))
+                self.assertEqual(len(attempts), len(UP.COMPILERS))
+                UP.prepare_compilers(directory)
+                self.assertEqual(len(attempts), len(UP.COMPILERS), 'Restored compiler bytes must be reused')
+            self.assertIn('0.8.30', installed)
+
+    def test_compiler_installation_retries_keep_each_initial_failure(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            directory = Path(tmp)
+            def which(*args):
+                if args[2] == '0.8.30': raise subprocess.CalledProcessError(1, args)
+                return '/compiler/' + args[2]
+            with mock.patch.object(UP.UP, 'command', side_effect=which), mock.patch.object(UP.UP, 'stage', side_effect=[17, 0]) as stages, \
+                 mock.patch('time.sleep'):
+                UP.prepare_compilers(directory)
+                self.assertEqual([call.args[1] for call in stages.call_args_list], ['solc-0.8.30-attempt-1', 'solc-0.8.30-attempt-2'])
+            with mock.patch.object(UP.UP, 'command', side_effect=which), mock.patch.object(UP.UP, 'stage', return_value=17) as stages, \
+                 mock.patch('time.sleep'), self.assertRaisesRegex(ValueError, 'installation failed'):
+                UP.prepare_compilers(directory)
+            self.assertEqual(stages.call_count, 5)
+
     def test_real_complete_oracle_keeps_empty_declarations_and_tuple_abi(self):
         result = UP.catalog(*oracle())
         self.assertEqual(result['selected'], ['src/Fixture.sol:Fixture:0.8.28:default'])

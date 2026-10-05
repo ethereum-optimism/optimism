@@ -38,13 +38,13 @@ workflow changes since the pilot's `c8e4ba85` base. The PR denominator remains 8
 
 | PR workflow | Expanded job instances | Implemented validation jobs |
 | --- | ---: | ---: |
-| Main | 32 | 30 |
+| Main | 32 | 31 |
 | Contracts | 23 | 21 |
 | Rust | 22 | 22 |
 | Rust E2E | 9 | 9 |
-| Total | 86 | 82 |
+| Total | 86 | 83 |
 
-Verified implementation coverage is **82 / 86 = 95%**. Each matrix entry and
+Verified implementation coverage is **83 / 86 = 97%**. Each matrix entry and
 each occurrence in a different workflow counts separately; shards do not.
 The CircleCI setup and schedule-trigger-check workflows are outside this
 86-job denominator and have separate todos. This is occurrence coverage backed
@@ -124,8 +124,8 @@ tasks, original verifier output and both terminal GitHub checks. See the
 [gate closeout](rwx-pr-gates.md). The full Main aggregate also passes complete
 same-SHA original gate comparison at `4ae28fd9`, including every one of its 19
 dependencies, twelve Go and sixteen acceptance shards, all ten receipts and
-both terminal GitHub gate checks. Four occurrences remain: the Main selector
-uploader and flaky report, L2 fork, and the Contracts aggregate. Circle continues
+both terminal GitHub gate checks. Three occurrences remain: the Main selector
+uploader, L2 fork, and the Contracts aggregate. Circle continues
 to own every required gate.
 The narrower rollup mode remains CLI-only. See [the stage closeout](rwx-go-parity.md)
 for original-report comparison, selected resources, caches and limitations.
@@ -260,7 +260,7 @@ CircleCI workflow: `main` (32 jobs).
 - [x] `kona-build-sp1-elfs` — [complete native guest build and checks](rwx-sp1-guest.md); full same-SHA hosted parity at `c6b29406`, both ELFs and verification keys byte-identical, six cases and complete graphs agree
 - [x] `go-lint`
 - [x] `go-binaries-for-sysgo`
-- [ ] `generate-flaky-tests-report` — [native original reporter](rwx-flaky-report.md), full API/report retention and strict comparison are implemented; same-SHA hosted parity remains pending
+- [x] `generate-flaky-tests-report` — [native original reporter](rwx-flaky-report.md), complete same-SHA API/report parity at `b472a22e`, all 79 original observations and 12 acceptance rows, no retries
 - [x] `contracts-bedrock-build-1`
 - [ ] `contracts-bedrock-upload` — [complete isolated uploader](rwx-selector-upload.md) prototype passes real imports and complete database/API readback; pushed same-SHA Circle/native parity remains pending, so no coverage is added
 - [x] `diff-fetcher-forge-artifacts` — [fresh build and untouched artifact comparison](rwx-fetcher-artifacts.md)

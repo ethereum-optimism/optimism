@@ -56,6 +56,21 @@ parameters:
   c-run_flaky_report_replay:
     type: boolean
     default: false
+  c-l2_fork_parity_replay:
+    type: boolean
+    default: false
+  c-l2_fork_parity_replay_effective:
+    type: boolean
+    default: false
+  c-run_l2_fork_parity_replay:
+    type: boolean
+    default: false
+  c-l2_fork_parity_block:
+    type: string
+    default: ""
+  c-l2_fork_parity_block_effective:
+    type: string
+    default: ""
   c-publish_contract_artifacts_ref:
     type: string
     default: ""
@@ -1514,6 +1529,9 @@ jobs:
           mentions: "<!subteam^S07K486JEH4>"
   contracts-bedrock-tests-l2-fork:
     parameters:
+      parity_shadow:
+        type: boolean
+        default: false
       fork_op_chain:
         description: L2 chain to fork for testing
         type: string
@@ -1548,6 +1566,16 @@ jobs:
     steps:
       - utils/checkout-with-mise:
           enable-mise-cache: true
+      - when:
+          condition: <<parameters.parity_shadow>>
+          steps:
+            - run:
+                name: Validate public L2 archive inputs before compilation
+                command: |
+                  test "$CIRCLE_BRANCH" = codex/rwx-ci-pilot
+                  python3 ops/ci/contract-l2-fork.py preflight --fork-block "$CI_L2_FORK_BLOCK"
+                environment:
+                  CI_L2_FORK_BLOCK: <<parameters.l2_fork_block_number>>
       - go-restore-cache:
           namespace: contracts-bedrock-tests-l2-fork
       - install-contracts-dependencies
@@ -1608,23 +1636,41 @@ jobs:
           features: <<parameters.features>>
       - run:
           name: Check NUT bundle is up-to-date
-          command: just nut-bundle-check-no-build
+          command: |
+            if [ "$CI_L2_PARITY_SHADOW" = "true" ] || [ "$CI_L2_PARITY_SHADOW" = "1" ]; then
+              python3 ../../ops/ci/contract-l2-fork.py prepare
+            else
+              just nut-bundle-check-no-build
+            fi
+          environment:
+            CI_L2_PARITY_SHADOW: <<parameters.parity_shadow>>
           working_directory: packages/contracts-bedrock
       - run:
           name: Run L2 fork tests
           command: |
-            mkdir -p results
-            JUNIT_TEST_PATH=results/results.xml just test-l2-fork-upgrade
+            if [ "$CI_L2_PARITY_SHADOW" = "true" ] || [ "$CI_L2_PARITY_SHADOW" = "1" ]; then
+              python3 ../../ops/ci/contract-l2-fork.py run --prepared ../../.ci/contract-l2-fork/prepare \
+                --block ../../.ci/contract-l2-fork/preflight/block.json
+            else
+              mkdir -p results
+              JUNIT_TEST_PATH=results/results.xml just test-l2-fork-upgrade
+            fi
           environment:
             FOUNDRY_PROFILE: <<parameters.test_profile>>
+            CI_L2_PARITY_SHADOW: <<parameters.parity_shadow>>
           working_directory: packages/contracts-bedrock
           no_output_timeout: 20m
       - run:
           name: Print failed test traces
           command: |
-            just test-l2-fork-upgrade-rerun | tee failed-test-traces-l2-fork.log
+            if [ "$CI_L2_PARITY_SHADOW" = "true" ] || [ "$CI_L2_PARITY_SHADOW" = "1" ]; then
+              cat ../../.ci/contract-l2-fork/run/rerun.log 2>/dev/null || true
+            else
+              just test-l2-fork-upgrade-rerun | tee failed-test-traces-l2-fork.log
+            fi
           environment:
             FOUNDRY_PROFILE: <<parameters.test_profile>>
+            CI_L2_PARITY_SHADOW: <<parameters.parity_shadow>>
           working_directory: packages/contracts-bedrock
           when: on_fail
       - go-save-cache:
@@ -1642,6 +1688,23 @@ jobs:
       - store_test_results:
           path: packages/contracts-bedrock/results
           when: always
+      - when:
+          condition: <<parameters.parity_shadow>>
+          steps:
+            - run:
+                name: Archive complete original L2 fork evidence
+                when: always
+                command: |
+                  if [ -d .ci/contract-l2-fork ]; then
+                    tar -C .ci/contract-l2-fork -czf .ci/contract-l2-fork-originals.tar.gz .
+                  fi
+            - store_artifacts:
+                path: .ci/contract-l2-fork-originals.tar.gz
+                destination: contract-l2-fork-originals.tar.gz
+                when: always
+            - store_test_results:
+                path: .ci/contract-l2-fork/run
+                when: always
       - notify-failures-on-develop:
           mentions: "<!subteam^S07K486JEH4>"
 
@@ -2732,6 +2795,25 @@ jobs:
           when: always
 
 workflows:
+  l2-fork-parity-replay:
+    when: << pipeline.parameters.c-run_l2_fork_parity_replay >>
+    jobs:
+      - prep-go-modules:
+          context:
+            - circleci-repo-readonly-authenticated-github-token
+      - contracts-bedrock-tests-l2-fork:
+          name: contracts-bedrock-tests-l2-fork op-mainnet
+          parity_shadow: true
+          fork_op_chain: op-mainnet
+          l2_fork_rpc: https://mainnet.optimism.io
+          l2_fork_block_number: <<pipeline.parameters.c-l2_fork_parity_block_effective>>
+          test_profile: ci
+          features: main
+          requires:
+            - prep-go-modules
+          context:
+            - circleci-repo-readonly-authenticated-github-token
+
   flaky-report-replay:
     when: << pipeline.parameters.c-run_flaky_report_replay >>
     jobs:

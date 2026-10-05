@@ -68,7 +68,8 @@ def authority(settings):
     check(settings['implementation'] == {name: hashlib.sha256(G.source('ops/ci/' + name, sha)).hexdigest()
           for name in U.IMPLEMENTATION}, 'Uncommitted selector implementation')
     check(settings['version'] == 1 and settings['profile'] == 'default'
-          and settings['command'] == U.COMMAND and settings['branch'] == 'codex/rwx-ci-pilot',
+          and settings['command'] == U.COMMAND and settings['branch'] == 'codex/rwx-ci-pilot'
+          and set(settings['compilers']) == set(U.COMPILERS),
           'Wrong original selector selection or profile')
 
 
@@ -208,9 +209,12 @@ def report(directory):
         check(wanted['signatures'][kind] == {name: wanted['hash32'][name] if kind == 'event'
               else wanted['hash32'][name][:10] for name in names}, 'Corrupt selected digest binding')
     compilers = read(prepared / 'selected-compilers.json')
+    initial_versions = {read(p)['solcVersion'] for p in (prepared / 'initial-discovery/compiler-units').glob('*.json')}
+    stable_versions = {read(p)['solcVersion'] for p in (prepared / 'compiler-units').glob('*.json')}
     check(compilers == read(prepared / 'initial-discovery/selected-compilers.json')
-          and set(settings['compilers']) <= set(compilers)
-          and all(compilers[key] == value for key, value in settings['compilers'].items()), 'Unstable original compiler resolution')
+          and set(compilers) == initial_versions and stable_versions <= initial_versions
+          and all(compilers[key] == settings['compilers'][key] for key in set(compilers) & set(settings['compilers'])),
+          'Unstable original compiler resolution')
     recipe = read(directory / 'recipe.stage.json')
     check(recipe['argv'] == ['just', '--dry-run', 'update-selectors'] and recipe['exit_code'] == 0
           and (directory / 'recipe.log').read_bytes() == b''

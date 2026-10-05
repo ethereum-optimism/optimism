@@ -12,6 +12,7 @@ import re
 import shutil
 import subprocess
 import sys
+import time
 import urllib.parse
 import urllib.request
 
@@ -27,6 +28,7 @@ R = helper('selector-registry')
 UP = helper('contract-upgrades')
 ROOT, CONTRACTS = UP.ROOT, UP.CONTRACTS
 COMMAND = ['just', 'update-selectors']
+COMPILERS = ('0.8.15', '0.8.19', '0.8.25', '0.8.28', '0.8.30')
 IMPLEMENTATION = ('selector-upload.py', 'selector-registry.py', 'contract-upgrades.py',
                   'git-submodule-report.py', 'compare-rust-e2e.py')
 
@@ -92,7 +94,7 @@ def identity():
         R.check(binary, 'Missing selector tool: ' + name)
         tools[name] = {'version': UP.command(name, '--version'), 'sha256': R.digest(binary)}
     compilers = {}
-    for version in ('0.8.15', '0.8.19', '0.8.25', '0.8.28'):
+    for version in COMPILERS:
         path = UP.command('svm', 'which', version)
         compilers[version] = {'version': UP.command(path, '--version'), 'sha256': R.digest(path)}
     return {'version': 1, 'source_sha': sha, 'branch': branch, 'profile': 'default',
@@ -248,14 +250,28 @@ def discover(directory, settings):
     return selection, compiler_tools({unit['solcVersion'] for unit in infos.values()})
 
 
+def prepare_compilers(directory):
+    # The complete graph requires 0.8.30. Installing it before auto detection
+    # makes a cold worker choose the same versions as a restored SVM cache.
+    for version in COMPILERS:
+        try: UP.command('svm', 'which', version)
+        except subprocess.CalledProcessError:
+            for attempt in range(1, 6):
+                status = UP.stage(directory, 'solc-' + version + '-attempt-' + str(attempt), ['svm', 'install', version])
+                if status == 0: break
+                R.check(attempt < 5, 'Pinned selector compiler installation failed')
+                time.sleep(2 ** attempt)
+
+
 def prepare(directory):
     R.check(not directory.exists(), 'Selector preparation already exists')
     directory.mkdir(parents=True)
-    settings = identity()
-    R.write(directory / 'settings.json', settings)
-    R.write(directory / 'foundry-config.json', settings['configuration'])
     status, errors = 1, []
     try:
+        prepare_compilers(directory)
+        settings = identity()
+        R.write(directory / 'settings.json', settings)
+        R.write(directory / 'foundry-config.json', settings['configuration'])
         # Auto detection favors installed compatible solc versions. Its first
         # complete pass can install a further version required by dependencies.
         # Retain that pass, then bind the selection with all those compilers
