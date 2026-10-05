@@ -88,6 +88,10 @@ same-SHA original-report parity. Standard discovery retains all 164 files and
 originals, generated fixture evidence, compiler-only reuse and the two remaining
 skip-message observations. Coverage, L2 fork and contract gate equivalents remain
 uncounted pending hosted validation.
+ShellCheck and both Semgrep jobs are implemented with exact original selections,
+pinned tools, baseline provenance and retained original reports. Their real-tool
+and comparison fixtures pass locally; all three remain uncounted pending hosted
+comparison. See the [static-check stage](rwx-static-checks.md).
 The narrower rollup mode remains CLI-only. See [the stage closeout](rwx-go-parity.md)
 for original-report comparison, selected resources, caches and limitations.
 

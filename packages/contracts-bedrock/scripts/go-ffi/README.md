@@ -55,6 +55,13 @@ There are two modes available in `go-ffi`: `diff` and `trie`. Each are present a
 > **Note**
 > Variant required for `trie` mode.
 
+Ordinary trie fixtures use OS randomness. The opt-in CI coverage benchmark can
+set `OP_CI_FFI_REPLAY_SEED` to a 256-bit hexadecimal seed, with `CI=true` and
+`FOUNDRY_PROFILE=cicoverage`. This replays the same complete fixture for the same
+seed and command arguments; a different seed or variant selects a new corpus.
+The benchmark records this input separately from Foundry's Solidity fuzz seed.
+Unseeded coverage and other profiles keep the ordinary random generator.
+
 | Variant                       | Description                                                                                                                               |
 | ----------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------- |
 | `valid`                       | Generate a test case with a valid proof of inclusion for the k/v pair in the trie.                                                        |

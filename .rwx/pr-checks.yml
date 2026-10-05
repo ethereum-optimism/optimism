@@ -2,7 +2,7 @@
 on:
   cache-rebuild:
     if: ${{ event.git.branch == 'develop' }}
-    target: [go-modules, contract-tools, main-tools, main-superchain]
+    target: [go-modules, contract-tools, main-tools, main-superchain, static-tools]
     init:
       commit-sha: ${{ event.git.sha }}
       branch: ${{ event.git.branch }}
@@ -137,6 +137,106 @@ tasks:
       mise install ripgrep mockery
       printf '%s:%s\n' "$(mise bin-paths | paste -sd: -)" "$PATH" >"$RWX_ENV/PATH"
     timeout: 30m
+
+  - key: static-tools
+    use: tools
+    if: ${{ init.cache-warm == 'true' || tasks.route.values.run-main == 'true' }}
+    run: |
+      mise install uv shellcheck@0.9.0
+      PATH="$(mise bin-paths | paste -sd: -):$PATH"
+      export PATH
+      mise install pipx:semgrep@1.178.0
+      printf '%s/bin:%s/bin:%s\n' "$(mise where shellcheck@0.9.0)" "$(mise where pipx:semgrep@1.178.0)" "$PATH" >"$RWX_ENV/PATH"
+    timeout: 30m
+
+  - key: static-helper-tests
+    use: [code, static-tools]
+    if: ${{ init.cache-warm != 'true' && tasks.route.values.run-main == 'true' }}
+    run: |
+      RWX_LIVE_SHELL_FIXTURE=1 RWX_LIVE_SEMGREP_FIXTURE=1 python3 -m unittest discover -s ops/ci -p 'test_static_checks.py'
+      python3 -m unittest discover -s ops/ci -p 'test_compare_static_checks.py'
+    env:
+      RWX_STATIC_FIXTURE_RETAIN_DIR: .ci/static-fixture-evidence
+    cache: false
+    timeout: 15m
+    outputs:
+      filesystem: false
+      artifacts:
+        - key: original-failure-fixtures
+          path: .ci/static-fixture-evidence
+
+  - key: shell-check
+    use: [code, static-tools]
+    if: ${{ init.cache-warm != 'true' && tasks.route.values.run-main == 'true' }}
+    run: python3 ops/ci/static-checks.py shell-check
+    env:
+      CI_COMMIT_SHA: ${{ init.commit-sha }}
+      CI_BRANCH: ${{ init.branch }}
+      CI_CHECK_PROVIDER: rwx
+    cache: false
+    timeout: 20m
+    runner:
+      cpus: 2
+      memory: 8gb
+    outputs:
+      filesystem: false
+      test-results:
+        - path: .ci/static-checks/shell-check/derived.junit.xml
+      artifacts:
+        - key: reports
+          path: .ci/static-checks/shell-check
+
+  - key: semgrep-test
+    use: [code, static-tools]
+    if: ${{ init.cache-warm != 'true' && tasks.route.values.run-main == 'true' }}
+    run: |
+      if [[ "$CI_BRANCH" != develop ]]; then
+        git fetch --no-tags origin develop
+        git update-ref refs/heads/develop FETCH_HEAD
+      fi
+      python3 ops/ci/static-checks.py semgrep-test
+    env:
+      CI_COMMIT_SHA: ${{ init.commit-sha }}
+      CI_BRANCH: ${{ init.branch }}
+      CI_CHECK_PROVIDER: rwx
+    cache: false
+    timeout: 20m
+    runner:
+      cpus: 8
+      memory: 16gb
+    outputs:
+      filesystem: false
+      test-results:
+        - path: .ci/static-checks/semgrep-test/derived.junit.xml
+      artifacts:
+        - key: reports
+          path: .ci/static-checks/semgrep-test
+
+  - key: semgrep-scan-local
+    use: [code, static-tools]
+    if: ${{ init.cache-warm != 'true' && tasks.route.values.run-main == 'true' }}
+    run: |
+      if [[ "$CI_BRANCH" != develop ]]; then
+        git fetch --no-tags origin develop
+        git update-ref refs/heads/develop FETCH_HEAD
+      fi
+      python3 ops/ci/static-checks.py semgrep-scan-local
+    env:
+      CI_COMMIT_SHA: ${{ init.commit-sha }}
+      CI_BRANCH: ${{ init.branch }}
+      CI_CHECK_PROVIDER: rwx
+    cache: false
+    timeout: 30m
+    runner:
+      cpus: 8
+      memory: 16gb
+    outputs:
+      filesystem: false
+      test-results:
+        - path: .ci/static-checks/semgrep-scan-local/derived.junit.xml
+      artifacts:
+        - key: reports
+          path: .ci/static-checks/semgrep-scan-local
 
   - key: helper-tests
     use: [code, go-tools]

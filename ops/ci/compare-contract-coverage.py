@@ -42,7 +42,7 @@ def report(directory, feature, sha, provider, empty):
     required = C.PREPARED | {'block.json', 'source-after-verdict.json', 'runtime-fixtures.json'}
     for phase in C.PHASES:
         required |= {phase + '/' + name for name in ('tests.log', 'tests.stderr.log', 'tests.stage.json', 'original.lcov.info',
-                     'original.attribution.json', 'original-cases.json', 'derived.junit.xml', 'lcov-records.json',
+                     'original.attribution.json', 'original-cases.json', 'original-events.json', 'derived.junit.xml', 'lcov-records.json',
                      'coverage-source-sha256.json', 'coverage.json')}
     if provider == 'rwx': required |= {'preparation-manifest.json', 'preparation-settings.json', 'runtime-config.json',
                                        'runtime-config.stage.json', 'runtime-files.log', 'runtime-files.stage.json'}
@@ -62,6 +62,8 @@ def report(directory, feature, sha, provider, empty):
         settings['authority'], settings['phases'], settings['provider'], settings['rpc_input_name']) != \
        (sha, feature, 'cicoverage', 'default', seed, ['just', 'coverage-lcov-all'], list(C.PHASES), 'circleci' if provider == 'circle' else 'rwx', C.RPC_INPUT):
         raise ValueError('Wrong coverage source, occurrence, profile or opt-in replay benchmark seed')
+    if (settings['ffi_replay_seed'], settings['ffi_replay_policy']) != (seed, 'chacha8-arguments-v1'):
+        raise ValueError('Coverage FFI replay settings differ from the benchmark input')
     if provider == 'rwx' and (not settings['rwx_run_id'] or str(settings['rwx_task_attempt']) != '1'):
         raise ValueError('Reused coverage verdict or uninvestigated task retry')
     before = settings['input_sha256']
@@ -146,7 +148,8 @@ def report(directory, feature, sha, provider, empty):
     phases = {}
     for phase in C.PHASES:
         d = directory / phase; attribution = json.loads((d / 'original.attribution.json').read_text())
-        cases = C.original_cases((d / 'tests.log').read_text(), attribution)
+        events = C.original_evidence((d / 'tests.log').read_text(), attribution); cases = events['cases']
+        if events != json.loads((d / 'original-events.json').read_text()): raise ValueError('Coverage event accounting differs from complete originals')
         if cases != json.loads((d / 'original-cases.json').read_text()) or any(r['outcome'] == 'fail' for r in cases):
             raise ValueError('Coverage verdicts differ from original reports or contain a failure')
         derived(d / 'derived.junit.xml', phase, cases)
@@ -162,7 +165,8 @@ def report(directory, feature, sha, provider, empty):
             raise ValueError('Coverage source items lack complete original input hashes')
         if phase == 'upgrade' and ('Running upgrade tests at block ' + str(block['number'])) not in (d / 'tests.log').read_text():
             raise ValueError('Original upgrade coverage did not confirm the pinned archive block')
-        phases[phase] = {'coverage': coverage, 'attribution': attribution, 'lcov': records, 'source_sha256': sources}
+        phases[phase] = {'coverage': coverage, 'attribution': C.attribution_summary(attribution), 'events': events,
+                         'lcov': records, 'source_sha256': sources}
     methods = {name: {'methods': row['methods'], 'deployable': UP.deployable(row)} for name, row in bindings.items()
                if UP.deployable(row) or any(method.startswith(('test', 'invariant')) for method in row['methods'])}
     return {'settings': settings, 'files': files, 'selection': selection, 'phases': phases, 'block': block, 'source_after_verdict': after,

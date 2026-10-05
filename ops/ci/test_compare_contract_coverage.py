@@ -23,6 +23,7 @@ class ComparisonTests(unittest.TestCase):
             inputs = {'packages/contracts-bedrock/' + source: 'b'*64, 'packages/contracts-bedrock/src/A.sol': 'e'*64}
             settings = {'source_sha': SHA, 'feature': 'main', 'branch': 'pilot', 'profile': 'cicoverage', 'source_build_profile': 'default',
                         'benchmark_seed': seed, 'rpc_input_name': C.C.RPC_INPUT, 'authority': ['just', 'coverage-lcov-all'],
+                        'ffi_replay_seed': seed, 'ffi_replay_policy': 'chacha8-arguments-v1',
                         'phases': list(C.C.PHASES), 'provider': 'circleci' if provider == 'circle' else 'rwx', 'workspace_root': root,
                         'forge': 'pinned', 'go': 'pinned', 'just': 'pinned', 'input_sha256': inputs, 'runtime_output_paths': [],
                         'rwx_run_id': 'c'*32 if provider == 'rwx' else None, 'rwx_task_attempt': '1'}
@@ -67,6 +68,7 @@ class ComparisonTests(unittest.TestCase):
                 attribution = {'version': 1, 'tests': [{'suite': identity, 'test': 'test_' + name + '()', 'status': status, 'kind': 'unit', 'covered': []}
                                 for name, status in [('a', 'success'), ('skip', 'skipped')]]}
                 self.write(p / 'original.attribution.json', attribution); cases = C.C.original_cases(text, attribution)
+                self.write(p / 'original-events.json', C.C.original_evidence(text, attribution))
                 self.write(p / 'original-cases.json', cases); C.C.derived_junit(p / 'derived.junit.xml', cases, phase)
                 self.write(p / 'coverage.json', C.C.accounting(p / 'derived.junit.xml', phase, selection, bindings))
                 (p / 'original.lcov.info').write_text('TN:\nSF:src/A.sol\nDA:6,4\nFN:6,A.set\nFNDA:4,A.set\n'
@@ -105,6 +107,10 @@ class ComparisonTests(unittest.TestCase):
         for d in self.dirs.values(): self.mutate(d, 'ordinary/tests.stage.json', lambda v: v.update(argv=['true']))
         with self.assertRaisesRegex(ValueError, 'command'): self.compare()
 
+    def test_unbound_ffi_replay_corpus_is_rejected(self):
+        for d in self.dirs.values(): self.mutate(d, 'settings.json', lambda v:v.update(ffi_replay_seed='0x'+'b'*64))
+        with self.assertRaisesRegex(ValueError,'FFI replay'):self.compare()
+
     def test_missing_new_file_and_duplicate_assignments_fail(self):
         for d in self.dirs.values():
             self.mutate(d, 'settings.json', lambda v: v['input_sha256'].update({'packages/contracts-bedrock/test/New.t.sol': 'f'*64}))
@@ -123,6 +129,18 @@ class ComparisonTests(unittest.TestCase):
         source.write_text(source.read_text().replace('DA:6,4', 'DA:6,5'))
         self.write(p / 'lcov-records.json', C.C.lcov(source.read_text())); self.seal(d)
         with self.assertRaisesRegex(ValueError, 'differs at phases'): self.compare()
+
+    def test_every_complete_attribution_item_field_and_hit_affects_parity(self):
+        item={'source':'src/A.sol','contract':'A','kind':'branch','line_start':6,'line_end':7,
+              'byte_start':10,'byte_end':30,'hits':4,'branch_id':1,'path_id':0}
+        for d in self.dirs.values():
+            self.mutate(d,'ordinary/original.attribution.json',lambda data:data['tests'][0].update(covered=[item]))
+        self.assertTrue(self.compare()['verified_parity'])
+        d=self.dirs['rwx'];original=(d/'ordinary/original.attribution.json').read_text()
+        for field,value in [('hits',5),('byte_end',31),('branch_id',2),('path_id',1)]:
+            data=json.loads(original);data['tests'][0]['covered'][0][field]=value
+            self.write(d/'ordinary/original.attribution.json',data);self.seal(d)
+            with self.subTest(field=field),self.assertRaisesRegex(ValueError,'differs at phases'):self.compare()
 
     def test_derived_junit_cannot_invent_or_change_a_skip_reason(self):
         d = self.dirs['circle']; p = d / 'ordinary/derived.junit.xml'; p.write_text(p.read_text().replace('original exclusion', 'invented exclusion'))

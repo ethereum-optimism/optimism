@@ -2272,6 +2272,9 @@ jobs:
 
   semgrep-scan:
     parameters:
+      parity_job:
+        type: string
+        default: ""
       diff_branch:
         type: string
         default: develop
@@ -2284,7 +2287,7 @@ jobs:
       SEMGREP_BRANCH: << pipeline.git.branch >>
       SEMGREP_COMMIT: << pipeline.git.revision >>
     docker:
-      - image: returntocorp/semgrep
+      - image: returntocorp/semgrep@sha256:32e459968daabe7ab86968184a29109b9564aa00392401156f9788452b42786b
     resource_class: xlarge.gen2
     steps:
       - checkout # no need to use mise here since the docker image contains the only dependency
@@ -2309,10 +2312,38 @@ jobs:
           # --timeout (in seconds) limits the time per rule and file.
           #   SEMGREP_TIMEOUT is the same, but docs have conflicting defaults (5s in CLI flag, 1800 in some places)
           #    https://semgrep.dev/docs/troubleshooting/semgrep-app#if-the-job-is-aborted-due-to-taking-too-long
-          command: << parameters.scan_command >>
+          command: |
+            if [[ -n "<<parameters.parity_job>>" ]]; then
+              python3 ops/ci/static-checks.py "<<parameters.parity_job>>"
+            else
+              << parameters.scan_command >>
+            fi
           # If semgrep hangs, stop the scan after 20m, to prevent a useless 5h job
           no_output_timeout: 20m
+      - store_artifacts:
+          path: .ci/static-checks
+          destination: static-checks
+          when: always
+      - store_test_results:
+          path: .ci/static-checks
+          when: always
       - notify-failures-on-develop
+
+  pr-shell-check:
+    docker:
+      - image: cimg/base@sha256:eba1e6c828517f50eb61bbfdc0c5ba51c6b8fb52ea1dc5101ed79ea9617ab3da
+    steps:
+      - checkout
+      - run:
+          name: Run complete original ShellCheck orb command
+          command: python3 ops/ci/static-checks.py shell-check
+      - store_artifacts:
+          path: .ci/static-checks/shell-check
+          destination: static-checks/shell-check
+          when: always
+      - store_test_results:
+          path: .ci/static-checks/shell-check
+          when: always
 
   check-generated-mocks-op-node:
     docker:
@@ -2657,12 +2688,14 @@ workflows:
             - circleci-repo-readonly-authenticated-github-token
       - semgrep-scan:
           name: semgrep-scan-local
+          parity_job: semgrep-scan-local
           scan_command: semgrep scan --timeout=100 --config .semgrep/rules/ --error .
           context:
             - slack
             - circleci-repo-readonly-authenticated-github-token
       - semgrep-scan:
           name: semgrep-test
+          parity_job: semgrep-test
           scan_command: semgrep scan --test --config .semgrep/rules/ .semgrep/tests/
           context:
             - slack
@@ -2746,13 +2779,8 @@ workflows:
           context:
             - circleci-repo-readonly-authenticated-github-token
             - slack
-      - shellcheck/check:
+      - pr-shell-check:
           name: shell-check
-          # We don't need the `exclude` key as the orb detects the `.shellcheckrc`
-          dir: .
-          ignore-dirs: |
-            ./packages/contracts-bedrock/lib
-            ./docs/public-docs
           context:
             - circleci-repo-readonly-authenticated-github-token
       # Acceptance test jobs (formerly in separate acceptance-tests workflow)

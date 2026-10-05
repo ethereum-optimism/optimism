@@ -49,20 +49,22 @@ tasks:
       preserve-git-dir: true
       fetch-full-depth: true
       submodules: false
+      # Match Circle checkout depth: absolute artifact paths affect coverage loop hits.
+      path: project
 
   - key: bootstrap-inputs
     use: code
     run: 'true'
-    filter: [mise.toml, ops/ci, .circleci/scripts/apt-install.sh]
+    filter: [project/mise.toml, project/ops/ci, project/.circleci/scripts/apt-install.sh]
     outputs:
       filesystem: false
       artifacts:
         - key: mise-config
-          path: mise.toml
+          path: project/mise.toml
         - key: ci-scripts
-          path: ops/ci
+          path: project/ops/ci
         - key: apt-script
-          path: .circleci/scripts/apt-install.sh
+          path: project/.circleci/scripts/apt-install.sh
 
   - key: mise
     call: mise/install 1.1.0
@@ -89,6 +91,7 @@ tasks:
   - key: route
     use: [code, tools]
     run: |
+      cd project
       bash ops/ci/rwx-metadata.sh
       jq -er '."c-run_contracts_feature_tests" | if type == "boolean" then tostring else error("missing contracts route") end' \
         .ci/pipeline-parameters.json >"$RWX_VALUES/run-contracts"
@@ -104,7 +107,7 @@ tasks:
       filesystem: false
       artifacts:
         - key: routing
-          path: .ci/pipeline-parameters.json
+          path: project/.ci/pipeline-parameters.json
 
   - key: go-tools
     use: tools
@@ -129,6 +132,7 @@ tasks:
     use: [code, contract-tools]
     if: ${{ init.cache-warm != 'true' && tasks.route.values.run-contracts == 'true' }}
     run: |
+      cd project
       python3 ops/ci/contract-coverage.py preflight
       printf 'true\n' >"$RWX_VALUES/ready"
     env:
@@ -141,9 +145,9 @@ tasks:
       filesystem: false
       artifacts:
         - key: block
-          path: .ci/contract-coverage/preflight/block.json
+          path: project/.ci/contract-coverage/preflight/block.json
         - key: reports
-          path: .ci/contract-coverage/preflight
+          path: project/.ci/contract-coverage/preflight
 
   - key: go-modules
     use: [code, go-tools]
@@ -151,6 +155,7 @@ tasks:
     after: ${{ rpc-check.succeeded || rpc-check.skipped }}
     if: ${{ init.cache-warm == 'true' || tasks.route.values.run-contracts == 'true' }}
     run: |
+      cd project
       export GOMODCACHE="$PWD/.ci/go-cache/contract-coverage/modules"
       mkdir -p "$GOMODCACHE"
       python3 ops/ci/pr-checks.py go-modules
@@ -166,22 +171,28 @@ tasks:
     outputs:
       filesystem:
         filter:
-          workspace: [.ci/go-cache/contract-coverage/modules]
+          workspace: [project/.ci/go-cache/contract-coverage/modules]
           system: []
       artifacts:
         - key: reports
-          path: .ci/pr-checks/go-modules
+          path: project/.ci/pr-checks/go-modules
 
   - key: helper-tests
     use: [code, go-tools, contract-tools]
     if: ${{ init.cache-warm != 'true' && tasks.route.values.run-contracts == 'true' }}
     run: |
+      cd project
       RWX_LIVE_CONTRACT_COVERAGE_FIXTURE=1 python3 -m unittest discover -s ops/ci -p 'test_contract_coverage.py'
       python3 -m unittest discover -s ops/ci -p 'test_compare_contract_coverage.py'
+    env:
+      RWX_COVERAGE_FIXTURE_RETAIN_DIR: .ci/coverage-fixture-evidence
     cache: false
     timeout: 10m
     outputs:
       filesystem: false
+      artifacts:
+        - key: original-failure-fixtures
+          path: project/.ci/coverage-fixture-evidence
 
   # Coverage performs its instrumented compilation inside the fresh verdict.
   # This producer builds the original source prerequisite and complete signatures.
@@ -189,6 +200,7 @@ tasks:
     use: [code, go-tools, contract-tools, go-modules]
     if: ${{ init.cache-warm == 'true' || tasks.route.values.run-contracts == 'true' }}
     run: |
+      cd project
       export GOMODCACHE="$PWD/.ci/go-cache/contract-coverage/modules"
       export GOCACHE="$PWD/.ci/go-cache/contract-coverage/build"
       python3 ops/ci/contract-coverage.py prepare --feature main
@@ -205,16 +217,17 @@ tasks:
     outputs:
       filesystem:
         filter:
-          workspace: [packages/contracts-bedrock/forge-artifacts, packages/contracts-bedrock/cache/solidity-files-cache.json, packages/contracts-bedrock/artifacts/build-info, packages/contracts-bedrock/scripts/go-ffi/go-ffi, .ci/go-cache/contract-coverage/build]
+          workspace: [project/packages/contracts-bedrock/forge-artifacts, project/packages/contracts-bedrock/cache/solidity-files-cache.json, project/packages/contracts-bedrock/artifacts/build-info, project/packages/contracts-bedrock/scripts/go-ffi/go-ffi, project/.ci/go-cache/contract-coverage/build]
           system: []
       artifacts:
         - key: compiled
-          path: .ci/contract-coverage/main/prepare
+          path: project/.ci/contract-coverage/main/prepare
 
   - key: verdict-main
     use: [code, go-tools, contract-tools, go-modules, compile-main]
     if: ${{ init.cache-warm != 'true' && tasks.rpc-check.values.ready == 'true' }}
     run: |
+      cd project
       export GOMODCACHE="$PWD/.ci/go-cache/contract-coverage/modules"
       export GOCACHE="$PWD/.ci/go-cache/contract-coverage/runtime"
       git submodule sync --recursive
@@ -238,20 +251,20 @@ tasks:
     outputs:
       filesystem:
         filter:
-          workspace: [.ci/go-cache/contract-coverage/runtime]
+          workspace: [project/.ci/go-cache/contract-coverage/runtime]
           system: [~/.foundry/cache/rpc]
       test-results:
-        - path: .ci/contract-coverage/main/run/ordinary/derived.junit.xml
+        - path: project/.ci/contract-coverage/main/run/ordinary/derived.junit.xml
           options:
             language: Solidity
             framework: Foundry
-        - path: .ci/contract-coverage/main/run/upgrade/derived.junit.xml
+        - path: project/.ci/contract-coverage/main/run/upgrade/derived.junit.xml
           options:
             language: Solidity
             framework: Foundry
       artifacts:
         - key: reports
-          path: .ci/contract-coverage/main/run
+          path: project/.ci/contract-coverage/main/run
 
   # Coverage performs its instrumented compilation inside the fresh verdict.
   # This producer builds the original source prerequisite and complete signatures.
@@ -259,6 +272,7 @@ tasks:
     use: [code, go-tools, contract-tools, go-modules]
     if: ${{ init.cache-warm == 'true' || tasks.route.values.run-contracts == 'true' }}
     run: |
+      cd project
       export GOMODCACHE="$PWD/.ci/go-cache/contract-coverage/modules"
       export GOCACHE="$PWD/.ci/go-cache/contract-coverage/build"
       python3 ops/ci/contract-coverage.py prepare --feature CUSTOM_GAS_TOKEN
@@ -275,16 +289,17 @@ tasks:
     outputs:
       filesystem:
         filter:
-          workspace: [packages/contracts-bedrock/forge-artifacts, packages/contracts-bedrock/cache/solidity-files-cache.json, packages/contracts-bedrock/artifacts/build-info, packages/contracts-bedrock/scripts/go-ffi/go-ffi, .ci/go-cache/contract-coverage/build]
+          workspace: [project/packages/contracts-bedrock/forge-artifacts, project/packages/contracts-bedrock/cache/solidity-files-cache.json, project/packages/contracts-bedrock/artifacts/build-info, project/packages/contracts-bedrock/scripts/go-ffi/go-ffi, project/.ci/go-cache/contract-coverage/build]
           system: []
       artifacts:
         - key: compiled
-          path: .ci/contract-coverage/CUSTOM_GAS_TOKEN/prepare
+          path: project/.ci/contract-coverage/CUSTOM_GAS_TOKEN/prepare
 
   - key: verdict-CUSTOM_GAS_TOKEN
     use: [code, go-tools, contract-tools, go-modules, compile-CUSTOM_GAS_TOKEN]
     if: ${{ init.cache-warm != 'true' && tasks.rpc-check.values.ready == 'true' }}
     run: |
+      cd project
       export GOMODCACHE="$PWD/.ci/go-cache/contract-coverage/modules"
       export GOCACHE="$PWD/.ci/go-cache/contract-coverage/runtime"
       git submodule sync --recursive
@@ -308,20 +323,20 @@ tasks:
     outputs:
       filesystem:
         filter:
-          workspace: [.ci/go-cache/contract-coverage/runtime]
+          workspace: [project/.ci/go-cache/contract-coverage/runtime]
           system: [~/.foundry/cache/rpc]
       test-results:
-        - path: .ci/contract-coverage/CUSTOM_GAS_TOKEN/run/ordinary/derived.junit.xml
+        - path: project/.ci/contract-coverage/CUSTOM_GAS_TOKEN/run/ordinary/derived.junit.xml
           options:
             language: Solidity
             framework: Foundry
-        - path: .ci/contract-coverage/CUSTOM_GAS_TOKEN/run/upgrade/derived.junit.xml
+        - path: project/.ci/contract-coverage/CUSTOM_GAS_TOKEN/run/upgrade/derived.junit.xml
           options:
             language: Solidity
             framework: Foundry
       artifacts:
         - key: reports
-          path: .ci/contract-coverage/CUSTOM_GAS_TOKEN/run
+          path: project/.ci/contract-coverage/CUSTOM_GAS_TOKEN/run
 
   # Coverage performs its instrumented compilation inside the fresh verdict.
   # This producer builds the original source prerequisite and complete signatures.
@@ -329,6 +344,7 @@ tasks:
     use: [code, go-tools, contract-tools, go-modules]
     if: ${{ init.cache-warm == 'true' || tasks.route.values.run-contracts == 'true' }}
     run: |
+      cd project
       export GOMODCACHE="$PWD/.ci/go-cache/contract-coverage/modules"
       export GOCACHE="$PWD/.ci/go-cache/contract-coverage/build"
       python3 ops/ci/contract-coverage.py prepare --feature OPTIMISM_PORTAL_INTEROP
@@ -345,16 +361,17 @@ tasks:
     outputs:
       filesystem:
         filter:
-          workspace: [packages/contracts-bedrock/forge-artifacts, packages/contracts-bedrock/cache/solidity-files-cache.json, packages/contracts-bedrock/artifacts/build-info, packages/contracts-bedrock/scripts/go-ffi/go-ffi, .ci/go-cache/contract-coverage/build]
+          workspace: [project/packages/contracts-bedrock/forge-artifacts, project/packages/contracts-bedrock/cache/solidity-files-cache.json, project/packages/contracts-bedrock/artifacts/build-info, project/packages/contracts-bedrock/scripts/go-ffi/go-ffi, project/.ci/go-cache/contract-coverage/build]
           system: []
       artifacts:
         - key: compiled
-          path: .ci/contract-coverage/OPTIMISM_PORTAL_INTEROP/prepare
+          path: project/.ci/contract-coverage/OPTIMISM_PORTAL_INTEROP/prepare
 
   - key: verdict-OPTIMISM_PORTAL_INTEROP
     use: [code, go-tools, contract-tools, go-modules, compile-OPTIMISM_PORTAL_INTEROP]
     if: ${{ init.cache-warm != 'true' && tasks.rpc-check.values.ready == 'true' }}
     run: |
+      cd project
       export GOMODCACHE="$PWD/.ci/go-cache/contract-coverage/modules"
       export GOCACHE="$PWD/.ci/go-cache/contract-coverage/runtime"
       git submodule sync --recursive
@@ -378,20 +395,20 @@ tasks:
     outputs:
       filesystem:
         filter:
-          workspace: [.ci/go-cache/contract-coverage/runtime]
+          workspace: [project/.ci/go-cache/contract-coverage/runtime]
           system: [~/.foundry/cache/rpc]
       test-results:
-        - path: .ci/contract-coverage/OPTIMISM_PORTAL_INTEROP/run/ordinary/derived.junit.xml
+        - path: project/.ci/contract-coverage/OPTIMISM_PORTAL_INTEROP/run/ordinary/derived.junit.xml
           options:
             language: Solidity
             framework: Foundry
-        - path: .ci/contract-coverage/OPTIMISM_PORTAL_INTEROP/run/upgrade/derived.junit.xml
+        - path: project/.ci/contract-coverage/OPTIMISM_PORTAL_INTEROP/run/upgrade/derived.junit.xml
           options:
             language: Solidity
             framework: Foundry
       artifacts:
         - key: reports
-          path: .ci/contract-coverage/OPTIMISM_PORTAL_INTEROP/run
+          path: project/.ci/contract-coverage/OPTIMISM_PORTAL_INTEROP/run
 
   # Coverage performs its instrumented compilation inside the fresh verdict.
   # This producer builds the original source prerequisite and complete signatures.
@@ -399,6 +416,7 @@ tasks:
     use: [code, go-tools, contract-tools, go-modules]
     if: ${{ init.cache-warm == 'true' || tasks.route.values.run-contracts == 'true' }}
     run: |
+      cd project
       export GOMODCACHE="$PWD/.ci/go-cache/contract-coverage/modules"
       export GOCACHE="$PWD/.ci/go-cache/contract-coverage/build"
       python3 ops/ci/contract-coverage.py prepare --feature ZK_DISPUTE_GAME
@@ -415,16 +433,17 @@ tasks:
     outputs:
       filesystem:
         filter:
-          workspace: [packages/contracts-bedrock/forge-artifacts, packages/contracts-bedrock/cache/solidity-files-cache.json, packages/contracts-bedrock/artifacts/build-info, packages/contracts-bedrock/scripts/go-ffi/go-ffi, .ci/go-cache/contract-coverage/build]
+          workspace: [project/packages/contracts-bedrock/forge-artifacts, project/packages/contracts-bedrock/cache/solidity-files-cache.json, project/packages/contracts-bedrock/artifacts/build-info, project/packages/contracts-bedrock/scripts/go-ffi/go-ffi, project/.ci/go-cache/contract-coverage/build]
           system: []
       artifacts:
         - key: compiled
-          path: .ci/contract-coverage/ZK_DISPUTE_GAME/prepare
+          path: project/.ci/contract-coverage/ZK_DISPUTE_GAME/prepare
 
   - key: verdict-ZK_DISPUTE_GAME
     use: [code, go-tools, contract-tools, go-modules, compile-ZK_DISPUTE_GAME]
     if: ${{ init.cache-warm != 'true' && tasks.rpc-check.values.ready == 'true' }}
     run: |
+      cd project
       export GOMODCACHE="$PWD/.ci/go-cache/contract-coverage/modules"
       export GOCACHE="$PWD/.ci/go-cache/contract-coverage/runtime"
       git submodule sync --recursive
@@ -448,18 +467,17 @@ tasks:
     outputs:
       filesystem:
         filter:
-          workspace: [.ci/go-cache/contract-coverage/runtime]
+          workspace: [project/.ci/go-cache/contract-coverage/runtime]
           system: [~/.foundry/cache/rpc]
       test-results:
-        - path: .ci/contract-coverage/ZK_DISPUTE_GAME/run/ordinary/derived.junit.xml
+        - path: project/.ci/contract-coverage/ZK_DISPUTE_GAME/run/ordinary/derived.junit.xml
           options:
             language: Solidity
             framework: Foundry
-        - path: .ci/contract-coverage/ZK_DISPUTE_GAME/run/upgrade/derived.junit.xml
+        - path: project/.ci/contract-coverage/ZK_DISPUTE_GAME/run/upgrade/derived.junit.xml
           options:
             language: Solidity
             framework: Foundry
       artifacts:
         - key: reports
-          path: .ci/contract-coverage/ZK_DISPUTE_GAME/run
-
+          path: project/.ci/contract-coverage/ZK_DISPUTE_GAME/run

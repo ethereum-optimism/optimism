@@ -18,6 +18,7 @@ UP, ROOT, CONTRACTS = CS.UP, CS.ROOT, CS.CONTRACTS
 PHASES = ('ordinary', 'upgrade')
 UPGRADE_CONTRACT = 'OPContractsManager.*_Upgrade_Test'
 RPC_INPUT = 'OP_CI_MAINNET_L1_ARCHIVE_RPC_URL'
+FFI_REPLAY_INPUT = 'OP_CI_FFI_REPLAY_SEED'
 DISCOVERY = {'ordinary': ['forge', 'test', '--list', '--json'],
              'upgrade': ['forge', 'test', '--list', '--json', '--match-contract', UPGRADE_CONTRACT, '--match-path', UP.MATCH]}
 # These are the two commands executed, in this order and with short-circuiting,
@@ -44,11 +45,12 @@ def configure(feature):
     for name in list(os.environ):
         if name.startswith(('FOUNDRY_', 'DAPP_', 'DEV_FEATURE__', 'SYS_FEATURE__')): del os.environ[name]
     for name in ('ETH_RPC_URL', 'FORK_RPC_URL', 'FORK_BLOCK_NUMBER', 'L2_FORK_RPC_URL', 'L2_FORK_BLOCK_NUMBER',
-                 'ETH_RPC_JWT', 'ETH_RPC_HEADERS', 'ETHERSCAN_API_KEY', 'MAINNET_RPC_URL'):
+                 'ETH_RPC_JWT', 'ETH_RPC_HEADERS', 'ETHERSCAN_API_KEY', 'MAINNET_RPC_URL', FFI_REPLAY_INPUT):
         os.environ.pop(name, None)
     seed = '0x' + hashlib.sha256((UP.revision() + ':' + feature + ':contract-coverage').encode()).hexdigest() \
            if replay in ('true', '1') else None
     os.environ.update(FORK_TEST='false', L2_FORK_TEST='false', L2CM_ACTIVATION_TEST='false', CI='true', NO_COLOR='1')
+    if seed: os.environ[FFI_REPLAY_INPUT] = seed
     if feature != 'main': os.environ[UP.FEATURES[feature]] = 'true'
     return branch, seed
 
@@ -71,6 +73,7 @@ def prepare(directory, feature):
     branch, seed = configure(feature)
     settings = {'source_sha': UP.revision(), 'feature': feature, 'branch': branch, 'profile': 'cicoverage',
                 'source_build_profile': 'default', 'benchmark_seed': seed, 'rpc_input_name': RPC_INPUT,
+                'ffi_replay_seed': seed, 'ffi_replay_policy': 'chacha8-arguments-v1',
                 'authority': ['just', 'coverage-lcov-all'], 'phases': PHASES,
                 'provider': os.environ.get('CI_CONTRACT_PROVIDER', 'circleci'), 'workspace_root': str(ROOT),
                 'forge': UP.command('forge', '--version'), 'go': UP.command('go', 'version'), 'just': UP.command('just', '--version'),
@@ -164,37 +167,112 @@ def restore(directory, prepared, feature):
         raise ValueError('Runtime coverage file discovery changed')
 
 
-def original_cases(stdout, attribution):
-    """Bind human-readable original verdicts to Foundry's machine attribution."""
-    suite, cases, complete = None, {}, False
+def original_evidence(stdout, attribution):
+    """Retain every predicate while binding merged campaigns to their real anchor."""
+    suite, cases, summary, campaign, tag = None, {}, None, None, None
+    campaigns, declared = [], {}
+    states = {'PASS': 'pass', 'SKIP': 'skip', 'FAIL': 'fail'}
     pattern = re.compile(r'^\[(PASS|SKIP|FAIL)(?:: (.*))?\] (\w+\([^\s]*\))(?: \(.*\))?$')
+    member_pattern = re.compile(r'^\[(PASS|SKIP|FAIL)(?:: (.*))?\] (invariant\w+)$')
     for line in stdout.splitlines():
-        if re.match(r'^Ran \d+ test suites? in ', line): complete = True; break
-        found = re.fullmatch(r'Ran \d+ tests? for (.+)', line)
-        if found: suite = found[1]; continue
+        found = re.fullmatch(r'Ran (\d+) test suites? in .*?: (\d+) tests? passed, (\d+) failed, (\d+) skipped \((\d+) total tests?\)', line)
+        if found:
+            if campaign is not None: raise ValueError('Unclosed original invariant campaign')
+            summary = dict(zip(('suites', 'pass', 'fail', 'skip', 'total'), map(int, found.groups()))); break
+        found = re.fullmatch(r'Ran (\d+) tests? for (.+)', line)
+        if found:
+            if campaign is not None: raise ValueError('Unclosed original invariant campaign')
+            count, suite = found.groups()
+            if suite in declared: raise ValueError('Duplicate original coverage suite')
+            declared[suite] = int(count); tag = None; continue
+        if suite is not None:
+            label = suite.rsplit(':', 1)[-1] + ' invariants'
+            found = re.fullmatch(re.escape(label) + r':(?: (\d+)/(\d+) invariants broken)?', line)
+            if found:
+                if campaign is not None or tag is None and found[1] is None:
+                    raise ValueError('Original invariant campaign lacks its aggregate verdict')
+                campaign = {'class': suite, 'outcome': 'fail' if found[1] is not None else tag['outcome'],
+                            'reason': tag['reason'] if tag is not None else None, 'members': [],
+                            'broken': int(found[1]) if found[1] is not None else None,
+                            'declared_predicates': int(found[2]) if found[2] is not None else None}
+                tag = None; continue
+            if campaign is not None:
+                found = member_pattern.fullmatch(line)
+                if found:
+                    state, reason, name = found.groups(); name += '()'; key = (suite, name)
+                    if key in cases: raise ValueError('Duplicate original invariant predicate')
+                    cases[key] = {'outcome': states[state], 'reason': reason}; campaign['members'].append(name); continue
+                if re.fullmatch(r' ?' + re.escape(label) + r'(?: \(block: \d+\))? \(.*\)', line):
+                    members = sorted(campaign['members'])
+                    if len(members) < 2 or campaign['declared_predicates'] is not None and \
+                       (len(members) != campaign['declared_predicates'] or campaign['broken'] != sum(cases[suite, n]['outcome'] == 'fail' for n in members)):
+                        raise ValueError('Incomplete original invariant campaign predicates')
+                    campaign['members'] = members; campaign['anchor'] = members[0]; campaigns.append(campaign); campaign = None; continue
+                if line.startswith('Suite result:'): raise ValueError('Missing original invariant campaign footer')
+        found = re.fullmatch(r'\[(PASS|SKIP|FAIL)(?:: (.*))?\]', line)
+        if found:
+            state, reason = found.groups(); tag = {'outcome': states[state], 'reason': reason}; continue
         found = pattern.fullmatch(line)
         if not found: continue
         if suite is None: raise ValueError('Original coverage verdict lacks a suite')
-        state, reason, name = found.groups(); key = (suite, name)
+        state, reason, name = found.groups()
+        key = (suite, name)
         if key in cases: raise ValueError('Duplicate original coverage verdict')
-        cases[key] = {'outcome': {'PASS': 'pass', 'SKIP': 'skip', 'FAIL': 'fail'}[state], 'reason': reason}
-    if not complete or not cases: raise ValueError('Incomplete original coverage execution log')
-    if attribution.get('version') != 1 or not isinstance(attribution.get('tests'), list):
+        cases[key] = {'outcome': states[state], 'reason': reason}
+    if summary is None or not cases: raise ValueError('Incomplete original coverage execution log')
+    if set(attribution) != {'version', 'tests'} or attribution.get('version') != 1 or not isinstance(attribution.get('tests'), list):
         raise ValueError('Unsupported or missing original coverage attribution')
-    machine = {}
+    machine, kinds = {}, {}
     for row in attribution['tests']:
+        if not isinstance(row, dict) or not {'suite', 'test', 'status', 'kind', 'covered'} <= set(row):
+            raise ValueError('Incomplete original coverage attribution entry')
         key = (row['suite'], row['test'])
         if key in machine or row['status'] not in ('success', 'failure', 'skipped') or not isinstance(row['covered'], list):
             raise ValueError('Invalid or duplicate original coverage attribution')
         machine[key] = {'success': 'pass', 'failure': 'fail', 'skipped': 'skip'}[row['status']]
-    if machine != {key: row['outcome'] for key, row in cases.items()}:
+        kinds[key] = row.get('kind')
+    expected = {key: row['outcome'] for key, row in cases.items()}
+    for group in campaigns:
+        identity = group['class']; anchor = (identity, group['anchor'])
+        if kinds.get(anchor) != 'invariant': raise ValueError('Original merged campaign lacks its invariant attribution anchor')
+        for member in group['members']: expected.pop((identity, member))
+        expected[anchor] = group['outcome']
+        members = [cases[identity, member]['outcome'] for member in group['members']]
+        if group['outcome'] == 'pass' and 'fail' in members or group['outcome'] == 'skip' and set(members) != {'skip'}:
+            raise ValueError('Original invariant predicate and campaign outcomes disagree')
+    if machine != expected:
         raise ValueError('Original coverage log and per-test attribution disagree')
-    return [{'class': c, 'name': n, **cases[c, n]} for c, n in sorted(cases)]
+    engine = {state: sum(value == state for value in machine.values()) for state in ('pass', 'fail', 'skip')}
+    per_suite = {identity: sum(key[0] == identity for key in machine) for identity in declared}
+    for group in campaigns:
+        skipped = sum(cases[group['class'], n]['outcome'] == 'skip' for n in group['members'])
+        extra = skipped - int(group['outcome'] == 'skip')
+        engine['skip'] += extra; per_suite[group['class']] += extra
+    if declared != per_suite or summary != {'suites': len(declared), **engine, 'total': sum(engine.values())}:
+        raise ValueError('Original coverage engine totals disagree with complete attribution')
+    return {'cases': [{'class': c, 'name': n, **cases[c, n]} for c, n in sorted(cases)],
+            'invariant_campaigns': sorted(campaigns, key=lambda row: (row['class'], row['anchor'])), 'engine_summary': summary}
 
 
-def derived_junit(path, cases, phase):
+def original_cases(stdout, attribution): return original_evidence(stdout, attribution)['cases']
+
+
+def attribution_summary(attribution):
+    # Originals retain every item and hit. Fingerprint each complete canonical
+    # row so the comparison index does not duplicate multi-gigabyte reports.
+    return {'version': attribution['version'], 'tests': [{k: row[k] for k in ('suite', 'test', 'status', 'kind')} |
+            {'covered_items': len(row['covered']), 'complete_row_sha256': hashlib.sha256(
+             json.dumps(row, sort_keys=True, separators=(',', ':')).encode()).hexdigest()} for row in attribution['tests']]}
+
+
+def derived_junit(path, cases, phase, campaigns=()):
     # Foundry coverage does not emit original JUnit. This reporting view is
     # explicitly derived from, and checked against, the retained two originals.
+    cases = list(cases)
+    for group in campaigns:
+        if group['outcome'] == 'fail' and not any(row['class'] == group['class'] and row['name'] in group['members'] and row['outcome'] == 'fail' for row in cases):
+            cases.append({'class': group['class'], 'name': '<invariant campaign ' + group['anchor'] + '>', 'outcome': 'fail',
+                          'reason': group['reason'] or 'Original invariant campaign failed; predicate verdicts retained separately'})
     root = ET.Element('testsuites')
     for name in sorted({row['class'] for row in cases}):
         rows = [row for row in cases if row['class'] == name]
@@ -268,11 +346,12 @@ def collect_pass(directory, phase, redactor, status, selection, bindings):
     UP.write(directory / 'generated-redaction.json', generated)
     if not (directory / 'original.lcov.info').exists() or not (directory / 'original.attribution.json').exists():
         raise ValueError('Coverage execution did not produce complete original file reports')
-    cases = original_cases((directory / 'tests.log').read_text(), json.loads((directory / 'original.attribution.json').read_text()))
-    UP.write(directory / 'original-cases.json', cases); derived_junit(directory / 'derived.junit.xml', cases, phase)
+    attribution = json.loads((directory / 'original.attribution.json').read_text())
+    evidence = original_evidence((directory / 'tests.log').read_text(), attribution); cases = evidence['cases']
+    UP.write(directory / 'original-events.json', evidence)
+    UP.write(directory / 'original-cases.json', cases); derived_junit(directory / 'derived.junit.xml', cases, phase, evidence['invariant_campaigns'])
     records = lcov((directory / 'original.lcov.info').read_text()); UP.write(directory / 'lcov-records.json', records)
     sources = {row['source'] for row in records}
-    attribution = json.loads((directory / 'original.attribution.json').read_text())
     sources.update(source_name(item['source']) for row in attribution['tests'] for item in row['covered'])
     UP.write(directory / 'coverage-source-sha256.json', {name: UP.digest(CONTRACTS / name) for name in sorted(sources)})
     if not status:
