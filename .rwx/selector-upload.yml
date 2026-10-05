@@ -96,7 +96,7 @@ tasks:
         - key: images
           path: .ci/selector-registry
 
-  - key: prepare
+  - key: source
     use: [code, contract-tools]
     if: ${{ init.cache-warm == 'true' || tasks.route.values.run-main == 'true' }}
     run: |
@@ -106,15 +106,24 @@ tasks:
         if [ "$attempt" = 5 ]; then exit 1; fi
         sleep "$((2 ** attempt))"
       done
-      python3 ops/ci/selector-upload.py prepare .ci/selector-upload/prepare
+    timeout: 20m
+
+  - key: prepare
+    use: source
+    if: ${{ init.cache-warm == 'true' || tasks.route.values.run-main == 'true' }}
+    run: python3 ops/ci/selector-upload.py prepare .ci/selector-upload/prepare
     env:
       CI_COMMIT_SHA: ${{ init.commit-sha }}
       CI_BRANCH: ${{ init.branch }}
       CI_CHECK_PROVIDER: rwx
-    tool-cache: selector-upload-abi-${{ init.cache-epoch }}
+    tool-cache: selector-upload-abi-v2-${{ init.cache-epoch }}
     timeout: 40m
     runner: {cpus: 16, memory: 32gb}
     outputs:
+      filesystem:
+        filter:
+          workspace: [packages/contracts-bedrock/cache, packages/contracts-bedrock/forge-artifacts, packages/contracts-bedrock/artifacts, packages/contracts-bedrock/foundry-pp]
+          system: [/root/.svm, /home/*/.svm]
       artifacts:
         - key: compiled
           path: .ci/selector-upload/prepare
@@ -124,7 +133,7 @@ tasks:
     if: ${{ init.cache-warm != 'true' && tasks.route.values.run-main == 'true' }}
     docker: true
     run: |
-      python3 -m unittest discover -s ops/ci -p 'test_selector_upload.py'
+      python3 -m unittest discover -s ops/ci -p 'test*selector_upload.py'
       python3 ops/ci/selector-registry.py fixture "$REGISTRY_IMAGES/sourcify" .ci/selector-upload/fixtures
     env:
       REGISTRY_IMAGES: ${{ tasks.registry-images.artifacts.images }}
@@ -137,7 +146,7 @@ tasks:
           path: .ci/selector-upload/fixtures
 
   - key: upload
-    use: [code, contract-tools, prepare, registry-images]
+    use: [source, prepare, registry-images]
     if: ${{ init.cache-warm != 'true' && tasks.route.values.run-main == 'true' }}
     docker: true
     run: |

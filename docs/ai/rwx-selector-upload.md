@@ -82,3 +82,14 @@ argument names that follow the repository's Solidity style rules. Both profiles'
 exact unit mappings and their shared artifact ID remain covered regardless of
 compilation completion order. The earlier captures and initial Semgrep findings
 remain retained with the prototype evidence.
+
+The first native execution at `e3fab86e` restored an earlier preparation report
+through its incremental tool cache and correctly rejected that directory before
+uploading. Source/submodule preparation now runs separately. The ABI tool cache
+has a new identity and retains only compiler outputs and solc installations;
+reports travel as explicit sealed artifacts. The old failure remains retained,
+and cache validation includes a different-revision replay as well as unchanged
+inputs. The comparator independently reconstructs both complete compiler
+catalogues, original POSTs, database insertion and every API readback. Real
+provider process captures cover Circle's UID 1001 and RWX's UID 1000; both must
+remain unprivileged and isolated.

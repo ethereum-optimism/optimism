@@ -1,0 +1,14 @@
+{
+  "argv": [
+    "just",
+    "update-selectors"
+  ],
+  "cwd": "/var/mint-workspace/packages/contracts-bedrock",
+  "elapsed_seconds": 1.0162222385406494,
+  "exit_code": 0,
+  "signals": [],
+  "started_at": 1791203148.2922475,
+  "stderr_sha256": "58dc85172e1b99bb2fe1843e7b0043e0536ab0a88651a3cf003ca9c04a6f767c",
+  "stdout_sha256": "e93cbfe0a29b044fcaa6959b5938cc707d7892765877e00daea7a71bff1f7958",
+  "timed_out": false
+}
