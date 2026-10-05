@@ -279,6 +279,33 @@ def validate_fork(directory,entry,fork):
             'compiler_partitions':[{'files':int(files),'solc':version,'invocations':count} for (files,version),count in sorted(compilers.items())]}
 
 
+def full_selection(directory):
+    selection=G.read(directory/'selection.json')
+    locks=tomllib.loads((directory/'fork_lock.toml').read_text())
+    if (selection['mode']!='full' or not locks or selection['excluded']
+            or set(selection['entries'])!=set(locks)
+            or set(selection['selected_forks'])!=set(locks)
+            or len(selection['selected_forks'])!=len(set(selection['selected_forks']))
+            or any({key:entry[key] for key in ('bundle','hash','commit')}!=locks[fork]
+                   for fork,entry in selection['entries'].items())):
+        raise ValueError('Missing or different full NUT workload selection')
+    base_keys=('base_revision','base_lock_available','base_lock_exit_code')
+    base={key:selection[key] for key in base_keys}
+    if (base['base_revision'] is not None and not re.fullmatch('[0-9a-f]{40}',base['base_revision'])
+            or type(base['base_lock_available']) is not bool or type(base['base_lock_exit_code']) is not int
+            or not 0<=base['base_lock_exit_code']<=255
+            or base['base_lock_available'] and base['base_revision'] is None
+            or base['base_lock_available']!=(base['base_lock_exit_code']==0)):
+        raise ValueError('Invalid original NUT base discovery provenance')
+    if base['base_lock_available']:
+        tomllib.loads((directory/'base-fork-lock.toml').read_text())
+    base.update(lock_sha256=S.digest(directory/'base-fork-lock.toml'),
+                stderr_sha256=S.digest(directory/'base-discovery.stderr'),affects_full_selection=False)
+    # The explicit full replay never consults base hashes to select work.
+    # Preserve provider base observations; compare every effective input.
+    return {key:value for key,value in selection.items() if key not in base_keys},base
+
+
 def compare(circle,native,output):
     result={'passed':False,'errors':[],'full_original_comparison':True,'coverage':{}}
     try:
@@ -287,13 +314,12 @@ def compare(circle,native,output):
         for key in ('source_sha','branch','input_sha256','environment','go_version','prepare_only'):
             if a[key]!=b[key]:raise ValueError('NUT provider settings differ: '+key)
         if a['provider']!='circleci' or b['provider']!='rwx' or a['prepare_only']:raise ValueError('Wrong original NUT provider or preparation-only evidence')
-        selection=G.read(circle/'selection.json')
-        if selection!=G.read(native/'selection.json') or selection['mode']!='full' or not selection['selected_forks'] or selection['excluded']:
+        selection,base_a=full_selection(circle);other,base_b=full_selection(native)
+        result['base_discovery']={'circleci':base_a,'rwx':base_b}
+        if selection!=other:
             raise ValueError('Missing or different full NUT workload selection')
-        if set(selection['selected_forks'])!=set(selection['entries']) or len(selection['selected_forks'])!=len(set(selection['selected_forks'])):
-            raise ValueError('Missing or duplicate complete NUT fork assignment')
-        for name in ('fork_lock.toml','base-fork-lock.toml','base-discovery.stderr'):
-            if (circle/name).read_bytes()!=(native/name).read_bytes():raise ValueError('Original NUT discovery inputs differ')
+        if (circle/'fork_lock.toml').read_bytes()!=(native/'fork_lock.toml').read_bytes():
+            raise ValueError('Original complete NUT lock inputs differ')
         for fork,entry in selection['entries'].items():
             left,right=circle/'forks'/fork,native/'forks'/fork
             ca,cb=validate_fork(left,entry,fork),validate_fork(right,entry,fork)

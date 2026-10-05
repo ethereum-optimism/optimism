@@ -155,5 +155,33 @@ class GateTests(unittest.TestCase):
         Path(env['GATE_ROUTING']).write_text(json.dumps({'c-run_rust_ci':True}))
         self.assertEqual(self.run_aggregate(env)[0],1)
 
+    def test_single_executed_status_preserves_actual_terminal_observer_results(self):
+        output=self.root/'.ci/pr-gates/status/required-rust-ci'
+        for aggregate in ('succeeded','failed','skipped'):
+            for failure in ('succeeded','failed','skipped'):
+                env={**self.env}
+                for task,state in [('aggregate',aggregate),('gate-failure',failure)]:
+                    for attribute in ('succeeded','failed','skipped'):
+                        env['OBSERVER_'+task.upper().replace('-','_')+'_'+attribute.upper()]=str(state==attribute).lower()
+                expected=0 if (aggregate,failure)==('succeeded','skipped') else 1
+                with self.subTest(aggregate=aggregate,failure=failure),patch.dict(os.environ,env):
+                    self.assertEqual(G.gate_status('required-rust-ci'),expected)
+                final=G.read(output/'final.json')
+                self.assertEqual(final['exit_code'],expected);self.assertEqual(final['tests'],0)
+                self.assertTrue(final['original_sha256']);self.assertTrue(G.read(output/'states.json')['aggregate'][aggregate])
+        for state in ('TRUE','', 'pending'):
+            env['OBSERVER_AGGREGATE_SUCCEEDED']=state
+            with patch.dict(os.environ,env):self.assertEqual(G.gate_status('required-rust-ci'),1)
+
+    def test_status_configuration_rejects_skipped_custom_checks_and_unbound_verdicts(self):
+        path=self.root/'.rwx/rust-gate.yml';source=path.read_text()
+        for old,new in [('tasks: gate-status','tasks: [aggregate, gate-failure]'),
+                        ('python3 ops/ci/pr-gate.py status required-rust-ci','true'),
+                        ('OBSERVER_AGGREGATE_SUCCEEDED: ${{ tasks.aggregate.succeeded }}',
+                         'OBSERVER_AGGREGATE_SUCCEEDED: true'),
+                        ('path: .ci/pr-gates/status/required-rust-ci','path: unrelated/status')]:
+            path.write_text(source.replace(old,new,1))
+            with self.subTest(new=new),self.assertRaises(ValueError):G.configuration('required-rust-ci')
+
 
 if __name__=='__main__':unittest.main()

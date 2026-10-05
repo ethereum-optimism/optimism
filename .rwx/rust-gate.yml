@@ -18,7 +18,7 @@ on:
           - name: optimism-op-reth-shadow
             tasks: native-op-reth
           - name: optimism-rust-gate-shadow
-            tasks: [aggregate, gate-failure]
+            tasks: gate-status
   cli:
     init:
       commit-sha: ${{ event.git.sha }}
@@ -165,6 +165,33 @@ tasks:
       artifacts:
         - key: report
           path: .ci/pr-gates/aggregate
+
+  # RWX custom checks fail on skipped tasks. Observe both mutually exclusive
+  # collectors, then publish one executed verdict with their actual outcomes.
+  - key: gate-status
+    use: [code, tools]
+    after: ${{ (aggregate.succeeded || aggregate.failed || aggregate.skipped) && (gate-failure.succeeded || gate-failure.failed || gate-failure.skipped) }}
+    run: python3 ops/ci/pr-gate.py status required-rust-ci
+    env:
+      CI_COMMIT_SHA: ${{ init.commit-sha }}
+      CI_BRANCH: ${{ init.branch }}
+      OBSERVER_AGGREGATE_SUCCEEDED: ${{ tasks.aggregate.succeeded }}
+      OBSERVER_AGGREGATE_FAILED: ${{ tasks.aggregate.failed }}
+      OBSERVER_AGGREGATE_SKIPPED: ${{ tasks.aggregate.skipped }}
+      OBSERVER_GATE_FAILURE_SUCCEEDED: ${{ tasks.gate-failure.succeeded }}
+      OBSERVER_GATE_FAILURE_FAILED: ${{ tasks.gate-failure.failed }}
+      OBSERVER_GATE_FAILURE_SKIPPED: ${{ tasks.gate-failure.skipped }}
+      RWX_RUN_ID:
+        cache-key: included
+      RWX_TASK_ATTEMPT_NUMBER:
+        cache-key: included
+    cache: false
+    timeout: 10m
+    outputs:
+      filesystem: false
+      artifacts:
+        - key: status
+          path: .ci/pr-gates/status/required-rust-ci
 
   - key: gate-failure
     use: [code, tools]

@@ -138,6 +138,27 @@ class ProvenanceTests(unittest.TestCase):
         (b/'forks/karst/originals/worktree-status.txt').unlink()
         self.assertEqual(N.compare(a,b,out),1)
 
+    def test_full_selection_retains_unused_base_observations_and_rejects_incomplete_replays(self):
+        a=self.report(self.temp/'circle','circleci')
+        self.git(self.root,'update-ref','-d','refs/remotes/origin/develop')
+        b=self.report(self.temp/'native','rwx');out=self.temp/'comparison.json'
+        self.assertEqual(N.compare(a,b,out),0)
+        original=N.G.read(b/'selection.json');record=N.G.read(out)['base_discovery']
+        self.assertTrue(record['circleci']['base_lock_available']);self.assertFalse(record['rwx']['base_lock_available'])
+        self.assertFalse(record['circleci']['affects_full_selection']);self.assertFalse(record['rwx']['affects_full_selection'])
+        self.assertEqual(record['rwx']['stderr_sha256'],N.S.digest(b/'base-discovery.stderr'))
+        for changed in (original|{'mode':'changed'},original|{'selected_forks':[]},
+                        original|{'selected_forks':['karst','karst']},original|{'excluded':[{'fork':'karst'}]},
+                        original|{'base_lock_available':True},original|{'base_revision':'foreign-ref'},
+                        original|{'base_lock_exit_code':-15},original|{'base_lock_exit_code':256},
+                        original|{'base_lock_available':1},
+                        original|{'base_lock_available':True,'base_lock_exit_code':0,'base_revision':None},
+                        original|{'entries':{'karst':original['entries']['karst']|{'commit':'c'*40}}}):
+            N.S.write(b/'selection.json',changed);self.reseal(b)
+            with self.subTest(changed=changed):self.assertEqual(N.compare(a,b,out),1)
+        N.S.write(b/'selection.json',original);self.reseal(b)
+        self.assertEqual(N.compare(a,b,out),0)
+
     def test_resealed_missing_changed_uninitialized_and_extra_contract_gitlinks_fail(self):
         report=self.report(self.temp/'native','rwx');directory=report/'forks/karst';raw=directory/'originals'
         text=(raw/'submodules.txt').read_text()

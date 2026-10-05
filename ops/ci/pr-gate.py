@@ -76,7 +76,7 @@ def configuration(gate=None):
         caller=yaml(row['native_config']);caller_tasks={task['key']:task for task in caller['tasks']}
         if len(caller_tasks)!=len(caller['tasks']):raise ValueError('Duplicate native coordinator task')
         custom=caller['on']['github']['push']['status-checks']['custom']
-        if custom.count({'name':row['check_name'],'tasks':['aggregate','gate-failure']})!=1:
+        if custom.count({'name':row['check_name'],'tasks':'gate-status'})!=1:
             raise ValueError('Missing genuine native aggregate status binding')
         for group in selected_groups:
             definition=manifest['groups'][group];native=yaml(definition['config'])
@@ -120,6 +120,19 @@ def configuration(gate=None):
                         raise ValueError('Native aggregate state is not engine-bound')
                 if key=='aggregate' and observer['env'].get(prefix+'_REPORT')!='${{ '+task+'.artifacts.receipt }}':
                     raise ValueError('Native aggregate report is not engine-bound')
+        verdict=caller_tasks['gate-status']
+        if (verdict['after']!=terminal_expression(['aggregate','gate-failure'])
+                or 'if' in verdict or verdict.get('cache') is not False
+                or verdict['run']!='python3 ops/ci/pr-gate.py status '+name
+                or verdict['use']!=['code','tools']):
+            raise ValueError('Native gate status does not follow both terminal observers')
+        for task in ('aggregate','gate-failure'):
+            for attribute in ('succeeded','failed','skipped'):
+                key='OBSERVER_'+task.upper().replace('-','_')+'_'+attribute.upper()
+                if verdict['env'].get(key)!='${{ tasks.'+task+'.'+attribute+' }}':
+                    raise ValueError('Native gate status is not engine-bound')
+        if verdict.get('outputs')!={'filesystem':False,'artifacts':[{'key':'status','path':'.ci/pr-gates/status/'+name}]}:
+            raise ValueError('Native gate status originals are not retained')
         selections[name]={'requires':names,'groups':sorted(selected_groups),**row}
     if not selections:raise ValueError('Unknown or empty native gate selection')
     return manifest,selections
@@ -215,9 +228,35 @@ def aggregate(gate,failed_only=False):
     return status
 
 
+def gate_status(gate):
+    """Publish one executed verdict after mutually exclusive report observers."""
+    output=ROOT/'.ci/pr-gates/status'/gate;shutil.rmtree(output,ignore_errors=True);output.mkdir(parents=True)
+    status,errors=1,[]
+    try:
+        _,selections=configuration(gate);settings=binding()
+        S.write(output/'settings.json',{**settings,'gate':gate,'selection':selections[gate]})
+        states={}
+        for task in ('aggregate','gate-failure'):
+            states[task]={}
+            for attribute in ('succeeded','failed','skipped'):
+                value=os.environ['OBSERVER_'+task.upper().replace('-','_')+'_'+attribute.upper()]
+                if value not in ('true','false'):raise ValueError('Missing native gate observer terminal state')
+                states[task][attribute]=value=='true'
+            if sum(states[task].values())!=1:raise ValueError('Inconsistent native gate observer terminal state')
+        S.write(output/'states.json',states)
+        if states!={'aggregate':{'succeeded':True,'failed':False,'skipped':False},
+                   'gate-failure':{'succeeded':False,'failed':False,'skipped':True}}:
+            raise ValueError('Native gate aggregate failed, was canceled, skipped or contradicted by its failure observer')
+        status=0
+    except Exception as error:errors.append(str(error));print(error,file=sys.stderr)
+    finally:S.write(output/'final.json',{'exit_code':status,'report_errors':errors,'tests':0,'original_sha256':seal(output)})
+    return status
+
+
 if __name__=='__main__':
     parser=argparse.ArgumentParser(description=__doc__);sub=parser.add_subparsers(dest='mode',required=True)
     group=sub.add_parser('receipt');group.add_argument('group')
     gate=sub.add_parser('aggregate');gate.add_argument('gate');gate.add_argument('--failed',action='store_true')
+    published=sub.add_parser('status');published.add_argument('gate')
     args=parser.parse_args()
-    sys.exit(receipt(args.group) if args.mode=='receipt' else aggregate(args.gate,args.failed))
+    sys.exit(receipt(args.group) if args.mode=='receipt' else gate_status(args.gate) if args.mode=='status' else aggregate(args.gate,args.failed))

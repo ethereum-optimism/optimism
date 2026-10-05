@@ -38,11 +38,16 @@ cannot stand in for an executed selected workload. Native embedded runs provide
 these dependencies directly; the gate requires no external status polling,
 installation token or extra credential.
 
-Nine real Git/YQ fixtures pass: authoritative selection, exact coordinator
+Eleven real Git/YQ fixtures pass: authoritative selection, exact coordinator
 bindings, selected failure/skip handling, complete original aggregation, resealed
 provenance, missing/corrupt/duplicate/extra and incorrectly typed originals,
 failed/never-started receipt collection, and genuine zero-test safe skips.
 Producer artifact names and paths must match their consumer bindings.
+One final status task waits for both mutually exclusive observers and executes
+on every terminal outcome. It succeeds only when the aggregate actually passed
+and the failure observer was correctly skipped. Actual aggregate failure,
+cancellation, selected skip, contradictory observers or invalid engine values
+fail this final verdict. Its complete original states and provenance are retained.
 The [native embedded-run probes](rwx-pr-gates-evidence/embedded-preflight.json)
 exercise actual passes, intentional failures, skips, a Main-only failure with a
 passing Rust receipt, artifact mounting and matching parent/child run identities.
@@ -64,3 +69,13 @@ instead of the producer's `receipt` artifact before execution. The original
 failed run is retained in the preflight index. The corrected binding and a
 regression fixture now validate the producer declaration as well as the
 consumer expression. This failed aggregate adds no coverage.
+
+The corrected aggregate at `94481c20a3` executed successfully despite the
+enclosing pilot's Main-only lint failure. Its original GitHub check still failed:
+the custom check included both mutually exclusive observers. RWX
+[reports a skipped custom-check task as failure](https://www.rwx.com/docs/status-checks),
+so that binding could never pass. The check now follows the single executed
+final verdict. Native probes `b4c598b5` and `64144557` preserve a passing Rust
+verdict through an actual Main-only failure and correctly fail an actual Rust
+failure. Both enclosing probe runs intentionally fail; neither adds coverage.
+Complete automatic GitHub status and same-SHA Circle parity remain required.

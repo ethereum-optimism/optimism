@@ -485,6 +485,11 @@
       "original_log_sha256": "917006f97cd3d9df726ee48f815428343cc2627c57bea922dc8c639344c2428f",
       "passed": true
     },
+    "full_selection_base_context_ten_fixtures": {
+      "original_log_sha256": "c93441ce52ee17bf44b72493a6eaaefca46d0b271c09e239a5d6b53caad8c112",
+      "passed": true,
+      "tests": 10
+    },
     "go_fresh_reporting_fixtures": {
       "original_log_sha256": "50c5216e87f5e7f21f7c7fbe7742cee4d05aa3e113f7f81ab7f81a1e4a312459",
       "passed": true
