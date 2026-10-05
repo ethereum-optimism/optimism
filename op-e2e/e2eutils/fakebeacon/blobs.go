@@ -67,7 +67,10 @@ func (f *FakeBeacon) Start(addr string) error {
 		}
 	})
 	mux.HandleFunc("/eth/v1/config/spec", func(w http.ResponseWriter, r *http.Request) {
-		err := json.NewEncoder(w).Encode(&eth.APIConfigResponse{Data: eth.ReducedConfigData{SecondsPerSlot: eth.Uint64String(f.blockTime)}})
+		err := json.NewEncoder(w).Encode(&eth.APIConfigResponse{Data: eth.ReducedConfigData{
+			SecondsPerSlot: eth.Uint64String(f.blockTime),
+			SlotDurationMs: eth.Uint64String(f.blockTime * 1000),
+		}})
 		if err != nil {
 			f.log.Error("config handler err", "err", err)
 		}
