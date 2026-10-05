@@ -1,0 +1,99 @@
+{
+  "branch": "codex/rwx-ci-pilot",
+  "circle": {
+    "job_number": 5636909,
+    "pipeline_id": "692b8740-c502-49eb-9949-6af61d9acd71",
+    "retry_history": null,
+    "retry_of": null,
+    "workflow_id": "2a1c5cde-6157-4f66-85e3-0a46b462951d"
+  },
+  "coverage_added": 1,
+  "dependencies": [
+    "rust-fmt",
+    "rust-clippy",
+    "rust-typos",
+    "rust-zepter",
+    "rust-tests",
+    "interop-deposits-diff",
+    "rust-doctest",
+    "rust-docs",
+    "rust-udeps",
+    "rust-cargo-hack",
+    "rust-build",
+    "rust-check-no-std",
+    "rust-wasm-unknown",
+    "rust-wasm-wasi",
+    "op-reth-compact-codec",
+    "op-reth-integration-tests",
+    "kona-lint-cannon",
+    "kona-build-fpvm-cannon-client",
+    "kona-host-client-offline-cannon",
+    "kona-registry-snapshot-check",
+    "op-reth-superchain-snapshot-check"
+  ],
+  "gate": "required-rust-ci",
+  "gate_links": {
+    "circle": "https://circleci.com/gh/ethereum-optimism/optimism/5636909",
+    "native": "https://cloud.rwx.com/optimism/runs/581722c0a37849df9ef50c68789a9637/latest/gate-status?external_source=github"
+  },
+  "native": {
+    "aggregate_task": "b4ab7f9a200c56047d8465e7c32ef906",
+    "run_id": "581722c0a37849df9ef50c68789a9637",
+    "status_task": "1f1803c34cb658a5ea15fbe4ac45cd76",
+    "task_attempt": "1",
+    "workload_tasks": 30
+  },
+  "original_sha256": {
+    "circle": {
+      "api-pages/jobs-0.json": "c3227b6f7357af5b0c4e417923a8b494185345fbb2fe090b856531b4f5c5da26",
+      "circle-config.yml": "ca03d710775df14eea82f9dd3a1f70faafe9884a7ab553812ae16e27ba7ab155",
+      "compiled.yml": "c0f731c6224094b37d52901d1fb09a74466a6b5adf80ed3d2f401293825ffb1a",
+      "final.json": "46815b41f61d3cd1dcf2a43a27b24ad41d4d6ee46035f9ef77e79a52193d4781",
+      "gate-job.json": "e0b8f3ddc151f50f61cf465cc37438baf8baa9b16dae123d4b229e51275062bc",
+      "pipeline-config.json": "bb23e219980bfe0f49d6a430d0a522bd787e9f6e858392494b47a18f47c3c4e7",
+      "pipeline.json": "52f34ba1fa57457269b24a0c0ff31dabc1b6c0ad62c2d817a8f920871285ed38",
+      "settings.json": "909101572b1513efadb542a81c18f725bf4e438b26bb3fe1c1d3ff7e61aa5b1b",
+      "source-gates.json": "405c8fde970ce88251dae1d3a7f2bfa1ed83e96490729b4f634add205ddb3dd6",
+      "source.yml": "2fdaf6ab03d7359c03f39a4addd3c019ee2f84b47357d5fee0c579828b8660a1",
+      "step-index.json": "8414b9ce1e30191a4ca0b352dd7d8a833efe7c5e19c9492979f8b6c437156b0c",
+      "step-logs/0-0.json": "cf4643c6867aa65fe1bb69d75f3a2ad7064d79b7bf796b512e63f638f1d26d56",
+      "step-logs/1-0.json": "d9663c39dc2216b68f656ba5f3c0d88df3facd01c97bf5b959fa5b592502b50d",
+      "step-logs/2-0.json": "5e6d83f588fe0f7370e4ca5507103c782c1edf1afa5d45f9f5cb92f74150824d",
+      "workflow-jobs.json": "1864470fa04253845efaacf8037add73fbc4ae3b5b25b40666e6f05a5e084974",
+      "workflow.json": "4e1799a9a69c5367280311602286d62e97b7dad00cb5722e1ac725ffeead1bf1"
+    },
+    "github_checks": "5f0831d475690052d92e59c467a1b7ec7ab10d045a6cea79b84b2d98e428f390",
+    "native": {
+      "final.json": "2c4c5b9335593996131bacebca84c7fcdedb98471909ced448281b1e8af218f1",
+      "groups/op-reth-rust/final.json": "c0956f6bfba6de85aceae6cead1486fff0ddaf65a5d6fe72915bb004d3231289",
+      "groups/op-reth-rust/settings.json": "ecf276d9c93e3f2f28d7344c6c3c3ce513912b2b7e45c4b4c13264a6cb31a5ae",
+      "groups/op-reth-rust/states.json": "510ddae6301edcad125062aa8b1dc4f32b34248c676a81dc97d6d33c54d0d64c",
+      "groups/rust-fmt/final.json": "269dacfa40cacc9e3e6016db8f817557a4f86c4adc2902db2bbe82c2f381ee64",
+      "groups/rust-fmt/settings.json": "44109e23d66d10ab639dd8c3fc03fce82dba3da080fa80acc7afe7b8ee2a667b",
+      "groups/rust-fmt/states.json": "890f2ca36337a384ceafabebc0a3135ccc3228b4287d0a263a2080f9355cba59",
+      "groups/rust-workspace/final.json": "b86987ff2117b6e76bb5024fd171aca3ff7963c6b89e73b813622df8a8d5e1e3",
+      "groups/rust-workspace/settings.json": "702a4095e18f95c0d9acc0789ef49e05973232e3165f134260551ec113d7cd77",
+      "groups/rust-workspace/states.json": "30e00e61ff89dd49cd10d6daa7a2b220b83841e3ed7c5639d2cdd96b4b20b3f9",
+      "manifest.json": "405c8fde970ce88251dae1d3a7f2bfa1ed83e96490729b4f634add205ddb3dd6",
+      "settings.json": "08fa7c9320e9ba7e1c5e81a5de03726ec04bb9175b5e9e18749d4720f73bf9fe",
+      "states.json": "b8e695a20af7e4f22cc27ba2b656f4eecf3a1a4db732068cf5b36cb4c13d4425",
+      "verdict.json": "bffbd711ff3404ad19cd05f4070ec4fa4aec01ac6715bb539285d88b525446cd"
+    },
+    "run_state": "a64deef419d332917416d0dcfad6c552260ab17dddbddc9aab8c70f9a11906db",
+    "status": {
+      "final.json": "9ab0092fb5bde52fa4509a64331b258be8f0266741a1f98bbc77b3ff9acb4aca",
+      "settings.json": "cf63d07e241d3998c5ce6e8f17465462b2027d3ea1f810753519611a6d212bf1",
+      "states.json": "cf4593c7a1622efd81f7fc3a77fc749d454195595d2c7517ca29e46201d01458"
+    }
+  },
+  "source_sha": "68f13331fb6494b94e5c05401c69931d51a5b0fb",
+  "state": "passed",
+  "tests": 0,
+  "validation": {
+    "original_comparison_log_sha256": "375cc5521e3e9413c941bde32fff65d274a145589d15421742d3b7fd1bc69f0b",
+    "seven_git_yq_comparison_fixtures": {
+      "original_log_sha256": "710f8631dde3c09afd760a0e795f3e0fef56471ff68cf25283e107367d58f569",
+      "passed": true
+    }
+  }
+}

@@ -1,0 +1,124 @@
+{
+  "branch": "codex/rwx-ci-pilot",
+  "circle": {
+    "job_number": 5637015,
+    "pipeline_id": "2a5bac1b-2b2b-4d09-8698-983bcd261543",
+    "retry_history": null,
+    "retry_of": null,
+    "workflow_id": "05d7f444-5b78-4111-b847-97c7739a323f"
+  },
+  "coverage_added": 1,
+  "dependencies": [
+    "check-kontrol-build",
+    "shell-check",
+    "go-lint",
+    "semgrep-scan-local",
+    "semgrep-test",
+    "go-tests",
+    "memory-all-opn-op-reth-fusaka",
+    "memory-all-kona-op-reth-fusaka",
+    "kona-build-sp1-elfs",
+    "cannon-go-lint-and-test",
+    "check-generated-mocks-op-node",
+    "check-generated-mocks-op-service",
+    "check-nut-locks",
+    "check-nut-prefork-states",
+    "check-op-geth-version",
+    "op-deployer-forge-version",
+    "l2-chains-sync-check",
+    "nut-provenance-verify",
+    "diff-fetcher-forge-artifacts"
+  ],
+  "gate": "ci-gate",
+  "gate_links": {
+    "circle": "https://circleci.com/gh/ethereum-optimism/optimism/5637015",
+    "native": "https://cloud.rwx.com/optimism/runs/25348ccd212542e2b25379ab8667a3d6/latest/main-gate-status?external_source=github"
+  },
+  "native": {
+    "aggregate_task": "fc64e8baaddeedbe7011bed19465c00d",
+    "run_id": "25348ccd212542e2b25379ab8667a3d6",
+    "status_task": "e52aeb0706b77e3f7a04cd950151d1fa",
+    "task_attempt": "1",
+    "workload_tasks": 44
+  },
+  "original_acquisition": {
+    "archives": {
+      "native_aggregate.tar": "6198fa56a2d639034d03711de5cb7932392df215fa2e7e55a87e326d6e3b7eb2",
+      "native_status.tar": "2136c0a4028a2d3c0d912d9ac583eb7ff16b8d5e79d3056ad999c82746976f0e"
+    },
+    "cli_download_rejected_locked_vault": true,
+    "method": "Existing signed-in RWX account artifact downloads",
+    "vault_permissions_changed": false
+  },
+  "original_sha256": {
+    "circle": {
+      "api-pages/jobs-0.json": "5f25988ef7cbd410cd09b3d6e99623cc56e65d0b64131357652ae01d1cef5447",
+      "circle-config.yml": "8285ba2fd76caeeb8c82eb67ed4c6ba3602fc1c3f3975f302610f7b2bc60fa18",
+      "compiled.yml": "b66a554055195a6e6aedd2936176e6aae17bcd9d2dd992aa00692bb877a9d295",
+      "final.json": "97cfd340b69a09d5430398f0bc077066dcf5b4647d31f3aa7618ba181b044a34",
+      "gate-job.json": "51a00690465b6ecf5e797cf82bd24cab2b90885c0b7a67b1af9502f394ea0837",
+      "pipeline-config.json": "2100717134f16a13e1d76bc263e4e8267e73837763369969427699c4217b4351",
+      "pipeline.json": "61788b8644d7f13ef847367c0bdd0fe9bbfd1228c89d7c4fa96d985da0f14fd9",
+      "settings.json": "dccdfd691c04d1f8ae8741a01b6dff55252b913f1bc967cb2d56bda35fe8fa8e",
+      "source-gates.json": "d96a2b84111f8bba6d0c5e5cd83dc01d73450fe4a28cb7ca67bf3ec8d1da1786",
+      "source.yml": "2fdaf6ab03d7359c03f39a4addd3c019ee2f84b47357d5fee0c579828b8660a1",
+      "step-index.json": "8414b9ce1e30191a4ca0b352dd7d8a833efe7c5e19c9492979f8b6c437156b0c",
+      "step-logs/0-0.json": "77af739db93746f083d8779748a0a9fc390a5ab31e25184e53ad54d1f3911e20",
+      "step-logs/1-0.json": "cb00fe8bf50a20136dc9dcb6f7688d2bc2ab97ac58d527731f9d2e7a2ff1ede5",
+      "step-logs/2-0.json": "5533c4bd0dfbde49bf4b2b1221c82ee36fba1ab4ba6346b2a8386fe4780a6c8a",
+      "workflow-jobs.json": "7744f4e9ef9abd8375af0b460302b77d4c4a771c8bc98f44365c53e5d66e209a",
+      "workflow.json": "4ef3ee4e174987f9e650fae0d79749bc8a445d55b4ed7add7eb17d5ced02587d"
+    },
+    "github_checks": "c83d2a2c016433348d36412407784fc1b21e3174fd8b86e39e704da23aca3e1d",
+    "native": {
+      "final.json": "823bf1ccc097b0627c25b81957cd221dce02d74597c218128315a2839369a17c",
+      "groups/main-acceptance/final.json": "0cba2d4a744886cc53af9e8b04ee40145d01d23079f1c3e67ccdf8447be03240",
+      "groups/main-acceptance/settings.json": "d96b30c26d79e422e9abe99f843da80cc4db7a17273300c357e1b250cb415c1e",
+      "groups/main-acceptance/states.json": "9d7a60861fb1b546922a613c765d6cb384b1f6ee730b3a295ea99e43a02bd7b0",
+      "groups/main-cannon/final.json": "8cde4e7796b6836c4b124ade0f5cc08b0d2edeb4fd782c84b482b0ea29a78462",
+      "groups/main-cannon/settings.json": "fad45edf9505aca246ea772c20497423544c044a07ab45200e0779522691befa",
+      "groups/main-cannon/states.json": "c9991176943ace893c4e5ba5ee38d4d60916757a1d119bfabfbd5f6335d09d7b",
+      "groups/main-checks/final.json": "1f9c9c995494cf869713f608cd0752994b143b6b9c129f826262e34d351f66e1",
+      "groups/main-checks/settings.json": "ab00793926c680f04800b6a27b8aa69eb5fe4d1f7e53475e91ffb8b1055878b7",
+      "groups/main-checks/states.json": "bd045af575282b2d62757b8beb0d4d8538160e27092681e1dc84d1e93a0a2ea2",
+      "groups/main-fetcher/final.json": "db93c2b7ab47a2bcb655be94c518904e2020467e20c22895ec0eed2fcf38ee1b",
+      "groups/main-fetcher/settings.json": "2344ee26bde93f6117661f32346b60797e337040578ef7008773a6255e4953b9",
+      "groups/main-fetcher/states.json": "7ee05357079c308f7bebd9893f920870828d36c498e7f70f04f5aa730105d747",
+      "groups/main-go/final.json": "27dcfbffe0f4ee40ba03edd35edfcebdfdc783ecd6b9616973dffba7920ab050",
+      "groups/main-go/settings.json": "f5f2ced57eec0742fc87475c30a1586a1623f5216c93f11a347ee9ab8de3dc55",
+      "groups/main-go/states.json": "88d1b84d6812670bdf32c1129fd488f0d35a933157d4c0c483ca77c9fa72b46f",
+      "groups/main-kontrol/final.json": "8d7e015aaffb6a70130275f7ff9367bb1ee8f424caac953e2d4a4d9b89fc7525",
+      "groups/main-kontrol/settings.json": "a38d86e28f2325591c9662c7c1f983b2db32b7702723259b0e1600fc4259a9e8",
+      "groups/main-kontrol/states.json": "7ee05357079c308f7bebd9893f920870828d36c498e7f70f04f5aa730105d747",
+      "groups/main-nut-prefork/final.json": "185fa9b3382e667528eb5722a82d0ad7a42f61b2b53f68c088aa966f75e9eff7",
+      "groups/main-nut-prefork/settings.json": "75b36be4f072911416d9fc386bda7842af1719f68c4b7d4075620175dcd2c3c6",
+      "groups/main-nut-prefork/states.json": "c9991176943ace893c4e5ba5ee38d4d60916757a1d119bfabfbd5f6335d09d7b",
+      "groups/main-nut-provenance/final.json": "847dfaccedb29ab11d1719a9043eda63f2b746ef9cdd579e33c49d82bf429f5b",
+      "groups/main-nut-provenance/settings.json": "0ace1645a818c1ceb3cd7935022d380c99feaa608b8a38c804b68a31c9db0cd1",
+      "groups/main-nut-provenance/states.json": "788ac7a61643774da64449484db107e5368d9e88472043b4180ce63afa4bc8e5",
+      "groups/main-pilot/final.json": "f6736e155a75465a431d3efd9d184595708bb4a75ef9ad42e710a3c128aeaa78",
+      "groups/main-pilot/settings.json": "492a277a010b105bbac70a25cf78aae67995976e9318fefc9852c2fdd287a2a4",
+      "groups/main-pilot/states.json": "d20982e853cba8be107f8b749c93dbc6238fb06ad2d6126d9914b6d7b3684ab8",
+      "groups/main-sp1/final.json": "ba69ec015020cb21d0e3e6a0201b4262263328cc1bcfad54df242f7558a44b76",
+      "groups/main-sp1/settings.json": "189efe26a4fa30a7546da962201aa9f0fbd06728a08246280a7a87b574f66b26",
+      "groups/main-sp1/states.json": "7ee05357079c308f7bebd9893f920870828d36c498e7f70f04f5aa730105d747",
+      "manifest.json": "d96a2b84111f8bba6d0c5e5cd83dc01d73450fe4a28cb7ca67bf3ec8d1da1786",
+      "settings.json": "49fc932e402f672d1900f9844ba24667ff97fc3f4cc193ca6eb6f2cb0deb15dc",
+      "states.json": "e3980199b2a614b881e60af1dd365115c1f26d714080e5076bdead3596171d2e",
+      "verdict.json": "0592eb971ce20050e0610c28caa4f5b6f6d3b81707e15c6f92dce286cf834706"
+    },
+    "run_state": "d4ca805c1dfa4e52a714a9f72a2084fdd70f130506bfdef216310a8d3ec625e0",
+    "status": {
+      "final.json": "88664a73a44a044206e69cd2ff53cebc375910be465326a8e208dc9ba9c51bda",
+      "settings.json": "c0e102d660aea1b506024d5d7f1f6904e545731c9e9748a6b7ca2a661ddc40ad",
+      "states.json": "cf4593c7a1622efd81f7fc3a77fc749d454195595d2c7517ca29e46201d01458"
+    }
+  },
+  "source_sha": "4ae28fd902ad968ac38c835f0409b62cd035d6a0",
+  "state": "passed",
+  "tests": 0,
+  "validation": {
+    "four_required_circle_gates_dependency_review_and_native_checks_successful": true,
+    "original_comparison_log_sha256": "28c0c73afb0aa32f8170bad551890852a8ef1de5d1e0d6c6f37eae0a5298f0cd"
+  }
+}

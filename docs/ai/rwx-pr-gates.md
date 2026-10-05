@@ -1,8 +1,10 @@
 # Optional native PR gates
 
-Circle continues to own its four required gates. Native Rust and Main aggregates
-are implemented. Each remains uncounted until full automatic execution, complete
-same-SHA Circle dependency/verdict comparison and terminal checks are verified.
+Circle continues to own its four required gates. The native Rust aggregate has
+complete same-SHA original gate parity and successful terminal GitHub checks at
+`68f13331`. The complete Main aggregate now passes original gate parity and
+successful terminal GitHub checks at `4ae28fd9`. Both optional aggregates are
+counted; neither changes required-gate ownership.
 
 `pr-gates.yml` embeds twelve existing workload definitions in parallel. Each
 executes once, with its original source, tools, profiles, resources, caches and
@@ -72,8 +74,9 @@ The earlier API-based design failed before execution in automatic runs
 GitHub token, but the automatic runs did not expose the `github` expression
 context. The original failures and CLI probes remain retained as diagnostic
 evidence. The native coordinator replaces that implementation and its wait helper.
-Full automatic validation and complete original Circle gate evidence remain
-required. The Contracts aggregate remains unimplemented. Main's selector uploader
+The corrected Rust and Main aggregates now have full automatic validation and
+complete original Circle gate evidence. The Contracts aggregate remains
+unimplemented. Main's selector uploader
 and flaky-report jobs are outside its original aggregate dependency set and
 remain separate coverage work.
 
@@ -92,4 +95,42 @@ so that binding could never pass. The check now follows the single executed
 final verdict. Native probes `b4c598b5` and `64144557` preserve a passing Rust
 verdict through an actual Main-only failure and correctly fail an actual Rust
 failure. Both enclosing probe runs intentionally fail; neither adds coverage.
-Complete automatic GitHub status and same-SHA Circle parity remain required.
+The corrected automatic run
+[`581722c0`](https://cloud.rwx.com/optimism/runs/581722c0a37849df9ef50c68789a9637)
+at `68f13331fb6494b94e5c05401c69931d51a5b0fb` passed the complete native Rust
+aggregate and its one final verdict. Circle pipeline 135601, workflow
+`2a1c5cde-6157-4f66-85e3-0a46b462951d`, original
+[job 5636909](https://circleci.com/gh/ethereum-optimism/optimism/5636909) passed
+the genuine verifier for every one of its 21 dependencies. Both GitHub gate
+statuses finished successfully on that SHA. The
+[complete original comparison](rwx-pr-gates-evidence/rust-parity.json) retains
+every source/API/config/log/receipt hash and both run and GitHub observations.
+This closes one Rust occurrence and adds zero tests.
+
+The full automatic coordinator run
+[`25348ccd`](https://cloud.rwx.com/optimism/runs/25348ccd212542e2b25379ab8667a3d6)
+at `4ae28fd902ad968ac38c835f0409b62cd035d6a0` passed every actual Main workload,
+all ten scoped receipts, the genuine aggregate and its one final status. Circle
+pipeline 135603, workflow `05d7f444-5b78-4111-b847-97c7739a323f`, original
+[job 5637015](https://circleci.com/gh/ethereum-optimism/optimism/5637015) passed
+the genuine verifier for all 19 exact dependencies. All four required Circle
+gates, dependency review and optional native checks finished successfully on
+that head. The [complete original Main comparison](rwx-pr-gates-evidence/main-parity.json)
+retains all source/API/config/log/receipt hashes, actual engine states and
+terminal GitHub checks. Original aggregate and final-status archives were
+downloaded using the existing signed-in account after the CLI identity was
+unable to unlock the RPC vault. No vault permissions changed. This closes one
+Main occurrence and adds zero tests.
+
+`ops/ci/compare-pr-gates.py` validates the actual source revision's manifest and
+complete committed inputs, including symlinks and gitlinks. It accepts historical
+version 2 and current version 3 evidence without substituting the latest working
+tree's selection. The full original Circle dependency pages must be complete and
+unique, all required jobs must pass, and the original executed verifier must
+report exactly those jobs. Compiled always-successful gates, truncated or
+incomplete logs, failed/skipped prerequisites, stale source/settings, corrupt or
+unsealed files, cached native verdicts and foreign GitHub checks fail comparison.
+Every native receipt and the final status must execute freshly. Seven additional
+real Git/YQ comparison fixtures pass, including source link modes, an unrelated
+Main-only failure, and deliberately invalid provider evidence. They add no
+coverage. The automatic coordinator runs all 21 gate and comparison fixtures.

@@ -38,13 +38,13 @@ workflow changes since the pilot's `c8e4ba85` base. The PR denominator remains 8
 
 | PR workflow | Expanded job instances | Implemented validation jobs |
 | --- | ---: | ---: |
-| Main | 32 | 29 |
+| Main | 32 | 30 |
 | Contracts | 23 | 21 |
-| Rust | 22 | 21 |
+| Rust | 22 | 22 |
 | Rust E2E | 9 | 9 |
-| Total | 86 | 80 |
+| Total | 86 | 82 |
 
-Verified implementation coverage is **80 / 86 = 93%**. Each matrix entry and
+Verified implementation coverage is **82 / 86 = 95%**. Each matrix entry and
 each occurrence in a different workflow counts separately; shards do not.
 The CircleCI setup and schedule-trigger-check workflows are outside this
 86-job denominator and have separate todos. This is occurrence coverage backed
@@ -118,8 +118,15 @@ binaries, CPU verification keys, all six cases and complete dependency graphs.
 Kontrol's full summary/proof build passes all four complete compiler inventories,
 including all historical payloads, source graphs and cache settings. See the
 [SP1 closeout](rwx-sp1-guest.md) and [Kontrol closeout](rwx-kontrol-build.md).
-Six occurrences remain: three Main jobs, L2 fork, and the Contracts and Rust
-aggregate equivalents. Circle continues to own every required gate.
+The full Rust aggregate now passes complete same-SHA original gate comparison at
+`68f13331`, including all 21 exact Circle dependencies, 30 fresh native workload
+tasks, original verifier output and both terminal GitHub checks. See the
+[gate closeout](rwx-pr-gates.md). The full Main aggregate also passes complete
+same-SHA original gate comparison at `4ae28fd9`, including every one of its 19
+dependencies, twelve Go and sixteen acceptance shards, all ten receipts and
+both terminal GitHub gate checks. Four occurrences remain: the Main selector
+uploader and flaky report, L2 fork, and the Contracts aggregate. Circle continues
+to own every required gate.
 The narrower rollup mode remains CLI-only. See [the stage closeout](rwx-go-parity.md)
 for original-report comparison, selected resources, caches and limitations.
 
@@ -270,7 +277,7 @@ CircleCI workflow: `main` (32 jobs).
 - [x] `memory-all-opn-op-reth-fusaka`
 - [x] `cannon-go-lint-and-test` — [complete original-report parity](rwx-cannon-go.md)
   passes for all 16 packages and 2,881 case identities at `5ee3311d`.
-- [ ] `ci-gate` — [exact native aggregate](rwx-pr-gates.md) implemented for all 19 terminal dependencies, including twelve Go and sixteen acceptance shards; hosted same-SHA gate parity pending
+- [x] `ci-gate` — [exact native aggregate](rwx-pr-gates.md) passes full same-SHA original gate parity for all 19 terminal dependencies, including twelve Go and sixteen acceptance shards, with both gate checks successful
 
 ### Contract workflow
 
@@ -325,7 +332,7 @@ CircleCI workflow: `rust-ci` (22 jobs).
 - [x] `kona-host-client-offline-cannon`
 - [x] `kona-build-fpvm-cannon-client`
 - [x] `interop-deposits-diff`
-- [ ] `required-rust-ci` — [exact native aggregate](rwx-pr-gates.md) implemented; hosted same-SHA gate parity pending
+- [x] `required-rust-ci` — [exact native aggregate](rwx-pr-gates.md); complete same-SHA original gate parity and terminal GitHub checks at `68f13331`, all 21 dependencies and 30 fresh native tasks
 
 ### Rust E2E workflow
 
