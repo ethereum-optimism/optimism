@@ -32,6 +32,10 @@ The October 1, 2026 inventory is
 [CircleCI pipeline 135411](https://app.circleci.com/pipelines/github/ethereum-optimism/optimism/135411)
 at commit `587b4c3a73d3f16f15212b72e9a0ed0e8489a7c4`.
 
+The October 5 refresh confirms `develop` at
+`c8e4ba855d79ca56463909ef5a2c5830a1189401` is the pilot branch base, with no
+new upstream Circle configuration changes. The PR denominator remains 86.
+
 | PR workflow | Expanded job instances | Implemented validation jobs |
 | --- | ---: | ---: |
 | Main | 32 | 26 |
@@ -241,7 +245,7 @@ CircleCI workflow: `main` (32 jobs).
 - [x] `op-deployer-forge-version`
 - [ ] `nut-provenance-verify`
 - [x] `l2-chains-sync-check`
-- [ ] `kona-build-sp1-elfs`
+- [ ] `kona-build-sp1-elfs` — [complete native guest build and checks](rwx-sp1-guest.md); local preflight passed, hosted parity pending
 - [x] `go-lint`
 - [x] `go-binaries-for-sysgo`
 - [ ] `generate-flaky-tests-report`
@@ -250,7 +254,7 @@ CircleCI workflow: `main` (32 jobs).
 - [x] `diff-fetcher-forge-artifacts` — [fresh build and untouched artifact comparison](rwx-fetcher-artifacts.md)
 - [x] `check-op-geth-version`
 - [x] `check-nut-prefork-states` — [complete original-report parity](rwx-nut-prefork.md)
-  is implemented; full hosted same-SHA validation is pending.
+  passes all six original cases on both forks at `fd426d87`, with complete same-SHA parity.
 - [x] `check-nut-locks`
 - [ ] `check-kontrol-build` — [full summary generation and proof build](rwx-kontrol-build.md)
 - [x] `check-generated-mocks-op-service`

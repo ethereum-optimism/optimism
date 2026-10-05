@@ -1,8 +1,8 @@
 # Kontrol summary and proof build shadow
 
 The optional `optimism-kontrol-build-shadow` ports Main's `check-kontrol-build`
-through shared `run-main` routing. Hosted native execution and full same-SHA
-Circle comparison remain pending, so this occurrence is uncounted. Verified
+through shared `run-main` routing. The complete native job and same-SHA Circle job pass, but full compiler
+inventory parity remains unresolved, so this occurrence is uncounted. Verified
 coverage is 77/86 (90%).
 
 Both providers run the original `just kontrol-summary-full`, generating default
@@ -60,7 +60,7 @@ rejection of an unknown ID in a fully resealed report; its
 [complete fixture originals](rwx-kontrol-build-evidence/image-identity-fixtures.json)
 remain retained. These use unpublished isolated revisions and add no hosted
 coverage. ShellCheck, RWX lint, all 35 Linux routing/Circle adapter scenarios,
-and merged/activated Circle configs pass. Hosted evidence remains pending. Circle's job name, dependency graph,
+and merged/activated Circle configs pass. Circle's job name, dependency graph,
 four required gates and production publishers remain unchanged.
 
 The first automatic run at `dc51e446` and Circle job 5635847 failed before any
@@ -68,5 +68,18 @@ summary generation because the initial image verifier assumed a single Docker
 `Id` representation. The immutable registry manifest confirms the separate
 configuration digest; this is an adapter failure. Its
 [complete original seals and diagnostics](rwx-kontrol-build-evidence/first-native-image-failure.json)
-remain retained. Hosted verification of the correction is pending and adds no
-coverage.
+remain retained. The correction is hosted successfully at `ba787b45902fe828580de16b14cbde87a3cd3c60`:
+[automatic native run](https://cloud.rwx.com/optimism/runs/593b05bfe691454294c9adee396344d8)
+and [Circle job 5635938](https://circleci.com/gh/ethereum-optimism/optimism/5635938)
+pass both complete summaries and the proof compilation. All six native fixtures
+also pass. Complete generated files, runtime maps, state diffs, source/settings,
+image layers and configuration agree. Strict comparison still rejects complete
+compiler inventories: the incoming native cache used 0.8.28 where Circle also
+retained 0.8.30 artifacts and other compilation history. An isolated fresh native
+producer with 0.8.30 reduces the difference to 14 Circle-only 0.8.28 artifacts;
+a real script preparation probe confirms it does not add those files. Their
+complete compiler-cache graph bindings and originals remain retained for further
+investigation. The [complete discrepancy and probe originals](rwx-kontrol-build-evidence/compiler-inventory-discrepancy.json)
+retain all four compiler phases and all 394 native fixture files.
+No compiler artifact is ignored to make parity pass, and no coverage is added. All four Circle gates, dependency review and all 14 native
+shadows pass on this head.
