@@ -7,7 +7,7 @@ use crate::{
     NetworkHandler, NodeActor, NodeMode, QueuedDerivationEngineClient,
     QueuedEngineDerivationClient, QueuedEngineRpcClient, QueuedL1WatcherDerivationClient,
     QueuedNetworkEngineClient, QueuedSequencerAdminAPIClient, QueuedSequencerEngineClient,
-    RpcActor, RpcServerLauncher, SequencerActor, SequencerConfig,
+    RpcActor, RpcServerLauncher, SequencerActor, SequencerConfig, SignedPayload, SignerActor,
     actors::{BlockStream, QueuedUnsafePayloadGossipClient},
     service::BufferImportedBlocks,
 };
@@ -343,6 +343,34 @@ impl RollupNode {
         ))
     }
 
+    /// Builds the signer actor when the node is in sequencer mode; otherwise returns `None`.
+    async fn build_signer_actor(
+        &self,
+        payloads_rx: mpsc::Receiver<OpExecutionPayloadEnvelope>,
+        signed_payload_tx: mpsc::Sender<SignedPayload>,
+        unsafe_block_signer: watch::Receiver<Address>,
+    ) -> Result<Option<SignerActor>, String> {
+        if !self.mode().is_sequencer() {
+            if self.p2p_config.gossip_signer.is_some() {
+                warn!(target: "rollup_node", "Ignoring the configured block signer: only a sequencer signs blocks");
+            }
+            return Ok(None);
+        }
+        let signer = match self.p2p_config.gossip_signer.clone() {
+            Some(signer) => Some(
+                signer.start().await.map_err(|e| format!("Failed to start block signer: {e}"))?,
+            ),
+            None => None,
+        };
+        Ok(Some(SignerActor::new(
+            signer,
+            self.config.l2_chain_id.id(),
+            unsafe_block_signer,
+            payloads_rx,
+            signed_payload_tx,
+        )))
+    }
+
     /// Builds the sequencer actor when the node is in sequencer mode; otherwise returns `None`.
     fn build_sequencer(
         &self,
@@ -481,8 +509,11 @@ impl RollupNode {
         // Network actor inbound channels
         let (p2p_rpc_tx, p2p_rpc_rx) = mpsc::channel::<P2pRpcRequest>(1024);
         let (network_admin_tx, network_admin_rx) = mpsc::channel::<NetworkAdminQuery>(1024);
+        // Unsafe payloads to gossip flow from the sequencer to the signer actor and on to the
+        // network actor. While signing stalls, a full sequencer queue blocks block production.
         let (gossip_payload_tx, gossip_payload_rx) =
             mpsc::channel::<OpExecutionPayloadEnvelope>(256);
+        let (signed_payload_tx, signed_payload_rx) = mpsc::channel::<SignedPayload>(16);
         // watch channels
         let (unsafe_head_tx, unsafe_head_rx) = watch::channel(L2BlockInfo::default());
         // The unsafe block signer: the L1 watcher keeps it current from `SystemConfig`, starting
@@ -502,6 +533,12 @@ impl RollupNode {
             .build_derivation_actor(engine_actor_request_tx.clone(), derivation_actor_request_rx)
             .await?;
 
+        // Start the block signer before the network, so a misconfigured or unreachable remote
+        // signer fails before the node binds its p2p ports.
+        let signer_actor = self
+            .build_signer_actor(gossip_payload_rx, signed_payload_tx, signer_rx.clone())
+            .await?;
+
         // Build and start the libp2p swarm upstream of `NetworkActor::new` so the constructor
         // stays sync.
         let handler: NetworkHandler = self
@@ -517,7 +554,7 @@ impl RollupNode {
             handler,
             p2p_rpc_rx,
             network_admin_rx,
-            gossip_payload_rx,
+            signed_payload_rx,
         );
 
         let l1_watcher = self.build_l1_watcher(
@@ -553,6 +590,7 @@ impl RollupNode {
             actors = [
                 rpc,
                 sequencer_actor,
+                signer_actor,
                 Some(network),
                 Some(l1_watcher),
                 Some(derivation),

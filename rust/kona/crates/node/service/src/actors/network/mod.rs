@@ -28,5 +28,3 @@ pub use handler::NetworkHandler;
 
 #[cfg(test)]
 pub use gossip::MockUnsafePayloadGossipClient;
-
-mod signing;

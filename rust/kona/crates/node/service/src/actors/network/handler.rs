@@ -3,7 +3,6 @@ use std::collections::HashSet;
 use discv5::Enr;
 use kona_disc::{Discv5Handler, HandlerRequest};
 use kona_gossip::{ConnectionGater, GossipDriver};
-use kona_sources::BlockSignerHandler;
 use tokio::sync::mpsc;
 
 /// A network handler used to communicate with the network once it is started.
@@ -17,8 +16,6 @@ pub struct NetworkHandler {
     pub enr_receiver: mpsc::Receiver<Enr>,
     /// The peer score inspector. Is used to ban peers that are below a given threshold.
     pub peer_score_inspector: tokio::time::Interval,
-    /// A handler for the block signer.
-    pub signer: Option<BlockSignerHandler>,
 }
 
 impl NetworkHandler {

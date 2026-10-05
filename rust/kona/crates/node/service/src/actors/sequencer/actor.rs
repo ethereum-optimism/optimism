@@ -50,8 +50,8 @@ struct SealLastStartNextResult {
 }
 
 /// The [`SequencerActor`] is responsible for building L2 blocks on top of the current unsafe head
-/// and scheduling them to be signed and gossipped by the P2P layer, extending the L2 chain with new
-/// blocks.
+/// and handing them to the [`SignerActor`](crate::SignerActor) to be signed and gossipped,
+/// extending the L2 chain with new blocks.
 #[derive(Debug)]
 pub struct SequencerActor<
     AttributesBuilder_,
@@ -82,7 +82,8 @@ pub struct SequencerActor<
     pub origin_selector: OriginSelector_,
     /// The rollup configuration.
     pub rollup_config: Arc<RollupConfig>,
-    /// A client to asynchronously sign and gossip built payloads to the network actor.
+    /// A client that hands built payloads to the signer actor, which signs them for the network
+    /// actor to gossip.
     pub unsafe_payload_gossip_client: UnsafePayloadGossipClient_,
 
     /// Ticker that paces block-building attempts.

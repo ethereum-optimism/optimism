@@ -1,10 +1,8 @@
 use std::net::{IpAddr, SocketAddr};
 
 use discv5::multiaddr::Protocol;
-use futures::future::OptionFuture;
 use kona_disc::Discv5Driver;
 use kona_gossip::{ConnectionGater, GossipDriver, PEER_SCORE_INSPECT_FREQUENCY};
-use kona_sources::{BlockSigner, BlockSignerStartError};
 use libp2p::{Multiaddr, TransportError};
 
 use crate::actors::network::handler::NetworkHandler;
@@ -21,8 +19,6 @@ pub struct NetworkDriver {
     /// This may be set to false if the node is configured to use a static advertised address (when
     /// used with a nat for example).
     pub enr_update: bool,
-    /// A block signer. This is optional and should be set if the node is configured to sign blocks
-    pub signer: Option<BlockSigner>,
 }
 
 /// An error from the [`NetworkDriver`].
@@ -31,9 +27,6 @@ pub enum NetworkDriverError {
     /// An error occurred starting the libp2p Swarm.
     #[error("error starting libp2p Swarm")]
     GossipStartError(#[from] TransportError<std::io::Error>),
-    /// An error occurred starting the block signer client.
-    #[error("error starting block signer client: {0}")]
-    BlockSignerStartError(#[from] BlockSignerStartError),
     /// An error occurred parsing the gossip listen address.
     #[error("error parsing gossip listen address: {0}")]
     InvalidGossipListenAddr(Multiaddr),
@@ -77,16 +70,11 @@ impl NetworkDriver {
         // We are checking the peer scores every [`PEER_SCORE_INSPECT_FREQUENCY`] seconds.
         let peer_score_inspector = tokio::time::interval(*PEER_SCORE_INSPECT_FREQUENCY);
 
-        // Start the block signer if it is configured.
-        let signer =
-            OptionFuture::from(self.signer.map(async |s| s.start().await)).await.transpose()?;
-
         Ok(NetworkHandler {
             gossip: self.gossip,
             discovery: handler,
             enr_receiver,
             peer_score_inspector,
-            signer,
         })
     }
 }
