@@ -9,17 +9,6 @@ on:
       tag: ""
       cache-warm: "true"
       cache-epoch: v1
-  github:
-    push:
-      if: ${{ event.git.branch == 'codex/rwx-ci-pilot' || event.git.branch == 'develop' }}
-      init:
-        commit-sha: ${{ event.git.sha }}
-        branch: ${{ event.git.branch }}
-        tag: ${{ event.git.tag }}
-        cache-warm: "false"
-        cache-epoch: v1
-      status-checks:
-        name: optimism-nut-provenance-shadow
   cli:
     init:
       commit-sha: ${{ event.git.sha }}
@@ -172,3 +161,28 @@ tasks:
       artifacts:
         - key: reports
           path: .ci/nut-provenance/run
+
+  # Exact Main dependency states; unrelated workload failures stay outside this gate.
+  - key: main-gate-receipt
+    use: [code, tools]
+    after: ${{ (verify.succeeded || verify.failed || verify.skipped) }}
+    if: ${{ init.cache-warm != 'true' }}
+    run: python3 ops/ci/pr-gate.py receipt main-nut-provenance
+    env:
+      CI_COMMIT_SHA: ${{ init.commit-sha }}
+      CI_BRANCH: ${{ init.branch }}
+      GROUP_SELECTED: ${{ tasks.route.values.run-main }}
+      RWX_RUN_ID:
+        cache-key: included
+      RWX_TASK_ATTEMPT_NUMBER:
+        cache-key: included
+      TASK_VERIFY_SUCCEEDED: ${{ tasks.verify.succeeded }}
+      TASK_VERIFY_FAILED: ${{ tasks.verify.failed }}
+      TASK_VERIFY_SKIPPED: ${{ tasks.verify.skipped }}
+    cache: false
+    timeout: 10m
+    outputs:
+      filesystem: false
+      artifacts:
+        - key: receipt
+          path: .ci/pr-gates/groups/main-nut-provenance

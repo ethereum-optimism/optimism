@@ -1,21 +1,28 @@
 # Optional native PR gates
 
-Circle continues to own its four required gates. The native Rust aggregate is
-implemented but remains uncounted until full automatic execution, complete
+Circle continues to own its four required gates. Native Rust and Main aggregates
+are implemented. Each remains uncounted until full automatic execution, complete
 same-SHA Circle dependency/verdict comparison and terminal checks are verified.
 
-`rust-gate.yml` embeds the existing pilot, Rust workspace and op-reth definitions
-in parallel. Each executes once, with its original source, tools, profiles,
-resources, caches and fresh verdicts. The coordinator preserves their existing
-optional check names. Their standalone CLI modes and protected `develop` cache
-warming remain available.
+`pr-gates.yml` embeds twelve existing workload definitions in parallel. Each
+executes once, with its original source, tools, profiles, resources, caches and
+fresh verdicts. Shared formatting and lint work serve both aggregates without a
+second run. The coordinator preserves the existing optional workload check names
+and adds `optimism-main-gate-shadow`. Standalone CLI modes and protected `develop`
+cache warming remain available.
 
-`ops/ci/pr-gates.json` maps Circle's exact 21 terminal dependency names to the
-actual native tasks. Discovery checks the original Circle configuration with
-pinned YQ and rejects changed dependencies, omitted feature partitions, duplicate
-assignments and always-successful gates. It also verifies each embedded call,
-source/branch/tag forwarding, fresh mode, existing check name and actual
-engine-bound receipt condition. Main-only workloads remain outside Rust's gate.
+Version 3 of `ops/ci/pr-gates.json` maps Circle's exact 21 Rust and 19 Main terminal
+dependency names to the actual native tasks. Main includes every one of the
+twelve Go verdicts and both eight-shard acceptance variants, alongside the actual
+static checks, generated mocks, locks, provenance, Cannon, fetcher, SP1 and Kontrol
+workloads. Discovery checks the original Circle configuration with pinned YQ and
+rejects changed dependencies, omitted feature partitions, duplicate assignments,
+unassigned embedded runs and always-successful gates. It verifies source/branch/tag
+forwarding, selected shard counts, fresh mode, existing check names and actual
+engine-bound receipt conditions. Main-only workloads remain outside Rust's gate.
+The chosen Go configuration stays at twelve shards and parallelism eight. The
+24-shard Go and alternate acceptance CLI modes retain their existing behavior;
+their aggregate receipts only apply to the coordinator's verified shard counts.
 
 Each group receipt waits for every selected task to finish or be skipped. Native
 engine states supply its environment. Selected failures, cancellations or skipped
@@ -24,7 +31,7 @@ tasks were skipped. Receipts execute freshly and retain source/settings, complet
 task states and file hashes. They perform zero tests and are absent from warming.
 
 The aggregate waits for the embedded runs to reach terminal states, then evaluates
-their actual Rust receipts. It validates every original sealed report against its
+their actual scoped receipts. It validates every original sealed report against its
 own exact source SHA, branch, complete inputs, native run identity, task attempt
 and selection. Missing, extra, duplicate, corrupt, resealed stale or foreign
 originals cannot pass. It records exactly one result for each original Circle
@@ -38,10 +45,15 @@ cannot stand in for an executed selected workload. Native embedded runs provide
 these dependencies directly; the gate requires no external status polling,
 installation token or extra credential.
 
-Eleven real Git/YQ fixtures pass: authoritative selection, exact coordinator
+Fourteen real Git/YQ fixtures pass: authoritative selection, exact coordinator
 bindings, selected failure/skip handling, complete original aggregation, resealed
 provenance, missing/corrupt/duplicate/extra and incorrectly typed originals,
-failed/never-started receipt collection, and genuine zero-test safe skips.
+failed/never-started receipt collection, genuine zero-test safe skips, all Main
+dependencies and shards, changed shard modes, duplicate execution and an omitted
+Go shard. Rust verdicts remain fresh through engine-provided run/attempt cache
+keys, preserving their compiler tool caches. Other verdicts use `cache: false`.
+The [Main implementation preflight](rwx-pr-gates-evidence/main-preflight.json)
+retains local validation and clearly excludes unverified hosted coverage.
 Producer artifact names and paths must match their consumer bindings.
 One final status task waits for both mutually exclusive observers and executes
 on every terminal outcome. It succeeds only when the aggregate actually passed
@@ -61,7 +73,9 @@ GitHub token, but the automatic runs did not expose the `github` expression
 context. The original failures and CLI probes remain retained as diagnostic
 evidence. The native coordinator replaces that implementation and its wait helper.
 Full automatic validation and complete original Circle gate evidence remain
-required. Main and Contracts aggregates are still unimplemented.
+required. The Contracts aggregate remains unimplemented. Main's selector uploader
+and flaky-report jobs are outside its original aggregate dependency set and
+remain separate coverage work.
 
 The first full embedded run at `eff84abed4` passed all three actual workload
 groups and their receipts, then rejected an aggregate reference to `report`

@@ -118,7 +118,7 @@ binaries, CPU verification keys, all six cases and complete dependency graphs.
 Kontrol's full summary/proof build passes all four complete compiler inventories,
 including all historical payloads, source graphs and cache settings. See the
 [SP1 closeout](rwx-sp1-guest.md) and [Kontrol closeout](rwx-kontrol-build.md).
-Seven occurrences remain: four Main jobs, L2 fork, and the Contracts and Rust
+Six occurrences remain: three Main jobs, L2 fork, and the Contracts and Rust
 aggregate equivalents. Circle continues to own every required gate.
 The narrower rollup mode remains CLI-only. See [the stage closeout](rwx-go-parity.md)
 for original-report comparison, selected resources, caches and limitations.
@@ -270,7 +270,7 @@ CircleCI workflow: `main` (32 jobs).
 - [x] `memory-all-opn-op-reth-fusaka`
 - [x] `cannon-go-lint-and-test` — [complete original-report parity](rwx-cannon-go.md)
   passes for all 16 packages and 2,881 case identities at `5ee3311d`.
-- [ ] `ci-gate`
+- [ ] `ci-gate` — [exact native aggregate](rwx-pr-gates.md) implemented for all 19 terminal dependencies, including twelve Go and sixteen acceptance shards; hosted same-SHA gate parity pending
 
 ### Contract workflow
 

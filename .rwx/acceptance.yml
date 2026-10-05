@@ -12,19 +12,6 @@ on:
       build-probe: ""
       target-cache-mode: keep
       shard-total: "8"
-  github:
-    push:
-      init:
-        commit-sha: ${{ event.git.sha }}
-        branch: ${{ event.git.branch }}
-        tag: ${{ event.git.tag }}
-        cache-warm: "false"
-        cache-epoch: v1
-        build-probe: ""
-        target-cache-mode: keep
-        shard-total: "8"
-      status-checks:
-        name: optimism-acceptance-shadow
   cli:
     init:
       commit-sha: ${{ event.git.sha }}
@@ -1137,3 +1124,73 @@ tasks:
       artifacts:
         - key: reports
           path: .ci/acceptance/reports
+
+  # Exact Main dependency states; unrelated workload failures stay outside this gate.
+  - key: main-gate-receipt
+    use: [code, tools]
+    after: ${{ (verdict-kona-0.succeeded || verdict-kona-0.failed || verdict-kona-0.skipped) && (verdict-kona-1.succeeded || verdict-kona-1.failed || verdict-kona-1.skipped) && (verdict-kona-2.succeeded || verdict-kona-2.failed || verdict-kona-2.skipped) && (verdict-kona-3.succeeded || verdict-kona-3.failed || verdict-kona-3.skipped) && (verdict-kona-4.succeeded || verdict-kona-4.failed || verdict-kona-4.skipped) && (verdict-kona-5.succeeded || verdict-kona-5.failed || verdict-kona-5.skipped) && (verdict-kona-6.succeeded || verdict-kona-6.failed || verdict-kona-6.skipped) && (verdict-kona-7.succeeded || verdict-kona-7.failed || verdict-kona-7.skipped) && (verdict-opn-0.succeeded || verdict-opn-0.failed || verdict-opn-0.skipped) && (verdict-opn-1.succeeded || verdict-opn-1.failed || verdict-opn-1.skipped) && (verdict-opn-2.succeeded || verdict-opn-2.failed || verdict-opn-2.skipped) && (verdict-opn-3.succeeded || verdict-opn-3.failed || verdict-opn-3.skipped) && (verdict-opn-4.succeeded || verdict-opn-4.failed || verdict-opn-4.skipped) && (verdict-opn-5.succeeded || verdict-opn-5.failed || verdict-opn-5.skipped) && (verdict-opn-6.succeeded || verdict-opn-6.failed || verdict-opn-6.skipped) && (verdict-opn-7.succeeded || verdict-opn-7.failed || verdict-opn-7.skipped) }}
+    if: ${{ init.cache-warm != 'true' && init.shard-total == '8' }}
+    run: python3 ops/ci/pr-gate.py receipt main-acceptance
+    env:
+      CI_COMMIT_SHA: ${{ init.commit-sha }}
+      CI_BRANCH: ${{ init.branch }}
+      GROUP_SELECTED: ${{ tasks.route.values.run-main }}
+      RWX_RUN_ID:
+        cache-key: included
+      RWX_TASK_ATTEMPT_NUMBER:
+        cache-key: included
+      TASK_VERDICT_KONA_0_SUCCEEDED: ${{ tasks.verdict-kona-0.succeeded }}
+      TASK_VERDICT_KONA_0_FAILED: ${{ tasks.verdict-kona-0.failed }}
+      TASK_VERDICT_KONA_0_SKIPPED: ${{ tasks.verdict-kona-0.skipped }}
+      TASK_VERDICT_KONA_1_SUCCEEDED: ${{ tasks.verdict-kona-1.succeeded }}
+      TASK_VERDICT_KONA_1_FAILED: ${{ tasks.verdict-kona-1.failed }}
+      TASK_VERDICT_KONA_1_SKIPPED: ${{ tasks.verdict-kona-1.skipped }}
+      TASK_VERDICT_KONA_2_SUCCEEDED: ${{ tasks.verdict-kona-2.succeeded }}
+      TASK_VERDICT_KONA_2_FAILED: ${{ tasks.verdict-kona-2.failed }}
+      TASK_VERDICT_KONA_2_SKIPPED: ${{ tasks.verdict-kona-2.skipped }}
+      TASK_VERDICT_KONA_3_SUCCEEDED: ${{ tasks.verdict-kona-3.succeeded }}
+      TASK_VERDICT_KONA_3_FAILED: ${{ tasks.verdict-kona-3.failed }}
+      TASK_VERDICT_KONA_3_SKIPPED: ${{ tasks.verdict-kona-3.skipped }}
+      TASK_VERDICT_KONA_4_SUCCEEDED: ${{ tasks.verdict-kona-4.succeeded }}
+      TASK_VERDICT_KONA_4_FAILED: ${{ tasks.verdict-kona-4.failed }}
+      TASK_VERDICT_KONA_4_SKIPPED: ${{ tasks.verdict-kona-4.skipped }}
+      TASK_VERDICT_KONA_5_SUCCEEDED: ${{ tasks.verdict-kona-5.succeeded }}
+      TASK_VERDICT_KONA_5_FAILED: ${{ tasks.verdict-kona-5.failed }}
+      TASK_VERDICT_KONA_5_SKIPPED: ${{ tasks.verdict-kona-5.skipped }}
+      TASK_VERDICT_KONA_6_SUCCEEDED: ${{ tasks.verdict-kona-6.succeeded }}
+      TASK_VERDICT_KONA_6_FAILED: ${{ tasks.verdict-kona-6.failed }}
+      TASK_VERDICT_KONA_6_SKIPPED: ${{ tasks.verdict-kona-6.skipped }}
+      TASK_VERDICT_KONA_7_SUCCEEDED: ${{ tasks.verdict-kona-7.succeeded }}
+      TASK_VERDICT_KONA_7_FAILED: ${{ tasks.verdict-kona-7.failed }}
+      TASK_VERDICT_KONA_7_SKIPPED: ${{ tasks.verdict-kona-7.skipped }}
+      TASK_VERDICT_OPN_0_SUCCEEDED: ${{ tasks.verdict-opn-0.succeeded }}
+      TASK_VERDICT_OPN_0_FAILED: ${{ tasks.verdict-opn-0.failed }}
+      TASK_VERDICT_OPN_0_SKIPPED: ${{ tasks.verdict-opn-0.skipped }}
+      TASK_VERDICT_OPN_1_SUCCEEDED: ${{ tasks.verdict-opn-1.succeeded }}
+      TASK_VERDICT_OPN_1_FAILED: ${{ tasks.verdict-opn-1.failed }}
+      TASK_VERDICT_OPN_1_SKIPPED: ${{ tasks.verdict-opn-1.skipped }}
+      TASK_VERDICT_OPN_2_SUCCEEDED: ${{ tasks.verdict-opn-2.succeeded }}
+      TASK_VERDICT_OPN_2_FAILED: ${{ tasks.verdict-opn-2.failed }}
+      TASK_VERDICT_OPN_2_SKIPPED: ${{ tasks.verdict-opn-2.skipped }}
+      TASK_VERDICT_OPN_3_SUCCEEDED: ${{ tasks.verdict-opn-3.succeeded }}
+      TASK_VERDICT_OPN_3_FAILED: ${{ tasks.verdict-opn-3.failed }}
+      TASK_VERDICT_OPN_3_SKIPPED: ${{ tasks.verdict-opn-3.skipped }}
+      TASK_VERDICT_OPN_4_SUCCEEDED: ${{ tasks.verdict-opn-4.succeeded }}
+      TASK_VERDICT_OPN_4_FAILED: ${{ tasks.verdict-opn-4.failed }}
+      TASK_VERDICT_OPN_4_SKIPPED: ${{ tasks.verdict-opn-4.skipped }}
+      TASK_VERDICT_OPN_5_SUCCEEDED: ${{ tasks.verdict-opn-5.succeeded }}
+      TASK_VERDICT_OPN_5_FAILED: ${{ tasks.verdict-opn-5.failed }}
+      TASK_VERDICT_OPN_5_SKIPPED: ${{ tasks.verdict-opn-5.skipped }}
+      TASK_VERDICT_OPN_6_SUCCEEDED: ${{ tasks.verdict-opn-6.succeeded }}
+      TASK_VERDICT_OPN_6_FAILED: ${{ tasks.verdict-opn-6.failed }}
+      TASK_VERDICT_OPN_6_SKIPPED: ${{ tasks.verdict-opn-6.skipped }}
+      TASK_VERDICT_OPN_7_SUCCEEDED: ${{ tasks.verdict-opn-7.succeeded }}
+      TASK_VERDICT_OPN_7_FAILED: ${{ tasks.verdict-opn-7.failed }}
+      TASK_VERDICT_OPN_7_SKIPPED: ${{ tasks.verdict-opn-7.skipped }}
+    cache: false
+    timeout: 10m
+    outputs:
+      filesystem: false
+      artifacts:
+        - key: receipt
+          path: .ci/pr-gates/groups/main-acceptance

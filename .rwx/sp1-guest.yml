@@ -10,17 +10,6 @@ on:
       cache-warm: "true"
       cache-epoch: v1
       target-cache-mode: keep
-  github:
-    push:
-      init:
-        commit-sha: ${{ event.git.sha }}
-        branch: ${{ event.git.branch }}
-        tag: ${{ event.git.tag }}
-        cache-warm: "false"
-        cache-epoch: v1
-        target-cache-mode: keep
-      status-checks:
-        name: optimism-sp1-guest-shadow
   cli:
     init:
       commit-sha: ${{ event.git.sha }}
@@ -217,3 +206,28 @@ tasks:
       artifacts:
         - key: reports
           path: .ci/sp1-guest/run
+
+  # Exact Main dependency states; unrelated workload failures stay outside this gate.
+  - key: main-gate-receipt
+    use: [code, tools]
+    after: ${{ (check.succeeded || check.failed || check.skipped) }}
+    if: ${{ init.cache-warm != 'true' }}
+    run: python3 ops/ci/pr-gate.py receipt main-sp1
+    env:
+      CI_COMMIT_SHA: ${{ init.commit-sha }}
+      CI_BRANCH: ${{ init.branch }}
+      GROUP_SELECTED: ${{ tasks.route.values.run-main }}
+      RWX_RUN_ID:
+        cache-key: included
+      RWX_TASK_ATTEMPT_NUMBER:
+        cache-key: included
+      TASK_CHECK_SUCCEEDED: ${{ tasks.check.succeeded }}
+      TASK_CHECK_FAILED: ${{ tasks.check.failed }}
+      TASK_CHECK_SKIPPED: ${{ tasks.check.skipped }}
+    cache: false
+    timeout: 10m
+    outputs:
+      filesystem: false
+      artifacts:
+        - key: receipt
+          path: .ci/pr-gates/groups/main-sp1

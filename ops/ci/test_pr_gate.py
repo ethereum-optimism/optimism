@@ -33,11 +33,12 @@ class GateTests(unittest.TestCase):
         self.env={'CI_COMMIT_SHA':self.sha,'CI_BRANCH':'codex/rwx-ci-pilot','RWX_RUN_ID':'a'*32,'RWX_TASK_ATTEMPT_NUMBER':'1'}
         self.manifest,self.selection=G.configuration('required-rust-ci');self.selection=self.selection['required-rust-ci']
         route=self.root/'.ci/routing.json';route.parent.mkdir(exist_ok=True)
-        route.write_text(json.dumps({'c-run_rust_ci':True}));self.env['GATE_ROUTING']=str(route)
+        route.write_text(json.dumps({'c-run_rust_ci':True,'c-run_main':True}));self.env['GATE_ROUTING']=str(route)
 
-    def reports(self,selected=True):
+    def reports(self,selected=True,gate='required-rust-ci'):
         env={**self.env}
-        for group in self.selection['groups']:
+        _,selection=G.configuration(gate)
+        for group in selection[gate]['groups']:
             original={**self.env,'GROUP_SELECTED':'true' if selected else 'false'}
             for task in G.group_tasks(self.manifest,group):
                 for attribute in ('succeeded','failed','skipped'):
@@ -49,9 +50,9 @@ class GateTests(unittest.TestCase):
                 env['GROUP_'+group.upper().replace('-','_')+'_'+attribute.upper()]='true' if attribute=='succeeded' else 'false'
         return env
 
-    def run_aggregate(self,env,failed=False):
-        with patch.dict(os.environ,env):result=G.aggregate('required-rust-ci',failed)
-        output=self.root/'.ci/pr-gates/aggregate/required-rust-ci'
+    def run_aggregate(self,env,failed=False,gate='required-rust-ci'):
+        with patch.dict(os.environ,env):result=G.aggregate(gate,failed)
+        output=self.root/'.ci/pr-gates/aggregate'/gate
         return result,output,G.read(output/'verdict.json')
 
     def reseal(self,artifact):
@@ -73,7 +74,7 @@ class GateTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError,'every terminal'):G.configuration('required-rust-ci')
 
     def test_native_coordinator_rejects_duplicate_execution_stale_revision_and_noop_gates(self):
-        path=self.root/'.rwx/rust-gate.yml';source=path.read_text()
+        path=self.root/self.selection['native_config'];source=path.read_text()
         for old,new in [('      commit-sha: ${{ init.commit-sha }}','      commit-sha: foreign-sha'),
                         ('python3 ops/ci/pr-gate.py aggregate required-rust-ci','true'),
                         ('.rust-gate-receipt.artifacts.receipt','.rust-gate-receipt.artifacts.report'),
@@ -174,7 +175,7 @@ class GateTests(unittest.TestCase):
             with patch.dict(os.environ,env):self.assertEqual(G.gate_status('required-rust-ci'),1)
 
     def test_status_configuration_rejects_skipped_custom_checks_and_unbound_verdicts(self):
-        path=self.root/'.rwx/rust-gate.yml';source=path.read_text()
+        path=self.root/self.selection['native_config'];source=path.read_text()
         for old,new in [('tasks: gate-status','tasks: [aggregate, gate-failure]'),
                         ('python3 ops/ci/pr-gate.py status required-rust-ci','true'),
                         ('OBSERVER_AGGREGATE_SUCCEEDED: ${{ tasks.aggregate.succeeded }}',
@@ -182,6 +183,53 @@ class GateTests(unittest.TestCase):
                         ('path: .ci/pr-gates/status/required-rust-ci','path: unrelated/status')]:
             path.write_text(source.replace(old,new,1))
             with self.subTest(new=new),self.assertRaises(ValueError):G.configuration('required-rust-ci')
+
+    def test_main_gate_covers_every_original_dependency_and_complete_fixed_shards(self):
+        env=self.reports(gate='ci-gate');result,output,record=self.run_aggregate(env,gate='ci-gate')
+        _,selections=G.configuration();selection=selections['ci-gate']
+        self.assertEqual(result,0);self.assertEqual(len(selection['requires']),19)
+        self.assertEqual([row['name'] for row in record['dependencies']],selection['requires'])
+        self.assertEqual(len(G.group_tasks(self.manifest,'main-go')),12)
+        self.assertEqual(len(G.group_tasks(self.manifest,'main-acceptance')),16)
+        self.assertEqual(G.originals(output)['tests'],0)
+        for group in selection['groups']:
+            self.assertEqual(G.read(output/'groups'/group/'states.json'),
+                             G.read(Path(env['GROUP_'+group.upper().replace('-','_')+'_REPORT'])/'states.json'))
+
+    def test_main_mode_and_freshness_cannot_hide_partial_or_reused_verdicts(self):
+        path=self.root/self.selection['native_config'];source=path.read_text()
+        for old,new in [('shard-total: "12"','shard-total: "24"'),
+                        ('shard-total: "8"','shard-total: "4"')]:
+            path.write_text(source.replace(old,new,1))
+            with self.subTest(new=new),self.assertRaisesRegex(ValueError,'mode'):G.configuration('ci-gate')
+        path.write_text(source)
+        calls=source+'\n  - key: duplicate-pilot\n    call: ${{ run.dir }}/pilot.yml\n'
+        path.write_text(calls)
+        with self.assertRaisesRegex(ValueError,'unassigned'):G.configuration('ci-gate')
+        path.write_text(source)
+        child=self.root/'.rwx/go-tests.yml';source=child.read_text()
+        child.write_text(source.replace('    cache: false','    cache: true'))
+        with self.assertRaisesRegex(ValueError,'fresh'):G.configuration('ci-gate')
+
+    def test_main_failure_preserves_rust_scope_and_retains_missing_shard_states(self):
+        rust=self.reports();main=self.reports(gate='ci-gate');group='main-pilot'
+        env={**self.env,'GROUP_SELECTED':'true','TASK_GO_LINT_SUCCEEDED':'false',
+             'TASK_GO_LINT_FAILED':'true','TASK_GO_LINT_SKIPPED':'false'}
+        with patch.dict(os.environ,env):self.assertEqual(G.receipt(group),1)
+        self.assertEqual(self.run_aggregate(rust)[0],0)
+        for attribute in ('succeeded','failed','skipped'):
+            main['GROUP_MAIN_PILOT_'+attribute.upper()]=str(attribute=='failed').lower()
+        main.pop('GROUP_MAIN_PILOT_REPORT')
+        result,output,record=self.run_aggregate(main,failed=True,gate='ci-gate')
+        self.assertEqual(result,1);self.assertTrue(G.read(output/'states.json')['main-pilot']['failed'])
+        self.assertTrue(G.read(output/'final.json')['original_sha256'])
+        env={**self.env,'GROUP_SELECTED':'true'}
+        for task in G.group_tasks(self.manifest,'main-go'):
+            for attribute in ('succeeded','failed','skipped'):
+                env['TASK_'+task.upper().replace('-','_')+'_'+attribute.upper()]=str(attribute=='succeeded').lower()
+        env['TASK_VERDICT_11_SUCCEEDED']='false';env['TASK_VERDICT_11_SKIPPED']='true'
+        with patch.dict(os.environ,env):self.assertEqual(G.receipt('main-go'),1)
+        self.assertTrue(G.read(self.root/'.ci/pr-gates/groups/main-go/states.json')['verdict-11']['skipped'])
 
 
 if __name__=='__main__':unittest.main()

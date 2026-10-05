@@ -9,7 +9,7 @@ on:
       commit-sha: ${{ event.git.sha }}
       branch: ${{ event.git.branch }}
       tag: ""
-  # Automatic pushes are coordinated by rust-gate.yml; CLI and warming remain.
+  # Automatic pushes are coordinated by pr-gates.yml; CLI and warming remain.
   cli:
     init:
       commit-sha: ${{ event.git.sha }}
@@ -172,3 +172,27 @@ tasks:
       artifacts:
         - key: receipt
           path: .ci/pr-gates/groups/rust-fmt
+
+  # Exact Main dependency states; unrelated workload failures stay outside this gate.
+  - key: main-gate-receipt
+    use: [code, tools]
+    after: ${{ (go-lint.succeeded || go-lint.failed || go-lint.skipped) }}
+    run: python3 ops/ci/pr-gate.py receipt main-pilot
+    env:
+      CI_COMMIT_SHA: ${{ init.commit-sha }}
+      CI_BRANCH: ${{ init.branch }}
+      GROUP_SELECTED: ${{ tasks.route.values.run-main }}
+      RWX_RUN_ID:
+        cache-key: included
+      RWX_TASK_ATTEMPT_NUMBER:
+        cache-key: included
+      TASK_GO_LINT_SUCCEEDED: ${{ tasks.go-lint.succeeded }}
+      TASK_GO_LINT_FAILED: ${{ tasks.go-lint.failed }}
+      TASK_GO_LINT_SKIPPED: ${{ tasks.go-lint.skipped }}
+    cache: false
+    timeout: 10m
+    outputs:
+      filesystem: false
+      artifacts:
+        - key: receipt
+          path: .ci/pr-gates/groups/main-pilot

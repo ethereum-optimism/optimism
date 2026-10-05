@@ -9,16 +9,6 @@ on:
       tag: ""
       cache-warm: "true"
       cache-epoch: v1
-  github:
-    push:
-      init:
-        commit-sha: ${{ event.git.sha }}
-        branch: ${{ event.git.branch }}
-        tag: ${{ event.git.tag }}
-        cache-warm: "false"
-        cache-epoch: v1
-      status-checks:
-        name: optimism-pr-checks-shadow
   cli:
     init:
       commit-sha: ${{ event.git.sha }}
@@ -541,3 +531,52 @@ tasks:
       artifacts:
         - key: reports
           path: .ci/main-checks/check-generated-mocks-op-service
+
+  # Exact Main dependency states; unrelated workload failures stay outside this gate.
+  - key: main-gate-receipt
+    use: [code, tools]
+    after: ${{ (check-generated-mocks-op-node.succeeded || check-generated-mocks-op-node.failed || check-generated-mocks-op-node.skipped) && (check-generated-mocks-op-service.succeeded || check-generated-mocks-op-service.failed || check-generated-mocks-op-service.skipped) && (check-nut-locks.succeeded || check-nut-locks.failed || check-nut-locks.skipped) && (check-op-geth-version.succeeded || check-op-geth-version.failed || check-op-geth-version.skipped) && (l2-chains-sync-check.succeeded || l2-chains-sync-check.failed || l2-chains-sync-check.skipped) && (op-deployer-forge-version.succeeded || op-deployer-forge-version.failed || op-deployer-forge-version.skipped) && (semgrep-scan-local.succeeded || semgrep-scan-local.failed || semgrep-scan-local.skipped) && (semgrep-test.succeeded || semgrep-test.failed || semgrep-test.skipped) && (shell-check.succeeded || shell-check.failed || shell-check.skipped) }}
+    if: ${{ init.cache-warm != 'true' }}
+    run: python3 ops/ci/pr-gate.py receipt main-checks
+    env:
+      CI_COMMIT_SHA: ${{ init.commit-sha }}
+      CI_BRANCH: ${{ init.branch }}
+      GROUP_SELECTED: ${{ tasks.route.values.run-main }}
+      RWX_RUN_ID:
+        cache-key: included
+      RWX_TASK_ATTEMPT_NUMBER:
+        cache-key: included
+      TASK_CHECK_GENERATED_MOCKS_OP_NODE_SUCCEEDED: ${{ tasks.check-generated-mocks-op-node.succeeded }}
+      TASK_CHECK_GENERATED_MOCKS_OP_NODE_FAILED: ${{ tasks.check-generated-mocks-op-node.failed }}
+      TASK_CHECK_GENERATED_MOCKS_OP_NODE_SKIPPED: ${{ tasks.check-generated-mocks-op-node.skipped }}
+      TASK_CHECK_GENERATED_MOCKS_OP_SERVICE_SUCCEEDED: ${{ tasks.check-generated-mocks-op-service.succeeded }}
+      TASK_CHECK_GENERATED_MOCKS_OP_SERVICE_FAILED: ${{ tasks.check-generated-mocks-op-service.failed }}
+      TASK_CHECK_GENERATED_MOCKS_OP_SERVICE_SKIPPED: ${{ tasks.check-generated-mocks-op-service.skipped }}
+      TASK_CHECK_NUT_LOCKS_SUCCEEDED: ${{ tasks.check-nut-locks.succeeded }}
+      TASK_CHECK_NUT_LOCKS_FAILED: ${{ tasks.check-nut-locks.failed }}
+      TASK_CHECK_NUT_LOCKS_SKIPPED: ${{ tasks.check-nut-locks.skipped }}
+      TASK_CHECK_OP_GETH_VERSION_SUCCEEDED: ${{ tasks.check-op-geth-version.succeeded }}
+      TASK_CHECK_OP_GETH_VERSION_FAILED: ${{ tasks.check-op-geth-version.failed }}
+      TASK_CHECK_OP_GETH_VERSION_SKIPPED: ${{ tasks.check-op-geth-version.skipped }}
+      TASK_L2_CHAINS_SYNC_CHECK_SUCCEEDED: ${{ tasks.l2-chains-sync-check.succeeded }}
+      TASK_L2_CHAINS_SYNC_CHECK_FAILED: ${{ tasks.l2-chains-sync-check.failed }}
+      TASK_L2_CHAINS_SYNC_CHECK_SKIPPED: ${{ tasks.l2-chains-sync-check.skipped }}
+      TASK_OP_DEPLOYER_FORGE_VERSION_SUCCEEDED: ${{ tasks.op-deployer-forge-version.succeeded }}
+      TASK_OP_DEPLOYER_FORGE_VERSION_FAILED: ${{ tasks.op-deployer-forge-version.failed }}
+      TASK_OP_DEPLOYER_FORGE_VERSION_SKIPPED: ${{ tasks.op-deployer-forge-version.skipped }}
+      TASK_SEMGREP_SCAN_LOCAL_SUCCEEDED: ${{ tasks.semgrep-scan-local.succeeded }}
+      TASK_SEMGREP_SCAN_LOCAL_FAILED: ${{ tasks.semgrep-scan-local.failed }}
+      TASK_SEMGREP_SCAN_LOCAL_SKIPPED: ${{ tasks.semgrep-scan-local.skipped }}
+      TASK_SEMGREP_TEST_SUCCEEDED: ${{ tasks.semgrep-test.succeeded }}
+      TASK_SEMGREP_TEST_FAILED: ${{ tasks.semgrep-test.failed }}
+      TASK_SEMGREP_TEST_SKIPPED: ${{ tasks.semgrep-test.skipped }}
+      TASK_SHELL_CHECK_SUCCEEDED: ${{ tasks.shell-check.succeeded }}
+      TASK_SHELL_CHECK_FAILED: ${{ tasks.shell-check.failed }}
+      TASK_SHELL_CHECK_SKIPPED: ${{ tasks.shell-check.skipped }}
+    cache: false
+    timeout: 10m
+    outputs:
+      filesystem: false
+      artifacts:
+        - key: receipt
+          path: .ci/pr-gates/groups/main-checks

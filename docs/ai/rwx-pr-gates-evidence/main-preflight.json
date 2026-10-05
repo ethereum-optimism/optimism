@@ -1,0 +1,46 @@
+{
+  "authoritative_dependencies": {
+    "ci-gate": 19,
+    "required-rust-ci": 21
+  },
+  "coverage_added": 0,
+  "embedded_workloads": 12,
+  "full_hosted_parity": false,
+  "input_sha256": {
+    ".rwx/acceptance.yml": "d85fc863f7d2be80a4951e5901bff9b5281195ab69b53c685f49696b369acff1",
+    ".rwx/cannon-go.yml": "dabdbfed52a44051a902b308ebbda010571450a8930c8a397388b6813b46b57e",
+    ".rwx/fetcher-artifacts.yml": "7557774601a69c39d51dc97ef308e9604def54910d43482b8596678c4c624992",
+    ".rwx/go-tests.yml": "e37923188b015e55c9e670d5082544f9d243455fe6b61a91d798306d35436202",
+    ".rwx/kontrol-build.yml": "58e69620cc9bd2287ff93817766846d5f4f968e9424f9f24c6a71b8075622f7a",
+    ".rwx/nut-prefork.yml": "45a0644f3b4105b9eb9e394b9a943e3da02fe0d2896c251153d0bf0527c1fde4",
+    ".rwx/nut-provenance.yml": "d0942d9b2af758abac97ef6c8013c1096cd79b0f730324afde67c9deaffae805",
+    ".rwx/op-reth.yml": "9797b83d806f11ba80bbdcdd9e6cb67767748c1308767daae4a99fecd61e59dd",
+    ".rwx/pilot.yml": "6f35d6ab0a88d8d27c0cca4dd3aa9b2f1c2721f6c67ce4d2f605d52365baa871",
+    ".rwx/pr-checks.yml": "0bf04bcc24bc6002830c08bfda528aaf485b4e5cd2417bedf95b413e9a98ad99",
+    ".rwx/pr-gates.yml": "bf794373e7eb5e6dc27025f7df96b4523b15d1baaf26fdfc8858910107b21c72",
+    ".rwx/rust.yml": "eb8e45ede767aab7542f7bcd58af6c239c79fe356a00a86bed635f609e77a9b2",
+    ".rwx/sp1-guest.yml": "a68dde4f432846320ca452cb04c3d0e8e2ed062751815b85ac88008b11ebd2f6",
+    "ops/ci/pr-gate.py": "58369fd674eb61b15c0b0b91446705ea3c8f222cc0af5a7c2eca64f57483d30d",
+    "ops/ci/pr-gates.json": "d96a2b84111f8bba6d0c5e5cd83dc01d73450fe4a28cb7ca67bf3ec8d1da1786",
+    "ops/ci/test_pr_gate.py": "5c7ddacfbefa6e6e2eef4d919186486d790f1b8c99345d529b0827a50eec5bbc"
+  },
+  "main_acceptance_shards": {
+    "kona": 8,
+    "opn": 8
+  },
+  "main_go_parallel": 8,
+  "main_go_shards": 12,
+  "manifest_version": 3,
+  "reason": "Full automatic execution, complete original same-SHA Circle comparison and terminal checks are still required. Local fixtures and lint add no workload coverage.",
+  "validation": {
+    "fourteen_git_yq_fixtures": {
+      "original_log_sha256": "96e2cc7a195201b31820caf11b122848fbb1d21c694e3386c5c11b08333eafdf",
+      "passed": true
+    },
+    "native_config_lint": {
+      "files": 11,
+      "original_log_sha256": "cb73a9a9d5c4c924ac93034efda8a9ac2ec9fb63fb1782605d635ea2e0562e41",
+      "problems": 0
+    }
+  }
+}

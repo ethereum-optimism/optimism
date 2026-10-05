@@ -1,5 +1,5 @@
 {
-  "version": 2,
+  "version": 3,
   "repository": "ethereum-optimism/optimism",
   "gates": {
     "required-rust-ci": {
@@ -164,8 +164,185 @@
           ]
         }
       ],
-      "native_config": ".rwx/rust-gate.yml",
-      "check_name": "optimism-rust-gate-shadow"
+      "native_config": ".rwx/pr-gates.yml",
+      "check_name": "optimism-rust-gate-shadow",
+      "observer_tasks": {
+        "aggregate": "aggregate",
+        "failure": "gate-failure",
+        "status": "gate-status"
+      }
+    },
+    "ci-gate": {
+      "circle_config": ".circleci/continue/main.yml",
+      "workflow": "main",
+      "route": "run-main",
+      "dependencies": [
+        {
+          "name": "check-kontrol-build",
+          "group": "main-kontrol",
+          "tasks": [
+            "check"
+          ]
+        },
+        {
+          "name": "shell-check",
+          "group": "main-checks",
+          "tasks": [
+            "shell-check"
+          ]
+        },
+        {
+          "name": "go-lint",
+          "group": "main-pilot",
+          "tasks": [
+            "go-lint"
+          ]
+        },
+        {
+          "name": "semgrep-scan-local",
+          "group": "main-checks",
+          "tasks": [
+            "semgrep-scan-local"
+          ]
+        },
+        {
+          "name": "semgrep-test",
+          "group": "main-checks",
+          "tasks": [
+            "semgrep-test"
+          ]
+        },
+        {
+          "name": "go-tests",
+          "group": "main-go",
+          "tasks": [
+            "verdict-0",
+            "verdict-1",
+            "verdict-2",
+            "verdict-3",
+            "verdict-4",
+            "verdict-5",
+            "verdict-6",
+            "verdict-7",
+            "verdict-8",
+            "verdict-9",
+            "verdict-10",
+            "verdict-11"
+          ]
+        },
+        {
+          "name": "memory-all-opn-op-reth-fusaka",
+          "group": "main-acceptance",
+          "tasks": [
+            "verdict-opn-0",
+            "verdict-opn-1",
+            "verdict-opn-2",
+            "verdict-opn-3",
+            "verdict-opn-4",
+            "verdict-opn-5",
+            "verdict-opn-6",
+            "verdict-opn-7"
+          ]
+        },
+        {
+          "name": "memory-all-kona-op-reth-fusaka",
+          "group": "main-acceptance",
+          "tasks": [
+            "verdict-kona-0",
+            "verdict-kona-1",
+            "verdict-kona-2",
+            "verdict-kona-3",
+            "verdict-kona-4",
+            "verdict-kona-5",
+            "verdict-kona-6",
+            "verdict-kona-7"
+          ]
+        },
+        {
+          "name": "kona-build-sp1-elfs",
+          "group": "main-sp1",
+          "tasks": [
+            "check"
+          ]
+        },
+        {
+          "name": "cannon-go-lint-and-test",
+          "group": "main-cannon",
+          "tasks": [
+            "tests"
+          ]
+        },
+        {
+          "name": "check-generated-mocks-op-node",
+          "group": "main-checks",
+          "tasks": [
+            "check-generated-mocks-op-node"
+          ]
+        },
+        {
+          "name": "check-generated-mocks-op-service",
+          "group": "main-checks",
+          "tasks": [
+            "check-generated-mocks-op-service"
+          ]
+        },
+        {
+          "name": "check-nut-locks",
+          "group": "main-checks",
+          "tasks": [
+            "check-nut-locks"
+          ]
+        },
+        {
+          "name": "check-nut-prefork-states",
+          "group": "main-nut-prefork",
+          "tasks": [
+            "tests"
+          ]
+        },
+        {
+          "name": "check-op-geth-version",
+          "group": "main-checks",
+          "tasks": [
+            "check-op-geth-version"
+          ]
+        },
+        {
+          "name": "op-deployer-forge-version",
+          "group": "main-checks",
+          "tasks": [
+            "op-deployer-forge-version"
+          ]
+        },
+        {
+          "name": "l2-chains-sync-check",
+          "group": "main-checks",
+          "tasks": [
+            "l2-chains-sync-check"
+          ]
+        },
+        {
+          "name": "nut-provenance-verify",
+          "group": "main-nut-provenance",
+          "tasks": [
+            "verify"
+          ]
+        },
+        {
+          "name": "diff-fetcher-forge-artifacts",
+          "group": "main-fetcher",
+          "tasks": [
+            "check"
+          ]
+        }
+      ],
+      "native_config": ".rwx/pr-gates.yml",
+      "check_name": "optimism-main-gate-shadow",
+      "observer_tasks": {
+        "aggregate": "main-aggregate",
+        "failure": "main-gate-failure",
+        "status": "main-gate-status"
+      }
     }
   },
   "groups": {
@@ -174,21 +351,159 @@
       "receipt_task": "rust-gate-receipt",
       "route": "run-rust-ci",
       "embedded_task": "native-fmt",
-      "check_name": "optimism-pilot"
+      "check_name": "optimism-pilot",
+      "init": {}
     },
     "rust-workspace": {
       "config": ".rwx/rust.yml",
       "receipt_task": "rust-gate-receipt",
       "route": "run-rust-ci",
       "embedded_task": "native-workspace",
-      "check_name": "optimism-rust-shadow"
+      "check_name": "optimism-rust-shadow",
+      "init": {
+        "cache-warm": "false",
+        "cache-epoch": "v1"
+      },
+      "receipt_if": "${{ init.cache-warm != 'true' }}"
     },
     "op-reth-rust": {
       "config": ".rwx/op-reth.yml",
       "receipt_task": "rust-gate-receipt",
       "route": "run-rust-ci",
       "embedded_task": "native-op-reth",
-      "check_name": "optimism-op-reth-shadow"
+      "check_name": "optimism-op-reth-shadow",
+      "init": {
+        "cache-warm": "false",
+        "cache-epoch": "v1",
+        "build-probe": "",
+        "target-cache-mode": "keep",
+        "codec-base-sha": ""
+      },
+      "receipt_if": "${{ init.cache-warm != 'true' }}"
+    },
+    "main-pilot": {
+      "config": ".rwx/pilot.yml",
+      "receipt_task": "main-gate-receipt",
+      "route": "run-main",
+      "embedded_task": "native-fmt",
+      "check_name": "optimism-pilot",
+      "init": {}
+    },
+    "main-checks": {
+      "config": ".rwx/pr-checks.yml",
+      "receipt_task": "main-gate-receipt",
+      "route": "run-main",
+      "embedded_task": "native-pr-checks",
+      "check_name": "optimism-pr-checks-shadow",
+      "init": {
+        "cache-warm": "false",
+        "cache-epoch": "v1"
+      },
+      "receipt_if": "${{ init.cache-warm != 'true' }}"
+    },
+    "main-go": {
+      "config": ".rwx/go-tests.yml",
+      "receipt_task": "main-gate-receipt",
+      "route": "run-main",
+      "embedded_task": "native-go",
+      "check_name": "optimism-go-tests-shadow",
+      "init": {
+        "cache-warm": "false",
+        "cache-epoch": "v1",
+        "build-probe": "",
+        "target-cache-mode": "keep",
+        "shard-total": "12",
+        "test-parallel": "8"
+      },
+      "receipt_if": "${{ init.cache-warm != 'true' && init.shard-total == '12' }}"
+    },
+    "main-acceptance": {
+      "config": ".rwx/acceptance.yml",
+      "receipt_task": "main-gate-receipt",
+      "route": "run-main",
+      "embedded_task": "native-acceptance",
+      "check_name": "optimism-acceptance-shadow",
+      "init": {
+        "cache-warm": "false",
+        "cache-epoch": "v1",
+        "build-probe": "",
+        "target-cache-mode": "keep",
+        "shard-total": "8"
+      },
+      "receipt_if": "${{ init.cache-warm != 'true' && init.shard-total == '8' }}"
+    },
+    "main-cannon": {
+      "config": ".rwx/cannon-go.yml",
+      "receipt_task": "main-gate-receipt",
+      "route": "run-main",
+      "embedded_task": "native-cannon",
+      "check_name": "optimism-cannon-go-shadow",
+      "init": {
+        "cache-warm": "false",
+        "cache-epoch": "v1"
+      },
+      "receipt_if": "${{ init.cache-warm != 'true' }}"
+    },
+    "main-nut-prefork": {
+      "config": ".rwx/nut-prefork.yml",
+      "receipt_task": "main-gate-receipt",
+      "route": "run-main",
+      "embedded_task": "native-nut-prefork",
+      "check_name": "optimism-nut-prefork-shadow",
+      "init": {
+        "cache-warm": "false",
+        "cache-epoch": "v1"
+      },
+      "receipt_if": "${{ init.cache-warm != 'true' }}"
+    },
+    "main-nut-provenance": {
+      "config": ".rwx/nut-provenance.yml",
+      "receipt_task": "main-gate-receipt",
+      "route": "run-main",
+      "embedded_task": "native-nut-provenance",
+      "check_name": "optimism-nut-provenance-shadow",
+      "init": {
+        "cache-warm": "false",
+        "cache-epoch": "v1"
+      },
+      "receipt_if": "${{ init.cache-warm != 'true' }}"
+    },
+    "main-fetcher": {
+      "config": ".rwx/fetcher-artifacts.yml",
+      "receipt_task": "main-gate-receipt",
+      "route": "run-main",
+      "embedded_task": "native-fetcher",
+      "check_name": "optimism-fetcher-artifacts-shadow",
+      "init": {
+        "cache-warm": "false",
+        "cache-epoch": "v1"
+      },
+      "receipt_if": "${{ init.cache-warm != 'true' }}"
+    },
+    "main-sp1": {
+      "config": ".rwx/sp1-guest.yml",
+      "receipt_task": "main-gate-receipt",
+      "route": "run-main",
+      "embedded_task": "native-sp1",
+      "check_name": "optimism-sp1-guest-shadow",
+      "init": {
+        "cache-warm": "false",
+        "cache-epoch": "v1",
+        "target-cache-mode": "keep"
+      },
+      "receipt_if": "${{ init.cache-warm != 'true' }}"
+    },
+    "main-kontrol": {
+      "config": ".rwx/kontrol-build.yml",
+      "receipt_task": "main-gate-receipt",
+      "route": "run-main",
+      "embedded_task": "native-kontrol",
+      "check_name": "optimism-kontrol-build-shadow",
+      "init": {
+        "cache-warm": "false",
+        "cache-epoch": "v1"
+      },
+      "receipt_if": "${{ init.cache-warm != 'true' }}"
     }
   }
 }

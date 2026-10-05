@@ -12,7 +12,7 @@ on:
       target-cache-mode: keep
       codec-base-sha: ${{ event.git.sha }}
       cache-warm: "true"
-  # Automatic pushes are coordinated by rust-gate.yml; CLI and warming remain.
+  # Automatic pushes are coordinated by pr-gates.yml; CLI and warming remain.
   cli:
     init:
       commit-sha: ${{ event.git.sha }}

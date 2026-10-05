@@ -9,16 +9,6 @@ on:
       tag: ""
       cache-warm: "true"
       cache-epoch: v1
-  github:
-    push:
-      init:
-        commit-sha: ${{ event.git.sha }}
-        branch: ${{ event.git.branch }}
-        tag: ${{ event.git.tag }}
-        cache-warm: "false"
-        cache-epoch: v1
-      status-checks:
-        name: optimism-cannon-go-shadow
   cli:
     init:
       commit-sha: ${{ event.git.sha }}
@@ -202,3 +192,28 @@ tasks:
       artifacts:
         - key: reports
           path: .ci/cannon-go/run
+
+  # Exact Main dependency states; unrelated workload failures stay outside this gate.
+  - key: main-gate-receipt
+    use: [code, tools]
+    after: ${{ (tests.succeeded || tests.failed || tests.skipped) }}
+    if: ${{ init.cache-warm != 'true' }}
+    run: python3 ops/ci/pr-gate.py receipt main-cannon
+    env:
+      CI_COMMIT_SHA: ${{ init.commit-sha }}
+      CI_BRANCH: ${{ init.branch }}
+      GROUP_SELECTED: ${{ tasks.route.values.run-main }}
+      RWX_RUN_ID:
+        cache-key: included
+      RWX_TASK_ATTEMPT_NUMBER:
+        cache-key: included
+      TASK_TESTS_SUCCEEDED: ${{ tasks.tests.succeeded }}
+      TASK_TESTS_FAILED: ${{ tasks.tests.failed }}
+      TASK_TESTS_SKIPPED: ${{ tasks.tests.skipped }}
+    cache: false
+    timeout: 10m
+    outputs:
+      filesystem: false
+      artifacts:
+        - key: receipt
+          path: .ci/pr-gates/groups/main-cannon

@@ -13,20 +13,6 @@ on:
       target-cache-mode: keep
       shard-total: "12"
       test-parallel: "8"
-  github:
-    push:
-      init:
-        commit-sha: ${{ event.git.sha }}
-        branch: ${{ event.git.branch }}
-        tag: ${{ event.git.tag }}
-        cache-warm: "false"
-        cache-epoch: v1
-        build-probe: ""
-        target-cache-mode: keep
-        shard-total: "12"
-        test-parallel: "8"
-      status-checks:
-        name: optimism-go-tests-shadow
   cli:
     init:
       commit-sha: ${{ event.git.sha }}
@@ -2246,3 +2232,61 @@ tasks:
         - key: test-logs
           path: tmp/testlogs
 
+
+  # Exact Main dependency states; unrelated workload failures stay outside this gate.
+  - key: main-gate-receipt
+    use: [code, tools]
+    after: ${{ (verdict-0.succeeded || verdict-0.failed || verdict-0.skipped) && (verdict-1.succeeded || verdict-1.failed || verdict-1.skipped) && (verdict-10.succeeded || verdict-10.failed || verdict-10.skipped) && (verdict-11.succeeded || verdict-11.failed || verdict-11.skipped) && (verdict-2.succeeded || verdict-2.failed || verdict-2.skipped) && (verdict-3.succeeded || verdict-3.failed || verdict-3.skipped) && (verdict-4.succeeded || verdict-4.failed || verdict-4.skipped) && (verdict-5.succeeded || verdict-5.failed || verdict-5.skipped) && (verdict-6.succeeded || verdict-6.failed || verdict-6.skipped) && (verdict-7.succeeded || verdict-7.failed || verdict-7.skipped) && (verdict-8.succeeded || verdict-8.failed || verdict-8.skipped) && (verdict-9.succeeded || verdict-9.failed || verdict-9.skipped) }}
+    if: ${{ init.cache-warm != 'true' && init.shard-total == '12' }}
+    run: python3 ops/ci/pr-gate.py receipt main-go
+    env:
+      CI_COMMIT_SHA: ${{ init.commit-sha }}
+      CI_BRANCH: ${{ init.branch }}
+      GROUP_SELECTED: ${{ tasks.route.values.run-main }}
+      RWX_RUN_ID:
+        cache-key: included
+      RWX_TASK_ATTEMPT_NUMBER:
+        cache-key: included
+      TASK_VERDICT_0_SUCCEEDED: ${{ tasks.verdict-0.succeeded }}
+      TASK_VERDICT_0_FAILED: ${{ tasks.verdict-0.failed }}
+      TASK_VERDICT_0_SKIPPED: ${{ tasks.verdict-0.skipped }}
+      TASK_VERDICT_1_SUCCEEDED: ${{ tasks.verdict-1.succeeded }}
+      TASK_VERDICT_1_FAILED: ${{ tasks.verdict-1.failed }}
+      TASK_VERDICT_1_SKIPPED: ${{ tasks.verdict-1.skipped }}
+      TASK_VERDICT_10_SUCCEEDED: ${{ tasks.verdict-10.succeeded }}
+      TASK_VERDICT_10_FAILED: ${{ tasks.verdict-10.failed }}
+      TASK_VERDICT_10_SKIPPED: ${{ tasks.verdict-10.skipped }}
+      TASK_VERDICT_11_SUCCEEDED: ${{ tasks.verdict-11.succeeded }}
+      TASK_VERDICT_11_FAILED: ${{ tasks.verdict-11.failed }}
+      TASK_VERDICT_11_SKIPPED: ${{ tasks.verdict-11.skipped }}
+      TASK_VERDICT_2_SUCCEEDED: ${{ tasks.verdict-2.succeeded }}
+      TASK_VERDICT_2_FAILED: ${{ tasks.verdict-2.failed }}
+      TASK_VERDICT_2_SKIPPED: ${{ tasks.verdict-2.skipped }}
+      TASK_VERDICT_3_SUCCEEDED: ${{ tasks.verdict-3.succeeded }}
+      TASK_VERDICT_3_FAILED: ${{ tasks.verdict-3.failed }}
+      TASK_VERDICT_3_SKIPPED: ${{ tasks.verdict-3.skipped }}
+      TASK_VERDICT_4_SUCCEEDED: ${{ tasks.verdict-4.succeeded }}
+      TASK_VERDICT_4_FAILED: ${{ tasks.verdict-4.failed }}
+      TASK_VERDICT_4_SKIPPED: ${{ tasks.verdict-4.skipped }}
+      TASK_VERDICT_5_SUCCEEDED: ${{ tasks.verdict-5.succeeded }}
+      TASK_VERDICT_5_FAILED: ${{ tasks.verdict-5.failed }}
+      TASK_VERDICT_5_SKIPPED: ${{ tasks.verdict-5.skipped }}
+      TASK_VERDICT_6_SUCCEEDED: ${{ tasks.verdict-6.succeeded }}
+      TASK_VERDICT_6_FAILED: ${{ tasks.verdict-6.failed }}
+      TASK_VERDICT_6_SKIPPED: ${{ tasks.verdict-6.skipped }}
+      TASK_VERDICT_7_SUCCEEDED: ${{ tasks.verdict-7.succeeded }}
+      TASK_VERDICT_7_FAILED: ${{ tasks.verdict-7.failed }}
+      TASK_VERDICT_7_SKIPPED: ${{ tasks.verdict-7.skipped }}
+      TASK_VERDICT_8_SUCCEEDED: ${{ tasks.verdict-8.succeeded }}
+      TASK_VERDICT_8_FAILED: ${{ tasks.verdict-8.failed }}
+      TASK_VERDICT_8_SKIPPED: ${{ tasks.verdict-8.skipped }}
+      TASK_VERDICT_9_SUCCEEDED: ${{ tasks.verdict-9.succeeded }}
+      TASK_VERDICT_9_FAILED: ${{ tasks.verdict-9.failed }}
+      TASK_VERDICT_9_SKIPPED: ${{ tasks.verdict-9.skipped }}
+    cache: false
+    timeout: 10m
+    outputs:
+      filesystem: false
+      artifacts:
+        - key: receipt
+          path: .ci/pr-gates/groups/main-go

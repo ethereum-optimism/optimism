@@ -9,7 +9,7 @@ on:
       tag: ""
       cache-epoch: v1
       cache-warm: "true"
-  # Automatic pushes are coordinated by rust-gate.yml; CLI and warming remain.
+  # Automatic pushes are coordinated by pr-gates.yml; CLI and warming remain.
   cli:
     init:
       commit-sha: ${{ event.git.sha }}

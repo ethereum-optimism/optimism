@@ -59,7 +59,7 @@ def terminal_expression(tasks):
 
 def configuration(gate=None):
     manifest=read(MANIFEST)
-    if manifest['version']!=2 or manifest['repository']!='ethereum-optimism/optimism':raise ValueError('Wrong native gate manifest')
+    if manifest['version']!=3 or manifest['repository']!='ethereum-optimism/optimism':raise ValueError('Wrong native gate manifest')
     selections={}
     for name,row in manifest['gates'].items():
         if gate is not None and name!=gate:continue
@@ -75,16 +75,42 @@ def configuration(gate=None):
         selected_groups={d['group'] for d in dependencies}
         caller=yaml(row['native_config']);caller_tasks={task['key']:task for task in caller['tasks']}
         if len(caller_tasks)!=len(caller['tasks']):raise ValueError('Duplicate native coordinator task')
+        expected_calls={manifest['groups'][dependency['group']]['embedded_task']
+                        for gate_row in manifest['gates'].values() if gate_row['native_config']==row['native_config']
+                        for dependency in gate_row['dependencies']}
+        if {key for key,task in caller_tasks.items() if 'call' in task and key not in ('code','mise')}!=expected_calls:
+            raise ValueError('Missing, duplicate or unassigned native coordinator workload call')
         custom=caller['on']['github']['push']['status-checks']['custom']
-        if custom.count({'name':row['check_name'],'tasks':'gate-status'})!=1:
+        observers=row['observer_tasks']
+        if (set(observers)!=set(('aggregate','failure','status')) or len(set(observers.values()))!=3
+                or any(not isinstance(key,str) or not re.fullmatch('[a-z][a-z0-9-]*',key) for key in observers.values())):
+            raise ValueError('Missing or duplicate native gate observer assignment')
+        if custom.count({'name':row['check_name'],'tasks':observers['status']})!=1:
             raise ValueError('Missing genuine native aggregate status binding')
         for group in selected_groups:
             definition=manifest['groups'][group];native=yaml(definition['config'])
             tasks=group_tasks(manifest,group);keys=[task['key'] for task in native['tasks']]
             if len(keys)!=len(set(keys)) or not set(tasks)<=set(keys):raise ValueError('Missing or duplicate native gate workload')
+            workloads={task['key']:task for task in native['tasks']}
+            def fresh(task):
+                # Run/attempt keys keep verdicts fresh while retaining native
+                # compiler tool caches, as in the verified Rust workloads.
+                return (task.get('cache',native.get('defaults',{}).get('cache')) is False
+                        or all(task.get('env',{}).get(key)=={'cache-key':'included'}
+                               for key in ('RWX_RUN_ID','RWX_TASK_ATTEMPT_NUMBER')))
+            if any(not fresh(workloads[key]) or not workloads[key].get('run')
+                   or workloads[key]['run'].strip()=='true' for key in tasks):
+                raise ValueError('Native gate workload must execute a fresh verdict')
             receipt=[task for task in native['tasks'] if task['key']==definition['receipt_task']]
             if len(receipt)!=1 or receipt[0]['after']!=terminal_expression(tasks):raise ValueError('Native gate receipt does not wait for every terminal prerequisite')
+            if receipt[0].get('if')!=definition.get('receipt_if') or receipt[0]['run']!='python3 ops/ci/pr-gate.py receipt '+group:
+                raise ValueError('Native gate receipt changes the authoritative workload mode')
             env=receipt[0]['env']
+            if (receipt[0]['use']!=['code','tools']
+                    or env.get('CI_COMMIT_SHA')!='${{ init.commit-sha }}'
+                    or env.get('CI_BRANCH')!='${{ init.branch }}'
+                    or env.get('GROUP_SELECTED')!='${{ tasks.route.values.'+definition['route']+' }}'):
+                raise ValueError('Native gate receipt changes source or authoritative routing')
             for task in tasks:
                 for attribute in ('succeeded','failed','skipped'):
                     key='TASK_'+task.upper().replace('-','_')+'_'+attribute.upper()
@@ -96,8 +122,8 @@ def configuration(gate=None):
             embedded=caller_tasks[definition['embedded_task']]
             if embedded['call']!='${{ run.dir }}/'+definition['config'].removeprefix('.rwx/'):
                 raise ValueError('Native coordinator calls a different workload')
-            for param in ('commit-sha','branch','tag'):
-                if embedded['init'].get(param)!='${{ init.'+param+' }}':raise ValueError('Native coordinator changes workload provenance')
+            expected_init={param:'${{ init.'+param+' }}' for param in ('commit-sha','branch','tag')}|definition['init']
+            if embedded['init']!=expected_init:raise ValueError('Native coordinator changes workload provenance or mode')
             if embedded['init'].get('cache-warm','false')!='false':raise ValueError('Native gate must execute fresh workloads')
             if custom.count({'name':definition['check_name'],'tasks':definition['embedded_task']})!=1:
                 raise ValueError('Native coordinator changes the existing workload check')
@@ -105,11 +131,12 @@ def configuration(gate=None):
         after=terminal_expression([definition['embedded_task'] for definition in definitions])
         passed='${{ '+' && '.join('tasks.'+d['embedded_task']+'.tasks.'+d['receipt_task']+'.succeeded' for d in definitions)+' }}'
         failed='${{ '+' || '.join('(tasks.'+d['embedded_task']+'.tasks.'+d['receipt_task']+'.failed || tasks.'+d['embedded_task']+'.tasks.'+d['receipt_task']+'.skipped)' for d in definitions)+' }}'
-        for key,condition in [('aggregate',passed),('gate-failure',failed)]:
+        for kind,condition in [('aggregate',passed),('failure',failed)]:
+            key=observers[kind]
             observer=caller_tasks[key]
             if observer['after']!=after or observer['if']!=condition or observer.get('cache') is not False:
                 raise ValueError('Native aggregate does not follow actual terminal receipts')
-            expected_run='python3 ops/ci/pr-gate.py aggregate '+name+(' --failed' if key=='gate-failure' else '')
+            expected_run='python3 ops/ci/pr-gate.py aggregate '+name+(' --failed' if kind=='failure' else '')
             if observer['run']!=expected_run or observer['use']!=['code','tools']:
                 raise ValueError('Native aggregate bypasses its original receipt validator')
             for group in sorted(selected_groups):
@@ -118,17 +145,17 @@ def configuration(gate=None):
                 for attribute in ('succeeded','failed','skipped'):
                     if observer['env'].get(prefix+'_'+attribute.upper())!='${{ '+task+'.'+attribute+' }}':
                         raise ValueError('Native aggregate state is not engine-bound')
-                if key=='aggregate' and observer['env'].get(prefix+'_REPORT')!='${{ '+task+'.artifacts.receipt }}':
+                if kind=='aggregate' and observer['env'].get(prefix+'_REPORT')!='${{ '+task+'.artifacts.receipt }}':
                     raise ValueError('Native aggregate report is not engine-bound')
-        verdict=caller_tasks['gate-status']
-        if (verdict['after']!=terminal_expression(['aggregate','gate-failure'])
+        verdict=caller_tasks[observers['status']]
+        if (verdict['after']!=terminal_expression([observers['aggregate'],observers['failure']])
                 or 'if' in verdict or verdict.get('cache') is not False
                 or verdict['run']!='python3 ops/ci/pr-gate.py status '+name
                 or verdict['use']!=['code','tools']):
             raise ValueError('Native gate status does not follow both terminal observers')
-        for task in ('aggregate','gate-failure'):
+        for alias,task in [('aggregate',observers['aggregate']),('gate-failure',observers['failure'])]:
             for attribute in ('succeeded','failed','skipped'):
-                key='OBSERVER_'+task.upper().replace('-','_')+'_'+attribute.upper()
+                key='OBSERVER_'+alias.upper().replace('-','_')+'_'+attribute.upper()
                 if verdict['env'].get(key)!='${{ tasks.'+task+'.'+attribute+' }}':
                     raise ValueError('Native gate status is not engine-bound')
         if verdict.get('outputs')!={'filesystem':False,'artifacts':[{'key':'status','path':'.ci/pr-gates/status/'+name}]}:
