@@ -138,18 +138,7 @@ impl<EngineClient_: EngineClient> Engine<EngineClient_> {
                 finalized_head: Some(start.finalized),
             },
         );
-        tokio::time::timeout(
-            std::time::Duration::from_secs(10),
-            synchronize.execute(&mut self.state),
-        )
-        .await
-        .map_err(|_| {
-            EngineResetError::SyncStart(SyncStartError::RpcError(
-                alloy_transport::TransportErrorKind::custom_str(
-                    "reset forkchoice update timed out",
-                ),
-            ))
-        })??;
+        synchronize.execute(&mut self.state).await?;
 
         kona_macros::inc!(counter, Metrics::ENGINE_RESET_COUNT);
 
