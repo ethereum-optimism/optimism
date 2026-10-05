@@ -531,6 +531,30 @@ fn floor_partially_absorbs_producer_refund() {
 }
 
 #[test]
+fn producer_refund_above_evm_gas_used_is_clipped_to_net_saving() {
+    // A capped native refund can leave gas used (200,000) below an achievable discount (210,000).
+    // Without the discount: 40,000 spent, cap 8,000, 32,000 used. Saving 168,000.
+    let gas = result_gas(250_000, 50_000, 21_000);
+    assert_eq!(gas.tx_gas_used(), 200_000);
+    assert_eq!(sanitize_producer_refund(210_000, &gas, REFUND_QUOTIENT, false), 168_000);
+}
+
+#[test]
+fn producer_refund_equal_to_gas_spent_nets_down_to_floor() {
+    // The largest accepted discount leaves only the floor: 200,000 used, 21,000 floor.
+    let gas = result_gas(250_000, 50_000, 21_000);
+    assert_eq!(sanitize_producer_refund(250_000, &gas, REFUND_QUOTIENT, false), 179_000);
+}
+
+#[test]
+fn producer_refund_above_gas_spent_is_zeroed() {
+    // No discount can exceed the gas execution spent, so this refund can only come from a faulty
+    // policy.
+    let gas = result_gas(250_000, 50_000, 21_000);
+    assert_eq!(sanitize_producer_refund(250_001, &gas, REFUND_QUOTIENT, false), 0);
+}
+
+#[test]
 fn excessive_producer_refund_is_zeroed_and_verifies() {
     let tx = observer_test_tx();
     let mut producer_db = prepare_observer_db();
@@ -625,7 +649,7 @@ fn faulty_producer_refunds_increment_correction_metrics() {
     assert_eq!(
         corrections,
         vec![
-            ("exceeds_evm_gas".to_string(), DebugValue::Counter(1)),
+            ("exceeds_gas_spent".to_string(), DebugValue::Counter(1)),
             ("exceeds_net_saving".to_string(), DebugValue::Counter(1)),
             ("ineligible_transaction".to_string(), DebugValue::Counter(1)),
         ]

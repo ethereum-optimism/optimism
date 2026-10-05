@@ -35,7 +35,8 @@ pub trait PostExecRefundPolicyFactory {
 /// every possible database context.
 ///
 /// **Not consensus.** The executor reads [`PostExecExecutedTx::refund_total`] via
-/// [`finish_tx`](Self::finish_tx), discards normal-transaction refunds above `evm_gas_used`, and
+/// [`finish_tx`](Self::finish_tx), discards normal-transaction refunds above the gas execution
+/// spent, clips the rest to their net saving after the EIP-3529 cap and EIP-7623 floor, and
 /// discards refunds for ineligible transaction kinds. It never observes how the refund was
 /// computed. Verifiers run the default inspector and discard its refund, so a proprietary producer
 /// policy cannot make a verifier accept an *invalid* block. The seam still requires the implementor
