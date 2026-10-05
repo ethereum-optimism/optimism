@@ -1,9 +1,20 @@
 # Complete SP1 guest shadow
 
 The optional `optimism-sp1-guest-shadow` ports Main's `kona-build-sp1-elfs`
-through the shared `run-main` routing. It is implemented and has passed the full
-Linux preflight; hosted native execution and resolved same-SHA Circle comparison
-remain pending. This occurrence remains uncounted, with verified coverage 77/86.
+through the shared `run-main` routing. Its complete hosted job and all six actual
+tests pass on both providers at `014e8310`. The strict comparison found different
+ELF bytes and CPU verification keys, so this occurrence remains uncounted, with
+verified coverage 77/86.
+
+The [first complete hosted originals](rwx-sp1-guest-evidence/first-hosted-elf-discrepancy.json)
+retain every file hash, the actual keys and the embedded physical source paths.
+Both providers use the same source and verified compiler binaries, but the guest
+embeds different checkout and Cargo registry paths. The
+[complete canonical-path probe](rwx-sp1-guest-evidence/canonical-path-probe.json)
+reproduces both Circle ELFs and verification keys byte for byte, at the same SHA,
+using the same physical paths and original flags. Path-remapping flags produce
+different binaries and are not used. The probe executes zero tests; full hosted
+parity after the correction remains pending.
 
 Both providers retain the canonical SP1 pin checks, native Succinct toolchain,
 `just check-sp1-guest-lock` before the build, and `just build-elfs-native` for every
@@ -16,6 +27,21 @@ file hashes and independently recomputed CPU verification keys. The consumer's
 original logs and actual case-level JUnit. Packages and targets with zero tests
 remain included; new programs and test cases are discovered from original inputs.
 There are no test retries in this Circle workload.
+
+Native ELF compilation now clones the verified revision into the original
+`/home/circleci/project` workspace and compiles with Cargo home
+`/data/mise-data/.cargo` and the original guest target location. It preserves
+source/Git provenance and seals clone, checkout, tool-trust and canonical
+toolchain verification evidence. Occupied
+directories fail before any build or inspection of existing data. Compiler cache
+data is imported and exported through the isolated native cache; source clones,
+reports and verdicts remain outside reusable outputs. A new ELF cache namespace
+separates the previous physical-path compiler outputs.
+
+Tool identity includes the complete Succinct linker and standard-library file
+manifest, in addition to the compiler and Cargo-prove binaries. Compiler targets
+are discarded when that identity or the effective flags change. Sccache storage
+is separated by the same identity; unchanged inputs can reuse compiler data.
 
 Native preparation caches the pinned tools and Succinct installation separately.
 The ELF producer uses 16 CPUs / 32 GiB; fresh checks use 8 CPUs / 16 GiB. Separate

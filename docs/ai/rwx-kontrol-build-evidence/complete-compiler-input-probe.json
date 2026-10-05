@@ -1,0 +1,165 @@
+{
+  "comparison_scope": "Complete initial compiler inventory only; Circle originals are ba787b45 with unchanged contract source",
+  "compiler_comparison": {
+    "complete_logical_inventory_equal": true,
+    "contract_artifacts": 1093,
+    "resolved_metadata_differences": {
+      "workspace_path_metadata": 2136
+    },
+    "verified_artifact_path_aliases": [
+      {
+        "circle": "packages/contracts-bedrock/forge-artifacts/StdJson.sol/stdJson.0.8.28.default.json",
+        "logical_key": [
+          "lib/forge-std/src/StdJson.sol",
+          "stdJson",
+          "0.8.28",
+          "default"
+        ],
+        "rwx": "packages/contracts-bedrock/forge-artifacts/StdJson.sol/stdJson.json"
+      },
+      {
+        "circle": "packages/contracts-bedrock/forge-artifacts/Vm.sol/Vm.0.8.28.default.json",
+        "logical_key": [
+          "lib/forge-std/src/Vm.sol",
+          "Vm",
+          "0.8.28",
+          "default"
+        ],
+        "rwx": "packages/contracts-bedrock/forge-artifacts/Vm.sol/Vm.json"
+      },
+      {
+        "circle": "packages/contracts-bedrock/forge-artifacts/Vm.sol/VmSafe.0.8.28.default.json",
+        "logical_key": [
+          "lib/forge-std/src/Vm.sol",
+          "VmSafe",
+          "0.8.28",
+          "default"
+        ],
+        "rwx": "packages/contracts-bedrock/forge-artifacts/Vm.sol/VmSafe.json"
+      },
+      {
+        "circle": "packages/contracts-bedrock/forge-artifacts/console.sol/console.0.8.28.default.json",
+        "logical_key": [
+          "lib/forge-std/src/console.sol",
+          "console",
+          "0.8.28",
+          "default"
+        ],
+        "rwx": "packages/contracts-bedrock/forge-artifacts/console.sol/console.json"
+      },
+      {
+        "circle": "packages/contracts-bedrock/forge-artifacts/console2.sol/console2.0.8.28.default.json",
+        "logical_key": [
+          "lib/forge-std/src/console2.sol",
+          "console2",
+          "0.8.28",
+          "default"
+        ],
+        "rwx": "packages/contracts-bedrock/forge-artifacts/console2.sol/console2.json"
+      },
+      {
+        "circle": "packages/contracts-bedrock/forge-artifacts/LibString.sol/LibString.0.8.28.default.json",
+        "logical_key": [
+          "lib/solady/src/utils/LibString.sol",
+          "LibString",
+          "0.8.28",
+          "default"
+        ],
+        "rwx": "packages/contracts-bedrock/forge-artifacts/LibString.sol/LibString.json"
+      },
+      {
+        "circle": "packages/contracts-bedrock/forge-artifacts/Artifacts.s.sol/Artifacts.0.8.28.json",
+        "logical_key": [
+          "scripts/Artifacts.s.sol",
+          "Artifacts",
+          "0.8.28",
+          "default"
+        ],
+        "rwx": "packages/contracts-bedrock/forge-artifacts/Artifacts.s.sol/Artifacts.json"
+      },
+      {
+        "circle": "packages/contracts-bedrock/forge-artifacts/Config.sol/Config.0.8.28.json",
+        "logical_key": [
+          "scripts/libraries/Config.sol",
+          "Config",
+          "0.8.28",
+          "default"
+        ],
+        "rwx": "packages/contracts-bedrock/forge-artifacts/Config.sol/Config.json"
+      },
+      {
+        "circle": "packages/contracts-bedrock/forge-artifacts/Config.sol/ForkUtils.0.8.28.json",
+        "logical_key": [
+          "scripts/libraries/Config.sol",
+          "ForkUtils",
+          "0.8.28",
+          "default"
+        ],
+        "rwx": "packages/contracts-bedrock/forge-artifacts/Config.sol/ForkUtils.json"
+      },
+      {
+        "circle": "packages/contracts-bedrock/forge-artifacts/Config.sol/OutputModeUtils.0.8.28.json",
+        "logical_key": [
+          "scripts/libraries/Config.sol",
+          "OutputModeUtils",
+          "0.8.28",
+          "default"
+        ],
+        "rwx": "packages/contracts-bedrock/forge-artifacts/Config.sol/OutputModeUtils.json"
+      },
+      {
+        "circle": "packages/contracts-bedrock/forge-artifacts/ForgeArtifacts.sol/ForgeArtifacts.0.8.28.json",
+        "logical_key": [
+          "scripts/libraries/ForgeArtifacts.sol",
+          "ForgeArtifacts",
+          "0.8.28",
+          "default"
+        ],
+        "rwx": "packages/contracts-bedrock/forge-artifacts/ForgeArtifacts.sol/ForgeArtifacts.json"
+      },
+      {
+        "circle": "packages/contracts-bedrock/forge-artifacts/Process.sol/Process.0.8.28.json",
+        "logical_key": [
+          "scripts/libraries/Process.sol",
+          "Process",
+          "0.8.28",
+          "default"
+        ],
+        "rwx": "packages/contracts-bedrock/forge-artifacts/Process.sol/Process.json"
+      },
+      {
+        "circle": "packages/contracts-bedrock/forge-artifacts/DevFeatures.sol/DevFeatures.0.8.28.json",
+        "logical_key": [
+          "src/libraries/DevFeatures.sol",
+          "DevFeatures",
+          "0.8.28",
+          "default"
+        ],
+        "rwx": "packages/contracts-bedrock/forge-artifacts/DevFeatures.sol/DevFeatures.json"
+      },
+      {
+        "circle": "packages/contracts-bedrock/forge-artifacts/Predeploys.sol/Predeploys.0.8.28.json",
+        "logical_key": [
+          "src/libraries/Predeploys.sol",
+          "Predeploys",
+          "0.8.28",
+          "default"
+        ],
+        "rwx": "packages/contracts-bedrock/forge-artifacts/Predeploys.sol/Predeploys.json"
+      }
+    ]
+  },
+  "complete_kontrol_parity": false,
+  "native_run_id": "4e307bf1b21f4118a8d4e099c7c88b2b",
+  "native_task_id": "1852f9001587e9d75cae09dc842c8852",
+  "original_sha256": {
+    "ci-build.log": "6365bcdc90f5d51b77793167743a5ba3afc2f3dcff0a02b2ded6a6bb1d6386cf",
+    "compiler/files.json": "4e9b96f1e7f9aa4859e4d2e97f59e67ca259bf3231908b2f0a8c850fafd73f39",
+    "compiler/files.tar.gz": "177baf8c0913b3dd4e4e3480147725db91ad1b121159db254b63639164ce25a4",
+    "final.json": "d6fb600f0ffdc2fe4b6c3230b865141f3a898f7d00bdb2ead20bf818b1944af3",
+    "legacy-graph.log": "d942bec74c2aaa725b5ae7d16ca19ad4e2bf33579601a93c15f54d556a8497cc"
+  },
+  "probe_outcome": "succeeded",
+  "source_sha": "014e83106c8941d392c8e1a564336893fb9739a3",
+  "tests": 0
+}

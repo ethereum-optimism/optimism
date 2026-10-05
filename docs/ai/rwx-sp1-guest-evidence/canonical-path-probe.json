@@ -1,0 +1,73 @@
+{
+  "byte_identical_to_circle": true,
+  "files": {
+    "super-aggregation-elf": {
+      "sha256": "00e691e8040c726bdef5d69905eaa768d38da3f0ddac423d82b8f87ba367acbc",
+      "size": 377600
+    },
+    "super-range-elf": {
+      "sha256": "fd07629ac0951a04e3b01e028fa6bca1bc498a02e44eab4e1b9d9ff997b6ca4a",
+      "size": 8099496
+    },
+    "vkeys.toml": {
+      "sha256": "cf53fd0918836f87228a73badd029bc99337840790523e52b98c12c5e444456e",
+      "size": 363
+    }
+  },
+  "first_probes": {
+    "failure": "The isolated task user needed sudo to create the canonical directories",
+    "physical_run_id": "a109c788984f4147a04874472253bc76",
+    "remapping_run_id": "0894424c08ff47fd8ef10f4a1d3732d6"
+  },
+  "full_workload_parity": false,
+  "native_run_id": "a733c20b54e44fb6bb2206c4e6b1b62c",
+  "native_task_id": "c5194ea765a47280aa9e7a930e519bfb",
+  "original_sha256": {
+    "build.log": "3e5e35546978d81307a05d4a8e53405318c2ba0f34817ce55f3a0431ae8490d9",
+    "checkout.log": "788f433d1d9067bb6ef825c0d063e098680c4dfb88205c2a13a35c4d01b642b6",
+    "clone.log": "2451010e191500c8dffd40ca4f16a07659778fff32cbf894074ef2fb14fd0968",
+    "files/super-aggregation-elf": "00e691e8040c726bdef5d69905eaa768d38da3f0ddac423d82b8f87ba367acbc",
+    "files/super-range-elf": "fd07629ac0951a04e3b01e028fa6bca1bc498a02e44eab4e1b9d9ff997b6ca4a",
+    "files/vkeys.toml": "cf53fd0918836f87228a73badd029bc99337840790523e52b98c12c5e444456e",
+    "final.json": "29429be21c19dbda1c221987b9aa1cc3eb9e9f6ffdac7438b3574aea5ac71a2b",
+    "source-diff.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "super-aggregation-vkey.log": "8529be94dffe7c90e242f4e7514d10349d6b4c20783750894d3fd4494217ad72",
+    "super-range-vkey.log": "be2eb77181c5fd78eafacf71589f11c4605f1227cdc124d5519d66983f79d4dd",
+    "tools.json": "c4e377f428c8179459b4c47357d7d819f5904cac44ea5a7a99f89d7d70329294",
+    "trust.log": "7ca5471b01dec76edb58fcffdf37f4a21f4021df882e6b6aef79327e1c9eff74"
+  },
+  "policy": {
+    "cargo_home": "/data/mise-data/.cargo",
+    "extra_rustflags": [],
+    "workspace_root": "/home/circleci/project"
+  },
+  "probe_outcome": "succeeded",
+  "remapping_probe": {
+    "elf_identity": "Both ELF bytes and verification keys still differ after path-remapping flags",
+    "failure": "Probe attempted to copy a producer settings file that was excluded from its filesystem output; complete compiled ELF bytes remain retained",
+    "native_run_id": "7eefec91ad2e46838acc9f4c177222a9",
+    "original_sha256": {
+      "reports/files/super-aggregation-elf": "9c4003703844d3ef3924eecefabf31d117fb6e528f89c38ec5e3ce6b4d924343",
+      "reports/files/super-range-elf": "d3688a9a10562bfa65167e344792925d321ff5e7225e0af70a6141f3a2756657",
+      "reports/files/vkeys.toml": "0f1645e365595af0e30355a7e0698856563c424cf79a3c6c505e9849385e087c",
+      "reports/sccache-start.log": "3f1ab9bafe7d1e32be5b1d1c46127c094534e86e28a03d54729744ef9db98083",
+      "reports/sccache-stats.json": "9b718de805a246a63996245f5ca334fd29d0ba4031e4711ce27f471e2b91fea7",
+      "reports/sccache-stop.log": "a30cc32c34dcdffeadeb980f863d81999d62ec30f4a32701868e5915b73858e2",
+      "reports/sccache-zero.log": "2347f567cc4c3ceb415c3c07f201f6f22408f4379ef3f1d263742436062ec594",
+      "reports/source-diff.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "reports/super-aggregation-build.log": "efa0df6e25f677cf4ce0ef99c2636a7a5dff97e6cff70a190a639bbfd333928b",
+      "reports/super-aggregation-vkey.log": "aa897f844026275591f4274f0af9baadbf4a9d7b70c0e63007027060905e27bb",
+      "reports/super-range-build.log": "7b3e2066d7a66d5c695bd06be909b28aed782a03e9ee02d284ea7efd3bfa7706",
+      "reports/super-range-vkey.log": "797094ecb3dce426d22ec7a67afe213a84d40d1cf7b303b8e5fbb0b4f58bfb4b"
+    },
+    "overall_outcome": "failed"
+  },
+  "source_sha": "014e83106c8941d392c8e1a564336893fb9739a3",
+  "tests": 0,
+  "vkeys": {
+    "git_sha": "014e83106c8941d392c8e1a564336893fb9739a3",
+    "sp1_toolchain_tag": "v6.8.1",
+    "super-aggregation": "0x00e9c90b97981bfd33ce1090dcb959bf03bc088146adaeaf25dd01b6ae062fb1",
+    "super-range": "0x009214b06e640f84ac5ee590e19ee9488b53cdb3dc4884a5a9bfc9beb467b11b"
+  }
+}

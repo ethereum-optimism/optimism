@@ -245,7 +245,7 @@ CircleCI workflow: `main` (32 jobs).
 - [x] `op-deployer-forge-version`
 - [ ] `nut-provenance-verify`
 - [x] `l2-chains-sync-check`
-- [ ] `kona-build-sp1-elfs` — [complete native guest build and checks](rwx-sp1-guest.md); local preflight passed, hosted parity pending
+- [ ] `kona-build-sp1-elfs` — [complete native guest build and checks](rwx-sp1-guest.md); both hosted jobs pass at `014e8310`, the canonical-path probe matches both ELFs and verification keys exactly, full hosted parity after the correction remains pending
 - [x] `go-lint`
 - [x] `go-binaries-for-sysgo`
 - [ ] `generate-flaky-tests-report`

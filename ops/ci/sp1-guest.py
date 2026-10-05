@@ -25,7 +25,7 @@ REPORTS = ROOT / '.ci/sp1-guest'
 TOOL_INPUTS = ('mise.toml', 'rust/Cargo.toml', 'rust/Cargo.lock',
     'rust/kona/sp1/programs/Cargo.toml', 'rust/kona/sp1/programs/Cargo.lock',
     'rust/kona/sp1/justfile', 'rust/rust-toolchain.toml', 'rust/.cargo/config.toml',
-    'ops/ci/sp1-guest-toolchain.sh', 'ops/ci/sp1-guest.py',
+    'ops/ci/sp1-guest-toolchain.sh', 'ops/ci/sp1-guest.py', 'ops/ci/sp1-guest-native-build.py',
     'ops/ci/rust-target-cache.py', 'ops/ci/rust-workspace-report.py')
 
 
@@ -75,6 +75,9 @@ def tools():
     rustc = Path(command('rustup', 'which', '--toolchain', 'succinct', 'rustc'))
     if not rustc.is_file(): raise ValueError('Missing actual Succinct compiler')
     result['succinct-rustc-sha256'] = S.digest(rustc)
+    library = rustc.parent.parent/'lib'
+    result['succinct-library-sha256'] = {str(p.relative_to(library)):S.digest(p) for p in sorted(library.rglob('*')) if p.is_file()}
+    if not result['succinct-library-sha256']:raise ValueError('Missing actual Succinct linker and standard-library inputs')
     result['sp1-version'] = version
     return result
 
@@ -193,13 +196,28 @@ def cache_start(path, provider, phase):
     if provider != 'rwx': return False
     cache = ROOT / '.ci/sp1-cache'
     target = cache / (phase + '-target')
+    cargo_home = cache/'cargo'
+    if phase=='elf':
+        native=helper('sp1-guest-native-build')
+        if ROOT!=native.WORKSPACE:raise ValueError('Native SP1 ELF compilation must use the verified canonical workspace')
+        cache=Path(os.environ['SP1_GUEST_NATIVE_CACHE_ROOT'])
+        if not cache.is_absolute() or cache.name!='sp1-cache' or cache.parent.name!='.ci' or cache.is_relative_to(ROOT):
+            raise ValueError('Invalid isolated native SP1 compiler cache root')
+        target=native.TARGET;cargo_home=native.CARGO
     mode = os.environ.get('SP1_GUEST_TARGET_MODE', 'keep')
     if mode not in ('keep', 'sccache-only'): raise ValueError('Invalid SP1 compiler-target probe mode')
+    identity={'phase':phase,'tools':tools(),'rustflags':'' if phase=='elf' else '-Dwarnings','incremental':'0'}
+    identity_sha256=hashlib.sha256(json.dumps(identity,sort_keys=True).encode()).hexdigest()
+    identity_path=target/'.sp1-compiler-inputs.json'
+    if not identity_path.is_file() or read(identity_path)!=identity:
+        shutil.rmtree(target,ignore_errors=True)
     if mode == 'sccache-only': shutil.rmtree(target, ignore_errors=True)
+    target.mkdir(parents=True,exist_ok=True);S.write(identity_path,identity)
     S.write(path/'cache-settings.json', {'phase':phase, 'target_mode':mode,
-        'target_directory':str(target), 'sccache_version':command('sccache','--version')})
-    os.environ.update(CARGO_HOME=str(cache/'cargo'), CARGO_TARGET_DIR=str(target),
-        RUSTC_WRAPPER='sccache', SCCACHE_DIR=str(cache/(phase+'-sccache')),
+        'target_directory':str(target), 'sccache_version':command('sccache','--version'),
+        'compiler_input_sha256':identity_sha256,'compiler_inputs':identity})
+    os.environ.update(CARGO_HOME=str(cargo_home), CARGO_TARGET_DIR=str(target),
+        RUSTC_WRAPPER='sccache', SCCACHE_DIR=str(cache/(phase+'-sccache')/identity_sha256),
         SCCACHE_BASEDIRS=str(ROOT), SCCACHE_CACHE_SIZE='10G', SCCACHE_IDLE_TIMEOUT='0')
     for name in ('CARGO_HOME', 'CARGO_TARGET_DIR', 'SCCACHE_DIR'):
         Path(os.environ[name]).mkdir(parents=True, exist_ok=True)
@@ -225,6 +243,8 @@ def cache_finish(path, active, status, errors):
 
 
 def build(provider):
+    if provider=='rwx' and ROOT!=helper('sp1-guest-native-build').WORKSPACE:
+        return helper('sp1-guest-native-build').execute()
     path = REPORTS/'dependency'; shutil.rmtree(path, ignore_errors=True); path.mkdir(parents=True)
     status, errors, cached = 1, [], False
     try:
@@ -268,6 +288,7 @@ def restore_artifact(directory, settings):
     original=read(directory/'settings.json')
     for name in ('source_sha','branch','input_sha256','tools','programs','build_rustflags','check_rustflags','vkey_prover','incremental','rerun_fails'):
         if original[name] != settings[name]: raise ValueError('Stale SP1 producer revision, source or settings: '+name)
+    if original['provider']=='rwx':helper('sp1-guest-native-build').verify(directory,original,settings['workspace_root'])
     if read(directory/'elfs.json') != elf_record(settings,directory/'files'):
         raise ValueError('Wrong or incomplete actual SP1 producer binaries')
     (SP1/'elf').mkdir(exist_ok=True)

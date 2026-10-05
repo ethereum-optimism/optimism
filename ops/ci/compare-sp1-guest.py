@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Verify complete original SP1 guest jobs, including byte-identical ELFs."""
 import argparse
+import hashlib
 import importlib.util
 import json
 from pathlib import Path
@@ -53,6 +54,15 @@ def stages(directory, settings, phase):
         row = G.read(directory/(name+'.stage.json'))
         if row['exit_code'] != 0 or row['log_sha256'] != G.S.digest(directory/(name+'.log')):
             raise ValueError('Failed original SP1 compiler-cache operation')
+    if cache:
+        record=G.read(directory/'cache-settings.json'); kind='elf' if phase=='build' else 'checks'
+        identity={'phase':kind,'tools':settings['tools'],'rustflags':'' if kind=='elf' else '-Dwarnings','incremental':'0'}
+        digest=hashlib.sha256(json.dumps(identity,sort_keys=True).encode()).hexdigest()
+        target=G.helper('sp1-guest-native-build').POLICY['target_directory'] if kind=='elf' else settings['workspace_root']+'/.ci/sp1-cache/checks-target'
+        if (record['phase']!=kind or record['target_mode'] not in ('keep','sccache-only')
+                or record['target_directory']!=target or record['sccache_version']!='sccache 0.18.0'
+                or record['compiler_inputs']!=identity or record['compiler_input_sha256']!=digest):
+            raise ValueError('Wrong original SP1 compiler cache identity or configuration')
 
 
 def toolchain(directory, settings, circle):
@@ -86,6 +96,7 @@ def report(directory, provider, sha):
     if pf['phase'] != 'build' or pf['exit_code'] or pf['report_errors'] or pf['tests'] != 0 or ps['phase'] != 'build':
         raise ValueError('Failed or false original SP1 ELF producer')
     G.verify_seals(producer, pf, allow_circle_empty=circle)
+    if provider=='rwx':G.helper('sp1-guest-native-build').verify(producer,ps,settings['workspace_root'])
     if ps['provider'] != provider or any(ps[n] != settings[n] for n in COMMON):
         raise ValueError('SP1 producer provenance differs from its consumer')
     for path, original, phase in ((directory, settings, 'checks'), (producer, ps, 'build')):

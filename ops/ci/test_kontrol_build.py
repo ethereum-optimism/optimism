@@ -1,5 +1,6 @@
 """Real Forge/Just/Kontrol fixtures for complete fresh builds and original failures."""
 import json
+import copy
 import os
 from pathlib import Path
 import shutil
@@ -36,7 +37,7 @@ class LiveTests(unittest.TestCase):
         for name in (*K.ENVIRONMENT,'KONTROL_CI_REPORT_DIR'):
             self.env.pop(name,None)
         files = {'mise.toml':(K.ROOT/'mise.toml').read_text(),
-            '.gitignore':'.ci/\ntmp/\npackages/contracts-bedrock/forge-artifacts/\npackages/contracts-bedrock/cache/\npackages/contracts-bedrock/artifacts/\npackages/contracts-bedrock/deployments/\npackages/contracts-bedrock/snapshots/\n',
+            '.gitignore':'.ci/\ntmp/\npackages/contracts-bedrock/forge-artifacts/\npackages/contracts-bedrock/cache/\npackages/contracts-bedrock/artifacts/\npackages/contracts-bedrock/deployments/\npackages/contracts-bedrock/snapshots/\nop-deployer/pkg/deployer/artifacts/forge-artifacts/\n',
             'packages/contracts-bedrock/foundry.toml':'''[profile.default]
 src="src"
 script="scripts"
@@ -46,6 +47,7 @@ evm_version="london"
 optimizer=true
 optimizer_runs=200
 ast=true
+build_info_path="artifacts/build-info"
 extra_output=["metadata","storageLayout"]
 remappings=["forge-std/=lib/forge-std/src/"]
 fs_permissions=[{access="read-write",path="."},{access="read-write",path="../../.ci"}]
@@ -89,6 +91,11 @@ contract FutureProof is DeploymentSummary { function futureProof() public pure r
         for variant,names in K.GENERATED.items():
             for name in names:
                 files[name]='// SPDX-License-Identifier: MIT\npragma solidity 0.8.15;\ncontract '+Path(name).stem+' {}\n'
+        files['packages/contracts-bedrock/scripts/Artifacts.s.sol']='// SPDX-License-Identifier: MIT\npragma solidity ^0.8.0;\ncontract Artifacts {}\n'
+        deployer=(K.ROOT/'op-deployer/justfile').read_text()
+        files['op-deployer/justfile']=deployer[deployer.index('copy-contract-artifacts:\n'):deployer.index('_LDFLAGSSTRING :=')]
+        for name in ('go.mod','go.sum','op-deployer/pkg/deployer/artifacts/cmd/mktar/main.go'):
+            files[name]=(K.ROOT/name).read_text()
         for name,content in files.items():
             path=self.root/name;path.parent.mkdir(parents=True,exist_ok=True);path.write_text(content)
         for relative in ('test/kontrol/scripts/make-summary-deployment.sh','test/kontrol/scripts/common.sh',
@@ -104,10 +111,8 @@ contract FutureProof is DeploymentSummary { function futureProof() public pure r
         self.commit()
         self.image=self.root/'.ci/kontrol-build/image'
         shutil.copytree(K.ROOT/'.ci/kontrol-build/image',self.image)
-        self.run_command(['just','forge-build','--skip','test'],self.contracts,FOUNDRY_PROFILE='ci')
-        self.run_command([sys.executable,'ops/ci/go-artifacts.py','pack','contracts-e2e',
-            'packages/contracts-bedrock/forge-artifacts','packages/contracts-bedrock/cache'],self.root)
-        self.artifact=self.root/'.ci/go-tests/dependencies/contracts-e2e'
+        self.run_command([sys.executable,'ops/ci/kontrol-contracts.py'],self.root)
+        self.artifact=self.root/'.ci/go-tests/dependencies/contracts-kontrol'
         self.report=self.root/'.ci/kontrol-build/run'
 
     def run_command(self,argv,cwd,**extra):
@@ -132,9 +137,19 @@ contract FutureProof is DeploymentSummary { function futureProof() public pure r
         self.run_command(['git','restore','--',*sum(K.GENERATED.values(),[])],self.root)
         for name in ('forge-artifacts','cache','artifacts'):
             shutil.rmtree(self.contracts/name,ignore_errors=True)
-        self.run_command([sys.executable,'ops/ci/go-artifacts.py','restore','contracts-e2e',str(self.artifact)],self.root)
+        self.run_command([sys.executable,'ops/ci/go-artifacts.py','restore','contracts-kontrol',str(self.artifact)],self.root)
 
     def test_actual_two_variants_fresh_build_future_proof_discovery_and_strict_parity(self):
+        for label in ('first','reused','changed'):
+            if label=='changed':
+                source=self.contracts/'src/FixtureStorage.sol'
+                source.write_text(source.read_text()+'\ncontract FutureCompilerInput {function fresh() external pure returns(uint256) {return 7;}}\n')
+                self.commit()
+            if label!='first':self.run_command([sys.executable,'ops/ci/kontrol-contracts.py'],self.root)
+            cache=K.G.read(self.artifact/'preparation/cache.json')
+            self.assertEqual(cache['reused'],label=='reused')
+            target=K.ROOT/'.ci/kontrol-build/helper-fixtures'/('producer-'+label)
+            shutil.rmtree(target,ignore_errors=True);shutil.copytree(self.artifact,target)
         pair=self.root/'.ci/paired'
         for provider,key in [('circleci','circle'),('rwx','rwx')]:
             self.reset_runtime();result=self.execute(provider);self.assertEqual(result.returncode,0,result.stdout+result.stderr)
@@ -143,6 +158,52 @@ contract FutureProof is DeploymentSummary { function futureProof() public pure r
         report=C.compare(pair,self.sha);self.assertTrue(report['verified_parity'])
         self.assertIn(K.PROOFS+'/FutureProof.sol',report['selection']['proof_sources'])
         self.assertEqual(report['coverage']['tests'],0)
+        original=C.compiler(pair/'rwx/initial-compiler')
+        summaries=C.compiler(pair/'rwx/summaries-compiler')
+        retained=report['compiler_phases']['summaries']['verified_retained_previous_artifacts']['rwx']
+        self.assertTrue(retained)
+        retained_path=retained[0]['path']
+        self.assertEqual(original[retained_path],summaries[retained_path])
+        histories=([original],[original])
+        # Old payloads remain mandatory and cannot acquire a new identity.
+        changed=dict(summaries);value=json.loads(changed[retained_path]);value['bytecode']['object']='0xdeadbeef'
+        changed[retained_path]=json.dumps(value).encode()
+        with self.assertRaisesRegex(ValueError,'retained'):
+            C.compare_compiler(summaries,changed,[str(self.root)]*2,histories)
+        added=dict(summaries);added[retained_path.removesuffix('.json')+'.extra.json']=summaries[retained_path]
+        with self.assertRaisesRegex(ValueError,'retained'):
+            C.compare_compiler(summaries,added,[str(self.root)]*2,histories)
+        missing=dict(summaries);missing.pop(retained_path)
+        with self.assertRaisesRegex(ValueError,'inventories'):
+            C.compare_compiler(summaries,missing,[str(self.root)]*2,histories)
+        with self.assertRaisesRegex(ValueError,'unbound'):
+            C.compare_compiler(summaries,summaries,[str(self.root)]*2)
+        cache_name='packages/contracts-bedrock/cache/solidity-files-cache.json'
+        cache=json.loads(original[cache_name])
+        binding=cache['files']['scripts/Artifacts.s.sol']['artifacts']['Artifacts']['0.8.28']['default']
+        old='packages/contracts-bedrock/forge-artifacts/'+binding['path']
+        alternate='Artifacts.s.sol/Artifacts.0.8.28.default.json'
+        if binding['path']==alternate:alternate='Artifacts.s.sol/Artifacts.0.8.28.json'
+        new='packages/contracts-bedrock/forge-artifacts/'+alternate
+        renamed=dict(original);renamed[new]=renamed.pop(old);binding['path']=alternate
+        renamed[cache_name]=json.dumps(cache).encode()
+        aliases=C.compare_compiler(original,renamed,[str(self.root)]*2)['verified_artifact_path_aliases']
+        self.assertEqual(len(aliases),1)
+        # Every original artifact and reference remains mandatory under aliases.
+        missing=dict(renamed);missing.pop(new)
+        with self.assertRaises(ValueError):C.compare_compiler(original,missing,[str(self.root)]*2)
+        extra=dict(renamed);extra[old]=renamed[new]
+        with self.assertRaisesRegex(ValueError,'unbound'):C.compare_compiler(original,extra,[str(self.root)]*2)
+        corrupt=dict(renamed);value=json.loads(corrupt[new]);value['bytecode']['object']='0xdeadbeef';corrupt[new]=json.dumps(value).encode()
+        with self.assertRaisesRegex(ValueError,'runtime'):C.compare_compiler(original,corrupt,[str(self.root)]*2)
+        wrong=copy.deepcopy(cache);artifact=wrong['files']['scripts/Artifacts.s.sol']['artifacts']['Artifacts']
+        artifact['0.8.29']=artifact.pop('0.8.28')
+        mismatch=dict(renamed);mismatch[cache_name]=json.dumps(wrong).encode()
+        with self.assertRaises(ValueError):C.compare_compiler(original,mismatch,[str(self.root)]*2)
+        duplicate=copy.deepcopy(cache)
+        duplicate['files']['scripts/Artifacts.s.sol']['artifacts']['OtherContract']={'0.8.28':{'default':binding}}
+        mismatch=dict(renamed);mismatch[cache_name]=json.dumps(duplicate).encode()
+        with self.assertRaises(ValueError):C.compare_compiler(original,mismatch,[str(self.root)]*2)
         # Both supported Docker stores identify exactly the same pinned image.
         path=pair/'rwx/runtime-image.json';original=path.read_bytes()
         final_path=pair/'rwx/final.json';original_final=final_path.read_bytes()
@@ -156,7 +217,7 @@ contract FutureProof is DeploymentSummary { function futureProof() public pure r
             else:
                 self.assertTrue(C.compare(pair,self.sha)['verified_parity'])
         path.write_bytes(original);final_path.write_bytes(original_final)
-        for name in ('settings.json','selection.json','coverage.json','proofs.stage.json','dependencies/contracts-e2e/metadata.json'):
+        for name in ('settings.json','selection.json','coverage.json','proofs.stage.json','dependencies/contracts-kontrol/metadata.json'):
             path=pair/'rwx'/name;original=path.read_bytes();final_path=pair/'rwx/final.json';original_final=final_path.read_bytes()
             value=K.G.read(path)
             if name=='settings.json':value['source_sha']='f'*40

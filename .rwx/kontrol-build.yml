@@ -121,6 +121,19 @@ tasks:
     run: bash ops/ci/rwx-prepare.sh go
     timeout: 20m
 
+  - key: compiler-set
+    use: contract-tools
+    if: ${{ init.cache-warm == 'true' || tasks.route.values.run-main == 'true' }}
+    run: |
+      if ! svm which 0.8.30 >/dev/null 2>&1; then
+        for attempt in 1 2 3 4 5; do
+          if svm install 0.8.30; then break; fi
+          if [ "$attempt" = 5 ]; then exit 1; fi
+          sleep "$((2 ** attempt))"
+        done
+      fi
+    timeout: 15m
+
   - key: image
     use: [code, tools]
     if: ${{ init.cache-warm == 'true' || tasks.route.values.run-main == 'true' }}
@@ -147,17 +160,15 @@ tasks:
     timeout: 20m
 
   - key: contracts
-    use: [source, go-tools, contract-tools]
+    use: [source, go-tools, compiler-set]
     if: ${{ init.cache-warm == 'true' || tasks.route.values.run-main == 'true' }}
-    call: ${{ run.dir }}/packages/rust-e2e-contracts.yml
+    call: ${{ run.dir }}/packages/kontrol-contracts.yml
     with:
       commit-sha: ${{ init.commit-sha }}
       cache-epoch: ${{ init.cache-epoch }}
-      build-probe: ""
-      target-cache-mode: keep
 
   - key: helper-tests
-    use: [source, go-tools, contract-tools, image]
+    use: [source, go-tools, compiler-set, image]
     if: ${{ init.cache-warm != 'true' && tasks.route.values.run-main == 'true' }}
     run: RWX_LIVE_KONTROL_FIXTURE=1 python3 -m unittest discover -s ops/ci -p 'test_kontrol_build.py'
     docker: true
@@ -170,7 +181,7 @@ tasks:
           path: .ci/kontrol-build/helper-fixtures
 
   - key: check
-    use: [source, go-tools, contract-tools, image]
+    use: [source, go-tools, compiler-set, image]
     if: ${{ init.cache-warm != 'true' && tasks.route.values.run-main == 'true' }}
     run: python3 ops/ci/kontrol-build.py --provider rwx --contract-artifact "$CONTRACT_ARTIFACT"
     env:

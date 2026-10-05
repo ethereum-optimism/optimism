@@ -16,6 +16,26 @@ G = importlib.util.module_from_spec(SPEC); SPEC.loader.exec_module(G)
 
 
 class SelectionTests(unittest.TestCase):
+    def test_occupied_canonical_workspace_fails_without_reading_or_changing_its_files(self):
+        native=G.helper('sp1-guest-native-build')
+        with tempfile.TemporaryDirectory() as temp:
+            base=Path(temp);root=base/'source';root.mkdir()
+            scripts=root/'ops/ci';scripts.mkdir(parents=True)
+            for name in ('main-checks.py','pr-checks.py','rust-workspace-report.py'):
+                shutil.copyfile(Path(G.__file__).with_name(name),scripts/name)
+            for argv in (['git','init','-q'],['git','add','.'],
+                         ['git','-c','user.name=CI fixture','-c','user.email=ci-fixture@example.invalid','commit','-qm','occupied-directory fixture']):
+                subprocess.run(argv,cwd=root,check=True,stdout=subprocess.DEVNULL)
+            sha=subprocess.check_output(['git','rev-parse','HEAD'],cwd=root,text=True).strip()
+            occupied=base/'occupied';occupied.mkdir();sentinel=occupied/'original.txt';sentinel.write_bytes(b'original occupied data\n')
+            with patch.object(native,'ROOT',root),patch.object(native.M,'ROOT',root),patch.object(native,'WORKSPACE',occupied),patch.object(native,'CARGO',base/'cargo'),patch.dict(os.environ,{'CI_COMMIT_SHA':sha}):
+                self.assertEqual(native.execute(),1)
+            self.assertEqual(sentinel.read_bytes(),b'original occupied data\n')
+            report=G.read(root/'.ci/sp1-guest/dependency/final.json')
+            self.assertEqual(report['exit_code'],1)
+            self.assertEqual(report['tests'],0)
+            self.assertFalse((root/'.ci/sp1-guest/dependency/files').exists())
+
     def test_original_program_loop_keeps_future_programs_and_rejects_invalid_selection(self):
         source = '\nbuild-elfs-native:\n    for name in super-range super-aggregation future-program; do\n'
         self.assertEqual(G.programs(source), ['super-range', 'super-aggregation', 'future-program'])
@@ -113,6 +133,8 @@ class LiveTests(unittest.TestCase):
 
     def test_real_production_guest_artifact_rejects_stale_missing_corrupt_and_foreign_inputs(self):
         original=Path(os.environ['SP1_GUEST_ARTIFACT']);settings=G.read(original/'settings.json')
+        if settings['provider']=='rwx':
+            settings={**settings,'workspace_root':G.read(original/'native-workspace/settings.json')['native_workspace_root']}
         artifact=self.root/'producer';shutil.copytree(original,artifact)
         with patch.object(G,'SP1',self.root):
             G.restore_artifact(artifact,settings)
@@ -178,12 +200,16 @@ class LiveTests(unittest.TestCase):
         value['packages'][0]['version']='9.9.9';G.S.write(metadata,value);self.reseal(target)
         with self.assertRaisesRegex(ValueError,'dependency graphs'):compare.compare(directory,settings['source_sha'])
         metadata.write_bytes(original);self.reseal(target)
+        cache=target/'cache-settings.json';original=cache.read_bytes();value=G.read(cache)
+        value['compiler_input_sha256']='0'*64;G.S.write(cache,value);self.reseal(target)
+        with self.assertRaisesRegex(ValueError,'compiler cache identity'):compare.compare(directory,settings['source_sha'])
+        cache.write_bytes(original);self.reseal(target)
         toolchain=target/'toolchain/tools.json';value=G.read(toolchain);value['succinct-rustc-sha256']='0'*64
         G.S.write(toolchain,value);self.reseal(target/'toolchain');self.reseal(target)
         with self.assertRaisesRegex(ValueError,'compiler identity'):compare.compare(directory,settings['source_sha'])
         G.S.write(self.reports/'comparer-fixture.json',{'source_sha':settings['source_sha'],
             'authority':'Complete real workload originals; provider aliases are isolated verifier fixtures only',
-            'resealed_mutations_rejected':['missing actual case','dependency version','actual compiler hash']})
+            'resealed_mutations_rejected':['missing actual case','dependency version','compiler cache identity','actual compiler hash']})
 
     @staticmethod
     def reseal(path):

@@ -8,9 +8,13 @@ coverage is 77/86 (90%).
 Both providers run the original `just kontrol-summary-full`, generating default
 and fault proof deployment summaries, followed by
 `just forge-build ./test/kontrol/proofs`. The summaries run with the original
-default Foundry profile. Native CI contract preparation reuses the existing
-`contracts-e2e` producer; the incoming complete compiler artifacts are compared
-with Circle's original attached CI workspace. This PR job builds proof files
+default Foundry profile. Native CI contract preparation now uses the separate
+`contracts-kontrol` producer, retaining all original CI contract artifacts plus
+the legacy 0.8.28 script graph found in Circle's workspace. Its compiler set,
+source inputs and complete original preparation commands are sealed. Changed
+source or compiler inputs discard previous compiler outputs; unchanged inputs
+may reuse them. The incoming complete artifacts are compared with Circle's
+original attached CI workspace. This PR job builds proof files
 and executes no proof tests, so it reports zero tests.
 
 The mise-selected Kontrol 1.0.255 image is fixed to its verified Linux amd64
@@ -47,6 +51,28 @@ state diffs, name maps and compiler outputs. Existing compiler identifier,
 checkout-path and cache-timestamp accounting retains every structural, content
 and settings check. Selected proof files must appear in the final compiler
 source graphs. Missing, extra, corrupt, stale or mismatched inputs fail.
+
+The [complete initial-compiler probe](rwx-kontrol-build-evidence/complete-compiler-input-probe.json)
+compares all 1,093 contract artifacts and every compiler graph/cache input. Fourteen
+filenames differ, with matching source, contract, compiler and profile identities
+in the actual Foundry caches. The comparer validates a complete one-to-one binding
+for every artifact and compares every payload before accounting for those aliases.
+It retains the explicit path pairs; missing, duplicate, unbound, corrupt or
+mismatched artifacts still fail. Summary generation invalidates cache references
+before the final compile while retaining previous compiler outputs. An output
+without a current reference must retain its exact bytes and validated identity
+from the immediately preceding original phase. These retained payloads remain
+included in the complete comparison; changed, extra or missing payloads fail.
+The full four-phase hosted comparison after this
+correction remains pending, and this zero-test input probe adds no coverage.
+
+The [complete-input real-tool fixtures](rwx-kontrol-build-evidence/complete-input-fixtures.json)
+pass all six scenarios, including exact complete comparison across all four
+compiler phases. Actual preparation is cold on first execution, reuses unchanged
+inputs on the second execution and discards outputs after a tracked source
+change. Resealed changed, extra and missing retained artifacts are rejected.
+The original failure and cancellation reports remain retained. These verifier
+fixtures add no hosted workload coverage.
 
 The first full Linux preflight completed both actual summaries and the proof
 build. Real-tool fixtures cover fresh complete execution, future proof discovery,

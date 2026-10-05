@@ -14,6 +14,8 @@ import time
 ROOT = Path(__file__).resolve().parents[2]
 SETTINGS = {"go": {"hello_toolchain": "go1.24.13"}, "go-modules": {"verified": True}, "contracts": {"profile": "ci"},
             "contracts-e2e": {"profile": "ci", "build_args": ["--skip", "test"]},
+            "contracts-kontrol": {"profile": "ci", "build_args": ["--skip", "test"],
+                                  "legacy_graph": {"source": "scripts/Artifacts.s.sol", "compiler": "0.8.28"}},
             "rust-e2e-release": {"profile": "release", "features": ["default"], "scope": "workspace"},
             "kona": {"profile": "release", "features": ["default"], "packages": ["kona-host", "kona-client", "kona-node", "op-zk-proposer"]},
             "op-reth": {"profile": "release", "features": ["default"], "packages": ["op-reth"]},
@@ -50,7 +52,7 @@ def pack(kind, paths):
     metadata = provenance(kind)
     metadata.update(files=files, archive_sha256=digest(archive),
                     tool_versions={tool: subprocess.check_output([tool, 'version' if tool == 'go' else '--version'], text=True).strip()
-                                   for tool in {'go': ['go'], 'go-modules': ['go'], 'contracts': ['go', 'forge'], 'contracts-e2e': ['go', 'forge'],
+                                   for tool in {'go': ['go'], 'go-modules': ['go'], 'contracts': ['go', 'forge'], 'contracts-e2e': ['go', 'forge'], 'contracts-kontrol': ['go', 'forge'],
                                                 'rust-e2e-release': ['rustc', 'cargo'], 'kona': ['rustc', 'cargo'],
                                                 'op-reth': ['rustc', 'cargo'], 'sp1-executor': ['rustc', 'cargo'], 'prestate': ['docker']}[kind]})
     (output / 'metadata.json').write_text(json.dumps(metadata, indent=2) + '\n')

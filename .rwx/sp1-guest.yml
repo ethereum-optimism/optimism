@@ -137,6 +137,7 @@ tasks:
       - rust/rust-toolchain.toml
       - rust/.cargo/config.toml
       - ops/ci/sp1-guest.py
+      - ops/ci/sp1-guest-native-build.py
       - ops/ci/sp1-guest-toolchain.sh
       - ops/ci/rust-workspace-report.py
       - ops/ci/rust-target-cache.py
@@ -156,7 +157,7 @@ tasks:
       CI_BRANCH: ${{ init.branch }}
       CARGO_INCREMENTAL: "0"
       SP1_GUEST_TARGET_MODE: ${{ init.target-cache-mode }}
-    tool-cache: sp1-guest-elf-${{ init.cache-epoch }}
+    tool-cache: sp1-guest-canonical-elf-${{ init.cache-epoch }}
     timeout: 90m
     runner:
       cpus: 16

@@ -2,6 +2,7 @@
 """Compare every original Kontrol input, summary, generated file and compiler output."""
 import argparse
 from collections import Counter
+import copy
 import json
 from pathlib import Path
 import re
@@ -123,11 +124,12 @@ def report(directory, provider, sha):
     K.IMAGE.validate_inspection(G.read(directory / 'image/inspect.json'))
     files = {phase:compiler(directory / (phase + '-compiler')) for phase in COMPILER_PHASES}
     if provider == 'rwx':
-        producer = directory / 'dependencies/contracts-e2e'; metadata = G.read(producer / 'metadata.json')
-        if (metadata['version'] != 1 or metadata['kind'] != 'contracts-e2e' or metadata['commit_sha'] != sha
-                or metadata['settings'] != G.ARTIFACTS.SETTINGS['contracts-e2e'] or metadata['mise_sha256'] != before['mise.toml']
+        producer = directory / 'dependencies/contracts-kontrol'; metadata = G.read(producer / 'metadata.json')
+        if (metadata['version'] != 1 or metadata['kind'] != 'contracts-kontrol' or metadata['commit_sha'] != sha
+                or metadata['settings'] != G.ARTIFACTS.SETTINGS['contracts-kontrol'] or metadata['mise_sha256'] != before['mise.toml']
                 or metadata['tool_versions']['forge'] != settings['tools']['forge']):
             raise ValueError('Wrong Kontrol contract producer revision/settings/toolchain')
+        K.helper('kontrol-contracts').verify(producer,sha,before)
         original_inputs = A.archive(producer / 'files.tar.gz',metadata)
         if any(original_inputs.get(n) != data for n,data in files['initial'].items()):
             raise ValueError('Initial Kontrol compiler inputs differ from verified contract producer')
@@ -140,23 +142,80 @@ def report(directory, provider, sha):
             'hashes':hashes,'declared_empty':empty}
 
 
-def compare_compiler(x,y,roots):
+def compare_compiler(x,y,roots,history=((),())):
     prefixes = ('packages/contracts-bedrock/artifacts/build-info/','packages/contracts-bedrock/forge-artifacts/build-info/')
-    if {n for n in x if not n.startswith(prefixes)} != {n for n in y if not n.startswith(prefixes)}:
-        raise ValueError('Complete Kontrol compiler inventories differ')
+    inventories = [compiler_bindings(files,earlier) for files,earlier in zip((x,y),history)]
+    if inventories[0]['bindings'].keys() != inventories[1]['bindings'].keys():
+        raise ValueError('Complete Kontrol logical compiler inventories differ')
+    artifact_paths = [set(value['bindings'].values()) for value in inventories]
+    other = [{n for n in files if not n.startswith(prefixes)} - paths for files,paths in zip((x,y),artifact_paths)]
+    if other[0] != other[1]: raise ValueError('Complete Kontrol non-artifact compiler inventories differ')
     for prefix in prefixes:
         if A.build_info(x,prefix) != A.build_info(y,prefix): raise ValueError('Complete Kontrol compiler source graphs differ')
-    counts = Counter(); contracts = 0
-    for name in x.keys() & y.keys():
+    counts = Counter(); contracts = 0; aliases = []
+    for key in sorted(inventories[0]['bindings']):
+        names = [value['bindings'][key] for value in inventories]
+        A.contract(json.loads(x[names[0]],object_pairs_hook=G.C.no_duplicate_keys),
+                   json.loads(y[names[1]],object_pairs_hook=G.C.no_duplicate_keys),roots,counts)
+        contracts += 1
+        if names[0] != names[1]: aliases.append({'logical_key':list(key),'circle':names[0],'rwx':names[1]})
+    for name in sorted(other[0]):
         if name.startswith(prefixes): continue
-        if name.startswith('packages/contracts-bedrock/forge-artifacts/') and name.endswith('.json'):
-            A.contract(json.loads(x[name],object_pairs_hook=G.C.no_duplicate_keys),json.loads(y[name],object_pairs_hook=G.C.no_duplicate_keys),roots,counts)
-            contracts += 1
-        elif name == 'packages/contracts-bedrock/cache/solidity-files-cache.json':
-            if A.normalize(A.cache_inputs(json.loads(x[name])),roots[0]) != A.normalize(A.cache_inputs(json.loads(y[name])),roots[1]):
+        if name == 'packages/contracts-bedrock/cache/solidity-files-cache.json':
+            if A.normalize(A.cache_inputs(inventories[0]['cache']),roots[0]) != A.normalize(A.cache_inputs(inventories[1]['cache']),roots[1]):
                 raise ValueError('Kontrol compiler content/configuration cache differs')
         elif x[name] != y[name]: raise ValueError('Unresolved original Kontrol compiler file difference: ' + name)
-    return {'contract_artifacts':contracts,'resolved_metadata_differences':dict(counts)}
+    return {'contract_artifacts':contracts,'resolved_metadata_differences':dict(counts),
+            'verified_artifact_path_aliases':aliases,'complete_logical_inventory_equal':True,
+            'verified_retained_previous_artifacts':{p:value['retained'] for p,value in zip(('circle','rwx'),inventories)}}
+
+
+def compiler_bindings(files,history=()):
+    """Bind every artifact bijectively to its original Foundry cache identity.
+
+    Foundry can keep an unqualified filename when another compiler/profile is
+    added later. Account for that filename only after checking every complete
+    payload, compiler graph and cache setting; do not discard any output.
+    Summary generation invalidates cache references before the final compile.
+    Such retained outputs must have the exact bytes and a validated identity
+    from the immediately preceding original phase.
+    """
+    prefix = 'packages/contracts-bedrock/forge-artifacts/'
+    cache = copy.deepcopy(json.loads(files['packages/contracts-bedrock/cache/solidity-files-cache.json'],
+                                    object_pairs_hook=G.C.no_duplicate_keys))
+    selected = {n for n in files if n.startswith(prefix) and n.endswith('.json') and not n.startswith(prefix+'build-info/')}
+    bindings = {}; paths = set()
+    for source,row in cache['files'].items():
+        if row['sourceName'] != source: raise ValueError('Kontrol compiler cache source identity differs')
+        for name,versions in row['artifacts'].items():
+            for version,profiles in versions.items():
+                for profile,artifact in profiles.items():
+                    key = (source,name,version,profile); relative = Path(artifact['path'])
+                    path = prefix + artifact['path']
+                    filenames = {name+'.json',name+'.'+version+'.json',name+'.'+profile+'.json',name+'.'+version+'.'+profile+'.json'}
+                    if (relative.is_absolute() or '..' in relative.parts or path not in selected
+                            or relative.name not in filenames or path in paths or key in bindings):
+                        raise ValueError('Missing, duplicate or unsafe Kontrol logical artifact binding')
+                    value = json.loads(files[path],object_pairs_hook=G.C.no_duplicate_keys)
+                    metadata = value.get('metadata')
+                    if metadata is not None:
+                        if (metadata['compiler']['version'].split('+',1)[0] != version
+                                or metadata['settings']['compilationTarget'] != {source:name}):
+                            raise ValueError('Kontrol artifact payload differs from its compiler cache identity')
+                    bindings[key] = path; paths.add(path)
+                    artifact['path'] = {'source':source,'contract':name,'compiler':version,'profile':profile}
+    retained = []
+    if selected - paths:
+        if not history: raise ValueError('Extra or unbound original Kontrol compiler artifacts')
+        previous = history[-1]
+        identities = {path:key for key,path in compiler_bindings(previous,history[:-1])['bindings'].items()}
+        for path in sorted(selected - paths):
+            if path not in identities or previous[path] != files[path] or identities[path] in bindings:
+                raise ValueError('Changed, duplicate or unbound retained Kontrol compiler artifact')
+            key = identities[path]; bindings[key] = path; paths.add(path)
+            retained.append({'path':path,'logical_key':list(key),'sha256':A.digest(files[path])})
+    if not bindings or paths != selected: raise ValueError('Extra or unbound original Kontrol compiler artifacts')
+    return {'bindings':bindings,'cache':cache,'retained':retained}
 
 
 def compare(directory,sha):
@@ -174,7 +233,11 @@ def compare(directory,sha):
         x = {n:h for n,h in a['hashes'].items() if n.startswith(prefix)}
         y = {n:h for n,h in b['hashes'].items() if n.startswith(prefix)}
         if x != y: raise ValueError('Complete original Kontrol generated/state/output files differ: ' + prefix)
-    counts = {phase:compare_compiler(a['files'][phase],b['files'][phase],roots) for phase in COMPILER_PHASES}
+    counts = {}; history = ([],[])
+    for phase in COMPILER_PHASES:
+        current = (a['files'][phase],b['files'][phase])
+        counts[phase] = compare_compiler(*current,roots,history)
+        for earlier,files in zip(history,current): earlier.append(files)
     return {'source_sha':sha,'verified_parity':True,'native_run_id':b['settings']['rwx_run_id'],
         'selection':a['selection'],'coverage':a['coverage'],'compiler_phases':counts,
         'docker_versions':{p:r['settings']['docker_version'] for p,r in [('circle',a),('rwx',b)]},

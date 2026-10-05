@@ -122,11 +122,12 @@ def execute(provider, contract_artifact=None):
         with (directory / 'runtime-image.json').open('wb') as output:
             subprocess.run(['docker', 'image', 'inspect', record['selection']['tag']], stdout=output, check=True)
         if contract_artifact:
-            G.ARTIFACTS.restore('contracts-e2e', contract_artifact)
+            G.ARTIFACTS.restore('contracts-kontrol', contract_artifact)
             metadata = G.read(contract_artifact / 'metadata.json')
             if metadata['tool_versions']['forge'] != settings['tools']['forge']:
                 raise ValueError('Kontrol contract producer uses a different compiler toolchain')
-            shutil.copytree(contract_artifact, directory / 'dependencies/contracts-e2e')
+            helper('kontrol-contracts').verify(contract_artifact,sha,before)
+            shutil.copytree(contract_artifact, directory / 'dependencies/contracts-kontrol')
         collect_compiler(directory / 'initial-compiler')
         if not G.read(directory / 'initial-compiler/files.json'): raise ValueError('Missing initial CI contract artifacts')
         status = S.stage(directory, 'config', ['forge','config','--json'], stdout_json=True, cwd=str(CONTRACTS), stdin=subprocess.DEVNULL)
