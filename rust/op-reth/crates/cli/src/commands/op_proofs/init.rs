@@ -50,7 +50,7 @@ pub struct InitCommand<C: ChainSpecParser> {
 }
 
 impl<C: ChainSpecParser<ChainSpec: EthChainSpec>> InitCommand<C> {
-    /// Execute `initialize-op-proofs` command
+    /// Execute `proofs init` command
     pub async fn execute<N: CliNodeTypes<ChainSpec = C::ChainSpec>>(
         self,
         runtime: reth_tasks::Runtime,

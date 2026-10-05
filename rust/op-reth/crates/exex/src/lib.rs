@@ -229,7 +229,7 @@ where
         // Check if proofs storage is initialized. An empty proof window returns NoBlocksFound;
         let provider_ro = self.storage.provider_ro()?;
         let window = provider_ro.get_proof_window().map_err(|_| eyre::eyre!(
-            "Proofs storage not initialized. Please run 'op-reth initialize-op-proofs --proofs-history.storage-path <PATH>' first."
+            "Proofs storage not initialized. Please run 'op-reth proofs init --proofs-history.storage-path <PATH>' first."
         ))?;
         let earliest_block_number = window.earliest.number;
         let latest_block_number = window.latest.number;
