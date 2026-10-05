@@ -1,0 +1,57 @@
+package:
+  parameters:
+    commit-sha:
+      required: true
+    branch:
+      required: true
+    compiled:
+      required: true
+    archive-preflight:
+      required: true
+    cache-key:
+      required: true
+    feature:
+      required: true
+tasks:
+  - key: run
+    use: package.use
+    run: |
+      cd project
+      export GOMODCACHE="$PWD/.ci/go-cache/contract-coverage/modules"
+      export GOCACHE="$PWD/.ci/go-cache/contract-coverage/runtime"
+      git submodule sync --recursive
+      git -c protocol.file.allow=never submodule update --init --recursive --jobs 8
+      python3 ops/ci/contract-coverage.py run --feature "$CI_CONTRACT_FEATURE" \
+        --prepared "$COMPILED" --block "$ARCHIVE_PREFLIGHT/block.json"
+    env:
+      CI_COMMIT_SHA: ${{ params.commit-sha }}
+      CI_BRANCH: ${{ params.branch }}
+      CI_CONTRACT_PROVIDER: rwx
+      CI_CONTRACT_COVERAGE_REPLAY: 'true'
+      COMPILED: ${{ params.compiled }}
+      ARCHIVE_PREFLIGHT: ${{ params.archive-preflight }}
+      OP_CI_MAINNET_L1_ARCHIVE_RPC_URL: ${{ vaults.optimism-go-tests-rpc-shadow.secrets.OP_CI_MAINNET_L1_ARCHIVE_RPC_URL }}
+      CI_CONTRACT_FEATURE: ${{ params.feature }}
+    cache: false
+    tool-cache: ${{ params.cache-key }}
+    timeout: 120m
+    runner:
+      cpus: 16
+      memory: 64gb
+    outputs:
+      filesystem:
+        filter:
+          workspace: [project/.ci/go-cache/contract-coverage/runtime]
+          system: [~/.foundry/cache/rpc]
+      test-results:
+        - path: project/.ci/contract-coverage/${{ params.feature }}/run/ordinary/derived.junit.xml
+          options:
+            language: Solidity
+            framework: Foundry
+        - path: project/.ci/contract-coverage/${{ params.feature }}/run/upgrade/derived.junit.xml
+          options:
+            language: Solidity
+            framework: Foundry
+      artifacts:
+        - key: reports
+          path: project/.ci/contract-coverage/${{ params.feature }}/run

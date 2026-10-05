@@ -1,0 +1,51 @@
+package:
+  parameters:
+    commit-sha:
+      required: true
+    branch:
+      required: true
+    compiled:
+      required: true
+    cache-key:
+      required: true
+    suite:
+      required: true
+    feature:
+      required: true
+tasks:
+  - key: run
+    use: package.use
+    run: |
+      export GOMODCACHE="$PWD/.ci/go-cache/contract-suites/modules"
+      export GOCACHE="$PWD/.ci/go-cache/contract-suites-runtime/build"
+      python3 ops/ci/contract-suites.py run --suite "$CI_CONTRACT_SUITE" --feature "$CI_CONTRACT_FEATURE" --prepared "$COMPILED"
+    env:
+      CI_COMMIT_SHA: ${{ params.commit-sha }}
+      CI_BRANCH: ${{ params.branch }}
+      CI_CONTRACT_PROVIDER: rwx
+      COMPILED: ${{ params.compiled }}
+      RWX_RUN_ID:
+        cache-key: included
+      RWX_TASK_ATTEMPT_NUMBER:
+        cache-key: included
+      CI_CONTRACT_SUITE: ${{ params.suite }}
+      CI_CONTRACT_FEATURE: ${{ params.feature }}
+    cache: false
+    tool-cache: ${{ params.cache-key }}
+    timeout: 60m
+    runner:
+      cpus: 16
+      memory: 32gb
+    outputs:
+      filesystem:
+        filter:
+          workspace: [.ci/go-cache/contract-suites-runtime/build]
+          system: []
+      test-results:
+        - path: .ci/contract-suites/${{ params.suite }}-${{ params.feature }}/run/original.junit.xml
+          options:
+            language: Solidity
+            framework: Foundry
+      artifacts:
+        - key: reports
+          path: .ci/contract-suites/${{ params.suite }}-${{ params.feature }}/run

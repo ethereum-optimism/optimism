@@ -48,7 +48,10 @@ tasks:
     run: 'true'
     filter: [mise.toml, ops/ci, .circleci/scripts/apt-install.sh]
     outputs:
-      filesystem: false
+      filesystem:
+        filter:
+          workspace: [mise.toml, .circleci/scripts/apt-install.sh, ops/ci/rwx-prepare.sh, ops/ci/rwx-contracts-prepare.sh, ops/ci/rwx-rust-prepare.sh, ops/ci/op-reth-shadow.sh, ops/ci/op-reth-report.py, ops/ci/rust-target-cache.py]
+          system: []
       artifacts:
         - key: mise-config
           path: mise.toml
@@ -66,20 +69,8 @@ tasks:
   # Artifact dependencies avoid inheriting the checkout's Git history into
   # reusable tools. Language toolchains are added only by their own workload.
   - key: tools
-    use: mise
-    run: |
-      mkdir -p ops/ci .circleci/scripts
-      cp "$MISE_CONFIG" mise.toml
-      cp "$CI_SCRIPTS/rwx-prepare.sh" ops/ci/
-      cp "$APT_SCRIPT" .circleci/scripts/apt-install.sh
-      bash ops/ci/rwx-prepare.sh
-    env:
-      MISE_CONFIG: ${{ tasks.bootstrap-inputs.artifacts.mise-config }}
-      CI_SCRIPTS: ${{ tasks.bootstrap-inputs.artifacts.ci-scripts }}
-      APT_SCRIPT: ${{ tasks.bootstrap-inputs.artifacts.apt-script }}
-    filter:
-      ${{ tasks.bootstrap-inputs.artifacts.ci-scripts }}: [rwx-prepare.sh]
-    timeout: 30m
+    use: [mise, bootstrap-inputs]
+    call: ${{ run.dir }}/packages/toolchain-common.yml
 
   - key: route
     use: [code, tools]
@@ -104,21 +95,16 @@ tasks:
   - key: go-tools
     use: tools
     if: ${{ init.cache-warm == 'true' || tasks.route.values.run-contracts == 'true' }}
-    run: bash ops/ci/rwx-prepare.sh go
-    timeout: 30m
+    call: ${{ run.dir }}/packages/toolchain-go.yml
+    with:
+      mode: go
 
   - key: contract-tools
-    use: tools
+    use: [tools, bootstrap-inputs]
     if: ${{ init.cache-warm == 'true' || tasks.route.values.run-contracts == 'true' }}
-    run: |
-      cp "$CI_SCRIPTS/rwx-contracts-prepare.sh" ops/ci/
-      bash ops/ci/rwx-contracts-prepare.sh tools
-    env:
-      CI_SCRIPTS: ${{ tasks.bootstrap-inputs.artifacts.ci-scripts }}
-    filter:
-      workspace: [mise.toml, ops/ci/rwx-prepare.sh]
-      ${{ tasks.bootstrap-inputs.artifacts.ci-scripts }}: [rwx-contracts-prepare.sh]
-    timeout: 30m
+    call: ${{ run.dir }}/packages/toolchain-foundry.yml
+    with:
+      mode: compiler
 
   - key: go-modules
     use: [code, go-tools]
@@ -171,500 +157,195 @@ tasks:
   - key: compile-standard-main
     use: [source, go-tools, contract-tools, go-modules]
     if: ${{ init.cache-warm == 'true' || tasks.route.values.run-contracts == 'true' }}
-    run: |
-      export GOMODCACHE="$PWD/.ci/go-cache/contract-suites/modules"
-      export GOCACHE="$PWD/.ci/go-cache/contract-suites/build"
-      python3 ops/ci/contract-suites.py prepare --suite standard --feature main
-    env:
-      CI_COMMIT_SHA: ${{ init.commit-sha }}
-      CI_BRANCH: ${{ init.branch }}
-      CI_CONTRACT_PROVIDER: rwx
-      BUILD_PROBE: ${{ init.build-probe }}
-    tool-cache: contract-suites-standard-main-${{ init.cache-epoch }}
-    timeout: 40m
-    runner:
-      cpus: 16
-      memory: 32gb
-    outputs:
-      filesystem:
-        filter:
-          workspace: [packages/contracts-bedrock/forge-artifacts, packages/contracts-bedrock/cache/solidity-files-cache.json, packages/contracts-bedrock/artifacts/build-info, packages/contracts-bedrock/scripts/go-ffi/go-ffi, .ci/go-cache/contract-suites/build]
-          system: []
-      artifacts:
-        - key: compiled
-          path: .ci/contract-suites/standard-main/prepare
+    call: ${{ run.dir }}/packages/contracts-compile.yml
+    with:
+      commit-sha: ${{ init.commit-sha }}
+      branch: ${{ init.branch }}
+      build-probe: ${{ init.build-probe }}
+      cache-key: contract-suites-standard-main-${{ init.cache-epoch }}
+      suite: standard
+      feature: main
 
   - key: verdict-standard-main
     use: [source, go-tools, contract-tools, go-modules, compile-standard-main]
-    if: ${{ init.cache-warm != 'true' && tasks.route.values.run-contracts == 'true' && tasks.compile-standard-main.values.eligible == 'true' }}
-    run: |
-      export GOMODCACHE="$PWD/.ci/go-cache/contract-suites/modules"
-      export GOCACHE="$PWD/.ci/go-cache/contract-suites-runtime/build"
-      python3 ops/ci/contract-suites.py run --suite standard --feature main --prepared "$COMPILED"
-    env:
-      CI_COMMIT_SHA: ${{ init.commit-sha }}
-      CI_BRANCH: ${{ init.branch }}
-      CI_CONTRACT_PROVIDER: rwx
-      COMPILED: ${{ tasks.compile-standard-main.artifacts.compiled }}
-      RWX_RUN_ID:
-        cache-key: included
-      RWX_TASK_ATTEMPT_NUMBER:
-        cache-key: included
-    cache: false
-    tool-cache: contract-suites-runtime-standard-main-${{ init.cache-epoch }}
-    timeout: 60m
-    runner:
-      cpus: 16
-      memory: 32gb
-    outputs:
-      filesystem:
-        filter:
-          workspace: [.ci/go-cache/contract-suites-runtime/build]
-          system: []
-      test-results:
-        - path: .ci/contract-suites/standard-main/run/original.junit.xml
-          options:
-            language: Solidity
-            framework: Foundry
-      artifacts:
-        - key: reports
-          path: .ci/contract-suites/standard-main/run
+    if: ${{ init.cache-warm != 'true' && tasks.route.values.run-contracts == 'true' && tasks.compile-standard-main.tasks.build.values.eligible == 'true' }}
+    call: ${{ run.dir }}/packages/contracts-verdict.yml
+    with:
+      commit-sha: ${{ init.commit-sha }}
+      branch: ${{ init.branch }}
+      compiled: .ci/contract-suites/standard-main/prepare
+      cache-key: contract-suites-runtime-standard-main-${{ init.cache-epoch }}
+      suite: standard
+      feature: main
 
   - key: compile-standard-CUSTOM_GAS_TOKEN
     use: [source, go-tools, contract-tools, go-modules]
     if: ${{ init.cache-warm == 'true' || tasks.route.values.run-contracts == 'true' }}
-    run: |
-      export GOMODCACHE="$PWD/.ci/go-cache/contract-suites/modules"
-      export GOCACHE="$PWD/.ci/go-cache/contract-suites/build"
-      python3 ops/ci/contract-suites.py prepare --suite standard --feature CUSTOM_GAS_TOKEN
-    env:
-      CI_COMMIT_SHA: ${{ init.commit-sha }}
-      CI_BRANCH: ${{ init.branch }}
-      CI_CONTRACT_PROVIDER: rwx
-      BUILD_PROBE: ${{ init.build-probe }}
-    tool-cache: contract-suites-standard-CUSTOM_GAS_TOKEN-${{ init.cache-epoch }}
-    timeout: 40m
-    runner:
-      cpus: 16
-      memory: 32gb
-    outputs:
-      filesystem:
-        filter:
-          workspace: [packages/contracts-bedrock/forge-artifacts, packages/contracts-bedrock/cache/solidity-files-cache.json, packages/contracts-bedrock/artifacts/build-info, packages/contracts-bedrock/scripts/go-ffi/go-ffi, .ci/go-cache/contract-suites/build]
-          system: []
-      artifacts:
-        - key: compiled
-          path: .ci/contract-suites/standard-CUSTOM_GAS_TOKEN/prepare
+    call: ${{ run.dir }}/packages/contracts-compile.yml
+    with:
+      commit-sha: ${{ init.commit-sha }}
+      branch: ${{ init.branch }}
+      build-probe: ${{ init.build-probe }}
+      cache-key: contract-suites-standard-CUSTOM_GAS_TOKEN-${{ init.cache-epoch }}
+      suite: standard
+      feature: CUSTOM_GAS_TOKEN
 
   - key: verdict-standard-CUSTOM_GAS_TOKEN
     use: [source, go-tools, contract-tools, go-modules, compile-standard-CUSTOM_GAS_TOKEN]
-    if: ${{ init.cache-warm != 'true' && tasks.route.values.run-contracts == 'true' && tasks.compile-standard-CUSTOM_GAS_TOKEN.values.eligible == 'true' }}
-    run: |
-      export GOMODCACHE="$PWD/.ci/go-cache/contract-suites/modules"
-      export GOCACHE="$PWD/.ci/go-cache/contract-suites-runtime/build"
-      python3 ops/ci/contract-suites.py run --suite standard --feature CUSTOM_GAS_TOKEN --prepared "$COMPILED"
-    env:
-      CI_COMMIT_SHA: ${{ init.commit-sha }}
-      CI_BRANCH: ${{ init.branch }}
-      CI_CONTRACT_PROVIDER: rwx
-      COMPILED: ${{ tasks.compile-standard-CUSTOM_GAS_TOKEN.artifacts.compiled }}
-      RWX_RUN_ID:
-        cache-key: included
-      RWX_TASK_ATTEMPT_NUMBER:
-        cache-key: included
-    cache: false
-    tool-cache: contract-suites-runtime-standard-CUSTOM_GAS_TOKEN-${{ init.cache-epoch }}
-    timeout: 60m
-    runner:
-      cpus: 16
-      memory: 32gb
-    outputs:
-      filesystem:
-        filter:
-          workspace: [.ci/go-cache/contract-suites-runtime/build]
-          system: []
-      test-results:
-        - path: .ci/contract-suites/standard-CUSTOM_GAS_TOKEN/run/original.junit.xml
-          options:
-            language: Solidity
-            framework: Foundry
-      artifacts:
-        - key: reports
-          path: .ci/contract-suites/standard-CUSTOM_GAS_TOKEN/run
+    if: ${{ init.cache-warm != 'true' && tasks.route.values.run-contracts == 'true' && tasks.compile-standard-CUSTOM_GAS_TOKEN.tasks.build.values.eligible == 'true' }}
+    call: ${{ run.dir }}/packages/contracts-verdict.yml
+    with:
+      commit-sha: ${{ init.commit-sha }}
+      branch: ${{ init.branch }}
+      compiled: .ci/contract-suites/standard-CUSTOM_GAS_TOKEN/prepare
+      cache-key: contract-suites-runtime-standard-CUSTOM_GAS_TOKEN-${{ init.cache-epoch }}
+      suite: standard
+      feature: CUSTOM_GAS_TOKEN
 
   - key: compile-standard-OPTIMISM_PORTAL_INTEROP
     use: [source, go-tools, contract-tools, go-modules]
     if: ${{ init.cache-warm == 'true' || tasks.route.values.run-contracts == 'true' }}
-    run: |
-      export GOMODCACHE="$PWD/.ci/go-cache/contract-suites/modules"
-      export GOCACHE="$PWD/.ci/go-cache/contract-suites/build"
-      python3 ops/ci/contract-suites.py prepare --suite standard --feature OPTIMISM_PORTAL_INTEROP
-    env:
-      CI_COMMIT_SHA: ${{ init.commit-sha }}
-      CI_BRANCH: ${{ init.branch }}
-      CI_CONTRACT_PROVIDER: rwx
-      BUILD_PROBE: ${{ init.build-probe }}
-    tool-cache: contract-suites-standard-OPTIMISM_PORTAL_INTEROP-${{ init.cache-epoch }}
-    timeout: 40m
-    runner:
-      cpus: 16
-      memory: 32gb
-    outputs:
-      filesystem:
-        filter:
-          workspace: [packages/contracts-bedrock/forge-artifacts, packages/contracts-bedrock/cache/solidity-files-cache.json, packages/contracts-bedrock/artifacts/build-info, packages/contracts-bedrock/scripts/go-ffi/go-ffi, .ci/go-cache/contract-suites/build]
-          system: []
-      artifacts:
-        - key: compiled
-          path: .ci/contract-suites/standard-OPTIMISM_PORTAL_INTEROP/prepare
+    call: ${{ run.dir }}/packages/contracts-compile.yml
+    with:
+      commit-sha: ${{ init.commit-sha }}
+      branch: ${{ init.branch }}
+      build-probe: ${{ init.build-probe }}
+      cache-key: contract-suites-standard-OPTIMISM_PORTAL_INTEROP-${{ init.cache-epoch }}
+      suite: standard
+      feature: OPTIMISM_PORTAL_INTEROP
 
   - key: verdict-standard-OPTIMISM_PORTAL_INTEROP
     use: [source, go-tools, contract-tools, go-modules, compile-standard-OPTIMISM_PORTAL_INTEROP]
-    if: ${{ init.cache-warm != 'true' && tasks.route.values.run-contracts == 'true' && tasks.compile-standard-OPTIMISM_PORTAL_INTEROP.values.eligible == 'true' }}
-    run: |
-      export GOMODCACHE="$PWD/.ci/go-cache/contract-suites/modules"
-      export GOCACHE="$PWD/.ci/go-cache/contract-suites-runtime/build"
-      python3 ops/ci/contract-suites.py run --suite standard --feature OPTIMISM_PORTAL_INTEROP --prepared "$COMPILED"
-    env:
-      CI_COMMIT_SHA: ${{ init.commit-sha }}
-      CI_BRANCH: ${{ init.branch }}
-      CI_CONTRACT_PROVIDER: rwx
-      COMPILED: ${{ tasks.compile-standard-OPTIMISM_PORTAL_INTEROP.artifacts.compiled }}
-      RWX_RUN_ID:
-        cache-key: included
-      RWX_TASK_ATTEMPT_NUMBER:
-        cache-key: included
-    cache: false
-    tool-cache: contract-suites-runtime-standard-OPTIMISM_PORTAL_INTEROP-${{ init.cache-epoch }}
-    timeout: 60m
-    runner:
-      cpus: 16
-      memory: 32gb
-    outputs:
-      filesystem:
-        filter:
-          workspace: [.ci/go-cache/contract-suites-runtime/build]
-          system: []
-      test-results:
-        - path: .ci/contract-suites/standard-OPTIMISM_PORTAL_INTEROP/run/original.junit.xml
-          options:
-            language: Solidity
-            framework: Foundry
-      artifacts:
-        - key: reports
-          path: .ci/contract-suites/standard-OPTIMISM_PORTAL_INTEROP/run
+    if: ${{ init.cache-warm != 'true' && tasks.route.values.run-contracts == 'true' && tasks.compile-standard-OPTIMISM_PORTAL_INTEROP.tasks.build.values.eligible == 'true' }}
+    call: ${{ run.dir }}/packages/contracts-verdict.yml
+    with:
+      commit-sha: ${{ init.commit-sha }}
+      branch: ${{ init.branch }}
+      compiled: .ci/contract-suites/standard-OPTIMISM_PORTAL_INTEROP/prepare
+      cache-key: contract-suites-runtime-standard-OPTIMISM_PORTAL_INTEROP-${{ init.cache-epoch }}
+      suite: standard
+      feature: OPTIMISM_PORTAL_INTEROP
 
   - key: compile-standard-ZK_DISPUTE_GAME
     use: [source, go-tools, contract-tools, go-modules]
     if: ${{ init.cache-warm == 'true' || tasks.route.values.run-contracts == 'true' }}
-    run: |
-      export GOMODCACHE="$PWD/.ci/go-cache/contract-suites/modules"
-      export GOCACHE="$PWD/.ci/go-cache/contract-suites/build"
-      python3 ops/ci/contract-suites.py prepare --suite standard --feature ZK_DISPUTE_GAME
-    env:
-      CI_COMMIT_SHA: ${{ init.commit-sha }}
-      CI_BRANCH: ${{ init.branch }}
-      CI_CONTRACT_PROVIDER: rwx
-      BUILD_PROBE: ${{ init.build-probe }}
-    tool-cache: contract-suites-standard-ZK_DISPUTE_GAME-${{ init.cache-epoch }}
-    timeout: 40m
-    runner:
-      cpus: 16
-      memory: 32gb
-    outputs:
-      filesystem:
-        filter:
-          workspace: [packages/contracts-bedrock/forge-artifacts, packages/contracts-bedrock/cache/solidity-files-cache.json, packages/contracts-bedrock/artifacts/build-info, packages/contracts-bedrock/scripts/go-ffi/go-ffi, .ci/go-cache/contract-suites/build]
-          system: []
-      artifacts:
-        - key: compiled
-          path: .ci/contract-suites/standard-ZK_DISPUTE_GAME/prepare
+    call: ${{ run.dir }}/packages/contracts-compile.yml
+    with:
+      commit-sha: ${{ init.commit-sha }}
+      branch: ${{ init.branch }}
+      build-probe: ${{ init.build-probe }}
+      cache-key: contract-suites-standard-ZK_DISPUTE_GAME-${{ init.cache-epoch }}
+      suite: standard
+      feature: ZK_DISPUTE_GAME
 
   - key: verdict-standard-ZK_DISPUTE_GAME
     use: [source, go-tools, contract-tools, go-modules, compile-standard-ZK_DISPUTE_GAME]
-    if: ${{ init.cache-warm != 'true' && tasks.route.values.run-contracts == 'true' && tasks.compile-standard-ZK_DISPUTE_GAME.values.eligible == 'true' }}
-    run: |
-      export GOMODCACHE="$PWD/.ci/go-cache/contract-suites/modules"
-      export GOCACHE="$PWD/.ci/go-cache/contract-suites-runtime/build"
-      python3 ops/ci/contract-suites.py run --suite standard --feature ZK_DISPUTE_GAME --prepared "$COMPILED"
-    env:
-      CI_COMMIT_SHA: ${{ init.commit-sha }}
-      CI_BRANCH: ${{ init.branch }}
-      CI_CONTRACT_PROVIDER: rwx
-      COMPILED: ${{ tasks.compile-standard-ZK_DISPUTE_GAME.artifacts.compiled }}
-      RWX_RUN_ID:
-        cache-key: included
-      RWX_TASK_ATTEMPT_NUMBER:
-        cache-key: included
-    cache: false
-    tool-cache: contract-suites-runtime-standard-ZK_DISPUTE_GAME-${{ init.cache-epoch }}
-    timeout: 60m
-    runner:
-      cpus: 16
-      memory: 32gb
-    outputs:
-      filesystem:
-        filter:
-          workspace: [.ci/go-cache/contract-suites-runtime/build]
-          system: []
-      test-results:
-        - path: .ci/contract-suites/standard-ZK_DISPUTE_GAME/run/original.junit.xml
-          options:
-            language: Solidity
-            framework: Foundry
-      artifacts:
-        - key: reports
-          path: .ci/contract-suites/standard-ZK_DISPUTE_GAME/run
+    if: ${{ init.cache-warm != 'true' && tasks.route.values.run-contracts == 'true' && tasks.compile-standard-ZK_DISPUTE_GAME.tasks.build.values.eligible == 'true' }}
+    call: ${{ run.dir }}/packages/contracts-verdict.yml
+    with:
+      commit-sha: ${{ init.commit-sha }}
+      branch: ${{ init.branch }}
+      compiled: .ci/contract-suites/standard-ZK_DISPUTE_GAME/prepare
+      cache-key: contract-suites-runtime-standard-ZK_DISPUTE_GAME-${{ init.cache-epoch }}
+      suite: standard
+      feature: ZK_DISPUTE_GAME
 
   - key: compile-modified-main
     use: [source, go-tools, contract-tools, go-modules]
     if: ${{ init.cache-warm == 'true' || tasks.route.values.run-contracts == 'true' }}
-    run: |
-      export GOMODCACHE="$PWD/.ci/go-cache/contract-suites/modules"
-      export GOCACHE="$PWD/.ci/go-cache/contract-suites/build"
-      python3 ops/ci/contract-suites.py prepare --suite modified --feature main
-    env:
-      CI_COMMIT_SHA: ${{ init.commit-sha }}
-      CI_BRANCH: ${{ init.branch }}
-      CI_CONTRACT_PROVIDER: rwx
-      BUILD_PROBE: ${{ init.build-probe }}
-    tool-cache: contract-suites-modified-main-${{ init.cache-epoch }}
-    timeout: 40m
-    runner:
-      cpus: 16
-      memory: 32gb
-    outputs:
-      filesystem:
-        filter:
-          workspace: [packages/contracts-bedrock/forge-artifacts, packages/contracts-bedrock/cache/solidity-files-cache.json, packages/contracts-bedrock/artifacts/build-info, packages/contracts-bedrock/scripts/go-ffi/go-ffi, .ci/go-cache/contract-suites/build]
-          system: []
-      artifacts:
-        - key: compiled
-          path: .ci/contract-suites/modified-main/prepare
+    call: ${{ run.dir }}/packages/contracts-compile.yml
+    with:
+      commit-sha: ${{ init.commit-sha }}
+      branch: ${{ init.branch }}
+      build-probe: ${{ init.build-probe }}
+      cache-key: contract-suites-modified-main-${{ init.cache-epoch }}
+      suite: modified
+      feature: main
 
   - key: verdict-modified-main
     use: [source, go-tools, contract-tools, go-modules, compile-modified-main]
-    if: ${{ init.cache-warm != 'true' && tasks.route.values.run-contracts == 'true' && tasks.compile-modified-main.values.eligible == 'true' }}
-    run: |
-      export GOMODCACHE="$PWD/.ci/go-cache/contract-suites/modules"
-      export GOCACHE="$PWD/.ci/go-cache/contract-suites-runtime/build"
-      python3 ops/ci/contract-suites.py run --suite modified --feature main --prepared "$COMPILED"
-    env:
-      CI_COMMIT_SHA: ${{ init.commit-sha }}
-      CI_BRANCH: ${{ init.branch }}
-      CI_CONTRACT_PROVIDER: rwx
-      COMPILED: ${{ tasks.compile-modified-main.artifacts.compiled }}
-      RWX_RUN_ID:
-        cache-key: included
-      RWX_TASK_ATTEMPT_NUMBER:
-        cache-key: included
-    cache: false
-    tool-cache: contract-suites-runtime-modified-main-${{ init.cache-epoch }}
-    timeout: 60m
-    runner:
-      cpus: 16
-      memory: 32gb
-    outputs:
-      filesystem:
-        filter:
-          workspace: [.ci/go-cache/contract-suites-runtime/build]
-          system: []
-      test-results:
-        - path: .ci/contract-suites/modified-main/run/original.junit.xml
-          options:
-            language: Solidity
-            framework: Foundry
-      artifacts:
-        - key: reports
-          path: .ci/contract-suites/modified-main/run
+    if: ${{ init.cache-warm != 'true' && tasks.route.values.run-contracts == 'true' && tasks.compile-modified-main.tasks.build.values.eligible == 'true' }}
+    call: ${{ run.dir }}/packages/contracts-verdict.yml
+    with:
+      commit-sha: ${{ init.commit-sha }}
+      branch: ${{ init.branch }}
+      compiled: .ci/contract-suites/modified-main/prepare
+      cache-key: contract-suites-runtime-modified-main-${{ init.cache-epoch }}
+      suite: modified
+      feature: main
 
   - key: compile-modified-CUSTOM_GAS_TOKEN
     use: [source, go-tools, contract-tools, go-modules]
     if: ${{ init.cache-warm == 'true' || tasks.route.values.run-contracts == 'true' }}
-    run: |
-      export GOMODCACHE="$PWD/.ci/go-cache/contract-suites/modules"
-      export GOCACHE="$PWD/.ci/go-cache/contract-suites/build"
-      python3 ops/ci/contract-suites.py prepare --suite modified --feature CUSTOM_GAS_TOKEN
-    env:
-      CI_COMMIT_SHA: ${{ init.commit-sha }}
-      CI_BRANCH: ${{ init.branch }}
-      CI_CONTRACT_PROVIDER: rwx
-      BUILD_PROBE: ${{ init.build-probe }}
-    tool-cache: contract-suites-modified-CUSTOM_GAS_TOKEN-${{ init.cache-epoch }}
-    timeout: 40m
-    runner:
-      cpus: 16
-      memory: 32gb
-    outputs:
-      filesystem:
-        filter:
-          workspace: [packages/contracts-bedrock/forge-artifacts, packages/contracts-bedrock/cache/solidity-files-cache.json, packages/contracts-bedrock/artifacts/build-info, packages/contracts-bedrock/scripts/go-ffi/go-ffi, .ci/go-cache/contract-suites/build]
-          system: []
-      artifacts:
-        - key: compiled
-          path: .ci/contract-suites/modified-CUSTOM_GAS_TOKEN/prepare
+    call: ${{ run.dir }}/packages/contracts-compile.yml
+    with:
+      commit-sha: ${{ init.commit-sha }}
+      branch: ${{ init.branch }}
+      build-probe: ${{ init.build-probe }}
+      cache-key: contract-suites-modified-CUSTOM_GAS_TOKEN-${{ init.cache-epoch }}
+      suite: modified
+      feature: CUSTOM_GAS_TOKEN
 
   - key: verdict-modified-CUSTOM_GAS_TOKEN
     use: [source, go-tools, contract-tools, go-modules, compile-modified-CUSTOM_GAS_TOKEN]
-    if: ${{ init.cache-warm != 'true' && tasks.route.values.run-contracts == 'true' && tasks.compile-modified-CUSTOM_GAS_TOKEN.values.eligible == 'true' }}
-    run: |
-      export GOMODCACHE="$PWD/.ci/go-cache/contract-suites/modules"
-      export GOCACHE="$PWD/.ci/go-cache/contract-suites-runtime/build"
-      python3 ops/ci/contract-suites.py run --suite modified --feature CUSTOM_GAS_TOKEN --prepared "$COMPILED"
-    env:
-      CI_COMMIT_SHA: ${{ init.commit-sha }}
-      CI_BRANCH: ${{ init.branch }}
-      CI_CONTRACT_PROVIDER: rwx
-      COMPILED: ${{ tasks.compile-modified-CUSTOM_GAS_TOKEN.artifacts.compiled }}
-      RWX_RUN_ID:
-        cache-key: included
-      RWX_TASK_ATTEMPT_NUMBER:
-        cache-key: included
-    cache: false
-    tool-cache: contract-suites-runtime-modified-CUSTOM_GAS_TOKEN-${{ init.cache-epoch }}
-    timeout: 60m
-    runner:
-      cpus: 16
-      memory: 32gb
-    outputs:
-      filesystem:
-        filter:
-          workspace: [.ci/go-cache/contract-suites-runtime/build]
-          system: []
-      test-results:
-        - path: .ci/contract-suites/modified-CUSTOM_GAS_TOKEN/run/original.junit.xml
-          options:
-            language: Solidity
-            framework: Foundry
-      artifacts:
-        - key: reports
-          path: .ci/contract-suites/modified-CUSTOM_GAS_TOKEN/run
+    if: ${{ init.cache-warm != 'true' && tasks.route.values.run-contracts == 'true' && tasks.compile-modified-CUSTOM_GAS_TOKEN.tasks.build.values.eligible == 'true' }}
+    call: ${{ run.dir }}/packages/contracts-verdict.yml
+    with:
+      commit-sha: ${{ init.commit-sha }}
+      branch: ${{ init.branch }}
+      compiled: .ci/contract-suites/modified-CUSTOM_GAS_TOKEN/prepare
+      cache-key: contract-suites-runtime-modified-CUSTOM_GAS_TOKEN-${{ init.cache-epoch }}
+      suite: modified
+      feature: CUSTOM_GAS_TOKEN
 
   - key: compile-modified-OPTIMISM_PORTAL_INTEROP
     use: [source, go-tools, contract-tools, go-modules]
     if: ${{ init.cache-warm == 'true' || tasks.route.values.run-contracts == 'true' }}
-    run: |
-      export GOMODCACHE="$PWD/.ci/go-cache/contract-suites/modules"
-      export GOCACHE="$PWD/.ci/go-cache/contract-suites/build"
-      python3 ops/ci/contract-suites.py prepare --suite modified --feature OPTIMISM_PORTAL_INTEROP
-    env:
-      CI_COMMIT_SHA: ${{ init.commit-sha }}
-      CI_BRANCH: ${{ init.branch }}
-      CI_CONTRACT_PROVIDER: rwx
-      BUILD_PROBE: ${{ init.build-probe }}
-    tool-cache: contract-suites-modified-OPTIMISM_PORTAL_INTEROP-${{ init.cache-epoch }}
-    timeout: 40m
-    runner:
-      cpus: 16
-      memory: 32gb
-    outputs:
-      filesystem:
-        filter:
-          workspace: [packages/contracts-bedrock/forge-artifacts, packages/contracts-bedrock/cache/solidity-files-cache.json, packages/contracts-bedrock/artifacts/build-info, packages/contracts-bedrock/scripts/go-ffi/go-ffi, .ci/go-cache/contract-suites/build]
-          system: []
-      artifacts:
-        - key: compiled
-          path: .ci/contract-suites/modified-OPTIMISM_PORTAL_INTEROP/prepare
+    call: ${{ run.dir }}/packages/contracts-compile.yml
+    with:
+      commit-sha: ${{ init.commit-sha }}
+      branch: ${{ init.branch }}
+      build-probe: ${{ init.build-probe }}
+      cache-key: contract-suites-modified-OPTIMISM_PORTAL_INTEROP-${{ init.cache-epoch }}
+      suite: modified
+      feature: OPTIMISM_PORTAL_INTEROP
 
   - key: verdict-modified-OPTIMISM_PORTAL_INTEROP
     use: [source, go-tools, contract-tools, go-modules, compile-modified-OPTIMISM_PORTAL_INTEROP]
-    if: ${{ init.cache-warm != 'true' && tasks.route.values.run-contracts == 'true' && tasks.compile-modified-OPTIMISM_PORTAL_INTEROP.values.eligible == 'true' }}
-    run: |
-      export GOMODCACHE="$PWD/.ci/go-cache/contract-suites/modules"
-      export GOCACHE="$PWD/.ci/go-cache/contract-suites-runtime/build"
-      python3 ops/ci/contract-suites.py run --suite modified --feature OPTIMISM_PORTAL_INTEROP --prepared "$COMPILED"
-    env:
-      CI_COMMIT_SHA: ${{ init.commit-sha }}
-      CI_BRANCH: ${{ init.branch }}
-      CI_CONTRACT_PROVIDER: rwx
-      COMPILED: ${{ tasks.compile-modified-OPTIMISM_PORTAL_INTEROP.artifacts.compiled }}
-      RWX_RUN_ID:
-        cache-key: included
-      RWX_TASK_ATTEMPT_NUMBER:
-        cache-key: included
-    cache: false
-    tool-cache: contract-suites-runtime-modified-OPTIMISM_PORTAL_INTEROP-${{ init.cache-epoch }}
-    timeout: 60m
-    runner:
-      cpus: 16
-      memory: 32gb
-    outputs:
-      filesystem:
-        filter:
-          workspace: [.ci/go-cache/contract-suites-runtime/build]
-          system: []
-      test-results:
-        - path: .ci/contract-suites/modified-OPTIMISM_PORTAL_INTEROP/run/original.junit.xml
-          options:
-            language: Solidity
-            framework: Foundry
-      artifacts:
-        - key: reports
-          path: .ci/contract-suites/modified-OPTIMISM_PORTAL_INTEROP/run
+    if: ${{ init.cache-warm != 'true' && tasks.route.values.run-contracts == 'true' && tasks.compile-modified-OPTIMISM_PORTAL_INTEROP.tasks.build.values.eligible == 'true' }}
+    call: ${{ run.dir }}/packages/contracts-verdict.yml
+    with:
+      commit-sha: ${{ init.commit-sha }}
+      branch: ${{ init.branch }}
+      compiled: .ci/contract-suites/modified-OPTIMISM_PORTAL_INTEROP/prepare
+      cache-key: contract-suites-runtime-modified-OPTIMISM_PORTAL_INTEROP-${{ init.cache-epoch }}
+      suite: modified
+      feature: OPTIMISM_PORTAL_INTEROP
 
   - key: compile-modified-ZK_DISPUTE_GAME
     use: [source, go-tools, contract-tools, go-modules]
     if: ${{ init.cache-warm == 'true' || tasks.route.values.run-contracts == 'true' }}
-    run: |
-      export GOMODCACHE="$PWD/.ci/go-cache/contract-suites/modules"
-      export GOCACHE="$PWD/.ci/go-cache/contract-suites/build"
-      python3 ops/ci/contract-suites.py prepare --suite modified --feature ZK_DISPUTE_GAME
-    env:
-      CI_COMMIT_SHA: ${{ init.commit-sha }}
-      CI_BRANCH: ${{ init.branch }}
-      CI_CONTRACT_PROVIDER: rwx
-      BUILD_PROBE: ${{ init.build-probe }}
-    tool-cache: contract-suites-modified-ZK_DISPUTE_GAME-${{ init.cache-epoch }}
-    timeout: 40m
-    runner:
-      cpus: 16
-      memory: 32gb
-    outputs:
-      filesystem:
-        filter:
-          workspace: [packages/contracts-bedrock/forge-artifacts, packages/contracts-bedrock/cache/solidity-files-cache.json, packages/contracts-bedrock/artifacts/build-info, packages/contracts-bedrock/scripts/go-ffi/go-ffi, .ci/go-cache/contract-suites/build]
-          system: []
-      artifacts:
-        - key: compiled
-          path: .ci/contract-suites/modified-ZK_DISPUTE_GAME/prepare
+    call: ${{ run.dir }}/packages/contracts-compile.yml
+    with:
+      commit-sha: ${{ init.commit-sha }}
+      branch: ${{ init.branch }}
+      build-probe: ${{ init.build-probe }}
+      cache-key: contract-suites-modified-ZK_DISPUTE_GAME-${{ init.cache-epoch }}
+      suite: modified
+      feature: ZK_DISPUTE_GAME
 
   - key: verdict-modified-ZK_DISPUTE_GAME
     use: [source, go-tools, contract-tools, go-modules, compile-modified-ZK_DISPUTE_GAME]
-    if: ${{ init.cache-warm != 'true' && tasks.route.values.run-contracts == 'true' && tasks.compile-modified-ZK_DISPUTE_GAME.values.eligible == 'true' }}
-    run: |
-      export GOMODCACHE="$PWD/.ci/go-cache/contract-suites/modules"
-      export GOCACHE="$PWD/.ci/go-cache/contract-suites-runtime/build"
-      python3 ops/ci/contract-suites.py run --suite modified --feature ZK_DISPUTE_GAME --prepared "$COMPILED"
-    env:
-      CI_COMMIT_SHA: ${{ init.commit-sha }}
-      CI_BRANCH: ${{ init.branch }}
-      CI_CONTRACT_PROVIDER: rwx
-      COMPILED: ${{ tasks.compile-modified-ZK_DISPUTE_GAME.artifacts.compiled }}
-      RWX_RUN_ID:
-        cache-key: included
-      RWX_TASK_ATTEMPT_NUMBER:
-        cache-key: included
-    cache: false
-    tool-cache: contract-suites-runtime-modified-ZK_DISPUTE_GAME-${{ init.cache-epoch }}
-    timeout: 60m
-    runner:
-      cpus: 16
-      memory: 32gb
-    outputs:
-      filesystem:
-        filter:
-          workspace: [.ci/go-cache/contract-suites-runtime/build]
-          system: []
-      test-results:
-        - path: .ci/contract-suites/modified-ZK_DISPUTE_GAME/run/original.junit.xml
-          options:
-            language: Solidity
-            framework: Foundry
-      artifacts:
-        - key: reports
-          path: .ci/contract-suites/modified-ZK_DISPUTE_GAME/run
+    if: ${{ init.cache-warm != 'true' && tasks.route.values.run-contracts == 'true' && tasks.compile-modified-ZK_DISPUTE_GAME.tasks.build.values.eligible == 'true' }}
+    call: ${{ run.dir }}/packages/contracts-verdict.yml
+    with:
+      commit-sha: ${{ init.commit-sha }}
+      branch: ${{ init.branch }}
+      compiled: .ci/contract-suites/modified-ZK_DISPUTE_GAME/prepare
+      cache-key: contract-suites-runtime-modified-ZK_DISPUTE_GAME-${{ init.cache-epoch }}
+      suite: modified
+      feature: ZK_DISPUTE_GAME
 
-  # Bind every complete Contracts prerequisite to fresh engine terminal states.
   - key: contracts-gate-receipt
     use: [code, tools]
     after: ${{ (verdict-modified-CUSTOM_GAS_TOKEN.succeeded || verdict-modified-CUSTOM_GAS_TOKEN.failed || verdict-modified-CUSTOM_GAS_TOKEN.skipped) && (verdict-modified-OPTIMISM_PORTAL_INTEROP.succeeded || verdict-modified-OPTIMISM_PORTAL_INTEROP.failed || verdict-modified-OPTIMISM_PORTAL_INTEROP.skipped) && (verdict-modified-ZK_DISPUTE_GAME.succeeded || verdict-modified-ZK_DISPUTE_GAME.failed || verdict-modified-ZK_DISPUTE_GAME.skipped) && (verdict-modified-main.succeeded || verdict-modified-main.failed || verdict-modified-main.skipped) && (verdict-standard-CUSTOM_GAS_TOKEN.succeeded || verdict-standard-CUSTOM_GAS_TOKEN.failed || verdict-standard-CUSTOM_GAS_TOKEN.skipped) && (verdict-standard-OPTIMISM_PORTAL_INTEROP.succeeded || verdict-standard-OPTIMISM_PORTAL_INTEROP.failed || verdict-standard-OPTIMISM_PORTAL_INTEROP.skipped) && (verdict-standard-ZK_DISPUTE_GAME.succeeded || verdict-standard-ZK_DISPUTE_GAME.failed || verdict-standard-ZK_DISPUTE_GAME.skipped) && (verdict-standard-main.succeeded || verdict-standard-main.failed || verdict-standard-main.skipped) }}

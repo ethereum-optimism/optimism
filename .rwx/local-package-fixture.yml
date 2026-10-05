@@ -1,0 +1,45 @@
+# CLI-only scoping and failure proof; does not publish a PR status or run suites.
+on:
+  cli:
+    init:
+      intentional-failure: "false"
+      cache-warm: "false"
+base:
+  image: ubuntu:24.04@sha256:008173c23f95b170204355c12626cb5a965d779a7e1283b09e9cffbb1bf33ca3
+  config: rwx/base 1.2.0
+  arch: x86_64
+tasks:
+  - key: compile
+    call: ${{ run.dir }}/packages/fixture-compile.yml
+
+  - key: verdict
+    use: compile.build
+    if: ${{ init.cache-warm != 'true' && tasks.compile.tasks.build.values.eligible == 'true' }}
+    call: ${{ run.dir }}/packages/fixture-verdict.yml
+    with:
+      binaries: compiled
+      intentional-failure: ${{ init.intentional-failure }}
+
+  - key: receipt
+    after: ${{ verdict.succeeded || verdict.failed || verdict.skipped }}
+    run: |
+      if [[ "$CACHE_WARM" == true ]]; then
+        test "$SKIPPED" = true
+      elif [[ "$INTENTIONAL_FAILURE" == true ]]; then
+        test "$FAILED" = true
+      else
+        test "$SUCCEEDED" = true
+      fi
+    env:
+      CACHE_WARM: ${{ init.cache-warm }}
+      INTENTIONAL_FAILURE: ${{ init.intentional-failure }}
+      SUCCEEDED: ${{ tasks.verdict.succeeded }}
+      FAILED: ${{ tasks.verdict.failed }}
+      SKIPPED: ${{ tasks.verdict.skipped }}
+    cache: false
+  - key: report
+    if: ${{ tasks.verdict.succeeded }}
+    run: test "$(cat "$REPORTS/exit-code")" = 0
+    env:
+      REPORTS: ${{ tasks.verdict.tasks.run.artifacts.reports }}
+    cache: false

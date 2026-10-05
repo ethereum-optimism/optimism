@@ -1,0 +1,26 @@
+package:
+  parameters:
+    binaries:
+      required: true
+    intentional-failure:
+      required: true
+tasks:
+  - key: run
+    use: package.use
+    run: |
+      mkdir -p reports
+      trap 'echo "$?" >reports/exit-code' EXIT
+      test ! -e compiler-cache/marker
+      test "$(cat "$BINARIES/binary")" = verified-binary
+      date +%s%N >reports/executed-at
+      if [[ "$INTENTIONAL_FAILURE" == true ]]; then exit 17; fi
+    env:
+      BINARIES: ${{ params.binaries }}
+      INTENTIONAL_FAILURE: ${{ params.intentional-failure }}
+    cache: false
+    filter: ['!compiler-cache']
+    outputs:
+      filesystem: false
+      artifacts:
+        - key: reports
+          path: reports

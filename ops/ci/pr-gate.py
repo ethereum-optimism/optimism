@@ -57,6 +57,27 @@ def terminal_expression(tasks):
     return '${{ '+' && '.join('('+task+'.succeeded || '+task+'.failed || '+task+'.skipped)' for task in tasks)+' }}'
 
 
+def verdict_task(task, native):
+    """Resolve a gate workload's single executable verdict.
+
+    Receipts observe the stable caller key. A local package must contain exactly
+    one run task, so that caller's terminal state represents that verdict. The
+    validator checks freshness on the executing task rather than its call.
+    """
+    if 'run' in task:
+        return task, native.get('defaults', {})
+    match = re.fullmatch(r'\$\{\{ run\.dir \}\}/packages/([a-z0-9-]+\.yml)', task.get('call', ''))
+    if not match:
+        raise ValueError('Native gate workload must execute a fresh verdict')
+    package = yaml('.rwx/packages/' + match[1])
+    leaves = package.get('tasks', [])
+    if ('package' not in package or 'on' in package or 'base' in package or len(leaves) != 1
+            or not leaves[0].get('run') or leaves[0].get('use') != 'package.use'
+            or 'if' in leaves[0]):
+        raise ValueError('Native gate package must bind one unconditional executable verdict')
+    return leaves[0], package.get('defaults', {})
+
+
 def configuration(gate=None):
     manifest=read(MANIFEST)
     if manifest['version']!=3 or manifest['repository']!='ethereum-optimism/optimism':raise ValueError('Wrong native gate manifest')
@@ -78,7 +99,9 @@ def configuration(gate=None):
         expected_calls={manifest['groups'][dependency['group']]['embedded_task']
                         for gate_row in manifest['gates'].values() if gate_row['native_config']==row['native_config']
                         for dependency in gate_row['dependencies']}
-        if {key for key,task in caller_tasks.items() if 'call' in task and key not in ('code','mise')}!=expected_calls:
+        if caller_tasks['tools'].get('call') != '${{ run.dir }}/packages/toolchain-common.yml':
+            raise ValueError('Native coordinator changes the shared tool setup')
+        if {key for key,task in caller_tasks.items() if 'call' in task and key not in ('code','mise','tools')}!=expected_calls:
             raise ValueError('Missing, duplicate or unassigned native coordinator workload call')
         custom=caller['on']['github']['push']['status-checks']['custom']
         observers=row['observer_tasks']
@@ -96,14 +119,15 @@ def configuration(gate=None):
             if (workspace and not re.fullmatch('[a-zA-Z0-9_-]+(?:/[a-zA-Z0-9_-]+)*',workspace)
                     or workloads['code'].get('with',{}).get('path','')!=workspace):
                 raise ValueError('Native gate receipt differs from the original checkout directory')
-            def fresh(task):
+            def fresh(task, defaults):
                 # Run/attempt keys keep verdicts fresh while retaining native
                 # compiler tool caches, as in the verified Rust workloads.
-                return (task.get('cache',native.get('defaults',{}).get('cache')) is False
+                return (task.get('cache',defaults.get('cache')) is False
                         or all(task.get('env',{}).get(key)=={'cache-key':'included'}
                                for key in ('RWX_RUN_ID','RWX_TASK_ATTEMPT_NUMBER')))
-            if any(not fresh(workloads[key]) or not workloads[key].get('run')
-                   or workloads[key]['run'].strip()=='true' for key in tasks):
+            verdicts = [verdict_task(workloads[key], native) for key in tasks]
+            if any(not fresh(task, defaults) or not isinstance(task.get('run'), str)
+                   or task['run'].strip()=='true' for task, defaults in verdicts):
                 raise ValueError('Native gate workload must execute a fresh verdict')
             receipt=[task for task in native['tasks'] if task['key']==definition['receipt_task']]
             if len(receipt)!=1 or receipt[0]['after']!=terminal_expression(tasks):raise ValueError('Native gate receipt does not wait for every terminal prerequisite')

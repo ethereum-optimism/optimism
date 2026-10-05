@@ -62,7 +62,10 @@ tasks:
     run: 'true'
     filter: [mise.toml, ops/ci, .circleci/scripts/apt-install.sh]
     outputs:
-      filesystem: false
+      filesystem:
+        filter:
+          workspace: [mise.toml, .circleci/scripts/apt-install.sh, ops/ci/rwx-prepare.sh, ops/ci/rwx-contracts-prepare.sh, ops/ci/rwx-rust-prepare.sh, ops/ci/op-reth-shadow.sh, ops/ci/op-reth-report.py, ops/ci/rust-target-cache.py]
+          system: []
       artifacts:
         - key: mise-config
           path: mise.toml
@@ -80,25 +83,14 @@ tasks:
   # Artifact dependencies avoid inheriting the checkout's Git history into
   # reusable tools. Language toolchains are added only by their own workload.
   - key: tools
-    use: mise
-    run: |
-      mkdir -p ops/ci .circleci/scripts
-      cp "$MISE_CONFIG" mise.toml
-      cp "$CI_SCRIPTS/rwx-prepare.sh" ops/ci/
-      cp "$APT_SCRIPT" .circleci/scripts/apt-install.sh
-      bash ops/ci/rwx-prepare.sh
-    env:
-      MISE_CONFIG: ${{ tasks.bootstrap-inputs.artifacts.mise-config }}
-      CI_SCRIPTS: ${{ tasks.bootstrap-inputs.artifacts.ci-scripts }}
-      APT_SCRIPT: ${{ tasks.bootstrap-inputs.artifacts.apt-script }}
-    filter:
-      ${{ tasks.bootstrap-inputs.artifacts.ci-scripts }}: [rwx-prepare.sh]
-    timeout: 30m
+    use: [mise, bootstrap-inputs]
+    call: ${{ run.dir }}/packages/toolchain-common.yml
 
   - key: go-build-tools
     use: tools
-    run: bash ops/ci/rwx-prepare.sh go
-    timeout: 30m
+    call: ${{ run.dir }}/packages/toolchain-go.yml
+    with:
+      mode: go
 
   - key: route
     use: [code, tools]
@@ -118,29 +110,16 @@ tasks:
           path: .ci/pipeline-parameters.json
 
   - key: contract-tools
-    use: tools
-    run: |
-      cp "$CI_SCRIPTS/rwx-contracts-prepare.sh" ops/ci/
-      bash ops/ci/rwx-contracts-prepare.sh tools
-      mise install anvil
-    env:
-      CI_SCRIPTS: ${{ tasks.bootstrap-inputs.artifacts.ci-scripts }}
-    filter:
-      ${{ tasks.bootstrap-inputs.artifacts.ci-scripts }}: [rwx-contracts-prepare.sh]
-    timeout: 30m
+    use: [tools, bootstrap-inputs]
+    call: ${{ run.dir }}/packages/toolchain-foundry.yml
+    with:
+      mode: anvil
 
   - key: rust-tools
-    use: tools
-    run: |
-      cp "$CI_SCRIPTS/rwx-rust-prepare.sh" "$CI_SCRIPTS/op-reth-shadow.sh" "$CI_SCRIPTS/op-reth-report.py" "$CI_SCRIPTS/rust-target-cache.py" ops/ci/
-      bash ops/ci/rwx-prepare.sh rust
-      mise exec -- bash ops/ci/rwx-rust-prepare.sh
-      bash .circleci/scripts/apt-install.sh m4 file
-    env:
-      CI_SCRIPTS: ${{ tasks.bootstrap-inputs.artifacts.ci-scripts }}
-    filter:
-      ${{ tasks.bootstrap-inputs.artifacts.ci-scripts }}: [rwx-rust-prepare.sh, op-reth-shadow.sh, op-reth-report.py, rust-target-cache.py]
-    timeout: 30m
+    use: [tools, bootstrap-inputs]
+    call: ${{ run.dir }}/packages/toolchain-rust.yml
+    with:
+      mode: e2e
 
   - key: helper-tests
     use: [code, go-build-tools, contract-tools]
@@ -388,7 +367,7 @@ tasks:
         cache-key: included
       RWX_TASK_ATTEMPT_NUMBER:
         cache-key: included
-      CI_E2E_COMPILED: ${{ tasks.compile-proof.artifacts.compiled }}
+      CI_E2E_COMPILED: ${{ tasks.compile-proof.tasks.build.artifacts.compiled }}
       GO_ARTIFACT: ${{ tasks.go.tasks.build.artifacts.dependency }}
       CONTRACT_ARTIFACT: ${{ tasks.contracts.tasks.build.artifacts.dependency }}
       RELEASE_ARTIFACT: ${{ tasks.release.tasks.build.artifacts.dependency }}
@@ -430,7 +409,7 @@ tasks:
         cache-key: included
       RWX_TASK_ATTEMPT_NUMBER:
         cache-key: included
-      CI_E2E_COMPILED: ${{ tasks.compile-proof.artifacts.compiled }}
+      CI_E2E_COMPILED: ${{ tasks.compile-proof.tasks.build.artifacts.compiled }}
       GO_ARTIFACT: ${{ tasks.go.tasks.build.artifacts.dependency }}
       CONTRACT_ARTIFACT: ${{ tasks.contracts.tasks.build.artifacts.dependency }}
       RELEASE_ARTIFACT: ${{ tasks.release.tasks.build.artifacts.dependency }}
@@ -472,7 +451,7 @@ tasks:
         cache-key: included
       RWX_TASK_ATTEMPT_NUMBER:
         cache-key: included
-      CI_E2E_COMPILED: ${{ tasks.compile-proof.artifacts.compiled }}
+      CI_E2E_COMPILED: ${{ tasks.compile-proof.tasks.build.artifacts.compiled }}
       GO_ARTIFACT: ${{ tasks.go.tasks.build.artifacts.dependency }}
       CONTRACT_ARTIFACT: ${{ tasks.contracts.tasks.build.artifacts.dependency }}
       RELEASE_ARTIFACT: ${{ tasks.release.tasks.build.artifacts.dependency }}
@@ -514,7 +493,7 @@ tasks:
         cache-key: included
       RWX_TASK_ATTEMPT_NUMBER:
         cache-key: included
-      CI_E2E_COMPILED: ${{ tasks.compile-proof.artifacts.compiled }}
+      CI_E2E_COMPILED: ${{ tasks.compile-proof.tasks.build.artifacts.compiled }}
       GO_ARTIFACT: ${{ tasks.go.tasks.build.artifacts.dependency }}
       CONTRACT_ARTIFACT: ${{ tasks.contracts.tasks.build.artifacts.dependency }}
       RELEASE_ARTIFACT: ${{ tasks.release.tasks.build.artifacts.dependency }}
@@ -556,7 +535,7 @@ tasks:
         cache-key: included
       RWX_TASK_ATTEMPT_NUMBER:
         cache-key: included
-      CI_E2E_COMPILED: ${{ tasks.compile-proof.artifacts.compiled }}
+      CI_E2E_COMPILED: ${{ tasks.compile-proof.tasks.build.artifacts.compiled }}
       GO_ARTIFACT: ${{ tasks.go.tasks.build.artifacts.dependency }}
       CONTRACT_ARTIFACT: ${{ tasks.contracts.tasks.build.artifacts.dependency }}
       RELEASE_ARTIFACT: ${{ tasks.release.tasks.build.artifacts.dependency }}
@@ -598,7 +577,7 @@ tasks:
         cache-key: included
       RWX_TASK_ATTEMPT_NUMBER:
         cache-key: included
-      CI_E2E_COMPILED: ${{ tasks.compile-proof.artifacts.compiled }}
+      CI_E2E_COMPILED: ${{ tasks.compile-proof.tasks.build.artifacts.compiled }}
       GO_ARTIFACT: ${{ tasks.go.tasks.build.artifacts.dependency }}
       CONTRACT_ARTIFACT: ${{ tasks.contracts.tasks.build.artifacts.dependency }}
       RELEASE_ARTIFACT: ${{ tasks.release.tasks.build.artifacts.dependency }}
@@ -640,7 +619,7 @@ tasks:
         cache-key: included
       RWX_TASK_ATTEMPT_NUMBER:
         cache-key: included
-      CI_E2E_COMPILED: ${{ tasks.compile-proof.artifacts.compiled }}
+      CI_E2E_COMPILED: ${{ tasks.compile-proof.tasks.build.artifacts.compiled }}
       GO_ARTIFACT: ${{ tasks.go.tasks.build.artifacts.dependency }}
       CONTRACT_ARTIFACT: ${{ tasks.contracts.tasks.build.artifacts.dependency }}
       RELEASE_ARTIFACT: ${{ tasks.release.tasks.build.artifacts.dependency }}
@@ -682,7 +661,7 @@ tasks:
         cache-key: included
       RWX_TASK_ATTEMPT_NUMBER:
         cache-key: included
-      CI_E2E_COMPILED: ${{ tasks.compile-proof.artifacts.compiled }}
+      CI_E2E_COMPILED: ${{ tasks.compile-proof.tasks.build.artifacts.compiled }}
       GO_ARTIFACT: ${{ tasks.go.tasks.build.artifacts.dependency }}
       CONTRACT_ARTIFACT: ${{ tasks.contracts.tasks.build.artifacts.dependency }}
       RELEASE_ARTIFACT: ${{ tasks.release.tasks.build.artifacts.dependency }}
@@ -725,7 +704,7 @@ tasks:
         cache-key: included
       RWX_TASK_ATTEMPT_NUMBER:
         cache-key: included
-      CI_E2E_COMPILED: ${{ tasks.compile-restart.artifacts.compiled }}
+      CI_E2E_COMPILED: ${{ tasks.compile-restart.tasks.build.artifacts.compiled }}
       GO_ARTIFACT: ${{ tasks.go.tasks.build.artifacts.dependency }}
       CONTRACT_ARTIFACT: ${{ tasks.contracts.tasks.build.artifacts.dependency }}
       RELEASE_ARTIFACT: ${{ tasks.release.tasks.build.artifacts.dependency }}
@@ -769,7 +748,7 @@ tasks:
         cache-key: included
       RWX_TASK_ATTEMPT_NUMBER:
         cache-key: included
-      CI_E2E_COMPILED: ${{ tasks.compile-restart.artifacts.compiled }}
+      CI_E2E_COMPILED: ${{ tasks.compile-restart.tasks.build.artifacts.compiled }}
       GO_ARTIFACT: ${{ tasks.go.tasks.build.artifacts.dependency }}
       CONTRACT_ARTIFACT: ${{ tasks.contracts.tasks.build.artifacts.dependency }}
       RELEASE_ARTIFACT: ${{ tasks.release.tasks.build.artifacts.dependency }}
@@ -813,7 +792,7 @@ tasks:
         cache-key: included
       RWX_TASK_ATTEMPT_NUMBER:
         cache-key: included
-      CI_E2E_COMPILED: ${{ tasks.compile-restart.artifacts.compiled }}
+      CI_E2E_COMPILED: ${{ tasks.compile-restart.tasks.build.artifacts.compiled }}
       GO_ARTIFACT: ${{ tasks.go.tasks.build.artifacts.dependency }}
       CONTRACT_ARTIFACT: ${{ tasks.contracts.tasks.build.artifacts.dependency }}
       RELEASE_ARTIFACT: ${{ tasks.release.tasks.build.artifacts.dependency }}
@@ -857,7 +836,7 @@ tasks:
         cache-key: included
       RWX_TASK_ATTEMPT_NUMBER:
         cache-key: included
-      CI_E2E_COMPILED: ${{ tasks.compile-simple-kona.artifacts.compiled }}
+      CI_E2E_COMPILED: ${{ tasks.compile-simple-kona.tasks.build.artifacts.compiled }}
       GO_ARTIFACT: ${{ tasks.go.tasks.build.artifacts.dependency }}
       CONTRACT_ARTIFACT: ${{ tasks.contracts.tasks.build.artifacts.dependency }}
       RELEASE_ARTIFACT: ${{ tasks.release.tasks.build.artifacts.dependency }}
@@ -901,7 +880,7 @@ tasks:
         cache-key: included
       RWX_TASK_ATTEMPT_NUMBER:
         cache-key: included
-      CI_E2E_COMPILED: ${{ tasks.compile-simple-kona-sequencer.artifacts.compiled }}
+      CI_E2E_COMPILED: ${{ tasks.compile-simple-kona-sequencer.tasks.build.artifacts.compiled }}
       GO_ARTIFACT: ${{ tasks.go.tasks.build.artifacts.dependency }}
       CONTRACT_ARTIFACT: ${{ tasks.contracts.tasks.build.artifacts.dependency }}
       RELEASE_ARTIFACT: ${{ tasks.release.tasks.build.artifacts.dependency }}
@@ -944,7 +923,7 @@ tasks:
         cache-key: included
       RWX_TASK_ATTEMPT_NUMBER:
         cache-key: included
-      CI_E2E_COMPILED: ${{ tasks.compile-op-reth.artifacts.compiled }}
+      CI_E2E_COMPILED: ${{ tasks.compile-op-reth.tasks.build.artifacts.compiled }}
       GO_ARTIFACT: ${{ tasks.go.tasks.build.artifacts.dependency }}
       CONTRACT_ARTIFACT: ${{ tasks.contracts.tasks.build.artifacts.dependency }}
       RELEASE_ARTIFACT: ${{ tasks.release.tasks.build.artifacts.dependency }}

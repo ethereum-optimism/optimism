@@ -1,0 +1,43 @@
+package:
+  parameters:
+    commit-sha:
+      required: true
+    shard-total:
+      required: true
+    cl-kind:
+      required: true
+    go-artifact:
+      default: .ci/go-tests/dependencies/go
+    contract-artifact:
+      default: .ci/go-tests/dependencies/contracts
+    cache-key:
+      required: true
+tasks:
+  - key: build
+    use: package.use
+    run: |
+      python3 ops/ci/go-artifacts.py restore go "$GO_ARTIFACT"
+      python3 ops/ci/go-artifacts.py restore contracts "$CONTRACT_ARTIFACT"
+      mise exec -- bash ops/ci/acceptance-tests.sh discover
+    env:
+      CI_COMMIT_SHA: ${{ params.commit-sha }}
+      CI_SHARD_TOTAL: ${{ params.shard-total }}
+      DEVSTACK_L1_FORK: fusaka
+      DEVSTACK_L2CL_KIND: ${{ params.cl-kind }}
+      DEVSTACK_L2EL_KIND: op-reth
+      GO_ARTIFACT: ${{ params.go-artifact }}
+      CONTRACT_ARTIFACT: ${{ params.contract-artifact }}
+    tool-cache: ${{ params.cache-key }}
+    timeout: 60m
+    runner:
+      cpus: 16
+      memory: 32gb
+    outputs:
+      filesystem:
+        filter:
+          workspace: [.ci/go-cache/acceptance/discover, .ci/acceptance/discovery]
+          system: []
+      artifacts:
+        - key: discovery
+          path: .ci/acceptance/discovery
+    filter: ['!.ci/go-cache/full/dependencies']

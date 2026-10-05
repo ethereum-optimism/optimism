@@ -1,0 +1,37 @@
+package:
+  parameters:
+    commit-sha:
+      required: true
+    shard-index:
+      required: true
+    shard-total:
+      required: true
+    test-parallel:
+      required: true
+    build-probe:
+      required: true
+    cache-key:
+      required: true
+tasks:
+  - key: build
+    use: package.use
+    run: mise exec -- bash ops/ci/go-full-tests.sh build
+    env:
+      CI_COMMIT_SHA: ${{ params.commit-sha }}
+      CI_SHARD_INDEX: ${{ params.shard-index }}
+      CI_SHARD_TOTAL: ${{ params.shard-total }}
+      PARALLEL: ${{ params.test-parallel }}
+      BUILD_PROBE: ${{ params.build-probe }}
+    tool-cache: ${{ params.cache-key }}
+    timeout: 60m
+    runner:
+      cpus: 16
+      memory: 32gb
+    outputs:
+      filesystem:
+        filter:
+          workspace: [.ci/go-cache/full/build, .ci/go-tests/build]
+          system: []
+      artifacts:
+        - key: binaries
+          path: .ci/go-tests/build

@@ -85,10 +85,12 @@ tasks:
           path: .ci/contract-l2-fork/preflight
   - key: go-tools
     use: tools
-    after: ${{ rpc-check.succeeded || rpc-check.skipped }}
     if: ${{ init.cache-warm == 'true' || tasks.route.values.run-contracts == 'true' }}
-    run: bash ops/ci/rwx-prepare.sh go
-    timeout: 30m
+    after: ${{ rpc-check.succeeded || rpc-check.skipped }}
+    call: ${{ run.dir }}/packages/toolchain-go.yml
+    with:
+      mode: go
+
   - key: contract-tools
     use: tools
     after: ${{ rpc-check.succeeded || rpc-check.skipped }}

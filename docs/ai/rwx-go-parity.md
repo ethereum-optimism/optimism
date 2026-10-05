@@ -44,11 +44,18 @@ The existing op-reth shadow calls the same release package.
 Native Go objects, Foundry state, Cargo targets and sccache use isolated tool
 cache keys. The prestate task uses `docker: preserve-data`, retaining Docker and
 BuildKit data through [RWX's supported cache](https://www.rwx.com/docs/docker).
-Verdicts restore dependency archives after checking revision, tool pins,
+Verdicts receive dependency archives through filtered producer filesystem inputs.
+The runtime package excludes Go compiler caches, Cargo targets and Rust caches
+before transfer. It restores the archives after checking revision, tool pins,
 settings, archive hash and individual file hashes. Compiler metadata additionally
 binds suite, shard assignment, effective settings, binary hashes, Go version and
 absolute source path. Test results and logs never enter reusable outputs.
 Runtime Go builds have a separate compiler cache.
+
+Compilation and verdicts use separate [local packages](rwx-local-packages.md).
+The definition retains twelve explicit calls for each phase. Compilation starts
+without waiting for Rust or prestates; each verdict depends on only its own
+compilation. The experimental 24-shard tasks and 24-shard CLI configuration are removed.
 
 Only runtime preflight and verdict tasks receive the two existing archive RPC
 inputs from the locked `optimism-go-tests-rpc-shadow` vault. Repository access is

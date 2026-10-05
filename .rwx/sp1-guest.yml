@@ -47,7 +47,10 @@ tasks:
     run: 'true'
     filter: [mise.toml, ops/ci, .circleci/scripts/apt-install.sh]
     outputs:
-      filesystem: false
+      filesystem:
+        filter:
+          workspace: [mise.toml, .circleci/scripts/apt-install.sh, ops/ci/rwx-prepare.sh, ops/ci/rwx-contracts-prepare.sh, ops/ci/rwx-rust-prepare.sh, ops/ci/op-reth-shadow.sh, ops/ci/op-reth-report.py, ops/ci/rust-target-cache.py]
+          system: []
       artifacts:
         - key: mise-config
           path: mise.toml
@@ -63,20 +66,8 @@ tasks:
       install: "false"
 
   - key: tools
-    use: mise
-    run: |
-      mkdir -p ops/ci .circleci/scripts
-      cp "$MISE_CONFIG" mise.toml
-      cp "$CI_SCRIPTS/rwx-prepare.sh" ops/ci/
-      cp "$APT_SCRIPT" .circleci/scripts/apt-install.sh
-      bash ops/ci/rwx-prepare.sh
-    env:
-      MISE_CONFIG: ${{ tasks.bootstrap-inputs.artifacts.mise-config }}
-      CI_SCRIPTS: ${{ tasks.bootstrap-inputs.artifacts.ci-scripts }}
-      APT_SCRIPT: ${{ tasks.bootstrap-inputs.artifacts.apt-script }}
-    filter:
-      ${{ tasks.bootstrap-inputs.artifacts.ci-scripts }}: [rwx-prepare.sh]
-    timeout: 30m
+    use: [mise, bootstrap-inputs]
+    call: ${{ run.dir }}/packages/toolchain-common.yml
 
   - key: route
     use: [code, tools]
@@ -96,21 +87,11 @@ tasks:
           path: .ci/pipeline-parameters.json
 
   - key: rust-tools
-    use: tools
+    use: [tools, bootstrap-inputs]
     if: ${{ init.cache-warm == 'true' || tasks.route.values.run-main == 'true' }}
-    run: |
-      cp "$CI_SCRIPTS/rwx-rust-prepare.sh" "$CI_SCRIPTS/op-reth-shadow.sh" "$CI_SCRIPTS/op-reth-report.py" "$CI_SCRIPTS/rust-target-cache.py" ops/ci/
-      bash ops/ci/rwx-prepare.sh rust
-      mise exec -- bash ops/ci/rwx-rust-prepare.sh
-      bash .circleci/scripts/apt-install.sh m4 file
-      mise install github:succinctlabs/sp1
-      printf '%s:%s\n' "$(mise bin-paths | paste -sd: -)" "$PATH" >"$RWX_ENV/PATH"
-    env:
-      CI_SCRIPTS: ${{ tasks.bootstrap-inputs.artifacts.ci-scripts }}
-    filter:
-      workspace: [mise.toml, ops/ci/rwx-prepare.sh, .circleci/scripts/apt-install.sh]
-      ${{ tasks.bootstrap-inputs.artifacts.ci-scripts }}: [rwx-rust-prepare.sh, op-reth-shadow.sh, op-reth-report.py, rust-target-cache.py]
-    timeout: 30m
+    call: ${{ run.dir }}/packages/toolchain-rust.yml
+    with:
+      mode: sp1
 
   - key: toolchain
     use: [code, rust-tools]

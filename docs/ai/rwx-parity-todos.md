@@ -221,7 +221,10 @@ start, and retain push/queue time separately when available. Cost is deferred.
 - [x] Document Captain's current lack of Go partitioning support; retain the
   exhaustive duration-balanced manifest and native RWX reporting.
 - [x] Close full Go parity with 12 shards / parallel 8. Repeated performance
-  samples and 24-shard selection are deferred at the user's request.
+  samples are deferred at the user's request; the unused 24-shard definition is removed.
+- [x] Extract repeated Go, acceptance and contract compile/verdict bodies and
+  pinned tool setup into local packages. Preserve compiler/runtime cache isolation,
+  runtime-only RPC inputs and native gate bindings. See [package contracts](rwx-local-packages.md).
 
 ## Historical gaps and remaining report refinements
 

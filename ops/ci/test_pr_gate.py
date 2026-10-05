@@ -22,6 +22,7 @@ class GateTests(unittest.TestCase):
         names|={row['config'] for row in manifest['groups'].values()}
         names|={row['circle_config'] for row in manifest['gates'].values()}
         names|={row['native_config'] for row in manifest['gates'].values()}
+        names|={str(path.relative_to(G.ROOT)) for path in (G.ROOT/'.rwx/packages').glob('*.yml')}
         for name in names:
             path=self.root/name;path.parent.mkdir(parents=True,exist_ok=True);shutil.copyfile(G.ROOT/name,path)
         (self.root/'.gitignore').write_text('.ci/\n')
@@ -259,8 +260,20 @@ class GateTests(unittest.TestCase):
         path.write_text(calls)
         with self.assertRaisesRegex(ValueError,'unassigned'):G.configuration('ci-gate')
         path.write_text(source)
-        child=self.root/'.rwx/go-tests.yml';source=child.read_text()
+        child=self.root/'.rwx/packages/go-test-verdict.yml';source=child.read_text()
         child.write_text(source.replace('    cache: false','    cache: true'))
+        with self.assertRaisesRegex(ValueError,'fresh'):G.configuration('ci-gate')
+
+    def test_package_call_cannot_hide_noop_conditional_or_multiple_verdicts(self):
+        path=self.root/'.rwx/packages/go-test-verdict.yml';source=path.read_text()
+        for changed in [source.replace('    run: |', '    run: true\n    ignored: |', 1),
+                        source.replace('    use: package.use', "    use: package.use\n    if: false", 1),
+                        source+'\n  - key: extra\n    run: true\n']:
+            path.write_text(changed)
+            with self.subTest(changed=changed),self.assertRaises(ValueError):G.configuration('ci-gate')
+        path.write_text(source)
+        caller=self.root/'.rwx/go-tests.yml';original=caller.read_text()
+        caller.write_text(original.replace('packages/go-test-verdict.yml', 'packages/go-test-compile.yml', 1))
         with self.assertRaisesRegex(ValueError,'fresh'):G.configuration('ci-gate')
 
     def test_main_failure_preserves_rust_scope_and_retains_missing_shard_states(self):

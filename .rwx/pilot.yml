@@ -42,7 +42,10 @@ tasks:
     run: 'true'
     filter: [mise.toml, ops/ci, .circleci/scripts/apt-install.sh]
     outputs:
-      filesystem: false
+      filesystem:
+        filter:
+          workspace: [mise.toml, .circleci/scripts/apt-install.sh, ops/ci/rwx-prepare.sh, ops/ci/rwx-contracts-prepare.sh, ops/ci/rwx-rust-prepare.sh, ops/ci/op-reth-shadow.sh, ops/ci/op-reth-report.py, ops/ci/rust-target-cache.py]
+          system: []
       artifacts:
         - key: mise-config
           path: mise.toml
@@ -51,9 +54,6 @@ tasks:
         - key: apt-script
           path: .circleci/scripts/apt-install.sh
 
-  # Pin mise itself separately from the language/tool versions in mise.toml.
-  # Bootstrap in an empty workspace: mise/install 1.1.0 exports tool-version
-  # keys verbatim and cannot read this repo's namespaced tool aliases safely.
   - key: mise
     call: mise/install 1.1.0
     with:
@@ -63,20 +63,8 @@ tasks:
   # Artifact dependencies avoid inheriting the checkout's Git history into
   # reusable tools. Language toolchains are added only by their own workload.
   - key: tools
-    use: mise
-    run: |
-      mkdir -p ops/ci .circleci/scripts
-      cp "$MISE_CONFIG" mise.toml
-      cp "$CI_SCRIPTS/rwx-prepare.sh" ops/ci/
-      cp "$APT_SCRIPT" .circleci/scripts/apt-install.sh
-      bash ops/ci/rwx-prepare.sh
-    env:
-      MISE_CONFIG: ${{ tasks.bootstrap-inputs.artifacts.mise-config }}
-      CI_SCRIPTS: ${{ tasks.bootstrap-inputs.artifacts.ci-scripts }}
-      APT_SCRIPT: ${{ tasks.bootstrap-inputs.artifacts.apt-script }}
-    filter:
-      ${{ tasks.bootstrap-inputs.artifacts.ci-scripts }}: [rwx-prepare.sh]
-    timeout: 30m
+    use: [mise, bootstrap-inputs]
+    call: ${{ run.dir }}/packages/toolchain-common.yml
 
   - key: go-lint-tools
     use: tools

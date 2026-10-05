@@ -45,7 +45,10 @@ tasks:
     run: 'true'
     filter: [mise.toml, ops/ci, .circleci/scripts/apt-install.sh]
     outputs:
-      filesystem: false
+      filesystem:
+        filter:
+          workspace: [mise.toml, .circleci/scripts/apt-install.sh, ops/ci/rwx-prepare.sh, ops/ci/rwx-contracts-prepare.sh, ops/ci/rwx-rust-prepare.sh, ops/ci/op-reth-shadow.sh, ops/ci/op-reth-report.py, ops/ci/rust-target-cache.py]
+          system: []
       artifacts:
         - key: mise-config
           path: mise.toml
@@ -61,20 +64,8 @@ tasks:
       install: "false"
 
   - key: tools
-    use: mise
-    run: |
-      mkdir -p ops/ci .circleci/scripts
-      cp "$MISE_CONFIG" mise.toml
-      cp "$CI_SCRIPTS/rwx-prepare.sh" ops/ci/
-      cp "$APT_SCRIPT" .circleci/scripts/apt-install.sh
-      bash ops/ci/rwx-prepare.sh
-    env:
-      MISE_CONFIG: ${{ tasks.bootstrap-inputs.artifacts.mise-config }}
-      CI_SCRIPTS: ${{ tasks.bootstrap-inputs.artifacts.ci-scripts }}
-      APT_SCRIPT: ${{ tasks.bootstrap-inputs.artifacts.apt-script }}
-    filter:
-      ${{ tasks.bootstrap-inputs.artifacts.ci-scripts }}: [rwx-prepare.sh]
-    timeout: 30m
+    use: [mise, bootstrap-inputs]
+    call: ${{ run.dir }}/packages/toolchain-common.yml
 
   - key: route
     use: [code, tools]
@@ -94,22 +85,19 @@ tasks:
           path: .ci/pipeline-parameters.json
 
   - key: contract-tools
-    use: tools
+    use: [tools, bootstrap-inputs]
     if: ${{ init.cache-warm == 'true' || tasks.route.values.run-main == 'true' }}
-    run: |
-      cp "$CI_SCRIPTS/rwx-contracts-prepare.sh" ops/ci/
-      bash ops/ci/rwx-contracts-prepare.sh tools
-    env:
-      CI_SCRIPTS: ${{ tasks.bootstrap-inputs.artifacts.ci-scripts }}
-    filter:
-      ${{ tasks.bootstrap-inputs.artifacts.ci-scripts }}: [rwx-contracts-prepare.sh]
-    timeout: 30m
+    call: ${{ run.dir }}/packages/toolchain-foundry.yml
+    with:
+      mode: compiler
 
   - key: go-tools
     use: tools
     if: ${{ init.cache-warm == 'true' || tasks.route.values.run-main == 'true' }}
-    run: bash ops/ci/rwx-prepare.sh go
-    timeout: 20m
+    call: ${{ run.dir }}/packages/toolchain-go.yml
+    with:
+      mode: go
+      timeout: 20m
 
   - key: compiler-set
     use: contract-tools

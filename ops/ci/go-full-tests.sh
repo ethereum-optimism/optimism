@@ -39,7 +39,7 @@ PYCODE
 trap finish_phase EXIT
 case "${1:-run}" in
   discover)
-    case "${CI_SHARD_TOTAL:-12}" in 12|24) ;; *) echo "Full suite requires 12 or 24 shards" >&2; exit 1 ;; esac
+    case "${CI_SHARD_TOTAL:-12}" in 12) ;; *) echo "Full suite requires 12 shards" >&2; exit 1 ;; esac
     python3 ops/ci/go-suite.py discover --suite go-tests --total "${CI_SHARD_TOTAL:-12}" --timings ops/ci/go-tests-timings.json
     ;;
   build)

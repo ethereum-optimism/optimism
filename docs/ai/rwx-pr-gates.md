@@ -23,8 +23,11 @@ unassigned embedded runs and always-successful gates. It verifies source/branch/
 forwarding, selected shard counts, fresh mode, existing check names and actual
 engine-bound receipt conditions. Main-only workloads remain outside Rust's gate.
 The chosen Go configuration stays at twelve shards and parallelism eight. The
-24-shard Go and alternate acceptance CLI modes retain their existing behavior;
-their aggregate receipts only apply to the coordinator's verified shard counts.
+experimental 24-shard Go definition has been removed. The narrower rollup CLI
+mode remains available. Acceptance retains eight shards for each variant.
+Repeated verdicts call local packages. Discovery validates the executable leaf's
+freshness and requires one unconditional verdict per call, so the unchanged
+caller task states still represent the actual verdicts.
 
 Each group receipt waits for every selected task to finish or be skipped. Native
 engine states supply its environment. Selected failures, cancellations or skipped
@@ -50,7 +53,7 @@ cannot stand in for an executed selected workload. Native embedded runs provide
 these dependencies directly; the gate requires no external status polling,
 installation token or extra credential.
 
-Nineteen real Git/YQ fixtures pass: authoritative selection, exact coordinator
+Twenty real Git/YQ fixtures pass: authoritative selection, exact coordinator
 bindings, selected failure/skip handling, complete original aggregation, resealed
 provenance, missing/corrupt/duplicate/extra and incorrectly typed originals,
 failed/never-started receipt collection, genuine zero-test safe skips, all Main

@@ -1,0 +1,37 @@
+package:
+  parameters:
+    commit-sha:
+      required: true
+    branch:
+      required: true
+    cache-key:
+      required: true
+    feature:
+      required: true
+tasks:
+  - key: build
+    use: package.use
+    run: |
+      cd project
+      export GOMODCACHE="$PWD/.ci/go-cache/contract-coverage/modules"
+      export GOCACHE="$PWD/.ci/go-cache/contract-coverage/build"
+      python3 ops/ci/contract-coverage.py prepare --feature "$CI_CONTRACT_FEATURE"
+    env:
+      CI_COMMIT_SHA: ${{ params.commit-sha }}
+      CI_BRANCH: ${{ params.branch }}
+      CI_CONTRACT_PROVIDER: rwx
+      CI_CONTRACT_COVERAGE_REPLAY: 'true'
+      CI_CONTRACT_FEATURE: ${{ params.feature }}
+    tool-cache: ${{ params.cache-key }}
+    timeout: 60m
+    runner:
+      cpus: 16
+      memory: 64gb
+    outputs:
+      filesystem:
+        filter:
+          workspace: [project/packages/contracts-bedrock/forge-artifacts, project/packages/contracts-bedrock/cache/solidity-files-cache.json, project/packages/contracts-bedrock/artifacts/build-info, project/packages/contracts-bedrock/scripts/go-ffi/go-ffi, project/.ci/go-cache/contract-coverage/build, 'project/.ci/contract-coverage/${{ params.feature }}/prepare']
+          system: []
+      artifacts:
+        - key: compiled
+          path: project/.ci/contract-coverage/${{ params.feature }}/prepare
