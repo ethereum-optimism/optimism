@@ -50,10 +50,18 @@ contract DeployOPChain_TestBase is Test, FeatureFlags {
     uint256 withdrawalDelaySeconds = 100;
     uint256 minProposalSizeBytes = 126_000;
     uint256 challengePeriodSeconds = 86_400;
-    uint256 proofMaturityDelaySeconds = 400;
-    uint256 disputeGameFinalityDelaySeconds = 500;
+    // Implementation bounds admit the short per-chain delays used below.
+    uint256 minProofMaturityDelaySeconds = 1;
+    uint256 maxProofMaturityDelaySeconds = 604800;
+    uint256 minDisputeGameFinalityDelaySeconds = 1;
+    uint256 maxDisputeGameFinalityDelaySeconds = 302400;
 
     // DeployOPChain default inputs.
+    // - per-chain withdrawal delays, stored on the portal and the AnchorStateRegistry proxies.
+    //   Inside the standard range so the StandardValidator accepts the deployment, but not the
+    //   defaults, so the assertions prove the input landed.
+    uint256 proofMaturityDelaySeconds = 172_800;
+    uint256 disputeGameFinalityDelaySeconds = 86_400;
     // - opcm is set during `setUp` since it is an output of DeployImplementations.
     address opChainProxyAdminOwner = makeAddr("opChainProxyAdminOwner");
     address systemConfigOwner = makeAddr("systemConfigOwner");
@@ -112,8 +120,10 @@ contract DeployOPChain_TestBase is Test, FeatureFlags {
                 withdrawalDelaySeconds: withdrawalDelaySeconds,
                 minProposalSizeBytes: minProposalSizeBytes,
                 challengePeriodSeconds: challengePeriodSeconds,
-                proofMaturityDelaySeconds: proofMaturityDelaySeconds,
-                disputeGameFinalityDelaySeconds: disputeGameFinalityDelaySeconds,
+                minProofMaturityDelaySeconds: minProofMaturityDelaySeconds,
+                maxProofMaturityDelaySeconds: maxProofMaturityDelaySeconds,
+                minDisputeGameFinalityDelaySeconds: minDisputeGameFinalityDelaySeconds,
+                maxDisputeGameFinalityDelaySeconds: maxDisputeGameFinalityDelaySeconds,
                 mipsVersion: StandardConstants.MIPS_VERSION,
                 faultGameV2MaxGameDepth: 73,
                 faultGameV2SplitDepth: 30,
@@ -161,7 +171,9 @@ contract DeployOPChain_TestBase is Test, FeatureFlags {
             operatorFeeScalar: 0,
             operatorFeeConstant: 0,
             superchainConfig: superchainConfig,
-            useCustomGasToken: useCustomGasToken
+            useCustomGasToken: useCustomGasToken,
+            proofMaturityDelaySeconds: proofMaturityDelaySeconds,
+            disputeGameFinalityDelaySeconds: disputeGameFinalityDelaySeconds
         });
     }
 
@@ -572,6 +584,16 @@ contract DeployOPChain_Test is DeployOPChain_TestBase {
             address(doo.systemConfigProxy.superchainConfig()),
             address(deployOPChainInput.superchainConfig),
             "superchainConfig mismatch"
+        );
+
+        // Per-chain withdrawal delays land in proxy storage.
+        assertEq(
+            doo.optimismPortalProxy.proofMaturityDelaySeconds(), proofMaturityDelaySeconds, "proofMaturityDelaySeconds"
+        );
+        assertEq(
+            doo.anchorStateRegistryProxy.disputeGameFinalityDelaySeconds(),
+            disputeGameFinalityDelaySeconds,
+            "disputeGameFinalityDelaySeconds"
         );
 
         bool isSuperRoot = isDevFeatureEnabled(DevFeatures.SUPER_ROOT_GAMES_MIGRATION);

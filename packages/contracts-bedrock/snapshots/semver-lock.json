@@ -20,12 +20,12 @@
     "sourceCodeHash": "0xb32ccae72d68f92f7b0ac461b08759a4dc59b7a7f381c3a49fd5aaa29db92bf6"
   },
   "src/L1/OPContractsManagerStandardValidator.sol:OPContractsManagerStandardValidator": {
-    "initCodeHash": "0xef243735886fd9746b07ba6060b300faa0da30a5940bf8ec935c1be26f658aa7",
-    "sourceCodeHash": "0xb75da26380eb9c7be10cdb495f486cc33af5deaaeacb20c9de00ee3ab4366a48"
+    "initCodeHash": "0x64513c496217c6418bcf6371e9dc6fc19f59e9ecb82de26c9b94f1e2690bd30e",
+    "sourceCodeHash": "0xb57e02ed08c3326232dda8ef069479f96aa0c7b9023366141377dc831c59fa61"
   },
   "src/L1/OptimismPortal2.sol:OptimismPortal2": {
-    "initCodeHash": "0xa25fdde3191a7f39db53d6bc12f69dc12d91270a0d7d4177f03c1cb706c93729",
-    "sourceCodeHash": "0x0fab5c9b48a6f9fd87c0b11876c098d101709255a62da345ce81715befcf25a0"
+    "initCodeHash": "0x027e3fdaf137c19118125b7ef978d4e074ecfa17aa2d4218cda2e531413e961d",
+    "sourceCodeHash": "0x7ca6514dbc8f8d65d967f798203d811083c1453ab3b7aeb1ddf4254ff3d858e7"
   },
   "src/L1/SuperchainConfig.sol:SuperchainConfig": {
     "initCodeHash": "0x54277894f57cf988465a397cda2840e2e70e5e362c146c3b201e366da1390c9f",
@@ -36,8 +36,8 @@
     "sourceCodeHash": "0x2ddb084512dc887520fb96eddcf01cdde8804ad1c02735c1a2fb9445ad923fa4"
   },
   "src/L1/opcm/OPContractsManagerV2.sol:OPContractsManagerV2": {
-    "initCodeHash": "0x766c525699a5013af438124fdbd0282f44f55c3d5538f0cf8e9f058b0a384188",
-    "sourceCodeHash": "0xb875cccbe436bd8bb8009b3b74e2d4299f0a6d984295e3feafce1a752eb49e93"
+    "initCodeHash": "0x4e5c23495d14c13778f1a84a224fca134f23afe5c44a0c06625a0f3ff88dc070",
+    "sourceCodeHash": "0xa0330e3f1e61da15b2ef0f7cce54f198a0ba036ca111f57363425931baa6b391"
   },
   "src/L2/BaseFeeVault.sol:BaseFeeVault": {
     "initCodeHash": "0x18650c65fa6f23fefc6f0c5fff605f12be99fce0bfbcbc0644403138e4c8bb12",
@@ -148,8 +148,8 @@
     "sourceCodeHash": "0xa4fdafff1b7745bdbb46fa26d2e14b6f69c6b705a34816da0eb6544b03f3ae34"
   },
   "src/dispute/AnchorStateRegistry.sol:AnchorStateRegistry": {
-    "initCodeHash": "0xc32c6a86287855f05ad79d0dc37ae17316c005faa87daee88c205ddd6cb4eb1f",
-    "sourceCodeHash": "0x0945848ef934739d512ab2c0c5519161b13ef1de3b9ab644d4dbad224e7fd7e5"
+    "initCodeHash": "0xfa2c3f8d56f4295136c364b7601503d8fada55d64aea70089a6d378e6bf275cd",
+    "sourceCodeHash": "0xe1402286bdbd4f5b05014c322bf4b2628c97e44b8159117610b07391a5ece16e"
   },
   "src/dispute/DelayedWETH.sol:DelayedWETH": {
     "initCodeHash": "0x6a59cfdbda194e17fbc96dac157d5276f8c06f453d535bafdce91d2f49d07408",

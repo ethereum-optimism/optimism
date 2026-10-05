@@ -127,7 +127,8 @@ contract Initializer_Test is CommonTest {
                     name: "OptimismPortal2Impl",
                     target: EIP1967Helper.getImplementation(address(optimismPortal2)),
                     initCalldata: abi.encodeCall(
-                        optimismPortal2.initialize, (systemConfig, anchorStateRegistry, ethLockbox)
+                        optimismPortal2.initialize,
+                        (systemConfig, anchorStateRegistry, ethLockbox, optimismPortal2.proofMaturityDelaySeconds())
                     )
                 })
             );
@@ -137,7 +138,8 @@ contract Initializer_Test is CommonTest {
                     name: "OptimismPortal2Proxy",
                     target: address(optimismPortal2),
                     initCalldata: abi.encodeCall(
-                        optimismPortal2.initialize, (systemConfig, anchorStateRegistry, ethLockbox)
+                        optimismPortal2.initialize,
+                        (systemConfig, anchorStateRegistry, ethLockbox, optimismPortal2.proofMaturityDelaySeconds())
                     )
                 })
             );
@@ -147,7 +149,13 @@ contract Initializer_Test is CommonTest {
                     name: "OptimismPortal2Impl",
                     target: EIP1967Helper.getImplementation(address(optimismPortal2)),
                     initCalldata: abi.encodeCall(
-                        optimismPortal2.initialize, (systemConfig, anchorStateRegistry, IETHLockbox(address(0)))
+                        optimismPortal2.initialize,
+                        (
+                            systemConfig,
+                            anchorStateRegistry,
+                            IETHLockbox(address(0)),
+                            optimismPortal2.proofMaturityDelaySeconds()
+                        )
                     )
                 })
             );
@@ -157,7 +165,13 @@ contract Initializer_Test is CommonTest {
                     name: "OptimismPortal2Proxy",
                     target: address(optimismPortal2),
                     initCalldata: abi.encodeCall(
-                        optimismPortal2.initialize, (systemConfig, anchorStateRegistry, IETHLockbox(address(0)))
+                        optimismPortal2.initialize,
+                        (
+                            systemConfig,
+                            anchorStateRegistry,
+                            IETHLockbox(address(0)),
+                            optimismPortal2.proofMaturityDelaySeconds()
+                        )
                     )
                 })
             );
@@ -312,7 +326,8 @@ contract Initializer_Test is CommonTest {
                         IETHLockbox(payable(address(0))),
                         IDisputeGameFactory(address(0)),
                         Proposal({ root: Hash.wrap(bytes32(0)), l2SequenceNumber: 0 }),
-                        GameType.wrap(uint32(deploy.cfg().respectedGameType()))
+                        GameType.wrap(uint32(deploy.cfg().respectedGameType())),
+                        deploy.cfg().disputeGameFinalityDelaySeconds()
                     )
                 )
             })
@@ -328,7 +343,8 @@ contract Initializer_Test is CommonTest {
                         IETHLockbox(payable(address(0))),
                         IDisputeGameFactory(address(0)),
                         Proposal({ root: Hash.wrap(bytes32(0)), l2SequenceNumber: 0 }),
-                        GameType.wrap(uint32(deploy.cfg().respectedGameType()))
+                        GameType.wrap(uint32(deploy.cfg().respectedGameType())),
+                        deploy.cfg().disputeGameFinalityDelaySeconds()
                     )
                 )
             })

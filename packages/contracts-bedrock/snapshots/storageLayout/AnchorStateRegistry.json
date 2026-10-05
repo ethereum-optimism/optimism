@@ -68,5 +68,12 @@
     "offset": 12,
     "slot": "6",
     "type": "contract IETHLockbox"
+  },
+  {
+    "bytes": "32",
+    "label": "disputeGameFinalityDelaySeconds",
+    "offset": 0,
+    "slot": "7",
+    "type": "uint256"
   }
 ]
