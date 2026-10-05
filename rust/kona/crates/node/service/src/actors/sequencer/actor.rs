@@ -472,7 +472,7 @@ where
             // The sequencer must be active to build new blocks.
             _ = self.build_ticker.tick(), if self.is_active => {
                 if !self.unsafe_payload_gossip_client.has_capacity() {
-                    info!(target: "sequencer", "Sequencing tick, gossip queue full, not building a block");
+                    warn!(target: "sequencer", "Sequencing tick, gossip queue full, not building a block");
                     return Ok(());
                 }
                 info!(target: "sequencer", "Sequencing tick, building block");
