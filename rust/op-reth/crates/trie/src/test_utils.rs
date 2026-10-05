@@ -437,9 +437,15 @@ pub(crate) mod destroyed_accounts {
         BundleAccount::new(None, None, Default::default(), AccountStatus::Destroyed)
     }
 
+    /// Block number carried by [`injected_error`].
+    const INJECTED_BLOCK: u64 = 0xEEEE_EEEE;
+
     /// Error with which [`FailingStorageProvider`] fails hashed storage reads.
     pub(crate) const fn injected_error() -> OpProofsStorageError {
-        OpProofsStorageError::NoBlocksFound
+        OpProofsStorageError::UnwindBeyondEarliest {
+            unwind_block_number: INJECTED_BLOCK,
+            earliest_block_number: INJECTED_BLOCK,
+        }
     }
 
     /// Asserts that `result` failed with [`injected_error`].
@@ -447,7 +453,13 @@ pub(crate) mod destroyed_accounts {
         let err = result.expect_err("storage read failure must surface");
         let ProviderError::Database(err) = err else { panic!("unexpected error: {err:?}") };
         assert!(
-            matches!(OpProofsStorageError::from(err.clone()), OpProofsStorageError::NoBlocksFound),
+            matches!(
+                OpProofsStorageError::from(err.clone()),
+                OpProofsStorageError::UnwindBeyondEarliest {
+                    unwind_block_number: INJECTED_BLOCK,
+                    earliest_block_number: INJECTED_BLOCK,
+                }
+            ),
             "unexpected error: {err:?}"
         );
     }
