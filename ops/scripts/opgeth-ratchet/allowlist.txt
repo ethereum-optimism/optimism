@@ -89,6 +89,8 @@ op-core/fees (tests) | missing go-ethereum/core/types.L1Cost | #20266 op-core tr
 op-core/fees (tests) | missing go-ethereum/core/types.NewL1CostFuncFjord | #20266 op-core transition code, removed at the cutover
 op-core/fees (tests) | missing go-ethereum/core/types.RollupCostData | #20266 op-core transition code, removed at the cutover
 op-core/fees (tests) | missing go-ethereum/core/types.Transaction.RollupCostData | #20266 op-core transition code, removed at the cutover
+op-core/genesis (tests) | missing go-ethereum/params.OptimismConfig | #23200 differential tests pin the genesis JSON codec to op-geth's until the cutover
+op-core/genesis (tests) | missing go-ethereum/params.OptimismTestConfig | #23200 differential tests pin the genesis JSON codec to op-geth's until the cutover
 op-core/params | missing go-ethereum/params.ChainConfig.BedrockBlock | #20266 op-core transition code, removed at the cutover
 op-core/params | missing go-ethereum/params.ChainConfig.CanyonTime | #20266 op-core transition code, removed at the cutover
 op-core/params | missing go-ethereum/params.ChainConfig.EcotoneTime | #20266 op-core transition code, removed at the cutover
@@ -104,17 +106,10 @@ op-core/params | missing go-ethereum/params.ChainConfig.RegolithTime | #20266 op
 op-core/params | missing go-ethereum/params.OptimismConfig | #20266 op-core transition code, removed at the cutover
 op-core/params (tests) | missing go-ethereum/params.ChainConfig.BedrockBlock | #20266 op-core transition code, removed at the cutover
 op-core/params (tests) | missing go-ethereum/params.ChainConfig.CanyonTime | #20266 op-core transition code, removed at the cutover
-op-core/params (tests) | missing go-ethereum/params.ChainConfig.EcotoneTime | #20266 op-core transition code, removed at the cutover
-op-core/params (tests) | missing go-ethereum/params.ChainConfig.FjordTime | #20266 op-core transition code, removed at the cutover
-op-core/params (tests) | missing go-ethereum/params.ChainConfig.GraniteTime | #20266 op-core transition code, removed at the cutover
-op-core/params (tests) | missing go-ethereum/params.ChainConfig.HoloceneTime | #20266 op-core transition code, removed at the cutover
-op-core/params (tests) | missing go-ethereum/params.ChainConfig.IsthmusTime | #20266 op-core transition code, removed at the cutover
-op-core/params (tests) | missing go-ethereum/params.ChainConfig.JovianTime | #20266 op-core transition code, removed at the cutover
-op-core/params (tests) | missing go-ethereum/params.ChainConfig.KarstTime | #20266 op-core transition code, removed at the cutover
 op-core/params (tests) | missing go-ethereum/params.ChainConfig.LagoonTime | #20266 op-core transition code, removed at the cutover
 op-core/params (tests) | missing go-ethereum/params.ChainConfig.Optimism | #20266 op-core transition code, removed at the cutover
-op-core/params (tests) | missing go-ethereum/params.ChainConfig.RegolithTime | #20266 op-core transition code, removed at the cutover
 op-core/params (tests) | missing go-ethereum/params.OptimismConfig | #20266 op-core transition code, removed at the cutover
+op-core/params (tests) | missing go-ethereum/params.OptimismTestConfig | #23200 differential tests pin the chain config JSON codec to op-geth's until the cutover
 op-core/predeploys (tests) | missing go-ethereum/core/types.L1BlockAddr | #20266 op-core transition code, removed at the cutover
 op-core/types | missing go-ethereum/core/types.Receipt.DepositNonce | #20266 op-core transition code, removed at the cutover
 op-core/types | missing go-ethereum/core/types.Receipt.DepositReceiptVersion | #20266 op-core transition code, removed at the cutover
