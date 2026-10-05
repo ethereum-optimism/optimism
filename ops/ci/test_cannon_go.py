@@ -1,5 +1,6 @@
 """Exercise complete Cannon discovery, fresh Go/Forge execution and cancellation."""
 import importlib.util
+import argparse
 import json
 import os
 from pathlib import Path
@@ -56,6 +57,13 @@ class DiscoveryTests(unittest.TestCase):
         self.assertIsNone(settings['package_parallelism'])
         with self.assertRaises(ValueError): G.settings('rwx', True, False, 16)
 
+    def test_circle_boolean_environment_and_cli_flags_preserve_freshness(self):
+        for value, expected in [('true', True), ('1', True), ('false', False), ('0', False)]:
+            parser = argparse.ArgumentParser(); parser.add_argument('--fresh-tests', type=G.boolean, default=value)
+            self.assertIs(parser.parse_args([]).fresh_tests, expected)
+            self.assertIs(parser.parse_args(['--fresh-tests', value]).fresh_tests, expected)
+        with self.assertRaises(argparse.ArgumentTypeError): G.boolean('unrecognized')
+
 
 @unittest.skipUnless(os.environ.get('RWX_LIVE_CANNON_GO_FIXTURE') == '1', 'Opt-in real Go, gotestsum and Forge fixtures')
 class LiveTests(unittest.TestCase):
@@ -98,6 +106,7 @@ func TestCancel(t *testing.T) {if os.Getenv("CANNON_FIXTURE_CANCEL")=="1" {t.Log
             subprocess.run(['git', *argv], cwd=self.root, check=True)
         self.sha = subprocess.check_output(['git', 'rev-parse', 'HEAD'], cwd=self.root, text=True).strip()
         self.environment = {**os.environ, 'CI': 'true', 'CI_COMMIT_SHA': self.sha, 'CI_BRANCH': 'codex/rwx-ci-pilot',
+            'CI_GO_FRESH_TESTS': '1',
             'GOCACHE': str(self.root / '.ci/compiler'), 'GOMODCACHE': str(self.root / '.ci/go-cache/pr-checks/modules')}
         self.report = self.root / '.ci/cannon-go/run'
         module = self.root / '.ci/go-cache/pr-checks/modules/fixture'; module.parent.mkdir(parents=True); module.write_text('original module fixture')
@@ -110,7 +119,8 @@ func TestCancel(t *testing.T) {if os.Getenv("CANNON_FIXTURE_CANCEL")=="1" {t.Log
         self.dependencies = self.root / '.ci/go-tests/dependencies'
 
     def args(self, provider='circleci'):
-        argv = [sys.executable, str(self.root / 'ops/ci/cannon-go.py'), '--provider', provider, '--fresh-tests', 'true']
+        argv = [sys.executable, str(self.root / 'ops/ci/cannon-go.py'), '--provider', provider]
+        if provider == 'rwx': argv += ['--fresh-tests', 'true']
         if provider == 'rwx': argv += ['--module-artifact', str(self.dependencies / 'go-modules'),
                                        '--contract-artifact', str(self.dependencies / 'contracts')]
         return argv

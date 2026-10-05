@@ -36,6 +36,14 @@ def read(path): return C.read_json(path)
 def command(*argv): return subprocess.check_output(argv, cwd=ROOT, text=True).strip()
 
 
+def boolean(value):
+    # Circle renders boolean environment values as 0/1; CLI flags also accept
+    # their human-readable spelling. Reject every other value explicitly.
+    if value in ('true', '1'): return True
+    if value in ('false', '0'): return False
+    raise argparse.ArgumentTypeError('Expected true/false or 1/0')
+
+
 def settings(provider, slow, fresh, cpus):
     if provider not in ('circleci', 'rwx') or type(slow) is not bool or type(fresh) is not bool:
         raise ValueError('Invalid Cannon provider, slow-test or freshness setting')
@@ -216,8 +224,8 @@ def execute(provider, slow, fresh, module_artifact=None, contract_artifact=None)
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--provider', choices=('circleci', 'rwx'), required=True)
-    parser.add_argument('--skip-slow-tests', choices=('true', 'false'), default='true')
-    parser.add_argument('--fresh-tests', choices=('true', 'false'), default=os.environ.get('CI_GO_FRESH_TESTS', 'false'))
+    parser.add_argument('--skip-slow-tests', type=boolean, default='true')
+    parser.add_argument('--fresh-tests', type=boolean, default=os.environ.get('CI_GO_FRESH_TESTS', 'false'))
     parser.add_argument('--module-artifact', type=Path); parser.add_argument('--contract-artifact', type=Path)
     args = parser.parse_args()
-    sys.exit(execute(args.provider, args.skip_slow_tests == 'true', args.fresh_tests == 'true', args.module_artifact, args.contract_artifact))
+    sys.exit(execute(args.provider, args.skip_slow_tests, args.fresh_tests, args.module_artifact, args.contract_artifact))

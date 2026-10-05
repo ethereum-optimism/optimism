@@ -63,10 +63,18 @@ RWX lint and merged Circle validation before pushing. Final hosted evidence,
 cache observations and check states belong here after execution; scaffolding
 and fixture results do not establish full workload parity.
 
-The implementation passed seven Linux helper fixtures (including four actual
+The implementation passed eight Linux helper fixtures (including four actual
 Go/Forge execution fixtures), nine complete-report comparison fixtures and
 35 shared routing/adapter fixtures. The existing wrapper and routing scripts
 passed ShellCheck. RWX lint checked the new run and both dependency packages
 with zero problems. Circle's merged 5,289-line config and setup config validated,
 and processing with all PR workflows and fresh Go tests enabled succeeded.
 Full hosted suite and cache evidence remain pending.
+
+The initial Circle benchmark request (135575) was rejected during setup because
+it supplied the continuation's `c-main_dispatch` instead of setup's
+`main_dispatch`. No test workload ran in that request. Benchmark dispatch uses
+the setup parameter. The shared adapter explicitly accepts Circle's `0`/`1`
+boolean environment values as well as `true`/`false`; an actual Circle-style
+fixture exercises the fresh setting through the environment without a CLI
+override.
