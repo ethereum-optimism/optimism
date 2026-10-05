@@ -34,17 +34,21 @@ var (
 )
 
 type SuperchainProofParams struct {
-	WithdrawalDelaySeconds          uint64      `json:"faultGameWithdrawalDelay" toml:"faultGameWithdrawalDelay"`
-	MinProposalSizeBytes            uint64      `json:"preimageOracleMinProposalSize" toml:"preimageOracleMinProposalSize"`
-	ChallengePeriodSeconds          uint64      `json:"preimageOracleChallengePeriod" toml:"preimageOracleChallengePeriod"`
-	ProofMaturityDelaySeconds       uint64      `json:"proofMaturityDelaySeconds" toml:"proofMaturityDelaySeconds"`
-	DisputeGameFinalityDelaySeconds uint64      `json:"disputeGameFinalityDelaySeconds" toml:"disputeGameFinalityDelaySeconds"`
-	DisputeMaxGameDepth             uint64      `json:"faultGameMaxDepth" toml:"faultGameMaxDepth"`
-	DisputeSplitDepth               uint64      `json:"faultGameSplitDepth" toml:"faultGameSplitDepth"`
-	DisputeClockExtension           uint64      `json:"faultGameClockExtension" toml:"faultGameClockExtension"`
-	DisputeMaxClockDuration         uint64      `json:"faultGameMaxClockDuration" toml:"faultGameMaxClockDuration"`
-	MIPSVersion                     uint64      `json:"mipsVersion" toml:"mipsVersion"`
-	DevFeatureBitmap                common.Hash `json:"devFeatureBitmap" toml:"devFeatureBitmap"`
+	WithdrawalDelaySeconds uint64 `json:"faultGameWithdrawalDelay" toml:"faultGameWithdrawalDelay"`
+	MinProposalSizeBytes   uint64 `json:"preimageOracleMinProposalSize" toml:"preimageOracleMinProposalSize"`
+	ChallengePeriodSeconds uint64 `json:"preimageOracleChallengePeriod" toml:"preimageOracleChallengePeriod"`
+	// Bounds baked into the OptimismPortal and AnchorStateRegistry implementations. The per-chain
+	// delays themselves live in ChainProofParams.
+	MinProofMaturityDelaySeconds       uint64      `json:"minProofMaturityDelaySeconds" toml:"minProofMaturityDelaySeconds"`
+	MaxProofMaturityDelaySeconds       uint64      `json:"maxProofMaturityDelaySeconds" toml:"maxProofMaturityDelaySeconds"`
+	MinDisputeGameFinalityDelaySeconds uint64      `json:"minDisputeGameFinalityDelaySeconds" toml:"minDisputeGameFinalityDelaySeconds"`
+	MaxDisputeGameFinalityDelaySeconds uint64      `json:"maxDisputeGameFinalityDelaySeconds" toml:"maxDisputeGameFinalityDelaySeconds"`
+	DisputeMaxGameDepth                uint64      `json:"faultGameMaxDepth" toml:"faultGameMaxDepth"`
+	DisputeSplitDepth                  uint64      `json:"faultGameSplitDepth" toml:"faultGameSplitDepth"`
+	DisputeClockExtension              uint64      `json:"faultGameClockExtension" toml:"faultGameClockExtension"`
+	DisputeMaxClockDuration            uint64      `json:"faultGameMaxClockDuration" toml:"faultGameMaxClockDuration"`
+	MIPSVersion                        uint64      `json:"mipsVersion" toml:"mipsVersion"`
+	DevFeatureBitmap                   common.Hash `json:"devFeatureBitmap" toml:"devFeatureBitmap"`
 }
 
 type L1DevGenesisBlockParams struct {

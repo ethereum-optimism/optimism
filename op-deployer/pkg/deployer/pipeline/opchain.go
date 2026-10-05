@@ -221,6 +221,9 @@ func ResolveChainProofParams(intent *state.Intent, chain *state.ChainIntent) (st
 			DisputeSplitDepth:       standard.DisputeSplitDepth,
 			DisputeClockExtension:   standard.DisputeClockExtension,
 			DisputeMaxClockDuration: standard.DisputeMaxClockDuration,
+			// Per-chain withdrawal delays default to the standard values.
+			ProofMaturityDelaySeconds:       standard.ProofMaturityDelaySeconds,
+			DisputeGameFinalityDelaySeconds: standard.DisputeGameFinalityDelaySeconds,
 		},
 		intent.GlobalDeployOverrides,
 		chain.DeployOverrides,
@@ -535,31 +538,33 @@ func BuildDeployOPChainInput(
 	}
 
 	return opcm.DeployOPChainInput{
-		OpChainProxyAdminOwner:       roles.L1ProxyAdminOwner,
-		SystemConfigOwner:            roles.SystemConfigOwner,
-		Batcher:                      roles.Batcher,
-		UnsafeBlockSigner:            roles.UnsafeBlockSigner,
-		Proposer:                     roles.Proposer,
-		Challenger:                   roles.Challenger,
-		BasefeeScalar:                standard.BasefeeScalar,
-		BlobBaseFeeScalar:            standard.BlobBaseFeeScalar,
-		L2ChainId:                    l2ChainID.Big(),
-		Opcm:                         opcmAddr,
-		SaltMixer:                    saltMixer,
-		GasLimit:                     gasLimit,
-		DisputeGameType:              proofParams.DisputeGameType,
-		DisputeAbsolutePrestate:      proofParams.DisputeAbsolutePrestate,
-		StartingAnchorRoot:           startingAnchorRoot,
-		CannonAbsolutePrestate:       cannonAbsolutePrestate,
-		DisputeMaxGameDepth:          new(big.Int).SetUint64(proofParams.DisputeMaxGameDepth),
-		DisputeSplitDepth:            new(big.Int).SetUint64(proofParams.DisputeSplitDepth),
-		DisputeClockExtension:        proofParams.DisputeClockExtension,   // 3 hours (input in seconds)
-		DisputeMaxClockDuration:      proofParams.DisputeMaxClockDuration, // 3.5 days (input in seconds)
-		AllowCustomDisputeParameters: proofParams.DangerouslyAllowCustomDisputeParameters,
-		OperatorFeeScalar:            chain.OperatorFeeScalar,
-		OperatorFeeConstant:          chain.OperatorFeeConstant,
-		SuperchainConfig:             superchainConfig,
-		UseCustomGasToken:            chain.IsCustomGasTokenEnabled(),
+		OpChainProxyAdminOwner:          roles.L1ProxyAdminOwner,
+		SystemConfigOwner:               roles.SystemConfigOwner,
+		Batcher:                         roles.Batcher,
+		UnsafeBlockSigner:               roles.UnsafeBlockSigner,
+		Proposer:                        roles.Proposer,
+		Challenger:                      roles.Challenger,
+		BasefeeScalar:                   standard.BasefeeScalar,
+		BlobBaseFeeScalar:               standard.BlobBaseFeeScalar,
+		L2ChainId:                       l2ChainID.Big(),
+		Opcm:                            opcmAddr,
+		SaltMixer:                       saltMixer,
+		GasLimit:                        gasLimit,
+		DisputeGameType:                 proofParams.DisputeGameType,
+		DisputeAbsolutePrestate:         proofParams.DisputeAbsolutePrestate,
+		StartingAnchorRoot:              startingAnchorRoot,
+		CannonAbsolutePrestate:          cannonAbsolutePrestate,
+		DisputeMaxGameDepth:             new(big.Int).SetUint64(proofParams.DisputeMaxGameDepth),
+		DisputeSplitDepth:               new(big.Int).SetUint64(proofParams.DisputeSplitDepth),
+		DisputeClockExtension:           proofParams.DisputeClockExtension,   // 3 hours (input in seconds)
+		DisputeMaxClockDuration:         proofParams.DisputeMaxClockDuration, // 3.5 days (input in seconds)
+		AllowCustomDisputeParameters:    proofParams.DangerouslyAllowCustomDisputeParameters,
+		OperatorFeeScalar:               chain.OperatorFeeScalar,
+		OperatorFeeConstant:             chain.OperatorFeeConstant,
+		SuperchainConfig:                superchainConfig,
+		UseCustomGasToken:               chain.IsCustomGasTokenEnabled(),
+		ProofMaturityDelaySeconds:       new(big.Int).SetUint64(proofParams.ProofMaturityDelaySeconds),
+		DisputeGameFinalityDelaySeconds: new(big.Int).SetUint64(proofParams.DisputeGameFinalityDelaySeconds),
 	}
 }
 

@@ -26,12 +26,15 @@ func (c *L1Config) Check(log log.Logger) error {
 }
 
 type SuperFaultProofConfig struct {
-	WithdrawalDelaySeconds          *big.Int
-	MinProposalSizeBytes            *big.Int
-	ChallengePeriodSeconds          *big.Int
-	ProofMaturityDelaySeconds       *big.Int
-	DisputeGameFinalityDelaySeconds *big.Int
-	MipsVersion                     *big.Int
+	WithdrawalDelaySeconds *big.Int
+	MinProposalSizeBytes   *big.Int
+	ChallengePeriodSeconds *big.Int
+	// Bounds for the per-chain withdrawal delays; the delays themselves are set per L2 in L2Config.
+	MinProofMaturityDelaySeconds       *big.Int
+	MaxProofMaturityDelaySeconds       *big.Int
+	MinDisputeGameFinalityDelaySeconds *big.Int
+	MaxDisputeGameFinalityDelaySeconds *big.Int
+	MipsVersion                        *big.Int
 }
 
 type OPCMImplementationsConfig struct {
@@ -80,6 +83,9 @@ type L2Config struct {
 	DisputeSplitDepth           uint64
 	DisputeClockExtension       uint64
 	DisputeMaxClockDuration     uint64
+	// Per-chain withdrawal delays, stored on the chain's OptimismPortal and AnchorStateRegistry.
+	ProofMaturityDelaySeconds       uint64
+	DisputeGameFinalityDelaySeconds uint64
 }
 
 func (c *L2Config) Check(log log.Logger) error {
