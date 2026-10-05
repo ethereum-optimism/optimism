@@ -13,7 +13,7 @@ pub use metrics::Metrics;
 mod beacon_client;
 pub use beacon_client::{
     APIConfigResponse, APIGenesisResponse, BeaconClient, OnlineBeaconClient, ReducedConfigData,
-    ReducedGenesisData,
+    ReducedGenesisData, SlotDurationError,
 };
 
 mod blobs;

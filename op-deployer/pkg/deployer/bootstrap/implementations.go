@@ -56,6 +56,7 @@ type ImplementationsConfig struct {
 	Challenger                      common.Address     `cli:"challenger"`
 	CacheDir                        string             `cli:"cache-dir"`
 	UseForge                        bool               `cli:"use-forge"`
+	ForgeSlowBroadcast              bool               `cli:"forge-slow-broadcast"`
 
 	Logger log.Logger
 
@@ -284,6 +285,7 @@ func Implementations(ctx context.Context, cfg ImplementationsConfig) (opcm.Deplo
 		if err != nil {
 			return dio, fmt.Errorf("failed to create forge client: %w", err)
 		}
+		forgeClient.SlowBroadcast = cfg.ForgeSlowBroadcast
 
 		forgeEnv := &opcm.ForgeEnv{
 			Client:     forgeClient,

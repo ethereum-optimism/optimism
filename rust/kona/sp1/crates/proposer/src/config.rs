@@ -17,6 +17,7 @@ use alloy_primitives::{Address, B256};
 use alloy_transport_http::reqwest::{self, Url};
 use anyhow::{Context, Result, anyhow, bail};
 use kona_registry::{CHAINS, OPCHAINS};
+use kona_sources::redacted_url;
 use kona_sp1_host_utils::{metrics::MetricsListen, network::parse_fulfillment_strategy};
 use sp1_sdk::network::FulfillmentStrategy;
 
@@ -361,14 +362,6 @@ impl ProposerConfig {
     }
 }
 
-/// Renders a URL for logging with any userinfo stripped.
-pub fn redacted_url(url: &Url) -> String {
-    let mut url = url.clone();
-    let _ = url.set_username("");
-    let _ = url.set_password(None);
-    url.to_string()
-}
-
 fn parse_url_list(value: &str) -> Result<Vec<Url>> {
     let urls = value
         .split(',')
@@ -400,7 +393,7 @@ const AUCTION_ASSIGNMENT_MARGIN_SECONDS: u64 = 30;
 /// SP1 proof-provider settings (timeouts, strategies, limits, prices).
 ///
 /// Parsed in mock mode too, but all values have defaults and require no credentials.
-/// `KONA_SP1_PROPOSER_NETWORK_PRIVATE_KEY` is read only when the network provider is built.
+/// `OP_ZK_PROPOSER_NETWORK_PRIVATE_KEY` is read only when the network provider is built.
 #[derive(Debug, Clone)]
 pub struct ProofProviderConfig {
     /// Per-proof timeout in seconds: the server-side deadline for proof
@@ -675,20 +668,6 @@ mod tests {
         assert!(ProposalSafety::from_str("latest").is_err());
     }
 
-    #[test]
-    fn redacted_url_strips_userinfo() {
-        let url: Url = "https://user:secret@rpc.example.com/key".parse().unwrap();
-        assert_eq!(redacted_url(&url), "https://rpc.example.com/key");
-        let plain: Url = "http://127.0.0.1:8545/".parse().unwrap();
-        assert_eq!(redacted_url(&plain), "http://127.0.0.1:8545/");
-        // file:// URLs cannot carry userinfo: set_username/set_password return
-        // Err, which redacted_url ignores. This pins that choice (panicking on
-        // Err would break file:// prestate URLs) and that the URL renders
-        // unchanged.
-        let file: Url = "file:///data/prestates".parse().unwrap();
-        assert_eq!(redacted_url(&file), "file:///data/prestates");
-    }
-
     mod prestates {
         use super::*;
 
@@ -822,7 +801,7 @@ mod tests {
         #[test]
         fn missing_factory_source_is_rejected() {
             let err = resolve_factory_address(None, None).unwrap_err().to_string();
-            assert!(err.contains("KONA_SP1_PROPOSER_FACTORY_ADDRESS"), "unexpected error: {err}");
+            assert!(err.contains("OP_ZK_PROPOSER_FACTORY_ADDRESS"), "unexpected error: {err}");
             assert!(err.contains("--network"), "unexpected error: {err}");
         }
     }
@@ -909,8 +888,8 @@ mod tests {
             for crowding in ["300", "290"] {
                 set_proposer_env("MIN_AUCTION_PERIOD", crowding);
                 let err = ProofProviderConfig::from_env().unwrap_err().to_string();
-                assert!(err.contains("KONA_SP1_PROPOSER_MIN_AUCTION_PERIOD"), "unexpected: {err}");
-                assert!(err.contains("KONA_SP1_PROPOSER_AUCTION_TIMEOUT"), "unexpected: {err}");
+                assert!(err.contains("OP_ZK_PROPOSER_MIN_AUCTION_PERIOD"), "unexpected: {err}");
+                assert!(err.contains("OP_ZK_PROPOSER_AUCTION_TIMEOUT"), "unexpected: {err}");
             }
 
             set_proposer_env("MIN_AUCTION_PERIOD", "270");
@@ -928,15 +907,15 @@ mod tests {
 
             // The proof provider has no default.
             let err = ProposerConfig::from_env(None).unwrap_err().to_string();
-            assert!(err.contains("KONA_SP1_PROPOSER_PROOF_PROVIDER"), "unexpected error: {err}");
+            assert!(err.contains("OP_ZK_PROPOSER_PROOF_PROVIDER"), "unexpected error: {err}");
 
             set_proposer_env("PROOF_PROVIDER", "mock");
             let err = ProposerConfig::from_env(None).unwrap_err().to_string();
-            assert!(err.contains("KONA_SP1_PROPOSER_L2_RPCS"), "unexpected error: {err}");
+            assert!(err.contains("OP_ZK_PROPOSER_L2_RPCS"), "unexpected error: {err}");
 
             set_proposer_env("L2_RPCS", "http://127.0.0.1:8646,http://127.0.0.1:8647");
             let err = ProposerConfig::from_env(None).unwrap_err().to_string();
-            assert!(err.contains("KONA_SP1_PROPOSER_L1_BEACON_RPC"), "unexpected error: {err}");
+            assert!(err.contains("OP_ZK_PROPOSER_L1_BEACON_RPC"), "unexpected error: {err}");
 
             // Mock mode requires no SPN credentials.
             set_proposer_env("L1_BEACON_RPC", "http://127.0.0.1:5052");
@@ -1004,7 +983,7 @@ mod tests {
             set_proposer_env("MAX_CONCURRENT_DEFENSE_TASKS", "0");
             let err = ProposerConfig::from_env(None).unwrap_err().to_string();
             assert!(
-                err.contains("KONA_SP1_PROPOSER_MAX_CONCURRENT_DEFENSE_TASKS"),
+                err.contains("OP_ZK_PROPOSER_MAX_CONCURRENT_DEFENSE_TASKS"),
                 "unexpected error: {err}"
             );
         }

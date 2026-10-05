@@ -2,6 +2,7 @@
 
 //! clap [Args](clap::Args) for optimism rollup configuration
 
+use alloy_primitives::Address;
 use clap::builder::ArgPredicate;
 use op_alloy_consensus::interop::SafetyLevel;
 use reth_optimism_trie::DEFAULT_BACKFILL_BATCH_SIZE;
@@ -180,6 +181,12 @@ pub struct RollupArgs {
     )]
     pub operator_sdm_opt_in: bool,
 
+    /// Enables the deterministic SDM fixed-refund policy used by acceptance tests, optionally
+    /// injecting excessive refunds for calls to the supplied address.
+    #[arg(long = "testing.sdm-fixed-policy", value_name = "ADDRESS", hide = true)]
+    #[doc(hidden)]
+    pub testing_sdm_fixed_policy: Option<Option<Address>>,
+
     /// HTTP endpoint(s) for the interop filter, used to validate the interop messages referenced
     /// by incoming transactions. Repeat the flag to configure multiple endpoints; each check is
     /// fanned out to all of them and combined by quorum agreement (see
@@ -306,6 +313,7 @@ impl Default for RollupArgs {
             enable_tx_conditional: false,
             retain_forwarded_txs: false,
             operator_sdm_opt_in: false,
+            testing_sdm_fixed_policy: None,
             interop_http: Vec::new(),
             interop_min_responses: None,
             interop_safety_level: SafetyLevel::CrossUnsafe,

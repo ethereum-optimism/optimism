@@ -62,7 +62,7 @@ strum = { workspace = true, features = ["derive"] }
 backon.workspace = true
 derive_more = { workspace = true, features = ["debug", "eq", "constructor"] }
 jsonrpsee = { workspace = true, features = ["server", "http-client"] }
-tokio = { workspace = true, features = ["rt-multi-thread", "macros"] }
+tokio = { workspace = true, features = ["rt-multi-thread", "macros", "signal"] }
 tower.workspace = true
 http-body-util.workspace = true
 

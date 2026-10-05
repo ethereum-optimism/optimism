@@ -28,6 +28,9 @@ op-version.workspace = true
 tracing.workspace = true
 eyre.workspace = true
 
+[dev-dependencies]
+tempfile.workspace = true
+
 [lints]
 workspace = true
 

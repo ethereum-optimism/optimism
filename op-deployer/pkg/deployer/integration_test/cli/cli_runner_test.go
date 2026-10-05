@@ -29,6 +29,12 @@ func runCLITests(m *testing.M) int {
 	}
 	defer func() { _ = os.RemoveAll(dir) }()
 
+	// Anvil 1.8 can strand concurrently broadcast transactions in its pool, hanging Forge.
+	if err := os.Setenv("DEPLOYER_FORGE_SLOW_BROADCAST", "true"); err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		return 1
+	}
+
 	// Each command needs its own process, but the suite only needs one binary.
 	cliTestBinary = filepath.Join(dir, "op-deployer")
 	cmd := exec.Command("go", "build", "-o", cliTestBinary, "../../../../cmd/op-deployer")

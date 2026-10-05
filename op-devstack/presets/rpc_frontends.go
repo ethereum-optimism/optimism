@@ -510,7 +510,7 @@ func (r *syncTesterFrontend) API() apis.SyncTester {
 func (r *syncTesterFrontend) APIWithSession(sessionID string) apis.SyncTester {
 	require := r.T().Require()
 	require.NoError(synctester.IsValidSessionID(sessionID))
-	rpcCl, err := opclient.NewRPC(r.T().Ctx(), r.Logger(), r.addr+"/"+sessionID, opclient.WithLazyDial())
+	rpcCl, err := opclient.NewRPC(r.T().Ctx(), r.Logger(), r.addr+"/"+sessionID, rpcOpts()...)
 	require.NoError(err, "sync tester failed to initialize rpc per session")
 	return sources.NewSyncTesterClient(rpcCl)
 }

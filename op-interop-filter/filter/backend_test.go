@@ -161,6 +161,85 @@ func TestBackend_ReorgRecovery_NoErrorIsNotResolvable(t *testing.T) {
 	require.Equal(t, 0, mock.rewindToFinalizedCount)
 }
 
+// pausingIngester blocks the validator's GetExecMsgsAtTimestamp(pauseAt) call
+// until resume is closed, so a test can run recovery mid validation pass.
+type pausingIngester struct {
+	*mockChainIngester
+	pauseAt uint64
+	paused  chan struct{}
+	resume  chan struct{}
+}
+
+func (p *pausingIngester) GetExecMsgsAtTimestamp(timestamp uint64) ([]IncludedMessage, error) {
+	if timestamp == p.pauseAt {
+		close(p.paused)
+		<-p.resume
+	}
+	return p.mockChainIngester.GetExecMsgsAtTimestamp(timestamp)
+}
+
+func TestBackend_ReorgRecovery_DuringValidationPassDoesNotKeepStaleWatermark(t *testing.T) {
+	mock := &pausingIngester{
+		mockChainIngester: newMockChainIngester(),
+		pauseAt:           102,
+		paused:            make(chan struct{}),
+		resume:            make(chan struct{}),
+	}
+	mock.SetLatestTimestamp(100)
+	chains := map[eth.ChainID]ChainIngester{
+		eth.ChainIDFromUInt64(testChainA): mock,
+	}
+	cv := newTestCrossValidator(chains, testExpiryWindow, 100)
+	backend := NewBackend(context.Background(), BackendParams{Logger: testlog.Logger(t, log.LevelCrit), Metrics: metrics.NoopMetrics, Chains: chains, CrossValidator: cv})
+	cv.advanceValidation() // Initialise at timestamp 100
+
+	// Start a pass towards 105 and pause it at 102, after 101 is stored.
+	mock.SetLatestTimestamp(105)
+	passDone := make(chan struct{})
+	go func() {
+		defer close(passDone)
+		cv.advanceValidation()
+	}()
+	select {
+	case <-mock.paused:
+	case <-time.After(5 * time.Second):
+		t.Fatal("validation pass never reached timestamp 102")
+	}
+
+	// The ingester detects a reorg; recovery rewinds the logs DB to finalized (100).
+	mock.SetError(ErrorReorg, "reorg")
+	mock.SetLatestTimestamp(100)
+	recovered := make(chan struct{})
+	go func() {
+		defer close(recovered)
+		backend.tryResolveReorgs(context.Background())
+	}()
+	// Recovery blocks on the in-flight pass, so this delay does not change the outcome.
+	select {
+	case <-recovered:
+	case <-time.After(100 * time.Millisecond):
+	}
+
+	close(mock.resume)
+	<-passDone
+	<-recovered
+
+	require.Nil(t, mock.Error())
+	require.Nil(t, cv.Error())
+	require.False(t, backend.FailsafeEnabled())
+	ts, ok := cv.CrossValidatedTimestamp()
+	require.True(t, ok)
+	require.Equal(t, uint64(100), ts, "watermark must not keep progress from before the rewind")
+
+	// Canonical blocks are re-ingested; validation resumes from the reset watermark.
+	mock.pauseAt = 0
+	mock.SetLatestTimestamp(101)
+	cv.advanceValidation()
+	ts, ok = cv.CrossValidatedTimestamp()
+	require.True(t, ok)
+	require.Equal(t, uint64(101), ts, "validation must resume from 100")
+}
+
 func TestBackend_Ready(t *testing.T) {
 	// No chains = not ready
 	backend := newTestBackend()
