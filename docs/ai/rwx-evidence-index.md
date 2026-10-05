@@ -14,7 +14,7 @@ preparation and test logs, selections, settings, retries, failure fixtures,
 provider run/check observations, and the 92 previously committed summaries.
 Deduplication and Zstandard compression reduce 38,238,271,163 logical bytes
 to 1,347,568,690 bytes of report objects. The manifest and source bundle bring
-the complete archive to about 1.5 GB.
+the complete archive to about 2.4 GB.
 
 Two private copies are retained:
 
@@ -31,7 +31,7 @@ an evidence storage location and retention policy.
 | File | SHA-256 |
 | --- | --- |
 | `manifest.json` | `450aaa5e07daa581c258feb3e94b713215d382f559cfd66186f8fa3efa09b8b3` |
-| `source.bundle` | `49041721241f7f6cb23c1471056125d44ccc13360b4453c12b0c254a61e527a7` |
+| `source.bundle` | `9a548a480c0b2c8636d1074f3e2ed3a5d8ba2853353be83f23f8cc2919a87c3a` |
 | `restore.py` | `bd419f52c0f7d5a9e707ac4d984334e769f1c386d591c1658e079e7eeb84e320` |
 
 The manifest binds each report path, byte count, mode, original SHA-256 and
@@ -91,6 +91,9 @@ selector and flaky-report comparers passed against restored originals. Empty-fil
 restoration passed; changed manifests, missing/corrupt parts and an existing
 restore destination were rejected. All 92 summary hashes and 97 historical report
 links were verified before deleting the generated files from the final tree.
+The source bundle passed a clean clone to its recorded revision and branch,
+followed by `git fsck`. An initial bundle inherited shallow history and failed
+that clone rehearsal; its original and failure log remain under `validation/`.
 
 The authoritative last three workload comparisons use
 `f821983dd56cbd7e488ab903d1ac386a330de7f6`: complete L2 fork reports, the 21
