@@ -65,12 +65,20 @@ class SelectorTests(unittest.TestCase):
     def test_real_multiple_jobs_preserve_artifact_ids_and_bind_each_exact_unit(self):
         cache, units, artifacts = oracle('multi-profile-oracle')
         result = UP.catalog(cache, units, artifacts)
-        shared = result['declarations']['src/Shared.sol:Shared:0.8.28:default']
-        self.assertEqual((shared['artifact_source_id'], shared['unit_source_id']), (0, 1))
+        # Completion order determines which same-source/version profile supplies
+        # the artifact ID. Both exact compiler unit mappings remain authoritative.
+        shared_jobs = [result['declarations']['src/Shared.sol:Shared:0.8.28:' + profile]
+                       for profile in ('default', 'dispute')]
+        self.assertEqual({row['unit_source_id'] for row in shared_jobs}, {0, 1})
+        self.assertEqual(len({row['artifact_source_id'] for row in shared_jobs}), 1)
+        mismatches = [row for row in shared_jobs if row['artifact_source_id'] != row['unit_source_id']]
+        self.assertEqual(len(mismatches), 1)
+        shared = mismatches[0]
+        self.assertEqual({shared['artifact_source_id'], shared['unit_source_id']}, {0, 1})
         self.assertEqual(len(result['declarations']), 4)
         self.assertEqual(len(result['selected']), 2)
         unit = units[shared['build_id']]
-        unit['source_id_to_path']['1'] = 'foreign.sol'
+        unit['source_id_to_path'][str(shared['unit_source_id'])] = 'foreign.sol'
         with self.assertRaisesRegex(ValueError, 'compiler unit source map'):
             UP.catalog(cache, units, artifacts)
 

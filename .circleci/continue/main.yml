@@ -1675,6 +1675,18 @@ jobs:
                 command: |
                   python3 ops/ci/selector-upload.py run .ci/selector-upload/run .ci/selector-upload/prepare \
                     .ci/selector-registry/sourcify .ci/selector-registry/images.json
+            - run:
+                name: Archive complete original selector reports
+                when: always
+                command: |
+                  # Circle's directory artifact uploader omits empty files.
+                  # Preserve every original byte and path in one archive too.
+                  mkdir -p .ci/selector-upload
+                  tar -C .ci/selector-upload -czf .ci/selector-upload-originals.tar.gz .
+            - store_artifacts:
+                path: .ci/selector-upload-originals.tar.gz
+                destination: selector-upload-originals.tar.gz
+                when: always
             - store_artifacts:
                 path: .ci/selector-upload
                 destination: selector-upload-originals

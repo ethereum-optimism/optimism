@@ -70,3 +70,15 @@ this replay. Complete compiler, HTTP, database, service and process originals ar
 stored even after failures. The next validation is to run that replay and the
 native definition on the same pushed revision, compare all originals, then
 verify unchanged-input cache reuse, compiler-only warming and terminal checks.
+
+Both hosted providers executed the complete uploader successfully at
+`86f4ba931a0a8a4ef304767b4a802125253d8f7f` (native run `786f16f0`, Circle
+pipeline 135611/job 5637452). Circle's directory artifact uploader omitted 49
+empty original files. The replay now also archives the complete report tree;
+coverage remains pending until a fresh same-SHA comparison validates that archive.
+
+The compiler fixtures were recaptured in native run `af521751` with function
+argument names that follow the repository's Solidity style rules. Both profiles'
+exact unit mappings and their shared artifact ID remain covered regardless of
+compilation completion order. The earlier captures and initial Semgrep findings
+remain retained with the prototype evidence.

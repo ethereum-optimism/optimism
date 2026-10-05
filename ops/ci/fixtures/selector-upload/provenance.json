@@ -1,8 +1,8 @@
 {
   "abi_oracle": {
     "description": "Complete original minimal Forge 1.8.3 ABI oracle; empty library and tuple parameter",
-    "run_id": "cf8fbfdbd435439a8f89d1f04ced60f7",
-    "task_id": "233ff1d64e88a74062ed22c440436717"
+    "run_id": "af521751ca5643eab506a89bbce9b8d7",
+    "task_id": "39a2f5d74fa95fc4a8d5b1e43bf9b2a2"
   },
   "coverage_added": 0,
   "live_import": {
@@ -12,7 +12,7 @@
   },
   "multi_profile_oracle": {
     "description": "Complete original Forge 1.8.3 two-job ABI compilation, shared source with different job-local IDs",
-    "run_id": "4a9cf6529fc446eda40c28e188d2a830",
-    "task_id": "36c7cb85d93ff5c0b8dccaad21e5c60c"
+    "run_id": "af521751ca5643eab506a89bbce9b8d7",
+    "task_id": "a879768cf143528b3d8a96485904f211"
   }
 }
