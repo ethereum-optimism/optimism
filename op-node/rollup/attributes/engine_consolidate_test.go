@@ -194,6 +194,17 @@ func createNilGasLimit() matchArgs {
 	return args
 }
 
+// createHoloceneGasLimit returns valid Holocene args (elasticity 6 in the extraData) with the
+// given gas limit on both the attributes and the payload, so only the elasticity-vs-gas-limit
+// consensus rule decides the outcome.
+func createHoloceneGasLimit(gasLimit uint64) matchArgs {
+	args := holoceneArgs()
+	gl := eth.Uint64Quantity(gasLimit)
+	args.envelope.ExecutionPayload.GasLimit = gl
+	args.attrs.GasLimit = &gl
+	return args
+}
+
 func createMismatchedTimestamp() matchArgs {
 	args := ecotoneArgs()
 	args.attrs.Timestamp++
@@ -329,6 +340,17 @@ func TestAttributesMatch(t *testing.T) {
 			rollupCfg: cfg(forks.Holocene),
 			err:       "expected gaslimit in attributes to not be nil",
 			desc:      "createNilGasLimit",
+		},
+		{
+			args:      createHoloceneGasLimit(6),
+			rollupCfg: cfg(forks.Holocene),
+			desc:      "holoceneElasticityEqualsGasLimit",
+		},
+		{
+			args:      createHoloceneGasLimit(5),
+			rollupCfg: cfg(forks.Holocene),
+			err:       "invalid block extraData: holocene extraData elasticity 6 exceeds gas limit 5",
+			desc:      "holoceneElasticityExceedsGasLimit",
 		},
 		{
 			args:      createMismatchedFeeRecipient(),

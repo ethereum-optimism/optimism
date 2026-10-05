@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/stretchr/testify/require"
 )
 
@@ -78,4 +79,43 @@ func TestRPCHeaderPreAmsterdamUnchanged(t *testing.T) {
 	info, err := hdr.Info(false, true)
 	require.NoError(t, err)
 	require.Equal(t, want, info.Hash())
+}
+
+// TestRPCBlockExecutionPayloadEnvelopeRejectsAmsterdamFields checks that a block carrying the
+// Glamsterdam header fields is refused by ExecutionPayloadEnvelope instead of being converted
+// into a payload that silently drops them (and whose block hash could then never be verified).
+// Only L2 blocks are converted to payloads, and the L2 does not activate Amsterdam, so this is a
+// guard against misuse rather than a live path.
+func TestRPCBlockExecutionPayloadEnvelopeRejectsAmsterdamFields(t *testing.T) {
+	var hdr RPCHeader
+	require.NoError(t, json.Unmarshal([]byte(amsterdamHeaderJSON), &hdr))
+
+	for _, tc := range []struct {
+		name   string
+		mutate func(h *RPCHeader)
+	}{
+		{"both fields", func(h *RPCHeader) {}},
+		{"blockAccessListHash only", func(h *RPCHeader) { h.SlotNumber = nil }},
+		{"slotNumber only", func(h *RPCHeader) { h.BlockAccessListHash = nil }},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			h := hdr
+			tc.mutate(&h)
+			block := RPCBlock{RPCHeader: h, Withdrawals: &types.Withdrawals{}}
+			for _, trust := range []bool{true, false} {
+				_, err := block.ExecutionPayloadEnvelope(trust)
+				require.ErrorContains(t, err, "Amsterdam header fields", "trustCache=%v", trust)
+			}
+		})
+	}
+
+	// Without the Amsterdam fields the same block converts as before (trusted hash, no
+	// re-verification, since clearing the fields changes the canonical hash).
+	h := hdr
+	h.BlockAccessListHash = nil
+	h.SlotNumber = nil
+	block := RPCBlock{RPCHeader: h, Withdrawals: &types.Withdrawals{}}
+	envelope, err := block.ExecutionPayloadEnvelope(true)
+	require.NoError(t, err)
+	require.Equal(t, h.Hash, envelope.ExecutionPayload.BlockHash)
 }
