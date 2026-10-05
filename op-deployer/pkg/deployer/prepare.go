@@ -345,6 +345,22 @@ func resolveSuperchainConfigProxy(ctx context.Context, l1RPC *rpc.Client, intent
 	return fmt.Errorf("intent.superchainConfigProxy must be set to predict against an existing OPCM at %s", opcmAddr.Hex())
 }
 
+// elapsedGenesisWarnThreshold is how many seconds L1 may run past a chain's committed genesis
+// time before prepare and continue warn about the catch-up blocks nodes must produce. With the
+// default zero offset, genesis equals the safe head time when pinned; reruns and later
+// deployment steps see L1 move past it, so a lag under this threshold is expected.
+const elapsedGenesisWarnThreshold uint64 = 3600 // 1 hour
+
+// genesisElapsedSeconds returns how far l1Time is past genesisTime, and whether that lag exceeds
+// elapsedGenesisWarnThreshold.
+func genesisElapsedSeconds(genesisTime, l1Time uint64) (uint64, bool) {
+	if l1Time <= genesisTime {
+		return 0, false
+	}
+	elapsed := l1Time - genesisTime
+	return elapsed, elapsed > elapsedGenesisWarnThreshold
+}
+
 // predictChains predicts and records contract L1 addresses for undeployed chains.
 // It pins each chain's anchor and derived genesis time before prediction.
 // Reruns revalidate and reuse that pair instead of recomputing it.
@@ -405,12 +421,13 @@ func predictChains(
 			)
 		}
 
-		if genesisTime <= safe.Time {
+		if elapsed, warn := genesisElapsedSeconds(uint64(genesisTime), uint64(safe.Time)); warn {
 			lgr.Warn(
 				"committed genesis time has elapsed; nodes will produce catch-up blocks after deployment",
 				"chain", chain.ID.Hex(),
 				"genesisTime", uint64(genesisTime),
 				"l1SafeHeadTime", uint64(safe.Time),
+				"elapsedSeconds", elapsed,
 			)
 		}
 

@@ -1230,15 +1230,18 @@ func TestPredictChains_ElapsedGenesisTime(t *testing.T) {
 	}
 	pinnedAnchor := &state.L1BlockRefJSON{Hash: common.HexToHash("0xa11c"), Number: 100, Time: 5000}
 	pinnedGenesisTime := hexutil.Uint64(5600)
-	lgr := testlog.Logger(t, slog.LevelInfo)
 
 	t.Run("reused elapsed pin", func(t *testing.T) {
 		st := &state.State{Create2Salt: common.HexToHash("0x03")}
 		st.PinChainAnchor(chainID, pinnedAnchor, pinnedGenesisTime)
 
-		// The re-run happens long after the pin. The safe head has passed the
-		// committed genesis time, but catch-up blocks make the deployment valid.
-		lateSafe := &state.L1BlockRefJSON{Hash: common.HexToHash("0x5afe"), Number: 500, Time: 9000}
+		// The re-run happens long after the pin. The safe head has passed the committed
+		// genesis time by more than the threshold, but catch-up blocks make the deployment valid.
+		lateSafe := &state.L1BlockRefJSON{
+			Hash:   common.HexToHash("0x5afe"),
+			Number: 500,
+			Time:   pinnedGenesisTime + hexutil.Uint64(elapsedGenesisWarnThreshold) + 1,
+		}
 		selectAnchor := func(overrideHash *common.Hash) (*state.L1BlockRefJSON, error) {
 			return pinnedAnchor, nil
 		}
@@ -1253,16 +1256,22 @@ func TestPredictChains_ElapsedGenesisTime(t *testing.T) {
 		)
 	})
 
-	t.Run("genesis equal to safe head", func(t *testing.T) {
+	t.Run("safe head at warn threshold", func(t *testing.T) {
 		st := &state.State{Create2Salt: common.HexToHash("0x03")}
 		st.PinChainAnchor(chainID, pinnedAnchor, pinnedGenesisTime)
 
-		boundarySafe := &state.L1BlockRefJSON{Hash: common.HexToHash("0x5afe"), Number: 500, Time: pinnedGenesisTime}
+		boundarySafe := &state.L1BlockRefJSON{
+			Hash:   common.HexToHash("0x5afe"),
+			Number: 500,
+			Time:   pinnedGenesisTime + hexutil.Uint64(elapsedGenesisWarnThreshold),
+		}
 		selectAnchor := func(overrideHash *common.Hash) (*state.L1BlockRefJSON, error) {
 			return pinnedAnchor, nil
 		}
+		lgr, logs := testlog.CaptureLogger(t, slog.LevelInfo)
 
 		require.NoError(t, predictChains(lgr, newIntent(), st, run, selectAnchor, boundarySafe, 600))
+		logs.RequireMessageContainedNTimes(t, "committed genesis time has elapsed", 0)
 	})
 
 	t.Run("fresh pin from old anchor override", func(t *testing.T) {
@@ -1275,9 +1284,16 @@ func TestPredictChains_ElapsedGenesisTime(t *testing.T) {
 		selectAnchor := func(overrideHash *common.Hash) (*state.L1BlockRefJSON, error) {
 			return oldAnchor, nil
 		}
+		lgr, logs := testlog.CaptureLogger(t, slog.LevelInfo)
 
 		// The override anchor is valid even though anchor time + offset is already in the past.
 		require.NoError(t, predictChains(lgr, intent, st, run, selectAnchor, safe, 600))
+		logs.RequireMessageContainedOnce(
+			t,
+			"committed genesis time has elapsed",
+			testlog.NewLevelFilter(slog.LevelWarn),
+			testlog.NewAttributesFilter("elapsedSeconds", "7400"),
+		)
 	})
 
 	t.Run("zero offset pins genesis to safe anchor", func(t *testing.T) {
@@ -1286,12 +1302,15 @@ func TestPredictChains_ElapsedGenesisTime(t *testing.T) {
 		selectAnchor := func(overrideHash *common.Hash) (*state.L1BlockRefJSON, error) {
 			return safe, nil
 		}
+		lgr, logs := testlog.CaptureLogger(t, slog.LevelInfo)
 
 		require.NoError(t, predictChains(lgr, newIntent(), st, run, selectAnchor, safe, 0))
 		chain, err := st.Chain(chainID)
 		require.NoError(t, err)
 		require.Equal(t, safe, chain.StartBlock)
 		require.EqualValues(t, safe.Time, *chain.GenesisTime)
+		// The default run pins genesis at the safe head, which must not warn.
+		logs.RequireMessageContainedNTimes(t, "committed genesis time has elapsed", 0)
 	})
 }
 
