@@ -106,6 +106,7 @@ reth-stages-types.workspace = true
 reth-storage-overlay.workspace = true
 reth-trie-db.workspace = true
 
+alloy-eips.workspace = true
 alloy-network.workspace = true
 alloy-op-evm.workspace = true
 alloy-op-hardforks.workspace = true

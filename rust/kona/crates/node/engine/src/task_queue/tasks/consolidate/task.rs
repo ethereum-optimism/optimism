@@ -2,7 +2,9 @@
 
 use crate::{
     ConsolidateTaskError, EngineClient, EngineState, EngineTaskExt, ImportedBlockSink,
-    SynchronizeTask, state::EngineSyncStateUpdate, task_queue::build_and_seal,
+    SealTaskError, SynchronizeTask,
+    state::EngineSyncStateUpdate,
+    task_queue::{BuildAndSealError, build_and_seal},
 };
 use alloy_rpc_types_eth::Block;
 use async_trait::async_trait;
@@ -92,7 +94,7 @@ impl<EngineClient_: EngineClient> ConsolidateTask<EngineClient_> {
         state: &mut EngineState,
         attributes: &OpAttributesWithParent,
     ) -> Result<(), ConsolidateTaskError> {
-        build_and_seal(
+        match build_and_seal(
             state,
             self.client.clone(),
             self.cfg.clone(),
@@ -100,9 +102,36 @@ impl<EngineClient_: EngineClient> ConsolidateTask<EngineClient_> {
             true,
             self.block_sink.clone(),
         )
-        .await?;
-
-        Ok(())
+        .await
+        {
+            Err(BuildAndSealError::Build(err))
+                if err.is_invalid_attributes() &&
+                    (attributes.is_deposits_only() ||
+                        self.cfg.is_holocene_active(
+                            attributes.attributes().payload_attributes.timestamp,
+                        )) =>
+            {
+                warn!(target: "engine", %err, "Derived attributes rejected at forkchoiceUpdated");
+                if attributes.is_deposits_only() {
+                    return Err(SealTaskError::DepositOnlyPayloadFailed.into());
+                }
+                let result = build_and_seal(
+                    state,
+                    self.client.clone(),
+                    self.cfg.clone(),
+                    attributes.as_deposits_only(),
+                    true,
+                    self.block_sink.clone(),
+                )
+                .await;
+                Err(match result {
+                    Ok(()) => SealTaskError::HoloceneInvalidFlush,
+                    Err(_) => SealTaskError::DepositOnlyPayloadReattemptFailed,
+                }
+                .into())
+            }
+            result => result.map_err(Into::into),
+        }
     }
 
     /// This provides symmetric fallback behavior to with `build_and_seal`.
@@ -314,7 +343,7 @@ impl<EngineClient_: EngineClient> EngineTaskExt for ConsolidateTask<EngineClient
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{ImportedBlockSink, test_utils::MockEngineClient};
+    use crate::{EngineTaskError, ImportedBlockSink, test_utils::MockEngineClient};
     use alloy_eips::{BlockNumHash, BlockNumberOrTag};
     use alloy_primitives::B256;
     use alloy_rpc_types_eth::{Block as RpcBlock, BlockTransactions, Header as RpcHeader};
@@ -366,5 +395,92 @@ mod tests {
         task.consolidate(&mut EngineState::default()).await.unwrap();
 
         assert_eq!(sink.0.lock().unwrap().as_slice(), &[block_hash]);
+    }
+
+    const DEPOSIT: u8 = op_alloy_consensus::DEPOSIT_TX_TYPE_ID;
+
+    fn holocene_cfg() -> Arc<RollupConfig> {
+        let mut cfg = RollupConfig::default();
+        cfg.hardforks.ecotone_time = Some(0);
+        cfg.hardforks.holocene_time = Some(0);
+        Arc::new(cfg)
+    }
+
+    fn derived(transactions: Vec<alloy_primitives::Bytes>) -> OpAttributesWithParent {
+        crate::test_utils::TestAttributesBuilder::new()
+            .with_parent(crate::test_utils::test_block_info(10))
+            .with_transactions(transactions)
+            .build()
+    }
+
+    async fn build_derived(
+        client: Arc<MockEngineClient>,
+        attributes: &OpAttributesWithParent,
+    ) -> ConsolidateTaskError {
+        let mut state = crate::test_utils::TestEngineStateBuilder::new()
+            .with_unsafe_head(attributes.parent)
+            .build();
+        let task = ConsolidateTask::new(
+            client,
+            holocene_cfg(),
+            ConsolidateInput::Attributes(Box::new(attributes.clone())),
+            Arc::new(crate::NoopBlockSink),
+        );
+        task.execute_build_and_seal_tasks(&mut state, attributes)
+            .await
+            .expect_err("the mock never completes a seal")
+    }
+
+    // SDM-H1: -38003 triggers deposits-only recovery.
+    #[tokio::test]
+    async fn attributes_rejected_at_fcu_are_replaced_with_deposits_only() {
+        let deposit = alloy_primitives::Bytes::from(vec![DEPOSIT, 0x01]);
+        let attributes = derived(vec![deposit.clone(), alloy_primitives::Bytes::from(vec![0x02])]);
+        let client = Arc::new(
+            crate::test_utils::test_engine_client_builder()
+                .with_fork_choice_updated_v3_rejecting_non_deposit_attributes()
+                .with_fork_choice_updated_v3_response(alloy_rpc_types_engine::ForkchoiceUpdated {
+                    payload_status: alloy_rpc_types_engine::PayloadStatus::from_status(
+                        alloy_rpc_types_engine::PayloadStatusEnum::Valid,
+                    ),
+                    payload_id: Some(alloy_rpc_types_engine::PayloadId::new([1; 8])),
+                })
+                .build(),
+        );
+
+        let err = build_derived(client.clone(), &attributes).await;
+
+        let calls = client.fork_choice_updated_v3_attributes().await;
+        assert_eq!(calls.len(), 2, "one fcU for the batch, one for its deposits-only replacement");
+        assert_eq!(
+            calls[1].as_ref().and_then(|attrs| attrs.transactions.clone()),
+            Some(vec![deposit]),
+            "the replacement keeps only the deposits",
+        );
+        // The mock fails the replacement's getPayload.
+        assert!(
+            matches!(
+                err,
+                ConsolidateTaskError::SealTaskFailed(
+                    SealTaskError::DepositOnlyPayloadReattemptFailed
+                )
+            ),
+            "got {err:?}",
+        );
+    }
+
+    #[tokio::test]
+    async fn transport_failure_at_fcu_is_retried_not_replaced() {
+        let attributes = derived(vec![
+            alloy_primitives::Bytes::from(vec![DEPOSIT, 0x01]),
+            alloy_primitives::Bytes::from(vec![0x02]),
+        ]);
+        let client = Arc::new(crate::test_utils::test_engine_client_builder().build());
+
+        let err = build_derived(client.clone(), &attributes).await;
+
+        assert_eq!(client.fork_choice_updated_v3_attributes().await.len(), 1);
+        assert!(matches!(err, ConsolidateTaskError::BuildTaskFailed(_)), "got {err:?}");
+        assert_eq!(err.severity(), crate::EngineTaskErrorSeverity::Temporary);
     }
 }

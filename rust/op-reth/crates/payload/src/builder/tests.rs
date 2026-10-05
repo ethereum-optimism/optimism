@@ -1,6 +1,7 @@
 use super::{
     CommittedTxGas, ExecutionInfo, OpPayloadBuilderCtx, PayloadTransactionsWithCommitHook,
-    RethPayloadTransactions, build_post_exec_recovered_tx, try_include_post_exec_tx,
+    RethPayloadTransactions, build_post_exec_recovered_tx, is_invalid_payload_error,
+    try_include_post_exec_tx,
 };
 use crate::{OpPayloadBuilderAttributes, config::OpBuilderConfig};
 use alloy_consensus::{
@@ -13,6 +14,7 @@ use alloy_eips::{
     eip7702::SignedAuthorization,
 };
 use alloy_evm::RecoveredTx;
+use alloy_op_evm::block::OpBlockExecutionError;
 use alloy_primitives::{Address, B64, B256, Bytes, Signature, TxHash, TxKind, U256};
 use alloy_rpc_types_eth::erc4337::TransactionConditional;
 use op_alloy_consensus::{
@@ -20,7 +22,7 @@ use op_alloy_consensus::{
 };
 use reth_basic_payload_builder::PayloadConfig;
 use reth_chainspec::MIN_TRANSACTION_GAS;
-use reth_evm::execute::{BlockBuilder, BlockExecutionError};
+use reth_evm::execute::{BlockBuilder, BlockExecutionError, BlockValidationError};
 use reth_optimism_chainspec::{OpChainSpec, OpChainSpecBuilder};
 use reth_optimism_evm::{OpEvmConfig, PostExecMode, PreRefundGasUsed};
 use reth_optimism_primitives::{OpPrimitives, OpTransactionSigned};
@@ -35,6 +37,7 @@ use reth_payload_builder_primitives::PayloadBuilderError;
 use reth_payload_util::PayloadTransactionsFixed;
 use reth_primitives_traits::{Account, InMemorySize, SealedHeader};
 use reth_revm::{database::StateProviderDatabase, db::State, test_utils::StateProviderTest};
+use reth_storage_api::errors::ProviderError;
 use reth_transaction_pool::PoolTransaction;
 use std::{borrow::Cow, cell::Cell, sync::Arc};
 
@@ -987,4 +990,39 @@ fn execute_best_transactions_excludes_interop_txs_when_failsafe_active() {
     // build's `mark_invalid` did not permanently exclude it.
     failsafe.set(false);
     assert_eq!(build(&failsafe), vec![normal_hash, interop_hash]);
+}
+
+/// Only errors caused by the payload's transactions may be classified as invalid: a state-access
+/// error reported as invalid would make the rollup node derive a wrong deposit-only block.
+#[test]
+fn derived_payload_error_classification() {
+    let cases: [(BlockExecutionError, bool); 4] = [
+        (
+            BlockValidationError::InvalidTx {
+                hash: B256::ZERO,
+                error: Box::new(revm::context::result::InvalidTransaction::NonceTooHigh {
+                    tx: 5,
+                    state: 0,
+                }),
+            }
+            .into(),
+            true,
+        ),
+        (
+            BlockValidationError::Other(Box::new(OpBlockExecutionError::InvalidPostExecPayload(
+                "x".into(),
+            )))
+            .into(),
+            true,
+        ),
+        (BlockExecutionError::other(ProviderError::StateForHashNotFound(B256::ZERO)), false),
+        (
+            BlockValidationError::Other(Box::new(OpBlockExecutionError::LoadCacheAccount)).into(),
+            false,
+        ),
+    ];
+
+    for (err, expected) in cases {
+        assert_eq!(is_invalid_payload_error(&err), expected, "{err:?}");
+    }
 }

@@ -599,7 +599,16 @@ where
 
 impl<N> Default for OpAddOns<N, OpEthApiBuilder, OpEngineValidatorBuilder>
 where
-    N: FullNodeComponents<Types: OpNodeTypes>,
+    N: FullNodeComponents<
+            Types: OpNodeTypes,
+            Evm: ConfigurePostExecEvm<
+                NextBlockEnvCtx: BuildNextEnv<
+                    OpPayloadBuilderAttributes<TxTy<N::Types>>,
+                    HeaderTy<N::Types>,
+                    <N::Types as NodeTypes>::ChainSpec,
+                >,
+            >,
+        >,
     OpEthApiBuilder: EthApiBuilder<N>,
 {
     fn default() -> Self {
@@ -1850,19 +1859,35 @@ pub struct OpEngineValidatorBuilder;
 impl<Node> PayloadValidatorBuilder<Node> for OpEngineValidatorBuilder
 where
     Node: FullNodeComponents<
-        Types: NodeTypes<ChainSpec: OpHardforks, Payload: PayloadTypes<ExecutionData = OpExecData>>,
-    >,
+            Types: NodeTypes<
+                ChainSpec: OpHardforks,
+                Primitives: OpPayloadPrimitives<_Header = alloy_consensus::Header>,
+                Payload: PayloadTypes<
+                    ExecutionData = OpExecData,
+                    PayloadAttributes = OpPayloadAttrs,
+                >,
+            >,
+            Evm: ConfigurePostExecEvm<
+                NextBlockEnvCtx: BuildNextEnv<
+                    OpPayloadBuilderAttributes<TxTy<Node::Types>>,
+                    HeaderTy<Node::Types>,
+                    <Node::Types as NodeTypes>::ChainSpec,
+                >,
+            >,
+        >,
 {
     type Validator = OpEngineValidator<
         Node::Provider,
         <<Node::Types as NodeTypes>::Primitives as NodePrimitives>::SignedTx,
         <Node::Types as NodeTypes>::ChainSpec,
+        Node::Evm,
     >;
 
     async fn build(self, ctx: &AddOnsContext<'_, Node>) -> eyre::Result<Self::Validator> {
         Ok(OpEngineValidator::new::<KeccakKeyHasher>(
             ctx.config.chain.clone(),
             ctx.node.provider().clone(),
+            ctx.node.evm_config().clone(),
         ))
     }
 }

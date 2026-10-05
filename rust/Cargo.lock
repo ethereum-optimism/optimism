@@ -13907,6 +13907,7 @@ name = "reth-optimism-node"
 version = "1.11.3"
 dependencies = [
  "alloy-consensus 2.4.2",
+ "alloy-eips 2.5.0",
  "alloy-genesis",
  "alloy-network 2.4.2",
  "alloy-op-evm",
@@ -13990,6 +13991,7 @@ dependencies = [
  "alloy-consensus 2.4.2",
  "alloy-eips 2.5.0",
  "alloy-evm",
+ "alloy-op-evm",
  "alloy-primitives",
  "alloy-rlp",
  "alloy-rpc-types-debug",
