@@ -804,7 +804,9 @@ contract SystemConfig_SetFeature_Test is SystemConfig_TestInit {
     /// @notice Tests that ETH_LOCKBOX cannot be disabled.
     function test_setFeature_ethLockboxDisable_reverts() external {
         address proxyAdmin = address(systemConfig.proxyAdmin());
-        stdstore.target(address(systemConfig)).sig("isFeatureEnabled(bytes32)").with_key(Features.ETH_LOCKBOX)
+        stdstore.target(address(systemConfig))
+            .sig("isFeatureEnabled(bytes32)")
+            .with_key(Features.ETH_LOCKBOX)
             .checked_write(true);
         vm.expectRevert(ISystemConfig.SystemConfig_InvalidFeatureState.selector);
         vm.prank(proxyAdmin);
@@ -814,7 +816,9 @@ contract SystemConfig_SetFeature_Test is SystemConfig_TestInit {
     /// @notice Tests that a global pause does not block ETHLockbox activation.
     function test_setFeature_ethLockboxEnableWhileGloballyPaused_succeeds() external {
         address proxyAdmin = address(systemConfig.proxyAdmin());
-        stdstore.target(address(systemConfig)).sig("isFeatureEnabled(bytes32)").with_key(Features.ETH_LOCKBOX)
+        stdstore.target(address(systemConfig))
+            .sig("isFeatureEnabled(bytes32)")
+            .with_key(Features.ETH_LOCKBOX)
             .checked_write(false);
 
         vm.prank(superchainConfig.guardian());
@@ -829,7 +833,9 @@ contract SystemConfig_SetFeature_Test is SystemConfig_TestInit {
     /// @notice Tests that a portal-scoped pause blocks ETHLockbox activation.
     function test_setFeature_ethLockboxEnableWhilePortalPaused_reverts() external {
         address proxyAdmin = address(systemConfig.proxyAdmin());
-        stdstore.target(address(systemConfig)).sig("isFeatureEnabled(bytes32)").with_key(Features.ETH_LOCKBOX)
+        stdstore.target(address(systemConfig))
+            .sig("isFeatureEnabled(bytes32)")
+            .with_key(Features.ETH_LOCKBOX)
             .checked_write(false);
         vm.prank(superchainConfig.guardian());
         superchainConfig.pause(address(optimismPortal2));

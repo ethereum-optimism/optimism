@@ -62,7 +62,9 @@ contract L2ToL1MessagePasser_Burn_Test is CommonTest {
         skipIfSysFeatureEnabled(Features.CUSTOM_GAS_TOKEN);
         vm.deal(address(this), _value);
 
-        l2ToL1MessagePasser.initiateWithdrawal{ value: _value }({ _target: _target, _gasLimit: _gasLimit, _data: _data });
+        l2ToL1MessagePasser.initiateWithdrawal{ value: _value }({
+            _target: _target, _gasLimit: _gasLimit, _data: _data
+        });
 
         assertEq(address(l2ToL1MessagePasser).balance, _value);
 
@@ -96,12 +98,7 @@ contract L2ToL1MessagePasser_InitiateWithdrawal_Test is CommonTest {
 
         bytes32 withdrawalHash = Hashing.hashWithdrawal(
             Types.WithdrawalTransaction({
-                nonce: nonce,
-                sender: _sender,
-                target: _target,
-                value: _value,
-                gasLimit: _gasLimit,
-                data: _data
+                nonce: nonce, sender: _sender, target: _target, value: _value, gasLimit: _gasLimit, data: _data
             })
         );
 
@@ -176,7 +173,9 @@ contract L2ToL1MessagePasser_InitiateWithdrawal_Test is CommonTest {
         vm.expectEmit(address(l2ToL1MessagePasser));
         emit MessagePassed(nonce, alice, _target, _value, _gasLimit, _data, withdrawalHash);
 
-        l2ToL1MessagePasser.initiateWithdrawal{ value: _value }({ _target: _target, _gasLimit: _gasLimit, _data: _data });
+        l2ToL1MessagePasser.initiateWithdrawal{ value: _value }({
+            _target: _target, _gasLimit: _gasLimit, _data: _data
+        });
 
         // the sent messages mapping is filled
         assertEq(l2ToL1MessagePasser.sentMessages(withdrawalHash), true);

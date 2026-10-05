@@ -65,7 +65,7 @@ func (s *SingleChainInterop) AdvanceTime(amount time.Duration) {
 	s.L1EL.AdvanceTime(s.timeTravel, amount)
 }
 
-// StartZKProposer starts the kona-sp1-proposer after a system configured with
+// StartZKProposer starts the op-zk-proposer after a system configured with
 // WithZK and WithoutHonestProposer has seeded its initial dispute games.
 func (s *SingleChainInterop) StartZKProposer() *zkproposer.ZKProposer {
 	s.T.Require().NotNil(s.sysgoRuntime, "ZK proposer controls require a sysgo-backed preset")

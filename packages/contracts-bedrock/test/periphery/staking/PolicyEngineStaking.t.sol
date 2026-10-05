@@ -994,13 +994,7 @@ contract PolicyEngineStaking_Integration_Test is PolicyEngineStaking_TestInit {
     }
 
     /// @notice Tests multiple stake calls and single full unstake.
-    function testFuzz_multipleStakesAndUnstake_succeeds(
-        uint128 _amount1,
-        uint128 _amount2,
-        uint128 _amount3
-    )
-        external
-    {
+    function testFuzz_multipleStakesAndUnstake_succeeds(uint128 _amount1, uint128 _amount2, uint128 _amount3) external {
         _amount1 = uint128(bound(_amount1, 1, 300 ether));
         _amount2 = uint128(bound(_amount2, 1, 300 ether));
         _amount3 = uint128(bound(_amount3, 1, 300 ether));

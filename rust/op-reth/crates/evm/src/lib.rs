@@ -72,8 +72,8 @@ pub use alloy_op_evm::{
     PreRefundGasUsed,
     post_exec::{
         NullRefundPolicy, PostExecEvmFactoryAdapter, PostExecExecutedTx, PostExecExecutorExt,
-        PostExecRefundEvent, PostExecRefundInspector, PostExecRefundKind, PostExecTxContext,
-        PostExecTxKind,
+        PostExecRefundEvent, PostExecRefundInspector, PostExecRefundKind,
+        PostExecRefundPolicyFactory, PostExecTxContext, PostExecTxKind,
     },
 };
 

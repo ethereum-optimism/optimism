@@ -298,14 +298,7 @@ library DisputeGames {
         }
     }
 
-    function _mockGameArg(
-        IDisputeGameFactory _dgf,
-        GameType _gameType,
-        GameArg _gameArg,
-        bytes memory _value
-    )
-        private
-    {
+    function _mockGameArg(IDisputeGameFactory _dgf, GameType _gameType, GameArg _gameArg, bytes memory _value) private {
         bytes memory modifiedGameArgs = _dgf.gameArgs(_gameType);
         uint256 offset = gameArgsOffset(_gameArg);
         modifiedGameArgs.overwriteAtOffset(offset, _value);

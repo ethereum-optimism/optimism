@@ -334,7 +334,7 @@ target "kona-client" {
   tags = [for tag in split(",", IMAGE_TAGS) : "${REGISTRY}/${REPOSITORY}/kona-client:${tag}"]
 }
 
-target "kona-sp1-proposer" {
+target "op-zk-proposer" {
   dockerfile = "kona/docker/apps/kona_app_generic.dockerfile"
   context = "rust"
   contexts = {
@@ -344,11 +344,11 @@ target "kona-sp1-proposer" {
   args = {
     REPO_LOCATION = "local"
     BUILDER_VARIANT = "contract-abis"
-    BIN_TARGET = "kona-sp1-proposer"
+    BIN_TARGET = "op-zk-proposer"
     BUILD_PROFILE = "release"
   }
   platforms = split(",", PLATFORMS)
-  tags = [for tag in split(",", IMAGE_TAGS) : "${REGISTRY}/${REPOSITORY}/kona-sp1-proposer:${tag}"]
+  tags = [for tag in split(",", IMAGE_TAGS) : "${REGISTRY}/${REPOSITORY}/op-zk-proposer:${tag}"]
 }
 
 target "op-reth" {

@@ -12,6 +12,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/clock"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/log"
+	"github.com/ethereum-optimism/optimism/op-service/ptr"
 	"github.com/ethereum-optimism/optimism/op-service/sources/batching/rpcblock"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
 	"github.com/ethereum-optimism/optimism/op-service/txmgr"
@@ -73,6 +74,14 @@ func TestActor(t *testing.T) {
 			challenge: true,
 		},
 		{
+			name: "DoNotChallengeMismatchedSuperRootAtDeadline",
+			setup: func(t *testing.T, stubs *zkTestStubs) {
+				stubs.contract.deadline = l1Time
+				stubs.contract.proposalHash = common.Hash{0xba, 0xd0}
+				stubs.rootProvider.outputErr = errors.New("must not request proposal at deadline")
+			},
+		},
+		{
 			name: "DoNothingIfAlreadyChallenged",
 			setup: func(t *testing.T, stubs *zkTestStubs) {
 				stubs.rootProvider.root = common.Hash{0xba, 0xd0} // Disagree but already challenged
@@ -109,15 +118,15 @@ func TestActor(t *testing.T) {
 			},
 		},
 		{
-			// Behind the game L1 head: the challenge is sync-skipped, but ungated resolution still
-			// fires off the invalid parent.
-			name: "ResolveWhileNotSyncedPastGameL1Head",
+			// A resolved invalid parent justifies a challenge despite a stale source.
+			name: "ChallengeAndResolveWhileNotSyncedPastGameL1Head",
 			setup: func(t *testing.T, stubs *zkTestStubs) {
 				stubs.contract.proposalHash = common.Hash{0xba, 0xd0}
 				stubs.rootProvider.currentL1 = eth.BlockID{Number: zkTestL1Head}
 				stubs.contract.setParentStatus(types.GameStatusChallengerWon)
 			},
-			resolve: true,
+			challenge: true,
+			resolve:   true,
 		},
 		{
 			name: "ChallengeUnresolvableGameWithNoParent",
@@ -242,6 +251,208 @@ func TestActor(t *testing.T) {
 	}
 }
 
+func TestActorDirectParentStatus(t *testing.T) {
+	tests := []struct {
+		name      string
+		setup     func(*zkTestStubs)
+		challenge bool
+		resolve   bool
+		expectErr string
+	}{
+		{
+			name: "ChallengeCanonicalChildOfLostParent",
+			setup: func(stubs *zkTestStubs) {
+				stubs.contract.parentStatus = types.GameStatusChallengerWon
+			},
+			challenge: true,
+			resolve:   true,
+		},
+		{
+			name: "ChallengeLostParentWithoutSuperRootSource",
+			setup: func(stubs *zkTestStubs) {
+				stubs.contract.parentStatus = types.GameStatusChallengerWon
+				stubs.rootProvider.outputErr = errors.New("must not request super root")
+			},
+			challenge: true,
+			resolve:   true,
+		},
+		{
+			name: "DoNotChallengeCanonicalChildOfUnresolvedParent",
+			setup: func(stubs *zkTestStubs) {
+				stubs.contract.parentStatus = types.GameStatusInProgress
+			},
+		},
+		{
+			name: "DoNotChallengeCanonicalChildOfDefenderWonParent",
+		},
+		{
+			name: "ResolveLostParentAfterChildChallengeWindow",
+			setup: func(stubs *zkTestStubs) {
+				stubs.contract.parentStatus = types.GameStatusChallengerWon
+				stubs.contract.setDeadlineExpired()
+				stubs.rootProvider.outputErr = errors.New("must not request expired proposal")
+			},
+			resolve: true,
+		},
+		{
+			name: "ResolveLostParentAtChildDeadline",
+			setup: func(stubs *zkTestStubs) {
+				stubs.contract.parentStatus = types.GameStatusChallengerWon
+				stubs.contract.deadline = l1Time
+				stubs.contract.finalizedParentStatusErr = errors.New("must not request finalized parent at deadline")
+			},
+			resolve: true,
+		},
+		{
+			name: "ResolveAlreadyChallengedChildOfLostParent",
+			setup: func(stubs *zkTestStubs) {
+				stubs.contract.parentStatus = types.GameStatusChallengerWon
+				stubs.contract.proposalStatus = contracts.ProposalStatusChallenged
+			},
+			resolve: true,
+		},
+		{
+			name: "ResolveProvenChildOfLostParent",
+			setup: func(stubs *zkTestStubs) {
+				stubs.contract.parentStatus = types.GameStatusChallengerWon
+				stubs.contract.proposalStatus = contracts.ProposalStatusUnchallengedAndValidProofProvided
+			},
+			resolve: true,
+		},
+		{
+			name: "TrustAnchorWithoutParentLookup",
+			setup: func(stubs *zkTestStubs) {
+				stubs.contract.parentIndex = math.MaxUint32
+				stubs.contract.parentStatusErr = errors.New("must not request anchor parent")
+			},
+		},
+		{
+			name: "ResolvedChildWithoutParentLookup",
+			setup: func(stubs *zkTestStubs) {
+				stubs.contract.markResolved()
+				stubs.contract.parentStatusErr = errors.New("must not request resolved child's parent")
+			},
+		},
+		{
+			name: "WaitForUnfinalizedParentLoss",
+			setup: func(stubs *zkTestStubs) {
+				stubs.contract.parentStatus = types.GameStatusChallengerWon
+				stubs.contract.finalizedParentStatus = ptr.New(types.GameStatusInProgress)
+			},
+		},
+		{
+			name: "ChallengeInvalidChildWhileParentLossUnfinalized",
+			setup: func(stubs *zkTestStubs) {
+				stubs.contract.parentStatus = types.GameStatusChallengerWon
+				stubs.contract.finalizedParentStatus = ptr.New(types.GameStatusInProgress)
+				stubs.contract.proposalHash = common.Hash{0xff}
+			},
+			challenge: true,
+		},
+		{
+			name: "WaitForParentFinalityWhileSourceNotSynced",
+			setup: func(stubs *zkTestStubs) {
+				stubs.contract.parentStatus = types.GameStatusChallengerWon
+				stubs.contract.finalizedParentStatus = ptr.New(types.GameStatusInProgress)
+				stubs.rootProvider.currentL1 = eth.BlockID{Number: zkTestL1Head}
+			},
+		},
+		{
+			name: "ResolveExpiredChildWithoutWaitingForParentFinality",
+			setup: func(stubs *zkTestStubs) {
+				stubs.contract.parentStatus = types.GameStatusChallengerWon
+				stubs.contract.setDeadlineExpired()
+				stubs.contract.finalizedParentStatusErr = errors.New("must not request finalized parent for expired child")
+			},
+			resolve: true,
+		},
+		{
+			name: "ResolveChallengedChildWithoutWaitingForParentFinality",
+			setup: func(stubs *zkTestStubs) {
+				stubs.contract.parentStatus = types.GameStatusChallengerWon
+				stubs.contract.proposalStatus = contracts.ProposalStatusChallenged
+				stubs.contract.finalizedParentStatusErr = errors.New("must not request finalized parent for challenged child")
+			},
+			resolve: true,
+		},
+		{
+			name: "FinalizedParentStatusRPCFailure",
+			setup: func(stubs *zkTestStubs) {
+				stubs.contract.parentStatus = types.GameStatusChallengerWon
+				stubs.contract.finalizedParentStatusErr = errors.New("finalized parent status unavailable")
+			},
+			expectErr: "finalized parent status unavailable",
+		},
+		{
+			name: "ParentStatusRPCFailure",
+			setup: func(stubs *zkTestStubs) {
+				stubs.contract.parentStatusErr = errors.New("parent status unavailable")
+			},
+			expectErr: "parent status unavailable",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			actor, stubs := setupActorTest(t)
+			if tt.setup != nil {
+				tt.setup(stubs)
+			}
+			err := actor.Act(context.Background())
+			if tt.expectErr != "" {
+				require.ErrorContains(t, err, tt.expectErr)
+				require.Empty(t, stubs.sender.sentData)
+				return
+			}
+			require.NoError(t, err)
+			var expected []string
+			if tt.challenge {
+				expected = append(expected, challengeData)
+			}
+			if tt.resolve {
+				expected = append(expected, resolveData)
+			}
+			require.Equal(t, expected, stubs.sender.sentData)
+		})
+	}
+}
+
+func TestActorWaitsForFinalizedParentLoss(t *testing.T) {
+	actor, stubs := setupActorTest(t)
+	stubs.contract.parentStatus = types.GameStatusChallengerWon
+	stubs.contract.finalizedParentStatus = ptr.New(types.GameStatusInProgress)
+
+	require.NoError(t, actor.Act(context.Background()))
+	require.Empty(t, stubs.sender.sentData, "an unfinalized parent loss must neither challenge nor resolve a canonical child")
+	require.Equal(t, []rpcblock.Block{rpcblock.Finalized}, stubs.contract.parentStatusBlocks)
+
+	// A timely proof on the replacement chain reverses the parent's loss.
+	stubs.contract.parentStatus = types.GameStatusDefenderWon
+	require.NoError(t, actor.Act(context.Background()))
+	require.Empty(t, stubs.sender.sentData)
+
+	stubs.contract.parentStatus = types.GameStatusChallengerWon
+	stubs.contract.finalizedParentStatus = ptr.New(types.GameStatusChallengerWon)
+	stubs.rootProvider.outputErr = errors.New("must not request super root after finalized parent loss")
+	require.NoError(t, actor.Act(context.Background()))
+	require.Equal(t, []string{challengeData, resolveData}, stubs.sender.sentData)
+}
+
+func TestActorParentLossDuringProposalValidation(t *testing.T) {
+	actor, stubs := setupActorTest(t)
+	stubs.contract.parentStatus = types.GameStatusInProgress
+	stubs.rootProvider.onSuperRoot = func() {
+		stubs.contract.parentStatus = types.GameStatusChallengerWon
+	}
+
+	require.NoError(t, actor.Act(context.Background()))
+	require.Empty(t, stubs.sender.sentData, "a parent loss observed mid-act must not resolve before challenging")
+	require.Equal(t, 1, stubs.contract.parentStatusCalls)
+
+	require.NoError(t, actor.Act(context.Background()))
+	require.Equal(t, []string{challengeData, resolveData}, stubs.sender.sentData)
+	require.Equal(t, 2, stubs.contract.parentStatusCalls)
+}
+
 func setupActorTest(t *testing.T) (*Actor, *zkTestStubs) {
 	return newZKActor(t, testlog.Logger(t, log.LevelInfo))
 }
@@ -283,6 +494,7 @@ func newZKActor(t *testing.T, logger log.Logger) (*Actor, *zkTestStubs) {
 }
 
 type stubSuperRootProvider struct {
+	onSuperRoot        func()
 	outputErr          error
 	rootTimestamp      uint64
 	root               common.Hash
@@ -292,6 +504,9 @@ type stubSuperRootProvider struct {
 }
 
 func (s *stubSuperRootProvider) SuperRootAtTimestamp(_ context.Context, timestamp uint64) (eth.SuperRootAtTimestampResponse, error) {
+	if s.onSuperRoot != nil {
+		s.onSuperRoot()
+	}
 	if s.outputErr != nil {
 		return eth.SuperRootAtTimestampResponse{}, s.outputErr
 	}
@@ -311,13 +526,18 @@ func (s *stubSuperRootProvider) SuperRootAtTimestamp(_ context.Context, timestam
 }
 
 type stubContract struct {
-	parentIndex      uint32
-	parentStatus     types.GameStatus
-	proposalStatus   contracts.ProposalStatus
-	deadline         time.Time
-	txCreated        bool
-	proposalHash     common.Hash
-	l2SequenceNumber uint64
+	finalizedParentStatus    *types.GameStatus
+	finalizedParentStatusErr error
+	parentStatusBlocks       []rpcblock.Block
+	parentStatusCalls        int
+	parentStatusErr          error
+	parentIndex              uint32
+	parentStatus             types.GameStatus
+	proposalStatus           contracts.ProposalStatus
+	deadline                 time.Time
+	txCreated                bool
+	proposalHash             common.Hash
+	l2SequenceNumber         uint64
 }
 
 func (s *stubContract) Addr() common.Address {
@@ -355,11 +575,32 @@ func (s *stubContract) setParentStatus(status types.GameStatus) {
 }
 
 func (s *stubContract) GetGameStatus(_ context.Context, idx uint64) (types.GameStatus, error) {
+	s.parentStatusCalls++
+	if s.parentStatusErr != nil {
+		return 0, s.parentStatusErr
+	}
 	if idx != uint64(s.parentIndex) {
 		return 0, errors.New("unexpected parent index")
 	}
 	if idx == math.MaxUint32 {
 		return 0, errors.New("execution reverted") // no such game
+	}
+	return s.parentStatus, nil
+}
+
+func (s *stubContract) GetGameStatusAtBlock(_ context.Context, idx uint64, block rpcblock.Block) (types.GameStatus, error) {
+	s.parentStatusBlocks = append(s.parentStatusBlocks, block)
+	if block != rpcblock.Finalized {
+		return 0, errors.New("must request finalized parent status")
+	}
+	if idx != uint64(s.parentIndex) || idx == math.MaxUint32 {
+		return 0, errors.New("unexpected parent index")
+	}
+	if s.finalizedParentStatusErr != nil {
+		return 0, s.finalizedParentStatusErr
+	}
+	if s.finalizedParentStatus != nil {
+		return *s.finalizedParentStatus, nil
 	}
 	return s.parentStatus, nil
 }

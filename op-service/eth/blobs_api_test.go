@@ -50,7 +50,7 @@ func TestAPIGenesisResponse(t *testing.T) {
 func TestAPIConfigResponse(t *testing.T) {
 	require := require.New(t)
 	var resp eth.APIConfigResponse
-	require.Equal(1, reflect.TypeOf(resp.Data).NumField(), "APIConfigResponse changed, adjust test")
+	require.Equal(2, reflect.TypeOf(resp.Data).NumField(), "APIConfigResponse changed, adjust test")
 
 	path := filepath.Join("testdata", "eth_v1_config_spec_goerli.json")
 	jsonStr, err := os.ReadFile(path)
@@ -64,6 +64,10 @@ func TestAPIConfigResponse(t *testing.T) {
 	secPerSlot, err := resp.Data.SecondsPerSlot.MarshalText()
 	require.NoError(err)
 	require.Equal(jsonMap.Data["SECONDS_PER_SLOT"].(string), string(secPerSlot))
+
+	slotDuration, err := resp.Data.SlotDurationSeconds()
+	require.NoError(err)
+	require.Equal(uint64(12), slotDuration)
 }
 
 // TestAPIGetBlobSidecarsResponse tests that json unmarshalling a json response from a
