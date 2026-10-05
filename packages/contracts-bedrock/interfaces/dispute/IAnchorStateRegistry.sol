@@ -10,11 +10,14 @@ import { IProxyAdminOwnedBase } from "interfaces/universal/IProxyAdminOwnedBase.
 
 interface IAnchorStateRegistry is IProxyAdminOwnedBase {
     error AnchorStateRegistry_InvalidAnchorGame();
+    error AnchorStateRegistry_InvalidDisputeGameFinalityDelay();
+    error AnchorStateRegistry_InvalidDisputeGameFinalityDelayBounds();
     error AnchorStateRegistry_Unauthorized();
     error ReinitializableBase_ZeroInitVersion();
 
     event AnchorUpdated(IDisputeGame indexed game);
     event DisputeGameBlacklisted(IDisputeGame indexed disputeGame);
+    event DisputeGameFinalityDelaySecondsSet(uint256 disputeGameFinalityDelaySeconds);
     event Initialized(uint8 version);
     event RespectedGameTypeSet(GameType gameType);
     event RetirementTimestampSet(uint256 timestamp);
@@ -32,9 +35,12 @@ interface IAnchorStateRegistry is IProxyAdminOwnedBase {
         IETHLockbox _ethLockbox,
         IDisputeGameFactory _disputeGameFactory,
         Proposal memory _startingAnchorRoot,
-        GameType _startingRespectedGameType
+        GameType _startingRespectedGameType,
+        uint256 _disputeGameFinalityDelaySeconds
     )
         external;
+    function maxDisputeGameFinalityDelaySeconds() external view returns (uint256);
+    function minDisputeGameFinalityDelaySeconds() external view returns (uint256);
     function isGameBlacklisted(IDisputeGame _game) external view returns (bool);
     function isGameProper(IDisputeGame _game) external view returns (bool);
     function isGameRegistered(IDisputeGame _game) external view returns (bool);
@@ -47,6 +53,7 @@ interface IAnchorStateRegistry is IProxyAdminOwnedBase {
     function respectedGameType() external view returns (GameType);
     function retirementTimestamp() external view returns (uint64);
     function setAnchorState(IDisputeGame _game) external;
+    function setDisputeGameFinalityDelaySeconds(uint256 _disputeGameFinalityDelaySeconds) external;
     function setRespectedGameType(GameType _gameType) external;
     function ethLockbox() external view returns (IETHLockbox);
     function updateRetirementTimestamp() external;
@@ -54,6 +61,8 @@ interface IAnchorStateRegistry is IProxyAdminOwnedBase {
     function superchainConfig() external view returns (ISuperchainConfig);
 
     function __constructor__(
-        uint256 _disputeGameFinalityDelaySeconds
-    ) external;
+        uint256 _minDisputeGameFinalityDelaySeconds,
+        uint256 _maxDisputeGameFinalityDelaySeconds
+    )
+        external;
 }

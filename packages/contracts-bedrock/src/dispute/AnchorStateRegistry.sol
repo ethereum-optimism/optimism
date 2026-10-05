@@ -24,11 +24,14 @@ import { ISuperchainConfig } from "interfaces/L1/ISuperchainConfig.sol";
 ///         be initialized with a more recent starting state which reduces the amount of required offchain computation.
 contract AnchorStateRegistry is ProxyAdminOwnedBase, Initializable, ReinitializableBase, ISemver {
     /// @notice Semantic version.
-    /// @custom:semver 4.0.0
-    string public constant version = "4.0.0";
+    /// @custom:semver 5.0.0
+    string public constant version = "5.0.0";
 
-    /// @notice The dispute game finality delay in seconds.
-    uint256 internal immutable DISPUTE_GAME_FINALITY_DELAY_SECONDS;
+    /// @notice The lowest value that `disputeGameFinalityDelaySeconds` may be set to.
+    uint256 internal immutable MIN_DISPUTE_GAME_FINALITY_DELAY_SECONDS;
+
+    /// @notice The highest value that `disputeGameFinalityDelaySeconds` may be set to.
+    uint256 internal immutable MAX_DISPUTE_GAME_FINALITY_DELAY_SECONDS;
 
     /// @custom:legacy
     /// @custom:spacer systemConfig
@@ -58,6 +61,12 @@ contract AnchorStateRegistry is ProxyAdminOwnedBase, Initializable, Reinitializa
     /// @notice The ETHLockbox used as the pause identifier.
     IETHLockbox public ethLockbox;
 
+    /// @notice The dispute game finality delay in seconds. A resolved game is only finalized once
+    ///         this much time has passed since its resolution. Bounded by
+    ///         `MIN_DISPUTE_GAME_FINALITY_DELAY_SECONDS` and `MAX_DISPUTE_GAME_FINALITY_DELAY_SECONDS`.
+    /// @custom:network-specific
+    uint256 public disputeGameFinalityDelaySeconds;
+
     /// @notice Emitted when an anchor state is updated.
     /// @param game Game that was used as the new anchor game.
     event AnchorUpdated(IDisputeGame indexed game);
@@ -74,15 +83,38 @@ contract AnchorStateRegistry is ProxyAdminOwnedBase, Initializable, Reinitializa
     /// @param disputeGame The dispute game that was blacklisted.
     event DisputeGameBlacklisted(IDisputeGame indexed disputeGame);
 
+    /// @notice Emitted when the dispute game finality delay is set.
+    /// @param disputeGameFinalityDelaySeconds The new dispute game finality delay in seconds.
+    event DisputeGameFinalityDelaySecondsSet(uint256 disputeGameFinalityDelaySeconds);
+
     /// @notice Thrown when an invalid anchor game is provided.
     error AnchorStateRegistry_InvalidAnchorGame();
 
     /// @notice Thrown when an unauthorized caller attempts to set the anchor state.
     error AnchorStateRegistry_Unauthorized();
 
-    /// @param _disputeGameFinalityDelaySeconds The dispute game finality delay in seconds.
-    constructor(uint256 _disputeGameFinalityDelaySeconds) ReinitializableBase(1) {
-        DISPUTE_GAME_FINALITY_DELAY_SECONDS = _disputeGameFinalityDelaySeconds;
+    /// @notice Thrown when the dispute game finality delay bounds are zero or inverted.
+    error AnchorStateRegistry_InvalidDisputeGameFinalityDelayBounds();
+
+    /// @notice Thrown when a dispute game finality delay is outside the configured bounds.
+    error AnchorStateRegistry_InvalidDisputeGameFinalityDelay();
+
+    /// @param _minDisputeGameFinalityDelaySeconds The lowest finality delay a chain may use.
+    /// @param _maxDisputeGameFinalityDelaySeconds The highest finality delay a chain may use.
+    constructor(
+        uint256 _minDisputeGameFinalityDelaySeconds,
+        uint256 _maxDisputeGameFinalityDelaySeconds
+    )
+        ReinitializableBase(2)
+    {
+        if (
+            _minDisputeGameFinalityDelaySeconds == 0
+                || _minDisputeGameFinalityDelaySeconds > _maxDisputeGameFinalityDelaySeconds
+        ) {
+            revert AnchorStateRegistry_InvalidDisputeGameFinalityDelayBounds();
+        }
+        MIN_DISPUTE_GAME_FINALITY_DELAY_SECONDS = _minDisputeGameFinalityDelaySeconds;
+        MAX_DISPUTE_GAME_FINALITY_DELAY_SECONDS = _maxDisputeGameFinalityDelaySeconds;
         _disableInitializers();
     }
 
@@ -91,11 +123,13 @@ contract AnchorStateRegistry is ProxyAdminOwnedBase, Initializable, Reinitializa
     /// @param _disputeGameFactory The address of the DisputeGameFactory contract.
     /// @param _startingAnchorRoot The starting anchor root.
     /// @param _startingRespectedGameType The starting respected game type.
+    /// @param _disputeGameFinalityDelaySeconds The dispute game finality delay in seconds.
     function initialize(
         IETHLockbox _ethLockbox,
         IDisputeGameFactory _disputeGameFactory,
         Proposal memory _startingAnchorRoot,
-        GameType _startingRespectedGameType
+        GameType _startingRespectedGameType,
+        uint256 _disputeGameFinalityDelaySeconds
     )
         external
         reinitializer(initVersion())
@@ -107,6 +141,9 @@ contract AnchorStateRegistry is ProxyAdminOwnedBase, Initializable, Reinitializa
         ethLockbox = _ethLockbox;
         disputeGameFactory = _disputeGameFactory;
         respectedGameType = _startingRespectedGameType;
+
+        // Set the finality delay. Bounds-checked and emits the same event as the setter.
+        _setDisputeGameFinalityDelaySeconds(_disputeGameFinalityDelaySeconds);
 
         // If the starting anchor root is changing and an anchor game exists, verify the new root
         // is ahead and clear the anchor game so getAnchorRoot() returns the new startingAnchorRoot.
@@ -143,9 +180,14 @@ contract AnchorStateRegistry is ProxyAdminOwnedBase, Initializable, Reinitializa
         return ethLockbox.superchainConfig();
     }
 
-    /// @notice Returns the dispute game finality delay in seconds.
-    function disputeGameFinalityDelaySeconds() external view returns (uint256) {
-        return DISPUTE_GAME_FINALITY_DELAY_SECONDS;
+    /// @notice Returns the lowest value that the dispute game finality delay may be set to.
+    function minDisputeGameFinalityDelaySeconds() external view returns (uint256) {
+        return MIN_DISPUTE_GAME_FINALITY_DELAY_SECONDS;
+    }
+
+    /// @notice Returns the highest value that the dispute game finality delay may be set to.
+    function maxDisputeGameFinalityDelaySeconds() external view returns (uint256) {
+        return MAX_DISPUTE_GAME_FINALITY_DELAY_SECONDS;
     }
 
     /// @notice Returns the starting anchor root.
@@ -183,6 +225,15 @@ contract AnchorStateRegistry is ProxyAdminOwnedBase, Initializable, Reinitializa
         // Blacklist the dispute game.
         disputeGameBlacklist[_disputeGame] = true;
         emit DisputeGameBlacklisted(_disputeGame);
+    }
+
+    /// @notice Allows the ProxyAdmin owner to set the dispute game finality delay. The new value
+    ///         applies to every resolved game, including games resolved before the change.
+    /// @param _disputeGameFinalityDelaySeconds The new dispute game finality delay in seconds.
+    function setDisputeGameFinalityDelaySeconds(uint256 _disputeGameFinalityDelaySeconds) external {
+        // Only the ProxyAdmin owner can change the finality delay.
+        _assertOnlyProxyAdminOwner();
+        _setDisputeGameFinalityDelaySeconds(_disputeGameFinalityDelaySeconds);
     }
 
     /// @custom:legacy
@@ -318,7 +369,7 @@ contract AnchorStateRegistry is ProxyAdminOwnedBase, Initializable, Reinitializa
 
         // Game must be beyond the "airgap period" - time since resolution must be at least
         // "dispute game finality delay" seconds in the past.
-        if (block.timestamp - _game.resolvedAt().raw() <= DISPUTE_GAME_FINALITY_DELAY_SECONDS) {
+        if (block.timestamp - _game.resolvedAt().raw() <= disputeGameFinalityDelaySeconds) {
             return false;
         }
 
@@ -376,5 +427,18 @@ contract AnchorStateRegistry is ProxyAdminOwnedBase, Initializable, Reinitializa
         if (msg.sender != ethLockbox.guardian()) {
             revert AnchorStateRegistry_Unauthorized();
         }
+    }
+
+    /// @notice Sets the dispute game finality delay after checking it against the configured bounds.
+    /// @param _disputeGameFinalityDelaySeconds The new dispute game finality delay in seconds.
+    function _setDisputeGameFinalityDelaySeconds(uint256 _disputeGameFinalityDelaySeconds) internal {
+        if (
+            _disputeGameFinalityDelaySeconds < MIN_DISPUTE_GAME_FINALITY_DELAY_SECONDS
+                || _disputeGameFinalityDelaySeconds > MAX_DISPUTE_GAME_FINALITY_DELAY_SECONDS
+        ) {
+            revert AnchorStateRegistry_InvalidDisputeGameFinalityDelay();
+        }
+        disputeGameFinalityDelaySeconds = _disputeGameFinalityDelaySeconds;
+        emit DisputeGameFinalityDelaySecondsSet(_disputeGameFinalityDelaySeconds);
     }
 }

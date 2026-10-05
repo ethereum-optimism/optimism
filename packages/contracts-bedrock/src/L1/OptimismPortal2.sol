@@ -43,8 +43,11 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ReinitializableBase
         uint64 timestamp;
     }
 
-    /// @notice The delay between when a withdrawal is proven and when it may be finalized.
-    uint256 internal immutable PROOF_MATURITY_DELAY_SECONDS;
+    /// @notice The lowest value that `proofMaturityDelaySeconds` may be set to.
+    uint256 internal immutable MIN_PROOF_MATURITY_DELAY_SECONDS;
+
+    /// @notice The highest value that `proofMaturityDelaySeconds` may be set to.
+    uint256 internal immutable MAX_PROOF_MATURITY_DELAY_SECONDS;
 
     /// @notice Version of the deposit event.
     uint256 internal constant DEPOSIT_VERSION = 0;
@@ -131,6 +134,11 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ReinitializableBase
     /// @custom:spacer superRootsActive
     bool private spacer_63_20_1;
 
+    /// @notice The delay between when a withdrawal is proven and when it may be finalized.
+    ///         Bounded by `MIN_PROOF_MATURITY_DELAY_SECONDS` and `MAX_PROOF_MATURITY_DELAY_SECONDS`.
+    /// @custom:network-specific
+    uint256 public proofMaturityDelaySeconds;
+
     /// @notice Emitted when the Portal is migrated.
     /// @param oldLockbox The lockbox before the migration
     /// @param newLockbox The shared lockbox
@@ -145,6 +153,10 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ReinitializableBase
 
     /// @notice Migrates the total ETH balance to the ETHLockbox.
     event ETHMigrated(address indexed lockbox, uint256 balance);
+
+    /// @notice Emitted when the proof maturity delay is set.
+    /// @param proofMaturityDelaySeconds The new proof maturity delay in seconds.
+    event ProofMaturityDelaySecondsSet(uint256 proofMaturityDelaySeconds);
 
     /// @notice Emitted when a transaction is deposited from L1 to L2. The parameters of this event
     ///         are read by the rollup node and used to derive deposit transactions on L2.
@@ -251,25 +263,39 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ReinitializableBase
     /// @notice Thrown when a dispute game has not been permanently invalidated.
     error OptimismPortal_DisputeGameNotInvalidated();
 
+    /// @notice Thrown when the proof maturity delay bounds are zero or inverted.
+    error OptimismPortal_InvalidProofMaturityDelayBounds();
+
+    /// @notice Thrown when a proof maturity delay is outside the configured bounds.
+    error OptimismPortal_InvalidProofMaturityDelay();
+
     /// @notice Semantic version.
-    /// @custom:semver 5.11.0
+    /// @custom:semver 6.0.0
     function version() public pure virtual returns (string memory) {
-        return "5.11.0";
+        return "6.0.0";
     }
 
-    /// @param _proofMaturityDelaySeconds The proof maturity delay in seconds.
-    constructor(uint256 _proofMaturityDelaySeconds) ReinitializableBase(3) {
-        PROOF_MATURITY_DELAY_SECONDS = _proofMaturityDelaySeconds;
+    /// @param _minProofMaturityDelaySeconds The lowest proof maturity delay a chain may use.
+    /// @param _maxProofMaturityDelaySeconds The highest proof maturity delay a chain may use.
+    constructor(uint256 _minProofMaturityDelaySeconds, uint256 _maxProofMaturityDelaySeconds) ReinitializableBase(4) {
+        if (_minProofMaturityDelaySeconds == 0 || _minProofMaturityDelaySeconds > _maxProofMaturityDelaySeconds) {
+            revert OptimismPortal_InvalidProofMaturityDelayBounds();
+        }
+        MIN_PROOF_MATURITY_DELAY_SECONDS = _minProofMaturityDelaySeconds;
+        MAX_PROOF_MATURITY_DELAY_SECONDS = _maxProofMaturityDelaySeconds;
         _disableInitializers();
     }
 
     /// @notice Initializer.
     /// @param _systemConfig Address of the SystemConfig.
     /// @param _anchorStateRegistry Address of the AnchorStateRegistry.
+    /// @param _ethLockbox Address of the ETHLockbox.
+    /// @param _proofMaturityDelaySeconds The proof maturity delay in seconds.
     function initialize(
         ISystemConfig _systemConfig,
         IAnchorStateRegistry _anchorStateRegistry,
-        IETHLockbox _ethLockbox
+        IETHLockbox _ethLockbox,
+        uint256 _proofMaturityDelaySeconds
     )
         external
         reinitializer(initVersion())
@@ -288,6 +314,9 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ReinitializableBase
         // Assert that the lockbox state is valid.
         _assertValidLockboxState();
 
+        // Set the proof maturity delay. Bounds-checked and emits the same event as the setter.
+        _setProofMaturityDelaySeconds(_proofMaturityDelaySeconds);
+
         // Set the l2Sender slot, only if it is currently empty. This signals the first
         // initialization of the contract.
         if (l2Sender == address(0)) {
@@ -298,14 +327,28 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ReinitializableBase
         __ResourceMetering_init();
     }
 
+    /// @notice Allows the ProxyAdmin owner to set the proof maturity delay. The new value applies
+    ///         to every proven withdrawal, including withdrawals proven before the change.
+    /// @param _proofMaturityDelaySeconds The new proof maturity delay in seconds.
+    function setProofMaturityDelaySeconds(uint256 _proofMaturityDelaySeconds) external {
+        // Only the ProxyAdmin owner can change the proof maturity delay.
+        _assertOnlyProxyAdminOwner();
+        _setProofMaturityDelaySeconds(_proofMaturityDelaySeconds);
+    }
+
     /// @notice Getter for the current paused status.
     function paused() public view returns (bool) {
         return ethLockbox.paused();
     }
 
-    /// @notice Getter for the proof maturity delay.
-    function proofMaturityDelaySeconds() public view returns (uint256) {
-        return PROOF_MATURITY_DELAY_SECONDS;
+    /// @notice Getter for the lowest value that the proof maturity delay may be set to.
+    function minProofMaturityDelaySeconds() public view returns (uint256) {
+        return MIN_PROOF_MATURITY_DELAY_SECONDS;
+    }
+
+    /// @notice Getter for the highest value that the proof maturity delay may be set to.
+    function maxProofMaturityDelaySeconds() public view returns (uint256) {
+        return MAX_PROOF_MATURITY_DELAY_SECONDS;
     }
 
     /// @notice Getter for the address of the DisputeGameFactory contract.
@@ -673,8 +716,8 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ReinitializableBase
             revert OptimismPortal_InvalidProofTimestamp();
         }
 
-        // A proven withdrawal must wait at least `PROOF_MATURITY_DELAY_SECONDS` before finalizing.
-        if (block.timestamp - provenWithdrawal.timestamp <= PROOF_MATURITY_DELAY_SECONDS) {
+        // A proven withdrawal must wait at least `proofMaturityDelaySeconds` before finalizing.
+        if (block.timestamp - provenWithdrawal.timestamp <= proofMaturityDelaySeconds) {
             revert OptimismPortal_ProofNotOldEnough();
         }
 
@@ -820,6 +863,19 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ReinitializableBase
         if (!systemConfig.isFeatureEnabled(Features.ETH_LOCKBOX) || address(ethLockbox) == address(0)) {
             revert OptimismPortal_InvalidLockboxState();
         }
+    }
+
+    /// @notice Sets the proof maturity delay after checking it against the configured bounds.
+    /// @param _proofMaturityDelaySeconds The new proof maturity delay in seconds.
+    function _setProofMaturityDelaySeconds(uint256 _proofMaturityDelaySeconds) internal {
+        if (
+            _proofMaturityDelaySeconds < MIN_PROOF_MATURITY_DELAY_SECONDS
+                || _proofMaturityDelaySeconds > MAX_PROOF_MATURITY_DELAY_SECONDS
+        ) {
+            revert OptimismPortal_InvalidProofMaturityDelay();
+        }
+        proofMaturityDelaySeconds = _proofMaturityDelaySeconds;
+        emit ProofMaturityDelaySecondsSet(_proofMaturityDelaySeconds);
     }
 
     /// @notice Checks if a target address is unsafe.
