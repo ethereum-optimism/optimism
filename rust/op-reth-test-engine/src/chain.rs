@@ -51,7 +51,7 @@ pub(crate) struct ForkchoicePointers {
 }
 
 type TestNodeTypes = NodeTypesWithDBAdapter<OpNode, Arc<TempDatabase<DatabaseEnv>>>;
-type Provider = BlockchainProvider<TestNodeTypes>;
+pub(crate) type Provider = BlockchainProvider<TestNodeTypes>;
 
 /// An ephemeral, genesis-initialized OP chain answering read-only block/header/receipt
 /// queries and accepting executed blocks onto the canonical chain.
@@ -154,6 +154,11 @@ impl EphemeralChain {
     /// The chain id.
     pub fn chain_id(&self) -> u64 {
         self.chain_spec.chain().id()
+    }
+
+    /// The provider the chain reads through, which also backs its RPC reads.
+    pub(crate) const fn provider(&self) -> &Provider {
+        &self.provider
     }
 
     /// The sealed header of the current canonical head (the `latest` block).

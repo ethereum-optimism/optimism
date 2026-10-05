@@ -2,33 +2,44 @@
 //! `rpc.DialIPC`-compatible) by the companion binary.
 //!
 //! Three namespaces mirror what `op-e2e/actions` drives against the in-process op-geth engine:
-//! `engine_*` (the versioned newPayload/forkchoiceUpdated/getPayload trio), `eth_*` (chain reads
-//! and `eth_sendRawTransaction` into a parking buffer), and `optest_*` — the sequencing hooks that
-//! replace the direct `L2EngineAPI` method calls (`includeTx`, `includeNextTx`,
-//! `remainingBlockGas`, `forcedEmpty`, `setForceEmpty`).
+//! `engine_*` (the versioned newPayload/forkchoiceUpdated/getPayload trio), `eth_*` (op-reth's own
+//! `eth_` API over the engine's chain, except that `eth_sendRawTransaction` parks transactions in a
+//! buffer and the `pending` nonce counts them), and `optest_*` — the sequencing hooks that replace
+//! the direct `L2EngineAPI` method calls (`includeTx`, `includeNextTx`, `remainingBlockGas`,
+//! `forcedEmpty`, `setForceEmpty`).
 //!
-//! The engine's methods take `&mut self`, so the module context is an `Arc<Mutex<TestEngine>>` and
-//! requests are served one at a time; a poisoned lock is recovered rather than propagated so one
-//! failed request can't wedge the process.
+//! The engine's methods take `&mut self`, so the module context is an `Arc<Mutex<TestEngine>>`; a
+//! poisoned lock is recovered rather than propagated so one failed request can't wedge the
+//! process. The `eth_` reads query the chain's provider directly, without the engine lock.
 
 use std::sync::{Arc, Mutex};
 
-use alloy_eips::eip7685::Requests;
-use alloy_primitives::{Address, B256, Bytes};
+use alloy_eips::{BlockId, eip7685::Requests};
+use alloy_primitives::{Address, B256, Bytes, U256};
 use alloy_rpc_types_engine::{
     CancunPayloadFields, ForkchoiceState, PayloadId, PraguePayloadFields,
 };
 use jsonrpsee::{RpcModule, types::ErrorObjectOwned};
+use op_alloy_network::Optimism;
 use op_alloy_rpc_types_engine::{
     OpExecutionData, OpExecutionPayload, OpExecutionPayloadEnvelope, OpExecutionPayloadSidecar,
     OpPayloadAttributes,
 };
-use reth_optimism_primitives::OpBlock;
+use reth_network_api::noop::NoopNetwork;
+use reth_optimism_evm::{OpEvmConfig, OpRethReceiptBuilder, tx::OpTxEnvConverter};
+use reth_optimism_rpc::{
+    OpEthApi,
+    eth::{receipt::OpReceiptConverter, transaction::OpTxInfoMapper},
+};
+use reth_optimism_txpool::OpPooledTransaction;
 use reth_payload_primitives::EngineApiMessageVersion;
+use reth_rpc::EthApiBuilder;
 use reth_rpc_engine_api::EngineApiError;
+use reth_rpc_eth_api::{EthApiServer, RpcConverter, node::RpcNodeCoreAdapter};
+use reth_transaction_pool::noop::NoopTransactionPool;
 use serde_json::{Value, json};
 
-use crate::{IncludeNextOutcome, IncludeTxOutcome, TestEngine};
+use crate::{EphemeralChain, IncludeNextOutcome, IncludeTxOutcome, TestEngine, chain::Provider};
 
 /// Shared, mutably-accessed engine behind the RPC module.
 pub type SharedEngine = Arc<Mutex<TestEngine>>;
@@ -120,44 +131,55 @@ fn execution_data(
     OpExecutionData::new(payload, sidecar)
 }
 
-/// Serialize an OP block as an `eth_getBlock*` result: the RPC header (which carries the block
-/// hash) plus the block's transaction hashes. Faithful enough for the chain-shape assertions the
-/// action tests make; full transaction objects are not needed by any caller yet.
-fn block_json(block: &OpBlock) -> Result<Value, ErrorObjectOwned> {
-    let header = alloy_rpc_types_eth::Header::new(block.header.clone());
-    let mut value = serde_json::to_value(&header).map_err(rpc_err)?;
-    let tx_hashes: Vec<B256> = block.body.transactions.iter().map(|tx| tx.tx_hash()).collect();
-    if let Value::Object(map) = &mut value {
-        map.insert("transactions".into(), serde_json::to_value(tx_hashes).map_err(rpc_err)?);
-        map.insert("uncles".into(), json!([]));
-    }
-    Ok(value)
-}
+/// The components op-reth's `eth_` API runs on: the chain's provider, and no pool or network.
+type EthNodeCore = RpcNodeCoreAdapter<
+    Provider,
+    NoopTransactionPool<OpPooledTransaction>,
+    NoopNetwork,
+    OpEvmConfig,
+>;
 
-/// Resolve a block-number-or-tag string (`latest`/`safe`/`finalized`/`earliest`/`pending` or a
-/// `0x`-hex number) to a block, or `None` if unknown.
-fn resolve_block(engine: &TestEngine, tag: &str) -> Result<Option<OpBlock>, ErrorObjectOwned> {
-    let hash = match tag {
-        "latest" | "pending" => Some(engine.chain.latest_header().hash()),
-        "safe" => engine.chain.safe_header().map(|h| h.hash()),
-        "finalized" => engine.chain.finalized_header().map(|h| h.hash()),
-        "earliest" => return engine.block_by_number(0).map_err(rpc_err),
-        num => {
-            let n = u64::from_str_radix(num.trim_start_matches("0x"), 16)
-                .map_err(|e| rpc_err(format!("invalid block number {num:?}: {e}")))?;
-            return engine.block_by_number(n).map_err(rpc_err);
-        }
-    };
-    hash.map_or_else(|| Ok(None), |hash| engine.block_by_hash(hash).map_err(rpc_err))
-}
+/// op-reth's conversion of blocks, transactions and receipts to their OP RPC form.
+type EthConverter = RpcConverter<
+    Optimism,
+    OpEvmConfig,
+    OpReceiptConverter<Provider>,
+    (),
+    OpTxInfoMapper<Provider>,
+    (),
+    (),
+    OpTxEnvConverter,
+>;
 
-/// Encode a `u64` as a `0x`-prefixed hex quantity — the JSON form `eth_*` numeric results use.
-fn quantity(n: u64) -> Value {
-    Value::String(format!("0x{n:x}"))
+/// op-reth's `eth_` API over `chain`'s provider, with no transaction pool or network behind it.
+///
+/// The proof window is unbounded: op-node verifies withdrawal proofs against the state of past
+/// blocks, which reth's default window of zero blocks would reject. `eth_chainId` reads the network
+/// handle, so the noop network carries the chain's id.
+fn op_eth_api(chain: &EphemeralChain) -> OpEthApi<EthNodeCore, EthConverter> {
+    let provider = chain.provider().clone();
+    let evm_config = OpEvmConfig::new(chain.chain_spec(), OpRethReceiptBuilder::default());
+    let converter = RpcConverter::new(OpReceiptConverter::new(provider.clone()))
+        .with_mapper(OpTxInfoMapper::new(provider.clone()))
+        .with_tx_env_converter(OpTxEnvConverter);
+    let inner = EthApiBuilder::new(
+        provider,
+        NoopTransactionPool::<OpPooledTransaction>::new(),
+        NoopNetwork::default().with_chain_id(chain.chain_id()),
+        evm_config,
+    )
+    .with_rpc_converter(converter)
+    .eth_proof_window(u64::MAX)
+    .build_inner();
+    OpEthApi::new(inner, None, U256::ZERO, None, false)
 }
 
 /// Build the JSON-RPC module serving `engine_*`, `eth_*`, and `optest_*` over `engine`.
+///
+/// Must be called inside a tokio runtime: op-reth's `eth_` API spawns its block cache and its
+/// fee-history task on the current one.
 pub fn build_module(engine: SharedEngine) -> RpcModule<SharedEngine> {
+    let eth_api = op_eth_api(&lock(&engine).chain);
     let mut m = RpcModule::new(engine);
 
     // --- engine_ ---
@@ -275,40 +297,6 @@ pub fn build_module(engine: SharedEngine) -> RpcModule<SharedEngine> {
 
     // --- eth_ ---
 
-    m.register_method("eth_chainId", |_params, ctx, _| {
-        Ok::<_, ErrorObjectOwned>(quantity(lock(ctx).chain.chain_id()))
-    })
-    .expect("register method");
-
-    m.register_method("eth_blockNumber", |_params, ctx, _| {
-        Ok::<_, ErrorObjectOwned>(quantity(lock(ctx).chain.latest_header().number))
-    })
-    .expect("register method");
-
-    m.register_method("eth_getBlockByNumber", |params, ctx, _| {
-        // Second param (full-transactions) is accepted for compatibility but ignored: results
-        // always carry transaction hashes.
-        let (tag, _full): (String, Option<bool>) = params.parse().map_err(rpc_err)?;
-        let engine = lock(ctx);
-        let value = match resolve_block(&engine, &tag)? {
-            Some(block) => block_json(&block)?,
-            None => Value::Null,
-        };
-        Ok::<Value, ErrorObjectOwned>(value)
-    })
-    .expect("register method");
-
-    m.register_method("eth_getBlockByHash", |params, ctx, _| {
-        let (hash, _full): (B256, Option<bool>) = params.parse().map_err(rpc_err)?;
-        let engine = lock(ctx);
-        let value = match engine.block_by_hash(hash).map_err(rpc_err)? {
-            Some(block) => block_json(&block)?,
-            None => Value::Null,
-        };
-        Ok::<Value, ErrorObjectOwned>(value)
-    })
-    .expect("register method");
-
     // A raw transaction is parked in the engine's pending buffer (no auto-inclusion); the Go tests'
     // `ActL2IncludeTx(from)` later includes it via `optest_includeNextTx`.
     m.register_method("eth_sendRawTransaction", |params, ctx, _| {
@@ -318,6 +306,28 @@ pub fn build_module(engine: SharedEngine) -> RpcModule<SharedEngine> {
     })
     .expect("register method");
 
+    // "pending" folds in the parked buffer so the caller's next-nonce read accounts for txs it has
+    // already submitted but not yet had included; every other block reads committed state.
+    let nonce_api = eth_api.clone();
+    m.register_async_method("eth_getTransactionCount", move |params, ctx, _| {
+        let eth_api = nonce_api.clone();
+        async move {
+            let (address, block): (Address, Option<BlockId>) = params.parse()?;
+            if block.is_some_and(|block| block.is_pending()) {
+                let nonce = lock(&ctx).pending_nonce(address).map_err(rpc_err)?;
+                return Ok(U256::from(nonce));
+            }
+            EthApiServer::transaction_count(&eth_api, address, block).await
+        }
+    })
+    .expect("register method");
+
+    let mut eth = eth_api.into_rpc();
+    for method in ["eth_sendRawTransaction", "eth_getTransactionCount"] {
+        eth.remove_method(method);
+    }
+    m.merge(eth).expect("eth_ methods do not clash with the engine's own");
+
     m
 }
 
@@ -325,9 +335,111 @@ pub fn build_module(engine: SharedEngine) -> RpcModule<SharedEngine> {
 mod tests {
     use super::*;
     use crate::testsupport::{
-        deposit_tx, depositor, encode, fcu, payload_attrs, test_engine, user_sender, user_tx,
+        deposit_tx, depositor, encode, fcu, payload_attrs, test_engine, test_engine_with_accounts,
+        user_sender, user_tx,
     };
+    use alloy_genesis::GenesisAccount;
+    use alloy_primitives::{address, bytes};
     use jsonrpsee::core::server::MethodsError;
+
+    /// An engine whose head is block 1, holding a single deposit.
+    fn engine_with_deposit() -> (SharedEngine, B256) {
+        let mut engine = test_engine(user_sender());
+        let genesis = engine.chain.genesis_hash();
+        let attrs = payload_attrs(2, vec![encode(&deposit_tx(depositor()))], false);
+        let id =
+            engine.forkchoice_updated_auto(fcu(genesis), Some(attrs)).unwrap().payload_id.unwrap();
+        let data = engine.get_payload(id).unwrap();
+        let block_hash = data.payload.block_hash();
+        assert!(engine.new_payload(data).unwrap().is_valid());
+        assert!(engine.forkchoice_updated_auto(fcu(block_hash), None).unwrap().is_valid());
+        (Arc::new(Mutex::new(engine)), block_hash)
+    }
+
+    fn assert_deposit_fields(tx: &Value) {
+        assert_eq!(tx["type"], "0x7e", "{tx}");
+        assert_eq!(tx["nonce"], "0x0", "deposit nonce missing: {tx}");
+        assert_eq!(tx["depositReceiptVersion"], "0x1", "receipt version missing: {tx}");
+    }
+
+    #[tokio::test]
+    async fn deposit_transactions_carry_their_nonce_and_receipt_version() {
+        let (engine, block_hash) = engine_with_deposit();
+        let module = build_module(engine);
+        let deposit_hash = deposit_tx(depositor()).tx_hash();
+
+        let tx: Value = module.call("eth_getTransactionByHash", [deposit_hash]).await.unwrap();
+        assert_deposit_fields(&tx);
+
+        let block: Value = module.call("eth_getBlockByHash", (block_hash, true)).await.unwrap();
+        assert_deposit_fields(&block["transactions"][0]);
+    }
+
+    #[tokio::test]
+    async fn chain_id_is_the_chain_specs() {
+        let engine = test_engine(user_sender());
+        let expected = engine.chain.chain_id();
+        let module = build_module(Arc::new(Mutex::new(engine)));
+        let chain_id: U256 = module.call("eth_chainId", [(); 0]).await.expect("chain id");
+        assert_eq!(chain_id, U256::from(expected));
+    }
+
+    #[tokio::test]
+    async fn pending_nonce_counts_parked_transactions() {
+        let module = build_module(Arc::new(Mutex::new(test_engine(user_sender()))));
+        let _: B256 =
+            module.call("eth_sendRawTransaction", [encode(&user_tx(0))]).await.expect("park tx");
+
+        let pending: U256 = module
+            .call("eth_getTransactionCount", (user_sender(), "pending"))
+            .await
+            .expect("pending nonce");
+        assert_eq!(pending, U256::from(1));
+        let latest: U256 = module
+            .call("eth_getTransactionCount", (user_sender(), "latest"))
+            .await
+            .expect("latest nonce");
+        assert_eq!(latest, U256::ZERO);
+    }
+
+    #[tokio::test]
+    async fn eth_call_reads_state_and_surfaces_reverts_as_geth_does() {
+        // Returns the 32-byte word 0x2a: `PUSH1 0x2a PUSH1 0 MSTORE PUSH1 0x20 PUSH1 0 RETURN`.
+        let returner = address!("0x00000000000000000000000000000000000000aa");
+        // Always reverts with empty output: `PUSH1 0 PUSH1 0 REVERT`.
+        let reverter = address!("0x00000000000000000000000000000000000000bb");
+        let engine = test_engine_with_accounts(
+            user_sender(),
+            [
+                (
+                    returner,
+                    GenesisAccount {
+                        code: Some(bytes!("0x602a60005260206000f3")),
+                        ..Default::default()
+                    },
+                ),
+                (
+                    reverter,
+                    GenesisAccount { code: Some(bytes!("0x60006000fd")), ..Default::default() },
+                ),
+            ],
+        );
+        let module = build_module(Arc::new(Mutex::new(engine)));
+
+        let out: Bytes = module
+            .call("eth_call", [json!({ "from": user_sender(), "to": returner })])
+            .await
+            .expect("call");
+        assert_eq!(out, Bytes::from(U256::from(42u64).to_be_bytes::<32>()));
+
+        match module
+            .call::<_, Bytes>("eth_call", [json!({ "from": user_sender(), "to": reverter })])
+            .await
+        {
+            Err(MethodsError::JsonRpc(err)) => assert_eq!(err.code(), 3, "{err:?}"),
+            other => panic!("expected a revert error, got {other:?}"),
+        }
+    }
 
     /// Open a build on genesis over `engine_forkchoiceUpdatedV3` with `attrs` and return the
     /// JSON-RPC error code the update fails with.
