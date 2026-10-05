@@ -1,8 +1,10 @@
 # OP Mainnet L2 fork shadow
 
 The optional `optimism-contract-l2-fork-shadow` implements the complete original
-`contracts-bedrock-tests-l2-fork op-mainnet` workload. Hosted same-SHA parity is
-pending; it adds zero verified coverage so far.
+`contracts-bedrock-tests-l2-fork op-mainnet` workload. Complete hosted same-SHA
+parity passes at `3be585cb`; this closes one verified PR job occurrence. The
+[original comparison](rwx-contract-l2-fork-evidence/parity.json) retains the full
+source, command, compiler, test, block and RPC evidence.
 
 The definition follows shared Contracts routing. It retains profile `ci`, main
 features, every `test/L2/fork/**` signature and compiler artifact, original
@@ -16,15 +18,17 @@ This shadow uses the official public `https://mainnet.optimism.io` endpoint.
 Preflight runs before expensive preparation and verifies chain 10, the chosen
 block hash, predeploy code, implementation storage and a version call. Complete
 original RPC requests, response bodies and attempt metadata remain retained.
-Circle's optional isolated replay uses that same endpoint and the exact native
-block. Normal Circle jobs retain their existing private RPC selection.
+Circle's pilot branch and optional isolated replay use that same endpoint and
+the exact native block. Circle jobs on other refs use their existing private RPC
+selection.
 
 The live read-only preflight verified block 157803345,
 `0xdfa269ad424586197ac2059c1cba15cf08c07f13e4fd3c00406f65626c0031ed`,
 including nonempty code/state. The public endpoint is documented in this source
 tree and the pinned superchain registry. It supplies no new credential and makes
-no transaction submissions. Full hosted execution still needs validation of
-provider availability and rate limits throughout the workload.
+no transaction submissions. Public archive availability and rate limits remain
+runtime constraints. The completed hosted comparison below retains the actual
+requests and transport outcomes.
 
 Go modules, Go compiler outputs, Foundry outputs and pinned solc installations
 use isolated reusable producers. Compilation runs on 16 CPUs / 32 GiB and fresh
@@ -119,3 +123,28 @@ Forge's normal fallback succeeded and the relay did not retry those denials.
 This integration probe and 30 helper/comparison fixtures add zero coverage.
 The [transport preflight](rwx-pr-gates-evidence/contracts-pacing-preflight.json)
 binds those complete originals and the prior full-workload failures.
+
+The combined automatic batch at `3be585cb` passes complete original parity.
+Circle pipeline 135642, original [job 5639658](https://circleci.com/gh/ethereum-optimism/optimism/5639658),
+and native [run d287cd4e](https://cloud.rwx.com/optimism/runs/d287cd4ef59b4c02b11cfbbf03d0e7f5)
+both pass all seven initial cases, with zero skips or diagnostic reruns. All
+selection, compiler methods and bytecode, effective settings, submodules,
+commands, original outcomes and pinned-block frames agree. Circle retains all
+58 report files and complete untruncated API logs; native retains all 1,686
+report files, including 407 upstream requests and their complete response frames.
+Native observed zero HTTP 429s and zero transport retries. Thirteen original
+HTTP 403 capability denials passed through once; Forge's normal fallback succeeded.
+
+Circle's existing Foundry state cache served every fork read. Its relay report
+contains zero requests and still retains the sealed transport policy. The
+reader accepts this report only alongside the complete fresh verdict and
+independent pinned-block checks. The initial reader incorrectly required at
+least one upstream request. The corrected boundary and its regression preserve
+the original reports; all 15 comparison fixtures pass.
+
+Circle's full contract build took 649.3 seconds and its fresh verdict took 58.9
+seconds. Native compilation executed in 19 seconds and its fresh verdict task
+executed in 240 seconds on 16 CPUs / 32 GiB. These observations have different
+RPC cache states and do not establish a provider speed comparison. The genuine
+Contracts aggregate also passes [complete original parity](rwx-pr-gates-evidence/contracts-parity.json)
+on this same SHA, including all 21 exact prerequisites and its fresh final status.

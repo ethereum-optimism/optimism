@@ -148,3 +148,12 @@ binds that generated alias to the original `selector_shadow=true` workflow and
 its actual isolated commands. It rejects a production binding or mismatched job.
 Twenty helper fixtures pass, and the prior complete `63844aed` comparison still
 passes through this reader.
+
+The [final combined-batch comparison](rwx-selector-upload-evidence/3be5-batch-parity.json)
+also passes at `3be585cb`. Circle pipeline 135642, original job 5639610, and
+automatic native run `fd3c9c769af143d7a7180df658a2e42b` agree on both complete
+compiler catalogues, all 601 compiled sources, 167 declarations, 1,120 signatures,
+the original private API request and every fresh database row and API readback.
+All 4,520 Circle and 4,517 native report files remain retained. This comparison
+runs alongside the completed L2 fork and genuine Contracts gate in one full PR
+verification batch.

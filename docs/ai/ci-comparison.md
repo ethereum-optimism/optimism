@@ -26,6 +26,16 @@ configuration evidence. Distinguish runtime configuration dumps from settings
 that are only declared in source. The standard branch profile is `liteci`;
 `develop` uses `ci`. Neither profile covers the other contract jobs.
 
+For L2 fork tests, `ops/ci/compare-contract-l2-fork.py` checks the complete
+original selection, compiler bindings, commands, initial JUnit, pinned-block
+frames and sealed runtime relay report. The relay records every request that
+reaches the upstream RPC. When Foundry serves every fork read from its state
+cache, the relay records zero requests. The reader accepts that sealed report
+alongside the complete fresh verdict and independent pinned-block checks.
+Different request counts alone do not establish a workload mismatch or a speed
+comparison. Keep those cache states explicit; compare common stable archive
+results when both reports contain them.
+
 Do not collect secret values. Fetch every page of test APIs and every expected
 shard. Record the original job/task terminal outcome even if its test cases all
 passed: later build or convention-check failures still matter.

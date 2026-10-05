@@ -36,43 +36,40 @@ The October 5 refresh observes `develop` at
 `b9ae98c8f1a6cef46576f48831a8e51c53f87023`, with no upstream Circle or GitHub
 workflow changes since the pilot's `c8e4ba85` base. The PR denominator remains 86.
 
-All 86 occurrences are implemented. The combined verification batch at
-`936ef20e` passed all seven native L2 fork cases and the native Contracts
-aggregate's 21 fresh prerequisites. Circle killed L2 preparation at its default
-ten-minute silence limit, before the verdict, so the last two occurrences still
-receive no verified parity credit. The complete first failure is retained; its
-preparation limit is corrected before another combined batch.
+All 86 occurrences are implemented and verified. The combined batch at
+`3be585cb02466304dc1bd4b33a62ad2258f81ba4` closes the final two occurrences:
+[OP Mainnet L2 fork](rwx-contract-l2-fork-evidence/parity.json) and the
+[Contracts aggregate](rwx-pr-gates-evidence/contracts-parity.json).
+Circle pipeline 135642 and automatic native run `d287cd4e` both passed all seven
+initial L2 cases, with zero skips or diagnostic reruns. Their complete selection,
+compiler bindings, settings, pinned block, original results and command histories
+agree. Both genuine Contracts gates passed all 21 exact prerequisites.
+The [selector comparison](rwx-selector-upload-evidence/3be5-batch-parity.json)
+also passes on this SHA, including all 1,120 fresh database rows and API readbacks.
 
-The corrective combined batch at `a3a09108` completed native L2 and Contracts
-aggregation successfully again. Circle's L2 preparation completed, but five
-suite setups exhausted public RPC retries with HTTP 429. The diagnostic rerun
-passed all seven cases and correctly left the initial job and gate failed.
-The shared runner now serializes L2 suites with a 100 compute-unit-per-second
-RPC budget on both providers, preserving all cases and initial failure evidence.
-Selector original-report parity passed on this same SHA. Circle's Rust Cannon
-preparation separately encountered a Go module proxy HTTP/2 transport error;
-its unchanged native workload passed. The
-[second combined batch](rwx-pr-gates-evidence/contracts-second-batch.json)
-retains the complete originals and both investigated failures. Verified coverage
-remains 84/86 until a complete successful comparison closes L2 and its aggregate.
+The prior [preparation timeout](rwx-pr-gates-evidence/contracts-first-batch.json),
+[public RPC and module-proxy failures](rwx-pr-gates-evidence/contracts-second-batch.json)
+and [backoff-only failures](rwx-pr-gates-evidence/contracts-pacing-preflight.json)
+remain retained. The shared L2 relay proactively paces upstream requests.
+Native retained 407 requests with zero transport retries or rate-limit responses.
+Circle's existing Foundry state cache served every fork read; its sealed relay
+report correctly contains zero requests. Both providers executed fresh verdicts
+and independently rechecked the pinned block. These different cache states do
+not support a provider speed claim.
 
-The `cb341ad0` combined batch proved Forge's backoff-only controls insufficient:
-both providers still exhausted public RPC capacity during initial L2 setup.
-Their original failures and successful diagnostics remain separate. A shared
-loopback relay now proactively paces every upstream request, retains complete
-transport frames and preserves permanent-denial and test-failure behavior.
-The pinned Forge/real-archive integration probe passes; full hosted parity is
-still required before either remaining occurrence receives credit.
+The [completed PR verification batch](rwx-pr-gates-evidence/pr-closeout.json)
+records successful terminal states for all four required Circle gates, dependency
+review and all 23 optional RWX checks on this SHA.
 
-| PR workflow | Expanded job instances | Implemented validation jobs |
+| PR workflow | Expanded job instances | Verified job occurrences |
 | --- | ---: | ---: |
 | Main | 32 | 32 |
-| Contracts | 23 | 21 |
+| Contracts | 23 | 23 |
 | Rust | 22 | 22 |
 | Rust E2E | 9 | 9 |
-| Total | 86 | 84 |
+| Total | 86 | 86 |
 
-Verified implementation coverage is **84 / 86 = 98%**. Each matrix entry and
+Verified implementation coverage is **86 / 86 = 100%**. Each matrix entry and
 each occurrence in a different workflow counts separately; shards do not.
 The CircleCI setup and schedule-trigger-check workflows are outside this
 86-job denominator and have separate todos. This is occurrence coverage backed
@@ -176,8 +173,9 @@ in [rwx-migration.md](rwx-migration.md#op-reth-shadow-and-cache-measurements).
 1. Retain the completed [acceptance](rwx-acceptance-parity.md) and
    [core Rust workspace](rwx-rust-parity.md) shadows and their original-report evidence.
 2. Retain the completed Rust E2E and Cannon workload evidence.
-3. Close remaining contract evidence gaps and operational failure/routing rehearsals.
-4. Keep additional performance tuning deferred while porting remaining workloads.
+3. Rehearse operational failure/routing behavior and verify the remaining report
+   refinements below. All baseline contract job occurrences are complete.
+4. Keep additional performance tuning deferred unless a new stage requests it.
 5. Rehearse full pipeline routing and failure behavior before proposing gate
    changes. Validate post-merge and privileged work before transferring it.
 
@@ -205,12 +203,13 @@ start, and retain push/queue time separately when available. Cost is deferred.
 - [x] Close full Go parity with 12 shards / parallel 8. Repeated performance
   samples and 24-shard selection are deferred at the user's request.
 
-## Close the current evidence gaps
+## Historical gaps and remaining report refinements
 
 At `587b4c3a`, the retained comparison found matching Go results
 (1,245 pass / 2 skip) and contract results (9,503 pass / 638 skip).
-Both comparisons remain incomplete. These are the tasks needed to strengthen
-the existing shadows:
+Those historical comparisons were incomplete. The full original-report
+comparisons linked above supersede them. The remaining unchecked items below
+track report refinements and measurements beyond verified job occurrence coverage:
 
 - [x] Retain authoritative CircleCI Go package and contract test-file manifests,
   including packages without test files, at the tested revision. Full Go and
@@ -235,6 +234,10 @@ the existing shadows:
   layers were warm; these samples establish a cache benefit within RWX.
 
 ## Completion requirements for every ported workload
+
+These rules apply to each inventory item. Its closeout document records the
+validation and limitations. They are not additional job occurrences. Repeated
+performance measurements remain conditional on making a speed claim.
 
 - [ ] Record the CircleCI command, dependencies, profiles, features, filters,
   shards, resources, timeouts, outputs and credential names without secret values.
@@ -330,9 +333,9 @@ CircleCI workflow: `contracts-feature-tests` (23 jobs).
 - [x] `contracts-bedrock-tests-upgrade op-mainnet`
 - [x] `contracts-bedrock-tests-upgrade ink-mainnet`
 - [x] `contracts-bedrock-tests-upgrade unichain-mainnet`
-- [ ] `contracts-bedrock-tests-l2-fork op-mainnet`
+- [x] `contracts-bedrock-tests-l2-fork op-mainnet` — [complete original parity](rwx-contract-l2-fork.md), all seven initial cases on both providers at `3be585cb`
 - [x] `contracts-bedrock-checks-fast-feature-tests`
-- [ ] `required-contracts-ci`
+- [x] `required-contracts-ci` — [complete original aggregate parity](rwx-pr-gates.md), all 21 exact prerequisites and fresh final status at `3be585cb`
 
 ### Rust workflow
 

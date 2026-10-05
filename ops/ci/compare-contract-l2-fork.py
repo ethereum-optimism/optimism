@@ -101,9 +101,13 @@ def preflight(directory,sha):
 
 
 def runtime_transport(directory):
-    """Validate complete paced transport originals without substituting retries."""
+    """Validate the sealed policy and every recorded transport frame.
+
+    A fresh Forge verdict can use only cached RPC state. Its relay report then
+    contains zero requests. The verdict and pinned block checks remain separate.
+    """
     final=read(directory/'final.json');settings=read(directory/'settings.json')
-    check(set(final)=={'requests','sha256'} and type(final['requests']) is int and final['requests']>0
+    check(set(final)=={'requests','sha256'} and type(final['requests']) is int and final['requests']>=0
           and final['sha256']==L.files(directory)
           and json.dumps(settings,sort_keys=True)==json.dumps({'upstream':L.RPC,'policy':L.P.POLICY},sort_keys=True),
           'Missing or corrupt L2 RPC transport originals')

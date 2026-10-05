@@ -85,6 +85,18 @@ class L2ParityTests(unittest.TestCase):
         self.assertEqual(len(native['preflight']['common_rpc']),5)
         self.assertEqual(len(list((self.native/'preflight').glob('rpc-*-request.json'))),6)
 
+    def test_complete_fresh_verdict_accepts_a_fully_warm_rpc_state_cache(self):
+        directory=self.circle/'runtime-rpc'
+        for path in directory.iterdir():path.unlink()
+        directory.rmdir()
+        with L.P.serve(directory,self.url):pass
+        self.reseal(self.circle)
+        circle,native=self.equal()
+        self.assertEqual(circle['rpc_transport']['requests'],0)
+        self.assertEqual(circle['rpc_transport']['attempts'],0)
+        self.assertEqual(circle['coverage'],native['coverage'])
+        self.assertEqual(circle['coverage']['outcomes'],{'pass':2})
+
     def test_resealed_missing_original_junit_verdict_cannot_pass(self):
         path=self.native/'original.junit.xml';path.write_text('<testsuites/>');self.reseal()
         with self.assertRaisesRegex(ValueError,'verdict'):self.equal()

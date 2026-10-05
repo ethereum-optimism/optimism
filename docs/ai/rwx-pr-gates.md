@@ -3,8 +3,9 @@
 Circle continues to own its four required gates. The native Rust aggregate has
 complete same-SHA original gate parity and successful terminal GitHub checks at
 `68f13331`. The complete Main aggregate now passes original gate parity and
-successful terminal GitHub checks at `4ae28fd9`. Both optional aggregates are
-counted; neither changes required-gate ownership.
+successful terminal GitHub checks at `4ae28fd9`. The Contracts aggregate passes
+complete original parity at `3be585cb`. All three optional aggregates are counted;
+Circle retains required-gate ownership.
 
 `pr-gates.yml` embeds sixteen existing workload definitions in parallel. Each
 executes once, with its original source, tools, profiles, resources, caches and
@@ -75,7 +76,8 @@ GitHub token, but the automatic runs did not expose the `github` expression
 context. The original failures and CLI probes remain retained as diagnostic
 evidence. The native coordinator replaces that implementation and its wait helper.
 The corrected Rust and Main aggregates now have full automatic validation and
-complete original Circle gate evidence. The Contracts aggregate is implemented and awaits full hosted original parity.
+complete original Circle gate evidence. The Contracts aggregate also has complete
+hosted original parity at `3be585cb`.
 Main's selector uploader and flaky-report jobs are outside its original aggregate
 dependency set; both now have their own complete same-SHA parity evidence.
 
@@ -149,8 +151,8 @@ the L2 verdict, safe skips, checkout paths, independent Rust/Main gate scope and
 the complete original provider comparison. These fixtures add zero coverage.
 
 The [Contracts implementation preflight](rwx-pr-gates-evidence/contracts-preflight.json)
-retains all changed input hashes and local validation. Hosted coverage remains
-pending until the complete original gate and L2 comparisons pass.
+retains all changed input hashes and local validation. The completed hosted
+comparison below closes the Contracts aggregate occurrence.
 
 The [first combined batch](rwx-pr-gates-evidence/contracts-first-batch.json) at
 `936ef20e` passed all 21 native Contracts prerequisites, all five fresh receipts,
@@ -177,3 +179,18 @@ RPC relay is locally verified with complete frame validation and the pinned
 Forge/real-archive probe before a further combined verification. Its
 [preflight](rwx-pr-gates-evidence/contracts-pacing-preflight.json) clearly adds
 zero hosted coverage.
+
+The complete automatic [run d287cd4e](https://cloud.rwx.com/optimism/runs/d287cd4ef59b4c02b11cfbbf03d0e7f5)
+at `3be585cb02466304dc1bd4b33a62ad2258f81ba4` passes all 21 native Contracts
+prerequisites, all five fresh receipts, the aggregate and its one final status.
+Circle pipeline 135642, workflow `090b330c-310b-42c4-a656-4d0149c59014`, original
+[job 5639666](https://circleci.com/gh/ethereum-optimism/optimism/5639666) passes
+its genuine verifier with those same 21 dependency names. Both optional native
+and required Circle Contracts checks finish successfully on that SHA.
+The [complete original comparison](rwx-pr-gates-evidence/contracts-parity.json)
+binds every receipt, source/config/API/log hash and the actual engine and GitHub
+states. The aggregate and final-status archives were downloaded through the
+existing signed-in account. This closes one PR occurrence and adds zero tests.
+The [complete L2 comparison](rwx-contract-l2-fork-evidence/parity.json) closes
+its separate workload occurrence on the same SHA. Together these reach 86/86
+verified baseline PR job occurrences.

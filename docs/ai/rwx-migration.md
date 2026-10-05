@@ -131,9 +131,10 @@ separate Go compiler cache. Initial JUnit, diagnostic reruns, source selection,
 commands, settings, logs and generated fixtures remain explicit evidence.
 
 This definition uses the cache-only vault with no RPC or publishing credentials.
-Its protected compiler warming executes zero verdicts. Coverage and L2 fork jobs
-remain separate pending ports; L1 upgrades and contract-fast checks have their
-own completed definitions and evidence. Circle continues to own the required gate.
+Its protected compiler warming executes zero verdicts. [Coverage](rwx-contract-coverage.md),
+[L2 fork](rwx-contract-l2-fork.md), L1 upgrades and contract-fast checks have
+their own completed definitions and evidence. The [Contracts aggregate](rwx-pr-gates.md)
+now verifies all 21 exact prerequisites. Circle continues to own the required gate.
 
 From a trusted checkout:
 
@@ -146,7 +147,7 @@ mise exec -- rwx run .rwx/contracts.yml --wait
 
 ## Cache warming and resource trials
 
-All four definitions configure [cache-rebuild triggers](https://www.rwx.com/docs/cache-rebuild-triggers)
+The producer definitions configure [cache-rebuild triggers](https://www.rwx.com/docs/cache-rebuild-triggers)
 restricted to `develop`. Go/Foundry/op-reth triggers target preparation and
 compiler tasks only; the pilot warms its independent language tool layers.
 Warm-only routing validates the checkout and emits false verdict flags without
