@@ -64,6 +64,10 @@ class L2ParityTests(unittest.TestCase):
         with mock.patch.object(L.UP,'revision',return_value=sha):
             chosen=L.preflight(preflight,'latest' if provider=='rwx' else '66')
         L.seal(preflight,0,[]);L.write(directory/'block.json',chosen);L.block(directory,chosen['number'])
+        with L.P.serve(directory/'runtime-rpc',self.url) as endpoint:
+            request=L.urllib.request.Request(endpoint,data=b'{"jsonrpc":"2.0","id":1,"method":"eth_chainId","params":[]}',
+                headers={'Content-Type':'application/json'})
+            with L.urllib.request.urlopen(request,timeout=5) as response:self.assertEqual(response.status,200)
         L.seal(directory,0,[],len(selected));return directory
 
     def equal(self):
@@ -132,6 +136,40 @@ class L2ParityTests(unittest.TestCase):
         stage['argv']=['just','test-l2-fork-upgrade','--threads','1']
         L.write(path,stage);self.reseal()
         with self.assertRaisesRegex(ValueError,'original L2 command'):self.equal()
+
+    def test_resealed_missing_proxy_response_and_unbound_response_id_are_rejected(self):
+        path=self.native/'runtime-rpc/request-0-attempt-1.json'
+        value=L.read(path);value['id']=2;L.write(path,value)
+        metadata=path.with_suffix('.metadata.json');value=L.read(metadata);value['response_sha256']=L.digest(path);L.write(metadata,value)
+        final=self.native/'runtime-rpc/final.json';value=L.read(final);value['sha256']=L.files(final.parent);L.write(final,value);self.reseal()
+        with self.assertRaisesRegex(ValueError,'response IDs'):self.equal()
+
+    def test_resealed_runtime_rpc_denial_cannot_be_retried_as_success(self):
+        directory=self.native/'runtime-rpc';path=directory/'request-0-attempt-1.metadata.json'
+        first=L.read(path);first['http_status']=403;first['error']='HTTP 403';L.write(path,first)
+        second=directory/'request-0-attempt-2.json';second.write_bytes((directory/'request-0-attempt-1.json').read_bytes())
+        L.write(second.with_suffix('.metadata.json'),first|{'http_status':200,'error':None,
+            'started_at':first['started_at']+1,'response_sha256':L.digest(second)})
+        final=directory/'final.json';value=L.read(final);value['sha256']=L.files(directory);L.write(final,value);self.reseal()
+        with self.assertRaisesRegex(ValueError,'permanent denial'):self.equal()
+
+    def test_real_forge_null_and_omitted_parameter_forms_are_retained_without_rewriting(self):
+        directory=self.directory/'client-forms'
+        requests=[b'{"jsonrpc":"2.0","id":1,"method":"eth_chainId","params":null}',
+                  b'{"jsonrpc":"2.0","id":2,"method":"eth_chainId"}']
+        with L.P.serve(directory,self.url) as endpoint:
+            for body in requests:
+                request=L.urllib.request.Request(endpoint,data=body,headers={'Content-Type':'application/json'})
+                with L.urllib.request.urlopen(request,timeout=5) as response:self.assertEqual(response.status,200)
+        value=C.runtime_transport(directory);self.assertEqual(value['requests'],2)
+        self.assertEqual([(directory/('request-'+str(i)+'.json')).read_bytes() for i in range(2)],requests)
+
+    def test_resealed_stable_runtime_archive_result_difference_is_rejected(self):
+        directory=self.native/'runtime-rpc';path=directory/'request-0-attempt-1.json'
+        value=L.read(path);value['result']='0x1';L.write(path,value)
+        metadata=path.with_suffix('.metadata.json');value=L.read(metadata);value['response_sha256']=L.digest(path);L.write(metadata,value)
+        final=directory/'final.json';value=L.read(final);value['sha256']=L.files(directory);L.write(final,value);self.reseal()
+        with self.assertRaisesRegex(ValueError,'stable runtime RPC results differ'):self.equal()
 
     def test_runtime_original_block_and_retry_history_must_match_preflight(self):
         path=self.native/'rpc-1-attempt-1.json';value=L.read(path);value['result']['hash']='0x'+'f'*64;L.write(path,value)

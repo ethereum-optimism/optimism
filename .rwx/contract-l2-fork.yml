@@ -128,7 +128,7 @@ tasks:
   - key: helper-tests
     use: [code, tools]
     if: ${{ init.cache-warm != 'true' && tasks.route.values.run-contracts == 'true' }}
-    run: python3 -m unittest discover -s ops/ci -p 'test*contract_l2_fork.py'
+    run: python3 -m unittest discover -s ops/ci -p 'test*l2*.py'
     cache: false
     timeout: 10m
     outputs: {filesystem: false}

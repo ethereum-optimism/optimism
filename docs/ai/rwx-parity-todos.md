@@ -56,6 +56,14 @@ its unchanged native workload passed. The
 retains the complete originals and both investigated failures. Verified coverage
 remains 84/86 until a complete successful comparison closes L2 and its aggregate.
 
+The `cb341ad0` combined batch proved Forge's backoff-only controls insufficient:
+both providers still exhausted public RPC capacity during initial L2 setup.
+Their original failures and successful diagnostics remain separate. A shared
+loopback relay now proactively paces every upstream request, retains complete
+transport frames and preserves permanent-denial and test-failure behavior.
+The pinned Forge/real-archive integration probe passes; full hosted parity is
+still required before either remaining occurrence receives credit.
+
 | PR workflow | Expanded job instances | Implemented validation jobs |
 | --- | ---: | ---: |
 | Main | 32 | 32 |

@@ -169,3 +169,11 @@ providers, and selector complete original-report parity passed. Circle's Rust
 gate failed on a module proxy HTTP/2 error before the unchanged Cannon verdict;
 the native workload passed. Complete original failures remain retained while
 the shared L2 concurrency/RPC correction is verified in a further combined batch.
+
+The combined `cb341ad0` batch retains actual initial L2 public RPC failures from
+both providers despite the Forge backoff/concurrency controls. Their separate
+diagnostic passes correctly leave both Contracts gates failed. A shared proactive
+RPC relay is locally verified with complete frame validation and the pinned
+Forge/real-archive probe before a further combined verification. Its
+[preflight](rwx-pr-gates-evidence/contracts-pacing-preflight.json) clearly adds
+zero hosted coverage.

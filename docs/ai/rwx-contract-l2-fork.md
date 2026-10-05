@@ -89,3 +89,33 @@ are recorded and compared, and changed/omitted limits fail verification.
 The diagnostic rerun uses the same controls and cannot make an initial failure
 pass. Twenty-one helper/comparison fixtures cover these boundaries and the
 existing failure, source, compiler, block and report checks. They add no coverage.
+
+The backoff-only combined batch at `cb341ad0` still hit public RPC HTTP 429
+on both providers. Native's initial verdict retained four passing cases and
+two failed suite setups; its separate diagnostic rerun passed all seven and
+correctly kept the job and Contracts gate failed. Both complete first verdicts
+remain retained. Forge's assumed compute-unit budget adjusts retry backoff;
+it does not proactively pace each request.
+
+The shared runner now sends fork traffic through a loopback transport with one
+upstream request in flight and a global budget of two requests per second.
+Request bytes, IDs, response bodies, timestamps and every transport attempt are
+retained. Only HTTP 429/500/502/503/504 and connection failures receive bounded
+backoff; permanent denials and RPC execution errors pass through immediately.
+The relay caches no state and uses the same public endpoint. Test assertion
+failures still retain the original failing verdict and separate diagnostics.
+Complete transport validation checks its source-bound policy, every frame/hash,
+response IDs, pacing and retry bounds. Common stable archive results must agree
+across providers; different request inventories from Foundry's existing RPC
+cache remain retained. Live head metadata is identified separately from pinned
+archive state.
+
+An isolated Linux probe ran the pinned Forge 1.8.3 binary and Solc 0.8.15 through
+the actual relay against the real pinned OP Mainnet block. Both tests verified
+chain, block and nonempty implementation storage and passed. All 19 requests
+and attempts are retained, with zero 429s. Five unsupported `anvil_nodeInfo` or
+`eth_getAccountInfo` probes returned original HTTP 403 method-denial responses;
+Forge's normal fallback succeeded and the relay did not retry those denials.
+This integration probe and 30 helper/comparison fixtures add zero coverage.
+The [transport preflight](rwx-pr-gates-evidence/contracts-pacing-preflight.json)
+binds those complete originals and the prior full-workload failures.

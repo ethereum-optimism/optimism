@@ -1,0 +1,136 @@
+{
+  "state": "proactive transport locally verified; full hosted parity still pending",
+  "coverage_credit": 0,
+  "prior_combined_source_sha": "cb341ad0513b1c77db776ab7e3976b8e4c68e789",
+  "circle_pipeline": 135634,
+  "circle_l2_job": 5638768,
+  "circle_contracts_gate_job": 5638785,
+  "native_run": "19762019c2884d29bbe35e2f05d87230",
+  "native_l2_verdict": "b93b7aa395018fad5107d14c2dbe2d75",
+  "initial_verdicts": {
+    "circleci": {
+      "exit_code": 1,
+      "passing_cases": 4,
+      "failed_suite_setups": 2,
+      "failure_category": "original public RPC HTTP 429 storage fetch",
+      "diagnostic_cases": 7,
+      "diagnostic_failures": 0,
+      "job_result_preserved": "failed"
+    },
+    "rwx": {
+      "exit_code": 1,
+      "passing_cases": 4,
+      "failed_suite_setups": 2,
+      "failure_category": "original public RPC HTTP 429 storage fetch",
+      "diagnostic_cases": 7,
+      "diagnostic_failures": 0,
+      "job_result_preserved": "failed"
+    }
+  },
+  "selector_complete_same_sha_parity": true,
+  "root_cause": "Forge assumed compute-unit budget affects retry backoff; concurrent backend traffic is not proactively paced",
+  "correction": {
+    "policy": {
+      "requests_per_second": 2,
+      "max_attempts": 5,
+      "timeout_seconds": 30,
+      "retry_http_statuses": [
+        429,
+        500,
+        502,
+        503,
+        504
+      ],
+      "backoff_seconds": [
+        2,
+        4,
+        8,
+        16
+      ]
+    },
+    "upstream": "https://mainnet.optimism.io",
+    "state_cache": false,
+    "bytes_and_rpc_ids_preserved": true,
+    "initial_test_failures_preserved": true
+  },
+  "local_validation": {
+    "l2_helper_and_comparison_fixtures": 30,
+    "rwx_lint_files": 32,
+    "rwx_lint_problems": 0,
+    "actual_pinned_forge_probe": {
+      "probe": "isolated local Forge integration; adds zero workload coverage",
+      "exit_code": 0,
+      "forge_version": "forge Version: 1.8.3\nCommit SHA: cae51ad458f6abb64852b7709eb784352429825d\nBuild Timestamp: 2026-09-15T10:46:16.519267388Z (1789469176)\nBuild Profile: dist\n",
+      "requests": 19,
+      "attempts": 19,
+      "http_statuses": {
+        "200": 14,
+        "403": 5
+      },
+      "helper_sha256": "7d542da86a622205671c1c55a6e2a1bfdcc62b9d50e4ea1391e4bcf82ded448e",
+      "policy": {
+        "requests_per_second": 2,
+        "max_attempts": 5,
+        "timeout_seconds": 30,
+        "retry_http_statuses": [
+          429,
+          500,
+          502,
+          503,
+          504
+        ],
+        "backoff_seconds": [
+          2,
+          4,
+          8,
+          16
+        ]
+      }
+    },
+    "validated_probe_transport": {
+      "requests": 19,
+      "attempts": 19,
+      "transport_retries": 0,
+      "http_statuses": {
+        "403": 5,
+        "200": 14
+      },
+      "live_metadata_requests": 0
+    },
+    "unsupported_probe_methods": "anvil_nodeInfo and eth_getAccountInfo return HTTP 403/-32601; normal Forge fallback succeeds with each denial forwarded once"
+  },
+  "candidate_input_sha256": {
+    "ops/ci/l2-rpc-proxy.py": "7d542da86a622205671c1c55a6e2a1bfdcc62b9d50e4ea1391e4bcf82ded448e",
+    "ops/ci/contract-l2-fork.py": "884d0e86254f72521042d46432bff02b0f3d4aeefbc5c2f8cdb5603ce9be79e1",
+    "ops/ci/compare-contract-l2-fork.py": "15533e1e8c277db7f9f9aadd88da5da4574c5fcdc603892449fd57b9bd0161a2",
+    ".rwx/contract-l2-fork.yml": "fde367ddd0dc095461a7b4b629c46003d4c07ee7799d5cfa05855271fd9c2d3a",
+    "ops/ci/test_l2_rpc_proxy.py": "246159da1f9700f65cf8f8c98297ebd77fb4b34d8c9898b6754649556d1ffa7e",
+    "ops/ci/test_contract_l2_fork.py": "b0f3743dbe2e489c3ef4ff7c37526b27d54a4d4b6c957bdc6bfc668fd48decaf",
+    "ops/ci/test_compare_contract_l2_fork.py": "5f59d01ea325b79cab45af93ad04ea34094beba731f12f657b8d895d7b99f94a"
+  },
+  "retained_manifest_sha256": {
+    "circle_l2_failure": "112b0af98fd4ff5f2628777406ccf3be08dffe7f328df5f1c5813e6117dd28d7",
+    "native_l2_failure": "f8ac25ce1ec2c836a2e1721af5a72a0c59a2e0bb49a7b77d6b9c9c354cdb38b3",
+    "circle_contracts_gate_failure": "5c93046032cab58bbf1425eb3a7ae52682d808f6f5d8c04f5a9aa7f073eb34f2",
+    "selector_complete_parity": "e5ff7219a037dc5ac4748dc191d03fe9027d776ba6b73c9420ea55546967dff1",
+    "local_forge_probe": "98ddcc83a807b7905e835ad4f2b6a718b5c2180892720800c8fd9fa37dc6f5bf",
+    "local_forge_transport_originals": "afb51ab89de4cfcc0b88623b256396556c1beb6c9c7f2d5f393e82ad7881b1aa",
+    "native_root_metadata": "47aea723030cf7c4da2451e6da8eeb6312f889a0e4d521259fd26ff453d5eaa2"
+  },
+  "prior_combined_batch_terminal": true,
+  "prior_native_root_result": "failed",
+  "prior_circle_workflows": {
+    "rust-e2e-ci": "success",
+    "rust-ci": "success",
+    "contracts-feature-tests": "failed",
+    "circleci-schedule-trigger-check-workflow": "success",
+    "main": "success",
+    "selector-upload-replay": "success",
+    "setup": "success"
+  },
+  "unchanged_cannon_circle_recovery": {
+    "job": 5638801,
+    "status": "success",
+    "new_cannon_code": false
+  }
+}

@@ -23,16 +23,17 @@ def helper(name):
 
 UP = helper('contract-upgrades')
 R = helper('selector-registry')
+P = helper('l2-rpc-proxy')
 ROOT, CONTRACTS = UP.ROOT, UP.CONTRACTS
 check, digest, write = R.check, R.digest, R.write
 RPC = 'https://mainnet.optimism.io'
 MATCH = 'test/L2/fork/**'
 # Concurrent fork setup can burst public RPC requests before any assertion.
 # Keep every test, but serialize suites and bound the backend's RPC throughput.
-RUNTIME = {'threads': 1, 'compute_units_per_second': 100}
+RUNTIME = {'threads': 1, 'compute_units_per_second': 100, 'rpc_transport': P.POLICY}
 TEST_ARGS = ['--threads', str(RUNTIME['threads']), '--compute-units-per-second',
              str(RUNTIME['compute_units_per_second'])]
-IMPLEMENTATION = ('contract-l2-fork.py', 'contract-upgrades.py', 'selector-registry.py',
+IMPLEMENTATION = ('contract-l2-fork.py', 'l2-rpc-proxy.py', 'contract-upgrades.py', 'selector-registry.py',
                   'git-submodule-report.py', 'compare-rust-e2e.py')
 ADDRESS = '0x4200000000000000000000000000000000000007'
 SLOT = '0x360894a13ba1a3210667c828492db98dca3e2076cc3735a920a3ca505d382bbc'
@@ -221,10 +222,12 @@ def verdict(directory, pinned):
         elif path.exists(): path.unlink()
     status = UP.stage(directory, 'nut-bundle-check', ['just', 'nut-bundle-check-no-build'])
     if status: return status, 0
-    status = UP.stage(directory, 'tests', ['just', 'test-l2-fork-upgrade'] + TEST_ARGS)
-    if status and status < 128:
-        os.environ['JUNIT_TEST_PATH'] = str(directory / 'diagnostic.junit.xml')
-        UP.stage(directory, 'rerun', ['just', 'test-l2-fork-upgrade-rerun'] + TEST_ARGS)
+    with P.serve(directory / 'runtime-rpc', RPC) as endpoint:
+        os.environ['L2_FORK_RPC_URL'] = endpoint
+        status = UP.stage(directory, 'tests', ['just', 'test-l2-fork-upgrade'] + TEST_ARGS)
+        if status and status < 128:
+            os.environ['JUNIT_TEST_PATH'] = str(directory / 'diagnostic.junit.xml')
+            UP.stage(directory, 'rerun', ['just', 'test-l2-fork-upgrade-rerun'] + TEST_ARGS)
     if status: return status, 0
     coverage = UP.junit(directory / 'original.junit.xml', read(directory / 'selection.json'), read(directory / 'signature-bindings.json'))
     write(directory / 'coverage.json', coverage)

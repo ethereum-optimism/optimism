@@ -100,11 +100,70 @@ def preflight(directory,sha):
             'latest_discovery':latest,'original_sha256':L.files(directory)}
 
 
+def runtime_transport(directory):
+    """Validate complete paced transport originals without substituting retries."""
+    final=read(directory/'final.json');settings=read(directory/'settings.json')
+    check(set(final)=={'requests','sha256'} and type(final['requests']) is int and final['requests']>0
+          and final['sha256']==L.files(directory)
+          and json.dumps(settings,sort_keys=True)==json.dumps({'upstream':L.RPC,'policy':L.P.POLICY},sort_keys=True),
+          'Missing or corrupt L2 RPC transport originals')
+    expected={'settings.json'};attempt_count=0;retry_count=0;statuses={};stable={};previous=None;live_requests=0
+    def live(value):
+        if isinstance(value,str):return value in ('latest','pending','safe','finalized')
+        if isinstance(value,dict):return any(live(v) for v in value.values())
+        if isinstance(value,list):return any(live(v) for v in value)
+        return False
+    for number in range(final['requests']):
+        stem='request-'+str(number);path=directory/(stem+'.json');metadata=directory/(stem+'.metadata.json')
+        expected|={path.name,metadata.name};request=read(path);identity=read(metadata)
+        requests=request if isinstance(request,list) else [request]
+        check(requests and all(isinstance(r,dict) and r.get('jsonrpc')=='2.0'
+              and type(r.get('id')) in (int,str) and isinstance(r.get('method'),str)
+              and (r.get('params') is None or isinstance(r['params'],(list,dict))) for r in requests)
+              and len({r['id'] for r in requests})==len(requests)
+              and identity=={'upstream':L.RPC,'request_sha256':L.digest(path)},'Changed original runtime RPC request')
+        live_requests+=sum(live(r.get('params',[])) or r['method'] in ('eth_blockNumber','web3_clientVersion') for r in requests)
+        attempts=sorted(directory.glob(stem+'-attempt-*.metadata.json'),key=lambda p:int(p.name.split('-')[3].split('.')[0]))
+        check(1<=len(attempts)<=L.P.POLICY['max_attempts']
+              and [p.name for p in attempts]==[stem+'-attempt-'+str(n)+'.metadata.json' for n in range(1,len(attempts)+1)],
+              'Missing or excessive runtime RPC attempt')
+        retry_count+=len(attempts)-1
+        for n,metadata in enumerate(attempts,1):
+            body=directory/(stem+'-attempt-'+str(n)+'.json');expected|={body.name,metadata.name};row=read(metadata)
+            status=row['http_status'];attempt_count+=1;statuses[str(status)]=statuses.get(str(status),0)+1
+            check(set(row)=={'http_status','error','started_at','elapsed_seconds','response_sha256'}
+                  and (status is None or type(status) is int and 100<=status<=599)
+                  and (row['error'] is None or isinstance(row['error'],str))
+                  and row['response_sha256']==L.digest(body) and positive(row['started_at'])
+                  and positive(row['elapsed_seconds']), 'Changed original runtime RPC attempt')
+            check(previous is None or row['started_at']-previous>=0.4,'Runtime RPC requests exceeded the shared budget')
+            previous=row['started_at']
+            if n<len(attempts):
+                check(status is None or status in L.P.POLICY['retry_http_statuses'],'Runtime RPC retried success or permanent denial')
+            if status==200:
+                value=read(body);responses=value if isinstance(value,list) else [value]
+                by_id={r.get('id'):r for r in responses if isinstance(r,dict)}
+                check(len(by_id)==len(responses)==len(requests) and set(by_id)=={r['id'] for r in requests}
+                      and all(r.get('jsonrpc')=='2.0' and (('result' in r)!=('error' in r)) for r in responses),
+                      'Mismatched original runtime RPC response IDs or results')
+                for request in requests:
+                    response=by_id[request['id']]
+                    if 'result' not in response or live(request.get('params',[])) or request['method'] in ('eth_blockNumber','web3_clientVersion'):continue
+                    key=json.dumps([request['method'],request.get('params',[])],sort_keys=True)
+                    result=json.dumps(response['result'],sort_keys=True)
+                    stable.setdefault(key,set()).add(result)
+    check(set(final['sha256'])==expected,'Missing or extra complete runtime RPC frame')
+    return {'requests':final['requests'],'attempts':attempt_count,'transport_retries':retry_count,
+            'http_statuses':statuses,'live_metadata_requests':live_requests,
+            'stable_results':{k:sorted(v) for k,v in stable.items()}}
+
+
 def report(directory,validate_authority=True):
     final=L.original(directory);s=read(directory/'settings.json')
     check(s['branch']=='codex/rwx-ci-pilot' and s['provider'] in ('circleci','rwx')
           and (s['profile'],s['feature'],s['chain'],s['match_path'])==('ci','main','op-mainnet',L.MATCH)
-          and s['runtime']==L.RUNTIME, 'Changed complete L2 workload or RPC concurrency')
+          and json.dumps(s['runtime'],sort_keys=True)==json.dumps(L.RUNTIME,sort_keys=True),
+          'Changed complete L2 workload or RPC concurrency')
     if validate_authority:authority(s)
     check(set(s['tools'])=={'forge','cast','go','just'} and all(re.fullmatch('[0-9a-f]{64}',row['sha256'])
           and row['version'] for row in s['tools'].values()),'Missing pinned L2 tool identity')
@@ -143,10 +202,12 @@ def report(directory,validate_authority=True):
     check(read(directory/'block.json')==read(directory/'preflight/block.json'),'Changed runtime L2 preflight block')
     height=hex(pinned['block']['number']);recheck=rpc(directory,[('eth_chainId',[]),('eth_getBlockByNumber',[height,False])])
     check(recheck==pinned['common_rpc'][:2],'Changed original L2 runtime block or retry history')
+    transport=runtime_transport(directory/'runtime-rpc')
     return {'settings':s,'selection':selection,'coverage':coverage,'config':L.UP.ORIGINALS.normalize(config,s['workspace_root']),
             'submodules':L.UP.SUBMODULES.revisions((directory/'submodules.txt').read_text()),
             'compiler_methods':{k:{'methods':v['methods'],'deployable':L.UP.deployable(v)} for k,v in bindings.items()},
-            'preflight':pinned,'runtime_rpc':recheck,'commands':expected_commands,'original_sha256':L.files(directory)}
+            'preflight':pinned,'runtime_rpc':recheck,'rpc_transport':transport,
+            'commands':expected_commands,'original_sha256':L.files(directory)}
 
 
 def equal(circle,native):
@@ -157,6 +218,8 @@ def equal(circle,native):
     for key in ('selection','coverage','config','submodules','compiler_methods','runtime_rpc','commands'):
         check(c[key]==n[key],'Complete original L2 parity differs at '+key)
     for key in ('block','common_rpc'):check(c['preflight'][key]==n['preflight'][key],'Original L2 preflight parity differs at '+key)
+    cr,nr=(row['rpc_transport']['stable_results'] for row in (c,n))
+    check(all(cr[key]==nr[key] for key in cr.keys()&nr.keys()),'Original stable runtime RPC results differ')
     check(not c['preflight']['latest_discovery'], 'Circle replay must use the shared original block')
     return c,n
 
@@ -231,6 +294,8 @@ def compare(circle,native,run_path,github_path):
     return {'state':'passed','source_sha':c['settings']['source_sha'],'selection':c['selection'],'coverage':c['coverage'],
             'block':c['preflight']['block'],'commands':c['commands'],'hosted':ids,
             'original_sha256':{'circle':L.files(circle),'native':n['original_sha256']},
+            'runtime_rpc_transport':{provider:{k:v for k,v in row['rpc_transport'].items() if k!='stable_results'}
+                for provider,row in (('circleci',c),('rwx',n))},
             'block_discovery':'Complete RPC originals retain either native head discovery or the committed pilot snapshot; both providers use the same original height'}
 
 
