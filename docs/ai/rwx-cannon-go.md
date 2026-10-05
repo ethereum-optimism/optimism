@@ -49,7 +49,8 @@ and coverage, verifies native report projection and runtime dependency
 provenance, then compares both providers' complete selection, settings,
 initial assignments, outcomes, skip reasons and retry histories on one SHA.
 Only execution durations and bound absolute workspace prefixes differ in the
-comparison view; original bytes remain unchanged. A failed package or
+comparison view, apart from explicitly retained CPU visibility differences
+under the original `nproc` rule; original bytes remain unchanged. A failed package or
 TestMain, a missing terminal verdict, a foreign package, unexpected retry or
 altered command prevents parity.
 
@@ -64,7 +65,7 @@ cache observations and check states belong here after execution; scaffolding
 and fixture results do not establish full workload parity.
 
 The implementation passed eight Linux helper fixtures (including four actual
-Go/Forge execution fixtures), nine complete-report comparison fixtures and
+Go/Forge execution fixtures), ten complete-report comparison fixtures and
 35 shared routing/adapter fixtures. The existing wrapper and routing scripts
 passed ShellCheck. RWX lint checked the new run and both dependency packages
 with zero problems. Circle's merged 5,289-line config and setup config validated,
@@ -78,3 +79,26 @@ the setup parameter. The shared adapter explicitly accepts Circle's `0`/`1`
 boolean environment values as well as `true`/`false`; an actual Circle-style
 fixture exercises the fresh setting through the environment without a CLI
 override.
+
+Circle's corrected fresh benchmark 135577 at `6df00e26ca5e1ed99162ef0714b22b11f0d985ef`
+executed all 16 packages, 112 initial tests and 2,881 case identities, all passing
+without retries. Its original `nproc` returned 32 inside the 8-vCPU Docker
+allocation. RWX returned 8 on its requested 8-CPU worker. The adapter now retains
+the original CPU command/output and the comparer records this difference while
+checking every other setting and each provider's exact effective arguments.
+The module's toolchain directive selects Go 1.26.6 on both providers despite
+the Mise bootstrap's 1.26.5 pin; the actual toolchains and Go environment agree.
+
+The initial native Cannon run at `c833ae75459faf15fbf0fea3c6fbdbcc9562618c`
+completed both producers and helpers, then failed before tests because archive
+restoration tried overwriting a materialized read-only Go toolchain cache file.
+The next head reproduced that preflight failure; neither run counts as test
+coverage. Complete original failure reports and task logs remain retained;
+[first-failure evidence](rwx-cannon-go-evidence/first-failures.json) records their
+original hashes, settings and rejected setup request.
+The shared artifact restorer now verifies matching destination bytes and the
+corresponding archived payload before reusing an existing regular file. It
+preserves the read-only directory/file modes and rejects corrupt archive bytes
+even when the existing destination is correct. Six artifact helper fixtures
+pass, including repeated read-only restoration, and the live Go/Forge fixtures
+exercise this exact cache shape. Full hosted parity after the fix remains pending.

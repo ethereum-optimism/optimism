@@ -11,7 +11,7 @@ import tempfile
 SPEC = importlib.util.spec_from_file_location('cannon_go', Path(__file__).with_name('cannon-go.py'))
 G = importlib.util.module_from_spec(SPEC); SPEC.loader.exec_module(G)
 EMPTY = __import__('hashlib').sha256(b'').hexdigest()
-REQUIRED = {'settings.json', 'selection.json', 'coverage.json', 'packages.json', 'packages.log',
+REQUIRED = {'settings.json', 'selection.json', 'coverage.json', 'cpus.json', 'cpus.log', 'cpus.stage.json', 'packages.json', 'packages.log',
             'packages.stage.json', 'lint.log', 'lint.stage.json', 'list.json', 'list.log',
             'list.stage.json', 'tests.log', 'tests.stage.json', 'original.json', 'junit.xml',
             'native.json', 'native.metadata.json', 'inputs-after.json'}
@@ -53,6 +53,9 @@ def verdict(directory, provider, sha):
     effective = settings['settings']
     if effective != G.settings(provider, effective['skip_slow_tests'], True, effective['parallel']):
         raise ValueError('Cannon benchmark must execute freshly with original settings')
+    cpus = G.read(directory / 'cpus.json')
+    if type(cpus) is not int or cpus != effective['parallel']:
+        raise ValueError('Cannon concurrency differs from original nproc discovery')
     if settings['environment']['SKIP_SLOW_TESTS'] != str(effective['skip_slow_tests']).lower():
         raise ValueError('Cannon slow-test environment differs from recorded setting')
     if settings['go_environment']['GOFLAGS']:
@@ -69,7 +72,7 @@ def verdict(directory, provider, sha):
     if selection != {'packages': packages, 'initial_tests': tests,
                      'authority': 'go list ./... and go test -list ' + G.LIST_PATTERN}:
         raise ValueError('Cannon selection differs from complete original discovery')
-    expected = {'lint': ['just', 'lint'], 'packages': ['go', 'list', '-e', '-json', './...'],
+    expected = {'cpus': ['nproc'], 'lint': ['just', 'lint'], 'packages': ['go', 'list', '-e', '-json', './...'],
                 'list': ['go', 'test', '-json', *G.go_flags(effective, list_tests=True)]}
     # Reconstruct commands using the bound original absolute workspace and
     # report path. Collection directories can differ from execution directories.
@@ -111,9 +114,23 @@ def compare(root, sha):
     if not re.fullmatch('[0-9a-f]{40}', sha): raise ValueError('Expected full Cannon benchmark SHA')
     a = verdict(root / 'circle', 'circleci', sha); b = verdict(root / 'rwx', 'rwx', sha)
     settings_a, settings_b = a[0], b[0]
-    for field in ('source_sha', 'branch', 'settings', 'input_sha256', 'environment', 'go_environment', 'tool_versions'):
+    for field in ('source_sha', 'branch', 'input_sha256', 'environment', 'go_environment', 'tool_versions'):
         if settings_a[field] != settings_b[field]: raise ValueError('Complete Cannon settings parity differs: ' + field)
-    if a[1] != b[1] or a[3] != b[3]: raise ValueError('Complete Cannon discovery or invocation parity differs')
+    # Both providers honor the original nproc rule. Circle exposes the host's
+    # 32 CPUs inside an 8-vCPU Docker job; RWX exposes the requested 8 CPUs.
+    # Retain the actual values and argv, and compare every other setting.
+    if ({k:v for k,v in settings_a['settings'].items() if k != 'parallel'} !=
+            {k:v for k,v in settings_b['settings'].items() if k != 'parallel'}):
+        raise ValueError('Complete Cannon effective workload settings differ')
+    def commands(value):
+        return {k: {**v, 'argv': ['-parallel=<nproc>' if re.fullmatch(r'-parallel=\d+', arg) else arg
+                                 for arg in v['argv']]} for k,v in value.items()}
+    if a[1] != b[1] or commands(a[3]) != commands(b[3]): raise ValueError('Complete Cannon discovery or invocation parity differs')
+    differences = []
+    if settings_a['settings']['parallel'] != settings_b['settings']['parallel']:
+        differences.append({'setting': 'parallel', 'rule': 'nproc',
+            'circle': settings_a['settings']['parallel'], 'rwx': settings_b['settings']['parallel'],
+            'reason': 'Original CPU discovery differs by execution environment; requested workers remain 8 CPU / 16 GiB'})
     def cases(coverage):
         return [{k: c[k] for k in ('suite', 'name', 'outcome', 'skip_reason')} |
                 {'attempts': [{k: h[k] for k in ('outcome', 'skip_reason')} for h in c['attempts']]}
@@ -123,8 +140,9 @@ def compare(root, sha):
         raise ValueError('Original Cannon outcomes, skips or retry histories differ')
     return {'source_sha': sha, 'verified_parity': True, 'packages': len(a[1]['packages']),
             'initial_tests': sum(map(len, a[1]['initial_tests'].values())), 'case_identities': len(original_a),
-            'outcomes': a[2]['outcomes'], 'settings': settings_a['settings'], 'tool_versions': settings_a['tool_versions'],
-            'selection': a[1], 'cases': original_a, 'package_attempts': a[2]['package_attempts'], 'commands': a[3],
+            'outcomes': a[2]['outcomes'], 'settings': {'circle': settings_a['settings'], 'rwx': settings_b['settings']},
+            'settings_differences': differences, 'tool_versions': settings_a['tool_versions'],
+            'selection': a[1], 'cases': original_a, 'package_attempts': a[2]['package_attempts'], 'commands': {'circle': a[3], 'rwx': b[3]},
             'native_dependencies': b[4], 'per_test_logs': {'circle': a[2]['per_test_logs'], 'rwx': b[2]['per_test_logs']},
             'original_sha256': {'circle': a[5], 'rwx': b[5]}, 'circle_manifest_declared_empty': a[6],
             'providers': {p: {'workspace_root': x[0]['workspace_root'], 'branch': x[0]['branch'],

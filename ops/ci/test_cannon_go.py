@@ -110,6 +110,8 @@ func TestCancel(t *testing.T) {if os.Getenv("CANNON_FIXTURE_CANCEL")=="1" {t.Log
             'GOCACHE': str(self.root / '.ci/compiler'), 'GOMODCACHE': str(self.root / '.ci/go-cache/pr-checks/modules')}
         self.report = self.root / '.ci/cannon-go/run'
         module = self.root / '.ci/go-cache/pr-checks/modules/fixture'; module.parent.mkdir(parents=True); module.write_text('original module fixture')
+        module.chmod(0o444); module.parent.chmod(0o555)
+        self.addCleanup(module.parent.chmod, 0o755)
         subprocess.run(['forge', 'build', '--root', 'packages/contracts-bedrock'], cwd=self.root, env=self.environment,
                        check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
         for kind, paths in [('go-modules', ['.ci/go-cache/pr-checks/modules']),
@@ -145,7 +147,7 @@ func TestCancel(t *testing.T) {if os.Getenv("CANNON_FIXTURE_CANCEL")=="1" {t.Log
         self.assertEqual(result['packages'], 4)
         self.assertEqual(result['initial_tests'], 5)
         self.assertEqual(result['outcomes'], {'pass': 6, 'skip': 1})
-        self.assertEqual(result['settings']['count'], 1)
+        self.assertEqual(result['settings']['rwx']['count'], 1)
 
     def test_real_failure_retains_original_case_logs_and_no_retries(self):
         result = self.run_fixture(CANNON_FIXTURE_FAIL='1'); self.assertEqual(result.returncode, 1, result.stdout)

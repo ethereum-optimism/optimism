@@ -5,6 +5,7 @@ import hashlib
 import json
 import os
 from pathlib import Path
+import re
 import subprocess
 import tarfile
 import sys
@@ -65,8 +66,26 @@ def restore(kind, artifact):
     files = metadata.get('files')
     if not isinstance(files, dict) or not files:
         raise ValueError('Missing dependency file manifest')
+    for name, expected in files.items():
+        if (not isinstance(name, str) or Path(name).is_absolute() or '..' in Path(name).parts
+                or not isinstance(expected, str) or not re.fullmatch('[0-9a-f]{64}', expected)):
+            raise ValueError('Invalid dependency file manifest')
     with tarfile.open(archive) as stream:
-        stream.extractall(ROOT, filter='data')
+        def restore_member(member, destination):
+            member = tarfile.data_filter(member, destination)
+            if member is None: return None
+            path = ROOT / member.name
+            expected = files.get(member.name)
+            if expected and member.isfile() and path.is_file() and not path.is_symlink() and digest(path) == expected:
+                # Artifact dependencies can arrive with producer files already
+                # materialized. Go module directories are read-only. Reuse
+                # exact bytes, but still validate the archived file itself.
+                with stream.extractfile(member) as source:
+                    if hashlib.file_digest(source, 'sha256').hexdigest() != expected:
+                        raise ValueError('Corrupt archived dependency file')
+                return None
+            return member
+        stream.extractall(ROOT, filter=restore_member)
     for name, expected in files.items():
         path = ROOT / name
         if Path(name).is_absolute() or '..' in Path(name).parts or not path.is_file() or digest(path) != expected:

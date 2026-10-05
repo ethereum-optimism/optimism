@@ -33,6 +33,7 @@ class CompareTests(unittest.TestCase):
             'rwx_run_id': 'actual-fixture', 'rwx_task_attempt': '1'})
         raw = {'ImportPath': self.package, 'Dir': str(root / 'cannon/fixture')}
         (d / 'packages.json').write_text(json.dumps(raw))
+        self.write(d / 'cpus.json', 16)
         rows = G.packages(json.dumps(raw), root, d / 'source')
         listing = [{'Package': self.package, 'Action': 'start'},
             {'Package': self.package, 'Action': 'output', 'Output': 'TestOne\n'},
@@ -52,7 +53,7 @@ class CompareTests(unittest.TestCase):
         ET.SubElement(suite, 'testcase', classname=self.package, name='TestOne', time='.01')
         ET.ElementTree(suite).write(d / 'junit.xml')
         report = root / '.ci/cannon-go/run'
-        args = {'lint': ['just', 'lint'], 'packages': ['go', 'list', '-e', '-json', './...'],
+        args = {'cpus': ['nproc'], 'lint': ['just', 'lint'], 'packages': ['go', 'list', '-e', '-json', './...'],
             'list': ['go', 'test', '-json', *G.go_flags(effective, list_tests=True)],
             'tests': [str(root / 'ops/scripts/gotestsum-split.sh'), '--format=testname',
                       '--junitfile=' + str(report / 'junit.xml'), '--jsonfile=' + str(report / 'original.json'), '--', *G.go_flags(effective)]}
@@ -150,6 +151,19 @@ class CompareTests(unittest.TestCase):
             tree = ET.parse(d / 'junit.xml'); ET.SubElement(next(tree.iter('testcase')), 'skipped', message=reason)
             tree.write(d / 'junit.xml'); self.account(d); self.seal(d)
         with self.assertRaisesRegex(ValueError, 'skips'): self.compare()
+
+    def test_actual_nproc_difference_is_retained_without_changing_selection(self):
+        d = self.root / 'rwx'; path = d / 'settings.json'; value = G.read(path)
+        value['settings']['parallel'] = 8; self.write(path, value); self.write(d / 'cpus.json', 8)
+        for name in ('list', 'tests'):
+            path = d / (name + '.stage.json'); value = G.read(path)
+            value['argv'] = [arg.replace('-parallel=16', '-parallel=8') for arg in value['argv']]
+            self.write(path, value)
+        self.seal(d); result = self.compare()
+        self.assertEqual(result['settings_differences'][0]['circle'], 16)
+        self.assertEqual(result['settings_differences'][0]['rwx'], 8)
+        self.write(d / 'cpus.json', 32); self.seal(d)
+        with self.assertRaisesRegex(ValueError, 'nproc'): self.compare()
 
 
 if __name__ == '__main__': unittest.main()

@@ -5,6 +5,8 @@ import json
 import os
 from pathlib import Path
 import tempfile
+import tarfile
+import io
 import unittest
 from unittest.mock import patch
 
@@ -62,5 +64,26 @@ class GoArtifactsTest(unittest.TestCase):
         with self.assertRaises(ValueError): ART.pack('go', ['absent'])
         with patch.dict(os.environ, CI_COMMIT_SHA='b'*40):
             with self.assertRaises(ValueError): ART.pack('go', ['fixture'])
+
+    def test_readonly_materialized_cache_is_verified_without_overwriting(self):
+        binary = self.root / 'fixture/binary'; directory = binary.parent
+        binary.chmod(0o444); directory.chmod(0o555)
+        self.addCleanup(directory.chmod, 0o755)
+        inode, changed = binary.stat().st_ino, binary.stat().st_mtime_ns
+        ART.restore('go', self.artifact); ART.restore('go', self.artifact)
+        self.assertEqual(binary.stat().st_ino, inode)
+        self.assertEqual(binary.stat().st_mtime_ns, changed)
+        self.assertEqual(binary.stat().st_mode & 0o777, 0o444)
+        self.assertEqual(directory.stat().st_mode & 0o777, 0o555)
+        self.assertEqual(binary.read_text(), 'compiled')
+
+    def test_matching_destination_cannot_hide_corrupt_archived_bytes(self):
+        archive = self.artifact / 'files.tar.gz'; data = b'corrupt'
+        with tarfile.open(archive, 'w:gz') as stream:
+            member = tarfile.TarInfo('fixture/binary'); member.size = len(data)
+            stream.addfile(member, io.BytesIO(data))
+        path = self.artifact / 'metadata.json'; metadata = json.loads(path.read_text())
+        metadata['archive_sha256'] = ART.digest(archive); path.write_text(json.dumps(metadata))
+        with self.assertRaisesRegex(ValueError, 'archived dependency'): ART.restore('go', self.artifact)
 
 if __name__ == '__main__': unittest.main()
