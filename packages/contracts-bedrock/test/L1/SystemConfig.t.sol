@@ -817,9 +817,10 @@ contract SystemConfig_SetFeature_Test is SystemConfig_TestInit {
     /// @param _byOwner Whether to call as the ProxyAdmin owner instead of the ProxyAdmin.
     function testFuzz_setFeature_interopDisable_reverts(bool _byOwner) external {
         address caller = _byOwner ? systemConfig.proxyAdminOwner() : address(systemConfig.proxyAdmin());
-        stdstore.target(address(systemConfig)).sig("isFeatureEnabled(bytes32)").with_key(Features.INTEROP).checked_write(
-            true
-        );
+        stdstore.target(address(systemConfig))
+            .sig("isFeatureEnabled(bytes32)")
+            .with_key(Features.INTEROP)
+            .checked_write(true);
         vm.expectRevert(ISystemConfig.SystemConfig_InvalidFeatureState.selector);
         vm.prank(caller);
         systemConfig.setFeature(Features.INTEROP, false);
