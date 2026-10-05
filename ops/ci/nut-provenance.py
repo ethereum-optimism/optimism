@@ -133,8 +133,8 @@ def execute(provider,full,prepare=False,module_artifact=None,tool_artifact=None)
         branch=os.environ.get('CI_BRANCH') or os.environ.get('CIRCLE_BRANCH')
         if not branch or os.environ.get('GOFLAGS'):raise ValueError('Missing NUT branch or overridden Go flags')
         if provider=='rwx' and (not re.fullmatch('[0-9a-f]{32}',os.environ.get('RWX_RUN_ID',''))
-                or os.environ.get('RWX_TASK_ATTEMPT_NUMBER')!='1'):
-            raise ValueError('Missing native NUT run identity or fresh task attempt')
+                or not re.fullmatch('[1-9][0-9]*',os.environ.get('RWX_TASK_ATTEMPT_NUMBER',''))):
+            raise ValueError('Missing native NUT run identity or invalid task attempt')
         before=M.inputs()
         settings={'suite':'nut-provenance','source_sha':sha,'branch':branch,'provider':provider,'prepare_only':prepare,
             'input_sha256':before,'workspace_root':str(ROOT),'environment':{k:os.environ.get(k) for k in ENVIRONMENT},

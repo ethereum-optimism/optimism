@@ -2,11 +2,12 @@
 
 The optional `optimism-contract-l2-fork-shadow` implements the complete original
 `contracts-bedrock-tests-l2-fork op-mainnet` workload. Complete hosted same-SHA
-original result parity passes at `3be585cb`, but Circle's runtime relay was
-bypassed. The corrected shell environment awaits combined hosted verification.
-The [prior comparison](rwx-contract-l2-fork-evidence/parity.json) retains the full
-source, command, compiler, test, block and RPC evidence; it adds no current
-coverage until effective runtime transport parity is verified.
+original parity passes at `f821983dd56cbd7e488ab903d1ac386a330de7f6`. Both
+providers execute all seven initial cases and retain all 407 runtime relay
+requests, with zero diagnostic reruns, transport retries or HTTP 429s.
+The [complete comparison](rwx-contract-l2-fork-evidence/parity.json) retains
+source, commands, compiler, selection, settings, block, RPC and original results.
+This closes the L2 fork occurrence in the 86-job baseline.
 
 The definition follows shared Contracts routing. It retains profile `ci`, main
 features, every `test/L2/fork/**` signature and compiler artifact, original
@@ -164,5 +165,18 @@ seconds. Native compilation executed in 19 seconds and its fresh verdict task
 executed in 240 seconds on 16 CPUs / 32 GiB. These observations have different
 runtime transport paths and do not establish a provider speed comparison. The
 prior Contracts aggregate comparison also retains all 21 exact prerequisites
-and its fresh final status. Both occurrences await one combined verification of
-the corrected runtime path.
+and its fresh final status. The corrected combined verification below supersedes
+that runtime-path evidence.
+
+The corrected combined batch at `f821983d` proves the actual nested-shell fix.
+Circle pipeline 135650, original [job 5639942](https://circleci.com/gh/ethereum-optimism/optimism/5639942),
+and native [run 7a0f17fd](https://cloud.rwx.com/optimism/runs/7a0f17fd80244703bc3b2a25c941c2da)
+both pass all seven initial cases and preserve the same complete settings,
+compiler artifacts, commands and pinned block. Each report contains all 407
+relay requests and attempts: 394 HTTP 200 responses and thirteen original HTTP
+403 capability denials. Forge's existing fallback succeeds; the relay retries
+neither denial. Both providers record zero HTTP 429s and zero transport retries.
+Complete original collections and sealed reports pass the strict reader. Both
+genuine Contracts gates also pass their 21 prerequisites. The historical
+[3be5 comparison](rwx-contract-l2-fork-evidence/3be5-batch-parity.json) and complete
+first failures remain retained; no original failed verdict was replaced.

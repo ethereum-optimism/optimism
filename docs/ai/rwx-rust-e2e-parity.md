@@ -122,3 +122,12 @@ unchanged from the preceding fully green `fd426d87` head. The
 retains every report seal and terminal check counts. Diagnosis remains open;
 no retry or test relaxation has been added. Earlier verified same-SHA parity
 remains bound to its documented revisions, and this head is not fully green.
+
+The runtime aggregate records each shard's actual task attempt and accepts a
+successful fresh native retry. Complete original invocations, cases, discovery,
+shard assignment and dependency provenance decide the verdict. A retried shard
+with a failed original status still fails. Eight aggregate fixtures pass,
+including mixed first/second attempts and a later failed retry. Eight strict
+provider-comparison fixtures also pass; that reader retains its requirement for
+first-attempt original benchmark evidence. The combined coverage closeout
+retains the source-clone timeout and its native-only retry history.

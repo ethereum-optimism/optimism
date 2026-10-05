@@ -187,7 +187,7 @@ class ProvenanceTests(unittest.TestCase):
         path.write_text('{"entries":{},"entries":{}}')
         with self.assertRaises(ValueError):N.G.read(path)
 
-    def executor(self,argv,**kwargs):
+    def executor(self,argv,provider='circleci',**kwargs):
         selection=N.discover(self.root,True);selection[0]['go_argv']=argv
         command=N.command
         def call(*args,**params):return 'fixture Go' if args==('go','version') else command(*args,**params)
@@ -195,9 +195,26 @@ class ProvenanceTests(unittest.TestCase):
         def run(directory,name,args,**params):return 0 if name in ('tool-prepare','compiler-prepare') else stage(directory,name,args,**params)
         with patch.dict(os.environ,self.env),patch.object(N,'command',side_effect=call),patch.object(N,'discover',return_value=selection),\
                 patch.object(N,'prefix',return_value=[]),patch.object(N,'tool_identity',return_value={}),patch.object(N,'compiler_identity',return_value=None),patch.object(N.S,'stage',side_effect=run):
-            result=N.execute('circleci',True,**kwargs)
-        directory=self.root/'.ci/nut-provenance/run'
+            result=N.execute(provider,True,**kwargs)
+        directory=self.root/'.ci/nut-provenance'/('toolchain' if kwargs.get('prepare') else 'run')
         return result,directory,N.G.read(directory/'final.json')
+
+    def test_native_preparation_retry_retains_attempt_and_runtime_dependencies_still_required(self):
+        self.env['RWX_TASK_ATTEMPT_NUMBER']='2'
+        result,directory,final=self.executor([],provider='rwx',prepare=True)
+        self.assertEqual(result,0);self.assertEqual(final['exit_code'],0)
+        self.assertEqual(N.G.read(directory/'settings.json')['rwx_task_attempt'],'2')
+        self.assertEqual(N.G.read(directory/'selection.json')['selected_forks'],['karst'])
+        self.assertEqual(N.originals(directory)['tests'],0)
+        for attempt in ('','0','01','-1','unbound'):
+            self.env['RWX_TASK_ATTEMPT_NUMBER']=attempt
+            result,directory,final=self.executor([],provider='rwx',prepare=True)
+            self.assertEqual(result,1)
+            self.assertIn('invalid task attempt',final['report_errors'][0])
+        self.env['RWX_TASK_ATTEMPT_NUMBER']='3'
+        result,directory,final=self.executor([],provider='rwx')
+        self.assertEqual(result,1)
+        self.assertIn('requires verified modules and historical tools',final['report_errors'][0])
 
     def test_actual_successful_process_with_invalid_reports_returns_failure(self):
         result,directory,final=self.executor([sys.executable,'-c',"print('actual successful fixture subprocess')"])

@@ -39,8 +39,10 @@ def validate(release, reports, sha, *, provider='rwx'):
         if job not in grouped or record['settings'] != E2E.settings(job) or record['source_sha'] != sha:
             raise ValueError('E2E source, job or settings mismatch')
         if record['provider'] != provider: raise ValueError('E2E provider mismatch')
-        if provider == 'rwx' and (not record['rwx_run_id'] or str(record['rwx_task_attempt']) != '1'):
-            raise ValueError('Missing fresh E2E run identity or uninvestigated task retry')
+        if provider == 'rwx' and (not record['rwx_run_id']
+                or not isinstance(record['rwx_task_attempt'], str)
+                or not re.fullmatch('[1-9][0-9]*', record['rwx_task_attempt'])):
+            raise ValueError('Missing fresh E2E run identity or invalid task attempt')
         E2E.invocations(record, directory)
         if observed['missing'] or observed['extra'] or observed['duplicates'] or observed['assigned'] != record['assigned_tests']:
             raise ValueError('Incomplete E2E test coverage')
@@ -73,6 +75,9 @@ def validate(release, reports, sha, *, provider='rwx'):
             raise ValueError('E2E shard discovery differs')
         if assigned != Counter(names): raise ValueError('E2E initial selection is not assigned exactly once')
         summary[job] = {'top_level_tests': len(names), 'shards': len(rows), 'fresh': True, 'retries': 0}
+        if provider == 'rwx':
+            summary[job]['task_attempts'] = {str(r['shard_index']): r['rwx_task_attempt']
+                                          for r in sorted(rows, key=lambda row: row['shard_index'])}
     return {'source_sha': sha, 'suite': 'rust-e2e', 'jobs': summary,
             'release_packages': len(coverage['packages']), 'release_targets': len(coverage['targets']), 'passed': True}
 

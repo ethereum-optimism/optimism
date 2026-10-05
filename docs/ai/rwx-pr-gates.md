@@ -1,12 +1,10 @@
 # Optional native PR gates
 
-Circle continues to own its four required gates. The native Rust aggregate has
-complete same-SHA original gate parity and successful terminal GitHub checks at
-`68f13331`. The complete Main aggregate now passes original gate parity and
-successful terminal GitHub checks at `4ae28fd9`. The Contracts aggregate passes
-original gate parity at `3be585cb`, but its L2 dependency needs a corrected
-Circle runtime relay verification. Rust and Main remain counted; the Contracts
-occurrence awaits the combined corrected run. Circle retains required-gate ownership.
+Circle continues to own its four required gates. Complete same-SHA original
+gate parity passes for Rust at `68f13331`, Main at `4ae28fd9` and Contracts at
+`f821983d`. The corrected Contracts comparison includes the complete L2 runtime
+relay evidence. All 86 baseline PR occurrences now have resolved workload
+parity; final-head check readiness is tracked in the single draft PR.
 
 `pr-gates.yml` embeds sixteen existing workload definitions in parallel. Each
 executes once, with its original source, tools, profiles, resources, caches and
@@ -36,8 +34,11 @@ task states and file hashes. They perform zero tests and are absent from warming
 
 The aggregate waits for the embedded runs to reach terminal states, then evaluates
 their actual scoped receipts. It validates every original sealed report against its
-own exact source SHA, branch, complete inputs, native run identity, task attempt
-and selection. Missing, extra, duplicate, corrupt, resealed stale or foreign
+own exact source SHA, branch, complete inputs, native run identity and selection.
+Each task retains its own positive attempt number. A prerequisite retry can
+rerun an observer without rerunning every receipt; their attempt numbers are
+independent. Latest engine-bound terminal states decide success. A later failed,
+canceled or skipped selected receipt still fails the gate. Missing, extra, duplicate, corrupt, resealed stale or foreign
 originals cannot pass. It records exactly one result for each original Circle
 dependency. A failed or never-started receipt uses a separate failure observer
 that retains the available engine states without requiring a nonexistent artifact.
@@ -49,7 +50,7 @@ cannot stand in for an executed selected workload. Native embedded runs provide
 these dependencies directly; the gate requires no external status polling,
 installation token or extra credential.
 
-Seventeen real Git/YQ fixtures pass: authoritative selection, exact coordinator
+Nineteen real Git/YQ fixtures pass: authoritative selection, exact coordinator
 bindings, selected failure/skip handling, complete original aggregation, resealed
 provenance, missing/corrupt/duplicate/extra and incorrectly typed originals,
 failed/never-started receipt collection, genuine zero-test safe skips, all Main
@@ -132,10 +133,14 @@ unique, all required jobs must pass, and the original executed verifier must
 report exactly those jobs. Compiled always-successful gates, truncated or
 incomplete logs, failed/skipped prerequisites, stale source/settings, corrupt or
 unsealed files, cached native verdicts and foreign GitHub checks fail comparison.
-Every native receipt and the final status must execute freshly. Seven additional
+Every native receipt and the final status must execute freshly. Eight additional
 real Git/YQ comparison fixtures pass, including source link modes, an unrelated
 Main-only failure, and deliberately invalid provider evidence. They add no
-coverage. The automatic coordinator runs all 21 gate and comparison fixtures.
+coverage. The automatic coordinator runs all 27 gate and comparison fixtures.
+The strict hosted parity reader still requires first-attempt successful gate
+evidence; allowing runtime retries does not turn retry history into an original
+first pass. Runtime fixtures exercise failed, successful retried and later failed
+receipts with independent receipt, aggregate and final-status attempts.
 
 
 The final Contracts aggregate maps all four standard variants, four modified-file
@@ -188,7 +193,7 @@ Circle pipeline 135642, workflow `090b330c-310b-42c4-a656-4d0149c59014`, origina
 [job 5639666](https://circleci.com/gh/ethereum-optimism/optimism/5639666) passes
 its genuine verifier with those same 21 dependency names. Both optional native
 and required Circle Contracts checks finish successfully on that SHA.
-The [complete original comparison](rwx-pr-gates-evidence/contracts-parity.json)
+The [historical original comparison](rwx-pr-gates-evidence/3be5-contracts-parity.json)
 binds every receipt, source/config/API/log hash and the actual engine and GitHub
 states. The aggregate and final-status archives were downloaded through the
 existing signed-in account. This historical comparison adds zero tests. The
@@ -197,5 +202,29 @@ native GitHub HTTP 504 clone failure before tests. The L2 runner now keeps the
 initialized shell snapshot. A shared native Contracts source producer supplies
 all compilation and verdict workers; existing consumers verify source hashes
 and submodule revisions without cloning again. The [corrective preflight](rwx-pr-gates-evidence/contracts-shell-preflight.json)
-retains these first failures and local verification. Both the L2 and Contracts
-gate occurrences await one combined hosted run; verified coverage is 84/86.
+retains these first failures and local verification. The corrected combined comparison below closes both occurrences.
+
+The combined batch at `f821983dd56cbd7e488ab903d1ac386a330de7f6` passes the
+complete corrected Contracts comparison. Native
+[run 7a0f17fd](https://cloud.rwx.com/optimism/runs/7a0f17fd80244703bc3b2a25c941c2da)
+executes all 21 actual prerequisites, five fresh receipts, the aggregate and its
+one final status. Circle pipeline 135650, workflow
+`f1d9e5b7-92bd-4029-93cc-652f0072c98a`, original
+[job 5639949](https://circleci.com/gh/ethereum-optimism/optimism/5639949) passes the
+genuine verifier for those same 21 dependencies. The
+[complete comparison](rwx-pr-gates-evidence/contracts-parity.json) retains every
+source/config/API/log/receipt hash, original engine state and successful GitHub
+gate observation. The aggregate and status archives were downloaded using the
+existing signed-in account; no credential scope changed. This closes one gate
+occurrence and adds zero tests.
+
+That enclosing run's Main observer subsequently failed after a native Kontrol
+helper retry. The actual Kontrol workload had passed. Its fixture originally
+hit a Go toolchain TLS download timeout; all six fixtures passed on the retained
+native-only retry. The observer's first-attempt-only identity check then rejected
+its own second attempt despite successful selected receipts. Gate decisions now
+follow the latest engine states, with independent attempt numbers retained as
+provenance. The [coverage closeout](rwx-pr-gates-evidence/f821-coverage-closeout.json)
+retains these full first failure logs, the separate Rust E2E source clone timeout
+and all 27 local gate/comparison fixture results. Final head readiness is tracked
+in PR #23151; no per-job Circle replay was dispatched.

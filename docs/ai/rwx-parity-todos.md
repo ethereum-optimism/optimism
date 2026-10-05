@@ -36,51 +36,54 @@ The October 5 refresh observes `develop` at
 `b9ae98c8f1a6cef46576f48831a8e51c53f87023`, with no upstream Circle or GitHub
 workflow changes since the pilot's `c8e4ba85` base. The PR denominator remains 86.
 
-All 86 occurrences are implemented. Verified coverage is 84/86 while the
-corrected L2 execution and dependent Contracts gate await combined verification.
-The prior successful batch at `3be585cb02466304dc1bd4b33a62ad2258f81ba4`
-retains complete original comparisons for:
-[OP Mainnet L2 fork](rwx-contract-l2-fork-evidence/parity.json) and the
-[Contracts aggregate](rwx-pr-gates-evidence/contracts-parity.json).
-Circle pipeline 135642 and automatic native run `d287cd4e` both passed all seven
-initial L2 cases, with zero skips or diagnostic reruns. Their complete selection,
-compiler bindings, settings, pinned block, original results and command histories
-agree. Both genuine Contracts gates passed all 21 exact prerequisites.
-The [selector comparison](rwx-selector-upload-evidence/3be5-batch-parity.json)
-also passes on this SHA, including all 1,120 fresh database rows and API readbacks.
+All **86 / 86 baseline PR job occurrences** are implemented, fully executed on
+native RWX and supported by resolved same-SHA original-report parity. The last
+three jobs were verified together at `f821983dd56cbd7e488ab903d1ac386a330de7f6`:
+[OP Mainnet L2 fork](rwx-contract-l2-fork-evidence/parity.json),
+[Contracts aggregate](rwx-pr-gates-evidence/contracts-parity.json) and
+[selector uploader](rwx-selector-upload-evidence/f821-batch-parity.json).
 
-The prior [preparation timeout](rwx-pr-gates-evidence/contracts-first-batch.json),
-[public RPC and module-proxy failures](rwx-pr-gates-evidence/contracts-second-batch.json)
-and [backoff-only failures](rwx-pr-gates-evidence/contracts-pacing-preflight.json)
-remain retained. The shared L2 relay proactively paces upstream requests.
-Native retained 407 requests with zero transport retries or rate-limit responses.
-Circle's sealed relay report contains zero requests. The next combined batch
-at `30a54d78` revealed that nested Bash shells reload Circle's `BASH_ENV` and
-restore the public RPC URL over the runner's loopback URL. The earlier warm-cache
-attribution was incorrect. The runner now retains the caller's initialized
-environment and its own runtime overrides. A real Bash regression and pinned
-Forge probe verify this fix locally. The [corrective preflight](rwx-pr-gates-evidence/contracts-shell-preflight.json)
-retains the failed batch and adds zero hosted coverage. These observations
-support no provider speed claim.
+Circle pipeline 135650 and the native coordinator pass all seven initial L2
+cases, with zero skips or diagnostic reruns. Both retain all 407 runtime relay
+requests, zero transport retries and zero HTTP 429s. Both genuine Contracts
+gates pass the same 21 exact prerequisites. The selector comparison verifies the
+complete compiler catalogues, all 1,120 fresh database rows and API readbacks.
+The [coverage closeout](rwx-pr-gates-evidence/f821-coverage-closeout.json) retains
+complete original hashes, all four successful required Circle gates, dependency
+review and the remaining native check failures from this batch.
 
-The [prior PR verification batch](rwx-pr-gates-evidence/pr-closeout.json)
-records successful terminal states for all four required Circle gates, dependency
-review and all 23 optional RWX checks at `3be585cb`. It is superseded for closeout
-by the discovered Circle runtime override failure. At `30a54d78`, the other
-three Circle gates passed; L2 and both Contracts gates failed. A native contract
-verdict also failed before tests on repeated GitHub HTTP 504 submodule clones.
-One shared source producer now supplies compilation and runtime, whose existing
-revision checks verify the retained submodule snapshot.
+Full workload parity and final-head readiness are separate. The same batch's
+native Main observer rejected a retry after a Go toolchain download timed out;
+a separate Rust E2E source clone reached its limit after a GitHub HTTP 504.
+Complete first failure logs remain retained. The gate now follows current
+engine-bound receipts and retains independent task attempts. Twenty-seven real
+Git/YQ gate and original-report fixtures pass, including a failed receipt,
+successful retry and later failing retry. Final head checks are tracked in the
+single draft PR; Circle remains responsible for required gates.
+
+Earlier combined failures remain retained in the
+[preparation timeout](rwx-pr-gates-evidence/contracts-first-batch.json),
+[public RPC and module-proxy failures](rwx-pr-gates-evidence/contracts-second-batch.json),
+[backoff-only failures](rwx-pr-gates-evidence/contracts-pacing-preflight.json) and
+[shell/source correction](rwx-pr-gates-evidence/contracts-shell-preflight.json).
+Circle's zero-request relay report at `3be585cb` resulted from nested Bash
+reloading `BASH_ENV`, which restored the public endpoint over the loopback URL.
+The earlier warm-cache attribution was incorrect. Its corrected historical
+[L2 comparison](rwx-contract-l2-fork-evidence/3be5-batch-parity.json),
+[Contracts comparison](rwx-pr-gates-evidence/3be5-contracts-parity.json) and
+[check snapshot](rwx-pr-gates-evidence/pr-closeout.json) remain preserved.
+The verified `f821983d` comparisons supersede that closeout. These task
+observations establish no provider speed claim.
 
 | PR workflow | Expanded job instances | Verified job occurrences |
 | --- | ---: | ---: |
 | Main | 32 | 32 |
-| Contracts | 23 | 21 |
+| Contracts | 23 | 23 |
 | Rust | 22 | 22 |
 | Rust E2E | 9 | 9 |
-| Total | 86 | 84 |
+| Total | 86 | 86 |
 
-Verified implementation coverage is **84 / 86 = 97.7%**. Each matrix entry and
+Verified implementation coverage is **86 / 86 = 100%**. Each matrix entry and
 each occurrence in a different workflow counts separately; shards do not.
 The CircleCI setup and schedule-trigger-check workflows are outside this
 86-job denominator and have separate todos. This is occurrence coverage backed
@@ -160,7 +163,8 @@ tasks, original verifier output and both terminal GitHub checks. See the
 [gate closeout](rwx-pr-gates.md). The full Main aggregate also passes complete
 same-SHA original gate comparison at `4ae28fd9`, including every one of its 19
 dependencies, twelve Go and sixteen acceptance shards, all ten receipts and
-both terminal GitHub gate checks. Two occurrences remain: L2 fork and the Contracts aggregate. Circle continues
+both terminal GitHub gate checks. The complete L2 fork and Contracts aggregate
+now pass their corrected combined comparison at `f821983d`. Circle continues
 to own every required gate.
 The narrower rollup mode remains CLI-only. See [the stage closeout](rwx-go-parity.md)
 for original-report comparison, selected resources, caches and limitations.
@@ -344,9 +348,9 @@ CircleCI workflow: `contracts-feature-tests` (23 jobs).
 - [x] `contracts-bedrock-tests-upgrade op-mainnet`
 - [x] `contracts-bedrock-tests-upgrade ink-mainnet`
 - [x] `contracts-bedrock-tests-upgrade unichain-mainnet`
-- [ ] `contracts-bedrock-tests-l2-fork op-mainnet` — [original evidence and corrective verification](rwx-contract-l2-fork.md); Circle runtime override fix awaits combined hosted verification
+- [x] `contracts-bedrock-tests-l2-fork op-mainnet` — [complete L2 closeout](rwx-contract-l2-fork.md); corrected same-SHA parity at `f821983d`, all seven initial cases and all 407 runtime relay requests on both providers
 - [x] `contracts-bedrock-checks-fast-feature-tests`
-- [ ] `required-contracts-ci` — [original aggregate evidence](rwx-pr-gates.md); corrected complete prerequisites and fresh final status await combined hosted verification
+- [x] `required-contracts-ci` — [complete aggregate closeout](rwx-pr-gates.md); corrected same-SHA parity at `f821983d`, all 21 exact prerequisites and genuine fresh final statuses
 
 ### Rust workflow
 

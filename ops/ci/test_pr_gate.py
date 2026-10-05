@@ -114,12 +114,64 @@ class GateTests(unittest.TestCase):
 
     def test_resealed_stale_sha_branch_run_inputs_and_selection_cannot_pass(self):
         env=self.reports();artifact=Path(env['GROUP_RUST_FMT_REPORT']);original=G.read(artifact/'settings.json')
-        for field,value in [('source_sha','b'*40),('branch','foreign-branch'),('native_run_id','b'*32),('input_sha256',{}),('selected',False),('selected',1),('definition',{}),('task_attempt','2')]:
+        for field,value in [('source_sha','b'*40),('branch','foreign-branch'),('native_run_id','b'*32),('input_sha256',{}),('selected',False),('selected',1),('definition',{}),('task_attempt','0'),('task_attempt',2)]:
             changed=copy.deepcopy(original);changed[field]=value;G.S.write(artifact/'settings.json',changed);self.reseal(artifact)
             result,output,_=self.run_aggregate(env);self.assertEqual(result,1)
             self.assertTrue(G.read(output/'final.json')['report_errors'])
         G.S.write(artifact/'settings.json',original);self.reseal(artifact)
         self.assertEqual(self.run_aggregate(env)[0],0)
+
+    def test_gate_follows_retried_receipts_and_retains_independent_task_attempts(self):
+        gate='ci-gate';group='main-kontrol';env=self.reports(gate=gate)
+        original={**self.env,'GROUP_SELECTED':'true'}
+        for task in G.group_tasks(self.manifest,group):
+            for attribute in ('succeeded','failed','skipped'):
+                original['TASK_'+task.upper().replace('-','_')+'_'+attribute.upper()]=str(attribute=='succeeded').lower()
+        task=G.group_tasks(self.manifest,group)[0]
+        original['TASK_'+task.upper().replace('-','_')+'_SUCCEEDED']='false'
+        original['TASK_'+task.upper().replace('-','_')+'_FAILED']='true'
+        with patch.dict(os.environ,original):self.assertEqual(G.receipt(group),1)
+        prefix='GROUP_'+group.upper().replace('-','_')
+        failed={**env,prefix+'_SUCCEEDED':'false',prefix+'_FAILED':'true'}
+        result,output,_=self.run_aggregate(failed,failed=True,gate=gate)
+        self.assertEqual(result,1);self.assertTrue(G.read(output/'final.json')['report_errors'])
+
+        original.update({'RWX_TASK_ATTEMPT_NUMBER':'2',
+                         'TASK_'+task.upper().replace('-','_')+'_SUCCEEDED':'true',
+                         'TASK_'+task.upper().replace('-','_')+'_FAILED':'false'})
+        with patch.dict(os.environ,original):self.assertEqual(G.receipt(group),0)
+        env['RWX_TASK_ATTEMPT_NUMBER']='3'
+        result,output,record=self.run_aggregate(env,gate=gate)
+        self.assertEqual(result,0);self.assertEqual(record['state'],'passed')
+        self.assertEqual(G.read(output/'settings.json')['task_attempt'],'3')
+        self.assertEqual(G.read(output/'groups'/group/'settings.json')['task_attempt'],'2')
+        self.assertEqual(G.read(output/'groups/main-go/settings.json')['task_attempt'],'1')
+        G.originals(output)
+
+        published={**env,'RWX_TASK_ATTEMPT_NUMBER':'4'}
+        for observer,state in [('aggregate','succeeded'),('gate-failure','skipped')]:
+            for attribute in ('succeeded','failed','skipped'):
+                published['OBSERVER_'+observer.upper().replace('-','_')+'_'+attribute.upper()]=str(state==attribute).lower()
+        with patch.dict(os.environ,published):self.assertEqual(G.gate_status(gate),0)
+        status=self.root/'.ci/pr-gates/status'/gate
+        self.assertEqual(G.read(status/'settings.json')['task_attempt'],'4')
+        G.originals(status)
+
+        original['RWX_TASK_ATTEMPT_NUMBER']='5'
+        original['TASK_'+task.upper().replace('-','_')+'_SUCCEEDED']='false'
+        original['TASK_'+task.upper().replace('-','_')+'_FAILED']='true'
+        with patch.dict(os.environ,original):self.assertEqual(G.receipt(group),1)
+        failed['RWX_TASK_ATTEMPT_NUMBER']='6'
+        self.assertEqual(self.run_aggregate(failed,failed=True,gate=gate)[0],1)
+        published.update({'RWX_TASK_ATTEMPT_NUMBER':'7','OBSERVER_AGGREGATE_SUCCEEDED':'false',
+                          'OBSERVER_AGGREGATE_SKIPPED':'true','OBSERVER_GATE_FAILURE_SUCCEEDED':'true',
+                          'OBSERVER_GATE_FAILURE_SKIPPED':'false'})
+        with patch.dict(os.environ,published):self.assertEqual(G.gate_status(gate),1)
+
+    def test_binding_rejects_invalid_engine_attempt_numbers(self):
+        for attempt in ('','0','01','-1','1.0','unbound'):
+            with self.subTest(attempt=attempt),patch.dict(os.environ,self.env|{'RWX_TASK_ATTEMPT_NUMBER':attempt}):
+                with self.assertRaisesRegex(ValueError,'invalid task attempt'):G.binding()
 
     def test_corrupt_missing_duplicate_and_extra_originals_cannot_pass(self):
         env=self.reports();artifact=Path(env['GROUP_RUST_FMT_REPORT']);states=(artifact/'states.json').read_bytes()

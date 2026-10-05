@@ -172,13 +172,22 @@ def configuration(gate=None):
     return manifest,selections
 
 
+def task_attempt(value):
+    return isinstance(value, str) and re.fullmatch('[1-9][0-9]*', value) is not None
+
+
 def binding():
+    """Retain this task's attempt; current engine states decide the verdict.
+
+    RWX reruns downstream observers after a prerequisite retry. Receipts and
+    observers have independent attempt counters in the same source-bound run.
+    """
     sha=subprocess.check_output(['git','rev-parse','HEAD'],cwd=ROOT,text=True).strip()
     if sha!=os.environ['CI_COMMIT_SHA'] or not re.fullmatch('[0-9a-f]{40}',sha) or subprocess.call(['git','diff','--quiet','HEAD'],cwd=ROOT):
         raise ValueError('Stale or changed native gate source')
     if (not os.environ['CI_BRANCH'] or not re.fullmatch('[0-9a-f]{32}',os.environ['RWX_RUN_ID'])
-            or os.environ['RWX_TASK_ATTEMPT_NUMBER']!='1'):
-        raise ValueError('Missing native gate identity or uninvestigated retry')
+            or not task_attempt(os.environ['RWX_TASK_ATTEMPT_NUMBER'])):
+        raise ValueError('Missing native gate identity or invalid task attempt')
     return {'source_sha':sha,'branch':os.environ['CI_BRANCH'],'input_sha256':M.inputs(),
             'native_run_id':os.environ['RWX_RUN_ID'],'task_attempt':os.environ['RWX_TASK_ATTEMPT_NUMBER']}
 
@@ -236,7 +245,7 @@ def aggregate(gate,failed_only=False):
             if set(final['original_sha256'])!={'settings.json','states.json'}:
                 raise ValueError('Missing or extra native receipt original')
             if (any(source[k]!=settings[k] for k in ('source_sha','branch','input_sha256','native_run_id'))
-                    or source['task_attempt']!='1' or source['group']!=group
+                    or not task_attempt(source['task_attempt']) or source['group']!=group
                     or source['definition']!=manifest['groups'][group] or type(source['selected']) is not bool or source['selected']!=selected):
                 raise ValueError('Stale, foreign or differently selected native aggregate receipt')
             if set(actual)!=set(group_tasks(manifest,group)):

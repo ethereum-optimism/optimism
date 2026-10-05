@@ -1,0 +1,127 @@
+{
+  "baseline_pr_occurrences": 86,
+  "branch": "codex/rwx-ci-pilot",
+  "circle_pipeline": 135650,
+  "circle_pipeline_id": "7fda1e98-715d-4e06-adcd-c388caa0ad6f",
+  "complete_original_comparisons": {
+    "contracts_gate": {
+      "path": "docs/ai/rwx-pr-gates-evidence/contracts-parity.json",
+      "sha256": "5ecd8a64e1a8e51e18d77c4cebff0c9a05beb5cf1244beaa995f636688ba50e2"
+    },
+    "l2": {
+      "path": "docs/ai/rwx-contract-l2-fork-evidence/parity.json",
+      "sha256": "1f5139a0e9ac45430966c80bf59aa81e934887f0db260a09534d55d0221d2284"
+    },
+    "selector": {
+      "path": "docs/ai/rwx-selector-upload-evidence/f821-batch-parity.json",
+      "sha256": "5de31e81a6ed77e3948b0325bc2e33b340983ec37bf054824b273f28f828b084"
+    }
+  },
+  "final_head_verification": "Tracked in PR #23151 after the combined runtime-policy correction. This index establishes full workload parity; it does not label f821 native aggregate or Rust E2E checks successful.",
+  "native_retry_policy_correction": {
+    "additional_validation": [
+      {
+        "command": "python3 -m unittest discover -s ops/ci -p 'test_rust_e2e_gate.py'",
+        "component": "Rust E2E runtime aggregate",
+        "full_original_log_sha256": "60c6bb5c8ac971d56c16f191a0ddf3067de66f57634027e936be419133734a6c",
+        "state": "passed",
+        "tests": 8
+      },
+      {
+        "command": "python3 -m unittest discover -s ops/ci -p 'test_nut_provenance.py'",
+        "component": "NUT provenance runtime identity",
+        "full_original_log_sha256": "d836268da08c7e054b8b6ffd57e904b97ca65a4aaa606a3f9ef8d7edc483ce55",
+        "state": "passed",
+        "tests": 11
+      },
+      {
+        "command": "python3 -m unittest discover -s ops/ci -p 'test_compare_rust_e2e.py'",
+        "component": "Rust E2E strict original parity reader",
+        "full_original_log_sha256": "31d461d4f5ea9a76ac910ab10c6f0bdaffcf73105fffad0bef6b67b23d0e121f",
+        "state": "passed",
+        "tests": 8
+      }
+    ],
+    "local_validation": {
+      "command": "mise exec yq@4.44.5 -- python3 -m unittest discover -s ops/ci -p 'test_pr_gate*.py'",
+      "full_original_log_sha256": "386efea4ddb699adc33b4067959284e60bb1ba34315c99fbdb67eb3996a0c959",
+      "state": "passed",
+      "tests": 27
+    },
+    "related_runtime_paths": "Rust E2E records each shard attempt in the aggregate. NUT preparation and fresh verification retain actual positive attempts. Existing missing, corrupt, stale, failed or incomplete input checks decide failure.",
+    "runtime_contract": "The latest engine-bound workload receipt states decide each gate. Each receipt, aggregate and final observer retains its own positive task attempt in the same source/settings-bound run.",
+    "strict_parity_contract": "The original-report comparison still requires first-attempt successful native gate evidence and records Circle retry history."
+  },
+  "native_run": "7a0f17fd80244703bc3b2a25c941c2da",
+  "original_failures": [
+    {
+      "bytes": 5657,
+      "cause": "Go 1.26.6 toolchain download TLS handshake timeout; actual Kontrol check succeeded; native-only helper retry passed all six fixtures",
+      "name": "kontrol-helper",
+      "original_log": "docs/ai/rwx-pr-gates-evidence/f821-kontrol-helper-first-failure.txt",
+      "original_log_sha256": "fa88cfcbd409bf2bd2582661a40cdabc8a549873c7c19eef2c1c624b2a5cee58",
+      "task_id": "83f106cf2c96ca3b0c01d17a5e721a77"
+    },
+    {
+      "bytes": 4192,
+      "cause": "First-attempt-only gate identity policy rejected an observer rerun after the native helper retry; all selected workload receipts succeeded",
+      "name": "main-aggregate",
+      "original_log": "docs/ai/rwx-pr-gates-evidence/f821-main-aggregate-first-failure.txt",
+      "original_log_sha256": "7632ae132eb59848758ed47284d3e4072d0e721814447f2936eeaa1fa69b1470",
+      "task_id": "0caef9907aa391153a2a3599e6ed37f2"
+    },
+    {
+      "bytes": 7118,
+      "cause": "GitHub returned HTTP 504 for the nested Solady clone; source preparation reached its 20-minute limit before tests",
+      "name": "rust-e2e-source",
+      "original_log": "docs/ai/rwx-pr-gates-evidence/f821-rust-e2e-source-first-failure.txt",
+      "original_log_sha256": "22dd66095774d7872b046cdc52c0549aab02be7b42b987be51fc31f50ba5eb77",
+      "task_id": "678494172cf3a610efeb8868b99a9c27"
+    }
+  ],
+  "required_circle_gates": [
+    {
+      "description": "Your tests passed on CircleCI!",
+      "link": "https://circleci.com/gh/ethereum-optimism/optimism/5639971",
+      "name": "ci/circleci: required-rust-ci",
+      "original_state": "success",
+      "state": "success"
+    },
+    {
+      "description": "Your tests passed on CircleCI!",
+      "link": "https://circleci.com/gh/ethereum-optimism/optimism/5639980",
+      "name": "ci/circleci: required-rust-e2e",
+      "original_state": "success",
+      "state": "success"
+    },
+    {
+      "description": "Your tests passed on CircleCI!",
+      "link": "https://circleci.com/gh/ethereum-optimism/optimism/5639949",
+      "name": "ci/circleci: required-contracts-ci",
+      "original_state": "success",
+      "state": "success"
+    },
+    {
+      "description": "Your tests passed on CircleCI!",
+      "link": "https://circleci.com/gh/ethereum-optimism/optimism/5639925",
+      "name": "ci/circleci: ci-gate",
+      "original_state": "success",
+      "state": "success"
+    },
+    {
+      "link": "https://github.com/ethereum-optimism/optimism/actions/runs/37342776748/job/111873747212",
+      "name": "dependency-review / dependency-review",
+      "state": "success"
+    }
+  ],
+  "scope": "Complete baseline PR workload parity. Circle retains required gates; post-merge, release, operational cutover and performance tuning remain separate.",
+  "source_sha": "f821983dd56cbd7e488ab903d1ac386a330de7f6",
+  "state": "coverage_verified",
+  "verified_pr_occurrences": 86,
+  "workflows": {
+    "contracts": 23,
+    "main": 32,
+    "rust": 22,
+    "rust-e2e": 9
+  }
+}

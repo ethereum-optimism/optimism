@@ -73,13 +73,25 @@ class GateTests(unittest.TestCase):
         (self.reports[0] / 'coverage.json').write_text('corrupt')
         with self.assertRaisesRegex(ValueError, 'corrupt'): self.validate()
 
-    def test_nonfresh_retry_stale_source_and_unassigned_tests_rejected(self):
+    def test_invalid_attempt_stale_source_and_unassigned_tests_rejected(self):
         report = self.reports[0]; original = E2E.read(report / 'selection.json')
-        for key, value in (('rwx_task_attempt', '2'), ('rwx_run_id', None), ('source_sha', 'stale'), ('assigned_tests', [])):
+        for key, value in (('rwx_task_attempt', '0'), ('rwx_task_attempt', '01'), ('rwx_task_attempt', 2),
+                           ('rwx_run_id', None), ('source_sha', 'stale'), ('assigned_tests', [])):
             E2E.write(report / 'selection.json', original | {key: value})
             coverage = E2E.read(report / 'coverage.json'); coverage['assigned'] = value if key == 'assigned_tests' else original['assigned_tests']
             E2E.write(report / 'coverage.json', coverage); self.seal(report)
             with self.subTest(key=key), self.assertRaises(ValueError): self.validate()
+
+    def test_successful_retried_shard_retains_attempt_and_failed_retry_cannot_pass(self):
+        report = self.reports[0]
+        E2E.write(report / 'selection.json', E2E.read(report / 'selection.json') | {'rwx_task_attempt': '2'})
+        self.seal(report)
+        summary = self.validate()
+        self.assertTrue(summary['passed'])
+        self.assertEqual(summary['jobs']['proof']['task_attempts']['0'], '2')
+        self.assertEqual(summary['jobs']['proof']['task_attempts']['1'], '1')
+        self.seal(report, 17)
+        with self.assertRaisesRegex(ValueError, 'Unsuccessful'): self.validate()
 
     def test_missing_or_stale_runtime_dependency_cannot_pass(self):
         path = self.reports[-1] / 'dependencies/rust-e2e-release.json'
