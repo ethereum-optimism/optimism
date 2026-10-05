@@ -94,8 +94,6 @@ pub struct SequencerActor<
     last_seal_duration: Duration,
     /// Whether the one-shot startup work (metrics + initial engine reset) has run.
     started: bool,
-    /// Whether block building is paused because the gossip queue is full.
-    gossip_paused: bool,
 }
 
 impl<
@@ -147,7 +145,6 @@ where
             next_payload_to_seal: None,
             last_seal_duration: Duration::from_secs(0),
             started: false,
-            gossip_paused: false,
         }
     }
 
@@ -474,19 +471,11 @@ where
             }
             // The sequencer must be active to build new blocks.
             _ = self.build_ticker.tick(), if self.is_active => {
-                // Gossip is backed up, for example by a signer outage. Sealing now would wait for
-                // queue space inside this step and leave admin queries unanswered, so build nothing
-                // until the queue drains. The sequencer is the queue's only sender, so once there is
-                // room the gossip hand-off after sealing cannot wait.
                 if !self.unsafe_payload_gossip_client.has_capacity() {
-                    if !std::mem::replace(&mut self.gossip_paused, true) {
-                        warn!(target: "sequencer", "Gossip queue is full; pausing block building until it drains");
-                    }
+                    info!(target: "sequencer", "Sequencing tick, gossip queue full, not building a block");
                     return Ok(());
                 }
-                if std::mem::take(&mut self.gossip_paused) {
-                    info!(target: "sequencer", "Gossip queue has room; resuming block building");
-                }
+                info!(target: "sequencer", "Sequencing tick, building block");
                 // Move the pending payload out of self so the &mut self call below doesn't conflict
                 // with the &self read of self.next_payload_to_seal.
                 let pending = self.next_payload_to_seal.take();
