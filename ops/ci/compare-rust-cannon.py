@@ -48,21 +48,23 @@ def compare(root, sha):
                 raise ValueError('Failed or incomplete Cannon verdict')
             required = {'settings.json', 'checks.junit.xml', 'variants.log', 'variants.stage.json',
                         'image.json', 'image-elfs.json', job + '.log', job + '.stage.json'}
-            if provider == 'rwx': required.add('verified-env.json')
+            if provider == 'rwx' and job != 'offline': required.add('verified-env.json')
             if job in ('build', 'offline'): required.add('elfs.json')
             if job == 'offline':
                 required.update({'guest.json', 'guest.log', 'guest.stage.json', 'guest-coverage.json',
                                  'out.bin.gz', 'go-binaries.json', 'witness.json'})
-                if provider == 'rwx': required.update('verified-' + kind + '.json' for kind in ('env', 'go', 'witness', 'build'))
+                if provider == 'rwx': required.update('verified-' + kind + '.json' for kind in ('go', 'witness', 'build'))
             hashes = final['original_sha256']
             if not required <= hashes.keys():
                 raise ValueError('Incomplete original Cannon artifact manifest')
             if provider == 'rwx':
-                kinds = ('env', 'go', 'witness', 'build') if job == 'offline' else ('env',)
+                kinds = ('go', 'witness', 'build') if job == 'offline' else ('env',)
                 for kind in kinds:
                     verified = read(directory / ('verified-' + kind + '.json'))
                     if verified['producer_source_sha'] != sha or not re.fullmatch('[0-9a-f]{64}', verified['manifest_sha256']):
                         raise ValueError('Inherited Cannon producer provenance mismatch')
+                    if job == 'offline' and kind == 'build' and verified.get('image_manifest_sha256') != digest(root / provider / 'cannon-build/image.json'):
+                        raise ValueError('Offline Cannon image handoff differs from the counted build producer')
             for name, stage in final['stages'].items():
                 if stage['exit_code'] != 0 or not {name + '.stage.json', name + '.log'} <= hashes.keys():
                     raise ValueError('Unsuccessful or incomplete original Cannon stage')

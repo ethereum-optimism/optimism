@@ -27,7 +27,7 @@ class ComparisonTests(unittest.TestCase):
                     'workspace_root': workdir, 'variants': variants, 'rustc': 'pinned', 'cargo': 'pinned',
                     'rwx_run_id': 'd' * 32, 'rwx_task_attempt': '1'}
                 self.write(d / 'settings.json', settings)
-                if provider == 'rwx': self.write(d / 'verified-env.json', {'producer_source_sha': SHA, 'manifest_sha256': '1' * 64})
+                if provider == 'rwx' and job != 'offline': self.write(d / 'verified-env.json', {'producer_source_sha': SHA, 'manifest_sha256': '1' * 64})
                 (d / 'checks.junit.xml').write_text('<testsuite><testcase name="cannon"/></testsuite>')
                 stages = {}
                 for name in ('variants', job) + (('guest',) if job == 'offline' else ()):
@@ -52,8 +52,10 @@ class ComparisonTests(unittest.TestCase):
                         'files': {name: {'sha256': 'e' * 64} for name in COMPARE.GO_FILES}})
                     self.write(d / 'witness.json', {'binding': bound, 'filename': witness['filename'], 'sha256': witness['sha256'], 'size': 123})
                     if provider == 'rwx':
-                        for kind in ('env', 'go', 'witness', 'build'):
-                            self.write(d / ('verified-' + kind + '.json'), {'producer_source_sha': SHA, 'manifest_sha256': '1' * 64})
+                        for kind in ('go', 'witness', 'build'):
+                            verified = {'producer_source_sha': SHA, 'manifest_sha256': '1' * 64}
+                            if kind == 'build': verified['image_manifest_sha256'] = COMPARE.digest(self.root / provider / 'cannon-build/image.json')
+                            self.write(d / ('verified-' + kind + '.json'), verified)
                 self.write(d / 'final.json', {'exit_code': 0, 'report_errors': [], 'stages': stages})
                 self.rehash(d)
 
@@ -120,6 +122,14 @@ class ComparisonTests(unittest.TestCase):
         self.update('verified-go.json', lambda m: m.update(producer_source_sha=SHA))
         self.update('go-binaries.json', lambda m: m['files'].pop('cannon/bin/cannon64-impl'))
         with self.assertRaisesRegex(ValueError, 'Go build provenance'): COMPARE.compare(self.root, SHA)
+
+    def test_offline_image_is_bound_to_the_counted_build_producer(self):
+        self.update('verified-build.json', lambda m: m.update(image_manifest_sha256='9' * 64))
+        with self.assertRaisesRegex(ValueError, 'image handoff'):
+            COMPARE.compare(self.root, SHA)
+        self.update('verified-build.json', lambda m: m.pop('image_manifest_sha256'))
+        with self.assertRaisesRegex(ValueError, 'image handoff'):
+            COMPARE.compare(self.root, SHA)
 
     def test_guest_state_drift_even_with_equal_coverage_summaries_rejected(self):
         self.update('guest.json', lambda s: s.update(exitCode=1))

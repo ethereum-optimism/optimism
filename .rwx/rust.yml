@@ -719,7 +719,6 @@ tasks:
     run: bash ops/ci/rust-cannon.sh offline
     env:
       <<: *fresh-rust-env
-      CANNON_ENV_ARTIFACT: ${{ tasks.cannon-env.artifacts.report }}
       CANNON_GO_ARTIFACT: ${{ tasks.cannon-go.artifacts.report }}
       CANNON_WITNESS_ARTIFACT: ${{ tasks.cannon-witness.artifacts.report }}
       CANNON_BUILD_ARTIFACT: ${{ tasks.cannon-build.artifacts.report }}

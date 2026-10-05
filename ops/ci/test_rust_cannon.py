@@ -146,6 +146,32 @@ class ReportTests(unittest.TestCase):
         REPORT.write(p / 'go-binaries.json', manifest); self.rehash(p)
         with self.assertRaisesRegex(ValueError, 'inventory mismatch'): REPORT.verify_dependency(self.report, p, 'go')
 
+    def test_build_owns_the_image_handoff_after_a_cold_rebuild(self):
+        producer = self.root / 'build-producer'; producer.mkdir()
+        self.settings('build', producer)
+        for name in ('variants.log', 'variants.stage.json', 'checks.junit.xml'):
+            (producer / name).write_text('original')
+        target = self.root / 'rust/target/mips64-unknown-none/release-client-lto'
+        target.mkdir(parents=True)
+        for variant in VARIANTS: (target / variant['binary']).write_bytes(ELF)
+        REPORT.elf_manifest(self.report, target, 'elfs.json')
+        shutil.copyfile(self.report / 'elfs.json', producer / 'elfs.json')
+        image = {'binding': self.bound, 'image_id': 'sha256:' + 'b' * 64}
+        REPORT.write(producer / 'image.json', image); self.rehash(producer)
+        with patch.object(REPORT, 'command', return_value=json.dumps([{'Id': image['image_id']}])):
+            REPORT.verify_dependency(self.report, producer, 'build')
+            bad = image | {'binding': self.bound | {'source_sha': 'c' * 40}}
+            REPORT.write(producer / 'image.json', bad); self.rehash(producer)
+            with self.assertRaisesRegex(ValueError, 'image revision'):
+                REPORT.verify_dependency(self.report, producer, 'build')
+        REPORT.write(producer / 'image.json', image); self.rehash(producer)
+        with patch.object(REPORT, 'command', return_value=json.dumps([{'Id': 'sha256:' + 'a' * 64}])):
+            with self.assertRaisesRegex(ValueError, 'Docker image mismatch'):
+                REPORT.verify_dependency(self.report, producer, 'build')
+        (producer / 'image.json').unlink(); self.rehash(producer)
+        with self.assertRaisesRegex(ValueError, 'Incomplete'):
+            REPORT.verify_dependency(self.report, producer, 'build')
+
     def test_failure_retains_original_exit_logs_nested_artifacts_and_one_guest_case(self):
         (self.report / 'offline.log').write_text('first failure, never retry')
         (self.report / 'elfs').mkdir(); (self.report / 'elfs/kona-client').write_bytes(ELF)
@@ -190,7 +216,9 @@ if tool=='curl':
     path=pathlib.Path(args[args.index('-o')+1]); path.parent.mkdir(parents=True,exist_ok=True); path.write_bytes(b'fixture witness')
     sys.exit(int(os.environ.get('CURL_EXIT','0')))
 if tool=='docker':
-    if args[:2]==['image','inspect']: print(json.dumps([{'Id':'sha256:'+'e'*64,'RepoDigests':['base@sha256:'+'f'*64]}]))
+    if args[:2]==['image','inspect']:
+        image=(root/'image-id').read_text() if (root/'image-id').exists() else 'sha256:'+'e'*64
+        print(json.dumps([{'Id':image,'RepoDigests':['base@sha256:'+'f'*64]}]))
     elif args[0]=='create': print('fixture-container')
     elif args[0]=='run': print('nightly pinned; gcc pinned')
     elif args[0]=='cp':
@@ -203,6 +231,10 @@ if tool=='just':
     elif recipe=='cannon':
         for name in ('cannon/bin/cannon','cannon/bin/cannon64-impl','cannon/multicannon/embeds/cannon-8'):
             p=root/name; p.parent.mkdir(parents=True,exist_ok=True); p.write_text((root/'stubs/stub').read_text()); p.chmod(0o755)
+    elif recipe=='build-cannon-client':
+        (root/'image-id').write_text('sha256:'+'b'*64)
+        dest=root/'rust/target/mips64-unknown-none/release-client-lto'; dest.mkdir(parents=True,exist_ok=True)
+        for name in ('kona-client','kona-client-int'): (dest/name).write_bytes(elf)
     elif recipe=='run-client-cannon-offline':
         (root/'invocations.json').write_text(json.dumps(args))
         if os.environ.get('WAIT_FOR_CANCEL'):
@@ -246,6 +278,27 @@ if tool=='cannon':
         self.assertEqual(final['stages']['offline']['exit_code'], 0)
         self.assertEqual(final['stages']['guest']['exit_code'], 0)
         self.assertIsNotNone(ET.parse(self.report / 'checks.junit.xml').find('.//failure'))
+
+    def test_offline_consumes_the_build_image_instead_of_the_initial_environment(self):
+        for job, extra in [('env', {}), ('build', {
+            'CANNON_ENV_ARTIFACT': str(self.root / '.ci/rust-workspace/cannon-env')})]:
+            run = subprocess.run(['bash', 'ops/ci/rust-cannon.sh', job], cwd=self.root,
+                                 env=self.env | extra, capture_output=True, text=True, timeout=15)
+            self.assertEqual(run.returncode, 0, run.stdout + run.stderr)
+        producer = self.root / '.ci/rust-workspace/cannon-build'
+        environment = self.root / '.ci/rust-workspace/cannon-env'
+        self.assertNotEqual(REPORT.read(environment / 'image.json')['image_id'],
+                            REPORT.read(producer / 'image.json')['image_id'])
+        inputs = {'CANNON_ENV_ARTIFACT': str(environment), 'CANNON_BUILD_ARTIFACT': str(producer)}
+        run = self.run_offline(**inputs)
+        self.assertEqual(run.returncode, 0, run.stdout + run.stderr)
+        self.assertTrue((self.report / 'verified-build.json').exists())
+        self.assertFalse((self.report / 'verified-env.json').exists())
+        (self.root / 'image-id').write_text('sha256:' + 'e' * 64)
+        run = self.run_offline(**inputs)
+        self.assertNotEqual(run.returncode, 0)
+        self.assertIn('Inherited Cannon Docker image mismatch', run.stderr)
+        self.assertNotIn('offline', REPORT.read(self.report / 'final.json')['stages'])
 
     def test_first_failure_not_retried_and_report_collected(self):
         run = self.run_offline(OFFLINE_EXIT='7')

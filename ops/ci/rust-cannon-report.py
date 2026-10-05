@@ -150,24 +150,28 @@ def verify_dependency(directory, producer, kind):
     if final['exit_code'] != 0 or final['report_errors']:
         raise ValueError('Cannon dependency producer failed')
     required = {'settings.json', 'variants.log', 'variants.stage.json', 'checks.junit.xml', filenames[kind]}
+    if kind == 'build': required.add('image.json')
     if not required <= final['original_sha256'].keys():
         raise ValueError('Incomplete Cannon dependency original manifest')
     for name, expected in final['original_sha256'].items():
         path = Path(name)
         if path.is_absolute() or '..' in path.parts or not re.fullmatch('[0-9a-f]{64}', expected) or digest(producer / path) != expected:
             raise ValueError('Cannon dependency original artifact checksum mismatch')
-    if kind == 'env':
+    if kind in {'env', 'build'}:
+        image = manifest if kind == 'env' else read(producer / 'image.json')
+        if image['binding'] != manifest['binding']:
+            raise ValueError('Cannon build image revision, settings or toolchain mismatch')
         actual = json.loads(command('docker', 'image', 'inspect', IMAGE))[0]['Id']
-        if manifest['image_id'] != actual:
-            raise ValueError('Inherited Cannon Docker image mismatch')
-    elif kind == 'witness':
+        if image['image_id'] != actual:
+            raise ValueError(f"Inherited Cannon Docker image mismatch: expected {image['image_id']}, got {actual}")
+    if kind == 'witness':
         config = witness_config()
         if manifest['filename'] != config['filename'] or manifest['sha256'] != config['sha256']:
             raise ValueError('Cannon dependency witness pin mismatch')
         path = Path('rust/kona/bin/client/testdata') / manifest['filename']
         if digest(path) != manifest['sha256'] or path.stat().st_size != manifest['size']:
             raise ValueError('Inherited Cannon witness archive corrupt')
-    else:
+    elif kind in {'go', 'build'}:
         selected = GO_FILES if kind == 'go' else {v['binary'] for v in settings['variants']}
         if set(manifest['files']) != selected or (kind == 'build' and manifest['variants'] != settings['variants']):
             raise ValueError('Cannon dependency binary inventory mismatch')
@@ -175,8 +179,10 @@ def verify_dependency(directory, producer, kind):
             path = Path(name) if kind == 'go' else Path('rust/target/mips64-unknown-none/release-client-lto') / name
             if digest(path) != file['sha256'] or path.stat().st_size != file['size']:
                 raise ValueError('Inherited Cannon build binary checksum mismatch')
-    write(directory / f'verified-{kind}.json', {'producer_source_sha': manifest['binding']['source_sha'],
-                                             'manifest_sha256': digest(producer / filenames[kind])})
+    verified = {'producer_source_sha': manifest['binding']['source_sha'],
+                'manifest_sha256': digest(producer / filenames[kind])}
+    if kind == 'build': verified['image_manifest_sha256'] = final['original_sha256']['image.json']
+    write(directory / f'verified-{kind}.json', verified)
 
 
 def witness_manifest(directory):

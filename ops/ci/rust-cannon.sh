@@ -63,7 +63,11 @@ pull_base() {
   done
 }
 prepare_image() {
-  if [[ -n "${CANNON_ENV_ARTIFACT:-}" ]]; then
+  if [[ "$job" == offline && -n "${CANNON_BUILD_ARTIFACT:-}" ]]; then
+    # The build recipe rebuilds its environment. Its sealed image and ELFs
+    # own the runtime handoff, even when a cold rebuild changes the image ID.
+    verify "$CANNON_BUILD_ARTIFACT" build
+  elif [[ -n "${CANNON_ENV_ARTIFACT:-}" ]]; then
     verify "$CANNON_ENV_ARTIFACT" env
   else
     # Record the actual base digest even when BuildKit resolves only cached layers.
@@ -117,7 +121,6 @@ case "$job" in
     python3 "$HELPERS/rust-cannon-report.py" witness "$report"
     build_go
     prepare_image
-    if [[ -n "${CANNON_BUILD_ARTIFACT:-}" ]]; then verify "$CANNON_BUILD_ARTIFACT" build; fi
     # Never accept a restored state as evidence of this invocation's guest exit.
     rm -f rust/kona/state.bin.gz rust/kona/out.bin.gz rust/kona/meta.json
     stage_at rust/kona/bin/client offline just run-client-cannon-offline "${config[@]}"

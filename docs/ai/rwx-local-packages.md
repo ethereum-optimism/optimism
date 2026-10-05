@@ -50,6 +50,12 @@ Coverage/upgrades also import their sealed preflight inputs. RPC values remain
 only in availability checks and executing runtime verdicts, outside package
 arguments, bootstrap setup and compilation.
 
+A colder Docker rebuild exposed an existing Cannon handoff assumption.
+`build-cannon-client` rebuilds the environment, so its sealed image ID can differ
+from the initial environment producer. The offline consumer verifies the latest
+build producer's image and ELFs. It still rejects mismatched image IDs, bindings
+and original checksums before guest execution.
+
 Verdicts remain fresh. Reusable outputs contain runtime compiler state, not test
 results. Original reports and native test reporting remain task artifacts.
 Protected `develop` warming retains its compiler-only targets and executes zero
