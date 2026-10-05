@@ -66,6 +66,11 @@ case "${CI_EVENT:?CI_EVENT must be push, schedule, or dispatch}" in
       else
         run main
         run release
+        # Verify the private original selector publisher in the same pilot
+        # push as the full PR workload. Other refs keep their normal routing.
+        if [[ "${CI_BRANCH}" == "codex/rwx-ci-pilot" ]]; then
+          run selector_upload_replay
+        fi
         if is_true contracts_changed; then
           run contracts_feature_tests
         else

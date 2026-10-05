@@ -39,6 +39,16 @@ on:
             tasks: native-kontrol
           - name: optimism-main-gate-shadow
             tasks: main-gate-status
+          - name: optimism-contracts-shadow
+            tasks: native-contracts
+          - name: optimism-contract-upgrades-shadow
+            tasks: native-contract-upgrades
+          - name: optimism-contract-coverage-shadow
+            tasks: native-contract-coverage
+          - name: optimism-contract-l2-fork-shadow
+            tasks: native-contract-l2-fork
+          - name: optimism-contracts-gate-shadow
+            tasks: contracts-gate-status
   cli:
     init:
       commit-sha: ${{ event.git.sha }}
@@ -468,3 +478,144 @@ tasks:
       artifacts:
         - key: status
           path: .ci/pr-gates/status/ci-gate
+
+  # Contracts shares the existing fast-check child and executes all matrices once.
+  - key: native-contracts
+    call: ${{ run.dir }}/contracts.yml
+    init:
+      commit-sha: ${{ init.commit-sha }}
+      branch: ${{ init.branch }}
+      tag: ${{ init.tag }}
+      cache-warm: "false"
+      cache-epoch: "v1"
+      build-probe: ""
+
+  - key: native-contract-upgrades
+    call: ${{ run.dir }}/contract-upgrades.yml
+    init:
+      commit-sha: ${{ init.commit-sha }}
+      branch: ${{ init.branch }}
+      tag: ${{ init.tag }}
+      cache-warm: "false"
+      cache-epoch: "v1"
+
+  - key: native-contract-coverage
+    call: ${{ run.dir }}/contract-coverage.yml
+    init:
+      commit-sha: ${{ init.commit-sha }}
+      branch: ${{ init.branch }}
+      tag: ${{ init.tag }}
+      cache-warm: "false"
+      cache-epoch: "v1"
+
+  - key: native-contract-l2-fork
+    call: ${{ run.dir }}/contract-l2-fork.yml
+    init:
+      commit-sha: ${{ init.commit-sha }}
+      branch: ${{ init.branch }}
+      tag: ${{ init.tag }}
+      cache-warm: "false"
+      cache-epoch: "v1"
+      fork-block: "latest"
+
+  - key: contracts-aggregate
+    use: [code, tools]
+    after: ${{ (native-pr-checks.succeeded || native-pr-checks.failed || native-pr-checks.skipped) && (native-contract-coverage.succeeded || native-contract-coverage.failed || native-contract-coverage.skipped) && (native-contract-l2-fork.succeeded || native-contract-l2-fork.failed || native-contract-l2-fork.skipped) && (native-contracts.succeeded || native-contracts.failed || native-contracts.skipped) && (native-contract-upgrades.succeeded || native-contract-upgrades.failed || native-contract-upgrades.skipped) }}
+    if: ${{ tasks.native-pr-checks.tasks.contracts-gate-receipt.succeeded && tasks.native-contract-coverage.tasks.contracts-gate-receipt.succeeded && tasks.native-contract-l2-fork.tasks.contracts-gate-receipt.succeeded && tasks.native-contracts.tasks.contracts-gate-receipt.succeeded && tasks.native-contract-upgrades.tasks.contracts-gate-receipt.succeeded }}
+    run: python3 ops/ci/pr-gate.py aggregate required-contracts-ci
+    env:
+      CI_COMMIT_SHA: ${{ init.commit-sha }}
+      CI_BRANCH: ${{ init.branch }}
+      GATE_ROUTING: ${{ tasks.route.artifacts.routing }}
+      GROUP_CONTRACTS_CHECKS_REPORT: ${{ tasks.native-pr-checks.tasks.contracts-gate-receipt.artifacts.receipt }}
+      GROUP_CONTRACTS_CHECKS_SUCCEEDED: ${{ tasks.native-pr-checks.tasks.contracts-gate-receipt.succeeded }}
+      GROUP_CONTRACTS_CHECKS_FAILED: ${{ tasks.native-pr-checks.tasks.contracts-gate-receipt.failed }}
+      GROUP_CONTRACTS_CHECKS_SKIPPED: ${{ tasks.native-pr-checks.tasks.contracts-gate-receipt.skipped }}
+      GROUP_CONTRACTS_COVERAGE_REPORT: ${{ tasks.native-contract-coverage.tasks.contracts-gate-receipt.artifacts.receipt }}
+      GROUP_CONTRACTS_COVERAGE_SUCCEEDED: ${{ tasks.native-contract-coverage.tasks.contracts-gate-receipt.succeeded }}
+      GROUP_CONTRACTS_COVERAGE_FAILED: ${{ tasks.native-contract-coverage.tasks.contracts-gate-receipt.failed }}
+      GROUP_CONTRACTS_COVERAGE_SKIPPED: ${{ tasks.native-contract-coverage.tasks.contracts-gate-receipt.skipped }}
+      GROUP_CONTRACTS_L2_FORK_REPORT: ${{ tasks.native-contract-l2-fork.tasks.contracts-gate-receipt.artifacts.receipt }}
+      GROUP_CONTRACTS_L2_FORK_SUCCEEDED: ${{ tasks.native-contract-l2-fork.tasks.contracts-gate-receipt.succeeded }}
+      GROUP_CONTRACTS_L2_FORK_FAILED: ${{ tasks.native-contract-l2-fork.tasks.contracts-gate-receipt.failed }}
+      GROUP_CONTRACTS_L2_FORK_SKIPPED: ${{ tasks.native-contract-l2-fork.tasks.contracts-gate-receipt.skipped }}
+      GROUP_CONTRACTS_SUITES_REPORT: ${{ tasks.native-contracts.tasks.contracts-gate-receipt.artifacts.receipt }}
+      GROUP_CONTRACTS_SUITES_SUCCEEDED: ${{ tasks.native-contracts.tasks.contracts-gate-receipt.succeeded }}
+      GROUP_CONTRACTS_SUITES_FAILED: ${{ tasks.native-contracts.tasks.contracts-gate-receipt.failed }}
+      GROUP_CONTRACTS_SUITES_SKIPPED: ${{ tasks.native-contracts.tasks.contracts-gate-receipt.skipped }}
+      GROUP_CONTRACTS_UPGRADES_REPORT: ${{ tasks.native-contract-upgrades.tasks.contracts-gate-receipt.artifacts.receipt }}
+      GROUP_CONTRACTS_UPGRADES_SUCCEEDED: ${{ tasks.native-contract-upgrades.tasks.contracts-gate-receipt.succeeded }}
+      GROUP_CONTRACTS_UPGRADES_FAILED: ${{ tasks.native-contract-upgrades.tasks.contracts-gate-receipt.failed }}
+      GROUP_CONTRACTS_UPGRADES_SKIPPED: ${{ tasks.native-contract-upgrades.tasks.contracts-gate-receipt.skipped }}
+      RWX_RUN_ID:
+        cache-key: included
+      RWX_TASK_ATTEMPT_NUMBER:
+        cache-key: included
+    cache: false
+    timeout: 10m
+    outputs:
+      filesystem: false
+      artifacts:
+        - key: report
+          path: .ci/pr-gates/aggregate/required-contracts-ci
+
+  - key: contracts-gate-failure
+    use: [code, tools]
+    after: ${{ (native-pr-checks.succeeded || native-pr-checks.failed || native-pr-checks.skipped) && (native-contract-coverage.succeeded || native-contract-coverage.failed || native-contract-coverage.skipped) && (native-contract-l2-fork.succeeded || native-contract-l2-fork.failed || native-contract-l2-fork.skipped) && (native-contracts.succeeded || native-contracts.failed || native-contracts.skipped) && (native-contract-upgrades.succeeded || native-contract-upgrades.failed || native-contract-upgrades.skipped) }}
+    if: ${{ (tasks.native-pr-checks.tasks.contracts-gate-receipt.failed || tasks.native-pr-checks.tasks.contracts-gate-receipt.skipped) || (tasks.native-contract-coverage.tasks.contracts-gate-receipt.failed || tasks.native-contract-coverage.tasks.contracts-gate-receipt.skipped) || (tasks.native-contract-l2-fork.tasks.contracts-gate-receipt.failed || tasks.native-contract-l2-fork.tasks.contracts-gate-receipt.skipped) || (tasks.native-contracts.tasks.contracts-gate-receipt.failed || tasks.native-contracts.tasks.contracts-gate-receipt.skipped) || (tasks.native-contract-upgrades.tasks.contracts-gate-receipt.failed || tasks.native-contract-upgrades.tasks.contracts-gate-receipt.skipped) }}
+    run: python3 ops/ci/pr-gate.py aggregate required-contracts-ci --failed
+    env:
+      CI_COMMIT_SHA: ${{ init.commit-sha }}
+      CI_BRANCH: ${{ init.branch }}
+      GATE_ROUTING: ${{ tasks.route.artifacts.routing }}
+      GROUP_CONTRACTS_CHECKS_SUCCEEDED: ${{ tasks.native-pr-checks.tasks.contracts-gate-receipt.succeeded }}
+      GROUP_CONTRACTS_CHECKS_FAILED: ${{ tasks.native-pr-checks.tasks.contracts-gate-receipt.failed }}
+      GROUP_CONTRACTS_CHECKS_SKIPPED: ${{ tasks.native-pr-checks.tasks.contracts-gate-receipt.skipped }}
+      GROUP_CONTRACTS_COVERAGE_SUCCEEDED: ${{ tasks.native-contract-coverage.tasks.contracts-gate-receipt.succeeded }}
+      GROUP_CONTRACTS_COVERAGE_FAILED: ${{ tasks.native-contract-coverage.tasks.contracts-gate-receipt.failed }}
+      GROUP_CONTRACTS_COVERAGE_SKIPPED: ${{ tasks.native-contract-coverage.tasks.contracts-gate-receipt.skipped }}
+      GROUP_CONTRACTS_L2_FORK_SUCCEEDED: ${{ tasks.native-contract-l2-fork.tasks.contracts-gate-receipt.succeeded }}
+      GROUP_CONTRACTS_L2_FORK_FAILED: ${{ tasks.native-contract-l2-fork.tasks.contracts-gate-receipt.failed }}
+      GROUP_CONTRACTS_L2_FORK_SKIPPED: ${{ tasks.native-contract-l2-fork.tasks.contracts-gate-receipt.skipped }}
+      GROUP_CONTRACTS_SUITES_SUCCEEDED: ${{ tasks.native-contracts.tasks.contracts-gate-receipt.succeeded }}
+      GROUP_CONTRACTS_SUITES_FAILED: ${{ tasks.native-contracts.tasks.contracts-gate-receipt.failed }}
+      GROUP_CONTRACTS_SUITES_SKIPPED: ${{ tasks.native-contracts.tasks.contracts-gate-receipt.skipped }}
+      GROUP_CONTRACTS_UPGRADES_SUCCEEDED: ${{ tasks.native-contract-upgrades.tasks.contracts-gate-receipt.succeeded }}
+      GROUP_CONTRACTS_UPGRADES_FAILED: ${{ tasks.native-contract-upgrades.tasks.contracts-gate-receipt.failed }}
+      GROUP_CONTRACTS_UPGRADES_SKIPPED: ${{ tasks.native-contract-upgrades.tasks.contracts-gate-receipt.skipped }}
+      RWX_RUN_ID:
+        cache-key: included
+      RWX_TASK_ATTEMPT_NUMBER:
+        cache-key: included
+    cache: false
+    timeout: 10m
+    outputs:
+      filesystem: false
+      artifacts:
+        - key: report
+          path: .ci/pr-gates/aggregate/required-contracts-ci
+
+  - key: contracts-gate-status
+    use: [code, tools]
+    after: ${{ (contracts-aggregate.succeeded || contracts-aggregate.failed || contracts-aggregate.skipped) && (contracts-gate-failure.succeeded || contracts-gate-failure.failed || contracts-gate-failure.skipped) }}
+    run: python3 ops/ci/pr-gate.py status required-contracts-ci
+    env:
+      CI_COMMIT_SHA: ${{ init.commit-sha }}
+      CI_BRANCH: ${{ init.branch }}
+      OBSERVER_AGGREGATE_SUCCEEDED: ${{ tasks.contracts-aggregate.succeeded }}
+      OBSERVER_AGGREGATE_FAILED: ${{ tasks.contracts-aggregate.failed }}
+      OBSERVER_AGGREGATE_SKIPPED: ${{ tasks.contracts-aggregate.skipped }}
+      OBSERVER_GATE_FAILURE_SUCCEEDED: ${{ tasks.contracts-gate-failure.succeeded }}
+      OBSERVER_GATE_FAILURE_FAILED: ${{ tasks.contracts-gate-failure.failed }}
+      OBSERVER_GATE_FAILURE_SKIPPED: ${{ tasks.contracts-gate-failure.skipped }}
+      RWX_RUN_ID:
+        cache-key: included
+      RWX_TASK_ATTEMPT_NUMBER:
+        cache-key: included
+    cache: false
+    timeout: 10m
+    outputs:
+      filesystem: false
+      artifacts:
+        - key: status
+          path: .ci/pr-gates/status/required-contracts-ci

@@ -10,18 +10,6 @@ on:
       cache-warm: "true"
       cache-epoch: v1
       fork-block: latest
-  github:
-    push:
-      if: ${{ event.git.branch == 'codex/rwx-ci-pilot' || event.git.branch == 'develop' }}
-      init:
-        commit-sha: ${{ event.git.sha }}
-        branch: ${{ event.git.branch }}
-        tag: ${{ event.git.tag }}
-        cache-warm: "false"
-        cache-epoch: v1
-        fork-block: latest
-      status-checks:
-        name: optimism-contract-l2-fork-shadow
   cli:
     init:
       commit-sha: ${{ event.git.sha }}
@@ -178,7 +166,7 @@ tasks:
       CI_BRANCH: ${{ init.branch }}
       CI_CONTRACT_PROVIDER: rwx
       COMPILED: ${{ tasks.compile.artifacts.compiled }}
-      PINNED_BLOCK: ${{ tasks.rpc-check.artifacts.block }}
+      PINNED_BLOCK: ${{ tasks.rpc-check.artifacts.originals }}/block.json
     cache: false
     tool-cache: l2-fork-runtime-state-${{ init.cache-epoch }}
     timeout: 60m
@@ -194,3 +182,28 @@ tasks:
       artifacts:
         - key: originals
           path: .ci/contract-l2-fork/run
+
+  # Bind every complete Contracts prerequisite to fresh engine terminal states.
+  - key: contracts-gate-receipt
+    use: [code, tools]
+    after: ${{ (verdict.succeeded || verdict.failed || verdict.skipped) }}
+    if: ${{ init.cache-warm != 'true' }}
+    run: python3 ops/ci/pr-gate.py receipt contracts-l2-fork
+    env:
+      CI_COMMIT_SHA: ${{ init.commit-sha }}
+      CI_BRANCH: ${{ init.branch }}
+      GROUP_SELECTED: ${{ tasks.route.values.run-contracts }}
+      RWX_RUN_ID:
+        cache-key: included
+      RWX_TASK_ATTEMPT_NUMBER:
+        cache-key: included
+      TASK_VERDICT_SUCCEEDED: ${{ tasks.verdict.succeeded }}
+      TASK_VERDICT_FAILED: ${{ tasks.verdict.failed }}
+      TASK_VERDICT_SKIPPED: ${{ tasks.verdict.skipped }}
+    cache: false
+    timeout: 10m
+    outputs:
+      filesystem: false
+      artifacts:
+        - key: receipt
+          path: .ci/pr-gates/groups/contracts-l2-fork

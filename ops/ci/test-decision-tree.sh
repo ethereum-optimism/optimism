@@ -129,6 +129,18 @@ run_scenario() {
 echo "=== Decision Tree Dry-Run Tests ==="
 echo ""
 
+run_scenario \
+  "Pilot full push verifies selector and all PR gates in one batch" \
+  push codex/rwx-ci-pilot "" "" \
+  '{"c-contracts_changed":true,"c-rust_changes_detected":true,"c-circleci_changed":true}' \
+  main release selector_upload_replay contracts_feature_tests rust_ci rust_e2e_ci circleci_schedule_trigger_check
+
+run_scenario \
+  "Pilot docs-only push keeps the original zero-workload skip gates" \
+  push codex/rwx-ci-pilot "" "" \
+  '{"c-only_docs_changes":true}' \
+  ci_gate_skip contracts_feature_tests_short rust_ci_gate_short rust_e2e_gate_skip
+
 # --- Scenarios ---
 
 run_scenario \
@@ -147,7 +159,7 @@ run_scenario \
   "L2 parity option on a push preserves normal PR routing" \
   push codex/rwx-ci-pilot "" "" \
   '{"c-main_dispatch":false,"c-l2_fork_parity_replay_effective":true}' \
-  main release contracts_feature_tests_short rust_ci_gate_short rust_e2e_gate_skip
+  main release selector_upload_replay contracts_feature_tests_short rust_ci_gate_short rust_e2e_gate_skip
 
 run_scenario \
   "Main dispatch preserves normal routing with an L2 parity option" \
@@ -177,7 +189,7 @@ run_scenario \
   "Flaky-report replay option on a push preserves normal PR routing" \
   push codex/rwx-ci-pilot "" "" \
   '{"c-main_dispatch":false,"c-flaky_report_replay_effective":true}' \
-  main release contracts_feature_tests_short rust_ci_gate_short rust_e2e_gate_skip
+  main release selector_upload_replay contracts_feature_tests_short rust_ci_gate_short rust_e2e_gate_skip
 
 run_scenario \
   "Main dispatch preserves normal routing with a reporting replay option" \
@@ -207,7 +219,7 @@ run_scenario \
   "Selector replay option on a push preserves normal PR routing" \
   push codex/rwx-ci-pilot "" "" \
   '{"c-main_dispatch":false,"c-selector_upload_replay_effective":true}' \
-  main release contracts_feature_tests_short rust_ci_gate_short rust_e2e_gate_skip
+  main release selector_upload_replay contracts_feature_tests_short rust_ci_gate_short rust_e2e_gate_skip
 
 run_scenario \
   "Main dispatch does not opt the production publisher into private mode" \
@@ -225,7 +237,7 @@ run_scenario \
   "Full NUT option on a push retains normal PR routing" \
   push codex/rwx-ci-pilot "" "" \
   '{"c-main_dispatch":false,"c-nut_provenance_full_effective":true}' \
-  main release contracts_feature_tests_short rust_ci_gate_short rust_e2e_gate_skip
+  main release selector_upload_replay contracts_feature_tests_short rust_ci_gate_short rust_e2e_gate_skip
 
 run_scenario \
   "Tag push → release only" \

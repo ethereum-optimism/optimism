@@ -68,6 +68,31 @@ class L2Tests(unittest.TestCase):
         (self.directory/'rpc-0-attempt-1.json').write_text('{}')
         with self.assertRaisesRegex(ValueError,'corrupt original'):L.original(self.directory)
 
+    def test_shared_pilot_snapshot_avoids_independently_selected_heads_and_preserves_other_refs(self):
+        url,observations=self.server()
+        root=self.directory/'source';(root/'ops/ci').mkdir(parents=True)
+        snapshot=root/'ops/ci/pilot-l2-fork-block.txt';snapshot.write_text('66\n')
+        with mock.patch.object(L,'RPC',url),mock.patch.object(L,'ROOT',root),mock.patch.object(L.UP,'revision',return_value='a'*40):
+            with mock.patch.dict(os.environ,{'CI_BRANCH':'codex/rwx-ci-pilot'},clear=True):
+                chosen=L.preflight(self.directory,'latest')
+            self.assertEqual(chosen['requested'],'66')
+            self.assertEqual(len(observations),5)
+            self.assertNotIn('eth_blockNumber',[row['request']['method'] for row in observations])
+            other=self.directory/'develop';other.mkdir()
+            with mock.patch.dict(os.environ,{'CI_BRANCH':'develop'},clear=True):
+                chosen=L.preflight(other,'latest')
+            self.assertEqual(chosen['requested'],'latest');self.assertEqual(observations[5]['request']['method'],'eth_blockNumber')
+            snapshot.write_text('66; untrusted\n')
+            invalid=self.directory/'invalid';invalid.mkdir()
+            with mock.patch.dict(os.environ,{'CI_BRANCH':'codex/rwx-ci-pilot'},clear=True),self.assertRaisesRegex(ValueError,'snapshot'):
+                L.preflight(invalid,'latest')
+
+    def test_unsealed_block_only_mount_is_rejected_before_any_test_command(self):
+        mounted=self.directory/'mounted';mounted.mkdir();pinned=mounted/'block.json';L.write(pinned,{'number':66})
+        with mock.patch.object(L.UP,'stage') as stage,self.assertRaises(FileNotFoundError):
+            L.verdict(self.directory,pinned)
+        stage.assert_not_called()
+
     def test_wrong_chain_block_or_missing_state_is_rejected_with_originals_retained(self):
         for i,changed in enumerate(({'eth_chainId':'0x1'}, {'eth_getBlockByNumber':None}, {'eth_getCode':'0x'},
               {'eth_getStorageAt':'0x'+'0'*64},{'eth_call':'0x'})):

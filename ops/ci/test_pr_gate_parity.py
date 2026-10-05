@@ -110,6 +110,44 @@ class GateParityTests(unittest.TestCase):
         self.assertEqual(result['circle']['retry_history'], None)
         self.assertTrue(result['original_sha256']['circle'])
 
+    def test_complete_contracts_gate_original_comparison_covers_every_prerequisite(self):
+        gate='required-contracts-ci';row=self.manifest['gates'][gate]
+        selection=G.configuration(gate)[1][gate];names=selection['requires']
+        env=self.reports(gate=gate);result,self.native,_=self.run_aggregate(env,gate=gate);self.assertEqual(result,0)
+        for alias,state in [('aggregate','succeeded'),('gate-failure','skipped')]:
+            for attribute in C.PASS:env['OBSERVER_'+alias.upper().replace('-','_')+'_'+attribute.upper()]=str(state==attribute).lower()
+        with patch.dict(os.environ,env):self.assertEqual(G.gate_status(gate),0)
+        self.status=self.root/'.ci/pr-gates/status'/gate
+        settings=G.read(self.circle/'settings.json');settings.update(gate=gate,workflow_name=row['workflow'])
+        self.write(self.circle/'settings.json',settings)
+        workflow=G.read(self.circle/'workflow.json');workflow['name']=row['workflow'];self.write(self.circle/'workflow.json',workflow)
+        jobs=[{'id':name+'-id','name':name,'status':'success'} for name in names]
+        jobs.append({'id':'gate-id','name':gate,'status':'success','job_number':100,'dependencies':[job['id'] for job in jobs]})
+        self.write(self.circle/'workflow-jobs.json',jobs);self.write(self.circle/'api-pages/jobs-0.json',{'items':jobs,'next_page_token':None})
+        command='if [ "false" = "true" ]; then exit 0; fi\necho "All required jobs passed."'
+        self.write(self.circle/'compiled.yml',{'jobs':{gate:{'steps':[{'run':{'name':'Verify all required jobs passed','command':command}}]}},
+            'workflows':{row['workflow']:{'jobs':[{gate:{'requires':names,'upstream':{name:C.TERMINAL for name in names}}}]}}})
+        source=(self.root/row['circle_config']).read_text()
+        (self.circle/'circle-config.yml').write_text(source);(self.circle/'source.yml').write_text(source)
+        self.write(self.circle/'pipeline-config.json',{'compiled':(self.circle/'compiled.yml').read_text(),'source':source})
+        job=G.read(self.circle/'gate-job.json');job['workflows']['job_name']=gate;self.write(self.circle/'gate-job.json',job)
+        self.write(self.circle/'step-logs/verifier.json',[{'message':'Checking required jobs for '+gate+'...\n'+
+            '\n'.join('  ok '+name+': success' for name in names)+'\nAll required jobs passed.\n','type':'out','truncated':False}])
+        self.reseal(self.circle)
+        def task(key,children=None):return {'Key':key,'ID':key+'-id','Status':{'Execution':'finished','Result':'succeeded','FinishedSubStatus':'executed'},'Subtasks':children or []}
+        tasks=[]
+        for group in selection['groups']:
+            definition=self.manifest['groups'][group]
+            tasks.append(task(definition['embedded_task'],[task(key) for key in G.group_tasks(self.manifest,group)+[definition['receipt_task']]]))
+        tasks += [task(key) for key in row['observer_tasks'].values()]
+        tasks[-2]['Status']={'Execution':'skipped','Result':'no_result','FinishedSubStatus':'not_applicable'}
+        run=G.read(self.run_path);run['Tasks']=tasks;self.write(self.run_path,run)
+        self.write(self.github_path,{'sha':self.sha,'checks':[
+            {'name':'RWX: '+row['check_name'],'state':'success','link':'https://cloud.rwx.com/optimism/runs/'+self.env['RWX_RUN_ID']+'/latest/contracts-gate-status'},
+            {'name':'ci/circleci: '+gate,'state':'success','link':'https://circleci.com/gh/ethereum-optimism/optimism/100'}]})
+        result=self.compare();self.assertEqual(result['state'],'passed');self.assertEqual(result['native']['workload_tasks'],21)
+        self.assertEqual(result['dependencies'],names)
+
     def test_resealed_revision_selection_retry_and_full_source_inputs(self):
         path = self.native / 'settings.json'
         original = G.read(path)

@@ -1,8 +1,9 @@
 # Isolated selector uploader
 
-The native selector uploader is implemented and its complete prototype passes.
-Same-SHA hosted Circle/native comparison is pending, so this workload remains
-unchecked in the parity checklist and adds zero verified coverage.
+The complete native selector uploader now passes strict same-SHA original
+Circle/native parity at `63844aed622385299088d716152d8105d5f88b66`. This closes
+one Main occurrence. The [retained comparison](rwx-selector-upload-evidence/parity.json)
+binds every original compiler, HTTP, database and process report.
 
 The optional `optimism-selector-upload-shadow` follows shared `run-main` routing.
 It executes the original `just update-selectors` recipe, whose command remains
@@ -118,3 +119,21 @@ test or uploader task existed in the targeted run. The
 [warm index](rwx-selector-upload-evidence/compiler-warm.json) binds its complete
 original run metadata and source identities. Cached tasks' displayed execution
 durations belong to their original executions and are not warm-run timings.
+
+
+The corrected automatic native run
+[`bb3a5d4a`](https://cloud.rwx.com/optimism/runs/bb3a5d4a02c945cd9cd1177ba37fc94e)
+and Circle pipeline 135624/original [job 5637952](https://circleci.com/gh/ethereum-optimism/optimism/5637952)
+pass complete parity at `63844aed`. Preparation installed all five pinned
+compilers before discovery. Both complete initial and stable compiler catalogues
+agree, with 601 compiled sources, 167 selected declarations, 979 function/error
+and 141 event signatures. The one actual POST, all 1,120 fresh database rows and
+every API readback agree. Native preparation/upload executed freshly in 23/9
+seconds; these are task observations, not a provider speed claim. Circle retains
+all 4,520 original report files and native all 4,517, including provider-specific
+process captures and empty files; all original Circle API logs are untruncated.
+The prior failed and truncated comparisons remain retained.
+
+Normal pilot pushes now select this same private replay alongside the full PR
+workflow. This permits one verification batch for the final selector, L2 fork
+and Contracts gate changes. Other branches and publishers retain their routing.

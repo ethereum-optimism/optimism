@@ -10,17 +10,6 @@ on:
       cache-warm: "true"
       cache-epoch: v1
       build-probe: ""
-  github:
-    push:
-      init:
-        commit-sha: ${{ event.git.sha }}
-        branch: ${{ event.git.branch }}
-        tag: ${{ event.git.tag }}
-        cache-warm: "false"
-        cache-epoch: v1
-        build-probe: ""
-      status-checks:
-        name: optimism-contracts-shadow
   cli:
     init:
       commit-sha: ${{ event.git.sha }}
@@ -696,3 +685,49 @@ tasks:
       artifacts:
         - key: reports
           path: .ci/contract-suites/modified-ZK_DISPUTE_GAME/run
+
+  # Bind every complete Contracts prerequisite to fresh engine terminal states.
+  - key: contracts-gate-receipt
+    use: [code, tools]
+    after: ${{ (verdict-modified-CUSTOM_GAS_TOKEN.succeeded || verdict-modified-CUSTOM_GAS_TOKEN.failed || verdict-modified-CUSTOM_GAS_TOKEN.skipped) && (verdict-modified-OPTIMISM_PORTAL_INTEROP.succeeded || verdict-modified-OPTIMISM_PORTAL_INTEROP.failed || verdict-modified-OPTIMISM_PORTAL_INTEROP.skipped) && (verdict-modified-ZK_DISPUTE_GAME.succeeded || verdict-modified-ZK_DISPUTE_GAME.failed || verdict-modified-ZK_DISPUTE_GAME.skipped) && (verdict-modified-main.succeeded || verdict-modified-main.failed || verdict-modified-main.skipped) && (verdict-standard-CUSTOM_GAS_TOKEN.succeeded || verdict-standard-CUSTOM_GAS_TOKEN.failed || verdict-standard-CUSTOM_GAS_TOKEN.skipped) && (verdict-standard-OPTIMISM_PORTAL_INTEROP.succeeded || verdict-standard-OPTIMISM_PORTAL_INTEROP.failed || verdict-standard-OPTIMISM_PORTAL_INTEROP.skipped) && (verdict-standard-ZK_DISPUTE_GAME.succeeded || verdict-standard-ZK_DISPUTE_GAME.failed || verdict-standard-ZK_DISPUTE_GAME.skipped) && (verdict-standard-main.succeeded || verdict-standard-main.failed || verdict-standard-main.skipped) }}
+    if: ${{ init.cache-warm != 'true' }}
+    run: python3 ops/ci/pr-gate.py receipt contracts-suites
+    env:
+      CI_COMMIT_SHA: ${{ init.commit-sha }}
+      CI_BRANCH: ${{ init.branch }}
+      GROUP_SELECTED: ${{ tasks.route.values.run-contracts }}
+      RWX_RUN_ID:
+        cache-key: included
+      RWX_TASK_ATTEMPT_NUMBER:
+        cache-key: included
+      TASK_VERDICT_MODIFIED_CUSTOM_GAS_TOKEN_SUCCEEDED: ${{ tasks.verdict-modified-CUSTOM_GAS_TOKEN.succeeded }}
+      TASK_VERDICT_MODIFIED_CUSTOM_GAS_TOKEN_FAILED: ${{ tasks.verdict-modified-CUSTOM_GAS_TOKEN.failed }}
+      TASK_VERDICT_MODIFIED_CUSTOM_GAS_TOKEN_SKIPPED: ${{ tasks.verdict-modified-CUSTOM_GAS_TOKEN.skipped }}
+      TASK_VERDICT_MODIFIED_OPTIMISM_PORTAL_INTEROP_SUCCEEDED: ${{ tasks.verdict-modified-OPTIMISM_PORTAL_INTEROP.succeeded }}
+      TASK_VERDICT_MODIFIED_OPTIMISM_PORTAL_INTEROP_FAILED: ${{ tasks.verdict-modified-OPTIMISM_PORTAL_INTEROP.failed }}
+      TASK_VERDICT_MODIFIED_OPTIMISM_PORTAL_INTEROP_SKIPPED: ${{ tasks.verdict-modified-OPTIMISM_PORTAL_INTEROP.skipped }}
+      TASK_VERDICT_MODIFIED_ZK_DISPUTE_GAME_SUCCEEDED: ${{ tasks.verdict-modified-ZK_DISPUTE_GAME.succeeded }}
+      TASK_VERDICT_MODIFIED_ZK_DISPUTE_GAME_FAILED: ${{ tasks.verdict-modified-ZK_DISPUTE_GAME.failed }}
+      TASK_VERDICT_MODIFIED_ZK_DISPUTE_GAME_SKIPPED: ${{ tasks.verdict-modified-ZK_DISPUTE_GAME.skipped }}
+      TASK_VERDICT_MODIFIED_MAIN_SUCCEEDED: ${{ tasks.verdict-modified-main.succeeded }}
+      TASK_VERDICT_MODIFIED_MAIN_FAILED: ${{ tasks.verdict-modified-main.failed }}
+      TASK_VERDICT_MODIFIED_MAIN_SKIPPED: ${{ tasks.verdict-modified-main.skipped }}
+      TASK_VERDICT_STANDARD_CUSTOM_GAS_TOKEN_SUCCEEDED: ${{ tasks.verdict-standard-CUSTOM_GAS_TOKEN.succeeded }}
+      TASK_VERDICT_STANDARD_CUSTOM_GAS_TOKEN_FAILED: ${{ tasks.verdict-standard-CUSTOM_GAS_TOKEN.failed }}
+      TASK_VERDICT_STANDARD_CUSTOM_GAS_TOKEN_SKIPPED: ${{ tasks.verdict-standard-CUSTOM_GAS_TOKEN.skipped }}
+      TASK_VERDICT_STANDARD_OPTIMISM_PORTAL_INTEROP_SUCCEEDED: ${{ tasks.verdict-standard-OPTIMISM_PORTAL_INTEROP.succeeded }}
+      TASK_VERDICT_STANDARD_OPTIMISM_PORTAL_INTEROP_FAILED: ${{ tasks.verdict-standard-OPTIMISM_PORTAL_INTEROP.failed }}
+      TASK_VERDICT_STANDARD_OPTIMISM_PORTAL_INTEROP_SKIPPED: ${{ tasks.verdict-standard-OPTIMISM_PORTAL_INTEROP.skipped }}
+      TASK_VERDICT_STANDARD_ZK_DISPUTE_GAME_SUCCEEDED: ${{ tasks.verdict-standard-ZK_DISPUTE_GAME.succeeded }}
+      TASK_VERDICT_STANDARD_ZK_DISPUTE_GAME_FAILED: ${{ tasks.verdict-standard-ZK_DISPUTE_GAME.failed }}
+      TASK_VERDICT_STANDARD_ZK_DISPUTE_GAME_SKIPPED: ${{ tasks.verdict-standard-ZK_DISPUTE_GAME.skipped }}
+      TASK_VERDICT_STANDARD_MAIN_SUCCEEDED: ${{ tasks.verdict-standard-main.succeeded }}
+      TASK_VERDICT_STANDARD_MAIN_FAILED: ${{ tasks.verdict-standard-main.failed }}
+      TASK_VERDICT_STANDARD_MAIN_SKIPPED: ${{ tasks.verdict-standard-main.skipped }}
+    cache: false
+    timeout: 10m
+    outputs:
+      filesystem: false
+      artifacts:
+        - key: receipt
+          path: .ci/pr-gates/groups/contracts-suites

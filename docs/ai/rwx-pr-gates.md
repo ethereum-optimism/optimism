@@ -6,15 +6,15 @@ complete same-SHA original gate parity and successful terminal GitHub checks at
 successful terminal GitHub checks at `4ae28fd9`. Both optional aggregates are
 counted; neither changes required-gate ownership.
 
-`pr-gates.yml` embeds twelve existing workload definitions in parallel. Each
+`pr-gates.yml` embeds sixteen existing workload definitions in parallel. Each
 executes once, with its original source, tools, profiles, resources, caches and
 fresh verdicts. Shared formatting and lint work serve both aggregates without a
 second run. The coordinator preserves the existing optional workload check names
-and adds `optimism-main-gate-shadow`. Standalone CLI modes and protected `develop`
+and adds `optimism-main-gate-shadow` and `optimism-contracts-gate-shadow`. Standalone CLI modes and protected `develop`
 cache warming remain available.
 
-Version 3 of `ops/ci/pr-gates.json` maps Circle's exact 21 Rust and 19 Main terminal
-dependency names to the actual native tasks. Main includes every one of the
+Version 3 of `ops/ci/pr-gates.json` maps Circle's exact 21 Rust, 19 Main and
+21 Contracts terminal dependency names to the actual native tasks. Main includes every one of the
 twelve Go verdicts and both eight-shard acceptance variants, alongside the actual
 static checks, generated mocks, locks, provenance, Cannon, fetcher, SP1 and Kontrol
 workloads. Discovery checks the original Circle configuration with pinned YQ and
@@ -47,7 +47,7 @@ cannot stand in for an executed selected workload. Native embedded runs provide
 these dependencies directly; the gate requires no external status polling,
 installation token or extra credential.
 
-Fourteen real Git/YQ fixtures pass: authoritative selection, exact coordinator
+Seventeen real Git/YQ fixtures pass: authoritative selection, exact coordinator
 bindings, selected failure/skip handling, complete original aggregation, resealed
 provenance, missing/corrupt/duplicate/extra and incorrectly typed originals,
 failed/never-started receipt collection, genuine zero-test safe skips, all Main
@@ -75,10 +75,9 @@ GitHub token, but the automatic runs did not expose the `github` expression
 context. The original failures and CLI probes remain retained as diagnostic
 evidence. The native coordinator replaces that implementation and its wait helper.
 The corrected Rust and Main aggregates now have full automatic validation and
-complete original Circle gate evidence. The Contracts aggregate remains
-unimplemented. Main's selector uploader
-and flaky-report jobs are outside its original aggregate dependency set and
-remain separate coverage work.
+complete original Circle gate evidence. The Contracts aggregate is implemented and awaits full hosted original parity.
+Main's selector uploader and flaky-report jobs are outside its original aggregate
+dependency set; both now have their own complete same-SHA parity evidence.
 
 The first full embedded run at `eff84abed4` passed all three actual workload
 groups and their receipts, then rejected an aggregate reference to `report`
@@ -134,3 +133,21 @@ Every native receipt and the final status must execute freshly. Seven additional
 real Git/YQ comparison fixtures pass, including source link modes, an unrelated
 Main-only failure, and deliberately invalid provider evidence. They add no
 coverage. The automatic coordinator runs all 21 gate and comparison fixtures.
+
+
+The final Contracts aggregate maps all four standard variants, four modified-file
+heavy-fuzz variants, four coverage variants, seven L1 chain/feature upgrades,
+OP Mainnet L2 fork and the fast checks to their 21 actual native verdicts.
+Its five fresh receipts retain every engine state; the fast-check receipt reuses
+the existing PR-check child. Each contract child retains its CLI mode and protected
+compiler-only warming, while the coordinator owns its single automatic run.
+Coverage keeps the original `project` checkout depth; receipt discovery validates
+that directory against the clone producer and artifact path. No extra test run,
+status polling or credential is introduced by the aggregate itself.
+Local real Git/YQ tests cover complete Contracts authority, omission/failure of
+the L2 verdict, safe skips, checkout paths, independent Rust/Main gate scope and
+the complete original provider comparison. These fixtures add zero coverage.
+
+The [Contracts implementation preflight](rwx-pr-gates-evidence/contracts-preflight.json)
+retains all changed input hashes and local validation. Hosted coverage remains
+pending until the complete original gate and L2 comparisons pass.

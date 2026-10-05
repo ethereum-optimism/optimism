@@ -9,16 +9,6 @@ on:
       tag: ""
       cache-warm: "true"
       cache-epoch: v1
-  github:
-    push:
-      init:
-        commit-sha: ${{ event.git.sha }}
-        branch: ${{ event.git.branch }}
-        tag: ${{ event.git.tag }}
-        cache-warm: "false"
-        cache-epoch: v1
-      status-checks:
-        name: optimism-contract-upgrades-shadow
   cli:
     init:
       commit-sha: ${{ event.git.sha }}
@@ -637,3 +627,46 @@ tasks:
       artifacts:
         - key: reports
           path: .ci/contract-upgrades/chain-unichain/run
+
+  # Bind every complete Contracts prerequisite to fresh engine terminal states.
+  - key: contracts-gate-receipt
+    use: [code, tools]
+    after: ${{ (verdict-chain-ink.succeeded || verdict-chain-ink.failed || verdict-chain-ink.skipped) && (verdict-chain-op.succeeded || verdict-chain-op.failed || verdict-chain-op.skipped) && (verdict-chain-unichain.succeeded || verdict-chain-unichain.failed || verdict-chain-unichain.skipped) && (verdict-feature-CUSTOM_GAS_TOKEN.succeeded || verdict-feature-CUSTOM_GAS_TOKEN.failed || verdict-feature-CUSTOM_GAS_TOKEN.skipped) && (verdict-feature-OPTIMISM_PORTAL_INTEROP.succeeded || verdict-feature-OPTIMISM_PORTAL_INTEROP.failed || verdict-feature-OPTIMISM_PORTAL_INTEROP.skipped) && (verdict-feature-ZK_DISPUTE_GAME.succeeded || verdict-feature-ZK_DISPUTE_GAME.failed || verdict-feature-ZK_DISPUTE_GAME.skipped) && (verdict-feature-main.succeeded || verdict-feature-main.failed || verdict-feature-main.skipped) }}
+    if: ${{ init.cache-warm != 'true' }}
+    run: python3 ops/ci/pr-gate.py receipt contracts-upgrades
+    env:
+      CI_COMMIT_SHA: ${{ init.commit-sha }}
+      CI_BRANCH: ${{ init.branch }}
+      GROUP_SELECTED: ${{ tasks.route.values.run-contracts }}
+      RWX_RUN_ID:
+        cache-key: included
+      RWX_TASK_ATTEMPT_NUMBER:
+        cache-key: included
+      TASK_VERDICT_CHAIN_INK_SUCCEEDED: ${{ tasks.verdict-chain-ink.succeeded }}
+      TASK_VERDICT_CHAIN_INK_FAILED: ${{ tasks.verdict-chain-ink.failed }}
+      TASK_VERDICT_CHAIN_INK_SKIPPED: ${{ tasks.verdict-chain-ink.skipped }}
+      TASK_VERDICT_CHAIN_OP_SUCCEEDED: ${{ tasks.verdict-chain-op.succeeded }}
+      TASK_VERDICT_CHAIN_OP_FAILED: ${{ tasks.verdict-chain-op.failed }}
+      TASK_VERDICT_CHAIN_OP_SKIPPED: ${{ tasks.verdict-chain-op.skipped }}
+      TASK_VERDICT_CHAIN_UNICHAIN_SUCCEEDED: ${{ tasks.verdict-chain-unichain.succeeded }}
+      TASK_VERDICT_CHAIN_UNICHAIN_FAILED: ${{ tasks.verdict-chain-unichain.failed }}
+      TASK_VERDICT_CHAIN_UNICHAIN_SKIPPED: ${{ tasks.verdict-chain-unichain.skipped }}
+      TASK_VERDICT_FEATURE_CUSTOM_GAS_TOKEN_SUCCEEDED: ${{ tasks.verdict-feature-CUSTOM_GAS_TOKEN.succeeded }}
+      TASK_VERDICT_FEATURE_CUSTOM_GAS_TOKEN_FAILED: ${{ tasks.verdict-feature-CUSTOM_GAS_TOKEN.failed }}
+      TASK_VERDICT_FEATURE_CUSTOM_GAS_TOKEN_SKIPPED: ${{ tasks.verdict-feature-CUSTOM_GAS_TOKEN.skipped }}
+      TASK_VERDICT_FEATURE_OPTIMISM_PORTAL_INTEROP_SUCCEEDED: ${{ tasks.verdict-feature-OPTIMISM_PORTAL_INTEROP.succeeded }}
+      TASK_VERDICT_FEATURE_OPTIMISM_PORTAL_INTEROP_FAILED: ${{ tasks.verdict-feature-OPTIMISM_PORTAL_INTEROP.failed }}
+      TASK_VERDICT_FEATURE_OPTIMISM_PORTAL_INTEROP_SKIPPED: ${{ tasks.verdict-feature-OPTIMISM_PORTAL_INTEROP.skipped }}
+      TASK_VERDICT_FEATURE_ZK_DISPUTE_GAME_SUCCEEDED: ${{ tasks.verdict-feature-ZK_DISPUTE_GAME.succeeded }}
+      TASK_VERDICT_FEATURE_ZK_DISPUTE_GAME_FAILED: ${{ tasks.verdict-feature-ZK_DISPUTE_GAME.failed }}
+      TASK_VERDICT_FEATURE_ZK_DISPUTE_GAME_SKIPPED: ${{ tasks.verdict-feature-ZK_DISPUTE_GAME.skipped }}
+      TASK_VERDICT_FEATURE_MAIN_SUCCEEDED: ${{ tasks.verdict-feature-main.succeeded }}
+      TASK_VERDICT_FEATURE_MAIN_FAILED: ${{ tasks.verdict-feature-main.failed }}
+      TASK_VERDICT_FEATURE_MAIN_SKIPPED: ${{ tasks.verdict-feature-main.skipped }}
+    cache: false
+    timeout: 10m
+    outputs:
+      filesystem: false
+      artifacts:
+        - key: receipt
+          path: .ci/pr-gates/groups/contracts-upgrades

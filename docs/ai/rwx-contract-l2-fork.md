@@ -39,3 +39,24 @@ module preparation and original L2 job through the shared evidence adapter.
 Routing fixtures pin the exact enabled workflow set and preserve normal pushes,
 main dispatches and other branches. Neither provider's parity checklist nor the
 Contracts aggregate receives credit until complete original reports agree.
+
+
+The first automatic native run `b2bc1ecdff844e2bbe7367cf321f3002` at `63844aed`
+completed compilation in 657 seconds, then rejected an incomplete preflight mount
+before executing tests. The consumer received only `block.json`; validation
+correctly required its complete sealed RPC originals. The corrected consumer
+mounts the entire preflight report, and a regression rejects an unsealed block-only
+mount before any NUT or test command. The first failure remains retained.
+
+For the final pilot batch, `ops/ci/pilot-l2-fork-block.txt` pins block 157804208,
+`0xdef17f84f90e7d1bbf71a5ff53e9cb92201f9a31f8b7e63b3d84b55c82008673`.
+This is a reproducible comparison input, bound to the complete source SHA, rather
+than two independently selected heads. Both providers verify the entire public
+block and state again before execution. Explicit numeric CLI blocks remain
+available; `develop` continues to discover the latest head. A normal pilot push
+executes the same shared original L2 runner in Circle's existing Contracts
+workflow and the native coordinator, so the L2 workload and its genuine gate can
+be verified alongside the selector replay in one batch. Other Circle refs retain
+their original RPC selection and test path. Complete preparation/runtime consoles
+are archived as files to avoid provider console truncation; success never hides
+an earlier failed command or diagnostic rerun.

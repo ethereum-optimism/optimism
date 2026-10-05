@@ -1567,7 +1567,10 @@ jobs:
       - utils/checkout-with-mise:
           enable-mise-cache: true
       - when:
-          condition: <<parameters.parity_shadow>>
+          condition:
+            or:
+              - <<parameters.parity_shadow>>
+              - equal: [codex/rwx-ci-pilot, <<pipeline.git.branch>>]
           steps:
             - run:
                 name: Validate public L2 archive inputs before compilation
@@ -1617,16 +1620,24 @@ jobs:
       - run:
           name: Get latest block number if not specified
           command: |
-            if [ "<<parameters.l2_fork_block_number>>" = "latest" ]; then
+            if [ "$CIRCLE_BRANCH" = codex/rwx-ci-pilot ] && [ -f ../../.ci/contract-l2-fork/preflight/block.json ]; then
+              BLOCK_NUMBER=$(jq -er '.number' ../../.ci/contract-l2-fork/preflight/block.json)
+              printf 'export L2_FORK_BLOCK_NUMBER=%s\n' "$BLOCK_NUMBER" >> "$BASH_ENV"
+              printf 'export L2_FORK_RPC_URL=%q\n' 'https://mainnet.optimism.io' >> "$BASH_ENV"
+              printf '%s\n' "$BLOCK_NUMBER" > ./l2ForkBlockNumber.txt
+              echo "Using shared pilot fork block: $BLOCK_NUMBER"
+            elif [ "$CI_L2_FORK_BLOCK" = "latest" ]; then
               BLOCK_NUMBER=$(cast block-number --rpc-url "$L2_FORK_RPC_URL")
-              echo "export L2_FORK_BLOCK_NUMBER=$BLOCK_NUMBER" >> $BASH_ENV
+              echo "export L2_FORK_BLOCK_NUMBER=$BLOCK_NUMBER" >> "$BASH_ENV"
               echo "Using latest block number: $BLOCK_NUMBER"
               echo "$BLOCK_NUMBER" > ./l2ForkBlockNumber.txt
             else
-              echo "export L2_FORK_BLOCK_NUMBER=<<parameters.l2_fork_block_number>>" >> $BASH_ENV
-              echo "Using specified block number: <<parameters.l2_fork_block_number>>"
-              echo "<<parameters.l2_fork_block_number>>" > ./l2ForkBlockNumber.txt
+              printf 'export L2_FORK_BLOCK_NUMBER=%q\n' "$CI_L2_FORK_BLOCK" >> "$BASH_ENV"
+              echo "Using specified block number: $CI_L2_FORK_BLOCK"
+              printf '%s\n' "$CI_L2_FORK_BLOCK" > ./l2ForkBlockNumber.txt
             fi
+          environment:
+            CI_L2_FORK_BLOCK: <<parameters.l2_fork_block_number>>
           working_directory: packages/contracts-bedrock
       - restore_cache:
           name: Restore forked L2 state
@@ -1637,8 +1648,11 @@ jobs:
       - run:
           name: Check NUT bundle is up-to-date
           command: |
-            if [ "$CI_L2_PARITY_SHADOW" = "true" ] || [ "$CI_L2_PARITY_SHADOW" = "1" ]; then
-              python3 ../../ops/ci/contract-l2-fork.py prepare
+            if [ "$CI_L2_PARITY_SHADOW" = "true" ] || [ "$CI_L2_PARITY_SHADOW" = "1" ] || [ "$CIRCLE_BRANCH" = codex/rwx-ci-pilot ]; then
+              status=0
+              python3 ../../ops/ci/contract-l2-fork.py prepare > ../../.ci/contract-l2-fork/prepare.console.log 2>&1 || status=$?
+              tail -n 20 ../../.ci/contract-l2-fork/prepare.console.log
+              exit "$status"
             else
               just nut-bundle-check-no-build
             fi
@@ -1648,9 +1662,12 @@ jobs:
       - run:
           name: Run L2 fork tests
           command: |
-            if [ "$CI_L2_PARITY_SHADOW" = "true" ] || [ "$CI_L2_PARITY_SHADOW" = "1" ]; then
+            if [ "$CI_L2_PARITY_SHADOW" = "true" ] || [ "$CI_L2_PARITY_SHADOW" = "1" ] || [ "$CIRCLE_BRANCH" = codex/rwx-ci-pilot ]; then
+              status=0
               python3 ../../ops/ci/contract-l2-fork.py run --prepared ../../.ci/contract-l2-fork/prepare \
-                --block ../../.ci/contract-l2-fork/preflight/block.json
+                --block ../../.ci/contract-l2-fork/preflight/block.json > ../../.ci/contract-l2-fork/run.console.log 2>&1 || status=$?
+              tail -n 20 ../../.ci/contract-l2-fork/run.console.log
+              exit "$status"
             else
               mkdir -p results
               JUNIT_TEST_PATH=results/results.xml just test-l2-fork-upgrade
@@ -1663,8 +1680,8 @@ jobs:
       - run:
           name: Print failed test traces
           command: |
-            if [ "$CI_L2_PARITY_SHADOW" = "true" ] || [ "$CI_L2_PARITY_SHADOW" = "1" ]; then
-              cat ../../.ci/contract-l2-fork/run/rerun.log 2>/dev/null || true
+            if [ "$CI_L2_PARITY_SHADOW" = "true" ] || [ "$CI_L2_PARITY_SHADOW" = "1" ] || [ "$CIRCLE_BRANCH" = codex/rwx-ci-pilot ]; then
+              tail -n 20 ../../.ci/contract-l2-fork/run/rerun.log 2>/dev/null || true
             else
               just test-l2-fork-upgrade-rerun | tee failed-test-traces-l2-fork.log
             fi
@@ -1689,7 +1706,10 @@ jobs:
           path: packages/contracts-bedrock/results
           when: always
       - when:
-          condition: <<parameters.parity_shadow>>
+          condition:
+            or:
+              - <<parameters.parity_shadow>>
+              - equal: [codex/rwx-ci-pilot, <<pipeline.git.branch>>]
           steps:
             - run:
                 name: Archive complete original L2 fork evidence

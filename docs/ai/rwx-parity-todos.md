@@ -38,13 +38,13 @@ workflow changes since the pilot's `c8e4ba85` base. The PR denominator remains 8
 
 | PR workflow | Expanded job instances | Implemented validation jobs |
 | --- | ---: | ---: |
-| Main | 32 | 31 |
+| Main | 32 | 32 |
 | Contracts | 23 | 21 |
 | Rust | 22 | 22 |
 | Rust E2E | 9 | 9 |
-| Total | 86 | 83 |
+| Total | 86 | 84 |
 
-Verified implementation coverage is **83 / 86 = 97%**. Each matrix entry and
+Verified implementation coverage is **84 / 86 = 98%**. Each matrix entry and
 each occurrence in a different workflow counts separately; shards do not.
 The CircleCI setup and schedule-trigger-check workflows are outside this
 86-job denominator and have separate todos. This is occurrence coverage backed
@@ -124,8 +124,7 @@ tasks, original verifier output and both terminal GitHub checks. See the
 [gate closeout](rwx-pr-gates.md). The full Main aggregate also passes complete
 same-SHA original gate comparison at `4ae28fd9`, including every one of its 19
 dependencies, twelve Go and sixteen acceptance shards, all ten receipts and
-both terminal GitHub gate checks. Three occurrences remain: the Main selector
-uploader, L2 fork, and the Contracts aggregate. Circle continues
+both terminal GitHub gate checks. Two occurrences remain: L2 fork and the Contracts aggregate. Circle continues
 to own every required gate.
 The narrower rollup mode remains CLI-only. See [the stage closeout](rwx-go-parity.md)
 for original-report comparison, selected resources, caches and limitations.
@@ -262,7 +261,7 @@ CircleCI workflow: `main` (32 jobs).
 - [x] `go-binaries-for-sysgo`
 - [x] `generate-flaky-tests-report` — [native original reporter](rwx-flaky-report.md), complete same-SHA API/report parity at `b472a22e`, all 79 original observations and 12 acceptance rows, no retries
 - [x] `contracts-bedrock-build-1`
-- [ ] `contracts-bedrock-upload` — [complete isolated uploader](rwx-selector-upload.md) prototype passes real imports and complete database/API readback; pushed same-SHA Circle/native parity remains pending, so no coverage is added
+- [x] `contracts-bedrock-upload` — [complete isolated uploader](rwx-selector-upload.md), strict same-SHA original parity at `63844aed`, all 1,120 signatures, complete initial and stable compiler catalogues, private API and fresh database readback
 - [x] `diff-fetcher-forge-artifacts` — [fresh build and untouched artifact comparison](rwx-fetcher-artifacts.md)
 - [x] `check-op-geth-version`
 - [x] `check-nut-prefork-states` — [complete original-report parity](rwx-nut-prefork.md)

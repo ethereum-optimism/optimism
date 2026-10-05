@@ -101,6 +101,11 @@ def block(directory, number):
 
 def preflight(directory, requested):
     check(requested == 'latest' or re.fullmatch('[1-9][0-9]*', requested), 'Invalid selected L2 fork height')
+    # One committed pilot snapshot lets the full push verify both providers
+    # together, without a second Circle replay to align independently read heads.
+    if requested == 'latest' and (os.environ.get('CI_BRANCH') or os.environ.get('CIRCLE_BRANCH')) == 'codex/rwx-ci-pilot':
+        requested = (ROOT / 'ops/ci/pilot-l2-fork-block.txt').read_text().strip()
+        check(re.fullmatch('[1-9][0-9]*', requested), 'Invalid committed pilot L2 fork snapshot')
     number = int(call(directory, 'eth_blockNumber', []), 16) if requested == 'latest' else int(requested)
     value = block(directory, number)
     code = call(directory, 'eth_getCode', [ADDRESS, hex(number)])

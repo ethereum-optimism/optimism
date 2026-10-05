@@ -580,3 +580,28 @@ tasks:
       artifacts:
         - key: receipt
           path: .ci/pr-gates/groups/main-checks
+
+  # Bind every complete Contracts prerequisite to fresh engine terminal states.
+  - key: contracts-gate-receipt
+    use: [code, tools]
+    after: ${{ (contracts-fast.succeeded || contracts-fast.failed || contracts-fast.skipped) }}
+    if: ${{ init.cache-warm != 'true' }}
+    run: python3 ops/ci/pr-gate.py receipt contracts-checks
+    env:
+      CI_COMMIT_SHA: ${{ init.commit-sha }}
+      CI_BRANCH: ${{ init.branch }}
+      GROUP_SELECTED: ${{ tasks.route.values.run-contracts }}
+      RWX_RUN_ID:
+        cache-key: included
+      RWX_TASK_ATTEMPT_NUMBER:
+        cache-key: included
+      TASK_CONTRACTS_FAST_SUCCEEDED: ${{ tasks.contracts-fast.succeeded }}
+      TASK_CONTRACTS_FAST_FAILED: ${{ tasks.contracts-fast.failed }}
+      TASK_CONTRACTS_FAST_SKIPPED: ${{ tasks.contracts-fast.skipped }}
+    cache: false
+    timeout: 10m
+    outputs:
+      filesystem: false
+      artifacts:
+        - key: receipt
+          path: .ci/pr-gates/groups/contracts-checks

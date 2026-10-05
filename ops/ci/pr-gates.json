@@ -343,6 +343,167 @@
         "failure": "main-gate-failure",
         "status": "main-gate-status"
       }
+    },
+    "required-contracts-ci": {
+      "circle_config": ".circleci/continue/main.yml",
+      "workflow": "contracts-feature-tests",
+      "route": "run-contracts-feature-tests",
+      "dependencies": [
+        {
+          "name": "contracts-bedrock-tests main",
+          "group": "contracts-suites",
+          "tasks": [
+            "verdict-standard-main"
+          ]
+        },
+        {
+          "name": "contracts-bedrock-tests CUSTOM_GAS_TOKEN",
+          "group": "contracts-suites",
+          "tasks": [
+            "verdict-standard-CUSTOM_GAS_TOKEN"
+          ]
+        },
+        {
+          "name": "contracts-bedrock-tests OPTIMISM_PORTAL_INTEROP",
+          "group": "contracts-suites",
+          "tasks": [
+            "verdict-standard-OPTIMISM_PORTAL_INTEROP"
+          ]
+        },
+        {
+          "name": "contracts-bedrock-tests ZK_DISPUTE_GAME",
+          "group": "contracts-suites",
+          "tasks": [
+            "verdict-standard-ZK_DISPUTE_GAME"
+          ]
+        },
+        {
+          "name": "contracts-bedrock-tests-heavy-fuzz-modified main",
+          "group": "contracts-suites",
+          "tasks": [
+            "verdict-modified-main"
+          ]
+        },
+        {
+          "name": "contracts-bedrock-tests-heavy-fuzz-modified CUSTOM_GAS_TOKEN",
+          "group": "contracts-suites",
+          "tasks": [
+            "verdict-modified-CUSTOM_GAS_TOKEN"
+          ]
+        },
+        {
+          "name": "contracts-bedrock-tests-heavy-fuzz-modified OPTIMISM_PORTAL_INTEROP",
+          "group": "contracts-suites",
+          "tasks": [
+            "verdict-modified-OPTIMISM_PORTAL_INTEROP"
+          ]
+        },
+        {
+          "name": "contracts-bedrock-tests-heavy-fuzz-modified ZK_DISPUTE_GAME",
+          "group": "contracts-suites",
+          "tasks": [
+            "verdict-modified-ZK_DISPUTE_GAME"
+          ]
+        },
+        {
+          "name": "contracts-bedrock-coverage main",
+          "group": "contracts-coverage",
+          "tasks": [
+            "verdict-main"
+          ]
+        },
+        {
+          "name": "contracts-bedrock-coverage CUSTOM_GAS_TOKEN",
+          "group": "contracts-coverage",
+          "tasks": [
+            "verdict-CUSTOM_GAS_TOKEN"
+          ]
+        },
+        {
+          "name": "contracts-bedrock-coverage OPTIMISM_PORTAL_INTEROP",
+          "group": "contracts-coverage",
+          "tasks": [
+            "verdict-OPTIMISM_PORTAL_INTEROP"
+          ]
+        },
+        {
+          "name": "contracts-bedrock-coverage ZK_DISPUTE_GAME",
+          "group": "contracts-coverage",
+          "tasks": [
+            "verdict-ZK_DISPUTE_GAME"
+          ]
+        },
+        {
+          "name": "contracts-bedrock-tests-upgrade op-mainnet main",
+          "group": "contracts-upgrades",
+          "tasks": [
+            "verdict-feature-main"
+          ]
+        },
+        {
+          "name": "contracts-bedrock-tests-upgrade op-mainnet CUSTOM_GAS_TOKEN",
+          "group": "contracts-upgrades",
+          "tasks": [
+            "verdict-feature-CUSTOM_GAS_TOKEN"
+          ]
+        },
+        {
+          "name": "contracts-bedrock-tests-upgrade op-mainnet OPTIMISM_PORTAL_INTEROP",
+          "group": "contracts-upgrades",
+          "tasks": [
+            "verdict-feature-OPTIMISM_PORTAL_INTEROP"
+          ]
+        },
+        {
+          "name": "contracts-bedrock-tests-upgrade op-mainnet ZK_DISPUTE_GAME",
+          "group": "contracts-upgrades",
+          "tasks": [
+            "verdict-feature-ZK_DISPUTE_GAME"
+          ]
+        },
+        {
+          "name": "contracts-bedrock-tests-upgrade op-mainnet",
+          "group": "contracts-upgrades",
+          "tasks": [
+            "verdict-chain-op"
+          ]
+        },
+        {
+          "name": "contracts-bedrock-tests-upgrade ink-mainnet",
+          "group": "contracts-upgrades",
+          "tasks": [
+            "verdict-chain-ink"
+          ]
+        },
+        {
+          "name": "contracts-bedrock-tests-upgrade unichain-mainnet",
+          "group": "contracts-upgrades",
+          "tasks": [
+            "verdict-chain-unichain"
+          ]
+        },
+        {
+          "name": "contracts-bedrock-tests-l2-fork op-mainnet",
+          "group": "contracts-l2-fork",
+          "tasks": [
+            "verdict"
+          ]
+        },
+        {
+          "name": "contracts-bedrock-checks-fast-feature-tests",
+          "group": "contracts-checks",
+          "tasks": [
+            "contracts-fast"
+          ]
+        }
+      ],
+      "native_config": ".rwx/pr-gates.yml",
+      "check_name": "optimism-contracts-gate-shadow",
+      "observer_tasks": {
+        "aggregate": "contracts-aggregate",
+        "failure": "contracts-gate-failure",
+        "status": "contracts-gate-status"
+      }
     }
   },
   "groups": {
@@ -499,6 +660,69 @@
       "route": "run-main",
       "embedded_task": "native-kontrol",
       "check_name": "optimism-kontrol-build-shadow",
+      "init": {
+        "cache-warm": "false",
+        "cache-epoch": "v1"
+      },
+      "receipt_if": "${{ init.cache-warm != 'true' }}"
+    },
+    "contracts-suites": {
+      "config": ".rwx/contracts.yml",
+      "receipt_task": "contracts-gate-receipt",
+      "route": "run-contracts",
+      "embedded_task": "native-contracts",
+      "check_name": "optimism-contracts-shadow",
+      "init": {
+        "cache-warm": "false",
+        "cache-epoch": "v1",
+        "build-probe": ""
+      },
+      "receipt_if": "${{ init.cache-warm != 'true' }}"
+    },
+    "contracts-upgrades": {
+      "config": ".rwx/contract-upgrades.yml",
+      "receipt_task": "contracts-gate-receipt",
+      "route": "run-contracts",
+      "embedded_task": "native-contract-upgrades",
+      "check_name": "optimism-contract-upgrades-shadow",
+      "init": {
+        "cache-warm": "false",
+        "cache-epoch": "v1"
+      },
+      "receipt_if": "${{ init.cache-warm != 'true' }}"
+    },
+    "contracts-coverage": {
+      "config": ".rwx/contract-coverage.yml",
+      "receipt_task": "contracts-gate-receipt",
+      "route": "run-contracts",
+      "embedded_task": "native-contract-coverage",
+      "check_name": "optimism-contract-coverage-shadow",
+      "init": {
+        "cache-warm": "false",
+        "cache-epoch": "v1"
+      },
+      "receipt_if": "${{ init.cache-warm != 'true' }}",
+      "workspace": "project"
+    },
+    "contracts-l2-fork": {
+      "config": ".rwx/contract-l2-fork.yml",
+      "receipt_task": "contracts-gate-receipt",
+      "route": "run-contracts",
+      "embedded_task": "native-contract-l2-fork",
+      "check_name": "optimism-contract-l2-fork-shadow",
+      "init": {
+        "cache-warm": "false",
+        "cache-epoch": "v1",
+        "fork-block": "latest"
+      },
+      "receipt_if": "${{ init.cache-warm != 'true' }}"
+    },
+    "contracts-checks": {
+      "config": ".rwx/pr-checks.yml",
+      "receipt_task": "contracts-gate-receipt",
+      "route": "run-contracts",
+      "embedded_task": "native-pr-checks",
+      "check_name": "optimism-pr-checks-shadow",
       "init": {
         "cache-warm": "false",
         "cache-epoch": "v1"

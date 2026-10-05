@@ -33,7 +33,7 @@ class GateTests(unittest.TestCase):
         self.env={'CI_COMMIT_SHA':self.sha,'CI_BRANCH':'codex/rwx-ci-pilot','RWX_RUN_ID':'a'*32,'RWX_TASK_ATTEMPT_NUMBER':'1'}
         self.manifest,self.selection=G.configuration('required-rust-ci');self.selection=self.selection['required-rust-ci']
         route=self.root/'.ci/routing.json';route.parent.mkdir(exist_ok=True)
-        route.write_text(json.dumps({'c-run_rust_ci':True,'c-run_main':True}));self.env['GATE_ROUTING']=str(route)
+        route.write_text(json.dumps({'c-run_rust_ci':True,'c-run_main':True,'c-run_contracts_feature_tests':True}));self.env['GATE_ROUTING']=str(route)
 
     def reports(self,selected=True,gate='required-rust-ci'):
         env={**self.env}
@@ -230,6 +230,48 @@ class GateTests(unittest.TestCase):
         env['TASK_VERDICT_11_SUCCEEDED']='false';env['TASK_VERDICT_11_SKIPPED']='true'
         with patch.dict(os.environ,env):self.assertEqual(G.receipt('main-go'),1)
         self.assertTrue(G.read(self.root/'.ci/pr-gates/groups/main-go/states.json')['verdict-11']['skipped'])
+
+    def test_contracts_gate_covers_all_feature_chain_fork_and_fast_prerequisites_once(self):
+        env=self.reports(gate='required-contracts-ci')
+        result,output,record=self.run_aggregate(env,gate='required-contracts-ci')
+        selection=G.configuration('required-contracts-ci')[1]['required-contracts-ci']
+        self.assertEqual(result,0)
+        self.assertEqual(len(selection['requires']),21)
+        self.assertEqual([row['name'] for row in record['dependencies']],selection['requires'])
+        self.assertEqual([len(G.group_tasks(self.manifest,group)) for group in selection['groups']],[1,4,1,8,7])
+        self.assertEqual(G.originals(output)['tests'],0)
+        self.assertEqual(self.manifest['groups']['contracts-checks']['embedded_task'],
+                         self.manifest['groups']['main-checks']['embedded_task'])
+        self.assertEqual(self.manifest['groups']['contracts-coverage']['workspace'],'project')
+
+    def test_contracts_failure_cannot_hide_missing_fork_and_preserves_other_gate_scope(self):
+        rust=self.reports();main=self.reports(gate='ci-gate');contracts=self.reports(gate='required-contracts-ci')
+        env={**self.env,'GROUP_SELECTED':'true','TASK_VERDICT_SUCCEEDED':'false',
+             'TASK_VERDICT_FAILED':'false','TASK_VERDICT_SKIPPED':'true'}
+        with patch.dict(os.environ,env):self.assertEqual(G.receipt('contracts-l2-fork'),1)
+        self.assertTrue(G.read(self.root/'.ci/pr-gates/groups/contracts-l2-fork/states.json')['verdict']['skipped'])
+        for attribute in ('succeeded','failed','skipped'):
+            contracts['GROUP_CONTRACTS_L2_FORK_'+attribute.upper()]=str(attribute=='failed').lower()
+        contracts.pop('GROUP_CONTRACTS_L2_FORK_REPORT')
+        result,output,_=self.run_aggregate(contracts,failed=True,gate='required-contracts-ci')
+        self.assertEqual(result,1)
+        self.assertTrue(G.read(output/'final.json')['original_sha256'])
+        self.assertEqual(self.run_aggregate(rust)[0],0)
+        self.assertEqual(self.run_aggregate(main,gate='ci-gate')[0],0)
+
+    def test_contracts_safe_skip_and_checkout_depth_remain_authoritative(self):
+        env=self.reports(False,gate='required-contracts-ci')
+        Path(env['GATE_ROUTING']).write_text(json.dumps({'c-run_contracts_feature_tests':False}))
+        result,output,record=self.run_aggregate(env,gate='required-contracts-ci')
+        self.assertEqual(result,0);self.assertEqual(record['state'],'safe_skip')
+        self.assertEqual(G.originals(output)['tests'],0)
+        path=self.root/'.rwx/contract-coverage.yml';source=path.read_text()
+        for old,new in [('      path: project','      path: other'),
+                        ('cd project\n      python3 ops/ci/pr-gate.py receipt contracts-coverage',
+                         'cd project\n      true'),
+                        ('path: project/.ci/pr-gates/groups/contracts-coverage','path: .ci/pr-gates/groups/contracts-coverage')]:
+            path.write_text(source.replace(old,new,1))
+            with self.subTest(new=new),self.assertRaises(ValueError):G.configuration('required-contracts-ci')
 
 
 if __name__=='__main__':unittest.main()
