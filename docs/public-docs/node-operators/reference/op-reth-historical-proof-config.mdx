@@ -136,6 +136,13 @@ Once `latest` tracks chain tip, `eth_getProof` calls for blocks within `[earlies
 - Coverage is operationally measured via `debug_proofsSyncStatus` (`earliest`/`latest`).
 - For stable long-window proof serving, validate startup snapshots and retention settings together.
 
+### Upgrading from storage version flags
+
+Releases after op-reth v2.6.x only support the v2 storage format and no longer accept `--proofs-history.storage-version`. How you upgrade depends on how you ran the previous release:
+
+- **You never set `--proofs-history.storage-version`, or set it to `v1`:** your proofs database uses the removed v1 format, and op-reth refuses to open it. Stop the node, delete the proofs database directory (or point `--proofs-history.storage-path` at a fresh path), run `op-reth proofs init`, and restart with `--proofs-history`. The new database only serves proofs from the initialization point forward, so plan for the retention window to refill.
+- **You set `--proofs-history.storage-version=v2`:** remove the flag from `op-reth node` and every `op-reth proofs` command. Your existing proofs database is compatible.
+
 ## Metrics
 
 When the `metrics` feature is enabled, the proofs-history system exposes Prometheus metrics to monitor health and performance.
