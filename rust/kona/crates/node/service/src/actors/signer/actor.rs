@@ -35,12 +35,10 @@ pub struct SignedPayload {
 /// waits, the sequencer's payload queue fills and then blocks block production: an outage that
 /// outlasts the queue halts the sequencer instead of letting gossip fall behind. Any other signing
 /// error is fatal.
-///
-/// Without a signer, payloads are dropped with a warning.
 #[derive(Debug)]
 pub struct SignerActor {
-    /// Signs the payloads, if one is configured.
-    signer: Option<BlockSignerHandler>,
+    /// Signs the payloads.
+    signer: BlockSignerHandler,
     /// The L2 chain ID the signatures commit to.
     chain_id: u64,
     /// The unsafe block signer currently set in `SystemConfig`.
@@ -65,7 +63,7 @@ pub enum SignerActorError {
 impl SignerActor {
     /// Constructs a new [`SignerActor`].
     pub const fn new(
-        signer: Option<BlockSignerHandler>,
+        signer: BlockSignerHandler,
         chain_id: u64,
         unsafe_block_signer: watch::Receiver<Address>,
         payloads: mpsc::Receiver<OpExecutionPayloadEnvelope>,
@@ -74,10 +72,9 @@ impl SignerActor {
         Self { signer, chain_id, unsafe_block_signer, payloads, signed }
     }
 
-    /// Signs `payload` with `signer`, retrying transient failures until one attempt succeeds.
+    /// Signs `payload`, retrying transient failures until one attempt succeeds.
     async fn sign(
         &self,
-        signer: &BlockSignerHandler,
         payload: &OpExecutionPayloadEnvelope,
     ) -> Result<Signature, BlockSignerError> {
         let payload_hash = payload.payload_hash();
@@ -86,8 +83,11 @@ impl SignerActor {
             // Read on each attempt: after a rotation, a remote signer then fails with
             // `InvalidAddress` instead of signing for a retired key. A local signer ignores it.
             let sender = *self.unsafe_block_signer.borrow();
-            match timeout(SIGNING_TIMEOUT, signer.sign_block(payload_hash, self.chain_id, sender))
-                .await
+            match timeout(
+                SIGNING_TIMEOUT,
+                self.signer.sign_block(payload_hash, self.chain_id, sender),
+            )
+            .await
             {
                 Ok(Ok(signature)) => return Ok(signature),
                 Ok(Err(BlockSignerError::Remote(RemoteSignerError::SigningRPCError(err)))) => {
@@ -108,11 +108,7 @@ impl NodeActor for SignerActor {
 
     async fn step(&mut self) -> Result<(), Self::Error> {
         let payload = self.payloads.recv().await.ok_or(SignerActorError::ChannelClosed)?;
-        let Some(signer) = &self.signer else {
-            warn!(target: "signer", "No block signer configured; not gossiping the payload");
-            return Ok(());
-        };
-        let signature = self.sign(signer, &payload).await?;
+        let signature = self.sign(&payload).await?;
         self.signed
             .send(SignedPayload { payload, signature })
             .await
@@ -199,7 +195,7 @@ mod tests {
         actor: SignerActor,
     }
 
-    fn harness(signer: Option<BlockSignerHandler>, unsafe_block_signer: Address) -> Harness {
+    fn harness(signer: BlockSignerHandler, unsafe_block_signer: Address) -> Harness {
         let (payloads, payloads_rx) = mpsc::channel(8);
         let (signed_tx, signed) = mpsc::channel(8);
         let actor = SignerActor::new(
@@ -257,7 +253,7 @@ mod tests {
     #[tokio::test]
     async fn signs_payloads_in_order() {
         let key = PrivateKeySigner::random();
-        let mut h = harness(Some(BlockSignerHandler::Local(key.clone())), key.address());
+        let mut h = harness(BlockSignerHandler::Local(key.clone()), key.address());
         for number in 1..=3 {
             h.payloads.send(payload(number)).await.unwrap();
         }
@@ -273,7 +269,7 @@ mod tests {
     async fn transient_failures_are_retried_without_skipping_a_payload() {
         let key = PrivateKeySigner::random();
         let (signer, calls, _server) = remote_signer(&key, 3).await;
-        let mut h = harness(Some(signer), key.address());
+        let mut h = harness(signer, key.address());
         h.payloads.send(payload(1)).await.unwrap();
         h.payloads.send(payload(2)).await.unwrap();
 
@@ -294,7 +290,7 @@ mod tests {
         let key = PrivateKeySigner::random();
         let (signer, calls, _server) = remote_signer(&key, 0).await;
         // `SystemConfig` names a different signer than the remote signer holds.
-        let mut h = harness(Some(signer), Address::repeat_byte(1));
+        let mut h = harness(signer, Address::repeat_byte(1));
         h.payloads.send(payload(1)).await.unwrap();
         assert!(matches!(
             h.actor.step().await,
@@ -303,14 +299,6 @@ mod tests {
             )))
         ));
         assert_eq!(calls.load(Ordering::SeqCst), 0);
-        assert!(h.signed.try_recv().is_err());
-    }
-
-    #[tokio::test]
-    async fn without_a_signer_payloads_are_dropped() {
-        let mut h = harness(None, Address::ZERO);
-        h.payloads.send(payload(1)).await.unwrap();
-        h.actor.step().await.unwrap();
         assert!(h.signed.try_recv().is_err());
     }
 }

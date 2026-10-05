@@ -114,7 +114,7 @@ impl TestNetworkBuilder {
         // Every test network can sign: payloads sent to `gossip_payload_tx` are signed with this
         // node's key and then gossiped.
         let mut signer = SignerActor::new(
-            Some(BlockSignerHandler::Local(local_node_key.into())),
+            BlockSignerHandler::Local(local_node_key.into()),
             self.chain_id,
             watch::channel(self.unsafe_block_signer).1,
             gossip_payload_rx,

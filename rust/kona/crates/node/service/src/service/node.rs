@@ -344,6 +344,8 @@ impl RollupNode {
     }
 
     /// Builds the signer actor when the node is in sequencer mode; otherwise returns `None`.
+    ///
+    /// A sequencer must have a block signer: its blocks are gossiped only once signed.
     async fn build_signer_actor(
         &self,
         payloads_rx: mpsc::Receiver<OpExecutionPayloadEnvelope>,
@@ -356,12 +358,13 @@ impl RollupNode {
             }
             return Ok(None);
         }
-        let signer = match self.p2p_config.gossip_signer.clone() {
-            Some(signer) => Some(
-                signer.start().await.map_err(|e| format!("Failed to start block signer: {e}"))?,
-            ),
-            None => None,
+        let Some(signer) = self.p2p_config.gossip_signer.clone() else {
+            return Err("Sequencer mode requires a block signer: set --p2p.sequencer.key, \
+                 --p2p.sequencer.key.path, or --p2p.signer.endpoint with --p2p.signer.address"
+                .into());
         };
+        let signer =
+            signer.start().await.map_err(|e| format!("Failed to start block signer: {e}"))?;
         Ok(Some(SignerActor::new(
             signer,
             self.config.l2_chain_id.id(),
