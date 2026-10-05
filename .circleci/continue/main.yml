@@ -1659,6 +1659,7 @@ jobs:
           environment:
             CI_L2_PARITY_SHADOW: <<parameters.parity_shadow>>
           working_directory: packages/contracts-bedrock
+          no_output_timeout: 30m
       - run:
           name: Run L2 fork tests
           command: |

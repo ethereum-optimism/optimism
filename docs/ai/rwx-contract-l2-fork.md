@@ -60,3 +60,13 @@ be verified alongside the selector replay in one batch. Other Circle refs retain
 their original RPC selection and test path. Complete preparation/runtime consoles
 are archived as files to avoid provider console truncation; success never hides
 an earlier failed command or diagnostic rerun.
+
+The corrected native coordinator at `936ef20e` ran all seven selected cases
+successfully in 77 seconds of fresh verdict execution. Its compilation reused
+the compiler cache and executed in 23 seconds. These are task observations,
+not a provider speed comparison. Circle pipeline 135628/job 5638523 was killed
+after exactly ten minutes without console output during full preparation.
+The complete partial preparation stream and all untruncated API logs remain
+retained in the [first combined batch](rwx-pr-gates-evidence/contracts-first-batch.json).
+The preparation step now allows 30 minutes without output while retaining its
+full original console archive. The failed Circle run adds no parity credit.

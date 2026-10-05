@@ -33,8 +33,15 @@ The October 1, 2026 inventory is
 at commit `587b4c3a73d3f16f15212b72e9a0ed0e8489a7c4`.
 
 The October 5 refresh observes `develop` at
-`5c3ff7ca4767c0746abe332ea92e47548f2d69db`, with no upstream Circle or GitHub
+`b9ae98c8f1a6cef46576f48831a8e51c53f87023`, with no upstream Circle or GitHub
 workflow changes since the pilot's `c8e4ba85` base. The PR denominator remains 86.
+
+All 86 occurrences are implemented. The combined verification batch at
+`936ef20e` passed all seven native L2 fork cases and the native Contracts
+aggregate's 21 fresh prerequisites. Circle killed L2 preparation at its default
+ten-minute silence limit, before the verdict, so the last two occurrences still
+receive no verified parity credit. The complete first failure is retained; its
+preparation limit is corrected before another combined batch.
 
 | PR workflow | Expanded job instances | Implemented validation jobs |
 | --- | ---: | ---: |

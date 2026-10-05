@@ -92,6 +92,25 @@ class ComparisonTests(unittest.TestCase):
         self.assertEqual(C.normalized(value, '/provider'), value | {'path': '$WORKSPACE/source.sol',
             'root': '$WORKSPACE', 'nested': ['$WORKSPACE/lib', {'name': 'provider'}]})
 
+    def test_circle_alias_is_bound_to_the_isolated_original_workflow(self):
+        source = {'workflows': {'selector-upload-replay': {'jobs': [
+            {'contracts-bedrock-upload': {'selector_shadow': True}}]}}}
+        for alias in ('contracts-bedrock-upload', 'contracts-bedrock-upload-1'):
+            publisher = {'steps': [{'run': {'command': 'original isolated publisher'}}]}
+            compiled = {'workflows': {'selector-upload-replay': {'jobs': [{alias: {}}]}},
+                        'jobs': {alias: publisher}}
+            self.assertEqual(C.circle_replay_job(source, compiled, alias), publisher)
+            with self.assertRaisesRegex(ValueError, 'actual Circle replay selection'):
+                C.circle_replay_job(source, compiled, 'contracts-bedrock-upload-2')
+            with self.assertRaisesRegex(ValueError, 'original Circle replay selection'):
+                C.circle_replay_job({'workflows': {'selector-upload-replay': {'jobs': [
+                    {'contracts-bedrock-upload': {'selector_shadow': False}}]}}}, compiled, alias)
+        for alias in ('production-upload', 'contracts-bedrock-upload-0', 'contracts-bedrock-upload-extra'):
+            compiled = {'workflows': {'selector-upload-replay': {'jobs': [{alias: {}}]}},
+                        'jobs': {alias: {'steps': []}}}
+            with self.subTest(alias=alias), self.assertRaisesRegex(ValueError, 'actual Circle replay selection'):
+                C.circle_replay_job(source, compiled, alias)
+
     def test_real_provider_users_are_unprivileged_and_failure_evidence_is_required(self):
         users = []
         for provider in ('circleci', 'rwx'):

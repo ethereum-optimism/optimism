@@ -137,3 +137,14 @@ The prior failed and truncated comparisons remain retained.
 Normal pilot pushes now select this same private replay alongside the full PR
 workflow. This permits one verification batch for the final selector, L2 fork
 and Contracts gate changes. Other branches and publishers retain their routing.
+
+The [combined-batch comparison](rwx-selector-upload-evidence/batch-parity.json)
+at `936ef20e` also passes every original compiler, protocol, process and database
+comparison. Circle pipeline 135628/job 5638486 and automatic native run
+`d8b29db74c964232a060ebb4362a9a78` retain all 4,520/4,517 report files with no
+truncated Circle logs. Circle compiled the replay as `contracts-bedrock-upload-1`
+because the normal publisher is also present in the full pipeline. The comparer
+binds that generated alias to the original `selector_shadow=true` workflow and
+its actual isolated commands. It rejects a production binding or mismatched job.
+Twenty helper fixtures pass, and the prior complete `63844aed` comparison still
+passes through this reader.

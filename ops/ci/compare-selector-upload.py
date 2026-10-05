@@ -275,6 +275,19 @@ def report(directory):
             'registry_source': source, 'service': service}
 
 
+def circle_replay_job(source, compiled, job_name):
+    """Bind Circle's generated job alias to the original isolated publisher."""
+    original = source['workflows']['selector-upload-replay']['jobs']
+    check(len(original) == 1 and set(original[0]) == {'contracts-bedrock-upload'}
+          and original[0]['contracts-bedrock-upload'].get('selector_shadow') is True,
+          'Wrong original Circle replay selection')
+    selected = compiled['workflows']['selector-upload-replay']['jobs']
+    check(re.fullmatch(r'contracts-bedrock-upload(?:-[1-9][0-9]*)?', job_name)
+          and len(selected) == 1 and set(selected[0]) == {job_name}
+          and job_name in compiled['jobs'], 'Wrong actual Circle replay selection')
+    return compiled['jobs'][job_name]
+
+
 def hosted(circle, native, run_path, github_path):
     s = read(native / 'settings.json')
     run = read(run_path)
@@ -304,7 +317,7 @@ def hosted(circle, native, run_path, github_path):
     for i, p in enumerate(pages):
         page = read(p); jobs.extend(page['items'])
         check(bool(page.get('next_page_token')) == (i < len(pages) - 1), 'Incomplete Circle pagination')
-    check(len(jobs) == 1 and jobs[0]['name'] == 'contracts-bedrock-upload' and jobs[0]['status'] == 'success'
+    check(len(jobs) == 1 and jobs[0]['status'] == 'success'
           and jobs[0]['job_number'] == c['job_number'] and job['workflows']['job_id'] == jobs[0]['id']
           and job['build_num'] == c['job_number'] and job['vcs_revision'] == sha and job['branch'] == s['branch']
           and job['workflows']['workflow_id'] == c['workflow_id'] and job['status'] == job['outcome'] == 'success'
@@ -314,9 +327,8 @@ def hosted(circle, native, run_path, github_path):
     check(config['compiled'] == (circle / 'compiled.yml').read_text()
           and config['source'] == (circle / 'source.yml').read_text(), 'Changed original compiled Circle configuration')
     compiled = G.yaml(circle / 'compiled.yml')
-    selected = compiled['workflows']['selector-upload-replay']['jobs']
-    check(len(selected) == 1 and set(selected[0]) == {'contracts-bedrock-upload'}, 'Wrong actual Circle replay selection')
-    commands = [step['run']['command'] for step in compiled['jobs']['contracts-bedrock-upload']['steps']
+    publisher = circle_replay_job(G.yaml(circle / 'source.yml'), compiled, jobs[0]['name'])
+    commands = [step['run']['command'] for step in publisher['steps']
                 if isinstance(step, dict) and isinstance(step.get('run'), dict)]
     check(any('python3 ops/ci/selector-upload.py run .ci/selector-upload/run' in command for command in commands)
           and 'just update-selectors' not in commands, 'Actual Circle publisher was not isolated')

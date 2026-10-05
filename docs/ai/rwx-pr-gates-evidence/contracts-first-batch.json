@@ -1,0 +1,32 @@
+{
+  "state": "native execution passed; same-SHA Circle parity failed before L2 verdict",
+  "coverage_credit": 0,
+  "source_sha": "936ef20e62f4a4b6a3996a6732c844ea9c31603d",
+  "circle_pipeline": 135628,
+  "circle_workflow": "ce2e036f-3824-4a6b-bc06-2ce58b9ededc",
+  "circle_l2_job": 5638523,
+  "circle_gate_job": 5638542,
+  "native_run": "291f542eb2ab4de38aab9161a5531d11",
+  "native_l2_verdict": "f41b401fffcc9364fa17158ec3b0be91",
+  "native_l2_cases": 7,
+  "native_contracts_prerequisites": 21,
+  "native_aggregate": "5031418a3324692574795c44383b2827",
+  "native_status": "7b8e298106d69a987399d2425e670a04",
+  "selector_same_sha_parity": true,
+  "failure": "Circle killed full preparation after exactly ten minutes with no console output; original preparation stream was retained in the always-collected archive",
+  "corrective_change": "Set preparation no_output_timeout to 30m; retain complete original consoles and fresh verdict behavior",
+  "retained_manifest_sha256": {
+    "native_aggregate": "55de88a0ca87b8d933563b881917b103c36170e3455a11eb9e0d5fc9cdea16bb",
+    "native_status": "78e86bd6cb0c35d2295efa3839d58ed64d5577be27100a672b17009d5adcc76f",
+    "circle_l2_failure": "9e66f61c988177096d33a600fac1108a792806196c9a7efe987033c9b1a22713",
+    "selector_parity": "90b691175a1f29dd2ea86158a9c127f9f31efadbd9cb2d2f78d99bdc6f4a73c6",
+    "circle_gate_failure": "7a8963e3d6da6542f9d68e3ccf1ce5e63a3cb083a6ac71f5b73b01ea7b2d7ebd"
+  },
+  "local_corrective_validation": {
+    "selector_helper_tests": 20,
+    "previous_selector_complete_comparison_passed": true,
+    "same_batch_selector_complete_comparison_passed": true,
+    "merged_circle_config_valid": true
+  },
+  "native_root_result": "succeeded"
+}

@@ -151,3 +151,12 @@ the complete original provider comparison. These fixtures add zero coverage.
 The [Contracts implementation preflight](rwx-pr-gates-evidence/contracts-preflight.json)
 retains all changed input hashes and local validation. Hosted coverage remains
 pending until the complete original gate and L2 comparisons pass.
+
+The [first combined batch](rwx-pr-gates-evidence/contracts-first-batch.json) at
+`936ef20e` passed all 21 native Contracts prerequisites, all five fresh receipts,
+the aggregate and its final status. Their complete original archives were
+downloaded through the existing signed-in account. Circle pipeline 135628's
+genuine gate correctly failed because L2 preparation exceeded its ten-minute
+silence limit before the tests ran. The first failure, partial preparation and
+complete original gate evidence remain retained. Correcting that preparation
+limit precedes a further combined verification; no per-job replay is dispatched.
