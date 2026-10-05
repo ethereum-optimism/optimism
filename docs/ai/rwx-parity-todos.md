@@ -248,7 +248,7 @@ CircleCI workflow: `main` (32 jobs).
 - [x] `prep-superchain`
 - [x] `prep-go-modules`
 - [x] `op-deployer-forge-version`
-- [ ] `nut-provenance-verify`
+- [ ] `nut-provenance-verify` — [complete recorded-source runner](rwx-nut-provenance.md), full Linux regeneration and failure/source/stream fixtures pass; native/Circle full hosted replay remains required
 - [x] `l2-chains-sync-check`
 - [x] `kona-build-sp1-elfs` — [complete native guest build and checks](rwx-sp1-guest.md); full same-SHA hosted parity at `c6b29406`, both ELFs and verification keys byte-identical, six cases and complete graphs agree
 - [x] `go-lint`

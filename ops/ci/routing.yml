@@ -89,4 +89,5 @@ passthrough_params:
   - c-go-cache-version
   - c-go_fresh_tests_effective
   - c-contract_coverage_replay_effective
+  - c-nut_provenance_full_effective
   - c-publish_contract_artifacts_ref

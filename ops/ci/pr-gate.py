@@ -90,6 +90,8 @@ def configuration(gate=None):
                     key='TASK_'+task.upper().replace('-','_')+'_'+attribute.upper()
                     if env.get(key)!='${{ tasks.'+task+'.'+attribute+' }}':raise ValueError('Native gate task state is not engine-bound')
             if receipt[0].get('cache') is not False:raise ValueError('Native gate receipt must execute freshly')
+            if receipt[0].get('outputs')!={'filesystem':False,'artifacts':[{'key':'receipt','path':'.ci/pr-gates/groups/'+group}]}:
+                raise ValueError('Native gate receipt artifact does not match its declared producer')
             if 'github' in native['on']:raise ValueError('Native coordinator must execute each workload only once')
             embedded=caller_tasks[definition['embedded_task']]
             if embedded['call']!='${{ run.dir }}/'+definition['config'].removeprefix('.rwx/'):
@@ -116,7 +118,7 @@ def configuration(gate=None):
                 for attribute in ('succeeded','failed','skipped'):
                     if observer['env'].get(prefix+'_'+attribute.upper())!='${{ '+task+'.'+attribute+' }}':
                         raise ValueError('Native aggregate state is not engine-bound')
-                if key=='aggregate' and observer['env'].get(prefix+'_REPORT')!='${{ '+task+'.artifacts.report }}':
+                if key=='aggregate' and observer['env'].get(prefix+'_REPORT')!='${{ '+task+'.artifacts.receipt }}':
                     raise ValueError('Native aggregate report is not engine-bound')
         selections[name]={'requires':names,'groups':sorted(selected_groups),**row}
     if not selections:raise ValueError('Unknown or empty native gate selection')

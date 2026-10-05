@@ -38,10 +38,11 @@ cannot stand in for an executed selected workload. Native embedded runs provide
 these dependencies directly; the gate requires no external status polling,
 installation token or extra credential.
 
-Eight real Git/YQ fixtures pass: authoritative selection, exact coordinator
+Nine real Git/YQ fixtures pass: authoritative selection, exact coordinator
 bindings, selected failure/skip handling, complete original aggregation, resealed
 provenance, missing/corrupt/duplicate/extra and incorrectly typed originals,
 failed/never-started receipt collection, and genuine zero-test safe skips.
+Producer artifact names and paths must match their consumer bindings.
 The [native embedded-run probes](rwx-pr-gates-evidence/embedded-preflight.json)
 exercise actual passes, intentional failures, skips, a Main-only failure with a
 passing Rust receipt, artifact mounting and matching parent/child run identities.
@@ -56,3 +57,10 @@ context. The original failures and CLI probes remain retained as diagnostic
 evidence. The native coordinator replaces that implementation and its wait helper.
 Full automatic validation and complete original Circle gate evidence remain
 required. Main and Contracts aggregates are still unimplemented.
+
+The first full embedded run at `eff84abed4` passed all three actual workload
+groups and their receipts, then rejected an aggregate reference to `report`
+instead of the producer's `receipt` artifact before execution. The original
+failed run is retained in the preflight index. The corrected binding and a
+regression fixture now validate the producer declaration as well as the
+consumer expression. This failed aggregate adds no coverage.

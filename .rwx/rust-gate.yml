@@ -142,15 +142,15 @@ tasks:
       CI_COMMIT_SHA: ${{ init.commit-sha }}
       CI_BRANCH: ${{ init.branch }}
       GATE_ROUTING: ${{ tasks.route.artifacts.routing }}
-      GROUP_RUST_FMT_REPORT: ${{ tasks.native-fmt.tasks.rust-gate-receipt.artifacts.report }}
+      GROUP_RUST_FMT_REPORT: ${{ tasks.native-fmt.tasks.rust-gate-receipt.artifacts.receipt }}
       GROUP_RUST_FMT_SUCCEEDED: ${{ tasks.native-fmt.tasks.rust-gate-receipt.succeeded }}
       GROUP_RUST_FMT_FAILED: ${{ tasks.native-fmt.tasks.rust-gate-receipt.failed }}
       GROUP_RUST_FMT_SKIPPED: ${{ tasks.native-fmt.tasks.rust-gate-receipt.skipped }}
-      GROUP_RUST_WORKSPACE_REPORT: ${{ tasks.native-workspace.tasks.rust-gate-receipt.artifacts.report }}
+      GROUP_RUST_WORKSPACE_REPORT: ${{ tasks.native-workspace.tasks.rust-gate-receipt.artifacts.receipt }}
       GROUP_RUST_WORKSPACE_SUCCEEDED: ${{ tasks.native-workspace.tasks.rust-gate-receipt.succeeded }}
       GROUP_RUST_WORKSPACE_FAILED: ${{ tasks.native-workspace.tasks.rust-gate-receipt.failed }}
       GROUP_RUST_WORKSPACE_SKIPPED: ${{ tasks.native-workspace.tasks.rust-gate-receipt.skipped }}
-      GROUP_OP_RETH_RUST_REPORT: ${{ tasks.native-op-reth.tasks.rust-gate-receipt.artifacts.report }}
+      GROUP_OP_RETH_RUST_REPORT: ${{ tasks.native-op-reth.tasks.rust-gate-receipt.artifacts.receipt }}
       GROUP_OP_RETH_RUST_SUCCEEDED: ${{ tasks.native-op-reth.tasks.rust-gate-receipt.succeeded }}
       GROUP_OP_RETH_RUST_FAILED: ${{ tasks.native-op-reth.tasks.rust-gate-receipt.failed }}
       GROUP_OP_RETH_RUST_SKIPPED: ${{ tasks.native-op-reth.tasks.rust-gate-receipt.skipped }}

@@ -79,27 +79,32 @@ def begin(directory, job):
         write(directory / 'settings.json', settings)
 
 
-def stage(directory, name, args, stdout_json=False, cwd='rust', stdin=None):
+def stage(directory, name, args, stdout_json=False, cwd='rust', stdin=None, stdout_file=None):
     """Keep the real exit and signal, including when a subprocess is canceled."""
     started = time.time()
     data = {'argv': args, 'cwd': cwd, 'started_at': started, 'exit_code': None}
+    if stdout_file is not None:
+        if stdout_json or Path(stdout_file).name != stdout_file:
+            raise ValueError('Invalid separated original stdout destination')
+        data['stdout_file'] = stdout_file
+    separate = stdout_json or stdout_file is not None
     if stdin == subprocess.DEVNULL: data['stdin'] = 'devnull'
     record = directory / (name + '.stage.json')
     write(record, data)
     with (directory / (name + '.log')).open('wb') as log:
         # JSON discovery needs stdout separate from compiler diagnostics.
-        with (directory / (name + '.json')).open('wb') if stdout_json else open(os.devnull, 'wb') as out:
+        with (directory / (stdout_file or name + '.json')).open('wb') if separate else open(os.devnull, 'wb') as out:
             child = subprocess.Popen(args, cwd=cwd, start_new_session=True,
                                      stdin=stdin,
-                                     stdout=out if stdout_json else subprocess.PIPE,
-                                     stderr=log if stdout_json else subprocess.STDOUT)
+                                     stdout=out if separate else subprocess.PIPE,
+                                     stderr=log if separate else subprocess.STDOUT)
             previous = {}
             def cancel(signum, _frame):
                 os.killpg(child.pid, signum)
             for signum in (signal.SIGINT, signal.SIGTERM):
                 previous[signum] = signal.signal(signum, cancel)
             try:
-                if not stdout_json:
+                if not separate:
                     for line in iter(child.stdout.readline, b''):
                         log.write(line)
                         log.flush()
@@ -113,6 +118,7 @@ def stage(directory, name, args, stdout_json=False, cwd='rust', stdin=None):
                     child.stdout.close()
     data.update(exit_code=status, elapsed_seconds=time.time() - started,
                 log_sha256=digest(directory / (name + '.log')))
+    if stdout_file is not None: data['stdout_sha256'] = digest(directory / stdout_file)
     write(record, data)
     if status < 0:
         status = 128 - status

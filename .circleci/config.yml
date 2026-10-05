@@ -90,6 +90,9 @@ parameters:
   c-contract_coverage_replay:
     type: boolean
     default: false
+  c-nut_provenance_full:
+    type: boolean
+    default: false
 
 orbs:
   continuation: circleci/continuation@2.0.1
@@ -174,6 +177,7 @@ jobs:
           environment:
             c-go_fresh_tests_effective: << pipeline.parameters.c-go_fresh_tests >>
             c-contract_coverage_replay_effective: << pipeline.parameters.c-contract_coverage_replay >>
+            c-nut_provenance_full_effective: << pipeline.parameters.c-nut_provenance_full >>
             c-main_dispatch: << pipeline.parameters.main_dispatch >>
             c-fault_proofs_dispatch: << pipeline.parameters.fault_proofs_dispatch >>
             c-reproducibility_dispatch: << pipeline.parameters.reproducibility_dispatch >>

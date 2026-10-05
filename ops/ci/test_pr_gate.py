@@ -76,6 +76,7 @@ class GateTests(unittest.TestCase):
         path=self.root/'.rwx/rust-gate.yml';source=path.read_text()
         for old,new in [('      commit-sha: ${{ init.commit-sha }}','      commit-sha: foreign-sha'),
                         ('python3 ops/ci/pr-gate.py aggregate required-rust-ci','true'),
+                        ('.rust-gate-receipt.artifacts.receipt','.rust-gate-receipt.artifacts.report'),
                         ('tasks.native-fmt.tasks.rust-gate-receipt.succeeded','tasks.native-fmt.succeeded')]:
             # Match the embedded call rather than the route's environment.
             path.write_text(source.replace(old,new,1))
@@ -84,6 +85,12 @@ class GateTests(unittest.TestCase):
         child=self.root/'.rwx/rust.yml'
         child.write_text(child.read_text().replace('on:\n','on:\n  github: {}\n',1))
         with self.assertRaisesRegex(ValueError,'only once'):G.configuration('required-rust-ci')
+
+    def test_missing_renamed_or_wrong_receipt_artifact_cannot_pass_configuration(self):
+        child=self.root/'.rwx/pilot.yml';source=child.read_text()
+        for old,new in [('key: receipt','key: report'),('path: .ci/pr-gates/groups/rust-fmt','path: unrelated/report')]:
+            child.write_text(source.replace(old,new))
+            with self.subTest(new=new),self.assertRaisesRegex(ValueError,'artifact'):G.configuration('required-rust-ci')
 
     def test_real_receipts_reject_failed_selected_skips_and_invalid_safe_skips(self):
         group='rust-fmt';output=self.root/'.ci/pr-gates/groups'/group

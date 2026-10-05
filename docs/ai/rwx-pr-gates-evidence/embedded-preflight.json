@@ -43,12 +43,33 @@
     "tests": 0,
     "url": "https://cloud.rwx.com/optimism/runs/0b92637eaecb42469d038b12a3978fdd"
   },
+  "artifact_binding_fixtures": {
+    "count": 9,
+    "duration_seconds": 3.869,
+    "original_log_sha256": "26fc23dfcab54d5fa701db52b284b7e88768058974d32c351e88d7861355ee0d",
+    "passed": true
+  },
   "coverage_added": 0,
   "first_embedded_probe": {
     "observer_result": "succeeded",
     "original_sha256": "6d43ca5b4f4ae807ed738b3ca845985c113b8eb2e41d70114c087f9fa5d0ef23",
     "result": "failed",
     "run_id": "1b4897c2b75848b3ad36b32323df79f6"
+  },
+  "first_full_embedded_failure": {
+    "aggregate_task": "1ea66ba250f4a73cbbc35906826d3095",
+    "correction": "Bind the exported receipt artifact and validate each producer declaration.",
+    "coverage_added": 0,
+    "original_sha256": "c999cdb484051221dee0718d69a4c167f8dd772509cd55d6ba7d1afe696aa4f5",
+    "reason": "The \"report\" artifact was not found in \"rust-gate-receipt\".",
+    "result": "failed",
+    "run_id": "1e87bf7b132948f89081f93814652f5c",
+    "source_sha": "eff84abed4b8d53ba4b844f0bc8650b6bfea6a33",
+    "workload_and_receipt_groups_passed": [
+      "rust-fmt",
+      "rust-workspace",
+      "op-reth-rust"
+    ]
   },
   "full_hosted_gate_parity": false,
   "local_fixtures": {

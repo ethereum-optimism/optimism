@@ -6,14 +6,12 @@ set -euo pipefail
 # regenerates the bundle, and verifies it matches byte-for-byte.
 # Unchanged forks are skipped to avoid expensive forge rebuilds.
 
-git show origin/develop:op-core/nuts/fork_lock.toml > /tmp/base_lock.toml 2>/dev/null || true
-for fork in $(yq -p toml -o json op-core/nuts/fork_lock.toml | jq -r 'keys[]'); do
-  base_hash=$(yq -p toml ".${fork}.hash" /tmp/base_lock.toml 2>/dev/null || echo "")
-  curr_hash=$(yq -p toml ".${fork}.hash" op-core/nuts/fork_lock.toml)
-  if [ "$base_hash" != "$curr_hash" ]; then
-    echo "Verifying $fork (hash changed)..."
-    go run ./ops/scripts/nut-provenance-verify "$fork"
-  else
-    echo "Skipping $fork (unchanged)"
-  fi
-done
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+cd "${ROOT}"
+args=(--provider circleci)
+case "${CI_NUT_PROVENANCE_FULL:-false}" in
+  true|1) args+=(--full) ;;
+  false|0) ;;
+  *) echo "CI_NUT_PROVENANCE_FULL must be true/false or 1/0" >&2; exit 1 ;;
+esac
+exec python3 ops/ci/nut-provenance.py "${args[@]}"
