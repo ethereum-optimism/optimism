@@ -5,7 +5,7 @@ mod null;
 mod refund;
 
 pub use null::NullRefundPolicy;
-pub use refund::PostExecRefundInspector;
+pub use refund::{PostExecRefundInspector, PostExecRefundPolicyFactory};
 
 use alloc::vec::Vec;
 use alloy_evm::{Database, Evm, EvmEnv, EvmFactory};

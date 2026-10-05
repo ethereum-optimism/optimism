@@ -1,13 +1,10 @@
-use std::sync::Arc;
-
 use alloy_primitives::{Address, B256, ChainId, SignatureError};
-use alloy_rpc_client::RpcClient;
 use alloy_signer::Signature;
-use notify::RecommendedWatcher;
 use op_alloy_rpc_types_engine::PayloadHash;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
-use tokio::sync::RwLock;
+
+use crate::ReloadingRpcClient;
 
 /// Request parameters for signing a block payload
 #[derive(Debug, Serialize)]
@@ -29,11 +26,9 @@ struct SignResponse {
 #[derive(Debug)]
 pub struct RemoteSignerHandler {
     /// The JSON-RPC client.
-    pub(super) client: Arc<RwLock<RpcClient>>,
+    pub(super) client: ReloadingRpcClient,
     /// The address of the signer.
     pub(super) address: Address,
-    /// The watcher handle for certificate watching.
-    pub(super) watcher_handle: Option<RecommendedWatcher>,
 }
 
 /// Errors that can occur when using the remote signer
@@ -72,7 +67,7 @@ pub enum RemoteSignerError {
 impl RemoteSignerHandler {
     /// Returns true if certificate watching is enabled
     pub const fn is_certificate_watching_enabled(&self) -> bool {
-        self.watcher_handle.is_some()
+        self.client.is_watching()
     }
 
     /// Signs a block payload hash using the remote signer via JSON-RPC
@@ -98,14 +93,12 @@ impl RemoteSignerHandler {
         };
 
         // Make JSON-RPC call to the custom method
-        let response: SignResponse = {
-            self.client
-                .read()
-                .await
-                .request("opsigner_signBlockPayload", &params)
-                .await
-                .map_err(RemoteSignerError::SigningRPCError)?
-        };
+        let response: SignResponse = self
+            .client
+            .client()
+            .request("opsigner_signBlockPayload", &params)
+            .await
+            .map_err(RemoteSignerError::SigningRPCError)?;
 
         // Parse the hex signature
         let signature_bytes =

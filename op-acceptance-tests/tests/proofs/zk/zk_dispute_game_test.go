@@ -53,7 +53,7 @@ func TestChallengedValidProposalAnchors(gt *testing.T) {
 	challengedClaim := game.Challenge(challenger)
 	t.Require().Equal(challenger.Address(), challengedClaim.Challenger)
 
-	// The kona-sp1-proposer detects the challenge and defends its own game;
+	// The op-zk-proposer detects the challenge and defends its own game;
 	// the proof commits to the submitting signer.
 	game.WaitForProposalStatus(proofs.ZKProposalChallengedAndValidProofProvided)
 	t.Require().Equal(zkProposerAddress(t, sys), game.ClaimData().Prover)

@@ -172,12 +172,7 @@ library MIPS64Instructions {
             // ALU
             // Note: swr outputs more than 8 bytes without the u64_mask
             ExecuteMipsInstructionParams memory params = ExecuteMipsInstructionParams({
-                insn: _args.insn,
-                opcode: _args.opcode,
-                fun: _args.fun,
-                rs: rs,
-                rt: rt,
-                mem: mem
+                insn: _args.insn, opcode: _args.opcode, fun: _args.fun, rs: rs, rt: rt, mem: mem
             });
             uint64 val = executeMipsInstruction(params) & U64_MASK;
 

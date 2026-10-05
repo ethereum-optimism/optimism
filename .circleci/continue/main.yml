@@ -842,13 +842,14 @@ jobs:
       - rust-build:
           directory: rust
           profile: release
-          package: "kona-host kona-client kona-node kona-sp1-proposer"
+          package: "kona-host kona-client kona-node op-zk-proposer"
           save_cache: true
           fetch_workspace: true
       - persist_to_workspace:
           root: "."
           paths:
             - "rust/target/release/kona-*"
+            - "rust/target/release/op-zk-proposer"
 
   rust-op-reth-binary:
     docker:
@@ -858,13 +859,12 @@ jobs:
       - rust-build:
           directory: rust
           profile: release
-          package: "op-reth op-reth-sdm-fixture"
+          package: "op-reth"
           save_cache: false
       - persist_to_workspace:
           root: "."
           paths:
             - "rust/target/release/op-reth"
-            - "rust/target/release/op-reth-sdm-fixture"
 
   initialize:
     docker:
@@ -1135,6 +1135,8 @@ jobs:
             MATCH_PATH="./test/{$(echo "$TEST_FILES" | paste -sd "," -)}"
             mkdir -p results
             forge test --match-path "$MATCH_PATH" --junit > results/results.xml
+            # Forge exits 0 when the filter matches nothing; fail if no tests ran.
+            ./scripts/checks/check-junit-tests-ran.sh results/results.xml
           environment:
             FOUNDRY_PROFILE: <<parameters.test_profile>>
           working_directory: packages/contracts-bedrock
@@ -1213,7 +1215,7 @@ jobs:
   contracts-bedrock-coverage:
     docker:
       - image: <<pipeline.parameters.c-default_docker_image>>
-    resource_class: 2xlarge.gen2
+    resource_class: 2xlarge+.gen2
     parameters:
       test_timeout:
         description: Timeout for running tests
@@ -1646,6 +1648,9 @@ jobs:
           name: run Go linter
           command: |
             just lint-go
+      - run:
+          name: Test prestate build driver
+          command: mise exec -- ./ops/prestate-reproducibility/test-build-prestates.sh
       - go-save-cache:
           namespace: go-lint
       - save_cache:
@@ -2012,16 +2017,14 @@ jobs:
             BIN_DIR="$ROOT_DIR/.circleci-cache/rust-binaries"
 
             echo "export RUST_BINARY_PATH_KONA_NODE=$ROOT_DIR/rust/target/release/kona-node" >> "$BASH_ENV"
-            echo "export RUST_BINARY_PATH_KONA_SP1_PROPOSER=$ROOT_DIR/rust/target/release/kona-sp1-proposer" >> "$BASH_ENV"
+            echo "export RUST_BINARY_PATH_OP_ZK_PROPOSER=$ROOT_DIR/rust/target/release/op-zk-proposer" >> "$BASH_ENV"
             echo "export RUST_BINARY_PATH_OP_RETH=$ROOT_DIR/rust/target/release/op-reth" >> "$BASH_ENV"
-            echo "export RUST_BINARY_PATH_OP_RETH_SDM_FIXTURE=$ROOT_DIR/rust/target/release/op-reth-sdm-fixture" >> "$BASH_ENV"
             echo "export RUST_BINARY_PATH_KONA_SP1_SUPER_RANGE_EXECUTOR=$BIN_DIR/kona-sp1-super-range-executor" >> "$BASH_ENV"
 
             # Fail here in seconds rather than ~25 minutes into the test run: a drift in the
             # persist path or the build profile would otherwise surface as an opaque devstack
             # error when a test first tries to launch one of these.
             test -x "$ROOT_DIR/rust/target/release/op-reth"
-            test -x "$ROOT_DIR/rust/target/release/op-reth-sdm-fixture"
             # KONA_SP1_ELF_DIR deliberately not set: acceptance tests run with
             # stub prestate artifacts (the devstack deploys the mock verifier,
             # so nothing consumes real ELF bytes until the proving path). This

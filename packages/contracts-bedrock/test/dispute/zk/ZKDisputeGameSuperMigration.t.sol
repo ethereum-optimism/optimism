@@ -9,7 +9,15 @@ import { DevFeatures } from "src/libraries/DevFeatures.sol";
 import { Types } from "src/libraries/Types.sol";
 import { Encoding } from "src/libraries/Encoding.sol";
 import { Hashing } from "src/libraries/Hashing.sol";
-import { BondDistributionMode, Claim, Duration, GameStatus, GameType, GameTypes, Hash } from "src/dispute/lib/Types.sol";
+import {
+    BondDistributionMode,
+    Claim,
+    Duration,
+    GameStatus,
+    GameType,
+    GameTypes,
+    Hash
+} from "src/dispute/lib/Types.sol";
 
 // Contracts
 import { ZKDisputeGame } from "src/dispute/zk/ZKDisputeGame.sol";
@@ -284,41 +292,40 @@ contract ZKDisputeGameSuperMigration_Test is DisputeGameFactory_TestInit {
         _pushDisabled(GameTypes.SUPER_PERMISSIONED);
         _pushDisabled(GameTypes.SUPER_CANNON_KONA);
 
-        _zkUpgradeInput.disputeGameConfigs.push(
-            IOPContractsManagerUtils.DisputeGameConfig({
-                enabled: true,
-                initBond: flipBond,
-                gameType: GameTypes.ZK_DISPUTE_GAME,
-                gameArgs: abi.encode(
-                    IOPContractsManagerUtils.ZKDisputeGameConfig({
-                        absolutePrestate: zkAbsolutePrestate,
-                        maxChallengeDuration: zkMaxChallengeDuration,
-                        maxProveDuration: zkMaxProveDuration,
-                        challengerBond: flipBond
-                    })
-                )
-            })
-        );
+        _zkUpgradeInput.disputeGameConfigs
+            .push(
+                IOPContractsManagerUtils.DisputeGameConfig({
+                    enabled: true,
+                    initBond: flipBond,
+                    gameType: GameTypes.ZK_DISPUTE_GAME,
+                    gameArgs: abi.encode(
+                        IOPContractsManagerUtils.ZKDisputeGameConfig({
+                            absolutePrestate: zkAbsolutePrestate,
+                            maxChallengeDuration: zkMaxChallengeDuration,
+                            maxProveDuration: zkMaxProveDuration,
+                            challengerBond: flipBond
+                        })
+                    )
+                })
+            );
 
         // Flip the respected game type to ZK (the previously-respected super game is now disabled).
-        _zkUpgradeInput.extraInstructions.push(
-            IOPContractsManagerUtils.ExtraInstruction({
-                key: "overrides.cfg.startingRespectedGameType",
-                data: abi.encode(GameTypes.ZK_DISPUTE_GAME)
-            })
-        );
+        _zkUpgradeInput.extraInstructions
+            .push(
+                IOPContractsManagerUtils.ExtraInstruction({
+                    key: "overrides.cfg.startingRespectedGameType", data: abi.encode(GameTypes.ZK_DISPUTE_GAME)
+                })
+            );
     }
 
     /// @notice Pushes a disabled dispute game config for the given type.
     function _pushDisabled(GameType _gameType) internal {
-        _zkUpgradeInput.disputeGameConfigs.push(
-            IOPContractsManagerUtils.DisputeGameConfig({
-                enabled: false,
-                initBond: 0,
-                gameType: _gameType,
-                gameArgs: hex""
-            })
-        );
+        _zkUpgradeInput.disputeGameConfigs
+            .push(
+                IOPContractsManagerUtils.DisputeGameConfig({
+                    enabled: false, initBond: 0, gameType: _gameType, gameArgs: hex""
+                })
+            );
     }
 
     /// @notice Runs the OPCM upgrade as the chain ProxyAdmin owner

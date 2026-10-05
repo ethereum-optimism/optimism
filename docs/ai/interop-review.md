@@ -84,7 +84,8 @@ Report the same rejection on a derivation or verification path as a specificatio
 
 ## When to run this reviewer
 
-Run this reviewer when a change touches a mapped package or crate, or code that an anchor depends on.
+Run this reviewer when a change can alter a behavior in the scope above.
+A change in a mapped package or crate, or in code that an anchor depends on, is a strong signal.
 Also run it for these changes:
 
 - A Kona release that contains mapped changes.

@@ -93,11 +93,16 @@ pub struct PostExecCompositeInspector<I, R = super::NullRefundPolicy> {
 impl<I, R: Default> PostExecCompositeInspector<I, R> {
     /// Creates a new composite inspector with a default-constructed refund inspector.
     pub fn new(inner: I) -> Self {
-        Self { inner, post_exec: R::default() }
+        Self::new_with_post_exec(inner, R::default())
     }
 }
 
 impl<I, R> PostExecCompositeInspector<I, R> {
+    /// Creates a new composite inspector with the provided refund inspector.
+    pub const fn new_with_post_exec(inner: I, post_exec: R) -> Self {
+        Self { inner, post_exec }
+    }
+
     /// Returns the wrapped user inspector.
     pub const fn inner(&self) -> &I {
         &self.inner

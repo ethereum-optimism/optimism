@@ -135,10 +135,7 @@ abstract contract OPContractsManagerMigrationValidator_TestInit is CommonTest {
         IOPContractsManagerUtils.DisputeGameConfig[] memory dgConfigs =
             new IOPContractsManagerUtils.DisputeGameConfig[](6);
         dgConfigs[0] = IOPContractsManagerUtils.DisputeGameConfig({
-            enabled: false,
-            initBond: 0,
-            gameType: GameTypes.CANNON,
-            gameArgs: bytes("")
+            enabled: false, initBond: 0, gameType: GameTypes.CANNON, gameArgs: bytes("")
         });
         dgConfigs[1] = IOPContractsManagerUtils.DisputeGameConfig({
             enabled: !superRoot,
@@ -148,17 +145,12 @@ abstract contract OPContractsManagerMigrationValidator_TestInit is CommonTest {
                 ? bytes("")
                 : abi.encode(
                     IOPContractsManagerUtils.PermissionedDisputeGameConfig({
-                        absolutePrestate: cannonPrestate,
-                        proposer: initialProposer,
-                        challenger: initialChallenger
+                        absolutePrestate: cannonPrestate, proposer: initialProposer, challenger: initialChallenger
                     })
                 )
         });
         dgConfigs[2] = IOPContractsManagerUtils.DisputeGameConfig({
-            enabled: false,
-            initBond: 0,
-            gameType: GameTypes.CANNON_KONA,
-            gameArgs: bytes("")
+            enabled: false, initBond: 0, gameType: GameTypes.CANNON_KONA, gameArgs: bytes("")
         });
         dgConfigs[3] = IOPContractsManagerUtils.DisputeGameConfig({
             enabled: superRoot,
@@ -169,16 +161,10 @@ abstract contract OPContractsManagerMigrationValidator_TestInit is CommonTest {
                 : bytes("")
         });
         dgConfigs[4] = IOPContractsManagerUtils.DisputeGameConfig({
-            enabled: false,
-            initBond: 0,
-            gameType: GameTypes.SUPER_CANNON_KONA,
-            gameArgs: bytes("")
+            enabled: false, initBond: 0, gameType: GameTypes.SUPER_CANNON_KONA, gameArgs: bytes("")
         });
         dgConfigs[5] = IOPContractsManagerUtils.DisputeGameConfig({
-            enabled: false,
-            initBond: 0,
-            gameType: GameTypes.ZK_DISPUTE_GAME,
-            gameArgs: bytes("")
+            enabled: false, initBond: 0, gameType: GameTypes.ZK_DISPUTE_GAME, gameArgs: bytes("")
         });
 
         IOPContractsManagerV2.FullConfig memory deployConfig = IOPContractsManagerV2.FullConfig({
@@ -236,7 +222,9 @@ abstract contract OPContractsManagerMigrationValidator_TestInit is CommonTest {
             enabled: true,
             initBond: 0.08 ether,
             gameType: GameTypes.SUPER_CANNON_KONA,
-            gameArgs: abi.encode(IOPContractsManagerUtils.FaultDisputeGameConfig({ absolutePrestate: cannonKonaPrestate }))
+            gameArgs: abi.encode(
+                IOPContractsManagerUtils.FaultDisputeGameConfig({ absolutePrestate: cannonKonaPrestate })
+            )
         });
 
         input_ = IOPContractsManagerMigrator.MigrateInput({
@@ -324,9 +312,7 @@ abstract contract OPContractsManagerMigrationValidator_TestInit is CommonTest {
         returns (IOPContractsManagerMigrationValidator.ExpectedSharedContracts memory)
     {
         return IOPContractsManagerMigrationValidator.ExpectedSharedContracts({
-            anchorStateRegistry: IAnchorStateRegistry(sharedASR),
-            ethLockbox: sharedLockbox,
-            delayedWETH: sharedWETH
+            anchorStateRegistry: IAnchorStateRegistry(sharedASR), ethLockbox: sharedLockbox, delayedWETH: sharedWETH
         });
     }
 
@@ -338,12 +324,10 @@ abstract contract OPContractsManagerMigrationValidator_TestInit is CommonTest {
     {
         bonds_ = new IOPContractsManagerMigrationValidator.ExpectedInitBond[](2);
         bonds_[0] = IOPContractsManagerMigrationValidator.ExpectedInitBond({
-            gameType: GameTypes.SUPER_PERMISSIONED,
-            initBond: 0
+            gameType: GameTypes.SUPER_PERMISSIONED, initBond: 0
         });
         bonds_[1] = IOPContractsManagerMigrationValidator.ExpectedInitBond({
-            gameType: GameTypes.SUPER_CANNON_KONA,
-            initBond: 0.08 ether
+            gameType: GameTypes.SUPER_CANNON_KONA, initBond: 0.08 ether
         });
     }
 
@@ -428,9 +412,7 @@ abstract contract OPContractsManagerMigrationValidator_TestInit is CommonTest {
 
 /// @title OPContractsManagerMigrationValidator_ValidateMigration_Test
 /// @notice Tests that full migration validation passes with correct setup.
-contract OPContractsManagerMigrationValidator_ValidateMigration_Test is
-    OPContractsManagerMigrationValidator_TestInit
-{
+contract OPContractsManagerMigrationValidator_ValidateMigration_Test is OPContractsManagerMigrationValidator_TestInit {
     /// @notice Tests that validateMigration succeeds with no errors.
     function test_validateMigration_succeeds() public view {
         string memory errors = _validateMigration(false);
@@ -935,9 +917,7 @@ contract OPContractsManagerMigrationValidator_SharedLockbox_Test is OPContractsM
 /// @notice Negative tests covering shared DelayedWETH invariants. The simplified
 ///         SUPER_PERMISSIONED no longer carries WETH, so these errors surface through
 ///         SUPER_CANNON_KONA only.
-contract OPContractsManagerMigrationValidator_SharedDelayedWETH_Test is
-    OPContractsManagerMigrationValidator_TestInit
-{
+contract OPContractsManagerMigrationValidator_SharedDelayedWETH_Test is OPContractsManagerMigrationValidator_TestInit {
     /// @notice MIG-SCKDG-DWETH-10: DelayedWETH version doesn't match impl version.
     function test_validate_sharedDweth10WrongVersion_succeeds() public {
         vm.mockCall(sharedWETH, abi.encodeCall(ISemver.version, ()), abi.encode("0.0.0-bad"));

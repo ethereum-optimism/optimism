@@ -346,12 +346,7 @@ contract L2StandardBridge_Withdraw_Test is L2StandardBridge_TestInit {
 
         vm.expectEmit(address(l2StandardBridge));
         emit WithdrawalInitiated({
-            l1Token: address(0),
-            l2Token: Predeploys.LEGACY_ERC20_ETH,
-            from: alice,
-            to: alice,
-            amount: 100,
-            data: hex""
+            l1Token: address(0), l2Token: Predeploys.LEGACY_ERC20_ETH, from: alice, to: alice, amount: 100, data: hex""
         });
 
         vm.expectEmit(address(l2StandardBridge));
@@ -359,10 +354,7 @@ contract L2StandardBridge_Withdraw_Test is L2StandardBridge_TestInit {
 
         vm.prank(alice, alice);
         l2StandardBridge.withdraw{ value: 100 }({
-            _l2Token: Predeploys.LEGACY_ERC20_ETH,
-            _amount: 100,
-            _minGasLimit: 1000,
-            _extraData: hex""
+            _l2Token: Predeploys.LEGACY_ERC20_ETH, _amount: 100, _minGasLimit: 1000, _extraData: hex""
         });
 
         assertEq(Predeploys.L2_TO_L1_MESSAGE_PASSER.balance, 100);

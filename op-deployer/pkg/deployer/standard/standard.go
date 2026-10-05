@@ -119,7 +119,7 @@ const (
 // sp1VerifierHashJSON maps each L1 chain ID to the VERIFIER_HASH() of the verifier from
 // SP1VerifierFor, i.e. the PLONK circuit it accepts proofs for. Proofs carry the first four bytes
 // of that value as their selector, so the linked sp1-sdk must prove for the same circuit;
-// kona-sp1-proposer's release-pin test reads the same file and holds the SDK to it.
+// op-zk-proposer's release-pin test reads the same file and holds the SDK to it.
 // Source: succinctlabs/sp1-contracts@2ac5ecbbe473421a963d67e55f182e9a36576f7c,
 // contracts/src/v6.1.0/SP1VerifierPlonk.sol, VERIFIER_HASH().
 // DO NOT MODIFY THIS FILE WITHOUT CLEARING IT WITH THE EVM SAFETY TEAM.

@@ -264,10 +264,13 @@ library Predeploys {
     function getAllRecords() internal pure returns (PredeployRecord[] memory records_) {
         records_ = new PredeployRecord[](28);
 
-        // ── Core predeploys ────────────────────────────────────────────────────────────────
+        // ── Core predeploys
+        // ────────────────────────────────────────────────────────────────
         records_[0] = PredeployRecord({
             proxy: L2_CROSS_DOMAIN_MESSENGER,
-            variants: _variants("L2CrossDomainMessenger", "L2CrossDomainMessenger.sol:L2CrossDomainMessenger", 3_129_000),
+            variants: _variants(
+                "L2CrossDomainMessenger", "L2CrossDomainMessenger.sol:L2CrossDomainMessenger", 3_129_000
+            ),
             devFeatureGate: bytes32(0),
             isCustomGasToken: false,
             isInterop: false,
@@ -304,7 +307,9 @@ library Predeploys {
         records_[4] = PredeployRecord({
             proxy: OPTIMISM_MINTABLE_ERC20_FACTORY,
             variants: _variants(
-                "OptimismMintableERC20Factory", "OptimismMintableERC20Factory.sol:OptimismMintableERC20Factory", 4_193_000
+                "OptimismMintableERC20Factory",
+                "OptimismMintableERC20Factory.sol:OptimismMintableERC20Factory",
+                4_193_000
             ),
             devFeatureGate: bytes32(0),
             isCustomGasToken: false,
@@ -416,7 +421,8 @@ library Predeploys {
             isDeprecated: false
         });
 
-        // ── Interop predeploys ─────────────────────────────────────────────────────────────
+        // ── Interop predeploys
+        // ─────────────────────────────────────────────────────────────
         // Interop requires both the INTEROP sys feature and the OPTIMISM_PORTAL_INTEROP dev
         // feature. Both gates mirror the full condition checked in L2Genesis.
         records_[15] = PredeployRecord({
@@ -458,7 +464,8 @@ library Predeploys {
             isDeprecated: false
         });
 
-        // ── CGT predeploys ─────────────────────────────────────────────────────────────────
+        // ── CGT predeploys
+        // ─────────────────────────────────────────────────────────────────
         records_[19] = PredeployRecord({
             proxy: NATIVE_ASSET_LIQUIDITY,
             variants: _variants("NativeAssetLiquidity", "NativeAssetLiquidity.sol:NativeAssetLiquidity", 392_000),
@@ -496,7 +503,8 @@ library Predeploys {
             isDeprecated: false
         });
 
-        // ── Non-proxied predeploys ─────────────────────────────────────────────────────────
+        // ── Non-proxied predeploys
+        // ─────────────────────────────────────────────────────────
         // These are etched directly (no Proxy wrapper, no implementation slot).
         // Excluded from NUT bundles and proxy setup. deployGasLimit is unused.
         records_[23] = PredeployRecord({
@@ -518,7 +526,8 @@ library Predeploys {
             isDeprecated: false
         });
 
-        // ── Deprecated predeploys ──────────────────────────────────────────────────────────
+        // ── Deprecated predeploys
+        // ──────────────────────────────────────────────────────────
         // Present on-chain for backwards compatibility but excluded from proxy setup loops,
         // NUT bundles, and upgrade checks. Handled by individual setters in L2Genesis.
         records_[25] = PredeployRecord({
