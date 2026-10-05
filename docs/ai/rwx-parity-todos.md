@@ -34,21 +34,26 @@ at commit `587b4c3a73d3f16f15212b72e9a0ed0e8489a7c4`.
 
 | PR workflow | Expanded job instances | Implemented validation jobs |
 | --- | ---: | ---: |
-| Main | 32 | 23 |
+| Main | 32 | 24 |
 | Contracts | 23 | 21 |
 | Rust | 22 | 21 |
 | Rust E2E | 9 | 9 |
-| Total | 86 | 74 |
+| Total | 86 | 75 |
 
-Verified implementation coverage is **74 / 86 = 86%**. Each matrix entry and
+Verified implementation coverage is **75 / 86 = 87%**. Each matrix entry and
 each occurrence in a different workflow counts separately; shards do not.
 The CircleCI setup and schedule-trigger-check workflows are outside this
-86-job denominator and have separate todos. This is job coverage, not runtime,
-cost, proven equivalence or gate ownership.
+86-job denominator and have separate todos. This is occurrence coverage backed
+by retained parity evidence; it does not measure runtime, cost or gate ownership.
 
 The full aggregate Go shadow now covers all 459 selected packages and 11,613
 case identities, with fresh same-SHA Circle/RWX parity verified. Its Go,
 superchain, contracts, Kona and prestate producers are implemented and executed.
+Main's complete Cannon Go workload now passes original-report parity for
+all 16 packages and 2,881 case identities at `5ee3311d`. See the
+[Cannon Go closeout](rwx-cannon-go.md). NUT pre-fork regeneration is implemented
+and locally exercised but remains uncounted until its full hosted comparison.
+
 The full Fusaka acceptance variants and their remaining SP1/Cannon dependency
 edges have now executed successfully on both providers. See the
 [acceptance closeout](rwx-acceptance-parity.md) for exact original-report evidence.
@@ -239,7 +244,8 @@ CircleCI workflow: `main` (32 jobs).
 - [ ] `contracts-bedrock-upload`
 - [ ] `diff-fetcher-forge-artifacts`
 - [x] `check-op-geth-version`
-- [ ] `check-nut-prefork-states`
+- [ ] `check-nut-prefork-states` — [shared original-loop adapter](rwx-nut-prefork.md)
+  is implemented; full hosted same-SHA validation is pending.
 - [x] `check-nut-locks`
 - [ ] `check-kontrol-build`
 - [x] `check-generated-mocks-op-service`
@@ -248,8 +254,8 @@ CircleCI workflow: `main` (32 jobs).
 - [x] `go-tests`
 - [x] `memory-all-kona-op-reth-fusaka`
 - [x] `memory-all-opn-op-reth-fusaka`
-- [ ] `cannon-go-lint-and-test` — [shared adapter and native job](rwx-cannon-go.md)
-  are implemented; full hosted same-SHA comparison is pending.
+- [x] `cannon-go-lint-and-test` — [complete original-report parity](rwx-cannon-go.md)
+  passes for all 16 packages and 2,881 case identities at `5ee3311d`.
 - [ ] `ci-gate`
 
 ### Contract workflow

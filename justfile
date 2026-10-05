@@ -471,7 +471,7 @@ nut-provenance-verify fork:
 
 # Generates op-core/nuts/state/<fork>_state.json (predecessor state + frozen <fork> bundle).
 _nut-prefork-state-for fork:
-  OP_E2E_GEN_PREFORK_STATE={{fork}} go test -count=1 -run TestGenerateForkState ./rust/kona/tests/proofs/
+  bash ops/ci/nut-prefork-test.sh {{fork}}
 
 # Generates op-core/nuts/state/<fork>_state.json (predecessor state + frozen <fork> bundle).
 nut-prefork-state-for fork: build-contracts build-superchain-go

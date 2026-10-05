@@ -1895,9 +1895,15 @@ jobs:
       - run:
           name: check NUT pre-fork states
           command: |
-            just _check-nut-prefork-states
+            python3 ops/ci/nut-prefork.py --provider circleci
       - go-save-cache:
           namespace: check-nut-prefork-states
+      - store_test_results:
+          path: .ci/nut-prefork/run/native.junit.xml
+          when: always
+      - store_artifacts:
+          path: .ci/nut-prefork/run
+          when: always
 
   nut-provenance-verify:
     docker:

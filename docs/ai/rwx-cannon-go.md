@@ -2,8 +2,10 @@
 
 The optional `optimism-cannon-go-shadow` implements Main's
 `cannon-go-lint-and-test` through the shared `run-main` routing. This occurrence
-is **pending hosted verification** and does not yet increase verified coverage
-above 74/86. Circle retains the original job name, dependency, notifications,
+passes complete original-report parity at
+`5ee3311d889fd889a70d112b46ed00d8a398508c`. Verified occurrence coverage is
+now 75/86 (87%): Main 24/32, Contracts 21/23, Rust 21/22 and Rust E2E 9/9.
+Circle retains the original job name, dependency, notifications,
 cache namespace and required-gate membership.
 
 The shared adapter runs the original `just lint` compatibility recipe, then
@@ -70,7 +72,7 @@ Go/Forge execution fixtures), ten complete-report comparison fixtures and
 passed ShellCheck. RWX lint checked the new run and both dependency packages
 with zero problems. Circle's merged 5,289-line config and setup config validated,
 and processing with all PR workflows and fresh Go tests enabled succeeded.
-Full hosted suite and cache evidence remain pending.
+Hosted execution and cache observations follow below.
 
 The initial Circle benchmark request (135575) was rejected during setup because
 it supplied the continuation's `c-main_dispatch` instead of setup's
@@ -101,4 +103,35 @@ corresponding archived payload before reusing an existing regular file. It
 preserves the read-only directory/file modes and rejects corrupt archive bytes
 even when the existing destination is correct. Six artifact helper fixtures
 pass, including repeated read-only restoration, and the live Go/Forge fixtures
-exercise this exact cache shape. Full hosted parity after the fix remains pending.
+exercise this exact cache shape. The corrected full hosted comparison passes.
+
+[RWX run f536dccd](https://cloud.rwx.com/optimism/runs/f536dccd0d9c419bac8bea355153c09c)
+and fresh [Circle pipeline 135579, job 5635468](https://app.circleci.com/pipelines/github/ethereum-optimism/optimism/135579)
+executed the same source revision. Both select all **16 packages, 112 initial
+tests and 2,881 case identities**, all passing without skips or retries. The
+[complete parity index](rwx-cannon-go-evidence/parity.json) verifies every selected
+source file, initial assignment, original command, effective setting, package
+verdict, JUnit identity and split-log bytes. It seals **2,989 Circle and 2,991 RWX
+original files**. Circle's hash-manifest-declared empty files are explicitly
+recorded; missing nonempty reports fail validation.
+
+The sole effective concurrency difference is retained explicitly: Circle's
+original CPU discovery returns 32 and RWX's returns 8. Both retain the original
+`nproc` rule, their exact arguments and outputs, Go 1.26.6, Forge, gotestsum and
+Just versions. Every other workload setting, complete selection, result and
+retry history agrees. Complete reports remain under
+`.ci/rwx-cannon-go-evidence/5ee3/{circle,rwx}`; the index records every original
+hash and native dependency binding. The hosted helper task also passed all
+eight execution fixtures and ten comparison fixtures; its original fixture
+reports are retained separately. These fixtures do not add occurrence coverage.
+
+Two exact-source CLI dependency-only rehearsals completed with zero verdicts or
+helper tests. The first [warm run 358c75a0](https://cloud.rwx.com/optimism/runs/358c75a0894f4179bf4aa10baf73a63d)
+executed the producers with reusable tool caches. The unchanged
+[replay b1ec0c4a](https://cloud.rwx.com/optimism/runs/b1ec0c4a5cc54e2ebd204d883fd0a84a)
+reused both complete module and contract producer task outputs. The
+[cache and fixture index](rwx-cannon-go-evidence/cache-and-fixtures.json) retains
+their original task/cache identities, tool-cache declarations, source parameters,
+zero-test selections and all eight original fixture report seals. Protected
+`develop` cache-rebuild events remain unobserved. These are cache correctness
+observations; no warm median or speed win is claimed.

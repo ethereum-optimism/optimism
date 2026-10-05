@@ -1,0 +1,654 @@
+{
+  "source_sha": "5ee3311d889fd889a70d112b46ed00d8a398508c",
+  "native": {
+    "ID": "f536dccd0d9c419bac8bea355153c09c",
+    "CommitSha": "5ee3311d889fd889a70d112b46ed00d8a398508c",
+    "Init": {
+      "branch": "codex/rwx-ci-pilot",
+      "cache-epoch": "v1",
+      "cache-warm": "false",
+      "commit-sha": "5ee3311d889fd889a70d112b46ed00d8a398508c",
+      "tag": ""
+    },
+    "ResultStatus": "succeeded",
+    "TargetedTaskKeys": null,
+    "StartedAt": "2026-10-05T03:50:11.508Z",
+    "CompletedAt": "2026-10-05T03:53:00.878Z",
+    "CompletedRuntimeSeconds": 148,
+    "tasks": [
+      {
+        "Key": "modules",
+        "ID": "33ef97e6c75ee29ea59c0072dd4d1abf",
+        "Status": {
+          "AbortedSubStatus": "not_applicable",
+          "Execution": "finished",
+          "FinishedSubStatus": "executed",
+          "Result": "succeeded",
+          "WaitingSubStatus": "not_applicable"
+        },
+        "CacheKey": null,
+        "CacheHitFromTaskID": null,
+        "TestCount": 0,
+        "FailedTestCount": 0,
+        "ToolCaches": {
+          "DeclaredByTask": [],
+          "InheritedFromDependencies": [
+            {
+              "Name": "git-clone-665e3326a2446077bee92b14ccb2326bd9e2ad92e05bbfb908ffe7bb0fee7afe",
+              "ScopedTaskKey": "code.git-clone",
+              "TaskID": "c271acc24c3756e3d01a41a152779816"
+            }
+          ]
+        },
+        "ExecutionRuntimeSeconds": null,
+        "subtasks": [
+          {
+            "Key": "build",
+            "ID": "8d1bf5fdacfab94d8f2da33165627e13",
+            "Status": {
+              "AbortedSubStatus": "not_applicable",
+              "Execution": "finished",
+              "FinishedSubStatus": "executed",
+              "Result": "succeeded",
+              "WaitingSubStatus": "not_applicable"
+            },
+            "CacheKey": "2922ef2767be70267648d12de7afce239a0491d3",
+            "CacheHitFromTaskID": null,
+            "TestCount": 0,
+            "ToolCaches": {
+              "DeclaredByTask": [
+                {
+                  "Name": "pr-checks-go-modules-v1",
+                  "ScopedTaskKey": "modules.build",
+                  "TaskID": "8d1bf5fdacfab94d8f2da33165627e13"
+                }
+              ],
+              "InheritedFromDependencies": [
+                {
+                  "Name": "git-clone-665e3326a2446077bee92b14ccb2326bd9e2ad92e05bbfb908ffe7bb0fee7afe",
+                  "ScopedTaskKey": "code.git-clone",
+                  "TaskID": "c271acc24c3756e3d01a41a152779816"
+                }
+              ]
+            },
+            "ExecutionRuntimeSeconds": 70
+          }
+        ]
+      },
+      {
+        "Key": "contracts",
+        "ID": "1c1344dc57a71ca459bf67098c1a00b0",
+        "Status": {
+          "AbortedSubStatus": "not_applicable",
+          "Execution": "finished",
+          "FinishedSubStatus": "executed",
+          "Result": "succeeded",
+          "WaitingSubStatus": "not_applicable"
+        },
+        "CacheKey": null,
+        "CacheHitFromTaskID": null,
+        "TestCount": 0,
+        "FailedTestCount": 0,
+        "ToolCaches": {
+          "DeclaredByTask": [],
+          "InheritedFromDependencies": [
+            {
+              "Name": "git-clone-665e3326a2446077bee92b14ccb2326bd9e2ad92e05bbfb908ffe7bb0fee7afe",
+              "ScopedTaskKey": "code.git-clone",
+              "TaskID": "c271acc24c3756e3d01a41a152779816"
+            }
+          ]
+        },
+        "ExecutionRuntimeSeconds": null,
+        "subtasks": [
+          {
+            "Key": "build",
+            "ID": "2c6141b159b6f0c4d5739f7b665a086b",
+            "Status": {
+              "AbortedSubStatus": "not_applicable",
+              "Execution": "finished",
+              "FinishedSubStatus": "executed",
+              "Result": "succeeded",
+              "WaitingSubStatus": "not_applicable"
+            },
+            "CacheKey": "bf35814ec84920d692e72c4eca4dae4623c89cc8",
+            "CacheHitFromTaskID": null,
+            "TestCount": 0,
+            "ToolCaches": {
+              "DeclaredByTask": [
+                {
+                  "Name": "go-full-contracts-ci-v1",
+                  "ScopedTaskKey": "contracts.build",
+                  "TaskID": "2c6141b159b6f0c4d5739f7b665a086b"
+                }
+              ],
+              "InheritedFromDependencies": [
+                {
+                  "Name": "git-clone-665e3326a2446077bee92b14ccb2326bd9e2ad92e05bbfb908ffe7bb0fee7afe",
+                  "ScopedTaskKey": "code.git-clone",
+                  "TaskID": "c271acc24c3756e3d01a41a152779816"
+                }
+              ]
+            },
+            "ExecutionRuntimeSeconds": 47
+          }
+        ]
+      },
+      {
+        "Key": "helper-tests",
+        "ID": "fb918a989550e9e939c0f34f63cb0d9b",
+        "Status": {
+          "AbortedSubStatus": "not_applicable",
+          "Execution": "finished",
+          "FinishedSubStatus": "executed",
+          "Result": "succeeded",
+          "WaitingSubStatus": "not_applicable"
+        },
+        "CacheKey": "0204b7f54b09d3a83a5bf9caaed7e26211bea1bb",
+        "CacheHitFromTaskID": null,
+        "TestCount": 0,
+        "FailedTestCount": 0,
+        "ToolCaches": {
+          "DeclaredByTask": [],
+          "InheritedFromDependencies": [
+            {
+              "Name": "git-clone-665e3326a2446077bee92b14ccb2326bd9e2ad92e05bbfb908ffe7bb0fee7afe",
+              "ScopedTaskKey": "code.git-clone",
+              "TaskID": "c271acc24c3756e3d01a41a152779816"
+            }
+          ]
+        },
+        "ExecutionRuntimeSeconds": 25,
+        "subtasks": []
+      },
+      {
+        "Key": "tests",
+        "ID": "e35cb66b413672e38a70f991d80eb2a5",
+        "Status": {
+          "AbortedSubStatus": "not_applicable",
+          "Execution": "finished",
+          "FinishedSubStatus": "executed",
+          "Result": "succeeded",
+          "WaitingSubStatus": "not_applicable"
+        },
+        "CacheKey": "7cbefb25d9479af0b00357bd00092d9c67cb8f0b",
+        "CacheHitFromTaskID": null,
+        "TestCount": 2881,
+        "FailedTestCount": 0,
+        "ToolCaches": {
+          "DeclaredByTask": [],
+          "InheritedFromDependencies": [
+            {
+              "Name": "git-clone-665e3326a2446077bee92b14ccb2326bd9e2ad92e05bbfb908ffe7bb0fee7afe",
+              "ScopedTaskKey": "code.git-clone",
+              "TaskID": "c271acc24c3756e3d01a41a152779816"
+            }
+          ]
+        },
+        "ExecutionRuntimeSeconds": 38,
+        "subtasks": []
+      }
+    ]
+  },
+  "warm_rehearsals": [
+    {
+      "ID": "358c75a0894f4179bf4aa10baf73a63d",
+      "CommitSha": null,
+      "Init": {
+        "branch": "codex/rwx-ci-pilot",
+        "cache-epoch": "v1",
+        "cache-warm": "true",
+        "commit-sha": "5ee3311d889fd889a70d112b46ed00d8a398508c",
+        "tag": ""
+      },
+      "ResultStatus": "succeeded",
+      "TargetedTaskKeys": [
+        "modules",
+        "contracts"
+      ],
+      "StartedAt": "2026-10-05T04:04:31.355Z",
+      "CompletedAt": "2026-10-05T04:06:04.998Z",
+      "CompletedRuntimeSeconds": 89,
+      "tasks": [
+        {
+          "Key": "modules",
+          "ID": "d64711d6f72f3763bd33109a41939e62",
+          "Status": {
+            "AbortedSubStatus": "not_applicable",
+            "Execution": "finished",
+            "FinishedSubStatus": "executed",
+            "Result": "succeeded",
+            "WaitingSubStatus": "not_applicable"
+          },
+          "CacheKey": null,
+          "CacheHitFromTaskID": null,
+          "TestCount": 0,
+          "FailedTestCount": 0,
+          "ToolCaches": {
+            "DeclaredByTask": [],
+            "InheritedFromDependencies": []
+          },
+          "ExecutionRuntimeSeconds": null,
+          "subtasks": [
+            {
+              "Key": "build",
+              "ID": "c959d823ab484b4bcab57efcd0d5ea36",
+              "Status": {
+                "AbortedSubStatus": "not_applicable",
+                "Execution": "finished",
+                "FinishedSubStatus": "executed",
+                "Result": "succeeded",
+                "WaitingSubStatus": "not_applicable"
+              },
+              "CacheKey": "e6a08c0516526518bb7802630fc9854a3d9b9d2c",
+              "CacheHitFromTaskID": null,
+              "TestCount": 0,
+              "ToolCaches": {
+                "DeclaredByTask": [
+                  {
+                    "Name": "pr-checks-go-modules-v1",
+                    "ScopedTaskKey": "modules.build",
+                    "TaskID": "c959d823ab484b4bcab57efcd0d5ea36"
+                  }
+                ],
+                "InheritedFromDependencies": []
+              },
+              "ExecutionRuntimeSeconds": 69
+            }
+          ]
+        },
+        {
+          "Key": "contracts",
+          "ID": "e0b98fc354a2569ab80793b2aa20d3e1",
+          "Status": {
+            "AbortedSubStatus": "not_applicable",
+            "Execution": "finished",
+            "FinishedSubStatus": "executed",
+            "Result": "succeeded",
+            "WaitingSubStatus": "not_applicable"
+          },
+          "CacheKey": null,
+          "CacheHitFromTaskID": null,
+          "TestCount": 0,
+          "FailedTestCount": 0,
+          "ToolCaches": {
+            "DeclaredByTask": [],
+            "InheritedFromDependencies": []
+          },
+          "ExecutionRuntimeSeconds": null,
+          "subtasks": [
+            {
+              "Key": "build",
+              "ID": "4bb3b28e6f3fb16cb378aa3e2c056101",
+              "Status": {
+                "AbortedSubStatus": "not_applicable",
+                "Execution": "finished",
+                "FinishedSubStatus": "executed",
+                "Result": "succeeded",
+                "WaitingSubStatus": "not_applicable"
+              },
+              "CacheKey": "0f5262e2b38d5e4567a0e56f8d3a33c95d7ca38d",
+              "CacheHitFromTaskID": null,
+              "TestCount": 0,
+              "ToolCaches": {
+                "DeclaredByTask": [
+                  {
+                    "Name": "go-full-contracts-ci-v1",
+                    "ScopedTaskKey": "contracts.build",
+                    "TaskID": "4bb3b28e6f3fb16cb378aa3e2c056101"
+                  }
+                ],
+                "InheritedFromDependencies": []
+              },
+              "ExecutionRuntimeSeconds": 46
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "ID": "b1ec0c4a5cc54e2ebd204d883fd0a84a",
+      "CommitSha": null,
+      "Init": {
+        "branch": "codex/rwx-ci-pilot",
+        "cache-epoch": "v1",
+        "cache-warm": "true",
+        "commit-sha": "5ee3311d889fd889a70d112b46ed00d8a398508c",
+        "tag": ""
+      },
+      "ResultStatus": "succeeded",
+      "TargetedTaskKeys": [
+        "modules",
+        "contracts"
+      ],
+      "StartedAt": "2026-10-05T04:07:59.960Z",
+      "CompletedAt": "2026-10-05T04:08:08.478Z",
+      "CompletedRuntimeSeconds": 9,
+      "tasks": [
+        {
+          "Key": "modules",
+          "ID": "635d4318cac0a325dbc49b251eedd8df",
+          "Status": {
+            "AbortedSubStatus": "not_applicable",
+            "Execution": "finished",
+            "FinishedSubStatus": "cache_hit",
+            "Result": "succeeded",
+            "WaitingSubStatus": "not_applicable"
+          },
+          "CacheKey": null,
+          "CacheHitFromTaskID": null,
+          "TestCount": 0,
+          "FailedTestCount": 0,
+          "ToolCaches": {
+            "DeclaredByTask": [],
+            "InheritedFromDependencies": []
+          },
+          "ExecutionRuntimeSeconds": null,
+          "subtasks": [
+            {
+              "Key": "build",
+              "ID": "65118f5ba41c4840704e7f4161a313e8",
+              "Status": {
+                "AbortedSubStatus": "not_applicable",
+                "Execution": "finished",
+                "FinishedSubStatus": "cache_hit",
+                "Result": "succeeded",
+                "WaitingSubStatus": "not_applicable"
+              },
+              "CacheKey": "e6a08c0516526518bb7802630fc9854a3d9b9d2c",
+              "CacheHitFromTaskID": "c959d823ab484b4bcab57efcd0d5ea36",
+              "TestCount": 0,
+              "ToolCaches": {
+                "DeclaredByTask": [
+                  {
+                    "Name": "pr-checks-go-modules-v1",
+                    "ScopedTaskKey": "modules.build",
+                    "TaskID": "65118f5ba41c4840704e7f4161a313e8"
+                  }
+                ],
+                "InheritedFromDependencies": []
+              },
+              "ExecutionRuntimeSeconds": 69
+            }
+          ]
+        },
+        {
+          "Key": "contracts",
+          "ID": "d590ad8d21383483c72ddbdc0fcb38dd",
+          "Status": {
+            "AbortedSubStatus": "not_applicable",
+            "Execution": "finished",
+            "FinishedSubStatus": "cache_hit",
+            "Result": "succeeded",
+            "WaitingSubStatus": "not_applicable"
+          },
+          "CacheKey": null,
+          "CacheHitFromTaskID": null,
+          "TestCount": 0,
+          "FailedTestCount": 0,
+          "ToolCaches": {
+            "DeclaredByTask": [],
+            "InheritedFromDependencies": []
+          },
+          "ExecutionRuntimeSeconds": null,
+          "subtasks": [
+            {
+              "Key": "build",
+              "ID": "e2c60b3433af51784babed395675e316",
+              "Status": {
+                "AbortedSubStatus": "not_applicable",
+                "Execution": "finished",
+                "FinishedSubStatus": "cache_hit",
+                "Result": "succeeded",
+                "WaitingSubStatus": "not_applicable"
+              },
+              "CacheKey": "0f5262e2b38d5e4567a0e56f8d3a33c95d7ca38d",
+              "CacheHitFromTaskID": "4bb3b28e6f3fb16cb378aa3e2c056101",
+              "TestCount": 0,
+              "ToolCaches": {
+                "DeclaredByTask": [
+                  {
+                    "Name": "go-full-contracts-ci-v1",
+                    "ScopedTaskKey": "contracts.build",
+                    "TaskID": "e2c60b3433af51784babed395675e316"
+                  }
+                ],
+                "InheritedFromDependencies": []
+              },
+              "ExecutionRuntimeSeconds": 46
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "warming_scope": "Exact-source CLI dependency-only rehearsals; protected develop cache-rebuild event remains unobserved",
+  "cache_observation": "First CLI warm replay executed both producers; unchanged second replay reused both complete producer task outputs",
+  "circle": {
+    "build_num": 5635468,
+    "vcs_revision": "5ee3311d889fd889a70d112b46ed00d8a398508c",
+    "status": "success",
+    "start_time": "2026-10-05T03:54:04.687Z",
+    "stop_time": "2026-10-05T03:55:19.95Z",
+    "queued_at": "2026-10-05T03:54:02.673Z",
+    "build_url": "https://circleci.com/gh/ethereum-optimism/optimism/5635468",
+    "build_time_millis": 75263
+  },
+  "native_helper_task": "fb918a989550e9e939c0f34f63cb0d9b",
+  "helper_tests": 8,
+  "comparison_tests": 10,
+  "fixture_originals": {
+    "cancellation": {
+      "exit_code": 143,
+      "report_errors": [
+        "Go JSON has tests without terminal verdicts"
+      ],
+      "final_sha256": "870a58d04260badf7ed758221967f47759401a22ff6b644b36cefe689838a2bb",
+      "original_sha256": {
+        "cpus.json": "53c234e5e8472b6ac51c1ae1cab3fe06fad053beb8ebfd8977b010655bfdd3c3",
+        "cpus.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "cpus.stage.json": "6cbce5ed3122c3d6dbda19d6d94b67883a61e5ea790cacb20beed30db7188a2a",
+        "lint.log": "8af7db26ecb2bb1fef0eaf06af5041cabd768c6323c06f2de4566afa26ce52fd",
+        "lint.stage.json": "5a4f3950896a0a22c89d073a8736f44c0bba03c13e0cb4c6346848a3e1e3806e",
+        "list.json": "ff443def7857a83b8efced9e46dfb26f160b6a0e93a1817297133f81fd89cb5d",
+        "list.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "list.stage.json": "2934580916d72151b6111d43842c49aeac42c8df7332cb08066d852e91319a68",
+        "native.json": "380f06494f655cb6e87a7b3238526596eb8cebeada290cb3d4cc4064120c094c",
+        "native.metadata.json": "d04e5ad6cacb888186d452b64b08d8fe7b1a5c120fc191337d86a3a4880316e8",
+        "original.json": "fb32f8a69ba6ead021030442051c84316330e1d37e2f598bd753598a6509b436",
+        "packages.json": "93c46d3f606472cbec8082c4c3a7b9d818023bbe2a4a0f66443792bfc3290cfe",
+        "packages.log": "d1d592a1aeb9b5541551d55a75a14bc8d750cac2e3956f94fe5ea33b1d93e33a",
+        "packages.stage.json": "fd54143c1acea40faa8ec5b76a94f571534aa0194116773dcf33acc20fd8633a",
+        "selection.json": "d65772dddc5af97e9e1a289ce2bcc4c8b210dee17f0b164796043f7170b5e2a4",
+        "settings.json": "cbec9f4eff65bf9c4032156672074687e6ccc3be59fa2402c089823c1643cca2",
+        "source/cannon/fixture/fixture_test.go": "cdaaad5ba81aae5a3cb987f0d38c6bbe6419fbe245366844ef45a33642af2108",
+        "source/cannon/new/new_test.go": "25b8233ef9bee82ee204662d3de0799b24ba66e21a4f5a45e12d65da3c48b882",
+        "source/cannon/no-tests/fixture.go": "c9f09e0a76fbbf83847013f7d79aa09c1566778489cc499e76e3e5d72b1c8db6",
+        "source/cannon/runtime/main.go": "66f097d3d5ee9705438bd13932f925145e01c8951f24e813ce243742a90d6344",
+        "tests.log": "e5b30342cd093a603e94f92a8be9cc955ce89a06a3b879117de4ea52884e135e",
+        "tests.stage.json": "a070b655a015147d44c28a79b720c3126504f20857e9698a546f829b15d2bb06"
+      }
+    },
+    "corrupt-archive": {
+      "exit_code": 1,
+      "report_errors": [
+        "Dependency archive changed"
+      ],
+      "final_sha256": "f044894f6d197804f29aaa67d15ecd22297b96653e95e4ae5ac2db90de5fe56a",
+      "original_sha256": {
+        "cpus.json": "53c234e5e8472b6ac51c1ae1cab3fe06fad053beb8ebfd8977b010655bfdd3c3",
+        "cpus.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "cpus.stage.json": "552f10565d756d9dbaffc84e489fabe609383c871707f887edd8278a0b88958e",
+        "dependencies/go-modules.json": "33adbf06ceb70c998f1ce2778b35a196927592872c4c3e339017216c6748c311",
+        "settings.json": "a6997f1297f1556d248ad15839a2499ba837c4a25642a5f0d7c288ee8e046388"
+      }
+    },
+    "fresh-circle": {
+      "exit_code": 0,
+      "report_errors": [],
+      "final_sha256": "048ffb70ada80540cc56479b76bc33faf0e613787871529ce98f06b0cd4d1304",
+      "original_sha256": {
+        "coverage.json": "79a9fabcddf86f326c6fddc0bc778593f53b913d72981e881d5db9c81ff3fafb",
+        "cpus.json": "53c234e5e8472b6ac51c1ae1cab3fe06fad053beb8ebfd8977b010655bfdd3c3",
+        "cpus.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "cpus.stage.json": "34fbf444b53620a10fcc9646fcfded66cc5175f6ffa808f6860d67e65a16c373",
+        "inputs-after.json": "6f39849c8c6b9bb6555fb5d28f36ab0528492e103a2d7b6b52f403477f308204",
+        "junit.xml": "38d0c2e7100eab673b331c8c01c38c665df111961b4a4fbc7007493da66a6620",
+        "lint.log": "8af7db26ecb2bb1fef0eaf06af5041cabd768c6323c06f2de4566afa26ce52fd",
+        "lint.stage.json": "c235c1c0200de03f91d58f7e376347ab3b6defc93b22f6484e0fa8029e46a78e",
+        "list.json": "f79164691b2e3fa0d936a9657acd268180063fbdab1355a0412d0036bd0a041f",
+        "list.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "list.stage.json": "047088bcda3d253eb907567687f9c87b0e1cbf2776f47b4e27f0109ff9dbe727",
+        "native.json": "f79e28677dbf91c2c5390902dc00ef9902245a6cd263aa6d5b7cb09fd43b04dd",
+        "native.metadata.json": "ae05a2b859bd869b254af85333971b7992e39d423b0dc9cca48cb8df77146294",
+        "original.json": "9595aa16a25687259ed5617b1de90ffff06e2d6057ff020e974ed26f48281b44",
+        "packages.json": "1d5992c942000b68a6d006ba181d770db51daf436bb74a91b0fbabfc3f11695b",
+        "packages.log": "57d99ea0f18d64f227a76e8b6a0cf1d4a4265559d97c53f810d9d90660d83b0d",
+        "packages.stage.json": "22387cad30985f5c756335ca5a76c90f1cc2752a90781f3e9c5c3c6b17047b4e",
+        "per-test/github.com.ethereum-optimism.optimism.cannon.fixture/TestCancel.log": "cb7975764a1637a4abee5fb08a323db11bc047932e53850011d6e73d496b6999",
+        "per-test/github.com.ethereum-optimism.optimism.cannon.fixture/TestFresh.log": "01acfbc46c6c8f26d69dc10dc22419dd810e12c5e462dbf4b052c323562ba0f7",
+        "per-test/github.com.ethereum-optimism.optimism.cannon.fixture/TestRuntime.log": "81981a55b2131e277c969cfa08ac7288c389117eaac6be01fb31bebb91529f12",
+        "per-test/github.com.ethereum-optimism.optimism.cannon.fixture/TestSubtests.log": "ecf908ebb101f867d8b0f7caf46017f6a046738e82fbb7d2d124e233ffc6a189",
+        "per-test/github.com.ethereum-optimism.optimism.cannon.fixture/TestSubtests/pass.log": "2f2c344ef1542be8c3c705a996643314444df6ab5d78a86df3664697db836334",
+        "per-test/github.com.ethereum-optimism.optimism.cannon.fixture/TestSubtests/skip.log": "7ffa434d5e4859b5d368a8c7857aeb59b8ceee865d081475b8ba8197582daac6",
+        "per-test/github.com.ethereum-optimism.optimism.cannon.new/TestNewPackage.log": "74d923a258e0fe40a5fdd652e96ef0713cfd142204e7de8b3d8ff06160a1630e",
+        "selection.json": "d65772dddc5af97e9e1a289ce2bcc4c8b210dee17f0b164796043f7170b5e2a4",
+        "settings.json": "ddc5a2bd274671da71313434166d8b07ca7da943267db759106a1fc107b93e71",
+        "source/cannon/fixture/fixture_test.go": "cdaaad5ba81aae5a3cb987f0d38c6bbe6419fbe245366844ef45a33642af2108",
+        "source/cannon/new/new_test.go": "25b8233ef9bee82ee204662d3de0799b24ba66e21a4f5a45e12d65da3c48b882",
+        "source/cannon/no-tests/fixture.go": "c9f09e0a76fbbf83847013f7d79aa09c1566778489cc499e76e3e5d72b1c8db6",
+        "source/cannon/runtime/main.go": "66f097d3d5ee9705438bd13932f925145e01c8951f24e813ce243742a90d6344",
+        "tests.log": "60efc92aa9f42b79e547b3372a033f9b2e44746be9d0b8d7091de3e595a6fb85",
+        "tests.stage.json": "da53f397182acaf3e4c042095848da66be879e3e76a48274f825440e88b7645d"
+      }
+    },
+    "fresh-rwx": {
+      "exit_code": 0,
+      "report_errors": [],
+      "final_sha256": "24b0346c6f895c0ceb32660f7e916a7accba66b98e238702809a956bc3172d52",
+      "original_sha256": {
+        "coverage.json": "025e43900d5d43b938be866e702207bf65dfeef604ac38fd54856a0fbf6a1800",
+        "cpus.json": "53c234e5e8472b6ac51c1ae1cab3fe06fad053beb8ebfd8977b010655bfdd3c3",
+        "cpus.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "cpus.stage.json": "dbf78bbb7b5a95b7f311c9499a034a706c9b68c2595a2515fa07b6f0fd3c1190",
+        "dependencies/contracts.json": "d0d05233b01228289ad4dcf11fe387d129f791c31919d8c0c765771c36b6975e",
+        "dependencies/go-modules.json": "1094172dc85fd9a4bd758a872f12f6aabf3249c3f09e9affd0bcb5f79affb5f7",
+        "inputs-after.json": "6f39849c8c6b9bb6555fb5d28f36ab0528492e103a2d7b6b52f403477f308204",
+        "junit.xml": "6f9131bc1516438782b7b8c6e3774436d4c7a97958b91e9da358c12666cd7625",
+        "lint.log": "8af7db26ecb2bb1fef0eaf06af5041cabd768c6323c06f2de4566afa26ce52fd",
+        "lint.stage.json": "e8777fc9df1f4848eabc833877e567833119cd19d1b226d3024cf6c0ac1b6307",
+        "list.json": "04f9947109239c71587349df3249c80eb8a6b134674b1be5c15774ed9e379ea1",
+        "list.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "list.stage.json": "1c47a1571ca8f620570488967c625d6a29141c12fddc6398b3a46964619bac22",
+        "native.json": "8a407dfde72ce0edc159b95cd02a506d27fc841f8f35b64988aa228e5e60518f",
+        "native.metadata.json": "ce8c061942b5739150e5ca3f6bd1b11d8b346b0b9d22bdfde4695a9f9754d26d",
+        "original.json": "fd3e50823fcff76a874ea0a3da912155eea5ee0d6ebd843bde84ef9b24f24e7b",
+        "packages.json": "a2f549c05ec4e88ff30c84084cef99dc7c164c8a0c97dab92a532ab6ee674ee1",
+        "packages.log": "57d99ea0f18d64f227a76e8b6a0cf1d4a4265559d97c53f810d9d90660d83b0d",
+        "packages.stage.json": "d59d854e3e5aa6bc5c41fe307b876636911f4ebc631f2fe72ef0096aadc3a0d7",
+        "per-test/github.com.ethereum-optimism.optimism.cannon.fixture/TestCancel.log": "cb7975764a1637a4abee5fb08a323db11bc047932e53850011d6e73d496b6999",
+        "per-test/github.com.ethereum-optimism.optimism.cannon.fixture/TestFresh.log": "01acfbc46c6c8f26d69dc10dc22419dd810e12c5e462dbf4b052c323562ba0f7",
+        "per-test/github.com.ethereum-optimism.optimism.cannon.fixture/TestRuntime.log": "09ecb8b40cef161531f1f05201a6933ed7a4dbc423484083dfce4b29436d7285",
+        "per-test/github.com.ethereum-optimism.optimism.cannon.fixture/TestSubtests.log": "ecf908ebb101f867d8b0f7caf46017f6a046738e82fbb7d2d124e233ffc6a189",
+        "per-test/github.com.ethereum-optimism.optimism.cannon.fixture/TestSubtests/pass.log": "2f2c344ef1542be8c3c705a996643314444df6ab5d78a86df3664697db836334",
+        "per-test/github.com.ethereum-optimism.optimism.cannon.fixture/TestSubtests/skip.log": "7ffa434d5e4859b5d368a8c7857aeb59b8ceee865d081475b8ba8197582daac6",
+        "per-test/github.com.ethereum-optimism.optimism.cannon.new/TestNewPackage.log": "74d923a258e0fe40a5fdd652e96ef0713cfd142204e7de8b3d8ff06160a1630e",
+        "selection.json": "d65772dddc5af97e9e1a289ce2bcc4c8b210dee17f0b164796043f7170b5e2a4",
+        "settings.json": "b4a645247bc8c716ab7b11ddc2e74188536fb4d475592eef118e83f7f41b9b61",
+        "source/cannon/fixture/fixture_test.go": "cdaaad5ba81aae5a3cb987f0d38c6bbe6419fbe245366844ef45a33642af2108",
+        "source/cannon/new/new_test.go": "25b8233ef9bee82ee204662d3de0799b24ba66e21a4f5a45e12d65da3c48b882",
+        "source/cannon/no-tests/fixture.go": "c9f09e0a76fbbf83847013f7d79aa09c1566778489cc499e76e3e5d72b1c8db6",
+        "source/cannon/runtime/main.go": "66f097d3d5ee9705438bd13932f925145e01c8951f24e813ce243742a90d6344",
+        "tests.log": "32ef5633d49ef44df2e01d1b984df1ccff6fc10416df6285ad72e4658c3f87f9",
+        "tests.stage.json": "dfafaf2232b2de8128e25c82e506e5a02517c314b3acde57b5aafd217cafd12e"
+      }
+    },
+    "intentional-failure": {
+      "exit_code": 1,
+      "report_errors": [],
+      "final_sha256": "d294389da45001b392ba90bfdf4bf8d996f8ab051814467e2ac9c83d8f204c56",
+      "original_sha256": {
+        "coverage.json": "fcee58b1116e6fd85578b67e0850525c077f77ae5d92357b37c0d18425677d5e",
+        "cpus.json": "53c234e5e8472b6ac51c1ae1cab3fe06fad053beb8ebfd8977b010655bfdd3c3",
+        "cpus.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "cpus.stage.json": "92099b3360285c9c11addcae10b0740f636beb22cf56578c40f582a149cf1988",
+        "inputs-after.json": "6f39849c8c6b9bb6555fb5d28f36ab0528492e103a2d7b6b52f403477f308204",
+        "junit.xml": "132a98687ae0c54afb44046c0b041b31b4b88a4b8d8a5d95eb4baa099adacd23",
+        "lint.log": "8af7db26ecb2bb1fef0eaf06af5041cabd768c6323c06f2de4566afa26ce52fd",
+        "lint.stage.json": "00ff0d9cea18aaac0f819be35e55b811e8f4f146d05a06c00f4d628a3053a738",
+        "list.json": "16da237f1ce3a10ed5533c7cc9d47c25fd3d8ff1f46e56dc1cd1aad20f923840",
+        "list.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "list.stage.json": "c41ab3d12f5bb853df9e5776148dc74460d1e8255830394dd23962d1765e622a",
+        "native.json": "03ad7c325cab351744547dca9bef462c2aa2915afe06ee65ca117fda6b68eca7",
+        "native.metadata.json": "f1119d756b4e053a8dac1efd6a05ccc97b67a96c93814b98df429bb4b4538b73",
+        "original.json": "31ba901c4f0ddf832b2fc68da737de56306ba8c7bb17117db9c7c1c7a54dccdc",
+        "packages.json": "87c7ea737771fca1b15de416747fa21117575e531c82ea8f6ee77626c221121e",
+        "packages.log": "bdb7ef5cce20d43ae4f4861a6bc59599cfc2cd9b8a3cba0bba2cc2903f383c88",
+        "packages.stage.json": "d5e0b2ca1a43289993fa008c2b7ad366937cc5dbda0535cfcbd9a7da7e5f98a5",
+        "per-test/github.com.ethereum-optimism.optimism.cannon.fixture/TestCancel.log": "cb7975764a1637a4abee5fb08a323db11bc047932e53850011d6e73d496b6999",
+        "per-test/github.com.ethereum-optimism.optimism.cannon.fixture/TestFresh.log": "c89013f5770ac2f7a6d5d7784d5b8b6b1139bf18ad12078d1aab0b2493c548a7",
+        "per-test/github.com.ethereum-optimism.optimism.cannon.fixture/TestRuntime.log": "81981a55b2131e277c969cfa08ac7288c389117eaac6be01fb31bebb91529f12",
+        "per-test/github.com.ethereum-optimism.optimism.cannon.fixture/TestSubtests.log": "ecf908ebb101f867d8b0f7caf46017f6a046738e82fbb7d2d124e233ffc6a189",
+        "per-test/github.com.ethereum-optimism.optimism.cannon.fixture/TestSubtests/pass.log": "2f2c344ef1542be8c3c705a996643314444df6ab5d78a86df3664697db836334",
+        "per-test/github.com.ethereum-optimism.optimism.cannon.fixture/TestSubtests/skip.log": "7ffa434d5e4859b5d368a8c7857aeb59b8ceee865d081475b8ba8197582daac6",
+        "per-test/github.com.ethereum-optimism.optimism.cannon.new/TestNewPackage.log": "74d923a258e0fe40a5fdd652e96ef0713cfd142204e7de8b3d8ff06160a1630e",
+        "selection.json": "d65772dddc5af97e9e1a289ce2bcc4c8b210dee17f0b164796043f7170b5e2a4",
+        "settings.json": "fa8d32b3b2773399b551e82499b09ce9d6ab2db6d268c57c587e131308b7566c",
+        "source/cannon/fixture/fixture_test.go": "cdaaad5ba81aae5a3cb987f0d38c6bbe6419fbe245366844ef45a33642af2108",
+        "source/cannon/new/new_test.go": "25b8233ef9bee82ee204662d3de0799b24ba66e21a4f5a45e12d65da3c48b882",
+        "source/cannon/no-tests/fixture.go": "c9f09e0a76fbbf83847013f7d79aa09c1566778489cc499e76e3e5d72b1c8db6",
+        "source/cannon/runtime/main.go": "66f097d3d5ee9705438bd13932f925145e01c8951f24e813ce243742a90d6344",
+        "tests.log": "1a15cb1e987217983d57632453462622cf374b24e171e4c3872002bdac2bc6cc",
+        "tests.stage.json": "8fee5b6ed13aedf003560c311ffce9de253d94832f972b44302c662c4a2ea33c"
+      }
+    },
+    "stale-settings": {
+      "exit_code": 1,
+      "report_errors": [
+        "Dependency revision, toolchain pins or settings mismatch"
+      ],
+      "final_sha256": "3d3edadd9be34d7685f4cf6cd0d42d30b5b0d5683deea1864e8d014fab92efa9",
+      "original_sha256": {
+        "cpus.json": "53c234e5e8472b6ac51c1ae1cab3fe06fad053beb8ebfd8977b010655bfdd3c3",
+        "cpus.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "cpus.stage.json": "759b8b9c13cd0a63cbdb0ebd3f919dda5e21f6d0a7270d001a215077493b49f2",
+        "dependencies/go-modules.json": "72f5f17232fe3f81b9fdf770e5622d62659b9f6dfb267c512d0a23cd3285c2b9",
+        "settings.json": "a6997f1297f1556d248ad15839a2499ba837c4a25642a5f0d7c288ee8e046388"
+      }
+    },
+    "stale-source": {
+      "exit_code": 1,
+      "report_errors": [
+        "Dependency revision, toolchain pins or settings mismatch"
+      ],
+      "final_sha256": "28c4e50a279794bc25e4dd4e4d83d71a126a9c39c4656101341891c313358a33",
+      "original_sha256": {
+        "cpus.json": "53c234e5e8472b6ac51c1ae1cab3fe06fad053beb8ebfd8977b010655bfdd3c3",
+        "cpus.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "cpus.stage.json": "93a448fa05bd8272293c0f5f9a1afd3f3cb6908f822d4cf2db35d1c621e749f3",
+        "dependencies/go-modules.json": "45fbde1ba55c2d3aba37adb2ef054e26276a5ccfbae7ce5e4716e3627215c9e6",
+        "settings.json": "a6997f1297f1556d248ad15839a2499ba837c4a25642a5f0d7c288ee8e046388"
+      }
+    },
+    "stale-toolchain": {
+      "exit_code": 1,
+      "report_errors": [
+        "Cannon dependency producer used a different toolchain"
+      ],
+      "final_sha256": "4228e6ad241c68bd30a4ac1d74eb36a1726632f9107b0ff53d18e1e92ec82838",
+      "original_sha256": {
+        "cpus.json": "53c234e5e8472b6ac51c1ae1cab3fe06fad053beb8ebfd8977b010655bfdd3c3",
+        "cpus.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "cpus.stage.json": "02e3f07971eb71dc309321e6647e648cdec9bd93b3296597f1332b9b1eec6aa9",
+        "dependencies/contracts.json": "26cec1aa492d9d3f9191812aa1555fd232ce22e6964ae6b50c1b800a3077eea3",
+        "dependencies/go-modules.json": "71d726d804b0c5ae2ab801a070d8747d2813c25b7949e96d96a58e1a5e8512d0",
+        "settings.json": "a6997f1297f1556d248ad15839a2499ba837c4a25642a5f0d7c288ee8e046388"
+      }
+    }
+  },
+  "artifact_fixtures": {
+    "tests": 6,
+    "scope": "Local and Linux validation before push; not part of native helper task"
+  },
+  "performance_scope": "Single workload observations; no warm median or speed-win claim"
+}
