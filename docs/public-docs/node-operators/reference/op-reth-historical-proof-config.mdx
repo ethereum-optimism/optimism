@@ -10,6 +10,10 @@ When enabled, op-reth maintains a separate storage database for versioned trie d
 
 For a complete setup guide, see the tutorial on [Running op-reth with Historical Proofs](/node-operators/tutorials/reth-historical-proofs).
 
+<Warning>
+On op-reth v2.6.x and earlier, the proofs store defaults to the deprecated v1 format. Pass `--proofs-history.storage-version=v2` to `op-reth node` and to every `op-reth proofs` subcommand. Later releases only support the v2 format and no longer accept this flag. op-reth v2.2.3 or later is required for the v2 format.
+</Warning>
+
 <Info>
 This fork inherits all standard op-reth configuration options. See the [op-reth configuration reference](/node-operators/reference/op-reth-config).
 </Info>

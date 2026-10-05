@@ -251,6 +251,7 @@ Check that you have properly installed the challenger component:
   *   Technically doesn't need to go to bedrock, but needs to have access to the start of any game that is still in progress.
   *   The withdrawal-proof data the challenger reads via `eth_getProof` is served by op-reth's historical-proofs store. Enable it with `--proofs-history`, set a persistent `--proofs-history.storage-path`, and size `--proofs-history.window` to cover the dispute game window (≥ 28 days). On permissioned chains, `--rpc.eth-proof-window` bounds how far back `eth_getProof` will serve. See [Running op-reth with historical proofs](/node-operators/tutorials/reth-historical-proofs).
   *   **Seed the proofs storage once before starting the node with `--proofs-history`**, or op-reth refuses to start (the `proofs-history` ExEx panics with `Proofs storage not initialized`). With the node stopped, run `op-reth proofs init --chain <chain-or-genesis> --datadir <reth-datadir> --proofs-history.storage-path <proofs-db-path>`. It snapshots the chain's current state to seed the sidecar; the ExEx then indexes forward as the node syncs. Initialize at (or near) genesis so the whole fault-proof window is covered — a node seeded at the current tip only serves proofs for blocks after that point.
+  *   On op-reth v2.6.x and earlier, also pass `--proofs-history.storage-version v2` to both `op-reth node` and `op-reth proofs init`; those releases default to the deprecated v1 format.
   </Accordion>
   
   <Accordion title="--rollup-rpc">
@@ -474,6 +475,7 @@ The challenger should show logs indicating:
   *   Technically doesn't need to go to bedrock, but needs to have access to the start of any game that is still in progress.
   *   The withdrawal-proof data the challenger reads via `eth_getProof` is served by op-reth's historical-proofs store. Enable it with `--proofs-history`, set a persistent `--proofs-history.storage-path`, and size `--proofs-history.window` to cover the dispute game window (≥ 28 days). On permissioned chains, `--rpc.eth-proof-window` bounds how far back `eth_getProof` will serve. See [Running op-reth with historical proofs](/node-operators/tutorials/reth-historical-proofs).
   *   **Seed the proofs storage once before starting the node with `--proofs-history`**, or op-reth refuses to start (the `proofs-history` ExEx panics with `Proofs storage not initialized`). With the node stopped, run `op-reth proofs init --chain <chain-or-genesis> --datadir <reth-datadir> --proofs-history.storage-path <proofs-db-path>`. It snapshots the chain's current state to seed the sidecar; the ExEx then indexes forward as the node syncs. Initialize at (or near) genesis so the whole fault-proof window is covered — a node seeded at the current tip only serves proofs for blocks after that point.
+  *   On op-reth v2.6.x and earlier, also pass `--proofs-history.storage-version v2` to both `op-reth node` and `op-reth proofs init`; those releases default to the deprecated v1 format.
   </Accordion>
   
   <Accordion title="--rollup-rpc">
