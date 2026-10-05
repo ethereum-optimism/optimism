@@ -204,3 +204,25 @@ func TestVerifyFromCommitReported_RetainsActualGenerationAndFailures(t *testing.
 		})
 	}
 }
+
+func TestVerifyFromCommitReported_WrapsGeneratorAndReportFailures(t *testing.T) {
+	root, _ := initGitRepo(t)
+	writeFileInRepo(t, root, "mise.toml", []byte("[tools]\nforge = '1.2.3'\n"))
+	writeFileInRepo(t, root, "packages/contracts-bedrock/justfile", []byte("generate-nut-bundle:\n  forge script original-generator\n"))
+	commit := writeFileInRepo(t, root, "packages/contracts-bedrock/foundry.toml", []byte("[profile.default]\n"))
+	bundle := "op-core/nuts/bundles/test_nut_bundle.json"
+	require.NoError(t, os.MkdirAll(filepath.Dir(filepath.Join(root, bundle)), 0755))
+	require.NoError(t, os.WriteFile(filepath.Join(root, bundle), []byte(`{"bundle":true}`), 0644))
+	report := filepath.Join(t.TempDir(), "report")
+	generationErr := errors.New("intentional generator failure")
+	err := verifyFromCommitReported(root, "test-fork", nuts.ForkLockEntry{Bundle: bundle, Commit: commit}, func(string) error {
+		// The generation failure and the independent report write failure must
+		// both remain discoverable through the returned error chain.
+		require.NoError(t, os.RemoveAll(report))
+		require.NoError(t, os.WriteFile(report, []byte("not a report directory"), 0644))
+		return generationErr
+	}, report)
+	require.ErrorIs(t, err, generationErr)
+	var pathErr *os.PathError
+	require.ErrorAs(t, err, &pathErr)
+}

@@ -136,7 +136,14 @@ case "${CI_EVENT:?CI_EVENT must be push, schedule, or dispatch}" in
 
   # API triggers: dispatch flags select workflows (routing.yml api_dispatch).
   dispatch)
-    run release
+    # An explicit pilot-only full NUT replay runs its original verifier and
+    # module dependency alone, without selecting publisher workflows.
+    if is_true nut_provenance_full_effective && ! is_true main_dispatch && \
+      [[ "${CI_BRANCH}" == "codex/rwx-ci-pilot" && "$(param github-event-type)" == "__not_set__" ]]; then
+      run_group api_dispatch nut_provenance_full_effective
+    else
+      run release
+    fi
     # main_dispatch only fires for genuine API dispatches, not github-event triggers.
     if is_true main_dispatch && [[ "$(param github-event-type)" == "__not_set__" ]]; then
       run_group api_dispatch main_dispatch
@@ -146,7 +153,7 @@ case "${CI_EVENT:?CI_EVENT must be push, schedule, or dispatch}" in
     for flag in $(yq -r '.api_dispatch | keys | .[]' "${ROUTING}"); do
       # Keep this skip-list in sync with bespoke api_dispatch conditions.
       case "${flag}" in
-        main_dispatch | labeled_pr) continue ;;
+        main_dispatch | labeled_pr | nut_provenance_full_effective) continue ;;
       esac
       if is_true "${flag}"; then
         run_group api_dispatch "${flag}"

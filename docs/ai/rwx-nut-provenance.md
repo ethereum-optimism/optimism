@@ -14,6 +14,12 @@ Native verdicts always select every fork and run the original
 original detached worktree, executes `just generate-nut-bundle` there, compares
 the regenerated bundle byte for byte and removes the temporary worktree.
 
+A pilot API dispatch with `main_dispatch: false` and
+`c-nut_provenance_full: true` selects the isolated `nut-provenance-replay`
+workflow: the original module producer and original verifier. This benchmark
+selects no publisher workflow. Normal pushes and the default Circle pipeline
+retain their existing routing; replay occurrences are outside the PR denominator.
+
 Both current recorded commits pin Forge 1.2.3 and Just 1.46.0. The adapter
 selects these historical generators explicitly; the verifier uses the current
 CI Go toolchain. Current Forge 1.8.3 compiles the older contracts but fails on
@@ -54,3 +60,13 @@ complete Linux regeneration, nine Git/discovery/report/failure/stream fixtures,
 fresh Go reporting tests, routing and Circle-adapter fixtures, ShellCheck,
 native lint and setup/merged/full-replay Circle compilation. These rehearsals
 establish implementation behavior; hosted parity is a separate acceptance step.
+
+The [first full hosted native run](rwx-nut-provenance-evidence/hosted-preflight.json)
+at `94481c20a3` passes both actual regenerations and all hosted helper fixtures.
+All 134 sealed originals validate, including 5,623 Karst and 5,930 Lagoon source
+entries and their complete compiler partitions. The replay's 37 routing fixtures,
+Circle adapter and compiled isolated workflow pass. A Main-only Go lint failure
+in the same push correctly rejected an unwrapped report error; the fix preserves
+both causes with `errors.Join`, verified by a real Git fixture and the configured
+custom Go linter. Complete same-SHA Circle comparison remains pending; this native
+pass adds no coverage by itself.

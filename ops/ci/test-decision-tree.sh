@@ -132,6 +132,18 @@ echo ""
 # --- Scenarios ---
 
 run_scenario \
+  "Pilot full NUT replay selects only original verifier and modules" \
+  dispatch codex/rwx-ci-pilot "" "" \
+  '{"c-main_dispatch":false,"c-nut_provenance_full_effective":true,"c-github-event-type":"__not_set__"}' \
+  nut_provenance_replay
+
+run_scenario \
+  "Full NUT option on a push retains normal PR routing" \
+  push codex/rwx-ci-pilot "" "" \
+  '{"c-main_dispatch":false,"c-nut_provenance_full_effective":true}' \
+  main release contracts_feature_tests_short rust_ci_gate_short rust_e2e_gate_skip
+
+run_scenario \
   "Tag push → release only" \
   "push" "" "v1.0.0" "" \
   '{}' \

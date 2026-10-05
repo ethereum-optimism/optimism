@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"crypto/sha256"
 	"encoding/hex"
+	"errors"
 	"fmt"
 	"os"
 	"os/exec"
@@ -123,7 +124,7 @@ func verifyFromCommitReported(root string, fork forks.Name, entry nuts.ForkLockE
 	generationErr := generate(contractsDir)
 	if reportDir != "" {
 		if err := retainGeneration(worktreeDir, reportDir, generationErr == nil); err != nil {
-			return fmt.Errorf("retaining provenance generation (generator error: %v): %w", generationErr, err)
+			return fmt.Errorf("retaining provenance generation: %w", errors.Join(generationErr, err))
 		}
 	}
 	if generationErr != nil {

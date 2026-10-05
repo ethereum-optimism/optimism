@@ -35,6 +35,9 @@ parameters:
   c-nut_provenance_full_effective:
     type: boolean
     default: false
+  c-run_nut_provenance_replay:
+    type: boolean
+    default: false
   c-publish_contract_artifacts_ref:
     type: string
     default: ""
@@ -2659,6 +2662,20 @@ jobs:
           destination: flaky-test-reports
 
 workflows:
+  # Isolated full replay of the original job and original module dependency.
+  # Shared routing selects this only for explicit pilot API benchmarks.
+  nut-provenance-replay:
+    when: << pipeline.parameters.c-run_nut_provenance_replay >>
+    jobs:
+      - prep-go-modules:
+          context:
+            - circleci-repo-readonly-authenticated-github-token
+      - nut-provenance-verify:
+          requires:
+            - prep-go-modules
+          context:
+            - circleci-repo-readonly-authenticated-github-token
+
   main:
     when: << pipeline.parameters.c-run_main >>
     jobs:

@@ -31,6 +31,8 @@ schedules:
 # labeled_pr have more complex conditions (see compute-workflow-conditions.sh),
 # but the workflows they enable still live here as data.
 api_dispatch:
+  nut_provenance_full_effective:
+    - nut_provenance_replay
   main_dispatch:
     - main
     - contracts_feature_tests
