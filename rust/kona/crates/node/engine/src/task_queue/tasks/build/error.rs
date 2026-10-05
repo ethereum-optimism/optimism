@@ -1,7 +1,7 @@
 //! Contains error types for the [`crate::SynchronizeTask`].
 
 use crate::{EngineTaskError, task_queue::tasks::task::EngineTaskErrorSeverity};
-use alloy_rpc_types_engine::{PayloadId, PayloadStatusEnum};
+use alloy_rpc_types_engine::{INVALID_PAYLOAD_ATTRIBUTES_ERROR, PayloadId, PayloadStatusEnum};
 use alloy_transport::{RpcError, TransportErrorKind};
 use thiserror::Error;
 use tokio::sync::mpsc;
@@ -51,6 +51,19 @@ pub enum BuildTaskError {
     /// Error sending the built payload envelope.
     #[error(transparent)]
     MpscSend(#[from] Box<mpsc::error::SendError<PayloadId>>),
+}
+
+impl BuildTaskError {
+    /// Whether forkchoiceUpdated rejected the attributes with -38003 or INVALID.
+    pub fn is_invalid_attributes(&self) -> bool {
+        match self {
+            Self::EngineBuildError(EngineBuildError::AttributesInsertionFailed(err)) => err
+                .as_error_resp()
+                .is_some_and(|resp| resp.code == i64::from(INVALID_PAYLOAD_ATTRIBUTES_ERROR)),
+            Self::EngineBuildError(EngineBuildError::InvalidPayload(_)) => true,
+            _ => false,
+        }
+    }
 }
 
 impl EngineTaskError for BuildTaskError {
