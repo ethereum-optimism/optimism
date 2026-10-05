@@ -2569,6 +2569,21 @@ contract OPContractsManagerStandardValidator_ValidateInterop_Test is OPContracts
         _assertMembersValidated();
     }
 
+    /// @notice A wrong shared SUPER_CANNON_KONA prestate must be rejected from either member.
+    function test_validate_interopMembersWrongSuperCannonKonaPrestate_succeeds() public {
+        _assertMembersValidated();
+        assertNotEq(cannonPrestate.raw(), cannonKonaPrestate.raw());
+        _upgradeMember(chainContracts2.systemConfig, cannonPrestate);
+
+        IOPContractsManagerStandardValidator.ValidationInputDev memory input =
+            _validationInput(chainContracts2.systemConfig);
+        string memory errors = standardValidator.validate(input, true);
+        assertEq(errors, "SCKDG-40");
+        assertEq(standardValidator.validate(_validationInput(chainContracts1.systemConfig), true), errors);
+        vm.expectRevert(bytes("OPContractsManagerStandardValidator: SCKDG-40"));
+        standardValidator.validate(input, false);
+    }
+
     /// @notice Discovering the shared admin must still check its expected PAO owner.
     function test_validate_sharedProxyAdminWrongOwner_succeeds() public {
         vm.mockCall(sharedProxyAdmin, abi.encodeCall(IProxyAdmin.owner, ()), abi.encode(makeAddr("wrongSharedOwner")));
@@ -2651,6 +2666,11 @@ contract OPContractsManagerStandardValidator_ValidateInterop_Test is OPContracts
 
     /// @notice Re-applies both super games through a member's ordinary OPCM upgrade path.
     function _upgradeMember(ISystemConfig _sysCfg) internal {
+        _upgradeMember(_sysCfg, cannonKonaPrestate);
+    }
+
+    /// @notice Re-applies both super games with the supplied SUPER_CANNON_KONA prestate.
+    function _upgradeMember(ISystemConfig _sysCfg, Claim _cannonKonaPrestate) internal {
         IOPContractsManagerUtils.DisputeGameConfig[] memory configs =
             new IOPContractsManagerUtils.DisputeGameConfig[](6);
         configs[0].gameType = GameTypes.CANNON;
@@ -2659,6 +2679,8 @@ contract OPContractsManagerStandardValidator_ValidateInterop_Test is OPContracts
         IOPContractsManagerUtils.DisputeGameConfig[] memory migratedGames = _getDefaultMigrateInput().disputeGameConfigs;
         configs[3] = migratedGames[0];
         configs[4] = migratedGames[1];
+        configs[4].gameArgs =
+            abi.encode(IOPContractsManagerUtils.FaultDisputeGameConfig({ absolutePrestate: _cannonKonaPrestate }));
         configs[5].gameType = GameTypes.ZK_DISPUTE_GAME;
 
         IOPContractsManagerV2.UpgradeInput memory input;

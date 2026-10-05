@@ -951,6 +951,8 @@ contract OPContractsManagerStandardValidator is ISemver {
                 _sharedProxyAdmin.owner() == expectedL1PAOMultisig(_overrides), "SHARED-PROXYA-10", _errors
             );
         }
+        // Under INTEROP, DF-40 compares the factory's admin with itself. SHARED-PROXYA-10
+        // checks its PAO owner; the ASR, WETH and lockbox checks enforce the same shared admin.
         _errors = assertValidDisputeGameFactory(_errors, _input.sysCfg, _sharedProxyAdmin, _overrides);
 
         GameType rgt =
