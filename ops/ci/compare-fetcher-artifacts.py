@@ -58,6 +58,7 @@ def report(directory, provider, sha):
         raise ValueError('Wrong fetcher suite, source or provider')
     if (not settings['branch'] or settings['profile'] != 'lite' or settings['arguments'] != ['--deny-warnings', '--skip', 'test']
             or settings['rerun_fails'] != 0 or settings['portable_export'] != F.EXPORT_RULE
+            or settings['fetcher_compiler'] != F.FETCHER_COMPILER
             or set(settings['environment']) != set(F.COMPILER_ENV)
             or G.read(directory / 'inputs-after.json') != settings['input_sha256']):
         raise ValueError('Changed original fetcher settings or source inputs')
@@ -76,6 +77,8 @@ def report(directory, provider, sha):
         raise ValueError('Fresh portable fetcher artifacts differ from committed bytes')
     if selected.keys() != compiled.keys(): raise ValueError('Original and portable fetcher selections differ')
     for name in compiled:
+        if not G.read(directory / 'compiled' / name)['metadata']['compiler']['version'].startswith(F.FETCHER_COMPILER + '+'):
+            raise ValueError('Original fetcher output uses a different compiler version')
         expected = F.portable_artifact(G.read(directory / 'compiled' / name), Path(root) / 'packages/contracts-bedrock')
         if (directory / 'portable' / name).read_bytes() != F.serialize(expected):
             raise ValueError('Portable fetcher export differs from the original compiler artifact')
@@ -103,7 +106,7 @@ def report(directory, provider, sha):
 def compare(directory, sha):
     if not re.fullmatch('[0-9a-f]{40}', sha): raise ValueError('Expected full fetcher benchmark SHA')
     a, b = (report(directory / p, provider, sha) for p, provider in [('circle', 'circleci'), ('rwx', 'rwx')])
-    for key in ('source_sha', 'branch', 'input_sha256', 'submodules', 'environment', 'profile', 'arguments', 'rerun_fails', 'tool_versions', 'portable_export'):
+    for key in ('source_sha', 'branch', 'input_sha256', 'submodules', 'environment', 'profile', 'arguments', 'rerun_fails', 'tool_versions', 'portable_export', 'fetcher_compiler'):
         if a['settings'][key] != b['settings'][key]: raise ValueError('Original fetcher settings differ: ' + key)
     if a['selection'] != b['selection'] or a['coverage'] != b['coverage']: raise ValueError('Complete fetcher artifact selection differs')
     x, y = a['files'], b['files']; info = 'packages/contracts-bedrock/forge-artifacts/build-info/'

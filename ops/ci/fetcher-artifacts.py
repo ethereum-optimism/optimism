@@ -25,6 +25,7 @@ CONTRACTS = ROOT / 'packages/contracts-bedrock'
 BUILT = 'packages/contracts-bedrock/forge-artifacts/FetchChainInfo.s.sol'
 COMMITTED = 'op-fetcher/pkg/fetcher/fetch/forge-artifacts/FetchChainInfo.s.sol'
 EXPORT_RULE = 'Retain every compiler field; relativize checkout-scoped remappings, sort and remove duplicate remappings; canonical JSON'
+FETCHER_COMPILER = '0.8.30'
 COMPILER_ENV = ('FOUNDRY_OPTIMIZER', 'FOUNDRY_OPTIMIZER_RUNS', 'FOUNDRY_VIA_IR', 'FOUNDRY_SOLC_VERSION',
                 'FOUNDRY_EVM_VERSION', 'FOUNDRY_BYTECODE_HASH', 'FOUNDRY_CBOR_METADATA', 'FOUNDRY_REMAPPINGS',
                 'FOUNDRY_AUTO_DETECT_REMAPPINGS', 'FOUNDRY_LIBRARIES', 'DAPP_OPTIMIZE', 'DAPP_OPTIMIZE_RUNS')
@@ -130,6 +131,7 @@ def execute(provider):
             'workspace_root': str(ROOT), 'input_sha256': before, 'submodules': SUBMODULES.revisions(original_submodules),
             'environment': {name: os.environ.get(name) for name in COMPILER_ENV},
             'profile': 'lite', 'arguments': ['--deny-warnings', '--skip', 'test'], 'rerun_fails': 0,
+            'fetcher_compiler': FETCHER_COMPILER,
             'portable_export': EXPORT_RULE,
             'tool_versions': {name: command(*argv) for name, argv in [('forge', ['forge', '--version']), ('just', ['just', '--version'])]},
             'rwx_run_id': os.environ.get('RWX_RUN_ID'), 'rwx_task_attempt': os.environ.get('RWX_TASK_ATTEMPT_NUMBER')}
@@ -152,6 +154,9 @@ def execute(provider):
                     copy_tree(ROOT / BUILT, directory / 'compiled')
                     S.write(directory / 'compiled.json', inventory(ROOT / BUILT))
                 if status: raise ValueError('Original fetcher compilation failed')
+                if any(not G.read(p)['metadata']['compiler']['version'].startswith(FETCHER_COMPILER + '+')
+                       for p in (ROOT / BUILT).glob('*.json')):
+                    raise ValueError('Fresh fetcher artifacts use the wrong pinned compiler')
                 if inventory(ROOT / COMMITTED) != selected:
                     raise ValueError('Fetcher compilation overwrote the committed comparison input')
                 S.write(directory / 'portable.json', export(ROOT / BUILT, directory / 'portable'))

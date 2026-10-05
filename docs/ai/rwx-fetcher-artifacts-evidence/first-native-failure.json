@@ -1,0 +1,317 @@
+{
+  "actual_compiled_versions": {
+    "FetchChainInfo.json": "0.8.28+commit.7893614a",
+    "FetchChainInfoInput.json": "0.8.28+commit.7893614a",
+    "FetchChainInfoOutput.json": "0.8.28+commit.7893614a",
+    "IFetcher.json": "0.8.28+commit.7893614a"
+  },
+  "circle_first_failure": {
+    "compiled_versions": {
+      "FetchChainInfo.json": "0.8.28+commit.7893614a",
+      "FetchChainInfoInput.json": "0.8.28+commit.7893614a",
+      "FetchChainInfoOutput.json": "0.8.28+commit.7893614a",
+      "IFetcher.json": "0.8.28+commit.7893614a"
+    },
+    "identity": {
+      "files_sha256": {
+        "circle/build.log": "84d5549166c8e542a9e8f37fb331e42f9bc8a6c7f5a8e2f4e9027f722bf43e8e",
+        "circle/build.stage.json": "cb5258d9001dbfb642cf9a459305733e4e9fd0fd79b28f79ae938ffdabc9efe0",
+        "circle/committed/FetchChainInfo.json": "fb3ae28127236d46b808704ad4c6d241f70e5c78ef54b24d4de83cef093acd0f",
+        "circle/committed/FetchChainInfoInput.json": "7dc6a581b49deb12542c1ed3b8df1db2180b12a509cebe1b6dacdbdc7bc73da2",
+        "circle/committed/FetchChainInfoOutput.json": "c5d092a7fb3f196960cb9692c5773d0bb3240bbd231032a83647b1fef3fb3227",
+        "circle/committed/IFetcher.json": "b0c55d5c3687670523b24de8cd7b6fb5a73c3e0252de14cfba8bb3c7c6cb9ce2",
+        "circle/compiled.json": "88f061921380bdae68ca77f1ada58bab8963d53d11bc2c5ec70b67b6473638fe",
+        "circle/compiled/FetchChainInfo.json": "9acfafa05c30badf5944c834dc63e2ff9500abd2369d043b47e7746ebce91544",
+        "circle/compiled/FetchChainInfoInput.json": "d55d6748a61f2fc6185f7b1bcb2f24872246d2befb2f7c6f490d244e5c86eafb",
+        "circle/compiled/FetchChainInfoOutput.json": "a55c93ec5ef298d2ef6a2c820a999c00ff0626a41a61dd41b9b9d58f70c2a3e2",
+        "circle/compiled/IFetcher.json": "a745d3d78309a40b9b3e174611ad4519cb5c6410ff4d9b086b5ebeef7cd96db7",
+        "circle/compiler-files.json": "bfadfedfc301c2c0ac41462630f4a5bfca201d625fa0dbd944dee52d971a165c",
+        "circle/compiler.tar.gz": "2c9696843a43c6cb16b2be6dd8e69371ba83ab495dd90abb97136396fa05e2d4",
+        "circle/diff.log": "598e5e10584bc51b8b11ec8605324255b12282cea193d1aefe1e43cc09714f80",
+        "circle/diff.stage.json": "7b691f89e912ab31c2cf7cba0cc9d16dd1b8cc98d555e3a924207766c4340ee5",
+        "circle/final.json": "d1dc55f6d9b90222d51b8ed75410a46bb75c82b6893b3a77117d951837f47c13",
+        "circle/portable.json": "cafa60e8f02b72ad0a58ac47f8aa2af325f9bb11818b145d5aad0ef46d74ae26",
+        "circle/portable/FetchChainInfo.json": "bf4f95e0440f353fed8c8b3399d47685304c42407abf1a224d88a02eda0caa65",
+        "circle/portable/FetchChainInfoInput.json": "adcb47d054890a5d883aed1c6185258beef21732278fe78c925412b1784228a8",
+        "circle/portable/FetchChainInfoOutput.json": "59e9531ccf4eeb4bd2dae2888b820eeaa70e2210cae3109ce0fe384318b1ebab",
+        "circle/portable/IFetcher.json": "c37e8e9b7008af14a5e3e9c538fe011f63da42f15ec8c2a3fa06480ac69803f6",
+        "circle/selection.json": "e493df299a76b48ec7d7d73a9d92cb4f5e8d92802ef224d024d3f0055306c741",
+        "circle/settings.json": "9386ebb1dc3412597959a9839e9a5eb7bf01946f644f423d5d56cd1076041739",
+        "circle/source/op-fetcher/justfile": "29fc3483746d2a4c20dec347dfe74475d25878823d6b04df68d7cb1c51834503",
+        "circle/source/packages/contracts-bedrock/foundry.toml": "2ac93cbeb67120dd8555c3c4632420fb0f8c6eb1cb1291a097d2a258611239c2",
+        "circle/source/packages/contracts-bedrock/justfile": "9e49f2e4835fba195bb9c199be95a152d27ce78643730fecb8a5a974916a3475",
+        "circle/source/packages/contracts-bedrock/scripts/FetchChainInfo.s.sol": "daaec601bf0f826dc184166116b6a2aaf07a3a790d706c855b498318bd8e3ae8",
+        "circle/submodules.txt": "552140171f2fb64aabf505d38086680d44492c18a14cb5e6afb73034bfd75ab1"
+      },
+      "job": 5635667,
+      "pipeline": 135583,
+      "source_sha": "f03e6045b935f20efe5cf4253896afba3d807a19",
+      "status": "failed",
+      "workflow": "4fae5591-fad0-48c3-bb50-4de3792f671e"
+    },
+    "original_report": {
+      "exit_code": 1,
+      "original_sha256": {
+        "build.log": "84d5549166c8e542a9e8f37fb331e42f9bc8a6c7f5a8e2f4e9027f722bf43e8e",
+        "build.stage.json": "cb5258d9001dbfb642cf9a459305733e4e9fd0fd79b28f79ae938ffdabc9efe0",
+        "committed/FetchChainInfo.json": "fb3ae28127236d46b808704ad4c6d241f70e5c78ef54b24d4de83cef093acd0f",
+        "committed/FetchChainInfoInput.json": "7dc6a581b49deb12542c1ed3b8df1db2180b12a509cebe1b6dacdbdc7bc73da2",
+        "committed/FetchChainInfoOutput.json": "c5d092a7fb3f196960cb9692c5773d0bb3240bbd231032a83647b1fef3fb3227",
+        "committed/IFetcher.json": "b0c55d5c3687670523b24de8cd7b6fb5a73c3e0252de14cfba8bb3c7c6cb9ce2",
+        "compiled.json": "88f061921380bdae68ca77f1ada58bab8963d53d11bc2c5ec70b67b6473638fe",
+        "compiled/FetchChainInfo.json": "9acfafa05c30badf5944c834dc63e2ff9500abd2369d043b47e7746ebce91544",
+        "compiled/FetchChainInfoInput.json": "d55d6748a61f2fc6185f7b1bcb2f24872246d2befb2f7c6f490d244e5c86eafb",
+        "compiled/FetchChainInfoOutput.json": "a55c93ec5ef298d2ef6a2c820a999c00ff0626a41a61dd41b9b9d58f70c2a3e2",
+        "compiled/IFetcher.json": "a745d3d78309a40b9b3e174611ad4519cb5c6410ff4d9b086b5ebeef7cd96db7",
+        "compiler-files.json": "bfadfedfc301c2c0ac41462630f4a5bfca201d625fa0dbd944dee52d971a165c",
+        "compiler.tar.gz": "2c9696843a43c6cb16b2be6dd8e69371ba83ab495dd90abb97136396fa05e2d4",
+        "diff.log": "598e5e10584bc51b8b11ec8605324255b12282cea193d1aefe1e43cc09714f80",
+        "diff.stage.json": "7b691f89e912ab31c2cf7cba0cc9d16dd1b8cc98d555e3a924207766c4340ee5",
+        "portable.json": "cafa60e8f02b72ad0a58ac47f8aa2af325f9bb11818b145d5aad0ef46d74ae26",
+        "portable/FetchChainInfo.json": "bf4f95e0440f353fed8c8b3399d47685304c42407abf1a224d88a02eda0caa65",
+        "portable/FetchChainInfoInput.json": "adcb47d054890a5d883aed1c6185258beef21732278fe78c925412b1784228a8",
+        "portable/FetchChainInfoOutput.json": "59e9531ccf4eeb4bd2dae2888b820eeaa70e2210cae3109ce0fe384318b1ebab",
+        "portable/IFetcher.json": "c37e8e9b7008af14a5e3e9c538fe011f63da42f15ec8c2a3fa06480ac69803f6",
+        "selection.json": "e493df299a76b48ec7d7d73a9d92cb4f5e8d92802ef224d024d3f0055306c741",
+        "settings.json": "9386ebb1dc3412597959a9839e9a5eb7bf01946f644f423d5d56cd1076041739",
+        "source/op-fetcher/justfile": "29fc3483746d2a4c20dec347dfe74475d25878823d6b04df68d7cb1c51834503",
+        "source/packages/contracts-bedrock/foundry.toml": "2ac93cbeb67120dd8555c3c4632420fb0f8c6eb1cb1291a097d2a258611239c2",
+        "source/packages/contracts-bedrock/justfile": "9e49f2e4835fba195bb9c199be95a152d27ce78643730fecb8a5a974916a3475",
+        "source/packages/contracts-bedrock/scripts/FetchChainInfo.s.sol": "daaec601bf0f826dc184166116b6a2aaf07a3a790d706c855b498318bd8e3ae8",
+        "submodules.txt": "552140171f2fb64aabf505d38086680d44492c18a14cb5e6afb73034bfd75ab1"
+      },
+      "report_errors": [
+        "Fresh fetcher artifacts differ from committed bytes"
+      ]
+    }
+  },
+  "committed_compiled_versions": {
+    "FetchChainInfo.json": "0.8.30+commit.73712a01",
+    "FetchChainInfoInput.json": "0.8.30+commit.73712a01",
+    "FetchChainInfoOutput.json": "0.8.30+commit.73712a01",
+    "IFetcher.json": "0.8.30+commit.73712a01"
+  },
+  "finding": "Native available solc set selected 0.8.28, while original stored/compiler preflight artifacts used 0.8.30. The complete clean build succeeded and the strict diff correctly failed. This attempt adds no coverage.",
+  "native_result": {
+    "AbortedSubStatus": "not_applicable",
+    "Execution": "finished",
+    "FinishedSubStatus": "not_applicable",
+    "Result": "failed",
+    "WaitingSubStatus": "not_applicable"
+  },
+  "native_run_id": "824f0c91809842c5812590c6f898dfa4",
+  "original_report": {
+    "exit_code": 1,
+    "original_sha256": {
+      "build.log": "287399aedf57e66b7febf0c92593907586e8ef0c05d65524dd6070c175b68875",
+      "build.stage.json": "d3df1fbf57e6148b0ba22473eb56b359c38db7fb1ca30b92f56da1f3bc1f49a8",
+      "committed/FetchChainInfo.json": "fb3ae28127236d46b808704ad4c6d241f70e5c78ef54b24d4de83cef093acd0f",
+      "committed/FetchChainInfoInput.json": "7dc6a581b49deb12542c1ed3b8df1db2180b12a509cebe1b6dacdbdc7bc73da2",
+      "committed/FetchChainInfoOutput.json": "c5d092a7fb3f196960cb9692c5773d0bb3240bbd231032a83647b1fef3fb3227",
+      "committed/IFetcher.json": "b0c55d5c3687670523b24de8cd7b6fb5a73c3e0252de14cfba8bb3c7c6cb9ce2",
+      "compiled.json": "c944deffd529eff324396a7f29fbb9648239eb2bc210bce8146badfd6de078b7",
+      "compiled/FetchChainInfo.json": "a094a83c5d805c68b2b058ac9e26decf42544a61d16579ef31fed41e1d890a4c",
+      "compiled/FetchChainInfoInput.json": "457a789471bf6a254c760fded0445655e9ee60331c9342c9924e8d728007e285",
+      "compiled/FetchChainInfoOutput.json": "7939d77123ac2d46e9a122d1f0a0dd5f366c2291a3eef896a783d427ccf5f769",
+      "compiled/IFetcher.json": "9d53635e02daf59492186c4c4c5f067bdc25ca3957a4516202a4c04c1536f209",
+      "compiler-files.json": "37a7cce6038d20bd9dc7ae10e73eb3544bfeffa867bdcc3bde1861639505ab20",
+      "compiler.tar.gz": "a7cbb429c204994af30f2afa2d5105cc57054495a88f750fde867dff95a72597",
+      "diff.log": "3cfac0a22b4baaf76f3c6cfa6af7001cf426e52292b8a95f32717134a8cd2773",
+      "diff.stage.json": "32ac6fc00246eb43cca686ec5df98ba8534ccdaef0ba99dee66a219ae3734330",
+      "portable.json": "cafa60e8f02b72ad0a58ac47f8aa2af325f9bb11818b145d5aad0ef46d74ae26",
+      "portable/FetchChainInfo.json": "bf4f95e0440f353fed8c8b3399d47685304c42407abf1a224d88a02eda0caa65",
+      "portable/FetchChainInfoInput.json": "adcb47d054890a5d883aed1c6185258beef21732278fe78c925412b1784228a8",
+      "portable/FetchChainInfoOutput.json": "59e9531ccf4eeb4bd2dae2888b820eeaa70e2210cae3109ce0fe384318b1ebab",
+      "portable/IFetcher.json": "c37e8e9b7008af14a5e3e9c538fe011f63da42f15ec8c2a3fa06480ac69803f6",
+      "selection.json": "e493df299a76b48ec7d7d73a9d92cb4f5e8d92802ef224d024d3f0055306c741",
+      "settings.json": "9c8fe9f81ec15316bdc07bfb755b1aaada2b50fe8caef3383526e1433c6a2b36",
+      "source/op-fetcher/justfile": "29fc3483746d2a4c20dec347dfe74475d25878823d6b04df68d7cb1c51834503",
+      "source/packages/contracts-bedrock/foundry.toml": "2ac93cbeb67120dd8555c3c4632420fb0f8c6eb1cb1291a097d2a258611239c2",
+      "source/packages/contracts-bedrock/justfile": "9e49f2e4835fba195bb9c199be95a152d27ce78643730fecb8a5a974916a3475",
+      "source/packages/contracts-bedrock/scripts/FetchChainInfo.s.sol": "daaec601bf0f826dc184166116b6a2aaf07a3a790d706c855b498318bd8e3ae8",
+      "submodules.txt": "c0ac39468ad46aa0d1fb027dd91df079b2e1b0be168745116156e1a26bc60463"
+    },
+    "report_errors": [
+      "Fresh fetcher artifacts differ from committed bytes"
+    ]
+  },
+  "source_sha": "f03e6045b935f20efe5cf4253896afba3d807a19",
+  "tasks": [
+    {
+      "CompletedAt": "2026-10-05T04:55:08.001Z",
+      "ExecutionRuntimeSeconds": null,
+      "FailedTestCount": 0,
+      "ID": "11cd1c67afd686c24bd376c1e142c670",
+      "Key": "code",
+      "StartedAt": "2026-10-05T04:54:51.451Z",
+      "Status": {
+        "AbortedSubStatus": "not_applicable",
+        "Execution": "finished",
+        "FinishedSubStatus": "executed",
+        "Result": "succeeded",
+        "WaitingSubStatus": "not_applicable"
+      },
+      "TestCount": 0
+    },
+    {
+      "CompletedAt": "2026-10-05T04:55:09.122Z",
+      "ExecutionRuntimeSeconds": 1,
+      "FailedTestCount": 0,
+      "ID": "248f4bd99c08a553e4515b531e5e9445",
+      "Key": "bootstrap-inputs",
+      "StartedAt": "2026-10-05T04:55:08.400Z",
+      "Status": {
+        "AbortedSubStatus": "not_applicable",
+        "Execution": "finished",
+        "FinishedSubStatus": "executed",
+        "Result": "succeeded",
+        "WaitingSubStatus": "not_applicable"
+      },
+      "TestCount": 0
+    },
+    {
+      "CompletedAt": "2026-10-05T04:54:52.523Z",
+      "ExecutionRuntimeSeconds": null,
+      "FailedTestCount": 0,
+      "ID": "6eea346ef99c2189a57c66bc8414798c",
+      "Key": "mise",
+      "StartedAt": "2026-10-05T04:54:51.623Z",
+      "Status": {
+        "AbortedSubStatus": "not_applicable",
+        "Execution": "finished",
+        "FinishedSubStatus": "cache_hit",
+        "Result": "succeeded",
+        "WaitingSubStatus": "not_applicable"
+      },
+      "TestCount": 0
+    },
+    {
+      "CompletedAt": "2026-10-02T22:37:35.537Z",
+      "ExecutionRuntimeSeconds": 9,
+      "FailedTestCount": 0,
+      "ID": "f0d5db19b5ffb85fedb46f00626acb7a",
+      "Key": "tools",
+      "StartedAt": "2026-10-02T22:37:24.848Z",
+      "Status": {
+        "AbortedSubStatus": "not_applicable",
+        "Execution": "finished",
+        "FinishedSubStatus": "cache_hit",
+        "Result": "succeeded",
+        "WaitingSubStatus": "not_applicable"
+      },
+      "TestCount": 0
+    },
+    {
+      "CompletedAt": "2026-10-05T04:55:12.665Z",
+      "ExecutionRuntimeSeconds": 1,
+      "FailedTestCount": 0,
+      "ID": "b626cdca18d49c45dae168f3a53c58bf",
+      "Key": "route",
+      "StartedAt": "2026-10-05T04:55:10.827Z",
+      "Status": {
+        "AbortedSubStatus": "not_applicable",
+        "Execution": "finished",
+        "FinishedSubStatus": "executed",
+        "Result": "succeeded",
+        "WaitingSubStatus": "not_applicable"
+      },
+      "TestCount": 0
+    },
+    {
+      "CompletedAt": "2026-10-05T03:24:07.477Z",
+      "ExecutionRuntimeSeconds": 9,
+      "FailedTestCount": 0,
+      "ID": "3f1e48fb469ebed55b35c3f27cf01952",
+      "Key": "contract-tools",
+      "StartedAt": "2026-10-05T03:23:57.714Z",
+      "Status": {
+        "AbortedSubStatus": "not_applicable",
+        "Execution": "finished",
+        "FinishedSubStatus": "cache_hit",
+        "Result": "succeeded",
+        "WaitingSubStatus": "not_applicable"
+      },
+      "TestCount": 0
+    },
+    {
+      "CompletedAt": "2026-10-05T04:55:23.609Z",
+      "ExecutionRuntimeSeconds": 8,
+      "FailedTestCount": 0,
+      "ID": "ece98a7133385c13d5d80b70f4cb8c2c",
+      "Key": "source",
+      "StartedAt": "2026-10-05T04:55:14.095Z",
+      "Status": {
+        "AbortedSubStatus": "not_applicable",
+        "Execution": "finished",
+        "FinishedSubStatus": "executed",
+        "Result": "succeeded",
+        "WaitingSubStatus": "not_applicable"
+      },
+      "TestCount": 0
+    },
+    {
+      "CompletedAt": "2026-10-05T04:55:19.439Z",
+      "ExecutionRuntimeSeconds": 2,
+      "FailedTestCount": 0,
+      "ID": "dfe281645361bdd95bada41f39495e7d",
+      "Key": "helper-tests",
+      "StartedAt": "2026-10-05T04:55:14.817Z",
+      "Status": {
+        "AbortedSubStatus": "not_applicable",
+        "Execution": "finished",
+        "FinishedSubStatus": "executed",
+        "Result": "succeeded",
+        "WaitingSubStatus": "not_applicable"
+      },
+      "TestCount": 0
+    },
+    {
+      "CompletedAt": "2026-10-05T04:55:58.960Z",
+      "ExecutionRuntimeSeconds": 15,
+      "FailedTestCount": 0,
+      "ID": "e34b4068e9bd8a7a0e0ecc96fdb7f56f",
+      "Key": "check",
+      "StartedAt": "2026-10-05T04:55:35.119Z",
+      "Status": {
+        "AbortedSubStatus": "not_applicable",
+        "Execution": "finished",
+        "FinishedSubStatus": "executed",
+        "Result": "failed",
+        "WaitingSubStatus": "not_applicable"
+      },
+      "TestCount": 0
+    },
+    {
+      "CompletedAt": "2026-10-01T16:15:14.461Z",
+      "ExecutionRuntimeSeconds": 5,
+      "FailedTestCount": 0,
+      "ID": "1232ce767bf08ee79dd4a9b77ac1c409",
+      "Key": "~base-image",
+      "StartedAt": "2026-10-01T16:15:06.909Z",
+      "Status": {
+        "AbortedSubStatus": "not_applicable",
+        "Execution": "finished",
+        "FinishedSubStatus": "cache_hit",
+        "Result": "succeeded",
+        "WaitingSubStatus": "not_applicable"
+      },
+      "TestCount": 0
+    },
+    {
+      "CompletedAt": "2026-10-05T04:54:51.311Z",
+      "ExecutionRuntimeSeconds": null,
+      "FailedTestCount": 0,
+      "ID": "a36d102a3d98d791327b9364841a29ba",
+      "Key": "~base-config",
+      "StartedAt": "2026-10-05T04:54:50.843Z",
+      "Status": {
+        "AbortedSubStatus": "not_applicable",
+        "Execution": "finished",
+        "FinishedSubStatus": "cache_hit",
+        "Result": "succeeded",
+        "WaitingSubStatus": "not_applicable"
+      },
+      "TestCount": 0
+    }
+  ]
+}

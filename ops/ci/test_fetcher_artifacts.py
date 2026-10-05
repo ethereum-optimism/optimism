@@ -73,8 +73,11 @@ class LiveTests(unittest.TestCase):
         for path in SCRIPTS.glob('*.py'): shutil.copy2(path, target / path.name)
         files = {'op-fetcher/justfile': (F.ROOT / 'op-fetcher/justfile').read_text(),
             'packages/contracts-bedrock/justfile': 'clean:\n  rm -rf forge-artifacts cache\nbuild-dev *ARGS:\n  FOUNDRY_PROFILE=lite forge build {{ARGS}}\n',
-            'packages/contracts-bedrock/foundry.toml': '[profile.default]\nsrc="src"\nscript="scripts"\nout="forge-artifacts"\nsolc="0.8.28"\n[profile.lite]\noptimizer=false\n',
-            'packages/contracts-bedrock/scripts/FetchChainInfo.s.sol': '// SPDX-License-Identifier: MIT\npragma solidity ^0.8.28;\ncontract FetchChainInfo { function value() external pure returns(uint256) {return 42;} }\ncontract FutureContract {}\n',
+            'packages/contracts-bedrock/foundry.toml': '[profile.default]\nsrc="src"\nscript="scripts"\nout="forge-artifacts"\n[profile.lite]\noptimizer=false\n',
+            'packages/contracts-bedrock/scripts/FetchChainInfo.s.sol': '// SPDX-License-Identifier: MIT\n' +
+                next(line for line in (F.ROOT/'packages/contracts-bedrock/scripts/FetchChainInfo.s.sol').read_text().splitlines()
+                     if line.startswith('pragma solidity ')) +
+                '\ncontract FetchChainInfo { function value() external pure returns(uint256) {return 42;} }\ncontract FutureContract {}\n',
             '.gitignore': '.ci/\npackages/contracts-bedrock/forge-artifacts/\npackages/contracts-bedrock/cache/\n'}
         for name, content in files.items():
             path = self.root / name; path.parent.mkdir(parents=True, exist_ok=True); path.write_text(content)

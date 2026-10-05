@@ -7,6 +7,14 @@ build-all: build-contracts build-go
 compile-contracts:
   #!/bin/bash
   set -euo pipefail
+  # Keep compiler selection independent of other versions in a restored svm cache.
+  if ! svm which 0.8.30 >/dev/null 2>&1; then
+    for attempt in 1 2 3 4 5; do
+      if svm install 0.8.30; then break; fi
+      if [ "$attempt" = 5 ]; then exit 1; fi
+      sleep "$((2 ** attempt))"
+    done
+  fi
   cd ../packages/contracts-bedrock
   just clean
   just build-dev --deny-warnings --skip test

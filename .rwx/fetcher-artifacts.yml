@@ -2,7 +2,7 @@
 on:
   cache-rebuild:
     if: ${{ event.git.branch == 'develop' }}
-    target: [tools, contract-tools]
+    target: [tools, fetcher-solc]
     init:
       commit-sha: ${{ event.git.sha }}
       branch: ${{ event.git.branch }}
@@ -115,6 +115,19 @@ tasks:
       ${{ tasks.bootstrap-inputs.artifacts.ci-scripts }}: [rwx-contracts-prepare.sh]
     timeout: 30m
 
+  - key: fetcher-solc
+    use: contract-tools
+    if: ${{ init.cache-warm == 'true' || tasks.route.values.run-main == 'true' }}
+    run: |
+      if ! svm which 0.8.30 >/dev/null 2>&1; then
+        for attempt in 1 2 3 4 5; do
+          if svm install 0.8.30; then break; fi
+          if [ "$attempt" = 5 ]; then exit 1; fi
+          sleep "$((2 ** attempt))"
+        done
+      fi
+    timeout: 15m
+
   - key: source
     use: [code, tools]
     if: ${{ init.cache-warm == 'true' || tasks.route.values.run-main == 'true' }}
@@ -125,7 +138,7 @@ tasks:
     timeout: 20m
 
   - key: helper-tests
-    use: [code, contract-tools]
+    use: [code, fetcher-solc]
     if: ${{ init.cache-warm != 'true' && tasks.route.values.run-main == 'true' }}
     run: RWX_LIVE_FETCHER_FIXTURE=1 python3 -m unittest discover -s ops/ci -p 'test_fetcher_artifacts.py'
     cache: false
@@ -137,7 +150,7 @@ tasks:
           path: .ci/fetcher-artifacts/helper-fixtures
 
   - key: check
-    use: [source, contract-tools]
+    use: [source, fetcher-solc]
     if: ${{ init.cache-warm != 'true' && tasks.route.values.run-main == 'true' }}
     run: python3 ops/ci/fetcher-artifacts.py --provider rwx
     env:
