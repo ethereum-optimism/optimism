@@ -436,8 +436,7 @@ fn as_reason_names_the_failed_rule(
 /// Two rules sharing a label would merge two failure modes into one metric series.
 #[test]
 fn as_reason_is_distinct_per_rule() {
-    let reasons = [UNEXPECTED, MULTIPLE, NOT_LAST, MISMATCH, TOO_MANY]
-        .map(PostExecPayloadValidationError::as_reason);
+    let reasons = PostExecPayloadValidationError::ALL_REASONS;
     let distinct: BTreeSet<&str> = reasons.iter().copied().collect();
     assert_eq!(distinct.len(), reasons.len(), "{reasons:?}");
 }
