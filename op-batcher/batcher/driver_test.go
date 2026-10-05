@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"math"
 	"net"
 	"net/http"
 	"net/http/httptest"
@@ -21,7 +22,9 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
 	"github.com/ethereum-optimism/optimism/op-service/testutils"
 	"github.com/ethereum-optimism/optimism/op-service/txmgr"
+	"github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/log"
+	"github.com/ethereum/go-ethereum/params"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -154,33 +157,75 @@ func (q *MockTxQueue) Load(id string) txmgr.TxCandidate {
 	return c.(txmgr.TxCandidate)
 }
 
-func TestBatchSubmitter_sendTx_FloorDataGas(t *testing.T) {
+func TestBatchSubmitter_sendTx_GasLimit(t *testing.T) {
 	bs, _ := setup(t, nil)
 
-	q := new(MockTxQueue)
-
-	txData := txData{
-		frames: []frameData{
-			{
-				data: []byte{0x01, 0x02, 0x03}, // 3 nonzero bytes = 12 tokens https://github.com/ethereum/EIPs/blob/master/EIPS/eip-7623.md
-			},
+	halfZero := make([]byte, 120_000)
+	for i := range halfZero {
+		if i%2 == 0 {
+			halfZero[i] = 0xff
+		}
+	}
+	tests := []struct {
+		name     string
+		data     []byte
+		expected uint64
+	}{
+		{
+			name:     "PreAmsterdamFloorIsHigher",
+			data:     []byte{0x01, 0x02, 0x03},
+			expected: params.TxGas + 3*params.TxTokenPerNonZeroByte*params.TxCostFloorPerToken,
+		},
+		{
+			name:     "AmsterdamFloorIsHigher",
+			data:     make([]byte, 371),
+			expected: 15_000 + 371*64,
+		},
+		{
+			// A realistic calldata batch with many zero bytes: the pre-Amsterdam floor counts a
+			// zero byte as one token, Amsterdam counts every byte as four.
+			name:     "AmsterdamFloorIsHigherForLargeBatch",
+			data:     halfZero,
+			expected: 15_000 + 120_000*64,
+		},
+		{
+			name:     "EmptyData",
+			data:     []byte{},
+			expected: params.TxGas,
 		},
 	}
-	candidate := txmgr.TxCandidate{
-		To:     &bs.RollupConfig.BatchInboxAddress,
-		TxData: txData.CallData(),
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			q := new(MockTxQueue)
+			txData := txData{frames: []frameData{{data: tt.data}}}
+			candidate := txmgr.TxCandidate{
+				To:     &bs.RollupConfig.BatchInboxAddress,
+				TxData: tt.data,
+			}
+
+			bs.sendTx(txData, false, &candidate, q, make(chan txmgr.TxReceipt[txRef]))
+
+			candidateOut := q.Load(txData.ID().String())
+			require.Equal(t, tt.expected, candidateOut.GasLimit)
+		})
 	}
+}
 
-	bs.sendTx(txData,
-		false,
-		&candidate,
-		q,
-		make(chan txmgr.TxReceipt[txRef]))
-
-	candidateOut := q.Load(txData.ID().String())
-
-	expectedFloorDataGas := uint64(21_000 + 12*10)
-	require.GreaterOrEqual(t, candidateOut.GasLimit, expectedFloorDataGas)
+func TestMaxFloorDataGas(t *testing.T) {
+	// Both floors agree on their respective formulas for the boundary cases.
+	for _, data := range [][]byte{nil, make([]byte, 1), make([]byte, 100), []byte("hello world")} {
+		pre, err := core.FloorDataGas(data)
+		require.NoError(t, err)
+		ams, err := amsterdamFloorDataGas(data)
+		require.NoError(t, err)
+		got, err := maxFloorDataGas(data)
+		require.NoError(t, err)
+		require.Equal(t, max(pre, ams), got)
+		require.Equal(t, 15_000+uint64(len(data))*64, ams)
+	}
+	// Overflow is reported, not wrapped.
+	_, err := addGas(15_000, math.MaxUint64/64, 64)
+	require.ErrorIs(t, err, core.ErrGasUintOverflow)
 }
 
 type handlerFailureMode string

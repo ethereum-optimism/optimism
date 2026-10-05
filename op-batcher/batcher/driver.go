@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"math"
 	"math/big"
 	_ "net/http/pprof"
 	"sync"
@@ -1008,15 +1009,50 @@ type TxSender[T any] interface {
 // sendTx uses the txmgr queue to send the given transaction candidate after setting its
 // gaslimit. It will block if the txmgr queue has reached its MaxPendingTransactions limit.
 func (l *BatchSubmitter) sendTx(txdata txData, isCancel bool, candidate *txmgr.TxCandidate, queue TxSender[txRef], receiptsCh chan txmgr.TxReceipt[txRef]) {
-	floorDataGas, err := core.FloorDataGas(candidate.TxData)
+	gasLimit, err := maxFloorDataGas(candidate.TxData)
 	if err != nil {
-		// We log instead of return an error here because the txmgr will do its own gas estimation.
-		l.Log.Warn("Failed to calculate floor data gas", "err", err)
+		// We log instead of returning an error here because the txmgr will do its own gas estimation.
+		l.Log.Warn("Failed to calculate batch transaction gas limit", "err", err)
 	} else {
-		candidate.GasLimit = floorDataGas
+		candidate.GasLimit = gasLimit
 	}
 
 	queue.Send(txRef{id: txdata.ID(), isCancel: isCancel, isBlob: txdata.asBlob}, *candidate, receiptsCh)
+}
+
+// maxFloorDataGas returns a gas limit valid under both the pre-Amsterdam EIP-7623 rules and
+// Amsterdam's EIP-2780/EIP-7976 rules (ported from ethereum-optimism/optimism#21921). The
+// pre-Amsterdam floor also exceeds Amsterdam's regular intrinsic gas whenever it exceeds the
+// Amsterdam floor, so the larger floor is sufficient. core.FloorDataGas comes from op-geth,
+// which deliberately keeps the pre-Amsterdam (L2) rules, so the L1 floor is computed here.
+func maxFloorDataGas(data []byte) (uint64, error) {
+	preAmsterdam, err := core.FloorDataGas(data)
+	if err != nil {
+		return 0, err
+	}
+	amsterdam, err := amsterdamFloorDataGas(data)
+	if err != nil {
+		return 0, err
+	}
+	return max(preAmsterdam, amsterdam), nil
+}
+
+// amsterdamFloorDataGas is the calldata floor of a zero-value transaction to another account
+// after Glamsterdam: EIP-2780's TX_BASE_COST + COLD_ACCOUNT_ACCESS base, plus EIP-7976's four
+// tokens per calldata byte (zero or not) at 16 gas per token, i.e. 64 gas per byte.
+func amsterdamFloorDataGas(data []byte) (uint64, error) {
+	const (
+		amsterdamTxBaseGas               = uint64(12_000 + 3_000) // EIP-2780: TX_BASE_COST + COLD_ACCOUNT_ACCESS
+		amsterdamCalldataFloorGasPerByte = uint64(64)             // EIP-7976: 4 tokens per byte at 16 gas per token
+	)
+	return addGas(amsterdamTxBaseGas, uint64(len(data)), amsterdamCalldataFloorGasPerByte)
+}
+
+func addGas(base, count, cost uint64) (uint64, error) {
+	if count > (math.MaxUint64-base)/cost {
+		return 0, core.ErrGasUintOverflow
+	}
+	return base + count*cost, nil
 }
 
 func (l *BatchSubmitter) blobTxCandidate(data txData) (*txmgr.TxCandidate, error) {
