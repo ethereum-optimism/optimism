@@ -47,6 +47,15 @@ parameters:
   c-run_selector_upload_replay:
     type: boolean
     default: false
+  c-flaky_report_replay:
+    type: boolean
+    default: false
+  c-flaky_report_replay_effective:
+    type: boolean
+    default: false
+  c-run_flaky_report_replay:
+    type: boolean
+    default: false
   c-publish_contract_artifacts_ref:
     type: string
     default: ""
@@ -1665,11 +1674,16 @@ jobs:
                 name: Prepare private selector registry and complete ABI inventory
                 command: |
                   test "$CIRCLE_BRANCH" = codex/rwx-ci-pilot
-                  git submodule sync --recursive
-                  git -c protocol.file.allow=never submodule update --init --recursive --jobs 8
-                  bash .circleci/scripts/apt-install.sh iproute2 openssl
-                  python3 ops/ci/selector-registry.py images .ci/selector-registry
-                  python3 ops/ci/selector-upload.py prepare .ci/selector-upload/prepare
+                  mkdir -p .ci/selector-upload
+                  # Keep the whole console stream; Circle's log API caps a
+                  # step at 400 kB while this complete ABI table is larger.
+                  {
+                    git submodule sync --recursive
+                    git -c protocol.file.allow=never submodule update --init --recursive --jobs 8
+                    bash .circleci/scripts/apt-install.sh iproute2 openssl
+                    python3 ops/ci/selector-registry.py images .ci/selector-registry
+                    python3 ops/ci/selector-upload.py prepare .ci/selector-upload/prepare
+                  } > .ci/selector-upload/prepare.console.log 2>&1
             - run:
                 name: Run original selector publisher against private official registry
                 command: |
@@ -1687,13 +1701,16 @@ jobs:
                 path: .ci/selector-upload-originals.tar.gz
                 destination: selector-upload-originals.tar.gz
                 when: always
-            - store_artifacts:
-                path: .ci/selector-upload
-                destination: selector-upload-originals
+            - run:
+                name: Archive complete original registry preparation
                 when: always
+                command: |
+                  if [ -d .ci/selector-registry ]; then
+                    tar -C .ci -czf .ci/selector-registry-originals.tar.gz selector-registry
+                  fi
             - store_artifacts:
-                path: .ci/selector-registry
-                destination: selector-registry-originals
+                path: .ci/selector-registry-originals.tar.gz
+                destination: selector-registry-originals.tar.gz
                 when: always
 
   required-contracts-ci:
@@ -2695,26 +2712,35 @@ jobs:
       - run:
           name: Generate flaky acceptance tests report
           command: |
-            # Create reports directory
-            mkdir -p ./op-acceptance-tests/reports
-
-            # Make the script executable
-            chmod +x ./op-acceptance-tests/scripts/generate-flaky-tests-report.sh
-
-            # Run the script
-            ./op-acceptance-tests/scripts/generate-flaky-tests-report.sh \
-              --branch "${CIRCLE_BRANCH:-develop}" \
-              --org "${CIRCLE_PROJECT_USERNAME}" \
-              --repo "${CIRCLE_PROJECT_REPONAME}" \
-              --token "${CIRCLE_API_TOKEN}" \
-              --output-dir "./op-acceptance-tests/reports"
+            python3 ops/ci/flaky-report.py run .ci/flaky-report/run
+      - run:
+          name: Archive complete original flaky-test report
+          when: always
+          command: |
+            if [ -d .ci/flaky-report/run ]; then
+              tar -C .ci/flaky-report -czf .ci/flaky-report-originals.tar.gz run
+            fi
+      - store_artifacts:
+          path: .ci/flaky-report-originals.tar.gz
+          destination: flaky-report-originals.tar.gz
+          when: always
 
       # Store the flaky test reports
       - store_artifacts:
-          path: ./op-acceptance-tests/reports
+          path: .ci/flaky-report/run/reports
           destination: flaky-test-reports
+          when: always
 
 workflows:
+  flaky-report-replay:
+    when: << pipeline.parameters.c-run_flaky_report_replay >>
+    jobs:
+      - generate-flaky-report:
+          name: generate-flaky-tests-report
+          context:
+            - circleci-repo-readonly-authenticated-github-token
+            - circleci-api-token
+
   selector-upload-replay:
     when: << pipeline.parameters.c-run_selector_upload_replay >>
     jobs:

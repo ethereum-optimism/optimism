@@ -96,6 +96,9 @@ parameters:
   c-selector_upload_replay:
     type: boolean
     default: false
+  c-flaky_report_replay:
+    type: boolean
+    default: false
 
 orbs:
   continuation: circleci/continuation@2.0.1
@@ -182,6 +185,7 @@ jobs:
             c-contract_coverage_replay_effective: << pipeline.parameters.c-contract_coverage_replay >>
             c-nut_provenance_full_effective: << pipeline.parameters.c-nut_provenance_full >>
             c-selector_upload_replay_effective: << pipeline.parameters.c-selector_upload_replay >>
+            c-flaky_report_replay_effective: << pipeline.parameters.c-flaky_report_replay >>
             c-main_dispatch: << pipeline.parameters.main_dispatch >>
             c-fault_proofs_dispatch: << pipeline.parameters.fault_proofs_dispatch >>
             c-reproducibility_dispatch: << pipeline.parameters.reproducibility_dispatch >>

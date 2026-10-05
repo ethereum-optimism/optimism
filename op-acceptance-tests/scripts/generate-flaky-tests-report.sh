@@ -59,15 +59,11 @@ while [[ $# -gt 0 ]]; do
   esac
 done
 
-# Validate required parameters
-if [ -z "$BRANCH" ] || [ -z "$ORG_NAME" ] || [ -z "$REPO_NAME" ] || [ -z "$CIRCLE_API_TOKEN" ]; then
+# Public projects can use the API anonymously. Keep the original token option
+# for authenticated Circle runs and private projects.
+if [ -z "$BRANCH" ] || [ -z "$ORG_NAME" ] || [ -z "$REPO_NAME" ]; then
   echo "Error: Missing required parameters"
-  echo "Usage: $0 --branch <branch> --org <org> --repo <repo> --token <token> [--output-dir <dir>]"
-  echo "Debug information:"
-  echo "BRANCH: $BRANCH"
-  echo "ORG_NAME: $ORG_NAME"
-  echo "REPO_NAME: $REPO_NAME"
-  echo "CIRCLE_API_TOKEN length: ${#CIRCLE_API_TOKEN}"
+  echo "Usage: $0 --branch <branch> --org <org> --repo <repo> [--token <token>] [--output-dir <dir>]"
   exit 1
 fi
 
@@ -77,8 +73,39 @@ mkdir -p "$OUTPUT_DIR"
 # Fetch flaky tests data
 # See: https://circleci.com/docs/api/v2/index.html#tag/Insights/operation/getFlakyTests
 echo "Fetching flaky tests data for branch: $BRANCH"
-API_RESPONSE=$(curl -s -H "Circle-Token: $CIRCLE_API_TOKEN" \
-  "https://circleci.com/api/v2/insights/gh/$ORG_NAME/$REPO_NAME/flaky-tests?branch=$BRANCH")
+CURL_OPTIONS=(--fail-with-body --show-error --silent --connect-timeout 20 --max-time 90)
+if [[ -n "$CIRCLE_API_TOKEN" ]]; then CURL_OPTIONS+=(-H "Circle-Token: $CIRCLE_API_TOKEN"); fi
+ORIGINAL_JSON="$OUTPUT_DIR/flaky_tests.original.json"
+# Retain each original failure instead of letting curl overwrite earlier bodies
+# while retrying. Permanent HTTP authorization/path failures fail immediately.
+for attempt in 1 2 3 4 5 6; do
+  attempt_base="$OUTPUT_DIR/api-attempt-$attempt"
+  if curl "${CURL_OPTIONS[@]}" --get --data-urlencode "branch=$BRANCH" \
+    --output "$attempt_base.json" --write-out '%{http_code}\n' \
+    "https://circleci.com/api/v2/insights/gh/$ORG_NAME/$REPO_NAME/flaky-tests" \
+    > "$attempt_base.http-status.txt" 2> "$attempt_base.stderr.log"; then
+    curl_status=0
+  else
+    curl_status=$?
+  fi
+  printf '%s\n' "$curl_status" > "$attempt_base.exit-code.txt"
+  [[ ! -f "$attempt_base.json" ]] || cp "$attempt_base.json" "$ORIGINAL_JSON"
+  cp "$attempt_base.http-status.txt" "$OUTPUT_DIR/http-status.txt"
+  cat "$attempt_base.stderr.log" >&2
+  http_status=$(cat "$attempt_base.http-status.txt")
+  if [[ "$curl_status" == 0 && "$http_status" == 200 ]]; then break; fi
+  case "$http_status" in
+    400|401|403|404) echo "Error: CircleCI API HTTP $http_status" >&2; exit "$((curl_status == 0 ? 1 : curl_status))" ;;
+  esac
+  if [[ "$attempt" == 6 ]]; then
+    echo "Error: CircleCI API fetch failed after $attempt attempts" >&2
+    exit 1
+  fi
+  sleep "$((2 ** attempt))"
+done
+REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+python3 "$REPO_ROOT/ops/ci/flaky-report.py" validate-api "$ORIGINAL_JSON"
+API_RESPONSE=$(cat "$ORIGINAL_JSON")
 
 # Check if we got a valid response
 if [ -z "$API_RESPONSE" ]; then
@@ -90,9 +117,10 @@ fi
 echo "Filtering for acceptance tests only..."
 API_RESPONSE=$(echo "$API_RESPONSE" | jq '.flaky_tests = (.flaky_tests | map(select(.classname | startswith("github.com/ethereum-optimism/optimism/op-acceptance-tests/tests"))))')
 
-# Save the raw response for debugging
+# Preserve the existing acceptance-only JSON interface as well as the complete
+# unfiltered original above.
 echo "$API_RESPONSE" > "$OUTPUT_DIR/flaky_tests.json"
-echo "Raw API response saved to $OUTPUT_DIR/flaky_tests.json"
+echo "Acceptance-test response saved to $OUTPUT_DIR/flaky_tests.json"
 
 # Use acceptance-tests fresponse directly
 echo "Using acceptance-tests filtered response without additional branch verification..."
@@ -131,11 +159,12 @@ jq -r '.flaky_tests | sort_by(.times_flaked) | reverse | .[] | [
 
 # Generate HTML report
 echo "Generating HTML report..."
+BRANCH_HTML=$(jq -nr --arg branch "$BRANCH" '$branch | @html')
 cat > "$OUTPUT_DIR/flaky_tests.html" << EOF
 <!DOCTYPE html>
 <html>
 <head>
-    <title>Flaky Tests Report - Branch: $BRANCH</title>
+    <title>Flaky Tests Report - Branch: $BRANCH_HTML</title>
     <style>
         body { font-family: Arial, sans-serif; margin: 20px; }
         table { border-collapse: collapse; width: 100%; }
@@ -152,8 +181,9 @@ cat > "$OUTPUT_DIR/flaky_tests.html" << EOF
       interference from other tests, etc. Be mindful of this when interpreting the results and investigating the failures.
     </p>
     <div class="branch-info">
-        <h3>Branch: $BRANCH</h3>
+        <h3>Branch: $BRANCH_HTML</h3>
         <h3>Total flaky tests: $NUM_TESTS</h3>
+        <p>CircleCI's flaky-test API is project-wide and branch agnostic. The branch above is the requesting CI branch.</p>
     </div>
 
     <table>
@@ -169,7 +199,7 @@ cat > "$OUTPUT_DIR/flaky_tests.html" << EOF
             <th>First Flaked At</th>
             <th>Last Flaked At</th>
         </tr>
-        $(jq -r '.flaky_tests | sort_by(.times_flaked) | reverse | .[] | "<tr><td>\(.times_flaked)</td><td>\(.test_name)</td><td>\(.classname)</td><td>\(.job_name)</td><td>\(.workflow_name)</td><td>\(.job_number)</td><td>\(.pipeline_number)</td><td><a href=\"https://app.circleci.com/pipelines/github/'"$ORG_NAME"'/'"$REPO_NAME"'/\(.pipeline_number)/workflows/\(.workflow_id)/jobs/\(.job_number)\" target=\"_blank\">View Job</a></td><td>\(.workflow_created_at)</td><td>\(.workflow_created_at)</td></tr>"' "$FILTERED_JSON")
+        $(jq -r '.flaky_tests | sort_by(.times_flaked) | reverse | .[] | "<tr><td>\(.times_flaked)</td><td>\(.test_name | @html)</td><td>\(.classname | @html)</td><td>\(.job_name | @html)</td><td>\(.workflow_name | @html)</td><td>\(.job_number)</td><td>\(.pipeline_number)</td><td><a href=\"https://app.circleci.com/pipelines/github/'"$ORG_NAME"'/'"$REPO_NAME"'/\(.pipeline_number)/workflows/\(.workflow_id)/jobs/\(.job_number)\" target=\"_blank\">View Job</a></td><td>\(.workflow_created_at | @html)</td><td>\(.workflow_created_at | @html)</td></tr>"' "$FILTERED_JSON")
     </table>
 </body>
 </html>

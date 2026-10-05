@@ -260,7 +260,7 @@ CircleCI workflow: `main` (32 jobs).
 - [x] `kona-build-sp1-elfs` — [complete native guest build and checks](rwx-sp1-guest.md); full same-SHA hosted parity at `c6b29406`, both ELFs and verification keys byte-identical, six cases and complete graphs agree
 - [x] `go-lint`
 - [x] `go-binaries-for-sysgo`
-- [ ] `generate-flaky-tests-report`
+- [ ] `generate-flaky-tests-report` — [native original reporter](rwx-flaky-report.md), full API/report retention and strict comparison are implemented; same-SHA hosted parity remains pending
 - [x] `contracts-bedrock-build-1`
 - [ ] `contracts-bedrock-upload` — [complete isolated uploader](rwx-selector-upload.md) prototype passes real imports and complete database/API readback; pushed same-SHA Circle/native parity remains pending, so no coverage is added
 - [x] `diff-fetcher-forge-artifacts` — [fresh build and untouched artifact comparison](rwx-fetcher-artifacts.md)

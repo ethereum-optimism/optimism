@@ -93,3 +93,20 @@ inputs. The comparator independently reconstructs both complete compiler
 catalogues, original POSTs, database insertion and every API readback. Real
 provider process captures cover Circle's UID 1001 and RWX's UID 1000; both must
 remain unprivileged and isolated.
+
+At `01150e71`, fresh native preparation and upload succeeded, and Circle retained
+all 4,531 report files including empty files. The complete compiler, protocol and
+database comparisons agree. Circle's API nevertheless truncated the preparation
+and directory-upload console logs at 400 kB, so strict hosted parity remains
+pending. The replay now stores the complete preparation stream inside its archive
+and uploads two single archives instead of thousands of duplicated directory
+artifacts. The first truncated originals remain retained.
+
+The unchanged-input CLI warm run `c5f99254` reused tools, contract tools, source,
+registry images and ABI preparation through actual native cache hits. Its exact
+source init remains `01150e71`; the CLI run's root commit metadata is null, so
+this adds no hosted same-SHA coverage. Only routing executed freshly. No helper,
+test or uploader task existed in the targeted run. The
+[warm index](rwx-selector-upload-evidence/compiler-warm.json) binds its complete
+original run metadata and source identities. Cached tasks' displayed execution
+durations belong to their original executions and are not warm-run timings.

@@ -1,0 +1,76 @@
+{
+  "source_sha": "01150e715ff790c96b7d15810c7fa9bb439f16a4",
+  "native_run": "c5f992547c934106aff5e865158d7f32",
+  "trigger": "cli",
+  "root_commit_sha": null,
+  "targeted_task_keys": [
+    "registry-images",
+    "prepare"
+  ],
+  "tests": 0,
+  "uploads": 0,
+  "coverage_added": 0,
+  "original_run_sha256": "ac9bfec79cbbacd0f48148a28c9ef11cc9f4bc0bcfe08aa0552a0166648ff63c",
+  "tasks": [
+    {
+      "key": "~base-image",
+      "id": "d89bf2e9ec51b7acffa43682e403cf7b",
+      "cache": "cache_hit",
+      "cache_hit_from_task": "9672e7b0ac25ddb4c898ad4606433cc5"
+    },
+    {
+      "key": "~base-config",
+      "id": "d169770e5689690b3c5dd381d4cfd141",
+      "cache": "cache_hit",
+      "cache_hit_from_task": null
+    },
+    {
+      "key": "code",
+      "id": "6f7d990bcb8f2a596fed4083d264d680",
+      "cache": "cache_hit",
+      "cache_hit_from_task": null
+    },
+    {
+      "key": "mise",
+      "id": "72adc998a284fa0e1d6c25e1c409da38",
+      "cache": "cache_hit",
+      "cache_hit_from_task": null
+    },
+    {
+      "key": "tools",
+      "id": "8fa8ea3a4f6c6eaf14dc05349f7b99ae",
+      "cache": "cache_hit",
+      "cache_hit_from_task": "31f350e5cf28cee14352e18caea6ed00"
+    },
+    {
+      "key": "route",
+      "id": "cb676a593f37cfcecd1dda3398b5d7e1",
+      "cache": "executed",
+      "cache_hit_from_task": null
+    },
+    {
+      "key": "registry-images",
+      "id": "6eea21e664fab297af1632758740c3ad",
+      "cache": "cache_hit",
+      "cache_hit_from_task": "f0240f96b9174a68328e9c52811ab8e2"
+    },
+    {
+      "key": "contract-tools",
+      "id": "3db5e20f1eb1e5c4345b4915041c52d4",
+      "cache": "cache_hit",
+      "cache_hit_from_task": "0c7326a1b6e6d058a3fe6181f286c9f7"
+    },
+    {
+      "key": "source",
+      "id": "426cc4b7801866c7b0b44a9a3d4e4d9a",
+      "cache": "cache_hit",
+      "cache_hit_from_task": "b1c04fc6120e3c1632c291a788e84c7e"
+    },
+    {
+      "key": "prepare",
+      "id": "9d2efd088274914be88470229efab2a2",
+      "cache": "cache_hit",
+      "cache_hit_from_task": "6e20e1dcfb4cd1deaaa9e8b8f2c96eea"
+    }
+  ]
+}

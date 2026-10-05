@@ -316,6 +316,13 @@ def hosted(circle, native, run_path, github_path):
                 if isinstance(step, dict) and isinstance(step.get('run'), dict)]
     check(any('python3 ops/ci/selector-upload.py run .ci/selector-upload/run' in command for command in commands)
           and 'just update-selectors' not in commands, 'Actual Circle publisher was not isolated')
+    preparation = circle / 'archive/prepare.console.log'
+    check(preparation.is_file() and preparation.stat().st_size > 0
+          and any('> .ci/selector-upload/prepare.console.log 2>&1' in command for command in commands),
+          'Missing complete original Circle preparation console')
+    # The preparation artifact and its full stream are retained separately
+    # from the publisher report; both remain bound by the collection seal.
+    check((circle / 'selector-registry-originals.tar.gz').is_file(), 'Missing original Circle registry preparation archive')
     index = read(circle / 'step-index.json')
     actions = [(i, j) for i, step in enumerate(job['steps']) for j, action in enumerate(step['actions']) if action.get('output_url')]
     check([(row['step'], row['action']) for row in index] == actions, 'Missing complete original Circle step logs')
