@@ -375,6 +375,7 @@ reth-downloaders = { git = "https://github.com/ethereum-optimism/reth", rev = "0
 reth-e2e-test-utils = { git = "https://github.com/ethereum-optimism/reth", rev = "0fbe428518594611bdd3fdd822eb5968823c8e66" }
 reth-engine-local = { git = "https://github.com/ethereum-optimism/reth", rev = "0fbe428518594611bdd3fdd822eb5968823c8e66" }
 reth-engine-primitives = { git = "https://github.com/ethereum-optimism/reth", rev = "0fbe428518594611bdd3fdd822eb5968823c8e66", default-features = false }
+reth-engine-tree = { git = "https://github.com/ethereum-optimism/reth", rev = "0fbe428518594611bdd3fdd822eb5968823c8e66" }
 reth-errors = { git = "https://github.com/ethereum-optimism/reth", rev = "0fbe428518594611bdd3fdd822eb5968823c8e66" }
 reth-eth-wire = { git = "https://github.com/ethereum-optimism/reth", rev = "0fbe428518594611bdd3fdd822eb5968823c8e66" }
 reth-eth-wire-types = { git = "https://github.com/ethereum-optimism/reth", rev = "0fbe428518594611bdd3fdd822eb5968823c8e66" }
