@@ -58,7 +58,7 @@ The Guardian chooses the scope of a pause with a pause identifier:
 
 *   The zero address (`address(0)`) pauses every chain that uses the `SuperchainConfig`.
 *   A chain's `ETHLockbox` address pauses only that chain, or the group of chains that share the `ETHLockbox`.
-    A chain that does not use an `ETHLockbox` uses its `OptimismPortal` address instead.
+    A chain that does not have the `ETH_LOCKBOX` feature enabled on its `SystemConfig` uses its `OptimismPortal` address instead, even if its `OptimismPortal` has an `ETHLockbox` address set.
 
 A chain is paused when either its chain-specific pause or the global pause is active.
 To check both at once, call `paused()` on the chain's `OptimismPortal` or `SystemConfig`.

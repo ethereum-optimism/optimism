@@ -26,8 +26,10 @@ You need the following to use the examples in this guide:
 ## Wait for safe blocks before acting off-chain
 
 Crediting an exchange balance, filling a bridge order, or releasing funds on another chain are hard to undo.
-If the transaction you acted on is later removed from the chain because of a chain reorg, you absorb the loss.
+If the transaction you acted on is later removed from the chain because of a chain reorg, you may incur a loss.
 Depending on your risk tolerance and how high-value the action is, wait until that transaction is in a safe or finalized block before you act.
+These confirmation levels only protect you against the transaction being reordered or removed from the chain.
+They say nothing about whether the transaction did what you expect.
 
 ### Understand the risk of unsafe blocks
 
@@ -37,6 +39,7 @@ Anyone who controls the batcher key can post batch data that omits or reorders t
 
 When a node derives a batch that does not match its unsafe chain, it reorgs the unsafe chain to match within minutes of the batch landing on L1.
 The standard 12-hour sequencing window is only the upper bound for batch data to appear, not a grace period before a reorg.
+If the data does not appear within the window, nodes derive the chain without those transactions, and they are dropped.
 
 If you act on an unsafe block, an attacker holding the compromised batcher key can make a real transfer to you, get paid out, and then remove the transfer from the canonical chain.
 You have no way to recover the funds through the protocol.
@@ -73,24 +76,42 @@ Save it as `check-safe.sh`, fill in the placeholders, and run it with `bash chec
 #!/usr/bin/env bash
 L2_RPC=<your-l2-rpc>
 TX=<your-transaction-hash>
+TAG=safe # or finalized
+
+head_number() {
+  cast block $TAG --json --rpc-url $L2_RPC | jq -r .number | xargs cast to-dec
+}
 
 RECEIPT=$(cast receipt $TX --async --json --rpc-url $L2_RPC) || { echo "not found"; exit 1; }
 TX_STATUS=$(echo "$RECEIPT" | jq -r .status)
 TX_BLOCK=$(cast to-dec $(echo "$RECEIPT" | jq -r .blockNumber))
 TX_BLOCK_HASH=$(echo "$RECEIPT" | jq -r .blockHash)
-SAFE_BLOCK=$(cast block safe --json --rpc-url $L2_RPC | jq -r .number | xargs cast to-dec)
-CANONICAL_HASH=$(cast block $TX_BLOCK --json --rpc-url $L2_RPC | jq -r .hash)
 
 if [ "$TX_STATUS" != "0x1" ]; then
   echo "failed"
-elif [ "$TX_BLOCK" -le "$SAFE_BLOCK" ] && [ "$TX_BLOCK_HASH" = "$CANONICAL_HASH" ]; then
-  echo "safe"
+  exit 1
+fi
+
+# Read the head before and after the canonical hash, so a head that moves
+# backward during the check is caught.
+HEAD_BEFORE=$(head_number)
+CANONICAL_HASH=$(cast block $TX_BLOCK --json --rpc-url $L2_RPC | jq -r .hash)
+HEAD_AFTER=$(head_number)
+
+if [ "$TX_BLOCK_HASH" = "$CANONICAL_HASH" ] && [ "$TX_BLOCK" -le "$HEAD_BEFORE" ] && [ "$TX_BLOCK" -le "$HEAD_AFTER" ]; then
+  echo "$TAG"
 else
-  echo "not yet safe"
+  echo "not yet $TAG"
+  exit 1
 fi
 ```
 
-Replace `safe` with `finalized` for the stricter check.
+Set `TAG=finalized` for the stricter check.
+The script exits with status `0` only when the transaction is safe (or finalized), so callers can gate on the exit code.
+It reads the node several times, and an L1 reorg can move the safe head backward between reads while the transaction's block stays canonical.
+Reading the head on both sides of the canonical hash check means that case returns `not yet safe` instead of `safe`.
+The result is still a point-in-time answer: a later L1 reorg can undo a `safe` result until the block is finalized.
+
 A safe status only tells you that L1 has fixed the transaction's position on the chain.
 You still need your usual checks on what the transaction did, such as decoding Ethereum Request for Comments 20 (ERC-20) `Transfer` logs.
 
@@ -134,7 +155,7 @@ Take the following steps when a chain you support is paused:
 
 You do not need to wait to be contacted before acting.
 The pause status is the signal.
-It is visible on L1 the moment the pause transaction lands, before any announcement is made.
+It is visible on L1 the moment the pause transaction lands, potentially before a public announcement is made.
 
 ### Check the pause status
 
@@ -154,7 +175,7 @@ For other chains, use the `OptimismPortalProxy` value from the chain's configura
 
 Check every chain you support against the `latest` L1 block, at least once per L1 block (every 12 seconds).
 Use `latest` rather than `safe` or `finalized` for this check.
-You want the earliest possible signal, and a false alarm costs you a short pause in service at most.
+You'll want the earliest possible signal.
 Read L1 from a node you operate or an L1 RPC provider you trust, for the same reason as on L2, because an RPC endpoint that lags or misreports can hide a pause from you.
 
 <Warning>
@@ -177,8 +198,12 @@ Filter on the event signature instead, and decode `identifier` from the log data
 The identifier tells you which chains the event applies to:
 
 *   `address(0)` is the global pause and affects every chain that uses this `SuperchainConfig`.
-*   A chain's own identifier is its `ETHLockbox` address, which you can read with `ethLockbox()` on the `OptimismPortal`.
-    If `ethLockbox()` returns the zero address, the chain does not use an `ETHLockbox`, and its identifier is its `OptimismPortal` address.
+*   A chain's own identifier depends on its contract version and configuration.
+    In contract releases v4.1.0 through v8.0.0, the identifier is the chain's `ETHLockbox` address if the `ETH_LOCKBOX` feature is enabled on its `SystemConfig`, and its `OptimismPortal` address if it is not.
+    A nonzero `ethLockbox()` on the `OptimismPortal` does not by itself mean the feature is enabled.
+    Check the feature with `isFeatureEnabled(bytes32)` on the `SystemConfig`, passing `ETH_LOCKBOX` encoded with `cast format-bytes32-string ETH_LOCKBOX`.
+
+Whichever identifier a chain uses, `OptimismPortal.paused()` resolves it for you and remains the check to rely on.
 
 Read the `SuperchainConfig` address with `superchainConfig()` on the `OptimismPortal`.
 The contract also emits `Paused` when the Guardian extends an existing pause.
