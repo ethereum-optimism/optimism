@@ -1,9 +1,12 @@
 # Kontrol summary and proof build shadow
 
 The optional `optimism-kontrol-build-shadow` ports Main's `check-kontrol-build`
-through shared `run-main` routing. The complete native job and same-SHA Circle job pass, but full compiler
-inventory parity remains unresolved, so this occurrence is uncounted. Verified
-coverage is 77/86 (90%).
+through shared `run-main` routing. The complete native job and same-SHA Circle job
+pass at `c6b294069888978775a3693a9a6ee35de37942f0`. The
+[complete hosted comparison](rwx-kontrol-build-evidence/hosted-parity.json)
+verifies both summaries, all nine proof sources, four generated files, runtime
+state and every compiler artifact/graph/cache input across all four phases.
+This occurrence is now counted; overall verified coverage is 79/86 (92%).
 
 Both providers run the original `just kontrol-summary-full`, generating default
 and fault proof deployment summaries, followed by
@@ -63,8 +66,15 @@ before the final compile while retaining previous compiler outputs. An output
 without a current reference must retain its exact bytes and validated identity
 from the immediately preceding original phase. These retained payloads remain
 included in the complete comparison; changed, extra or missing payloads fail.
-The full four-phase hosted comparison after this
-correction remains pending, and this zero-test input probe adds no coverage.
+The subsequent full four-phase hosted comparison passes with 1,093 artifacts in
+the first two phases and 1,095 in the final two. Foundry retains four qualified
+earlier summary artifacts beside newly compiled outputs. Each retained payload
+keeps its exact bytes and original bound phase, distinguishing historical and
+current outputs with the same source/compiler/profile identity. Every payload
+and source graph is compared; invented history, changes, missing files and extra
+duplicates fail. All six real-tool regression fixtures pass in 238.715 seconds,
+including this hosted filename pattern, source invalidation and original failure
+and cancellation evidence. The zero-test input probe adds no coverage.
 
 The [complete-input real-tool fixtures](rwx-kontrol-build-evidence/complete-input-fixtures.json)
 pass all six scenarios, including exact complete comparison across all four
@@ -107,5 +117,10 @@ a real script preparation probe confirms it does not add those files. Their
 complete compiler-cache graph bindings and originals remain retained for further
 investigation. The [complete discrepancy and probe originals](rwx-kontrol-build-evidence/compiler-inventory-discrepancy.json)
 retain all four compiler phases and all 394 native fixture files.
-No compiler artifact is ignored to make parity pass, and no coverage is added. All four Circle gates, dependency review and all 14 native
-shadows pass on this head.
+Those original discrepancies remain retained. The complete producer and compiler
+history corrections are now verified in
+[automatic native run 36fd9282](https://cloud.rwx.com/optimism/runs/36fd9282c63949b8bf7b3efc655b914c)
+and [Circle job 5636116](https://circleci.com/gh/ethereum-optimism/optimism/5636116)
+at `c6b29406`. No compiler artifact is discarded to make parity pass. Historical
+green checks apply to their exact revisions; every new final head requires its
+own terminal check verification.

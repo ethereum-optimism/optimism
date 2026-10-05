@@ -147,7 +147,10 @@ def compare_compiler(x,y,roots,history=((),())):
     inventories = [compiler_bindings(files,earlier) for files,earlier in zip((x,y),history)]
     if inventories[0]['bindings'].keys() != inventories[1]['bindings'].keys():
         raise ValueError('Complete Kontrol logical compiler inventories differ')
-    artifact_paths = [set(value['bindings'].values()) for value in inventories]
+    retained = [{(tuple(row['logical_key']),row['bound_phase']):row for row in value['retained']} for value in inventories]
+    if retained[0].keys() != retained[1].keys():
+        raise ValueError('Complete Kontrol retained compiler inventories differ')
+    artifact_paths = [set(value['bindings'].values()) | {row['path'] for row in value['retained']} for value in inventories]
     other = [{n for n in files if not n.startswith(prefixes)} - paths for files,paths in zip((x,y),artifact_paths)]
     if other[0] != other[1]: raise ValueError('Complete Kontrol non-artifact compiler inventories differ')
     for prefix in prefixes:
@@ -159,6 +162,13 @@ def compare_compiler(x,y,roots,history=((),())):
                    json.loads(y[names[1]],object_pairs_hook=G.C.no_duplicate_keys),roots,counts)
         contracts += 1
         if names[0] != names[1]: aliases.append({'logical_key':list(key),'circle':names[0],'rwx':names[1]})
+    for key,phase in sorted(retained[0]):
+        names = [value[(key,phase)]['path'] for value in retained]
+        A.contract(json.loads(x[names[0]],object_pairs_hook=G.C.no_duplicate_keys),
+                   json.loads(y[names[1]],object_pairs_hook=G.C.no_duplicate_keys),roots,counts)
+        contracts += 1
+        if names[0] != names[1]:
+            aliases.append({'logical_key':list(key),'bound_phase':phase,'circle':names[0],'rwx':names[1]})
     for name in sorted(other[0]):
         if name.startswith(prefixes): continue
         if name == 'packages/contracts-bedrock/cache/solidity-files-cache.json':
@@ -171,14 +181,16 @@ def compare_compiler(x,y,roots,history=((),())):
 
 
 def compiler_bindings(files,history=()):
-    """Bind every artifact bijectively to its original Foundry cache identity.
+    """Bind every current or retained artifact to its original cache identity.
 
     Foundry can keep an unqualified filename when another compiler/profile is
     added later. Account for that filename only after checking every complete
     payload, compiler graph and cache setting; do not discard any output.
     Summary generation invalidates cache references before the final compile.
     Such retained outputs must have the exact bytes and a validated identity
-    from the immediately preceding original phase.
+    from the immediately preceding original phase. A newly compiled payload can
+    replace that logical identity while the old qualified filename remains.
+    Its original bound phase distinguishes the two; both payloads stay required.
     """
     prefix = 'packages/contracts-bedrock/forge-artifacts/'
     cache = copy.deepcopy(json.loads(files['packages/contracts-bedrock/cache/solidity-files-cache.json'],
@@ -208,12 +220,15 @@ def compiler_bindings(files,history=()):
     if selected - paths:
         if not history: raise ValueError('Extra or unbound original Kontrol compiler artifacts')
         previous = history[-1]
-        identities = {path:key for key,path in compiler_bindings(previous,history[:-1])['bindings'].items()}
+        earlier = compiler_bindings(previous,history[:-1])
+        identities = {path:(key,len(history)-1) for key,path in earlier['bindings'].items()}
+        identities.update({row['path']:(tuple(row['logical_key']),row['bound_phase']) for row in earlier['retained']})
+        retained_keys = set()
         for path in sorted(selected - paths):
-            if path not in identities or previous[path] != files[path] or identities[path] in bindings:
+            if path not in identities or previous[path] != files[path] or identities[path] in retained_keys:
                 raise ValueError('Changed, duplicate or unbound retained Kontrol compiler artifact')
-            key = identities[path]; bindings[key] = path; paths.add(path)
-            retained.append({'path':path,'logical_key':list(key),'sha256':A.digest(files[path])})
+            key,phase = identities[path]; paths.add(path); retained_keys.add((key,phase))
+            retained.append({'path':path,'logical_key':list(key),'bound_phase':phase,'sha256':A.digest(files[path])})
     if not bindings or paths != selected: raise ValueError('Extra or unbound original Kontrol compiler artifacts')
     return {'bindings':bindings,'cache':cache,'retained':retained}
 

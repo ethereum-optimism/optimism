@@ -1,0 +1,187 @@
+# Genuine optional Rust gate; Circle continues to own required-rust-ci.
+on:
+  github:
+    push:
+      if: ${{ event.git.branch == 'codex/rwx-ci-pilot' || event.git.branch == 'develop' }}
+      init:
+        commit-sha: ${{ event.git.sha }}
+        branch: ${{ event.git.branch }}
+        tag: ${{ event.git.tag }}
+      status-checks:
+        name: optimism-rust-gate-shadow
+  cli:
+    init:
+      commit-sha: ${{ event.git.sha }}
+      branch: ${{ event.git.branch }}
+      tag: ""
+
+base:
+  image: ubuntu:24.04@sha256:008173c23f95b170204355c12626cb5a965d779a7e1283b09e9cffbb1bf33ca3
+  config: rwx/base 1.2.0
+  arch: x86_64
+
+defaults:
+  runner:
+    cpus: 2
+    memory: 8gb
+
+tasks:
+  - key: code
+    call: git/clone 2.2.0
+    with:
+      repository: https://github.com/ethereum-optimism/optimism.git
+      ref: ${{ init.commit-sha }}
+      preserve-git-dir: true
+      fetch-full-depth: true
+      submodules: false
+
+  - key: bootstrap-inputs
+    use: code
+    run: 'true'
+    filter: [mise.toml, ops/ci, .circleci/scripts/apt-install.sh]
+    outputs:
+      filesystem: false
+      artifacts:
+        - key: mise-config
+          path: mise.toml
+        - key: ci-scripts
+          path: ops/ci
+        - key: apt-script
+          path: .circleci/scripts/apt-install.sh
+
+  - key: mise
+    call: mise/install 1.1.0
+    with:
+      mise-version: "2026.2.2"
+      install: "false"
+
+  - key: tools
+    use: mise
+    run: |
+      mkdir -p ops/ci .circleci/scripts
+      cp "$MISE_CONFIG" mise.toml
+      cp "$CI_SCRIPTS/rwx-prepare.sh" ops/ci/
+      cp "$APT_SCRIPT" .circleci/scripts/apt-install.sh
+      bash ops/ci/rwx-prepare.sh
+    env:
+      MISE_CONFIG: ${{ tasks.bootstrap-inputs.artifacts.mise-config }}
+      CI_SCRIPTS: ${{ tasks.bootstrap-inputs.artifacts.ci-scripts }}
+      APT_SCRIPT: ${{ tasks.bootstrap-inputs.artifacts.apt-script }}
+    filter:
+      ${{ tasks.bootstrap-inputs.artifacts.ci-scripts }}: [rwx-prepare.sh]
+    timeout: 30m
+
+  - key: route
+    use: [code, tools]
+    run: bash ops/ci/rwx-metadata.sh
+    env:
+      CI_EVENT: push
+      CI_BRANCH: ${{ init.branch }}
+      CI_TAG: ${{ init.tag }}
+      CI_COMMIT_SHA: ${{ init.commit-sha }}
+    cache: false
+    timeout: 10m
+    outputs:
+      filesystem: false
+      artifacts:
+        - key: routing
+          path: .ci/pipeline-parameters.json
+
+  - key: helper-tests
+    use: [code, tools]
+    run: python3 -m unittest discover -s ops/ci -p 'test_pr_gate.py' -v
+    cache: false
+    timeout: 10m
+    outputs:
+      filesystem: false
+
+  - key: wait-0
+    if: ${{ init.branch == 'codex/rwx-ci-pilot' || init.branch == 'develop' }}
+    use: [code, tools]
+    run: python3 ops/ci/pr-gate.py wait required-rust-ci --seconds 2400
+    env:
+      CI_COMMIT_SHA: ${{ init.commit-sha }}
+      CI_BRANCH: ${{ init.branch }}
+      GATE_ROUTING: ${{ tasks.route.artifacts.routing }}
+      GATE_GITHUB_TOKEN: ${{ github['ethereum-optimism'].token }}
+      RWX_RUN_ID:
+        cache-key: included
+      RWX_TASK_ATTEMPT_NUMBER:
+        cache-key: included
+    cache: false
+    timeout: 45m
+    outputs:
+      filesystem: false
+      artifacts:
+        - key: report
+          path: .ci/pr-gates/wait
+
+  - key: wait-1
+    if: ${{ init.branch == 'codex/rwx-ci-pilot' || init.branch == 'develop' }}
+    use: [code, tools]
+    after: [wait-0]
+    run: python3 ops/ci/pr-gate.py wait required-rust-ci --seconds 2400 --previous "$PREVIOUS"
+    env:
+      CI_COMMIT_SHA: ${{ init.commit-sha }}
+      CI_BRANCH: ${{ init.branch }}
+      GATE_ROUTING: ${{ tasks.route.artifacts.routing }}
+      GATE_GITHUB_TOKEN: ${{ github['ethereum-optimism'].token }}
+      RWX_RUN_ID:
+        cache-key: included
+      RWX_TASK_ATTEMPT_NUMBER:
+        cache-key: included
+      PREVIOUS: ${{ tasks.wait-0.artifacts.report }}
+    cache: false
+    timeout: 45m
+    outputs:
+      filesystem: false
+      artifacts:
+        - key: report
+          path: .ci/pr-gates/wait
+
+  - key: wait-2
+    if: ${{ init.branch == 'codex/rwx-ci-pilot' || init.branch == 'develop' }}
+    use: [code, tools]
+    after: [wait-1]
+    run: python3 ops/ci/pr-gate.py wait required-rust-ci --seconds 2400 --previous "$PREVIOUS"
+    env:
+      CI_COMMIT_SHA: ${{ init.commit-sha }}
+      CI_BRANCH: ${{ init.branch }}
+      GATE_ROUTING: ${{ tasks.route.artifacts.routing }}
+      GATE_GITHUB_TOKEN: ${{ github['ethereum-optimism'].token }}
+      RWX_RUN_ID:
+        cache-key: included
+      RWX_TASK_ATTEMPT_NUMBER:
+        cache-key: included
+      PREVIOUS: ${{ tasks.wait-1.artifacts.report }}
+    cache: false
+    timeout: 45m
+    outputs:
+      filesystem: false
+      artifacts:
+        - key: report
+          path: .ci/pr-gates/wait
+
+  - key: wait-3
+    if: ${{ init.branch == 'codex/rwx-ci-pilot' || init.branch == 'develop' }}
+    use: [code, tools]
+    after: [wait-2]
+    run: python3 ops/ci/pr-gate.py wait required-rust-ci --seconds 2400 --previous "$PREVIOUS" --final
+    env:
+      CI_COMMIT_SHA: ${{ init.commit-sha }}
+      CI_BRANCH: ${{ init.branch }}
+      GATE_ROUTING: ${{ tasks.route.artifacts.routing }}
+      GATE_GITHUB_TOKEN: ${{ github['ethereum-optimism'].token }}
+      RWX_RUN_ID:
+        cache-key: included
+      RWX_TASK_ATTEMPT_NUMBER:
+        cache-key: included
+      PREVIOUS: ${{ tasks.wait-2.artifacts.report }}
+    cache: false
+    timeout: 45m
+    outputs:
+      filesystem: false
+      artifacts:
+        - key: report
+          path: .ci/pr-gates/wait
+

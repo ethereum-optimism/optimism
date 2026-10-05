@@ -1,0 +1,52 @@
+{
+  "coverage_added": 0,
+  "first_probe": {
+    "reason": "Bare task state names work in after; env requires the tasks namespace. The corrected complete state matrix executes successfully.",
+    "result": "user_error",
+    "run_id": "88e7741ca8b849a2b7b1fcd46173dab1"
+  },
+  "full_hosted_gate_parity": false,
+  "local_fixtures": {
+    "command": "mise exec yq -- python3 -m unittest discover -s ops/ci -p test_pr_gate.py -v",
+    "count": 8,
+    "duration_seconds": 7.345,
+    "original_log_sha256": "a1f17ba55a8453d81613f252fb92549bc26a3b0ba229d693138b5e584e83ed18",
+    "passed": true
+  },
+  "native_engine_probe": {
+    "explicit_init_sha": "c6b294069888978775a3693a9a6ee35de37942f0",
+    "intentional_exit_code": 17,
+    "observer_result": "succeeded",
+    "observer_task": "d540018ba1d92f8280bb5c46ff95a876",
+    "original_sha256": {
+      "definition.yml": "059164f37803826b063d31158163964712c9921f6268fadfca4bade140e1a262",
+      "run.json": "e6da4b966ddfa961e6153cda4f5ae7364ab7b08b6c2e0980b9039b42ad7bf723",
+      "states.json": "7b68496304f09fe4014f7bf1cbf5994e7e52a6f6689bb3bd3678ecdb322b6c55"
+    },
+    "overall_result": "failed",
+    "run_id": "4f1d8a5e3c8e4a6e9dcde36d5adeff65",
+    "source_sha": null,
+    "states": {
+      "FAILED_FAILED": "true",
+      "FAILED_SKIPPED": "false",
+      "FAILED_SUCCEEDED": "false",
+      "PASSED_FAILED": "false",
+      "PASSED_SKIPPED": "false",
+      "PASSED_SUCCEEDED": "true",
+      "SKIPPED_FAILED": "false",
+      "SKIPPED_SKIPPED": "true",
+      "SKIPPED_SUCCEEDED": "false"
+    },
+    "url": "https://cloud.rwx.com/optimism/runs/4f1d8a5e3c8e4a6e9dcde36d5adeff65"
+  },
+  "rwx_lint": {
+    "files": [
+      ".rwx/pilot.yml",
+      ".rwx/rust.yml",
+      ".rwx/op-reth.yml",
+      ".rwx/rust-gate.yml"
+    ],
+    "original_log_sha256": "e1813b357360fbe15c2d83de08a98cf1d4eafb22bfb4f4ba51cbf9e3aab1e690",
+    "problems": 0
+  }
+}

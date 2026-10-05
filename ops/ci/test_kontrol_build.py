@@ -204,6 +204,35 @@ contract FutureProof is DeploymentSummary { function futureProof() public pure r
         duplicate['files']['scripts/Artifacts.s.sol']['artifacts']['OtherContract']={'0.8.28':{'default':binding}}
         mismatch=dict(renamed);mismatch[cache_name]=json.dumps(duplicate).encode()
         with self.assertRaises(ValueError):C.compare_compiler(original,mismatch,[str(self.root)]*2)
+        # The full hosted build leaves a qualified old summary beside its newly
+        # compiled payload under the same source/compiler/profile identity.
+        # Model those filenames with actual pre/post-generation Forge outputs.
+        old_cache=json.loads(original[cache_name])
+        source='test/kontrol/proofs/utils/DeploymentSummary.sol';name='DeploymentSummary'
+        versions=old_cache['files'][source]['artifacts'][name]
+        version=next(iter(versions));old_binding=versions[version]['default']
+        old_path='packages/contracts-bedrock/forge-artifacts/'+old_binding['path']
+        qualified='DeploymentSummary.sol/DeploymentSummary.'+version+'.json'
+        retained_path='packages/contracts-bedrock/forge-artifacts/'+qualified
+        prior=dict(original);prior[retained_path]=prior.pop(old_path);old_binding['path']=qualified
+        prior[cache_name]=json.dumps(old_cache).encode()
+        rebuilt=C.compiler(pair/'rwx/proofs-compiler')
+        self.assertNotEqual(rebuilt[old_path],prior[retained_path])
+        rebuilt[retained_path]=prior[retained_path]
+        historical=C.compare_compiler(rebuilt,rebuilt,[str(self.root)]*2,([prior],[prior]))
+        self.assertEqual(historical['contract_artifacts'],len(C.compiler_bindings(rebuilt,[prior])['bindings'])+1)
+        self.assertEqual(historical['verified_retained_previous_artifacts']['rwx'][0]['bound_phase'],0)
+        continued=C.compare_compiler(rebuilt,rebuilt,[str(self.root)]*2,([prior,rebuilt],[prior,rebuilt]))
+        self.assertEqual(continued['verified_retained_previous_artifacts']['rwx'][0]['bound_phase'],0)
+        bad=dict(rebuilt);bad[retained_path]=rebuilt[old_path]
+        with self.assertRaisesRegex(ValueError,'retained'):
+            C.compare_compiler(rebuilt,bad,[str(self.root)]*2,([prior],[prior]))
+        bad=dict(rebuilt);bad.pop(retained_path)
+        with self.assertRaisesRegex(ValueError,'retained compiler inventories'):
+            C.compare_compiler(rebuilt,bad,[str(self.root)]*2,([prior],[prior]))
+        bad=dict(rebuilt);bad[retained_path.removesuffix('.json')+'.extra.json']=bad[retained_path]
+        with self.assertRaisesRegex(ValueError,'retained'):
+            C.compare_compiler(rebuilt,bad,[str(self.root)]*2,([prior],[prior]))
         # Both supported Docker stores identify exactly the same pinned image.
         path=pair/'rwx/runtime-image.json';original=path.read_bytes()
         final_path=pair/'rwx/final.json';original_final=final_path.read_bytes()

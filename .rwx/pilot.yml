@@ -16,7 +16,11 @@ on:
         branch: ${{ event.git.branch }}
         tag: ${{ event.git.tag }}
       status-checks:
-        name: optimism-pilot
+        default:
+          name: optimism-pilot
+        custom:
+          - name: optimism-gate-rust-fmt
+            tasks: rust-gate-receipt
   cli:
     init:
       commit-sha: ${{ event.git.sha }}
@@ -155,3 +159,27 @@ tasks:
     timeout: 20m
     outputs:
       filesystem: false
+
+  # Terminal task states preserve exact Rust dependencies without Main-only failures.
+  - key: rust-gate-receipt
+    use: [code, tools]
+    after: ${{ (rust-fmt.succeeded || rust-fmt.failed || rust-fmt.skipped) }}
+    run: python3 ops/ci/pr-gate.py receipt rust-fmt
+    env:
+      CI_COMMIT_SHA: ${{ init.commit-sha }}
+      CI_BRANCH: ${{ init.branch }}
+      GROUP_SELECTED: ${{ tasks.route.values.run-rust-ci }}
+      RWX_RUN_ID:
+        cache-key: included
+      RWX_TASK_ATTEMPT_NUMBER:
+        cache-key: included
+      TASK_RUST_FMT_SUCCEEDED: ${{ tasks.rust-fmt.succeeded }}
+      TASK_RUST_FMT_FAILED: ${{ tasks.rust-fmt.failed }}
+      TASK_RUST_FMT_SKIPPED: ${{ tasks.rust-fmt.skipped }}
+    cache: false
+    timeout: 10m
+    outputs:
+      filesystem: false
+      artifacts:
+        - key: receipt
+          path: .ci/pr-gates/groups/rust-fmt

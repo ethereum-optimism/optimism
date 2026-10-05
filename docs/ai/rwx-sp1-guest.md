@@ -1,10 +1,12 @@
 # Complete SP1 guest shadow
 
 The optional `optimism-sp1-guest-shadow` ports Main's `kona-build-sp1-elfs`
-through the shared `run-main` routing. Its complete hosted job and all six actual
-tests pass on both providers at `014e8310`. The strict comparison found different
-ELF bytes and CPU verification keys, so this occurrence remains uncounted, with
-verified coverage 77/86.
+through the shared `run-main` routing. Its complete hosted workload passes on both
+providers at `c6b294069888978775a3693a9a6ee35de37942f0`. The
+[complete hosted comparison](rwx-sp1-guest-evidence/hosted-parity.json) verifies
+both ELF binaries and CPU verification keys byte for byte, all six actual tests,
+complete dependency graphs, source/toolchain/settings, skips and retry histories.
+This occurrence is now counted.
 
 The [first complete hosted originals](rwx-sp1-guest-evidence/first-hosted-elf-discrepancy.json)
 retain every file hash, the actual keys and the embedded physical source paths.
@@ -13,8 +15,10 @@ embeds different checkout and Cargo registry paths. The
 [complete canonical-path probe](rwx-sp1-guest-evidence/canonical-path-probe.json)
 reproduces both Circle ELFs and verification keys byte for byte, at the same SHA,
 using the same physical paths and original flags. Path-remapping flags produce
-different binaries and are not used. The probe executes zero tests; full hosted
-parity after the correction remains pending.
+different binaries and are not used. The probe executes zero tests. The subsequent full automatic run
+[e3efe702](https://cloud.rwx.com/optimism/runs/e3efe702c5664990b0d5d71a084be1aa)
+and [Circle job 5636110](https://circleci.com/gh/ethereum-optimism/optimism/5636110)
+pass the complete same-SHA comparison; all nine native helper fixtures pass.
 
 Both providers retain the canonical SP1 pin checks, native Succinct toolchain,
 `just check-sp1-guest-lock` before the build, and `just build-elfs-native` for every
@@ -71,7 +75,7 @@ inputs fail validation.
 
 The [complete preflight originals](rwx-sp1-guest-evidence/first-full-preflight.json),
 [latest manifest-discovery run](rwx-sp1-guest-evidence/latest-full-preflight.json)
-and [all eight real-tool fixtures](rwx-sp1-guest-evidence/local-fixtures.json)
+and [the original eight real-tool fixtures](rwx-sp1-guest-evidence/local-fixtures.json)
 retain their full original file hashes and unpublished source revisions.
 
 The full local preflight executes four super-aggregation unit tests and two

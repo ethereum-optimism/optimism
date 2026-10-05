@@ -38,13 +38,13 @@ new upstream Circle configuration changes. The PR denominator remains 86.
 
 | PR workflow | Expanded job instances | Implemented validation jobs |
 | --- | ---: | ---: |
-| Main | 32 | 26 |
+| Main | 32 | 28 |
 | Contracts | 23 | 21 |
 | Rust | 22 | 21 |
 | Rust E2E | 9 | 9 |
-| Total | 86 | 77 |
+| Total | 86 | 79 |
 
-Verified implementation coverage is **77 / 86 = 90%**. Each matrix entry and
+Verified implementation coverage is **79 / 86 = 92%**. Each matrix entry and
 each occurrence in a different workflow counts separately; shards do not.
 The CircleCI setup and schedule-trigger-check workflows are outside this
 86-job denominator and have separate todos. This is occurrence coverage backed
@@ -113,7 +113,12 @@ PATH fix passed the native PR-check shadow on `d8e7d3ec`; all four Circle gates,
 dependency review and native checks also finished successfully on that head.
 Every subsequent final head needs terminal verification. See the
 [static-check closeout](rwx-static-checks.md).
-Nine occurrences remain: six Main jobs, L2 fork, and the Contracts and Rust
+SP1's complete native guest workload now passes same-SHA parity for both ELF
+binaries, CPU verification keys, all six cases and complete dependency graphs.
+Kontrol's full summary/proof build passes all four complete compiler inventories,
+including all historical payloads, source graphs and cache settings. See the
+[SP1 closeout](rwx-sp1-guest.md) and [Kontrol closeout](rwx-kontrol-build.md).
+Seven occurrences remain: four Main jobs, L2 fork, and the Contracts and Rust
 aggregate equivalents. Circle continues to own every required gate.
 The narrower rollup mode remains CLI-only. See [the stage closeout](rwx-go-parity.md)
 for original-report comparison, selected resources, caches and limitations.
@@ -245,7 +250,7 @@ CircleCI workflow: `main` (32 jobs).
 - [x] `op-deployer-forge-version`
 - [ ] `nut-provenance-verify`
 - [x] `l2-chains-sync-check`
-- [ ] `kona-build-sp1-elfs` — [complete native guest build and checks](rwx-sp1-guest.md); both hosted jobs pass at `014e8310`, the canonical-path probe matches both ELFs and verification keys exactly, full hosted parity after the correction remains pending
+- [x] `kona-build-sp1-elfs` — [complete native guest build and checks](rwx-sp1-guest.md); full same-SHA hosted parity at `c6b29406`, both ELFs and verification keys byte-identical, six cases and complete graphs agree
 - [x] `go-lint`
 - [x] `go-binaries-for-sysgo`
 - [ ] `generate-flaky-tests-report`
@@ -256,7 +261,7 @@ CircleCI workflow: `main` (32 jobs).
 - [x] `check-nut-prefork-states` — [complete original-report parity](rwx-nut-prefork.md)
   passes all six original cases on both forks at `fd426d87`, with complete same-SHA parity.
 - [x] `check-nut-locks`
-- [ ] `check-kontrol-build` — [full summary generation and proof build](rwx-kontrol-build.md)
+- [x] `check-kontrol-build` — [full summary generation and proof build](rwx-kontrol-build.md); full same-SHA hosted parity at `c6b29406`, both summaries and all four complete compiler inventories agree
 - [x] `check-generated-mocks-op-service`
 - [x] `check-generated-mocks-op-node`
 - [x] `cannon-prestate`
@@ -320,7 +325,7 @@ CircleCI workflow: `rust-ci` (22 jobs).
 - [x] `kona-host-client-offline-cannon`
 - [x] `kona-build-fpvm-cannon-client`
 - [x] `interop-deposits-diff`
-- [ ] `required-rust-ci`
+- [ ] `required-rust-ci` — [exact native aggregate](rwx-pr-gates.md) implemented; hosted same-SHA gate parity pending
 
 ### Rust E2E workflow
 

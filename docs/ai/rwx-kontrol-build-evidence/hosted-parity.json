@@ -1,0 +1,1610 @@
+{
+  "circle": {
+    "job": 5636116,
+    "pipeline": 135589,
+    "status": "success",
+    "url": "https://circleci.com/gh/ethereum-optimism/optimism/5636116"
+  },
+  "comparison": {
+    "circle_manifest_declared_empty": [],
+    "compiler_phases": {
+      "final": {
+        "complete_logical_inventory_equal": true,
+        "contract_artifacts": 1095,
+        "resolved_metadata_differences": {
+          "artifact_source_identifiers": 407,
+          "node_identifiers": 367779,
+          "source_identifiers": 427160,
+          "type_identifiers": 26061,
+          "workspace_path_metadata": 2140
+        },
+        "verified_artifact_path_aliases": [
+          {
+            "circle": "packages/contracts-bedrock/forge-artifacts/StdJson.sol/stdJson.0.8.28.default.json",
+            "logical_key": [
+              "lib/forge-std/src/StdJson.sol",
+              "stdJson",
+              "0.8.28",
+              "default"
+            ],
+            "rwx": "packages/contracts-bedrock/forge-artifacts/StdJson.sol/stdJson.json"
+          },
+          {
+            "circle": "packages/contracts-bedrock/forge-artifacts/Vm.sol/Vm.0.8.28.default.json",
+            "logical_key": [
+              "lib/forge-std/src/Vm.sol",
+              "Vm",
+              "0.8.28",
+              "default"
+            ],
+            "rwx": "packages/contracts-bedrock/forge-artifacts/Vm.sol/Vm.json"
+          },
+          {
+            "circle": "packages/contracts-bedrock/forge-artifacts/Vm.sol/VmSafe.0.8.28.default.json",
+            "logical_key": [
+              "lib/forge-std/src/Vm.sol",
+              "VmSafe",
+              "0.8.28",
+              "default"
+            ],
+            "rwx": "packages/contracts-bedrock/forge-artifacts/Vm.sol/VmSafe.json"
+          },
+          {
+            "circle": "packages/contracts-bedrock/forge-artifacts/console.sol/console.0.8.28.default.json",
+            "logical_key": [
+              "lib/forge-std/src/console.sol",
+              "console",
+              "0.8.28",
+              "default"
+            ],
+            "rwx": "packages/contracts-bedrock/forge-artifacts/console.sol/console.json"
+          },
+          {
+            "circle": "packages/contracts-bedrock/forge-artifacts/console2.sol/console2.0.8.28.default.json",
+            "logical_key": [
+              "lib/forge-std/src/console2.sol",
+              "console2",
+              "0.8.28",
+              "default"
+            ],
+            "rwx": "packages/contracts-bedrock/forge-artifacts/console2.sol/console2.json"
+          },
+          {
+            "circle": "packages/contracts-bedrock/forge-artifacts/LibString.sol/LibString.0.8.28.default.json",
+            "logical_key": [
+              "lib/solady/src/utils/LibString.sol",
+              "LibString",
+              "0.8.28",
+              "default"
+            ],
+            "rwx": "packages/contracts-bedrock/forge-artifacts/LibString.sol/LibString.json"
+          },
+          {
+            "circle": "packages/contracts-bedrock/forge-artifacts/Artifacts.s.sol/Artifacts.0.8.28.json",
+            "logical_key": [
+              "scripts/Artifacts.s.sol",
+              "Artifacts",
+              "0.8.28",
+              "default"
+            ],
+            "rwx": "packages/contracts-bedrock/forge-artifacts/Artifacts.s.sol/Artifacts.json"
+          },
+          {
+            "circle": "packages/contracts-bedrock/forge-artifacts/Config.sol/Config.0.8.28.json",
+            "logical_key": [
+              "scripts/libraries/Config.sol",
+              "Config",
+              "0.8.28",
+              "default"
+            ],
+            "rwx": "packages/contracts-bedrock/forge-artifacts/Config.sol/Config.json"
+          },
+          {
+            "circle": "packages/contracts-bedrock/forge-artifacts/Config.sol/ForkUtils.0.8.28.json",
+            "logical_key": [
+              "scripts/libraries/Config.sol",
+              "ForkUtils",
+              "0.8.28",
+              "default"
+            ],
+            "rwx": "packages/contracts-bedrock/forge-artifacts/Config.sol/ForkUtils.json"
+          },
+          {
+            "circle": "packages/contracts-bedrock/forge-artifacts/Config.sol/OutputModeUtils.0.8.28.json",
+            "logical_key": [
+              "scripts/libraries/Config.sol",
+              "OutputModeUtils",
+              "0.8.28",
+              "default"
+            ],
+            "rwx": "packages/contracts-bedrock/forge-artifacts/Config.sol/OutputModeUtils.json"
+          },
+          {
+            "circle": "packages/contracts-bedrock/forge-artifacts/ForgeArtifacts.sol/ForgeArtifacts.0.8.28.json",
+            "logical_key": [
+              "scripts/libraries/ForgeArtifacts.sol",
+              "ForgeArtifacts",
+              "0.8.28",
+              "default"
+            ],
+            "rwx": "packages/contracts-bedrock/forge-artifacts/ForgeArtifacts.sol/ForgeArtifacts.json"
+          },
+          {
+            "circle": "packages/contracts-bedrock/forge-artifacts/Process.sol/Process.0.8.28.json",
+            "logical_key": [
+              "scripts/libraries/Process.sol",
+              "Process",
+              "0.8.28",
+              "default"
+            ],
+            "rwx": "packages/contracts-bedrock/forge-artifacts/Process.sol/Process.json"
+          },
+          {
+            "circle": "packages/contracts-bedrock/forge-artifacts/DevFeatures.sol/DevFeatures.0.8.28.json",
+            "logical_key": [
+              "src/libraries/DevFeatures.sol",
+              "DevFeatures",
+              "0.8.28",
+              "default"
+            ],
+            "rwx": "packages/contracts-bedrock/forge-artifacts/DevFeatures.sol/DevFeatures.json"
+          },
+          {
+            "circle": "packages/contracts-bedrock/forge-artifacts/Predeploys.sol/Predeploys.0.8.28.json",
+            "logical_key": [
+              "src/libraries/Predeploys.sol",
+              "Predeploys",
+              "0.8.28",
+              "default"
+            ],
+            "rwx": "packages/contracts-bedrock/forge-artifacts/Predeploys.sol/Predeploys.json"
+          }
+        ],
+        "verified_retained_previous_artifacts": {
+          "circle": [
+            {
+              "bound_phase": 1,
+              "logical_key": [
+                "test/kontrol/proofs/utils/DeploymentSummaryFaultProofs.sol",
+                "DeploymentSummaryFaultProofs",
+                "0.8.15",
+                "default"
+              ],
+              "path": "packages/contracts-bedrock/forge-artifacts/DeploymentSummaryFaultProofs.sol/DeploymentSummaryFaultProofs.0.8.15.json",
+              "sha256": "6ef365f7d3974a66f5516ac46ba5efa01879f34fbf4fc01945f66f7cbd207200"
+            },
+            {
+              "bound_phase": 1,
+              "logical_key": [
+                "test/kontrol/proofs/utils/DeploymentSummaryFaultProofs.sol",
+                "DeploymentSummaryFaultProofs",
+                "0.8.30",
+                "default"
+              ],
+              "path": "packages/contracts-bedrock/forge-artifacts/DeploymentSummaryFaultProofs.sol/DeploymentSummaryFaultProofs.0.8.30.json",
+              "sha256": "558aef0779095d6d8e8a86631c6a4e3ccc69c05aa07621bd8ae3ad29c1553365"
+            },
+            {
+              "bound_phase": 1,
+              "logical_key": [
+                "test/kontrol/proofs/utils/DeploymentSummaryFaultProofsCode.sol",
+                "DeploymentSummaryFaultProofsCode",
+                "0.8.15",
+                "default"
+              ],
+              "path": "packages/contracts-bedrock/forge-artifacts/DeploymentSummaryFaultProofsCode.sol/DeploymentSummaryFaultProofsCode.0.8.15.json",
+              "sha256": "7beb0bdd37b2346a7435811ce78d9c140ab63b139a5bba3d4ea4fb17788e5989"
+            },
+            {
+              "bound_phase": 1,
+              "logical_key": [
+                "test/kontrol/proofs/utils/DeploymentSummaryFaultProofsCode.sol",
+                "DeploymentSummaryFaultProofsCode",
+                "0.8.30",
+                "default"
+              ],
+              "path": "packages/contracts-bedrock/forge-artifacts/DeploymentSummaryFaultProofsCode.sol/DeploymentSummaryFaultProofsCode.0.8.30.json",
+              "sha256": "b6d98099e7433e70f833b170d266a948f60dab32fd0db565d17c6cfec8a0d424"
+            }
+          ],
+          "rwx": [
+            {
+              "bound_phase": 1,
+              "logical_key": [
+                "test/kontrol/proofs/utils/DeploymentSummaryFaultProofs.sol",
+                "DeploymentSummaryFaultProofs",
+                "0.8.15",
+                "default"
+              ],
+              "path": "packages/contracts-bedrock/forge-artifacts/DeploymentSummaryFaultProofs.sol/DeploymentSummaryFaultProofs.0.8.15.json",
+              "sha256": "1b997bfc4d623531337e95e0b8ee3212f2b306b6e82e34506ed59dca8d898c1c"
+            },
+            {
+              "bound_phase": 1,
+              "logical_key": [
+                "test/kontrol/proofs/utils/DeploymentSummaryFaultProofs.sol",
+                "DeploymentSummaryFaultProofs",
+                "0.8.30",
+                "default"
+              ],
+              "path": "packages/contracts-bedrock/forge-artifacts/DeploymentSummaryFaultProofs.sol/DeploymentSummaryFaultProofs.0.8.30.json",
+              "sha256": "63a68facd178c899812e1fd65b50a1d61f73464de7b7991e178f1a5a551f71c7"
+            },
+            {
+              "bound_phase": 1,
+              "logical_key": [
+                "test/kontrol/proofs/utils/DeploymentSummaryFaultProofsCode.sol",
+                "DeploymentSummaryFaultProofsCode",
+                "0.8.15",
+                "default"
+              ],
+              "path": "packages/contracts-bedrock/forge-artifacts/DeploymentSummaryFaultProofsCode.sol/DeploymentSummaryFaultProofsCode.0.8.15.json",
+              "sha256": "4d6a47c4ce4eff3f26b607a5e1c0b063cc4e1ead8a307d1748a2ae56f9392bca"
+            },
+            {
+              "bound_phase": 1,
+              "logical_key": [
+                "test/kontrol/proofs/utils/DeploymentSummaryFaultProofsCode.sol",
+                "DeploymentSummaryFaultProofsCode",
+                "0.8.30",
+                "default"
+              ],
+              "path": "packages/contracts-bedrock/forge-artifacts/DeploymentSummaryFaultProofsCode.sol/DeploymentSummaryFaultProofsCode.0.8.30.json",
+              "sha256": "91f248a83e292ac20492c5433b41c0ddb287c6b2950de55696278e86d07e372b"
+            }
+          ]
+        }
+      },
+      "initial": {
+        "complete_logical_inventory_equal": true,
+        "contract_artifacts": 1093,
+        "resolved_metadata_differences": {
+          "artifact_source_identifiers": 407,
+          "node_identifiers": 367779,
+          "source_identifiers": 427160,
+          "type_identifiers": 26061,
+          "workspace_path_metadata": 2136
+        },
+        "verified_artifact_path_aliases": [
+          {
+            "circle": "packages/contracts-bedrock/forge-artifacts/StdJson.sol/stdJson.0.8.28.default.json",
+            "logical_key": [
+              "lib/forge-std/src/StdJson.sol",
+              "stdJson",
+              "0.8.28",
+              "default"
+            ],
+            "rwx": "packages/contracts-bedrock/forge-artifacts/StdJson.sol/stdJson.json"
+          },
+          {
+            "circle": "packages/contracts-bedrock/forge-artifacts/Vm.sol/Vm.0.8.28.default.json",
+            "logical_key": [
+              "lib/forge-std/src/Vm.sol",
+              "Vm",
+              "0.8.28",
+              "default"
+            ],
+            "rwx": "packages/contracts-bedrock/forge-artifacts/Vm.sol/Vm.json"
+          },
+          {
+            "circle": "packages/contracts-bedrock/forge-artifacts/Vm.sol/VmSafe.0.8.28.default.json",
+            "logical_key": [
+              "lib/forge-std/src/Vm.sol",
+              "VmSafe",
+              "0.8.28",
+              "default"
+            ],
+            "rwx": "packages/contracts-bedrock/forge-artifacts/Vm.sol/VmSafe.json"
+          },
+          {
+            "circle": "packages/contracts-bedrock/forge-artifacts/console.sol/console.0.8.28.default.json",
+            "logical_key": [
+              "lib/forge-std/src/console.sol",
+              "console",
+              "0.8.28",
+              "default"
+            ],
+            "rwx": "packages/contracts-bedrock/forge-artifacts/console.sol/console.json"
+          },
+          {
+            "circle": "packages/contracts-bedrock/forge-artifacts/console2.sol/console2.0.8.28.default.json",
+            "logical_key": [
+              "lib/forge-std/src/console2.sol",
+              "console2",
+              "0.8.28",
+              "default"
+            ],
+            "rwx": "packages/contracts-bedrock/forge-artifacts/console2.sol/console2.json"
+          },
+          {
+            "circle": "packages/contracts-bedrock/forge-artifacts/LibString.sol/LibString.0.8.28.default.json",
+            "logical_key": [
+              "lib/solady/src/utils/LibString.sol",
+              "LibString",
+              "0.8.28",
+              "default"
+            ],
+            "rwx": "packages/contracts-bedrock/forge-artifacts/LibString.sol/LibString.json"
+          },
+          {
+            "circle": "packages/contracts-bedrock/forge-artifacts/Artifacts.s.sol/Artifacts.0.8.28.json",
+            "logical_key": [
+              "scripts/Artifacts.s.sol",
+              "Artifacts",
+              "0.8.28",
+              "default"
+            ],
+            "rwx": "packages/contracts-bedrock/forge-artifacts/Artifacts.s.sol/Artifacts.json"
+          },
+          {
+            "circle": "packages/contracts-bedrock/forge-artifacts/Config.sol/Config.0.8.28.json",
+            "logical_key": [
+              "scripts/libraries/Config.sol",
+              "Config",
+              "0.8.28",
+              "default"
+            ],
+            "rwx": "packages/contracts-bedrock/forge-artifacts/Config.sol/Config.json"
+          },
+          {
+            "circle": "packages/contracts-bedrock/forge-artifacts/Config.sol/ForkUtils.0.8.28.json",
+            "logical_key": [
+              "scripts/libraries/Config.sol",
+              "ForkUtils",
+              "0.8.28",
+              "default"
+            ],
+            "rwx": "packages/contracts-bedrock/forge-artifacts/Config.sol/ForkUtils.json"
+          },
+          {
+            "circle": "packages/contracts-bedrock/forge-artifacts/Config.sol/OutputModeUtils.0.8.28.json",
+            "logical_key": [
+              "scripts/libraries/Config.sol",
+              "OutputModeUtils",
+              "0.8.28",
+              "default"
+            ],
+            "rwx": "packages/contracts-bedrock/forge-artifacts/Config.sol/OutputModeUtils.json"
+          },
+          {
+            "circle": "packages/contracts-bedrock/forge-artifacts/ForgeArtifacts.sol/ForgeArtifacts.0.8.28.json",
+            "logical_key": [
+              "scripts/libraries/ForgeArtifacts.sol",
+              "ForgeArtifacts",
+              "0.8.28",
+              "default"
+            ],
+            "rwx": "packages/contracts-bedrock/forge-artifacts/ForgeArtifacts.sol/ForgeArtifacts.json"
+          },
+          {
+            "circle": "packages/contracts-bedrock/forge-artifacts/Process.sol/Process.0.8.28.json",
+            "logical_key": [
+              "scripts/libraries/Process.sol",
+              "Process",
+              "0.8.28",
+              "default"
+            ],
+            "rwx": "packages/contracts-bedrock/forge-artifacts/Process.sol/Process.json"
+          },
+          {
+            "circle": "packages/contracts-bedrock/forge-artifacts/DevFeatures.sol/DevFeatures.0.8.28.json",
+            "logical_key": [
+              "src/libraries/DevFeatures.sol",
+              "DevFeatures",
+              "0.8.28",
+              "default"
+            ],
+            "rwx": "packages/contracts-bedrock/forge-artifacts/DevFeatures.sol/DevFeatures.json"
+          },
+          {
+            "circle": "packages/contracts-bedrock/forge-artifacts/Predeploys.sol/Predeploys.0.8.28.json",
+            "logical_key": [
+              "src/libraries/Predeploys.sol",
+              "Predeploys",
+              "0.8.28",
+              "default"
+            ],
+            "rwx": "packages/contracts-bedrock/forge-artifacts/Predeploys.sol/Predeploys.json"
+          }
+        ],
+        "verified_retained_previous_artifacts": {
+          "circle": [],
+          "rwx": []
+        }
+      },
+      "proofs": {
+        "complete_logical_inventory_equal": true,
+        "contract_artifacts": 1095,
+        "resolved_metadata_differences": {
+          "artifact_source_identifiers": 407,
+          "node_identifiers": 367779,
+          "source_identifiers": 427160,
+          "type_identifiers": 26061,
+          "workspace_path_metadata": 2140
+        },
+        "verified_artifact_path_aliases": [
+          {
+            "circle": "packages/contracts-bedrock/forge-artifacts/StdJson.sol/stdJson.0.8.28.default.json",
+            "logical_key": [
+              "lib/forge-std/src/StdJson.sol",
+              "stdJson",
+              "0.8.28",
+              "default"
+            ],
+            "rwx": "packages/contracts-bedrock/forge-artifacts/StdJson.sol/stdJson.json"
+          },
+          {
+            "circle": "packages/contracts-bedrock/forge-artifacts/Vm.sol/Vm.0.8.28.default.json",
+            "logical_key": [
+              "lib/forge-std/src/Vm.sol",
+              "Vm",
+              "0.8.28",
+              "default"
+            ],
+            "rwx": "packages/contracts-bedrock/forge-artifacts/Vm.sol/Vm.json"
+          },
+          {
+            "circle": "packages/contracts-bedrock/forge-artifacts/Vm.sol/VmSafe.0.8.28.default.json",
+            "logical_key": [
+              "lib/forge-std/src/Vm.sol",
+              "VmSafe",
+              "0.8.28",
+              "default"
+            ],
+            "rwx": "packages/contracts-bedrock/forge-artifacts/Vm.sol/VmSafe.json"
+          },
+          {
+            "circle": "packages/contracts-bedrock/forge-artifacts/console.sol/console.0.8.28.default.json",
+            "logical_key": [
+              "lib/forge-std/src/console.sol",
+              "console",
+              "0.8.28",
+              "default"
+            ],
+            "rwx": "packages/contracts-bedrock/forge-artifacts/console.sol/console.json"
+          },
+          {
+            "circle": "packages/contracts-bedrock/forge-artifacts/console2.sol/console2.0.8.28.default.json",
+            "logical_key": [
+              "lib/forge-std/src/console2.sol",
+              "console2",
+              "0.8.28",
+              "default"
+            ],
+            "rwx": "packages/contracts-bedrock/forge-artifacts/console2.sol/console2.json"
+          },
+          {
+            "circle": "packages/contracts-bedrock/forge-artifacts/LibString.sol/LibString.0.8.28.default.json",
+            "logical_key": [
+              "lib/solady/src/utils/LibString.sol",
+              "LibString",
+              "0.8.28",
+              "default"
+            ],
+            "rwx": "packages/contracts-bedrock/forge-artifacts/LibString.sol/LibString.json"
+          },
+          {
+            "circle": "packages/contracts-bedrock/forge-artifacts/Artifacts.s.sol/Artifacts.0.8.28.json",
+            "logical_key": [
+              "scripts/Artifacts.s.sol",
+              "Artifacts",
+              "0.8.28",
+              "default"
+            ],
+            "rwx": "packages/contracts-bedrock/forge-artifacts/Artifacts.s.sol/Artifacts.json"
+          },
+          {
+            "circle": "packages/contracts-bedrock/forge-artifacts/Config.sol/Config.0.8.28.json",
+            "logical_key": [
+              "scripts/libraries/Config.sol",
+              "Config",
+              "0.8.28",
+              "default"
+            ],
+            "rwx": "packages/contracts-bedrock/forge-artifacts/Config.sol/Config.json"
+          },
+          {
+            "circle": "packages/contracts-bedrock/forge-artifacts/Config.sol/ForkUtils.0.8.28.json",
+            "logical_key": [
+              "scripts/libraries/Config.sol",
+              "ForkUtils",
+              "0.8.28",
+              "default"
+            ],
+            "rwx": "packages/contracts-bedrock/forge-artifacts/Config.sol/ForkUtils.json"
+          },
+          {
+            "circle": "packages/contracts-bedrock/forge-artifacts/Config.sol/OutputModeUtils.0.8.28.json",
+            "logical_key": [
+              "scripts/libraries/Config.sol",
+              "OutputModeUtils",
+              "0.8.28",
+              "default"
+            ],
+            "rwx": "packages/contracts-bedrock/forge-artifacts/Config.sol/OutputModeUtils.json"
+          },
+          {
+            "circle": "packages/contracts-bedrock/forge-artifacts/ForgeArtifacts.sol/ForgeArtifacts.0.8.28.json",
+            "logical_key": [
+              "scripts/libraries/ForgeArtifacts.sol",
+              "ForgeArtifacts",
+              "0.8.28",
+              "default"
+            ],
+            "rwx": "packages/contracts-bedrock/forge-artifacts/ForgeArtifacts.sol/ForgeArtifacts.json"
+          },
+          {
+            "circle": "packages/contracts-bedrock/forge-artifacts/Process.sol/Process.0.8.28.json",
+            "logical_key": [
+              "scripts/libraries/Process.sol",
+              "Process",
+              "0.8.28",
+              "default"
+            ],
+            "rwx": "packages/contracts-bedrock/forge-artifacts/Process.sol/Process.json"
+          },
+          {
+            "circle": "packages/contracts-bedrock/forge-artifacts/DevFeatures.sol/DevFeatures.0.8.28.json",
+            "logical_key": [
+              "src/libraries/DevFeatures.sol",
+              "DevFeatures",
+              "0.8.28",
+              "default"
+            ],
+            "rwx": "packages/contracts-bedrock/forge-artifacts/DevFeatures.sol/DevFeatures.json"
+          },
+          {
+            "circle": "packages/contracts-bedrock/forge-artifacts/Predeploys.sol/Predeploys.0.8.28.json",
+            "logical_key": [
+              "src/libraries/Predeploys.sol",
+              "Predeploys",
+              "0.8.28",
+              "default"
+            ],
+            "rwx": "packages/contracts-bedrock/forge-artifacts/Predeploys.sol/Predeploys.json"
+          }
+        ],
+        "verified_retained_previous_artifacts": {
+          "circle": [
+            {
+              "bound_phase": 1,
+              "logical_key": [
+                "test/kontrol/proofs/utils/DeploymentSummaryFaultProofs.sol",
+                "DeploymentSummaryFaultProofs",
+                "0.8.15",
+                "default"
+              ],
+              "path": "packages/contracts-bedrock/forge-artifacts/DeploymentSummaryFaultProofs.sol/DeploymentSummaryFaultProofs.0.8.15.json",
+              "sha256": "6ef365f7d3974a66f5516ac46ba5efa01879f34fbf4fc01945f66f7cbd207200"
+            },
+            {
+              "bound_phase": 1,
+              "logical_key": [
+                "test/kontrol/proofs/utils/DeploymentSummaryFaultProofs.sol",
+                "DeploymentSummaryFaultProofs",
+                "0.8.30",
+                "default"
+              ],
+              "path": "packages/contracts-bedrock/forge-artifacts/DeploymentSummaryFaultProofs.sol/DeploymentSummaryFaultProofs.0.8.30.json",
+              "sha256": "558aef0779095d6d8e8a86631c6a4e3ccc69c05aa07621bd8ae3ad29c1553365"
+            },
+            {
+              "bound_phase": 1,
+              "logical_key": [
+                "test/kontrol/proofs/utils/DeploymentSummaryFaultProofsCode.sol",
+                "DeploymentSummaryFaultProofsCode",
+                "0.8.15",
+                "default"
+              ],
+              "path": "packages/contracts-bedrock/forge-artifacts/DeploymentSummaryFaultProofsCode.sol/DeploymentSummaryFaultProofsCode.0.8.15.json",
+              "sha256": "7beb0bdd37b2346a7435811ce78d9c140ab63b139a5bba3d4ea4fb17788e5989"
+            },
+            {
+              "bound_phase": 1,
+              "logical_key": [
+                "test/kontrol/proofs/utils/DeploymentSummaryFaultProofsCode.sol",
+                "DeploymentSummaryFaultProofsCode",
+                "0.8.30",
+                "default"
+              ],
+              "path": "packages/contracts-bedrock/forge-artifacts/DeploymentSummaryFaultProofsCode.sol/DeploymentSummaryFaultProofsCode.0.8.30.json",
+              "sha256": "b6d98099e7433e70f833b170d266a948f60dab32fd0db565d17c6cfec8a0d424"
+            }
+          ],
+          "rwx": [
+            {
+              "bound_phase": 1,
+              "logical_key": [
+                "test/kontrol/proofs/utils/DeploymentSummaryFaultProofs.sol",
+                "DeploymentSummaryFaultProofs",
+                "0.8.15",
+                "default"
+              ],
+              "path": "packages/contracts-bedrock/forge-artifacts/DeploymentSummaryFaultProofs.sol/DeploymentSummaryFaultProofs.0.8.15.json",
+              "sha256": "1b997bfc4d623531337e95e0b8ee3212f2b306b6e82e34506ed59dca8d898c1c"
+            },
+            {
+              "bound_phase": 1,
+              "logical_key": [
+                "test/kontrol/proofs/utils/DeploymentSummaryFaultProofs.sol",
+                "DeploymentSummaryFaultProofs",
+                "0.8.30",
+                "default"
+              ],
+              "path": "packages/contracts-bedrock/forge-artifacts/DeploymentSummaryFaultProofs.sol/DeploymentSummaryFaultProofs.0.8.30.json",
+              "sha256": "63a68facd178c899812e1fd65b50a1d61f73464de7b7991e178f1a5a551f71c7"
+            },
+            {
+              "bound_phase": 1,
+              "logical_key": [
+                "test/kontrol/proofs/utils/DeploymentSummaryFaultProofsCode.sol",
+                "DeploymentSummaryFaultProofsCode",
+                "0.8.15",
+                "default"
+              ],
+              "path": "packages/contracts-bedrock/forge-artifacts/DeploymentSummaryFaultProofsCode.sol/DeploymentSummaryFaultProofsCode.0.8.15.json",
+              "sha256": "4d6a47c4ce4eff3f26b607a5e1c0b063cc4e1ead8a307d1748a2ae56f9392bca"
+            },
+            {
+              "bound_phase": 1,
+              "logical_key": [
+                "test/kontrol/proofs/utils/DeploymentSummaryFaultProofsCode.sol",
+                "DeploymentSummaryFaultProofsCode",
+                "0.8.30",
+                "default"
+              ],
+              "path": "packages/contracts-bedrock/forge-artifacts/DeploymentSummaryFaultProofsCode.sol/DeploymentSummaryFaultProofsCode.0.8.30.json",
+              "sha256": "91f248a83e292ac20492c5433b41c0ddb287c6b2950de55696278e86d07e372b"
+            }
+          ]
+        }
+      },
+      "summaries": {
+        "complete_logical_inventory_equal": true,
+        "contract_artifacts": 1093,
+        "resolved_metadata_differences": {
+          "artifact_source_identifiers": 407,
+          "node_identifiers": 367779,
+          "source_identifiers": 427160,
+          "type_identifiers": 26061,
+          "workspace_path_metadata": 2136
+        },
+        "verified_artifact_path_aliases": [
+          {
+            "circle": "packages/contracts-bedrock/forge-artifacts/StdJson.sol/stdJson.0.8.28.default.json",
+            "logical_key": [
+              "lib/forge-std/src/StdJson.sol",
+              "stdJson",
+              "0.8.28",
+              "default"
+            ],
+            "rwx": "packages/contracts-bedrock/forge-artifacts/StdJson.sol/stdJson.json"
+          },
+          {
+            "circle": "packages/contracts-bedrock/forge-artifacts/Vm.sol/Vm.0.8.28.default.json",
+            "logical_key": [
+              "lib/forge-std/src/Vm.sol",
+              "Vm",
+              "0.8.28",
+              "default"
+            ],
+            "rwx": "packages/contracts-bedrock/forge-artifacts/Vm.sol/Vm.json"
+          },
+          {
+            "circle": "packages/contracts-bedrock/forge-artifacts/Vm.sol/VmSafe.0.8.28.default.json",
+            "logical_key": [
+              "lib/forge-std/src/Vm.sol",
+              "VmSafe",
+              "0.8.28",
+              "default"
+            ],
+            "rwx": "packages/contracts-bedrock/forge-artifacts/Vm.sol/VmSafe.json"
+          },
+          {
+            "circle": "packages/contracts-bedrock/forge-artifacts/console.sol/console.0.8.28.default.json",
+            "logical_key": [
+              "lib/forge-std/src/console.sol",
+              "console",
+              "0.8.28",
+              "default"
+            ],
+            "rwx": "packages/contracts-bedrock/forge-artifacts/console.sol/console.json"
+          },
+          {
+            "circle": "packages/contracts-bedrock/forge-artifacts/console2.sol/console2.0.8.28.default.json",
+            "logical_key": [
+              "lib/forge-std/src/console2.sol",
+              "console2",
+              "0.8.28",
+              "default"
+            ],
+            "rwx": "packages/contracts-bedrock/forge-artifacts/console2.sol/console2.json"
+          },
+          {
+            "circle": "packages/contracts-bedrock/forge-artifacts/LibString.sol/LibString.0.8.28.default.json",
+            "logical_key": [
+              "lib/solady/src/utils/LibString.sol",
+              "LibString",
+              "0.8.28",
+              "default"
+            ],
+            "rwx": "packages/contracts-bedrock/forge-artifacts/LibString.sol/LibString.json"
+          },
+          {
+            "circle": "packages/contracts-bedrock/forge-artifacts/Artifacts.s.sol/Artifacts.0.8.28.json",
+            "logical_key": [
+              "scripts/Artifacts.s.sol",
+              "Artifacts",
+              "0.8.28",
+              "default"
+            ],
+            "rwx": "packages/contracts-bedrock/forge-artifacts/Artifacts.s.sol/Artifacts.json"
+          },
+          {
+            "circle": "packages/contracts-bedrock/forge-artifacts/Config.sol/Config.0.8.28.json",
+            "logical_key": [
+              "scripts/libraries/Config.sol",
+              "Config",
+              "0.8.28",
+              "default"
+            ],
+            "rwx": "packages/contracts-bedrock/forge-artifacts/Config.sol/Config.json"
+          },
+          {
+            "circle": "packages/contracts-bedrock/forge-artifacts/Config.sol/ForkUtils.0.8.28.json",
+            "logical_key": [
+              "scripts/libraries/Config.sol",
+              "ForkUtils",
+              "0.8.28",
+              "default"
+            ],
+            "rwx": "packages/contracts-bedrock/forge-artifacts/Config.sol/ForkUtils.json"
+          },
+          {
+            "circle": "packages/contracts-bedrock/forge-artifacts/Config.sol/OutputModeUtils.0.8.28.json",
+            "logical_key": [
+              "scripts/libraries/Config.sol",
+              "OutputModeUtils",
+              "0.8.28",
+              "default"
+            ],
+            "rwx": "packages/contracts-bedrock/forge-artifacts/Config.sol/OutputModeUtils.json"
+          },
+          {
+            "circle": "packages/contracts-bedrock/forge-artifacts/ForgeArtifacts.sol/ForgeArtifacts.0.8.28.json",
+            "logical_key": [
+              "scripts/libraries/ForgeArtifacts.sol",
+              "ForgeArtifacts",
+              "0.8.28",
+              "default"
+            ],
+            "rwx": "packages/contracts-bedrock/forge-artifacts/ForgeArtifacts.sol/ForgeArtifacts.json"
+          },
+          {
+            "circle": "packages/contracts-bedrock/forge-artifacts/Process.sol/Process.0.8.28.json",
+            "logical_key": [
+              "scripts/libraries/Process.sol",
+              "Process",
+              "0.8.28",
+              "default"
+            ],
+            "rwx": "packages/contracts-bedrock/forge-artifacts/Process.sol/Process.json"
+          },
+          {
+            "circle": "packages/contracts-bedrock/forge-artifacts/DevFeatures.sol/DevFeatures.0.8.28.json",
+            "logical_key": [
+              "src/libraries/DevFeatures.sol",
+              "DevFeatures",
+              "0.8.28",
+              "default"
+            ],
+            "rwx": "packages/contracts-bedrock/forge-artifacts/DevFeatures.sol/DevFeatures.json"
+          },
+          {
+            "circle": "packages/contracts-bedrock/forge-artifacts/Predeploys.sol/Predeploys.0.8.28.json",
+            "logical_key": [
+              "src/libraries/Predeploys.sol",
+              "Predeploys",
+              "0.8.28",
+              "default"
+            ],
+            "rwx": "packages/contracts-bedrock/forge-artifacts/Predeploys.sol/Predeploys.json"
+          }
+        ],
+        "verified_retained_previous_artifacts": {
+          "circle": [
+            {
+              "bound_phase": 0,
+              "logical_key": [
+                "test/kontrol/proofs/utils/DeploymentSummary.sol",
+                "DeploymentSummary",
+                "0.8.30",
+                "default"
+              ],
+              "path": "packages/contracts-bedrock/forge-artifacts/DeploymentSummary.sol/DeploymentSummary.json",
+              "sha256": "76cb1c6e7b4ede9e6dc9a95997bc3afc5685db488fbd3d371ad2eb81ba876f70"
+            },
+            {
+              "bound_phase": 0,
+              "logical_key": [
+                "test/kontrol/proofs/utils/DeploymentSummaryCode.sol",
+                "DeploymentSummaryCode",
+                "0.8.30",
+                "default"
+              ],
+              "path": "packages/contracts-bedrock/forge-artifacts/DeploymentSummaryCode.sol/DeploymentSummaryCode.json",
+              "sha256": "0ba41541569fea56e62ee6d177a2de9e822ad436a11d5dfeb543726ad11b47c1"
+            }
+          ],
+          "rwx": [
+            {
+              "bound_phase": 0,
+              "logical_key": [
+                "test/kontrol/proofs/utils/DeploymentSummary.sol",
+                "DeploymentSummary",
+                "0.8.30",
+                "default"
+              ],
+              "path": "packages/contracts-bedrock/forge-artifacts/DeploymentSummary.sol/DeploymentSummary.json",
+              "sha256": "524833622f2c4b5b792168a0754ba5a384a743926f1fad6f1d8c6b75e85e38cb"
+            },
+            {
+              "bound_phase": 0,
+              "logical_key": [
+                "test/kontrol/proofs/utils/DeploymentSummaryCode.sol",
+                "DeploymentSummaryCode",
+                "0.8.30",
+                "default"
+              ],
+              "path": "packages/contracts-bedrock/forge-artifacts/DeploymentSummaryCode.sol/DeploymentSummaryCode.json",
+              "sha256": "08e1a314b38e9d7dbf7641442b75c1b236368bb4ab9143bafe3e02f2bdca271f"
+            }
+          ]
+        }
+      }
+    },
+    "coverage": {
+      "complete_original_commands": true,
+      "generated_files": 4,
+      "proof_sources": 9,
+      "tests": 0,
+      "tracked_generated_changes": {
+        "packages/contracts-bedrock/test/kontrol/proofs/utils/DeploymentSummary.sol": {
+          "after": "e9744f7436fbe8ccd6ec786516a1373d6def9ac3c0f84c2266a9ea4b63171d62",
+          "before": "73e1ed1f3c8bd9e46bb348b774443458206b2399e4eac303e2a92ac987eeefc6"
+        },
+        "packages/contracts-bedrock/test/kontrol/proofs/utils/DeploymentSummaryCode.sol": {
+          "after": "9b008ab8a25a547ffcdaf58ce9193a748ad8b087da152b13b25b3d67e12ef4c5",
+          "before": "ffe7298024464a6a282ceb549db401cce4b36fe3342113250a6c674a3b4203ba"
+        },
+        "packages/contracts-bedrock/test/kontrol/proofs/utils/DeploymentSummaryFaultProofs.sol": {
+          "after": "6ac066ce869f756bfd564fa2b0d651f77d2cb646b4529052b6b0bf7ecded4e8b",
+          "before": "5ec8b19a00b47f15a2a8c8d632ab83933e19b0c2bbb04c905a2cda926e56038f"
+        },
+        "packages/contracts-bedrock/test/kontrol/proofs/utils/DeploymentSummaryFaultProofsCode.sol": {
+          "after": "ef4f20dcd706ccccd647189ce8b0245463cd492c786b10864a86ae38aed0a6ea",
+          "before": "1215a561a2bffb5af62b532a2608c4048a22368e505f7ae1d237c16b4ef6a45e"
+        }
+      },
+      "variants": [
+        "default",
+        "fault-proofs"
+      ]
+    },
+    "docker_image_ids": {
+      "circle": "sha256:56a573cef7be1ad5062fddfba43d2eee104cf97322db0ccdf219cb0f1c68a52d",
+      "rwx": "sha256:56a573cef7be1ad5062fddfba43d2eee104cf97322db0ccdf219cb0f1c68a52d"
+    },
+    "docker_versions": {
+      "circle": "{\"Client\":{\"Platform\":{\"Name\":\"Docker Engine - Community\"},\"Version\":\"28.1.1\",\"ApiVersion\":\"1.49\",\"DefaultAPIVersion\":\"1.49\",\"GitCommit\":\"4eba377\",\"GoVersion\":\"go1.23.8\",\"Os\":\"linux\",\"Arch\":\"amd64\",\"BuildTime\":\"Fri Apr 18 09:52:14 2025\",\"Context\":\"default\"},\"Server\":{\"Platform\":{\"Name\":\"Docker Engine - Community\"},\"Components\":[{\"Name\":\"Engine\",\"Version\":\"28.3.0\",\"Details\":{\"ApiVersion\":\"1.51\",\"Arch\":\"amd64\",\"BuildTime\":\"Tue Jun 24 15:44:12 2025\",\"Experimental\":\"false\",\"GitCommit\":\"265f709\",\"GoVersion\":\"go1.24.4\",\"KernelVersion\":\"6.14.0-1018-aws\",\"MinAPIVersion\":\"1.24\",\"Os\":\"linux\"}},{\"Name\":\"containerd\",\"Version\":\"1.7.27\",\"Details\":{\"GitCommit\":\"05044ec0a9a75232cad458027ca83437aae3f4da\"}},{\"Name\":\"runc\",\"Version\":\"1.2.5\",\"Details\":{\"GitCommit\":\"v1.2.5-0-g59923ef\"}},{\"Name\":\"docker-init\",\"Version\":\"0.19.0\",\"Details\":{\"GitCommit\":\"de40ad0\"}}],\"Version\":\"28.3.0\",\"ApiVersion\":\"1.51\",\"MinAPIVersion\":\"1.24\",\"GitCommit\":\"265f709\",\"GoVersion\":\"go1.24.4\",\"Os\":\"linux\",\"Arch\":\"amd64\",\"KernelVersion\":\"6.14.0-1018-aws\",\"BuildTime\":\"2025-06-24T15:44:12.000000000+00:00\"}}",
+      "rwx": "{\"Client\":{\"Platform\":{\"Name\":\"Docker Engine - Community\"},\"Version\":\"28.0.4\",\"ApiVersion\":\"1.48\",\"DefaultAPIVersion\":\"1.48\",\"GitCommit\":\"b8034c0\",\"GoVersion\":\"go1.23.7\",\"Os\":\"linux\",\"Arch\":\"amd64\",\"BuildTime\":\"Tue Mar 25 15:07:16 2025\",\"Context\":\"default\"},\"Server\":{\"Platform\":{\"Name\":\"Docker Engine - Community\"},\"Components\":[{\"Name\":\"Engine\",\"Version\":\"28.0.4\",\"Details\":{\"ApiVersion\":\"1.48\",\"Arch\":\"amd64\",\"BuildTime\":\"Tue Mar 25 15:07:16 2025\",\"Experimental\":\"false\",\"GitCommit\":\"6430e49\",\"GoVersion\":\"go1.23.7\",\"KernelVersion\":\"7.0.0-1013-aws\",\"MinAPIVersion\":\"1.24\",\"Os\":\"linux\"}},{\"Name\":\"containerd\",\"Version\":\"1.7.26\",\"Details\":{\"GitCommit\":\"753481ec61c7c8955a23d6ff7bc8e4daed455734\"}},{\"Name\":\"runc\",\"Version\":\"1.2.5\",\"Details\":{\"GitCommit\":\"v1.2.5-0-g59923ef\"}},{\"Name\":\"docker-init\",\"Version\":\"0.19.0\",\"Details\":{\"GitCommit\":\"de40ad0\"}}],\"Version\":\"28.0.4\",\"ApiVersion\":\"1.48\",\"MinAPIVersion\":\"1.24\",\"GitCommit\":\"6430e49\",\"GoVersion\":\"go1.23.7\",\"Os\":\"linux\",\"Arch\":\"amd64\",\"KernelVersion\":\"7.0.0-1013-aws\",\"BuildTime\":\"2025-03-25T15:07:16.000000000+00:00\"}}"
+    },
+    "immutable_image": {
+      "config_digest": "sha256:56a573cef7be1ad5062fddfba43d2eee104cf97322db0ccdf219cb0f1c68a52d",
+      "image": "runtimeverificationinc/kontrol@sha256:858f004144d61b005997f56bb8b7cd15673850286c96e0e5ec0502d9c9a9e204",
+      "platform": "linux/amd64",
+      "tag": "runtimeverificationinc/kontrol:ubuntu-jammy-1.0.255",
+      "version": "1.0.255"
+    },
+    "native_run_id": "36fd9282c63949b8bf7b3efc655b914c",
+    "original_sha256": {
+      "circle": {
+        "config.json": "6942754c463eda2de327f5a4d48d88365b6dd25e25adc0cb7b454c87d23df350",
+        "config.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "config.stage.json": "a6001ec9d048ef08b0df0f321dcc78ebe2ae58c580648f0195add546b2a135c2",
+        "coverage.json": "d9775c3246709b6f2ca693fbf0939ca1039f9bf93ad5daee8a082dbbc56bb08d",
+        "final-compiler/files.json": "9441e34cd1841bca0f9e33588a84416df8e5f9842ded380f0be8fd6508eb354b",
+        "final-compiler/files.tar.gz": "a42d8b422cba29af2e06e4163bc3294465d4f9c7c0633dd0db2e507d89d44dcb",
+        "generated/packages/contracts-bedrock/test/kontrol/proofs/utils/DeploymentSummary.sol": "e9744f7436fbe8ccd6ec786516a1373d6def9ac3c0f84c2266a9ea4b63171d62",
+        "generated/packages/contracts-bedrock/test/kontrol/proofs/utils/DeploymentSummaryCode.sol": "9b008ab8a25a547ffcdaf58ce9193a748ad8b087da152b13b25b3d67e12ef4c5",
+        "generated/packages/contracts-bedrock/test/kontrol/proofs/utils/DeploymentSummaryFaultProofs.sol": "6ac066ce869f756bfd564fa2b0d651f77d2cb646b4529052b6b0bf7ecded4e8b",
+        "generated/packages/contracts-bedrock/test/kontrol/proofs/utils/DeploymentSummaryFaultProofsCode.sol": "ef4f20dcd706ccccd647189ce8b0245463cd492c786b10864a86ae38aed0a6ea",
+        "image/inputs.json": "183207824f9a1f95f08bcdb80f29a19ee9d297f9f71c09d48029ccd642a16fc9",
+        "image/inspect.json": "fd5d2851d2efb2f80e02ef5fc55e96ef18d6084fa3267f6475613229f7975e2b",
+        "image/metadata.json": "adfd5639488b61a52a1b65ea345f60a69f14cef3563fdf7e9c101ab56dfe8c78",
+        "image/pull-attempts.json": "daef6a6b9b0b965fb07f44253c78bc797a7f028aa5435e986e90aba2f24729c7",
+        "image/pull.log": "75aeff881bd055a33e9b94c7042432bfaec828719cd4b89c845314c037777c35",
+        "initial-compiler/files.json": "6e257ca742f1db8c6eae8dde0580052567bb5f298526e862df89d685aaeac373",
+        "initial-compiler/files.tar.gz": "2d927ce78f96c1e6e21b52b28c44c870cb0708a27ed0d8ea7eadd06f0c761623",
+        "inputs-after.json": "2beaa448ec32b8acc6f2305f162643ee9f72d95ce4ad02da783b7544cca86a97",
+        "proofs-compiler/files.json": "9441e34cd1841bca0f9e33588a84416df8e5f9842ded380f0be8fd6508eb354b",
+        "proofs-compiler/files.tar.gz": "e502f445aa5ff01586f8302890bc152f2145b69858a5db5c82abdf1cb277bdb9",
+        "proofs.log": "1fb96aa680f47d5fc1fd96c21323ede4feb849c8f06f78eaac5b1098c44933a7",
+        "proofs.stage.json": "6a4d5e77773e50935b6764811b11f1f1ba0bac215451c5c54a576a6f0239a166",
+        "runtime-image.json": "3c64a49c43b5228a47fe8b97a24e1c8b40d4012a4c3445fe44e498f602e93ad8",
+        "runtime-outputs/packages/contracts-bedrock/deployments/.gitinclude": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "runtime-outputs/packages/contracts-bedrock/deployments/hardhat/.deploy": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "runtime-outputs/packages/contracts-bedrock/deployments/kontrol-fp.json": "014bd90ddd8d5c5a0181fe97b400449620707aaaa6a0066ea20ab3e05f0fecf0",
+        "runtime-outputs/packages/contracts-bedrock/deployments/kontrol-fp.jsonReversed": "289273c53fa8b25c18c9e2b23caf6b4b206f0cf219ec144f90f2ba3ef2062403",
+        "runtime-outputs/packages/contracts-bedrock/deployments/kontrol.json": "014bd90ddd8d5c5a0181fe97b400449620707aaaa6a0066ea20ab3e05f0fecf0",
+        "runtime-outputs/packages/contracts-bedrock/deployments/kontrol.jsonReversed": "289273c53fa8b25c18c9e2b23caf6b4b206f0cf219ec144f90f2ba3ef2062403",
+        "runtime-outputs/packages/contracts-bedrock/snapshots/state-diff/.gitkeep": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "runtime-outputs/packages/contracts-bedrock/snapshots/state-diff/Kontrol-31337.json": "682a9f475f41cb01dd95b4079488def56823b69ce357b2657cd18a659f4b34b9",
+        "runtime-outputs/packages/contracts-bedrock/test/kontrol/proofs/utils/DeploymentSummary.sol": "e9744f7436fbe8ccd6ec786516a1373d6def9ac3c0f84c2266a9ea4b63171d62",
+        "runtime-outputs/packages/contracts-bedrock/test/kontrol/proofs/utils/DeploymentSummaryCode.sol": "9b008ab8a25a547ffcdaf58ce9193a748ad8b087da152b13b25b3d67e12ef4c5",
+        "runtime-outputs/packages/contracts-bedrock/test/kontrol/proofs/utils/DeploymentSummaryFaultProofs.sol": "6ac066ce869f756bfd564fa2b0d651f77d2cb646b4529052b6b0bf7ecded4e8b",
+        "runtime-outputs/packages/contracts-bedrock/test/kontrol/proofs/utils/DeploymentSummaryFaultProofsCode.sol": "ef4f20dcd706ccccd647189ce8b0245463cd492c786b10864a86ae38aed0a6ea",
+        "runtime-outputs/packages/contracts-bedrock/test/kontrol/proofs/utils/KontrolUtils.sol": "7e8bd1e39a1dfc3ddedc2b1febc78bb57c14b5e27add1bd425e9501414b67b5b",
+        "selection.json": "62d72b317bd8998efe7cbf49703f4882801869ef75b1c62c5e0a8a2812f4f237",
+        "settings.json": "e6c240f697ee6c4ccd3bd1e827a87d77553a2598f36cb0fc67f2d2c6e1566a6c",
+        "source/mise.toml": "0b557a308b0cd91fd3db80af744520053106924fca7dad9ef682175930280e9a",
+        "source/ops/ci/kontrol-build.py": "3820d3409130d1f2525e1c584d96af41704d94927aedd9a259392c9328b58fb6",
+        "source/ops/ci/kontrol-image.json": "5ef0a5e7cd411b86f193d10098fbeb522d3ba252f7ef4e91262cd76a418fe136",
+        "source/ops/ci/kontrol-image.py": "4faf491ae05b37243a62c16cef6d55230b49d192ecbc3e28f472b7fdcab7b224",
+        "source/packages/contracts-bedrock/foundry.toml": "2ac93cbeb67120dd8555c3c4632420fb0f8c6eb1cb1291a097d2a258611239c2",
+        "source/packages/contracts-bedrock/justfile": "9e49f2e4835fba195bb9c199be95a152d27ce78643730fecb8a5a974916a3475",
+        "source/packages/contracts-bedrock/test/kontrol/proofs/L1CrossDomainMessenger.k.sol": "acdc132b1424e7ec3fe970d606071377ca5c131ecddd392ad72d1d687e2d21b5",
+        "source/packages/contracts-bedrock/test/kontrol/proofs/L1ERC721Bridge.k.sol": "5d8a97fd382929e66e735d0ab450486dd131d648f96d657a0ef549d021b53e01",
+        "source/packages/contracts-bedrock/test/kontrol/proofs/L1StandardBridge.k.sol": "456fcff1573bfa1c775ab4649a5714122d56cc4dd27704e71273b990276b1510",
+        "source/packages/contracts-bedrock/test/kontrol/proofs/OptimismPortal2.k.sol": "e063e6ebc3263ed9e173828c26743f868a17e58a99065f05ee39656002f4b917",
+        "source/packages/contracts-bedrock/test/kontrol/proofs/utils/DeploymentSummary.sol": "73e1ed1f3c8bd9e46bb348b774443458206b2399e4eac303e2a92ac987eeefc6",
+        "source/packages/contracts-bedrock/test/kontrol/proofs/utils/DeploymentSummaryCode.sol": "ffe7298024464a6a282ceb549db401cce4b36fe3342113250a6c674a3b4203ba",
+        "source/packages/contracts-bedrock/test/kontrol/proofs/utils/DeploymentSummaryFaultProofs.sol": "5ec8b19a00b47f15a2a8c8d632ab83933e19b0c2bbb04c905a2cda926e56038f",
+        "source/packages/contracts-bedrock/test/kontrol/proofs/utils/DeploymentSummaryFaultProofsCode.sol": "1215a561a2bffb5af62b532a2608c4048a22368e505f7ae1d237c16b4ef6a45e",
+        "source/packages/contracts-bedrock/test/kontrol/proofs/utils/KontrolUtils.sol": "7e8bd1e39a1dfc3ddedc2b1febc78bb57c14b5e27add1bd425e9501414b67b5b",
+        "source/packages/contracts-bedrock/test/kontrol/scripts/common.sh": "2c213f105508bf17d58f50094821de21e3128fddf8a19cfb27bec0459a014d77",
+        "source/packages/contracts-bedrock/test/kontrol/scripts/json/clean_json.py": "2e8ad697856f297ea0da23f9ca3ad383407545ce96889655790923f1e76a831c",
+        "source/packages/contracts-bedrock/test/kontrol/scripts/json/reverse_key_values.py": "858b2aafbba18a0cb395e283c76b46971eecac83535bc8d600728005c4bac537",
+        "source/packages/contracts-bedrock/test/kontrol/scripts/make-summary-deployment.sh": "5c1049880ff5ef181f7e2400377477a13cd106e49f9f95e3e8a5896d4cbbafe3",
+        "submodules.txt": "552140171f2fb64aabf505d38086680d44492c18a14cb5e6afb73034bfd75ab1",
+        "summaries-compiler/files.json": "1a7163ffc865a16b3c264eed4e80224819fb3b56911288e82b9d74c97ad248ad",
+        "summaries-compiler/files.tar.gz": "93b1900e746dc4bd4644003ab6618d4c8e9402e8a6b2e916ca9abd0befcbe022",
+        "summaries.log": "6a197bc0e370c32357b5b6818b66c7d88d0ee24be5f50fa61c5bd09238813dbd",
+        "summaries.stage.json": "121961a596fab3dbc0b9626a92c26ce681ab43339630dbdd69e92d1f7d2226af",
+        "variants/default/deployment/files/packages/contracts-bedrock/deployments/kontrol.json": "014bd90ddd8d5c5a0181fe97b400449620707aaaa6a0066ea20ab3e05f0fecf0",
+        "variants/default/deployment/files/packages/contracts-bedrock/snapshots/state-diff/Kontrol-31337.json": "97b7a0b2566bf9bab6f394b470dd1afa8b85da16e010165db584d8a001764050",
+        "variants/default/deployment/manifest.json": "97d7a6ef29ece86295476d296e850080bff1d0f3e426f3ac3abdaa804c3946bf",
+        "variants/default/generated/files/packages/contracts-bedrock/deployments/kontrol.json": "014bd90ddd8d5c5a0181fe97b400449620707aaaa6a0066ea20ab3e05f0fecf0",
+        "variants/default/generated/files/packages/contracts-bedrock/deployments/kontrol.jsonReversed": "289273c53fa8b25c18c9e2b23caf6b4b206f0cf219ec144f90f2ba3ef2062403",
+        "variants/default/generated/files/packages/contracts-bedrock/snapshots/state-diff/Kontrol-31337.json": "5770a4b40c333064009fa2f75bc7f25b567e8e53ababe4b781a48e71e20d84b9",
+        "variants/default/generated/files/packages/contracts-bedrock/test/kontrol/proofs/utils/DeploymentSummary.sol": "e9744f7436fbe8ccd6ec786516a1373d6def9ac3c0f84c2266a9ea4b63171d62",
+        "variants/default/generated/files/packages/contracts-bedrock/test/kontrol/proofs/utils/DeploymentSummaryCode.sol": "9b008ab8a25a547ffcdaf58ce9193a748ad8b087da152b13b25b3d67e12ef4c5",
+        "variants/default/generated/manifest.json": "b9676b95d0165be4287c9d7464b0eede4850be8deb65442a5aa41b75a58cfbb0",
+        "variants/default/load-inputs/files/packages/contracts-bedrock/deployments/kontrol.json": "014bd90ddd8d5c5a0181fe97b400449620707aaaa6a0066ea20ab3e05f0fecf0",
+        "variants/default/load-inputs/files/packages/contracts-bedrock/deployments/kontrol.jsonReversed": "289273c53fa8b25c18c9e2b23caf6b4b206f0cf219ec144f90f2ba3ef2062403",
+        "variants/default/load-inputs/files/packages/contracts-bedrock/snapshots/state-diff/Kontrol-31337.json": "5770a4b40c333064009fa2f75bc7f25b567e8e53ababe4b781a48e71e20d84b9",
+        "variants/default/load-inputs/manifest.json": "aaa0ac242a988b9a4b45a2c2fb5890ffd5db8664c9bb980e1be9212bd9bb159a",
+        "variants/fault-proofs/deployment/files/packages/contracts-bedrock/deployments/kontrol-fp.json": "014bd90ddd8d5c5a0181fe97b400449620707aaaa6a0066ea20ab3e05f0fecf0",
+        "variants/fault-proofs/deployment/files/packages/contracts-bedrock/snapshots/state-diff/Kontrol-31337.json": "52e63c2b04f3d70c4a746ae6e4292430673b3cdb854182654867ca5213014839",
+        "variants/fault-proofs/deployment/manifest.json": "43e07ba74ad30004d059fd6cbe5323b62119a8e9324172b0c2cc8e899feb380b",
+        "variants/fault-proofs/generated/files/packages/contracts-bedrock/deployments/kontrol-fp.json": "014bd90ddd8d5c5a0181fe97b400449620707aaaa6a0066ea20ab3e05f0fecf0",
+        "variants/fault-proofs/generated/files/packages/contracts-bedrock/deployments/kontrol-fp.jsonReversed": "289273c53fa8b25c18c9e2b23caf6b4b206f0cf219ec144f90f2ba3ef2062403",
+        "variants/fault-proofs/generated/files/packages/contracts-bedrock/snapshots/state-diff/Kontrol-31337.json": "682a9f475f41cb01dd95b4079488def56823b69ce357b2657cd18a659f4b34b9",
+        "variants/fault-proofs/generated/files/packages/contracts-bedrock/test/kontrol/proofs/utils/DeploymentSummaryFaultProofs.sol": "6ac066ce869f756bfd564fa2b0d651f77d2cb646b4529052b6b0bf7ecded4e8b",
+        "variants/fault-proofs/generated/files/packages/contracts-bedrock/test/kontrol/proofs/utils/DeploymentSummaryFaultProofsCode.sol": "ef4f20dcd706ccccd647189ce8b0245463cd492c786b10864a86ae38aed0a6ea",
+        "variants/fault-proofs/generated/manifest.json": "97709944a988a9e74eba86eb2691bfc90a4f35eb852970d95f2e234667c6032d",
+        "variants/fault-proofs/load-inputs/files/packages/contracts-bedrock/deployments/kontrol-fp.json": "014bd90ddd8d5c5a0181fe97b400449620707aaaa6a0066ea20ab3e05f0fecf0",
+        "variants/fault-proofs/load-inputs/files/packages/contracts-bedrock/deployments/kontrol-fp.jsonReversed": "289273c53fa8b25c18c9e2b23caf6b4b206f0cf219ec144f90f2ba3ef2062403",
+        "variants/fault-proofs/load-inputs/files/packages/contracts-bedrock/snapshots/state-diff/Kontrol-31337.json": "682a9f475f41cb01dd95b4079488def56823b69ce357b2657cd18a659f4b34b9",
+        "variants/fault-proofs/load-inputs/manifest.json": "3602ce2afe212330aad21869c7afdc20c97dd0132cc25efb344bd8976a5e8735"
+      },
+      "rwx": {
+        "config.json": "6942754c463eda2de327f5a4d48d88365b6dd25e25adc0cb7b454c87d23df350",
+        "config.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "config.stage.json": "ba669938746838397e1c2974fabd490d756980135dfbcf0a210c23bfc7950ab9",
+        "coverage.json": "d9775c3246709b6f2ca693fbf0939ca1039f9bf93ad5daee8a082dbbc56bb08d",
+        "dependencies/contracts-kontrol/files.tar.gz": "cf7cba271113a34d05eebd10dc2f8ec0e39ff336d744c45fcaeaf025e6fdafe0",
+        "dependencies/contracts-kontrol/metadata.json": "3ca06bbcd3a79eddd5a16779f29208dc5d91ff946dd9d281e5edf35c80634049",
+        "dependencies/contracts-kontrol/preparation/cache.json": "a6302e76efeffbc4341ceaa463a42832ab5fe7dc81e2ff4f5826db468bb1f4f8",
+        "dependencies/contracts-kontrol/preparation/ci-build.log": "1a96c3119272bcff6249f1f725a42cb8fa94d467dec9382cc55c44badf44a464",
+        "dependencies/contracts-kontrol/preparation/ci-build.stage.json": "7cc18f4aa7c415fdf600ad084a2b63202808f644a652e34589c8a371304af716",
+        "dependencies/contracts-kontrol/preparation/copy-artifacts.log": "68117387d75e77a3985e15c470c51a8288e5c50c982e7276c09ee8dea280a20b",
+        "dependencies/contracts-kontrol/preparation/copy-artifacts.stage.json": "904f9816b137432d285eaf9ac05bfaad6f0305502540671858a4bf6950c0981c",
+        "dependencies/contracts-kontrol/preparation/final.json": "83385d9aa318dcfdabfb7da1c88724988c55fd8d7bd7288de84a0d39a0c43950",
+        "dependencies/contracts-kontrol/preparation/inputs-after.json": "f65681c80b72f8283274684ee85b51cc2d114956df1770641752fe5589645267",
+        "dependencies/contracts-kontrol/preparation/legacy-graph.log": "f7ae4e5c8c8d3f08993a73f2ced38be0c4ae4d64b53bf6f20eaa54f18f4e8443",
+        "dependencies/contracts-kontrol/preparation/legacy-graph.stage.json": "9cac46c67aead2fcb67fca2c6fd07da673dedce3bc11b29cefd2c34b3d4f1db9",
+        "dependencies/contracts-kontrol/preparation/settings.json": "df2bf0d6a8cc1636ee925f7fd382ec5331c1cbcf32267beb4de79bae01815319",
+        "final-compiler/files.json": "989ec130cf4258c8876068d31c331c8155ba23eb0a92647c3b04c97a238c993c",
+        "final-compiler/files.tar.gz": "aa79331da0bc919f6de14e1c739246154a52641cb7efaacb5575d11c1e9bd332",
+        "generated/packages/contracts-bedrock/test/kontrol/proofs/utils/DeploymentSummary.sol": "e9744f7436fbe8ccd6ec786516a1373d6def9ac3c0f84c2266a9ea4b63171d62",
+        "generated/packages/contracts-bedrock/test/kontrol/proofs/utils/DeploymentSummaryCode.sol": "9b008ab8a25a547ffcdaf58ce9193a748ad8b087da152b13b25b3d67e12ef4c5",
+        "generated/packages/contracts-bedrock/test/kontrol/proofs/utils/DeploymentSummaryFaultProofs.sol": "6ac066ce869f756bfd564fa2b0d651f77d2cb646b4529052b6b0bf7ecded4e8b",
+        "generated/packages/contracts-bedrock/test/kontrol/proofs/utils/DeploymentSummaryFaultProofsCode.sol": "ef4f20dcd706ccccd647189ce8b0245463cd492c786b10864a86ae38aed0a6ea",
+        "image/inputs.json": "183207824f9a1f95f08bcdb80f29a19ee9d297f9f71c09d48029ccd642a16fc9",
+        "image/inspect.json": "fdeb826d6726129faa9142d56572dd69db310af2c03d36c872bd6b041d1612cd",
+        "image/metadata.json": "3b9a77d15c254465a09799b9dbef872cedf0dfa2a8127dd9811da923d94563b5",
+        "image/pull-attempts.json": "2c431941dca7883116241f96f8c8cd40ca798d40b974809fce2806545f171c2d",
+        "image/pull.log": "6ea5487c5f7ef63c748096f6dad55fefd8a4a51818e376824249a7fa7df333fe",
+        "initial-compiler/files.json": "14883f1d3a71632ebb4772fd58bc955bc39c844aa102be1bad42ff0adcd2a711",
+        "initial-compiler/files.tar.gz": "ef86dd0fd5b57232c83fffbfcd28d668969a7e1fee0e7643b64e3fae23bd6db3",
+        "inputs-after.json": "2beaa448ec32b8acc6f2305f162643ee9f72d95ce4ad02da783b7544cca86a97",
+        "proofs-compiler/files.json": "989ec130cf4258c8876068d31c331c8155ba23eb0a92647c3b04c97a238c993c",
+        "proofs-compiler/files.tar.gz": "71eb019b31f2001b151b9e1877e662587a007938758625d26252cd673a2c9cd0",
+        "proofs.log": "3e24de3521a485413622f2f0c6467f7e8f65cfccee5fa77c0a3b01760b6c828d",
+        "proofs.stage.json": "b45359f3e14e1b1d79b18f7e5af0a8a55ccca7527ee50a037f3c45906aa972a2",
+        "runtime-image.json": "2da0ea2ff1f0c5c906d42f28557ef91763bf1013ed6e908c6f2af4b524f90be4",
+        "runtime-outputs/packages/contracts-bedrock/deployments/.gitinclude": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "runtime-outputs/packages/contracts-bedrock/deployments/hardhat/.deploy": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "runtime-outputs/packages/contracts-bedrock/deployments/kontrol-fp.json": "014bd90ddd8d5c5a0181fe97b400449620707aaaa6a0066ea20ab3e05f0fecf0",
+        "runtime-outputs/packages/contracts-bedrock/deployments/kontrol-fp.jsonReversed": "289273c53fa8b25c18c9e2b23caf6b4b206f0cf219ec144f90f2ba3ef2062403",
+        "runtime-outputs/packages/contracts-bedrock/deployments/kontrol.json": "014bd90ddd8d5c5a0181fe97b400449620707aaaa6a0066ea20ab3e05f0fecf0",
+        "runtime-outputs/packages/contracts-bedrock/deployments/kontrol.jsonReversed": "289273c53fa8b25c18c9e2b23caf6b4b206f0cf219ec144f90f2ba3ef2062403",
+        "runtime-outputs/packages/contracts-bedrock/snapshots/state-diff/.gitkeep": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "runtime-outputs/packages/contracts-bedrock/snapshots/state-diff/Kontrol-31337.json": "682a9f475f41cb01dd95b4079488def56823b69ce357b2657cd18a659f4b34b9",
+        "runtime-outputs/packages/contracts-bedrock/test/kontrol/proofs/utils/DeploymentSummary.sol": "e9744f7436fbe8ccd6ec786516a1373d6def9ac3c0f84c2266a9ea4b63171d62",
+        "runtime-outputs/packages/contracts-bedrock/test/kontrol/proofs/utils/DeploymentSummaryCode.sol": "9b008ab8a25a547ffcdaf58ce9193a748ad8b087da152b13b25b3d67e12ef4c5",
+        "runtime-outputs/packages/contracts-bedrock/test/kontrol/proofs/utils/DeploymentSummaryFaultProofs.sol": "6ac066ce869f756bfd564fa2b0d651f77d2cb646b4529052b6b0bf7ecded4e8b",
+        "runtime-outputs/packages/contracts-bedrock/test/kontrol/proofs/utils/DeploymentSummaryFaultProofsCode.sol": "ef4f20dcd706ccccd647189ce8b0245463cd492c786b10864a86ae38aed0a6ea",
+        "runtime-outputs/packages/contracts-bedrock/test/kontrol/proofs/utils/KontrolUtils.sol": "7e8bd1e39a1dfc3ddedc2b1febc78bb57c14b5e27add1bd425e9501414b67b5b",
+        "selection.json": "62d72b317bd8998efe7cbf49703f4882801869ef75b1c62c5e0a8a2812f4f237",
+        "settings.json": "f4cfb639cffc3facd9dc291f05a6dd17b4fad3b482ef63ec98010a127f6e76dc",
+        "source/mise.toml": "0b557a308b0cd91fd3db80af744520053106924fca7dad9ef682175930280e9a",
+        "source/ops/ci/kontrol-build.py": "3820d3409130d1f2525e1c584d96af41704d94927aedd9a259392c9328b58fb6",
+        "source/ops/ci/kontrol-image.json": "5ef0a5e7cd411b86f193d10098fbeb522d3ba252f7ef4e91262cd76a418fe136",
+        "source/ops/ci/kontrol-image.py": "4faf491ae05b37243a62c16cef6d55230b49d192ecbc3e28f472b7fdcab7b224",
+        "source/packages/contracts-bedrock/foundry.toml": "2ac93cbeb67120dd8555c3c4632420fb0f8c6eb1cb1291a097d2a258611239c2",
+        "source/packages/contracts-bedrock/justfile": "9e49f2e4835fba195bb9c199be95a152d27ce78643730fecb8a5a974916a3475",
+        "source/packages/contracts-bedrock/test/kontrol/proofs/L1CrossDomainMessenger.k.sol": "acdc132b1424e7ec3fe970d606071377ca5c131ecddd392ad72d1d687e2d21b5",
+        "source/packages/contracts-bedrock/test/kontrol/proofs/L1ERC721Bridge.k.sol": "5d8a97fd382929e66e735d0ab450486dd131d648f96d657a0ef549d021b53e01",
+        "source/packages/contracts-bedrock/test/kontrol/proofs/L1StandardBridge.k.sol": "456fcff1573bfa1c775ab4649a5714122d56cc4dd27704e71273b990276b1510",
+        "source/packages/contracts-bedrock/test/kontrol/proofs/OptimismPortal2.k.sol": "e063e6ebc3263ed9e173828c26743f868a17e58a99065f05ee39656002f4b917",
+        "source/packages/contracts-bedrock/test/kontrol/proofs/utils/DeploymentSummary.sol": "73e1ed1f3c8bd9e46bb348b774443458206b2399e4eac303e2a92ac987eeefc6",
+        "source/packages/contracts-bedrock/test/kontrol/proofs/utils/DeploymentSummaryCode.sol": "ffe7298024464a6a282ceb549db401cce4b36fe3342113250a6c674a3b4203ba",
+        "source/packages/contracts-bedrock/test/kontrol/proofs/utils/DeploymentSummaryFaultProofs.sol": "5ec8b19a00b47f15a2a8c8d632ab83933e19b0c2bbb04c905a2cda926e56038f",
+        "source/packages/contracts-bedrock/test/kontrol/proofs/utils/DeploymentSummaryFaultProofsCode.sol": "1215a561a2bffb5af62b532a2608c4048a22368e505f7ae1d237c16b4ef6a45e",
+        "source/packages/contracts-bedrock/test/kontrol/proofs/utils/KontrolUtils.sol": "7e8bd1e39a1dfc3ddedc2b1febc78bb57c14b5e27add1bd425e9501414b67b5b",
+        "source/packages/contracts-bedrock/test/kontrol/scripts/common.sh": "2c213f105508bf17d58f50094821de21e3128fddf8a19cfb27bec0459a014d77",
+        "source/packages/contracts-bedrock/test/kontrol/scripts/json/clean_json.py": "2e8ad697856f297ea0da23f9ca3ad383407545ce96889655790923f1e76a831c",
+        "source/packages/contracts-bedrock/test/kontrol/scripts/json/reverse_key_values.py": "858b2aafbba18a0cb395e283c76b46971eecac83535bc8d600728005c4bac537",
+        "source/packages/contracts-bedrock/test/kontrol/scripts/make-summary-deployment.sh": "5c1049880ff5ef181f7e2400377477a13cd106e49f9f95e3e8a5896d4cbbafe3",
+        "submodules.txt": "c0ac39468ad46aa0d1fb027dd91df079b2e1b0be168745116156e1a26bc60463",
+        "summaries-compiler/files.json": "e900b7a3de9b8a60e723942544fa595c6321e0708ebc0b2fec5744fec6d6e0d0",
+        "summaries-compiler/files.tar.gz": "9fee0a5b3cb5694bd83228873717e58634256f6fa4a221a79755157a9b8ffe16",
+        "summaries.log": "bdbd23f1a8e32a931b40526c2e83c56b540c3e2169eb3057239c2128dfbb0f2c",
+        "summaries.stage.json": "cc24cd95d5446b35566910d37e5dd5e255a280902a1a95d2cde4e8070869a363",
+        "variants/default/deployment/files/packages/contracts-bedrock/deployments/kontrol.json": "014bd90ddd8d5c5a0181fe97b400449620707aaaa6a0066ea20ab3e05f0fecf0",
+        "variants/default/deployment/files/packages/contracts-bedrock/snapshots/state-diff/Kontrol-31337.json": "97b7a0b2566bf9bab6f394b470dd1afa8b85da16e010165db584d8a001764050",
+        "variants/default/deployment/manifest.json": "97d7a6ef29ece86295476d296e850080bff1d0f3e426f3ac3abdaa804c3946bf",
+        "variants/default/generated/files/packages/contracts-bedrock/deployments/kontrol.json": "014bd90ddd8d5c5a0181fe97b400449620707aaaa6a0066ea20ab3e05f0fecf0",
+        "variants/default/generated/files/packages/contracts-bedrock/deployments/kontrol.jsonReversed": "289273c53fa8b25c18c9e2b23caf6b4b206f0cf219ec144f90f2ba3ef2062403",
+        "variants/default/generated/files/packages/contracts-bedrock/snapshots/state-diff/Kontrol-31337.json": "5770a4b40c333064009fa2f75bc7f25b567e8e53ababe4b781a48e71e20d84b9",
+        "variants/default/generated/files/packages/contracts-bedrock/test/kontrol/proofs/utils/DeploymentSummary.sol": "e9744f7436fbe8ccd6ec786516a1373d6def9ac3c0f84c2266a9ea4b63171d62",
+        "variants/default/generated/files/packages/contracts-bedrock/test/kontrol/proofs/utils/DeploymentSummaryCode.sol": "9b008ab8a25a547ffcdaf58ce9193a748ad8b087da152b13b25b3d67e12ef4c5",
+        "variants/default/generated/manifest.json": "b9676b95d0165be4287c9d7464b0eede4850be8deb65442a5aa41b75a58cfbb0",
+        "variants/default/load-inputs/files/packages/contracts-bedrock/deployments/kontrol.json": "014bd90ddd8d5c5a0181fe97b400449620707aaaa6a0066ea20ab3e05f0fecf0",
+        "variants/default/load-inputs/files/packages/contracts-bedrock/deployments/kontrol.jsonReversed": "289273c53fa8b25c18c9e2b23caf6b4b206f0cf219ec144f90f2ba3ef2062403",
+        "variants/default/load-inputs/files/packages/contracts-bedrock/snapshots/state-diff/Kontrol-31337.json": "5770a4b40c333064009fa2f75bc7f25b567e8e53ababe4b781a48e71e20d84b9",
+        "variants/default/load-inputs/manifest.json": "aaa0ac242a988b9a4b45a2c2fb5890ffd5db8664c9bb980e1be9212bd9bb159a",
+        "variants/fault-proofs/deployment/files/packages/contracts-bedrock/deployments/kontrol-fp.json": "014bd90ddd8d5c5a0181fe97b400449620707aaaa6a0066ea20ab3e05f0fecf0",
+        "variants/fault-proofs/deployment/files/packages/contracts-bedrock/snapshots/state-diff/Kontrol-31337.json": "52e63c2b04f3d70c4a746ae6e4292430673b3cdb854182654867ca5213014839",
+        "variants/fault-proofs/deployment/manifest.json": "43e07ba74ad30004d059fd6cbe5323b62119a8e9324172b0c2cc8e899feb380b",
+        "variants/fault-proofs/generated/files/packages/contracts-bedrock/deployments/kontrol-fp.json": "014bd90ddd8d5c5a0181fe97b400449620707aaaa6a0066ea20ab3e05f0fecf0",
+        "variants/fault-proofs/generated/files/packages/contracts-bedrock/deployments/kontrol-fp.jsonReversed": "289273c53fa8b25c18c9e2b23caf6b4b206f0cf219ec144f90f2ba3ef2062403",
+        "variants/fault-proofs/generated/files/packages/contracts-bedrock/snapshots/state-diff/Kontrol-31337.json": "682a9f475f41cb01dd95b4079488def56823b69ce357b2657cd18a659f4b34b9",
+        "variants/fault-proofs/generated/files/packages/contracts-bedrock/test/kontrol/proofs/utils/DeploymentSummaryFaultProofs.sol": "6ac066ce869f756bfd564fa2b0d651f77d2cb646b4529052b6b0bf7ecded4e8b",
+        "variants/fault-proofs/generated/files/packages/contracts-bedrock/test/kontrol/proofs/utils/DeploymentSummaryFaultProofsCode.sol": "ef4f20dcd706ccccd647189ce8b0245463cd492c786b10864a86ae38aed0a6ea",
+        "variants/fault-proofs/generated/manifest.json": "97709944a988a9e74eba86eb2691bfc90a4f35eb852970d95f2e234667c6032d",
+        "variants/fault-proofs/load-inputs/files/packages/contracts-bedrock/deployments/kontrol-fp.json": "014bd90ddd8d5c5a0181fe97b400449620707aaaa6a0066ea20ab3e05f0fecf0",
+        "variants/fault-proofs/load-inputs/files/packages/contracts-bedrock/deployments/kontrol-fp.jsonReversed": "289273c53fa8b25c18c9e2b23caf6b4b206f0cf219ec144f90f2ba3ef2062403",
+        "variants/fault-proofs/load-inputs/files/packages/contracts-bedrock/snapshots/state-diff/Kontrol-31337.json": "682a9f475f41cb01dd95b4079488def56823b69ce357b2657cd18a659f4b34b9",
+        "variants/fault-proofs/load-inputs/manifest.json": "3602ce2afe212330aad21869c7afdc20c97dd0132cc25efb344bd8976a5e8735"
+      }
+    },
+    "selection": {
+      "authority": "just kontrol-summary-full; just forge-build ./test/kontrol/proofs",
+      "generated": {
+        "default": [
+          "packages/contracts-bedrock/test/kontrol/proofs/utils/DeploymentSummary.sol",
+          "packages/contracts-bedrock/test/kontrol/proofs/utils/DeploymentSummaryCode.sol"
+        ],
+        "fault-proofs": [
+          "packages/contracts-bedrock/test/kontrol/proofs/utils/DeploymentSummaryFaultProofs.sol",
+          "packages/contracts-bedrock/test/kontrol/proofs/utils/DeploymentSummaryFaultProofsCode.sol"
+        ]
+      },
+      "proof_sources": {
+        "packages/contracts-bedrock/test/kontrol/proofs/L1CrossDomainMessenger.k.sol": "acdc132b1424e7ec3fe970d606071377ca5c131ecddd392ad72d1d687e2d21b5",
+        "packages/contracts-bedrock/test/kontrol/proofs/L1ERC721Bridge.k.sol": "5d8a97fd382929e66e735d0ab450486dd131d648f96d657a0ef549d021b53e01",
+        "packages/contracts-bedrock/test/kontrol/proofs/L1StandardBridge.k.sol": "456fcff1573bfa1c775ab4649a5714122d56cc4dd27704e71273b990276b1510",
+        "packages/contracts-bedrock/test/kontrol/proofs/OptimismPortal2.k.sol": "e063e6ebc3263ed9e173828c26743f868a17e58a99065f05ee39656002f4b917",
+        "packages/contracts-bedrock/test/kontrol/proofs/utils/DeploymentSummary.sol": "73e1ed1f3c8bd9e46bb348b774443458206b2399e4eac303e2a92ac987eeefc6",
+        "packages/contracts-bedrock/test/kontrol/proofs/utils/DeploymentSummaryCode.sol": "ffe7298024464a6a282ceb549db401cce4b36fe3342113250a6c674a3b4203ba",
+        "packages/contracts-bedrock/test/kontrol/proofs/utils/DeploymentSummaryFaultProofs.sol": "5ec8b19a00b47f15a2a8c8d632ab83933e19b0c2bbb04c905a2cda926e56038f",
+        "packages/contracts-bedrock/test/kontrol/proofs/utils/DeploymentSummaryFaultProofsCode.sol": "1215a561a2bffb5af62b532a2608c4048a22368e505f7ae1d237c16b4ef6a45e",
+        "packages/contracts-bedrock/test/kontrol/proofs/utils/KontrolUtils.sol": "7e8bd1e39a1dfc3ddedc2b1febc78bb57c14b5e27add1bd425e9501414b67b5b"
+      },
+      "tests": 0,
+      "variants": [
+        "default",
+        "fault-proofs"
+      ]
+    },
+    "source_sha": "c6b294069888978775a3693a9a6ee35de37942f0",
+    "verified_parity": true
+  },
+  "native": {
+    "check_task": "2039681f1d0b28260c7d0f04f7e03141",
+    "helper_task": "fa0319826f416a82f00262ac0998c724",
+    "run_id": "36fd9282c63949b8bf7b3efc655b914c",
+    "status": "succeeded",
+    "url": "https://cloud.rwx.com/optimism/runs/36fd9282c63949b8bf7b3efc655b914c"
+  },
+  "policy": {
+    "all_four_compiler_phases": true,
+    "all_original_commands": true,
+    "circle_required_gate_owner": true,
+    "production_publish": false,
+    "tests": 0
+  },
+  "regression_fixtures": {
+    "count": 6,
+    "coverage_added": 0,
+    "duration_seconds": 238.715,
+    "original_sha256": {
+      "helper-fixtures/complete-circle/config.json": "68415afad7b4b2a7f6845a5bad23d9fd0cae41b09df288933b604030b8019c4a",
+      "helper-fixtures/complete-circle/config.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "helper-fixtures/complete-circle/config.stage.json": "5e3933ec83974abd34ed6ae8090cccf02f47a8f1289ce80885c3d06575d7ea07",
+      "helper-fixtures/complete-circle/coverage.json": "54ccf916102a1eedf1ca1fc5cd3928d8da1bf9f0d067889bf378d694f3ecb2a4",
+      "helper-fixtures/complete-circle/final-compiler/files.json": "48f0f5349aa3d5554f6c6a2d0af5166aacee5ca518f0f1ee2b8e1286640c423c",
+      "helper-fixtures/complete-circle/final-compiler/files.tar.gz": "ce00f004b898249aa9fcebbdf43c336684d03437d0211575221e5483e2f178d5",
+      "helper-fixtures/complete-circle/final.json": "e220487f5c19d6bb5404c60ef56ce2a5aa0c34fe658aaf2bfd5e24aba3938487",
+      "helper-fixtures/complete-circle/generated/packages/contracts-bedrock/test/kontrol/proofs/utils/DeploymentSummary.sol": "0e60c0114ea854820fa29c0465cb506abfcbad70e098f6cf0fd6e59d5a66b422",
+      "helper-fixtures/complete-circle/generated/packages/contracts-bedrock/test/kontrol/proofs/utils/DeploymentSummaryCode.sol": "93ce9ec954d25264c93061443e91ef681326499194318b518fc79c2b1c3681d4",
+      "helper-fixtures/complete-circle/generated/packages/contracts-bedrock/test/kontrol/proofs/utils/DeploymentSummaryFaultProofs.sol": "3c54e9d3103a71ec30816be2b745a7fb12895237502e3b5d56ce6b4676613c82",
+      "helper-fixtures/complete-circle/generated/packages/contracts-bedrock/test/kontrol/proofs/utils/DeploymentSummaryFaultProofsCode.sol": "eeabaef054238b725386438ae7002bf76dc45f86d2589da54dcf28ec972f37ea",
+      "helper-fixtures/complete-circle/image/inputs.json": "183207824f9a1f95f08bcdb80f29a19ee9d297f9f71c09d48029ccd642a16fc9",
+      "helper-fixtures/complete-circle/image/inspect.json": "f599b577ad210e0ab40cc11e6c5083bfa7f77ed567ed4bb6394db90a65a23212",
+      "helper-fixtures/complete-circle/image/metadata.json": "7f581c47e2baad6d81950fbb1856da7243090b9a08ea984e3a18864ee68d350d",
+      "helper-fixtures/complete-circle/image/pull-attempts.json": "c12310921119eba39dfa90c8fd27c268c26114344f1c299c612e9e525c0d2892",
+      "helper-fixtures/complete-circle/image/pull.log": "1871c75b9513bb183a6176e0f4d257bdef86c6746317b56bdaf27c12cc5ed9f6",
+      "helper-fixtures/complete-circle/initial-compiler/files.json": "1a84041efe05b9a323438aecab69f3dcacf90cdf19131d5d27df4460102a751c",
+      "helper-fixtures/complete-circle/initial-compiler/files.tar.gz": "188e33e50900fa293efdfe0a6d0d8de31019bba1874093cd38bd6690cb6a8ba2",
+      "helper-fixtures/complete-circle/inputs-after.json": "c04b8bd37b8f29b3c7df3bd3e2ff03e3f18b0ff7cc36320592f5aa4f09ef05ec",
+      "helper-fixtures/complete-circle/proofs-compiler/files.json": "48f0f5349aa3d5554f6c6a2d0af5166aacee5ca518f0f1ee2b8e1286640c423c",
+      "helper-fixtures/complete-circle/proofs-compiler/files.tar.gz": "2d560fc0867e176e9848f51c0a7c9f64c1be1ee3d80cfc1d410fb4870260bd54",
+      "helper-fixtures/complete-circle/proofs.log": "e072affa313f889bb2d212754a7ee1d2772fc393176f1efe75d17e935466c5be",
+      "helper-fixtures/complete-circle/proofs.stage.json": "242afd178ea4d4c601d609edbb1ccfe2ff3f02c3e8b975ed31d116596cd764f9",
+      "helper-fixtures/complete-circle/runtime-image.json": "c920cffecdda5cd4c7d0554033d4c8f4f75b3e4f3938e14c0cd1c95c5a4c9436",
+      "helper-fixtures/complete-circle/runtime-outputs/packages/contracts-bedrock/deployments/hardhat/.deploy": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "helper-fixtures/complete-circle/runtime-outputs/packages/contracts-bedrock/deployments/kontrol-fp.json": "2d0a6832216cb150e242a326c156acaf08832b50b195770918db4c7b7aee2f86",
+      "helper-fixtures/complete-circle/runtime-outputs/packages/contracts-bedrock/deployments/kontrol-fp.jsonReversed": "c8523855e64c7a8876aca82b5574fe251a0ea066da6d7d755eabf2f711749803",
+      "helper-fixtures/complete-circle/runtime-outputs/packages/contracts-bedrock/deployments/kontrol.json": "2d0a6832216cb150e242a326c156acaf08832b50b195770918db4c7b7aee2f86",
+      "helper-fixtures/complete-circle/runtime-outputs/packages/contracts-bedrock/deployments/kontrol.jsonReversed": "c8523855e64c7a8876aca82b5574fe251a0ea066da6d7d755eabf2f711749803",
+      "helper-fixtures/complete-circle/runtime-outputs/packages/contracts-bedrock/snapshots/state-diff/Kontrol-31337.json": "a2dc3e6ee9052b410a6354e6575cca959ab9b59936b48b3f3f1fbe0799a62b53",
+      "helper-fixtures/complete-circle/runtime-outputs/packages/contracts-bedrock/test/kontrol/proofs/utils/DeploymentSummary.sol": "0e60c0114ea854820fa29c0465cb506abfcbad70e098f6cf0fd6e59d5a66b422",
+      "helper-fixtures/complete-circle/runtime-outputs/packages/contracts-bedrock/test/kontrol/proofs/utils/DeploymentSummaryCode.sol": "93ce9ec954d25264c93061443e91ef681326499194318b518fc79c2b1c3681d4",
+      "helper-fixtures/complete-circle/runtime-outputs/packages/contracts-bedrock/test/kontrol/proofs/utils/DeploymentSummaryFaultProofs.sol": "3c54e9d3103a71ec30816be2b745a7fb12895237502e3b5d56ce6b4676613c82",
+      "helper-fixtures/complete-circle/runtime-outputs/packages/contracts-bedrock/test/kontrol/proofs/utils/DeploymentSummaryFaultProofsCode.sol": "eeabaef054238b725386438ae7002bf76dc45f86d2589da54dcf28ec972f37ea",
+      "helper-fixtures/complete-circle/selection.json": "58a024031347ae83d561a508523dfddc560efabaa4b99cd0b8241d8b6ec35196",
+      "helper-fixtures/complete-circle/settings.json": "cef9ab1a5f07da42a619aa3a4d91c54f9190860353de274e5c7014bf00f8e26f",
+      "helper-fixtures/complete-circle/source/mise.toml": "0b557a308b0cd91fd3db80af744520053106924fca7dad9ef682175930280e9a",
+      "helper-fixtures/complete-circle/source/ops/ci/kontrol-build.py": "3820d3409130d1f2525e1c584d96af41704d94927aedd9a259392c9328b58fb6",
+      "helper-fixtures/complete-circle/source/ops/ci/kontrol-image.json": "5ef0a5e7cd411b86f193d10098fbeb522d3ba252f7ef4e91262cd76a418fe136",
+      "helper-fixtures/complete-circle/source/ops/ci/kontrol-image.py": "4faf491ae05b37243a62c16cef6d55230b49d192ecbc3e28f472b7fdcab7b224",
+      "helper-fixtures/complete-circle/source/packages/contracts-bedrock/foundry.toml": "f9b9c5365fc0a4529f6cd0d1dc876490aafc476fcf4de48e8ba4269894ad8776",
+      "helper-fixtures/complete-circle/source/packages/contracts-bedrock/justfile": "74f04968b12a765b9ffc73c780a41d34d93bd1e05a4055d1497d88063477005f",
+      "helper-fixtures/complete-circle/source/packages/contracts-bedrock/test/kontrol/proofs/FutureProof.sol": "854ce720be2cff914d0dfa50903f5838cfbbda113fa12c417a5adce24d6c2098",
+      "helper-fixtures/complete-circle/source/packages/contracts-bedrock/test/kontrol/proofs/utils/DeploymentSummary.sol": "6e77c8e8a969f6824f55f16dead7e4521a38bc009889f5cee42239ea07a4c851",
+      "helper-fixtures/complete-circle/source/packages/contracts-bedrock/test/kontrol/proofs/utils/DeploymentSummaryCode.sol": "0022cabe600ac169e655b2c50926b54f098468d4d6d32387aa60fc6b7246015a",
+      "helper-fixtures/complete-circle/source/packages/contracts-bedrock/test/kontrol/proofs/utils/DeploymentSummaryFaultProofs.sol": "3ddc323a450860795194f6b5a7ae2769eab56fdf245345212443ab1a41cae026",
+      "helper-fixtures/complete-circle/source/packages/contracts-bedrock/test/kontrol/proofs/utils/DeploymentSummaryFaultProofsCode.sol": "a8c0d3f5f824f70cdd7a35d269a82381e059a533acadac24a96f53400a197f0c",
+      "helper-fixtures/complete-circle/source/packages/contracts-bedrock/test/kontrol/scripts/common.sh": "2c213f105508bf17d58f50094821de21e3128fddf8a19cfb27bec0459a014d77",
+      "helper-fixtures/complete-circle/source/packages/contracts-bedrock/test/kontrol/scripts/json/clean_json.py": "2e8ad697856f297ea0da23f9ca3ad383407545ce96889655790923f1e76a831c",
+      "helper-fixtures/complete-circle/source/packages/contracts-bedrock/test/kontrol/scripts/json/reverse_key_values.py": "858b2aafbba18a0cb395e283c76b46971eecac83535bc8d600728005c4bac537",
+      "helper-fixtures/complete-circle/source/packages/contracts-bedrock/test/kontrol/scripts/make-summary-deployment.sh": "5c1049880ff5ef181f7e2400377477a13cd106e49f9f95e3e8a5896d4cbbafe3",
+      "helper-fixtures/complete-circle/submodules.txt": "38b181fad644fa2469195652c30d836ebdbdd5e5ac038d2576518cb4db403552",
+      "helper-fixtures/complete-circle/summaries-compiler/files.json": "55aaeea896f78c45ca88509bf0a50b8df539b8726455ad6b4b7ae4c9d92ef8e0",
+      "helper-fixtures/complete-circle/summaries-compiler/files.tar.gz": "77669062bf866cc99dc7bee8bb3815386ea2034716c65ef1cef0b6af0d191362",
+      "helper-fixtures/complete-circle/summaries.log": "b5bd128df61a60d17846b16a494c02d7434788d24cec49ef2a446f5ade5ddf83",
+      "helper-fixtures/complete-circle/summaries.stage.json": "770a112f61cd1341e096dfce29092adab2603791a3961d0e2388a09d332709a4",
+      "helper-fixtures/complete-circle/variants/default/deployment/files/packages/contracts-bedrock/deployments/kontrol.json": "2d0a6832216cb150e242a326c156acaf08832b50b195770918db4c7b7aee2f86",
+      "helper-fixtures/complete-circle/variants/default/deployment/files/packages/contracts-bedrock/snapshots/state-diff/Kontrol-31337.json": "b3a042745431dd6a4d83ce6f2ec4a16f859f93ca868199f9906e70db2b03a9d1",
+      "helper-fixtures/complete-circle/variants/default/deployment/manifest.json": "bb97c749869c7bbd5bb843e63b6e42d4543781d5a8dfc63720e2446cb7504eb6",
+      "helper-fixtures/complete-circle/variants/default/generated/files/packages/contracts-bedrock/deployments/kontrol.json": "2d0a6832216cb150e242a326c156acaf08832b50b195770918db4c7b7aee2f86",
+      "helper-fixtures/complete-circle/variants/default/generated/files/packages/contracts-bedrock/deployments/kontrol.jsonReversed": "c8523855e64c7a8876aca82b5574fe251a0ea066da6d7d755eabf2f711749803",
+      "helper-fixtures/complete-circle/variants/default/generated/files/packages/contracts-bedrock/snapshots/state-diff/Kontrol-31337.json": "3dd496a073a51d1bba7cf2d273a2ad618ba5939dd487fc83dfc3b36a44851243",
+      "helper-fixtures/complete-circle/variants/default/generated/files/packages/contracts-bedrock/test/kontrol/proofs/utils/DeploymentSummary.sol": "0e60c0114ea854820fa29c0465cb506abfcbad70e098f6cf0fd6e59d5a66b422",
+      "helper-fixtures/complete-circle/variants/default/generated/files/packages/contracts-bedrock/test/kontrol/proofs/utils/DeploymentSummaryCode.sol": "93ce9ec954d25264c93061443e91ef681326499194318b518fc79c2b1c3681d4",
+      "helper-fixtures/complete-circle/variants/default/generated/manifest.json": "f6ea419cbf4d6fecff127ca3ba6ac801e5112459d1e24ce34e1f10c50cab6ec5",
+      "helper-fixtures/complete-circle/variants/default/load-inputs/files/packages/contracts-bedrock/deployments/kontrol.json": "2d0a6832216cb150e242a326c156acaf08832b50b195770918db4c7b7aee2f86",
+      "helper-fixtures/complete-circle/variants/default/load-inputs/files/packages/contracts-bedrock/deployments/kontrol.jsonReversed": "c8523855e64c7a8876aca82b5574fe251a0ea066da6d7d755eabf2f711749803",
+      "helper-fixtures/complete-circle/variants/default/load-inputs/files/packages/contracts-bedrock/snapshots/state-diff/Kontrol-31337.json": "3dd496a073a51d1bba7cf2d273a2ad618ba5939dd487fc83dfc3b36a44851243",
+      "helper-fixtures/complete-circle/variants/default/load-inputs/manifest.json": "19eb3092bac3909f90c66da01f24840096ff1ed639ed867866473b9af65539f4",
+      "helper-fixtures/complete-circle/variants/fault-proofs/deployment/files/packages/contracts-bedrock/deployments/kontrol-fp.json": "2d0a6832216cb150e242a326c156acaf08832b50b195770918db4c7b7aee2f86",
+      "helper-fixtures/complete-circle/variants/fault-proofs/deployment/files/packages/contracts-bedrock/snapshots/state-diff/Kontrol-31337.json": "bb5c94f333935f71e937b9a62d3a400231117e1bd66eee36851a5376623ba794",
+      "helper-fixtures/complete-circle/variants/fault-proofs/deployment/manifest.json": "2698ca0132c97b382d9332b710bd2c48aefd7e900efd75789dc42666d4763316",
+      "helper-fixtures/complete-circle/variants/fault-proofs/generated/files/packages/contracts-bedrock/deployments/kontrol-fp.json": "2d0a6832216cb150e242a326c156acaf08832b50b195770918db4c7b7aee2f86",
+      "helper-fixtures/complete-circle/variants/fault-proofs/generated/files/packages/contracts-bedrock/deployments/kontrol-fp.jsonReversed": "c8523855e64c7a8876aca82b5574fe251a0ea066da6d7d755eabf2f711749803",
+      "helper-fixtures/complete-circle/variants/fault-proofs/generated/files/packages/contracts-bedrock/snapshots/state-diff/Kontrol-31337.json": "a2dc3e6ee9052b410a6354e6575cca959ab9b59936b48b3f3f1fbe0799a62b53",
+      "helper-fixtures/complete-circle/variants/fault-proofs/generated/files/packages/contracts-bedrock/test/kontrol/proofs/utils/DeploymentSummaryFaultProofs.sol": "3c54e9d3103a71ec30816be2b745a7fb12895237502e3b5d56ce6b4676613c82",
+      "helper-fixtures/complete-circle/variants/fault-proofs/generated/files/packages/contracts-bedrock/test/kontrol/proofs/utils/DeploymentSummaryFaultProofsCode.sol": "eeabaef054238b725386438ae7002bf76dc45f86d2589da54dcf28ec972f37ea",
+      "helper-fixtures/complete-circle/variants/fault-proofs/generated/manifest.json": "67a3a1bf458cb32a784d9761b1c49d0683e2634bee56b8e53954529a0716c7cb",
+      "helper-fixtures/complete-circle/variants/fault-proofs/load-inputs/files/packages/contracts-bedrock/deployments/kontrol-fp.json": "2d0a6832216cb150e242a326c156acaf08832b50b195770918db4c7b7aee2f86",
+      "helper-fixtures/complete-circle/variants/fault-proofs/load-inputs/files/packages/contracts-bedrock/deployments/kontrol-fp.jsonReversed": "c8523855e64c7a8876aca82b5574fe251a0ea066da6d7d755eabf2f711749803",
+      "helper-fixtures/complete-circle/variants/fault-proofs/load-inputs/files/packages/contracts-bedrock/snapshots/state-diff/Kontrol-31337.json": "a2dc3e6ee9052b410a6354e6575cca959ab9b59936b48b3f3f1fbe0799a62b53",
+      "helper-fixtures/complete-circle/variants/fault-proofs/load-inputs/manifest.json": "2608db3cef183efb0d421ec31b933171f3be2f869af55e7ee12c0acf31a23a13",
+      "helper-fixtures/complete-rwx/config.json": "68415afad7b4b2a7f6845a5bad23d9fd0cae41b09df288933b604030b8019c4a",
+      "helper-fixtures/complete-rwx/config.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "helper-fixtures/complete-rwx/config.stage.json": "91dfbca61a02b6d31281a510ade54248f92d07ed3f9f5aee7b007f04755e854a",
+      "helper-fixtures/complete-rwx/coverage.json": "54ccf916102a1eedf1ca1fc5cd3928d8da1bf9f0d067889bf378d694f3ecb2a4",
+      "helper-fixtures/complete-rwx/dependencies/contracts-kontrol/files.tar.gz": "22eed6a2382d09b220f1615331f36ea96bc544048eac7e8c6c8c3db8fac14f43",
+      "helper-fixtures/complete-rwx/dependencies/contracts-kontrol/metadata.json": "913ed38e70f0befdbe9307dae8f869e2a1cd7885ddd725632adfc41509482cd5",
+      "helper-fixtures/complete-rwx/dependencies/contracts-kontrol/preparation/cache.json": "f59b5f95174b52e51f6db4a6d40185fc43d5bd38b077ac6c6a1f099c182926c2",
+      "helper-fixtures/complete-rwx/dependencies/contracts-kontrol/preparation/ci-build.log": "467a564e5ebf236600d85a1c495caa5177a093e286b087a1650da9a4c309ebcc",
+      "helper-fixtures/complete-rwx/dependencies/contracts-kontrol/preparation/ci-build.stage.json": "7d29728e23632f6be1ebfe265e6b1d8e5bb89709a32d5e8f7a0999955aca4a8f",
+      "helper-fixtures/complete-rwx/dependencies/contracts-kontrol/preparation/copy-artifacts.log": "3ba07e04966b87b98a3988d7f5a4907dc9fc45227a2369e5c2410c8f1e7c1c77",
+      "helper-fixtures/complete-rwx/dependencies/contracts-kontrol/preparation/copy-artifacts.stage.json": "fa2e88992e1a14464d43f309f6279e32e8461d1d752a69f1c502c4c1b3e02090",
+      "helper-fixtures/complete-rwx/dependencies/contracts-kontrol/preparation/final.json": "388233011b13ea9926e3581ed048a22e52afb925e8f585334cf584c6605e65ca",
+      "helper-fixtures/complete-rwx/dependencies/contracts-kontrol/preparation/inputs-after.json": "c541adba7749f7ca611d0862aaf8025e7cf2cad303028f0cf16c29341d493ab6",
+      "helper-fixtures/complete-rwx/dependencies/contracts-kontrol/preparation/legacy-graph.log": "b4ea9fadaafbcc30dc237c291ce25c648d2433ad23ea66fda4024272b2edd838",
+      "helper-fixtures/complete-rwx/dependencies/contracts-kontrol/preparation/legacy-graph.stage.json": "e44ad90d248b64f27acc7b92c540d320f9f4c0be325c9138354e6c109094fd1c",
+      "helper-fixtures/complete-rwx/dependencies/contracts-kontrol/preparation/settings.json": "38a45a57f5e4d8cdad610103e507a59f06dd152e862465aca8e33c2a088301cb",
+      "helper-fixtures/complete-rwx/final-compiler/files.json": "d34e42acc0695da4f9bdde6f24f89527c6021046a36a7fd321206e852e760796",
+      "helper-fixtures/complete-rwx/final-compiler/files.tar.gz": "ae34d55b239cd68f254cbad3207e673095c1f071751b190d6f6809c405720846",
+      "helper-fixtures/complete-rwx/final.json": "37500aba6d0a7f570458034eb408d6e9258c45161d64e7eb72fe9b214d68b479",
+      "helper-fixtures/complete-rwx/generated/packages/contracts-bedrock/test/kontrol/proofs/utils/DeploymentSummary.sol": "0e60c0114ea854820fa29c0465cb506abfcbad70e098f6cf0fd6e59d5a66b422",
+      "helper-fixtures/complete-rwx/generated/packages/contracts-bedrock/test/kontrol/proofs/utils/DeploymentSummaryCode.sol": "93ce9ec954d25264c93061443e91ef681326499194318b518fc79c2b1c3681d4",
+      "helper-fixtures/complete-rwx/generated/packages/contracts-bedrock/test/kontrol/proofs/utils/DeploymentSummaryFaultProofs.sol": "3c54e9d3103a71ec30816be2b745a7fb12895237502e3b5d56ce6b4676613c82",
+      "helper-fixtures/complete-rwx/generated/packages/contracts-bedrock/test/kontrol/proofs/utils/DeploymentSummaryFaultProofsCode.sol": "eeabaef054238b725386438ae7002bf76dc45f86d2589da54dcf28ec972f37ea",
+      "helper-fixtures/complete-rwx/image/inputs.json": "183207824f9a1f95f08bcdb80f29a19ee9d297f9f71c09d48029ccd642a16fc9",
+      "helper-fixtures/complete-rwx/image/inspect.json": "f599b577ad210e0ab40cc11e6c5083bfa7f77ed567ed4bb6394db90a65a23212",
+      "helper-fixtures/complete-rwx/image/metadata.json": "7f581c47e2baad6d81950fbb1856da7243090b9a08ea984e3a18864ee68d350d",
+      "helper-fixtures/complete-rwx/image/pull-attempts.json": "c12310921119eba39dfa90c8fd27c268c26114344f1c299c612e9e525c0d2892",
+      "helper-fixtures/complete-rwx/image/pull.log": "1871c75b9513bb183a6176e0f4d257bdef86c6746317b56bdaf27c12cc5ed9f6",
+      "helper-fixtures/complete-rwx/initial-compiler/files.json": "1a84041efe05b9a323438aecab69f3dcacf90cdf19131d5d27df4460102a751c",
+      "helper-fixtures/complete-rwx/initial-compiler/files.tar.gz": "bf2424ea90c291d8ccddd8a8779624af62c374ce9b75aac5088b0b3b90f8f87d",
+      "helper-fixtures/complete-rwx/inputs-after.json": "c04b8bd37b8f29b3c7df3bd3e2ff03e3f18b0ff7cc36320592f5aa4f09ef05ec",
+      "helper-fixtures/complete-rwx/proofs-compiler/files.json": "d34e42acc0695da4f9bdde6f24f89527c6021046a36a7fd321206e852e760796",
+      "helper-fixtures/complete-rwx/proofs-compiler/files.tar.gz": "ae34d55b239cd68f254cbad3207e673095c1f071751b190d6f6809c405720846",
+      "helper-fixtures/complete-rwx/proofs.log": "fd3766cb5ca7aa81fb9a4fce43870ad3b666d7245a1dd6bf7f1e3278138f088a",
+      "helper-fixtures/complete-rwx/proofs.stage.json": "873ddea23d74405473f34628b11073fbd3909c095e1b639554fb61347437ead3",
+      "helper-fixtures/complete-rwx/runtime-image.json": "c920cffecdda5cd4c7d0554033d4c8f4f75b3e4f3938e14c0cd1c95c5a4c9436",
+      "helper-fixtures/complete-rwx/runtime-outputs/packages/contracts-bedrock/deployments/hardhat/.deploy": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "helper-fixtures/complete-rwx/runtime-outputs/packages/contracts-bedrock/deployments/kontrol-fp.json": "2d0a6832216cb150e242a326c156acaf08832b50b195770918db4c7b7aee2f86",
+      "helper-fixtures/complete-rwx/runtime-outputs/packages/contracts-bedrock/deployments/kontrol-fp.jsonReversed": "c8523855e64c7a8876aca82b5574fe251a0ea066da6d7d755eabf2f711749803",
+      "helper-fixtures/complete-rwx/runtime-outputs/packages/contracts-bedrock/deployments/kontrol.json": "2d0a6832216cb150e242a326c156acaf08832b50b195770918db4c7b7aee2f86",
+      "helper-fixtures/complete-rwx/runtime-outputs/packages/contracts-bedrock/deployments/kontrol.jsonReversed": "c8523855e64c7a8876aca82b5574fe251a0ea066da6d7d755eabf2f711749803",
+      "helper-fixtures/complete-rwx/runtime-outputs/packages/contracts-bedrock/snapshots/state-diff/Kontrol-31337.json": "a2dc3e6ee9052b410a6354e6575cca959ab9b59936b48b3f3f1fbe0799a62b53",
+      "helper-fixtures/complete-rwx/runtime-outputs/packages/contracts-bedrock/test/kontrol/proofs/utils/DeploymentSummary.sol": "0e60c0114ea854820fa29c0465cb506abfcbad70e098f6cf0fd6e59d5a66b422",
+      "helper-fixtures/complete-rwx/runtime-outputs/packages/contracts-bedrock/test/kontrol/proofs/utils/DeploymentSummaryCode.sol": "93ce9ec954d25264c93061443e91ef681326499194318b518fc79c2b1c3681d4",
+      "helper-fixtures/complete-rwx/runtime-outputs/packages/contracts-bedrock/test/kontrol/proofs/utils/DeploymentSummaryFaultProofs.sol": "3c54e9d3103a71ec30816be2b745a7fb12895237502e3b5d56ce6b4676613c82",
+      "helper-fixtures/complete-rwx/runtime-outputs/packages/contracts-bedrock/test/kontrol/proofs/utils/DeploymentSummaryFaultProofsCode.sol": "eeabaef054238b725386438ae7002bf76dc45f86d2589da54dcf28ec972f37ea",
+      "helper-fixtures/complete-rwx/selection.json": "58a024031347ae83d561a508523dfddc560efabaa4b99cd0b8241d8b6ec35196",
+      "helper-fixtures/complete-rwx/settings.json": "9cdbd4cef726b10997a36c61045c0af973d002214fedf17c27714de75e5c630a",
+      "helper-fixtures/complete-rwx/source/mise.toml": "0b557a308b0cd91fd3db80af744520053106924fca7dad9ef682175930280e9a",
+      "helper-fixtures/complete-rwx/source/ops/ci/kontrol-build.py": "3820d3409130d1f2525e1c584d96af41704d94927aedd9a259392c9328b58fb6",
+      "helper-fixtures/complete-rwx/source/ops/ci/kontrol-image.json": "5ef0a5e7cd411b86f193d10098fbeb522d3ba252f7ef4e91262cd76a418fe136",
+      "helper-fixtures/complete-rwx/source/ops/ci/kontrol-image.py": "4faf491ae05b37243a62c16cef6d55230b49d192ecbc3e28f472b7fdcab7b224",
+      "helper-fixtures/complete-rwx/source/packages/contracts-bedrock/foundry.toml": "f9b9c5365fc0a4529f6cd0d1dc876490aafc476fcf4de48e8ba4269894ad8776",
+      "helper-fixtures/complete-rwx/source/packages/contracts-bedrock/justfile": "74f04968b12a765b9ffc73c780a41d34d93bd1e05a4055d1497d88063477005f",
+      "helper-fixtures/complete-rwx/source/packages/contracts-bedrock/test/kontrol/proofs/FutureProof.sol": "854ce720be2cff914d0dfa50903f5838cfbbda113fa12c417a5adce24d6c2098",
+      "helper-fixtures/complete-rwx/source/packages/contracts-bedrock/test/kontrol/proofs/utils/DeploymentSummary.sol": "6e77c8e8a969f6824f55f16dead7e4521a38bc009889f5cee42239ea07a4c851",
+      "helper-fixtures/complete-rwx/source/packages/contracts-bedrock/test/kontrol/proofs/utils/DeploymentSummaryCode.sol": "0022cabe600ac169e655b2c50926b54f098468d4d6d32387aa60fc6b7246015a",
+      "helper-fixtures/complete-rwx/source/packages/contracts-bedrock/test/kontrol/proofs/utils/DeploymentSummaryFaultProofs.sol": "3ddc323a450860795194f6b5a7ae2769eab56fdf245345212443ab1a41cae026",
+      "helper-fixtures/complete-rwx/source/packages/contracts-bedrock/test/kontrol/proofs/utils/DeploymentSummaryFaultProofsCode.sol": "a8c0d3f5f824f70cdd7a35d269a82381e059a533acadac24a96f53400a197f0c",
+      "helper-fixtures/complete-rwx/source/packages/contracts-bedrock/test/kontrol/scripts/common.sh": "2c213f105508bf17d58f50094821de21e3128fddf8a19cfb27bec0459a014d77",
+      "helper-fixtures/complete-rwx/source/packages/contracts-bedrock/test/kontrol/scripts/json/clean_json.py": "2e8ad697856f297ea0da23f9ca3ad383407545ce96889655790923f1e76a831c",
+      "helper-fixtures/complete-rwx/source/packages/contracts-bedrock/test/kontrol/scripts/json/reverse_key_values.py": "858b2aafbba18a0cb395e283c76b46971eecac83535bc8d600728005c4bac537",
+      "helper-fixtures/complete-rwx/source/packages/contracts-bedrock/test/kontrol/scripts/make-summary-deployment.sh": "5c1049880ff5ef181f7e2400377477a13cd106e49f9f95e3e8a5896d4cbbafe3",
+      "helper-fixtures/complete-rwx/submodules.txt": "38b181fad644fa2469195652c30d836ebdbdd5e5ac038d2576518cb4db403552",
+      "helper-fixtures/complete-rwx/summaries-compiler/files.json": "55aaeea896f78c45ca88509bf0a50b8df539b8726455ad6b4b7ae4c9d92ef8e0",
+      "helper-fixtures/complete-rwx/summaries-compiler/files.tar.gz": "e2b7b3469e14c7ea2dc581677c7d22cc80e270c4f2cc99c56d54cfabed4ced65",
+      "helper-fixtures/complete-rwx/summaries.log": "af7ac2d19eaaba729eb3fa3502a67daa0478cb78e73c8891588d70b768567f28",
+      "helper-fixtures/complete-rwx/summaries.stage.json": "84e6d74c2bb734f4af32170dc37136a849e0a20091073b4f724d5f18ab52a8d2",
+      "helper-fixtures/complete-rwx/variants/default/deployment/files/packages/contracts-bedrock/deployments/kontrol.json": "2d0a6832216cb150e242a326c156acaf08832b50b195770918db4c7b7aee2f86",
+      "helper-fixtures/complete-rwx/variants/default/deployment/files/packages/contracts-bedrock/snapshots/state-diff/Kontrol-31337.json": "b3a042745431dd6a4d83ce6f2ec4a16f859f93ca868199f9906e70db2b03a9d1",
+      "helper-fixtures/complete-rwx/variants/default/deployment/manifest.json": "bb97c749869c7bbd5bb843e63b6e42d4543781d5a8dfc63720e2446cb7504eb6",
+      "helper-fixtures/complete-rwx/variants/default/generated/files/packages/contracts-bedrock/deployments/kontrol.json": "2d0a6832216cb150e242a326c156acaf08832b50b195770918db4c7b7aee2f86",
+      "helper-fixtures/complete-rwx/variants/default/generated/files/packages/contracts-bedrock/deployments/kontrol.jsonReversed": "c8523855e64c7a8876aca82b5574fe251a0ea066da6d7d755eabf2f711749803",
+      "helper-fixtures/complete-rwx/variants/default/generated/files/packages/contracts-bedrock/snapshots/state-diff/Kontrol-31337.json": "3dd496a073a51d1bba7cf2d273a2ad618ba5939dd487fc83dfc3b36a44851243",
+      "helper-fixtures/complete-rwx/variants/default/generated/files/packages/contracts-bedrock/test/kontrol/proofs/utils/DeploymentSummary.sol": "0e60c0114ea854820fa29c0465cb506abfcbad70e098f6cf0fd6e59d5a66b422",
+      "helper-fixtures/complete-rwx/variants/default/generated/files/packages/contracts-bedrock/test/kontrol/proofs/utils/DeploymentSummaryCode.sol": "93ce9ec954d25264c93061443e91ef681326499194318b518fc79c2b1c3681d4",
+      "helper-fixtures/complete-rwx/variants/default/generated/manifest.json": "f6ea419cbf4d6fecff127ca3ba6ac801e5112459d1e24ce34e1f10c50cab6ec5",
+      "helper-fixtures/complete-rwx/variants/default/load-inputs/files/packages/contracts-bedrock/deployments/kontrol.json": "2d0a6832216cb150e242a326c156acaf08832b50b195770918db4c7b7aee2f86",
+      "helper-fixtures/complete-rwx/variants/default/load-inputs/files/packages/contracts-bedrock/deployments/kontrol.jsonReversed": "c8523855e64c7a8876aca82b5574fe251a0ea066da6d7d755eabf2f711749803",
+      "helper-fixtures/complete-rwx/variants/default/load-inputs/files/packages/contracts-bedrock/snapshots/state-diff/Kontrol-31337.json": "3dd496a073a51d1bba7cf2d273a2ad618ba5939dd487fc83dfc3b36a44851243",
+      "helper-fixtures/complete-rwx/variants/default/load-inputs/manifest.json": "19eb3092bac3909f90c66da01f24840096ff1ed639ed867866473b9af65539f4",
+      "helper-fixtures/complete-rwx/variants/fault-proofs/deployment/files/packages/contracts-bedrock/deployments/kontrol-fp.json": "2d0a6832216cb150e242a326c156acaf08832b50b195770918db4c7b7aee2f86",
+      "helper-fixtures/complete-rwx/variants/fault-proofs/deployment/files/packages/contracts-bedrock/snapshots/state-diff/Kontrol-31337.json": "bb5c94f333935f71e937b9a62d3a400231117e1bd66eee36851a5376623ba794",
+      "helper-fixtures/complete-rwx/variants/fault-proofs/deployment/manifest.json": "2698ca0132c97b382d9332b710bd2c48aefd7e900efd75789dc42666d4763316",
+      "helper-fixtures/complete-rwx/variants/fault-proofs/generated/files/packages/contracts-bedrock/deployments/kontrol-fp.json": "2d0a6832216cb150e242a326c156acaf08832b50b195770918db4c7b7aee2f86",
+      "helper-fixtures/complete-rwx/variants/fault-proofs/generated/files/packages/contracts-bedrock/deployments/kontrol-fp.jsonReversed": "c8523855e64c7a8876aca82b5574fe251a0ea066da6d7d755eabf2f711749803",
+      "helper-fixtures/complete-rwx/variants/fault-proofs/generated/files/packages/contracts-bedrock/snapshots/state-diff/Kontrol-31337.json": "a2dc3e6ee9052b410a6354e6575cca959ab9b59936b48b3f3f1fbe0799a62b53",
+      "helper-fixtures/complete-rwx/variants/fault-proofs/generated/files/packages/contracts-bedrock/test/kontrol/proofs/utils/DeploymentSummaryFaultProofs.sol": "3c54e9d3103a71ec30816be2b745a7fb12895237502e3b5d56ce6b4676613c82",
+      "helper-fixtures/complete-rwx/variants/fault-proofs/generated/files/packages/contracts-bedrock/test/kontrol/proofs/utils/DeploymentSummaryFaultProofsCode.sol": "eeabaef054238b725386438ae7002bf76dc45f86d2589da54dcf28ec972f37ea",
+      "helper-fixtures/complete-rwx/variants/fault-proofs/generated/manifest.json": "67a3a1bf458cb32a784d9761b1c49d0683e2634bee56b8e53954529a0716c7cb",
+      "helper-fixtures/complete-rwx/variants/fault-proofs/load-inputs/files/packages/contracts-bedrock/deployments/kontrol-fp.json": "2d0a6832216cb150e242a326c156acaf08832b50b195770918db4c7b7aee2f86",
+      "helper-fixtures/complete-rwx/variants/fault-proofs/load-inputs/files/packages/contracts-bedrock/deployments/kontrol-fp.jsonReversed": "c8523855e64c7a8876aca82b5574fe251a0ea066da6d7d755eabf2f711749803",
+      "helper-fixtures/complete-rwx/variants/fault-proofs/load-inputs/files/packages/contracts-bedrock/snapshots/state-diff/Kontrol-31337.json": "a2dc3e6ee9052b410a6354e6575cca959ab9b59936b48b3f3f1fbe0799a62b53",
+      "helper-fixtures/complete-rwx/variants/fault-proofs/load-inputs/manifest.json": "2608db3cef183efb0d421ec31b933171f3be2f869af55e7ee12c0acf31a23a13",
+      "helper-fixtures/corrupt-contract-input/final-compiler/files.json": "039ac690adbcce3e9c9d345f16cea6b8a1ed709a3ac4f073c8eeb3f28b297308",
+      "helper-fixtures/corrupt-contract-input/final-compiler/files.tar.gz": "32c79638f6b7795bdd56027101aa70b86f26c60d1956f41080a7b1f9ec14a3ee",
+      "helper-fixtures/corrupt-contract-input/final.json": "e6c5f8ccbfff6a5d3b70ba08206589ee70f4089191610de5b4dbef15618b669f",
+      "helper-fixtures/corrupt-contract-input/image/inputs.json": "183207824f9a1f95f08bcdb80f29a19ee9d297f9f71c09d48029ccd642a16fc9",
+      "helper-fixtures/corrupt-contract-input/image/inspect.json": "e43918ae22765744379c8fb06006db394c23251ee36bf3121fbdb7f43ef0b276",
+      "helper-fixtures/corrupt-contract-input/image/metadata.json": "42c1805cb19ba7f8d7d4bc3aa3c68d08acd4f0f9ebc8845fedf28fcbe25ce735",
+      "helper-fixtures/corrupt-contract-input/image/pull-attempts.json": "857ac01a3be9ba7b8935b7dab6614cecee762d7ea0e486e40cb3ba5e533e8910",
+      "helper-fixtures/corrupt-contract-input/image/pull.log": "1871c75b9513bb183a6176e0f4d257bdef86c6746317b56bdaf27c12cc5ed9f6",
+      "helper-fixtures/corrupt-contract-input/runtime-image.json": "0449d5de3915bc0da8e085e95fb26218467d28aef94663fdb46400f6dea3eb21",
+      "helper-fixtures/corrupt-contract-input/runtime-outputs/packages/contracts-bedrock/test/kontrol/proofs/utils/DeploymentSummary.sol": "6e77c8e8a969f6824f55f16dead7e4521a38bc009889f5cee42239ea07a4c851",
+      "helper-fixtures/corrupt-contract-input/runtime-outputs/packages/contracts-bedrock/test/kontrol/proofs/utils/DeploymentSummaryCode.sol": "0022cabe600ac169e655b2c50926b54f098468d4d6d32387aa60fc6b7246015a",
+      "helper-fixtures/corrupt-contract-input/runtime-outputs/packages/contracts-bedrock/test/kontrol/proofs/utils/DeploymentSummaryFaultProofs.sol": "3ddc323a450860795194f6b5a7ae2769eab56fdf245345212443ab1a41cae026",
+      "helper-fixtures/corrupt-contract-input/runtime-outputs/packages/contracts-bedrock/test/kontrol/proofs/utils/DeploymentSummaryFaultProofsCode.sol": "a8c0d3f5f824f70cdd7a35d269a82381e059a533acadac24a96f53400a197f0c",
+      "helper-fixtures/corrupt-contract-input/settings.json": "24f5522434ce70c07aee5f2dbea1a68db4f9bd667862b2344c47353a6060b618",
+      "helper-fixtures/corrupt-contract-input/submodules.txt": "38b181fad644fa2469195652c30d836ebdbdd5e5ac038d2576518cb4db403552",
+      "helper-fixtures/corrupt-image-input/final-compiler/files.json": "15f5f7ef0dc7b5d1ac582bae1f1247a780aa820b7beebdff878c5b4d5d5a6c48",
+      "helper-fixtures/corrupt-image-input/final-compiler/files.tar.gz": "00d7fca4c370888a42c9cbff547cbae028ac12d08dc98cf13e8a90007dee7639",
+      "helper-fixtures/corrupt-image-input/final.json": "4bb2f0ee96ce9f88580b93148560aa9ae502828fde20dce25d9e9cdd5fdb200b",
+      "helper-fixtures/corrupt-image-input/image/inputs.json": "183207824f9a1f95f08bcdb80f29a19ee9d297f9f71c09d48029ccd642a16fc9",
+      "helper-fixtures/corrupt-image-input/image/inspect.json": "ece55344241cb577d19c97a4e3993bf3c1377e5db944a63248c7c92b1ed54f59",
+      "helper-fixtures/corrupt-image-input/image/metadata.json": "42c1805cb19ba7f8d7d4bc3aa3c68d08acd4f0f9ebc8845fedf28fcbe25ce735",
+      "helper-fixtures/corrupt-image-input/image/pull-attempts.json": "857ac01a3be9ba7b8935b7dab6614cecee762d7ea0e486e40cb3ba5e533e8910",
+      "helper-fixtures/corrupt-image-input/image/pull.log": "1871c75b9513bb183a6176e0f4d257bdef86c6746317b56bdaf27c12cc5ed9f6",
+      "helper-fixtures/corrupt-image-input/runtime-outputs/packages/contracts-bedrock/test/kontrol/proofs/utils/DeploymentSummary.sol": "6e77c8e8a969f6824f55f16dead7e4521a38bc009889f5cee42239ea07a4c851",
+      "helper-fixtures/corrupt-image-input/runtime-outputs/packages/contracts-bedrock/test/kontrol/proofs/utils/DeploymentSummaryCode.sol": "0022cabe600ac169e655b2c50926b54f098468d4d6d32387aa60fc6b7246015a",
+      "helper-fixtures/corrupt-image-input/runtime-outputs/packages/contracts-bedrock/test/kontrol/proofs/utils/DeploymentSummaryFaultProofs.sol": "3ddc323a450860795194f6b5a7ae2769eab56fdf245345212443ab1a41cae026",
+      "helper-fixtures/corrupt-image-input/runtime-outputs/packages/contracts-bedrock/test/kontrol/proofs/utils/DeploymentSummaryFaultProofsCode.sol": "a8c0d3f5f824f70cdd7a35d269a82381e059a533acadac24a96f53400a197f0c",
+      "helper-fixtures/corrupt-image-input/settings.json": "c546edc83390d95ba5eef1e1bd87c412d2ce3404e4841c762b3a71652c136235",
+      "helper-fixtures/corrupt-image-input/submodules.txt": "38b181fad644fa2469195652c30d836ebdbdd5e5ac038d2576518cb4db403552",
+      "helper-fixtures/original-cancellation/config.json": "68415afad7b4b2a7f6845a5bad23d9fd0cae41b09df288933b604030b8019c4a",
+      "helper-fixtures/original-cancellation/config.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "helper-fixtures/original-cancellation/config.stage.json": "24c0f805d33c04dcdfdd4613787073dbb5a97310d89c3b5b57bfc4acaf153286",
+      "helper-fixtures/original-cancellation/final-compiler/files.json": "85522eb0871092c5f9f5c07805ece8daa93ab0fdbbe5ec94879777a61e11e2a4",
+      "helper-fixtures/original-cancellation/final-compiler/files.tar.gz": "00afd823cadd2215ca70976257cb4cacaa04429aa6ca3b9baeb9fa7181793cdb",
+      "helper-fixtures/original-cancellation/final.json": "53924b77b75e7f32e563fa9f50457a9bf19d8ef9f7b5fb98a4d158b4cf563165",
+      "helper-fixtures/original-cancellation/image/inputs.json": "183207824f9a1f95f08bcdb80f29a19ee9d297f9f71c09d48029ccd642a16fc9",
+      "helper-fixtures/original-cancellation/image/inspect.json": "66f03cf72cfb56b152489706ee08afac48a1a2eba152542794099489e50bfccc",
+      "helper-fixtures/original-cancellation/image/metadata.json": "47991fdfe2015bce04f763a7e175a4b56dc80d84db5f160eb54c451e906990a8",
+      "helper-fixtures/original-cancellation/image/pull-attempts.json": "b18d9f9a2bcd50f4d2eae3a173b19d3a018bdb6ec47c3fd90fa765ef9094b6cf",
+      "helper-fixtures/original-cancellation/image/pull.log": "1871c75b9513bb183a6176e0f4d257bdef86c6746317b56bdaf27c12cc5ed9f6",
+      "helper-fixtures/original-cancellation/initial-compiler/files.json": "85522eb0871092c5f9f5c07805ece8daa93ab0fdbbe5ec94879777a61e11e2a4",
+      "helper-fixtures/original-cancellation/initial-compiler/files.tar.gz": "6d923883d9d2f7f4ce7d7df34a9510359c524607c4d92a858374e7dccf8d8e30",
+      "helper-fixtures/original-cancellation/runtime-image.json": "8b5533eab90a8a493a879038156079dc2770645298ccd3f8ce9af5e6809e1ed8",
+      "helper-fixtures/original-cancellation/runtime-outputs/packages/contracts-bedrock/deployments/hardhat/.deploy": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "helper-fixtures/original-cancellation/runtime-outputs/packages/contracts-bedrock/deployments/kontrol.json": "2d0a6832216cb150e242a326c156acaf08832b50b195770918db4c7b7aee2f86",
+      "helper-fixtures/original-cancellation/runtime-outputs/packages/contracts-bedrock/deployments/kontrol.jsonReversed": "c8523855e64c7a8876aca82b5574fe251a0ea066da6d7d755eabf2f711749803",
+      "helper-fixtures/original-cancellation/runtime-outputs/packages/contracts-bedrock/snapshots/state-diff/Kontrol-31337.json": "27c1b2e32df8af94353ba0d13a1cfaceb11915f1136ca5d0ee3fbcc8536fb53f",
+      "helper-fixtures/original-cancellation/runtime-outputs/packages/contracts-bedrock/test/kontrol/proofs/utils/DeploymentSummary.sol": "0e60c0114ea854820fa29c0465cb506abfcbad70e098f6cf0fd6e59d5a66b422",
+      "helper-fixtures/original-cancellation/runtime-outputs/packages/contracts-bedrock/test/kontrol/proofs/utils/DeploymentSummaryCode.sol": "dc4d3ffe31e7aba2393f6fd2181f9192fbe6c9606d1baf090a04e808f044180e",
+      "helper-fixtures/original-cancellation/runtime-outputs/packages/contracts-bedrock/test/kontrol/proofs/utils/DeploymentSummaryFaultProofs.sol": "3ddc323a450860795194f6b5a7ae2769eab56fdf245345212443ab1a41cae026",
+      "helper-fixtures/original-cancellation/runtime-outputs/packages/contracts-bedrock/test/kontrol/proofs/utils/DeploymentSummaryFaultProofsCode.sol": "a8c0d3f5f824f70cdd7a35d269a82381e059a533acadac24a96f53400a197f0c",
+      "helper-fixtures/original-cancellation/selection.json": "58a024031347ae83d561a508523dfddc560efabaa4b99cd0b8241d8b6ec35196",
+      "helper-fixtures/original-cancellation/settings.json": "824a05f12677dbb0fa8c22ce5043943737cba670fa777f1df50248d3421df185",
+      "helper-fixtures/original-cancellation/source/mise.toml": "0b557a308b0cd91fd3db80af744520053106924fca7dad9ef682175930280e9a",
+      "helper-fixtures/original-cancellation/source/ops/ci/kontrol-build.py": "3820d3409130d1f2525e1c584d96af41704d94927aedd9a259392c9328b58fb6",
+      "helper-fixtures/original-cancellation/source/ops/ci/kontrol-image.json": "5ef0a5e7cd411b86f193d10098fbeb522d3ba252f7ef4e91262cd76a418fe136",
+      "helper-fixtures/original-cancellation/source/ops/ci/kontrol-image.py": "4faf491ae05b37243a62c16cef6d55230b49d192ecbc3e28f472b7fdcab7b224",
+      "helper-fixtures/original-cancellation/source/packages/contracts-bedrock/foundry.toml": "f9b9c5365fc0a4529f6cd0d1dc876490aafc476fcf4de48e8ba4269894ad8776",
+      "helper-fixtures/original-cancellation/source/packages/contracts-bedrock/justfile": "073ddd9a512225a6c396e26f58d68030f41e031b722ffe96b42007afda27fa36",
+      "helper-fixtures/original-cancellation/source/packages/contracts-bedrock/test/kontrol/proofs/FutureProof.sol": "854ce720be2cff914d0dfa50903f5838cfbbda113fa12c417a5adce24d6c2098",
+      "helper-fixtures/original-cancellation/source/packages/contracts-bedrock/test/kontrol/proofs/utils/DeploymentSummary.sol": "6e77c8e8a969f6824f55f16dead7e4521a38bc009889f5cee42239ea07a4c851",
+      "helper-fixtures/original-cancellation/source/packages/contracts-bedrock/test/kontrol/proofs/utils/DeploymentSummaryCode.sol": "0022cabe600ac169e655b2c50926b54f098468d4d6d32387aa60fc6b7246015a",
+      "helper-fixtures/original-cancellation/source/packages/contracts-bedrock/test/kontrol/proofs/utils/DeploymentSummaryFaultProofs.sol": "3ddc323a450860795194f6b5a7ae2769eab56fdf245345212443ab1a41cae026",
+      "helper-fixtures/original-cancellation/source/packages/contracts-bedrock/test/kontrol/proofs/utils/DeploymentSummaryFaultProofsCode.sol": "a8c0d3f5f824f70cdd7a35d269a82381e059a533acadac24a96f53400a197f0c",
+      "helper-fixtures/original-cancellation/source/packages/contracts-bedrock/test/kontrol/scripts/common.sh": "2c213f105508bf17d58f50094821de21e3128fddf8a19cfb27bec0459a014d77",
+      "helper-fixtures/original-cancellation/source/packages/contracts-bedrock/test/kontrol/scripts/json/clean_json.py": "2e8ad697856f297ea0da23f9ca3ad383407545ce96889655790923f1e76a831c",
+      "helper-fixtures/original-cancellation/source/packages/contracts-bedrock/test/kontrol/scripts/json/reverse_key_values.py": "858b2aafbba18a0cb395e283c76b46971eecac83535bc8d600728005c4bac537",
+      "helper-fixtures/original-cancellation/source/packages/contracts-bedrock/test/kontrol/scripts/make-summary-deployment.sh": "5c1049880ff5ef181f7e2400377477a13cd106e49f9f95e3e8a5896d4cbbafe3",
+      "helper-fixtures/original-cancellation/submodules.txt": "38b181fad644fa2469195652c30d836ebdbdd5e5ac038d2576518cb4db403552",
+      "helper-fixtures/original-cancellation/summaries-compiler/files.json": "85522eb0871092c5f9f5c07805ece8daa93ab0fdbbe5ec94879777a61e11e2a4",
+      "helper-fixtures/original-cancellation/summaries-compiler/files.tar.gz": "00afd823cadd2215ca70976257cb4cacaa04429aa6ca3b9baeb9fa7181793cdb",
+      "helper-fixtures/original-cancellation/summaries.log": "258fc78e590a740f8ef05dfffed9e95a4b4f0dc6d1611cd21132f285fab95a79",
+      "helper-fixtures/original-cancellation/summaries.stage.json": "30d53970d8023fa2d25a9d24e57378fba5ba870663e0b572350644a2804a96dd",
+      "helper-fixtures/original-cancellation/variants/default/deployment/files/packages/contracts-bedrock/deployments/kontrol.json": "2d0a6832216cb150e242a326c156acaf08832b50b195770918db4c7b7aee2f86",
+      "helper-fixtures/original-cancellation/variants/default/deployment/files/packages/contracts-bedrock/snapshots/state-diff/Kontrol-31337.json": "7f399ca9acd9479c2b76fe5ac7f71722dc3d74eb485a59941a78822f07282625",
+      "helper-fixtures/original-cancellation/variants/default/deployment/manifest.json": "b82446ff617026081ea3a8bddfde9bb8def758e5cf568ec7a807eb50ac4cdb22",
+      "helper-fixtures/original-cancellation/variants/default/generated/files/packages/contracts-bedrock/deployments/kontrol.json": "2d0a6832216cb150e242a326c156acaf08832b50b195770918db4c7b7aee2f86",
+      "helper-fixtures/original-cancellation/variants/default/generated/files/packages/contracts-bedrock/deployments/kontrol.jsonReversed": "c8523855e64c7a8876aca82b5574fe251a0ea066da6d7d755eabf2f711749803",
+      "helper-fixtures/original-cancellation/variants/default/generated/files/packages/contracts-bedrock/snapshots/state-diff/Kontrol-31337.json": "27c1b2e32df8af94353ba0d13a1cfaceb11915f1136ca5d0ee3fbcc8536fb53f",
+      "helper-fixtures/original-cancellation/variants/default/generated/files/packages/contracts-bedrock/test/kontrol/proofs/utils/DeploymentSummary.sol": "0e60c0114ea854820fa29c0465cb506abfcbad70e098f6cf0fd6e59d5a66b422",
+      "helper-fixtures/original-cancellation/variants/default/generated/files/packages/contracts-bedrock/test/kontrol/proofs/utils/DeploymentSummaryCode.sol": "dc4d3ffe31e7aba2393f6fd2181f9192fbe6c9606d1baf090a04e808f044180e",
+      "helper-fixtures/original-cancellation/variants/default/generated/manifest.json": "9d75d03cdd9f47992100b00b6a9f3318fd28497b5a002adc039859de4753f2f0",
+      "helper-fixtures/original-cancellation/variants/default/load-inputs/files/packages/contracts-bedrock/deployments/kontrol.json": "2d0a6832216cb150e242a326c156acaf08832b50b195770918db4c7b7aee2f86",
+      "helper-fixtures/original-cancellation/variants/default/load-inputs/files/packages/contracts-bedrock/deployments/kontrol.jsonReversed": "c8523855e64c7a8876aca82b5574fe251a0ea066da6d7d755eabf2f711749803",
+      "helper-fixtures/original-cancellation/variants/default/load-inputs/files/packages/contracts-bedrock/snapshots/state-diff/Kontrol-31337.json": "27c1b2e32df8af94353ba0d13a1cfaceb11915f1136ca5d0ee3fbcc8536fb53f",
+      "helper-fixtures/original-cancellation/variants/default/load-inputs/manifest.json": "d84f611e1edb5ac2335f62bd9d8132049b8570c0978fe1bac4ef5d8841083107",
+      "helper-fixtures/original-kontrol-failure/config.json": "68415afad7b4b2a7f6845a5bad23d9fd0cae41b09df288933b604030b8019c4a",
+      "helper-fixtures/original-kontrol-failure/config.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "helper-fixtures/original-kontrol-failure/config.stage.json": "a623d02b7e87e99e563004c7c520ccc62e5e032d0870ff6ea05d9ccab2d2a6d4",
+      "helper-fixtures/original-kontrol-failure/final-compiler/files.json": "e2227371eab865a94d6ba6ea5ab895149cab255e63ffea8892c4813150de429e",
+      "helper-fixtures/original-kontrol-failure/final-compiler/files.tar.gz": "2beddbfe610e83de12e87dbbf7ecdb0953f1216189a279e0b7cf843baacdf381",
+      "helper-fixtures/original-kontrol-failure/final.json": "3773e1ea43335a34c6c181a015bc97d2f4f76dcca1b0186b1019ec9c99a73dbe",
+      "helper-fixtures/original-kontrol-failure/image/inputs.json": "183207824f9a1f95f08bcdb80f29a19ee9d297f9f71c09d48029ccd642a16fc9",
+      "helper-fixtures/original-kontrol-failure/image/inspect.json": "08f064bb55982d11eea114d867b0de2ee70b96fcd337b64015b9e787fdd69809",
+      "helper-fixtures/original-kontrol-failure/image/metadata.json": "3d620749d6ec65afb8d337220fc48166b6ec969712c8ab32349906606b678988",
+      "helper-fixtures/original-kontrol-failure/image/pull-attempts.json": "6ea035b6351833d1c2c6f176f2fa54de774e610bbf6f1e08239f74aa4b7de678",
+      "helper-fixtures/original-kontrol-failure/image/pull.log": "1871c75b9513bb183a6176e0f4d257bdef86c6746317b56bdaf27c12cc5ed9f6",
+      "helper-fixtures/original-kontrol-failure/initial-compiler/files.json": "255a7e0915b0bae00a5f6ffa99bf6b678eca06c04d35db9f1ec4b466bd171f2a",
+      "helper-fixtures/original-kontrol-failure/initial-compiler/files.tar.gz": "cc5576392f46c90b0a31bf5a0c32ecbb08a91856bb2d494ca81dcb45eee94699",
+      "helper-fixtures/original-kontrol-failure/runtime-image.json": "7cd2460963eda13351201ffdebc5020c716601e56c7582bcf2436dbdfae209dc",
+      "helper-fixtures/original-kontrol-failure/runtime-outputs/packages/contracts-bedrock/deployments/hardhat/.deploy": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "helper-fixtures/original-kontrol-failure/runtime-outputs/packages/contracts-bedrock/deployments/kontrol.json": "2d0a6832216cb150e242a326c156acaf08832b50b195770918db4c7b7aee2f86",
+      "helper-fixtures/original-kontrol-failure/runtime-outputs/packages/contracts-bedrock/deployments/kontrol.jsonReversed": "c8523855e64c7a8876aca82b5574fe251a0ea066da6d7d755eabf2f711749803",
+      "helper-fixtures/original-kontrol-failure/runtime-outputs/packages/contracts-bedrock/snapshots/state-diff/Kontrol-31337.json": "a771795d2495548ad173a863848900fff0a2666769f6ebb85f265b022bbc1e96",
+      "helper-fixtures/original-kontrol-failure/runtime-outputs/packages/contracts-bedrock/test/kontrol/proofs/utils/DeploymentSummary.sol": "6e77c8e8a969f6824f55f16dead7e4521a38bc009889f5cee42239ea07a4c851",
+      "helper-fixtures/original-kontrol-failure/runtime-outputs/packages/contracts-bedrock/test/kontrol/proofs/utils/DeploymentSummaryCode.sol": "0022cabe600ac169e655b2c50926b54f098468d4d6d32387aa60fc6b7246015a",
+      "helper-fixtures/original-kontrol-failure/runtime-outputs/packages/contracts-bedrock/test/kontrol/proofs/utils/DeploymentSummaryFaultProofs.sol": "3ddc323a450860795194f6b5a7ae2769eab56fdf245345212443ab1a41cae026",
+      "helper-fixtures/original-kontrol-failure/runtime-outputs/packages/contracts-bedrock/test/kontrol/proofs/utils/DeploymentSummaryFaultProofsCode.sol": "a8c0d3f5f824f70cdd7a35d269a82381e059a533acadac24a96f53400a197f0c",
+      "helper-fixtures/original-kontrol-failure/selection.json": "58a024031347ae83d561a508523dfddc560efabaa4b99cd0b8241d8b6ec35196",
+      "helper-fixtures/original-kontrol-failure/settings.json": "5bb296f8c9500560236c2e224061494a12c4d8fef2cd9f89c0f4519039c5dca6",
+      "helper-fixtures/original-kontrol-failure/source/mise.toml": "0b557a308b0cd91fd3db80af744520053106924fca7dad9ef682175930280e9a",
+      "helper-fixtures/original-kontrol-failure/source/ops/ci/kontrol-build.py": "3820d3409130d1f2525e1c584d96af41704d94927aedd9a259392c9328b58fb6",
+      "helper-fixtures/original-kontrol-failure/source/ops/ci/kontrol-image.json": "5ef0a5e7cd411b86f193d10098fbeb522d3ba252f7ef4e91262cd76a418fe136",
+      "helper-fixtures/original-kontrol-failure/source/ops/ci/kontrol-image.py": "4faf491ae05b37243a62c16cef6d55230b49d192ecbc3e28f472b7fdcab7b224",
+      "helper-fixtures/original-kontrol-failure/source/packages/contracts-bedrock/foundry.toml": "f9b9c5365fc0a4529f6cd0d1dc876490aafc476fcf4de48e8ba4269894ad8776",
+      "helper-fixtures/original-kontrol-failure/source/packages/contracts-bedrock/justfile": "74f04968b12a765b9ffc73c780a41d34d93bd1e05a4055d1497d88063477005f",
+      "helper-fixtures/original-kontrol-failure/source/packages/contracts-bedrock/test/kontrol/proofs/FutureProof.sol": "854ce720be2cff914d0dfa50903f5838cfbbda113fa12c417a5adce24d6c2098",
+      "helper-fixtures/original-kontrol-failure/source/packages/contracts-bedrock/test/kontrol/proofs/utils/DeploymentSummary.sol": "6e77c8e8a969f6824f55f16dead7e4521a38bc009889f5cee42239ea07a4c851",
+      "helper-fixtures/original-kontrol-failure/source/packages/contracts-bedrock/test/kontrol/proofs/utils/DeploymentSummaryCode.sol": "0022cabe600ac169e655b2c50926b54f098468d4d6d32387aa60fc6b7246015a",
+      "helper-fixtures/original-kontrol-failure/source/packages/contracts-bedrock/test/kontrol/proofs/utils/DeploymentSummaryFaultProofs.sol": "3ddc323a450860795194f6b5a7ae2769eab56fdf245345212443ab1a41cae026",
+      "helper-fixtures/original-kontrol-failure/source/packages/contracts-bedrock/test/kontrol/proofs/utils/DeploymentSummaryFaultProofsCode.sol": "a8c0d3f5f824f70cdd7a35d269a82381e059a533acadac24a96f53400a197f0c",
+      "helper-fixtures/original-kontrol-failure/source/packages/contracts-bedrock/test/kontrol/scripts/common.sh": "2c213f105508bf17d58f50094821de21e3128fddf8a19cfb27bec0459a014d77",
+      "helper-fixtures/original-kontrol-failure/source/packages/contracts-bedrock/test/kontrol/scripts/json/clean_json.py": "2e8ad697856f297ea0da23f9ca3ad383407545ce96889655790923f1e76a831c",
+      "helper-fixtures/original-kontrol-failure/source/packages/contracts-bedrock/test/kontrol/scripts/json/reverse_key_values.py": "858b2aafbba18a0cb395e283c76b46971eecac83535bc8d600728005c4bac537",
+      "helper-fixtures/original-kontrol-failure/source/packages/contracts-bedrock/test/kontrol/scripts/make-summary-deployment.sh": "5c1049880ff5ef181f7e2400377477a13cd106e49f9f95e3e8a5896d4cbbafe3",
+      "helper-fixtures/original-kontrol-failure/submodules.txt": "38b181fad644fa2469195652c30d836ebdbdd5e5ac038d2576518cb4db403552",
+      "helper-fixtures/original-kontrol-failure/summaries-compiler/files.json": "e2227371eab865a94d6ba6ea5ab895149cab255e63ffea8892c4813150de429e",
+      "helper-fixtures/original-kontrol-failure/summaries-compiler/files.tar.gz": "2beddbfe610e83de12e87dbbf7ecdb0953f1216189a279e0b7cf843baacdf381",
+      "helper-fixtures/original-kontrol-failure/summaries.log": "7a6aec2a2dc4299e53537d8e7e98ccd9601aabbf09425bf23c9cff95b5f66145",
+      "helper-fixtures/original-kontrol-failure/summaries.stage.json": "02eb3260136614193b97f6e43e299b9781676b6b09d1dc2fbd36b66093b69497",
+      "helper-fixtures/original-kontrol-failure/variants/default/deployment/files/packages/contracts-bedrock/deployments/kontrol.json": "2d0a6832216cb150e242a326c156acaf08832b50b195770918db4c7b7aee2f86",
+      "helper-fixtures/original-kontrol-failure/variants/default/deployment/files/packages/contracts-bedrock/snapshots/state-diff/Kontrol-31337.json": "e838bd36571d5ed3ae17b3ee450cd689afa51050d538e09abc85a155a9bbdce5",
+      "helper-fixtures/original-kontrol-failure/variants/default/deployment/manifest.json": "d2e7f3941ab0b44bcd3d892886cd3a27a6d609b340956ddc139b72daa51dcb02",
+      "helper-fixtures/original-kontrol-failure/variants/default/load-inputs/files/packages/contracts-bedrock/deployments/kontrol.json": "2d0a6832216cb150e242a326c156acaf08832b50b195770918db4c7b7aee2f86",
+      "helper-fixtures/original-kontrol-failure/variants/default/load-inputs/files/packages/contracts-bedrock/deployments/kontrol.jsonReversed": "c8523855e64c7a8876aca82b5574fe251a0ea066da6d7d755eabf2f711749803",
+      "helper-fixtures/original-kontrol-failure/variants/default/load-inputs/files/packages/contracts-bedrock/snapshots/state-diff/Kontrol-31337.json": "a771795d2495548ad173a863848900fff0a2666769f6ebb85f265b022bbc1e96",
+      "helper-fixtures/original-kontrol-failure/variants/default/load-inputs/manifest.json": "4d7d672269f77ac212e94941240879ce9f417c70dc62760ac0f0cf0b0348319c",
+      "helper-fixtures/original-proof-compiler-failure/config.json": "68415afad7b4b2a7f6845a5bad23d9fd0cae41b09df288933b604030b8019c4a",
+      "helper-fixtures/original-proof-compiler-failure/config.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "helper-fixtures/original-proof-compiler-failure/config.stage.json": "27aa7e91adb708ec2664c07754645da613fecccef7775b6806d1bb9579d05e9c",
+      "helper-fixtures/original-proof-compiler-failure/final-compiler/files.json": "a9ebb28f14c257221e644796d5cfb7eef1d1dbb780167302cf939eff4f691e9a",
+      "helper-fixtures/original-proof-compiler-failure/final-compiler/files.tar.gz": "c3af14188b2b0d875c0ca487c94ade5afda4dda34e5a3dbb4a604fd3fdc1ab7a",
+      "helper-fixtures/original-proof-compiler-failure/final.json": "b6be48d4a6e31e35f965d84c0e8da5dc356b844da325d325b88021b85837f156",
+      "helper-fixtures/original-proof-compiler-failure/image/inputs.json": "183207824f9a1f95f08bcdb80f29a19ee9d297f9f71c09d48029ccd642a16fc9",
+      "helper-fixtures/original-proof-compiler-failure/image/inspect.json": "2cbc036d4655c55e72a1fae8e2e0ad862127999b0195b3888be7aaa72caa9b12",
+      "helper-fixtures/original-proof-compiler-failure/image/metadata.json": "e09984ef4dc664953b8a648cafe7bdf158097862f602f830a9878543c4adc945",
+      "helper-fixtures/original-proof-compiler-failure/image/pull-attempts.json": "ffd455b53d10deda4d0feb61a6e9ae2cc1b72b443141a57e4fffe4b8055335ea",
+      "helper-fixtures/original-proof-compiler-failure/image/pull.log": "1871c75b9513bb183a6176e0f4d257bdef86c6746317b56bdaf27c12cc5ed9f6",
+      "helper-fixtures/original-proof-compiler-failure/initial-compiler/files.json": "886bc08b747fbe4240ed418b90bd9a56b6a9298e4a66538a8cad66ecc16e6f9a",
+      "helper-fixtures/original-proof-compiler-failure/initial-compiler/files.tar.gz": "5ea739f54cf99e3dab9cf881e00bb490770342f383a089b883a8f220e3d26b95",
+      "helper-fixtures/original-proof-compiler-failure/proofs-compiler/files.json": "a9ebb28f14c257221e644796d5cfb7eef1d1dbb780167302cf939eff4f691e9a",
+      "helper-fixtures/original-proof-compiler-failure/proofs-compiler/files.tar.gz": "bb80c727c11c8f736978bdce2367415edcf1fb8a51e33ff2e09fd49ee3ec28de",
+      "helper-fixtures/original-proof-compiler-failure/proofs.log": "411b8f07121e782b830bd4bda4f486c6e6aaabe00af2d903b5239d93a9099317",
+      "helper-fixtures/original-proof-compiler-failure/proofs.stage.json": "2ebc6b52bee2ac95606bedd9c6cd81f8e4cf1ea11e1345f77ab7664bf8f4e098",
+      "helper-fixtures/original-proof-compiler-failure/runtime-image.json": "0449d5de3915bc0da8e085e95fb26218467d28aef94663fdb46400f6dea3eb21",
+      "helper-fixtures/original-proof-compiler-failure/runtime-outputs/packages/contracts-bedrock/deployments/hardhat/.deploy": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "helper-fixtures/original-proof-compiler-failure/runtime-outputs/packages/contracts-bedrock/deployments/kontrol-fp.json": "2d0a6832216cb150e242a326c156acaf08832b50b195770918db4c7b7aee2f86",
+      "helper-fixtures/original-proof-compiler-failure/runtime-outputs/packages/contracts-bedrock/deployments/kontrol-fp.jsonReversed": "c8523855e64c7a8876aca82b5574fe251a0ea066da6d7d755eabf2f711749803",
+      "helper-fixtures/original-proof-compiler-failure/runtime-outputs/packages/contracts-bedrock/deployments/kontrol.json": "2d0a6832216cb150e242a326c156acaf08832b50b195770918db4c7b7aee2f86",
+      "helper-fixtures/original-proof-compiler-failure/runtime-outputs/packages/contracts-bedrock/deployments/kontrol.jsonReversed": "c8523855e64c7a8876aca82b5574fe251a0ea066da6d7d755eabf2f711749803",
+      "helper-fixtures/original-proof-compiler-failure/runtime-outputs/packages/contracts-bedrock/snapshots/state-diff/Kontrol-31337.json": "597fe6abafcff28f301edb2a7c32fa49eb70c0b2f9a01133b2441d5f960ad898",
+      "helper-fixtures/original-proof-compiler-failure/runtime-outputs/packages/contracts-bedrock/test/kontrol/proofs/utils/DeploymentSummary.sol": "0e60c0114ea854820fa29c0465cb506abfcbad70e098f6cf0fd6e59d5a66b422",
+      "helper-fixtures/original-proof-compiler-failure/runtime-outputs/packages/contracts-bedrock/test/kontrol/proofs/utils/DeploymentSummaryCode.sol": "dc4d3ffe31e7aba2393f6fd2181f9192fbe6c9606d1baf090a04e808f044180e",
+      "helper-fixtures/original-proof-compiler-failure/runtime-outputs/packages/contracts-bedrock/test/kontrol/proofs/utils/DeploymentSummaryFaultProofs.sol": "3c54e9d3103a71ec30816be2b745a7fb12895237502e3b5d56ce6b4676613c82",
+      "helper-fixtures/original-proof-compiler-failure/runtime-outputs/packages/contracts-bedrock/test/kontrol/proofs/utils/DeploymentSummaryFaultProofsCode.sol": "9db74c5072fa0a3f95edd8fac075b46a47f951ea4e8ad81ad00130a5aea986b3",
+      "helper-fixtures/original-proof-compiler-failure/selection.json": "58a024031347ae83d561a508523dfddc560efabaa4b99cd0b8241d8b6ec35196",
+      "helper-fixtures/original-proof-compiler-failure/settings.json": "6009730e71f6d61f858ae63faa3985d5f1374c155dede2e54a7148c641d0444f",
+      "helper-fixtures/original-proof-compiler-failure/source/mise.toml": "0b557a308b0cd91fd3db80af744520053106924fca7dad9ef682175930280e9a",
+      "helper-fixtures/original-proof-compiler-failure/source/ops/ci/kontrol-build.py": "3820d3409130d1f2525e1c584d96af41704d94927aedd9a259392c9328b58fb6",
+      "helper-fixtures/original-proof-compiler-failure/source/ops/ci/kontrol-image.json": "5ef0a5e7cd411b86f193d10098fbeb522d3ba252f7ef4e91262cd76a418fe136",
+      "helper-fixtures/original-proof-compiler-failure/source/ops/ci/kontrol-image.py": "4faf491ae05b37243a62c16cef6d55230b49d192ecbc3e28f472b7fdcab7b224",
+      "helper-fixtures/original-proof-compiler-failure/source/packages/contracts-bedrock/foundry.toml": "f9b9c5365fc0a4529f6cd0d1dc876490aafc476fcf4de48e8ba4269894ad8776",
+      "helper-fixtures/original-proof-compiler-failure/source/packages/contracts-bedrock/justfile": "88f94a6c0939b1d124467b0458678517ca90140627ea9611221b15dbc3da5aed",
+      "helper-fixtures/original-proof-compiler-failure/source/packages/contracts-bedrock/test/kontrol/proofs/FutureProof.sol": "854ce720be2cff914d0dfa50903f5838cfbbda113fa12c417a5adce24d6c2098",
+      "helper-fixtures/original-proof-compiler-failure/source/packages/contracts-bedrock/test/kontrol/proofs/utils/DeploymentSummary.sol": "6e77c8e8a969f6824f55f16dead7e4521a38bc009889f5cee42239ea07a4c851",
+      "helper-fixtures/original-proof-compiler-failure/source/packages/contracts-bedrock/test/kontrol/proofs/utils/DeploymentSummaryCode.sol": "0022cabe600ac169e655b2c50926b54f098468d4d6d32387aa60fc6b7246015a",
+      "helper-fixtures/original-proof-compiler-failure/source/packages/contracts-bedrock/test/kontrol/proofs/utils/DeploymentSummaryFaultProofs.sol": "3ddc323a450860795194f6b5a7ae2769eab56fdf245345212443ab1a41cae026",
+      "helper-fixtures/original-proof-compiler-failure/source/packages/contracts-bedrock/test/kontrol/proofs/utils/DeploymentSummaryFaultProofsCode.sol": "a8c0d3f5f824f70cdd7a35d269a82381e059a533acadac24a96f53400a197f0c",
+      "helper-fixtures/original-proof-compiler-failure/source/packages/contracts-bedrock/test/kontrol/scripts/common.sh": "2c213f105508bf17d58f50094821de21e3128fddf8a19cfb27bec0459a014d77",
+      "helper-fixtures/original-proof-compiler-failure/source/packages/contracts-bedrock/test/kontrol/scripts/json/clean_json.py": "2e8ad697856f297ea0da23f9ca3ad383407545ce96889655790923f1e76a831c",
+      "helper-fixtures/original-proof-compiler-failure/source/packages/contracts-bedrock/test/kontrol/scripts/json/reverse_key_values.py": "858b2aafbba18a0cb395e283c76b46971eecac83535bc8d600728005c4bac537",
+      "helper-fixtures/original-proof-compiler-failure/source/packages/contracts-bedrock/test/kontrol/scripts/make-summary-deployment.sh": "5c1049880ff5ef181f7e2400377477a13cd106e49f9f95e3e8a5896d4cbbafe3",
+      "helper-fixtures/original-proof-compiler-failure/submodules.txt": "38b181fad644fa2469195652c30d836ebdbdd5e5ac038d2576518cb4db403552",
+      "helper-fixtures/original-proof-compiler-failure/summaries-compiler/files.json": "a9ebb28f14c257221e644796d5cfb7eef1d1dbb780167302cf939eff4f691e9a",
+      "helper-fixtures/original-proof-compiler-failure/summaries-compiler/files.tar.gz": "bb80c727c11c8f736978bdce2367415edcf1fb8a51e33ff2e09fd49ee3ec28de",
+      "helper-fixtures/original-proof-compiler-failure/summaries.log": "d114ed4ad19f7ade39691bd367bd53a87abb539bbc8687ab44521b230c799a9e",
+      "helper-fixtures/original-proof-compiler-failure/summaries.stage.json": "878b67beac28727707cfacced4ebaecbcd392e0ecb3db4708e6ede1d8e88dc99",
+      "helper-fixtures/original-proof-compiler-failure/variants/default/deployment/files/packages/contracts-bedrock/deployments/kontrol.json": "2d0a6832216cb150e242a326c156acaf08832b50b195770918db4c7b7aee2f86",
+      "helper-fixtures/original-proof-compiler-failure/variants/default/deployment/files/packages/contracts-bedrock/snapshots/state-diff/Kontrol-31337.json": "7f399ca9acd9479c2b76fe5ac7f71722dc3d74eb485a59941a78822f07282625",
+      "helper-fixtures/original-proof-compiler-failure/variants/default/deployment/manifest.json": "c1a1d9a8d40027b50e20395a4d80a86f45aa7efdcb88ff0168ae0e3568ea6db1",
+      "helper-fixtures/original-proof-compiler-failure/variants/default/generated/files/packages/contracts-bedrock/deployments/kontrol.json": "2d0a6832216cb150e242a326c156acaf08832b50b195770918db4c7b7aee2f86",
+      "helper-fixtures/original-proof-compiler-failure/variants/default/generated/files/packages/contracts-bedrock/deployments/kontrol.jsonReversed": "c8523855e64c7a8876aca82b5574fe251a0ea066da6d7d755eabf2f711749803",
+      "helper-fixtures/original-proof-compiler-failure/variants/default/generated/files/packages/contracts-bedrock/snapshots/state-diff/Kontrol-31337.json": "27c1b2e32df8af94353ba0d13a1cfaceb11915f1136ca5d0ee3fbcc8536fb53f",
+      "helper-fixtures/original-proof-compiler-failure/variants/default/generated/files/packages/contracts-bedrock/test/kontrol/proofs/utils/DeploymentSummary.sol": "0e60c0114ea854820fa29c0465cb506abfcbad70e098f6cf0fd6e59d5a66b422",
+      "helper-fixtures/original-proof-compiler-failure/variants/default/generated/files/packages/contracts-bedrock/test/kontrol/proofs/utils/DeploymentSummaryCode.sol": "dc4d3ffe31e7aba2393f6fd2181f9192fbe6c9606d1baf090a04e808f044180e",
+      "helper-fixtures/original-proof-compiler-failure/variants/default/generated/manifest.json": "06fdfccc810fd61a866718d636147d844873ee79a2991303325fde8537ea60dd",
+      "helper-fixtures/original-proof-compiler-failure/variants/default/load-inputs/files/packages/contracts-bedrock/deployments/kontrol.json": "2d0a6832216cb150e242a326c156acaf08832b50b195770918db4c7b7aee2f86",
+      "helper-fixtures/original-proof-compiler-failure/variants/default/load-inputs/files/packages/contracts-bedrock/deployments/kontrol.jsonReversed": "c8523855e64c7a8876aca82b5574fe251a0ea066da6d7d755eabf2f711749803",
+      "helper-fixtures/original-proof-compiler-failure/variants/default/load-inputs/files/packages/contracts-bedrock/snapshots/state-diff/Kontrol-31337.json": "27c1b2e32df8af94353ba0d13a1cfaceb11915f1136ca5d0ee3fbcc8536fb53f",
+      "helper-fixtures/original-proof-compiler-failure/variants/default/load-inputs/manifest.json": "5b6fa09e2c7340f1f470c0d03c7544ad32b4320442457010193702efebac3f03",
+      "helper-fixtures/original-proof-compiler-failure/variants/fault-proofs/deployment/files/packages/contracts-bedrock/deployments/kontrol-fp.json": "2d0a6832216cb150e242a326c156acaf08832b50b195770918db4c7b7aee2f86",
+      "helper-fixtures/original-proof-compiler-failure/variants/fault-proofs/deployment/files/packages/contracts-bedrock/snapshots/state-diff/Kontrol-31337.json": "3cc2ff9534d3ffed773037bfec7359bb130d37e160d9910d8a4834525916fba2",
+      "helper-fixtures/original-proof-compiler-failure/variants/fault-proofs/deployment/manifest.json": "edf29b0fe99184da6e9c65ec330b3d283f581bc8daeefb199caf151b25759c26",
+      "helper-fixtures/original-proof-compiler-failure/variants/fault-proofs/generated/files/packages/contracts-bedrock/deployments/kontrol-fp.json": "2d0a6832216cb150e242a326c156acaf08832b50b195770918db4c7b7aee2f86",
+      "helper-fixtures/original-proof-compiler-failure/variants/fault-proofs/generated/files/packages/contracts-bedrock/deployments/kontrol-fp.jsonReversed": "c8523855e64c7a8876aca82b5574fe251a0ea066da6d7d755eabf2f711749803",
+      "helper-fixtures/original-proof-compiler-failure/variants/fault-proofs/generated/files/packages/contracts-bedrock/snapshots/state-diff/Kontrol-31337.json": "597fe6abafcff28f301edb2a7c32fa49eb70c0b2f9a01133b2441d5f960ad898",
+      "helper-fixtures/original-proof-compiler-failure/variants/fault-proofs/generated/files/packages/contracts-bedrock/test/kontrol/proofs/utils/DeploymentSummaryFaultProofs.sol": "3c54e9d3103a71ec30816be2b745a7fb12895237502e3b5d56ce6b4676613c82",
+      "helper-fixtures/original-proof-compiler-failure/variants/fault-proofs/generated/files/packages/contracts-bedrock/test/kontrol/proofs/utils/DeploymentSummaryFaultProofsCode.sol": "9db74c5072fa0a3f95edd8fac075b46a47f951ea4e8ad81ad00130a5aea986b3",
+      "helper-fixtures/original-proof-compiler-failure/variants/fault-proofs/generated/manifest.json": "8934b5861bff885692faf7448f74b53ca45eb05667c93f14fe13be46e84d1e6a",
+      "helper-fixtures/original-proof-compiler-failure/variants/fault-proofs/load-inputs/files/packages/contracts-bedrock/deployments/kontrol-fp.json": "2d0a6832216cb150e242a326c156acaf08832b50b195770918db4c7b7aee2f86",
+      "helper-fixtures/original-proof-compiler-failure/variants/fault-proofs/load-inputs/files/packages/contracts-bedrock/deployments/kontrol-fp.jsonReversed": "c8523855e64c7a8876aca82b5574fe251a0ea066da6d7d755eabf2f711749803",
+      "helper-fixtures/original-proof-compiler-failure/variants/fault-proofs/load-inputs/files/packages/contracts-bedrock/snapshots/state-diff/Kontrol-31337.json": "597fe6abafcff28f301edb2a7c32fa49eb70c0b2f9a01133b2441d5f960ad898",
+      "helper-fixtures/original-proof-compiler-failure/variants/fault-proofs/load-inputs/manifest.json": "24985678b2ced8add5efa4011255c274b8da88146a6a7132589edf3d4a0f63dc",
+      "helper-fixtures/producer-changed/files.tar.gz": "22eed6a2382d09b220f1615331f36ea96bc544048eac7e8c6c8c3db8fac14f43",
+      "helper-fixtures/producer-changed/metadata.json": "913ed38e70f0befdbe9307dae8f869e2a1cd7885ddd725632adfc41509482cd5",
+      "helper-fixtures/producer-changed/preparation/cache.json": "f59b5f95174b52e51f6db4a6d40185fc43d5bd38b077ac6c6a1f099c182926c2",
+      "helper-fixtures/producer-changed/preparation/ci-build.log": "467a564e5ebf236600d85a1c495caa5177a093e286b087a1650da9a4c309ebcc",
+      "helper-fixtures/producer-changed/preparation/ci-build.stage.json": "7d29728e23632f6be1ebfe265e6b1d8e5bb89709a32d5e8f7a0999955aca4a8f",
+      "helper-fixtures/producer-changed/preparation/copy-artifacts.log": "3ba07e04966b87b98a3988d7f5a4907dc9fc45227a2369e5c2410c8f1e7c1c77",
+      "helper-fixtures/producer-changed/preparation/copy-artifacts.stage.json": "fa2e88992e1a14464d43f309f6279e32e8461d1d752a69f1c502c4c1b3e02090",
+      "helper-fixtures/producer-changed/preparation/final.json": "388233011b13ea9926e3581ed048a22e52afb925e8f585334cf584c6605e65ca",
+      "helper-fixtures/producer-changed/preparation/inputs-after.json": "c541adba7749f7ca611d0862aaf8025e7cf2cad303028f0cf16c29341d493ab6",
+      "helper-fixtures/producer-changed/preparation/legacy-graph.log": "b4ea9fadaafbcc30dc237c291ce25c648d2433ad23ea66fda4024272b2edd838",
+      "helper-fixtures/producer-changed/preparation/legacy-graph.stage.json": "e44ad90d248b64f27acc7b92c540d320f9f4c0be325c9138354e6c109094fd1c",
+      "helper-fixtures/producer-changed/preparation/settings.json": "38a45a57f5e4d8cdad610103e507a59f06dd152e862465aca8e33c2a088301cb",
+      "helper-fixtures/producer-first/files.tar.gz": "5bfb9102591e7fd77f69942b98a8ddb4756e89b11a7bcd7dc6068dd503e757ac",
+      "helper-fixtures/producer-first/metadata.json": "8af67e5ffc57f3b790016045cb98af6dfbba3aaac644b0b4d9fd46c2e115b3ed",
+      "helper-fixtures/producer-first/preparation/cache.json": "275366fb0819b7a0411e994a34f800be99177b373ff1796feace261012b5d382",
+      "helper-fixtures/producer-first/preparation/ci-build.log": "5339e6abdc9c8586151f75559b7455eeb6110a4e8240b0cdb479bb59121e4f0c",
+      "helper-fixtures/producer-first/preparation/ci-build.stage.json": "b8ff2ec8123aabfbc1a91b0bfe39c9ffc89cff8c6c1b976bf63e9dcf95262053",
+      "helper-fixtures/producer-first/preparation/copy-artifacts.log": "f955726f91bc7a4353e223b15161634fa4b6dbefe90255cd8329444b8991c837",
+      "helper-fixtures/producer-first/preparation/copy-artifacts.stage.json": "cf25f179acdf53a93f72bec74b0327de5dcdcb0f83bcf84d1370d2cb59316a85",
+      "helper-fixtures/producer-first/preparation/final.json": "4e162e8d0b257c39f2de27acf852d7477044bdeff37488425fbd8bdf3c930f85",
+      "helper-fixtures/producer-first/preparation/inputs-after.json": "2d5d8e8b1640c12006d53351a15ebeb447588eea1d9baf57c5b68ca44938bdbb",
+      "helper-fixtures/producer-first/preparation/legacy-graph.log": "f8f0a71550ae9a9e654ce7155906741feeb1772b14aee7524c891f0cbf82dbb0",
+      "helper-fixtures/producer-first/preparation/legacy-graph.stage.json": "581845f014fdcd930dc33343dba88d1de521eafab109989b47facce5ce418e58",
+      "helper-fixtures/producer-first/preparation/settings.json": "331bfe7afbc9b72ca4845e4058bc763bd6826074e69092a9e75774e1a7da3793",
+      "helper-fixtures/producer-reused/files.tar.gz": "a5cc400485e940e128e16bfee74a0905793026224cd1de4f90ff9839b314621b",
+      "helper-fixtures/producer-reused/metadata.json": "8cb2e279c98ce7512f561237ef9afa1fe01780eb9a46fd68a35dbc23685ddd9c",
+      "helper-fixtures/producer-reused/preparation/cache.json": "0106e574d4f9432dff40bc9a06c30d0e932523c0ebdebe70a1d11e7d86c0716f",
+      "helper-fixtures/producer-reused/preparation/ci-build.log": "dc46c265fc8ae996ba90bc68d4933b0950d7ad827b333dd77db986a77341cba7",
+      "helper-fixtures/producer-reused/preparation/ci-build.stage.json": "35bf2baa5cb3e851f71d957681b7b8ef3004dddd52223e41bc4cfce8579b1fb0",
+      "helper-fixtures/producer-reused/preparation/copy-artifacts.log": "da55f7147b087012599ac4fa089d910f21b2132ce836864801a37653f5d84b67",
+      "helper-fixtures/producer-reused/preparation/copy-artifacts.stage.json": "b5add98ae9a2d952aa6fa6d2d4ae60599813755913e61c5a2356b7a34b968a5b",
+      "helper-fixtures/producer-reused/preparation/final.json": "00a1858cb401847f6acd15e18579613832962966b49b6ed362f506b6a080fcba",
+      "helper-fixtures/producer-reused/preparation/inputs-after.json": "2d5d8e8b1640c12006d53351a15ebeb447588eea1d9baf57c5b68ca44938bdbb",
+      "helper-fixtures/producer-reused/preparation/legacy-graph.log": "ebe83663236b4ed5f022b5a7ca1ab749d1980765e47d5347b77a686aa1f21c3c",
+      "helper-fixtures/producer-reused/preparation/legacy-graph.stage.json": "d32ffc0acb8781681a6e8ca5fab0ce0232a9d8e1c89d249bd885b84ddbcc6683",
+      "helper-fixtures/producer-reused/preparation/settings.json": "331bfe7afbc9b72ca4845e4058bc763bd6826074e69092a9e75774e1a7da3793",
+      "helper-fixtures/stale-contract-input/final-compiler/files.json": "039ac690adbcce3e9c9d345f16cea6b8a1ed709a3ac4f073c8eeb3f28b297308",
+      "helper-fixtures/stale-contract-input/final-compiler/files.tar.gz": "32c79638f6b7795bdd56027101aa70b86f26c60d1956f41080a7b1f9ec14a3ee",
+      "helper-fixtures/stale-contract-input/final.json": "8c2a37ca139a12337bc792c36b26e69eed1cf9de66a54536a764c79b8dbebac2",
+      "helper-fixtures/stale-contract-input/image/inputs.json": "183207824f9a1f95f08bcdb80f29a19ee9d297f9f71c09d48029ccd642a16fc9",
+      "helper-fixtures/stale-contract-input/image/inspect.json": "e43918ae22765744379c8fb06006db394c23251ee36bf3121fbdb7f43ef0b276",
+      "helper-fixtures/stale-contract-input/image/metadata.json": "42c1805cb19ba7f8d7d4bc3aa3c68d08acd4f0f9ebc8845fedf28fcbe25ce735",
+      "helper-fixtures/stale-contract-input/image/pull-attempts.json": "857ac01a3be9ba7b8935b7dab6614cecee762d7ea0e486e40cb3ba5e533e8910",
+      "helper-fixtures/stale-contract-input/image/pull.log": "1871c75b9513bb183a6176e0f4d257bdef86c6746317b56bdaf27c12cc5ed9f6",
+      "helper-fixtures/stale-contract-input/runtime-image.json": "0449d5de3915bc0da8e085e95fb26218467d28aef94663fdb46400f6dea3eb21",
+      "helper-fixtures/stale-contract-input/runtime-outputs/packages/contracts-bedrock/test/kontrol/proofs/utils/DeploymentSummary.sol": "6e77c8e8a969f6824f55f16dead7e4521a38bc009889f5cee42239ea07a4c851",
+      "helper-fixtures/stale-contract-input/runtime-outputs/packages/contracts-bedrock/test/kontrol/proofs/utils/DeploymentSummaryCode.sol": "0022cabe600ac169e655b2c50926b54f098468d4d6d32387aa60fc6b7246015a",
+      "helper-fixtures/stale-contract-input/runtime-outputs/packages/contracts-bedrock/test/kontrol/proofs/utils/DeploymentSummaryFaultProofs.sol": "3ddc323a450860795194f6b5a7ae2769eab56fdf245345212443ab1a41cae026",
+      "helper-fixtures/stale-contract-input/runtime-outputs/packages/contracts-bedrock/test/kontrol/proofs/utils/DeploymentSummaryFaultProofsCode.sol": "a8c0d3f5f824f70cdd7a35d269a82381e059a533acadac24a96f53400a197f0c",
+      "helper-fixtures/stale-contract-input/settings.json": "24f5522434ce70c07aee5f2dbea1a68db4f9bd667862b2344c47353a6060b618",
+      "helper-fixtures/stale-contract-input/submodules.txt": "38b181fad644fa2469195652c30d836ebdbdd5e5ac038d2576518cb4db403552"
+    },
+    "passed": true,
+    "purpose": "Current and historical artifacts can share a source/compiler/profile identity; every earlier payload retains exact original bytes and its original bound phase, and both payloads are compared. Changed, extra, missing and invented history remain failures.",
+    "test_log_sha256": "bcc43c23567e99d67d937b304378f3fad39b53b964bec08ac35293bb3feadbc5"
+  },
+  "resources": {
+    "check": {
+      "cpus": 8,
+      "execution_seconds": 112,
+      "fresh": true,
+      "memory_gib": 16
+    }
+  },
+  "source_sha": "c6b294069888978775a3693a9a6ee35de37942f0",
+  "verified_parity": true
+}

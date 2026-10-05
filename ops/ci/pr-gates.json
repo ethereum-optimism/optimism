@@ -1,0 +1,194 @@
+{
+  "version": 1,
+  "repository": "ethereum-optimism/optimism",
+  "trusted_actor": {
+    "login": "rwx-integration[bot]",
+    "id": 141855219,
+    "type": "Bot"
+  },
+  "gates": {
+    "required-rust-ci": {
+      "circle_config": ".circleci/continue/rust-ci.yml",
+      "workflow": "rust-ci",
+      "route": "run-rust-ci",
+      "dependencies": [
+        {
+          "name": "rust-fmt",
+          "group": "rust-fmt",
+          "tasks": [
+            "rust-fmt"
+          ]
+        },
+        {
+          "name": "rust-clippy",
+          "group": "rust-workspace",
+          "tasks": [
+            "clippy"
+          ]
+        },
+        {
+          "name": "rust-typos",
+          "group": "rust-workspace",
+          "tasks": [
+            "typos"
+          ]
+        },
+        {
+          "name": "rust-zepter",
+          "group": "rust-workspace",
+          "tasks": [
+            "zepter"
+          ]
+        },
+        {
+          "name": "rust-tests",
+          "group": "rust-workspace",
+          "tasks": [
+            "tests"
+          ]
+        },
+        {
+          "name": "interop-deposits-diff",
+          "group": "rust-workspace",
+          "tasks": [
+            "interop"
+          ]
+        },
+        {
+          "name": "rust-doctest",
+          "group": "rust-workspace",
+          "tasks": [
+            "doctest"
+          ]
+        },
+        {
+          "name": "rust-docs",
+          "group": "rust-workspace",
+          "tasks": [
+            "docs"
+          ]
+        },
+        {
+          "name": "rust-udeps",
+          "group": "rust-workspace",
+          "tasks": [
+            "udeps"
+          ]
+        },
+        {
+          "name": "rust-cargo-hack",
+          "group": "rust-workspace",
+          "tasks": [
+            "features-0",
+            "features-1",
+            "features-2",
+            "features-3",
+            "features-4",
+            "features-5",
+            "features-6",
+            "features-7",
+            "features-8",
+            "features-9"
+          ]
+        },
+        {
+          "name": "rust-build",
+          "group": "rust-workspace",
+          "tasks": [
+            "build"
+          ]
+        },
+        {
+          "name": "rust-check-no-std",
+          "group": "rust-workspace",
+          "tasks": [
+            "no-std"
+          ]
+        },
+        {
+          "name": "rust-wasm-unknown",
+          "group": "rust-workspace",
+          "tasks": [
+            "wasm-unknown"
+          ]
+        },
+        {
+          "name": "rust-wasm-wasi",
+          "group": "rust-workspace",
+          "tasks": [
+            "wasm-wasi"
+          ]
+        },
+        {
+          "name": "op-reth-compact-codec",
+          "group": "op-reth-rust",
+          "tasks": [
+            "codec"
+          ]
+        },
+        {
+          "name": "op-reth-integration-tests",
+          "group": "op-reth-rust",
+          "tasks": [
+            "integration"
+          ]
+        },
+        {
+          "name": "kona-lint-cannon",
+          "group": "rust-workspace",
+          "tasks": [
+            "cannon-lint"
+          ]
+        },
+        {
+          "name": "kona-build-fpvm-cannon-client",
+          "group": "rust-workspace",
+          "tasks": [
+            "cannon-build"
+          ]
+        },
+        {
+          "name": "kona-host-client-offline-cannon",
+          "group": "rust-workspace",
+          "tasks": [
+            "cannon-offline"
+          ]
+        },
+        {
+          "name": "kona-registry-snapshot-check",
+          "group": "rust-workspace",
+          "tasks": [
+            "registry"
+          ]
+        },
+        {
+          "name": "op-reth-superchain-snapshot-check",
+          "group": "op-reth-rust",
+          "tasks": [
+            "snapshot"
+          ]
+        }
+      ]
+    }
+  },
+  "groups": {
+    "rust-fmt": {
+      "config": ".rwx/pilot.yml",
+      "receipt_task": "rust-gate-receipt",
+      "status": "RWX: optimism-gate-rust-fmt",
+      "route": "run-rust-ci"
+    },
+    "rust-workspace": {
+      "config": ".rwx/rust.yml",
+      "receipt_task": "rust-gate-receipt",
+      "status": "RWX: optimism-gate-rust-workspace",
+      "route": "run-rust-ci"
+    },
+    "op-reth-rust": {
+      "config": ".rwx/op-reth.yml",
+      "receipt_task": "rust-gate-receipt",
+      "status": "RWX: optimism-gate-op-reth-rust",
+      "route": "run-rust-ci"
+    }
+  }
+}

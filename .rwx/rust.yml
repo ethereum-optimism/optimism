@@ -18,7 +18,11 @@ on:
         cache-epoch: v1
         cache-warm: "false"
       status-checks:
-        name: optimism-rust-shadow
+        default:
+          name: optimism-rust-shadow
+        custom:
+          - name: optimism-gate-rust-workspace
+            tasks: rust-gate-receipt
   cli:
     init:
       commit-sha: ${{ event.git.sha }}
@@ -768,3 +772,103 @@ tasks:
       artifacts:
         - key: report
           path: .ci/rust-workspace/cannon-offline
+
+  # Terminal task states preserve exact Rust dependencies without Main-only failures.
+  - key: rust-gate-receipt
+    use: [code, tools]
+    if: ${{ init.cache-warm != 'true' }}
+    after: ${{ (build.succeeded || build.failed || build.skipped) && (cannon-build.succeeded || cannon-build.failed || cannon-build.skipped) && (cannon-lint.succeeded || cannon-lint.failed || cannon-lint.skipped) && (cannon-offline.succeeded || cannon-offline.failed || cannon-offline.skipped) && (clippy.succeeded || clippy.failed || clippy.skipped) && (docs.succeeded || docs.failed || docs.skipped) && (doctest.succeeded || doctest.failed || doctest.skipped) && (features-0.succeeded || features-0.failed || features-0.skipped) && (features-1.succeeded || features-1.failed || features-1.skipped) && (features-2.succeeded || features-2.failed || features-2.skipped) && (features-3.succeeded || features-3.failed || features-3.skipped) && (features-4.succeeded || features-4.failed || features-4.skipped) && (features-5.succeeded || features-5.failed || features-5.skipped) && (features-6.succeeded || features-6.failed || features-6.skipped) && (features-7.succeeded || features-7.failed || features-7.skipped) && (features-8.succeeded || features-8.failed || features-8.skipped) && (features-9.succeeded || features-9.failed || features-9.skipped) && (interop.succeeded || interop.failed || interop.skipped) && (no-std.succeeded || no-std.failed || no-std.skipped) && (registry.succeeded || registry.failed || registry.skipped) && (tests.succeeded || tests.failed || tests.skipped) && (typos.succeeded || typos.failed || typos.skipped) && (udeps.succeeded || udeps.failed || udeps.skipped) && (wasm-unknown.succeeded || wasm-unknown.failed || wasm-unknown.skipped) && (wasm-wasi.succeeded || wasm-wasi.failed || wasm-wasi.skipped) && (zepter.succeeded || zepter.failed || zepter.skipped) }}
+    run: python3 ops/ci/pr-gate.py receipt rust-workspace
+    env:
+      CI_COMMIT_SHA: ${{ init.commit-sha }}
+      CI_BRANCH: ${{ init.branch }}
+      GROUP_SELECTED: ${{ tasks.route.values.run-rust-ci }}
+      RWX_RUN_ID:
+        cache-key: included
+      RWX_TASK_ATTEMPT_NUMBER:
+        cache-key: included
+      TASK_BUILD_SUCCEEDED: ${{ tasks.build.succeeded }}
+      TASK_BUILD_FAILED: ${{ tasks.build.failed }}
+      TASK_BUILD_SKIPPED: ${{ tasks.build.skipped }}
+      TASK_CANNON_BUILD_SUCCEEDED: ${{ tasks.cannon-build.succeeded }}
+      TASK_CANNON_BUILD_FAILED: ${{ tasks.cannon-build.failed }}
+      TASK_CANNON_BUILD_SKIPPED: ${{ tasks.cannon-build.skipped }}
+      TASK_CANNON_LINT_SUCCEEDED: ${{ tasks.cannon-lint.succeeded }}
+      TASK_CANNON_LINT_FAILED: ${{ tasks.cannon-lint.failed }}
+      TASK_CANNON_LINT_SKIPPED: ${{ tasks.cannon-lint.skipped }}
+      TASK_CANNON_OFFLINE_SUCCEEDED: ${{ tasks.cannon-offline.succeeded }}
+      TASK_CANNON_OFFLINE_FAILED: ${{ tasks.cannon-offline.failed }}
+      TASK_CANNON_OFFLINE_SKIPPED: ${{ tasks.cannon-offline.skipped }}
+      TASK_CLIPPY_SUCCEEDED: ${{ tasks.clippy.succeeded }}
+      TASK_CLIPPY_FAILED: ${{ tasks.clippy.failed }}
+      TASK_CLIPPY_SKIPPED: ${{ tasks.clippy.skipped }}
+      TASK_DOCS_SUCCEEDED: ${{ tasks.docs.succeeded }}
+      TASK_DOCS_FAILED: ${{ tasks.docs.failed }}
+      TASK_DOCS_SKIPPED: ${{ tasks.docs.skipped }}
+      TASK_DOCTEST_SUCCEEDED: ${{ tasks.doctest.succeeded }}
+      TASK_DOCTEST_FAILED: ${{ tasks.doctest.failed }}
+      TASK_DOCTEST_SKIPPED: ${{ tasks.doctest.skipped }}
+      TASK_FEATURES_0_SUCCEEDED: ${{ tasks.features-0.succeeded }}
+      TASK_FEATURES_0_FAILED: ${{ tasks.features-0.failed }}
+      TASK_FEATURES_0_SKIPPED: ${{ tasks.features-0.skipped }}
+      TASK_FEATURES_1_SUCCEEDED: ${{ tasks.features-1.succeeded }}
+      TASK_FEATURES_1_FAILED: ${{ tasks.features-1.failed }}
+      TASK_FEATURES_1_SKIPPED: ${{ tasks.features-1.skipped }}
+      TASK_FEATURES_2_SUCCEEDED: ${{ tasks.features-2.succeeded }}
+      TASK_FEATURES_2_FAILED: ${{ tasks.features-2.failed }}
+      TASK_FEATURES_2_SKIPPED: ${{ tasks.features-2.skipped }}
+      TASK_FEATURES_3_SUCCEEDED: ${{ tasks.features-3.succeeded }}
+      TASK_FEATURES_3_FAILED: ${{ tasks.features-3.failed }}
+      TASK_FEATURES_3_SKIPPED: ${{ tasks.features-3.skipped }}
+      TASK_FEATURES_4_SUCCEEDED: ${{ tasks.features-4.succeeded }}
+      TASK_FEATURES_4_FAILED: ${{ tasks.features-4.failed }}
+      TASK_FEATURES_4_SKIPPED: ${{ tasks.features-4.skipped }}
+      TASK_FEATURES_5_SUCCEEDED: ${{ tasks.features-5.succeeded }}
+      TASK_FEATURES_5_FAILED: ${{ tasks.features-5.failed }}
+      TASK_FEATURES_5_SKIPPED: ${{ tasks.features-5.skipped }}
+      TASK_FEATURES_6_SUCCEEDED: ${{ tasks.features-6.succeeded }}
+      TASK_FEATURES_6_FAILED: ${{ tasks.features-6.failed }}
+      TASK_FEATURES_6_SKIPPED: ${{ tasks.features-6.skipped }}
+      TASK_FEATURES_7_SUCCEEDED: ${{ tasks.features-7.succeeded }}
+      TASK_FEATURES_7_FAILED: ${{ tasks.features-7.failed }}
+      TASK_FEATURES_7_SKIPPED: ${{ tasks.features-7.skipped }}
+      TASK_FEATURES_8_SUCCEEDED: ${{ tasks.features-8.succeeded }}
+      TASK_FEATURES_8_FAILED: ${{ tasks.features-8.failed }}
+      TASK_FEATURES_8_SKIPPED: ${{ tasks.features-8.skipped }}
+      TASK_FEATURES_9_SUCCEEDED: ${{ tasks.features-9.succeeded }}
+      TASK_FEATURES_9_FAILED: ${{ tasks.features-9.failed }}
+      TASK_FEATURES_9_SKIPPED: ${{ tasks.features-9.skipped }}
+      TASK_INTEROP_SUCCEEDED: ${{ tasks.interop.succeeded }}
+      TASK_INTEROP_FAILED: ${{ tasks.interop.failed }}
+      TASK_INTEROP_SKIPPED: ${{ tasks.interop.skipped }}
+      TASK_NO_STD_SUCCEEDED: ${{ tasks.no-std.succeeded }}
+      TASK_NO_STD_FAILED: ${{ tasks.no-std.failed }}
+      TASK_NO_STD_SKIPPED: ${{ tasks.no-std.skipped }}
+      TASK_REGISTRY_SUCCEEDED: ${{ tasks.registry.succeeded }}
+      TASK_REGISTRY_FAILED: ${{ tasks.registry.failed }}
+      TASK_REGISTRY_SKIPPED: ${{ tasks.registry.skipped }}
+      TASK_TESTS_SUCCEEDED: ${{ tasks.tests.succeeded }}
+      TASK_TESTS_FAILED: ${{ tasks.tests.failed }}
+      TASK_TESTS_SKIPPED: ${{ tasks.tests.skipped }}
+      TASK_TYPOS_SUCCEEDED: ${{ tasks.typos.succeeded }}
+      TASK_TYPOS_FAILED: ${{ tasks.typos.failed }}
+      TASK_TYPOS_SKIPPED: ${{ tasks.typos.skipped }}
+      TASK_UDEPS_SUCCEEDED: ${{ tasks.udeps.succeeded }}
+      TASK_UDEPS_FAILED: ${{ tasks.udeps.failed }}
+      TASK_UDEPS_SKIPPED: ${{ tasks.udeps.skipped }}
+      TASK_WASM_UNKNOWN_SUCCEEDED: ${{ tasks.wasm-unknown.succeeded }}
+      TASK_WASM_UNKNOWN_FAILED: ${{ tasks.wasm-unknown.failed }}
+      TASK_WASM_UNKNOWN_SKIPPED: ${{ tasks.wasm-unknown.skipped }}
+      TASK_WASM_WASI_SUCCEEDED: ${{ tasks.wasm-wasi.succeeded }}
+      TASK_WASM_WASI_FAILED: ${{ tasks.wasm-wasi.failed }}
+      TASK_WASM_WASI_SKIPPED: ${{ tasks.wasm-wasi.skipped }}
+      TASK_ZEPTER_SUCCEEDED: ${{ tasks.zepter.succeeded }}
+      TASK_ZEPTER_FAILED: ${{ tasks.zepter.failed }}
+      TASK_ZEPTER_SKIPPED: ${{ tasks.zepter.skipped }}
+    cache: false
+    timeout: 10m
+    outputs:
+      filesystem: false
+      artifacts:
+        - key: receipt
+          path: .ci/pr-gates/groups/rust-workspace

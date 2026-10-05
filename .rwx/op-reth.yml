@@ -24,7 +24,11 @@ on:
         codec-base-sha: ""
         cache-warm: "false"
       status-checks:
-        name: optimism-op-reth-shadow
+        default:
+          name: optimism-op-reth-shadow
+        custom:
+          - name: optimism-gate-op-reth-rust
+            tasks: rust-gate-receipt
   cli:
     init:
       commit-sha: ${{ event.git.sha }}
@@ -411,3 +415,34 @@ tasks:
       artifacts:
         - key: snapshot-verification
           path: .ci/op-reth/snapshot
+
+  # Terminal task states preserve exact Rust dependencies without Main-only failures.
+  - key: rust-gate-receipt
+    use: [code, tools]
+    if: ${{ init.cache-warm != 'true' }}
+    after: ${{ (codec.succeeded || codec.failed || codec.skipped) && (integration.succeeded || integration.failed || integration.skipped) && (snapshot.succeeded || snapshot.failed || snapshot.skipped) }}
+    run: python3 ops/ci/pr-gate.py receipt op-reth-rust
+    env:
+      CI_COMMIT_SHA: ${{ init.commit-sha }}
+      CI_BRANCH: ${{ init.branch }}
+      GROUP_SELECTED: ${{ tasks.route.values.run-rust-ci }}
+      RWX_RUN_ID:
+        cache-key: included
+      RWX_TASK_ATTEMPT_NUMBER:
+        cache-key: included
+      TASK_CODEC_SUCCEEDED: ${{ tasks.codec.succeeded }}
+      TASK_CODEC_FAILED: ${{ tasks.codec.failed }}
+      TASK_CODEC_SKIPPED: ${{ tasks.codec.skipped }}
+      TASK_INTEGRATION_SUCCEEDED: ${{ tasks.integration.succeeded }}
+      TASK_INTEGRATION_FAILED: ${{ tasks.integration.failed }}
+      TASK_INTEGRATION_SKIPPED: ${{ tasks.integration.skipped }}
+      TASK_SNAPSHOT_SUCCEEDED: ${{ tasks.snapshot.succeeded }}
+      TASK_SNAPSHOT_FAILED: ${{ tasks.snapshot.failed }}
+      TASK_SNAPSHOT_SKIPPED: ${{ tasks.snapshot.skipped }}
+    cache: false
+    timeout: 10m
+    outputs:
+      filesystem: false
+      artifacts:
+        - key: receipt
+          path: .ci/pr-gates/groups/op-reth-rust
