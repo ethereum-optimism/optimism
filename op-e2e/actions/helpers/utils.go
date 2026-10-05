@@ -4,10 +4,6 @@ import (
 	"github.com/ethereum-optimism/optimism/op-e2e/config"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils"
 	"github.com/ethereum-optimism/optimism/op-node/node/safedb"
-	"github.com/ethereum/go-ethereum/crypto"
-	"github.com/ethereum/go-ethereum/eth/ethconfig"
-	"github.com/ethereum/go-ethereum/node"
-	"github.com/ethereum/go-ethereum/p2p"
 )
 
 func DefaultRollupTestParams() *e2eutils.TestParams {
@@ -37,22 +33,6 @@ func WithSafeHeadListener(l safeDB) VerifierOpt {
 func DefaultVerifierCfg() *VerifierCfg {
 	return &VerifierCfg{
 		SafeHeadListener: safedb.Disabled,
-	}
-}
-
-func EngineWithP2P() EngineOption {
-	return func(ethCfg *ethconfig.Config, nodeCfg *node.Config) error {
-		p2pKey, err := crypto.GenerateKey()
-		if err != nil {
-			return err
-		}
-		nodeCfg.P2P = p2p.Config{
-			MaxPeers:    100,
-			NoDiscovery: true,
-			ListenAddr:  "127.0.0.1:0",
-			PrivateKey:  p2pKey,
-		}
-		return nil
 	}
 }
 
