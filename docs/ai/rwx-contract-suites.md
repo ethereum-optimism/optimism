@@ -3,8 +3,9 @@
 The existing optional `optimism-contracts-shadow` now uses one shared adapter for
 the four standard feature variants and four changed-file heavy-fuzz variants.
 All eight now pass complete same-revision original-report comparison.
-The four heavy occurrences bring implementation coverage to 67/86 (78%),
-with 19 remaining. Circle retains its required gate.
+All eight occurrences have verified parity. The current
+[inventory](rwx-parity-todos.md) is 74/86 (86%), with twelve remaining after the
+coverage and static-check closeouts. Circle retains its required gate.
 
 `contract-suites.py` preserves Circle's original `find test -name "*.t.sol"`
 selection for standard tests, and the exact `git diff origin/develop...HEAD`
@@ -37,9 +38,9 @@ each command/log/exit/signal. Consumers reject stale settings/revisions,
 missing/corrupt binaries, changed target history, fixture selection or tools.
 Comparison revalidates each file assignment and signature against original
 discovery and accounts for deployable cases, abstract bytecode declarations and
-whole-contract setup skips. Original skip reasons remain untouched. The benchmark retains two reasonless
-Interop L1Block skips with their exact source guard; explicit messages are added
-for subsequent hosted verification.
+whole-contract setup skips. Original skip reasons remain untouched. The first
+benchmark retains two reasonless Interop L1Block skips with their exact source
+guard; the follow-up below verifies the explicit messages on both providers.
 
 Submodules are explicitly initialized recursively before provenance validation;
 the Circle checkout does not initialize them by itself. Preparation must leave
@@ -124,8 +125,38 @@ skips lack emitted reasons; their exact existing feature condition is sealed in
 the evidence. All other original skip records have reasons. No original reason
 is invented or rewritten.
 
+## Current-source follow-up
+
+All eight occurrences also pass complete original-report comparison at
+`ffefdb34638470dd1126cbf2aaebb4644400b6fb` on
+[native run ffab3bbe](https://cloud.rwx.com/optimism/runs/ffab3bbedad3416eb8424baef0d13abe)
+and [Circle pipeline 135572](https://app.circleci.com/pipelines/github/ethereum-optimism/optimism/135572).
+The [follow-up index](rwx-contract-suites-evidence/ffef-parity.json) retains every
+selection, outcome, skip, source/tool setting, compiler binding, fixture mutation
+and original report hash. All 950 original files verify. Full originals remain
+under `.ci/rwx-contract-suites-evidence/ffef/` and the provider artifacts.
+
+Standard selection and outcomes remain the complete 164-file/2,882-signature
+workload above. The changed-file authority now selects three real files:
+`ResourceMetering.t.sol`, `L1Block.t.sol` and `Bytes.t.sol`. The additional changed
+L1Block file brings heavy selection to 58 signatures: 56 executable cases and two
+abstract declarations. The full `ciheavy` counts/timeouts remain unchanged.
+
+| Heavy feature | Pass | Skip |
+| --- | ---: | ---: |
+| main | 50 | 8 |
+| CUSTOM_GAS_TOKEN | 53 | 5 |
+| OPTIMISM_PORTAL_INTEROP | 48 | 10 |
+| ZK_DISPUTE_GAME | 50 | 8 |
+
+The two Interop L1Block cases now emit the exact original reason
+`Interop is already enabled by the dev feature` in both providers' standard
+JUnit. Their existing feature condition and assertions remain unchanged. The
+comparison confirms these messages directly; the historical reasonless records
+remain intact in the first benchmark evidence.
+
 [Compiler-only rehearsal ef8b816c](https://cloud.rwx.com/optimism/runs/ef8b816ca9fe470f8e34369cdc9d8fa7)
-passed all eight producers at the same source revision with zero tests and no
+passed all eight producers at the original `c702cfb2` benchmark revision with zero tests and no
 verdict tasks. Every build reports unchanged compilation skipped. Every contract
 artifact and Go FFI binary is byte-identical; only
 `cache/solidity-files-cache.json` changes. These tasks executed and reused native

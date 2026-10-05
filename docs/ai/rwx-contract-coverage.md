@@ -1,9 +1,9 @@
 # Contract coverage shadow
 
 The optional `optimism-contract-coverage-shadow` implements all four configured
-coverage feature variants through the existing shared contracts routing. These
-four occurrences remain **uncounted** until complete hosted original-report
-comparison passes. Implementation coverage remains 67/86 (78%), with 19 remaining.
+coverage feature variants through the existing shared contracts routing. All
+four pass complete hosted ordinary/upgrade original-report comparison. Verified
+job coverage is 74/86 (86%), with twelve occurrences remaining.
 Circle retains every required gate and production publisher.
 
 The shared adapter expands the original `just coverage-lcov-all` into its exact
@@ -84,7 +84,7 @@ trie variants and unbiased range sampling stay intact. Ordinary calls retain
 `crypto/rand`. All nine real CLI variants reproduce their complete outputs with
 the same input, change with a different seed, and reject invalid replay inputs.
 The comparison still rejects every changed LCOV hit or attribution field; these
-corrections await a new complete hosted ordinary/upgrade comparison.
+corrections now pass complete hosted ordinary/upgrade comparison for every variant.
 All fuzz/invariant counts, filters and test assertions remain unchanged. Changed
 revisions and features receive different samples. This controls the input of the
 benchmark; it does not prove arbitrary unseeded runs have identical hit counts.
@@ -126,5 +126,55 @@ Missing RPC inputs, stale preparation and a corrupt FFI binary fail before
 testing. Comparison fixtures reject missing passes/new files, duplicate
 assignments, reduced settings, altered commands/archives, changed LCOV hits,
 invented derived skip reasons, source mutation, corruption and unexplained retries.
-Hosted parity, full skip-reason investigation and cache observations remain
-required before adding these four occurrences to the inventory.
+The complete hosted comparison and unchanged-input cache rehearsal below close
+these four inventory occurrences.
+
+## Hosted closeout
+
+Complete parity passes at `ffefdb34638470dd1126cbf2aaebb4644400b6fb` on
+[native run aba3398e](https://cloud.rwx.com/optimism/runs/aba3398e8ef549bb9d4de10f20e6d40d)
+and [Circle pipeline 135572](https://app.circleci.com/pipelines/github/ethereum-optimism/optimism/135572).
+All eight original coverage commands pass, with no retries. Both providers retain
+all 164 files, 2,882 ordinary signatures and 50 upgrade signatures per feature.
+Every ordinary selection accounts for 23 abstract empty-bytecode declarations;
+all 2,859 executable ordinary cases and all 50 upgrade cases are accounted for.
+
+| Feature | Ordinary pass / skip | Upgrade pass / skip |
+| --- | ---: | ---: |
+| main | 2,308 / 551 | 45 / 5 |
+| CUSTOM_GAS_TOKEN | 2,340 / 519 | 45 / 5 |
+| OPTIMISM_PORTAL_INTEROP | 2,414 / 445 | 45 / 5 |
+| ZK_DISPUTE_GAME | 2,433 / 426 | 50 / 0 |
+
+All selected cases, setup skips, predicate verdicts, shared invariant campaigns,
+skip reasons, compiler signatures, source hashes, effective settings, runtime
+fixtures, LCOV entries and complete per-test attribution fingerprints agree.
+Every raw LCOV hit and attribution item remains included. The full original
+attribution files are retained; comparison does not replace them with sampled
+items or aggregate totals. All 762 original files verify against their seals.
+The [parity index](rwx-contract-coverage-evidence/parity.json) retains complete
+comparison views, original hashes, provider identities and immutable report links.
+Original reports remain under `.ci/rwx-contract-coverage-evidence/ffef/` and the
+provider artifacts. This controlled replay establishes parity for these exact
+inputs; it does not establish a distributional claim for arbitrary unseeded runs.
+
+Both providers use L1 archive block 26,122,439, hash
+`0x3401750e7c5cb2b34c5290ff470a0058c3c72ccc4317d2c822c2e271c0ff0362`,
+selected by the production daily 00:00 UTC policy. Its timestamp is 1,791,158,399.
+The preflight and originals retain the actual block verification. Credentials
+remain restricted to the preflight/runtime tasks and redacted from reports.
+
+[Warm-only rehearsal c0c94e11](https://cloud.rwx.com/optimism/runs/c0c94e11276549a9addddf9c87096cee)
+reused every compile task directly from `aba3398e`, at the same source and settings.
+All four producers passed with zero tests, and the run selected no verdict,
+helper or RPC task. The
+[cache and failure index](rwx-contract-coverage-evidence/cache-and-fixtures.json)
+retains the task provenance, original prepared manifests and hosted intentional
+failure reports. The changed source/settings at `ffefdb3` invalidated the earlier
+producer outputs and all four compiled again. This is a CLI warm-only observation;
+an actual protected `develop` cache-rebuild event remains unobserved.
+
+All four required Circle gates and dependency review passed at this exact SHA.
+The first pushed static-check shadow failed on its diagnosed ShellCheck PATH;
+its corrected definition passed the separate rehearsal. The final updated PR
+must still reach successful terminal states on its own head.

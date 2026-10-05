@@ -146,7 +146,7 @@ tasks:
       PATH="$(mise bin-paths | paste -sd: -):$PATH"
       export PATH
       mise install pipx:semgrep@1.178.0
-      printf '%s/bin:%s/bin:%s\n' "$(mise where shellcheck@0.9.0)" "$(mise where pipx:semgrep@1.178.0)" "$PATH" >"$RWX_ENV/PATH"
+      mise exec shellcheck@0.9.0 pipx:semgrep@1.178.0 -- sh -c 'printf "%s\n" "$PATH"' >"$RWX_ENV/PATH"
     timeout: 30m
 
   - key: static-helper-tests

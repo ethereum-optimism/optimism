@@ -1,0 +1,127 @@
+{
+  "corrected_definition_sha256": "c0201500bc50b6d3f3a2dd916d99b3228ea6cfbec4068498a5bbd1865cd44235",
+  "corrected_native_rehearsal": "a656a664a1704612b3020c70fb18627c",
+  "diagnosis": "The manually guessed ShellCheck install/bin path did not contain shellcheck. Use the actual Mise resolved PATH. No source selection, command, tool version or assertion changed.",
+  "helper_task": {
+    "Agent": {
+      "Cpus": 2,
+      "DiskSizeGigabytes": 50,
+      "MemoryGb": 8
+    },
+    "ArtifactCount": 1,
+    "CacheHitFromTaskID": null,
+    "CacheKey": "06cdb1537d7c10278600f8a35c60663a0323b91c",
+    "CompletedAt": "2026-10-05T02:11:03.985Z",
+    "CompletedRuntimeSeconds": 14,
+    "ExecutionFinishedAt": "2026-10-05T02:11:03.174Z",
+    "ExecutionRuntimeSeconds": 11,
+    "ExecutionStartedAt": "2026-10-05T02:10:52.417Z",
+    "FailedTestCount": 0,
+    "ID": "8fff4b00bc4d89072e89b849496bc1a3",
+    "Key": "static-helper-tests",
+    "Messages": [],
+    "Outputs": {
+      "Links": [],
+      "Values": []
+    },
+    "PostProcessingRuntimeSeconds": 1,
+    "PreparingRuntimeSeconds": 2,
+    "ScopedKey": "static-helper-tests",
+    "StartedAt": "2026-10-05T02:10:50.537Z",
+    "Status": {
+      "AbortedSubStatus": "not_applicable",
+      "Execution": "finished",
+      "FinishedSubStatus": "executed",
+      "Result": "succeeded",
+      "WaitingSubStatus": "not_applicable"
+    },
+    "Subtasks": [],
+    "TestCount": 0,
+    "ToolCaches": {
+      "DeclaredByTask": [],
+      "InheritedFromDependencies": []
+    }
+  },
+  "hosted_intentional_failure_fixtures": [
+    {
+      "all_original_hashes_verified": true,
+      "fixture": "semgrep-initial-failure",
+      "manifest": {
+        "exit_code": 1,
+        "original_sha256": {
+          "check.json": "aff995460211155ad98e8d916dd7b70ab5f9dcaa059505da47ac9f0be3ec4b65",
+          "check.log": "c2886d05501e7546eddf113ca24511d103cddea5830cb685724a67cb022c39fb",
+          "check.stage.json": "232f17f528356aa45e94b2d3a7b5f0032b42d74a8079913f24342c6bc11f410d",
+          "coverage.json": "3e4bbc3eece5c357aae96351b0633c9e7434e393f545d014af772d004c4334e3",
+          "derived.junit.xml": "adbfbbccf4cded2546b083e3a2eeb9b85bc8fb79ebb1b3c79afe8dee52d3ab42",
+          "inputs-after.json": "b946cdb9f99717656fe0b6ecf31175889124b540838803a90f0035bbe78ff9f7",
+          "selection.json": "2a57a226060908a1059f76d92808fbdb60725746df61c142d7a875b7d2384074",
+          "settings.json": "383cd84f22eca20f7d9bca23fd32b556745ad52e410aba826f79ebd1c4675000"
+        },
+        "report_errors": []
+      },
+      "manifest_sha256": "488b8aef58cbd9ee79e34d31389ea4d14c1da85ccb3b0d825fbaa24d136ba4b9",
+      "role": "intentional-failure"
+    },
+    {
+      "all_original_hashes_verified": true,
+      "fixture": "semgrep-missing-baseline",
+      "manifest": {
+        "exit_code": 1,
+        "original_sha256": {
+          "derived.junit.xml": "adbfbbccf4cded2546b083e3a2eeb9b85bc8fb79ebb1b3c79afe8dee52d3ab42"
+        },
+        "report_errors": [
+          "Command '['git', 'rev-parse', '--verify', 'develop^{commit}']' returned non-zero exit status 128."
+        ]
+      },
+      "manifest_sha256": "da5fcf995754ac73f2c01c1a746550a0b1667fcf7c5e6580229d3e2703ddac96",
+      "role": "intentional-failure"
+    },
+    {
+      "all_original_hashes_verified": true,
+      "fixture": "shell-initial-failure",
+      "manifest": {
+        "exit_code": 1,
+        "original_sha256": {
+          "check.log": "ce7423131d4fc38ccfa335ed0841e43ac74b23529a119dbd14b08920890fbe7b",
+          "check.stage.json": "ce7186fe652ed7c6dfd39a222edee7825f583ae4483716ed757699f3b33da212",
+          "coverage.json": "2667d3ca7e1ed03df1901efe999ac8eb7ad4d5a9f875a10deb3cd9c64b517666",
+          "derived.junit.xml": "4164cc9f5f8b11c27ca20a5949122412b7ecafe1d6a2801c857517c40cfcd7b9",
+          "discovery.log": "9849063a699a3f482ef58e699f5a4f5f9db90f65cc397c6cc05a7dcffe28cacf",
+          "discovery.stage.json": "711d04df7a09bff5466577e277bb9b691ecd72abc2087cc213f9ba7fcf272a19",
+          "inputs-after.json": "564a0e2412a4c873ea531aae3006840406795933b4dcba7fe238cf75b5a031c7",
+          "original.shellcheck.log": "aca83c23d6b6e8de4d24c228a2938b300e1bdb216ac3332ceff98f0117f62e68",
+          "selection.json": "75222486f62741300751ec2e49cfff1eceb72280821bced45973187fa7b45521",
+          "settings.json": "f1bf2864bd2f3c459a21042d44014b13e13acd6deef2fdceeb225c08f333898a"
+        },
+        "report_errors": []
+      },
+      "manifest_sha256": "33d0352227540946a7e10b0be0d400361ea6a506f146fed43c597925ab004adb",
+      "role": "intentional-failure"
+    }
+  ],
+  "native_task_logs": {
+    "helper-native-task.log": {
+      "contents": "2026-10-05T02:02:43.098Z\trwx\t::group::Preparing task\n2026-10-05T02:02:43.099Z\trwx\tWaiting for a runner...\n2026-10-05T02:02:43.172Z\trwx\tSetting up container...\n2026-10-05T02:02:43.210Z\trwx\tUsing cached tool-cache layer (1005 MiB). 1 / 10 layers complete.\n2026-10-05T02:02:43.210Z\trwx\tUsing cached layer from task static-tools (409 MiB). 2 / 10 layers complete.\n2026-10-05T02:02:43.210Z\trwx\tUsing cached layer from task tools (185 MiB). 3 / 10 layers complete.\n2026-10-05T02:02:43.210Z\trwx\tUsing cached layer from task ~base-config (368 MiB). 4 / 10 layers complete.\n2026-10-05T02:02:43.210Z\trwx\tUsing cached layer from task ~base-image (80 MiB). 5 / 10 layers complete.\n2026-10-05T02:02:43.210Z\trwx\tUsing cached layer from task mise (75 MiB). 6 / 10 layers complete.\n2026-10-05T02:02:43.210Z\trwx\tUsing cached tool-cache layer (8 MiB). 7 / 10 layers complete.\n2026-10-05T02:02:43.210Z\trwx\tUsing cached layer from task code (0 MiB). 8 / 10 layers complete.\n2026-10-05T02:02:43.210Z\trwx\tUsing cached layer from task ~base-config (536 MiB). 9 / 10 layers complete.\n2026-10-05T02:02:43.210Z\trwx\tDownloading layer from task code (29 MiB)...\n2026-10-05T02:02:43.550Z\trwx\tLayer from task code (29 MiB) downloaded. 10 / 10 layers complete.\n2026-10-05T02:02:43.585Z\trwx\tStarting task container...\n2026-10-05T02:02:43.657Z\trwx\t::endgroup::\n2026-10-05T02:02:43.657Z\texec\t::group::Running command\n2026-10-05T02:02:43.657Z\trwx\t::group::Show command\n2026-10-05T02:02:43.657Z\trwx\tRWX_LIVE_SHELL_FIXTURE=1 RWX_LIVE_SEMGREP_FIXTURE=1 python3 -m unittest discover -s ops/ci -p 'test_static_checks.py'\n2026-10-05T02:02:43.657Z\trwx\tpython3 -m unittest discover -s ops/ci -p 'test_compare_static_checks.py'\n2026-10-05T02:02:43.657Z\trwx\t\n2026-10-05T02:02:43.657Z\trwx\t::endgroup::\n2026-10-05T02:02:54.181Z\tstderr\t.F..\n2026-10-05T02:02:54.230Z\tstderr\t======================================================================\n2026-10-05T02:02:54.230Z\tstderr\tFAIL: test_original_orb_exclusions_spaces_fresh_failure_and_complete_parity (test_static_checks.LiveTools.test_original_orb_exclusions_spaces_fresh_failure_and_complete_parity)\n2026-10-05T02:02:54.230Z\tstderr\t----------------------------------------------------------------------\n2026-10-05T02:02:54.230Z\tstderr\tTraceback (most recent call last):\n2026-10-05T02:02:54.230Z\tstderr\t  File \"/var/mint-workspace/ops/ci/test_static_checks.py\", line 70, in test_original_orb_exclusions_spaces_fresh_failure_and_complete_parity\n2026-10-05T02:02:54.230Z\tstderr\t    first,d,sha=self.run_check(root,'shell-check');self.assertEqual(first.returncode,0,first.stderr+first.stdout)\n2026-10-05T02:02:54.230Z\tstderr\t                                                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n2026-10-05T02:02:54.230Z\tstderr\tAssertionError: 1 != 0 : [Errno 2] No such file or directory: 'shellcheck'\n2026-10-05T02:02:54.230Z\tstderr\t\n2026-10-05T02:02:54.230Z\tstderr\t\n2026-10-05T02:02:54.230Z\tstderr\t----------------------------------------------------------------------\n2026-10-05T02:02:54.230Z\tstderr\tRan 4 tests in 10.396s\n2026-10-05T02:02:54.230Z\tstderr\t\n2026-10-05T02:02:54.230Z\tstderr\tFAILED (failures=1)\n2026-10-05T02:02:54.243Z\texec\t::endgroup::\n2026-10-05T02:02:54.243Z\trwx\tTask finished with exit code 1\n2026-10-05T02:02:54.243Z\trwx\t::group::Post-processing task\n2026-10-05T02:02:54.263Z\trwx\tStopping task container...\n2026-10-05T02:02:54.411Z\trwx\tProcessing task outputs...\n2026-10-05T02:02:54.462Z\trwx\tSkipping output layer upload - upper directory is empty after cleanup\n2026-10-05T02:02:54.509Z\trwx\tPost-processing complete\n2026-10-05T02:02:54.509Z\trwx\t::endgroup::\n",
+      "sha256": "0b2c1f26b04af2945dd4adcf1086997d251858ee619497b67108256cbbe632a8"
+    },
+    "shell-check-native-task.log": {
+      "contents": "2026-10-05T02:02:43.110Z\trwx\t::group::Preparing task\n2026-10-05T02:02:43.110Z\trwx\tWaiting for a runner...\n2026-10-05T02:02:43.619Z\trwx\tSetting up container...\n2026-10-05T02:02:43.738Z\trwx\tDownloading tool-cache layer (1005 MiB)...\n2026-10-05T02:02:43.739Z\trwx\tUsing cached layer from task ~base-config (536 MiB). 1 / 10 layers complete.\n2026-10-05T02:02:43.739Z\trwx\tDownloading layer from task static-tools (409 MiB)...\n2026-10-05T02:02:43.748Z\trwx\tUsing cached layer from task ~base-config (368 MiB). 2 / 10 layers complete.\n2026-10-05T02:02:43.748Z\trwx\tDownloading layer from task tools (185 MiB)...\n2026-10-05T02:02:44.913Z\trwx\tLayer from task tools (185 MiB) downloaded. 3 / 10 layers complete.\n2026-10-05T02:02:44.913Z\trwx\tDownloading layer from task ~base-image (80 MiB)...\n2026-10-05T02:02:45.126Z\trwx\tLayer from task static-tools (409 MiB) downloaded. 4 / 10 layers complete.\n2026-10-05T02:02:45.126Z\trwx\tDownloading layer from task mise (75 MiB)...\n2026-10-05T02:02:45.374Z\trwx\tLayer from task ~base-image (80 MiB) downloaded. 5 / 10 layers complete.\n2026-10-05T02:02:45.374Z\trwx\tDownloading layer from task code (29 MiB)...\n2026-10-05T02:02:45.519Z\trwx\tLayer from task mise (75 MiB) downloaded. 6 / 10 layers complete.\n2026-10-05T02:02:45.519Z\trwx\tDownloading tool-cache layer (8 MiB)...\n2026-10-05T02:02:45.651Z\trwx\tTool-cache layer (8 MiB) downloaded. 7 / 10 layers complete.\n2026-10-05T02:02:45.652Z\trwx\tDownloading layer from task code (0 MiB)...\n2026-10-05T02:02:45.690Z\trwx\tLayer from task code (0 MiB) downloaded. 8 / 10 layers complete.\n2026-10-05T02:02:45.729Z\trwx\tLayer from task code (29 MiB) downloaded. 9 / 10 layers complete.\n2026-10-05T02:02:45.807Z\trwx\tTool-cache layer (1005 MiB) downloaded. 10 / 10 layers complete.\n2026-10-05T02:02:45.881Z\trwx\tStarting task container...\n2026-10-05T02:02:46.034Z\trwx\t::endgroup::\n2026-10-05T02:02:46.035Z\texec\t::group::Running command\n2026-10-05T02:02:46.035Z\trwx\t::group::Show command\n2026-10-05T02:02:46.035Z\trwx\tpython3 ops/ci/static-checks.py shell-check\n2026-10-05T02:02:46.035Z\trwx\t::endgroup::\n2026-10-05T02:02:47.315Z\tstderr\t[Errno 2] No such file or directory: 'shellcheck'\n2026-10-05T02:02:47.325Z\texec\t::endgroup::\n2026-10-05T02:02:47.325Z\trwx\tTask finished with exit code 1\n2026-10-05T02:02:47.325Z\trwx\t::group::Post-processing task\n2026-10-05T02:02:47.344Z\trwx\tStopping task container...\n2026-10-05T02:02:47.485Z\trwx\tProcessing task outputs...\n2026-10-05T02:02:47.759Z\trwx\tSkipping output layer upload - upper directory is empty after cleanup\n2026-10-05T02:02:51.817Z\trwx\tPost-processing complete\n2026-10-05T02:02:51.817Z\trwx\t::endgroup::\n",
+      "sha256": "a25a6f83f28120c02a8bee783c02b160e9e1eb8a2ab09ebb561fa9661329c65a"
+    }
+  },
+  "original_failed_native_run": "18374cafeb294daabd48d158a1b45577",
+  "original_helper_task": "c08f75067c326a9a6fcaa757b15fb2bd",
+  "original_shell_failure_manifest": {
+    "exit_code": 1,
+    "original_sha256": {
+      "derived.junit.xml": "4164cc9f5f8b11c27ca20a5949122412b7ecafe1d6a2801c857517c40cfcd7b9"
+    },
+    "report_errors": [
+      "[Errno 2] No such file or directory: 'shellcheck'"
+    ]
+  },
+  "shell_task": "bd228516995febdf593eb2b94fd30c7f",
+  "source_sha": "ffefdb34638470dd1126cbf2aaebb4644400b6fb"
+}

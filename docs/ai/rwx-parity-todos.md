@@ -34,13 +34,13 @@ at commit `587b4c3a73d3f16f15212b72e9a0ed0e8489a7c4`.
 
 | PR workflow | Expanded job instances | Implemented validation jobs |
 | --- | ---: | ---: |
-| Main | 32 | 20 |
-| Contracts | 23 | 17 |
+| Main | 32 | 23 |
+| Contracts | 23 | 21 |
 | Rust | 22 | 21 |
 | Rust E2E | 9 | 9 |
-| Total | 86 | 67 |
+| Total | 86 | 74 |
 
-Verified implementation coverage is **67 / 86 = 78%**. Each matrix entry and
+Verified implementation coverage is **74 / 86 = 86%**. Each matrix entry and
 each occurrence in a different workflow counts separately; shards do not.
 The CircleCI setup and schedule-trigger-check workflows are outside this
 86-job denominator and have separate todos. This is job coverage, not runtime,
@@ -85,13 +85,20 @@ The four standard and four changed-file heavy-fuzz variants now pass complete
 same-SHA original-report parity. Standard discovery retains all 164 files and
 2,882 signatures; heavy discovery retains both actual modified files and all
 28 cases. See the [contract suite closeout](rwx-contract-suites.md) for exact
-originals, generated fixture evidence, compiler-only reuse and the two remaining
-skip-message observations. Coverage, L2 fork and contract gate equivalents remain
-uncounted pending hosted validation.
-ShellCheck and both Semgrep jobs are implemented with exact original selections,
-pinned tools, baseline provenance and retained original reports. Their real-tool
-and comparison fixtures pass locally; all three remain uncounted pending hosted
-comparison. See the [static-check stage](rwx-static-checks.md).
+originals, generated fixture evidence, compiler-only reuse and the skip-message
+follow-up. All four coverage variants now pass complete same-SHA ordinary and
+upgrade comparison, including every LCOV hit and complete per-test attribution.
+The unchanged-input warm rehearsal reused all four producers with zero tests.
+See the [coverage closeout](rwx-contract-coverage.md) for the retained first
+failure, source-bound corrections and full original hashes.
+ShellCheck and both Semgrep jobs now pass complete same-SHA comparison with
+exact original selections, pinned tools, baseline provenance, warnings and
+exclusions. Hosted real-tool failure fixtures pass. The original missing-PATH
+failure and corrected native definition rehearsal remain retained; the tested
+PATH fix must still pass the final pushed PR check. See the
+[static-check closeout](rwx-static-checks.md).
+Twelve occurrences remain: nine Main jobs, L2 fork, and the Contracts and Rust
+aggregate equivalents. Circle continues to own every required gate.
 The narrower rollup mode remains CLI-only. See [the stage closeout](rwx-go-parity.md)
 for original-report comparison, selected resources, caches and limitations.
 
@@ -210,9 +217,9 @@ names and feature suffixes.
 CircleCI workflow: `main` (32 jobs).
 
 - [x] `todo-issues-check`
-- [ ] `shell-check`
-- [ ] `semgrep-test`
-- [ ] `semgrep-scan-local`
+- [x] `shell-check`
+- [x] `semgrep-test`
+- [x] `semgrep-scan-local`
 - [x] `rust-sp1-super-range-executor`
 - [x] `rust-op-reth-binary`
 - [x] `rust-kona-binaries`
@@ -255,10 +262,10 @@ CircleCI workflow: `contracts-feature-tests` (23 jobs).
 - [x] `contracts-bedrock-tests-heavy-fuzz-modified CUSTOM_GAS_TOKEN`
 - [x] `contracts-bedrock-tests-heavy-fuzz-modified OPTIMISM_PORTAL_INTEROP`
 - [x] `contracts-bedrock-tests-heavy-fuzz-modified ZK_DISPUTE_GAME`
-- [ ] `contracts-bedrock-coverage main`
-- [ ] `contracts-bedrock-coverage CUSTOM_GAS_TOKEN`
-- [ ] `contracts-bedrock-coverage OPTIMISM_PORTAL_INTEROP`
-- [ ] `contracts-bedrock-coverage ZK_DISPUTE_GAME`
+- [x] `contracts-bedrock-coverage main`
+- [x] `contracts-bedrock-coverage CUSTOM_GAS_TOKEN`
+- [x] `contracts-bedrock-coverage OPTIMISM_PORTAL_INTEROP`
+- [x] `contracts-bedrock-coverage ZK_DISPUTE_GAME`
 - [x] `contracts-bedrock-tests-upgrade op-mainnet main`
 - [x] `contracts-bedrock-tests-upgrade op-mainnet CUSTOM_GAS_TOKEN`
 - [x] `contracts-bedrock-tests-upgrade op-mainnet OPTIMISM_PORTAL_INTEROP`
