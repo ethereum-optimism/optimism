@@ -143,6 +143,19 @@ contract FutureProof is DeploymentSummary { function futureProof() public pure r
         report=C.compare(pair,self.sha);self.assertTrue(report['verified_parity'])
         self.assertIn(K.PROOFS+'/FutureProof.sol',report['selection']['proof_sources'])
         self.assertEqual(report['coverage']['tests'],0)
+        # Both supported Docker stores identify exactly the same pinned image.
+        path=pair/'rwx/runtime-image.json';original=path.read_bytes()
+        final_path=pair/'rwx/final.json';original_final=final_path.read_bytes()
+        image=json.loads(original)
+        selected=K.IMAGE.selection()
+        for identity in (selected['config_digest'],selected['image'].split('@',1)[1], 'sha256:'+'f'*64):
+            image[0]['Id']=identity;K.S.write(path,image)
+            final=K.G.read(final_path);final['original_sha256']['runtime-image.json']=K.S.digest(path);K.S.write(final_path,final)
+            if identity.endswith('f'*64):
+                with self.assertRaises(ValueError):C.compare(pair,self.sha)
+            else:
+                self.assertTrue(C.compare(pair,self.sha)['verified_parity'])
+        path.write_bytes(original);final_path.write_bytes(original_final)
         for name in ('settings.json','selection.json','coverage.json','proofs.stage.json','dependencies/contracts-e2e/metadata.json'):
             path=pair/'rwx'/name;original=path.read_bytes();final_path=pair/'rwx/final.json';original_final=final_path.read_bytes()
             value=K.G.read(path)

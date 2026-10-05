@@ -119,8 +119,8 @@ def report(directory, provider, sha):
     if G.read(directory / 'image/inputs.json') != {'selection':settings['image'],'input_sha256':image_metadata['input_sha256']}:
         raise ValueError('Changed original Kontrol image preparation selection')
     image = G.read(directory / 'runtime-image.json')
-    if len(image) != 1 or image[0]['Id'] != settings['image']['id'] or settings['image']['image'] not in image[0]['RepoDigests']:
-        raise ValueError('Runtime Kontrol image differs from selected immutable input')
+    K.IMAGE.validate_inspection(image)
+    K.IMAGE.validate_inspection(G.read(directory / 'image/inspect.json'))
     files = {phase:compiler(directory / (phase + '-compiler')) for phase in COMPILER_PHASES}
     if provider == 'rwx':
         producer = directory / 'dependencies/contracts-e2e'; metadata = G.read(producer / 'metadata.json')
@@ -168,7 +168,7 @@ def compare(directory,sha):
     roots = [r['settings']['workspace_root'] for r in (a,b)]
     if A.normalize(G.read(directory / 'circle/config.json'),roots[0]) != A.normalize(G.read(directory / 'rwx/config.json'),roots[1]):
         raise ValueError('Complete original Kontrol compiler configuration differs')
-    for key in ('Id','RootFS','Config','Architecture','Os','Created'):
+    for key in ('RootFS','Config','Architecture','Os','Created'):
         if a['image'][key] != b['image'][key]: raise ValueError('Original immutable Kontrol image differs: ' + key)
     for prefix in ('variants/','generated/','runtime-outputs/'):
         x = {n:h for n,h in a['hashes'].items() if n.startswith(prefix)}
@@ -178,7 +178,8 @@ def compare(directory,sha):
     return {'source_sha':sha,'verified_parity':True,'native_run_id':b['settings']['rwx_run_id'],
         'selection':a['selection'],'coverage':a['coverage'],'compiler_phases':counts,
         'docker_versions':{p:r['settings']['docker_version'] for p,r in [('circle',a),('rwx',b)]},
-        'immutable_image':a['settings']['image'],'original_sha256':{'circle':a['hashes'],'rwx':b['hashes']},
+        'immutable_image':a['settings']['image'],'docker_image_ids':{p:r['image']['Id'] for p,r in [('circle',a),('rwx',b)]},
+        'original_sha256':{'circle':a['hashes'],'rwx':b['hashes']},
         'circle_manifest_declared_empty':a['declared_empty']}
 
 

@@ -19,21 +19,31 @@ def selection():
     value = json.loads((ROOT / 'ops/ci/kontrol-image.json').read_text())
     version = tomllib.loads((ROOT / 'mise.toml').read_text())['tools']['kontrol']
     if (value['version'] != version or value['tag'] != 'runtimeverificationinc/kontrol:ubuntu-jammy-' + version
-            or value['platform'] != 'linux/amd64' or not re.fullmatch('sha256:[0-9a-f]{64}', value['id'])
+            or value['platform'] != 'linux/amd64' or not re.fullmatch('sha256:[0-9a-f]{64}', value['config_digest'])
             or not re.fullmatch('runtimeverificationinc/kontrol@sha256:[0-9a-f]{64}', value['image'])):
         raise ValueError('Kontrol image differs from the pinned toolchain or platform')
     return value
 
 
-def inspect():
+def validate_inspection(result):
     value = selection()
-    result = json.loads(subprocess.check_output(['docker', 'image', 'inspect', value['tag']], text=True))
     if len(result) != 1: raise ValueError('Missing or duplicate original Kontrol image')
     row = result[0]
-    if (row['Id'] != value['id'] or value['image'] not in row['RepoDigests']
+    # Classic Docker reports the config digest as Id; the containerd image store
+    # reports the manifest digest. Both are pinned by the same immutable manifest.
+    ids = {value['config_digest'], value['image'].split('@', 1)[1]}
+    if (row['Id'] not in ids or value['image'] not in row['RepoDigests']
             or row['Os'] + '/' + row['Architecture'] != value['platform']):
         raise ValueError('Wrong Kontrol image bytes or platform')
     return result
+
+
+def inspect(report=None):
+    value = selection()
+    result = json.loads(subprocess.check_output(['docker', 'image', 'inspect', value['tag']], text=True))
+    if report is not None:
+        report.write_text(json.dumps(result, indent=2, sort_keys=True) + '\n')
+    return validate_inspection(result)
 
 
 def prepare():
@@ -54,8 +64,7 @@ def prepare():
     # The original scripts use the mise-selected tag. Point that local tag at
     # the verified immutable image, without changing their Docker invocation.
     subprocess.run(['docker', 'tag', value['image'], value['tag']], check=True)
-    original = inspect()
-    (directory / 'inspect.json').write_text(json.dumps(original, indent=2, sort_keys=True) + '\n')
+    inspect(directory / 'inspect.json')
     version = subprocess.check_output(['docker', 'run', '--rm', '--platform', value['platform'], value['image'], 'kontrol', 'version'], text=True).strip()
     if version != 'Kontrol version: ' + value['version']: raise ValueError('Wrong original Kontrol executable version')
     metadata = {'selection': value, 'kontrol_version': version,
@@ -80,6 +89,7 @@ def verify(directory):
             raise ValueError('Corrupt Kontrol image preparation original')
     if json.loads((directory / 'inputs.json').read_text()) != {'selection':value,'input_sha256':metadata['input_sha256']}:
         raise ValueError('Changed original Kontrol image selection')
+    validate_inspection(json.loads((directory / 'inspect.json').read_text()))
     inspect()
     return metadata
 

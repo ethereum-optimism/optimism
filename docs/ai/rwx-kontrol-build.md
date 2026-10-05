@@ -16,6 +16,13 @@ and executes no proof tests, so it reports zero tests.
 The mise-selected Kontrol 1.0.255 image is fixed to its verified Linux amd64
 digest. Preparation pulls that immutable image with bounded retries, verifies
 its executable version, and sets the original local tag used by the scripts.
+The image manifest also pins its configuration digest. Classic Docker reports
+that configuration digest as `Id`; the containerd image store reports the
+manifest digest, as shown in [Docker's implementation](https://github.com/moby/moby/blob/master/daemon/containerd/image_inspect.go).
+Both representations must match the pinned manifest/configuration digests;
+repository digest, platform, complete configuration and layer identities remain
+verified. The [original immutable manifest](rwx-kontrol-build-evidence/immutable-image-manifest.json)
+is retained byte for byte.
 Original Docker invocations and cleanup are preserved. A separate native
 producer retains the image using
 [RWX Docker caching](https://www.rwx.com/docs/docker#preserving-docker-data),
@@ -47,7 +54,19 @@ strict comparisons, actual Kontrol and compiler failures, cancellation and
 stale/corrupt contract or image inputs. All six actual fixtures pass. Their
 [complete original hashes](rwx-kontrol-build-evidence/local-fixtures.json) and
 [first full preflight](rwx-kontrol-build-evidence/first-full-preflight.json)
-remain retained; both use unpublished isolated revisions and add no hosted
+remain retained. The image identity correction also passes all six actual
+scenarios in 178.216 seconds, including both pinned ID representations and
+rejection of an unknown ID in a fully resealed report; its
+[complete fixture originals](rwx-kontrol-build-evidence/image-identity-fixtures.json)
+remain retained. These use unpublished isolated revisions and add no hosted
 coverage. ShellCheck, RWX lint, all 35 Linux routing/Circle adapter scenarios,
 and merged/activated Circle configs pass. Hosted evidence remains pending. Circle's job name, dependency graph,
 four required gates and production publishers remain unchanged.
+
+The first automatic run at `dc51e446` and Circle job 5635847 failed before any
+summary generation because the initial image verifier assumed a single Docker
+`Id` representation. The immutable registry manifest confirms the separate
+configuration digest; this is an adapter failure. Its
+[complete original seals and diagnostics](rwx-kontrol-build-evidence/first-native-image-failure.json)
+remain retained. Hosted verification of the correction is pending and adds no
+coverage.
