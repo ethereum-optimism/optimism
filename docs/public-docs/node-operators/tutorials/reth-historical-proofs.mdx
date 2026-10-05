@@ -13,6 +13,10 @@ This tutorial layers the **proofs-history** historical proof store on top of a w
   - **Permissionless chains** need ~28 days of lookback. `--rpc.eth-proof-window` becomes too slow and memory-hungry at that range, so follow this tutorial to set up `--proofs-history`.
 </Info>
 
+<Warning>
+  On op-reth v2.6.x and earlier, the proofs store defaults to the deprecated v1 format. Pass `--proofs-history.storage-version=v2` to `op-reth node` and to every `op-reth proofs` subcommand in this tutorial. Later releases only support the v2 format and no longer accept this flag.
+</Warning>
+
 ## How it works
 
 reth's default `eth_getProof` reverts in-memory state diffs backward from the tip, which becomes prohibitive at multi-day lookbacks. The **proofs-history** subsystem maintains a separate MDBX database that tracks intermediate Merkle Patricia Trie nodes versioned by block, enabling O(1) lookups of proofs at any block within a configurable retention window. A background pruner removes data outside the window.
@@ -21,7 +25,7 @@ The subsystem processes blocks asynchronously via reth's ExEx (Execution Extensi
 
 ## Prerequisites
 
-*   A built `op-reth` binary. See [Build op-node and the execution client](/node-operators/tutorials/run-node-from-source#build-op-node-and-the-execution-client).
+*   A built `op-reth` binary at v2.2.3 or later. See [Build op-node and the execution client](/node-operators/tutorials/run-node-from-source#build-op-node-and-the-execution-client).
 *   An op-reth datadir, either initialized from genesis or restored from a [snapshot](https://datadirs.optimism.io/) (covered below).
 *   Sufficient disk: estimate `chain_size + 20% buffer` for the proofs database (e.g., ~1 TB for 4 weeks on Base at 2s block time).
 *   NVMe SSD recommended.
