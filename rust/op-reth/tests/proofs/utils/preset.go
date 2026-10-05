@@ -53,22 +53,23 @@ func (m *MixedOpProofPreset) RethWithProofL2ELNode() *dsl.L2ELNode {
 	return m.L2ELValidator
 }
 
-func resolveELSpec(envVar string, defaultKind sysgo.MixedL2ELKind) sysgo.MixedL2ELKind {
-	switch os.Getenv(envVar) {
-	case "op-reth":
-		return sysgo.MixedL2ELOpReth
-	case "op-geth":
-		return sysgo.MixedL2ELOpGeth
-	default:
+func resolveELSpec(t devtest.T, envVar string, defaultKind sysgo.MixedL2ELKind) sysgo.MixedL2ELKind {
+	switch k := sysgo.MixedL2ELKind(os.Getenv(envVar)); k {
+	case "":
 		return defaultKind
+	case sysgo.MixedL2ELOpReth, sysgo.MixedL2ELOpGeth:
+		return k
+	default:
+		t.Require().FailNow("unsupported L2 EL kind", "unknown %s %q", envVar, k)
+		return "" // unreachable
 	}
 }
 
 // NewMixedOpProofPreset creates the preset using MixedSingleChainRuntime for
 // full control over EL client types.
 func NewMixedOpProofPreset(t devtest.T) *MixedOpProofPreset {
-	seqKind := resolveELSpec("OP_DEVSTACK_PROOF_SEQUENCER_EL", sysgo.MixedL2ELOpReth)
-	valKind := resolveELSpec("OP_DEVSTACK_PROOF_VALIDATOR_EL", sysgo.MixedL2ELOpReth)
+	seqKind := resolveELSpec(t, "OP_DEVSTACK_PROOF_SEQUENCER_EL", sysgo.MixedL2ELOpReth)
+	valKind := resolveELSpec(t, "OP_DEVSTACK_PROOF_VALIDATOR_EL", sysgo.MixedL2ELOpReth)
 
 	runtime := sysgo.NewMixedSingleChainRuntime(t, sysgo.MixedSingleChainPresetConfig{
 		NodeSpecs: []sysgo.MixedSingleChainNodeSpec{
