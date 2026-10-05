@@ -30,6 +30,7 @@ interface IOptimismPortal2 is IProxyAdminOwnedBase {
     error OptimismPortal_InvalidOutputRootProof();
     error OptimismPortal_InvalidProofTimestamp();
     error OptimismPortal_InvalidRootClaim();
+    error OptimismPortal_L1CDMCallFailed();
     error OptimismPortal_MigratingToSameRegistry();
     error OptimismPortal_NoReentrancy();
     error OptimismPortal_NotUsingInterop();

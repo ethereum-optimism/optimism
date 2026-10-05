@@ -19,6 +19,7 @@ import { Types } from "src/libraries/Types.sol";
 import { Hashing } from "src/libraries/Hashing.sol";
 import { Encoding } from "src/libraries/Encoding.sol";
 import { Constants } from "src/libraries/Constants.sol";
+import { Predeploys } from "src/libraries/Predeploys.sol";
 import { AddressAliasHelper } from "src/vendor/AddressAliasHelper.sol";
 import { DevFeatures } from "src/libraries/DevFeatures.sol";
 import { Features } from "src/libraries/Features.sol";
@@ -123,6 +124,47 @@ abstract contract OptimismPortal2_TestInit is DisputeGameFactory_TestInit {
         if (isUsingLockbox()) {
             vm.deal(address(ethLockbox), 0xFFFFFFFF);
         }
+    }
+
+    /// @notice Prepares a funded, proven withdrawal that is eligible for finalization.
+    function _prepareWithdrawalForFinalization(Types.WithdrawalTransaction memory _tx) internal returns (bytes32) {
+        vm.deal(address(optimismPortal2), _tx.value);
+        if (isUsingLockbox()) {
+            vm.deal(address(ethLockbox), _tx.value);
+        }
+
+        (
+            bytes32 stateRoot,
+            bytes32 storageRoot,
+            bytes32 outputRoot,
+            bytes32 withdrawalHash,
+            bytes[] memory withdrawalProof
+        ) = ffi.getProveWithdrawalTransactionInputs(_tx);
+        Types.OutputRootProof memory proof = Types.OutputRootProof({
+            version: bytes32(0),
+            stateRoot: stateRoot,
+            messagePasserStorageRoot: storageRoot,
+            latestBlockhash: bytes32(0)
+        });
+        if (DisputeGames.isSuperGame(game.gameType())) {
+            vm.mockCall(
+                address(game),
+                abi.encodeCall(game.rootClaimByChainId, (systemConfig.l2ChainId())),
+                abi.encode(outputRoot)
+            );
+        } else {
+            vm.mockCall(address(game), abi.encodeCall(game.rootClaim, ()), abi.encode(outputRoot));
+        }
+
+        optimismPortal2.proveWithdrawalTransaction(_tx, _proposedGameIndex, proof, withdrawalProof);
+        game.resolveClaim(0, 0);
+        game.resolve();
+        vm.warp(
+            block.timestamp + optimismPortal2.proofMaturityDelaySeconds()
+                + optimismPortal2.disputeGameFinalityDelaySeconds() + 1
+        );
+        optimismPortal2.checkWithdrawal(withdrawalHash, address(this));
+        return withdrawalHash;
     }
 
     /// @notice Creates a dispute game with proper extraData for both regular and super game types.
@@ -1770,6 +1812,131 @@ contract OptimismPortal2_FinalizeWithdrawalTransaction_Test is OptimismPortal2_T
         optimismPortal2.finalizeWithdrawalTransaction{ gas: _defaultTx.gasLimit }(_defaultTx);
     }
 
+    /// @notice Returns a withdrawal that relays a message from the L2CrossDomainMessenger to `_to`.
+    function _messengerWithdrawal(
+        address _from,
+        address _to
+    )
+        internal
+        view
+        returns (Types.WithdrawalTransaction memory tx_)
+    {
+        tx_ = _defaultTx;
+        tx_.sender = Predeploys.L2_CROSS_DOMAIN_MESSENGER;
+        tx_.target = address(l1CrossDomainMessenger);
+        tx_.gasLimit = l1CrossDomainMessenger.baseGas(hex"", 0);
+        tx_.data =
+            Encoding.encodeCrossDomainMessageV1(Encoding.encodeVersionedNonce(0, 1), _from, _to, tx_.value, 0, hex"");
+    }
+
+    /// @notice Skips fuzz runs where `_addr` is not a plain account: an address with code, a
+    ///         precompile or a Forge address.
+    function _assumePlainAccount(address _addr) internal view {
+        assumeNotForgeAddress(_addr);
+        assumeNotPrecompile(_addr);
+        // assumeNotPrecompile stops at 0xff, which misses the P256VERIFY precompile (EIP-7951).
+        vm.assume(_addr != address(0x100));
+        vm.assume(_addr.code.length == 0);
+    }
+
+    /// @notice Tests that `finalizeWithdrawalTransaction` reverts when the L1CrossDomainMessenger
+    ///         fails to relay a withdrawal from the L2CrossDomainMessenger, so the withdrawal is
+    ///         not finalized without the messenger recording it as successful or failed.
+    function testFuzz_finalizeWithdrawalTransaction_l1CrossDomainMessengerCallFails_reverts(
+        address _from,
+        address _to
+    )
+        external
+    {
+        Types.WithdrawalTransaction memory messengerTx = _messengerWithdrawal(_from, _to);
+        bytes32 withdrawalHash = _prepareWithdrawalForFinalization(messengerTx);
+        uint256 portalBalanceBefore = address(optimismPortal2).balance;
+        uint256 lockboxBalanceBefore = address(ethLockbox).balance;
+
+        // Model the messenger reverting before it records the message, e.g. by running out of gas.
+        vm.mockCallRevert(address(l1CrossDomainMessenger), messengerTx.data, hex"");
+
+        vm.expectRevert(IOptimismPortal.OptimismPortal_L1CDMCallFailed.selector);
+        optimismPortal2.finalizeWithdrawalTransaction(messengerTx);
+
+        assertFalse(optimismPortal2.finalizedWithdrawals(withdrawalHash));
+        assertEq(address(optimismPortal2).balance, portalBalanceBefore);
+        assertEq(address(ethLockbox).balance, lockboxBalanceBefore);
+    }
+
+    /// @notice Tests that `finalizeWithdrawalTransaction` reverts with the gas estimation error
+    ///         when the L1CrossDomainMessenger fails to relay a withdrawal from the
+    ///         L2CrossDomainMessenger and the caller is the ESTIMATION_ADDRESS.
+    function testFuzz_finalizeWithdrawalTransaction_l1CrossDomainMessengerCallFailsAndCallerIsEstimationAddress_reverts(
+        address _from,
+        address _to
+    )
+        external
+    {
+        Types.WithdrawalTransaction memory messengerTx = _messengerWithdrawal(_from, _to);
+        bytes32 withdrawalHash = _prepareWithdrawalForFinalization(messengerTx);
+
+        vm.mockCallRevert(address(l1CrossDomainMessenger), messengerTx.data, hex"");
+
+        // Keep this contract, which proved the withdrawal, as the sender.
+        vm.prank(address(this), Constants.ESTIMATION_ADDRESS);
+        vm.expectRevert(IOptimismPortal.OptimismPortal_GasEstimation.selector);
+        optimismPortal2.finalizeWithdrawalTransaction(messengerTx);
+
+        assertFalse(optimismPortal2.finalizedWithdrawals(withdrawalHash));
+    }
+
+    /// @notice Tests that a withdrawal from the L2CrossDomainMessenger can be finalized after an
+    ///         earlier attempt failed in the L1CrossDomainMessenger.
+    function testFuzz_finalizeWithdrawalTransaction_l1CrossDomainMessengerCallFailsThenSucceeds_succeeds(
+        address _from,
+        address _to
+    )
+        external
+    {
+        // The messenger must be able to deliver ETH with empty calldata to the recipient.
+        _assumePlainAccount(_to);
+
+        Types.WithdrawalTransaction memory messengerTx = _messengerWithdrawal(_from, _to);
+        bytes32 withdrawalHash = _prepareWithdrawalForFinalization(messengerTx);
+        uint256 recipientBalanceBefore = _to.balance;
+
+        vm.mockCallRevert(address(l1CrossDomainMessenger), messengerTx.data, hex"");
+        (bool success,) =
+            address(optimismPortal2).call(abi.encodeCall(optimismPortal2.finalizeWithdrawalTransaction, (messengerTx)));
+        assertFalse(success);
+        vm.clearMockedCalls();
+
+        optimismPortal2.finalizeWithdrawalTransaction(messengerTx);
+
+        assertTrue(optimismPortal2.finalizedWithdrawals(withdrawalHash));
+        assertTrue(l1CrossDomainMessenger.successfulMessages(keccak256(messengerTx.data)));
+        assertEq(_to.balance, recipientBalanceBefore + messengerTx.value);
+    }
+
+    /// @notice Tests that a failed withdrawal to the L1CrossDomainMessenger from a sender other than
+    ///         the L2CrossDomainMessenger is still finalized.
+    function testFuzz_finalizeWithdrawalTransaction_otherSenderL1CrossDomainMessengerFails_succeeds(
+        address _from,
+        address _to
+    )
+        external
+    {
+        vm.assume(_from != Predeploys.L2_CROSS_DOMAIN_MESSENGER);
+
+        Types.WithdrawalTransaction memory messengerTx = _messengerWithdrawal(_from, _to);
+        messengerTx.sender = _from;
+        bytes32 withdrawalHash = _prepareWithdrawalForFinalization(messengerTx);
+
+        // The messenger rejects messages that do not come from the L2CrossDomainMessenger.
+        vm.expectEmit(address(optimismPortal2));
+        emit WithdrawalFinalized(withdrawalHash, false);
+        optimismPortal2.finalizeWithdrawalTransaction(messengerTx);
+
+        assertTrue(optimismPortal2.finalizedWithdrawals(withdrawalHash));
+        assertFalse(l1CrossDomainMessenger.successfulMessages(keccak256(messengerTx.data)));
+    }
+
     /// @notice Tests that `finalizeWithdrawalTransaction` reverts if a sub-call attempts to
     ///         finalize another withdrawal.
     function test_finalizeWithdrawalTransaction_onReentrancy_reverts() external {
@@ -1934,7 +2101,8 @@ contract OptimismPortal2_FinalizeWithdrawalTransaction_Test is OptimismPortal2_T
         }
 
         vm.assume(
-            _target != address(optimismPortal2) // Cannot call the optimism portal or a contract
+            _sender != Predeploys.L2_CROSS_DOMAIN_MESSENGER // L2CrossDomainMessenger withdrawals revert on failure
+                && _target != address(optimismPortal2) // Cannot call the optimism portal or a contract
                 && _target.code.length == 0 // No accounts with code
                 && _target != CONSOLE // The console has no code but behaves like a contract
                 && uint160(_target) > 9 // No precompiles (or zero address)
