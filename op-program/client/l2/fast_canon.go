@@ -167,6 +167,18 @@ func (c *chainContext) Config() *params.ChainConfig {
 	return c.config
 }
 
+func (c *chainContext) CurrentHeader() *types.Header {
+	panic("unimplemented")
+}
+
+func (c *chainContext) GetHeaderByHash(hash common.Hash) *types.Header {
+	panic("unimplemented")
+}
+
+func (c *chainContext) GetHeaderByNumber(number uint64) *types.Header {
+	return c.GetHeader(common.Hash{}, number)
+}
+
 func (c *chainContext) GetHeader(hash common.Hash, number uint64) *types.Header {
 	// The EVM should never call this method during eip-2935 historical block retrieval
 	panic("unexpected call to GetHeader")

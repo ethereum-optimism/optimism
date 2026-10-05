@@ -214,7 +214,11 @@ func createMismatchedFeeRecipient() matchArgs {
 
 func createMismatchedEIP1559Params() matchArgs {
 	args := holoceneArgs()
-	args.attrs.EIP1559Params[0]++ // so denominator is != 0
+	// Valid (non-zero) attribute params that differ from the block's extraData. A zero
+	// elasticity with a non-zero denominator is itself invalid on op-geth (Hemi), so it would
+	// fail attribute validation before the mismatch is detected.
+	p := eth.Bytes8(eip1559.EncodeHolocene1559Params(*defaultOpConfig.EIP1559DenominatorCanyon+1, defaultOpConfig.EIP1559Elasticity))
+	args.attrs.EIP1559Params = &p
 	return args
 }
 
@@ -546,8 +550,10 @@ func TestWithdrawalsMatch(t *testing.T) {
 }
 
 func TestCheckEIP1559ParamsMatch(t *testing.T) {
-	params := eth.Bytes8{1, 2, 3, 4, 5, 6, 7, 8}
-	paramsAlt := eth.Bytes8{1, 2, 3, 4, 5, 6, 7, 9}
+	// op-geth (Hemi) rejects an elasticity that exceeds the block gas limit, so use realistic
+	// values that fit the gas limit passed below rather than arbitrary bytes.
+	params := eth.Bytes8(eip1559.EncodeHolocene1559Params(250, 6))
+	paramsAlt := eth.Bytes8(eip1559.EncodeHolocene1559Params(250, 8))
 	paramsInvalid := eth.Bytes8{0, 0, 0, 0, 5, 6, 7, 8}
 	defaultExtraData := eth.BytesMax32(eip1559.EncodeHoloceneExtraData(
 		*defaultOpConfig.EIP1559DenominatorCanyon, defaultOpConfig.EIP1559Elasticity))
@@ -556,6 +562,7 @@ func TestCheckEIP1559ParamsMatch(t *testing.T) {
 		desc           string
 		attrParams     *eth.Bytes8
 		blockExtraData eth.BytesMax32
+		gasLimit       uint64 // 0 means the default of 30M
 		err            string
 	}{
 		{
@@ -575,7 +582,22 @@ func TestCheckEIP1559ParamsMatch(t *testing.T) {
 			desc:           "err-both-zero",
 			attrParams:     new(eth.Bytes8),
 			blockExtraData: make(eth.BytesMax32, 9),
-			err:            "eip1559 parameters do not match, attributes: 250, 6 (translated from 0,0), block: 0, 0",
+			// op-geth (Hemi) rejects header extraData that encodes a zero denominator before the
+			// parameters are compared; the block is rejected either way.
+			err: "invalid block extraData: holocene extraData must encode a non-zero denominator",
+		},
+		{
+			desc:           "err-zero-attrs-mismatch",
+			attrParams:     new(eth.Bytes8),
+			blockExtraData: append(eth.BytesMax32{0}, eip1559.EncodeHolocene1559Params(251, 6)...),
+			err:            "eip1559 parameters do not match, attributes: 250, 6 (translated from 0,0), block: 251, 6",
+		},
+		{
+			desc:           "err-elasticity-exceeds-gaslimit",
+			attrParams:     &params,
+			blockExtraData: append(eth.BytesMax32{0}, params[:]...),
+			gasLimit:       5,
+			err:            "invalid block extraData: holocene extraData elasticity 6 exceeds gas limit 5",
 		},
 		{
 			desc:           "err-invalid-params",
@@ -610,7 +632,11 @@ func TestCheckEIP1559ParamsMatch(t *testing.T) {
 				IsthmusTime:   &pastTime,
 				JovianTime:    &futureTime,
 				ChainOpConfig: defaultOpConfig}
-			err := checkExtraDataParamsMatch(cfg, uint64(2), test.attrParams, nil, test.blockExtraData)
+			gasLimit := test.gasLimit
+			if gasLimit == 0 {
+				gasLimit = 30_000_000
+			}
+			err := checkExtraDataParamsMatch(cfg, uint64(2), gasLimit, test.attrParams, nil, test.blockExtraData)
 			if test.err == "" {
 				require.NoError(t, err)
 			} else {

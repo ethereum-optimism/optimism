@@ -74,6 +74,10 @@ func (p *DB) AncientRange(kind string, start, count, maxBytes uint64) ([][]byte,
 	panic("not supported")
 }
 
+func (p *DB) AncientBytes(kind string, id, offset, length uint64) ([]byte, error) {
+	panic("not supported")
+}
+
 func (p *DB) Ancients() (uint64, error) {
 	panic("not supported")
 }

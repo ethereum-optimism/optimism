@@ -323,7 +323,7 @@ func (h *Host) EnableCheats() error {
 	// Solidity does EXTCODESIZE checks on functions without return-data.
 	// We need to insert some placeholder code to prevent it from aborting calls.
 	// Emulates Forge script: https://github.com/foundry-rs/foundry/blob/224fe9cbf76084c176dabf7d3b2edab5df1ab818/crates/evm/evm/src/executors/mod.rs#L108
-	h.state.SetCode(addresses.VMAddr, []byte{0x00})
+	h.state.SetCode(addresses.VMAddr, []byte{0x00}, tracing.CodeChangeUnspecified)
 	h.precompiles[addresses.VMAddr] = h.cheatcodes
 
 	consolePrecompile, err := NewPrecompile[*ConsolePrecompile](&ConsolePrecompile{
@@ -437,7 +437,7 @@ func (h *Host) Create(from common.Address, initCode []byte) (common.Address, err
 // Note that storage is not removed.
 func (h *Host) Wipe(addr common.Address) {
 	if h.state.GetCodeSize(addr) > 0 {
-		h.state.SetCode(addr, nil)
+		h.state.SetCode(addr, nil, tracing.CodeChangeUnspecified)
 	}
 	h.state.SetNonce(addr, 0, tracing.NonceChangeUnspecified)
 	h.state.SetBalance(addr, uint256.NewInt(0), tracing.BalanceChangeUnspecified)
@@ -476,7 +476,7 @@ func (h *Host) ImportAccount(addr common.Address, account types.Account) {
 	}
 	h.state.SetBalance(addr, balance, tracing.BalanceChangeUnspecified)
 	h.state.SetNonce(addr, account.Nonce, tracing.NonceChangeUnspecified)
-	h.state.SetCode(addr, account.Code)
+	h.state.SetCode(addr, account.Code, tracing.CodeChangeUnspecified)
 	for key, value := range account.Storage {
 		h.state.SetState(addr, key, value)
 	}
@@ -506,7 +506,7 @@ func (h *Host) SetPrecompile(addr common.Address, precompile vm.PrecompiledContr
 	h.log.Debug("adding precompile", "addr", addr)
 	h.precompiles[addr] = precompile
 	// insert non-empty placeholder bytecode, so EXTCODESIZE checks pass
-	h.state.SetCode(addr, []byte{0})
+	h.state.SetCode(addr, []byte{0}, tracing.CodeChangeUnspecified)
 }
 
 // HasPrecompileOverride inspects if there exists an active precompile-override at the given address.

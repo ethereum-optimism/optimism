@@ -242,6 +242,18 @@ func (d *simChainContext) Engine() consensus.Engine {
 	return d.eng
 }
 
+func (d *simChainContext) CurrentHeader() *types.Header {
+	panic("unimplemented")
+}
+
+func (d *simChainContext) GetHeaderByHash(hash common.Hash) *types.Header {
+	panic("unimplemented")
+}
+
+func (d *simChainContext) GetHeaderByNumber(number uint64) *types.Header {
+	return d.GetHeader(common.Hash{}, number)
+}
+
 func (d *simChainContext) GetHeader(h common.Hash, n uint64) *types.Header {
 	if n == d.head.Number.Uint64() {
 		return d.head
@@ -267,9 +279,9 @@ func simulate(ctx context.Context, logger log.Logger, conf *params.ChainConfig,
 	}
 	for addr, acc := range dump {
 		state.CreateAccount(addr)
-		state.SetBalance(addr, uint256.MustFromBig((*big.Int)(&acc.Balance)))
+		state.SetBalance(addr, uint256.MustFromBig((*big.Int)(&acc.Balance)), tracing.BalanceChangeUnspecified)
 		state.SetNonce(addr, acc.Nonce, tracing.NonceChangeUnspecified)
-		state.SetCode(addr, acc.Code)
+		state.SetCode(addr, acc.Code, tracing.CodeChangeUnspecified)
 		state.SetStorage(addr, acc.Storage)
 	}
 

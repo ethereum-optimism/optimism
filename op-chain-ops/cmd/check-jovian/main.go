@@ -249,7 +249,7 @@ func checkExtraData(ctx context.Context, env *actionEnv) error {
 	extra := latest.Extra
 
 	// Validate using op-geth's validation function
-	if err := eip1559.ValidateJovianExtraData(extra); err != nil {
+	if err := eip1559.ValidateJovianExtraData(extra, latest.GasLimit); err != nil {
 		return fmt.Errorf("invalid extraData format: %w", err)
 	}
 

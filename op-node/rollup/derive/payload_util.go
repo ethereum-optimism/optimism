@@ -90,7 +90,7 @@ func PayloadToSystemConfig(rollupCfg *rollup.Config, payload *eth.ExecutionPaylo
 		Scalar:      info.L1FeeScalar,
 		GasLimit:    uint64(payload.GasLimit),
 	}
-	err = eip1559.ValidateOptimismExtraData(rollupCfg, uint64(payload.Timestamp), payload.ExtraData)
+	err = eip1559.ValidateOptimismExtraData(rollupCfg, uint64(payload.Timestamp), payload.ExtraData, uint64(payload.GasLimit))
 	if err != nil {
 		return eth.SystemConfig{}, err
 	}

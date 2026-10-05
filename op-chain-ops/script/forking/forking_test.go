@@ -259,7 +259,7 @@ func TestForking(t *testing.T) {
 	forkState.SetBalance(alice, uint256.NewInt(100_000), tracing.BalanceChangeUnspecified)
 	forkState.SetState(alice, common.Hash{4}, common.Hash{42})
 	forkState.SetState(alice, common.Hash{5}, common.Hash{100})
-	forkState.SetCode(alice, []byte("hello world"))
+	forkState.SetCode(alice, []byte("hello world"), tracing.CodeChangeUnspecified)
 
 	// Check the name
 	name, err = forkState.ForkURLOrAlias(forkC)

@@ -107,7 +107,7 @@ func NewEVMEnv(t testing.TB, contracts *ContractMetadata) (*vm.EVM, *state.State
 
 	env := vm.NewEVM(blockContext, state, chainCfg, vmCfg)
 	// pre-deploy the contracts
-	env.StateDB.SetCode(contracts.Addresses.Oracle, contracts.Artifacts.Oracle.DeployedBytecode.Object)
+	env.StateDB.SetCode(contracts.Addresses.Oracle, contracts.Artifacts.Oracle.DeployedBytecode.Object, tracing.CodeChangeUnspecified)
 
 	var ctorArgs []byte
 	if contracts.Version == 0 { // Old MIPS.sol doesn't specify the state version in the constructor
@@ -139,12 +139,26 @@ type testChain struct {
 	startTime uint64
 }
 
+var _ core.ChainContext = (*testChain)(nil)
+
 func (d *testChain) Engine() consensus.Engine {
 	return ethash.NewFullFaker()
 }
 
 func (d *testChain) Config() *params.ChainConfig {
 	return d.config
+}
+
+func (d *testChain) CurrentHeader() *types.Header {
+	panic("unimplemented")
+}
+
+func (d *testChain) GetHeaderByHash(hash common.Hash) *types.Header {
+	panic("unimplemented")
+}
+
+func (d *testChain) GetHeaderByNumber(number uint64) *types.Header {
+	return d.GetHeader(common.Hash{}, number)
 }
 
 func (d *testChain) GetHeader(h common.Hash, n uint64) *types.Header {
