@@ -257,8 +257,10 @@ contract Deploy is Deployer {
                 withdrawalDelaySeconds: cfg.faultGameWithdrawalDelay(),
                 minProposalSizeBytes: cfg.preimageOracleMinProposalSize(),
                 challengePeriodSeconds: cfg.preimageOracleChallengePeriod(),
-                proofMaturityDelaySeconds: cfg.proofMaturityDelaySeconds(),
-                disputeGameFinalityDelaySeconds: cfg.disputeGameFinalityDelaySeconds(),
+                minProofMaturityDelaySeconds: cfg.minProofMaturityDelaySeconds(),
+                maxProofMaturityDelaySeconds: cfg.maxProofMaturityDelaySeconds(),
+                minDisputeGameFinalityDelaySeconds: cfg.minDisputeGameFinalityDelaySeconds(),
+                maxDisputeGameFinalityDelaySeconds: cfg.maxDisputeGameFinalityDelaySeconds(),
                 mipsVersion: StandardConstants.MIPS_VERSION,
                 devFeatureBitmap: cfg.devFeatureBitmap(),
                 faultGameV2MaxGameDepth: cfg.faultGameV2MaxGameDepth(),
@@ -443,7 +445,9 @@ contract Deploy is Deployer {
             l2ChainId: cfg.l2ChainID(),
             resourceConfig: Constants.DEFAULT_RESOURCE_CONFIG(),
             disputeGameConfigs: disputeGameConfigs,
-            useCustomGasToken: cfg.useCustomGasToken()
+            useCustomGasToken: cfg.useCustomGasToken(),
+            proofMaturityDelaySeconds: cfg.proofMaturityDelaySeconds(),
+            disputeGameFinalityDelaySeconds: cfg.disputeGameFinalityDelaySeconds()
         });
     }
 
@@ -509,7 +513,9 @@ contract Deploy is Deployer {
             l2ChainId: cfg.l2ChainID(),
             resourceConfig: Constants.DEFAULT_RESOURCE_CONFIG(),
             disputeGameConfigs: disputeGameConfigs,
-            useCustomGasToken: cfg.useCustomGasToken()
+            useCustomGasToken: cfg.useCustomGasToken(),
+            proofMaturityDelaySeconds: cfg.proofMaturityDelaySeconds(),
+            disputeGameFinalityDelaySeconds: cfg.disputeGameFinalityDelaySeconds()
         });
     }
 }

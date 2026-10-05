@@ -194,7 +194,9 @@ contract DeployOPChain is Script {
             l2ChainId: _input.l2ChainId,
             resourceConfig: _resourceConfigForGasLimit(_input.gasLimit),
             disputeGameConfigs: disputeGameConfigs,
-            useCustomGasToken: _input.useCustomGasToken
+            useCustomGasToken: _input.useCustomGasToken,
+            proofMaturityDelaySeconds: _input.proofMaturityDelaySeconds,
+            disputeGameFinalityDelaySeconds: _input.disputeGameFinalityDelaySeconds
         });
     }
 
@@ -348,6 +350,9 @@ contract DeployOPChain is Script {
         // Rejects a game type from the other family.
         (bool permissionless,) = _initialDeployGameSelection(_i.disputeGameType, superRoot);
 
+        require(_i.proofMaturityDelaySeconds != 0, "DeployOPChainInput: proofMaturityDelaySeconds not set");
+        require(_i.disputeGameFinalityDelaySeconds != 0, "DeployOPChainInput: disputeGameFinalityDelaySeconds not set");
+
         require(_i.disputeMaxGameDepth != 0, "DeployOPChainInput: disputeMaxGameDepth not set");
         require(_i.disputeSplitDepth != 0, "DeployOPChainInput: disputeSplitDepth not set");
         require(_i.disputeMaxClockDuration.raw() != 0, "DeployOPChainInput: disputeMaxClockDuration not set");
@@ -422,6 +427,16 @@ contract DeployOPChain is Script {
             L1ERC721Bridge: address(_o.l1ERC721BridgeProxy),
             SuperchainConfig: address(_i.superchainConfig)
         });
+
+        // Per-chain withdrawal delays must land in the proxies exactly as supplied.
+        require(
+            _o.optimismPortalProxy.proofMaturityDelaySeconds() == _i.proofMaturityDelaySeconds,
+            "DeployOPChain: proofMaturityDelaySeconds mismatch"
+        );
+        require(
+            _o.anchorStateRegistryProxy.disputeGameFinalityDelaySeconds() == _i.disputeGameFinalityDelaySeconds,
+            "DeployOPChain: disputeGameFinalityDelaySeconds mismatch"
+        );
 
         // Check dispute games and get superchain config
         IOPContractsManagerV2 opcmV2 = IOPContractsManagerV2(_i.opcm);
