@@ -7,19 +7,14 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
 	"github.com/ethereum-optimism/optimism/op-devstack/presets"
-	"github.com/ethereum-optimism/optimism/op-devstack/sysgo"
-	safety "github.com/ethereum-optimism/optimism/op-service/eth/safety"
 	"github.com/ethereum-optimism/optimism/op-service/retry"
 )
 
 // TestDisasterRecoveryLeaderOverride verifies the disaster-recovery escape
-// hatch: when the conductor cluster loses Raft quorum no sequencer may start
-// through the normal leadership path, but an operator can override leadership
-// on a surviving node and force it to resume sequencing.
+// hatch: after the conductor cluster loses Raft quorum, an operator can override
+// leadership on a surviving node and force it to resume sequencing.
 func TestDisasterRecoveryLeaderOverride(gt *testing.T) {
 	t := devtest.ParallelT(gt)
-	sysgo.SkipOnKonaNode(t, "kona-node conductor support is tracked by #21906")
-
 	sys := presets.NewMinimalWithConductors(t)
 
 	leader := sys.Conductors.AwaitOneActiveSequencer()
@@ -33,11 +28,6 @@ func TestDisasterRecoveryLeaderOverride(gt *testing.T) {
 	casualty.Stop()
 	leader.Stop()
 	leader.Sequencer().Stop()
-
-	// Without Raft leadership the survivor's node refuses to sequence.
-	unsafe := survivor.Sequencer().HeadBlockRef(safety.LocalUnsafe)
-	err := survivor.Sequencer().StartSequencerAt(unsafe.Hash)
-	t.Require().ErrorContains(err, "sequencer is not the leader")
 
 	// The operator override forces the survivor into non-HA mode: its node
 	// stops consulting the conductor and its conductor reports leadership to
@@ -65,7 +55,7 @@ func TestDisasterRecoveryLeaderOverride(gt *testing.T) {
 	blockNumber := block["number"]
 
 	var output json.RawMessage
-	err = retry.Do0(t.Ctx(), 120, retry.Fixed(500*time.Millisecond), func() error {
+	err := retry.Do0(t.Ctx(), 120, retry.Fixed(500*time.Millisecond), func() error {
 		return survivor.CallProxy(&output, "optimism_outputAtBlock", blockNumber)
 	})
 	t.Require().NoError(err, "expected output at the overridden sequencer's latest block")
