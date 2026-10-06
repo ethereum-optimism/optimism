@@ -35,5 +35,6 @@ compare_collector() {
     FAIL=$((FAIL + 1))
   fi
 }
-# shellcheck source=ops/ci/tests/test-decision-tree.sh
+# The Circle orb checks scripts individually without following sourced files.
+# shellcheck disable=SC1091
 source "$(dirname "${BASH_SOURCE[0]}")/../../tests/test-decision-tree.sh"

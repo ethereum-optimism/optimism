@@ -46,7 +46,7 @@ tasks:
         - key: mise-config
           path: mise.toml
         - key: ci-scripts
-          path: ops/ci
+          path: ops/ci/runtime
         - key: apt-script
           path: ops/ci/runtime/apt-install.sh
 

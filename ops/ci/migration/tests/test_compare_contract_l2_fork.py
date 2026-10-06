@@ -1,10 +1,12 @@
 """Exercise complete L2 original comparisons; synthetic fixtures add no coverage."""
 import importlib.util
 from pathlib import Path
+import sys
 import tempfile
 import unittest
 from unittest import mock
 
+sys.path.insert(0, str(Path(__file__).resolve().parents[2] / 'tests'))
 import test_contract_l2_fork as fixtures
 
 SPEC=importlib.util.spec_from_file_location('compare_l2',Path(__file__).resolve().parents[2] / 'migration' / 'compare-contract-l2-fork.py')
