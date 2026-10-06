@@ -725,9 +725,9 @@ commands:
             # compile-cache key. The CI env is controlled, so a missing mold must
             # fail loudly rather than silently falling back to the default linker.
             if [ "<< parameters.directory >>" = rust ] && [ "<< parameters.profile >>" = debug ] && [ -z "<< parameters.package >>" ] && [ -z "<< parameters.binary >>" ] && [ "<< parameters.features >>" = default ] && [ -z "$TARGET" ]; then
-              bash ../ops/ci/rust-workspace.sh build
+              bash ../ops/ci/runtime/rust-workspace.sh build
             elif [ "<< parameters.directory >>" = rust ] && [ "<< parameters.profile >>" = release ] && [ -z "<< parameters.package >>" ] && [ -z "<< parameters.binary >>" ] && [ "<< parameters.features >>" = default ] && [ -z "$TARGET" ]; then
-              bash ../ops/ci/rust-e2e-release.sh
+              bash ../ops/ci/runtime/rust-e2e-release.sh
             else
               mold -run cargo build $PROFILE $TARGET $PACKAGE $FEATURES $BINARY
             fi
@@ -942,7 +942,7 @@ jobs:
           environment:
             CI_GO_FRESH_TESTS: << pipeline.parameters.c-go_fresh_tests_effective >>
           command: |
-            python3 ops/ci/cannon-go.py --provider circleci --skip-slow-tests "<<parameters.skip_slow_tests>>"
+            python3 ops/ci/runtime/cannon-go.py --provider circleci --skip-slow-tests "<<parameters.skip_slow_tests>>"
       - run:
           name: Retain complete Cannon Go reports after failures
           when: always
@@ -1067,7 +1067,7 @@ jobs:
           command: |
             if [[ "<<parameters.profile>>" == ci && "<<parameters.build_args>>" == "--skip test" ]]; then
               export CI_COMMIT_SHA="$CIRCLE_SHA1"
-              python3 ops/ci/go-artifacts.py pack contracts-e2e packages/contracts-bedrock/cache \
+              python3 ops/ci/runtime/go-artifacts.py pack contracts-e2e packages/contracts-bedrock/cache \
                 packages/contracts-bedrock/artifacts packages/contracts-bedrock/forge-artifacts \
                 op-deployer/pkg/deployer/artifacts/forge-artifacts
             fi
@@ -1105,7 +1105,7 @@ jobs:
           docker_layer_caching: true
       - run:
           name: Run original Kontrol summary and proof build with complete evidence
-          command: python3 ops/ci/kontrol-build.py --provider circleci
+          command: python3 ops/ci/runtime/kontrol-build.py --provider circleci
       - store_artifacts:
           path: .ci/kontrol-build/run
           when: always
@@ -1177,7 +1177,7 @@ jobs:
       - run:
           name: Run tests with complete original parity reports
           command: |
-            python3 ops/ci/contract-suites.py run \
+            python3 ops/ci/runtime/contract-suites.py run \
               --suite "<<parameters.parity_suite>>" --feature "${CI_CONTRACT_FEATURE:-main}"
           environment:
             CI_CONTRACT_FEATURE: "<<parameters.features>>"
@@ -1306,7 +1306,7 @@ jobs:
       - run:
           name: Write pinned block number for cache key
           command: |
-            python3 ops/ci/contract-coverage.py preflight
+            python3 ops/ci/runtime/contract-coverage.py preflight
             jq -er '.number | if type == "number" and . >= 0 then tostring else error("invalid pinned block") end' \
               .ci/contract-coverage/preflight/block.json > packages/contracts-bedrock/pinnedBlockNumber.txt
             cat packages/contracts-bedrock/pinnedBlockNumber.txt
@@ -1323,7 +1323,7 @@ jobs:
       - run:
           name: Run coverage tests
           command: |
-            python3 ops/ci/contract-coverage.py run \
+            python3 ops/ci/runtime/contract-coverage.py run \
               --feature "<<parameters.features>>" --block .ci/contract-coverage/preflight/block.json
           environment:
             CI_CONTRACT_PROVIDER: circleci
@@ -1432,7 +1432,7 @@ jobs:
           name: Run tests
           command: |
             if [ -n "$CI_CONTRACT_UPGRADE_VARIANT" ]; then
-              python3 ../../ops/ci/contract-upgrades.py run --variant "$CI_CONTRACT_UPGRADE_VARIANT"
+              python3 ../../ops/ci/runtime/contract-upgrades.py run --variant "$CI_CONTRACT_UPGRADE_VARIANT"
             else
               mkdir -p results
               just test-upgrade
@@ -1543,7 +1543,7 @@ jobs:
                 name: Validate public L2 archive inputs before compilation
                 command: |
                   test "$CIRCLE_BRANCH" = codex/rwx-ci-pilot
-                  python3 ops/ci/contract-l2-fork.py preflight --fork-block "$CI_L2_FORK_BLOCK"
+                  python3 ops/ci/runtime/contract-l2-fork.py preflight --fork-block "$CI_L2_FORK_BLOCK"
                 environment:
                   CI_L2_FORK_BLOCK: <<parameters.l2_fork_block_number>>
       - go-restore-cache:
@@ -1617,7 +1617,7 @@ jobs:
           command: |
             if [ "$CI_L2_PARITY_SHADOW" = "true" ] || [ "$CI_L2_PARITY_SHADOW" = "1" ] || [ "$CIRCLE_BRANCH" = codex/rwx-ci-pilot ]; then
               status=0
-              python3 ../../ops/ci/contract-l2-fork.py prepare > ../../.ci/contract-l2-fork/prepare.console.log 2>&1 || status=$?
+              python3 ../../ops/ci/runtime/contract-l2-fork.py prepare > ../../.ci/contract-l2-fork/prepare.console.log 2>&1 || status=$?
               tail -n 20 ../../.ci/contract-l2-fork/prepare.console.log
               exit "$status"
             else
@@ -1632,7 +1632,7 @@ jobs:
           command: |
             if [ "$CI_L2_PARITY_SHADOW" = "true" ] || [ "$CI_L2_PARITY_SHADOW" = "1" ] || [ "$CIRCLE_BRANCH" = codex/rwx-ci-pilot ]; then
               status=0
-              python3 ../../ops/ci/contract-l2-fork.py run --prepared ../../.ci/contract-l2-fork/prepare \
+              python3 ../../ops/ci/runtime/contract-l2-fork.py run --prepared ../../.ci/contract-l2-fork/prepare \
                 --block ../../.ci/contract-l2-fork/preflight/block.json > ../../.ci/contract-l2-fork/run.console.log 2>&1 || status=$?
               tail -n 20 ../../.ci/contract-l2-fork/run.console.log
               exit "$status"
@@ -1732,13 +1732,13 @@ jobs:
                     git submodule sync --recursive
                     git -c protocol.file.allow=never submodule update --init --recursive --jobs 8
                     bash .circleci/scripts/apt-install.sh iproute2 openssl
-                    python3 ops/ci/selector-registry.py images .ci/selector-registry
-                    python3 ops/ci/selector-upload.py prepare .ci/selector-upload/prepare
+                    python3 ops/ci/migration/selector-registry.py images .ci/selector-registry
+                    python3 ops/ci/migration/selector-upload.py prepare .ci/selector-upload/prepare
                   } > .ci/selector-upload/prepare.console.log 2>&1
             - run:
                 name: Run original selector publisher against private official registry
                 command: |
-                  python3 ops/ci/selector-upload.py run .ci/selector-upload/run .ci/selector-upload/prepare \
+                  python3 ops/ci/migration/selector-upload.py run .ci/selector-upload/run .ci/selector-upload/prepare \
                     .ci/selector-registry/sourcify .ci/selector-registry/images.json
             - run:
                 name: Archive complete original selector reports
@@ -1794,7 +1794,7 @@ jobs:
           command: forge --version
       - run:
           name: Run checks
-          command: python3 ../../ops/ci/pr-checks.py contracts-fast
+          command: python3 ../../ops/ci/runtime/pr-checks.py contracts-fast
           working_directory: packages/contracts-bedrock
       - store_test_results:
           path: .ci/pr-checks/contracts-fast
@@ -1813,7 +1813,7 @@ jobs:
           enable-mise-cache: false
       - run:
           name: Check l2-rpcs.json and daily matrix are in sync
-          command: python3 ops/ci/main-checks.py l2-chains-sync-check
+          command: python3 ops/ci/migration/l2-chains-sync-check.py
       - store_artifacts:
           path: .ci/main-checks/l2-chains-sync-check
           when: always
@@ -1838,7 +1838,7 @@ jobs:
             if [ "<<parameters.check_closed>>" = "true" ]; then
               ./ops/scripts/todo-checker.sh --verbose --strict --check-closed
             else
-              python3 ops/ci/main-checks.py todo-issues-check
+              python3 ops/ci/runtime/main-checks.py todo-issues-check
             fi
       - store_artifacts:
           path: .ci/main-checks/todo-issues-check
@@ -1913,7 +1913,7 @@ jobs:
           enable-mise-cache: true
       - run:
           name: check op-geth version
-          command: python3 ops/ci/main-checks.py check-op-geth-version
+          command: python3 ops/ci/runtime/main-checks.py check-op-geth-version
 
   # Builds op-core/superchain/superchain-configs.zip from the pinned commit and
   # makes it available to downstream Go-build jobs via persist_to_workspace.
@@ -1977,7 +1977,7 @@ jobs:
           command: |
             # Preserve the five downloads and exponential backoff, verify all
             # downloaded modules, and retain the complete original module graph.
-            python3 ops/ci/pr-checks.py go-modules
+            python3 ops/ci/runtime/pr-checks.py go-modules
       - store_test_results:
           path: .ci/pr-checks/go-modules
           when: always
@@ -1998,7 +1998,7 @@ jobs:
           namespace: check-nut-locks
       - run:
           name: check nut locks
-          command: python3 ops/ci/main-checks.py check-nut-locks
+          command: python3 ops/ci/runtime/main-checks.py check-nut-locks
       - store_artifacts:
           path: .ci/main-checks/check-nut-locks
           when: always
@@ -2023,7 +2023,7 @@ jobs:
       - run:
           name: check NUT pre-fork states
           command: |
-            python3 ops/ci/nut-prefork.py --provider circleci
+            python3 ops/ci/runtime/nut-prefork.py --provider circleci
       - go-save-cache:
           namespace: check-nut-prefork-states
       - store_test_results:
@@ -2356,7 +2356,7 @@ jobs:
           name: Bind original prestate hashes
           command: |
             export CI_COMMIT_SHA="$CIRCLE_SHA1"
-            python3 ops/ci/go-artifacts.py pack prestate rust/kona/prestate-artifacts-*
+            python3 ops/ci/runtime/go-artifacts.py pack prestate rust/kona/prestate-artifacts-*
       - store_artifacts:
           path: .ci/go-tests/dependencies/prestate
           when: always
@@ -2461,7 +2461,7 @@ jobs:
           #    https://semgrep.dev/docs/troubleshooting/semgrep-app#if-the-job-is-aborted-due-to-taking-too-long
           command: |
             if [[ -n "<<parameters.parity_job>>" ]]; then
-              python3 ops/ci/static-checks.py "<<parameters.parity_job>>"
+              python3 ops/ci/runtime/static-checks.py "<<parameters.parity_job>>"
             else
               << parameters.scan_command >>
             fi
@@ -2483,7 +2483,7 @@ jobs:
       - checkout
       - run:
           name: Run complete original ShellCheck orb command
-          command: python3 ops/ci/static-checks.py shell-check
+          command: python3 ops/ci/runtime/static-checks.py shell-check
       - store_artifacts:
           path: .ci/static-checks/shell-check
           destination: static-checks/shell-check
@@ -2506,7 +2506,7 @@ jobs:
           namespace: check-generated-mocks-op-node
       - run:
           name: check-generated-mocks
-          command: python3 ops/ci/main-checks.py check-generated-mocks-op-node
+          command: python3 ops/ci/runtime/main-checks.py check-generated-mocks-op-node
       - store_artifacts:
           path: .ci/main-checks/check-generated-mocks-op-node
           when: always
@@ -2530,7 +2530,7 @@ jobs:
           namespace: check-generated-mocks-op-service
       - run:
           name: check-generated-mocks
-          command: python3 ops/ci/main-checks.py check-generated-mocks-op-service
+          command: python3 ops/ci/runtime/main-checks.py check-generated-mocks-op-service
       - store_artifacts:
           path: .ci/main-checks/check-generated-mocks-op-service
           when: always
@@ -2548,7 +2548,7 @@ jobs:
           checkout-method: blobless
           enable-mise-cache: true
       - run:
-          command: python3 ops/ci/main-checks.py op-deployer-forge-version
+          command: python3 ops/ci/runtime/main-checks.py op-deployer-forge-version
       - store_artifacts:
           path: .ci/main-checks/op-deployer-forge-version
           when: always
@@ -2707,7 +2707,7 @@ jobs:
       - install-contracts-dependencies
       - run:
           name: Compile contracts and compare untouched embedded artifacts
-          command: python3 ops/ci/fetcher-artifacts.py --provider circleci
+          command: python3 ops/ci/runtime/fetcher-artifacts.py --provider circleci
       - store_artifacts:
           path: .ci/fetcher-artifacts/run
           when: always
@@ -2763,7 +2763,7 @@ jobs:
       - run:
           name: Generate flaky acceptance tests report
           command: |
-            python3 ops/ci/flaky-report.py run .ci/flaky-report/run
+            python3 ops/ci/migration/flaky-report.py run .ci/flaky-report/run
       - run:
           name: Archive complete original flaky-test report
           when: always

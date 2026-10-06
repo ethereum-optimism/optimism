@@ -46,25 +46,25 @@ tasks:
     use: code
     # Normalize only tool inputs; coverage source stays at Circle's project path.
     run: |
-      mkdir -p ops/ci .circleci/scripts
+      mkdir -p ops/ci/runtime
       cp project/mise.toml mise.toml
-      cp project/.circleci/scripts/apt-install.sh .circleci/scripts/apt-install.sh
+      cp project/ops/ci/runtime/apt-install.sh ops/ci/runtime/apt-install.sh
       for script in rwx-prepare.sh rwx-contracts-prepare.sh rwx-rust-prepare.sh op-reth-shadow.sh op-reth-report.py rust-target-cache.py; do
-        cp "project/ops/ci/$script" "ops/ci/$script"
+        cp "project/ops/ci/runtime/$script" "ops/ci/runtime/$script"
       done
-    filter: [project/mise.toml, project/ops/ci, project/.circleci/scripts/apt-install.sh]
+    filter: [project/mise.toml, project/ops/ci/runtime]
     outputs:
       filesystem:
         filter:
-          workspace: [mise.toml, .circleci/scripts/apt-install.sh, ops/ci/rwx-prepare.sh, ops/ci/rwx-contracts-prepare.sh, ops/ci/rwx-rust-prepare.sh, ops/ci/op-reth-shadow.sh, ops/ci/op-reth-report.py, ops/ci/rust-target-cache.py]
+          workspace: [mise.toml, ops/ci/runtime/apt-install.sh, ops/ci/runtime/rwx-prepare.sh, ops/ci/runtime/rwx-contracts-prepare.sh, ops/ci/runtime/rwx-rust-prepare.sh, ops/ci/runtime/op-reth-shadow.sh, ops/ci/runtime/op-reth-report.py, ops/ci/runtime/rust-target-cache.py]
           system: []
       artifacts:
         - key: mise-config
           path: project/mise.toml
         - key: ci-scripts
-          path: project/ops/ci
+          path: project/ops/ci/runtime
         - key: apt-script
-          path: project/.circleci/scripts/apt-install.sh
+          path: project/ops/ci/runtime/apt-install.sh
 
   - key: mise
     call: mise/install 1.1.0
@@ -80,7 +80,7 @@ tasks:
     use: [code, tools]
     run: |
       cd project
-      bash ops/ci/rwx-metadata.sh
+      bash ops/ci/runtime/rwx-metadata.sh
       jq -er '."c-run_contracts_feature_tests" | if type == "boolean" then tostring else error("missing contracts route") end' \
         .ci/pipeline-parameters.json >"$RWX_VALUES/run-contracts"
     env:
@@ -116,7 +116,7 @@ tasks:
     if: ${{ init.cache-warm != 'true' && tasks.route.values.run-contracts == 'true' }}
     run: |
       cd project
-      python3 ops/ci/contract-coverage.py preflight
+      python3 ops/ci/runtime/contract-coverage.py preflight
       printf 'true\n' >"$RWX_VALUES/ready"
     env:
       CI_COMMIT_SHA: ${{ init.commit-sha }}
@@ -144,7 +144,7 @@ tasks:
       cd project
       export GOMODCACHE="$PWD/.ci/go-cache/contract-coverage/modules"
       mkdir -p "$GOMODCACHE"
-      python3 ops/ci/pr-checks.py go-modules
+      python3 ops/ci/runtime/pr-checks.py go-modules
     env:
       CI_COMMIT_SHA: ${{ init.commit-sha }}
       CI_BRANCH: ${{ init.branch }}
@@ -168,8 +168,9 @@ tasks:
     if: ${{ init.cache-warm != 'true' && tasks.route.values.run-contracts == 'true' }}
     run: |
       cd project
-      RWX_LIVE_CONTRACT_COVERAGE_FIXTURE=1 python3 -m unittest discover -s ops/ci -p 'test_contract_coverage.py'
-      python3 -m unittest discover -s ops/ci -p 'test_compare_contract_coverage.py'
+      RWX_LIVE_CONTRACT_COVERAGE_FIXTURE=1 python3 -m unittest discover -s ops/ci/tests -p 'test_contract_coverage.py'
+      RWX_LIVE_CONTRACT_COVERAGE_FIXTURE=1 python3 -m unittest discover -s ops/ci/migration/tests -p 'test_migration_contract_coverage.py'
+      python3 -m unittest discover -s ops/ci/migration/tests -p 'test_compare_contract_coverage.py'
     env:
       RWX_COVERAGE_FIXTURE_RETAIN_DIR: .ci/coverage-fixture-evidence
     cache: false
@@ -276,7 +277,7 @@ tasks:
     if: ${{ init.cache-warm != 'true' }}
     run: |
       cd project
-      python3 ops/ci/pr-gate.py receipt contracts-coverage
+      python3 ops/ci/runtime/pr-gate.py receipt contracts-coverage
     env:
       CI_COMMIT_SHA: ${{ init.commit-sha }}
       CI_BRANCH: ${{ init.branch }}

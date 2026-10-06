@@ -104,7 +104,7 @@ for attempt in 1 2 3 4 5 6; do
   sleep "$((2 ** attempt))"
 done
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
-python3 "$REPO_ROOT/ops/ci/flaky-report.py" validate-api "$ORIGINAL_JSON"
+python3 "$REPO_ROOT/ops/ci/migration/flaky-report.py" validate-api "$ORIGINAL_JSON"
 API_RESPONSE=$(cat "$ORIGINAL_JSON")
 
 # Check if we got a valid response

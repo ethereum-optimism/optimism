@@ -6,13 +6,13 @@ tasks:
   - key: prepare
     use: package.use
     run: |
-      bash ops/ci/rwx-prepare.sh rust
-      mise exec -- bash ops/ci/rwx-rust-prepare.sh
+      bash ops/ci/runtime/rwx-prepare.sh rust
+      mise exec -- bash ops/ci/runtime/rwx-rust-prepare.sh
       case "$RUST_TOOL_MODE" in
         release) ;;
-        e2e) bash .circleci/scripts/apt-install.sh m4 file ;;
+        e2e) bash ops/ci/runtime/apt-install.sh m4 file ;;
         workspace|sp1)
-          bash .circleci/scripts/apt-install.sh m4 file
+          bash ops/ci/runtime/apt-install.sh m4 file
           if [[ "$RUST_TOOL_MODE" == workspace ]]; then
             mise install github:est31/cargo-udeps github:taiki-e/cargo-hack
           else
@@ -25,5 +25,5 @@ tasks:
     env:
       RUST_TOOL_MODE: ${{ params.mode }}
     filter:
-      workspace: [mise.toml, .circleci/scripts/apt-install.sh, ops/ci/rwx-prepare.sh, ops/ci/rwx-rust-prepare.sh, ops/ci/op-reth-shadow.sh, ops/ci/op-reth-report.py, ops/ci/rust-target-cache.py]
+      workspace: [mise.toml, ops/ci/runtime/apt-install.sh, ops/ci/runtime/rwx-prepare.sh, ops/ci/runtime/rwx-rust-prepare.sh, ops/ci/runtime/op-reth-shadow.sh, ops/ci/runtime/op-reth-report.py, ops/ci/runtime/rust-target-cache.py]
     timeout: 30m

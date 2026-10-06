@@ -16,7 +16,7 @@ tasks:
       export GOCACHE="$PWD/.ci/go-cache/contract-upgrades/build"
       git submodule sync --recursive
       git -c protocol.file.allow=never submodule update --init --recursive --jobs 8
-      python3 ops/ci/contract-upgrades.py prepare --variant "$CI_CONTRACT_VARIANT"
+      python3 ops/ci/runtime/contract-upgrades.py prepare --variant "$CI_CONTRACT_VARIANT"
     env:
       CI_COMMIT_SHA: ${{ params.commit-sha }}
       CI_BRANCH: ${{ params.branch }}

@@ -14,9 +14,9 @@ for the bad pattern.
   toolset (`utils/install-mise`): it always finishes before any continuation job
   starts, so on a cold cache it is the only job that installs over the network —
   continuation jobs restore the mise cache it saved.
-- **Routing is data + logic split**: `ops/ci/routing.yml` holds the declarative data
+- **Routing is data + logic split**: `ops/ci/runtime/routing.yml` holds the declarative data
   (schedule→workflows, API dispatch flag→workflows, change-detection patterns,
-  passthrough params); `ops/ci/compute-workflow-conditions.sh` holds the conditions
+  passthrough params); `ops/ci/runtime/compute-workflow-conditions.sh` holds the conditions
   that decide which entries fire. CircleCI scripts adapt its pipeline metadata;
   `.circleci/routing.yml` points to the shared data. Add a schedule/dispatch/pattern
   by editing the shared `routing.yml`, and validate the CircleCI adapter too.
@@ -29,8 +29,8 @@ for the bad pattern.
   params; `detect`/`detect_all` match the `routing.yml` change patterns against the
   changed files (`detect` true if *any* file matches, `detect_all` only if *every*
   file matches). `workflow-helpers.sh` sets the `c-run_*` flags;
-  `ops/ci/test-decision-tree.sh` asserts the routing policy, real changed-file
-  fixtures, and CircleCI adapter parity. `.rwx/` and `ops/ci/` changes select the
+  `ops/ci/tests/test-decision-tree.sh` asserts the routing policy, real changed-file
+  fixtures. `ops/ci/migration/tests/test-circle-adapter.sh` adds CircleCI adapter parity. `.rwx/` and `ops/ci/` changes select the
   same CI, contract and Rust validation as `.circleci/` changes.
 - **The gate**: the GitHub `enforce-ci-checks-develop` ruleset requires exactly
   four checks — `ci-gate`, `required-contracts-ci`, `required-rust-ci`,
@@ -77,7 +77,7 @@ wiring — a param leak across fragment anchors still only surfaces when the pip
 actually continues.
 
 Run shared routing and Circle adapter fixtures with
-`mise exec yq jq -- bash ops/ci/test-decision-tree.sh` using Bash 4+ or Linux.
+`mise exec yq jq -- bash ops/ci/tests/test-decision-tree.sh` using Bash 4+ or Linux.
 macOS `/bin/bash` 3 is unsupported; the fixture entrypoint rejects it explicitly.
 
 ## Choosing where a new job runs

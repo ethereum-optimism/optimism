@@ -180,3 +180,20 @@ Wall-clock speed remains the optimization target. Keep the chosen configuration;
 new tuning needs an identified bottleneck and complete original samples. Include
 queueing, setup, transfers and the final verdict, label compiler/cache state, and
 leave cost analysis deferred. No speed claim is required for workload completion.
+
+## Helper separation and retirement prerequisites
+
+The 86-job denominator and selected workload settings are unchanged by helper
+relocation. Permanent execution/policy is in `ops/ci/runtime`; permanent scenario
+tests/support are in `ops/ci/tests`. Comparers, Circle alignment/mappings, Insights,
+schedule synchronization and the private selector rehearsal are migration-owned.
+Separate helper task commands retain existing task keys and workload dependencies.
+Native policy version 4 binds `native_policy_sha256`; original report destinations
+remain unchanged.
+
+- [ ] Approve required-gate cutover and close the rollback window.
+- [ ] Archive final original comparison evidence and matching source with checksums outside Git.
+- [ ] Replace or retire Circle Insights, Circle schedule synchronization and the private publication rehearsal.
+- [ ] Remove migration tooling/tests/mappings, workflow invocations and migration-only filters.
+- [ ] Remove Circle adapters and unused provider metadata/cache compatibility modes.
+- [ ] Run permanent tests and native configuration validation after retirement.

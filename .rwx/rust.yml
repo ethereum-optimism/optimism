@@ -46,11 +46,11 @@ tasks:
   - key: bootstrap-inputs
     use: code
     run: 'true'
-    filter: [mise.toml, ops/ci, .circleci/scripts/apt-install.sh]
+    filter: [mise.toml, ops/ci/runtime]
     outputs:
       filesystem:
         filter:
-          workspace: [mise.toml, .circleci/scripts/apt-install.sh, ops/ci/rwx-prepare.sh, ops/ci/rwx-contracts-prepare.sh, ops/ci/rwx-rust-prepare.sh, ops/ci/op-reth-shadow.sh, ops/ci/op-reth-report.py, ops/ci/rust-target-cache.py]
+          workspace: [mise.toml, ops/ci/runtime/apt-install.sh, ops/ci/runtime/rwx-prepare.sh, ops/ci/runtime/rwx-contracts-prepare.sh, ops/ci/runtime/rwx-rust-prepare.sh, ops/ci/runtime/op-reth-shadow.sh, ops/ci/runtime/op-reth-report.py, ops/ci/runtime/rust-target-cache.py]
           system: []
       artifacts:
         - key: mise-config
@@ -58,7 +58,7 @@ tasks:
         - key: ci-scripts
           path: ops/ci
         - key: apt-script
-          path: .circleci/scripts/apt-install.sh
+          path: ops/ci/runtime/apt-install.sh
 
   - key: mise
     call: mise/install 1.1.0
@@ -74,7 +74,7 @@ tasks:
 
   - key: route
     use: [code, tools]
-    run: bash ops/ci/rwx-metadata.sh
+    run: bash ops/ci/runtime/rwx-metadata.sh
     env:
       CI_EVENT: push
       CI_CACHE_WARM: ${{ init.cache-warm }}
@@ -92,11 +92,12 @@ tasks:
   - key: helper-tests
     use: [code, tools]
     run: |
-      python3 -m unittest discover -s ops/ci -p 'test_rust_workspace.py'
-      python3 -m unittest discover -s ops/ci -p 'test_rust_target_cache.py'
-      python3 -m unittest discover -s ops/ci -p 'test_compare_rust_extra.py'
-      python3 -m unittest discover -s ops/ci -p 'test_rust_cannon.py'
-      python3 -m unittest discover -s ops/ci -p 'test_compare_rust_cannon.py'
+      python3 -m unittest discover -s ops/ci/tests -p 'test_rust_workspace.py'
+      python3 -m unittest discover -s ops/ci/migration/tests -p 'test_migration_rust_workspace.py'
+      python3 -m unittest discover -s ops/ci/tests -p 'test_rust_target_cache.py'
+      python3 -m unittest discover -s ops/ci/migration/tests -p 'test_compare_rust_extra.py'
+      python3 -m unittest discover -s ops/ci/tests -p 'test_rust_cannon.py'
+      python3 -m unittest discover -s ops/ci/migration/tests -p 'test_compare_rust_cannon.py'
     cache: false
     timeout: 10m
     outputs:
@@ -161,7 +162,7 @@ tasks:
   - key: feature-plan
     use: head-source
     if: ${{ init.cache-warm == 'true' || tasks.route.values.run-rust-ci == 'true' }}
-    run: bash ops/ci/rust-workspace.sh feature-plan
+    run: bash ops/ci/runtime/rust-workspace.sh feature-plan
     env: &rust-env
       CI_RUST_PROVIDER: rwx
       CI_COMMIT_SHA: ${{ init.commit-sha }}
@@ -176,7 +177,7 @@ tasks:
   - key: tests-build
     use: head-source
     if: ${{ init.cache-warm == 'true' || tasks.route.values.run-rust-ci == 'true' }}
-    run: bash ops/ci/rust-workspace.sh tests-build
+    run: bash ops/ci/runtime/rust-workspace.sh tests-build
     env: *rust-env
     tool-cache: rust-workspace-tests-build-${{ init.cache-epoch }}
     timeout: 90m
@@ -197,7 +198,7 @@ tasks:
   - key: tests
     use: [tests-build, head-source]
     if: ${{ tasks.route.values.run-rust-ci == 'true' }}
-    run: bash ops/ci/rust-workspace.sh tests
+    run: bash ops/ci/runtime/rust-workspace.sh tests
     env:
       CI_RUST_PROVIDER: rwx
       CI_COMMIT_SHA: ${{ init.commit-sha }}
@@ -222,7 +223,7 @@ tasks:
   - key: doctest
     use: head-source
     if: ${{ tasks.route.values.run-rust-ci == 'true' }}
-    run: bash ops/ci/rust-workspace.sh doctest
+    run: bash ops/ci/runtime/rust-workspace.sh doctest
     env: &fresh-rust-env
       <<: *rust-env
       RWX_RUN_ID:
@@ -243,7 +244,7 @@ tasks:
   - key: build
     use: head-source
     if: ${{ init.cache-warm == 'true' || tasks.route.values.run-rust-ci == 'true' }}
-    run: bash ops/ci/rust-workspace.sh build
+    run: bash ops/ci/runtime/rust-workspace.sh build
     env: *fresh-rust-env
     tool-cache: rust-workspace-build-${{ init.cache-epoch }}
     timeout: 90m
@@ -259,7 +260,7 @@ tasks:
   - key: docs
     use: head-source
     if: ${{ init.cache-warm == 'true' || tasks.route.values.run-rust-ci == 'true' }}
-    run: bash ops/ci/rust-workspace.sh docs
+    run: bash ops/ci/runtime/rust-workspace.sh docs
     env: *fresh-rust-env
     tool-cache: rust-workspace-docs-${{ init.cache-epoch }}
     timeout: 90m
@@ -275,7 +276,7 @@ tasks:
   - key: clippy
     use: head-source
     if: ${{ init.cache-warm == 'true' || tasks.route.values.run-rust-ci == 'true' }}
-    run: bash ops/ci/rust-workspace.sh clippy
+    run: bash ops/ci/runtime/rust-workspace.sh clippy
     env: *fresh-rust-env
     tool-cache: rust-workspace-clippy-${{ init.cache-epoch }}
     timeout: 90m
@@ -291,7 +292,7 @@ tasks:
   - key: no-std
     use: head-source
     if: ${{ init.cache-warm == 'true' || tasks.route.values.run-rust-ci == 'true' }}
-    run: bash ops/ci/rust-workspace.sh no-std
+    run: bash ops/ci/runtime/rust-workspace.sh no-std
     env: *fresh-rust-env
     tool-cache: rust-workspace-no-std-${{ init.cache-epoch }}
     timeout: 90m
@@ -307,7 +308,7 @@ tasks:
   - key: udeps
     use: head-source
     if: ${{ init.cache-warm == 'true' || tasks.route.values.run-rust-ci == 'true' }}
-    run: bash ops/ci/rust-workspace.sh udeps
+    run: bash ops/ci/runtime/rust-workspace.sh udeps
     env: *fresh-rust-env
     tool-cache: rust-workspace-udeps-${{ init.cache-epoch }}
     timeout: 90m
@@ -323,7 +324,7 @@ tasks:
   - key: features-0
     use: head-source
     if: ${{ init.cache-warm == 'true' || tasks.route.values.run-rust-ci == 'true' }}
-    run: bash ops/ci/rust-workspace.sh features
+    run: bash ops/ci/runtime/rust-workspace.sh features
     env:
       <<: *fresh-rust-env
       CI_RUST_PARTITION_INDEX: "0"
@@ -342,7 +343,7 @@ tasks:
   - key: features-1
     use: head-source
     if: ${{ init.cache-warm == 'true' || tasks.route.values.run-rust-ci == 'true' }}
-    run: bash ops/ci/rust-workspace.sh features
+    run: bash ops/ci/runtime/rust-workspace.sh features
     env:
       <<: *fresh-rust-env
       CI_RUST_PARTITION_INDEX: "1"
@@ -361,7 +362,7 @@ tasks:
   - key: features-2
     use: head-source
     if: ${{ init.cache-warm == 'true' || tasks.route.values.run-rust-ci == 'true' }}
-    run: bash ops/ci/rust-workspace.sh features
+    run: bash ops/ci/runtime/rust-workspace.sh features
     env:
       <<: *fresh-rust-env
       CI_RUST_PARTITION_INDEX: "2"
@@ -380,7 +381,7 @@ tasks:
   - key: features-3
     use: head-source
     if: ${{ init.cache-warm == 'true' || tasks.route.values.run-rust-ci == 'true' }}
-    run: bash ops/ci/rust-workspace.sh features
+    run: bash ops/ci/runtime/rust-workspace.sh features
     env:
       <<: *fresh-rust-env
       CI_RUST_PARTITION_INDEX: "3"
@@ -399,7 +400,7 @@ tasks:
   - key: features-4
     use: head-source
     if: ${{ init.cache-warm == 'true' || tasks.route.values.run-rust-ci == 'true' }}
-    run: bash ops/ci/rust-workspace.sh features
+    run: bash ops/ci/runtime/rust-workspace.sh features
     env:
       <<: *fresh-rust-env
       CI_RUST_PARTITION_INDEX: "4"
@@ -418,7 +419,7 @@ tasks:
   - key: features-5
     use: head-source
     if: ${{ init.cache-warm == 'true' || tasks.route.values.run-rust-ci == 'true' }}
-    run: bash ops/ci/rust-workspace.sh features
+    run: bash ops/ci/runtime/rust-workspace.sh features
     env:
       <<: *fresh-rust-env
       CI_RUST_PARTITION_INDEX: "5"
@@ -437,7 +438,7 @@ tasks:
   - key: features-6
     use: head-source
     if: ${{ init.cache-warm == 'true' || tasks.route.values.run-rust-ci == 'true' }}
-    run: bash ops/ci/rust-workspace.sh features
+    run: bash ops/ci/runtime/rust-workspace.sh features
     env:
       <<: *fresh-rust-env
       CI_RUST_PARTITION_INDEX: "6"
@@ -456,7 +457,7 @@ tasks:
   - key: features-7
     use: head-source
     if: ${{ init.cache-warm == 'true' || tasks.route.values.run-rust-ci == 'true' }}
-    run: bash ops/ci/rust-workspace.sh features
+    run: bash ops/ci/runtime/rust-workspace.sh features
     env:
       <<: *fresh-rust-env
       CI_RUST_PARTITION_INDEX: "7"
@@ -475,7 +476,7 @@ tasks:
   - key: features-8
     use: head-source
     if: ${{ init.cache-warm == 'true' || tasks.route.values.run-rust-ci == 'true' }}
-    run: bash ops/ci/rust-workspace.sh features
+    run: bash ops/ci/runtime/rust-workspace.sh features
     env:
       <<: *fresh-rust-env
       CI_RUST_PARTITION_INDEX: "8"
@@ -494,7 +495,7 @@ tasks:
   - key: features-9
     use: head-source
     if: ${{ init.cache-warm == 'true' || tasks.route.values.run-rust-ci == 'true' }}
-    run: bash ops/ci/rust-workspace.sh features
+    run: bash ops/ci/runtime/rust-workspace.sh features
     env:
       <<: *fresh-rust-env
       CI_RUST_PARTITION_INDEX: "9"
@@ -513,7 +514,7 @@ tasks:
   - key: wasm-unknown
     use: [head-source, wasm-tools]
     if: ${{ init.cache-warm == 'true' || tasks.route.values.run-rust-ci == 'true' }}
-    run: bash ops/ci/rust-workspace.sh wasm-unknown
+    run: bash ops/ci/runtime/rust-workspace.sh wasm-unknown
     env: *fresh-rust-env
     tool-cache: rust-workspace-wasm-unknown-${{ init.cache-epoch }}
     timeout: 90m
@@ -531,7 +532,7 @@ tasks:
   - key: wasm-wasi
     use: [head-source, wasm-tools]
     if: ${{ init.cache-warm == 'true' || tasks.route.values.run-rust-ci == 'true' }}
-    run: bash ops/ci/rust-workspace.sh wasm-wasi
+    run: bash ops/ci/runtime/rust-workspace.sh wasm-wasi
     env: *fresh-rust-env
     tool-cache: rust-workspace-wasm-wasi-${{ init.cache-epoch }}
     timeout: 90m
@@ -549,7 +550,7 @@ tasks:
   - key: zepter
     use: [head-source, lint-tools]
     if: ${{ tasks.route.values.run-rust-ci == 'true' }}
-    run: bash ops/ci/rust-workspace.sh zepter
+    run: bash ops/ci/runtime/rust-workspace.sh zepter
     env: *fresh-rust-env
     tool-cache: rust-workspace-zepter-${{ init.cache-epoch }}
     timeout: 90m
@@ -567,7 +568,7 @@ tasks:
   - key: typos
     use: [head-source, lint-tools]
     if: ${{ tasks.route.values.run-rust-ci == 'true' }}
-    run: bash ops/ci/rust-workspace.sh typos
+    run: bash ops/ci/runtime/rust-workspace.sh typos
     env: *fresh-rust-env
     tool-cache: rust-workspace-typos-${{ init.cache-epoch }}
     timeout: 90m
@@ -585,7 +586,7 @@ tasks:
   - key: registry
     use: head-source
     if: ${{ init.cache-warm == 'true' || tasks.route.values.run-rust-ci == 'true' }}
-    run: bash ops/ci/rust-workspace.sh registry
+    run: bash ops/ci/runtime/rust-workspace.sh registry
     env: *fresh-rust-env
     tool-cache: rust-workspace-registry-${{ init.cache-epoch }}
     timeout: 90m
@@ -603,7 +604,7 @@ tasks:
   - key: interop
     use: [head-source, go-tools]
     if: ${{ tasks.route.values.run-rust-ci == 'true' }}
-    run: bash ops/ci/rust-workspace.sh interop
+    run: bash ops/ci/runtime/rust-workspace.sh interop
     env: *fresh-rust-env
     tool-cache: rust-workspace-interop-${{ init.cache-epoch }}
     timeout: 90m
@@ -626,7 +627,7 @@ tasks:
   - key: cannon-env
     use: [head-source, cannon-witness]
     if: ${{ init.cache-warm == 'true' || tasks.route.values.run-rust-ci == 'true' }}
-    run: bash ops/ci/rust-cannon.sh env
+    run: bash ops/ci/runtime/rust-cannon.sh env
     env: *rust-env
     docker: preserve-data
     tool-cache: rust-cannon-env-${{ init.cache-epoch }}
@@ -641,7 +642,7 @@ tasks:
   - key: cannon-go
     use: [head-source, go-tools]
     if: ${{ init.cache-warm == 'true' || tasks.route.values.run-rust-ci == 'true' }}
-    run: bash ops/ci/rust-cannon.sh go
+    run: bash ops/ci/runtime/rust-cannon.sh go
     env: *rust-env
     tool-cache: rust-cannon-go-${{ init.cache-epoch }}
     timeout: 30m
@@ -661,7 +662,7 @@ tasks:
   - key: cannon-witness
     use: head-source
     if: ${{ init.cache-warm == 'true' || tasks.route.values.run-rust-ci == 'true' }}
-    run: bash ops/ci/rust-cannon.sh witness
+    run: bash ops/ci/runtime/rust-cannon.sh witness
     env: *rust-env
     timeout: 15m
     outputs:
@@ -676,7 +677,7 @@ tasks:
   - key: cannon-lint
     use: [head-source, cannon-env]
     if: ${{ tasks.route.values.run-rust-ci == 'true' }}
-    run: bash ops/ci/rust-cannon.sh lint
+    run: bash ops/ci/runtime/rust-cannon.sh lint
     env:
       <<: *fresh-rust-env
       CANNON_ENV_ARTIFACT: ${{ tasks.cannon-env.artifacts.report }}
@@ -697,7 +698,7 @@ tasks:
   - key: cannon-build
     use: [head-source, cannon-env]
     if: ${{ init.cache-warm == 'true' || tasks.route.values.run-rust-ci == 'true' }}
-    run: bash ops/ci/rust-cannon.sh build
+    run: bash ops/ci/runtime/rust-cannon.sh build
     env:
       <<: *fresh-rust-env
       CANNON_ENV_ARTIFACT: ${{ tasks.cannon-env.artifacts.report }}
@@ -716,7 +717,7 @@ tasks:
   - key: cannon-offline
     use: [head-source, go-tools, cannon-witness, cannon-go, cannon-build]
     if: ${{ tasks.route.values.run-rust-ci == 'true' }}
-    run: bash ops/ci/rust-cannon.sh offline
+    run: bash ops/ci/runtime/rust-cannon.sh offline
     env:
       <<: *fresh-rust-env
       CANNON_GO_ARTIFACT: ${{ tasks.cannon-go.artifacts.report }}
@@ -742,7 +743,7 @@ tasks:
     use: [code, tools]
     if: ${{ init.cache-warm != 'true' }}
     after: ${{ (build.succeeded || build.failed || build.skipped) && (cannon-build.succeeded || cannon-build.failed || cannon-build.skipped) && (cannon-lint.succeeded || cannon-lint.failed || cannon-lint.skipped) && (cannon-offline.succeeded || cannon-offline.failed || cannon-offline.skipped) && (clippy.succeeded || clippy.failed || clippy.skipped) && (docs.succeeded || docs.failed || docs.skipped) && (doctest.succeeded || doctest.failed || doctest.skipped) && (features-0.succeeded || features-0.failed || features-0.skipped) && (features-1.succeeded || features-1.failed || features-1.skipped) && (features-2.succeeded || features-2.failed || features-2.skipped) && (features-3.succeeded || features-3.failed || features-3.skipped) && (features-4.succeeded || features-4.failed || features-4.skipped) && (features-5.succeeded || features-5.failed || features-5.skipped) && (features-6.succeeded || features-6.failed || features-6.skipped) && (features-7.succeeded || features-7.failed || features-7.skipped) && (features-8.succeeded || features-8.failed || features-8.skipped) && (features-9.succeeded || features-9.failed || features-9.skipped) && (interop.succeeded || interop.failed || interop.skipped) && (no-std.succeeded || no-std.failed || no-std.skipped) && (registry.succeeded || registry.failed || registry.skipped) && (tests.succeeded || tests.failed || tests.skipped) && (typos.succeeded || typos.failed || typos.skipped) && (udeps.succeeded || udeps.failed || udeps.skipped) && (wasm-unknown.succeeded || wasm-unknown.failed || wasm-unknown.skipped) && (wasm-wasi.succeeded || wasm-wasi.failed || wasm-wasi.skipped) && (zepter.succeeded || zepter.failed || zepter.skipped) }}
-    run: python3 ops/ci/pr-gate.py receipt rust-workspace
+    run: python3 ops/ci/runtime/pr-gate.py receipt rust-workspace
     env:
       CI_COMMIT_SHA: ${{ init.commit-sha }}
       CI_BRANCH: ${{ init.branch }}

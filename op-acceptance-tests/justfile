@@ -134,17 +134,17 @@ acceptance-test:
     ASSIGNED="$DISCOVERY_DIR/assigned.txt"
     if [[ -n "${CI_ACCEPTANCE_MANIFEST:-}" ]]; then
         cp "$CI_ACCEPTANCE_MANIFEST/"{manifest.json,packages.json,listing.json} "$DISCOVERY_DIR/"
-        python3 ops/ci/acceptance-manifest.py select --directory "$DISCOVERY_DIR" \
+        python3 ops/ci/runtime/acceptance-manifest.py select --directory "$DISCOVERY_DIR" \
             --total "$NODE_TOTAL" --index "$NODE_INDEX" > "$ASSIGNED"
     else
         # Retain and reject errors from both commands before invoking a splitter.
         go list -e -json "${TEST_PACKAGES[@]}" > "$DISCOVERY_DIR/packages.json"
         go test -list '^Test' -json "${TEST_PACKAGES[@]}" > "$DISCOVERY_DIR/listing.json"
-        python3 ops/ci/acceptance-manifest.py names --directory "$DISCOVERY_DIR" \
+        python3 ops/ci/runtime/acceptance-manifest.py names --directory "$DISCOVERY_DIR" \
             --total "$NODE_TOTAL" > "$DISCOVERY_DIR/names.txt"
         "{{REPO_ROOT}}/ops/scripts/shard-tests.sh" < "$DISCOVERY_DIR/names.txt" > "$ASSIGNED"
     fi
-    python3 ops/ci/acceptance-manifest.py record --directory "$DISCOVERY_DIR" \
+    python3 ops/ci/runtime/acceptance-manifest.py record --directory "$DISCOVERY_DIR" \
         --total "$NODE_TOTAL" --index "$NODE_INDEX" --assigned "$ASSIGNED"
     if [[ "$NODE_TOTAL" -gt 1 ]]; then
         SHARD_COUNT=$(wc -l < "$ASSIGNED" | tr -d ' ')

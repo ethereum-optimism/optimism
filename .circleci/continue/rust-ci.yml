@@ -146,7 +146,7 @@ jobs:
           working_directory: <<parameters.directory>>
           command: |
             if [[ "<<parameters.directory>>" == rust && "<<parameters.command>>" == 'zepter run check' ]]; then
-              bash ../ops/ci/rust-workspace.sh zepter
+              bash ../ops/ci/runtime/rust-workspace.sh zepter
             else
               <<parameters.command>>
             fi
@@ -176,7 +176,7 @@ jobs:
           working_directory: <<parameters.directory>>
           command: |
             if [[ "<<parameters.directory>>" == rust ]]; then
-              bash ../ops/ci/rust-workspace.sh typos
+              bash ../ops/ci/runtime/rust-workspace.sh typos
             else
               typos
             fi
@@ -308,7 +308,7 @@ jobs:
           no_output_timeout: 40m
           command: |
             if [ "<<parameters.directory>>" = rust ] && [ "<<parameters.command>>" = test ] && [ -z "<<parameters.flags>>" ]; then
-              bash ../ops/ci/rust-workspace.sh tests
+              bash ../ops/ci/runtime/rust-workspace.sh tests
             else
               just <<parameters.command>> <<parameters.flags>>
             fi
@@ -395,7 +395,7 @@ jobs:
       - restore-go-mod-cache
       - run:
           name: Build superchain bundle and compare original Interop dumps
-          command: bash ops/ci/rust-workspace.sh interop
+          command: bash ops/ci/runtime/rust-workspace.sh interop
       - store_artifacts:
           path: .ci/rust-workspace
           destination: rust-workspace
@@ -459,9 +459,9 @@ jobs:
           no_output_timeout: 40m
           command: |
             if [[ "<<parameters.directory>>" == rust && "<<parameters.target>>" == wasm32-unknown-unknown && "<<parameters.flags>>" == '-p op-alloy-consensus -p op-alloy-rpc-types -p op-alloy-rpc-types-engine -p alloy-op-evm --no-default-features' ]]; then
-              bash ../ops/ci/rust-workspace.sh wasm-unknown
+              bash ../ops/ci/runtime/rust-workspace.sh wasm-unknown
             elif [[ "<<parameters.directory>>" == rust && "<<parameters.target>>" == wasm32-wasip1 && "<<parameters.flags>>" == '-p op-alloy-consensus -p op-alloy-rpc-types-engine -p alloy-op-evm' ]]; then
-              bash ../ops/ci/rust-workspace.sh wasm-wasi
+              bash ../ops/ci/runtime/rust-workspace.sh wasm-wasi
             else
               rustup target add <<parameters.target>> && cargo hack build --target <<parameters.target>> <<parameters.flags>>
             fi
@@ -493,7 +493,7 @@ jobs:
           name: Run library features and isolated test targets
           working_directory: rust
           no_output_timeout: 60m
-          command: bash ../ops/ci/rust-workspace.sh features
+          command: bash ../ops/ci/runtime/rust-workspace.sh features
       - store_artifacts:
           path: .ci/rust-workspace
           destination: rust-workspace
@@ -576,7 +576,7 @@ jobs:
       - run:
           name: Full Cannon host/client offline run and fresh guest-state verdict
           no_output_timeout: 40m
-          command: bash ops/ci/rust-cannon.sh offline
+          command: bash ops/ci/runtime/rust-cannon.sh offline
       - store_test_results:
           path: .ci/rust-workspace/cannon-offline/checks.junit.xml
       - store_artifacts:
@@ -607,7 +607,7 @@ jobs:
           no_output_timeout: 40m
           command: |
             if [[ "<<parameters.target>>" == cannon ]]; then
-              bash ../../ops/ci/rust-cannon.sh lint
+              bash ../../ops/ci/runtime/rust-cannon.sh lint
             else
               just lint-<<parameters.target>>
             fi
@@ -640,7 +640,7 @@ jobs:
           no_output_timeout: 40m
           command: |
             if [[ "<<parameters.target>>" == cannon-client ]]; then
-              bash ../../ops/ci/rust-cannon.sh build
+              bash ../../ops/ci/runtime/rust-cannon.sh build
             else
               just build-<<parameters.target>>
             fi
@@ -669,7 +669,7 @@ jobs:
           directory: rust
       - run:
           name: Regenerate and verify all kona-registry snapshots freshly
-          command: bash ops/ci/rust-workspace.sh registry
+          command: bash ops/ci/runtime/rust-workspace.sh registry
       - store_artifacts:
           path: .ci/rust-workspace
           destination: rust-workspace
@@ -983,7 +983,7 @@ workflows:
       - rust-ci-clippy:
           name: rust-clippy
           directory: rust
-          command: "bash ../ops/ci/rust-workspace.sh clippy"
+          command: "bash ../ops/ci/runtime/rust-workspace.sh clippy"
           context: *rust-ci-context
 
       - rust-ci-deny:
@@ -1028,19 +1028,19 @@ workflows:
       - rust-ci-doctest:
           name: rust-doctest
           directory: rust
-          command: "bash ../ops/ci/rust-workspace.sh doctest"
+          command: "bash ../ops/ci/runtime/rust-workspace.sh doctest"
           context: *rust-ci-context
 
       - rust-ci-docs:
           name: rust-docs
           directory: rust
-          command: "bash ../ops/ci/rust-workspace.sh docs"
+          command: "bash ../ops/ci/runtime/rust-workspace.sh docs"
           context: *rust-ci-context
 
       - rust-ci-udeps:
           name: rust-udeps
           directory: rust
-          command: "bash ../ops/ci/rust-workspace.sh udeps"
+          command: "bash ../ops/ci/runtime/rust-workspace.sh udeps"
           context: *rust-ci-context
 
       - rust-ci-cargo-hack:
@@ -1066,7 +1066,7 @@ workflows:
       - rust-ci-check-no-std:
           name: rust-check-no-std
           directory: rust
-          command: bash ../ops/ci/rust-workspace.sh no-std
+          command: bash ../ops/ci/runtime/rust-workspace.sh no-std
           context: *rust-ci-context
 
       - rust-ci-cargo-hack-build:

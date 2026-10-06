@@ -5,7 +5,7 @@ package:
 tasks:
   - key: build
     use: package.use
-    run: bash ops/ci/rust-e2e-release.sh
+    run: bash ops/ci/runtime/rust-e2e-release.sh
     env:
       CI_RUST_PROVIDER: rwx
       CI_COMMIT_SHA: ${{ params.commit-sha }}

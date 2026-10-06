@@ -42,10 +42,10 @@ tasks:
           prestate) artifact="$PRESTATE_ARTIFACT" ;;
           sp1-executor) artifact="$SP1_ARTIFACT" ;;
         esac
-        python3 ops/ci/go-artifacts.py restore "$dependency" "$artifact"
+        python3 ops/ci/runtime/go-artifacts.py restore "$dependency" "$artifact"
       done
       export CI_ACCEPTANCE_MANIFEST="$PWD/$CI_ACCEPTANCE_MANIFEST"
-      mise exec -- bash ops/ci/acceptance-tests.sh run
+      mise exec -- bash ops/ci/runtime/acceptance-tests.sh run
     env:
       CI_COMMIT_SHA: ${{ params.commit-sha }}
       CI_BRANCH: ${{ params.branch }}

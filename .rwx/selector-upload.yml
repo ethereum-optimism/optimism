@@ -56,12 +56,12 @@ tasks:
 
   - key: tools
     use: [code, mise]
-    run: bash ops/ci/rwx-prepare.sh
+    run: bash ops/ci/runtime/rwx-prepare.sh
     timeout: 30m
 
   - key: route
     use: [code, tools]
-    run: bash ops/ci/rwx-metadata.sh
+    run: bash ops/ci/runtime/rwx-metadata.sh
     env:
       CI_EVENT: push
       CI_CACHE_WARM: ${{ init.cache-warm }}
@@ -80,15 +80,15 @@ tasks:
     use: [code, tools]
     if: ${{ init.cache-warm == 'true' || tasks.route.values.run-main == 'true' }}
     run: |
-      bash ops/ci/rwx-contracts-prepare.sh tools
-      bash .circleci/scripts/apt-install.sh iproute2 openssl
+      bash ops/ci/runtime/rwx-contracts-prepare.sh tools
+      bash ops/ci/runtime/apt-install.sh iproute2 openssl
     timeout: 30m
 
   - key: registry-images
     use: [code, tools]
     if: ${{ init.cache-warm == 'true' || tasks.route.values.run-main == 'true' }}
     docker: preserve-data
-    run: python3 ops/ci/selector-registry.py images .ci/selector-registry
+    run: python3 ops/ci/migration/selector-registry.py images .ci/selector-registry
     timeout: 45m
     runner: {cpus: 8, memory: 16gb}
     outputs:
@@ -111,7 +111,7 @@ tasks:
   - key: prepare
     use: source
     if: ${{ init.cache-warm == 'true' || tasks.route.values.run-main == 'true' }}
-    run: python3 ops/ci/selector-upload.py prepare .ci/selector-upload/prepare
+    run: python3 ops/ci/migration/selector-upload.py prepare .ci/selector-upload/prepare
     env:
       CI_COMMIT_SHA: ${{ init.commit-sha }}
       CI_BRANCH: ${{ init.branch }}
@@ -133,8 +133,8 @@ tasks:
     if: ${{ init.cache-warm != 'true' && tasks.route.values.run-main == 'true' }}
     docker: true
     run: |
-      python3 -m unittest discover -s ops/ci -p 'test*selector_upload.py'
-      python3 ops/ci/selector-registry.py fixture "$REGISTRY_IMAGES/sourcify" .ci/selector-upload/fixtures
+      python3 -m unittest discover -s ops/ci/migration/tests -p 'test*selector_upload.py'
+      python3 ops/ci/migration/selector-registry.py fixture "$REGISTRY_IMAGES/sourcify" .ci/selector-upload/fixtures
     env:
       REGISTRY_IMAGES: ${{ tasks.registry-images.artifacts.images }}
     cache: false
@@ -150,7 +150,7 @@ tasks:
     if: ${{ init.cache-warm != 'true' && tasks.route.values.run-main == 'true' }}
     docker: true
     run: |
-      python3 ops/ci/selector-upload.py run .ci/selector-upload/run "$COMPILED" \
+      python3 ops/ci/migration/selector-upload.py run .ci/selector-upload/run "$COMPILED" \
         "$REGISTRY_IMAGES/sourcify" "$REGISTRY_IMAGES/images.json"
     env:
       CI_COMMIT_SHA: ${{ init.commit-sha }}

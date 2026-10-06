@@ -64,7 +64,7 @@ jobs:
             echo "Running tests..."
             export RUST_BINARY_PATH_OP_RETH="$WD/rust/target/release/op-reth"
             export RUST_BINARY_PATH_KONA_NODE="$WD/rust/target/release/kona-node"
-            bash ops/ci/rust-e2e.sh circle "<<parameters.devnet_config>>"
+            bash ops/ci/runtime/rust-e2e.sh circle "<<parameters.devnet_config>>"
       - when:
           condition:
             equal: [true, <<parameters.reorg_tests>>]
@@ -123,7 +123,7 @@ jobs:
             WD=$(pwd)
             export RUST_BINARY_PATH_OP_RETH="$WD/rust/target/release/op-reth"
             export RUST_BINARY_PATH_KONA_NODE="$WD/rust/target/release/kona-node"
-            bash ops/ci/rust-e2e.sh circle restart
+            bash ops/ci/runtime/rust-e2e.sh circle restart
       - go-save-cache:
           namespace: kona-ci
       - store_test_results:
@@ -154,7 +154,7 @@ jobs:
           no_output_timeout: 60m
           command: |
             export RUST_BINARY_PATH_OP_RETH="$(pwd)/../../target/release/op-reth"
-            bash ../../../ops/ci/rust-e2e.sh circle op-reth
+            bash ../../../ops/ci/runtime/rust-e2e.sh circle op-reth
       - go-save-cache:
           namespace: op-reth-e2e
       - store_test_results:
@@ -194,7 +194,7 @@ jobs:
             echo "Running action tests"
             export KONA_HOST_PATH=$(pwd)/../target/release/kona-host
             if [[ "<<parameters.kind>>" != single ]]; then echo "Unsupported shared proof kind" >&2; exit 1; fi
-            bash ../../ops/ci/rust-e2e.sh circle proof
+            bash ../../ops/ci/runtime/rust-e2e.sh circle proof
       - go-save-cache:
           namespace: kona-ci
       - store_test_results:
@@ -223,7 +223,7 @@ jobs:
             - sp1-toolchain-v1-{{ arch }}-{{ checksum "mise.toml" }}
       - run:
           name: Install or link SP1 toolchain with original pin checks and evidence
-          command: python3 ops/ci/sp1-guest.py --provider circleci --phase toolchain
+          command: python3 ops/ci/runtime/sp1-guest.py --provider circleci --phase toolchain
       - save_cache:
           name: Save SP1 toolchain cache
           key: sp1-toolchain-v1-{{ arch }}-{{ checksum "mise.toml" }}
@@ -232,7 +232,7 @@ jobs:
       - run:
           name: Build SP1 guest ELFs with complete original artifact evidence
           no_output_timeout: 40m
-          command: python3 ops/ci/sp1-guest.py --provider circleci --phase build
+          command: python3 ops/ci/runtime/sp1-guest.py --provider circleci --phase build
       - store_artifacts:
           path: rust/kona/sp1/elf
       - persist_to_workspace:
@@ -242,7 +242,7 @@ jobs:
       - run:
           name: Run all original SP1 guest, lint and range-vkeys checks freshly
           no_output_timeout: 40m
-          command: python3 ops/ci/sp1-guest.py --provider circleci --phase checks
+          command: python3 ops/ci/runtime/sp1-guest.py --provider circleci --phase checks
       - store_test_results:
           path: .ci/sp1-guest/run
       - store_artifacts:

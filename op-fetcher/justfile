@@ -25,4 +25,4 @@ build-contracts: compile-contracts
   #!/bin/bash
   set -euo pipefail
   mkdir -p ./pkg/fetcher/fetch/forge-artifacts
-  python3 ../ops/ci/fetcher-artifacts.py --export
+  python3 ../ops/ci/runtime/fetcher-artifacts.py --export

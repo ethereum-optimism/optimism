@@ -52,11 +52,11 @@ tasks:
   - key: bootstrap-inputs
     use: code
     run: 'true'
-    filter: [mise.toml, ops/ci, .circleci/scripts/apt-install.sh]
+    filter: [mise.toml, ops/ci/runtime]
     outputs:
       filesystem:
         filter:
-          workspace: [mise.toml, .circleci/scripts/apt-install.sh, ops/ci/rwx-prepare.sh, ops/ci/rwx-contracts-prepare.sh, ops/ci/rwx-rust-prepare.sh, ops/ci/op-reth-shadow.sh, ops/ci/op-reth-report.py, ops/ci/rust-target-cache.py]
+          workspace: [mise.toml, ops/ci/runtime/apt-install.sh, ops/ci/runtime/rwx-prepare.sh, ops/ci/runtime/rwx-contracts-prepare.sh, ops/ci/runtime/rwx-rust-prepare.sh, ops/ci/runtime/op-reth-shadow.sh, ops/ci/runtime/op-reth-report.py, ops/ci/runtime/rust-target-cache.py]
           system: []
       artifacts:
         - key: mise-config
@@ -64,7 +64,7 @@ tasks:
         - key: ci-scripts
           path: ops/ci
         - key: apt-script
-          path: .circleci/scripts/apt-install.sh
+          path: ops/ci/runtime/apt-install.sh
 
   - key: mise
     call: mise/install 1.1.0
@@ -86,7 +86,7 @@ tasks:
 
   - key: route
     use: [code, tools]
-    run: bash ops/ci/rwx-metadata.sh
+    run: bash ops/ci/runtime/rwx-metadata.sh
     env:
       CI_EVENT: push
       CI_CACHE_WARM: ${{ init.cache-warm }}
@@ -116,7 +116,7 @@ tasks:
   - key: helper-tests
     use: [code, go-build-tools]
     if: ${{ init.cache-warm != 'true' }}
-    run: mise exec -- python3 -m unittest discover -s ops/ci -p 'test_go*.py'
+    run: mise exec -- python3 -m unittest discover -s ops/ci/tests -p 'test_go*.py'
     cache: false
     timeout: 10m
     outputs:
@@ -201,9 +201,9 @@ tasks:
     use: [source, go-build-tools, go.build, contracts.build]
     if: ${{ init.cache-warm == 'true' || tasks.route.values.run-main == 'true' }}
     run: |
-      python3 ops/ci/go-artifacts.py restore go "$GO_ARTIFACT"
-      python3 ops/ci/go-artifacts.py restore contracts "$CONTRACT_ARTIFACT"
-      mise exec -- bash ops/ci/go-full-tests.sh discover
+      python3 ops/ci/runtime/go-artifacts.py restore go "$GO_ARTIFACT"
+      python3 ops/ci/runtime/go-artifacts.py restore contracts "$CONTRACT_ARTIFACT"
+      mise exec -- bash ops/ci/runtime/go-full-tests.sh discover
     env:
       CI_BRANCH: ${{ init.branch }}
       CI_COMMIT_SHA: ${{ init.commit-sha }}
@@ -513,7 +513,7 @@ tasks:
     use: [code, tools]
     after: ${{ (verdict-0.succeeded || verdict-0.failed || verdict-0.skipped) && (verdict-1.succeeded || verdict-1.failed || verdict-1.skipped) && (verdict-10.succeeded || verdict-10.failed || verdict-10.skipped) && (verdict-11.succeeded || verdict-11.failed || verdict-11.skipped) && (verdict-2.succeeded || verdict-2.failed || verdict-2.skipped) && (verdict-3.succeeded || verdict-3.failed || verdict-3.skipped) && (verdict-4.succeeded || verdict-4.failed || verdict-4.skipped) && (verdict-5.succeeded || verdict-5.failed || verdict-5.skipped) && (verdict-6.succeeded || verdict-6.failed || verdict-6.skipped) && (verdict-7.succeeded || verdict-7.failed || verdict-7.skipped) && (verdict-8.succeeded || verdict-8.failed || verdict-8.skipped) && (verdict-9.succeeded || verdict-9.failed || verdict-9.skipped) }}
     if: ${{ init.cache-warm != 'true' && init.shard-total == '12' }}
-    run: python3 ops/ci/pr-gate.py receipt main-go
+    run: python3 ops/ci/runtime/pr-gate.py receipt main-go
     env:
       CI_COMMIT_SHA: ${{ init.commit-sha }}
       CI_BRANCH: ${{ init.branch }}

@@ -17,13 +17,52 @@ production. Only the pilot branch and `develop` trigger the native coordinator.
 Fork authorization remains Bailiff's human-approved `external-fork/*` path;
 fork, merge-queue and denied-cache-access rehearsals are still cutover work.
 
-Shared selection is [routing.yml](../../ops/ci/routing.yml), interpreted by
-[compute-workflow-conditions.sh](../../ops/ci/compute-workflow-conditions.sh).
+Shared selection is [routing.yml](../../ops/ci/runtime/routing.yml), interpreted by
+[compute-workflow-conditions.sh](../../ops/ci/runtime/compute-workflow-conditions.sh).
 Circle scripts adapt Circle metadata; RWX metadata adapts native events. Unknown
 or mixed code paths cannot take the docs-only shortcut. Safe skips still emit
 Circle's exact required contexts. CI source changes select contracts and Rust
 validation too. See [CI review](ci-config-review.md) for the merged continuation
 config and gate review procedure.
+
+## Helper ownership and removable boundaries
+
+| Directory | Owner and lifetime |
+| --- | --- |
+| `ops/ci/runtime/` | Permanent runners, report/source libraries, routing, native gate policy, timing seeds and build inputs |
+| `ops/ci/tests/` | Permanent execution/configuration tests, routing scenarios and shared fixture construction |
+| `ops/ci/migration/` | Offline comparers, Circle gate mappings/alignment, Insights, schedule/RPC synchronization, private publication rehearsal and their tests/fixtures |
+
+Runtime imports only runtime. Permanent tests consume runtime and permanent test
+support. Migration tooling may consume both. Moved commands retain their basenames,
+arguments and artifact destinations; there are no old-path forwarding helpers.
+The existing Circle apt installer is the sole installer adapter; RWX uses
+`runtime/apt-install.sh` directly. Toolchain snapshots exclude migration inputs.
+
+The native gate manifest is version 4. It contains native assignments, routing,
+observers and check names. `migration/circle-gates.json` owns the Circle workflow
+mapping; `migration/circle-alignment.py` verifies expanded Circle prerequisites.
+Native execution does not read Circle YAML. Receipts use `native_policy_sha256`,
+a hash of native policy, workload definitions/packages and the gate implementation.
+The gate also verifies checked-out SHA, clean tracked source, current run/attempt,
+complete assignments, engine states and sealed artifacts. Workload producers and
+consumers own source/toolchain/settings binding and binary integrity.
+
+Shared runners still accept `--provider circleci`, `record-circle`, and
+`CI_CHECK_PROVIDER`, `CI_CONTRACT_PROVIDER`, `CI_RUST_PROVIDER` and
+`CI_E2E_PROVIDER=circleci`. Retained metadata aliases are `CIRCLE_SHA1`,
+`CIRCLE_BRANCH`, `CIRCLE_NODE_INDEX`, `CIRCLE_NODE_TOTAL` and `CIRCLE_WORKFLOW_ID`.
+Acceptance/Rust dependencies retain `.circleci-cache/rust-binaries`; Circle
+selection paths retain their CLI partitioning adapter where applicable. These are caller compatibility inputs, not native
+gate dependencies. Their tests stay with the execution contract until those
+callers retire. Insights and the schedule/RPC synchronization remain transitional
+workloads in both providers; the production publisher is unchanged.
+
+Offline `migration/report-evidence.py` centralizes original byte verification,
+explicit empty-file recovery with audit records, and common path normalization.
+Suite comparers still own discovery, required reports, settings, retries and
+verdict interpretation. Runtime verification is read-only and rejects missing
+empty files. Comparison helpers must not repair runtime artifacts.
 
 ## Chosen execution graph
 
@@ -119,9 +158,11 @@ failures or material fixes. On macOS use Bash 4+ for routing and a Python with
 PyYAML; the pinned Python environment may require its dependencies installed.
 
 ```bash
-mise exec yq jq -- bash ops/ci/test-decision-tree.sh
+mise exec yq jq -- bash ops/ci/tests/test-decision-tree.sh
 mise exec yq jq -- bash .circleci/scripts/test-decision-tree.sh
-python3 -m unittest discover -s ops/ci -p 'test_*.py'
+python3 -m unittest discover -s ops/ci/tests -p 'test_*.py'
+python3 -m unittest discover -s ops/ci/migration/tests -p 'test_*.py'
+python3 ops/ci/migration/circle-alignment.py
 rwx lint .rwx/*.yml .rwx/packages/*.yml --warnings-as-errors
 # Merge and validate both setup and activated continuation configs as described
 # in ci-config-review.md, with the authenticated Circle CLI.
@@ -188,3 +229,23 @@ Same-SHA workload evidence established the 86-job parity baseline; this cleanup
 uses existing regression ownership rather than creating new workload benchmarks.
 Cutover, required-check ownership, production identity and full `develop` parity
 remain open in the checklist.
+
+## Migration tooling retirement
+
+Retire migration tooling only after approved RWX required-gate cutover and the
+rollback window closes. First archive final original reports and the matching
+source revision in checksum-verified storage outside Git. Replace or retire
+Insights reporting, Circle schedule synchronization and the private publication
+rehearsal. Then remove `ops/ci/migration`, its mappings/tests, helper-task
+invocations and migration-only filters. Finally remove Circle adapters and unused
+provider/metadata compatibility modes, and run permanent tests plus native
+configuration validation. This PR separates these owners; it does not cut over
+required gates or retire these workloads.
+
+Verification is reported by scenarios: complete/new/unknown package discovery;
+omission on either provider; duplicate assignment; stale SHA, toolchain or settings;
+corrupt artifacts; real runtime fixture builds; retries; cancellation; retained
+failure reports; legitimate safe skips; and altered Circle prerequisites. The
+permanent import test and isolated native gate fixture run without Circle or
+migration files. Historical reports must be reproduced with their archived
+source, not interpreted with the version 4 receipt schema.

@@ -5,7 +5,7 @@ package:
 tasks:
   - key: build
     use: package.use
-    run: python3 ops/ci/kontrol-contracts.py
+    run: python3 ops/ci/runtime/kontrol-contracts.py
     env:
       CI_COMMIT_SHA: ${{ params.commit-sha }}
     tool-cache: kontrol-contracts-${{ params.cache-epoch }}

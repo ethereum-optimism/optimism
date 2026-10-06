@@ -21,7 +21,7 @@ tasks:
       export GOCACHE="$PWD/.ci/go-cache/contract-coverage/runtime"
       git submodule sync --recursive
       git -c protocol.file.allow=never submodule update --init --recursive --jobs 8
-      python3 ops/ci/contract-coverage.py run --feature "$CI_CONTRACT_FEATURE" \
+      python3 ops/ci/runtime/contract-coverage.py run --feature "$CI_CONTRACT_FEATURE" \
         --prepared "$COMPILED" --block "$ARCHIVE_PREFLIGHT/block.json"
     env:
       CI_COMMIT_SHA: ${{ params.commit-sha }}

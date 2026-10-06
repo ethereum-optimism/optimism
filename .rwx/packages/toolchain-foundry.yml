@@ -6,7 +6,7 @@ tasks:
   - key: prepare
     use: package.use
     run: |
-      bash ops/ci/rwx-contracts-prepare.sh tools
+      bash ops/ci/runtime/rwx-contracts-prepare.sh tools
       case "$FOUNDRY_TOOL_MODE" in
         compiler) ;;
         anvil) mise install anvil ;;
@@ -22,5 +22,5 @@ tasks:
     env:
       FOUNDRY_TOOL_MODE: ${{ params.mode }}
     filter:
-      workspace: [mise.toml, .circleci/scripts/apt-install.sh, ops/ci/rwx-prepare.sh, ops/ci/rwx-contracts-prepare.sh]
+      workspace: [mise.toml, ops/ci/runtime/apt-install.sh, ops/ci/runtime/rwx-prepare.sh, ops/ci/runtime/rwx-contracts-prepare.sh]
     timeout: 30m

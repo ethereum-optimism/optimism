@@ -4,7 +4,7 @@ import { readdirSync } from "node:fs";
 import path from "node:path";
 
 const repoRoot = path.resolve(import.meta.dir, "../..");
-const routingPath = path.join(repoRoot, "ops/ci/routing.yml");
+const routingPath = path.join(repoRoot, "ops/ci/runtime/routing.yml");
 const continuationDir = path.join(repoRoot, ".circleci/continue");
 const apiBase = process.env.CIRCLECI_API_BASE ?? "https://circleci.com/api/v2";
 const projectSlug =

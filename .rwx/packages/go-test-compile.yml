@@ -15,7 +15,7 @@ package:
 tasks:
   - key: build
     use: package.use
-    run: mise exec -- bash ops/ci/go-full-tests.sh build
+    run: mise exec -- bash ops/ci/runtime/go-full-tests.sh build
     env:
       CI_COMMIT_SHA: ${{ params.commit-sha }}
       CI_SHARD_INDEX: ${{ params.shard-index }}

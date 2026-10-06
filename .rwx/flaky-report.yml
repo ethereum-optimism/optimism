@@ -50,11 +50,11 @@ tasks:
     with: {mise-version: "2026.2.2", install: "false"}
   - key: tools
     use: [code, mise]
-    run: bash ops/ci/rwx-prepare.sh
+    run: bash ops/ci/runtime/rwx-prepare.sh
     timeout: 30m
   - key: route
     use: [code, tools]
-    run: bash ops/ci/rwx-metadata.sh
+    run: bash ops/ci/runtime/rwx-metadata.sh
     env:
       CI_EVENT: push
       CI_CACHE_WARM: ${{ init.cache-warm }}
@@ -70,14 +70,14 @@ tasks:
   - key: helper-tests
     use: [code, tools]
     if: ${{ init.cache-warm != 'true' && tasks.route.values.run-main == 'true' }}
-    run: python3 -m unittest discover -s ops/ci -p 'test*flaky_report.py'
+    run: python3 -m unittest discover -s ops/ci/migration/tests -p 'test*flaky_report.py'
     cache: false
     timeout: 10m
     outputs: {filesystem: false}
   - key: report
     use: [code, tools]
     if: ${{ init.cache-warm != 'true' && tasks.route.values.run-main == 'true' }}
-    run: python3 ops/ci/flaky-report.py run .ci/flaky-report/run
+    run: python3 ops/ci/migration/flaky-report.py run .ci/flaky-report/run
     env:
       CI_COMMIT_SHA: ${{ init.commit-sha }}
       CI_BRANCH: ${{ init.branch }}

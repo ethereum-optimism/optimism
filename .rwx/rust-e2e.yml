@@ -60,11 +60,11 @@ tasks:
   - key: bootstrap-inputs
     use: code
     run: 'true'
-    filter: [mise.toml, ops/ci, .circleci/scripts/apt-install.sh]
+    filter: [mise.toml, ops/ci/runtime]
     outputs:
       filesystem:
         filter:
-          workspace: [mise.toml, .circleci/scripts/apt-install.sh, ops/ci/rwx-prepare.sh, ops/ci/rwx-contracts-prepare.sh, ops/ci/rwx-rust-prepare.sh, ops/ci/op-reth-shadow.sh, ops/ci/op-reth-report.py, ops/ci/rust-target-cache.py]
+          workspace: [mise.toml, ops/ci/runtime/apt-install.sh, ops/ci/runtime/rwx-prepare.sh, ops/ci/runtime/rwx-contracts-prepare.sh, ops/ci/runtime/rwx-rust-prepare.sh, ops/ci/runtime/op-reth-shadow.sh, ops/ci/runtime/op-reth-report.py, ops/ci/runtime/rust-target-cache.py]
           system: []
       artifacts:
         - key: mise-config
@@ -72,7 +72,7 @@ tasks:
         - key: ci-scripts
           path: ops/ci
         - key: apt-script
-          path: .circleci/scripts/apt-install.sh
+          path: ops/ci/runtime/apt-install.sh
 
   - key: mise
     call: mise/install 1.1.0
@@ -94,7 +94,7 @@ tasks:
 
   - key: route
     use: [code, tools]
-    run: bash ops/ci/rwx-metadata.sh
+    run: bash ops/ci/runtime/rwx-metadata.sh
     env:
       CI_EVENT: push
       CI_CACHE_WARM: ${{ init.cache-warm }}
@@ -124,13 +124,13 @@ tasks:
   - key: helper-tests
     use: [code, go-build-tools, contract-tools]
     run: |
-      bash .circleci/scripts/apt-install.sh zstd
-      RWX_LIVE_GO_FIXTURE=1 RWX_LIVE_FORGE_FIXTURE=1 python3 -m unittest discover -s ops/ci -p 'test_rust_e2e.py'
-      python3 -m unittest discover -s ops/ci -p 'test_rust_e2e_release.py'
-      python3 -m unittest discover -s ops/ci -p 'test_rust_e2e_gate.py'
-      python3 -m unittest discover -s ops/ci -p 'test_compare_rust_e2e.py'
-      python3 -m unittest discover -s ops/ci -p 'test_compare_contract_artifacts.py'
-      python3 -m unittest discover -s ops/ci -p 'test_go_artifacts.py'
+      bash ops/ci/runtime/apt-install.sh zstd
+      RWX_LIVE_GO_FIXTURE=1 RWX_LIVE_FORGE_FIXTURE=1 python3 -m unittest discover -s ops/ci/tests -p 'test_rust_e2e.py'
+      python3 -m unittest discover -s ops/ci/tests -p 'test_rust_e2e_release.py'
+      python3 -m unittest discover -s ops/ci/tests -p 'test_rust_e2e_gate.py'
+      python3 -m unittest discover -s ops/ci/migration/tests -p 'test_compare_rust_e2e.py'
+      python3 -m unittest discover -s ops/ci/migration/tests -p 'test_compare_contract_artifacts.py'
+      python3 -m unittest discover -s ops/ci/tests -p 'test_go_artifacts.py'
     cache: false
     timeout: 10m
     outputs:
@@ -221,9 +221,9 @@ tasks:
     use: [source, go-build-tools]
     if: ${{ init.cache-warm == 'true' || tasks.route.values.run-rust-e2e-ci == 'true' }}
     run: |
-      python3 ops/ci/go-artifacts.py restore go "$GO_ARTIFACT"
-      python3 ops/ci/go-artifacts.py restore contracts-e2e "$CONTRACT_ARTIFACT"
-      bash ops/ci/rust-e2e.sh compile proof
+      python3 ops/ci/runtime/go-artifacts.py restore go "$GO_ARTIFACT"
+      python3 ops/ci/runtime/go-artifacts.py restore contracts-e2e "$CONTRACT_ARTIFACT"
+      bash ops/ci/runtime/rust-e2e.sh compile proof
     env:
       CI_COMMIT_SHA: ${{ init.commit-sha }}
       CI_E2E_PROVIDER: rwx
@@ -247,9 +247,9 @@ tasks:
     use: [source, go-build-tools]
     if: ${{ init.cache-warm == 'true' || tasks.route.values.run-rust-e2e-ci == 'true' }}
     run: |
-      python3 ops/ci/go-artifacts.py restore go "$GO_ARTIFACT"
-      python3 ops/ci/go-artifacts.py restore contracts-e2e "$CONTRACT_ARTIFACT"
-      bash ops/ci/rust-e2e.sh compile restart
+      python3 ops/ci/runtime/go-artifacts.py restore go "$GO_ARTIFACT"
+      python3 ops/ci/runtime/go-artifacts.py restore contracts-e2e "$CONTRACT_ARTIFACT"
+      bash ops/ci/runtime/rust-e2e.sh compile restart
     env:
       CI_COMMIT_SHA: ${{ init.commit-sha }}
       CI_E2E_PROVIDER: rwx
@@ -273,9 +273,9 @@ tasks:
     use: [source, go-build-tools]
     if: ${{ init.cache-warm == 'true' || tasks.route.values.run-rust-e2e-ci == 'true' }}
     run: |
-      python3 ops/ci/go-artifacts.py restore go "$GO_ARTIFACT"
-      python3 ops/ci/go-artifacts.py restore contracts-e2e "$CONTRACT_ARTIFACT"
-      bash ops/ci/rust-e2e.sh compile simple-kona
+      python3 ops/ci/runtime/go-artifacts.py restore go "$GO_ARTIFACT"
+      python3 ops/ci/runtime/go-artifacts.py restore contracts-e2e "$CONTRACT_ARTIFACT"
+      bash ops/ci/runtime/rust-e2e.sh compile simple-kona
     env:
       CI_COMMIT_SHA: ${{ init.commit-sha }}
       CI_E2E_PROVIDER: rwx
@@ -299,9 +299,9 @@ tasks:
     use: [source, go-build-tools]
     if: ${{ init.cache-warm == 'true' || tasks.route.values.run-rust-e2e-ci == 'true' }}
     run: |
-      python3 ops/ci/go-artifacts.py restore go "$GO_ARTIFACT"
-      python3 ops/ci/go-artifacts.py restore contracts-e2e "$CONTRACT_ARTIFACT"
-      bash ops/ci/rust-e2e.sh compile simple-kona-sequencer
+      python3 ops/ci/runtime/go-artifacts.py restore go "$GO_ARTIFACT"
+      python3 ops/ci/runtime/go-artifacts.py restore contracts-e2e "$CONTRACT_ARTIFACT"
+      bash ops/ci/runtime/rust-e2e.sh compile simple-kona-sequencer
     env:
       CI_COMMIT_SHA: ${{ init.commit-sha }}
       CI_E2E_PROVIDER: rwx
@@ -325,9 +325,9 @@ tasks:
     use: [source, go-build-tools]
     if: ${{ init.cache-warm == 'true' || tasks.route.values.run-rust-e2e-ci == 'true' }}
     run: |
-      python3 ops/ci/go-artifacts.py restore go "$GO_ARTIFACT"
-      python3 ops/ci/go-artifacts.py restore contracts-e2e "$CONTRACT_ARTIFACT"
-      bash ops/ci/rust-e2e.sh compile op-reth
+      python3 ops/ci/runtime/go-artifacts.py restore go "$GO_ARTIFACT"
+      python3 ops/ci/runtime/go-artifacts.py restore contracts-e2e "$CONTRACT_ARTIFACT"
+      bash ops/ci/runtime/rust-e2e.sh compile op-reth
     env:
       CI_COMMIT_SHA: ${{ init.commit-sha }}
       CI_E2E_PROVIDER: rwx
@@ -353,10 +353,10 @@ tasks:
     if: ${{ init.cache-warm != 'true' && tasks.route.values.run-rust-e2e-ci == 'true' }}
     docker: true
     run: |
-      python3 ops/ci/go-artifacts.py restore go "$GO_ARTIFACT"
-      python3 ops/ci/go-artifacts.py restore contracts-e2e "$CONTRACT_ARTIFACT"
-      python3 ops/ci/go-artifacts.py restore rust-e2e-release "$RELEASE_ARTIFACT"
-      bash ops/ci/rust-e2e.sh run proof
+      python3 ops/ci/runtime/go-artifacts.py restore go "$GO_ARTIFACT"
+      python3 ops/ci/runtime/go-artifacts.py restore contracts-e2e "$CONTRACT_ARTIFACT"
+      python3 ops/ci/runtime/go-artifacts.py restore rust-e2e-release "$RELEASE_ARTIFACT"
+      bash ops/ci/runtime/rust-e2e.sh run proof
     env:
       CI_COMMIT_SHA: ${{ init.commit-sha }}
       CI_BRANCH: ${{ init.branch }}
@@ -395,10 +395,10 @@ tasks:
     if: ${{ init.cache-warm != 'true' && tasks.route.values.run-rust-e2e-ci == 'true' }}
     docker: true
     run: |
-      python3 ops/ci/go-artifacts.py restore go "$GO_ARTIFACT"
-      python3 ops/ci/go-artifacts.py restore contracts-e2e "$CONTRACT_ARTIFACT"
-      python3 ops/ci/go-artifacts.py restore rust-e2e-release "$RELEASE_ARTIFACT"
-      bash ops/ci/rust-e2e.sh run proof
+      python3 ops/ci/runtime/go-artifacts.py restore go "$GO_ARTIFACT"
+      python3 ops/ci/runtime/go-artifacts.py restore contracts-e2e "$CONTRACT_ARTIFACT"
+      python3 ops/ci/runtime/go-artifacts.py restore rust-e2e-release "$RELEASE_ARTIFACT"
+      bash ops/ci/runtime/rust-e2e.sh run proof
     env:
       CI_COMMIT_SHA: ${{ init.commit-sha }}
       CI_BRANCH: ${{ init.branch }}
@@ -437,10 +437,10 @@ tasks:
     if: ${{ init.cache-warm != 'true' && tasks.route.values.run-rust-e2e-ci == 'true' }}
     docker: true
     run: |
-      python3 ops/ci/go-artifacts.py restore go "$GO_ARTIFACT"
-      python3 ops/ci/go-artifacts.py restore contracts-e2e "$CONTRACT_ARTIFACT"
-      python3 ops/ci/go-artifacts.py restore rust-e2e-release "$RELEASE_ARTIFACT"
-      bash ops/ci/rust-e2e.sh run proof
+      python3 ops/ci/runtime/go-artifacts.py restore go "$GO_ARTIFACT"
+      python3 ops/ci/runtime/go-artifacts.py restore contracts-e2e "$CONTRACT_ARTIFACT"
+      python3 ops/ci/runtime/go-artifacts.py restore rust-e2e-release "$RELEASE_ARTIFACT"
+      bash ops/ci/runtime/rust-e2e.sh run proof
     env:
       CI_COMMIT_SHA: ${{ init.commit-sha }}
       CI_BRANCH: ${{ init.branch }}
@@ -479,10 +479,10 @@ tasks:
     if: ${{ init.cache-warm != 'true' && tasks.route.values.run-rust-e2e-ci == 'true' }}
     docker: true
     run: |
-      python3 ops/ci/go-artifacts.py restore go "$GO_ARTIFACT"
-      python3 ops/ci/go-artifacts.py restore contracts-e2e "$CONTRACT_ARTIFACT"
-      python3 ops/ci/go-artifacts.py restore rust-e2e-release "$RELEASE_ARTIFACT"
-      bash ops/ci/rust-e2e.sh run proof
+      python3 ops/ci/runtime/go-artifacts.py restore go "$GO_ARTIFACT"
+      python3 ops/ci/runtime/go-artifacts.py restore contracts-e2e "$CONTRACT_ARTIFACT"
+      python3 ops/ci/runtime/go-artifacts.py restore rust-e2e-release "$RELEASE_ARTIFACT"
+      bash ops/ci/runtime/rust-e2e.sh run proof
     env:
       CI_COMMIT_SHA: ${{ init.commit-sha }}
       CI_BRANCH: ${{ init.branch }}
@@ -521,10 +521,10 @@ tasks:
     if: ${{ init.cache-warm != 'true' && tasks.route.values.run-rust-e2e-ci == 'true' }}
     docker: true
     run: |
-      python3 ops/ci/go-artifacts.py restore go "$GO_ARTIFACT"
-      python3 ops/ci/go-artifacts.py restore contracts-e2e "$CONTRACT_ARTIFACT"
-      python3 ops/ci/go-artifacts.py restore rust-e2e-release "$RELEASE_ARTIFACT"
-      bash ops/ci/rust-e2e.sh run proof
+      python3 ops/ci/runtime/go-artifacts.py restore go "$GO_ARTIFACT"
+      python3 ops/ci/runtime/go-artifacts.py restore contracts-e2e "$CONTRACT_ARTIFACT"
+      python3 ops/ci/runtime/go-artifacts.py restore rust-e2e-release "$RELEASE_ARTIFACT"
+      bash ops/ci/runtime/rust-e2e.sh run proof
     env:
       CI_COMMIT_SHA: ${{ init.commit-sha }}
       CI_BRANCH: ${{ init.branch }}
@@ -563,10 +563,10 @@ tasks:
     if: ${{ init.cache-warm != 'true' && tasks.route.values.run-rust-e2e-ci == 'true' }}
     docker: true
     run: |
-      python3 ops/ci/go-artifacts.py restore go "$GO_ARTIFACT"
-      python3 ops/ci/go-artifacts.py restore contracts-e2e "$CONTRACT_ARTIFACT"
-      python3 ops/ci/go-artifacts.py restore rust-e2e-release "$RELEASE_ARTIFACT"
-      bash ops/ci/rust-e2e.sh run proof
+      python3 ops/ci/runtime/go-artifacts.py restore go "$GO_ARTIFACT"
+      python3 ops/ci/runtime/go-artifacts.py restore contracts-e2e "$CONTRACT_ARTIFACT"
+      python3 ops/ci/runtime/go-artifacts.py restore rust-e2e-release "$RELEASE_ARTIFACT"
+      bash ops/ci/runtime/rust-e2e.sh run proof
     env:
       CI_COMMIT_SHA: ${{ init.commit-sha }}
       CI_BRANCH: ${{ init.branch }}
@@ -605,10 +605,10 @@ tasks:
     if: ${{ init.cache-warm != 'true' && tasks.route.values.run-rust-e2e-ci == 'true' }}
     docker: true
     run: |
-      python3 ops/ci/go-artifacts.py restore go "$GO_ARTIFACT"
-      python3 ops/ci/go-artifacts.py restore contracts-e2e "$CONTRACT_ARTIFACT"
-      python3 ops/ci/go-artifacts.py restore rust-e2e-release "$RELEASE_ARTIFACT"
-      bash ops/ci/rust-e2e.sh run proof
+      python3 ops/ci/runtime/go-artifacts.py restore go "$GO_ARTIFACT"
+      python3 ops/ci/runtime/go-artifacts.py restore contracts-e2e "$CONTRACT_ARTIFACT"
+      python3 ops/ci/runtime/go-artifacts.py restore rust-e2e-release "$RELEASE_ARTIFACT"
+      bash ops/ci/runtime/rust-e2e.sh run proof
     env:
       CI_COMMIT_SHA: ${{ init.commit-sha }}
       CI_BRANCH: ${{ init.branch }}
@@ -647,10 +647,10 @@ tasks:
     if: ${{ init.cache-warm != 'true' && tasks.route.values.run-rust-e2e-ci == 'true' }}
     docker: true
     run: |
-      python3 ops/ci/go-artifacts.py restore go "$GO_ARTIFACT"
-      python3 ops/ci/go-artifacts.py restore contracts-e2e "$CONTRACT_ARTIFACT"
-      python3 ops/ci/go-artifacts.py restore rust-e2e-release "$RELEASE_ARTIFACT"
-      bash ops/ci/rust-e2e.sh run proof
+      python3 ops/ci/runtime/go-artifacts.py restore go "$GO_ARTIFACT"
+      python3 ops/ci/runtime/go-artifacts.py restore contracts-e2e "$CONTRACT_ARTIFACT"
+      python3 ops/ci/runtime/go-artifacts.py restore rust-e2e-release "$RELEASE_ARTIFACT"
+      bash ops/ci/runtime/rust-e2e.sh run proof
     env:
       CI_COMMIT_SHA: ${{ init.commit-sha }}
       CI_BRANCH: ${{ init.branch }}
@@ -689,11 +689,11 @@ tasks:
     if: ${{ init.cache-warm != 'true' && tasks.route.values.run-rust-e2e-ci == 'true' }}
     docker: true
     run: |
-      python3 ops/ci/go-artifacts.py restore go "$GO_ARTIFACT"
-      python3 ops/ci/go-artifacts.py restore contracts-e2e "$CONTRACT_ARTIFACT"
-      python3 ops/ci/go-artifacts.py restore rust-e2e-release "$RELEASE_ARTIFACT"
-      python3 ops/ci/go-artifacts.py restore prestate "$PRESTATE_ARTIFACT"
-      bash ops/ci/rust-e2e.sh run restart
+      python3 ops/ci/runtime/go-artifacts.py restore go "$GO_ARTIFACT"
+      python3 ops/ci/runtime/go-artifacts.py restore contracts-e2e "$CONTRACT_ARTIFACT"
+      python3 ops/ci/runtime/go-artifacts.py restore rust-e2e-release "$RELEASE_ARTIFACT"
+      python3 ops/ci/runtime/go-artifacts.py restore prestate "$PRESTATE_ARTIFACT"
+      bash ops/ci/runtime/rust-e2e.sh run restart
     env:
       CI_COMMIT_SHA: ${{ init.commit-sha }}
       CI_BRANCH: ${{ init.branch }}
@@ -733,11 +733,11 @@ tasks:
     if: ${{ init.cache-warm != 'true' && tasks.route.values.run-rust-e2e-ci == 'true' }}
     docker: true
     run: |
-      python3 ops/ci/go-artifacts.py restore go "$GO_ARTIFACT"
-      python3 ops/ci/go-artifacts.py restore contracts-e2e "$CONTRACT_ARTIFACT"
-      python3 ops/ci/go-artifacts.py restore rust-e2e-release "$RELEASE_ARTIFACT"
-      python3 ops/ci/go-artifacts.py restore prestate "$PRESTATE_ARTIFACT"
-      bash ops/ci/rust-e2e.sh run restart
+      python3 ops/ci/runtime/go-artifacts.py restore go "$GO_ARTIFACT"
+      python3 ops/ci/runtime/go-artifacts.py restore contracts-e2e "$CONTRACT_ARTIFACT"
+      python3 ops/ci/runtime/go-artifacts.py restore rust-e2e-release "$RELEASE_ARTIFACT"
+      python3 ops/ci/runtime/go-artifacts.py restore prestate "$PRESTATE_ARTIFACT"
+      bash ops/ci/runtime/rust-e2e.sh run restart
     env:
       CI_COMMIT_SHA: ${{ init.commit-sha }}
       CI_BRANCH: ${{ init.branch }}
@@ -777,11 +777,11 @@ tasks:
     if: ${{ init.cache-warm != 'true' && tasks.route.values.run-rust-e2e-ci == 'true' }}
     docker: true
     run: |
-      python3 ops/ci/go-artifacts.py restore go "$GO_ARTIFACT"
-      python3 ops/ci/go-artifacts.py restore contracts-e2e "$CONTRACT_ARTIFACT"
-      python3 ops/ci/go-artifacts.py restore rust-e2e-release "$RELEASE_ARTIFACT"
-      python3 ops/ci/go-artifacts.py restore prestate "$PRESTATE_ARTIFACT"
-      bash ops/ci/rust-e2e.sh run restart
+      python3 ops/ci/runtime/go-artifacts.py restore go "$GO_ARTIFACT"
+      python3 ops/ci/runtime/go-artifacts.py restore contracts-e2e "$CONTRACT_ARTIFACT"
+      python3 ops/ci/runtime/go-artifacts.py restore rust-e2e-release "$RELEASE_ARTIFACT"
+      python3 ops/ci/runtime/go-artifacts.py restore prestate "$PRESTATE_ARTIFACT"
+      bash ops/ci/runtime/rust-e2e.sh run restart
     env:
       CI_COMMIT_SHA: ${{ init.commit-sha }}
       CI_BRANCH: ${{ init.branch }}
@@ -821,11 +821,11 @@ tasks:
     if: ${{ init.cache-warm != 'true' && tasks.route.values.run-rust-e2e-ci == 'true' }}
     docker: true
     run: |
-      python3 ops/ci/go-artifacts.py restore go "$GO_ARTIFACT"
-      python3 ops/ci/go-artifacts.py restore contracts-e2e "$CONTRACT_ARTIFACT"
-      python3 ops/ci/go-artifacts.py restore rust-e2e-release "$RELEASE_ARTIFACT"
-      python3 ops/ci/go-artifacts.py restore prestate "$PRESTATE_ARTIFACT"
-      bash ops/ci/rust-e2e.sh run simple-kona
+      python3 ops/ci/runtime/go-artifacts.py restore go "$GO_ARTIFACT"
+      python3 ops/ci/runtime/go-artifacts.py restore contracts-e2e "$CONTRACT_ARTIFACT"
+      python3 ops/ci/runtime/go-artifacts.py restore rust-e2e-release "$RELEASE_ARTIFACT"
+      python3 ops/ci/runtime/go-artifacts.py restore prestate "$PRESTATE_ARTIFACT"
+      bash ops/ci/runtime/rust-e2e.sh run simple-kona
     env:
       CI_COMMIT_SHA: ${{ init.commit-sha }}
       CI_BRANCH: ${{ init.branch }}
@@ -865,11 +865,11 @@ tasks:
     if: ${{ init.cache-warm != 'true' && tasks.route.values.run-rust-e2e-ci == 'true' }}
     docker: true
     run: |
-      python3 ops/ci/go-artifacts.py restore go "$GO_ARTIFACT"
-      python3 ops/ci/go-artifacts.py restore contracts-e2e "$CONTRACT_ARTIFACT"
-      python3 ops/ci/go-artifacts.py restore rust-e2e-release "$RELEASE_ARTIFACT"
-      python3 ops/ci/go-artifacts.py restore prestate "$PRESTATE_ARTIFACT"
-      bash ops/ci/rust-e2e.sh run simple-kona-sequencer
+      python3 ops/ci/runtime/go-artifacts.py restore go "$GO_ARTIFACT"
+      python3 ops/ci/runtime/go-artifacts.py restore contracts-e2e "$CONTRACT_ARTIFACT"
+      python3 ops/ci/runtime/go-artifacts.py restore rust-e2e-release "$RELEASE_ARTIFACT"
+      python3 ops/ci/runtime/go-artifacts.py restore prestate "$PRESTATE_ARTIFACT"
+      bash ops/ci/runtime/rust-e2e.sh run simple-kona-sequencer
     env:
       CI_COMMIT_SHA: ${{ init.commit-sha }}
       CI_BRANCH: ${{ init.branch }}
@@ -909,10 +909,10 @@ tasks:
     if: ${{ init.cache-warm != 'true' && tasks.route.values.run-rust-e2e-ci == 'true' }}
     docker: true
     run: |
-      python3 ops/ci/go-artifacts.py restore go "$GO_ARTIFACT"
-      python3 ops/ci/go-artifacts.py restore contracts-e2e "$CONTRACT_ARTIFACT"
-      python3 ops/ci/go-artifacts.py restore rust-e2e-release "$RELEASE_ARTIFACT"
-      bash ops/ci/rust-e2e.sh run op-reth
+      python3 ops/ci/runtime/go-artifacts.py restore go "$GO_ARTIFACT"
+      python3 ops/ci/runtime/go-artifacts.py restore contracts-e2e "$CONTRACT_ARTIFACT"
+      python3 ops/ci/runtime/go-artifacts.py restore rust-e2e-release "$RELEASE_ARTIFACT"
+      bash ops/ci/runtime/rust-e2e.sh run op-reth
     env:
       CI_COMMIT_SHA: ${{ init.commit-sha }}
       CI_BRANCH: ${{ init.branch }}
@@ -956,7 +956,7 @@ tasks:
         name="REPORT_$index"
         reports+=("${!name}")
       done
-      python3 ops/ci/rust-e2e-gate.py --release "$RELEASE_REPORT" --sha "$CI_COMMIT_SHA" \
+      python3 ops/ci/runtime/rust-e2e-gate.py --release "$RELEASE_REPORT" --sha "$CI_COMMIT_SHA" \
         --output .ci/rust-e2e/gate.json "${reports[@]}"
     env:
       CI_COMMIT_SHA: ${{ init.commit-sha }}

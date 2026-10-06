@@ -15,7 +15,7 @@ tasks:
       cd project
       export GOMODCACHE="$PWD/.ci/go-cache/contract-coverage/modules"
       export GOCACHE="$PWD/.ci/go-cache/contract-coverage/build"
-      python3 ops/ci/contract-coverage.py prepare --feature "$CI_CONTRACT_FEATURE"
+      python3 ops/ci/runtime/contract-coverage.py prepare --feature "$CI_CONTRACT_FEATURE"
     env:
       CI_COMMIT_SHA: ${{ params.commit-sha }}
       CI_BRANCH: ${{ params.branch }}

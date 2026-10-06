@@ -7,7 +7,7 @@ package:
 tasks:
   - key: build
     use: package.use
-    run: mise exec -- bash ops/ci/go-dependencies.sh contracts
+    run: mise exec -- bash ops/ci/runtime/go-dependencies.sh contracts
     env:
       CI_COMMIT_SHA: ${{ params.commit-sha }}
       BUILD_PROBE: ${{ params.build-probe }}

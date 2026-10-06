@@ -78,11 +78,11 @@ tasks:
   - key: bootstrap-inputs
     use: code
     run: 'true'
-    filter: [mise.toml, ops/ci, .circleci/scripts/apt-install.sh]
+    filter: [mise.toml, ops/ci/runtime]
     outputs:
       filesystem:
         filter:
-          workspace: [mise.toml, .circleci/scripts/apt-install.sh, ops/ci/rwx-prepare.sh, ops/ci/rwx-contracts-prepare.sh, ops/ci/rwx-rust-prepare.sh, ops/ci/op-reth-shadow.sh, ops/ci/op-reth-report.py, ops/ci/rust-target-cache.py]
+          workspace: [mise.toml, ops/ci/runtime/apt-install.sh, ops/ci/runtime/rwx-prepare.sh, ops/ci/runtime/rwx-contracts-prepare.sh, ops/ci/runtime/rwx-rust-prepare.sh, ops/ci/runtime/op-reth-shadow.sh, ops/ci/runtime/op-reth-report.py, ops/ci/runtime/rust-target-cache.py]
           system: []
       artifacts:
         - key: mise-config
@@ -90,7 +90,7 @@ tasks:
         - key: ci-scripts
           path: ops/ci
         - key: apt-script
-          path: .circleci/scripts/apt-install.sh
+          path: ops/ci/runtime/apt-install.sh
 
   - key: mise
     call: mise/install 1.1.0
@@ -104,7 +104,7 @@ tasks:
 
   - key: route
     use: [code, tools]
-    run: bash ops/ci/rwx-metadata.sh
+    run: bash ops/ci/runtime/rwx-metadata.sh
     env:
       CI_EVENT: push
       CI_BRANCH: ${{ init.branch }}
@@ -121,10 +121,16 @@ tasks:
   - key: helper-tests
     use: [code, tools]
     run: |
-      python3 -m unittest discover -s ops/ci -p 'test_pr_gate*.py' -v
-      python3 -m unittest discover -s ops/ci -p 'test_rwx_local_packages.py' -v
-      python3 -m unittest discover -s ops/ci -p 'test_ci_report.py' -v
-      python3 -m unittest discover -s ops/ci -p 'test_compare_ci.py' -v
+      python3 -m unittest discover -s ops/ci/tests -p 'test_pr_gate.py' -v
+      python3 -m unittest discover -s ops/ci/migration/tests -p 'test_pr_gate_parity.py' -v
+      python3 -m unittest discover -s ops/ci/migration/tests -p 'test_circle_alignment.py' -v
+      python3 ops/ci/migration/circle-alignment.py
+      python3 -m unittest discover -s ops/ci/tests -p 'test_rwx_local_packages.py' -v
+      python3 -m unittest discover -s ops/ci/tests -p 'test_ci_report.py' -v
+      python3 -m unittest discover -s ops/ci/tests -p 'test_ci_source.py' -v
+      python3 -m unittest discover -s ops/ci/tests -p 'test_ci_layout.py' -v
+      python3 -m unittest discover -s ops/ci/migration/tests -p 'test_report_evidence.py' -v
+      python3 -m unittest discover -s ops/ci/migration/tests -p 'test_compare_ci.py' -v
     cache: false
     timeout: 10m
     outputs:
@@ -162,7 +168,7 @@ tasks:
     use: [code, tools]
     after: ${{ (native-op-reth.succeeded || native-op-reth.failed || native-op-reth.skipped) && (native-fmt.succeeded || native-fmt.failed || native-fmt.skipped) && (native-workspace.succeeded || native-workspace.failed || native-workspace.skipped) }}
     if: ${{ tasks.native-op-reth.tasks.rust-gate-receipt.succeeded && tasks.native-fmt.tasks.rust-gate-receipt.succeeded && tasks.native-workspace.tasks.rust-gate-receipt.succeeded }}
-    run: python3 ops/ci/pr-gate.py aggregate required-rust-ci
+    run: python3 ops/ci/runtime/pr-gate.py aggregate required-rust-ci
     env:
       CI_COMMIT_SHA: ${{ init.commit-sha }}
       CI_BRANCH: ${{ init.branch }}
@@ -196,7 +202,7 @@ tasks:
   - key: gate-status
     use: [code, tools]
     after: ${{ (aggregate.succeeded || aggregate.failed || aggregate.skipped) && (gate-failure.succeeded || gate-failure.failed || gate-failure.skipped) }}
-    run: python3 ops/ci/pr-gate.py status required-rust-ci
+    run: python3 ops/ci/runtime/pr-gate.py status required-rust-ci
     env:
       CI_COMMIT_SHA: ${{ init.commit-sha }}
       CI_BRANCH: ${{ init.branch }}
@@ -222,7 +228,7 @@ tasks:
     use: [code, tools]
     after: ${{ (native-op-reth.succeeded || native-op-reth.failed || native-op-reth.skipped) && (native-fmt.succeeded || native-fmt.failed || native-fmt.skipped) && (native-workspace.succeeded || native-workspace.failed || native-workspace.skipped) }}
     if: ${{ (tasks.native-op-reth.tasks.rust-gate-receipt.failed || tasks.native-op-reth.tasks.rust-gate-receipt.skipped) || (tasks.native-fmt.tasks.rust-gate-receipt.failed || tasks.native-fmt.tasks.rust-gate-receipt.skipped) || (tasks.native-workspace.tasks.rust-gate-receipt.failed || tasks.native-workspace.tasks.rust-gate-receipt.skipped) }}
-    run: python3 ops/ci/pr-gate.py aggregate required-rust-ci --failed
+    run: python3 ops/ci/runtime/pr-gate.py aggregate required-rust-ci --failed
     env:
       CI_COMMIT_SHA: ${{ init.commit-sha }}
       CI_BRANCH: ${{ init.branch }}
@@ -341,7 +347,7 @@ tasks:
     use: [code, tools]
     after: ${{ (native-acceptance.succeeded || native-acceptance.failed || native-acceptance.skipped) && (native-cannon.succeeded || native-cannon.failed || native-cannon.skipped) && (native-pr-checks.succeeded || native-pr-checks.failed || native-pr-checks.skipped) && (native-fetcher.succeeded || native-fetcher.failed || native-fetcher.skipped) && (native-go.succeeded || native-go.failed || native-go.skipped) && (native-kontrol.succeeded || native-kontrol.failed || native-kontrol.skipped) && (native-nut-prefork.succeeded || native-nut-prefork.failed || native-nut-prefork.skipped) && (native-nut-provenance.succeeded || native-nut-provenance.failed || native-nut-provenance.skipped) && (native-fmt.succeeded || native-fmt.failed || native-fmt.skipped) && (native-sp1.succeeded || native-sp1.failed || native-sp1.skipped) }}
     if: ${{ tasks.native-acceptance.tasks.main-gate-receipt.succeeded && tasks.native-cannon.tasks.main-gate-receipt.succeeded && tasks.native-pr-checks.tasks.main-gate-receipt.succeeded && tasks.native-fetcher.tasks.main-gate-receipt.succeeded && tasks.native-go.tasks.main-gate-receipt.succeeded && tasks.native-kontrol.tasks.main-gate-receipt.succeeded && tasks.native-nut-prefork.tasks.main-gate-receipt.succeeded && tasks.native-nut-provenance.tasks.main-gate-receipt.succeeded && tasks.native-fmt.tasks.main-gate-receipt.succeeded && tasks.native-sp1.tasks.main-gate-receipt.succeeded }}
-    run: python3 ops/ci/pr-gate.py aggregate ci-gate
+    run: python3 ops/ci/runtime/pr-gate.py aggregate ci-gate
     env:
       CI_COMMIT_SHA: ${{ init.commit-sha }}
       CI_BRANCH: ${{ init.branch }}
@@ -402,7 +408,7 @@ tasks:
     use: [code, tools]
     after: ${{ (native-acceptance.succeeded || native-acceptance.failed || native-acceptance.skipped) && (native-cannon.succeeded || native-cannon.failed || native-cannon.skipped) && (native-pr-checks.succeeded || native-pr-checks.failed || native-pr-checks.skipped) && (native-fetcher.succeeded || native-fetcher.failed || native-fetcher.skipped) && (native-go.succeeded || native-go.failed || native-go.skipped) && (native-kontrol.succeeded || native-kontrol.failed || native-kontrol.skipped) && (native-nut-prefork.succeeded || native-nut-prefork.failed || native-nut-prefork.skipped) && (native-nut-provenance.succeeded || native-nut-provenance.failed || native-nut-provenance.skipped) && (native-fmt.succeeded || native-fmt.failed || native-fmt.skipped) && (native-sp1.succeeded || native-sp1.failed || native-sp1.skipped) }}
     if: ${{ (tasks.native-acceptance.tasks.main-gate-receipt.failed || tasks.native-acceptance.tasks.main-gate-receipt.skipped) || (tasks.native-cannon.tasks.main-gate-receipt.failed || tasks.native-cannon.tasks.main-gate-receipt.skipped) || (tasks.native-pr-checks.tasks.main-gate-receipt.failed || tasks.native-pr-checks.tasks.main-gate-receipt.skipped) || (tasks.native-fetcher.tasks.main-gate-receipt.failed || tasks.native-fetcher.tasks.main-gate-receipt.skipped) || (tasks.native-go.tasks.main-gate-receipt.failed || tasks.native-go.tasks.main-gate-receipt.skipped) || (tasks.native-kontrol.tasks.main-gate-receipt.failed || tasks.native-kontrol.tasks.main-gate-receipt.skipped) || (tasks.native-nut-prefork.tasks.main-gate-receipt.failed || tasks.native-nut-prefork.tasks.main-gate-receipt.skipped) || (tasks.native-nut-provenance.tasks.main-gate-receipt.failed || tasks.native-nut-provenance.tasks.main-gate-receipt.skipped) || (tasks.native-fmt.tasks.main-gate-receipt.failed || tasks.native-fmt.tasks.main-gate-receipt.skipped) || (tasks.native-sp1.tasks.main-gate-receipt.failed || tasks.native-sp1.tasks.main-gate-receipt.skipped) }}
-    run: python3 ops/ci/pr-gate.py aggregate ci-gate --failed
+    run: python3 ops/ci/runtime/pr-gate.py aggregate ci-gate --failed
     env:
       CI_COMMIT_SHA: ${{ init.commit-sha }}
       CI_BRANCH: ${{ init.branch }}
@@ -452,7 +458,7 @@ tasks:
   - key: main-gate-status
     use: [code, tools]
     after: ${{ (main-aggregate.succeeded || main-aggregate.failed || main-aggregate.skipped) && (main-gate-failure.succeeded || main-gate-failure.failed || main-gate-failure.skipped) }}
-    run: python3 ops/ci/pr-gate.py status ci-gate
+    run: python3 ops/ci/runtime/pr-gate.py status ci-gate
     env:
       CI_COMMIT_SHA: ${{ init.commit-sha }}
       CI_BRANCH: ${{ init.branch }}
@@ -517,7 +523,7 @@ tasks:
     use: [code, tools]
     after: ${{ (native-pr-checks.succeeded || native-pr-checks.failed || native-pr-checks.skipped) && (native-contract-coverage.succeeded || native-contract-coverage.failed || native-contract-coverage.skipped) && (native-contract-l2-fork.succeeded || native-contract-l2-fork.failed || native-contract-l2-fork.skipped) && (native-contracts.succeeded || native-contracts.failed || native-contracts.skipped) && (native-contract-upgrades.succeeded || native-contract-upgrades.failed || native-contract-upgrades.skipped) }}
     if: ${{ tasks.native-pr-checks.tasks.contracts-gate-receipt.succeeded && tasks.native-contract-coverage.tasks.contracts-gate-receipt.succeeded && tasks.native-contract-l2-fork.tasks.contracts-gate-receipt.succeeded && tasks.native-contracts.tasks.contracts-gate-receipt.succeeded && tasks.native-contract-upgrades.tasks.contracts-gate-receipt.succeeded }}
-    run: python3 ops/ci/pr-gate.py aggregate required-contracts-ci
+    run: python3 ops/ci/runtime/pr-gate.py aggregate required-contracts-ci
     env:
       CI_COMMIT_SHA: ${{ init.commit-sha }}
       CI_BRANCH: ${{ init.branch }}
@@ -558,7 +564,7 @@ tasks:
     use: [code, tools]
     after: ${{ (native-pr-checks.succeeded || native-pr-checks.failed || native-pr-checks.skipped) && (native-contract-coverage.succeeded || native-contract-coverage.failed || native-contract-coverage.skipped) && (native-contract-l2-fork.succeeded || native-contract-l2-fork.failed || native-contract-l2-fork.skipped) && (native-contracts.succeeded || native-contracts.failed || native-contracts.skipped) && (native-contract-upgrades.succeeded || native-contract-upgrades.failed || native-contract-upgrades.skipped) }}
     if: ${{ (tasks.native-pr-checks.tasks.contracts-gate-receipt.failed || tasks.native-pr-checks.tasks.contracts-gate-receipt.skipped) || (tasks.native-contract-coverage.tasks.contracts-gate-receipt.failed || tasks.native-contract-coverage.tasks.contracts-gate-receipt.skipped) || (tasks.native-contract-l2-fork.tasks.contracts-gate-receipt.failed || tasks.native-contract-l2-fork.tasks.contracts-gate-receipt.skipped) || (tasks.native-contracts.tasks.contracts-gate-receipt.failed || tasks.native-contracts.tasks.contracts-gate-receipt.skipped) || (tasks.native-contract-upgrades.tasks.contracts-gate-receipt.failed || tasks.native-contract-upgrades.tasks.contracts-gate-receipt.skipped) }}
-    run: python3 ops/ci/pr-gate.py aggregate required-contracts-ci --failed
+    run: python3 ops/ci/runtime/pr-gate.py aggregate required-contracts-ci --failed
     env:
       CI_COMMIT_SHA: ${{ init.commit-sha }}
       CI_BRANCH: ${{ init.branch }}
@@ -593,7 +599,7 @@ tasks:
   - key: contracts-gate-status
     use: [code, tools]
     after: ${{ (contracts-aggregate.succeeded || contracts-aggregate.failed || contracts-aggregate.skipped) && (contracts-gate-failure.succeeded || contracts-gate-failure.failed || contracts-gate-failure.skipped) }}
-    run: python3 ops/ci/pr-gate.py status required-contracts-ci
+    run: python3 ops/ci/runtime/pr-gate.py status required-contracts-ci
     env:
       CI_COMMIT_SHA: ${{ init.commit-sha }}
       CI_BRANCH: ${{ init.branch }}

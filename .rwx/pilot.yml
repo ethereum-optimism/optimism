@@ -40,11 +40,11 @@ tasks:
   - key: bootstrap-inputs
     use: code
     run: 'true'
-    filter: [mise.toml, ops/ci, .circleci/scripts/apt-install.sh]
+    filter: [mise.toml, ops/ci/runtime]
     outputs:
       filesystem:
         filter:
-          workspace: [mise.toml, .circleci/scripts/apt-install.sh, ops/ci/rwx-prepare.sh, ops/ci/rwx-contracts-prepare.sh, ops/ci/rwx-rust-prepare.sh, ops/ci/op-reth-shadow.sh, ops/ci/op-reth-report.py, ops/ci/rust-target-cache.py]
+          workspace: [mise.toml, ops/ci/runtime/apt-install.sh, ops/ci/runtime/rwx-prepare.sh, ops/ci/runtime/rwx-contracts-prepare.sh, ops/ci/runtime/rwx-rust-prepare.sh, ops/ci/runtime/op-reth-shadow.sh, ops/ci/runtime/op-reth-report.py, ops/ci/runtime/rust-target-cache.py]
           system: []
       artifacts:
         - key: mise-config
@@ -52,7 +52,7 @@ tasks:
         - key: ci-scripts
           path: ops/ci
         - key: apt-script
-          path: .circleci/scripts/apt-install.sh
+          path: ops/ci/runtime/apt-install.sh
 
   - key: mise
     call: mise/install 1.1.0
@@ -68,17 +68,17 @@ tasks:
 
   - key: go-lint-tools
     use: tools
-    run: bash ops/ci/rwx-prepare.sh go-lint
+    run: bash ops/ci/runtime/rwx-prepare.sh go-lint
     timeout: 30m
 
   - key: rust-fmt-tools
     use: tools
-    run: bash ops/ci/rwx-prepare.sh rust
+    run: bash ops/ci/runtime/rwx-prepare.sh rust
     timeout: 30m
 
   - key: route
     use: [code, tools]
-    run: bash ops/ci/rwx-metadata.sh
+    run: bash ops/ci/runtime/rwx-metadata.sh
     env:
       CI_EVENT: push
       CI_BRANCH: ${{ init.branch }}
@@ -94,9 +94,9 @@ tasks:
   - key: routing-tests
     use: [code, tools]
     run: |
-      mise exec -- bash ops/ci/test-decision-tree.sh
-      mise exec -- python -m unittest ops/ci/test_rwx_metadata.py
-      mise exec -- python ops/ci/test_compare_ci.py
+      mise exec -- bash ops/ci/tests/test-decision-tree.sh
+      mise exec -- python -m unittest discover -s ops/ci/tests -p 'test_rwx_metadata.py'
+      mise exec -- python ops/ci/migration/tests/test_compare_ci.py
     cache: false
     timeout: 10m
     outputs:
@@ -141,7 +141,7 @@ tasks:
   - key: rust-gate-receipt
     use: [code, tools]
     after: ${{ (rust-fmt.succeeded || rust-fmt.failed || rust-fmt.skipped) }}
-    run: python3 ops/ci/pr-gate.py receipt rust-fmt
+    run: python3 ops/ci/runtime/pr-gate.py receipt rust-fmt
     env:
       CI_COMMIT_SHA: ${{ init.commit-sha }}
       CI_BRANCH: ${{ init.branch }}
@@ -165,7 +165,7 @@ tasks:
   - key: main-gate-receipt
     use: [code, tools]
     after: ${{ (go-lint.succeeded || go-lint.failed || go-lint.skipped) }}
-    run: python3 ops/ci/pr-gate.py receipt main-pilot
+    run: python3 ops/ci/runtime/pr-gate.py receipt main-pilot
     env:
       CI_COMMIT_SHA: ${{ init.commit-sha }}
       CI_BRANCH: ${{ init.branch }}

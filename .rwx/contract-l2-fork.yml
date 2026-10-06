@@ -44,12 +44,12 @@ tasks:
     with: {mise-version: "2026.2.2", install: "false"}
   - key: tools
     use: [code, mise]
-    run: bash ops/ci/rwx-prepare.sh
+    run: bash ops/ci/runtime/rwx-prepare.sh
     timeout: 30m
   - key: route
     use: [code, tools]
     run: |
-      bash ops/ci/rwx-metadata.sh
+      bash ops/ci/runtime/rwx-metadata.sh
       jq -er '."c-run_contracts_feature_tests" | if type == "boolean" then tostring else error("missing contracts route") end' \
         .ci/pipeline-parameters.json >"$RWX_VALUES/run-contracts"
     env:
@@ -68,7 +68,7 @@ tasks:
     use: [code, tools]
     if: ${{ init.cache-warm != 'true' && tasks.route.values.run-contracts == 'true' }}
     run: |
-      python3 ops/ci/contract-l2-fork.py preflight --fork-block "$CI_L2_FORK_BLOCK"
+      python3 ops/ci/runtime/contract-l2-fork.py preflight --fork-block "$CI_L2_FORK_BLOCK"
       printf 'true\n' >"$RWX_VALUES/ready"
     env:
       CI_COMMIT_SHA: ${{ init.commit-sha }}
@@ -95,7 +95,7 @@ tasks:
     use: tools
     after: ${{ rpc-check.succeeded || rpc-check.skipped }}
     if: ${{ init.cache-warm == 'true' || tasks.route.values.run-contracts == 'true' }}
-    run: bash ops/ci/rwx-contracts-prepare.sh tools
+    run: bash ops/ci/runtime/rwx-contracts-prepare.sh tools
     timeout: 30m
   - key: go-modules
     use: [code, go-tools]
@@ -103,7 +103,7 @@ tasks:
     run: |
       export GOMODCACHE="$PWD/.ci/go-cache/l2-fork/modules"
       mkdir -p "$GOMODCACHE"
-      python3 ops/ci/pr-checks.py go-modules
+      python3 ops/ci/runtime/pr-checks.py go-modules
     env:
       CI_COMMIT_SHA: ${{ init.commit-sha }}
       CI_BRANCH: ${{ init.branch }}
@@ -130,7 +130,9 @@ tasks:
   - key: helper-tests
     use: [code, tools]
     if: ${{ init.cache-warm != 'true' && tasks.route.values.run-contracts == 'true' }}
-    run: python3 -m unittest discover -s ops/ci -p 'test*l2*.py'
+    run: |
+      python3 -m unittest discover -s ops/ci/tests -p 'test*l2*.py'
+      python3 -m unittest discover -s ops/ci/migration/tests -p 'test*l2*.py'
     cache: false
     timeout: 10m
     outputs: {filesystem: false}
@@ -140,7 +142,7 @@ tasks:
     run: |
       export GOMODCACHE="$PWD/.ci/go-cache/l2-fork/modules"
       export GOCACHE="$PWD/.ci/go-cache/l2-fork/compile"
-      python3 ops/ci/contract-l2-fork.py prepare
+      python3 ops/ci/runtime/contract-l2-fork.py prepare
     env:
       CI_COMMIT_SHA: ${{ init.commit-sha }}
       CI_BRANCH: ${{ init.branch }}
@@ -162,7 +164,7 @@ tasks:
     run: |
       export GOMODCACHE="$PWD/.ci/go-cache/l2-fork/modules"
       export GOCACHE="$PWD/.ci/go-cache/l2-fork/runtime"
-      python3 ops/ci/contract-l2-fork.py run --prepared "$COMPILED" --block "$PINNED_BLOCK"
+      python3 ops/ci/runtime/contract-l2-fork.py run --prepared "$COMPILED" --block "$PINNED_BLOCK"
     env:
       CI_COMMIT_SHA: ${{ init.commit-sha }}
       CI_BRANCH: ${{ init.branch }}
@@ -190,7 +192,7 @@ tasks:
     use: [code, tools]
     after: ${{ (verdict.succeeded || verdict.failed || verdict.skipped) }}
     if: ${{ init.cache-warm != 'true' }}
-    run: python3 ops/ci/pr-gate.py receipt contracts-l2-fork
+    run: python3 ops/ci/runtime/pr-gate.py receipt contracts-l2-fork
     env:
       CI_COMMIT_SHA: ${{ init.commit-sha }}
       CI_BRANCH: ${{ init.branch }}

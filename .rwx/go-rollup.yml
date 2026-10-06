@@ -36,11 +36,11 @@ tasks:
   - key: bootstrap-inputs
     use: code
     run: 'true'
-    filter: [mise.toml, ops/ci, .circleci/scripts/apt-install.sh]
+    filter: [mise.toml, ops/ci/runtime]
     outputs:
       filesystem:
         filter:
-          workspace: [mise.toml, .circleci/scripts/apt-install.sh, ops/ci/rwx-prepare.sh, ops/ci/rwx-contracts-prepare.sh, ops/ci/rwx-rust-prepare.sh, ops/ci/op-reth-shadow.sh, ops/ci/op-reth-report.py, ops/ci/rust-target-cache.py]
+          workspace: [mise.toml, ops/ci/runtime/apt-install.sh, ops/ci/runtime/rwx-prepare.sh, ops/ci/runtime/rwx-contracts-prepare.sh, ops/ci/runtime/rwx-rust-prepare.sh, ops/ci/runtime/op-reth-shadow.sh, ops/ci/runtime/op-reth-report.py, ops/ci/runtime/rust-target-cache.py]
           system: []
       artifacts:
         - key: mise-config
@@ -48,7 +48,7 @@ tasks:
         - key: ci-scripts
           path: ops/ci
         - key: apt-script
-          path: .circleci/scripts/apt-install.sh
+          path: ops/ci/runtime/apt-install.sh
 
   - key: mise
     call: mise/install 1.1.0
@@ -70,12 +70,12 @@ tasks:
 
   - key: go-runtime
     use: tools
-    run: bash ops/ci/rwx-prepare.sh go-runtime
+    run: bash ops/ci/runtime/rwx-prepare.sh go-runtime
     timeout: 15m
 
   - key: route
     use: [code, tools]
-    run: bash ops/ci/rwx-metadata.sh
+    run: bash ops/ci/runtime/rwx-metadata.sh
     env:
       CI_EVENT: push
       CI_CACHE_WARM: ${{ init.cache-warm }}
@@ -93,8 +93,8 @@ tasks:
   - key: shard-tests
     use: [code, go-build-tools]
     run: |
-      mise exec -- python ops/ci/test_go_package_shards.py
-      mise exec -- python ops/ci/test_go_compiled_tests.py
+      mise exec -- python ops/ci/tests/test_go_package_shards.py
+      mise exec -- python ops/ci/tests/test_go_compiled_tests.py
     cache: false
     timeout: 10m
     outputs:
@@ -105,7 +105,7 @@ tasks:
   - key: go-build
     use: [code, go-build-tools]
     if: ${{ init.cache-warm == 'true' || tasks.route.values.run-main == 'true' }}
-    run: mise exec -- bash ops/ci/go-rollup-tests.sh build
+    run: mise exec -- bash ops/ci/runtime/go-rollup-tests.sh build
     env:
       CI_COMMIT_SHA: ${{ init.commit-sha }}
       CI_SHARD_TOTAL: "4"
@@ -137,7 +137,7 @@ tasks:
       export GOCACHE="$PWD/.ci/go-runtime/build"
       mkdir -p "$GOMODCACHE" "$GOCACHE"
       tar -xzf .ci/go-rollup/build/runtime-modules.tar.gz -C "$GOMODCACHE"
-      mise exec -- bash ops/ci/go-rollup-tests.sh
+      mise exec -- bash ops/ci/runtime/go-rollup-tests.sh
     env:
       CI_COMMIT_SHA: ${{ init.commit-sha }}
       GO_BUILD_ARTIFACT: ${{ tasks.go-build.artifacts.compilation }}

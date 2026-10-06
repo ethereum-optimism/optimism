@@ -45,11 +45,11 @@ tasks:
   - key: bootstrap-inputs
     use: code
     run: 'true'
-    filter: [mise.toml, ops/ci, .circleci/scripts/apt-install.sh]
+    filter: [mise.toml, ops/ci/runtime]
     outputs:
       filesystem:
         filter:
-          workspace: [mise.toml, .circleci/scripts/apt-install.sh, ops/ci/rwx-prepare.sh, ops/ci/rwx-contracts-prepare.sh, ops/ci/rwx-rust-prepare.sh, ops/ci/op-reth-shadow.sh, ops/ci/op-reth-report.py, ops/ci/rust-target-cache.py]
+          workspace: [mise.toml, ops/ci/runtime/apt-install.sh, ops/ci/runtime/rwx-prepare.sh, ops/ci/runtime/rwx-contracts-prepare.sh, ops/ci/runtime/rwx-rust-prepare.sh, ops/ci/runtime/op-reth-shadow.sh, ops/ci/runtime/op-reth-report.py, ops/ci/runtime/rust-target-cache.py]
           system: []
       artifacts:
         - key: mise-config
@@ -57,7 +57,7 @@ tasks:
         - key: ci-scripts
           path: ops/ci
         - key: apt-script
-          path: .circleci/scripts/apt-install.sh
+          path: ops/ci/runtime/apt-install.sh
 
   - key: mise
     call: mise/install 1.1.0
@@ -71,7 +71,7 @@ tasks:
 
   - key: route
     use: [code, tools]
-    run: bash ops/ci/rwx-metadata.sh
+    run: bash ops/ci/runtime/rwx-metadata.sh
     env:
       CI_EVENT: push
       CI_CACHE_WARM: ${{ init.cache-warm }}
@@ -96,7 +96,7 @@ tasks:
   - key: toolchain
     use: [code, rust-tools]
     if: ${{ init.cache-warm == 'true' || tasks.route.values.run-main == 'true' }}
-    run: python3 ops/ci/sp1-guest.py --provider rwx --phase toolchain
+    run: python3 ops/ci/runtime/sp1-guest.py --provider rwx --phase toolchain
     filter:
       - mise.toml
       - rust/Cargo.toml
@@ -106,12 +106,12 @@ tasks:
       - rust/kona/sp1/justfile
       - rust/rust-toolchain.toml
       - rust/.cargo/config.toml
-      - ops/ci/sp1-guest.py
-      - ops/ci/sp1-guest-native-build.py
-      - ops/ci/sp1-guest-toolchain.sh
-      - ops/ci/rust-workspace-report.py
-      - ops/ci/ci-report.py
-      - ops/ci/rust-target-cache.py
+      - ops/ci/runtime/sp1-guest.py
+      - ops/ci/runtime/sp1-guest-native-build.py
+      - ops/ci/runtime/sp1-guest-toolchain.sh
+      - ops/ci/runtime/rust-workspace-report.py
+      - ops/ci/runtime/ci-report.py
+      - ops/ci/runtime/rust-target-cache.py
     timeout: 40m
     outputs:
       artifacts:
@@ -121,7 +121,7 @@ tasks:
   - key: build
     use: [code, toolchain]
     if: ${{ init.cache-warm == 'true' || tasks.route.values.run-main == 'true' }}
-    run: python3 ops/ci/sp1-guest.py --provider rwx --phase build
+    run: python3 ops/ci/runtime/sp1-guest.py --provider rwx --phase build
     env:
       CI: "true"
       CI_COMMIT_SHA: ${{ init.commit-sha }}
@@ -145,7 +145,9 @@ tasks:
   - key: helper-tests
     use: [code, toolchain]
     if: ${{ init.cache-warm != 'true' && tasks.route.values.run-main == 'true' }}
-    run: RWX_LIVE_SP1_FIXTURE=1 python3 -m unittest discover -s ops/ci -p 'test_sp1_guest.py'
+    run: |
+      RWX_LIVE_SP1_FIXTURE=1 python3 -m unittest discover -s ops/ci/tests -p 'test_sp1_guest.py'
+      RWX_LIVE_SP1_FIXTURE=1 python3 -m unittest discover -s ops/ci/migration/tests -p 'test_migration_sp1_guest.py'
     env:
       SP1_GUEST_ARTIFACT: ${{ tasks.build.artifacts.dependency }}
       SP1_GUEST_REPORT: ${{ tasks.check.artifacts.reports }}
@@ -160,7 +162,7 @@ tasks:
   - key: check
     use: [code, toolchain]
     if: ${{ init.cache-warm != 'true' && tasks.route.values.run-main == 'true' }}
-    run: python3 ops/ci/sp1-guest.py --provider rwx --phase checks --artifact "$SP1_GUEST_ARTIFACT"
+    run: python3 ops/ci/runtime/sp1-guest.py --provider rwx --phase checks --artifact "$SP1_GUEST_ARTIFACT"
     env:
       CI: "true"
       CI_COMMIT_SHA: ${{ init.commit-sha }}
@@ -194,7 +196,7 @@ tasks:
     use: [code, tools]
     after: ${{ (check.succeeded || check.failed || check.skipped) }}
     if: ${{ init.cache-warm != 'true' }}
-    run: python3 ops/ci/pr-gate.py receipt main-sp1
+    run: python3 ops/ci/runtime/pr-gate.py receipt main-sp1
     env:
       CI_COMMIT_SHA: ${{ init.commit-sha }}
       CI_BRANCH: ${{ init.branch }}

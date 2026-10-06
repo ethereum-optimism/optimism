@@ -352,7 +352,7 @@ _go-tests-ci-internal go_test_flags="": build-superchain-go
   esac
   printf '%s\n' $ALL_PACKAGES >tmp/testlogs/all-packages.txt
   go list -e -tags=ci -json $ALL_PACKAGES >tmp/testlogs/discovery.json
-  python3 ops/ci/go-suite.py record-circle --flags="{{go_test_flags}}"
+  python3 ops/ci/runtime/go-suite.py record-circle --flags="{{go_test_flags}}"
   if [ -n "${CIRCLE_NODE_TOTAL:-}" ] && [ "$CIRCLE_NODE_TOTAL" -gt 1 ]; then
       NODE_INDEX=${CIRCLE_NODE_INDEX:-0}
       NODE_TOTAL=${CIRCLE_NODE_TOTAL:-1}
@@ -471,7 +471,7 @@ nut-provenance-verify fork:
 
 # Generates op-core/nuts/state/<fork>_state.json (predecessor state + frozen <fork> bundle).
 _nut-prefork-state-for fork:
-  bash ops/ci/nut-prefork-test.sh {{fork}}
+  bash ops/ci/runtime/nut-prefork-test.sh {{fork}}
 
 # Generates op-core/nuts/state/<fork>_state.json (predecessor state + frozen <fork> bundle).
 nut-prefork-state-for fork: build-contracts build-superchain-go

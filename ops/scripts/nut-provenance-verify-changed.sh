@@ -14,4 +14,4 @@ case "${CI_NUT_PROVENANCE_FULL:-false}" in
   false|0) ;;
   *) echo "CI_NUT_PROVENANCE_FULL must be true/false or 1/0" >&2; exit 1 ;;
 esac
-exec python3 ops/ci/nut-provenance.py "${args[@]}"
+exec python3 ops/ci/runtime/nut-provenance.py "${args[@]}"

@@ -10,8 +10,8 @@ tasks:
     run: |
       export GOMODCACHE="$PWD/.ci/go-cache/pr-checks/modules"
       mkdir -p "$GOMODCACHE"
-      python3 ops/ci/pr-checks.py go-modules
-      python3 ops/ci/go-artifacts.py pack go-modules .ci/go-cache/pr-checks/modules
+      python3 ops/ci/runtime/pr-checks.py go-modules
+      python3 ops/ci/runtime/go-artifacts.py pack go-modules .ci/go-cache/pr-checks/modules
     env:
       CI_COMMIT_SHA: ${{ params.commit-sha }}
       CI_BRANCH: ${{ params.branch }}

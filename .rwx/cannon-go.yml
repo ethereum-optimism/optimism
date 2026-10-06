@@ -43,11 +43,11 @@ tasks:
   - key: bootstrap-inputs
     use: code
     run: 'true'
-    filter: [mise.toml, ops/ci, .circleci/scripts/apt-install.sh]
+    filter: [mise.toml, ops/ci/runtime]
     outputs:
       filesystem:
         filter:
-          workspace: [mise.toml, .circleci/scripts/apt-install.sh, ops/ci/rwx-prepare.sh, ops/ci/rwx-contracts-prepare.sh, ops/ci/rwx-rust-prepare.sh, ops/ci/op-reth-shadow.sh, ops/ci/op-reth-report.py, ops/ci/rust-target-cache.py]
+          workspace: [mise.toml, ops/ci/runtime/apt-install.sh, ops/ci/runtime/rwx-prepare.sh, ops/ci/runtime/rwx-contracts-prepare.sh, ops/ci/runtime/rwx-rust-prepare.sh, ops/ci/runtime/op-reth-shadow.sh, ops/ci/runtime/op-reth-report.py, ops/ci/runtime/rust-target-cache.py]
           system: []
       artifacts:
         - key: mise-config
@@ -55,7 +55,7 @@ tasks:
         - key: ci-scripts
           path: ops/ci
         - key: apt-script
-          path: .circleci/scripts/apt-install.sh
+          path: ops/ci/runtime/apt-install.sh
 
   - key: mise
     call: mise/install 1.1.0
@@ -69,7 +69,7 @@ tasks:
 
   - key: route
     use: [code, tools]
-    run: bash ops/ci/rwx-metadata.sh
+    run: bash ops/ci/runtime/rwx-metadata.sh
     env:
       CI_EVENT: push
       CI_CACHE_WARM: ${{ init.cache-warm }}
@@ -130,8 +130,9 @@ tasks:
     use: [code, go-tools, contract-tools]
     if: ${{ init.cache-warm != 'true' && tasks.route.values.run-main == 'true' }}
     run: |
-      RWX_LIVE_CANNON_GO_FIXTURE=1 python3 -m unittest discover -s ops/ci -p 'test_cannon_go.py'
-      python3 -m unittest discover -s ops/ci -p 'test_compare_cannon_go.py'
+      RWX_LIVE_CANNON_GO_FIXTURE=1 python3 -m unittest discover -s ops/ci/tests -p 'test_cannon_go.py'
+      RWX_LIVE_CANNON_GO_FIXTURE=1 python3 -m unittest discover -s ops/ci/migration/tests -p 'test_migration_cannon_go.py'
+      python3 -m unittest discover -s ops/ci/migration/tests -p 'test_compare_cannon_go.py'
     cache: false
     timeout: 15m
     outputs:
@@ -148,7 +149,7 @@ tasks:
       export GOMODCACHE="$PWD/.ci/go-cache/pr-checks/modules"
       export GOCACHE="$PWD/.ci/go-cache/cannon-go/build"
       mkdir -p "$GOCACHE"
-      python3 ops/ci/cannon-go.py --provider rwx --skip-slow-tests true --fresh-tests true \
+      python3 ops/ci/runtime/cannon-go.py --provider rwx --skip-slow-tests true --fresh-tests true \
         --module-artifact "$MODULE_ARTIFACT" --contract-artifact "$CONTRACT_ARTIFACT"
     env:
       CI: "true"
@@ -185,7 +186,7 @@ tasks:
     use: [code, tools]
     after: ${{ (tests.succeeded || tests.failed || tests.skipped) }}
     if: ${{ init.cache-warm != 'true' }}
-    run: python3 ops/ci/pr-gate.py receipt main-cannon
+    run: python3 ops/ci/runtime/pr-gate.py receipt main-cannon
     env:
       CI_COMMIT_SHA: ${{ init.commit-sha }}
       CI_BRANCH: ${{ init.branch }}

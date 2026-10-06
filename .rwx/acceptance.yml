@@ -50,11 +50,11 @@ tasks:
   - key: bootstrap-inputs
     use: code
     run: 'true'
-    filter: [mise.toml, ops/ci, .circleci/scripts/apt-install.sh]
+    filter: [mise.toml, ops/ci/runtime]
     outputs:
       filesystem:
         filter:
-          workspace: [mise.toml, .circleci/scripts/apt-install.sh, ops/ci/rwx-prepare.sh, ops/ci/rwx-contracts-prepare.sh, ops/ci/rwx-rust-prepare.sh, ops/ci/op-reth-shadow.sh, ops/ci/op-reth-report.py, ops/ci/rust-target-cache.py]
+          workspace: [mise.toml, ops/ci/runtime/apt-install.sh, ops/ci/runtime/rwx-prepare.sh, ops/ci/runtime/rwx-contracts-prepare.sh, ops/ci/runtime/rwx-rust-prepare.sh, ops/ci/runtime/op-reth-shadow.sh, ops/ci/runtime/op-reth-report.py, ops/ci/runtime/rust-target-cache.py]
           system: []
       artifacts:
         - key: mise-config
@@ -62,7 +62,7 @@ tasks:
         - key: ci-scripts
           path: ops/ci
         - key: apt-script
-          path: .circleci/scripts/apt-install.sh
+          path: ops/ci/runtime/apt-install.sh
 
   - key: mise
     call: mise/install 1.1.0
@@ -84,7 +84,7 @@ tasks:
 
   - key: route
     use: [code, tools]
-    run: bash ops/ci/rwx-metadata.sh
+    run: bash ops/ci/runtime/rwx-metadata.sh
     env:
       CI_EVENT: push
       CI_CACHE_WARM: ${{ init.cache-warm }}
@@ -115,8 +115,8 @@ tasks:
     use: [code, go-build-tools]
     if: ${{ init.cache-warm != 'true' }}
     run: |
-      mise exec -- python3 -m unittest discover -s ops/ci -p 'test_acceptance*.py'
-      python3 -m unittest discover -s ops/ci -p 'test_rust_target_cache.py'
+      mise exec -- python3 -m unittest discover -s ops/ci/tests -p 'test_acceptance*.py'
+      python3 -m unittest discover -s ops/ci/tests -p 'test_rust_target_cache.py'
     cache: false
     timeout: 10m
     outputs:
@@ -194,7 +194,7 @@ tasks:
   - key: acceptance-tools
     use: [go-build-tools, contract-tools]
     run: |
-      bash .circleci/scripts/apt-install.sh --no-install-recommends eatmydata
+      bash ops/ci/runtime/apt-install.sh --no-install-recommends eatmydata
       mise install go:github.com/ethereum/go-ethereum/cmd/geth
       printf '%s\n' "$(mise bin-paths | paste -sd: -):$PATH" >"$RWX_ENV/PATH"
     timeout: 30m
@@ -431,7 +431,7 @@ tasks:
     use: [code, tools]
     after: ${{ (verdict-kona-0.succeeded || verdict-kona-0.failed || verdict-kona-0.skipped) && (verdict-kona-1.succeeded || verdict-kona-1.failed || verdict-kona-1.skipped) && (verdict-kona-2.succeeded || verdict-kona-2.failed || verdict-kona-2.skipped) && (verdict-kona-3.succeeded || verdict-kona-3.failed || verdict-kona-3.skipped) && (verdict-kona-4.succeeded || verdict-kona-4.failed || verdict-kona-4.skipped) && (verdict-kona-5.succeeded || verdict-kona-5.failed || verdict-kona-5.skipped) && (verdict-kona-6.succeeded || verdict-kona-6.failed || verdict-kona-6.skipped) && (verdict-kona-7.succeeded || verdict-kona-7.failed || verdict-kona-7.skipped) && (verdict-opn-0.succeeded || verdict-opn-0.failed || verdict-opn-0.skipped) && (verdict-opn-1.succeeded || verdict-opn-1.failed || verdict-opn-1.skipped) && (verdict-opn-2.succeeded || verdict-opn-2.failed || verdict-opn-2.skipped) && (verdict-opn-3.succeeded || verdict-opn-3.failed || verdict-opn-3.skipped) && (verdict-opn-4.succeeded || verdict-opn-4.failed || verdict-opn-4.skipped) && (verdict-opn-5.succeeded || verdict-opn-5.failed || verdict-opn-5.skipped) && (verdict-opn-6.succeeded || verdict-opn-6.failed || verdict-opn-6.skipped) && (verdict-opn-7.succeeded || verdict-opn-7.failed || verdict-opn-7.skipped) }}
     if: ${{ init.cache-warm != 'true' && init.shard-total == '8' }}
-    run: python3 ops/ci/pr-gate.py receipt main-acceptance
+    run: python3 ops/ci/runtime/pr-gate.py receipt main-acceptance
     env:
       CI_COMMIT_SHA: ${{ init.commit-sha }}
       CI_BRANCH: ${{ init.branch }}

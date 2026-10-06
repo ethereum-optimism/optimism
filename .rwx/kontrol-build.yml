@@ -43,11 +43,11 @@ tasks:
   - key: bootstrap-inputs
     use: code
     run: 'true'
-    filter: [mise.toml, ops/ci, .circleci/scripts/apt-install.sh]
+    filter: [mise.toml, ops/ci/runtime]
     outputs:
       filesystem:
         filter:
-          workspace: [mise.toml, .circleci/scripts/apt-install.sh, ops/ci/rwx-prepare.sh, ops/ci/rwx-contracts-prepare.sh, ops/ci/rwx-rust-prepare.sh, ops/ci/op-reth-shadow.sh, ops/ci/op-reth-report.py, ops/ci/rust-target-cache.py]
+          workspace: [mise.toml, ops/ci/runtime/apt-install.sh, ops/ci/runtime/rwx-prepare.sh, ops/ci/runtime/rwx-contracts-prepare.sh, ops/ci/runtime/rwx-rust-prepare.sh, ops/ci/runtime/op-reth-shadow.sh, ops/ci/runtime/op-reth-report.py, ops/ci/runtime/rust-target-cache.py]
           system: []
       artifacts:
         - key: mise-config
@@ -55,7 +55,7 @@ tasks:
         - key: ci-scripts
           path: ops/ci
         - key: apt-script
-          path: .circleci/scripts/apt-install.sh
+          path: ops/ci/runtime/apt-install.sh
 
   - key: mise
     call: mise/install 1.1.0
@@ -69,7 +69,7 @@ tasks:
 
   - key: route
     use: [code, tools]
-    run: bash ops/ci/rwx-metadata.sh
+    run: bash ops/ci/runtime/rwx-metadata.sh
     env:
       CI_EVENT: push
       CI_CACHE_WARM: ${{ init.cache-warm }}
@@ -115,8 +115,8 @@ tasks:
   - key: image
     use: [code, tools]
     if: ${{ init.cache-warm == 'true' || tasks.route.values.run-main == 'true' }}
-    filter: [mise.toml, ops/ci/kontrol-image.py, ops/ci/kontrol-image.json]
-    run: python3 ops/ci/kontrol-image.py prepare
+    filter: [mise.toml, ops/ci/runtime/kontrol-image.py, ops/ci/runtime/kontrol-image.json]
+    run: python3 ops/ci/runtime/kontrol-image.py prepare
     docker: preserve-data
     timeout: 30m
     outputs:
@@ -148,7 +148,9 @@ tasks:
   - key: helper-tests
     use: [source, go-tools, compiler-set, image]
     if: ${{ init.cache-warm != 'true' && tasks.route.values.run-main == 'true' }}
-    run: RWX_LIVE_KONTROL_FIXTURE=1 python3 -m unittest discover -s ops/ci -p 'test_kontrol_build.py'
+    run: |
+      RWX_LIVE_KONTROL_FIXTURE=1 python3 -m unittest discover -s ops/ci/tests -p 'test_kontrol_build.py'
+      RWX_LIVE_KONTROL_FIXTURE=1 python3 -m unittest discover -s ops/ci/migration/tests -p 'test_migration_kontrol_build.py'
     docker: true
     cache: false
     timeout: 20m
@@ -161,7 +163,7 @@ tasks:
   - key: check
     use: [source, go-tools, compiler-set, image]
     if: ${{ init.cache-warm != 'true' && tasks.route.values.run-main == 'true' }}
-    run: python3 ops/ci/kontrol-build.py --provider rwx --contract-artifact "$CONTRACT_ARTIFACT"
+    run: python3 ops/ci/runtime/kontrol-build.py --provider rwx --contract-artifact "$CONTRACT_ARTIFACT"
     env:
       CI: "true"
       CI_COMMIT_SHA: ${{ init.commit-sha }}
@@ -188,7 +190,7 @@ tasks:
     use: [code, tools]
     after: ${{ (check.succeeded || check.failed || check.skipped) }}
     if: ${{ init.cache-warm != 'true' }}
-    run: python3 ops/ci/pr-gate.py receipt main-kontrol
+    run: python3 ops/ci/runtime/pr-gate.py receipt main-kontrol
     env:
       CI_COMMIT_SHA: ${{ init.commit-sha }}
       CI_BRANCH: ${{ init.branch }}

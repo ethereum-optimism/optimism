@@ -72,7 +72,7 @@ changed original bytes and an existing destination. Identical restored files
 can share hard links; treat the restored originals as read-only.
 
 Use `git clone source.bundle ../rwx-pilot-source` to recover the recorded source
-and run the existing `ops/ci/compare-*.py` tools against restored `.ci/` reports.
+and run the comparers at that archived revision (historically `ops/ci/compare-*.py`; currently `ops/ci/migration/compare-*.py`) against restored `.ci/` reports.
 Provider run/check captures reside under `captures/` or alongside their report
 families. They retain original source revisions and run identities.
 
@@ -195,7 +195,7 @@ Use the suite's `compare-*.py --help` and archived invocation/collection index.
 For example, standard contract reports use directory inputs and a full SHA:
 
 ```bash
-python3 ops/ci/compare-contract-suites.py \
+python3 ops/ci/migration/compare-contract-suites.py \
   --circle /path/to/circle-report --rwx /path/to/rwx-report \
   --sha FULL_COMMIT_SHA --suite standard --feature main \
   --output /path/to/derived/parity.json
@@ -211,9 +211,9 @@ are relative to the collection JSON. Source metadata must record actual
 matching case reports alone do not prove selection.
 
 ```bash
-python3 ops/ci/compare-ci.py normalize --input circle.json --output circle.normalized.json
-python3 ops/ci/compare-ci.py normalize --input rwx.json --output rwx.normalized.json
-python3 ops/ci/compare-ci.py compare --baseline circle.normalized.json --candidate rwx.normalized.json --output parity.json
+python3 ops/ci/migration/compare-ci.py normalize --input circle.json --output circle.normalized.json
+python3 ops/ci/migration/compare-ci.py normalize --input rwx.json --output rwx.normalized.json
+python3 ops/ci/migration/compare-ci.py compare --baseline circle.normalized.json --candidate rwx.normalized.json --output parity.json
 ```
 
 Exit 0 means supplied evidence is equivalent; exit 1 means different or incomplete;
@@ -228,3 +228,23 @@ belong to a prior run: do not count them as current compute time. Archived
 benchmark experiments establish observations, not an RWX speed claim. Preserve
 all samples outside Git; the chosen 12-shard configuration stays in the operator
 guide until a separately justified change.
+
+## Runtime separation evidence
+
+New native receipts bind `native_policy_sha256` and manifest version 4. Circle
+workflow mappings live in `ops/ci/migration/circle-gates.json`; the native manifest
+contains no Circle configuration references. Retain the mapping, policy,
+definitions and source revision with each comparison. Historical evidence remains
+immutable and uses the archived comparer/source revision, including its original
+helper paths and receipt schema.
+
+Run permanent and migration tests separately. Retain scenario results and skips,
+layer code sizes, routing/adapter output, configuration lint/validation and exact
+hosted check identities. Empty originals may be recovered only offline from their
+manifest-declared empty hash; retain the audit records. Runtime verification never
+writes missing originals. No rerun may replace original failure evidence.
+
+The NUT provenance comparer was previously an inline `--compare` mode of the
+runtime runner. It now runs as
+`python3 ops/ci/migration/compare-nut-provenance.py --compare CIRCLE RWX --output comparison.json`.
+Other moved comparers retain their basenames and argument interfaces.

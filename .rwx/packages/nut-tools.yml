@@ -7,7 +7,7 @@ package:
 tasks:
   - key: prepare
     use: package.use
-    run: python3 ops/ci/nut-provenance.py --provider rwx --full --prepare-tools
+    run: python3 ops/ci/runtime/nut-provenance.py --provider rwx --full --prepare-tools
     env:
       CI: "true"
       CI_COMMIT_SHA: ${{ params.commit-sha }}

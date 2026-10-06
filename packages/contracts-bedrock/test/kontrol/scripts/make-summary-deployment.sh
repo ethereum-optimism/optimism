@@ -66,7 +66,7 @@ GENERATED_STATEDIFF=31337.json         # Name of the statediff json produced by 
 STATEDIFF=Kontrol-$GENERATED_STATEDIFF # Name of the Kontrol statediff
 mv snapshots/state-diff/$GENERATED_STATEDIFF snapshots/state-diff/$STATEDIFF
 if [ -n "${KONTROL_CI_REPORT_DIR:-}" ]; then
-  python3 "$WORKSPACE_DIR/../../ops/ci/kontrol-build.py" --capture deployment
+  python3 "$WORKSPACE_DIR/../../ops/ci/runtime/kontrol-build.py" --capture deployment
 fi
 python3 $JSON_SCRIPTS/clean_json.py snapshots/state-diff/$STATEDIFF
 jq . snapshots/state-diff/$STATEDIFF > temp && mv temp snapshots/state-diff/$STATEDIFF # Prettify json
@@ -75,7 +75,7 @@ echo "Cleaned state diff json"
 python3 $JSON_SCRIPTS/reverse_key_values.py $CONTRACT_NAMES ${CONTRACT_NAMES}Reversed
 CONTRACT_NAMES=${CONTRACT_NAMES}Reversed
 if [ -n "${KONTROL_CI_REPORT_DIR:-}" ]; then
-  python3 "$WORKSPACE_DIR/../../ops/ci/kontrol-build.py" --capture load-inputs
+  python3 "$WORKSPACE_DIR/../../ops/ci/runtime/kontrol-build.py" --capture load-inputs
 fi
 
 SUMMARY_DIR=test/kontrol/proofs/utils
@@ -96,5 +96,5 @@ forge fmt $SUMMARY_DIR/$SUMMARY_NAME.sol
 forge fmt $SUMMARY_DIR/${SUMMARY_NAME}Code.sol
 echo "Added state updates to $SUMMARY_DIR/$SUMMARY_NAME.sol"
 if [ -n "${KONTROL_CI_REPORT_DIR:-}" ]; then
-  python3 "$WORKSPACE_DIR/../../ops/ci/kontrol-build.py" --capture generated
+  python3 "$WORKSPACE_DIR/../../ops/ci/runtime/kontrol-build.py" --capture generated
 fi

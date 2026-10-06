@@ -16,9 +16,9 @@ tasks:
   - key: build
     use: package.use
     run: |
-      python3 ops/ci/go-artifacts.py restore go "$GO_ARTIFACT"
-      python3 ops/ci/go-artifacts.py restore contracts "$CONTRACT_ARTIFACT"
-      mise exec -- bash ops/ci/acceptance-tests.sh discover
+      python3 ops/ci/runtime/go-artifacts.py restore go "$GO_ARTIFACT"
+      python3 ops/ci/runtime/go-artifacts.py restore contracts "$CONTRACT_ARTIFACT"
+      mise exec -- bash ops/ci/runtime/acceptance-tests.sh discover
     env:
       CI_COMMIT_SHA: ${{ params.commit-sha }}
       CI_SHARD_TOTAL: ${{ params.shard-total }}

@@ -18,7 +18,7 @@ tasks:
     run: |
       export GOMODCACHE="$PWD/.ci/go-cache/contract-suites/modules"
       export GOCACHE="$PWD/.ci/go-cache/contract-suites/build"
-      python3 ops/ci/contract-suites.py prepare --suite "$CI_CONTRACT_SUITE" --feature "$CI_CONTRACT_FEATURE"
+      python3 ops/ci/runtime/contract-suites.py prepare --suite "$CI_CONTRACT_SUITE" --feature "$CI_CONTRACT_FEATURE"
     env:
       CI_COMMIT_SHA: ${{ params.commit-sha }}
       CI_BRANCH: ${{ params.branch }}
