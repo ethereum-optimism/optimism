@@ -189,6 +189,7 @@ impl TestFlashBlockFactory {
             withdrawals: vec![],
             withdrawals_root: B256::ZERO,
             blob_gas_used: None,
+            post_exec_tx: None,
         }
     }
 }
@@ -213,6 +214,7 @@ pub(crate) struct TestFlashBlockBuilder {
     withdrawals: Vec<alloy_eips::eip4895::Withdrawal>,
     withdrawals_root: B256,
     blob_gas_used: Option<u64>,
+    post_exec_tx: Option<Bytes>,
 }
 
 impl TestFlashBlockBuilder {
@@ -280,6 +282,12 @@ impl TestFlashBlockBuilder {
         self
     }
 
+    /// Sets the EIP-2718 encoded post-exec transaction in the diff.
+    pub(crate) fn post_exec_tx(mut self, post_exec_tx: Bytes) -> Self {
+        self.post_exec_tx = Some(post_exec_tx);
+        self
+    }
+
     /// Sets the gas used in the diff.
     #[allow(dead_code)]
     pub(crate) fn gas_used(mut self, gas_used: u64) -> Self {
@@ -320,7 +328,7 @@ impl TestFlashBlockBuilder {
                 withdrawals: self.withdrawals,
                 withdrawals_root: self.withdrawals_root,
                 blob_gas_used: self.blob_gas_used,
-                post_exec_tx: None,
+                post_exec_tx: self.post_exec_tx,
             },
             metadata: OpFlashblockPayloadMetadata {
                 block_number: self.block_number,
