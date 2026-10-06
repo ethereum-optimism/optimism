@@ -51,11 +51,11 @@ impl L2ForkchoiceState {
             let rpc_block =
                 match get_block_compat(engine_client, BlockNumberOrTag::Finalized.into()).await {
                     Ok(Some(block)) => block,
-                    Ok(None) => engine_client
-                        .get_l2_block(cfg.genesis.l2.number.into())
-                        .full()
-                        .await?
-                        .ok_or(SyncStartError::BlockNotFound(cfg.genesis.l2.number.into()))?,
+                    Ok(None) => crate::client::rpc_timeout(
+                        engine_client.get_l2_block(cfg.genesis.l2.number.into()).full(),
+                    )
+                    .await?
+                    .ok_or(SyncStartError::BlockNotFound(cfg.genesis.l2.number.into()))?,
                     Err(e) => return Err(e.into()),
                 }
                 .into_consensus();
@@ -88,7 +88,7 @@ async fn get_block_compat<EngineClient_: EngineClient>(
     engine_client: &EngineClient_,
     block_id: BlockId,
 ) -> TransportResult<Option<<Optimism as Network>::BlockResponse>> {
-    match engine_client.get_l2_block(block_id).full().await {
+    match crate::client::rpc_timeout(engine_client.get_l2_block(block_id).full()).await {
         Err(e) => {
             let err_str = e.to_string();
             if err_str.contains("block not found") || err_str.contains("Unknown block") {
