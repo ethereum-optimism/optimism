@@ -72,6 +72,11 @@ impl EngineRpcClient for QueuedEngineRpcClient {
                 ErrorObject::from(ErrorCode::InternalError)
             })?
             .ok_or_else(|| {
+                // `BlockNumberOrTag` displays numbers as hex; report them in decimal.
+                let block = match block {
+                    BlockNumberOrTag::Number(number) => number.to_string(),
+                    tag => tag.to_string(),
+                };
                 ErrorObject::owned(
                     ErrorCode::ServerError(-32000).code(),
                     format!("L2 block {block} not found"),
@@ -142,6 +147,6 @@ mod tests {
             .await
             .unwrap_err();
         assert_eq!(err.code(), -32000);
-        assert!(err.message().contains("not found"), "{}", err.message());
+        assert_eq!(err.message(), "L2 block 100 not found");
     }
 }
