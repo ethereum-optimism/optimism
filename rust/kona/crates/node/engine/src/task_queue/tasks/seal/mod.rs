@@ -1,4 +1,4 @@
-//! Task and its associated types for sealing a sequenced block and importing it.
+//! Task and its associated types for sealing a sequenced block.
 
 mod task;
 pub use task::SealTask;

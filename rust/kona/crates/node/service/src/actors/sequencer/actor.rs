@@ -25,7 +25,7 @@ use kona_engine::{InsertTaskError, SealTaskError, SynchronizeTaskError};
 use kona_genesis::RollupConfig;
 use kona_protocol::{BlockInfo, L2BlockInfo, OpAttributesWithParent};
 use kona_rpc::{SequencerAdminAPIError, SequencerAdminCommand, SequencerState};
-use op_alloy_rpc_types_engine::OpPayloadAttributes;
+use op_alloy_rpc_types_engine::{OpExecutionPayloadEnvelope, OpPayloadAttributes};
 use std::{
     sync::Arc,
     time::{Duration, Instant, SystemTime, UNIX_EPOCH},
@@ -94,6 +94,8 @@ pub struct SequencerActor<
     build_ticker: Interval,
     /// The handle for the payload built on the previous tick that is waiting to be sealed.
     next_payload_to_seal: Option<UnsealedPayloadHandle>,
+    /// A committed payload awaiting canonicalization. Retries must import this exact payload.
+    pending_canonicalization_payload: Option<OpExecutionPayloadEnvelope>,
     /// Duration of the most recent seal operation, used to back-pressure the build ticker.
     last_seal_duration: Duration,
     /// Whether the one-shot startup work (metrics + initial engine reset) has run.
@@ -151,6 +153,7 @@ where
             unsafe_payload_gossip_client,
             build_ticker,
             next_payload_to_seal: None,
+            pending_canonicalization_payload: None,
             last_seal_duration: Duration::from_secs(0),
             started: false,
         }
@@ -253,35 +256,42 @@ where
     /// Sends a seal request to seal the provided [`UnsealedPayloadHandle`], committing and
     /// gossiping the resulting block, if one is built.
     async fn seal_and_commit_payload_if_applicable(
-        &self,
+        &mut self,
         unsealed_payload_handle: &UnsealedPayloadHandle,
     ) -> Result<(), SequencerActorError> {
-        let seal_request_start = Instant::now();
+        if self.pending_canonicalization_payload.is_none() {
+            let seal_request_start = Instant::now();
+            let payload = self
+                .engine_client
+                .seal_block(
+                    unsealed_payload_handle.payload_id,
+                    unsealed_payload_handle.attributes_with_parent.clone(),
+                )
+                .await?;
+            update_seal_duration_metrics(seal_request_start.elapsed());
 
-        // Send the seal request to the engine to seal the unsealed block.
-        let payload = self
-            .engine_client
-            .seal_and_canonicalize_block(
-                unsealed_payload_handle.payload_id,
-                unsealed_payload_handle.attributes_with_parent.clone(),
+            if let Some(conductor) = &self.conductor {
+                let commitment_start = Instant::now();
+                let result = conductor.commit_unsafe_payload(&payload).await;
+                update_conductor_commitment_duration_metrics(commitment_start.elapsed());
+                // Retain the build job, not this uncommitted envelope. Like op-node, retry
+                // getPayload with the same payload ID on the next attempt.
+                result?;
+            }
+            self.pending_canonicalization_payload = Some(payload);
+        }
+
+        let payload = self.pending_canonicalization_payload.as_ref().expect("payload is sealed");
+        self.engine_client
+            .canonicalize_block(
+                payload.clone(),
+                unsealed_payload_handle.attributes_with_parent.parent,
             )
             .await?;
-
-        update_seal_duration_metrics(seal_request_start.elapsed());
-
-        let payload_transaction_count =
-            unsealed_payload_handle.attributes_with_parent.count_transactions();
-        update_total_transactions_sequenced(payload_transaction_count);
-
-        // If the conductor is available, commit the payload to it.
-        if let Some(conductor) = &self.conductor {
-            let _conductor_commitment_start = Instant::now();
-            if let Err(err) = conductor.commit_unsafe_payload(&payload).await {
-                error!(target: "sequencer", ?err, "Failed to commit unsafe payload to conductor");
-            }
-
-            update_conductor_commitment_duration_metrics(_conductor_commitment_start.elapsed());
-        }
+        let payload = self.pending_canonicalization_payload.take().expect("payload is canonical");
+        update_total_transactions_sequenced(
+            unsealed_payload_handle.attributes_with_parent.count_transactions(),
+        );
 
         self.unsafe_payload_gossip_client
             .schedule_execution_payload_gossip(payload)
@@ -577,7 +587,29 @@ where
                             error!(target: "sequencer", err=?err, "Critical seal task error occurred");
                             return Err(SequencerActorError::EngineError(EngineClientError::SealError(err)));
                         }
-                        self.next_payload_to_seal = None;
+                        if matches!(err, SealTaskError::UnsafeHeadChangedSinceBuild | SealTaskError::GetPayloadFailed(_)) ||
+                            matches!(&err, SealTaskError::PayloadInsertionFailed(e) if matches!(
+                                &**e, InsertTaskError::UnexpectedPayloadStatus(
+                                    alloy_rpc_types_engine::PayloadStatusEnum::Invalid { .. }
+                                )
+                            ))
+                        {
+                            self.pending_canonicalization_payload = None;
+                            self.next_payload_to_seal = None;
+                        } else {
+                            // Retry temporary insertion failures with the exact committed
+                            // envelope. Failed getPayload jobs above must be rebuilt: the EL
+                            // may have expired or discarded that payload ID.
+                            self.next_payload_to_seal = pending;
+                            self.build_ticker.reset_after(Duration::from_secs(1));
+                            return Ok(());
+                        }
+                    }
+                    Err(SequencerActorError::ConductorCommit(err)) => {
+                        warn!(target: "sequencer", ?err, "Conductor commit failed; retrying the build job before canonicalization or gossip");
+                        self.next_payload_to_seal = pending;
+                        self.build_ticker.reset_after(Duration::from_secs(1));
+                        return Ok(());
                     }
                     Err(other_err) => {
                         error!(target: "sequencer", err = ?other_err, "Unexpected error building or sealing payload");

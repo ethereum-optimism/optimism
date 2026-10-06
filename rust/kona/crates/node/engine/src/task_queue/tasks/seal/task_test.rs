@@ -54,7 +54,6 @@ async fn unsafe_head_check_variants(
         PayloadId::new([1u8; 8]),
         attributes,
         with_channel.then_some(tx),
-        Arc::new(crate::NoopBlockSink),
     );
 
     let result = task.execute(&mut state).await;
@@ -147,6 +146,43 @@ async fn payload_fetch_selects_version_and_decodes_reply(
     };
     let actual = super::task::get_payload(&client, &cfg, id, timestamp).await.unwrap();
     assert_eq!(actual, expected);
+    l1.assert_finished();
+    l2.assert_finished();
+}
+
+/// The sequencer commits a sealed payload to the conductor before importing it, so sealing must
+/// not change forkchoice.
+#[tokio::test]
+async fn seal_keeps_forkchoice_unchanged() {
+    use super::super::canonicalize::tests::{PayloadFixture, payload_fixture};
+    use alloy_rpc_types_engine::{ExecutionPayloadEnvelopeV2, ExecutionPayloadFieldV2};
+
+    let PayloadFixture { payload: expected, cfg } = payload_fixture();
+    let op_alloy_rpc_types_engine::OpExecutionPayloadEnvelope::V1(payload) = expected.clone()
+    else {
+        panic!("fixture must be V1");
+    };
+    let (engine, l1, l2) = test_engine_client(cfg.clone());
+    l2.expect(
+        "engine_getPayloadV2",
+        ExecutionPayloadEnvelopeV2 {
+            execution_payload: ExecutionPayloadFieldV2::V1(payload),
+            block_value: Default::default(),
+        },
+    );
+    let (tx, mut rx) = mpsc::channel(1);
+    let mut state = crate::EngineState::default();
+    let original = state;
+    let task = SealTask::new(
+        Arc::new(engine),
+        cfg,
+        PayloadId::new([1; 8]),
+        TestAttributesBuilder::new().with_parent(kona_protocol::L2BlockInfo::default()).build(),
+        Some(tx),
+    );
+    task.execute(&mut state).await.unwrap();
+    assert_eq!(rx.recv().await.unwrap().unwrap(), expected);
+    assert_eq!(state, original);
     l1.assert_finished();
     l2.assert_finished();
 }
