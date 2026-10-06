@@ -282,9 +282,29 @@ RPC denial: `30e1d38ecac44f80b08f06bd9be5a8b8`; protected cache-write probe:
 `9af37c3158a1494e865d12e7c7c0621d`. These CLI runs do not establish automatic
 fork/merge-queue GitHub check association.
 
+The independent cache reader `a9d19a4233c741fc95d6f57a788c9005` uses the same
+protected cache name and confirms the CLI writer's harmless marker was not
+restored. Retain its definition, terminal result and
+`cache-denial-reader-observation.json`; a task's empty list of restored tool
+caches alone does not prove that it published no cache version.
+
 The first pilot-readiness push (`d3bfc043fb`) compiled the full Rust test workload
 successfully but exceeded the filesystem-layer cap (64.9 GiB inherited + 54.2 GiB
 added). Its failed producer, original archive and terminal engine diagnosis are
 retained as `rust-build-layer-limit-d3bfc043fb.tar` and the matching coordinator
 observation. The corrective target-cache namespace and final-head hosted result
 are separate evidence; no original failure was overwritten.
+
+The corrected producer at `6fcfba3e43` published successfully. Its first target
+layer uploaded 57,315 MiB in 292 seconds. This is a cold-namespace publication
+observation, not a warm-run benchmark. Retain its task log and engine result;
+cache transfer remains a performance follow-up.
+
+The merged `develop` revision includes `27766c0270`, which removes historical
+proofs v1 and changes the op-reth test recipe's validator selector to `op-reth`.
+The first cache-namespace correction still supplied `op-reth-proof-v1`; its nine
+op-reth E2E cases failed before node startup. Retain that original report as
+`rust-e2e-op-reth-6fcfba3e43-failure.tar`. The shared runner now matches the owning
+recipe for both providers. A permanent test compares its sequencer, validator
+and proof-history environment with that recipe so future selector changes fail
+locally before a hosted run.

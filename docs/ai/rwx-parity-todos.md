@@ -221,3 +221,6 @@ gate cutover items above.
 - [x] Namespace full Rust test target caches by dependency/compiler inputs after
   the observed cross-lockfile layer-cap failure; ordinary source edits still reuse
   targets. Keep the original failed producer and its successful compilation proof.
+- [ ] Measure Rust target-layer transfer separately in future performance work;
+  the first corrected namespace uploaded 57,315 MiB in 292 seconds. Keep the
+  selected configuration for this stage.

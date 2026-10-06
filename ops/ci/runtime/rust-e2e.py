@@ -62,7 +62,7 @@ def environment(job):
     if job == 'proof': values['KONA_HOST_PATH'] = str(ROOT / 'rust/target/release/kona-host')
     elif job == 'op-reth':
         values.update(OP_RETH_ENABLE_PROOF_HISTORY='true', OP_DEVSTACK_PROOF_SEQUENCER_EL='op-reth',
-                      OP_DEVSTACK_PROOF_VALIDATOR_EL='op-reth-proof-v1',
+                      OP_DEVSTACK_PROOF_VALIDATOR_EL='op-reth',
                       RUST_BINARY_PATH_OP_RETH=str(ROOT / 'rust/target/release/op-reth'))
     else:
         sequencer = job == 'simple-kona-sequencer'
