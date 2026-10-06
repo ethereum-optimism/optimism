@@ -21,8 +21,8 @@ pub struct GossipDriverBuilder {
     keypair: Keypair,
     /// The [`Multiaddr`] for the gossip driver to listen on.
     gossip_addr: Multiaddr,
-    /// Unsafe block signer [`Address`].
-    signer: Address,
+    /// The unsafe block signer [`Address`] that gossiped blocks must be signed by.
+    signer: watch::Receiver<Address>,
     /// The idle connection timeout as a [`Duration`].
     timeout: Option<Duration>,
     /// Sets the [`PeerScoreLevel`] for the [`Behaviour`].
@@ -39,8 +39,11 @@ pub struct GossipDriverBuilder {
 }
 
 impl GossipDriverBuilder {
-    /// Creates a new [`GossipDriverBuilder`].
-    pub const fn new(
+    /// Creates a new [`GossipDriverBuilder`] that accepts blocks signed by `signer`.
+    ///
+    /// To follow a signer that can change, such as one read from L1, use
+    /// [`Self::with_unsafe_block_signer_receiver`].
+    pub fn new(
         rollup_config: RollupConfig,
         signer: Address,
         gossip_addr: Multiaddr,
@@ -50,7 +53,7 @@ impl GossipDriverBuilder {
             timeout: None,
             keypair,
             gossip_addr,
-            signer,
+            signer: watch::channel(signer).1,
             scoring: None,
             config: None,
             peer_monitoring: None,
@@ -92,8 +95,9 @@ impl GossipDriverBuilder {
         self
     }
 
-    /// Sets the unsafe block signer [`Address`].
-    pub const fn with_unsafe_block_signer_receiver(mut self, signer: Address) -> Self {
+    /// Sets the receiver of the unsafe block signer [`Address`] that gossiped blocks must be
+    /// signed by, so that validation follows its current value.
+    pub fn with_unsafe_block_signer_receiver(mut self, signer: watch::Receiver<Address>) -> Self {
         self.signer = signer;
         self
     }
@@ -125,20 +129,15 @@ impl GossipDriverBuilder {
     /// Builds the [`GossipDriver`].
     pub fn build(
         mut self,
-    ) -> Result<
-        (GossipDriver<crate::ConnectionGater>, watch::Sender<Address>),
-        GossipDriverBuilderError,
-    > {
+    ) -> Result<GossipDriver<crate::ConnectionGater>, GossipDriverBuilderError> {
         // Extract builder arguments
         let timeout = self.timeout.take().unwrap_or(Duration::from_secs(60));
         let keypair = self.keypair;
         let addr = self.gossip_addr;
-        let signer_recv = self.signer;
+        let signer_rx = self.signer;
         let rollup_config = self.rollup_config;
         let l2_chain_id = rollup_config.l2_chain_id;
         let block_time = rollup_config.block_time;
-
-        let (signer_tx, signer_rx) = watch::channel(signer_recv);
 
         // Block Handler setup
         let handler = BlockHandler::new(rollup_config, signer_rx);
@@ -216,6 +215,6 @@ impl GossipDriverBuilder {
         let gater_config = self.gater_config.take().unwrap_or_default();
         let gate = crate::ConnectionGater::new(gater_config);
 
-        Ok((GossipDriver::new(swarm, addr, handler, sync_handler, sync_protocol, gate), signer_tx))
+        Ok(GossipDriver::new(swarm, addr, handler, sync_handler, sync_protocol, gate))
     }
 }

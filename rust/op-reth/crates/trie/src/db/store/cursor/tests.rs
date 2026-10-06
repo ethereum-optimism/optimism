@@ -324,7 +324,7 @@ fn account_cursor_reads_current_state_when_no_history() {
     }
 
     let tx = db.tx().expect("ro tx");
-    let mut cur = V2AccountCursor::new(
+    let mut cur = MdbxAccountCursor::new(
         tx.cursor_read::<V2HashedAccounts>().expect("c"),
         tx.cursor_read::<V2HashedAccountsHistory>().expect("c"),
         tx.cursor_read::<V2HashedAccountsHistory>().expect("c"),
@@ -373,7 +373,7 @@ fn account_cursor_resolves_from_changeset_when_modified_after_target() {
     let tx = db.tx().expect("ro tx");
 
     // Query at block 4 (before the modification at block 5)
-    let mut cur = V2AccountCursor::new(
+    let mut cur = MdbxAccountCursor::new(
         tx.cursor_read::<V2HashedAccounts>().expect("c"),
         tx.cursor_read::<V2HashedAccountsHistory>().expect("c"),
         tx.cursor_read::<V2HashedAccountsHistory>().expect("c"),
@@ -428,7 +428,7 @@ fn account_cursor_returns_current_state_when_at_or_after_last_modification() {
     let tx = db.tx().expect("ro tx");
 
     // Query at block 10 (after last modification at block 7)
-    let mut cur = V2AccountCursor::new(
+    let mut cur = MdbxAccountCursor::new(
         tx.cursor_read::<V2HashedAccounts>().expect("c"),
         tx.cursor_read::<V2HashedAccountsHistory>().expect("c"),
         tx.cursor_read::<V2HashedAccountsHistory>().expect("c"),
@@ -479,7 +479,7 @@ fn account_cursor_returns_none_when_not_yet_created() {
     // Query at block 4 (before first write at 5)
     // The changeset at block 5 says info=None → the cursor's resolve returns None
     // → next_live_from skips this entry → seek returns None
-    let mut cur = V2AccountCursor::new(
+    let mut cur = MdbxAccountCursor::new(
         tx.cursor_read::<V2HashedAccounts>().expect("c"),
         tx.cursor_read::<V2HashedAccountsHistory>().expect("c"),
         tx.cursor_read::<V2HashedAccountsHistory>().expect("c"),
@@ -527,7 +527,7 @@ fn account_cursor_seek_and_next_skip_dead_entries() {
     let tx = db.tx().expect("ro tx");
 
     // Query at block 5 (before k2 was created)
-    let mut cur = V2AccountCursor::new(
+    let mut cur = MdbxAccountCursor::new(
         tx.cursor_read::<V2HashedAccounts>().expect("c"),
         tx.cursor_read::<V2HashedAccountsHistory>().expect("c"),
         tx.cursor_read::<V2HashedAccountsHistory>().expect("c"),
@@ -583,7 +583,7 @@ fn account_cursor_discovers_key_deleted_after_target_block() {
 
     let tx = db.tx().expect("ro tx");
     // Query at block 9: k2 existed with nonce=7
-    let mut cur = V2AccountCursor::new(
+    let mut cur = MdbxAccountCursor::new(
         tx.cursor_read::<V2HashedAccounts>().expect("c"),
         tx.cursor_read::<V2HashedAccountsHistory>().expect("c"),
         tx.cursor_read::<V2HashedAccountsHistory>().expect("c"),
@@ -649,7 +649,7 @@ fn account_cursor_all_keys_from_history() {
     }
 
     let tx = db.tx().expect("ro tx");
-    let mut cur = V2AccountCursor::new(
+    let mut cur = MdbxAccountCursor::new(
         tx.cursor_read::<V2HashedAccounts>().expect("c"),
         tx.cursor_read::<V2HashedAccountsHistory>().expect("c"),
         tx.cursor_read::<V2HashedAccountsHistory>().expect("c"),
@@ -700,7 +700,7 @@ fn account_cursor_deduplicates_key_in_both_cursors() {
 
     let tx = db.tx().expect("ro tx");
     // At block 4 → changeset at 5 gives nonce=50
-    let mut cur = V2AccountCursor::new(
+    let mut cur = MdbxAccountCursor::new(
         tx.cursor_read::<V2HashedAccounts>().expect("c"),
         tx.cursor_read::<V2HashedAccountsHistory>().expect("c"),
         tx.cursor_read::<V2HashedAccountsHistory>().expect("c"),
@@ -733,7 +733,7 @@ fn account_trie_cursor_reads_current_state_when_no_history() {
     }
 
     let tx = db.tx().expect("ro tx");
-    let mut cur = V2AccountTrieCursor::new(
+    let mut cur = MdbxAccountTrieCursor::new(
         tx.cursor_read::<V2AccountsTrie>().expect("c"),
         tx.cursor_read::<V2AccountsTrieHistory>().expect("c"),
         tx.cursor_read::<V2AccountsTrieHistory>().expect("c"),
@@ -788,7 +788,7 @@ fn account_trie_cursor_resolves_old_node_from_changeset() {
     let tx = db.tx().expect("ro tx");
 
     // Query at block 9 (before modification at 10)
-    let mut cur = V2AccountTrieCursor::new(
+    let mut cur = MdbxAccountTrieCursor::new(
         tx.cursor_read::<V2AccountsTrie>().expect("c"),
         tx.cursor_read::<V2AccountsTrieHistory>().expect("c"),
         tx.cursor_read::<V2AccountsTrieHistory>().expect("c"),
@@ -837,7 +837,7 @@ fn account_trie_cursor_seek_and_next_skip_dead_nodes() {
     let tx = db.tx().expect("ro tx");
 
     // Query at block 3 (before p2 was created)
-    let mut cur = V2AccountTrieCursor::new(
+    let mut cur = MdbxAccountTrieCursor::new(
         tx.cursor_read::<V2AccountsTrie>().expect("c"),
         tx.cursor_read::<V2AccountsTrieHistory>().expect("c"),
         tx.cursor_read::<V2AccountsTrieHistory>().expect("c"),
@@ -871,7 +871,7 @@ fn account_trie_cursor_seek_returns_gte() {
     }
 
     let tx = db.tx().expect("ro tx");
-    let mut cur = V2AccountTrieCursor::new(
+    let mut cur = MdbxAccountTrieCursor::new(
         tx.cursor_read::<V2AccountsTrie>().expect("c"),
         tx.cursor_read::<V2AccountsTrieHistory>().expect("c"),
         tx.cursor_read::<V2AccountsTrieHistory>().expect("c"),
@@ -889,7 +889,7 @@ fn account_trie_cursor_seek_returns_gte() {
 fn account_trie_cursor_empty_returns_none() {
     let db = setup_db();
     let tx = db.tx().expect("ro tx");
-    let mut cur = V2AccountTrieCursor::new(
+    let mut cur = MdbxAccountTrieCursor::new(
         tx.cursor_read::<V2AccountsTrie>().expect("c"),
         tx.cursor_read::<V2AccountsTrieHistory>().expect("c"),
         tx.cursor_read::<V2AccountsTrieHistory>().expect("c"),
@@ -988,7 +988,7 @@ fn account_trie_cursor_discovers_key_deleted_after_target_block() {
 
     // Query at block 2: a1 should be visible even though it's deleted
     // from current state (deleted at block 3).
-    let mut cur = V2AccountTrieCursor::new(
+    let mut cur = MdbxAccountTrieCursor::new(
         tx.cursor_read::<V2AccountsTrie>().expect("c"),
         tx.cursor_read::<V2AccountsTrieHistory>().expect("c"),
         tx.cursor_read::<V2AccountsTrieHistory>().expect("c"),
@@ -1053,7 +1053,7 @@ fn account_trie_cursor_deleted_key_only_in_history() {
     let tx = db.tx().expect("ro tx");
 
     // Query at block 3: p should be visible (created at 2, deleted at 4)
-    let mut cur = V2AccountTrieCursor::new(
+    let mut cur = MdbxAccountTrieCursor::new(
         tx.cursor_read::<V2AccountsTrie>().expect("c"),
         tx.cursor_read::<V2AccountsTrieHistory>().expect("c"),
         tx.cursor_read::<V2AccountsTrieHistory>().expect("c"),
@@ -1072,7 +1072,7 @@ fn account_trie_cursor_deleted_key_only_in_history() {
     assert!(TrieCursor::next(&mut cur).expect("ok").is_none());
 
     // Also: query at block 1 → p didn't exist yet
-    let mut cur2 = V2AccountTrieCursor::new(
+    let mut cur2 = MdbxAccountTrieCursor::new(
         tx.cursor_read::<V2AccountsTrie>().expect("c"),
         tx.cursor_read::<V2AccountsTrieHistory>().expect("c"),
         tx.cursor_read::<V2AccountsTrieHistory>().expect("c"),
@@ -1123,7 +1123,7 @@ fn account_trie_cursor_seek_exact_on_deleted_key() {
     let tx = db.tx().expect("ro tx");
 
     // seek_exact at block 8 → should find p
-    let mut cur = V2AccountTrieCursor::new(
+    let mut cur = MdbxAccountTrieCursor::new(
         tx.cursor_read::<V2AccountsTrie>().expect("c"),
         tx.cursor_read::<V2AccountsTrieHistory>().expect("c"),
         tx.cursor_read::<V2AccountsTrieHistory>().expect("c"),
@@ -1136,7 +1136,7 @@ fn account_trie_cursor_seek_exact_on_deleted_key() {
     assert_eq!(out.1, n);
 
     // seek_exact at block 3 → should NOT find p (created at 5)
-    let mut cur2 = V2AccountTrieCursor::new(
+    let mut cur2 = MdbxAccountTrieCursor::new(
         tx.cursor_read::<V2AccountsTrie>().expect("c"),
         tx.cursor_read::<V2AccountsTrieHistory>().expect("c"),
         tx.cursor_read::<V2AccountsTrieHistory>().expect("c"),
@@ -1164,7 +1164,7 @@ fn account_trie_cursor_current_tracks_last_yielded() {
     }
 
     let tx = db.tx().expect("ro tx");
-    let mut cur = V2AccountTrieCursor::new(
+    let mut cur = MdbxAccountTrieCursor::new(
         tx.cursor_read::<V2AccountsTrie>().expect("c"),
         tx.cursor_read::<V2AccountsTrieHistory>().expect("c"),
         tx.cursor_read::<V2AccountsTrieHistory>().expect("c"),
@@ -1202,7 +1202,7 @@ fn account_trie_cursor_seek_exact_then_next() {
     }
 
     let tx = db.tx().expect("ro tx");
-    let mut cur = V2AccountTrieCursor::new(
+    let mut cur = MdbxAccountTrieCursor::new(
         tx.cursor_read::<V2AccountsTrie>().expect("c"),
         tx.cursor_read::<V2AccountsTrieHistory>().expect("c"),
         tx.cursor_read::<V2AccountsTrieHistory>().expect("c"),
@@ -1262,7 +1262,7 @@ fn account_trie_cursor_seek_gte_skips_dead_landing() {
     let tx = db.tx().expect("ro tx");
 
     // At block 5, seek(p_b) → p_b is dead → should skip to p_c
-    let mut cur = V2AccountTrieCursor::new(
+    let mut cur = MdbxAccountTrieCursor::new(
         tx.cursor_read::<V2AccountsTrie>().expect("c"),
         tx.cursor_read::<V2AccountsTrieHistory>().expect("c"),
         tx.cursor_read::<V2AccountsTrieHistory>().expect("c"),
@@ -1314,7 +1314,7 @@ fn account_trie_cursor_all_keys_dead() {
     let tx = db.tx().expect("ro tx");
 
     // At block 3 → both dead
-    let mut cur = V2AccountTrieCursor::new(
+    let mut cur = MdbxAccountTrieCursor::new(
         tx.cursor_read::<V2AccountsTrie>().expect("c"),
         tx.cursor_read::<V2AccountsTrieHistory>().expect("c"),
         tx.cursor_read::<V2AccountsTrieHistory>().expect("c"),
@@ -1412,7 +1412,7 @@ fn account_trie_cursor_interleaved_current_and_history_keys() {
     let tx = db.tx().expect("ro tx");
 
     // At block 5: a, b, c, d, e all alive (a, c, e via changeset at 10)
-    let mut cur = V2AccountTrieCursor::new(
+    let mut cur = MdbxAccountTrieCursor::new(
         tx.cursor_read::<V2AccountsTrie>().expect("c"),
         tx.cursor_read::<V2AccountsTrieHistory>().expect("c"),
         tx.cursor_read::<V2AccountsTrieHistory>().expect("c"),
@@ -1480,7 +1480,7 @@ fn account_trie_cursor_duplicate_key_in_both_cursors() {
     let tx = db.tx().expect("ro tx");
 
     // At block 8: resolve from changeset at 10 → old value n
-    let mut cur = V2AccountTrieCursor::new(
+    let mut cur = MdbxAccountTrieCursor::new(
         tx.cursor_read::<V2AccountsTrie>().expect("c"),
         tx.cursor_read::<V2AccountsTrieHistory>().expect("c"),
         tx.cursor_read::<V2AccountsTrieHistory>().expect("c"),
@@ -1531,7 +1531,7 @@ fn account_trie_cursor_query_at_latest_block() {
     }
 
     let tx = db.tx().expect("ro tx");
-    let mut cur = V2AccountTrieCursor::new(
+    let mut cur = MdbxAccountTrieCursor::new(
         tx.cursor_read::<V2AccountsTrie>().expect("c"),
         tx.cursor_read::<V2AccountsTrieHistory>().expect("c"),
         tx.cursor_read::<V2AccountsTrieHistory>().expect("c"),
@@ -1624,7 +1624,7 @@ fn storage_trie_cursor_discovers_deleted_key() {
     let tx = db.tx().expect("ro tx");
 
     // Query at block 3: a1 should be visible
-    let mut cur = V2StorageTrieCursor::new(
+    let mut cur = MdbxStorageTrieCursor::new(
         tx.cursor_dup_read::<V2StoragesTrie>().expect("c"),
         tx.cursor_read::<V2StoragesTrieHistory>().expect("c"),
         tx.cursor_read::<V2StoragesTrieHistory>().expect("c"),
@@ -1691,7 +1691,7 @@ fn storage_trie_cursor_deleted_key_does_not_cross_address() {
     let tx = db.tx().expect("ro tx");
 
     // Walk addr_a at block 3 → only p1
-    let mut cur = V2StorageTrieCursor::new(
+    let mut cur = MdbxStorageTrieCursor::new(
         tx.cursor_dup_read::<V2StoragesTrie>().expect("c"),
         tx.cursor_read::<V2StoragesTrieHistory>().expect("c"),
         tx.cursor_read::<V2StoragesTrieHistory>().expect("c"),
@@ -1731,7 +1731,7 @@ fn storage_trie_cursor_set_hashed_address_resets_merge_state() {
     }
 
     let tx = db.tx().expect("ro tx");
-    let mut cur = V2StorageTrieCursor::new(
+    let mut cur = MdbxStorageTrieCursor::new(
         tx.cursor_dup_read::<V2StoragesTrie>().expect("c"),
         tx.cursor_read::<V2StoragesTrieHistory>().expect("c"),
         tx.cursor_read::<V2StoragesTrieHistory>().expect("c"),
@@ -1771,7 +1771,7 @@ fn storage_cursor_reads_current_state_when_no_history() {
     }
 
     let tx = db.tx().expect("ro tx");
-    let mut cur = V2StorageCursor::new(
+    let mut cur = MdbxStorageCursor::new(
         tx.cursor_dup_read::<V2HashedStorages>().expect("c"),
         tx.cursor_read::<V2HashedStoragesHistory>().expect("c"),
         tx.cursor_read::<V2HashedStoragesHistory>().expect("c"),
@@ -1825,7 +1825,7 @@ fn storage_cursor_resolves_from_changeset() {
     let tx = db.tx().expect("ro tx");
 
     // Query at block 7 (before modification at 8)
-    let mut cur = V2StorageCursor::new(
+    let mut cur = MdbxStorageCursor::new(
         tx.cursor_dup_read::<V2HashedStorages>().expect("c"),
         tx.cursor_read::<V2HashedStoragesHistory>().expect("c"),
         tx.cursor_read::<V2HashedStoragesHistory>().expect("c"),
@@ -1860,7 +1860,7 @@ fn storage_cursor_is_storage_empty() {
 
     let tx = db.tx().expect("ro tx");
 
-    let mut cur_with = V2StorageCursor::new(
+    let mut cur_with = MdbxStorageCursor::new(
         tx.cursor_dup_read::<V2HashedStorages>().expect("c"),
         tx.cursor_read::<V2HashedStoragesHistory>().expect("c"),
         tx.cursor_read::<V2HashedStoragesHistory>().expect("c"),
@@ -1871,7 +1871,7 @@ fn storage_cursor_is_storage_empty() {
     );
     assert!(!cur_with.is_storage_empty().expect("ok"));
 
-    let mut cur_without = V2StorageCursor::new(
+    let mut cur_without = MdbxStorageCursor::new(
         tx.cursor_dup_read::<V2HashedStorages>().expect("c"),
         tx.cursor_read::<V2HashedStoragesHistory>().expect("c"),
         tx.cursor_read::<V2HashedStoragesHistory>().expect("c"),
@@ -1923,7 +1923,7 @@ fn storage_cursor_discovers_slot_deleted_after_target_block() {
     }
 
     let tx = db.tx().expect("ro tx");
-    let mut cur = V2StorageCursor::new(
+    let mut cur = MdbxStorageCursor::new(
         tx.cursor_dup_read::<V2HashedStorages>().expect("c"),
         tx.cursor_read::<V2HashedStoragesHistory>().expect("c"),
         tx.cursor_read::<V2HashedStoragesHistory>().expect("c"),
@@ -1983,7 +1983,7 @@ fn storage_cursor_is_storage_empty_false_for_historical_only_slots() {
     }
 
     let tx = db.tx().expect("ro tx");
-    let mut cur = V2StorageCursor::new(
+    let mut cur = MdbxStorageCursor::new(
         tx.cursor_dup_read::<V2HashedStorages>().expect("c"),
         tx.cursor_read::<V2HashedStoragesHistory>().expect("c"),
         tx.cursor_read::<V2HashedStoragesHistory>().expect("c"),
@@ -2029,7 +2029,7 @@ fn storage_cursor_deleted_slot_does_not_cross_address() {
     }
 
     let tx = db.tx().expect("ro tx");
-    let mut cur = V2StorageCursor::new(
+    let mut cur = MdbxStorageCursor::new(
         tx.cursor_dup_read::<V2HashedStorages>().expect("c"),
         tx.cursor_read::<V2HashedStoragesHistory>().expect("c"),
         tx.cursor_read::<V2HashedStoragesHistory>().expect("c"),
@@ -2061,7 +2061,7 @@ fn storage_cursor_set_hashed_address_resets_merge_state() {
     }
 
     let tx = db.tx().expect("ro tx");
-    let mut cur = V2StorageCursor::new(
+    let mut cur = MdbxStorageCursor::new(
         tx.cursor_dup_read::<V2HashedStorages>().expect("c"),
         tx.cursor_read::<V2HashedStoragesHistory>().expect("c"),
         tx.cursor_read::<V2HashedStoragesHistory>().expect("c"),
@@ -2080,7 +2080,7 @@ fn storage_cursor_set_hashed_address_resets_merge_state() {
 }
 
 // Regression: root trie path [] with child path [0] history.
-// Before the length-prefixed encoding fix, the V2AccountTrieCursor would return
+// Before the length-prefixed encoding fix, the MdbxAccountTrieCursor would return
 // the current-state root node instead of the historical one.
 #[test]
 fn account_trie_cursor_root_path_resolves_historical_with_child_paths() {
@@ -2142,7 +2142,7 @@ fn account_trie_cursor_root_path_resolves_historical_with_child_paths() {
     }
 
     let tx = db.tx().expect("ro tx");
-    let mut cur = V2AccountTrieCursor::new(
+    let mut cur = MdbxAccountTrieCursor::new(
         tx.cursor_read::<V2AccountsTrie>().expect("c"),
         tx.cursor_read::<V2AccountsTrieHistory>().expect("c"),
         tx.cursor_read::<V2AccountsTrieHistory>().expect("c"),
@@ -2179,7 +2179,7 @@ fn storage_trie_cursor_reads_current_state_when_no_history() {
     }
 
     let tx = db.tx().expect("ro tx");
-    let mut cur = V2StorageTrieCursor::new(
+    let mut cur = MdbxStorageTrieCursor::new(
         tx.cursor_dup_read::<V2StoragesTrie>().expect("c"),
         tx.cursor_read::<V2StoragesTrieHistory>().expect("c"),
         tx.cursor_read::<V2StoragesTrieHistory>().expect("c"),
@@ -2236,7 +2236,7 @@ fn storage_trie_cursor_resolves_from_changeset() {
     let tx = db.tx().expect("ro tx");
 
     // Query at block 5 (before modification at 6)
-    let mut cur = V2StorageTrieCursor::new(
+    let mut cur = MdbxStorageTrieCursor::new(
         tx.cursor_dup_read::<V2StoragesTrie>().expect("c"),
         tx.cursor_read::<V2StoragesTrieHistory>().expect("c"),
         tx.cursor_read::<V2StoragesTrieHistory>().expect("c"),
@@ -2270,7 +2270,7 @@ fn storage_trie_cursor_respects_address_boundary() {
     }
 
     let tx = db.tx().expect("ro tx");
-    let mut cur = V2StorageTrieCursor::new(
+    let mut cur = MdbxStorageTrieCursor::new(
         tx.cursor_dup_read::<V2StoragesTrie>().expect("c"),
         tx.cursor_read::<V2StoragesTrieHistory>().expect("c"),
         tx.cursor_read::<V2StoragesTrieHistory>().expect("c"),
@@ -2306,7 +2306,7 @@ fn storage_trie_cursor_set_hashed_address() {
     }
 
     let tx = db.tx().expect("ro tx");
-    let mut cur = V2StorageTrieCursor::new(
+    let mut cur = MdbxStorageTrieCursor::new(
         tx.cursor_dup_read::<V2StoragesTrie>().expect("c"),
         tx.cursor_read::<V2StoragesTrieHistory>().expect("c"),
         tx.cursor_read::<V2StoragesTrieHistory>().expect("c"),

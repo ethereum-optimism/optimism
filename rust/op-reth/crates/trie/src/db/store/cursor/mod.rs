@@ -1,6 +1,6 @@
-//! V2 cursor implementations for the v2 table schema.
+//! Cursor implementations for the proofs table schema.
 //!
-//! These cursors implement **history-aware reads** using the v2 3-table-per-data-type pattern:
+//! These cursors implement **history-aware reads** using a 3-table-per-data-type pattern:
 //!
 //! | Purpose | Accounts | Storages | Account Trie | Storage Trie |
 //! |---------|----------|----------|-------------|-------------|
@@ -31,18 +31,18 @@ mod snapshot;
 mod storage;
 mod storage_trie;
 
-pub use account::V2AccountCursor;
-pub use account_trie::V2AccountTrieCursor;
+pub use account::MdbxAccountCursor;
+pub use account_trie::MdbxAccountTrieCursor;
 pub use snapshot::{
-    V2AccountTrieSnapshotCursor, V2HashedAccountSnapshotCursor, V2HashedStorageSnapshotCursor,
-    V2StorageTrieSnapshotCursor,
+    MdbxAccountTrieSnapshotCursor, MdbxHashedAccountSnapshotCursor,
+    MdbxHashedStorageSnapshotCursor, MdbxStorageTrieSnapshotCursor,
 };
-pub use storage::V2StorageCursor;
-pub use storage_trie::V2StorageTrieCursor;
+pub use storage::MdbxStorageCursor;
+pub use storage_trie::MdbxStorageTrieCursor;
 
 use reth_db::{BlockNumberList, DatabaseError, cursor::DbCursorRO, table::Table};
 
-/// Shared merge-walk state used by all four history-aware V2 cursors.
+/// Shared merge-walk state used by all four history-aware cursors.
 #[derive(Debug)]
 pub(super) struct MergeState<K, V> {
     /// Pre-fetched next `(key, value)` pair from the current-state walk.

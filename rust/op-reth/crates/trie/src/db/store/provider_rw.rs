@@ -1,6 +1,6 @@
-//! [`OpProofsProviderRw`] implementation for [`MdbxProofsProviderV2`].
+//! [`OpProofsProviderRw`] implementation for [`MdbxProofsProvider`].
 
-use super::{MdbxProofsProviderV2, write::HistoryCollector};
+use super::{MdbxProofsProvider, write::HistoryCollector};
 use crate::{
     BlockStateDiff, OpProofsStorageError, OpProofsStorageResult,
     api::{OpProofsProviderRw, WriteCounts},
@@ -11,7 +11,7 @@ use reth_db::transaction::{DbTx, DbTxMut};
 use std::fmt::Debug;
 
 impl<TX: DbTxMut + DbTx + Send + Sync + Debug + 'static> OpProofsProviderRw
-    for MdbxProofsProviderV2<TX>
+    for MdbxProofsProvider<TX>
 {
     fn store_trie_updates(
         &self,

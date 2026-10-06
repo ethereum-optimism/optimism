@@ -1,4 +1,4 @@
-//! History-aware cursor over the [`V2HashedStorages`] v2 `DupSort` table.
+//! History-aware cursor over the [`V2HashedStorages`] `DupSort` table.
 
 use alloy_primitives::{B256, U256};
 use reth_db::{
@@ -14,14 +14,14 @@ use crate::db::models::{
     V2HashedStoragesHistory,
 };
 
-/// History-aware cursor over the [`V2HashedStorages`] v2 `DupSort` table.
+/// History-aware cursor over the [`V2HashedStorages`] `DupSort` table.
 ///
-/// Uses the same dual-cursor merge strategy as [`super::V2AccountCursor`] but
+/// Uses the same dual-cursor merge strategy as [`super::MdbxAccountCursor`] but
 /// scoped to a single `hashed_address`. Both the current-state `DupSort`
 /// entries and the history-bitmap entries are walked in parallel to discover
 /// storage slots that may have been deleted after `max_block_number`.
 #[derive(Debug)]
-pub struct V2StorageCursor<C, HC, CC> {
+pub struct MdbxStorageCursor<C, HC, CC> {
     /// Current state cursor (`DupSort`).
     cursor: C,
     /// History bitmap cursor for resolving individual keys.
@@ -40,8 +40,8 @@ pub struct V2StorageCursor<C, HC, CC> {
     is_latest: bool,
 }
 
-impl<C, HC, CC> V2StorageCursor<C, HC, CC> {
-    /// Create a new [`V2StorageCursor`].
+impl<C, HC, CC> MdbxStorageCursor<C, HC, CC> {
+    /// Create a new [`MdbxStorageCursor`].
     pub const fn new(
         cursor: C,
         history_cursor: HC,
@@ -64,7 +64,7 @@ impl<C, HC, CC> V2StorageCursor<C, HC, CC> {
     }
 }
 
-impl<C, HC, CC> V2StorageCursor<C, HC, CC>
+impl<C, HC, CC> MdbxStorageCursor<C, HC, CC>
 where
     C: DbCursorRO<V2HashedStorages> + DbDupCursorRO<V2HashedStorages>,
     HC: DbCursorRO<V2HashedStoragesHistory>,
@@ -124,7 +124,7 @@ where
     }
 }
 
-impl<C, HC, CC> HashedCursor for V2StorageCursor<C, HC, CC>
+impl<C, HC, CC> HashedCursor for MdbxStorageCursor<C, HC, CC>
 where
     C: DbCursorRO<V2HashedStorages> + DbDupCursorRO<V2HashedStorages> + Send,
     HC: DbCursorRO<V2HashedStoragesHistory> + Send,
@@ -186,7 +186,7 @@ where
     }
 }
 
-impl<C, HC, CC> HashedStorageCursor for V2StorageCursor<C, HC, CC>
+impl<C, HC, CC> HashedStorageCursor for MdbxStorageCursor<C, HC, CC>
 where
     C: DbCursorRO<V2HashedStorages> + DbDupCursorRO<V2HashedStorages> + Send,
     HC: DbCursorRO<V2HashedStoragesHistory> + Send,

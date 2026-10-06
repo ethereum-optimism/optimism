@@ -700,7 +700,8 @@ That recipe builds the guest ELFs (`just build-elfs`, Dockerized SP1 toolchain),
 and `KONA_SP1_ELF_DIR` set — the same two variables the acceptance full-ELF suite reads. The
 executor loads the `super-range` ELF at runtime. The test skips when the executor-path variable
 is unset, so the heavy SP1 toolchain is only required when explicitly running the SP1 action
-tests.
+tests. Per-PR CI doesn't set it; the daily `scheduled-sp1-elf-smoke` CircleCI workflow runs these
+tests in its `kona-sp1-action-tests` job.
 
 Because the executor is a separate process that resolves the transition itself, the action-test
 harness serves op-node's superroot API over a loopback HTTP listener
@@ -713,18 +714,28 @@ instead of executing the SP1 ELF. Use the default SP1 execute path for a small s
 the ELF, SP1 stdin, and public-values boundary; use `--native-core` when broad action-test
 coverage would otherwise multiply SP1 emulator cost.
 
+Native-core replay reads the witness exactly as the guest does, so a preimage missing from the
+witness **panics** instead of returning an error. The panic is deliberate: shared kona code turns
+some oracle errors into protocol outcomes (an interop message judged invalid, a span batch
+skipped), so a prover that could make a read fail would choose those outcomes. Anything that runs
+the guest code outside the zkVM with an incomplete witness therefore crashes (exit `101` from
+the executor) rather than reporting the claim invalid.
+
 The test covers both an honest claim and an invalid claim. Note the invalid-claim path is
 driven by **corrupting the claim the guest sees**, not by feeding the executor a wrong claim:
 the executor synthesizes the agreed pre-state and the claim from the supernode and collects
 witnesses against them, so there is nothing to pass a junk value to, and a witness collected
 against a bad claim would fail host-side before the guest ran (a confusing infra error, exit
 2). So an invalid-claim test sets `--corrupt-claimed-root` (via `WithCorruptClaim()` in the Go
-harness), which flips a bit in the claimed optimistic output root *after* witness collection,
-so the guest re-derives the real root, finds the mismatch, and aborts (exit 1) — a soundness
-smoke test that a false transition cannot be executed (and thus could not be proven). If the
-guest instead runs the tampered claim to completion and agrees with the honest outputs, the
-executor exits `2` rather than reporting the claim valid. Do **not** write an SP1 negative test
-by passing a junk `WithL2Claim(...)`.
+harness), which flips a bit in the claimed optimistic output root *after* witness collection.
+The witness has no preimage for the corrupted root, so the guest aborts when it reads it
+(exit 1) — a soundness smoke test that a false transition cannot be executed (and thus could
+not be proven). If the guest instead runs the tampered claim to completion and agrees with the
+honest outputs, the executor exits `2` rather than reporting the claim valid. Do **not** write
+an SP1 negative test by passing a junk `WithL2Claim(...)`. Combining `--corrupt-claimed-root`
+with `--native-core` is unsupported: the native replay panics on the missing preimage (exit
+`101`), which the Go harness reports as a test failure, so the harness rejects that combination.
+Keep invalid-claim tests on the SP1 execute path.
 ## Dependencies
 
 This integration depends on:

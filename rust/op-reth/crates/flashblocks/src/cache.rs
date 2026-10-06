@@ -16,8 +16,10 @@ use crate::{
 use alloy_eips::eip2718::WithEncoded;
 use alloy_primitives::B256;
 use alloy_rpc_types_engine::PayloadId;
+use op_alloy_consensus::POST_EXEC_TX_TYPE_ID;
 use reth_primitives_traits::{
-    NodePrimitives, Recovered, SignedTransaction, transaction::TxHashRef,
+    AlloyBlockHeader, NodePrimitives, Recovered, SignedTransaction, SignerRecoverable,
+    transaction::TxHashRef,
 };
 use reth_revm::cached::CachedReads;
 use ringbuffer::{AllocRingBuffer, RingBuffer};
@@ -120,13 +122,56 @@ impl<I, N: NodePrimitives> std::ops::Deref for BuildCandidate<I, N> {
     }
 }
 
+/// Transactions recovered from one accepted flashblock.
+#[derive(Debug)]
+struct RecoveredFlashblock<T> {
+    transactions: Vec<WithEncoded<Recovered<T>>>,
+    /// The in-progress block's 0x7D as of this flashblock, recovered from `diff.post_exec_tx`.
+    post_exec_tx: Option<WithEncoded<Recovered<T>>>,
+}
+
+impl<T: SignedTransaction> RecoveredFlashblock<T> {
+    fn recover(flashblock: &FlashBlock) -> eyre::Result<Self> {
+        let transactions = flashblock.recover_transactions().collect::<Result<Vec<_>, _>>()?;
+        let post_exec_tx = flashblock
+            .diff
+            .post_exec_tx
+            .as_ref()
+            .map(|encoded| {
+                // The builder executes this as the block's final transaction, so it must be a
+                // 0x7D and nothing else.
+                if encoded.first() != Some(&POST_EXEC_TX_TYPE_ID) {
+                    eyre::bail!("diff.post_exec_tx is not a post-exec transaction");
+                }
+                let tx = SignerRecoverable::try_into_recovered(T::decode_2718_exact(encoded)?)?;
+                Ok(tx.into_encoded_with(encoded.clone()))
+            })
+            .transpose()?;
+        Ok(Self { transactions, post_exec_tx })
+    }
+}
+
+/// Returns the block transactions of a sequence's recovered flashblocks, in block order.
+///
+/// Each flashblock's `diff` restates the in-progress block's 0x7D, superseding earlier values, so
+/// only the latest flashblock's one trails the streamed transactions.
+fn block_transactions<T>(
+    recovered_by_index: &BTreeMap<u64, RecoveredFlashblock<T>>,
+) -> impl Iterator<Item = &WithEncoded<Recovered<T>>> {
+    let post_exec_tx = recovered_by_index
+        .values()
+        .next_back()
+        .and_then(|recovered| recovered.post_exec_tx.as_ref());
+    recovered_by_index.values().flat_map(|recovered| &recovered.transactions).chain(post_exec_tx)
+}
+
 /// In-progress pending sequence state.
 ///
 /// Keeps accepted flashblocks and recovered transactions in lockstep by index.
 #[derive(Debug)]
 struct PendingSequence<T: SignedTransaction> {
     sequence: FlashBlockPendingSequence,
-    recovered_transactions_by_index: BTreeMap<u64, Vec<WithEncoded<Recovered<T>>>>,
+    recovered_transactions_by_index: BTreeMap<u64, RecoveredFlashblock<T>>,
     revision: u64,
     applied_revision: Option<u64>,
 }
@@ -178,7 +223,7 @@ impl<T: SignedTransaction> PendingSequence<T> {
         }
 
         // Only recover transactions once we've validated that this flashblock is accepted.
-        let recovered_txs = flashblock.recover_transactions().collect::<Result<Vec<_>, _>>()?;
+        let recovered_txs = RecoveredFlashblock::recover(&flashblock)?;
         let flashblock_index = flashblock.index;
 
         // Index 0 starts a fresh pending block, so clear any stale in-progress data.
@@ -199,22 +244,24 @@ impl<T: SignedTransaction> PendingSequence<T> {
         let recovered_by_index = std::mem::take(&mut self.recovered_transactions_by_index);
 
         match finalized {
-            Ok(completed) => Ok((completed, recovered_by_index.into_values().flatten().collect())),
+            Ok(completed) => {
+                Ok((completed, block_transactions(&recovered_by_index).cloned().collect()))
+            }
             Err(err) => Err(err),
         }
     }
 
     fn transactions(&self) -> Vec<WithEncoded<Recovered<T>>> {
-        self.recovered_transactions_by_index.values().flatten().cloned().collect()
+        block_transactions(&self.recovered_transactions_by_index).cloned().collect()
     }
 
     fn tx_hashes(&self) -> Vec<B256> {
-        self.recovered_transactions_by_index.values().flatten().map(|tx| *tx.tx_hash()).collect()
+        block_transactions(&self.recovered_transactions_by_index).map(|tx| *tx.tx_hash()).collect()
     }
 
     #[cfg(test)]
     fn transaction_count(&self) -> usize {
-        self.recovered_transactions_by_index.values().map(Vec::len).sum()
+        block_transactions(&self.recovered_transactions_by_index).count()
     }
 }
 
@@ -559,7 +606,14 @@ impl<T: SignedTransaction> SequenceManager<T> {
 
         // Extract execution outcome
         let execution_outcome = computed_block.computed_state_root().map(|state_root| {
-            SequenceExecutionOutcome { block_hash: computed_block.block().hash(), state_root }
+            let block = computed_block.block();
+            SequenceExecutionOutcome {
+                block_hash: block.hash(),
+                state_root,
+                receipts_root: block.header().receipts_root(),
+                logs_bloom: block.header().logs_bloom(),
+                gas_used: block.header().gas_used(),
+            }
         });
 
         let outcome = self.apply_build_outcome(ticket, execution_outcome, cached_reads);
@@ -851,9 +905,10 @@ mod tests {
         test_utils::TestFlashBlockFactory,
         validation::{CanonicalBlockFingerprint, ReconciliationStrategy},
     };
-    use alloy_primitives::B256;
+    use alloy_eips::eip2718::Encodable2718;
+    use alloy_primitives::{B256, Bytes};
     use alloy_rpc_types_engine::PayloadId;
-    use op_alloy_consensus::OpTxEnvelope;
+    use op_alloy_consensus::{OpTxEnvelope, SDMGasEntry, build_post_exec_tx};
     use reth_optimism_primitives::OpPrimitives;
 
     fn canonical_for(
@@ -1080,6 +1135,7 @@ mod tests {
             Some(SequenceExecutionOutcome {
                 block_hash: B256::repeat_byte(0x33),
                 state_root: B256::repeat_byte(0x44),
+                ..Default::default()
             }),
             CachedReads::default(),
         );
@@ -1192,6 +1248,7 @@ mod tests {
             Some(SequenceExecutionOutcome {
                 block_hash: fb11_0.base.as_ref().unwrap().parent_hash,
                 state_root: B256::repeat_byte(0xAA),
+                ..Default::default()
             }),
             CachedReads::default(),
         );
@@ -1372,6 +1429,7 @@ mod tests {
             Some(SequenceExecutionOutcome {
                 block_hash: B256::repeat_byte(0x11),
                 state_root: B256::repeat_byte(0x22),
+                ..Default::default()
             }),
             reth_revm::cached::CachedReads::default(),
         );
@@ -1422,6 +1480,7 @@ mod tests {
             Some(SequenceExecutionOutcome {
                 block_hash: B256::repeat_byte(0x31),
                 state_root: B256::repeat_byte(0x32),
+                ..Default::default()
             }),
             reth_revm::cached::CachedReads::default(),
         );
@@ -1442,6 +1501,7 @@ mod tests {
             Some(SequenceExecutionOutcome {
                 block_hash: B256::repeat_byte(0x41),
                 state_root: B256::repeat_byte(0x42),
+                ..Default::default()
             }),
             reth_revm::cached::CachedReads::default(),
         );
@@ -2161,5 +2221,69 @@ mod tests {
         let fingerprint = manager.tracked_fingerprint_for_block(101);
         assert!(fingerprint.is_some());
         assert!(fingerprint.as_ref().unwrap().tx_hashes.is_empty());
+    }
+
+    fn encoded_post_exec_tx(block_number: u64, gas_refund: u64) -> Bytes {
+        build_post_exec_tx(block_number, vec![SDMGasEntry { index: 0, gas_refund }])
+            .encoded_2718()
+            .into()
+    }
+
+    fn encoded<T: SignedTransaction>(transactions: &[WithEncoded<Recovered<T>>]) -> Vec<Bytes> {
+        transactions.iter().map(|tx| tx.encoded_bytes().clone()).collect()
+    }
+
+    /// Each subblock restates the in-progress block's 0x7D in `diff`, superseding earlier ones, so
+    /// only the latest flashblock's value trails the transactions of both pending and cached
+    /// sequences. Earlier provisional values never reach the builder.
+    #[test]
+    fn test_build_transactions_end_with_latest_post_exec_tx() {
+        let mut manager: SequenceManager<OpTxEnvelope> = SequenceManager::new(true);
+        let factory = TestFlashBlockFactory::new();
+
+        let fb0 = factory.flashblock_at(0).post_exec_tx(encoded_post_exec_tx(100, 1)).build();
+        let parent_hash = fb0.base.as_ref().unwrap().parent_hash;
+        let latest = encoded_post_exec_tx(100, 2);
+        let fb1 = factory.flashblock_after(&fb0).post_exec_tx(latest.clone()).build();
+        manager.insert_flashblock(fb0.clone()).unwrap();
+        manager.insert_flashblock(fb1).unwrap();
+
+        let args =
+            manager.next_buildable_args::<OpPrimitives>(parent_hash, 1_000_000, None).unwrap();
+        assert_eq!(encoded(&args.transactions), vec![latest.clone()]);
+
+        manager.insert_flashblock(factory.flashblock_for_next_block(&fb0).build()).unwrap();
+        let (_, cached_txs) = manager.completed_cache.get(0).unwrap();
+        assert_eq!(encoded(cached_txs), vec![latest]);
+    }
+
+    /// Absence is not sticky in either direction: a latest diff without a 0x7D means the block has
+    /// none so far, even if an earlier subblock carried one.
+    #[test]
+    fn test_build_transactions_omit_post_exec_tx_absent_from_latest_diff() {
+        let mut manager: SequenceManager<OpTxEnvelope> = SequenceManager::new(true);
+        let factory = TestFlashBlockFactory::new();
+
+        let fb0 = factory.flashblock_at(0).post_exec_tx(encoded_post_exec_tx(100, 1)).build();
+        let parent_hash = fb0.base.as_ref().unwrap().parent_hash;
+        let fb1 = factory.flashblock_after(&fb0).build();
+        manager.insert_flashblock(fb0).unwrap();
+        manager.insert_flashblock(fb1).unwrap();
+
+        let args =
+            manager.next_buildable_args::<OpPrimitives>(parent_hash, 1_000_000, None).unwrap();
+        assert!(args.transactions.is_empty());
+    }
+
+    /// The builder executes `diff.post_exec_tx` as the block's final transaction, so anything
+    /// other than a 0x7D in that field is rejected rather than executed.
+    #[test]
+    fn test_insert_rejects_non_post_exec_tx_in_post_exec_field() {
+        let mut manager: SequenceManager<OpTxEnvelope> = SequenceManager::new(true);
+        let factory = TestFlashBlockFactory::new();
+        let deposit: Bytes = OpTxEnvelope::Deposit(Default::default()).encoded_2718().into();
+
+        let fb0 = factory.flashblock_at(0).post_exec_tx(deposit).build();
+        assert!(manager.insert_flashblock(fb0).is_err());
     }
 }

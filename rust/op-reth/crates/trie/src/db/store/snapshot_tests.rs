@@ -1,6 +1,6 @@
-//! Tests for the V2 snapshot read/write/init providers.
+//! Tests for the snapshot read/write/init providers.
 
-use super::MdbxProofsProviderV2;
+use super::MdbxProofsProvider;
 use crate::{
     BlockStateDiff, OpProofsStorageError,
     api::{
@@ -48,7 +48,7 @@ fn sample_node(tag: u8) -> BranchNodeCompact {
 
 /// Build a Ready snapshot at `anchor` with no tables populated.
 fn prepare_ready_snapshot(db: &DatabaseEnv, anchor: BlockNumHash) {
-    let provider = MdbxProofsProviderV2::new(db.tx_mut().expect("rw"));
+    let provider = MdbxProofsProvider::new(db.tx_mut().expect("rw"));
     provider.set_snapshot_init_anchor(anchor).expect("set anchor");
     provider.commit_snapshot().expect("flip to Ready");
     OpProofsSnapshotInitProvider::commit(provider).expect("commit tx");
@@ -62,7 +62,7 @@ fn init_set_snapshot_init_anchor_writes_building_meta() {
     let target = anchor(7, 0x07);
 
     {
-        let provider = MdbxProofsProviderV2::new(db.tx_mut().expect("rw"));
+        let provider = MdbxProofsProvider::new(db.tx_mut().expect("rw"));
         provider.set_snapshot_init_anchor(target).expect("set anchor");
         OpProofsSnapshotInitProvider::commit(provider).expect("commit");
     }
@@ -77,7 +77,7 @@ fn init_set_snapshot_init_anchor_writes_building_meta() {
 fn init_set_snapshot_init_anchor_errors_when_meta_already_exists() {
     let db = setup_db();
     let target = anchor(7, 0x07);
-    let provider = MdbxProofsProviderV2::new(db.tx_mut().expect("rw"));
+    let provider = MdbxProofsProvider::new(db.tx_mut().expect("rw"));
     provider.set_snapshot_init_anchor(target).expect("first set");
 
     let err = provider.set_snapshot_init_anchor(target).unwrap_err();
@@ -91,7 +91,7 @@ fn init_snapshot_init_anchor_maps_lifecycle_statuses() {
 
     // 1. No meta row → NotStarted, block = None.
     {
-        let provider = MdbxProofsProviderV2::new(db.tx_mut().expect("rw"));
+        let provider = MdbxProofsProvider::new(db.tx_mut().expect("rw"));
         let a = provider.snapshot_init_anchor().expect("anchor");
         assert_eq!(a.status, SnapshotInitStatus::NotStarted);
         assert!(a.block.is_none());
@@ -100,12 +100,12 @@ fn init_snapshot_init_anchor_maps_lifecycle_statuses() {
     // 2. Building → InProgress.
     let target = anchor(5, 0x05);
     {
-        let provider = MdbxProofsProviderV2::new(db.tx_mut().expect("rw"));
+        let provider = MdbxProofsProvider::new(db.tx_mut().expect("rw"));
         provider.set_snapshot_init_anchor(target).expect("set anchor");
         OpProofsSnapshotInitProvider::commit(provider).expect("commit");
     }
     {
-        let provider = MdbxProofsProviderV2::new(db.tx_mut().expect("rw"));
+        let provider = MdbxProofsProvider::new(db.tx_mut().expect("rw"));
         let a = provider.snapshot_init_anchor().expect("anchor");
         assert_eq!(a.status, SnapshotInitStatus::InProgress);
         assert_eq!(a.block, Some(target));
@@ -113,12 +113,12 @@ fn init_snapshot_init_anchor_maps_lifecycle_statuses() {
 
     // 3. After commit_snapshot → Completed.
     {
-        let provider = MdbxProofsProviderV2::new(db.tx_mut().expect("rw"));
+        let provider = MdbxProofsProvider::new(db.tx_mut().expect("rw"));
         provider.commit_snapshot().expect("flip ready");
         OpProofsSnapshotInitProvider::commit(provider).expect("commit");
     }
     {
-        let provider = MdbxProofsProviderV2::new(db.tx_mut().expect("rw"));
+        let provider = MdbxProofsProvider::new(db.tx_mut().expect("rw"));
         let a = provider.snapshot_init_anchor().expect("anchor");
         assert_eq!(a.status, SnapshotInitStatus::Completed);
         assert_eq!(a.block, Some(target));
@@ -134,7 +134,7 @@ fn init_snapshot_init_anchor_returns_resume_keys() {
     let stor_path = Nibbles::from_nibbles_unchecked([0x0A, 0x0B]);
 
     {
-        let provider = MdbxProofsProviderV2::new(db.tx_mut().expect("rw"));
+        let provider = MdbxProofsProvider::new(db.tx_mut().expect("rw"));
         provider.set_snapshot_init_anchor(target).expect("set anchor");
         provider
             .store_account_trie_snapshot_branches(vec![(
@@ -148,7 +148,7 @@ fn init_snapshot_init_anchor_returns_resume_keys() {
         OpProofsSnapshotInitProvider::commit(provider).expect("commit");
     }
 
-    let provider = MdbxProofsProviderV2::new(db.tx_mut().expect("rw"));
+    let provider = MdbxProofsProvider::new(db.tx_mut().expect("rw"));
     let a = provider.snapshot_init_anchor().expect("anchor");
     assert_eq!(a.last_account_trie_key, Some(StoredNibbles(acc_path)));
     assert_eq!(a.last_storage_trie_key, Some(StorageTrieKey::new(addr, StoredNibbles(stor_path))));
@@ -157,7 +157,7 @@ fn init_snapshot_init_anchor_returns_resume_keys() {
 #[test]
 fn init_commit_snapshot_errors_when_no_meta() {
     let db = setup_db();
-    let provider = MdbxProofsProviderV2::new(db.tx_mut().expect("rw"));
+    let provider = MdbxProofsProvider::new(db.tx_mut().expect("rw"));
     let err = provider.commit_snapshot().unwrap_err();
     assert!(matches!(err, OpProofsStorageError::SnapshotNotInitialized), "got {err:?}");
 }
@@ -168,7 +168,7 @@ fn init_commit_snapshot_errors_when_not_building() {
     let target = anchor(9, 0x09);
     prepare_ready_snapshot(&db, target);
 
-    let provider = MdbxProofsProviderV2::new(db.tx_mut().expect("rw"));
+    let provider = MdbxProofsProvider::new(db.tx_mut().expect("rw"));
     let err = provider.commit_snapshot().unwrap_err();
     match err {
         OpProofsStorageError::SnapshotCommitInvalidStatus { status } => {
@@ -186,7 +186,7 @@ fn init_store_storage_trie_snapshot_branches_skips_none() {
     let dropped = Nibbles::from_nibbles_unchecked([0x02]);
 
     {
-        let provider = MdbxProofsProviderV2::new(db.tx_mut().expect("rw"));
+        let provider = MdbxProofsProvider::new(db.tx_mut().expect("rw"));
         provider
             .store_storage_trie_snapshot_branches(
                 addr,
@@ -221,7 +221,7 @@ fn read_snapshot_anchor_returns_block_when_ready() {
     let target = anchor(11, 0x11);
     prepare_ready_snapshot(&db, target);
 
-    let provider = MdbxProofsProviderV2::new(db.tx().expect("ro"));
+    let provider = MdbxProofsProvider::new(db.tx().expect("ro"));
     let got = provider.snapshot_anchor().expect("anchor");
     assert_eq!(got, target);
 }
@@ -231,12 +231,12 @@ fn read_snapshot_anchor_errors_when_building() {
     let db = setup_db();
     let target = anchor(11, 0x11);
     {
-        let provider = MdbxProofsProviderV2::new(db.tx_mut().expect("rw"));
+        let provider = MdbxProofsProvider::new(db.tx_mut().expect("rw"));
         provider.set_snapshot_init_anchor(target).expect("set anchor");
         OpProofsSnapshotInitProvider::commit(provider).expect("commit");
     }
 
-    let provider = MdbxProofsProviderV2::new(db.tx().expect("ro"));
+    let provider = MdbxProofsProvider::new(db.tx().expect("ro"));
     let err = provider.snapshot_anchor().unwrap_err();
     match err {
         OpProofsStorageError::SnapshotNotReady { status } => {
@@ -249,7 +249,7 @@ fn read_snapshot_anchor_errors_when_building() {
 #[test]
 fn read_snapshot_anchor_errors_when_not_started() {
     let db = setup_db();
-    let provider = MdbxProofsProviderV2::new(db.tx().expect("ro"));
+    let provider = MdbxProofsProvider::new(db.tx().expect("ro"));
     let err = provider.snapshot_anchor().unwrap_err();
     match err {
         OpProofsStorageError::SnapshotNotReady { status } => {
@@ -271,7 +271,7 @@ fn write_clear_snapshot_wipes_tables() {
 
     // Seed a Building snapshot with rows in both tables.
     {
-        let provider = MdbxProofsProviderV2::new(db.tx_mut().expect("rw"));
+        let provider = MdbxProofsProvider::new(db.tx_mut().expect("rw"));
         provider.set_snapshot_init_anchor(target).expect("set anchor");
         provider
             .store_account_trie_snapshot_branches(vec![(
@@ -286,7 +286,7 @@ fn write_clear_snapshot_wipes_tables() {
     }
 
     {
-        let provider = MdbxProofsProviderV2::new(db.tx_mut().expect("rw"));
+        let provider = MdbxProofsProvider::new(db.tx_mut().expect("rw"));
         provider.clear_snapshot().expect("clear");
         OpProofsBackfillProvider::commit(provider).expect("commit");
     }
@@ -315,7 +315,7 @@ fn write_update_snapshot_applies_diff_and_advances_anchor() {
     let stor_node = sample_node(0x44);
 
     {
-        let provider = MdbxProofsProviderV2::new(db.tx_mut().expect("rw"));
+        let provider = MdbxProofsProvider::new(db.tx_mut().expect("rw"));
         let mut updates = TrieUpdates::default();
         updates.account_nodes.insert(acc_path, acc_node.clone());
         let mut st = StorageTrieUpdates::default();
@@ -365,7 +365,7 @@ fn write_update_snapshot_handles_removals() {
 
     // Seed an account row to be removed by the diff.
     {
-        let provider = MdbxProofsProviderV2::new(db.tx_mut().expect("rw"));
+        let provider = MdbxProofsProvider::new(db.tx_mut().expect("rw"));
         provider
             .store_account_trie_snapshot_branches(vec![(
                 StoredNibbles(acc_path),
@@ -376,7 +376,7 @@ fn write_update_snapshot_handles_removals() {
     }
 
     {
-        let provider = MdbxProofsProviderV2::new(db.tx_mut().expect("rw"));
+        let provider = MdbxProofsProvider::new(db.tx_mut().expect("rw"));
         let mut updates = TrieUpdates::default();
         updates.removed_nodes.insert(acc_path);
         let diff = BlockStateDiff {
@@ -412,7 +412,7 @@ fn write_update_snapshot_removes_storage_node_and_keeps_sibling() {
     // Seed two storage-trie nodes under the same address, both via the
     // init-path writer (mimics what `SnapshotInitJob` would have produced).
     {
-        let provider = MdbxProofsProviderV2::new(db.tx_mut().expect("rw"));
+        let provider = MdbxProofsProvider::new(db.tx_mut().expect("rw"));
         provider
             .store_storage_trie_snapshot_branches(
                 addr,
@@ -424,7 +424,7 @@ fn write_update_snapshot_removes_storage_node_and_keeps_sibling() {
 
     // Apply a diff that removes only `dropped_path` from `addr`'s storage trie.
     {
-        let provider = MdbxProofsProviderV2::new(db.tx_mut().expect("rw"));
+        let provider = MdbxProofsProvider::new(db.tx_mut().expect("rw"));
         let mut updates = TrieUpdates::default();
         let mut st = StorageTrieUpdates::default();
         st.removed_nodes.insert(dropped_path);
@@ -461,12 +461,12 @@ fn write_update_snapshot_errors_when_building() {
     let db = setup_db();
     let target = anchor(10, 0x10);
     {
-        let provider = MdbxProofsProviderV2::new(db.tx_mut().expect("rw"));
+        let provider = MdbxProofsProvider::new(db.tx_mut().expect("rw"));
         provider.set_snapshot_init_anchor(target).expect("set anchor");
         OpProofsSnapshotInitProvider::commit(provider).expect("commit");
     }
 
-    let provider = MdbxProofsProviderV2::new(db.tx_mut().expect("rw"));
+    let provider = MdbxProofsProvider::new(db.tx_mut().expect("rw"));
     let diff = BlockStateDiff {
         sorted_trie_updates: TrieUpdates::default().into_sorted(),
         sorted_post_state: HashedPostStateSorted::default(),
@@ -491,13 +491,13 @@ fn write_update_snapshot_upserts_existing_account_leaf() {
 
     prepare_ready_snapshot(&db, old_anchor);
     {
-        let provider = MdbxProofsProviderV2::new(db.tx_mut().expect("rw"));
+        let provider = MdbxProofsProvider::new(db.tx_mut().expect("rw"));
         provider.store_hashed_accounts_snapshot(vec![(addr, old_value)]).expect("seed");
         OpProofsSnapshotInitProvider::commit(provider).expect("commit seed");
     }
 
     {
-        let provider = MdbxProofsProviderV2::new(db.tx_mut().expect("rw"));
+        let provider = MdbxProofsProvider::new(db.tx_mut().expect("rw"));
         let sorted_post_state =
             HashedPostStateSorted::new(vec![(addr, Some(new_value))], B256Map::default());
         let diff = BlockStateDiff {
@@ -524,7 +524,7 @@ fn write_update_snapshot_deletes_destroyed_account_leaf() {
 
     prepare_ready_snapshot(&db, old_anchor);
     {
-        let provider = MdbxProofsProviderV2::new(db.tx_mut().expect("rw"));
+        let provider = MdbxProofsProvider::new(db.tx_mut().expect("rw"));
         provider
             .store_hashed_accounts_snapshot(vec![(
                 addr,
@@ -535,7 +535,7 @@ fn write_update_snapshot_deletes_destroyed_account_leaf() {
     }
 
     {
-        let provider = MdbxProofsProviderV2::new(db.tx_mut().expect("rw"));
+        let provider = MdbxProofsProvider::new(db.tx_mut().expect("rw"));
         let sorted_post_state = HashedPostStateSorted::new(vec![(addr, None)], B256Map::default());
         let diff = BlockStateDiff {
             sorted_trie_updates: TrieUpdates::default().into_sorted(),
@@ -562,7 +562,7 @@ fn write_update_snapshot_wipes_all_storage_slots() {
 
     prepare_ready_snapshot(&db, old_anchor);
     {
-        let provider = MdbxProofsProviderV2::new(db.tx_mut().expect("rw"));
+        let provider = MdbxProofsProvider::new(db.tx_mut().expect("rw"));
         provider
             .store_hashed_storages_snapshot(
                 addr,
@@ -573,7 +573,7 @@ fn write_update_snapshot_wipes_all_storage_slots() {
     }
 
     {
-        let provider = MdbxProofsProviderV2::new(db.tx_mut().expect("rw"));
+        let provider = MdbxProofsProvider::new(db.tx_mut().expect("rw"));
         let mut storages: B256Map<HashedStorageSorted> = B256Map::default();
         storages.insert(addr, HashedStorageSorted { storage_slots: vec![], wiped: true });
         let sorted_post_state = HashedPostStateSorted::new(Vec::new(), storages);
@@ -615,7 +615,7 @@ fn write_update_snapshot_wipes_then_adds_slots_in_same_block() {
 
     prepare_ready_snapshot(&db, old_anchor);
     {
-        let provider = MdbxProofsProviderV2::new(db.tx_mut().expect("rw"));
+        let provider = MdbxProofsProvider::new(db.tx_mut().expect("rw"));
         provider
             .store_hashed_storages_snapshot(
                 addr,
@@ -626,7 +626,7 @@ fn write_update_snapshot_wipes_then_adds_slots_in_same_block() {
     }
 
     {
-        let provider = MdbxProofsProviderV2::new(db.tx_mut().expect("rw"));
+        let provider = MdbxProofsProvider::new(db.tx_mut().expect("rw"));
         let mut storages: B256Map<HashedStorageSorted> = B256Map::default();
         storages.insert(
             addr,
@@ -685,7 +685,7 @@ fn write_update_snapshot_deletes_zero_value_storage_slot() {
 
     prepare_ready_snapshot(&db, old_anchor);
     {
-        let provider = MdbxProofsProviderV2::new(db.tx_mut().expect("rw"));
+        let provider = MdbxProofsProvider::new(db.tx_mut().expect("rw"));
         provider
             .store_hashed_storages_snapshot(addr, vec![(slot, U256::from(33u64))])
             .expect("seed");
@@ -693,7 +693,7 @@ fn write_update_snapshot_deletes_zero_value_storage_slot() {
     }
 
     {
-        let provider = MdbxProofsProviderV2::new(db.tx_mut().expect("rw"));
+        let provider = MdbxProofsProvider::new(db.tx_mut().expect("rw"));
         let mut storages: B256Map<HashedStorageSorted> = B256Map::default();
         storages.insert(
             addr,
@@ -729,7 +729,7 @@ fn write_update_snapshot_deletes_storage_trie_when_is_deleted() {
 
     prepare_ready_snapshot(&db, old_anchor);
     {
-        let provider = MdbxProofsProviderV2::new(db.tx_mut().expect("rw"));
+        let provider = MdbxProofsProvider::new(db.tx_mut().expect("rw"));
         provider
             .store_storage_trie_snapshot_branches(addr, vec![(path, Some(sample_node(0xEE)))])
             .expect("seed");
@@ -737,7 +737,7 @@ fn write_update_snapshot_deletes_storage_trie_when_is_deleted() {
     }
 
     {
-        let provider = MdbxProofsProviderV2::new(db.tx_mut().expect("rw"));
+        let provider = MdbxProofsProvider::new(db.tx_mut().expect("rw"));
         let mut updates = TrieUpdates::default();
         let st = StorageTrieUpdates { is_deleted: true, ..Default::default() };
         updates.storage_tries.insert(addr, st);
@@ -763,7 +763,7 @@ fn write_update_snapshot_deletes_storage_trie_when_is_deleted() {
 #[test]
 fn write_update_snapshot_errors_when_missing() {
     let db = setup_db();
-    let provider = MdbxProofsProviderV2::new(db.tx_mut().expect("rw"));
+    let provider = MdbxProofsProvider::new(db.tx_mut().expect("rw"));
     let diff = BlockStateDiff {
         sorted_trie_updates: TrieUpdates::default().into_sorted(),
         sorted_post_state: HashedPostStateSorted::default(),
