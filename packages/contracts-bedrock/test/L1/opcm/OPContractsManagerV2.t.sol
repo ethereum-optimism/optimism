@@ -1015,49 +1015,6 @@ contract OPContractsManagerV2_Upgrade_Test is OPContractsManagerV2_Upgrade_TestI
         assertEq(uint256(vm.load(address(anchorStateRegistry), bytes32(uint256(7)))), finalityBefore);
     }
 
-    /// @notice Tests that the proof maturity delay can be overridden during the upgrade.
-    function test_upgrade_proofMaturityDelayOverride_succeeds() public {
-        uint256 newDelay =
-            IOptimismPortal2(payable(opcmV2.implementations().optimismPortalImpl)).minProofMaturityDelaySeconds();
-        v2UpgradeInput.extraInstructions
-            .push(
-                IOPContractsManagerUtils.ExtraInstruction({
-                    key: "overrides.cfg.proofMaturityDelaySeconds", data: abi.encode(newDelay)
-                })
-            );
-        runCurrentUpgradeV2(chainPAO);
-        assertEq(optimismPortal2.proofMaturityDelaySeconds(), newDelay, "proof maturity override not applied");
-    }
-
-    /// @notice Tests that the dispute game finality delay can be overridden during the upgrade.
-    function test_upgrade_disputeGameFinalityDelayOverride_succeeds() public {
-        uint256 newDelay =
-            IAnchorStateRegistry(opcmV2.implementations().anchorStateRegistryImpl).minDisputeGameFinalityDelaySeconds();
-        v2UpgradeInput.extraInstructions
-            .push(
-                IOPContractsManagerUtils.ExtraInstruction({
-                    key: "overrides.cfg.disputeGameFinalityDelaySeconds", data: abi.encode(newDelay)
-                })
-            );
-        runCurrentUpgradeV2(chainPAO);
-        assertEq(anchorStateRegistry.disputeGameFinalityDelaySeconds(), newDelay, "finality override not applied");
-    }
-
-    /// @notice Tests that an override outside the portal's bounds reverts the upgrade. The bounds
-    ///         error is raised inside initialize(), which the Proxy wraps in its own delegatecall
-    ///         failure message.
-    function test_upgrade_proofMaturityDelayOverrideOutOfBounds_reverts() public {
-        uint256 tooHigh =
-            IOptimismPortal2(payable(opcmV2.implementations().optimismPortalImpl)).maxProofMaturityDelaySeconds() + 1;
-        v2UpgradeInput.extraInstructions
-            .push(
-                IOPContractsManagerUtils.ExtraInstruction({
-                    key: "overrides.cfg.proofMaturityDelaySeconds", data: abi.encode(tooHigh)
-                })
-            );
-        runCurrentUpgradeV2(chainPAO, bytes("Proxy: delegatecall to new implementation contract failed"));
-    }
-
     /// @notice Tests that overriding to a disabled game type reverts during upgrade.
     function test_upgrade_respectedGameTypeOverrideToDisabled_reverts() public {
         v2UpgradeInput.disputeGameConfigs[4].enabled = false;
@@ -1836,6 +1793,18 @@ contract OPContractsManagerV2_Deploy_Test is OPContractsManagerV2_TestInit {
         _assertUpgradeInstructionRejected("10.0.0", Constants.PERMITTED_PROXY_DEPLOYMENT_KEY, bytes("ETHLockbox"));
     }
 
+    /// @notice Tests that the per-chain withdrawal delays cannot be overridden during an upgrade.
+    ///         The live values are always carried forward; only the L1PAO setters change them.
+    function test_upgrade_withdrawalDelayInstructions_reverts() public {
+        string memory version = opcmV2.version();
+        _assertUpgradeInstructionRejected(
+            version, "overrides.cfg.proofMaturityDelaySeconds", abi.encode(uint256(1 days))
+        );
+        _assertUpgradeInstructionRejected(
+            version, "overrides.cfg.disputeGameFinalityDelaySeconds", abi.encode(uint256(12 hours))
+        );
+    }
+
     /// @notice Tests that the anchor root override remains unavailable in v9.
     function test_upgrade_anchorRootInstructionV9_reverts() public {
         _assertUpgradeInstructionRejected(
@@ -2014,22 +1983,19 @@ contract OPContractsManagerV2_Deploy_Test is OPContractsManagerV2_TestInit {
         assertEq(IAnchorStateRegistry(impls.anchorStateRegistryImpl).disputeGameFinalityDelaySeconds(), 0);
     }
 
-    /// @notice Tests that deploy rejects a zero proof maturity delay before touching any contract.
+    /// @notice Tests that a zero proof maturity delay is rejected on deploy. OPCM does not check
+    ///         it; the portal's initializer rejects it as below the minimum, wrapped by the Proxy.
     function test_deploy_zeroProofMaturityDelay_reverts() public {
         deployConfig.proofMaturityDelaySeconds = 0;
-        // nosemgrep: sol-style-use-abi-encodecall
-        runDeployV2(
-            deployConfig, abi.encodeWithSelector(IOPContractsManagerV2.OPContractsManagerV2_InvalidDelayConfig.selector)
-        );
+        runDeployV2(deployConfig, bytes("Proxy: delegatecall to new implementation contract failed"));
     }
 
-    /// @notice Tests that deploy rejects a zero dispute game finality delay before touching any contract.
+    /// @notice Tests that a zero dispute game finality delay is rejected on deploy. OPCM does not
+    ///         check it; the registry's initializer rejects it as below the minimum, wrapped by
+    ///         the Proxy.
     function test_deploy_zeroDisputeGameFinalityDelay_reverts() public {
         deployConfig.disputeGameFinalityDelaySeconds = 0;
-        // nosemgrep: sol-style-use-abi-encodecall
-        runDeployV2(
-            deployConfig, abi.encodeWithSelector(IOPContractsManagerV2.OPContractsManagerV2_InvalidDelayConfig.selector)
-        );
+        runDeployV2(deployConfig, bytes("Proxy: delegatecall to new implementation contract failed"));
     }
 
     /// @notice Tests that the portal's bounds reject an out-of-range proof maturity delay on deploy.
