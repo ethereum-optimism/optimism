@@ -10,7 +10,7 @@ use anyhow::anyhow;
 use kona_sp1_client_utils::{
     BlobStore,
     super_root::{SuperInteropInputs, SuperInteropOutputs},
-    witness::{DefaultWitnessData, WitnessData, preimage_store::PreimageStore},
+    witness::{DefaultWitnessData, WitnessData, preimage_store::WitnessOracle},
 };
 use kona_sp1_ethereum_client_utils::{
     super_consolidation::build_consolidation_outputs, super_range::build_range_outputs,
@@ -41,7 +41,7 @@ async fn run(inputs: SuperInteropInputs) -> anyhow::Result<SuperInteropOutputs> 
     }
 }
 
-async fn read_witness() -> anyhow::Result<(Arc<PreimageStore>, BlobStore)> {
+async fn read_witness() -> anyhow::Result<(Arc<WitnessOracle>, BlobStore)> {
     let witness_rkyv_bytes: Vec<u8> = sp1_zkvm::io::read_vec();
     let witness_data = rkyv::from_bytes::<DefaultWitnessData, RkyvError>(&witness_rkyv_bytes)
         .map_err(|err| anyhow!("failed to deserialize super-range witness data: {err}"))?;

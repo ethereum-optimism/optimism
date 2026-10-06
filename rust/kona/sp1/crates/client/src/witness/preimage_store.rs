@@ -94,3 +94,49 @@ impl PreimageOracleClient for PreimageStore {
 impl FlushableCache for PreimageStore {
     fn flush(&self) {}
 }
+
+/// A [`PreimageStore`] read by the proof program: a key missing from the witness panics.
+///
+/// Shared kona code treats some oracle errors as protocol outcomes rather than failures: the
+/// interop message graph marks a message invalid when its initiating block cannot be read, and
+/// span batch validation skips a batch whose parent cannot be read. The prover chooses which
+/// preimages the witness contains, so an error would let it choose those outcomes. Panicking makes
+/// a witness with a missing preimage unprovable instead.
+///
+/// [`PreimageStore`] itself keeps returning an error for a missing key, because witness collection
+/// relies on it to fall back to the host.
+#[derive(Clone, Debug)]
+pub struct WitnessOracle(PreimageStore);
+
+impl WitnessOracle {
+    /// Wraps the witness preimages for reading by the proof program.
+    pub const fn new(store: PreimageStore) -> Self {
+        Self(store)
+    }
+}
+
+#[async_trait]
+impl HintWriterClient for WitnessOracle {
+    async fn write(&self, _hint: &str) -> PreimageOracleResult<()> {
+        Ok(())
+    }
+}
+
+#[async_trait]
+impl PreimageOracleClient for WitnessOracle {
+    async fn get(&self, key: PreimageKey) -> PreimageOracleResult<Vec<u8>> {
+        let Some(value) = self.0.preimage_map.get(&key) else {
+            panic!("requested preimage key not present in witness: {key}");
+        };
+        Ok(value.clone())
+    }
+
+    async fn get_exact(&self, key: PreimageKey, buf: &mut [u8]) -> PreimageOracleResult<()> {
+        buf.copy_from_slice(&self.get(key).await?);
+        Ok(())
+    }
+}
+
+impl FlushableCache for WitnessOracle {
+    fn flush(&self) {}
+}
