@@ -278,10 +278,12 @@ mod tests {
     use std::sync::Mutex;
 
     use alloy_consensus::{EMPTY_ROOT_HASH, Header};
-    use alloy_primitives::{B256, U256};
+    use alloy_eips::Encodable2718;
+    use alloy_primitives::{B256, Bytes, U256, keccak256};
     use alloy_rlp::EMPTY_STRING_CODE;
     use async_trait::async_trait;
     use kona_genesis::RollupConfig;
+    use kona_interop::{ChainBuilder, ExecutingMessageBuilder};
     use kona_preimage::{
         DEPENDENCY_SET_KEY, HintWriterClient, L2_ROLLUP_CONFIG_KEY, PreimageKey,
         PreimageOracleClient, errors::PreimageOracleResult,
@@ -292,11 +294,14 @@ mod tests {
             SuperConsolidationTransitionInput, SuperOptimisticBlock, SuperOutputRoot,
             SuperRootProof, TimestampSpan,
         },
-        witness::preimage_store::PreimageStore,
+        witness::{BlobData, DefaultWitnessData, WitnessData, preimage_store::PreimageStore},
     };
 
     use super::*;
     use crate::test_utils::{b256, dependency_set, rollup_config, save_header, save_output_root};
+
+    const INITIATING_CHAIN: u64 = u64::MAX - 1;
+    const EXECUTING_CHAIN: u64 = u64::MAX;
 
     fn save_super_root(oracle: &mut PreimageStore, super_root: &SuperRoot) -> B256 {
         let hash = super_root.hash();
@@ -644,5 +649,148 @@ mod tests {
             ),
             "unexpected error: {err}"
         );
+    }
+
+    /// Saves the receipts trie of `receipts` unless `withhold` is set, returning its root.
+    fn receipts_root<R: Encodable2718>(
+        witness: &mut PreimageStore,
+        receipts: &[R],
+        withhold: bool,
+    ) -> B256 {
+        let mut trie =
+            kona_mpt::ordered_trie_with_encoder(receipts, |receipt, out| receipt.encode_2718(out));
+        let root = trie.root();
+        if !withhold {
+            for node in trie.take_proof_nodes().into_inner().into_values() {
+                witness
+                    .save_preimage(PreimageKey::new_keccak256(*keccak256(&node)), node.to_vec())
+                    .unwrap();
+            }
+        }
+        root
+    }
+
+    struct CrossChainMessageTransition {
+        witness: PreimageStore,
+        previous_super_root: SuperRoot,
+        optimistic_blocks: Vec<SuperOptimisticBlock>,
+        claim: SuperRootProof,
+    }
+
+    /// Chain `EXECUTING_CHAIN`'s optimistic block #4 (ts 101) executes a message initiated in
+    /// chain `INITIATING_CHAIN`'s previous cross-safe block #3 (ts 100).
+    fn cross_chain_message_transition(
+        withhold_initiating_receipts: bool,
+    ) -> CrossChainMessageTransition {
+        let payload = Bytes::from_static(b"initiating message");
+        let mut initiating = ChainBuilder::default();
+        initiating.add_initiating_message(payload.clone());
+        let mut executing = ChainBuilder::default();
+        executing.add_executing_message(
+            ExecutingMessageBuilder::default()
+                .with_message_hash(keccak256(&payload))
+                .with_origin_chain_id(INITIATING_CHAIN)
+                .with_origin_block_number(3)
+                .with_origin_timestamp(100),
+        );
+
+        let mut witness = PreimageStore::default();
+        save_empty_trie(&mut witness);
+        let header = |number, timestamp, parent_hash, receipts_root| Header {
+            number,
+            timestamp,
+            parent_hash,
+            receipts_root,
+            transactions_root: EMPTY_ROOT_HASH,
+            ..Default::default()
+        };
+
+        let initiating_receipts =
+            receipts_root(&mut witness, &initiating.receipts, withhold_initiating_receipts);
+        let a3_hash = save_header(&mut witness, &header(3, 100, B256::ZERO, initiating_receipts));
+        let a4_hash = save_header(&mut witness, &header(4, 101, a3_hash, EMPTY_ROOT_HASH));
+        let b3_hash = save_header(&mut witness, &header(3, 100, B256::ZERO, EMPTY_ROOT_HASH));
+        let executing_receipts = receipts_root(&mut witness, &executing.receipts, false);
+        let b4_hash = save_header(&mut witness, &header(4, 101, b3_hash, executing_receipts));
+        let a3_out = save_output_root(&mut witness, a3_hash);
+        let a4_out = save_output_root(&mut witness, a4_hash);
+        let b3_out = save_output_root(&mut witness, b3_hash);
+        let b4_out = save_output_root(&mut witness, b4_hash);
+
+        CrossChainMessageTransition {
+            witness,
+            previous_super_root: SuperRoot::new(
+                100,
+                vec![
+                    SuperOutputRoot { chain_id: INITIATING_CHAIN, output_root: a3_out },
+                    SuperOutputRoot { chain_id: EXECUTING_CHAIN, output_root: b3_out },
+                ],
+            ),
+            optimistic_blocks: vec![
+                SuperOptimisticBlock {
+                    chain_id: U256::from(INITIATING_CHAIN),
+                    block_hash: a4_hash,
+                    output_root: a4_out,
+                },
+                SuperOptimisticBlock {
+                    chain_id: U256::from(EXECUTING_CHAIN),
+                    block_hash: b4_hash,
+                    output_root: b4_out,
+                },
+            ],
+            claim: SuperRootProof::new(
+                101,
+                vec![
+                    SuperOutputRoot { chain_id: INITIATING_CHAIN, output_root: a4_out },
+                    SuperOutputRoot { chain_id: EXECUTING_CHAIN, output_root: b4_out },
+                ],
+            ),
+        }
+    }
+
+    fn consolidate_through_guest_oracle(
+        transition: CrossChainMessageTransition,
+    ) -> anyhow::Result<SuperConsolidationTransition> {
+        let mut configs = rollup_configs(&[INITIATING_CHAIN, EXECUTING_CHAIN]);
+        for config in configs.values_mut() {
+            config.hardforks.lagoon_time = Some(0);
+        }
+        block_on(async {
+            let (oracle, _) =
+                DefaultWitnessData::from_parts(transition.witness, BlobData::default())
+                    .get_oracle_and_blob_provider()
+                    .await?;
+            run_transition(
+                oracle,
+                transition.previous_super_root,
+                transition.optimistic_blocks,
+                &transition.claim,
+                dependency_set(&[INITIATING_CHAIN, EXECUTING_CHAIN], None),
+                &configs,
+                &Default::default(),
+            )
+            .await
+        })
+    }
+
+    #[test]
+    fn consolidation_keeps_valid_cross_chain_message_with_complete_witness() {
+        let fixture = cross_chain_message_transition(false);
+        let claim = fixture.claim.clone();
+        let optimistic_blocks = fixture.optimistic_blocks.clone();
+
+        let transition = consolidate_through_guest_oracle(fixture).unwrap();
+
+        assert_eq!(transition.super_root, hash_super_root_proof(&claim).unwrap());
+        assert_eq!(transition.optimistic_blocks, optimistic_blocks);
+    }
+
+    /// Regression test for #23204: a prover that withholds the initiating block's receipts must
+    /// abort the guest. Otherwise `MessageGraph::resolve` marks the valid message invalid and the
+    /// executing block gets replaced with a deposit-only block.
+    #[test]
+    #[should_panic(expected = "requested preimage key not present in witness")]
+    fn consolidation_aborts_when_initiating_receipts_missing_from_witness() {
+        let _ = consolidate_through_guest_oracle(cross_chain_message_transition(true));
     }
 }

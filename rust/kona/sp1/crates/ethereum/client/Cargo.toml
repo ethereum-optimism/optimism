@@ -37,6 +37,7 @@ revm.workspace = true
 [dev-dependencies]
 alloy-eips.workspace = true
 alloy-trie.workspace = true
+kona-interop = { workspace = true, features = ["test-utils"] }
 kona-mpt.workspace = true
 kona-protocol.workspace = true
 op-alloy-rpc-types-engine.workspace = true
