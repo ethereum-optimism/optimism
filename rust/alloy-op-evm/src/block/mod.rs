@@ -104,6 +104,10 @@ pub enum PostExecMode {
     /// Verify canonical gas accounting using a post-exec payload embedded in the block.
     Verify(PostExecPayload),
     /// Reject the block in pre-execution, so the engine classifies it as invalid.
+    ///
+    /// Callers must run [`BlockExecutor::apply_pre_execution_changes`] before executing
+    /// transactions. This variant is rejected there; `finish()` is not a substitute for
+    /// pre-execution validation.
     Invalid(String),
 }
 

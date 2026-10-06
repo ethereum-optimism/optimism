@@ -394,7 +394,10 @@ where
                     .collect::<Result<Vec<_>, _>>()
                     .map_err(|error| {
                         tracing::warn!(block_number, %error, "payload rejected: transaction failed to decode");
-                        error.to_string()
+                        // Defensive: the engine's payload-to-block conversion normally reports
+                        // decoding failures first. Use Invalid to retain validation classification
+                        // here even for non-PostExec transactions; the reason identifies the source.
+                        format!("transaction envelope decoding failed: {error}")
                     })
             })
             .map_or_else(PostExecMode::Invalid, |transactions| {
@@ -591,6 +594,24 @@ mod tests {
             assert!(matches!(context.post_exec_mode, PostExecMode::Invalid(_)));
             assert!(evm_config.tx_iterator_for_payload(&execution_data).is_ok());
         }
+    }
+
+    #[test]
+    fn context_for_payload_defers_non_post_exec_decode_failure() {
+        let mut block = block_with_post_exec_tx(7, 123, 7).into_block();
+        block.body.transactions.pop();
+        let (mut payload, sidecar) = OpExecutionPayload::from_block_slow(&block);
+        payload.as_v1_mut().transactions[0] = bytes!("02c0");
+        let execution_data = OpExecutionData::new(payload, sidecar);
+        let evm_config = test_evm_config();
+        assert!(!evm_config.is_sdm_active_at_timestamp(123));
+
+        let context = evm_config.context_for_payload(&execution_data).expect("infallible");
+        let PostExecMode::Invalid(reason) = context.post_exec_mode else {
+            panic!("expected Invalid mode for an undecodable non-PostExec transaction");
+        };
+        assert!(reason.starts_with("transaction envelope decoding failed: "));
+        assert!(evm_config.tx_iterator_for_payload(&execution_data).is_ok());
     }
 
     #[test]
