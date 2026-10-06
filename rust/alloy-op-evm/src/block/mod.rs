@@ -275,6 +275,15 @@ impl PostExecState {
         }
     }
 
+    /// Moves the verifier cursor past the entries for transactions `[0, first_tx_index)`, which a
+    /// resumed executor never runs.
+    fn skip_verifier_entries_before(&mut self, first_tx_index: u64) {
+        if let Self::Verifying { payload, next_entry, .. } = self {
+            *next_entry =
+                payload.gas_refund_entries.partition_point(|entry| entry.index < first_tx_index);
+        }
+    }
+
     fn remaining_verifier_indexes(&self) -> Vec<u64> {
         match self {
             Self::Verifying { payload, next_entry, .. } => {
@@ -422,8 +431,12 @@ pub struct OpBlockExecutor<Evm, R: OpReceiptBuilder, Spec> {
     pub l1_block_info: Option<L1BlockInfo>,
     /// Post-exec execution state (mode and producer/verifier working state).
     pub post_exec: PostExecState,
-    /// Per-transaction exact policy-provided refund attribution events aligned with receipts.
+    /// Per-transaction exact policy-provided refund attribution events aligned with receipts
+    /// (so, after [`Self::resume_at_tx_index`], with this executor's transactions only).
     pub refund_events_by_tx: Vec<Vec<PostExecRefundEvent>>,
+    /// Block index of the first transaction this executor runs: non-zero only after
+    /// [`Self::resume_at_tx_index`].
+    pub first_tx_index: u64,
 }
 
 impl<E, R, Spec> OpBlockExecutor<E, R, Spec>
@@ -450,7 +463,43 @@ where
             l1_block_info: None,
             post_exec,
             refund_events_by_tx: Vec::new(),
+            first_tx_index: 0,
         }
+    }
+
+    /// Resumes the block at transaction index `first_tx_index`, after a prefix that another
+    /// executor ran.
+    ///
+    /// The caller supplies the prefix's post-state as this executor's prestate and does not call
+    /// [`BlockExecutor::apply_pre_execution_changes`], which the prefix already applied. In
+    /// `Verify` mode the payload's entries for indexes below `first_tx_index` count as applied, so
+    /// the prefix must have run against exactly those entries. Receipts, refund events and gas
+    /// totals, including the block gas and DA admission budgets, cover only the transactions this
+    /// executor runs.
+    ///
+    /// # Errors
+    ///
+    /// Returns the payload-level errors that
+    /// [`BlockExecutor::apply_pre_execution_changes`] would have raised, or an error in `Produce`
+    /// mode, whose produced entries and refund-inspector state can't be rebuilt from a prestate.
+    pub fn resume_at_tx_index(&mut self, first_tx_index: u64) -> Result<(), BlockExecutionError> {
+        if self.post_exec.is_producing() {
+            return Err(BlockExecutionError::msg(
+                "cannot resume a post-exec producer mid-block: its entries and refund state are lost",
+            ));
+        }
+        if let Some(reason) = self.post_exec.invalid_reason() {
+            return Err(validation_error(OpBlockExecutionError::InvalidPostExecPayload(
+                String::from(reason),
+            )));
+        }
+        let block_number = self.evm.block().number().saturating_to::<u64>();
+        if let Some(reason) = self.post_exec.verify_block_number(block_number) {
+            return Err(validation_error(OpBlockExecutionError::InvalidPostExecPayload(reason)));
+        }
+        self.first_tx_index = first_tx_index;
+        self.post_exec.skip_verifier_entries_before(first_tx_index);
+        Ok(())
     }
 
     /// Set the post-exec execution mode for the executor.
@@ -929,7 +978,7 @@ where
         let (tx_env, tx) = tx.into_parts();
         let is_deposit = tx.tx().ty() == DEPOSIT_TRANSACTION_TYPE;
         let is_post_exec = tx.tx().ty() == POST_EXEC_TX_TYPE_ID;
-        let tx_index = self.receipts.len() as u64;
+        let tx_index = self.first_tx_index + self.receipts.len() as u64;
 
         // Since Jovian, fork-activation blocks must contain only deposit transactions — before,
         // the sequencer skipped user txs there by policy, but it wasn't a consensus rule. The
@@ -1079,7 +1128,7 @@ where
     }
 
     fn commit_transaction(&mut self, output: Self::Result) -> GasOutput {
-        let tx_index = self.receipts.len() as u64;
+        let tx_index = self.first_tx_index + self.receipts.len() as u64;
         let OpTxResult {
             inner: EthTxResult { result: ResultAndState { result, state }, blob_gas_used, tx_type },
             is_deposit,

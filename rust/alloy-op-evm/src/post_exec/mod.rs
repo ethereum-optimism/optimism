@@ -8,7 +8,7 @@ pub use null::NullRefundPolicy;
 pub use refund::PostExecRefundInspector;
 
 use alloc::vec::Vec;
-use alloy_evm::{Database, Evm, EvmEnv, EvmFactory};
+use alloy_evm::{Database, Evm, EvmEnv, EvmFactory, block::BlockExecutionError};
 use alloy_primitives::Bytes;
 use core::{
     marker::PhantomData,
@@ -298,6 +298,14 @@ pub trait PostExecExecutorExt {
 
     /// Seed refund state captured from a prior subblock.
     fn seed_refund_snapshot(&mut self, state: Self::Snapshot);
+
+    /// Resumes the block at transaction index `first_tx_index`, after a prefix that another
+    /// executor ran. See [`OpBlockExecutor::resume_at_tx_index`].
+    ///
+    /// # Errors
+    ///
+    /// Returns the payload-level errors that pre-execution would have raised.
+    fn resume_at_tx_index(&mut self, first_tx_index: u64) -> Result<(), BlockExecutionError>;
 }
 
 impl<E, R, Spec> PostExecExecutorExt for OpBlockExecutor<E, R, Spec>
@@ -326,5 +334,9 @@ where
 
     fn seed_refund_snapshot(&mut self, state: Self::Snapshot) {
         Self::seed_refund_snapshot(self, state);
+    }
+
+    fn resume_at_tx_index(&mut self, first_tx_index: u64) -> Result<(), BlockExecutionError> {
+        Self::resume_at_tx_index(self, first_tx_index)
     }
 }
