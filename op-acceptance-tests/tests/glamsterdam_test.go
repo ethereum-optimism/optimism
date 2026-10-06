@@ -70,7 +70,6 @@ func TestSafeHeadAdvancesAcrossGlamsterdam(gt *testing.T) {
 
 func TestSuperFaultProofsAfterGlamsterdam(gt *testing.T) {
 	t := devtest.SerialT(gt)
-	prepareGlamsterdamOpReth(t)
 	// OP Sepolia uses super-root proofs with a singleton dependency set, while Lagoon is inactive.
 	sys := presets.NewSingleChainInteropIsthmusSuper(t,
 		glamsterdamL1Geth(t),
