@@ -544,7 +544,7 @@ jsonrpsee-types = "0.26.0"
 
 # ==================== CRYPTO ====================
 c-kzg = { version = "2.1.5", default-features = false }
-enr = { version = "0.14", default-features = false }
+enr = { version = "0.14", default-features = false, features = ["k256", "ed25519"] }
 k256 = { version = "0.13", default-features = false, features = ["ecdsa"] }
 kzg-rs = { version = "0.2.6", features = ["rkyv", "serde"] }
 sha2 = { version = "0.10.9", default-features = false }

@@ -24,8 +24,8 @@ alloy-rlp.workspace = true
 alloy-primitives = { workspace = true, features = ["k256", "getrandom"] }
 
 # Networking
-discv5 = { workspace = true, features = ["libp2p"] }
-enr = { workspace = true, features = ["k256", "ed25519"] }
+discv5.workspace = true
+enr.workspace = true
 libp2p-identity = { workspace = true, features = ["secp256k1"] }
 libp2p = { workspace = true, features = ["macros", "tokio", "tcp", "noise", "gossipsub", "ping", "yamux", "identify"] }
 
@@ -47,6 +47,7 @@ derive_more = { workspace = true, features = ["display", "deref", "debug"] }
 arbitrary = { workspace = true, features = ["derive"], optional = true }
 
 [dev-dependencies]
+discv5 = { workspace = true, features = ["libp2p"] }
 arbtest.workspace = true
 tempfile.workspace = true
 multihash.workspace = true
