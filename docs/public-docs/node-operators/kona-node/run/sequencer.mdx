@@ -21,6 +21,7 @@ kona-node node \
   --l1-beacon=http://l1-beacon:5052 \
   --l2-engine-rpc=http://l2-execution:8551 \
   --l2.jwt-secret=./jwt.hex \
+  --p2p.sequencer.key.path=./p2p-sequencer.key \
   --chain=123456
 ```
 
@@ -40,6 +41,7 @@ Sequencer mode requires all standard node arguments plus the `--mode=Sequencer` 
 | **L2 Engine** | `--l2-engine-rpc` | `KONA_NODE_L2_ENGINE_RPC` | L2 engine API endpoint |
 | **JWT Secret** | `--l2.jwt-secret` | `KONA_NODE_L2_ENGINE_AUTH` | Path to JWT secret file |
 | **Chain ID** | `--chain` | `KONA_NODE_L2_CHAIN_ID` | L2 chain identifier |
+| **Block signer** | `--p2p.sequencer.key`, `--p2p.sequencer.key.path`, or `--p2p.signer.endpoint` | `KONA_NODE_P2P_SEQUENCER_KEY`, `KONA_NODE_P2P_SEQUENCER_KEY_PATH`, or `KONA_NODE_P2P_SIGNER_ENDPOINT` | Signs the unsafe blocks the sequencer gossips. Exactly one is required: a local key, a local key file, or a remote signer. A remote signer also requires `--p2p.signer.address` (`KONA_NODE_P2P_SIGNER_ADDRESS`) |
 
 ## Sequencer-Specific Flags
 
@@ -63,6 +65,7 @@ kona-node node \
   --l1-eth-rpc=http://localhost:8545 \
   --l1-beacon=http://localhost:5052 \
   --l2-engine-rpc=http://localhost:8551 \
+  --p2p.sequencer.key.path=./p2p-sequencer.key \
   --chain=42161
 ```
 
@@ -76,6 +79,11 @@ kona-node node \
   --l1-eth-rpc=http://l1-node:8545 \
   --l1-beacon=http://l1-beacon:5052 \
   --l2-engine-rpc=http://l2-execution:8551 \
+  --p2p.signer.endpoint=https://op-signer:8080 \
+  --p2p.signer.address=0x... \
+  --p2p.signer.tls.ca=/tls/ca.crt \
+  --p2p.signer.tls.cert=/tls/tls.crt \
+  --p2p.signer.tls.key=/tls/tls.key \
   --chain=123456
 ```
 
@@ -88,6 +96,7 @@ kona-node node \
   --l1-eth-rpc=http://localhost:8545 \
   --l1-beacon=http://localhost:5052 \
   --l2-engine-rpc=http://localhost:8551 \
+  --p2p.sequencer.key.path=./p2p-sequencer.key \
   --chain=42161
 ```
 

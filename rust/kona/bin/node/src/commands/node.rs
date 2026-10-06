@@ -72,7 +72,8 @@ pub(super) enum JwtValidationError {
 ///           --l1-eth-rpc http://localhost:8545 \
 ///           --l1-beacon http://localhost:5052 \
 ///           --l2-engine-rpc http://localhost:8551 \
-///           --l2-engine-jwt-secret /path/to/jwt.hex
+///           --l2-engine-jwt-secret /path/to/jwt.hex \
+///           --p2p.sequencer.key.path /path/to/p2p-sequencer.key
 /// ```
 #[derive(Parser, Debug, Clone)]
 #[command(about = "Runs the consensus node")]
@@ -276,8 +277,26 @@ impl NodeCommand {
             .await
     }
 
+    /// Errors if the node runs as a sequencer without a block signer.
+    ///
+    /// A sequencer without a signer would start cleanly but drop every block it builds instead of
+    /// gossiping it, so the misconfiguration is rejected at startup.
+    fn check_sequencer_signer(&self) -> Result<()> {
+        if self.node_mode == NodeMode::Sequencer && !self.p2p_flags.signer.is_configured() {
+            bail!(
+                "Sequencer mode requires a block signer to sign gossiped unsafe blocks. Set one of \
+                 --p2p.sequencer.key (KONA_NODE_P2P_SEQUENCER_KEY), --p2p.sequencer.key.path \
+                 (KONA_NODE_P2P_SEQUENCER_KEY_PATH), or --p2p.signer.endpoint \
+                 (KONA_NODE_P2P_SIGNER_ENDPOINT)."
+            );
+        }
+        Ok(())
+    }
+
     /// Run the Node subcommand.
     pub async fn run(self, args: &GlobalArgs) -> anyhow::Result<()> {
+        self.check_sequencer_signer()?;
+
         let cfg = self.get_l2_config(args)?;
 
         info!(
@@ -496,6 +515,46 @@ mod tests {
             std::iter::once(&"node").chain(default_flags().iter()).copied(),
         );
         assert_eq!(args.node_mode, NodeMode::Validator);
+    }
+
+    fn parse_node_cli(extra: &[&str]) -> NodeCommand {
+        NodeCommand::parse_from(
+            std::iter::once("node")
+                .chain(default_flags().iter().copied())
+                .chain(extra.iter().copied()),
+        )
+    }
+
+    #[test]
+    fn test_sequencer_without_signer_is_rejected() {
+        let err = parse_node_cli(&["--mode", "Sequencer"]).check_sequencer_signer().unwrap_err();
+        assert!(err.to_string().contains("KONA_NODE_P2P_SIGNER_ENDPOINT"));
+    }
+
+    #[test]
+    fn test_sequencer_with_signer_is_accepted() {
+        let signers: [&[&str]; 3] = [
+            &[
+                "--p2p.sequencer.key",
+                "0xbcc617ea05150ff60490d3c6058630ba94ae9f12a02a87efd291349ca0e54e0a",
+            ],
+            &["--p2p.sequencer.key.path", "/path/to/p2p-sequencer.key"],
+            &[
+                "--p2p.signer.endpoint",
+                "https://signer.example:8080",
+                "--p2p.signer.address",
+                "0x0000000000000000000000000000000000000001",
+            ],
+        ];
+        for signer in signers {
+            let args = [&["--mode", "Sequencer"], signer].concat();
+            parse_node_cli(&args).check_sequencer_signer().unwrap();
+        }
+    }
+
+    #[test]
+    fn test_validator_without_signer_is_accepted() {
+        parse_node_cli(&[]).check_sequencer_signer().unwrap();
     }
 
     #[test]

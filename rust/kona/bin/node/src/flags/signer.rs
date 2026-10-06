@@ -109,6 +109,11 @@ pub enum SignerArgsParseError {
 }
 
 impl SignerArgs {
+    /// Whether a block signer is configured, either a local sequencer key or a remote signer.
+    pub const fn is_configured(&self) -> bool {
+        self.sequencer_key.is_some() || self.sequencer_key_path.is_some() || self.endpoint.is_some()
+    }
+
     /// Creates a [`BlockSigner`] from the [`SignerArgs`].
     pub fn config(self, args: &GlobalArgs) -> Result<Option<BlockSigner>, SignerArgsParseError> {
         // First, resolve the sequencer key from either raw input or file
