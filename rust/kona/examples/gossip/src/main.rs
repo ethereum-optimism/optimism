@@ -19,7 +19,7 @@
 
 use async_trait::async_trait;
 use clap::Parser;
-use discv5::enr::CombinedKey;
+use enr::CombinedKey;
 use kona_cli::{LogArgs, LogConfig};
 use kona_disc::LocalNode;
 use kona_node_service::{

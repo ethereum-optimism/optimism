@@ -2,6 +2,7 @@ use std::net::{IpAddr, Ipv4Addr};
 
 use alloy_chains::Chain;
 use alloy_signer::k256;
+use alloy_signer_local::PrivateKeySigner;
 use discv5::{ConfigBuilder, Enr, ListenConfig};
 
 use crate::actors::network::TestNetwork;
@@ -64,8 +65,12 @@ impl TestNetworkBuilder {
         let secp256k1_key = keypair.clone().try_into_secp256k1()
         .map_err(|e| anyhow::anyhow!("Impossible to convert keypair to secp256k1. This is a bug since we only support secp256k1 keys: {e}")).unwrap()
         .secret().to_bytes();
-        let local_node_key = k256::ecdsa::SigningKey::from_bytes(&secp256k1_key.into())
-        .map_err(|e| anyhow::anyhow!("Impossible to convert keypair to k256 signing key. This is a bug since we only support secp256k1 keys: {e}")).unwrap();
+        // LocalNode takes enr's k256 key and BlockSignerHandler alloy's signer; both share one
+        // secret.
+        let local_node_key = enr::k256::ecdsa::SigningKey::from_bytes(&secp256k1_key.into())
+            .expect("libp2p secp256k1 secret is a valid k256 key");
+        let block_signer = PrivateKeySigner::from_bytes(&secp256k1_key.into())
+            .expect("libp2p secp256k1 secret is a valid k256 key");
 
         let node_addr = IpAddr::V4(Ipv4Addr::UNSPECIFIED);
 
@@ -90,7 +95,7 @@ impl TestNetworkBuilder {
             self.unsafe_block_signer,
             gossip_multiaddr,
             keypair,
-            LocalNode::new(local_node_key.clone(), node_addr, 0, 0),
+            LocalNode::new(local_node_key, node_addr, 0, 0),
             discovery_config,
         )
         .with_bootnodes(bootnodes.into_iter().map(Into::into).collect::<Vec<BootNode>>().into());
@@ -114,7 +119,7 @@ impl TestNetworkBuilder {
         // Every test network can sign: payloads sent to `gossip_payload_tx` are signed with this
         // node's key and then gossiped.
         let mut signer = SignerActor::new(
-            BlockSignerHandler::Local(local_node_key.into()),
+            BlockSignerHandler::Local(block_signer),
             self.chain_id,
             watch::channel(self.unsafe_block_signer).1,
             gossip_payload_rx,
