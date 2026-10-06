@@ -1,6 +1,6 @@
 //! Tests for the plain snapshot cursors over `V2*TrieSnapshot` tables.
 
-use super::{V2AccountTrieSnapshotCursor, V2StorageTrieSnapshotCursor};
+use super::{MdbxAccountTrieSnapshotCursor, MdbxStorageTrieSnapshotCursor};
 use crate::db::{
     models,
     models::{V2AccountsTrieSnapshot, V2StoragesTrieSnapshot},
@@ -53,7 +53,7 @@ fn seed_storage_snapshot(db: &DatabaseEnv, rows: &[(B256, Nibbles, BranchNodeCom
     wtx.commit().expect("commit");
 }
 
-// ====================== V2AccountTrieSnapshotCursor ======================
+// ====================== MdbxAccountTrieSnapshotCursor ======================
 
 #[test]
 fn account_trie_snapshot_cursor_seek_exact_hit_and_miss() {
@@ -64,7 +64,7 @@ fn account_trie_snapshot_cursor_seek_exact_hit_and_miss() {
 
     let tx = db.tx().expect("ro tx");
     let mut cur =
-        V2AccountTrieSnapshotCursor::new(tx.cursor_read::<V2AccountsTrieSnapshot>().expect("c"));
+        MdbxAccountTrieSnapshotCursor::new(tx.cursor_read::<V2AccountsTrieSnapshot>().expect("c"));
 
     // Hit: exact match, returns the row and updates `current`.
     let (k, v) = TrieCursor::seek_exact(&mut cur, p1).expect("ok").expect("exists");
@@ -87,7 +87,7 @@ fn account_trie_snapshot_cursor_seek_returns_gte() {
 
     let tx = db.tx().expect("ro tx");
     let mut cur =
-        V2AccountTrieSnapshotCursor::new(tx.cursor_read::<V2AccountsTrieSnapshot>().expect("c"));
+        MdbxAccountTrieSnapshotCursor::new(tx.cursor_read::<V2AccountsTrieSnapshot>().expect("c"));
 
     // Seeking a key between rows lands on the next one.
     let (k, v) = TrieCursor::seek(&mut cur, between).expect("ok").expect("exists");
@@ -113,7 +113,7 @@ fn account_trie_snapshot_cursor_next_walks_in_order() {
 
     let tx = db.tx().expect("ro tx");
     let mut cur =
-        V2AccountTrieSnapshotCursor::new(tx.cursor_read::<V2AccountsTrieSnapshot>().expect("c"));
+        MdbxAccountTrieSnapshotCursor::new(tx.cursor_read::<V2AccountsTrieSnapshot>().expect("c"));
 
     let (k, _) = TrieCursor::seek(&mut cur, p1).expect("ok").expect("first");
     assert_eq!(k, p1);
@@ -132,7 +132,7 @@ fn account_trie_snapshot_cursor_reset_clears_current() {
 
     let tx = db.tx().expect("ro tx");
     let mut cur =
-        V2AccountTrieSnapshotCursor::new(tx.cursor_read::<V2AccountsTrieSnapshot>().expect("c"));
+        MdbxAccountTrieSnapshotCursor::new(tx.cursor_read::<V2AccountsTrieSnapshot>().expect("c"));
     TrieCursor::seek(&mut cur, p1).expect("ok");
     assert_eq!(TrieCursor::current(&mut cur).expect("current"), Some(p1));
 
@@ -140,7 +140,7 @@ fn account_trie_snapshot_cursor_reset_clears_current() {
     assert_eq!(TrieCursor::current(&mut cur).expect("current"), None);
 }
 
-// ====================== V2StorageTrieSnapshotCursor ======================
+// ====================== MdbxStorageTrieSnapshotCursor ======================
 
 #[test]
 fn storage_trie_snapshot_cursor_seek_exact_scoped_to_address() {
@@ -157,7 +157,7 @@ fn storage_trie_snapshot_cursor_seek_exact_scoped_to_address() {
     );
 
     let tx = db.tx().expect("ro tx");
-    let mut cur = V2StorageTrieSnapshotCursor::new(
+    let mut cur = MdbxStorageTrieSnapshotCursor::new(
         tx.cursor_dup_read::<V2StoragesTrieSnapshot>().expect("c"),
         addr_a,
     );
@@ -180,7 +180,7 @@ fn storage_trie_snapshot_cursor_seek_returns_gte_within_address() {
     seed_storage_snapshot(&db, &[(addr, p1, sample_node(0xAB)), (addr, p3, sample_node(0xCD))]);
 
     let tx = db.tx().expect("ro tx");
-    let mut cur = V2StorageTrieSnapshotCursor::new(
+    let mut cur = MdbxStorageTrieSnapshotCursor::new(
         tx.cursor_dup_read::<V2StoragesTrieSnapshot>().expect("c"),
         addr,
     );
@@ -208,7 +208,7 @@ fn storage_trie_snapshot_cursor_next_walks_dup_entries() {
     );
 
     let tx = db.tx().expect("ro tx");
-    let mut cur = V2StorageTrieSnapshotCursor::new(
+    let mut cur = MdbxStorageTrieSnapshotCursor::new(
         tx.cursor_dup_read::<V2StoragesTrieSnapshot>().expect("c"),
         addr,
     );
@@ -235,7 +235,7 @@ fn storage_trie_snapshot_cursor_set_hashed_address_rebinds_and_resets() {
     );
 
     let tx = db.tx().expect("ro tx");
-    let mut cur = V2StorageTrieSnapshotCursor::new(
+    let mut cur = MdbxStorageTrieSnapshotCursor::new(
         tx.cursor_dup_read::<V2StoragesTrieSnapshot>().expect("c"),
         addr_a,
     );

@@ -1,4 +1,4 @@
-//! History-aware cursor over the [`V2HashedAccounts`] v2 tables.
+//! History-aware cursor over the [`V2HashedAccounts`] tables.
 
 use alloy_primitives::B256;
 use reth_db::{
@@ -13,7 +13,7 @@ use crate::db::models::{
     HashedAccountShardedKey, V2HashedAccountChangeSets, V2HashedAccounts, V2HashedAccountsHistory,
 };
 
-/// History-aware cursor over the [`V2HashedAccounts`] v2 tables.
+/// History-aware cursor over the [`V2HashedAccounts`] tables.
 ///
 /// Uses a **dual-cursor merge** to discover all account keys that existed at
 /// `max_block_number`. This is necessary because an account deleted *after*
@@ -23,7 +23,7 @@ use crate::db::models::{
 /// yielding the minimum key from each, resolving its value at the target
 /// block, and skipping keys that did not exist at that block.
 #[derive(Debug)]
-pub struct V2AccountCursor<C, HC, CC> {
+pub struct MdbxAccountCursor<C, HC, CC> {
     /// Current state walk cursor.
     cursor: C,
     /// History bitmap cursor for resolving individual keys.
@@ -41,8 +41,8 @@ pub struct V2AccountCursor<C, HC, CC> {
     is_latest: bool,
 }
 
-impl<C, HC, CC> V2AccountCursor<C, HC, CC> {
-    /// Create a new [`V2AccountCursor`].
+impl<C, HC, CC> MdbxAccountCursor<C, HC, CC> {
+    /// Create a new [`MdbxAccountCursor`].
     pub const fn new(
         cursor: C,
         history_cursor: HC,
@@ -63,7 +63,7 @@ impl<C, HC, CC> V2AccountCursor<C, HC, CC> {
     }
 }
 
-impl<C, HC, CC> V2AccountCursor<C, HC, CC>
+impl<C, HC, CC> MdbxAccountCursor<C, HC, CC>
 where
     C: DbCursorRO<V2HashedAccounts>,
     HC: DbCursorRO<V2HashedAccountsHistory>,
@@ -108,7 +108,7 @@ where
     }
 }
 
-impl<C, HC, CC> HashedCursor for V2AccountCursor<C, HC, CC>
+impl<C, HC, CC> HashedCursor for MdbxAccountCursor<C, HC, CC>
 where
     C: DbCursorRO<V2HashedAccounts> + Send,
     HC: DbCursorRO<V2HashedAccountsHistory> + Send,

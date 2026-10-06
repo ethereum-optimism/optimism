@@ -1,4 +1,4 @@
-//! History-aware cursor over the [`V2StoragesTrie`] v2 `DupSort` table.
+//! History-aware cursor over the [`V2StoragesTrie`] `DupSort` table.
 
 use alloy_primitives::B256;
 use reth_db::{
@@ -16,14 +16,14 @@ use crate::db::models::{
     V2StoragesTrieHistory,
 };
 
-/// History-aware cursor over the [`V2StoragesTrie`] v2 `DupSort` table.
+/// History-aware cursor over the [`V2StoragesTrie`] `DupSort` table.
 ///
-/// Uses the same dual-cursor merge strategy as [`super::V2AccountTrieCursor`] but
+/// Uses the same dual-cursor merge strategy as [`super::MdbxAccountTrieCursor`] but
 /// scoped to a single `hashed_address`. Both the current-state `DupSort`
 /// entries and the history-bitmap entries are walked in parallel to discover
 /// keys that may have been deleted after `max_block_number`.
 #[derive(Debug)]
-pub struct V2StorageTrieCursor<C, HC, CC> {
+pub struct MdbxStorageTrieCursor<C, HC, CC> {
     /// Current state cursor (`DupSort`).
     cursor: C,
     /// History bitmap cursor for resolving individual keys.
@@ -42,8 +42,8 @@ pub struct V2StorageTrieCursor<C, HC, CC> {
     is_latest: bool,
 }
 
-impl<C, HC, CC> V2StorageTrieCursor<C, HC, CC> {
-    /// Create a new [`V2StorageTrieCursor`].
+impl<C, HC, CC> MdbxStorageTrieCursor<C, HC, CC> {
+    /// Create a new [`MdbxStorageTrieCursor`].
     pub const fn new(
         cursor: C,
         history_cursor: HC,
@@ -66,7 +66,7 @@ impl<C, HC, CC> V2StorageTrieCursor<C, HC, CC> {
     }
 }
 
-impl<C, HC, CC> V2StorageTrieCursor<C, HC, CC>
+impl<C, HC, CC> MdbxStorageTrieCursor<C, HC, CC>
 where
     C: DbCursorRO<V2StoragesTrie> + DbDupCursorRO<V2StoragesTrie>,
     HC: DbCursorRO<V2StoragesTrieHistory>,
@@ -168,7 +168,7 @@ where
     }
 }
 
-impl<C, HC, CC> TrieCursor for V2StorageTrieCursor<C, HC, CC>
+impl<C, HC, CC> TrieCursor for MdbxStorageTrieCursor<C, HC, CC>
 where
     C: DbCursorRO<V2StoragesTrie> + DbDupCursorRO<V2StoragesTrie> + Send,
     HC: DbCursorRO<V2StoragesTrieHistory> + Send,
@@ -269,7 +269,7 @@ where
     }
 }
 
-impl<C, HC, CC> TrieStorageCursor for V2StorageTrieCursor<C, HC, CC>
+impl<C, HC, CC> TrieStorageCursor for MdbxStorageTrieCursor<C, HC, CC>
 where
     C: DbCursorRO<V2StoragesTrie> + DbDupCursorRO<V2StoragesTrie> + Send,
     HC: DbCursorRO<V2StoragesTrieHistory> + Send,
