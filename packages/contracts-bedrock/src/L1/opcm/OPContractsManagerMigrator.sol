@@ -85,6 +85,10 @@ contract OPContractsManagerMigrator is OPContractsManagerUtilsCaller {
     /// @notice Thrown when a permissionless fault game config has a zero absolute prestate.
     error OPContractsManagerMigrator_InvalidAbsolutePrestate();
 
+    /// @notice Thrown when a ZK_DISPUTE_GAME config has a zero absolute prestate, a zero or
+    ///         greater-than-uint32-max challenge or prove duration, or a zero challenger bond.
+    error OPContractsManagerMigrator_InvalidZKDisputeGameConfig();
+
     /// @notice Thrown when a dispute game config is for a game type that does not use super roots.
     error OPContractsManagerMigrator_InvalidGameType();
 
@@ -405,10 +409,9 @@ contract OPContractsManagerMigrator is OPContractsManagerUtilsCaller {
                 revert OPContractsManagerMigrator_InvalidAbsolutePrestate();
             }
         } else if (rawGameType == GameTypes.ZK_DISPUTE_GAME.raw()) {
-            IOPContractsManagerUtils.ZKDisputeGameConfig memory zkGameConfig =
-                abi.decode(_gameConfig.gameArgs, (IOPContractsManagerUtils.ZKDisputeGameConfig));
-            if (zkGameConfig.absolutePrestate.raw() == bytes32(0)) {
-                revert OPContractsManagerMigrator_InvalidAbsolutePrestate();
+            // The ZK game also needs bounded, non-zero durations and a non-zero challenger bond.
+            if (!_isValidZKDisputeGameConfig(_gameConfig.gameArgs)) {
+                revert OPContractsManagerMigrator_InvalidZKDisputeGameConfig();
             }
         }
     }
