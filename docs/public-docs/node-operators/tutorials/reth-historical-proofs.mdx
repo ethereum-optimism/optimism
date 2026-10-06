@@ -118,7 +118,7 @@ INFO reth::cli eth_replaced=true debug_replaced=true: Proofs-history RPC overrid
 
 ## Monitoring
 
-When op-reth is run with the `--metrics=<addr>:<port>` flag, the proofs-history ExEx exposes Prometheus metrics covering proofs-DB sync state (`optimism_trie_block_*`), the background pruner (`optimism_trie_pruner_*`), and `eth_getProof` RPC traffic (`optimism_rpc_eth_api_ext_*`). See the [historical proof configuration reference](/node-operators/reference/op-reth-historical-proof-config#metrics) for the full list.
+When op-reth is run with the `--metrics=<addr>:<port>` flag, the proofs-history ExEx exposes Prometheus metrics covering proofs-DB sync state (`optimism_trie_block_*`) and the background pruner (`optimism_trie_pruner_*`). The built-in Reth RPC server metrics cover `eth_getProof` traffic under `reth_rpc_server_calls_*` with the `method="eth_getProof"` label. See the [historical proof configuration reference](/node-operators/reference/op-reth-historical-proof-config#metrics) for the full list and migration guidance.
 
 ## Operational Commands
 

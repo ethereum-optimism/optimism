@@ -50,6 +50,8 @@ use {
 };
 
 mod config;
+#[cfg(feature = "rpc")]
+pub use config::{DEFAULT_OP_BLOCK_TIME, OpPendingEnvBuilder};
 pub use config::{OpNextBlockEnvAttributes, revm_spec, revm_spec_by_timestamp_after_bedrock};
 mod execute;
 pub use execute::*;

@@ -181,14 +181,38 @@ When the `metrics` feature is enabled, the proofs-history system exposes Prometh
 | `hashed_accounts_written` | Gauge | Hashed account entries deleted in the last prune |
 | `hashed_storages_written` | Gauge | Hashed storage entries deleted in the last prune |
 
-### RPC (`optimism_rpc.eth_api_ext.*`)
+### RPC (`reth_rpc_server_calls_*`)
+
+Reth's built-in RPC server metrics cover the historical `eth_getProof` override. Filter these metrics by the `method="eth_getProof"` label:
 
 | Metric | Type | Description |
 | --- | --- | --- |
-| `get_proof_latency` | Histogram | Latency of successful `eth_getProof` requests |
-| `get_proof_requests` | Counter | Total `eth_getProof` requests received |
-| `get_proof_successful_responses` | Counter | Total successful `eth_getProof` responses |
-| `get_proof_failures` | Counter | Total failed `eth_getProof` requests |
+| `reth_rpc_server_calls_started_total` | Counter | Total non-batched requests started |
+| `reth_rpc_server_calls_successful_total` | Counter | Total successful non-batched responses |
+| `reth_rpc_server_calls_failed_total` | Counter | Total failed non-batched responses |
+| `reth_rpc_server_calls_batched_total` | Counter | Total requests received as batch entries |
+| `reth_rpc_server_calls_time_seconds` | Histogram | Response time for completed non-batched requests |
+
+These per-method metrics cover the configured HTTP, WebSocket, and IPC transports unless `--rpc.disable-metrics` is set. They are generic RPC metrics, so nodes without proofs-history enabled report the same series for the standard `eth_getProof` implementation.
+
+#### Migrating from `optimism_rpc.eth_api_ext`
+
+The dedicated historical-proof RPC metrics have been removed. Update dashboards and alerts as follows:
+
+| Removed Prometheus metric | Replacement |
+| --- | --- |
+| `reth_optimism_rpc_eth_api_ext_get_proof_requests` | `reth_rpc_server_calls_started_total`; add `reth_rpc_server_calls_batched_total` to include regular-server batch volume |
+| `reth_optimism_rpc_eth_api_ext_get_proof_successful_responses` | `reth_rpc_server_calls_successful_total` |
+| `reth_optimism_rpc_eth_api_ext_get_proof_failures` | `reth_rpc_server_calls_failed_total` |
+| `reth_optimism_rpc_eth_api_ext_get_proof_latency` | `reth_rpc_server_calls_time_seconds` |
+
+The replacement metrics have different accounting boundaries:
+
+- Batch entries only contribute to `batched_total`; per-entry outcomes and latency are unavailable.
+- Calls to the authenticated RPC server and standalone JSON-RPC notifications are not included. Notifications inside batches contribute only to `batched_total`.
+- `time_seconds` includes successful and failed non-batched calls, while the removed latency histogram included only successful typed handler calls.
+- For non-batched calls, invalid parameters are counted as failures by the RPC middleware before the typed handler runs; batch entries expose volume only. The removed metrics did not count invalid parameters.
+- Setting `--rpc.disable-metrics` disables the replacement metrics. It did not disable the removed handler-level metrics.
 
 ### Storage operations (`optimism_trie.storage.operation.*`)
 

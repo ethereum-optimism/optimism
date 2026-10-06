@@ -1,6 +1,6 @@
 //! Historical proofs RPC server implementation.
 
-use crate::{metrics::EthApiExtMetrics, state::OpStateProviderFactory};
+use crate::state::OpStateProviderFactory;
 use alloy_eips::BlockId;
 use alloy_primitives::Address;
 use alloy_rpc_types_eth::EIP1186AccountProofResponse;
@@ -43,7 +43,6 @@ pub trait EthApiOverride {
 pub struct EthApiExt<Eth, P> {
     eth_api: Eth,
     preimage_store: OpProofsStorage<P>,
-    metrics: EthApiExtMetrics,
 }
 
 impl<Eth, P> EthApiExt<Eth, P>
@@ -53,8 +52,8 @@ where
     P: OpProofsStore + Clone + 'static,
 {
     /// Creates a new instance of the `EthApiExt`.
-    pub fn new(eth_api: Eth, preimage_store: OpProofsStorage<P>) -> Self {
-        Self { eth_api, preimage_store, metrics: EthApiExtMetrics::default() }
+    pub const fn new(eth_api: Eth, preimage_store: OpProofsStorage<P>) -> Self {
+        Self { eth_api, preimage_store }
     }
 
     /// UPSTREAM-MIRROR(copy): reth@rev:4553cf1
@@ -109,8 +108,7 @@ where
         keys: Vec<JsonStorageKey>,
         block_number: Option<BlockId>,
     ) -> RpcResult<EIP1186AccountProofResponse> {
-        self.metrics
-            .record_get_proof(self.get_proof_inner(address, keys, block_number.unwrap_or_default()))
+        self.get_proof_inner(address, keys, block_number.unwrap_or_default())
             .await
             .map_err(Into::into)
     }
