@@ -269,7 +269,7 @@ where
             error!(target: "sequencer::rpc", "Failed to override leader: {}", e);
             return Err(SequencerAdminAPIError::LeaderOverrideError(e.to_string()));
         }
-        info!(target: "sequencer", "Overrode leader via the conductor service");
+        info!(target: "sequencer", "Locally overrode conductor leadership");
 
         Ok(())
     }
