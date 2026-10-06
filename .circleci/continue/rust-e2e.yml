@@ -510,7 +510,7 @@ workflows:
           context:
             - circleci-repo-readonly-authenticated-github-token
       # No kona-build-sp1-elfs here on purpose: main runs the identical job
-      # (same template, no parameters, same contexts) and gates it through
+      # (same template, features, and contexts) and gates it through
       # ci-gate, and main runs in every case rust-e2e-ci does, so a copy in
       # this workflow is duplicated work.
       # -----------------------------------------------------------------------

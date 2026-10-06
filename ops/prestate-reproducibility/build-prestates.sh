@@ -121,9 +121,9 @@ function build_kona_sp1() {
     return 1
   }
   unsafe_config_fallback=$(printf '%s\n' "$metadata" | jq -r '
-    [.packages[] | select(.name == "kona-sp1-ethereum-client-utils") | .id] as $clients |
+    [.packages[] | select(.name == "kona-sp1-super-range") | .id] as $guests |
     any(.resolve.nodes[];
-      (.id as $id | $clients | index($id)) != null and
+      (.id as $id | $guests | index($id)) != null and
       (.features | index("test-config-fallback")) != null)
   ') || {
     fail_kona_sp1 "$version" "failed to inspect guest features"

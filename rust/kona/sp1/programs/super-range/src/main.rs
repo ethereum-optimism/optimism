@@ -17,6 +17,9 @@ use kona_sp1_ethereum_client_utils::{
 };
 use rkyv::rancor::Error as RkyvError;
 
+#[cfg(feature = "test-config-fallback")]
+mod test_config;
+
 /// Entrypoint to the unified super-root range program.
 pub fn main() {
     println!("{}", kona_sp1_build_info::BUILD_MARKER);
@@ -27,17 +30,19 @@ pub fn main() {
 }
 
 async fn run(inputs: SuperInteropInputs) -> anyhow::Result<SuperInteropOutputs> {
+    let (oracle, beacon) = read_witness().await?;
+    #[cfg(feature = "test-config-fallback")]
+    let configs = Some(test_config::load(&inputs, oracle.as_ref()).await?);
+    #[cfg(not(feature = "test-config-fallback"))]
+    let configs: Option<kona_sp1_ethereum_client_utils::chain_config::ChainConfigs> = None;
+
     match inputs {
-        SuperInteropInputs::Range(inputs) => {
-            let (oracle, beacon) = read_witness().await?;
-            Ok(SuperInteropOutputs::Range(build_range_outputs(inputs, oracle, beacon).await?))
-        }
-        SuperInteropInputs::Consolidation(inputs) => {
-            let (oracle, _) = read_witness().await?;
-            Ok(SuperInteropOutputs::Consolidation(
-                build_consolidation_outputs(inputs, oracle).await?,
-            ))
-        }
+        SuperInteropInputs::Range(inputs) => Ok(SuperInteropOutputs::Range(
+            build_range_outputs(inputs, oracle, beacon, configs.as_ref()).await?,
+        )),
+        SuperInteropInputs::Consolidation(inputs) => Ok(SuperInteropOutputs::Consolidation(
+            build_consolidation_outputs(inputs, oracle, configs.as_ref()).await?,
+        )),
     }
 }
 

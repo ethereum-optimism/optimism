@@ -95,7 +95,7 @@ case "$1" in
         [[ "$TEST_SCENARIO" != "invalid-metadata" ]] || { printf 'invalid metadata'; exit 0; }
         features='[]'
         [[ "$TEST_SCENARIO" != "test-config-fallback" ]] || features='["test-config-fallback"]'
-        printf '{"packages":[{"id":"client","name":"kona-sp1-ethereum-client-utils"}],"resolve":{"nodes":[{"id":"client","features":%s}]}}\n' "$features" ;;
+        printf '{"packages":[{"id":"guest","name":"kona-sp1-super-range"}],"resolve":{"nodes":[{"id":"guest","features":%s}]}}\n' "$features" ;;
       "cargo prove")
         hash="$TEST_HASH"
         [[ "$TEST_SCENARIO" != "vkey-mismatch" ]] || hash="$TEST_OTHER"

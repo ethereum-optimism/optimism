@@ -295,6 +295,7 @@ pub(crate) async fn execute_snapshot(
             range_host,
             &synthesized.range_inputs,
             &synthesized.preloaded_preimages,
+            None,
         ),
     )
     .await;
@@ -389,6 +390,7 @@ pub(crate) async fn execute_snapshot(
             consolidation_host,
             &synthesized.consolidation_inputs,
             &synthesized.preloaded_preimages,
+            None,
         ),
     )
     .await;

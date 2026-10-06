@@ -9,10 +9,12 @@ homepage.workspace = true
 repository.workspace = true
 
 [features]
-test-config-fallback = ["kona-sp1-ethereum-client-utils/test-config-fallback"]
+test-config-fallback = ["dep:kona-preimage", "dep:serde_json"]
 
 [dependencies]
 anyhow.workspace = true
+serde_json = { workspace = true, optional = true }
+kona-preimage = { workspace = true, optional = true }
 kona-proof.workspace = true
 kona-sp1-build-info.workspace = true
 kona-sp1-client-utils.workspace = true

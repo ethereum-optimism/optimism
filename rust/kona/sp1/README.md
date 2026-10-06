@@ -46,14 +46,20 @@ The super-range guest reads chain configurations only from its compiled registry
 and consolidation reject chains without an embedded rollup config, L1 config, or matching
 dependency set. Custom chains must be embedded at build time using `KONA_CUSTOM_CONFIGS_DIR`.
 
-The opt-in `test-config-fallback` Cargo feature enables unverified Local-key config preimages
-for synthetic-chain tests. Enable it explicitly on `kona-sp1-ethereum-client-utils` for native
-tests or on `kona-sp1-super-range` for test guests. It is disabled by default;
+The shared range and consolidation functions accept an optional `ChainConfigs` bundle.
+`None` selects the compiled registry; native test execution supplies trusted deployment configs
+explicitly. The executor resolves them once from its config files and uses that same bundle for
+witness collection and replay. Native acceptance tests require neither a guest ELF nor a Cargo
+feature, and their config values are not read from Local preimage keys.
+
+The opt-in `test-config-fallback` feature belongs only to the `kona-sp1-super-range` guest.
+It allows that guest's test entrypoint to decode unverified Local-key configs and supply an
+explicit bundle to the shared functions. It is disabled by default;
 `ops/prestate-reproducibility/build-prestates.sh` rejects guest graphs that enable it.
 For synthetic-chain ELFs, use `just build-elfs test-config-fallback` (or
 `build-elfs-native test-config-fallback`); these artifacts carry a `-test` build marker.
-The native acceptance runner enables the feature for JIT builds. When supplying a prebuilt
-native executor, build it with `--features kona-sp1-ethereum-client-utils/test-config-fallback`.
+The full-ELF executor seeds the resolved config bundle into its test witness, so one test ELF
+supports the existing synthetic deployments without rebuilding for each deployment.
 
 ### ELF Binaries (`elf/`)
 

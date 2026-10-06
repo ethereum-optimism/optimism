@@ -5,10 +5,6 @@ publish = false
 license.workspace = true
 edition.workspace = true
 
-[features]
-# Unsafe config preimages are only for synthetic-chain tests.
-test-config-fallback = []
-
 [dependencies]
 # local
 kona-sp1-client-utils.workspace = true
@@ -27,7 +23,6 @@ kona-registry.workspace = true
 # general
 anyhow.workspace = true
 async-trait.workspace = true
-serde_json.workspace = true
 spin.workspace = true
 
 # alloy
@@ -39,6 +34,7 @@ alloy-rlp.workspace = true
 revm.workspace = true
 
 [dev-dependencies]
+serde_json.workspace = true
 alloy-eips.workspace = true
 alloy-trie.workspace = true
 kona-mpt.workspace = true

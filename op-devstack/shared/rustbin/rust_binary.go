@@ -16,10 +16,9 @@ import (
 
 // Spec describes a Rust binary to be built and located.
 type Spec struct {
-	SrcDir   string   // directory name relative to monorepo root, e.g. "rust/kona"
-	Package  string   // cargo package name, e.g. "kona-node"
-	Binary   string   // binary name, e.g. "kona-node"
-	Features []string // Cargo features enabled for JIT builds
+	SrcDir  string // directory name relative to monorepo root, e.g. "rust/kona"
+	Package string // cargo package name, e.g. "kona-node"
+	Binary  string // binary name, e.g. "kona-node"
 }
 
 // EnsureExists locates or builds a Rust binary as needed.
@@ -53,7 +52,7 @@ func (s Spec) EnsureExists(ctx context.Context, logger log.Logger) (string, erro
 
 	if jitBuild {
 		logger.Info("Building Rust binary (JIT)", "binary", s.Binary, "dir", srcRoot)
-		if err := buildRustBinary(ctx, srcRoot, s.Package, s.Binary, s.Features); err != nil {
+		if err := buildRustBinary(ctx, srcRoot, s.Package, s.Binary); err != nil {
 			return "", err
 		}
 	}
@@ -89,12 +88,8 @@ func toEnvVarSuffix(binary string) string {
 	return strings.ToUpper(strings.ReplaceAll(binary, "-", "_"))
 }
 
-func buildRustBinary(ctx context.Context, root, pkg, bin string, features []string) error {
-	args := []string{"build", "-p", pkg, "--bin", bin}
-	if len(features) > 0 {
-		args = append(args, "--features", strings.Join(features, ","))
-	}
-	cmd := exec.CommandContext(ctx, "cargo", args...)
+func buildRustBinary(ctx context.Context, root, pkg, bin string) error {
+	cmd := exec.CommandContext(ctx, "cargo", "build", "-p", pkg, "--bin", bin)
 	cmd.Dir = root
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr

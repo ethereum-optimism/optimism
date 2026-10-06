@@ -30,7 +30,8 @@ use kona_sp1_super_range_executor::{
     HostInputs, SuperRootAtTimestampResponse, SynthesizedExecution, build_interop_host,
     build_super_consolidation_stdin, build_super_range_stdin, collect_consolidation_witness,
     collect_range_witness, decode_super_consolidation_public_values,
-    decode_super_range_public_values, proof_from_super_v1, synthesize_execution,
+    decode_super_range_public_values, deployment_chain_configs, proof_from_super_v1,
+    synthesize_execution,
 };
 use parking_lot::Mutex;
 use serde::Serialize;
@@ -762,10 +763,16 @@ async fn prove_chunk_inner(
         synthesized.current_super_root,
         span.end,
     )?;
+    let configs = if provider.is_mock() {
+        Some(deployment_chain_configs(&range_host, &synthesized.range_inputs.chain_ids)?)
+    } else {
+        None
+    };
     let (range_witness, range_outputs) = collect_range_witness(
         range_host,
         &synthesized.range_inputs,
         &synthesized.preloaded_preimages,
+        configs.as_ref(),
     )
     .await
     .with_context(|| format!("range witness collection failed for span {span:?}"))?;
@@ -781,6 +788,7 @@ async fn prove_chunk_inner(
         consolidation_host,
         &synthesized.consolidation_inputs,
         &synthesized.preloaded_preimages,
+        configs.as_ref(),
     )
     .await
     .with_context(|| format!("consolidation witness collection failed for span {span:?}"))?;

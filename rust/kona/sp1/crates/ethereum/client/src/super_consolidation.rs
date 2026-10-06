@@ -24,15 +24,19 @@ use kona_sp1_client_utils::{
     },
 };
 
-use crate::super_range::{
-    fetch_l2_header, fetch_output_block_hash, load_dependency_set, load_l1_config,
-    load_rollup_configs, optimistic_chain_id_as_u64,
+use crate::{
+    chain_config::ChainConfigs,
+    super_range::{fetch_l2_header, fetch_output_block_hash, optimistic_chain_id_as_u64},
 };
 
-/// Builds consolidation-mode public outputs from typed inputs and an oracle-backed witness source.
+/// Builds consolidation outputs using the embedded registry or caller-trusted chain configs.
+///
+/// `None` selects the embedded registry. Overrides must come from a trusted caller, not the
+/// witness.
 pub async fn build_consolidation_outputs<C>(
     inputs: SuperConsolidationInputs,
     oracle: Arc<C>,
+    configs: Option<&ChainConfigs>,
 ) -> anyhow::Result<SuperConsolidationOutputs>
 where
     C: CommsClient + Send + Sync + Debug + 'static,
@@ -44,10 +48,17 @@ where
     revm::precompile::install_crypto(CustomCrypto::default());
 
     let chain_ids = consolidation_chain_ids(&inputs)?;
-    let dependency_set = load_dependency_set(&chain_ids, oracle.as_ref()).await?;
-    let rollup_configs = load_rollup_configs(&chain_ids, oracle.as_ref()).await?;
-    let l1_config = load_l1_config(&rollup_configs, oracle.as_ref()).await?;
-    let rollup_configs: RegistryHashMap<_, _> = rollup_configs.into_iter().collect();
+    let embedded_configs;
+    let configs = match configs {
+        Some(configs) => configs,
+        None => {
+            embedded_configs = ChainConfigs::from_registry(&chain_ids)?;
+            &embedded_configs
+        }
+    };
+    configs.validate(&chain_ids)?;
+    let rollup_configs: RegistryHashMap<_, _> =
+        configs.rollup_configs.clone().into_iter().collect();
 
     let mut previous_super_root =
         fetch_super_root(oracle.as_ref(), inputs.previous_super_root).await?;
@@ -66,9 +77,9 @@ where
             previous_super_root,
             input.optimistic_blocks,
             &input.claimed_super_root_proof,
-            dependency_set.clone(),
+            configs.dependency_set.clone(),
             &rollup_configs,
-            &l1_config,
+            &configs.l1_config,
         )
         .await?;
         previous_super_root = input.claimed_super_root_proof.super_root;
@@ -275,20 +286,16 @@ fn ensure_previous_super_root_matches_optimistic_blocks(
 
 #[cfg(test)]
 mod tests {
-    #[cfg(feature = "test-config-fallback")]
     use std::sync::Mutex;
 
     use alloy_consensus::{EMPTY_ROOT_HASH, Header};
     use alloy_primitives::{B256, U256};
     use alloy_rlp::EMPTY_STRING_CODE;
-    #[cfg(feature = "test-config-fallback")]
     use async_trait::async_trait;
     use kona_genesis::RollupConfig;
-    use kona_preimage::PreimageKey;
-    #[cfg(feature = "test-config-fallback")]
     use kona_preimage::{
-        DEPENDENCY_SET_KEY, HintWriterClient, L2_ROLLUP_CONFIG_KEY, PreimageOracleClient,
-        errors::PreimageOracleResult,
+        DEPENDENCY_SET_KEY, HintWriterClient, L2_ROLLUP_CONFIG_KEY, PreimageKey,
+        PreimageOracleClient, errors::PreimageOracleResult,
     };
     use kona_proof::block_on;
     use kona_sp1_client_utils::{
@@ -296,11 +303,12 @@ mod tests {
         witness::preimage_store::PreimageStore,
     };
 
-    #[cfg(feature = "test-config-fallback")]
     use kona_sp1_client_utils::super_root::{SuperConsolidationTransitionInput, TimestampSpan};
 
     use super::*;
-    use crate::test_utils::{b256, dependency_set, rollup_config, save_header, save_output_root};
+    use crate::test_utils::{
+        b256, chain_configs, dependency_set, rollup_config, save_header, save_output_root,
+    };
 
     fn save_super_root(oracle: &mut PreimageStore, super_root: &SuperRoot) -> B256 {
         let hash = super_root.hash();
@@ -320,30 +328,12 @@ mod tests {
         chain_ids.iter().map(|chain_id| (*chain_id, rollup_config(*chain_id, 1))).collect()
     }
 
-    #[cfg(feature = "test-config-fallback")]
-    fn save_fallback_chain_config(oracle: &mut PreimageStore, chain_id: u64) {
-        oracle
-            .save_preimage(
-                PreimageKey::new_local(DEPENDENCY_SET_KEY.to()),
-                serde_json::to_vec(&dependency_set(&[chain_id], None)).unwrap(),
-            )
-            .unwrap();
-        oracle
-            .save_preimage(
-                PreimageKey::new_local(L2_ROLLUP_CONFIG_KEY.to()),
-                serde_json::to_vec(&rollup_configs(&[chain_id])).unwrap(),
-            )
-            .unwrap();
-    }
-
-    #[cfg(feature = "test-config-fallback")]
     #[derive(Clone, Debug)]
     struct RecordingOracle {
         inner: PreimageStore,
         requests: Arc<Mutex<Vec<PreimageKey>>>,
     }
 
-    #[cfg(feature = "test-config-fallback")]
     impl RecordingOracle {
         fn new(inner: PreimageStore) -> Self {
             Self { inner, requests: Arc::new(Mutex::new(Vec::new())) }
@@ -354,7 +344,6 @@ mod tests {
         }
     }
 
-    #[cfg(feature = "test-config-fallback")]
     #[async_trait]
     impl PreimageOracleClient for RecordingOracle {
         async fn get(&self, key: PreimageKey) -> PreimageOracleResult<Vec<u8>> {
@@ -368,7 +357,6 @@ mod tests {
         }
     }
 
-    #[cfg(feature = "test-config-fallback")]
     #[async_trait]
     impl HintWriterClient for RecordingOracle {
         async fn write(&self, _hint: &str) -> PreimageOracleResult<()> {
@@ -529,7 +517,6 @@ mod tests {
         assert_eq!(transition.super_root, expected_super_root);
     }
 
-    #[cfg(feature = "test-config-fallback")]
     #[test]
     fn consolidation_outputs_chain_claimed_root_across_timestamps() {
         let chain_id = u64::MAX;
@@ -542,7 +529,7 @@ mod tests {
         };
         let mut oracle = PreimageStore::default();
         save_empty_trie(&mut oracle);
-        save_fallback_chain_config(&mut oracle, chain_id);
+        let configs = chain_configs(&[chain_id]);
 
         let previous_head_hash = save_header(&mut oracle, &previous_head);
         let first_head = Header {
@@ -604,8 +591,9 @@ mod tests {
         };
         let oracle = RecordingOracle::new(oracle);
 
-        let outputs = block_on(build_consolidation_outputs(inputs, Arc::new(oracle.clone())))
-            .expect("two-timestamp consolidation succeeds");
+        let outputs =
+            block_on(build_consolidation_outputs(inputs, Arc::new(oracle.clone()), Some(&configs)))
+                .expect("two-timestamp consolidation succeeds");
 
         assert_eq!(
             outputs.transitions.iter().map(|transition| transition.super_root).collect::<Vec<_>>(),
@@ -621,12 +609,11 @@ mod tests {
         );
     }
 
-    #[cfg(feature = "test-config-fallback")]
     #[test]
     fn consolidation_outputs_reject_starting_root_before_span_predecessor() {
         let chain_id = u64::MAX;
         let mut oracle = PreimageStore::default();
-        save_fallback_chain_config(&mut oracle, chain_id);
+        let configs = chain_configs(&[chain_id]);
         let stale_super_root =
             SuperRoot::new(98, vec![SuperOutputRoot { chain_id, output_root: b256(0x44) }]);
         let stale_super_root_hash = save_super_root(&mut oracle, &stale_super_root);
@@ -646,8 +633,23 @@ mod tests {
             }],
         };
         inputs.validate().expect("typed consolidation timestamps are valid");
+        for (key, serialized) in [
+            (DEPENDENCY_SET_KEY, serde_json::to_vec(&configs.dependency_set).unwrap()),
+            (L2_ROLLUP_CONFIG_KEY, serde_json::to_vec(&configs.rollup_configs).unwrap()),
+            (kona_preimage::L1_CONFIG_KEY, serde_json::to_vec(&configs.l1_config).unwrap()),
+        ] {
+            oracle.save_preimage(PreimageKey::new_local(key.to()), serialized).unwrap();
+        }
+        let rejected =
+            block_on(build_consolidation_outputs(inputs.clone(), Arc::new(oracle.clone()), None))
+                .expect_err("guest-facing consolidation must reject witness configs");
+        assert!(
+            rejected.to_string().contains("no embedded dependency set"),
+            "unexpected error: {rejected}"
+        );
 
-        let err = block_on(build_consolidation_outputs(inputs, Arc::new(oracle))).unwrap_err();
+        let err = block_on(build_consolidation_outputs(inputs, Arc::new(oracle), Some(&configs)))
+            .unwrap_err();
 
         assert!(
             err.to_string().contains(

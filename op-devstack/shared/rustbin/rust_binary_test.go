@@ -1,10 +1,8 @@
 package rustbin
 
 import (
-	"context"
 	"os"
 	"path/filepath"
-	"strings"
 	"testing"
 	"time"
 )
@@ -57,37 +55,5 @@ func writeStubBinary(t *testing.T, path string, mod time.Time) {
 	}
 	if err := os.Chtimes(path, mod, mod); err != nil {
 		t.Fatal(err)
-	}
-}
-
-func TestBuildRustBinaryFeatures(t *testing.T) {
-	for _, tc := range []struct {
-		name     string
-		features []string
-		want     string
-	}{
-		{name: "default", want: "build\n-p\npackage\n--bin\nbinary\n"},
-		{name: "test-config", features: []string{"kona-sp1-ethereum-client-utils/test-config-fallback"}, want: "build\n-p\npackage\n--bin\nbinary\n--features\nkona-sp1-ethereum-client-utils/test-config-fallback\n"},
-	} {
-		t.Run(tc.name, func(t *testing.T) {
-			root := t.TempDir()
-			argsPath := filepath.Join(root, "args")
-			script := "#!/bin/sh\nprintf '%s\\n' \"$@\" > \"$TEST_CARGO_ARGS\"\n"
-			if err := os.WriteFile(filepath.Join(root, "cargo"), []byte(script), 0o755); err != nil {
-				t.Fatal(err)
-			}
-			t.Setenv("PATH", root+string(os.PathListSeparator)+os.Getenv("PATH"))
-			t.Setenv("TEST_CARGO_ARGS", argsPath)
-			if err := buildRustBinary(context.Background(), root, "package", "binary", tc.features); err != nil {
-				t.Fatal(err)
-			}
-			args, err := os.ReadFile(argsPath)
-			if err != nil {
-				t.Fatal(err)
-			}
-			if string(args) != tc.want {
-				t.Fatalf("unexpected Cargo arguments: got %q, want %q", strings.Split(string(args), "\n"), strings.Split(tc.want, "\n"))
-			}
-		})
 	}
 }
