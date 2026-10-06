@@ -14,7 +14,7 @@ def helper(name):
     return module
 
 MAIN = helper('main-checks')
-ORIGINALS = helper('compare-rust-e2e')
+REPORT = helper('ci-report')
 
 
 def source_files(directory, settings, expected):
@@ -58,7 +58,11 @@ def superchain(directory, selected, settings, provider):
 
 def report(directory, job, sha, provider, empty):
     required = {'settings.json', 'selection.json', 'coverage.json', 'check.stage.json', 'check.log', 'check.junit.xml', 'inputs-after.json'}
-    hashes = ORIGINALS.originals(directory, required, empty, provider + '/' + job)
+    final = REPORT.read(directory / 'final.json')
+    if final['exit_code'] != 0 or final['report_errors']:
+        raise ValueError('Failed or incomplete original Main check report')
+    hashes = REPORT.verify_files(directory, final['original_sha256'], required=required,
+                                 missing_empty=empty if provider == 'circle' else None, label=provider + '/' + job)
     if {str(p.relative_to(directory)) for p in directory.rglob('*') if p.is_file() and p.name != 'final.json'} != set(hashes):
         raise ValueError('Unsealed or missing original Main report files')
     settings = json.loads((directory / 'settings.json').read_text())

@@ -18,7 +18,7 @@ def report(directory, suite, feature, sha, provider, empty):
                                        'preparation-manifest.json', 'preparation-settings.json'}
     else: required |= {'split.log', 'split.stage.json'}
     try:
-        hashes = UP.ORIGINALS.originals(directory, required, empty, provider + '/' + suite + '-' + feature)
+        hashes = UP.originals(directory, required, empty, provider + '/' + suite + '-' + feature)
     except OSError as error:
         raise ValueError('Missing original contract suite report file') from error
     physical = {str(p.relative_to(directory)) for p in directory.rglob('*') if p.is_file() and p.name != 'final.json'}
@@ -126,7 +126,7 @@ def report(directory, suite, feature, sha, provider, empty):
     interfaces = {name: {'methods': row['methods'], 'deployable': False} for name, row in methods.items()
                   if not UP.deployable(row) and not any(method.startswith(('test', 'invariant')) for method in row['methods'])}
     return {'settings': settings, 'files': chosen, 'selection': selected, 'coverage': coverage,
-            'config': UP.ORIGINALS.normalize(config, root), 'original_sha256': hashes, 'compiled_sha256': compiled,
+            'config': UP.REPORT.normalize(config, root), 'original_sha256': hashes, 'compiled_sha256': compiled,
             'source_after_verdict': after, 'runtime_fixtures': fixtures,
             'submodules': UP.SUBMODULES.revisions((directory / 'submodules.txt').read_text()),
             'interfaces': interfaces,

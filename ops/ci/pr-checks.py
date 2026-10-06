@@ -97,7 +97,7 @@ def begin(directory, job):
     sha = STAGES.command('git', 'rev-parse', 'HEAD')
     expected = os.environ.get('CI_COMMIT_SHA', os.environ.get('CIRCLE_SHA1', sha))
     if not re.fullmatch('[0-9a-f]{40}', expected) or sha != expected: raise ValueError('PR check source revision differs')
-    paths = ['go.mod', 'go.sum', 'mise.toml', 'ops/ci/pr-checks.py', 'ops/ci/rust-workspace-report.py']
+    paths = ['go.mod', 'go.sum', 'mise.toml', 'ops/ci/pr-checks.py', 'ops/ci/rust-workspace-report.py', 'ops/ci/ci-report.py']
     if job == 'contracts-fast': paths += ['packages/contracts-bedrock/checks.yaml', 'packages/contracts-bedrock/justfile',
                                         'packages/contracts-bedrock/scripts/check-runner/main.go',
                                         'packages/contracts-bedrock/scripts/ops/get-target-branch.sh']

@@ -135,7 +135,7 @@ def prepare(directory, feature):
 
 
 def restore(directory, prepared, feature):
-    UP.ORIGINALS.originals(prepared, PREPARED, [], 'rwx/contract-coverage-prepare')
+    UP.originals(prepared, PREPARED, [], 'rwx/contract-coverage-prepare')
     old = json.loads((prepared / 'settings.json').read_text()); branch, seed = configure(feature)
     files = CS.file_selection((prepared / 'files.log').read_text())
     if (old['source_sha'], old['feature'], old['branch'], old['profile'], old['benchmark_seed'], old['workspace_root'], old['input_sha256'],
@@ -365,7 +365,7 @@ def run(directory, url, redactor, block_path):
     os.environ['ETH_RPC_URL'] = url
     if block_path:
         if block_path.name != 'block.json': raise ValueError('Unexpected coverage preflight artifact')
-        UP.ORIGINALS.originals(block_path.parent, {'block.json', 'pinned-block.log', 'pinned-block.stage.json'}, [], 'coverage/preflight')
+        UP.originals(block_path.parent, {'block.json', 'pinned-block.log', 'pinned-block.stage.json'}, [], 'coverage/preflight')
         chosen = json.loads(block_path.read_text())
         if chosen.get('source_sha') != UP.revision() or chosen.get('policy') != 'Just current-day 00:00 UTC' or \
            UP.block(url, chosen['number']) != {k: chosen[k] for k in ('chain_id', 'number', 'hash', 'timestamp')}:

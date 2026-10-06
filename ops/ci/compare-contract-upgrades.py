@@ -14,7 +14,7 @@ def report(directory, variant, sha, provider, empty):
     required = {'settings.json', 'selection.json', 'foundry-config.json', 'foundry-config.stage.json',
                 'discovery.json', 'discovery.stage.json', 'go-ffi.stage.json', 'contracts-build.stage.json', 'submodules.txt',
                 'compiled.json', 'signature-bindings.json', 'block.json', 'coverage.json', 'tests.stage.json', 'original.junit.xml'}
-    hashes = UP.ORIGINALS.originals(directory, required, empty, provider + '/' + variant)
+    hashes = UP.originals(directory, required, empty, provider + '/' + variant)
     settings = json.loads((directory / 'settings.json').read_text())
     if (settings['source_sha'], settings['variant'], settings['provider']) != (sha, variant, 'circleci' if provider == 'circle' else 'rwx'):
         raise ValueError('Upgrade source, variant or provider differs')
@@ -55,7 +55,7 @@ def report(directory, variant, sha, provider, empty):
            (directory / 'pinned-block.log').read_text().strip() != str(block['number']):
             raise ValueError('Original archive block discovery differs')
     return {'settings': settings, 'selection': selected, 'coverage': original, 'block': block,
-            'config': UP.ORIGINALS.normalize(json.loads((directory / 'foundry-config.json').read_text()), settings['workspace_root']),
+            'config': UP.REPORT.normalize(json.loads((directory / 'foundry-config.json').read_text()), settings['workspace_root']),
             'submodules': UP.SUBMODULES.revisions((directory / 'submodules.txt').read_text()),
             'methods': {k:{'methods':v['methods'],'deployable':UP.deployable(v)} for k,v in methods.items()},
             'commands': commands, 'original_sha256': hashes, 'compiled_sha256': compiled}

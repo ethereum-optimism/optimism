@@ -5,6 +5,9 @@ shards, parallelism eight, 16 CPU / 32 GiB compilation and 8 CPU / 16 GiB verdic
 Acceptance keeps eight shards per variant and its existing per-variant resources.
 Circle owns the required gates. Workload selection and parity coverage are unchanged.
 
+The [report helper contracts](rwx-ci-helpers.md) describe shared subprocess and
+artifact mechanics. Runtime runners no longer load offline comparison scripts.
+
 ## Orchestration and dependencies
 
 The five Go, acceptance, standard/modified contract, coverage and upgrade

@@ -30,7 +30,7 @@ ROOT, CONTRACTS = UP.ROOT, UP.CONTRACTS
 COMMAND = ['just', 'update-selectors']
 COMPILERS = ('0.8.15', '0.8.19', '0.8.25', '0.8.28', '0.8.30')
 IMPLEMENTATION = ('selector-upload.py', 'selector-registry.py', 'contract-upgrades.py',
-                  'git-submodule-report.py', 'compare-rust-e2e.py')
+                  'git-submodule-report.py', 'ci-report.py')
 
 
 def read(path):

@@ -25,7 +25,7 @@ def helper(name):
 
 
 S = helper('rust-workspace-report')
-C = helper('compare-ci')
+C = helper('ci-test-results')
 PROJECT = helper('go-report')
 ARTIFACTS = helper('go-artifacts')
 

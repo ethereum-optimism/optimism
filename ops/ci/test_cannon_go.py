@@ -70,7 +70,7 @@ class LiveTests(unittest.TestCase):
     def setUp(self):
         temporary = tempfile.TemporaryDirectory(); self.addCleanup(temporary.cleanup)
         self.root = Path(temporary.name); scripts = self.root / 'ops/ci'; scripts.mkdir(parents=True)
-        for name in ('cannon-go.py', 'compare-ci.py', 'rust-workspace-report.py', 'go-report.py', 'go-artifacts.py'):
+        for name in ('cannon-go.py', 'ci-test-results.py', 'rust-workspace-report.py', 'ci-report.py', 'go-report.py', 'go-artifacts.py'):
             shutil.copy2(SCRIPTS / name, scripts / name)
         shell = self.root / 'ops/scripts'; shell.mkdir()
         for name in ('gotestsum-split.sh', 'split-test-logs.sh'): shutil.copy2(SCRIPTS.parent / 'scripts' / name, shell / name)

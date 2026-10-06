@@ -51,7 +51,7 @@ def report(directory, feature, sha, provider, empty):
                                       'archive-preflight/pinned-block.stage.json', 'archive-preflight/preflight-manifest.json'}
     else: required |= {'pinned-block.log', 'pinned-block.stage.json'}
     try:
-        hashes = UP.ORIGINALS.originals(directory, required, empty, provider + '/coverage-' + feature)
+        hashes = UP.originals(directory, required, empty, provider + '/coverage-' + feature)
     except OSError as error:
         raise ValueError('Missing original contract coverage report file') from error
     if {str(p.relative_to(directory)) for p in directory.rglob('*') if p.is_file() and p.name != 'final.json'} != set(hashes):
@@ -170,7 +170,7 @@ def report(directory, feature, sha, provider, empty):
     methods = {name: {'methods': row['methods'], 'deployable': UP.deployable(row)} for name, row in bindings.items()
                if UP.deployable(row) or any(method.startswith(('test', 'invariant')) for method in row['methods'])}
     return {'settings': settings, 'files': files, 'selection': selection, 'phases': phases, 'block': block, 'source_after_verdict': after,
-            'fixtures': fixtures, 'config': UP.ORIGINALS.normalize(config, root), 'build_config': UP.ORIGINALS.normalize(build_config, root),
+            'fixtures': fixtures, 'config': UP.REPORT.normalize(config, root), 'build_config': UP.REPORT.normalize(build_config, root),
             'methods': methods, 'submodules': UP.SUBMODULES.revisions((directory / 'submodules.txt').read_text()), 'original_sha256': hashes}
 
 

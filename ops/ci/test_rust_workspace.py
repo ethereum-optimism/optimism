@@ -415,7 +415,7 @@ class LiveRunnerTests(unittest.TestCase):
             root = Path(temp)
             helpers = root / 'ops/ci'
             helpers.mkdir(parents=True)
-            for name in ('rust-workspace.sh', 'rust-workspace-report.py', 'rust-target-cache.py', 'op-reth-report.py'):
+            for name in ('rust-workspace.sh', 'rust-workspace-report.py', 'ci-report.py', 'rust-target-cache.py', 'op-reth-report.py'):
                 shutil.copyfile(SCRIPTS / name, helpers / name)
             for name in ('mise.toml', 'rust/justfile', 'rust/.config/nextest.toml', 'rust/.cargo/config.toml'):
                 path = root / name

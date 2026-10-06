@@ -168,7 +168,7 @@ class MainTests(unittest.TestCase):
 
     def install_helpers(self, root):
         directory = root / 'ops/ci'; directory.mkdir(parents=True)
-        for name in ('main-checks.py','pr-checks.py','rust-workspace-report.py'):
+        for name in ('main-checks.py','pr-checks.py','rust-workspace-report.py','ci-report.py'):
             shutil.copyfile(Path(__file__).with_name(name), directory / name)
         (root / '.gitignore').write_text('.ci/\n')
 

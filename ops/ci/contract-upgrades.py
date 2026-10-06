@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
 """Run the complete L1 contract upgrade matrices with bound original evidence."""
 import argparse
-import concurrent.futures
 import hashlib
 import html
 import importlib.util
@@ -10,7 +9,6 @@ import os
 from pathlib import Path
 import re
 import shutil
-import signal
 import subprocess
 import sys
 import time
@@ -19,8 +17,8 @@ import urllib.parse
 import urllib.request
 import xml.etree.ElementTree as ET
 
-SPEC = importlib.util.spec_from_file_location('originals', Path(__file__).with_name('compare-rust-e2e.py'))
-ORIGINALS = importlib.util.module_from_spec(SPEC); SPEC.loader.exec_module(ORIGINALS)
+SPEC = importlib.util.spec_from_file_location('ci_report', Path(__file__).with_name('ci-report.py'))
+REPORT = importlib.util.module_from_spec(SPEC); SPEC.loader.exec_module(REPORT)
 SPEC = importlib.util.spec_from_file_location('submodules', Path(__file__).with_name('git-submodule-report.py'))
 SUBMODULES = importlib.util.module_from_spec(SPEC); SPEC.loader.exec_module(SUBMODULES)
 ROOT = Path(__file__).resolve().parents[2]
@@ -34,9 +32,14 @@ FEATURES = {'CUSTOM_GAS_TOKEN': 'SYS_FEATURE__CUSTOM_GAS_TOKEN',
 MATCH = 'test/{L1,dispute,cannon}/**'
 
 
-def digest(path): return hashlib.sha256(Path(path).read_bytes()).hexdigest()
-def write(path, value): path.write_text(json.dumps(value, indent=2, sort_keys=True) + '\n')
-def command(*args, cwd=None): return subprocess.check_output(args, cwd=ROOT if cwd is None else cwd, text=True).strip()
+digest = REPORT.digest
+write = REPORT.write
+
+
+def command(*args, cwd=None):
+    return REPORT.command(args, cwd=ROOT if cwd is None else cwd)
+
+
 def revision():
     sha = command('git', 'rev-parse', 'HEAD')
     expected = os.environ.get('CI_COMMIT_SHA') or os.environ.get('CIRCLE_SHA1') or sha
@@ -65,33 +68,16 @@ class Redactor:
 
 
 def stage(directory, name, argv, redactor=lambda x: x, json_output=False):
-    started = time.time(); row = {'argv': [redactor(a.encode()).decode() for a in argv], 'cwd': str(CONTRACTS), 'started_at': started, 'exit_code': None}
-    write(directory / (name + '.stage.json'), row)
-    stdout_path = directory / (name + ('.json' if json_output else '.log'))
-    stderr_path = directory / (name + '.stderr.log')
-    child = subprocess.Popen(argv, cwd=CONTRACTS, stdout=subprocess.PIPE, stderr=subprocess.PIPE, start_new_session=True)
-    def copy(stream, path, echo):
-        with path.open('wb') as out:
-            for line in iter(stream.readline, b''):
-                line = redactor(line); out.write(line); out.flush()
-                if echo: sys.stdout.buffer.write(line); sys.stdout.buffer.flush()
-    previous = {}
-    def cancel(signum, _):
-        try: os.killpg(child.pid, signum)
-        except ProcessLookupError: pass
-    for signum in (signal.SIGTERM, signal.SIGINT): previous[signum] = signal.signal(signum, cancel)
-    try:
-        with concurrent.futures.ThreadPoolExecutor(max_workers=2) as pool:
-            readers = [pool.submit(copy, child.stdout, stdout_path, not json_output), pool.submit(copy, child.stderr, stderr_path, True)]
-            status = child.wait()
-            for reader in readers: reader.result()
-    finally:
-        for signum, handler in previous.items(): signal.signal(signum, handler)
-        child.stdout.close(); child.stderr.close()
-    row.update(exit_code=status, elapsed_seconds=time.time() - started,
-               stdout_sha256=digest(stdout_path), stderr_sha256=digest(stderr_path))
-    write(directory / (name + '.stage.json'), row)
-    return status if status >= 0 else 128 - status
+    return REPORT.stage(directory, name, argv, cwd=CONTRACTS, layout='split',
+                        redactor=redactor, stdout_json=json_output)
+
+
+def originals(directory, required, empty, label):
+    final = REPORT.read(directory / 'final.json')
+    if final['exit_code'] != 0 or final['report_errors']:
+        raise ValueError('Failed or incomplete original contract report: ' + label)
+    return REPORT.verify_files(directory, final['original_sha256'], required=required,
+                               missing_empty=empty if label.startswith('circle/') else None, label=label)
 
 
 def rpc(url, method, params):
@@ -240,7 +226,7 @@ def junit(path, discovered, bindings=None):
 
 def inputs():
     paths = command('git', 'ls-files').splitlines()
-    helpers = ['ops/ci/contract-upgrades.py', 'ops/ci/git-submodule-report.py', 'ops/ci/compare-rust-e2e.py', 'ops/ci/compare-contract-artifacts.py']
+    helpers = ['ops/ci/contract-upgrades.py', 'ops/ci/git-submodule-report.py', 'ops/ci/ci-report.py']
     for helper in helpers:
         if helper not in paths: paths.append(helper)
     chosen = [p for p in paths if p.startswith('packages/contracts-bedrock/') or p in helpers + ['mise.toml', 'go.mod', 'go.sum']]
@@ -284,8 +270,7 @@ def prepare(directory, variant):
 
 def finish(directory, status, errors):
     write(directory / 'final.json', {'exit_code': status, 'report_errors': errors,
-          'original_sha256': {str(p.relative_to(directory)): digest(p) for p in sorted(directory.rglob('*'))
-                              if p.is_file() and p.name != 'final.json'}})
+          'original_sha256': REPORT.file_hashes(directory, exclude=('final.json',))})
     return status
 
 
@@ -310,7 +295,7 @@ def main():
                 required = {'settings.json', 'selection.json', 'foundry-config.json', 'foundry-config.stage.json',
                             'contracts-build.stage.json', 'discovery.json', 'discovery.stage.json', 'go-ffi.stage.json',
                             'submodules.txt', 'compiled.json', 'signature-bindings.json'}
-                ORIGINALS.originals(args.prepared, required, [], 'rwx/upgrade-prepare')
+                originals(args.prepared, required, [], 'rwx/upgrade-prepare')
                 old = json.loads((args.prepared / 'settings.json').read_text())
                 if old['source_sha'] != revision() or old['variant'] != args.variant or old['input_sha256'] != inputs():
                     raise ValueError('Stale or mismatched contract upgrade compilation inputs')

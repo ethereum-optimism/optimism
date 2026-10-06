@@ -118,7 +118,7 @@ class CheckTests(unittest.TestCase):
     def test_relative_circle_adapter_downloads_verifies_and_discovers_actual_modules(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp); scripts = root / 'ops/ci'; scripts.mkdir(parents=True)
-            for name in ('pr-checks.py', 'rust-workspace-report.py'): shutil.copyfile(Path(__file__).with_name(name), scripts / name)
+            for name in ('pr-checks.py', 'rust-workspace-report.py', 'ci-report.py'): shutil.copyfile(Path(__file__).with_name(name), scripts / name)
             for name, text in [('go.mod', 'module fixture.invalid/ci\n\ngo 1.26.0\n'), ('go.sum', ''), ('mise.toml', ''), ('.gitignore', '.ci/\n')]:
                 (root / name).write_text(text)
             for args in (['init', '-q'], ['config', 'user.email', 'fixture@example.invalid'], ['config', 'user.name', 'CI Fixture'], ['add', '.'], ['commit', '-qm', 'module fixture']):

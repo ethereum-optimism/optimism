@@ -57,7 +57,7 @@ def inputs():
         elif path.is_symlink(): result[name] = {'symlink': os.readlink(path)}
         elif path.is_file(): result[name] = STAGES.digest(path)
         else: raise ValueError('Missing tracked Main input: ' + name)
-    for name in ('main-checks.py', 'pr-checks.py', 'rust-workspace-report.py'):
+    for name in ('main-checks.py', 'pr-checks.py', 'rust-workspace-report.py', 'ci-report.py'):
         path = ROOT / 'ops/ci' / name
         result[str(path.relative_to(ROOT))] = STAGES.digest(path)
     return result

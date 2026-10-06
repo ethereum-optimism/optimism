@@ -21,7 +21,7 @@ class SelectionTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temp:
             base=Path(temp);root=base/'source';root.mkdir()
             scripts=root/'ops/ci';scripts.mkdir(parents=True)
-            for name in ('main-checks.py','pr-checks.py','rust-workspace-report.py'):
+            for name in ('main-checks.py','pr-checks.py','rust-workspace-report.py','ci-report.py'):
                 shutil.copyfile(Path(G.__file__).with_name(name),scripts/name)
             for argv in (['git','init','-q'],['git','add','.'],
                          ['git','-c','user.name=CI fixture','-c','user.email=ci-fixture@example.invalid','commit','-qm','occupied-directory fixture']):

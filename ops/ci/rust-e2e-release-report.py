@@ -1,30 +1,28 @@
 #!/usr/bin/env python3
 """Bind the full E2E release workspace, effective Cargo targets and binaries."""
-import hashlib
+import importlib.util
 import json
 import os
 from pathlib import Path
-import subprocess
 import sys
 import time
 import xml.etree.ElementTree as ET
 
+SPEC = importlib.util.spec_from_file_location('ci_report', Path(__file__).with_name('ci-report.py'))
+REPORT = importlib.util.module_from_spec(SPEC); SPEC.loader.exec_module(REPORT)
+
 INPUTS = ('mise.toml', 'rust/Cargo.toml', 'rust/Cargo.lock', 'rust/.cargo/config.toml',
           'ops/ci/rust-e2e-release.sh', 'ops/ci/rust-e2e-release-report.py',
-          'ops/ci/rust-workspace-report.py', 'ops/ci/rust-target-cache.py', 'ops/ci/go-artifacts.py')
+          'ops/ci/rust-workspace-report.py', 'ops/ci/ci-report.py', 'ops/ci/rust-target-cache.py', 'ops/ci/go-artifacts.py')
 
 
-def read(path): return json.loads(path.read_text())
+read = REPORT.read
+write = REPORT.write
+digest = REPORT.digest
 
 
-def write(path, value): path.write_text(json.dumps(value, indent=2, sort_keys=True) + '\n')
-
-
-def digest(path):
-    with path.open('rb') as source: return hashlib.file_digest(source, 'sha256').hexdigest()
-
-
-def command(*args): return subprocess.check_output(args, text=True).strip()
+def command(*args):
+    return REPORT.command(args)
 
 
 def binding():

@@ -207,7 +207,7 @@ def report(directory,validate_authority=True):
     height=hex(pinned['block']['number']);recheck=rpc(directory,[('eth_chainId',[]),('eth_getBlockByNumber',[height,False])])
     check(recheck==pinned['common_rpc'][:2],'Changed original L2 runtime block or retry history')
     transport=runtime_transport(directory/'runtime-rpc')
-    return {'settings':s,'selection':selection,'coverage':coverage,'config':L.UP.ORIGINALS.normalize(config,s['workspace_root']),
+    return {'settings':s,'selection':selection,'coverage':coverage,'config':L.UP.REPORT.normalize(config,s['workspace_root']),
             'submodules':L.UP.SUBMODULES.revisions((directory/'submodules.txt').read_text()),
             'compiler_methods':{k:{'methods':v['methods'],'deployable':L.UP.deployable(v)} for k,v in bindings.items()},
             'preflight':pinned,'runtime_rpc':recheck,'rpc_transport':transport,

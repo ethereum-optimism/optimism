@@ -52,7 +52,7 @@ def inputs():
         elif path.is_file(): result[name] = UP.digest(path)
         else: raise ValueError('Missing tracked contract source input: ' + name)
     for name in ('contract-suites.py', 'contract-upgrades.py', 'git-submodule-report.py',
-                 'compare-rust-e2e.py', 'compare-contract-artifacts.py'):
+                 'ci-report.py'):
         path = ROOT / 'ops/ci' / name; result[str(path.relative_to(ROOT))] = UP.digest(path)
     return result
 
@@ -215,7 +215,7 @@ def prepare(directory, suite, feature):
 
 
 def restore(directory, prepared, suite, feature):
-    UP.ORIGINALS.originals(prepared, PREPARED, [], 'rwx/contract-suites-prepare')
+    UP.originals(prepared, PREPARED, [], 'rwx/contract-suites-prepare')
     old = json.loads((prepared / 'settings.json').read_text()); branch, profile = configure(suite, feature)
     chosen = json.loads((prepared / 'file-selection.json').read_text())
     if old.get('runtime_output_paths') != runtime_outputs(chosen['files']):

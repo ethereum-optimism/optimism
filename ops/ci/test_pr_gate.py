@@ -18,7 +18,7 @@ class GateTests(unittest.TestCase):
     def setUp(self):
         temp=tempfile.TemporaryDirectory();self.addCleanup(temp.cleanup);self.root=Path(temp.name)
         manifest=G.read(G.MANIFEST)
-        names={'ops/ci/pr-gates.json','ops/ci/pr-gate.py','ops/ci/main-checks.py','ops/ci/pr-checks.py','ops/ci/rust-workspace-report.py'}
+        names={'ops/ci/pr-gates.json','ops/ci/pr-gate.py','ops/ci/main-checks.py','ops/ci/pr-checks.py','ops/ci/rust-workspace-report.py','ops/ci/ci-report.py'}
         names|={row['config'] for row in manifest['groups'].values()}
         names|={row['circle_config'] for row in manifest['gates'].values()}
         names|={row['native_config'] for row in manifest['gates'].values()}

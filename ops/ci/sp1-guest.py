@@ -26,7 +26,7 @@ TOOL_INPUTS = ('mise.toml', 'rust/Cargo.toml', 'rust/Cargo.lock',
     'rust/kona/sp1/programs/Cargo.toml', 'rust/kona/sp1/programs/Cargo.lock',
     'rust/kona/sp1/justfile', 'rust/rust-toolchain.toml', 'rust/.cargo/config.toml',
     'ops/ci/sp1-guest-toolchain.sh', 'ops/ci/sp1-guest.py', 'ops/ci/sp1-guest-native-build.py',
-    'ops/ci/rust-target-cache.py', 'ops/ci/rust-workspace-report.py')
+    'ops/ci/rust-target-cache.py', 'ops/ci/rust-workspace-report.py', 'ops/ci/ci-report.py')
 
 
 def helper(name):

@@ -123,6 +123,8 @@ tasks:
     run: |
       python3 -m unittest discover -s ops/ci -p 'test_pr_gate*.py' -v
       python3 -m unittest discover -s ops/ci -p 'test_rwx_local_packages.py' -v
+      python3 -m unittest discover -s ops/ci -p 'test_ci_report.py' -v
+      python3 -m unittest discover -s ops/ci -p 'test_compare_ci.py' -v
     cache: false
     timeout: 10m
     outputs:

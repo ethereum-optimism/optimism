@@ -14,6 +14,7 @@ import threading
 import time
 import unittest
 from unittest.mock import patch
+from ci_test_fixtures import preserve_working_directory
 
 SPEC=importlib.util.spec_from_file_location('nut_provenance',Path(__file__).with_name('nut-provenance.py'))
 N=importlib.util.module_from_spec(SPEC);SPEC.loader.exec_module(N)
@@ -43,7 +44,7 @@ class ProvenanceTests(unittest.TestCase):
                 '.gitignore':'.ci/\n'}
         for name,data in inputs.items():
             path=self.root/name;path.parent.mkdir(parents=True,exist_ok=True);path.write_text(data)
-        for name in ('main-checks.py','pr-checks.py','rust-workspace-report.py'):
+        for name in ('main-checks.py','pr-checks.py','rust-workspace-report.py','ci-report.py'):
             path=self.root/'ops/ci'/name;path.parent.mkdir(parents=True,exist_ok=True)
             shutil.copyfile(N.ROOT/'ops/ci'/name,path)
         self.git(self.root,'add','.')
@@ -193,7 +194,7 @@ class ProvenanceTests(unittest.TestCase):
         def call(*args,**params):return 'fixture Go' if args==('go','version') else command(*args,**params)
         stage=N.S.stage
         def run(directory,name,args,**params):return 0 if name in ('tool-prepare','compiler-prepare') else stage(directory,name,args,**params)
-        with patch.dict(os.environ,self.env),patch.object(N,'command',side_effect=call),patch.object(N,'discover',return_value=selection),\
+        with preserve_working_directory(),patch.dict(os.environ,self.env),patch.object(N,'command',side_effect=call),patch.object(N,'discover',return_value=selection),\
                 patch.object(N,'prefix',return_value=[]),patch.object(N,'tool_identity',return_value={}),patch.object(N,'compiler_identity',return_value=None),patch.object(N.S,'stage',side_effect=run):
             result=N.execute(provider,True,**kwargs)
         directory=self.root/'.ci/nut-provenance'/('toolchain' if kwargs.get('prepare') else 'run')

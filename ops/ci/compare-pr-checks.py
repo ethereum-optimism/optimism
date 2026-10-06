@@ -14,7 +14,7 @@ def helper(name):
 
 
 CHECKS = helper('pr-checks')
-ORIGINALS = helper('compare-rust-e2e')
+REPORT = helper('ci-report')
 SUBMODULES = helper('git-submodule-report')
 
 
@@ -22,7 +22,11 @@ def report(directory, job, sha, provider, empty):
     required = {'settings.json', 'coverage.json', 'checks.junit.xml'}
     required |= {'discovery.json', 'discovery.stage.json', 'verify.stage.json', 'verify.log', 'download-0.stage.json', 'download-0.log'} if job == 'go-modules' else {
         'checks.log', 'checks.stage.json', 'selection.json', 'submodules.txt', 'foundry-config.json', 'foundry-config.stage.json', 'fetch-target.stage.json'}
-    hashes = ORIGINALS.originals(directory, required, empty, provider + '/' + job)
+    final = REPORT.read(directory / 'final.json')
+    if final['exit_code'] != 0 or final['report_errors']:
+        raise ValueError('Failed or incomplete original PR check report')
+    hashes = REPORT.verify_files(directory, final['original_sha256'], required=required,
+                                 missing_empty=empty if provider == 'circle' else None, label=provider + '/' + job)
     settings = json.loads((directory / 'settings.json').read_text()); coverage = json.loads((directory / 'coverage.json').read_text())
     if settings['source_sha'] != sha or settings['job'] != job or settings['provider'] != {'circle': 'circleci', 'rwx': 'rwx'}[provider]:
         raise ValueError('PR check source, job or provider differs')
@@ -34,7 +38,7 @@ def report(directory, job, sha, provider, empty):
     stages = {}
     for path in directory.glob('*.stage.json'):
         row = json.loads(path.read_text()); name = path.name.removesuffix('.stage.json')
-        stages[name] = ORIGINALS.normalize({k: row[k] for k in ('argv', 'cwd', 'exit_code')}, settings['workspace_root'])
+        stages[name] = REPORT.normalize({k: row[k] for k in ('argv', 'cwd', 'exit_code')}, settings['workspace_root'])
         if row['exit_code'] != 0 and not name.startswith('download-'): raise ValueError('Failed original PR check stage')
     if job == 'go-modules':
         manifest = CHECKS.modules((directory / 'discovery.json').read_text())
@@ -84,7 +88,7 @@ def compare(directories, job, sha):
     else:
         for provider, directory in directories.items():
             config = json.loads((directory / 'foundry-config.json').read_text())
-            data[provider] += (ORIGINALS.normalize(config, data[provider][0]['workspace_root']),
+            data[provider] += (REPORT.normalize(config, data[provider][0]['workspace_root']),
                               SUBMODULES.revisions((directory / 'submodules.txt').read_text()))
         a, b = data['circle'], data['rwx']
         if a[4:] != b[4:]: raise ValueError('PR check Foundry configuration or submodule revisions differ')

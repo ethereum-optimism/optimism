@@ -113,7 +113,7 @@ class LiveE2ETests(unittest.TestCase):
         self.tmp = tempfile.TemporaryDirectory(); self.addCleanup(self.tmp.cleanup)
         self.root = Path(self.tmp.name)
         for name in ('rust-e2e.py', 'rust-e2e.sh', 'go-compiled-tests.py', 'go-package-shards.py', 'go-suite.py',
-                     'rust-workspace-report.py', 'go-report.py'):
+                     'rust-workspace-report.py', 'ci-report.py', 'go-report.py'):
             path = self.root / 'ops/ci' / name; path.parent.mkdir(parents=True, exist_ok=True); shutil.copyfile(SCRIPTS / name, path)
         path = self.root / 'ops/scripts/split-test-logs.sh'; path.parent.mkdir(); shutil.copyfile(SCRIPTS.parent / 'scripts/split-test-logs.sh', path)
         for name in ('go.sum', 'mise.toml', 'rust/kona/tests/justfile', 'rust/op-reth/tests/justfile', 'ops/ci/rust-e2e-timings.json'):

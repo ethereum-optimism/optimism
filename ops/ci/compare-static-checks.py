@@ -13,7 +13,7 @@ def helper(name):
     module = importlib.util.module_from_spec(spec); spec.loader.exec_module(module); return module
 
 
-C = helper('static-checks'); ORIGINALS = helper('compare-rust-e2e')
+C = helper('static-checks'); REPORT = helper('ci-report')
 
 
 def report(directory, job, sha, provider, empty):
@@ -21,7 +21,11 @@ def report(directory, job, sha, provider, empty):
     if job == 'shell-check': required |= {'discovery.log', 'discovery.stage.json', 'original.shellcheck.log'}
     else: required.add('check.json')
     if job == 'semgrep-scan-local': required.add('scanned-source-sha256.json')
-    hashes = ORIGINALS.originals(directory, required, empty, provider + '/' + job)
+    final = REPORT.read(directory / 'final.json')
+    if final['exit_code'] != 0 or final['report_errors']:
+        raise ValueError('Failed or incomplete original static check report')
+    hashes = REPORT.verify_files(directory, final['original_sha256'], required=required,
+                                 missing_empty=empty if provider == 'circle' else None, label=provider + '/' + job)
     if {str(p.relative_to(directory)) for p in directory.rglob('*') if p.is_file() and p.name != 'final.json'} != set(hashes):
         raise ValueError('Unsealed or missing complete static originals')
     s = json.loads((directory / 'settings.json').read_text()); root = s['workspace_root']

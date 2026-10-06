@@ -19,33 +19,21 @@ E2E = helper('rust-e2e')
 COMPARE = helper('compare-ci')
 EXTRA = helper('compare-rust-extra')
 CONTRACTS = helper('compare-contract-artifacts')
-EMPTY = __import__('hashlib').sha256(b'').hexdigest()
+REPORT = helper('ci-report')
+EMPTY = REPORT.EMPTY_SHA256
 RELEASE_BINDING = ('source_sha', 'profile', 'features', 'scope', 'input_sha256', 'source_trees',
                    'rustc', 'cargo', 'mold', 'rustflags', 'incremental')
 
 
 def originals(directory, required, empty, label):
     final = E2E.read(directory / 'final.json')
-    if final['exit_code'] != 0 or final['report_errors']: raise ValueError('Failed or incomplete original E2E report: ' + label)
-    hashes = final['original_sha256']
-    if not required <= hashes.keys(): raise ValueError('Incomplete original E2E file manifest: ' + label)
-    for name, sha in hashes.items():
-        path = Path(name)
-        if path.is_absolute() or '..' in path.parts or not re.fullmatch('[0-9a-f]{64}', sha):
-            raise ValueError('Invalid original E2E report path or hash')
-        if not (directory / path).exists() and sha == EMPTY and label.startswith('circle/'):
-            empty.append({'report': label, 'path': name, 'sha256': sha})
-            # Provider manifests establish an empty file, never a missing verdict.
-            (directory / path).parent.mkdir(parents=True, exist_ok=True); (directory / path).write_bytes(b'')
-        if E2E.GO.digest(directory / path) != sha: raise ValueError('Missing or corrupt original E2E report: ' + label + '/' + name)
-    return hashes
+    if final['exit_code'] != 0 or final['report_errors']:
+        raise ValueError('Failed or incomplete original E2E report: ' + label)
+    return REPORT.verify_files(directory, final['original_sha256'], required=required,
+                               missing_empty=empty if label.startswith('circle/') else None, label=label)
 
 
-def normalize(value, root):
-    if isinstance(value, str): return value.replace(root, '<repo>')
-    if isinstance(value, dict): return {k: normalize(v, root) for k, v in value.items()}
-    if isinstance(value, list): return [normalize(v, root) for v in value]
-    return value
+normalize = REPORT.normalize
 
 
 def skip_comparison(job, key, circle, rwx, source=None):

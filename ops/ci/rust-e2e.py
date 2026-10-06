@@ -29,6 +29,7 @@ def helper(name):
 GO = helper('go-compiled-tests')
 STAGE = helper('rust-workspace-report')
 PROJECT = helper('go-report')
+REPORT = helper('ci-report')
 JOBS = {
     'proof': {'circle_job': 'kona-proof-action-single', 'package': 'rust/kona/tests/proofs', 'shards': 8,
               'timeout': '60m', 'per_test': True, 'recipe': ['just', 'action-tests-single-run']},
@@ -43,13 +44,13 @@ JOBS = {
 }
 INPUTS = ('go.mod', 'go.sum', 'mise.toml', 'rust/kona/tests/justfile', 'rust/op-reth/tests/justfile',
           'ops/ci/rust-e2e.py', 'ops/ci/rust-e2e.sh', 'ops/ci/rust-e2e-timings.json',
-          'ops/ci/go-compiled-tests.py', 'ops/ci/go-report.py')
+          'ops/ci/go-compiled-tests.py', 'ops/ci/go-report.py', 'ops/ci/ci-report.py')
 
 
-def read(path): return json.loads(path.read_text())
+read = REPORT.read
 
 
-def write(path, value): path.write_text(json.dumps(value, indent=2, sort_keys=True) + '\n')
+write = REPORT.write
 
 
 def settings(job):

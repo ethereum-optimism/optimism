@@ -21,7 +21,7 @@ INPUTS = ['mise.toml', '.dockerignore', str(DOCKERFILE), 'ops/scripts/install_mi
           'rust/justfile', 'rust/kona/justfile', 'rust/kona/docker/cannon/mips64-unknown-none.json',
           'rust/kona/bin/client/justfile', 'rust/kona/bin/client/scripts/fetch-witness-tar.sh',
           str(CONFIG), 'ops/ci/rust-cannon.sh', 'ops/ci/rust-cannon-report.py',
-          'ops/ci/rust-workspace-report.py', 'go.mod', 'go.sum', 'cannon/justfile',
+          'ops/ci/rust-workspace-report.py', 'ops/ci/ci-report.py', 'go.mod', 'go.sum', 'cannon/justfile',
           'justfiles/go.just', 'justfiles/git.just', 'ops/ci/rust-target-cache.py']
 
 

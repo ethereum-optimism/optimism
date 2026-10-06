@@ -1,35 +1,31 @@
 #!/usr/bin/env python3
 """Retain original Rust evidence and reject missing or duplicate verdicts."""
 import collections
-import hashlib
+import importlib.util
 import json
 import os
 from pathlib import Path
 import re
-import signal
 import shlex
-import subprocess
 import sys
 import time
 import xml.etree.ElementTree as ET
 
 
-def digest(path):
-    with Path(path).open('rb') as source:
-        return hashlib.file_digest(source, 'sha256').hexdigest()
+SPEC = importlib.util.spec_from_file_location('ci_report', Path(__file__).with_name('ci-report.py'))
+REPORT = importlib.util.module_from_spec(SPEC); SPEC.loader.exec_module(REPORT)
 
-
-def write(path, data):
-    Path(path).write_text(json.dumps(data, indent=2, sort_keys=True) + '\n')
+digest = REPORT.digest
+write = REPORT.write
 
 
 def command(*args):
-    return subprocess.check_output(args, text=True).strip()
+    return REPORT.command(args)
 
 
 def inputs(job=None):
     paths = ['mise.toml', 'rust/Cargo.lock', 'rust/justfile',
-             'rust/.config/nextest.toml', 'rust/.cargo/config.toml']
+             'rust/.config/nextest.toml', 'rust/.cargo/config.toml', 'ops/ci/ci-report.py']
     if job in ('wasm-unknown', 'wasm-wasi', 'zepter', 'typos', 'registry', 'interop'):
         # Bind every workspace manifest as well as the shared commands. Source
         # identity is the Git SHA; these hashes make settings drift explicit.
@@ -80,49 +76,8 @@ def begin(directory, job):
 
 
 def stage(directory, name, args, stdout_json=False, cwd='rust', stdin=None, stdout_file=None):
-    """Keep the real exit and signal, including when a subprocess is canceled."""
-    started = time.time()
-    data = {'argv': args, 'cwd': cwd, 'started_at': started, 'exit_code': None}
-    if stdout_file is not None:
-        if stdout_json or Path(stdout_file).name != stdout_file:
-            raise ValueError('Invalid separated original stdout destination')
-        data['stdout_file'] = stdout_file
-    separate = stdout_json or stdout_file is not None
-    if stdin == subprocess.DEVNULL: data['stdin'] = 'devnull'
-    record = directory / (name + '.stage.json')
-    write(record, data)
-    with (directory / (name + '.log')).open('wb') as log:
-        # JSON discovery needs stdout separate from compiler diagnostics.
-        with (directory / (stdout_file or name + '.json')).open('wb') if separate else open(os.devnull, 'wb') as out:
-            child = subprocess.Popen(args, cwd=cwd, start_new_session=True,
-                                     stdin=stdin,
-                                     stdout=out if separate else subprocess.PIPE,
-                                     stderr=log if separate else subprocess.STDOUT)
-            previous = {}
-            def cancel(signum, _frame):
-                os.killpg(child.pid, signum)
-            for signum in (signal.SIGINT, signal.SIGTERM):
-                previous[signum] = signal.signal(signum, cancel)
-            try:
-                if not separate:
-                    for line in iter(child.stdout.readline, b''):
-                        log.write(line)
-                        log.flush()
-                        sys.stdout.buffer.write(line)
-                        sys.stdout.buffer.flush()
-                status = child.wait()
-            finally:
-                for signum, handler in previous.items():
-                    signal.signal(signum, handler)
-                if child.stdout is not None:
-                    child.stdout.close()
-    data.update(exit_code=status, elapsed_seconds=time.time() - started,
-                log_sha256=digest(directory / (name + '.log')))
-    if stdout_file is not None: data['stdout_sha256'] = digest(directory / stdout_file)
-    write(record, data)
-    if status < 0:
-        status = 128 - status
-    return status
+    return REPORT.stage(directory, name, args, cwd=cwd, stdout_json=stdout_json,
+                        stdin=stdin, stdout_file=stdout_file)
 
 
 def unit_report(directory):

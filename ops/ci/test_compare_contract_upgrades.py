@@ -6,13 +6,14 @@ import json
 from pathlib import Path
 import tempfile
 import unittest
+from ci_test_fixtures import ReportFixtures
 
 SPEC=importlib.util.spec_from_file_location('compare',Path(__file__).with_name('compare-contract-upgrades.py'))
 C=importlib.util.module_from_spec(SPEC);SPEC.loader.exec_module(C)
 SHA='a'*40
 
 
-class ComparisonTests(unittest.TestCase):
+class ComparisonTests(ReportFixtures, unittest.TestCase):
     def setUp(self):
         self.tmp=tempfile.TemporaryDirectory();self.addCleanup(self.tmp.cleanup)
         self.root=Path(self.tmp.name);self.directories={}
@@ -40,9 +41,6 @@ class ComparisonTests(unittest.TestCase):
                 self.write(d/(name+'.stage.json'),{'argv':argv,'cwd':workspace+'/packages/contracts-bedrock','exit_code':0})
             self.seal(d)
 
-    def write(self,p,v):p.write_text(json.dumps(v))
-    def seal(self,d):self.write(d/'final.json',{'exit_code':0,'report_errors':[],'original_sha256':{
-        str(p.relative_to(d)):hashlib.sha256(p.read_bytes()).hexdigest() for p in d.rglob('*') if p.is_file() and p.name!='final.json'}})
     def compare(self):return C.compare(self.directories,'feature-main',SHA)
 
     def test_complete_original_selection_signatures_skips_settings_and_block_match(self):

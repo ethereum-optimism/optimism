@@ -6,13 +6,14 @@ import json
 from pathlib import Path
 import tempfile
 import unittest
+from ci_test_fixtures import ReportFixtures
 
 SPEC = importlib.util.spec_from_file_location('compare', Path(__file__).with_name('compare-contract-coverage.py'))
 C = importlib.util.module_from_spec(SPEC); SPEC.loader.exec_module(C)
 SHA = 'a'*40
 
 
-class ComparisonTests(unittest.TestCase):
+class ComparisonTests(ReportFixtures, unittest.TestCase):
     def setUp(self):
         self.tmp = tempfile.TemporaryDirectory(); self.addCleanup(self.tmp.cleanup); self.root = Path(self.tmp.name); self.dirs = {}
         for provider in ('circle', 'rwx'):
@@ -78,16 +79,12 @@ class ComparisonTests(unittest.TestCase):
                 self.stage(p, 'tests', C.C.COMMANDS[phase], root)
             self.seal(d)
 
-    def write(self, path, value): path.write_text(json.dumps(value))
     def stage(self, directory, name, argv, root):
         stdout = directory / (name + ('.json' if name.endswith(('config', 'discovery')) else '.log'))
         if not stdout.exists(): stdout.write_text('')
         stderr = directory / (name + '.stderr.log'); stderr.write_text('')
         self.write(directory / (name + '.stage.json'), {'argv': argv, 'cwd': root + '/packages/contracts-bedrock', 'exit_code': 0,
                    'stdout_sha256': C.UP.digest(stdout), 'stderr_sha256': C.UP.digest(stderr)})
-    def seal(self, d): C.UP.finish(d, 0, [])
-    def mutate(self, d, name, fn):
-        path = d / name; value = json.loads(path.read_text()); fn(value); self.write(path, value); self.seal(d)
     def compare(self): return C.compare(self.dirs, 'main', SHA)
 
     def test_all_original_entries_and_both_passes_match(self): self.assertTrue(self.compare()['verified_parity'])

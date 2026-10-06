@@ -168,7 +168,7 @@ class LiveForgeTests(unittest.TestCase):
             root = Path(tmp); contracts = root / 'packages/contracts-bedrock'
             (contracts / 'test/L1').mkdir(parents=True); (contracts / 'scripts/go-ffi').mkdir(parents=True)
             (contracts / 'scripts/checks').mkdir(parents=True); (root / 'ops/ci').mkdir(parents=True)
-            for name in ('contract-upgrades.py', 'git-submodule-report.py', 'compare-rust-e2e.py', 'compare-contract-artifacts.py'):
+            for name in ('contract-upgrades.py', 'git-submodule-report.py', 'ci-report.py'):
                 shutil.copy2(Path(UP.__file__).with_name(name), root / 'ops/ci' / name)
             original_just = (UP.CONTRACTS / 'justfile').read_text()
             # Keep the production build/runtime recipes byte for byte. Only the

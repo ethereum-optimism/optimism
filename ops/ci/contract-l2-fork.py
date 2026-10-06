@@ -34,7 +34,7 @@ RUNTIME = {'threads': 1, 'compute_units_per_second': 100, 'rpc_transport': P.POL
 TEST_ARGS = ['--threads', str(RUNTIME['threads']), '--compute-units-per-second',
              str(RUNTIME['compute_units_per_second'])]
 IMPLEMENTATION = ('contract-l2-fork.py', 'l2-rpc-proxy.py', 'contract-upgrades.py', 'selector-registry.py',
-                  'git-submodule-report.py', 'compare-rust-e2e.py')
+                  'git-submodule-report.py', 'ci-report.py')
 ADDRESS = '0x4200000000000000000000000000000000000007'
 SLOT = '0x360894a13ba1a3210667c828492db98dca3e2076cc3735a920a3ca505d382bbc'
 
