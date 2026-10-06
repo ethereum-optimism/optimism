@@ -180,10 +180,17 @@ jobs:
             c-rust_e2e_dispatch: << pipeline.parameters.rust_e2e_dispatch >>
             c-rust_nightly_bump_dispatch: << pipeline.parameters.rust_nightly_bump_dispatch >>
             c-l2_fork_test_dispatch: << pipeline.parameters.l2_fork_test_dispatch >>
+      # Diff against the PR's target branch, as the get-target-branch command does.
+      - run:
+          name: Determine change detection base
+          command: |
+            GH_TOKEN="${MISE_GITHUB_TOKEN:-}" source scripts/ops/get-target-branch.sh
+            echo "export BASE_REVISION=$TARGET_BRANCH" >> "$BASH_ENV"
+          working_directory: packages/contracts-bedrock
       # Change-detection patterns live in routing.yml (change_patterns.any and
       # change_patterns.all). Each is a POSIX ERE matched line-by-line against
-      # `git diff --name-only origin/develop...HEAD`; collect-params.sh writes
-      # the resulting c-<name> boolean into the JSON.
+      # `git diff --name-only origin/${BASE_REVISION}...HEAD`; collect-params.sh
+      # writes the resulting c-<name> boolean into the JSON.
       #
       # Test a pattern locally:
       #   git diff --name-only origin/develop...HEAD | grep -E "^your/pattern/"

@@ -41,7 +41,7 @@ use revm::{
 
 use crate::post_exec::{
     PostExecEvm, PostExecEvmFactoryAdapter, PostExecEvmFactoryHooks, PostExecExecutedTx,
-    PostExecRefundEvent, PostExecRefundInspector, PostExecTxContext, PostExecTxKind,
+    PostExecRefundEvent, PostExecRefundPolicyFactory, PostExecTxContext, PostExecTxKind,
     noop_post_exec_result,
 };
 
@@ -101,8 +101,14 @@ pub enum PostExecMode {
     Disabled,
     /// Produce canonical post-exec refunds locally and append them to the block later.
     Produce,
-    /// Verify canonical gas accounting using an post-exec payload embedded in the block.
+    /// Verify canonical gas accounting using a post-exec payload embedded in the block.
     Verify(PostExecPayload),
+    /// Reject the block in pre-execution, so the engine classifies it as invalid.
+    ///
+    /// Callers must run [`BlockExecutor::apply_pre_execution_changes`] before executing
+    /// transactions. This variant is rejected there; `finish()` is not a substitute for
+    /// pre-execution validation.
+    Invalid(String),
 }
 
 impl From<bool> for PostExecMode {
@@ -121,6 +127,11 @@ pub enum PostExecState {
     Producing {
         /// Accumulated per-tx refunds for post-exec tx assembly.
         entries: Vec<SDMGasEntry>,
+    },
+    /// Reject the block before executing any transactions.
+    Invalid {
+        /// Parser failure.
+        reason: String,
     },
     /// Verify canonical gas accounting using a post-exec payload embedded in the block.
     Verifying {
@@ -178,6 +189,7 @@ impl PostExecState {
                 let invalid_reason = validate_verifier_entries(&payload.gas_refund_entries).err();
                 Self::Verifying { payload, next_entry: 0, invalid_reason, saw_post_exec_tx: false }
             }
+            PostExecMode::Invalid(reason) => Self::Invalid { reason },
         }
     }
 
@@ -191,7 +203,9 @@ impl PostExecState {
 
     const fn invalid_reason(&self) -> Option<&str> {
         match self {
-            Self::Verifying { invalid_reason: Some(reason), .. } => Some(reason.as_str()),
+            Self::Invalid { reason } | Self::Verifying { invalid_reason: Some(reason), .. } => {
+                Some(reason.as_str())
+            }
             _ => None,
         }
     }
@@ -272,6 +286,7 @@ impl PostExecState {
             Self::Disabled => Err(format!(
                 "unexpected post-exec tx at index {tx_index}: SDM not active for this block"
             )),
+            Self::Invalid { reason } => Err(reason.clone()),
         }
     }
 
@@ -1294,8 +1309,8 @@ where
     }
 }
 
-impl<ReceiptBuilder, Spec, Tx, RefundPolicy> BlockExecutorFactory
-    for OpBlockExecutorFactory<ReceiptBuilder, Spec, OpEvmFactory<Tx, RefundPolicy>>
+impl<ReceiptBuilder, Spec, Tx, RefundPolicyFactory> BlockExecutorFactory
+    for OpBlockExecutorFactory<ReceiptBuilder, Spec, OpEvmFactory<Tx, RefundPolicyFactory>>
 where
     ReceiptBuilder: OpReceiptBuilder<
             Transaction: Transaction + Encodable2718 + OpConsensusTransaction,
@@ -1311,26 +1326,20 @@ where
         + FromTxWithEncoded<ReceiptBuilder::Transaction>
         + OpTxEnv
         + 'static,
-    RefundPolicy: Default + PostExecRefundInspector + 'static,
+    RefundPolicyFactory: PostExecRefundPolicyFactory + 'static,
+    RefundPolicyFactory::Policy: 'static,
     Self: 'static,
 {
-    type EvmFactory = OpEvmFactory<Tx, RefundPolicy>;
+    type EvmFactory = OpEvmFactory<Tx, RefundPolicyFactory>;
     type ExecutionCtx<'a> = OpBlockExecutionCtx;
     type Transaction = ReceiptBuilder::Transaction;
     type Receipt = ReceiptBuilder::Receipt;
     type TxExecutionResult = OpTxResult<
-        <OpEvmFactory<Tx, RefundPolicy> as EvmFactory>::HaltReason,
+        <Self::EvmFactory as EvmFactory>::HaltReason,
         <ReceiptBuilder::Transaction as TransactionEnvelope>::TxType,
     >;
-    type Executor<
-        'a,
-        DB: StateDB,
-        I: Inspector<<OpEvmFactory<Tx, RefundPolicy> as EvmFactory>::Context<DB>>,
-    > = OpBlockExecutor<
-        <OpEvmFactory<Tx, RefundPolicy> as EvmFactory>::Evm<DB, I>,
-        &'a ReceiptBuilder,
-        &'a Spec,
-    >;
+    type Executor<'a, DB: StateDB, I: Inspector<<Self::EvmFactory as EvmFactory>::Context<DB>>> =
+        OpBlockExecutor<<Self::EvmFactory as EvmFactory>::Evm<DB, I>, &'a ReceiptBuilder, &'a Spec>;
 
     fn evm_factory(&self) -> &Self::EvmFactory {
         &self.evm_factory
@@ -1338,12 +1347,12 @@ where
 
     fn create_executor<'a, DB, I>(
         &'a self,
-        evm: <OpEvmFactory<Tx, RefundPolicy> as EvmFactory>::Evm<DB, I>,
+        evm: <Self::EvmFactory as EvmFactory>::Evm<DB, I>,
         ctx: Self::ExecutionCtx<'a>,
     ) -> Self::Executor<'a, DB, I>
     where
         DB: StateDB,
-        I: Inspector<<OpEvmFactory<Tx, RefundPolicy> as EvmFactory>::Context<DB>>,
+        I: Inspector<<Self::EvmFactory as EvmFactory>::Context<DB>>,
     {
         OpBlockExecutor::new(evm, ctx, &self.spec, &self.receipt_builder)
     }

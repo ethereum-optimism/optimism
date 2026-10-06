@@ -11,14 +11,14 @@ use async_trait::async_trait;
 use kona_disc::LocalNode;
 use kona_genesis::RollupConfig;
 use kona_node_service::{
-    EngineClientResult, NetworkActor, NetworkBuilder, NetworkEngineClient, NodeActor,
+    EngineClientResult, NetworkActor, NetworkBuilder, NetworkEngineClient, NodeActor, SignerActor,
 };
 use kona_peers::BootNode;
-use kona_sources::BlockSigner;
+use kona_sources::BlockSignerHandler;
 use libp2p::{Multiaddr, identity::Keypair, multiaddr::Protocol};
 use op_alloy_rpc_types_engine::OpExecutionPayloadEnvelope;
 use rand::RngCore;
-use tokio::sync::mpsc;
+use tokio::sync::{mpsc, watch};
 use tracing::error;
 
 pub(crate) struct TestNetworkBuilder {
@@ -65,7 +65,8 @@ impl TestNetworkBuilder {
         let secp256k1_key = keypair.clone().try_into_secp256k1()
         .map_err(|e| anyhow::anyhow!("Impossible to convert keypair to secp256k1. This is a bug since we only support secp256k1 keys: {e}")).unwrap()
         .secret().to_bytes();
-        // LocalNode takes enr's k256 key and BlockSigner alloy's signer; both share one secret.
+        // LocalNode takes enr's k256 key and BlockSignerHandler alloy's signer; both share one
+        // secret.
         let local_node_key = enr::k256::ecdsa::SigningKey::from_bytes(&secp256k1_key.into())
             .expect("libp2p secp256k1 secret is a valid k256 key");
         let block_signer = PrivateKeySigner::from_bytes(&secp256k1_key.into())
@@ -96,26 +97,42 @@ impl TestNetworkBuilder {
             keypair,
             LocalNode::new(local_node_key, node_addr, 0, 0),
             discovery_config,
-            Some(BlockSigner::Local(block_signer)),
         )
         .with_bootnodes(bootnodes.into_iter().map(Into::into).collect::<Vec<BootNode>>().into());
 
         let handler = builder.build().expect("build network").start().await.expect("start network");
 
         let (blocks_tx, blocks_rx) = mpsc::channel(1024);
-        let (signer_tx, signer_rx) = mpsc::channel(16);
         let (p2p_rpc_tx, p2p_rpc_rx) = mpsc::channel(1024);
         let (admin_rpc_tx, admin_rpc_rx) = mpsc::channel(1024);
         let (gossip_payload_tx, gossip_payload_rx) = mpsc::channel(256);
+        let (signed_payload_tx, signed_payload_rx) = mpsc::channel(16);
 
         let mut actor = NetworkActor::new(
             ForwardingNetworkEngineClient { blocks_tx },
             handler,
-            signer_rx,
             p2p_rpc_rx,
             admin_rpc_rx,
-            gossip_payload_rx,
+            signed_payload_rx,
         );
+
+        // Every test network can sign: payloads sent to `gossip_payload_tx` are signed with this
+        // node's key and then gossiped.
+        let mut signer = SignerActor::new(
+            BlockSignerHandler::Local(block_signer),
+            self.chain_id,
+            watch::channel(self.unsafe_block_signer).1,
+            gossip_payload_rx,
+            signed_payload_tx,
+        );
+        tokio::spawn(async move {
+            let err = loop {
+                if let Err(err) = signer.step().await {
+                    break err;
+                }
+            };
+            error!(target: "net", ?err, "Signer actor failed");
+        });
 
         let handle = tokio::spawn(async move {
             loop {
@@ -126,7 +143,7 @@ impl TestNetworkBuilder {
             Ok(())
         });
 
-        TestNetwork { signer_tx, p2p_rpc_tx, admin_rpc_tx, gossip_payload_tx, blocks_rx, handle }
+        TestNetwork { p2p_rpc_tx, admin_rpc_tx, gossip_payload_tx, blocks_rx, handle }
     }
 }
 

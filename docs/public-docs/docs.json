@@ -1020,6 +1020,10 @@
       "destination": "/notices/archive/upgrade-19"
     },
     {
+      "source": "/notices/upgrade-20",
+      "destination": "/notices/archive/upgrade-20"
+    },
+    {
       "source": "/notices/op-geth-deprecation",
       "destination": "/notices/archive/op-geth-deprecation"
     },
@@ -3487,6 +3491,7 @@
               "op-stack/security/security-policy",
               "op-stack/security/audit-reports",
               "op-stack/security/pause",
+              "op-stack/security/exchanges-and-bridges",
               "op-stack/security/interop-security"
             ]
           },
@@ -3626,7 +3631,6 @@
               {
                 "group": "Network Upgrades",
                 "pages": [
-                  "notices/upgrade-20",
                   "notices/interop-prep"
                 ]
               },

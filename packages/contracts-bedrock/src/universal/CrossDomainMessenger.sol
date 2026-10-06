@@ -366,14 +366,14 @@ abstract contract CrossDomainMessenger is
         uint64 executionGas = uint64(
             // Constant costs for relayMessage
             RELAY_CONSTANT_OVERHEAD
-            // Covers dynamic parts of the CALL opcode
-            + RELAY_CALL_OVERHEAD
-            // Ensures execution of relayMessage completes after call
-            + RELAY_RESERVED_GAS
-            // Buffer between hasMinGas check and the CALL
-            + RELAY_GAS_CHECK_BUFFER
-            // Minimum gas limit, multiplied by 64/63 to account for EIP-150.
-            + ((_minGasLimit * MIN_GAS_DYNAMIC_OVERHEAD_NUMERATOR) / MIN_GAS_DYNAMIC_OVERHEAD_DENOMINATOR)
+                // Covers dynamic parts of the CALL opcode
+                + RELAY_CALL_OVERHEAD
+                // Ensures execution of relayMessage completes after call
+                + RELAY_RESERVED_GAS
+                // Buffer between hasMinGas check and the CALL
+                + RELAY_GAS_CHECK_BUFFER
+                // Minimum gas limit, multiplied by 64/63 to account for EIP-150.
+                + ((_minGasLimit * MIN_GAS_DYNAMIC_OVERHEAD_NUMERATOR) / MIN_GAS_DYNAMIC_OVERHEAD_DENOMINATOR)
         );
 
         // Total message size is the result of properly ABI encoding the call to relayMessage.
@@ -388,11 +388,10 @@ abstract contract CrossDomainMessenger is
         // contract creation case because this is always a call to relayMessage.
         return TX_BASE_GAS
             + uint64(
-                Math.max(
-                    executionGas + (totalMessageSize * MIN_GAS_CALLDATA_OVERHEAD),
-                    (totalMessageSize * FLOOR_CALLDATA_OVERHEAD)
-                )
-            );
+            Math.max(
+            executionGas + (totalMessageSize * MIN_GAS_CALLDATA_OVERHEAD), (totalMessageSize * FLOOR_CALLDATA_OVERHEAD)
+        )
+        );
     }
 
     /// @notice Initializer.
