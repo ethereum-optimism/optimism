@@ -1,8 +1,8 @@
-//! [`OpProofsProviderRO`] implementation for [`MdbxProofsProviderV2`].
+//! [`OpProofsProviderRO`] implementation for [`MdbxProofsProvider`].
 
 use super::{
-    MdbxProofsProviderV2,
-    cursor::{V2AccountCursor, V2AccountTrieCursor, V2StorageCursor, V2StorageTrieCursor},
+    MdbxProofsProvider,
+    cursor::{MdbxAccountCursor, MdbxAccountTrieCursor, MdbxStorageCursor, MdbxStorageTrieCursor},
 };
 use crate::{
     BlockStateDiff, OpProofsStorageResult,
@@ -22,9 +22,9 @@ use alloy_primitives::B256;
 use reth_db::transaction::DbTx;
 use std::fmt::Debug;
 
-impl<TX: DbTx + Send + Sync + Debug + 'static> OpProofsProviderRO for MdbxProofsProviderV2<TX> {
+impl<TX: DbTx + Send + Sync + Debug + 'static> OpProofsProviderRO for MdbxProofsProvider<TX> {
     type StorageTrieCursor<'tx>
-        = V2StorageTrieCursor<
+        = MdbxStorageTrieCursor<
         TX::DupCursor<V2StoragesTrie>,
         TX::Cursor<V2StoragesTrieHistory>,
         TX::DupCursor<V2StorageTrieChangeSets>,
@@ -34,7 +34,7 @@ impl<TX: DbTx + Send + Sync + Debug + 'static> OpProofsProviderRO for MdbxProofs
         TX: 'tx;
 
     type AccountTrieCursor<'tx>
-        = V2AccountTrieCursor<
+        = MdbxAccountTrieCursor<
         TX::Cursor<V2AccountsTrie>,
         TX::Cursor<V2AccountsTrieHistory>,
         TX::DupCursor<V2AccountTrieChangeSets>,
@@ -44,7 +44,7 @@ impl<TX: DbTx + Send + Sync + Debug + 'static> OpProofsProviderRO for MdbxProofs
         TX: 'tx;
 
     type StorageCursor<'tx>
-        = V2StorageCursor<
+        = MdbxStorageCursor<
         TX::DupCursor<V2HashedStorages>,
         TX::Cursor<V2HashedStoragesHistory>,
         TX::DupCursor<V2HashedStorageChangeSets>,
@@ -54,7 +54,7 @@ impl<TX: DbTx + Send + Sync + Debug + 'static> OpProofsProviderRO for MdbxProofs
         TX: 'tx;
 
     type AccountHashedCursor<'tx>
-        = V2AccountCursor<
+        = MdbxAccountCursor<
         TX::Cursor<V2HashedAccounts>,
         TX::Cursor<V2HashedAccountsHistory>,
         TX::DupCursor<V2HashedAccountChangeSets>,
@@ -81,7 +81,7 @@ impl<TX: DbTx + Send + Sync + Debug + 'static> OpProofsProviderRO for MdbxProofs
         max_block_number: u64,
     ) -> OpProofsStorageResult<Self::StorageTrieCursor<'tx>> {
         let is_latest = self.is_latest_block(max_block_number)?;
-        Ok(V2StorageTrieCursor::new(
+        Ok(MdbxStorageTrieCursor::new(
             self.tx.cursor_dup_read::<V2StoragesTrie>()?,
             self.tx.cursor_read::<V2StoragesTrieHistory>()?,
             self.tx.cursor_read::<V2StoragesTrieHistory>()?,
@@ -97,7 +97,7 @@ impl<TX: DbTx + Send + Sync + Debug + 'static> OpProofsProviderRO for MdbxProofs
         max_block_number: u64,
     ) -> OpProofsStorageResult<Self::AccountTrieCursor<'tx>> {
         let is_latest = self.is_latest_block(max_block_number)?;
-        Ok(V2AccountTrieCursor::new(
+        Ok(MdbxAccountTrieCursor::new(
             self.tx.cursor_read::<V2AccountsTrie>()?,
             self.tx.cursor_read::<V2AccountsTrieHistory>()?,
             self.tx.cursor_read::<V2AccountsTrieHistory>()?,
@@ -113,7 +113,7 @@ impl<TX: DbTx + Send + Sync + Debug + 'static> OpProofsProviderRO for MdbxProofs
         max_block_number: u64,
     ) -> OpProofsStorageResult<Self::StorageCursor<'tx>> {
         let is_latest = self.is_latest_block(max_block_number)?;
-        Ok(V2StorageCursor::new(
+        Ok(MdbxStorageCursor::new(
             self.tx.cursor_dup_read::<V2HashedStorages>()?,
             self.tx.cursor_read::<V2HashedStoragesHistory>()?,
             self.tx.cursor_read::<V2HashedStoragesHistory>()?,
@@ -129,7 +129,7 @@ impl<TX: DbTx + Send + Sync + Debug + 'static> OpProofsProviderRO for MdbxProofs
         max_block_number: u64,
     ) -> OpProofsStorageResult<Self::AccountHashedCursor<'tx>> {
         let is_latest = self.is_latest_block(max_block_number)?;
-        Ok(V2AccountCursor::new(
+        Ok(MdbxAccountCursor::new(
             self.tx.cursor_read::<V2HashedAccounts>()?,
             self.tx.cursor_read::<V2HashedAccountsHistory>()?,
             self.tx.cursor_read::<V2HashedAccountsHistory>()?,

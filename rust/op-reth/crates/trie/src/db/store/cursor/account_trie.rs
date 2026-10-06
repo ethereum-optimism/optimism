@@ -1,4 +1,4 @@
-//! History-aware cursor over the [`V2AccountsTrie`] v2 table.
+//! History-aware cursor over the [`V2AccountsTrie`] table.
 
 use reth_db::{
     DatabaseError,
@@ -13,7 +13,7 @@ use crate::db::models::{
     AccountTrieShardedKey, V2AccountTrieChangeSets, V2AccountsTrie, V2AccountsTrieHistory,
 };
 
-/// History-aware cursor over the [`V2AccountsTrie`] v2 tables.
+/// History-aware cursor over the [`V2AccountsTrie`] tables.
 ///
 /// Uses a **dual-cursor merge** to discover all trie paths that existed at
 /// `max_block_number`. This is necessary because a key deleted *after* the
@@ -23,7 +23,7 @@ use crate::db::models::{
 /// yielding the minimum key from each, resolving its value at the target
 /// block, and skipping keys that did not exist at that block.
 #[derive(Debug)]
-pub struct V2AccountTrieCursor<C, HC, CC> {
+pub struct MdbxAccountTrieCursor<C, HC, CC> {
     /// Current state walk cursor.
     cursor: C,
     /// History bitmap cursor for resolving individual keys.
@@ -40,8 +40,8 @@ pub struct V2AccountTrieCursor<C, HC, CC> {
     is_latest: bool,
 }
 
-impl<C, HC, CC> V2AccountTrieCursor<C, HC, CC> {
-    /// Create a new [`V2AccountTrieCursor`].
+impl<C, HC, CC> MdbxAccountTrieCursor<C, HC, CC> {
+    /// Create a new [`MdbxAccountTrieCursor`].
     pub const fn new(
         cursor: C,
         history_cursor: HC,
@@ -62,7 +62,7 @@ impl<C, HC, CC> V2AccountTrieCursor<C, HC, CC> {
     }
 }
 
-impl<C, HC, CC> V2AccountTrieCursor<C, HC, CC>
+impl<C, HC, CC> MdbxAccountTrieCursor<C, HC, CC>
 where
     C: DbCursorRO<V2AccountsTrie>,
     HC: DbCursorRO<V2AccountsTrieHistory>,
@@ -147,7 +147,7 @@ where
     }
 }
 
-impl<C, HC, CC> TrieCursor for V2AccountTrieCursor<C, HC, CC>
+impl<C, HC, CC> TrieCursor for MdbxAccountTrieCursor<C, HC, CC>
 where
     C: DbCursorRO<V2AccountsTrie> + Send,
     HC: DbCursorRO<V2AccountsTrieHistory> + Send,

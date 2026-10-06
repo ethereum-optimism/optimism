@@ -1,9 +1,7 @@
-use alloy_primitives::{B256, U256};
-use derive_more::{Constructor, From, Into};
-use reth_codecs::DecompressError;
+use alloy_primitives::B256;
 use reth_db::{
     DatabaseError,
-    table::{Compress, Decode, Decompress, Encode},
+    table::{Decode, Encode},
 };
 use reth_trie_common::StoredNibbles;
 use serde::{Deserialize, Serialize};
@@ -98,30 +96,6 @@ impl Decode for HashedStorageKey {
         let hashed_storage_key = B256::from_slice(&value[32..64]);
 
         Ok(Self { hashed_address, hashed_storage_key })
-    }
-}
-
-/// Storage value wrapper for U256 values
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, From, Into, Constructor)]
-pub struct StorageValue(pub U256);
-
-impl Compress for StorageValue {
-    type Compressed = Vec<u8>;
-
-    fn compress_to_buf<B: bytes::BufMut + AsMut<[u8]>>(&self, buf: &mut B) {
-        let be: [u8; 32] = self.0.to_be_bytes::<32>();
-        buf.put_slice(&be);
-    }
-}
-
-impl Decompress for StorageValue {
-    fn decompress(value: &[u8]) -> Result<Self, DecompressError> {
-        if value.len() != 32 {
-            return Err(DecompressError::new(DatabaseError::Decode));
-        }
-        let bytes: [u8; 32] =
-            value.try_into().map_err(|_| DecompressError::new(DatabaseError::Decode))?;
-        Ok(Self(U256::from_be_bytes(bytes)))
     }
 }
 

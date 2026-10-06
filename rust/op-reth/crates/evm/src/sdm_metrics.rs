@@ -4,13 +4,14 @@
 //! dashboard can show SDM validation activity rather than inferring it from generic block
 //! validation.
 //!
-//! Recorded from the execution-context builders. Beyond live import, several paths re-execute
-//! stored canonical blocks that already passed this check: RPC replays, the proofs ExEx's
-//! periodic re-execution, and pipeline or backfill sync. Re-execution cannot inflate the
-//! failure counters, but every pass recounts `ok` — on a verifying proofs node `ok` runs at
-//! roughly twice the block rate and it spikes while a node syncs, so the `ok` series is an
-//! activity signal, not a canonical block count. Failures the executor raises while verifying
-//! the refunds themselves are a separate class and are not counted here.
+//! Recorded from the execution-context builders and the Engine API payload preflight. Beyond
+//! live import, several paths re-execute stored canonical blocks that already passed this check:
+//! RPC replays, the proofs ExEx's periodic re-execution, and pipeline or backfill sync.
+//! Re-execution cannot inflate the failure counters, but every pass recounts `ok` — on a
+//! verifying proofs node `ok` runs at roughly twice the block rate and it spikes while a node
+//! syncs, so the `ok` series is an activity signal, not a canonical block count. Failures the
+//! executor raises while verifying the refunds themselves are a separate class and are not
+//! counted here.
 //!
 //! `new_with_labels` resolves the recorder on every call instead of caching it, so a report before
 //! the recorder is installed drops that one sample rather than silencing the counter. The same
@@ -110,7 +111,7 @@ pub(crate) fn report_post_exec_validation_failure(
 #[cfg(all(test, feature = "std"))]
 mod tests {
     use super::{RESULT_FAIL, RESULT_OK};
-    use crate::OpEvmConfig;
+    use crate::{OpEvmConfig, PostExecMode};
     use alloy_consensus::{Block, BlockBody, Header, Sealable};
     use alloy_genesis::Genesis;
     use metrics_exporter_prometheus::{PrometheusBuilder, PrometheusHandle, PrometheusRecorder};
@@ -174,11 +175,13 @@ mod tests {
     }
 
     /// Builds the execution context for `block` against a recorder private to this test and
-    /// returns the rendered exposition alongside the result.
-    fn import(block: SealedBlock<OpBlock>) -> (Result<(), ()>, String) {
+    /// returns whether the executor will reject it alongside the rendered exposition.
+    fn import(block: SealedBlock<OpBlock>) -> (bool, String) {
         let (recorder, handle) = recorder();
-        let result = with_local_recorder(&recorder, || evm_config().context_for_block(&block));
-        (result.map(drop).map_err(drop), handle.render())
+        let context = with_local_recorder(&recorder, || {
+            evm_config().context_for_block(&block).expect("infallible")
+        });
+        (matches!(context.post_exec_mode, PostExecMode::Invalid(_)), handle.render())
     }
 
     /// Reads one labeled series out of the exposition. `None` distinguishes a series that was
@@ -234,11 +237,105 @@ mod tests {
         #[case] transactions: Vec<OpTransactionSigned>,
         #[case] reason: &str,
     ) {
-        let (result, exposition) = import(block(timestamp, transactions));
+        let (rejected, exposition) = import(block(timestamp, transactions));
 
-        assert!(result.is_err(), "block is rejected");
+        assert!(rejected, "block is rejected");
         assert_failures(&exposition, Some(reason));
         assert_results(&exposition, /* ok */ 0.0, /* fail */ 1.0);
+    }
+
+    /// Drives the Engine API preflight helper with raw encoded transactions against a recorder
+    /// private to the test, returning the result alongside the rendered exposition.
+    fn preflight(transactions: Vec<alloy_primitives::Bytes>) -> (Result<(), ()>, String) {
+        let (recorder, handle) = recorder();
+        let result = with_local_recorder(&recorder, || {
+            super::register_sdm_metrics_at_zero();
+            crate::preflight_post_exec_payload(&transactions, BLOCK)
+        });
+        (result.map_err(drop), handle.render())
+    }
+
+    fn encoded_post_exec(entries: usize) -> alloy_primitives::Bytes {
+        use alloy_eips::eip2718::Encodable2718;
+        build_post_exec_tx(
+            BLOCK,
+            (0..entries).map(|i| SDMGasEntry { index: i as u64, gas_refund: 1 }).collect(),
+        )
+        .encoded_2718()
+        .into()
+    }
+
+    const fn filler() -> alloy_primitives::Bytes {
+        alloy_primitives::Bytes::from_static(&[0x01])
+    }
+
+    const fn bare_post_exec() -> alloy_primitives::Bytes {
+        alloy_primitives::Bytes::from_static(&[op_alloy_consensus::POST_EXEC_TX_TYPE_ID])
+    }
+
+    fn versioned_post_exec(version: u8) -> alloy_primitives::Bytes {
+        use op_alloy_consensus::{POST_EXEC_TX_TYPE_ID, PostExecPayload};
+        let payload = PostExecPayload { version, block_number: BLOCK, gas_refund_entries: vec![] };
+        let mut tx = vec![POST_EXEC_TX_TYPE_ID];
+        tx.extend_from_slice(payload.to_rlp_bytes().as_ref());
+        tx.into()
+    }
+
+    #[rstest]
+    #[case::multiple(vec![bare_post_exec(), bare_post_exec()], "multiple_post_exec_txs")]
+    #[case::not_last(vec![bare_post_exec(), filler()], "post_exec_tx_not_last")]
+    #[case::too_many_entries(vec![filler(), encoded_post_exec(2)], "too_many_gas_refund_entries")]
+    #[case::malformed(vec![bare_post_exec()], "malformed_post_exec_payload")]
+    #[case::unsupported_version(vec![filler(), versioned_post_exec(2)], "unsupported_post_exec_payload_version")]
+    fn rejected_payload_counts_on_the_engine_api_path(
+        #[case] transactions: Vec<alloy_primitives::Bytes>,
+        #[case] reason: &str,
+    ) {
+        let (result, exposition) = preflight(transactions);
+
+        assert!(result.is_err(), "preflight rejects");
+        assert_failures(&exposition, Some(reason));
+        assert_results(&exposition, /* ok */ 0.0, /* fail */ 1.0);
+    }
+
+    #[test]
+    fn rejected_payload_is_counted_once_across_iterator_and_context() {
+        use op_alloy_rpc_types_engine::{OpExecutionData, OpExecutionPayload};
+        use reth_evm::{ConfigureEngineEvm, ConvertTx, ExecutableTxTuple};
+
+        let block = block(ACTIVE, vec![post_exec(BLOCK)]).into_block();
+        let (payload, sidecar) = OpExecutionPayload::from_block_slow(&block);
+        let execution_data = OpExecutionData::new(payload, sidecar);
+        let (recorder, handle) = recorder();
+        with_local_recorder(&recorder, || {
+            let config = evm_config();
+            let iterator = config.tx_iterator_for_payload(&execution_data).expect("infallible");
+            let (transactions, convert) = iterator.into_parts();
+            for encoded in transactions {
+                assert!(convert.convert(encoded).is_err());
+            }
+            let context = config.context_for_payload(&execution_data).expect("infallible");
+            assert!(matches!(context.post_exec_mode, PostExecMode::Invalid(_)));
+        });
+
+        let exposition = handle.render();
+        assert_failures(&exposition, Some("too_many_gas_refund_entries"));
+        assert_results(&exposition, /* ok */ 0.0, /* fail */ 1.0);
+    }
+
+    /// The preflight does not count `ok`: a pass is not yet a validated post-exec transaction —
+    /// the parse on the decoded transactions counts that.
+    #[rstest]
+    #[case::with_post_exec(vec![filler(), encoded_post_exec(1)])]
+    #[case::without_post_exec(vec![filler()])]
+    fn accepted_payload_counts_nothing_at_preflight(
+        #[case] transactions: Vec<alloy_primitives::Bytes>,
+    ) {
+        let (result, exposition) = preflight(transactions);
+
+        assert!(result.is_ok(), "preflight passes");
+        assert_failures(&exposition, None);
+        assert_results(&exposition, /* ok */ 0.0, /* fail */ 0.0);
     }
 
     #[rstest]
@@ -250,9 +347,9 @@ mod tests {
         #[case] transactions: Vec<OpTransactionSigned>,
         #[case] expected_ok: f64,
     ) {
-        let (result, exposition) = import(block(timestamp, transactions));
+        let (rejected, exposition) = import(block(timestamp, transactions));
 
-        assert!(result.is_ok(), "block parses");
+        assert!(!rejected, "block parses");
         assert_failures(&exposition, None);
         assert_results(&exposition, expected_ok, /* fail */ 0.0);
     }
