@@ -144,100 +144,16 @@ run_scenario \
 # --- Scenarios ---
 
 run_scenario \
-  "Pilot L2 parity replay selects only the complete original fork suite" \
+  "Full NUT reporting option preserves normal API routing" \
   dispatch codex/rwx-ci-pilot "" "" \
-  '{"c-main_dispatch":false,"c-l2_fork_parity_replay_effective":true,"c-l2_fork_parity_block_effective":"157803345","c-github-event-type":"__not_set__"}' \
-  l2_fork_parity_replay
-
-run_scenario \
-  "L2 parity replay is restricted to the pilot API branch" \
-  dispatch develop "" "" \
-  '{"c-main_dispatch":false,"c-l2_fork_parity_replay_effective":true,"c-github-event-type":"__not_set__"}' \
-  release
-
-run_scenario \
-  "L2 parity option on a push preserves normal PR routing" \
-  push codex/rwx-ci-pilot "" "" \
-  '{"c-main_dispatch":false,"c-l2_fork_parity_replay_effective":true}' \
-  main release selector_upload_replay contracts_feature_tests_short rust_ci_gate_short rust_e2e_gate_skip
-
-run_scenario \
-  "Main dispatch preserves normal routing with an L2 parity option" \
-  dispatch codex/rwx-ci-pilot "" "" \
-  '{"c-main_dispatch":true,"c-l2_fork_parity_replay_effective":true,"c-github-event-type":"__not_set__"}' \
+  '{"c-main_dispatch":true,"c-nut_provenance_full_effective":true,"c-github-event-type":"__not_set__"}' \
   main release contracts_feature_tests
 
 run_scenario \
-  "Combined pilot replays include exactly the requested L2 and reporting workloads" \
+  "Retired replay options do not create isolated workflows" \
   dispatch codex/rwx-ci-pilot "" "" \
-  '{"c-main_dispatch":false,"c-l2_fork_parity_replay_effective":true,"c-flaky_report_replay_effective":true,"c-selector_upload_replay_effective":true,"c-github-event-type":"__not_set__"}' \
-  l2_fork_parity_replay flaky_report_replay selector_upload_replay
-
-run_scenario \
-  "Pilot flaky-report replay selects only the original reporter" \
-  dispatch codex/rwx-ci-pilot "" "" \
-  '{"c-main_dispatch":false,"c-flaky_report_replay_effective":true,"c-github-event-type":"__not_set__"}' \
-  flaky_report_replay
-
-run_scenario \
-  "Flaky-report replay cannot select an isolated job on another branch" \
-  dispatch develop "" "" \
-  '{"c-main_dispatch":false,"c-flaky_report_replay_effective":true,"c-github-event-type":"__not_set__"}' \
+  '{"c-main_dispatch":false,"c-l2_fork_parity_replay_effective":true,"c-selector_upload_replay_effective":true,"c-flaky_report_replay_effective":true,"c-github-event-type":"__not_set__"}' \
   release
-
-run_scenario \
-  "Flaky-report replay option on a push preserves normal PR routing" \
-  push codex/rwx-ci-pilot "" "" \
-  '{"c-main_dispatch":false,"c-flaky_report_replay_effective":true}' \
-  main release selector_upload_replay contracts_feature_tests_short rust_ci_gate_short rust_e2e_gate_skip
-
-run_scenario \
-  "Main dispatch preserves normal routing with a reporting replay option" \
-  dispatch codex/rwx-ci-pilot "" "" \
-  '{"c-main_dispatch":true,"c-flaky_report_replay_effective":true,"c-github-event-type":"__not_set__"}' \
-  main release contracts_feature_tests
-
-run_scenario \
-  "Combined pilot replays select exactly the requested isolated workloads" \
-  dispatch codex/rwx-ci-pilot "" "" \
-  '{"c-main_dispatch":false,"c-flaky_report_replay_effective":true,"c-selector_upload_replay_effective":true,"c-github-event-type":"__not_set__"}' \
-  flaky_report_replay selector_upload_replay
-
-run_scenario \
-  "Pilot selector replay selects only the private original publisher" \
-  dispatch codex/rwx-ci-pilot "" "" \
-  '{"c-main_dispatch":false,"c-selector_upload_replay_effective":true,"c-github-event-type":"__not_set__"}' \
-  selector_upload_replay
-
-run_scenario \
-  "Selector replay cannot select the test publisher on another branch" \
-  dispatch develop "" "" \
-  '{"c-main_dispatch":false,"c-selector_upload_replay_effective":true,"c-github-event-type":"__not_set__"}' \
-  release
-
-run_scenario \
-  "Selector replay option on a push preserves normal PR routing" \
-  push codex/rwx-ci-pilot "" "" \
-  '{"c-main_dispatch":false,"c-selector_upload_replay_effective":true}' \
-  main release selector_upload_replay contracts_feature_tests_short rust_ci_gate_short rust_e2e_gate_skip
-
-run_scenario \
-  "Main dispatch does not opt the production publisher into private mode" \
-  dispatch codex/rwx-ci-pilot "" "" \
-  '{"c-main_dispatch":true,"c-selector_upload_replay_effective":true,"c-github-event-type":"__not_set__"}' \
-  main release contracts_feature_tests
-
-run_scenario \
-  "Pilot full NUT replay selects only original verifier and modules" \
-  dispatch codex/rwx-ci-pilot "" "" \
-  '{"c-main_dispatch":false,"c-nut_provenance_full_effective":true,"c-github-event-type":"__not_set__"}' \
-  nut_provenance_replay
-
-run_scenario \
-  "Full NUT option on a push retains normal PR routing" \
-  push codex/rwx-ci-pilot "" "" \
-  '{"c-main_dispatch":false,"c-nut_provenance_full_effective":true}' \
-  main release selector_upload_replay contracts_feature_tests_short rust_ci_gate_short rust_e2e_gate_skip
 
 run_scenario \
   "Tag push → release only" \
@@ -425,7 +341,7 @@ run_scenario "Passthrough parameters survive, detection and dispatch parameters 
   push feat/routing "" "" \
   '{"c-default_docker_image":"example/image:1","c-go-cache-version":"test","c-go_fresh_tests_effective":true,"c-contract_coverage_replay_effective":true,"c-nut_provenance_full_effective":true,"c-selector_upload_replay_effective":true,"c-flaky_report_replay_effective":true,"c-l2_fork_parity_replay_effective":true,"c-l2_fork_parity_block_effective":"157803345","c-main_dispatch":true,"c-only_docs_changes":true}' \
   ci_gate_skip contracts_feature_tests_short rust_ci_gate_short rust_e2e_gate_skip
-if jq -e '."c-default_docker_image" == "example/image:1" and ."c-go-cache-version" == "test" and ."c-go_fresh_tests_effective" == true and ."c-contract_coverage_replay_effective" == true and ."c-nut_provenance_full_effective" == true and ."c-selector_upload_replay_effective" == true and ."c-flaky_report_replay_effective" == true and ."c-l2_fork_parity_replay_effective" == true and ."c-l2_fork_parity_block_effective" == "157803345" and (has("c-main_dispatch") | not) and (has("c-only_docs_changes") | not)' "${OUTPUT}" >/dev/null; then
+if jq -e '."c-default_docker_image" == "example/image:1" and ."c-go-cache-version" == "test" and ."c-go_fresh_tests_effective" == true and ."c-contract_coverage_replay_effective" == true and ."c-nut_provenance_full_effective" == true and (has("c-selector_upload_replay_effective") | not) and (has("c-flaky_report_replay_effective") | not) and (has("c-l2_fork_parity_replay_effective") | not) and ."c-l2_fork_parity_block_effective" == "157803345" and (has("c-main_dispatch") | not) and (has("c-only_docs_changes") | not)' "${OUTPUT}" >/dev/null; then
   echo "PASS: parameter JSON contract"
   PASS=$((PASS + 1))
 else

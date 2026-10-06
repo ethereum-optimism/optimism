@@ -1,9 +1,10 @@
-# RWX pilot evidence archive
+# RWX evidence retrieval and comparison
 
 PR #23151 covers all 86 baseline CircleCI PR job occurrences. Its generated
-reports are archived outside Git. The repository retains this index,
-[summary checksums](rwx-evidence-summaries.sha256), and human-written workload
-closeouts linked from [the coverage checklist](rwx-parity-todos.md).
+reports are archived outside Git. The three maintained documents are this guide, the [operator guide](rwx-migration.md)
+and [86-job checklist](rwx-parity-todos.md). The small
+[summary checksum index](rwx-evidence-summaries.sha256) remains integrity data.
+Historical human-written closeouts and experiments are archived below.
 
 ## Archive identity and custody
 
@@ -75,7 +76,7 @@ and run the existing `ops/ci/compare-*.py` tools against restored `.ci/` reports
 Provider run/check captures reside under `captures/` or alongside their report
 families. They retain original source revisions and run identities.
 
-Historical summary links in the workload closeouts use the immutable
+Archived workload closeouts link historical summaries at the immutable
 [captured revision](https://github.com/ethereum-optimism/optimism/tree/a1aa49aaf3713a8172f3f615f094488fd8e39c3d/docs/ai).
 Their exact bytes are also recoverable from the archive and checked by the
 92-line summary checksum file. Deleting them from the PR's final tree does not
@@ -117,3 +118,113 @@ The archive labels these older collection limitations explicitly:
 
 These exceptions receive no new parity credit. The archive preserves them for
 audit rather than treating every historical collection as complete.
+
+## Documentation and experiment archive
+
+The October 6 cleanup captures the pre-cleanup source
+`57094f2aeece2b08ec7c2cba8ae19609b2859ae3`. Its private archive contains all
+28 earlier RWX/comparison Markdown files, three retired package-probe definitions,
+pre-cleanup Circle replay/routing files, exact non-CI and Circle audit diffs, and
+the successful pre-cleanup check snapshot. These are historical instructions;
+use the maintained guide for current operations. The audit diffs compare against
+the PR merge base `c8e4ba855d79ca56463909ef5a2c5830a1189401`; the October 5
+upstream observation is recorded separately in `index.json`.
+
+Two owner-private copies retain 40 hashed files (about 6.3 MB):
+
+- `/Users/edward/Workspace/op/rwx-ci-pilot-evidence/2026-10-06-maintenance-57094f2aee/`
+- `hetzner:/home/admin/.local/share/optimism-ci-evidence/2026-10-06-maintenance-57094f2aee/`
+
+`SHA256SUMS` has SHA-256
+`d46f4a3b14c0cef29a5e68b71c8edcfdcd931b463d6ec3de0db3e355fe1baea9`.
+Both copies were verified before removing the old documentation and machinery.
+Files under `source/` preserve repository-relative paths. Retrieval requires no
+archive script or decompressor:
+
+```bash
+rsync -a hetzner:/home/admin/.local/share/optimism-ci-evidence/2026-10-06-maintenance-57094f2aee/ ./rwx-maintenance-history/
+cd rwx-maintenance-history
+shasum -a 256 SHA256SUMS  # compare with the independently recorded value above
+shasum -a 256 -c SHA256SUMS
+# Historical package probe:
+# source/.rwx/local-package-fixture.yml and source/.rwx/packages/fixture-*.yml
+```
+
+The [pre-cleanup source](https://github.com/ethereum-optimism/optimism/tree/57094f2aeece2b08ec7c2cba8ae19609b2859ae3)
+also preserves its tracked history. Keep archive data outside Git. No report,
+compressed object or source bundle is added to the final PR tree.
+
+Later local-package/helper evidence is stored separately under the operator's
+same `rwx-ci-pilot-evidence` root: `2026-10-05-local-packages-af0d89bfb2`,
+`2026-10-05-helper-refactor-8ec3e62ce9` and
+`2026-10-05-helper-refactor-57094f2aee`. The first has a private host mirror;
+the helper archives are workstation collections. Their own indices record
+validation scope. The initial helper archive preserves the missing-SP1-import
+failure; the corrected source adds the filtered library and verifies both hosted
+tasks. The full pre-cleanup terminal check snapshot is in the maintenance archive.
+Do not infer two-copy custody for archives that only have one recorded copy.
+
+## Collect new evidence
+
+Use a clean pushed SHA with an open PR for Circle's PR-only project setting.
+Verify each provider's full SHA, branch, effective settings, selection and final
+job/task status before downloading originals. Fetch every API page and every
+expected shard. Keep run/job URLs, provider responses and checks alongside the
+reports. Avoid secret values and expiring signed download URLs in maintained docs.
+
+Retain complete selection, shard assignments, source/tool/settings hashes,
+compiler inventories, initial Go JSON/JUnit, stdout/stderr, per-test logs,
+retry/diagnostic histories and job outcomes. Final JUnit or Circle's case API
+alone cannot prove zero retries. A diagnostic pass never replaces the initial
+failure. Store derived comparison outputs separately from sealed originals.
+Report collection must run after failures and cancellations too.
+
+For full Go, select packages from `just list-test-packages`, not a rollup prefix.
+Circle's `c-go_fresh_tests=true` enables `-count=1`; RWX verdicts are always fresh.
+Acceptance retains each variant's test listing and package manifest. Contracts
+retain every feature/profile's complete test files, compiler-bound signatures,
+initial reports and diagnostic reruns. Coverage needs Circle's explicit
+`c-contract_coverage_replay=true` for identical SHA/feature-derived Solidity and
+Go FFI inputs; unseeded hit counts are not an exact replay. Full historical NUT
+regeneration uses `c-nut_provenance_full=true` in a normal pipeline, not a separate
+replay workflow. L2 comparisons retain the pinned block, state reads and sealed
+relay observations. Different upstream request counts alone do not establish
+parity or a speed difference; native Foundry caches can serve reads locally.
+
+Use the suite's `compare-*.py --help` and archived invocation/collection index.
+For example, standard contract reports use directory inputs and a full SHA:
+
+```bash
+python3 ops/ci/compare-contract-suites.py \
+  --circle /path/to/circle-report --rwx /path/to/rwx-report \
+  --sha FULL_COMMIT_SHA --suite standard --feature main \
+  --output /path/to/derived/parity.json
+```
+
+The generic `compare-ci.py` remains available for Go JSON/JUnit/case collections,
+including rollup CLI compatibility. Its version-1 collection records `metadata`
+(provider, SHA, branch, workload, profile, features, routing context, effective
+`test_config`), `sources` (format, path, provider `metadata_path`, feature, role,
+shard index/total), complete `discovery` with provenance, and measurements. Paths
+are relative to the collection JSON. Source metadata must record actual
+`sha`, `branch`, terminal `status`. Set completeness only from retained discovery;
+matching case reports alone do not prove selection.
+
+```bash
+python3 ops/ci/compare-ci.py normalize --input circle.json --output circle.normalized.json
+python3 ops/ci/compare-ci.py normalize --input rwx.json --output rwx.normalized.json
+python3 ops/ci/compare-ci.py compare --baseline circle.normalized.json --candidate rwx.normalized.json --output parity.json
+```
+
+Exit 0 means supplied evidence is equivalent; exit 1 means different or incomplete;
+exit 2 means incomparable or rejected input. These tools validate supplied bytes,
+not collector identity or provider authentication. Review discovered gaps, skips
+and retry histories explicitly; equivalence does not transfer gate ownership.
+
+Measure push/run creation through the final verdict, including queueing, setup,
+compilation, transfers and tests. Label unavailable push timestamps, warm/cold
+compiler state, resource allocation and every sample. Cached task timestamps can
+belong to a prior run: do not count them as current compute time. Archived
+benchmark experiments establish observations, not an RWX speed claim. Preserve
+all samples outside Git; the chosen 12-shard configuration stays in the operator
+guide until a separately justified change.

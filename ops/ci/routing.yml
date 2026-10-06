@@ -31,14 +31,6 @@ schedules:
 # labeled_pr have more complex conditions (see compute-workflow-conditions.sh),
 # but the workflows they enable still live here as data.
 api_dispatch:
-  l2_fork_parity_replay_effective:
-    - l2_fork_parity_replay
-  flaky_report_replay_effective:
-    - flaky_report_replay
-  selector_upload_replay_effective:
-    - selector_upload_replay
-  nut_provenance_full_effective:
-    - nut_provenance_replay
   main_dispatch:
     - main
     - contracts_feature_tests
@@ -98,8 +90,5 @@ passthrough_params:
   - c-go_fresh_tests_effective
   - c-contract_coverage_replay_effective
   - c-nut_provenance_full_effective
-  - c-selector_upload_replay_effective
-  - c-flaky_report_replay_effective
-  - c-l2_fork_parity_replay_effective
   - c-l2_fork_parity_block_effective
   - c-publish_contract_artifacts_ref

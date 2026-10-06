@@ -93,15 +93,6 @@ parameters:
   c-nut_provenance_full:
     type: boolean
     default: false
-  c-selector_upload_replay:
-    type: boolean
-    default: false
-  c-flaky_report_replay:
-    type: boolean
-    default: false
-  c-l2_fork_parity_replay:
-    type: boolean
-    default: false
   c-l2_fork_parity_block:
     type: string
     default: ""
@@ -191,9 +182,6 @@ jobs:
             c-go_fresh_tests_effective: << pipeline.parameters.c-go_fresh_tests >>
             c-contract_coverage_replay_effective: << pipeline.parameters.c-contract_coverage_replay >>
             c-nut_provenance_full_effective: << pipeline.parameters.c-nut_provenance_full >>
-            c-selector_upload_replay_effective: << pipeline.parameters.c-selector_upload_replay >>
-            c-flaky_report_replay_effective: << pipeline.parameters.c-flaky_report_replay >>
-            c-l2_fork_parity_replay_effective: << pipeline.parameters.c-l2_fork_parity_replay >>
             c-main_dispatch: << pipeline.parameters.main_dispatch >>
             c-fault_proofs_dispatch: << pipeline.parameters.fault_proofs_dispatch >>
             c-reproducibility_dispatch: << pipeline.parameters.reproducibility_dispatch >>

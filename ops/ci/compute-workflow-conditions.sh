@@ -141,17 +141,7 @@ case "${CI_EVENT:?CI_EVENT must be push, schedule, or dispatch}" in
 
   # API triggers: dispatch flags select workflows (routing.yml api_dispatch).
   dispatch)
-    # Pilot API replays select their isolated original workload without
-    # selecting production publisher workflows.
-    if ! is_true main_dispatch && \
-      [[ "${CI_BRANCH}" == "codex/rwx-ci-pilot" && "$(param github-event-type)" == "__not_set__" ]] && \
-      { is_true nut_provenance_full_effective || is_true selector_upload_replay_effective || is_true flaky_report_replay_effective || is_true l2_fork_parity_replay_effective; }; then
-      for flag in nut_provenance_full_effective selector_upload_replay_effective flaky_report_replay_effective l2_fork_parity_replay_effective; do
-        if is_true "${flag}"; then run_group api_dispatch "${flag}"; fi
-      done
-    else
-      run release
-    fi
+    run release
     # main_dispatch only fires for genuine API dispatches, not github-event triggers.
     if is_true main_dispatch && [[ "$(param github-event-type)" == "__not_set__" ]]; then
       run_group api_dispatch main_dispatch
@@ -161,7 +151,7 @@ case "${CI_EVENT:?CI_EVENT must be push, schedule, or dispatch}" in
     for flag in $(yq -r '.api_dispatch | keys | .[]' "${ROUTING}"); do
       # Keep this skip-list in sync with bespoke api_dispatch conditions.
       case "${flag}" in
-        main_dispatch | labeled_pr | nut_provenance_full_effective | selector_upload_replay_effective | flaky_report_replay_effective | l2_fork_parity_replay_effective) continue ;;
+        main_dispatch | labeled_pr) continue ;;
       esac
       if is_true "${flag}"; then
         run_group api_dispatch "${flag}"

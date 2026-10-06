@@ -35,34 +35,7 @@ parameters:
   c-nut_provenance_full_effective:
     type: boolean
     default: false
-  c-run_nut_provenance_replay:
-    type: boolean
-    default: false
-  c-selector_upload_replay:
-    type: boolean
-    default: false
-  c-selector_upload_replay_effective:
-    type: boolean
-    default: false
   c-run_selector_upload_replay:
-    type: boolean
-    default: false
-  c-flaky_report_replay:
-    type: boolean
-    default: false
-  c-flaky_report_replay_effective:
-    type: boolean
-    default: false
-  c-run_flaky_report_replay:
-    type: boolean
-    default: false
-  c-l2_fork_parity_replay:
-    type: boolean
-    default: false
-  c-l2_fork_parity_replay_effective:
-    type: boolean
-    default: false
-  c-run_l2_fork_parity_replay:
     type: boolean
     default: false
   c-l2_fork_parity_block:
@@ -2816,53 +2789,12 @@ jobs:
           when: always
 
 workflows:
-  l2-fork-parity-replay:
-    when: << pipeline.parameters.c-run_l2_fork_parity_replay >>
-    jobs:
-      - prep-go-modules:
-          context:
-            - circleci-repo-readonly-authenticated-github-token
-      - contracts-bedrock-tests-l2-fork:
-          name: contracts-bedrock-tests-l2-fork op-mainnet
-          parity_shadow: true
-          fork_op_chain: op-mainnet
-          l2_fork_rpc: https://mainnet.optimism.io
-          l2_fork_block_number: <<pipeline.parameters.c-l2_fork_parity_block_effective>>
-          test_profile: ci
-          features: main
-          requires:
-            - prep-go-modules
-          context:
-            - circleci-repo-readonly-authenticated-github-token
-
-  flaky-report-replay:
-    when: << pipeline.parameters.c-run_flaky_report_replay >>
-    jobs:
-      - generate-flaky-report:
-          name: generate-flaky-tests-report
-          context:
-            - circleci-repo-readonly-authenticated-github-token
-            - circleci-api-token
-
+  # Test-only publication shadow selected on pilot pushes; no API replay route.
   selector-upload-replay:
     when: << pipeline.parameters.c-run_selector_upload_replay >>
     jobs:
       - contracts-bedrock-upload:
           selector_shadow: true
-          context:
-            - circleci-repo-readonly-authenticated-github-token
-
-  # Isolated full replay of the original job and original module dependency.
-  # Shared routing selects this only for explicit pilot API benchmarks.
-  nut-provenance-replay:
-    when: << pipeline.parameters.c-run_nut_provenance_replay >>
-    jobs:
-      - prep-go-modules:
-          context:
-            - circleci-repo-readonly-authenticated-github-token
-      - nut-provenance-verify:
-          requires:
-            - prep-go-modules
           context:
             - circleci-repo-readonly-authenticated-github-token
 
