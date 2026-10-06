@@ -298,6 +298,31 @@ mod tests {
         assert_results(&exposition, /* ok */ 0.0, /* fail */ 1.0);
     }
 
+    #[test]
+    fn rejected_payload_is_counted_once_across_iterator_and_context() {
+        use op_alloy_rpc_types_engine::{OpExecutionData, OpExecutionPayload};
+        use reth_evm::{ConfigureEngineEvm, ConvertTx, ExecutableTxTuple};
+
+        let block = block(ACTIVE, vec![post_exec(BLOCK)]).into_block();
+        let (payload, sidecar) = OpExecutionPayload::from_block_slow(&block);
+        let execution_data = OpExecutionData::new(payload, sidecar);
+        let (recorder, handle) = recorder();
+        with_local_recorder(&recorder, || {
+            let config = evm_config();
+            let iterator = config.tx_iterator_for_payload(&execution_data).expect("infallible");
+            let (transactions, convert) = iterator.into_parts();
+            for encoded in transactions {
+                assert!(convert.convert(encoded).is_err());
+            }
+            let context = config.context_for_payload(&execution_data).expect("infallible");
+            assert!(matches!(context.post_exec_mode, PostExecMode::Invalid(_)));
+        });
+
+        let exposition = handle.render();
+        assert_failures(&exposition, Some("too_many_gas_refund_entries"));
+        assert_results(&exposition, /* ok */ 0.0, /* fail */ 1.0);
+    }
+
     /// The preflight does not count `ok`: a pass is not yet a validated post-exec transaction —
     /// the parse on the decoded transactions counts that.
     #[rstest]

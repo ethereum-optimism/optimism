@@ -420,8 +420,13 @@ where
         &self,
         payload: &OpExecutionData,
     ) -> Result<impl ExecutableTxIterator<Self>, Self::Error> {
+        // Background conversion can start before context_for_payload runs. Keep the raw
+        // entry-count guard here too, but defer errors to iterator items so the execution
+        // context can reject the block with PostExecMode::Invalid.
+        let preflight = validate_post_exec_entry_count(payload.payload.transactions());
         let transactions = payload.payload.transactions().clone();
-        let convert = |encoded: Bytes| {
+        let convert = move |encoded: Bytes| {
+            preflight.map_err(AnyError::new)?;
             let tx = TxTy::<Self::Primitives>::decode_2718_exact(encoded.as_ref())
                 .map_err(AnyError::new)?;
             let signer = tx.try_recover().map_err(AnyError::new)?;
@@ -585,6 +590,49 @@ mod tests {
             let context = evm_config.context_for_payload(&execution_data).expect("infallible");
             assert!(matches!(context.post_exec_mode, PostExecMode::Invalid(_)));
             assert!(evm_config.tx_iterator_for_payload(&execution_data).is_ok());
+        }
+    }
+
+    #[test]
+    fn tx_iterator_for_payload_preflights_post_exec_entries() {
+        use reth_evm::{ConvertTx, ExecutableTxTuple};
+
+        let evm_config = OpEvmConfig::optimism(lagoon_at_timestamp_chain_spec(0));
+        for entry_count in [1, 2, 1024] {
+            let mut block = block_with_post_exec_tx(7, 123, 7).into_block();
+            *block.body.transactions.last_mut().unwrap() = OpTransactionSigned::PostExec(
+                build_post_exec_tx(7, vec![SDMGasEntry { index: 0, gas_refund: 1 }; entry_count])
+                    .seal_slow(),
+            );
+            let (payload, sidecar) = OpExecutionPayload::from_block_slow(&block);
+            let execution_data = OpExecutionData::new(payload, sidecar);
+            let context = evm_config.context_for_payload(&execution_data).expect("infallible");
+            let iterator = evm_config
+                .tx_iterator_for_payload(&execution_data)
+                .expect("preflight failures are deferred to iterator items");
+            let (transactions, convert) = iterator.into_parts();
+
+            if entry_count == 1 {
+                assert!(matches!(context.post_exec_mode, PostExecMode::Verify(_)));
+                for encoded in transactions {
+                    assert!(convert.convert(encoded).is_ok());
+                }
+            } else {
+                assert!(matches!(context.post_exec_mode, PostExecMode::Invalid(_)));
+                // Preflight stops at the first excess entry, so the count is a lower bound.
+                let expected_reason = PostExecPayloadValidationError::TooManyGasRefundEntries {
+                    entry_count: 2,
+                    preceding_transaction_count: 1,
+                }
+                .to_string();
+                // Even the valid deposit must fail preflight: the background converter must
+                // not decode any envelopes from a payload with an oversized refund list.
+                for encoded in transactions {
+                    let error =
+                        convert.convert(encoded).err().expect("preflight rejects conversion");
+                    assert_eq!(error.to_string(), expected_reason);
+                }
+            }
         }
     }
 

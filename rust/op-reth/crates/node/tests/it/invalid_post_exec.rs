@@ -6,7 +6,7 @@
 
 use alloy_consensus::{Sealable, proofs::calculate_transaction_root};
 use alloy_rpc_types_engine::{PayloadStatus, PayloadStatusEnum, PayloadValidationError};
-use op_alloy_consensus::{PostExecPayloadValidationError, build_post_exec_tx};
+use op_alloy_consensus::{PostExecPayloadValidationError, SDMGasEntry, build_post_exec_tx};
 use op_alloy_rpc_types_engine::{OpExecutionData, OpExecutionPayload};
 use reth_optimism_node::{
     OpBuiltPayload,
@@ -19,15 +19,20 @@ use tokio::sync::Mutex;
 
 /// Appends a 0x7d to `payload`'s block and reseals it. Returns it with the parser's rejection.
 fn with_post_exec_tx(payload: &OpBuiltPayload) -> (OpExecData, String) {
-    let mut block = payload.block().clone_block();
-    let tx_index = block.body.transactions.len() as u64;
+    let tx_index = payload.block().body().transactions.len() as u64;
+    let reason = PostExecPayloadValidationError::UnexpectedPostExecTx { tx_index }.to_string();
     // No entries, so the entry-count preflight passes and the fork gate rejects it.
-    let post_exec = build_post_exec_tx(block.header.number, Vec::new()).seal_slow();
+    (with_post_exec_entries(payload, Vec::new()), reason)
+}
+
+/// Appends a `PostExec` transaction with the supplied refund entries and reseals the block.
+fn with_post_exec_entries(payload: &OpBuiltPayload, entries: Vec<SDMGasEntry>) -> OpExecData {
+    let mut block = payload.block().clone_block();
+    let post_exec = build_post_exec_tx(block.header.number, entries).seal_slow();
     block.body.transactions.push(OpTransactionSigned::PostExec(post_exec));
     block.header.transactions_root = calculate_transaction_root(&block.body.transactions);
     let (payload, sidecar) = OpExecutionPayload::from_block_slow(&block);
-    let reason = PostExecPayloadValidationError::UnexpectedPostExecTx { tx_index }.to_string();
-    (OpExecutionData::new(payload, sidecar).into(), reason)
+    OpExecutionData::new(payload, sidecar).into()
 }
 
 fn assert_invalid(status: &PayloadStatus, expected_reason: &str) {
@@ -55,6 +60,34 @@ async fn test_new_payload_with_malformed_post_exec_is_invalid() -> eyre::Result<
     assert_eq!(status.latest_valid_hash, Some(parent.block().hash()));
 
     // Cached as an invalid header.
+    let status = engine.new_payload(bad_child).await.expect("not an internal error");
+    assert_invalid(&status, &PayloadValidationError::LinksToRejectedPayload.to_string());
+
+    Ok(())
+}
+
+#[tokio::test]
+async fn test_new_payload_with_oversized_post_exec_entries_is_invalid() -> eyre::Result<()> {
+    reth_tracing::init_test_tracing();
+
+    let (mut nodes, wallet) = setup(1).await?;
+    let mut node = nodes.pop().unwrap();
+    let parent = advance_chain(1, &mut node, Arc::new(Mutex::new(wallet))).await?.remove(0);
+    let child = node.new_payload().await?;
+    let entry_count = child.block().body().transactions.len() + 1;
+    let bad_child =
+        with_post_exec_entries(&child, vec![SDMGasEntry { index: 0, gas_refund: 1 }; entry_count]);
+    let engine = &node.inner.add_ons_handle.beacon_engine_handle;
+
+    let reason = PostExecPayloadValidationError::TooManyGasRefundEntries {
+        entry_count,
+        preceding_transaction_count: entry_count - 1,
+    }
+    .to_string();
+    let status = engine.new_payload(bad_child.clone()).await.expect("not an internal error");
+    assert_invalid(&status, &reason);
+    assert_eq!(status.latest_valid_hash, Some(parent.block().hash()));
+
     let status = engine.new_payload(bad_child).await.expect("not an internal error");
     assert_invalid(&status, &PayloadValidationError::LinksToRejectedPayload.to_string());
 
