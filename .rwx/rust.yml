@@ -183,11 +183,15 @@ tasks:
     env: &incremental-rust-env
       <<: *rust-env
       CI_RUST_INCREMENTAL: ${{ init.cargo-incremental }}
-    tool-cache: rust-workspace-tests-build-${{ init.cache-epoch }}
+    # Separate compiler modes: mixing legacy targets and incremental outputs
+    # exceeded RWX's 100 GiB filesystem-layer limit in the hosted trial.
+    tool-cache: rust-workspace-tests-build-${{ init.cache-epoch }}-incremental-${{ init.cargo-incremental }}
     timeout: 90m
-    runner: &build-runner
+    # A compiler-cold incremental build fills the default 50 GB writable disk.
+    runner: &test-runner
       cpus: 16
       memory: 32gb
+      disk: 100gb
     outputs:
       filesystem: &compiler-output
         filter:
@@ -212,9 +216,9 @@ tasks:
         cache-key: included
       RWX_TASK_ATTEMPT_NUMBER:
         cache-key: included
-    tool-cache: rust-workspace-tests-runtime-${{ init.cache-epoch }}
+    tool-cache: rust-workspace-tests-runtime-${{ init.cache-epoch }}-incremental-${{ init.cargo-incremental }}
     timeout: 90m
-    runner: *build-runner
+    runner: *test-runner
     outputs:
       filesystem: *compiler-output
       test-results:
@@ -237,7 +241,9 @@ tasks:
         cache-key: included
     tool-cache: rust-workspace-doctest-${{ init.cache-epoch }}
     timeout: 90m
-    runner: *build-runner
+    runner: &build-runner
+      cpus: 16
+      memory: 32gb
     outputs:
       filesystem: *compiler-output
       test-results:

@@ -359,6 +359,12 @@ class ConfigurationTests(unittest.TestCase):
         selected = {'tests-build', 'tests'} | {f'features-{i}' for i in range(10)}
         actual = {t['key'] for t in config['tasks'] if 'CI_RUST_INCREMENTAL' in t.get('env', {})}
         self.assertEqual(actual, selected)
+        tasks = {t['key']: t for t in config['tasks']}
+        for key in ('tests-build', 'tests'):
+            self.assertIn('${{ init.cargo-incremental }}', tasks[key]['tool-cache'])
+            self.assertEqual(tasks[key]['runner'], {'cpus': 16, 'memory': '32gb', 'disk': '100gb'})
+        self.assertTrue(all('disk' not in t.get('runner', {}) for t in config['tasks']
+                            if t['key'] not in ('tests-build', 'tests')))
         for trigger in ('cli', 'cache-rebuild'):
             self.assertEqual(config['on'][trigger]['init']['cargo-incremental'], '1')
         coordinator = json.loads(subprocess.check_output(['yq', '-o=json', '.tasks', str(repo / '.rwx/pr-gates.yml')], text=True))
