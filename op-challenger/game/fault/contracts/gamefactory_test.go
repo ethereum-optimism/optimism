@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/binary"
 	"fmt"
+	"math"
 	"math/big"
 	"slices"
 	"testing"
@@ -506,7 +507,7 @@ func TestCreateTx(t *testing.T) {
 			bond := big.NewInt(49284294829)
 			stubRpc.SetResponse(factoryAddr, methodInitBonds, rpcblock.Latest, []interface{}{gameType}, []interface{}{bond})
 			stubRpc.SetResponse(factoryAddr, methodCreateGame, rpcblock.Latest, []interface{}{gameType, outputRoot, l2BlockNum}, nil)
-			tx, err := factory.CreateTx(context.Background(), gameType, outputRoot, uint64(456), uint64(0))
+			tx, err := factory.CreateTx(context.Background(), gameType, outputRoot, uint64(456), uint64(0), math.MaxUint32)
 			require.NoError(t, err)
 			stubRpc.VerifyTxCandidate(tx)
 			require.NotNil(t, tx.Value)
@@ -532,12 +533,49 @@ func TestCreateTxSuperGame(t *testing.T) {
 			bond := big.NewInt(49284294829)
 			stubRpc.SetResponse(factoryAddr, methodInitBonds, rpcblock.Latest, []interface{}{gameType}, []interface{}{bond})
 			stubRpc.SetResponse(factoryAddr, methodCreateGame, rpcblock.Latest, []interface{}{gameType, rootClaim, extraData}, nil)
-			tx, err := factory.CreateTx(context.Background(), gameType, outputRoot, l2BlockNum, l2ChainID)
+			tx, err := factory.CreateTx(context.Background(), gameType, outputRoot, l2BlockNum, l2ChainID, math.MaxUint32)
 			require.NoError(t, err)
 			stubRpc.VerifyTxCandidate(tx)
 			require.NotNil(t, tx.Value)
 			require.Truef(t, bond.Cmp(tx.Value) == 0, "Expected bond %v but was %v", bond, tx.Value)
 		})
+	}
+}
+
+func TestCreateTxZKGame(t *testing.T) {
+	tests := []struct {
+		name        string
+		parentIndex uint32
+		prefix      []byte
+	}{
+		{name: "Anchored", parentIndex: math.MaxUint32, prefix: []byte{0xff, 0xff, 0xff, 0xff}},
+		{name: "WithParent", parentIndex: 0x01020304, prefix: []byte{0x01, 0x02, 0x03, 0x04}},
+	}
+	for _, version := range factoryVersions {
+		for _, test := range tests {
+			t.Run(version.String()+"-"+test.name, func(t *testing.T) {
+				stubRpc, factory := setupDisputeGameFactoryTest(t, version)
+				gameType := uint32(gameTypes.ZKDisputeGameType)
+				outputRoot := common.Hash{0x01}
+				l2BlockNum := uint64(456)
+				l2ChainID := uint64(11155420)
+				proof := make([]byte, 1+8+32+32)
+				proof[0] = 0x01
+				binary.BigEndian.PutUint64(proof[1:9], l2BlockNum)
+				copy(proof[9:41], common.BigToHash(new(big.Int).SetUint64(l2ChainID)).Bytes())
+				copy(proof[41:], outputRoot.Bytes())
+				extraData := append(append([]byte{}, test.prefix...), proof...)
+				rootClaim := crypto.Keccak256Hash(proof)
+				bond := big.NewInt(49284294829)
+				stubRpc.SetResponse(factoryAddr, methodInitBonds, rpcblock.Latest, []interface{}{gameType}, []interface{}{bond})
+				stubRpc.SetResponse(factoryAddr, methodCreateGame, rpcblock.Latest, []interface{}{gameType, rootClaim, extraData}, nil)
+				tx, err := factory.CreateTx(context.Background(), gameType, outputRoot, l2BlockNum, l2ChainID, test.parentIndex)
+				require.NoError(t, err)
+				stubRpc.VerifyTxCandidate(tx)
+				require.NotNil(t, tx.Value)
+				require.Truef(t, bond.Cmp(tx.Value) == 0, "Expected bond %v but was %v", bond, tx.Value)
+			})
+		}
 	}
 }
 

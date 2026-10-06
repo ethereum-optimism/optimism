@@ -105,7 +105,24 @@ in the L2 output oracle.
 * `L2_BLOCK_NUM` the L2 block number the proposed output root is from.
 * `SIGNER_ARGS` arguments to specify the key to sign transactions with (e.g `--private-key`)
 
-Optionally, you may override the game types to support using the `--game-types` flag.
+`--game-type` selects the game type to create, as a decimal number or a name (`cannon`, `super-cannon-kona`, `zk`, ...).
+It defaults to `cannon`; unknown values are rejected.
+
+For super and ZK games, `L2_BLOCK_NUM` is the super root timestamp, and `OUTPUT_ROOT` is encoded with `--l2-chain-id`
+into a single-chain super root proof. ZK games also take `--parent-index`, the factory index of the parent ZK game.
+It defaults to uint32 max, which builds on the anchor state:
+
+```shell
+./bin/op-challenger create-game \
+  --l1-eth-rpc <L1_ETH_RPC> \
+  --game-factory-address <GAME_FACTORY_ADDRESS> \
+  --game-type zk \
+  --output-root <OUTPUT_ROOT> \
+  --l2-block-num <SUPER_ROOT_TIMESTAMP> \
+  --l2-chain-id <L2_CHAIN_ID> \
+  --parent-index <PARENT_INDEX> \
+  <SIGNER_ARGS>
+```
 
 For known networks, the `--game-factory-address` option can be replaced by `--network`. See the `--help` output for a
 list of predefined networks.

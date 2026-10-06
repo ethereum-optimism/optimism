@@ -294,13 +294,13 @@ func (f *DisputeGameFactoryContract) GetAllGames(ctx context.Context, blockHash 
 	return games, nil
 }
 
-func (f *DisputeGameFactoryContract) CreateTx(ctx context.Context, gameType uint32, outputRoot common.Hash, l2BlockNum uint64, l2ChainID uint64) (txmgr.TxCandidate, error) {
+func (f *DisputeGameFactoryContract) CreateTx(ctx context.Context, gameType uint32, outputRoot common.Hash, l2BlockNum uint64, l2ChainID uint64, parentIndex uint32) (txmgr.TxCandidate, error) {
 	result, err := f.multiCaller.SingleCall(ctx, rpcblock.Latest, f.contract.Call(methodInitBonds, gameType))
 	if err != nil {
 		return txmgr.TxCandidate{}, fmt.Errorf("failed to fetch init bond: %w", err)
 	}
 	initBond := result.GetBigInt(0)
-	rootClaim, extraData := createGameParams(gameType, outputRoot, l2BlockNum, l2ChainID)
+	rootClaim, extraData := createGameParams(gameType, outputRoot, l2BlockNum, l2ChainID, parentIndex)
 	call := f.contract.Call(methodCreateGame, gameType, rootClaim, extraData)
 	candidate, err := call.ToTxCandidate()
 	if err != nil {
@@ -310,11 +310,15 @@ func (f *DisputeGameFactoryContract) CreateTx(ctx context.Context, gameType uint
 	return candidate, err
 }
 
-func createGameParams(gameType uint32, outputRoot common.Hash, l2BlockNum uint64, l2ChainID uint64) (common.Hash, []byte) {
+func createGameParams(gameType uint32, outputRoot common.Hash, l2BlockNum uint64, l2ChainID uint64, parentIndex uint32) (common.Hash, []byte) {
 	switch gameTypes.GameType(gameType) {
 	case gameTypes.SuperCannonKonaGameType, gameTypes.SuperPermissionedGameType:
 		extraData := encodeSuperRootProof(l2BlockNum, l2ChainID, outputRoot)
 		return crypto.Keccak256Hash(extraData), extraData
+	case gameTypes.ZKDisputeGameType:
+		proof := encodeSuperRootProof(l2BlockNum, l2ChainID, outputRoot)
+		extraData := binary.BigEndian.AppendUint32(make([]byte, 0, 4+len(proof)), parentIndex)
+		return crypto.Keccak256Hash(proof), append(extraData, proof...)
 	default:
 		return outputRoot, common.BigToHash(new(big.Int).SetUint64(l2BlockNum)).Bytes()
 	}
