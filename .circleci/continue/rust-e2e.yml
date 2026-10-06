@@ -355,12 +355,6 @@ jobs:
             RUSTFLAGS: -Dwarnings
           command: just lint-sp1-guest
       - run:
-          name: Lint production SP1 super-range guest
-          working_directory: rust
-          environment:
-            RUSTFLAGS: -Dwarnings
-          command: cargo clippy --manifest-path kona/sp1/programs/Cargo.toml --locked -p kona-sp1-super-range --all-targets --no-default-features -- -D warnings
-      - run:
           name: Check + test the range-vkeys crate
           working_directory: rust
           environment:

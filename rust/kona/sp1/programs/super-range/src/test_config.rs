@@ -23,10 +23,11 @@ pub(super) async fn load(
         SuperInteropInputs::Consolidation(inputs) => inputs
             .transitions
             .first()
-            .map(|transition| {
-                transition.optimistic_blocks.iter().map(|block| block.chain_id).collect()
-            })
-            .unwrap_or_default(),
+            .context("consolidation input span contains no transitions")?
+            .optimistic_blocks
+            .iter()
+            .map(|block| block.chain_id)
+            .collect(),
     };
     if let Ok(configs) = ChainConfigs::from_registry(&chain_ids) {
         return Ok(configs);
@@ -48,7 +49,20 @@ pub(super) async fn load(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use kona_sp1_client_utils::super_root::{SuperRangeInputs, TimestampSpan};
+    use kona_sp1_client_utils::super_root::{
+        SuperConsolidationInputs, SuperRangeInputs, TimestampSpan,
+    };
+
+    #[test]
+    fn test_guest_rejects_consolidation_without_transitions() {
+        let inputs = SuperInteropInputs::Consolidation(SuperConsolidationInputs {
+            span: TimestampSpan::new(101, 101).unwrap(),
+            previous_super_root: Default::default(),
+            transitions: Vec::new(),
+        });
+        let err = kona_proof::block_on(load(&inputs, &PreimageStore::default())).unwrap_err();
+        assert!(err.to_string().contains("contains no transitions"), "unexpected error: {err}");
+    }
 
     #[test]
     fn test_guest_loads_complete_synthetic_configs_and_rejects_mismatched_l1() {

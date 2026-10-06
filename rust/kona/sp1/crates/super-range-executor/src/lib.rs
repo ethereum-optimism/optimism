@@ -286,7 +286,7 @@ pub async fn run(config: RunConfig) -> Result<Verdict> {
     Ok(Verdict::Valid)
 }
 
-/// Resolves deployment config files, using embedded values for omitted files.
+/// Resolves deployment files as registry overrides, using embedded values for omitted files.
 pub fn deployment_chain_configs(host: &InteropHost, chain_ids: &[U256]) -> Result<ChainConfigs> {
     ensure!(
         chain_ids.iter().all(|id| *id <= U256::from(u64::MAX)),
@@ -1241,6 +1241,63 @@ mod tests {
                 super_v1,
                 super_root,
             }),
+        }
+    }
+
+    #[test]
+    fn deployment_configs_use_registry_defaults_and_file_overrides() {
+        for case in ["registry", "rollup_override", "missing_custom_depset"] {
+            let dir = tempfile::tempdir().unwrap();
+            let mut expected = ChainConfigs::from_registry(&[U256::from(10)]).unwrap();
+            let rollup_config_paths = match case {
+                "registry" => None,
+                "rollup_override" => {
+                    expected.rollup_configs.get_mut(&10).unwrap().l1_chain_id = 11155111;
+                    expected.l1_config = kona_registry::L1_CONFIGS[&11155111].clone();
+                    let path = dir.path().join("rollup.json");
+                    std::fs::write(
+                        &path,
+                        serde_json::to_vec(&expected.rollup_configs[&10]).unwrap(),
+                    )
+                    .unwrap();
+                    Some(vec![path])
+                }
+                "missing_custom_depset" => {
+                    let mut rollup = expected.rollup_configs.remove(&10).unwrap();
+                    rollup.l2_chain_id = u64::MAX.into();
+                    let path = dir.path().join("rollup.json");
+                    std::fs::write(&path, serde_json::to_vec(&rollup).unwrap()).unwrap();
+                    expected.rollup_configs.insert(u64::MAX, rollup);
+                    Some(vec![path])
+                }
+                _ => unreachable!(),
+            };
+            let chain_ids =
+                expected.rollup_configs.keys().copied().map(U256::from).collect::<Vec<_>>();
+            let host = build_interop_host(
+                &HostInputs {
+                    l1_node_address: "http://127.0.0.1:1".into(),
+                    l1_beacon_address: "http://127.0.0.1:1".into(),
+                    l2_node_addresses: vec!["http://127.0.0.1:1".into()],
+                    rollup_config_paths,
+                    l1_config_path: None,
+                    dependency_set_path: None,
+                },
+                b256(0xaa),
+                &[],
+                b256(0xbb),
+                101,
+            )
+            .unwrap();
+            let result = deployment_chain_configs(&host, &chain_ids);
+            if case == "missing_custom_depset" {
+                assert_eq!(
+                    result.unwrap_err().to_string(),
+                    "custom chains require a dependency-set config file",
+                );
+            } else {
+                assert_eq!(result.unwrap(), expected, "case: {case}");
+            }
         }
     }
 

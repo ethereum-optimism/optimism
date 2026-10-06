@@ -115,7 +115,7 @@ fn input_chain_ids_as_u64(input_chain_ids: &[U256]) -> anyhow::Result<Vec<u64>> 
         .collect()
 }
 
-pub(crate) fn ensure_dependency_set_matches_inputs(
+fn ensure_dependency_set_matches_inputs(
     input_chain_ids: &[U256],
     dependency_set: &DependencySet,
 ) -> anyhow::Result<()> {
@@ -132,7 +132,7 @@ pub(crate) fn ensure_dependency_set_matches_inputs(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::test_utils::chain_configs;
+    use crate::test_utils::{chain_configs, dependency_set};
 
     #[test]
     fn explicit_configs_reject_inconsistent_chain_rules() {
@@ -176,6 +176,12 @@ mod tests {
     #[test]
     fn registry_configs_reject_partial_cluster_and_oversized_chain_ids() {
         assert!(
+            ChainConfigs::from_registry(&[U256::from(10), U256::from(130)])
+                .unwrap_err()
+                .to_string()
+                .contains("must exactly match dependency set chain IDs")
+        );
+        assert!(
             ChainConfigs::from_registry(&[U256::from(10), U256::from(u64::MAX)])
                 .unwrap_err()
                 .to_string()
@@ -187,5 +193,32 @@ mod tests {
                 .to_string()
                 .contains("does not fit in dependency set keys")
         );
+    }
+
+    #[test]
+    fn embedded_chain_configs_do_not_require_preimages() {
+        let configs = ChainConfigs::from_registry(&[U256::from(10)]).unwrap();
+        assert_eq!(configs.dependency_set, DEPENDENCY_SETS[&10]);
+        assert_eq!(configs.rollup_configs[&10], ROLLUP_CONFIGS[&10]);
+        assert_eq!(configs.l1_config, L1_CONFIGS[&configs.rollup_configs[&10].l1_chain_id]);
+    }
+
+    #[test]
+    fn dependency_set_validation_requires_exact_range_chain_coverage() {
+        let dependency_set = dependency_set(&[10, 20], Some(123));
+
+        ensure_dependency_set_matches_inputs(&[U256::from(10), U256::from(20)], &dependency_set)
+            .expect("matching depset chains are valid");
+
+        let err = ensure_dependency_set_matches_inputs(&[U256::from(10)], &dependency_set)
+            .expect_err("partial depset coverage must fail");
+        assert!(err.to_string().contains("must exactly match"), "unexpected error: {err}");
+
+        let err = ensure_dependency_set_matches_inputs(
+            &[U256::from(10), U256::from(30)],
+            &dependency_set,
+        )
+        .expect_err("wrong depset chain must fail");
+        assert!(err.to_string().contains("must exactly match"), "unexpected error: {err}");
     }
 }

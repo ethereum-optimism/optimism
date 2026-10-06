@@ -52,13 +52,15 @@ where
 
     let embedded_configs;
     let configs = match configs {
-        Some(configs) => configs,
+        Some(configs) => {
+            configs.validate(&inputs.chain_ids)?;
+            configs
+        }
         None => {
             embedded_configs = ChainConfigs::from_registry(&inputs.chain_ids)?;
             &embedded_configs
         }
     };
-    configs.validate(&inputs.chain_ids)?;
     let dependency_set = Arc::new(configs.dependency_set.clone());
     let rollup_configs = &configs.rollup_configs;
     let l1_config = &configs.l1_config;
@@ -471,14 +473,11 @@ mod tests {
     };
 
     use super::*;
-    use crate::{
-        chain_config::ensure_dependency_set_matches_inputs,
-        test_utils::{
-            b256, chain_configs, dependency_set, rollup_config, save_header, save_output_root,
-        },
+    use crate::test_utils::{
+        b256, chain_configs, dependency_set, rollup_config, save_header, save_output_root,
     };
     use kona_preimage::{DEPENDENCY_SET_KEY, L1_CONFIG_KEY, L2_ROLLUP_CONFIG_KEY};
-    use kona_registry::{DEPENDENCY_SETS, L1_CONFIGS, ROLLUP_CONFIGS};
+    use kona_registry::L1_CONFIGS;
 
     #[test]
     fn range_outputs_reject_untrusted_preimage_configs() {
@@ -486,10 +485,7 @@ mod tests {
             (vec![u64::MAX], "no embedded dependency set"),
             (vec![10, u64::MAX], "no embedded rollup config"),
         ] {
-            let mut configs = chain_configs(&chain_ids);
-            for config in configs.rollup_configs.values_mut() {
-                config.deposit_contract_address = alloy_primitives::Address::repeat_byte(0xaa);
-            }
+            let configs = chain_configs(&chain_ids);
             let mut oracle = PreimageStore::default();
             for (key, serialized) in [
                 (DEPENDENCY_SET_KEY, serde_json::to_vec(&configs.dependency_set).unwrap()),
@@ -507,14 +503,6 @@ mod tests {
             .expect_err("witness configs must not authorize an unknown chain");
             assert!(err.to_string().contains(expected_error), "unexpected error: {err}");
         }
-    }
-
-    #[test]
-    fn embedded_chain_configs_do_not_require_preimages() {
-        let configs = ChainConfigs::from_registry(&[U256::from(10)]).unwrap();
-        assert_eq!(configs.dependency_set, DEPENDENCY_SETS[&10]);
-        assert_eq!(configs.rollup_configs[&10], ROLLUP_CONFIGS[&10]);
-        assert_eq!(configs.l1_config, L1_CONFIGS[&configs.rollup_configs[&10].l1_chain_id]);
     }
 
     fn save_range_state(oracle: &mut PreimageStore, depositor_nonce: u64) -> B256 {
@@ -952,25 +940,6 @@ mod tests {
         .unwrap();
 
         assert_eq!(actual, expected);
-    }
-
-    #[test]
-    fn dependency_set_validation_requires_exact_range_chain_coverage() {
-        let dependency_set = dependency_set(&[10, 20], Some(123));
-
-        ensure_dependency_set_matches_inputs(&[U256::from(10), U256::from(20)], &dependency_set)
-            .expect("matching depset chains are valid");
-
-        let err = ensure_dependency_set_matches_inputs(&[U256::from(10)], &dependency_set)
-            .expect_err("partial depset coverage must fail");
-        assert!(err.to_string().contains("must exactly match"), "unexpected error: {err}");
-
-        let err = ensure_dependency_set_matches_inputs(
-            &[U256::from(10), U256::from(30)],
-            &dependency_set,
-        )
-        .expect_err("wrong depset chain must fail");
-        assert!(err.to_string().contains("must exactly match"), "unexpected error: {err}");
     }
 
     #[test]

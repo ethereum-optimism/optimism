@@ -45,6 +45,8 @@ Supporting libraries for the SP1 fault proof system:
 The super-range guest reads chain configurations only from its compiled registry. Both range
 and consolidation reject chains without an embedded rollup config, L1 config, or matching
 dependency set. Custom chains must be embedded at build time using `KONA_CUSTOM_CONFIGS_DIR`.
+Custom registry inputs currently support only Mainnet, Sepolia, and Holesky as L1s;
+embedding other L1 configurations requires additional registry support.
 
 The shared range and consolidation functions accept an optional `ChainConfigs` bundle.
 `None` selects the compiled registry. The native executor, proposer, and canary resolve deployment

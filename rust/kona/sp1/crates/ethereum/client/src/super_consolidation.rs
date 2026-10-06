@@ -47,13 +47,15 @@ where
     let chain_ids = consolidation_chain_ids(&inputs)?;
     let embedded_configs;
     let configs = match configs {
-        Some(configs) => configs,
+        Some(configs) => {
+            configs.validate(&chain_ids)?;
+            configs
+        }
         None => {
             embedded_configs = ChainConfigs::from_registry(&chain_ids)?;
             &embedded_configs
         }
     };
-    configs.validate(&chain_ids)?;
     let rollup_configs: RegistryHashMap<_, _> =
         configs.rollup_configs.clone().into_iter().collect();
 
@@ -291,16 +293,17 @@ mod tests {
     use async_trait::async_trait;
     use kona_genesis::RollupConfig;
     use kona_preimage::{
-        DEPENDENCY_SET_KEY, HintWriterClient, L2_ROLLUP_CONFIG_KEY, PreimageKey,
+        DEPENDENCY_SET_KEY, HintWriterClient, L1_CONFIG_KEY, L2_ROLLUP_CONFIG_KEY, PreimageKey,
         PreimageOracleClient, errors::PreimageOracleResult,
     };
     use kona_proof::block_on;
     use kona_sp1_client_utils::{
-        super_root::{SuperOptimisticBlock, SuperOutputRoot, SuperRootProof},
+        super_root::{
+            SuperConsolidationTransitionInput, SuperOptimisticBlock, SuperOutputRoot,
+            SuperRootProof, TimestampSpan,
+        },
         witness::preimage_store::PreimageStore,
     };
-
-    use kona_sp1_client_utils::super_root::{SuperConsolidationTransitionInput, TimestampSpan};
 
     use super::*;
     use crate::test_utils::{
@@ -607,6 +610,38 @@ mod tests {
     }
 
     #[test]
+    fn consolidation_outputs_reject_untrusted_preimage_configs() {
+        let chain_id = u64::MAX;
+        let configs = chain_configs(&[chain_id]);
+        let inputs = SuperConsolidationInputs {
+            span: TimestampSpan::new(100, 100).unwrap(),
+            previous_super_root: b256(0x11),
+            transitions: vec![SuperConsolidationTransitionInput {
+                optimistic_blocks: vec![SuperOptimisticBlock {
+                    chain_id: U256::from(chain_id),
+                    block_hash: b256(0x22),
+                    output_root: b256(0x33),
+                }],
+                claimed_super_root_proof: SuperRootProof::new(
+                    100,
+                    vec![SuperOutputRoot { chain_id, output_root: b256(0x55) }],
+                ),
+            }],
+        };
+        let mut oracle = PreimageStore::default();
+        for (key, serialized) in [
+            (DEPENDENCY_SET_KEY, serde_json::to_vec(&configs.dependency_set).unwrap()),
+            (L2_ROLLUP_CONFIG_KEY, serde_json::to_vec(&configs.rollup_configs).unwrap()),
+            (L1_CONFIG_KEY, serde_json::to_vec(&configs.l1_config).unwrap()),
+        ] {
+            oracle.save_preimage(PreimageKey::new_local(key.to()), serialized).unwrap();
+        }
+        let err = block_on(build_consolidation_outputs(inputs, Arc::new(oracle), None))
+            .expect_err("guest-facing consolidation must reject witness configs");
+        assert!(err.to_string().contains("no embedded dependency set"), "unexpected error: {err}");
+    }
+
+    #[test]
     fn consolidation_outputs_reject_starting_root_before_span_predecessor() {
         let chain_id = u64::MAX;
         let mut oracle = PreimageStore::default();
@@ -630,21 +665,6 @@ mod tests {
             }],
         };
         inputs.validate().expect("typed consolidation timestamps are valid");
-        for (key, serialized) in [
-            (DEPENDENCY_SET_KEY, serde_json::to_vec(&configs.dependency_set).unwrap()),
-            (L2_ROLLUP_CONFIG_KEY, serde_json::to_vec(&configs.rollup_configs).unwrap()),
-            (kona_preimage::L1_CONFIG_KEY, serde_json::to_vec(&configs.l1_config).unwrap()),
-        ] {
-            oracle.save_preimage(PreimageKey::new_local(key.to()), serialized).unwrap();
-        }
-        let rejected =
-            block_on(build_consolidation_outputs(inputs.clone(), Arc::new(oracle.clone()), None))
-                .expect_err("guest-facing consolidation must reject witness configs");
-        assert!(
-            rejected.to_string().contains("no embedded dependency set"),
-            "unexpected error: {rejected}"
-        );
-
         let err = block_on(build_consolidation_outputs(inputs, Arc::new(oracle), Some(&configs)))
             .unwrap_err();
 

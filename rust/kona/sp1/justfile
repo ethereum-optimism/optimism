@@ -5,7 +5,8 @@ SP1_TAG := "v6.8.1"
 
 # Build the super-range-executor host binary, used by acceptance smoke tests to run the
 # super-range guest in SP1 execute mode. The binary loads the guest ELF at runtime, so build the
-# ELFs first (build-elfs) and set KONA_SP1_ELF_DIR before running it without --native-core.
+# test ELFs first (build-elfs test-config-fallback) and set KONA_SP1_ELF_DIR before
+# running synthetic-chain tests without --native-core.
 build-super-range-executor:
     cd ../.. && cargo build -p kona-sp1-super-range-executor --release
 

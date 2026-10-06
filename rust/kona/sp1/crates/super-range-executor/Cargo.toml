@@ -23,8 +23,8 @@ kona-host = { workspace = true, features = ["interop"] }
 kona-interop = { workspace = true, features = ["serde"] }
 kona-preimage = { workspace = true, features = ["std"] }
 kona-proof.workspace = true
-kona-registry.workspace = true
 kona-protocol.workspace = true
+kona-registry.workspace = true
 
 # alloy
 alloy-primitives.workspace = true
