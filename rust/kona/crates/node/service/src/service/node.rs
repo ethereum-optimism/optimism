@@ -515,7 +515,7 @@ impl RollupNode {
         // Unsafe payloads to gossip flow from the sequencer to the signer actor and on to the
         // network actor. While signing stalls, a full sequencer queue pauses block production.
         let (gossip_payload_tx, gossip_payload_rx) =
-            mpsc::channel::<OpExecutionPayloadEnvelope>(256);
+            mpsc::channel::<OpExecutionPayloadEnvelope>(32);
         let (signed_payload_tx, signed_payload_rx) = mpsc::channel::<SignedPayload>(16);
         // watch channels
         let (unsafe_head_tx, unsafe_head_rx) = watch::channel(L2BlockInfo::default());
