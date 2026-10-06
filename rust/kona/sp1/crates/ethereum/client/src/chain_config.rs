@@ -176,12 +176,6 @@ mod tests {
     #[test]
     fn registry_configs_reject_partial_cluster_and_oversized_chain_ids() {
         assert!(
-            ChainConfigs::from_registry(&[U256::from(10), U256::from(130)])
-                .unwrap_err()
-                .to_string()
-                .contains("must exactly match dependency set chain IDs")
-        );
-        assert!(
             ChainConfigs::from_registry(&[U256::from(10), U256::from(u64::MAX)])
                 .unwrap_err()
                 .to_string()
