@@ -29,10 +29,7 @@ use crate::{
     super_range::{fetch_l2_header, fetch_output_block_hash, optimistic_chain_id_as_u64},
 };
 
-/// Builds consolidation outputs using the embedded registry or caller-trusted chain configs.
-///
-/// `None` selects the embedded registry. Overrides must come from a trusted caller, not the
-/// witness.
+/// Builds consolidation outputs; `None` uses the embedded registry (see [`ChainConfigs`]).
 pub async fn build_consolidation_outputs<C>(
     inputs: SuperConsolidationInputs,
     oracle: Arc<C>,

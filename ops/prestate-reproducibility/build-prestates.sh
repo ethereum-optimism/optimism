@@ -145,6 +145,10 @@ function build_kona_sp1() {
     fail_kona_sp1 "$version" "missing aggregation manifest or ELF"
     return 1
   }
+  if grep -Eq '^[[:space:]]*git_sha[[:space:]]*=[[:space:]]*"[^"]*-test"[[:space:]]*$' "$manifest"; then
+    fail_kona_sp1 "$version" "test-config-fallback must be disabled for production prestates (test build marker)"
+    return 1
+  fi
   line=$(grep -E '^[[:space:]]*super-aggregation[[:space:]]*=' "$manifest" || true)
   if [[ ! "$line" =~ ^[[:space:]]*super-aggregation[[:space:]]*=[[:space:]]*\"(0x[0-9a-f]{64})\"[[:space:]]*$ ]]; then
     fail_kona_sp1 "$version" "missing, duplicate, or malformed super-aggregation vkey"

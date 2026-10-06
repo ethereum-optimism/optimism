@@ -32,10 +32,7 @@ const OUTPUT_ROOT_V0_VERSION_RANGE: Range<usize> = 0..OUTPUT_ROOT_WORD_BYTES;
 const OUTPUT_ROOT_V0_BLOCK_HASH_RANGE: Range<usize> =
     3 * OUTPUT_ROOT_WORD_BYTES..OUTPUT_ROOT_V0_BYTES;
 
-/// Builds range outputs using the embedded registry or caller-trusted chain configs.
-///
-/// `None` selects the embedded registry. Overrides must come from a trusted caller, not the
-/// witness.
+/// Builds range outputs; `None` uses the embedded registry (see [`ChainConfigs`]).
 pub async fn build_range_outputs<O, B>(
     inputs: SuperRangeInputs,
     oracle: Arc<O>,
@@ -485,7 +482,10 @@ mod tests {
 
     #[test]
     fn range_outputs_reject_untrusted_preimage_configs() {
-        for chain_ids in [vec![u64::MAX], vec![10, u64::MAX]] {
+        for (chain_ids, expected_error) in [
+            (vec![u64::MAX], "no embedded dependency set"),
+            (vec![10, u64::MAX], "no embedded rollup config"),
+        ] {
             let mut configs = chain_configs(&chain_ids);
             for config in configs.rollup_configs.values_mut() {
                 config.deposit_contract_address = alloy_primitives::Address::repeat_byte(0xaa);
@@ -505,12 +505,7 @@ mod tests {
                 None,
             ))
             .expect_err("witness configs must not authorize an unknown chain");
-            assert!(
-                err.to_string().contains("no embedded dependency set") ||
-                    err.to_string().contains("must exactly match") ||
-                    err.to_string().contains("no embedded rollup config"),
-                "unexpected error: {err}"
-            );
+            assert!(err.to_string().contains(expected_error), "unexpected error: {err}");
         }
     }
 

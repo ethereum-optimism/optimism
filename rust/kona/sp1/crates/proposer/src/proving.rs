@@ -763,16 +763,12 @@ async fn prove_chunk_inner(
         synthesized.current_super_root,
         span.end,
     )?;
-    let configs = if provider.is_mock() {
-        Some(deployment_chain_configs(&range_host, &synthesized.range_inputs.chain_ids)?)
-    } else {
-        None
-    };
+    let configs = deployment_chain_configs(&range_host, &synthesized.range_inputs.chain_ids)?;
     let (range_witness, range_outputs) = collect_range_witness(
         range_host,
         &synthesized.range_inputs,
         &synthesized.preloaded_preimages,
-        configs.as_ref(),
+        Some(&configs),
     )
     .await
     .with_context(|| format!("range witness collection failed for span {span:?}"))?;
@@ -788,7 +784,7 @@ async fn prove_chunk_inner(
         consolidation_host,
         &synthesized.consolidation_inputs,
         &synthesized.preloaded_preimages,
-        configs.as_ref(),
+        Some(&configs),
     )
     .await
     .with_context(|| format!("consolidation witness collection failed for span {span:?}"))?;

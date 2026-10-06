@@ -47,15 +47,17 @@ and consolidation reject chains without an embedded rollup config, L1 config, or
 dependency set. Custom chains must be embedded at build time using `KONA_CUSTOM_CONFIGS_DIR`.
 
 The shared range and consolidation functions accept an optional `ChainConfigs` bundle.
-`None` selects the compiled registry; native test execution supplies trusted deployment configs
-explicitly. The executor resolves them once from its config files and uses that same bundle for
-witness collection and replay. Native acceptance tests require neither a guest ELF nor a Cargo
-feature, and their config values are not read from Local preimage keys.
+`None` selects the compiled registry. The native executor, proposer, and canary resolve deployment
+config files once and pass an explicit bundle to native witness collection, with embedded registry
+values for omitted files. The executor reuses that bundle for native replay. SP1 guest execution
+enforces the guest's compiled registry independently of host config files. Native acceptance tests
+require neither a guest ELF nor a Cargo feature, and do not read configs from Local preimage keys.
 
 The opt-in `test-config-fallback` feature belongs only to the `kona-sp1-super-range` guest.
 It allows that guest's test entrypoint to decode unverified Local-key configs and supply an
 explicit bundle to the shared functions. It is disabled by default;
-`ops/prestate-reproducibility/build-prestates.sh` rejects guest graphs that enable it.
+`ops/prestate-reproducibility/build-prestates.sh` rejects guest graphs that enable it and
+artifacts carrying a `-test` build marker.
 For synthetic-chain ELFs, use `just build-elfs test-config-fallback` (or
 `build-elfs-native test-config-fallback`); these artifacts carry a `-test` build marker.
 The full-ELF executor seeds the resolved config bundle into its test witness, so one test ELF

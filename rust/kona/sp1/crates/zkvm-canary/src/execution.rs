@@ -10,6 +10,7 @@ use kona_sp1_client_utils::super_root::{
 use kona_sp1_super_range_executor::{
     HostInputs, SynthesizedExecution, build_interop_host, build_super_consolidation_stdin,
     build_super_range_stdin, collect_consolidation_witness, collect_range_witness,
+    deployment_chain_configs,
 };
 use sp1_core_executor::{ExecutionError, SP1CoreOpts};
 use sp1_sdk::{Elf, ExecutionReport, Prover, ProverClient, SP1PublicValues};
@@ -289,13 +290,23 @@ pub(crate) async fn execute_snapshot(
             );
         }
     };
+    let configs = match deployment_chain_configs(&range_host, &synthesized.range_inputs.chain_ids) {
+        Ok(configs) => configs,
+        Err(error) => {
+            return infrastructure_result(
+                ExecutionMode::Range,
+                range_witness_started.elapsed().as_secs_f64(),
+                error,
+            );
+        }
+    };
     let range_witness = tokio::time::timeout_at(
         deadline,
         collect_range_witness(
             range_host,
             &synthesized.range_inputs,
             &synthesized.preloaded_preimages,
-            None,
+            Some(&configs),
         ),
     )
     .await;
@@ -390,7 +401,7 @@ pub(crate) async fn execute_snapshot(
             consolidation_host,
             &synthesized.consolidation_inputs,
             &synthesized.preloaded_preimages,
-            None,
+            Some(&configs),
         ),
     )
     .await;

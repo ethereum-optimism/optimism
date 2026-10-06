@@ -9,6 +9,8 @@ use kona_interop::DependencySet;
 use kona_registry::{DEPENDENCY_SETS, L1_CONFIGS, ROLLUP_CONFIGS};
 
 /// Resolved chain rules supplied by the caller, independent of the preimage witness.
+///
+/// Overrides must come from a trusted caller; production guests must resolve their own registry.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct ChainConfigs {
     /// Interop dependency set for the input chains.
