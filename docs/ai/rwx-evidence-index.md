@@ -257,3 +257,27 @@ The NUT provenance comparer was previously an inline `--compare` mode of the
 runtime runner. It now runs as
 `python3 ops/ci/migration/compare-nut-provenance.py --compare CIRCLE RWX --output comparison.json`.
 Other moved comparers retain their basenames and argument interfaces.
+
+Pilot-readiness evidence (2026-10-06) is retained outside Git in
+`/Users/edward/Workspace/op/rwx-ci-pilot-evidence/2026-10-06-pilot-ready` and its
+checksum-verified Hetzner mirror at
+`/home/admin/rwx-ci-pilot-evidence/2026-10-06-pilot-ready`. The retrieval bundle
+contains source, exact experiment definitions, complete sample/stage JSON, original
+stdout/stderr archives, current vault/ruleset metadata, denied credential/cache
+probe results, cancellation before/action/terminal observations, combined local
+validation and final-head hosted observations. `SHA256SUMS` seals the collection;
+verify it before using evidence. No secret values are included.
+
+Changed-crate benchmark run: `294e0a96fdf44c288e2c0d2abd747b45`, source
+`3df2ffe9191e710834a567254cbb92461f51f29c`. Both cases used three samples per
+mode, alternating order, the same source edits and commands, isolated targets,
+pinned sccache, and the permanent per-file timestamp helper. Each original is
+manifest-hash verified. Seeds are compiler-cold and excluded. Archive/restore
+measure local uncompressed tar round trips; RWX cache-network transfer and whole
+pipeline cost were not measured. The fixture method added an isolated probe
+function only in the worker and restored the source afterward; it is not in Git.
+
+RPC denial: `30e1d38ecac44f80b08f06bd9be5a8b8`; protected cache-write probe:
+`0505b0c81496457d96bd731fd52b8d76`; cancellation:
+`9af37c3158a1494e865d12e7c7c0621d`. These CLI runs do not establish automatic
+fork/merge-queue GitHub check association.

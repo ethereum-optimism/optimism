@@ -204,3 +204,16 @@ remain unchanged.
 - [ ] Remove migration tooling/tests/mappings, workflow invocations and migration-only filters.
 - [ ] Remove Circle adapters and unused provider metadata/cache compatibility modes.
 - [ ] Run permanent tests and native configuration validation after retirement.
+
+Pilot readiness additions (2026-10-06):
+
+- [x] Pin the modified-contract baseline across compilation and verdicts; prove
+  branch advancement succeeds and mismatched pins fail before tests execute.
+- [x] Complete the bounded changed-crate incremental on/off experiment; keep the
+  selected configuration and record the network-transfer measurement boundary.
+- [x] Rehearse patched CLI RPC denial, protected cache-write denial, and an actual
+  canceled task; retain definitions, terminal states and originals outside Git.
+- [ ] Obtain required approving and contract-team reviews after final-head CI.
+
+These observations do not complete the actual fork/merge-queue event or required
+gate cutover items above.

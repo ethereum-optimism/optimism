@@ -163,6 +163,35 @@ with an audit record. Runtime recovery is forbidden. Every runtime import belong
 in the producer's source/input seal and filtered snapshot. Test imports from the
 actual filtered files, including SP1's toolchain snapshot.
 
+Modified-contract runs capture `develop` once in `modified-baseline` and retain
+`.ci/contract-baseline.txt`. Compile/verdict packages receive that full SHA through
+`target-sha` / `CI_CONTRACT_TARGET_SHA`; originals record `target_binding:
+run-pinned`, `target_sha`, and `merge_base_sha`. Discovery keeps Circle's three-dot
+changed-file rule but names the pinned commit. Verdicts verify the same pin and
+selection without fetching the moving branch. Standard-contract cache inputs do
+not inherit this baseline. Circle's standalone commands retain their existing
+fetch/selection behavior; comparison requires both providers to use the same
+recorded target and merge base.
+
+The bounded changed-crate experiment on `3df2ffe919` used three samples per mode
+for `kona-providers-alloy`, 4 CPU/8 GiB checks and 16 CPU/32 GiB test compilation.
+Median compile seconds were 1.79/0.60 (off/on) for checks and 2.42/0.81 for tests.
+Including local tar archive/restore, medians were 3.42/3.03 and 3.14/1.75 seconds.
+Target contents grew from 996 MB to 1,173 MB for checks and from 1,053 MB to
+1,417 MB for tests. Keep the selected incremental configuration. This experiment
+measures a small crate edit, not full-workspace runtime or cost; local tar timings
+do not measure RWX cache-network transfer. Cold seeds are excluded from samples.
+
+The pilot-readiness rehearsal verified locked RPC/cache vaults allow only the
+pilot branch and `develop`. A patched CLI run with `branch: develop` was denied
+the RPC vault before execution; a harmless cache-write probe ran but declared no
+protected tool-cache version. A separate running task was canceled and returned
+`aborted/cancelled`, `failed`. Routing and gate fixtures cover safe skips,
+unknown/mixed paths, queue metadata and failed/canceled/missing prerequisites.
+Actual fork and merge-queue events remain required before gate cutover. GitHub
+currently requires one approving review plus two contract-team approvals for this
+PR's contract paths; CI success does not satisfy these reviews.
+
 ## Run and validate
 
 Use repository tool pins via mise. RWX CLI v3.32.1 was used for retained pilot
