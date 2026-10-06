@@ -341,7 +341,7 @@ run_scenario "Passthrough parameters survive, detection and dispatch parameters 
   push feat/routing "" "" \
   '{"c-default_docker_image":"example/image:1","c-go-cache-version":"test","c-go_fresh_tests_effective":true,"c-contract_coverage_replay_effective":true,"c-nut_provenance_full_effective":true,"c-selector_upload_replay_effective":true,"c-flaky_report_replay_effective":true,"c-l2_fork_parity_replay_effective":true,"c-l2_fork_parity_block_effective":"157803345","c-main_dispatch":true,"c-only_docs_changes":true}' \
   ci_gate_skip contracts_feature_tests_short rust_ci_gate_short rust_e2e_gate_skip
-if jq -e '."c-default_docker_image" == "example/image:1" and ."c-go-cache-version" == "test" and ."c-go_fresh_tests_effective" == true and ."c-contract_coverage_replay_effective" == true and ."c-nut_provenance_full_effective" == true and (has("c-selector_upload_replay_effective") | not) and (has("c-flaky_report_replay_effective") | not) and (has("c-l2_fork_parity_replay_effective") | not) and ."c-l2_fork_parity_block_effective" == "157803345" and (has("c-main_dispatch") | not) and (has("c-only_docs_changes") | not)' "${OUTPUT}" >/dev/null; then
+if jq -e '."c-default_docker_image" == "example/image:1" and ."c-go-cache-version" == "test" and ."c-go_fresh_tests_effective" == true and ."c-contract_coverage_replay_effective" == true and ."c-nut_provenance_full_effective" == true and (has("c-selector_upload_replay_effective") | not) and (has("c-flaky_report_replay_effective") | not) and (has("c-l2_fork_parity_replay_effective") | not) and (has("c-l2_fork_parity_block_effective") | not) and (has("c-main_dispatch") | not) and (has("c-only_docs_changes") | not)' "${OUTPUT}" >/dev/null; then
   echo "PASS: parameter JSON contract"
   PASS=$((PASS + 1))
 else

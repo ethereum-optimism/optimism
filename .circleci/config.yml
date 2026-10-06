@@ -93,9 +93,6 @@ parameters:
   c-nut_provenance_full:
     type: boolean
     default: false
-  c-l2_fork_parity_block:
-    type: string
-    default: ""
 
 orbs:
   continuation: circleci/continuation@2.0.1
@@ -169,7 +166,6 @@ jobs:
             c-github-event-base64: << pipeline.parameters.github-event-base64 >>
             c-go-cache-version: << pipeline.parameters.go-cache-version >>
             c-publish_contract_artifacts_ref: << pipeline.parameters.publish_contract_artifacts_ref >>
-            c-l2_fork_parity_block_effective: << pipeline.parameters.c-l2_fork_parity_block >>
       # Same as above but for booleans. Separate step because CircleCI renders
       # boolean pipeline params as 0/1 in environment blocks — the "bool" mode
       # normalizes them to JSON true/false.

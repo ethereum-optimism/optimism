@@ -38,12 +38,6 @@ parameters:
   c-run_selector_upload_replay:
     type: boolean
     default: false
-  c-l2_fork_parity_block:
-    type: string
-    default: ""
-  c-l2_fork_parity_block_effective:
-    type: string
-    default: ""
   c-publish_contract_artifacts_ref:
     type: string
     default: ""

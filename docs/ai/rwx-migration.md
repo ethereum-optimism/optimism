@@ -175,7 +175,7 @@ package placement consume them. They are not generated run evidence.
 
 | Surface | Retained reason and regression boundary |
 | --- | --- |
-| `.circleci/config.yml` and continuation parameters | Keep default-false `c-go_fresh_tests`, `c-contract_coverage_replay`, `c-nut_provenance_full`, and optional pinned L2 block. These alter explicit verification inputs, not normal Circle test settings. Retired API replay parameters are no longer forwarded |
+| `.circleci/config.yml` and continuation parameters | Keep default-false `c-go_fresh_tests`, `c-contract_coverage_replay`, `c-nut_provenance_full`, with default-false forwarding. These alter explicit verification inputs, not normal Circle test settings. Retired API replay and block-override parameters are no longer forwarded |
 | `.circleci/routing.yml`, `scripts/{collect-params.sh,compute-workflow-conditions.sh,workflow-helpers.sh}` | One policy and path authority for both providers; Circle entrypoints translate event/base/branch and preserve legacy schedules, tags, issue automation and authorized forks. Real changed-file and Circle-adapter fixtures cover unknown paths and safe gates |
 | `continue/main.yml` workload wrappers | Retain original recipes via shared suite runners and complete discovery/settings/failure reports, including dependency/prestate hashes. The fetcher check now detects committed drift. Gate names and dependency lists remain Circle-owned |
 | Main contract matrices | Preserve profile, feature, changed-file selection, timeout and fuzz/invariant settings. Reasons/reporting support strict parity; seeded coverage is opt-in. L2 pilot relay/pinned-block checks retain originals without reloading `BASH_ENV` over runtime overrides |

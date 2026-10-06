@@ -90,5 +90,4 @@ passthrough_params:
   - c-go_fresh_tests_effective
   - c-contract_coverage_replay_effective
   - c-nut_provenance_full_effective
-  - c-l2_fork_parity_block_effective
   - c-publish_contract_artifacts_ref
