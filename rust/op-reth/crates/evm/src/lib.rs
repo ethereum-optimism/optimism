@@ -19,9 +19,11 @@ use alloy_op_evm::{
     evm_env_for_op_block, evm_env_for_op_next_block,
 };
 use core::fmt::Debug;
+#[cfg(feature = "std")]
+use op_alloy_consensus::validate_post_exec_entry_count;
 use op_alloy_consensus::{
     EIP1559ParamError, OpTransaction as OpConsensusTransaction,
-    parse_post_exec_payload_from_transactions, validate_post_exec_entry_count,
+    parse_post_exec_payload_from_transactions,
 };
 use op_revm::OpSpecId;
 use reth_chainspec::EthChainSpec;
@@ -172,6 +174,20 @@ where
                 .inspect(|_| sdm_metrics::report_post_exec_validation_ok())
                 .map_or_else(PostExecMode::default, |parsed| PostExecMode::Verify(parsed.payload))
         })
+}
+
+/// Runs the encoded-transaction preflight for an Engine API payload; a rejection is counted
+/// under its failed rule before the parse ever runs, so the preflight's reasons reach the same
+/// counters as the parse path's.
+#[cfg(feature = "std")]
+pub(crate) fn preflight_post_exec_payload(
+    transactions: &[Bytes],
+    block_number: u64,
+) -> Result<(), EIP1559ParamError> {
+    validate_post_exec_entry_count(transactions).map_err(|error| {
+        sdm_metrics::report_post_exec_validation_failure(block_number, error);
+        EIP1559ParamError::InvalidPostExecPayload
+    })
 }
 
 impl<ChainSpec, N, R, EvmFactory> OpEvmConfig<ChainSpec, N, R, EvmFactory>
@@ -367,8 +383,10 @@ where
         &self,
         payload: &'a OpExecutionData,
     ) -> Result<ExecutionCtxFor<'a, Self>, Self::Error> {
-        validate_post_exec_entry_count(payload.payload.transactions())
-            .map_err(|_| EIP1559ParamError::InvalidPostExecPayload)?;
+        preflight_post_exec_payload(
+            payload.payload.transactions(),
+            payload.payload.block_number(),
+        )?;
         let transactions = payload
             .payload
             .transactions()
@@ -404,8 +422,10 @@ where
         &self,
         payload: &OpExecutionData,
     ) -> Result<impl ExecutableTxIterator<Self>, Self::Error> {
-        validate_post_exec_entry_count(payload.payload.transactions())
-            .map_err(|_| EIP1559ParamError::InvalidPostExecPayload)?;
+        preflight_post_exec_payload(
+            payload.payload.transactions(),
+            payload.payload.block_number(),
+        )?;
         let transactions = payload.payload.transactions().clone();
         let convert = |encoded: Bytes| {
             let tx = TxTy::<Self::Primitives>::decode_2718_exact(encoded.as_ref())

@@ -119,13 +119,26 @@ pub enum PostExecPayloadValidationError {
     },
     /// The payload has more refund entries than preceding block transactions they could target.
     #[error(
-        "post-exec payload has {entry_count} gas refund entries but only {preceding_transaction_count} preceding transactions"
+        "post-exec payload has at least {entry_count} gas refund entries but only {preceding_transaction_count} preceding transactions"
     )]
     TooManyGasRefundEntries {
-        /// Number of refund entries in the payload.
+        /// Number of refund entries in the payload; a lower bound when the producer stopped
+        /// decoding at the first excess entry.
         entry_count: usize,
         /// Number of transactions preceding the final `PostExec` transaction.
         preceding_transaction_count: usize,
+    },
+    /// The post-exec transaction's payload failed to decode or carried trailing bytes.
+    #[error("post-exec transaction at index {tx_index} carries a malformed payload")]
+    MalformedPostExecPayload {
+        /// Post-exec tx index.
+        tx_index: u64,
+    },
+    /// The post-exec payload names a version this node does not support.
+    #[error("post-exec payload version {version} is not supported")]
+    UnsupportedPostExecPayloadVersion {
+        /// Version byte carried by the payload.
+        version: u8,
     },
 }
 
@@ -134,13 +147,15 @@ impl PostExecPayloadValidationError {
     /// [`Self::as_reason`] itself so the strings cannot drift. Nothing checks this array is
     /// complete — a new variant compiles without touching it; the reminder to extend it lives
     /// on [`Self::as_reason`], the match a new variant cannot skip.
-    pub const ALL_REASONS: [&'static str; 5] = [
+    pub const ALL_REASONS: [&'static str; 7] = [
         Self::UnexpectedPostExecTx { tx_index: 0 }.as_reason(),
         Self::MultiplePostExecTxs { first_index: 0, duplicate_index: 0 }.as_reason(),
         Self::PostExecTxNotLast { tx_index: 0, last_index: 0 }.as_reason(),
         Self::BlockNumberMismatch { payload_block_number: 0, block_number: 0 }.as_reason(),
         Self::TooManyGasRefundEntries { entry_count: 0, preceding_transaction_count: 0 }
             .as_reason(),
+        Self::MalformedPostExecPayload { tx_index: 0 }.as_reason(),
+        Self::UnsupportedPostExecPayloadVersion { version: 0 }.as_reason(),
     ];
 
     /// Returns this error as an owned string.
@@ -161,6 +176,10 @@ impl PostExecPayloadValidationError {
             Self::PostExecTxNotLast { .. } => "post_exec_tx_not_last",
             Self::BlockNumberMismatch { .. } => "block_number_mismatch",
             Self::TooManyGasRefundEntries { .. } => "too_many_gas_refund_entries",
+            Self::MalformedPostExecPayload { .. } => "malformed_post_exec_payload",
+            Self::UnsupportedPostExecPayloadVersion { .. } => {
+                "unsupported_post_exec_payload_version"
+            }
         }
     }
 }
@@ -252,43 +271,59 @@ pub fn total_gas_refund(entries: &[SDMGasEntry]) -> u64 {
 /// context. At most one `PostExec` transaction may appear and it must be final. Every refund entry
 /// must target a distinct preceding transaction, so the final transaction's index is also the
 /// maximum valid entry count.
-pub fn validate_post_exec_entry_count(transactions: &[Bytes]) -> alloy_rlp::Result<()> {
+pub fn validate_post_exec_entry_count(
+    transactions: &[Bytes],
+) -> Result<(), PostExecPayloadValidationError> {
     let mut post_exec = None;
 
     for (tx_index, encoded) in transactions.iter().enumerate() {
         if encoded.first().copied() != Some(POST_EXEC_TX_TYPE_ID) {
             continue;
         }
-        if post_exec.is_some() {
-            return Err(alloy_rlp::Error::Custom("multiple post-exec transactions"));
+        if let Some((first_index, _)) = post_exec {
+            return Err(PostExecPayloadValidationError::MultiplePostExecTxs {
+                first_index: first_index as u64,
+                duplicate_index: tx_index as u64,
+            });
         }
         post_exec = Some((tx_index, encoded));
     }
 
     let Some((tx_index, encoded)) = post_exec else { return Ok(()) };
-    if tx_index != transactions.len() - 1 {
-        return Err(alloy_rlp::Error::Custom("post-exec transaction must be final"));
+    let last_index = transactions.len() - 1;
+    if tx_index != last_index {
+        return Err(PostExecPayloadValidationError::PostExecTxNotLast {
+            tx_index: tx_index as u64,
+            last_index: last_index as u64,
+        });
     }
 
+    let malformed =
+        PostExecPayloadValidationError::MalformedPostExecPayload { tx_index: tx_index as u64 };
     let mut encoded_payload = &encoded[1..];
-    let mut payload = Header::decode_bytes(&mut encoded_payload, true)?;
-    let _version = u8::decode(&mut payload)?;
-    let _block_number = u64::decode(&mut payload)?;
-    let mut encoded_entries = Header::decode_bytes(&mut payload, true)?;
+    let mut payload = Header::decode_bytes(&mut encoded_payload, true).map_err(|_| malformed)?;
+    let version = u8::decode(&mut payload).map_err(|_| malformed)?;
+    if version != POST_EXEC_PAYLOAD_VERSION {
+        return Err(PostExecPayloadValidationError::UnsupportedPostExecPayloadVersion { version });
+    }
+    let _block_number = u64::decode(&mut payload).map_err(|_| malformed)?;
+    let mut encoded_entries = Header::decode_bytes(&mut payload, true).map_err(|_| malformed)?;
     let mut entry_count = 0usize;
 
     while !encoded_entries.is_empty() {
         if entry_count == tx_index {
-            return Err(alloy_rlp::Error::Custom(
-                "post-exec gas refund entries exceed block transaction count",
-            ));
+            // The remaining entries are not decoded, so this count is a lower bound.
+            return Err(PostExecPayloadValidationError::TooManyGasRefundEntries {
+                entry_count: entry_count + 1,
+                preceding_transaction_count: tx_index,
+            });
         }
-        let _entry = SDMGasEntry::decode(&mut encoded_entries)?;
+        let _entry = SDMGasEntry::decode(&mut encoded_entries).map_err(|_| malformed)?;
         entry_count += 1;
     }
 
     if !payload.is_empty() || !encoded_payload.is_empty() {
-        return Err(alloy_rlp::Error::UnexpectedLength);
+        return Err(malformed);
     }
 
     Ok(())
