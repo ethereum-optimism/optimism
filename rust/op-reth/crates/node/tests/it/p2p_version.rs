@@ -11,10 +11,10 @@ use reth_rpc_api::servers::AdminApiServer;
 use std::time::Duration;
 use tokio::time::{sleep, timeout};
 
-const EXPECTED_ETH_VERSION: u64 = 69;
+const EXPECTED_ETH_VERSION: u64 = 71;
 
 #[tokio::test]
-async fn peers_negotiate_eth_69() -> eyre::Result<()> {
+async fn peers_negotiate_eth_71() -> eyre::Result<()> {
     // This test intermittently segfaults during teardown, after the body below has
     // passed (ethereum-optimism/optimism#20973). The handler outlives the body, so it
     // reports the faulting thread and stack when that happens.

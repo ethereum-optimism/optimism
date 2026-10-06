@@ -21,7 +21,7 @@ use alloy_eips::{BlockNumHash, eip1898::BlockWithParent};
 use alloy_primitives::{B256, BlockNumber};
 use reth_db::{
     BlockNumberList,
-    cursor::{DbCursorRO, DbCursorRW, DbDupCursorRO, DbDupCursorRW},
+    cursor::{DbCursorRO, DbCursorRW, DbDupCursorRO},
     models::sharded_key::ShardedKey,
     table::Table,
     transaction::{DbTx, DbTxMut},
@@ -378,10 +378,6 @@ impl<TX: DbTxMut + DbTx + Send + Sync + Debug + 'static> MdbxProofsProviderV2<TX
         let mut count = 0u64;
         let mut cur = self.tx.cursor_dup_write::<V2StoragesTrieSnapshot>()?;
         for (hashed_address, nodes) in trie_updates.storage_tries_ref() {
-            if nodes.is_deleted && cur.seek_exact(*hashed_address)?.is_some() {
-                cur.delete_current_duplicates()?;
-                count += 1;
-            }
             for (nibbles, maybe_node) in nodes.storage_nodes_ref() {
                 let subkey = StoredNibblesSubKey(*nibbles);
                 let existing = cur
@@ -434,10 +430,6 @@ impl<TX: DbTxMut + DbTx + Send + Sync + Debug + 'static> MdbxProofsProviderV2<TX
         let mut count = 0u64;
         let mut cur = self.tx.cursor_dup_write::<V2HashedStoragesSnapshot>()?;
         for (hashed_addr, storage) in hashed_post_state.account_storages() {
-            if storage.wiped && cur.seek_exact(*hashed_addr)?.is_some() {
-                cur.delete_current_duplicates()?;
-                count += 1;
-            }
             for (slot, value) in &storage.storage_slots {
                 let existing = cur
                     .seek_by_key_subkey(*hashed_addr, *slot)?

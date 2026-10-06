@@ -25,8 +25,9 @@ use reth_trie::{
     witness::TrieWitness,
 };
 use reth_trie_common::{
-    AccountProof, HashedPostState, HashedStorage, KeccakKeyHasher, MultiProof, MultiProofTargets,
-    StorageMultiProof, StorageProof, TrieInput, updates::TrieUpdates,
+    AccountProof, DecodedMultiProofV2, HashedPostState, HashedStorage, KeccakKeyHasher, MultiProof,
+    MultiProofTargets, MultiProofTargetsV2, StorageMultiProof, StorageProof, TrieInput,
+    updates::TrieUpdates,
 };
 use std::fmt::Debug;
 
@@ -177,6 +178,15 @@ where
             .map_err(ProviderError::from)
     }
 
+    fn multiproof_v2(
+        &self,
+        input: TrieInput,
+        targets: MultiProofTargetsV2,
+    ) -> ProviderResult<DecodedMultiProofV2> {
+        Proof::overlay_multiproof_v2(self.provider.clone(), self.block_number, input, targets)
+            .map_err(ProviderError::from)
+    }
+
     fn witness(
         &self,
         input: TrieInput,
@@ -193,7 +203,7 @@ impl<'a, P> HashedPostStateProvider for OpProofsStateProviderRef<'a, P>
 where
     P: OpProofsProviderRO + Clone,
 {
-    /// UPSTREAM-MIRROR(copy): reth@rev:0fbe428
+    /// UPSTREAM-MIRROR(copy): reth@rev:4553cf1
     /// `reth_provider::LatestStateProviderRef::hashed_post_state`
     ///
     /// Mirrors the hashing/zeroing sequence, using historical OP proofs cursors instead of

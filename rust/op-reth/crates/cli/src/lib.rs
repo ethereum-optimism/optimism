@@ -86,11 +86,23 @@ pub struct Cli<
 /// the type level. They are hidden from all help output and rejected with a hard error after
 /// parsing. Add new entries here as further unsupported upstream options are identified
 /// (tracked in [#21687](https://github.com/ethereum-optimism/optimism/issues/21687)).
-const DENIED_ARGS: &[(&str, &str, &str)] = &[("node", "minimal", MINIMAL_REMOVED_HELP)];
+const DENIED_ARGS: &[(&str, &str, &str)] = &[
+    ("node", "minimal", MINIMAL_REMOVED_HELP),
+    ("node", "max_bals", BAL_ARGS_UNSUPPORTED_HELP),
+    ("node", "cache_computed_bals", BAL_ARGS_UNSUPPORTED_HELP),
+    ("node", "prewarm_bals", BAL_ARGS_UNSUPPORTED_HELP),
+    ("node", "balstore_cache_size", BAL_ARGS_UNSUPPORTED_HELP),
+    ("node", "bal_parallel_execution_disabled", BAL_ARGS_UNSUPPORTED_HELP),
+    ("node", "bal_parallel_state_root_disabled", BAL_ARGS_UNSUPPORTED_HELP),
+    ("node", "disable_bal_batch_io", BAL_ARGS_UNSUPPORTED_HELP),
+];
 
 /// Startup error for `--minimal`, which configures pruning (including block-body pruning) that
 /// op-node derivation cannot tolerate.
 const MINIMAL_REMOVED_HELP: &str = "--minimal is not supported by op-reth and has been removed.\n\nIt prunes block bodies to a fixed 10,064-block window, which breaks op-node derivation\n(op-node reads the L1-info deposit transaction from historical block bodies).\n\nFor a pruned (non-archive) node, use the supported pruning recipe instead:\n  --prune.minimum-distance <BLOCKS>\n  --prune.receipts.distance <BLOCKS>\n  --prune.account-history.distance <BLOCKS>\n  --prune.storage-history.distance <BLOCKS>\nDo NOT prune block bodies.\n\nSee https://docs.optimism.io/node-operators/guides/management/archive-node#pruning-op-reth";
+
+/// Startup error for block access list options, which are not useful on OP chains.
+const BAL_ARGS_UNSUPPORTED_HELP: &str = "Block access list options are not supported by op-reth.\n\nOP blocks do not carry EIP-7928 block access lists.";
 
 impl Cli {
     /// Parses only the default CLI arguments, rejecting `DENIED_ARGS`

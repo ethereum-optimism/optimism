@@ -1308,15 +1308,12 @@ fn test_large_batch_operations<S: OpProofsStore>(storage: S) -> Result<(), OpPro
     Ok(())
 }
 
-/// Test wiped storage in [`HashedPostState`]
-///
-/// When `store_trie_updates` receives a [`HashedPostState`] with wiped=true for a storage entry,
-/// it should iterate all existing values for that address and create deletion entries for them.
+/// Test explicit storage deletions in [`HashedPostState`].
 #[test_case(InMemoryProofsStorage::new(); "InMemory")]
 #[test_case(create_mdbx_proofs_storage(); "Mdbx")]
 #[test_case(create_mdbx_proofs_storage_v2(); "MdbxV2")]
 #[serial]
-fn test_store_trie_updates_with_wiped_storage<S: OpProofsStore>(
+fn test_store_trie_updates_with_deleted_storage<S: OpProofsStore>(
     storage: S,
 ) -> Result<(), OpProofsStorageError> {
     use reth_trie::HashedStorage;
@@ -1349,17 +1346,18 @@ fn test_store_trie_updates_with_wiped_storage<S: OpProofsStore>(
     assert_eq!(found_slots[2], (B256::repeat_byte(0x30), U256::from(300)));
     assert_eq!(found_slots[3], (B256::repeat_byte(0x40), U256::from(400)));
 
-    // Now create a HashedPostState with wiped=true for this address at block 100
+    // Delete every storage slot at block 100.
     let mut post_state = HashedPostState::default();
-    let wiped_storage = HashedStorage::new(true); // wiped=true, empty storage map
-    post_state.storages.insert(hashed_address, wiped_storage);
+    let deleted_storage =
+        HashedStorage::from_iter(storage_slots.iter().map(|(slot, _)| (*slot, U256::ZERO)));
+    post_state.storages.insert(hashed_address, deleted_storage);
 
     let block_state_diff = BlockStateDiff {
         sorted_trie_updates: TrieUpdatesSorted::default(),
         sorted_post_state: post_state.into_sorted(),
     };
 
-    // Store the wiped state
+    // Store the deleted state.
     let provider_rw = storage.provider_rw().expect("provider rw");
     provider_rw.store_trie_updates(block_ref, block_state_diff)?;
     provider_rw.commit()?;
@@ -1474,7 +1472,7 @@ fn test_store_trie_updates_comprehensive<S: OpProofsStore>(
 
     // Add storage for an address
     let storage_addr = B256::repeat_byte(0x50);
-    let mut hashed_storage = HashedStorage::new(false);
+    let mut hashed_storage = HashedStorage::default();
     hashed_storage.storage.insert(B256::repeat_byte(0x01), U256::from(111));
     hashed_storage.storage.insert(B256::repeat_byte(0x02), U256::from(222));
     hashed_storage.storage.insert(B256::repeat_byte(0x03), U256::ZERO); // Deleted storage
@@ -1645,7 +1643,7 @@ fn test_replace_updates_applies_all_updates<S: OpProofsStore>(
     initial_trie_updates_100.account_nodes.insert(common_branch_path, initial_branch.clone());
 
     let mut initial_post_state_100 = HashedPostState::default();
-    let mut initial_storage_100 = HashedStorage::new(false);
+    let mut initial_storage_100 = HashedStorage::default();
     initial_storage_100.storage.insert(initial_storage_slot, initial_storage_value);
     initial_post_state_100.storages.insert(initial_storage_addr, initial_storage_100);
 
@@ -1734,7 +1732,7 @@ fn test_replace_updates_applies_all_updates<S: OpProofsStore>(
     let mut new_post_state = HashedPostState::default();
     new_post_state.accounts.insert(new_account_addr, Some(new_account));
 
-    let mut new_storage = HashedStorage::new(false);
+    let mut new_storage = HashedStorage::default();
     new_storage.storage.insert(new_storage_slot, new_storage_value);
     new_post_state.storages.insert(new_storage_addr, new_storage);
 

@@ -9,14 +9,16 @@ use async_trait::async_trait;
 use jsonrpsee::proc_macros::rpc;
 use jsonrpsee_core::RpcResult;
 use jsonrpsee_types::error::ErrorObject;
+use reth_errors::RethError;
 use reth_optimism_trie::{OpProofsStorage, OpProofsStore};
 use reth_provider::StateProofProvider;
 use reth_rpc_api::eth::helpers::FullEthApi;
-use std::time::Instant;
+use reth_rpc_eth_api::FromEthApiError;
+use reth_rpc_eth_types::EthApiError;
 
 /// The `eth_` proof methods served from the historical proofs storage.
 ///
-/// UPSTREAM-MIRROR(set): reth@rev:0fbe428 `reth_rpc_eth_api::EthApi`
+/// UPSTREAM-MIRROR(set): reth@rev:4553cf1 `reth_rpc_eth_api::EthApi`
 ///
 /// Re-declares the proof methods that are answered from historical proofs rather than live state.
 /// A proof method added to upstream's `EthApi` produces no diff here, so diff the two method sets
@@ -39,7 +41,8 @@ pub trait EthApiOverride {
 #[derive(Debug)]
 /// Overrides applied to the `eth_` namespace of the RPC API for historical proofs ExEx.
 pub struct EthApiExt<Eth, P> {
-    state_provider_factory: OpStateProviderFactory<Eth, P>,
+    eth_api: Eth,
+    preimage_store: OpProofsStorage<P>,
     metrics: EthApiExtMetrics,
 }
 
@@ -51,11 +54,45 @@ where
 {
     /// Creates a new instance of the `EthApiExt`.
     pub fn new(eth_api: Eth, preimage_store: OpProofsStorage<P>) -> Self {
-        let metrics = EthApiExtMetrics::default();
-        Self {
-            state_provider_factory: OpStateProviderFactory::new(eth_api, preimage_store),
-            metrics,
-        }
+        Self { eth_api, preimage_store, metrics: EthApiExtMetrics::default() }
+    }
+
+    /// UPSTREAM-MIRROR(copy): reth@rev:4553cf1
+    /// `reth_rpc_eth_api::helpers::state::EthState::get_proof`
+    ///
+    /// Uses the OP proofs-history state provider while preserving upstream permit and blocking-task
+    /// behavior.
+    async fn get_proof_inner(
+        &self,
+        address: Address,
+        keys: Vec<JsonStorageKey>,
+        block_id: BlockId,
+    ) -> Result<EIP1186AccountProofResponse, Eth::Error> {
+        let permit = self
+            .eth_api
+            .acquire_owned_tracing()
+            .await
+            .map_err(RethError::other)
+            .map_err(EthApiError::Internal)?;
+        let preimage_store = self.preimage_store.clone();
+
+        self.eth_api
+            .spawn_blocking_io_fut(move |eth_api| async move {
+                // Hold the proof permit for the full lifetime of the blocking task, including
+                // after the requesting future is cancelled.
+                let _permit = permit;
+                let state_provider_factory = OpStateProviderFactory::new(eth_api, preimage_store);
+                let state = state_provider_factory
+                    .state_provider(block_id)
+                    .await
+                    .map_err(Eth::Error::from_eth_err)?;
+                let storage_keys = keys.iter().map(|key| key.as_b256()).collect::<Vec<_>>();
+                let proof = state
+                    .proof(Default::default(), address, &storage_keys)
+                    .map_err(Eth::Error::from_eth_err)?;
+                Ok(proof.into_eip1186_response(keys))
+            })
+            .await
     }
 }
 
@@ -72,32 +109,9 @@ where
         keys: Vec<JsonStorageKey>,
         block_number: Option<BlockId>,
     ) -> RpcResult<EIP1186AccountProofResponse> {
-        let start = Instant::now();
-        self.metrics.get_proof_requests.increment(1);
-
-        let storage_keys = keys.iter().map(|key| key.as_b256()).collect::<Vec<_>>();
-
-        let result = async {
-            let proof = self
-                .state_provider_factory
-                .state_provider(block_number)
-                .await
-                .map_err(Into::into)?
-                .proof(Default::default(), address, &storage_keys)
-                .map_err(Into::into)?;
-
-            Ok(proof.into_eip1186_response(keys))
-        }
-        .await;
-
-        match &result {
-            Ok(_) => {
-                self.metrics.get_proof_latency.record(start.elapsed().as_secs_f64());
-                self.metrics.get_proof_successful_responses.increment(1);
-            }
-            Err(_) => self.metrics.get_proof_failures.increment(1),
-        }
-
-        result
+        self.metrics
+            .record_get_proof(self.get_proof_inner(address, keys, block_number.unwrap_or_default()))
+            .await
+            .map_err(Into::into)
     }
 }
