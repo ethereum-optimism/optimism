@@ -50,4 +50,3 @@ default = []
 tokio = { workspace = true, features = ["macros", "rt-multi-thread", "time"] }
 tempfile.workspace = true
 serde_json.workspace = true
-jsonrpsee = { workspace = true, features = ["server"] }

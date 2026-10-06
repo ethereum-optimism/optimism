@@ -7680,7 +7680,6 @@ dependencies = [
  "alloy-transport-http",
  "backon",
  "derive_more 2.1.1",
- "jsonrpsee",
  "notify",
  "op-alloy-rpc-types-engine",
  "rustls",
