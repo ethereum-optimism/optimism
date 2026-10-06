@@ -23,6 +23,8 @@ mod test_config;
 /// Entrypoint to the unified super-root range program.
 pub fn main() {
     println!("{}", kona_sp1_build_info::BUILD_MARKER);
+    #[cfg(feature = "test-config-fallback")]
+    println!("{}", test_config::MARKER);
 
     let inputs = sp1_zkvm::io::read::<SuperInteropInputs>();
     let outputs = kona_proof::block_on(run(inputs)).expect("super interop failed");

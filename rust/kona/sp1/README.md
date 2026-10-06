@@ -58,6 +58,7 @@ It allows that guest's test entrypoint to decode unverified Local-key configs an
 explicit bundle to the shared functions. It is disabled by default;
 `ops/prestate-reproducibility/build-prestates.sh` rejects guest graphs that enable it and
 artifacts carrying a `-test` build marker.
+Test-feature ELFs also contain a dedicated unsafe-config marker that production prestate checks reject.
 For synthetic-chain ELFs, use `just build-elfs test-config-fallback` (or
 `build-elfs-native test-config-fallback`); these artifacts carry a `-test` build marker.
 The full-ELF executor seeds the resolved config bundle into its test witness, so one test ELF

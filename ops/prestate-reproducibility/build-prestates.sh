@@ -140,11 +140,21 @@ function build_kona_sp1() {
 
   local manifest="rust/kona/sp1/elf/vkeys.toml"
   local elf="rust/kona/sp1/elf/super-aggregation-elf"
+  local range_elf="rust/kona/sp1/elf/super-range-elf"
   local line hash derived output
-  [[ -f "$manifest" && -s "$elf" ]] || {
-    fail_kona_sp1 "$version" "missing aggregation manifest or ELF"
+  [[ -f "$manifest" && -s "$elf" && -s "$range_elf" ]] || {
+    fail_kona_sp1 "$version" "missing guest manifest or ELF"
     return 1
   }
+  local marker_status=0
+  grep -aqF 'KONA_SP1_UNSAFE_TEST_CONFIG_FALLBACK{fd6d88e711058eef5eff1512237c8ad3}' "$range_elf" || marker_status=$?
+  if [[ "$marker_status" -eq 0 ]]; then
+    fail_kona_sp1 "$version" "test-config-fallback must be disabled for production prestates (unsafe ELF marker)"
+    return 1
+  elif [[ "$marker_status" -ne 1 ]]; then
+    fail_kona_sp1 "$version" "could not scan super-range ELF for test-config-fallback"
+    return 1
+  fi
   if grep -Eq '^[[:space:]]*git_sha[[:space:]]*=[[:space:]]*"[^"]*-test"[[:space:]]*$' "$manifest"; then
     fail_kona_sp1 "$version" "test-config-fallback must be disabled for production prestates (test build marker)"
     return 1

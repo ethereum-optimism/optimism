@@ -84,6 +84,8 @@ case "$1" in
         [[ "$TEST_SCENARIO" != "stale" || "$count" -eq 1 ]] || exit 0
         [[ -d elf && -f elf/.gitignore ]] || { echo 'missing tracked ELF directory' >&2; exit 1; }
         printf 'elf' > elf/super-aggregation-elf
+        printf '\177ELF\000fixture' > elf/super-range-elf
+        [[ "$TEST_SCENARIO" != "test-elf-marker" ]] || printf '\000KONA_SP1_UNSAFE_TEST_CONFIG_FALLBACK{fd6d88e711058eef5eff1512237c8ad3}\000' >> elf/super-range-elf
         hash="$TEST_HASH"
         [[ "$TEST_SCENARIO" != "malformed-vkey" ]] || hash=0x1234
         [[ "$TEST_SCENARIO" != "uppercase-vkey" ]] || hash=0xAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
@@ -138,7 +140,7 @@ STUB
   elif [[ "$scenario" == "test-config-fallback" ]]; then
     grep -q 'test-config-fallback must be disabled' "$root/output" || { cat "$root/output"; exit 1; }
     [[ ! -f "$root/count" ]] || { echo 'unsafe guest build was started' >&2; exit 1; }
-  elif [[ "$scenario" == "test-build-marker" ]]; then
+  elif [[ "$scenario" == "test-build-marker" || "$scenario" == "test-elf-marker" ]]; then
     grep -q 'test-config-fallback must be disabled' "$root/output" || { cat "$root/output"; exit 1; }
     [[ "$(cat "$root/count")" -eq 1 ]] || { echo 'expected one SP1 build before marker rejection' >&2; exit 1; }
   elif [[ "$scenario" == "symlink-parent" ]]; then
@@ -152,7 +154,7 @@ run_case zero zero
 run_case sudo-fails success
 run_case symlink-parent success
 run_case stdin-consumer two
-for scenario in missing-tag failed-recipe missing-vkey malformed-vkey uppercase-vkey duplicate-vkey zero-vkey vkey-mismatch derived-long custom-config stale failed-metadata invalid-metadata test-config-fallback test-build-marker; do
+for scenario in missing-tag failed-recipe missing-vkey malformed-vkey uppercase-vkey duplicate-vkey zero-vkey vkey-mismatch derived-long custom-config stale failed-metadata invalid-metadata test-config-fallback test-build-marker test-elf-marker; do
   run_case "$scenario" failure
 done
 echo "Kona SP1 build driver fixtures passed"
