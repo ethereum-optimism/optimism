@@ -893,8 +893,20 @@ func TestFollowSource_DivergentLocalSafeAndCrossSafe(t *testing.T) {
 	}
 
 	// Mock expectations:
-	// Allow any events from the emitter (LocalSafeUpdateEvent, SafeDerivedEvent, etc.)
-	emitter.Mock.On("Emit", mock.Anything).Maybe()
+	// Allow any events from the emitter (LocalSafeUpdateEvent, SafeDerivedEvent, etc.), but pin
+	// the contract the safedb write path relies on: a head adopted from the follow source is
+	// promoted without an L1 source, so the driver never records it as derived from L1.
+	localSafeUpdates, safeDerived := 0, 0
+	emitter.ExpectMaybeRun(func(ev event.Event) {
+		switch x := ev.(type) {
+		case LocalSafeUpdateEvent:
+			localSafeUpdates++
+			require.Equal(t, eth.L1BlockRef{}, x.Source, "follow-source local-safe update must not carry an L1 source")
+		case SafeDerivedEvent:
+			safeDerived++
+			require.Equal(t, eth.L1BlockRef{}, x.Source, "follow-source promotion must not carry an L1 source")
+		}
+	})
 
 	// Consolidation lookup: after fix, uses eLocalSafeRef.Number (5)
 	mockEngine.ExpectL2BlockRefByNumber(5, block5, nil)
@@ -921,6 +933,8 @@ func TestFollowSource_DivergentLocalSafeAndCrossSafe(t *testing.T) {
 	// Assert the invariant: cross-safe <= local-safe
 	require.LessOrEqual(t, ec.deprecatedSafeHead.Number, ec.localSafeHead.Number,
 		"invariant: cross-safe (deprecatedSafeHead) must not exceed local-safe")
+	require.GreaterOrEqual(t, localSafeUpdates, 1, "tryUpdateLocalSafe emits LocalSafeUpdateEvent for the external local-safe head")
+	require.GreaterOrEqual(t, safeDerived, 1, "PromoteSafe emits SafeDerivedEvent for the external cross-safe head")
 }
 
 func TestFollowSource_SeedsGenesisRefsFromZeroState(t *testing.T) {
