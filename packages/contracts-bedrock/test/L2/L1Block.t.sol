@@ -489,7 +489,9 @@ contract L1Block_SetCustomGasToken_Test is L1Block_TestInit {
     function test_setCustomGasToken_succeeds() external {
         // Reset the isCustomGasToken() and isFeatureEnabled(CUSTOM_GAS_TOKEN) flags
         stdstore.target(address(l1BlockCGT)).sig("isCustomGasToken()").checked_write(false);
-        stdstore.target(address(l1BlockCGT)).sig("isFeatureEnabled(bytes32)").with_key(Features.CUSTOM_GAS_TOKEN)
+        stdstore.target(address(l1BlockCGT))
+            .sig("isFeatureEnabled(bytes32)")
+            .with_key(Features.CUSTOM_GAS_TOKEN)
             .checked_write(false);
         // This test uses the setUp that already activates custom gas token
         assertFalse(l1BlockCGT.isCustomGasToken());

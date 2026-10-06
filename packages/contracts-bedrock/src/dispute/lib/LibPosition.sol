@@ -46,14 +46,13 @@ library LibPosition {
             _position := or(_position, shr(8, _position))
             _position := or(_position, shr(16, _position))
 
-            depth_ :=
-                or(
-                    depth_,
-                    byte(
-                        shr(251, mul(_position, shl(224, 0x07c4acdd))),
-                        0x0009010a0d15021d0b0e10121619031e080c141c0f111807131b17061a05041f
-                    )
+            depth_ := or(
+                depth_,
+                byte(
+                    shr(251, mul(_position, shl(224, 0x07c4acdd))),
+                    0x0009010a0d15021d0b0e10121619031e080c141c0f111807131b17061a05041f
                 )
+            )
         }
     }
 

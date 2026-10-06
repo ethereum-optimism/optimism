@@ -32,8 +32,8 @@ pub use actors::{
     QueuedNetworkEngineClient, QueuedSequencerAdminAPIClient, QueuedSequencerEngineClient,
     QueuedUnsafePayloadGossipClient, ResetRequest, RpcActor, RpcActorError, RpcServerHandle,
     RpcServerLauncher, SealRequest, SequencerActor, SequencerActorError, SequencerAdminQuery,
-    SequencerConfig, SequencerEngineClient, UnsafePayloadGossipClient,
-    UnsafePayloadGossipClientError,
+    SequencerConfig, SequencerEngineClient, SignedPayload, SignerActor, SignerActorError,
+    UnsafePayloadGossipClient, UnsafePayloadGossipClientError,
 };
 
 mod metrics;

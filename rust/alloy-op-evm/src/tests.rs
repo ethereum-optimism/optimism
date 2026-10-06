@@ -29,10 +29,35 @@ use revm_inspectors::tracing::{TracingInspector, TracingInspectorConfig};
 use super::*;
 
 /// Runtime of a contract that reads (warms) storage slot 0: `PUSH1 0x00; SLOAD; POP; STOP`.
-#[derive(Debug, Default)]
+#[derive(Debug)]
 struct TestRefundPolicy {
     current_kind: Option<post_exec::PostExecTxKind>,
     committed: u64,
+    refund_total: u64,
+}
+
+#[derive(Debug, Clone, Copy)]
+struct TestRefundPolicyFactory {
+    initial_committed: u64,
+    refund_total: u64,
+}
+
+impl Default for TestRefundPolicyFactory {
+    fn default() -> Self {
+        Self { initial_committed: 0, refund_total: 7 }
+    }
+}
+
+impl post_exec::PostExecRefundPolicyFactory for TestRefundPolicyFactory {
+    type Policy = TestRefundPolicy;
+
+    fn create(&self) -> Self::Policy {
+        TestRefundPolicy {
+            current_kind: None,
+            committed: self.initial_committed,
+            refund_total: self.refund_total,
+        }
+    }
 }
 
 impl post_exec::PostExecRefundInspector for TestRefundPolicy {
@@ -47,7 +72,7 @@ impl post_exec::PostExecRefundInspector for TestRefundPolicy {
     fn finish_tx(&mut self) -> post_exec::PostExecExecutedTx {
         let refund_total = if self.current_kind.take() == Some(post_exec::PostExecTxKind::Normal) {
             self.committed += 1;
-            7
+            self.refund_total
         } else {
             0
         };
@@ -324,13 +349,15 @@ fn op_evm_factory_uses_configured_refund_policy_and_snapshot() {
         AccountInfo { balance: U256::from(1_000_000_000u64), ..Default::default() },
     );
 
-    let mut evm = OpEvmFactory::<OpTx, TestRefundPolicy>::default().create_evm(
-        db,
-        EvmEnv::new(
-            CfgEnv::new_with_spec(OpSpecId::JOVIAN),
-            BlockEnv { gas_limit: 1_000_000, ..Default::default() },
-        ),
-    );
+    let mut evm =
+        OpEvmFactory::<OpTx, TestRefundPolicyFactory>::new(TestRefundPolicyFactory::default())
+            .create_evm(
+                db,
+                EvmEnv::new(
+                    CfgEnv::new_with_spec(OpSpecId::JOVIAN),
+                    BlockEnv { gas_limit: 1_000_000, ..Default::default() },
+                ),
+            );
     evm.begin_post_exec_tx(post_exec::PostExecTxContext {
         tx_index: 0,
         kind: post_exec::PostExecTxKind::Normal,
@@ -340,6 +367,29 @@ fn op_evm_factory_uses_configured_refund_policy_and_snapshot() {
     assert_eq!(evm.refund_snapshot(), 1);
     evm.seed_refund_snapshot(9);
     assert_eq!(evm.refund_snapshot(), 9);
+}
+
+#[test]
+fn op_evm_factory_creates_fresh_configured_refund_policies() {
+    let factory = OpEvmFactory::<OpTx, TestRefundPolicyFactory>::new(TestRefundPolicyFactory {
+        initial_committed: 3,
+        refund_total: 11,
+    });
+
+    let mut first = factory.create_evm(EmptyDB::default(), lagoon_env_on_chain_901());
+    assert_eq!(first.refund_snapshot(), 3);
+    first.begin_post_exec_tx(post_exec::PostExecTxContext {
+        tx_index: 0,
+        kind: post_exec::PostExecTxKind::Normal,
+    });
+    first
+        .transact_raw(legacy_op_tx(0, Address::ZERO, Address::with_last_byte(1), 100_000))
+        .expect("tx executes");
+    assert_eq!(first.take_last_post_exec_tx_result().refund_total, 11);
+    assert_eq!(first.refund_snapshot(), 4);
+
+    let second = factory.create_evm(EmptyDB::default(), lagoon_env_on_chain_901());
+    assert_eq!(second.refund_snapshot(), 3, "each EVM must receive fresh policy state");
 }
 
 #[test]

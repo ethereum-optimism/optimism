@@ -40,6 +40,8 @@ type ApplyConfig struct {
 	CacheDir         string
 	privateKeyECDSA  *ecdsa.PrivateKey
 	UseForge         bool
+	// ForgeSlowBroadcast confirms each Forge broadcast transaction before sending the next.
+	ForgeSlowBroadcast bool
 }
 
 func (a *ApplyConfig) Check() error {
@@ -96,13 +98,14 @@ func ApplyCLI() func(cliCtx *cli.Context) error {
 		ctx := ctxinterrupt.WithCancelOnInterrupt(cliCtx.Context)
 
 		if err := Apply(ctx, ApplyConfig{
-			L1RPCUrl:         l1RPCUrl,
-			Workdir:          workdir,
-			PrivateKey:       privateKey,
-			DeploymentTarget: depTarget,
-			Logger:           l,
-			CacheDir:         cacheDir,
-			UseForge:         cliCtx.Bool(UseForgeFlagName),
+			L1RPCUrl:           l1RPCUrl,
+			Workdir:            workdir,
+			PrivateKey:         privateKey,
+			DeploymentTarget:   depTarget,
+			Logger:             l,
+			CacheDir:           cacheDir,
+			UseForge:           cliCtx.Bool(UseForgeFlagName),
+			ForgeSlowBroadcast: cliCtx.Bool(ForgeSlowBroadcastFlagName),
 		}); err != nil {
 			return err
 		}
@@ -176,6 +179,7 @@ func Apply(ctx context.Context, cfg ApplyConfig) error {
 		StateWriter:        pipeline.WorkdirStateWriter(cfg.Workdir),
 		CacheDir:           cfg.CacheDir,
 		UseForge:           cfg.UseForge,
+		ForgeSlowBroadcast: cfg.ForgeSlowBroadcast,
 		PrivateKey:         cfg.PrivateKey,
 		Workdir:            cfg.Workdir,
 	}); err != nil {
@@ -200,6 +204,7 @@ type ApplyPipelineOpts struct {
 	StateWriter        pipeline.StateWriter
 	CacheDir           string
 	UseForge           bool
+	ForgeSlowBroadcast bool
 	// DeployMockSP1Verifier is a test-only opt-in for development environments.
 	DeployMockSP1Verifier bool
 	// AllowUnoptimizedContracts is a test-only opt-in that lets oversized dev-profile
@@ -319,6 +324,7 @@ func ApplyPipeline(
 		if err != nil {
 			return fmt.Errorf("failed to create Forge client: %w", err)
 		}
+		forgeClient.SlowBroadcast = opts.ForgeSlowBroadcast
 	}
 
 	pEnv := &pipeline.Env{

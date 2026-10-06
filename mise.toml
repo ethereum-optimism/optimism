@@ -60,11 +60,9 @@ protoc = "35.1"
 # Foundry dependencies
 # Foundry is a special case because it supplies multiple binaries at the same
 # GitHub release, so we need to use the aliasing trick to get mise to not error
-# The git ref here should be on the `stable` branch.
-# Updated to use the specific nightly build
-forge = "1.2.3"
-cast = "1.2.3"
-anvil = "1.2.3"
+forge = "1.8.3"
+cast = "1.8.3"
+anvil = "1.8.3"
 
 # Other dependencies
 goreleaser-pro = "2.11.2"

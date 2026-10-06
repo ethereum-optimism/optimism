@@ -1,0 +1,324 @@
+---
+title: Upgrade 20
+description: Prepare Fault Proof services and contract integrations for the Upgrade 20 move to Super Root Dispute Games.
+diataxis: reference
+lang: en-US
+content_type: notice
+date: 2026-09-24
+topic: upgrade-20
+personas:
+  - chain-operator
+  - node-operator
+  - app-developer
+  - partner
+  - user
+categories:
+  - fault-proofs
+  - dispute-game
+  - contract-upgrades
+  - l1-contracts
+  - withdrawals
+is_imported_content: 'false'
+---
+
+Upgrade 20 is an L1 smart contract upgrade for OP Stack chains.
+It moves Fault Proofs from Output Root Dispute Games to Super Root Dispute Games and includes `SystemConfig` and OP Contracts Manager (OPCM) maintenance changes.
+
+## Why Upgrade 20
+
+Output Root Dispute Games commit to one chain's state at an L2 block number.
+Interop requires a dispute game format that can commit to the state of multiple chains at the same timestamp.
+Super Root Dispute Games provide that format.
+
+Upgrade 20 moves each chain to Super Root Dispute Games before shared cross-chain dispute infrastructure is enabled.
+Each game created after this upgrade still contains one chain's Output Root.
+The upgrade does not enable Interop, call `OPCM.migrate()`, or move a chain to a shared Dispute Game setup.
+
+Super Root Dispute Games use a timestamp as the `l2SequenceNumber` and validate an incorrect proposal timestamp through the Fault Proof state transition.
+This removes the separate L2 block number challenge used by Output Root Dispute Games.
+The `OptimismPortal` continues to support both formats, so games and withdrawal proofs created before the upgrade remain valid.
+
+## What's included
+
+### Super Root Dispute Games
+
+Upgrade 20 adds the following Super Root Dispute Game types:
+
+* `SUPER_PERMISSIONED` (game type `5`) for chains that use permissioned Fault Proofs.
+* `SUPER_CANNON_KONA` (game type `9`) for chains that use permissionless Fault Proofs.
+
+A permissioned chain remains permissioned.
+A permissionless chain runs both Super Root Dispute Game types and uses `SUPER_CANNON_KONA` as its respected game type.
+Existing Dispute Games continue to resolve through their original game types.
+
+The upgrade keeps each chain's existing `AnchorStateRegistry` and `DisputeGameFactory`.
+It uses an `OPCM.upgrade()` transaction rather than migrating the chain to a shared Dispute Game setup.
+
+### SystemConfig Interface Cleanup
+
+Upgrade 19 recomputed the onchain `SystemConfig` batch inbox address for chains deployed before OPCM.
+The change did not affect derivation because OP Stack clients read the batch inbox address from the chain's rollup configuration, but it left the redundant onchain value out of sync.
+
+Upgrade 20 removes `batchInbox()` and clears its legacy storage slot.
+It also removes the deprecated `setGasConfig(uint256,uint256)` function, which could leave `scalar()` out of sync with the fee scalar values that OPCM preserves during an upgrade.
+The updated `SystemConfig` has contract version `4.0.0`.
+
+The deprecated `overhead()` getter remains available for compatibility with existing integrations, but the upgrade sets the stored value to zero.
+Because `setGasConfig(uint256,uint256)` was its only writer, the value stays zero after the upgrade.
+To preserve the two-word `FEE_SCALARS` event payload without requiring a hardfork, calls to `setGasConfigEcotone(uint32,uint32)` encode zero in the first word.
+
+## Breaking Changes
+
+### Chain Operators
+
+Chain operators must coordinate the L1 contract cutover with the services that propose, challenge, and monitor Fault Proofs.
+
+* Switch `op-proposer` to the new Super Root RPC and game type at the contract cutover.
+* Update `op-proposer` dashboards and alerts that use `op_proposer_default_refs_number{layer="l2"}` to `op_proposer_default_proposed_sequence_number`.
+* Configure `op-challenger` and `op-dispute-mon` to support Super Root Dispute Games while retaining the configuration needed to finish games already in progress.
+* For permissionless Fault Proofs, stage the reviewed `kona-client` Interop variant prestate before the cutover.
+* Update operational tooling that calls the removed `SystemConfig` functions.
+
+The [OP Stack component changes](#prepare-op-stack-components), [`SystemConfig` integration changes](#update-systemconfig-integrations), and [prestate workflow](#locate-or-build-the-absolute-prestate) are described below.
+
+### Node Operators
+
+Upgrade 20 has no L2 hardfork, and it does not require an `op-node` or `op-reth` configuration change to follow the chain.
+If the node also provides a Super Root RPC to Fault Proof services, keep that endpoint reachable during and after the cutover, and run `op-node` with `--safedb.path` enabled and populated through derivation.
+See the [`op-node` row](#prepare-op-stack-components) for details.
+
+### App Developers and Infrastructure Integrators
+
+Ordinary L2 contracts and transactions are not affected.
+Update an integration if it does any of the following:
+
+* Calls `SystemConfig.batchInbox()` or `SystemConfig.setGasConfig(uint256,uint256)`.
+* Decodes the first word of a `FEE_SCALARS` `ConfigUpdate` event as the current `overhead()` value.
+* Reads `SystemConfig.overhead()` and expects the legacy value to remain unchanged.
+* Reads Dispute Game root claims directly and assumes the claim is an Output Root.
+* Uses an OP Stack SDK to check, prove, or finalize L2-to-L1 withdrawals.
+
+For Super Root Dispute Games, direct Dispute Game integrations must recognize game types `5` and `9` and use `rootClaimByChainId(uint256)` to obtain the chain's Output Root.
+The `overhead()` getter remains available for compatibility but is deprecated, and it returns zero after Upgrade 20.
+Applications that use `viem/op-stack` for withdrawal proving must upgrade to `viem` `2.51.0` or later and follow the [withdrawal tooling changes](#update-withdrawal-tooling).
+Bridge operators and developers of withdrawal tooling that read Dispute Game contracts directly must follow the same guidance.
+Tooling that delegates the withdrawal flow to an SDK must use a version that supports Super Root Dispute Games.
+
+### Users
+
+No action is required.
+Withdrawal proofs submitted before Upgrade 20 remain valid.
+Users do not need to re-prove them.
+Existing Output Root Dispute Games continue to resolve, and the `OptimismPortal` supports withdrawal proofs from both Output Root and Super Root Dispute Games.
+
+## Prepare OP Stack components
+
+Update the following components and apply the configuration changes when staging the Upgrade 20 releases.
+Each version below is the latest release of that component, and running the latest release of every component is recommended regardless of whether Upgrade 20 requires a change to it.
+Treat the listed version as a minimum for every component except `kona-client`, where the absolute prestate hash is specific to the exact release tag:
+
+| Component | Version | Required change |
+| --- | --- | --- |
+| `op-challenger` | [v1.9.5](https://github.com/ethereum-optimism/optimism/releases/tag/op-challenger%2Fv1.9.5) | Add `--superroot-rpc` (`OP_CHALLENGER_SUPERROOT_RPC`) and keep the existing game types so the challenger can finish games already in progress. On a permissionless chain, append `super-cannon-kona` to `--game-types` (`OP_CHALLENGER_GAME_TYPES`) and configure the reviewed Kona Interop prestate, as described in [Locate or build the absolute prestate](#locate-or-build-the-absolute-prestate). On a permissioned chain, do not add `super-permissioned`; the simplified game does not require a trace type, and `op-challenger` handles its lifecycle automatically. |
+| `op-dispute-mon` | [v1.6.0](https://github.com/ethereum-optimism/optimism/releases/tag/op-dispute-mon%2Fv1.6.0) | Add `--superroot-rpc` (`OP_DISPUTE_MON_SUPERROOT_RPC`). Keep `--rollup-rpc` while Output Root Dispute Games remain in progress. |
+| `op-proposer` | [v1.16.4](https://github.com/ethereum-optimism/optimism/releases/tag/op-proposer%2Fv1.16.4) | Switch at the contract upgrade cutover, as described in [Update order](#update-order). Replace `--rollup-rpc` with `--superroot-rpcs` (`OP_PROPOSER_SUPERROOT_RPCS`) and set `OP_PROPOSER_GAME_TYPE=5` for a permissioned chain or `OP_PROPOSER_GAME_TYPE=9` for a permissionless chain. |
+| `kona-client` | [v1.7.0](https://github.com/ethereum-optimism/optimism/releases/tag/kona-client%2Fv1.7.0) exactly | Permissionless chains only. This release produces the `SUPER_CANNON_KONA` absolute prestate. Build or locate the Interop variant prestate from this exact tag and host it for `op-challenger`, as described in [Locate or build the absolute prestate](#locate-or-build-the-absolute-prestate). A later tag produces a different hash that does not match the reviewed Upgrade 20 value. |
+| `op-node` | [v1.19.6](https://github.com/ethereum-optimism/optimism/releases/tag/op-node%2Fv1.19.6) | No hardfork activation, so an `op-node` that only serves the chain needs no configuration change. An `op-node` that serves the Super Root RPC to Fault Proof services must run with `--safedb.path` enabled and populated through derivation; `superroot_atTimestamp` cannot serve a non-genesis timestamp without SafeDB. |
+| `op-reth` | [2.4.4](https://github.com/ethereum-optimism/optimism/releases/tag/op-reth%2Fv2.4.4) | No Upgrade 20 configuration change is required, and there is no hardfork activation. |
+| `op-batcher` | [v1.16.13](https://github.com/ethereum-optimism/optimism/releases/tag/op-batcher%2Fv1.16.13) | No Upgrade 20 configuration change is required. |
+
+`op_proposer_default_proposed_sequence_number` replaces `op_proposer_default_refs_number` as the metric for the latest proposal sequence number.
+The replacement metric is already available before Upgrade 20, so operators can update dashboards before the contract cutover.
+Remove `layer` and `type` label filters when updating queries because the replacement metric does not define those labels.
+The metric reports an L2 block number for Output Root proposals and a Unix timestamp for Super Root proposals.
+
+The Super Root RPC must return a root for the chain or dependency set that the Dispute Game covers.
+For a single-chain upgrade, use the chain's `op-node` RPC endpoint or the chain-specific endpoint exposed by an `op-supernode`.
+
+### Update order
+
+Sequence the service updates around the L1 contract cutover:
+
+* Update `op-challenger` and `op-dispute-mon` **before** the L1 contract cutover. Both services need the Super Root configuration in place when the first Super Root Dispute Game is created.
+* Switch `op-proposer` **at the cutover**, or immediately after it. The proposer cannot propose against the new game type until the contracts are upgraded, and it logs proposal errors from the cutover until it is switched, so do not leave a deliberate gap.
+
+## Update `SystemConfig` integrations
+
+<Warning>
+  Calls to `SystemConfig.batchInbox()` and `SystemConfig.setGasConfig(uint256,uint256)` revert after Upgrade 20.
+</Warning>
+
+If your tooling reads or writes `SystemConfig` directly:
+
+* Read the batch inbox address from the chain's rollup configuration or its entry in the [Superchain Registry](https://github.com/ethereum-optimism/superchain-registry).
+* Replace `setGasConfig(uint256,uint256)` calls with [`setGasConfigEcotone(uint32,uint32)`](/chain-operators/reference/fee-parameters) for the base fee and blob base fee scalars.
+* If you decode `FEE_SCALARS` `ConfigUpdate` events, treat the first word as zero rather than the current value returned by `overhead()`.
+* If you read `overhead()`, expect zero. The upgrade clears any legacy value.
+
+## Update withdrawal tooling
+
+Super Root Dispute Games anchor withdrawals by L2 timestamp instead of L2 block number, and their root claim contains a Super Root instead of the chain's Output Root.
+Application tooling that discovers a Dispute Game or builds a withdrawal proof must support both changes.
+
+| Tooling | Required change |
+| --- | --- |
+| [`viem/op-stack`](https://viem.sh/op-stack) | Use `viem` `2.51.0` or later. For prove-readiness calls, pass the initiating withdrawal block timestamp as `l2Timestamp`. Pass the `game` returned by `waitToProve` to `buildProveWithdrawal`; do not pass the legacy `output` value. |
+| `ethers`, wagmi, and other general EVM libraries | No library update is required for ordinary contract reads, writes, or L2 transactions. Update only custom withdrawal or Dispute Game code that makes the Output Root assumptions described above. |
+
+After the Upgrade 20 cutover, a `viem` withdrawal prove flow must read the timestamp of the L2 block that contains the initiating transaction:
+
+```js
+const receipt = await publicClientL2.getTransactionReceipt({
+  hash: withdrawalHash
+});
+const withdrawalBlock = await publicClientL2.getBlock({
+  blockNumber: receipt.blockNumber
+});
+
+const { game, withdrawal } = await publicClientL1.waitToProve({
+  receipt,
+  l2Timestamp: withdrawalBlock.timestamp,
+  targetChain: publicClientL2.chain
+});
+
+const proveArgs = await publicClientL2.buildProveWithdrawal({
+  game,
+  withdrawal
+});
+```
+
+Pass the same `l2Timestamp` when calling `getTimeToProve` or `getWithdrawalStatus` for a Super Root withdrawal.
+`waitToFinalize` and the finalization transaction do not require the timestamp.
+See the [`viem` Super Root withdrawal support release](https://github.com/wevm/viem/releases/tag/viem%402.51.0) for the upstream compatibility change.
+
+## Locate or build the absolute prestate
+
+Permissionless chains need the Upgrade 20 `kona-client` Interop variant absolute prestate for `SUPER_CANNON_KONA`. Use the `kona-client-int` artifact even when Interop is not scheduled for the chain.
+
+<Info>
+  The reviewed Upgrade 20 prestate covers **OP, Ink, Unichain, and Soneium, on both Sepolia and Mainnet**.
+  Those eight chains are embedded in the standard build, so their operators can use the published hash directly.
+
+  Optimism completes the onchain upgrade for chains managed by the Optimism Security Council, but off-chain components must still be configured by each operator.
+  A permissionless chain outside that set is not covered by the reviewed prestate and must build and verify its own, then work through every step below.
+</Info>
+
+<Steps>
+  <Step title="Verify the absolute prestate">
+    <Tabs>
+      <Tab title="Standard chain configuration">
+        Use the `cannon64-kona-interop` hash published for `1.7.0` in [`standard-prestates.toml`](https://github.com/ethereum-optimism/superchain-registry/blob/main/validation/standard/standard-prestates.toml):
+
+        ```
+        0x031ac6f15c19010da258f5cb633ef6ca9318c2d0f244bea6b2045ce6b790e1df
+        ```
+
+        Check out `kona-client/v1.7.0`, reproduce both Kona prestates, and read the interop hash:
+
+        ```bash
+        just reproducible-prestate-kona
+        jq -r .pre rust/kona/prestate-artifacts-cannon-interop/prestate-proof.json
+        ```
+
+        Confirm the output matches the published hash.
+      </Tab>
+
+      <Tab title="Custom chain configuration">
+        First, stage the chain data described in [Generating a custom kona-client absolute prestate](/chain-operators/tutorials/kona-custom-prestate).
+        Check out `kona-client/v1.7.0` and build the interop variant with the same custom configuration:
+
+        ```bash
+        cd rust
+        KONA_CUSTOM_CONFIGS_DIR=/absolute/path/to/custom-configs \
+          just build-kona-reproducible-prestate-variant \
+          kona-client-int prestate-artifacts-cannon-interop
+        jq -r .pre kona/prestate-artifacts-cannon-interop/prestate-proof.json
+        ```
+
+        Rebuild from a clean checkout with the same inputs and confirm the hash is identical.
+        A custom prestate hash is specific to its embedded chain configuration and does not appear in `standard-prestates.toml`.
+      </Tab>
+    </Tabs>
+  </Step>
+
+  <Step title="Upload your new preimage file">
+    Upload the new preimage file to wherever you store your other absolute preimage files. This is the location `--prestates-url` points at. `op-challenger` fetches the file from there when it needs to play a game.
+
+    Rename the file so the absolute prestate hash is the filename, for example `0x031ac6f15c19010da258f5cb633ef6ca9318c2d0f244bea6b2045ce6b790e1df.bin.gz`.
+
+    Operators who use the OP Labs prestate bucket rather than hosting their own do not need to upload anything — the Upgrade 20 prestate is already published there:
+
+    ```
+    https://storage.googleapis.com/oplabs-network-data/proofs/kona/cannon/0x031ac6f15c19010da258f5cb633ef6ca9318c2d0f244bea6b2045ce6b790e1df.bin.gz
+    ```
+
+    A custom prestate must be hosted at a URL reachable by every challenger that participates on the chain.
+  </Step>
+
+  <Step title="Configure op-challenger for super-cannon-kona">
+    Add `super-cannon-kona` to the game types, keeping the existing entries so the challenger can finish games already in progress:
+
+    ```bash
+    OP_CHALLENGER_GAME_TYPES="cannon-kona,permissioned,super-cannon-kona"
+    # or
+    --game-types=cannon-kona,permissioned,super-cannon-kona
+    ```
+
+    Point the challenger at the prestate. If every prestate is served from one location:
+
+    ```bash
+    --prestates-url=<PRESTATES_URL>
+    ```
+
+    If the Kona prestates are stored separately:
+
+    ```bash
+    --cannon-kona-prestates-url=<CANNON_KONA_PRESTATES_URL>
+    ```
+
+    `super-cannon-kona` also requires a Super Root RPC and a dependency set. `--network` supplies the dependency set for a registry chain; a chain outside the registry must pass one explicitly:
+
+    ```bash
+    --superroot-rpc=<SUPER_ROOT_RPC>
+    --cannon-kona-depset-config=/path/to/depset.json   # only if --network is not set
+    ```
+
+    If you do not use the standard OP Labs `op-challenger` Docker image, set the `kona-host` binary path, built from the same release as the configured prestate:
+
+    ```bash
+    OP_CHALLENGER_CANNON_KONA_SERVER=/path/to/kona-host
+    # or
+    --cannon-kona-server=/path/to/kona-host
+    ```
+
+    Complete this before the L1 contract cutover, as described in [Update order](#update-order).
+  </Step>
+</Steps>
+
+## Upgrade timing
+
+Upgrade 20 is applied as an L1 contract upgrade: each network is upgraded by executing an onchain task, so there is no L2 hardfork activation timestamp to configure.
+
+| Milestone | Target date |
+| --- | --- |
+| Governance vote closes | **Wednesday, September 16, 2026** |
+| Sepolia execution | **Thursday, September 17, 2026** |
+| Mainnet execution | **Thursday, September 24, 2026** |
+
+Governed Sepolia OP Stack chains are upgraded first, followed by a seven-day soak period before mainnet execution.
+Mainnet execution depends on Optimism Governance approval and a healthy Sepolia soak, so these dates can move.
+
+Upgrade 20 is described in the [Upgrade 20 - Super Root Dispute Games & OPCM v8.0.0](https://gov.optimism.io/t/upgrade-20-super-root-dispute-games-opcm-v8-0-0/10856) governance proposal.
+The [onchain vote](https://vote.optimism.io/proposals/4301234447578476958698627660572767846172082315795452528680486495303632100182) records the approval status.
+
+The [Output Root to Super Root upgrade runbook](/chain-operators/tutorials/upgrade-chain-to-super-roots) describes the onchain upgrade and cutover checks.
+
+## Verify readiness
+
+Before the cutover:
+
+* Confirm `op-proposer`, `op-challenger`, and `op-dispute-mon` start with the staged Super Root configuration and can reach the configured Super Root RPC.
+* On a permissionless chain, reproduce the `kona-client` Interop variant prestate and confirm its hash matches the reviewed Upgrade 20 value.
+* Run integration tests that cover every direct `SystemConfig` call and every withdrawal or Dispute Game code path listed in this notice.
+
+If you have questions or need support, contact your Optimism point of contact.

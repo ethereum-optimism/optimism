@@ -39,12 +39,33 @@ pub struct APIGenesisResponse {
 }
 
 /// A reduced config data.
+///
+/// A field missing from the spec deserializes as zero.
 #[derive(Debug, Default, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub struct ReducedConfigData {
     /// The seconds per slot.
-    #[serde(rename = "SECONDS_PER_SLOT")]
+    #[serde(rename = "SECONDS_PER_SLOT", default)]
     #[serde(with = "alloy_serde::quantity")]
     pub seconds_per_slot: u64,
+    /// The slot duration in milliseconds.
+    #[serde(rename = "SLOT_DURATION_MS", default)]
+    #[serde(with = "alloy_serde::quantity")]
+    pub slot_duration_ms: u64,
+}
+
+impl ReducedConfigData {
+    /// Returns the slot duration in seconds from `SLOT_DURATION_MS`, falling back to
+    /// `SECONDS_PER_SLOT`. A zero value counts as absent. `SLOT_DURATION_MS` must be a whole
+    /// number of seconds, because callers map L1 block timestamps, which have second
+    /// granularity, to slots.
+    pub const fn slot_duration_secs(&self) -> Result<u64, SlotDurationError> {
+        match (self.slot_duration_ms, self.seconds_per_slot) {
+            (0, 0) => Err(SlotDurationError::Missing),
+            (0, secs) => Ok(secs),
+            (ms, _) if !ms.is_multiple_of(1000) => Err(SlotDurationError::NotWholeSeconds(ms)),
+            (ms, _) => Ok(ms / 1000),
+        }
+    }
 }
 
 /// An API config response.
@@ -57,7 +78,7 @@ pub struct APIConfigResponse {
 impl APIConfigResponse {
     /// Creates a new API config response.
     pub const fn new(seconds_per_slot: u64) -> Self {
-        Self { data: ReducedConfigData { seconds_per_slot } }
+        Self { data: ReducedConfigData { seconds_per_slot, slot_duration_ms: 0 } }
     }
 }
 
@@ -81,7 +102,7 @@ pub trait BeaconClient {
     /// and trigger a pipeline reset instead of retrying indefinitely.
     fn slot_not_found(err: &Self::Error) -> Option<u64>;
 
-    /// Returns the slot interval in seconds.
+    /// Returns the beacon config spec carrying the slot duration.
     async fn slot_interval(&self) -> Result<APIConfigResponse, Self::Error>;
 
     /// Returns the beacon genesis time.
@@ -144,6 +165,17 @@ pub enum BeaconClientError {
     /// KZG error.
     #[error("KZG error: {0}")]
     KZG(#[from] c_kzg::Error),
+}
+
+/// An error deriving the L1 slot duration from a beacon config spec.
+#[derive(Error, Debug, Clone, Copy, PartialEq, Eq)]
+pub enum SlotDurationError {
+    /// The spec carries neither a non-zero `SLOT_DURATION_MS` nor `SECONDS_PER_SLOT`.
+    #[error("beacon spec has neither SLOT_DURATION_MS nor SECONDS_PER_SLOT")]
+    Missing,
+    /// `SLOT_DURATION_MS` is not a whole number of seconds.
+    #[error("beacon spec SLOT_DURATION_MS {0} is not a whole number of seconds")]
+    NotWholeSeconds(u64),
 }
 
 /// An online implementation of the [`BeaconClient`] trait.

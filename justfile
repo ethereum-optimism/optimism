@@ -425,10 +425,8 @@ update-op-geth:
   ./ops/scripts/update-op-geth.py
 
 # Build all Rust binaries (release) for sysgo tests.
-# Every binary needs an explicit `-p`: a bare `--bin` only resolves against the
-# `default-members` of the workspace, and op-reth-sdm-fixture is a plain member.
 build-rust-release:
-  cd rust && cargo build --release -p kona-node --bin kona-node -p kona-host --bin kona-host -p op-reth --bin op-reth -p op-reth-sdm-fixture --bin op-reth-sdm-fixture
+  cd rust && cargo build --release -p kona-node --bin kona-node -p kona-host --bin kona-host -p op-reth --bin op-reth
 
 # Checks that locked NUT bundles have not been modified.
 check-nut-locks:
@@ -563,7 +561,7 @@ release-paths component:
         op-reth)
             specs=("rust/{{ component }}/" "rust/Cargo.toml" "rust/op-alloy/" "rust/alloy-op-evm/" "rust/alloy-op-hardforks/")
             ;;
-        kona-*)
+        kona-*|op-zk-proposer)
             specs=("rust/kona/" "rust/Cargo.toml" "rust/op-alloy/" "rust/alloy-op-evm/" "rust/alloy-op-hardforks/" "rust/op-revm/")
             ;;
         op-deployer)
@@ -573,7 +571,7 @@ release-paths component:
             specs=("packages/contracts-bedrock/")
             ;;
         *)
-            echo "error: component must be one of: op-node, op-batcher, op-proposer, op-challenger, op-dispute-mon, op-reth, op-deployer, op-contracts, op-supernode, kona-*; is {{ component }}" >&2
+            echo "error: component must be one of: op-node, op-batcher, op-proposer, op-challenger, op-dispute-mon, op-reth, op-deployer, op-contracts, op-supernode, kona-*, op-zk-proposer; is {{ component }}" >&2
             exit 1
             ;;
     esac
