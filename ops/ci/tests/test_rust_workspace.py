@@ -338,11 +338,7 @@ class StageTests(unittest.TestCase):
                 process.wait()
 
 
-class _ConfigurationTestsFixtures:
-    pass
-
-
-class ConfigurationTests(_ConfigurationTestsFixtures, unittest.TestCase):
+class ConfigurationTests(unittest.TestCase):
 
     @unittest.skipUnless(shutil.which('yq'), 'requires the pinned yq tool')
     def test_fresh_verdicts_keep_compiler_caches_enabled(self):

@@ -17,7 +17,7 @@ tempfile = T.tempfile
 time = T.time
 
 
-class ConfigurationTests(T._ConfigurationTestsFixtures, unittest.TestCase):
+class ConfigurationTests(unittest.TestCase):
 
     @unittest.skipUnless(shutil.which('yq'), 'requires the pinned yq tool')
     def test_circle_adapters_preserve_generic_fallbacks(self):

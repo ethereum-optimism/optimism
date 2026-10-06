@@ -1,5 +1,7 @@
 """Migration-only comparisons using permanent execution fixture mechanics."""
+import copy
 import importlib.util
+import json
 from pathlib import Path
 import sys
 import unittest
@@ -7,14 +9,11 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[2] / 'tests'))
 import test_kontrol_build as T
 K = T.K
 SCRIPTS = T.SCRIPTS
-copy = T.copy
 helper = T.helper
-json = T.json
 os = T.os
 shutil = T.shutil
 signal = T.signal
 subprocess = T.subprocess
-tarfile = T.tarfile
 tempfile = T.tempfile
 time = T.time
 _SPEC=importlib.util.spec_from_file_location('compare_kontrol_build', Path(__file__).resolve().parents[1] / 'compare-kontrol-build.py')
@@ -25,26 +24,7 @@ C=importlib.util.module_from_spec(_SPEC);_SPEC.loader.exec_module(C)
 class LiveTests(T._LiveTestsFixtures, unittest.TestCase):
 
     def test_actual_two_variants_fresh_build_future_proof_discovery_and_strict_parity(self):
-        for label in ('first', 'reused', 'changed'):
-            if label == 'changed':
-                source = self.contracts / 'src/FixtureStorage.sol'
-                source.write_text(source.read_text() + '\ncontract FutureCompilerInput {function fresh() external pure returns(uint256) {return 7;}}\n')
-                self.commit()
-            if label != 'first':
-                self.run_command([sys.executable, 'ops/ci/runtime/kontrol-contracts.py'], self.root)
-            cache = K.G.read(self.artifact / 'preparation/cache.json')
-            self.assertEqual(cache['reused'], label == 'reused')
-            target = K.ROOT / '.ci/kontrol-build/helper-fixtures' / ('producer-' + label)
-            shutil.rmtree(target, ignore_errors=True)
-            shutil.copytree(self.artifact, target)
-        pair = self.root / '.ci/paired'
-        for provider, key in [('circleci', 'circle'), ('rwx', 'rwx')]:
-            self.reset_runtime()
-            result = self.execute(provider)
-            self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
-            shutil.copytree(self.report, pair / key)
-            self.retain('complete-' + key)
-        self.assertEqual((self.root / '.ci/fresh-marker').read_text().splitlines(), ['default', 'fault-proofs'] * 2)
+        pair = self.exercise_complete_workloads()
         report = C.compare(pair, self.sha)
         self.assertTrue(report['verified_parity'])
         self.assertIn(K.PROOFS + '/FutureProof.sol', report['selection']['proof_sources'])

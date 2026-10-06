@@ -1,13 +1,10 @@
 """Real Forge/Just/Kontrol fixtures for complete fresh builds and original failures."""
-import json
-import copy
 import os
 from pathlib import Path
 import shutil
 import signal
 import subprocess
 import sys
-import tarfile
 import tempfile
 import time
 import unittest
@@ -95,17 +92,7 @@ class _LiveTestsFixtures:
         shutil.rmtree(target, ignore_errors=True)
         shutil.copytree(self.report, target)
 
-    def reset_runtime(self):
-        self.run_command(['git', 'restore', '--', *sum(K.GENERATED.values(), [])], self.root)
-        for name in ('forge-artifacts', 'cache', 'artifacts'):
-            shutil.rmtree(self.contracts / name, ignore_errors=True)
-        self.run_command([sys.executable, 'ops/ci/runtime/go-artifacts.py', 'restore', 'contracts-kontrol', str(self.artifact)], self.root)
-
-
-@unittest.skipUnless(os.environ.get('RWX_LIVE_KONTROL_FIXTURE') == '1', 'Opt-in actual Forge, Just and pinned Kontrol Docker workloads')
-class LiveTests(_LiveTestsFixtures, unittest.TestCase):
-
-    def test_actual_two_variants_fresh_build_future_proof_discovery_and_strict_parity(self):
+    def exercise_complete_workloads(self):
         for label in ('first', 'reused', 'changed'):
             if label == 'changed':
                 source = self.contracts / 'src/FixtureStorage.sol'
@@ -126,54 +113,43 @@ class LiveTests(_LiveTestsFixtures, unittest.TestCase):
             shutil.copytree(self.report, pair / key)
             self.retain('complete-' + key)
         self.assertEqual((self.root / '.ci/fresh-marker').read_text().splitlines(), ['default', 'fault-proofs'] * 2)
-        cache_name = 'packages/contracts-bedrock/cache/solidity-files-cache.json'
-        alternate = 'Artifacts.s.sol/Artifacts.0.8.28.default.json'
-        if binding['path'] == alternate:
-            alternate = 'Artifacts.s.sol/Artifacts.0.8.28.json'
-        new = 'packages/contracts-bedrock/forge-artifacts/' + alternate
-        source = 'test/kontrol/proofs/utils/DeploymentSummary.sol'
-        name = 'DeploymentSummary'
-        path = pair / 'rwx/runtime-image.json'
-        original = path.read_bytes()
-        final_path = pair / 'rwx/final.json'
-        original_final = final_path.read_bytes()
-        image = json.loads(original)
-        selected = K.IMAGE.selection()
-        for identity in (selected['config_digest'], selected['image'].split('@', 1)[1], 'sha256:' + 'f' * 64):
-            image[0]['Id'] = identity
-            K.S.write(path, image)
-            final = K.G.read(final_path)
-            final['original_sha256']['runtime-image.json'] = K.S.digest(path)
-            K.S.write(final_path, final)
-            if identity.endswith('f' * 64):
-                pass
-        path.write_bytes(original)
-        final_path.write_bytes(original_final)
-        for name in ('settings.json', 'selection.json', 'coverage.json', 'proofs.stage.json', 'dependencies/contracts-kontrol/metadata.json'):
-            path = pair / 'rwx' / name
-            original = path.read_bytes()
-            final_path = pair / 'rwx/final.json'
-            original_final = final_path.read_bytes()
-            value = K.G.read(path)
-            if name == 'settings.json':
-                value['source_sha'] = 'f' * 40
-            elif name == 'selection.json':
-                value['proof_sources'].pop(K.PROOFS + '/FutureProof.sol')
-            elif name == 'coverage.json':
-                value['variants'] = ['default']
-            elif name == 'proofs.stage.json':
-                value['argv'] = ['true']
-            else:
-                value['settings'] = {'profile': 'default'}
-            K.S.write(path, value)
-            final = K.G.read(final_path)
-            final['original_sha256'][name] = K.S.digest(path)
-            K.S.write(final_path, final)
-            path.write_bytes(original)
-            final_path.write_bytes(original_final)
-        path = pair / 'rwx/variants/fault-proofs/generated/files' / K.GENERATED['fault-proofs'][0]
-        original = path.read_bytes()
-        path.write_bytes(original + b'// actual changed generated file\n')
+        return pair
+
+    def reset_runtime(self):
+        self.run_command(['git', 'restore', '--', *sum(K.GENERATED.values(), [])], self.root)
+        for name in ('forge-artifacts', 'cache', 'artifacts'):
+            shutil.rmtree(self.contracts / name, ignore_errors=True)
+        self.run_command([sys.executable, 'ops/ci/runtime/go-artifacts.py', 'restore', 'contracts-kontrol', str(self.artifact)], self.root)
+
+
+@unittest.skipUnless(os.environ.get('RWX_LIVE_KONTROL_FIXTURE') == '1', 'Opt-in actual Forge, Just and pinned Kontrol Docker workloads')
+class LiveTests(_LiveTestsFixtures, unittest.TestCase):
+
+    def test_actual_two_variants_fresh_build_and_future_proof_discovery(self):
+        pair = self.exercise_complete_workloads()
+        for provider, key in [('circleci', 'circle'), ('rwx', 'rwx')]:
+            directory = pair / key
+            with self.subTest(provider=provider):
+                settings = K.G.read(directory / 'settings.json')
+                self.assertEqual(settings['provider'], provider)
+                self.assertEqual(settings['source_sha'], self.sha)
+                selected = K.G.read(directory / 'selection.json')
+                self.assertIn(K.PROOFS + '/FutureProof.sol', selected['proof_sources'])
+                coverage = K.G.read(directory / 'coverage.json')
+                self.assertEqual(coverage['variants'], ['default', 'fault-proofs'])
+                self.assertEqual(coverage['tests'], 0)
+                self.assertEqual(coverage['generated_files'], 4)
+                self.assertTrue(coverage['complete_original_commands'])
+                for name, argv in K.COMMANDS.items():
+                    stage = K.G.read(directory / (name + '.stage.json'))
+                    self.assertEqual(stage['argv'], argv)
+                    self.assertEqual(stage['exit_code'], 0)
+                final = K.G.read(directory / 'final.json')
+                self.assertEqual(final['exit_code'], 0)
+                self.assertEqual(final['report_errors'], [])
+                hashes = K.seal(directory)
+                hashes.pop('final.json')
+                self.assertEqual(final['original_sha256'], hashes)
 
     def test_real_kontrol_failure_keeps_original_state_and_stops_before_other_variant(self):
         path = self.contracts / 'scripts/deploy/Deploy.s.sol'
