@@ -51,6 +51,7 @@ pub const EXIT_INFRA: u8 = 2;
 #[derive(Clone, Debug)]
 pub struct RunConfig {
     /// Replay collected witnesses through the shared native cores instead of executing the guest.
+    /// Like the guest, the replay panics on a preimage missing from the witness.
     pub native_core: bool,
     /// Corrupt the claimed optimistic output root the guest sees, after collecting witnesses on
     /// the honest one, so the guest rejects the claim.
@@ -534,10 +535,10 @@ async fn replay_consolidation(
 
 /// Flips a bit in the first claimed transition's optimistic output root.
 ///
-/// The guest's `validate_range_transition_output` compares the root it re-derives against the
-/// claimed one, so a tampered claim aborts the guest and the executor reports the claim invalid.
-/// Only the replayed inputs are corrupted — the collected witness still describes the honest
-/// transition — so this exercises the guest's claim check rather than a broken witness.
+/// Only the replayed inputs are corrupted, so the collected witness has no preimage for the
+/// tampered root. The SP1 guest aborts when it reads that preimage and the executor reports the
+/// claim invalid. Native-core replay panics on the same read instead of returning an error, so a
+/// native-core caller must expect the panic and catch it as the rejection.
 fn corrupt_range_claim(inputs: &SuperRangeInputs) -> Result<SuperRangeInputs> {
     let mut corrupted = inputs.clone();
     let transition = corrupted

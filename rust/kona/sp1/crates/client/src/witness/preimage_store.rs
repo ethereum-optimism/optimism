@@ -99,9 +99,10 @@ impl FlushableCache for PreimageStore {
 ///
 /// Shared kona code treats some oracle errors as protocol outcomes rather than failures: the
 /// interop message graph marks a message invalid when its initiating block cannot be read, and
-/// span batch validation skips a batch whose parent cannot be read. The prover chooses which
-/// preimages the witness contains, so an error would let it choose those outcomes. Panicking makes
-/// a witness with a missing preimage unprovable instead.
+/// span batch validation skips a batch whose parent or overlapped blocks cannot be read. The
+/// prover chooses which preimages the witness contains, so an error would let it choose those
+/// outcomes. Panicking makes a witness with a missing preimage unprovable instead. This also holds
+/// when the proof program's code runs natively, outside the zkVM.
 ///
 /// [`PreimageStore`] itself keeps returning an error for a missing key, because witness collection
 /// relies on it to fall back to the host.
