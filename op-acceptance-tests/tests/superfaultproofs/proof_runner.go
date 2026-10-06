@@ -127,9 +127,10 @@ func (r sp1ProofRunner) run(t devtest.T, sys *presets.SingleChainInterop, chains
 	if r.nativeCore {
 		var err error
 		executorPath, err = rustbin.Spec{
-			SrcDir:  "rust/kona",
-			Package: "kona-sp1-super-range-executor",
-			Binary:  "kona-sp1-super-range-executor",
+			SrcDir:   "rust/kona",
+			Package:  "kona-sp1-super-range-executor",
+			Binary:   "kona-sp1-super-range-executor",
+			Features: []string{"kona-sp1-ethereum-client-utils/test-config-fallback"},
 		}.EnsureExists(t.Ctx(), t.Logger())
 		t.Require().NoError(err, "locate kona-sp1 super-range executor")
 		if err != nil {

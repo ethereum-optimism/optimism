@@ -9,10 +9,9 @@ use anyhow::{anyhow, bail, ensure};
 use kona_derive::BlobProvider;
 use kona_genesis::{L1ChainConfig, RollupConfig};
 use kona_interop::DependencySet;
-use kona_preimage::{
-    CommsClient, DEPENDENCY_SET_KEY, L1_CONFIG_KEY, L2_ROLLUP_CONFIG_KEY, PreimageKey,
-    PreimageOracleClient,
-};
+use kona_preimage::{CommsClient, PreimageKey, PreimageOracleClient};
+#[cfg(any(test, feature = "test-config-fallback"))]
+use kona_preimage::{DEPENDENCY_SET_KEY, L1_CONFIG_KEY, L2_ROLLUP_CONFIG_KEY};
 use kona_proof::{
     BootInfo, FlushableCache, l1::OracleL1ChainProvider, l2::OracleL2ChainProvider,
     sync::new_oracle_pipeline_cursor,
@@ -104,7 +103,7 @@ fn range_segments(inputs: &SuperRangeInputs) -> anyhow::Result<Vec<Vec<&SuperRan
 /// Loads the dependency set for the supplied range chain IDs.
 pub async fn load_dependency_set<O>(
     input_chain_ids: &[U256],
-    oracle: &O,
+    _oracle: &O,
 ) -> anyhow::Result<DependencySet>
 where
     O: PreimageOracleClient,
@@ -115,19 +114,17 @@ where
     {
         dependency_set.clone()
     } else {
-        #[cfg(target_os = "zkvm")]
-        eprintln!(
-            "The SP1 guest has no embedded dependency set for proof chain ids {:?}; falling \
-             back to preimage oracle. This is insecure in production without additional \
-             validation!",
-            chain_ids
-        );
-        let serialized = oracle
-            .get(PreimageKey::new_local(DEPENDENCY_SET_KEY.to()))
-            .await
-            .map_err(|err| anyhow!("failed to fetch dependency set fallback: {err}"))?;
-        serde_json::from_slice(&serialized)
-            .map_err(|err| anyhow!("failed to decode dependency set fallback: {err}"))?
+        #[cfg(not(feature = "test-config-fallback"))]
+        bail!("no embedded dependency set for super-range chain IDs {chain_ids:?}");
+        #[cfg(feature = "test-config-fallback")]
+        {
+            let serialized = _oracle
+                .get(PreimageKey::new_local(DEPENDENCY_SET_KEY.to()))
+                .await
+                .map_err(|err| anyhow!("failed to fetch dependency set fallback: {err}"))?;
+            serde_json::from_slice(&serialized)
+                .map_err(|err| anyhow!("failed to decode dependency set fallback: {err}"))?
+        }
     };
 
     ensure_dependency_set_matches_inputs(input_chain_ids, &dependency_set)?;
@@ -137,7 +134,7 @@ where
 /// Loads rollup configs for the supplied range chain IDs.
 pub async fn load_rollup_configs<O>(
     input_chain_ids: &[U256],
-    oracle: &O,
+    _oracle: &O,
 ) -> anyhow::Result<BTreeMap<u64, RollupConfig>>
 where
     O: PreimageOracleClient,
@@ -151,17 +148,24 @@ where
             })
             .collect()
     } else {
-        let serialized = oracle
-            .get(PreimageKey::new_local(L2_ROLLUP_CONFIG_KEY.to()))
-            .await
-            .map_err(|err| anyhow!("failed to fetch rollup config fallback: {err}"))?;
-        decode_rollup_config_fallback(&serialized, &chain_ids)?
+        #[cfg(not(feature = "test-config-fallback"))]
+        bail!("no embedded rollup config for super-range chain IDs {chain_ids:?}");
+        #[cfg(feature = "test-config-fallback")]
+        {
+            let serialized =
+                _oracle
+                    .get(PreimageKey::new_local(L2_ROLLUP_CONFIG_KEY.to()))
+                    .await
+                    .map_err(|err| anyhow!("failed to fetch rollup config fallback: {err}"))?;
+            decode_rollup_config_fallback(&serialized, &chain_ids)?
+        }
     };
 
     ensure_rollup_configs_match_inputs(input_chain_ids, &rollup_configs)?;
     Ok(rollup_configs)
 }
 
+#[cfg(feature = "test-config-fallback")]
 fn decode_rollup_config_fallback(
     serialized: &[u8],
     chain_ids: &[u64],
@@ -209,7 +213,7 @@ fn ensure_rollup_configs_match_inputs(
 /// Loads the L1 chain config shared by the supplied rollup configs.
 pub async fn load_l1_config<O>(
     rollup_configs: &BTreeMap<u64, RollupConfig>,
-    oracle: &O,
+    _oracle: &O,
 ) -> anyhow::Result<L1ChainConfig>
 where
     O: PreimageOracleClient,
@@ -233,12 +237,17 @@ where
         return Ok(config.clone());
     }
 
-    let serialized = oracle
-        .get(PreimageKey::new_local(L1_CONFIG_KEY.to()))
-        .await
-        .map_err(|err| anyhow!("failed to fetch L1 config fallback: {err}"))?;
-    serde_json::from_slice(&serialized)
-        .map_err(|err| anyhow!("failed to decode L1 config fallback: {err}"))
+    #[cfg(not(feature = "test-config-fallback"))]
+    bail!("no embedded L1 config for chain ID {first_l1_chain_id}");
+    #[cfg(feature = "test-config-fallback")]
+    {
+        let serialized = _oracle
+            .get(PreimageKey::new_local(L1_CONFIG_KEY.to()))
+            .await
+            .map_err(|err| anyhow!("failed to fetch L1 config fallback: {err}"))?;
+        serde_json::from_slice(&serialized)
+            .map_err(|err| anyhow!("failed to decode L1 config fallback: {err}"))
+    }
 }
 
 fn input_chain_ids_as_u64(input_chain_ids: &[U256]) -> anyhow::Result<Vec<u64>> {
@@ -633,6 +642,111 @@ mod tests {
     use super::*;
     use crate::test_utils::{b256, dependency_set, rollup_config, save_header, save_output_root};
 
+    #[cfg(not(feature = "test-config-fallback"))]
+    #[test]
+    fn dependency_set_rejects_untrusted_preimage_config() {
+        let chain_id = u64::MAX;
+        let mut oracle = PreimageStore::default();
+        oracle
+            .save_preimage(
+                PreimageKey::new_local(DEPENDENCY_SET_KEY.to()),
+                serde_json::to_vec(&dependency_set(&[chain_id], Some(123))).unwrap(),
+            )
+            .unwrap();
+
+        let err = block_on(load_dependency_set(&[U256::from(chain_id)], &oracle))
+            .expect_err("untrusted dependency set must be rejected");
+        assert!(err.to_string().contains("no embedded dependency set"), "unexpected error: {err}");
+    }
+
+    #[cfg(not(feature = "test-config-fallback"))]
+    #[test]
+    fn rollup_configs_reject_untrusted_preimage_config() {
+        for chain_ids in [vec![u64::MAX], vec![10, u64::MAX]] {
+            let mut configs = rollup_configs(&chain_ids);
+            for config in configs.values_mut() {
+                config.deposit_contract_address = alloy_primitives::Address::repeat_byte(0xaa);
+            }
+            let mut oracle = PreimageStore::default();
+            oracle
+                .save_preimage(
+                    PreimageKey::new_local(L2_ROLLUP_CONFIG_KEY.to()),
+                    serde_json::to_vec(&configs).unwrap(),
+                )
+                .unwrap();
+            let input_ids = chain_ids.into_iter().map(U256::from).collect::<Vec<_>>();
+
+            let err = block_on(load_rollup_configs(&input_ids, &oracle))
+                .expect_err("untrusted rollup configs must be rejected");
+            assert!(
+                err.to_string().contains("no embedded rollup config"),
+                "unexpected error: {err}"
+            );
+        }
+    }
+
+    #[cfg(not(feature = "test-config-fallback"))]
+    #[test]
+    fn l1_config_rejects_untrusted_preimage_config() {
+        let mut oracle = PreimageStore::default();
+        oracle
+            .save_preimage(
+                PreimageKey::new_local(L1_CONFIG_KEY.to()),
+                serde_json::to_vec(&L1ChainConfig::default()).unwrap(),
+            )
+            .unwrap();
+        let configs = BTreeMap::from([(u64::MAX, rollup_config(u64::MAX, u64::MAX))]);
+
+        let err = block_on(load_l1_config(&configs, &oracle))
+            .expect_err("untrusted L1 config must be rejected");
+        assert!(err.to_string().contains("no embedded L1 config"), "unexpected error: {err}");
+    }
+
+    #[cfg(feature = "test-config-fallback")]
+    #[test]
+    fn l1_config_fallback_loads_test_config() {
+        let config = L1ChainConfig { chain_id: u64::MAX, ..Default::default() };
+        let mut oracle = PreimageStore::default();
+        oracle
+            .save_preimage(
+                PreimageKey::new_local(L1_CONFIG_KEY.to()),
+                serde_json::to_vec(&config).unwrap(),
+            )
+            .unwrap();
+        let configs = BTreeMap::from([(u64::MAX, rollup_config(u64::MAX, u64::MAX))]);
+
+        assert_eq!(block_on(load_l1_config(&configs, &oracle)).unwrap(), config);
+    }
+
+    #[cfg(feature = "test-config-fallback")]
+    #[test]
+    fn rollup_config_fallback_loads_single_test_config() {
+        let config = rollup_config(u64::MAX, 1);
+        let mut oracle = PreimageStore::default();
+        oracle
+            .save_preimage(
+                PreimageKey::new_local(L2_ROLLUP_CONFIG_KEY.to()),
+                serde_json::to_vec(&config).unwrap(),
+            )
+            .unwrap();
+
+        let loaded = block_on(load_rollup_configs(&[U256::from(u64::MAX)], &oracle)).unwrap();
+        assert_eq!(loaded, BTreeMap::from([(u64::MAX, config)]));
+    }
+
+    #[test]
+    fn embedded_chain_configs_do_not_require_preimages() {
+        let oracle = PreimageStore::default();
+        let chain_ids = [U256::from(10)];
+        let dependency_set = block_on(load_dependency_set(&chain_ids, &oracle)).unwrap();
+        assert_eq!(dependency_set, DEPENDENCY_SETS[&10]);
+        let configs = block_on(load_rollup_configs(&chain_ids, &oracle)).unwrap();
+        assert_eq!(configs[&10], ROLLUP_CONFIGS[&10]);
+        let l1_config = block_on(load_l1_config(&configs, &oracle)).unwrap();
+        assert_eq!(l1_config, L1_CONFIGS[&configs[&10].l1_chain_id]);
+    }
+
+    #[cfg(feature = "test-config-fallback")]
     fn save_range_state(oracle: &mut PreimageStore, depositor_nonce: u64) -> B256 {
         use alloy_primitives::{address, keccak256};
         use alloy_trie::{Nibbles, TrieAccount};
@@ -673,6 +787,7 @@ mod tests {
         root.blind()
     }
 
+    #[cfg(feature = "test-config-fallback")]
     fn save_range_transaction(oracle: &mut PreimageStore, tx: &[u8]) {
         let mut trie = kona_mpt::ordered_trie_with_encoder(&[tx], |tx, out| out.put_slice(tx));
         trie.root();
@@ -688,6 +803,7 @@ mod tests {
 
     /// A Bedrock chain with two deposit-only blocks and a no-op timestamp between them.
     /// Expiring the sequencing window supplies empty batches without external DA fixtures.
+    #[cfg(feature = "test-config-fallback")]
     fn progressing_range_fixture() -> (SuperRangeInputs, PreimageStore) {
         use alloy_eips::Encodable2718;
         use alloy_op_evm::{OpEvmFactory, block::OpAlloyReceiptBuilder};
@@ -833,6 +949,7 @@ mod tests {
         (inputs, oracle)
     }
 
+    #[cfg(feature = "test-config-fallback")]
     #[test]
     fn range_outputs_derive_multiple_blocks_across_noop() {
         let (inputs, oracle) = progressing_range_fixture();
@@ -846,6 +963,7 @@ mod tests {
         assert_eq!(actual.transitions, expected);
     }
 
+    #[cfg(feature = "test-config-fallback")]
     #[test]
     fn range_outputs_reject_invalid_later_claim_after_noop() {
         let (mut inputs, mut oracle) = progressing_range_fixture();
@@ -891,6 +1009,7 @@ mod tests {
         }
     }
 
+    #[cfg(feature = "test-config-fallback")]
     fn range_inputs_for_chain_ids(chain_ids: &[u64]) -> SuperRangeInputs {
         SuperRangeInputs {
             span: TimestampSpan::new(101, 101).unwrap(),
@@ -1001,6 +1120,7 @@ mod tests {
         );
     }
 
+    #[cfg(feature = "test-config-fallback")]
     #[test]
     fn range_outputs_keep_timestamp_major_order_without_advancing_noops() {
         let chain_ids = [u64::MAX - 1, u64::MAX];
@@ -1091,6 +1211,7 @@ mod tests {
         assert!(err.to_string().contains("must exactly match"), "unexpected error: {err}");
     }
 
+    #[cfg(feature = "test-config-fallback")]
     #[test]
     fn dependency_set_fallback_preserves_override_expiry_window() {
         let chain_id = u64::MAX;
@@ -1110,6 +1231,7 @@ mod tests {
         assert_eq!(loaded.override_message_expiry_window, Some(123));
     }
 
+    #[cfg(feature = "test-config-fallback")]
     #[test]
     fn rollup_config_fallback_requires_exact_range_chain_coverage() {
         let mut oracle = PreimageStore::default();

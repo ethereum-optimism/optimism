@@ -275,25 +275,29 @@ fn ensure_previous_super_root_matches_optimistic_blocks(
 
 #[cfg(test)]
 mod tests {
+    #[cfg(feature = "test-config-fallback")]
     use std::sync::Mutex;
 
     use alloy_consensus::{EMPTY_ROOT_HASH, Header};
     use alloy_primitives::{B256, U256};
     use alloy_rlp::EMPTY_STRING_CODE;
+    #[cfg(feature = "test-config-fallback")]
     use async_trait::async_trait;
     use kona_genesis::RollupConfig;
+    use kona_preimage::PreimageKey;
+    #[cfg(feature = "test-config-fallback")]
     use kona_preimage::{
-        DEPENDENCY_SET_KEY, HintWriterClient, L2_ROLLUP_CONFIG_KEY, PreimageKey,
-        PreimageOracleClient, errors::PreimageOracleResult,
+        DEPENDENCY_SET_KEY, HintWriterClient, L2_ROLLUP_CONFIG_KEY, PreimageOracleClient,
+        errors::PreimageOracleResult,
     };
     use kona_proof::block_on;
     use kona_sp1_client_utils::{
-        super_root::{
-            SuperConsolidationTransitionInput, SuperOptimisticBlock, SuperOutputRoot,
-            SuperRootProof, TimestampSpan,
-        },
+        super_root::{SuperOptimisticBlock, SuperOutputRoot, SuperRootProof},
         witness::preimage_store::PreimageStore,
     };
+
+    #[cfg(feature = "test-config-fallback")]
+    use kona_sp1_client_utils::super_root::{SuperConsolidationTransitionInput, TimestampSpan};
 
     use super::*;
     use crate::test_utils::{b256, dependency_set, rollup_config, save_header, save_output_root};
@@ -316,6 +320,7 @@ mod tests {
         chain_ids.iter().map(|chain_id| (*chain_id, rollup_config(*chain_id, 1))).collect()
     }
 
+    #[cfg(feature = "test-config-fallback")]
     fn save_fallback_chain_config(oracle: &mut PreimageStore, chain_id: u64) {
         oracle
             .save_preimage(
@@ -331,12 +336,14 @@ mod tests {
             .unwrap();
     }
 
+    #[cfg(feature = "test-config-fallback")]
     #[derive(Clone, Debug)]
     struct RecordingOracle {
         inner: PreimageStore,
         requests: Arc<Mutex<Vec<PreimageKey>>>,
     }
 
+    #[cfg(feature = "test-config-fallback")]
     impl RecordingOracle {
         fn new(inner: PreimageStore) -> Self {
             Self { inner, requests: Arc::new(Mutex::new(Vec::new())) }
@@ -347,6 +354,7 @@ mod tests {
         }
     }
 
+    #[cfg(feature = "test-config-fallback")]
     #[async_trait]
     impl PreimageOracleClient for RecordingOracle {
         async fn get(&self, key: PreimageKey) -> PreimageOracleResult<Vec<u8>> {
@@ -360,6 +368,7 @@ mod tests {
         }
     }
 
+    #[cfg(feature = "test-config-fallback")]
     #[async_trait]
     impl HintWriterClient for RecordingOracle {
         async fn write(&self, _hint: &str) -> PreimageOracleResult<()> {
@@ -520,6 +529,7 @@ mod tests {
         assert_eq!(transition.super_root, expected_super_root);
     }
 
+    #[cfg(feature = "test-config-fallback")]
     #[test]
     fn consolidation_outputs_chain_claimed_root_across_timestamps() {
         let chain_id = u64::MAX;
@@ -611,6 +621,7 @@ mod tests {
         );
     }
 
+    #[cfg(feature = "test-config-fallback")]
     #[test]
     fn consolidation_outputs_reject_starting_root_before_span_predecessor() {
         let chain_id = u64::MAX;

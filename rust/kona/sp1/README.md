@@ -40,6 +40,21 @@ Supporting libraries for the SP1 fault proof system:
 - **`zkvm-canary`**: The `kona-zkvm-canary` service, which continuously executes both
   `super-range` modes against finalized live-network snapshots without producing proofs
 
+### Chain configuration
+
+The super-range guest reads chain configurations only from its compiled registry. Both range
+and consolidation reject chains without an embedded rollup config, L1 config, or matching
+dependency set. Custom chains must be embedded at build time using `KONA_CUSTOM_CONFIGS_DIR`.
+
+The opt-in `test-config-fallback` Cargo feature enables unverified Local-key config preimages
+for synthetic-chain tests. Enable it explicitly on `kona-sp1-ethereum-client-utils` for native
+tests or on `kona-sp1-super-range` for test guests. It is disabled by default;
+`ops/prestate-reproducibility/build-prestates.sh` rejects guest graphs that enable it.
+For synthetic-chain ELFs, use `just build-elfs test-config-fallback` (or
+`build-elfs-native test-config-fallback`); these artifacts carry a `-test` build marker.
+The native acceptance runner enables the feature for JIT builds. When supplying a prebuilt
+native executor, build it with `--features kona-sp1-ethereum-client-utils/test-config-fallback`.
+
 ### ELF Binaries (`elf/`)
 
 Compiled ELF binaries for the zkVM programs, used by the prover:
@@ -173,7 +188,7 @@ RUST_JIT_BUILD=1 go test -count=1 -timeout=60m \
   ./op-acceptance-tests/tests/interop/proofs/serial \
   ./op-acceptance-tests/tests/interop/proofs-singlechain
 
-cd rust/kona/sp1 && just build-elfs-native && just build-super-range-executor && cd ../../..
+cd rust/kona/sp1 && just build-elfs-native test-config-fallback && just build-super-range-executor && cd ../../..
 KONA_SP1_ELF_DIR="$PWD/rust/kona/sp1/elf" \
 KONA_SP1_SUPER_RANGE_ELF_EXECUTOR_PATH="$PWD/rust/target/release/kona-sp1-super-range-executor" \
 RUST_JIT_BUILD=1 go test -count=1 -parallel=1 -timeout=120m \
@@ -695,7 +710,7 @@ with:
 cd rust/kona/tests && just action-tests-sp1
 ```
 
-That recipe builds the guest ELFs (`just build-elfs`, Dockerized SP1 toolchain), builds the
+That recipe builds test guest ELFs (`just build-elfs test-config-fallback`, Dockerized SP1 toolchain), builds the
 `super-range-executor` binary, and runs the test with `KONA_SP1_SUPER_RANGE_ELF_EXECUTOR_PATH`
 and `KONA_SP1_ELF_DIR` set — the same two variables the acceptance full-ELF suite reads. The
 executor loads the `super-range` ELF at runtime. The test skips when the executor-path variable

@@ -196,6 +196,10 @@ jobs:
 
   # Build SP1 guest ELFs and persist them for future rust-e2e consumers.
   kona-build-sp1-elfs:
+    parameters:
+      features:
+        type: string
+        default: ""
     docker:
       - image: <<pipeline.parameters.c-rust_base_image>>
     resource_class: large.gen2
@@ -292,7 +296,7 @@ jobs:
           name: Build SP1 guest ELFs
           working_directory: rust/kona/sp1
           no_output_timeout: 40m
-          command: just build-elfs-native
+          command: just build-elfs-native "<< parameters.features >>"
       - run:
           # The Go acceptance setup (op-acceptance-tests/tests/proofs/zk,
           # loadSuperAggregationVKey) reads this key when running with real
@@ -309,6 +313,9 @@ jobs:
           command: |
             set -euo pipefail
             EXPECTED=$(git rev-parse HEAD)
+            if [ -n "<< parameters.features >>" ]; then
+              EXPECTED="${EXPECTED}-test"
+            fi
             for ELF in super-range-elf super-aggregation-elf; do
               PATH_TO_ELF="rust/kona/sp1/elf/${ELF}"
               set +e
@@ -558,6 +565,7 @@ workflows:
             - circleci-repo-readonly-authenticated-github-token
             - sccache-gcs-optimism
       - kona-build-sp1-elfs:
+          features: test-config-fallback
           context:
             - circleci-repo-readonly-authenticated-github-token
             - sccache-gcs-optimism

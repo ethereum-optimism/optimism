@@ -816,7 +816,7 @@ jobs:
       - rust-build:
           directory: rust
           profile: release
-          features: all
+          features: kona-sp1-ethereum-client-utils/test-config-fallback
           package: kona-sp1-super-range-executor
           binary: kona-sp1-super-range-executor
           save_cache: false

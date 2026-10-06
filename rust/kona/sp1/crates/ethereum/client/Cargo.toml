@@ -5,6 +5,10 @@ publish = false
 license.workspace = true
 edition.workspace = true
 
+[features]
+# Unsafe config preimages are only for synthetic-chain tests.
+test-config-fallback = []
+
 [dependencies]
 # local
 kona-sp1-client-utils.workspace = true

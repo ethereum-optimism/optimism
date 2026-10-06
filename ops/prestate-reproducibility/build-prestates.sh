@@ -115,6 +115,24 @@ function build_kona_sp1() {
     fail_kona_sp1 "$version" "failed to install tag-pinned tools"
     return 1
   fi
+  local metadata unsafe_config_fallback
+  metadata=$(mise exec -- cargo metadata --manifest-path rust/kona/sp1/programs/Cargo.toml --locked --format-version 1 2>> "$log_file") || {
+    fail_kona_sp1 "$version" "failed to resolve guest features"
+    return 1
+  }
+  unsafe_config_fallback=$(printf '%s\n' "$metadata" | jq -r '
+    [.packages[] | select(.name == "kona-sp1-ethereum-client-utils") | .id] as $clients |
+    any(.resolve.nodes[];
+      (.id as $id | $clients | index($id)) != null and
+      (.features | index("test-config-fallback")) != null)
+  ') || {
+    fail_kona_sp1 "$version" "failed to inspect guest features"
+    return 1
+  }
+  if [[ "$unsafe_config_fallback" != "false" ]]; then
+    fail_kona_sp1 "$version" "test-config-fallback must be disabled for production prestates"
+    return 1
+  fi
   if ! (cd rust/kona/sp1 && mise exec -- just build-elfs) 2>&1 | tee -a "$log_file"; then
     fail_kona_sp1 "$version" "tagged Docker build failed"
     return 1

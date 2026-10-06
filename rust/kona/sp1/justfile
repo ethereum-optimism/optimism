@@ -12,13 +12,13 @@ build-super-range-executor:
 # Build all ELF files.
 # ELF builds use the nested guest workspace with SP1 precompile-patched crypto,
 # including substrate-bn for bn128 through revm-precompile's `bn` feature.
-build-elfs:
+build-elfs features="":
     #!/usr/bin/env bash
     set -euo pipefail
-    export KONA_SP1_GIT_SHA="$(just _git-sha)"
+    export KONA_SP1_GIT_SHA="$(just _git-sha "{{features}}")"
     m=elf/vkeys.toml
     just _vkeys-header > "$m"
-    just build-super-range-elf
+    just build-super-range-elf "{{features}}"
     just _append-vkey super-range "$m"
     just build-super-aggregation-elf
     just _append-vkey super-aggregation "$m"
@@ -26,8 +26,8 @@ build-elfs:
 # Build ELF file for the unified super-root range/consolidation program.
 # Does not update elf/vkeys.toml; prefer build-elfs.
 [private]
-build-super-range-elf:
-    @just _build-elf super-range docker
+build-super-range-elf features="":
+    @just _build-elf super-range docker "{{features}}"
 
 # Build ELF file for the super-aggregation program.
 # Does not update elf/vkeys.toml; prefer build-elfs.
@@ -40,7 +40,7 @@ install-sp1-toolchain:
     cargo prove install-toolchain
 
 [private]
-_build-elf NAME MODE:
+_build-elf NAME MODE features="":
     #!/usr/bin/env bash
     set -euo pipefail
 
@@ -100,6 +100,10 @@ _build-elf NAME MODE:
       fi
     fi
 
+    if [[ "{{NAME}}" == "super-range" && -n "{{features}}" ]]; then
+      args+=(--features "{{features}}")
+    fi
+
     cd "{{justfile_directory()}}/programs/{{NAME}}"
     cargo prove build "${args[@]}"
 
@@ -119,13 +123,14 @@ _build-elf NAME MODE:
 # `-custom` marks a KONA_CUSTOM_CONFIGS_DIR build: those compile chain configs from outside the
 # repo into the guest, so the commit alone does not describe the artifact.
 [private]
-_git-sha:
+_git-sha features="":
     #!/usr/bin/env bash
     set -euo pipefail
     root="$(cd "{{justfile_directory()}}/../../.." && pwd)"
     sha="$(git -C "$root" rev-parse HEAD)"
     git -C "$root" diff --quiet HEAD || sha="${sha}-dirty"
     [[ -z "${KONA_CUSTOM_CONFIGS_DIR:-}" ]] || sha="${sha}-custom"
+    [[ -z "{{features}}" ]] || sha="${sha}-test"
     echo "$sha"
 
 [private]
@@ -147,13 +152,13 @@ _append-vkey NAME MANIFEST:
     echo "{{NAME}} = \"${hash}\"" >> "{{MANIFEST}}"
 
 # Build all ELFs natively for fast local iteration.
-build-elfs-native:
+build-elfs-native features="":
     #!/usr/bin/env bash
     set -euo pipefail
-    export KONA_SP1_GIT_SHA="$(just _git-sha)"
+    export KONA_SP1_GIT_SHA="$(just _git-sha "{{features}}")"
     m=elf/vkeys.toml
     just _vkeys-header > "$m"
     for name in super-range super-aggregation; do
-      just _build-elf "${name}" native
+      just _build-elf "${name}" native "{{features}}"
       just _append-vkey "${name}" "$m"
     done

@@ -97,6 +97,8 @@ test: test-unit test-beacon-blob-stack test-docs
 
 # Run unit tests (excluding online tests)
 test-unit *args="-E '!test(test_online)'":
+  # Pin production config rejection before enabling test-only fallbacks.
+  cargo nextest run -p kona-sp1-ethereum-client-utils --no-default-features
   cargo nextest run --workspace --all-features {{args}}
 
 # Exercise the production beacon blob parser without debug assertions on a bounded stack.

@@ -8,6 +8,9 @@ authors.workspace = true
 homepage.workspace = true
 repository.workspace = true
 
+[features]
+test-config-fallback = ["kona-sp1-ethereum-client-utils/test-config-fallback"]
+
 [dependencies]
 anyhow.workspace = true
 kona-proof.workspace = true
