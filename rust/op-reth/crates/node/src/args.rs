@@ -170,7 +170,8 @@ pub struct RollupArgs {
     #[arg(long = "rollup.discovery.v4", default_value = "false")]
     pub discovery_v4: bool,
 
-    /// Enable transaction conditional support on sequencer
+    /// Enable transaction conditional support on sequencer: serves
+    /// `eth_sendRawTransactionConditional` and `eth_sendBundle`
     #[arg(long = "rollup.enable-tx-conditional", default_value = "false")]
     pub enable_tx_conditional: bool,
 

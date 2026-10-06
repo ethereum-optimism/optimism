@@ -51,7 +51,7 @@ use reth_optimism_payload_builder::{
 };
 use reth_optimism_primitives::{DepositReceipt, OpPrimitives};
 use reth_optimism_rpc::{
-    SequencerClient,
+    OpEthBundleApiServer, PendingBundles, SequencerClient,
     debug::{DebugApiExt, DebugApiOverrideServer},
     eth::{
         OpEthApiBuilder,
@@ -560,9 +560,13 @@ pub struct OpAddOns<
     ///
     /// This can be used to forward pre-bedrock rpc requests (op-mainnet).
     pub historical_rpc: Option<String>,
-    /// Enable transaction conditionals.
+    /// Enable transaction conditionals (and bundles).
     enable_tx_conditional: bool,
     min_suggested_priority_fee: u64,
+    /// Expiries of the bundles submitted through `eth_sendBundle`, shared with the `eth` API so
+    /// `eth_getTransactionReceipt` can report an expired bundle. See [`PendingBundles`]. A
+    /// fresh, unshared map is used when not configured.
+    pending_bundles: Option<PendingBundles>,
 }
 
 impl<N, EthB, PVB, EB, EVB, RpcMiddleware> OpAddOns<N, EthB, PVB, EB, EVB, RpcMiddleware>
@@ -593,7 +597,23 @@ where
             historical_rpc,
             enable_tx_conditional,
             min_suggested_priority_fee,
+            pending_bundles: None,
         }
+    }
+
+    /// Shares the submitted bundles' expiries with the bundle RPC handler.
+    ///
+    /// Pass the same map to [`OpEthApiBuilder::with_pending_bundles`] so that
+    /// `eth_getTransactionReceipt` reports expired bundles; [`OpAddOnsBuilder`] does this.
+    pub fn with_pending_bundles(mut self, pending_bundles: PendingBundles) -> Self {
+        self.pending_bundles = Some(pending_bundles);
+        self
+    }
+
+    /// Carries an optional pending-bundles map over when mapping a builder type.
+    fn with_pending_bundles_opt(mut self, pending_bundles: Option<PendingBundles>) -> Self {
+        self.pending_bundles = pending_bundles;
+        self
     }
 }
 
@@ -645,6 +665,7 @@ where
             historical_rpc,
             enable_tx_conditional,
             min_suggested_priority_fee,
+            pending_bundles,
             ..
         } = self;
         OpAddOns::new(
@@ -658,6 +679,7 @@ where
             enable_tx_conditional,
             min_suggested_priority_fee,
         )
+        .with_pending_bundles_opt(pending_bundles)
     }
 
     /// Maps the [`PayloadValidatorBuilder`] builder type.
@@ -675,6 +697,7 @@ where
             enable_tx_conditional,
             min_suggested_priority_fee,
             historical_rpc,
+            pending_bundles,
             ..
         } = self;
         OpAddOns::new(
@@ -688,6 +711,7 @@ where
             enable_tx_conditional,
             min_suggested_priority_fee,
         )
+        .with_pending_bundles_opt(pending_bundles)
     }
 
     /// Maps the [`EngineValidatorBuilder`] builder type.
@@ -705,6 +729,7 @@ where
             enable_tx_conditional,
             min_suggested_priority_fee,
             historical_rpc,
+            pending_bundles,
             ..
         } = self;
         OpAddOns::new(
@@ -718,6 +743,7 @@ where
             enable_tx_conditional,
             min_suggested_priority_fee,
         )
+        .with_pending_bundles_opt(pending_bundles)
     }
 
     /// Sets the RPC middleware stack for processing RPC requests.
@@ -738,6 +764,7 @@ where
             enable_tx_conditional,
             min_suggested_priority_fee,
             historical_rpc,
+            pending_bundles,
             ..
         } = self;
         OpAddOns::new(
@@ -751,6 +778,7 @@ where
             enable_tx_conditional,
             min_suggested_priority_fee,
         )
+        .with_pending_bundles_opt(pending_bundles)
     }
 
     /// Sets the hook that is run once the rpc server is started.
@@ -829,6 +857,7 @@ where
             sequencer_headers,
             enable_tx_conditional,
             historical_rpc,
+            pending_bundles,
             ..
         } = self;
 
@@ -889,11 +918,12 @@ where
             None
         };
 
-        let tx_conditional_ext: OpEthExtApi<N::Pool, N::Provider> = OpEthExtApi::new(
+        let eth_ext: OpEthExtApi<N::Pool, N::Provider> = OpEthExtApi::new(
             sequencer_client,
             ctx.node.pool().clone(),
             ctx.node.provider().clone(),
-        );
+        )
+        .with_pending_bundles(pending_bundles.unwrap_or_default());
 
         rpc_add_ons
             .launch_add_ons_with(ctx, move |container| {
@@ -944,7 +974,11 @@ where
                     // extend the eth namespace if configured in the regular http server
                     modules.merge_if_module_configured(
                         RethRpcModule::Eth,
-                        tx_conditional_ext.into_rpc(),
+                        L2EthApiExtServer::into_rpc(eth_ext.clone()),
+                    )?;
+                    modules.merge_if_module_configured(
+                        RethRpcModule::Eth,
+                        OpEthBundleApiServer::into_rpc(eth_ext),
                     )?;
                 }
 
@@ -1209,6 +1243,9 @@ impl<NetworkT, RpcMiddleware> OpAddOnsBuilder<NetworkT, RpcMiddleware> {
             ..
         } = self;
 
+        // Shared by the `eth` API (receipt lookups) and the bundle RPC handler (expiry tracking).
+        let pending_bundles = PendingBundles::default();
+
         OpAddOns::new(
             RpcAddOns::new(
                 OpEthApiBuilder::default()
@@ -1217,7 +1254,8 @@ impl<NetworkT, RpcMiddleware> OpAddOnsBuilder<NetworkT, RpcMiddleware> {
                     .with_min_suggested_priority_fee(min_suggested_priority_fee)
                     .with_flashblocks(flashblocks_url)
                     .with_flashblock_consensus(flashblock_consensus)
-                    .with_retain_forwarded_txs(retain_forwarded_txs),
+                    .with_retain_forwarded_txs(retain_forwarded_txs)
+                    .with_pending_bundles(pending_bundles.clone()),
                 PVB::default(),
                 EB::default(),
                 EVB::default(),
@@ -1234,6 +1272,7 @@ impl<NetworkT, RpcMiddleware> OpAddOnsBuilder<NetworkT, RpcMiddleware> {
             enable_tx_conditional,
             min_suggested_priority_fee,
         )
+        .with_pending_bundles(pending_bundles)
     }
 }
 

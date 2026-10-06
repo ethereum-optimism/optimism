@@ -30,6 +30,7 @@ use reth_optimism_txpool::{
     estimated_da_size::DataAvailabilitySized,
     interop::{InteropFailsafe, MaybeInteropTransaction},
     interop_filter::CROSS_L2_INBOX_ADDRESS,
+    revert_protection::MaybeRevertProtectedTransaction,
 };
 use reth_payload_builder_primitives::PayloadBuilderError;
 use reth_payload_util::PayloadTransactionsFixed;
@@ -254,7 +255,25 @@ where
         None,
         Default::default(),
     );
+    run_execute_best_transactions_on_state(ctx, state_provider, txs, gas_limit_cap, committed_txs)
+}
 
+/// Like [`run_execute_best_transactions_with_ctx`], but on a caller-provided pre-state (which must
+/// already fund the txs' signers).
+fn run_execute_best_transactions_on_state<T>(
+    ctx: OpPayloadBuilderCtx<
+        OpEvmConfig<OpChainSpec, OpPrimitives>,
+        OpChainSpec,
+        OpPayloadBuilderAttributes<OpTransactionSigned>,
+    >,
+    state_provider: StateProviderTest,
+    txs: Vec<T>,
+    gas_limit_cap: Option<u64>,
+    committed_txs: Option<&mut Vec<Recovered<OpTransactionSigned>>>,
+) -> (ExecutionInfo, Vec<TxHash>)
+where
+    T: PoolTransaction<Consensus = OpTransactionSigned> + OpPooledTx + Clone,
+{
     let best_txs = PayloadTransactionsFixed::new(txs);
 
     let mut db = State::builder()
@@ -678,6 +697,118 @@ fn on_commit_reports_canonical_and_pre_refund_gas_separately_under_sdm_refund() 
     );
 }
 
+/// A revert-protected tx (an `eth_sendBundle` tx not listed in `revertingTxHashes`) that reverts
+/// is left out of the block and contributes nothing to it, while the same reverting call without
+/// protection is included and charged as usual. A succeeding revert-protected tx is included.
+#[test]
+fn execute_best_transactions_excludes_reverting_revert_protected_txs() {
+    let protected_signer = Address::repeat_byte(0x11);
+    let unprotected_signer = Address::repeat_byte(0x12);
+    let plain_signer = Address::repeat_byte(0x13);
+    let reverter = Address::repeat_byte(0x22);
+
+    let state_provider = {
+        let mut state_provider = StateProviderTest::default();
+        for signer in [protected_signer, unprotected_signer, plain_signer] {
+            state_provider.insert_account(
+                signer,
+                Account { balance: U256::MAX, ..Default::default() },
+                None,
+                Default::default(),
+            );
+        }
+        // PUSH1 0; PUSH1 0; REVERT — every call to this account reverts.
+        state_provider.insert_account(
+            reverter,
+            Account::default(),
+            Some(Bytes::from_static(&[0x60, 0x00, 0x60, 0x00, 0xfd])),
+            Default::default(),
+        );
+        state_provider
+    };
+    let chain_spec = Arc::new(OpChainSpecBuilder::optimism_mainnet().regolith_activated().build());
+    let ctx = || payload_builder_ctx(chain_spec.clone(), 1_000_000);
+
+    let protected = op_pooled_tx_from(protected_signer, base_pooled_tx(0, reverter, 100_000))
+        .with_revert_protected(true);
+    let unprotected = op_pooled_tx_from(unprotected_signer, base_pooled_tx(0, reverter, 100_000));
+    let plain =
+        op_pooled_tx(0, plain_signer, Address::repeat_byte(0x33)).with_revert_protected(true);
+    let (unprotected_hash, plain_hash) = (*unprotected.hash(), *plain.hash());
+
+    let mut committed = Vec::new();
+    let (info, included) = run_execute_best_transactions_on_state(
+        ctx(),
+        state_provider.clone(),
+        vec![protected, unprotected.clone(), plain.clone()],
+        None,
+        Some(&mut committed),
+    );
+    assert_eq!(included, vec![unprotected_hash, plain_hash]);
+    assert_eq!(tx_hashes(&committed), included);
+
+    // The skipped tx left no trace: the block accounting matches a build that never saw it.
+    let (info_without, _) = run_execute_best_transactions_on_state(
+        ctx(),
+        state_provider,
+        vec![unprotected, plain],
+        None,
+        None,
+    );
+    assert!(info.cumulative_gas_used > 0);
+    assert_eq!(info.cumulative_gas_used, info_without.cumulative_gas_used);
+    assert_eq!(info.cumulative_evm_gas_used, info_without.cumulative_evm_gas_used);
+    assert_eq!(info.cumulative_da_bytes_used, info_without.cumulative_da_bytes_used);
+    assert_eq!(info.total_fees, info_without.total_fees);
+}
+
+/// A conditional tx is only included in a block inside its window: the ctx builds block 1 at
+/// timestamp 1, so a window opening later or closed earlier excludes it, and a covering window
+/// (or no conditional) includes it. Covers `eth_sendRawTransactionConditional` and bundles alike.
+#[test]
+fn execute_best_transactions_skips_conditional_txs_outside_their_window() {
+    let cases: [(&str, TransactionConditional, bool); 6] = [
+        ("no bounds", TransactionConditional::default(), true),
+        (
+            "covering block range",
+            TransactionConditional {
+                block_number_min: Some(1),
+                block_number_max: Some(1),
+                ..Default::default()
+            },
+            true,
+        ),
+        (
+            "min block not reached",
+            TransactionConditional { block_number_min: Some(2), ..Default::default() },
+            false,
+        ),
+        (
+            "max block passed",
+            TransactionConditional { block_number_max: Some(0), ..Default::default() },
+            false,
+        ),
+        (
+            "min timestamp not reached",
+            TransactionConditional { timestamp_min: Some(2), ..Default::default() },
+            false,
+        ),
+        (
+            "max timestamp passed",
+            TransactionConditional { timestamp_max: Some(0), ..Default::default() },
+            false,
+        ),
+    ];
+    for (name, conditional, included) in cases {
+        let signer = Address::repeat_byte(0x11);
+        let tx = op_pooled_tx(0, signer, Address::repeat_byte(0x22)).with_conditional(conditional);
+        let hash = *tx.hash();
+        let (_, included_hashes) = run_execute_best_transactions(signer, vec![tx], None, None);
+        let expected = if included { vec![hash] } else { vec![] };
+        assert_eq!(included_hashes, expected, "{name}");
+    }
+}
+
 #[test]
 fn execute_best_transactions_respects_gas_limit_cap() {
     let mut committed_txs = Vec::new();
@@ -857,6 +988,15 @@ fn miner_fee_uses_pool_wrapper_tip() {
         }
         fn conditional(&self) -> Option<&TransactionConditional> {
             self.inner.conditional()
+        }
+    }
+
+    impl MaybeRevertProtectedTransaction for ForcedTipPooledTx {
+        fn set_revert_protected(&mut self, revert_protected: bool) {
+            self.inner.set_revert_protected(revert_protected);
+        }
+        fn is_revert_protected(&self) -> bool {
+            self.inner.is_revert_protected()
         }
     }
 

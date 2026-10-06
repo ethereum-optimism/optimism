@@ -168,8 +168,12 @@ where
                 number: new.tip().number(),
                 timestamp: new.tip().timestamp(),
             };
+            // Scan all transactions, not just propagatable ones: conditional txs are submitted
+            // with `Private` origin (`eth_sendRawTransactionConditional`, `eth_sendBundle`),
+            // which hides them from `pooled_transactions()` while the builder still selects
+            // them; they must still expire.
             let mut to_remove = Vec::new();
-            for tx in &pool.pooled_transactions() {
+            for tx in pool.all_transactions() {
                 if tx.transaction.has_exceeded_block_attributes(&block_attr) {
                     to_remove.push(*tx.hash());
                 }

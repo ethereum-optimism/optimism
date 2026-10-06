@@ -1,5 +1,6 @@
 //! OP-Reth `eth_` endpoint implementation.
 
+pub mod bundle;
 pub mod ext;
 pub mod proofs;
 pub mod receipt;
@@ -11,7 +12,7 @@ mod pending_block;
 
 use crate::{
     OpEthApiError, SequencerClient,
-    eth::{receipt::OpReceiptConverter, transaction::OpTxInfoMapper},
+    eth::{bundle::PendingBundles, receipt::OpReceiptConverter, transaction::OpTxInfoMapper},
 };
 use alloy_consensus::Header;
 use alloy_primitives::U256;
@@ -95,6 +96,7 @@ impl<N: RpcNodeCore, Rpc: RpcConvert> OpEthApi<N, Rpc> {
         min_suggested_priority_fee: U256,
         flashblocks: Option<FlashblocksListeners<N::Primitives>>,
         retain_forwarded_txs: bool,
+        pending_bundles: PendingBundles,
     ) -> Self {
         let inner = Arc::new(OpEthApiInner {
             eth_api,
@@ -102,6 +104,7 @@ impl<N: RpcNodeCore, Rpc: RpcConvert> OpEthApi<N, Rpc> {
             min_suggested_priority_fee,
             flashblocks,
             retain_forwarded_txs,
+            pending_bundles,
         });
         Self { inner }
     }
@@ -118,6 +121,12 @@ impl<N: RpcNodeCore, Rpc: RpcConvert> OpEthApi<N, Rpc> {
     /// Returns the configured sequencer client, if any.
     pub fn sequencer_client(&self) -> Option<&SequencerClient> {
         self.inner.sequencer_client()
+    }
+
+    /// Returns the expiries of the bundles submitted through `eth_sendBundle`, shared with the
+    /// bundle RPC handler.
+    pub fn pending_bundles(&self) -> &PendingBundles {
+        &self.inner.pending_bundles
     }
 
     /// Returns a cloned pending block receiver, if any.
@@ -448,6 +457,9 @@ pub struct OpEthApiInner<N: RpcNodeCore, Rpc: RpcConvert> {
     flashblocks: Option<FlashblocksListeners<N::Primitives>>,
     /// Whether to retain forwarded transactions in the local pool.
     retain_forwarded_txs: bool,
+    /// Expiries of the bundles submitted through `eth_sendBundle`, see
+    /// [`crate::eth::bundle::PendingBundles`].
+    pending_bundles: PendingBundles,
 }
 
 impl<N: RpcNodeCore, Rpc: RpcConvert> fmt::Debug for OpEthApiInner<N, Rpc> {
@@ -509,6 +521,10 @@ pub struct OpEthApiBuilder<NetworkT = Optimism> {
     /// Whether to retain forwarded transactions in the local pool after
     /// forwarding to the configured sequencer if it exists.
     retain_forwarded_txs: bool,
+    /// Expiries of the bundles submitted through `eth_sendBundle`. Shared with the bundle RPC
+    /// handler so `eth_getTransactionReceipt` can report an expired bundle, see
+    /// [`PendingBundles`]. A fresh, unshared map is used when not configured.
+    pending_bundles: Option<PendingBundles>,
     /// Marker for network types.
     _nt: PhantomData<NetworkT>,
 }
@@ -522,6 +538,7 @@ impl<NetworkT> Default for OpEthApiBuilder<NetworkT> {
             flashblocks_url: None,
             flashblock_consensus: false,
             retain_forwarded_txs: false,
+            pending_bundles: None,
             _nt: PhantomData,
         }
     }
@@ -537,6 +554,7 @@ impl<NetworkT> OpEthApiBuilder<NetworkT> {
             flashblocks_url: None,
             flashblock_consensus: false,
             retain_forwarded_txs: false,
+            pending_bundles: None,
             _nt: PhantomData,
         }
     }
@@ -577,6 +595,13 @@ impl<NetworkT> OpEthApiBuilder<NetworkT> {
         self.retain_forwarded_txs = retain_forwarded_txs;
         self
     }
+
+    /// Shares the submitted bundles' expiries with the bundle RPC handler, so
+    /// `eth_getTransactionReceipt` can report an expired bundle.
+    pub fn with_pending_bundles(mut self, pending_bundles: PendingBundles) -> Self {
+        self.pending_bundles = Some(pending_bundles);
+        self
+    }
 }
 
 impl<N, NetworkT> EthApiBuilder<N> for OpEthApiBuilder<NetworkT>
@@ -613,6 +638,7 @@ where
             flashblocks_url,
             flashblock_consensus,
             retain_forwarded_txs,
+            pending_bundles,
             ..
         } = self;
         let rpc_converter =
@@ -676,6 +702,7 @@ where
             U256::from(min_suggested_priority_fee),
             flashblocks,
             retain_forwarded_txs,
+            pending_bundles.unwrap_or_default(),
         ))
     }
 }

@@ -1,6 +1,7 @@
 //! Loads and formats OP transaction RPC response.
 
-use crate::{OpEthApi, OpEthApiError, SequencerClient};
+use crate::{OpEthApi, OpEthApiError, SequencerClient, eth::bundle::DROPPED_FROM_POOL_MSG};
+use alloy_consensus::BlockHeader;
 use alloy_primitives::{B256, Bytes};
 use alloy_rpc_types_eth::TransactionInfo;
 use futures::StreamExt;
@@ -17,7 +18,9 @@ use reth_rpc_eth_api::{
     helpers::{EthTransactions, LoadReceipt, LoadTransaction, SpawnBlocking, spec::SignersForRpc},
 };
 use reth_rpc_eth_types::{EthApiError, TransactionSource, block::convert_transaction_receipt};
-use reth_storage_api::{ProviderTx, ReceiptProvider, TransactionsProvider, errors::ProviderError};
+use reth_storage_api::{
+    BlockReaderIdExt, ProviderTx, ReceiptProvider, TransactionsProvider, errors::ProviderError,
+};
 use reth_transaction_pool::{
     AddedTransactionOutcome, PoolTransaction, PoolTx, TransactionOrigin, TransactionPool,
 };
@@ -174,7 +177,9 @@ where
     /// UPSTREAM-MIRROR(override): reth@rev:0fbe428
     /// `reth_rpc_eth_api::helpers::EthTransactions::transaction_receipt`
     ///
-    /// Extends the upstream default with a flashblock receipt lookup.
+    /// Extends the upstream default with a flashblock receipt lookup, and reports an
+    /// `eth_sendBundle` transaction whose execution window passed without inclusion as an
+    /// invalid-params error instead of `null`.
     fn transaction_receipt(
         &self,
         hash: B256,
@@ -195,6 +200,13 @@ where
                 }
             }
             let Some((tx, meta, receipt, all_receipts, block)) = tx_receipt else {
+                // A bundle whose window has passed can no longer be included: report that
+                // instead of `null`, so callers can tell it apart from one still waiting.
+                if this.is_expired_bundle(&hash) {
+                    return Err(Self::Error::from_eth_err(EthApiError::InvalidParams(
+                        DROPPED_FROM_POOL_MSG.to_string(),
+                    )));
+                }
                 return Ok(None);
             };
             self.build_transaction_receipt(tx, meta, receipt, all_receipts, block).await.map(Some)
@@ -269,6 +281,17 @@ where
     N: RpcNodeCore,
     Rpc: RpcConvert<Primitives = N::Primitives>,
 {
+    /// Returns whether `hash` is a bundle submitted through this node's `eth_sendBundle` whose
+    /// execution window has passed at the current chain head.
+    fn is_expired_bundle(&self, hash: &B256) -> bool {
+        let Some(expiry) = self.pending_bundles().get(hash) else { return false };
+        self.provider()
+            .latest_header()
+            .ok()
+            .flatten()
+            .is_some_and(|head| expiry.is_expired_at(head.number(), head.timestamp()))
+    }
+
     /// Returns the [`SequencerClient`] if one is set.
     pub fn raw_tx_forwarder(&self) -> Option<SequencerClient> {
         self.inner.sequencer_client.clone()

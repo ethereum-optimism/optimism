@@ -6,6 +6,7 @@ use crate::{
 use alloy_consensus::{SignableTransaction, TxEip1559, transaction::Recovered};
 use alloy_eips::eip2930::{AccessList, AccessListItem};
 use alloy_primitives::{Address, B256, Signature, TxKind, U256};
+use alloy_rpc_types_eth::erc4337::TransactionConditional;
 use op_alloy_rpc_types::SuperchainDAError;
 use reth_execution_types::{Chain, ExecutionOutcome};
 use reth_optimism_primitives::{OpBlock, OpPrimitives};
@@ -91,9 +92,57 @@ fn reorg_event() -> CanonStateNotification<OpPrimitives> {
 
 /// A minimal commit notification with a single default block.
 fn commit_event() -> CanonStateNotification<OpPrimitives> {
-    let block: RecoveredBlock<OpBlock> = Default::default();
+    commit_event_at(0, 0)
+}
+
+/// A commit notification whose tip has the given number and timestamp.
+fn commit_event_at(number: u64, timestamp: u64) -> CanonStateNotification<OpPrimitives> {
+    let block = OpBlock {
+        header: alloy_consensus::Header { number, timestamp, ..Default::default() },
+        body: Default::default(),
+    };
+    let block = RecoveredBlock::new_unhashed(block, Vec::new());
     let chain = Arc::new(Chain::new([block], ExecutionOutcome::default(), BTreeMap::new()));
     CanonStateNotification::Commit { new: chain }
+}
+
+/// Runs the conditional maintenance over the given commit events to completion.
+async fn sweep_conditional(pool: &TestOpPool, events: Vec<CanonStateNotification<OpPrimitives>>) {
+    maintain_transaction_pool_conditional(pool.clone(), futures_util::stream::iter(events)).await;
+}
+
+/// A `Private`-origin conditional tx (as `eth_sendRawTransactionConditional` and
+/// `eth_sendBundle` insert them) is hidden from `pooled_transactions()`, yet must still be
+/// evicted once a committed block passes its window.
+#[tokio::test]
+async fn conditional_sweep_evicts_expired_private_txs() {
+    let pool = build_pool();
+    let expiring = non_interop_pooled_tx().with_conditional(TransactionConditional {
+        block_number_max: Some(5),
+        ..Default::default()
+    });
+    let lasting = interop_pooled_tx().with_conditional(TransactionConditional {
+        timestamp_max: Some(100),
+        ..Default::default()
+    });
+    let (expiring_hash, lasting_hash) = (*expiring.hash(), *lasting.hash());
+    pool.add_transaction(TransactionOrigin::Private, expiring).await.unwrap();
+    pool.add_transaction(TransactionOrigin::Private, lasting).await.unwrap();
+    assert!(pool.pooled_transactions().is_empty(), "private txs are not propagatable");
+
+    // A block inside both windows keeps both.
+    sweep_conditional(&pool, vec![commit_event_at(5, 100)]).await;
+    assert!(pool.get(&expiring_hash).is_some());
+    assert!(pool.get(&lasting_hash).is_some());
+
+    // A block past the first window evicts that tx only.
+    sweep_conditional(&pool, vec![commit_event_at(6, 100)]).await;
+    assert!(pool.get(&expiring_hash).is_none(), "expired private conditional tx is evicted");
+    assert!(pool.get(&lasting_hash).is_some());
+
+    // A later timestamp evicts the other.
+    sweep_conditional(&pool, vec![commit_event_at(6, 101)]).await;
+    assert!(pool.get(&lasting_hash).is_none());
 }
 
 fn definitive_invalid() -> InvalidCrossTx {

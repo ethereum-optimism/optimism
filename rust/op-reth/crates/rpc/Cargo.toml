@@ -83,6 +83,7 @@ serde_json.workspace = true
 
 # misc
 eyre.workspace = true
+schnellru.workspace = true
 thiserror.workspace = true
 tracing.workspace = true
 derive_more = { workspace = true, features = ["constructor"] }
@@ -98,7 +99,12 @@ strum.workspace = true
 alloy-op-hardforks.workspace = true
 alloy-genesis.workspace = true
 reth-optimism-chainspec = { workspace = true, features = ["superchain-configs"] }
+alloy-signer.workspace = true
+alloy-signer-local.workspace = true
+reth-provider = { workspace = true, features = ["test-utils"] }
+reth-transaction-pool = { workspace = true, features = ["test-utils"] }
 rstest.workspace = true
+tokio = { workspace = true, features = ["rt", "rt-multi-thread", "macros"] }
 
 [features]
 client = [

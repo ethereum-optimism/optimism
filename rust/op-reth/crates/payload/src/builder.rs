@@ -3,9 +3,12 @@ use crate::{
     OpAttributes, OpPayloadBuilderAttributes, OpPayloadPrimitives, config::OpBuilderConfig,
     error::OpPayloadBuilderError, payload::OpBuiltPayload,
 };
-use alloy_consensus::{BlockHeader, Sealable, Transaction, Typed2718, transaction::Recovered};
+use alloy_consensus::{
+    BlockHeader, Sealable, Transaction, Typed2718, conditional::BlockConditionalAttributes,
+    transaction::Recovered,
+};
 use alloy_eips::eip2718::Encodable2718;
-use alloy_evm::Evm as AlloyEvm;
+use alloy_evm::{Evm as AlloyEvm, block::TxResult};
 use alloy_primitives::{Address, B256, Sealed, U256};
 use alloy_rpc_types_debug::ExecutionWitness;
 use alloy_rpc_types_engine::PayloadId;
@@ -18,6 +21,7 @@ use reth_basic_payload_builder::*;
 use reth_chainspec::{ChainSpecProvider, EthChainSpec};
 use reth_evm::{
     ConfigureEvm, Database,
+    block::CommitChanges,
     execute::{
         BlockBuilder, BlockBuilderOutcome, BlockExecutionError, BlockExecutor, BlockValidationError,
     },
@@ -34,8 +38,10 @@ use reth_optimism_forks::OpHardforks;
 use reth_optimism_primitives::{L2_TO_L1_MESSAGE_PASSER_ADDRESS, OpTransaction};
 use reth_optimism_txpool::{
     OpPooledTx,
+    conditional::MaybeConditionalTransaction,
     estimated_da_size::DataAvailabilitySized,
     interop::{MaybeInteropTransaction, is_interop_tx, is_valid_interop},
+    revert_protection::MaybeRevertProtectedTransaction,
 };
 use reth_payload_builder_primitives::PayloadBuilderError;
 use reth_payload_primitives::{BuildNextEnv, BuiltPayloadExecutedBlock};
@@ -1092,10 +1098,21 @@ where
         // async pool eviction, excludes interop txs that bypassed the filter (e.g. private or
         // local txs) and avoids racing eviction to drain the pool.
         let interop_failsafe_active = self.builder_config.interop_failsafe.enabled();
+        // The block a conditional tx's window is checked against.
+        let block_attr = BlockConditionalAttributes {
+            number: builder.evm_mut().block().number().saturating_to(),
+            timestamp: self.attributes().timestamp(),
+        };
 
         while let Some(tx) = best_txs.next(()) {
             let interop = tx.interop_deadline();
             let tx_da_size = tx.estimated_da_size();
+            let revert_protected = tx.is_revert_protected();
+            // Skip a conditional tx (`eth_sendRawTransactionConditional`, `eth_sendBundle`) whose
+            // window does not cover this block. The pool maintenance evicts it once the window
+            // has passed; until then it waits for a block inside the window.
+            let outside_window =
+                tx.conditional().is_some_and(|c| !c.matches_block_attributes(&block_attr));
             // Compute the miner fee on the pool tx so downstream pool wrappers can
             // override `effective_tip_per_gas` (e.g. to convert non-native fee
             // denominations into a native-wei tip) before the consensus tx is exposed.
@@ -1104,6 +1121,11 @@ where
                 .expect("selected pool transaction must have a valid effective miner tip at the block base fee");
             let tx = tx.into_consensus();
             let tx_uncompressed_size = tx.encode_2718_len() as u64;
+
+            if outside_window {
+                best_txs.mark_invalid(tx.signer(), tx.nonce());
+                continue;
+            }
 
             let da_footprint_gas_scalar = self
                 .chain_spec
@@ -1157,11 +1179,28 @@ where
             }
 
             let mut evm_gas_used = 0;
-            let gas_used = match builder
-                .execute_transaction_with_result_closure(tx.clone(), |result| {
-                    evm_gas_used = result.evm_gas_used()
-                }) {
-                Ok(gas_used) => gas_used,
+            let gas_used = match builder.execute_transaction_with_commit_condition(
+                tx.clone(),
+                |result| {
+                    evm_gas_used = result.evm_gas_used();
+                    // A revert-protected tx (`eth_sendBundle`) is only committed when it succeeds;
+                    // otherwise it is left out so the sender is not charged for the revert.
+                    if revert_protected && !result.result().result.is_success() {
+                        CommitChanges::No
+                    } else {
+                        CommitChanges::Yes
+                    }
+                },
+            ) {
+                Ok(Some(gas_used)) => gas_used,
+                Ok(None) => {
+                    trace!(target: "payload_builder", ?tx, "skipping reverted revert-protected transaction");
+                    // Later nonces from this sender would be invalidated by the gap, so drop its
+                    // descendants from this build too. The tx stays in the pool and is retried
+                    // until its conditional expires.
+                    best_txs.mark_invalid(tx.signer(), tx.nonce());
+                    continue;
+                }
                 Err(BlockExecutionError::Validation(BlockValidationError::InvalidTx {
                     error,
                     ..

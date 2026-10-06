@@ -24,6 +24,11 @@ pub mod witness;
 pub use engine::OpEngineApiClient;
 pub use engine::{OP_ENGINE_CAPABILITIES, OpEngineApi, OpEngineApiServer};
 pub use error::{OpEthApiError, OpInvalidTransactionError, SequencerClientError};
-pub use eth::{OpEthApi, OpEthApiBuilder, OpReceiptBuilder};
+pub use eth::{
+    OpEthApi, OpEthApiBuilder, OpReceiptBuilder,
+    bundle::{
+        Bundle, BundleError, BundleExpiry, BundleResult, OpEthBundleApiServer, PendingBundles,
+    },
+};
 pub use metrics::{EthApiExtMetrics, SequencerMetrics};
 pub use sequencer::SequencerClient;

@@ -13,6 +13,7 @@ pub use validator::{OpL1BlockInfo, OpTransactionValidator};
 
 pub mod conditional;
 mod pool;
+pub mod revert_protection;
 pub use pool::OpPool;
 pub mod interop_filter;
 mod transaction;

@@ -1,6 +1,6 @@
 use crate::{
     conditional::MaybeConditionalTransaction, estimated_da_size::DataAvailabilitySized,
-    interop::MaybeInteropTransaction,
+    interop::MaybeInteropTransaction, revert_protection::MaybeRevertProtectedTransaction,
 };
 use alloy_consensus::{BlobTransactionValidationError, Typed2718, transaction::Recovered};
 use alloy_eips::{
@@ -49,6 +49,10 @@ pub struct OpPooledTransaction<
     /// Optional conditional attached to this transaction.
     conditional: Option<Box<TransactionConditional>>,
 
+    /// Whether the transaction must be left out of a block if it reverts, see
+    /// [`MaybeRevertProtectedTransaction`].
+    revert_protected: bool,
+
     /// Optional interop deadline attached to this transaction.
     interop: Arc<AtomicU64>,
 
@@ -70,6 +74,7 @@ impl<Cons: SignedTransaction, Pooled> OpPooledTransaction<Cons, Pooled> {
             op_cost,
             estimated_tx_compressed_size: Default::default(),
             conditional: None,
+            revert_protected: false,
             interop: Arc::new(AtomicU64::new(NO_INTEROP_TX)),
             _pd: core::marker::PhantomData,
             encoded_2718: Default::default(),
@@ -105,6 +110,16 @@ impl<Cons, Pooled> MaybeConditionalTransaction for OpPooledTransaction<Cons, Poo
 
     fn conditional(&self) -> Option<&TransactionConditional> {
         self.conditional.as_deref()
+    }
+}
+
+impl<Cons, Pooled> MaybeRevertProtectedTransaction for OpPooledTransaction<Cons, Pooled> {
+    fn set_revert_protected(&mut self, revert_protected: bool) {
+        self.revert_protected = revert_protected;
+    }
+
+    fn is_revert_protected(&self) -> bool {
+        self.revert_protected
     }
 }
 
@@ -299,10 +314,15 @@ where
     }
 }
 
-/// OP-specific pool transaction behaviour: gives the payload builder access to conditionals and
-/// encoded bytes, and lets the validator reserve the OP fees in [`PoolTransaction::cost`].
+/// OP-specific pool transaction behaviour: gives the payload builder access to conditionals,
+/// revert protection and encoded bytes, and lets the validator reserve the OP fees in
+/// [`PoolTransaction::cost`].
 pub trait OpPooledTx:
-    MaybeConditionalTransaction + MaybeInteropTransaction + PoolTransaction + DataAvailabilitySized
+    MaybeConditionalTransaction
+    + MaybeRevertProtectedTransaction
+    + MaybeInteropTransaction
+    + PoolTransaction
+    + DataAvailabilitySized
 {
     /// Returns the EIP-2718 encoded bytes of the transaction.
     fn encoded_2718(&self) -> Cow<'_, Bytes>;
