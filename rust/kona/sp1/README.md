@@ -700,7 +700,8 @@ That recipe builds the guest ELFs (`just build-elfs`, Dockerized SP1 toolchain),
 and `KONA_SP1_ELF_DIR` set — the same two variables the acceptance full-ELF suite reads. The
 executor loads the `super-range` ELF at runtime. The test skips when the executor-path variable
 is unset, so the heavy SP1 toolchain is only required when explicitly running the SP1 action
-tests.
+tests. Per-PR CI doesn't set it; the daily `scheduled-sp1-elf-smoke` CircleCI workflow runs these
+tests in its `kona-sp1-action-tests` job.
 
 Because the executor is a separate process that resolves the transition itself, the action-test
 harness serves op-node's superroot API over a loopback HTTP listener
