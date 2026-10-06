@@ -98,7 +98,8 @@ For spinning up a sequencer, we recommend using Docker, as it provides a simpler
           ports:
             - "8545:8545"
             - "8546:8546"
-            - "8551:8551"
+          # The Engine API (8551) is not published on the host: op-node, its only
+          # consumer, reaches it over the Compose network at http://op-reth:8551.
           command:
             - "node"
             - "--chain=/workspace/genesis.json"
@@ -359,7 +360,7 @@ For spinning up a sequencer, we recommend using Docker, as it provides a simpler
 
       - `8545`: op-reth HTTP RPC
       - `8546`: op-reth WebSocket RPC
-      - `8551`: op-reth Auth RPC (Engine API)
+      - `8551`: op-reth Auth RPC (Engine API), used by op-node on the same host only
       - `8547`: op-node RPC
       - `9222`: P2P networking
       </Step>
@@ -406,7 +407,7 @@ For spinning up a sequencer, we recommend using Docker, as it provides a simpler
       --ws.port=$OP_RETH_WS_PORT \
       --ws.origins="*" \
       --ws.api=admin,debug,eth,net,txpool,web3 \
-      --authrpc.addr=0.0.0.0 \
+      --authrpc.addr=127.0.0.1 \
       --authrpc.port=$OP_RETH_AUTH_PORT \
       --authrpc.jwtsecret=$JWT_SECRET \
       --rollup.disable-tx-pool-gossip \
