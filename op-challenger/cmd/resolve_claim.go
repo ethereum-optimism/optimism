@@ -6,9 +6,12 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-challenger/flags"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/contracts"
+	contractMetrics "github.com/ethereum-optimism/optimism/op-challenger/game/fault/contracts/metrics"
 	opservice "github.com/ethereum-optimism/optimism/op-service"
 	"github.com/ethereum-optimism/optimism/op-service/log/logcli"
+	"github.com/ethereum-optimism/optimism/op-service/sources/batching"
 	"github.com/ethereum-optimism/optimism/op-service/txmgr"
+	"github.com/ethereum/go-ethereum/common"
 	"github.com/urfave/cli/v2"
 )
 
@@ -26,19 +29,18 @@ func ResolveClaim(ctx *cli.Context) error {
 	}
 	idx := ctx.Uint64(ClaimIdxFlag.Name)
 
-	contract, txMgr, err := NewContractWithTxMgr[contracts.FaultDisputeGameContract](ctx, AddrFromFlag(GameAddressFlag.Name), contracts.NewFaultDisputeGameContract)
+	caller, txMgr, err := newClientsFromCLI(ctx)
 	if err != nil {
-		return fmt.Errorf("failed to create dispute game bindings: %w", err)
+		return err
+	}
+	gameAddr, err := AddrFromFlag(GameAddressFlag.Name)(ctx)
+	if err != nil {
+		return fmt.Errorf("failed to parse game address: %w", err)
 	}
 
-	err = contract.CallResolveClaim(ctx.Context, idx)
+	tx, err := createResolveClaimTx(ctx.Context, caller, gameAddr, idx)
 	if err != nil {
-		return fmt.Errorf("claim is not resolvable: %w", err)
-	}
-
-	tx, err := contract.ResolveClaimTx(idx)
-	if err != nil {
-		return fmt.Errorf("failed to create resolve claim tx: %w", err)
+		return err
 	}
 
 	rct, err := txMgr.Send(context.Background(), tx)
@@ -49,6 +51,33 @@ func ResolveClaim(ctx *cli.Context) error {
 	fmt.Printf("Sent resolve claim tx with status: %v, hash: %s\n", rct.Status, rct.TxHash.String())
 
 	return nil
+}
+
+func createResolveClaimTx(ctx context.Context, caller *batching.MultiCaller, gameAddr common.Address, claimIdx uint64) (txmgr.TxCandidate, error) {
+	gameType, err := contracts.DetectGameType(ctx, gameAddr, caller)
+	if err != nil {
+		return txmgr.TxCandidate{}, fmt.Errorf("failed to detect dispute game type: %w", err)
+	}
+	contract, err := contracts.NewDisputeGameContract(ctx, contractMetrics.NoopContractMetrics, caller, gameType, gameAddr)
+	if err != nil {
+		return txmgr.TxCandidate{}, fmt.Errorf("failed to create dispute game bindings: %w", err)
+	}
+
+	switch contract := contract.(type) {
+	case contracts.ZKDisputeGameContract:
+		return txmgr.TxCandidate{}, fmt.Errorf("zk dispute game %v has no claims to resolve, use the resolve command", gameAddr)
+	case contracts.FaultDisputeGameContract:
+		if err := contract.CallResolveClaim(ctx, claimIdx); err != nil {
+			return txmgr.TxCandidate{}, fmt.Errorf("claim is not resolvable: %w", err)
+		}
+		tx, err := contract.ResolveClaimTx(claimIdx)
+		if err != nil {
+			return txmgr.TxCandidate{}, fmt.Errorf("failed to create resolve claim tx: %w", err)
+		}
+		return tx, nil
+	default:
+		return txmgr.TxCandidate{}, fmt.Errorf("game type %v does not support resolving claims", gameType)
+	}
 }
 
 func resolveClaimFlags() []cli.Flag {
