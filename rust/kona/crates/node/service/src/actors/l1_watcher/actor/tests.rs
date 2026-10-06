@@ -87,8 +87,15 @@ fn provider(state: Arc<RpcState>) -> RootProvider {
 
 struct ChainHandles {
     queries: Option<mpsc::Sender<L1WatcherQueries>>,
-    signer: mpsc::Receiver<Address>,
+    signer: watch::Receiver<Address>,
     derivation: mpsc::Receiver<DerivationActorRequest>,
+}
+impl ChainHandles {
+    /// Waits for the next signer the watcher publishes for this chain.
+    async fn next_signer(&mut self) -> Address {
+        self.signer.changed().await.unwrap();
+        *self.signer.borrow_and_update()
+    }
 }
 struct Harness {
     heads: mpsc::Sender<BlockInfo>,
@@ -106,7 +113,7 @@ impl Harness {
         let mut configs = Vec::new();
         let mut chains = Vec::new();
         for index in 0..count {
-            let (signer_tx, signer) = mpsc::channel(1);
+            let (signer_tx, signer) = watch::channel(Address::ZERO);
             let (query_tx, queries) = mpsc::channel(4);
             let (derivation_tx, derivation) = mpsc::channel(1);
             configs.push(L1WatcherChain::new(
@@ -172,13 +179,10 @@ impl Harness {
 #[tokio::test(start_paused = true)]
 async fn slow_chain_does_not_block_subsequent_heads_finality_or_queries() {
     let mut h = Harness::new(2);
-    // Chain 0's derivation AND signer queues fill. Healthy chain 1 still receives later heads.
+    // Chain 0's derivation queue fills. Healthy chain 1 still receives later heads.
     for number in 1..=5 {
         h.send_head_and_receive(head(number), 1).await;
-        assert_eq!(
-            h.chains[1].signer.recv().await.unwrap(),
-            Address::repeat_byte(number as u8 + 1)
-        );
+        assert_eq!(h.chains[1].next_signer().await, Address::repeat_byte(number as u8 + 1));
     }
     h.finalized.send(head(4)).await.unwrap();
     assert!(
@@ -201,14 +205,14 @@ async fn stalled_rpc_is_isolated_and_retried_without_a_new_head() {
     h.rpc.stall.store(true, Ordering::SeqCst);
     h.send_head_and_receive(head(7), 1).await;
     h.rpc.started.notified().await;
-    assert_eq!(h.chains[1].signer.recv().await.unwrap(), Address::repeat_byte(8));
+    assert_eq!(h.chains[1].next_signer().await, Address::repeat_byte(8));
     h.send_head_and_receive(head(8), 1).await;
-    assert_eq!(h.chains[1].signer.recv().await.unwrap(), Address::repeat_byte(9));
+    assert_eq!(h.chains[1].next_signer().await, Address::repeat_byte(9));
     assert_eq!(h.config(1).await.l2_chain_id.id(), 1);
     h.rpc.stall.store(false, Ordering::SeqCst);
     time::advance(Duration::from_secs(10)).await;
     assert_eq!(
-        time::timeout(Duration::from_secs(1), h.chains[0].signer.recv()).await.unwrap().unwrap(),
+        time::timeout(Duration::from_secs(1), h.chains[0].next_signer()).await.unwrap(),
         Address::repeat_byte(8)
     );
 }
@@ -219,14 +223,14 @@ async fn failed_snapshot_recovers_and_same_height_reorg_restores_signer() {
     h.rpc.fail.store(true, Ordering::SeqCst);
     h.send_head_and_receive(head(7), 0).await;
     h.rpc.started.notified().await;
-    assert!(h.chains[0].signer.try_recv().is_err());
+    assert!(!h.chains[0].signer.has_changed().unwrap());
     h.rpc.fail.store(false, Ordering::SeqCst);
     time::advance(Duration::from_secs(10)).await;
-    assert_eq!(h.chains[0].signer.recv().await.unwrap(), Address::repeat_byte(7));
+    assert_eq!(h.chains[0].next_signer().await, Address::repeat_byte(7));
     let mut reorg = head(7);
     reorg.hash = B256::repeat_byte(3);
     h.send_head_and_receive(reorg, 0).await;
-    assert_eq!(h.chains[0].signer.recv().await.unwrap(), Address::repeat_byte(3));
+    assert_eq!(h.chains[0].next_signer().await, Address::repeat_byte(3));
 }
 
 #[tokio::test(start_paused = true)]
@@ -236,10 +240,7 @@ async fn closed_chain_query_channel_detaches_only_that_chain() {
     assert_eq!(h.config(1).await.l2_chain_id.id(), 1);
     for number in 1..=3 {
         h.send_head_and_receive(head(number), 1).await;
-        assert_eq!(
-            h.chains[1].signer.recv().await.unwrap(),
-            Address::repeat_byte(number as u8 + 1)
-        );
+        assert_eq!(h.chains[1].next_signer().await, Address::repeat_byte(number as u8 + 1));
     }
     h.chains[1].queries.take();
     assert!(h.tasks.join_next().await.unwrap().unwrap().is_err());
@@ -266,7 +267,7 @@ async fn obsolete_in_flight_snapshot_cannot_overwrite_new_head() {
     h.send_head_and_receive(head(8), 0).await;
     h.rpc.stall.store(false, Ordering::SeqCst);
     h.rpc.release.notify_one();
-    assert_eq!(h.chains[0].signer.recv().await.unwrap(), Address::repeat_byte(8));
+    assert_eq!(h.chains[0].next_signer().await, Address::repeat_byte(8));
 }
 
 #[tokio::test(start_paused = true)]
@@ -275,27 +276,24 @@ async fn closed_derivation_receiver_detaches_only_that_chain() {
     h.chains[0].derivation.close();
     for number in 1..=3 {
         h.send_head_and_receive(head(number), 1).await;
-        assert_eq!(
-            h.chains[1].signer.recv().await.unwrap(),
-            Address::repeat_byte(number as u8 + 1)
-        );
+        assert_eq!(h.chains[1].next_signer().await, Address::repeat_byte(number as u8 + 1));
     }
     assert_eq!(h.config(1).await.l2_chain_id.id(), 1);
 }
 
 #[tokio::test(start_paused = true)]
-async fn reorg_while_signer_channel_is_full_discards_obsolete_update() {
+async fn unchanged_signer_does_not_notify_subscribers() {
     let mut h = Harness::new(1);
     h.send_head_and_receive(head(1), 0).await;
     h.rpc.started.notified().await;
-    // Keep signer 1 queued, so the send of signer 2 waits for capacity.
-    h.send_head_and_receive(head(2), 0).await;
+    assert_eq!(h.chains[0].next_signer().await, Address::repeat_byte(1));
+    // A later head whose state holds the same signer is read, but publishes nothing.
+    let mut same_signer = head(2);
+    same_signer.hash = B256::repeat_byte(1);
+    h.send_head_and_receive(same_signer, 0).await;
     h.rpc.started.notified().await;
-    let mut replacement = head(2);
-    replacement.hash = B256::repeat_byte(3);
-    h.send_head_and_receive(replacement, 0).await;
-    assert_eq!(h.chains[0].signer.recv().await.unwrap(), Address::repeat_byte(1));
-    assert_eq!(h.chains[0].signer.recv().await.unwrap(), Address::repeat_byte(3));
+    time::sleep(Duration::from_millis(10)).await;
+    assert!(!h.chains[0].signer.has_changed().unwrap());
 }
 
 #[tokio::test(start_paused = true)]

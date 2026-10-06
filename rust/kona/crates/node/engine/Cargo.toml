@@ -44,7 +44,7 @@ tracing.workspace = true
 async-trait.workspace = true
 thiserror.workspace = true
 url.workspace = true
-tower.workspace = true
+tower = { workspace = true, features = ["util"] }
 http-body-util.workspace = true
 derive_more = { workspace = true, features = ["display", "deref", "from_str", "constructor"] }
 serde_json.workspace = true
@@ -53,7 +53,7 @@ serde_json.workspace = true
 metrics = { workspace = true, optional = true }
 
 [dev-dependencies]
-tokio = { workspace = true, features = ["test-util"] }
+tokio = { workspace = true, features = ["io-util", "net", "test-util"] }
 kona-registry.workspace = true
 rand = {workspace = true, features = ["thread_rng"]}
 arbitrary.workspace = true

@@ -7678,6 +7678,7 @@ dependencies = [
  "alloy-signer-local 2.4.2",
  "alloy-transport",
  "alloy-transport-http",
+ "backon",
  "derive_more 2.1.1",
  "notify",
  "op-alloy-rpc-types-engine",

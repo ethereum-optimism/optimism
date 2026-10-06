@@ -7,7 +7,7 @@ use kona_genesis::RollupConfig;
 use kona_protocol::BlockInfo;
 use kona_rpc::L1WatcherQueries;
 use std::{future::IntoFuture, sync::Arc};
-use tokio::sync::mpsc;
+use tokio::sync::{mpsc, watch};
 
 /// A single L2 chain served by the [`L1WatcherActor`](super::L1WatcherActor).
 ///
@@ -19,8 +19,9 @@ pub struct L1WatcherChain<L1WatcherDerivationClient_> {
     pub(super) rollup_config: Arc<RollupConfig>,
     /// Client used to interact with this chain's [`crate::DerivationActor`].
     pub(super) derivation_client: L1WatcherDerivationClient_,
-    /// This chain's block signer sender.
-    pub(super) block_signer_sender: mpsc::Sender<Address>,
+    /// The source of truth for this chain's unsafe block signer, read from `SystemConfig`. Gossip
+    /// validation and block signing subscribe to it.
+    pub(super) block_signer_sender: watch::Sender<Address>,
     /// The inbound queries for this chain.
     pub(super) inbound_queries: mpsc::Receiver<L1WatcherQueries>,
 }
@@ -30,7 +31,7 @@ impl<L1WatcherDerivationClient_> L1WatcherChain<L1WatcherDerivationClient_> {
     pub const fn new(
         rollup_config: Arc<RollupConfig>,
         derivation_client: L1WatcherDerivationClient_,
-        block_signer_sender: mpsc::Sender<Address>,
+        block_signer_sender: watch::Sender<Address>,
         inbound_queries: mpsc::Receiver<L1WatcherQueries>,
     ) -> Self {
         Self { rollup_config, derivation_client, block_signer_sender, inbound_queries }
@@ -91,13 +92,12 @@ where
     async fn refresh_signer(
         provider: &impl Provider,
         config: &RollupConfig,
-        signer_tx: &mpsc::Sender<Address>,
+        signer_tx: &watch::Sender<Address>,
         mut head: tokio::sync::watch::Receiver<Option<BlockInfo>>,
     ) -> Result<(), L1WatcherActorError<BlockInfo>> {
         use tokio::time::{self, Duration};
         let mut retry = time::interval(Duration::from_secs(10));
         retry.set_missed_tick_behavior(time::MissedTickBehavior::Skip);
-        let mut last_signer = None;
         loop {
             tokio::select! {
                 result = head.changed() => result.map_err(|_| L1WatcherActorError::StreamEnded)?,
@@ -111,19 +111,14 @@ where
                 target.hash,
             );
             match time::timeout(Duration::from_secs(10), read).await {
-                Ok(Ok(signer)) => {
-                    // Head changes while a read is outstanding supersede that read, including
-                    // same-height reorgs. Never install a snapshot for an obsolete branch.
-                    if *head.borrow() != Some(target) || last_signer == Some(signer) {
-                        continue;
-                    }
-                    let permit =
-                        signer_tx.reserve().await.map_err(|_| L1WatcherActorError::StreamEnded)?;
-                    if *head.borrow() == Some(target) {
-                        permit.send(signer);
-                        last_signer = Some(signer);
-                    }
+                // Head changes while a read is outstanding supersede that read, including
+                // same-height reorgs. Never install a snapshot for an obsolete branch.
+                Ok(Ok(signer)) if *head.borrow() == Some(target) => {
+                    // Subscribers are only notified when the signer actually changes.
+                    signer_tx
+                        .send_if_modified(|current| std::mem::replace(current, signer) != signer);
                 }
+                Ok(Ok(_)) => {}
                 result => {
                     warn!(target: "l1_watcher", chain_id = config.l2_chain_id.id(), ?result, "Failed to refresh unsafe block signer; retaining previous value")
                 }
