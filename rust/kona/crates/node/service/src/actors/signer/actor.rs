@@ -2,21 +2,10 @@ use crate::NodeActor;
 use alloy_primitives::Address;
 use alloy_signer::Signature;
 use async_trait::async_trait;
-use kona_sources::{BlockSignerError, BlockSignerHandler, RemoteSignerError};
+use kona_sources::{BlockSignerError, BlockSignerHandler};
 use op_alloy_rpc_types_engine::OpExecutionPayloadEnvelope;
 use thiserror::Error;
-use tokio::{
-    sync::{mpsc, watch},
-    time::{Duration, sleep, timeout},
-};
-
-/// Deadline for one signing attempt.
-const SIGNING_TIMEOUT: Duration = Duration::from_secs(2);
-/// Delay before the first retry of a failed signing attempt. It doubles up to
-/// [`MAX_RETRY_DELAY`].
-const MIN_RETRY_DELAY: Duration = Duration::from_millis(100);
-/// Longest delay between signing attempts.
-const MAX_RETRY_DELAY: Duration = Duration::from_secs(5);
+use tokio::sync::{mpsc, watch};
 
 /// A payload and the signature to gossip it with.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -30,17 +19,17 @@ pub struct SignedPayload {
 /// Signs each payload the sequencer produces, in order, and passes it to the
 /// [`NetworkActor`](crate::NetworkActor) to gossip.
 ///
-/// A transient signer failure, such as a remote signer that is unreachable or does not answer in
-/// time, is retried until it succeeds, so no payload is skipped or reordered. While a payload
-/// waits, the sequencer's payload queue fills, and then the sequencer stops building blocks until
-/// it drains, while still answering admin queries. Any other signing error is fatal.
+/// The signer retries its own transient failures, such as a remote signer that is unreachable or
+/// does not answer in time, until it succeeds, so no payload is skipped or reordered. While a
+/// payload waits, the sequencer's payload queue fills, and then the sequencer stops building blocks
+/// until it drains, while still answering admin queries. Any error the signer returns is fatal.
 #[derive(Debug)]
 pub struct SignerActor {
     /// Signs the payloads.
     signer: BlockSignerHandler,
     /// The L2 chain ID the signatures commit to.
     chain_id: u64,
-    /// The unsafe block signer currently set in `SystemConfig`.
+    /// The unsafe block signer currently set in `SystemConfig`, read for each payload.
     unsafe_block_signer: watch::Receiver<Address>,
     /// Payloads from the sequencer, in the order they were built.
     payloads: mpsc::Receiver<OpExecutionPayloadEnvelope>,
@@ -70,35 +59,6 @@ impl SignerActor {
     ) -> Self {
         Self { signer, chain_id, unsafe_block_signer, payloads, signed }
     }
-
-    /// Signs `payload`, retrying transient failures until one attempt succeeds.
-    async fn sign(
-        &self,
-        payload: &OpExecutionPayloadEnvelope,
-    ) -> Result<Signature, BlockSignerError> {
-        let payload_hash = payload.payload_hash();
-        let mut delay = MIN_RETRY_DELAY;
-        loop {
-            // Read on each attempt: after a rotation, a remote signer then fails with
-            // `InvalidAddress` instead of signing for a retired key. A local signer ignores it.
-            let sender = *self.unsafe_block_signer.borrow();
-            match timeout(
-                SIGNING_TIMEOUT,
-                self.signer.sign_block(payload_hash, self.chain_id, sender),
-            )
-            .await
-            {
-                Ok(Ok(signature)) => return Ok(signature),
-                Ok(Err(BlockSignerError::Remote(RemoteSignerError::SigningRPCError(err)))) => {
-                    warn!(target: "signer", ?err, ?delay, "Remote signer unavailable; retrying");
-                }
-                Ok(Err(err)) => return Err(err),
-                Err(_) => warn!(target: "signer", ?delay, "Signing attempt timed out; retrying"),
-            }
-            sleep(delay).await;
-            delay = (delay * 2).min(MAX_RETRY_DELAY);
-        }
-    }
 }
 
 #[async_trait]
@@ -107,7 +67,11 @@ impl NodeActor for SignerActor {
 
     async fn step(&mut self) -> Result<(), Self::Error> {
         let payload = self.payloads.recv().await.ok_or(SignerActorError::ChannelClosed)?;
-        let signature = self.sign(&payload).await?;
+        // A remote signer rejects an address that is not its own, so a rotation seen before this
+        // call fails with `InvalidAddress`. A local signer ignores the address.
+        let sender = *self.unsafe_block_signer.borrow();
+        let signature =
+            self.signer.sign_block(payload.payload_hash(), self.chain_id, sender).await?;
         self.signed
             .send(SignedPayload { payload, signature })
             .await
@@ -126,9 +90,8 @@ mod tests {
     use jsonrpsee::{
         RpcModule,
         server::{ServerBuilder, ServerHandle},
-        types::ErrorObjectOwned,
     };
-    use kona_sources::RemoteSigner;
+    use kona_sources::{RemoteSigner, RemoteSignerError};
     use rand::Rng;
     use std::sync::{
         Arc,
@@ -149,11 +112,10 @@ mod tests {
         key.sign_hash_sync(&payload.payload_hash().signature_message(CHAIN_ID)).unwrap()
     }
 
-    /// Starts a remote signer for `key` that fails its first `failures` signing requests. It runs
+    /// Starts a remote signer for `key` that signs every request and counts them. It runs
     /// until the returned [`ServerHandle`] is dropped.
     async fn remote_signer(
         key: &PrivateKeySigner,
-        failures: usize,
     ) -> (BlockSignerHandler, Arc<AtomicUsize>, ServerHandle) {
         let calls = Arc::new(AtomicUsize::new(0));
         let server = ServerBuilder::default().build("127.0.0.1:0").await.unwrap();
@@ -163,15 +125,14 @@ mod tests {
         module
             .register_method("opsigner_signBlockPayload", move |params, ctx, _| {
                 let (calls, key) = ctx;
-                if calls.fetch_add(1, Ordering::SeqCst) < failures {
-                    return Err(ErrorObjectOwned::owned(-32000, "unavailable", None::<()>));
-                }
+                calls.fetch_add(1, Ordering::SeqCst);
                 // The client sends the arguments as a single object.
                 let args: serde_json::Value = params.parse().unwrap();
                 let hash: alloy_primitives::B256 =
                     serde_json::from_value(args["payloadHash"].clone()).unwrap();
-                let message = op_alloy_rpc_types_engine::PayloadHash(hash).signature_message(CHAIN_ID);
-                Ok(serde_json::json!({"signature": key.sign_hash_sync(&message).unwrap().to_string()}))
+                let message =
+                    op_alloy_rpc_types_engine::PayloadHash(hash).signature_message(CHAIN_ID);
+                serde_json::json!({"signature": key.sign_hash_sync(&message).unwrap().to_string()})
             })
             .unwrap();
         let server = server.start(module);
@@ -265,29 +226,9 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn transient_failures_are_retried_without_skipping_a_payload() {
+    async fn signer_error_is_fatal() {
         let key = PrivateKeySigner::random();
-        let (signer, calls, _server) = remote_signer(&key, 3).await;
-        let mut h = harness(signer, key.address());
-        h.payloads.send(payload(1)).await.unwrap();
-        h.payloads.send(payload(2)).await.unwrap();
-
-        h.actor.step().await.unwrap();
-        // Three failed attempts, then the first payload is signed rather than skipped.
-        assert_eq!(calls.load(Ordering::SeqCst), 4);
-        let first = h.signed.recv().await.unwrap();
-        assert_eq!(first.payload, payload(1));
-        assert_eq!(first.signature, signature(&key, &first.payload));
-
-        h.actor.step().await.unwrap();
-        assert_eq!(h.signed.recv().await.unwrap().payload, payload(2));
-        assert_eq!(calls.load(Ordering::SeqCst), 5);
-    }
-
-    #[tokio::test]
-    async fn non_transient_signer_error_is_fatal() {
-        let key = PrivateKeySigner::random();
-        let (signer, calls, _server) = remote_signer(&key, 0).await;
+        let (signer, calls, _server) = remote_signer(&key).await;
         // `SystemConfig` names a different signer than the remote signer holds.
         let mut h = harness(signer, Address::repeat_byte(1));
         h.payloads.send(payload(1)).await.unwrap();
