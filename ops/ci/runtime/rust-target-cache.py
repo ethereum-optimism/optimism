@@ -27,6 +27,34 @@ def sources(root):
     return entries, digest.hexdigest()
 
 
+def namespace(root):
+    """Keep source edits incremental; reset large targets when build inputs change.
+
+    RWX retains the initial tool-cache layer across incremental writes. A new
+    dependency graph can otherwise add a second full build to that old layer.
+    This identity covers manifests, compiler configuration and actual tools.
+    The caller adds the profile mode to its task-specific cache name.
+    """
+    names = subprocess.check_output(['git', 'ls-files', '-z', '--', 'rust',
+                                    'ops/ci/runtime/rust-workspace.sh',
+                                    'ops/ci/runtime/rust-target-cache.py'], cwd=root).decode().split('\0')
+    names = sorted(name for name in names if name and
+                   (name.endswith('/Cargo.toml') or name in ('rust/Cargo.lock', 'rust/.cargo/config.toml',
+                    'rust/rust-toolchain.toml', 'ops/ci/runtime/rust-workspace.sh',
+                    'ops/ci/runtime/rust-target-cache.py')))
+    if not {'rust/Cargo.lock', 'rust/Cargo.toml'} <= set(names):
+        raise ValueError('Missing tracked Rust cache configuration')
+    binding = {'input_sha256': {name: hashlib.sha256((root / name).read_bytes()).hexdigest() for name in names},
+               'tools': {name: subprocess.check_output(argv, cwd=root, text=True).strip() for name, argv in
+                         (('rustc', ['rustc', '-Vv']), ('cargo', ['cargo', '-V']), ('sccache', ['sccache', '--version']))},
+               'flags': {name: value for name, value in sorted(os.environ.items()) if name in
+                         ('RUSTFLAGS', 'CARGO_ENCODED_RUSTFLAGS', 'CARGO_BUILD_RUSTFLAGS') or
+                         name.startswith('CARGO_PROFILE_')}}
+    digest = hashlib.sha256(json.dumps(binding, sort_keys=True).encode()).hexdigest()
+    return {'namespace': digest, **binding,
+            'source_sha': subprocess.check_output(['git', 'rev-parse', 'HEAD'], cwd=root, text=True).strip()}
+
+
 def manage(phase, root, target):
     target.mkdir(parents=True, exist_ok=True)
     state = target / '.rwx-source-fingerprint.json'
@@ -70,4 +98,7 @@ def manage(phase, root, target):
 
 
 if __name__ == '__main__':
-    manage(sys.argv[1], Path.cwd(), Path(os.environ['CARGO_TARGET_DIR']))
+    if sys.argv[1] == 'namespace':
+        print(json.dumps(namespace(Path.cwd()), sort_keys=True))
+    else:
+        manage(sys.argv[1], Path.cwd(), Path(os.environ['CARGO_TARGET_DIR']))

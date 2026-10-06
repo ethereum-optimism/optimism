@@ -163,6 +163,15 @@ with an audit record. Runtime recovery is forbidden. Every runtime import belong
 in the producer's source/input seal and filtered snapshot. Test imports from the
 actual filtered files, including SP1's toolchain snapshot.
 
+Rust test target-cache names include a namespace of tracked Cargo manifests,
+`Cargo.lock`, Cargo configuration, compiler flags, build/cache helper settings,
+and actual Rust/Cargo/sccache versions. Source-only edits keep the namespace and
+use per-file timestamp restoration. Dependency/toolchain changes seed a new
+initial layer. This fixes the observed `develop` dependency update: compilation
+passed, but retaining the old 64.9 GiB layers plus 54.2 GiB of new outputs exceeded
+RWX's 100 GiB filesystem-layer cap. Runner disk size cannot raise that cap. The
+failed producer's original archive and logs remain in external evidence.
+
 Modified-contract runs capture `develop` once in `modified-baseline` and retain
 `.ci/contract-baseline.txt`. Compile/verdict packages receive that full SHA through
 `target-sha` / `CI_CONTRACT_TARGET_SHA`; originals record `target_binding:

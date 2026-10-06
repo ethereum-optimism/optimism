@@ -272,7 +272,7 @@ Changed-crate benchmark run: `294e0a96fdf44c288e2c0d2abd747b45`, source
 `3df2ffe9191e710834a567254cbb92461f51f29c`. Both cases used three samples per
 mode, alternating order, the same source edits and commands, isolated targets,
 pinned sccache, and the permanent per-file timestamp helper. Each original is
-manifest-hash verified. Seeds are compiler-cold and excluded. Archive/restore
+manifest-hash verified. Seeds start with empty Cargo targets and are excluded. Rust compiler hits were zero; the second seed can reuse shared C/C++/assembler sccache entries. Archive/restore
 measure local uncompressed tar round trips; RWX cache-network transfer and whole
 pipeline cost were not measured. The fixture method added an isolated probe
 function only in the worker and restored the source afterward; it is not in Git.
@@ -281,3 +281,10 @@ RPC denial: `30e1d38ecac44f80b08f06bd9be5a8b8`; protected cache-write probe:
 `0505b0c81496457d96bd731fd52b8d76`; cancellation:
 `9af37c3158a1494e865d12e7c7c0621d`. These CLI runs do not establish automatic
 fork/merge-queue GitHub check association.
+
+The first pilot-readiness push (`d3bfc043fb`) compiled the full Rust test workload
+successfully but exceeded the filesystem-layer cap (64.9 GiB inherited + 54.2 GiB
+added). Its failed producer, original archive and terminal engine diagnosis are
+retained as `rust-build-layer-limit-d3bfc043fb.tar` and the matching coordinator
+observation. The corrective target-cache namespace and final-head hosted result
+are separate evidence; no original failure was overwritten.

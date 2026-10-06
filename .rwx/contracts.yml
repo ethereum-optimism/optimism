@@ -133,7 +133,7 @@ tasks:
   # Freeze the moving discovery baseline once per run. Its Git object travels
   # with the source snapshot; producers and verdicts use the same explicit SHA.
   - key: modified-baseline
-    use: [source, tools]
+    use: source
     if: ${{ init.cache-warm == 'true' || tasks.route.values.run-contracts == 'true' }}
     run: |
       git fetch --no-tags origin +refs/heads/develop:refs/remotes/origin/develop

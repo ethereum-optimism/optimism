@@ -217,3 +217,7 @@ Pilot readiness additions (2026-10-06):
 
 These observations do not complete the actual fork/merge-queue event or required
 gate cutover items above.
+
+- [x] Namespace full Rust test target caches by dependency/compiler inputs after
+  the observed cross-lockfile layer-cap failure; ordinary source edits still reuse
+  targets. Keep the original failed producer and its successful compilation proof.

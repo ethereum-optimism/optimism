@@ -176,8 +176,23 @@ tasks:
         - key: report
           path: .ci/rust-workspace/feature-plan
 
+  # Dependency/toolchain changes need a new initial target-cache layer. Source
+  # edits keep the same namespace and can reuse incremental compilation.
+  - key: test-cache-identity
+    use: [code, rust-tools]
+    if: ${{ init.cache-warm == 'true' || tasks.route.values.run-rust-ci == 'true' }}
+    run: |
+      mkdir -p .ci
+      python3 ops/ci/runtime/rust-target-cache.py namespace > .ci/rust-test-cache-identity.json
+      jq -er '.namespace' .ci/rust-test-cache-identity.json > "$RWX_VALUES/namespace"
+    outputs:
+      filesystem: false
+      artifacts:
+        - key: identity
+          path: .ci/rust-test-cache-identity.json
+
   - key: tests-build
-    use: head-source
+    use: [head-source, test-cache-identity]
     if: ${{ init.cache-warm == 'true' || tasks.route.values.run-rust-ci == 'true' }}
     run: bash ops/ci/runtime/rust-workspace.sh tests-build
     env: &incremental-rust-env
@@ -185,7 +200,7 @@ tasks:
       CI_RUST_INCREMENTAL: ${{ init.cargo-incremental }}
     # Separate compiler modes: mixing legacy targets and incremental outputs
     # exceeded RWX's 100 GiB filesystem-layer limit in the hosted trial.
-    tool-cache: rust-workspace-tests-build-${{ init.cache-epoch }}-incremental-${{ init.cargo-incremental }}
+    tool-cache: rust-workspace-tests-build-${{ init.cache-epoch }}-incremental-${{ init.cargo-incremental }}-${{ tasks.test-cache-identity.values.namespace }}
     timeout: 90m
     # A compiler-cold incremental build fills the default 50 GB writable disk.
     runner: &test-runner
@@ -204,7 +219,7 @@ tasks:
   # cache:false also disables tool caches. Include run/attempt identity instead
   # so every verdict executes while compiler-only layers remain reusable.
   - key: tests
-    use: [tests-build, head-source]
+    use: [tests-build, head-source, test-cache-identity]
     if: ${{ tasks.route.values.run-rust-ci == 'true' }}
     run: bash ops/ci/runtime/rust-workspace.sh tests
     env:
@@ -216,7 +231,7 @@ tasks:
         cache-key: included
       RWX_TASK_ATTEMPT_NUMBER:
         cache-key: included
-    tool-cache: rust-workspace-tests-runtime-${{ init.cache-epoch }}-incremental-${{ init.cargo-incremental }}
+    tool-cache: rust-workspace-tests-runtime-${{ init.cache-epoch }}-incremental-${{ init.cargo-incremental }}-${{ tasks.test-cache-identity.values.namespace }}
     timeout: 90m
     runner: *test-runner
     outputs:

@@ -8,6 +8,7 @@ import shutil
 import subprocess
 import tempfile
 import unittest
+from unittest.mock import patch
 
 SPEC = importlib.util.spec_from_file_location('rust_cache', Path(__file__).resolve().parents[1] / 'runtime' / 'rust-target-cache.py')
 CACHE = importlib.util.module_from_spec(SPEC)
@@ -32,6 +33,32 @@ class RustTargetCacheTest(unittest.TestCase):
     def run_phase(self, phase):
         with contextlib.redirect_stdout(io.StringIO()):
             CACHE.manage(phase, self.root, self.target)
+
+    def test_namespace_keeps_source_edits_but_resets_dependency_and_compiler_changes(self):
+        manifest = self.root / 'rust/Cargo.toml'; manifest.write_text('[workspace]\n')
+        lock = self.root / 'rust/Cargo.lock'; lock.write_text('version = 4\n')
+        local = self.root / 'rust/local/Cargo.toml'; local.parent.mkdir(); local.write_text('[package]\nname="local"\n')
+        subprocess.run(['git', 'add', '.'], cwd=self.root, check=True)
+        subprocess.run(['git', '-c', 'user.name=Fixture', '-c', 'user.email=fixture@example.invalid',
+                        'commit', '-qm', 'fixture'], cwd=self.root, check=True)
+        original = subprocess.check_output; tool_version = ['pinned compiler']
+        def output(argv, **kwargs):
+            return original(argv, **kwargs) if argv[0] == 'git' else tool_version[0]
+        with patch.object(CACHE.subprocess, 'check_output', side_effect=output), patch.dict(os.environ, {}, clear=True):
+            before = CACHE.namespace(self.root)
+            self.source.write_text('pub fn changed() {}')
+            self.assertEqual(CACHE.namespace(self.root)['namespace'], before['namespace'])
+            for path in (manifest, lock, local):
+                content = path.read_text(); path.write_text(content + '\n# dependency/configuration edit\n')
+                self.assertNotEqual(CACHE.namespace(self.root)['namespace'], before['namespace'])
+                path.write_text(content)
+            tool_version[0] = 'new compiler'
+            self.assertNotEqual(CACHE.namespace(self.root)['namespace'], before['namespace'])
+            tool_version[0] = 'pinned compiler'
+            os.environ['RUSTFLAGS'] = '-C target-feature=+avx2'
+            self.assertNotEqual(CACHE.namespace(self.root)['namespace'], before['namespace'])
+        lock.unlink()
+        with self.assertRaises(FileNotFoundError): CACHE.namespace(self.root)
 
     def test_changed_content_refreshes_normalized_mtimes_and_keeps_targets(self):
         self.run_phase('prepare'); self.run_phase('commit')
