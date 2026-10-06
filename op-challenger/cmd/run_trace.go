@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"slices"
 	"strings"
 	"time"
 
@@ -12,12 +13,15 @@ import (
 	"github.com/ethereum-optimism/optimism/op-challenger/runner"
 	opservice "github.com/ethereum-optimism/optimism/op-service"
 	"github.com/ethereum-optimism/optimism/op-service/cliapp"
+	openum "github.com/ethereum-optimism/optimism/op-service/enum"
+	"github.com/ethereum-optimism/optimism/op-service/log"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/urfave/cli/v2"
 )
 
 var (
 	ErrInvalidPrestateHash = errors.New("invalid prestate hash")
+	ErrNotTraceGameType    = errors.New("game type not supported by run-trace")
 )
 
 func RunTrace(ctx *cli.Context, _ context.CancelCauseFunc) (cliapp.Lifecycle, error) {
@@ -39,9 +43,9 @@ func RunTrace(ctx *cli.Context, _ context.CancelCauseFunc) (cliapp.Lifecycle, er
 		return nil, err
 	}
 	if len(runConfigs) == 0 {
-		// Default to running on-chain version of each enabled game type
-		for _, gameType := range cfg.GameTypes {
-			runConfigs = append(runConfigs, runner.RunConfig{GameType: gameType})
+		runConfigs, err = defaultRunConfigs(logger, cfg.GameTypes)
+		if err != nil {
+			return nil, err
 		}
 	}
 	vmTimeout := ctx.Duration(VMTimeoutFlag.Name)
@@ -67,7 +71,7 @@ var (
 	RunTraceRunFlag = &cli.StringSliceFlag{
 		Name: "run",
 		Usage: "Specify a trace to run. Format is gameType/name/prestateHash where " +
-			"gameType is the game type to use with the prestate (e.g cannon or cannon-kona), " +
+			"gameType is the game type to use with the prestate (one of " + openum.EnumStringer(gameTypes.TraceGameTypes) + "), " +
 			"name is an arbitrary name for the prestate to use when reporting metrics and" +
 			"prestateHash is the hex encoded absolute prestate commitment to use. " +
 			"If name is omitted the game type name is used." +
@@ -86,6 +90,23 @@ var (
 		EnvVars: opservice.PrefixEnvVar(flags.EnvVarPrefix, "AGE_GAME_INPUTS"),
 	}
 )
+
+// defaultRunConfigs returns a run config with the on-chain prestate for each
+// configured game type that run-trace can execute.
+func defaultRunConfigs(logger log.Logger, configured []gameTypes.GameType) ([]runner.RunConfig, error) {
+	var runConfigs []runner.RunConfig
+	for _, gameType := range configured {
+		if !slices.Contains(gameTypes.TraceGameTypes, gameType) {
+			logger.Warn("Skipping game type not supported by run-trace", "gameType", gameType)
+			continue
+		}
+		runConfigs = append(runConfigs, runner.RunConfig{GameType: gameType})
+	}
+	if len(runConfigs) == 0 {
+		return nil, fmt.Errorf("%w: none of the configured game types %v", ErrNotTraceGameType, configured)
+	}
+	return runConfigs, nil
+}
 
 func parseRunArgs(args []string) ([]runner.RunConfig, error) {
 	cfgs := make([]runner.RunConfig, len(args))
@@ -108,6 +129,9 @@ func parseRunArg(arg string) (runner.RunConfig, error) {
 	gameType, err := gameTypes.PlayableGameTypeFromString(opts[0])
 	if err != nil {
 		return runner.RunConfig{}, fmt.Errorf("%w %q for run config %q", err, opts[0], arg)
+	}
+	if !slices.Contains(gameTypes.TraceGameTypes, gameType) {
+		return runner.RunConfig{}, fmt.Errorf("%w: %v for run config %q, must be one of %v", ErrNotTraceGameType, gameType, arg, gameTypes.TraceGameTypes)
 	}
 	cfg.GameType = gameType
 	if len(opts) > 1 {

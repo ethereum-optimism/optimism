@@ -40,6 +40,12 @@ func TestPlayableGameTypesAreLifecycleSupported(t *testing.T) {
 	}
 }
 
+func TestTraceGameTypesArePlayable(t *testing.T) {
+	for _, gameType := range TraceGameTypes {
+		require.Contains(t, PlayableGameTypes, gameType)
+	}
+}
+
 func TestSetAllPlayableGameTypes(t *testing.T) {
 	for _, gameType := range PlayableGameTypes {
 		t.Run(gameType.String(), func(t *testing.T) {
