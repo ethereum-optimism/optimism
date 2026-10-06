@@ -8,6 +8,8 @@ package:
       required: true
     cache-key:
       required: true
+    target-sha:
+      default: ""
     suite:
       required: true
     feature:
@@ -24,6 +26,7 @@ tasks:
       CI_BRANCH: ${{ params.branch }}
       CI_CONTRACT_PROVIDER: rwx
       BUILD_PROBE: ${{ params.build-probe }}
+      CI_CONTRACT_TARGET_SHA: ${{ params.target-sha }}
       CI_CONTRACT_SUITE: ${{ params.suite }}
       CI_CONTRACT_FEATURE: ${{ params.feature }}
     tool-cache: ${{ params.cache-key }}

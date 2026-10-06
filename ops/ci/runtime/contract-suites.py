@@ -117,8 +117,26 @@ def match_path(files):
     return './test/{' + ','.join(name.removeprefix('test/') for name in files) + '}'
 
 
-def selected_files(directory, suite, provider):
-    if UP.stage(directory, 'files', FILE_COMMANDS[suite]): raise ValueError('Authoritative contract file discovery failed')
+def file_command(suite, target=None):
+    if target is None: return FILE_COMMANDS[suite]
+    if suite != 'modified' or not re.fullmatch('[0-9a-f]{40}', target):
+        raise ValueError('Invalid pinned contract target SHA')
+    return [*FILE_COMMANDS[suite][:-1], FILE_COMMANDS[suite][-1].replace('origin/develop...HEAD', target + '...HEAD')]
+
+
+def pinned_target(suite):
+    target = os.environ.get('CI_CONTRACT_TARGET_SHA') or None
+    if target is not None:
+        file_command(suite, target)
+        if os.environ.get('CI_CONTRACT_PROVIDER') != 'rwx':
+            raise ValueError('Pinned contract target requires RWX provider')
+        if UP.command('git', 'rev-parse', '--verify', target + '^{commit}') != target:
+            raise ValueError('Pinned contract target is not an available commit')
+    return target
+
+
+def selected_files(directory, suite, provider, target=None):
+    if UP.stage(directory, 'files', file_command(suite, target)): raise ValueError('Authoritative contract file discovery failed')
     files = file_selection((directory / 'files.log').read_text())
     if any(not (CONTRACTS / name).is_file() for name in files): raise ValueError('Missing discovered contract test file')
     assignment = files
@@ -157,13 +175,17 @@ def begin(directory, suite, feature):
                 'input_sha256': inputs(), 'rwx_run_id': os.environ.get('RWX_RUN_ID'),
                 'rwx_task_attempt': os.environ.get('RWX_TASK_ATTEMPT_NUMBER')}
     UP.write(directory / 'settings.json', settings)
+    target = pinned_target(suite)
     if suite == 'modified':
-        if UP.stage(directory, 'fetch-develop', ['git', 'fetch', '--no-tags', 'origin', '+refs/heads/develop:refs/remotes/origin/develop']):
-            raise ValueError('Changed-file target history unavailable')
-        settings.update(target_sha=UP.command('git', 'rev-parse', 'origin/develop'),
-                        merge_base_sha=UP.command('git', 'merge-base', 'origin/develop', 'HEAD'))
+        if target is None:
+            if UP.stage(directory, 'fetch-develop', ['git', 'fetch', '--no-tags', 'origin', '+refs/heads/develop:refs/remotes/origin/develop']):
+                raise ValueError('Changed-file target history unavailable')
+            target = UP.command('git', 'rev-parse', 'origin/develop')
+        else:
+            settings['target_binding'] = 'run-pinned'
+        settings.update(target_sha=target, merge_base_sha=UP.command('git', 'merge-base', target, 'HEAD'))
         UP.write(directory / 'settings.json', settings)
-    chosen = selected_files(directory, suite, settings['provider'])
+    chosen = selected_files(directory, suite, settings['provider'], target if settings.get('target_binding') else None)
     settings['runtime_output_paths'] = runtime_outputs(chosen['files'])
     UP.write(directory / 'settings.json', settings)
     for name in settings['runtime_output_paths']:
@@ -241,11 +263,17 @@ def restore(directory, prepared, suite, feature):
         raise ValueError('Runtime Foundry configuration unavailable')
     if json.loads((directory / 'runtime-config.json').read_text()) != json.loads((directory / 'foundry-config.json').read_text()):
         raise ValueError('Runtime Foundry settings differ from compilation')
-    if suite == 'modified':
+    target = pinned_target(suite)
+    if old.get('target_binding') == 'run-pinned':
+        if target != old['target_sha'] or old['merge_base_sha'] != UP.command('git', 'merge-base', target, 'HEAD'):
+            raise ValueError('Pinned contract target differs from compilation')
+    elif target is not None:
+        raise ValueError('Contract compilation lacks pinned target binding')
+    elif suite == 'modified':
         if UP.stage(directory, 'runtime-fetch-develop', ['git', 'fetch', '--no-tags', 'origin', '+refs/heads/develop:refs/remotes/origin/develop']):
             raise ValueError('Runtime changed-file target history unavailable')
         if old['target_sha'] != UP.command('git', 'rev-parse', 'origin/develop'): raise ValueError('Changed-file target advanced after compilation')
-    if UP.stage(directory, 'runtime-files', FILE_COMMANDS[suite]): raise ValueError('Runtime contract file discovery failed')
+    if UP.stage(directory, 'runtime-files', file_command(suite, target)): raise ValueError('Runtime contract file discovery failed')
     if file_selection((directory / 'runtime-files.log').read_text()) != json.loads((directory / 'file-selection.json').read_text())['files']:
         raise ValueError('Contract file selection changed after compilation')
 

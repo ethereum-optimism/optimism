@@ -130,10 +130,27 @@ tasks:
         - key: reports
           path: .ci/pr-checks/go-modules
 
+  # Freeze the moving discovery baseline once per run. Its Git object travels
+  # with the source snapshot; producers and verdicts use the same explicit SHA.
+  - key: modified-baseline
+    use: [code, tools]
+    if: ${{ init.cache-warm == 'true' || tasks.route.values.run-contracts == 'true' }}
+    run: |
+      git fetch --no-tags origin +refs/heads/develop:refs/remotes/origin/develop
+      mkdir -p .ci
+      git rev-parse --verify 'origin/develop^{commit}' > .ci/contract-baseline.txt
+      cp .ci/contract-baseline.txt "$RWX_VALUES/target-sha"
+    cache: false
+    timeout: 10m
+    outputs:
+      artifacts:
+        - key: baseline
+          path: .ci/contract-baseline.txt
+
   # One initialized checkout supplies compiler and runtime submodule sources.
   # Consumers validate the retained revisions instead of cloning them again.
   - key: source
-    use: [code, tools]
+    use: [modified-baseline, tools]
     if: ${{ init.cache-warm == 'true' || tasks.route.values.run-contracts == 'true' }}
     run: |
       git submodule sync --recursive
@@ -260,6 +277,7 @@ tasks:
       branch: ${{ init.branch }}
       build-probe: ${{ init.build-probe }}
       cache-key: contract-suites-modified-main-${{ init.cache-epoch }}
+      target-sha: ${{ tasks.modified-baseline.values.target-sha }}
       suite: modified
       feature: main
 
@@ -272,6 +290,7 @@ tasks:
       branch: ${{ init.branch }}
       compiled: .ci/contract-suites/modified-main/prepare
       cache-key: contract-suites-runtime-modified-main-${{ init.cache-epoch }}
+      target-sha: ${{ tasks.modified-baseline.values.target-sha }}
       suite: modified
       feature: main
 
@@ -284,6 +303,7 @@ tasks:
       branch: ${{ init.branch }}
       build-probe: ${{ init.build-probe }}
       cache-key: contract-suites-modified-CUSTOM_GAS_TOKEN-${{ init.cache-epoch }}
+      target-sha: ${{ tasks.modified-baseline.values.target-sha }}
       suite: modified
       feature: CUSTOM_GAS_TOKEN
 
@@ -296,6 +316,7 @@ tasks:
       branch: ${{ init.branch }}
       compiled: .ci/contract-suites/modified-CUSTOM_GAS_TOKEN/prepare
       cache-key: contract-suites-runtime-modified-CUSTOM_GAS_TOKEN-${{ init.cache-epoch }}
+      target-sha: ${{ tasks.modified-baseline.values.target-sha }}
       suite: modified
       feature: CUSTOM_GAS_TOKEN
 
@@ -308,6 +329,7 @@ tasks:
       branch: ${{ init.branch }}
       build-probe: ${{ init.build-probe }}
       cache-key: contract-suites-modified-OPTIMISM_PORTAL_INTEROP-${{ init.cache-epoch }}
+      target-sha: ${{ tasks.modified-baseline.values.target-sha }}
       suite: modified
       feature: OPTIMISM_PORTAL_INTEROP
 
@@ -320,6 +342,7 @@ tasks:
       branch: ${{ init.branch }}
       compiled: .ci/contract-suites/modified-OPTIMISM_PORTAL_INTEROP/prepare
       cache-key: contract-suites-runtime-modified-OPTIMISM_PORTAL_INTEROP-${{ init.cache-epoch }}
+      target-sha: ${{ tasks.modified-baseline.values.target-sha }}
       suite: modified
       feature: OPTIMISM_PORTAL_INTEROP
 
@@ -332,6 +355,7 @@ tasks:
       branch: ${{ init.branch }}
       build-probe: ${{ init.build-probe }}
       cache-key: contract-suites-modified-ZK_DISPUTE_GAME-${{ init.cache-epoch }}
+      target-sha: ${{ tasks.modified-baseline.values.target-sha }}
       suite: modified
       feature: ZK_DISPUTE_GAME
 
@@ -344,6 +368,7 @@ tasks:
       branch: ${{ init.branch }}
       compiled: .ci/contract-suites/modified-ZK_DISPUTE_GAME/prepare
       cache-key: contract-suites-runtime-modified-ZK_DISPUTE_GAME-${{ init.cache-epoch }}
+      target-sha: ${{ tasks.modified-baseline.values.target-sha }}
       suite: modified
       feature: ZK_DISPUTE_GAME
 

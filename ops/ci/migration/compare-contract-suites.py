@@ -94,7 +94,11 @@ def report(directory, suite, feature, sha, provider, empty):
     if json.loads((directory / 'compile-only.json').read_text()) != {'tests': 0, 'selected_cases': len(selected), 'suite': suite, 'feature': feature}:
         raise ValueError('Contract producer did not retain a compile-only observation')
     root = settings['workspace_root']; cwd = root + '/packages/contracts-bedrock'
-    commands = {'files': CS.FILE_COMMANDS[suite], 'foundry-config': ['forge', 'config', '--json'],
+    pinned = settings.get('target_binding') == 'run-pinned'
+    if settings.get('target_binding') not in (None, 'run-pinned') or (pinned and (provider != 'rwx' or suite != 'modified')):
+        raise ValueError('Invalid contract target binding')
+    files_argv = CS.file_command(suite, settings['target_sha'] if pinned else None)
+    commands = {'files': files_argv, 'foundry-config': ['forge', 'config', '--json'],
                 'submodules-sync': ['git', '-C', root, 'submodule', 'sync', '--recursive'],
                 'submodules-init': ['git', '-C', root, '-c', 'protocol.file.allow=never', 'submodule',
                                     'update', '--init', '--recursive', '--jobs', '8'],
@@ -104,11 +108,12 @@ def report(directory, suite, feature, sha, provider, empty):
                 'junit-nonempty': ['./scripts/checks/check-junit-tests-ran.sh', str(directory / 'original.junit.xml')],
                 'lint-test-names': ['just', 'lint-forge-tests-check-no-build']}
     if provider == 'circle': commands['split'] = CS.SPLIT_COMMAND
-    else: commands.update({'runtime-files': CS.FILE_COMMANDS[suite], 'runtime-config': ['forge', 'config', '--json']})
+    else: commands.update({'runtime-files': files_argv, 'runtime-config': ['forge', 'config', '--json']})
     if suite == 'modified':
         fetch = ['git', 'fetch', '--no-tags', 'origin', '+refs/heads/develop:refs/remotes/origin/develop']
-        commands['fetch-develop'] = fetch
-        if provider == 'rwx': commands['runtime-fetch-develop'] = fetch
+        if not pinned:
+            commands['fetch-develop'] = fetch
+            if provider == 'rwx': commands['runtime-fetch-develop'] = fetch
         if any(not re.fullmatch('[0-9a-f]{40}', settings[k]) for k in ('target_sha', 'merge_base_sha')):
             raise ValueError('Missing original changed-file target revisions')
     stages = {p.name.removesuffix('.stage.json') for p in directory.glob('*.stage.json')}

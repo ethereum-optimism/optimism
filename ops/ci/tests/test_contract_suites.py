@@ -64,6 +64,18 @@ class SuiteTests(unittest.TestCase):
             os.environ['CI_BRANCH'] = 'develop'; self.assertEqual(CS.configure('standard', 'main'), ('develop', 'ci'))
             self.assertNotIn('SYS_FEATURE__CUSTOM_GAS_TOKEN', os.environ)
 
+    def test_pinned_discovery_requires_an_available_full_commit_and_rwx_provider(self):
+        sha = 'a' * 40
+        self.assertIn(sha + '...HEAD', CS.file_command('modified', sha)[-1])
+        self.assertEqual(CS.file_command('modified'), CS.FILE_COMMANDS['modified'])
+        for suite, target in [('standard', sha), ('modified', 'develop'), ('modified', 'a' * 39), ('modified', 'a;false')]:
+            with self.subTest(suite=suite, target=target), self.assertRaises(ValueError): CS.file_command(suite, target)
+        with patch.dict(os.environ, {'CI_CONTRACT_TARGET_SHA': sha, 'CI_CONTRACT_PROVIDER': 'circleci'}, clear=True):
+            with self.assertRaisesRegex(ValueError, 'requires RWX'): CS.pinned_target('modified')
+        with patch.dict(os.environ, {'CI_CONTRACT_TARGET_SHA': sha, 'CI_CONTRACT_PROVIDER': 'rwx'}, clear=True), \
+             patch.object(CS.UP, 'command', return_value='b' * 40):
+            with self.assertRaisesRegex(ValueError, 'available commit'): CS.pinned_target('modified')
+
     def test_effective_heavy_settings_reject_reduced_runs_depth_or_timeout(self):
         config = {'fuzz': {'runs': 20000, 'timeout': 300}, 'invariant': {'runs': 128, 'depth': 512, 'timeout': 300}}
         CS.validate_config(config, 'modified')
@@ -165,6 +177,8 @@ class _LiveSuiteTestsFixtures:
                 if prepared:
                     argv += ['--prepared', str(prepared)]
                 settings = dict(env, CI_CONTRACT_PROVIDER=provider, RWX_RUN_ID='f' * 32, RWX_TASK_ATTEMPT_NUMBER='1')
+                if suite == 'modified' and provider == 'rwx' and not env.get('RWX_VALUES'):
+                    settings['CI_CONTRACT_TARGET_SHA'] = env.get('CI_SUITE_FIXTURE_TARGET', base)
                 child = subprocess.Popen(argv, cwd=root, env=settings, text=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
                 try:
                     stdout, stderr = child.communicate(timeout=180)
@@ -188,6 +202,17 @@ class _LiveSuiteTestsFixtures:
                         prepared = root / '.ci/contract-suites' / (suite + '-main') / 'prepare'
                         self.assertFalse(list(prepared.glob('*.xml')))
                         self.assertEqual(json.loads((prepared / 'compile-only.json').read_text())['tests'], 0)
+                        if suite == 'modified':
+                            # The branch advances after compilation, but the run's
+                            # immutable baseline and selected test remain valid.
+                            git('push', '-q', 'origin', sha + ':refs/heads/develop')
+                            git('fetch', '-q', 'origin', '+refs/heads/develop:refs/remotes/origin/develop')
+                            env['CI_SUITE_FIXTURE_TARGET'] = sha
+                            mismatch = invoke('run', suite, provider, prepared)
+                            self.assertNotEqual(mismatch.returncode, 0)
+                            self.assertIn('Pinned contract target differs from compilation', mismatch.stderr)
+                            self.assertFalse((root / '.ci/contract-suites/modified-main/run/tests.stage.json').exists())
+                            env.pop('CI_SUITE_FIXTURE_TARGET')
                     else:
                         prepared = None
                     before = len(marker.read_text()) if marker.exists() else 0
