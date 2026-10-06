@@ -24,6 +24,11 @@ type L2CLConfig struct {
 
 	IsSequencer bool
 
+	// ConductorRPC configures this node to use the conductor at the given RPC
+	// endpoint. Empty disables conductor integration.
+	ConductorRPC        string
+	ConductorRPCTimeout time.Duration
+
 	// EnableReqRespSync enables/disables the req-resp sync server (serving payloads to peers).
 	EnableReqRespSync bool
 
