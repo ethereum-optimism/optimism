@@ -409,3 +409,39 @@ func TestP2PMocknet(t *testing.T) {
 	require.Equal(t, hostA.Network().Connectedness(hostC.ID()), network.Connected)
 	require.Equal(t, hostB.Network().Connectedness(hostC.ID()), network.Connected)
 }
+
+// TestStaticPeerDialAfterAddrExpiry checks that a static peer can still be dialed once its
+// addresses are gone from the peerstore, which happens when the TTL set at startup elapses.
+func TestStaticPeerDialAfterAddrExpiry(t *testing.T) {
+	confA := TestingConfig(t)
+	hostA, err := confA.Host(testlog.Logger(t, log.LevelError).New("host", "A"), nil, metrics.NoopMetrics)
+	require.NoError(t, err, "failed to launch host A")
+	defer hostA.Close()
+
+	confB := TestingConfig(t)
+	confB.StaticPeers, err = peer.AddrInfoToP2pAddrs(&peer.AddrInfo{ID: hostA.ID(), Addrs: hostA.Addrs()})
+	require.NoError(t, err)
+	hostB, err := confB.Host(testlog.Logger(t, log.LevelError).New("host", "B"), nil, metrics.NoopMetrics)
+	require.NoError(t, err, "failed to launch host B")
+	defer hostB.Close()
+	extraB, ok := hostB.(*extraHost)
+	require.True(t, ok, "host B must be an extraHost")
+	require.Len(t, extraB.staticPeers, 1)
+
+	require.Eventually(t, func() bool {
+		return hostB.Network().Connectedness(hostA.ID()) == network.Connected
+	}, 10*time.Second, 50*time.Millisecond, "host B must connect to its static peer A")
+
+	// Simulate the expiry of the static peer addresses, followed by a disconnect.
+	require.NoError(t, hostB.Network().ClosePeer(hostA.ID()))
+	require.Eventually(t, func() bool {
+		return hostB.Network().Connectedness(hostA.ID()) != network.Connected
+	}, 10*time.Second, 50*time.Millisecond, "host B must disconnect from host A")
+	hostB.Peerstore().ClearAddrs(hostA.ID())
+	require.Empty(t, hostB.Peerstore().Addrs(hostA.ID()))
+
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	require.NoError(t, extraB.dialStaticPeer(ctx, extraB.staticPeers[0]), "static peer must be dialable again")
+	require.Equal(t, network.Connected, hostB.Network().Connectedness(hostA.ID()))
+}
