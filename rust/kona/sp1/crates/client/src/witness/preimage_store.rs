@@ -110,8 +110,10 @@ impl FlushableCache for PreimageStore {
 pub struct WitnessOracle(PreimageStore);
 
 impl WitnessOracle {
-    /// Wraps the witness preimages for reading by the proof program.
-    pub const fn new(store: PreimageStore) -> Self {
+    /// Wraps the witness preimages for reading by the proof program. Crate-private so that only
+    /// [`WitnessData::get_oracle_and_blob_provider`](super::WitnessData::get_oracle_and_blob_provider),
+    /// which first checks the preimages, can construct one.
+    pub(crate) const fn new(store: PreimageStore) -> Self {
         Self(store)
     }
 }

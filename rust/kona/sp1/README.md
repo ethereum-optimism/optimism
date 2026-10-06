@@ -732,8 +732,9 @@ The witness has no preimage for the corrupted root, so the guest aborts when it 
 not be proven). If the guest instead runs the tampered claim to completion and agrees with the
 honest outputs, the executor exits `2` rather than reporting the claim valid. Do **not** write
 an SP1 negative test by passing a junk `WithL2Claim(...)`. Combining `--corrupt-claimed-root`
-with `--native-core` rejects the claim by panicking on the missing preimage (exit `101`), not
-with exit 1, so a native-core invalid-claim test must expect the panic.
+with `--native-core` is unsupported: the native replay panics on the missing preimage (exit
+`101`), which the Go harness reports as a test failure, so the harness rejects that combination.
+Keep invalid-claim tests on the SP1 execute path.
 ## Dependencies
 
 This integration depends on:

@@ -177,9 +177,10 @@ func WithL2RPCTracker(tracker *L2RPCTracker) FixtureInputParam {
 
 // WithCorruptClaim instructs the SP1 super-range executor to corrupt the claim the guest sees,
 // after witness collection has run on the honest one, so the guest rejects it. Used for the
-// invalid-claim (soundness) test path. Has no effect on the native fault-proof program. Combined
-// with WithSP1NativeCore, the native replay rejects the claim by panicking on the corrupted root's
-// missing preimage (exit 101) rather than exiting 1, so the test must expect the panic.
+// invalid-claim (soundness) test path. Has no effect on the native fault-proof program. Not
+// supported with WithSP1NativeCore: the native replay panics on the corrupted root's missing
+// preimage (exit 101), which the harness would report as a test failure, so runProgram rejects
+// the combination. Keep invalid-claim tests on the SP1 execute path.
 func WithCorruptClaim() FixtureInputParam {
 	return func(f *FixtureInputs) {
 		f.CorruptClaim = true

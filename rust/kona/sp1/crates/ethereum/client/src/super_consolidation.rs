@@ -651,21 +651,22 @@ mod tests {
         );
     }
 
-    /// Saves the receipts trie of `receipts` unless `withhold` is set, returning its root.
+    /// Saves the receipts trie of `receipts`, returning its root. With `withhold_root`, the root
+    /// node is the one preimage left out, so the receipts cannot be read.
     fn receipts_root<R: Encodable2718>(
         witness: &mut PreimageStore,
         receipts: &[R],
-        withhold: bool,
+        withhold_root: bool,
     ) -> B256 {
         let mut trie =
             kona_mpt::ordered_trie_with_encoder(receipts, |receipt, out| receipt.encode_2718(out));
         let root = trie.root();
-        if !withhold {
-            for node in trie.take_proof_nodes().into_inner().into_values() {
-                witness
-                    .save_preimage(PreimageKey::new_keccak256(*keccak256(&node)), node.to_vec())
-                    .unwrap();
+        for node in trie.take_proof_nodes().into_inner().into_values() {
+            let hash = keccak256(&node);
+            if withhold_root && hash == root {
+                continue;
             }
+            witness.save_preimage(PreimageKey::new_keccak256(*hash), node.to_vec()).unwrap();
         }
         root
     }
@@ -680,7 +681,7 @@ mod tests {
     /// Chain `EXECUTING_CHAIN`'s optimistic block #4 (ts 101) executes a message initiated in
     /// chain `INITIATING_CHAIN`'s previous cross-safe block #3 (ts 100).
     fn cross_chain_message_transition(
-        withhold_initiating_receipts: bool,
+        withhold_initiating_receipts_root: bool,
     ) -> CrossChainMessageTransition {
         let payload = Bytes::from_static(b"initiating message");
         let mut initiating = ChainBuilder::default();
@@ -706,7 +707,7 @@ mod tests {
         };
 
         let initiating_receipts =
-            receipts_root(&mut witness, &initiating.receipts, withhold_initiating_receipts);
+            receipts_root(&mut witness, &initiating.receipts, withhold_initiating_receipts_root);
         let a3_hash = save_header(&mut witness, &header(3, 100, B256::ZERO, initiating_receipts));
         let a4_hash = save_header(&mut witness, &header(4, 101, a3_hash, EMPTY_ROOT_HASH));
         let b3_hash = save_header(&mut witness, &header(3, 100, B256::ZERO, EMPTY_ROOT_HASH));
@@ -785,9 +786,9 @@ mod tests {
         assert_eq!(transition.optimistic_blocks, optimistic_blocks);
     }
 
-    /// Regression test for #23204: a prover that withholds the initiating block's receipts must
-    /// abort the guest. Otherwise `MessageGraph::resolve` marks the valid message invalid and the
-    /// executing block gets replaced with a deposit-only block.
+    /// Regression test for #23204: a prover that withholds the root node of the initiating block's
+    /// receipts trie must abort the guest. Otherwise `MessageGraph::resolve` marks the valid
+    /// message invalid and the executing block gets replaced with a deposit-only block.
     #[test]
     #[should_panic(expected = "requested preimage key not present in witness")]
     fn consolidation_aborts_when_initiating_receipts_missing_from_witness() {

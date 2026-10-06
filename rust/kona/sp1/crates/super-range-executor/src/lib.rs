@@ -175,9 +175,7 @@ pub async fn run(config: RunConfig) -> Result<Verdict> {
     )
     .await?;
 
-    // Witness collection above ran on the honest claim, so the witness stays valid; tampering only
-    // the replayed inputs leaves the guest re-deriving the real root and disagreeing with the
-    // claim.
+    // Witnesses were collected on the honest claim; see [`corrupt_range_claim`].
     let replay_range_inputs = if config.corrupt_claimed_root {
         corrupt_range_claim(&synthesized.range_inputs)?
     } else {
@@ -537,8 +535,9 @@ async fn replay_consolidation(
 ///
 /// Only the replayed inputs are corrupted, so the collected witness has no preimage for the
 /// tampered root. The SP1 guest aborts when it reads that preimage and the executor reports the
-/// claim invalid. Native-core replay panics on the same read instead of returning an error, so a
-/// native-core caller must expect the panic and catch it as the rejection.
+/// claim invalid. Native-core replay panics on the same read instead of returning an error, so
+/// combining the corruption with native-core replay is unsupported: keep invalid-claim tests on the
+/// SP1 execute path.
 fn corrupt_range_claim(inputs: &SuperRangeInputs) -> Result<SuperRangeInputs> {
     let mut corrupted = inputs.clone();
     let transition = corrupted

@@ -695,7 +695,6 @@ mod tests {
         use alloy_eips::Encodable2718;
         use alloy_op_evm::{OpEvmFactory, block::OpAlloyReceiptBuilder};
         use alloy_primitives::keccak256;
-        use alloy_trie::EMPTY_ROOT_HASH;
         use kona_executor::StatelessL2Builder;
         use kona_genesis::SystemConfig;
         use kona_protocol::{L1BlockInfoTx, Predeploys};
@@ -1301,6 +1300,7 @@ mod tests {
 
         let mut config = rollup_config(u64::MAX, 1);
         config.hardforks.delta_time = Some(0);
+        config.hardforks.holocene_time = Some(0);
         config.genesis.l1 = BlockNumHash { number: 1, hash: l1_origin.hash };
         config.genesis.l2 = BlockNumHash { number: 0, hash: parent_hash };
         config.genesis.l2_time = 100;
