@@ -113,6 +113,10 @@ func runProgram(t helpers.Testing, logger log.Logger, l1 *helpers.L1Miner, run P
 	// RunFaultProofProgram is a mistake that would silently pass. Fail loudly.
 	require.False(t, (fixtureInputs.CorruptClaim || fixtureInputs.SP1NativeCore) && !allowSP1Options,
 		"SP1-only fixture options are only honored by RunSP1SuperRangeProgram; the native fault-proof program ignores them")
+	// Native-core replay panics on the corrupted claim's missing preimage (exit 101) instead of
+	// exiting 1, which the oracle server reports as a failure rather than ErrClaimNotValid.
+	require.False(t, fixtureInputs.CorruptClaim && fixtureInputs.SP1NativeCore,
+		"WithCorruptClaim is not supported with WithSP1NativeCore; keep invalid-claim tests on the SP1 execute path")
 
 	// Run the program from the state transition from L2 block l2ClaimBlockNum - 1 -> l2ClaimBlockNum.
 	workDir := t.TempDir()

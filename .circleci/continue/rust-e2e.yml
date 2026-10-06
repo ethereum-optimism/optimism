@@ -428,6 +428,59 @@ jobs:
       - notify-failures-on-develop:
           mentions: "@proofs-team"
 
+  # SP1 execute action tests (rust/kona/tests/proofs, TestSP1*). They skip without
+  # KONA_SP1_SUPER_RANGE_ELF_EXECUTOR_PATH, which kona-proof-action-tests does not set, so this
+  # is their only CI coverage, including the invalid-claim (soundness) path.
+  kona-sp1-action-tests:
+    docker:
+      - image: <<pipeline.parameters.c-rust_base_image>>
+    # Runs the SP1 ELF in the emulator like sp1-super-range-elf-smoke, so it gets the same
+    # 32 GB runner.
+    resource_class: 2xlarge.gen2
+    steps:
+      - utils/checkout-with-mise:
+          checkout-method: blobless
+          enable-mise-cache: true
+      - attach_workspace:
+          at: .
+      - go-restore-cache:
+          namespace: kona-sp1-action-tests
+      - run:
+          name: Run SP1 execute action tests
+          no_output_timeout: 30m
+          command: |
+            ROOT_DIR="$(pwd)"
+            export KONA_SP1_SUPER_RANGE_ELF_EXECUTOR_PATH="$ROOT_DIR/rust/target/release/kona-sp1-super-range-executor"
+            export KONA_SP1_ELF_DIR="$ROOT_DIR/rust/kona/sp1/elf"
+            test -x "$KONA_SP1_SUPER_RANGE_ELF_EXECUTOR_PATH"
+            test -s "$KONA_SP1_ELF_DIR/super-range-elf"
+
+            cd rust/kona/tests/proofs
+            mkdir -p tmp/test-results tmp/testlogs
+            # Fail rather than pass vacuously if a rename leaves nothing matching the pattern.
+            # List to a file first: grep -q closing the pipe early would SIGPIPE go test under pipefail.
+            go test -list '^TestSP1' . > tmp/testlogs/test-list.txt
+            grep -q '^TestSP1' tmp/testlogs/test-list.txt
+            gotestsum \
+              --format=testname \
+              --junitfile=tmp/test-results/results.xml \
+              --jsonfile=tmp/testlogs/log.json \
+              -- \
+              -count=1 \
+              -parallel=1 \
+              -timeout=60m \
+              -run '^TestSP1' \
+              .
+      - go-save-cache:
+          namespace: kona-sp1-action-tests
+      - store_test_results:
+          path: rust/kona/tests/proofs/tmp/test-results
+      - store_artifacts:
+          path: rust/kona/tests/proofs/tmp/testlogs
+          when: always
+      - notify-failures-on-develop:
+          mentions: "@proofs-team"
+
   required-rust-e2e:
     docker:
       - image: <<pipeline.parameters.c-default_docker_image>>
@@ -582,3 +635,13 @@ workflows:
             - kona-build-sp1-elfs
             - cannon-prestate
             - go-binaries-for-sysgo
+      - kona-sp1-action-tests:
+          context:
+            - circleci-repo-readonly-authenticated-github-token
+            - slack
+          requires:
+            - prep-go-modules
+            - prep-superchain
+            - contracts-bedrock-build
+            - sp1-elf-smoke-rust-binaries
+            - kona-build-sp1-elfs

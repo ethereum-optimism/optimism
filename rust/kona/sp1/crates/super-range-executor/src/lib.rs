@@ -51,6 +51,7 @@ pub const EXIT_INFRA: u8 = 2;
 #[derive(Clone, Debug)]
 pub struct RunConfig {
     /// Replay collected witnesses through the shared native cores instead of executing the guest.
+    /// Like the guest, the replay panics on a preimage missing from the witness.
     pub native_core: bool,
     /// Corrupt the claimed optimistic output root the guest sees, after collecting witnesses on
     /// the honest one, so the guest rejects the claim.
@@ -174,9 +175,7 @@ pub async fn run(config: RunConfig) -> Result<Verdict> {
     )
     .await?;
 
-    // Witness collection above ran on the honest claim, so the witness stays valid; tampering only
-    // the replayed inputs leaves the guest re-deriving the real root and disagreeing with the
-    // claim.
+    // Witnesses were collected on the honest claim; see [`corrupt_range_claim`].
     let replay_range_inputs = if config.corrupt_claimed_root {
         corrupt_range_claim(&synthesized.range_inputs)?
     } else {
@@ -534,10 +533,11 @@ async fn replay_consolidation(
 
 /// Flips a bit in the first claimed transition's optimistic output root.
 ///
-/// The guest's `validate_range_transition_output` compares the root it re-derives against the
-/// claimed one, so a tampered claim aborts the guest and the executor reports the claim invalid.
-/// Only the replayed inputs are corrupted — the collected witness still describes the honest
-/// transition — so this exercises the guest's claim check rather than a broken witness.
+/// Only the replayed inputs are corrupted, so the collected witness has no preimage for the
+/// tampered root. The SP1 guest aborts when it reads that preimage and the executor reports the
+/// claim invalid. Native-core replay panics on the same read instead of returning an error, so
+/// combining the corruption with native-core replay is unsupported: keep invalid-claim tests on the
+/// SP1 execute path.
 fn corrupt_range_claim(inputs: &SuperRangeInputs) -> Result<SuperRangeInputs> {
     let mut corrupted = inputs.clone();
     let transition = corrupted
