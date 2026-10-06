@@ -1,3 +1,4 @@
+use super::conductor::ConductorError;
 use crate::{
     L1OriginSelectorError, UnsafePayloadGossipClientError, actors::engine::EngineClientError,
 };
@@ -25,4 +26,7 @@ pub enum SequencerActorError {
     /// An error occurred while attempting to schedule unsafe payload gossip.
     #[error("An error occurred while attempting to schedule unsafe payload gossip: {0}")]
     PayloadGossip(#[from] UnsafePayloadGossipClientError),
+    /// A sealed payload could not be committed to the conductor.
+    #[error("Failed to commit unsafe payload to conductor: {0}")]
+    ConductorCommit(#[from] ConductorError),
 }
