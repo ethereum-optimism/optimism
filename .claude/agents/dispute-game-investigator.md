@@ -21,8 +21,9 @@ The full methodology lives in **[docs/ai/dispute-game-investigation.md](../../do
    `check-super-root` (EL-only, work against public nodes).
 4. Classify every claim correct-vs-invalid via the trace-index/clamping math.
 5. Diagnose the responsible op-node with `op-challenger game-proposal-outputs`
-   (output root + safe head at each game's `l1Head`) and `check-game-block-hashes.sh`;
-   check each load-balancer backend individually.
+   (output-root games: output root + safe head at each game's `l1Head`; super-root and
+   zk games: super root at the proposed timestamp + whether the node is past `l1Head`)
+   and `check-game-block-hashes.sh`; check each load-balancer backend individually.
 6. Explain uncountered invalid claims via the honest-actor algorithm
    (`op-challenger/game/fault/solver/solver.go` `shouldCounter`) — usually correct
    behavior, not a bug.
