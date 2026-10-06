@@ -1,5 +1,6 @@
 """Check the chosen DAG and the native package input boundary caught by the probe."""
 import json
+import importlib.util
 import re
 from pathlib import Path
 import subprocess
@@ -20,6 +21,21 @@ def tasks(name):
 
 
 class LocalPackageTests(unittest.TestCase):
+    def test_sp1_filtered_toolchain_imports_and_binds_every_helper(self):
+        selected = tasks('sp1-guest.yml')['toolchain']['filter']
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            for name in selected:
+                target = root / name
+                target.parent.mkdir(parents=True, exist_ok=True)
+                shutil.copy2(ROOT / name, target)
+            # Load only the bytes that native RWX transfers, without installing
+            # tools or invoking the workload. A missing import fails here.
+            spec = importlib.util.spec_from_file_location('sp1_filtered', root / 'ops/ci/sp1-guest.py')
+            module = importlib.util.module_from_spec(spec)
+            spec.loader.exec_module(module)
+            self.assertEqual(set(selected), set(module.TOOL_INPUTS))
+
     def test_each_of_twelve_go_verdicts_waits_for_only_its_own_compilation(self):
         graph = tasks('go-tests.yml')
         for phase in ('compile', 'verdict'):

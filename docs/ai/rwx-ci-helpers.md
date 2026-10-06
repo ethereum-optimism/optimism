@@ -37,6 +37,9 @@ retry or turn diagnostic output into a passing verdict.
 Input seals and isolated runtime fixtures include the shared modules wherever
 they supply execution behavior. Bootstrap tool inputs remain unchanged because
 these modules are consumed from the source checkout, not tool installation.
+SP1's filtered toolchain snapshot includes `ci-report.py`. Its regression loads
+the runner from exactly the declared filter files and checks agreement with
+the producer's sealed toolchain inputs.
 
 ## Regression coverage
 

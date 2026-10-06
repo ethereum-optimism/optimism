@@ -110,6 +110,7 @@ tasks:
       - ops/ci/sp1-guest-native-build.py
       - ops/ci/sp1-guest-toolchain.sh
       - ops/ci/rust-workspace-report.py
+      - ops/ci/ci-report.py
       - ops/ci/rust-target-cache.py
     timeout: 40m
     outputs:
