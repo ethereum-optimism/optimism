@@ -20,6 +20,7 @@ use tokio::{sync::mpsc, time::Instant};
 
 mod admin;
 mod building;
+mod conductor_commit_test;
 
 const TEST_START: u64 = 946_684_800;
 
@@ -118,13 +119,17 @@ impl SequencerEngineClient for SlowSealEngine {
         self.inner.start_build_block(attributes).await
     }
 
-    async fn seal_and_canonicalize_block(
+    async fn seal_block(
         &self,
         payload_id: PayloadId,
         attributes: OpAttributesWithParent,
     ) -> EngineClientResult<OpExecutionPayloadEnvelope> {
         tokio::time::sleep(self.seal_time).await;
-        self.inner.seal_and_canonicalize_block(payload_id, attributes).await
+        self.inner.seal_block(payload_id, attributes).await
+    }
+
+    async fn canonicalize_block(&self, payload: OpExecutionPayloadEnvelope, parent: L2BlockInfo) -> EngineClientResult<()> {
+        self.inner.canonicalize_block(payload, parent).await
     }
 
     async fn get_unsafe_head(&self) -> EngineClientResult<L2BlockInfo> {

@@ -22,6 +22,8 @@ pub enum EngineActorRequest {
     Reset(Box<ResetRequest>),
     /// Request to seal a block.
     Seal(Box<SealRequest>),
+    /// Request to canonicalize a committed sequenced block.
+    Canonicalize(Box<CanonicalizeRequest>),
 }
 
 /// The result of a request to the node engine actor.
@@ -70,14 +72,25 @@ pub struct ResetRequest {
     pub result_tx: mpsc::Sender<EngineRequestResult<()>>,
 }
 
-/// A request to seal and canonicalize a payload.
+/// A request to fetch a sealed payload without changing forkchoice.
 /// Contains the `PayloadId`, attributes, and a channel to send back the result.
 #[derive(Debug)]
 pub struct SealRequest {
-    /// The `PayloadId` to seal and canonicalize.
+    /// The `PayloadId` to seal.
     pub payload_id: PayloadId,
     /// The attributes necessary for the seal operation.
     pub attributes: OpAttributesWithParent,
     /// The channel on which the result, successful or not, will be sent.
+    pub result_tx: mpsc::Sender<Result<OpExecutionPayloadEnvelope, SealTaskError>>,
+}
+
+/// A request to canonicalize a sequenced payload after its conductor commit succeeds.
+#[derive(Debug)]
+pub struct CanonicalizeRequest {
+    /// The committed payload to import.
+    pub payload: OpExecutionPayloadEnvelope,
+    /// The unsafe head on which the build started.
+    pub parent: kona_protocol::L2BlockInfo,
+    /// The response, including any import error, is relayed to the sequencer.
     pub result_tx: mpsc::Sender<Result<OpExecutionPayloadEnvelope, SealTaskError>>,
 }
