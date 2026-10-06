@@ -10,6 +10,7 @@ use kona_sp1_client_utils::{
 use kona_sp1_ethereum_client_utils::chain_config::ChainConfigs;
 
 /// Present only in test-config-fallback ELFs; prestate builds reject any ELF that contains it.
+/// Scanned by build-prestates.sh, rust-ci.yml, and rust-e2e.yml; change all together.
 pub(super) const MARKER: &str =
     "KONA_SP1_UNSAFE_TEST_CONFIG_FALLBACK{fd6d88e711058eef5eff1512237c8ad3}";
 
