@@ -15,8 +15,6 @@ import (
 // leader's sequencer stops sequencing and the transfer target's starts.
 func TestLeadershipTransferMovesActiveSequencer(gt *testing.T) {
 	t := devtest.ParallelT(gt)
-	sysgo.SkipOnKonaNode(t, "kona-node conductor support is tracked by #21906")
-
 	sys := presets.NewMinimalWithConductors(t)
 
 	initialLeader := sys.Conductors.AwaitOneActiveSequencer()
