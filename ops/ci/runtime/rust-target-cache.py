@@ -16,33 +16,50 @@ def sources(root):
     paths = sorted(set(name.decode() for name in listing.split(b'\0') if name))
     files = [root / name for name in paths if (root / name).is_file()
              and not name.startswith('rust/target/')]
-    digest = hashlib.sha256(b'rwx-cargo-source-v2\0')
+    entries = {}
+    digest = hashlib.sha256(b'rwx-cargo-source-v3\0')
     for path in files:
-        digest.update(str(path.relative_to(root)).encode() + b'\0')
-        digest.update(hashlib.sha256(path.read_bytes()).digest())
-    return files, digest.hexdigest()
+        name = str(path.relative_to(root))
+        content = hashlib.sha256(path.read_bytes()).hexdigest()
+        entries[name] = {'sha256': content}
+        digest.update(name.encode() + b'\0')
+        digest.update(bytes.fromhex(content))
+    return entries, digest.hexdigest()
 
 
 def manage(phase, root, target):
     target.mkdir(parents=True, exist_ok=True)
     state = target / '.rwx-source-fingerprint.json'
     pending = target / '.rwx-source-pending.json'
-    files, digest = sources(root)
-    if not files:
+    entries, digest = sources(root)
+    if not entries:
         raise ValueError('No Rust build source inputs')
     if phase == 'prepare':
         previous = json.loads(state.read_text()) if state.exists() else {}
-        changed = previous.get('source_sha256') != digest or type(previous.get('source_mtime_ns')) is not int
-        stamp = time.time_ns() if changed else previous['source_mtime_ns']
+        # A pending manifest means a prior build did not commit. Its partial
+        # targets may be newer than the last successful source, even after a
+        # source rollback. Refresh all inputs before reusing those targets.
+        reusable = previous.get('version') == 3 and not pending.exists()
+        old_entries = previous.get('files', {}) if reusable else {}
+        changed = previous.get('source_sha256') != digest or not reusable
+        stamp = time.time_ns()
+        restored = 0
+        for name, entry in entries.items():
+            old = old_entries.get(name, {})
+            if old.get('sha256') == entry['sha256'] and type(old.get('mtime_ns')) is int:
+                entry['mtime_ns'] = old['mtime_ns']
+                restored += 1
+            else:
+                entry['mtime_ns'] = stamp
+            os.utime(root / name, ns=(entry['mtime_ns'], entry['mtime_ns']))
         if changed:
             state.unlink(missing_ok=True)
-        # Restore a stable content-version timestamp across normalized checkouts.
-        # Older workspace outputs become dirty; unchanged compiled targets stay fresh.
-        for path in files:
-            os.utime(path, ns=(stamp, stamp))
-        pending.write_text(json.dumps({'source_sha256': digest, 'source_mtime_ns': stamp}) + '\n')
+        # Commit this per-file map only after the caller completes its build.
+        pending.write_text(json.dumps({'version': 3, 'source_sha256': digest,
+                                       'files': entries}) + '\n')
         print(json.dumps({'source_sha256': digest, 'source_changed': changed,
-                          'restored_source_files': len(files)}))
+                          'restored_source_files': restored,
+                          'refreshed_source_files': len(entries) - restored}))
     elif phase == 'commit':
         if not pending.exists() or json.loads(pending.read_text()).get('source_sha256') != digest:
             raise ValueError('Rust source changed during build or preparation is missing')

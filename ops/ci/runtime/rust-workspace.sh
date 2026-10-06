@@ -24,6 +24,24 @@ mkdir -p "$report"
 export CARGO_INCREMENTAL=0
 if [[ "$job" == clippy ]]; then export RUSTFLAGS=-Dwarnings; fi
 if [[ "${CI_RUST_PROVIDER:-circleci}" == rwx ]]; then
+  # Trial incremental host checks/test compilation; release and prestate
+  # producers keep their existing policy. Registry dependencies still use sccache.
+  case "$job" in
+    features|tests-build|tests)
+      case "${CI_RUST_INCREMENTAL:-0}" in
+        0) ;;
+        1)
+          # sccache rejects the global CARGO_INCREMENTAL=1 switch. Cargo's
+          # profile settings enable local incremental invocations instead;
+          # sccache passes those through and caches nonincremental dependencies.
+          unset CARGO_INCREMENTAL CARGO_BUILD_INCREMENTAL
+          export CARGO_PROFILE_DEV_INCREMENTAL=true CARGO_PROFILE_TEST_INCREMENTAL=true
+          export CARGO_PROFILE_FAST_BUILD_INCREMENTAL=true
+          ;;
+        *) echo 'CI_RUST_INCREMENTAL must be 0 or 1.' >&2; exit 1 ;;
+      esac
+      ;;
+  esac
   export CARGO_HOME="$ROOT/.ci/rust-cache/cargo" CARGO_TARGET_DIR="$ROOT/rust/target"
   export RUSTC_WRAPPER=sccache SCCACHE_DIR="$ROOT/.ci/rust-cache/sccache"
   export SCCACHE_CACHE_SIZE=10G SCCACHE_IDLE_TIMEOUT=0 SCCACHE_BASEDIRS="$ROOT" SCCACHE_LOG=warn

@@ -38,10 +38,13 @@ class RustTargetCacheTest(unittest.TestCase):
         binary = self.target / 'compiled-dependency'
         binary.write_text('retained object')
         old = self.source.stat().st_mtime_ns
+        toolchain = self.root / 'mise.toml'
+        toolchain_stamp = toolchain.stat().st_mtime_ns
         self.source.write_text('pub trait Factory {}')
         os.utime(self.source, ns=(old, old))
         self.run_phase('prepare')
         self.assertGreater(self.source.stat().st_mtime_ns, old)
+        self.assertEqual(toolchain.stat().st_mtime_ns, toolchain_stamp)
         self.assertTrue(binary.exists())
         self.assertFalse((self.target / '.rwx-source-fingerprint.json').exists())
 
@@ -57,6 +60,42 @@ class RustTargetCacheTest(unittest.TestCase):
         os.utime(self.source, ns=(1000000000, 1000000000))
         self.run_phase('prepare')
         self.assertGreater(self.source.stat().st_mtime_ns, 1000000000)
+
+    def test_failed_build_then_rollback_does_not_restore_successful_timestamp(self):
+        self.run_phase('prepare'); self.run_phase('commit')
+        old = self.source.stat().st_mtime_ns
+        self.source.write_text('pub fn changed() {}')
+        self.run_phase('prepare')
+        self.source.write_text('pub fn old() {}')
+        self.run_phase('prepare')
+        self.assertGreater(self.source.stat().st_mtime_ns, old)
+
+    def test_legacy_cache_refreshes_once_then_preserves_per_file_timestamps(self):
+        (self.target / '.rwx-source-fingerprint.json').write_text(json.dumps({
+            'source_sha256': 'legacy', 'source_mtime_ns': 1000000000}))
+        self.run_phase('prepare'); self.run_phase('commit')
+        stamp = self.source.stat().st_mtime_ns
+        state = json.loads((self.target / '.rwx-source-fingerprint.json').read_text())
+        self.assertEqual(state['version'], 3)
+        self.run_phase('prepare')
+        self.assertEqual(self.source.stat().st_mtime_ns, stamp)
+
+    def test_added_deleted_and_reintroduced_files_preserve_other_timestamps(self):
+        self.run_phase('prepare'); self.run_phase('commit')
+        original = self.source.stat().st_mtime_ns
+        new = self.source.with_name('new.rs')
+        new.write_text('pub struct New;')
+        self.run_phase('prepare'); self.run_phase('commit')
+        added = new.stat().st_mtime_ns
+        new.unlink()
+        self.run_phase('prepare'); self.run_phase('commit')
+        state = json.loads((self.target / '.rwx-source-fingerprint.json').read_text())
+        self.assertNotIn('rust/src/new.rs', state['files'])
+        new.write_text('pub struct New;')
+        os.utime(new, ns=(added, added))
+        self.run_phase('prepare')
+        self.assertGreater(new.stat().st_mtime_ns, added)
+        self.assertEqual(self.source.stat().st_mtime_ns, original)
 
     def test_commit_rejects_source_changed_during_build(self):
         self.run_phase('prepare')
@@ -76,11 +115,12 @@ class RustTargetCacheTest(unittest.TestCase):
         bundle.parent.mkdir(parents=True); bundle.write_text('old embedded payload')
         self.run_phase('prepare'); self.run_phase('commit')
         old = bundle.stat().st_mtime_ns
+        source_stamp = self.source.stat().st_mtime_ns
         before = json.loads((self.target / '.rwx-source-fingerprint.json').read_text())['source_sha256']
         bundle.write_text('new embedded payload'); os.utime(bundle, ns=(old, old))
         self.run_phase('prepare')
         self.assertGreater(bundle.stat().st_mtime_ns, old)
-        self.assertGreater(self.source.stat().st_mtime_ns, old)
+        self.assertEqual(self.source.stat().st_mtime_ns, source_stamp)
         self.assertNotEqual(before, json.loads((self.target / '.rwx-source-pending.json').read_text())['source_sha256'])
         bundle.write_text('changed while building')
         with self.assertRaises(ValueError): self.run_phase('commit')
@@ -109,6 +149,59 @@ class RustTargetCacheTest(unittest.TestCase):
         self.run_phase('prepare')
         reused = build(); self.assertEqual(reused.returncode, 0, reused.stderr)
         self.assertNotIn('Compiling external-bundle', reused.stderr)
+
+    @unittest.skipUnless(shutil.which('cargo'), 'Cargo required for cache freshness reproduction')
+    def test_cargo_rebuilds_changed_crate_and_keeps_unrelated_crate_fresh(self):
+        for incremental in ('0', '1'):
+            with self.subTest(incremental=incremental):
+                target = self.target / incremental
+                for name in ('provider', 'unrelated', 'consumer'):
+                    folder = self.root / 'rust' / name
+                    (folder / 'src').mkdir(parents=True, exist_ok=True)
+                    dependencies = '[dependencies]\nprovider={path="../provider"}\nunrelated={path="../unrelated"}\n' if name == 'consumer' else ''
+                    (folder / 'Cargo.toml').write_text(f'[package]\nname="{name}"\nversion="0.1.0"\nedition="2021"\n{dependencies}')
+                (self.root / 'rust/Cargo.toml').write_text('[workspace]\nmembers=["provider","unrelated","consumer"]\nresolver="2"\n')
+                provider = self.root / 'rust/provider/src/lib.rs'
+                unrelated = self.root / 'rust/unrelated/src/lib.rs'
+                provider.write_text('pub fn value() -> u8 { 1 }')
+                unrelated.write_text('pub fn value() -> u8 { 10 }')
+                (self.root / 'rust/consumer/src/main.rs').write_text('fn main() { print!("{}", provider::value() + unrelated::value()); }')
+                env = {**os.environ, 'CARGO_TARGET_DIR': str(target)}
+                if incremental == '1':
+                    env.pop('CARGO_INCREMENTAL', None)
+                    env.pop('CARGO_BUILD_INCREMENTAL', None)
+                    env['CARGO_PROFILE_DEV_INCREMENTAL'] = 'true'
+                else:
+                    env['CARGO_INCREMENTAL'] = '0'
+                def build():
+                    result = subprocess.run(['cargo', 'build', '--offline', '--message-format=json'],
+                        cwd=self.root / 'rust', env=env, text=True, capture_output=True)
+                    self.assertEqual(result.returncode, 0, result.stderr)
+                    return {row['target']['name']: row['fresh'] for row in
+                            (json.loads(line) for line in result.stdout.splitlines())
+                            if row['reason'] == 'compiler-artifact'}
+                subprocess.run(['cargo', 'generate-lockfile', '--offline'], cwd=self.root / 'rust',
+                               env=env, check=True, capture_output=True)
+                with contextlib.redirect_stdout(io.StringIO()):
+                    CACHE.manage('prepare', self.root, target)
+                    build()
+                    CACHE.manage('commit', self.root, target)
+                stamp = unrelated.stat().st_mtime_ns
+                old = provider.stat().st_mtime_ns
+                # Reproduce normalized checkout mtimes, including a changed file
+                # whose timestamp would otherwise falsely match the cached source.
+                provider.write_text('pub fn value() -> u8 { 2 }')
+                for path in (provider, unrelated):
+                    os.utime(path, ns=(old, old))
+                with contextlib.redirect_stdout(io.StringIO()):
+                    CACHE.manage('prepare', self.root, target)
+                    artifacts = build()
+                    CACHE.manage('commit', self.root, target)
+                self.assertFalse(artifacts['provider'])
+                self.assertFalse(artifacts['consumer'])
+                self.assertTrue(artifacts['unrelated'])
+                self.assertEqual(unrelated.stat().st_mtime_ns, stamp)
+                self.assertEqual(subprocess.check_output([str(target / 'debug/consumer')], text=True), '12')
 
     @unittest.skipUnless(shutil.which('cargo'), 'Cargo required for cache freshness reproduction')
     def test_cargo_rebuilds_changed_dependency_with_older_checkout_mtime(self):

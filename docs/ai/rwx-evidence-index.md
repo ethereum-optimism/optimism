@@ -229,6 +229,15 @@ benchmark experiments establish observations, not an RWX speed claim. Preserve
 all samples outside Git; the chosen 12-shard configuration stays in the operator
 guide until a separately justified change.
 
+For the Rust incremental trial, retain both `settings.json` profile overrides and
+`cache-source.json` restored/refreshed file counts, sccache statistics and original
+feature/test reports. Use the same SHA, partition and runner resources for the
+`cargo-incremental=0` baseline and `cargo-incremental=1` candidate. Distinguish
+the first incremental-state population from subsequent warm reuse. Measure cache
+restoration/output time as well as the command stages; the source timestamp map's
+version upgrade requires one conservative refresh. Do not interpret local crate
+sccache bypasses as lost registry cache coverage.
+
 ## Runtime separation evidence
 
 New native receipts bind `native_policy_sha256` and manifest version 4. Circle

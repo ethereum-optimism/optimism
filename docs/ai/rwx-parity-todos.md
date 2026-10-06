@@ -181,6 +181,13 @@ new tuning needs an identified bottleneck and complete original samples. Include
 queueing, setup, transfers and the final verdict, label compiler/cache state, and
 leave cost analysis deferred. No speed claim is required for workload completion.
 
+The Rust cache trial preserves the 86-job selection, feature partitions, profiles
+and runner resources. It restores source timestamps per unchanged file and
+enables incremental compilation within RWX's existing host check/test profiles.
+Circle settings remain unchanged. Retain the effective profile overrides and
+compiler/cache-transfer timings; hosted correctness and a runtime improvement
+are separate claims. The operator guide documents the CLI baseline switch.
+
 ## Helper separation and retirement prerequisites
 
 The 86-job denominator and selected workload settings are unchanged by helper

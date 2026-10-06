@@ -517,7 +517,8 @@
       "check_name": "optimism-rust-shadow",
       "init": {
         "cache-warm": "false",
-        "cache-epoch": "v1"
+        "cache-epoch": "v1",
+        "cargo-incremental": "1"
       },
       "receipt_if": "${{ init.cache-warm != 'true' }}"
     },

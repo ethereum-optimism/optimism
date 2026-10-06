@@ -44,6 +44,12 @@ def inputs(job=None):
     return {p: digest(p) for p in paths}
 
 
+def incremental_settings():
+    return {'incremental': os.environ.get('CARGO_INCREMENTAL'),
+            'profile_incremental': {profile: os.environ.get(f'CARGO_PROFILE_{profile}_INCREMENTAL')
+                                    for profile in ('DEV', 'TEST', 'FAST_BUILD')}}
+
+
 def begin(directory, job):
     sha = command('git', 'rev-parse', 'HEAD')
     expected = os.environ.get('CI_COMMIT_SHA') or os.environ.get('CIRCLE_SHA1') or sha
@@ -62,7 +68,7 @@ def begin(directory, job):
             int(os.environ.get('CI_RUST_PARTITION_TOTAL', os.environ.get('CIRCLE_NODE_TOTAL', '10')))
             if job == 'features' else 10,
         'feature_partition_index': int(os.environ.get('CI_RUST_PARTITION_INDEX', os.environ.get('CIRCLE_NODE_INDEX', '0'))),
-        'test_filter': '!test(test_online)', 'incremental': os.environ.get('CARGO_INCREMENTAL'),
+        'test_filter': '!test(test_online)', **incremental_settings(),
         'rustflags': os.environ.get('RUSTFLAGS', ''), 'rustdocflags': os.environ.get('RUSTDOCFLAGS', ''),
         'started_at': time.time(), 'cpus': os.cpu_count(),
         'superchain_revision': command('git', 'rev-parse', 'HEAD:superchain-registry')})
@@ -356,6 +362,8 @@ def artifact(directory, verify=False):
     path = directory / 'tests.tar.zst'
     expected = {'source_sha': command('git', 'rev-parse', 'HEAD'), 'input_sha256': inputs(),
                 'rustc': command('rustc', '--version'), 'nextest': command('cargo', 'nextest', '--version'),
+                **incremental_settings(),
+                'rustflags': os.environ.get('RUSTFLAGS', ''),
                 'archive_sha256': digest(path), 'workspace': True, 'all_features': True}
     if verify:
         if json.loads((directory / 'archive.json').read_text()) != expected:

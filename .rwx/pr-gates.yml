@@ -151,6 +151,7 @@ tasks:
       tag: ${{ init.tag }}
       cache-warm: "false"
       cache-epoch: v1
+      cargo-incremental: "1"
 
   - key: native-op-reth
     call: ${{ run.dir }}/op-reth.yml

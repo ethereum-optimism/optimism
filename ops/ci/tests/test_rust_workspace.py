@@ -133,6 +133,18 @@ class ReportTests(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, 'mismatch'):
                 REPORT.artifact(self.root, True)
 
+    def test_archive_rejects_incremental_mode_and_rustflags_changes(self):
+        (self.root / 'tests.tar.zst').write_bytes(b'compiled tests')
+        with patch.object(REPORT, 'command', return_value='pinned'), patch.object(REPORT, 'inputs', return_value={'source': 'same'}):
+            with patch.dict(os.environ, {'CARGO_INCREMENTAL': '1', 'RUSTFLAGS': ''}):
+                REPORT.artifact(self.root)
+                REPORT.artifact(self.root, True)
+                for setting, value in (('CARGO_INCREMENTAL', '0'), ('CARGO_PROFILE_DEV_INCREMENTAL', 'false'),
+                                       ('RUSTFLAGS', '-C opt-level=2')):
+                    with self.subTest(setting=setting), patch.dict(os.environ, {setting: value}):
+                        with self.assertRaisesRegex(ValueError, 'mismatch'):
+                            REPORT.artifact(self.root, True)
+
     def test_original_exit_is_not_hidden_by_report_errors(self):
         (self.root / 'settings.json').write_text('{"job":"tests"}')
         (self.root / 'junit.xml').unlink()
@@ -341,6 +353,18 @@ class StageTests(unittest.TestCase):
 class ConfigurationTests(unittest.TestCase):
 
     @unittest.skipUnless(shutil.which('yq'), 'requires the pinned yq tool')
+    def test_incremental_trial_is_limited_to_feature_checks_and_tests(self):
+        repo = Path(__file__).resolve().parents[3]
+        config = json.loads(subprocess.check_output(['yq', '-o=json', '.', str(repo / '.rwx/rust.yml')], text=True))
+        selected = {'tests-build', 'tests'} | {f'features-{i}' for i in range(10)}
+        actual = {t['key'] for t in config['tasks'] if 'CI_RUST_INCREMENTAL' in t.get('env', {})}
+        self.assertEqual(actual, selected)
+        for trigger in ('cli', 'cache-rebuild'):
+            self.assertEqual(config['on'][trigger]['init']['cargo-incremental'], '1')
+        coordinator = json.loads(subprocess.check_output(['yq', '-o=json', '.tasks', str(repo / '.rwx/pr-gates.yml')], text=True))
+        self.assertEqual(next(t for t in coordinator if t['key'] == 'native-workspace')['init']['cargo-incremental'], '1')
+
+    @unittest.skipUnless(shutil.which('yq'), 'requires the pinned yq tool')
     def test_fresh_verdicts_keep_compiler_caches_enabled(self):
         definition = Path(__file__).resolve().parents[3] / '.rwx/rust.yml'
         tasks = json.loads(subprocess.check_output(['yq', '-o=json', '.tasks', str(definition)], text=True))
@@ -406,14 +430,23 @@ pub fn compile_only() {}
             for args in (['init', '-q'], ['add', '.'], ['-c', 'user.name=Fixture', '-c', 'user.email=fixture@example.invalid', 'commit', '-qm', 'fixture']):
                 subprocess.run(['git', *args], cwd=root, check=True, capture_output=True)
             sha = subprocess.check_output(['git', 'rev-parse', 'HEAD'], cwd=root, text=True).strip()
-            env = {**os.environ, 'CI_RUST_PROVIDER': 'rwx', 'CI_COMMIT_SHA': sha}
+            env = {**os.environ, 'CI_RUST_PROVIDER': 'rwx', 'CI_COMMIT_SHA': sha, 'CI_RUST_INCREMENTAL': '1'}
             def run(job, extra=None):
                 result = subprocess.run(['bash', str(helpers / 'rust-workspace.sh'), job], cwd=root,
                                         env={**env, **(extra or {})}, capture_output=True, text=True, timeout=180)
                 return result
             build = run('tests-build')
             self.assertEqual(build.returncode, 0, build.stdout + build.stderr)
+            settings = json.loads((root / '.ci/rust-workspace/tests-build/settings.json').read_text())
+            self.assertIsNone(settings['incremental'])
+            self.assertEqual(set(settings['profile_incremental'].values()), {'true'})
+            self.assertTrue(any((root / 'rust/target/debug/incremental').iterdir()))
+            self.assertTrue(any((root / 'rust/target/fast-build/incremental').iterdir()))
             env['TEST_ARCHIVE'] = str(root / '.ci/rust-workspace/tests-build')
+            mismatch = run('tests', {'CI_RUST_INCREMENTAL': '0'})
+            self.assertNotEqual(mismatch.returncode, 0)
+            self.assertIn('mismatch', mismatch.stderr)
+            self.assertEqual(json.loads((root / '.ci/rust-workspace/tests/final.json').read_text())['exit_code'], mismatch.returncode)
             first = run('tests')
             self.assertEqual(first.returncode, 0, first.stdout + first.stderr)
             failed = run('tests', {'RWX_FIXTURE_FAIL': '1'})
@@ -426,13 +459,18 @@ pub fn compile_only() {}
             self.assertEqual(fresh.returncode, 0, fresh.stdout + fresh.stderr)
             doc = run('doctest')
             self.assertEqual(doc.returncode, 0, doc.stdout + doc.stderr)
+            self.assertEqual(json.loads((root / '.ci/rust-workspace/doctest/settings.json').read_text())['incremental'], '0')
             circle = subprocess.run(['bash', '../ops/ci/runtime/rust-workspace.sh', 'doctest'],
                                     cwd=root / 'rust', env={**env, 'CI_RUST_PROVIDER': 'circleci'},
                                     capture_output=True, text=True, timeout=180)
             self.assertEqual(circle.returncode, 0, circle.stdout + circle.stderr)
+            self.assertEqual(json.loads((root / '.ci/rust-workspace/doctest/settings.json').read_text())['incremental'], '0')
             for index in ('0', '9'):
                 feature = run('features', {'CI_RUST_PARTITION_INDEX': index})
                 self.assertEqual(feature.returncode, 0, feature.stdout + feature.stderr)
+                settings = json.loads((root / f'.ci/rust-workspace/features-{index}/settings.json').read_text())
+                self.assertIsNone(settings['incremental'])
+                self.assertEqual(set(settings['profile_incremental'].values()), {'true'})
             # Circle's reusable template defaults to a single unpartitioned node.
             single = run('features', {'CI_RUST_PARTITION_INDEX': '0', 'CI_RUST_PARTITION_TOTAL': '1'})
             self.assertEqual(single.returncode, 0, single.stdout + single.stderr)

@@ -107,7 +107,26 @@ use their chosen defaults. Retain probe evidence outside Git rather than adding
 alternative task graphs. Compiler warming targets producers and executes zero
 tests, RPC verdicts or helper fixtures.
 
-Verdicts use `cache: false`. Exclude test results, logs and failure caches from
+Rust target restoration records a content hash and timestamp for each source
+file. Unchanged files recover their prior timestamps; changed/new files get new
+timestamps. Legacy manifests and uncommitted prior builds refresh all inputs
+once. The caller commits the map only after a successful build. Cargo owns
+dependency freshness, including embedded bundles and compiler/toolchain changes.
+
+The RWX Rust feature checks and test build/runtime tasks trial incremental host
+compilation with `cargo-incremental: "1"` (CLI override: `--init
+cargo-incremental=0`). The shared runner enables the `dev`, `test`, and
+`fast-build` profiles; it unsets the global incremental switch because sccache
+0.18.0 rejects `CARGO_INCREMENTAL=1`. Local incremental invocations pass through
+sccache; registry dependencies remain eligible for compiler caching. Reports and
+test archives bind the effective profile settings. Existing tool-cache names,
+shards, resources and selected commands remain. Circle, release/prestate builds
+and other Rust jobs retain their current incremental policy. Compare complete
+compile/cache-transfer timings before claiming a speed improvement.
+
+Verdicts execute freshly. Most use `cache: false`; Rust verdicts include run and
+attempt identity in their cache keys so compiler tool caches remain available.
+Exclude test results, logs and failure caches from
 reusable outputs. Go/acceptance runtime snapshots exclude build caches and Cargo
 targets, then validate and restore sealed dependency archives. Preserve fixtures,
 working directories, source paths, submodules and branch/commit metadata. Go,
