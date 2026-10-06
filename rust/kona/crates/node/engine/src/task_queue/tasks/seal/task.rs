@@ -1,9 +1,6 @@
-//! A task for sealing a sequenced block and importing it.
+//! A task for sealing a sequenced block.
 use super::SealTaskError;
-use crate::{
-    EngineClient, EngineGetPayloadVersion, EngineState, EngineTaskExt, ImportedBlockSink,
-    task_queue::insert_payload_with_holocene_fallback,
-};
+use crate::{EngineClient, EngineGetPayloadVersion, EngineState, EngineTaskExt};
 use alloy_rpc_types_engine::{ExecutionPayload, PayloadId};
 use async_trait::async_trait;
 use derive_more::Constructor;
@@ -14,7 +11,7 @@ use op_alloy_rpc_types_engine::OpExecutionPayloadEnvelope;
 use std::sync::Arc;
 use tokio::sync::mpsc;
 
-/// Task for sealing a sequenced block and canonicalizing it.
+/// Task for sealing a sequenced block.
 ///
 /// The [`SealTask`] handles the following parts of the sequencer's block building workflow:
 ///
@@ -22,7 +19,9 @@ use tokio::sync::mpsc;
 ///    moved the unsafe head in between. If the build's parent is no longer the unsafe head, the
 ///    seal is aborted with [`SealTaskError::UnsafeHeadChangedSinceBuild`].
 /// 2. **Payload Construction**: Retrieves the built payload using `engine_getPayload`
-/// 3. **Block Import**: Inserts the payload into the engine to canonicalize it
+///
+/// Sealing does not change forkchoice. The sequencer commits the payload to the conductor before a
+/// [`CanonicalizeTask`](crate::CanonicalizeTask) imports it.
 #[derive(Debug, Clone, Constructor)]
 pub struct SealTask {
     /// The engine API client.
@@ -33,56 +32,12 @@ pub struct SealTask {
     pub payload_id: PayloadId,
     /// The [`OpAttributesWithParent`] to instruct the execution layer to build.
     pub attributes: OpAttributesWithParent,
-    /// An optional sender to convey success/failure result of the built
-    /// [`OpExecutionPayloadEnvelope`] after the block has been built, imported, and canonicalized
-    /// or the [`SealTaskError`] that occurred during processing.
+    /// An optional sender to convey success/failure result of the sealed
+    /// [`OpExecutionPayloadEnvelope`] or the [`SealTaskError`] that occurred during processing.
     pub result_tx: Option<mpsc::Sender<Result<OpExecutionPayloadEnvelope, SealTaskError>>>,
-    /// Where to hand the decoded block once the engine has canonicalized it.
-    pub block_sink: Arc<dyn ImportedBlockSink>,
 }
 
 impl SealTask {
-    /// Seals and canonicalizes the block by fetching the payload and importing it.
-    ///
-    /// This function handles:
-    /// 1. Fetching the execution payload from the EL
-    /// 2. Importing the payload into the engine with Holocene fallback support
-    async fn seal_and_canonicalize_block(
-        &self,
-        state: &mut EngineState,
-    ) -> Result<OpExecutionPayloadEnvelope, SealTaskError> {
-        // Fetch the payload just inserted from the EL and import it into the engine.
-        let new_payload = get_payload(
-            self.engine.as_ref(),
-            &self.cfg,
-            self.payload_id,
-            self.attributes.attributes().payload_attributes.timestamp,
-        )
-        .await?;
-
-        // Insert the payload into the engine and reuse its decoded block information.
-        let new_block_ref = insert_payload_with_holocene_fallback(
-            self.engine.as_ref(),
-            &self.cfg,
-            state,
-            &self.attributes,
-            new_payload.clone(),
-            // The payload is sequenced, not derived.
-            false,
-            self.block_sink.as_ref(),
-        )
-        .await?;
-
-        info!(
-            target: "engine",
-            l2_number = new_block_ref.block_info.number,
-            l2_time = new_block_ref.block_info.timestamp,
-            "Built and imported new unsafe block",
-        );
-
-        Ok(new_payload)
-    }
-
     /// Sends the provided result via the `result_tx` sender if one exists, returning the
     /// appropriate error if it does not.
     ///
@@ -135,8 +90,13 @@ impl EngineTaskExt for SealTask {
             );
             Err(SealTaskError::UnsafeHeadChangedSinceBuild)
         } else {
-            // Seal the block and import it into the engine.
-            self.seal_and_canonicalize_block(state).await
+            get_payload(
+                self.engine.as_ref(),
+                &self.cfg,
+                self.payload_id,
+                self.attributes.attributes().payload_attributes.timestamp,
+            )
+            .await
         };
 
         self.send_channel_result_or_get_error(res).await?;
