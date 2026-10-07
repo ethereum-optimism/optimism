@@ -12,6 +12,7 @@ import { AddressAliasHelper } from "src/vendor/AddressAliasHelper.sol";
 import { Predeploys } from "src/libraries/Predeploys.sol";
 import { Hashing } from "src/libraries/Hashing.sol";
 import { Encoding } from "src/libraries/Encoding.sol";
+import { Features } from "src/libraries/Features.sol";
 
 // Target contract dependencies
 import { IL1CrossDomainMessenger } from "interfaces/L1/IL1CrossDomainMessenger.sol";
@@ -1261,6 +1262,9 @@ contract L1CrossDomainMessenger_RelayUndeliveredMessage_Test is L1CrossDomainMes
         super.setUp();
         lockbox = _mockContract("lockbox");
         vm.mockCall(address(optimismPortal2), abi.encodeCall(IOptimismPortal2.ethLockbox, ()), abi.encode(lockbox));
+        vm.mockCall(
+            address(systemConfig), abi.encodeCall(ISystemConfig.isFeatureEnabled, (Features.INTEROP)), abi.encode(true)
+        );
         (otherMessenger, otherPortal, otherConfig) = _mockChain("other");
     }
 
@@ -1340,20 +1344,57 @@ contract L1CrossDomainMessenger_RelayUndeliveredMessage_Test is L1CrossDomainMes
         l1CrossDomainMessenger.relayUndeliveredMessage(MESSAGE_HASH, UNDELIVERED_AT);
     }
 
-    /// @notice Tests that an account that is not a messenger cannot call it.
+    /// @notice Tests that a chain that does not run interop accepts no word, even from a cluster
+    ///         chain's messenger.
+    function test_relayUndeliveredMessage_interopDisabled_reverts() external {
+        vm.mockCall(
+            address(systemConfig), abi.encodeCall(ISystemConfig.isFeatureEnabled, (Features.INTEROP)), abi.encode(false)
+        );
+
+        vm.expectRevert(IL1CrossDomainMessenger.L1CrossDomainMessenger_NotInteropMessenger.selector);
+        vm.prank(otherMessenger);
+        l1CrossDomainMessenger.relayUndeliveredMessage(MESSAGE_HASH, UNDELIVERED_AT);
+    }
+
+    /// @notice Tests that an account that is not a messenger cannot call it: asking it for its
+    ///         portal reverts, since it has no code.
     function test_relayUndeliveredMessage_notMessenger_reverts() external {
-        vm.expectRevert();
+        vm.expectRevert(bytes(""));
         vm.prank(alice);
         l1CrossDomainMessenger.relayUndeliveredMessage(MESSAGE_HASH, UNDELIVERED_AT);
     }
 
-    /// @notice Tests that a chain without a lockbox accepts no word.
+    /// @notice Tests that a chain without a lockbox accepts no word: asking the zero address
+    ///         whether it authorizes the caller's portal reverts.
     function test_relayUndeliveredMessage_noLockbox_reverts() external {
         vm.mockCall(address(optimismPortal2), abi.encodeCall(IOptimismPortal2.ethLockbox, ()), abi.encode(address(0)));
 
-        vm.expectRevert();
+        vm.expectRevert(bytes(""));
         vm.prank(otherMessenger);
         l1CrossDomainMessenger.relayUndeliveredMessage(MESSAGE_HASH, UNDELIVERED_AT);
+    }
+
+    /// @notice Tests that word an exporter sends to its own chain's L1CrossDomainMessenger never
+    ///         reaches `relayUndeliveredMessage`: the messenger refuses to relay to itself.
+    function test_relayUndeliveredMessage_ownChain_reverts() external {
+        // The mocked lockbox stands behind this chain's pause check.
+        vm.mockCall(lockbox, abi.encodeCall(IETHLockbox.paused, ()), abi.encode(false));
+        vm.store(
+            address(optimismPortal2),
+            bytes32(senderSlotIndex),
+            bytes32(abi.encode(Predeploys.L2_CROSS_DOMAIN_MESSENGER))
+        );
+
+        vm.prank(address(optimismPortal2));
+        vm.expectRevert("CrossDomainMessenger: cannot send message to blocked system address");
+        l1CrossDomainMessenger.relayMessage(
+            Encoding.encodeVersionedNonce({ _nonce: 0, _version: 1 }),
+            Predeploys.L2_TO_L2_CROSS_DOMAIN_MESSENGER,
+            address(l1CrossDomainMessenger),
+            0,
+            0,
+            abi.encodeCall(IL1CrossDomainMessenger.relayUndeliveredMessage, (MESSAGE_HASH, UNDELIVERED_AT))
+        );
     }
 
     /// @notice Creates a labelled address with code, so calls to it can be mocked.

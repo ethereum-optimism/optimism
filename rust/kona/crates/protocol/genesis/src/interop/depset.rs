@@ -28,7 +28,7 @@ pub struct DependencySet {
 impl DependencySet {
     /// Returns the message expiry window associated with this dependency set. An override may only
     /// shorten the window: `L2ToL2CrossDomainMessenger` marks a message expired, and apps refund
-    /// it, once it is older than [`MESSAGE_EXPIRY_WINDOW`], so a longer window would let an
+    /// it, a day after [`MESSAGE_EXPIRY_WINDOW`] has passed, so a longer window could let an
     /// expired message still be relayed. op-core rejects such an override when it loads the set.
     pub const fn get_message_expiry_window(&self) -> u64 {
         match self.override_message_expiry_window {
@@ -84,8 +84,8 @@ mod tests {
         assert_eq!(ds.get_message_expiry_window(), MESSAGE_EXPIRY_WINDOW);
     }
 
-    /// The same 7 days is `MESSAGE_EXPIRY_WINDOW` in `L2ToL2CrossDomainMessenger.sol` and
-    /// `MessageExpiryTimeSecondsInterop` in op-core.
+    /// op-core pins the same 7 days (`MessageExpiryTimeSecondsInterop`);
+    /// `L2ToL2CrossDomainMessenger.sol`'s `EXPIRY_PERIOD` is this window plus a day of margin.
     #[test]
     fn test_message_expiry_window_is_seven_days() {
         assert_eq!(MESSAGE_EXPIRY_WINDOW, 604_800);

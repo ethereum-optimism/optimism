@@ -69,11 +69,11 @@ contract L2ToL2CrossDomainMessenger is ISemver, TransientReentrancyAware {
     /// @notice Current message version identifier.
     uint16 public constant messageVersion = uint16(0);
 
-    /// @notice How long after it is sent a message can still be relayed. The protocol rejects an executing message
-    ///         whose block is more than this many seconds after the block of its initiating message, so once a
-    ///         destination has not relayed a message by its send time plus this window, it never can. Equal to the
-    ///         protocol's message expiry window; a dependency set with a shorter window only delays expiry here.
-    uint256 public constant MESSAGE_EXPIRY_WINDOW = 7 days;
+    /// @notice How long after it is sent a message must go unrelayed before it can be marked expired. The protocol
+    ///         rejects an executing message whose block is more than its message expiry window (7 days at most; op-core
+    ///         and kona cap it) after the block of its initiating message. This period is that window plus a day of
+    ///         margin, so a message is only marked expired well after any relay of it could still be valid.
+    uint256 public constant EXPIRY_PERIOD = 8 days;
 
     /// @notice Semantic version.
     /// @custom:semver 2.0.0
@@ -315,7 +315,7 @@ contract L2ToL2CrossDomainMessenger is ISemver, TransientReentrancyAware {
 
         uint256 sentAt = sentMessageTimestamps[_messageHash];
         if (sentAt == 0) revert InvalidMessage();
-        if (_undeliveredAt <= sentAt + MESSAGE_EXPIRY_WINDOW) revert MessageNotExpired();
+        if (_undeliveredAt <= sentAt + EXPIRY_PERIOD) revert MessageNotExpired();
 
         expiredMessages[_messageHash] = true;
 

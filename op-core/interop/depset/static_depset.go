@@ -136,8 +136,8 @@ func (ds *StaticConfigDependencySet) UnmarshalTOML(v interface{}) error {
 // hydrate sets all the cached values, based on the dependencies attribute
 func (ds *StaticConfigDependencySet) hydrate() error {
 	// The window may only be shortened: L2ToL2CrossDomainMessenger marks a message expired, and
-	// apps refund it, once it is older than MessageExpiryTimeSecondsInterop, so a longer window
-	// would let an expired message still be relayed.
+	// apps refund it, a day after MessageExpiryTimeSecondsInterop has passed, so a longer window
+	// could let an expired message still be relayed.
 	if ds.overrideMessageExpiryWindow > MessageExpiryTimeSecondsInterop {
 		return fmt.Errorf("message expiry window override %d exceeds %d", ds.overrideMessageExpiryWindow, MessageExpiryTimeSecondsInterop)
 	}

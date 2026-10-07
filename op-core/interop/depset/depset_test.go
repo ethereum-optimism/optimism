@@ -51,7 +51,8 @@ func TestDependencySet(t *testing.T) {
 		require.Equal(t, MessageExpiryTimeSecondsInterop, ok.MessageExpiryWindow())
 	})
 
-	// The same 7 days is MESSAGE_EXPIRY_WINDOW in L2ToL2CrossDomainMessenger.sol and in kona-genesis.
+	// kona-genesis pins the same 7 days (MESSAGE_EXPIRY_WINDOW); L2ToL2CrossDomainMessenger.sol's
+	// EXPIRY_PERIOD is this window plus a day of margin.
 	t.Run("protocol expiry window is 7 days", func(t *testing.T) {
 		require.Equal(t, uint64(604800), MessageExpiryTimeSecondsInterop)
 	})

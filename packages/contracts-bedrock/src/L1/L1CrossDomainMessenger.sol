@@ -8,6 +8,7 @@ import { CrossDomainMessenger } from "src/universal/CrossDomainMessenger.sol";
 
 // Libraries
 import { Predeploys } from "src/libraries/Predeploys.sol";
+import { Features } from "src/libraries/Features.sol";
 
 // Interfaces
 import { ISemver } from "interfaces/universal/ISemver.sol";
@@ -90,7 +91,7 @@ contract L1CrossDomainMessenger is CrossDomainMessenger, ProxyAdminOwnedBase, Re
 
     /// @notice Passes on word from another chain in this chain's interop cluster that a message from this chain had
     ///         not been relayed there by `_undeliveredAt`. This chain's L2ToL2CrossDomainMessenger marks the message
-    ///         expired if that is past the message expiry window. The caller must be:
+    ///         expired if that is past its expiry period. It is off unless this chain runs interop. The caller must be:
     ///         - a real L1CrossDomainMessenger: its portal's SystemConfig names it as the chain's messenger. A contract
     ///           that names a real portal as its own fails this;
     ///         - of a chain in this chain's cluster: its portal is authorized by this chain's ETHLockbox. Every such
@@ -102,6 +103,8 @@ contract L1CrossDomainMessenger is CrossDomainMessenger, ProxyAdminOwnedBase, Re
     /// @param _messageHash   Hash of the message.
     /// @param _undeliveredAt Timestamp on the message's destination at which it had not been relayed.
     function relayUndeliveredMessage(bytes32 _messageHash, uint256 _undeliveredAt) external {
+        if (!systemConfig.isFeatureEnabled(Features.INTEROP)) revert L1CrossDomainMessenger_NotInteropMessenger();
+
         IOptimismPortal callerPortal = IL1CrossDomainMessenger(msg.sender).portal();
         if (
             callerPortal.systemConfig().l1CrossDomainMessenger() != msg.sender
