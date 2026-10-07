@@ -244,6 +244,15 @@ upgrades to that release.
   side. The op-deployer note never repeats the contract changes; it links to the
   op-contracts release instead.
 
+### Every change since the last release
+
+The note describes every change between the previous release tag and this one. The
+liveness checks in "Proportionality" do not apply. A contracts release can be published
+before or after an upgrade activates it, and a feature can be deployed later. So do not cut
+a change because no chain runs it or because its `DevFeatures` bit is off by default. Keep
+it, and say which feature flag enables it. Cut only changes with no effect on the
+contracts or on op-deployer, as for other components.
+
 ### The Overview sentence
 
 The recommendation vocabulary does not fit a contracts release. A chain does not choose to
