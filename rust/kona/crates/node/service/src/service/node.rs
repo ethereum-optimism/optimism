@@ -2,9 +2,9 @@
 use crate::{
     ConductorClient, DelayedL1OriginSelectorProvider, DelegateDerivationActor, DerivationActor,
     DerivationActorRequest, DerivationDelegateClient, DerivationError, EngineActor,
-    EngineActorRequest, EngineConfig, EngineRpcActor, JsonrpseeServerLauncher, L1OriginSelector,
-    L1WatcherActor, L1WatcherChain, NetworkActor, NetworkBuilder, NetworkConfig, NetworkHandler,
-    NodeActor, NodeMode, QueuedDerivationEngineClient, QueuedEngineDerivationClient,
+    EngineActorRequest, EngineConfig, JsonrpseeServerLauncher, L1OriginSelector, L1WatcherActor,
+    L1WatcherChain, NetworkActor, NetworkBuilder, NetworkConfig, NetworkHandler, NodeActor,
+    NodeMode, QueuedDerivationEngineClient, QueuedEngineDerivationClient,
     QueuedL1WatcherDerivationClient, QueuedNetworkEngineClient, QueuedSequencerAdminAPIClient,
     QueuedSequencerEngineClient, RpcActor, RpcServerLauncher, SequencerActor, SequencerConfig,
     SignedPayload, SignerActor,
@@ -16,7 +16,7 @@ use alloy_primitives::Address;
 use alloy_provider::RootProvider;
 use jsonrpsee::RpcModule;
 use kona_derive::{BlobProviderError, StatefulAttributesBuilder};
-use kona_engine::{Engine, EngineQueries, EngineState};
+use kona_engine::{Engine, EngineQueryClient, EngineState};
 use kona_genesis::{L1ChainConfig, RollupConfig};
 use kona_gossip::P2pRpcRequest;
 use kona_interop::DependencySet;
@@ -218,19 +218,14 @@ impl RollupNode {
         ))
     }
 
-    /// Builds both engine actors. Their clients share the L2 RPC connection and a watch
-    /// over the engine state, but otherwise run as independent peers.
-    ///
-    /// The non-rpc actor handles state-mutating requests (build, reset, seal, safe-signal
-    /// consolidation, etc); the rpc actor handles read-only queries.
-    fn build_engine_actors(
+    /// Builds the engine actor and returns the read-only L2 client and state watch used by RPC.
+    fn build_engine_actor(
         &self,
         engine_request_rx: mpsc::Receiver<EngineActorRequest>,
-        engine_rpc_request_rx: mpsc::Receiver<EngineQueries>,
         derivation_actor_request_tx: mpsc::Sender<DerivationActorRequest>,
         unsafe_head_tx: watch::Sender<L2BlockInfo>,
-    ) -> (ConfiguredEngineActor, EngineRpcActor) {
-        // Engine-internal state watch; not visible outside this helper.
+    ) -> (ConfiguredEngineActor, EngineQueryClient, watch::Receiver<EngineState>) {
+        // Share engine state with RPC without routing reads through the actor.
         let engine_state = EngineState::default();
         let (engine_state_tx, engine_state_rx) = watch::channel(engine_state);
         let engine = Engine::new(engine_state, engine_state_tx);
@@ -250,14 +245,7 @@ impl RollupNode {
             Arc::new(BufferImportedBlocks::new(self.l2_block_buffer.clone())),
         );
 
-        let rpc_actor = EngineRpcActor::new(
-            engine_client.query_client(),
-            self.config.clone(),
-            engine_state_rx,
-            engine_rpc_request_rx,
-        );
-
-        (actor, rpc_actor)
+        (actor, engine_client.query_client(), engine_state_rx)
     }
 
     /// Selects between the standard and delegate derivation actor implementations and constructs
@@ -412,7 +400,8 @@ impl RollupNode {
     /// configured [`RpcActor`]. Returns `Ok(None)` when no [`RpcBuilder`] is configured.
     async fn build_rpc_actor(
         &self,
-        engine_rpc_request_tx: mpsc::Sender<EngineQueries>,
+        l2_query_client: EngineQueryClient,
+        engine_state_rx: watch::Receiver<EngineState>,
         sequencer_admin_client: Option<QueuedSequencerAdminAPIClient>,
         p2p_rpc_tx: mpsc::Sender<P2pRpcRequest>,
         network_admin_tx: mpsc::Sender<NetworkAdminQuery>,
@@ -436,7 +425,15 @@ impl RollupNode {
             network_admin_tx,
         )?;
         modules
-            .merge(RollupRpc::new(engine_rpc_request_tx, l1_watcher_queries_tx).into_rpc())
+            .merge(
+                RollupRpc::new(
+                    self.config.clone(),
+                    engine_state_rx,
+                    l2_query_client,
+                    l1_watcher_queries_tx,
+                )
+                .into_rpc(),
+            )
             .map_err(|e| format!("Failed to register rollup module: {e:?}"))?;
 
         let restarts_remaining = config.restart_count();
@@ -485,7 +482,6 @@ impl RollupNode {
             mpsc::channel::<DerivationActorRequest>(1024);
         let (engine_actor_request_tx, engine_actor_request_rx) =
             mpsc::channel::<EngineActorRequest>(1024);
-        let (engine_rpc_request_tx, engine_rpc_request_rx) = mpsc::channel::<EngineQueries>(1024);
         let (l1_query_tx, l1_query_rx) = mpsc::channel::<L1WatcherQueries>(1024);
         let (sequencer_admin_api_tx, sequencer_admin_api_rx) = mpsc::channel(1024);
         // Network actor inbound channels
@@ -504,9 +500,8 @@ impl RollupNode {
         let (l1_head_updates_tx, l1_head_updates_rx) = watch::channel::<Option<BlockInfo>>(None);
 
         // ─── actor construction ─────────────────────────────────────────────────────────────
-        let (engine_actor, engine_rpc_actor) = self.build_engine_actors(
+        let (engine_actor, l2_query_client, engine_state_rx) = self.build_engine_actor(
             engine_actor_request_rx,
-            engine_rpc_request_rx,
             derivation_actor_request_tx.clone(),
             unsafe_head_tx,
         );
@@ -559,7 +554,8 @@ impl RollupNode {
 
         let rpc = self
             .build_rpc_actor(
-                engine_rpc_request_tx,
+                l2_query_client,
+                engine_state_rx,
                 sequencer_admin_client,
                 p2p_rpc_tx,
                 network_admin_tx,
@@ -577,7 +573,6 @@ impl RollupNode {
                 Some(l1_watcher),
                 Some(derivation),
                 Some(engine_actor),
-                Some(engine_rpc_actor),
             ]
         );
         Ok(())

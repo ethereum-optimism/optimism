@@ -220,22 +220,11 @@ pub trait NodeActor: Send + 'static {
 
 ### Communication Channels
 
-The `EngineActor` receives all state-mutating input through a single inbound request channel of `EngineActorRequest` messages: payload attributes from derivation, unsafe blocks from gossip, reset requests, finalization requests, and block building requests (sequencer mode only). A separate read-only `EngineRpcActor` runs as an independent peer and serves engine queries; it uses an `EngineQueryClient` that shares the L2 RPC connection and exposes only block and storage-hash reads. The actor reads engine state through a watch channel.
+The `EngineActor` receives all state-mutating input through a single inbound request channel of `EngineActorRequest` messages: payload attributes from derivation, unsafe blocks from gossip, reset requests, finalization requests, and block building requests (sequencer mode only). The `RollupRpc` module serves read-only RPC requests directly. It shares the engine's L2 connection through an `EngineQueryClient` that exposes only `output_at_block`, and reads engine state through a watch channel.
 
-### Engine Queries
+### Rollup RPC Reads
 
-The engine supports queries for:
-
-```rust
-pub enum EngineQueries {
-    /// Request the current rollup configuration.
-    Config(Sender<RollupConfig>),
-    /// Request the current EngineState snapshot.
-    State(Sender<EngineState>),
-    /// Request the L2 output root for a specific block.
-    OutputAtBlock { block: BlockNumberOrTag, sender: Sender<(L2BlockInfo, OutputRoot, EngineState)> },
-}
-```
+`RollupRpc` clones the rollup configuration for `optimism_rollupConfig`, combines the engine-state snapshot with the L1 watcher state for `optimism_syncStatus`, and calls `EngineQueryClient::output_at_block` for `optimism_outputAtBlock`. These reads run in jsonrpsee request handlers, so a slow output-root query does not block other engine-state reads.
 
 ## Usage Patterns
 
