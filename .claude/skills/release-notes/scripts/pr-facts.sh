@@ -15,16 +15,13 @@
 #   <tag>  #<number>  <author>  <n> files  <title>  <paths>
 #
 #   LINKED  changed a package compiled into the binary; <paths> lists just those
-#           packages — that is the reason the PR may belong in the notes. For op-contracts
-#           it means a contract under src/ or the L2 upgrade bundle changed, and <paths>
-#           lists them. For op-deployer it also covers the contract scripts it runs
+#           packages — that is the reason the PR may belong in the notes
 #   CONFIG  moved the embedded superchain registry (submodule pin, generated archive
 #           checksum, or kona's registry snapshots); read it by hand, a new activation time
 #           can make the release required. Appears as LINKED+CONFIG when the same PR also
 #           changed a compiled package
 #   DEPS    changed the dependency manifests (go.mod/go.sum, Cargo.toml/Cargo.lock) without
-#           touching a compiled package. For op-contracts the manifests are foundry.toml and
-#           the lib/ submodule pins, and a change there can change the deployed bytecode
+#           touching a compiled package
 #   --      touched nothing the binary compiles; <paths> shows what it did touch
 #   ?       no component given, dependencies could not be resolved, or the PR could not be
 #           fetched; <paths> shows everything touched and the call is yours
@@ -153,8 +150,7 @@ for f in "$workdir"/pr-*; do
         # The compilation unit a changed file belongs to: its package directory for Go,
         # its owning workspace crate (longest matching member directory) for Rust.
         function unit(path,   d, best, rest) {
-            # An op-contracts release ships the contracts under src/, and the candidate L2
-            # upgrade bundle that op-core/nuts snapshots for the fork.
+            # The upgrade bundle ships too: op-core/nuts snapshots it for the fork.
             if (mode == "contracts") {
                 if (path ~ /^packages\/contracts-bedrock\/snapshots\/upgrades\//) {
                     linked["upgrade-bundle"] = 1
