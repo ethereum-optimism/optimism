@@ -113,7 +113,6 @@ func init() {
 	Predeploys["L2toL2CrossDomainMessenger"] = &Predeploy{Address: L2toL2CrossDomainMessengerAddr}
 	Predeploys["SuperchainETHBridge"] = &Predeploy{Address: SuperchainETHBridgeAddr}
 	Predeploys["ETHLiquidity"] = &Predeploy{Address: ETHLiquidityAddr}
-	Predeploys["UndeliveredMessageExporter"] = &Predeploy{Address: UndeliveredMessageExporterAddr}
 	Predeploys["ConditionalDeployer"] = &Predeploy{Address: ConditionalDeployerAddr}
 	Predeploys["L2DevFeatureFlags"] = &Predeploy{Address: L2DevFeatureFlagsAddr}
 	Predeploys["GovernanceToken"] = &Predeploy{

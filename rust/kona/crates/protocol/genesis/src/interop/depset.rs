@@ -22,11 +22,14 @@ pub struct DependencySet {
     pub dependencies: BTreeMap<ChainId, ChainDependency>,
 
     /// Override message expiry window to use for this dependency set. It may only shorten the
-    /// window: `L2ToL2CrossDomainMessenger` marks a message expired, and apps refund it, a day after
-    /// [`MESSAGE_EXPIRY_WINDOW`] has passed, so a longer window could let an expired message still be
-    /// relayed. A dependency set that overrides it with more is rejected when it is parsed, as op-core
-    /// does.
-    #[cfg_attr(feature = "serde", serde(default, deserialize_with = "deserialize_override_window"))]
+    /// window: `L2ToL2CrossDomainMessenger` marks a message expired, and apps refund it, a day
+    /// after [`MESSAGE_EXPIRY_WINDOW`] has passed, so a longer window could let an expired
+    /// message still be relayed. A dependency set that overrides it with more is rejected when
+    /// it is parsed, as op-core does.
+    #[cfg_attr(
+        feature = "serde",
+        serde(default, deserialize_with = "deserialize_override_window")
+    )]
     pub override_message_expiry_window: Option<u64>,
 }
 
