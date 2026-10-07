@@ -12,29 +12,26 @@ was triaged against the code and either fixed or recorded with a reason.
 
 ## Read this first: which design is verified
 
-The contracts at this PR's base (`37b44c48c7`) implement the **earlier design**:
-- `relayUndeliveredMessage` trusts the L2ToL2CrossDomainMessenger (0x..23) as the L2 sender;
-- the expiry period is 7 days;
-- the protocol window has no cap.
+The **exporter design** landed on `karl/message-expiry-refunds` at `5992028e08`:
+1. `UndeliveredMessageExporter` at `Predeploys.UNDELIVERED_MESSAGE_EXPORTER`. It is 0x..2E today and
+   is moving to the next free predeploy slot; the models refer to it only by name. Its genesis proxy
+   has no implementation before the upgrade.
+2. `L1CrossDomainMessenger.relayUndeliveredMessage` trusts only that sender, behind an INTEROP feature
+   gate.
+3. P_contract = 8 days.
+4. Go and kona reject W_protocol > 7 days.
+5. The messenger keeps its unsafe-target rule (the L2CrossDomainMessenger and, since `3b8d14c4ef`,
+   the L2ToL1MessagePasser) as defense in depth.
 
-The protocol models (Lean, Quint) show that this design **double-spends** if any chain that is, or
-becomes, part of the lockbox once ran a messenger without the target rule. Before its upgrade, an
-attacker could relay a message to the L2CrossDomainMessenger that pre-stages a forged
-`relayUndeliveredMessage` withdrawal for a future message hash. See `cex_messengerTrusted` in Lean
-and `messengerTrustedPrestaged` in Quint.
+The protocol models (Lean, Quint) prove this design safe. They also show that the **earlier design**
+(`37b44c48c7`, which trusted 0x..23 as the L2 sender) double-spends if any chain that is, or becomes,
+part of the lockbox once ran a messenger without the target rule. Before the upgrade, an attacker can
+relay a message to the L2CrossDomainMessenger that pre-stages a forged `relayUndeliveredMessage`
+withdrawal. See `cex_messengerTrusted` in Lean and `messengerTrustedPrestaged` in Quint.
 
-The **exporter design** is pending on `karl/message-expiry-refunds`, and that is what the protocol
-models prove safe:
-1. an `UndeliveredMessageExporter` predeploy at 0x4200..002E, whose genesis proxy has no
-   implementation before the upgrade;
-2. L1 trusting only that sender;
-3. an INTEROP gate on L1;
-4. P_contract = 8 days;
-5. W_protocol ≤ 7 days, enforced (rejected, not clamped) in op-core and kona.
-
-The bytecode-level layers (Halmos, Kontrol, EVM-Lean, hevm) currently check the code at
-`37b44c48c7`. They read the trusted sender and the expiry constant from the contracts, so they can
-be re-targeted once the change lands.
+The bytecode-level layers (Halmos, Kontrol, EVM-Lean, hevm) were first written against
+`37b44c48c7` and are being re-targeted to the tip. Each layer's README names the commit and bytecode
+it checked.
 
 ## Properties and what checks them
 
@@ -67,10 +64,13 @@ Each layer states which of these it assumes and which it checks:
   - only chains that ran the standard predeploys are authorized in a lockbox;
   - chain IDs are unique among lockbox members;
   - authorized portals' SystemConfigs name their real L1CrossDomainMessenger;
-  - no implementation was set at 0x..2E before the upgrade.
+  - no implementation was set at the exporter address before the upgrade;
+  - each cluster chain's L2 governance can upgrade its own exporter, which would let it forge facts for
+    any destination. This is the same trust as the shared ETHLockbox, whose portals must share the
+    proxy admin owner.
 - **Protocol window:** W ≤ P, and the protocol window rule is enforced on a destination before its
   exporter goes live.
-- **Addresses:** no EOA or aliased L1 address equals 0x..2E or 0x..23.
+- **Addresses:** no EOA or aliased L1 address equals the exporter's or the messenger's address.
 
 ## Layout
 

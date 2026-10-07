@@ -1,6 +1,14 @@
 # Quint model: interop message expiry
 
-> **Scope versus the code at this commit.** The contracts at `37b44c48c7` implement the earlier
+> **Scope versus the code.** The exporter design landed on `karl/message-expiry-refunds` at
+> `5992028e08`:
+> - `UndeliveredMessageExporter` at `Predeploys.UNDELIVERED_MESSAGE_EXPORTER` (currently 0x..2E;
+>   moving to the next free predeploy slot);
+> - `relayUndeliveredMessage` trusts it and has the INTEROP gate;
+> - P = 8 days;
+> - the Go and kona caps reject W > 7 days.
+>
+> The `safe` instances describe that code. The earlier commit `37b44c48c7` implemented the earlier
 > design:
 > - the L1 messenger trusts 0x..23 (`L1CrossDomainMessenger.sol:109-110`);
 > - exports come from the L2ToL2 messenger;
@@ -12,12 +20,6 @@
 > `L2CrossDomainMessenger.sendMessage(routeL1CDM, relayUndeliveredMessage(H_future, …))` and replay the
 > resulting deposit later.
 >
-> The safe instances describe the pending design. These must land:
-> - the exporter predeploy;
-> - the L1 sender check pointing at it;
-> - the INTEROP gate;
-> - P = 8 days;
-> - a W ≤ 7-day cap in Go and kona.
 
 `expiry.qnt` models the cross-chain protocol at the level of "who can make which withdrawal or
 deposit exist". It covers the design in which exports come from a predeploy whose proxy has no
@@ -140,7 +142,12 @@ shows the same premise failing for the earlier design.
   obligation.
 - **The protocol W rule** is enforced on a destination before its exporter goes live, and W never
   rises above P later. Changes of W over time are not modeled.
-- **Addresses.** No EOA or aliased L1 address equals 0x..2E or 0x..23 (preimage hardness).
+- **Addresses.** No EOA or aliased L1 address equals the exporter's or the messenger's address
+  (preimage hardness).
+- **Exporter governance.** Each cluster chain's L2 governance (its L2 ProxyAdmin owner) can upgrade
+  its own exporter, which would let it forge facts for any destination. This is the same trust as the
+  shared ETHLockbox, whose portals must share the proxy admin owner. It is not modeled; a chain whose
+  exporter was replaced is a non-standard chain, as in `nonstandardJoin`.
 - **Legacy withdrawals.** Pre-Bedrock (version 0) withdrawals are irrelevant.
 - **The protocol rule's `<=`** is the conservative reading.
 - **One lockbox.** There is a single authorization set, while the code reads the route's own lockbox.
@@ -149,7 +156,8 @@ shows the same premise failing for the earlier design.
   - only standard chains are authorized in a lockbox (`JOIN_REQUIRES_STANDARD`); the
     `nonstandardJoin` counterexample shows why it is needed;
   - an authorized portal's SystemConfig names that chain's real L1CrossDomainMessenger;
-  - no ProxyAdmin set an implementation at the exporter address before the upgrade.
+  - no ProxyAdmin set an implementation at the exporter address
+    (`Predeploys.UNDELIVERED_MESSAGE_EXPORTER`) before the upgrade.
 - **`RefundImpliesExpired` and `AtMostOneRefund`** follow directly from the guards of `refund`; they
   are kept as regression properties.
 - **Hash binding is abstracted** as message identity, destination and source.
@@ -158,8 +166,8 @@ shows the same premise failing for the earlier design.
     modeled. Halmos and Kontrol check it on bytecode.
 - **EVM checks are abstracted into guards.** The reverse binding, the `xDomainMessageSender`
   semantics, the `expireMessage` caller check, and the L1 messenger never relaying to itself are
-  taken as given here; Halmos and Kontrol check them on bytecode (at `37b44c48c7`). The INTEROP gate
-  is not in the code yet and is not modeled (it can only restrict).
+  taken as given here; Halmos and Kontrol check them on bytecode. The INTEROP gate (landed at
+  `5992028e08`) is not modeled; it can only restrict.
 - **Bounded.** Two messages, four chains, `MAX_TIME` = 20, and Apalache up to `DEPTH` steps.
   - An honest refund takes 8–9 steps.
   - The attacks' shortest double spends take 6 steps (`fakeCaller` paths) to 11 (`resendNoRestart`).
