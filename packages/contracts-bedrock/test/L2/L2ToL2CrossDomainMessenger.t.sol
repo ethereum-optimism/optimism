@@ -28,7 +28,6 @@ import {
 // Interfaces
 import { ICrossL2Inbox, Identifier } from "interfaces/L2/ICrossL2Inbox.sol";
 import { ICrossDomainMessenger } from "interfaces/universal/ICrossDomainMessenger.sol";
-import { IL1CrossDomainMessenger } from "interfaces/L1/IL1CrossDomainMessenger.sol";
 
 /// @title L2ToL2CrossDomainMessenger_WithModifiableTransientStorage_Harness
 /// @notice L2ToL2CrossDomainMessenger contract with methods to modify the transient storage.
@@ -804,86 +803,17 @@ abstract contract L2ToL2CrossDomainMessenger_Expiry_TestInit is L2ToL2CrossDomai
     }
 }
 
-/// @title L2ToL2CrossDomainMessenger_ExportUndeliveredMessage_Test
-/// @notice Tests the `exportUndeliveredMessage` function of the `L2ToL2CrossDomainMessenger`
-///         contract.
-contract L2ToL2CrossDomainMessenger_ExportUndeliveredMessage_Test is L2ToL2CrossDomainMessenger_Expiry_TestInit {
-    /// @notice Tests that an undelivered message is sent to the named source L1CrossDomainMessenger
-    ///         through the L2CrossDomainMessenger, hashed with this chain as the destination.
-    function testFuzz_exportUndeliveredMessage_succeeds(
-        address _sourceMessenger,
-        uint256 _source,
-        uint256 _nonce,
-        address _sender,
-        address _target,
-        bytes calldata _message,
-        uint32 _minGasLimit
-    )
-        external
-    {
-        bytes32 messageHash =
-            Hashing.hashL2toL2CrossDomainMessage(block.chainid, _source, _nonce, _sender, _target, _message);
-        bytes memory call = abi.encodeCall(
-            ICrossDomainMessenger.sendMessage,
-            (
-                _sourceMessenger,
-                abi.encodeCall(IL1CrossDomainMessenger.relayUndeliveredMessage, (messageHash, block.timestamp)),
-                _minGasLimit
-            )
-        );
-        vm.mockCall(Predeploys.L2_CROSS_DOMAIN_MESSENGER, call, "");
-
-        vm.expectCall(Predeploys.L2_CROSS_DOMAIN_MESSENGER, call);
-        bytes32 returned = l2ToL2CrossDomainMessenger.exportUndeliveredMessage(
-            _sourceMessenger, _source, _nonce, _sender, _target, _message, _minGasLimit
-        );
-
-        assertEq(returned, messageHash);
-    }
-
-    /// @notice Tests that a message that was relayed cannot be exported.
-    function testFuzz_exportUndeliveredMessage_delivered_reverts(
-        uint256 _source,
-        uint256 _nonce,
-        address _sender,
-        bytes calldata _message
-    )
-        external
-    {
-        address target = makeAddr("target");
-        Identifier memory id = Identifier(Predeploys.L2_TO_L2_CROSS_DOMAIN_MESSENGER, 1, 1, 1, _source);
-        bytes memory sentMessage = abi.encodePacked(
-            abi.encode(L2ToL2CrossDomainMessenger.SentMessage.selector, block.chainid, target, _nonce), // topics
-            abi.encode(_sender, _message) // data
-        );
-        vm.mockCall({
-            callee: Predeploys.CROSS_L2_INBOX,
-            data: abi.encodeCall(ICrossL2Inbox.validateMessage, (id, keccak256(sentMessage))),
-            returnData: ""
-        });
-        l2ToL2CrossDomainMessenger.relayMessage(id, sentMessage);
-
-        vm.expectRevert(MessageAlreadyRelayed.selector);
-        l2ToL2CrossDomainMessenger.exportUndeliveredMessage(l1Messenger, _source, _nonce, _sender, target, _message, 0);
-    }
-}
-
 /// @title L2ToL2CrossDomainMessenger_ExpireMessage_Test
 /// @notice Tests the `expireMessage` function of the `L2ToL2CrossDomainMessenger` contract.
 contract L2ToL2CrossDomainMessenger_ExpireMessage_Test is L2ToL2CrossDomainMessenger_Expiry_TestInit {
     bytes32 internal messageHash;
-    uint256 internal sentNonce;
     uint256 internal sentAt;
 
     /// @notice Sends a message to expire.
     function setUp() public override {
         super.setUp();
         sentAt = block.timestamp;
-        sentNonce = l2ToL2CrossDomainMessenger.messageNonce();
         messageHash = l2ToL2CrossDomainMessenger.sendMessage(block.chainid + 1, address(0xbeef), hex"1234");
-        vm.mockCall(
-            Predeploys.L2_CROSS_DOMAIN_MESSENGER, abi.encodePacked(ICrossDomainMessenger.sendMessage.selector), ""
-        );
     }
 
     /// @notice Tests that the expiry period is the protocol's 7-day message expiry window plus a day of
@@ -894,46 +824,7 @@ contract L2ToL2CrossDomainMessenger_ExpireMessage_Test is L2ToL2CrossDomainMesse
         assertGe(l2ToL2CrossDomainMessenger.EXPIRY_PERIOD(), 604800 + 1 days);
     }
 
-    /// @notice Tests that word from a chain other than the message's destination cannot expire it:
-    ///         that chain hashes the message with itself as the destination.
-    function test_expireMessage_otherChainExport_reverts() external {
-        uint256 source = block.chainid;
-
-        vm.chainId(source + 1);
-        bytes32 fromDestination = l2ToL2CrossDomainMessenger.exportUndeliveredMessage(
-            l1Messenger, source, sentNonce, address(this), address(0xbeef), hex"1234", 0
-        );
-        vm.chainId(source + 2);
-        bytes32 fromOther = l2ToL2CrossDomainMessenger.exportUndeliveredMessage(
-            l1Messenger, source, sentNonce, address(this), address(0xbeef), hex"1234", 0
-        );
-        vm.chainId(source);
-
-        assertEq(fromDestination, messageHash);
-        assertNotEq(fromOther, messageHash);
-        vm.expectRevert(InvalidMessage.selector);
-        _expireMessage(l1Messenger, fromOther, type(uint64).max);
-    }
-
-    /// @notice Tests that word a chain exports about a message from itself can never expire one:
-    ///         no chain can send a message to itself, so no such message was ever sent.
-    function testFuzz_expireMessage_selfExport_reverts(
-        uint256 _nonce,
-        address _sender,
-        address _target,
-        bytes calldata _message
-    )
-        external
-    {
-        bytes32 selfHash = l2ToL2CrossDomainMessenger.exportUndeliveredMessage(
-            l1Messenger, block.chainid, _nonce, _sender, _target, _message, 0
-        );
-
-        vm.expectRevert(InvalidMessage.selector);
-        _expireMessage(l1Messenger, selfHash, type(uint64).max);
-    }
-
-    /// @notice Tests that word dated after the expiry window marks the message expired, and that
+    /// @notice Tests that word dated after the expiry period marks the message expired, and that
     ///         more word changes nothing.
     function testFuzz_expireMessage_succeeds(uint256 _afterWindow) external {
         uint256 window = l2ToL2CrossDomainMessenger.EXPIRY_PERIOD();

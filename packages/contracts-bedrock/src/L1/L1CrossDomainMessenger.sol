@@ -24,8 +24,9 @@ import { IL2ToL2CrossDomainMessenger } from "interfaces/L2/IL2ToL2CrossDomainMes
 ///         for sending and receiving data on the L1 side. Users are encouraged to use this
 ///         interface instead of interacting with lower-level contracts directly.
 contract L1CrossDomainMessenger is CrossDomainMessenger, ProxyAdminOwnedBase, ReinitializableBase, ISemver {
-    /// @notice Thrown when `relayUndeliveredMessage` is not called by another chain's L1CrossDomainMessenger in this
-    ///         chain's interop cluster, relaying a withdrawal from that chain's L2ToL2CrossDomainMessenger.
+    /// @notice Thrown when `relayUndeliveredMessage` is called on a chain that does not run interop, or not by another
+    ///         chain's L1CrossDomainMessenger in this chain's interop cluster, relaying a withdrawal from that chain's
+    ///         UndeliveredMessageExporter.
     error L1CrossDomainMessenger_NotInteropMessenger();
 
     /// @notice Gas limit for L2ToL2CrossDomainMessenger.expireMessage on L2, which uses about 40k gas.
@@ -96,8 +97,10 @@ contract L1CrossDomainMessenger is CrossDomainMessenger, ProxyAdminOwnedBase, Re
     ///           that names a real portal as its own fails this;
     ///         - of a chain in this chain's cluster: its portal is authorized by this chain's ETHLockbox. Every such
     ///           chain can already withdraw this chain's ETH, so trusting its word adds no trust;
-    ///         - relaying a withdrawal from that chain's L2ToL2CrossDomainMessenger, which sends this call only for a
-    ///           message to that chain that it has not relayed.
+    ///         - relaying a withdrawal from that chain's UndeliveredMessageExporter, which sends this call only for a
+    ///           message to that chain that it has not relayed. The exporter lives at an address where no code ran
+    ///           before it, and it never calls arbitrary targets, so no withdrawal from it can predate it or say
+    ///           anything else.
     ///         The word is sent on as this contract, which no relayed message can be (see `_isUnsafeTarget`), so L2 can
     ///         trust it. If this runs out of gas, the call lands in the caller's failed messages and can be replayed.
     /// @param _messageHash   Hash of the message.
@@ -109,8 +112,7 @@ contract L1CrossDomainMessenger is CrossDomainMessenger, ProxyAdminOwnedBase, Re
         if (
             callerPortal.systemConfig().l1CrossDomainMessenger() != msg.sender
                 || !portal.ethLockbox().authorizedPortals(callerPortal)
-                || IL1CrossDomainMessenger(msg.sender).xDomainMessageSender()
-                    != Predeploys.L2_TO_L2_CROSS_DOMAIN_MESSENGER
+                || IL1CrossDomainMessenger(msg.sender).xDomainMessageSender() != Predeploys.UNDELIVERED_MESSAGE_EXPORTER
         ) {
             revert L1CrossDomainMessenger_NotInteropMessenger();
         }

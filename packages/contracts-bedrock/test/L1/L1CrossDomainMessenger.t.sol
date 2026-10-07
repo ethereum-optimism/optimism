@@ -1310,7 +1310,7 @@ contract L1CrossDomainMessenger_RelayUndeliveredMessage_Test is L1CrossDomainMes
         vm.mockCall(
             fake,
             abi.encodeCall(ICrossDomainMessenger.xDomainMessageSender, ()),
-            abi.encode(Predeploys.L2_TO_L2_CROSS_DOMAIN_MESSENGER)
+            abi.encode(Predeploys.UNDELIVERED_MESSAGE_EXPORTER)
         );
 
         vm.expectRevert(IL1CrossDomainMessenger.L1CrossDomainMessenger_NotInteropMessenger.selector);
@@ -1331,10 +1331,10 @@ contract L1CrossDomainMessenger_RelayUndeliveredMessage_Test is L1CrossDomainMes
         l1CrossDomainMessenger.relayUndeliveredMessage(MESSAGE_HASH, UNDELIVERED_AT);
     }
 
-    /// @notice Tests that word relayed from any L2 sender but the L2ToL2CrossDomainMessenger is
+    /// @notice Tests that word relayed from any L2 sender but the UndeliveredMessageExporter is
     ///         rejected.
     function testFuzz_relayUndeliveredMessage_wrongL2Sender_reverts(address _l2Sender) external {
-        vm.assume(_l2Sender != Predeploys.L2_TO_L2_CROSS_DOMAIN_MESSENGER);
+        vm.assume(_l2Sender != Predeploys.UNDELIVERED_MESSAGE_EXPORTER);
         vm.mockCall(
             otherMessenger, abi.encodeCall(ICrossDomainMessenger.xDomainMessageSender, ()), abi.encode(_l2Sender)
         );
@@ -1349,6 +1349,20 @@ contract L1CrossDomainMessenger_RelayUndeliveredMessage_Test is L1CrossDomainMes
     function test_relayUndeliveredMessage_interopDisabled_reverts() external {
         vm.mockCall(
             address(systemConfig), abi.encodeCall(ISystemConfig.isFeatureEnabled, (Features.INTEROP)), abi.encode(false)
+        );
+
+        vm.expectRevert(IL1CrossDomainMessenger.L1CrossDomainMessenger_NotInteropMessenger.selector);
+        vm.prank(otherMessenger);
+        l1CrossDomainMessenger.relayUndeliveredMessage(MESSAGE_HASH, UNDELIVERED_AT);
+    }
+
+    /// @notice Tests that word from the L2ToL2CrossDomainMessenger is rejected: before it refused to
+    ///         relay to the L2CrossDomainMessenger, any relayed message could send a withdrawal as it.
+    function test_relayUndeliveredMessage_l2ToL2CrossDomainMessengerSender_reverts() external {
+        vm.mockCall(
+            otherMessenger,
+            abi.encodeCall(ICrossDomainMessenger.xDomainMessageSender, ()),
+            abi.encode(Predeploys.L2_TO_L2_CROSS_DOMAIN_MESSENGER)
         );
 
         vm.expectRevert(IL1CrossDomainMessenger.L1CrossDomainMessenger_NotInteropMessenger.selector);
@@ -1389,7 +1403,7 @@ contract L1CrossDomainMessenger_RelayUndeliveredMessage_Test is L1CrossDomainMes
         vm.expectRevert("CrossDomainMessenger: cannot send message to blocked system address");
         l1CrossDomainMessenger.relayMessage(
             Encoding.encodeVersionedNonce({ _nonce: 0, _version: 1 }),
-            Predeploys.L2_TO_L2_CROSS_DOMAIN_MESSENGER,
+            Predeploys.UNDELIVERED_MESSAGE_EXPORTER,
             address(l1CrossDomainMessenger),
             0,
             0,
@@ -1416,7 +1430,7 @@ contract L1CrossDomainMessenger_RelayUndeliveredMessage_Test is L1CrossDomainMes
         vm.mockCall(
             messenger_,
             abi.encodeCall(ICrossDomainMessenger.xDomainMessageSender, ()),
-            abi.encode(Predeploys.L2_TO_L2_CROSS_DOMAIN_MESSENGER)
+            abi.encode(Predeploys.UNDELIVERED_MESSAGE_EXPORTER)
         );
         vm.mockCall(portal_, abi.encodeCall(IOptimismPortal2.systemConfig, ()), abi.encode(systemConfig_));
         vm.mockCall(systemConfig_, abi.encodeCall(ISystemConfig.l1CrossDomainMessenger, ()), abi.encode(messenger_));

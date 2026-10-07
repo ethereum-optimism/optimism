@@ -15,6 +15,7 @@ import { Unauthorized, ZeroAddress } from "src/libraries/errors/CommonErrors.sol
 import { AddressAliasHelper } from "src/vendor/AddressAliasHelper.sol";
 import { Encoding } from "src/libraries/Encoding.sol";
 import { Hashing } from "src/libraries/Hashing.sol";
+import { Features } from "src/libraries/Features.sol";
 
 // Interfaces
 import { IETHLiquidity } from "interfaces/L2/IETHLiquidity.sol";
@@ -24,6 +25,7 @@ import { ICrossDomainMessenger } from "interfaces/universal/ICrossDomainMessenge
 import { IL1CrossDomainMessenger } from "interfaces/L1/IL1CrossDomainMessenger.sol";
 import { IOptimismPortal2 } from "interfaces/L1/IOptimismPortal2.sol";
 import { IETHLockbox } from "interfaces/L1/IETHLockbox.sol";
+import { IUndeliveredMessageExporter } from "interfaces/L2/IUndeliveredMessageExporter.sol";
 import { ISystemConfig } from "interfaces/L1/ISystemConfig.sol";
 import { IProxyAdminOwnedBase } from "interfaces/universal/IProxyAdminOwnedBase.sol";
 
@@ -315,9 +317,10 @@ contract SuperchainETHBridge_RefundETH_Test is SuperchainETHBridge_TestInit {
 }
 
 /// @title SuperchainETHBridge_Integration_Test
-/// @notice Runs an expired send's refund through the real messengers: the destination exports it,
-///         the destination's L1CrossDomainMessenger relays the withdrawal into this chain's
-///         L1CrossDomainMessenger, and its deposit expires the message here.
+/// @notice Runs an expired send's refund through the real contracts: the destination's
+///         UndeliveredMessageExporter exports it, the destination's L1CrossDomainMessenger relays
+///         the withdrawal into this chain's L1CrossDomainMessenger, and its deposit expires the
+///         message here.
 contract SuperchainETHBridge_Integration_Test is SuperchainETHBridge_TestInit {
     event MessageExpired(bytes32 indexed messageHash, uint256 undeliveredAt);
 
@@ -326,7 +329,7 @@ contract SuperchainETHBridge_Integration_Test is SuperchainETHBridge_TestInit {
     IL2ToL2CrossDomainMessenger internal messenger =
         IL2ToL2CrossDomainMessenger(Predeploys.L2_TO_L2_CROSS_DOMAIN_MESSENGER);
 
-    /// @notice Sends 1 ether from alice to bob on the destination and lets the window pass.
+    /// @notice Sends 1 ether from alice to bob on the destination and lets the expiry period pass.
     function _sendAndWait() internal returns (uint256 nonce_, bytes32 hash_) {
         nonce_ = messenger.messageNonce();
         vm.deal(alice, 1 ether);
@@ -360,22 +363,23 @@ contract SuperchainETHBridge_Integration_Test is SuperchainETHBridge_TestInit {
         vm.expectEmit(Predeploys.L2_CROSS_DOMAIN_MESSENGER);
         emit SentMessage(
             address(l1CrossDomainMessenger),
-            Predeploys.L2_TO_L2_CROSS_DOMAIN_MESSENGER,
+            Predeploys.UNDELIVERED_MESSAGE_EXPORTER,
             relayUndelivered,
             l2CrossDomainMessenger.messageNonce(),
             1_000_000
         );
         address depositor = AddressAliasHelper.applyL1ToL2Alias(alice);
         vm.prank(depositor, depositor);
-        messenger.exportUndeliveredMessage(
-            address(l1CrossDomainMessenger),
-            source,
-            nonce,
-            address(superchainETHBridge),
-            address(superchainETHBridge),
-            relayETH,
-            1_000_000
-        );
+        IUndeliveredMessageExporter(Predeploys.UNDELIVERED_MESSAGE_EXPORTER)
+            .exportUndeliveredMessage(
+                address(l1CrossDomainMessenger),
+                source,
+                nonce,
+                address(superchainETHBridge),
+                address(superchainETHBridge),
+                relayETH,
+                1_000_000
+            );
         vm.chainId(source);
 
         // On L1, the destination's messenger relays the withdrawal into this chain's.
@@ -384,7 +388,7 @@ contract SuperchainETHBridge_Integration_Test is SuperchainETHBridge_TestInit {
         vm.prank(address(destinationMessenger.portal()));
         destinationMessenger.relayMessage(
             Encoding.encodeVersionedNonce({ _nonce: 0, _version: 1 }),
-            Predeploys.L2_TO_L2_CROSS_DOMAIN_MESSENGER,
+            Predeploys.UNDELIVERED_MESSAGE_EXPORTER,
             address(l1CrossDomainMessenger),
             0,
             1_000_000,
@@ -407,8 +411,10 @@ contract SuperchainETHBridge_Integration_Test is SuperchainETHBridge_TestInit {
     ///         deposit's own transaction.
     function test_refundETH_expireGasLimit_succeeds() external {
         (, bytes32 messageHash) = _sendAndWait();
+        // Read the implementation first: reading it warms the proxy's slot.
+        address implementation = EIP1967Helper.getImplementation(Predeploys.L2_TO_L2_CROSS_DOMAIN_MESSENGER);
         vm.cool(Predeploys.L2_TO_L2_CROSS_DOMAIN_MESSENGER);
-        vm.cool(EIP1967Helper.getImplementation(Predeploys.L2_TO_L2_CROSS_DOMAIN_MESSENGER));
+        vm.cool(implementation);
         vm.mockCall(
             Predeploys.L2_CROSS_DOMAIN_MESSENGER,
             abi.encodeCall(ICrossDomainMessenger.xDomainMessageSender, ()),
@@ -488,5 +494,11 @@ contract SuperchainETHBridge_Integration_Test is SuperchainETHBridge_TestInit {
         IETHLockbox lockbox = optimismPortal2.ethLockbox();
         vm.prank(proxyAdminOwner);
         lockbox.authorizePortal(IOptimismPortal2(payable(portal)));
+
+        // This chain runs interop, so its L1CrossDomainMessenger accepts the word.
+        if (!systemConfig.isFeatureEnabled(Features.INTEROP)) {
+            vm.prank(proxyAdminOwner);
+            systemConfig.setFeature(Features.INTEROP, true);
+        }
     }
 }

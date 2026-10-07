@@ -56,12 +56,12 @@ var (
 	expireMessageSelector     = crypto.Keccak256([]byte("expireMessage(bytes32,uint256)"))[:4]
 	messageNotExpiredSelector = crypto.Keccak256([]byte("MessageNotExpired()"))[:4]
 	messageNotExpired         = hexutil.Encode(messageNotExpiredSelector)
-	messageAlreadyRelayed     = hexutil.Encode(crypto.Keccak256([]byte("MessageAlreadyRelayed()"))[:4])
+	messageRelayed            = hexutil.Encode(crypto.Keccak256([]byte("UndeliveredMessageExporter_MessageRelayed()"))[:4])
 )
 
 // TestInteropMessageExpiry runs every leg of the expiry path for real:
 //
-//	A: sendETH -> (never relayed on B) -> B: exportUndeliveredMessage, forced in as a deposit
+//	A: sendETH -> (never relayed on B) -> B: UndeliveredMessageExporter, forced in as a deposit
 //	-> L1 withdrawal -> A's L1CrossDomainMessenger.relayUndeliveredMessage -> A deposit
 //	-> expireMessage
 //
@@ -88,7 +88,8 @@ func TestInteropMessageExpiry(gt *testing.T) {
 		bindings.WithTo(sys.L2ChainA.Escape().Deployment().SystemConfigProxyAddr()), bindings.WithTest(t))
 	l1MessengerA := contract.Read(systemConfigA.L1CrossDomainMessenger())
 	messengerA := messenger(t, sys.L2ELA)
-	messengerB := messenger(t, sys.L2ELB)
+	exporterB := bindings.NewBindings[bindings.UndeliveredMessageExporter](
+		bindings.WithClient(sys.L2ELB.EthClient()), bindings.WithTo(predeploys.UndeliveredMessageExporterAddr), bindings.WithTest(t))
 	bridgeA := bindings.NewBindings[bindings.SuperchainETHBridge](
 		bindings.WithClient(sys.L2ELA.EthClient()), bindings.WithTo(predeploys.SuperchainETHBridgeAddr), bindings.WithTest(t))
 
@@ -110,14 +111,14 @@ func TestInteropMessageExpiry(gt *testing.T) {
 
 	// B exports that it never relayed the message, to A's L1CrossDomainMessenger. The export is
 	// forced in through B's portal, as it would be if B's sequencer censored it.
-	export := messengerB.ExportUndeliveredMessage(
+	export := exporterB.ExportUndeliveredMessage(
 		l1MessengerA, chainA, sent.nonce, sent.sender, sent.target, sent.message, minGasLimit)
 	exportCall, err := export.EncodeInput()
 	require.NoError(err)
 	portalB := bindings.NewBindings[bindings.OptimismPortal2](bindings.WithClient(sys.L1EL.EthClient()),
 		bindings.WithTo(sys.L2ChainB.DepositContractAddr()), bindings.WithTest(t))
 	exportL1Rcpt := contract.Write(l1User, portalB.DepositTransaction(
-		predeploys.L2toL2CrossDomainMessengerAddr, eth.ZeroWei, exportGasLimit, false, exportCall))
+		predeploys.UndeliveredMessageExporterAddr, eth.ZeroWei, exportGasLimit, false, exportCall))
 	exportRcpt := awaitDeposit(t, sys.L2ELB, exportL1Rcpt)
 	require.Equal(types.ReceiptStatusSuccessful, exportRcpt.Status, "the forced export must execute on B")
 	exportBlock, err := sys.L2ELB.EthClient().InfoByHash(t.Ctx(), exportRcpt.BlockHash)
@@ -149,10 +150,10 @@ func TestInteropMessageExpiry(gt *testing.T) {
 	require.Contains(errutil.TryAddRevertReason(err).Error(), messageNotExpired)
 
 	// A delivered message cannot be exported as undelivered.
-	_, err = contractio.Read(messengerB.ExportUndeliveredMessage(
+	_, err = contractio.Read(exporterB.ExportUndeliveredMessage(
 		l1MessengerA, chainA, delivered.nonce, delivered.sender, delivered.target, delivered.message, minGasLimit), t.Ctx())
 	require.Error(err, "exporting a delivered message must revert")
-	require.Contains(errutil.TryAddRevertReason(err).Error(), messageAlreadyRelayed)
+	require.Contains(errutil.TryAddRevertReason(err).Error(), messageRelayed)
 }
 
 // sentMessage is a message read from a SentMessage event.

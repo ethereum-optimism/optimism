@@ -320,7 +320,7 @@ func assertInteropActivation(t actionsHelpers.StatefulTesting, env *helpers.L2Fa
 	require.Truef(t, allZero(pre), "INTEROP feature must be unset pre-activation, got %x", pre)
 	require.Truef(t, allZero(post), "INTEROP feature must stay unset for single-chain activation, got %x", post)
 
-	// The four Interop predeploys have their EIP-1967 implementation slot set
+	// The Interop predeploys have their EIP-1967 implementation slot set
 	// to a non-empty contract after the L2CM bundle's upgradePredeploys() call.
 	interopProxies := []struct {
 		name string
@@ -330,6 +330,7 @@ func assertInteropActivation(t actionsHelpers.StatefulTesting, env *helpers.L2Fa
 		{"L2ToL2CrossDomainMessenger", predeploys.L2toL2CrossDomainMessengerAddr},
 		{"SuperchainETHBridge", predeploys.SuperchainETHBridgeAddr},
 		{"ETHLiquidity", predeploys.ETHLiquidityAddr},
+		{"UndeliveredMessageExporter", predeploys.UndeliveredMessageExporterAddr},
 	}
 	for _, p := range interopProxies {
 		impl, err := ethCl.StorageAt(context.Background(), p.addr, genesis.ImplementationSlot, postBlock)

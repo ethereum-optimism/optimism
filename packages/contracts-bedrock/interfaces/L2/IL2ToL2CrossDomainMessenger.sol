@@ -41,7 +41,7 @@ interface IL2ToL2CrossDomainMessenger {
     error NotOtherMessenger();
 
     /// @notice Thrown when a message is marked expired on a fact that does not show it unrelayed past the expiry
-    ///         window.
+    ///         period.
     error MessageNotExpired();
 
     /// @notice Emitted whenever a message is sent to a destination
@@ -78,28 +78,6 @@ interface IL2ToL2CrossDomainMessenger {
 
     /// @notice Mapping of message hashes to whether they expired undelivered.
     function expiredMessages(bytes32) external view returns (bool);
-
-    /// @notice Tells the source chain, through its L1CrossDomainMessenger, that a message to this chain has not been
-    ///         relayed by now.
-    /// @param _sourceMessenger The source chain's L1CrossDomainMessenger.
-    /// @param _source          Chain ID of the source chain.
-    /// @param _nonce           Nonce of the message.
-    /// @param _sender          Address that sent the message.
-    /// @param _target          Target contract or wallet address.
-    /// @param _message         Message payload.
-    /// @param _minGasLimit     Minimum gas limit for the call on L1.
-    /// @return messageHash_ Hash of the message.
-    function exportUndeliveredMessage(
-        address _sourceMessenger,
-        uint256 _source,
-        uint256 _nonce,
-        address _sender,
-        address _target,
-        bytes calldata _message,
-        uint32 _minGasLimit
-    )
-        external
-        returns (bytes32 messageHash_);
 
     /// @notice Marks a message sent from this chain expired, on word from this chain's L1CrossDomainMessenger.
     /// @param _messageHash   Hash of the message.
