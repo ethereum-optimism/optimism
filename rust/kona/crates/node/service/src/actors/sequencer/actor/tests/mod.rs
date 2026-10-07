@@ -128,7 +128,11 @@ impl SequencerEngineClient for SlowSealEngine {
         self.inner.seal_block(payload_id, attributes).await
     }
 
-    async fn canonicalize_block(&self, payload: OpExecutionPayloadEnvelope, parent: L2BlockInfo) -> EngineClientResult<()> {
+    async fn canonicalize_block(
+        &self,
+        payload: OpExecutionPayloadEnvelope,
+        parent: L2BlockInfo,
+    ) -> EngineClientResult<()> {
         self.inner.canonicalize_block(payload, parent).await
     }
 

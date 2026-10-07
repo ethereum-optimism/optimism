@@ -48,7 +48,10 @@ async fn stale_committed_payload_does_not_import_or_change_forkchoice() {
         CanonicalizeTask::new(client, cfg, payload, parent, tx, None, Arc::new(NoopBlockSink));
     let original = state;
     task.execute(&mut state).await.unwrap();
-    assert!(matches!(rx.recv().await.unwrap(), Err(SealTaskError::UnsafeHeadChangedSinceBuild)));
+    assert!(matches!(
+        rx.recv().await.unwrap(),
+        Err(CanonicalizeTaskError::UnsafeHeadChangedSinceBuild)
+    ));
     assert_eq!(state, original);
     l1.assert_finished();
     l2.assert_finished();
@@ -76,8 +79,10 @@ async fn failed_forkchoice_update_is_relayed_and_retry_imports_the_same_payload(
         sink.clone(),
     );
     task.execute(&mut state).await.unwrap();
-    assert!(matches!(rx.recv().await.unwrap(), Err(SealTaskError::PayloadInsertionFailed(err))
-        if matches!(*err, InsertTaskError::ForkchoiceUpdateFailed(SynchronizeTaskError::ForkchoiceUpdateFailed(_)))));
+    assert!(
+        matches!(rx.recv().await.unwrap(), Err(CanonicalizeTaskError::PayloadInsertionFailed(err))
+        if matches!(*err, InsertTaskError::ForkchoiceUpdateFailed(SynchronizeTaskError::ForkchoiceUpdateFailed(_))))
+    );
     assert_eq!(state, original);
     assert!(sink.0.lock().unwrap().is_empty());
 
@@ -115,8 +120,10 @@ async fn invalid_committed_payload_does_not_build_an_uncommitted_replacement() {
         Arc::new(NoopBlockSink),
     );
     task.execute(&mut state).await.unwrap();
-    assert!(matches!(rx.recv().await.unwrap(), Err(SealTaskError::PayloadInsertionFailed(err))
-        if matches!(*err, InsertTaskError::UnexpectedPayloadStatus(PayloadStatusEnum::Invalid { .. }))));
+    assert!(
+        matches!(rx.recv().await.unwrap(), Err(CanonicalizeTaskError::PayloadInsertionFailed(err))
+        if matches!(*err, InsertTaskError::UnexpectedPayloadStatus(PayloadStatusEnum::Invalid { .. })))
+    );
     assert_eq!(state, original);
     l1.assert_finished();
     l2.assert_finished();
@@ -132,7 +139,7 @@ async fn unsafe_head_is_published_before_the_canonicalization_response() {
     let client = Arc::new(client);
     let (tx, mut rx) = mpsc::channel(1);
     // Hold the response send pending. Head publication must happen even before this is drained.
-    tx.send(Err(SealTaskError::UnsafeHeadChangedSinceBuild)).await.unwrap();
+    tx.send(Err(CanonicalizeTaskError::UnsafeHeadChangedSinceBuild)).await.unwrap();
     let (head_tx, mut head_rx) = watch::channel(L2BlockInfo::default());
     let task = CanonicalizeTask::new(
         client,

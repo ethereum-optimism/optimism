@@ -150,6 +150,6 @@ impl SequencerEngineClient for QueuedSequencerEngineClient {
                 EngineClientError::ResponseError("response channel closed.".to_string())
             })?
             .map(|_| ())
-            .map_err(EngineClientError::SealError)
+            .map_err(EngineClientError::CanonicalizeError)
     }
 }
