@@ -18,7 +18,6 @@ workspace = true
 [dependencies]
 # Kona
 kona-peers.workspace = true
-kona-macros.workspace = true
 kona-genesis.workspace = true
 kona-disc.workspace = true
 
@@ -42,7 +41,7 @@ discv5.workspace = true
 enr.workspace = true
 openssl = { workspace = true, features = ["vendored"] }
 libp2p-identity = { workspace = true, features = ["secp256k1"] }
-libp2p = { workspace = true, features = ["macros", "tokio", "tcp", "dns", "noise", "gossipsub", "ping", "yamux", "identify"] }
+libp2p = { workspace = true, features = ["macros", "tokio", "tcp", "dns", "noise", "gossipsub", "ping", "yamux", "identify", "metrics"] }
 ipnet = { workspace = true, features = ["serde"] }
 
 # Misc
@@ -54,8 +53,7 @@ serde_repr.workspace = true
 lazy_static.workspace = true
 derive_more = { workspace = true, features = ["display", "deref", "debug"] }
 
-# `metrics` feature
-metrics = { workspace = true, optional = true }
+metrics.workspace = true
 
 [dev-dependencies]
 tempfile.workspace = true
@@ -74,4 +72,3 @@ op-alloy-consensus = { workspace = true, features = ["arbitrary", "k256"] }
 
 [features]
 default = []
-metrics = [ "dep:metrics", "kona-disc/metrics", "libp2p/metrics" ]

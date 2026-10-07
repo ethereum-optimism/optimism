@@ -278,7 +278,7 @@ impl Discv5Driver {
                         match event {
                             discv5::Event::Discovered(enr) if EnrValidation::validate(&enr, chain_id).is_valid() => {
                                 debug!(target: "discovery", "Valid ENR discovered, forwarding to swarm: {:?}", enr);
-                                kona_macros::inc!(gauge, crate::Metrics::DISCOVERY_EVENT, "type" => "discovered");
+                                metrics::gauge!(crate::Metrics::DISCOVERY_EVENT, "type" => "discovered").increment(1);
                                 store.add_enr(enr.clone());
                                 let sender = enr_sender.clone();
                                 tokio::spawn(async move {
@@ -289,7 +289,7 @@ impl Discv5Driver {
                             }
                             discv5::Event::SessionEstablished(enr, addr) if EnrValidation::validate(&enr, chain_id).is_valid() => {
                                 debug!(target: "discovery", "Session established with valid ENR, forwarding to swarm. Address: {:?}, ENR: {:?}", addr, enr);
-                                kona_macros::inc!(gauge, crate::Metrics::DISCOVERY_EVENT, "type" => "session_established");
+                                metrics::gauge!(crate::Metrics::DISCOVERY_EVENT, "type" => "session_established").increment(1);
                                 store.add_enr(enr.clone());
                                 let sender = enr_sender.clone();
                                 tokio::spawn(async move {
@@ -300,7 +300,7 @@ impl Discv5Driver {
                             }
                             discv5::Event::UnverifiableEnr { enr, .. } if EnrValidation::validate(&enr, chain_id).is_valid() => {
                                 debug!(target: "discovery", "Valid ENR discovered, forwarding to swarm: {:?}", enr);
-                                kona_macros::inc!(gauge, crate::Metrics::DISCOVERY_EVENT, "type" => "unverifiable_enr");
+                                metrics::gauge!(crate::Metrics::DISCOVERY_EVENT, "type" => "unverifiable_enr").increment(1);
                                 store.add_enr(enr.clone());
                                 let sender = enr_sender.clone();
                                 tokio::spawn(async move {
@@ -315,7 +315,7 @@ impl Discv5Driver {
                     _ = interval.tick() => {
                         let id = NodeId::random();
                         trace!(target: "discovery", "Finding random node: {}", id);
-                        kona_macros::inc!(gauge, crate::Metrics::FIND_NODE_REQUEST, "find_node" => "find_node");
+                        metrics::gauge!(crate::Metrics::FIND_NODE_REQUEST, "find_node" => "find_node").increment(1);
                         let fut = self.disc.find_node(id);
                         let enr_sender = enr_sender.clone();
                         tokio::spawn(async move {
@@ -343,8 +343,8 @@ impl Discv5Driver {
 
                         let elapsed = start.elapsed();
                         debug!(target: "discovery", "Bootstore ENRs stored in {:?}", elapsed);
-                        kona_macros::record!(histogram, crate::Metrics::ENR_STORE_TIME, "store_time", "store_time", elapsed.as_secs_f64());
-                        kona_macros::set!(gauge, crate::Metrics::DISCOVERY_PEER_COUNT, self.disc.connected_peers() as f64);
+                        metrics::histogram!(crate::Metrics::ENR_STORE_TIME, "store_time" => "store_time").record(elapsed.as_secs_f64());
+                        metrics::gauge!(crate::Metrics::DISCOVERY_PEER_COUNT).set(self.disc.connected_peers() as f64);
                     }
                     _ = removal_interval.tick() => {
                         if remove {

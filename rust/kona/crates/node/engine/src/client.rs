@@ -2,17 +2,16 @@
 
 use crate::Metrics;
 use alloy_eips::{BlockId, eip1898::BlockNumberOrTag};
+use alloy_json_rpc::{RequestPacket, ResponsePacket};
 use alloy_network::{Ethereum, Network};
-use alloy_primitives::{Address, B256, BlockHash, Bytes, StorageKey};
+use alloy_primitives::{Address, B256, Bytes, StorageKey};
 use alloy_provider::{EthGetBlock, Provider, RootProvider, RpcWithBlock, ext::EngineApi};
 use alloy_rpc_client::ClientBuilder;
-use alloy_rpc_types_engine::{
-    ClientVersionV1, ExecutionPayloadBodiesV1, ExecutionPayloadEnvelopeV2, ExecutionPayloadInputV2,
-    ExecutionPayloadV1, ExecutionPayloadV3, ForkchoiceState, ForkchoiceUpdated, JwtSecret,
-    PayloadId, PayloadStatus,
-};
+use alloy_rpc_types_engine::{ExecutionPayloadV1, JwtSecret, PayloadStatus};
 use alloy_rpc_types_eth::{Block, EIP1186AccountProofResponse};
-use alloy_transport::{RpcError, TransportErrorKind, TransportFut, TransportResult};
+use alloy_transport::{
+    RpcError, TransportError, TransportErrorKind, TransportFut, TransportResult,
+};
 use alloy_transport_http::{
     AuthLayer, AuthService, Http, HyperClient,
     hyper_util::{
@@ -27,17 +26,13 @@ use kona_protocol::FromBlockError;
 use op_alloy_network::Optimism;
 use op_alloy_provider::ext::engine::OpEngineApi;
 use op_alloy_rpc_types::Transaction;
-use op_alloy_rpc_types_engine::{
-    OpExecutionPayloadEnvelopeV3, OpExecutionPayloadEnvelopeV4, OpExecutionPayloadV4,
-    OpPayloadAttributes,
-};
 use std::{
-    future::Future,
     sync::Arc,
+    task::{Context, Poll},
     time::{Duration, Instant},
 };
 use thiserror::Error;
-use tower::{ServiceBuilder, util::MapFutureLayer};
+use tower::{Layer, Service, ServiceBuilder, util::MapFutureLayer};
 use url::Url;
 
 /// Deadline for each request the engine client sends, to the Engine API or to L1.
@@ -57,6 +52,52 @@ fn with_deadline(request: TransportFut<'static>) -> TransportFut<'static> {
             .await
             .map_err(|_| TransportErrorKind::custom_str("RPC request timed out"))?
     })
+}
+
+/// Records how long each request to the L2 execution layer takes, labeled by its JSON-RPC method,
+/// in the [`Metrics::ENGINE_METHOD_REQUEST_DURATION`] histogram. Failed requests are recorded too.
+#[derive(Debug, Clone, Copy)]
+struct RequestDurationLayer;
+
+impl<S> Layer<S> for RequestDurationLayer {
+    type Service = RequestDuration<S>;
+
+    fn layer(&self, inner: S) -> Self::Service {
+        RequestDuration(inner)
+    }
+}
+
+/// The transport service that a [`RequestDurationLayer`] wraps.
+#[derive(Debug, Clone)]
+struct RequestDuration<S>(S);
+
+impl<S> Service<RequestPacket> for RequestDuration<S>
+where
+    S: Service<RequestPacket, Response = ResponsePacket, Error = TransportError>,
+    S::Future: Send + 'static,
+{
+    type Response = ResponsePacket;
+    type Error = TransportError;
+    type Future = TransportFut<'static>;
+
+    fn poll_ready(&mut self, cx: &mut Context<'_>) -> Poll<Result<(), Self::Error>> {
+        self.0.poll_ready(cx)
+    }
+
+    fn call(&mut self, request: RequestPacket) -> Self::Future {
+        let method = match &request {
+            RequestPacket::Single(request) => request.method().to_string(),
+            RequestPacket::Batch(_) => "batch".to_string(),
+        };
+        let response = self.0.call(request);
+        Box::pin(async move {
+            let start = Instant::now();
+            let response = response.await;
+            metrics::histogram!(Metrics::ENGINE_METHOD_REQUEST_DURATION, "method" => method)
+                .record(start.elapsed().as_secs_f64());
+            response
+        })
+    }
 }
 
 /// An error that occurred in the [`EngineClient`].
@@ -179,9 +220,11 @@ where
         let service = ServiceBuilder::new().layer(auth_layer).service(hyper_client);
         let layer_transport = HyperClient::with_service(service);
         let http_hyper = Http::with_client(layer_transport, addr);
-        let rpc_client = ClientBuilder::default()
-            .layer(MapFutureLayer::new(with_deadline))
-            .transport(http_hyper, false);
+        let client = ClientBuilder::default();
+        // Time requests in full, including any that hit the deadline.
+        let client = client.layer(RequestDurationLayer);
+        let rpc_client =
+            client.layer(MapFutureLayer::new(with_deadline)).transport(http_hyper, false);
         RootProvider::<N>::new(rpc_client)
     }
 }
@@ -246,7 +289,7 @@ where
     }
 
     async fn new_payload_v1(&self, payload: ExecutionPayloadV1) -> TransportResult<PayloadStatus> {
-        record_call_time(self.engine.new_payload_v1(payload), Metrics::NEW_PAYLOAD_METHOD).await
+        self.engine.new_payload_v1(payload).await
     }
 
     async fn l2_block_by_label(
@@ -257,195 +300,64 @@ where
     }
 }
 
-#[async_trait::async_trait]
-impl<L1Provider, L2Provider> OpEngineApi<Optimism, Http<HyperAuthClient>>
-    for OpEngineClient<L1Provider, L2Provider>
+/// Engine API calls on an [`OpEngineClient`] go to the L2 execution layer: with this, it gets
+/// [`OpEngineApi`] from the implementation for every [`Provider`].
+impl<L1Provider, L2Provider> Provider<Optimism> for OpEngineClient<L1Provider, L2Provider>
 where
     L1Provider: Provider,
     L2Provider: Provider<Optimism>,
 {
-    async fn new_payload_v2(
-        &self,
-        payload: ExecutionPayloadInputV2,
-    ) -> TransportResult<PayloadStatus> {
-        let call = <L2Provider as OpEngineApi<Optimism, Http<HyperAuthClient>>>::new_payload_v2(
-            &self.engine,
-            payload,
-        );
-
-        record_call_time(call, Metrics::NEW_PAYLOAD_METHOD).await
-    }
-
-    async fn new_payload_v3(
-        &self,
-        payload: ExecutionPayloadV3,
-        parent_beacon_block_root: B256,
-    ) -> TransportResult<PayloadStatus> {
-        let call = <L2Provider as OpEngineApi<Optimism, Http<HyperAuthClient>>>::new_payload_v3(
-            &self.engine,
-            payload,
-            parent_beacon_block_root,
-        );
-
-        record_call_time(call, Metrics::NEW_PAYLOAD_METHOD).await
-    }
-
-    async fn new_payload_v4(
-        &self,
-        payload: OpExecutionPayloadV4,
-        parent_beacon_block_root: B256,
-    ) -> TransportResult<PayloadStatus> {
-        let call = <L2Provider as OpEngineApi<Optimism, Http<HyperAuthClient>>>::new_payload_v4(
-            &self.engine,
-            payload,
-            parent_beacon_block_root,
-        );
-
-        record_call_time(call, Metrics::NEW_PAYLOAD_METHOD).await
-    }
-
-    async fn fork_choice_updated_v2(
-        &self,
-        fork_choice_state: ForkchoiceState,
-        payload_attributes: Option<OpPayloadAttributes>,
-    ) -> TransportResult<ForkchoiceUpdated> {
-        let call =
-            <L2Provider as OpEngineApi<Optimism, Http<HyperAuthClient>>>::fork_choice_updated_v2(
-                &self.engine,
-                fork_choice_state,
-                payload_attributes,
-            );
-
-        record_call_time(call, Metrics::FORKCHOICE_UPDATE_METHOD).await
-    }
-
-    async fn fork_choice_updated_v3(
-        &self,
-        fork_choice_state: ForkchoiceState,
-        payload_attributes: Option<OpPayloadAttributes>,
-    ) -> TransportResult<ForkchoiceUpdated> {
-        let call =
-            <L2Provider as OpEngineApi<Optimism, Http<HyperAuthClient>>>::fork_choice_updated_v3(
-                &self.engine,
-                fork_choice_state,
-                payload_attributes,
-            );
-
-        record_call_time(call, Metrics::FORKCHOICE_UPDATE_METHOD).await
-    }
-
-    async fn get_payload_v2(
-        &self,
-        payload_id: PayloadId,
-    ) -> TransportResult<ExecutionPayloadEnvelopeV2> {
-        let call = <L2Provider as OpEngineApi<Optimism, Http<HyperAuthClient>>>::get_payload_v2(
-            &self.engine,
-            payload_id,
-        );
-
-        record_call_time(call, Metrics::GET_PAYLOAD_METHOD).await
-    }
-
-    async fn get_payload_v3(
-        &self,
-        payload_id: PayloadId,
-    ) -> TransportResult<OpExecutionPayloadEnvelopeV3> {
-        let call = <L2Provider as OpEngineApi<Optimism, Http<HyperAuthClient>>>::get_payload_v3(
-            &self.engine,
-            payload_id,
-        );
-
-        record_call_time(call, Metrics::GET_PAYLOAD_METHOD).await
-    }
-
-    async fn get_payload_v4(
-        &self,
-        payload_id: PayloadId,
-    ) -> TransportResult<OpExecutionPayloadEnvelopeV4> {
-        let call = <L2Provider as OpEngineApi<Optimism, Http<HyperAuthClient>>>::get_payload_v4(
-            &self.engine,
-            payload_id,
-        );
-
-        record_call_time(call, Metrics::GET_PAYLOAD_METHOD).await
-    }
-
-    async fn get_payload_v5(
-        &self,
-        payload_id: PayloadId,
-    ) -> TransportResult<OpExecutionPayloadEnvelopeV4> {
-        let call = <L2Provider as OpEngineApi<Optimism, Http<HyperAuthClient>>>::get_payload_v5(
-            &self.engine,
-            payload_id,
-        );
-
-        record_call_time(call, Metrics::GET_PAYLOAD_METHOD).await
-    }
-
-    async fn get_payload_bodies_by_hash_v1(
-        &self,
-        block_hashes: Vec<BlockHash>,
-    ) -> TransportResult<ExecutionPayloadBodiesV1> {
-        <L2Provider as OpEngineApi<Optimism, Http<HyperAuthClient>>>::get_payload_bodies_by_hash_v1(
-            &self.engine,
-            block_hashes,
-        )
-        .await
-    }
-
-    async fn get_payload_bodies_by_range_v1(
-        &self,
-        start: u64,
-        count: u64,
-    ) -> TransportResult<ExecutionPayloadBodiesV1> {
-        <L2Provider as OpEngineApi<
-            Optimism,
-            Http<HyperAuthClient>,
-        >>::get_payload_bodies_by_range_v1(&self.engine, start, count).await
-    }
-
-    async fn get_client_version_v1(
-        &self,
-        client_version: ClientVersionV1,
-    ) -> TransportResult<Vec<ClientVersionV1>> {
-        <L2Provider as OpEngineApi<Optimism, Http<HyperAuthClient>>>::get_client_version_v1(
-            &self.engine,
-            client_version,
-        )
-        .await
-    }
-
-    async fn exchange_capabilities(
-        &self,
-        capabilities: Vec<String>,
-    ) -> TransportResult<Vec<String>> {
-        <L2Provider as OpEngineApi<Optimism, Http<HyperAuthClient>>>::exchange_capabilities(
-            &self.engine,
-            capabilities,
-        )
-        .await
+    fn root(&self) -> &RootProvider<Optimism> {
+        self.engine.root()
     }
 }
 
-/// Wrapper to record the time taken for a call to the engine API and log the result as a metric.
-async fn record_call_time<T, Err>(
-    f: impl Future<Output = Result<T, Err>>,
-    metric_label: &'static str,
-) -> Result<T, Err> {
-    // Await on the future and track its duration.
-    let start = Instant::now();
-    let result = f.await?;
-    let duration = start.elapsed();
+#[cfg(test)]
+mod request_duration_tests {
+    use super::*;
+    use alloy_json_rpc::{Id, Request, Response, ResponsePayload};
+    use metrics_exporter_prometheus::PrometheusBuilder;
+    use serde_json::value::RawValue;
 
-    // Record the call duration.
-    kona_macros::record!(
-        histogram,
-        Metrics::ENGINE_METHOD_REQUEST_DURATION,
-        "method",
-        metric_label,
-        duration.as_secs_f64()
-    );
-    Ok(result)
+    /// Sends one request for `method` through a [`RequestDurationLayer`] over a transport that
+    /// answers with `response`.
+    fn send(method: &'static str, response: Result<ResponsePacket, TransportError>) {
+        let request = Request::new(method, Id::Number(1), ()).serialize().unwrap();
+        let mut response = Some(response);
+        let mut service = RequestDurationLayer.layer(tower::service_fn(move |_| {
+            let response = response.take().expect("the transport is called once");
+            async move { response }
+        }));
+        let call = service.call(RequestPacket::Single(request));
+        let _ = tokio::runtime::Builder::new_current_thread().build().unwrap().block_on(call);
+    }
+
+    #[test]
+    fn records_successful_and_failed_requests_by_method() {
+        let recorder = PrometheusBuilder::new().build_recorder();
+        let metrics = recorder.handle();
+        metrics::with_local_recorder(&recorder, || {
+            send(
+                "engine_newPayloadV3",
+                Ok(ResponsePacket::Single(Response {
+                    id: Id::Number(1),
+                    payload: ResponsePayload::Success(
+                        RawValue::from_string("null".into()).unwrap(),
+                    ),
+                })),
+            );
+            send("engine_getPayloadV3", Err(TransportErrorKind::custom_str("unreachable")));
+        });
+
+        let rendered = metrics.render();
+        for method in ["engine_newPayloadV3", "engine_getPayloadV3"] {
+            let count = format!(
+                "{}_count{{method=\"{method}\"}} 1",
+                Metrics::ENGINE_METHOD_REQUEST_DURATION
+            );
+            assert!(rendered.contains(&count), "missing {count} in:\n{rendered}");
+        }
+    }
 }
 
 #[cfg(test)]
