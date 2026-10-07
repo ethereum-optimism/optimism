@@ -13,10 +13,7 @@ mod error;
 pub use error::EngineError;
 
 mod request;
-pub use request::{
-    BuildRequest, EngineClientError, EngineClientResult, EngineRpcRequest, ResetRequest,
-    SealRequest,
-};
+pub use request::{BuildRequest, EngineClientError, EngineClientResult, ResetRequest, SealRequest};
 
 mod rpc_actor;
 pub use rpc_actor::EngineRpcActor;

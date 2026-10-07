@@ -59,6 +59,7 @@ alloy-rpc-client = { workspace = true, features = ["reqwest"], optional = true }
 
 [dev-dependencies]
 serde_json.workspace = true
+tokio = { workspace = true, features = ["macros", "rt"] }
 
 [features]
 default = []

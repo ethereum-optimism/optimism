@@ -6,9 +6,6 @@ pub use launcher::{JsonrpseeServerLauncher, RpcServerHandle, RpcServerLauncher};
 
 mod middleware;
 
-mod engine_rpc_client;
-pub use engine_rpc_client::QueuedEngineRpcClient;
-
 mod error;
 pub use error::RpcActorError;
 
