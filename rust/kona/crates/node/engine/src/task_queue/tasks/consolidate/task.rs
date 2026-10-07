@@ -3,7 +3,7 @@
 use crate::{
     ConsolidateTaskError, EngineClient, EngineState, EngineTaskExt, ImportedBlockSink,
     state::EngineSyncStateUpdate,
-    task_queue::{BuildAndSealError, build_and_seal, handle_rejected_attributes, synchronize},
+    task_queue::{build_and_import, synchronize},
 };
 use alloy_rpc_types_eth::Block;
 use async_trait::async_trait;
@@ -88,41 +88,17 @@ impl ConsolidateTask {
     }
 
     /// This is used when the [`ConsolidateTask`] fails to consolidate the engine state
-    async fn execute_build_and_seal_tasks(
+    async fn build_and_import_attributes(
         &self,
         state: &mut EngineState,
         attributes: &OpAttributesWithParent,
     ) -> Result<(), ConsolidateTaskError> {
-        match build_and_seal(
-            state,
-            self.client.clone(),
-            self.cfg.clone(),
-            attributes.clone(),
-            self.block_sink.clone(),
-        )
-        .await
-        {
-            Err(BuildAndSealError::Build(err)) if err.is_invalid_attributes() => {
-                warn!(target: "engine", %err, "Derived attributes rejected at forkchoiceUpdated");
-                Err(handle_rejected_attributes(
-                    state,
-                    self.client.clone(),
-                    self.cfg.clone(),
-                    attributes,
-                    true,
-                    self.block_sink.clone(),
-                )
-                .await
-                .map_or(
-                    ConsolidateTaskError::BuildTaskFailed(err),
-                    ConsolidateTaskError::SealTaskFailed,
-                ))
-            }
-            result => result.map_err(Into::into),
-        }
+        build_and_import(self.client.as_ref(), &self.cfg, state, attributes.clone(), self.block_sink.as_ref())
+            .await?;
+        Ok(())
     }
 
-    /// This provides symmetric fallback behavior to with `build_and_seal`.
+    /// This provides symmetric fallback behavior to with `build_and_import`.
     async fn reconcile_to_safe_head(
         &self,
         state: &mut EngineState,
@@ -171,7 +147,7 @@ impl ConsolidateTask {
     ) -> Result<(), ConsolidateTaskError> {
         match &self.input {
             ConsolidateInput::Attributes(attributes) => {
-                self.execute_build_and_seal_tasks(state, attributes).await
+                self.build_and_import_attributes(state, attributes).await
             }
             ConsolidateInput::BlockInfo(safe_l2) => {
                 self.reconcile_to_safe_head(state, safe_l2).await
