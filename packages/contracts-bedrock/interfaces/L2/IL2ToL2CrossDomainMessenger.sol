@@ -33,8 +33,9 @@ interface IL2ToL2CrossDomainMessenger {
     /// @notice Thrown when the provided message parameters do not match any hash of a previously sent message.
     error InvalidMessage();
 
-    /// @notice Thrown when attempting to send or relay a message whose target is the L2CrossDomainMessenger.
-    error MessageTargetL2CrossDomainMessenger();
+    /// @notice Thrown when attempting to send or relay a message whose target is the L2CrossDomainMessenger or the
+    ///         L2ToL1MessagePasser.
+    error MessageTargetUnsafe();
 
     /// @notice Thrown when a message is marked expired by anything but this chain's L1CrossDomainMessenger.
     error NotOtherMessenger();

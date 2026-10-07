@@ -20,7 +20,7 @@ import {
     MessageTargetL2ToL2CrossDomainMessenger,
     MessageAlreadyRelayed,
     InvalidMessage,
-    MessageTargetL2CrossDomainMessenger,
+    MessageTargetUnsafe,
     NotOtherMessenger,
     MessageNotExpired
 } from "src/L2/L2ToL2CrossDomainMessenger.sol";
@@ -188,6 +188,7 @@ contract L2ToL2CrossDomainMessenger_SendMessage_Test is L2ToL2CrossDomainMesseng
         // Ensure that the target contract is not the L2ToL2CrossDomainMessenger
         vm.assume(_target != Predeploys.L2_TO_L2_CROSS_DOMAIN_MESSENGER);
         vm.assume(_target != Predeploys.L2_CROSS_DOMAIN_MESSENGER);
+        vm.assume(_target != Predeploys.L2_TO_L1_MESSAGE_PASSER);
 
         // Get the current message nonce
         uint256 messageNonce = l2ToL2CrossDomainMessenger.messageNonce();
@@ -238,6 +239,7 @@ contract L2ToL2CrossDomainMessenger_SendMessage_Test is L2ToL2CrossDomainMesseng
         // Ensure that the target contract is not the L2ToL2CrossDomainMessenger
         vm.assume(_target != Predeploys.L2_TO_L2_CROSS_DOMAIN_MESSENGER);
         vm.assume(_target != Predeploys.L2_CROSS_DOMAIN_MESSENGER);
+        vm.assume(_target != Predeploys.L2_TO_L1_MESSAGE_PASSER);
 
         // Ensure that _value is greater than 0
         _value = bound(_value, 1, type(uint256).max);
@@ -286,20 +288,20 @@ contract L2ToL2CrossDomainMessenger_SendMessage_Test is L2ToL2CrossDomainMesseng
         });
     }
 
-    /// @notice Tests that the `sendMessage` function reverts when the target is the
-    ///         L2CrossDomainMessenger.
-    function testFuzz_sendMessage_targetL2CrossDomainMessenger_reverts(
+    /// @notice Tests that `sendMessage` reverts when the target is the L2CrossDomainMessenger or the
+    ///         L2ToL1MessagePasser, through which this contract would initiate a withdrawal.
+    function testFuzz_sendMessage_unsafeTarget_reverts(
         uint256 _destination,
+        bool _messagePasser,
         bytes calldata _message
     )
         external
     {
         vm.assume(_destination != block.chainid);
+        address target = _messagePasser ? Predeploys.L2_TO_L1_MESSAGE_PASSER : Predeploys.L2_CROSS_DOMAIN_MESSENGER;
 
-        vm.expectRevert(MessageTargetL2CrossDomainMessenger.selector);
-        l2ToL2CrossDomainMessenger.sendMessage({
-            _destination: _destination, _target: Predeploys.L2_CROSS_DOMAIN_MESSENGER, _message: _message
-        });
+        vm.expectRevert(MessageTargetUnsafe.selector);
+        l2ToL2CrossDomainMessenger.sendMessage({ _destination: _destination, _target: target, _message: _message });
     }
 }
 
@@ -459,7 +461,8 @@ contract L2ToL2CrossDomainMessenger_RelayMessage_Test is L2ToL2CrossDomainMessen
         // Ensure the target is not CrossL2Inbox or L2ToL2CrossDomainMessenger or the foundry VM
         vm.assume(
             _target != Predeploys.CROSS_L2_INBOX && _target != Predeploys.L2_TO_L2_CROSS_DOMAIN_MESSENGER
-                && _target != Predeploys.L2_CROSS_DOMAIN_MESSENGER && _target != foundryVMAddress
+                && _target != Predeploys.L2_CROSS_DOMAIN_MESSENGER && _target != Predeploys.L2_TO_L1_MESSAGE_PASSER
+                && _target != foundryVMAddress
         );
 
         assumeNotForgeAddress(_target);
@@ -625,23 +628,24 @@ contract L2ToL2CrossDomainMessenger_RelayMessage_Test is L2ToL2CrossDomainMessen
         l2ToL2CrossDomainMessenger.relayMessage{ value: _value }(id, sentMessage);
     }
 
-    /// @notice Tests that the `relayMessage` function reverts when the target is the
-    ///         L2CrossDomainMessenger, so a relayed message can never send a withdrawal from this
-    ///         contract, which L1CrossDomainMessengers trust.
-    function testFuzz_relayMessage_targetL2CrossDomainMessenger_reverts(
+    /// @notice Tests that `relayMessage` reverts when the target is the L2CrossDomainMessenger or the
+    ///         L2ToL1MessagePasser: L1CrossDomainMessengers trust withdrawals from this contract.
+    function testFuzz_relayMessage_unsafeTarget_reverts(
         uint256 _source,
+        bool _messagePasser,
         uint256 _nonce,
         address _sender,
         bytes calldata _message
     )
         external
     {
+        address target = _messagePasser ? Predeploys.L2_TO_L1_MESSAGE_PASSER : Predeploys.L2_CROSS_DOMAIN_MESSENGER;
         Identifier memory id = Identifier(Predeploys.L2_TO_L2_CROSS_DOMAIN_MESSENGER, 1, 1, 1, _source);
         bytes memory sentMessage = abi.encodePacked(
             abi.encode(
                 L2ToL2CrossDomainMessenger.SentMessage.selector,
                 block.chainid,
-                Predeploys.L2_CROSS_DOMAIN_MESSENGER,
+                target,
                 _nonce
             ), // topics
             abi.encode(_sender, _message) // data
@@ -652,7 +656,7 @@ contract L2ToL2CrossDomainMessenger_RelayMessage_Test is L2ToL2CrossDomainMessen
             returnData: ""
         });
 
-        vm.expectRevert(MessageTargetL2CrossDomainMessenger.selector);
+        vm.expectRevert(MessageTargetUnsafe.selector);
         l2ToL2CrossDomainMessenger.relayMessage(id, sentMessage);
     }
 
@@ -682,7 +686,8 @@ contract L2ToL2CrossDomainMessenger_RelayMessage_Test is L2ToL2CrossDomainMessen
         // foundry VM
         vm.assume(
             _target != Predeploys.CROSS_L2_INBOX && _target != Predeploys.L2_TO_L2_CROSS_DOMAIN_MESSENGER
-                && _target != Predeploys.L2_CROSS_DOMAIN_MESSENGER && _target != foundryVMAddress
+                && _target != Predeploys.L2_CROSS_DOMAIN_MESSENGER && _target != Predeploys.L2_TO_L1_MESSAGE_PASSER
+                && _target != foundryVMAddress
         );
 
         // Ensure that the target contract does not revert (using the message also as the return
@@ -742,7 +747,8 @@ contract L2ToL2CrossDomainMessenger_RelayMessage_Test is L2ToL2CrossDomainMessen
         // foundry VM
         vm.assume(
             _target != Predeploys.CROSS_L2_INBOX && _target != Predeploys.L2_TO_L2_CROSS_DOMAIN_MESSENGER
-                && _target != Predeploys.L2_CROSS_DOMAIN_MESSENGER && _target != foundryVMAddress
+                && _target != Predeploys.L2_CROSS_DOMAIN_MESSENGER && _target != Predeploys.L2_TO_L1_MESSAGE_PASSER
+                && _target != foundryVMAddress
         );
 
         // Ensure that the target call is payable if value is sent

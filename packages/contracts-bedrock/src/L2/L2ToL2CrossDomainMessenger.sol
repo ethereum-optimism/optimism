@@ -34,8 +34,9 @@ error MessageAlreadyRelayed();
 /// @notice Thrown when the provided message parameters do not match any hash of a previously sent message.
 error InvalidMessage();
 
-/// @notice Thrown when attempting to send or relay a message whose target is the L2CrossDomainMessenger.
-error MessageTargetL2CrossDomainMessenger();
+/// @notice Thrown when attempting to send or relay a message whose target is the L2CrossDomainMessenger or the
+///         L2ToL1MessagePasser.
+error MessageTargetUnsafe();
 
 /// @notice Thrown when a message is marked expired by anything but this chain's L1CrossDomainMessenger.
 error NotOtherMessenger();
@@ -169,7 +170,7 @@ contract L2ToL2CrossDomainMessenger is ISemver, TransientReentrancyAware {
     {
         if (_destination == block.chainid) revert MessageDestinationSameChain();
         if (_target == Predeploys.L2_TO_L2_CROSS_DOMAIN_MESSENGER) revert MessageTargetL2ToL2CrossDomainMessenger();
-        if (_target == Predeploys.L2_CROSS_DOMAIN_MESSENGER) revert MessageTargetL2CrossDomainMessenger();
+        if (_isUnsafeTarget(_target)) revert MessageTargetUnsafe();
 
         uint256 nonce = messageNonce();
         messageHash_ = Hashing.hashL2toL2CrossDomainMessage({
@@ -221,9 +222,7 @@ contract L2ToL2CrossDomainMessenger is ISemver, TransientReentrancyAware {
         // Assert invariants on the message
         if (destination != block.chainid) revert MessageDestinationNotRelayChain();
 
-        // L1CrossDomainMessengers trust the undelivered-message word this contract sends through the
-        // L2CrossDomainMessenger, so a relayed message must never be able to send through it.
-        if (target == Predeploys.L2_CROSS_DOMAIN_MESSENGER) revert MessageTargetL2CrossDomainMessenger();
+        if (_isUnsafeTarget(target)) revert MessageTargetUnsafe();
 
         uint256 source = _id.chainId;
         bytes32 messageHash = Hashing.hashL2toL2CrossDomainMessage({
@@ -321,6 +320,15 @@ contract L2ToL2CrossDomainMessenger is ISemver, TransientReentrancyAware {
         expiredMessages[_messageHash] = true;
 
         emit MessageExpired(_messageHash, _undeliveredAt);
+    }
+
+    /// @notice Checks whether a message may not target an address. This contract initiates withdrawals only through
+    ///         exportUndeliveredMessage, because L1CrossDomainMessengers trust the withdrawals it sends, so no relayed
+    ///         message may call the L2CrossDomainMessenger or the L2ToL1MessagePasser.
+    /// @param _target Target of the message.
+    /// @return Whether the target is unsafe.
+    function _isUnsafeTarget(address _target) internal pure returns (bool) {
+        return _target == Predeploys.L2_CROSS_DOMAIN_MESSENGER || _target == Predeploys.L2_TO_L1_MESSAGE_PASSER;
     }
 
     /// @notice Retrieves the next message nonce. Message version will be added to the upper two bytes of the message
