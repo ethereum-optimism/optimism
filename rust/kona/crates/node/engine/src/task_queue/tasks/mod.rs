@@ -10,6 +10,7 @@ pub use synchronize::SynchronizeTaskError;
 pub(super) use synchronize::synchronize;
 
 mod insert;
+pub(super) use insert::insert_payload;
 pub use insert::{InsertTask, InsertTaskError};
 
 mod build;
