@@ -2,7 +2,9 @@
 //!
 //! [`Engine`]: crate::Engine
 
-use super::{BuildTask, CanonicalizeTask, ConsolidateTask, FinalizeTask, InsertTask};
+use super::{
+    BuildTask, CanonicalizeTask, CanonicalizeTaskError, ConsolidateTask, FinalizeTask, InsertTask,
+};
 use crate::{
     BuildTaskError, ConsolidateTaskError, EngineState, FinalizeTaskError, InsertTaskError,
     task_queue::{SealTask, SealTaskError},
@@ -66,6 +68,9 @@ pub enum EngineTaskErrors {
     /// An error that occurred while sealing a block.
     #[error(transparent)]
     Seal(#[from] SealTaskError),
+    /// An error that occurred while canonicalizing a sequenced block.
+    #[error(transparent)]
+    Canonicalize(#[from] CanonicalizeTaskError),
     /// An error that occurred while consolidating the engine state.
     #[error(transparent)]
     Consolidate(#[from] ConsolidateTaskError),
@@ -80,6 +85,7 @@ impl EngineTaskError for EngineTaskErrors {
             Self::Insert(inner) => inner.severity(),
             Self::Build(inner) => inner.severity(),
             Self::Seal(inner) => inner.severity(),
+            Self::Canonicalize(inner) => inner.severity(),
             Self::Consolidate(inner) => inner.severity(),
             Self::Finalize(inner) => inner.severity(),
         }
