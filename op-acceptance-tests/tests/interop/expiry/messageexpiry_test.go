@@ -1,6 +1,6 @@
 // Package expiry covers the interop message expiry path: a message that its destination never
-// relays is exported as undelivered through the destination's withdrawal path, recorded by the
-// MessageExpiryHub on L1, and forwarded to the source chain through its deposit path.
+// relays is exported as undelivered through the destination's withdrawal path, to the source
+// chain's L1CrossDomainMessenger, which passes it on to the source chain as a deposit.
 package expiry
 
 import (
@@ -9,7 +9,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/ethereum-optimism/optimism/op-chain-ops/devkeys"
 	"github.com/ethereum-optimism/optimism/op-core/predeploys"
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
 	"github.com/ethereum-optimism/optimism/op-devstack/dsl"
@@ -32,15 +31,10 @@ import (
 )
 
 const (
-	// expiryWindowSeconds is the dependency set's message expiry window. The contracts use the
-	// protocol's 7-day window, which this system cannot reach: the source chain must reject the
-	// fact as not yet expired.
-	expiryWindowSeconds = 12
-
-	// minGasLimit is the gas reserved for the hub call on L1 and the messenger call on L2.
+	// minGasLimit is the gas reserved for the source L1CrossDomainMessenger call on L1.
 	minGasLimit = uint32(500_000)
 
-	// The fact's last leg is a deposit, and devstack time travel advances L1 only, which would
+	// The last leg is a deposit, and devstack time travel advances L1 only, which would
 	// stall L2 origin adoption. So the L1 windows are shrunk until they can be waited out in
 	// wall-clock time. The games require
 	// max(2*clockExtension, clockExtension+preimageOracleChallengePeriod) <= maxClockDuration.
@@ -62,15 +56,14 @@ var (
 // TestInteropMessageExpiry runs every leg of the expiry path for real:
 //
 //	A: sendETH -> (never relayed on B) -> B: exportUndeliveredMessage -> L1 withdrawal
-//	-> hub records the fact -> forwardUndeliveredMessage -> A deposit -> expireMessage
+//	-> A's L1CrossDomainMessenger.relayUndeliveredMessage -> A deposit -> expireMessage
 //
-// Since the contracts' 7-day window has not passed, A must reject the fact, and the send must
-// not be refundable. It also checks that ordinary delivery still works and that a delivered
+// The 7-day expiry window cannot pass in this system, so A must reject the word, and the send
+// must not be refundable. It also checks that ordinary delivery still works and that a delivered
 // message cannot be exported as undelivered.
 func TestInteropMessageExpiry(gt *testing.T) {
 	t := devtest.SerialT(gt)
 	sys := presets.NewSimpleInterop(t,
-		presets.WithMessageExpiryWindow(expiryWindowSeconds),
 		presets.WithDeployerOptions(
 			sysgo.WithProofMaturityDelaySeconds(proofMaturityDelaySeconds),
 			sysgo.WithDisputeGameFinalityDelaySeconds(disputeGameFinalityDelaySeconds),
@@ -83,13 +76,10 @@ func TestInteropMessageExpiry(gt *testing.T) {
 	sys.L1Network.WaitForOnline()
 	chainA, chainB := sys.L2ChainA.ChainID(), sys.L2ChainB.ChainID()
 
-	// The hub is deployed on L1 and set on both chains' messengers.
 	l1User := sys.FunderL1.NewFundedEOA(eth.OneEther)
-	hubAddr := deployMessageExpiryHub(t, l1User)
-	hub := bindings.NewBindings[bindings.MessageExpiryHub](
-		bindings.WithClient(sys.L1EL.EthClient()), bindings.WithTo(hubAddr), bindings.WithTest(t))
-	setExpiryHub(t, sys.L2ChainA, sys.L2ELA, sys.FunderA, hubAddr)
-	setExpiryHub(t, sys.L2ChainB, sys.L2ELB, sys.FunderB, hubAddr)
+	systemConfigA := bindings.NewSystemConfig(bindings.WithClient(sys.L1EL.EthClient()),
+		bindings.WithTo(sys.L2ChainA.Escape().Deployment().SystemConfigProxyAddr()), bindings.WithTest(t))
+	l1MessengerA := contract.Read(systemConfigA.L1CrossDomainMessenger())
 	messengerA := messenger(t, sys.L2ELA)
 	messengerB := messenger(t, sys.L2ELB)
 	bridgeA := bindings.NewBindings[bindings.SuperchainETHBridge](
@@ -106,33 +96,21 @@ func TestInteropMessageExpiry(gt *testing.T) {
 	recipient := sys.FunderB.NewFundedEOA(eth.ZeroWei)
 	sendRcpt := contract.Write(sender, bridgeA.SendETH(recipient.Address(), chainB), txplan.WithValue(eth.HalfEther))
 	sent := sentMessageFrom(t, sendRcpt, chainA)
-	sendTimestamp := sys.L2ChainA.TimestampForBlockNum(bigs.Uint64Strict(sendRcpt.BlockNumber))
-	require.Equal(sendTimestamp, contract.Read(messengerA.SentMessageTimestamps(sent.hash)).Uint64(),
-		"the messenger must record the send's timestamp")
 
-	// B passes the dependency set's window, then exports that it never relayed the message.
-	sys.L2ELB.WaitForTime(sendTimestamp + expiryWindowSeconds + sys.L2ChainB.Escape().RollupConfig().BlockTime)
+	// B exports that it never relayed the message, to A's L1CrossDomainMessenger.
 	exporter := sys.FunderB.NewFundedEOA(eth.OneEther)
 	exportRcpt := contract.Write(exporter, messengerB.ExportUndeliveredMessage(
-		chainA, sent.nonce, sent.sender, sent.target, sent.message, minGasLimit))
-	undeliveredAt := sys.L2ChainB.TimestampForBlockNum(bigs.Uint64Strict(exportRcpt.BlockNumber))
+		l1MessengerA, chainA, sent.nonce, sent.sender, sent.target, sent.message, minGasLimit))
 
-	// The withdrawal is proven and finalized, which records the fact in the hub.
+	// Finalizing the withdrawal relays it to A's L1CrossDomainMessenger, which deposits it into A.
 	bridge := sys.StandardBridge(sys.L2ChainB)
 	withdrawal := bridge.WithdrawalFromReceipt(exportRcpt)
 	withdrawal.Prove(l1User)
 	withdrawal.WaitForDisputeGameResolvedWithin(bridge.GameResolutionDelay() + time.Minute)
 	withdrawal.Finalize(l1User)
-	cluster := contract.Read(hub.Cluster(sys.L2ChainB.Escape().Deployment().SystemConfigProxyAddr()))
-	require.Equal(cluster, contract.Read(hub.Cluster(sys.L2ChainA.Escape().Deployment().SystemConfigProxyAddr())),
-		"both chains must be in one cluster")
-	factID := contract.Read(hub.FactId(cluster, sent.hash, chainA, new(big.Int).SetUint64(undeliveredAt)))
-	require.True(contract.Read(hub.Facts(factID)), "the hub must record the fact")
 
-	// Forwarding it to A reaches the messenger, which rejects it: 7 days have not passed.
-	forwardRcpt := contract.Write(l1User, hub.ForwardUndeliveredMessage(
-		sys.L2ChainA.Escape().Deployment().SystemConfigProxyAddr(), sent.hash, new(big.Int).SetUint64(undeliveredAt), minGasLimit))
-	depositRcpt := awaitDeposit(t, sys.L2ELA, forwardRcpt)
+	// A's messenger rejects it: 7 days have not passed.
+	depositRcpt := awaitDeposit(t, sys.L2ELA, withdrawal.FinalizeReceipt())
 	require.Equal(types.ReceiptStatusSuccessful, depositRcpt.Status, "the forwarded deposit must execute on A")
 	require.True(hasLog(depositRcpt, predeploys.L2CrossDomainMessengerAddr, failedRelayedMessageTopic),
 		"the L2CrossDomainMessenger must keep the rejected call as a failed message")
@@ -143,7 +121,7 @@ func TestInteropMessageExpiry(gt *testing.T) {
 
 	// A delivered message cannot be exported as undelivered.
 	_, err = contractio.Read(messengerB.ExportUndeliveredMessage(
-		chainA, delivered.nonce, delivered.sender, delivered.target, delivered.message, minGasLimit), t.Ctx())
+		l1MessengerA, chainA, delivered.nonce, delivered.sender, delivered.target, delivered.message, minGasLimit), t.Ctx())
 	require.Error(err, "exporting a delivered message must revert")
 	require.Contains(errutil.TryAddRevertReason(err).Error(), messageAlreadyRelayed)
 }
@@ -196,25 +174,6 @@ func messenger(t devtest.T, el *dsl.L2ELNode) bindings.L2ToL2CrossDomainMessenge
 		bindings.WithClient(el.EthClient()), bindings.WithTo(predeploys.L2toL2CrossDomainMessengerAddr), bindings.WithTest(t))
 }
 
-// deployMessageExpiryHub deploys the hub from its checked-in creation bytecode.
-func deployMessageExpiryHub(t devtest.T, deployer *dsl.EOA) common.Address {
-	tx := txplan.NewPlannedTx(deployer.Plan(), txplan.WithData(common.FromHex(bindings.MessageExpiryHubBin)))
-	rcpt, err := tx.Included.Eval(t.Ctx())
-	t.Require().NoError(err, "failed to deploy MessageExpiryHub")
-	t.Require().Equal(types.ReceiptStatusSuccessful, rcpt.Status, "MessageExpiryHub deployment reverted")
-	return rcpt.ContractAddress
-}
-
-// setExpiryHub sets a chain's expiry hub as its L2 ProxyAdmin owner.
-func setExpiryHub(t devtest.T, chain *dsl.L2Network, el *dsl.L2ELNode, funder *dsl.FunderEOA, hubAddr common.Address) {
-	owner := dsl.NewKey(t, chain.Escape().Keys().Secret(devkeys.L2ProxyAdminOwnerRole.Key(chain.ChainID().ToBig()))).User(el)
-	m := messenger(t, el)
-	t.Require().Equal(owner.Address(), contract.Read(m.ProxyAdminOwner()), "unexpected L2 ProxyAdmin owner on %s", chain)
-	funder.FundAtLeast(owner, eth.OneTenthEther)
-	contract.Write(owner, m.SetExpiryHub(hubAddr))
-	t.Require().Equal(hubAddr, contract.Read(m.ExpiryHub()))
-}
-
 // rawCall is a txintent.Call over pre-encoded calldata, so a contract call can drive the
 // txintent flow that RelayIndexed builds the executing message from.
 type rawCall struct {
@@ -240,7 +199,7 @@ func sendAndRelayETH(t devtest.T, sys *presets.SimpleInterop, sender, recipient,
 	t.Require().NoError(err, "sendETH receipt not found")
 	sent := sentMessageFrom(t, sendRcpt, sys.L2ChainA.ChainID())
 
-	// One block lets the supernode index the initiating message, well within the 12s window.
+	// One block lets the supernode index the initiating message.
 	sys.L2ChainA.WaitForBlock()
 
 	// Log index 1 is the SentMessage, after the ETHLiquidity burn.
@@ -286,7 +245,7 @@ type callFrame struct {
 }
 
 // requireExpireRejected traces the deposit and checks that the messenger's expireMessage was
-// reached, past the hub authentication, and reverted with MessageNotExpired.
+// reached, past its sender check, and reverted with MessageNotExpired.
 func requireExpireRejected(t devtest.T, el *dsl.L2ELNode, txHash common.Hash) {
 	var trace callFrame
 	err := el.EthClient().RPC().CallContext(t.Ctx(), &trace, "debug_traceTransaction", txHash,

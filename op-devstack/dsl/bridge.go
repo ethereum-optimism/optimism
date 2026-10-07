@@ -764,6 +764,12 @@ func (w *Withdrawal) Finalize(user *EOA) {
 	}, 60*time.Second, 100*time.Millisecond, "finalize withdrawal failed")
 }
 
+// FinalizeReceipt returns the receipt of the transaction that finalized the withdrawal.
+func (w *Withdrawal) FinalizeReceipt() *types.Receipt {
+	w.require.NotNil(w.finalizeReceipt, "Must have finalized withdrawal first")
+	return w.finalizeReceipt
+}
+
 func (w *Withdrawal) WaitForDisputeGameResolved() {
 	w.WaitForDisputeGameResolvedWithin(60 * time.Second)
 }
