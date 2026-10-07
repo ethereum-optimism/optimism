@@ -5,7 +5,7 @@ use kona_genesis::RollupConfig;
 use std::sync::Arc;
 use tokio::sync::{mpsc, watch};
 
-/// Handles [`EngineRpcRequest`]s by reading engine state and queue length via watches and
+/// Handles [`EngineRpcRequest`]s by reading engine state via a watch and
 /// dispatching the request through an [`EngineQueryClient`].
 ///
 /// The [`EngineQueryClient`] exposes only execution-layer reads, so this actor cannot call
@@ -18,8 +18,6 @@ pub struct EngineRpcActor {
     rollup_config: Arc<RollupConfig>,
     /// Receiver for [`EngineState`] updates.
     engine_state_receiver: watch::Receiver<EngineState>,
-    /// Receiver for engine queue length updates.
-    engine_queue_length_receiver: watch::Receiver<usize>,
     /// The inbound request channel.
     inbound_request_rx: mpsc::Receiver<EngineRpcRequest>,
 }
@@ -30,16 +28,9 @@ impl EngineRpcActor {
         engine_rpc_client: EngineQueryClient,
         rollup_config: Arc<RollupConfig>,
         engine_state_receiver: watch::Receiver<EngineState>,
-        engine_queue_length_receiver: watch::Receiver<usize>,
         inbound_request_rx: mpsc::Receiver<EngineRpcRequest>,
     ) -> Self {
-        Self {
-            engine_rpc_client,
-            rollup_config,
-            engine_state_receiver,
-            engine_queue_length_receiver,
-            inbound_request_rx,
-        }
+        Self { engine_rpc_client, rollup_config, engine_state_receiver, inbound_request_rx }
     }
 
     async fn handle_rpc_request(&self, request: EngineRpcRequest) -> Result<(), EngineError> {
@@ -47,12 +38,7 @@ impl EngineRpcActor {
         trace!(target: "engine", ?req, "Received engine query.");
 
         if let Err(e) = req
-            .handle(
-                &self.engine_state_receiver,
-                &self.engine_queue_length_receiver,
-                &self.engine_rpc_client,
-                &self.rollup_config,
-            )
+            .handle(&self.engine_state_receiver, &self.engine_rpc_client, &self.rollup_config)
             .await
         {
             warn!(target: "engine", err = ?e, "Failed to handle engine query.");

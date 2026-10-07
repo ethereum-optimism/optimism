@@ -220,7 +220,7 @@ pub trait NodeActor: Send + 'static {
 
 ### Communication Channels
 
-The `EngineActor` receives all state-mutating input through a single inbound request channel of `EngineActorRequest` messages: payload attributes from derivation, unsafe blocks from gossip, reset requests, finalization requests, and block building requests (sequencer mode only). A separate read-only `EngineRpcActor` runs as an independent peer and serves engine queries; it uses an `EngineQueryClient` that shares the L2 RPC connection and exposes only block and storage-hash reads. The actor reads engine state and queue length through watches.
+The `EngineActor` receives all state-mutating input through a single inbound request channel of `EngineActorRequest` messages: payload attributes from derivation, unsafe blocks from gossip, reset requests, finalization requests, and block building requests (sequencer mode only). A separate read-only `EngineRpcActor` runs as an independent peer and serves engine queries; it uses an `EngineQueryClient` that shares the L2 RPC connection and exposes only block and storage-hash reads. The actor reads engine state through a watch channel.
 
 ### Engine Queries
 
@@ -234,12 +234,6 @@ pub enum EngineQueries {
     State(Sender<EngineState>),
     /// Request the L2 output root for a specific block.
     OutputAtBlock { block: BlockNumberOrTag, sender: Sender<(L2BlockInfo, OutputRoot, EngineState)> },
-    /// Subscribe to engine state updates via a watch channel receiver.
-    StateReceiver(Sender<tokio::sync::watch::Receiver<EngineState>>),
-    /// Development API: Subscribe to task queue length updates.
-    QueueLengthReceiver(Sender<tokio::sync::watch::Receiver<usize>>),
-    /// Development API: Get the current number of pending tasks in the queue.
-    TaskQueueLength(Sender<usize>),
 }
 ```
 
@@ -260,10 +254,9 @@ let client = EngineClientBuilder {
 // Initialize engine state
 let state = EngineState::default();
 let (state_sender, state_receiver) = watch::channel(state);
-let (queue_length_sender, queue_length_receiver) = watch::channel(0);
 
 // Create engine with task queue
-let engine = Engine::new(state, state_sender, queue_length_sender);
+let engine = Engine::new(state, state_sender);
 ```
 
 ### Adding Tasks

@@ -1,11 +1,14 @@
 package node_restart
 
 import (
+	"context"
 	"fmt"
 	"testing"
+	"time"
 
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
 	"github.com/ethereum-optimism/optimism/op-devstack/dsl"
+	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/wait"
 
 	safety "github.com/ethereum-optimism/optimism/op-service/eth/safety"
 	node_utils "github.com/ethereum-optimism/optimism/rust/kona/tests/node/utils"
@@ -51,32 +54,25 @@ func TestConnDropSync(gt *testing.T) {
 
 		currentUnsafeHead := node.ChainSyncStatus(node.ChainID(), safety.LocalUnsafe)
 
-		endSignal := make(chan struct{})
-
-		safeHeads := node_utils.GetKonaWsAsync(t, &node, "safe_head", endSignal)
-		unsafeHeads := node_utils.GetKonaWsAsync(t, &node, "unsafe_head", endSignal)
-
-		// Ensures that....
-		// - the node's safe head is advancing and eventually catches up with the unsafe head
-		// - the node's unsafe head is NOT advancing during this time
+		// Derivation may catch up while gossip is disconnected; the unsafe head must
+		// stay at its captured block until that block becomes safe.
 		check := func() error {
-		outer_loop:
-			for {
-				select {
-				case safeHead := <-safeHeads:
-					t.Logf("node %s safe head is advancing", clName)
-					if safeHead.Number >= currentUnsafeHead.Number {
-						t.Logf("node %s safe head caught up with unsafe head", clName)
-						break outer_loop
-					}
-				case unsafeHead := <-unsafeHeads:
-					return fmt.Errorf("node %s unsafe head is advancing: %d", clName, unsafeHead.Number)
+			ctx, cancel := context.WithTimeout(t.Ctx(), 4*time.Minute)
+			defer cancel()
+			return wait.For(ctx, time.Second, func() (bool, error) {
+				status, err := node.Escape().RollupAPI().SyncStatus(ctx)
+				if err != nil {
+					t.Logf("node %s sync status unavailable: %v", clName, err)
+					return false, nil
 				}
-			}
-
-			endSignal <- struct{}{}
-
-			return nil
+				if status.SafeL2.Number >= currentUnsafeHead.Number {
+					return true, nil
+				}
+				if status.UnsafeL2.ID() != currentUnsafeHead {
+					return false, fmt.Errorf("node %s unsafe head advanced before safe caught up: %s", clName, status.UnsafeL2.ID())
+				}
+				return false, nil
+			})
 		}
 
 		// Check that...

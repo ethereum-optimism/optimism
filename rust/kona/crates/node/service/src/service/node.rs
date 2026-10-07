@@ -27,9 +27,8 @@ use kona_providers_alloy::{
 };
 use kona_providers_local::BufferedL2Provider;
 use kona_rpc::{
-    AdminApiServer, AdminRpc, DevEngineApiServer, DevEngineRpc, HealthzApiServer, HealthzRpc,
-    L1WatcherQueries, NetworkAdminQuery, OpP2PApiServer, P2pRpc, RollupNodeApiServer, RollupRpc,
-    RpcBuilder, WsRPC, WsServer,
+    AdminApiServer, AdminRpc, HealthzApiServer, HealthzRpc, L1WatcherQueries, NetworkAdminQuery,
+    OpP2PApiServer, P2pRpc, RollupNodeApiServer, RollupRpc, RpcBuilder,
 };
 use op_alloy_network::Optimism;
 use op_alloy_rpc_types_engine::OpExecutionPayloadEnvelope;
@@ -220,7 +219,7 @@ impl RollupNode {
     }
 
     /// Builds both engine actors. Their clients share the L2 RPC connection and a watch
-    /// over the engine queue length / state, but otherwise run as independent peers.
+    /// over the engine state, but otherwise run as independent peers.
     ///
     /// The non-rpc actor handles state-mutating requests (build, reset, seal, safe-signal
     /// consolidation, etc); the rpc actor handles read-only queries.
@@ -231,11 +230,10 @@ impl RollupNode {
         derivation_actor_request_tx: mpsc::Sender<DerivationActorRequest>,
         unsafe_head_tx: watch::Sender<L2BlockInfo>,
     ) -> (ConfiguredEngineActor, EngineRpcActor) {
-        // Engine-internal watches; not visible outside this helper.
+        // Engine-internal state watch; not visible outside this helper.
         let engine_state = EngineState::default();
         let (engine_state_tx, engine_state_rx) = watch::channel(engine_state);
-        let (engine_queue_length_tx, engine_queue_length_rx) = watch::channel(0);
-        let engine = Engine::new(engine_state, engine_state_tx, engine_queue_length_tx);
+        let engine = Engine::new(engine_state, engine_state_tx);
 
         let engine_client = Arc::new(self.engine_config.clone().build_engine_client());
 
@@ -256,7 +254,6 @@ impl RollupNode {
             engine_client.query_client(),
             self.config.clone(),
             engine_state_rx,
-            engine_queue_length_rx,
             engine_rpc_request_rx,
         );
 
@@ -441,18 +438,8 @@ impl RollupNode {
             network_admin_tx,
         )?;
         modules
-            .merge(RollupRpc::new(engine_rpc_client.clone(), l1_watcher_queries_tx).into_rpc())
+            .merge(RollupRpc::new(engine_rpc_client, l1_watcher_queries_tx).into_rpc())
             .map_err(|e| format!("Failed to register rollup module: {e:?}"))?;
-        if config.dev_enabled() {
-            modules
-                .merge(DevEngineRpc::new(engine_rpc_client.clone()).into_rpc())
-                .map_err(|e| format!("Failed to register dev engine module: {e:?}"))?;
-        }
-        if config.ws_enabled() {
-            modules
-                .merge(WsRPC::new(engine_rpc_client.clone()).into_rpc())
-                .map_err(|e| format!("Failed to register ws module: {e:?}"))?;
-        }
 
         let restarts_remaining = config.restart_count();
         let launcher = JsonrpseeServerLauncher::new(config);

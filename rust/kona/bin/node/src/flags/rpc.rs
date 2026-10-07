@@ -36,12 +36,6 @@ pub struct RpcArgs {
     /// restarts. Disabled if not set.
     #[arg(long = "rpc.admin-state", env = "KONA_NODE_RPC_ADMIN_STATE")]
     pub admin_persistence: Option<PathBuf>,
-    /// Enables websocket rpc server to track block production
-    #[arg(long = "rpc.ws-enabled", default_value = "false", env = "KONA_NODE_RPC_WS_ENABLED")]
-    pub ws_enabled: bool,
-    /// Enables development RPC endpoints for engine state introspection
-    #[arg(long = "rpc.dev-enabled", default_value = "false", env = "KONA_NODE_RPC_DEV_ENABLED")]
-    pub dev_enabled: bool,
 }
 
 impl Default for RpcArgs {
@@ -62,8 +56,6 @@ impl From<RpcArgs> for Option<RpcBuilder> {
             socket: SocketAddr::new(args.listen_addr, args.listen_port),
             enable_admin: args.enable_admin,
             admin_persistence: args.admin_persistence,
-            ws_enabled: args.ws_enabled,
-            dev_enabled: args.dev_enabled,
         })
     }
 }

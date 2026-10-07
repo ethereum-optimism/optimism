@@ -44,12 +44,11 @@ async fn reset_recovers_and_completes_original_request(
     let derivation = QueuedEngineDerivationClient { derivation_actor_request_tx: derivation_tx };
     let (requests, request_rx) = mpsc::channel(8);
     let (state_tx, _state_rx) = tokio::sync::watch::channel(EngineState::default());
-    let (queue_tx, _queue_rx) = tokio::sync::watch::channel(0);
     let mut actor = EngineActor::new(
         client,
         config,
         derivation,
-        Engine::new(EngineState::default(), state_tx, queue_tx),
+        Engine::new(EngineState::default(), state_tx),
         None,
         request_rx,
         Arc::new(NoopBlockSink),

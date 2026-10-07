@@ -37,12 +37,6 @@ pub enum EngineQueries {
         /// Response channel for (`block_info`, `output_root`, `engine_state`).
         sender: Sender<(L2BlockInfo, OutputRoot, EngineState)>,
     },
-    /// Subscribe to engine state updates via a watch channel receiver.
-    StateReceiver(Sender<tokio::sync::watch::Receiver<EngineState>>),
-    /// Development API: Subscribe to task queue length updates.
-    QueueLengthReceiver(Sender<tokio::sync::watch::Receiver<usize>>),
-    /// Development API: Get the current number of pending tasks in the queue.
-    TaskQueueLength(Sender<usize>),
 }
 
 /// An error that can occur when querying the engine.
@@ -70,7 +64,6 @@ impl EngineQueries {
     pub async fn handle(
         self,
         state_recv: &tokio::sync::watch::Receiver<EngineState>,
-        queue_length_recv: &tokio::sync::watch::Receiver<usize>,
         client: &EngineQueryClient,
         rollup_config: &Arc<RollupConfig>,
     ) -> Result<(), EngineQueriesError> {
@@ -121,19 +114,6 @@ impl EngineQueries {
                 sender
                     .send((output_block_info, output_response_v0, state))
                     .map_err(|_| EngineQueriesError::OutputChannelClosed)
-            }
-            Self::StateReceiver(subscription) => subscription
-                .send(state_recv.clone())
-                .map_err(|_| EngineQueriesError::OutputChannelClosed),
-            Self::QueueLengthReceiver(subscription) => subscription
-                .send(queue_length_recv.clone())
-                .map_err(|_| EngineQueriesError::OutputChannelClosed),
-            Self::TaskQueueLength(sender) => {
-                let queue_length = *queue_length_recv.borrow();
-                if sender.send(queue_length).is_err() {
-                    warn!(target: "engine", "Failed to send task queue length response");
-                }
-                Ok(())
             }
         }
     }
