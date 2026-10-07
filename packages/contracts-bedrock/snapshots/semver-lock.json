@@ -19,6 +19,10 @@
     "initCodeHash": "0x75b07cd638ef34349da3478aeab051472c1cba8c8074d3df48af3d7fbd97fd49",
     "sourceCodeHash": "0xb32ccae72d68f92f7b0ac461b08759a4dc59b7a7f381c3a49fd5aaa29db92bf6"
   },
+  "src/L1/MessageExpiryHub.sol:MessageExpiryHub": {
+    "initCodeHash": "0x16b2df1544e3beb1193478f55350ad35b650ac58e857047b49fc66aa95d1c894",
+    "sourceCodeHash": "0x2ff921dcddb2d779dfe70d7b222d45707a54063669e9769cbadf1e97753cfdf4"
+  },
   "src/L1/OPContractsManagerStandardValidator.sol:OPContractsManagerStandardValidator": {
     "initCodeHash": "0x2b97aa3a8fe780b2112f2ec93859530d28272b0938d4004c5f8868b84e7b639b",
     "sourceCodeHash": "0x226c5792652dd131040c00da37514e6005718532f2a285ea8cf4b1fd87809074"
@@ -72,8 +76,8 @@
     "sourceCodeHash": "0x8876e106997cbaa64501bba7e5aa1fd8931873b8acef9f34f9d1ec2676df97d6"
   },
   "src/L2/L2ContractsManager.sol:L2ContractsManager": {
-    "initCodeHash": "0x0d508f194491490f3b1391ea21c155ed4f2de5b1c276e1a3f21012257a8827e1",
-    "sourceCodeHash": "0xb0092c9cf0f67cfe2d222fb59aa1940814f59d5bd4418e3f483a9df302358e23"
+    "initCodeHash": "0x90e833f3344cdcf9b2962659b83a16276961354803f48f8aeb25b37d1f665c59",
+    "sourceCodeHash": "0x582f082de7d68b7dedb9bdca681ad528b1a276a207ba1273d9c518ff6f668678"
   },
   "src/L2/L2CrossDomainMessenger.sol:L2CrossDomainMessenger": {
     "initCodeHash": "0x76784e1bc7abe615094033f3eb16d3a6bd5caf28c2717377a3dd25e6825228f3",
@@ -104,8 +108,8 @@
     "sourceCodeHash": "0xec1736e67134e22ad9ceb0b8b6c116fd169637aa6729c05d9f0f4b02547aaac0"
   },
   "src/L2/L2ToL2CrossDomainMessenger.sol:L2ToL2CrossDomainMessenger": {
-    "initCodeHash": "0x3a12a46c0dac554ed7ecb74d8e56d4b903afd19d5fba7ba9253374bf0d7858c4",
-    "sourceCodeHash": "0x03eed029da48a3893d49d6c049141cceffc7f73f1aa37cf9a067fc9dac9c9c78"
+    "initCodeHash": "0x026743fb040301a39b5325b49d8d758042916d9fa58e3f71f16049e52b9534e4",
+    "sourceCodeHash": "0x5c4f6a44c8a256ee5c3f741fefd2984da21a02b3d1edd345167ff99340c3cd97"
   },
   "src/L2/LiquidityController.sol:LiquidityController": {
     "initCodeHash": "0x3508887dc63505a9cc99ccf5a8c3f812f74406d562c8e400590dc2e457b8520b",
@@ -132,8 +136,8 @@
     "sourceCodeHash": "0x5e91f103e14750fdc05bbd3c6d121547a76dfed86b94431e1cee6fe229bdbfdd"
   },
   "src/L2/SuperchainETHBridge.sol:SuperchainETHBridge": {
-    "initCodeHash": "0xa43665ad0f2b4f092ff04b12e38f24aa8d2cb34ae7a06fc037970743547bdf98",
-    "sourceCodeHash": "0x862b8a2e5dd5cafcda55e35df7713b0d0b7a93d4d6ce29ea9ca53e045bf63cb4"
+    "initCodeHash": "0x7387ae889af66f29bcd2f95e32e06ddfab05be17bd9dd2671195815bd32b596a",
+    "sourceCodeHash": "0xd71bbfd2f18a2042363abe5485a05b0b5f66a05878a93b16636b2f884da88cef"
   },
   "src/L2/WETH.sol:WETH": {
     "initCodeHash": "0xbc2cd025153720943e51b79822c2dc374d270a78b92cf47d49548c468e218e46",
