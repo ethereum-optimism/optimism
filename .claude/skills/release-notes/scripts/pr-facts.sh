@@ -46,13 +46,14 @@ workdir=$(mktemp -d)
 trap 'rm -rf "$workdir"' EXIT
 : > "$workdir/deps"
 : > "$workdir/pkgmap"
+: > "$workdir/scripts"
 mode=none
 
 # --- dependency sets -------------------------------------------------------------------
 # Which units of code end up in the component's binary. Empty leaves every row tagged '?'.
 
 resolve_go() {
-    for target in "./$component/cmd" "./$component/..."; do
+    for target in "./$component/cmd" "./$component/cmd/$component" "./$component/..."; do
         if (cd "$root" && go list -deps "$target" 2>/dev/null) |
             sed -n "s|^$MODULE/||p" | sort -u > "$workdir/deps" && [ -s "$workdir/deps" ]; then
             return 0
@@ -80,10 +81,49 @@ resolve_rust() {
     [ -s "$workdir/pkgmap" ]
 }
 
+# op-deployer runs contract scripts that its linked Go code names as string literals.
+# `forge tree` gives their imports without a compile. Contract source and libraries are
+# left out: the op-contracts release covers them.
+resolve_contract_scripts() {
+    local scripts
+    scripts=$(cd "$root" && while read -r dir; do
+                  for f in "$dir"/*.go; do
+                      case "$f" in *_test.go) ;; *) [ -f "$f" ] && cat "$f" ;; esac
+                  done
+              done < "$workdir/deps" | { grep -oE '"[A-Za-z0-9]+\.s\.sol"' || :; } | tr -d '"' | sort -u)
+    (cd "$root/packages/contracts-bedrock" && mise exec -- forge tree --charset ascii) |
+        awk -v scripts="$scripts" '
+            BEGIN { n = split(scripts, s, "\n"); for (i = 1; i <= n; i++) want[s[i]] = 1 }
+            {
+                line = $0; depth = 0
+                while (substr(line, 1, 4) ~ /^(\|   |    )$/) { line = substr(line, 5); depth++ }
+                if (line ~ /^(\|-- |`-- )/) { line = substr(line, 5); depth++ }
+                split(line, f, " "); stack[depth] = f[1]
+                if (depth > 0) edges[stack[depth - 1]] = edges[stack[depth - 1]] " " f[1]
+                else { base = f[1]; sub(/^.*\//, "", base); if (base in want) queue[++q] = f[1] }
+            }
+            END {
+                for (i = 1; i <= q; i++) seen[queue[i]] = 1
+                while (q > 0) {
+                    cur = queue[q--]
+                    m = split(edges[cur], kids, " ")
+                    for (j = 1; j <= m; j++)
+                        if (!(kids[j] in seen)) { seen[kids[j]] = 1; queue[++q] = kids[j] }
+                }
+                for (p in seen)
+                    if (p !~ /^(src|interfaces|lib)\//) print "packages/contracts-bedrock/" p
+            }' > "$workdir/scripts" ||
+        echo "warning: could not resolve op-deployer's contract scripts; script-only PRs will be tagged '--'" >&2
+}
+
 case "$component" in
     '') ;;
+    op-contracts)
+        mode=contracts ;;
     kona-*|op-reth|op-zk-proposer)
         if resolve_rust; then mode=rust; fi ;;
+    op-deployer)
+        if resolve_go; then mode=go; resolve_contract_scripts; fi ;;
     *)
         if resolve_go; then mode=go; fi ;;
 esac
@@ -124,9 +164,11 @@ fi
 xargs -P "$JOBS" -n 2 bash -c 'fetch "$0" "$1"' < "$workdir/work"
 
 for f in "$workdir"/pr-*; do
-    awk -F'\t' -v depfile="$workdir/deps" -v pkgfile="$workdir/pkgmap" -v mode="$mode" '
+    awk -F'\t' -v depfile="$workdir/deps" -v pkgfile="$workdir/pkgmap" \
+        -v scriptfile="$workdir/scripts" -v mode="$mode" '
         BEGIN {
             while ((getline dep < depfile) > 0) linked[dep] = 1
+            while ((getline line < scriptfile) > 0) scripts[line] = 1
             while ((getline line < pkgfile) > 0) {
                 split(line, kv, "\t")
                 pkgdir[kv[1]] = kv[2]
@@ -135,6 +177,22 @@ for f in "$workdir"/pr-*; do
         # The compilation unit a changed file belongs to: its package directory for Go,
         # its owning workspace crate (longest matching member directory) for Rust.
         function unit(path,   d, best, rest) {
+            # The upgrade bundle ships too: op-core/nuts snapshots it for the fork.
+            if (mode == "contracts") {
+                if (path ~ /^packages\/contracts-bedrock\/snapshots\/upgrades\//) {
+                    linked["upgrade-bundle"] = 1
+                    return "upgrade-bundle"
+                }
+                if (path !~ /^packages\/contracts-bedrock\/src\/.*\.sol$/) return ""
+                d = path; sub(/^.*\//, "", d); sub(/\.sol$/, "", d)
+                linked[d] = 1
+                return d
+            }
+            if (path in scripts) {
+                d = path; sub(/^packages\/contracts-bedrock\//, "", d)
+                linked[d] = 1
+                return d
+            }
             if (mode == "go") {
                 # Test files are not compiled into the binary, so a PR that only adds
                 # coverage to a linked package does not change what ships.
@@ -165,8 +223,11 @@ for f in "$workdir"/pr-*; do
             # file whose name contains "superchain-configs" cannot claim the tag.
             if ($0 == "superchain-registry" || $0 ~ /^superchain-registry\// ||
                 $0 ~ /superchain-configs\.(zip|tar)/ ||
-                $0 ~ /^rust\/kona\/crates\/protocol\/registry\/etc\//) registry = 1
-            if ($0 ~ /^(go\.(mod|sum)|rust\/Cargo\.(toml|lock))$/) { manifest = 1; next }
+                $0 ~ /^rust\/kona\/crates\/protocol\/registry\/etc\//) registry = (mode != "contracts")
+            if (mode == "contracts") {
+                # Compiler settings and library pins can change the deployed bytecode.
+                if ($0 ~ /^packages\/contracts-bedrock\/(foundry\.toml$|lib\/)/) { manifest = 1; next }
+            } else if ($0 ~ /^(go\.(mod|sum)|rust\/Cargo\.(toml|lock))$/) { manifest = 1; next }
             other_files++
             if (mode == "none") next
             u = unit($0)
