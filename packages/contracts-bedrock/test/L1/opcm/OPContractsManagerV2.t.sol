@@ -3097,10 +3097,12 @@ contract OPContractsManagerV2_Migrate_Test is OPContractsManagerV2_TestInit {
         oldWETH.unlock(depositor, 1 ether);
         vm.stopPrank();
         (uint256 amount, uint256 timestamp) = oldWETH.withdrawals(depositor, depositor);
+        uint256 delayBefore = oldWETH.delay();
 
         _doMigration(_getDefaultMigrateInput());
 
         assertNotEq(chainContracts2.systemConfig.delayedWETH(), address(oldWETH));
+        assertEq(oldWETH.delay(), delayBefore, "retired WETH delay");
         assertEq(oldWETH.balanceOf(depositor), 1 ether);
         (uint256 migratedAmount, uint256 migratedTimestamp) = oldWETH.withdrawals(depositor, depositor);
         assertEq(migratedAmount, amount);
@@ -3150,8 +3152,8 @@ contract OPContractsManagerV2_Migrate_Test is OPContractsManagerV2_TestInit {
     }
 
     /// @notice Tests that migration keeps each portal's proof maturity delay, gives the shared
-    ///         registry the finality delay the legacy registries agree on, and leaves the legacy
-    ///         registries' delay untouched.
+    ///         registry the finality delay the legacy registries agree on, leaves the legacy
+    ///         registries' delay untouched, and keeps every DelayedWETH's withdrawal delay.
     function test_migrate_preservesWithdrawalDelays_succeeds() public {
         // Give chain 2 a distinct, in-range proof maturity delay so a reset would be visible.
         uint256 chain2ProofMaturity = chainContracts2.optimismPortal.minProofMaturityDelaySeconds();
@@ -3163,6 +3165,17 @@ contract OPContractsManagerV2_Migrate_Test is OPContractsManagerV2_TestInit {
         uint256 legacyFinalityDelay = chainContracts1.anchorStateRegistry.disputeGameFinalityDelaySeconds();
         assertEq(chainContracts2.anchorStateRegistry.disputeGameFinalityDelaySeconds(), legacyFinalityDelay);
 
+        // Give both DelayedWETHs the same distinct, in-range withdrawal delay so a reset to the
+        // default would be visible. They must agree or the migration refuses them.
+        IDelayedWETH weth1 = IDelayedWETH(payable(chainContracts1.systemConfig.delayedWETH()));
+        IDelayedWETH weth2 = IDelayedWETH(payable(chainContracts2.systemConfig.delayedWETH()));
+        uint256 wethDelay = weth1.minDelay();
+        assertTrue(wethDelay != weth1.delay());
+        vm.prank(chainContracts1.proxyAdmin.owner());
+        weth1.setDelay(wethDelay);
+        vm.prank(chain2PAO);
+        weth2.setDelay(wethDelay);
+
         _doMigration(_getDefaultMigrateInput());
 
         assertEq(chainContracts1.optimismPortal.proofMaturityDelaySeconds(), chain1ProofMaturity);
@@ -3172,6 +3185,28 @@ contract OPContractsManagerV2_Migrate_Test is OPContractsManagerV2_TestInit {
         assertEq(sharedAsr.disputeGameFinalityDelaySeconds(), legacyFinalityDelay, "shared ASR delay");
         assertEq(chainContracts1.anchorStateRegistry.disputeGameFinalityDelaySeconds(), legacyFinalityDelay);
         assertEq(chainContracts2.anchorStateRegistry.disputeGameFinalityDelaySeconds(), legacyFinalityDelay);
+
+        // The shared DelayedWETH is chain 1's; chain 2's is retired but keeps its delay for legacy games.
+        IDelayedWETH sharedWeth = IDelayedWETH(payable(chainContracts2.systemConfig.delayedWETH()));
+        assertEq(address(sharedWeth), address(weth1), "shared WETH");
+        assertEq(sharedWeth.delay(), wethDelay, "shared WETH delay");
+        assertEq(weth2.delay(), wethDelay, "legacy WETH delay");
+    }
+
+    /// @notice Tests that migration refuses chains whose DelayedWETHs disagree on the withdrawal
+    ///         delay, since every chain's new games would use the first chain's DelayedWETH.
+    function test_migrate_mismatchedWithdrawalDelays_reverts() public {
+        IDelayedWETH weth2 = IDelayedWETH(payable(chainContracts2.systemConfig.delayedWETH()));
+        uint256 otherDelay = weth2.minDelay();
+        assertTrue(otherDelay != IDelayedWETH(payable(chainContracts1.systemConfig.delayedWETH())).delay());
+        address chain2PAO = chainContracts2.proxyAdmin.owner();
+        vm.prank(chain2PAO);
+        weth2.setDelay(otherDelay);
+
+        _doMigration(
+            _getDefaultMigrateInput(),
+            IOPContractsManagerMigrator.OPContractsManagerMigrator_WithdrawalDelayMismatch.selector
+        );
     }
 
     /// @notice Tests that migration refuses chains whose registries disagree on the finality delay.
