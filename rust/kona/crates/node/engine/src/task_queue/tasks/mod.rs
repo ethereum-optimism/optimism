@@ -14,6 +14,7 @@ pub(super) use insert::insert_payload;
 pub use insert::{InsertTask, InsertTaskError};
 
 mod build;
+pub(super) use build::start_build;
 pub use build::{BuildTask, BuildTaskError, EngineBuildError};
 
 mod seal;

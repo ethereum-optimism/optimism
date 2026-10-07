@@ -64,84 +64,6 @@ pub struct SealTask {
 }
 
 impl SealTask {
-    /// Seals the execution payload in the EL, returning the execution envelope.
-    ///
-    /// ## Engine Method Selection
-    /// The method used to fetch the payload from the EL is determined by the payload timestamp. The
-    /// method used to import the payload into the engine is determined by the payload version.
-    ///
-    /// - `engine_getPayloadV2` is used for payloads with a timestamp before the Ecotone fork.
-    /// - `engine_getPayloadV3` is used for payloads with a timestamp after the Ecotone fork.
-    /// - `engine_getPayloadV4` is used for payloads with a timestamp after the Isthmus fork.
-    pub(super) async fn seal_payload(
-        &self,
-        cfg: &RollupConfig,
-        engine: &EngineClient,
-        payload_id: PayloadId,
-        payload_attrs: OpAttributesWithParent,
-    ) -> Result<OpExecutionPayloadEnvelope, SealTaskError> {
-        let payload_timestamp = payload_attrs.attributes().payload_attributes.timestamp;
-
-        debug!(
-            target: "engine",
-            payload_id = payload_id.to_string(),
-            l2_time = payload_timestamp,
-            "Sealing payload"
-        );
-
-        let get_payload_version = EngineGetPayloadVersion::from_cfg(cfg, payload_timestamp);
-        let payload_envelope = match get_payload_version {
-            EngineGetPayloadVersion::V5 => {
-                // Osaka (Karst) reuses the V4-shaped envelope; only the engine method bumps to V5.
-                let payload = engine.get_payload_v5(payload_id).await.map_err(|e| {
-                    error!(target: "engine", "Payload fetch failed: {e}");
-                    SealTaskError::GetPayloadFailed(e)
-                })?;
-
-                OpExecutionPayloadEnvelope::V4 {
-                    parent_beacon_block_root: payload.parent_beacon_block_root,
-                    payload: payload.execution_payload,
-                }
-            }
-            EngineGetPayloadVersion::V4 => {
-                let payload = engine.get_payload_v4(payload_id).await.map_err(|e| {
-                    error!(target: "engine", "Payload fetch failed: {e}");
-                    SealTaskError::GetPayloadFailed(e)
-                })?;
-
-                OpExecutionPayloadEnvelope::V4 {
-                    parent_beacon_block_root: payload.parent_beacon_block_root,
-                    payload: payload.execution_payload,
-                }
-            }
-            EngineGetPayloadVersion::V3 => {
-                let payload = engine.get_payload_v3(payload_id).await.map_err(|e| {
-                    error!(target: "engine", "Payload fetch failed: {e}");
-                    SealTaskError::GetPayloadFailed(e)
-                })?;
-
-                OpExecutionPayloadEnvelope::V3 {
-                    parent_beacon_block_root: payload.parent_beacon_block_root,
-                    payload: payload.execution_payload,
-                }
-            }
-            EngineGetPayloadVersion::V2 => {
-                let payload = engine.get_payload_v2(payload_id).await.map_err(|e| {
-                    error!(target: "engine", "Payload fetch failed: {e}");
-                    SealTaskError::GetPayloadFailed(e)
-                })?;
-
-                match payload.execution_payload.into_payload() {
-                    ExecutionPayload::V1(payload) => OpExecutionPayloadEnvelope::V1(payload),
-                    ExecutionPayload::V2(payload) => OpExecutionPayloadEnvelope::V2(payload),
-                    _ => unreachable!("the response should be a V1 or V2 payload"),
-                }
-            }
-        };
-
-        Ok(payload_envelope)
-    }
-
     /// Inserts a payload into the engine with Holocene fallback support.
     ///
     /// This function handles:
@@ -224,9 +146,14 @@ impl SealTask {
         state: &mut EngineState,
     ) -> Result<OpExecutionPayloadEnvelope, SealTaskError> {
         // Fetch the payload just inserted from the EL and import it into the engine.
-        let new_payload = self
-            .seal_payload(&self.cfg, &self.engine, self.payload_id, self.attributes.clone())
-            .await?;
+
+        let new_payload = get_payload(
+            self.engine.as_ref(),
+            &self.cfg,
+            self.payload_id,
+            self.attributes.attributes().payload_attributes.timestamp,
+        )
+        .await?;
 
         // Insert the payload into the engine and reuse its decoded block information.
         let new_block_ref = self.insert_payload(state, new_payload.clone()).await?;
@@ -303,4 +230,79 @@ impl EngineTaskExt for SealTask {
 
         Ok(())
     }
+}
+
+/// Seals the execution payload in the EL, returning the execution envelope.
+///
+/// ## Engine Method Selection
+/// The method used to fetch the payload from the EL is determined by the payload timestamp.
+///
+/// - `engine_getPayloadV2` is used for payloads with a timestamp before the Ecotone fork.
+/// - `engine_getPayloadV3` is used for payloads with a timestamp after the Ecotone fork.
+/// - `engine_getPayloadV4` is used for payloads with a timestamp after the Isthmus fork.
+/// - `engine_getPayloadV5` is used for payloads with a timestamp after the Karst fork.
+pub(in crate::task_queue) async fn get_payload(
+    engine: &EngineClient,
+    cfg: &RollupConfig,
+    payload_id: PayloadId,
+    payload_timestamp: u64,
+) -> Result<OpExecutionPayloadEnvelope, SealTaskError> {
+    debug!(
+        target: "engine",
+        payload_id = payload_id.to_string(),
+        l2_time = payload_timestamp,
+        "Sealing payload"
+    );
+
+    let get_payload_version = EngineGetPayloadVersion::from_cfg(cfg, payload_timestamp);
+    let payload_envelope = match get_payload_version {
+        EngineGetPayloadVersion::V5 => {
+            // Osaka (Karst) reuses the V4-shaped envelope; only the engine method bumps to V5.
+            let payload = engine.get_payload_v5(payload_id).await.map_err(|e| {
+                error!(target: "engine", "Payload fetch failed: {e}");
+                SealTaskError::GetPayloadFailed(e)
+            })?;
+
+            OpExecutionPayloadEnvelope::V4 {
+                parent_beacon_block_root: payload.parent_beacon_block_root,
+                payload: payload.execution_payload,
+            }
+        }
+        EngineGetPayloadVersion::V4 => {
+            let payload = engine.get_payload_v4(payload_id).await.map_err(|e| {
+                error!(target: "engine", "Payload fetch failed: {e}");
+                SealTaskError::GetPayloadFailed(e)
+            })?;
+
+            OpExecutionPayloadEnvelope::V4 {
+                parent_beacon_block_root: payload.parent_beacon_block_root,
+                payload: payload.execution_payload,
+            }
+        }
+        EngineGetPayloadVersion::V3 => {
+            let payload = engine.get_payload_v3(payload_id).await.map_err(|e| {
+                error!(target: "engine", "Payload fetch failed: {e}");
+                SealTaskError::GetPayloadFailed(e)
+            })?;
+
+            OpExecutionPayloadEnvelope::V3 {
+                parent_beacon_block_root: payload.parent_beacon_block_root,
+                payload: payload.execution_payload,
+            }
+        }
+        EngineGetPayloadVersion::V2 => {
+            let payload = engine.get_payload_v2(payload_id).await.map_err(|e| {
+                error!(target: "engine", "Payload fetch failed: {e}");
+                SealTaskError::GetPayloadFailed(e)
+            })?;
+
+            match payload.execution_payload.into_payload() {
+                ExecutionPayload::V1(payload) => OpExecutionPayloadEnvelope::V1(payload),
+                ExecutionPayload::V2(payload) => OpExecutionPayloadEnvelope::V2(payload),
+                _ => unreachable!("the response should be a V1 or V2 payload"),
+            }
+        }
+    };
+
+    Ok(payload_envelope)
 }
