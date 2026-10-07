@@ -14,14 +14,14 @@ pub use clock::{Clock, SystemClock};
 mod engine;
 pub use engine::{
     BuildRequest, EngineActor, EngineActorRequest, EngineClientError, EngineClientResult,
-    EngineConfig, EngineDerivationClient, EngineError, EngineRpcActor, EngineRpcRequest,
+    EngineConfig, EngineDerivationClient, EngineError, EngineRpcActor,
     QueuedEngineDerivationClient, ResetRequest, SealRequest,
 };
 
 pub(crate) mod rpc;
 pub use rpc::{
-    JsonrpseeServerLauncher, QueuedEngineRpcClient, QueuedSequencerAdminAPIClient, RpcActor,
-    RpcActorError, RpcServerHandle, RpcServerLauncher,
+    JsonrpseeServerLauncher, QueuedSequencerAdminAPIClient, RpcActor, RpcActorError,
+    RpcServerHandle, RpcServerLauncher,
 };
 
 mod derivation;
