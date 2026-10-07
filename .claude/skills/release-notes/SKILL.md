@@ -83,7 +83,9 @@ changed function is on the component's runtime path.
 
 For `op-contracts`, `LINKED` means the PR changed a contract under `src/` or the L2 upgrade
 bundle, and the row lists the contracts. For `op-deployer`, `LINKED` also covers the
-contract script paths in `just release-paths op-deployer`.
+contract scripts that its Go code runs, and their imports, from `forge tree`. The import
+graph comes from the current checkout, so a script deleted during the release range does
+not match. Check such a row by hand.
 
 If every Go row comes back `?`, `go list` failed. In a fresh worktree the usual cause is the
 missing generated `op-core/superchain/superchain-configs.zip`; run

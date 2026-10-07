@@ -46,7 +46,7 @@ workdir=$(mktemp -d)
 trap 'rm -rf "$workdir"' EXIT
 : > "$workdir/deps"
 : > "$workdir/pkgmap"
-: > "$workdir/prefixes"
+: > "$workdir/scripts"
 mode=none
 
 # --- dependency sets -------------------------------------------------------------------
@@ -81,12 +81,39 @@ resolve_rust() {
     [ -s "$workdir/pkgmap" ]
 }
 
-# Solidity has no dependency resolver to ask, so contract files are matched by path.
-# op-deployer's contract scripts come from `just release-paths`, which stays the single
-# source of truth for that set.
+# op-deployer runs contract scripts that its linked Go code names as string literals.
+# `forge tree` gives their imports without a compile. Contract source and libraries are
+# left out: the op-contracts release covers them.
 resolve_contract_scripts() {
-    (cd "$root" && just release-paths "$component") |
-        awk -F'\t' '$2 ~ /^packages\/contracts-bedrock\// { print $2 }' > "$workdir/prefixes"
+    local scripts
+    scripts=$(cd "$root" && while read -r dir; do
+                  for f in "$dir"/*.go; do
+                      case "$f" in *_test.go) ;; *) [ -f "$f" ] && cat "$f" ;; esac
+                  done
+              done < "$workdir/deps" | { grep -oE '"[A-Za-z0-9]+\.s\.sol"' || :; } | tr -d '"' | sort -u)
+    (cd "$root/packages/contracts-bedrock" && mise exec -- forge tree --charset ascii) |
+        awk -v scripts="$scripts" '
+            BEGIN { n = split(scripts, s, "\n"); for (i = 1; i <= n; i++) want[s[i]] = 1 }
+            {
+                line = $0; depth = 0
+                while (substr(line, 1, 4) ~ /^(\|   |    )$/) { line = substr(line, 5); depth++ }
+                if (line ~ /^(\|-- |`-- )/) { line = substr(line, 5); depth++ }
+                split(line, f, " "); stack[depth] = f[1]
+                if (depth > 0) edges[stack[depth - 1]] = edges[stack[depth - 1]] " " f[1]
+                else { base = f[1]; sub(/^.*\//, "", base); if (base in want) queue[++q] = f[1] }
+            }
+            END {
+                for (i = 1; i <= q; i++) seen[queue[i]] = 1
+                while (q > 0) {
+                    cur = queue[q--]
+                    m = split(edges[cur], kids, " ")
+                    for (j = 1; j <= m; j++)
+                        if (!(kids[j] in seen)) { seen[kids[j]] = 1; queue[++q] = kids[j] }
+                }
+                for (p in seen)
+                    if (p !~ /^(src|interfaces|lib)\//) print "packages/contracts-bedrock/" p
+            }' > "$workdir/scripts" ||
+        echo "warning: could not resolve op-deployer's contract scripts; script-only PRs will be tagged '--'" >&2
 }
 
 case "$component" in
@@ -138,10 +165,10 @@ xargs -P "$JOBS" -n 2 bash -c 'fetch "$0" "$1"' < "$workdir/work"
 
 for f in "$workdir"/pr-*; do
     awk -F'\t' -v depfile="$workdir/deps" -v pkgfile="$workdir/pkgmap" \
-        -v prefixfile="$workdir/prefixes" -v mode="$mode" '
+        -v scriptfile="$workdir/scripts" -v mode="$mode" '
         BEGIN {
             while ((getline dep < depfile) > 0) linked[dep] = 1
-            while ((getline line < prefixfile) > 0) prefixes[line] = 1
+            while ((getline line < scriptfile) > 0) scripts[line] = 1
             while ((getline line < pkgfile) > 0) {
                 split(line, kv, "\t")
                 pkgdir[kv[1]] = kv[2]
@@ -161,12 +188,11 @@ for f in "$workdir"/pr-*; do
                 linked[d] = 1
                 return d
             }
-            for (d in prefixes)
-                if (path ~ /\.sol$/ && (path == d || (d ~ /\/$/ && index(path, d) == 1))) {
-                    d = path; sub(/^packages\/contracts-bedrock\//, "", d)
-                    linked[d] = 1
-                    return d
-                }
+            if (path in scripts) {
+                d = path; sub(/^packages\/contracts-bedrock\//, "", d)
+                linked[d] = 1
+                return d
+            }
             if (mode == "go") {
                 # Test files are not compiled into the binary, so a PR that only adds
                 # coverage to a linked package does not change what ships.
