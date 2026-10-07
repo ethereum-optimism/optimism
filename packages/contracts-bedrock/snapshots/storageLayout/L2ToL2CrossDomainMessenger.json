@@ -33,12 +33,5 @@
     "offset": 0,
     "slot": "4",
     "type": "mapping(bytes32 => bool)"
-  },
-  {
-    "bytes": "20",
-    "label": "expiryHub",
-    "offset": 0,
-    "slot": "5",
-    "type": "address"
   }
 ]

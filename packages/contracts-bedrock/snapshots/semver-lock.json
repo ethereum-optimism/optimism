@@ -8,8 +8,8 @@
     "sourceCodeHash": "0x41d8b625f3be94379cc746ce19b068cec2f3b490d82f42c53350f2cf428f1766"
   },
   "src/L1/L1CrossDomainMessenger.sol:L1CrossDomainMessenger": {
-    "initCodeHash": "0xc1ec4cfb082f933ed4a705a6d6de874c0fe167683e1f8fcf792fdcfeb767ea0d",
-    "sourceCodeHash": "0x2b82118f2f3db26101568610047399ef87f37d41b0c6993d718aae4222a2c929"
+    "initCodeHash": "0xc00212d00b035f63f0d7038edb0af0fad533dd40c5e03da2151977fd70def1de",
+    "sourceCodeHash": "0x615b0fced196f1a0bc090710623cfa5e4bf721fe8cacc446beca80feaef72466"
   },
   "src/L1/L1ERC721Bridge.sol:L1ERC721Bridge": {
     "initCodeHash": "0x8754f400a5110749e26f9820e0532b86f0122a6b8ceb10028fd997d39b023ff7",
@@ -18,10 +18,6 @@
   "src/L1/L1StandardBridge.sol:L1StandardBridge": {
     "initCodeHash": "0x75b07cd638ef34349da3478aeab051472c1cba8c8074d3df48af3d7fbd97fd49",
     "sourceCodeHash": "0xb32ccae72d68f92f7b0ac461b08759a4dc59b7a7f381c3a49fd5aaa29db92bf6"
-  },
-  "src/L1/MessageExpiryHub.sol:MessageExpiryHub": {
-    "initCodeHash": "0x16b2df1544e3beb1193478f55350ad35b650ac58e857047b49fc66aa95d1c894",
-    "sourceCodeHash": "0x2ff921dcddb2d779dfe70d7b222d45707a54063669e9769cbadf1e97753cfdf4"
   },
   "src/L1/OPContractsManagerStandardValidator.sol:OPContractsManagerStandardValidator": {
     "initCodeHash": "0x2b97aa3a8fe780b2112f2ec93859530d28272b0938d4004c5f8868b84e7b639b",
@@ -76,7 +72,7 @@
     "sourceCodeHash": "0x8876e106997cbaa64501bba7e5aa1fd8931873b8acef9f34f9d1ec2676df97d6"
   },
   "src/L2/L2ContractsManager.sol:L2ContractsManager": {
-    "initCodeHash": "0x90e833f3344cdcf9b2962659b83a16276961354803f48f8aeb25b37d1f665c59",
+    "initCodeHash": "0x36503c9b54b4e5a0ff41f57f3a60cf77db2fd9e25d225b6c9ea47a5b57be5bb5",
     "sourceCodeHash": "0x582f082de7d68b7dedb9bdca681ad528b1a276a207ba1273d9c518ff6f668678"
   },
   "src/L2/L2CrossDomainMessenger.sol:L2CrossDomainMessenger": {
@@ -108,8 +104,8 @@
     "sourceCodeHash": "0xec1736e67134e22ad9ceb0b8b6c116fd169637aa6729c05d9f0f4b02547aaac0"
   },
   "src/L2/L2ToL2CrossDomainMessenger.sol:L2ToL2CrossDomainMessenger": {
-    "initCodeHash": "0x026743fb040301a39b5325b49d8d758042916d9fa58e3f71f16049e52b9534e4",
-    "sourceCodeHash": "0x5c4f6a44c8a256ee5c3f741fefd2984da21a02b3d1edd345167ff99340c3cd97"
+    "initCodeHash": "0x28f9123a30b19dcc36c2a6217ac91a5e3243c122da8cfbaf04a7f8d208011508",
+    "sourceCodeHash": "0xc8da83e1283bf8e847da56272ea49990c97f45ee61dab417460e3e57a6f5472a"
   },
   "src/L2/LiquidityController.sol:LiquidityController": {
     "initCodeHash": "0x3508887dc63505a9cc99ccf5a8c3f812f74406d562c8e400590dc2e457b8520b",
