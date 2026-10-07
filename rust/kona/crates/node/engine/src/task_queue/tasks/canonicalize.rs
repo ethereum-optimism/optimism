@@ -1,8 +1,8 @@
 //! Import a sequenced payload after committing it to the conductor.
 
 use crate::{
-    EngineClient, EngineState, EngineTaskExt, ImportedBlockSink, SealTaskError,
-    task_queue::insert_payload,
+    EngineClient, EngineState, EngineTaskError, EngineTaskExt, ImportedBlockSink, InsertTaskError,
+    task_queue::{insert_payload, tasks::task::EngineTaskErrorSeverity},
 };
 use async_trait::async_trait;
 use derive_more::Constructor;
@@ -10,7 +10,33 @@ use kona_genesis::RollupConfig;
 use kona_protocol::L2BlockInfo;
 use op_alloy_rpc_types_engine::OpExecutionPayloadEnvelope;
 use std::sync::Arc;
+use thiserror::Error;
 use tokio::sync::{mpsc, watch};
+
+/// An error that occurs when running the [`CanonicalizeTask`].
+#[derive(Debug, Error)]
+pub enum CanonicalizeTaskError {
+    /// The unsafe head changed after the payload was built, so the payload no longer extends it.
+    #[error("Unsafe head changed between build and canonicalization")]
+    UnsafeHeadChangedSinceBuild,
+    /// Impossible to insert the payload into the engine.
+    #[error(transparent)]
+    PayloadInsertionFailed(#[from] Box<InsertTaskError>),
+    /// Error sending the canonicalization result.
+    #[error(transparent)]
+    MpscSend(#[from] Box<mpsc::error::SendError<Result<OpExecutionPayloadEnvelope, Self>>>),
+}
+
+impl EngineTaskError for CanonicalizeTaskError {
+    fn severity(&self) -> EngineTaskErrorSeverity {
+        match self {
+            Self::PayloadInsertionFailed(inner) => inner.severity(),
+            Self::UnsafeHeadChangedSinceBuild | Self::MpscSend(_) => {
+                EngineTaskErrorSeverity::Critical
+            }
+        }
+    }
+}
 
 /// Canonicalizes a sequenced payload, checking that its build parent is still the unsafe head.
 ///
@@ -29,7 +55,7 @@ pub struct CanonicalizeTask {
     /// The unsafe head on which the build started.
     pub parent: L2BlockInfo,
     /// The response channel. Errors are handled by the sequencer, which owns retry policy.
-    pub result_tx: mpsc::Sender<Result<OpExecutionPayloadEnvelope, SealTaskError>>,
+    pub result_tx: mpsc::Sender<Result<OpExecutionPayloadEnvelope, CanonicalizeTaskError>>,
     /// Publish the new unsafe head before acknowledging canonicalization to the sequencer.
     pub unsafe_head_tx: Option<watch::Sender<L2BlockInfo>>,
     /// Where to hand the block after canonicalization.
@@ -39,14 +65,14 @@ pub struct CanonicalizeTask {
 #[async_trait]
 impl EngineTaskExt for CanonicalizeTask {
     type Output = ();
-    type Error = SealTaskError;
+    type Error = CanonicalizeTaskError;
 
-    async fn execute(&self, state: &mut EngineState) -> Result<(), SealTaskError> {
+    async fn execute(&self, state: &mut EngineState) -> Result<(), CanonicalizeTaskError> {
         let head = state.sync_state.unsafe_head().block_info;
         let result = if head.hash != self.parent.block_info.hash ||
             head.number != self.parent.block_info.number
         {
-            Err(SealTaskError::UnsafeHeadChangedSinceBuild)
+            Err(CanonicalizeTaskError::UnsafeHeadChangedSinceBuild)
         } else {
             insert_payload(
                 self.engine.as_ref(),
@@ -58,14 +84,17 @@ impl EngineTaskExt for CanonicalizeTask {
             )
             .await
             .map(|_| self.payload.clone())
-            .map_err(|err| SealTaskError::PayloadInsertionFailed(Box::new(err)))
+            .map_err(|err| CanonicalizeTaskError::PayloadInsertionFailed(Box::new(err)))
         };
         if result.is_ok() &&
             let Some(tx) = &self.unsafe_head_tx
         {
             tx.send_replace(state.sync_state.unsafe_head());
         }
-        self.result_tx.send(result).await.map_err(|err| SealTaskError::MpscSend(Box::new(err)))
+        self.result_tx
+            .send(result)
+            .await
+            .map_err(|err| CanonicalizeTaskError::MpscSend(Box::new(err)))
     }
 }
 

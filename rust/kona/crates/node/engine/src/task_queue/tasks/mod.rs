@@ -22,7 +22,7 @@ pub(super) use seal::get_payload;
 pub use seal::{SealTask, SealTaskError};
 
 mod canonicalize;
-pub use canonicalize::CanonicalizeTask;
+pub use canonicalize::{CanonicalizeTask, CanonicalizeTaskError};
 
 mod consolidate;
 pub use consolidate::{ConsolidateInput, ConsolidateTask, ConsolidateTaskError};

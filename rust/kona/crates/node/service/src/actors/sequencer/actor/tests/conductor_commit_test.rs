@@ -179,13 +179,15 @@ async fn canonicalization_retry_keeps_the_committed_payload() {
         .times(1)
         .in_sequence(&mut sequence)
         .return_once(|_, _| {
-            Err(EngineClientError::SealError(SealTaskError::PayloadInsertionFailed(Box::new(
-                InsertTaskError::ForkchoiceUpdateFailed(
-                    SynchronizeTaskError::ForkchoiceUpdateFailed(RpcError::local_usage_str(
-                        "temporary FCU failure",
-                    )),
-                ),
-            ))))
+            Err(EngineClientError::CanonicalizeError(
+                CanonicalizeTaskError::PayloadInsertionFailed(Box::new(
+                    InsertTaskError::ForkchoiceUpdateFailed(
+                        SynchronizeTaskError::ForkchoiceUpdateFailed(RpcError::local_usage_str(
+                            "temporary FCU failure",
+                        )),
+                    ),
+                )),
+            ))
         });
     let expected = payload.clone();
     actor
@@ -223,10 +225,10 @@ async fn stale_or_invalid_committed_payload_is_dropped(#[case] stale: bool) {
     }));
     actor.engine_client.expect_seal_block().times(0);
     actor.engine_client.expect_canonicalize_block().times(1).return_once(move |_, _| {
-        Err(EngineClientError::SealError(if stale {
-            SealTaskError::UnsafeHeadChangedSinceBuild
+        Err(EngineClientError::CanonicalizeError(if stale {
+            CanonicalizeTaskError::UnsafeHeadChangedSinceBuild
         } else {
-            SealTaskError::PayloadInsertionFailed(Box::new(
+            CanonicalizeTaskError::PayloadInsertionFailed(Box::new(
                 InsertTaskError::UnexpectedPayloadStatus(PayloadStatusEnum::Invalid {
                     validation_error: "invalid".into(),
                 }),

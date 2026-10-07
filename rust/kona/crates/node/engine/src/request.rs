@@ -1,6 +1,8 @@
 //! Requests sent to the node engine actor and their replies.
 
-use crate::{BuildTaskError, ConsolidateInput, FinalizeBlockId, SealTaskError};
+use crate::{
+    BuildTaskError, CanonicalizeTaskError, ConsolidateInput, FinalizeBlockId, SealTaskError,
+};
 use alloy_rpc_types_engine::PayloadId;
 use kona_protocol::OpAttributesWithParent;
 use op_alloy_rpc_types_engine::OpExecutionPayloadEnvelope;
@@ -49,6 +51,10 @@ pub enum EngineRequestError {
     #[error(transparent)]
     SealError(#[from] SealTaskError),
 
+    /// An error occurred canonicalizing a sequenced block.
+    #[error(transparent)]
+    CanonicalizeError(#[from] CanonicalizeTaskError),
+
     /// An error occurred performing the reset.
     #[error("An error occurred performing the reset: {0}.")]
     ResetForkchoiceError(String),
@@ -92,5 +98,5 @@ pub struct CanonicalizeRequest {
     /// The unsafe head on which the build started.
     pub parent: kona_protocol::L2BlockInfo,
     /// The response, including any import error, is relayed to the sequencer.
-    pub result_tx: mpsc::Sender<Result<OpExecutionPayloadEnvelope, SealTaskError>>,
+    pub result_tx: mpsc::Sender<Result<OpExecutionPayloadEnvelope, CanonicalizeTaskError>>,
 }
