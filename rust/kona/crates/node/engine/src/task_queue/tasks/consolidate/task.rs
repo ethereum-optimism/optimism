@@ -2,7 +2,8 @@
 
 use crate::{
     ConsolidateTaskError, EngineClient, EngineState, EngineTaskExt, ImportedBlockSink,
-    SynchronizeTask, state::EngineSyncStateUpdate, task_queue::build_and_seal,
+    state::EngineSyncStateUpdate,
+    task_queue::{build_and_seal, synchronize},
 };
 use alloy_rpc_types_eth::Block;
 use async_trait::async_trait;
@@ -121,9 +122,9 @@ impl ConsolidateTask {
         // self-consistent head state. This is required to correctly handle reorgs (where unsafe
         // may be ahead on a non-canonical fork) and to trigger EL sync when the local unsafe head
         // lags behind the safe head.
-        SynchronizeTask::new(
-            Arc::clone(&self.client),
-            self.cfg.clone(),
+        synchronize(
+            self.client.as_ref(),
+            state,
             EngineSyncStateUpdate {
                 unsafe_head: Some(*safe_l2),
                 safe_head: Some(*safe_l2),
@@ -131,7 +132,6 @@ impl ConsolidateTask {
                 ..Default::default()
             },
         )
-        .execute(state)
         .await
         .map_err(|e| {
             warn!(target: "engine", ?e, "Apply safe head failed");
@@ -217,16 +217,15 @@ impl ConsolidateTask {
                     // The next attributes built are this block's child, and ask for its config.
                     self.block_sink.block_imported(consensus_block, block_info);
 
-                    SynchronizeTask::new(
-                        Arc::clone(&self.client),
-                        self.cfg.clone(),
+                    synchronize(
+                        self.client.as_ref(),
+                        state,
                         EngineSyncStateUpdate {
                             safe_head: Some(block_info),
                             local_safe_head: Some(block_info),
                             ..Default::default()
                         },
                     )
-                    .execute(state)
                     .await
                     .map_err(|e| {
                         warn!(target: "engine", ?e, "Consolidation failed");

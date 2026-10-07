@@ -6,7 +6,8 @@ pub use task::{
 };
 
 mod synchronize;
-pub use synchronize::{SynchronizeTask, SynchronizeTaskError};
+pub use synchronize::SynchronizeTaskError;
+pub(super) use synchronize::synchronize;
 
 mod insert;
 pub use insert::{InsertTask, InsertTaskError};
