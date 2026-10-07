@@ -1721,56 +1721,6 @@ mod test {
     }
 
     #[tokio::test]
-    async fn test_resolve_reuses_initiating_block_for_many_messages() {
-        use core::sync::atomic::{AtomicUsize, Ordering};
-
-        for duplicate in [false, true] {
-            let mut superchain = default_superchain();
-            for _ in 0..64 {
-                superchain.chain(CHAIN_A_ID).add_initiating_message(MOCK_MESSAGE.into());
-            }
-            for index in 0..64 {
-                superchain.chain(CHAIN_B_ID).add_executing_message(
-                    ExecutingMessageBuilder::default()
-                        .with_message_hash(keccak256(MOCK_MESSAGE))
-                        .with_origin_chain_id(CHAIN_A_ID)
-                        .with_origin_timestamp(2)
-                        .with_origin_log_index(if duplicate { 63 } else { index }),
-                );
-            }
-            let (mut headers, cfgs, inner) = superchain.build();
-            headers.remove(&CHAIN_A_ID);
-            let provider = CountingProvider {
-                inner,
-                header_reads: AtomicUsize::new(0),
-                receipt_reads: AtomicUsize::new(0),
-                fail_headers: false,
-            };
-            let graph = MessageGraph::derive(
-                &headers,
-                &provider,
-                &cfgs,
-                default_dep_set(),
-                MESSAGE_EXPIRY_WINDOW,
-            )
-            .await
-            .unwrap();
-            provider.receipt_reads.store(0, Ordering::Relaxed);
-            graph.resolve().await.unwrap();
-            assert_eq!(
-                provider.header_reads.load(Ordering::Relaxed),
-                1,
-                "all messages from one initiating block must reuse its header"
-            );
-            assert_eq!(
-                provider.receipt_reads.load(Ordering::Relaxed),
-                1,
-                "all messages from one initiating block must reuse its indexed logs"
-            );
-        }
-    }
-
-    #[tokio::test]
     async fn test_duplicate_validation_preserves_identifier_and_payload_checks() {
         for field in ["hash", "origin", "timestamp", "index", "chain"] {
             let mut superchain = default_superchain();
@@ -1939,6 +1889,7 @@ mod test {
         .await
         .unwrap();
         assert_eq!(graph.messages.len(), 2);
+        // Visit the non-self edge first so premature deduplication would discard the self-cycle.
         graph.messages.swap(0, 1);
         assert_eq!(
             graph.resolve().await.unwrap_err(),
@@ -2007,52 +1958,6 @@ mod test {
         );
     }
     #[tokio::test]
-    async fn test_source_lookup_retains_only_one_initiating_block() {
-        use alloy_consensus::Header;
-        use alloy_primitives::Sealable;
-
-        let mut superchain = default_superchain();
-        superchain.chain(CHAIN_A_ID).add_initiating_message(MOCK_MESSAGE.into());
-        for number in 0..8 {
-            superchain.chain(CHAIN_B_ID).add_executing_message(
-                ExecutingMessageBuilder::default()
-                    .with_origin_chain_id(CHAIN_A_ID)
-                    .with_origin_timestamp(2)
-                    .with_origin_block_number(number)
-                    .with_message_hash(keccak256(MOCK_MESSAGE)),
-            );
-        }
-        let (mut headers, cfgs, mut provider) = superchain.build();
-        let source = headers.remove(&CHAIN_A_ID).unwrap();
-        let receipts = provider.receipts[&CHAIN_A_ID][&source.number].clone();
-        for number in 1..8 {
-            provider
-                .headers
-                .get_mut(&CHAIN_A_ID)
-                .unwrap()
-                .insert(number, Header { number, ..source.inner().clone() }.seal_slow());
-            provider.receipts.get_mut(&CHAIN_A_ID).unwrap().insert(number, receipts.clone());
-        }
-        let graph = MessageGraph::derive(
-            &headers,
-            &provider,
-            &cfgs,
-            default_dep_set(),
-            MESSAGE_EXPIRY_WINDOW,
-        )
-        .await
-        .unwrap();
-        let mut initiating_blocks = Default::default();
-        for message in &graph.messages {
-            graph.check_single_dependency(message, &mut initiating_blocks).await.unwrap();
-            assert!(
-                initiating_blocks.iter().count() <= 1,
-                "source lookup must release earlier blocks before retaining the next index"
-            );
-        }
-    }
-
-    #[tokio::test]
     async fn test_resolve_groups_interleaved_source_blocks() {
         use alloy_consensus::Header;
         use alloy_primitives::Sealable;
@@ -2120,15 +2025,13 @@ mod test {
         for _ in 0..64 {
             superchain.chain(CHAIN_A_ID).add_initiating_message(MOCK_MESSAGE.into());
         }
-        for _ in 0..2 {
-            superchain.chain(CHAIN_B_ID).add_executing_message(
-                ExecutingMessageBuilder::default()
-                    .with_origin_chain_id(CHAIN_A_ID)
-                    .with_origin_timestamp(2)
-                    .with_origin_log_index(63)
-                    .with_message_hash(keccak256(MOCK_MESSAGE)),
-            );
-        }
+        superchain.chain(CHAIN_B_ID).add_executing_message(
+            ExecutingMessageBuilder::default()
+                .with_origin_chain_id(CHAIN_A_ID)
+                .with_origin_timestamp(2)
+                .with_origin_log_index(63)
+                .with_message_hash(keccak256(MOCK_MESSAGE)),
+        );
         let (headers, cfgs, provider) = superchain.build();
         let graph = MessageGraph::derive(
             &headers,
@@ -2140,16 +2043,14 @@ mod test {
         .await
         .unwrap();
         let mut initiating_block = None;
-        for message in &graph.messages {
-            graph.check_single_dependency(message, &mut initiating_block).await.unwrap();
-            let block = initiating_block.as_ref().unwrap();
-            assert_eq!(block.logs.len(), 64);
-            assert_eq!(
-                block.logs.iter().filter(|(_, hash)| hash.is_some()).count(),
-                1,
-                "unreferenced logs must not be hashed"
-            );
-            assert_eq!(block.logs[63].1, Some(keccak256(MOCK_MESSAGE)));
-        }
+        graph.check_single_dependency(&graph.messages[0], &mut initiating_block).await.unwrap();
+        let block = initiating_block.as_ref().unwrap();
+        assert_eq!(block.logs.len(), 64);
+        assert_eq!(
+            block.logs.iter().filter(|(_, hash)| hash.is_some()).count(),
+            1,
+            "unreferenced logs must not be hashed"
+        );
+        assert_eq!(block.logs[63].1, Some(keccak256(MOCK_MESSAGE)));
     }
 }

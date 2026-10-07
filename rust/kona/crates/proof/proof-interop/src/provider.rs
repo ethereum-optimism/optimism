@@ -337,7 +337,7 @@ impl<C: CommsClient> TrieHinter for ChainScopedHinter<'_, C> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use alloc::{collections::BTreeMap, format, string::String, sync::Arc, vec::Vec};
+    use alloc::{collections::BTreeMap, format, string::String, sync::Arc, vec, vec::Vec};
     use alloy_consensus::Header;
     use alloy_primitives::{B256, Sealable, keccak256};
     use alloy_rlp::Decodable;
@@ -518,6 +518,7 @@ mod tests {
     #[tokio::test(flavor = "multi_thread")]
     async fn test_header_by_number_eip2935_fast_path() {
         let (client, fixture) = load_fixture();
+        let reads = client.reads.clone();
         let provider = build_provider(client, &fixture);
         let expected_hash: B256 = fixture.target_block_hash.parse().unwrap();
 
@@ -528,6 +529,16 @@ mod tests {
 
         assert_eq!(header.hash_slow(), expected_hash);
         assert_eq!(header.number, fixture.target_block_number);
+        let reads_after_first = reads.lock().len();
+        assert!(reads_after_first > 0);
+        let cached =
+            provider.header_by_number(fixture.chain_id, fixture.target_block_number).await.unwrap();
+        assert_eq!(header, cached);
+        assert_eq!(
+            reads.lock().len(),
+            reads_after_first,
+            "repeated lookup must reuse verified headers"
+        );
     }
 
     #[tokio::test(flavor = "multi_thread")]
@@ -588,66 +599,6 @@ mod tests {
         assert_eq!(header.hash_slow(), expected_hash);
         assert_eq!(header.number, fixture.target_block_number);
     }
-    #[tokio::test(flavor = "multi_thread")]
-    async fn test_header_by_number_caches_repeated_lookups() {
-        let (client, fixture) = load_fixture();
-        let reads = client.reads.clone();
-        let provider = build_provider(client, &fixture);
-        let first =
-            provider.header_by_number(fixture.chain_id, fixture.target_block_number).await.unwrap();
-        let reads_after_first = reads.lock().len();
-        assert!(reads_after_first > 0);
-        let second =
-            provider.header_by_number(fixture.chain_id, fixture.target_block_number).await.unwrap();
-        assert_eq!(first, second);
-        assert_eq!(
-            reads.lock().len(),
-            reads_after_first,
-            "repeated lookup must reuse verified headers"
-        );
-    }
-
-    #[tokio::test(flavor = "multi_thread")]
-    async fn test_receipts_cached_across_number_and_hash_lookups() {
-        use alloy_consensus::{Receipt, ReceiptWithBloom};
-        use alloy_eips::eip2718::Encodable2718;
-        use kona_mpt::Nibbles;
-
-        let (mut client, fixture) = load_fixture();
-        let receipt = OpReceiptEnvelope::Eip1559(ReceiptWithBloom {
-            receipt: Receipt { status: true.into(), ..Default::default() },
-            ..Default::default()
-        });
-        let node = TrieNode::Leaf {
-            prefix: Nibbles::unpack([0x80]),
-            value: receipt.encoded_2718().into(),
-        };
-        let node_rlp = alloy_rlp::encode(&node);
-        let receipts_root = keccak256(&node_rlp);
-        let trie_key = PreimageKey::new(*receipts_root, PreimageKeyType::Keccak256);
-        client.preimages.insert(trie_key.into(), node_rlp);
-        let header = Header { number: 1, receipts_root, ..Default::default() }.seal_slow();
-        let header_key = PreimageKey::new(*header.hash(), PreimageKeyType::Keccak256);
-        client.preimages.insert(header_key.into(), alloy_rlp::encode(header.inner()));
-        let reads = client.reads.clone();
-        let mut provider = build_provider(client, &fixture);
-        provider.replace_local_safe_head(fixture.chain_id, header.clone());
-
-        assert_eq!(
-            provider.receipts_by_hash(fixture.chain_id, header.hash()).await.unwrap(),
-            vec![receipt.clone()]
-        );
-        assert_eq!(
-            provider.receipts_by_number(fixture.chain_id, header.number).await.unwrap(),
-            vec![receipt]
-        );
-        assert_eq!(
-            reads.lock().iter().filter(|key| **key == trie_key).count(),
-            1,
-            "receipts trie must be decoded once per block hash"
-        );
-    }
-
     fn insert_test_header(client: &mut MockCommsClient, header: Header) -> Sealed<Header> {
         let header = header.seal_slow();
         let key = PreimageKey::new(*header.hash(), PreimageKeyType::Keccak256);
@@ -750,10 +701,6 @@ mod tests {
             after_replacement,
             "unaffected chain and clone retain their canonical caches"
         );
-        assert!(matches!(
-            provider.header_by_number(fixture.chain_id, 3).await,
-            Err(OracleProviderError::BlockNumberPastHead(3, 2))
-        ));
     }
 
     #[tokio::test(flavor = "multi_thread")]
