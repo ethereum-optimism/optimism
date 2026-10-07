@@ -98,10 +98,12 @@ contract OPContractsManagerV2 is ISemver, OPContractsManagerUtilsCaller {
         IOPContractsManagerUtils.DisputeGameConfig[] disputeGameConfigs;
         // CGT
         bool useCustomGasToken;
-        // Withdrawal timing configuration. Stored per chain on the portal and the
-        // AnchorStateRegistry, and bounded by the implementations' min/max immutables.
+        // Withdrawal timing configuration. Stored per chain on the portal, the
+        // AnchorStateRegistry and the DelayedWETH, and bounded by the implementations' min/max
+        // immutables.
         uint256 proofMaturityDelaySeconds;
         uint256 disputeGameFinalityDelaySeconds;
+        uint256 withdrawalDelaySeconds;
     }
 
     /// @notice Partial input required for an upgrade.
@@ -170,9 +172,9 @@ contract OPContractsManagerV2 is ISemver, OPContractsManagerUtilsCaller {
     ///         - Major bump: New required sequential upgrade
     ///         - Minor bump: Replacement OPCM for same upgrade
     ///         - Patch bump: Development changes (expected for normal dev work)
-    /// @custom:semver 9.0.3
+    /// @custom:semver 9.0.4
     function version() public pure returns (string memory) {
-        return "9.0.3";
+        return "9.0.4";
     }
 
     /// @param _standardValidator The standard validator for this OPCM release.
@@ -704,6 +706,15 @@ contract OPContractsManagerV2 is ISemver, OPContractsManagerUtilsCaller {
                     _upgradeInput.extraInstructions
                 ),
                 (uint256)
+            ),
+            withdrawalDelaySeconds: abi.decode(
+                _loadBytes(
+                    address(_chainContracts.delayedWETH),
+                    _chainContracts.delayedWETH.delay.selector,
+                    "overrides.cfg.withdrawalDelaySeconds",
+                    _upgradeInput.extraInstructions
+                ),
+                (uint256)
             )
         });
     }
@@ -726,9 +737,9 @@ contract OPContractsManagerV2 is ISemver, OPContractsManagerUtilsCaller {
             revert OPContractsManagerV2_InvalidGameConfigs();
         }
 
-        // NOTE: The withdrawal delays (proofMaturityDelaySeconds, disputeGameFinalityDelaySeconds)
-        // are not validated here and their bounds are enforced by the immutables on
-        // the OptimismPortal and AnchorStateRegistry implementations.
+        // NOTE: The withdrawal delays (proofMaturityDelaySeconds, disputeGameFinalityDelaySeconds,
+        // withdrawalDelaySeconds) are not validated here and their bounds are enforced by the
+        // immutables on the OptimismPortal, AnchorStateRegistry and DelayedWETH implementations.
         // The check is ommited due to the contract size limit.
 
         bool superRootGamesMigrationEnabled = isDevFeatureEnabled(DevFeatures.SUPER_ROOT_GAMES_MIGRATION);
@@ -980,7 +991,7 @@ contract OPContractsManagerV2 is ISemver, OPContractsManagerUtilsCaller {
             _cts.proxyAdmin,
             address(_cts.delayedWETH),
             impls.delayedWETHImpl,
-            abi.encodeCall(IDelayedWETH.initialize, (_cts.ethLockbox))
+            abi.encodeCall(IDelayedWETH.initialize, (_cts.ethLockbox, _cfg.withdrawalDelaySeconds))
         );
 
         // Update the AnchorStateRegistry.

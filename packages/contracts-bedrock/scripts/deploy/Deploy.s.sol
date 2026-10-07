@@ -447,7 +447,8 @@ contract Deploy is Deployer {
             disputeGameConfigs: disputeGameConfigs,
             useCustomGasToken: cfg.useCustomGasToken(),
             proofMaturityDelaySeconds: cfg.proofMaturityDelaySeconds(),
-            disputeGameFinalityDelaySeconds: cfg.disputeGameFinalityDelaySeconds()
+            disputeGameFinalityDelaySeconds: cfg.disputeGameFinalityDelaySeconds(),
+            withdrawalDelaySeconds: cfg.faultGameWithdrawalDelay()
         });
     }
 
@@ -515,7 +516,8 @@ contract Deploy is Deployer {
             disputeGameConfigs: disputeGameConfigs,
             useCustomGasToken: cfg.useCustomGasToken(),
             proofMaturityDelaySeconds: cfg.proofMaturityDelaySeconds(),
-            disputeGameFinalityDelaySeconds: cfg.disputeGameFinalityDelaySeconds()
+            disputeGameFinalityDelaySeconds: cfg.disputeGameFinalityDelaySeconds(),
+            withdrawalDelaySeconds: cfg.faultGameWithdrawalDelay()
         });
     }
 }

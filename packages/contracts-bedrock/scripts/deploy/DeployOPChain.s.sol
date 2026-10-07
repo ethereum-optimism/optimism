@@ -196,7 +196,8 @@ contract DeployOPChain is Script {
             disputeGameConfigs: disputeGameConfigs,
             useCustomGasToken: _input.useCustomGasToken,
             proofMaturityDelaySeconds: _input.proofMaturityDelaySeconds,
-            disputeGameFinalityDelaySeconds: _input.disputeGameFinalityDelaySeconds
+            disputeGameFinalityDelaySeconds: _input.disputeGameFinalityDelaySeconds,
+            withdrawalDelaySeconds: _input.withdrawalDelaySeconds
         });
     }
 

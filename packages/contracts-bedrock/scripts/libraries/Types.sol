@@ -58,5 +58,6 @@ library Types {
         // positionally.
         uint256 proofMaturityDelaySeconds;
         uint256 disputeGameFinalityDelaySeconds;
+        uint256 withdrawalDelaySeconds;
     }
 }
