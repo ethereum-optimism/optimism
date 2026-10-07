@@ -37,6 +37,8 @@
           "name": "rust-tests",
           "group": "rust-workspace",
           "tasks": [
+            "tests-unit",
+            "tests-compiler",
             "tests"
           ]
         },

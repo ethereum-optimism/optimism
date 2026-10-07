@@ -7,6 +7,7 @@ import os
 from pathlib import Path
 import re
 import shlex
+import shutil
 import sys
 import time
 import xml.etree.ElementTree as ET
@@ -372,15 +373,73 @@ def artifact(directory, verify=False):
         write(directory / 'archive.json', expected)
 
 
-def finish(directory, status):
+def merge_tests(directory, unit, compiler):
+    """Verify same-run child evidence and retain original bytes for the aggregate.
+
+    Each child owns its discovery and verdict. The aggregate verifies the
+    artifact boundary and combines their already validated coverage reports.
+    """
+    settings = json.loads((directory / 'settings.json').read_text())
+    binding = ('suite', 'source_sha', 'input_sha256', 'rustc', 'cargo', 'nextest',
+               'incremental', 'profile_incremental', 'rustflags', 'rustdocflags',
+               'superchain_revision', 'test_filter', 'workspace_root', 'cargo_home',
+               'provider', 'rwx_run_id')
+    if settings['provider'] != 'rwx' or not settings.get('rwx_run_id'):
+        raise ValueError('Split Rust reports require a fresh RWX run identity')
+    status = 0
+    parts = {}
+    for label, source, job, phases in (
+            ('unit', unit, 'tests-unit', ('unit-list', 'unit')),
+            ('compiler', compiler, 'tests-compiler', ('beacon-list', 'beacon', 'doctests-list', 'doctests'))):
+        original = json.loads((source / 'settings.json').read_text())
+        final = json.loads((source / 'final.json').read_text())
+        if original['job'] != job or any(original.get(key) != settings.get(key) for key in binding):
+            raise ValueError('Rust child source, run, toolchain or settings mismatch: ' + label)
+        attempt = str(original.get('rwx_task_attempt', ''))
+        if not re.fullmatch('[1-9][0-9]*', attempt):
+            raise ValueError('Missing Rust child execution attempt: ' + label)
+        hashes = final['original_sha256']
+        REPORT.verify_files(source, hashes, required=('settings.json', 'workspace.json'), label=label)
+        names = {}
+        for name in hashes:
+            # Preserve the full child evidence, including diagnostics and its
+            # original settings. Only owned verdict files use aggregate names.
+            owned = (any(name == phase + suffix for phase in phases
+                         for suffix in ('.log', '.json', '.stage.json'))
+                     or name in ({'junit.xml', 'unit-coverage.json'} if label == 'unit' else
+                                 {'beacon.junit.xml', 'beacon-coverage.json',
+                                  'doctests.junit.xml', 'doctests-coverage.json'}))
+            target = name if owned else label + '.' + name
+            shutil.copyfile(source / name, directory / target)
+            names[name] = target
+        shutil.copyfile(source / 'final.json', directory / (label + '.final.json'))
+        parts[label] = {'original_files': names, 'final_sha256': digest(source / 'final.json'),
+                        'task_attempt': original['rwx_task_attempt']}
+        status = status or final['exit_code'] or int(bool(final['report_errors']))
+    write(directory / 'parts.json', parts)
+    return status
+
+
+def finish(directory, status, merged=False):
     errors = []
     job = json.loads((directory / 'settings.json').read_text())['job']
     reports = []
-    if job in ('tests', 'doctest'):
-        checks = [('doctests', lambda: libtest_report(directory, 'doctests'))]
-        if job == 'tests':
-            checks = [('unit', lambda: unit_report(directory)),
-                      ('beacon', lambda: libtest_report(directory, 'beacon'))] + checks
+    if merged:
+        for label in ('unit', 'compiler'):
+            try:
+                child = json.loads((directory / (label + '.final.json')).read_text())
+                reports.extend(child['reports'])
+                errors.extend(label + ': ' + error for error in child['report_errors'])
+            except (ValueError, KeyError, OSError) as error:
+                errors.append(label + ': ' + str(error))
+    elif job in ('tests', 'tests-unit', 'tests-compiler', 'doctest'):
+        checks = []
+        if job in ('tests', 'tests-unit'):
+            checks.append(('unit', lambda: unit_report(directory)))
+        if job in ('tests', 'tests-compiler'):
+            checks.append(('beacon', lambda: libtest_report(directory, 'beacon')))
+        if job in ('tests', 'tests-compiler', 'doctest'):
+            checks.append(('doctests', lambda: libtest_report(directory, 'doctests')))
         for name, check in checks:
             try:
                 reports.append(check())
@@ -411,6 +470,8 @@ def finish(directory, status):
     stages = {p.stem.removesuffix('.stage'): json.loads(p.read_text()) for p in directory.glob('*.stage.json')}
     required = {
         'tests-build': ['archive', 'beacon-build'],
+        'tests-unit': ['unit-list', 'unit'],
+        'tests-compiler': ['beacon-list', 'beacon', 'doctests-list', 'doctests'],
         'tests': ['unit-list', 'unit', 'beacon-list', 'beacon', 'doctests-list', 'doctests'],
         'doctest': ['doctests-list', 'doctests'], 'docs': ['docs'], 'clippy': ['clippy'],
         'build': ['build'], 'features': ['features-list', 'features', 'feature-tests-list', 'feature-tests'],
@@ -420,7 +481,7 @@ def finish(directory, status):
         'registry': ['registry-clean', 'registry', 'registry-diff'],
         'interop': ['superchain-go', 'interop']}
     if status == 0:
-        for name in ['workspace'] + required[job]:
+        for name in ['workspace'] + ([] if merged else required[job]):
             if stages.get(name, {}).get('exit_code') != 0:
                 errors.append(f'Missing or unsuccessful stage: {name}')
     if job in extra_jobs:
@@ -446,7 +507,9 @@ if __name__ == '__main__':
         registry_snapshot(directory, sys.argv[3])
     elif mode in ('artifact', 'verify-artifact'):
         artifact(directory, mode == 'verify-artifact')
-    elif mode == 'finish':
-        sys.exit(finish(directory, int(sys.argv[3])))
+    elif mode == 'merge-tests':
+        sys.exit(merge_tests(directory, Path(sys.argv[3]).resolve(), Path(sys.argv[4]).resolve()))
+    elif mode in ('finish', 'finish-merged-tests'):
+        sys.exit(finish(directory, int(sys.argv[3]), mode == 'finish-merged-tests'))
     else:
         raise ValueError('Unknown Rust report mode')

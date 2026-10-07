@@ -198,12 +198,40 @@ also includes inherited and superseded layers.
 The producer still exports `.ci/rust-cache/target-cache.tar.zst` as an immutable
 artifact for an empty runtime cache. This archive is excluded from both tasks'
 filesystem outputs. GNU tar's PAX format preserves nanosecond timestamps and
-permissions during that transfer. The verdict receives it through
+permissions during that transfer. The compiler-dependent verdict receives it through
 `COMPILED_TARGET`, prefers its own raw target baseline when present, and does not
 repack targets after tests. It does not inherit the producer's target-cache layer
 history. Other workspace jobs retain their existing raw target outputs.
 Retain cold `cache-restore`, producer `cache-pack`, and size evidence separately
 from native cache-network transport timings.
+
+The full Rust test workload has two fresh verdict workers. `tests-unit` executes
+nextest from the checksum-verified binary archive. It receives no compiler archive;
+its separate tool cache can retain runtime fixture compilation, but excludes test
+reports and unpacked execution binaries. `tests-compiler` runs the beacon Cargo test
+and doctests using the protected runtime target baseline and cold archive fallback.
+Both workers retain the selected 16 CPU / 32 GiB resources and may execute in
+parallel. The `tests` task collects both artifacts after execution, including
+ordinary failures. It verifies source, tools, settings and run identity, retains
+each child's original settings and attempt, consumes its validated coverage, and
+emits the existing
+`.ci/rust-workspace/tests` full-suite report. Native gates observe both workers and
+the aggregate, including cancellation or absent artifacts. Warm-only runs select
+neither verdict worker nor the aggregate.
+
+For an isolated execution fixture, run
+`RWX_LIVE_RUST_FIXTURE=1 python3 -m unittest discover -s ops/ci/tests -p 'test_rust_workspace.py'`
+on Linux with the pinned Rust, nextest, Just, mold and sccache tools. This exercises
+an empty-target nextest worker, compiler-cache restoration, aggregate coverage and
+original failure retention. It also copies the real Lokahi CLI tests and verifies
+the runtime `CARGO_BIN_EXE_lokahi` path under nextest and ordinary Cargo. Rust 1.95
+and nextest 0.9.132 provide this input; compile-time executable paths are not
+portable to an extracted target directory. The shared `tests` CLI mode remains available for
+Circle and earlier collected commands. The split changes scheduling and transport;
+it does not remove the independently scheduled `doctest` workload. Compare hosted
+end-to-end timings before claiming a speed improvement. The compiler-dependent
+cold fallback still needs an archive; native compaction and metadata-preserving
+handoffs remain an RWX support question.
 
 Raw target layers exceeded the cap even after executable pruning: at
 `d233b6c244`, 73.5 GiB inherited plus 26.6 GiB added failed publication after
@@ -309,6 +337,7 @@ bytes. The table distinguishes required reporting from workload changes.
 | `packages/contracts-bedrock/scripts/go-ffi/{trie.go,trie_replay.go,trie_replay_test.go,README.md}` | Explicit CI coverage replay only; OS randomness made identical seeded Solidity runs produce different LCOV hits | Replay requires `CI=true`, `cicoverage`, valid 256-bit seed, and binds complete argv; unset seed keeps `crypto/rand`. Reader tests and nine real CLI variants prove reproducibility and changed-seed/variant sampling; full LCOV/attribution comparison stays strict |
 | `packages/contracts-bedrock/test/{setup/Setup.sol,L1/ResourceMetering.t.sol,L2/L1Block.t.sol}` | Attach reasons to existing `vm.skip` calls; log after skip was unreachable | Conditions, assertions and skip counts unchanged. Coverage/suite fixtures verify reason evidence and initial failures. No Solidity production contract is changed |
 | `packages/contracts-bedrock/test/kontrol/scripts/make-summary-deployment.sh` | Capture deployment, loader and generated inputs only when report directory is set | `test_kontrol_build` validates real summary/proof phases, corrupt/stale inputs and failures; ordinary generation unchanged |
+| `rust/lokahi/tests/cli.rs` | Read Cargo/nextest's runtime executable path so archived tests use the remapped Lokahi binary; assertions and CLI behavior stay intact | The pinned Linux fixture copies the real three CLI tests, reproduces their missing compile-time path without producer targets, then verifies archive-only nextest and ordinary `cargo test` execution |
 | `rust/justfile` | Optional cargo-hack command-list reporting, default false, retains actual partitions | Workspace fixtures verify full packages and exactly-once feature partitions; original checks still run |
 | `rust/kona/bin/client/scripts/fetch-witness-tar.sh` | Remove a stale ETag when the archive is missing; bounded transfer retries | Otherwise a bodyless 304 left no runtime witness. Cannon fixtures cover actual archive/ELF/image handoff and retained transport failures |
 | `docs/ai/ci-ops.md`, `docs/ai/ci-config-review.md`, three RWX guides and checksum index | Describe actual shared routing, required gate ownership and private retrieval | Local links and the 86 exact baseline names are checked; historical source and hashes survive consolidation |

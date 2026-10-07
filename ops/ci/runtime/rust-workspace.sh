@@ -5,7 +5,7 @@ HELPERS="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ROOT="$(git rev-parse --show-toplevel)"
 cd "$ROOT"
 job="${1:?Pass a Rust workspace job}"
-case "$job" in tests|tests-build|doctest|docs|clippy|build|features|feature-plan|no-std|udeps|wasm-unknown|wasm-wasi|zepter|typos|registry|interop) ;;
+case "$job" in tests|tests-build|tests-unit|tests-compiler|tests-merge|doctest|docs|clippy|build|features|feature-plan|no-std|udeps|wasm-unknown|wasm-wasi|zepter|typos|registry|interop) ;;
   *) echo "Unknown Rust workspace job: $job" >&2; exit 1;;
 esac
 index="${CI_RUST_PARTITION_INDEX:-${CIRCLE_NODE_INDEX:-0}}"
@@ -16,6 +16,8 @@ if [[ "$job" == features ]]; then
     exit 1
   fi
   report="$ROOT/.ci/rust-workspace/features-$index"
+elif [[ "$job" == tests-merge ]]; then
+  report="$ROOT/.ci/rust-workspace/tests"
 else
   report="$ROOT/.ci/rust-workspace/$job"
 fi
@@ -27,7 +29,7 @@ if [[ "${CI_RUST_PROVIDER:-circleci}" == rwx ]]; then
   # Trial incremental host checks/test compilation; release and prestate
   # producers keep their existing policy. Registry dependencies still use sccache.
   case "$job" in
-    features|tests-build|tests)
+    features|tests-build|tests|tests-unit|tests-compiler|tests-merge)
       case "${CI_RUST_INCREMENTAL:-0}" in
         0) ;;
         1)
@@ -46,14 +48,18 @@ if [[ "${CI_RUST_PROVIDER:-circleci}" == rwx ]]; then
   export RUSTC_WRAPPER=sccache SCCACHE_DIR="$ROOT/.ci/rust-cache/sccache"
   export SCCACHE_CACHE_SIZE=10G SCCACHE_IDLE_TIMEOUT=0 SCCACHE_BASEDIRS="$ROOT" SCCACHE_LOG=warn
   mkdir -p "$CARGO_HOME" "$SCCACHE_DIR" "$CARGO_TARGET_DIR"
-  sccache --start-server
-  sccache --zero-stats
+  if [[ "$job" != tests-merge ]]; then
+    sccache --start-server
+    sccache --zero-stats
+  fi
 fi
-python3 "$HELPERS/rust-workspace-report.py" begin "$report" "$job"
+report_job="$job"
+if [[ "$job" == tests-merge ]]; then report_job=tests; fi
+python3 "$HELPERS/rust-workspace-report.py" begin "$report" "$report_job"
 finish() {
   local status=$? diagnostics=0
   trap - EXIT
-  if [[ "${CI_RUST_PROVIDER:-circleci}" == rwx ]]; then
+  if [[ "${CI_RUST_PROVIDER:-circleci}" == rwx && "$job" != tests-merge ]]; then
     # Original verdicts are copied into the report artifact, never compiler caches.
     rm -rf "$ROOT/rust/target/nextest/default"
     sccache --show-stats --stats-format json >"$report/sccache.json" || diagnostics=$?
@@ -67,7 +73,9 @@ finish() {
     fi
   fi
   if [[ "$status" == 0 && "$diagnostics" != 0 ]]; then status=$diagnostics; fi
-  python3 "$HELPERS/rust-workspace-report.py" finish "$report" "$status" || status=$?
+  local finish_mode=finish
+  if [[ "$job" == tests-merge ]]; then finish_mode=finish-merged-tests; fi
+  python3 "$HELPERS/rust-workspace-report.py" "$finish_mode" "$report" "$status" || status=$?
   exit "$status"
 }
 trap finish EXIT
@@ -76,14 +84,14 @@ trap 'exit 143' TERM
 stage() { python3 "$HELPERS/rust-workspace-report.py" stage "$report" "$@"; }
 stage_at() { python3 "$HELPERS/rust-workspace-report.py" stage-at "$report" "$@"; }
 json_stage() { python3 "$HELPERS/rust-workspace-report.py" json-stage "$report" "$@"; }
-if [[ "${CI_RUST_PROVIDER:-circleci}" == rwx ]]; then
+if [[ "${CI_RUST_PROVIDER:-circleci}" == rwx && "$job" != tests-merge ]]; then
   case "$job" in
     tests-build)
       packed_target="$ROOT/.ci/rust-cache/target-cache.tar.zst"
       # This immutable artifact seeds a first verdict. RWX retains the individual
       # target files; the archive is excluded from filesystem cache outputs.
       ;;
-    tests)
+    tests|tests-compiler)
       # Prefer the runtime's protected baseline. Seed an empty target from the
       # current producer, without inheriting the producer's cache layer history.
       if [[ ! -f "$CARGO_TARGET_DIR/.rwx-source-fingerprint.json" &&
@@ -96,6 +104,12 @@ if [[ "${CI_RUST_PROVIDER:-circleci}" == rwx ]]; then
   python3 "$HELPERS/rust-target-cache.py" prepare >"$report/cache-source.json"
 fi
 json_stage workspace cargo metadata --no-deps --locked --all-features --format-version 1
+compiler_tests() {
+  stage beacon-list cargo test --profile fast-build --locked -p kona-providers-alloy \
+    test_filtered_beacon_blobs_deserializes_on_small_stack -- --list
+  stage beacon just test-beacon-blob-stack
+  docs
+}
 docs() {
   stage doctests-list cargo test --doc --workspace --locked --all-features -- --list
   stage doctests just test-docs
@@ -122,7 +136,7 @@ case "$job" in
       test_filtered_beacon_blobs_deserializes_on_small_stack --no-run
     python3 "$HELPERS/rust-workspace-report.py" artifact "$report"
     ;;
-  tests)
+  tests|tests-unit)
     rm -f "$ROOT/rust/target/nextest/default/junit.xml"
     args=()
     if [[ "${CI_RUST_PROVIDER:-circleci}" == rwx ]]; then
@@ -148,10 +162,14 @@ case "$job" in
     fi
     rm -rf "$report/unpacked"
     if [[ "$status" != 0 ]]; then exit "$status"; fi
-    stage beacon-list cargo test --profile fast-build --locked -p kona-providers-alloy \
-      test_filtered_beacon_blobs_deserializes_on_small_stack -- --list
-    stage beacon just test-beacon-blob-stack
-    docs
+    if [[ "$job" == tests-unit ]]; then exit 0; fi
+    compiler_tests
+    ;;
+  tests-compiler) compiler_tests ;;
+  tests-merge)
+    python3 "$HELPERS/rust-workspace-report.py" merge-tests "$report" \
+      "${UNIT_REPORT:?UNIT_REPORT must identify the nextest report}" \
+      "${COMPILER_REPORT:?COMPILER_REPORT must identify the compiler-dependent report}"
     ;;
   doctest) docs ;;
   docs) stage docs just lint-docs ;;

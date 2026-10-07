@@ -356,11 +356,11 @@ class ConfigurationTests(unittest.TestCase):
     def test_incremental_trial_is_limited_to_feature_checks_and_tests(self):
         repo = Path(__file__).resolve().parents[3]
         config = json.loads(subprocess.check_output(['yq', '-o=json', '.', str(repo / '.rwx/rust.yml')], text=True))
-        selected = {'tests-build', 'tests'} | {f'features-{i}' for i in range(10)}
+        selected = {'tests-build', 'tests-unit', 'tests-compiler', 'tests'} | {f'features-{i}' for i in range(10)}
         actual = {t['key'] for t in config['tasks'] if 'CI_RUST_INCREMENTAL' in t.get('env', {})}
         self.assertEqual(actual, selected)
         tasks = {t['key']: t for t in config['tasks']}
-        for key in ('tests-build', 'tests'):
+        for key in ('tests-build', 'tests-unit', 'tests-compiler'):
             self.assertIn('${{ init.cargo-incremental }}', tasks[key]['tool-cache'])
             self.assertIn('${{ tasks.test-cache-identity.values.namespace }}', tasks[key]['tool-cache'])
             self.assertIn('test-cache-identity', tasks[key]['use'])
@@ -369,11 +369,11 @@ class ConfigurationTests(unittest.TestCase):
             self.assertIn('rust/target', output)
             self.assertIn('!.ci/rust-cache/target-cache.tar.zst', output)
             self.assertIn('-files-incremental-', tasks[key]['tool-cache'])
-        self.assertNotIn('tests-build', tasks['tests']['use'])
-        self.assertEqual(tasks['tests']['env']['COMPILED_TARGET'],
+        self.assertNotIn('tests-build', tasks['tests-compiler']['use'])
+        self.assertEqual(tasks['tests-compiler']['env']['COMPILED_TARGET'],
                          '${{ tasks.tests-build.artifacts.compiler-cache }}')
         self.assertTrue(all('disk' not in t.get('runner', {}) for t in config['tasks']
-                            if t['key'] not in ('tests-build', 'tests')))
+                            if t['key'] not in ('tests-build', 'tests-unit', 'tests-compiler')))
         for trigger in ('cli', 'cache-rebuild'):
             self.assertEqual(config['on'][trigger]['init']['cargo-incremental'], '1')
         coordinator = json.loads(subprocess.check_output(['yq', '-o=json', '.tasks', str(repo / '.rwx/pr-gates.yml')], text=True))
@@ -383,7 +383,7 @@ class ConfigurationTests(unittest.TestCase):
     def test_fresh_verdicts_keep_compiler_caches_enabled(self):
         definition = Path(__file__).resolve().parents[3] / '.rwx/rust.yml'
         tasks = json.loads(subprocess.check_output(['yq', '-o=json', '.tasks', str(definition)], text=True))
-        selected = {'tests', 'doctest', 'build', 'docs', 'clippy', 'no-std', 'udeps'}
+        selected = {'tests-unit', 'tests-compiler', 'doctest', 'build', 'docs', 'clippy', 'no-std', 'udeps'}
         selected.update({'wasm-unknown', 'wasm-wasi', 'zepter', 'typos', 'registry', 'interop'})
         selected.update((f'features-{i}' for i in range(10)))
         actual = {t['key']: t for t in tasks if t['key'] in selected}
@@ -397,7 +397,138 @@ class ConfigurationTests(unittest.TestCase):
                 output = task['outputs']['filesystem']['filter']['workspace']
                 self.assertIn('rust/target', output)
                 self.assertNotIn('.ci/rust-workspace', output)
-        self.assertIn('head-source', actual['tests']['use'])
+        self.assertIn('head-source', actual['tests-unit']['use'])
+
+    @unittest.skipUnless(shutil.which('yq'), 'requires the pinned yq tool')
+    def test_split_workers_and_gate_bindings_preserve_the_full_workload(self):
+        repo = Path(__file__).resolve().parents[3]
+        config = json.loads(subprocess.check_output(['yq', '-o=json', '.', str(repo / '.rwx/rust.yml')], text=True))
+        tasks = {t['key']: t for t in config['tasks']}
+        self.assertNotIn('COMPILED_TARGET', tasks['tests-unit']['env'])
+        self.assertNotIn('tests-compiler', tasks['tests-unit']['use'])
+        self.assertNotIn('tests-unit', tasks['tests-compiler']['use'])
+        self.assertEqual(tasks['tests']['after'], '${{ tests-unit.finished && tests-compiler.finished }}')
+        self.assertEqual(tasks['tests']['cache'], False)
+        self.assertEqual(tasks['tests']['outputs']['filesystem'], False)
+        self.assertNotIn('tool-cache', tasks['tests'])
+        for key in ('tests-unit', 'tests-compiler', 'tests'):
+            self.assertEqual(tasks[key]['if'], "${{ tasks.route.values.run-rust-ci == 'true' }}")
+            self.assertNotIn(key, config['on']['cache-rebuild']['target'])
+        manifest = json.loads((repo / 'ops/ci/runtime/pr-gates.json').read_text())
+        row = next(r for r in manifest['gates']['required-rust-ci']['dependencies'] if r['name'] == 'rust-tests')
+        self.assertEqual(set(row['tasks']), {'tests-unit', 'tests-compiler', 'tests'})
+
+
+class SplitReportTests(unittest.TestCase):
+    def setUp(self):
+        self.temp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.temp.cleanup)
+        self.root = Path(self.temp.name)
+        self.settings = {'suite': 'rust-workspace', 'source_sha': 'a' * 40,
+                         'provider': 'rwx', 'rwx_run_id': 'b' * 32, 'rwx_task_attempt': '1',
+                         'input_sha256': {'lock': 'pinned'}, 'rustc': 'rustc pinned',
+                         'cargo': 'cargo pinned', 'nextest': 'nextest pinned',
+                         'profile_incremental': {'DEV': 'true'}, 'test_filter': '!test(test_online)'}
+        for job in ('tests', 'tests-unit', 'tests-compiler'):
+            directory = self.root / job
+            directory.mkdir()
+            REPORT.write(directory / 'settings.json', self.settings | {'job': job})
+            REPORT.write(directory / 'workspace.json', {'packages': ['fixture']})
+            REPORT.write(directory / 'workspace.stage.json', {'exit_code': 0})
+        unit = self.root / 'tests-unit'
+        REPORT.write(unit / 'unit-list.json', {'rust-suites': {'fixture': {'testcases': {
+            'fresh': {'filter-match': {'status': 'matches'}, 'ignored': False}}}}})
+        (unit / 'unit.log').write_text('original nextest output\n')
+        (unit / 'junit.xml').write_text('<testsuite><testcase classname="fixture" name="fresh"/></testsuite>')
+        for phase in ('unit', 'unit-list'):
+            REPORT.write(unit / (phase + '.stage.json'), {'exit_code': 0})
+        compiler = self.root / 'tests-compiler'
+        for phase in ('beacon', 'doctests'):
+            (compiler / (phase + '-list.log')).write_text('fresh: test\n')
+            (compiler / (phase + '.log')).write_text('test fresh ... ok\n')
+            for stage in (phase, phase + '-list'):
+                REPORT.write(compiler / (stage + '.stage.json'), {'exit_code': 0})
+        self.assertEqual(REPORT.finish(unit, 0), 0)
+        self.assertEqual(REPORT.finish(compiler, 0), 0)
+
+    def merge(self):
+        return REPORT.merge_tests(self.root / 'tests', self.root / 'tests-unit', self.root / 'tests-compiler')
+
+    def seal_unit(self):
+        directory = self.root / 'tests-unit'
+        final = json.loads((directory / 'final.json').read_text())
+        final['original_sha256'] = {p.name: REPORT.digest(p) for p in directory.iterdir()
+                                    if p.is_file() and p.name != 'final.json'}
+        REPORT.write(directory / 'final.json', final)
+
+    def test_aggregate_preserves_originals_and_all_three_verdicts(self):
+        self.assertEqual(self.merge(), 0)
+        self.assertEqual(REPORT.finish(self.root / 'tests', 0, merged=True), 0)
+        final = json.loads((self.root / 'tests/final.json').read_text())
+        self.assertEqual(len(final['reports']), 3)
+        for name in ('junit.xml', 'unit.log', 'unit-list.json'):
+            self.assertEqual((self.root / 'tests' / name).read_bytes(), (self.root / 'tests-unit' / name).read_bytes())
+        parts = json.loads((self.root / 'tests/parts.json').read_text())
+        for label, job in (('unit', 'tests-unit'), ('compiler', 'tests-compiler')):
+            self.assertEqual(REPORT.digest(self.root / 'tests' / (label + '.final.json')), parts[label]['final_sha256'])
+            for original, target in parts[label]['original_files'].items():
+                self.assertEqual((self.root / 'tests' / target).read_bytes(), (self.root / job / original).read_bytes())
+
+    def test_aggregate_consumes_validated_child_reports_without_reselecting_tests(self):
+        self.assertEqual(self.merge(), 0)
+        with patch.object(REPORT, 'unit_report', side_effect=AssertionError('unit worker owns selection')), \
+                patch.object(REPORT, 'libtest_report', side_effect=AssertionError('compiler worker owns selection')):
+            self.assertEqual(REPORT.finish(self.root / 'tests', 0, merged=True), 0)
+
+    def test_stale_source_settings_toolchain_and_run_are_rejected(self):
+        path = self.root / 'tests-unit/settings.json'
+        for key in ('source_sha', 'rustc', 'cargo', 'nextest', 'input_sha256',
+                    'profile_incremental', 'rwx_run_id', 'test_filter', 'job'):
+            with self.subTest(key=key):
+                REPORT.write(path, self.settings | {'job': 'tests-unit', key: 'different'})
+                self.seal_unit()
+                with self.assertRaisesRegex(ValueError, 'mismatch'):
+                    self.merge()
+        REPORT.write(path, self.settings | {'job': 'tests-unit'})
+        self.seal_unit()
+
+    def test_missing_corrupt_and_linked_originals_are_rejected(self):
+        path = self.root / 'tests-unit/unit.log'
+        original = path.read_bytes()
+        for kind in ('missing', 'corrupt', 'linked'):
+            with self.subTest(kind=kind):
+                path.unlink()
+                if kind == 'corrupt':
+                    path.write_bytes(b'changed failure evidence')
+                elif kind == 'linked':
+                    target = self.root / 'linked-log'; target.write_bytes(original)
+                    path.symlink_to(target)
+                with self.assertRaises((ValueError, OSError)):
+                    self.merge()
+                path.unlink(missing_ok=True)
+                path.write_bytes(original)
+
+    def test_original_failure_and_independent_retry_attempt_are_retained(self):
+        unit = self.root / 'tests-unit'
+        settings = json.loads((unit / 'settings.json').read_text())
+        settings['rwx_task_attempt'] = '2'
+        REPORT.write(unit / 'settings.json', settings)
+        (unit / 'junit.xml').write_text('<testsuite><testcase classname="fixture" name="fresh"><failure message="original failure"/></testcase></testsuite>')
+        REPORT.write(unit / 'unit.stage.json', {'exit_code': 7})
+        self.assertEqual(REPORT.finish(unit, 7), 7)
+        self.assertEqual(self.merge(), 7)
+        self.assertEqual(REPORT.finish(self.root / 'tests', 7, merged=True), 7)
+        final = json.loads((self.root / 'tests/final.json').read_text())
+        self.assertEqual(final['exit_code'], 7)
+        self.assertEqual(final['reports'][0]['outcomes'], {'fail': 1})
+        self.assertEqual(json.loads((self.root / 'tests/parts.json').read_text())['unit']['task_attempt'], '2')
+
+    def test_missing_phase_cannot_become_a_success(self):
+        compiler = self.root / 'tests-compiler'
+        (compiler / 'doctests.log').unlink()
+        self.assertNotEqual(REPORT.finish(compiler, 0), 0)
+        self.assertNotEqual(self.merge(), 0)
+        self.assertNotEqual(REPORT.finish(self.root / 'tests', 0, merged=True), 0)
 
 
 @unittest.skipUnless(os.environ.get('RWX_LIVE_RUST_FIXTURE') == '1', 'opt-in pinned Linux Rust fixture')
@@ -435,6 +566,18 @@ pub fn compile_only() {}
             # Include that target in the fixture rather than weakening the config.
             (root / 'rust/providers/tests').mkdir()
             (root / 'rust/providers/tests/e2e_testsuite.rs').write_text('#[test] fn fixture() {}\n')
+            # Exercise the real CLI tests against an archived non-test binary.
+            # Its compile-time target path is absent on the unit worker.
+            shutil.copyfile(repo / 'rust/lokahi/tests/cli.rs', root / 'rust/providers/tests/cli.rs')
+            (root / 'rust/providers/src/bin').mkdir()
+            (root / 'rust/providers/src/bin/lokahi.rs').write_text('''fn main() {
+    match std::env::args().nth(1).as_deref() {
+        Some("-V") => println!("lokahi 0.0.0"),
+        Some("--version") => println!("Version: fixture\\nCommit SHA: fixture\\nBuild Timestamp: fixture\\nBuild Profile: dev"),
+        _ => println!("Hello Lokahi"),
+    }
+}
+''')
             (root / '.gitignore').write_text('.ci/\nrust/target/\n**/superchain-configs.tar\n')
             (root / 'superchain-registry').mkdir()
             (root / 'superchain-registry/README').write_text('fixture submodule identity')
@@ -448,7 +591,8 @@ pub fn compile_only() {}
             for args in (['init', '-q'], ['add', '.'], ['-c', 'user.name=Fixture', '-c', 'user.email=fixture@example.invalid', 'commit', '-qm', 'fixture']):
                 subprocess.run(['git', *args], cwd=root, check=True, capture_output=True)
             sha = subprocess.check_output(['git', 'rev-parse', 'HEAD'], cwd=root, text=True).strip()
-            env = {**os.environ, 'CI_RUST_PROVIDER': 'rwx', 'CI_COMMIT_SHA': sha, 'CI_RUST_INCREMENTAL': '1'}
+            env = {**os.environ, 'CI_RUST_PROVIDER': 'rwx', 'CI_COMMIT_SHA': sha, 'CI_RUST_INCREMENTAL': '1',
+                   'RWX_RUN_ID': 'a' * 32, 'RWX_TASK_ATTEMPT_NUMBER': '1'}
             def run(job, extra=None):
                 result = subprocess.run(['bash', str(helpers / 'rust-workspace.sh'), job], cwd=root,
                                         env={**env, **(extra or {})}, capture_output=True, text=True, timeout=180)
@@ -525,6 +669,32 @@ pub fn compile_only() {}
             self.assertEqual(json.loads((root / '.ci/rust-workspace/tests/unit-coverage.json').read_text())['outcomes']['fail'], 1)
             fresh = run('tests')
             self.assertEqual(fresh.returncode, 0, fresh.stdout + fresh.stderr)
+            # A binary-only worker starts without producer targets and must
+            # never inspect the compiler archive, even on its first execution.
+            shutil.rmtree(root / 'rust/target')
+            unit = run('tests-unit', {'COMPILED_TARGET': str(corrupt)})
+            self.assertEqual(unit.returncode, 0, unit.stdout + unit.stderr)
+            self.assertFalse((root / '.ci/rust-workspace/tests-unit/cache-restore.log').exists())
+            self.assertFalse((root / 'rust/target/debug/deps').exists())
+            self.assertFalse((root / 'rust/target/debug/lokahi').exists())
+            self.assertFalse((root / '.ci/rust-workspace/tests-unit/beacon.log').exists())
+            shutil.rmtree(root / 'rust/target')
+            compiler = run('tests-compiler')
+            self.assertEqual(compiler.returncode, 0, compiler.stdout + compiler.stderr)
+            self.assertFalse((root / '.ci/rust-workspace/tests-compiler/unit.log').exists())
+            aggregate_env = {'UNIT_REPORT': str(root / '.ci/rust-workspace/tests-unit'),
+                             'COMPILER_REPORT': str(root / '.ci/rust-workspace/tests-compiler')}
+            merged = run('tests-merge', aggregate_env)
+            self.assertEqual(merged.returncode, 0, merged.stdout + merged.stderr)
+            self.assertEqual(len(json.loads((root / '.ci/rust-workspace/tests/final.json').read_text())['reports']), 3)
+            failed_unit = run('tests-unit', {'RWX_FIXTURE_FAIL': '1'})
+            self.assertNotEqual(failed_unit.returncode, 0)
+            merged_failure = run('tests-merge', aggregate_env)
+            self.assertEqual(merged_failure.returncode, failed_unit.returncode)
+            self.assertIn('intentional original failure', (root / '.ci/rust-workspace/tests/junit.xml').read_text())
+            circle_cli = subprocess.run(['cargo', 'test', '--locked', '--test', 'cli'],
+                                        cwd=root / 'rust', env=env, capture_output=True, text=True, timeout=180)
+            self.assertEqual(circle_cli.returncode, 0, circle_cli.stdout + circle_cli.stderr)
             doc = run('doctest')
             self.assertEqual(doc.returncode, 0, doc.stdout + doc.stderr)
             self.assertEqual(json.loads((root / '.ci/rust-workspace/doctest/settings.json').read_text())['incremental'], '0')

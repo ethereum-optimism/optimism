@@ -36,6 +36,16 @@ seven L2 fork cases and 407 runtime relay requests on each provider, 21 exact
 Contracts prerequisites, and all 1,120 private selector rows plus API readbacks.
 Earlier failures remain retained and receive no additional coverage credit.
 
+## Current Rust execution split
+
+`rust-tests` is implemented by fresh `tests-unit` and `tests-compiler` workers and
+the stable `tests` aggregate. Nextest receives only its verified execution archive;
+beacon and doctests retain their compiler baseline and cold fallback. All three
+native tasks belong to the same baseline occurrence, so the denominator stays 86.
+Circle commands and required gates retain their current ownership. Revalidate the
+split on the final hosted SHA; historical parity evidence does not establish its
+current runtime or cache-transport performance.
+
 ## Exact baseline occurrences
 
 

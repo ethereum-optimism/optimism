@@ -6,6 +6,18 @@ and [86-job checklist](rwx-parity-todos.md). The small
 [summary checksum index](rwx-evidence-summaries.sha256) remains integrity data.
 Historical human-written closeouts and experiments are archived below.
 
+## Current split Rust reports
+
+The native `tests-unit` and `tests-compiler` tasks retain their reports at
+`.ci/rust-workspace/tests-unit` and `.ci/rust-workspace/tests-compiler`. The stable
+`tests` task still exports `.ci/rust-workspace/tests`. Its `parts.json` maps every
+original child file to its retained aggregate filename and records each child's
+attempt and original `final.json` checksum. Owned unit, beacon and doctest logs,
+discovery and JUnit keep their original filenames and bytes. Other child originals
+use `unit.` or `compiler.` prefixes. The aggregate verifies manifest-declared bytes
+without repairing originals. Preserve all three task reports and terminal states
+for hosted validation; use the archived source revision for historical reports.
+
 ## Archive identity and custody
 
 The archive captures source revision

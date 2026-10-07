@@ -218,18 +218,38 @@ tasks:
         - key: compiler-cache
           path: .ci/rust-cache/target-cache.tar.zst
 
-  # cache:false also disables tool caches. Include run/attempt identity instead
-  # so every verdict executes while compiler-only layers remain reusable.
-  # Artifact references wait for compilation without inheriting its cache layers.
-  - key: tests
+  # Execution-only nextest workers receive the verified test archive, never the
+  # full compiler snapshot. Runtime fixture compilation has its own small cache.
+  - key: tests-unit
     use: [head-source, test-cache-identity]
     if: ${{ tasks.route.values.run-rust-ci == 'true' }}
-    run: bash ops/ci/runtime/rust-workspace.sh tests
+    run: bash ops/ci/runtime/rust-workspace.sh tests-unit
     env:
-      CI_RUST_PROVIDER: rwx
-      CI_COMMIT_SHA: ${{ init.commit-sha }}
-      CI_RUST_INCREMENTAL: ${{ init.cargo-incremental }}
+      <<: *incremental-rust-env
       TEST_ARCHIVE: ${{ tasks.tests-build.artifacts.report }}
+      RWX_RUN_ID:
+        cache-key: included
+      RWX_TASK_ATTEMPT_NUMBER:
+        cache-key: included
+    tool-cache: rust-workspace-tests-unit-${{ init.cache-epoch }}-files-incremental-${{ init.cargo-incremental }}-${{ tasks.test-cache-identity.values.namespace }}
+    timeout: 90m
+    runner: *test-runner
+    outputs:
+      filesystem: *test-compiler-output
+      test-results:
+        - path: .ci/rust-workspace/tests-unit/junit.xml
+      artifacts:
+        - key: report
+          path: .ci/rust-workspace/tests-unit
+
+  # Beacon and doctests need Cargo compiler state. Keep their protected runtime
+  # baseline and cold archive fallback while nextest executes independently.
+  - key: tests-compiler
+    use: [head-source, test-cache-identity]
+    if: ${{ tasks.route.values.run-rust-ci == 'true' }}
+    run: bash ops/ci/runtime/rust-workspace.sh tests-compiler
+    env:
+      <<: *incremental-rust-env
       COMPILED_TARGET: ${{ tasks.tests-build.artifacts.compiler-cache }}
       RWX_RUN_ID:
         cache-key: included
@@ -241,9 +261,27 @@ tasks:
     outputs:
       filesystem: *test-compiler-output
       test-results:
-        - path: .ci/rust-workspace/tests/junit.xml
-        - path: .ci/rust-workspace/tests/beacon.junit.xml
-        - path: .ci/rust-workspace/tests/doctests.junit.xml
+        - path: .ci/rust-workspace/tests-compiler/beacon.junit.xml
+        - path: .ci/rust-workspace/tests-compiler/doctests.junit.xml
+      artifacts:
+        - key: report
+          path: .ci/rust-workspace/tests-compiler
+
+  # Preserve the existing full-suite artifact and task key. Finished expressions
+  # collect original child failures; compiler layers never reach this fan-in.
+  - key: tests
+    use: head-source
+    if: ${{ tasks.route.values.run-rust-ci == 'true' }}
+    after: ${{ tests-unit.finished && tests-compiler.finished }}
+    run: bash ops/ci/runtime/rust-workspace.sh tests-merge
+    env:
+      <<: *incremental-rust-env
+      UNIT_REPORT: ${{ tasks.tests-unit.artifacts.report }}
+      COMPILER_REPORT: ${{ tasks.tests-compiler.artifacts.report }}
+    cache: false
+    timeout: 10m
+    outputs:
+      filesystem: false
       artifacts:
         - key: report
           path: .ci/rust-workspace/tests
@@ -776,7 +814,7 @@ tasks:
   - key: rust-gate-receipt
     use: [code, tools]
     if: ${{ init.cache-warm != 'true' }}
-    after: ${{ (build.succeeded || build.failed || build.skipped) && (cannon-build.succeeded || cannon-build.failed || cannon-build.skipped) && (cannon-lint.succeeded || cannon-lint.failed || cannon-lint.skipped) && (cannon-offline.succeeded || cannon-offline.failed || cannon-offline.skipped) && (clippy.succeeded || clippy.failed || clippy.skipped) && (docs.succeeded || docs.failed || docs.skipped) && (doctest.succeeded || doctest.failed || doctest.skipped) && (features-0.succeeded || features-0.failed || features-0.skipped) && (features-1.succeeded || features-1.failed || features-1.skipped) && (features-2.succeeded || features-2.failed || features-2.skipped) && (features-3.succeeded || features-3.failed || features-3.skipped) && (features-4.succeeded || features-4.failed || features-4.skipped) && (features-5.succeeded || features-5.failed || features-5.skipped) && (features-6.succeeded || features-6.failed || features-6.skipped) && (features-7.succeeded || features-7.failed || features-7.skipped) && (features-8.succeeded || features-8.failed || features-8.skipped) && (features-9.succeeded || features-9.failed || features-9.skipped) && (interop.succeeded || interop.failed || interop.skipped) && (no-std.succeeded || no-std.failed || no-std.skipped) && (registry.succeeded || registry.failed || registry.skipped) && (tests.succeeded || tests.failed || tests.skipped) && (typos.succeeded || typos.failed || typos.skipped) && (udeps.succeeded || udeps.failed || udeps.skipped) && (wasm-unknown.succeeded || wasm-unknown.failed || wasm-unknown.skipped) && (wasm-wasi.succeeded || wasm-wasi.failed || wasm-wasi.skipped) && (zepter.succeeded || zepter.failed || zepter.skipped) }}
+    after: ${{ (build.succeeded || build.failed || build.skipped) && (cannon-build.succeeded || cannon-build.failed || cannon-build.skipped) && (cannon-lint.succeeded || cannon-lint.failed || cannon-lint.skipped) && (cannon-offline.succeeded || cannon-offline.failed || cannon-offline.skipped) && (clippy.succeeded || clippy.failed || clippy.skipped) && (docs.succeeded || docs.failed || docs.skipped) && (doctest.succeeded || doctest.failed || doctest.skipped) && (features-0.succeeded || features-0.failed || features-0.skipped) && (features-1.succeeded || features-1.failed || features-1.skipped) && (features-2.succeeded || features-2.failed || features-2.skipped) && (features-3.succeeded || features-3.failed || features-3.skipped) && (features-4.succeeded || features-4.failed || features-4.skipped) && (features-5.succeeded || features-5.failed || features-5.skipped) && (features-6.succeeded || features-6.failed || features-6.skipped) && (features-7.succeeded || features-7.failed || features-7.skipped) && (features-8.succeeded || features-8.failed || features-8.skipped) && (features-9.succeeded || features-9.failed || features-9.skipped) && (interop.succeeded || interop.failed || interop.skipped) && (no-std.succeeded || no-std.failed || no-std.skipped) && (registry.succeeded || registry.failed || registry.skipped) && (tests.succeeded || tests.failed || tests.skipped) && (tests-compiler.succeeded || tests-compiler.failed || tests-compiler.skipped) && (tests-unit.succeeded || tests-unit.failed || tests-unit.skipped) && (typos.succeeded || typos.failed || typos.skipped) && (udeps.succeeded || udeps.failed || udeps.skipped) && (wasm-unknown.succeeded || wasm-unknown.failed || wasm-unknown.skipped) && (wasm-wasi.succeeded || wasm-wasi.failed || wasm-wasi.skipped) && (zepter.succeeded || zepter.failed || zepter.skipped) }}
     run: python3 ops/ci/runtime/pr-gate.py receipt rust-workspace
     env:
       CI_COMMIT_SHA: ${{ init.commit-sha }}
@@ -846,6 +884,12 @@ tasks:
       TASK_REGISTRY_SUCCEEDED: ${{ tasks.registry.succeeded }}
       TASK_REGISTRY_FAILED: ${{ tasks.registry.failed }}
       TASK_REGISTRY_SKIPPED: ${{ tasks.registry.skipped }}
+      TASK_TESTS_COMPILER_SUCCEEDED: ${{ tasks.tests-compiler.succeeded }}
+      TASK_TESTS_COMPILER_FAILED: ${{ tasks.tests-compiler.failed }}
+      TASK_TESTS_COMPILER_SKIPPED: ${{ tasks.tests-compiler.skipped }}
+      TASK_TESTS_UNIT_SUCCEEDED: ${{ tasks.tests-unit.succeeded }}
+      TASK_TESTS_UNIT_FAILED: ${{ tasks.tests-unit.failed }}
+      TASK_TESTS_UNIT_SKIPPED: ${{ tasks.tests-unit.skipped }}
       TASK_TESTS_SUCCEEDED: ${{ tasks.tests.succeeded }}
       TASK_TESTS_FAILED: ${{ tasks.tests.failed }}
       TASK_TESTS_SKIPPED: ${{ tasks.tests.skipped }}

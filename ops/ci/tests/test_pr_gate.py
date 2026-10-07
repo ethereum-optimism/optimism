@@ -64,7 +64,7 @@ class GateTests(unittest.TestCase):
         self.assertFalse((self.root/'.circleci').exists())
         self.assertFalse((self.root/'ops/ci/migration').exists())
         self.assertEqual(len(self.selection['requires']),21)
-        self.assertEqual(len(G.group_tasks(self.manifest,'rust-workspace')),26)
+        self.assertEqual(len(G.group_tasks(self.manifest,'rust-workspace')),28)
         native=self.root/'.rwx/rust.yml';source=native.read_text()
         native.write_text(source.replace('features-9.succeeded || features-9.failed || features-9.skipped','features-8.succeeded || features-8.failed || features-8.skipped'))
         with self.assertRaisesRegex(ValueError,'every terminal'):G.configuration('required-rust-ci')
