@@ -1,5 +1,5 @@
 use alloy_rpc_types_engine::PayloadId;
-use kona_engine::{BuildTaskError, EngineQueries, SealTaskError};
+use kona_engine::{BuildTaskError, SealTaskError};
 use kona_protocol::OpAttributesWithParent;
 use op_alloy_rpc_types_engine::OpExecutionPayloadEnvelope;
 use thiserror::Error;
@@ -32,10 +32,6 @@ pub enum EngineClientError {
     #[error("An error occurred performing the reset: {0}.")]
     ResetForkchoiceError(String),
 }
-
-/// RPC Request for the engine to handle.
-#[derive(Debug)]
-pub struct EngineRpcRequest(pub Box<EngineQueries>);
 
 /// A request to build a payload.
 /// Contains the attributes to build and a channel to send back the resulting `PayloadId`.
