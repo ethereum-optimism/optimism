@@ -35,6 +35,17 @@ func (g GameType) IsPermissioned() bool {
 	return g == PermissionedGameType || g == SuperPermissionedGameType
 }
 
+// UsesSuperRoots returns true for game types whose root claim commits to a super root and whose
+// sequence number is a super root timestamp rather than an L2 block number.
+func (g GameType) UsesSuperRoots() bool {
+	switch g {
+	case SuperPermissionedGameType, SuperAsteriscKonaGameType, SuperCannonKonaGameType, ZKDisputeGameType:
+		return true
+	default:
+		return false
+	}
+}
+
 // CannonFamilyGameTypes are the game types that share the cannon VM
 // configuration (the --cannon-* flags).
 var CannonFamilyGameTypes = []GameType{CannonGameType, PermissionedGameType}
