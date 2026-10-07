@@ -60,7 +60,7 @@ func createResolveClaimTx(ctx context.Context, caller *batching.MultiCaller, gam
 	}
 	contract, err := contracts.NewDisputeGameContract(ctx, contractMetrics.NoopContractMetrics, caller, gameType, gameAddr)
 	if err != nil {
-		return txmgr.TxCandidate{}, fmt.Errorf("failed to create dispute game bindings: %w", err)
+		return txmgr.TxCandidate{}, fmt.Errorf("failed to create dispute game bindings for game type %v: %w", gameType, err)
 	}
 
 	switch contract := contract.(type) {
