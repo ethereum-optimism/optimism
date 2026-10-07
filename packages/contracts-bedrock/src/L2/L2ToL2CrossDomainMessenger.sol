@@ -278,7 +278,10 @@ contract L2ToL2CrossDomainMessenger is ISemver, TransientReentrancyAware {
     }
 
     /// @notice Checks whether a message may not target an address. No relayed message may call the
-    ///         L2CrossDomainMessenger or the L2ToL1MessagePasser, so this contract never initiates a withdrawal.
+    ///         L2CrossDomainMessenger or the L2ToL1MessagePasser, so this contract never initiates a withdrawal, and
+    ///         nothing that trusts it as a withdrawal's sender, today or in a future L1 contract, can be fooled by a
+    ///         relayed message. Expiry does not rely on this: L1CrossDomainMessengers trust the
+    ///         UndeliveredMessageExporter as the sender of undelivered-message word, not this contract.
     /// @param _target Target of the message.
     /// @return Whether the target is unsafe.
     function _isUnsafeTarget(address _target) internal pure returns (bool) {

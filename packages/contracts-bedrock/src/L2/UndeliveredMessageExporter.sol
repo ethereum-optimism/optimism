@@ -17,8 +17,9 @@ import { IL2ToL2CrossDomainMessenger } from "interfaces/L2/IL2ToL2CrossDomainMes
 /// @notice Tells a message's source chain, through the withdrawal path, that the message has not been relayed on this
 ///         chain. The source chain's L1CrossDomainMessenger trusts withdrawals from this predeploy and passes the word
 ///         on to the source chain's L2ToL2CrossDomainMessenger, which marks the message expired once its expiry period
-///         has passed. This predeploy lives at an address where no code ran before it, and it never calls arbitrary
-///         targets, so no withdrawal from it can predate it or say anything else.
+///         has passed. This predeploy's proxy had no implementation before it, so nothing could ever send a
+///         withdrawal from this address, and it never calls arbitrary targets, so no withdrawal from it can predate it
+///         or say anything else.
 contract UndeliveredMessageExporter is ISemver {
     /// @notice Thrown when exporting a message that was relayed on this chain.
     error UndeliveredMessageExporter_MessageRelayed();
