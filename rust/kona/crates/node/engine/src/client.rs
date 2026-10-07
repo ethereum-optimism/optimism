@@ -4,7 +4,7 @@ use crate::Metrics;
 use alloy_eips::{BlockId, eip1898::BlockNumberOrTag};
 use alloy_json_rpc::{RequestPacket, ResponsePacket};
 use alloy_network::{Ethereum, Network};
-use alloy_primitives::{Address, B256, Bytes};
+use alloy_primitives::Bytes;
 use alloy_provider::{EthGetBlock, Provider, RootProvider, ext::EngineApi};
 use alloy_rpc_client::ClientBuilder;
 use alloy_rpc_types_engine::{ExecutionPayloadV1, JwtSecret, PayloadStatus};
@@ -18,7 +18,7 @@ use alloy_transport_http::{
 };
 use http_body_util::Full;
 use kona_genesis::RollupConfig;
-use kona_protocol::FromBlockError;
+use kona_protocol::{FromBlockError, L2BlockInfo, OutputRoot, Predeploys};
 use op_alloy_network::Optimism;
 use op_alloy_rpc_types::Transaction;
 use std::{
@@ -95,7 +95,7 @@ where
     }
 }
 
-/// An error that occurred in the [`EngineClient`].
+/// An error that occurred in the [`EngineClient`] or [`EngineQueryClient`].
 #[derive(Error, Debug)]
 pub enum EngineClientError {
     /// An RPC error occurred
@@ -105,6 +105,14 @@ pub enum EngineClientError {
     /// An error occurred while decoding the payload
     #[error("An error occurred while decoding the payload: {0}")]
     BlockInfoDecodeError(#[from] FromBlockError),
+
+    /// No L2 block was found for the requested number or tag.
+    #[error("No L2 block found for block number or tag: {0}")]
+    NoL2BlockFound(BlockNumberOrTag),
+
+    /// The block has no withdrawals root while Isthmus is active.
+    #[error("No block withdrawals root while Isthmus is active")]
+    NoWithdrawalsRoot,
 }
 /// Client for L1 reads and L2 Engine API calls. Providers erase their transport type, so tests
 /// use the same client with a mock transport. Task helpers select the Engine API version.
@@ -164,7 +172,7 @@ impl EngineClient {
 
     /// Returns a restricted handle sharing this client's L2 connection.
     pub fn query_client(&self) -> EngineQueryClient {
-        EngineQueryClient { engine: self.engine.clone() }
+        EngineQueryClient { engine: self.engine.clone(), cfg: self.cfg.clone() }
     }
 
     /// Creates an authenticated L2 provider with request timing and a deadline.
@@ -187,29 +195,52 @@ impl Provider<Optimism> for EngineClient {
     }
 }
 
-/// Read-only execution-layer handle for [`crate::EngineQueries`]. Its provider is private and it
+/// Read-only execution-layer handle that computes L2 outputs. Its provider is private and it
 /// exposes no Engine API mutations.
 #[derive(Clone, Debug)]
 pub struct EngineQueryClient {
     engine: RootProvider<Optimism>,
+    cfg: Arc<RollupConfig>,
 }
 
 impl EngineQueryClient {
-    /// Fetches an L2 block with full transactions.
-    pub async fn l2_block_by_label(
+    /// Reads the L2 block and computes its output root using the active fork rules.
+    pub async fn output_at_block(
         &self,
-        numtag: BlockNumberOrTag,
-    ) -> Result<Option<Block<Transaction>>, EngineClientError> {
-        Ok(self.engine.get_block_by_number(numtag).full().await?)
-    }
+        block: BlockNumberOrTag,
+    ) -> Result<(L2BlockInfo, OutputRoot), EngineClientError> {
+        let output_block = self.engine.get_block_by_number(block).full().await?;
+        let output_block = output_block.ok_or(EngineClientError::NoL2BlockFound(block))?;
+        // Cloning the l2 block below is cheaper than sending a network request to get the
+        // l2 block info. Querying the `L2BlockInfo` from the client ends up
+        // fetching the full l2 block again.
+        let consensus_block = output_block.clone().into_consensus();
+        let output_block_info =
+            L2BlockInfo::from_block_and_genesis::<op_alloy_consensus::OpTxEnvelope>(
+                &consensus_block.map_transactions(|tx| tx.inner.inner.into_inner()),
+                &self.cfg.genesis,
+            )?;
 
-    /// Returns the account's storage hash at the given block.
-    pub async fn get_storage_hash(
-        &self,
-        address: Address,
-        block: BlockId,
-    ) -> Result<B256, RpcError<TransportErrorKind>> {
-        Ok(self.engine.get_proof(address, Default::default()).block_id(block).await?.storage_hash)
+        let state_root = output_block.header.state_root;
+
+        let message_passer_storage_root =
+            if self.cfg.is_isthmus_active(output_block.header.timestamp) {
+                output_block.header.withdrawals_root.ok_or(EngineClientError::NoWithdrawalsRoot)?
+            } else {
+                // Fetch the storage root for the L2 head block.
+                self.engine
+                    .get_proof(Predeploys::L2_TO_L1_MESSAGE_PASSER, Default::default())
+                    .block_id(block.into())
+                    .await?
+                    .storage_hash
+            };
+
+        let output_response_v0 = OutputRoot::from_parts(
+            state_root,
+            message_passer_storage_root,
+            output_block.header.hash,
+        );
+        Ok((output_block_info, output_response_v0))
     }
 }
 
@@ -372,37 +403,53 @@ mod deadline_tests {
 mod provider_tests {
     use super::*;
     use crate::test_utils::test_engine_client;
+    use alloy_primitives::B256;
     use alloy_rpc_types_eth::EIP1186AccountProofResponse;
     use serde_json::json;
 
     #[tokio::test]
-    async fn query_handle_shares_l2_connection_and_reads_storage_hash() {
-        let (client, l1, l2) = test_engine_client(Arc::new(RollupConfig::default()));
-        let query = client.query_client();
-        l1.expect_params("eth_getBlockByNumber", json!(["latest", false]), Option::<Block>::None);
-        l2.expect_params(
-            "eth_getBlockByNumber",
-            json!(["latest", false]),
-            Option::<Block<Transaction>>::None,
-        );
-        l2.expect_params(
-            "eth_getBlockByNumber",
-            json!(["safe", true]),
-            Option::<Block<Transaction>>::None,
-        );
-        let address = Address::repeat_byte(0x42);
-        let storage_hash = B256::repeat_byte(0x11);
-        l2.expect_params(
-            "eth_getProof",
-            json!([address, [], "0xa"]),
-            EIP1186AccountProofResponse { storage_hash, ..Default::default() },
-        );
-
-        assert!(client.get_l1_block(BlockId::latest()).await.unwrap().is_none());
-        assert!(client.get_l2_block(BlockId::latest()).await.unwrap().is_none());
-        assert!(query.l2_block_by_label(BlockNumberOrTag::Safe).await.unwrap().is_none());
-        assert_eq!(query.get_storage_hash(address, 10.into()).await.unwrap(), storage_hash);
-        l1.assert_finished();
-        l2.assert_finished();
+    async fn query_handle_shares_l2_connection_and_computes_output_roots() {
+        for isthmus in [false, true] {
+            let mut block = Block::<Transaction>::default();
+            block.header.inner.state_root = B256::repeat_byte(1);
+            block.header.inner.withdrawals_root = Some(B256::repeat_byte(2));
+            block.header.hash = block.header.inner.hash_slow();
+            let mut config = RollupConfig::default();
+            config.genesis.l2.hash = block.header.hash;
+            config.hardforks.isthmus_time = isthmus.then_some(0);
+            let config = Arc::new(config);
+            let (client, l1, l2) = test_engine_client(config);
+            let query = client.query_client();
+            l1.expect_params(
+                "eth_getBlockByNumber",
+                json!(["latest", false]),
+                Option::<Block>::None,
+            );
+            l2.expect_params(
+                "eth_getBlockByNumber",
+                json!(["latest", false]),
+                Option::<Block<Transaction>>::None,
+            );
+            l2.expect_params("eth_getBlockByNumber", json!(["0x0", true]), &block);
+            let storage_hash = if isthmus { B256::repeat_byte(2) } else { B256::repeat_byte(3) };
+            if !isthmus {
+                l2.expect_params(
+                    "eth_getProof",
+                    json!([Predeploys::L2_TO_L1_MESSAGE_PASSER, [], "0x0"]),
+                    EIP1186AccountProofResponse { storage_hash, ..Default::default() },
+                );
+            }
+            assert!(client.get_l1_block(BlockId::latest()).await.unwrap().is_none());
+            assert!(client.get_l2_block(BlockId::latest()).await.unwrap().is_none());
+            let (info, root) = query.output_at_block(BlockNumberOrTag::Number(0)).await.unwrap();
+            assert_eq!(info.block_info.hash, block.header.hash);
+            assert_eq!(
+                root.hash(),
+                OutputRoot::from_parts(block.header.state_root, storage_hash, block.header.hash)
+                    .hash()
+            );
+            l1.assert_finished();
+            l2.assert_finished();
+        }
     }
 }

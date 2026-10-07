@@ -1,4 +1,4 @@
-//! The [`EngineActor`], [`EngineRpcActor`], and their components.
+//! The [`EngineActor`] and its components.
 
 mod actor;
 pub use actor::{EngineActor, EngineActorRequest};
@@ -14,9 +14,6 @@ pub use error::EngineError;
 
 mod request;
 pub use request::{BuildRequest, EngineClientError, EngineClientResult, ResetRequest, SealRequest};
-
-mod rpc_actor;
-pub use rpc_actor::EngineRpcActor;
 
 #[cfg(test)]
 mod tests;
