@@ -8001,7 +8001,6 @@ dependencies = [
  "alloy-evm",
  "alloy-op-evm",
  "alloy-primitives",
- "alloy-rlp",
  "alloy-sol-types",
  "anyhow",
  "async-trait",

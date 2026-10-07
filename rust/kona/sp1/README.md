@@ -763,13 +763,13 @@ an SP1 negative test by passing a junk `WithL2Claim(...)`. Combining `--corrupt-
 with `--native-core` is unsupported: the native replay panics on the missing preimage (exit
 `101`), which the Go harness reports as a test failure, so the harness rejects that combination.
 Keep invalid-claim tests on the SP1 execute path.
+
 ## Dependencies
 
 This integration depends on:
 - SP1 SDK and zkVM runtime
 - Core Kona libraries (`kona-proof`, `kona-derive`, `kona-executor`, etc.)
 - Alloy and OP-Alloy for Ethereum types
-- RocksDB for witness data storage
 
 ## License and Attribution
 
