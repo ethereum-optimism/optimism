@@ -39,7 +39,11 @@ func (g GameType) IsPermissioned() bool {
 // configuration (the --cannon-* flags).
 var CannonFamilyGameTypes = []GameType{CannonGameType, PermissionedGameType}
 
-// PlayableGameTypes is the set of game types that may be selected for trace execution.
+// TraceGameTypes are the game types that run-trace can execute. Each needs an
+// oracle server executor in the runner.
+var TraceGameTypes = []GameType{CannonGameType, CannonKonaGameType, SuperCannonKonaGameType}
+
+// PlayableGameTypes is the set of game types the challenger may be configured to play.
 var PlayableGameTypes = []GameType{
 	AlphabetGameType,
 	CannonGameType,
