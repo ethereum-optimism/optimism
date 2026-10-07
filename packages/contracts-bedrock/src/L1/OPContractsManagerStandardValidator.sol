@@ -43,11 +43,11 @@ import { IBigStepper } from "interfaces/dispute/IBigStepper.sol";
 /// @notice This contract is used to validate the configuration of the L1 contracts of an OP Stack chain.
 /// It is a stateless contract that can be used to ensure that the L1 contracts are configured correctly.
 /// It is intended to be used by the L1 PAO multisig to validate the configuration of the L1 contracts
-/// before and after an upgrade.
+/// after an upgrade. It expects the chain to already run this release's contracts.
 contract OPContractsManagerStandardValidator is ISemver {
     /// @notice The semantic version of the OPContractsManagerStandardValidator contract.
-    /// @custom:semver 4.1.0
-    string public constant version = "4.1.0";
+    /// @custom:semver 4.1.1
+    string public constant version = "4.1.1";
 
     /// @notice The SuperchainConfig contract.
     ISuperchainConfig public superchainConfig;

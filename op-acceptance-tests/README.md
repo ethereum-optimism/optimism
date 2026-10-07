@@ -62,7 +62,8 @@ RUST_JIT_BUILD=1 go test -count=1 -timeout=60m \
   ./tests/interop/proofs/serial \
   ./tests/interop/proofs-singlechain
 
-# Scheduled full-ELF coverage, after building the ELFs and executor.
+# Scheduled full-ELF coverage with the synthetic-chain test guest.
+(cd ../rust/kona/sp1 && just build-elfs-native test-config-fallback && just build-super-range-executor)
 KONA_SP1_ELF_DIR="$PWD/../rust/kona/sp1/elf" \
 KONA_SP1_SUPER_RANGE_ELF_EXECUTOR_PATH="$PWD/../rust/target/release/kona-sp1-super-range-executor" \
 RUST_JIT_BUILD=1 go test -count=1 -parallel=1 -timeout=120m \

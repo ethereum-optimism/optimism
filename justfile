@@ -565,7 +565,12 @@ release-paths component:
             specs=("rust/kona/" "rust/Cargo.toml" "rust/op-alloy/" "rust/alloy-op-evm/" "rust/alloy-op-hardforks/" "rust/op-revm/")
             ;;
         op-deployer)
-            specs=("op-deployer/")
+            # op-deployer embeds the contract artifacts and runs the scripts in
+            # them, so a script change alters what op-deployer does. The scripts
+            # import a few test mocks. Contract source changes belong to the
+            # op-contracts release that the op-deployer note links to.
+            cb=packages/contracts-bedrock
+            specs=("op-deployer/" "op-chain-ops/" "contract-scripts=$cb/scripts/,$cb/test/mocks/" "$go_shared")
             ;;
         op-contracts)
             specs=("packages/contracts-bedrock/")

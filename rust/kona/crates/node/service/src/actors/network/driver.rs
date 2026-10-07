@@ -1,9 +1,8 @@
 use std::net::{IpAddr, SocketAddr};
 
-use discv5::multiaddr::Protocol;
 use kona_disc::Discv5Driver;
 use kona_gossip::{ConnectionGater, GossipDriver, PEER_SCORE_INSPECT_FREQUENCY};
-use libp2p::{Multiaddr, TransportError};
+use libp2p::{Multiaddr, TransportError, multiaddr::Protocol};
 
 use crate::actors::network::handler::NetworkHandler;
 

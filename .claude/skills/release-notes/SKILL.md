@@ -78,6 +78,10 @@ union, reading the shipping units from `just release-paths`. op-challenger cover
 op-challenger and cannon binaries plus the Rust kona-host, so a kona-only change is `LINKED`,
 not `--`.
 
+If every Go row comes back `?`, `go list` failed. In a fresh worktree the usual cause is the
+missing generated `op-core/superchain/superchain-configs.zip`; run
+`mise exec -- just build-superchain-go` and run the script again.
+
 ## 4. Triage
 
 Drop `--` rows, then apply the judgment pass in `reference/triage.md` to every `LINKED` row.
@@ -176,8 +180,9 @@ gh release create <tag> --draft --title '<component> <version>' --notes-file /tm
 ```
 
 The title takes a space, not the tag's slash — `op-node v1.19.6`. Add `--prerelease` for an
-RC. A draft's URL is an `untagged-<hash>` link until it is published — that is normal, and
-`gh release view <tag>` still resolves it.
+RC. Add `--latest=false` for `op-contracts`, because the latest release is kept for the
+non-contract components. A draft's URL is an `untagged-<hash>` link until it is published —
+that is normal, and `gh release view <tag>` still resolves it.
 
 Confirm with `gh release view <tag>` and report what changed.
 
