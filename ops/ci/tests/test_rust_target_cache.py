@@ -38,6 +38,8 @@ class RustTargetCacheTest(unittest.TestCase):
         manifest = self.root / 'rust/Cargo.toml'; manifest.write_text('[workspace]\n')
         lock = self.root / 'rust/Cargo.lock'; lock.write_text('version = 4\n')
         local = self.root / 'rust/local/Cargo.toml'; local.parent.mkdir(); local.write_text('[package]\nname="local"\n')
+        bundle_checksum = self.root / (CACHE.GENERATED_SOURCES[0] + '.sha256')
+        bundle_checksum.parent.mkdir(parents=True); bundle_checksum.write_text('pinned bundle checksum')
         subprocess.run(['git', 'add', '.'], cwd=self.root, check=True)
         subprocess.run(['git', '-c', 'user.name=Fixture', '-c', 'user.email=fixture@example.invalid',
                         'commit', '-qm', 'fixture'], cwd=self.root, check=True)
@@ -48,7 +50,7 @@ class RustTargetCacheTest(unittest.TestCase):
             before = CACHE.namespace(self.root)
             self.source.write_text('pub fn changed() {}')
             self.assertEqual(CACHE.namespace(self.root)['namespace'], before['namespace'])
-            for path in (manifest, lock, local):
+            for path in (manifest, lock, local, bundle_checksum):
                 content = path.read_text(); path.write_text(content + '\n# dependency/configuration edit\n')
                 self.assertNotEqual(CACHE.namespace(self.root)['namespace'], before['namespace'])
                 path.write_text(content)
@@ -87,6 +89,57 @@ class RustTargetCacheTest(unittest.TestCase):
         os.utime(self.source, ns=(1000000000, 1000000000))
         self.run_phase('prepare')
         self.assertGreater(self.source.stat().st_mtime_ns, 1000000000)
+
+    def test_ignored_generated_input_restores_timestamp_and_rejects_mid_build_change(self):
+        name = CACHE.GENERATED_SOURCES[0]
+        with (self.root / '.git/info/exclude').open('a') as f: f.write(name + '\n')
+        archive = self.root / name; archive.parent.mkdir(parents=True)
+        archive.write_bytes(b'caller-verified generated input')
+        self.run_phase('prepare'); self.run_phase('commit')
+        stamp = archive.stat().st_mtime_ns
+        os.utime(archive, ns=(1000000000, 1000000000))
+        self.run_phase('prepare')
+        self.assertEqual(archive.stat().st_mtime_ns, stamp)
+        archive.write_bytes(b'changed while compiling')
+        with self.assertRaisesRegex(ValueError, 'Generated Rust input changed'):
+            self.run_phase('commit')
+
+    def test_cold_build_records_newly_materialized_generated_input(self):
+        name = CACHE.GENERATED_SOURCES[0]
+        with (self.root / '.git/info/exclude').open('a') as f: f.write(name + '\n')
+        self.run_phase('prepare')
+        archive = self.root / name; archive.parent.mkdir(parents=True)
+        archive.write_bytes(b'materialized by checksum-verifying build.rs')
+        stamp = archive.stat().st_mtime_ns
+        self.run_phase('commit')
+        state = json.loads((self.target / '.rwx-source-fingerprint.json').read_text())
+        self.assertEqual(state['generated_files'][name]['mtime_ns'], stamp)
+        self.assertEqual(archive.stat().st_mtime_ns, stamp)
+        self.run_phase('prepare')
+        self.assertEqual(archive.stat().st_mtime_ns, stamp)
+
+    def test_commit_detaches_incremental_metadata_without_changing_bytes_or_mtime(self):
+        metadata = self.target / 'debug/deps/liblocal.rmeta'
+        sibling = self.target / 'debug/incremental/local/session/metadata.rmeta'
+        metadata.parent.mkdir(parents=True)
+        sibling.parent.mkdir(parents=True)
+        metadata.write_bytes(b'compiled metadata')
+        os.utime(metadata, ns=(1234567890123456789, 1234567890123456789))
+        os.link(metadata, sibling)
+        stamp = metadata.stat().st_mtime_ns
+        untouched = metadata.with_name('libexternal.rmeta')
+        untouched.write_bytes(b'independent metadata')
+        inode = untouched.stat().st_ino
+        self.run_phase('prepare'); self.run_phase('commit')
+        self.assertEqual(metadata.read_bytes(), sibling.read_bytes())
+        self.assertEqual(metadata.stat().st_mtime_ns, stamp)
+        self.assertEqual(metadata.stat().st_mode, sibling.stat().st_mode)
+        self.assertNotEqual(metadata.stat().st_ino, sibling.stat().st_ino)
+        self.assertEqual(metadata.stat().st_nlink, 1)
+        self.assertEqual(untouched.stat().st_ino, inode)
+        metadata.write_bytes(b'rebuilt metadata')
+        self.assertEqual(sibling.read_bytes(), b'compiled metadata')
+        self.assertEqual(list(metadata.parent.glob('.rwx-metadata-*')), [])
 
     def test_failed_build_then_rollback_does_not_restore_successful_timestamp(self):
         self.run_phase('prepare'); self.run_phase('commit')

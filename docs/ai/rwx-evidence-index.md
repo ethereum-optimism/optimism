@@ -308,3 +308,20 @@ op-reth E2E cases failed before node startup. Retain that original report as
 recipe for both providers. A permanent test compares its sequencer, validator
 and proof-history environment with that recipe so future selector changes fail
 locally before a hosted run.
+
+At `d256ae4611`, both providers pass all nine corrected op-reth cases. The
+same-SHA verdict comparison in `final-d256ae4611/op-reth-verdict-parity.json`
+verifies 21 Circle and 24 RWX originals, identical selection/runtime settings,
+parallelism eight and no empty-file recovery. This is an op-reth verdict
+comparison, not a new complete Rust E2E producer/dependency comparison.
+
+The same revision's Rust test producer returned `ESTALE` on the same cached
+metadata in attempts one and two. Each nine-file original manifest is verified;
+all 1,344 source timestamps were restored, with zero refreshed files. The
+breakpoint observation records readable, shared-inode metadata and probes that
+did not reproduce the error. That attempt touched cached files, compiled and
+archived successfully, then exceeded the layer cap (64.6 + 45.3 GiB). Retain its
+original report, terminal engine message and
+`rust-tests-build-d256ae4611-estale-debug-observations.json`. Keep subsequent
+unmodified cold/warm validation distinct from this diagnostic attempt. Retain
+`cache-output.json` and `cache-publication.json` with the corrective validation.

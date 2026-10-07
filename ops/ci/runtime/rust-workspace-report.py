@@ -372,6 +372,34 @@ def artifact(directory, verify=False):
         write(directory / 'archive.json', expected)
 
 
+def prune_archived_tests(directory):
+    """Remove archived test executables from the reusable compiler output.
+
+    The producer calls this after sealing its nextest archive. Verdicts consume
+    that archive; Cargo retains libraries and incremental work for relinking.
+    The archive owns binary selection. Reject paths outside this target before
+    deleting any file. Do not execute binaries to discover their test cases.
+    """
+    target = Path(os.environ['CARGO_TARGET_DIR']).resolve()
+    metadata = json.loads(command('tar', '--zstd', '--extract', '--to-stdout',
+                                 '--occurrence=1', '--file', str(directory / 'tests.tar.zst'),
+                                 'target/nextest/binaries-metadata.json'))
+    if Path(metadata['rust-build-meta']['target-directory']).resolve() != target:
+        raise ValueError('Archived test target directory differs from compiler cache')
+    paths = [Path(binary['binary-path']) for binary in metadata['rust-binaries'].values()]
+    if not paths or len(set(paths)) != len(paths):
+        raise ValueError('Empty or duplicate archived test binary paths')
+    removed = {}
+    for path in paths:
+        if not path.is_absolute() or not path.resolve().is_relative_to(target) or path.is_symlink() or not path.is_file():
+            raise ValueError('Invalid archived test binary path: ' + str(path))
+        removed[str(path.resolve().relative_to(target))] = path.stat().st_size
+    for path in paths:
+        path.unlink()
+    write(directory / 'cache-output.json', {'archived_test_binaries_removed': removed,
+                                           'removed_bytes': sum(removed.values())})
+
+
 def finish(directory, status):
     errors = []
     job = json.loads((directory / 'settings.json').read_text())['job']
@@ -446,6 +474,8 @@ if __name__ == '__main__':
         registry_snapshot(directory, sys.argv[3])
     elif mode in ('artifact', 'verify-artifact'):
         artifact(directory, mode == 'verify-artifact')
+    elif mode == 'prune-archived-tests':
+        prune_archived_tests(directory)
     elif mode == 'finish':
         sys.exit(finish(directory, int(sys.argv[3])))
     else:

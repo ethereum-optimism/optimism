@@ -4,9 +4,22 @@ import hashlib
 import json
 import os
 from pathlib import Path
+import shutil
+import stat
 import subprocess
 import sys
+import tempfile
 import time
+
+GENERATED_SOURCES = ('rust/op-reth/crates/chainspec/res/superchain-configs.tar',)
+
+
+def generated_sources(root):
+    # prepare-superchain/build.rs own checksum verification and materialization.
+    # Cargo declares this ignored archive as a build-script input. Its timestamp
+    # must survive a cache restore just like a tracked source file's timestamp.
+    return {name: {'sha256': hashlib.sha256((root / name).read_bytes()).hexdigest()}
+            for name in GENERATED_SOURCES if (root / name).is_file()}
 
 
 def sources(root):
@@ -37,10 +50,14 @@ def namespace(root):
     """
     names = subprocess.check_output(['git', 'ls-files', '-z', '--', 'rust',
                                     'ops/ci/runtime/rust-workspace.sh',
-                                    'ops/ci/runtime/rust-target-cache.py'], cwd=root).decode().split('\0')
+                                    'ops/ci/runtime/rust-workspace-report.py',
+                                    'ops/ci/runtime/rust-target-cache.py',
+                                    'rust/op-reth/crates/chainspec/res/superchain-configs.tar.sha256'], cwd=root).decode().split('\0')
     names = sorted(name for name in names if name and
                    (name.endswith('/Cargo.toml') or name in ('rust/Cargo.lock', 'rust/.cargo/config.toml',
                     'rust/rust-toolchain.toml', 'ops/ci/runtime/rust-workspace.sh',
+                    'ops/ci/runtime/rust-workspace-report.py',
+                    'rust/op-reth/crates/chainspec/res/superchain-configs.tar.sha256',
                     'ops/ci/runtime/rust-target-cache.py')))
     if not {'rust/Cargo.lock', 'rust/Cargo.toml'} <= set(names):
         raise ValueError('Missing tracked Rust cache configuration')
@@ -55,11 +72,38 @@ def namespace(root):
             'source_sha': subprocess.check_output(['git', 'rev-parse', 'HEAD'], cwd=root, text=True).strip()}
 
 
+def detach_metadata(target):
+    """Publish independent host metadata files with identical bytes and mtimes.
+
+    Rust hardlinks deps/*.rmeta to incremental session metadata. A restored
+    shared entry returned ESTALE during a hosted rebuild. Keep incremental
+    data, but do not publish that shared inode as a writable compiler output.
+    """
+    count = size = 0
+    for path in target.glob('*/deps/*.rmeta'):
+        entry = path.lstat()
+        if entry.st_nlink <= 1 or not stat.S_ISREG(entry.st_mode):
+            continue
+        fd, name = tempfile.mkstemp(prefix='.rwx-metadata-', dir=path.parent)
+        os.close(fd)
+        temporary = Path(name)
+        try:
+            shutil.copyfile(path, temporary)
+            shutil.copystat(path, temporary)
+            temporary.replace(path)
+        finally:
+            temporary.unlink(missing_ok=True)
+        count += 1
+        size += entry.st_size
+    return {'detached_metadata_files': count, 'detached_metadata_bytes': size}
+
+
 def manage(phase, root, target):
     target.mkdir(parents=True, exist_ok=True)
     state = target / '.rwx-source-fingerprint.json'
     pending = target / '.rwx-source-pending.json'
     entries, digest = sources(root)
+    generated = generated_sources(root)
     if not entries:
         raise ValueError('No Rust build source inputs')
     if phase == 'prepare':
@@ -69,30 +113,52 @@ def manage(phase, root, target):
         # source rollback. Refresh all inputs before reusing those targets.
         reusable = previous.get('version') == 3 and not pending.exists()
         old_entries = previous.get('files', {}) if reusable else {}
+        old_generated = previous.get('generated_files', {}) if reusable else {}
         changed = previous.get('source_sha256') != digest or not reusable
+        changed |= {name: row['sha256'] for name, row in old_generated.items()} != {
+            name: row['sha256'] for name, row in generated.items()}
         stamp = time.time_ns()
         restored = 0
-        for name, entry in entries.items():
-            old = old_entries.get(name, {})
-            if old.get('sha256') == entry['sha256'] and type(old.get('mtime_ns')) is int:
-                entry['mtime_ns'] = old['mtime_ns']
-                restored += 1
-            else:
-                entry['mtime_ns'] = stamp
-            os.utime(root / name, ns=(entry['mtime_ns'], entry['mtime_ns']))
+        restored_generated = 0
+        for current, old_files in ((entries, old_entries), (generated, old_generated)):
+            for name, entry in current.items():
+                old = old_files.get(name, {})
+                if old.get('sha256') == entry['sha256'] and type(old.get('mtime_ns')) is int:
+                    entry['mtime_ns'] = old['mtime_ns']
+                    if current is entries: restored += 1
+                    else: restored_generated += 1
+                else:
+                    entry['mtime_ns'] = stamp
+                os.utime(root / name, ns=(entry['mtime_ns'], entry['mtime_ns']))
         if changed:
             state.unlink(missing_ok=True)
         # Commit this per-file map only after the caller completes its build.
         pending.write_text(json.dumps({'version': 3, 'source_sha256': digest,
-                                       'files': entries}) + '\n')
+                                       'files': entries, 'generated_files': generated}) + '\n')
         print(json.dumps({'source_sha256': digest, 'source_changed': changed,
                           'restored_source_files': restored,
-                          'refreshed_source_files': len(entries) - restored}))
+                          'refreshed_source_files': len(entries) - restored,
+                          'restored_generated_files': restored_generated,
+                          'refreshed_generated_files': len(generated) - restored_generated}))
     elif phase == 'commit':
-        if not pending.exists() or json.loads(pending.read_text()).get('source_sha256') != digest:
+        if not pending.exists():
             raise ValueError('Rust source changed during build or preparation is missing')
+        prepared = json.loads(pending.read_text())
+        if prepared.get('source_sha256') != digest:
+            raise ValueError('Rust source changed during build or preparation is missing')
+        for name, entry in prepared.get('generated_files', {}).items():
+            if generated.get(name, {}).get('sha256') != entry['sha256']:
+                raise ValueError('Generated Rust input changed during build: ' + name)
+        # A cold build may create the checksum-verified archive after prepare.
+        # Record the timestamp Cargo actually used, without refreshing it now.
+        for name, entry in generated.items():
+            entry['mtime_ns'] = (root / name).stat().st_mtime_ns
+        prepared['generated_files'] = generated
+        publication = detach_metadata(target)
+        pending.write_text(json.dumps(prepared) + '\n')
         # A failed build never reaches commit, so partial targets stay untrusted.
         pending.replace(state)
+        print(json.dumps(publication))
     else:
         raise ValueError('Expected prepare or commit')
 

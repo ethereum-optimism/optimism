@@ -61,7 +61,7 @@ finish() {
     sccache --show-stats --stats-format json >"$report/sccache.json" || diagnostics=$?
     sccache --stop-server >"$report/sccache-stop.log" 2>&1 || diagnostics=$?
     if [[ "$status" == 0 ]]; then
-      python3 "$HELPERS/rust-target-cache.py" commit || diagnostics=$?
+      python3 "$HELPERS/rust-target-cache.py" commit >"$report/cache-publication.json" || diagnostics=$?
     fi
   fi
   if [[ "$status" == 0 && "$diagnostics" != 0 ]]; then status=$diagnostics; fi
@@ -100,6 +100,11 @@ case "$job" in
     stage beacon-build cargo test --profile fast-build --locked -p kona-providers-alloy \
       test_filtered_beacon_blobs_deserializes_on_small_stack --no-run
     python3 "$HELPERS/rust-workspace-report.py" artifact "$report"
+    if [[ "${CI_RUST_PROVIDER:-circleci}" == rwx ]]; then
+      # The verified archive owns executable transfer. Retaining the same large
+      # test binaries in cumulative tool-cache layers exceeded RWX's 100 GiB cap.
+      python3 "$HELPERS/rust-workspace-report.py" prune-archived-tests "$report"
+    fi
     ;;
   tests)
     rm -f "$ROOT/rust/target/nextest/default/junit.xml"

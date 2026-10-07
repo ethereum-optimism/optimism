@@ -133,6 +133,46 @@ class ReportTests(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, 'mismatch'):
                 REPORT.artifact(self.root, True)
 
+    def test_compiler_cache_prunes_only_tests_owned_by_the_archive(self):
+        target = self.root / 'target'
+        binary = target / 'debug/deps/local-test'
+        binary.parent.mkdir(parents=True)
+        binary.write_bytes(b'archived test executable')
+        library = binary.with_name('liblocal.rlib'); library.write_bytes(b'reusable library')
+        incremental = target / 'debug/incremental/work'; incremental.parent.mkdir(parents=True)
+        incremental.write_bytes(b'reusable incremental work')
+        metadata = {'rust-build-meta': {'target-directory': str(target)},
+                    'rust-binaries': {'local': {'binary-path': str(binary)}}}
+        with patch.dict(os.environ, {'CARGO_TARGET_DIR': str(target)}), \
+                patch.object(REPORT, 'command', return_value=json.dumps(metadata)) as command:
+            REPORT.prune_archived_tests(self.root)
+        self.assertIn('--occurrence=1', command.call_args.args)
+        self.assertFalse(binary.exists())
+        self.assertEqual(library.read_bytes(), b'reusable library')
+        self.assertEqual(incremental.read_bytes(), b'reusable incremental work')
+        output = json.loads((self.root / 'cache-output.json').read_text())
+        self.assertEqual(output['archived_test_binaries_removed'], {'debug/deps/local-test': 24})
+
+    def test_archive_cache_pruning_rejects_invalid_metadata_before_deletion(self):
+        target = self.root / 'target'
+        binary = target / 'debug/deps/local-test'; binary.parent.mkdir(parents=True)
+        binary.write_bytes(b'preserve until all paths validate')
+        outside = self.root / 'outside'; outside.write_bytes(b'outside target')
+        linked = binary.with_name('linked'); linked.symlink_to(binary)
+        for name, paths, target_directory in (
+                ('outside', [binary, outside], target), ('linked', [binary, linked], target),
+                ('duplicate', [binary, binary], target), ('empty', [], target),
+                ('wrong-target', [binary], self.root / 'other-target')):
+            with self.subTest(name=name):
+                metadata = {'rust-build-meta': {'target-directory': str(target_directory)},
+                            'rust-binaries': {str(i): {'binary-path': str(p)} for i, p in enumerate(paths)}}
+                with patch.dict(os.environ, {'CARGO_TARGET_DIR': str(target)}), \
+                        patch.object(REPORT, 'command', return_value=json.dumps(metadata)), \
+                        self.assertRaises(ValueError):
+                    REPORT.prune_archived_tests(self.root)
+                self.assertTrue(binary.exists())
+                self.assertTrue(outside.exists())
+
     def test_archive_rejects_incremental_mode_and_rustflags_changes(self):
         (self.root / 'tests.tar.zst').write_bytes(b'compiled tests')
         with patch.object(REPORT, 'command', return_value='pinned'), patch.object(REPORT, 'inputs', return_value={'source': 'same'}):
@@ -428,12 +468,15 @@ pub fn compile_only() {}
             # Include that target in the fixture rather than weakening the config.
             (root / 'rust/providers/tests').mkdir()
             (root / 'rust/providers/tests/e2e_testsuite.rs').write_text('#[test] fn fixture() {}\n')
-            (root / '.gitignore').write_text('.ci/\nrust/target/\n')
+            (root / '.gitignore').write_text('.ci/\nrust/target/\n**/superchain-configs.tar\n')
             (root / 'superchain-registry').mkdir()
             (root / 'superchain-registry/README').write_text('fixture submodule identity')
             checksums = root / 'rust/op-reth/crates/chainspec/res'
             checksums.mkdir(parents=True)
-            (checksums / 'superchain-configs.tar.sha256').write_text('0' * 64 + '\n')
+            bundle = checksums / 'superchain-configs.tar'
+            bundle.write_bytes(b'fixture generated bundle')
+            (checksums / 'superchain-configs.tar.sha256').write_text(REPORT.digest(bundle) + '\n')
+            (root / 'rust/providers/build.rs').write_text('fn main() { println!("cargo:rerun-if-changed=../op-reth/crates/chainspec/res/superchain-configs.tar"); }\n')
             subprocess.run(['cargo', 'generate-lockfile', '--offline'], cwd=root / 'rust', check=True, capture_output=True)
             for args in (['init', '-q'], ['add', '.'], ['-c', 'user.name=Fixture', '-c', 'user.email=fixture@example.invalid', 'commit', '-qm', 'fixture']):
                 subprocess.run(['git', *args], cwd=root, check=True, capture_output=True)
@@ -450,6 +493,25 @@ pub fn compile_only() {}
             self.assertEqual(set(settings['profile_incremental'].values()), {'true'})
             self.assertTrue(any((root / 'rust/target/debug/incremental').iterdir()))
             self.assertTrue(any((root / 'rust/target/fast-build/incremental').iterdir()))
+            publication = json.loads((root / '.ci/rust-workspace/tests-build/cache-output.json').read_text())
+            self.assertTrue(publication['archived_test_binaries_removed'])
+            self.assertTrue(all(not (root / 'rust/target' / path).exists()
+                                for path in publication['archived_test_binaries_removed']))
+            bundle_stamp = bundle.stat().st_mtime_ns
+            os.utime(bundle, ns=(time.time_ns(), time.time_ns()))
+            # Recompile/relink from the retained compiler cache after a real
+            # source edit. The next verdict still uses the complete new archive.
+            source = root / 'rust/providers/src/lib.rs'
+            source.write_text(source.read_text() + '\npub fn changed_crate() {}\n')
+            subprocess.run(['git', '-c', 'user.name=Fixture', '-c', 'user.email=fixture@example.invalid',
+                            'commit', '-am', 'changed local crate', '-q'], cwd=root, check=True, capture_output=True)
+            env['CI_COMMIT_SHA'] = subprocess.check_output(['git', 'rev-parse', 'HEAD'], cwd=root, text=True).strip()
+            warm = run('tests-build')
+            self.assertEqual(warm.returncode, 0, warm.stdout + warm.stderr)
+            freshness = json.loads((root / '.ci/rust-workspace/tests-build/cache-source.json').read_text())
+            self.assertTrue(freshness['source_changed'])
+            self.assertEqual(freshness['restored_generated_files'], 1)
+            self.assertEqual(bundle.stat().st_mtime_ns, bundle_stamp)
             env['TEST_ARCHIVE'] = str(root / '.ci/rust-workspace/tests-build')
             mismatch = run('tests', {'CI_RUST_INCREMENTAL': '0'})
             self.assertNotEqual(mismatch.returncode, 0)

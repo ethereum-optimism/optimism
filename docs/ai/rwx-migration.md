@@ -164,13 +164,32 @@ in the producer's source/input seal and filtered snapshot. Test imports from the
 actual filtered files, including SP1's toolchain snapshot.
 
 Rust test target-cache names include a namespace of tracked Cargo manifests,
-`Cargo.lock`, Cargo configuration, compiler flags, build/cache helper settings,
+`Cargo.lock`, Cargo configuration, the pinned Superchain bundle checksum,
+compiler flags, build/cache helper settings,
 and actual Rust/Cargo/sccache versions. Source-only edits keep the namespace and
 use per-file timestamp restoration. Dependency/toolchain changes seed a new
 initial layer. This fixes the observed `develop` dependency update: compilation
 passed, but retaining the old 64.9 GiB layers plus 54.2 GiB of new outputs exceeded
 RWX's 100 GiB filesystem-layer cap. Runner disk size cannot raise that cap. The
 failed producer's original archive and logs remain in external evidence.
+
+Timestamp preparation also tracks the ignored Superchain tar declared by Cargo's
+build script. Its producer still owns checksum verification. A cold build may
+materialize it after preparation; successful compilation records its actual
+timestamp. Later restores preserve that timestamp when its bytes are unchanged.
+
+The test producer removes nextest's archived test executables from its compiler
+output after sealing the complete archive. Verdicts consume that archive;
+libraries, metadata and incremental work remain cached for Cargo to relink.
+Keeping full executables in cumulative cache layers also exceeded the cap on an
+ordinary rebuild (64.6 GiB inherited + 45.3 GiB added). Retain
+`cache-output.json` for the removed paths and bytes. Cache preparation
+separates host `deps/*.rmeta` hardlinks from incremental metadata while preserving
+bytes, permissions and timestamps; retain `cache-publication.json`. The engine
+result, rather than this preparation record, proves filesystem publication. A restored
+shared entry returned `ESTALE` twice, but the filesystem root cause is unproven.
+These changes need cold publication and untouched warm-update validation; a
+breakpoint run that touched cached files is diagnostic evidence only.
 
 Modified-contract runs capture `develop` once in `modified-baseline` and retain
 `.ci/contract-baseline.txt`. Compile/verdict packages receive that full SHA through
