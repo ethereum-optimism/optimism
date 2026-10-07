@@ -49,7 +49,11 @@ lake build        # 2–6 s from clean on hel1; prints the #print axioms report
 ## The model
 
 **Messages.** A message is the preimage `(d, z, b)`: destination `d`, source `z`, and the rest
-`b : Body` (nonce, sender, target, payload). Its hash is `cfg.hash d z b`.
+`b : Body` (nonce, sender, target, payload). The contracts know chains only by their L2 chain IDs
+(`block.chainid`), so the model separates `Chain` from `cfg.chainId : Chain → Nat`. The hash is
+`cfg.msgHash d z b = cfg.hash (chainId d) (chainId z) b`. The exporter on chain y hashes with
+`chainId y`, and nothing on L1 ties the exporting chain to the hash's destination except that
+chain ID.
 
 **Senders and withdrawals.** Every L2→L1 message is a `Withdrawal = (origin, sender, fact)`.
 `sender` is the L2 contract that called `L2CrossDomainMessenger.sendMessage`, which L1 exposes as
@@ -143,6 +147,7 @@ Every hypothesis is an explicit argument or structure field.
 | Windows | `SafeConfig.window : ∀ d, W_d + (if expireGe then 1 else 0) ≤ P` | W_d ≤ 7 days (config cap) ≤ P = 8 days with the strict check. With `≥` it requires W_d < P. |
 | No non-restarting resend | `SafeConfig.resend` | `resendMessage` is removed after the upgrade. A restarting resend would also be safe. Pre-upgrade resends are always modeled (`resendLegacy`). |
 | Idealized hash | `hinj : HashInjective cfg.hash` | See "The hash" below. |
+| Unique chain IDs (governance) | `hid : ChainIdUnique cfg := ∀ c c', standard c → chainId c = chainId c' → c = c'` | Every standard chain has a chain ID that no other chain uses. Standard chains are those that are or can become lockbox members, and the protected sources. OPCM checks duplicate IDs on migration. Without this, a member sharing B's ID exports "not relayed" for a hash delivered on B (`cex_duplicateChainId`), with no hash collision. |
 | Genesis | `h0 : Init s₀` | At every chain's genesis nothing has been sent, relayed, withdrawn or deposited, and no chain is upgraded. Clocks and initial lockbox memberships are arbitrary. |
 
 The messenger's unsafe-target rule (`cfg.targetRule`) is **not** a hypothesis. Karl kept it as
@@ -173,8 +178,9 @@ exporter an implementation.
 model**. They do not establish deployment history; historical inertness, together with the
 governance join rule, is what covers that.
 
-**The hash.** `HashInjective` is a global statement about the L2-to-L2 message hash: for all
-preimages `(d, z, b)` and `(d', z', b')`, `hash d z b = hash d' z' b' → d = d' ∧ z = z' ∧ b = b'`.
+**The hash.** `HashInjective` is a global statement about the L2-to-L2 message hash on
+(destination chain ID, source chain ID, rest): `hash d z b = hash d' z' b' → d = d' ∧ z = z' ∧ b = b'`.
+Chains are recovered from IDs only through `ChainIdUnique`.
 keccak256 with 256-bit output cannot satisfy this on unbounded inputs. It is an idealization (an
 ideal, collision-free hash): the proof relies on the absence of collisions among the message
 preimages that occur in an execution, but the hypothesis as stated is global.
@@ -186,9 +192,11 @@ shows the hypothesis is needed.
 ## Theorem statements (`Expiry/Safety.lean`)
 
 The safety theorems take
-`(hc : SafeConfig cfg) (hinj : HashInjective cfg.hash) (h0 : Init s₀) (hg : GovInit cfg s₀) (hr : Reach cfg s₀ s)`.
+`(hc : SafeConfig cfg) (hinj : HashInjective cfg.hash) (hid : ChainIdUnique cfg) (h0 : Init s₀) (hg : GovInit cfg s₀) (hr : Reach cfg s₀ s)`.
 
 ```lean
+def Config.msgHash cfg d z b := cfg.hash (cfg.chainId d) (cfg.chainId z) b
+-- In the statements below, `cfg.hash d z b` is written for `cfg.msgHash d z b`.
 def expiredBy cfg sent t := if cfg.expireGe then sent + cfg.contractPeriod ≤ t
                             else sent + cfg.contractPeriod < t
 def NoDoubleSpend cfg s := ∀ d z b, cfg.standard z →
@@ -336,6 +344,7 @@ Each config is `base` with **one** field changed, with two exceptions:
 | `cex_noUnsafeTargetCheck` | L1CDM self-target rule | `l1cdmSelfRelay`: A's L1CDM sends `expireMessage` as itself. |
 | `cex_noSenderCheck` | Sender check | A user contract on B sends the forged fact. |
 | `cex_hashCollision` | Injectivity (`SafeConfig` holds) | C honestly exports a colliding hash after B relayed. |
+| `cex_duplicateChainId` | Unique chain IDs (`SafeConfig`, `HashInjective` and `GovInit` hold) | C is standard but has B's chain ID. B relays A's message; C joins A's lockbox and exports the same hash; expire and refund. |
 
 ## `#print axioms` (from `lake build`)
 
@@ -390,6 +399,13 @@ must be re-targeted to the exporter once it lands.
 | **Nonce freshness.** | The `send` freshness guard, with `HashInjective` |
 | **Historical inertness of 0x..2E.** | Deployment assumption (above) |
 
+## Named assumptions not modeled as transitions
+
+- **W activation and time-varying W.** The protocol rule `exec − init ≤ W_d` is enforced on a destination before that destination's exporter goes live. W_d never later rises above P. The model has fixed W_d from genesis; activation of the W rule and changes to W are not modeled.
+- **Preimage hardness of predeploy addresses.** No EOA, and no aliased L1 address (`AddressAliasHelper`), equals 0x..2E or 0x..23. This is why `userWithdrawal` can only record `user a` and never a predeploy as sender.
+- **Pre-Bedrock legacy withdrawals.** Legacy (pre-Bedrock) L2→L1 messages are irrelevant: none carries `relayUndeliveredMessage` from 0x..2E. The model's genesis is the Bedrock-era history.
+- **Historical inertness of 0x..2E** and the **governance assumptions** (standard-only joins, unique chain IDs, SystemConfig consistency): see "Hypotheses" above.
+
 ## Modeling choices and what is NOT modeled
 
 - **Clocks.** Each chain's clock is monotone; timestamps are `Nat`.
@@ -427,4 +443,5 @@ must be re-targeted to the exporter once it lands.
 | v2 | Claude L2 | `_isUnsafeTarget` labeling | v2.1: the safety-relevant fact is stated; `l1cdmSelfRelay` plus `cex_noUnsafeTargetCheck` |
 | v2 | Claude H1, astra, sol | Make clear what is certified | v2.1: first paragraph; 37b44c48c7 = `cfgMessengerTrusted`; list of code changes that must land |
 | v2.1 | coordinator (Karl's decision) | Keep the target rule as defense in depth; safety must not depend on it | v2.1: `safety_without_targetRule`, `messengerSilentAfterUpgrade`, `messengerSpeaks_without_targetRule`; passer path delegated to Halmos/Kontrol |
+| v2.1 | coordinator (Quint v2 review) | Chains are identified by chain ID only; duplicate IDs among lockbox members allow a double spend without any hash collision | v2.1: `Chain` separated from `chainId`; hash on chain IDs; hypothesis `ChainIdUnique`; `cex_duplicateChainId`; W activation, predeploy preimage hardness and pre-Bedrock withdrawals listed as named assumptions |
 | v2 | Claude L4 | "Every configuration" is vacuous when trusted ≠ exporter | v2.1: qualified in the docstring and README |

@@ -27,7 +27,7 @@ open Expiry
 set_option linter.unusedSectionVars false
 set_option linter.unusedSimpArgs false
 
-attribute [local simp] Call.isL2CDM
+attribute [local simp] Call.isL2CDM Config.msgHash
 
 section Run
 variable {Chain Body Hash : Type} [DecidableEq Chain] [DecidableEq Hash]
@@ -54,6 +54,7 @@ abbrev H := Nat × Nat × Nat
 def fM : Fact Nat H := ⟨0, (1, 0, 5), 100⟩
 
 def base : Config Nat Nat H where
+  chainId := fun c => c
   hash := fun d z b => (d, z, b)
   decode := fun b => if b = 9 then .l2cdm fM else .other
   isBridge := fun _ => True
@@ -103,6 +104,8 @@ theorem inj_id : HashInjective (fun (d z b : Nat) => ((d, z, b) : H)) := by
   simp only [Prod.mk.injEq] at h
   exact h
 
+theorem base_idu : ChainIdUnique base := fun _ _ _ h => h
+
 def mAB : H := (1, 0, 5)
 
 /-! ### Witnesses in the safe design -/
@@ -115,9 +118,9 @@ def refundTrace : List (Action Nat Nat H) :=
 
 /-- All hypotheses hold and a refund is reachable. -/
 theorem refund_reachable :
-    SafeConfig base ∧ HashInjective base.hash ∧ Init s0 ∧ GovInit base s0 ∧
+    SafeConfig base ∧ HashInjective base.hash ∧ ChainIdUnique base ∧ Init s0 ∧ GovInit base s0 ∧
     ∃ s, Reach base s0 s ∧ s.expired 0 mAB ∧ s.refunded 0 mAB ∧ s.refunds 0 mAB = 1 := by
-  refine ⟨base_safe, inj_id, s0_init, s0_gov _ rfl, run base refundTrace s0,
+  refine ⟨base_safe, inj_id, base_idu, s0_init, s0_gov _ rfl, run base refundTrace s0,
     reach_run _ _ _ ?_, ?_, ?_, ?_⟩
   · simp [Valid, refundTrace, guard, next, base, s0, upd1, upd2, expiredBy, fB, mAB]
   all_goals simp [run, refundTrace, next, base, s0, upd1, upd2, fB, mAB]
@@ -162,7 +165,7 @@ theorem forgery_reachable_but_harmless :
   · simp [run, next, base, s0, callOut]
   · simp [run, next, base, s0]
   · intro s' hr'
-    exact noDoubleSpend base_safe inj_id s0_init (s0_gov _ rfl)
+    exact noDoubleSpend base_safe inj_id base_idu s0_init (s0_gov _ rfl)
       (Reach.trans (reach_run _ _ _ (by simp [Valid, guard, next, base, s0, withinWindow])) hr')
 
 /-- Variants covered by the theorem: no target rule (defense in depth only), P = W (no margin),
@@ -196,7 +199,7 @@ theorem legacyResend_reachable :
 /-- Shape of every counterexample: genesis, governance at genesis and injectivity hold, the config
 is not safe, and an execution reaches a double spend of a standard source's message. -/
 def Cex (cfg : Config Nat Nat H) (as : List (Action Nat Nat H)) : Prop :=
-  Init s0 ∧ GovInit cfg s0 ∧ HashInjective cfg.hash ∧ ¬ SafeConfig cfg ∧
+  Init s0 ∧ GovInit cfg s0 ∧ HashInjective cfg.hash ∧ ChainIdUnique cfg ∧ ¬ SafeConfig cfg ∧
   Valid cfg as s0 ∧ Reach cfg s0 (run cfg as s0) ∧ ¬ NoDoubleSpend cfg (run cfg as s0)
 
 def wM : Withdrawal Nat H := ⟨1, .messenger, fM⟩
@@ -214,7 +217,7 @@ theorem cex_messengerTrusted : Cex cfgMessengerTrusted messengerTrustedTrace := 
   have hv : Valid cfgMessengerTrusted messengerTrustedTrace s0 := by
     simp [Valid, messengerTrustedTrace, cfgMessengerTrusted, guard, next, base, s0, upd1, upd2,
       withinWindow, expiredBy, callOut, wM, fM]
-  refine ⟨s0_init, s0_gov _ rfl, inj_id, (fun h => by cases h.trusted), hv, reach_run _ _ _ hv, ?_⟩
+  refine ⟨s0_init, s0_gov _ rfl, inj_id, fun _ _ _ h => h, (fun h => by cases h.trusted), hv, reach_run _ _ _ hv, ?_⟩
   intro h
   exact h 1 0 5 (show (0 : Nat) ≤ 2 by decide) (by
     simp [run, messengerTrustedTrace, cfgMessengerTrusted, next, base, s0, upd1, upd2, callOut,
@@ -235,7 +238,7 @@ theorem cex_nonstandardJoin : Cex cfgNoGov noGovTrace := by
   have hv : Valid cfgNoGov noGovTrace s0 := by
     simp [Valid, noGovTrace, cfgNoGov, guard, next, base, s0, upd1, upd2, withinWindow, expiredBy,
       fD, fM]
-  refine ⟨s0_init, s0_gov _ rfl, inj_id, (fun h => by cases h.govCheck), hv, reach_run _ _ _ hv, ?_⟩
+  refine ⟨s0_init, s0_gov _ rfl, inj_id, fun _ _ _ h => h, (fun h => by cases h.govCheck), hv, reach_run _ _ _ hv, ?_⟩
   intro h
   exact h 1 0 5 (show (0 : Nat) ≤ 2 by decide) (by
     simp [run, noGovTrace, cfgNoGov, next, base, s0, upd1, upd2, fD, fM])
@@ -254,7 +257,7 @@ theorem cex_periodBelowWindow : Cex cfgPBelowW edgeTrace := by
   have hv : Valid cfgPBelowW edgeTrace s0 := by
     simp [Valid, edgeTrace, cfgPBelowW, guard, next, base, s0, upd1, upd2, withinWindow,
       expiredBy, fEdge, mAB]
-  refine ⟨s0_init, s0_gov _ rfl, inj_id, fun h => absurd (h.window 0) (by decide), hv,
+  refine ⟨s0_init, s0_gov _ rfl, inj_id, fun _ _ _ h => h, fun h => absurd (h.window 0) (by decide), hv,
     reach_run _ _ _ hv, ?_⟩
   intro h
   exact h 1 0 5 (show (0 : Nat) ≤ 2 by decide) (by simp [run, edgeTrace, cfgPBelowW, next, base, s0, upd1, upd2])
@@ -267,7 +270,7 @@ theorem cex_nonStrict : Cex cfgNonStrict edgeTrace := by
   have hv : Valid cfgNonStrict edgeTrace s0 := by
     simp [Valid, edgeTrace, cfgNonStrict, guard, next, base, s0, upd1, upd2, withinWindow,
       expiredBy, fEdge, mAB]
-  refine ⟨s0_init, s0_gov _ rfl, inj_id, (fun h => absurd (h.window 0) (by decide)), hv, reach_run _ _ _ hv, ?_⟩
+  refine ⟨s0_init, s0_gov _ rfl, inj_id, fun _ _ _ h => h, (fun h => absurd (h.window 0) (by decide)), hv, reach_run _ _ _ hv, ?_⟩
   intro h
   exact h 1 0 5 (show (0 : Nat) ≤ 2 by decide) (by simp [run, edgeTrace, cfgNonStrict, next, base, s0, upd1, upd2])
 
@@ -284,7 +287,7 @@ theorem cex_resendNoRestart : Cex cfgResend resendTrace := by
   have hv : Valid cfgResend resendTrace s0 := by
     simp [Valid, resendTrace, cfgResend, guard, next, base, s0, upd1, upd2, withinWindow,
       expiredBy, fB, mAB]
-  refine ⟨s0_init, s0_gov _ rfl, inj_id, fun h => ?_, hv, reach_run _ _ _ hv, ?_⟩
+  refine ⟨s0_init, s0_gov _ rfl, inj_id, fun _ _ _ h => h, fun h => ?_, hv, reach_run _ _ _ hv, ?_⟩
   · rcases h.resend with h | h <;> cases h
   · intro h
     exact h 1 0 5 (show (0 : Nat) ≤ 2 by decide) (by simp [run, resendTrace, cfgResend, next, base, s0, upd1, upd2])
@@ -299,7 +302,7 @@ theorem cex_noRealMessengerCheck : Cex cfgNoRealMessenger fakeTrace := by
   have hv : Valid cfgNoRealMessenger fakeTrace s0 := by
     simp [Valid, fakeTrace, cfgNoRealMessenger, guard, next, base, s0, upd1, upd2, withinWindow,
       expiredBy, fM]
-  refine ⟨s0_init, s0_gov _ rfl, inj_id, (fun h => by cases h.realMessengerCheck), hv,
+  refine ⟨s0_init, s0_gov _ rfl, inj_id, fun _ _ _ h => h, (fun h => by cases h.realMessengerCheck), hv,
     reach_run _ _ _ hv, ?_⟩
   intro h
   exact h 1 0 5 (show (0 : Nat) ≤ 2 by decide) (by
@@ -317,7 +320,7 @@ theorem cex_noLockboxCheck : Cex cfgNoLockbox noLockboxTrace := by
   have hv : Valid cfgNoLockbox noLockboxTrace s0 := by
     simp [Valid, noLockboxTrace, cfgNoLockbox, guard, next, base, s0, upd1, upd2, withinWindow,
       expiredBy, fD, fM]
-  refine ⟨s0_init, s0_gov _ rfl, inj_id, (fun h => by cases h.lockboxCheck), hv,
+  refine ⟨s0_init, s0_gov _ rfl, inj_id, fun _ _ _ h => h, (fun h => by cases h.lockboxCheck), hv,
     reach_run _ _ _ hv, ?_⟩
   intro h
   exact h 1 0 5 (show (0 : Nat) ≤ 2 by decide) (by
@@ -330,7 +333,7 @@ theorem cex_noLockboxCheck_fakePortal : Cex cfgNoLockbox fakeTrace := by
   have hv : Valid cfgNoLockbox fakeTrace s0 := by
     simp [Valid, fakeTrace, cfgNoLockbox, guard, next, base, s0, upd1, upd2, withinWindow,
       expiredBy, fM]
-  refine ⟨s0_init, s0_gov _ rfl, inj_id, (fun h => by cases h.lockboxCheck), hv,
+  refine ⟨s0_init, s0_gov _ rfl, inj_id, fun _ _ _ h => h, (fun h => by cases h.lockboxCheck), hv,
     reach_run _ _ _ hv, ?_⟩
   intro h
   exact h 1 0 5 (show (0 : Nat) ≤ 2 by decide) (by
@@ -344,7 +347,7 @@ theorem cex_sysConfigInconsistent : Cex cfgNoSysConfig fakeTrace := by
   have hv : Valid cfgNoSysConfig fakeTrace s0 := by
     simp [Valid, fakeTrace, cfgNoSysConfig, guard, next, base, s0, upd1, upd2, withinWindow,
       expiredBy, fM]
-  refine ⟨s0_init, s0_gov _ rfl, inj_id, (fun h => by cases h.sysConfigConsistent), hv,
+  refine ⟨s0_init, s0_gov _ rfl, inj_id, fun _ _ _ h => h, (fun h => by cases h.sysConfigConsistent), hv,
     reach_run _ _ _ hv, ?_⟩
   intro h
   exact h 1 0 5 (show (0 : Nat) ≤ 2 by decide) (by
@@ -362,7 +365,7 @@ theorem cex_noUnsafeTargetCheck : Cex cfgNoUnsafeTarget selfRelayTrace := by
   have hv : Valid cfgNoUnsafeTarget selfRelayTrace s0 := by
     simp [Valid, selfRelayTrace, cfgNoUnsafeTarget, guard, next, base, s0, upd1, upd2,
       withinWindow, expiredBy, fM]
-  refine ⟨s0_init, s0_gov _ rfl, inj_id, (fun h => by cases h.unsafeTargetCheck), hv,
+  refine ⟨s0_init, s0_gov _ rfl, inj_id, fun _ _ _ h => h, (fun h => by cases h.unsafeTargetCheck), hv,
     reach_run _ _ _ hv, ?_⟩
   intro h
   exact h 1 0 5 (show (0 : Nat) ≤ 2 by decide) (by
@@ -379,7 +382,7 @@ theorem cex_noSenderCheck : Cex cfgNoSender noSenderTrace := by
   have hv : Valid cfgNoSender noSenderTrace s0 := by
     simp [Valid, noSenderTrace, cfgNoSender, guard, next, base, s0, upd1, upd2, withinWindow,
       expiredBy, fM]
-  refine ⟨s0_init, s0_gov _ rfl, inj_id, (fun h => by cases h.senderCheck), hv,
+  refine ⟨s0_init, s0_gov _ rfl, inj_id, fun _ _ _ h => h, (fun h => by cases h.senderCheck), hv,
     reach_run _ _ _ hv, ?_⟩
   intro h
   exact h 1 0 5 (show (0 : Nat) ≤ 2 by decide) (by
@@ -388,6 +391,7 @@ theorem cex_noSenderCheck : Cex cfgNoSender noSenderTrace := by
 /-- Hash injectivity dropped (every preimage hashes to `()`): C's honest export of a different
 message expires A's message to B after B relayed it. All `SafeConfig` fields hold. -/
 def cfgCollide : Config Nat Nat Unit where
+  chainId := fun c => c
   hash := fun _ _ _ => ()
   decode := fun _ => .other
   isBridge := fun _ => True
@@ -427,10 +431,11 @@ def collideTrace : List (Action Nat Nat Unit) :=
    .exportUndelivered 2 0 6 0, .l1Relay ⟨2, .exporter, fU⟩, .expire fU, .refund 0 1 5]
 
 theorem cex_hashCollision :
-    SafeConfig cfgCollide ∧ ¬ HashInjective cfgCollide.hash ∧ Init u0 ∧ GovInit cfgCollide u0 ∧
+    SafeConfig cfgCollide ∧ ¬ HashInjective cfgCollide.hash ∧ ChainIdUnique cfgCollide ∧ Init u0 ∧
+    GovInit cfgCollide u0 ∧
     Reach cfgCollide u0 (run cfgCollide collideTrace u0) ∧
     ¬ NoDoubleSpend cfgCollide (run cfgCollide collideTrace u0) := by
-  refine ⟨⟨rfl, rfl, rfl, rfl, rfl, rfl, rfl, fun _ => show 7 + 0 ≤ 8 by decide, Or.inl rfl⟩, ?_,
+  refine ⟨⟨rfl, rfl, rfl, rfl, rfl, rfl, rfl, fun _ => show 7 + 0 ≤ 8 by decide, Or.inl rfl⟩, ?_, fun _ _ _ h => h,
     ⟨fun _ => rfl, fun _ _ => rfl, fun _ _ _ h => h, fun _ _ h => h, fun _ h => h, fun _ h => h,
      fun _ _ h => h, fun _ _ h => h, fun _ _ => rfl⟩, ?_, reach_run _ _ _ ?_, ?_⟩
   · intro hinj
@@ -440,6 +445,32 @@ theorem cex_hashCollision :
       fU]
   · intro h
     exact h 1 0 5 (show (0 : Nat) ≤ 2 by decide) (by simp [run, collideTrace, cfgCollide, next, u0, upd1, upd2])
+
+/-- Duplicate chain ID (no hash collision): C (standard) has B's chain ID. B relays A's message;
+C later joins A's lockbox and exports "not relayed here" for the same hash, since its
+`block.chainid` is B's. All of `SafeConfig`, `HashInjective` and `GovInit` hold. -/
+def cfgDupId : Config Nat Nat H := { base with chainId := fun c => if c = 2 then 1 else c }
+
+def fDup : Fact Nat H := ⟨0, (1, 0, 5), 10⟩
+
+def dupTrace : List (Action Nat Nat H) :=
+  [.upgrade 0, .upgrade 2, .send 0 1 5, .relay 1 0 5, .join 0 2, .tick 2 10,
+   .exportUndelivered 2 0 5 0, .l1Relay ⟨2, .exporter, fDup⟩, .expire fDup, .refund 0 1 5]
+
+theorem cex_duplicateChainId :
+    SafeConfig cfgDupId ∧ HashInjective cfgDupId.hash ∧ ¬ ChainIdUnique cfgDupId ∧ Init s0 ∧
+    GovInit cfgDupId s0 ∧ Valid cfgDupId dupTrace s0 ∧ Reach cfgDupId s0 (run cfgDupId dupTrace s0) ∧
+    ¬ NoDoubleSpend cfgDupId (run cfgDupId dupTrace s0) := by
+  have hv : Valid cfgDupId dupTrace s0 := by
+    simp [Valid, dupTrace, cfgDupId, guard, next, base, s0, upd1, upd2, withinWindow, expiredBy,
+      fDup]
+  refine ⟨⟨rfl, rfl, rfl, rfl, rfl, rfl, rfl, fun _ => show 7 + 0 ≤ 8 by decide, Or.inl rfl⟩,
+    inj_id, ?_, s0_init, s0_gov _ rfl, hv, reach_run _ _ _ hv, ?_⟩
+  · intro hid
+    exact absurd (hid 2 1 (show (2 : Nat) ≤ 2 by decide) rfl) (by decide)
+  · intro h
+    exact h 1 0 5 (show (0 : Nat) ≤ 2 by decide) (by
+      simp [run, dupTrace, cfgDupId, next, base, s0, upd1, upd2, fDup])
 
 /-! ### Defense in depth: the messenger's unsafe-target rule -/
 

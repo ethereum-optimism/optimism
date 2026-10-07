@@ -35,4 +35,5 @@ open Expiry Expiry.Examples
 #print axioms cex_noUnsafeTargetCheck
 #print axioms cex_noSenderCheck
 #print axioms cex_hashCollision
+#print axioms cex_duplicateChainId
 #print axioms messengerSpeaks_without_targetRule

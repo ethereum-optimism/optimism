@@ -15,7 +15,8 @@ theorems (`Safety.lean`), not assumptions. They are derived within this action m
 establish real deployment history (see `Init` and the README's deployment assumption).
 
 A message is identified by its preimage `(d, z, b)`: destination `d`, source `z`, rest `b : Body`
-(nonce, sender, target, payload). Its hash is `cfg.hash d z b`.
+(nonce, sender, target, payload). Its hash is `cfg.msgHash d z b = cfg.hash (chainId d) (chainId z) b`:
+the contracts know chains only by their chain IDs (`block.chainid`).
 -/
 namespace Expiry
 
@@ -66,8 +67,10 @@ def Call.isL2CDM {Chain Hash : Type} : Call Chain Hash → Prop
 /-- Parameters of the world and of the code. Every assumption of the safety theorem is a property
 of these fields (`SafeConfig`, `HashInjective`) or of the genesis state (`Init`, `GovInit`). -/
 structure Config (Chain Body Hash : Type) where
-  /-- Message hash of (destination, source, rest). -/
-  hash : Chain → Chain → Body → Hash
+  /-- L2 chain ID (uint256) of each chain. -/
+  chainId : Chain → Nat
+  /-- Message hash of (destination chain ID, source chain ID, rest). -/
+  hash : Nat → Nat → Body → Hash
   /-- Target and calldata of a message body, as far as the relay's call goes. The theorems hold for
   every `decode`, so also for one that reaches every `Call` (the attacker chooses the body). -/
   decode : Body → Call Chain Hash
@@ -175,6 +178,10 @@ inductive Action (Chain Body Hash : Type) where
 
 variable {Chain Body Hash : Type} [DecidableEq Chain] [DecidableEq Hash]
 
+/-- The hash of message (d, z, b): computed from the chain IDs. -/
+def Config.msgHash (cfg : Config Chain Body Hash) (d z : Chain) (b : Body) : Hash :=
+  cfg.hash (cfg.chainId d) (cfg.chainId z) b
+
 /-- Point update of a two-argument map. -/
 def upd2 {α β γ : Type} [DecidableEq α] [DecidableEq β] (f : α → β → γ) (a : α) (b : β) (v : γ) :
     α → β → γ :=
@@ -204,17 +211,17 @@ def guard (cfg : Config Chain Body Hash) : Action Chain Body Hash → State Chai
   | .upgrade y, s => cfg.standard y ∧ s.upgraded y = false
   | .join _ y, _ => cfg.govCheck = true → cfg.standard y
   | .send z d b, s =>
-      d ≠ z ∧ (¬ ∃ e, s.events z (cfg.hash d z b) e) ∧
+      d ≠ z ∧ (¬ ∃ e, s.events z (cfg.msgHash d z b) e) ∧
       (s.upgraded z = true → cfg.targetRule = true → ¬ (cfg.decode b).isL2CDM)
-  | .resend z d b, s => cfg.resend = true ∧ s.sentAt z (cfg.hash d z b) ≠ 0 ∧
-      (cfg.resendRestarts = true → ¬ s.expired z (cfg.hash d z b))
-  | .resendLegacy z d b, s => s.upgraded z = false ∧ ∃ e, s.events z (cfg.hash d z b) e
+  | .resend z d b, s => cfg.resend = true ∧ s.sentAt z (cfg.msgHash d z b) ≠ 0 ∧
+      (cfg.resendRestarts = true → ¬ s.expired z (cfg.msgHash d z b))
+  | .resendLegacy z d b, s => s.upgraded z = false ∧ ∃ e, s.events z (cfg.msgHash d z b) e
   | .relay x z b, s =>
-      ¬ s.relayed x (cfg.hash x z b) ∧
-      (cfg.standard x → withinWindow cfg s x z (cfg.hash x z b) (s.clock x)) ∧
+      ¬ s.relayed x (cfg.msgHash x z b) ∧
+      (cfg.standard x → withinWindow cfg s x z (cfg.msgHash x z b) (s.clock x)) ∧
       (cfg.standard x → s.upgraded x = true → cfg.targetRule = true → ¬ (cfg.decode b).isL2CDM)
   | .exportUndelivered y z b _, s =>
-      cfg.standard y ∧ s.upgraded y = true ∧ ¬ s.relayed y (cfg.hash y z b)
+      cfg.standard y ∧ s.upgraded y = true ∧ ¬ s.relayed y (cfg.msgHash y z b)
   | .userWithdrawal _ _ _, _ => True
   | .arbitraryCode y _ _, _ => ¬ cfg.standard y
   | .arbitraryEvent z _ _, _ => ¬ cfg.standard z
@@ -232,7 +239,7 @@ def guard (cfg : Config Chain Body Hash) : Action Chain Body Hash → State Chai
   | .expire f, s =>
       s.deposits f ∧ s.sentAt f.toL1 f.hash ≠ 0 ∧ expiredBy cfg (s.sentAt f.toL1 f.hash) f.time
   | .refund z d b, s =>
-      cfg.isBridge b ∧ s.expired z (cfg.hash d z b) ∧ ¬ s.refunded z (cfg.hash d z b)
+      cfg.isBridge b ∧ s.expired z (cfg.msgHash d z b) ∧ ¬ s.refunded z (cfg.msgHash d z b)
 
 /-- Effect of each action. -/
 def next (cfg : Config Chain Body Hash) : Action Chain Body Hash → State Chain Hash →
@@ -242,22 +249,22 @@ def next (cfg : Config Chain Body Hash) : Action Chain Body Hash → State Chain
   | .join z y, s => { s with lockbox := fun a c => s.lockbox a c ∨ (a = z ∧ c = y) }
   | .send z d b, s =>
       { s with
-        sentAt := if s.upgraded z then upd2 s.sentAt z (cfg.hash d z b) (s.clock z) else s.sentAt
-        events := fun c h e => s.events c h e ∨ (c = z ∧ h = cfg.hash d z b ∧ e = s.clock z) }
+        sentAt := if s.upgraded z then upd2 s.sentAt z (cfg.msgHash d z b) (s.clock z) else s.sentAt
+        events := fun c h e => s.events c h e ∨ (c = z ∧ h = cfg.msgHash d z b ∧ e = s.clock z) }
   | .resend z d b, s =>
       { s with
         sentAt := if cfg.resendRestarts && s.upgraded z then
-            upd2 s.sentAt z (cfg.hash d z b) (s.clock z) else s.sentAt
-        events := fun c h e => s.events c h e ∨ (c = z ∧ h = cfg.hash d z b ∧ e = s.clock z) }
+            upd2 s.sentAt z (cfg.msgHash d z b) (s.clock z) else s.sentAt
+        events := fun c h e => s.events c h e ∨ (c = z ∧ h = cfg.msgHash d z b ∧ e = s.clock z) }
   | .resendLegacy z d b, s =>
-      { s with events := fun c h e => s.events c h e ∨ (c = z ∧ h = cfg.hash d z b ∧ e = s.clock z) }
+      { s with events := fun c h e => s.events c h e ∨ (c = z ∧ h = cfg.msgHash d z b ∧ e = s.clock z) }
   | .relay x z b, s =>
       { s with
-        relayed := fun c h => s.relayed c h ∨ (c = x ∧ h = cfg.hash x z b)
+        relayed := fun c h => s.relayed c h ∨ (c = x ∧ h = cfg.msgHash x z b)
         withdrawals := fun w => s.withdrawals w ∨ callOut x (cfg.decode b) w }
   | .exportUndelivered y z b route, s =>
       { s with withdrawals := fun w =>
-          s.withdrawals w ∨ w = ⟨y, cfg.trusted, ⟨route, cfg.hash y z b, s.clock y⟩⟩ }
+          s.withdrawals w ∨ w = ⟨y, cfg.trusted, ⟨route, cfg.msgHash y z b, s.clock y⟩⟩ }
   | .userWithdrawal y a f, s =>
       { s with withdrawals := fun w => s.withdrawals w ∨ w = ⟨y, .user a, f⟩ }
   | .arbitraryCode y snd f, s =>
@@ -274,8 +281,8 @@ def next (cfg : Config Chain Body Hash) : Action Chain Body Hash → State Chain
   | .expire f, s => { s with expired := fun c h => s.expired c h ∨ (c = f.toL1 ∧ h = f.hash) }
   | .refund z d b, s =>
       { s with
-        refunded := fun c h => s.refunded c h ∨ (c = z ∧ h = cfg.hash d z b)
-        refunds := upd2 s.refunds z (cfg.hash d z b) (s.refunds z (cfg.hash d z b) + 1) }
+        refunded := fun c h => s.refunded c h ∨ (c = z ∧ h = cfg.msgHash d z b)
+        refunds := upd2 s.refunds z (cfg.msgHash d z b) (s.refunds z (cfg.msgHash d z b) + 1) }
 
 /-- One labelled transition. -/
 def Step (cfg : Config Chain Body Hash) (a : Action Chain Body Hash) (s s' : State Chain Hash) :
@@ -311,8 +318,13 @@ def GovInit (cfg : Config Chain Body Hash) (s : State Chain Hash) : Prop :=
 /-- Idealized hash: injective on L2-to-L2 message preimages (destination, source, rest). This is
 an idealization of keccak256 (see README); integrity of L1 replay envelopes is a separate external
 obligation. -/
-def HashInjective (hash : Chain → Chain → Body → Hash) : Prop :=
+def HashInjective (hash : Nat → Nat → Body → Hash) : Prop :=
   ∀ d z b d' z' b', hash d z b = hash d' z' b' → d = d' ∧ z = z' ∧ b = b'
+
+/-- Governance: every standard chain (every chain that is or can become a lockbox member, and every
+protected source) has a chain ID no other chain uses (OPCM checks duplicate IDs on migration). -/
+def ChainIdUnique (cfg : Config Chain Body Hash) : Prop :=
+  ∀ c c', cfg.standard c → cfg.chainId c = cfg.chainId c' → c = c'
 
 /-- The v2 design and its safe variants. The target rule is not required. -/
 structure SafeConfig (cfg : Config Chain Body Hash) : Prop where
@@ -331,7 +343,7 @@ structure SafeConfig (cfg : Config Chain Body Hash) : Prop where
 
 /-- ETH is never both delivered on the destination d and refunded on the (standard) source z. -/
 def NoDoubleSpend (cfg : Config Chain Body Hash) (s : State Chain Hash) : Prop :=
-  ∀ d z b, cfg.standard z → ¬ (s.relayed d (cfg.hash d z b) ∧ s.refunded z (cfg.hash d z b))
+  ∀ d z b, cfg.standard z → ¬ (s.relayed d (cfg.msgHash d z b) ∧ s.refunded z (cfg.msgHash d z b))
 
 /-- On standard chains (a non-standard chain's bridge can do anything: `arbitraryRefund`). -/
 def RefundImpliesExpired (cfg : Config Chain Body Hash) (s : State Chain Hash) : Prop :=
@@ -345,7 +357,7 @@ execution from s₀ to s, with hash (y, z, b) and y's clock at that step. -/
 def ExportedBy (cfg : Config Chain Body Hash) (s₀ s : State Chain Hash) (y : Chain)
     (f : Fact Chain Hash) : Prop :=
   ∃ z b s₁ s₂, Reach cfg s₀ s₁ ∧ Step cfg (.exportUndelivered y z b f.toL1) s₁ s₂ ∧
-    Reach cfg s₂ s ∧ f.hash = cfg.hash y z b ∧ f.time = s₁.clock y
+    Reach cfg s₂ s ∧ f.hash = cfg.msgHash y z b ∧ f.time = s₁.clock y
 
 /-- Every deposit A's L2 messenger can act on came from a standard chain's exporter. -/
 def NoForgedFact (cfg : Config Chain Body Hash) (s₀ s : State Chain Hash) : Prop :=

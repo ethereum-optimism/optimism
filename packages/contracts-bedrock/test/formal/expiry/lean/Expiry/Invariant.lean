@@ -47,6 +47,21 @@ theorem expiredBy_window {cfg : Config Chain Body Hash} {w a t : Nat}
     a + w < t := by
   cases hge : cfg.expireGe <;> simp [expiredBy, hge] at h hw ⊢ <;> omega
 
+/-- Message hashes are injective where it matters: on the idealized hash, with unique chain IDs
+for standard chains. -/
+theorem msgHash_inj {cfg : Config Chain Body Hash} (hinj : HashInjective cfg.hash)
+    (hid : ChainIdUnique cfg) {d z d' z' : Chain} {b b' : Body}
+    (h : cfg.msgHash d z b = cfg.msgHash d' z' b') (hd : cfg.standard d ∨ cfg.standard d')
+    (hz : cfg.standard z ∨ cfg.standard z') : d = d' ∧ z = z' ∧ b = b' := by
+  obtain ⟨h1, h2, h3⟩ := hinj _ _ _ _ _ _ h
+  refine ⟨?_, ?_, h3⟩
+  · rcases hd with hd | hd
+    · exact hid _ _ hd h1
+    · exact (hid _ _ hd h1.symm).symm
+  · rcases hz with hz | hz
+    · exact hid _ _ hz h2
+    · exact (hid _ _ hz h2.symm).symm
+
 /-! ### Definitions -/
 
 /-- A fact exported by chain y is consistent with the current state: its hash has y as the
@@ -54,7 +69,7 @@ destination, it is not from y's future, and if it is dated past the period of a 
 standard source, that message is not relayed on y. -/
 def Honest (cfg : Config Chain Body Hash) (s : State Chain Hash) (y : Chain) (f : Fact Chain Hash) :
     Prop :=
-  ∃ z b, f.hash = cfg.hash y z b ∧ f.time ≤ s.clock y ∧
+  ∃ z b, f.hash = cfg.msgHash y z b ∧ f.time ≤ s.clock y ∧
     (cfg.standard z → s.sentAt z f.hash ≠ 0 →
       expiredBy cfg (s.sentAt z f.hash) f.time → ¬ s.relayed y f.hash)
 
@@ -63,8 +78,8 @@ structure Inv (cfg : Config Chain Body Hash) (s : State Chain Hash) : Prop where
   sent_up : ∀ z h, s.sentAt z h ≠ 0 → s.upgraded z = true
   ev_le : ∀ z h e, s.events z h e → cfg.standard z → s.sentAt z h = 0 ∨ e ≤ s.sentAt z h
   sent_ev : ∀ z h, s.sentAt z h ≠ 0 → ∃ e, s.events z h e
-  rel_ev : ∀ x z b, s.relayed x (cfg.hash x z b) → cfg.standard x →
-    ∃ e, s.events z (cfg.hash x z b) e
+  rel_ev : ∀ x h, s.relayed x h → cfg.standard x →
+    ∃ z b e, h = cfg.msgHash x z b ∧ s.events z h e
   gov : ∀ z y, s.lockbox z y → cfg.standard y
   wd : ∀ w, s.withdrawals w → w.sender = .exporter → cfg.standard w.origin →
     Honest cfg s w.origin w.fact
@@ -154,7 +169,7 @@ theorem inv_init {s₀ : State Chain Hash} (h0 : Init s₀) (hg : GovInit cfg s�
   sent_up z h hne := (hne (h0.sentAt_zero z h)).elim
   ev_le z h e he := (h0.events_empty z h e he).elim
   sent_ev z h hne := (hne (h0.sentAt_zero z h)).elim
-  rel_ev x _ _ hr := (h0.relayed_empty x _ hr).elim
+  rel_ev x h hr := (h0.relayed_empty x h hr).elim
   gov := hg
   wd w hw := (h0.withdrawals_empty w hw).elim
   dep f hf := (h0.deposits_empty f hf).elim
@@ -163,7 +178,7 @@ theorem inv_init {s₀ : State Chain Hash} (h0 : Init s₀) (hg : GovInit cfg s�
   refunds_le z h _ := by rw [h0.refunds_zero z h]; exact Nat.zero_le _
   refunds_zero z h _ _ := h0.refunds_zero z h
 
-theorem inv_step (hc : SafeConfig cfg) (hinj : HashInjective cfg.hash) {a : Action Chain Body Hash}
+theorem inv_step (hc : SafeConfig cfg) (hinj : HashInjective cfg.hash) (hid : ChainIdUnique cfg) {a : Action Chain Body Hash}
     {s s' : State Chain Hash} (hI : Inv cfg s) (hs : Step cfg a s s') : Inv cfg s' := by
   obtain ⟨hg, rfl⟩ := hs
   cases a with
@@ -197,17 +212,17 @@ theorem inv_step (hc : SafeConfig cfg) (hinj : HashInjective cfg.hash) {a : Acti
   | send z d b =>
     simp only [guard] at hg
     obtain ⟨_, hfresh, _⟩ := hg
-    have hsz : s.sentAt z (cfg.hash d z b) = 0 :=
+    have hsz : s.sentAt z (cfg.msgHash d z b) = 0 :=
       Decidable.byContradiction fun hne => hfresh (hI.sent_ev _ _ hne)
     -- The new sentAt differs from the old one at most at (z, H), where it is clock z or 0.
-    have hS : ∀ c h, ¬ (c = z ∧ h = cfg.hash d z b) →
+    have hS : ∀ c h, ¬ (c = z ∧ h = cfg.msgHash d z b) →
         (next cfg (.send z d b) s).sentAt c h = s.sentAt c h := by
       intro c h hne; simp only [next]; split
       · exact upd2_ne _ _ hne
       · rfl
     have hS' : (s.upgraded z = true ∧
-          (next cfg (.send z d b) s).sentAt z (cfg.hash d z b) = s.clock z) ∨
-        (next cfg (.send z d b) s).sentAt z (cfg.hash d z b) = 0 := by
+          (next cfg (.send z d b) s).sentAt z (cfg.msgHash d z b) = s.clock z) ∨
+        (next cfg (.send z d b) s).sentAt z (cfg.msgHash d z b) = 0 := by
       simp only [next]; split
       · rename_i hu; exact Or.inl ⟨hu, upd2_eq _ _ _ _⟩
       · exact Or.inr hsz
@@ -215,25 +230,26 @@ theorem inv_step (hc : SafeConfig cfg) (hinj : HashInjective cfg.hash) {a : Acti
         Honest cfg (next cfg (.send z d b) s) y f := by
       intro y f hy ⟨z₀, b₀, hh, ht, hf⟩
       refine ⟨z₀, b₀, hh, ht, fun hzs hz hlt hr => ?_⟩
-      by_cases hc' : z₀ = z ∧ f.hash = cfg.hash d z b
+      by_cases hc' : z₀ = z ∧ f.hash = cfg.msgHash d z b
       · obtain ⟨rfl, hfH⟩ := hc'
-        obtain ⟨rfl, -, rfl⟩ := hinj _ _ _ _ _ _ (hh.symm.trans hfH)
-        obtain ⟨e, he⟩ := hI.rel_ev y z₀ b₀ (hh ▸ hr) hy
-        exact hfresh ⟨e, hfH ▸ hh ▸ he⟩
+        obtain ⟨rfl, -, rfl⟩ := msgHash_inj hinj hid (hh.symm.trans hfH) (Or.inl hy) (Or.inl hzs)
+        obtain ⟨z', b', e, hz', he⟩ := hI.rel_ev _ _ hr hy
+        obtain ⟨-, rfl, -⟩ := msgHash_inj hinj hid (hz'.symm.trans hfH) (Or.inl hy) (Or.inr hzs)
+        exact hfresh ⟨e, hfH ▸ he⟩
       · rw [hS _ _ hc'] at hz hlt
         exact hf hzs hz hlt hr
     refine ⟨?_, ?_, ?_, ?_, ?_, hI.gov, fun w hw h1 h2 => honest _ _ h2 (hI.wd w hw h1 h2),
       fun f hf => let ⟨y, hy, hh⟩ := hI.dep f hf; ⟨y, hy, honest _ _ hy hh⟩, ?_, hI.ref,
       hI.refunds_le, hI.refunds_zero⟩
     · intro c h
-      by_cases hc' : c = z ∧ h = cfg.hash d z b
+      by_cases hc' : c = z ∧ h = cfg.msgHash d z b
       · obtain ⟨rfl, rfl⟩ := hc'
         rcases hS' with ⟨_, he⟩ | he <;> rw [he]
         · exact Nat.le_refl _
         · exact Nat.zero_le _
       · rw [hS _ _ hc']; exact hI.sent_le c h
     · intro c h hne
-      by_cases hc' : c = z ∧ h = cfg.hash d z b
+      by_cases hc' : c = z ∧ h = cfg.msgHash d z b
       · obtain ⟨rfl, rfl⟩ := hc'
         rcases hS' with ⟨hu, _⟩ | he
         · exact hu
@@ -241,25 +257,25 @@ theorem inv_step (hc : SafeConfig cfg) (hinj : HashInjective cfg.hash) {a : Acti
       · rw [hS _ _ hc'] at hne; exact hI.sent_up c h hne
     · intro c h e he hstd
       rcases he with he | ⟨rfl, rfl, rfl⟩
-      · have hc' : ¬ (c = z ∧ h = cfg.hash d z b) := fun ⟨h1, h2⟩ =>
+      · have hc' : ¬ (c = z ∧ h = cfg.msgHash d z b) := fun ⟨h1, h2⟩ =>
           hfresh ⟨e, by subst h1 h2; exact he⟩
         rw [hS _ _ hc']; exact hI.ev_le c h e he hstd
       · rcases hS' with ⟨_, he⟩ | he
         · rw [he]; exact Or.inr (Nat.le_refl _)
         · exact Or.inl he
     · intro c h hne
-      by_cases hc' : c = z ∧ h = cfg.hash d z b
+      by_cases hc' : c = z ∧ h = cfg.msgHash d z b
       · obtain ⟨rfl, rfl⟩ := hc'
         exact ⟨s.clock c, Or.inr ⟨rfl, rfl, rfl⟩⟩
       · rw [hS _ _ hc'] at hne
         obtain ⟨e, he⟩ := hI.sent_ev c h hne
         exact ⟨e, Or.inl he⟩
-    · intro x z' b' hr hx
-      obtain ⟨e, he⟩ := hI.rel_ev x z' b' hr hx
-      exact ⟨e, Or.inl he⟩
+    · intro x h' hr hx
+      obtain ⟨z', b', e, hh', he⟩ := hI.rel_ev x h' hr hx
+      exact ⟨z', b', e, hh', Or.inl he⟩
     · intro c h he
       obtain ⟨f, hf, hto, hfh, hz, hlt⟩ := hI.exp c h he
-      have hc' : ¬ (c = z ∧ h = cfg.hash d z b) := fun ⟨h1, h2⟩ => hz (by subst h1 h2; exact hsz)
+      have hc' : ¬ (c = z ∧ h = cfg.msgHash d z b) := fun ⟨h1, h2⟩ => hz (by subst h1 h2; exact hsz)
       refine ⟨f, hf, hto, hfh, ?_⟩
       rw [hS _ _ hc']; exact ⟨hz, hlt⟩
   | resend z d b =>
@@ -271,18 +287,18 @@ theorem inv_step (hc : SafeConfig cfg) (hinj : HashInjective cfg.hash) {a : Acti
       · exact h
     have hup : s.upgraded z = true := hI.sent_up _ _ hsent
     have hnext : (next cfg (.resend z d b) s).sentAt =
-        upd2 s.sentAt z (cfg.hash d z b) (s.clock z) := by
+        upd2 s.sentAt z (cfg.msgHash d z b) (s.clock z) := by
       simp only [next, hrs, hup, Bool.and_self, ↓reduceIte]
-    have hS : ∀ c h, ¬ (c = z ∧ h = cfg.hash d z b) →
+    have hS : ∀ c h, ¬ (c = z ∧ h = cfg.msgHash d z b) →
         (next cfg (.resend z d b) s).sentAt c h = s.sentAt c h := by
       intro c h hne; rw [hnext]; exact upd2_ne _ _ hne
-    have hS' : (next cfg (.resend z d b) s).sentAt z (cfg.hash d z b) = s.clock z := by
+    have hS' : (next cfg (.resend z d b) s).sentAt z (cfg.msgHash d z b) = s.clock z := by
       rw [hnext]; exact upd2_eq _ _ _ _
-    have hle := hI.sent_le z (cfg.hash d z b)
+    have hle := hI.sent_le z (cfg.msgHash d z b)
     have honest : ∀ y f, Honest cfg s y f → Honest cfg (next cfg (.resend z d b) s) y f := by
       intro y f ⟨z₀, b₀, hh, ht, hf⟩
       refine ⟨z₀, b₀, hh, ht, fun hzs hz hlt hrl => ?_⟩
-      by_cases hc' : z₀ = z ∧ f.hash = cfg.hash d z b
+      by_cases hc' : z₀ = z ∧ f.hash = cfg.msgHash d z b
       · obtain ⟨rfl, hfH⟩ := hc'
         rw [hfH, hS'] at hlt
         exact hf hzs (hfH ▸ hsent) (by rw [hfH]; exact expiredBy_mono hle hlt) hrl
@@ -292,15 +308,15 @@ theorem inv_step (hc : SafeConfig cfg) (hinj : HashInjective cfg.hash) {a : Acti
       fun f hf => let ⟨y, hy, hh⟩ := hI.dep f hf; ⟨y, hy, honest _ _ hh⟩, ?_, hI.ref,
       hI.refunds_le, hI.refunds_zero⟩
     · intro c h
-      by_cases hc' : c = z ∧ h = cfg.hash d z b
+      by_cases hc' : c = z ∧ h = cfg.msgHash d z b
       · obtain ⟨rfl, rfl⟩ := hc'; rw [hS']; exact Nat.le_refl _
       · rw [hS _ _ hc']; exact hI.sent_le c h
     · intro c h hne'
-      by_cases hc' : c = z ∧ h = cfg.hash d z b
+      by_cases hc' : c = z ∧ h = cfg.msgHash d z b
       · obtain ⟨rfl, rfl⟩ := hc'; exact hup
       · rw [hS _ _ hc'] at hne'; exact hI.sent_up c h hne'
     · intro c h e he hstd
-      by_cases hc' : c = z ∧ h = cfg.hash d z b
+      by_cases hc' : c = z ∧ h = cfg.msgHash d z b
       · obtain ⟨rfl, rfl⟩ := hc'
         rw [hS']
         rcases he with he | ⟨_, _, rfl⟩
@@ -313,17 +329,17 @@ theorem inv_step (hc : SafeConfig cfg) (hinj : HashInjective cfg.hash) {a : Acti
         · exact hI.ev_le c h e he hstd
         · exact (hc' ⟨h1, h2⟩).elim
     · intro c h hne'
-      by_cases hc' : c = z ∧ h = cfg.hash d z b
+      by_cases hc' : c = z ∧ h = cfg.msgHash d z b
       · obtain ⟨rfl, rfl⟩ := hc'
         exact ⟨s.clock c, Or.inr ⟨rfl, rfl, rfl⟩⟩
       · rw [hS _ _ hc'] at hne'
         obtain ⟨e, he⟩ := hI.sent_ev c h hne'
         exact ⟨e, Or.inl he⟩
-    · intro x z' b' hrl hx
-      obtain ⟨e, he⟩ := hI.rel_ev x z' b' hrl hx
-      exact ⟨e, Or.inl he⟩
+    · intro x h' hrl hx
+      obtain ⟨z', b', e, hh', he⟩ := hI.rel_ev x h' hrl hx
+      exact ⟨z', b', e, hh', Or.inl he⟩
     · intro c h he
-      have hc' : ¬ (c = z ∧ h = cfg.hash d z b) := fun ⟨h1, h2⟩ =>
+      have hc' : ¬ (c = z ∧ h = cfg.msgHash d z b) := fun ⟨h1, h2⟩ =>
         hne hrs (by subst h1 h2; exact he)
       obtain ⟨f, hf, hto, hfh, hz, hlt⟩ := hI.exp c h he
       refine ⟨f, hf, hto, hfh, ?_⟩
@@ -331,7 +347,7 @@ theorem inv_step (hc : SafeConfig cfg) (hinj : HashInjective cfg.hash) {a : Acti
   | resendLegacy z d b =>
     simp only [guard] at hg
     obtain ⟨hnu, _⟩ := hg
-    have hsz : s.sentAt z (cfg.hash d z b) = 0 :=
+    have hsz : s.sentAt z (cfg.msgHash d z b) = 0 :=
       Decidable.byContradiction fun hne => by rw [hI.sent_up _ _ hne] at hnu; cases hnu
     refine ⟨hI.sent_le, hI.sent_up, ?_, ?_, ?_, hI.gov, hI.wd, hI.dep, hI.exp, hI.ref,
       hI.refunds_le, hI.refunds_zero⟩
@@ -342,9 +358,9 @@ theorem inv_step (hc : SafeConfig cfg) (hinj : HashInjective cfg.hash) {a : Acti
     · intro c h hne
       obtain ⟨e, he⟩ := hI.sent_ev c h hne
       exact ⟨e, Or.inl he⟩
-    · intro x z' b' hr hx
-      obtain ⟨e, he⟩ := hI.rel_ev x z' b' hr hx
-      exact ⟨e, Or.inl he⟩
+    · intro x h' hr hx
+      obtain ⟨z', b', e, hh', he⟩ := hI.rel_ev x h' hr hx
+      exact ⟨z', b', e, hh', Or.inl he⟩
   | relay x z b =>
     simp only [guard] at hg
     obtain ⟨_, hwin, _⟩ := hg
@@ -354,7 +370,7 @@ theorem inv_step (hc : SafeConfig cfg) (hinj : HashInjective cfg.hash) {a : Acti
       refine ⟨z₀, b₀, hh, ht, fun hzs hz hlt hr => ?_⟩
       rcases hr with hr | ⟨rfl, hfH⟩
       · exact hf hzs hz hlt hr
-      · obtain ⟨-, rfl, rfl⟩ := hinj _ _ _ _ _ _ (hh.symm.trans hfH)
+      · obtain ⟨-, rfl, rfl⟩ := msgHash_inj hinj hid (hh.symm.trans hfH) (Or.inl hy) (Or.inl hzs)
         obtain ⟨e, he, hle⟩ := hwin hy
         rw [← hfH] at he
         rcases hI.ev_le _ _ e he hzs with h0 | h0
@@ -366,12 +382,11 @@ theorem inv_step (hc : SafeConfig cfg) (hinj : HashInjective cfg.hash) {a : Acti
     refine ⟨hI.sent_le, hI.sent_up, hI.ev_le, hI.sent_ev, ?_, hI.gov, ?_,
       fun f hf => let ⟨y, hy, hh⟩ := hI.dep f hf; ⟨y, hy, honest _ _ hy hh⟩, hI.exp, hI.ref,
       hI.refunds_le, hI.refunds_zero⟩
-    · intro x' z' b' hr hx
-      rcases hr with hr | ⟨rfl, hH⟩
-      · exact hI.rel_ev x' z' b' hr hx
-      · obtain ⟨-, rfl, rfl⟩ := hinj _ _ _ _ _ _ hH
-        obtain ⟨e, he, _⟩ := hwin hx
-        exact ⟨e, he⟩
+    · intro x' h' hr hx
+      rcases hr with hr | ⟨rfl, rfl⟩
+      · exact hI.rel_ev x' h' hr hx
+      · obtain ⟨e, he, _⟩ := hwin hx
+        exact ⟨z, b, e, rfl, he⟩
     · intro w hw h1 h2
       rcases hw with hw | hw
       · exact honest _ _ h2 (hI.wd w hw h1 h2)
@@ -409,9 +424,9 @@ theorem inv_step (hc : SafeConfig cfg) (hinj : HashInjective cfg.hash) {a : Acti
     · intro c h' hne
       obtain ⟨e, he⟩ := hI.sent_ev c h' hne
       exact ⟨e, Or.inl he⟩
-    · intro x z' b' hr hx
-      obtain ⟨e, he⟩ := hI.rel_ev x z' b' hr hx
-      exact ⟨e, Or.inl he⟩
+    · intro x h' hr hx
+      obtain ⟨z', b', e, hh', he⟩ := hI.rel_ev x h' hr hx
+      exact ⟨z', b', e, hh', Or.inl he⟩
   | l1Relay w =>
     simp only [guard] at hg
     obtain ⟨hw, _, hlb, hsnd, _⟩ := hg
@@ -469,18 +484,18 @@ theorem inv_step (hc : SafeConfig cfg) (hinj : HashInjective cfg.hash) {a : Acti
       · exact he
     · intro c h hstd
       simp only [next]
-      by_cases hc' : c = z ∧ h = cfg.hash d z b
+      by_cases hc' : c = z ∧ h = cfg.msgHash d z b
       · obtain ⟨rfl, rfl⟩ := hc'
         rw [upd2_eq, hI.refunds_zero _ _ hstd hnr]; exact Nat.le_refl _
       · rw [upd2_ne _ _ hc']; exact hI.refunds_le c h hstd
     · intro c h hstd hnr'
       simp only [next]
-      have hc' : ¬ (c = z ∧ h = cfg.hash d z b) := fun e => hnr' (Or.inr e)
+      have hc' : ¬ (c = z ∧ h = cfg.msgHash d z b) := fun e => hnr' (Or.inr e)
       rw [upd2_ne _ _ hc']
       exact hI.refunds_zero c h hstd (fun r => hnr' (Or.inl r))
 
 /-- Main induction: `Inv`, `HistW` and the deposit history hold on every reachable state. -/
-theorem inv_reach (hc : SafeConfig cfg) (hinj : HashInjective cfg.hash) {s₀ s : State Chain Hash}
+theorem inv_reach (hc : SafeConfig cfg) (hinj : HashInjective cfg.hash) (hid : ChainIdUnique cfg) {s₀ s : State Chain Hash}
     (h0 : Init s₀) (hg : GovInit cfg s₀) (hr : Reach cfg s₀ s) :
     Inv cfg s ∧ HistW cfg s₀ s ∧ NoForgedFact cfg s₀ s := by
   induction hr with
@@ -488,7 +503,7 @@ theorem inv_reach (hc : SafeConfig cfg) (hinj : HashInjective cfg.hash) {s₀ s 
       fun f hf => (h0.deposits_empty f hf).elim⟩
   | @tail s₁ s₂ a hr' hs ih =>
     obtain ⟨hI, hW, hD⟩ := ih
-    refine ⟨inv_step hc hinj hI hs, histW_reach h0 (Reach.tail a hr' hs), ?_⟩
+    refine ⟨inv_step hc hinj hid hI hs, histW_reach h0 (Reach.tail a hr' hs), ?_⟩
     intro f hf
     have hs' := hs
     obtain ⟨hgd, rfl⟩ := hs
